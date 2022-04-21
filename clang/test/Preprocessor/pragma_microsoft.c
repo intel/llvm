@@ -51,7 +51,9 @@ __pragma(comment(linker," bar=" BAR))
   __pragma(warning(pop)); \
 }
 
-void f()
+#define PRAGMA_IN_ARGS(p) p
+
+void f(void)
 {
   __pragma() // expected-warning{{unknown pragma ignored}}
 // CHECK: #pragma
@@ -64,8 +66,16 @@ void f()
 // CHECK: #pragma warning(disable: 10000)
 // CHECK: ; 1 + (2 > 3) ? 4 : 5;
 // CHECK: #pragma warning(pop)
-}
 
+  // Check that macro arguments can contain __pragma.
+  PRAGMA_IN_ARGS(MACRO_WITH__PRAGMA) // expected-warning {{lower precedence}} \
+                                     // expected-note 2 {{place parentheses}} \
+                                     // expected-warning {{expression result unused}}
+// CHECK: #pragma warning(push)
+// CHECK: #pragma warning(disable: 10000)
+// CHECK: ; 1 + (2 > 3) ? 4 : 5;
+// CHECK: #pragma warning(pop)
+}
 
 // This should include macro_arg_directive even though the include
 // is looking for test.h  This allows us to assign to "n"
@@ -102,7 +112,7 @@ void test( void ) {
 // Test to make sure there are no use-after-free problems
 #define B "pp-record.h"
 #pragma include_alias("quux.h", B)
-void g() {}
+void g(int k) {}
 #include "quux.h"
 
 // Make sure that empty includes don't work

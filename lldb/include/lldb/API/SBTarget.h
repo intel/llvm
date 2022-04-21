@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBTarget_h_
-#define LLDB_SBTarget_h_
+#ifndef LLDB_API_SBTARGET_H
+#define LLDB_API_SBTARGET_H
 
 #include "lldb/API/SBAddress.h"
 #include "lldb/API/SBAttachInfo.h"
@@ -94,6 +94,15 @@ public:
   ///     A platform object.
   lldb::SBPlatform GetPlatform();
 
+  /// Return the environment variables that would be used to launch a new
+  /// process.
+  ///
+  /// \return
+  ///     An lldb::SBEnvironment object which is a copy of the target's
+  ///     environment.
+
+  SBEnvironment GetEnvironment();
+
   /// Install any binaries that need to be installed.
   ///
   /// This function does nothing when debugging on the host system.
@@ -127,7 +136,9 @@ public:
   ///     The argument array.
   ///
   /// \param[in] envp
-  ///     The environment array.
+  ///     The environment array. If this is null, the default
+  ///     environment values (provided through `settings set
+  ///     target.env-vars`) will be used.
   ///
   /// \param[in] stdin_path
   ///     The path to use when re-directing the STDIN of the new
@@ -175,7 +186,9 @@ public:
   ///     The argument array.
   ///
   /// \param[in] envp
-  ///     The environment array.
+  ///     The environment array. If this isn't provided, the default
+  ///     environment values (provided through `settings set
+  ///     target.env-vars`) will be used.
   ///
   /// \param[in] working_directory
   ///     The working directory to have the child process run in
@@ -308,6 +321,8 @@ public:
   uint32_t GetAddressByteSize();
 
   const char *GetTriple();
+  
+  const char *GetABIName();
 
   /// Architecture data byte width accessor
   ///
@@ -322,6 +337,11 @@ public:
   /// The size in 8-bit (host) bytes of a minimum addressable
   /// unit from the Architecture's code bus
   uint32_t GetCodeByteSize();
+
+  /// Gets the target.max-children-count value
+  /// It should be used to limit the number of
+  /// children of large data structures to be displayed.
+  uint32_t GetMaximumNumberOfChildrenToDisplay() const;
 
   /// Set the base load address for a module section.
   ///
@@ -547,6 +567,12 @@ public:
                              uint32_t column, lldb::addr_t offset,
                              SBFileSpecList &module_list);
 
+  lldb::SBBreakpoint
+  BreakpointCreateByLocation(const lldb::SBFileSpec &file_spec, uint32_t line,
+                             uint32_t column, lldb::addr_t offset,
+                             SBFileSpecList &module_list,
+                             bool move_to_nearest_code);
+
   lldb::SBBreakpoint BreakpointCreateByName(const char *symbol_name,
                                             const char *module_name = nullptr);
 
@@ -624,7 +650,7 @@ public:
   lldb::SBBreakpoint BreakpointCreateByAddress(addr_t address);
 
   lldb::SBBreakpoint BreakpointCreateBySBAddress(SBAddress &address);
-  
+
   /// Create a breakpoint using a scripted resolver.
   ///
   /// \param[in] class_name
@@ -632,16 +658,16 @@ public:
   ///
   /// \param[in] extra_args
   ///    This is an SBStructuredData object that will get passed to the
-  ///    constructor of the class in class_name.  You can use this to 
-  ///    reuse the same class, parametrizing with entries from this 
+  ///    constructor of the class in class_name.  You can use this to
+  ///    reuse the same class, parametrizing with entries from this
   ///    dictionary.
   ///
   /// \param module_list
-  ///    If this is non-empty, this will be used as the module filter in the 
+  ///    If this is non-empty, this will be used as the module filter in the
   ///    SearchFilter created for this breakpoint.
   ///
   /// \param file_list
-  ///    If this is non-empty, this will be used as the comp unit filter in the 
+  ///    If this is non-empty, this will be used as the comp unit filter in the
   ///    SearchFilter created for this breakpoint.
   ///
   /// \return
@@ -815,9 +841,26 @@ public:
 
   lldb::addr_t GetStackRedZoneSize();
 
+  bool IsLoaded(const lldb::SBModule &module) const;
+
   lldb::SBLaunchInfo GetLaunchInfo() const;
 
   void SetLaunchInfo(const lldb::SBLaunchInfo &launch_info);
+
+  /// Get a \a SBTrace object the can manage the processor trace information of
+  /// this target.
+  ///
+  /// \return
+  ///   The trace object. The returned SBTrace object might not be valid, so it
+  ///   should be checked with a call to "bool SBTrace::IsValid()".
+  lldb::SBTrace GetTrace();
+
+  /// Create a \a Trace object for the current target using the using the
+  /// default supported tracing technology for this process.
+  ///
+  /// \param[out] error
+  ///     An error if a Trace already exists or the trace couldn't be created.
+  lldb::SBTrace CreateTrace(SBError &error);
 
 protected:
   friend class SBAddress;
@@ -829,6 +872,7 @@ protected:
   friend class SBFunction;
   friend class SBInstruction;
   friend class SBModule;
+  friend class SBPlatform;
   friend class SBProcess;
   friend class SBSection;
   friend class SBSourceManager;
@@ -849,4 +893,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBTarget_h_
+#endif // LLDB_API_SBTARGET_H

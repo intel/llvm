@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_DWARFDebugMacro_h_
-#define SymbolFileDWARF_DWARFDebugMacro_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGMACRO_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGMACRO_H
 
 #include <map>
 
@@ -43,9 +43,9 @@ private:
   SkipOperandTable(const lldb_private::DWARFDataExtractor &debug_macro_data,
                    lldb::offset_t *offset);
 
-  uint16_t m_version;
-  bool m_offset_is_64_bit;
-  uint64_t m_debug_line_offset;
+  uint16_t m_version = 0;
+  bool m_offset_is_64_bit = false;
+  uint64_t m_debug_line_offset = 0;
 };
 
 class DWARFDebugMacroEntry {
@@ -58,4 +58,4 @@ public:
                    lldb_private::DebugMacrosSP &debug_macros_sp);
 };
 
-#endif // SymbolFileDWARF_DWARFDebugMacro_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGMACRO_H

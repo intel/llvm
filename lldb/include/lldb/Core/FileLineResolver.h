@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_FileLineResolver_h_
-#define liblldb_FileLineResolver_h_
+#ifndef LLDB_CORE_FILELINERESOLVER_H
+#define LLDB_CORE_FILELINERESOLVER_H
 
 #include "lldb/Core/SearchFilter.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/lldb-defines.h"
 
-#include <stdint.h>
+#include <cstdint>
 
 namespace lldb_private {
 class Address;
@@ -28,8 +28,8 @@ class FileLineResolver : public Searcher {
 public:
   FileLineResolver()
       : m_file_spec(),
-        m_line_number(UINT32_MAX), // Set this to zero for all lines in a file
-        m_sc_list(), m_inlines(true) {}
+        // Set this to zero for all lines in a file
+        m_sc_list() {}
 
   FileLineResolver(const FileSpec &resolver, uint32_t line_no,
                    bool check_inlines);
@@ -37,8 +37,8 @@ public:
   ~FileLineResolver() override;
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override;
 
@@ -52,15 +52,17 @@ public:
 
 protected:
   FileSpec m_file_spec;   // This is the file spec we are looking for.
-  uint32_t m_line_number; // This is the line number that we are looking for.
+  uint32_t m_line_number =
+      UINT32_MAX; // This is the line number that we are looking for.
   SymbolContextList m_sc_list;
-  bool m_inlines; // This determines whether the resolver looks for inlined
-                  // functions or not.
+  bool m_inlines = true; // This determines whether the resolver looks for
+                         // inlined functions or not.
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(FileLineResolver);
+  FileLineResolver(const FileLineResolver &) = delete;
+  const FileLineResolver &operator=(const FileLineResolver &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_FileLineResolver_h_
+#endif // LLDB_CORE_FILELINERESOLVER_H

@@ -65,6 +65,10 @@ public:
                              TargetInfo::ConstraintInfo &Info) const override {
     return false;
   }
+
+  bool hasBitIntType() const override { return true; }
+
+  bool isCLZForZeroUndef() const override { return false; }
 };
 
 } // namespace targets

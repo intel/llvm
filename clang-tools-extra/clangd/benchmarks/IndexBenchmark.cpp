@@ -13,8 +13,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
-#include <fstream>
-#include <streambuf>
 #include <string>
 
 const char *IndexFilename;
@@ -25,18 +23,26 @@ namespace clangd {
 namespace {
 
 std::unique_ptr<SymbolIndex> buildMem() {
-  return loadIndex(IndexFilename, /*UseDex=*/false);
+  return loadIndex(IndexFilename, clang::clangd::SymbolOrigin::Static,
+                   /*UseDex=*/false);
 }
 
 std::unique_ptr<SymbolIndex> buildDex() {
-  return loadIndex(IndexFilename, /*UseDex=*/true);
+  return loadIndex(IndexFilename, clang::clangd::SymbolOrigin::Static,
+                   /*UseDex=*/true);
 }
 
 // Reads JSON array of serialized FuzzyFindRequest's from user-provided file.
 std::vector<FuzzyFindRequest> extractQueriesFromLogs() {
-  std::ifstream InputStream(RequestsFilename);
-  std::string Log((std::istreambuf_iterator<char>(InputStream)),
-                  std::istreambuf_iterator<char>());
+
+  auto Buffer = llvm::MemoryBuffer::getFile(RequestsFilename);
+  if (!Buffer) {
+    llvm::errs() << "Error cannot open JSON request file:" << RequestsFilename
+                 << ": " << Buffer.getError().message() << "\n";
+    exit(1);
+  }
+
+  StringRef Log = Buffer.get()->getBuffer();
 
   std::vector<FuzzyFindRequest> Requests;
   auto JSONArray = llvm::json::parse(Log);
@@ -56,8 +62,10 @@ std::vector<FuzzyFindRequest> extractQueriesFromLogs() {
   for (const auto &Item : *JSONArray->getAsArray()) {
     FuzzyFindRequest Request;
     // Panic if the provided file couldn't be parsed.
-    if (!fromJSON(Item, Request)) {
-      llvm::errs() << "Error when deserializing request: " << Item << '\n';
+    llvm::json::Path::Root Root("FuzzyFindRequest");
+    if (!fromJSON(Item, Request, Root)) {
+      llvm::errs() << llvm::toString(Root.getError()) << "\n";
+      Root.printErrorContext(Item, llvm::errs());
       exit(1);
     }
     Requests.push_back(Request);
@@ -65,23 +73,29 @@ std::vector<FuzzyFindRequest> extractQueriesFromLogs() {
   return Requests;
 }
 
-static void MemQueries(benchmark::State &State) {
+static void memQueries(benchmark::State &State) {
   const auto Mem = buildMem();
   const auto Requests = extractQueriesFromLogs();
   for (auto _ : State)
     for (const auto &Request : Requests)
       Mem->fuzzyFind(Request, [](const Symbol &S) {});
 }
-BENCHMARK(MemQueries);
+BENCHMARK(memQueries);
 
-static void DexQueries(benchmark::State &State) {
+static void dexQueries(benchmark::State &State) {
   const auto Dex = buildDex();
   const auto Requests = extractQueriesFromLogs();
   for (auto _ : State)
     for (const auto &Request : Requests)
       Dex->fuzzyFind(Request, [](const Symbol &S) {});
 }
-BENCHMARK(DexQueries);
+BENCHMARK(dexQueries);
+
+static void dexBuild(benchmark::State &State) {
+  for (auto _ : State)
+    buildDex();
+}
+BENCHMARK(dexBuild);
 
 } // namespace
 } // namespace clangd
@@ -94,7 +108,7 @@ BENCHMARK(DexQueries);
 int main(int argc, char *argv[]) {
   if (argc < 3) {
     llvm::errs() << "Usage: " << argv[0]
-                 << " global-symbol-index.yaml requests.json "
+                 << " global-symbol-index.dex requests.json "
                     "BENCHMARK_OPTIONS...\n";
     return -1;
   }

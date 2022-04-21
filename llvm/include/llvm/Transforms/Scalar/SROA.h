@@ -18,6 +18,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/ValueHandle.h"
 #include <vector>
 
 namespace llvm {
@@ -26,7 +27,6 @@ class AllocaInst;
 class AssumptionCache;
 class DominatorTree;
 class Function;
-class Instruction;
 class LLVMContext;
 class PHINode;
 class SelectInst;
@@ -61,7 +61,7 @@ class SROALegacyPass;
 ///    onto insert and extract operations on a vector value, and convert them to
 ///    this form. By doing so, it will enable promotion of vector aggregates to
 ///    SSA vector values.
-class SROA : public PassInfoMixin<SROA> {
+class SROAPass : public PassInfoMixin<SROAPass> {
   LLVMContext *C = nullptr;
   DominatorTree *DT = nullptr;
   AssumptionCache *AC = nullptr;
@@ -77,8 +77,8 @@ class SROA : public PassInfoMixin<SROA> {
 
   /// A collection of instructions to delete.
   /// We try to batch deletions to simplify code and make things a bit more
-  /// efficient.
-  SetVector<Instruction *, SmallVector<Instruction *, 8>> DeadInsts;
+  /// efficient. We also make sure there is no dangling pointers.
+  SmallVector<WeakVH, 8> DeadInsts;
 
   /// Post-promotion worklist.
   ///
@@ -109,7 +109,7 @@ class SROA : public PassInfoMixin<SROA> {
   SetVector<SelectInst *, SmallVector<SelectInst *, 2>> SpeculatableSelects;
 
 public:
-  SROA() = default;
+  SROAPass() = default;
 
   /// Run the pass over the function.
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);

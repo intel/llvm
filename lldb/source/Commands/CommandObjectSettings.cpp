@@ -1,4 +1,4 @@
-//===-- CommandObjectSettings.cpp -------------------------------*- C++ -*-===//
+//===-- CommandObjectSettings.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,20 +20,14 @@ using namespace lldb;
 using namespace lldb_private;
 
 // CommandObjectSettingsSet
-
-static constexpr OptionDefinition g_settings_set_options[] = {
-    // clang-format off
-  { LLDB_OPT_SET_2, false, "global", 'g', OptionParser::eNoArgument, nullptr, {}, 0, eArgTypeNone, "Apply the new value to the global default value." },
-  { LLDB_OPT_SET_2, false, "force",  'f', OptionParser::eNoArgument, nullptr, {}, 0, eArgTypeNone, "Force an empty value to be accepted as the default." }
-    // clang-format on
-};
+#define LLDB_OPTIONS_settings_set
+#include "CommandOptions.inc"
 
 class CommandObjectSettingsSet : public CommandObjectRaw {
 public:
   CommandObjectSettingsSet(CommandInterpreter &interpreter)
       : CommandObjectRaw(interpreter, "settings set",
-                         "Set the value of the specified debugger setting."),
-        m_options() {
+                         "Set the value of the specified debugger setting.") {
     CommandArgumentEntry arg1;
     CommandArgumentEntry arg2;
     CommandArgumentData var_name_arg;
@@ -92,7 +86,7 @@ insert-before or insert-after.");
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options(), m_global(false) {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -108,10 +102,11 @@ insert-before or insert-after.");
       case 'g':
         m_global = true;
         break;
-      default:
-        error.SetErrorStringWithFormat("unrecognized options '%c'",
-                                       short_option);
+      case 'e':
+        m_exists = true;
         break;
+      default:
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -120,6 +115,7 @@ insert-before or insert-after.");
     void OptionParsingStarting(ExecutionContext *execution_context) override {
       m_global = false;
       m_force = false;
+      m_exists = false;
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
@@ -127,19 +123,19 @@ insert-before or insert-after.");
     }
 
     // Instance variables to hold the values for command options.
-    bool m_global;
-    bool m_force;
+    bool m_global = false;
+    bool m_force = false;
+    bool m_exists = false;
   };
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
 
     const size_t argc = request.GetParsedLine().GetArgumentCount();
     const char *arg = nullptr;
-    int setting_var_idx;
-    for (setting_var_idx = 0; setting_var_idx < static_cast<int>(argc);
-         ++setting_var_idx) {
+    size_t setting_var_idx;
+    for (setting_var_idx = 0; setting_var_idx < argc; ++setting_var_idx) {
       arg = request.GetParsedLine().GetArgumentAtIndex(setting_var_idx);
       if (arg && arg[0] != '-')
         break; // We found our setting variable name index
@@ -149,27 +145,26 @@ insert-before or insert-after.");
       CommandCompletions::InvokeCommonCompletionCallbacks(
           GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
           request, nullptr);
-    } else {
-      arg =
-          request.GetParsedLine().GetArgumentAtIndex(request.GetCursorIndex());
-
-      if (arg) {
-        if (arg[0] == '-') {
-          // Complete option name
-        } else {
-          // Complete setting value
-          const char *setting_var_name =
-              request.GetParsedLine().GetArgumentAtIndex(setting_var_idx);
-          Status error;
-          lldb::OptionValueSP value_sp(GetDebugger().GetPropertyValue(
-              &m_exe_ctx, setting_var_name, false, error));
-          if (value_sp) {
-            value_sp->AutoComplete(m_interpreter, request);
-          }
-        }
-      }
+      return;
     }
-    return request.GetNumberOfMatches();
+    arg = request.GetParsedLine().GetArgumentAtIndex(request.GetCursorIndex());
+
+    if (!arg)
+      return;
+
+    // Complete option name
+    if (arg[0] != '-')
+      return;
+
+    // Complete setting value
+    const char *setting_var_name =
+        request.GetParsedLine().GetArgumentAtIndex(setting_var_idx);
+    Status error;
+    lldb::OptionValueSP value_sp(GetDebugger().GetPropertyValue(
+        &m_exe_ctx, setting_var_name, false, error));
+    if (!value_sp)
+      return;
+    value_sp->AutoComplete(m_interpreter, request);
   }
 
 protected:
@@ -186,7 +181,6 @@ protected:
 
     if ((argc < min_argc) && (!m_options.m_global)) {
       result.AppendError("'settings set' takes more arguments");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -194,7 +188,6 @@ protected:
     if ((var_name == nullptr) || (var_name[0] == '\0')) {
       result.AppendError(
           "'settings set' command requires a valid variable name");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -205,23 +198,19 @@ protected:
           &m_exe_ctx, eVarSetOperationClear, var_name, llvm::StringRef()));
       if (error.Fail()) {
         result.AppendError(error.AsCString());
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
       return result.Succeeded();
     }
 
     // Split the raw command into var_name and value pair.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, false, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.ltrim();
 
     Status error;
-    if (m_options.m_global) {
+    if (m_options.m_global)
       error = GetDebugger().SetPropertyValue(nullptr, eVarSetOperationAssign,
-                                             var_name, var_value_cstr);
-    }
+                                             var_name, var_value);
 
     if (error.Success()) {
       // FIXME this is the same issue as the one in commands script import
@@ -232,17 +221,15 @@ protected:
       ExecutionContext exe_ctx(m_exe_ctx);
       m_exe_ctx.Clear();
       error = GetDebugger().SetPropertyValue(&exe_ctx, eVarSetOperationAssign,
-                                             var_name, var_value_cstr);
+                                             var_name, var_value);
     }
 
-    if (error.Fail()) {
+    if (error.Fail() && !m_options.m_exists) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       return false;
-    } else {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
     }
 
+    result.SetStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 
@@ -276,13 +263,12 @@ public:
 
   ~CommandObjectSettingsShow() override = default;
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
     CommandCompletions::InvokeCommonCompletionCallbacks(
         GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
         request, nullptr);
-    return request.GetNumberOfMatches();
   }
 
 protected:
@@ -292,13 +278,12 @@ protected:
     if (!args.empty()) {
       for (const auto &arg : args) {
         Status error(GetDebugger().DumpPropertyValue(
-            &m_exe_ctx, result.GetOutputStream(), arg.ref,
+            &m_exe_ctx, result.GetOutputStream(), arg.ref(),
             OptionValue::eDumpGroupValue));
         if (error.Success()) {
           result.GetOutputStream().EOL();
         } else {
           result.AppendError(error.AsCString());
-          result.SetStatus(eReturnStatusFailed);
         }
       }
     } else {
@@ -311,13 +296,8 @@ protected:
 };
 
 // CommandObjectSettingsWrite -- Write settings to file
-
-static constexpr OptionDefinition g_settings_write_options[] = {
-    // clang-format off
-  { LLDB_OPT_SET_ALL, true,  "file",  'f', OptionParser::eRequiredArgument, nullptr, {}, CommandCompletions::eDiskFileCompletion, eArgTypeFilename,    "The file into which to write the settings." },
-  { LLDB_OPT_SET_ALL, false, "append",'a', OptionParser::eNoArgument,       nullptr, {}, 0,                                       eArgTypeNone,        "Append to saved settings file if it exists."},
-    // clang-format on
-};
+#define LLDB_OPTIONS_settings_write
+#include "CommandOptions.inc"
 
 class CommandObjectSettingsWrite : public CommandObjectParsed {
 public:
@@ -327,8 +307,7 @@ public:
             "Write matching debugger settings and their "
             "current values to a file that can be read in with "
             "\"settings read\". Defaults to writing all settings.",
-            nullptr),
-        m_options() {
+            nullptr) {
     CommandArgumentEntry arg1;
     CommandArgumentData var_name_arg;
 
@@ -350,7 +329,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -361,15 +340,13 @@ public:
 
       switch (short_option) {
       case 'f':
-        m_filename.assign(option_arg);
+        m_filename.assign(std::string(option_arg));
         break;
       case 'a':
         m_append = true;
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -394,19 +371,17 @@ protected:
     FileSpec file_spec(m_options.m_filename);
     FileSystem::Instance().Resolve(file_spec);
     std::string path(file_spec.GetPath());
-    uint32_t options = File::OpenOptions::eOpenOptionWrite |
-                       File::OpenOptions::eOpenOptionCanCreate;
+    auto options = File::eOpenOptionWriteOnly | File::eOpenOptionCanCreate;
     if (m_options.m_append)
-      options |= File::OpenOptions::eOpenOptionAppend;
+      options |= File::eOpenOptionAppend;
     else
-      options |= File::OpenOptions::eOpenOptionTruncate;
+      options |= File::eOpenOptionTruncate;
 
     StreamFile out_file(path.c_str(), options,
                         lldb::eFilePermissionsFileDefault);
 
     if (!out_file.GetFile().IsValid()) {
       result.AppendErrorWithFormat("%s: unable to write to file", path.c_str());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -421,10 +396,9 @@ protected:
 
     for (const auto &arg : args) {
       Status error(GetDebugger().DumpPropertyValue(
-          &clean_ctx, out_file, arg.ref, OptionValue::eDumpGroupExport));
+          &clean_ctx, out_file, arg.ref(), OptionValue::eDumpGroupExport));
       if (!error.Success()) {
         result.AppendError(error.AsCString());
-        result.SetStatus(eReturnStatusFailed);
       }
     }
 
@@ -436,12 +410,8 @@ private:
 };
 
 // CommandObjectSettingsRead -- Read settings from file
-
-static constexpr OptionDefinition g_settings_read_options[] = {
-    // clang-format off
-  {LLDB_OPT_SET_ALL, true, "file",'f', OptionParser::eRequiredArgument, nullptr, {}, CommandCompletions::eDiskFileCompletion, eArgTypeFilename,       "The file from which to read the breakpoints." },
-    // clang-format on
-};
+#define LLDB_OPTIONS_settings_read
+#include "CommandOptions.inc"
 
 class CommandObjectSettingsRead : public CommandObjectParsed {
 public:
@@ -449,8 +419,7 @@ public:
       : CommandObjectParsed(
             interpreter, "settings read",
             "Read settings previously saved to a file with \"settings write\".",
-            nullptr),
-        m_options() {}
+            nullptr) {}
 
   ~CommandObjectSettingsRead() override = default;
 
@@ -458,7 +427,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -469,12 +438,10 @@ public:
 
       switch (short_option) {
       case 'f':
-        m_filename.assign(option_arg);
+        m_filename.assign(std::string(option_arg));
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -496,14 +463,13 @@ protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     FileSpec file(m_options.m_filename);
     FileSystem::Instance().Resolve(file);
-    ExecutionContext clean_ctx;
     CommandInterpreterRunOptions options;
     options.SetAddToHistory(false);
     options.SetEchoCommands(false);
     options.SetPrintResults(true);
     options.SetPrintErrors(true);
     options.SetStopOnError(false);
-    m_interpreter.HandleCommandsFromFile(file, &clean_ctx, options, result);
+    m_interpreter.HandleCommandsFromFile(file, options, result);
     return result.Succeeded();
   }
 
@@ -541,13 +507,12 @@ public:
 
   ~CommandObjectSettingsList() override = default;
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
     CommandCompletions::InvokeCommonCompletionCallbacks(
         GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
         request, nullptr);
-    return request.GetNumberOfMatches();
   }
 
 protected:
@@ -559,10 +524,8 @@ protected:
     if (argc > 0) {
       const bool dump_qualified_name = true;
 
-      // TODO: Convert to StringRef based enumeration.  Requires converting
-      // GetPropertyAtPath first.
-      for (size_t i = 0; i < argc; ++i) {
-        const char *property_path = args.GetArgumentAtIndex(i);
+      for (const Args::ArgEntry &arg : args) {
+        const char *property_path = arg.c_str();
 
         const Property *property =
             GetDebugger().GetValueProperties()->GetPropertyAtPath(
@@ -574,7 +537,6 @@ protected:
         } else {
           result.AppendErrorWithFormat("invalid property path '%s'",
                                        property_path);
-          result.SetStatus(eReturnStatusFailed);
         }
       }
     } else {
@@ -627,14 +589,15 @@ public:
 
   ~CommandObjectSettingsRemove() override = default;
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  bool WantsCompletion() override { return true; }
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
     if (request.GetCursorIndex() < 2)
       CommandCompletions::InvokeCommonCompletionCallbacks(
           GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
           request, nullptr);
-    return request.GetNumberOfMatches();
   }
 
 protected:
@@ -650,33 +613,28 @@ protected:
 
     const size_t argc = cmd_args.GetArgumentCount();
     if (argc == 0) {
-      result.AppendError("'settings set' takes an array or dictionary item, or "
-                         "an array followed by one or more indexes, or a "
+      result.AppendError("'settings remove' takes an array or dictionary item, "
+                         "or an array followed by one or more indexes, or a "
                          "dictionary followed by one or more key names to "
                          "remove");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
     const char *var_name = cmd_args.GetArgumentAtIndex(0);
     if ((var_name == nullptr) || (var_name[0] == '\0')) {
       result.AppendError(
-          "'settings set' command requires a valid variable name");
-      result.SetStatus(eReturnStatusFailed);
+          "'settings remove' command requires a valid variable name");
       return false;
     }
 
     // Split the raw command into var_name and value pair.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationRemove, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationRemove, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -740,16 +698,14 @@ public:
   // !WantsRawCommandString.
   bool WantsCompletion() override { return true; }
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
     // Attempting to complete variable name
     if (request.GetCursorIndex() < 2)
       CommandCompletions::InvokeCommonCompletionCallbacks(
           GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
           request, nullptr);
-
-    return request.GetNumberOfMatches();
   }
 
 protected:
@@ -762,21 +718,17 @@ protected:
     if ((var_name == nullptr) || (var_name[0] == '\0')) {
       result.AppendError("'settings replace' command requires a valid variable "
                          "name; No value supplied");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
     // Split the raw command into var_name, index_value, and value triple.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationReplace, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationReplace, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     } else {
       result.SetStatus(eReturnStatusSuccessFinishNoResult);
@@ -838,16 +790,14 @@ public:
   // !WantsRawCommandString.
   bool WantsCompletion() override { return true; }
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
     // Attempting to complete variable name
     if (request.GetCursorIndex() < 2)
       CommandCompletions::InvokeCommonCompletionCallbacks(
           GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
           request, nullptr);
-
-    return request.GetNumberOfMatches();
   }
 
 protected:
@@ -860,7 +810,6 @@ protected:
 
     if (argc < 3) {
       result.AppendError("'settings insert-before' takes more arguments");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -868,21 +817,17 @@ protected:
     if ((var_name == nullptr) || (var_name[0] == '\0')) {
       result.AppendError("'settings insert-before' command requires a valid "
                          "variable name; No value supplied");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
     // Split the raw command into var_name, index_value, and value triple.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationInsertBefore, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationInsertBefore, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -941,16 +886,14 @@ public:
   // !WantsRawCommandString.
   bool WantsCompletion() override { return true; }
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
     // Attempting to complete variable name
     if (request.GetCursorIndex() < 2)
       CommandCompletions::InvokeCommonCompletionCallbacks(
           GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
           request, nullptr);
-
-    return request.GetNumberOfMatches();
   }
 
 protected:
@@ -963,7 +906,6 @@ protected:
 
     if (argc < 3) {
       result.AppendError("'settings insert-after' takes more arguments");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -971,21 +913,17 @@ protected:
     if ((var_name == nullptr) || (var_name[0] == '\0')) {
       result.AppendError("'settings insert-after' command requires a valid "
                          "variable name; No value supplied");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
     // Split the raw command into var_name, index_value, and value triple.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationInsertAfter, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationInsertAfter, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1033,16 +971,14 @@ public:
   // !WantsRawCommandString.
   bool WantsCompletion() override { return true; }
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
     // Attempting to complete variable name
     if (request.GetCursorIndex() < 2)
       CommandCompletions::InvokeCommonCompletionCallbacks(
           GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
           request, nullptr);
-
-    return request.GetNumberOfMatches();
   }
 
 protected:
@@ -1054,7 +990,6 @@ protected:
 
     if (argc < 2) {
       result.AppendError("'settings append' takes more arguments");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1062,7 +997,6 @@ protected:
     if ((var_name == nullptr) || (var_name[0] == '\0')) {
       result.AppendError("'settings append' command requires a valid variable "
                          "name; No value supplied");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1070,16 +1004,13 @@ protected:
     // character string later on.
 
     // Split the raw command into var_name and value pair.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationAppend, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationAppend, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1088,13 +1019,16 @@ protected:
 };
 
 // CommandObjectSettingsClear
+#define LLDB_OPTIONS_settings_clear
+#include "CommandOptions.inc"
 
 class CommandObjectSettingsClear : public CommandObjectParsed {
 public:
   CommandObjectSettingsClear(CommandInterpreter &interpreter)
       : CommandObjectParsed(
             interpreter, "settings clear",
-            "Clear a debugger setting array, dictionary, or string.", nullptr) {
+            "Clear a debugger setting array, dictionary, or string. "
+            "If '-a' option is specified, it clears all settings.", nullptr) {
     CommandArgumentEntry arg;
     CommandArgumentData var_name_arg;
 
@@ -1112,26 +1046,64 @@ public:
 
   ~CommandObjectSettingsClear() override = default;
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override {
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
     // Attempting to complete variable name
     if (request.GetCursorIndex() < 2)
       CommandCompletions::InvokeCommonCompletionCallbacks(
           GetCommandInterpreter(), CommandCompletions::eSettingsNameCompletion,
           request, nullptr);
-
-    return request.GetNumberOfMatches();
   }
+
+   Options *GetOptions() override { return &m_options; }
+
+  class CommandOptions : public Options {
+  public:
+    CommandOptions() = default;
+
+    ~CommandOptions() override = default;
+
+    Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
+                          ExecutionContext *execution_context) override {
+      const int short_option = m_getopt_table[option_idx].val;
+      switch (short_option) {
+      case 'a':
+        m_clear_all = true;
+        break;
+      default:
+        llvm_unreachable("Unimplemented option");
+      }
+      return Status();
+    }
+
+    void OptionParsingStarting(ExecutionContext *execution_context) override {
+      m_clear_all = false;
+    }
+
+    llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
+      return llvm::makeArrayRef(g_settings_clear_options);
+    }
+
+    bool m_clear_all = false;
+  };
 
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     result.SetStatus(eReturnStatusSuccessFinishNoResult);
     const size_t argc = command.GetArgumentCount();
 
+    if (m_options.m_clear_all) {
+      if (argc != 0) {
+        result.AppendError("'settings clear --all' doesn't take any arguments");
+        return false;
+      }
+      GetDebugger().GetValueProperties()->Clear();
+      return result.Succeeded();
+    }
+
     if (argc != 1) {
       result.AppendError("'settings clear' takes exactly one argument");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1139,7 +1111,6 @@ protected:
     if ((var_name == nullptr) || (var_name[0] == '\0')) {
       result.AppendError("'settings clear' command requires a valid variable "
                          "name; No value supplied");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1147,12 +1118,14 @@ protected:
         &m_exe_ctx, eVarSetOperationClear, var_name, llvm::StringRef()));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
     return result.Succeeded();
   }
+
+  private:
+    CommandOptions m_options;
 };
 
 // CommandObjectMultiwordSettings

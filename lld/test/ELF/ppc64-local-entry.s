@@ -2,7 +2,7 @@
 
 # RUN: llvm-mc -filetype=obj -triple=powerpc64 %s -o %t
 # RUN: ld.lld -r %t -o %t2
-# RUN: llvm-objdump -s -section=.symtab %t2 | FileCheck %s
+# RUN: llvm-objdump -s --section=.symtab %t2 | FileCheck %s
 
 .text
 .abiversion 2
@@ -44,4 +44,4 @@ _start:
 // st_other's PPC64 specific flags, thus we check the
 // result of the hexdump of .symtab section.
 
-// CHECK: 0070 00000000 00000000 00000009 12600001
+// CHECK: 0060 00000003 12600001 00000000 00000000

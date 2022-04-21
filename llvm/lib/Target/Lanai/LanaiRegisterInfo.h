@@ -34,16 +34,14 @@ struct LanaiRegisterInfo : public LanaiGenRegisterInfo {
 
   bool requiresRegisterScavenging(const MachineFunction &MF) const override;
 
-  bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override;
-
   void eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
 
   // Debug information queries.
   unsigned getRARegister() const;
-  unsigned getFrameRegister(const MachineFunction &MF) const override;
-  unsigned getBaseRegister() const;
+  Register getFrameRegister(const MachineFunction &MF) const override;
+  Register getBaseRegister() const;
   bool hasBasePointer(const MachineFunction &MF) const;
 
   int getDwarfRegNum(unsigned RegNum, bool IsEH) const;

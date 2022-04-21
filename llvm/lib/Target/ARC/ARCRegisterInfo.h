@@ -21,10 +21,13 @@
 namespace llvm {
 
 class TargetInstrInfo;
+class ARCSubtarget;
 
 struct ARCRegisterInfo : public ARCGenRegisterInfo {
+  const ARCSubtarget &ST;
+
 public:
-  ARCRegisterInfo();
+  ARCRegisterInfo(const ARCSubtarget &);
 
   /// Code Generation virtual methods...
 
@@ -33,8 +36,6 @@ public:
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
   bool requiresRegisterScavenging(const MachineFunction &MF) const override;
-
-  bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override;
 
   bool useFPForScavengingIndex(const MachineFunction &MF) const override;
 
@@ -46,7 +47,7 @@ public:
                                        CallingConv::ID CC) const override;
 
   // Debug information queries.
-  unsigned getFrameRegister(const MachineFunction &MF) const override;
+  Register getFrameRegister(const MachineFunction &MF) const override;
 
   //! Return whether to emit frame moves
   static bool needsFrameMoves(const MachineFunction &MF);

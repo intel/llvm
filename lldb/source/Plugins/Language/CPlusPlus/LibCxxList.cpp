@@ -1,4 +1,4 @@
-//===-- LibCxxList.cpp ------------------------------------------*- C++ -*-===//
+//===-- LibCxxList.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,10 +8,10 @@
 
 #include "LibCxx.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Endian.h"
@@ -27,8 +27,7 @@ namespace {
 class ListEntry {
 public:
   ListEntry() = default;
-  ListEntry(ValueObjectSP entry_sp) : m_entry_sp(entry_sp) {}
-  ListEntry(const ListEntry &rhs) = default;
+  ListEntry(ValueObjectSP entry_sp) : m_entry_sp(std::move(entry_sp)) {}
   ListEntry(ValueObject *entry)
       : m_entry_sp(entry ? entry->GetSP() : ValueObjectSP()) {}
 
@@ -73,9 +72,8 @@ private:
 class ListIterator {
 public:
   ListIterator() = default;
-  ListIterator(ListEntry entry) : m_entry(entry) {}
-  ListIterator(ValueObjectSP entry) : m_entry(entry) {}
-  ListIterator(const ListIterator &rhs) = default;
+  ListIterator(ListEntry entry) : m_entry(std::move(entry)) {}
+  ListIterator(ValueObjectSP entry) : m_entry(std::move(entry)) {}
   ListIterator(ValueObject *entry) : m_entry(entry) {}
 
   ValueObjectSP value() { return m_entry.GetEntry(); }
@@ -160,8 +158,8 @@ public:
   bool Update() override;
 
 private:
-  lldb::addr_t m_node_address;
-  ValueObject *m_tail;
+  lldb::addr_t m_node_address = 0;
+  ValueObject *m_tail = nullptr;
 };
 
 } // end anonymous namespace
@@ -290,15 +288,6 @@ ValueObjectSP ForwardListFrontEnd::GetChildAtIndex(size_t idx) {
                                    m_element_type);
 }
 
-static ValueObjectSP GetValueOfCompressedPair(ValueObject &pair) {
-  ValueObjectSP value = pair.GetChildMemberWithName(ConstString("__value_"), true);
-  if (! value) {
-    // pre-r300140 member name
-    value = pair.GetChildMemberWithName(ConstString("__first_"), true);
-  }
-  return value;
-}
-
 bool ForwardListFrontEnd::Update() {
   AbstractListFrontEnd::Update();
 
@@ -311,7 +300,7 @@ bool ForwardListFrontEnd::Update() {
       m_backend.GetChildMemberWithName(ConstString("__before_begin_"), true));
   if (!impl_sp)
     return false;
-  impl_sp = GetValueOfCompressedPair(*impl_sp);
+  impl_sp = GetValueOfLibCXXCompressedPair(*impl_sp);
   if (!impl_sp)
     return false;
   m_head = impl_sp->GetChildMemberWithName(ConstString("__next_"), true).get();
@@ -319,7 +308,7 @@ bool ForwardListFrontEnd::Update() {
 }
 
 ListFrontEnd::ListFrontEnd(lldb::ValueObjectSP valobj_sp)
-    : AbstractListFrontEnd(*valobj_sp), m_node_address(), m_tail(nullptr) {
+    : AbstractListFrontEnd(*valobj_sp) {
   if (valobj_sp)
     Update();
 }
@@ -332,7 +321,7 @@ size_t ListFrontEnd::CalculateNumChildren() {
   ValueObjectSP size_alloc(
       m_backend.GetChildMemberWithName(ConstString("__size_alloc_"), true));
   if (size_alloc) {
-    ValueObjectSP value = GetValueOfCompressedPair(*size_alloc);
+    ValueObjectSP value = GetValueOfLibCXXCompressedPair(*size_alloc);
     if (value) {
       m_count = value->GetValueAsUnsigned(UINT32_MAX);
     }

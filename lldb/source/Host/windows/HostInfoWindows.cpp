@@ -1,4 +1,4 @@
-//===-- HostInfoWindows.cpp -------------------------------------*- C++ -*-===//
+//===-- HostInfoWindows.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,9 +39,9 @@ protected:
 
 FileSpec HostInfoWindows::m_program_filespec;
 
-void HostInfoWindows::Initialize() {
+void HostInfoWindows::Initialize(SharedLibraryDirectoryHelper *helper) {
   ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-  HostInfoBase::Initialize();
+  HostInfoBase::Initialize(helper);
 }
 
 void HostInfoWindows::Terminate() {
@@ -74,19 +74,16 @@ llvm::VersionTuple HostInfoWindows::GetOSVersion() {
                             info.wServicePackMajor);
 }
 
-bool HostInfoWindows::GetOSBuildString(std::string &s) {
-  s.clear();
+llvm::Optional<std::string> HostInfoWindows::GetOSBuildString() {
   llvm::VersionTuple version = GetOSVersion();
   if (version.empty())
-    return false;
+    return llvm::None;
 
-  llvm::raw_string_ostream stream(s);
-  stream << "Windows NT " << version.getAsString();
-  return true;
+  return "Windows NT " + version.getAsString();
 }
 
-bool HostInfoWindows::GetOSKernelDescription(std::string &s) {
-  return GetOSBuildString(s);
+llvm::Optional<std::string> HostInfoWindows::GetOSKernelDescription() {
+  return GetOSBuildString();
 }
 
 bool HostInfoWindows::GetHostname(std::string &s) {

@@ -15,12 +15,12 @@
 #include "llvm/Transforms/Scalar/LowerGuardIntrinsic.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/GuardUtils.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/GuardUtils.h"
@@ -60,7 +60,7 @@ static bool lowerGuardIntrinsic(Function &F) {
   DeoptIntrinsic->setCallingConv(GuardDecl->getCallingConv());
 
   for (auto *CI : ToLower) {
-    makeGuardControlFlowExplicit(DeoptIntrinsic, CI);
+    makeGuardControlFlowExplicit(DeoptIntrinsic, CI, false);
     CI->eraseFromParent();
   }
 

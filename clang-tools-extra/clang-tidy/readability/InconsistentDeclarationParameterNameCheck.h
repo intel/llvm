@@ -17,7 +17,7 @@ namespace clang {
 namespace tidy {
 namespace readability {
 
-/// \brief Checks for declarations of functions which differ in parameter names.
+/// Checks for declarations of functions which differ in parameter names.
 ///
 /// For detailed documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/readability-inconsistent-declaration-parameter-name.html
@@ -27,12 +27,15 @@ public:
   InconsistentDeclarationParameterNameCheck(StringRef Name,
                                             ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context),
-        IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", 1) != 0),
-        Strict(Options.getLocalOrGlobal("Strict", 0) != 0) {}
+        IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)),
+        Strict(Options.getLocalOrGlobal("Strict", false)) {}
 
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+    return TK_IgnoreUnlessSpelledInSource;
+  }
 
 private:
   void markRedeclarationsAsVisited(const FunctionDecl *FunctionDeclaration);

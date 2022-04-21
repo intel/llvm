@@ -2,7 +2,7 @@
 ; RUN: llc -mattr=+cmov -mtriple=i386-pc-linux -verify-machineinstrs < %s | FileCheck %s -check-prefix=LINUX
 ; RUN: llc -mattr=+cmov -mtriple=i386-macosx -relocation-model=pic -verify-machineinstrs < %s | FileCheck %s -check-prefix=PIC
 
-@sc64 = external global i64
+@sc64 = external dso_local global i64
 
 define i64 @atomic_max_i64() nounwind {
 ; LINUX-LABEL: atomic_max_i64:
@@ -11,7 +11,7 @@ define i64 @atomic_max_i64() nounwind {
 ; LINUX-NEXT:    pushl %esi
 ; LINUX-NEXT:    movl sc64+4, %edx
 ; LINUX-NEXT:    movl sc64, %eax
-; LINUX-NEXT:    movl $4, %esi
+; LINUX-NEXT:    movl $5, %esi
 ; LINUX-NEXT:    .p2align 4, 0x90
 ; LINUX-NEXT:  .LBB0_1: # %atomicrmw.start
 ; LINUX-NEXT:    # =>This Inner Loop Header: Depth=1
@@ -40,7 +40,7 @@ define i64 @atomic_max_i64() nounwind {
 ; PIC-NEXT:    movl L_sc64$non_lazy_ptr-L0$pb(%eax), %esi
 ; PIC-NEXT:    movl (%esi), %eax
 ; PIC-NEXT:    movl 4(%esi), %edx
-; PIC-NEXT:    movl $4, %edi
+; PIC-NEXT:    movl $5, %edi
 ; PIC-NEXT:    .p2align 4, 0x90
 ; PIC-NEXT:  LBB0_1: ## %atomicrmw.start
 ; PIC-NEXT:    ## =>This Inner Loop Header: Depth=1
@@ -58,7 +58,6 @@ define i64 @atomic_max_i64() nounwind {
 ; PIC-NEXT:    popl %edi
 ; PIC-NEXT:    popl %ebx
 ; PIC-NEXT:    retl
-; PIC-NEXT:    ## -- End function
 entry:
   %max = atomicrmw max i64* @sc64, i64 5 acquire
   ret i64 %max
@@ -112,7 +111,6 @@ define i64 @atomic_min_i64() nounwind {
 ; PIC-NEXT:    popl %esi
 ; PIC-NEXT:    popl %ebx
 ; PIC-NEXT:    retl
-; PIC-NEXT:    ## -- End function
 entry:
   %min = atomicrmw min i64* @sc64, i64 6 acquire
   ret i64 %min
@@ -172,7 +170,6 @@ define i64 @atomic_umax_i64() nounwind {
 ; PIC-NEXT:    popl %edi
 ; PIC-NEXT:    popl %ebx
 ; PIC-NEXT:    retl
-; PIC-NEXT:    ## -- End function
 entry:
   %umax = atomicrmw umax i64* @sc64, i64 7 acquire
   ret i64 %umax
@@ -226,7 +223,6 @@ define i64 @atomic_umin_i64() nounwind {
 ; PIC-NEXT:    popl %esi
 ; PIC-NEXT:    popl %ebx
 ; PIC-NEXT:    retl
-; PIC-NEXT:    ## -- End function
 entry:
   %umin = atomicrmw umin i64* @sc64, i64 8 acquire
   ret i64 %umin
@@ -289,8 +285,6 @@ define void @tf_bug(i8* %ptr) nounwind {
 ; PIC-NEXT:    popl %edi
 ; PIC-NEXT:    popl %ebx
 ; PIC-NEXT:    retl
-; PIC-NEXT:    ## -- End function
-; PIC-NEXT:  .zerofill __DATA,__bss,_id,8,3 ## @id
 entry:
   %tmp1 = atomicrmw add i64* @id, i64 1 seq_cst
   %tmp2 = add i64 %tmp1, 1

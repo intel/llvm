@@ -60,7 +60,7 @@ struct HasASFields
 };
 
 // Assertion failure was when the field was accessed
-void access_as_field()
+void access_as_field(void)
 {
     struct HasASFields x;
     (void) bar.as_field;
@@ -74,6 +74,10 @@ char* cmp(_AS1 char *x,  _AS2 char *y) {
   return x < y ? x : y; // expected-error{{conditional operator with the second and third operands of type  ('_AS1 char *' and '_AS2 char *') which are pointers to non-overlapping address spaces}}
 }
 
+char *sub(_AS1 char *x, _AS2 char *y) {
+  return x - y; // expected-error {{arithmetic operation with operands of type  ('_AS1 char *' and '_AS2 char *') which are pointers to non-overlapping address spaces}}
+}
+
 struct SomeStruct {
   int a;
   long b;
@@ -82,7 +86,7 @@ struct SomeStruct {
 
 // Compound literals in function scope are lvalues with automatic storage duration,
 // so they cannot realistically be qualified with an address space.
-void as_compound_literal() {
+void as_compound_literal(void) {
   (_AS1 struct SomeStruct){1, 2, 3}; // expected-error {{compound literal in function scope may not be qualified with an address space}}
   (_AS1 char[]){"test"}; // expected-error {{compound literal in function scope may not be qualified with an address space}}
   (_AS1 char[]){'a', 'b', 'c'}; // expected-error {{compound literal in function scope may not be qualified with an address space}}

@@ -15,13 +15,10 @@
 // float max_load_factor() const;
 // void max_load_factor(float mlf);
 
-#ifdef _LIBCPP_DEBUG
-#define _LIBCPP_ASSERT(x, m) ((x) ? (void)0 : std::exit(0))
-#endif
-
 #include <unordered_set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)
@@ -54,14 +51,6 @@ int main(int, char**)
         assert(c.max_load_factor() == 2.5);
     }
 #endif
-#if _LIBCPP_DEBUG_LEVEL >= 1
-    {
-        typedef std::unordered_set<int> C;
-        C c;
-        c.max_load_factor(-0.5f);
-        assert(false);
-    }
-#endif
 
-  return 0;
+    return 0;
 }

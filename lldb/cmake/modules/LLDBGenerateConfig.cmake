@@ -7,8 +7,8 @@ include(CheckLibraryExists)
 
 set(CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
 check_symbol_exists(ppoll poll.h HAVE_PPOLL)
+check_symbol_exists(ptsname_r stdlib.h HAVE_PTSNAME_R)
 set(CMAKE_REQUIRED_DEFINITIONS)
-check_symbol_exists(sigaction signal.h HAVE_SIGACTION)
 check_cxx_symbol_exists(accept4 "sys/socket.h" HAVE_ACCEPT4)
 
 check_include_file(termios.h HAVE_TERMIOS_H)
@@ -22,9 +22,11 @@ check_library_exists(compression compression_encode_buffer "" HAVE_LIBCOMPRESSIO
 # These checks exist in LLVM's configuration, so I want to match the LLVM names
 # so that the check isn't duplicated, but we translate them into the LLDB names
 # so that I don't have to change all the uses at the moment.
-set(LLDB_CONFIG_TERMIOS_SUPPORTED ${HAVE_TERMIOS_H})
-if(NOT UNIX)
-  set(LLDB_DISABLE_POSIX 1)
+set(LLDB_ENABLE_TERMIOS ${HAVE_TERMIOS_H})
+if (UNIX)
+  set(LLDB_ENABLE_POSIX ON)
+else()
+  set(LLDB_ENABLE_POSIX OFF)
 endif()
 
 if(NOT LLDB_CONFIG_HEADER_INPUT)

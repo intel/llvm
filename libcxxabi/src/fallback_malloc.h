@@ -1,4 +1,4 @@
-//===------------------------- fallback_malloc.h --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 #define _FALLBACK_MALLOC_H
 
 #include "__cxxabi_config.h"
-#include <cstddef> // for size_t
+#include <stddef.h> // for size_t
 
 namespace __cxxabiv1 {
 

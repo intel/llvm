@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // test uncaught_exception
 
 #include <exception>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct A
 {

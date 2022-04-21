@@ -1,14 +1,7 @@
 set(LLVM_LINK_COMPONENTS
   support
-  )
-
-get_filename_component(CLANGD_SOURCE_DIR
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../clangd REALPATH)
-get_filename_component(CLANGD_BINARY_DIR
-  ${CMAKE_CURRENT_BINARY_DIR}/../../clangd REALPATH)
-include_directories(
-  ${CLANGD_SOURCE_DIR}
-  ${CLANGD_BINARY_DIR}
+  AllTargetsInfos
+  FrontendOpenMP
   )
 
 if(CLANG_BUILT_STANDALONE)
@@ -20,38 +13,72 @@ if(CLANG_BUILT_STANDALONE)
   endif()
 endif()
 
+if (CLANGD_ENABLE_REMOTE)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/../index/remote)
+  add_definitions(-DGOOGLE_PROTOBUF_NO_RTTI=1)
+  set(REMOTE_TEST_SOURCES remote/MarshallingTests.cpp)
+endif()
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/../quality/CompletionModel.cmake)
+gen_decision_forest(${CMAKE_CURRENT_SOURCE_DIR}/decision_forest_model DecisionForestRuntimeTest ::ns1::ns2::test::Example)
+
 add_custom_target(ClangdUnitTests)
 add_unittest(ClangdUnitTests ClangdTests
   Annotations.cpp
+  ASTTests.cpp
+  ASTSignalsTests.cpp
   BackgroundIndexTests.cpp
-  CancellationTests.cpp
+  CallHierarchyTests.cpp
   CanonicalIncludesTests.cpp
   ClangdTests.cpp
-  ClangdUnitTests.cpp
+  ClangdLSPServerTests.cpp
   CodeCompleteTests.cpp
   CodeCompletionStringsTests.cpp
-  ContextTests.cpp
+  CollectMacrosTests.cpp
+  CompileCommandsTests.cpp
+  CompilerTests.cpp
+  ConfigCompileTests.cpp
+  ConfigProviderTests.cpp
+  ConfigYAMLTests.cpp
+  DecisionForestTests.cpp
   DexTests.cpp
   DiagnosticsTests.cpp
   DraftStoreTests.cpp
+  DumpASTTests.cpp
   ExpectedTypeTest.cpp
+  FeatureModulesTests.cpp
   FileDistanceTests.cpp
   FileIndexTests.cpp
   FindSymbolsTests.cpp
-  FormattedStringTests.cpp
+  FindTargetTests.cpp
+  FormatTests.cpp
   FSTests.cpp
-  FunctionTests.cpp
   FuzzyMatchTests.cpp
   GlobalCompilationDatabaseTests.cpp
   HeadersTests.cpp
+  HeaderSourceSwitchTests.cpp
+  HoverTests.cpp
+  IncludeCleanerTests.cpp
   IndexActionTests.cpp
   IndexTests.cpp
+  InlayHintTests.cpp
+  InsertionPointTests.cpp
   JSONTransportTests.cpp
+  LoggerTests.cpp
+  LSPBinderTests.cpp
+  LSPClient.cpp
+  ModulesTests.cpp
+  ParsedASTTests.cpp
+  PathMappingTests.cpp
+  PreambleTests.cpp
   PrintASTTests.cpp
+  ProjectAwareIndexTests.cpp
   QualityTests.cpp
   RenameTests.cpp
   RIFFTests.cpp
   SelectionTests.cpp
+  SemanticHighlightingTests.cpp
+  SemanticSelectionTests.cpp
   SerializationTests.cpp
   SourceCodeTests.cpp
   SymbolCollectorTests.cpp
@@ -61,34 +88,86 @@ add_unittest(ClangdUnitTests ClangdTests
   TestFS.cpp
   TestIndex.cpp
   TestTU.cpp
-  ThreadingTests.cpp
-  TraceTests.cpp
+  TestWorkspace.cpp
+  ThreadCrashReporterTests.cpp
+  TidyProviderTests.cpp
   TypeHierarchyTests.cpp
-  TweakTests.cpp
   URITests.cpp
   XRefsTests.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/DecisionForestRuntimeTest.cpp
+
+  support/CancellationTests.cpp
+  support/ContextTests.cpp
+  support/FunctionTests.cpp
+  support/MarkupTests.cpp
+  support/MemoryTreeTests.cpp
+  support/PathTests.cpp
+  support/ThreadingTests.cpp
+  support/TestTracer.cpp
+  support/TraceTests.cpp
+
+  tweaks/AddUsingTests.cpp
+  tweaks/AnnotateHighlightingsTests.cpp
+  tweaks/DefineInlineTests.cpp
+  tweaks/DefineOutlineTests.cpp
+  tweaks/DumpASTTests.cpp
+  tweaks/DumpRecordLayoutTests.cpp
+  tweaks/DumpSymbolTests.cpp
+  tweaks/ExpandAutoTypeTests.cpp
+  tweaks/ExpandMacroTests.cpp
+  tweaks/ExtractFunctionTests.cpp
+  tweaks/ExtractVariableTests.cpp
+  tweaks/ObjCLocalizeStringLiteralTests.cpp
+  tweaks/ObjCMemberwiseInitializerTests.cpp
+  tweaks/PopulateSwitchTests.cpp
+  tweaks/RawStringLiteralTests.cpp
+  tweaks/RemoveUsingNamespaceTests.cpp
+  tweaks/ShowSelectionTreeTests.cpp
+  tweaks/SwapIfBranchesTests.cpp
+  tweaks/TweakTesting.cpp
+  tweaks/TweakTests.cpp
+
+  ${REMOTE_TEST_SOURCES}
 
   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
   )
 
-target_link_libraries(ClangdTests
+# Include generated ComletionModel headers.
+target_include_directories(ClangdTests PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+)
+
+clang_target_link_libraries(ClangdTests
   PRIVATE
   clangAST
+  clangASTMatchers
   clangBasic
-  clangDaemon
   clangFormat
   clangFrontend
   clangIndex
   clangLex
   clangSema
   clangSerialization
-  clangTidy
   clangTooling
   clangToolingCore
   clangToolingInclusions
-  LLVMSupport
+  clangToolingRefactoring
+  clangToolingSyntax
+  )
+target_link_libraries(ClangdTests
+  PRIVATE
+  clangDaemon
+  clangdSupport
+  clangTidy
   LLVMTestingSupport
   )
+
+if (CLANGD_ENABLE_REMOTE)
+  target_link_libraries(ClangdTests
+    PRIVATE
+    clangdRemoteMarshalling
+    clangdRemoteIndexProto)
+endif()
 
 if (CLANGD_BUILD_XPC)
   add_subdirectory(xpc)

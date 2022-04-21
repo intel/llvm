@@ -1,0 +1,37 @@
+119734787 65536 393230 10 0 
+2 Capability Addresses 
+2 Capability Kernel 
+2 Capability ArbitraryPrecisionIntegersINTEL 
+11 Extension "SPV_INTEL_arbitrary_precision_integers"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2 
+7 EntryPoint 6 6 "kernel_func1"
+13 String 9 "kernel_arg_type.kernel_func1._ExtInt(31)*,"
+3 Source 4 100000 
+4 Name 7 "_arg_"
+4 Name 8 "entry"
+4 TypeInt 3 31 0 
+2 TypeVoid 2 
+4 TypePointer 4 5 3 
+4 TypeFunction 5 2 4 
+
+5 Function 2 6 0 5 
+3 FunctionParameter 4 7 
+
+2 Label 8 
+1 Return 
+
+1 FunctionEnd 
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; Reverse translation shouldn't crash:
+; RUN: llvm-spirv -r -preserve-ocl-kernel-arg-type-metadata-through-string %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-STR-WORKAROUND
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-NO-WORKAROUND
+
+; CHECK-LLVM-STR-WORKAROUND: define spir_kernel void @kernel_func1(i31 addrspace(1)* %_arg_){{.*}} !kernel_arg_type ![[ArgTy:[0-9]+]]{{.*}} !kernel_arg_base_type ![[BaseArgTy:[0-9]+]]
+; CHECK-LLVM-STR-WORKAROUND: ![[ArgTy]] = !{!"_ExtInt(31)*"}
+; CHECK-LLVM-STR-WORKAROUND: ![[BaseArgTy]] = !{!"int31_t*"}
+; CHECK-LLVM-NO-WORKAROUND: define spir_kernel void @kernel_func1(i31 addrspace(1)* %_arg_){{.*}} !kernel_arg_type ![[ArgTy:[0-9]+]]{{.*}} !kernel_arg_base_type ![[ArgTy:[0-9]+]]
+; CHECK-LLVM-NO-WORKAROUND: ![[ArgTy]] = !{!"int31_t*"}

@@ -1,4 +1,4 @@
-//===------------------------ valarray.cpp --------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "valarray"
+#include <valarray>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 // These two symbols are part of the v1 ABI but not part of the >=v2 ABI.
 #if _LIBCPP_ABI_VERSION == 1
-template valarray<size_t>::valarray(size_t);
-template valarray<size_t>::~valarray();
+template _LIBCPP_FUNC_VIS valarray<size_t>::valarray(size_t);
+template _LIBCPP_FUNC_VIS valarray<size_t>::~valarray();
 #endif
 
 template void valarray<size_t>::resize(size_t, size_t);

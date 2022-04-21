@@ -12,12 +12,19 @@
 
 // ImmLeaf
 def immZExt1 : ImmLeaf<i32, [{return isUInt<1>(Imm);}]>;
+def timmZExt1 : ImmLeaf<i32, [{return isUInt<1>(Imm);}], NOOP_SDNodeXForm, timm>;
 def immZExt2 : ImmLeaf<i32, [{return isUInt<2>(Imm);}]>;
+def timmZExt2 : ImmLeaf<i32, [{return isUInt<2>(Imm);}], NOOP_SDNodeXForm, timm>;
 def immZExt3 : ImmLeaf<i32, [{return isUInt<3>(Imm);}]>;
+def timmZExt3 : ImmLeaf<i32, [{return isUInt<3>(Imm);}], NOOP_SDNodeXForm, timm>;
 def immZExt4 : ImmLeaf<i32, [{return isUInt<4>(Imm);}]>;
+def timmZExt4 : ImmLeaf<i32, [{return isUInt<4>(Imm);}], NOOP_SDNodeXForm, timm>;
 def immZExt8 : ImmLeaf<i32, [{return isUInt<8>(Imm);}]>;
+def timmZExt8 : ImmLeaf<i32, [{return isUInt<8>(Imm);}], NOOP_SDNodeXForm, timm>;
 def immZExt10 : ImmLeaf<i32, [{return isUInt<10>(Imm);}]>;
+def timmZExt10 : ImmLeaf<i32, [{return isUInt<10>(Imm);}], NOOP_SDNodeXForm, timm>;
 def immSExt6 : ImmLeaf<i32, [{return isInt<6>(Imm);}]>;
+def timmSExt6 : ImmLeaf<i32, [{return isInt<6>(Imm);}], NOOP_SDNodeXForm, timm>;
 def immSExt10 : ImmLeaf<i32, [{return isInt<10>(Imm);}]>;
 
 // Mips-specific dsp nodes
@@ -306,7 +313,7 @@ class PRECR_SRA_PH_W_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
   dag OutOperandList = (outs ROT:$rt);
   dag InOperandList = (ins ROS:$rs, uimm5:$sa, ROS:$src);
   string AsmString = !strconcat(instr_asm, "\t$rt, $rs, $sa");
-  list<dag> Pattern = [(set ROT:$rt, (OpNode ROS:$src, ROS:$rs, immZExt5:$sa))];
+  list<dag> Pattern = [(set ROT:$rt, (OpNode ROS:$src, ROS:$rs, timmZExt5:$sa))];
   InstrItinClass Itinerary = itin;
   string Constraints = "$src = $rt";
   string BaseOpcode = instr_asm;
@@ -369,7 +376,7 @@ class LX_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
 
 class ADDUH_QB_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
                          InstrItinClass itin, RegisterOperand ROD,
-                         RegisterOperand ROS = ROD,  RegisterOperand ROT = ROD> {
+                         RegisterOperand ROS = ROD, RegisterOperand ROT = ROD> {
   dag OutOperandList = (outs ROD:$rd);
   dag InOperandList = (ins ROS:$rs, ROT:$rt);
   string AsmString = !strconcat(instr_asm, "\t$rd, $rs, $rt");
@@ -379,7 +386,8 @@ class ADDUH_QB_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
 }
 
 class APPEND_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
-                       Operand ImmOp, SDPatternOperator Imm, InstrItinClass itin> {
+                       Operand ImmOp, SDPatternOperator Imm,
+                       InstrItinClass itin> {
   dag OutOperandList = (outs GPR32Opnd:$rt);
   dag InOperandList = (ins GPR32Opnd:$rs, ImmOp:$sa, GPR32Opnd:$src);
   string AsmString = !strconcat(instr_asm, "\t$rt, $rs, $sa");
@@ -390,8 +398,7 @@ class APPEND_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
   string BaseOpcode = instr_asm;
 }
 
-class EXTR_W_TY1_R2_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
-                              InstrItinClass itin> {
+class EXTR_W_TY1_R2_DESC_BASE<string instr_asm, InstrItinClass itin> {
   dag OutOperandList = (outs GPR32Opnd:$rt);
   dag InOperandList = (ins ACC64DSPOpnd:$ac, GPR32Opnd:$shift_rs);
   string AsmString = !strconcat(instr_asm, "\t$rt, $ac, $shift_rs");
@@ -399,8 +406,7 @@ class EXTR_W_TY1_R2_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
   string BaseOpcode = instr_asm;
 }
 
-class EXTR_W_TY1_R1_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
-                              InstrItinClass itin> {
+class EXTR_W_TY1_R1_DESC_BASE<string instr_asm, InstrItinClass itin> {
   dag OutOperandList = (outs GPR32Opnd:$rt);
   dag InOperandList = (ins ACC64DSPOpnd:$ac, uimm5:$shift_rs);
   string AsmString = !strconcat(instr_asm, "\t$rt, $ac, $shift_rs");
@@ -443,7 +449,7 @@ class RDDSP_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
   dag OutOperandList = (outs GPR32Opnd:$rd);
   dag InOperandList = (ins uimm10:$mask);
   string AsmString = !strconcat(instr_asm, "\t$rd, $mask");
-  list<dag> Pattern = [(set GPR32Opnd:$rd, (OpNode immZExt10:$mask))];
+  list<dag> Pattern = [(set GPR32Opnd:$rd, (OpNode timmZExt10:$mask))];
   InstrItinClass Itinerary = itin;
   string BaseOpcode = instr_asm;
   bit isMoveReg = 1;
@@ -454,7 +460,7 @@ class WRDSP_DESC_BASE<string instr_asm, SDPatternOperator OpNode,
   dag OutOperandList = (outs);
   dag InOperandList = (ins GPR32Opnd:$rs, uimm10:$mask);
   string AsmString = !strconcat(instr_asm, "\t$rs, $mask");
-  list<dag> Pattern = [(OpNode GPR32Opnd:$rs, immZExt10:$mask)];
+  list<dag> Pattern = [(OpNode GPR32Opnd:$rs, timmZExt10:$mask)];
   InstrItinClass Itinerary = itin;
   string BaseOpcode = instr_asm;
   bit isMoveReg = 1;
@@ -504,7 +510,8 @@ class MFHI_DESC_BASE<string instr_asm, RegisterOperand RO, SDNode OpNode,
   bit isMoveReg = 1;
 }
 
-class MTHI_DESC_BASE<string instr_asm, RegisterOperand RO, InstrItinClass itin> {
+class MTHI_DESC_BASE<string instr_asm, RegisterOperand RO,
+                     InstrItinClass itin> {
   dag OutOperandList = (outs RO:$ac);
   dag InOperandList = (ins GPR32Opnd:$rs);
   string AsmString = !strconcat(instr_asm, "\t$rs, $ac");
@@ -513,8 +520,9 @@ class MTHI_DESC_BASE<string instr_asm, RegisterOperand RO, InstrItinClass itin> 
   bit isMoveReg = 1;
 }
 
-class BPOSGE32_PSEUDO_DESC_BASE<SDPatternOperator OpNode, InstrItinClass itin> :
+class BPOSGE32_PSEUDO_DESC_BASE<SDPatternOperator OpNode> :
   MipsPseudo<(outs GPR32Opnd:$dst), (ins), [(set GPR32Opnd:$dst, (OpNode))]> {
+  bit hasNoSchedulingInfo = 1;
   bit usesCustomInserter = 1;
 }
 
@@ -881,47 +889,40 @@ class LBUX_DESC : LX_DESC_BASE<"lbux", int_mips_lbux, NoItinerary>;
 class BPOSGE32_DESC : BPOSGE32_DESC_BASE<"bposge32", brtarget, NoItinerary>;
 
 // Extr
-class EXTP_DESC : EXTR_W_TY1_R1_DESC_BASE<"extp", MipsEXTP, NoItinerary>,
+class EXTP_DESC : EXTR_W_TY1_R1_DESC_BASE<"extp", NoItinerary>,
                   Uses<[DSPPos]>, Defs<[DSPEFI]>;
 
-class EXTPV_DESC : EXTR_W_TY1_R2_DESC_BASE<"extpv", MipsEXTP, NoItinerary>,
+class EXTPV_DESC : EXTR_W_TY1_R2_DESC_BASE<"extpv", NoItinerary>,
                    Uses<[DSPPos]>, Defs<[DSPEFI]>;
 
-class EXTPDP_DESC : EXTR_W_TY1_R1_DESC_BASE<"extpdp", MipsEXTPDP, NoItinerary>,
+class EXTPDP_DESC : EXTR_W_TY1_R1_DESC_BASE<"extpdp", NoItinerary>,
                     Uses<[DSPPos]>, Defs<[DSPPos, DSPEFI]>;
 
-class EXTPDPV_DESC : EXTR_W_TY1_R2_DESC_BASE<"extpdpv", MipsEXTPDP,
-                                             NoItinerary>,
+class EXTPDPV_DESC : EXTR_W_TY1_R2_DESC_BASE<"extpdpv", NoItinerary>,
                      Uses<[DSPPos]>, Defs<[DSPPos, DSPEFI]>;
 
-class EXTR_W_DESC : EXTR_W_TY1_R1_DESC_BASE<"extr.w", MipsEXTR_W, NoItinerary>,
+class EXTR_W_DESC : EXTR_W_TY1_R1_DESC_BASE<"extr.w", NoItinerary>,
                     Defs<[DSPOutFlag23]>;
 
-class EXTRV_W_DESC : EXTR_W_TY1_R2_DESC_BASE<"extrv.w", MipsEXTR_W,
-                                             NoItinerary>, Defs<[DSPOutFlag23]>;
+class EXTRV_W_DESC : EXTR_W_TY1_R2_DESC_BASE<"extrv.w", NoItinerary>,
+                     Defs<[DSPOutFlag23]>;
 
-class EXTR_R_W_DESC : EXTR_W_TY1_R1_DESC_BASE<"extr_r.w", MipsEXTR_R_W,
-                                              NoItinerary>,
+class EXTR_R_W_DESC : EXTR_W_TY1_R1_DESC_BASE<"extr_r.w", NoItinerary>,
                       Defs<[DSPOutFlag23]>;
 
-class EXTRV_R_W_DESC : EXTR_W_TY1_R2_DESC_BASE<"extrv_r.w", MipsEXTR_R_W,
-                                               NoItinerary>,
+class EXTRV_R_W_DESC : EXTR_W_TY1_R2_DESC_BASE<"extrv_r.w", NoItinerary>,
                        Defs<[DSPOutFlag23]>;
 
-class EXTR_RS_W_DESC : EXTR_W_TY1_R1_DESC_BASE<"extr_rs.w", MipsEXTR_RS_W,
-                                               NoItinerary>,
+class EXTR_RS_W_DESC : EXTR_W_TY1_R1_DESC_BASE<"extr_rs.w", NoItinerary>,
                        Defs<[DSPOutFlag23]>;
 
-class EXTRV_RS_W_DESC : EXTR_W_TY1_R2_DESC_BASE<"extrv_rs.w", MipsEXTR_RS_W,
-                                                NoItinerary>,
+class EXTRV_RS_W_DESC : EXTR_W_TY1_R2_DESC_BASE<"extrv_rs.w", NoItinerary>,
                         Defs<[DSPOutFlag23]>;
 
-class EXTR_S_H_DESC : EXTR_W_TY1_R1_DESC_BASE<"extr_s.h", MipsEXTR_S_H,
-                                              NoItinerary>,
+class EXTR_S_H_DESC : EXTR_W_TY1_R1_DESC_BASE<"extr_s.h", NoItinerary>,
                       Defs<[DSPOutFlag23]>;
 
-class EXTRV_S_H_DESC : EXTR_W_TY1_R2_DESC_BASE<"extrv_s.h", MipsEXTR_S_H,
-                                               NoItinerary>,
+class EXTRV_S_H_DESC : EXTR_W_TY1_R2_DESC_BASE<"extrv_s.h", NoItinerary>,
                        Defs<[DSPOutFlag23]>;
 
 class SHILO_DESC : SHILO_R1_DESC_BASE<"shilo", MipsSHILO>;
@@ -1095,18 +1096,18 @@ class SHRLV_PH_DESC : SHLL_QB_R3_DESC_BASE<"shrlv.ph", int_mips_shrl_ph,
                                            NoItinerary, DSPROpnd>;
 
 // Misc
-class APPEND_DESC : APPEND_DESC_BASE<"append", int_mips_append, uimm5, immZExt5,
+class APPEND_DESC : APPEND_DESC_BASE<"append", int_mips_append, uimm5, timmZExt5,
                                      NoItinerary>;
 
-class BALIGN_DESC : APPEND_DESC_BASE<"balign", int_mips_balign, uimm2, immZExt2,
+class BALIGN_DESC : APPEND_DESC_BASE<"balign", int_mips_balign, uimm2, timmZExt2,
                                      NoItinerary>;
 
 class PREPEND_DESC : APPEND_DESC_BASE<"prepend", int_mips_prepend, uimm5,
-                                      immZExt5, NoItinerary>;
+                                      timmZExt5, NoItinerary>;
 
 // Pseudos.
-def BPOSGE32_PSEUDO : BPOSGE32_PSEUDO_DESC_BASE<int_mips_bposge32,
-                                                NoItinerary>, Uses<[DSPPos]>;
+def BPOSGE32_PSEUDO : BPOSGE32_PSEUDO_DESC_BASE<int_mips_bposge32>,
+                      Uses<[DSPPos]>;
 
 // Instruction defs.
 // MIPS DSP Rev 1
@@ -1296,7 +1297,8 @@ let DecoderNamespace = "MipsDSP", Arch = "dsp",
 // Pseudo CMP and PICK instructions.
 class PseudoCMP<Instruction RealInst> :
   PseudoDSP<(outs DSPCC:$cmp), (ins DSPROpnd:$rs, DSPROpnd:$rt), []>,
-  PseudoInstExpansion<(RealInst DSPROpnd:$rs, DSPROpnd:$rt)>, NeverHasSideEffects;
+  PseudoInstExpansion<(RealInst DSPROpnd:$rs, DSPROpnd:$rt)>,
+  NeverHasSideEffects;
 
 class PseudoPICK<Instruction RealInst> :
   PseudoDSP<(outs DSPROpnd:$rd), (ins DSPCC:$cmp, DSPROpnd:$rs, DSPROpnd:$rt), []>,

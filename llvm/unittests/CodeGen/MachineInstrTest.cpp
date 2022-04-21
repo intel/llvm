@@ -7,15 +7,21 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/ADT/Triple.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/ModuleSlotTracker.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCSymbol.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -24,83 +30,22 @@
 using namespace llvm;
 
 namespace {
-// Add a few Bogus backend classes so we can create MachineInstrs without
-// depending on a real target.
-class BogusTargetLowering : public TargetLowering {
-public:
-  BogusTargetLowering(TargetMachine &TM) : TargetLowering(TM) {}
-};
+// Include helper functions to ease the manipulation of MachineFunctions.
+#include "MFCommon.inc"
 
-class BogusFrameLowering : public TargetFrameLowering {
-public:
-  BogusFrameLowering()
-      : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 4, 4) {}
-
-  void emitPrologue(MachineFunction &MF,
-                    MachineBasicBlock &MBB) const override {}
-  void emitEpilogue(MachineFunction &MF,
-                    MachineBasicBlock &MBB) const override {}
-  bool hasFP(const MachineFunction &MF) const override { return false; }
-};
-
-class BogusSubtarget : public TargetSubtargetInfo {
-public:
-  BogusSubtarget(TargetMachine &TM)
-      : TargetSubtargetInfo(Triple(""), "", "", {}, {}, nullptr, nullptr,
-                            nullptr, nullptr, nullptr, nullptr),
-        FL(), TL(TM) {}
-  ~BogusSubtarget() override {}
-
-  const TargetFrameLowering *getFrameLowering() const override { return &FL; }
-
-  const TargetLowering *getTargetLowering() const override { return &TL; }
-
-  const TargetInstrInfo *getInstrInfo() const override { return &TII; }
-
-private:
-  BogusFrameLowering FL;
-  BogusTargetLowering TL;
-  TargetInstrInfo TII;
-};
-
-class BogusTargetMachine : public LLVMTargetMachine {
-public:
-  BogusTargetMachine()
-      : LLVMTargetMachine(Target(), "", Triple(""), "", "", TargetOptions(),
-                          Reloc::Static, CodeModel::Small, CodeGenOpt::Default),
-        ST(*this) {}
-  ~BogusTargetMachine() override {}
-
-  const TargetSubtargetInfo *getSubtargetImpl(const Function &) const override {
-    return &ST;
-  }
-
-private:
-  BogusSubtarget ST;
-};
-
-std::unique_ptr<BogusTargetMachine> createTargetMachine() {
-  return llvm::make_unique<BogusTargetMachine>();
-}
-
-std::unique_ptr<MachineFunction> createMachineFunction() {
-  LLVMContext Ctx;
-  Module M("Module", Ctx);
-  auto Type = FunctionType::get(Type::getVoidTy(Ctx), false);
-  auto F = Function::Create(Type, GlobalValue::ExternalLinkage, "Test", &M);
-
-  auto TM = createTargetMachine();
-  unsigned FunctionNum = 42;
-  MachineModuleInfo MMI(TM.get());
-  const TargetSubtargetInfo &STI = *TM->getSubtargetImpl(*F);
-
-  return llvm::make_unique<MachineFunction>(*F, *TM, STI, FunctionNum, MMI);
+std::unique_ptr<MCContext> createMCContext(MCAsmInfo *AsmInfo) {
+  Triple TheTriple(/*ArchStr=*/"", /*VendorStr=*/"", /*OSStr=*/"",
+                   /*EnvironmentStr=*/"elf");
+  return std::make_unique<MCContext>(TheTriple, AsmInfo, nullptr, nullptr,
+                                     nullptr, nullptr, false);
 }
 
 // This test makes sure that MachineInstr::isIdenticalTo handles Defs correctly
 // for various combinations of IgnoreDefs, and also that it is symmetrical.
 TEST(IsIdenticalToTest, DifferentDefs) {
-  auto MF = createMachineFunction();
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
 
   unsigned short NumOps = 2;
   unsigned char NumDefs = 1;
@@ -108,8 +53,8 @@ TEST(IsIdenticalToTest, DifferentDefs) {
       {0, 0, MCOI::OPERAND_REGISTER, 0},
       {0, 1 << MCOI::OptionalDef, MCOI::OPERAND_REGISTER, 0}};
   MCInstrDesc MCID = {
-      0, NumOps,  NumDefs, 0,      0, 1ULL << MCID::HasOptionalDef,
-      0, nullptr, nullptr, OpInfo, 0, nullptr};
+      0, NumOps,  NumDefs, 0,     0, 1ULL << MCID::HasOptionalDef,
+      0, nullptr, nullptr, OpInfo};
 
   // Create two MIs with different virtual reg defs and the same uses.
   unsigned VirtualDef1 = -42; // The value doesn't matter, but the sign does.
@@ -169,7 +114,9 @@ void checkHashAndIsEqualMatch(MachineInstr *MI1, MachineInstr *MI2) {
 // This test makes sure that MachineInstrExpressionTraits::isEqual is in sync
 // with MachineInstrExpressionTraits::getHashValue.
 TEST(MachineInstrExpressionTraitTest, IsEqualAgreesWithGetHashValue) {
-  auto MF = createMachineFunction();
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
 
   unsigned short NumOps = 2;
   unsigned char NumDefs = 1;
@@ -177,8 +124,8 @@ TEST(MachineInstrExpressionTraitTest, IsEqualAgreesWithGetHashValue) {
       {0, 0, MCOI::OPERAND_REGISTER, 0},
       {0, 1 << MCOI::OptionalDef, MCOI::OPERAND_REGISTER, 0}};
   MCInstrDesc MCID = {
-      0, NumOps,  NumDefs, 0,      0, 1ULL << MCID::HasOptionalDef,
-      0, nullptr, nullptr, OpInfo, 0, nullptr};
+      0, NumOps,  NumDefs, 0,     0, 1ULL << MCID::HasOptionalDef,
+      0, nullptr, nullptr, OpInfo};
 
   // Define a series of instructions with different kinds of operands and make
   // sure that the hash function is consistent with isEqual for various
@@ -247,13 +194,13 @@ TEST(MachineInstrExpressionTraitTest, IsEqualAgreesWithGetHashValue) {
 }
 
 TEST(MachineInstrPrintingTest, DebugLocPrinting) {
-  auto MF = createMachineFunction();
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
 
   MCOperandInfo OpInfo{0, 0, MCOI::OPERAND_REGISTER, 0};
-  MCInstrDesc MCID = {0, 1,       1,       0,       0, 0,
-                      0, nullptr, nullptr, &OpInfo, 0, nullptr};
+  MCInstrDesc MCID = {0, 1, 1, 0, 0, 0, 0, nullptr, nullptr, &OpInfo};
 
-  LLVMContext Ctx;
   DIFile *DIF = DIFile::getDistinct(Ctx, "filename", "");
   DISubprogram *DIS = DISubprogram::getDistinct(
       Ctx, nullptr, "", "", DIF, 0, nullptr, 0, nullptr, 0, 0, DINode::FlagZero,
@@ -265,13 +212,207 @@ TEST(MachineInstrPrintingTest, DebugLocPrinting) {
 
   std::string str;
   raw_string_ostream OS(str);
-  MI->print(OS);
+  MI->print(OS, /*IsStandalone*/true, /*SkipOpers*/false, /*SkipDebugLoc*/false,
+            /*AddNewLine*/false);
   ASSERT_TRUE(
       StringRef(OS.str()).startswith("$noreg = UNKNOWN debug-location "));
   ASSERT_TRUE(
       StringRef(OS.str()).endswith("filename:1:5"));
 }
 
-static_assert(is_trivially_copyable<MCOperand>::value, "trivially copyable");
+TEST(MachineInstrSpan, DistanceBegin) {
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
+  auto MBB = MF->CreateMachineBasicBlock();
+
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+
+  auto MII = MBB->begin();
+  MachineInstrSpan MIS(MII, MBB);
+  ASSERT_TRUE(MIS.empty());
+
+  auto MI = MF->CreateMachineInstr(MCID, DebugLoc());
+  MBB->insert(MII, MI);
+  ASSERT_TRUE(std::distance(MIS.begin(), MII) == 1);
+}
+
+TEST(MachineInstrSpan, DistanceEnd) {
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
+  auto MBB = MF->CreateMachineBasicBlock();
+
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+
+  auto MII = MBB->end();
+  MachineInstrSpan MIS(MII, MBB);
+  ASSERT_TRUE(MIS.empty());
+
+  auto MI = MF->CreateMachineInstr(MCID, DebugLoc());
+  MBB->insert(MII, MI);
+  ASSERT_TRUE(std::distance(MIS.begin(), MII) == 1);
+}
+
+TEST(MachineInstrExtraInfo, AddExtraInfo) {
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+
+  auto MI = MF->CreateMachineInstr(MCID, DebugLoc());
+  auto MAI = MCAsmInfo();
+  auto MC = createMCContext(&MAI);
+  auto MMO = MF->getMachineMemOperand(MachinePointerInfo(),
+                                      MachineMemOperand::MOLoad, 8, Align(8));
+  SmallVector<MachineMemOperand *, 2> MMOs;
+  MMOs.push_back(MMO);
+  MCSymbol *Sym1 = MC->createTempSymbol("pre_label", false);
+  MCSymbol *Sym2 = MC->createTempSymbol("post_label", false);
+  MDNode *MDN = MDNode::getDistinct(Ctx, None);
+
+  ASSERT_TRUE(MI->memoperands_empty());
+  ASSERT_FALSE(MI->getPreInstrSymbol());
+  ASSERT_FALSE(MI->getPostInstrSymbol());
+  ASSERT_FALSE(MI->getHeapAllocMarker());
+
+  MI->setMemRefs(*MF, MMOs);
+  ASSERT_TRUE(MI->memoperands().size() == 1);
+  ASSERT_FALSE(MI->getPreInstrSymbol());
+  ASSERT_FALSE(MI->getPostInstrSymbol());
+  ASSERT_FALSE(MI->getHeapAllocMarker());
+
+  MI->setPreInstrSymbol(*MF, Sym1);
+  ASSERT_TRUE(MI->memoperands().size() == 1);
+  ASSERT_TRUE(MI->getPreInstrSymbol() == Sym1);
+  ASSERT_FALSE(MI->getPostInstrSymbol());
+  ASSERT_FALSE(MI->getHeapAllocMarker());
+
+  MI->setPostInstrSymbol(*MF, Sym2);
+  ASSERT_TRUE(MI->memoperands().size() == 1);
+  ASSERT_TRUE(MI->getPreInstrSymbol() == Sym1);
+  ASSERT_TRUE(MI->getPostInstrSymbol() == Sym2);
+  ASSERT_FALSE(MI->getHeapAllocMarker());
+
+  MI->setHeapAllocMarker(*MF, MDN);
+  ASSERT_TRUE(MI->memoperands().size() == 1);
+  ASSERT_TRUE(MI->getPreInstrSymbol() == Sym1);
+  ASSERT_TRUE(MI->getPostInstrSymbol() == Sym2);
+  ASSERT_TRUE(MI->getHeapAllocMarker() == MDN);
+}
+
+TEST(MachineInstrExtraInfo, ChangeExtraInfo) {
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+
+  auto MI = MF->CreateMachineInstr(MCID, DebugLoc());
+  auto MAI = MCAsmInfo();
+  auto MC = createMCContext(&MAI);
+  auto MMO = MF->getMachineMemOperand(MachinePointerInfo(),
+                                      MachineMemOperand::MOLoad, 8, Align(8));
+  SmallVector<MachineMemOperand *, 2> MMOs;
+  MMOs.push_back(MMO);
+  MCSymbol *Sym1 = MC->createTempSymbol("pre_label", false);
+  MCSymbol *Sym2 = MC->createTempSymbol("post_label", false);
+  MDNode *MDN = MDNode::getDistinct(Ctx, None);
+
+  MI->setMemRefs(*MF, MMOs);
+  MI->setPreInstrSymbol(*MF, Sym1);
+  MI->setPostInstrSymbol(*MF, Sym2);
+  MI->setHeapAllocMarker(*MF, MDN);
+
+  MMOs.push_back(MMO);
+
+  MI->setMemRefs(*MF, MMOs);
+  ASSERT_TRUE(MI->memoperands().size() == 2);
+  ASSERT_TRUE(MI->getPreInstrSymbol() == Sym1);
+  ASSERT_TRUE(MI->getPostInstrSymbol() == Sym2);
+  ASSERT_TRUE(MI->getHeapAllocMarker() == MDN);
+
+  MI->setPostInstrSymbol(*MF, Sym1);
+  ASSERT_TRUE(MI->memoperands().size() == 2);
+  ASSERT_TRUE(MI->getPreInstrSymbol() == Sym1);
+  ASSERT_TRUE(MI->getPostInstrSymbol() == Sym1);
+  ASSERT_TRUE(MI->getHeapAllocMarker() == MDN);
+}
+
+TEST(MachineInstrExtraInfo, RemoveExtraInfo) {
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+
+  auto MI = MF->CreateMachineInstr(MCID, DebugLoc());
+  auto MAI = MCAsmInfo();
+  auto MC = createMCContext(&MAI);
+  auto MMO = MF->getMachineMemOperand(MachinePointerInfo(),
+                                      MachineMemOperand::MOLoad, 8, Align(8));
+  SmallVector<MachineMemOperand *, 2> MMOs;
+  MMOs.push_back(MMO);
+  MMOs.push_back(MMO);
+  MCSymbol *Sym1 = MC->createTempSymbol("pre_label", false);
+  MCSymbol *Sym2 = MC->createTempSymbol("post_label", false);
+  MDNode *MDN = MDNode::getDistinct(Ctx, None);
+
+  MI->setMemRefs(*MF, MMOs);
+  MI->setPreInstrSymbol(*MF, Sym1);
+  MI->setPostInstrSymbol(*MF, Sym2);
+  MI->setHeapAllocMarker(*MF, MDN);
+
+  MI->setPostInstrSymbol(*MF, nullptr);
+  ASSERT_TRUE(MI->memoperands().size() == 2);
+  ASSERT_TRUE(MI->getPreInstrSymbol() == Sym1);
+  ASSERT_FALSE(MI->getPostInstrSymbol());
+  ASSERT_TRUE(MI->getHeapAllocMarker() == MDN);
+
+  MI->setHeapAllocMarker(*MF, nullptr);
+  ASSERT_TRUE(MI->memoperands().size() == 2);
+  ASSERT_TRUE(MI->getPreInstrSymbol() == Sym1);
+  ASSERT_FALSE(MI->getPostInstrSymbol());
+  ASSERT_FALSE(MI->getHeapAllocMarker());
+
+  MI->setPreInstrSymbol(*MF, nullptr);
+  ASSERT_TRUE(MI->memoperands().size() == 2);
+  ASSERT_FALSE(MI->getPreInstrSymbol());
+  ASSERT_FALSE(MI->getPostInstrSymbol());
+  ASSERT_FALSE(MI->getHeapAllocMarker());
+
+  MI->setMemRefs(*MF, {});
+  ASSERT_TRUE(MI->memoperands_empty());
+  ASSERT_FALSE(MI->getPreInstrSymbol());
+  ASSERT_FALSE(MI->getPostInstrSymbol());
+  ASSERT_FALSE(MI->getHeapAllocMarker());
+}
+
+TEST(MachineInstrDebugValue, AddDebugValueOperand) {
+  LLVMContext Ctx;
+  Module Mod("Module", Ctx);
+  auto MF = createMachineFunction(Ctx, Mod);
+
+  for (const unsigned short Opcode :
+       {TargetOpcode::DBG_VALUE, TargetOpcode::DBG_VALUE_LIST,
+        TargetOpcode::DBG_INSTR_REF, TargetOpcode::DBG_PHI,
+        TargetOpcode::DBG_LABEL}) {
+    const MCInstrDesc MCID = {
+        Opcode, 0,       0,
+        0,      0,       (1ULL << MCID::Pseudo) | (1ULL << MCID::Variadic),
+        0,      nullptr, nullptr,
+        nullptr};
+
+    auto *MI = MF->CreateMachineInstr(MCID, DebugLoc());
+    MI->addOperand(*MF, MachineOperand::CreateReg(0, /*isDef*/ false));
+
+    MI->addOperand(*MF, MachineOperand::CreateImm(0));
+    MI->getOperand(1).ChangeToRegister(0, false);
+
+    ASSERT_TRUE(MI->getOperand(0).isDebug());
+    ASSERT_TRUE(MI->getOperand(1).isDebug());
+  }
+}
+
+static_assert(std::is_trivially_copyable<MCOperand>::value,
+              "trivially copyable");
 
 } // end namespace

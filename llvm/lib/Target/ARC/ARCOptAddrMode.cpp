@@ -22,6 +22,8 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/Function.h"
+#include "llvm/InitializePasses.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -32,6 +34,16 @@ using namespace llvm;
 #define DEBUG_TYPE "arc-addr-mode"
 
 namespace llvm {
+
+static cl::opt<unsigned> ArcKillAddrMode("arc-kill-addr-mode", cl::init(0),
+                                         cl::ReallyHidden, cl::ZeroOrMore);
+
+#define DUMP_BEFORE() ((ArcKillAddrMode & 0x0001) != 0)
+#define DUMP_AFTER() ((ArcKillAddrMode & 0x0002) != 0)
+#define VIEW_BEFORE() ((ArcKillAddrMode & 0x0004) != 0)
+#define VIEW_AFTER() ((ArcKillAddrMode & 0x0008) != 0)
+#define KILL_PASS() ((ArcKillAddrMode & 0x0010) != 0)
+
 FunctionPass *createARCOptAddrMode();
 void initializeARCOptAddrModePass(PassRegistry &);
 } // end namespace llvm
@@ -72,9 +84,9 @@ private:
   // instruction \p To
   bool canHoistLoadStoreTo(MachineInstr *Ldst, MachineInstr *To);
 
-  // Returns true if load/store instruction \p Ldst can be sunk down
-  // to instruction \p To
-  bool canSinkLoadStoreTo(MachineInstr *Ldst, MachineInstr *To);
+  // // Returns true if load/store instruction \p Ldst can be sunk down
+  // // to instruction \p To
+  // bool canSinkLoadStoreTo(MachineInstr *Ldst, MachineInstr *To);
 
   // Check if instructions \p Ldst and \p Add can be moved to become adjacent
   // If they can return instruction which need not to move.
@@ -139,8 +151,7 @@ static bool dominatesAllUsesOf(const MachineInstr *MI, unsigned VReg,
                                MachineDominatorTree *MDT,
                                MachineRegisterInfo *MRI) {
 
-  assert(TargetRegisterInfo::isVirtualRegister(VReg) &&
-         "Expected virtual register!");
+  assert(Register::isVirtualRegister(VReg) && "Expected virtual register!");
 
   for (auto it = MRI->use_nodbg_begin(VReg), end = MRI->use_nodbg_end();
        it != end; ++it) {
@@ -181,12 +192,12 @@ static bool isLoadStoreThatCanHandleDisplacement(const TargetInstrInfo *TII,
 
 bool ARCOptAddrMode::noUseOfAddBeforeLoadOrStore(const MachineInstr *Add,
                                                  const MachineInstr *Ldst) {
-  unsigned R = Add->getOperand(0).getReg();
+  Register R = Add->getOperand(0).getReg();
   return dominatesAllUsesOf(Ldst, R, MDT, MRI);
 }
 
 MachineInstr *ARCOptAddrMode::tryToCombine(MachineInstr &Ldst) {
-  assert((Ldst.mayLoad() || Ldst.mayStore()) && "LD/ST instruction expected");
+  assert(Ldst.mayLoadOrStore() && "LD/ST instruction expected");
 
   unsigned BasePos, OffsetPos;
 
@@ -205,9 +216,8 @@ MachineInstr *ARCOptAddrMode::tryToCombine(MachineInstr &Ldst) {
     return nullptr;
   }
 
-  unsigned B = Base.getReg();
-  if (TargetRegisterInfo::isStackSlot(B) ||
-      !TargetRegisterInfo::isVirtualRegister(B)) {
+  Register B = Base.getReg();
+  if (Register::isStackSlot(B) || !Register::isVirtualRegister(B)) {
     LLVM_DEBUG(dbgs() << "[ABAW] Base is not VReg\n");
     return nullptr;
   }
@@ -285,7 +295,7 @@ ARCOptAddrMode::canJoinInstructions(MachineInstr *Ldst, MachineInstr *Add,
     return nullptr;
   }
 
-  unsigned BaseReg = Ldst->getOperand(BasePos).getReg();
+  Register BaseReg = Ldst->getOperand(BasePos).getReg();
 
   // prohibit this:
   //   v1 = add v0, c
@@ -294,7 +304,7 @@ ARCOptAddrMode::canJoinInstructions(MachineInstr *Ldst, MachineInstr *Add,
   //   st v0, [v0, 0]
   //   v1 = add v0, c
   if (Ldst->mayStore() && Ldst->getOperand(0).isReg()) {
-    unsigned StReg = Ldst->getOperand(0).getReg();
+    Register StReg = Ldst->getOperand(0).getReg();
     if (Add->getOperand(0).getReg() == StReg || BaseReg == StReg) {
       LLVM_DEBUG(dbgs() << "[canJoinInstructions] Store uses result of Add\n");
       return nullptr;
@@ -414,30 +424,30 @@ bool ARCOptAddrMode::canHoistLoadStoreTo(MachineInstr *Ldst, MachineInstr *To) {
   return true;
 }
 
-bool ARCOptAddrMode::canSinkLoadStoreTo(MachineInstr *Ldst, MachineInstr *To) {
-  // Can only sink load/store within same BB
-  if (Ldst->getParent() != To->getParent())
-    return false;
-  MachineBasicBlock::const_iterator MI(Ldst), ME(To),
-      End(Ldst->getParent()->end());
+// bool ARCOptAddrMode::canSinkLoadStoreTo(MachineInstr *Ldst, MachineInstr *To) {
+//   // Can only sink load/store within same BB
+//   if (Ldst->getParent() != To->getParent())
+//     return false;
+//   MachineBasicBlock::const_iterator MI(Ldst), ME(To),
+//       End(Ldst->getParent()->end());
 
-  bool IsStore = Ldst->mayStore();
-  bool IsLoad = Ldst->mayLoad();
+//   bool IsStore = Ldst->mayStore();
+//   bool IsLoad = Ldst->mayLoad();
 
-  unsigned ValReg = IsLoad ? Ldst->getOperand(0).getReg() : 0;
-  for (; MI != ME && MI != End; ++MI) {
-    if (MI->isDebugValue())
-      continue;
-    if (MI->mayStore() || MI->isCall() || MI->isInlineAsm() ||
-        MI->hasUnmodeledSideEffects())
-      return false;
-    if (IsStore && MI->mayLoad())
-      return false;
-    if (ValReg && MI->readsVirtualRegister(ValReg))
-      return false;
-  }
-  return true;
-}
+//   Register ValReg = IsLoad ? Ldst->getOperand(0).getReg() : Register();
+//   for (; MI != ME && MI != End; ++MI) {
+//     if (MI->isDebugValue())
+//       continue;
+//     if (MI->mayStore() || MI->isCall() || MI->isInlineAsm() ||
+//         MI->hasUnmodeledSideEffects())
+//       return false;
+//     if (IsStore && MI->mayLoad())
+//       return false;
+//     if (ValReg && MI->readsVirtualRegister(ValReg))
+//       return false;
+//   }
+//   return true;
+// }
 
 void ARCOptAddrMode::changeToAddrMode(MachineInstr &Ldst, unsigned NewOpcode,
                                       unsigned NewBase,
@@ -447,14 +457,14 @@ void ARCOptAddrMode::changeToAddrMode(MachineInstr &Ldst, unsigned NewOpcode,
   MachineOperand Src = MachineOperand::CreateImm(0xDEADBEEF);
   AII->getBaseAndOffsetPosition(Ldst, BasePos, OffPos);
 
-  unsigned BaseReg = Ldst.getOperand(BasePos).getReg();
+  Register BaseReg = Ldst.getOperand(BasePos).getReg();
 
-  Ldst.RemoveOperand(OffPos);
-  Ldst.RemoveOperand(BasePos);
+  Ldst.removeOperand(OffPos);
+  Ldst.removeOperand(BasePos);
 
   if (IsStore) {
     Src = Ldst.getOperand(BasePos - 1);
-    Ldst.RemoveOperand(BasePos - 1);
+    Ldst.removeOperand(BasePos - 1);
   }
 
   Ldst.setDesc(AST->getInstrInfo()->get(NewOpcode));
@@ -486,8 +496,15 @@ bool ARCOptAddrMode::processBasicBlock(MachineBasicBlock &MBB) {
 }
 
 bool ARCOptAddrMode::runOnMachineFunction(MachineFunction &MF) {
-  if (skipFunction(MF.getFunction()))
+  if (skipFunction(MF.getFunction()) || KILL_PASS())
     return false;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  if (DUMP_BEFORE())
+    MF.dump();
+#endif
+  if (VIEW_BEFORE())
+    MF.viewCFG();
 
   AST = &MF.getSubtarget<ARCSubtarget>();
   AII = AST->getInstrInfo();
@@ -497,6 +514,13 @@ bool ARCOptAddrMode::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
   for (auto &MBB : MF)
     Changed |= processBasicBlock(MBB);
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  if (DUMP_AFTER())
+    MF.dump();
+#endif
+  if (VIEW_AFTER())
+    MF.viewCFG();
   return Changed;
 }
 

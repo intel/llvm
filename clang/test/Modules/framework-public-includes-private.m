@@ -1,12 +1,10 @@
-// REQUIRES: shell
-
 // RUN: rm -rf %t
 // RUN: mkdir %t
 
 // RUN: %hmaptool write %S/Inputs/framework-public-includes-private/a.hmap.json %t/a.hmap
 // RUN: %hmaptool write %S/Inputs/framework-public-includes-private/z.hmap.json %t/z.hmap
 
-// RUN: sed -e "s:TEST_DIR:%S/Inputs/framework-public-includes-private:g" \
+// RUN: sed -e "s@TEST_DIR@%{/S:regex_replacement}/Inputs/framework-public-includes-private@g" \
 // RUN:   %S/Inputs/framework-public-includes-private/z.yaml > %t/z.yaml
 
 // The output with and without modules should be the same, without modules first.
@@ -30,7 +28,7 @@
 
 #import "A.h"
 
-int bar() { return foo(); }
+int bar(void) { return foo(); }
 
 // expected-warning@Inputs/framework-public-includes-private/A.framework/Headers/A.h:1{{public framework header includes private framework header 'A/APriv.h'}}
 // expected-warning@Inputs/framework-public-includes-private/A.framework/Headers/A.h:2{{public framework header includes private framework header 'A/APriv2.h'}}

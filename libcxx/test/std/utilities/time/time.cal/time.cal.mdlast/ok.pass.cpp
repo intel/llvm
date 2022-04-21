@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class month_day_last;
@@ -36,7 +36,7 @@ int main(int, char**)
         assert( mdl.ok());
     }
 
-//  If the month is not ok, all the days are bad
+    //  If the month is not ok, all the days are bad
     for (unsigned i = 13; i <= 50; ++i)
     {
         month_day_last mdl{month{i}};

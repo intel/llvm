@@ -64,7 +64,7 @@ structure.
 
 ### Example Subsection
 
-Make a link [like this](http://llvm.org/). There is also a more
+Make a link [like this](https://llvm.org/). There is also a more
 sophisticated syntax which [can be more readable] for longer links since
 it disrupts the flow less. You can put the `[link name]: <URL>` block
 pretty much anywhere later in the document.
@@ -155,3 +155,7 @@ integration documentation can be found in the [recommonmark docs].
 
 [Common Mark spec]: http://spec.commonmark.org/0.28/
 [recommonmark docs]: http://recommonmark.readthedocs.io/en/latest/index.html
+
+## Generating the documentation
+
+see [Sphinx Quickstart Template](SphinxQuickstartTemplate.html#generating-the-documentation)

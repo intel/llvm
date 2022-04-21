@@ -1,10 +1,10 @@
 # RUN: llvm-mc -triple riscv32 -riscv-no-aliases < %s -show-encoding \
 # RUN:     | FileCheck -check-prefix=CHECK-FIXUP %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -riscv-no-aliases -d - \
+# RUN:     | llvm-objdump -M no-aliases -d - \
 # RUN:     | FileCheck -check-prefix=CHECK-INSTR %s
 # RUN: llvm-mc -filetype=obj -triple=riscv32 %s \
-# RUN:     | llvm-readobj -r | FileCheck %s -check-prefix=CHECK-REL
+# RUN:     | llvm-readobj -r - | FileCheck %s -check-prefix=CHECK-REL
 
 # Checks that fixups that can be resolved within the same object file are
 # applied correctly
@@ -37,16 +37,16 @@ sw t1, %pcrel_lo(1b)(t1)
 
 jal zero, .LBB0
 # CHECK-FIXUP: fixup A - offset: 0, value: .LBB0, kind: fixup_riscv_jal
-# CHECK-INSTR: jal zero, -28
+# CHECK-INSTR: jal zero, 0x0
 jal zero, .LBB2
 # CHECK-FIXUP: fixup A - offset: 0, value: .LBB2, kind: fixup_riscv_jal
-# CHECK-INSTR: jal zero, 330996
+# CHECK-INSTR: jal zero, 0x50d14
 beq a0, a1, .LBB0
 # CHECK-FIXUP: fixup A - offset: 0, value: .LBB0, kind: fixup_riscv_branch
-# CHECK-INSTR: beq a0, a1, -36
+# CHECK-INSTR: beq a0, a1, 0x0
 blt a0, a1, .LBB1
 # CHECK-FIXUP: fixup A - offset: 0, value: .LBB1, kind: fixup_riscv_branch
-# CHECK-INSTR: blt a0, a1, 1108
+# CHECK-INSTR: blt a0, a1, 0x47c
 
 .fill 1104
 
@@ -60,7 +60,7 @@ addi zero, zero, 0
 
 # CHECK-REL-NOT: R_RISCV
 
-# Testing the function call offset could resovled by assembler
+# Testing the function call offset could resolved by assembler
 # when the function and the callsite within the same compile unit
 # and the linker relaxation is disabled.
 func:
@@ -68,16 +68,16 @@ func:
 call func
 # CHECK-FIXUP: fixup A - offset: 0, value: func, kind: fixup_riscv_call
 # CHECK-INSTR: auipc   ra, 0
-# CHECK-INSTR: jalr    ra, ra, -100
+# CHECK-INSTR: jalr    ra, -100(ra)
 
 .fill 10000
 call func
 # CHECK-FIXUP: fixup A - offset: 0, value: func, kind: fixup_riscv_call
 # CHECK-INSTR: auipc   ra, 1048574
-# CHECK-INSTR: jalr    ra, ra, -1916
+# CHECK-INSTR: jalr    ra, -1916(ra)
 
 .fill 20888
 call func
 # CHECK-FIXUP: fixup A - offset: 0, value: func, kind: fixup_riscv_call
 # CHECK-INSTR: auipc   ra, 1048568
-# CHECK-INSTR: jalr    ra, ra, 1764
+# CHECK-INSTR: jalr    ra, 1764(ra)

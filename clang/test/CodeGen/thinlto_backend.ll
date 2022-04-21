@@ -1,5 +1,4 @@
-; shell required since the windows bot does not like the "(cd ..."
-; REQUIRES: x86-registered-target, shell
+; REQUIRES: x86-registered-target
 
 ; RUN: opt -module-summary -o %t1.o %s
 ; RUN: opt -module-summary -o %t2.o %S/Inputs/thinlto_backend.ll
@@ -25,17 +24,20 @@
 ; be empty file.
 ; RUN: opt -o %t5.o %s
 ; RUN: %clang -target x86_64-unknown-linux-gnu -O2 -o %t4.o -x ir %t5.o -c -fthinlto-index=%t.thinlto.bc
-; RUN: llvm-nm %t4.o 2>&1 | FileCheck %s -check-prefix=NO-SYMBOLS
-; NO-SYMBOLS: no symbols
+; RUN: llvm-nm %t4.o 2>&1 | count 0
 
 ; Ensure f2 was imported. Check for all 3 flavors of -save-temps[=cwd|obj].
 ; RUN: %clang -target x86_64-unknown-linux-gnu -O2 -o %t3.o -x ir %t1.o -c -fthinlto-index=%t.thinlto.bc -save-temps=obj
 ; RUN: llvm-dis %t1.s.3.import.bc -o - | FileCheck --check-prefix=CHECK-IMPORT %s
 ; RUN: mkdir -p %T/dir1
-; RUN: (cd %T/dir1 && %clang -target x86_64-unknown-linux-gnu -O2 -o %t3.o -x ir %t1.o -c -fthinlto-index=%t.thinlto.bc -save-temps=cwd)
+; RUN: cd %T/dir1
+; RUN: %clang -target x86_64-unknown-linux-gnu -O2 -o %t3.o -x ir %t1.o -c -fthinlto-index=%t.thinlto.bc -save-temps=cwd
+; RUN: cd ../..
 ; RUN: llvm-dis %T/dir1/*1.s.3.import.bc -o - | FileCheck --check-prefix=CHECK-IMPORT %s
 ; RUN: mkdir -p %T/dir2
-; RUN: (cd %T/dir2 && %clang -target x86_64-unknown-linux-gnu -O2 -o %t3.o -x ir %t1.o -c -fthinlto-index=%t.thinlto.bc -save-temps)
+; RUN: cd %T/dir2
+; RUN: %clang -target x86_64-unknown-linux-gnu -O2 -o %t3.o -x ir %t1.o -c -fthinlto-index=%t.thinlto.bc -save-temps
+; RUN: cd ../..
 ; RUN: llvm-dis %T/dir2/*1.s.3.import.bc -o - | FileCheck --check-prefix=CHECK-IMPORT %s
 ; CHECK-IMPORT: define available_externally void @f2()
 ; RUN: llvm-nm %t3.o | FileCheck --check-prefix=CHECK-OBJ %s
@@ -45,9 +47,9 @@
 ; Ensure we get expected error for input files without summaries
 ; RUN: opt -o %t2.o %s
 ; RUN: %clang -target x86_64-unknown-linux-gnu -O2 -o %t3.o -x ir %t1.o -c -fthinlto-index=%t.thinlto.bc 2>&1 | FileCheck %s -check-prefix=CHECK-ERROR2
-; CHECK-ERROR2: Error loading imported file '{{.*}}': Could not find module summary
+; CHECK-ERROR2: Error loading imported file {{.*}}: Could not find module summary
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 declare void @f2()

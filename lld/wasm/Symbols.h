@@ -11,6 +11,7 @@
 
 #include "Config.h"
 #include "lld/Common/LLVM.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/Wasm.h"
 
@@ -20,10 +21,10 @@ namespace wasm {
 // Shared string constants
 
 // The default module name to use for symbol imports.
-extern const char *DefaultModule;
+extern const char *defaultModule;
 
 // The name under which to import or export the wasm table.
-extern const char *FunctionTableName;
+extern const char *functionTableName;
 
 using llvm::wasm::WasmSymbolType;
 
@@ -32,8 +33,9 @@ class InputChunk;
 class InputSegment;
 class InputFunction;
 class InputGlobal;
-class InputEvent;
+class InputTag;
 class InputSection;
+class InputTable;
 class OutputSection;
 
 #define INVALID_INDEX UINT32_MAX
@@ -41,33 +43,42 @@ class OutputSection;
 // The base class for real symbol classes.
 class Symbol {
 public:
-  enum Kind {
+  enum Kind : uint8_t {
     DefinedFunctionKind,
     DefinedDataKind,
     DefinedGlobalKind,
-    DefinedEventKind,
+    DefinedTagKind,
+    DefinedTableKind,
     SectionKind,
     OutputSectionKind,
     UndefinedFunctionKind,
     UndefinedDataKind,
     UndefinedGlobalKind,
+    UndefinedTableKind,
+    UndefinedTagKind,
     LazyKind,
   };
 
-  Kind kind() const { return SymbolKind; }
+  Kind kind() const { return symbolKind; }
 
   bool isDefined() const { return !isLazy() && !isUndefined(); }
 
   bool isUndefined() const {
-    return SymbolKind == UndefinedFunctionKind ||
-           SymbolKind == UndefinedDataKind || SymbolKind == UndefinedGlobalKind;
+    return symbolKind == UndefinedFunctionKind ||
+           symbolKind == UndefinedDataKind ||
+           symbolKind == UndefinedGlobalKind ||
+           symbolKind == UndefinedTableKind || symbolKind == UndefinedTagKind;
   }
 
-  bool isLazy() const { return SymbolKind == LazyKind; }
+  bool isLazy() const { return symbolKind == LazyKind; }
 
   bool isLocal() const;
   bool isWeak() const;
   bool isHidden() const;
+  bool isTLS() const;
+
+  // Returns true if this symbol exists in a discarded (due to COMDAT) section
+  bool isDiscarded() const;
 
   // True if this is an undefined weak symbol. This only works once
   // all input files have been added.
@@ -77,12 +88,10 @@ public:
   }
 
   // Returns the symbol name.
-  StringRef getName() const { return Name; }
+  StringRef getName() const { return name; }
 
   // Returns the file from which this symbol was created.
-  InputFile *getFile() const { return File; }
-
-  uint32_t getFlags() const { return Flags; }
+  InputFile *getFile() const { return file; }
 
   InputChunk *getChunk() const;
 
@@ -94,111 +103,147 @@ public:
   // final image.
   void markLive();
 
-  void setHidden(bool IsHidden);
+  void setHidden(bool isHidden);
 
   // Get/set the index in the output symbol table.  This is only used for
   // relocatable output.
   uint32_t getOutputSymbolIndex() const;
-  void setOutputSymbolIndex(uint32_t Index);
+  void setOutputSymbolIndex(uint32_t index);
 
   WasmSymbolType getWasmType() const;
   bool isExported() const;
+  bool isExportedExplicit() const;
+
+  // Indicates that the symbol is used in an __attribute__((used)) directive
+  // or similar.
+  bool isNoStrip() const;
+
+  const WasmSignature* getSignature() const;
+
+  uint32_t getGOTIndex() const {
+    assert(gotIndex != INVALID_INDEX);
+    return gotIndex;
+  }
+
+  void setGOTIndex(uint32_t index);
+  bool hasGOTIndex() const { return gotIndex != INVALID_INDEX; }
+
+protected:
+  Symbol(StringRef name, Kind k, uint32_t flags, InputFile *f)
+      : name(name), file(f), symbolKind(k), referenced(!config->gcSections),
+        requiresGOT(false), isUsedInRegularObj(false), forceExport(false),
+        canInline(false), traced(false), isStub(false), flags(flags) {}
+
+  StringRef name;
+  InputFile *file;
+  uint32_t outputSymbolIndex = INVALID_INDEX;
+  uint32_t gotIndex = INVALID_INDEX;
+  Kind symbolKind;
+
+public:
+  bool referenced : 1;
+
+  // True for data symbols that needs a dummy GOT entry.  Used for static
+  // linking of GOT accesses.
+  bool requiresGOT : 1;
 
   // True if the symbol was used for linking and thus need to be added to the
   // output file's symbol table. This is true for all symbols except for
   // unreferenced DSO symbols, lazy (archive) symbols, and bitcode symbols that
   // are unreferenced except by other bitcode objects.
-  unsigned IsUsedInRegularObj : 1;
+  bool isUsedInRegularObj : 1;
 
-  // True if ths symbol is explicity marked for export (i.e. via the -e/--export
-  // command line flag)
-  unsigned ForceExport : 1;
+  // True if this symbol is explicitly marked for export (i.e. via the
+  // -e/--export command line flag)
+  bool forceExport : 1;
+
+  // False if LTO shouldn't inline whatever this symbol points to. If a symbol
+  // is overwritten after LTO, LTO shouldn't inline the symbol because it
+  // doesn't know the final contents of the symbol.
+  bool canInline : 1;
 
   // True if this symbol is specified by --trace-symbol option.
-  unsigned Traced : 1;
+  bool traced : 1;
 
-  const WasmSignature* getSignature() const;
+  // True if this symbol is a linker-synthesized stub function (traps when
+  // called) and should otherwise be treated as missing/undefined.  See
+  // SymbolTable::replaceWithUndefined.
+  // These stubs never appear in the table and any table index relocations
+  // against them will produce address 0 (The table index representing
+  // the null function pointer).
+  bool isStub : 1;
 
-  bool isInGOT() const { return GOTIndex != INVALID_INDEX; }
+  uint32_t flags;
 
-  uint32_t getGOTIndex() const {
-    assert(GOTIndex != INVALID_INDEX);
-    return GOTIndex;
-  }
-
-  void setGOTIndex(uint32_t Index);
-  bool hasGOTIndex() const { return GOTIndex != INVALID_INDEX; }
-
-protected:
-  Symbol(StringRef Name, Kind K, uint32_t Flags, InputFile *F)
-      : IsUsedInRegularObj(false), ForceExport(false), Traced(false),
-        Name(Name), SymbolKind(K), Flags(Flags), File(F),
-        Referenced(!Config->GcSections) {}
-
-  StringRef Name;
-  Kind SymbolKind;
-  uint32_t Flags;
-  InputFile *File;
-  uint32_t OutputSymbolIndex = INVALID_INDEX;
-  uint32_t GOTIndex = INVALID_INDEX;
-  bool Referenced;
+  llvm::Optional<StringRef> importName;
+  llvm::Optional<StringRef> importModule;
 };
 
 class FunctionSymbol : public Symbol {
 public:
-  static bool classof(const Symbol *S) {
-    return S->kind() == DefinedFunctionKind ||
-           S->kind() == UndefinedFunctionKind;
+  static bool classof(const Symbol *s) {
+    return s->kind() == DefinedFunctionKind ||
+           s->kind() == UndefinedFunctionKind;
   }
 
   // Get/set the table index
-  void setTableIndex(uint32_t Index);
+  void setTableIndex(uint32_t index);
   uint32_t getTableIndex() const;
   bool hasTableIndex() const;
 
   // Get/set the function index
   uint32_t getFunctionIndex() const;
-  void setFunctionIndex(uint32_t Index);
+  void setFunctionIndex(uint32_t index);
   bool hasFunctionIndex() const;
 
-  const WasmSignature *Signature;
+  const WasmSignature *signature;
 
 protected:
-  FunctionSymbol(StringRef Name, Kind K, uint32_t Flags, InputFile *F,
-                 const WasmSignature *Sig)
-      : Symbol(Name, K, Flags, F), Signature(Sig) {}
+  FunctionSymbol(StringRef name, Kind k, uint32_t flags, InputFile *f,
+                 const WasmSignature *sig)
+      : Symbol(name, k, flags, f), signature(sig) {}
 
-  uint32_t TableIndex = INVALID_INDEX;
-  uint32_t FunctionIndex = INVALID_INDEX;
+  uint32_t tableIndex = INVALID_INDEX;
+  uint32_t functionIndex = INVALID_INDEX;
 };
 
 class DefinedFunction : public FunctionSymbol {
 public:
-  DefinedFunction(StringRef Name, uint32_t Flags, InputFile *F,
-                  InputFunction *Function);
+  DefinedFunction(StringRef name, uint32_t flags, InputFile *f,
+                  InputFunction *function);
 
-  static bool classof(const Symbol *S) {
-    return S->kind() == DefinedFunctionKind;
+  static bool classof(const Symbol *s) {
+    return s->kind() == DefinedFunctionKind;
   }
 
-  InputFunction *Function;
+  // Get the function index to be used when exporting.  This only applies to
+  // defined functions and can be differ from the regular function index for
+  // weakly defined functions (that are imported and used via one index but
+  // defined and exported via another).
+  uint32_t getExportedFunctionIndex() const;
+
+  InputFunction *function;
 };
 
 class UndefinedFunction : public FunctionSymbol {
 public:
-  UndefinedFunction(StringRef Name, StringRef ImportName,
-                    StringRef ImportModule, uint32_t Flags,
-                    InputFile *File = nullptr,
-                    const WasmSignature *Type = nullptr)
-      : FunctionSymbol(Name, UndefinedFunctionKind, Flags, File, Type),
-        ImportName(ImportName), ImportModule(ImportModule) {}
-
-  static bool classof(const Symbol *S) {
-    return S->kind() == UndefinedFunctionKind;
+  UndefinedFunction(StringRef name, llvm::Optional<StringRef> importName,
+                    llvm::Optional<StringRef> importModule, uint32_t flags,
+                    InputFile *file = nullptr,
+                    const WasmSignature *type = nullptr,
+                    bool isCalledDirectly = true)
+      : FunctionSymbol(name, UndefinedFunctionKind, flags, file, type),
+        isCalledDirectly(isCalledDirectly) {
+    this->importName = importName;
+    this->importModule = importModule;
   }
 
-  StringRef ImportName;
-  StringRef ImportModule;
+  static bool classof(const Symbol *s) {
+    return s->kind() == UndefinedFunctionKind;
+  }
+
+  DefinedFunction *stubFunction = nullptr;
+  bool isCalledDirectly;
 };
 
 // Section symbols for output sections are different from those for input
@@ -206,172 +251,232 @@ public:
 // rather than an InputSection.
 class OutputSectionSymbol : public Symbol {
 public:
-  OutputSectionSymbol(const OutputSection *S)
+  OutputSectionSymbol(const OutputSection *s)
       : Symbol("", OutputSectionKind, llvm::wasm::WASM_SYMBOL_BINDING_LOCAL,
                nullptr),
-        Section(S) {}
+        section(s) {}
 
-  static bool classof(const Symbol *S) {
-    return S->kind() == OutputSectionKind;
+  static bool classof(const Symbol *s) {
+    return s->kind() == OutputSectionKind;
   }
 
-  const OutputSection *Section;
+  const OutputSection *section;
 };
 
 class SectionSymbol : public Symbol {
 public:
-  SectionSymbol(uint32_t Flags, const InputSection *S, InputFile *F = nullptr)
-      : Symbol("", SectionKind, Flags, F), Section(S) {}
+  SectionSymbol(uint32_t flags, const InputChunk *s, InputFile *f = nullptr)
+      : Symbol("", SectionKind, flags, f), section(s) {}
 
-  static bool classof(const Symbol *S) { return S->kind() == SectionKind; }
+  static bool classof(const Symbol *s) { return s->kind() == SectionKind; }
 
   const OutputSectionSymbol *getOutputSectionSymbol() const;
 
-  const InputSection *Section;
+  const InputChunk *section;
 };
 
 class DataSymbol : public Symbol {
 public:
-  static bool classof(const Symbol *S) {
-    return S->kind() == DefinedDataKind || S->kind() == UndefinedDataKind;
+  static bool classof(const Symbol *s) {
+    return s->kind() == DefinedDataKind || s->kind() == UndefinedDataKind;
   }
 
 protected:
-  DataSymbol(StringRef Name, Kind K, uint32_t Flags, InputFile *F)
-      : Symbol(Name, K, Flags, F) {}
+  DataSymbol(StringRef name, Kind k, uint32_t flags, InputFile *f)
+      : Symbol(name, k, flags, f) {}
 };
 
 class DefinedData : public DataSymbol {
 public:
   // Constructor for regular data symbols originating from input files.
-  DefinedData(StringRef Name, uint32_t Flags, InputFile *F,
-              InputSegment *Segment, uint32_t Offset, uint32_t Size)
-      : DataSymbol(Name, DefinedDataKind, Flags, F), Segment(Segment),
-        Offset(Offset), Size(Size) {}
+  DefinedData(StringRef name, uint32_t flags, InputFile *f, InputChunk *segment,
+              uint64_t value, uint64_t size)
+      : DataSymbol(name, DefinedDataKind, flags, f), segment(segment),
+        value(value), size(size) {}
 
   // Constructor for linker synthetic data symbols.
-  DefinedData(StringRef Name, uint32_t Flags)
-      : DataSymbol(Name, DefinedDataKind, Flags, nullptr) {}
+  DefinedData(StringRef name, uint32_t flags)
+      : DataSymbol(name, DefinedDataKind, flags, nullptr) {}
 
-  static bool classof(const Symbol *S) { return S->kind() == DefinedDataKind; }
+  static bool classof(const Symbol *s) { return s->kind() == DefinedDataKind; }
 
   // Returns the output virtual address of a defined data symbol.
-  uint32_t getVirtualAddress() const;
-  void setVirtualAddress(uint32_t VA);
+  uint64_t getVA() const;
+  void setVA(uint64_t va);
 
   // Returns the offset of a defined data symbol within its OutputSegment.
-  uint32_t getOutputSegmentOffset() const;
-  uint32_t getOutputSegmentIndex() const;
-  uint32_t getSize() const { return Size; }
+  uint64_t getOutputSegmentOffset() const;
+  uint64_t getOutputSegmentIndex() const;
+  uint64_t getSize() const { return size; }
 
-  InputSegment *Segment = nullptr;
+  InputChunk *segment = nullptr;
+  uint64_t value = 0;
 
 protected:
-  uint32_t Offset = 0;
-  uint32_t Size = 0;
+  uint64_t size = 0;
 };
 
 class UndefinedData : public DataSymbol {
 public:
-  UndefinedData(StringRef Name, uint32_t Flags, InputFile *File = nullptr)
-      : DataSymbol(Name, UndefinedDataKind, Flags, File) {}
-  static bool classof(const Symbol *S) {
-    return S->kind() == UndefinedDataKind;
+  UndefinedData(StringRef name, uint32_t flags, InputFile *file = nullptr)
+      : DataSymbol(name, UndefinedDataKind, flags, file) {}
+  static bool classof(const Symbol *s) {
+    return s->kind() == UndefinedDataKind;
   }
 };
 
 class GlobalSymbol : public Symbol {
 public:
-  static bool classof(const Symbol *S) {
-    return S->kind() == DefinedGlobalKind || S->kind() == UndefinedGlobalKind;
+  static bool classof(const Symbol *s) {
+    return s->kind() == DefinedGlobalKind || s->kind() == UndefinedGlobalKind;
   }
 
-  const WasmGlobalType *getGlobalType() const { return GlobalType; }
+  const WasmGlobalType *getGlobalType() const { return globalType; }
 
   // Get/set the global index
   uint32_t getGlobalIndex() const;
-  void setGlobalIndex(uint32_t Index);
+  void setGlobalIndex(uint32_t index);
   bool hasGlobalIndex() const;
 
 protected:
-  GlobalSymbol(StringRef Name, Kind K, uint32_t Flags, InputFile *F,
-               const WasmGlobalType *GlobalType)
-      : Symbol(Name, K, Flags, F), GlobalType(GlobalType) {}
+  GlobalSymbol(StringRef name, Kind k, uint32_t flags, InputFile *f,
+               const WasmGlobalType *globalType)
+      : Symbol(name, k, flags, f), globalType(globalType) {}
 
-  const WasmGlobalType *GlobalType;
-  uint32_t GlobalIndex = INVALID_INDEX;
+  const WasmGlobalType *globalType;
+  uint32_t globalIndex = INVALID_INDEX;
 };
 
 class DefinedGlobal : public GlobalSymbol {
 public:
-  DefinedGlobal(StringRef Name, uint32_t Flags, InputFile *File,
-                InputGlobal *Global);
+  DefinedGlobal(StringRef name, uint32_t flags, InputFile *file,
+                InputGlobal *global);
 
-  static bool classof(const Symbol *S) {
-    return S->kind() == DefinedGlobalKind;
+  static bool classof(const Symbol *s) {
+    return s->kind() == DefinedGlobalKind;
   }
 
-  InputGlobal *Global;
+  InputGlobal *global;
 };
 
 class UndefinedGlobal : public GlobalSymbol {
 public:
-  UndefinedGlobal(StringRef Name, StringRef ImportName, StringRef ImportModule,
-                  uint32_t Flags, InputFile *File = nullptr,
-                  const WasmGlobalType *Type = nullptr)
-      : GlobalSymbol(Name, UndefinedGlobalKind, Flags, File, Type),
-        ImportName(ImportName), ImportModule(ImportModule) {}
-
-  static bool classof(const Symbol *S) {
-    return S->kind() == UndefinedGlobalKind;
+  UndefinedGlobal(StringRef name, llvm::Optional<StringRef> importName,
+                  llvm::Optional<StringRef> importModule, uint32_t flags,
+                  InputFile *file = nullptr,
+                  const WasmGlobalType *type = nullptr)
+      : GlobalSymbol(name, UndefinedGlobalKind, flags, file, type) {
+    this->importName = importName;
+    this->importModule = importModule;
   }
 
-  StringRef ImportName;
-  StringRef ImportModule;
+  static bool classof(const Symbol *s) {
+    return s->kind() == UndefinedGlobalKind;
+  }
 };
 
-// Wasm events are features that suspend the current execution and transfer the
-// control flow to a corresponding handler. Currently the only supported event
-// kind is exceptions.
-//
-// Event tags are values to distinguish different events. For exceptions, they
-// can be used to distinguish different language's exceptions, i.e., all C++
-// exceptions have the same tag. Wasm can generate code capable of doing
-// different handling actions based on the tag of caught exceptions.
-//
-// A single EventSymbol object represents a single tag. C++ exception event
-// symbol is a weak symbol generated in every object file in which exceptions
-// are used, and has name '__cpp_exception' for linking.
-class EventSymbol : public Symbol {
+class TableSymbol : public Symbol {
 public:
-  static bool classof(const Symbol *S) { return S->kind() == DefinedEventKind; }
+  static bool classof(const Symbol *s) {
+    return s->kind() == DefinedTableKind || s->kind() == UndefinedTableKind;
+  }
 
-  const WasmEventType *getEventType() const { return EventType; }
+  const WasmTableType *getTableType() const { return tableType; }
+  void setLimits(const WasmLimits &limits);
 
-  // Get/set the event index
-  uint32_t getEventIndex() const;
-  void setEventIndex(uint32_t Index);
-  bool hasEventIndex() const;
-
-  const WasmSignature *Signature;
+  // Get/set the table number
+  uint32_t getTableNumber() const;
+  void setTableNumber(uint32_t number);
+  bool hasTableNumber() const;
 
 protected:
-  EventSymbol(StringRef Name, Kind K, uint32_t Flags, InputFile *F,
-              const WasmEventType *EventType, const WasmSignature *Sig)
-      : Symbol(Name, K, Flags, F), Signature(Sig), EventType(EventType) {}
+  TableSymbol(StringRef name, Kind k, uint32_t flags, InputFile *f,
+              const WasmTableType *type)
+      : Symbol(name, k, flags, f), tableType(type) {}
 
-  const WasmEventType *EventType;
-  uint32_t EventIndex = INVALID_INDEX;
+  const WasmTableType *tableType;
+  uint32_t tableNumber = INVALID_INDEX;
 };
 
-class DefinedEvent : public EventSymbol {
+class DefinedTable : public TableSymbol {
 public:
-  DefinedEvent(StringRef Name, uint32_t Flags, InputFile *File,
-               InputEvent *Event);
+  DefinedTable(StringRef name, uint32_t flags, InputFile *file,
+               InputTable *table);
 
-  static bool classof(const Symbol *S) { return S->kind() == DefinedEventKind; }
+  static bool classof(const Symbol *s) { return s->kind() == DefinedTableKind; }
 
-  InputEvent *Event;
+  InputTable *table;
+};
+
+class UndefinedTable : public TableSymbol {
+public:
+  UndefinedTable(StringRef name, llvm::Optional<StringRef> importName,
+                 llvm::Optional<StringRef> importModule, uint32_t flags,
+                 InputFile *file, const WasmTableType *type)
+      : TableSymbol(name, UndefinedTableKind, flags, file, type) {
+    this->importName = importName;
+    this->importModule = importModule;
+  }
+
+  static bool classof(const Symbol *s) {
+    return s->kind() == UndefinedTableKind;
+  }
+};
+
+// A tag is a general format to distinguish typed entities. Each tag has an
+// attribute and a type. Currently the attribute can only specify that the tag
+// is for an exception tag.
+//
+// In exception handling, tags are used to distinguish different kinds of
+// exceptions. For example, they can be used to distinguish different language's
+// exceptions, e.g., all C++ exceptions have the same tag and Java exceptions
+// would have a distinct tag. Wasm can filter the exceptions it catches based on
+// their tag.
+//
+// A single TagSymbol object represents a single tag. The C++ exception symbol
+// is a weak symbol generated in every object file in which exceptions are used,
+// and is named '__cpp_exception' for linking.
+class TagSymbol : public Symbol {
+public:
+  static bool classof(const Symbol *s) {
+    return s->kind() == DefinedTagKind || s->kind() == UndefinedTagKind;
+  }
+
+  // Get/set the tag index
+  uint32_t getTagIndex() const;
+  void setTagIndex(uint32_t index);
+  bool hasTagIndex() const;
+
+  const WasmSignature *signature;
+
+protected:
+  TagSymbol(StringRef name, Kind k, uint32_t flags, InputFile *f,
+            const WasmSignature *sig)
+      : Symbol(name, k, flags, f), signature(sig) {}
+
+  uint32_t tagIndex = INVALID_INDEX;
+};
+
+class DefinedTag : public TagSymbol {
+public:
+  DefinedTag(StringRef name, uint32_t flags, InputFile *file, InputTag *tag);
+
+  static bool classof(const Symbol *s) { return s->kind() == DefinedTagKind; }
+
+  InputTag *tag;
+};
+
+class UndefinedTag : public TagSymbol {
+public:
+  UndefinedTag(StringRef name, llvm::Optional<StringRef> importName,
+               llvm::Optional<StringRef> importModule, uint32_t flags,
+               InputFile *file = nullptr, const WasmSignature *sig = nullptr)
+      : TagSymbol(name, UndefinedTagKind, flags, file, sig) {
+    this->importName = importName;
+    this->importModule = importModule;
+  }
+
+  static bool classof(const Symbol *s) { return s->kind() == UndefinedTagKind; }
 };
 
 // LazySymbol represents a symbol that is not yet in the link, but we know where
@@ -385,81 +490,150 @@ public:
 // symbols into consideration.
 class LazySymbol : public Symbol {
 public:
-  LazySymbol(StringRef Name, uint32_t Flags, InputFile *File,
-             const llvm::object::Archive::Symbol &Sym)
-      : Symbol(Name, LazyKind, Flags, File), ArchiveSymbol(Sym) {}
+  LazySymbol(StringRef name, uint32_t flags, InputFile *file,
+             const llvm::object::Archive::Symbol &sym)
+      : Symbol(name, LazyKind, flags, file), archiveSymbol(sym) {}
 
-  static bool classof(const Symbol *S) { return S->kind() == LazyKind; }
+  static bool classof(const Symbol *s) { return s->kind() == LazyKind; }
   void fetch();
+  void setWeak();
+  MemoryBufferRef getMemberBuffer();
 
   // Lazy symbols can have a signature because they can replace an
   // UndefinedFunction which which case we need to be able to preserve the
-  // signture.
+  // signature.
   // TODO(sbc): This repetition of the signature field is inelegant.  Revisit
   // the use of class hierarchy to represent symbol taxonomy.
-  const WasmSignature *Signature = nullptr;
+  const WasmSignature *signature = nullptr;
 
 private:
-  llvm::object::Archive::Symbol ArchiveSymbol;
+  llvm::object::Archive::Symbol archiveSymbol;
 };
 
 // linker-generated symbols
 struct WasmSym {
+  // __global_base
+  // Symbol marking the start of the global section.
+  static DefinedData *globalBase;
+
   // __stack_pointer
   // Global that holds the address of the top of the explicit value stack in
   // linear memory.
-  static GlobalSymbol *StackPointer;
+  static GlobalSymbol *stackPointer;
+
+  // __tls_base
+  // Global that holds the address of the base of the current thread's
+  // TLS block.
+  static GlobalSymbol *tlsBase;
+
+  // __tls_size
+  // Symbol whose value is the size of the TLS block.
+  static GlobalSymbol *tlsSize;
+
+  // __tls_size
+  // Symbol whose value is the alignment of the TLS block.
+  static GlobalSymbol *tlsAlign;
 
   // __data_end
   // Symbol marking the end of the data and bss.
-  static DefinedData *DataEnd;
+  static DefinedData *dataEnd;
 
   // __heap_base
   // Symbol marking the end of the data, bss and explicit stack.  Any linear
   // memory following this address is not used by the linked code and can
   // therefore be used as a backing store for brk()/malloc() implementations.
-  static DefinedData *HeapBase;
+  static DefinedData *heapBase;
+
+  // __wasm_init_memory_flag
+  // Symbol whose contents are nonzero iff memory has already been initialized.
+  static DefinedData *initMemoryFlag;
+
+  // __wasm_init_memory
+  // Function that initializes passive data segments during instantiation.
+  static DefinedFunction *initMemory;
 
   // __wasm_call_ctors
   // Function that directly calls all ctors in priority order.
-  static DefinedFunction *CallCtors;
+  static DefinedFunction *callCtors;
 
-  // __wasm_apply_relocs
+  // __wasm_call_dtors
+  // Function that calls the libc/etc. cleanup function.
+  static DefinedFunction *callDtors;
+
+  // __wasm_apply_data_relocs
   // Function that applies relocations to data segment post-instantiation.
-  static DefinedFunction *ApplyRelocs;
+  static DefinedFunction *applyDataRelocs;
+
+  // __wasm_apply_global_relocs
+  // Function that applies relocations to wasm globals post-instantiation.
+  // Unlike __wasm_apply_data_relocs this needs to run on every thread.
+  static DefinedFunction *applyGlobalRelocs;
+
+  // __wasm_apply_global_tls_relocs
+  // Like applyGlobalRelocs but for globals that hold TLS addresess.  These
+  // must be delayed until __wasm_init_tls.
+  static DefinedFunction *applyGlobalTLSRelocs;
+
+  // __wasm_init_tls
+  // Function that allocates thread-local storage and initializes it.
+  static DefinedFunction *initTLS;
+
+  // Pointer to the function that is to be used in the start section.
+  // (normally an alias of initMemory, or applyGlobalRelocs).
+  static DefinedFunction *startFunction;
 
   // __dso_handle
   // Symbol used in calls to __cxa_atexit to determine current DLL
-  static DefinedData *DsoHandle;
+  static DefinedData *dsoHandle;
 
   // __table_base
   // Used in PIC code for offset of indirect function table
-  static UndefinedGlobal *TableBase;
+  static UndefinedGlobal *tableBase;
+  static DefinedData *definedTableBase;
+  // 32-bit copy in wasm64 to work around init expr limitations.
+  // These can potentially be removed again once we have
+  // https://github.com/WebAssembly/extended-const 
+  static UndefinedGlobal *tableBase32;
+  static DefinedData *definedTableBase32;
 
   // __memory_base
   // Used in PIC code for offset of global data
-  static UndefinedGlobal *MemoryBase;
+  static UndefinedGlobal *memoryBase;
+  static DefinedData *definedMemoryBase;
+
+  // __indirect_function_table
+  // Used as an address space for function pointers, with each function that is
+  // used as a function pointer being allocated a slot.
+  static TableSymbol *indirectFunctionTable;
 };
 
 // A buffer class that is large enough to hold any Symbol-derived
 // object. We allocate memory using this class and instantiate a symbol
 // using the placement new.
 union SymbolUnion {
-  alignas(DefinedFunction) char A[sizeof(DefinedFunction)];
-  alignas(DefinedData) char B[sizeof(DefinedData)];
-  alignas(DefinedGlobal) char C[sizeof(DefinedGlobal)];
-  alignas(DefinedEvent) char D[sizeof(DefinedEvent)];
-  alignas(LazySymbol) char E[sizeof(LazySymbol)];
-  alignas(UndefinedFunction) char F[sizeof(UndefinedFunction)];
-  alignas(UndefinedData) char G[sizeof(UndefinedData)];
-  alignas(UndefinedGlobal) char H[sizeof(UndefinedGlobal)];
-  alignas(SectionSymbol) char I[sizeof(SectionSymbol)];
+  alignas(DefinedFunction) char a[sizeof(DefinedFunction)];
+  alignas(DefinedData) char b[sizeof(DefinedData)];
+  alignas(DefinedGlobal) char c[sizeof(DefinedGlobal)];
+  alignas(DefinedTag) char d[sizeof(DefinedTag)];
+  alignas(DefinedTable) char e[sizeof(DefinedTable)];
+  alignas(LazySymbol) char f[sizeof(LazySymbol)];
+  alignas(UndefinedFunction) char g[sizeof(UndefinedFunction)];
+  alignas(UndefinedData) char h[sizeof(UndefinedData)];
+  alignas(UndefinedGlobal) char i[sizeof(UndefinedGlobal)];
+  alignas(UndefinedTable) char j[sizeof(UndefinedTable)];
+  alignas(SectionSymbol) char k[sizeof(SectionSymbol)];
 };
 
-void printTraceSymbol(Symbol *Sym);
+// It is important to keep the size of SymbolUnion small for performance and
+// memory usage reasons. 96 bytes is a soft limit based on the size of
+// UndefinedFunction on a 64-bit system.
+static_assert(sizeof(SymbolUnion) <= 120, "SymbolUnion too large");
+
+void printTraceSymbol(Symbol *sym);
+void printTraceSymbolUndefined(StringRef name, const InputFile* file);
 
 template <typename T, typename... ArgT>
-T *replaceSymbol(Symbol *S, ArgT &&... Arg) {
+T *replaceSymbol(Symbol *s, ArgT &&... arg) {
   static_assert(std::is_trivially_destructible<T>(),
                 "Symbol types must be trivially destructible");
   static_assert(sizeof(T) <= sizeof(SymbolUnion), "SymbolUnion too small");
@@ -468,27 +642,28 @@ T *replaceSymbol(Symbol *S, ArgT &&... Arg) {
   assert(static_cast<Symbol *>(static_cast<T *>(nullptr)) == nullptr &&
          "Not a Symbol");
 
-  Symbol SymCopy = *S;
+  Symbol symCopy = *s;
 
-  T *S2 = new (S) T(std::forward<ArgT>(Arg)...);
-  S2->IsUsedInRegularObj = SymCopy.IsUsedInRegularObj;
-  S2->ForceExport = SymCopy.ForceExport;
-  S2->Traced = SymCopy.Traced;
+  T *s2 = new (s) T(std::forward<ArgT>(arg)...);
+  s2->isUsedInRegularObj = symCopy.isUsedInRegularObj;
+  s2->forceExport = symCopy.forceExport;
+  s2->canInline = symCopy.canInline;
+  s2->traced = symCopy.traced;
 
   // Print out a log message if --trace-symbol was specified.
   // This is for debugging.
-  if (S2->Traced)
-    printTraceSymbol(S2);
+  if (s2->traced)
+    printTraceSymbol(s2);
 
-  return S2;
+  return s2;
 }
 
 } // namespace wasm
 
 // Returns a symbol name for an error message.
-std::string toString(const wasm::Symbol &Sym);
-std::string toString(wasm::Symbol::Kind Kind);
-std::string maybeDemangleSymbol(StringRef Name);
+std::string toString(const wasm::Symbol &sym);
+std::string toString(wasm::Symbol::Kind kind);
+std::string maybeDemangleSymbol(StringRef name);
 
 } // namespace lld
 

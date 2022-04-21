@@ -15,11 +15,7 @@
 namespace clang {
 namespace diff {
 
-using DynTypedNode = ast_type_traits::DynTypedNode;
-
-class SyntaxTree;
-class SyntaxTreeImpl;
-struct ComparisonOptions;
+using DynTypedNode = DynTypedNode;
 
 /// Within a tree, this identifies a node by its preorder offset.
 struct NodeId {

@@ -1,8 +1,8 @@
 ; Test for the conservative assembly handling mode used by KMSAN.
 ; RUN: opt < %s -msan-kernel=1 -msan-check-access-address=0                    \
 ; RUN: -msan-handle-asm-conservative=0 -S -passes=msan 2>&1 | FileCheck        \
-; RUN: "-check-prefixes=CHECK,CHECK-NONCONS" %s
-; RUN: opt < %s -msan -msan-kernel=1 -msan-check-access-address=0 -msan-handle-asm-conservative=0 -S | FileCheck -check-prefixes=CHECK,CHECK-NONCONS %s
+; RUN: "-check-prefix=CHECK" %s
+; RUN: opt < %s -msan -msan-kernel=1 -msan-check-access-address=0 -msan-handle-asm-conservative=0 -S | FileCheck -check-prefixes=CHECK %s
 ; RUN: opt < %s -msan-kernel=1 -msan-check-access-address=0                    \
 ; RUN: -msan-handle-asm-conservative=1 -S -passes=msan 2>&1 | FileCheck        \
 ; RUN: "-check-prefixes=CHECK,CHECK-CONS" %s
@@ -46,7 +46,7 @@ entry:
   store i64 0, i64* %nr, align 8
   store i64* %value, i64** %addr, align 8
   %0 = load i64, i64* %nr, align 8
-  call void asm "btsq $2, $1; setc $0", "=*qm,=*m,Ir,~{dirflag},~{fpsr},~{flags}"(i8* %bit, i64** %addr, i64 %0)
+  call void asm "btsq $2, $1; setc $0", "=*qm,=*m,Ir,~{dirflag},~{fpsr},~{flags}"(i8* elementtype(i8) %bit, i64** elementtype(i64*) %addr, i64 %0)
   %1 = load i8, i8* %bit, align 1
   %tobool = trunc i8 %1 to i1
   br i1 %tobool, label %if.then, label %if.else
@@ -92,8 +92,7 @@ if.else:                                          ; preds = %entry
 ; CHECK: [[MSPROP:%.*]] = trunc i8 [[MSLD]] to i1
 
 ; Is the shadow poisoned?
-; CHECK: [[MSCMP:%.*]] = icmp ne i1 [[MSPROP]], false
-; CHECK: br i1 [[MSCMP]], label %[[IFTRUE:.*]], label {{.*}}
+; CHECK: br i1 [[MSPROP]], label %[[IFTRUE:.*]], label {{.*}}
 
 ; If yes, raise a warning.
 ; CHECK: [[IFTRUE]]:

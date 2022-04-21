@@ -21,170 +21,231 @@
 namespace llvm {
 namespace mca {
 
-LSUnit::LSUnit(const MCSchedModel &SM, unsigned LQ, unsigned SQ,
-               bool AssumeNoAlias)
-    : LQ_Size(LQ), SQ_Size(SQ), NoAlias(AssumeNoAlias) {
+LSUnitBase::LSUnitBase(const MCSchedModel &SM, unsigned LQ, unsigned SQ,
+                       bool AssumeNoAlias)
+    : LQSize(LQ), SQSize(SQ), UsedLQEntries(0), UsedSQEntries(0),
+      NoAlias(AssumeNoAlias), NextGroupID(1) {
   if (SM.hasExtraProcessorInfo()) {
     const MCExtraProcessorInfo &EPI = SM.getExtraProcessorInfo();
-    if (!LQ_Size && EPI.LoadQueueID) {
+    if (!LQSize && EPI.LoadQueueID) {
       const MCProcResourceDesc &LdQDesc = *SM.getProcResource(EPI.LoadQueueID);
-      LQ_Size = LdQDesc.BufferSize;
+      LQSize = std::max(0, LdQDesc.BufferSize);
     }
 
-    if (!SQ_Size && EPI.StoreQueueID) {
+    if (!SQSize && EPI.StoreQueueID) {
       const MCProcResourceDesc &StQDesc = *SM.getProcResource(EPI.StoreQueueID);
-      SQ_Size = StQDesc.BufferSize;
+      SQSize = std::max(0, StQDesc.BufferSize);
     }
   }
+}
+
+LSUnitBase::~LSUnitBase() = default;
+
+void LSUnitBase::cycleEvent() {
+  for (const std::pair<unsigned, std::unique_ptr<MemoryGroup>> &G : Groups)
+    G.second->cycleEvent();
 }
 
 #ifndef NDEBUG
-void LSUnit::dump() const {
-  dbgs() << "[LSUnit] LQ_Size = " << LQ_Size << '\n';
-  dbgs() << "[LSUnit] SQ_Size = " << SQ_Size << '\n';
-  dbgs() << "[LSUnit] NextLQSlotIdx = " << LoadQueue.size() << '\n';
-  dbgs() << "[LSUnit] NextSQSlotIdx = " << StoreQueue.size() << '\n';
+void LSUnitBase::dump() const {
+  dbgs() << "[LSUnit] LQ_Size = " << getLoadQueueSize() << '\n';
+  dbgs() << "[LSUnit] SQ_Size = " << getStoreQueueSize() << '\n';
+  dbgs() << "[LSUnit] NextLQSlotIdx = " << getUsedLQEntries() << '\n';
+  dbgs() << "[LSUnit] NextSQSlotIdx = " << getUsedSQEntries() << '\n';
+  dbgs() << "\n";
+  for (const auto &GroupIt : Groups) {
+    const MemoryGroup &Group = *GroupIt.second;
+    dbgs() << "[LSUnit] Group (" << GroupIt.first << "): "
+           << "[ #Preds = " << Group.getNumPredecessors()
+           << ", #GIssued = " << Group.getNumExecutingPredecessors()
+           << ", #GExecuted = " << Group.getNumExecutedPredecessors()
+           << ", #Inst = " << Group.getNumInstructions()
+           << ", #IIssued = " << Group.getNumExecuting()
+           << ", #IExecuted = " << Group.getNumExecuted() << '\n';
+  }
 }
 #endif
 
-void LSUnit::assignLQSlot(unsigned Index) {
-  assert(!isLQFull());
-  assert(LoadQueue.count(Index) == 0);
+unsigned LSUnit::dispatch(const InstRef &IR) {
+  const Instruction &IS = *IR.getInstruction();
+  bool IsStoreBarrier = IS.isAStoreBarrier();
+  bool IsLoadBarrier = IS.isALoadBarrier();
+  assert((IS.getMayLoad() || IS.getMayStore()) && "Not a memory operation!");
 
-  LLVM_DEBUG(dbgs() << "[LSUnit] - AssignLQSlot <Idx=" << Index
-                    << ",slot=" << LoadQueue.size() << ">\n");
-  LoadQueue.insert(Index);
-}
+  if (IS.getMayLoad())
+    acquireLQSlot();
+  if (IS.getMayStore())
+    acquireSQSlot();
 
-void LSUnit::assignSQSlot(unsigned Index) {
-  assert(!isSQFull());
-  assert(StoreQueue.count(Index) == 0);
+  if (IS.getMayStore()) {
+    unsigned NewGID = createMemoryGroup();
+    MemoryGroup &NewGroup = getGroup(NewGID);
+    NewGroup.addInstruction();
 
-  LLVM_DEBUG(dbgs() << "[LSUnit] - AssignSQSlot <Idx=" << Index
-                    << ",slot=" << StoreQueue.size() << ">\n");
-  StoreQueue.insert(Index);
-}
+    // A store may not pass a previous load or load barrier.
+    unsigned ImmediateLoadDominator =
+        std::max(CurrentLoadGroupID, CurrentLoadBarrierGroupID);
+    if (ImmediateLoadDominator) {
+      MemoryGroup &IDom = getGroup(ImmediateLoadDominator);
+      LLVM_DEBUG(dbgs() << "[LSUnit]: GROUP DEP: (" << ImmediateLoadDominator
+                        << ") --> (" << NewGID << ")\n");
+      IDom.addSuccessor(&NewGroup, !assumeNoAlias());
+    }
 
-void LSUnit::dispatch(const InstRef &IR) {
-  const InstrDesc &Desc = IR.getInstruction()->getDesc();
-  unsigned IsMemBarrier = Desc.HasSideEffects;
-  assert((Desc.MayLoad || Desc.MayStore) && "Not a memory operation!");
+    // A store may not pass a previous store barrier.
+    if (CurrentStoreBarrierGroupID) {
+      MemoryGroup &StoreGroup = getGroup(CurrentStoreBarrierGroupID);
+      LLVM_DEBUG(dbgs() << "[LSUnit]: GROUP DEP: ("
+                        << CurrentStoreBarrierGroupID
+                        << ") --> (" << NewGID << ")\n");
+      StoreGroup.addSuccessor(&NewGroup, true);
+    }
 
-  const unsigned Index = IR.getSourceIndex();
-  if (Desc.MayLoad) {
-    if (IsMemBarrier)
-      LoadBarriers.insert(Index);
-    assignLQSlot(Index);
+    // A store may not pass a previous store.
+    if (CurrentStoreGroupID &&
+        (CurrentStoreGroupID != CurrentStoreBarrierGroupID)) {
+      MemoryGroup &StoreGroup = getGroup(CurrentStoreGroupID);
+      LLVM_DEBUG(dbgs() << "[LSUnit]: GROUP DEP: (" << CurrentStoreGroupID
+                        << ") --> (" << NewGID << ")\n");
+      StoreGroup.addSuccessor(&NewGroup, !assumeNoAlias());
+    }
+
+
+    CurrentStoreGroupID = NewGID;
+    if (IsStoreBarrier)
+      CurrentStoreBarrierGroupID = NewGID;
+
+    if (IS.getMayLoad()) {
+      CurrentLoadGroupID = NewGID;
+      if (IsLoadBarrier)
+        CurrentLoadBarrierGroupID = NewGID;
+    }
+
+    return NewGID;
   }
 
-  if (Desc.MayStore) {
-    if (IsMemBarrier)
-      StoreBarriers.insert(Index);
-    assignSQSlot(Index);
+  assert(IS.getMayLoad() && "Expected a load!");
+
+  unsigned ImmediateLoadDominator =
+      std::max(CurrentLoadGroupID, CurrentLoadBarrierGroupID);
+
+  // A new load group is created if we are in one of the following situations:
+  // 1) This is a load barrier (by construction, a load barrier is always
+  //    assigned to a different memory group).
+  // 2) There is no load in flight (by construction we always keep loads and
+  //    stores into separate memory groups).
+  // 3) There is a load barrier in flight. This load depends on it.
+  // 4) There is an intervening store between the last load dispatched to the
+  //    LSU and this load. We always create a new group even if this load
+  //    does not alias the last dispatched store.
+  // 5) There is no intervening store and there is an active load group.
+  //    However that group has already started execution, so we cannot add
+  //    this load to it.
+  bool ShouldCreateANewGroup =
+      IsLoadBarrier || !ImmediateLoadDominator ||
+      CurrentLoadBarrierGroupID == ImmediateLoadDominator ||
+      ImmediateLoadDominator <= CurrentStoreGroupID ||
+      getGroup(ImmediateLoadDominator).isExecuting();
+
+  if (ShouldCreateANewGroup) {
+    unsigned NewGID = createMemoryGroup();
+    MemoryGroup &NewGroup = getGroup(NewGID);
+    NewGroup.addInstruction();
+
+    // A load may not pass a previous store or store barrier
+    // unless flag 'NoAlias' is set.
+    if (!assumeNoAlias() && CurrentStoreGroupID) {
+      MemoryGroup &StoreGroup = getGroup(CurrentStoreGroupID);
+      LLVM_DEBUG(dbgs() << "[LSUnit]: GROUP DEP: (" << CurrentStoreGroupID
+                        << ") --> (" << NewGID << ")\n");
+      StoreGroup.addSuccessor(&NewGroup, true);
+    }
+
+    // A load barrier may not pass a previous load or load barrier.
+    if (IsLoadBarrier) {
+      if (ImmediateLoadDominator) {
+        MemoryGroup &LoadGroup = getGroup(ImmediateLoadDominator);
+        LLVM_DEBUG(dbgs() << "[LSUnit]: GROUP DEP: ("
+                          << ImmediateLoadDominator
+                          << ") --> (" << NewGID << ")\n");
+        LoadGroup.addSuccessor(&NewGroup, true);
+      }
+    } else {
+      // A younger load cannot pass a older load barrier.
+      if (CurrentLoadBarrierGroupID) {
+        MemoryGroup &LoadGroup = getGroup(CurrentLoadBarrierGroupID);
+        LLVM_DEBUG(dbgs() << "[LSUnit]: GROUP DEP: ("
+                          << CurrentLoadBarrierGroupID
+                          << ") --> (" << NewGID << ")\n");
+        LoadGroup.addSuccessor(&NewGroup, true);
+      }
+    }
+
+    CurrentLoadGroupID = NewGID;
+    if (IsLoadBarrier)
+      CurrentLoadBarrierGroupID = NewGID;
+    return NewGID;
   }
+
+  // A load may pass a previous load.
+  MemoryGroup &Group = getGroup(CurrentLoadGroupID);
+  Group.addInstruction();
+  return CurrentLoadGroupID;
 }
 
 LSUnit::Status LSUnit::isAvailable(const InstRef &IR) const {
-  const InstrDesc &Desc = IR.getInstruction()->getDesc();
-  if (Desc.MayLoad && isLQFull())
+  const Instruction &IS = *IR.getInstruction();
+  if (IS.getMayLoad() && isLQFull())
     return LSUnit::LSU_LQUEUE_FULL;
-  if (Desc.MayStore && isSQFull())
+  if (IS.getMayStore() && isSQFull())
     return LSUnit::LSU_SQUEUE_FULL;
   return LSUnit::LSU_AVAILABLE;
 }
 
-unsigned LSUnit::isReady(const InstRef &IR) const {
-  const InstrDesc &Desc = IR.getInstruction()->getDesc();
-  const unsigned Index = IR.getSourceIndex();
-  bool IsALoad = Desc.MayLoad;
-  bool IsAStore = Desc.MayStore;
-  assert((IsALoad || IsAStore) && "Not a memory operation!");
-  assert((!IsALoad || LoadQueue.count(Index) == 1) && "Load not in queue!");
-  assert((!IsAStore || StoreQueue.count(Index) == 1) && "Store not in queue!");
-
-  if (IsALoad && !LoadBarriers.empty()) {
-    unsigned LoadBarrierIndex = *LoadBarriers.begin();
-    // A younger load cannot pass a older load barrier.
-    if (Index > LoadBarrierIndex)
-      return LoadBarrierIndex;
-    // A load barrier cannot pass a older load.
-    if (Index == LoadBarrierIndex && Index != *LoadQueue.begin())
-      return *LoadQueue.begin();
-  }
-
-  if (IsAStore && !StoreBarriers.empty()) {
-    unsigned StoreBarrierIndex = *StoreBarriers.begin();
-    // A younger store cannot pass a older store barrier.
-    if (Index > StoreBarrierIndex)
-      return StoreBarrierIndex;
-    // A store barrier cannot pass a older store.
-    if (Index == StoreBarrierIndex && Index != *StoreQueue.begin())
-      return *StoreQueue.begin();
-  }
-
-  // A load may not pass a previous store unless flag 'NoAlias' is set.
-  // A load may pass a previous load.
-  if (NoAlias && IsALoad)
-    return Index;
-
-  if (StoreQueue.size()) {
-    // A load may not pass a previous store.
-    // A store may not pass a previous store.
-    if (Index > *StoreQueue.begin())
-      return *StoreQueue.begin();
-  }
-
-  // Okay, we are older than the oldest store in the queue.
-  // If there are no pending loads, then we can say for sure that this
-  // instruction is ready.
-  if (isLQEmpty())
-    return Index;
-
-  // Check if there are no older loads.
-  if (Index <= *LoadQueue.begin())
-    return Index;
-
-  // There is at least one younger load.
-  //
-  // A load may pass a previous load.
-  if (IsALoad)
-    return Index;
-
-  // A store may not pass a previous load.
-  return *LoadQueue.begin();
+void LSUnitBase::onInstructionExecuted(const InstRef &IR) {
+  unsigned GroupID = IR.getInstruction()->getLSUTokenID();
+  auto It = Groups.find(GroupID);
+  assert(It != Groups.end() && "Instruction not dispatched to the LS unit");
+  It->second->onInstructionExecuted(IR);
+  if (It->second->isExecuted())
+    Groups.erase(It);
 }
 
-void LSUnit::onInstructionExecuted(const InstRef &IR) {
-  const InstrDesc &Desc = IR.getInstruction()->getDesc();
-  const unsigned Index = IR.getSourceIndex();
-  bool IsALoad = Desc.MayLoad;
-  bool IsAStore = Desc.MayStore;
+void LSUnitBase::onInstructionRetired(const InstRef &IR) {
+  const Instruction &IS = *IR.getInstruction();
+  bool IsALoad = IS.getMayLoad();
+  bool IsAStore = IS.getMayStore();
+  assert((IsALoad || IsAStore) && "Expected a memory operation!");
 
   if (IsALoad) {
-    if (LoadQueue.erase(Index)) {
-      LLVM_DEBUG(dbgs() << "[LSUnit]: Instruction idx=" << Index
-                        << " has been removed from the load queue.\n");
-    }
-    if (!LoadBarriers.empty() && Index == *LoadBarriers.begin()) {
-      LLVM_DEBUG(
-          dbgs() << "[LSUnit]: Instruction idx=" << Index
-                 << " has been removed from the set of load barriers.\n");
-      LoadBarriers.erase(Index);
-    }
+    releaseLQSlot();
+    LLVM_DEBUG(dbgs() << "[LSUnit]: Instruction idx=" << IR.getSourceIndex()
+                      << " has been removed from the load queue.\n");
   }
 
   if (IsAStore) {
-    if (StoreQueue.erase(Index)) {
-      LLVM_DEBUG(dbgs() << "[LSUnit]: Instruction idx=" << Index
-                        << " has been removed from the store queue.\n");
-    }
+    releaseSQSlot();
+    LLVM_DEBUG(dbgs() << "[LSUnit]: Instruction idx=" << IR.getSourceIndex()
+                      << " has been removed from the store queue.\n");
+  }
+}
 
-    if (!StoreBarriers.empty() && Index == *StoreBarriers.begin()) {
-      LLVM_DEBUG(
-          dbgs() << "[LSUnit]: Instruction idx=" << Index
-                 << " has been removed from the set of store barriers.\n");
-      StoreBarriers.erase(Index);
-    }
+void LSUnit::onInstructionExecuted(const InstRef &IR) {
+  const Instruction &IS = *IR.getInstruction();
+  if (!IS.isMemOp())
+    return;
+
+  LSUnitBase::onInstructionExecuted(IR);
+  unsigned GroupID = IS.getLSUTokenID();
+  if (!isValidGroupID(GroupID)) {
+    if (GroupID == CurrentLoadGroupID)
+      CurrentLoadGroupID = 0;
+    if (GroupID == CurrentStoreGroupID)
+      CurrentStoreGroupID = 0;
+    if (GroupID == CurrentLoadBarrierGroupID)
+      CurrentLoadBarrierGroupID = 0;
+    if (GroupID == CurrentStoreBarrierGroupID)
+      CurrentStoreBarrierGroupID = 0;
   }
 }
 

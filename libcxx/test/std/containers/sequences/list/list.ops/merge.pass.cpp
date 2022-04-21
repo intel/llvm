@@ -9,11 +9,12 @@
 // <list>
 
 // void merge(list& x);
-// If (&addressof(x) == this) does nothing; otherwise ...
+// If (addressof(x) == this) does nothing; otherwise ...
 
 #include <list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)

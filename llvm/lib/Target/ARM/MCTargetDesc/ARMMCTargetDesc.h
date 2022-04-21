@@ -14,6 +14,7 @@
 #define LLVM_LIB_TARGET_ARM_MCTARGETDESC_ARMMCTARGETDESC_H
 
 #include "llvm/Support/DataTypes.h"
+#include "llvm/MC/MCInstrDesc.h"
 #include <memory>
 #include <string>
 
@@ -35,11 +36,27 @@ class MCTargetStreamer;
 class StringRef;
 class Target;
 class Triple;
-class raw_ostream;
-class raw_pwrite_stream;
 
 namespace ARM_MC {
 std::string ParseARMTriple(const Triple &TT, StringRef CPU);
+void initLLVMToCVRegMapping(MCRegisterInfo *MRI);
+
+bool isPredicated(const MCInst &MI, const MCInstrInfo *MCII);
+bool isCPSRDefined(const MCInst &MI, const MCInstrInfo *MCII);
+
+template<class Inst>
+bool isLDMBaseRegInList(const Inst &MI) {
+  auto BaseReg = MI.getOperand(0).getReg();
+  for (unsigned I = 1, E = MI.getNumOperands(); I < E; ++I) {
+    const auto &Op = MI.getOperand(I);
+    if (Op.isReg() && Op.getReg() == BaseReg)
+      return true;
+  }
+  return false;
+}
+
+uint64_t evaluateBranchTarget(const MCInstrDesc &InstDesc, uint64_t Addr,
+                              int64_t Imm);
 
 /// Create a ARM MCSubtargetInfo instance. This is exposed so Asm parser, etc.
 /// do not need to go through TargetRegistry.
@@ -56,11 +73,9 @@ MCTargetStreamer *createARMObjectTargetStreamer(MCStreamer &S,
                                                 const MCSubtargetInfo &STI);
 
 MCCodeEmitter *createARMLEMCCodeEmitter(const MCInstrInfo &MCII,
-                                        const MCRegisterInfo &MRI,
                                         MCContext &Ctx);
 
 MCCodeEmitter *createARMBEMCCodeEmitter(const MCInstrInfo &MCII,
-                                        const MCRegisterInfo &MRI,
                                         MCContext &Ctx);
 
 MCAsmBackend *createARMLEAsmBackend(const Target &T, const MCSubtargetInfo &STI,
@@ -90,10 +105,27 @@ createARMMachObjectWriter(bool Is64Bit, uint32_t CPUType,
 
 /// Construct an ARM PE/COFF object writer.
 std::unique_ptr<MCObjectTargetWriter>
-createARMWinCOFFObjectWriter(bool Is64Bit);
+createARMWinCOFFObjectWriter();
 
 /// Construct ARM Mach-O relocation info.
 MCRelocationInfo *createARMMachORelocationInfo(MCContext &Ctx);
+
+namespace ARM {
+enum OperandType {
+  OPERAND_VPRED_R = MCOI::OPERAND_FIRST_TARGET,
+  OPERAND_VPRED_N,
+};
+inline bool isVpred(OperandType op) {
+  return op == OPERAND_VPRED_R || op == OPERAND_VPRED_N;
+}
+inline bool isVpred(uint8_t op) {
+  return isVpred(static_cast<OperandType>(op));
+}
+
+bool isCDECoproc(size_t Coproc, const MCSubtargetInfo &STI);
+
+} // end namespace ARM
+
 } // End llvm namespace
 
 // Defines symbolic names for ARM registers.  This defines a mapping from

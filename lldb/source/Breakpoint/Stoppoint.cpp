@@ -1,4 +1,4 @@
-//===-- Stoppoint.cpp -------------------------------------------*- C++ -*-===//
+//===-- Stoppoint.cpp -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,10 +14,10 @@ using namespace lldb;
 using namespace lldb_private;
 
 // Stoppoint constructor
-Stoppoint::Stoppoint() : m_bid(LLDB_INVALID_BREAK_ID) {}
+Stoppoint::Stoppoint() = default;
 
 // Destructor
-Stoppoint::~Stoppoint() {}
+Stoppoint::~Stoppoint() = default;
 
 break_id_t Stoppoint::GetID() const { return m_bid; }
 

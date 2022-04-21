@@ -22,6 +22,14 @@ class PPCPreRASchedStrategy : public GenericScheduler {
 public:
   PPCPreRASchedStrategy(const MachineSchedContext *C) :
     GenericScheduler(C) {}
+protected:
+  bool tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand,
+                    SchedBoundary *Zone) const override;
+
+private:
+  bool biasAddiLoadCandidate(SchedCandidate &Cand,
+                             SchedCandidate &TryCand,
+                             SchedBoundary &Zone) const;
 };
 
 /// A MachineSchedStrategy implementation for PowerPC post RA scheduling.
@@ -35,6 +43,9 @@ protected:
   SUnit *pickNode(bool &IsTopNode) override;
   void enterMBB(MachineBasicBlock *MBB) override;
   void leaveMBB() override;
+
+  bool tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand) override;
+  bool biasAddiCandidate(SchedCandidate &Cand, SchedCandidate &TryCand) const;
 };
 
 } // end namespace llvm

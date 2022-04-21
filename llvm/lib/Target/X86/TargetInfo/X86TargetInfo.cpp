@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TargetInfo/X86TargetInfo.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 using namespace llvm;
 
 Target &llvm::getTheX86_32Target() {
@@ -19,7 +19,7 @@ Target &llvm::getTheX86_64Target() {
   return TheX86_64Target;
 }
 
-extern "C" void LLVMInitializeX86TargetInfo() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86TargetInfo() {
   RegisterTarget<Triple::x86, /*HasJIT=*/true> X(
       getTheX86_32Target(), "x86", "32-bit X86: Pentium-Pro and above", "X86");
 

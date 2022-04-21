@@ -14,20 +14,14 @@
 #ifndef LLVM_LIB_TARGET_NVPTX_NVPTX_H
 #define LLVM_LIB_TARGET_NVPTX_NVPTX_H
 
-#include "MCTargetDesc/NVPTXBaseInfo.h"
-#include "llvm/ADT/StringMap.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Value.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Target/TargetMachine.h"
-#include <cassert>
-#include <iosfwd>
+#include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
+#include "llvm/Support/CodeGen.h"
 
 namespace llvm {
 class NVPTXTargetMachine;
 class FunctionPass;
 class MachineFunctionPass;
-class formatted_raw_ostream;
 
 namespace NVPTXCC {
 enum CondCodes {
@@ -50,9 +44,27 @@ MachineFunctionPass *createNVPTXPrologEpilogPass();
 MachineFunctionPass *createNVPTXReplaceImageHandlesPass();
 FunctionPass *createNVPTXImageOptimizerPass();
 FunctionPass *createNVPTXLowerArgsPass(const NVPTXTargetMachine *TM);
-BasicBlockPass *createNVPTXLowerAllocaPass();
+FunctionPass *createNVPTXLowerAllocaPass();
 MachineFunctionPass *createNVPTXPeephole();
 MachineFunctionPass *createNVPTXProxyRegErasurePass();
+
+struct NVVMIntrRangePass : PassInfoMixin<NVVMIntrRangePass> {
+  NVVMIntrRangePass();
+  NVVMIntrRangePass(unsigned SmVersion) : SmVersion(SmVersion) {}
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+
+private:
+  unsigned SmVersion;
+};
+
+struct NVVMReflectPass : PassInfoMixin<NVVMReflectPass> {
+  NVVMReflectPass();
+  NVVMReflectPass(unsigned SmVersion) : SmVersion(SmVersion) {}
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+
+private:
+  unsigned SmVersion;
+};
 
 namespace NVPTX {
 enum DrvInterface {
@@ -125,10 +137,12 @@ enum CvtMode {
   RZ,
   RM,
   RP,
+  RNA,
 
   BASE_MASK = 0x0F,
   FTZ_FLAG = 0x10,
-  SAT_FLAG = 0x20
+  SAT_FLAG = 0x20,
+  RELU_FLAG = 0x40
 };
 }
 

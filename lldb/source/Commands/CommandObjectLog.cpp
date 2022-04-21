@@ -1,4 +1,4 @@
-//===-- CommandObjectLog.cpp ------------------------------------*- C++ -*-===//
+//===-- CommandObjectLog.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,43 +8,36 @@
 
 #include "CommandObjectLog.h"
 #include "lldb/Core/Debugger.h"
-#include "lldb/Core/Module.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Host/OptionParser.h"
-#include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/Options.h"
-#include "lldb/Symbol/LineTable.h"
-#include "lldb/Symbol/ObjectFile.h"
-#include "lldb/Symbol/SymbolFile.h"
-#include "lldb/Symbol/SymbolVendor.h"
-#include "lldb/Target/Process.h"
-#include "lldb/Target/Target.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/Timer.h"
 
 using namespace lldb;
 using namespace lldb_private;
 
-static constexpr OptionDefinition g_log_options[] = {
-    // clang-format off
-  { LLDB_OPT_SET_1, false, "file",       'f', OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeFilename, "Set the destination file to log to." },
-  { LLDB_OPT_SET_1, false, "threadsafe", 't', OptionParser::eNoArgument,       nullptr, {}, 0, eArgTypeNone,     "Enable thread safe logging to avoid interweaved log lines." },
-  { LLDB_OPT_SET_1, false, "verbose",    'v', OptionParser::eNoArgument,       nullptr, {}, 0, eArgTypeNone,     "Enable verbose logging." },
-  { LLDB_OPT_SET_1, false, "sequence",   's', OptionParser::eNoArgument,       nullptr, {}, 0, eArgTypeNone,     "Prepend all log lines with an increasing integer sequence id." },
-  { LLDB_OPT_SET_1, false, "timestamp",  'T', OptionParser::eNoArgument,       nullptr, {}, 0, eArgTypeNone,     "Prepend all log lines with a timestamp." },
-  { LLDB_OPT_SET_1, false, "pid-tid",    'p', OptionParser::eNoArgument,       nullptr, {}, 0, eArgTypeNone,     "Prepend all log lines with the process and thread ID that generates the log line." },
-  { LLDB_OPT_SET_1, false, "thread-name",'n', OptionParser::eNoArgument,       nullptr, {}, 0, eArgTypeNone,     "Prepend all log lines with the thread name for the thread that generates the log line." },
-  { LLDB_OPT_SET_1, false, "stack",      'S', OptionParser::eNoArgument,       nullptr, {}, 0, eArgTypeNone,     "Append a stack backtrace to each log line." },
-  { LLDB_OPT_SET_1, false, "append",     'a', OptionParser::eNoArgument,       nullptr, {}, 0, eArgTypeNone,     "Append to the log file instead of overwriting." },
-  { LLDB_OPT_SET_1, false, "file-function",'F',OptionParser::eNoArgument,      nullptr, {}, 0, eArgTypeNone,     "Prepend the names of files and function that generate the logs." },
-    // clang-format on
-};
+#define LLDB_OPTIONS_log
+#include "CommandOptions.inc"
+
+/// Common completion logic for log enable/disable.
+static void CompleteEnableDisable(CompletionRequest &request) {
+  size_t arg_index = request.GetCursorIndex();
+  if (arg_index == 0) { // We got: log enable/disable x[tab]
+    for (llvm::StringRef channel : Log::ListChannels())
+      request.TryCompleteCurrentArg(channel);
+  } else if (arg_index >= 1) { // We got: log enable/disable channel x[tab]
+    llvm::StringRef channel = request.GetParsedLine().GetArgumentAtIndex(0);
+    Log::ForEachChannelCategory(
+        channel, [&request](llvm::StringRef name, llvm::StringRef desc) {
+          request.TryCompleteCurrentArg(name, desc);
+        });
+  }
+}
 
 class CommandObjectLogEnable : public CommandObjectParsed {
 public:
@@ -52,8 +45,7 @@ public:
   CommandObjectLogEnable(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "log enable",
                             "Enable logging for a single log channel.",
-                            nullptr),
-        m_options() {
+                            nullptr) {
     CommandArgumentEntry arg1;
     CommandArgumentEntry arg2;
     CommandArgumentData channel_arg;
@@ -83,7 +75,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options(), log_file(), log_options(0) {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -125,9 +117,7 @@ public:
         log_options |= LLDB_LOG_OPTION_PREPEND_FILE_FUNCTION;
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -145,8 +135,14 @@ public:
     // Instance variables to hold the values for command options.
 
     FileSpec log_file;
-    uint32_t log_options;
+    uint32_t log_options = 0;
   };
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CompleteEnableDisable(request);
+  }
 
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
@@ -158,7 +154,7 @@ protected:
     }
 
     // Store into a std::string since we're about to shift the channel off.
-    const std::string channel = args[0].ref;
+    const std::string channel = std::string(args[0].ref());
     args.Shift(); // Shift off the channel
     char log_file[PATH_MAX];
     if (m_options.log_file)
@@ -215,6 +211,12 @@ public:
 
   ~CommandObjectLogDisable() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CompleteEnableDisable(request);
+  }
+
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     if (args.empty()) {
@@ -224,7 +226,7 @@ protected:
       return false;
     }
 
-    const std::string channel = args[0].ref;
+    const std::string channel = std::string(args[0].ref());
     args.Shift(); // Shift off the channel
     if (channel == "all") {
       Log::DisableAllLogChannels();
@@ -266,6 +268,13 @@ public:
 
   ~CommandObjectLogList() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    for (llvm::StringRef channel : Log::ListChannels())
+      request.TryCompleteCurrentArg(channel);
+  }
+
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     std::string output;
@@ -277,7 +286,7 @@ protected:
       bool success = true;
       for (const auto &entry : args.entries())
         success =
-            success && Log::ListChannelCategories(entry.ref, output_stream);
+            success && Log::ListChannelCategories(entry.ref(), output_stream);
       if (success)
         result.SetStatus(eReturnStatusSuccessFinishResult);
     }
@@ -286,60 +295,45 @@ protected:
   }
 };
 
-class CommandObjectLogTimer : public CommandObjectParsed {
+class CommandObjectLogTimerEnable : public CommandObjectParsed {
 public:
   // Constructors and Destructors
-  CommandObjectLogTimer(CommandInterpreter &interpreter)
-      : CommandObjectParsed(interpreter, "log timers",
-                            "Enable, disable, dump, and reset LLDB internal "
-                            "performance timers.",
-                            "log timers < enable <depth> | disable | dump | "
-                            "increment <bool> | reset >") {}
+  CommandObjectLogTimerEnable(CommandInterpreter &interpreter)
+      : CommandObjectParsed(interpreter, "log timers enable",
+                            "enable LLDB internal performance timers",
+                            "log timers enable <depth>") {
+    CommandArgumentEntry arg;
+    CommandArgumentData depth_arg;
 
-  ~CommandObjectLogTimer() override = default;
+    // Define the first (and only) variant of this arg.
+    depth_arg.arg_type = eArgTypeCount;
+    depth_arg.arg_repetition = eArgRepeatOptional;
+
+    // There is only one variant this argument could be; put it into the
+    // argument entry.
+    arg.push_back(depth_arg);
+
+    // Push the data for the first argument into the m_arguments vector.
+    m_arguments.push_back(arg);
+  }
+
+  ~CommandObjectLogTimerEnable() override = default;
 
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     result.SetStatus(eReturnStatusFailed);
 
-    if (args.GetArgumentCount() == 1) {
-      auto sub_command = args[0].ref;
-
-      if (sub_command.equals_lower("enable")) {
-        Timer::SetDisplayDepth(UINT32_MAX);
+    if (args.GetArgumentCount() == 0) {
+      Timer::SetDisplayDepth(UINT32_MAX);
+      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    } else if (args.GetArgumentCount() == 1) {
+      uint32_t depth;
+      if (args[0].ref().consumeInteger(0, depth)) {
+        result.AppendError(
+            "Could not convert enable depth to an unsigned integer.");
+      } else {
+        Timer::SetDisplayDepth(depth);
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
-      } else if (sub_command.equals_lower("disable")) {
-        Timer::DumpCategoryTimes(&result.GetOutputStream());
-        Timer::SetDisplayDepth(0);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
-      } else if (sub_command.equals_lower("dump")) {
-        Timer::DumpCategoryTimes(&result.GetOutputStream());
-        result.SetStatus(eReturnStatusSuccessFinishResult);
-      } else if (sub_command.equals_lower("reset")) {
-        Timer::ResetCategoryTimes();
-        result.SetStatus(eReturnStatusSuccessFinishResult);
-      }
-    } else if (args.GetArgumentCount() == 2) {
-      auto sub_command = args[0].ref;
-      auto param = args[1].ref;
-
-      if (sub_command.equals_lower("enable")) {
-        uint32_t depth;
-        if (param.consumeInteger(0, depth)) {
-          result.AppendError(
-              "Could not convert enable depth to an unsigned integer.");
-        } else {
-          Timer::SetDisplayDepth(depth);
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
-        }
-      } else if (sub_command.equals_lower("increment")) {
-        bool success;
-        bool increment = OptionArgParser::ToBoolean(param, false, &success);
-        if (success) {
-          Timer::SetQuiet(!increment);
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
-        } else
-          result.AppendError("Could not convert increment value to boolean.");
       }
     }
 
@@ -349,6 +343,154 @@ protected:
     }
     return result.Succeeded();
   }
+};
+
+class CommandObjectLogTimerDisable : public CommandObjectParsed {
+public:
+  // Constructors and Destructors
+  CommandObjectLogTimerDisable(CommandInterpreter &interpreter)
+      : CommandObjectParsed(interpreter, "log timers disable",
+                            "disable LLDB internal performance timers",
+                            nullptr) {}
+
+  ~CommandObjectLogTimerDisable() override = default;
+
+protected:
+  bool DoExecute(Args &args, CommandReturnObject &result) override {
+    Timer::DumpCategoryTimes(&result.GetOutputStream());
+    Timer::SetDisplayDepth(0);
+    result.SetStatus(eReturnStatusSuccessFinishResult);
+
+    if (!result.Succeeded()) {
+      result.AppendError("Missing subcommand");
+      result.AppendErrorWithFormat("Usage: %s\n", m_cmd_syntax.c_str());
+    }
+    return result.Succeeded();
+  }
+};
+
+class CommandObjectLogTimerDump : public CommandObjectParsed {
+public:
+  // Constructors and Destructors
+  CommandObjectLogTimerDump(CommandInterpreter &interpreter)
+      : CommandObjectParsed(interpreter, "log timers dump",
+                            "dump LLDB internal performance timers", nullptr) {}
+
+  ~CommandObjectLogTimerDump() override = default;
+
+protected:
+  bool DoExecute(Args &args, CommandReturnObject &result) override {
+    Timer::DumpCategoryTimes(&result.GetOutputStream());
+    result.SetStatus(eReturnStatusSuccessFinishResult);
+
+    if (!result.Succeeded()) {
+      result.AppendError("Missing subcommand");
+      result.AppendErrorWithFormat("Usage: %s\n", m_cmd_syntax.c_str());
+    }
+    return result.Succeeded();
+  }
+};
+
+class CommandObjectLogTimerReset : public CommandObjectParsed {
+public:
+  // Constructors and Destructors
+  CommandObjectLogTimerReset(CommandInterpreter &interpreter)
+      : CommandObjectParsed(interpreter, "log timers reset",
+                            "reset LLDB internal performance timers", nullptr) {
+  }
+
+  ~CommandObjectLogTimerReset() override = default;
+
+protected:
+  bool DoExecute(Args &args, CommandReturnObject &result) override {
+    Timer::ResetCategoryTimes();
+    result.SetStatus(eReturnStatusSuccessFinishResult);
+
+    if (!result.Succeeded()) {
+      result.AppendError("Missing subcommand");
+      result.AppendErrorWithFormat("Usage: %s\n", m_cmd_syntax.c_str());
+    }
+    return result.Succeeded();
+  }
+};
+
+class CommandObjectLogTimerIncrement : public CommandObjectParsed {
+public:
+  // Constructors and Destructors
+  CommandObjectLogTimerIncrement(CommandInterpreter &interpreter)
+      : CommandObjectParsed(interpreter, "log timers increment",
+                            "increment LLDB internal performance timers",
+                            "log timers increment <bool>") {
+    CommandArgumentEntry arg;
+    CommandArgumentData bool_arg;
+
+    // Define the first (and only) variant of this arg.
+    bool_arg.arg_type = eArgTypeBoolean;
+    bool_arg.arg_repetition = eArgRepeatPlain;
+
+    // There is only one variant this argument could be; put it into the
+    // argument entry.
+    arg.push_back(bool_arg);
+
+    // Push the data for the first argument into the m_arguments vector.
+    m_arguments.push_back(arg);
+  }
+
+  ~CommandObjectLogTimerIncrement() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    request.TryCompleteCurrentArg("true");
+    request.TryCompleteCurrentArg("false");
+  }
+
+protected:
+  bool DoExecute(Args &args, CommandReturnObject &result) override {
+    result.SetStatus(eReturnStatusFailed);
+
+    if (args.GetArgumentCount() == 1) {
+      bool success;
+      bool increment =
+          OptionArgParser::ToBoolean(args[0].ref(), false, &success);
+
+      if (success) {
+        Timer::SetQuiet(!increment);
+        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      } else
+        result.AppendError("Could not convert increment value to boolean.");
+    }
+
+    if (!result.Succeeded()) {
+      result.AppendError("Missing subcommand");
+      result.AppendErrorWithFormat("Usage: %s\n", m_cmd_syntax.c_str());
+    }
+    return result.Succeeded();
+  }
+};
+
+class CommandObjectLogTimer : public CommandObjectMultiword {
+public:
+  CommandObjectLogTimer(CommandInterpreter &interpreter)
+      : CommandObjectMultiword(interpreter, "log timers",
+                               "Enable, disable, dump, and reset LLDB internal "
+                               "performance timers.",
+                               "log timers < enable <depth> | disable | dump | "
+                               "increment <bool> | reset >") {
+    LoadSubCommand("enable", CommandObjectSP(
+                                 new CommandObjectLogTimerEnable(interpreter)));
+    LoadSubCommand("disable", CommandObjectSP(new CommandObjectLogTimerDisable(
+                                  interpreter)));
+    LoadSubCommand("dump",
+                   CommandObjectSP(new CommandObjectLogTimerDump(interpreter)));
+    LoadSubCommand(
+        "reset", CommandObjectSP(new CommandObjectLogTimerReset(interpreter)));
+    LoadSubCommand(
+        "increment",
+        CommandObjectSP(new CommandObjectLogTimerIncrement(interpreter)));
+  }
+
+  ~CommandObjectLogTimer() override = default;
 };
 
 CommandObjectLog::CommandObjectLog(CommandInterpreter &interpreter)

@@ -140,32 +140,37 @@ template <> struct CanCopy<false> {
 };
 
 template <bool Moveable, bool Copyable>
-struct Range : CanMove<Moveable>, CanCopy<Copyable> {
-  explicit Range(int &C, int &M, int &D) : C(C), M(M), D(D) {}
-  Range(const Range &R) : CanCopy<Copyable>(R), C(R.C), M(R.M), D(R.D) { ++C; }
-  Range(Range &&R) : CanMove<Moveable>(std::move(R)), C(R.C), M(R.M), D(R.D) {
-    ++M;
-  }
-  ~Range() { ++D; }
-
+class Counted : CanMove<Moveable>, CanCopy<Copyable> {
   int &C;
   int &M;
   int &D;
 
+public:
+  explicit Counted(int &C, int &M, int &D) : C(C), M(M), D(D) {}
+  Counted(const Counted &O) : CanCopy<Copyable>(O), C(O.C), M(O.M), D(O.D) {
+    ++C;
+  }
+  Counted(Counted &&O)
+      : CanMove<Moveable>(std::move(O)), C(O.C), M(O.M), D(O.D) {
+    ++M;
+  }
+  ~Counted() { ++D; }
+};
+
+template <bool Moveable, bool Copyable>
+struct Range : Counted<Moveable, Copyable> {
+  using Counted<Moveable, Copyable>::Counted;
   int *begin() { return nullptr; }
   int *end() { return nullptr; }
 };
 
-TEST(STLExtrasTest, EnumerateLifetimeSemantics) {
-  // Test that when enumerating lvalues and rvalues, there are no surprise
-  // copies or moves.
-
-  // With an rvalue, it should not be destroyed until the end of the scope.
+TEST(STLExtrasTest, EnumerateLifetimeSemanticsPRValue) {
   int Copies = 0;
   int Moves = 0;
   int Destructors = 0;
   {
-    auto E1 = enumerate(Range<true, false>(Copies, Moves, Destructors));
+    auto E = enumerate(Range<true, false>(Copies, Moves, Destructors));
+    (void)E;
     // Doesn't compile.  rvalue ranges must be moveable.
     // auto E2 = enumerate(Range<false, true>(Copies, Moves, Destructors));
     EXPECT_EQ(0, Copies);
@@ -175,21 +180,55 @@ TEST(STLExtrasTest, EnumerateLifetimeSemantics) {
   EXPECT_EQ(0, Copies);
   EXPECT_EQ(1, Moves);
   EXPECT_EQ(2, Destructors);
+}
 
-  Copies = Moves = Destructors = 0;
+TEST(STLExtrasTest, EnumerateLifetimeSemanticsRValue) {
+  // With an rvalue, it should not be destroyed until the end of the scope.
+  int Copies = 0;
+  int Moves = 0;
+  int Destructors = 0;
+  {
+    Range<true, false> R(Copies, Moves, Destructors);
+    {
+      auto E = enumerate(std::move(R));
+      (void)E;
+      // Doesn't compile.  rvalue ranges must be moveable.
+      // auto E2 = enumerate(Range<false, true>(Copies, Moves, Destructors));
+      EXPECT_EQ(0, Copies);
+      EXPECT_EQ(1, Moves);
+      EXPECT_EQ(0, Destructors);
+    }
+    EXPECT_EQ(0, Copies);
+    EXPECT_EQ(1, Moves);
+    EXPECT_EQ(1, Destructors);
+  }
+  EXPECT_EQ(0, Copies);
+  EXPECT_EQ(1, Moves);
+  EXPECT_EQ(2, Destructors);
+}
+
+TEST(STLExtrasTest, EnumerateLifetimeSemanticsLValue) {
   // With an lvalue, it should not be destroyed even after the end of the scope.
   // lvalue ranges need be neither copyable nor moveable.
-  Range<false, false> R(Copies, Moves, Destructors);
+  int Copies = 0;
+  int Moves = 0;
+  int Destructors = 0;
   {
-    auto Enumerator = enumerate(R);
-    (void)Enumerator;
+    Range<false, false> R(Copies, Moves, Destructors);
+    {
+      auto E = enumerate(R);
+      (void)E;
+      EXPECT_EQ(0, Copies);
+      EXPECT_EQ(0, Moves);
+      EXPECT_EQ(0, Destructors);
+    }
     EXPECT_EQ(0, Copies);
     EXPECT_EQ(0, Moves);
     EXPECT_EQ(0, Destructors);
   }
   EXPECT_EQ(0, Copies);
   EXPECT_EQ(0, Moves);
-  EXPECT_EQ(0, Destructors);
+  EXPECT_EQ(1, Destructors);
 }
 
 TEST(STLExtrasTest, ApplyTuple) {
@@ -221,9 +260,7 @@ class apply_variadic {
   static StringRef apply_one(StringRef S) { return S.drop_back(); }
 
 public:
-  template <typename... Ts>
-  auto operator()(Ts &&... Items)
-      -> decltype(std::make_tuple(apply_one(Items)...)) {
+  template <typename... Ts> auto operator()(Ts &&... Items) {
     return std::make_tuple(apply_one(Items)...);
   }
 };
@@ -269,6 +306,13 @@ TEST(STLExtrasTest, ToVector) {
   for (size_t I = 0; I < v.size(); ++I) {
     EXPECT_EQ(I, Enumerated[I].index());
     EXPECT_EQ(v[I], Enumerated[I].value());
+  }
+
+  auto EnumeratedImplicitSize = to_vector(enumerate(v));
+  ASSERT_EQ(3u, EnumeratedImplicitSize.size());
+  for (size_t I = 0; I < v.size(); ++I) {
+    EXPECT_EQ(I, EnumeratedImplicitSize[I].index());
+    EXPECT_EQ(v[I], EnumeratedImplicitSize[I].value());
   }
 }
 
@@ -323,6 +367,15 @@ TEST(STLExtrasTest, EraseIf) {
   EXPECT_EQ(3, V[1]);
   EXPECT_EQ(5, V[2]);
   EXPECT_EQ(7, V[3]);
+}
+
+TEST(STLExtrasTest, AppendRange) {
+  auto AppendVals = {3};
+  std::vector<int> V = {1, 2};
+  append_range(V, AppendVals);
+  EXPECT_EQ(1, V[0]);
+  EXPECT_EQ(2, V[1]);
+  EXPECT_EQ(3, V[2]);
 }
 
 namespace some_namespace {
@@ -380,6 +433,54 @@ TEST(STLExtrasTest, EmptyTest) {
   EXPECT_FALSE(llvm::empty(R1));
 }
 
+TEST(STLExtrasTest, DropBeginTest) {
+  SmallVector<int, 5> vec{0, 1, 2, 3, 4};
+
+  for (int n = 0; n < 5; ++n) {
+    int i = n;
+    for (auto &v : drop_begin(vec, n)) {
+      EXPECT_EQ(v, i);
+      i += 1;
+    }
+    EXPECT_EQ(i, 5);
+  }
+}
+
+TEST(STLExtrasTest, DropBeginDefaultTest) {
+  SmallVector<int, 5> vec{0, 1, 2, 3, 4};
+
+  int i = 1;
+  for (auto &v : drop_begin(vec)) {
+    EXPECT_EQ(v, i);
+    i += 1;
+  }
+  EXPECT_EQ(i, 5);
+}
+
+TEST(STLExtrasTest, DropEndTest) {
+  SmallVector<int, 5> vec{0, 1, 2, 3, 4};
+
+  for (int n = 0; n < 5; ++n) {
+    int i = 0;
+    for (auto &v : drop_end(vec, n)) {
+      EXPECT_EQ(v, i);
+      i += 1;
+    }
+    EXPECT_EQ(i, 5 - n);
+  }
+}
+
+TEST(STLExtrasTest, DropEndDefaultTest) {
+  SmallVector<int, 5> vec{0, 1, 2, 3, 4};
+
+  int i = 0;
+  for (auto &v : drop_end(vec)) {
+    EXPECT_EQ(v, i);
+    i += 1;
+  }
+  EXPECT_EQ(i, 4);
+}
+
 TEST(STLExtrasTest, EarlyIncrementTest) {
   std::list<int> L = {1, 2, 3, 4};
 
@@ -431,6 +532,79 @@ TEST(STLExtrasTest, EarlyIncrementTest) {
   EXPECT_EQ(EIR.end(), I);
 }
 
+// A custom iterator that returns a pointer when dereferenced. This is used to
+// test make_early_inc_range with iterators that do not return a reference on
+// dereferencing.
+struct CustomPointerIterator
+    : public iterator_adaptor_base<CustomPointerIterator,
+                                   std::list<int>::iterator,
+                                   std::forward_iterator_tag> {
+  using base_type =
+      iterator_adaptor_base<CustomPointerIterator, std::list<int>::iterator,
+                            std::forward_iterator_tag>;
+
+  explicit CustomPointerIterator(std::list<int>::iterator I) : base_type(I) {}
+
+  // Retrieve a pointer to the current int.
+  int *operator*() const { return &*base_type::wrapped(); }
+};
+
+// Make sure make_early_inc_range works with iterators that do not return a
+// reference on dereferencing. The test is similar to EarlyIncrementTest, but
+// uses CustomPointerIterator.
+TEST(STLExtrasTest, EarlyIncrementTestCustomPointerIterator) {
+  std::list<int> L = {1, 2, 3, 4};
+
+  auto CustomRange = make_range(CustomPointerIterator(L.begin()),
+                                CustomPointerIterator(L.end()));
+  auto EIR = make_early_inc_range(CustomRange);
+
+  auto I = EIR.begin();
+  auto EI = EIR.end();
+  EXPECT_NE(I, EI);
+
+  EXPECT_EQ(&*L.begin(), *I);
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+#ifndef NDEBUG
+  // Repeated dereferences are not allowed.
+  EXPECT_DEATH(*I, "Cannot dereference");
+  // Comparison after dereference is not allowed.
+  EXPECT_DEATH((void)(I == EI), "Cannot compare");
+  EXPECT_DEATH((void)(I != EI), "Cannot compare");
+#endif
+#endif
+
+  ++I;
+  EXPECT_NE(I, EI);
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+#ifndef NDEBUG
+  // You cannot increment prior to dereference.
+  EXPECT_DEATH(++I, "Cannot increment");
+#endif
+#endif
+  EXPECT_EQ(&*std::next(L.begin()), *I);
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+#ifndef NDEBUG
+  // Repeated dereferences are not allowed.
+  EXPECT_DEATH(*I, "Cannot dereference");
+#endif
+#endif
+
+  // Inserting shouldn't break anything. We should be able to keep dereferencing
+  // the currrent iterator and increment. The increment to go to the "next"
+  // iterator from before we inserted.
+  L.insert(std::next(L.begin(), 2), -1);
+  ++I;
+  EXPECT_EQ(&*std::next(L.begin(), 3), *I);
+
+  // Erasing the front including the current doesn't break incrementing.
+  L.erase(L.begin(), std::prev(L.end()));
+  ++I;
+  EXPECT_EQ(&*L.begin(), *I);
+  ++I;
+  EXPECT_EQ(EIR.end(), I);
+}
+
 TEST(STLExtrasTest, splat) {
   std::vector<int> V;
   EXPECT_FALSE(is_splat(V));
@@ -451,43 +625,368 @@ TEST(STLExtrasTest, to_address) {
   EXPECT_EQ(V1, to_address(V1));
 
   // Check fancy pointer overload for unique_ptr
-  std::unique_ptr<int> V2 = make_unique<int>(0);
-  EXPECT_EQ(V2.get(), to_address(V2));
+  std::unique_ptr<int> V2 = std::make_unique<int>(0);
+  EXPECT_EQ(V2.get(), llvm::to_address(V2));
 
   V2.reset(V1);
-  EXPECT_EQ(V1, to_address(V2));
+  EXPECT_EQ(V1, llvm::to_address(V2));
   V2.release();
 
   // Check fancy pointer overload for shared_ptr
   std::shared_ptr<int> V3 = std::make_shared<int>(0);
   std::shared_ptr<int> V4 = V3;
   EXPECT_EQ(V3.get(), V4.get());
-  EXPECT_EQ(V3.get(), to_address(V3));
-  EXPECT_EQ(V4.get(), to_address(V4));
+  EXPECT_EQ(V3.get(), llvm::to_address(V3));
+  EXPECT_EQ(V4.get(), llvm::to_address(V4));
 
   V3.reset(V1);
-  EXPECT_EQ(V1, to_address(V3));
+  EXPECT_EQ(V1, llvm::to_address(V3));
 }
 
-TEST(STLExtrasTest, bsearch) {
-  // Integer version.
-  EXPECT_EQ(7u, bsearch(5, 10, [](unsigned X) { return X >= 7; }));
-  EXPECT_EQ(5u, bsearch(5, 10, [](unsigned X) { return X >= 1; }));
-  EXPECT_EQ(10u, bsearch(5, 10, [](unsigned X) { return X >= 50; }));
-
-  // Iterator version.
+TEST(STLExtrasTest, partition_point) {
   std::vector<int> V = {1, 3, 5, 7, 9};
-  EXPECT_EQ(V.begin() + 3,
-            bsearch(V.begin(), V.end(), [](unsigned X) { return X >= 7; }));
-  EXPECT_EQ(V.begin(),
-            bsearch(V.begin(), V.end(), [](unsigned X) { return X >= 1; }));
-  EXPECT_EQ(V.end(),
-            bsearch(V.begin(), V.end(), [](unsigned X) { return X >= 50; }));
 
   // Range version.
-  EXPECT_EQ(V.begin() + 3, bsearch(V, [](unsigned X) { return X >= 7; }));
-  EXPECT_EQ(V.begin(), bsearch(V, [](unsigned X) { return X >= 1; }));
-  EXPECT_EQ(V.end(), bsearch(V, [](unsigned X) { return X >= 50; }));
+  EXPECT_EQ(V.begin() + 3,
+            partition_point(V, [](unsigned X) { return X < 7; }));
+  EXPECT_EQ(V.begin(), partition_point(V, [](unsigned X) { return X < 1; }));
+  EXPECT_EQ(V.end(), partition_point(V, [](unsigned X) { return X < 50; }));
+}
+
+TEST(STLExtrasTest, hasSingleElement) {
+  const std::vector<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::vector<int> V10(10);
+
+  EXPECT_EQ(hasSingleElement(V0), false);
+  EXPECT_EQ(hasSingleElement(V1), true);
+  EXPECT_EQ(hasSingleElement(V2), false);
+  EXPECT_EQ(hasSingleElement(V10), false);
+}
+
+TEST(STLExtrasTest, hasNItems) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItems(V0, 0));
+  EXPECT_FALSE(hasNItems(V0, 2));
+  EXPECT_TRUE(hasNItems(V1, 1));
+  EXPECT_FALSE(hasNItems(V1, 2));
+
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 3, [](int x) { return x < 10; }));
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 0, [](int x) { return x > 10; }));
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+}
+
+TEST(STLExtras, hasNItemsOrMore) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItemsOrMore(V1, 1));
+  EXPECT_FALSE(hasNItemsOrMore(V1, 2));
+
+  EXPECT_TRUE(hasNItemsOrMore(V2, 1));
+  EXPECT_TRUE(hasNItemsOrMore(V2, 2));
+  EXPECT_FALSE(hasNItemsOrMore(V2, 3));
+
+  EXPECT_TRUE(hasNItemsOrMore(V3, 3));
+  EXPECT_FALSE(hasNItemsOrMore(V3, 4));
+
+  EXPECT_TRUE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 3, [](int x) { return x < 10; }));
+  EXPECT_FALSE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 3, [](int x) { return x > 10; }));
+  EXPECT_TRUE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+}
+
+TEST(STLExtras, hasNItemsOrLess) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItemsOrLess(V0, 0));
+  EXPECT_TRUE(hasNItemsOrLess(V0, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V0, 2));
+
+  EXPECT_FALSE(hasNItemsOrLess(V1, 0));
+  EXPECT_TRUE(hasNItemsOrLess(V1, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V1, 2));
+
+  EXPECT_FALSE(hasNItemsOrLess(V2, 0));
+  EXPECT_FALSE(hasNItemsOrLess(V2, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V2, 2));
+  EXPECT_TRUE(hasNItemsOrLess(V2, 3));
+
+  EXPECT_FALSE(hasNItemsOrLess(V3, 0));
+  EXPECT_FALSE(hasNItemsOrLess(V3, 1));
+  EXPECT_FALSE(hasNItemsOrLess(V3, 2));
+  EXPECT_TRUE(hasNItemsOrLess(V3, 3));
+  EXPECT_TRUE(hasNItemsOrLess(V3, 4));
+
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 1, [](int x) { return x == 1; }));
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 5, [](int x) { return x < 5; }));
+  EXPECT_FALSE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 2, [](int x) { return x < 10; }));
+}
+
+TEST(STLExtras, MoveRange) {
+  class Foo {
+    bool A;
+
+  public:
+    Foo() : A(true) {}
+    Foo(const Foo &) = delete;
+    Foo(Foo &&Other) : A(Other.A) { Other.A = false; }
+    Foo &operator=(const Foo &) = delete;
+    Foo &operator=(Foo &&Other) {
+      if (this != &Other) {
+        A = Other.A;
+        Other.A = false;
+      }
+      return *this;
+    }
+    operator bool() const { return A; }
+  };
+  SmallVector<Foo, 4U> V1, V2, V3, V4;
+  auto HasVal = [](const Foo &Item) { return static_cast<bool>(Item); };
+  auto Build = [&] {
+    SmallVector<Foo, 4U> Foos;
+    Foos.resize(4U);
+    return Foos;
+  };
+
+  V1.resize(4U);
+  EXPECT_TRUE(llvm::all_of(V1, HasVal));
+
+  llvm::move(V1, std::back_inserter(V2));
+
+  // Ensure input container is same size, but its contents were moved out.
+  EXPECT_EQ(V1.size(), 4U);
+  EXPECT_TRUE(llvm::none_of(V1, HasVal));
+
+  // Ensure output container has the contents of the input container.
+  EXPECT_EQ(V2.size(), 4U);
+  EXPECT_TRUE(llvm::all_of(V2, HasVal));
+
+  llvm::move(std::move(V2), std::back_inserter(V3));
+
+  EXPECT_TRUE(llvm::none_of(V2, HasVal));
+  EXPECT_EQ(V3.size(), 4U);
+  EXPECT_TRUE(llvm::all_of(V3, HasVal));
+
+  llvm::move(Build(), std::back_inserter(V4));
+  EXPECT_EQ(V4.size(), 4U);
+  EXPECT_TRUE(llvm::all_of(V4, HasVal));
+}
+
+TEST(STLExtras, Unique) {
+  std::vector<int> V = {1, 5, 5, 4, 3, 3, 3};
+
+  auto I = llvm::unique(V, [](int a, int b) { return a == b; });
+
+  EXPECT_EQ(I, V.begin() + 4);
+
+  EXPECT_EQ(1, V[0]);
+  EXPECT_EQ(5, V[1]);
+  EXPECT_EQ(4, V[2]);
+  EXPECT_EQ(3, V[3]);
+}
+
+TEST(STLExtrasTest, MakeVisitorOneCallable) {
+  auto IdentityLambda = [](auto X) { return X; };
+  auto IdentityVisitor = makeVisitor(IdentityLambda);
+  EXPECT_EQ(IdentityLambda(1), IdentityVisitor(1));
+  EXPECT_EQ(IdentityLambda(2.0f), IdentityVisitor(2.0f));
+  EXPECT_TRUE((std::is_same<decltype(IdentityLambda(IdentityLambda)),
+                            decltype(IdentityLambda)>::value));
+  EXPECT_TRUE((std::is_same<decltype(IdentityVisitor(IdentityVisitor)),
+                            decltype(IdentityVisitor)>::value));
+}
+
+TEST(STLExtrasTest, MakeVisitorTwoCallables) {
+  auto Visitor =
+      makeVisitor([](int) { return 0; }, [](std::string) { return 1; });
+  EXPECT_EQ(Visitor(42), 0);
+  EXPECT_EQ(Visitor("foo"), 1);
+}
+
+TEST(STLExtrasTest, MakeVisitorCallableMultipleOperands) {
+  auto Second = makeVisitor([](int I, float F) { return F; },
+                            [](float F, int I) { return I; });
+  EXPECT_EQ(Second(1.f, 1), 1);
+  EXPECT_EQ(Second(1, 1.f), 1.f);
+}
+
+TEST(STLExtrasTest, MakeVisitorDefaultCase) {
+  {
+    auto Visitor = makeVisitor([](int I) { return I + 100; },
+                               [](float F) { return F * 2; },
+                               [](auto) { return -1; });
+    EXPECT_EQ(Visitor(24), 124);
+    EXPECT_EQ(Visitor(2.f), 4.f);
+    EXPECT_EQ(Visitor(2.), -1);
+    EXPECT_EQ(Visitor(Visitor), -1);
+  }
+  {
+    auto Visitor = makeVisitor([](auto) { return -1; },
+                               [](int I) { return I + 100; },
+                               [](float F) { return F * 2; });
+    EXPECT_EQ(Visitor(24), 124);
+    EXPECT_EQ(Visitor(2.f), 4.f);
+    EXPECT_EQ(Visitor(2.), -1);
+    EXPECT_EQ(Visitor(Visitor), -1);
+  }
+}
+
+template <bool Moveable, bool Copyable>
+struct Functor : Counted<Moveable, Copyable> {
+  using Counted<Moveable, Copyable>::Counted;
+  void operator()() {}
+};
+
+TEST(STLExtrasTest, MakeVisitorLifetimeSemanticsPRValue) {
+  int Copies = 0;
+  int Moves = 0;
+  int Destructors = 0;
+  {
+    auto V = makeVisitor(Functor<true, false>(Copies, Moves, Destructors));
+    (void)V;
+    EXPECT_EQ(0, Copies);
+    EXPECT_EQ(1, Moves);
+    EXPECT_EQ(1, Destructors);
+  }
+  EXPECT_EQ(0, Copies);
+  EXPECT_EQ(1, Moves);
+  EXPECT_EQ(2, Destructors);
+}
+
+TEST(STLExtrasTest, MakeVisitorLifetimeSemanticsRValue) {
+  int Copies = 0;
+  int Moves = 0;
+  int Destructors = 0;
+  {
+    Functor<true, false> F(Copies, Moves, Destructors);
+    {
+      auto V = makeVisitor(std::move(F));
+      (void)V;
+      EXPECT_EQ(0, Copies);
+      EXPECT_EQ(1, Moves);
+      EXPECT_EQ(0, Destructors);
+    }
+    EXPECT_EQ(0, Copies);
+    EXPECT_EQ(1, Moves);
+    EXPECT_EQ(1, Destructors);
+  }
+  EXPECT_EQ(0, Copies);
+  EXPECT_EQ(1, Moves);
+  EXPECT_EQ(2, Destructors);
+}
+
+TEST(STLExtrasTest, MakeVisitorLifetimeSemanticsLValue) {
+  int Copies = 0;
+  int Moves = 0;
+  int Destructors = 0;
+  {
+    Functor<true, true> F(Copies, Moves, Destructors);
+    {
+      auto V = makeVisitor(F);
+      (void)V;
+      EXPECT_EQ(1, Copies);
+      EXPECT_EQ(0, Moves);
+      EXPECT_EQ(0, Destructors);
+    }
+    EXPECT_EQ(1, Copies);
+    EXPECT_EQ(0, Moves);
+    EXPECT_EQ(1, Destructors);
+  }
+  EXPECT_EQ(1, Copies);
+  EXPECT_EQ(0, Moves);
+  EXPECT_EQ(2, Destructors);
+}
+
+TEST(STLExtrasTest, AllOfZip) {
+  std::vector<int> v1 = {0, 4, 2, 1};
+  std::vector<int> v2 = {1, 4, 3, 6};
+  EXPECT_TRUE(all_of_zip(v1, v2, [](int v1, int v2) { return v1 <= v2; }));
+  EXPECT_FALSE(all_of_zip(v1, v2, [](int L, int R) { return L < R; }));
+
+  // Triple vectors
+  std::vector<int> v3 = {1, 6, 5, 7};
+  EXPECT_EQ(true, all_of_zip(v1, v2, v3, [](int a, int b, int c) {
+              return a <= b && b <= c;
+            }));
+  EXPECT_EQ(false, all_of_zip(v1, v2, v3, [](int a, int b, int c) {
+              return a < b && b < c;
+            }));
+
+  // Shorter vector should fail even with an always-true predicate.
+  std::vector<int> v_short = {1, 4};
+  EXPECT_EQ(false, all_of_zip(v1, v_short, [](int, int) { return true; }));
+  EXPECT_EQ(false,
+            all_of_zip(v1, v2, v_short, [](int, int, int) { return true; }));
+}
+
+TEST(STLExtrasTest, TypesAreDistinct) {
+  EXPECT_TRUE((llvm::TypesAreDistinct<>::value));
+  EXPECT_TRUE((llvm::TypesAreDistinct<int>::value));
+  EXPECT_FALSE((llvm::TypesAreDistinct<int, int>::value));
+  EXPECT_TRUE((llvm::TypesAreDistinct<int, float>::value));
+  EXPECT_FALSE((llvm::TypesAreDistinct<int, float, int>::value));
+  EXPECT_TRUE((llvm::TypesAreDistinct<int, float, double>::value));
+  EXPECT_FALSE((llvm::TypesAreDistinct<int, float, double, float>::value));
+  EXPECT_TRUE((llvm::TypesAreDistinct<int, int *>::value));
+  EXPECT_TRUE((llvm::TypesAreDistinct<int, int &>::value));
+  EXPECT_TRUE((llvm::TypesAreDistinct<int, int &&>::value));
+  EXPECT_TRUE((llvm::TypesAreDistinct<int, const int>::value));
+}
+
+TEST(STLExtrasTest, FirstIndexOfType) {
+  EXPECT_EQ((llvm::FirstIndexOfType<int, int>::value), 0u);
+  EXPECT_EQ((llvm::FirstIndexOfType<int, int, int>::value), 0u);
+  EXPECT_EQ((llvm::FirstIndexOfType<int, float, int>::value), 1u);
+  EXPECT_EQ((llvm::FirstIndexOfType<int const *, float, int, int const *,
+                                    const int>::value),
+            2u);
+}
+
+TEST(STLExtrasTest, TypeAtIndex) {
+  EXPECT_TRUE((std::is_same<int, llvm::TypeAtIndex<0, int>>::value));
+  EXPECT_TRUE((std::is_same<int, llvm::TypeAtIndex<0, int, float>>::value));
+  EXPECT_TRUE((std::is_same<float, llvm::TypeAtIndex<1, int, float>>::value));
+  EXPECT_TRUE(
+      (std::is_same<float, llvm::TypeAtIndex<1, int, float, double>>::value));
+  EXPECT_TRUE(
+      (std::is_same<float, llvm::TypeAtIndex<1, int, float, double>>::value));
+  EXPECT_TRUE(
+      (std::is_same<double, llvm::TypeAtIndex<2, int, float, double>>::value));
+}
+
+enum Doggos {
+  Floofer,
+  Woofer,
+  SubWoofer,
+  Pupper,
+  Pupperino,
+  Longboi,
+};
+
+TEST(STLExtrasTest, IsContainedInitializerList) {
+  EXPECT_TRUE(is_contained({Woofer, SubWoofer}, Woofer));
+  EXPECT_TRUE(is_contained({Woofer, SubWoofer}, SubWoofer));
+  EXPECT_FALSE(is_contained({Woofer, SubWoofer}, Pupper));
+  EXPECT_FALSE(is_contained({}, Longboi));
+
+  static_assert(is_contained({Woofer, SubWoofer}, SubWoofer), "SubWoofer!");
+  static_assert(!is_contained({Woofer, SubWoofer}, Pupper), "Missing Pupper!");
+
+  EXPECT_TRUE(is_contained({1, 2, 3, 4}, 3));
+  EXPECT_FALSE(is_contained({1, 2, 3, 4}, 5));
+
+  static_assert(is_contained({1, 2, 3, 4}, 3), "It's there!");
+  static_assert(!is_contained({1, 2, 3, 4}, 5), "It's not there :(");
 }
 
 } // namespace

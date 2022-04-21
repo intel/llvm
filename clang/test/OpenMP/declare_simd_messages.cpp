@@ -56,7 +56,7 @@ void h(int *hp, int *hp2, int *hq, int *lin) {
 #pragma omp declare simd inbranch inbranch notinbranch // expected-error {{unexpected 'notinbranch' clause, 'inbranch' is specified already}}
 #pragma omp declare simd notinbranch notinbranch inbranch // expected-error {{unexpected 'inbranch' clause, 'notinbranch' is specified already}}
 // expected-note@+2 {{read of non-const variable 'b' is not allowed in a constant expression}}
-// expected-error@+1 {{expression is not an integral constant expression}}
+// expected-error@+1 {{integral constant expression}}
 #pragma omp declare simd simdlen(b)
 // expected-error@+1 {{directive '#pragma omp declare simd' cannot contain more than one 'simdlen' clause}}
 #pragma omp declare simd simdlen(32) simdlen(c)
@@ -197,7 +197,8 @@ void test() {
 #pragma omp declare simd linear(ref(b))
 // expected-error@+1 {{expected one of 'ref', val' or 'uval' modifiers}} expected-warning@+1 {{extra tokens at the end of '#pragma omp declare simd' are ignored}}
 #pragma omp declare simd linear(uref(b)) allocate(b)
-void bar(int a, int *b);
+#pragma omp declare simd linear(ref(c))
+void bar(int a, int *b, float &c);
 
 template <class T>
 struct St {

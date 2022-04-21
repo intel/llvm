@@ -16,7 +16,7 @@ namespace clang {
 namespace tidy {
 namespace bugprone {
 
-/// \brief Checks for near miss of virtual methods.
+/// Checks for near miss of virtual methods.
 ///
 /// For a method in a derived class, this check looks for virtual method with a
 /// very similar name and an identical signature defined in a base class.
@@ -27,6 +27,9 @@ class VirtualNearMissCheck : public ClangTidyCheck {
 public:
   VirtualNearMissCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 

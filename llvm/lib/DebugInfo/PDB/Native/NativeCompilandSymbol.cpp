@@ -9,8 +9,6 @@
 #include "llvm/DebugInfo/PDB/Native/NativeCompilandSymbol.h"
 #include "llvm/DebugInfo/PDB/Native/NativeSession.h"
 
-#include "llvm/ADT/STLExtras.h"
-
 namespace llvm {
 namespace pdb {
 
@@ -49,11 +47,11 @@ SymIndexId NativeCompilandSymbol::getLexicalParentId() const { return 0; }
 // this potential confusion.
 
 std::string NativeCompilandSymbol::getLibraryName() const {
-  return Module.getObjFileName();
+  return std::string(Module.getObjFileName());
 }
 
 std::string NativeCompilandSymbol::getName() const {
-  return Module.getModuleName();
+  return std::string(Module.getModuleName());
 }
 
 } // namespace pdb

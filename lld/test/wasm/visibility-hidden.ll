@@ -1,14 +1,14 @@
 ; RUN: llc -filetype=obj -o %t.o %s
-; RUN: llc -filetype=obj %S/Inputs/hidden.ll -o %t2.o
+; RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown %p/Inputs/hidden.s -o %t2.o
 ; RUN: rm -f %t2.a
 ; RUN: llvm-ar rcs %t2.a %t2.o
 
-; Test that symbols with hidden visitiblity are not export, even with
+; Test that symbols with hidden visibility are not export, even with
 ; --export-dynamic
 ; RUN: wasm-ld --export-dynamic %t.o %t2.a -o %t.wasm
 ; RUN: obj2yaml %t.wasm | FileCheck %s
 
-; Test that symbols with default visitiblity are not exported without
+; Test that symbols with default visibility are not exported without
 ; --export-dynamic
 ; RUN: wasm-ld %t.o %t2.a -o %t.nodef.wasm
 ; RUN: obj2yaml %t.nodef.wasm | FileCheck %s -check-prefix=NO-DEFAULT
@@ -43,12 +43,6 @@ entry:
 ; CHECK-NEXT:       - Name:            memory
 ; CHECK-NEXT:         Kind:            MEMORY
 ; CHECK-NEXT:         Index:           0
-; CHECK-NEXT:       - Name:            __heap_base
-; CHECK-NEXT:         Kind:            GLOBAL
-; CHECK-NEXT:         Index:           1
-; CHECK-NEXT:       - Name:            __data_end
-; CHECK-NEXT:         Kind:            GLOBAL
-; CHECK-NEXT:         Index:           2
 ; CHECK-NEXT:       - Name:            objectDefault
 ; CHECK-NEXT:         Kind:            FUNCTION
 ; CHECK-NEXT:         Index:           1
@@ -66,12 +60,6 @@ entry:
 ; NO-DEFAULT-NEXT:       - Name:            memory
 ; NO-DEFAULT-NEXT:         Kind:            MEMORY
 ; NO-DEFAULT-NEXT:         Index:           0
-; NO-DEFAULT-NEXT:       - Name:            __heap_base
-; NO-DEFAULT-NEXT:         Kind:            GLOBAL
-; NO-DEFAULT-NEXT:         Index:           1
-; NO-DEFAULT-NEXT:       - Name:            __data_end
-; NO-DEFAULT-NEXT:         Kind:            GLOBAL
-; NO-DEFAULT-NEXT:         Index:           2
 ; NO-DEFAULT-NEXT:       - Name:            _start
 ; NO-DEFAULT-NEXT:         Kind:            FUNCTION
 ; NO-DEFAULT-NEXT:         Index:           2

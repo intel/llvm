@@ -1,8 +1,8 @@
-; RUN: opt -mtriple=arm-arm-eabi -mcpu=cortex-m33 < %s -arm-parallel-dsp -S | FileCheck %s
+; RUN: opt -mtriple=arm-none-none-eabi -mcpu=cortex-m33 < %s -arm-parallel-dsp -S | FileCheck %s
 ;
 ; The loop header is not the loop latch.
 ;
-; CHECK-NOT:  call i32 @llvm.arm.smlad
+; CHECK:  call i32 @llvm.arm.smlad
 ;
 define dso_local i32 @test(i32 %arg, i32* nocapture readnone %arg1, i16* nocapture readonly %arg2, i16* nocapture readonly %arg3) {
 entry:

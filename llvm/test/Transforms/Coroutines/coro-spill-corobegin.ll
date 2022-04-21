@@ -1,11 +1,13 @@
 ; Check that we can spills coro.begin from an inlined inner coroutine.
-; RUN: opt < %s -coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 %g.Frame = type { void (%g.Frame*)*, void (%g.Frame*)*, i32, i1, i32 }
 
 @g.resumers = private constant [3 x void (%g.Frame*)*] [void (%g.Frame*)* @g.dummy, void (%g.Frame*)* @g.dummy, void (%g.Frame*)* @g.dummy]
 
 declare void @g.dummy(%g.Frame*)
+
+declare i8* @g()
 
 define i8* @f() "coroutine.presplit"="1" {
 entry:
@@ -14,7 +16,7 @@ entry:
   %alloc = call i8* @malloc(i32 %size)
   %hdl = call i8* @llvm.coro.begin(token %id, i8* %alloc)
 
-  %innerid = call token @llvm.coro.id(i32 0, i8* null, i8* null, i8* bitcast ([3 x void (%g.Frame*)*]* @g.resumers to i8*))
+  %innerid = call token @llvm.coro.id(i32 0, i8* null, i8* bitcast (i8* ()* @g to i8*), i8* bitcast ([3 x void (%g.Frame*)*]* @g.resumers to i8*))
   %innerhdl = call noalias nonnull i8* @llvm.coro.begin(token %innerid, i8* null)
   %gframe = bitcast i8* %innerhdl to %g.Frame*
 
@@ -37,18 +39,18 @@ suspend:
 }
 
 ; See if the i8* for coro.begin was added to f.Frame
-; CHECK-LABEL: %f.Frame = type { void (%f.Frame*)*, void (%f.Frame*)*, i1, i1, i8* }
+; CHECK-LABEL: %f.Frame = type { void (%f.Frame*)*, void (%f.Frame*)*, i8*, i1 }
 
 ; See if the g's coro.begin was spilled into the frame
 ; CHECK-LABEL: @f(
-; CHECK: %innerid = call token @llvm.coro.id(i32 0, i8* null, i8* null, i8* bitcast ([3 x void (%g.Frame*)*]* @g.resumers to i8*))
+; CHECK: %innerid = call token @llvm.coro.id(i32 0, i8* null, i8* bitcast (i8* ()* @g to i8*), i8* bitcast ([3 x void (%g.Frame*)*]* @g.resumers to i8*))
 ; CHECK: %innerhdl = call noalias nonnull i8* @llvm.coro.begin(token %innerid, i8* null)
-; CHECK: %[[spilladdr:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 4
+; CHECK: %[[spilladdr:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 2
 ; CHECK: store i8* %innerhdl, i8** %[[spilladdr]]
 
 ; See if the coro.begin was loaded from the frame
 ; CHECK-LABEL: @f.resume(
-; CHECK: %[[innerhdlAddr:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %{{.+}}, i32 0, i32 4
+; CHECK: %[[innerhdlAddr:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %{{.+}}, i32 0, i32 2
 ; CHECK: %[[innerhdl:.+]] = load i8*, i8** %[[innerhdlAddr]]
 ; CHECK: %[[gframe:.+]] = bitcast i8* %[[innerhdl]] to %g.Frame*
 ; CHECK: %[[gvarAddr:.+]] = getelementptr inbounds %g.Frame, %g.Frame* %[[gframe]], i32 0, i32 4

@@ -26,6 +26,7 @@
 
 namespace llvm {
 
+class AAResults;
 class InstrItineraryData;
 
   /// ScheduleDAGSDNodes - A ScheduleDAG for scheduling SDNode-based DAGs.
@@ -44,8 +45,8 @@ class InstrItineraryData;
   ///
   class ScheduleDAGSDNodes : public ScheduleDAG {
   public:
-    MachineBasicBlock *BB;
-    SelectionDAG *DAG;                    // DAG of the current basic block
+    MachineBasicBlock *BB = nullptr;
+    SelectionDAG *DAG = nullptr; // DAG of the current basic block
     const InstrItineraryData *InstrItins;
 
     /// The schedule. Null SUnit*'s represent noop instructions.
@@ -93,7 +94,7 @@ class InstrItineraryData;
     /// are input.  This SUnit graph is similar to the SelectionDAG, but
     /// excludes nodes that aren't interesting to scheduling, and represents
     /// flagged together nodes with a single SUnit.
-    void BuildSchedGraph(AliasAnalysis *AA);
+    void BuildSchedGraph(AAResults *AA);
 
     /// InitNumRegDefsLeft - Determine the # of regs defined by this node.
     ///
@@ -137,8 +138,8 @@ class InstrItineraryData;
     class RegDefIter {
       const ScheduleDAGSDNodes *SchedDAG;
       const SDNode *Node;
-      unsigned DefIdx;
-      unsigned NodeNumDefs;
+      unsigned DefIdx = 0;
+      unsigned NodeNumDefs = 0;
       MVT ValueType;
 
     public:
@@ -183,7 +184,7 @@ class InstrItineraryData;
     void BuildSchedUnits();
     void AddSchedEdges();
 
-    void EmitPhysRegCopy(SUnit *SU, DenseMap<SUnit*, unsigned> &VRBaseMap,
+    void EmitPhysRegCopy(SUnit *SU, DenseMap<SUnit*, Register> &VRBaseMap,
                          MachineBasicBlock::iterator InsertPos);
   };
 

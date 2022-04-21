@@ -236,10 +236,10 @@ void MultiplexASTMutationListener::AddedAttributeToRecord(
 
 MultiplexConsumer::MultiplexConsumer(
     std::vector<std::unique_ptr<ASTConsumer>> C)
-    : Consumers(std::move(C)), MutationListener(), DeserializationListener() {
+    : Consumers(std::move(C)) {
   // Collect the mutation listeners and deserialization listeners of all
   // children, and create a multiplex listener each if so.
-  std::vector<ASTMutationListener*> mutationListeners;
+  std::vector<ASTMutationListener *> mutationListeners;
   std::vector<ASTDeserializationListener*> serializationListeners;
   for (auto &Consumer : Consumers) {
     if (auto *mutationListener = Consumer->GetASTMutationListener())
@@ -249,11 +249,11 @@ MultiplexConsumer::MultiplexConsumer(
   }
   if (!mutationListeners.empty()) {
     MutationListener =
-        llvm::make_unique<MultiplexASTMutationListener>(mutationListeners);
+        std::make_unique<MultiplexASTMutationListener>(mutationListeners);
   }
   if (!serializationListeners.empty()) {
     DeserializationListener =
-        llvm::make_unique<MultiplexASTDeserializationListener>(
+        std::make_unique<MultiplexASTDeserializationListener>(
             serializationListeners);
   }
 }
@@ -320,6 +320,11 @@ void MultiplexConsumer::HandleImplicitImportDecl(ImportDecl *D) {
 void MultiplexConsumer::CompleteTentativeDefinition(VarDecl *D) {
   for (auto &Consumer : Consumers)
     Consumer->CompleteTentativeDefinition(D);
+}
+
+void MultiplexConsumer::CompleteExternalDeclaration(VarDecl *D) {
+  for (auto &Consumer : Consumers)
+    Consumer->CompleteExternalDeclaration(D);
 }
 
 void MultiplexConsumer::AssignInheritanceModel(CXXRecordDecl *RD) {

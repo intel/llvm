@@ -17,12 +17,14 @@
 // };
 
 #include <memory>
+
 #include <cassert>
+#include <functional>
 
 #include "test_macros.h"
 
 #if TEST_STD_VER >= 11
-#include "poisoned_hash_helper.hpp"
+#include "poisoned_hash_helper.h"
 #include "deleter_types.h"
 #include "min_allocator.h"
 
@@ -45,16 +47,13 @@ void test_disabled_with_deleter() {
   test_hash_disabled_for_type<pointer>();
 }
 
-namespace std {
-
 template <class T>
-struct hash<::min_pointer<T, std::integral_constant<size_t, 1>>> {
-  size_t operator()(::min_pointer<T, std::integral_constant<size_t, 1>> p) const TEST_NOEXCEPT_FALSE {
+struct std::hash<min_pointer<T, std::integral_constant<size_t, 1>>> {
+  size_t operator()(min_pointer<T, std::integral_constant<size_t, 1>> p) const TEST_NOEXCEPT_FALSE {
     if (!p) return 0;
     return std::hash<T*>{}(std::addressof(*p));
   }
 };
-}
 
 struct A {};
 

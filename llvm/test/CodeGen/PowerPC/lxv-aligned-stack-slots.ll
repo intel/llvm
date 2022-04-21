@@ -1,4 +1,4 @@
-; RUN: llc -O3 -ppc-late-peephole=false -o - %s | FileCheck %s
+; RUN: llc -O3 -ppc-late-peephole=false -ppc-convert-rr-to-ri=false -o - %s | FileCheck %s
 target datalayout = "e-m:e-i64:64-n32:64"
 target triple = "powerpc64le-unknown-linux-gnu"
 
@@ -41,6 +41,6 @@ define void @aligned_slot() #0 {
 ; Function Attrs: argmemonly nounwind
 declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i1) #1
 
-attributes #0 = { nounwind "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,+vsx,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,+vsx" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }
 attributes #2 = { nounwind }

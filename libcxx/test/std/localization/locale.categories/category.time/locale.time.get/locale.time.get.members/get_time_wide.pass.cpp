@@ -14,11 +14,14 @@
 // get_time(iter_type s, iter_type end, ios_base& str,
 //          ios_base::iostate& err, tm* t) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <cassert>
+#include "test_macros.h"
 #include "test_iterators.h"
 
-typedef input_iterator<const wchar_t*> I;
+typedef cpp17_input_iterator<const wchar_t*> I;
 
 typedef std::time_get<wchar_t, I> F;
 
@@ -41,7 +44,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_hour == 0);
         assert(t.tm_min == 0);
         assert(t.tm_sec == 0);
@@ -52,7 +55,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_hour == 23);
         assert(t.tm_min == 59);
         assert(t.tm_sec == 60);
@@ -63,7 +66,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+2);
+        assert(base(i) == in+2);
         assert(t.tm_hour == 0);
         assert(t.tm_min == 0);
         assert(t.tm_sec == 0);
@@ -74,7 +77,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+5);
+        assert(base(i) == in+5);
 //         assert(t.tm_hour == 0);
 //         assert(t.tm_min == 0);
 //         assert(t.tm_sec == 0);
@@ -85,7 +88,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+8);
+        assert(base(i) == in+8);
 //         assert(t.tm_hour == 0);
 //         assert(t.tm_min == 0);
 //         assert(t.tm_sec == 0);
@@ -96,7 +99,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+7);
+        assert(base(i) == in+7);
         assert(t.tm_hour == 2);
         assert(t.tm_min == 43);
         assert(t.tm_sec == 22);
@@ -107,7 +110,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+1);
+        assert(base(i) == in+1);
 //         assert(t.tm_hour == 0);
 //         assert(t.tm_min == 0);
 //         assert(t.tm_sec == 0);

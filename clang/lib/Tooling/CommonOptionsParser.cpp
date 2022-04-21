@@ -39,7 +39,7 @@ const char *const CommonOptionsParser::HelpMessage =
     "\tCMake option to get this output). When no build path is specified,\n"
     "\ta search for compile_commands.json will be attempted through all\n"
     "\tparent paths of the first input file . See:\n"
-    "\thttp://clang.llvm.org/docs/HowToSetupToolingForLLVM.html for an\n"
+    "\thttps://clang.llvm.org/docs/HowToSetupToolingForLLVM.html for an\n"
     "\texample of setting up Clang Tooling on a source tree.\n"
     "\n"
     "<source0> ... specify the paths of source files. These paths are\n"
@@ -115,8 +115,7 @@ llvm::Error CommonOptionsParser::init(
   // Stop initializing if command-line option parsing failed.
   if (!cl::ParseCommandLineOptions(argc, argv, Overview, &OS)) {
     OS.flush();
-    return llvm::make_error<llvm::StringError>("[CommonOptionsParser]: " +
-                                                   ErrorMessage,
+    return llvm::make_error<llvm::StringError>(ErrorMessage,
                                                llvm::inconvertibleErrorCode());
   }
 
@@ -142,7 +141,7 @@ llvm::Error CommonOptionsParser::init(
     }
   }
   auto AdjustingCompilations =
-      llvm::make_unique<ArgumentsAdjustingCompilations>(
+      std::make_unique<ArgumentsAdjustingCompilations>(
           std::move(Compilations));
   Adjuster =
       getInsertArgumentAdjuster(ArgsBefore, ArgumentInsertPosition::BEGIN);
@@ -171,7 +170,7 @@ CommonOptionsParser::CommonOptionsParser(
   llvm::Error Err = init(argc, argv, Category, OccurrencesFlag, Overview);
   if (Err) {
     llvm::report_fatal_error(
-        "CommonOptionsParser: failed to parse command-line arguments. " +
+        Twine("CommonOptionsParser: failed to parse command-line arguments. ") +
         llvm::toString(std::move(Err)));
   }
 }

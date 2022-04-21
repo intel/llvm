@@ -13,8 +13,9 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSlotTracker.h"
-#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
 
@@ -310,7 +311,7 @@ TEST(MachineOperandTest, PrintMetadata) {
   std::string str;
   // Print a MachineOperand containing a metadata node.
   raw_string_ostream OS(str);
-  MO.print(OS, MST, LLT{}, /*PrintDef=*/false, /*IsStandalone=*/false,
+  MO.print(OS, MST, LLT{}, /*OpIdx*/~0U, /*PrintDef=*/false, /*IsStandalone=*/false,
            /*ShouldPrintRegisterTies=*/false, 0, /*TRI=*/nullptr,
            /*IntrinsicInfo=*/nullptr);
   ASSERT_TRUE(OS.str() == "!0");
@@ -318,7 +319,8 @@ TEST(MachineOperandTest, PrintMetadata) {
 
 TEST(MachineOperandTest, PrintMCSymbol) {
   MCAsmInfo MAI;
-  MCContext Ctx(&MAI, /*MRI=*/nullptr, /*MOFI=*/nullptr);
+  Triple T = Triple("unknown-unknown-unknown");
+  MCContext Ctx(T, &MAI, /*MRI=*/nullptr, /*MSTI=*/nullptr);
   MCSymbol *Sym = Ctx.getOrCreateSymbol("foo");
 
   // Create a MachineOperand with a metadata and print it.
@@ -396,6 +398,16 @@ TEST(MachineOperandTest, PrintPredicate) {
   raw_string_ostream OS(str);
   MO.print(OS, /*TRI=*/nullptr, /*IntrinsicInfo=*/nullptr);
   ASSERT_TRUE(OS.str() == "intpred(eq)");
+}
+
+TEST(MachineOperandTest, HashValue) {
+  char SymName1[] = "test";
+  char SymName2[] = "test";
+  MachineOperand MO1 = MachineOperand::CreateES(SymName1);
+  MachineOperand MO2 = MachineOperand::CreateES(SymName2);
+  ASSERT_NE(SymName1, SymName2);
+  ASSERT_EQ(hash_value(MO1), hash_value(MO2));
+  ASSERT_TRUE(MO1.isIdenticalTo(MO2));
 }
 
 } // end namespace

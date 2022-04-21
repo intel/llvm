@@ -15,7 +15,7 @@ namespace clang {
 namespace tidy {
 namespace modernize {
 
-/// \brief Replace default bodies of special member functions with '= default;'.
+/// Replace default bodies of special member functions with '= default;'.
 /// \code
 ///   struct A {
 ///     A() {}
@@ -37,6 +37,9 @@ namespace modernize {
 class UseEqualsDefaultCheck : public ClangTidyCheck {
 public:
   UseEqualsDefaultCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;

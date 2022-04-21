@@ -116,11 +116,13 @@ __attribute__((objc_root_class))
 - (nonnull id)returnsNonNull;
 - (nullable id)returnsNullable;
 - (null_unspecified id)returnsNullUnspecified;
+- (_Nullable_result id)returnsNullableResult;
 @end
 
 void test_receiver_merge(NSMergeReceiver *none,
                          _Nonnull NSMergeReceiver *nonnull,
                          _Nullable NSMergeReceiver *nullable,
+                         _Nullable_result NSMergeReceiver *nullable_result,
                          _Null_unspecified NSMergeReceiver *null_unspecified) {
   int *ptr;
 
@@ -128,6 +130,12 @@ void test_receiver_merge(NSMergeReceiver *none,
   ptr = [nullable returnsNullUnspecified]; // expected-warning{{'id _Nullable'}}
   ptr = [nullable returnsNonNull]; // expected-warning{{'id _Nullable'}}
   ptr = [nullable returnsNone]; // expected-warning{{'id _Nullable'}}
+
+  ptr = [nullable_result returnsNullable]; // expected-warning{{'id _Nullable'}}
+  ptr = [nullable_result returnsNullUnspecified]; // expected-warning{{'id _Nullable'}}
+  ptr = [nullable_result returnsNonNull]; // expected-warning{{'id _Nullable'}}
+  ptr = [nullable_result returnsNone]; // expected-warning{{'id _Nullable'}}
+  ptr = [nullable_result returnsNullableResult]; // expected-warning{{'id _Nullable_result'}}
 
   ptr = [null_unspecified returnsNullable]; // expected-warning{{'id _Nullable'}}
   ptr = [null_unspecified returnsNullUnspecified]; // expected-warning{{'id _Null_unspecified'}}
@@ -223,7 +231,7 @@ void testMultiProp(MultiProp *foo) {
   ip = foo.e; // expected-error{{incompatible type 'MultiProp *(^ _Nullable)(int)'}}
 }
 
-void testBlockLiterals() {
+void testBlockLiterals(void) {
   (void)(^id(void) { return 0; });
   (void)(^id _Nullable (void) { return 0; });
   (void)(^ _Nullable id(void) { return 0; });
@@ -237,6 +245,7 @@ void conditional_expr(int c) {
   NSFoo * _Nonnull nonnullP;
   NSFoo * _Nullable nullableP;
   NSFoo * _Null_unspecified unspecifiedP;
+  NSFoo * _Nullable_result nullableResultP;
   NSFoo *noneP;
 
   p = c ? nonnullP : nonnullP;
@@ -255,19 +264,23 @@ void conditional_expr(int c) {
   p = c ? noneP : nullableP; // expected-warning{{implicit conversion from nullable pointer 'NSFoo * _Nullable' to non-nullable pointer type 'NSFoo * _Nonnull'}}
   p = c ? noneP : unspecifiedP;
   p = c ? noneP : noneP;
+  p = c ? noneP : nullableResultP; // expected-warning{{implicit conversion from nullable pointer 'NSFoo * _Nullable' to non-nullable pointer type 'NSFoo * _Nonnull'}}
+  p = c ? nonnullP : nullableResultP; // expected-warning{{implicit conversion from nullable pointer 'NSFoo * _Nullable' to non-nullable pointer type 'NSFoo * _Nonnull'}}
+  p = c ? nullableP : nullableResultP; // expected-warning{{implicit conversion from nullable pointer 'NSFoo * _Nullable' to non-nullable pointer type 'NSFoo * _Nonnull'}}
+  p = c ? nullableResultP : nullableResultP; // expected-warning{{implicit conversion from nullable pointer 'NSFoo * _Nullable_result' to non-nullable pointer type 'NSFoo * _Nonnull'}}
 }
 
 typedef int INTS[4];
 @interface ArraysInMethods
 - (void)simple:(int [_Nonnull 2])x;
 - (void)nested:(void *_Nullable [_Nonnull 2])x;
-- (void)nestedBad:(int [2][_Nonnull 2])x; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int [2]'}}
+- (void)nestedBad:(int [2][_Nonnull 2])x; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int[2]'}}
 
 - (void)withTypedef:(INTS _Nonnull)x;
-- (void)withTypedefBad:(INTS _Nonnull[2])x; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'INTS' (aka 'int [4]')}}
+- (void)withTypedefBad:(INTS _Nonnull[2])x; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'INTS' (aka 'int[4]')}}
 
 - (void)simpleSugar:(nonnull int [2])x;
-- (void)nestedSugar:(nonnull void *_Nullable [2])x; // expected-error {{nullability keyword 'nonnull' cannot be applied to multi-level pointer type 'void * _Nullable [2]'}} expected-note {{use nullability type specifier '_Nonnull' to affect the innermost pointer type of 'void * _Nullable [2]'}}
+- (void)nestedSugar:(nonnull void *_Nullable [2])x; // expected-error {{nullability keyword 'nonnull' cannot be applied to multi-level pointer type 'void * _Nullable[2]'}} expected-note {{use nullability type specifier '_Nonnull' to affect the innermost pointer type of 'void * _Nullable[2]'}}
 - (void)sugarWithTypedef:(nonnull INTS)x;
 @end
 

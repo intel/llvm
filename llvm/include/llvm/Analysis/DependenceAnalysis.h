@@ -40,12 +40,13 @@
 #define LLVM_ANALYSIS_DEPENDENCEANALYSIS_H
 
 #include "llvm/ADT/SmallBitVector.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
-template <typename T> class ArrayRef;
+  class AAResults;
+  template <typename T> class ArrayRef;
   class Loop;
   class LoopInfo;
   class ScalarEvolution;
@@ -73,13 +74,9 @@ template <typename T> class ArrayRef;
     Dependence &operator=(Dependence &&) = default;
 
   public:
-    Dependence(Instruction *Source,
-               Instruction *Destination) :
-      Src(Source),
-      Dst(Destination),
-      NextPredecessor(nullptr),
-      NextSuccessor(nullptr) {}
-    virtual ~Dependence() {}
+    Dependence(Instruction *Source, Instruction *Destination)
+        : Src(Source), Dst(Destination) {}
+    virtual ~Dependence() = default;
 
     /// Dependence::DVEntry - Each level in the distance/direction vector
     /// has a direction (or perhaps a union of several directions), and
@@ -98,9 +95,10 @@ template <typename T> class ArrayRef;
       bool PeelFirst : 1; // Peeling the first iteration will break dependence.
       bool PeelLast  : 1; // Peeling the last iteration will break the dependence.
       bool Splitable : 1; // Splitting the loop will break dependence.
-      const SCEV *Distance; // NULL implies no distance available.
-      DVEntry() : Direction(ALL), Scalar(true), PeelFirst(false),
-                  PeelLast(false), Splitable(false), Distance(nullptr) { }
+      const SCEV *Distance = nullptr; // NULL implies no distance available.
+      DVEntry()
+          : Direction(ALL), Scalar(true), PeelFirst(false), PeelLast(false),
+            Splitable(false) {}
     };
 
     /// getSrc - Returns the source instruction for this dependence.
@@ -199,7 +197,7 @@ template <typename T> class ArrayRef;
 
   private:
     Instruction *Src, *Dst;
-    const Dependence *NextPredecessor, *NextSuccessor;
+    const Dependence *NextPredecessor = nullptr, *NextSuccessor = nullptr;
     friend class DependenceInfo;
   };
 
@@ -270,7 +268,7 @@ template <typename T> class ArrayRef;
   ///
   class DependenceInfo {
   public:
-    DependenceInfo(Function *F, AliasAnalysis *AA, ScalarEvolution *SE,
+    DependenceInfo(Function *F, AAResults *AA, ScalarEvolution *SE,
                    LoopInfo *LI)
         : AA(AA), SE(SE), LI(LI), F(F) {}
 
@@ -333,7 +331,7 @@ template <typename T> class ArrayRef;
     Function *getFunction() const { return F; }
 
   private:
-    AliasAnalysis *AA;
+    AAResults *AA;
     ScalarEvolution *SE;
     LoopInfo *LI;
     Function *F;
@@ -924,8 +922,32 @@ template <typename T> class ArrayRef;
     void updateDirection(Dependence::DVEntry &Level,
                          const Constraint &CurConstraint) const;
 
+    /// Given a linear access function, tries to recover subscripts
+    /// for each dimension of the array element access.
     bool tryDelinearize(Instruction *Src, Instruction *Dst,
                         SmallVectorImpl<Subscript> &Pair);
+
+    /// Tries to delinearize access function for a fixed size multi-dimensional
+    /// array, by deriving subscripts from GEP instructions. Returns true upon
+    /// success and false otherwise.
+    bool tryDelinearizeFixedSize(Instruction *Src, Instruction *Dst,
+                                 const SCEV *SrcAccessFn,
+                                 const SCEV *DstAccessFn,
+                                 SmallVectorImpl<const SCEV *> &SrcSubscripts,
+                                 SmallVectorImpl<const SCEV *> &DstSubscripts);
+
+    /// Tries to delinearize access function for a multi-dimensional array with
+    /// symbolic runtime sizes.
+    /// Returns true upon success and false otherwise.
+    bool tryDelinearizeParametricSize(
+        Instruction *Src, Instruction *Dst, const SCEV *SrcAccessFn,
+        const SCEV *DstAccessFn, SmallVectorImpl<const SCEV *> &SrcSubscripts,
+        SmallVectorImpl<const SCEV *> &DstSubscripts);
+
+    /// checkSubscript - Helper function for checkSrcSubscript and
+    /// checkDstSubscript to avoid duplicate code
+    bool checkSubscript(const SCEV *Expr, const Loop *LoopNest,
+                        SmallBitVector &Loops, bool IsSrc);
   }; // class DependenceInfo
 
   /// AnalysisPass to compute dependence information in a function
@@ -954,10 +976,7 @@ template <typename T> class ArrayRef;
   class DependenceAnalysisWrapperPass : public FunctionPass {
   public:
     static char ID; // Class identification, replacement for typeinfo
-    DependenceAnalysisWrapperPass() : FunctionPass(ID) {
-      initializeDependenceAnalysisWrapperPassPass(
-          *PassRegistry::getPassRegistry());
-    }
+    DependenceAnalysisWrapperPass();
 
     bool runOnFunction(Function &F) override;
     void releaseMemory() override;

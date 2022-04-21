@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -x c++ -emit-llvm-only %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -verify -Wno-sycl-2017-compat -fsyntax-only -emit-llvm-only %s
 // expected-no-diagnostics
 // Should never fail, since the type is never used in kernel code.
 
@@ -17,9 +17,8 @@ void always_uses() {
 void usage() {
 }
 
-
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 int main() {

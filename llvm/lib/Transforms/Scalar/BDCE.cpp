@@ -9,7 +9,8 @@
 // This file implements the Bit-Tracking Dead Code Elimination pass. Some
 // instructions (shifts, some ands, ors, etc.) kill some of their input bits.
 // We track these dead bits and remove instructions that compute only these
-// dead bits.
+// dead bits. We also simplify sext that generates unused extension bits,
+// converting it to a zext.
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,19 +20,23 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/DemandedBits.h"
 #include "llvm/Analysis/GlobalsModRef.h"
-#include "llvm/Transforms/Utils/Local.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Local.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "bdce"
 
 STATISTIC(NumRemoved, "Number of instructions removed (unused)");
 STATISTIC(NumSimplified, "Number of instructions trivialized (dead bits)");
+STATISTIC(NumSExt2ZExt,
+          "Number of sign extension instructions converted to zero extension");
 
 /// If an instruction is trivialized (dead), then the chain of users of that
 /// instruction may need to be cleared of assumptions that can no longer be
@@ -48,7 +53,7 @@ static void clearAssumptionsOfUsers(Instruction *I, DemandedBits &DB) {
     // in the def-use chain needs to be changed.
     auto *J = dyn_cast<Instruction>(JU);
     if (J && J->getType()->isIntOrIntVectorTy() &&
-        !DB.getDemandedBits(J).isAllOnesValue()) {
+        !DB.getDemandedBits(J).isAllOnes()) {
       Visited.insert(J);
       WorkList.push_back(J);
     }
@@ -79,7 +84,7 @@ static void clearAssumptionsOfUsers(Instruction *I, DemandedBits &DB) {
       // that in the def-use chain needs to be changed.
       auto *K = dyn_cast<Instruction>(KU);
       if (K && Visited.insert(K).second && K->getType()->isIntOrIntVectorTy() &&
-          !DB.getDemandedBits(K).isAllOnesValue())
+          !DB.getDemandedBits(K).isAllOnes())
         WorkList.push_back(K);
     }
   }
@@ -98,14 +103,29 @@ static bool bitTrackingDCE(Function &F, DemandedBits &DB) {
     // Remove instructions that are dead, either because they were not reached
     // during analysis or have no demanded bits.
     if (DB.isInstructionDead(&I) ||
-        (I.getType()->isIntOrIntVectorTy() &&
-         DB.getDemandedBits(&I).isNullValue() &&
+        (I.getType()->isIntOrIntVectorTy() && DB.getDemandedBits(&I).isZero() &&
          wouldInstructionBeTriviallyDead(&I))) {
-      salvageDebugInfo(I);
       Worklist.push_back(&I);
-      I.dropAllReferences();
       Changed = true;
       continue;
+    }
+
+    // Convert SExt into ZExt if none of the extension bits is required
+    if (SExtInst *SE = dyn_cast<SExtInst>(&I)) {
+      APInt Demanded = DB.getDemandedBits(SE);
+      const uint32_t SrcBitSize = SE->getSrcTy()->getScalarSizeInBits();
+      auto *const DstTy = SE->getDestTy();
+      const uint32_t DestBitSize = DstTy->getScalarSizeInBits();
+      if (Demanded.countLeadingZeros() >= (DestBitSize - SrcBitSize)) {
+        clearAssumptionsOfUsers(SE, DB);
+        IRBuilder<> Builder(SE);
+        I.replaceAllUsesWith(
+            Builder.CreateZExt(SE->getOperand(0), DstTy, SE->getName()));
+        Worklist.push_back(SE);
+        Changed = true;
+        NumSExt2ZExt++;
+        continue;
+      }
     }
 
     for (Use &U : I.operands()) {
@@ -132,6 +152,11 @@ static bool bitTrackingDCE(Function &F, DemandedBits &DB) {
     }
   }
 
+  for (Instruction *&I : llvm::reverse(Worklist)) {
+    salvageDebugInfo(*I);
+    I->dropAllReferences();
+  }
+
   for (Instruction *&I : Worklist) {
     ++NumRemoved;
     I->eraseFromParent();
@@ -147,7 +172,6 @@ PreservedAnalyses BDCEPass::run(Function &F, FunctionAnalysisManager &AM) {
 
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
-  PA.preserve<GlobalsAA>();
   return PA;
 }
 

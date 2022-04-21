@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ASTUtils_h_
-#define liblldb_ASTUtils_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_ASTUTILS_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_ASTUTILS_H
 
+#include "clang/Basic/Module.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/MultiplexExternalSemaSource.h"
 #include "clang/Sema/Sema.h"
@@ -71,7 +72,7 @@ public:
     return m_Source->getModule(ID);
   }
 
-  llvm::Optional<ASTSourceDescriptor>
+  llvm::Optional<clang::ASTSourceDescriptor>
   getSourceDescriptor(unsigned ID) override {
     return m_Source->getSourceDescriptor(ID);
   }
@@ -358,15 +359,12 @@ public:
   }
 
   void CompleteType(clang::TagDecl *Tag) override {
-    while (!Tag->isCompleteDefinition())
-      for (size_t i = 0; i < Sources.size(); ++i) {
-        // FIXME: We are technically supposed to loop here too until
-        // Tag->isCompleteDefinition() is true, but if our low quality source
-        // is failing to complete the tag this code will deadlock.
-        Sources[i]->CompleteType(Tag);
-        if (Tag->isCompleteDefinition())
-          break;
-      }
+    for (clang::ExternalSemaSource *S : Sources) {
+      S->CompleteType(Tag);
+      // Stop after the first source completed the type.
+      if (Tag->isCompleteDefinition())
+        break;
+    }
   }
 
   void CompleteType(clang::ObjCInterfaceDecl *Class) override {
@@ -401,13 +399,6 @@ public:
       if (auto M = Sources[i]->getModule(ID))
         return M;
     return nullptr;
-  }
-
-  bool DeclIsFromPCHWithObjectFile(const clang::Decl *D) override {
-    for (auto *S : Sources)
-      if (S->DeclIsFromPCHWithObjectFile(D))
-        return true;
-    return false;
   }
 
   bool layoutRecordType(
@@ -576,4 +567,4 @@ public:
 };
 
 } // namespace lldb_private
-#endif // liblldb_ASTUtils_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_ASTUTILS_H

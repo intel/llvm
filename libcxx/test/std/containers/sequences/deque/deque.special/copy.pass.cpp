@@ -17,6 +17,7 @@
 #include <deque>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 #include "min_allocator.h"
 
@@ -49,7 +50,7 @@ void testN(int start, int N)
     typedef typename C::const_iterator CI;
     typedef random_access_iterator<I> RAI;
     typedef random_access_iterator<CI> RACI;
-    typedef input_iterator<CI> ICI;
+    typedef cpp17_input_iterator<CI> ICI;
     C c1 = make<C>(N, start);
     C c2 = make<C>(N);
     assert(std::copy(c1.cbegin(), c1.cend(), c2.begin()) == c2.end());

@@ -14,6 +14,7 @@
 #include "ARMCallLowering.h"
 #include "ARMSubtarget.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
@@ -33,29 +34,30 @@ using namespace LegalizeActions;
 /// In practice, not specifying those isn't a problem, and the below functions
 /// should disappear quickly as we add support for legalizing non-power-of-2
 /// sized types further.
-static void
-addAndInterleaveWithUnsupported(LegalizerInfo::SizeAndActionsVec &result,
-                                const LegalizerInfo::SizeAndActionsVec &v) {
+static void addAndInterleaveWithUnsupported(
+    LegacyLegalizerInfo::SizeAndActionsVec &result,
+    const LegacyLegalizerInfo::SizeAndActionsVec &v) {
   for (unsigned i = 0; i < v.size(); ++i) {
     result.push_back(v[i]);
     if (i + 1 < v[i].first && i + 1 < v.size() &&
         v[i + 1].first != v[i].first + 1)
-      result.push_back({v[i].first + 1, Unsupported});
+      result.push_back({v[i].first + 1, LegacyLegalizeActions::Unsupported});
   }
 }
 
-static LegalizerInfo::SizeAndActionsVec
-widen_8_16(const LegalizerInfo::SizeAndActionsVec &v) {
+static LegacyLegalizerInfo::SizeAndActionsVec
+widen_8_16(const LegacyLegalizerInfo::SizeAndActionsVec &v) {
   assert(v.size() >= 1);
   assert(v[0].first > 17);
-  LegalizerInfo::SizeAndActionsVec result = {{1, Unsupported},
-                                             {8, WidenScalar},
-                                             {9, Unsupported},
-                                             {16, WidenScalar},
-                                             {17, Unsupported}};
+  LegacyLegalizerInfo::SizeAndActionsVec result = {
+      {1, LegacyLegalizeActions::Unsupported},
+      {8, LegacyLegalizeActions::WidenScalar},
+      {9, LegacyLegalizeActions::Unsupported},
+      {16, LegacyLegalizeActions::WidenScalar},
+      {17, LegacyLegalizeActions::Unsupported}};
   addAndInterleaveWithUnsupported(result, v);
   auto Largest = result.back().first;
-  result.push_back({Largest + 1, Unsupported});
+  result.push_back({Largest + 1, LegacyLegalizeActions::Unsupported});
   return result;
 }
 
@@ -74,9 +76,10 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
   const LLT s32 = LLT::scalar(32);
   const LLT s64 = LLT::scalar(64);
 
+  auto &LegacyInfo = getLegacyLegalizerInfo();
   if (ST.isThumb1Only()) {
     // Thumb1 is not supported yet.
-    computeTables();
+    LegacyInfo.computeTables();
     verify(*ST.getInstrInfo());
     return;
   }
@@ -84,9 +87,20 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
   getActionDefinitionsBuilder({G_SEXT, G_ZEXT, G_ANYEXT})
       .legalForCartesianProduct({s8, s16, s32}, {s1, s8, s16});
 
-  getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL, G_AND, G_OR, G_XOR})
+  getActionDefinitionsBuilder(G_SEXT_INREG).lower();
+
+  getActionDefinitionsBuilder({G_MUL, G_AND, G_OR, G_XOR})
       .legalFor({s32})
-      .minScalar(0, s32);
+      .clampScalar(0, s32, s32);
+
+  if (ST.hasNEON())
+    getActionDefinitionsBuilder({G_ADD, G_SUB})
+        .legalFor({s32, s64})
+        .minScalar(0, s32);
+  else
+    getActionDefinitionsBuilder({G_ADD, G_SUB})
+        .legalFor({s32})
+        .minScalar(0, s32);
 
   getActionDefinitionsBuilder({G_ASHR, G_LSHR, G_SHL})
     .legalFor({{s32, s32}})
@@ -105,13 +119,13 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
         .clampScalar(0, s32, s32);
 
   for (unsigned Op : {G_SREM, G_UREM}) {
-    setLegalizeScalarToDifferentSizeStrategy(Op, 0, widen_8_16);
+    LegacyInfo.setLegalizeScalarToDifferentSizeStrategy(Op, 0, widen_8_16);
     if (HasHWDivide)
-      setAction({Op, s32}, Lower);
+      LegacyInfo.setAction({Op, s32}, LegacyLegalizeActions::Lower);
     else if (AEABI(ST))
-      setAction({Op, s32}, Custom);
+      LegacyInfo.setAction({Op, s32}, LegacyLegalizeActions::Custom);
     else
-      setAction({Op, s32}, Libcall);
+      LegacyInfo.setAction({Op, s32}, LegacyLegalizeActions::Libcall);
   }
 
   getActionDefinitionsBuilder(G_INTTOPTR)
@@ -136,11 +150,10 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
   // We're keeping these builders around because we'll want to add support for
   // floating point to them.
   auto &LoadStoreBuilder = getActionDefinitionsBuilder({G_LOAD, G_STORE})
-                               .legalForTypesWithMemDesc({{s1, p0, 8, 8},
-                                                          {s8, p0, 8, 8},
-                                                          {s16, p0, 16, 8},
-                                                          {s32, p0, 32, 8},
-                                                          {p0, p0, 32, 8}})
+                               .legalForTypesWithMemDesc({{s8, p0, s8, 8},
+                                                          {s16, p0, s16, 8},
+                                                          {s32, p0, s32, 8},
+                                                          {p0, p0, p0, 8}})
                                .unsupportedIfMemSizeNotPow2();
 
   getActionDefinitionsBuilder(G_FRAME_INDEX).legalFor({p0});
@@ -151,19 +164,19 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
           .legalFor({s32, p0})
           .minScalar(0, s32);
 
-  getActionDefinitionsBuilder(G_GEP)
+  getActionDefinitionsBuilder(G_PTR_ADD)
       .legalFor({{p0, s32}})
       .minScalar(1, s32);
 
   getActionDefinitionsBuilder(G_BRCOND).legalFor({s1});
 
-  if (!ST.useSoftFloat() && ST.hasVFP2()) {
+  if (!ST.useSoftFloat() && ST.hasVFP2Base()) {
     getActionDefinitionsBuilder(
         {G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FCONSTANT, G_FNEG})
         .legalFor({s32, s64});
 
     LoadStoreBuilder
-        .legalForTypesWithMemDesc({{s64, p0, 64, 32}})
+        .legalForTypesWithMemDesc({{s64, p0, s64, 32}})
         .maxScalar(0, s32);
     PhiBuilder.legalFor({s64});
 
@@ -187,7 +200,7 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
     LoadStoreBuilder.maxScalar(0, s32);
 
     for (auto Ty : {s32, s64})
-      setAction({G_FNEG, Ty}, Lower);
+      LegacyInfo.setAction({G_FNEG, Ty}, LegacyLegalizeActions::Lower);
 
     getActionDefinitionsBuilder(G_FCONSTANT).customFor({s32, s64});
 
@@ -208,7 +221,10 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
         .libcallForCartesianProduct({s32, s64}, {s32});
   }
 
-  if (!ST.useSoftFloat() && ST.hasVFP4())
+  // Just expand whatever loads and stores are left.
+  LoadStoreBuilder.lower();
+
+  if (!ST.useSoftFloat() && ST.hasVFP4Base())
     getActionDefinitionsBuilder(G_FMA).legalFor({s32, s64});
   else
     getActionDefinitionsBuilder(G_FMA).libcallFor({s32, s64});
@@ -235,7 +251,7 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
         .clampScalar(0, s32, s32);
   }
 
-  computeTables();
+  LegacyInfo.computeTables();
   verify(*ST.getInstrInfo());
 }
 
@@ -253,7 +269,7 @@ void ARMLegalizerInfo::setFCmpLibcallsAEABI() {
       {RTLIB::OLE_F32, CmpInst::BAD_ICMP_PREDICATE}};
   FCmp32Libcalls[CmpInst::FCMP_OLT] = {
       {RTLIB::OLT_F32, CmpInst::BAD_ICMP_PREDICATE}};
-  FCmp32Libcalls[CmpInst::FCMP_ORD] = {{RTLIB::O_F32, CmpInst::ICMP_EQ}};
+  FCmp32Libcalls[CmpInst::FCMP_ORD] = {{RTLIB::UO_F32, CmpInst::ICMP_EQ}};
   FCmp32Libcalls[CmpInst::FCMP_UGE] = {{RTLIB::OLT_F32, CmpInst::ICMP_EQ}};
   FCmp32Libcalls[CmpInst::FCMP_UGT] = {{RTLIB::OLE_F32, CmpInst::ICMP_EQ}};
   FCmp32Libcalls[CmpInst::FCMP_ULE] = {{RTLIB::OGT_F32, CmpInst::ICMP_EQ}};
@@ -279,7 +295,7 @@ void ARMLegalizerInfo::setFCmpLibcallsAEABI() {
       {RTLIB::OLE_F64, CmpInst::BAD_ICMP_PREDICATE}};
   FCmp64Libcalls[CmpInst::FCMP_OLT] = {
       {RTLIB::OLT_F64, CmpInst::BAD_ICMP_PREDICATE}};
-  FCmp64Libcalls[CmpInst::FCMP_ORD] = {{RTLIB::O_F64, CmpInst::ICMP_EQ}};
+  FCmp64Libcalls[CmpInst::FCMP_ORD] = {{RTLIB::UO_F64, CmpInst::ICMP_EQ}};
   FCmp64Libcalls[CmpInst::FCMP_UGE] = {{RTLIB::OLT_F64, CmpInst::ICMP_EQ}};
   FCmp64Libcalls[CmpInst::FCMP_UGT] = {{RTLIB::OLE_F64, CmpInst::ICMP_EQ}};
   FCmp64Libcalls[CmpInst::FCMP_ULE] = {{RTLIB::OGT_F64, CmpInst::ICMP_EQ}};
@@ -304,7 +320,7 @@ void ARMLegalizerInfo::setFCmpLibcallsGNU() {
   FCmp32Libcalls[CmpInst::FCMP_OGT] = {{RTLIB::OGT_F32, CmpInst::ICMP_SGT}};
   FCmp32Libcalls[CmpInst::FCMP_OLE] = {{RTLIB::OLE_F32, CmpInst::ICMP_SLE}};
   FCmp32Libcalls[CmpInst::FCMP_OLT] = {{RTLIB::OLT_F32, CmpInst::ICMP_SLT}};
-  FCmp32Libcalls[CmpInst::FCMP_ORD] = {{RTLIB::O_F32, CmpInst::ICMP_EQ}};
+  FCmp32Libcalls[CmpInst::FCMP_ORD] = {{RTLIB::UO_F32, CmpInst::ICMP_EQ}};
   FCmp32Libcalls[CmpInst::FCMP_UGE] = {{RTLIB::OLT_F32, CmpInst::ICMP_SGE}};
   FCmp32Libcalls[CmpInst::FCMP_UGT] = {{RTLIB::OLE_F32, CmpInst::ICMP_SGT}};
   FCmp32Libcalls[CmpInst::FCMP_ULE] = {{RTLIB::OGT_F32, CmpInst::ICMP_SLE}};
@@ -322,7 +338,7 @@ void ARMLegalizerInfo::setFCmpLibcallsGNU() {
   FCmp64Libcalls[CmpInst::FCMP_OGT] = {{RTLIB::OGT_F64, CmpInst::ICMP_SGT}};
   FCmp64Libcalls[CmpInst::FCMP_OLE] = {{RTLIB::OLE_F64, CmpInst::ICMP_SLE}};
   FCmp64Libcalls[CmpInst::FCMP_OLT] = {{RTLIB::OLT_F64, CmpInst::ICMP_SLT}};
-  FCmp64Libcalls[CmpInst::FCMP_ORD] = {{RTLIB::O_F64, CmpInst::ICMP_EQ}};
+  FCmp64Libcalls[CmpInst::FCMP_ORD] = {{RTLIB::UO_F64, CmpInst::ICMP_EQ}};
   FCmp64Libcalls[CmpInst::FCMP_UGE] = {{RTLIB::OLT_F64, CmpInst::ICMP_SGE}};
   FCmp64Libcalls[CmpInst::FCMP_UGT] = {{RTLIB::OLE_F64, CmpInst::ICMP_SGT}};
   FCmp64Libcalls[CmpInst::FCMP_ULE] = {{RTLIB::OGT_F64, CmpInst::ICMP_SLE}};
@@ -346,13 +362,12 @@ ARMLegalizerInfo::getFCmpLibcalls(CmpInst::Predicate Predicate,
   llvm_unreachable("Unsupported size for FCmp predicate");
 }
 
-bool ARMLegalizerInfo::legalizeCustom(MachineInstr &MI,
-                                      MachineRegisterInfo &MRI,
-                                      MachineIRBuilder &MIRBuilder,
-                                      GISelChangeObserver &Observer) const {
+bool ARMLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
+                                      MachineInstr &MI) const {
   using namespace TargetOpcode;
 
-  MIRBuilder.setInstr(MI);
+  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+  MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
   LLVMContext &Ctx = MIRBuilder.getMF().getFunction().getContext();
 
   switch (MI.getOpcode()) {
@@ -360,7 +375,7 @@ bool ARMLegalizerInfo::legalizeCustom(MachineInstr &MI,
     return false;
   case G_SREM:
   case G_UREM: {
-    unsigned OriginalResult = MI.getOperand(0).getReg();
+    Register OriginalResult = MI.getOperand(0).getReg();
     auto Size = MRI.getType(OriginalResult).getSizeInBits();
     if (Size != 32)
       return false;
@@ -369,24 +384,17 @@ bool ARMLegalizerInfo::legalizeCustom(MachineInstr &MI,
         MI.getOpcode() == G_SREM ? RTLIB::SDIVREM_I32 : RTLIB::UDIVREM_I32;
 
     // Our divmod libcalls return a struct containing the quotient and the
-    // remainder. We need to create a virtual register for it.
+    // remainder. Create a new, unused register for the quotient and use the
+    // destination of the original instruction for the remainder.
     Type *ArgTy = Type::getInt32Ty(Ctx);
     StructType *RetTy = StructType::get(Ctx, {ArgTy, ArgTy}, /* Packed */ true);
-    auto RetVal = MRI.createGenericVirtualRegister(
-        getLLTForType(*RetTy, MIRBuilder.getMF().getDataLayout()));
-
-    auto Status = createLibcall(MIRBuilder, Libcall, {RetVal, RetTy},
-                                {{MI.getOperand(1).getReg(), ArgTy},
-                                 {MI.getOperand(2).getReg(), ArgTy}});
+    Register RetRegs[] = {MRI.createGenericVirtualRegister(LLT::scalar(32)),
+                          OriginalResult};
+    auto Status = createLibcall(MIRBuilder, Libcall, {RetRegs, RetTy, 0},
+                                {{MI.getOperand(1).getReg(), ArgTy, 0},
+                                 {MI.getOperand(2).getReg(), ArgTy, 0}});
     if (Status != LegalizerHelper::Legalized)
       return false;
-
-    // The remainder is the second result of divmod. Split the return value into
-    // a new, unused register for the quotient and the destination of the
-    // original instruction for the remainder.
-    MIRBuilder.buildUnmerge(
-        {MRI.createGenericVirtualRegister(LLT::scalar(32)), OriginalResult},
-        RetVal);
     break;
   }
   case G_FCMP: {
@@ -414,13 +422,13 @@ bool ARMLegalizerInfo::legalizeCustom(MachineInstr &MI,
     auto *ArgTy = OpSize == 32 ? Type::getFloatTy(Ctx) : Type::getDoubleTy(Ctx);
     auto *RetTy = Type::getInt32Ty(Ctx);
 
-    SmallVector<unsigned, 2> Results;
+    SmallVector<Register, 2> Results;
     for (auto Libcall : Libcalls) {
       auto LibcallResult = MRI.createGenericVirtualRegister(LLT::scalar(32));
-      auto Status =
-          createLibcall(MIRBuilder, Libcall.LibcallID, {LibcallResult, RetTy},
-                        {{MI.getOperand(2).getReg(), ArgTy},
-                         {MI.getOperand(3).getReg(), ArgTy}});
+      auto Status = createLibcall(MIRBuilder, Libcall.LibcallID,
+                                  {LibcallResult, RetTy, 0},
+                                  {{MI.getOperand(2).getReg(), ArgTy, 0},
+                                   {MI.getOperand(3).getReg(), ArgTy, 0}});
 
       if (Status != LegalizerHelper::Legalized)
         return false;
@@ -441,8 +449,7 @@ bool ARMLegalizerInfo::legalizeCustom(MachineInstr &MI,
       } else {
         // We need to compare against 0.
         assert(CmpInst::isIntPredicate(ResultPred) && "Unsupported predicate");
-        auto Zero = MRI.createGenericVirtualRegister(LLT::scalar(32));
-        MIRBuilder.buildConstant(Zero, 0);
+        auto Zero = MIRBuilder.buildConstant(LLT::scalar(32), 0);
         MIRBuilder.buildICmp(ResultPred, ProcessedResult, LibcallResult, Zero);
       }
       Results.push_back(ProcessedResult);
@@ -458,7 +465,7 @@ bool ARMLegalizerInfo::legalizeCustom(MachineInstr &MI,
     // Convert to integer constants, while preserving the binary representation.
     auto AsInteger =
         MI.getOperand(1).getFPImm()->getValueAPF().bitcastToAPInt();
-    MIRBuilder.buildConstant(MI.getOperand(0).getReg(),
+    MIRBuilder.buildConstant(MI.getOperand(0),
                              *ConstantInt::get(Ctx, AsInteger));
     break;
   }

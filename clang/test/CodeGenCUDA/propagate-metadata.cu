@@ -4,28 +4,24 @@
 //
 // In particular, we check that ftz and unsafe-math are propagated into the
 // bitcode library as appropriate.
-//
-// In addition, we set -ftrapping-math on the bitcode library, but then set
-// -fno-trapping-math on the main compilations, and ensure that the latter flag
-// overrides the flag on the bitcode library.
 
 // Build the bitcode library.  This is not built in CUDA mode, otherwise it
 // might have incompatible attributes.  This mirrors how libdevice is built.
-// RUN: %clang_cc1 -x c++ -emit-llvm-bc -ftrapping-math -DLIB \
+// RUN: %clang_cc1 -x c++ -fconvergent-functions -emit-llvm-bc -DLIB \
 // RUN:   %s -o %t.bc -triple nvptx-unknown-unknown
 
 // RUN: %clang_cc1 -x cuda %s -emit-llvm -mlink-builtin-bitcode %t.bc -o - \
-// RUN:   -fno-trapping-math -fcuda-is-device -triple nvptx-unknown-unknown \
+// RUN:   -fcuda-is-device -triple nvptx-unknown-unknown \
 // RUN: | FileCheck %s --check-prefix=CHECK --check-prefix=NOFTZ --check-prefix=NOFAST
 
 // RUN: %clang_cc1 -x cuda %s -emit-llvm -mlink-builtin-bitcode %t.bc \
-// RUN:   -fno-trapping-math -fcuda-flush-denormals-to-zero -o - \
+// RUN:   -fdenormal-fp-math-f32=preserve-sign -o - \
 // RUN:   -fcuda-is-device -triple nvptx-unknown-unknown \
 // RUN: | FileCheck %s --check-prefix=CHECK --check-prefix=FTZ \
 // RUN:   --check-prefix=NOFAST
 
 // RUN: %clang_cc1 -x cuda %s -emit-llvm -mlink-builtin-bitcode %t.bc \
-// RUN:   -fno-trapping-math -fcuda-flush-denormals-to-zero -o - \
+// RUN:   -fdenormal-fp-math-f32=preserve-sign -o - \
 // RUN:   -fcuda-is-device -menable-unsafe-fp-math -triple nvptx-unknown-unknown \
 // RUN: | FileCheck %s --check-prefix=CHECK --check-prefix=FAST
 
@@ -48,15 +44,40 @@ __global__ void kernel() { lib_fn(); }
 }
 
 // The kernel and lib function should have the same attributes.
-// CHECK: define void @kernel() [[attr:#[0-9]+]]
-// CHECK: define internal void @lib_fn() [[attr]]
+// CHECK: define{{.*}} void @kernel() [[kattr:#[0-9]+]]
+// CHECK: define internal void @lib_fn() [[fattr:#[0-9]+]]
 
-// Check the attribute list.
-// CHECK: attributes [[attr]] = {
-// CHECK: "no-trapping-math"="true"
+// FIXME: These -NOT checks do not work as intended and do not check on the same
+// line.
 
-// FTZ-SAME: "nvptx-f32ftz"="true"
-// NOFTZ-NOT: "nvptx-f32ftz"="true"
+// Check the attribute list for kernel.
+// CHECK: attributes [[kattr]] = {
+
+// CHECK-SAME: convergent
+// CHECK-SAME: norecurse
+
+// FTZ-NOT: "denormal-fp-math"
+// FTZ-SAME: "denormal-fp-math-f32"="preserve-sign,preserve-sign"
+// NOFTZ-NOT: "denormal-fp-math-f32"
+
+// CHECK-SAME: "no-trapping-math"="true"
+
+// FAST-SAME: "unsafe-fp-math"="true"
+// NOFAST-NOT: "unsafe-fp-math"="true"
+
+// Check the attribute list for lib_fn.
+// CHECK: attributes [[fattr]] = {
+
+// CHECK-SAME: convergent
+// CHECK-NOT: norecurse
+
+// FTZ-NOT: "denormal-fp-math"
+// NOFTZ-NOT: "denormal-fp-math"
+
+// FTZ-SAME: "denormal-fp-math-f32"="preserve-sign,preserve-sign"
+// NOFTZ-NOT: "denormal-fp-math-f32"
+
+// CHECK-SAME: "no-trapping-math"="true"
 
 // FAST-SAME: "unsafe-fp-math"="true"
 // NOFAST-NOT: "unsafe-fp-math"="true"

@@ -77,14 +77,12 @@ namespace PR11848 {
     return i + f1<Ts...>(is...);
   }
 
-  // FIXME: This note is technically correct, but could be better. We
-  // should really say that we couldn't infer template argument 'Ts'.
   template<typename ...Ts>
-  void f2(U<Ts> ...is) { } // expected-note {{requires 0 arguments, but 1 was provided}}
+  void f2(U<Ts> ...is) { } // expected-note {{deduced incomplete pack <(no value)> for template parameter 'Ts'}}
 
   template<typename...> struct type_tuple {};
   template<typename ...Ts>
-  void f3(type_tuple<Ts...>, U<Ts> ...is) {} // expected-note {{requires 4 arguments, but 3 were provided}}
+  void f3(type_tuple<Ts...>, U<Ts> ...is) {} // expected-note {{deduced packs of different lengths for parameter 'Ts' (<void, void, void> vs. <(no value), (no value)>)}}
 
   void g() {
     f1(U<void>()); // expected-error {{no match}}
@@ -266,4 +264,29 @@ namespace an_alias_template_is_not_a_class_template {
     Bar<> y; // expected-error {{too few template arguments for template template parameter 'Bar'}}
     int z = Bar(); // expected-error {{use of template template parameter 'Bar' requires template arguments}}
   }
+}
+
+namespace resolved_nttp {
+  template <typename T> struct A {
+    template <int N> using Arr = T[N];
+    Arr<3> a;
+  };
+  using TA = decltype(A<int>::a);
+  using TA = int[3];
+
+  template <typename T> struct B {
+    template <int... N> using Fn = T(int(*...A)[N]);
+    Fn<1, 2, 3> *p;
+  };
+  using TB = decltype(B<int>::p);
+  using TB = int (*)(int (*)[1], int (*)[2], int (*)[3]);
+
+  template <typename T, int ...M> struct C {
+    template <T... N> using Fn = T(int(*...A)[N]);
+    Fn<1, M..., 4> *p; // expected-error-re 3{{evaluates to {{[234]}}, which cannot be narrowed to type 'bool'}}
+  };
+  using TC = decltype(C<int, 2, 3>::p);
+  using TC = int (*)(int (*)[1], int (*)[2], int (*)[3], int (*)[4]);
+
+  using TC2 = decltype(C<bool, 2, 3>::p); // expected-note {{instantiation of}}
 }

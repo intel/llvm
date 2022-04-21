@@ -194,7 +194,7 @@ error:
 	return NULL;
 }
 
-struct isl_vec *isl_vec_copy(struct isl_vec *vec)
+__isl_give isl_vec *isl_vec_copy(__isl_keep isl_vec *vec)
 {
 	if (!vec)
 		return NULL;
@@ -203,7 +203,7 @@ struct isl_vec *isl_vec_copy(struct isl_vec *vec)
 	return vec;
 }
 
-struct isl_vec *isl_vec_dup(struct isl_vec *vec)
+__isl_give isl_vec *isl_vec_dup(__isl_keep isl_vec *vec)
 {
 	struct isl_vec *vec2;
 
@@ -216,7 +216,7 @@ struct isl_vec *isl_vec_dup(struct isl_vec *vec)
 	return vec2;
 }
 
-struct isl_vec *isl_vec_cow(struct isl_vec *vec)
+__isl_give isl_vec *isl_vec_cow(__isl_take isl_vec *vec)
 {
 	struct isl_vec *vec2;
 	if (!vec)
@@ -245,9 +245,9 @@ __isl_null isl_vec *isl_vec_free(__isl_take isl_vec *vec)
 	return NULL;
 }
 
-int isl_vec_size(__isl_keep isl_vec *vec)
+isl_size isl_vec_size(__isl_keep isl_vec *vec)
 {
-	return vec ? vec->size : -1;
+	return vec ? vec->size : isl_size_error;
 }
 
 /* Extract the element at position "pos" of "vec".
@@ -334,7 +334,7 @@ isl_bool isl_vec_is_zero(__isl_keep isl_vec *vec)
 {
 	if (!vec)
 		return isl_bool_error;
-	return isl_seq_first_non_zero(vec->el, vec->size) < 0;
+	return isl_bool_ok(isl_seq_first_non_zero(vec->el, vec->size) < 0);
 }
 
 isl_bool isl_vec_is_equal(__isl_keep isl_vec *vec1, __isl_keep isl_vec *vec2)
@@ -345,7 +345,7 @@ isl_bool isl_vec_is_equal(__isl_keep isl_vec *vec1, __isl_keep isl_vec *vec2)
 	if (vec1->size != vec2->size)
 		return isl_bool_false;
 
-	return isl_seq_eq(vec1->el, vec2->el, vec1->size);
+	return isl_bool_ok(isl_seq_eq(vec1->el, vec2->el, vec1->size));
 }
 
 __isl_give isl_printer *isl_printer_print_vec(__isl_take isl_printer *printer,
@@ -370,7 +370,7 @@ error:
 	return NULL;
 }
 
-void isl_vec_dump(struct isl_vec *vec)
+void isl_vec_dump(__isl_keep isl_vec *vec)
 {
 	isl_printer *printer;
 
@@ -431,7 +431,7 @@ __isl_give isl_vec *isl_vec_clr(__isl_take isl_vec *vec)
 	return vec;
 }
 
-void isl_vec_lcm(struct isl_vec *vec, isl_int *lcm)
+void isl_vec_lcm(__isl_keep isl_vec *vec, isl_int *lcm)
 {
 	isl_seq_lcm(vec->block.data, vec->size, lcm);
 }
@@ -452,7 +452,7 @@ __isl_give isl_vec *isl_vec_ceil(__isl_take isl_vec *vec)
 	return vec;
 }
 
-struct isl_vec *isl_vec_normalize(struct isl_vec *vec)
+__isl_give isl_vec *isl_vec_normalize(__isl_take isl_vec *vec)
 {
 	if (!vec)
 		return NULL;

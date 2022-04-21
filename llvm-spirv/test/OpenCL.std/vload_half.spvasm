@@ -1,0 +1,84 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+;
+; CHECK-LABEL: spir_kernel void @test
+;
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS1Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS1Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS1Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS1Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS3Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS3Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS3Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS3Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS2Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS2Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS2Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPU3AS2Dh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPDh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPDh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPDh
+; CHECK-SPV-IR: call spir_func float @_Z29__spirv_ocl_vload_half_RfloatiPDh
+;
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS1KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS1KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS1KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS1KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS3KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS3KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS3KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS3KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS2KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS2KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS2KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPU3AS2KDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPKDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPKDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPKDh
+; CHECK-CL20: call spir_func float @_Z10vload_halfjPKDh
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Float16Buffer
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %7 "test"
+         %34 = OpString "kernel_arg_type.test.half*,half*,"
+               OpSource OpenCL_C 200000
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+       %void = OpTypeVoid
+       %half = OpTypeFloat 16
+%_ptr_CrossWorkgroup_half = OpTypePointer CrossWorkgroup %half
+%_ptr_Workgroup_half = OpTypePointer Workgroup %half
+          %6 = OpTypeFunction %void %_ptr_CrossWorkgroup_half %_ptr_Workgroup_half
+      %float = OpTypeFloat 32
+%_ptr_UniformConstant_half = OpTypePointer UniformConstant %half
+%_ptr_Function_half = OpTypePointer Function %half
+         %23 = OpUndef %_ptr_UniformConstant_half
+         %29 = OpUndef %_ptr_Function_half
+          %7 = OpFunction %void None %6
+         %pg = OpFunctionParameter %_ptr_CrossWorkgroup_half
+         %pl = OpFunctionParameter %_ptr_Workgroup_half
+      %entry = OpLabel
+       %call = OpExtInst %float %1 vload_half %uint_0 %pg
+      %call1 = OpExtInst %float %1 vload_half %uint_0 %pg
+      %call2 = OpExtInst %float %1 vload_half %uint_0 %pg
+      %call3 = OpExtInst %float %1 vload_half %uint_0 %pg
+      %call4 = OpExtInst %float %1 vload_half %uint_0 %pl
+      %call5 = OpExtInst %float %1 vload_half %uint_0 %pl
+      %call6 = OpExtInst %float %1 vload_half %uint_0 %pl
+      %call7 = OpExtInst %float %1 vload_half %uint_0 %pl
+      %call8 = OpExtInst %float %1 vload_half %uint_0 %23
+      %call9 = OpExtInst %float %1 vload_half %uint_0 %23
+     %call10 = OpExtInst %float %1 vload_half %uint_0 %23
+     %call11 = OpExtInst %float %1 vload_half %uint_0 %23
+     %call12 = OpExtInst %float %1 vload_half %uint_0 %29
+     %call13 = OpExtInst %float %1 vload_half %uint_0 %29
+     %call14 = OpExtInst %float %1 vload_half %uint_0 %29
+     %call15 = OpExtInst %float %1 vload_half %uint_0 %29
+               OpReturn
+               OpFunctionEnd

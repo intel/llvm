@@ -1,4 +1,6 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,debug.ExprInspection -analyzer-config c++-allocator-inlining=true -std=c++11 -verify %s
+// RUN: %clang_analyze_cc1 -std=c++14 \
+// RUN:  -analyzer-checker=core,debug.ExprInspection \
+// RUN:  -verify %s
 
 void clang_analyzer_eval(bool);
 void clang_analyzer_warnIfReached();
@@ -7,9 +9,11 @@ typedef __typeof__(sizeof(int)) size_t;
 
 void *operator new(size_t size) throw() {
   return nullptr;
+  // expected-warning@-1 {{null returned from function that requires a non-null return value}}
 }
 void *operator new[](size_t size) throw() {
   return nullptr;
+  // expected-warning@-1 {{null returned from function that requires a non-null return value}}
 }
 
 struct S {
@@ -24,7 +28,8 @@ struct S {
 
 void testArrays() {
   S *s = new S[10]; // no-crash
-  s[0].x = 2; // expected-warning{{Dereference of null pointer}}
+  s[0].x = 2;
+  // no-warning: 'Dereference of null pointer' suppressed by ReturnVisitor.
 }
 
 int global;

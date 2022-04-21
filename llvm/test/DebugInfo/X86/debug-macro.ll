@@ -1,4 +1,4 @@
-; RUN: %llc_dwarf -O0 -filetype=obj < %s | llvm-dwarfdump -v - | FileCheck %s
+; RUN: llc -mtriple=x86_64 -O0 -filetype=obj < %s | llvm-dwarfdump -v - | FileCheck %s
 
 
 ; CHECK-LABEL: .debug_info contents:
@@ -9,13 +9,14 @@
 ; CHECK: DW_TAG_compile_unit
 ; CHECK-NOT: DW_TAG
 ; CHECK:   DW_AT_name {{.*}}"debug-macro1.cpp")
-; CHECK:   DW_AT_macro_info {{.*}}(0x00000044)
+; CHECK:   DW_AT_macro_info {{.*}}(0x00000045)
 ; CHECK: DW_TAG_compile_unit
 ; CHECK-NOT: DW_TAG
 ; CHECK:   DW_AT_name {{.*}}"debug-macro2.cpp")
 ; CHECK-NOT: DW_AT_macro_info
 
 ; CHECK-LABEL:     .debug_macinfo contents:
+; CHECK-NEXT: 0x00000000:
 ; CHECK-NEXT: DW_MACINFO_define - lineno: 0 macro: NameCMD ValueCMD
 ; CHECK-NEXT: DW_MACINFO_start_file - lineno: 0 filenum: 1
 ; CHECK-NEXT:   DW_MACINFO_start_file - lineno: 9 filenum: 2
@@ -24,6 +25,8 @@
 ; CHECK-NEXT:   DW_MACINFO_end_file
 ; CHECK-NEXT:   DW_MACINFO_undef - lineno: 10 macro: NameUndef2
 ; CHECK-NEXT: DW_MACINFO_end_file
+; CHECK-EMPTY:
+; CHECK-NEXT: 0x00000045:
 ; CHECK-NEXT: DW_MACINFO_start_file - lineno: 0 filenum: 1
 ; CHECK-NEXT: DW_MACINFO_end_file
 

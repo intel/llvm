@@ -96,6 +96,17 @@ void RewriteBuffer::RemoveText(unsigned OrigOffset, unsigned Size,
     }
     if (posI != end() && *posI == '\n') {
       Buffer.erase(curLineStartOffs, lineSize + 1/* + '\n'*/);
+      // FIXME: Here, the offset of the start of the line is supposed to be
+      // expressed in terms of the original input not the "real" rewrite
+      // buffer.  How do we compute that reliably?  It might be tempting to use
+      // curLineStartOffs + OrigOffset - RealOffset, but that assumes the
+      // difference between the original and real offset is the same at the
+      // removed text and at the start of the line, but that's not true if
+      // edits were previously made earlier on the line.  This bug is also
+      // documented by a FIXME on the definition of
+      // clang::Rewriter::RewriteOptions::RemoveLineIfEmpty.  A reproducer for
+      // the implementation below is the test RemoveLineIfEmpty in
+      // clang/unittests/Rewrite/RewriteBufferTest.cpp.
       AddReplaceDelta(curLineStartOffs, -(lineSize + 1/* + '\n'*/));
     }
   }
@@ -170,7 +181,7 @@ int Rewriter::getRangeSize(SourceRange Range, RewriteOptions opts) const {
 /// in different buffers, this returns an empty string.
 ///
 /// Note that this method is not particularly efficient.
-std::string Rewriter::getRewrittenText(SourceRange Range) const {
+std::string Rewriter::getRewrittenText(CharSourceRange Range) const {
   if (!isRewritable(Range.getBegin()) ||
       !isRewritable(Range.getEnd()))
     return {};
@@ -193,7 +204,9 @@ std::string Rewriter::getRewrittenText(SourceRange Range) const {
 
     // Adjust the end offset to the end of the last token, instead of being the
     // start of the last token.
-    EndOff += Lexer::MeasureTokenLength(Range.getEnd(), *SourceMgr, *LangOpts);
+    if (Range.isTokenRange())
+      EndOff +=
+          Lexer::MeasureTokenLength(Range.getEnd(), *SourceMgr, *LangOpts);
     return std::string(Ptr, Ptr+EndOff-StartOff);
   }
 
@@ -203,12 +216,14 @@ std::string Rewriter::getRewrittenText(SourceRange Range) const {
 
   // Adjust the end offset to the end of the last token, instead of being the
   // start of the last token.
-  EndOff += Lexer::MeasureTokenLength(Range.getEnd(), *SourceMgr, *LangOpts);
+  if (Range.isTokenRange())
+    EndOff += Lexer::MeasureTokenLength(Range.getEnd(), *SourceMgr, *LangOpts);
 
   // Advance the iterators to the right spot, yay for linear time algorithms.
   RewriteBuffer::iterator Start = RB.begin();
   std::advance(Start, StartOff);
   RewriteBuffer::iterator End = Start;
+  assert(EndOff >= StartOff && "Invalid iteration distance");
   std::advance(End, EndOff-StartOff);
 
   return std::string(Start, End);
@@ -245,12 +260,12 @@ bool Rewriter::InsertText(SourceLocation Loc, StringRef Str,
   unsigned StartOffs = getLocationOffsetAndFileID(Loc, FID);
 
   SmallString<128> indentedStr;
-  if (indentNewLines && Str.find('\n') != StringRef::npos) {
+  if (indentNewLines && Str.contains('\n')) {
     StringRef MB = SourceMgr->getBufferData(FID);
 
     unsigned lineNo = SourceMgr->getLineNumber(FID, StartOffs) - 1;
-    const SrcMgr::ContentCache *
-        Content = SourceMgr->getSLocEntry(FID).getFile().getContentCache();
+    const SrcMgr::ContentCache *Content =
+        &SourceMgr->getSLocEntry(FID).getFile().getContentCache();
     unsigned lineOffs = Content->SourceLineCache[lineNo];
 
     // Find the whitespace at the start of the line.
@@ -353,8 +368,8 @@ bool Rewriter::IncreaseIndentation(CharSourceRange range,
   unsigned startLineNo = SourceMgr->getLineNumber(FID, StartOff) - 1;
   unsigned endLineNo = SourceMgr->getLineNumber(FID, EndOff) - 1;
 
-  const SrcMgr::ContentCache *
-      Content = SourceMgr->getSLocEntry(FID).getFile().getContentCache();
+  const SrcMgr::ContentCache *Content =
+      &SourceMgr->getSLocEntry(FID).getFile().getContentCache();
 
   // Find where the lines start.
   unsigned parentLineOffs = Content->SourceLineCache[parentLineNo];

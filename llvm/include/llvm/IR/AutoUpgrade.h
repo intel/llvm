@@ -16,13 +16,15 @@
 #include "llvm/ADT/StringRef.h"
 
 namespace llvm {
-  class CallInst;
+  class AttrBuilder;
+  class CallBase;
   class Constant;
   class Function;
   class Instruction;
+  class GlobalVariable;
   class MDNode;
   class Module;
-  class GlobalVariable;
+  class StringRef;
   class Type;
   class Value;
 
@@ -34,7 +36,7 @@ namespace llvm {
 
   /// This is the complement to the above, replacing a specific call to an
   /// intrinsic function with a call to the specified new function.
-  void UpgradeIntrinsicCall(CallInst *CI, Function *NewFn);
+  void UpgradeIntrinsicCall(CallBase *CB, Function *NewFn);
 
   // This upgrades the comment for objc retain release markers in inline asm
   // calls
@@ -54,11 +56,14 @@ namespace llvm {
   /// module is modified.
   bool UpgradeModuleFlags(Module &M);
 
-  /// This checks for objc retain release marker which should be upgraded. It
-  /// returns true if module is modified.
-  bool UpgradeRetainReleaseMarker(Module &M);
+  /// Convert calls to ARC runtime functions to intrinsic calls and upgrade the
+  /// old retain release marker to new module flag format.
+  void UpgradeARCRuntime(Module &M);
 
   void UpgradeSectionAttributes(Module &M);
+
+  /// Correct any IR that is relying on old function attribute behavior.
+  void UpgradeFunctionAttributes(Function &F);
 
   /// If the given TBAA tag uses the scalar TBAA format, create a new node
   /// corresponding to the upgrade to the struct-path aware TBAA format.
@@ -86,6 +91,13 @@ namespace llvm {
 
   /// Upgrade the loop attachment metadata node.
   MDNode *upgradeInstructionLoopAttachment(MDNode &N);
+
+  /// Upgrade the datalayout string by adding a section for address space
+  /// pointers.
+  std::string UpgradeDataLayoutString(StringRef DL, StringRef Triple);
+
+  /// Upgrade attributes that changed format or kind.
+  void UpgradeAttributes(AttrBuilder &B);
 
 } // End llvm namespace
 

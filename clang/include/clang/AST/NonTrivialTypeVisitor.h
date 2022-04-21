@@ -1,4 +1,4 @@
-//===-- NonTrivialTypeVisitor.h - Visitor for non-trivial Types *- C++ --*-===//
+//===-- NonTrivialTypeVisitor.h - Visitor for non-trivial Types -*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_NON_TRIVIAL_TYPE_VISITOR_H
-#define LLVM_CLANG_NON_TRIVIAL_TYPE_VISITOR_H
+#ifndef LLVM_CLANG_AST_NONTRIVIALTYPEVISITOR_H
+#define LLVM_CLANG_AST_NONTRIVIALTYPEVISITOR_H
 
 #include "clang/AST/Type.h"
 

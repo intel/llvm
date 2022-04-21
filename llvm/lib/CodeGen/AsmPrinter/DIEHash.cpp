@@ -12,15 +12,13 @@
 
 #include "DIEHash.h"
 #include "ByteStreamer.h"
+#include "DwarfCompileUnit.h"
 #include "DwarfDebug.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
-#include "llvm/CodeGen/DIE.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Endian.h"
-#include "llvm/Support/MD5.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -94,19 +92,15 @@ void DIEHash::addParentContext(const DIE &Parent) {
 
   // Reverse iterate over our list to go from the outermost construct to the
   // innermost.
-  for (SmallVectorImpl<const DIE *>::reverse_iterator I = Parents.rbegin(),
-                                                      E = Parents.rend();
-       I != E; ++I) {
-    const DIE &Die = **I;
-
+  for (const DIE *Die : llvm::reverse(Parents)) {
     // ... Append the letter "C" to the sequence...
     addULEB128('C');
 
     // ... Followed by the DWARF tag of the construct...
-    addULEB128(Die.getTag());
+    addULEB128(Die->getTag());
 
     // ... Then the name, taken from the DW_AT_name attribute.
-    StringRef Name = getDIEStringAttr(Die, dwarf::DW_AT_name);
+    StringRef Name = getDIEStringAttr(*Die, dwarf::DW_AT_name);
     LLVM_DEBUG(dbgs() << "... adding context: " << Name << "\n");
     if (!Name.empty())
       addString(Name);
@@ -212,11 +206,31 @@ void DIEHash::hashDIEEntry(dwarf::Attribute Attribute, dwarf::Tag Tag,
   computeHash(Entry);
 }
 
+void DIEHash::hashRawTypeReference(const DIE &Entry) {
+  unsigned &DieNumber = Numbering[&Entry];
+  if (DieNumber) {
+    addULEB128('R');
+    addULEB128(DieNumber);
+    return;
+  }
+  DieNumber = Numbering.size();
+  addULEB128('T');
+  computeHash(Entry);
+}
+
 // Hash all of the values in a block like set of values. This assumes that
 // all of the data is going to be added as integers.
 void DIEHash::hashBlockData(const DIE::const_value_range &Values) {
   for (const auto &V : Values)
-    Hash.update((uint64_t)V.getDIEInteger().getValue());
+    if (V.getType() == DIEValue::isBaseTypeRef) {
+      const DIE &C =
+          *CU->ExprRefedBaseTypes[V.getDIEBaseTypeRef().getIndex()].Die;
+      StringRef Name = getDIEStringAttr(C, dwarf::DW_AT_name);
+      assert(!Name.empty() &&
+             "Base types referenced from DW_OP_convert should have a name");
+      hashNestedType(C, Name);
+    } else
+      Hash.update((uint64_t)V.getDIEInteger().getValue());
 }
 
 // Hash the contents of a loclistptr class.
@@ -224,8 +238,9 @@ void DIEHash::hashLocList(const DIELocList &LocList) {
   HashingByteStreamer Streamer(*this);
   DwarfDebug &DD = *AP->getDwarfDebug();
   const DebugLocStream &Locs = DD.getDebugLocs();
-  for (const auto &Entry : Locs.getEntries(Locs.getList(LocList.getValue())))
-    DD.emitDebugLocEntry(Streamer, Entry, nullptr);
+  const DebugLocStream::List &List = Locs.getList(LocList.getValue());
+  for (const DebugLocStream::Entry &Entry : Locs.getEntries(List))
+    DD.emitDebugLocEntry(Streamer, Entry, List.CU);
 }
 
 // Hash an individual attribute \param Attr based on the type of attribute and
@@ -294,10 +309,10 @@ void DIEHash::hashAttribute(const DIEValue &Value, dwarf::Tag Tag) {
     addULEB128(Attribute);
     addULEB128(dwarf::DW_FORM_block);
     if (Value.getType() == DIEValue::isBlock) {
-      addULEB128(Value.getDIEBlock().ComputeSize(AP));
+      addULEB128(Value.getDIEBlock().computeSize(AP->getDwarfFormParams()));
       hashBlockData(Value.getDIEBlock().values());
     } else if (Value.getType() == DIEValue::isLoc) {
-      addULEB128(Value.getDIELoc().ComputeSize(AP));
+      addULEB128(Value.getDIELoc().computeSize(AP->getDwarfFormParams()));
       hashBlockData(Value.getDIELoc().values());
     } else {
       // We could add the block length, but that would take
@@ -311,6 +326,7 @@ void DIEHash::hashAttribute(const DIEValue &Value, dwarf::Tag Tag) {
   case DIEValue::isLabel:
   case DIEValue::isBaseTypeRef:
   case DIEValue::isDelta:
+  case DIEValue::isAddrOffset:
     llvm_unreachable("Add support for additional value types.");
   }
 }
@@ -361,7 +377,7 @@ void DIEHash::computeHash(const DIE &Die) {
   for (auto &C : Die.children()) {
     // 7.27 Step 7
     // If C is a nested type entry or a member function entry, ...
-    if (isType(C.getTag()) || C.getTag() == dwarf::DW_TAG_subprogram) {
+    if (isType(C.getTag()) || (C.getTag() == dwarf::DW_TAG_subprogram && isType(C.getParent()->getTag()))) {
       StringRef Name = getDIEStringAttr(C, dwarf::DW_AT_name);
       // ... and has a DW_AT_name attribute
       if (!Name.empty()) {

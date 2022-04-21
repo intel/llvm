@@ -18,17 +18,30 @@ namespace performance {
 /// Finds possible inefficient `std::vector` operations (e.g. `push_back`) in
 /// for loops that may cause unnecessary memory reallocations.
 ///
+/// When EnableProto, also finds calls that add element to protobuf repeated
+/// field without calling Reserve() first.
+///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/performance-inefficient-vector-operation.html
 class InefficientVectorOperationCheck : public ClangTidyCheck {
 public:
   InefficientVectorOperationCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override{
+    return LangOpts.CPlusPlus;
+  }
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
 
 private:
+  void addMatcher(const ast_matchers::DeclarationMatcher &TargetRecordDecl,
+                  StringRef VarDeclName, StringRef VarDeclStmtName,
+                  const ast_matchers::DeclarationMatcher &AppendMethodDecl,
+                  StringRef AppendCallName, ast_matchers::MatchFinder *Finder);
   const std::vector<std::string> VectorLikeClasses;
+
+  // If true, also check inefficient operations for proto repeated fields.
+  bool EnableProto;
 };
 
 } // namespace performance

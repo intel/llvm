@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <valarray>
 
@@ -17,6 +17,8 @@
 #include <valarray>
 #include <cassert>
 #include <cstddef>
+
+#include "test_macros.h"
 
 struct S
 {

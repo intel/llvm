@@ -8,6 +8,7 @@
 
 // REQUIRES: locale.en_US.UTF-8
 // REQUIRES: locale.fr_CA.ISO8859-1
+// XFAIL: libcpp-has-no-wide-characters
 
 // <locale>
 
@@ -18,6 +19,7 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 int main(int, char**)

@@ -9,22 +9,19 @@
 #include "llvm/DebugInfo/PDB/Native/TpiStreamBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/DebugInfo/CodeView/RecordSerialization.h"
 #include "llvm/DebugInfo/CodeView/TypeIndex.h"
-#include "llvm/DebugInfo/CodeView/TypeRecord.h"
 #include "llvm/DebugInfo/MSF/MSFBuilder.h"
 #include "llvm/DebugInfo/MSF/MappedBlockStream.h"
-#include "llvm/DebugInfo/PDB/Native/PDBFile.h"
-#include "llvm/DebugInfo/PDB/Native/RawError.h"
 #include "llvm/DebugInfo/PDB/Native/RawTypes.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/BinaryByteStream.h"
-#include "llvm/Support/BinaryStreamArray.h"
-#include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include <algorithm>
 #include <cstdint>
+#include <numeric>
 
 using namespace llvm;
 using namespace llvm::msf;
@@ -41,22 +38,56 @@ void TpiStreamBuilder::setVersionHeader(PdbRaw_TpiVer Version) {
   VerHeader = Version;
 }
 
+void TpiStreamBuilder::updateTypeIndexOffsets(ArrayRef<uint16_t> Sizes) {
+  // If we just crossed an 8KB threshold, add a type index offset.
+  for (uint16_t Size : Sizes) {
+    size_t NewSize = TypeRecordBytes + Size;
+    constexpr size_t EightKB = 8 * 1024;
+    if (NewSize / EightKB > TypeRecordBytes / EightKB || TypeRecordCount == 0) {
+      TypeIndexOffsets.push_back(
+          {codeview::TypeIndex(codeview::TypeIndex::FirstNonSimpleIndex +
+                               TypeRecordCount),
+           ulittle32_t(TypeRecordBytes)});
+    }
+    ++TypeRecordCount;
+    TypeRecordBytes = NewSize;
+  }
+}
+
 void TpiStreamBuilder::addTypeRecord(ArrayRef<uint8_t> Record,
                                      Optional<uint32_t> Hash) {
-  // If we just crossed an 8KB threshold, add a type index offset.
-  size_t NewSize = TypeRecordBytes + Record.size();
-  constexpr size_t EightKB = 8 * 1024;
-  if (NewSize / EightKB > TypeRecordBytes / EightKB || TypeRecords.empty()) {
-    TypeIndexOffsets.push_back(
-        {codeview::TypeIndex(codeview::TypeIndex::FirstNonSimpleIndex +
-                             TypeRecords.size()),
-         ulittle32_t(TypeRecordBytes)});
-  }
-  TypeRecordBytes = NewSize;
+  assert(((Record.size() & 3) == 0) &&
+         "The type record's size is not a multiple of 4 bytes which will "
+         "cause misalignment in the output TPI stream!");
+  assert(Record.size() <= codeview::MaxRecordLength);
+  uint16_t OneSize = (uint16_t)Record.size();
+  updateTypeIndexOffsets(makeArrayRef(&OneSize, 1));
 
-  TypeRecords.push_back(Record);
+  TypeRecBuffers.push_back(Record);
+  // FIXME: Require it.
   if (Hash)
     TypeHashes.push_back(*Hash);
+}
+
+void TpiStreamBuilder::addTypeRecords(ArrayRef<uint8_t> Types,
+                                      ArrayRef<uint16_t> Sizes,
+                                      ArrayRef<uint32_t> Hashes) {
+  // Ignore empty type buffers. There should be no hashes or sizes in this case.
+  if (Types.empty()) {
+    assert(Sizes.empty() && Hashes.empty());
+    return;
+  }
+
+  assert(((Types.size() & 3) == 0) &&
+         "The type record's size is not a multiple of 4 bytes which will "
+         "cause misalignment in the output TPI stream!");
+  assert(Sizes.size() == Hashes.size() && "sizes and hashes should be in sync");
+  assert(std::accumulate(Sizes.begin(), Sizes.end(), 0U) == Types.size() &&
+         "sizes of type records should sum to the size of the types");
+  updateTypeIndexOffsets(Sizes);
+
+  TypeRecBuffers.push_back(Types);
+  llvm::append_range(TypeHashes, Hashes);
 }
 
 Error TpiStreamBuilder::finalize() {
@@ -65,12 +96,10 @@ Error TpiStreamBuilder::finalize() {
 
   TpiStreamHeader *H = Allocator.Allocate<TpiStreamHeader>();
 
-  uint32_t Count = TypeRecords.size();
-
   H->Version = VerHeader;
   H->HeaderSize = sizeof(TpiStreamHeader);
   H->TypeIndexBegin = codeview::TypeIndex::FirstNonSimpleIndex;
-  H->TypeIndexEnd = H->TypeIndexBegin + Count;
+  H->TypeIndexEnd = H->TypeIndexBegin + TypeRecordCount;
   H->TypeRecordBytes = TypeRecordBytes;
 
   H->HashStreamIndex = HashStreamIndex;
@@ -101,7 +130,7 @@ uint32_t TpiStreamBuilder::calculateSerializedLength() {
 }
 
 uint32_t TpiStreamBuilder::calculateHashBufferSize() const {
-  assert((TypeRecords.size() == TypeHashes.size() || TypeHashes.empty()) &&
+  assert((TypeRecordCount == TypeHashes.size() || TypeHashes.empty()) &&
          "either all or no type records should have hashes");
   return TypeHashes.size() * sizeof(ulittle32_t);
 }
@@ -135,7 +164,7 @@ Error TpiStreamBuilder::finalizeMsfLayout() {
         reinterpret_cast<const uint8_t *>(HashBuffer.data()),
         calculateHashBufferSize());
     HashValueStream =
-        llvm::make_unique<BinaryByteStream>(Bytes, llvm::support::little);
+        std::make_unique<BinaryByteStream>(Bytes, llvm::support::little);
   }
   return Error::success();
 }
@@ -152,9 +181,12 @@ Error TpiStreamBuilder::commit(const msf::MSFLayout &Layout,
   if (auto EC = Writer.writeObject(*Header))
     return EC;
 
-  for (auto Rec : TypeRecords) {
-    assert(!Rec.empty()); // An empty record will not write anything, but it
-                          // would shift all offsets from here on.
+  for (auto Rec : TypeRecBuffers) {
+    assert(!Rec.empty() && "Attempting to write an empty type record shifts "
+                           "all offsets in the TPI stream!");
+    assert(((Rec.size() & 3) == 0) &&
+           "The type record's size is not a multiple of 4 bytes which will "
+           "cause misalignment in the output TPI stream!");
     if (auto EC = Writer.writeBytes(Rec))
       return EC;
   }

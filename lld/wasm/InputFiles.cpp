@@ -9,473 +9,712 @@
 #include "InputFiles.h"
 #include "Config.h"
 #include "InputChunks.h"
-#include "InputEvent.h"
-#include "InputGlobal.h"
+#include "InputElement.h"
+#include "OutputSegment.h"
 #include "SymbolTable.h"
-#include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Memory.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Reproduce.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/Wasm.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "lld"
 
-using namespace lld;
-using namespace lld::wasm;
-
 using namespace llvm;
 using namespace llvm::object;
 using namespace llvm::wasm;
+using namespace llvm::sys;
 
-std::unique_ptr<llvm::TarWriter> lld::wasm::Tar;
+namespace lld {
 
-Optional<MemoryBufferRef> lld::wasm::readFile(StringRef Path) {
-  log("Loading: " + Path);
+// Returns a string in the format of "foo.o" or "foo.a(bar.o)".
+std::string toString(const wasm::InputFile *file) {
+  if (!file)
+    return "<internal>";
 
-  auto MBOrErr = MemoryBuffer::getFile(Path);
-  if (auto EC = MBOrErr.getError()) {
-    error("cannot open " + Path + ": " + EC.message());
+  if (file->archiveName.empty())
+    return std::string(file->getName());
+
+  return (file->archiveName + "(" + file->getName() + ")").str();
+}
+
+namespace wasm {
+
+void InputFile::checkArch(Triple::ArchType arch) const {
+  bool is64 = arch == Triple::wasm64;
+  if (is64 && !config->is64.hasValue()) {
+    fatal(toString(this) +
+          ": must specify -mwasm64 to process wasm64 object files");
+  } else if (config->is64.getValueOr(false) != is64) {
+    fatal(toString(this) +
+          ": wasm32 object file can't be linked in wasm64 mode");
+  }
+}
+
+std::unique_ptr<llvm::TarWriter> tar;
+
+Optional<MemoryBufferRef> readFile(StringRef path) {
+  log("Loading: " + path);
+
+  auto mbOrErr = MemoryBuffer::getFile(path);
+  if (auto ec = mbOrErr.getError()) {
+    error("cannot open " + path + ": " + ec.message());
     return None;
   }
-  std::unique_ptr<MemoryBuffer> &MB = *MBOrErr;
-  MemoryBufferRef MBRef = MB->getMemBufferRef();
-  make<std::unique_ptr<MemoryBuffer>>(std::move(MB)); // take MB ownership
+  std::unique_ptr<MemoryBuffer> &mb = *mbOrErr;
+  MemoryBufferRef mbref = mb->getMemBufferRef();
+  make<std::unique_ptr<MemoryBuffer>>(std::move(mb)); // take MB ownership
 
-  if (Tar)
-    Tar->append(relativeToRoot(Path), MBRef.getBuffer());
-  return MBRef;
+  if (tar)
+    tar->append(relativeToRoot(path), mbref.getBuffer());
+  return mbref;
 }
 
-InputFile *lld::wasm::createObjectFile(MemoryBufferRef MB,
-                                       StringRef ArchiveName) {
-  file_magic Magic = identify_magic(MB.getBuffer());
-  if (Magic == file_magic::wasm_object) {
-    std::unique_ptr<Binary> Bin = check(createBinary(MB));
-    auto *Obj = cast<WasmObjectFile>(Bin.get());
-    if (Obj->isSharedObject())
-      return make<SharedFile>(MB);
-    return make<ObjFile>(MB, ArchiveName);
+InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName,
+                            uint64_t offsetInArchive) {
+  file_magic magic = identify_magic(mb.getBuffer());
+  if (magic == file_magic::wasm_object) {
+    std::unique_ptr<Binary> bin =
+        CHECK(createBinary(mb), mb.getBufferIdentifier());
+    auto *obj = cast<WasmObjectFile>(bin.get());
+    if (obj->isSharedObject())
+      return make<SharedFile>(mb);
+    return make<ObjFile>(mb, archiveName);
   }
 
-  if (Magic == file_magic::bitcode)
-    return make<BitcodeFile>(MB, ArchiveName);
+  if (magic == file_magic::bitcode)
+    return make<BitcodeFile>(mb, archiveName, offsetInArchive);
 
-  fatal("unknown file type: " + MB.getBufferIdentifier());
-}
+  std::string name = mb.getBufferIdentifier().str();
+  if (!archiveName.empty()) {
+    name = archiveName.str() + "(" + name + ")";
+  }
 
-void ObjFile::dumpInfo() const {
-  log("info for: " + toString(this) +
-      "\n              Symbols : " + Twine(Symbols.size()) +
-      "\n     Function Imports : " + Twine(WasmObj->getNumImportedFunctions()) +
-      "\n       Global Imports : " + Twine(WasmObj->getNumImportedGlobals()) +
-      "\n        Event Imports : " + Twine(WasmObj->getNumImportedEvents()));
+  fatal("unknown file type: " + name);
 }
 
 // Relocations contain either symbol or type indices.  This function takes a
 // relocation and returns relocated index (i.e. translates from the input
 // symbol/type space to the output symbol/type space).
-uint32_t ObjFile::calcNewIndex(const WasmRelocation &Reloc) const {
-  if (Reloc.Type == R_WASM_TYPE_INDEX_LEB) {
-    assert(TypeIsUsed[Reloc.Index]);
-    return TypeMap[Reloc.Index];
+uint32_t ObjFile::calcNewIndex(const WasmRelocation &reloc) const {
+  if (reloc.Type == R_WASM_TYPE_INDEX_LEB) {
+    assert(typeIsUsed[reloc.Index]);
+    return typeMap[reloc.Index];
   }
-  const Symbol *Sym = Symbols[Reloc.Index];
-  if (auto *SS = dyn_cast<SectionSymbol>(Sym))
-    Sym = SS->getOutputSectionSymbol();
-  return Sym->getOutputSymbolIndex();
+  const Symbol *sym = symbols[reloc.Index];
+  if (auto *ss = dyn_cast<SectionSymbol>(sym))
+    sym = ss->getOutputSectionSymbol();
+  return sym->getOutputSymbolIndex();
 }
 
 // Relocations can contain addend for combined sections. This function takes a
 // relocation and returns updated addend by offset in the output section.
-uint32_t ObjFile::calcNewAddend(const WasmRelocation &Reloc) const {
-  switch (Reloc.Type) {
+int64_t ObjFile::calcNewAddend(const WasmRelocation &reloc) const {
+  switch (reloc.Type) {
   case R_WASM_MEMORY_ADDR_LEB:
+  case R_WASM_MEMORY_ADDR_LEB64:
+  case R_WASM_MEMORY_ADDR_SLEB64:
   case R_WASM_MEMORY_ADDR_SLEB:
+  case R_WASM_MEMORY_ADDR_REL_SLEB:
+  case R_WASM_MEMORY_ADDR_REL_SLEB64:
   case R_WASM_MEMORY_ADDR_I32:
+  case R_WASM_MEMORY_ADDR_I64:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB64:
   case R_WASM_FUNCTION_OFFSET_I32:
-    return Reloc.Addend;
+  case R_WASM_FUNCTION_OFFSET_I64:
+  case R_WASM_MEMORY_ADDR_LOCREL_I32:
+    return reloc.Addend;
   case R_WASM_SECTION_OFFSET_I32:
-    return getSectionSymbol(Reloc.Index)->Section->OutputOffset + Reloc.Addend;
+    return getSectionSymbol(reloc.Index)->section->getOffset(reloc.Addend);
   default:
     llvm_unreachable("unexpected relocation type");
   }
 }
 
-// Calculate the value we expect to find at the relocation location.
-// This is used as a sanity check before applying a relocation to a given
-// location.  It is useful for catching bugs in the compiler and linker.
-uint32_t ObjFile::calcExpectedValue(const WasmRelocation &Reloc) const {
-  switch (Reloc.Type) {
-  case R_WASM_TABLE_INDEX_I32:
-  case R_WASM_TABLE_INDEX_SLEB:
-  case R_WASM_TABLE_INDEX_REL_SLEB: {
-    const WasmSymbol &Sym = WasmObj->syms()[Reloc.Index];
-    return TableEntries[Sym.Info.ElementIndex];
-  }
-  case R_WASM_MEMORY_ADDR_SLEB:
-  case R_WASM_MEMORY_ADDR_I32:
-  case R_WASM_MEMORY_ADDR_LEB:
-  case R_WASM_MEMORY_ADDR_REL_SLEB: {
-    const WasmSymbol &Sym = WasmObj->syms()[Reloc.Index];
-    if (Sym.isUndefined())
-      return 0;
-    const WasmSegment &Segment =
-        WasmObj->dataSegments()[Sym.Info.DataRef.Segment];
-    return Segment.Data.Offset.Value.Int32 + Sym.Info.DataRef.Offset +
-           Reloc.Addend;
-  }
-  case R_WASM_FUNCTION_OFFSET_I32: {
-    const WasmSymbol &Sym = WasmObj->syms()[Reloc.Index];
-    InputFunction *F =
-        Functions[Sym.Info.ElementIndex - WasmObj->getNumImportedFunctions()];
-    return F->getFunctionInputOffset() + F->getFunctionCodeOffset() +
-           Reloc.Addend;
-  }
-  case R_WASM_SECTION_OFFSET_I32:
-    return Reloc.Addend;
-  case R_WASM_TYPE_INDEX_LEB:
-    return Reloc.Index;
-  case R_WASM_FUNCTION_INDEX_LEB:
-  case R_WASM_GLOBAL_INDEX_LEB:
-  case R_WASM_EVENT_INDEX_LEB: {
-    const WasmSymbol &Sym = WasmObj->syms()[Reloc.Index];
-    return Sym.Info.ElementIndex;
-  }
-  default:
-    llvm_unreachable("unknown relocation type");
-  }
-}
-
 // Translate from the relocation's index into the final linked output value.
-uint32_t ObjFile::calcNewValue(const WasmRelocation &Reloc) const {
-  const Symbol* Sym = nullptr;
-  if (Reloc.Type != R_WASM_TYPE_INDEX_LEB) {
-    Sym = Symbols[Reloc.Index];
+uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
+                               const InputChunk *chunk) const {
+  const Symbol* sym = nullptr;
+  if (reloc.Type != R_WASM_TYPE_INDEX_LEB) {
+    sym = symbols[reloc.Index];
 
     // We can end up with relocations against non-live symbols.  For example
-    // in debug sections.
-    if ((isa<FunctionSymbol>(Sym) || isa<DataSymbol>(Sym)) && !Sym->isLive())
-      return 0;
+    // in debug sections. We return a tombstone value in debug symbol sections
+    // so this will not produce a valid range conflicting with ranges of actual
+    // code. In other sections we return reloc.Addend.
 
-    // Special handling for undefined data symbols.  Most relocations against
-    // such symbols cannot be resolved.
-    if (isa<DataSymbol>(Sym) && Sym->isUndefined()) {
-      if (Sym->isWeak() || Config->Relocatable)
-        return 0;
-      // R_WASM_MEMORY_ADDR_I32 relocations in PIC code are turned into runtime
-      // fixups in __wasm_apply_relocs
-      if (Config->Pic && Reloc.Type == R_WASM_MEMORY_ADDR_I32)
-        return 0;
-      if (Reloc.Type != R_WASM_GLOBAL_INDEX_LEB) {
-        llvm_unreachable(
-          ("invalid relocation against undefined data symbol: " + toString(*Sym))
-              .c_str());
-      }
-    }
+    if (!isa<SectionSymbol>(sym) && !sym->isLive())
+      return tombstone ? tombstone : reloc.Addend;
   }
 
-  switch (Reloc.Type) {
+  switch (reloc.Type) {
   case R_WASM_TABLE_INDEX_I32:
+  case R_WASM_TABLE_INDEX_I64:
   case R_WASM_TABLE_INDEX_SLEB:
+  case R_WASM_TABLE_INDEX_SLEB64:
   case R_WASM_TABLE_INDEX_REL_SLEB:
-    if (Config->Pic && !getFunctionSymbol(Reloc.Index)->hasTableIndex())
+  case R_WASM_TABLE_INDEX_REL_SLEB64: {
+    if (!getFunctionSymbol(reloc.Index)->hasTableIndex())
       return 0;
-    return getFunctionSymbol(Reloc.Index)->getTableIndex();
-  case R_WASM_MEMORY_ADDR_SLEB:
-  case R_WASM_MEMORY_ADDR_I32:
+    uint32_t index = getFunctionSymbol(reloc.Index)->getTableIndex();
+    if (reloc.Type == R_WASM_TABLE_INDEX_REL_SLEB ||
+        reloc.Type == R_WASM_TABLE_INDEX_REL_SLEB64)
+      index -= config->tableBase;
+    return index;
+  }
   case R_WASM_MEMORY_ADDR_LEB:
+  case R_WASM_MEMORY_ADDR_LEB64:
+  case R_WASM_MEMORY_ADDR_SLEB:
+  case R_WASM_MEMORY_ADDR_SLEB64:
   case R_WASM_MEMORY_ADDR_REL_SLEB:
-    return cast<DefinedData>(Sym)->getVirtualAddress() + Reloc.Addend;
+  case R_WASM_MEMORY_ADDR_REL_SLEB64:
+  case R_WASM_MEMORY_ADDR_I32:
+  case R_WASM_MEMORY_ADDR_I64:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB64:
+  case R_WASM_MEMORY_ADDR_LOCREL_I32: {
+    if (isa<UndefinedData>(sym) || sym->isUndefWeak())
+      return 0;
+    auto D = cast<DefinedData>(sym);
+    uint64_t value = D->getVA() + reloc.Addend;
+    if (reloc.Type == R_WASM_MEMORY_ADDR_LOCREL_I32) {
+      const auto *segment = cast<InputSegment>(chunk);
+      uint64_t p = segment->outputSeg->startVA + segment->outputSegmentOffset +
+                   reloc.Offset - segment->getInputSectionOffset();
+      value -= p;
+    }
+    return value;
+  }
   case R_WASM_TYPE_INDEX_LEB:
-    return TypeMap[Reloc.Index];
+    return typeMap[reloc.Index];
   case R_WASM_FUNCTION_INDEX_LEB:
-    return getFunctionSymbol(Reloc.Index)->getFunctionIndex();
+    return getFunctionSymbol(reloc.Index)->getFunctionIndex();
   case R_WASM_GLOBAL_INDEX_LEB:
-    if (auto GS = dyn_cast<GlobalSymbol>(Sym))
-      return GS->getGlobalIndex();
-    return Sym->getGOTIndex();
-  case R_WASM_EVENT_INDEX_LEB:
-    return getEventSymbol(Reloc.Index)->getEventIndex();
-  case R_WASM_FUNCTION_OFFSET_I32: {
-    auto *F = cast<DefinedFunction>(Sym);
-    return F->Function->OutputOffset + F->Function->getFunctionCodeOffset() +
-           Reloc.Addend;
+  case R_WASM_GLOBAL_INDEX_I32:
+    if (auto gs = dyn_cast<GlobalSymbol>(sym))
+      return gs->getGlobalIndex();
+    return sym->getGOTIndex();
+  case R_WASM_TAG_INDEX_LEB:
+    return getTagSymbol(reloc.Index)->getTagIndex();
+  case R_WASM_FUNCTION_OFFSET_I32:
+  case R_WASM_FUNCTION_OFFSET_I64: {
+    if (isa<UndefinedFunction>(sym)) {
+      return tombstone ? tombstone : reloc.Addend;
+    }
+    auto *f = cast<DefinedFunction>(sym);
+    return f->function->getOffset(f->function->getFunctionCodeOffset() +
+                                  reloc.Addend);
   }
   case R_WASM_SECTION_OFFSET_I32:
-    return getSectionSymbol(Reloc.Index)->Section->OutputOffset + Reloc.Addend;
+    return getSectionSymbol(reloc.Index)->section->getOffset(reloc.Addend);
+  case R_WASM_TABLE_NUMBER_LEB:
+    return getTableSymbol(reloc.Index)->getTableNumber();
   default:
     llvm_unreachable("unknown relocation type");
   }
 }
 
 template <class T>
-static void setRelocs(const std::vector<T *> &Chunks,
-                      const WasmSection *Section) {
-  if (!Section)
+static void setRelocs(const std::vector<T *> &chunks,
+                      const WasmSection *section) {
+  if (!section)
     return;
 
-  ArrayRef<WasmRelocation> Relocs = Section->Relocations;
-  assert(std::is_sorted(Relocs.begin(), Relocs.end(),
-                        [](const WasmRelocation &R1, const WasmRelocation &R2) {
-                          return R1.Offset < R2.Offset;
-                        }));
-  assert(std::is_sorted(
-      Chunks.begin(), Chunks.end(), [](InputChunk *C1, InputChunk *C2) {
-        return C1->getInputSectionOffset() < C2->getInputSectionOffset();
+  ArrayRef<WasmRelocation> relocs = section->Relocations;
+  assert(llvm::is_sorted(
+      relocs, [](const WasmRelocation &r1, const WasmRelocation &r2) {
+        return r1.Offset < r2.Offset;
       }));
+  assert(llvm::is_sorted(chunks, [](InputChunk *c1, InputChunk *c2) {
+    return c1->getInputSectionOffset() < c2->getInputSectionOffset();
+  }));
 
-  auto RelocsNext = Relocs.begin();
-  auto RelocsEnd = Relocs.end();
-  auto RelocLess = [](const WasmRelocation &R, uint32_t Val) {
-    return R.Offset < Val;
+  auto relocsNext = relocs.begin();
+  auto relocsEnd = relocs.end();
+  auto relocLess = [](const WasmRelocation &r, uint32_t val) {
+    return r.Offset < val;
   };
-  for (InputChunk *C : Chunks) {
-    auto RelocsStart = std::lower_bound(RelocsNext, RelocsEnd,
-                                        C->getInputSectionOffset(), RelocLess);
-    RelocsNext = std::lower_bound(
-        RelocsStart, RelocsEnd, C->getInputSectionOffset() + C->getInputSize(),
-        RelocLess);
-    C->setRelocations(ArrayRef<WasmRelocation>(RelocsStart, RelocsNext));
+  for (InputChunk *c : chunks) {
+    auto relocsStart = std::lower_bound(relocsNext, relocsEnd,
+                                        c->getInputSectionOffset(), relocLess);
+    relocsNext = std::lower_bound(
+        relocsStart, relocsEnd, c->getInputSectionOffset() + c->getInputSize(),
+        relocLess);
+    c->setRelocations(ArrayRef<WasmRelocation>(relocsStart, relocsNext));
   }
 }
 
-void ObjFile::parse(bool IgnoreComdats) {
+// An object file can have two approaches to tables.  With the reference-types
+// feature enabled, input files that define or use tables declare the tables
+// using symbols, and record each use with a relocation.  This way when the
+// linker combines inputs, it can collate the tables used by the inputs,
+// assigning them distinct table numbers, and renumber all the uses as
+// appropriate.  At the same time, the linker has special logic to build the
+// indirect function table if it is needed.
+//
+// However, MVP object files (those that target WebAssembly 1.0, the "minimum
+// viable product" version of WebAssembly) neither write table symbols nor
+// record relocations.  These files can have at most one table, the indirect
+// function table used by call_indirect and which is the address space for
+// function pointers.  If this table is present, it is always an import.  If we
+// have a file with a table import but no table symbols, it is an MVP object
+// file.  synthesizeMVPIndirectFunctionTableSymbolIfNeeded serves as a shim when
+// loading these input files, defining the missing symbol to allow the indirect
+// function table to be built.
+//
+// As indirect function table table usage in MVP objects cannot be relocated,
+// the linker must ensure that this table gets assigned index zero.
+void ObjFile::addLegacyIndirectFunctionTableIfNeeded(
+    uint32_t tableSymbolCount) {
+  uint32_t tableCount = wasmObj->getNumImportedTables() + tables.size();
+
+  // If there are symbols for all tables, then all is good.
+  if (tableCount == tableSymbolCount)
+    return;
+
+  // It's possible for an input to define tables and also use the indirect
+  // function table, but forget to compile with -mattr=+reference-types.
+  // For these newer files, we require symbols for all tables, and
+  // relocations for all of their uses.
+  if (tableSymbolCount != 0) {
+    error(toString(this) +
+          ": expected one symbol table entry for each of the " +
+          Twine(tableCount) + " table(s) present, but got " +
+          Twine(tableSymbolCount) + " symbol(s) instead.");
+    return;
+  }
+
+  // An MVP object file can have up to one table import, for the indirect
+  // function table, but will have no table definitions.
+  if (tables.size()) {
+    error(toString(this) +
+          ": unexpected table definition(s) without corresponding "
+          "symbol-table entries.");
+    return;
+  }
+
+  // An MVP object file can have only one table import.
+  if (tableCount != 1) {
+    error(toString(this) +
+          ": multiple table imports, but no corresponding symbol-table "
+          "entries.");
+    return;
+  }
+
+  const WasmImport *tableImport = nullptr;
+  for (const auto &import : wasmObj->imports()) {
+    if (import.Kind == WASM_EXTERNAL_TABLE) {
+      assert(!tableImport);
+      tableImport = &import;
+    }
+  }
+  assert(tableImport);
+
+  // We can only synthesize a symtab entry for the indirect function table; if
+  // it has an unexpected name or type, assume that it's not actually the
+  // indirect function table.
+  if (tableImport->Field != functionTableName ||
+      tableImport->Table.ElemType != uint8_t(ValType::FUNCREF)) {
+    error(toString(this) + ": table import " + Twine(tableImport->Field) +
+          " is missing a symbol table entry.");
+    return;
+  }
+
+  auto *info = make<WasmSymbolInfo>();
+  info->Name = tableImport->Field;
+  info->Kind = WASM_SYMBOL_TYPE_TABLE;
+  info->ImportModule = tableImport->Module;
+  info->ImportName = tableImport->Field;
+  info->Flags = WASM_SYMBOL_UNDEFINED;
+  info->Flags |= WASM_SYMBOL_NO_STRIP;
+  info->ElementIndex = 0;
+  LLVM_DEBUG(dbgs() << "Synthesizing symbol for table import: " << info->Name
+                    << "\n");
+  const WasmGlobalType *globalType = nullptr;
+  const WasmSignature *signature = nullptr;
+  auto *wasmSym =
+      make<WasmSymbol>(*info, globalType, &tableImport->Table, signature);
+  Symbol *sym = createUndefined(*wasmSym, false);
+  // We're only sure it's a TableSymbol if the createUndefined succeeded.
+  if (errorCount())
+    return;
+  symbols.push_back(sym);
+  // Because there are no TABLE_NUMBER relocs, we can't compute accurate
+  // liveness info; instead, just mark the symbol as always live.
+  sym->markLive();
+
+  // We assume that this compilation unit has unrelocatable references to
+  // this table.
+  config->legacyFunctionTable = true;
+}
+
+static bool shouldMerge(const WasmSection &sec) {
+  if (config->optimize == 0)
+    return false;
+  // Sadly we don't have section attributes yet for custom sections, so we
+  // currently go by the name alone.
+  // TODO(sbc): Add ability for wasm sections to carry flags so we don't
+  // need to use names here.
+  // For now, keep in sync with uses of wasm::WASM_SEG_FLAG_STRINGS in
+  // MCObjectFileInfo::initWasmMCObjectFileInfo which creates these custom
+  // sections.
+  return sec.Name == ".debug_str" || sec.Name == ".debug_str.dwo" ||
+         sec.Name == ".debug_line_str";
+}
+
+static bool shouldMerge(const WasmSegment &seg) {
+  // As of now we only support merging strings, and only with single byte
+  // alignment (2^0).
+  if (!(seg.Data.LinkingFlags & WASM_SEG_FLAG_STRINGS) ||
+      (seg.Data.Alignment != 0))
+    return false;
+
+  // On a regular link we don't merge sections if -O0 (default is -O1). This
+  // sometimes makes the linker significantly faster, although the output will
+  // be bigger.
+  if (config->optimize == 0)
+    return false;
+
+  // A mergeable section with size 0 is useless because they don't have
+  // any data to merge. A mergeable string section with size 0 can be
+  // argued as invalid because it doesn't end with a null character.
+  // We'll avoid a mess by handling them as if they were non-mergeable.
+  if (seg.Data.Content.size() == 0)
+    return false;
+
+  return true;
+}
+
+void ObjFile::parse(bool ignoreComdats) {
   // Parse a memory buffer as a wasm file.
   LLVM_DEBUG(dbgs() << "Parsing object: " << toString(this) << "\n");
-  std::unique_ptr<Binary> Bin = CHECK(createBinary(MB), toString(this));
+  std::unique_ptr<Binary> bin = CHECK(createBinary(mb), toString(this));
 
-  auto *Obj = dyn_cast<WasmObjectFile>(Bin.get());
-  if (!Obj)
+  auto *obj = dyn_cast<WasmObjectFile>(bin.get());
+  if (!obj)
     fatal(toString(this) + ": not a wasm file");
-  if (!Obj->isRelocatableObject())
+  if (!obj->isRelocatableObject())
     fatal(toString(this) + ": not a relocatable wasm file");
 
-  Bin.release();
-  WasmObj.reset(Obj);
+  bin.release();
+  wasmObj.reset(obj);
+
+  checkArch(obj->getArch());
 
   // Build up a map of function indices to table indices for use when
   // verifying the existing table index relocations
-  uint32_t TotalFunctions =
-      WasmObj->getNumImportedFunctions() + WasmObj->functions().size();
-  TableEntries.resize(TotalFunctions);
-  for (const WasmElemSegment &Seg : WasmObj->elements()) {
-    if (Seg.Offset.Opcode != WASM_OPCODE_I32_CONST)
-      fatal(toString(this) + ": invalid table elements");
-    uint32_t Offset = Seg.Offset.Value.Int32;
-    for (uint32_t Index = 0; Index < Seg.Functions.size(); Index++) {
-
-      uint32_t FunctionIndex = Seg.Functions[Index];
-      TableEntries[FunctionIndex] = Offset + Index;
-    }
-  }
-
-  // Find the code and data sections.  Wasm objects can have at most one code
-  // and one data section.
-  uint32_t SectionIndex = 0;
-  for (const SectionRef &Sec : WasmObj->sections()) {
-    const WasmSection &Section = WasmObj->getWasmSection(Sec);
-    if (Section.Type == WASM_SEC_CODE) {
-      CodeSection = &Section;
-    } else if (Section.Type == WASM_SEC_DATA) {
-      DataSection = &Section;
-    } else if (Section.Type == WASM_SEC_CUSTOM) {
-      CustomSections.emplace_back(make<InputSection>(Section, this));
-      CustomSections.back()->setRelocations(Section.Relocations);
-      CustomSectionsByIndex[SectionIndex] = CustomSections.back();
-    }
-    SectionIndex++;
-  }
-
-  TypeMap.resize(getWasmObj()->types().size());
-  TypeIsUsed.resize(getWasmObj()->types().size(), false);
-
-  ArrayRef<StringRef> Comdats = WasmObj->linkingData().Comdats;
-  for (unsigned I = 0; I < Comdats.size(); ++I)
-    if (IgnoreComdats)
-      KeptComdats.push_back(true);
+  uint32_t totalFunctions =
+      wasmObj->getNumImportedFunctions() + wasmObj->functions().size();
+  tableEntriesRel.resize(totalFunctions);
+  tableEntries.resize(totalFunctions);
+  for (const WasmElemSegment &seg : wasmObj->elements()) {
+    int64_t offset;
+    if (seg.Offset.Extended)
+      fatal(toString(this) + ": extended init exprs not supported");
+    else if (seg.Offset.Inst.Opcode == WASM_OPCODE_I32_CONST)
+      offset = seg.Offset.Inst.Value.Int32;
+    else if (seg.Offset.Inst.Opcode == WASM_OPCODE_I64_CONST)
+      offset = seg.Offset.Inst.Value.Int64;
     else
-      KeptComdats.push_back(Symtab->addComdat(Comdats[I]));
+      fatal(toString(this) + ": invalid table elements");
+    for (size_t index = 0; index < seg.Functions.size(); index++) {
+      auto functionIndex = seg.Functions[index];
+      tableEntriesRel[functionIndex] = index;
+      tableEntries[functionIndex] = offset + index;
+    }
+  }
+
+  ArrayRef<StringRef> comdats = wasmObj->linkingData().Comdats;
+  for (StringRef comdat : comdats) {
+    bool isNew = ignoreComdats || symtab->addComdat(comdat);
+    keptComdats.push_back(isNew);
+  }
+
+  uint32_t sectionIndex = 0;
+
+  // Bool for each symbol, true if called directly.  This allows us to implement
+  // a weaker form of signature checking where undefined functions that are not
+  // called directly (i.e. only address taken) don't have to match the defined
+  // function's signature.  We cannot do this for directly called functions
+  // because those signatures are checked at validation times.
+  // See https://bugs.llvm.org/show_bug.cgi?id=40412
+  std::vector<bool> isCalledDirectly(wasmObj->getNumberOfSymbols(), false);
+  for (const SectionRef &sec : wasmObj->sections()) {
+    const WasmSection &section = wasmObj->getWasmSection(sec);
+    // Wasm objects can have at most one code and one data section.
+    if (section.Type == WASM_SEC_CODE) {
+      assert(!codeSection);
+      codeSection = &section;
+    } else if (section.Type == WASM_SEC_DATA) {
+      assert(!dataSection);
+      dataSection = &section;
+    } else if (section.Type == WASM_SEC_CUSTOM) {
+      InputChunk *customSec;
+      if (shouldMerge(section))
+        customSec = make<MergeInputChunk>(section, this);
+      else
+        customSec = make<InputSection>(section, this);
+      customSec->discarded = isExcludedByComdat(customSec);
+      customSections.emplace_back(customSec);
+      customSections.back()->setRelocations(section.Relocations);
+      customSectionsByIndex[sectionIndex] = customSections.back();
+    }
+    sectionIndex++;
+    // Scans relocations to determine if a function symbol is called directly.
+    for (const WasmRelocation &reloc : section.Relocations)
+      if (reloc.Type == R_WASM_FUNCTION_INDEX_LEB)
+        isCalledDirectly[reloc.Index] = true;
+  }
+
+  typeMap.resize(getWasmObj()->types().size());
+  typeIsUsed.resize(getWasmObj()->types().size(), false);
+
 
   // Populate `Segments`.
-  for (const WasmSegment &S : WasmObj->dataSegments())
-    Segments.emplace_back(make<InputSegment>(S, this));
-  setRelocs(Segments, DataSection);
+  for (const WasmSegment &s : wasmObj->dataSegments()) {
+    InputChunk *seg;
+    if (shouldMerge(s))
+      seg = make<MergeInputChunk>(s, this);
+    else
+      seg = make<InputSegment>(s, this);
+    seg->discarded = isExcludedByComdat(seg);
+    // Older object files did not include WASM_SEG_FLAG_TLS and instead
+    // relied on the naming convention.  To maintain compat with such objects
+    // we still imply the TLS flag based on the name of the segment.
+    if (!seg->isTLS() &&
+        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss")))
+      seg->flags |= WASM_SEG_FLAG_TLS;
+    segments.emplace_back(seg);
+  }
+  setRelocs(segments, dataSection);
 
   // Populate `Functions`.
-  ArrayRef<WasmFunction> Funcs = WasmObj->functions();
-  ArrayRef<uint32_t> FuncTypes = WasmObj->functionTypes();
-  ArrayRef<WasmSignature> Types = WasmObj->types();
-  Functions.reserve(Funcs.size());
+  ArrayRef<WasmFunction> funcs = wasmObj->functions();
+  ArrayRef<WasmSignature> types = wasmObj->types();
+  functions.reserve(funcs.size());
 
-  for (size_t I = 0, E = Funcs.size(); I != E; ++I)
-    Functions.emplace_back(
-        make<InputFunction>(Types[FuncTypes[I]], &Funcs[I], this));
-  setRelocs(Functions, CodeSection);
+  for (auto &f : funcs) {
+    auto *func = make<InputFunction>(types[f.SigIndex], &f, this);
+    func->discarded = isExcludedByComdat(func);
+    functions.emplace_back(func);
+  }
+  setRelocs(functions, codeSection);
+
+  // Populate `Tables`.
+  for (const WasmTable &t : wasmObj->tables())
+    tables.emplace_back(make<InputTable>(t, this));
 
   // Populate `Globals`.
-  for (const WasmGlobal &G : WasmObj->globals())
-    Globals.emplace_back(make<InputGlobal>(G, this));
+  for (const WasmGlobal &g : wasmObj->globals())
+    globals.emplace_back(make<InputGlobal>(g, this));
 
-  // Populate `Events`.
-  for (const WasmEvent &E : WasmObj->events())
-    Events.emplace_back(make<InputEvent>(Types[E.Type.SigIndex], E, this));
+  // Populate `Tags`.
+  for (const WasmTag &t : wasmObj->tags())
+    tags.emplace_back(make<InputTag>(types[t.SigIndex], t, this));
 
-  // Populate `Symbols` based on the WasmSymbols in the object.
-  Symbols.reserve(WasmObj->getNumberOfSymbols());
-  for (const SymbolRef &Sym : WasmObj->symbols()) {
-    const WasmSymbol &WasmSym = WasmObj->getWasmSymbol(Sym.getRawDataRefImpl());
-    if (Symbol *Sym = createDefined(WasmSym))
-      Symbols.push_back(Sym);
-    else
-      Symbols.push_back(createUndefined(WasmSym));
-  }
-}
-
-bool ObjFile::isExcludedByComdat(InputChunk *Chunk) const {
-  uint32_t C = Chunk->getComdat();
-  if (C == UINT32_MAX)
-    return false;
-  return !KeptComdats[C];
-}
-
-FunctionSymbol *ObjFile::getFunctionSymbol(uint32_t Index) const {
-  return cast<FunctionSymbol>(Symbols[Index]);
-}
-
-GlobalSymbol *ObjFile::getGlobalSymbol(uint32_t Index) const {
-  return cast<GlobalSymbol>(Symbols[Index]);
-}
-
-EventSymbol *ObjFile::getEventSymbol(uint32_t Index) const {
-  return cast<EventSymbol>(Symbols[Index]);
-}
-
-SectionSymbol *ObjFile::getSectionSymbol(uint32_t Index) const {
-  return cast<SectionSymbol>(Symbols[Index]);
-}
-
-DataSymbol *ObjFile::getDataSymbol(uint32_t Index) const {
-  return cast<DataSymbol>(Symbols[Index]);
-}
-
-Symbol *ObjFile::createDefined(const WasmSymbol &Sym) {
-  if (!Sym.isDefined())
-    return nullptr;
-
-  StringRef Name = Sym.Info.Name;
-  uint32_t Flags = Sym.Info.Flags;
-
-  switch (Sym.Info.Kind) {
-  case WASM_SYMBOL_TYPE_FUNCTION: {
-    InputFunction *Func =
-        Functions[Sym.Info.ElementIndex - WasmObj->getNumImportedFunctions()];
-    if (isExcludedByComdat(Func)) {
-      Func->Live = false;
-      return nullptr;
+  // Populate `Symbols` based on the symbols in the object.
+  symbols.reserve(wasmObj->getNumberOfSymbols());
+  uint32_t tableSymbolCount = 0;
+  for (const SymbolRef &sym : wasmObj->symbols()) {
+    const WasmSymbol &wasmSym = wasmObj->getWasmSymbol(sym.getRawDataRefImpl());
+    if (wasmSym.isTypeTable())
+      tableSymbolCount++;
+    if (wasmSym.isDefined()) {
+      // createDefined may fail if the symbol is comdat excluded in which case
+      // we fall back to creating an undefined symbol
+      if (Symbol *d = createDefined(wasmSym)) {
+        symbols.push_back(d);
+        continue;
+      }
     }
+    size_t idx = symbols.size();
+    symbols.push_back(createUndefined(wasmSym, isCalledDirectly[idx]));
+  }
 
-    if (Sym.isBindingLocal())
-      return make<DefinedFunction>(Name, Flags, this, Func);
-    return Symtab->addDefinedFunction(Name, Flags, this, Func);
+  addLegacyIndirectFunctionTableIfNeeded(tableSymbolCount);
+}
+
+bool ObjFile::isExcludedByComdat(const InputChunk *chunk) const {
+  uint32_t c = chunk->getComdat();
+  if (c == UINT32_MAX)
+    return false;
+  return !keptComdats[c];
+}
+
+FunctionSymbol *ObjFile::getFunctionSymbol(uint32_t index) const {
+  return cast<FunctionSymbol>(symbols[index]);
+}
+
+GlobalSymbol *ObjFile::getGlobalSymbol(uint32_t index) const {
+  return cast<GlobalSymbol>(symbols[index]);
+}
+
+TagSymbol *ObjFile::getTagSymbol(uint32_t index) const {
+  return cast<TagSymbol>(symbols[index]);
+}
+
+TableSymbol *ObjFile::getTableSymbol(uint32_t index) const {
+  return cast<TableSymbol>(symbols[index]);
+}
+
+SectionSymbol *ObjFile::getSectionSymbol(uint32_t index) const {
+  return cast<SectionSymbol>(symbols[index]);
+}
+
+DataSymbol *ObjFile::getDataSymbol(uint32_t index) const {
+  return cast<DataSymbol>(symbols[index]);
+}
+
+Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
+  StringRef name = sym.Info.Name;
+  uint32_t flags = sym.Info.Flags;
+
+  switch (sym.Info.Kind) {
+  case WASM_SYMBOL_TYPE_FUNCTION: {
+    InputFunction *func =
+        functions[sym.Info.ElementIndex - wasmObj->getNumImportedFunctions()];
+    if (sym.isBindingLocal())
+      return make<DefinedFunction>(name, flags, this, func);
+    if (func->discarded)
+      return nullptr;
+    return symtab->addDefinedFunction(name, flags, this, func);
   }
   case WASM_SYMBOL_TYPE_DATA: {
-    InputSegment *Seg = Segments[Sym.Info.DataRef.Segment];
-    if (isExcludedByComdat(Seg)) {
-      Seg->Live = false;
+    InputChunk *seg = segments[sym.Info.DataRef.Segment];
+    auto offset = sym.Info.DataRef.Offset;
+    auto size = sym.Info.DataRef.Size;
+    // Support older (e.g. llvm 13) object files that pre-date the per-symbol
+    // TLS flag, and symbols were assumed to be TLS by being defined in a TLS
+    // segment.
+    if (!(flags & WASM_SYMBOL_TLS) && seg->isTLS())
+      flags |= WASM_SYMBOL_TLS;
+    if (sym.isBindingLocal())
+      return make<DefinedData>(name, flags, this, seg, offset, size);
+    if (seg->discarded)
       return nullptr;
-    }
-
-    uint32_t Offset = Sym.Info.DataRef.Offset;
-    uint32_t Size = Sym.Info.DataRef.Size;
-
-    if (Sym.isBindingLocal())
-      return make<DefinedData>(Name, Flags, this, Seg, Offset, Size);
-    return Symtab->addDefinedData(Name, Flags, this, Seg, Offset, Size);
+    return symtab->addDefinedData(name, flags, this, seg, offset, size);
   }
   case WASM_SYMBOL_TYPE_GLOBAL: {
-    InputGlobal *Global =
-        Globals[Sym.Info.ElementIndex - WasmObj->getNumImportedGlobals()];
-    if (Sym.isBindingLocal())
-      return make<DefinedGlobal>(Name, Flags, this, Global);
-    return Symtab->addDefinedGlobal(Name, Flags, this, Global);
+    InputGlobal *global =
+        globals[sym.Info.ElementIndex - wasmObj->getNumImportedGlobals()];
+    if (sym.isBindingLocal())
+      return make<DefinedGlobal>(name, flags, this, global);
+    return symtab->addDefinedGlobal(name, flags, this, global);
   }
   case WASM_SYMBOL_TYPE_SECTION: {
-    InputSection *Section = CustomSectionsByIndex[Sym.Info.ElementIndex];
-    assert(Sym.isBindingLocal());
-    return make<SectionSymbol>(Flags, Section, this);
+    InputChunk *section = customSectionsByIndex[sym.Info.ElementIndex];
+    assert(sym.isBindingLocal());
+    // Need to return null if discarded here? data and func only do that when
+    // binding is not local.
+    if (section->discarded)
+      return nullptr;
+    return make<SectionSymbol>(flags, section, this);
   }
-  case WASM_SYMBOL_TYPE_EVENT: {
-    InputEvent *Event =
-        Events[Sym.Info.ElementIndex - WasmObj->getNumImportedEvents()];
-    if (Sym.isBindingLocal())
-      return make<DefinedEvent>(Name, Flags, this, Event);
-    return Symtab->addDefinedEvent(Name, Flags, this, Event);
+  case WASM_SYMBOL_TYPE_TAG: {
+    InputTag *tag = tags[sym.Info.ElementIndex - wasmObj->getNumImportedTags()];
+    if (sym.isBindingLocal())
+      return make<DefinedTag>(name, flags, this, tag);
+    return symtab->addDefinedTag(name, flags, this, tag);
+  }
+  case WASM_SYMBOL_TYPE_TABLE: {
+    InputTable *table =
+        tables[sym.Info.ElementIndex - wasmObj->getNumImportedTables()];
+    if (sym.isBindingLocal())
+      return make<DefinedTable>(name, flags, this, table);
+    return symtab->addDefinedTable(name, flags, this, table);
   }
   }
   llvm_unreachable("unknown symbol kind");
 }
 
-Symbol *ObjFile::createUndefined(const WasmSymbol &Sym) {
-  StringRef Name = Sym.Info.Name;
-  uint32_t Flags = Sym.Info.Flags;
+Symbol *ObjFile::createUndefined(const WasmSymbol &sym, bool isCalledDirectly) {
+  StringRef name = sym.Info.Name;
+  uint32_t flags = sym.Info.Flags | WASM_SYMBOL_UNDEFINED;
 
-  switch (Sym.Info.Kind) {
+  switch (sym.Info.Kind) {
   case WASM_SYMBOL_TYPE_FUNCTION:
-    return Symtab->addUndefinedFunction(Name, Sym.Info.ImportName,
-                                        Sym.Info.ImportModule, Flags, this,
-                                        Sym.Signature);
+    if (sym.isBindingLocal())
+      return make<UndefinedFunction>(name, sym.Info.ImportName,
+                                     sym.Info.ImportModule, flags, this,
+                                     sym.Signature, isCalledDirectly);
+    return symtab->addUndefinedFunction(name, sym.Info.ImportName,
+                                        sym.Info.ImportModule, flags, this,
+                                        sym.Signature, isCalledDirectly);
   case WASM_SYMBOL_TYPE_DATA:
-    return Symtab->addUndefinedData(Name, Flags, this);
+    if (sym.isBindingLocal())
+      return make<UndefinedData>(name, flags, this);
+    return symtab->addUndefinedData(name, flags, this);
   case WASM_SYMBOL_TYPE_GLOBAL:
-    return Symtab->addUndefinedGlobal(Name, Sym.Info.ImportName,
-                                      Sym.Info.ImportModule, Flags, this,
-                                      Sym.GlobalType);
+    if (sym.isBindingLocal())
+      return make<UndefinedGlobal>(name, sym.Info.ImportName,
+                                   sym.Info.ImportModule, flags, this,
+                                   sym.GlobalType);
+    return symtab->addUndefinedGlobal(name, sym.Info.ImportName,
+                                      sym.Info.ImportModule, flags, this,
+                                      sym.GlobalType);
+  case WASM_SYMBOL_TYPE_TABLE:
+    if (sym.isBindingLocal())
+      return make<UndefinedTable>(name, sym.Info.ImportName,
+                                  sym.Info.ImportModule, flags, this,
+                                  sym.TableType);
+    return symtab->addUndefinedTable(name, sym.Info.ImportName,
+                                     sym.Info.ImportModule, flags, this,
+                                     sym.TableType);
+  case WASM_SYMBOL_TYPE_TAG:
+    if (sym.isBindingLocal())
+      return make<UndefinedTag>(name, sym.Info.ImportName,
+                                sym.Info.ImportModule, flags, this,
+                                sym.Signature);
+    return symtab->addUndefinedTag(name, sym.Info.ImportName,
+                                   sym.Info.ImportModule, flags, this,
+                                   sym.Signature);
   case WASM_SYMBOL_TYPE_SECTION:
     llvm_unreachable("section symbols cannot be undefined");
   }
   llvm_unreachable("unknown symbol kind");
 }
 
-void ArchiveFile::parse(bool IgnoreComdats) {
+void ArchiveFile::parse() {
   // Parse a MemoryBufferRef as an archive file.
   LLVM_DEBUG(dbgs() << "Parsing library: " << toString(this) << "\n");
-  File = CHECK(Archive::create(MB), toString(this));
+  file = CHECK(Archive::create(mb), toString(this));
 
   // Read the symbol table to construct Lazy symbols.
-  int Count = 0;
-  for (const Archive::Symbol &Sym : File->symbols()) {
-    Symtab->addLazy(this, &Sym);
-    ++Count;
+  int count = 0;
+  for (const Archive::Symbol &sym : file->symbols()) {
+    symtab->addLazy(this, &sym);
+    ++count;
   }
-  LLVM_DEBUG(dbgs() << "Read " << Count << " symbols\n");
+  LLVM_DEBUG(dbgs() << "Read " << count << " symbols\n");
 }
 
-void ArchiveFile::addMember(const Archive::Symbol *Sym) {
-  const Archive::Child &C =
-      CHECK(Sym->getMember(),
-            "could not get the member for symbol " + Sym->getName());
+void ArchiveFile::addMember(const Archive::Symbol *sym) {
+  const Archive::Child &c =
+      CHECK(sym->getMember(),
+            "could not get the member for symbol " + sym->getName());
 
   // Don't try to load the same member twice (this can happen when members
   // mutually reference each other).
-  if (!Seen.insert(C.getChildOffset()).second)
+  if (!seen.insert(c.getChildOffset()).second)
     return;
 
-  LLVM_DEBUG(dbgs() << "loading lazy: " << Sym->getName() << "\n");
+  LLVM_DEBUG(dbgs() << "loading lazy: " << sym->getName() << "\n");
   LLVM_DEBUG(dbgs() << "from archive: " << toString(this) << "\n");
 
-  MemoryBufferRef MB =
-      CHECK(C.getMemoryBufferRef(),
+  MemoryBufferRef mb =
+      CHECK(c.getMemoryBufferRef(),
             "could not get the buffer for the member defining symbol " +
-                Sym->getName());
+                sym->getName());
 
-  InputFile *Obj = createObjectFile(MB, getName());
-  Symtab->addFile(Obj);
+  InputFile *obj = createObjectFile(mb, getName(), c.getChildOffset());
+  symtab->addFile(obj);
 }
 
-static uint8_t mapVisibility(GlobalValue::VisibilityTypes GvVisibility) {
-  switch (GvVisibility) {
+static uint8_t mapVisibility(GlobalValue::VisibilityTypes gvVisibility) {
+  switch (gvVisibility) {
   case GlobalValue::DefaultVisibility:
     return WASM_SYMBOL_VISIBILITY_DEFAULT;
   case GlobalValue::HiddenVisibility:
@@ -485,55 +724,78 @@ static uint8_t mapVisibility(GlobalValue::VisibilityTypes GvVisibility) {
   llvm_unreachable("unknown visibility");
 }
 
-static Symbol *createBitcodeSymbol(const std::vector<bool> &KeptComdats,
-                                   const lto::InputFile::Symbol &ObjSym,
-                                   BitcodeFile &F) {
-  StringRef Name = Saver.save(ObjSym.getName());
+static Symbol *createBitcodeSymbol(const std::vector<bool> &keptComdats,
+                                   const lto::InputFile::Symbol &objSym,
+                                   BitcodeFile &f) {
+  StringRef name = saver().save(objSym.getName());
 
-  uint32_t Flags = ObjSym.isWeak() ? WASM_SYMBOL_BINDING_WEAK : 0;
-  Flags |= mapVisibility(ObjSym.getVisibility());
+  uint32_t flags = objSym.isWeak() ? WASM_SYMBOL_BINDING_WEAK : 0;
+  flags |= mapVisibility(objSym.getVisibility());
 
-  int C = ObjSym.getComdatIndex();
-  bool ExcludedByComdat = C != -1 && !KeptComdats[C];
+  int c = objSym.getComdatIndex();
+  bool excludedByComdat = c != -1 && !keptComdats[c];
 
-  if (ObjSym.isUndefined() || ExcludedByComdat) {
-    if (ObjSym.isExecutable())
-      return Symtab->addUndefinedFunction(Name, Name, DefaultModule, Flags, &F,
-                                          nullptr);
-    return Symtab->addUndefinedData(Name, Flags, &F);
+  if (objSym.isUndefined() || excludedByComdat) {
+    flags |= WASM_SYMBOL_UNDEFINED;
+    if (objSym.isExecutable())
+      return symtab->addUndefinedFunction(name, None, None, flags, &f, nullptr,
+                                          true);
+    return symtab->addUndefinedData(name, flags, &f);
   }
 
-  if (ObjSym.isExecutable())
-    return Symtab->addDefinedFunction(Name, Flags, &F, nullptr);
-  return Symtab->addDefinedData(Name, Flags, &F, nullptr, 0, 0);
+  if (objSym.isExecutable())
+    return symtab->addDefinedFunction(name, flags, &f, nullptr);
+  return symtab->addDefinedData(name, flags, &f, nullptr, 0, 0);
 }
 
-void BitcodeFile::parse(bool IgnoreComdats) {
-  Obj = check(lto::InputFile::create(MemoryBufferRef(
-      MB.getBuffer(), Saver.save(ArchiveName + MB.getBufferIdentifier()))));
-  Triple T(Obj->getTargetTriple());
-  if (T.getArch() != Triple::wasm32) {
-    error(toString(MB.getBufferIdentifier()) + ": machine type must be wasm32");
+BitcodeFile::BitcodeFile(MemoryBufferRef m, StringRef archiveName,
+                         uint64_t offsetInArchive)
+    : InputFile(BitcodeKind, m) {
+  this->archiveName = std::string(archiveName);
+
+  std::string path = mb.getBufferIdentifier().str();
+
+  // ThinLTO assumes that all MemoryBufferRefs given to it have a unique
+  // name. If two archives define two members with the same name, this
+  // causes a collision which result in only one of the objects being taken
+  // into consideration at LTO time (which very likely causes undefined
+  // symbols later in the link stage). So we append file offset to make
+  // filename unique.
+  StringRef name = archiveName.empty()
+                       ? saver().save(path)
+                       : saver().save(archiveName + "(" + path::filename(path) +
+                                      " at " + utostr(offsetInArchive) + ")");
+  MemoryBufferRef mbref(mb.getBuffer(), name);
+
+  obj = check(lto::InputFile::create(mbref));
+
+  // If this isn't part of an archive, it's eagerly linked, so mark it live.
+  if (archiveName.empty())
+    markLive();
+}
+
+bool BitcodeFile::doneLTO = false;
+
+void BitcodeFile::parse() {
+  if (doneLTO) {
+    error(toString(this) + ": attempt to add bitcode file after LTO.");
     return;
   }
-  std::vector<bool> KeptComdats;
-  for (StringRef S : Obj->getComdatTable())
-    if (IgnoreComdats)
-      KeptComdats.push_back(true);
-    else
-      KeptComdats.push_back(Symtab->addComdat(S));
 
-  for (const lto::InputFile::Symbol &ObjSym : Obj->symbols())
-    Symbols.push_back(createBitcodeSymbol(KeptComdats, ObjSym, *this));
+  Triple t(obj->getTargetTriple());
+  if (!t.isWasm()) {
+    error(toString(this) + ": machine type must be wasm32 or wasm64");
+    return;
+  }
+  checkArch(t.getArch());
+  std::vector<bool> keptComdats;
+  // TODO Support nodeduplicate https://bugs.llvm.org/show_bug.cgi?id=50531
+  for (std::pair<StringRef, Comdat::SelectionKind> s : obj->getComdatTable())
+    keptComdats.push_back(symtab->addComdat(s.first));
+
+  for (const lto::InputFile::Symbol &objSym : obj->symbols())
+    symbols.push_back(createBitcodeSymbol(keptComdats, objSym, *this));
 }
 
-// Returns a string in the format of "foo.o" or "foo.a(bar.o)".
-std::string lld::toString(const wasm::InputFile *File) {
-  if (!File)
-    return "<internal>";
-
-  if (File->ArchiveName.empty())
-    return File->getName();
-
-  return (File->ArchiveName + "(" + File->getName() + ")").str();
-}
+} // namespace wasm
+} // namespace lld

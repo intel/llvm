@@ -2,13 +2,13 @@
 // RUN: %clang_cc1 -triple x86_64-windows-msvc -fms-extensions -emit-llvm -std=c11 -O0 -o - %s | FileCheck --check-prefix=CHECK --check-prefix=MS %s
 // RUN: %clang_cc1 -triple i686-windows-gnu    -fms-extensions -emit-llvm -std=c11 -O0 -o - %s | FileCheck --check-prefix=CHECK --check-prefix=GNU %s
 // RUN: %clang_cc1 -triple x86_64-windows-gnu  -fms-extensions -emit-llvm -std=c11 -O0 -o - %s | FileCheck --check-prefix=CHECK --check-prefix=GNU %s
-// RUN: %clang_cc1 -triple i686-windows-msvc   -fms-extensions -emit-llvm -std=c11 -O1 -o - %s | FileCheck --check-prefix=O1 --check-prefix=MO1 %s
-// RUN: %clang_cc1 -triple i686-windows-gnu    -fms-extensions -emit-llvm -std=c11 -O1 -o - %s | FileCheck --check-prefix=O1 --check-prefix=GO1 %s
+// RUN: %clang_cc1 -triple i686-windows-msvc   -fms-extensions -emit-llvm -std=c11 -O1 -fno-experimental-new-pass-manager -o - %s | FileCheck --check-prefix=O1 --check-prefix=MO1 %s
+// RUN: %clang_cc1 -triple i686-windows-gnu    -fms-extensions -emit-llvm -std=c11 -O1 -fno-experimental-new-pass-manager -o - %s | FileCheck --check-prefix=O1 --check-prefix=GO1 %s
 
 #define JOIN2(x, y) x##y
 #define JOIN(x, y) JOIN2(x, y)
-#define USEVAR(var) int JOIN(use, __LINE__)() { return var; }
-#define USE(func) void JOIN(use, __LINE__)() { func(); }
+#define USEVAR(var) int JOIN(use, __LINE__)(void) { return var; }
+#define USE(func) void JOIN(use, __LINE__)(void) { func(); }
 
 
 
@@ -46,8 +46,8 @@ __declspec(dllimport) extern int GlobalRedecl3;
 USEVAR(GlobalRedecl3)
 
 // Make sure this works even if the decl has been used before it's defined (PR20792).
-// MS: @GlobalRedecl4 = common dso_local dllexport global i32
-// GNU: @GlobalRedecl4 = common dso_local global i32
+// MS: @GlobalRedecl4 = dso_local dllexport global i32
+// GNU: @GlobalRedecl4 = dso_local global i32
 __declspec(dllimport) extern int GlobalRedecl4;
 USEVAR(GlobalRedecl4)
                       int GlobalRedecl4; // dllimport ignored
@@ -61,7 +61,7 @@ USEVAR(GlobalRedecl5)
 // Redeclaration in local context.
 // CHECK: @GlobalRedecl6 = external dllimport global i32
 __declspec(dllimport) int GlobalRedecl6;
-int functionScope() {
+int functionScope(void) {
   extern int GlobalRedecl6; // still dllimport
   return GlobalRedecl6;
 }

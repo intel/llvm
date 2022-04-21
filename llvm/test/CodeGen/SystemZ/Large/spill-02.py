@@ -1,6 +1,6 @@
 # Test cases where we spill from one frame index to another, both of which
 # are out of range of MVC, and both of which need emergency spill slots.
-# RUN: python %s | llc -mtriple=s390x-linux-gnu | FileCheck %s
+# RUN: %python %s | llc -mtriple=s390x-linux-gnu | FileCheck %s
 
 # CHECK: f1:
 # CHECK: %fallthru
@@ -22,7 +22,7 @@
 
 from __future__ import print_function
 
-args = (8168 - 160) / 8 + (5 - 1)
+args = int((8168 - 160) / 8 + (5 - 1))
 
 print('declare i64 *@foo(i64 *%s)' % (', i64' * args))
 print('declare void @bar(i64 *)')

@@ -6,20 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// The string reported on errors changed, which makes those tests fail when run
+// against already-released libc++'s.
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.15
 
 // <filesystem>
 
 // uintmax_t file_size(const path& p);
 // uintmax_t file_size(const path& p, std::error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -37,7 +41,8 @@ TEST_CASE(signature_test)
 
 TEST_CASE(file_size_empty_test)
 {
-    const path p = StaticEnv::EmptyFile;
+    static_test_env static_env;
+    const path p = static_env.EmptyFile;
     TEST_CHECK(file_size(p) == 0);
     std::error_code ec;
     TEST_CHECK(file_size(p, ec) == 0);
@@ -54,21 +59,23 @@ TEST_CASE(file_size_non_empty)
 
 TEST_CASE(symlink_test_case)
 {
-    const path p = StaticEnv::File;
-    const path p2 = StaticEnv::SymlinkToFile;
+    static_test_env static_env;
+    const path p = static_env.File;
+    const path p2 = static_env.SymlinkToFile;
     TEST_CHECK(file_size(p) == file_size(p2));
 }
 
 TEST_CASE(file_size_error_cases)
 {
+  static_test_env static_env;
   struct {
     path p;
     std::errc expected_err;
   } TestCases[] = {
-      {StaticEnv::Dir, std::errc::is_a_directory},
-      {StaticEnv::SymlinkToDir, std::errc::is_a_directory},
-      {StaticEnv::BadSymlink, std::errc::no_such_file_or_directory},
-      {StaticEnv::DNE, std::errc::no_such_file_or_directory},
+      {static_env.Dir, std::errc::is_a_directory},
+      {static_env.SymlinkToDir, std::errc::is_a_directory},
+      {static_env.BadSymlink, std::errc::no_such_file_or_directory},
+      {static_env.DNE, std::errc::no_such_file_or_directory},
       {"", std::errc::no_such_file_or_directory}};
     const uintmax_t expect = static_cast<uintmax_t>(-1);
     for (auto& TC : TestCases) {

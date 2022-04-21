@@ -1,6 +1,8 @@
 ; REQUIRES: asserts
-; RUN: opt < %s -loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -instcombine -debug-only=loop-vectorize -disable-output -print-after=instcombine 2>&1 | FileCheck %s
-; RUN: opt < %s -loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -enable-interleaved-mem-accesses -instcombine -debug-only=loop-vectorize -disable-output -print-after=instcombine 2>&1 | FileCheck %s --check-prefix=INTER
+; RUN: opt < %s -loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -instcombine -debug-only=loop-vectorize -disable-output -print-after=instcombine -enable-new-pm=0 2>&1 | FileCheck %s
+; RUN: opt < %s -loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -enable-interleaved-mem-accesses -instcombine -debug-only=loop-vectorize -disable-output -print-after=instcombine -enable-new-pm=0 2>&1 | FileCheck %s --check-prefix=INTER
+; RUN: opt < %s -passes=loop-vectorize,instcombine -force-vector-width=4 -force-vector-interleave=1 -debug-only=loop-vectorize -disable-output -print-after=instcombine 2>&1 | FileCheck %s
+; RUN: opt < %s -passes=loop-vectorize,instcombine -force-vector-width=4 -force-vector-interleave=1 -enable-interleaved-mem-accesses -debug-only=loop-vectorize -disable-output -print-after=instcombine 2>&1 | FileCheck %s --check-prefix=INTER
 
 target datalayout = "e-m:e-i64:64-i128:128-n32:64-S128"
 
@@ -397,23 +399,13 @@ for.end:
 ; CHECK-NOT: LV: Found uniform instruction: %p = phi i32* [ %tmp3, %for.body ], [ %a, %entry ]
 ; CHECK:     LV: Found uniform instruction: %q = phi i32** [ %tmp4, %for.body ], [ %b, %entry ]
 ; CHECK:     vector.body
+; CHECK:       %pointer.phi = phi i32* [ %a, %vector.ph ], [ %ptr.ind, %vector.body ]
 ; CHECK:       %index = phi i64 [ 0, %vector.ph ], [ %index.next, %vector.body ]
-; CHECK:       %next.gep = getelementptr i32, i32* %a, i64 %index
-; CHECK:       %[[I1:.+]] = or i64 %index, 1
-; CHECK:       %next.gep10 = getelementptr i32, i32* %a, i64 %[[I1]]
-; CHECK:       %[[I2:.+]] = or i64 %index, 2
-; CHECK:       %next.gep11 = getelementptr i32, i32* %a, i64 %[[I2]]
-; CHECK:       %[[I3:.+]] = or i64 %index, 3
-; CHECK:       %next.gep12 = getelementptr i32, i32* %a, i64 %[[I3]]
-; CHECK:       %[[V0:.+]] = insertelement <4 x i32*> undef, i32* %next.gep, i32 0
-; CHECK:       %[[V1:.+]] = insertelement <4 x i32*> %[[V0]], i32* %next.gep10, i32 1
-; CHECK:       %[[V2:.+]] = insertelement <4 x i32*> %[[V1]], i32* %next.gep11, i32 2
-; CHECK:       %[[V3:.+]] = insertelement <4 x i32*> %[[V2]], i32* %next.gep12, i32 3
-; CHECK-NOT:   getelementptr
-; CHECK:       %next.gep13 = getelementptr i32*, i32** %b, i64 %index
-; CHECK-NOT:   getelementptr
-; CHECK:       %[[B0:.+]] = bitcast i32** %next.gep13 to <4 x i32*>*
-; CHECK:       store <4 x i32*> %[[V3]], <4 x i32*>* %[[B0]], align 8
+; CHECK:       %[[PTRVEC:.+]] = getelementptr i32, i32* %pointer.phi, <4 x i64> <i64 0, i64 1, i64 2, i64 3>
+; CHECK:       %next.gep = getelementptr i32*, i32** %b, i64 %index
+; CHECK:       %[[NEXTGEPBC:.+]] = bitcast i32** %next.gep to <4 x i32*>*
+; CHECK:       store <4 x i32*> %[[PTRVEC]], <4 x i32*>* %[[NEXTGEPBC]], align 8
+; CHECK:       %ptr.ind = getelementptr i32, i32* %pointer.phi, i64 4
 ; CHECK:       br i1 {{.*}}, label %middle.block, label %vector.body
 ;
 define i32 @pointer_iv_mixed(i32* %a, i32** %b, i64 %n) {
@@ -453,18 +445,19 @@ for.end:
 ; INTER-NEXT:  LV: Found uniform instruction: %tmp0 = getelementptr inbounds i64, i64* %A, i64 %i
 ; INTER-NEXT:  LV: Found uniform instruction: %i = phi i64 [ 0, %entry ], [ %i.next, %for.body ]
 ; INTER-NEXT:  LV: Found uniform instruction: %i.next = add nuw nsw i64 %i, 1
+; INTER:       define void @bitcast_pointer_operand(
 ; INTER:       vector.body:
 ; INTER-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
 ; INTER-NEXT:    [[TMP4:%.*]] = getelementptr inbounds i64, i64* %A, i64 [[INDEX]]
 ; INTER-NEXT:    [[TMP5:%.*]] = bitcast i64* [[TMP4]] to <32 x i8>*
 ; INTER-NEXT:    [[WIDE_VEC:%.*]] = load <32 x i8>, <32 x i8>* [[TMP5]], align 1
-; INTER-NEXT:    [[STRIDED_VEC:%.*]] = shufflevector <32 x i8> [[WIDE_VEC]], <32 x i8> undef, <4 x i32> <i32 0, i32 8, i32 16, i32 24>
-; INTER-NEXT:    [[STRIDED_VEC5:%.*]] = shufflevector <32 x i8> [[WIDE_VEC]], <32 x i8> undef, <4 x i32> <i32 3, i32 11, i32 19, i32 27>
+; INTER-NEXT:    [[STRIDED_VEC:%.*]] = shufflevector <32 x i8> [[WIDE_VEC]], <32 x i8> poison, <4 x i32> <i32 0, i32 8, i32 16, i32 24>
+; INTER-NEXT:    [[STRIDED_VEC5:%.*]] = shufflevector <32 x i8> [[WIDE_VEC]], <32 x i8> poison, <4 x i32> <i32 3, i32 11, i32 19, i32 27>
 ; INTER-NEXT:    [[TMP6:%.*]] = xor <4 x i8> [[STRIDED_VEC5]], [[STRIDED_VEC]]
 ; INTER-NEXT:    [[TMP7:%.*]] = getelementptr inbounds i8, i8* %B, i64 [[INDEX]]
 ; INTER-NEXT:    [[TMP8:%.*]] = bitcast i8* [[TMP7]] to <4 x i8>*
 ; INTER-NEXT:    store <4 x i8> [[TMP6]], <4 x i8>* [[TMP8]], align 1
-; INTER-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 4
+; INTER-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; INTER:         br i1 {{.*}}, label %middle.block, label %vector.body
 ;
 define void @bitcast_pointer_operand(i64* %A, i8* %B, i64 %n) {

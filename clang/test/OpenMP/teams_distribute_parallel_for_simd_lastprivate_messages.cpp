@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-version=45 -fopenmp %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-version=50 -fopenmp %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-version=45 -fopenmp-simd %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-version=50 -fopenmp-simd %s -Wno-openmp-mapping -Wuninitialized
 
 extern int omp_default_mem_alloc;
 void foo() {
@@ -10,7 +12,7 @@ bool foobool(int argc) {
   return argc;
 }
 
-struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
+struct S1; // expected-note 2 {{declared here}} expected-note 3 {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;
@@ -69,7 +71,7 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   I g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target
 #pragma omp teams distribute parallel for simd lastprivate // expected-error {{expected '(' after 'lastprivate'}}
@@ -100,11 +102,15 @@ int foomain(int argc, char **argv) {
   for (int k = 0; k < argc; ++k) ++k;
 
 #pragma omp target
+#pragma omp teams distribute parallel for simd lastprivate(conditional: argc) lastprivate(conditional: // expected-error 2 {{use of undeclared identifier 'conditional'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
+  for (int k = 0; k < argc; ++k) ++k;
+
+#pragma omp target
 #pragma omp teams distribute parallel for simd lastprivate(S1) // expected-error {{'S1' does not refer to a value}}
   for (int k = 0; k < argc; ++k) ++k;
 
 #pragma omp target
-#pragma omp teams distribute parallel for simd lastprivate(a, b) // expected-error {{lastprivate variable with incomplete type 'S1'}}
+#pragma omp teams distribute parallel for simd lastprivate(z, a, b) // expected-error {{lastprivate variable with incomplete type 'S1'}}
   for (int k = 0; k < argc; ++k) ++k;
 
 #pragma omp target
@@ -159,7 +165,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S3 m;
   S6 n(2);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target
 #pragma omp teams distribute parallel for simd lastprivate // expected-error {{expected '(' after 'lastprivate'}}
@@ -186,7 +192,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 
 #pragma omp target
-#pragma omp teams distribute parallel for simd lastprivate(argc)
+#pragma omp teams distribute parallel for simd lastprivate(argc, z)
   for (i = 0; i < argc; ++i) foo();
 
 #pragma omp target
@@ -194,7 +200,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 
 #pragma omp target
-#pragma omp teams distribute parallel for simd lastprivate(a, b, c, d, f) // expected-error {{lastprivate variable with incomplete type 'S1'}} expected-error 1 {{const-qualified variable without mutable fields cannot be lastprivate}} expected-error 2 {{const-qualified variable cannot be lastprivate}}
+#pragma omp teams distribute parallel for simd lastprivate(a, b, c, d, f) // expected-error {{lastprivate variable with incomplete type 'S1'}} expected-error 1 {{const-qualified variable without mutable fields cannot be lastprivate}} expected-error 2 {{const-qualified variable cannot be lastprivate}} expected-error {{incomplete type 'S1' where a complete type is required}}
   for (i = 0; i < argc; ++i) foo();
 
 #pragma omp target

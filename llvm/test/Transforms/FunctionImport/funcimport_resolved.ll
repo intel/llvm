@@ -18,8 +18,7 @@
 ; RUN: opt -module-summary %p/Inputs/funcimport_resolved1.ll -o %t2.bc
 ; RUN: opt -module-summary %p/Inputs/funcimport_resolved2.ll -o %t3.bc
 
-; First do a sanity check that all callees are imported with the default
-; instruction limit
+; First verify that all callees are imported with the default instruction limit
 ; RUN: llvm-lto2 run %t.bc %t2.bc %t3.bc -o %t4 -r=%t.bc,_main,pl -r=%t.bc,_linkonceodrfunc,l -r=%t.bc,_foo,l -r=%t2.bc,_foo,pl -r=%t2.bc,_linkonceodrfunc,pl -r=%t2.bc,_linkonceodrfunc2,pl -r=%t3.bc,_linkonceodrfunc,l -thinlto-threads=1 -debug-only=function-import 2>&1 | FileCheck %s --check-prefix=INSTLIMDEFAULT
 ; INSTLIMDEFAULT: Is importing function {{.*}} foo from {{.*}}funcimport_resolved1.ll
 ; INSTLIMDEFAULT: Is importing function {{.*}} linkonceodrfunc from {{.*}}funcimport_resolved1.ll
@@ -38,7 +37,7 @@
 ; INSTLIM8: Is importing function {{.*}} f from {{.*}}funcimport_resolved1.ll
 ; INSTLIM8-NOT: Is importing function {{.*}} linkonceodrfunc from {{.*}}funcimport_resolved2.ll
 
-target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.11.0"
 
 define i32 @main() #0 {

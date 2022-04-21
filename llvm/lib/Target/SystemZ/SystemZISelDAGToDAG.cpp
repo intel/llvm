@@ -62,8 +62,7 @@ struct SystemZAddressingMode {
   bool IncludesDynAlloc;
 
   SystemZAddressingMode(AddrForm form, DispRange dr)
-    : Form(form), DR(dr), Base(), Disp(0), Index(),
-      IncludesDynAlloc(false) {}
+      : Form(form), DR(dr), Disp(0), IncludesDynAlloc(false) {}
 
   // True if the address can have an index register.
   bool hasIndexField() { return Form != FormBD; }
@@ -338,6 +337,10 @@ class SystemZDAGToDAGISel : public SelectionDAGISel {
   // to X.
   bool storeLoadCanUseBlockBinary(SDNode *N, unsigned I) const;
 
+  // Return true if N (a load or a store) fullfills the alignment
+  // requirements for a PC-relative access.
+  bool storeLoadIsAligned(SDNode *N) const;
+
   // Try to expand a boolean SELECT_CCMASK using an IPM sequence.
   SDValue expandSelectBoolean(SDNode *Node);
 
@@ -346,6 +349,14 @@ public:
       : SelectionDAGISel(TM, OptLevel) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override {
+    const Function &F = MF.getFunction();
+    if (F.getFnAttribute("fentry-call").getValueAsString() != "true") {
+      if (F.hasFnAttribute("mnop-mcount"))
+        report_fatal_error("mnop-mcount only supported with fentry-call");
+      if (F.hasFnAttribute("mrecord-mcount"))
+        report_fatal_error("mrecord-mcount only supported with fentry-call");
+    }
+
     Subtarget = &MF.getSubtarget<SystemZSubtarget>();
     return SelectionDAGISel::runOnMachineFunction(MF);
   }
@@ -1146,7 +1157,7 @@ void SystemZDAGToDAGISel::loadVectorConstant(
   SDLoc DL(Node);
   SmallVector<SDValue, 2> Ops;
   for (unsigned OpVal : VCI.OpVals)
-    Ops.push_back(CurDAG->getConstant(OpVal, DL, MVT::i32));
+    Ops.push_back(CurDAG->getTargetConstant(OpVal, DL, MVT::i32));
   SDValue Op = CurDAG->getNode(VCI.Opcode, DL, VCI.VecVT, Ops);
 
   if (VCI.VecVT == VT.getSimpleVT())
@@ -1420,8 +1431,8 @@ bool SystemZDAGToDAGISel::canUseBlockOperation(StoreSDNode *Store,
   if (V1 == V2 && End1 == End2)
     return false;
 
-  return !AA->alias(MemoryLocation(V1, End1, Load->getAAInfo()),
-                    MemoryLocation(V2, End2, Store->getAAInfo()));
+  return AA->isNoAlias(MemoryLocation(V1, End1, Load->getAAInfo()),
+                       MemoryLocation(V2, End2, Store->getAAInfo()));
 }
 
 bool SystemZDAGToDAGISel::storeLoadCanUseMVC(SDNode *N) const {
@@ -1448,7 +1459,48 @@ bool SystemZDAGToDAGISel::storeLoadCanUseBlockBinary(SDNode *N,
   auto *StoreA = cast<StoreSDNode>(N);
   auto *LoadA = cast<LoadSDNode>(StoreA->getValue().getOperand(1 - I));
   auto *LoadB = cast<LoadSDNode>(StoreA->getValue().getOperand(I));
-  return !LoadA->isVolatile() && canUseBlockOperation(StoreA, LoadB);
+  return !LoadA->isVolatile() && LoadA->getMemoryVT() == LoadB->getMemoryVT() &&
+         canUseBlockOperation(StoreA, LoadB);
+}
+
+bool SystemZDAGToDAGISel::storeLoadIsAligned(SDNode *N) const {
+
+  auto *MemAccess = cast<LSBaseSDNode>(N);
+  TypeSize StoreSize = MemAccess->getMemoryVT().getStoreSize();
+  SDValue BasePtr = MemAccess->getBasePtr();
+  MachineMemOperand *MMO = MemAccess->getMemOperand();
+  assert(MMO && "Expected a memory operand.");
+
+  // The memory access must have a proper alignment and no index register.
+  if (MemAccess->getAlignment() < StoreSize ||
+      !MemAccess->getOffset().isUndef())
+    return false;
+
+  // The MMO must not have an unaligned offset.
+  if (MMO->getOffset() % StoreSize != 0)
+    return false;
+
+  // An access to GOT or the Constant Pool is aligned.
+  if (const PseudoSourceValue *PSV = MMO->getPseudoValue())
+    if ((PSV->isGOT() || PSV->isConstantPool()))
+      return true;
+
+  // Check the alignment of a Global Address.
+  if (BasePtr.getNumOperands())
+    if (GlobalAddressSDNode *GA =
+        dyn_cast<GlobalAddressSDNode>(BasePtr.getOperand(0))) {
+      // The immediate offset must be aligned.
+      if (GA->getOffset() % StoreSize != 0)
+        return false;
+
+      // The alignment of the symbol itself must be at least the store size.
+      const GlobalValue *GV = GA->getGlobal();
+      const DataLayout &DL = GV->getParent()->getDataLayout();
+      if (GV->getPointerAlignment(DL).value() < StoreSize)
+        return false;
+    }
+
+  return true;
 }
 
 void SystemZDAGToDAGISel::Select(SDNode *Node) {
@@ -1480,6 +1532,24 @@ void SystemZDAGToDAGISel::Select(SDNode *Node) {
         Node->getOperand(0).getOpcode() != ISD::Constant)
       if (auto *Op1 = dyn_cast<ConstantSDNode>(Node->getOperand(1))) {
         uint64_t Val = Op1->getZExtValue();
+        // Don't split the operation if we can match one of the combined
+        // logical operations provided by miscellaneous-extensions-3.
+        if (Subtarget->hasMiscellaneousExtensions3()) {
+          unsigned ChildOpcode = Node->getOperand(0).getOpcode();
+          // Check whether this expression matches NAND/NOR/NXOR.
+          if (Val == (uint64_t)-1 && Opcode == ISD::XOR)
+            if (ChildOpcode == ISD::AND || ChildOpcode == ISD::OR ||
+                ChildOpcode == ISD::XOR)
+              break;
+          // Check whether this expression matches OR-with-complement
+          // (or matches an alternate pattern for NXOR).
+          if (ChildOpcode == ISD::XOR) {
+            auto Op0 = Node->getOperand(0);
+            if (auto *Op0Op1 = dyn_cast<ConstantSDNode>(Op0->getOperand(1)))
+              if (Op0Op1->getZExtValue() == (uint64_t)-1)
+                break;
+          }
+        }
         if (!SystemZ::isImmLF(Val) && !SystemZ::isImmHF(Val)) {
           splitLargeImmediate(Opcode, Node, Node->getOperand(0),
                               Val - uint32_t(Val), uint32_t(Val));
@@ -1533,8 +1603,8 @@ void SystemZDAGToDAGISel::Select(SDNode *Node) {
       uint64_t ConstCCMask =
         cast<ConstantSDNode>(CCMask.getNode())->getZExtValue();
       // Invert the condition.
-      CCMask = CurDAG->getConstant(ConstCCValid ^ ConstCCMask, SDLoc(Node),
-                                   CCMask.getValueType());
+      CCMask = CurDAG->getTargetConstant(ConstCCValid ^ ConstCCMask,
+                                         SDLoc(Node), CCMask.getValueType());
       SDValue Op4 = Node->getOperand(4);
       SDNode *UpdatedNode =
         CurDAG->UpdateNodeOperands(Node, Op1, Op0, CCValid, CCMask, Op4);

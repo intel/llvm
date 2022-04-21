@@ -1,13 +1,13 @@
 // RUN: %clang_cc1 -triple sparcv9-unknown-unknown -emit-llvm %s -o - | FileCheck %s
 static unsigned char dwarf_reg_size_table[102+1];
 
-int test() {
+int test(void) {
   __builtin_init_dwarf_reg_size_table(dwarf_reg_size_table);
 
   return __builtin_dwarf_sp_column();
 }
 
-// CHECK-LABEL: define signext i32 @test()
+// CHECK-LABEL: define{{.*}} signext i32 @test()
 // CHECK:       store i8 8, i8* getelementptr inbounds ([103 x i8], [103 x i8]* @dwarf_reg_size_table, i64 0, i64 0)
 // CHECK-NEXT:  store i8 8, i8* getelementptr inbounds ([103 x i8], [103 x i8]* @dwarf_reg_size_table, i64 0, i64 1)
 // CHECK-NEXT:  store i8 8, i8* getelementptr inbounds ([103 x i8], [103 x i8]* @dwarf_reg_size_table, i64 0, i64 2)

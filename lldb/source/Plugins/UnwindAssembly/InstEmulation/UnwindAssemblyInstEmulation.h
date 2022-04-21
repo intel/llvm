@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_UnwindAssemblyInstEmulation_h_
-#define liblldb_UnwindAssemblyInstEmulation_h_
+#ifndef LLDB_SOURCE_PLUGINS_UNWINDASSEMBLY_INSTEMULATION_UNWINDASSEMBLYINSTEMULATION_H
+#define LLDB_SOURCE_PLUGINS_UNWINDASSEMBLY_INSTEMULATION_UNWINDASSEMBLYINSTEMULATION_H
 
 #include "lldb/Core/EmulateInstruction.h"
 #include "lldb/Symbol/UnwindPlan.h"
@@ -52,20 +52,18 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "inst-emulation"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
 private:
   // Call CreateInstance to get an instance of this class
   UnwindAssemblyInstEmulation(const lldb_private::ArchSpec &arch,
                               lldb_private::EmulateInstruction *inst_emulator)
       : UnwindAssembly(arch), m_inst_emulator_up(inst_emulator),
-        m_range_ptr(NULL), m_unwind_plan_ptr(NULL), m_curr_row(),
+        m_range_ptr(nullptr), m_unwind_plan_ptr(nullptr), m_curr_row(),
         m_cfa_reg_info(), m_fp_is_cfa(false), m_register_values(),
         m_pushed_regs(), m_curr_row_modified(false),
         m_forward_branch_offset(0) {
@@ -151,4 +149,4 @@ private:
   uint32_t m_forward_branch_offset;
 };
 
-#endif // liblldb_UnwindAssemblyInstEmulation_h_
+#endif // LLDB_SOURCE_PLUGINS_UNWINDASSEMBLY_INSTEMULATION_UNWINDASSEMBLYINSTEMULATION_H

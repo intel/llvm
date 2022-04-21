@@ -24,7 +24,7 @@ using namespace llvm;
 template <typename T>
 static const T *Find(StringRef S, ArrayRef<T> A) {
   // Binary search the array
-  auto F = std::lower_bound(A.begin(), A.end(), S);
+  auto F = llvm::lower_bound(A, S);
   // If not found then return NULL
   if (F == A.end() || StringRef(F->Key) != S) return nullptr;
   // Return the found array item
@@ -92,9 +92,16 @@ static size_t getLongestEntryLength(ArrayRef<T> Table) {
   return MaxLen;
 }
 
-/// Display help for feature choices.
+/// Display help for feature and mcpu choices.
 static void Help(ArrayRef<SubtargetSubTypeKV> CPUTable,
                  ArrayRef<SubtargetFeatureKV> FeatTable) {
+  // the static variable ensures that the help information only gets
+  // printed once even though a target machine creates multiple subtargets
+  static bool PrintOnce = false;
+  if (PrintOnce) {
+    return;
+  }
+
   // Determine the length of the longest CPU and Feature entries.
   unsigned MaxCPULen  = getLongestEntryLength(CPUTable);
   unsigned MaxFeatLen = getLongestEntryLength(FeatTable);
@@ -114,9 +121,33 @@ static void Help(ArrayRef<SubtargetSubTypeKV> CPUTable,
 
   errs() << "Use +feature to enable a feature, or -feature to disable it.\n"
             "For example, llc -mcpu=mycpu -mattr=+feature1,-feature2\n";
+
+  PrintOnce = true;
 }
 
-static FeatureBitset getFeatures(StringRef CPU, StringRef FS,
+/// Display help for mcpu choices only
+static void cpuHelp(ArrayRef<SubtargetSubTypeKV> CPUTable) {
+  // the static variable ensures that the help information only gets
+  // printed once even though a target machine creates multiple subtargets
+  static bool PrintOnce = false;
+  if (PrintOnce) {
+    return;
+  }
+
+  // Print the CPU table.
+  errs() << "Available CPUs for this target:\n\n";
+  for (auto &CPU : CPUTable)
+    errs() << "\t" << CPU.Key << "\n";
+  errs() << '\n';
+
+  errs() << "Use -mcpu or -mtune to specify the target's processor.\n"
+            "For example, clang --target=aarch64-unknown-linux-gui "
+            "-mcpu=cortex-a35\n";
+
+  PrintOnce = true;
+}
+
+static FeatureBitset getFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS,
                                  ArrayRef<SubtargetSubTypeKV> ProcDesc,
                                  ArrayRef<SubtargetFeatureKV> ProcFeatures) {
   SubtargetFeatures Features(FS);
@@ -124,10 +155,8 @@ static FeatureBitset getFeatures(StringRef CPU, StringRef FS,
   if (ProcDesc.empty() || ProcFeatures.empty())
     return FeatureBitset();
 
-  assert(std::is_sorted(std::begin(ProcDesc), std::end(ProcDesc)) &&
-         "CPU table is not sorted");
-  assert(std::is_sorted(std::begin(ProcFeatures), std::end(ProcFeatures)) &&
-         "CPU features table is not sorted");
+  assert(llvm::is_sorted(ProcDesc) && "CPU table is not sorted");
+  assert(llvm::is_sorted(ProcFeatures) && "CPU features table is not sorted");
   // Resulting bits
   FeatureBitset Bits;
 
@@ -149,11 +178,26 @@ static FeatureBitset getFeatures(StringRef CPU, StringRef FS,
     }
   }
 
+  if (!TuneCPU.empty()) {
+    const SubtargetSubTypeKV *CPUEntry = Find(TuneCPU, ProcDesc);
+
+    // If there is a match
+    if (CPUEntry) {
+      // Set the features implied by this CPU feature, if any.
+      SetImpliedBits(Bits, CPUEntry->TuneImplies.getAsBitset(), ProcFeatures);
+    } else if (TuneCPU != CPU) {
+      errs() << "'" << TuneCPU << "' is not a recognized processor for this "
+             << "target (ignoring processor)\n";
+    }
+  }
+
   // Iterate through each feature
   for (const std::string &Feature : Features.getFeatures()) {
     // Check for help
     if (Feature == "+help")
       Help(ProcDesc, ProcFeatures);
+    else if (Feature == "+cpuhelp")
+      cpuHelp(ProcDesc);
     else
       ApplyFeatureFlag(Bits, Feature, ProcFeatures);
   }
@@ -161,28 +205,36 @@ static FeatureBitset getFeatures(StringRef CPU, StringRef FS,
   return Bits;
 }
 
-void MCSubtargetInfo::InitMCProcessorInfo(StringRef CPU, StringRef FS) {
-  FeatureBits = getFeatures(CPU, FS, ProcDesc, ProcFeatures);
-  if (!CPU.empty())
-    CPUSchedModel = &getSchedModelForCPU(CPU);
+void MCSubtargetInfo::InitMCProcessorInfo(StringRef CPU, StringRef TuneCPU,
+                                          StringRef FS) {
+  FeatureBits = getFeatures(CPU, TuneCPU, FS, ProcDesc, ProcFeatures);
+  FeatureString = std::string(FS);
+
+  if (!TuneCPU.empty())
+    CPUSchedModel = &getSchedModelForCPU(TuneCPU);
   else
     CPUSchedModel = &MCSchedModel::GetDefaultSchedModel();
 }
 
-void MCSubtargetInfo::setDefaultFeatures(StringRef CPU, StringRef FS) {
-  FeatureBits = getFeatures(CPU, FS, ProcDesc, ProcFeatures);
+void MCSubtargetInfo::setDefaultFeatures(StringRef CPU, StringRef TuneCPU,
+                                         StringRef FS) {
+  FeatureBits = getFeatures(CPU, TuneCPU, FS, ProcDesc, ProcFeatures);
+  FeatureString = std::string(FS);
 }
 
-MCSubtargetInfo::MCSubtargetInfo(
-    const Triple &TT, StringRef C, StringRef FS,
-    ArrayRef<SubtargetFeatureKV> PF, ArrayRef<SubtargetSubTypeKV> PD,
-    const MCWriteProcResEntry *WPR,
-    const MCWriteLatencyEntry *WL, const MCReadAdvanceEntry *RA,
-    const InstrStage *IS, const unsigned *OC, const unsigned *FP)
-    : TargetTriple(TT), CPU(C), ProcFeatures(PF), ProcDesc(PD),
-      WriteProcResTable(WPR), WriteLatencyTable(WL),
-      ReadAdvanceTable(RA), Stages(IS), OperandCycles(OC), ForwardingPaths(FP) {
-  InitMCProcessorInfo(CPU, FS);
+MCSubtargetInfo::MCSubtargetInfo(const Triple &TT, StringRef C, StringRef TC,
+                                 StringRef FS, ArrayRef<SubtargetFeatureKV> PF,
+                                 ArrayRef<SubtargetSubTypeKV> PD,
+                                 const MCWriteProcResEntry *WPR,
+                                 const MCWriteLatencyEntry *WL,
+                                 const MCReadAdvanceEntry *RA,
+                                 const InstrStage *IS, const unsigned *OC,
+                                 const unsigned *FP)
+    : TargetTriple(TT), CPU(std::string(C)), TuneCPU(std::string(TC)),
+      ProcFeatures(PF), ProcDesc(PD), WriteProcResTable(WPR),
+      WriteLatencyTable(WL), ReadAdvanceTable(RA), Stages(IS),
+      OperandCycles(OC), ForwardingPaths(FP) {
+  InitMCProcessorInfo(CPU, TuneCPU, FS);
 }
 
 FeatureBitset MCSubtargetInfo::ToggleFeature(uint64_t FB) {
@@ -192,6 +244,23 @@ FeatureBitset MCSubtargetInfo::ToggleFeature(uint64_t FB) {
 
 FeatureBitset MCSubtargetInfo::ToggleFeature(const FeatureBitset &FB) {
   FeatureBits ^= FB;
+  return FeatureBits;
+}
+
+FeatureBitset MCSubtargetInfo::SetFeatureBitsTransitively(
+  const FeatureBitset &FB) {
+  SetImpliedBits(FeatureBits, FB, ProcFeatures);
+  return FeatureBits;
+}
+
+FeatureBitset MCSubtargetInfo::ClearFeatureBitsTransitively(
+  const FeatureBitset &FB) {
+  for (unsigned I = 0, E = FB.size(); I < E; I++) {
+    if (FB[I]) {
+      FeatureBits.reset(I);
+      ClearImpliedBits(FeatureBits, I, ProcFeatures);
+    }
+  }
   return FeatureBits;
 }
 
@@ -238,7 +307,7 @@ bool MCSubtargetInfo::checkFeatures(StringRef FS) const {
 }
 
 const MCSchedModel &MCSubtargetInfo::getSchedModelForCPU(StringRef CPU) const {
-  assert(std::is_sorted(ProcDesc.begin(), ProcDesc.end()) &&
+  assert(llvm::is_sorted(ProcDesc) &&
          "Processor machine model table is not sorted");
 
   // Find entry
@@ -264,4 +333,36 @@ MCSubtargetInfo::getInstrItineraryForCPU(StringRef CPU) const {
 void MCSubtargetInfo::initInstrItins(InstrItineraryData &InstrItins) const {
   InstrItins = InstrItineraryData(getSchedModel(), Stages, OperandCycles,
                                   ForwardingPaths);
+}
+
+Optional<unsigned> MCSubtargetInfo::getCacheSize(unsigned Level) const {
+  return Optional<unsigned>();
+}
+
+Optional<unsigned>
+MCSubtargetInfo::getCacheAssociativity(unsigned Level) const {
+  return Optional<unsigned>();
+}
+
+Optional<unsigned> MCSubtargetInfo::getCacheLineSize(unsigned Level) const {
+  return Optional<unsigned>();
+}
+
+unsigned MCSubtargetInfo::getPrefetchDistance() const {
+  return 0;
+}
+
+unsigned MCSubtargetInfo::getMaxPrefetchIterationsAhead() const {
+  return UINT_MAX;
+}
+
+bool MCSubtargetInfo::enableWritePrefetching() const {
+  return false;
+}
+
+unsigned MCSubtargetInfo::getMinPrefetchStride(unsigned NumMemAccesses,
+                                               unsigned NumStridedMemAccesses,
+                                               unsigned NumPrefetches,
+                                               bool HasCall) const {
+  return 1;
 }

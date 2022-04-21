@@ -12,9 +12,13 @@
 
 // wstring_convert(Codecvt* pcvt, state_type state);
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <codecvt>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

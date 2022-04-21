@@ -1,20 +1,19 @@
 //===------------- JITLink.cpp - Core Run-time JIT linker APIs ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/ExecutionEngine/JITLink/ELF.h"
 #include "llvm/ExecutionEngine/JITLink/MachO.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -51,210 +50,379 @@ namespace jitlink {
 
 char JITLinkError::ID = 0;
 
-void JITLinkError::log(raw_ostream &OS) const { OS << ErrMsg << "\n"; }
+void JITLinkError::log(raw_ostream &OS) const { OS << ErrMsg; }
 
 std::error_code JITLinkError::convertToErrorCode() const {
   return std::error_code(GenericJITLinkError, *JITLinkerErrorCategory);
 }
 
-JITLinkMemoryManager::~JITLinkMemoryManager() = default;
-
-JITLinkMemoryManager::Allocation::~Allocation() = default;
-
-const StringRef getGenericEdgeKindName(Edge::Kind K) {
+const char *getGenericEdgeKindName(Edge::Kind K) {
   switch (K) {
   case Edge::Invalid:
     return "INVALID RELOCATION";
   case Edge::KeepAlive:
     return "Keep-Alive";
-  case Edge::LayoutNext:
-    return "Layout-Next";
   default:
-    llvm_unreachable("Unrecognized relocation kind");
+    return "<Unrecognized edge kind>";
   }
 }
 
-raw_ostream &operator<<(raw_ostream &OS, const Atom &A) {
-  OS << "<";
-  if (A.getName().empty())
-    OS << "anon@" << format("0x%016" PRIx64, A.getAddress());
-  else
-    OS << A.getName();
-  OS << " [";
-  if (A.isDefined()) {
-    auto &DA = static_cast<const DefinedAtom &>(A);
-    OS << " section=" << DA.getSection().getName();
-    if (DA.isLive())
-      OS << " live";
-    if (DA.shouldDiscard())
-      OS << " should-discard";
-  } else
-    OS << " external";
-  OS << " ]>";
+const char *getLinkageName(Linkage L) {
+  switch (L) {
+  case Linkage::Strong:
+    return "strong";
+  case Linkage::Weak:
+    return "weak";
+  }
+  llvm_unreachable("Unrecognized llvm.jitlink.Linkage enum");
+}
+
+const char *getScopeName(Scope S) {
+  switch (S) {
+  case Scope::Default:
+    return "default";
+  case Scope::Hidden:
+    return "hidden";
+  case Scope::Local:
+    return "local";
+  }
+  llvm_unreachable("Unrecognized llvm.jitlink.Scope enum");
+}
+
+raw_ostream &operator<<(raw_ostream &OS, const Block &B) {
+  return OS << B.getAddress() << " -- " << (B.getAddress() + B.getSize())
+            << ": "
+            << "size = " << formatv("{0:x8}", B.getSize()) << ", "
+            << (B.isZeroFill() ? "zero-fill" : "content")
+            << ", align = " << B.getAlignment()
+            << ", align-ofs = " << B.getAlignmentOffset()
+            << ", section = " << B.getSection().getName();
+}
+
+raw_ostream &operator<<(raw_ostream &OS, const Symbol &Sym) {
+  OS << Sym.getAddress() << " (" << (Sym.isDefined() ? "block" : "addressable")
+     << " + " << formatv("{0:x8}", Sym.getOffset())
+     << "): size: " << formatv("{0:x8}", Sym.getSize())
+     << ", linkage: " << formatv("{0:6}", getLinkageName(Sym.getLinkage()))
+     << ", scope: " << formatv("{0:8}", getScopeName(Sym.getScope())) << ", "
+     << (Sym.isLive() ? "live" : "dead") << "  -   "
+     << (Sym.hasName() ? Sym.getName() : "<anonymous symbol>");
   return OS;
 }
 
-void printEdge(raw_ostream &OS, const Atom &FixupAtom, const Edge &E,
+void printEdge(raw_ostream &OS, const Block &B, const Edge &E,
                StringRef EdgeKindName) {
-  OS << "edge@" << formatv("{0:x16}", FixupAtom.getAddress() + E.getOffset())
-     << ": " << FixupAtom << " + " << E.getOffset() << " -- " << EdgeKindName
-     << " -> " << E.getTarget() << " + " << E.getAddend();
+  OS << "edge@" << B.getAddress() + E.getOffset() << ": " << B.getAddress()
+     << " + " << formatv("{0:x}", E.getOffset()) << " -- " << EdgeKindName
+     << " -> ";
+
+  auto &TargetSym = E.getTarget();
+  if (TargetSym.hasName())
+    OS << TargetSym.getName();
+  else {
+    auto &TargetBlock = TargetSym.getBlock();
+    auto &TargetSec = TargetBlock.getSection();
+    orc::ExecutorAddr SecAddress(~uint64_t(0));
+    for (auto *B : TargetSec.blocks())
+      if (B->getAddress() < SecAddress)
+        SecAddress = B->getAddress();
+
+    orc::ExecutorAddrDiff SecDelta = TargetSym.getAddress() - SecAddress;
+    OS << TargetSym.getAddress() << " (section " << TargetSec.getName();
+    if (SecDelta)
+      OS << " + " << formatv("{0:x}", SecDelta);
+    OS << " / block " << TargetBlock.getAddress();
+    if (TargetSym.getOffset())
+      OS << " + " << formatv("{0:x}", TargetSym.getOffset());
+    OS << ")";
+  }
+
+  if (E.getAddend() != 0)
+    OS << " + " << E.getAddend();
 }
 
 Section::~Section() {
-  for (auto *DA : DefinedAtoms)
-    DA->~DefinedAtom();
+  for (auto *Sym : Symbols)
+    Sym->~Symbol();
+  for (auto *B : Blocks)
+    B->~Block();
 }
 
-void AtomGraph::dump(raw_ostream &OS,
-                     std::function<StringRef(Edge::Kind)> EdgeKindToName) {
-  if (!EdgeKindToName)
-    EdgeKindToName = [](Edge::Kind K) { return StringRef(); };
+Block &LinkGraph::splitBlock(Block &B, size_t SplitIndex,
+                             SplitBlockCache *Cache) {
 
-  OS << "Defined atoms:\n";
-  for (auto *DA : defined_atoms()) {
-    OS << "  " << format("0x%016" PRIx64, DA->getAddress()) << ": " << *DA
-       << "\n";
-    for (auto &E : DA->edges()) {
-      OS << "    ";
-      StringRef EdgeName = (E.getKind() < Edge::FirstRelocation
-                                ? getGenericEdgeKindName(E.getKind())
-                                : EdgeKindToName(E.getKind()));
+  assert(SplitIndex > 0 && "splitBlock can not be called with SplitIndex == 0");
 
-      if (!EdgeName.empty())
-        printEdge(OS, *DA, E, EdgeName);
-      else {
-        auto EdgeNumberString = std::to_string(E.getKind());
-        printEdge(OS, *DA, E, EdgeNumberString);
+  // If the split point covers all of B then just return B.
+  if (SplitIndex == B.getSize())
+    return B;
+
+  assert(SplitIndex < B.getSize() && "SplitIndex out of range");
+
+  // Create the new block covering [ 0, SplitIndex ).
+  auto &NewBlock =
+      B.isZeroFill()
+          ? createZeroFillBlock(B.getSection(), SplitIndex, B.getAddress(),
+                                B.getAlignment(), B.getAlignmentOffset())
+          : createContentBlock(
+                B.getSection(), B.getContent().slice(0, SplitIndex),
+                B.getAddress(), B.getAlignment(), B.getAlignmentOffset());
+
+  // Modify B to cover [ SplitIndex, B.size() ).
+  B.setAddress(B.getAddress() + SplitIndex);
+  B.setContent(B.getContent().slice(SplitIndex));
+  B.setAlignmentOffset((B.getAlignmentOffset() + SplitIndex) %
+                       B.getAlignment());
+
+  // Handle edge transfer/update.
+  {
+    // Copy edges to NewBlock (recording their iterators so that we can remove
+    // them from B), and update of Edges remaining on B.
+    std::vector<Block::edge_iterator> EdgesToRemove;
+    for (auto I = B.edges().begin(); I != B.edges().end();) {
+      if (I->getOffset() < SplitIndex) {
+        NewBlock.addEdge(*I);
+        I = B.removeEdge(I);
+      } else {
+        I->setOffset(I->getOffset() - SplitIndex);
+        ++I;
       }
+    }
+  }
+
+  // Handle symbol transfer/update.
+  {
+    // Initialize the symbols cache if necessary.
+    SplitBlockCache LocalBlockSymbolsCache;
+    if (!Cache)
+      Cache = &LocalBlockSymbolsCache;
+    if (*Cache == None) {
+      *Cache = SplitBlockCache::value_type();
+      for (auto *Sym : B.getSection().symbols())
+        if (&Sym->getBlock() == &B)
+          (*Cache)->push_back(Sym);
+
+      llvm::sort(**Cache, [](const Symbol *LHS, const Symbol *RHS) {
+        return LHS->getOffset() > RHS->getOffset();
+      });
+    }
+    auto &BlockSymbols = **Cache;
+
+    // Transfer all symbols with offset less than SplitIndex to NewBlock.
+    while (!BlockSymbols.empty() &&
+           BlockSymbols.back()->getOffset() < SplitIndex) {
+      auto *Sym = BlockSymbols.back();
+      // If the symbol extends beyond the split, update the size to be within
+      // the new block.
+      if (Sym->getOffset() + Sym->getSize() > SplitIndex)
+        Sym->setSize(SplitIndex - Sym->getOffset());
+      Sym->setBlock(NewBlock);
+      BlockSymbols.pop_back();
+    }
+
+    // Update offsets for all remaining symbols in B.
+    for (auto *Sym : BlockSymbols)
+      Sym->setOffset(Sym->getOffset() - SplitIndex);
+  }
+
+  return NewBlock;
+}
+
+void LinkGraph::dump(raw_ostream &OS) {
+  DenseMap<Block *, std::vector<Symbol *>> BlockSymbols;
+
+  // Map from blocks to the symbols pointing at them.
+  for (auto *Sym : defined_symbols())
+    BlockSymbols[&Sym->getBlock()].push_back(Sym);
+
+  // For each block, sort its symbols by something approximating
+  // relevance.
+  for (auto &KV : BlockSymbols)
+    llvm::sort(KV.second, [](const Symbol *LHS, const Symbol *RHS) {
+      if (LHS->getOffset() != RHS->getOffset())
+        return LHS->getOffset() < RHS->getOffset();
+      if (LHS->getLinkage() != RHS->getLinkage())
+        return LHS->getLinkage() < RHS->getLinkage();
+      if (LHS->getScope() != RHS->getScope())
+        return LHS->getScope() < RHS->getScope();
+      if (LHS->hasName()) {
+        if (!RHS->hasName())
+          return true;
+        return LHS->getName() < RHS->getName();
+      }
+      return false;
+    });
+
+  for (auto &Sec : sections()) {
+    OS << "section " << Sec.getName() << ":\n\n";
+
+    std::vector<Block *> SortedBlocks;
+    llvm::copy(Sec.blocks(), std::back_inserter(SortedBlocks));
+    llvm::sort(SortedBlocks, [](const Block *LHS, const Block *RHS) {
+      return LHS->getAddress() < RHS->getAddress();
+    });
+
+    for (auto *B : SortedBlocks) {
+      OS << "  block " << B->getAddress()
+         << " size = " << formatv("{0:x8}", B->getSize())
+         << ", align = " << B->getAlignment()
+         << ", alignment-offset = " << B->getAlignmentOffset();
+      if (B->isZeroFill())
+        OS << ", zero-fill";
+      OS << "\n";
+
+      auto BlockSymsI = BlockSymbols.find(B);
+      if (BlockSymsI != BlockSymbols.end()) {
+        OS << "    symbols:\n";
+        auto &Syms = BlockSymsI->second;
+        for (auto *Sym : Syms)
+          OS << "      " << *Sym << "\n";
+      } else
+        OS << "    no symbols\n";
+
+      if (!B->edges_empty()) {
+        OS << "    edges:\n";
+        std::vector<Edge> SortedEdges;
+        llvm::copy(B->edges(), std::back_inserter(SortedEdges));
+        llvm::sort(SortedEdges, [](const Edge &LHS, const Edge &RHS) {
+          return LHS.getOffset() < RHS.getOffset();
+        });
+        for (auto &E : SortedEdges) {
+          OS << "      " << B->getFixupAddress(E) << " (block + "
+             << formatv("{0:x8}", E.getOffset()) << "), addend = ";
+          if (E.getAddend() >= 0)
+            OS << formatv("+{0:x8}", E.getAddend());
+          else
+            OS << formatv("-{0:x8}", -E.getAddend());
+          OS << ", kind = " << getEdgeKindName(E.getKind()) << ", target = ";
+          if (E.getTarget().hasName())
+            OS << E.getTarget().getName();
+          else
+            OS << "addressable@"
+               << formatv("{0:x16}", E.getTarget().getAddress()) << "+"
+               << formatv("{0:x8}", E.getTarget().getOffset());
+          OS << "\n";
+        }
+      } else
+        OS << "    no edges\n";
       OS << "\n";
     }
   }
 
-  OS << "Absolute atoms:\n";
-  for (auto *A : absolute_atoms())
-    OS << "  " << format("0x%016" PRIx64, A->getAddress()) << ": " << *A
-       << "\n";
+  OS << "Absolute symbols:\n";
+  if (!llvm::empty(absolute_symbols())) {
+    for (auto *Sym : absolute_symbols())
+      OS << "  " << Sym->getAddress() << ": " << *Sym << "\n";
+  } else
+    OS << "  none\n";
 
-  OS << "External atoms:\n";
-  for (auto *A : external_atoms())
-    OS << "  " << format("0x%016" PRIx64, A->getAddress()) << ": " << *A
-       << "\n";
+  OS << "\nExternal symbols:\n";
+  if (!llvm::empty(external_symbols())) {
+    for (auto *Sym : external_symbols())
+      OS << "  " << Sym->getAddress() << ": " << *Sym << "\n";
+  } else
+    OS << "  none\n";
 }
 
-Expected<std::unique_ptr<JITLinkMemoryManager::Allocation>>
-InProcessMemoryManager::allocate(const SegmentsRequestMap &Request) {
-
-  using AllocationMap = DenseMap<unsigned, sys::MemoryBlock>;
-
-  // Local class for allocation.
-  class IPMMAlloc : public Allocation {
-  public:
-    IPMMAlloc(AllocationMap SegBlocks) : SegBlocks(std::move(SegBlocks)) {}
-    MutableArrayRef<char> getWorkingMemory(ProtectionFlags Seg) override {
-      assert(SegBlocks.count(Seg) && "No allocation for segment");
-      return {static_cast<char *>(SegBlocks[Seg].base()),
-              SegBlocks[Seg].allocatedSize()};
-    }
-    JITTargetAddress getTargetMemory(ProtectionFlags Seg) override {
-      assert(SegBlocks.count(Seg) && "No allocation for segment");
-      return reinterpret_cast<JITTargetAddress>(SegBlocks[Seg].base());
-    }
-    void finalizeAsync(FinalizeContinuation OnFinalize) override {
-      OnFinalize(applyProtections());
-    }
-    Error deallocate() override {
-      for (auto &KV : SegBlocks)
-        if (auto EC = sys::Memory::releaseMappedMemory(KV.second))
-          return errorCodeToError(EC);
-      return Error::success();
-    }
-
-  private:
-    Error applyProtections() {
-      for (auto &KV : SegBlocks) {
-        auto &Prot = KV.first;
-        auto &Block = KV.second;
-        if (auto EC = sys::Memory::protectMappedMemory(Block, Prot))
-          return errorCodeToError(EC);
-        if (Prot & sys::Memory::MF_EXEC)
-          sys::Memory::InvalidateInstructionCache(Block.base(),
-                                                  Block.allocatedSize());
-      }
-      return Error::success();
-    }
-
-    AllocationMap SegBlocks;
-  };
-
-  AllocationMap Blocks;
-  const sys::Memory::ProtectionFlags ReadWrite =
-      static_cast<sys::Memory::ProtectionFlags>(sys::Memory::MF_READ |
-                                                sys::Memory::MF_WRITE);
-
-  for (auto &KV : Request) {
-    auto &Seg = KV.second;
-
-    if (Seg.getContentAlignment() > sys::Process::getPageSizeEstimate())
-      return make_error<StringError>("Cannot request higher than page "
-                                     "alignment",
-                                     inconvertibleErrorCode());
-
-    if (sys::Process::getPageSizeEstimate() % Seg.getContentAlignment() != 0)
-      return make_error<StringError>("Page size is not a multiple of "
-                                     "alignment",
-                                     inconvertibleErrorCode());
-
-    uint64_t ZeroFillStart =
-        alignTo(Seg.getContentSize(), Seg.getZeroFillAlignment());
-    uint64_t SegmentSize = ZeroFillStart + Seg.getZeroFillSize();
-
-    std::error_code EC;
-    auto SegMem =
-        sys::Memory::allocateMappedMemory(SegmentSize, nullptr, ReadWrite, EC);
-
-    if (EC)
-      return errorCodeToError(EC);
-
-    // Zero out the zero-fill memory.
-    memset(static_cast<char *>(SegMem.base()) + ZeroFillStart, 0,
-           Seg.getZeroFillSize());
-
-    // Record the block for this segment.
-    Blocks[KV.first] = std::move(SegMem);
+raw_ostream &operator<<(raw_ostream &OS, const SymbolLookupFlags &LF) {
+  switch (LF) {
+  case SymbolLookupFlags::RequiredSymbol:
+    return OS << "RequiredSymbol";
+  case SymbolLookupFlags::WeaklyReferencedSymbol:
+    return OS << "WeaklyReferencedSymbol";
   }
-  return std::unique_ptr<InProcessMemoryManager::Allocation>(
-      new IPMMAlloc(std::move(Blocks)));
+  llvm_unreachable("Unrecognized lookup flags");
 }
 
-JITLinkContext::~JITLinkContext() {}
+void JITLinkAsyncLookupContinuation::anchor() {}
+
+JITLinkContext::~JITLinkContext() = default;
 
 bool JITLinkContext::shouldAddDefaultTargetPasses(const Triple &TT) const {
   return true;
 }
 
-AtomGraphPassFunction JITLinkContext::getMarkLivePass(const Triple &TT) const {
-  return AtomGraphPassFunction();
+LinkGraphPassFunction JITLinkContext::getMarkLivePass(const Triple &TT) const {
+  return LinkGraphPassFunction();
 }
 
-Error JITLinkContext::modifyPassConfig(const Triple &TT,
+Error JITLinkContext::modifyPassConfig(LinkGraph &G,
                                        PassConfiguration &Config) {
   return Error::success();
 }
 
-Error markAllAtomsLive(AtomGraph &G) {
-  for (auto *DA : G.defined_atoms())
-    DA->setLive(true);
+Error markAllSymbolsLive(LinkGraph &G) {
+  for (auto *Sym : G.defined_symbols())
+    Sym->setLive(true);
   return Error::success();
 }
 
-void jitLink(std::unique_ptr<JITLinkContext> Ctx) {
-  auto Magic = identify_magic(Ctx->getObjectBuffer().getBuffer());
+Error makeTargetOutOfRangeError(const LinkGraph &G, const Block &B,
+                                const Edge &E) {
+  std::string ErrMsg;
+  {
+    raw_string_ostream ErrStream(ErrMsg);
+    Section &Sec = B.getSection();
+    ErrStream << "In graph " << G.getName() << ", section " << Sec.getName()
+              << ": relocation target ";
+    if (E.getTarget().hasName()) {
+      ErrStream << "\"" << E.getTarget().getName() << "\"";
+    } else
+      ErrStream << E.getTarget().getBlock().getSection().getName() << " + "
+                << formatv("{0:x}", E.getOffset());
+    ErrStream << " at address " << formatv("{0:x}", E.getTarget().getAddress())
+              << " is out of range of " << G.getEdgeKindName(E.getKind())
+              << " fixup at " << formatv("{0:x}", B.getFixupAddress(E)) << " (";
+
+    Symbol *BestSymbolForBlock = nullptr;
+    for (auto *Sym : Sec.symbols())
+      if (&Sym->getBlock() == &B && Sym->hasName() && Sym->getOffset() == 0 &&
+          (!BestSymbolForBlock ||
+           Sym->getScope() < BestSymbolForBlock->getScope() ||
+           Sym->getLinkage() < BestSymbolForBlock->getLinkage()))
+        BestSymbolForBlock = Sym;
+
+    if (BestSymbolForBlock)
+      ErrStream << BestSymbolForBlock->getName() << ", ";
+    else
+      ErrStream << "<anonymous block> @ ";
+
+    ErrStream << formatv("{0:x}", B.getAddress()) << " + "
+              << formatv("{0:x}", E.getOffset()) << ")";
+  }
+  return make_error<JITLinkError>(std::move(ErrMsg));
+}
+
+Error makeAlignmentError(llvm::orc::ExecutorAddr Loc, uint64_t Value, int N,
+                         const Edge &E) {
+  return make_error<JITLinkError>("0x" + llvm::utohexstr(Loc.getValue()) +
+                                  " improper alignment for relocation " +
+                                  formatv("{0:d}", E.getKind()) + ": 0x" +
+                                  llvm::utohexstr(Value) +
+                                  " is not aligned to " + Twine(N) + " bytes");
+}
+
+Expected<std::unique_ptr<LinkGraph>>
+createLinkGraphFromObject(MemoryBufferRef ObjectBuffer) {
+  auto Magic = identify_magic(ObjectBuffer.getBuffer());
   switch (Magic) {
   case file_magic::macho_object:
-    return jitLink_MachO(std::move(Ctx));
+    return createLinkGraphFromMachOObject(ObjectBuffer);
+  case file_magic::elf_relocatable:
+    return createLinkGraphFromELFObject(ObjectBuffer);
   default:
-    Ctx->notifyFailed(make_error<JITLinkError>("Unsupported file format"));
+    return make_error<JITLinkError>("Unsupported file format");
+  };
+}
+
+void link(std::unique_ptr<LinkGraph> G, std::unique_ptr<JITLinkContext> Ctx) {
+  switch (G->getTargetTriple().getObjectFormat()) {
+  case Triple::MachO:
+    return link_MachO(std::move(G), std::move(Ctx));
+  case Triple::ELF:
+    return link_ELF(std::move(G), std::move(Ctx));
+  default:
+    Ctx->notifyFailed(make_error<JITLinkError>("Unsupported object format"));
   };
 }
 

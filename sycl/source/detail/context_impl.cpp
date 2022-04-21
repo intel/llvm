@@ -7,104 +7,221 @@
 // ===--------------------------------------------------------------------=== //
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/detail/context_info.hpp>
+#include <CL/sycl/detail/cuda_definitions.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
+#include <CL/sycl/properties/context_properties.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/context_info.hpp>
+#include <detail/platform_impl.hpp>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-context_impl::context_impl(const device &Device, async_handler AsyncHandler)
-    : m_AsyncHandler(AsyncHandler), m_Devices(1, Device), m_ClContext(nullptr),
-      m_Platform(), m_OpenCLInterop(false), m_HostContext(true) {}
-
-context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
-                           async_handler AsyncHandler)
-    : m_AsyncHandler(AsyncHandler), m_Devices(Devices), m_ClContext(nullptr),
-      m_Platform(), m_OpenCLInterop(true), m_HostContext(false) {
-  m_Platform = m_Devices[0].get_platform();
-  vector_class<cl_device_id> DeviceIds;
-  for (const auto &D : m_Devices) {
-    DeviceIds.push_back(D.get());
-  }
-  cl_int Err;
-  m_ClContext =
-      clCreateContext(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err);
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  CHECK_OCL_CODE(Err);
+context_impl::context_impl(const device &Device, async_handler AsyncHandler,
+                           const property_list &PropList)
+    : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
+      MPlatform(), MPropList(PropList), MHostContext(Device.is_host()),
+      MSupportBufferLocationByDevices(NotChecked) {
+  MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
-    : m_AsyncHandler(AsyncHandler), m_Devices(), m_ClContext(ClContext),
-      m_Platform(), m_OpenCLInterop(true), m_HostContext(false) {
-  vector_class<cl_device_id> DeviceIds;
-  size_t DevicesBuffer = 0;
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  CHECK_OCL_CODE(clGetContextInfo(m_ClContext, CL_CONTEXT_DEVICES, 0, nullptr,
-                                  &DevicesBuffer));
-  DeviceIds.resize(DevicesBuffer / sizeof(cl_device_id));
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  CHECK_OCL_CODE(clGetContextInfo(m_ClContext, CL_CONTEXT_DEVICES,
-                                  DevicesBuffer, &DeviceIds[0], nullptr));
-
-  for (auto Dev : DeviceIds) {
-    m_Devices.emplace_back(Dev);
+context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
+                           async_handler AsyncHandler,
+                           const property_list &PropList)
+    : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
+      MPlatform(), MPropList(PropList), MHostContext(false),
+      MSupportBufferLocationByDevices(NotChecked) {
+  MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
+  std::vector<RT::PiDevice> DeviceIds;
+  for (const auto &D : MDevices) {
+    DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
-  // TODO What if m_Devices if empty? m_Devices[0].get_platform()
-  m_Platform = platform(m_Devices[0].get_platform());
+
+  const auto Backend = getPlugin().getBackend();
+  if (Backend == backend::ext_oneapi_cuda) {
+    const bool UseCUDAPrimaryContext = MPropList.has_property<
+        ext::oneapi::cuda::property::context::use_primary_context>();
+    const pi_context_properties Props[] = {
+        static_cast<pi_context_properties>(
+            __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
+        static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
+
+    getPlugin().call<PiApiKind::piContextCreate>(
+        Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
+  } else {
+    getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
+                                                 DeviceIds.data(), nullptr,
+                                                 nullptr, &MContext);
+  }
+
+  MKernelProgramCache.setContextPtr(this);
+}
+
+context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
+                           const plugin &Plugin)
+    : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
+      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
+
+  std::vector<RT::PiDevice> DeviceIds;
+  size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  CHECK_OCL_CODE(clRetainContext(m_ClContext));
+  Plugin.call<PiApiKind::piContextGetInfo>(
+      MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
+      nullptr);
+  DeviceIds.resize(DevicesNum);
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piContextGetInfo>(MContext, PI_CONTEXT_INFO_DEVICES,
+                                           sizeof(RT::PiDevice) * DevicesNum,
+                                           &DeviceIds[0], nullptr);
+
+  if (!DeviceIds.empty()) {
+    std::shared_ptr<detail::platform_impl> Platform =
+        platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
+    for (RT::PiDevice Dev : DeviceIds) {
+      MDevices.emplace_back(createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(Dev, Platform)));
+    }
+    MPlatform = Platform;
+  }
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  // getPlugin() will be the same as the Plugin passed. This should be taken
+  // care of when creating device object.
+  //
+  // TODO: Move this backend-specific retain of the context to SYCL-2020 style
+  //       make_context<backend::opencl> interop, when that is created.
+  if (getPlugin().getBackend() == cl::sycl::backend::opencl) {
+    getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  }
+  MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
-  if (m_OpenCLInterop) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    CHECK_OCL_CODE(clRetainContext(m_ClContext));
-    return m_ClContext;
+  if (MHostContext) {
+    throw invalid_object_error(
+        "This instance of context doesn't support OpenCL interoperability.",
+        PI_INVALID_CONTEXT);
   }
-  throw invalid_object_error(
-      "This instance of event doesn't support OpenCL interoperability.");
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  return pi::cast<cl_context>(MContext);
 }
 
-bool context_impl::is_host() const { return m_HostContext || !m_OpenCLInterop; }
-platform context_impl::get_platform() const { return m_Platform; }
-vector_class<device> context_impl::get_devices() const { return m_Devices; }
+bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
-  if (m_OpenCLInterop) {
-    // TODO replace CHECK_OCL_CODE_NO_EXC to CHECK_OCL_CODE and
-    // catch an exception and put it to list of asynchronous exceptions
-    CHECK_OCL_CODE_NO_EXC(clReleaseContext(m_ClContext));
+  for (auto LibProg : MCachedLibPrograms) {
+    assert(LibProg.second && "Null program must not be kept in the cache");
+    getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second);
+  }
+  if (!MHostContext) {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    getPlugin().call<PiApiKind::piContextRelease>(MContext);
   }
 }
 
 const async_handler &context_impl::get_async_handler() const {
-  return m_AsyncHandler;
+  return MAsyncHandler;
 }
 
 template <>
 cl_uint context_impl::get_info<info::context::reference_count>() const {
-  if (is_host()) {
+  if (is_host())
     return 0;
-  }
-  return get_context_info_cl<info::context::reference_count>::_(this->get());
+  return get_context_info<info::context::reference_count>::get(
+      this->getHandleRef(), this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
-  return get_platform();
+  if (is_host())
+    return platform();
+  return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
-vector_class<cl::sycl::device>
+std::vector<cl::sycl::device>
 context_impl::get_info<info::context::devices>() const {
-  return get_devices();
+  return MDevices;
+}
+template <>
+std::vector<cl::sycl::memory_order>
+context_impl::get_info<info::context::atomic_memory_order_capabilities>()
+    const {
+  if (is_host())
+    return {cl::sycl::memory_order::relaxed, cl::sycl::memory_order::acquire,
+            cl::sycl::memory_order::release, cl::sycl::memory_order::acq_rel,
+            cl::sycl::memory_order::seq_cst};
+
+  pi_memory_order_capabilities Result;
+  getPlugin().call<PiApiKind::piContextGetInfo>(
+      MContext,
+      pi::cast<pi_context_info>(
+          info::context::atomic_memory_order_capabilities),
+      sizeof(Result), &Result, nullptr);
+  return readMemoryOrderBitfield(Result);
+}
+template <>
+std::vector<cl::sycl::memory_scope>
+context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
+    const {
+  if (is_host())
+    return {cl::sycl::memory_scope::work_item,
+            cl::sycl::memory_scope::sub_group,
+            cl::sycl::memory_scope::work_group, cl::sycl::memory_scope::device,
+            cl::sycl::memory_scope::system};
+
+  pi_memory_scope_capabilities Result;
+  getPlugin().call<PiApiKind::piContextGetInfo>(
+      MContext,
+      pi::cast<pi_context_info>(
+          info::context::atomic_memory_scope_capabilities),
+      sizeof(Result), &Result, nullptr);
+  return readMemoryScopeBitfield(Result);
 }
 
-cl_context &context_impl::getHandleRef() { return m_ClContext; }
+RT::PiContext &context_impl::getHandleRef() { return MContext; }
+const RT::PiContext &context_impl::getHandleRef() const { return MContext; }
+
+KernelProgramCache &context_impl::getKernelProgramCache() const {
+  return MKernelProgramCache;
+}
+
+bool context_impl::hasDevice(
+    std::shared_ptr<detail::device_impl> Device) const {
+  for (auto D : MDevices)
+    if (getSyclObjImpl(D) == Device)
+      return true;
+  return false;
+}
+
+pi_native_handle context_impl::getNative() const {
+  auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piContextRetain>(getHandleRef());
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
+}
+
+bool context_impl::isBufferLocationSupported() const {
+  if (MSupportBufferLocationByDevices != NotChecked)
+    return MSupportBufferLocationByDevices == Supported ? true : false;
+  // Check that devices within context have support of buffer location
+  MSupportBufferLocationByDevices = Supported;
+  for (auto &Device : MDevices) {
+    if (!Device.has_extension("cl_intel_mem_alloc_buffer_location")) {
+      MSupportBufferLocationByDevices = NotSupported;
+      break;
+    }
+  }
+  return MSupportBufferLocationByDevices == Supported ? true : false;
+}
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

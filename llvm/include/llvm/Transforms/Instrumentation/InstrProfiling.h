@@ -10,8 +10,8 @@
 /// pass.
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_INSTRPROFILING_H
-#define LLVM_TRANSFORMS_INSTRPROFILING_H
+#ifndef LLVM_TRANSFORMS_INSTRUMENTATION_INSTRPROFILING_H
+#define LLVM_TRANSFORMS_INSTRUMENTATION_INSTRPROFILING_H
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -19,7 +19,6 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Transforms/Instrumentation.h"
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -39,13 +38,14 @@ public:
       : Options(Options), IsCS(IsCS) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
-  bool run(Module &M, const TargetLibraryInfo &TLI);
+  bool run(Module &M,
+           std::function<const TargetLibraryInfo &(Function &F)> GetTLI);
 
 private:
   InstrProfOptions Options;
   Module *M;
   Triple TT;
-  const TargetLibraryInfo *TLI;
+  std::function<const TargetLibraryInfo &(Function &F)> GetTLI;
   struct PerFunctionProfileData {
     uint32_t NumValueSites[IPVK_Last + 1];
     GlobalVariable *RegionCounters = nullptr;
@@ -56,6 +56,7 @@ private:
     }
   };
   DenseMap<GlobalVariable *, PerFunctionProfileData> ProfileDataMap;
+  std::vector<GlobalValue *> CompilerUsedVars;
   std::vector<GlobalValue *> UsedVars;
   std::vector<GlobalVariable *> ReferencedNames;
   GlobalVariable *NamesVar;
@@ -67,11 +68,6 @@ private:
   // vector of counter load/store pairs to be register promoted.
   std::vector<LoadStorePair> PromotionCandidates;
 
-  // The start value of precise value profile range for memory intrinsic sizes.
-  int64_t MemOPSizeRangeStart;
-  // The end value of precise value profile range for memory intrinsic sizes.
-  int64_t MemOPSizeRangeLast;
-
   int64_t TotalCountersPromoted = 0;
 
   /// Lower instrumentation intrinsics in the function. Returns true if there
@@ -81,26 +77,40 @@ private:
   /// Register-promote counter loads and stores in loops.
   void promoteCounterLoadStores(Function *F);
 
+  /// Returns true if relocating counters at runtime is enabled.
+  bool isRuntimeCounterRelocationEnabled() const;
+
   /// Returns true if profile counter update register promotion is enabled.
   bool isCounterPromotionEnabled() const;
 
   /// Count the number of instrumented value sites for the function.
   void computeNumValueSiteCounts(InstrProfValueProfileInst *Ins);
 
-  /// Replace instrprof_value_profile with a call to runtime library.
+  /// Replace instrprof.value.profile with a call to runtime library.
   void lowerValueProfileInst(InstrProfValueProfileInst *Ins);
 
-  /// Replace instrprof_increment with an increment of the appropriate value.
+  /// Replace instrprof.cover with a store instruction to the coverage byte.
+  void lowerCover(InstrProfCoverInst *Inc);
+
+  /// Replace instrprof.increment with an increment of the appropriate value.
   void lowerIncrement(InstrProfIncrementInst *Inc);
 
   /// Force emitting of name vars for unused functions.
   void lowerCoverageData(GlobalVariable *CoverageNamesVar);
 
+  /// Compute the address of the counter value that this profiling instruction
+  /// acts on.
+  Value *getCounterAddress(InstrProfInstBase *I);
+
   /// Get the region counters for an increment, creating them if necessary.
   ///
   /// If the counter array doesn't yet exist, the profile data variables
   /// referring to them will also be created.
-  GlobalVariable *getOrCreateRegionCounters(InstrProfIncrementInst *Inc);
+  GlobalVariable *getOrCreateRegionCounters(InstrProfInstBase *Inc);
+
+  /// Create the region counters.
+  GlobalVariable *createRegionCounters(InstrProfInstBase *Inc, StringRef Name,
+                                       GlobalValue::LinkageTypes Linkage);
 
   /// Emit the section with compressed function names.
   void emitNameData();
@@ -125,4 +135,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_TRANSFORMS_INSTRPROFILING_H
+#endif // LLVM_TRANSFORMS_INSTRUMENTATION_INSTRPROFILING_H

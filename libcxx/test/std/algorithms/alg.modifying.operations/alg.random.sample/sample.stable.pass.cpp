@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <algorithm>
 
@@ -20,6 +20,7 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 // Stable if and only if PopulationIterator meets the requirements of a
@@ -49,8 +50,8 @@ void test_stability(bool expect_stable) {
 }
 
 int main(int, char**) {
-  test_stability<forward_iterator<int *>, output_iterator<int *> >(true);
-  test_stability<input_iterator<int *>, random_access_iterator<int *> >(false);
+  test_stability<forward_iterator<int *>, cpp17_output_iterator<int *> >(true);
+  test_stability<cpp17_input_iterator<int *>, random_access_iterator<int *> >(false);
 
   return 0;
 }

@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,6 +10,8 @@
 // explicitly enabled by _LIBCPP_ENABLE_NODISCARD
 
 #include <__config>
+
+#include "test_macros.h"
 
 _LIBCPP_NODISCARD_EXT int foo() { return 42; }
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -verify -fsyntax-only -ffreestanding
+// RUN: %clang_cc1 %s -Wno-pointer-to-int-cast -verify -fsyntax-only -ffreestanding
 
 #include <stddef.h>
 #include <stdint.h>
@@ -25,7 +25,7 @@ struct union_crash
     };
 };
 
-int test() {
+int test(void) {
   int a[10];
   int b[10] = a; // expected-error {{array initializer must be an initializer list}}
   int +; // expected-error {{expected identifier or '('}}
@@ -38,9 +38,9 @@ int test() {
 struct cdiff_cmd {
           const char *name;
           unsigned short argc;
-          int (*handler)();
+          int (*handler)(void);
 };
-int cdiff_cmd_open();
+int cdiff_cmd_open(void);
 struct cdiff_cmd commands[] = {
         {"OPEN", 1, &cdiff_cmd_open }
 };
@@ -121,6 +121,10 @@ struct foo2 bar2[] = {
 };
 
 struct foo2 bar3 = { 1, 2 }; // expected-warning{{excess elements in struct initializer}}
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexcess-initializers"
+struct foo2 bar3_silent = {1, 2};
+#pragma clang diagnostic pop
 
 int* ptest1 = __builtin_choose_expr(1, (int*)0, (int*)0);
 
@@ -144,14 +148,14 @@ const double pr5447 = (0.05 < -1.0) ? -1.0 : 0.0499878;
 // behaviour of accepting bar and zed but not foo. GCC's behaviour was
 // changed in 2007 (rev 122551), so we should be able to change too one
 // day.
-int PR4386_bar();
-int PR4386_foo() __attribute((weak));
-int PR4386_zed();
+int PR4386_bar(void);
+int PR4386_foo(void) __attribute((weak));
+int PR4386_zed(void);
 
 int PR4386_a = ((void *) PR4386_bar) != 0;
 int PR4386_b = ((void *) PR4386_foo) != 0; // expected-error{{initializer element is not a compile-time constant}}
 int PR4386_c = ((void *) PR4386_zed) != 0;
-int PR4386_zed() __attribute((weak));
+int PR4386_zed(void) __attribute((weak));
 
 // <rdar://problem/10185490> (derived from SPEC vortex benchmark)
 typedef char strty[10];

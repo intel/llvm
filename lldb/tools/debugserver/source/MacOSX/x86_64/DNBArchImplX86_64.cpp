@@ -20,8 +20,8 @@
 #include "MacOSX/x86_64/DNBArchImplX86_64.h"
 #include "MachProcess.h"
 #include "MachThread.h"
+#include <cstdlib>
 #include <mach/mach.h>
-#include <stdlib.h>
 
 #if defined(LLDB_DEBUGSERVER_RELEASE) || defined(LLDB_DEBUGSERVER_DEBUG)
 enum debugState { debugStateUnknown, debugStateOff, debugStateOn };
@@ -679,6 +679,12 @@ uint32_t DNBArchImplX86_64::NumSupportedHardwareWatchpoints() {
   return 4;
 }
 
+uint32_t DNBArchImplX86_64::NumSupportedHardwareBreakpoints() {
+  DNBLogThreadedIf(LOG_BREAKPOINTS,
+                   "DNBArchImplX86_64::NumSupportedHardwareBreakpoints");
+  return 4;
+}
+
 static uint32_t size_and_rw_bits(nub_size_t size, bool read, bool write) {
   uint32_t rw;
   if (read) {
@@ -851,6 +857,153 @@ bool DNBArchImplX86_64::FinishTransForHWP() {
 }
 DNBArchImplX86_64::DBG DNBArchImplX86_64::GetDBGCheckpoint() {
   return m_2pc_dbg_checkpoint;
+}
+
+void DNBArchImplX86_64::SetHardwareBreakpoint(DBG &debug_state,
+                                              uint32_t hw_index,
+                                              nub_addr_t addr,
+                                              nub_size_t size) {
+  // Set both dr7 (debug control register) and dri (debug address register).
+
+  // dr7{7-0} encodes the local/gloabl enable bits:
+  //  global enable --. .-- local enable
+  //                  | |
+  //                  v v
+  //      dr0 -> bits{1-0}
+  //      dr1 -> bits{3-2}
+  //      dr2 -> bits{5-4}
+  //      dr3 -> bits{7-6}
+  //
+  // dr7{31-16} encodes the rw/len bits:
+  //  b_x+3, b_x+2, b_x+1, b_x
+  //      where bits{x+1, x} => rw
+  //            0b00: execute, 0b01: write, 0b11: read-or-write, 0b10: io
+  //            read-or-write (unused)
+  //      and bits{x+3, x+2} => len
+  //            0b00: 1-byte, 0b01: 2-byte, 0b11: 4-byte, 0b10: 8-byte
+  //
+  //      dr0 -> bits{19-16}
+  //      dr1 -> bits{23-20}
+  //      dr2 -> bits{27-24}
+  //      dr3 -> bits{31-28}
+  debug_state.__dr7 |= (1 << (2 * hw_index) | 0 << (16 + 4 * hw_index));
+
+  switch (hw_index) {
+  case 0:
+    debug_state.__dr0 = addr;
+    break;
+  case 1:
+    debug_state.__dr1 = addr;
+    break;
+  case 2:
+    debug_state.__dr2 = addr;
+    break;
+  case 3:
+    debug_state.__dr3 = addr;
+    break;
+  default:
+    assert(0 &&
+           "invalid hardware register index, must be one of 0, 1, 2, or 3");
+  }
+  return;
+}
+
+uint32_t DNBArchImplX86_64::EnableHardwareBreakpoint(nub_addr_t addr,
+                                                     nub_size_t size,
+                                                     bool also_set_on_task) {
+  DNBLogThreadedIf(LOG_BREAKPOINTS,
+                   "DNBArchImplX86_64::EnableHardwareBreakpoint( addr = "
+                   "0x%8.8llx, size = %llu )",
+                   (uint64_t)addr, (uint64_t)size);
+
+  const uint32_t num_hw_breakpoints = NumSupportedHardwareBreakpoints();
+  // Read the debug state
+  kern_return_t kret = GetDBGState(false);
+
+  if (kret != KERN_SUCCESS) {
+    return INVALID_NUB_HW_INDEX;
+  }
+
+  // Check to make sure we have the needed hardware support
+  uint32_t i = 0;
+
+  DBG &debug_state = m_state.context.dbg;
+  for (i = 0; i < num_hw_breakpoints; ++i) {
+    if (IsWatchpointVacant(debug_state, i)) {
+      break;
+    }
+  }
+
+  // See if we found an available hw breakpoint slot above
+  if (i < num_hw_breakpoints) {
+    DNBLogThreadedIf(
+        LOG_BREAKPOINTS,
+        "DNBArchImplX86_64::EnableHardwareBreakpoint( free slot = %u )", i);
+
+    StartTransForHWP();
+
+    // Modify our local copy of the debug state, first.
+    SetHardwareBreakpoint(debug_state, i, addr, size);
+    // Now set the watch point in the inferior.
+    kret = SetDBGState(also_set_on_task);
+
+    DNBLogThreadedIf(LOG_BREAKPOINTS,
+                     "DNBArchImplX86_64::"
+                     "EnableHardwareBreakpoint() "
+                     "SetDBGState() => 0x%8.8x.",
+                     kret);
+
+    if (kret == KERN_SUCCESS) {
+      DNBLogThreadedIf(
+          LOG_BREAKPOINTS,
+          "DNBArchImplX86_64::EnableHardwareBreakpoint( enabled at slot = %u)",
+          i);
+      return i;
+    }
+    // Revert to the previous debug state voluntarily.  The transaction
+    // coordinator knows that we have failed.
+    else {
+      m_state.context.dbg = GetDBGCheckpoint();
+    }
+  } else {
+    DNBLogThreadedIf(LOG_BREAKPOINTS,
+                     "DNBArchImplX86_64::EnableHardwareBreakpoint(addr = "
+                     "0x%8.8llx, size = %llu) => all hardware breakpoint "
+                     "resources are being used.",
+                     (uint64_t)addr, (uint64_t)size);
+  }
+
+  return INVALID_NUB_HW_INDEX;
+}
+
+bool DNBArchImplX86_64::DisableHardwareBreakpoint(uint32_t hw_index,
+                                                  bool also_set_on_task) {
+  kern_return_t kret = GetDBGState(false);
+
+  const uint32_t num_hw_points = NumSupportedHardwareBreakpoints();
+  if (kret == KERN_SUCCESS) {
+    DBG &debug_state = m_state.context.dbg;
+    if (hw_index < num_hw_points &&
+        !IsWatchpointVacant(debug_state, hw_index)) {
+
+      StartTransForHWP();
+
+      // Modify our local copy of the debug state, first.
+      ClearWatchpoint(debug_state, hw_index);
+      // Now disable the watch point in the inferior.
+      kret = SetDBGState(true);
+      DNBLogThreadedIf(LOG_WATCHPOINTS,
+                       "DNBArchImplX86_64::DisableHardwareBreakpoint( %u )",
+                       hw_index);
+
+      if (kret == KERN_SUCCESS)
+        return true;
+      else // Revert to the previous debug state voluntarily.  The transaction
+           // coordinator knows that we have failed.
+        m_state.context.dbg = GetDBGCheckpoint();
+    }
+  }
+  return false;
 }
 
 uint32_t DNBArchImplX86_64::EnableHardwareWatchpoint(nub_addr_t addr,
@@ -1614,28 +1767,28 @@ const DNBRegisterInfo DNBArchImplX86_64::g_fpu_registers_no_avx[] = {
      FPU_SIZE_UINT(mxcsrmask), FPU_OFFSET(mxcsrmask), -1U, -1U, -1U, -1U, NULL,
      NULL},
 
-    {e_regSetFPU, fpu_stmm0, "stmm0", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm0, "stmm0", "st0", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm0), FPU_OFFSET(stmm0), ehframe_dwarf_stmm0,
      ehframe_dwarf_stmm0, -1U, debugserver_stmm0, NULL, NULL},
-    {e_regSetFPU, fpu_stmm1, "stmm1", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm1, "stmm1", "st1", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm1), FPU_OFFSET(stmm1), ehframe_dwarf_stmm1,
      ehframe_dwarf_stmm1, -1U, debugserver_stmm1, NULL, NULL},
-    {e_regSetFPU, fpu_stmm2, "stmm2", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm2, "stmm2", "st2", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm2), FPU_OFFSET(stmm2), ehframe_dwarf_stmm2,
      ehframe_dwarf_stmm2, -1U, debugserver_stmm2, NULL, NULL},
-    {e_regSetFPU, fpu_stmm3, "stmm3", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm3, "stmm3", "st3", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm3), FPU_OFFSET(stmm3), ehframe_dwarf_stmm3,
      ehframe_dwarf_stmm3, -1U, debugserver_stmm3, NULL, NULL},
-    {e_regSetFPU, fpu_stmm4, "stmm4", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm4, "stmm4", "st4", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm4), FPU_OFFSET(stmm4), ehframe_dwarf_stmm4,
      ehframe_dwarf_stmm4, -1U, debugserver_stmm4, NULL, NULL},
-    {e_regSetFPU, fpu_stmm5, "stmm5", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm5, "stmm5", "st5", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm5), FPU_OFFSET(stmm5), ehframe_dwarf_stmm5,
      ehframe_dwarf_stmm5, -1U, debugserver_stmm5, NULL, NULL},
-    {e_regSetFPU, fpu_stmm6, "stmm6", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm6, "stmm6", "st6", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm6), FPU_OFFSET(stmm6), ehframe_dwarf_stmm6,
      ehframe_dwarf_stmm6, -1U, debugserver_stmm6, NULL, NULL},
-    {e_regSetFPU, fpu_stmm7, "stmm7", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm7, "stmm7", "st7", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm7), FPU_OFFSET(stmm7), ehframe_dwarf_stmm7,
      ehframe_dwarf_stmm7, -1U, debugserver_stmm7, NULL, NULL},
 
@@ -1729,28 +1882,28 @@ const DNBRegisterInfo DNBArchImplX86_64::g_fpu_registers_avx[] = {
      FPU_SIZE_UINT(mxcsrmask), AVX_OFFSET(mxcsrmask), -1U, -1U, -1U, -1U, NULL,
      NULL},
 
-    {e_regSetFPU, fpu_stmm0, "stmm0", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm0, "stmm0", "st0", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm0), AVX_OFFSET(stmm0), ehframe_dwarf_stmm0,
      ehframe_dwarf_stmm0, -1U, debugserver_stmm0, NULL, NULL},
-    {e_regSetFPU, fpu_stmm1, "stmm1", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm1, "stmm1", "st1", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm1), AVX_OFFSET(stmm1), ehframe_dwarf_stmm1,
      ehframe_dwarf_stmm1, -1U, debugserver_stmm1, NULL, NULL},
-    {e_regSetFPU, fpu_stmm2, "stmm2", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm2, "stmm2", "st2", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm2), AVX_OFFSET(stmm2), ehframe_dwarf_stmm2,
      ehframe_dwarf_stmm2, -1U, debugserver_stmm2, NULL, NULL},
-    {e_regSetFPU, fpu_stmm3, "stmm3", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm3, "stmm3", "st3", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm3), AVX_OFFSET(stmm3), ehframe_dwarf_stmm3,
      ehframe_dwarf_stmm3, -1U, debugserver_stmm3, NULL, NULL},
-    {e_regSetFPU, fpu_stmm4, "stmm4", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm4, "stmm4", "st4", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm4), AVX_OFFSET(stmm4), ehframe_dwarf_stmm4,
      ehframe_dwarf_stmm4, -1U, debugserver_stmm4, NULL, NULL},
-    {e_regSetFPU, fpu_stmm5, "stmm5", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm5, "stmm5", "st5", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm5), AVX_OFFSET(stmm5), ehframe_dwarf_stmm5,
      ehframe_dwarf_stmm5, -1U, debugserver_stmm5, NULL, NULL},
-    {e_regSetFPU, fpu_stmm6, "stmm6", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm6, "stmm6", "st6", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm6), AVX_OFFSET(stmm6), ehframe_dwarf_stmm6,
      ehframe_dwarf_stmm6, -1U, debugserver_stmm6, NULL, NULL},
-    {e_regSetFPU, fpu_stmm7, "stmm7", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm7, "stmm7", "st7", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm7), AVX_OFFSET(stmm7), ehframe_dwarf_stmm7,
      ehframe_dwarf_stmm7, -1U, debugserver_stmm7, NULL, NULL},
 
@@ -1927,28 +2080,28 @@ const DNBRegisterInfo DNBArchImplX86_64::g_fpu_registers_avx512f[] = {
      FPU_SIZE_UINT(mxcsrmask), AVX_OFFSET(mxcsrmask), -1U, -1U, -1U, -1U, NULL,
      NULL},
 
-    {e_regSetFPU, fpu_stmm0, "stmm0", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm0, "stmm0", "st0", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm0), AVX_OFFSET(stmm0), ehframe_dwarf_stmm0,
      ehframe_dwarf_stmm0, -1U, debugserver_stmm0, NULL, NULL},
-    {e_regSetFPU, fpu_stmm1, "stmm1", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm1, "stmm1", "st1", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm1), AVX_OFFSET(stmm1), ehframe_dwarf_stmm1,
      ehframe_dwarf_stmm1, -1U, debugserver_stmm1, NULL, NULL},
-    {e_regSetFPU, fpu_stmm2, "stmm2", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm2, "stmm2", "st2", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm2), AVX_OFFSET(stmm2), ehframe_dwarf_stmm2,
      ehframe_dwarf_stmm2, -1U, debugserver_stmm2, NULL, NULL},
-    {e_regSetFPU, fpu_stmm3, "stmm3", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm3, "stmm3", "st3", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm3), AVX_OFFSET(stmm3), ehframe_dwarf_stmm3,
      ehframe_dwarf_stmm3, -1U, debugserver_stmm3, NULL, NULL},
-    {e_regSetFPU, fpu_stmm4, "stmm4", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm4, "stmm4", "st4", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm4), AVX_OFFSET(stmm4), ehframe_dwarf_stmm4,
      ehframe_dwarf_stmm4, -1U, debugserver_stmm4, NULL, NULL},
-    {e_regSetFPU, fpu_stmm5, "stmm5", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm5, "stmm5", "st5", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm5), AVX_OFFSET(stmm5), ehframe_dwarf_stmm5,
      ehframe_dwarf_stmm5, -1U, debugserver_stmm5, NULL, NULL},
-    {e_regSetFPU, fpu_stmm6, "stmm6", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm6, "stmm6", "st6", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm6), AVX_OFFSET(stmm6), ehframe_dwarf_stmm6,
      ehframe_dwarf_stmm6, -1U, debugserver_stmm6, NULL, NULL},
-    {e_regSetFPU, fpu_stmm7, "stmm7", NULL, Vector, VectorOfUInt8,
+    {e_regSetFPU, fpu_stmm7, "stmm7", "st7", Vector, VectorOfUInt8,
      FPU_SIZE_MMST(stmm7), AVX_OFFSET(stmm7), ehframe_dwarf_stmm7,
      ehframe_dwarf_stmm7, -1U, debugserver_stmm7, NULL, NULL},
 

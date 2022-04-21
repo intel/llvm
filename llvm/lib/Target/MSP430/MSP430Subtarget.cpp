@@ -12,7 +12,7 @@
 
 #include "MSP430Subtarget.h"
 #include "MSP430.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -43,11 +43,11 @@ MSP430Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
   ExtendedInsts = false;
   HWMultMode = NoHWMult;
 
-  std::string CPUName = CPU;
+  StringRef CPUName = CPU;
   if (CPUName.empty())
     CPUName = "msp430";
 
-  ParseSubtargetFeatures(CPUName, FS);
+  ParseSubtargetFeatures(CPUName, /*TuneCPU*/ CPUName, FS);
 
   if (HWMultModeOption != NoHWMult)
     HWMultMode = HWMultModeOption;
@@ -57,5 +57,5 @@ MSP430Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
 
 MSP430Subtarget::MSP430Subtarget(const Triple &TT, const std::string &CPU,
                                  const std::string &FS, const TargetMachine &TM)
-    : MSP430GenSubtargetInfo(TT, CPU, FS), FrameLowering(),
+    : MSP430GenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS),
       InstrInfo(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this) {}

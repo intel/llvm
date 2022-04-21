@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_OptionValueFileSpecList_h_
-#define liblldb_OptionValueFileSpecList_h_
+#ifndef LLDB_INTERPRETER_OPTIONVALUEFILESPECLIST_H
+#define LLDB_INTERPRETER_OPTIONVALUEFILESPECLIST_H
 
 #include <mutex>
 
@@ -16,14 +16,15 @@
 
 namespace lldb_private {
 
-class OptionValueFileSpecList : public OptionValue {
+class OptionValueFileSpecList
+    : public Cloneable<OptionValueFileSpecList, OptionValue> {
 public:
-  OptionValueFileSpecList() : OptionValue(), m_current_value() {}
+  OptionValueFileSpecList() = default;
 
-  OptionValueFileSpecList(const FileSpecList &current_value)
-      : OptionValue(), m_current_value(current_value) {}
+  OptionValueFileSpecList(const OptionValueFileSpecList &other)
+      : Cloneable(other), m_current_value(other.GetCurrentValue()) {}
 
-  ~OptionValueFileSpecList() override {}
+  ~OptionValueFileSpecList() override = default;
 
   // Virtual subclass pure virtual overrides
 
@@ -35,18 +36,12 @@ public:
   Status
   SetValueFromString(llvm::StringRef value,
                      VarSetOperationType op = eVarSetOperationAssign) override;
-  Status
-  SetValueFromString(const char *,
-                     VarSetOperationType = eVarSetOperationAssign) = delete;
 
-  bool Clear() override {
+  void Clear() override {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     m_current_value.Clear();
     m_value_was_set = false;
-    return true;
   }
-
-  lldb::OptionValueSP DeepCopy() const override;
 
   bool IsAggregateValue() const override { return true; }
 
@@ -68,10 +63,12 @@ public:
   }
 
 protected:
+  lldb::OptionValueSP Clone() const override;
+
   mutable std::recursive_mutex m_mutex;
   FileSpecList m_current_value;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_OptionValueFileSpecList_h_
+#endif // LLDB_INTERPRETER_OPTIONVALUEFILESPECLIST_H

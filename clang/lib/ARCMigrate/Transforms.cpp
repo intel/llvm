@@ -8,6 +8,7 @@
 
 #include "Transforms.h"
 #include "Internals.h"
+#include "clang/ARCMigrate/ARCMT.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/DomainSpecific/CocoaConventions.h"
@@ -94,11 +95,9 @@ bool trans::isPlusOne(const Expr *E) {
           ento::cocoa::isRefType(callE->getType(), "CF",
                                  FD->getIdentifier()->getName())) {
         StringRef fname = FD->getIdentifier()->getName();
-        if (fname.endswith("Retain") ||
-            fname.find("Create") != StringRef::npos ||
-            fname.find("Copy") != StringRef::npos) {
+        if (fname.endswith("Retain") || fname.contains("Create") ||
+            fname.contains("Copy"))
           return true;
-        }
       }
     }
   }
@@ -418,7 +417,7 @@ bool MigrationContext::rewritePropertyAttribute(StringRef fromAttr,
   if (tok.is(tok::r_paren))
     return false;
 
-  while (1) {
+  while (true) {
     if (tok.isNot(tok::raw_identifier)) return false;
     if (tok.getRawIdentifier() == fromAttr) {
       if (!toAttr.empty()) {

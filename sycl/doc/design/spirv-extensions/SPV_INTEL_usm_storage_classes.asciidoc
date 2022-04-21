@@ -1,0 +1,160 @@
+= SPV_INTEL_usm_storage_classes
+
+== Name Strings
+
+SPV_INTEL_usm_storage_classes
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Headers
+
+== Contributors
+
+- Joe Garvey, Intel
+
+== Notice
+
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
+
+== Status
+
+Draft
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | A
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 3.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension introduces two new storage classes that are sub classes of the CrossWorkgroup storage class.  
+Using these more specific storage classes provides additional information that can enable optimization. 
+The extension also introduces two new conversion instructions to enable converting pointers from and to these storage classes.  
+
+== Extension Name
+To use this extension within a SPIR-V module, the following *OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_usm_storage_classes"
+----
+
+== New capabilities
+This extension introduces a new capability:
+
+----
+USMStorageClassesINTEL
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+| OpPtrCastToCrossWorkgroupINTEL | 5934
+| USMStorageClassesINTEL  | 5935
+| DeviceOnlyINTEL | 5936
+| HostOnlyINTEL | 5937
+| OpCrossWorkgroupCastToPtrINTEL | 5938
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.5 Revision 3
+
+=== Storage Class
+
+Modify Section 3.7, Storage Class, adding these rows to the table:
+
+--
+[options="header"]
+|===
+2+^| Storage Class | Enabling Capabilities
+| 5936 | *DeviceOnlyINTEL* +
+A subset of the *CrossWorkgroup* *Storage Class*.  Stored on the device. SYCL device allocations. | *USMStorageClassesINTEL*
+| 5937 | *HostOnlyINTEL* +
+A subset of the *CrossWorkgroup* *Storage Class*.  Stored on the host. SYCL host allocations. | *USMStorageClassesINTEL*
+|===
+--
+
+=== Capability
+
+Modify Section 3.31, Capability, adding a row to the Capability table:
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| 5935 | *USMStorageClassesINTEL* | *Kernel*
+|====
+--
+
+=== Instructions
+
+Modify Section 3.36.11, Conversion Instructions, adding two new instructions as follows:
+
+|===
+3+^| *OpPtrCastToCrossWorkgroupINTEL*
+
+Converts a pointer's Storage Class from a more specific class to *CrossWorkgroup*.
+
+_Result Type_ must be an OpTypePointer.  Its Storage Class must be *CrossWorkgroup*.  
+
+_Pointer_ must point to the *DeviceOnlyINTEL* or *HostOnlyINTEL* Storage Class.  
+
+_Result Type_ and _Pointer_ must point to the same type. 2+^| Capability: +
+*USMStorageClassesINTEL*
+| 4 | 5934 | <id> +
+Result Type | Result <id> | <id> +
+Pointer
+|===
+
+|===
+3+^| *OpCrossWorkgroupCastToPtrINTEL*
+
+Convert a pointer's Storage Class from *CrossWorkgroup* to a more specific class.
+
+_Result Type_ must be an OpTypePointer.  _Result Type_'s Storage Class must be *DeviceOnlyINTEL* or *HostOnlyINTEL*.
+
+_Pointer_ must point to the *CrossWorkgroup* Storage Class.
+
+_Result Type_ and _Pointer_ must point to the same type.  2+^| Capability: +
+*USMStorageClassesINTEL*
+| 4 | 5938 | <id> +
+Result Type | Result <id> | <id> +
+Pointer
+|===
+
+=== Validation Rules
+
+None.
+
+== Issues
+
+None.
+
+//. Issue.
+//+
+//--
+//*RESOLVED*: Resolution.
+//--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2020-06-08|Joe Garvey|*First public draft*
+|B|2020-06-18|Joe Garvey|*Added new conversion instructions*
+|======================================== 

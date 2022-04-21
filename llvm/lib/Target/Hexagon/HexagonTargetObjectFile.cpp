@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "hexagon-sdata"
-
 #include "HexagonTargetObjectFile.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
@@ -22,6 +20,7 @@
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/SectionKind.h"
@@ -30,6 +29,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+
+#define DEBUG_TYPE "hexagon-sdata"
 
 using namespace llvm;
 
@@ -89,9 +90,8 @@ static bool isSmallDataSection(StringRef Sec) {
     return true;
   // If either ".sdata." or ".sbss." is a substring of the section name
   // then put the symbol in small data.
-  return Sec.find(".sdata.") != StringRef::npos ||
-         Sec.find(".sbss.") != StringRef::npos ||
-         Sec.find(".scommon.") != StringRef::npos;
+  return Sec.contains(".sdata.") || Sec.contains(".sbss.") ||
+         Sec.contains(".scommon.");
 }
 
 static const char *getSectionSuffixForSize(unsigned Size) {
@@ -112,7 +112,6 @@ static const char *getSectionSuffixForSize(unsigned Size) {
 void HexagonTargetObjectFile::Initialize(MCContext &Ctx,
       const TargetMachine &TM) {
   TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
 
   SmallDataSection =
     getContext().getELFSection(".sdata", ELF::SHT_PROGBITS,
@@ -178,10 +177,10 @@ MCSection *HexagonTargetObjectFile::getExplicitSectionGlobal(
 
   if (GO->hasSection()) {
     StringRef Section = GO->getSection();
-    if (Section.find(".access.text.group") != StringRef::npos)
+    if (Section.contains(".access.text.group"))
       return getContext().getELFSection(GO->getSection(), ELF::SHT_PROGBITS,
                                         ELF::SHF_ALLOC | ELF::SHF_EXECINSTR);
-    if (Section.find(".access.data.group") != StringRef::npos)
+    if (Section.contains(".access.data.group"))
       return getContext().getELFSection(GO->getSection(), ELF::SHT_PROGBITS,
                                         ELF::SHF_WRITE | ELF::SHF_ALLOC);
   }
@@ -238,10 +237,7 @@ bool HexagonTargetObjectFile::isGlobalInSmallSection(const GlobalObject *GO,
     return false;
   }
 
-  Type *GType = GVar->getType();
-  if (PointerType *PT = dyn_cast<PointerType>(GType))
-    GType = PT->getElementType();
-
+  Type *GType = GVar->getValueType();
   if (isa<ArrayType>(GType)) {
     LLVM_DEBUG(dbgs() << "no, is an array\n");
     return false;
@@ -311,7 +307,8 @@ unsigned HexagonTargetObjectFile::getSmallestAddressableSize(const Type *Ty,
     const ArrayType *ATy = cast<const ArrayType>(Ty);
     return getSmallestAddressableSize(ATy->getElementType(), GV, TM);
   }
-  case Type::VectorTyID: {
+  case Type::FixedVectorTyID:
+  case Type::ScalableVectorTyID: {
     const VectorType *PTy = cast<const VectorType>(Ty);
     return getSmallestAddressableSize(PTy->getElementType(), GV, TM);
   }
@@ -326,12 +323,14 @@ unsigned HexagonTargetObjectFile::getSmallestAddressableSize(const Type *Ty,
   }
   case Type::FunctionTyID:
   case Type::VoidTyID:
+  case Type::BFloatTyID:
   case Type::X86_FP80TyID:
   case Type::FP128TyID:
   case Type::PPC_FP128TyID:
   case Type::LabelTyID:
   case Type::MetadataTyID:
   case Type::X86_MMXTyID:
+  case Type::X86_AMXTyID:
   case Type::TokenTyID:
     return 0;
   }
@@ -341,7 +340,7 @@ unsigned HexagonTargetObjectFile::getSmallestAddressableSize(const Type *Ty,
 
 MCSection *HexagonTargetObjectFile::selectSmallSectionForGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
-  const Type *GTy = GO->getType()->getElementType();
+  const Type *GTy = GO->getValueType();
   unsigned Size = getSmallestAddressableSize(GTy, GO, TM);
 
   // If we have -ffunction-section or -fdata-section then we should emit the

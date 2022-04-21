@@ -5,7 +5,14 @@
 
 # RUN: llvm-objdump -d %t | FileCheck %s --check-prefix=DISASM
 # RUN: llvm-dwarfdump -gdb-index %t | FileCheck %s --check-prefix=DWARF
-# RUN: llvm-readelf -sections %t | FileCheck %s --check-prefix=SECTION
+
+## Drop .debug_gnu_pubnames and .debug_gnu_pubtypes.
+## Also drop their relocation sections if --emit-relocs is specified.
+# RUN: ld.lld --gdb-index --emit-relocs %t1.o %t2.o -o %t1
+# RUN: llvm-readelf --sections %t1 | FileCheck %s --check-prefix=SECTION
+
+# SECTION-NOT: .debug_gnu_pubnames
+# SECTION-NOT: .debug_gnu_pubtypes
 
 # RUN: llvm-mc -compress-debug-sections=zlib-gnu -filetype=obj -triple=x86_64-pc-linux \
 # RUN:   %p/Inputs/gdb-index.s -o %t2.o
@@ -13,16 +20,16 @@
 
 # RUN: llvm-objdump -d %t | FileCheck %s --check-prefix=DISASM
 # RUN: llvm-dwarfdump -gdb-index %t | FileCheck %s --check-prefix=DWARF
-# RUN: llvm-readelf -sections %t | FileCheck %s --check-prefix=SECTION
+# RUN: llvm-readelf -S %t | FileCheck %s --check-prefix=SECTION
 
 # DISASM:       Disassembly of section .text:
 # DISASM-EMPTY:
-# DISASM:       entrypoint:
+# DISASM:       <entrypoint>:
 # DISASM-CHECK:   201000: 90 nop
 # DISASM-CHECK:   201001: cc int3
 # DISASM-CHECK:   201002: cc int3
 # DISASM-CHECK:   201003: cc int3
-# DISASM:       aaaaaaaaaaaaaaaa:
+# DISASM:       <aaaaaaaaaaaaaaaa>:
 # DISASM-CHECK:   201004: 90 nop
 # DISASM-CHECK:   201005: 90 nop
 
@@ -32,8 +39,8 @@
 # DWARF-NEXT:    0: Offset = 0x0, Length = 0x34
 # DWARF-NEXT:    1: Offset = 0x34, Length = 0x34
 # DWARF:       Address area offset = 0x38, has 2 entries:
-# DWARF-NEXT:    Low/High address = [0x201000, 0x201001) (Size: 0x1), CU id = 0
-# DWARF-NEXT:    Low/High address = [0x201004, 0x201006) (Size: 0x2), CU id = 1
+# DWARF-NEXT:    Low/High address = [0x201120, 0x201121) (Size: 0x1), CU id = 0
+# DWARF-NEXT:    Low/High address = [0x201124, 0x201126) (Size: 0x2), CU id = 1
 # DWARF:       Symbol table offset = 0x60, size = 1024, filled slots:
 # DWARF-NEXT:    512: Name offset = 0x1c, CU vector offset = 0x0
 # DWARF-NEXT:      String name: aaaaaaaaaaaaaaaa, CU vector index: 0
@@ -45,8 +52,6 @@
 # DWARF-NEXT:    0(0x0): 0x30000001
 # DWARF-NEXT:    1(0x8): 0x30000000
 # DWARF-NEXT:    2(0x10): 0x90000000 0x90000001
-
-# SECTION-NOT: debug_gnu_pubnames
 
 # RUN: ld.lld --gdb-index --no-gdb-index %t1.o %t2.o -o %t2
 # RUN: llvm-readobj --sections %t2 | FileCheck -check-prefix=NOGDB %s
@@ -109,9 +114,9 @@ entrypoint:
 .byte 0
 
 .section .debug_gnu_pubnames,"",@progbits
-.long 0x18
+.long 0x1e
 .value 0x2
-.long 0
+.long .debug_info
 .long 0x33
 .long 0x18
 .byte 0x30
@@ -121,7 +126,7 @@ entrypoint:
 .section .debug_gnu_pubtypes,"",@progbits
 .long 0x17
 .value 0x2
-.long 0
+.long .debug_info
 .long 0x33
 .long 0x2b
 .byte 0x90

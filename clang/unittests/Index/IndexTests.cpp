@@ -74,9 +74,9 @@ public:
     IndexDataConsumer::initialize(Ctx);
   }
 
-  bool handleDeclOccurence(const Decl *D, SymbolRoleSet Roles,
-                           ArrayRef<SymbolRelation>, SourceLocation Loc,
-                           ASTNodeInfo) override {
+  bool handleDeclOccurrence(const Decl *D, SymbolRoleSet Roles,
+                            ArrayRef<SymbolRelation>, SourceLocation Loc,
+                            ASTNodeInfo) override {
     const auto *ND = llvm::dyn_cast<NamedDecl>(D);
     if (!ND)
       return true;
@@ -91,11 +91,11 @@ public:
     return true;
   }
 
-  bool handleMacroOccurence(const IdentifierInfo *Name, const MacroInfo *MI,
-                            SymbolRoleSet Roles, SourceLocation Loc) override {
+  bool handleMacroOccurrence(const IdentifierInfo *Name, const MacroInfo *MI,
+                             SymbolRoleSet Roles, SourceLocation Loc) override {
     TestSymbol S;
     S.SymInfo = getSymbolInfoForMacro(*MI);
-    S.QName = Name->getName();
+    S.QName = std::string(Name->getName());
     S.WrittenPos = Position::fromSourceLocation(Loc, AST->getSourceManager());
     S.DeclPos = Position::fromSourceLocation(MI->getDefinitionLoc(),
                                              AST->getSourceManager());
@@ -134,7 +134,7 @@ protected:
         indexTopLevelDecls(Ctx, *PP, DeclsToIndex, *Index, Opts);
       }
     };
-    return llvm::make_unique<Consumer>(Index, CI.getPreprocessorPtr(), Opts);
+    return std::make_unique<Consumer>(Index, CI.getPreprocessorPtr(), Opts);
   }
 
 private:
@@ -155,21 +155,51 @@ MATCHER_P(HasRole, Role, "") { return arg.Roles & static_cast<unsigned>(Role); }
 
 TEST(IndexTest, Simple) {
   auto Index = std::make_shared<Indexer>();
-  tooling::runToolOnCode(new IndexAction(Index), "class X {}; void f() {}");
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index),
+                         "class X {}; void f() {}");
   EXPECT_THAT(Index->Symbols, UnorderedElementsAre(QName("X"), QName("f")));
 }
 
 TEST(IndexTest, IndexPreprocessorMacros) {
-  std::string Code = "#define INDEX_MAC 1";
+  std::string Code = R"cpp(
+    #define INDEX_MAC 1
+    #define INDEX_MAC_UNDEF 1
+    #undef INDEX_MAC_UNDEF
+    #define INDEX_MAC_REDEF 1
+    #undef INDEX_MAC_REDEF
+    #define INDEX_MAC_REDEF 2
+  )cpp";
   auto Index = std::make_shared<Indexer>();
   IndexingOptions Opts;
   Opts.IndexMacrosInPreprocessor = true;
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
-  EXPECT_THAT(Index->Symbols, Contains(QName("INDEX_MAC")));
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
+  EXPECT_THAT(Index->Symbols,
+              Contains(AllOf(QName("INDEX_MAC"), WrittenAt(Position(2, 13)),
+                             DeclAt(Position(2, 13)),
+                             HasRole(SymbolRole::Definition))));
+  EXPECT_THAT(
+      Index->Symbols,
+      AllOf(Contains(AllOf(QName("INDEX_MAC_UNDEF"), WrittenAt(Position(3, 13)),
+                           DeclAt(Position(3, 13)),
+                           HasRole(SymbolRole::Definition))),
+            Contains(AllOf(QName("INDEX_MAC_UNDEF"), WrittenAt(Position(4, 12)),
+                           DeclAt(Position(3, 13)),
+                           HasRole(SymbolRole::Undefinition)))));
+  EXPECT_THAT(
+      Index->Symbols,
+      AllOf(Contains(AllOf(QName("INDEX_MAC_REDEF"), WrittenAt(Position(5, 13)),
+                           DeclAt(Position(5, 13)),
+                           HasRole(SymbolRole::Definition))),
+            Contains(AllOf(QName("INDEX_MAC_REDEF"), WrittenAt(Position(6, 12)),
+                           DeclAt(Position(5, 13)),
+                           HasRole(SymbolRole::Undefinition))),
+            Contains(AllOf(QName("INDEX_MAC_REDEF"), WrittenAt(Position(7, 13)),
+                           DeclAt(Position(7, 13)),
+                           HasRole(SymbolRole::Definition)))));
 
   Opts.IndexMacrosInPreprocessor = false;
   Index->Symbols.clear();
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols, UnorderedElementsAre());
 }
 
@@ -179,12 +209,12 @@ TEST(IndexTest, IndexParametersInDecls) {
   IndexingOptions Opts;
   Opts.IndexFunctionLocals = true;
   Opts.IndexParametersInDeclarations = true;
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols, Contains(QName("bar")));
 
   Opts.IndexParametersInDeclarations = false;
   Index->Symbols.clear();
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols, Not(Contains(QName("bar"))));
 }
 
@@ -201,7 +231,7 @@ TEST(IndexTest, IndexExplicitTemplateInstantiation) {
   )cpp";
   auto Index = std::make_shared<Indexer>();
   IndexingOptions Opts;
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols,
               AllOf(Contains(AllOf(QName("Foo"), WrittenAt(Position(8, 7)),
                                    DeclAt(Position(5, 12)))),
@@ -222,7 +252,7 @@ TEST(IndexTest, IndexTemplateInstantiationPartial) {
   )cpp";
   auto Index = std::make_shared<Indexer>();
   IndexingOptions Opts;
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols,
               Contains(AllOf(QName("Foo"), WrittenAt(Position(8, 7)),
                              DeclAt(Position(5, 12)))));
@@ -238,7 +268,7 @@ TEST(IndexTest, IndexTypeParmDecls) {
   )cpp";
   auto Index = std::make_shared<Indexer>();
   IndexingOptions Opts;
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols, AllOf(Not(Contains(QName("Foo::T"))),
                                     Not(Contains(QName("Foo::I"))),
                                     Not(Contains(QName("Foo::C"))),
@@ -246,10 +276,15 @@ TEST(IndexTest, IndexTypeParmDecls) {
 
   Opts.IndexTemplateParameters = true;
   Index->Symbols.clear();
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols,
-              AllOf(Contains(QName("Foo::T")), Contains(QName("Foo::I")),
-                    Contains(QName("Foo::C")), Contains(QName("Foo::NoRef"))));
+              AllOf(Contains(AllOf(QName("Foo::T"),
+                                   Kind(SymbolKind::TemplateTypeParm))),
+                    Contains(AllOf(QName("Foo::I"),
+                                   Kind(SymbolKind::NonTypeTemplateParm))),
+                    Contains(AllOf(QName("Foo::C"),
+                                   Kind(SymbolKind::TemplateTemplateParm))),
+                    Contains(QName("Foo::NoRef"))));
 }
 
 TEST(IndexTest, UsingDecls) {
@@ -261,7 +296,7 @@ TEST(IndexTest, UsingDecls) {
   )cpp";
   auto Index = std::make_shared<Indexer>();
   IndexingOptions Opts;
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols,
               Contains(AllOf(QName("std::foo"), Kind(SymbolKind::Using))));
 }
@@ -275,7 +310,7 @@ TEST(IndexTest, Constructors) {
   )cpp";
   auto Index = std::make_shared<Indexer>();
   IndexingOptions Opts;
-  tooling::runToolOnCode(new IndexAction(Index, Opts), Code);
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(
       Index->Symbols,
       UnorderedElementsAre(
@@ -292,6 +327,71 @@ TEST(IndexTest, Constructors) {
                 WrittenAt(Position(4, 8)))));
 }
 
+TEST(IndexTest, InjecatedNameClass) {
+  std::string Code = R"cpp(
+    template <typename T>
+    class Foo {
+      void f(Foo x);
+    };
+  )cpp";
+  auto Index = std::make_shared<Indexer>();
+  IndexingOptions Opts;
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
+  EXPECT_THAT(Index->Symbols,
+              UnorderedElementsAre(AllOf(QName("Foo"), Kind(SymbolKind::Class),
+                                         WrittenAt(Position(3, 11))),
+                                   AllOf(QName("Foo::f"),
+                                         Kind(SymbolKind::InstanceMethod),
+                                         WrittenAt(Position(4, 12))),
+                                   AllOf(QName("Foo"), Kind(SymbolKind::Class),
+                                         HasRole(SymbolRole::Reference),
+                                         WrittenAt(Position(4, 14)))));
+}
+
+TEST(IndexTest, VisitDefaultArgs) {
+  std::string Code = R"cpp(
+    int var = 0;
+    void f(int s = var) {}
+  )cpp";
+  auto Index = std::make_shared<Indexer>();
+  IndexingOptions Opts;
+  Opts.IndexFunctionLocals = true;
+  Opts.IndexParametersInDeclarations = true;
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
+  EXPECT_THAT(Index->Symbols,
+              Contains(AllOf(QName("var"), HasRole(SymbolRole::Reference),
+                             WrittenAt(Position(3, 20)))));
+}
+
+TEST(IndexTest, RelationBaseOf) {
+  std::string Code = R"cpp(
+    class A {};
+    template <typename> class B {};
+    class C : B<A> {};
+  )cpp";
+  auto Index = std::make_shared<Indexer>();
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index), Code);
+  // A should not be the base of anything.
+  EXPECT_THAT(Index->Symbols,
+              Contains(AllOf(QName("A"), HasRole(SymbolRole::Reference),
+                             Not(HasRole(SymbolRole::RelationBaseOf)))));
+}
+
+TEST(IndexTest, EnumBase) {
+  std::string Code = R"cpp(
+    typedef int MyTypedef;
+    enum Foo : MyTypedef;
+    enum Foo : MyTypedef {};
+  )cpp";
+  auto Index = std::make_shared<Indexer>();
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index), Code);
+  EXPECT_THAT(
+      Index->Symbols,
+      AllOf(Contains(AllOf(QName("MyTypedef"), HasRole(SymbolRole::Reference),
+                           WrittenAt(Position(3, 16)))),
+            Contains(AllOf(QName("MyTypedef"), HasRole(SymbolRole::Reference),
+                           WrittenAt(Position(4, 16))))));
+}
 } // namespace
 } // namespace index
 } // namespace clang

@@ -26,11 +26,14 @@ const char *Action::getClassName(ActionClass AC) {
   case PreprocessJobClass: return "preprocessor";
   case PrecompileJobClass: return "precompiler";
   case HeaderModulePrecompileJobClass: return "header-module-precompiler";
+  case ExtractAPIJobClass:
+    return "api-extractor";
   case AnalyzeJobClass: return "analyzer";
   case MigrateJobClass: return "migrator";
   case CompileJobClass: return "compiler";
   case BackendJobClass: return "backend";
   case AssembleJobClass: return "assembler";
+  case IfsMergeJobClass: return "interface-stub-merger";
   case LinkJobClass: return "linker";
   case LipoJobClass: return "lipo";
   case DsymutilJobClass: return "dsymutil";
@@ -40,10 +43,30 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-bundler";
   case OffloadUnbundlingJobClass:
     return "clang-offload-unbundler";
-  case OffloadWrappingJobClass:
+  case OffloadWrapperJobClass:
     return "clang-offload-wrapper";
+  case OffloadDepsJobClass:
+    return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
     return "llvm-spirv";
+  case SPIRCheckJobClass:
+    return "llvm-no-spir-kernel";
+  case SYCLPostLinkJobClass:
+    return "sycl-post-link";
+  case BackendCompileJobClass:
+    return "backend-compiler";
+  case FileTableTformJobClass:
+    return "file-table-tform";
+  case AppendFooterJobClass:
+    return "append-footer";
+  case LinkerWrapperJobClass:
+    return "clang-linker-wrapper";
+  case StaticLibJobClass:
+    return "static-lib-linker";
+  case ForEachWrappingClass:
+    return "foreach";
+  case SpirvToIrWrapperJobClass:
+    return "spirv-to-ir-wrapper";
   }
 
   llvm_unreachable("invalid class");
@@ -55,6 +78,9 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, const char *OArch) {
     return;
   // Unbundling actions use the host kinds.
   if (Kind == OffloadUnbundlingJobClass)
+    return;
+  // Deps job uses the host kinds.
+  if (Kind == OffloadDepsJobClass)
     return;
 
   assert((OffloadingDeviceKind == OKind || OffloadingDeviceKind == OFK_None) &&
@@ -170,8 +196,8 @@ StringRef Action::GetOffloadKindName(OffloadKind Kind) {
 
 void InputAction::anchor() {}
 
-InputAction::InputAction(const Arg &_Input, types::ID _Type)
-    : Action(InputClass, _Type), Input(_Input) {}
+InputAction::InputAction(const Arg &_Input, types::ID _Type, StringRef _Id)
+    : Action(InputClass, _Type), Input(_Input), Id(_Id.str()) {}
 
 void BindArchAction::anchor() {}
 
@@ -342,6 +368,11 @@ HeaderModulePrecompileJobAction::HeaderModulePrecompileJobAction(
     : PrecompileJobAction(HeaderModulePrecompileJobClass, Input, OutputType),
       ModuleName(ModuleName) {}
 
+void ExtractAPIJobAction::anchor() {}
+
+ExtractAPIJobAction::ExtractAPIJobAction(Action *Inputs, types::ID OutputType)
+    : JobAction(ExtractAPIJobClass, Inputs, OutputType) {}
+
 void AnalyzeJobAction::anchor() {}
 
 AnalyzeJobAction::AnalyzeJobAction(Action *Input, types::ID OutputType)
@@ -366,6 +397,11 @@ void AssembleJobAction::anchor() {}
 
 AssembleJobAction::AssembleJobAction(Action *Input, types::ID OutputType)
     : JobAction(AssembleJobClass, Input, OutputType) {}
+
+void IfsMergeJobAction::anchor() {}
+
+IfsMergeJobAction::IfsMergeJobAction(ActionList &Inputs, types::ID Type)
+    : JobAction(IfsMergeJobClass, Inputs, Type) {}
 
 void LinkJobAction::anchor() {}
 
@@ -409,17 +445,140 @@ OffloadBundlingJobAction::OffloadBundlingJobAction(ActionList &Inputs)
 
 void OffloadUnbundlingJobAction::anchor() {}
 
-OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(ActionList &Inputs)
-    : JobAction(OffloadUnbundlingJobClass, Inputs, Inputs.back()->getType()) {}
+OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input)
+    : JobAction(OffloadUnbundlingJobClass, Input, Input->getType()) {}
 
-void OffloadWrappingJobAction::anchor() {}
+OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input,
+                                                       types::ID Type)
+    : JobAction(OffloadUnbundlingJobClass, Input, Type) {}
 
-OffloadWrappingJobAction::OffloadWrappingJobAction(Action *Input,
-                                                   types::ID Type)
-    : JobAction(OffloadWrappingJobClass, Input, Type) {}
+OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(ActionList &Inputs,
+                                                       types::ID Type)
+    : JobAction(OffloadUnbundlingJobClass, Inputs, Type) {}
+
+void OffloadWrapperJobAction::anchor() {}
+
+OffloadWrapperJobAction::OffloadWrapperJobAction(ActionList &Inputs,
+                                                 types::ID Type)
+  : JobAction(OffloadWrapperJobClass, Inputs, Type) {}
+
+OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input,
+                                                 types::ID Type)
+    : JobAction(OffloadWrapperJobClass, Input, Type) {}
+
+void OffloadDepsJobAction::anchor() {}
+
+OffloadDepsJobAction::OffloadDepsJobAction(
+    const OffloadAction::HostDependence &HDep, types::ID Type)
+    : JobAction(OffloadDepsJobClass, HDep.getAction(), Type),
+      HostTC(HDep.getToolChain()) {
+  OffloadingArch = HDep.getBoundArch();
+  ActiveOffloadKindMask = HDep.getOffloadKinds();
+  HDep.getAction()->propagateHostOffloadInfo(HDep.getOffloadKinds(),
+                                             HDep.getBoundArch());
+}
 
 void SPIRVTranslatorJobAction::anchor() {}
 
 SPIRVTranslatorJobAction::SPIRVTranslatorJobAction(Action *Input,
                                                    types::ID Type)
     : JobAction(SPIRVTranslatorJobClass, Input, Type) {}
+
+void SPIRCheckJobAction::anchor() {}
+
+SPIRCheckJobAction::SPIRCheckJobAction(Action *Input, types::ID Type)
+    : JobAction(SPIRCheckJobClass, Input, Type) {}
+
+void SYCLPostLinkJobAction::anchor() {}
+
+SYCLPostLinkJobAction::SYCLPostLinkJobAction(Action *Input,
+                                             types::ID ShadowOutputType,
+                                             types::ID TrueOutputType)
+    : JobAction(SYCLPostLinkJobClass, Input, ShadowOutputType),
+      TrueOutputType(TrueOutputType) {}
+
+void BackendCompileJobAction::anchor() {}
+
+BackendCompileJobAction::BackendCompileJobAction(ActionList &Inputs,
+                                                 types::ID Type)
+    : JobAction(BackendCompileJobClass, Inputs, Type) {}
+
+BackendCompileJobAction::BackendCompileJobAction(Action *Input,
+                                                 types::ID Type)
+    : JobAction(BackendCompileJobClass, Input, Type) {}
+
+void FileTableTformJobAction::anchor() {}
+
+FileTableTformJobAction::FileTableTformJobAction(Action *Input,
+                                                 types::ID ShadowOutputType,
+                                                 types::ID TrueOutputType)
+    : JobAction(FileTableTformJobClass, Input, ShadowOutputType),
+      TrueOutputType(TrueOutputType) {}
+
+FileTableTformJobAction::FileTableTformJobAction(ActionList &Inputs,
+                                                 types::ID ShadowOutputType,
+                                                 types::ID TrueOutputType)
+    : JobAction(FileTableTformJobClass, Inputs, ShadowOutputType),
+      TrueOutputType(TrueOutputType) {}
+
+void FileTableTformJobAction::addExtractColumnTform(StringRef ColumnName,
+                                                    bool WithColTitle) {
+  auto K = WithColTitle ? Tform::EXTRACT : Tform::EXTRACT_DROP_TITLE;
+  Tforms.emplace_back(Tform(K, {ColumnName}));
+}
+
+void FileTableTformJobAction::addReplaceColumnTform(StringRef From,
+                                                    StringRef To) {
+  Tforms.emplace_back(Tform(Tform::REPLACE, {From, To}));
+}
+
+void FileTableTformJobAction::addReplaceCellTform(StringRef ColumnName,
+                                                  int Row) {
+  Tforms.emplace_back(
+      Tform(Tform::REPLACE_CELL, {ColumnName, std::to_string(Row)}));
+}
+
+void FileTableTformJobAction::addRenameColumnTform(StringRef From,
+                                                   StringRef To) {
+  Tforms.emplace_back(Tform(Tform::RENAME, {From, To}));
+}
+
+void FileTableTformJobAction::addCopySingleFileTform(StringRef ColumnName,
+                                                     int Row) {
+  Tforms.emplace_back(
+      Tform(Tform::COPY_SINGLE_FILE, {ColumnName, std::to_string(Row)}));
+}
+
+void AppendFooterJobAction::anchor() {}
+
+AppendFooterJobAction::AppendFooterJobAction(Action *Input, types::ID Type)
+    : JobAction(AppendFooterJobClass, Input, Type) {}
+
+void LinkerWrapperJobAction::anchor() {}
+
+LinkerWrapperJobAction::LinkerWrapperJobAction(ActionList &Inputs,
+                                               types::ID Type)
+    : JobAction(LinkerWrapperJobClass, Inputs, Type) {}
+
+void StaticLibJobAction::anchor() {}
+
+StaticLibJobAction::StaticLibJobAction(ActionList &Inputs, types::ID Type)
+    : JobAction(StaticLibJobClass, Inputs, Type) {}
+
+void SpirvToIrWrapperJobAction::anchor() {}
+
+SpirvToIrWrapperJobAction::SpirvToIrWrapperJobAction(Action *Input,
+                                                     types::ID Type)
+    : JobAction(SpirvToIrWrapperJobClass, Input, Type) {}
+
+ForEachWrappingAction::ForEachWrappingAction(JobAction *TFormInput,
+                                             JobAction *Job)
+    : Action(ForEachWrappingClass, {TFormInput, Job}, Job->getType()) {}
+
+JobAction *ForEachWrappingAction::getTFormInput() const {
+  return llvm::cast<JobAction>(getInputs()[0]);
+}
+
+JobAction *ForEachWrappingAction::getJobAction() const {
+  return llvm::cast<JobAction>(getInputs()[1]);
+}

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class day;
@@ -33,7 +33,7 @@ int main(int, char**)
     static_assert(testComparisons6Values<day>(0U, 0U), "");
     static_assert(testComparisons6Values<day>(0U, 1U), "");
 
-//  Some 'ok' values as well
+    //  Some 'ok' values as well
     static_assert(testComparisons6Values<day>( 5U,  5U), "");
     static_assert(testComparisons6Values<day>( 5U, 10U), "");
 

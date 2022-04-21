@@ -6,24 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <set>
 
 // class set
 
-// template<typename K>
-//     iterator lower_bound(const K& x);              // C++14
-// template<typename K>
-//     const_iterator lower_bound(const K& x) const;  // C++14
+//    template<typename K>
+//        size_type count(const K& x) const;        // C++14
 
 #include <cassert>
 #include <set>
 #include <utility>
-
-#include "min_allocator.h"
-#include "private_constructor.hpp"
-#include "test_macros.h"
 
 struct Comp {
   using is_transparent = void;

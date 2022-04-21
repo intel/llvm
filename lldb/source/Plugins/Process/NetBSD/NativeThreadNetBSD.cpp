@@ -1,4 +1,4 @@
-//===-- NativeThreadNetBSD.cpp -------------------------------- -*- C++ -*-===//
+//===-- NativeThreadNetBSD.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,8 +16,19 @@
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/State.h"
+#include "llvm/Support/Errno.h"
+
+// clang-format off
+#include <sys/types.h>
+#include <sys/ptrace.h>
+// clang-format on
 
 #include <sstream>
+
+// clang-format off
+#include <sys/types.h>
+#include <sys/sysctl.h>
+// clang-format on
 
 using namespace lldb;
 using namespace lldb_private;
@@ -30,9 +41,41 @@ NativeThreadNetBSD::NativeThreadNetBSD(NativeProcessNetBSD &process,
 NativeRegisterContextNetBSD::CreateHostNativeRegisterContextNetBSD(process.GetArchitecture(), *this)
 ), m_stop_description() {}
 
+Status NativeThreadNetBSD::Resume() {
+  Status ret = NativeProcessNetBSD::PtraceWrapper(PT_RESUME, m_process.GetID(),
+                                                  nullptr, GetID());
+  if (!ret.Success())
+    return ret;
+  ret = NativeProcessNetBSD::PtraceWrapper(PT_CLEARSTEP, m_process.GetID(),
+                                           nullptr, GetID());
+  if (ret.Success())
+    SetRunning();
+  return ret;
+}
+
+Status NativeThreadNetBSD::SingleStep() {
+  Status ret = NativeProcessNetBSD::PtraceWrapper(PT_RESUME, m_process.GetID(),
+                                                  nullptr, GetID());
+  if (!ret.Success())
+    return ret;
+  ret = NativeProcessNetBSD::PtraceWrapper(PT_SETSTEP, m_process.GetID(),
+                                           nullptr, GetID());
+  if (ret.Success())
+    SetStepping();
+  return ret;
+}
+
+Status NativeThreadNetBSD::Suspend() {
+  Status ret = NativeProcessNetBSD::PtraceWrapper(PT_SUSPEND, m_process.GetID(),
+                                                  nullptr, GetID());
+  if (ret.Success())
+    SetStopped();
+  return ret;
+}
+
 void NativeThreadNetBSD::SetStoppedBySignal(uint32_t signo,
                                             const siginfo_t *info) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_THREAD));
+  Log *log = GetLog(POSIXLog::Thread);
   LLDB_LOG(log, "tid = {0} in called with signal {1}", GetID(), signo);
 
   SetStopped();
@@ -73,8 +116,6 @@ void NativeThreadNetBSD::SetStoppedByExec() {
 }
 
 void NativeThreadNetBSD::SetStoppedByWatchpoint(uint32_t wp_index) {
-  SetStopped();
-
   lldbassert(wp_index != LLDB_INVALID_INDEX32 && "wp_index cannot be invalid");
 
   std::ostringstream ostr;
@@ -83,10 +124,41 @@ void NativeThreadNetBSD::SetStoppedByWatchpoint(uint32_t wp_index) {
 
   ostr << " " << GetRegisterContext().GetWatchpointHitAddress(wp_index);
 
+  SetStopped();
   m_stop_description = ostr.str();
-
   m_stop_info.reason = StopReason::eStopReasonWatchpoint;
   m_stop_info.details.signal.signo = SIGTRAP;
+}
+
+void NativeThreadNetBSD::SetStoppedByFork(lldb::pid_t child_pid,
+                                           lldb::tid_t child_tid) {
+  SetStopped();
+
+  m_stop_info.reason = StopReason::eStopReasonFork;
+  m_stop_info.details.fork.child_pid = child_pid;
+  m_stop_info.details.fork.child_tid = child_tid;
+}
+
+void NativeThreadNetBSD::SetStoppedByVFork(lldb::pid_t child_pid,
+                                            lldb::tid_t child_tid) {
+  SetStopped();
+
+  m_stop_info.reason = StopReason::eStopReasonVFork;
+  m_stop_info.details.fork.child_pid = child_pid;
+  m_stop_info.details.fork.child_tid = child_tid;
+}
+
+void NativeThreadNetBSD::SetStoppedByVForkDone() {
+  SetStopped();
+
+  m_stop_info.reason = StopReason::eStopReasonVForkDone;
+}
+
+void NativeThreadNetBSD::SetStoppedWithNoReason() {
+  SetStopped();
+
+  m_stop_info.reason = StopReason::eStopReasonNone;
+  m_stop_info.details.signal.signo = 0;
 }
 
 void NativeThreadNetBSD::SetStopped() {
@@ -105,14 +177,55 @@ void NativeThreadNetBSD::SetStepping() {
   m_stop_info.reason = StopReason::eStopReasonNone;
 }
 
-std::string NativeThreadNetBSD::GetName() { return std::string(""); }
+std::string NativeThreadNetBSD::GetName() {
+  Log *log = GetLog(POSIXLog::Thread);
+
+#ifdef PT_LWPSTATUS
+  struct ptrace_lwpstatus info = {};
+  info.pl_lwpid = m_tid;
+  Status error = NativeProcessNetBSD::PtraceWrapper(
+      PT_LWPSTATUS, static_cast<int>(m_process.GetID()), &info, sizeof(info));
+  if (error.Fail()) {
+    return "";
+  }
+  return info.pl_name;
+#else
+  std::vector<struct kinfo_lwp> infos;
+  int mib[5] = {CTL_KERN, KERN_LWP, static_cast<int>(m_process.GetID()),
+                sizeof(struct kinfo_lwp), 0};
+  size_t size;
+
+  if (::sysctl(mib, 5, nullptr, &size, nullptr, 0) == -1 || size == 0) {
+    LLDB_LOG(log, "sysctl() for LWP info size failed: {0}",
+             llvm::sys::StrError());
+    return "";
+  }
+
+  mib[4] = size / sizeof(size_t);
+  infos.resize(size / sizeof(struct kinfo_lwp));
+
+  if (sysctl(mib, 5, infos.data(), &size, NULL, 0) == -1 || size == 0) {
+    LLDB_LOG(log, "sysctl() for LWP info failed: {0}", llvm::sys::StrError());
+    return "";
+  }
+
+  size_t nlwps = size / sizeof(struct kinfo_lwp);
+  for (size_t i = 0; i < nlwps; i++) {
+    if (static_cast<lldb::tid_t>(infos[i].l_lid) == m_tid) {
+      return infos[i].l_name;
+    }
+  }
+
+  LLDB_LOG(log, "unable to find lwp {0} in LWP infos", m_tid);
+  return "";
+#endif
+}
 
 lldb::StateType NativeThreadNetBSD::GetState() { return m_state; }
 
 bool NativeThreadNetBSD::GetStopReason(ThreadStopInfo &stop_info,
                                        std::string &description) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_THREAD));
-
+  Log *log = GetLog(POSIXLog::Thread);
   description.clear();
 
   switch (m_state) {
@@ -140,21 +253,21 @@ bool NativeThreadNetBSD::GetStopReason(ThreadStopInfo &stop_info,
   llvm_unreachable("unhandled StateType!");
 }
 
-NativeRegisterContext& NativeThreadNetBSD::GetRegisterContext() {
+NativeRegisterContextNetBSD &NativeThreadNetBSD::GetRegisterContext() {
   assert(m_reg_context_up);
-return  *m_reg_context_up;
+  return *m_reg_context_up;
 }
 
 Status NativeThreadNetBSD::SetWatchpoint(lldb::addr_t addr, size_t size,
                                          uint32_t watch_flags, bool hardware) {
+  assert(m_state == eStateStopped);
   if (!hardware)
     return Status("not implemented");
-  if (m_state == eStateLaunching)
-    return Status();
   Status error = RemoveWatchpoint(addr);
   if (error.Fail())
     return error;
-  uint32_t wp_index = GetRegisterContext().SetHardwareWatchpoint(addr, size, watch_flags);
+  uint32_t wp_index =
+      GetRegisterContext().SetHardwareWatchpoint(addr, size, watch_flags);
   if (wp_index == LLDB_INVALID_INDEX32)
     return Status("Setting hardware watchpoint failed.");
   m_watchpoint_index_map.insert({addr, wp_index});
@@ -174,9 +287,7 @@ Status NativeThreadNetBSD::RemoveWatchpoint(lldb::addr_t addr) {
 
 Status NativeThreadNetBSD::SetHardwareBreakpoint(lldb::addr_t addr,
                                                  size_t size) {
-  if (m_state == eStateLaunching)
-    return Status();
-
+  assert(m_state == eStateStopped);
   Status error = RemoveHardwareBreakpoint(addr);
   if (error.Fail())
     return error;
@@ -202,4 +313,15 @@ Status NativeThreadNetBSD::RemoveHardwareBreakpoint(lldb::addr_t addr) {
   }
 
   return Status("Clearing hardware breakpoint failed.");
+}
+
+llvm::Error
+NativeThreadNetBSD::CopyWatchpointsFrom(NativeThreadNetBSD &source) {
+  llvm::Error s = GetRegisterContext().CopyHardwareWatchpointsFrom(
+      source.GetRegisterContext());
+  if (!s) {
+    m_watchpoint_index_map = source.m_watchpoint_index_map;
+    m_hw_break_index_map = source.m_hw_break_index_map;
+  }
+  return s;
 }

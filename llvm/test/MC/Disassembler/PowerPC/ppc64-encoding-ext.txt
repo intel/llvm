@@ -1,4 +1,7 @@
-# RUN: llvm-mc --disassemble %s -triple powerpc64-unknown-unknown -mcpu=pwr7 | FileCheck %s
+# RUN: llvm-mc --disassemble %s -triple powerpc64-unknown-unknown -mcpu=pwr7 | FileCheck %s --check-prefixes=CHECK,MODERN
+# RUN: llvm-mc --disassemble %s -triple powerpc64-unknown-linux-gnu -mcpu=pwr7 | FileCheck %s --check-prefixes=CHECK,MODERN
+# RUN: llvm-mc --disassemble %s -triple powerpc64-ibm-aix-xcoff -mcpu=pwr7 | FileCheck %s --check-prefixes=CHECK,OLD
+# RUN: llvm-mc --disassemble %s -triple powerpc64-ibm-aix-xcoff -mattr=+modern-aix-as -mcpu=pwr7 | FileCheck %s --check-prefixes=CHECK,MODERN
 
 # FIXME: decode as beqlr 0
 # CHECK: bclr 12, 2
@@ -1825,16 +1828,16 @@
 # CHECK: addic. 2, 3, -128
 0x34 0x43 0xff 0x80
 
-# CHECK: subf 2, 4, 3
+# CHECK: sub 2, 3, 4
 0x7c 0x44 0x18 0x50
 
-# CHECK: subf. 2, 4, 3
+# CHECK: sub. 2, 3, 4
 0x7c 0x44 0x18 0x51
 
-# CHECK: subfc 2, 4, 3
+# CHECK: subc 2, 3, 4
 0x7c 0x44 0x18 0x10
 
-# CHECK: subfc. 2, 4, 3
+# CHECK: subc. 2, 3, 4
 0x7c 0x44 0x18 0x11
 
 # CHECK: cmpdi 2, 3, 128
@@ -2212,6 +2215,14 @@
 # CHECK: mfxer 2
 0x7c 0x41 0x02 0xa6
 
+# MODERN: mtudscr 2
+# OLD: mtspr 3, 2
+0x7c 0x43 0x03 0xa6
+
+# MODERN: mfudscr 2
+# OLD: mfspr 2, 3
+0x7c 0x43 0x02 0xa6
+
 # CHECK: mtlr 2
 0x7c 0x48 0x03 0xa6
 
@@ -2223,6 +2234,22 @@
 
 # CHECK: mfctr 2
 0x7c 0x49 0x02 0xa6
+
+# MODERN: mtuamr 2
+# OLD: mtspr 13, 2
+0x7c 0x4d 0x03 0xa6
+
+# MODERN: mfuamr 2
+# OLD: mfspr 2, 13
+0x7c 0x4d 0x02 0xa6
+
+# MODERN: mtppr 2
+# OLD: mtspr 896, 2
+0x7c 0x40 0xe3 0xa6
+
+# MODERN: mfppr 2
+# OLD: mfspr 2, 896
+0x7c 0x40 0xe2 0xa6
 
 # CHECK: nop
 0x60 0x00 0x00 0x00
@@ -2239,16 +2266,16 @@
 # CHECK: mr 2, 3
 0x7c 0x62 0x1b 0x78
 
-# CHECK: or. 2, 3, 3
+# CHECK: mr. 2, 3
 0x7c 0x62 0x1b 0x79
 
-# CHECK: nor 2, 3, 3
+# CHECK: not 2, 3
 0x7c 0x62 0x18 0xf8
 
-# CHECK: nor. 2, 3, 3
+# CHECK: not. 2, 3
 0x7c 0x62 0x18 0xf9
 
-# CHECK: mtcrf 255, 2
+# CHECK: mtcr 2
 0x7c 0x4f 0xf1 0x20
 
 # CHECK: dss 3

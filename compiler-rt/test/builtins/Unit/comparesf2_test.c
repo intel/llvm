@@ -1,17 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-
-//===-- cmpsf2_test.c - Test __cmpsf2 -------------------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests single-precision soft-float comparisons for the compiler-rt
-// library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_comparesf2
 
 #include <stdio.h>
 

@@ -2,7 +2,6 @@
 
 ; Test that basic 64-bit floating-point operations assemble as expected.
 
-target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 declare double @llvm.fabs.f64(double)
@@ -159,7 +158,7 @@ define double @fmax64_intrinsic(double %x, double %y) {
 }
 
 ; CHECK-LABEL: fma64:
-; CHECK: {{^}} f64.call $push[[LR:[0-9]+]]=, fma, $pop{{[0-9]+}}, $pop{{[0-9]+}}, $pop{{[0-9]+}}{{$}}
+; CHECK: {{^}} call $push[[LR:[0-9]+]]=, fma, $pop{{[0-9]+}}, $pop{{[0-9]+}}, $pop{{[0-9]+}}{{$}}
 ; CHECK-NEXT: return $pop[[LR]]{{$}}
 define double @fma64(double %a, double %b, double %c) {
   %d = call double @llvm.fma.f64(double %a, double %b, double %c)

@@ -1,5 +1,5 @@
-# RUN: not clangd -pretty -run-synchronously -enable-test-uri-scheme < %s | FileCheck -strict-whitespace %s
-# RUN: not clangd -pretty -run-synchronously -enable-test-uri-scheme < %s 2>&1 | FileCheck -check-prefix=STDERR %s
+# RUN: not clangd -pretty -sync -enable-test-uri-scheme < %s | FileCheck -strict-whitespace %s
+# RUN: not clangd -pretty -sync -enable-test-uri-scheme < %s 2>&1 | FileCheck -check-prefix=STDERR %s
 # vim: fileformat=dos
 # It is absolutely vital that this file has CRLF line endings.
 #
@@ -39,6 +39,7 @@ Content-Length: 146
 # CHECK-NEXT:        "insertTextFormat": 1,
 # CHECK-NEXT:        "kind": 5,
 # CHECK-NEXT:        "label": " a",
+# CHECK-NEXT:        "score": {{[0-9]+.[0-9]+}},
 # CHECK-NEXT:        "sortText": "{{.*}}"
 #      CHECK:    ]
 # CHECK-NEXT:  }
@@ -68,6 +69,7 @@ Content-Length: 146
 # CHECK-NEXT:        "insertTextFormat": 1,
 # CHECK-NEXT:        "kind": 5,
 # CHECK-NEXT:        "label": " a",
+# CHECK-NEXT:        "score": {{[0-9]+.[0-9]+}},
 # CHECK-NEXT:        "sortText": "{{.*}}"
 #      CHECK:    ]
 # CHECK-NEXT:  }
@@ -97,6 +99,7 @@ Content-Length: 146
 # CHECK-NEXT:        "insertTextFormat": 1,
 # CHECK-NEXT:        "kind": 5,
 # CHECK-NEXT:        "label": " a",
+# CHECK-NEXT:        "score": {{[0-9]+.[0-9]+}},
 # CHECK-NEXT:        "sortText": "{{.*}}"
 #      CHECK:    ]
 # CHECK-NEXT:  }

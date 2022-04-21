@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -fblocks -fobjc-arc -verify -Wno-objc-root-class %s
+// RUN: %clang_cc1 -fsyntax-only -fblocks -fobjc-arc -verify -Wno-objc-root-class -Wno-strict-prototypes %s
 
 // rdar://8843524
 
@@ -8,11 +8,7 @@ struct A {
 };
 
 union u {
-    id u; // expected-error {{ARC forbids Objective-C objects in union}}
-};
-
-union u_nontrivial_c {
-  struct A a; // expected-error {{non-trivial C types are disallowed in union}}
+  id u;
 };
 
 // Volatile fields are fine.
@@ -39,7 +35,8 @@ union u_trivial_c {
 
 // rdar://10260525
 struct r10260525 {
-  id (^block) ();
+  id (^block1) ();
+  id (^block2) (void);
 };
 
 struct S { 
@@ -58,7 +55,7 @@ __autoreleasing NSError *E; // expected-error {{global variables cannot have __a
 
 extern id __autoreleasing X1; // expected-error {{global variables cannot have __autoreleasing ownership}}
 
-void func()
+void func(void)
 {
     id X;
     static id __autoreleasing X1; // expected-error {{global variables cannot have __autoreleasing ownership}}

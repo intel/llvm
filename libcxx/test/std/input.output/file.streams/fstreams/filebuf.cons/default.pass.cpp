@@ -16,16 +16,20 @@
 #include <fstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     {
         std::filebuf f;
         assert(!f.is_open());
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wfilebuf f;
         assert(!f.is_open());
     }
+#endif
 
   return 0;
 }

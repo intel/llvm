@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <variant>
 
@@ -21,6 +20,8 @@
 #include <memory>
 #include <type_traits>
 #include <variant>
+
+#include "test_macros.h"
 
 template <class V, size_t E> void test() {
   static_assert(std::variant_size<V>::value == E, "");

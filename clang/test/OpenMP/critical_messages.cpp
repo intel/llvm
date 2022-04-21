@@ -1,8 +1,14 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 int foo();
+
+void xxx(int argc) {
+  int x; // expected-note {{initialize the variable 'x' to silence this warning}}
+#pragma omp critical
+  argc = x; // expected-warning {{variable 'x' is uninitialized when used here}}
+}
 
 template<typename T, int N>
 int tmain(int argc, char **argv) { // expected-note {{declared here}}
@@ -59,11 +65,15 @@ int tmain(int argc, char **argv) { // expected-note {{declared here}}
   foo();
   #pragma omp critical (name2) hint(+ // expected-error {{expected expression}} expected-error {{expected ')'}} expected-note {{to match this '('}}
   foo();
-  #pragma omp critical (name2) hint(argc) // expected-error {{expression is not an integral constant expression}} expected-note {{read of non-const variable 'argc' is not allowed in a constant expression}}
+  #pragma omp critical (name2) hint(argc) // expected-error {{integral constant expression}} expected-note 0+{{constant expression}}
   foo();
-  #pragma omp critical (name) hint(N) // expected-error {{argument to 'hint' clause must be a strictly positive integer value}} expected-error {{constructs with the same name must have a 'hint' clause with the same value}} expected-note {{'hint' clause with value '4'}}
+  #pragma omp critical (name) hint(N) // expected-error {{argument to 'hint' clause must be a non-negative integer value}} expected-error {{constructs with the same name must have a 'hint' clause with the same value}} expected-note {{'hint' clause with value '4'}}
   foo();
   #pragma omp critical hint(N) // expected-error {{the name of the construct must be specified in presence of 'hint' clause}}
+  foo();
+
+  const int omp_lock_hint_none = 0;
+  #pragma omp critical (name3) hint(omp_lock_hint_none)
   foo();
   return 0;
 }
@@ -122,11 +132,11 @@ int main(int argc, char **argv) { // expected-note {{declared here}}
   foo();
   #pragma omp critical (name2) hint(+ // expected-error {{expected expression}} expected-error {{expected ')'}} expected-note {{to match this '('}}
   foo();
-  #pragma omp critical (name2) hint(argc) // expected-error {{expression is not an integral constant expression}} expected-note {{read of non-const variable 'argc' is not allowed in a constant expression}}
+  #pragma omp critical (name2) hint(argc) // expected-error {{integral constant expression}} expected-note 0+{{constant expression}}
   foo();
   #pragma omp critical (name) hint(23) // expected-note {{previous 'hint' clause with value '23'}}
   foo();
-  #pragma omp critical hint(-5) // expected-error {{argument to 'hint' clause must be a strictly positive integer value}}
+  #pragma omp critical hint(-5) // expected-error {{argument to 'hint' clause must be a non-negative integer value}}
   foo();
   #pragma omp critical hint(1) // expected-error {{the name of the construct must be specified in presence of 'hint' clause}}
   foo();
@@ -134,16 +144,16 @@ int main(int argc, char **argv) { // expected-note {{declared here}}
 }
 
 int foo() {
-  L1:
+  L1: // expected-note {{jump exits scope of OpenMP structured block}}
     foo();
   #pragma omp critical
   {
     foo();
-    goto L1; // expected-error {{use of undeclared label 'L1'}}
+    goto L1; // expected-error {{cannot jump from this goto statement to its label}}
   }
-  goto L2; // expected-error {{use of undeclared label 'L2'}}
+  goto L2; // expected-error {{cannot jump from this goto statement to its label}}
   #pragma omp critical
-  {
+  {  // expected-note {{jump bypasses OpenMP structured block}}
     L2:
     foo();
   }

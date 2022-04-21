@@ -34,7 +34,7 @@ protected:
 
 LanaiELFObjectWriter::LanaiELFObjectWriter(uint8_t OSABI)
     : MCELFObjectTargetWriter(/*Is64Bit_=*/false, OSABI, ELF::EM_LANAI,
-                              /*HasRelocationAddend=*/true) {}
+                              /*HasRelocationAddend_=*/true) {}
 
 unsigned LanaiELFObjectWriter::getRelocType(MCContext & /*Ctx*/,
                                             const MCValue & /*Target*/,
@@ -88,5 +88,5 @@ bool LanaiELFObjectWriter::needsRelocateWithSymbol(const MCSymbol & /*SD*/,
 
 std::unique_ptr<MCObjectTargetWriter>
 llvm::createLanaiELFObjectWriter(uint8_t OSABI) {
-  return llvm::make_unique<LanaiELFObjectWriter>(OSABI);
+  return std::make_unique<LanaiELFObjectWriter>(OSABI);
 }

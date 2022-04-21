@@ -1,4 +1,4 @@
-//===-- OptionGroupFile.cpp -------------------------------*- C++ -*-===//
+//===-- OptionGroupFile.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,8 +17,7 @@ OptionGroupFile::OptionGroupFile(uint32_t usage_mask, bool required,
                                  const char *long_option, int short_option,
                                  uint32_t completion_type,
                                  lldb::CommandArgumentType argument_type,
-                                 const char *usage_text)
-    : m_file() {
+                                 const char *usage_text) {
   m_option_definition.usage_mask = usage_mask;
   m_option_definition.required = required;
   m_option_definition.long_option = long_option;
@@ -30,8 +29,6 @@ OptionGroupFile::OptionGroupFile(uint32_t usage_mask, bool required,
   m_option_definition.argument_type = argument_type;
   m_option_definition.usage_text = usage_text;
 }
-
-OptionGroupFile::~OptionGroupFile() {}
 
 Status OptionGroupFile::SetOptionValue(uint32_t option_idx,
                                        llvm::StringRef option_arg,
@@ -62,7 +59,7 @@ OptionGroupFileList::OptionGroupFileList(
   m_option_definition.usage_text = usage_text;
 }
 
-OptionGroupFileList::~OptionGroupFileList() {}
+OptionGroupFileList::~OptionGroupFileList() = default;
 
 Status
 OptionGroupFileList::SetOptionValue(uint32_t option_idx,

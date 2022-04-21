@@ -17,8 +17,8 @@
 #include "lldb/lldb-private-forward.h"
 #include "lldb/lldb-private.h"
 #include <cerrno>
+#include <cstdarg>
 #include <map>
-#include <stdarg.h>
 #include <string>
 #include <type_traits>
 
@@ -27,8 +27,8 @@ namespace lldb_private {
 class FileAction;
 class ProcessLaunchInfo;
 class ProcessInstanceInfo;
-class ProcessInstanceInfoList;
 class ProcessInstanceInfoMatch;
+typedef std::vector<ProcessInstanceInfo> ProcessInstanceInfoList;
 
 // Exit Type for inferior processes
 struct WaitStatus {
@@ -61,47 +61,30 @@ inline bool operator!=(WaitStatus a, WaitStatus b) { return !(a == b); }
 /// Host is a class that answers information about the host operating system.
 class Host {
 public:
-  typedef std::function<bool(
-      lldb::pid_t pid, bool exited,
-      int signal,  // Zero for no signal
-      int status)> // Exit value of process if signal is zero
+  typedef std::function<void(lldb::pid_t pid,
+                             int signal,  // Zero for no signal
+                             int status)> // Exit value of process if signal is
+                                          // zero
       MonitorChildProcessCallback;
 
   /// Start monitoring a child process.
   ///
   /// Allows easy monitoring of child processes. \a callback will be called
-  /// when the child process exits or if it gets a signal. The callback will
-  /// only be called with signals if \a monitor_signals is \b true. \a
-  /// callback will usually be called from another thread so the callback
-  /// function must be thread safe.
-  ///
-  /// When the callback gets called, the return value indicates if monitoring
-  /// should stop. If \b true is returned from \a callback the information
-  /// will be removed. If \b false is returned then monitoring will continue.
-  /// If the child process exits, the monitoring will automatically stop after
-  /// the callback returned regardless of the callback return value.
+  /// when the child process exits or if it dies from a signal.
   ///
   /// \param[in] callback
   ///     A function callback to call when a child receives a signal
-  ///     (if \a monitor_signals is true) or a child exits.
+  ///     or exits.
   ///
   /// \param[in] pid
-  ///     The process ID of a child process to monitor, -1 for all
-  ///     processes.
-  ///
-  /// \param[in] monitor_signals
-  ///     If \b true the callback will get called when the child
-  ///     process gets a signal. If \b false, the callback will only
-  ///     get called if the child process exits.
+  ///     The process ID of a child process to monitor.
   ///
   /// \return
   ///     A thread handle that can be used to cancel the thread that
   ///     was spawned to monitor \a pid.
-  ///
-  /// \see static void Host::StopMonitoringChildProcess (uint32_t)
-  static HostThread
+  static llvm::Expected<HostThread>
   StartMonitoringChildProcess(const MonitorChildProcessCallback &callback,
-                              lldb::pid_t pid, bool monitor_signals);
+                              lldb::pid_t pid);
 
   enum SystemLogType { eSystemLogWarning, eSystemLogError };
 
@@ -196,19 +179,34 @@ public:
   static Status ShellExpandArguments(ProcessLaunchInfo &launch_info);
 
   /// Run a shell command.
-  /// \arg command  shouldn't be NULL
+  /// \arg command  shouldn't be empty
   /// \arg working_dir Pass empty FileSpec to use the current working directory
   /// \arg status_ptr  Pass NULL if you don't want the process exit status
   /// \arg signo_ptr   Pass NULL if you don't want the signal that caused the
   ///                  process to exit
   /// \arg command_output  Pass NULL if you don't want the command output
   /// \arg hide_stderr if this is false, redirect stderr to stdout
-  /// TODO: Convert this function to take a StringRef.
-  static Status RunShellCommand(const char *command,
+  static Status RunShellCommand(llvm::StringRef command,
                                 const FileSpec &working_dir, int *status_ptr,
                                 int *signo_ptr, std::string *command_output,
                                 const Timeout<std::micro> &timeout,
-                                bool run_in_default_shell = true,
+                                bool run_in_shell = true,
+                                bool hide_stderr = false);
+
+  /// Run a shell command.
+  /// \arg shell  Pass an empty string if you want to use the default shell
+  /// interpreter \arg command \arg working_dir  Pass empty FileSpec to use the
+  /// current working directory \arg status_ptr   Pass NULL if you don't want
+  /// the process exit status \arg signo_ptr    Pass NULL if you don't want the
+  /// signal that caused
+  ///                   the process to exit
+  /// \arg command_output  Pass NULL if you don't want the command output
+  /// \arg hide_stderr  If this is \b false, redirect stderr to stdout
+  static Status RunShellCommand(llvm::StringRef shell, llvm::StringRef command,
+                                const FileSpec &working_dir, int *status_ptr,
+                                int *signo_ptr, std::string *command_output,
+                                const Timeout<std::micro> &timeout,
+                                bool run_in_shell = true,
                                 bool hide_stderr = false);
 
   /// Run a shell command.
@@ -222,7 +220,23 @@ public:
                                 int *status_ptr, int *signo_ptr,
                                 std::string *command_output,
                                 const Timeout<std::micro> &timeout,
-                                bool run_in_default_shell = true,
+                                bool run_in_shell = true,
+                                bool hide_stderr = false);
+
+  /// Run a shell command.
+  /// \arg shell            Pass an empty string if you want to use the default
+  /// shell interpreter \arg command \arg working_dir Pass empty FileSpec to use
+  /// the current working directory \arg status_ptr    Pass NULL if you don't
+  /// want the process exit status \arg signo_ptr     Pass NULL if you don't
+  /// want the signal that caused the
+  ///               process to exit
+  /// \arg command_output  Pass NULL if you don't want the command output
+  /// \arg hide_stderr If this is \b false, redirect stderr to stdout
+  static Status RunShellCommand(llvm::StringRef shell, const Args &args,
+                                const FileSpec &working_dir, int *status_ptr,
+                                int *signo_ptr, std::string *command_output,
+                                const Timeout<std::micro> &timeout,
+                                bool run_in_shell = true,
                                 bool hide_stderr = false);
 
   static bool OpenFileInExternalEditor(const FileSpec &file_spec,
@@ -232,6 +246,10 @@ public:
 
   static std::unique_ptr<Connection>
   CreateDefaultConnection(llvm::StringRef url);
+
+protected:
+  static uint32_t FindProcessesImpl(const ProcessInstanceInfoMatch &match_info,
+                                    ProcessInstanceInfoList &proc_infos);
 };
 
 } // namespace lldb_private

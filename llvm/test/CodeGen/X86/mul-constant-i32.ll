@@ -487,10 +487,9 @@ define i32 @test_mul_by_17(i32 %x) {
 ;
 ; X64-LABEL: test_mul_by_17:
 ; X64:       # %bb.0:
-; X64-NEXT:    # kill: def $edi killed $edi def $rdi
 ; X64-NEXT:    movl %edi, %eax
 ; X64-NEXT:    shll $4, %eax
-; X64-NEXT:    leal (%rax,%rdi), %eax
+; X64-NEXT:    addl %edi, %eax
 ; X64-NEXT:    retq
 ;
 ; X86-NOOPT-LABEL: test_mul_by_17:
@@ -1180,10 +1179,9 @@ define i32 @test_mul_by_66(i32 %x) {
 ;
 ; X64-SLM-LABEL: test_mul_by_66:
 ; X64-SLM:       # %bb.0:
-; X64-SLM-NEXT:    # kill: def $edi killed $edi def $rdi
 ; X64-SLM-NEXT:    movl %edi, %eax
 ; X64-SLM-NEXT:    shll $6, %eax
-; X64-SLM-NEXT:    leal (%rax,%rdi), %eax
+; X64-SLM-NEXT:    addl %edi, %eax
 ; X64-SLM-NEXT:    addl %edi, %eax
 ; X64-SLM-NEXT:    retq
   %mul = mul nsw i32 %x, 66

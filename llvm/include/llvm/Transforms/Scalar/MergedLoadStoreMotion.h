@@ -23,16 +23,35 @@
 #ifndef LLVM_TRANSFORMS_SCALAR_MERGEDLOADSTOREMOTION_H
 #define LLVM_TRANSFORMS_SCALAR_MERGEDLOADSTOREMOTION_H
 
-#include "llvm/IR/Module.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
-class MergedLoadStoreMotionPass
-    : public PassInfoMixin<MergedLoadStoreMotionPass> {
-public:
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+class Function;
+struct MergedLoadStoreMotionOptions {
+  bool SplitFooterBB;
+  MergedLoadStoreMotionOptions(bool SplitFooterBB = false)
+      : SplitFooterBB(SplitFooterBB) {}
+
+  MergedLoadStoreMotionOptions &splitFooterBB(bool SFBB) {
+    SplitFooterBB = SFBB;
+    return *this;
+  }
 };
 
+class MergedLoadStoreMotionPass
+    : public PassInfoMixin<MergedLoadStoreMotionPass> {
+  MergedLoadStoreMotionOptions Options;
+
+public:
+  MergedLoadStoreMotionPass()
+      : MergedLoadStoreMotionPass(MergedLoadStoreMotionOptions()) {}
+  MergedLoadStoreMotionPass(const MergedLoadStoreMotionOptions &PassOptions)
+      : Options(PassOptions) {}
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
+};
 }
 
 #endif // LLVM_TRANSFORMS_SCALAR_MERGEDLOADSTOREMOTION_H

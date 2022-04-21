@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-
-//===-- lesf2vfp_test.c - Test __lesf2vfp ---------------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __lesf2vfp for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_lesf2vfp
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -20,7 +9,7 @@
 
 extern int __lesf2vfp(float a, float b);
 
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x4)
 int test__lesf2vfp(float a, float b)
 {
     int actual = __lesf2vfp(a, b);
@@ -34,7 +23,7 @@ int test__lesf2vfp(float a, float b)
 
 int main()
 {
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x4)
     if (test__lesf2vfp(0.0, 0.0))
         return 1;
     if (test__lesf2vfp(1.0, 1.0))

@@ -29,17 +29,17 @@ entry:
 ; CHECK-NEXT:        .long   104
 ; CHECK-NEXT:        .long   104
 ; CHECK-NEXT:        .long   32
-; CHECK-NEXT:        .long   16                      # BTF_KIND_INT(id = 1)
+; CHECK-NEXT:        .long   1                       # BTF_KIND_INT(id = 1)
 ; CHECK-NEXT:        .long   16777216                # 0x1000000
 ; CHECK-NEXT:        .long   4
 ; CHECK-NEXT:        .long   16777248                # 0x1000020
 ; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 2)
 ; CHECK-NEXT:        .long   218103809               # 0xd000001
 ; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   20
+; CHECK-NEXT:        .long   5
 ; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   23                      # BTF_KIND_FUNC(id = 3)
-; CHECK-NEXT:        .long   201326592               # 0xc000000
+; CHECK-NEXT:        .long   8                       # BTF_KIND_FUNC(id = 3)
+; CHECK-NEXT:        .long   201326593               # 0xc000001
 ; CHECK-NEXT:        .long   2
 ; CHECK-NEXT:        .long   0                       # BTF_KIND_PTR(id = 4)
 ; CHECK-NEXT:        .long   33554432                # 0x2000000
@@ -54,17 +54,17 @@ entry:
 ; CHECK-NEXT:        .long   8
 ; CHECK-NEXT:        .long   29
 ; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   0
+; CHECK-NEXT:        .long   0                       # 0x0
 ; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  ".text"                 # string offset=1
+; CHECK-NEXT:        .ascii  "int"                   # string offset=1
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "/tmp/t.c"              # string offset=7
+; CHECK-NEXT:        .ascii  "p2"                    # string offset=5
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=16
+; CHECK-NEXT:        .ascii  "f1"                    # string offset=8
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "p2"                    # string offset=20
+; CHECK-NEXT:        .ascii  ".text"                 # string offset=11
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "f1"                    # string offset=23
+; CHECK-NEXT:        .ascii  "/tmp/t.c"              # string offset=17
 ; CHECK-NEXT:        .byte   0
 ; CHECK-NEXT:        .ascii  "t1"                    # string offset=26
 ; CHECK-NEXT:        .byte   0
@@ -74,28 +74,30 @@ entry:
 ; CHECK-NEXT:        .short  60319                   # 0xeb9f
 ; CHECK-NEXT:        .byte   1
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
+; CHECK-NEXT:        .long   32
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   20
 ; CHECK-NEXT:        .long   20
 ; CHECK-NEXT:        .long   28
+; CHECK-NEXT:        .long   48
+; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   8                       # FuncInfo
-; CHECK-NEXT:        .long   1                       # FuncInfo section string offset=1
+; CHECK-NEXT:        .long   11                      # FuncInfo section string offset=11
 ; CHECK-NEXT:        .long   1
 ; CHECK-NEXT:        .long   .Lfunc_begin0
 ; CHECK-NEXT:        .long   3
 ; CHECK-NEXT:        .long   16                      # LineInfo
-; CHECK-NEXT:        .long   1                       # LineInfo section string offset=1
+; CHECK-NEXT:        .long   11                      # LineInfo section string offset=11
 ; CHECK-NEXT:        .long   1
 ; CHECK-NEXT:        .long   .Ltmp{{[0-9]+}}
-; CHECK-NEXT:        .long   7
+; CHECK-NEXT:        .long   17
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   3091                    # Line 3 Col 19
 
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 
 !llvm.dbg.cu = !{!2}

@@ -1,0 +1,30 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Int16
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testSMod_v2i16"
+               OpName %a "a"
+               OpName %b "b"
+       %void = OpTypeVoid
+     %ushort = OpTypeInt 16 0
+    %ushort2 = OpTypeVector %ushort 2
+          %5 = OpTypeFunction %void %ushort2 %ushort2
+          %1 = OpFunction %void None %5
+          %a = OpFunctionParameter %ushort2
+          %b = OpFunctionParameter %ushort2
+          %6 = OpLabel
+          %7 = OpSMod %ushort2 %a %b
+               OpReturn
+               OpFunctionEnd
+
+; CHECK-DAG: %srem.res = srem <2 x i16> %a, %b
+; CHECK-DAG: %xor.res = xor <2 x i16> {{%a, %b|%b, %a}}
+; CHECK-DAG: %cmpsign.res = icmp slt <2 x i16> %xor.res, zeroinitializer
+; CHECK-DAG: %cmpsrem.res = icmp ne <2 x i16> {{%srem\.res, zeroinitializer|zeroinitializer, %srem\.res}}
+; CHECK-DAG: %add.res = add nsw <2 x i16> {{%srem\.res, %b|%b, %srem\.res}}
+; CHECK-DAG: %cmp.res = and <2 x i1> {{%cmpsign\.res, %cmpsrem\.res|%cmpsrem\.res, %cmpsign\.res}}
+; CHECK: select <2 x i1> %cmp.res, <2 x i16> %add.res, <2 x i16> %srem.res

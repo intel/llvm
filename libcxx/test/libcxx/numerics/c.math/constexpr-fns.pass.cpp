@@ -14,13 +14,11 @@
 // constexpr-evaluatable, but that's what we check here, since we can't check
 // true constexpr-ness.
 //
-// This fails with gcc because __builtin_isnan and friends, which libcpp_isnan
-// and friends call, are not themselves constexpr-evaluatable.
-//
-// UNSUPPORTED: c++98, c++03
-// XFAIL: gcc
+// UNSUPPORTED: c++03
 
 #include <cmath>
+
+#include "test_macros.h"
 
 static_assert(std::__libcpp_isnan_or_builtin(0.) == false, "");
 static_assert(std::__libcpp_isinf_or_builtin(0.0) == false, "");

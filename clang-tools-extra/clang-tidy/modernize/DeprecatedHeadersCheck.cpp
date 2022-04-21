@@ -42,10 +42,8 @@ private:
 
 void DeprecatedHeadersCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  if (getLangOpts().CPlusPlus) {
     PP->addPPCallbacks(
-        ::llvm::make_unique<IncludeModernizePPCallbacks>(*this, getLangOpts()));
-  }
+        ::std::make_unique<IncludeModernizePPCallbacks>(*this, getLangOpts()));
 }
 
 IncludeModernizePPCallbacks::IncludeModernizePPCallbacks(ClangTidyCheck &Check,

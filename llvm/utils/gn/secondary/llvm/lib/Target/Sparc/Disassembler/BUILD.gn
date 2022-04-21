@@ -15,7 +15,5 @@ static_library("Disassembler") {
     "//llvm/lib/Target/Sparc/MCTargetDesc",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "SparcDisassembler.cpp",
-  ]
+  sources = [ "SparcDisassembler.cpp" ]
 }

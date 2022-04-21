@@ -5,7 +5,5 @@ unittest("LineEditorTests") {
     "//llvm/lib/LineEditor",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "LineEditor.cpp",
-  ]
+  sources = [ "LineEditor.cpp" ]
 }

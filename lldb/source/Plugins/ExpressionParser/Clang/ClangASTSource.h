@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ClangASTSource_h_
-#define liblldb_ClangASTSource_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGASTSOURCE_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGASTSOURCE_H
 
 #include <set>
 
-#include "lldb/Symbol/ClangASTImporter.h"
-#include "lldb/Symbol/ClangExternalASTSourceCommon.h"
+#include "Plugins/ExpressionParser/Clang/ClangASTImporter.h"
+#include "Plugins/ExpressionParser/Clang/NameSearchContext.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Target/Target.h"
-#include "clang/AST/ExternalASTMerger.h"
+#include "clang/AST/ExternalASTSource.h"
 #include "clang/Basic/IdentifierTable.h"
 
 #include "llvm/ADT/SmallSet.h"
@@ -30,7 +30,7 @@ namespace lldb_private {
 /// knows the name it is looking for, but nothing else. The ExternalSemaSource
 /// class provides Decls (VarDecl, FunDecl, TypeDecl) to Clang for these
 /// names, consulting the ClangExpressionDeclMap to do the actual lookups.
-class ClangASTSource : public ClangExternalASTSourceCommon,
+class ClangASTSource : public clang::ExternalASTSource,
                        public ClangASTImporter::MapCompleter {
 public:
   /// Constructor
@@ -39,27 +39,29 @@ public:
   ///
   /// \param[in] target
   ///     A reference to the target containing debug information to use.
-  ClangASTSource(const lldb::TargetSP &target);
+  ///
+  /// \param[in] importer
+  ///     The ClangASTImporter to use.
+  ClangASTSource(const lldb::TargetSP &target,
+                 const std::shared_ptr<ClangASTImporter> &importer);
 
   /// Destructor
   ~ClangASTSource() override;
 
   /// Interface stubs.
-  clang::Decl *GetExternalDecl(uint32_t) override { return NULL; }
-  clang::Stmt *GetExternalDeclStmt(uint64_t) override { return NULL; }
+  clang::Decl *GetExternalDecl(uint32_t) override { return nullptr; }
+  clang::Stmt *GetExternalDeclStmt(uint64_t) override { return nullptr; }
   clang::Selector GetExternalSelector(uint32_t) override {
     return clang::Selector();
   }
   uint32_t GetNumExternalSelectors() override { return 0; }
   clang::CXXBaseSpecifier *
   GetExternalCXXBaseSpecifiers(uint64_t Offset) override {
-    return NULL;
+    return nullptr;
   }
-  void MaterializeVisibleDecls(const clang::DeclContext *DC) { return; }
+  void MaterializeVisibleDecls(const clang::DeclContext *DC) {}
 
-  void InstallASTContext(clang::ASTContext &ast_context,
-                         clang::FileManager &file_manager,
-                         bool is_shared_context = false);
+  void InstallASTContext(TypeSystemClang &ast_context);
 
   //
   // APIs for ExternalASTSource
@@ -89,7 +91,7 @@ public:
   /// \param[in] DC
   ///     The DeclContext being searched.
   ///
-  /// \param[in] isKindWeWant
+  /// \param[in] IsKindWeWant
   ///     A callback function that returns true given the
   ///     DeclKinds of desired Decls, and false otherwise.
   ///
@@ -155,7 +157,7 @@ public:
   /// setHasExternalVisibleStorage() and setHasExternalLexicalStorage() that
   /// this object has something to say about undefined names.
   ///
-  /// \param[in] ASTConsumer
+  /// \param[in] Consumer
   ///     Unused.
   void StartTranslationUnit(clang::ASTConsumer *Consumer) override;
 
@@ -195,11 +197,6 @@ public:
 
   clang::Sema *getSema();
 
-  void SetImportInProgress(bool import_in_progress) {
-    m_import_in_progress = import_in_progress;
-  }
-  bool GetImportInProgress() { return m_import_in_progress; }
-
   void SetLookupsEnabled(bool lookups_enabled) {
     m_lookups_enabled = lookups_enabled;
   }
@@ -210,7 +207,7 @@ public:
   ///
   /// Clang AST contexts like to own their AST sources, so this is a state-
   /// free proxy object.
-  class ClangASTSourceProxy : public ClangExternalASTSourceCommon {
+  class ClangASTSourceProxy : public clang::ExternalASTSource {
   public:
     ClangASTSourceProxy(ClangASTSource &original) : m_original(original) {}
 
@@ -249,18 +246,6 @@ public:
       return m_original.StartTranslationUnit(Consumer);
     }
 
-    ClangASTMetadata *GetMetadata(const void *object) {
-      return m_original.GetMetadata(object);
-    }
-
-    void SetMetadata(const void *object, ClangASTMetadata &metadata) {
-      return m_original.SetMetadata(object, metadata);
-    }
-
-    bool HasMetadata(const void *object) {
-      return m_original.HasMetadata(object);
-    }
-
   private:
     ClangASTSource &m_original;
   };
@@ -293,14 +278,9 @@ protected:
   ///
   /// \param[in] namespace_decl
   ///     If valid and module is non-NULL, the parent namespace.
-  ///
-  /// \param[in] current_id
-  ///     The ID for the current FindExternalVisibleDecls invocation,
-  ///     for logging purposes.
   void FindExternalVisibleDecls(NameSearchContext &context,
                                 lldb::ModuleSP module,
-                                CompilerDeclContext &namespace_decl,
-                                unsigned int current_id);
+                                CompilerDeclContext &namespace_decl);
 
   /// Find all Objective-C methods matching a given selector.
   ///
@@ -318,15 +298,14 @@ protected:
   ///     is the containing object.
   void FindObjCPropertyAndIvarDecls(NameSearchContext &context);
 
-  /// A wrapper for ClangASTContext::CopyType that sets a flag that
+  /// Performs lookup into a namespace.
+  ///
+  /// \param context
+  ///     The NameSearchContext for a lookup inside a namespace.
+  void LookupInNamespace(NameSearchContext &context);
+
+  /// A wrapper for TypeSystemClang::CopyType that sets a flag that
   /// indicates that we should not respond to queries during import.
-  ///
-  /// \param[in] dest_context
-  ///     The target AST context, typically the parser's AST context.
-  ///
-  /// \param[in] source_context
-  ///     The source AST context, typically the AST context of whatever
-  ///     symbol file the type was found in.
   ///
   /// \param[in] src_type
   ///     The source type.
@@ -335,13 +314,15 @@ protected:
   ///     The imported type.
   CompilerType GuardedCopyType(const CompilerType &src_type);
 
+  std::shared_ptr<ClangModulesDeclVendor> GetClangModulesDeclVendor();
+
 public:
   /// Returns true if a name should be ignored by name lookup.
   ///
   /// \param[in] name
   ///     The name to be considered.
   ///
-  /// \param[in] ignore_all_dollar_nmmes
+  /// \param[in] ignore_all_dollar_names
   ///     True if $-names of all sorts should be ignored.
   ///
   /// \return
@@ -349,7 +330,6 @@ public:
   ///     global lookup for performance reasons.
   bool IgnoreName(const ConstString name, bool ignore_all_dollar_names);
 
-public:
   /// Copies a single Decl into the parser's AST context.
   ///
   /// \param[in] src_decl
@@ -358,171 +338,57 @@ public:
   /// \return
   ///     A copy of the Decl in m_ast_context, or NULL if the copy failed.
   clang::Decl *CopyDecl(clang::Decl *src_decl);
-                         
-  /// Copies a single Type to the target of the given ExternalASTMerger.
-  ///
-  /// \param[in] src_context
-  ///     The ASTContext containing the type.
-  ///
-  /// \param[in] merger
-  ///     The merger to use.  This isn't just *m_merger_up because it might be
-  ///     the persistent AST context's merger.
-  ///
-  /// \param[in] type
-  ///     The type to copy.
-  ///
-  /// \return
-  ///     A copy of the Type in the merger's target context.
-	clang::QualType CopyTypeWithMerger(clang::ASTContext &src_context,
-                                     clang::ExternalASTMerger &merger,
-                                     clang::QualType type);
 
   /// Determined the origin of a single Decl, if it can be found.
   ///
   /// \param[in] decl
   ///     The Decl whose origin is to be found.
   ///
-  /// \param[out] original_decl
-  ///     A pointer whose target is filled in with the original Decl.
-  ///
-  /// \param[in] original_ctx
-  ///     A pointer whose target is filled in with the original's ASTContext.
-  ///
   /// \return
   ///     True if lookup succeeded; false otherwise.
-  bool ResolveDeclOrigin(const clang::Decl *decl, clang::Decl **original_decl,
-                         clang::ASTContext **original_ctx);
- 
-  /// Returns m_merger_up.  Only call this if the target is configured to use
-  /// modern lookup,
-	clang::ExternalASTMerger &GetMergerUnchecked();
- 
-  /// Returns true if there is a merger.  This only occurs if the target is
-  /// using modern lookup.
-  bool HasMerger() { return (bool)m_merger_up; }
+  ClangASTImporter::DeclOrigin GetDeclOrigin(const clang::Decl *decl);
+
+  /// Returns the TypeSystem that uses this ClangASTSource instance as it's
+  /// ExternalASTSource.
+  TypeSystemClang *GetTypeSystem() const { return m_clang_ast_context; }
 
 protected:
   bool FindObjCMethodDeclsWithOrigin(
-      unsigned int current_id, NameSearchContext &context,
+      NameSearchContext &context,
       clang::ObjCInterfaceDecl *original_interface_decl, const char *log_info);
+
+  void FindDeclInModules(NameSearchContext &context, ConstString name);
+  void FindDeclInObjCRuntime(NameSearchContext &context, ConstString name);
+
+  /// Fills the namespace map of the given NameSearchContext.
+  ///
+  /// \param context The NameSearchContext with the namespace map to fill.
+  /// \param module_sp The module to search for namespaces or a nullptr if
+  ///                  the current target should be searched.
+  /// \param namespace_decl The DeclContext in which to search for namespaces.
+  void FillNamespaceMap(NameSearchContext &context, lldb::ModuleSP module_sp,
+                        const CompilerDeclContext &namespace_decl);
+
+  clang::TagDecl *FindCompleteType(const clang::TagDecl *decl);
 
   friend struct NameSearchContext;
 
-  bool m_import_in_progress;
   bool m_lookups_enabled;
 
-  const lldb::TargetSP
-      m_target; ///< The target to use in finding variables and types.
-  clang::ASTContext
-      *m_ast_context; ///< The AST context requests are coming in for.
-  clang::FileManager
-      *m_file_manager; ///< The file manager paired with the AST context.
-  lldb::ClangASTImporterSP m_ast_importer_sp; ///< The target's AST importer.
-  std::unique_ptr<clang::ExternalASTMerger> m_merger_up;
-      ///< The ExternalASTMerger for this parse.
+  /// The target to use in finding variables and types.
+  const lldb::TargetSP m_target;
+  /// The AST context requests are coming in for.
+  clang::ASTContext *m_ast_context;
+  /// The TypeSystemClang for m_ast_context.
+  TypeSystemClang *m_clang_ast_context;
+  /// The file manager paired with the AST context.
+  clang::FileManager *m_file_manager;
+  /// The target's AST importer.
+  std::shared_ptr<ClangASTImporter> m_ast_importer_sp;
   std::set<const clang::Decl *> m_active_lexical_decls;
   std::set<const char *> m_active_lookups;
 };
 
-/// \class NameSearchContext ClangASTSource.h
-/// "lldb/Expression/ClangASTSource.h" Container for all objects relevant to a
-/// single name lookup
-///
-/// LLDB needs to create Decls for entities it finds.  This class communicates
-/// what name is being searched for and provides helper functions to construct
-/// Decls given appropriate type information.
-struct NameSearchContext {
-  ClangASTSource &m_ast_source; ///< The AST source making the request
-  llvm::SmallVectorImpl<clang::NamedDecl *>
-      &m_decls; ///< The list of declarations already constructed
-  ClangASTImporter::NamespaceMapSP m_namespace_map; ///< The mapping of all
-                                                    ///namespaces found for this
-                                                    ///request back to their
-                                                    ///modules
-  const clang::DeclarationName &m_decl_name; ///< The name being looked for
-  const clang::DeclContext
-      *m_decl_context; ///< The DeclContext to put declarations into
-  llvm::SmallSet<CompilerType, 5> m_function_types; ///< All the types of
-                                                    ///functions that have been
-                                                    ///reported, so we don't
-                                                    ///report conflicts
-
-  struct {
-    bool variable : 1;
-    bool function_with_type_info : 1;
-    bool function : 1;
-    bool local_vars_nsp : 1;
-    bool type : 1;
-  } m_found;
-
-  /// Constructor
-  ///
-  /// Initializes class variables.
-  ///
-  /// \param[in] astSource
-  ///     A reference to the AST source making a request.
-  ///
-  /// \param[in] decls
-  ///     A reference to a list into which new Decls will be placed.  This
-  ///     list is typically empty when the function is called.
-  ///
-  /// \param[in] name
-  ///     The name being searched for (always an Identifier).
-  ///
-  /// \param[in] dc
-  ///     The DeclContext to register Decls in.
-  NameSearchContext(ClangASTSource &astSource,
-                    llvm::SmallVectorImpl<clang::NamedDecl *> &decls,
-                    clang::DeclarationName &name, const clang::DeclContext *dc)
-      : m_ast_source(astSource), m_decls(decls), m_decl_name(name),
-        m_decl_context(dc) {
-    memset(&m_found, 0, sizeof(m_found));
-  }
-
-  /// Create a VarDecl with the name being searched for and the provided type
-  /// and register it in the right places.
-  ///
-  /// \param[in] type
-  ///     The opaque QualType for the VarDecl being registered.
-  clang::NamedDecl *AddVarDecl(const CompilerType &type);
-
-  /// Create a FunDecl with the name being searched for and the provided type
-  /// and register it in the right places.
-  ///
-  /// \param[in] type
-  ///     The opaque QualType for the FunDecl being registered.
-  ///
-  /// \param[in] extern_c
-  ///     If true, build an extern "C" linkage specification for this.
-  clang::NamedDecl *AddFunDecl(const CompilerType &type, bool extern_c = false);
-
-  /// Create a FunDecl with the name being searched for and generic type (i.e.
-  /// intptr_t NAME_GOES_HERE(...)) and register it in the right places.
-  clang::NamedDecl *AddGenericFunDecl();
-
-  /// Create a TypeDecl with the name being searched for and the provided type
-  /// and register it in the right places.
-  ///
-  /// \param[in] compiler_type
-  ///     The opaque QualType for the TypeDecl being registered.
-  clang::NamedDecl *AddTypeDecl(const CompilerType &compiler_type);
-
-  /// Add Decls from the provided DeclContextLookupResult to the list of
-  /// results.
-  ///
-  /// \param[in] result
-  ///     The DeclContextLookupResult, usually returned as the result
-  ///     of querying a DeclContext.
-  void AddLookupResult(clang::DeclContextLookupResult result);
-
-  /// Add a NamedDecl to the list of results.
-  ///
-  /// \param[in] decl
-  ///     The NamedDecl, usually returned as the result
-  ///     of querying a DeclContext.
-  void AddNamedDecl(clang::NamedDecl *decl);
-};
-
 } // namespace lldb_private
 
-#endif // liblldb_ClangASTSource_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGASTSOURCE_H

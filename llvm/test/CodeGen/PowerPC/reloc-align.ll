@@ -15,13 +15,13 @@ target triple = "powerpc64-unknown-linux-gnu"
 ; Function Attrs: nounwind readonly
 define signext i32 @main() #0 {
 entry:
-  %call = tail call fastcc signext i32 @func_90(%struct.S1* byval bitcast ({ i8, i8, i8, i8, i8, i8, i8, i8 }* @main.l_1554 to %struct.S1*))
+  %call = tail call fastcc signext i32 @func_90(%struct.S1* byval(%struct.S1) bitcast ({ i8, i8, i8, i8, i8, i8, i8, i8 }* @main.l_1554 to %struct.S1*))
 ; CHECK-NOT: ld {{[0-9]+}}, main.l_1554@toc@l
   ret i32 %call
 }
 
 ; Function Attrs: nounwind readonly
-define internal fastcc signext i32 @func_90(%struct.S1* byval nocapture %p_91) #0 {
+define internal fastcc signext i32 @func_90(%struct.S1* byval(%struct.S1) nocapture %p_91) #0 {
 entry:
   %0 = bitcast %struct.S1* %p_91 to i64*
   %bf.load = load i64, i64* %0, align 1
@@ -31,4 +31,4 @@ entry:
   ret i32 %bf.cast
 }
 
-attributes #0 = { nounwind readonly "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind readonly "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }

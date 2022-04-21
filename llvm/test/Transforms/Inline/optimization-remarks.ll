@@ -1,21 +1,35 @@
 ; RUN: opt < %s -inline -pass-remarks=inline -pass-remarks-missed=inline \
 ; RUN:       -pass-remarks-analysis=inline -S 2>&1 | \
-; RUN:       FileCheck -check-prefix=CHECK -check-prefix=NO_HOTNESS %s
+; RUN:       FileCheck -check-prefixes=CHECK,NO_HOTNESS,ALWAYS %s
 ; RUN: opt < %s -inline -pass-remarks=inline -pass-remarks-missed=inline \
 ; RUN:       -pass-remarks-analysis=inline -pass-remarks-with-hotness -S 2>&1 | \
-; RUN:       FileCheck -check-prefix=CHECK -check-prefix=HOTNESS %s
+; RUN:       FileCheck -check-prefixes=CHECK,HOTNESS,ALWAYS %s
+
+; RUN: opt < %s -passes=always-inline -pass-remarks=inline -pass-remarks-missed=inline \
+; RUN:       -pass-remarks-analysis=inline -S 2>&1 | \
+; RUN:       FileCheck -check-prefixes=ALWAYS %s
+; RUN: opt < %s -passes=always-inline -pass-remarks=inline -pass-remarks-missed=inline \
+; RUN:       -pass-remarks-analysis=inline -pass-remarks-with-hotness -S 2>&1 | \
+; RUN:       FileCheck -check-prefixes=ALWAYS %s
 
 ; RUN: opt < %s -passes=inline -pass-remarks=inline -pass-remarks-missed=inline \
 ; RUN:       -pass-remarks-analysis=inline -S 2>&1 | \
-; RUN:       FileCheck -check-prefix=CHECK -check-prefix=NO_HOTNESS %s
+; RUN:       FileCheck -check-prefixes=CHECK,NO_HOTNESS,ALWAYS %s
 ; RUN: opt < %s -passes=inline -pass-remarks=inline -pass-remarks-missed=inline \
 ; RUN:       -pass-remarks-analysis=inline -pass-remarks-with-hotness -S 2>&1 | \
-; RUN:       FileCheck -check-prefix=CHECK -check-prefix=HOTNESS %s
+; RUN:       FileCheck -check-prefixes=CHECK,HOTNESS,ALWAYS %s
 
-; HOTNESS: fox will not be inlined into bar because its definition is unavailable
+; RUN: opt < %s -passes=inliner-wrapper-no-mandatory-first -pass-remarks=inline -pass-remarks-missed=inline \
+; RUN:       -pass-remarks-analysis=inline -S 2>&1 | \
+; RUN:       FileCheck -check-prefixes=CHECK,NO_HOTNESS,ALWAYS %s
+; RUN: opt < %s -passes=inliner-wrapper-no-mandatory-first -pass-remarks=inline -pass-remarks-missed=inline \
+; RUN:       -pass-remarks-analysis=inline -pass-remarks-with-hotness -S 2>&1 | \
+; RUN:       FileCheck -check-prefixes=CHECK,HOTNESS,ALWAYS %s
+
+; HOTNESS-DAG: fox will not be inlined into bar because its definition is unavailable
 ; NO_HOTNESS-NOT: fox will not be inlined into bar because its definition is unavailable
-; CHECK: foo inlined into bar with (cost=always): always inline attribute
-; CHECK: foz not inlined into bar because it should never be inlined (cost=never): noinline function attribute
+; ALWAYS-DAG: 'foo' inlined into 'bar' with (cost=always): always inline attribute
+; CHECK-DAG: 'foz' not inlined into 'bar' because it should never be inlined (cost=never): noinline function attribute
 
 ; Function Attrs: alwaysinline nounwind uwtable
 define i32 @foo(i32 %x, i32 %y) #0 !prof !1 {
@@ -67,9 +81,9 @@ entry:
   ret i32 %add
 }
 
-attributes #0 = { alwaysinline nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { noinline nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { alwaysinline nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { noinline nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.ident = !{!0}
 

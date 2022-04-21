@@ -1,0 +1,98 @@
+119734787 65536 393230 10 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+3 Source 3 102000
+4 Name 5 "test"
+3 Name 6 "val1"
+4 Name 7 "entry"
+3 Name 9 "val2"
+6 Decorate 5 LinkageAttributes "test" Export
+4 TypeInt 3 32 0
+4 Constant 3 8 2
+2 TypeVoid 2
+5 TypeFunction 4 2 3 3
+
+5 Function 2 5 0 4
+3 FunctionParameter 3 6
+3 FunctionParameter 3 9
+
+2 Label 7
+3 MemoryBarrier 8 6
+3 MemoryBarrier 9 6
+1 Return
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes CHECK,CHECK-12
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=CL2.0 -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes CHECK,CHECK-20
+
+; CHECK: define spir_func void @test(i32 %[[VAL1:[a-zA-Z0-9]+]], i32 %[[VAL2:[a-zA-Z0-9]+]])
+; CHECK: %call = call spir_func i32 @__translate_spirv_memory_fence(i32 %[[VAL1]])
+; CHECK-12: call spir_func void @_Z9mem_fencej(i32 %call)
+; CHECK-12: %call1 = call spir_func i32 @__translate_spirv_memory_fence(i32 %[[VAL1]])
+; CHECK-12: call spir_func void @_Z9mem_fencej(i32 %call1)
+; CHECK-20: %call1 = call spir_func i32 @__translate_spirv_memory_order(i32 %[[VAL1]])
+; CHECK-20: call spir_func void @_Z22atomic_work_item_fencej12memory_order12memory_scope(i32 %call, i32 %call1
+; CHECK-20: %call2 = call spir_func i32 @__translate_spirv_memory_scope(i32 %[[VAL2]])
+; CHECK-20: %call3 = call spir_func i32 @__translate_spirv_memory_fence(i32 %[[VAL1]])
+; CHECK-20: %call4 = call spir_func i32 @__translate_spirv_memory_order(i32 %[[VAL1]])
+; CHECK-20: call spir_func void @_Z22atomic_work_item_fencej12memory_order12memory_scope(i32 %call3, i32 %call4, i32 %call2)
+; CHECK: define private spir_func i32 @__translate_spirv_memory_fence(i32 %key)
+; CHECK: entry:
+; CHECK:   %key.masked = and i32 2816, %key
+; CHECK:   switch i32 %key.masked, label %default [
+; CHECK:     i32 256, label %case.256
+; CHECK:     i32 512, label %case.512
+; CHECK:     i32 768, label %case.768
+; CHECK:     i32 2048, label %case.2048
+; CHECK:     i32 2304, label %case.2304
+; CHECK:     i32 2560, label %case.2560
+; CHECK:     i32 2816, label %case.2816
+; CHECK:   ]
+; CHECK: default:
+; CHECK:   unreachable
+; CHECK: case.256:
+; CHECK:   ret i32 1
+; CHECK: case.512:
+; CHECK:   ret i32 2
+; CHECK: case.768:
+; CHECK:   ret i32 3
+; CHECK: case.2048:
+; CHECK:   ret i32 4
+; CHECK: case.2304:
+; CHECK:   ret i32 5
+; CHECK: case.2560:
+; CHECK:   ret i32 6
+; CHECK: case.2816:
+; CHECK:   ret i32 7
+; CHECK: }
+; CHECK-20: define private spir_func i32 @__translate_spirv_memory_order(i32 %key) {
+; CHECK-20: entry:
+; CHECK-20:   %key.masked = and i32 30, %key
+; CHECK-20:   switch i32 %key.masked, label %default [
+; CHECK-20:     i32 0, label %case.0
+; CHECK-20:     i32 2, label %case.2
+; CHECK-20:     i32 4, label %case.4
+; CHECK-20:     i32 8, label %case.8
+; CHECK-20:     i32 16, label %case.16
+; CHECK-20:   ]
+; CHECK-20: default:
+; CHECK-20:   unreachable
+; CHECK-20: case.0:
+; CHECK-20:   ret i32 0
+; CHECK-20: case.2:
+; CHECK-20:   ret i32 2
+; CHECK-20: case.4:
+; CHECK-20:   ret i32 3
+; CHECK-20: case.8:
+; CHECK-20:   ret i32 4
+; CHECK-20: case.16:
+; CHECK-20:   ret i32 5
+; CHECK-20: }

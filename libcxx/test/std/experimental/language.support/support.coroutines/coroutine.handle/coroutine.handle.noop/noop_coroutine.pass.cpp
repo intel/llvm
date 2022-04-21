@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 // UNSUPPORTED: ubsan
 
 // <experimental/coroutine>
@@ -19,7 +18,9 @@
 #include <cassert>
 #include <type_traits>
 
-#if __has_builtin(__builtin_coro_noop)
+#include "test_macros.h"
+
+#if TEST_HAS_BUILTIN(__builtin_coro_noop)
 
 namespace coro = std::experimental::coroutines_v1;
 
@@ -73,4 +74,4 @@ int main(int, char**)
 
 int main(int, char**) { return 0; }
 
-#endif //  __has_builtin(__builtin_coro_noop)
+#endif //  TEST_HAS_BUILTIN(__builtin_coro_noop)

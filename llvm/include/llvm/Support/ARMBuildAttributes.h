@@ -18,10 +18,12 @@
 #ifndef LLVM_SUPPORT_ARMBUILDATTRIBUTES_H
 #define LLVM_SUPPORT_ARMBUILDATTRIBUTES_H
 
-namespace llvm {
-class StringRef;
+#include "llvm/Support/ELFAttributes.h"
 
+namespace llvm {
 namespace ARMBuildAttrs {
+
+const TagNameMap &getARMAttributeTags();
 
 enum SpecialAttr {
   // This is for the .cpu asm attr. It translates into one or more
@@ -29,65 +31,61 @@ enum SpecialAttr {
   SEL_CPU
 };
 
-enum AttrType {
+enum AttrType : unsigned {
   // Rest correspond to ELF/.ARM.attributes
-  File                      = 1,
-  CPU_raw_name              = 4,
-  CPU_name                  = 5,
-  CPU_arch                  = 6,
-  CPU_arch_profile          = 7,
-  ARM_ISA_use               = 8,
-  THUMB_ISA_use             = 9,
-  FP_arch                   = 10,
-  WMMX_arch                 = 11,
-  Advanced_SIMD_arch        = 12,
-  PCS_config                = 13,
-  ABI_PCS_R9_use            = 14,
-  ABI_PCS_RW_data           = 15,
-  ABI_PCS_RO_data           = 16,
-  ABI_PCS_GOT_use           = 17,
-  ABI_PCS_wchar_t           = 18,
-  ABI_FP_rounding           = 19,
-  ABI_FP_denormal           = 20,
-  ABI_FP_exceptions         = 21,
-  ABI_FP_user_exceptions    = 22,
-  ABI_FP_number_model       = 23,
-  ABI_align_needed          = 24,
-  ABI_align_preserved       = 25,
-  ABI_enum_size             = 26,
-  ABI_HardFP_use            = 27,
-  ABI_VFP_args              = 28,
-  ABI_WMMX_args             = 29,
-  ABI_optimization_goals    = 30,
+  File = 1,
+  CPU_raw_name = 4,
+  CPU_name = 5,
+  CPU_arch = 6,
+  CPU_arch_profile = 7,
+  ARM_ISA_use = 8,
+  THUMB_ISA_use = 9,
+  FP_arch = 10,
+  WMMX_arch = 11,
+  Advanced_SIMD_arch = 12,
+  PCS_config = 13,
+  ABI_PCS_R9_use = 14,
+  ABI_PCS_RW_data = 15,
+  ABI_PCS_RO_data = 16,
+  ABI_PCS_GOT_use = 17,
+  ABI_PCS_wchar_t = 18,
+  ABI_FP_rounding = 19,
+  ABI_FP_denormal = 20,
+  ABI_FP_exceptions = 21,
+  ABI_FP_user_exceptions = 22,
+  ABI_FP_number_model = 23,
+  ABI_align_needed = 24,
+  ABI_align_preserved = 25,
+  ABI_enum_size = 26,
+  ABI_HardFP_use = 27,
+  ABI_VFP_args = 28,
+  ABI_WMMX_args = 29,
+  ABI_optimization_goals = 30,
   ABI_FP_optimization_goals = 31,
-  compatibility             = 32,
-  CPU_unaligned_access      = 34,
-  FP_HP_extension           = 36,
-  ABI_FP_16bit_format       = 38,
-  MPextension_use           = 42, // recoded from 70 (ABI r2.08)
-  DIV_use                   = 44,
-  DSP_extension             = 46,
-  also_compatible_with      = 65,
-  conformance               = 67,
-  Virtualization_use        = 68,
+  compatibility = 32,
+  CPU_unaligned_access = 34,
+  FP_HP_extension = 36,
+  ABI_FP_16bit_format = 38,
+  MPextension_use = 42, // recoded from 70 (ABI r2.08)
+  DIV_use = 44,
+  DSP_extension = 46,
+  MVE_arch = 48,
+  PAC_extension = 50,
+  BTI_extension = 52,
+  also_compatible_with = 65,
+  conformance = 67,
+  Virtualization_use = 68,
+  BTI_use = 74,
+  PACRET_use = 76,
 
   /// Legacy Tags
-  Section                   = 2,  // deprecated (ABI r2.09)
-  Symbol                    = 3,  // deprecated (ABI r2.09)
-  ABI_align8_needed         = 24, // renamed to ABI_align_needed (ABI r2.09)
-  ABI_align8_preserved      = 25, // renamed to ABI_align_preserved (ABI r2.09)
-  nodefaults                = 64, // deprecated (ABI r2.09)
-  T2EE_use                  = 66, // deprecated (ABI r2.09)
-  MPextension_use_old       = 70  // recoded to MPextension_use (ABI r2.08)
-};
-
-StringRef AttrTypeAsString(unsigned Attr, bool HasTagPrefix = true);
-StringRef AttrTypeAsString(AttrType Attr, bool HasTagPrefix = true);
-int AttrTypeFromString(StringRef Tag);
-
-// Magic numbers for .ARM.attributes
-enum AttrMagic {
-  Format_Version  = 0x41
+  Section = 2,               // deprecated (ABI r2.09)
+  Symbol = 3,                // deprecated (ABI r2.09)
+  ABI_align8_needed = 24,    // renamed to ABI_align_needed (ABI r2.09)
+  ABI_align8_preserved = 25, // renamed to ABI_align_preserved (ABI r2.09)
+  nodefaults = 64,           // deprecated (ABI r2.09)
+  T2EE_use = 66,             // deprecated (ABI r2.09)
+  MPextension_use_old = 70   // recoded to MPextension_use (ABI r2.08)
 };
 
 // Legal Values for CPU_arch, (=6), uleb128
@@ -110,6 +108,7 @@ enum CPUArch {
   v8_R     = 15,  // e.g. Cortex R52
   v8_M_Base= 16,  // v8_M_Base AArch32
   v8_M_Main= 17,  // v8_M_Main AArch32
+  v8_1_M_Main=21, // v8_1_M_Main AArch32
 };
 
 enum CPUArchProfile {               // (=7), uleb128
@@ -150,6 +149,10 @@ enum {
   AllowNeon2 = 2,     // SIMDv2 was permitted (Half-precision FP, MAC operations)
   AllowNeonARMv8 = 3, // ARM v8-A SIMD was permitted
   AllowNeonARMv8_1a = 4,// ARM v8.1-A SIMD was permitted (RDMA)
+
+  // Tag_MVE_arch, (=48), uleb128
+  AllowMVEInteger = 1, // integer-only MVE was permitted
+  AllowMVEIntegerAndFloat = 2, // both integer and floating point MVE were permitted
 
   // Tag_ABI_PCS_R9_use, (=14), uleb128
   R9IsGPR = 0,        // R9 used as v6 (just another callee-saved register)
@@ -238,7 +241,25 @@ enum {
   // Tag_Virtualization_use, (=68), uleb128
   AllowTZ = 1,
   AllowVirtualization = 2,
-  AllowTZVirtualization = 3
+  AllowTZVirtualization = 3,
+
+  // Tag_PAC_extension, (=50), uleb128
+  DisallowPAC = 0,
+  AllowPACInNOPSpace = 1,
+  AllowPAC = 2,
+
+  // Tag_BTI_extension, (=52), uleb128
+  DisallowBTI = 0,
+  AllowBTIInNOPSpace = 1,
+  AllowBTI = 2,
+
+  // Tag_BTI_use, (=74), uleb128
+  BTINotUsed = 0,
+  BTIUsed = 1,
+
+  // Tag_PACRET_use, (=76), uleb128
+  PACRETNotUsed = 0,
+  PACRETUsed = 1
 };
 
 } // namespace ARMBuildAttrs

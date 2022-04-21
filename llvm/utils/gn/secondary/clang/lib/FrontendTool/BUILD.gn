@@ -12,6 +12,7 @@ static_library("FrontendTool") {
     "//clang/lib/Basic",
     "//clang/lib/CodeGen",
     "//clang/lib/Driver",
+    "//clang/lib/ExtractAPI",
     "//clang/lib/Frontend",
     "//clang/lib/Frontend/Rewrite",
     "//llvm/lib/Option",
@@ -23,7 +24,5 @@ static_library("FrontendTool") {
   if (clang_enable_static_analyzer) {
     deps += [ "//clang/lib/StaticAnalyzer/Frontend" ]
   }
-  sources = [
-    "ExecuteCompilerInvocation.cpp",
-  ]
+  sources = [ "ExecuteCompilerInvocation.cpp" ]
 }

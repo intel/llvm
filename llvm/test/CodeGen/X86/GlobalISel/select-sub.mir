@@ -1,7 +1,7 @@
-# RUN: llc -mtriple=x86_64-linux-gnu                                  -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL --check-prefix=NO_AVX512VL --check-prefix=NO_AVX512F --check-prefix=SSE
-# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx                      -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL --check-prefix=NO_AVX512VL --check-prefix=NO_AVX512F --check-prefix=AVX
-# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f                  -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL --check-prefix=NO_AVX512VL --check-prefix=AVX512ALL --check-prefix=AVX512F
-# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f -mattr=+avx512vl -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL --check-prefix=AVX512ALL --check-prefix=AVX512VL
+# RUN: llc -mtriple=x86_64-linux-gnu                                  -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefixes=ALL,NO_AVX512VL,SSE
+# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx                      -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefixes=ALL,NO_AVX512VL,AVX
+# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f                  -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefixes=ALL,NO_AVX512VL,AVX512F
+# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f -mattr=+avx512vl -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefixes=ALL,AVX512VL
 
 --- |
   define i64 @test_sub_i64(i64 %arg1, i64 %arg2) {
@@ -70,7 +70,7 @@ body:             |
 ...
 ---
 name:            test_sub_v4i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 selected:        false
@@ -100,7 +100,7 @@ body:             |
 ...
 ---
 name:            test_sub_v4f32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 selected:        false
@@ -111,13 +111,13 @@ registers:
   - { id: 2, class: vecr }
 # NO_AVX512VL:   %0:vr128 = COPY $xmm0
 # NO_AVX512VL:   %1:vr128 = COPY $xmm1
-# SSE-NEXT:      %2:vr128 = SUBPSrr %0, %1
-# AVX-NEXT:      %2:vr128 = VSUBPSrr %0, %1
-# AVX512F-NEXT:  %2:vr128 = VSUBPSrr %0, %1
+# SSE-NEXT:      %2:vr128 = nofpexcept SUBPSrr %0, %1
+# AVX-NEXT:      %2:vr128 = nofpexcept VSUBPSrr %0, %1
+# AVX512F-NEXT:  %2:vr128 = nofpexcept VSUBPSrr %0, %1
 #
 # AVX512VL:      %0:vr128x = COPY $xmm0
 # AVX512VL:      %1:vr128x = COPY $xmm1
-# AVX512VL-NEXT: %2:vr128x = VSUBPSZ128rr %0, %1
+# AVX512VL-NEXT: %2:vr128x = nofpexcept VSUBPSZ128rr %0, %1
 body:             |
   bb.1 (%ir-block.0):
     liveins: $xmm0, $xmm1

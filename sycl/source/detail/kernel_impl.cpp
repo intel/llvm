@@ -6,32 +6,80 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/kernel_impl.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/kernel_bundle_impl.hpp>
+#include <detail/kernel_impl.hpp>
+#include <detail/program_impl.hpp>
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/program.hpp>
 #include <memory>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-kernel_impl::kernel_impl(cl_kernel ClKernel, const context &SyclContext)
-    : kernel_impl(ClKernel, SyclContext,
-                  std::make_shared<program_impl>(SyclContext, ClKernel),
-                  /*IsCreatedFromSource*/ true) {}
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
+                         KernelBundleImplPtr KernelBundleImpl)
+    : kernel_impl(Kernel, Context,
+                  std::make_shared<program_impl>(Context, Kernel),
+                  /*IsCreatedFromSource*/ true, KernelBundleImpl) {
+  // This constructor is only called in the interoperability kernel constructor.
+  // Let the runtime caller handle native kernel retaining in other cases if
+  // it's needed.
+  getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+  // Enable USM indirect access for interoperability kernels.
+  // Some PI Plugins (like OpenCL) require this call to enable USM
+  // For others, PI will turn this into a NOP.
+  getPlugin().call<PiApiKind::piKernelSetExecInfo>(
+      MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
-program kernel_impl::get_program() const {
-  return createSyclObjFromImpl<program>(ProgramImpl);
+  MIsInterop = true;
 }
 
-template <> context kernel_impl::get_info<info::kernel::context>() const {
-  return get_context();
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+                         ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
+                         KernelBundleImplPtr KernelBundleImpl)
+    : MKernel(Kernel), MContext(ContextImpl),
+      MProgramImpl(std::move(ProgramImpl)),
+      MCreatedFromSource(IsCreatedFromSource),
+      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+
+  RT::PiContext Context = nullptr;
+  // Using the plugin from the passed ContextImpl
+  getPlugin().call<PiApiKind::piKernelGetInfo>(
+      MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
+  if (ContextImpl->getHandleRef() != Context)
+    throw cl::sycl::invalid_parameter_error(
+        "Input context must be the same as the context of cl_kernel",
+        PI_INVALID_CONTEXT);
+
+  MIsInterop = MProgramImpl->isInterop();
 }
 
-template <> program kernel_impl::get_info<info::kernel::program>() const {
-  return get_program();
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+                         DeviceImageImplPtr DeviceImageImpl,
+                         KernelBundleImplPtr KernelBundleImpl)
+    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
+      MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
+      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+
+  // kernel_impl shared ownership of kernel handle
+  if (!is_host()) {
+    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+  }
+
+  MIsInterop = MKernelBundleImpl->isInterop();
 }
+
+kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
+    : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
+
+kernel_impl::~kernel_impl() {
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  if (!is_host()) {
+    getPlugin().call<PiApiKind::piKernelRelease>(MKernel);
+  }
+}
+
 
 bool kernel_impl::isCreatedFromSource() const {
   // TODO it is not clear how to understand whether the SYCL kernel is created
@@ -46,9 +94,9 @@ bool kernel_impl::isCreatedFromSource() const {
   // kernel SecondKernel = kernel(ClKernel, Context);
   // clReleaseKernel(ClKernel);
   // FirstKernel.isCreatedFromSource() != FirstKernel.isCreatedFromSource();
-  return IsCreatedFromSource;
+  return MCreatedFromSource;
 }
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

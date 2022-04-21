@@ -6,19 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // enum class directory_options;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 #include <sys/stat.h>
 
 #include "test_macros.h"
-#include "check_bitmask_types.hpp"
+#include "check_bitmask_types.h"
 
 
 constexpr fs::directory_options ME(int val) { return static_cast<fs::directory_options>(val); }
@@ -30,7 +30,7 @@ int main(int, char**) {
   // Check that E is a scoped enum by checking for conversions.
   typedef std::underlying_type<E>::type UT;
   static_assert(!std::is_convertible<E, UT>::value, "");
-  static_assert(std::is_same<UT, unsigned char>::value, "");
+  LIBCPP_ONLY(static_assert(std::is_same<UT, unsigned char>::value, ""));
 
   typedef check_bitmask_type<E, E::follow_directory_symlink, E::skip_permission_denied> BitmaskTester;
   assert(BitmaskTester::check());

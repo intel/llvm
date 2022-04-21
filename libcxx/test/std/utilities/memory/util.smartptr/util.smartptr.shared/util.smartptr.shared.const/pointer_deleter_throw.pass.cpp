@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // UNSUPPORTED: sanitizer-new-delete
 
 // <memory>
@@ -20,7 +20,8 @@
 #include <new>
 #include <cstdlib>
 
-#include "count_new.hpp"
+#include "count_new.h"
+#include "test_macros.h"
 #include "deleter_types.h"
 
 struct A
@@ -36,6 +37,7 @@ int A::count = 0;
 
 int main(int, char**)
 {
+    globalMemCounter.reset();
     A* ptr = new A;
     globalMemCounter.throw_after = 0;
     try

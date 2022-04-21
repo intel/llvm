@@ -1,12 +1,24 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++98 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++98 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++11 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++98 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++98 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++11 -o - %s -Wuninitialized
+
+void xxx(int argc) {
+  int x; // expected-note {{initialize the variable 'x' to silence this warning}}
+#pragma omp for ordered
+  for (int i = 0; i < 10; ++i) {
+#pragma omp ordered
+    argc = x; // expected-warning {{variable 'x' is uninitialized when used here}}
+  }
+}
 
 int foo();
+#if __cplusplus >= 201103L
+// expected-note@-2 {{declared here}}
+#endif
 
 template <class T>
 T foo() {
@@ -52,6 +64,17 @@ T foo() {
       foo();
     }
   }
+  #pragma omp for ordered
+  for (int i = 0; i < 10; ++i) {
+    #pragma omp ordered // expected-note {{previous 'ordered' directive used here}}
+    {
+      foo();
+    }
+    #pragma omp ordered // expected-error {{exactly one 'ordered' directive must appear in the loop body of an enclosing directive}}
+    {
+      foo();
+    }
+  }
   #pragma omp ordered simd simd // expected-error {{directive '#pragma omp ordered' cannot contain more than one 'simd' clause}}
   {
     foo();
@@ -70,7 +93,18 @@ T foo() {
       foo();
     }
   }
-  #pragma omp for simd
+  #pragma omp simd
+  for (int i = 0; i < 10; ++i) {
+#pragma omp ordered simd // expected-note {{previous 'ordered' directive used here}}
+    {
+      foo();
+    }
+#pragma omp ordered simd // expected-error {{exactly one 'ordered' directive must appear in the loop body of an enclosing directive}}
+    {
+      foo();
+    }
+  }
+#pragma omp for simd
   for (int i = 0; i < 10; ++i) {
     #pragma omp ordered // expected-error {{OpenMP constructs may not be nested inside a simd region}}
     {
@@ -104,14 +138,14 @@ T foo() {
     #pragma omp ordered depend(source) // expected-error {{'ordered' directive with 'depend' clause cannot be closely nested inside ordered region without specified parameter}}
     #pragma omp ordered depend(sink : i) // expected-error {{'ordered' directive with 'depend' clause cannot be closely nested inside ordered region without specified parameter}}
   }
-#pragma omp parallel for ordered(2) // expected-note 5 {{'ordered' clause with specified parameter}}
+#pragma omp parallel for ordered(2) // expected-note 3 {{'ordered' clause with specified parameter}}
   for (int i = 0; i < 10; ++i) {
     for (int j = 0; j < 10; ++j) {
 #pragma omp ordered depend // expected-error {{expected '(' after 'depend'}} expected-error {{'ordered' directive without any clauses cannot be closely nested inside ordered region with specified parameter}}
 #pragma omp ordered depend( // expected-error {{expected ')'}} expected-error {{expected 'source' or 'sink' in OpenMP clause 'depend'}} expected-error {{'ordered' directive without any clauses cannot be closely nested inside ordered region with specified parameter}} expected-warning {{missing ':' or ')' after dependency type - ignoring}} expected-note {{to match this '('}}
 #pragma omp ordered depend(source // expected-error {{expected ')'}} expected-note {{to match this '('}}
-#pragma omp ordered depend(sink // expected-error {{expected expression}} expected-warning {{missing ':' or ')' after dependency type - ignoring}} expected-error {{expected ')'}} expected-error {{'ordered' directive without any clauses cannot be closely nested inside ordered region with specified parameter}} expected-note {{to match this '('}}
-#pragma omp ordered depend(sink : // expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{expected expression}} expected-error {{'ordered' directive without any clauses cannot be closely nested inside ordered region with specified parameter}}
+#pragma omp ordered depend(sink // expected-error {{expected expression}} expected-warning {{missing ':' or ')' after dependency type - ignoring}} expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{expected 'i' loop iteration variable}}
+#pragma omp ordered depend(sink : // expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{expected expression}} expected-error {{expected 'i' loop iteration variable}}
 #pragma omp ordered depend(sink : i // expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(sink : i) // expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(source)
@@ -128,7 +162,7 @@ T foo() {
 #pragma omp ordered depend(sink : i, j)
 #pragma omp ordered depend(sink : j, i) // expected-error {{expected 'i' loop iteration variable}} expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(sink : i, j, k) // expected-error {{unexpected expression: number of expressions is larger than the number of associated loops}}
-#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{expression is not an integral constant expression}} expected-error {{expected '+' or '-' operation}}
+#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{integral constant expression}} expected-error {{expected '+' or '-' operation}}
 #if __cplusplus >= 201103L
 // expected-note@-2 {{non-constexpr function 'foo' cannot be used in a constant expression}}
 #endif
@@ -145,7 +179,7 @@ T foo() {
 
 int foo() {
 #if __cplusplus >= 201103L
-// expected-note@-2 2 {{declared here}}
+// expected-note@-2 {{declared here}}
 #endif
 int k;
   #pragma omp for ordered
@@ -241,14 +275,14 @@ int k;
     #pragma omp ordered depend(source) // expected-error {{'ordered' directive with 'depend' clause cannot be closely nested inside ordered region without specified parameter}}
     #pragma omp ordered depend(sink : i) // expected-error {{'ordered' directive with 'depend' clause cannot be closely nested inside ordered region without specified parameter}}
   }
-#pragma omp parallel for ordered(2) // expected-note 5 {{'ordered' clause with specified parameter}}
+#pragma omp parallel for ordered(2) // expected-note 3 {{'ordered' clause with specified parameter}}
   for (int i = 0; i < 10; ++i) {
     for (int j = 0; j < 10; ++j) {
 #pragma omp ordered depend // expected-error {{expected '(' after 'depend'}} expected-error {{'ordered' directive without any clauses cannot be closely nested inside ordered region with specified parameter}}
 #pragma omp ordered depend( // expected-error {{expected ')'}} expected-error {{expected 'source' or 'sink' in OpenMP clause 'depend'}} expected-error {{'ordered' directive without any clauses cannot be closely nested inside ordered region with specified parameter}} expected-warning {{missing ':' or ')' after dependency type - ignoring}} expected-note {{to match this '('}}
 #pragma omp ordered depend(source // expected-error {{expected ')'}} expected-note {{to match this '('}}
-#pragma omp ordered depend(sink // expected-error {{expected expression}} expected-warning {{missing ':' or ')' after dependency type - ignoring}} expected-error {{expected ')'}} expected-error {{'ordered' directive without any clauses cannot be closely nested inside ordered region with specified parameter}} expected-note {{to match this '('}}
-#pragma omp ordered depend(sink : // expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{expected expression}} expected-error {{'ordered' directive without any clauses cannot be closely nested inside ordered region with specified parameter}}
+#pragma omp ordered depend(sink // expected-error {{expected expression}} expected-warning {{missing ':' or ')' after dependency type - ignoring}} expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{expected 'i' loop iteration variable}}
+#pragma omp ordered depend(sink : // expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{expected expression}} expected-error {{expected 'i' loop iteration variable}}
 #pragma omp ordered depend(sink : i // expected-error {{expected ')'}} expected-note {{to match this '('}} expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(sink : i) // expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(source)
@@ -265,7 +299,7 @@ int k;
 #pragma omp ordered depend(sink : i, j) allocate(i) // expected-error {{unexpected OpenMP clause 'allocate' in directive '#pragma omp ordered'}}
 #pragma omp ordered depend(sink : j, i) // expected-error {{expected 'i' loop iteration variable}} expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(sink : i, j, k) // expected-error {{unexpected expression: number of expressions is larger than the number of associated loops}}
-#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{expression is not an integral constant expression}} expected-error {{expected '+' or '-' operation}}
+#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{integral constant expression}} expected-error {{expected '+' or '-' operation}}
 #if __cplusplus >= 201103L
 // expected-note@-2 {{non-constexpr function 'foo' cannot be used in a constant expression}}
 #endif

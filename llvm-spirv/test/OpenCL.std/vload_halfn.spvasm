@@ -1,0 +1,102 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+;
+; CHECK-LABEL: spir_kernel void @test
+;
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat2iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat3iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat4iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat8iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z32__spirv_ocl_vload_halfn_Rfloat16iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat2iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat3iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat4iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat8iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z32__spirv_ocl_vload_halfn_Rfloat16iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat2iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat3iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat4iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat8iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z32__spirv_ocl_vload_halfn_Rfloat16iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat2iPDh
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat3iPDh
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat4iPDh
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z31__spirv_ocl_vload_halfn_Rfloat8iPDh
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z32__spirv_ocl_vload_halfn_Rfloat16iPDh
+;
+; CHECK-CL20: call spir_func <2 x float> @_Z11vload_half2jPU3AS1KDh
+; CHECK-CL20: call spir_func <3 x float> @_Z11vload_half3jPU3AS1KDh
+; CHECK-CL20: call spir_func <4 x float> @_Z11vload_half4jPU3AS1KDh
+; CHECK-CL20: call spir_func <8 x float> @_Z11vload_half8jPU3AS1KDh
+; CHECK-CL20: call spir_func <16 x float> @_Z12vload_half16jPU3AS1KDh
+; CHECK-CL20: call spir_func <2 x float> @_Z11vload_half2jPU3AS3KDh
+; CHECK-CL20: call spir_func <3 x float> @_Z11vload_half3jPU3AS3KDh
+; CHECK-CL20: call spir_func <4 x float> @_Z11vload_half4jPU3AS3KDh
+; CHECK-CL20: call spir_func <8 x float> @_Z11vload_half8jPU3AS3KDh
+; CHECK-CL20: call spir_func <16 x float> @_Z12vload_half16jPU3AS3KDh
+; CHECK-CL20: call spir_func <2 x float> @_Z11vload_half2jPU3AS2KDh
+; CHECK-CL20: call spir_func <3 x float> @_Z11vload_half3jPU3AS2KDh
+; CHECK-CL20: call spir_func <4 x float> @_Z11vload_half4jPU3AS2KDh
+; CHECK-CL20: call spir_func <8 x float> @_Z11vload_half8jPU3AS2KDh
+; CHECK-CL20: call spir_func <16 x float> @_Z12vload_half16jPU3AS2KDh
+; CHECK-CL20: call spir_func <2 x float> @_Z11vload_half2jPKDh
+; CHECK-CL20: call spir_func <3 x float> @_Z11vload_half3jPKDh
+; CHECK-CL20: call spir_func <4 x float> @_Z11vload_half4jPKDh
+; CHECK-CL20: call spir_func <8 x float> @_Z11vload_half8jPKDh
+; CHECK-CL20: call spir_func <16 x float> @_Z12vload_half16jPKDh
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Vector16
+               OpCapability Float16Buffer
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %7 "test"
+         %43 = OpString "kernel_arg_type.test.half*,half*,"
+               OpSource OpenCL_C 200000
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+       %void = OpTypeVoid
+       %half = OpTypeFloat 16
+%_ptr_CrossWorkgroup_half = OpTypePointer CrossWorkgroup %half
+%_ptr_Workgroup_half = OpTypePointer Workgroup %half
+          %6 = OpTypeFunction %void %_ptr_CrossWorkgroup_half %_ptr_Workgroup_half
+      %float = OpTypeFloat 32
+    %v2float = OpTypeVector %float 2
+    %v3float = OpTypeVector %float 3
+    %v4float = OpTypeVector %float 4
+    %v8float = OpTypeVector %float 8
+   %v16float = OpTypeVector %float 16
+%_ptr_UniformConstant_half = OpTypePointer UniformConstant %half
+%_ptr_Function_half = OpTypePointer Function %half
+         %30 = OpUndef %_ptr_UniformConstant_half
+         %37 = OpUndef %_ptr_Function_half
+          %7 = OpFunction %void None %6
+         %pg = OpFunctionParameter %_ptr_CrossWorkgroup_half
+         %pl = OpFunctionParameter %_ptr_Workgroup_half
+      %entry = OpLabel
+       %call = OpExtInst %v2float %1 vload_halfn %uint_0 %pg 2
+      %call1 = OpExtInst %v3float %1 vload_halfn %uint_0 %pg 3
+      %call2 = OpExtInst %v4float %1 vload_halfn %uint_0 %pg 4
+      %call3 = OpExtInst %v8float %1 vload_halfn %uint_0 %pg 8
+      %call4 = OpExtInst %v16float %1 vload_halfn %uint_0 %pg 16
+      %call5 = OpExtInst %v2float %1 vload_halfn %uint_0 %pl 2
+      %call6 = OpExtInst %v3float %1 vload_halfn %uint_0 %pl 3
+      %call7 = OpExtInst %v4float %1 vload_halfn %uint_0 %pl 4
+      %call8 = OpExtInst %v8float %1 vload_halfn %uint_0 %pl 8
+      %call9 = OpExtInst %v16float %1 vload_halfn %uint_0 %pl 16
+     %call10 = OpExtInst %v2float %1 vload_halfn %uint_0 %30 2
+     %call11 = OpExtInst %v3float %1 vload_halfn %uint_0 %30 3
+     %call12 = OpExtInst %v4float %1 vload_halfn %uint_0 %30 4
+     %call13 = OpExtInst %v8float %1 vload_halfn %uint_0 %30 8
+     %call14 = OpExtInst %v16float %1 vload_halfn %uint_0 %30 16
+     %call15 = OpExtInst %v2float %1 vload_halfn %uint_0 %37 2
+     %call16 = OpExtInst %v3float %1 vload_halfn %uint_0 %37 3
+     %call17 = OpExtInst %v4float %1 vload_halfn %uint_0 %37 4
+     %call18 = OpExtInst %v8float %1 vload_halfn %uint_0 %37 8
+     %call19 = OpExtInst %v16float %1 vload_halfn %uint_0 %37 16
+               OpReturn
+               OpFunctionEnd

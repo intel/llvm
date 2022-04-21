@@ -21,37 +21,29 @@ namespace cppcoreguidelines {
 ProBoundsConstantArrayIndexCheck::ProBoundsConstantArrayIndexCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), GslHeader(Options.get("GslHeader", "")),
-      IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.getLocalOrGlobal("IncludeStyle", "llvm"))) {}
+      Inserter(Options.getLocalOrGlobal("IncludeStyle",
+                                        utils::IncludeSorter::IS_LLVM)) {}
 
 void ProBoundsConstantArrayIndexCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "GslHeader", GslHeader);
-  Options.store(Opts, "IncludeStyle", IncludeStyle);
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
 }
 
 void ProBoundsConstantArrayIndexCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
-  Inserter = llvm::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
-                                                       IncludeStyle);
-  PP->addPPCallbacks(Inserter->CreatePPCallbacks());
+  Inserter.registerPreprocessor(PP);
 }
 
 void ProBoundsConstantArrayIndexCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   // Note: if a struct contains an array member, the compiler-generated
   // constructor has an arraySubscriptExpr.
-  Finder->addMatcher(
-      arraySubscriptExpr(
-          hasBase(ignoringImpCasts(hasType(constantArrayType().bind("type")))),
-          hasIndex(expr().bind("index")), unless(hasAncestor(isImplicit())))
-          .bind("expr"),
-      this);
+  Finder->addMatcher(arraySubscriptExpr(hasBase(ignoringImpCasts(hasType(
+                                            constantArrayType().bind("type")))),
+                                        hasIndex(expr().bind("index")),
+                                        unless(hasAncestor(decl(isImplicit()))))
+                         .bind("expr"),
+                     this);
 
   Finder->addMatcher(
       cxxOperatorCallExpr(
@@ -71,34 +63,28 @@ void ProBoundsConstantArrayIndexCheck::check(
   if (IndexExpr->isValueDependent())
     return; // We check in the specialization.
 
-  llvm::APSInt Index;
-  if (!IndexExpr->isIntegerConstantExpr(Index, *Result.Context, nullptr,
-                                        /*isEvaluated=*/true)) {
+  Optional<llvm::APSInt> Index =
+      IndexExpr->getIntegerConstantExpr(*Result.Context);
+  if (!Index) {
     SourceRange BaseRange;
     if (const auto *ArraySubscriptE = dyn_cast<ArraySubscriptExpr>(Matched))
       BaseRange = ArraySubscriptE->getBase()->getSourceRange();
     else
       BaseRange =
-          dyn_cast<CXXOperatorCallExpr>(Matched)->getArg(0)->getSourceRange();
+          cast<CXXOperatorCallExpr>(Matched)->getArg(0)->getSourceRange();
     SourceRange IndexRange = IndexExpr->getSourceRange();
 
     auto Diag = diag(Matched->getExprLoc(),
                      "do not use array subscript when the index is "
-                     "not an integer constant expression; use gsl::at() "
-                     "instead");
+                     "not an integer constant expression");
     if (!GslHeader.empty()) {
       Diag << FixItHint::CreateInsertion(BaseRange.getBegin(), "gsl::at(")
            << FixItHint::CreateReplacement(
                   SourceRange(BaseRange.getEnd().getLocWithOffset(1),
                               IndexRange.getBegin().getLocWithOffset(-1)),
                   ", ")
-           << FixItHint::CreateReplacement(Matched->getEndLoc(), ")");
-
-      Optional<FixItHint> Insertion = Inserter->CreateIncludeInsertion(
-          Result.SourceManager->getMainFileID(), GslHeader,
-          /*IsAngled=*/false);
-      if (Insertion)
-        Diag << Insertion.getValue();
+           << FixItHint::CreateReplacement(Matched->getEndLoc(), ")")
+           << Inserter.createMainFileIncludeInsertion(GslHeader);
     }
     return;
   }
@@ -110,9 +96,9 @@ void ProBoundsConstantArrayIndexCheck::check(
   if (!StdArrayDecl)
     return;
 
-  if (Index.isSigned() && Index.isNegative()) {
+  if (Index->isSigned() && Index->isNegative()) {
     diag(Matched->getExprLoc(), "std::array<> index %0 is negative")
-        << Index.toString(10);
+        << toString(*Index, 10);
     return;
   }
 
@@ -127,11 +113,11 @@ void ProBoundsConstantArrayIndexCheck::check(
 
   // Get uint64_t values, because different bitwidths would lead to an assertion
   // in APInt::uge.
-  if (Index.getZExtValue() >= ArraySize.getZExtValue()) {
+  if (Index->getZExtValue() >= ArraySize.getZExtValue()) {
     diag(Matched->getExprLoc(),
          "std::array<> index %0 is past the end of the array "
          "(which contains %1 elements)")
-        << Index.toString(10) << ArraySize.toString(10, false);
+        << toString(*Index, 10) << toString(ArraySize, 10, false);
   }
 }
 

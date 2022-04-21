@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_DWARFFormValue_h_
-#define SymbolFileDWARF_DWARFFormValue_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFFORMVALUE_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFFORMVALUE_H
 
 #include "DWARFDataExtractor.h"
-#include <stddef.h>
+#include "llvm/ADT/Optional.h"
+#include <cstddef>
 
 class DWARFUnit;
 class SymbolFileDWARF;
@@ -19,33 +20,15 @@ class DWARFDIE;
 class DWARFFormValue {
 public:
   typedef struct ValueTypeTag {
-    ValueTypeTag() : value(), data(NULL) { value.uval = 0; }
+    ValueTypeTag() : value() { value.uval = 0; }
 
     union {
       uint64_t uval;
       int64_t sval;
       const char *cstr;
     } value;
-    const uint8_t *data;
+    const uint8_t *data = nullptr;
   } ValueType;
-
-  class FixedFormSizes {
-  public:
-    FixedFormSizes() : m_fix_sizes(nullptr), m_size(0) {}
-
-    FixedFormSizes(const uint8_t *fix_sizes, size_t size)
-        : m_fix_sizes(fix_sizes), m_size(size) {}
-
-    uint8_t GetSize(uint32_t index) const {
-      return index < m_size ? m_fix_sizes[index] : 0;
-    }
-
-    bool Empty() const { return m_size == 0; }
-
-  private:
-    const uint8_t *m_fix_sizes;
-    size_t m_size;
-  };
 
   enum {
     eValueTypeInvalid = 0,
@@ -59,6 +42,7 @@ public:
   DWARFFormValue(const DWARFUnit *unit) : m_unit(unit) {}
   DWARFFormValue(const DWARFUnit *unit, dw_form_t form)
       : m_unit(unit), m_form(form) {}
+  const DWARFUnit *GetUnit() const { return m_unit; }
   void SetUnit(const DWARFUnit *unit) { m_unit = unit; }
   dw_form_t Form() const { return m_form; }
   dw_form_t& FormRef() { return m_form; }
@@ -71,6 +55,9 @@ public:
   bool ExtractValue(const lldb_private::DWARFDataExtractor &data,
                     lldb::offset_t *offset_ptr);
   const uint8_t *BlockData() const;
+  static llvm::Optional<uint8_t> GetFixedSize(dw_form_t form,
+                                              const DWARFUnit *u);
+  llvm::Optional<uint8_t> GetFixedSize() const;
   DWARFDIE Reference() const;
   uint64_t Reference(dw_offset_t offset) const;
   bool Boolean() const { return m_value.value.uval != 0; }
@@ -88,7 +75,6 @@ public:
                         lldb::offset_t *offset_ptr, const DWARFUnit *unit);
   static bool IsBlockForm(const dw_form_t form);
   static bool IsDataForm(const dw_form_t form);
-  static FixedFormSizes GetFixedFormSizesForAddressSize(uint8_t addr_size);
   static int Compare(const DWARFFormValue &a, const DWARFFormValue &b);
   void Clear();
   static bool FormIsSupported(dw_form_t form);
@@ -101,4 +87,4 @@ protected:
   ValueType m_value;            // Contains all data for the form
 };
 
-#endif // SymbolFileDWARF_DWARFFormValue_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFFORMVALUE_H

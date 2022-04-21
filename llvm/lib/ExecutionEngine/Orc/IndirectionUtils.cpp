@@ -9,12 +9,16 @@
 #include "llvm/ExecutionEngine/Orc/IndirectionUtils.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/MC/MCDisassembler/MCDisassembler.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <sstream>
+
+#define DEBUG_TYPE "orc"
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -26,19 +30,20 @@ public:
   using CompileFunction = JITCompileCallbackManager::CompileFunction;
 
   CompileCallbackMaterializationUnit(SymbolStringPtr Name,
-                                     CompileFunction Compile, VModuleKey K)
-      : MaterializationUnit(SymbolFlagsMap({{Name, JITSymbolFlags::Exported}}),
-                            std::move(K)),
+                                     CompileFunction Compile)
+      : MaterializationUnit(Interface(
+            SymbolFlagsMap({{Name, JITSymbolFlags::Exported}}), nullptr)),
         Name(std::move(Name)), Compile(std::move(Compile)) {}
 
   StringRef getName() const override { return "<Compile Callbacks>"; }
 
 private:
-  void materialize(MaterializationResponsibility R) override {
+  void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
     SymbolMap Result;
     Result[Name] = JITEvaluatedSymbol(Compile(), JITSymbolFlags::Exported);
-    R.resolve(Result);
-    R.emit();
+    // No dependencies, so these calls cannot fail.
+    cantFail(R->notifyResolved(Result));
+    cantFail(R->notifyEmitted());
   }
 
   void discard(const JITDylib &JD, const SymbolStringPtr &Name) override {
@@ -54,8 +59,8 @@ private:
 namespace llvm {
 namespace orc {
 
+TrampolinePool::~TrampolinePool() = default;
 void IndirectStubsManager::anchor() {}
-void TrampolinePool::anchor() {}
 
 Expected<JITTargetAddress>
 JITCompileCallbackManager::getCompileCallback(CompileFunction Compile) {
@@ -65,10 +70,9 @@ JITCompileCallbackManager::getCompileCallback(CompileFunction Compile) {
 
     std::lock_guard<std::mutex> Lock(CCMgrMutex);
     AddrToSymbol[*TrampolineAddr] = CallbackName;
-    cantFail(CallbacksJD.define(
-        llvm::make_unique<CompileCallbackMaterializationUnit>(
-            std::move(CallbackName), std::move(Compile),
-            ES.allocateVModule())));
+    cantFail(
+        CallbacksJD.define(std::make_unique<CompileCallbackMaterializationUnit>(
+            std::move(CallbackName), std::move(Compile))));
     return *TrampolineAddr;
   } else
     return TrampolineAddr.takeError();
@@ -100,7 +104,10 @@ JITTargetAddress JITCompileCallbackManager::executeCompileCallback(
       Name = I->second;
   }
 
-  if (auto Sym = ES.lookup(JITDylibSearchList({{&CallbacksJD, true}}), Name))
+  if (auto Sym =
+          ES.lookup(makeJITDylibSearchOrder(
+                        &CallbacksJD, JITDylibLookupFlags::MatchAllSymbols),
+                    Name))
     return Sym->getAddress();
   else {
     llvm::dbgs() << "Didn't find callback.\n";
@@ -119,7 +126,8 @@ createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
     return make_error<StringError>(
         std::string("No callback manager available for ") + T.str(),
         inconvertibleErrorCode());
-  case Triple::aarch64: {
+  case Triple::aarch64:
+  case Triple::aarch64_32: {
     typedef orc::LocalJITCompileCallbackManager<orc::OrcAArch64> CCMgrT;
     return CCMgrT::Create(ES, ErrorHandlerAddress);
     }
@@ -145,7 +153,7 @@ createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
     }
 
     case Triple::x86_64: {
-      if ( T.getOS() == Triple::OSType::Win32 ) {
+      if (T.getOS() == Triple::OSType::Win32) {
         typedef orc::LocalJITCompileCallbackManager<orc::OrcX86_64_Win32> CCMgrT;
         return CCMgrT::Create(ES, ErrorHandlerAddress);
       } else {
@@ -162,50 +170,51 @@ createLocalIndirectStubsManagerBuilder(const Triple &T) {
   switch (T.getArch()) {
     default:
       return [](){
-        return llvm::make_unique<
+        return std::make_unique<
                        orc::LocalIndirectStubsManager<orc::OrcGenericABI>>();
       };
 
     case Triple::aarch64:
+    case Triple::aarch64_32:
       return [](){
-        return llvm::make_unique<
+        return std::make_unique<
                        orc::LocalIndirectStubsManager<orc::OrcAArch64>>();
       };
 
     case Triple::x86:
       return [](){
-        return llvm::make_unique<
+        return std::make_unique<
                        orc::LocalIndirectStubsManager<orc::OrcI386>>();
       };
 
     case Triple::mips:
       return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                       orc::LocalIndirectStubsManager<orc::OrcMips32Be>>();
       };
 
     case Triple::mipsel:
       return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                       orc::LocalIndirectStubsManager<orc::OrcMips32Le>>();
       };
 
     case Triple::mips64:
     case Triple::mips64el:
       return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                       orc::LocalIndirectStubsManager<orc::OrcMips64>>();
       };
-      
+
     case Triple::x86_64:
       if (T.getOS() == Triple::OSType::Win32) {
         return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                      orc::LocalIndirectStubsManager<orc::OrcX86_64_Win32>>();
         };
       } else {
         return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                      orc::LocalIndirectStubsManager<orc::OrcX86_64_SysV>>();
         };
       }
@@ -312,8 +321,9 @@ void moveFunctionBody(Function &OrigF, ValueToValueMapTy &VMap,
          "modules.");
 
   SmallVector<ReturnInst *, 8> Returns; // Ignore returns cloned.
-  CloneFunctionInto(NewF, &OrigF, VMap, /*ModuleLevelChanges=*/true, Returns,
-                    "", nullptr, nullptr, Materializer);
+  CloneFunctionInto(NewF, &OrigF, VMap,
+                    CloneFunctionChangeType::DifferentModule, Returns, "",
+                    nullptr, nullptr, Materializer);
   OrigF.deleteBody();
 }
 
@@ -365,6 +375,78 @@ void cloneModuleFlagsMetadata(Module &Dst, const Module &Src,
     return;
   for (auto *MF : MFs->operands())
     Dst.addModuleFlag(MapMetadata(MF, VMap));
+}
+
+Error addFunctionPointerRelocationsToCurrentSymbol(jitlink::Symbol &Sym,
+                                                   jitlink::LinkGraph &G,
+                                                   MCDisassembler &Disassembler,
+                                                   MCInstrAnalysis &MIA) {
+  // AArch64 appears to already come with the necessary relocations. Among other
+  // architectures, only x86_64 is currently implemented here.
+  if (G.getTargetTriple().getArch() != Triple::x86_64)
+    return Error::success();
+
+  raw_null_ostream CommentStream;
+  auto &STI = Disassembler.getSubtargetInfo();
+
+  // Determine the function bounds
+  auto &B = Sym.getBlock();
+  assert(!B.isZeroFill() && "expected content block");
+  auto SymAddress = Sym.getAddress();
+  auto SymStartInBlock =
+      (const uint8_t *)B.getContent().data() + Sym.getOffset();
+  auto SymSize = Sym.getSize() ? Sym.getSize() : B.getSize() - Sym.getOffset();
+  auto Content = makeArrayRef(SymStartInBlock, SymSize);
+
+  LLVM_DEBUG(dbgs() << "Adding self-relocations to " << Sym.getName() << "\n");
+
+  SmallDenseSet<uintptr_t, 8> ExistingRelocations;
+  for (auto &E : B.edges()) {
+    if (E.isRelocation())
+      ExistingRelocations.insert(E.getOffset());
+  }
+
+  size_t I = 0;
+  while (I < Content.size()) {
+    MCInst Instr;
+    uint64_t InstrSize = 0;
+    uint64_t InstrStart = SymAddress.getValue() + I;
+    auto DecodeStatus = Disassembler.getInstruction(
+        Instr, InstrSize, Content.drop_front(I), InstrStart, CommentStream);
+    if (DecodeStatus != MCDisassembler::Success) {
+      LLVM_DEBUG(dbgs() << "Aborting due to disassembly failure at address "
+                        << InstrStart);
+      return make_error<StringError>(
+          formatv("failed to disassemble at address {0:x16}", InstrStart),
+          inconvertibleErrorCode());
+    }
+    // Advance to the next instruction.
+    I += InstrSize;
+
+    // Check for a PC-relative address equal to the symbol itself.
+    auto PCRelAddr =
+        MIA.evaluateMemoryOperandAddress(Instr, &STI, InstrStart, InstrSize);
+    if (!PCRelAddr || *PCRelAddr != SymAddress.getValue())
+      continue;
+
+    auto RelocOffInInstr =
+        MIA.getMemoryOperandRelocationOffset(Instr, InstrSize);
+    if (!RelocOffInInstr.hasValue() ||
+        InstrSize - RelocOffInInstr.getValue() != 4) {
+      LLVM_DEBUG(dbgs() << "Skipping unknown self-relocation at "
+                        << InstrStart);
+      continue;
+    }
+
+    auto RelocOffInBlock = orc::ExecutorAddr(InstrStart) + *RelocOffInInstr -
+                           SymAddress + Sym.getOffset();
+    if (ExistingRelocations.contains(RelocOffInBlock))
+      continue;
+
+    LLVM_DEBUG(dbgs() << "Adding delta32 self-relocation at " << InstrStart);
+    B.addEdge(jitlink::x86_64::Delta32, RelocOffInBlock, Sym, /*Addend=*/-4);
+  }
+  return Error::success();
 }
 
 } // End namespace orc.

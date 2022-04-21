@@ -1,4 +1,12 @@
-// RUN: %clang_cc1 -std=c++17 -triple x86_64-unknown-unknown -ast-dump %s | FileCheck -strict-whitespace %s
+// Test without serialization:
+// RUN: %clang_cc1 -std=c++17 -triple x86_64-unknown-unknown -ast-dump %s \
+// RUN: | FileCheck -strict-whitespace %s
+//
+// Test with serialization:
+// RUN: %clang_cc1 -std=c++17 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -x c++ -std=c++17 -triple x86_64-unknown-unknown -include-pch %t -ast-dump-all /dev/null \
+// RUN: | sed -e "s/ <undeserialized declarations>//" -e "s/ imported//" \
+// RUN: | FileCheck --strict-whitespace %s
 
 template <typename Ty>
 // CHECK: FunctionTemplateDecl 0x{{[^ ]*}} <{{.*}}:1, line:[[@LINE+2]]:10> col:6 a
@@ -26,7 +34,7 @@ template <typename Ty, template<typename> typename Uy>
 // CHECK: FunctionTemplateDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, line:[[@LINE+4]]:18> col:6 d
 // CHECK-NEXT: TemplateTypeParmDecl 0x{{[^ ]*}} <line:[[@LINE-2]]:11, col:20> col:20 referenced typename depth 0 index 0 Ty
 // CHECK-NEXT: TemplateTemplateParmDecl 0x{{[^ ]*}} <col:24, col:52> col:52 depth 0 index 1 Uy
-// CHECK-NEXT: TemplateTypeParmDecl 0x{{[^ ]*}} <col:33> col:33 typename depth 1 index 0
+// CHECK-NEXT: TemplateTypeParmDecl 0x{{[^ ]*}} <col:33> col:41 typename depth 1 index 0
 void d(Ty, Uy<Ty>);
 
 template <class Ty>
@@ -47,7 +55,7 @@ void g(Ty);
 
 template <typename = void>
 // CHECK: FunctionTemplateDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, line:[[@LINE+3]]:8> col:6 h
-// CHECK-NEXT: TemplateTypeParmDecl 0x{{[^ ]*}} <line:[[@LINE-2]]:11, col:22> col:11 typename depth 0 index 0
+// CHECK-NEXT: TemplateTypeParmDecl 0x{{[^ ]*}} <line:[[@LINE-2]]:11, col:22> col:20 typename depth 0 index 0
 // CHECK-NEXT: TemplateArgument type 'void'
 void h();
 
@@ -71,8 +79,8 @@ struct S {};
 template <typename Ty>
 // CHECK: ClassTemplatePartialSpecializationDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, line:[[@LINE+4]]:20> col:8 struct S definition
 // CHECK: TemplateArgument type 'type-parameter-0-0'
-// CHECK-NEXT: TemplateArgument type 'int'
-// CHECK-NEXT: TemplateTypeParmDecl 0x{{[^ ]*}} <line:[[@LINE-4]]:11, col:20> col:20 referenced typename depth 0 index 0 Ty
+// CHECK: TemplateArgument type 'int'
+// CHECK: TemplateTypeParmDecl 0x{{[^ ]*}} <line:[[@LINE-4]]:11, col:20> col:20 referenced typename depth 0 index 0 Ty
 struct S<Ty, int> {};
 
 template <auto>
@@ -82,7 +90,7 @@ struct T {};
 
 template <decltype(auto)>
 // CHECK: ClassTemplateDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, line:[[@LINE+2]]:11> col:8 U
-// CHECK-NEXT: NonTypeTemplateParmDecl 0x{{[^ ]*}} <line:[[@LINE-2]]:11> col:25 'decltype(auto)' depth 0 index 0
+// CHECK-NEXT: NonTypeTemplateParmDecl 0x{{[^ ]*}} <line:[[@LINE-2]]:11, col:24> col:25 'decltype(auto)' depth 0 index 0
 struct U {};
 
 template <typename Ty>

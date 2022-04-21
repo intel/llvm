@@ -18,6 +18,7 @@
 #include "X86.h"
 #include "X86InstrInfo.h"
 #include "X86Subtarget.h"
+#include "X86TargetMachine.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -27,7 +28,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "x86-indirect-branch-tracking"
 
-static cl::opt<bool> IndirectBranchTracking(
+cl::opt<bool> IndirectBranchTracking(
     "x86-indirect-branch-tracking", cl::init(false), cl::Hidden,
     cl::desc("Enable X86 indirect branch tracking pass."));
 
@@ -48,12 +49,12 @@ private:
   static char ID;
 
   /// Machine instruction info used throughout the class.
-  const X86InstrInfo *TII;
+  const X86InstrInfo *TII = nullptr;
 
   /// Endbr opcode for the current machine function.
-  unsigned int EndbrOpcode;
+  unsigned int EndbrOpcode = 0;
 
-  /// Adds a new ENDBR instruction to the begining of the MBB.
+  /// Adds a new ENDBR instruction to the beginning of the MBB.
   /// The function will not add it if already exists.
   /// It will add ENDBR32 or ENDBR64 opcode, depending on the target.
   /// \returns true if the ENDBR was added and false otherwise.
@@ -84,25 +85,63 @@ bool X86IndirectBranchTrackingPass::addENDBR(
   return false;
 }
 
-bool IsCallReturnTwice(llvm::MachineOperand &MOp) {
+static bool IsCallReturnTwice(llvm::MachineOperand &MOp) {
   if (!MOp.isGlobal())
     return false;
   auto *CalleeFn = dyn_cast<Function>(MOp.getGlobal());
   if (!CalleeFn)
     return false;
   AttributeList Attrs = CalleeFn->getAttributes();
-  if (Attrs.hasAttribute(AttributeList::FunctionIndex, Attribute::ReturnsTwice))
+  return Attrs.hasFnAttr(Attribute::ReturnsTwice);
+}
+
+// Checks if function should have an ENDBR in its prologue
+static bool needsPrologueENDBR(MachineFunction &MF, const Module *M) {
+  Function &F = MF.getFunction();
+
+  if (F.doesNoCfCheck())
+    return false;
+
+  const X86TargetMachine *TM =
+      static_cast<const X86TargetMachine *>(&MF.getTarget());
+  Metadata *IBTSeal = M->getModuleFlag("ibt-seal");
+
+  switch (TM->getCodeModel()) {
+  // Large code model functions always reachable through indirect calls.
+  case CodeModel::Large:
     return true;
-  return false;
+  // Only address taken functions in LTO'ed kernel are reachable indirectly.
+  // IBTSeal implies LTO, thus only check if function is address taken.
+  case CodeModel::Kernel:
+    // Check if ibt-seal was enabled (implies LTO is being used).
+    if (IBTSeal) {
+      return F.hasAddressTaken();
+    }
+    // if !IBTSeal, fall into default case.
+    LLVM_FALLTHROUGH;
+  // Address taken or externally linked functions may be reachable.
+  default:
+    return (F.hasAddressTaken() || !F.hasLocalLinkage());
+  }
 }
 
 bool X86IndirectBranchTrackingPass::runOnMachineFunction(MachineFunction &MF) {
   const X86Subtarget &SubTarget = MF.getSubtarget<X86Subtarget>();
 
+  const Module *M = MF.getMMI().getModule();
   // Check that the cf-protection-branch is enabled.
-  Metadata *isCFProtectionSupported =
-      MF.getMMI().getModule()->getModuleFlag("cf-protection-branch");
-  if (!isCFProtectionSupported && !IndirectBranchTracking)
+  Metadata *isCFProtectionSupported = M->getModuleFlag("cf-protection-branch");
+
+  //  NB: We need to enable IBT in jitted code if JIT compiler is CET
+  //  enabled.
+  const X86TargetMachine *TM =
+      static_cast<const X86TargetMachine *>(&MF.getTarget());
+#ifdef __CET__
+  bool isJITwithCET = TM->isJIT();
+#else
+  bool isJITwithCET = false;
+#endif
+  if (!isCFProtectionSupported && !IndirectBranchTracking && !isJITwithCET)
     return false;
 
   // True if the current MF was changed and false otherwise.
@@ -111,12 +150,8 @@ bool X86IndirectBranchTrackingPass::runOnMachineFunction(MachineFunction &MF) {
   TII = SubTarget.getInstrInfo();
   EndbrOpcode = SubTarget.is64Bit() ? X86::ENDBR64 : X86::ENDBR32;
 
-  // Non-internal function or function whose address was taken, can be
-  // accessed through indirect calls. Mark the first BB with ENDBR instruction
-  // unless nocf_check attribute is used.
-  if ((MF.getFunction().hasAddressTaken() ||
-       !MF.getFunction().hasLocalLinkage()) &&
-      !MF.getFunction().doesNoCfCheck()) {
+  // If function is reachable indirectly, mark the first BB with ENDBR.
+  if (needsPrologueENDBR(MF, M)) {
     auto MBB = MF.begin();
     Changed |= addENDBR(*MBB, MBB->begin());
   }
@@ -128,10 +163,40 @@ bool X86IndirectBranchTrackingPass::runOnMachineFunction(MachineFunction &MF) {
       Changed |= addENDBR(MBB, MBB.begin());
 
     for (MachineBasicBlock::iterator I = MBB.begin(); I != MBB.end(); ++I) {
-      if (!I->isCall())
-        continue;
-      if (IsCallReturnTwice(I->getOperand(0)))
+      if (I->isCall() && I->getNumOperands() > 0 &&
+          IsCallReturnTwice(I->getOperand(0))) {
         Changed |= addENDBR(MBB, std::next(I));
+      }
+    }
+
+    // Exception handle may indirectly jump to catch pad, So we should add
+    // ENDBR before catch pad instructions. For SjLj exception model, it will
+    // create a new BB(new landingpad) indirectly jump to the old landingpad.
+    if (TM->Options.ExceptionModel == ExceptionHandling::SjLj) {
+      for (MachineBasicBlock::iterator I = MBB.begin(); I != MBB.end(); ++I) {
+        // New Landingpad BB without EHLabel.
+        if (MBB.isEHPad()) {
+          if (I->isDebugInstr())
+            continue;
+          Changed |= addENDBR(MBB, I);
+          break;
+        } else if (I->isEHLabel()) {
+          // Old Landingpad BB (is not Landingpad now) with
+          // the the old "callee" EHLabel.
+          MCSymbol *Sym = I->getOperand(0).getMCSymbol();
+          if (!MF.hasCallSiteLandingPad(Sym))
+            continue;
+          Changed |= addENDBR(MBB, std::next(I));
+          break;
+        }
+      }
+    } else if (MBB.isEHPad()){
+      for (MachineBasicBlock::iterator I = MBB.begin(); I != MBB.end(); ++I) {
+        if (!I->isEHLabel())
+          continue;
+        Changed |= addENDBR(MBB, std::next(I));
+        break;
+      }
     }
   }
   return Changed;

@@ -1,4 +1,4 @@
-//===-- CrashReason.cpp -----------------------------------------*- C++ -*-===//
+//===-- CrashReason.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -58,6 +58,18 @@ CrashReason GetCrashReasonForSIGSEGV(const siginfo_t &info) {
 #endif
   case SEGV_BNDERR:
     return CrashReason::eBoundViolation;
+#ifdef __linux__
+#ifndef SEGV_MTEAERR
+#define SEGV_MTEAERR 8
+#endif
+  case SEGV_MTEAERR:
+    return CrashReason::eAsyncTagCheckFault;
+#ifndef SEGV_MTESERR
+#define SEGV_MTESERR 9
+#endif
+  case SEGV_MTESERR:
+    return CrashReason::eSyncTagCheckFault;
+#endif // __linux__
   }
 
   return CrashReason::eInvalidCrashReason;
@@ -136,15 +148,15 @@ std::string GetCrashReasonString(CrashReason reason, const siginfo_t &info) {
 #if defined(si_lower) && defined(si_upper)
   if (reason == CrashReason::eBoundViolation) {
     str = "signal SIGSEGV";
-    AppendBounds(str, reinterpret_cast<lldb::addr_t>(info.si_lower),
-                 reinterpret_cast<lldb::addr_t>(info.si_upper),
-                 reinterpret_cast<lldb::addr_t>(info.si_addr));
+    AppendBounds(str, reinterpret_cast<uintptr_t>(info.si_lower),
+                 reinterpret_cast<uintptr_t>(info.si_upper),
+                 reinterpret_cast<uintptr_t>(info.si_addr));
     return str;
   }
 #endif
 
   return GetCrashReasonString(reason,
-                              reinterpret_cast<lldb::addr_t>(info.si_addr));
+                              reinterpret_cast<uintptr_t>(info.si_addr));
 }
 
 std::string GetCrashReasonString(CrashReason reason, lldb::addr_t fault_addr) {
@@ -165,6 +177,13 @@ std::string GetCrashReasonString(CrashReason reason, lldb::addr_t fault_addr) {
     break;
   case CrashReason::eBoundViolation:
     str = "signal SIGSEGV: bound violation";
+    break;
+  case CrashReason::eAsyncTagCheckFault:
+    str = "signal SIGSEGV: async tag check fault";
+    break;
+  case CrashReason::eSyncTagCheckFault:
+    str = "signal SIGSEGV: sync tag check fault";
+    AppendFaultAddr(str, fault_addr);
     break;
   case CrashReason::eIllegalOpcode:
     str = "signal SIGILL: illegal instruction";
@@ -229,11 +248,6 @@ std::string GetCrashReasonString(CrashReason reason, lldb::addr_t fault_addr) {
 }
 
 const char *CrashReasonAsString(CrashReason reason) {
-#ifdef LLDB_CONFIGURATION_BUILDANDINTEGRATION
-  // Just return the code in ascii for integration builds.
-  chcar str[8];
-  sprintf(str, "%d", reason);
-#else
   const char *str = nullptr;
 
   switch (reason) {
@@ -250,6 +264,12 @@ const char *CrashReasonAsString(CrashReason reason) {
     break;
   case CrashReason::eBoundViolation:
     str = "eBoundViolation";
+    break;
+  case CrashReason::eAsyncTagCheckFault:
+    str = "eAsyncTagCheckFault";
+    break;
+  case CrashReason::eSyncTagCheckFault:
+    str = "eSyncTagCheckFault";
     break;
 
   // SIGILL crash reasons.
@@ -315,8 +335,6 @@ const char *CrashReasonAsString(CrashReason reason) {
     str = "eFloatSubscriptRange";
     break;
   }
-#endif
-
   return str;
 }
 

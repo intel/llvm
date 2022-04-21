@@ -48,20 +48,43 @@
 
 #include "polly/ScopDetectionDiagnostic.h"
 #include "polly/Support/ScopHelper.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AliasSetTracker.h"
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Pass.h"
 #include <set>
 
-using namespace llvm;
-
 namespace llvm {
-void initializeScopDetectionWrapperPassPass(PassRegistry &);
+class AAResults;
 } // namespace llvm
 
 namespace polly {
+using llvm::AAResults;
+using llvm::AliasSetTracker;
+using llvm::AnalysisInfoMixin;
+using llvm::AnalysisKey;
+using llvm::AnalysisUsage;
+using llvm::BranchInst;
+using llvm::CallInst;
+using llvm::DenseMap;
+using llvm::DominatorTree;
+using llvm::Function;
+using llvm::FunctionAnalysisManager;
+using llvm::FunctionPass;
+using llvm::IntrinsicInst;
+using llvm::LoopInfo;
+using llvm::Module;
+using llvm::OptimizationRemarkEmitter;
+using llvm::PassInfoMixin;
+using llvm::PreservedAnalyses;
+using llvm::RegionInfo;
+using llvm::ScalarEvolution;
+using llvm::SCEVUnknown;
+using llvm::SetVector;
+using llvm::SmallSetVector;
+using llvm::SmallVectorImpl;
+using llvm::StringRef;
+using llvm::SwitchInst;
 
 using ParamSetType = std::set<const SCEV *>;
 
@@ -135,7 +158,7 @@ public:
     ///
     /// This set contains all base pointers and the locations where they are
     /// used for memory accesses that can not be detected as affine accesses.
-    SetVector<std::pair<const SCEVUnknown *, Loop *>> NonAffineAccesses;
+    llvm::SetVector<std::pair<const SCEVUnknown *, Loop *>> NonAffineAccesses;
     BaseToElSize ElementSize;
 
     /// The region has at least one load instruction.
@@ -161,22 +184,8 @@ public:
     MapInsnToMemAcc InsnToMemAcc;
 
     /// Initialize a DetectionContext from scratch.
-    DetectionContext(Region &R, AliasAnalysis &AA, bool Verify)
+    DetectionContext(Region &R, AAResults &AA, bool Verify)
         : CurRegion(R), AST(AA), Verifying(Verify), Log(&R) {}
-
-    /// Initialize a DetectionContext with the data from @p DC.
-    DetectionContext(const DetectionContext &&DC)
-        : CurRegion(DC.CurRegion), AST(DC.AST.getAliasAnalysis()),
-          Verifying(DC.Verifying), Log(std::move(DC.Log)),
-          Accesses(std::move(DC.Accesses)),
-          NonAffineAccesses(std::move(DC.NonAffineAccesses)),
-          ElementSize(std::move(DC.ElementSize)), hasLoads(DC.hasLoads),
-          hasStores(DC.hasStores), HasUnknownAccess(DC.HasUnknownAccess),
-          NonAffineSubRegionSet(std::move(DC.NonAffineSubRegionSet)),
-          BoxedLoopsSet(std::move(DC.BoxedLoopsSet)),
-          RequiredILS(std::move(DC.RequiredILS)) {
-      AST.add(DC.AST);
-    }
   };
 
   /// Helper data structure to collect statistics about loop counts.
@@ -184,6 +193,9 @@ public:
     int NumLoops;
     int MaxDepth;
   };
+
+  int NextScopID = 0;
+  int getNextID() { return NextScopID++; }
 
 private:
   //===--------------------------------------------------------------------===//
@@ -194,12 +206,17 @@ private:
   ScalarEvolution &SE;
   LoopInfo &LI;
   RegionInfo &RI;
-  AliasAnalysis &AA;
+  AAResults &AA;
   //@}
 
   /// Map to remember detection contexts for all regions.
-  using DetectionContextMapTy = DenseMap<BBPair, DetectionContext>;
-  mutable DetectionContextMapTy DetectionContextMap;
+  using DetectionContextMapTy =
+      DenseMap<BBPair, std::unique_ptr<DetectionContext>>;
+  DetectionContextMapTy DetectionContextMap;
+
+  /// Cache for the isErrorBlock function.
+  DenseMap<std::tuple<const BasicBlock *, const Region *>, bool>
+      ErrorBlockCache;
 
   /// Remove cached results for @p R.
   void removeCachedResults(const Region &R);
@@ -290,7 +307,7 @@ private:
   /// @param Context The context of scop detection.
   ///
   /// @return True if all blocks in R are valid, false otherwise.
-  bool allBlocksValid(DetectionContext &Context) const;
+  bool allBlocksValid(DetectionContext &Context);
 
   /// Check if a region has sufficient compute instructions.
   ///
@@ -332,7 +349,7 @@ private:
   /// @param Context The context of scop detection.
   ///
   /// @return True if R is a Scop, false otherwise.
-  bool isValidRegion(DetectionContext &Context) const;
+  bool isValidRegion(DetectionContext &Context);
 
   /// Check if an intrinsic call can be part of a Scop.
   ///
@@ -389,23 +406,13 @@ private:
   /// @return True if the memory access is valid, false otherwise.
   bool isValidMemoryAccess(MemAccInst Inst, DetectionContext &Context) const;
 
-  /// Check if an instruction has any non trivial scalar dependencies as part of
-  /// a Scop.
-  ///
-  /// @param Inst The instruction to check.
-  /// @param RefRegion The region in respect to which we check the access
-  ///                  function.
-  ///
-  /// @return True if the instruction has scalar dependences, false otherwise.
-  bool hasScalarDependency(Instruction &Inst, Region &RefRegion) const;
-
   /// Check if an instruction can be part of a Scop.
   ///
   /// @param Inst The instruction to check.
   /// @param Context The context of scop detection.
   ///
   /// @return True if the instruction is valid, false otherwise.
-  bool isValidInstruction(Instruction &Inst, DetectionContext &Context) const;
+  bool isValidInstruction(Instruction &Inst, DetectionContext &Context);
 
   /// Check if the switch @p SI with condition @p Condition is valid.
   ///
@@ -429,7 +436,7 @@ private:
   ///
   /// @return True if the branch @p BI is valid.
   bool isValidBranch(BasicBlock &BB, BranchInst *BI, Value *Condition,
-                     bool IsLoopBranch, DetectionContext &Context) const;
+                     bool IsLoopBranch, DetectionContext &Context);
 
   /// Check if the SCEV @p S is affine in the current @p Context.
   ///
@@ -457,7 +464,7 @@ private:
   ///
   /// @return True if the BB contains only valid control flow.
   bool isValidCFG(BasicBlock &BB, bool IsLoopBranch, bool AllowUnreachable,
-                  DetectionContext &Context) const;
+                  DetectionContext &Context);
 
   /// Is a loop valid with respect to a given region.
   ///
@@ -465,7 +472,7 @@ private:
   /// @param Context The context of scop detection.
   ///
   /// @return True if the loop is valid in the region.
-  bool isValidLoop(Loop *L, DetectionContext &Context) const;
+  bool isValidLoop(Loop *L, DetectionContext &Context);
 
   /// Count the number of loops and the maximal loop depth in @p L.
   ///
@@ -482,7 +489,7 @@ private:
   /// Check if the function @p F is marked as invalid.
   ///
   /// @note An OpenMP subfunction will be marked as invalid.
-  bool isValidFunction(Function &F);
+  static bool isValidFunction(Function &F);
 
   /// Can ISL compute the trip count of a loop.
   ///
@@ -490,7 +497,7 @@ private:
   /// @param Context The context of scop detection.
   ///
   /// @return True if ISL can compute the trip count of the loop.
-  bool canUseISLTripCount(Loop *L, DetectionContext &Context) const;
+  bool canUseISLTripCount(Loop *L, DetectionContext &Context);
 
   /// Print the locations of all detected scops.
   void printLocations(Function &F);
@@ -511,12 +518,13 @@ private:
   /// @param Args Argument list that gets passed to the constructor of RR.
   template <class RR, typename... Args>
   inline bool invalid(DetectionContext &Context, bool Assert,
-                      Args &&... Arguments) const;
+                      Args &&...Arguments) const;
 
 public:
-  ScopDetection(Function &F, const DominatorTree &DT, ScalarEvolution &SE,
-                LoopInfo &LI, RegionInfo &RI, AliasAnalysis &AA,
-                OptimizationRemarkEmitter &ORE);
+  ScopDetection(const DominatorTree &DT, ScalarEvolution &SE, LoopInfo &LI,
+                RegionInfo &RI, AAResults &AA, OptimizationRemarkEmitter &ORE);
+
+  void detect(Function &F);
 
   /// Get the RegionInfo stored in this pass.
   ///
@@ -530,19 +538,17 @@ public:
   ///
   /// @param R The Region to test if it is maximum.
   /// @param Verify Rerun the scop detection to verify SCoP was not invalidated
-  ///               meanwhile.
+  ///               meanwhile. Do not use if the region's DetectionContect is
+  ///               referenced by a Scop that is still to be processed.
   ///
   /// @return Return true if R is the maximum Region in a Scop, false otherwise.
-  bool isMaxRegionInScop(const Region &R, bool Verify = true) const;
+  bool isMaxRegionInScop(const Region &R, bool Verify = true);
 
   /// Return the detection context for @p R, nullptr if @p R was invalid.
   DetectionContext *getDetectionContext(const Region *R) const;
 
   /// Return the set of rejection causes for @p R.
   const RejectLog *lookupRejectionLog(const Region *R) const;
-
-  /// Return true if @p SubR is a non-affine subregion in @p ScopR.
-  bool isNonAffineSubRegion(const Region *SubR, const Region *ScopR) const;
 
   /// Get a message why a region is invalid
   ///
@@ -579,12 +585,12 @@ public:
 
   /// Verify if all valid Regions in this Function are still valid
   /// after some transformations.
-  void verifyAnalysis() const;
+  void verifyAnalysis();
 
   /// Verify if R is still a valid part of Scop after some transformations.
   ///
   /// @param R The Region to verify.
-  void verifyRegion(const Region &R) const;
+  void verifyRegion(const Region &R);
 
   /// Count the number of loops and the maximal loop depth in @p R.
   ///
@@ -597,6 +603,24 @@ public:
   static ScopDetection::LoopStats
   countBeneficialLoops(Region *R, ScalarEvolution &SE, LoopInfo &LI,
                        unsigned MinProfitableTrips);
+
+  /// Check if the block is a error block.
+  ///
+  /// A error block is currently any block that fulfills at least one of
+  /// the following conditions:
+  ///
+  ///  - It is terminated by an unreachable instruction
+  ///  - It contains a call to a non-pure function that is not immediately
+  ///    dominated by a loop header and that does not dominate the region exit.
+  ///    This is a heuristic to pick only error blocks that are conditionally
+  ///    executed and can be assumed to be not executed at all without the
+  ///    domains being available.
+  ///
+  /// @param BB The block to check.
+  /// @param R  The analyzed region.
+  ///
+  /// @return True if the block is a error block, false otherwise.
+  bool isErrorBlock(llvm::BasicBlock &BB, const llvm::Region &R);
 
 private:
   /// OptimizationRemarkEmitter object used to emit diagnostic remarks
@@ -632,12 +656,18 @@ struct ScopDetectionWrapperPass : public FunctionPass {
   void getAnalysisUsage(AnalysisUsage &AU) const override;
   void releaseMemory() override;
   bool runOnFunction(Function &F) override;
-  void print(raw_ostream &OS, const Module *) const override;
+  void print(raw_ostream &OS, const Module *M = nullptr) const override;
   //@}
 
-  ScopDetection &getSD() { return *Result; }
-  const ScopDetection &getSD() const { return *Result; }
+  ScopDetection &getSD() const { return *Result; }
 };
+
+llvm::Pass *createScopDetectionPrinterLegacyPass(llvm::raw_ostream &OS);
 } // namespace polly
+
+namespace llvm {
+void initializeScopDetectionWrapperPassPass(llvm::PassRegistry &);
+void initializeScopDetectionPrinterLegacyPassPass(llvm::PassRegistry &);
+} // namespace llvm
 
 #endif // POLLY_SCOPDETECTION_H

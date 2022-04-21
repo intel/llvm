@@ -16,6 +16,8 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct test
     : public std::basic_streambuf<CharT>
@@ -50,6 +52,7 @@ int main(int, char**)
         t.pbump(2);
         t.pbump(1);
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         test<wchar_t> t;
         wchar_t in[] = L"ABCDE";
@@ -57,6 +60,7 @@ int main(int, char**)
         t.pbump(3);
         t.pbump(1);
     }
+#endif
 
   return 0;
 }

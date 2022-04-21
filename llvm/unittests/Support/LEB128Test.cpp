@@ -113,6 +113,9 @@ TEST(LEB128Test, DecodeULEB128) {
     EXPECT_EQ(EXPECTED, Actual); \
   } while (0)
 
+  // Don't crash
+  EXPECT_EQ(0u, decodeULEB128(nullptr, nullptr, nullptr));
+
   // Decode ULEB128
   EXPECT_DECODE_ULEB128_EQ(0u, "\x00");
   EXPECT_DECODE_ULEB128_EQ(1u, "\x01");
@@ -134,8 +137,35 @@ TEST(LEB128Test, DecodeULEB128) {
   EXPECT_DECODE_ULEB128_EQ(0x7fu, "\xff\x80\x00");
   EXPECT_DECODE_ULEB128_EQ(0x80u, "\x80\x81\x00");
   EXPECT_DECODE_ULEB128_EQ(0x80u, "\x80\x81\x80\x00");
+  EXPECT_DECODE_ULEB128_EQ(0x80u, "\x80\x81\x80\x80\x80\x80\x80\x80\x80\x00");
+  EXPECT_DECODE_ULEB128_EQ(0x80000000'00000000ul,
+                           "\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01");
 
 #undef EXPECT_DECODE_ULEB128_EQ
+}
+
+TEST(LEB128Test, DecodeInvalidULEB128) {
+#define EXPECT_INVALID_ULEB128(VALUE, ERROR_OFFSET)                            \
+  do {                                                                         \
+    const uint8_t *Value = reinterpret_cast<const uint8_t *>(VALUE);           \
+    const char *Error = nullptr;                                               \
+    unsigned ErrorOffset = 0;                                                  \
+    uint64_t Actual =                                                          \
+        decodeULEB128(Value, &ErrorOffset, Value + strlen(VALUE), &Error);     \
+    EXPECT_NE(Error, nullptr);                                                 \
+    EXPECT_EQ(0ul, Actual);                                                    \
+    EXPECT_EQ(ERROR_OFFSET, ErrorOffset);                                      \
+  } while (0)
+
+  // Buffer overflow.
+  EXPECT_INVALID_ULEB128("", 0u);
+  EXPECT_INVALID_ULEB128("\x80", 1u);
+
+  // Does not fit in 64 bits.
+  EXPECT_INVALID_ULEB128("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x02", 9u);
+  EXPECT_INVALID_ULEB128("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x02", 10u);
+
+#undef EXPECT_INVALID_ULEB128
 }
 
 TEST(LEB128Test, DecodeSLEB128) {
@@ -147,6 +177,9 @@ TEST(LEB128Test, DecodeSLEB128) {
     EXPECT_EQ(sizeof(VALUE) - 1, ActualSize); \
     EXPECT_EQ(EXPECTED, Actual); \
   } while (0)
+
+  // Don't crash
+  EXPECT_EQ(0, decodeSLEB128(nullptr, nullptr, nullptr));
 
   // Decode SLEB128
   EXPECT_DECODE_SLEB128_EQ(0L, "\x00");
@@ -170,8 +203,43 @@ TEST(LEB128Test, DecodeSLEB128) {
   EXPECT_DECODE_SLEB128_EQ(0x7fL, "\xff\x80\x00");
   EXPECT_DECODE_SLEB128_EQ(0x80L, "\x80\x81\x00");
   EXPECT_DECODE_SLEB128_EQ(0x80L, "\x80\x81\x80\x00");
+  EXPECT_DECODE_SLEB128_EQ(0x80L, "\x80\x81\x80\x80\x80\x80\x80\x80\x80\x00");
+  EXPECT_DECODE_SLEB128_EQ(-2L, "\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x7F");
+  EXPECT_DECODE_SLEB128_EQ(INT64_MIN,
+                           "\x80\x80\x80\x80\x80\x80\x80\x80\x80\x7F");
+  EXPECT_DECODE_SLEB128_EQ(INT64_MAX,
+                           "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x00");
 
 #undef EXPECT_DECODE_SLEB128_EQ
+}
+
+TEST(LEB128Test, DecodeInvalidSLEB128) {
+#define EXPECT_INVALID_SLEB128(VALUE, ERROR_OFFSET)                            \
+  do {                                                                         \
+    const uint8_t *Value = reinterpret_cast<const uint8_t *>(VALUE);           \
+    const char *Error = nullptr;                                               \
+    unsigned ErrorOffset = 0;                                                  \
+    uint64_t Actual =                                                          \
+        decodeSLEB128(Value, &ErrorOffset, Value + strlen(VALUE), &Error);     \
+    EXPECT_NE(Error, nullptr);                                                 \
+    EXPECT_EQ(0ul, Actual);                                                    \
+    EXPECT_EQ(ERROR_OFFSET, ErrorOffset);                                      \
+  } while (0)
+
+  // Buffer overflow.
+  EXPECT_INVALID_SLEB128("", 0u);
+  EXPECT_INVALID_SLEB128("\x80", 1u);
+
+  // Does not fit in 64 bits.
+  EXPECT_INVALID_SLEB128("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 9u);
+  EXPECT_INVALID_SLEB128("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x7E", 9u);
+  EXPECT_INVALID_SLEB128("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x02", 10u);
+  EXPECT_INVALID_SLEB128("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x7E", 9u);
+  EXPECT_INVALID_SLEB128("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x01", 9u);
+  EXPECT_INVALID_SLEB128("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x7E", 10u);
+  EXPECT_INVALID_SLEB128("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x00", 10u);
+
+#undef EXPECT_INVALID_SLEB128
 }
 
 TEST(LEB128Test, SLEB128Size) {

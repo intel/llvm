@@ -6,8 +6,9 @@ Sections:
   - Type:            TYPE
     Signatures:
       - Index:           0
-        ReturnType:      I32
         ParamTypes:
+          - I32
+        ReturnTypes:
           - I32
   - Type:            IMPORT
     Imports:
@@ -16,21 +17,21 @@ Sections:
         Kind:            MEMORY
         Memory:
           Flags:           [ HAS_MAX, IS_SHARED ]
-          Initial:         0x00000010
+          Minimum:         0x00000010
           Maximum:         0x00000011
 
 ...
 # CHECK: --- !WASM
 # CHECK: FileHeader:
-# CHECK:   Version:           0x00000001
+# CHECK:   Version:           0x1
 # CHECK: Sections:
 # CHECK:   - Type:            IMPORT
-# CHECK:     Imports:         
+# CHECK:     Imports:
 # CHECK:       - Module:          foo
 # CHECK:         Field:           imported_memory
 # CHECK:         Kind:            MEMORY
 # CHECK:         Memory:
 # CHECK:           Flags:           [ HAS_MAX, IS_SHARED ]
-# CHECK:           Initial:         0x00000010
-# CHECK:           Maximum:         0x00000011
+# CHECK:           Minimum:         0x10
+# CHECK:           Maximum:         0x11
 # CHECK: ...

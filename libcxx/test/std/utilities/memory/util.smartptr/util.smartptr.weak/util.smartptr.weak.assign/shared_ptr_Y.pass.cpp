@@ -16,6 +16,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct B
 {
     static int count;
@@ -33,7 +35,7 @@ struct A
     static int count;
 
     A() {++count;}
-    A(const A&) {++count;}
+    A(const A& other) : B(other) {++count;}
     ~A() {--count;}
 };
 
@@ -43,6 +45,7 @@ int main(int, char**)
 {
     {
         const std::shared_ptr<A> pA(new A);
+        assert(pA.use_count() == 1);
         {
             std::weak_ptr<B> pB;
             pB = pA;
@@ -57,6 +60,23 @@ int main(int, char**)
     }
     assert(B::count == 0);
     assert(A::count == 0);
+
+#if TEST_STD_VER > 14
+    {
+        const std::shared_ptr<A[]> p1(new A[8]);
+        assert(p1.use_count() == 1);
+        {
+            std::weak_ptr<const A[]> p2;
+            p2 = p1;
+            assert(A::count == 8);
+            assert(p2.use_count() == 1);
+            assert(p1.use_count() == 1);
+        }
+        assert(p1.use_count() == 1);
+        assert(A::count == 8);
+    }
+    assert(A::count == 0);
+#endif
 
   return 0;
 }

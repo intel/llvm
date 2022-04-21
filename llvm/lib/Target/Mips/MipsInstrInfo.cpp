@@ -23,6 +23,7 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Target/TargetMachine.h"
@@ -66,10 +67,10 @@ MipsInstrInfo::GetMemOperand(MachineBasicBlock &MBB, int FI,
                              MachineMemOperand::Flags Flags) const {
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  unsigned Align = MFI.getObjectAlignment(FI);
 
   return MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(MF, FI),
-                                 Flags, MFI.getObjectSize(FI), Align);
+                                 Flags, MFI.getObjectSize(FI),
+                                 MFI.getObjectAlign(FI));
 }
 
 //===----------------------------------------------------------------------===//
@@ -275,7 +276,8 @@ MipsInstrInfo::BranchType MipsInstrInfo::analyzeBranch(
   return BT_CondUncond;
 }
 
-bool MipsInstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset) const {
+bool MipsInstrInfo::isBranchOffsetInRange(unsigned BranchOpc,
+                                          int64_t BrOffset) const {
   switch (BranchOpc) {
   case Mips::B:
   case Mips::BAL:
@@ -433,7 +435,6 @@ bool MipsInstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset) 
   llvm_unreachable("Unknown branch instruction!");
 }
 
-
 /// Return the corresponding compact (no delay slot) form of a branch.
 unsigned MipsInstrInfo::getEquivalentCompactForm(
     const MachineBasicBlock::iterator I) const {
@@ -567,9 +568,58 @@ bool MipsInstrInfo::SafeInForbiddenSlot(const MachineInstr &MI) const {
   return (MI.getDesc().TSFlags & MipsII::IsCTI) == 0;
 }
 
+bool MipsInstrInfo::SafeInFPUDelaySlot(const MachineInstr &MIInSlot,
+                                       const MachineInstr &FPUMI) const {
+  if (MIInSlot.isInlineAsm())
+    return false;
+
+  if (HasFPUDelaySlot(MIInSlot))
+    return false;
+
+  switch (MIInSlot.getOpcode()) {
+  case Mips::BC1F:
+  case Mips::BC1FL:
+  case Mips::BC1T:
+  case Mips::BC1TL:
+    return false;
+  }
+
+  for (const MachineOperand &Op : FPUMI.defs()) {
+    if (!Op.isReg())
+      continue;
+
+    bool Reads, Writes;
+    std::tie(Reads, Writes) = MIInSlot.readsWritesVirtualRegister(Op.getReg());
+
+    if (Reads || Writes)
+      return false;
+  }
+
+  return true;
+}
+
 /// Predicate for distingushing instructions that have forbidden slots.
 bool MipsInstrInfo::HasForbiddenSlot(const MachineInstr &MI) const {
   return (MI.getDesc().TSFlags & MipsII::HasForbiddenSlot) != 0;
+}
+
+/// Predicate for distingushing instructions that have FPU delay slots.
+bool MipsInstrInfo::HasFPUDelaySlot(const MachineInstr &MI) const {
+  switch (MI.getOpcode()) {
+  case Mips::MTC1:
+  case Mips::MFC1:
+  case Mips::MTC1_D64:
+  case Mips::MFC1_D64:
+  case Mips::DMTC1:
+  case Mips::DMFC1:
+  case Mips::FCMP_S32:
+  case Mips::FCMP_D32:
+  case Mips::FCMP_D64:
+    return true;
+
+  default:
+    return false;
+  }
 }
 
 /// Return the number of bytes of code the specified instruction may be.
@@ -645,7 +695,7 @@ MipsInstrInfo::genInstrWithNewOpc(unsigned NewOpc,
       NewOpc == Mips::JIALC64) {
 
     if (NewOpc == Mips::JIALC || NewOpc == Mips::JIALC64)
-      MIB->RemoveOperand(0);
+      MIB->removeOperand(0);
 
     for (unsigned J = 0, E = I->getDesc().getNumOperands(); J < E; ++J) {
       MIB.add(I->getOperand(J));
@@ -677,7 +727,8 @@ MipsInstrInfo::genInstrWithNewOpc(unsigned NewOpc,
   return MIB;
 }
 
-bool MipsInstrInfo::findCommutedOpIndices(MachineInstr &MI, unsigned &SrcOpIdx1,
+bool MipsInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
+                                          unsigned &SrcOpIdx1,
                                           unsigned &SrcOpIdx2) const {
   assert(!MI.isBundle() &&
          "TargetInstrInfo::findCommutedOpIndices() can't handle bundles");
@@ -839,4 +890,57 @@ MipsInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
     {MO_JALR,         "mips-jalr"}
   };
   return makeArrayRef(Flags);
+}
+
+Optional<ParamLoadedValue>
+MipsInstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
+  DIExpression *Expr =
+      DIExpression::get(MI.getMF()->getFunction().getContext(), {});
+
+  // TODO: Special MIPS instructions that need to be described separately.
+  if (auto RegImm = isAddImmediate(MI, Reg)) {
+    Register SrcReg = RegImm->Reg;
+    int64_t Offset = RegImm->Imm;
+    // When SrcReg is $zero, treat loaded value as immediate only.
+    // Ex. $a2 = ADDiu $zero, 10
+    if (SrcReg == Mips::ZERO || SrcReg == Mips::ZERO_64) {
+      return ParamLoadedValue(MI.getOperand(2), Expr);
+    }
+    Expr = DIExpression::prepend(Expr, DIExpression::ApplyOffset, Offset);
+    return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
+  } else if (auto DestSrc = isCopyInstr(MI)) {
+    const MachineFunction *MF = MI.getMF();
+    const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
+    Register DestReg = DestSrc->Destination->getReg();
+    // TODO: Handle cases where the Reg is sub- or super-register of the
+    // DestReg.
+    if (TRI->isSuperRegister(Reg, DestReg) || TRI->isSubRegister(Reg, DestReg))
+      return None;
+  }
+
+  return TargetInstrInfo::describeLoadedValue(MI, Reg);
+}
+
+Optional<RegImmPair> MipsInstrInfo::isAddImmediate(const MachineInstr &MI,
+                                                   Register Reg) const {
+  // TODO: Handle cases where Reg is a super- or sub-register of the
+  // destination register.
+  const MachineOperand &Op0 = MI.getOperand(0);
+  if (!Op0.isReg() || Reg != Op0.getReg())
+    return None;
+
+  switch (MI.getOpcode()) {
+  case Mips::ADDiu:
+  case Mips::DADDiu: {
+    const MachineOperand &Dop = MI.getOperand(0);
+    const MachineOperand &Sop1 = MI.getOperand(1);
+    const MachineOperand &Sop2 = MI.getOperand(2);
+    // Value is sum of register and immediate. Immediate value could be
+    // global string address which is not supported.
+    if (Dop.isReg() && Sop1.isReg() && Sop2.isImm())
+      return RegImmPair{Sop1.getReg(), Sop2.getImm()};
+    // TODO: Handle case where Sop1 is a frame-index.
+  }
+  }
+  return None;
 }

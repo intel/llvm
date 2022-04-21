@@ -21,25 +21,24 @@
  */
 
 #include <clc/clc.h>
-#include "config.h"
-#include "../clcmacro.h"
-#include "math.h"
-#include "math/clc_ldexp.h"
+#include <spirv/spirv.h>
 
-_CLC_DEFINE_BINARY_BUILTIN(float, ldexp, __clc_ldexp, float, int)
+#include <clcmacro.h>
+
+_CLC_DEFINE_BINARY_BUILTIN(float, ldexp, __spirv_ocl_ldexp, float, int)
 
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(double, ldexp, __clc_ldexp, double, int)
+_CLC_DEFINE_BINARY_BUILTIN(double, ldexp, __spirv_ocl_ldexp, double, int)
 #endif
 
 #ifdef cl_khr_fp16
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, ldexp, __clc_ldexp, half, int)
+_CLC_DEFINE_BINARY_BUILTIN(half, ldexp, __spirv_ocl_ldexp, half, int)
 #endif
 
 // This defines all the ldexp(GENTYPE, int) variants

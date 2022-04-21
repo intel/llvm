@@ -15,6 +15,7 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template<class Container>
@@ -38,12 +39,12 @@ void do_insert_cv_test()
 
     const VT v3(3);
     r = m.insert(v3);
-    assert(r == prev(m.end()));
+    assert(r == std::prev(m.end()));
     assert(m.size() == 3);
     assert(*r == 3);
 
     r = m.insert(v3);
-    assert(r == prev(m.end()));
+    assert(r == std::prev(m.end()));
     assert(m.size() == 4);
     assert(*r == 3);
 }

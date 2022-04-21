@@ -1,5 +1,5 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,debug.ExprInspection -analyzer-config unroll-loops=true,cfg-loopexit=true -verify -std=c++11 -analyzer-config exploration_strategy=unexplored_first_queue %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,debug.ExprInspection -analyzer-config unroll-loops=true,cfg-loopexit=true,exploration_strategy=dfs -verify -std=c++11 -DDFS=1 %s
+// RUN: %clang_analyze_cc1 -analyzer-checker=core,debug.ExprInspection -analyzer-config unroll-loops=true,cfg-loopexit=true -verify -std=c++14 -analyzer-config exploration_strategy=unexplored_first_queue %s
+// RUN: %clang_analyze_cc1 -analyzer-checker=core,debug.ExprInspection -analyzer-config unroll-loops=true,cfg-loopexit=true,exploration_strategy=dfs -verify -std=c++14 -DDFS=1 %s
 
 void clang_analyzer_numTimesReached();
 void clang_analyzer_warnIfReached();
@@ -347,9 +347,9 @@ int simple_known_bound_loop() {
 int simple_unknown_bound_loop() {
   for (int i = 2; i < getNum(); i++) {
 #ifdef DFS
-    clang_analyzer_numTimesReached(); // expected-warning {{10}}
+    clang_analyzer_numTimesReached(); // expected-warning {{16}}
 #else
-    clang_analyzer_numTimesReached(); // expected-warning {{13}}
+    clang_analyzer_numTimesReached(); // expected-warning {{8}}
 #endif
   }
   return 0;
@@ -368,10 +368,10 @@ int nested_inlined_unroll1() {
 int nested_inlined_no_unroll1() {
   int k;
   for (int i = 0; i < 9; i++) {
-#ifdef ANALYZER_CM_Z3
-    clang_analyzer_numTimesReached(); // expected-warning {{13}}
+#ifdef DFS
+    clang_analyzer_numTimesReached(); // expected-warning {{18}}
 #else
-    clang_analyzer_numTimesReached(); // expected-warning {{15}}
+    clang_analyzer_numTimesReached(); // expected-warning {{14}}
 #endif
     k = simple_unknown_bound_loop();  // reevaluation without inlining, splits the state as well
   }
@@ -498,4 +498,52 @@ void pr34943() {
   for (int i = 0; i < 6L; ++i) {
     clang_analyzer_numTimesReached(); // expected-warning {{6}}
   }
+}
+
+void parm_by_value_as_loop_counter(int i) {
+  for (i = 0; i < 10; ++i) {
+    clang_analyzer_numTimesReached(); // expected-warning {{10}}
+  }
+}
+
+void parm_by_ref_as_loop_counter(int &i) {
+  for (i = 0; i < 10; ++i) {
+    clang_analyzer_numTimesReached(); // expected-warning {{4}}
+  }
+}
+
+void capture_by_value_as_loop_counter() {
+  int out = 0;
+  auto l = [i = out]() mutable {
+    for (i = 0; i < 10; ++i) {
+      clang_analyzer_numTimesReached(); // expected-warning {{10}}
+    }
+  };
+}
+
+void capture_by_ref_as_loop_counter() {
+  int out = 0;
+  auto l = [&i = out]() {
+    for (i = 0; i < 10; ++i) {
+      clang_analyzer_numTimesReached(); // expected-warning {{4}}
+    }
+  };
+}
+
+void capture_implicitly_by_value_as_loop_counter() {
+  int i = 0;
+  auto l = [=]() mutable {
+    for (i = 0; i < 10; ++i) {
+      clang_analyzer_numTimesReached(); // expected-warning {{10}}
+    }
+  };
+}
+
+void capture_implicitly_by_ref_as_loop_counter() {
+  int i = 0;
+  auto l = [&]() mutable {
+    for (i = 0; i < 10; ++i) {
+      clang_analyzer_numTimesReached(); // expected-warning {{4}}
+    }
+  };
 }

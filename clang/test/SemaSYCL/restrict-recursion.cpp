@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -verify -fsyntax-only -x c++ -emit-llvm-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
 
 // This recursive function is not called from sycl kernel,
 // so it should not be diagnosed.
@@ -56,29 +56,28 @@ bool isa_B(void) {
   return 0;
 }
 
-__attribute__((sycl_kernel)) void kernel1(void) {
-  isa_B();
+template <typename N, typename L>
+__attribute__((sycl_kernel)) void kernel(const L &l) {
+  l();
 }
-  // expected-note@+1 2{{function implemented using recursion declared here}}
-__attribute__((sycl_kernel)) void kernel2(void) {
-  // expected-error@+1 {{SYCL kernel cannot call a recursive function}}
-  kernel2();
-}
-__attribute__((sycl_kernel)) void kernel3(void) {
-  ;
+
+// expected-note@+1 3{{function implemented using recursion declared here}}
+void kernel2_recursive(void) {
+  // expected-error@+1 1{{SYCL kernel cannot call a recursive function}}
+  kernel2_recursive();
 }
 
 using myFuncDef = int(int,int);
 
-void usage(  myFuncDef functionPtr ) {
-  kernel1();
+void usage(myFuncDef functionPtr) {
+  kernel<class kernel1>([]() { isa_B(); });
 }
 void usage2(  myFuncDef functionPtr ) {
-  // expected-error@+1 {{SYCL kernel cannot call a recursive function}}
-  kernel2();
+  // expected-error@+1 2{{SYCL kernel cannot call a recursive function}}
+  kernel<class kernel2>([]() { kernel2_recursive(); });
 }
 void usage3(  myFuncDef functionPtr ) {
-  kernel3();
+  kernel<class kernel3>([]() { ; });
 }
 
 int addInt(int n, int m) {
@@ -86,13 +85,13 @@ int addInt(int n, int m) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 
 template <typename name, typename Func>
-  // expected-note@+1 2{{function implemented using recursion declared here}}
-__attribute__((sycl_kernel)) void kernel_single_task2(Func kernelFunc) {
+// expected-note@+1 2{{function implemented using recursion declared here}}
+__attribute__((sycl_kernel)) void kernel_single_task2(const Func &kernelFunc) {
   kernelFunc();
   // expected-error@+1 2{{SYCL kernel cannot call a recursive function}}
   kernel_single_task2<name, Func>(kernelFunc);

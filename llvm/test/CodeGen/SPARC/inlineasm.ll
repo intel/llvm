@@ -80,7 +80,7 @@ entry:
   tail call void asm sideeffect "std $0, [$1]", "r,r,~{memory}"(i64 %conv, i64* %out)
   ret i32 %o
 }
-attributes #0 = { "no-frame-pointer-elim"="true" }
+attributes #0 = { "frame-pointer"="all" }
 
 ;; Ensures that tied in and out gets allocated properly.
 ; CHECK-LABEL: test_i64_inout:
@@ -117,7 +117,7 @@ entry:
 ; CHECK: std %l0, [%o0]
 define void @test_addressing_mode_i64(i64* %out) {
 entry:
-  call void asm "std %l0, $0", "=*m,r"(i64* nonnull %out, i64 0)
+  call void asm "std %l0, $0", "=*m,r"(i64* elementtype(i64) nonnull %out, i64 0)
   ret void
 }
 

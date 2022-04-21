@@ -13,13 +13,16 @@ from lit.llvm.subst import FindTool
 config.name = 'LLVM_SPIRV'
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.ShTest(True)
+config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.cl', '.ll', '.spt']
+config.suffixes = ['.cl', '.ll', '.spt', '.spvasm']
 
 # excludes: A list of directories  and fles to exclude from the testsuite.
 config.excludes = ['CMakeLists.txt']
+
+if config.spirv_tools_found:
+    config.available_features.add('libspirv_dis')
 
 if not config.spirv_skip_debug_info_tests:
     # Direct object generation.
@@ -41,7 +44,9 @@ config.test_exec_root = os.path.join(config.test_run_dir, 'test_output')
 
 llvm_config.use_default_substitutions()
 
-llvm_config.use_clang()
+# Explicitly set `use_installed` to alleviate downstream CI pipelines of
+# any additional environment setup for pre-installed Clang usage.
+llvm_config.use_clang(use_installed=True)
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 
@@ -53,9 +58,24 @@ if not config.spirv_skip_debug_info_tests:
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
+using_spirv_tools = False
+
+if config.spirv_tools_have_spirv_as:
+    llvm_config.add_tool_substitutions(['spirv-as'], [config.spirv_tools_bin_dir])
+    config.available_features.add('spirv-as')
+    using_spirv_tools = True
+
+if config.spirv_tools_have_spirv_link:
+    llvm_config.add_tool_substitutions(['spirv-link'], [config.spirv_tools_bin_dir])
+    config.available_features.add('spirv-link')
+    using_spirv_tools = True
+
 if config.spirv_tools_have_spirv_val:
-    new_ld_library_path = os.path.pathsep.join((config.spirv_tools_lib_dir, config.environment['LD_LIBRARY_PATH']))
-    config.environment['LD_LIBRARY_PATH'] = new_ld_library_path
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
+    using_spirv_tools = True
 else:
     config.substitutions.append(('spirv-val', ':'))
+
+if using_spirv_tools:
+    llvm_config.with_system_environment('LD_LIBRARY_PATH')
+    llvm_config.with_environment('LD_LIBRARY_PATH', config.spirv_tools_lib_dir, append_path=True)

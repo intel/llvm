@@ -13,7 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "VPlanVerifier.h"
+#include "VPlan.h"
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/Support/CommandLine.h"
 
 #define DEBUG_TYPE "loop-vectorize"
 
@@ -63,9 +65,7 @@ static void verifyBlocksInRegion(const VPRegionBlock *Region) {
     for (const VPBlockBase *Succ : Successors) {
       // There must be a bi-directional link between block and successor.
       const auto &SuccPreds = Succ->getPredecessors();
-      assert(std::find(SuccPreds.begin(), SuccPreds.end(), VPB) !=
-                 SuccPreds.end() &&
-             "Missing predecessor link.");
+      assert(llvm::is_contained(SuccPreds, VPB) && "Missing predecessor link.");
       (void)SuccPreds;
     }
 
@@ -84,9 +84,7 @@ static void verifyBlocksInRegion(const VPRegionBlock *Region) {
 
       // There must be a bi-directional link between block and predecessor.
       const auto &PredSuccs = Pred->getSuccessors();
-      assert(std::find(PredSuccs.begin(), PredSuccs.end(), VPB) !=
-                 PredSuccs.end() &&
-             "Missing successor link.");
+      assert(llvm::is_contained(PredSuccs, VPB) && "Missing successor link.");
       (void)PredSuccs;
     }
   }
@@ -129,4 +127,80 @@ void VPlanVerifier::verifyHierarchicalCFG(
   LLVM_DEBUG(dbgs() << "Verifying VPlan H-CFG.\n");
   assert(!TopRegion->getParent() && "VPlan Top Region should have no parent.");
   verifyRegionRec(TopRegion);
+}
+
+bool VPlanVerifier::verifyPlanIsValid(const VPlan &Plan) {
+  auto Iter = depth_first(
+      VPBlockRecursiveTraversalWrapper<const VPBlockBase *>(Plan.getEntry()));
+  for (const VPBasicBlock *VPBB :
+       VPBlockUtils::blocksOnly<const VPBasicBlock>(Iter)) {
+    // Verify that phi-like recipes are at the beginning of the block, with no
+    // other recipes in between.
+    auto RecipeI = VPBB->begin();
+    auto End = VPBB->end();
+    while (RecipeI != End && RecipeI->isPhi())
+      RecipeI++;
+
+    while (RecipeI != End) {
+      if (RecipeI->isPhi() && !isa<VPBlendRecipe>(&*RecipeI)) {
+        errs() << "Found phi-like recipe after non-phi recipe";
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+        errs() << ": ";
+        RecipeI->dump();
+        errs() << "after\n";
+        std::prev(RecipeI)->dump();
+#endif
+        return false;
+      }
+      RecipeI++;
+    }
+  }
+
+  const VPRegionBlock *TopRegion = Plan.getVectorLoopRegion();
+  const VPBasicBlock *Entry = dyn_cast<VPBasicBlock>(TopRegion->getEntry());
+  if (!Entry) {
+    errs() << "VPlan entry block is not a VPBasicBlock\n";
+    return false;
+  }
+
+  if (!isa<VPCanonicalIVPHIRecipe>(&*Entry->begin())) {
+    errs() << "VPlan vector loop header does not start with a "
+              "VPCanonicalIVPHIRecipe\n";
+    return false;
+  }
+
+  const VPBasicBlock *Exit = dyn_cast<VPBasicBlock>(TopRegion->getExit());
+  if (!Exit) {
+    errs() << "VPlan exit block is not a VPBasicBlock\n";
+    return false;
+  }
+
+  if (Exit->empty()) {
+    errs() << "VPlan vector loop exit must end with BranchOnCount "
+              "VPInstruction but is empty\n";
+    return false;
+  }
+
+  auto *LastInst = dyn_cast<VPInstruction>(std::prev(Exit->end()));
+  if (!LastInst || LastInst->getOpcode() != VPInstruction::BranchOnCount) {
+    errs() << "VPlan vector loop exit must end with BranchOnCount "
+              "VPInstruction\n";
+    return false;
+  }
+
+  for (const VPRegionBlock *Region :
+       VPBlockUtils::blocksOnly<const VPRegionBlock>(
+           depth_first(VPBlockRecursiveTraversalWrapper<const VPBlockBase *>(
+               Plan.getEntry())))) {
+    if (Region->getEntry()->getNumPredecessors() != 0) {
+      errs() << "region entry block has predecessors\n";
+      return false;
+    }
+    if (Region->getExit()->getNumSuccessors() != 0) {
+      errs() << "region exit block has successors\n";
+      return false;
+    }
+  }
+  return true;
 }

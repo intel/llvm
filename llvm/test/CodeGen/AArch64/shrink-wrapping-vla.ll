@@ -78,14 +78,15 @@ declare void @llvm.stackrestore(i8*)
 ; CHECK-LABEL: f
 
 ; CHECK:      stp x29, x30, [sp, #-16]!
+; CHECK-NEXT: .cfi_def_cfa_offset 16
 ; CHECK-NEXT: mov x29, sp
 
 ; VLA allocation
-; CHECK: add [[X1:x[0-9]+]], [[X1]], #15
 ; CHECK: mov [[X2:x[0-9]+]], sp
+; CHECK: mov [[SAVE:x[0-9]+]], sp
+; CHECK: add [[X1:x[0-9]+]], [[X1]], #15
 ; CHECK: and [[X1]], [[X1]], #0x7fffffff0
 ; Saving the SP via llvm.stacksave()
-; CHECK: mov [[SAVE:x[0-9]+]], sp
 ; CHECK: sub [[X2]], [[X2]], [[X1]]
 
 ; The next instruction comes from llvm.stackrestore()

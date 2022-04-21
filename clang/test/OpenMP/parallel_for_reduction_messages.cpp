@@ -1,12 +1,19 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 150 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp -std=c++98 -ferror-limit 150 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -ferror-limit 150 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 150 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 -ferror-limit 150 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -ferror-limit 150 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp parallel for reduction(+:fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
+
 void foo() {
 }
 
@@ -71,6 +78,14 @@ public:
 #pragma omp for reduction(+:a) // expected-error {{reduction variable must be shared}}
   for (int i = 0; i < 10; ++i)
     ::foo();
+#pragma omp parallel for reduction(inscan, +:a)
+  for (int i = 0; i < 10; ++i) {
+#pragma omp scan inclusive(a)
+  }
+#pragma omp parallel for reduction(inscan, +:a)
+  for (int i = 0; i < 10; ++i) {
+#pragma omp scan exclusive(a)
+  }
   }
 };
 class S6 { // expected-note 3 {{candidate function (the implicit copy assignment operator) not viable: no known conversion from 'int' to 'const S6' for 1st argument}}
@@ -92,7 +107,7 @@ T tmain(T argc) {
   const T d = T();       // expected-note 4 {{'d' defined here}}
   const T da[5] = {T()}; // expected-note 2 {{'da' defined here}}
   T qa[5] = {T()};
-  T i;
+  T i, z;
   T &j = i;                        // expected-note 4 {{'j' defined here}}
   S3 &p = k;                       // expected-note 2 {{'p' defined here}}
   const T &r = da[(int)i];         // expected-note 2 {{'r' defined here}}
@@ -137,7 +152,7 @@ T tmain(T argc) {
 #pragma omp parallel for reduction(^ : T) // expected-error {{'T' does not refer to a value}}
   for (int i = 0; i < 10; ++i)
     foo();
-#pragma omp parallel for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 3 {{const-qualified variable cannot be reduction}} expected-error 2 {{'operator+' is a private member of 'S2'}}
+#pragma omp parallel for reduction(+ : z, a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 3 {{const-qualified variable cannot be reduction}} expected-error 2 {{'operator+' is a private member of 'S2'}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel for reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 4 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 3 {{const-qualified variable cannot be reduction}}
@@ -214,7 +229,7 @@ int main(int argc, char **argv) {
   int qa[5] = {0};
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;                      // expected-note 2 {{'j' defined here}}
   S3 &p = k;                       // expected-note 2 {{'p' defined here}}
   const int &r = da[i];            // expected-note {{'r' defined here}}
@@ -259,7 +274,7 @@ int main(int argc, char **argv) {
 #pragma omp parallel for reduction(^ : S1) // expected-error {{'S1' does not refer to a value}}
   for (int i = 0; i < 10; ++i)
     foo();
-#pragma omp parallel for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}}
+#pragma omp parallel for reduction(+ : z, a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel for reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified variable cannot be reduction}}
@@ -286,7 +301,7 @@ int main(int argc, char **argv) {
 #pragma omp parallel for reduction(&& : S2::S2sc) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
-#pragma omp parallel for reduction(& : e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{invalid operands to binary expression ('S4' and 'S4')}} expected-error {{calling a private constructor of class 'S5'}} expected-error {{invalid operands to binary expression ('S5' and 'S5')}}
+#pragma omp parallel for reduction(& : e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{calling a private constructor of class 'S5'}} expected-error {{invalid operands to binary expression ('S5' and 'S5')}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel for reduction(+ : h, k, B::x) // expected-error 2 {{threadprivate or thread local variable cannot be reduction}}
@@ -325,6 +340,25 @@ int main(int argc, char **argv) {
 #pragma omp parallel for reduction(+ : m) // OK
   for (int i = 0; i < 10; ++i)
     m++;
+#pragma omp parallel for reduction(task, + : m) // OK
+  for (int i = 0; i < 10; ++i)
+    m++;
+
+#pragma omp parallel for reduction(inscan, + : m) reduction(*: fl) reduction(default, &&: j) // expected-error 2 {{expected 'reduction' clause with the 'inscan' modifier}} expected-note 2 {{'reduction' clause with 'inscan' modifier is used here}}
+  for (int i = 0; i < 10; ++i) {
+#pragma omp scan exclusive(m)
+    m++;
+  }
+#pragma omp parallel for reduction(inscan, + : m, fl, j) // expected-error 2 {{the inscan reduction list item must appear as a list item in an 'inclusive' or 'exclusive' clause on an inner 'omp scan' directive}}
+  for (int i = 0; i < 10; ++i) {
+#pragma omp scan exclusive(m)
+    m++;
+  }
+#pragma omp parallel for reduction(inscan, + : m, fl, j) // expected-error 2 {{the inscan reduction list item must appear as a list item in an 'inclusive' or 'exclusive' clause on an inner 'omp scan' directive}}
+  for (int i = 0; i < 10; ++i) {
+#pragma omp scan inclusive(m)
+    m++;
+  }
 
   return tmain(argc) + tmain(fl); // expected-note {{in instantiation of function template specialization 'tmain<int>' requested here}} expected-note {{in instantiation of function template specialization 'tmain<float>' requested here}}
 }

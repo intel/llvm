@@ -11,11 +11,6 @@
 // template <class T>
 //    basic_string& assign(const T& t, size_type pos, size_type n=npos); // C++17
 
-// When back-deploying to macosx10.7, the RTTI for exception classes
-// incorrectly provided by libc++.dylib is mixed with the one in
-// libc++abi.dylib and exceptions are not caught properly.
-// XFAIL: with_system_cxx_lib=macosx10.7
-
 #include <string>
 #include <stdexcept>
 #include <cassert>
@@ -24,7 +19,7 @@
 #include "min_allocator.h"
 
 template <class S, class SV>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S s, SV sv, typename S::size_type pos, typename S::size_type n, S expected)
 {
     if (pos <= sv.size())
@@ -34,7 +29,7 @@ test(S s, SV sv, typename S::size_type pos, typename S::size_type n, S expected)
         assert(s == expected);
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {
@@ -50,7 +45,7 @@ test(S s, SV sv, typename S::size_type pos, typename S::size_type n, S expected)
 }
 
 template <class S, class SV>
-void
+TEST_CONSTEXPR_CXX20 void
 test_npos(S s, SV sv, typename S::size_type pos, S expected)
 {
     if (pos <= sv.size())
@@ -60,7 +55,7 @@ test_npos(S s, SV sv, typename S::size_type pos, S expected)
         assert(s == expected);
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {
@@ -75,9 +70,8 @@ test_npos(S s, SV sv, typename S::size_type pos, S expected)
 #endif
 }
 
-int main(int, char**)
-{
-    {
+bool test() {
+  {
     typedef std::string S;
     typedef std::string_view SV;
     test(S(), SV(), 0, 0, S());
@@ -101,9 +95,9 @@ int main(int, char**)
     test(S("12345678901234567890"), SV("12345"), 1, 3, S("234"));
     test(S("12345678901234567890"), SV("12345678901234567890"), 5, 10,
          S("6789012345"));
-    }
+  }
 #if TEST_STD_VER >= 11
-    {
+  {
     typedef std::basic_string     <char, std::char_traits<char>, min_allocator<char>> S;
     typedef std::basic_string_view<char, std::char_traits<char> > SV;
     test(S(), SV(), 0, 0, S());
@@ -127,9 +121,9 @@ int main(int, char**)
     test(S("12345678901234567890"), SV("12345"), 1, 3, S("234"));
     test(S("12345678901234567890"), SV("12345678901234567890"), 5, 10,
          S("6789012345"));
-    }
+  }
 #endif
-    {
+  {
     typedef std::string S;
     typedef std::string_view SV;
     test_npos(S(), SV(), 0, S());
@@ -139,9 +133,9 @@ int main(int, char**)
     test_npos(S(), SV("12345"), 3, S("45"));
     test_npos(S(), SV("12345"), 5, S(""));
     test_npos(S(), SV("12345"), 6, S("not happening"));
-    }
+  }
 
-    {
+  {
     std::string s = "ABCD";
     std::string_view sv = "EFGH";
     char arr[] = "IJKL";
@@ -173,9 +167,9 @@ int main(int, char**)
     s.assign(arr, 0);     // calls assign(const char *, len)
     assert(s == "");
     s.clear();
-    }
+  }
 
-    {
+  {
     std::string s = "ABCD";
     std::string_view sv = s;
     s.assign(sv);
@@ -184,9 +178,9 @@ int main(int, char**)
     sv = s;
     s.assign(sv, 0, std::string::npos);
     assert(s == "ABCD");
-    }
+  }
 
-    {
+  {
     std::string s = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     std::string_view sv = s;
     s.assign(sv);
@@ -195,7 +189,17 @@ int main(int, char**)
     sv = s;
     s.assign(sv, 0, std::string::npos);
     assert(s == "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-    }
+  }
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
+#endif
 
   return 0;
 }

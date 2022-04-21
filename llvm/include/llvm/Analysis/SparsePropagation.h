@@ -14,6 +14,8 @@
 #ifndef LLVM_ANALYSIS_SPARSEPROPAGATION_H
 #define LLVM_ANALYSIS_SPARSEPROPAGATION_H
 
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 #include <set>
@@ -470,8 +472,7 @@ void SparseSolver<LatticeKey, LatticeVal, KeyInfo>::Solve() {
   while (!BBWorkList.empty() || !ValueWorkList.empty()) {
     // Process the value work list.
     while (!ValueWorkList.empty()) {
-      Value *V = ValueWorkList.back();
-      ValueWorkList.pop_back();
+      Value *V = ValueWorkList.pop_back_val();
 
       LLVM_DEBUG(dbgs() << "\nPopped off V-WL: " << *V << "\n");
 
@@ -485,8 +486,7 @@ void SparseSolver<LatticeKey, LatticeVal, KeyInfo>::Solve() {
 
     // Process the basic block work list.
     while (!BBWorkList.empty()) {
-      BasicBlock *BB = BBWorkList.back();
-      BBWorkList.pop_back();
+      BasicBlock *BB = BBWorkList.pop_back_val();
 
       LLVM_DEBUG(dbgs() << "\nPopped off BBWL: " << *BB);
 

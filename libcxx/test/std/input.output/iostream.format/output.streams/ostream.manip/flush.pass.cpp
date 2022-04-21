@@ -17,6 +17,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int sync_called = 0;
 
 template <class CharT>
@@ -43,17 +45,19 @@ int main(int, char**)
     {
         testbuf<char> sb;
         std::ostream os(&sb);
-        flush(os);
+        std::flush(os);
         assert(sync_called == 1);
         assert(os.good());
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         testbuf<wchar_t> sb;
         std::wostream os(&sb);
-        flush(os);
+        std::flush(os);
         assert(sync_called == 2);
         assert(os.good());
     }
+#endif
 
   return 0;
 }

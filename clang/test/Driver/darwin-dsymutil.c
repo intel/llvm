@@ -26,10 +26,39 @@
 //
 // RUN: %clang -target x86_64-apple-darwin10 -ccc-print-bindings \
 // RUN:   -o foo %s -g 2> %t
-// RUN: FileCheck -check-prefix=CHECK-OUTPUT-NAME < %t %s
+// RUN: FileCheck -Doutfile=foo -Ddsymfile=foo.dSYM \
+// RUN:          -check-prefix=CHECK-OUTPUT-NAME < %t %s
 //
-// CHECK-OUTPUT-NAME: "x86_64-apple-darwin10" - "darwin::Linker", inputs: [{{.*}}], output: "foo"
-// CHECK-OUTPUT-NAME: "x86_64-apple-darwin10" - "darwin::Dsymutil", inputs: ["foo"], output: "foo.dSYM"
+// RUN: %clang -target x86_64-apple-darwin10 -ccc-print-bindings \
+// RUN:   -o bar/foo %s -g 2> %t
+// RUN: FileCheck -Doutfile=bar/foo -Ddsymfile=bar/foo.dSYM \
+// RUN:           -check-prefix=CHECK-OUTPUT-NAME < %t %s
+//
+// RUN: %clang -target x86_64-apple-darwin10 -ccc-print-bindings \
+// RUN:   -o bar/foo -dsym-dir external %s -g 2> %t
+// RUN: FileCheck -Doutfile=bar/foo -Ddsymfile=external/foo.dSYM \
+// RUN:           -check-prefix=CHECK-OUTPUT-NAME < %t %s
+//
+// CHECK-OUTPUT-NAME: "x86_64-apple-darwin10" - "darwin::Linker", inputs: [{{.*}}], output: "[[outfile]]"
+// CHECK-OUTPUT-NAME: "x86_64-apple-darwin10" - "darwin::Dsymutil", inputs: ["[[outfile]]"], output: "[[dsymfile]]"
+
+// Check output name derivation for multiple -arch options.
+//
+// RUN: %clang -target x86_64-apple-darwin10 \
+// RUN:   -arch x86_64 -arch arm64 -ccc-print-bindings %s 2> %t
+// RUN: FileCheck --check-prefix=CHECK-MULTIARCH-OUTPUT-NAME < %t %s
+//
+// CHECK-MULTIARCH-OUTPUT-NAME: "x86_64-apple-darwin10" - "darwin::Linker", inputs: ["{{.*}}{{/|\\}}darwin-dsymutil-x86_64.o"], output: "{{.*}}{{/|\\}}darwin-dsymutil-x86_64.out"
+// CHECK-MULTIARCH-OUTPUT-NAME: "arm64-apple-darwin10" - "darwin::Linker", inputs: ["{{.*}}{{/|\\}}darwin-dsymutil-arm64.o"], output: "{{.*}}{{/|\\}}darwin-dsymutil-arm64.out"
+// CHECK-MULTIARCH-OUTPUT-NAME: "arm64-apple-darwin10" - "darwin::Lipo", inputs: ["{{.*}}{{/|\\}}darwin-dsymutil-x86_64.out", "{{.*}}{{/|\\}}darwin-dsymutil-arm64.out"], output: "a.out"
+//
+// RUN: %clang -target x86_64-apple-darwin10 \
+// RUN:   -Wl,-foo -arch x86_64 -arch arm64 -ccc-print-bindings %s 2> %t
+// RUN: FileCheck --check-prefix=CHECK-MULTIARCH-OUTPUT-NAME-WITH-ARG < %t %s
+//
+// CHECK-MULTIARCH-OUTPUT-NAME-WITH-ARG: "x86_64-apple-darwin10" - "darwin::Linker", inputs: [(input arg), "{{.*}}{{/|\\}}darwin-dsymutil-x86_64.o"], output: "{{.*}}{{/|\\}}darwin-dsymutil-x86_64.out"
+// CHECK-MULTIARCH-OUTPUT-NAME-WITH-ARG: "arm64-apple-darwin10" - "darwin::Linker", inputs: [(input arg), "{{.*}}{{/|\\}}darwin-dsymutil-arm64.o"], output: "{{.*}}{{/|\\}}darwin-dsymutil-arm64.out"
+// CHECK-MULTIARCH-OUTPUT-NAME-WITH-ARG: "arm64-apple-darwin10" - "darwin::Lipo", inputs: ["{{.*}}{{/|\\}}darwin-dsymutil-x86_64.out", "{{.*}}{{/|\\}}darwin-dsymutil-arm64.out"], output: "a.out"
 
 // Check that we only use dsymutil when needed.
 //
@@ -37,13 +66,6 @@
 // RUN: %clang -target x86_64-apple-darwin10 -ccc-print-bindings \
 // RUN:   -o foo %t.o -g 2> %t
 // RUN: not grep "Dsymutil" %t
-
-// Check that we put the .dSYM in the right place.
-// RUN: %clang -target x86_64-apple-darwin10 -ccc-print-bindings \
-// RUN:   -o bar/foo %s -g 2> %t
-// RUN: FileCheck -check-prefix=CHECK-LOCATION < %t %s
-
-// CHECK-LOCATION: "x86_64-apple-darwin10" - "darwin::Dsymutil", inputs: ["bar/foo"], output: "bar/foo.dSYM"
 
 // Check that we don't crash when translating arguments for dsymutil.
 // RUN: %clang -m32 -arch x86_64 -g %s -###

@@ -1,8 +1,12 @@
 set(LLVM_LINK_COMPONENTS
-  ${LLVM_TARGETS_TO_BUILD}
+  AllTargetsAsmParsers
+  AllTargetsCodeGens
+  AllTargetsDescs
+  AllTargetsInfos
   Analysis
   BitWriter
   CodeGen
+  Extensions
   Core
   IPO
   IRReader
@@ -13,13 +17,11 @@ set(LLVM_LINK_COMPONENTS
   ObjCARCOpts
   ScalarOpts
   Support
+  SYCLLowerIR
   Target
   TransformUtils
   Vectorize
   )
-
-# Support plugins.
-set(LLVM_NO_DEAD_STRIP 1)
 
 add_llvm_tool(bugpoint
   BugDriver.cpp
@@ -34,11 +36,6 @@ add_llvm_tool(bugpoint
 
   DEPENDS
   intrinsics_gen
+  SUPPORT_PLUGINS
   )
-export_executable_symbols(bugpoint)
-
-if(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
-  target_link_libraries(bugpoint PRIVATE Polly)
-  # Ensure LLVMTarget can resolve dependences in Polly.
-  target_link_libraries(bugpoint PRIVATE LLVMTarget)
-endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
+export_executable_symbols_for_plugins(bugpoint)

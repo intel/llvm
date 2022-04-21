@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -std=c++11 -fsyntax-only -Wdocumentation -Wdocumentation-pedantic -verify %s
+// RUN: %clang_cc1 -std=c++14 -fsyntax-only -Wdocumentation -Wdocumentation-pedantic -verify %s
 
 // This file contains lots of corner cases, so ensure that XML we generate is not invalid.
 // RUN: c-index-test -test-load-source all -comments-xml-schema=%S/../../bindings/xml/comment-xml-schema.rng %s | FileCheck %s -check-prefix=WRONG
@@ -123,6 +124,16 @@ int test_block_command5(int);
 
 /// \brief \c Aaa
 int test_block_command6(int);
+
+// We don't recognize comments in double quotes.
+/// "\brief \returns Aaa"
+int test_block_command7(int);
+
+// But only if they're single-line. (Doxygen treats multi-line quotes inconsistently.)
+// expected-warning@+1 {{empty paragraph passed to '\brief' command}}
+/// "\brief
+/// \returns Aaa"
+int test_block_command8(int);
 
 // expected-warning@+5 {{duplicated command '\brief'}} expected-note@+1 {{previous command '\brief' here}}
 /// \brief Aaa
@@ -287,6 +298,14 @@ int test_param21(int a);
 /// \param x2 Bbb.
 /// \param x2 Ccc.
 int test_param22(int x1, int x2, int x3);
+
+// expected-warning@+1 {{empty paragraph passed to '\param' command}}
+/// \param a
+/// \retval 0 Blah blah.
+int test_param23(int a);
+
+/// \param a \ref test_param23 has an empty paragraph, this doesn't.
+int test_param24(int a);
 
 //===---
 // Test that we treat typedefs to some non-function types as functions for the
@@ -606,6 +625,12 @@ int test_tparam22;
 /// \deprecated Bbb
 void test_deprecated_1(int a) __attribute__((deprecated));
 
+#if __cplusplus >= 201402L
+/// Aaa
+/// \deprecated Bbb
+[[deprecated]] void test_deprecated_no_warning_std14(int a);
+#endif
+
 // We don't want \deprecated to warn about empty paragraph.  It is fine to use
 // \deprecated by itself without explanations.
 
@@ -626,9 +651,9 @@ void test_deprecated_4(int a) __attribute__((unavailable));
 /// \deprecated
 void test_deprecated_5(int a);
 
-// expected-warning@+2 {{declaration is marked with '\deprecated' command but does not have a deprecation attribute}} expected-note@+3 {{add a deprecation attribute to the declaration to silence this warning}}
+// expected-warning@+2 {{declaration is marked with '@deprecated' command but does not have a deprecation attribute}} expected-note@+3 {{add a deprecation attribute to the declaration to silence this warning}}
 /// Aaa
-/// \deprecated
+/// @deprecated
 void test_deprecated_6(int a) {
 }
 
@@ -638,6 +663,44 @@ void test_deprecated_6(int a) {
 template<typename T>
 void test_deprecated_7(T aaa);
 
+class PR43753 {
+  // expected-warning@+2 {{declaration is marked with '\deprecated' command but does not have a deprecation attribute}}
+  // expected-note@+2 {{add a deprecation attribute to the declaration to silence this warning}}
+  /// \deprecated
+  static void test_deprecated_static();
+
+  // expected-warning@+2 {{declaration is marked with '\deprecated' command but does not have a deprecation attribute}}
+  // expected-note@+2 {{add a deprecation attribute to the declaration to silence this warning}}
+  /// \deprecated
+  static auto test_deprecated_static_trailing_return() -> int;
+
+#if __cplusplus >= 201402L
+  // expected-warning@+2 {{declaration is marked with '\deprecated' command but does not have a deprecation attribute}}
+  // expected-note@+2 {{add a deprecation attribute to the declaration to silence this warning}}
+  /// \deprecated
+  static decltype(auto) test_deprecated_static_decltype_auto() { return 1; }
+#endif
+
+  // expected-warning@+2 {{declaration is marked with '\deprecated' command but does not have a deprecation attribute}}
+  // expected-note@+2 {{add a deprecation attribute to the declaration to silence this warning}}
+  /// \deprecated
+  void test_deprecated_const() const;
+
+  // expected-warning@+2 {{declaration is marked with '\deprecated' command but does not have a deprecation attribute}}
+  // expected-note@+2 {{add a deprecation attribute to the declaration to silence this warning}}
+  /// \deprecated
+  auto test_deprecated_trailing_return() -> int;
+
+#if __cplusplus >= 201402L
+  // expected-warning@+2 {{declaration is marked with '\deprecated' command but does not have a deprecation attribute}}
+  // expected-note@+2 {{add a deprecation attribute to the declaration to silence this warning}}
+  /// \deprecated
+  decltype(auto) test_deprecated_decltype_auto() const { return a; }
+
+private:
+  int a{0};
+#endif
+};
 
 // rdar://12397511
 // expected-note@+2 {{previous command '\headerfile' here}}
@@ -863,7 +926,7 @@ struct test_noattach12 *test_attach13;
 /// \brief\author Aaa
 typedef struct test_noattach14 *test_attach15;
 
-// expected-warning@+1 {{empty paragraph passed to '\brief' command}}
+// expected-warning@+1 + {{empty paragraph passed to '\brief' command}}
 /// \brief\author Aaa
 typedef struct test_attach16 { int a; } test_attach17;
 
@@ -881,7 +944,7 @@ typedef struct S *test_attach19;
 /// \brief\author Aaa
 struct test_attach20;
 
-// expected-warning@+1 {{empty paragraph passed to '\brief' command}}
+// expected-warning@+1 + {{empty paragraph passed to '\brief' command}}
 /// \brief\author Aaa
 typedef struct test_attach21 {
   // expected-warning@+1 {{empty paragraph passed to '\brief' command}}
@@ -1044,6 +1107,55 @@ template <>
 template <typename B>
 void test_attach38<int>::test_attach39(int, B);
 
+// The inline comments expect a string after the command.
+// expected-warning@+1 {{'\a' command does not have a valid word argument}}
+/// \a
+int test_inline_no_argument_a_bad(int);
+
+/// \a A
+int test_inline_no_argument_a_good(int);
+
+// expected-warning@+1 {{'\anchor' command does not have a valid word argument}}
+/// \anchor
+int test_inline_no_argument_anchor_bad(int);
+
+/// \anchor A
+int test_inline_no_argument_anchor_good(int);
+
+// expected-warning@+1 {{'@b' command does not have a valid word argument}}
+/// @b
+int test_inline_no_argument_b_bad(int);
+
+/// @b A
+int test_inline_no_argument_b_good(int);
+
+// expected-warning@+1 {{'\c' command does not have a valid word argument}}
+/// \c
+int test_inline_no_argument_c_bad(int);
+
+/// \c A
+int test_inline_no_argument_c_good(int);
+
+// expected-warning@+1 {{'\e' command does not have a valid word argument}}
+/// \e
+int test_inline_no_argument_e_bad(int);
+
+/// \e A
+int test_inline_no_argument_e_good(int);
+
+// expected-warning@+1 {{'\em' command does not have a valid word argument}}
+/// \em
+int test_inline_no_argument_em_bad(int);
+
+/// \em A
+int test_inline_no_argument_em_good(int);
+
+// expected-warning@+1 {{'\p' command does not have a valid word argument}}
+/// \p
+int test_inline_no_argument_p_bad(int);
+
+/// \p A
+int test_inline_no_argument_p_good(int);
 
 // PR13411, reduced.  We used to crash on this.
 /**
@@ -1221,6 +1333,17 @@ namespace AllowParamAndReturnsOnFunctionPointerVars {
  */
 int (*functionPointerVariable)(int i);
 
+#if __cplusplus >= 201402L
+/**
+ * functionPointerVariableTemplate
+ *
+ * @param i is something.
+ * @returns integer.
+ */
+template<typename T>
+int (*functionPointerVariableTemplate)(T i);
+#endif
+
 struct HasFields {
   /**
    * functionPointerField
@@ -1229,8 +1352,21 @@ struct HasFields {
    * @returns integer.
    */
   int (*functionPointerField)(int i);
+
+#if __cplusplus >= 201402L
+  /**
+   * functionPointerTemplateMember
+   *
+   * @tparam T some type.
+   * @param i is integer.
+   * @returns integer.
+   */
+  template<typename T>
+  static int (*functionPointerTemplateMember)(int i);
+#endif
 };
 
+// expected-warning@+5 {{parameter 'p' not found in the function declaration}}
 // expected-warning@+5 {{'\returns' command used in a comment that is attached to a function returning void}}
 /**
  * functionPointerVariable
@@ -1239,6 +1375,23 @@ struct HasFields {
  * \returns integer.
  */
 void (*functionPointerVariableThatLeadsNowhere)();
+
+#if __cplusplus >= 201402L
+// expected-warning@+8 {{template parameter 'X' not found in the template declaration}}
+// expected-note@+7 {{did you mean 'T'?}}
+// expected-warning@+7 {{parameter 'p' not found in the function declaration}}
+// expected-note@+6 {{did you mean 'x'?}}
+// expected-warning@+6 {{'\returns' command used in a comment that is attached to a function returning void}}
+/**
+ * functionPointerVariable
+ *
+ * \tparam X typo
+ * \param p not here.
+ * \returns integer.
+ */
+template<typename T>
+void (*functionPointerVariableTemplateThatLeadsNowhere)(T x);
+#endif
 
 // Still warn about param/returns commands for variables that don't specify
 // the type directly:
@@ -1305,6 +1458,17 @@ typedef void (*VariadicFnType)(int a, ...);
  */
 using VariadicFnType2 = void (*)(int a, ...);
 
+/*!
+ * Function pointer type variable.
+ *
+ * @param a
+ * works
+ *
+ * @param ...
+ * now should work too.
+ */
+void (*variadicFnVar)(int a, ...);
+
 // expected-warning@+2 {{empty paragraph passed to '@note' command}}
 /**
 @note
@@ -1313,3 +1477,34 @@ using VariadicFnType2 = void (*)(int a, ...);
  */
 class EmptyNoteNoCrash {
 };
+
+namespace PR42844 { // Assertion failures when using typedefed function pointers
+typedef void (*AA)();
+typedef AA A();
+A *a; ///< \return none
+// expected-warning@-1 {{'\return' command used in a comment that is not attached to a function or method declaration}}
+
+typedef void B();
+B *b; ///< \return none
+// expected-warning@-1 {{'\return' command used in a comment that is not attached to a function or method declaration}}
+
+void CC();
+typedef void C();
+C &c = CC; ///< \return none
+// expected-warning@-1 {{'\return' command used in a comment that is not attached to a function or method declaration}}
+
+using DD = void(*)();
+using D = DD();
+D *d; ///< \return none
+// expected-warning@-1 {{'\return' command used in a comment that is not attached to a function or method declaration}}
+
+using E = void();
+E *e; ///< \return none
+// expected-warning@-1 {{'\return' command used in a comment that is not attached to a function or method declaration}}
+
+void FF();
+using F = void();
+F &f = FF; ///< \return none
+// expected-warning@-1 {{'\return' command used in a comment that is not attached to a function or method declaration}}
+
+} // namespace PR42844

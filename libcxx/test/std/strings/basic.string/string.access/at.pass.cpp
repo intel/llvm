@@ -11,11 +11,6 @@
 // const_reference at(size_type pos) const;
 //       reference at(size_type pos);
 
-// When back-deploying to macosx10.7, the RTTI for exception classes
-// incorrectly provided by libc++.dylib is mixed with the one in
-// libc++abi.dylib and exceptions are not caught properly.
-// XFAIL: with_system_cxx_lib=macosx10.7
-
 #include <string>
 #include <stdexcept>
 #include <cassert>
@@ -25,7 +20,7 @@
 #include "test_macros.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S s, typename S::size_type pos)
 {
     const S& cs = s;
@@ -59,25 +54,34 @@ test(S s, typename S::size_type pos)
 #endif
 }
 
-int main(int, char**)
-{
-    {
+bool test() {
+  {
     typedef std::string S;
     test(S(), 0);
     test(S("123"), 0);
     test(S("123"), 1);
     test(S("123"), 2);
     test(S("123"), 3);
-    }
+  }
 #if TEST_STD_VER >= 11
-    {
+  {
     typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
     test(S(), 0);
     test(S("123"), 0);
     test(S("123"), 1);
     test(S("123"), 2);
     test(S("123"), 3);
-    }
+  }
+#endif
+
+    return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
 #endif
 
   return 0;

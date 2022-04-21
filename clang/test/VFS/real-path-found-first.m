@@ -4,11 +4,10 @@
 // intentionally rebuild modules, since the precompiled module file refers to
 // the dependency files by real path.
 
-// REQUIRES: shell
 // RUN: rm -rf %t %t-cache %t.pch
 // RUN: mkdir -p %t/SomeFramework.framework/Modules
 // RUN: cat %S/Inputs/some_frame_module.map > %t/SomeFramework.framework/Modules/module.modulemap
-// RUN: sed -e "s:INPUT_DIR:%S/Inputs:g" -e "s:OUT_DIR:%t:g" %S/Inputs/vfsoverlay.yaml > %t.yaml
+// RUN: sed -e "s@INPUT_DIR@%{/S:regex_replacement}/Inputs@g" -e "s@OUT_DIR@%{/t:regex_replacement}@g" %S/Inputs/vfsoverlay.yaml > %t.yaml
 
 // Build
 // RUN: %clang_cc1 -fmodules -fimplicit-module-maps -fmodules-cache-path=%t-cache -F %t \

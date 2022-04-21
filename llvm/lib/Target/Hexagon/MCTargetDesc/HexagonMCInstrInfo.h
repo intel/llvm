@@ -28,6 +28,7 @@ class MCContext;
 class MCExpr;
 class MCInstrDesc;
 class MCInstrInfo;
+class MCRegisterInfo;
 class MCSubtargetInfo;
 
 class DuplexCandidate {
@@ -40,7 +41,8 @@ public:
 
 namespace Hexagon {
 
-class PacketIterator {
+class PacketIterator : public std::iterator<std::forward_iterator_tag,
+    PacketIterator> {
   MCInstrInfo const &MCII;
   MCInst::const_iterator BundleCurrent;
   MCInst::const_iterator BundleEnd;
@@ -63,18 +65,24 @@ public:
 
 namespace HexagonMCInstrInfo {
 
-size_t const innerLoopOffset = 0;
-int64_t const innerLoopMask = 1 << innerLoopOffset;
+constexpr size_t innerLoopOffset = 0;
+constexpr int64_t innerLoopMask = 1 << innerLoopOffset;
 
-size_t const outerLoopOffset = 1;
-int64_t const outerLoopMask = 1 << outerLoopOffset;
+constexpr size_t outerLoopOffset = 1;
+constexpr int64_t outerLoopMask = 1 << outerLoopOffset;
 
 // do not reorder memory load/stores by default load/stores are re-ordered
 // and by default loads can be re-ordered
-size_t const memReorderDisabledOffset = 2;
-int64_t const memReorderDisabledMask = 1 << memReorderDisabledOffset;
+constexpr size_t memReorderDisabledOffset = 2;
+constexpr int64_t memReorderDisabledMask = 1 << memReorderDisabledOffset;
 
-size_t const bundleInstructionsOffset = 1;
+constexpr size_t splitNoMemOrderOffset = 3;
+constexpr int64_t splitNoMemorderMask = 1 << splitNoMemOrderOffset;
+
+constexpr size_t noShuffleOffset = 4;
+constexpr int64_t noShuffleMask = 1 << noShuffleOffset;
+
+constexpr size_t bundleInstructionsOffset = 1;
 
 void addConstant(MCInst &MI, uint64_t Value, MCContext &Context);
 void addConstExtender(MCContext &Context, MCInstrInfo const &MCII, MCInst &MCB,
@@ -91,7 +99,10 @@ size_t bundleSize(MCInst const &MCI);
 // Put the packet in to canonical form, compound, duplex, pad, and shuffle
 bool canonicalizePacket(MCInstrInfo const &MCII, MCSubtargetInfo const &STI,
                         MCContext &Context, MCInst &MCB,
-                        HexagonMCChecker *Checker);
+                        HexagonMCChecker *Checker,
+                        bool AttemptCompatibility = false);
+bool IsABranchingInst(MCInstrInfo const &MCII, MCSubtargetInfo const &STI,
+                      MCInst const &I);
 
 // Create a duplex instruction given the two subinsts
 MCInst *deriveDuplex(MCContext &Context, unsigned iClass, MCInst const &inst0,
@@ -165,6 +176,11 @@ MCOperand const &getNewValueOperand2(MCInstrInfo const &MCII,
 // Return the Hexagon ISA class for the insn.
 unsigned getType(MCInstrInfo const &MCII, MCInst const &MCI);
 
+/// Return the resources used by this instruction
+unsigned getCVIResources(MCInstrInfo const &MCII,
+                                      MCSubtargetInfo const &STI,
+                                      MCInst const &MCI);
+
 /// Return the slots used by the insn.
 unsigned getUnits(MCInstrInfo const &MCII, MCSubtargetInfo const &STI,
                   MCInst const &MCI);
@@ -181,6 +197,7 @@ bool hasImmExt(MCInst const &MCI);
 bool hasNewValue(MCInstrInfo const &MCII, MCInst const &MCI);
 bool hasNewValue2(MCInstrInfo const &MCII, MCInst const &MCI);
 bool hasTmpDst(MCInstrInfo const &MCII, MCInst const &MCI);
+bool hasHvxTmp(MCInstrInfo const &MCII, MCInst const &MCI);
 unsigned iClassOfDuplexPair(unsigned Ga, unsigned Gb);
 
 int64_t minConstant(MCInst const &MCI, size_t Index);
@@ -252,6 +269,8 @@ bool isMemReorderDisabled(MCInst const &MCI);
 
 // Return whether the insn is a new-value consumer.
 bool isNewValue(MCInstrInfo const &MCII, MCInst const &MCI);
+/// Return true if the operand is a new-value store insn.
+bool isNewValueStore(MCInstrInfo const &MCII, MCInst const &MCI);
 bool isOpExtendable(MCInstrInfo const &MCII, MCInst const &MCI, unsigned short);
 
 // Can these two instructions be duplexed
@@ -270,8 +289,11 @@ bool isPredicatedNew(MCInstrInfo const &MCII, MCInst const &MCI);
 // Return whether the predicate sense is true
 bool isPredicatedTrue(MCInstrInfo const &MCII, MCInst const &MCI);
 
-// Is this a predicate register
-bool isPredReg(unsigned Reg);
+// Return true if this is a scalar predicate register.
+bool isPredReg(MCRegisterInfo const &MRI, unsigned Reg);
+
+// Returns true if the Ith operand is a predicate register.
+bool isPredRegister(MCInstrInfo const &MCII, MCInst const &Inst, unsigned I);
 
 // Return whether the insn is a prefix.
 bool isPrefix(MCInstrInfo const &MCII, MCInst const &MCI);
@@ -290,7 +312,25 @@ bool isVector(MCInstrInfo const &MCII, MCInst const &MCI);
 bool mustExtend(MCExpr const &Expr);
 bool mustNotExtend(MCExpr const &Expr);
 
-// Pad the bundle with nops to satisfy endloop requirements
+// Returns true if this instruction requires a slot to execute.
+bool requiresSlot(MCSubtargetInfo const &STI, MCInst const &MCI);
+
+
+// Returns true if \a MCB would require endloop padding.
+bool LoopNeedsPadding(MCInst const &MCB);
+
+unsigned packetSize(StringRef CPU);
+
+// Returns the maximum number of slots available in the given
+// subtarget's packets.
+unsigned packetSizeSlots(MCSubtargetInfo const &STI);
+
+// Returns the number of slots consumed by this packet, considering duplexed
+// and compound instructions.
+unsigned slotsConsumed(MCInstrInfo const &MCII, MCSubtargetInfo const &STI,
+                       MCInst const &MCI);
+
+// Pad the bundle with nops to satisfy endloop requirements.
 void padEndloop(MCInst &MCI, MCContext &Context);
 class PredicateInfo {
 public:
@@ -323,6 +363,16 @@ void setOuterLoop(MCInst &MCI);
 bool subInstWouldBeExtended(MCInst const &potentialDuplex);
 unsigned SubregisterBit(unsigned Consumer, unsigned Producer,
                         unsigned Producer2);
+
+bool IsVecRegSingle(unsigned VecReg);
+bool IsVecRegPair(unsigned VecReg);
+bool IsReverseVecRegPair(unsigned VecReg);
+bool IsSingleConsumerRefPairProducer(unsigned Producer, unsigned Consumer);
+
+/// Returns an ordered pair of the constituent register ordinals for
+/// each of the elements of \a VecRegPair.  For example, Hexagon::W0 ("v0:1")
+/// returns { 0, 1 } and Hexagon::W1 ("v3:2") returns { 3, 2 }.
+std::pair<unsigned, unsigned> GetVecRegPairIndices(unsigned VecRegPair);
 
 // Attempt to find and replace compound pairs
 void tryCompound(MCInstrInfo const &MCII, MCSubtargetInfo const &STI,

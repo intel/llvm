@@ -31,7 +31,6 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_RIFF_H
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/ScopedPrinter.h"
 #include <array>
 
 namespace clang {
@@ -43,6 +42,9 @@ using FourCC = std::array<char, 4>;
 // Get a FourCC from a string literal, e.g. fourCC("RIFF").
 inline constexpr FourCC fourCC(const char (&Literal)[5]) {
   return FourCC{{Literal[0], Literal[1], Literal[2], Literal[3]}};
+}
+inline constexpr llvm::StringRef fourCCStr(const FourCC &Data) {
+  return llvm::StringRef(&Data[0], Data.size());
 }
 // A chunk is a section in a RIFF container.
 struct Chunk {

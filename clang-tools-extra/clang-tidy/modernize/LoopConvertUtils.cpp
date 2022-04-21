@@ -10,8 +10,8 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/Lambda.h"
-#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/APSInt.h"
@@ -30,7 +30,7 @@ namespace clang {
 namespace tidy {
 namespace modernize {
 
-/// \brief Tracks a stack of parent statements during traversal.
+/// Tracks a stack of parent statements during traversal.
 ///
 /// All this really does is inject push_back() before running
 /// RecursiveASTVisitor::TraverseStmt() and pop_back() afterwards. The Stmt atop
@@ -44,32 +44,32 @@ bool StmtAncestorASTVisitor::TraverseStmt(Stmt *Statement) {
   return true;
 }
 
-/// \brief Keep track of the DeclStmt associated with each VarDecl.
+/// Keep track of the DeclStmt associated with each VarDecl.
 ///
 /// Combined with StmtAncestors, this provides roughly the same information as
 /// Scope, as we can map a VarDecl to its DeclStmt, then walk up the parent tree
 /// using StmtAncestors.
 bool StmtAncestorASTVisitor::VisitDeclStmt(DeclStmt *Decls) {
-  for (const auto *decl : Decls->decls()) {
-    if (const auto *V = dyn_cast<VarDecl>(decl))
+  for (const auto *Decl : Decls->decls()) {
+    if (const auto *V = dyn_cast<VarDecl>(Decl))
       DeclParents.insert(std::make_pair(V, Decls));
   }
   return true;
 }
 
-/// \brief record the DeclRefExpr as part of the parent expression.
+/// record the DeclRefExpr as part of the parent expression.
 bool ComponentFinderASTVisitor::VisitDeclRefExpr(DeclRefExpr *E) {
   Components.push_back(E);
   return true;
 }
 
-/// \brief record the MemberExpr as part of the parent expression.
+/// record the MemberExpr as part of the parent expression.
 bool ComponentFinderASTVisitor::VisitMemberExpr(MemberExpr *Member) {
   Components.push_back(Member);
   return true;
 }
 
-/// \brief Forward any DeclRefExprs to a check on the referenced variable
+/// Forward any DeclRefExprs to a check on the referenced variable
 /// declaration.
 bool DependencyFinderASTVisitor::VisitDeclRefExpr(DeclRefExpr *DeclRef) {
   if (auto *V = dyn_cast_or_null<VarDecl>(DeclRef->getDecl()))
@@ -77,7 +77,7 @@ bool DependencyFinderASTVisitor::VisitDeclRefExpr(DeclRefExpr *DeclRef) {
   return true;
 }
 
-/// \brief Determine if any this variable is declared inside the ContainingStmt.
+/// Determine if any this variable is declared inside the ContainingStmt.
 bool DependencyFinderASTVisitor::VisitVarDecl(VarDecl *V) {
   const Stmt *Curr = DeclParents->lookup(V);
   // First, see if the variable was declared within an inner scope of the loop.
@@ -100,7 +100,7 @@ bool DependencyFinderASTVisitor::VisitVarDecl(VarDecl *V) {
   return true;
 }
 
-/// \brief If we already created a variable for TheLoop, check to make sure
+/// If we already created a variable for TheLoop, check to make sure
 /// that the name was not already taken.
 bool DeclFinderASTVisitor::VisitForStmt(ForStmt *TheLoop) {
   StmtGeneratedVarNameMap::const_iterator I = GeneratedDecls->find(TheLoop);
@@ -111,7 +111,7 @@ bool DeclFinderASTVisitor::VisitForStmt(ForStmt *TheLoop) {
   return true;
 }
 
-/// \brief If any named declaration within the AST subtree has the same name,
+/// If any named declaration within the AST subtree has the same name,
 /// then consider Name already taken.
 bool DeclFinderASTVisitor::VisitNamedDecl(NamedDecl *D) {
   const IdentifierInfo *Ident = D->getIdentifier();
@@ -122,7 +122,7 @@ bool DeclFinderASTVisitor::VisitNamedDecl(NamedDecl *D) {
   return true;
 }
 
-/// \brief Forward any declaration references to the actual check on the
+/// Forward any declaration references to the actual check on the
 /// referenced declaration.
 bool DeclFinderASTVisitor::VisitDeclRefExpr(DeclRefExpr *DeclRef) {
   if (auto *D = dyn_cast<NamedDecl>(DeclRef->getDecl()))
@@ -130,7 +130,7 @@ bool DeclFinderASTVisitor::VisitDeclRefExpr(DeclRefExpr *DeclRef) {
   return true;
 }
 
-/// \brief If the new variable name conflicts with any type used in the loop,
+/// If the new variable name conflicts with any type used in the loop,
 /// then we mark that variable name as taken.
 bool DeclFinderASTVisitor::VisitTypeLoc(TypeLoc TL) {
   QualType QType = TL.getType();
@@ -152,20 +152,21 @@ bool DeclFinderASTVisitor::VisitTypeLoc(TypeLoc TL) {
   return true;
 }
 
-/// \brief Look through conversion/copy constructors to find the explicit
-/// initialization expression, returning it is found.
+/// Look through conversion/copy constructors and member functions to find the
+/// explicit initialization expression, returning it is found.
 ///
 /// The main idea is that given
 ///   vector<int> v;
 /// we consider either of these initializations
 ///   vector<int>::iterator it = v.begin();
 ///   vector<int>::iterator it(v.begin());
+///   vector<int>::const_iterator it(v.begin());
 /// and retrieve `v.begin()` as the expression used to initialize `it` but do
 /// not include
 ///   vector<int>::iterator it;
 ///   vector<int>::iterator it(v.begin(), 0); // if this constructor existed
 /// as being initialized from `v.begin()`
-const Expr *digThroughConstructors(const Expr *E) {
+const Expr *digThroughConstructorsConversions(const Expr *E) {
   if (!E)
     return nullptr;
   E = E->IgnoreImplicit();
@@ -177,13 +178,18 @@ const Expr *digThroughConstructors(const Expr *E) {
       return nullptr;
     E = ConstructExpr->getArg(0);
     if (const auto *Temp = dyn_cast<MaterializeTemporaryExpr>(E))
-      E = Temp->GetTemporaryExpr();
-    return digThroughConstructors(E);
+      E = Temp->getSubExpr();
+    return digThroughConstructorsConversions(E);
   }
+  // If this is a conversion (as iterators commonly convert into their const
+  // iterator counterparts), dig through that as well.
+  if (const auto *ME = dyn_cast<CXXMemberCallExpr>(E))
+    if (isa<CXXConversionDecl>(ME->getMethodDecl()))
+      return digThroughConstructorsConversions(ME->getImplicitObjectArgument());
   return E;
 }
 
-/// \brief Returns true when two Exprs are equivalent.
+/// Returns true when two Exprs are equivalent.
 bool areSameExpr(ASTContext *Context, const Expr *First, const Expr *Second) {
   if (!First || !Second)
     return false;
@@ -194,18 +200,18 @@ bool areSameExpr(ASTContext *Context, const Expr *First, const Expr *Second) {
   return FirstID == SecondID;
 }
 
-/// \brief Returns the DeclRefExpr represented by E, or NULL if there isn't one.
+/// Returns the DeclRefExpr represented by E, or NULL if there isn't one.
 const DeclRefExpr *getDeclRef(const Expr *E) {
   return dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
 }
 
-/// \brief Returns true when two ValueDecls are the same variable.
+/// Returns true when two ValueDecls are the same variable.
 bool areSameVariable(const ValueDecl *First, const ValueDecl *Second) {
   return First && Second &&
          First->getCanonicalDecl() == Second->getCanonicalDecl();
 }
 
-/// \brief Determines if an expression is a declaration reference to a
+/// Determines if an expression is a declaration reference to a
 /// particular variable.
 static bool exprReferencesVariable(const ValueDecl *Target, const Expr *E) {
   if (!Target || !E)
@@ -214,7 +220,7 @@ static bool exprReferencesVariable(const ValueDecl *Target, const Expr *E) {
   return Decl && areSameVariable(Target, Decl->getDecl());
 }
 
-/// \brief If the expression is a dereference or call to operator*(), return the
+/// If the expression is a dereference or call to operator*(), return the
 /// operand. Otherwise, return NULL.
 static const Expr *getDereferenceOperand(const Expr *E) {
   if (const auto *Uop = dyn_cast<UnaryOperator>(E))
@@ -229,7 +235,7 @@ static const Expr *getDereferenceOperand(const Expr *E) {
   return nullptr;
 }
 
-/// \brief Returns true when the Container contains an Expr equivalent to E.
+/// Returns true when the Container contains an Expr equivalent to E.
 template <typename ContainerT>
 static bool containsExpr(ASTContext *Context, const ContainerT *Container,
                          const Expr *E) {
@@ -242,7 +248,7 @@ static bool containsExpr(ASTContext *Context, const ContainerT *Container,
   return false;
 }
 
-/// \brief Returns true when the index expression is a declaration reference to
+/// Returns true when the index expression is a declaration reference to
 /// IndexVar.
 ///
 /// If the index variable is `index`, this function returns true on
@@ -257,7 +263,7 @@ static bool isIndexInSubscriptExpr(const Expr *IndexExpr,
          areSameVariable(IndexVar, Idx->getDecl());
 }
 
-/// \brief Returns true when the index expression is a declaration reference to
+/// Returns true when the index expression is a declaration reference to
 /// IndexVar, Obj is the same expression as SourceExpr after all parens and
 /// implicit casts are stripped off.
 ///
@@ -302,7 +308,7 @@ static bool isIndexInSubscriptExpr(ASTContext *Context, const Expr *IndexExpr,
   return false;
 }
 
-/// \brief Returns true when Opcall is a call a one-parameter dereference of
+/// Returns true when Opcall is a call a one-parameter dereference of
 /// IndexVar.
 ///
 /// For example, if the index variable is `index`, returns true for
@@ -316,7 +322,7 @@ static bool isDereferenceOfOpCall(const CXXOperatorCallExpr *OpCall,
          exprReferencesVariable(IndexVar, OpCall->getArg(0));
 }
 
-/// \brief Returns true when Uop is a dereference of IndexVar.
+/// Returns true when Uop is a dereference of IndexVar.
 ///
 /// For example, if the index variable is `index`, returns true for
 ///   *index
@@ -329,7 +335,7 @@ static bool isDereferenceOfUop(const UnaryOperator *Uop,
          exprReferencesVariable(IndexVar, Uop->getSubExpr());
 }
 
-/// \brief Determines whether the given Decl defines a variable initialized to
+/// Determines whether the given Decl defines a variable initialized to
 /// the loop object.
 ///
 /// This is intended to find cases such as
@@ -356,8 +362,8 @@ static bool isAliasDecl(ASTContext *Context, const Decl *TheDecl,
 
   bool OnlyCasts = true;
   const Expr *Init = VDecl->getInit()->IgnoreParenImpCasts();
-  if (Init && isa<CXXConstructExpr>(Init)) {
-    Init = digThroughConstructors(Init);
+  if (isa_and_nonnull<CXXConstructExpr>(Init)) {
+    Init = digThroughConstructorsConversions(Init);
     OnlyCasts = false;
   }
   if (!Init)
@@ -392,8 +398,8 @@ static bool isAliasDecl(ASTContext *Context, const Decl *TheDecl,
     if (OpCall->getOperator() == OO_Star)
       return isDereferenceOfOpCall(OpCall, IndexVar);
     if (OpCall->getOperator() == OO_Subscript) {
-      assert(OpCall->getNumArgs() == 2);
-      return isIndexInSubscriptExpr(OpCall->getArg(1), IndexVar);
+      return OpCall->getNumArgs() == 2 &&
+             isIndexInSubscriptExpr(OpCall->getArg(1), IndexVar);
     }
     break;
   }
@@ -416,7 +422,7 @@ static bool isAliasDecl(ASTContext *Context, const Decl *TheDecl,
   return false;
 }
 
-/// \brief Determines whether the bound of a for loop condition expression is
+/// Determines whether the bound of a for loop condition expression is
 /// the same as the statically computable size of ArrayType.
 ///
 /// Given
@@ -438,11 +444,12 @@ static bool arrayMatchesBoundExpr(ASTContext *Context,
       Context->getAsConstantArrayType(ArrayType);
   if (!ConstType)
     return false;
-  llvm::APSInt ConditionSize;
-  if (!ConditionExpr->isIntegerConstantExpr(ConditionSize, *Context))
+  Optional<llvm::APSInt> ConditionSize =
+      ConditionExpr->getIntegerConstantExpr(*Context);
+  if (!ConditionSize)
     return false;
   llvm::APSInt ArraySize(ConstType->getSize());
-  return llvm::APSInt::isSameValue(ConditionSize, ArraySize);
+  return llvm::APSInt::isSameValue(*ConditionSize, ArraySize);
 }
 
 ForLoopIndexUseVisitor::ForLoopIndexUseVisitor(ASTContext *Context,
@@ -489,7 +496,7 @@ void ForLoopIndexUseVisitor::addUsage(const Usage &U) {
     Usages.push_back(U);
 }
 
-/// \brief If the unary operator is a dereference of IndexVar, include it
+/// If the unary operator is a dereference of IndexVar, include it
 /// as a valid usage and prune the traversal.
 ///
 /// For example, if container.begin() and container.end() both return pointers
@@ -500,7 +507,7 @@ void ForLoopIndexUseVisitor::addUsage(const Usage &U) {
 ///     int k = *i + 2;
 ///   }
 /// \endcode
-bool ForLoopIndexUseVisitor::TraverseUnaryDeref(UnaryOperator *Uop) {
+bool ForLoopIndexUseVisitor::TraverseUnaryOperator(UnaryOperator *Uop) {
   // If we dereference an iterator that's actually a pointer, count the
   // occurrence.
   if (isDereferenceOfUop(Uop, IndexVar)) {
@@ -511,7 +518,7 @@ bool ForLoopIndexUseVisitor::TraverseUnaryDeref(UnaryOperator *Uop) {
   return VisitorBase::TraverseUnaryOperator(Uop);
 }
 
-/// \brief If the member expression is operator-> (overloaded or not) on
+/// If the member expression is operator-> (overloaded or not) on
 /// IndexVar, include it as a valid usage and prune the traversal.
 ///
 /// For example, given
@@ -588,7 +595,7 @@ bool ForLoopIndexUseVisitor::TraverseMemberExpr(MemberExpr *Member) {
   return VisitorBase::TraverseMemberExpr(Member);
 }
 
-/// \brief If a member function call is the at() accessor on the container with
+/// If a member function call is the at() accessor on the container with
 /// IndexVar as the single argument, include it as a valid usage and prune
 /// the traversal.
 ///
@@ -621,7 +628,7 @@ bool ForLoopIndexUseVisitor::TraverseCXXMemberCallExpr(
   return VisitorBase::TraverseCXXMemberCallExpr(MemberCall);
 }
 
-/// \brief If an overloaded operator call is a dereference of IndexVar or
+/// If an overloaded operator call is a dereference of IndexVar or
 /// a subscript of the container with IndexVar as the single argument,
 /// include it as a valid usage and prune the traversal.
 ///
@@ -667,8 +674,8 @@ bool ForLoopIndexUseVisitor::TraverseCXXOperatorCallExpr(
   return VisitorBase::TraverseCXXOperatorCallExpr(OpCall);
 }
 
-/// \brief If we encounter an array with IndexVar as the index of an
-/// ArraySubsriptExpression, note it as a consistent usage and prune the
+/// If we encounter an array with IndexVar as the index of an
+/// ArraySubscriptExpression, note it as a consistent usage and prune the
 /// AST traversal.
 ///
 /// For example, given
@@ -709,10 +716,10 @@ bool ForLoopIndexUseVisitor::TraverseArraySubscriptExpr(ArraySubscriptExpr *E) {
   return true;
 }
 
-/// \brief If we encounter a reference to IndexVar in an unpruned branch of the
+/// If we encounter a reference to IndexVar in an unpruned branch of the
 /// traversal, mark this loop as unconvertible.
 ///
-/// This implements the whitelist for convertible loops: any usages of IndexVar
+/// This determines the set of convertible loops: any usages of IndexVar
 /// not explicitly considered convertible by this traversal will be caught by
 /// this function.
 ///
@@ -752,7 +759,7 @@ bool ForLoopIndexUseVisitor::VisitDeclRefExpr(DeclRefExpr *E) {
   return true;
 }
 
-/// \brief If the loop index is captured by a lambda, replace this capture
+/// If the loop index is captured by a lambda, replace this capture
 /// by the range-for loop variable.
 ///
 /// For example:
@@ -792,7 +799,7 @@ bool ForLoopIndexUseVisitor::TraverseLambdaCapture(LambdaExpr *LE,
   return VisitorBase::TraverseLambdaCapture(LE, C, Init);
 }
 
-/// \brief If we find that another variable is created just to refer to the loop
+/// If we find that another variable is created just to refer to the loop
 /// element, note it for reuse as the loop variable.
 ///
 /// See the comments for isAliasDecl.
@@ -851,23 +858,23 @@ std::string VariableNamer::createIndexName() {
 
   size_t Len = ContainerName.size();
   if (Len > 1 && ContainerName.endswith(Style == NS_UpperCase ? "S" : "s")) {
-    IteratorName = ContainerName.substr(0, Len - 1);
+    IteratorName = std::string(ContainerName.substr(0, Len - 1));
     // E.g.: (auto thing : things)
     if (!declarationExists(IteratorName) || IteratorName == OldIndex->getName())
       return IteratorName;
   }
 
   if (Len > 2 && ContainerName.endswith(Style == NS_UpperCase ? "S_" : "s_")) {
-    IteratorName = ContainerName.substr(0, Len - 2);
+    IteratorName = std::string(ContainerName.substr(0, Len - 2));
     // E.g.: (auto thing : things_)
     if (!declarationExists(IteratorName) || IteratorName == OldIndex->getName())
       return IteratorName;
   }
 
-  return OldIndex->getName();
+  return std::string(OldIndex->getName());
 }
 
-/// \brief Determines whether or not the the name \a Symbol conflicts with
+/// Determines whether or not the name \a Symbol conflicts with
 /// language keywords or defined macros. Also checks if the name exists in
 /// LoopContext, any of its parent contexts, or any of its child statements.
 ///
@@ -899,7 +906,7 @@ bool VariableNamer::declarationExists(StringRef Symbol) {
   // of DeclContext::lookup()). Why is this?
 
   // Finally, determine if the symbol was used in the loop or a child context.
-  DeclFinderASTVisitor DeclFinder(Symbol, GeneratedDecls);
+  DeclFinderASTVisitor DeclFinder(std::string(Symbol), GeneratedDecls);
   return DeclFinder.findUsages(SourceStmt);
 }
 

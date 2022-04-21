@@ -1,5 +1,5 @@
-; RUN: llc -mtriple=arm64-apple-darwin -enable-misched=0 -mcpu=cyclone                             < %s | FileCheck %s
-; RUN: llc -mtriple=arm64-apple-darwin -enable-misched=0 -mcpu=cyclone -fast-isel -fast-isel-abort=1 < %s | FileCheck %s
+; RUN: llc -mtriple=arm64-apple-darwin -debug-entry-values -enable-misched=0 -mcpu=cyclone                             < %s | FileCheck %s
+; RUN: llc -mtriple=arm64-apple-darwin -debug-entry-values -enable-misched=0 -mcpu=cyclone -fast-isel -fast-isel-abort=1 < %s | FileCheck %s
 
 ; Trivial patchpoint codegen
 ;
@@ -27,6 +27,7 @@ entry:
 ;
 ; CHECK-LABEL: caller_meta_leaf
 ; CHECK:       sub sp, sp, #48
+; CHECK-NEXT: .cfi_def_cfa_offset 48
 ; CHECK-NEXT:  stp x29, x30, [sp, #32]
 ; CHECK-NEXT:  add x29, sp, #32
 ; CHECK:       Ltmp

@@ -1,20 +1,20 @@
 ; RUN: opt < %s -S -debug-only=loop-unroll -loop-unroll 2>&1 | FileCheck %s
-; RUN: opt < %s -S -debug-only=loop-unroll -passes='require<profile-summary>,function(require<opt-remark-emit>,unroll)' 2>&1 | FileCheck %s
+; RUN: opt < %s -S -debug-only=loop-unroll -passes='require<profile-summary>,function(require<opt-remark-emit>,loop-unroll)' 2>&1 | FileCheck %s
 ; Confirm that peeling is disabled if the number of counts required to reach
 ; the hot percentile is above the threshold.
-; RUN: opt < %s -S -profile-summary-huge-working-set-size-threshold=9 -debug-only=loop-unroll -passes='require<profile-summary>,function(require<opt-remark-emit>,unroll)' 2>&1 | FileCheck %s --check-prefix=NOPEEL
+; RUN: opt < %s -S -profile-summary-huge-working-set-size-threshold=9 -debug-only=loop-unroll -passes='require<profile-summary>,function(require<opt-remark-emit>,loop-unroll)' 2>&1 | FileCheck %s --check-prefix=NOPEEL
 ; REQUIRES: asserts
 
 ; Make sure we use the profile information correctly to peel-off 3 iterations
 ; from the loop, and update the branch weights for the peeled loop properly.
 
 ; CHECK: Loop Unroll: F[basic]
-; CHECK: PEELING loop %for.body with iteration count 3!
+; CHECK: PEELING loop %for.body with iteration count 4!
 ; CHECK: Loop Unroll: F[optsize]
 ; CHECK-NOT: PEELING
 
 ; Confirm that no peeling occurs when we are performing full unrolling.
-; RUN: opt < %s -S -debug-only=loop-unroll -passes='require<opt-remark-emit>,loop(unroll-full)' 2>&1 | FileCheck %s --check-prefix=NOPEEL
+; RUN: opt < %s -S -debug-only=loop-unroll -passes='require<opt-remark-emit>,loop(loop-unroll-full)' 2>&1 | FileCheck %s --check-prefix=NOPEEL
 ; NOPEEL-NOT: PEELING
 
 ; CHECK-LABEL: @basic
@@ -103,8 +103,8 @@ attributes #1 = { nounwind optsize }
 !15 = !{!"function_entry_count", i64 1}
 !16 = !{!"branch_weights", i32 3001, i32 1001}
 
-;CHECK: !15 = !{!"branch_weights", i32 900, i32 101}
-;CHECK: !16 = !{!"branch_weights", i32 540, i32 360}
-;CHECK: !17 = !{!"branch_weights", i32 162, i32 378}
-;CHECK: !18 = !{!"branch_weights", i32 1399, i32 162}
+;CHECK: !15 = !{!"branch_weights", i32 3001, i32 1001}
+;CHECK: !16 = !{!"branch_weights", i32 2000, i32 1001}
+;CHECK: !17 = !{!"branch_weights", i32 999, i32 1001}
+;CHECK: !18 = !{!"branch_weights", i32 1, i32 1001}
 

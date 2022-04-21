@@ -20,6 +20,7 @@
 #include "llvm/Analysis/DomPrinter.h"
 #include "llvm/Analysis/DOTGraphTraitsPass.h"
 #include "llvm/Analysis/PostDominators.h"
+#include "llvm/InitializePasses.h"
 
 using namespace llvm;
 
@@ -39,11 +40,11 @@ struct DOTGraphTraits<DomTreeNode*> : public DefaultDOTGraphTraits {
 
 
     if (isSimple())
-      return DOTGraphTraits<const Function*>
-        ::getSimpleNodeLabel(BB, BB->getParent());
+      return DOTGraphTraits<DOTFuncInfo *>
+        ::getSimpleNodeLabel(BB, nullptr);
     else
-      return DOTGraphTraits<const Function*>
-        ::getCompleteNodeLabel(BB, BB->getParent());
+      return DOTGraphTraits<DOTFuncInfo *>
+        ::getCompleteNodeLabel(BB, nullptr);
   }
 };
 
@@ -77,6 +78,19 @@ struct DOTGraphTraits<PostDominatorTree*>
     return DOTGraphTraits<DomTreeNode*>::getNodeLabel(Node, G->getRootNode());
   }
 };
+}
+
+PreservedAnalyses DomTreePrinterPass::run(Function &F,
+                                          FunctionAnalysisManager &AM) {
+  WriteDOTGraphToFile(F, &AM.getResult<DominatorTreeAnalysis>(F), "dom", false);
+  return PreservedAnalyses::all();
+}
+
+PreservedAnalyses DomTreeOnlyPrinterPass::run(Function &F,
+                                              FunctionAnalysisManager &AM) {
+  WriteDOTGraphToFile(F, &AM.getResult<DominatorTreeAnalysis>(F), "domonly",
+                      true);
+  return PreservedAnalyses::all();
 }
 
 void DominatorTree::viewGraph(const Twine &Name, const Twine &Title) {

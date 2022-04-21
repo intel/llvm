@@ -12,7 +12,9 @@
 #include "llvm/Analysis/Passes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -56,16 +58,15 @@ bool PAEval::runOnFunction(Function &F) {
   for (auto &Arg : F.args())
     insertIfNamed(Values, &Arg);
 
-  for (auto I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-    insertIfNamed(Values, &*I);
+  for (Instruction &I : instructions(F)) {
+    insertIfNamed(Values, &I);
 
-    for (auto &Op : I->operands())
-    insertIfNamed(Values, Op);
+    for (auto &Op : I.operands())
+      insertIfNamed(Values, Op);
   }
 
   ProvenanceAnalysis PA;
   PA.setAA(&getAnalysis<AAResultsWrapperPass>().getAAResults());
-  const DataLayout &DL = F.getParent()->getDataLayout();
 
   for (Value *V1 : Values) {
     StringRef NameV1 = getName(V1);
@@ -74,7 +75,7 @@ bool PAEval::runOnFunction(Function &F) {
       if (NameV1 >= NameV2)
         continue;
       errs() << NameV1 << " and " << NameV2;
-      if (PA.related(V1, V2, DL))
+      if (PA.related(V1, V2))
         errs() << " are related.\n";
       else
         errs() << " are not related.\n";

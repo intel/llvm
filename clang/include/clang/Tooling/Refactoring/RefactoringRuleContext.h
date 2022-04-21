@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLING_REFACTOR_REFACTORING_RULE_CONTEXT_H
-#define LLVM_CLANG_TOOLING_REFACTOR_REFACTORING_RULE_CONTEXT_H
+#ifndef LLVM_CLANG_TOOLING_REFACTORING_REFACTORINGRULECONTEXT_H
+#define LLVM_CLANG_TOOLING_REFACTORING_REFACTORINGRULECONTEXT_H
 
 #include "clang/Basic/DiagnosticError.h"
 #include "clang/Basic/SourceManager.h"
@@ -77,7 +77,7 @@ private:
   /// might operate on.
   ASTContext *AST = nullptr;
   /// The allocator for diagnostics.
-  PartialDiagnostic::StorageAllocator DiagStorage;
+  PartialDiagnostic::DiagStorageAllocator DiagStorage;
 
   // FIXME: Remove when memoized.
   std::unique_ptr<SelectedASTNode> ASTNodeSelection;
@@ -86,4 +86,4 @@ private:
 } // end namespace tooling
 } // end namespace clang
 
-#endif // LLVM_CLANG_TOOLING_REFACTOR_REFACTORING_RULE_CONTEXT_H
+#endif // LLVM_CLANG_TOOLING_REFACTORING_REFACTORINGRULECONTEXT_H

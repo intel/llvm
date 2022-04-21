@@ -28,6 +28,7 @@
 
 #include <stdio.h>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 int main(int, char**)
@@ -38,11 +39,13 @@ int main(int, char**)
         assert(&std::use_facet<std::collate<char> >(l)
             == &std::use_facet<std::collate_byname<char> >(l));
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         assert(std::has_facet<std::collate_byname<wchar_t> >(l));
         assert(&std::use_facet<std::collate<wchar_t> >(l)
             == &std::use_facet<std::collate_byname<wchar_t> >(l));
     }
+#endif
 
   return 0;
 }

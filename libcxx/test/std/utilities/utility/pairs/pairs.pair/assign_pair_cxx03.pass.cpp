@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++98 || c++03
+// REQUIRES: c++03
 
 // <utility>
 
@@ -17,6 +17,8 @@
 #include <utility>
 #include <memory>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct NonAssignable {
   NonAssignable() {}

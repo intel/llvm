@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <experimental/memory_resource>
 
@@ -19,6 +19,8 @@
 #include <experimental/memory_resource>
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 namespace ex = std::experimental::pmr;
 

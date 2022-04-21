@@ -11,6 +11,8 @@
 #include <cinttypes>
 #include <type_traits>
 
+#include "test_macros.h"
+
 #ifndef INT8_MIN
 #error INT8_MIN not defined
 #endif
@@ -925,8 +927,10 @@ int main(int, char**)
     static_assert((std::is_same<decltype(std::imaxdiv(i, i)), std::imaxdiv_t>::value), "");
     static_assert((std::is_same<decltype(std::strtoimax("", (char**)0, 0)), std::intmax_t>::value), "");
     static_assert((std::is_same<decltype(std::strtoumax("", (char**)0, 0)), std::uintmax_t>::value), "");
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     static_assert((std::is_same<decltype(std::wcstoimax(L"", (wchar_t**)0, 0)), std::intmax_t>::value), "");
     static_assert((std::is_same<decltype(std::wcstoumax(L"", (wchar_t**)0, 0)), std::uintmax_t>::value), "");
+#endif
 
   return 0;
 }

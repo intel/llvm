@@ -17,12 +17,16 @@
 #include <chrono>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     typedef std::chrono::steady_clock C;
     C::time_point t1 = C::now();
     C::time_point t2 = C::now();
     assert(t2 >= t1);
+    // make sure t2 didn't wrap around
+    assert(t2 > std::chrono::time_point<C>());
 
   return 0;
 }

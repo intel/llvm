@@ -25,6 +25,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/EndianStream.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "mccodeemitter"
@@ -74,7 +75,7 @@ AVRMCCodeEmitter::loadStorePostEncoder(const MCInst &MI, unsigned EncodedValue,
 
   // check whether either of the registers are the X pointer register.
   bool IsRegX = MI.getOperand(0).getReg() == AVR::R27R26 ||
-                  MI.getOperand(1).getReg() == AVR::R27R26;
+                MI.getOperand(1).getReg() == AVR::R27R26;
 
   bool IsPredec = Opcode == AVR::LDRdPtrPd || Opcode == AVR::STPtrPdRr;
   bool IsPostinc = Opcode == AVR::LDRdPtrPi || Opcode == AVR::STPtrPiRr;
@@ -95,8 +96,8 @@ AVRMCCodeEmitter::encodeRelCondBrTarget(const MCInst &MI, unsigned OpNo,
   const MCOperand &MO = MI.getOperand(OpNo);
 
   if (MO.isExpr()) {
-    Fixups.push_back(MCFixup::create(0, MO.getExpr(),
-                     MCFixupKind(Fixup), MI.getLoc()));
+    Fixups.push_back(
+        MCFixup::create(0, MO.getExpr(), MCFixupKind(Fixup), MI.getLoc()));
     return 0;
   }
 
@@ -118,9 +119,12 @@ unsigned AVRMCCodeEmitter::encodeLDSTPtrReg(const MCInst &MI, unsigned OpNo,
   assert(MO.isReg());
 
   switch (MO.getReg()) {
-  case AVR::R27R26: return 0x03; // X: 0b11
-  case AVR::R29R28: return 0x02; // Y: 0b10
-  case AVR::R31R30: return 0x00; // Z: 0b00
+  case AVR::R27R26:
+    return 0x03; // X: 0b11
+  case AVR::R29R28:
+    return 0x02; // Y: 0b10
+  case AVR::R31R30:
+    return 0x00; // Z: 0b00
   default:
     llvm_unreachable("invalid pointer register");
   }
@@ -158,7 +162,7 @@ unsigned AVRMCCodeEmitter::encodeMemri(const MCInst &MI, unsigned OpNo,
   } else if (OffsetOp.isExpr()) {
     OffsetBits = 0;
     Fixups.push_back(MCFixup::create(0, OffsetOp.getExpr(),
-                     MCFixupKind(AVR::fixup_6), MI.getLoc()));
+                                     MCFixupKind(AVR::fixup_6), MI.getLoc()));
   } else {
     llvm_unreachable("invalid value for offset");
   }
@@ -192,7 +196,8 @@ unsigned AVRMCCodeEmitter::encodeImm(const MCInst &MI, unsigned OpNo,
     }
 
     MCFixupKind FixupKind = static_cast<MCFixupKind>(Fixup);
-    Fixups.push_back(MCFixup::create(Offset, MO.getExpr(), FixupKind, MI.getLoc()));
+    Fixups.push_back(
+        MCFixup::create(Offset, MO.getExpr(), FixupKind, MI.getLoc()));
 
     return 0;
   }
@@ -250,14 +255,13 @@ unsigned AVRMCCodeEmitter::getMachineOpValue(const MCInst &MI,
                                              const MCOperand &MO,
                                              SmallVectorImpl<MCFixup> &Fixups,
                                              const MCSubtargetInfo &STI) const {
-  if (MO.isReg()) return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());
-  if (MO.isImm()) return static_cast<unsigned>(MO.getImm());
+  if (MO.isReg())
+    return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());
+  if (MO.isImm())
+    return static_cast<unsigned>(MO.getImm());
 
-  if (MO.isFPImm())
-    return static_cast<unsigned>(APFloat(MO.getFPImm())
-                                     .bitcastToAPInt()
-                                     .getHiBits(32)
-                                     .getLimitedValue());
+  if (MO.isDFPImm())
+    return static_cast<unsigned>(bit_cast<double>(MO.getDFPImm()));
 
   // MO must be an Expr.
   assert(MO.isExpr());
@@ -268,14 +272,11 @@ unsigned AVRMCCodeEmitter::getMachineOpValue(const MCInst &MI,
 void AVRMCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size,
                                        const MCSubtargetInfo &STI,
                                        raw_ostream &OS) const {
-  const uint16_t *Words = reinterpret_cast<uint16_t const *>(&Val);
   size_t WordCount = Size / 2;
 
   for (int64_t i = WordCount - 1; i >= 0; --i) {
-    uint16_t Word = Words[i];
-
-    OS << (uint8_t) ((Word & 0x00ff) >> 0);
-    OS << (uint8_t) ((Word & 0xff00) >> 8);
+    uint16_t Word = (Val >> (i * 16)) & 0xFFFF;
+    support::endian::write(OS, Word, support::endianness::little);
   }
 }
 
@@ -294,7 +295,6 @@ void AVRMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
 }
 
 MCCodeEmitter *createAVRMCCodeEmitter(const MCInstrInfo &MCII,
-                                      const MCRegisterInfo &MRI,
                                       MCContext &Ctx) {
   return new AVRMCCodeEmitter(MCII, Ctx);
 }

@@ -1,4 +1,4 @@
-//===-- DynamicLoaderStatic.cpp ---------------------------------*- C++ -*-===//
+//===-- DynamicLoaderStatic.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,12 +10,15 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Symbol/ObjectFile.h"
+#include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 
 #include "DynamicLoaderStatic.h"
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(DynamicLoaderStatic)
 
 // Create an instance of this class. This function is filled into the plugin
 // info class that gets handed out by the plugin factory and allows the lldb to
@@ -27,8 +30,19 @@ DynamicLoader *DynamicLoaderStatic::CreateInstance(Process *process,
     const llvm::Triple &triple_ref =
         process->GetTarget().GetArchitecture().GetTriple();
     const llvm::Triple::OSType os_type = triple_ref.getOS();
-    if ((os_type == llvm::Triple::UnknownOS))
-      create = true;
+    const llvm::Triple::ArchType arch_type = triple_ref.getArch();
+    if (os_type == llvm::Triple::UnknownOS) {
+      // The WASM and Hexagon plugin check the ArchType rather than the OSType,
+      // so explicitly reject those here.
+      switch(arch_type) {
+        case llvm::Triple::hexagon:
+        case llvm::Triple::wasm32:
+        case llvm::Triple::wasm64:
+          break;
+        default:
+          create = true;
+      }
+    }
   }
 
   if (!create) {
@@ -43,15 +57,12 @@ DynamicLoader *DynamicLoaderStatic::CreateInstance(Process *process,
 
   if (create)
     return new DynamicLoaderStatic(process);
-  return NULL;
+  return nullptr;
 }
 
 // Constructor
 DynamicLoaderStatic::DynamicLoaderStatic(Process *process)
     : DynamicLoader(process) {}
-
-// Destructor
-DynamicLoaderStatic::~DynamicLoaderStatic() {}
 
 /// Called after attaching a process.
 ///
@@ -73,11 +84,7 @@ void DynamicLoaderStatic::LoadAllImagesAtFileAddresses() {
   // Disable JIT for static dynamic loader targets
   m_process->SetCanJIT(false);
 
-  std::lock_guard<std::recursive_mutex> guard(module_list.GetMutex());
-
-  const size_t num_modules = module_list.GetSize();
-  for (uint32_t idx = 0; idx < num_modules; ++idx) {
-    ModuleSP module_sp(module_list.GetModuleAtIndexUnlocked(idx));
+  for (ModuleSP module_sp : module_list.Modules()) {
     if (module_sp) {
       bool changed = false;
       ObjectFile *image_object_file = module_sp->GetObjectFile();
@@ -99,6 +106,15 @@ void DynamicLoaderStatic::LoadAllImagesAtFileAddresses() {
             // the file...
             SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
             if (section_sp) {
+              // If this section already has a load address set in the target,
+              // don't re-set it to the file address.  Something may have
+              // set it to a more correct value already.
+              if (m_process->GetTarget()
+                      .GetSectionLoadList()
+                      .GetSectionLoadAddress(section_sp) !=
+                  LLDB_INVALID_ADDRESS) {
+                continue;
+              }
               if (m_process->GetTarget().SetSectionLoadAddress(
                       section_sp, section_sp->GetFileAddress()))
                 changed = true;
@@ -136,19 +152,7 @@ void DynamicLoaderStatic::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString DynamicLoaderStatic::GetPluginNameStatic() {
-  static ConstString g_name("static");
-  return g_name;
-}
-
-const char *DynamicLoaderStatic::GetPluginDescriptionStatic() {
+llvm::StringRef DynamicLoaderStatic::GetPluginDescriptionStatic() {
   return "Dynamic loader plug-in that will load any images at the static "
          "addresses contained in each image.";
 }
-
-// PluginInterface protocol
-lldb_private::ConstString DynamicLoaderStatic::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t DynamicLoaderStatic::GetPluginVersion() { return 1; }

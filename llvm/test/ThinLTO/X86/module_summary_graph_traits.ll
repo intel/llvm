@@ -10,8 +10,8 @@
 ; CHECK: 5800840261926955363{{.*}} is root
 
 ; CHECK: SCC (2 nodes) {
-; CHECK-NEXT: {{^}} 17000277804057984823 (has loop)
-; CHECK-NEXT: {{^}} 765152853862302398 (has loop)
+; CHECK-NEXT: {{^}} 17000277804057984823 (has cycle)
+; CHECK-NEXT: {{^}} 765152853862302398 (has cycle)
 ; CHECK-NEXT: }
 
 ; CHECK: SCC (1 node) {
@@ -31,7 +31,7 @@
 ; CHECK-NEXT: {{^}} 0{{$}}
 ; CHECK-NEXT: }
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 declare void @external()

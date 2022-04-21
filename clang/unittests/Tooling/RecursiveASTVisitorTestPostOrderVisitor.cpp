@@ -31,17 +31,17 @@ public:
   bool shouldTraversePostOrder() const { return VisitPostOrder; }
 
   bool VisitUnaryOperator(UnaryOperator *Op) {
-    VisitedNodes.push_back(Op->getOpcodeStr(Op->getOpcode()));
+    VisitedNodes.push_back(std::string(Op->getOpcodeStr(Op->getOpcode())));
     return true;
   }
 
   bool VisitBinaryOperator(BinaryOperator *Op) {
-    VisitedNodes.push_back(Op->getOpcodeStr());
+    VisitedNodes.push_back(std::string(Op->getOpcodeStr()));
     return true;
   }
 
   bool VisitIntegerLiteral(IntegerLiteral *Lit) {
-    VisitedNodes.push_back(Lit->getValue().toString(10, false));
+    VisitedNodes.push_back(toString(Lit->getValue(), 10, false));
     return true;
   }
 

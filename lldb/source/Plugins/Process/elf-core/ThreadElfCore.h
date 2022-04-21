@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ThreadElfCore_h_
-#define liblldb_ThreadElfCore_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_THREADELFCORE_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_THREADELFCORE_H
 
 #include "Plugins/Process/elf-core/RegisterUtilities.h"
 #include "lldb/Target/Thread.h"
@@ -149,7 +149,7 @@ public:
 
   const char *GetName() override {
     if (m_thread_name.empty())
-      return NULL;
+      return nullptr;
     return m_thread_name.c_str();
   }
 
@@ -173,4 +173,4 @@ protected:
   bool CalculateStopInfo() override;
 };
 
-#endif // liblldb_ThreadElfCore_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_THREADELFCORE_H

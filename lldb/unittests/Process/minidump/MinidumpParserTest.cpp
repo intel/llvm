@@ -1,4 +1,4 @@
-//===-- MinidumpTypesTest.cpp -----------------------------------*- C++ -*-===//
+//===-- MinidumpTypesTest.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,6 +10,7 @@
 #include "Plugins/Process/minidump/MinidumpTypes.h"
 #include "Plugins/Process/minidump/RegisterContextMinidump_x86_32.h"
 #include "Plugins/Process/minidump/RegisterContextMinidump_x86_64.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "TestingSupport/TestUtilities.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Target/MemoryRegionInfo.h"
@@ -19,10 +20,11 @@
 #include "lldb/Utility/FileSpec.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ObjectYAML/MinidumpYAML.h"
+#include "llvm/ObjectYAML/yaml2obj.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/YAMLTraits.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
@@ -36,9 +38,7 @@ using namespace minidump;
 
 class MinidumpParserTest : public testing::Test {
 public:
-  void SetUp() override { FileSystem::Initialize(); }
-
-  void TearDown() override { FileSystem::Terminate(); }
+  SubsystemRAII<FileSystem> subsystems;
 
   void SetUpData(const char *minidump_filename) {
     std::string filename = GetInputFilePath(minidump_filename);
@@ -54,8 +54,10 @@ public:
   llvm::Error SetUpFromYaml(llvm::StringRef yaml) {
     std::string data;
     llvm::raw_string_ostream os(data);
-    if (llvm::Error E = llvm::MinidumpYAML::writeAsBinary(yaml, os))
-      return E;
+    llvm::yaml::Input YIn(yaml);
+    if (!llvm::yaml::convertYAML(YIn, os, [](const llvm::Twine &Msg) {}))
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "convertYAML() failed");
 
     os.flush();
     auto data_buffer_sp =
@@ -73,16 +75,16 @@ public:
 TEST_F(MinidumpParserTest, InvalidMinidump) {
   std::string duplicate_streams;
   llvm::raw_string_ostream os(duplicate_streams);
-  ASSERT_THAT_ERROR(llvm::MinidumpYAML::writeAsBinary(R"(
+  llvm::yaml::Input YIn(R"(
 --- !minidump
 Streams:
   - Type:            LinuxAuxv
     Content:         DEADBEEFBAADF00D
   - Type:            LinuxAuxv
     Content:         DEADBEEFBAADF00D
-  )",
-                                                      os),
-                    llvm::Succeeded());
+  )");
+
+  ASSERT_TRUE(llvm::yaml::convertYAML(YIn, os, [](const llvm::Twine &Msg){}));
   os.flush();
   auto data_buffer_sp = std::make_shared<DataBufferHeap>(
       duplicate_streams.data(), duplicate_streams.size());
@@ -249,10 +251,10 @@ Streams:
 
 TEST_F(MinidumpParserTest, GetExceptionStream) {
   SetUpData("linux-x86_64.dmp");
-  const MinidumpExceptionStream *exception_stream =
+  const llvm::minidump::ExceptionStream *exception_stream =
       parser->GetExceptionStream();
   ASSERT_NE(nullptr, exception_stream);
-  ASSERT_EQ(11UL, exception_stream->exception_record.exception_code);
+  ASSERT_EQ(11UL, exception_stream->ExceptionRecord.ExceptionCode);
 }
 
 void check_mem_range_exists(MinidumpParser &parser, const uint64_t range_start,
@@ -329,55 +331,64 @@ TEST_F(MinidumpParserTest, FindMemoryRangeWithFullMemoryMinidump) {
   EXPECT_FALSE(parser->FindMemoryRange(0x7ffe0000 + 4096).hasValue());
 }
 
-void check_region(MinidumpParser &parser, lldb::addr_t addr, lldb::addr_t start,
-                  lldb::addr_t end, MemoryRegionInfo::OptionalBool read,
-                  MemoryRegionInfo::OptionalBool write,
-                  MemoryRegionInfo::OptionalBool exec,
-                  MemoryRegionInfo::OptionalBool mapped,
-                  ConstString name = ConstString()) {
-  auto range_info = parser.GetMemoryRegionInfo(addr);
-  EXPECT_EQ(start, range_info.GetRange().GetRangeBase());
-  EXPECT_EQ(end, range_info.GetRange().GetRangeEnd());
-  EXPECT_EQ(read, range_info.GetReadable());
-  EXPECT_EQ(write, range_info.GetWritable());
-  EXPECT_EQ(exec, range_info.GetExecutable());
-  EXPECT_EQ(mapped, range_info.GetMapped());
-  EXPECT_EQ(name, range_info.GetName());
-}
-
-// Same as above function where addr == start
-void check_region(MinidumpParser &parser, lldb::addr_t start, lldb::addr_t end,
-                  MemoryRegionInfo::OptionalBool read,
-                  MemoryRegionInfo::OptionalBool write,
-                  MemoryRegionInfo::OptionalBool exec,
-                  MemoryRegionInfo::OptionalBool mapped,
-                  ConstString name = ConstString()) {
-  check_region(parser, start, start, end, read, write, exec, mapped, name);
-}
-
-
 constexpr auto yes = MemoryRegionInfo::eYes;
 constexpr auto no = MemoryRegionInfo::eNo;
 constexpr auto unknown = MemoryRegionInfo::eDontKnow;
 
 TEST_F(MinidumpParserTest, GetMemoryRegionInfo) {
-  SetUpData("fizzbuzz_wow64.dmp");
+  ASSERT_THAT_ERROR(SetUpFromYaml(R"(
+--- !minidump
+Streams:
+  - Type:            MemoryInfoList
+    Memory Ranges:
+      - Base Address:    0x0000000000000000
+        Allocation Protect: [  ]
+        Region Size:     0x0000000000010000
+        State:           [ MEM_FREE ]
+        Protect:         [ PAGE_NO_ACCESS ]
+        Type:            [  ]
+      - Base Address:    0x0000000000010000
+        Allocation Protect: [ PAGE_READ_WRITE ]
+        Region Size:     0x0000000000021000
+        State:           [ MEM_COMMIT ]
+        Type:            [ MEM_MAPPED ]
+      - Base Address:    0x0000000000040000
+        Allocation Protect: [ PAGE_EXECUTE_WRITE_COPY ]
+        Region Size:     0x0000000000001000
+        State:           [ MEM_COMMIT ]
+        Protect:         [ PAGE_READ_ONLY ]
+        Type:            [ MEM_IMAGE ]
+      - Base Address:    0x000000007FFE0000
+        Allocation Protect: [ PAGE_READ_ONLY ]
+        Region Size:     0x0000000000001000
+        State:           [ MEM_COMMIT ]
+        Type:            [ MEM_PRIVATE ]
+      - Base Address:    0x000000007FFE1000
+        Allocation Base: 0x000000007FFE0000
+        Allocation Protect: [ PAGE_READ_ONLY ]
+        Region Size:     0x000000000000F000
+        State:           [ MEM_RESERVE ]
+        Protect:         [ PAGE_NO_ACCESS ]
+        Type:            [ MEM_PRIVATE ]
+...
+)"),
+                    llvm::Succeeded());
 
-  check_region(*parser, 0x00000000, 0x00010000, no, no, no, no);
-  check_region(*parser, 0x00010000, 0x00020000, yes, yes, no, yes);
-  check_region(*parser, 0x00020000, 0x00030000, yes, yes, no, yes);
-  check_region(*parser, 0x00030000, 0x00031000, yes, yes, no, yes);
-  check_region(*parser, 0x00031000, 0x00040000, no, no, no, no);
-  check_region(*parser, 0x00040000, 0x00041000, yes, no, no, yes);
-
-  // Check addresses contained inside ranges
-  check_region(*parser, 0x00000001, 0x00000000, 0x00010000, no, no, no, no);
-  check_region(*parser, 0x0000ffff, 0x00000000, 0x00010000, no, no, no, no);
-  check_region(*parser, 0x00010001, 0x00010000, 0x00020000, yes, yes, no, yes);
-  check_region(*parser, 0x0001ffff, 0x00010000, 0x00020000, yes, yes, no, yes);
-
-  // Test that an address after the last entry maps to rest of the memory space
-  check_region(*parser, 0x7fff0000, 0x7fff0000, UINT64_MAX, no, no, no, no);
+  EXPECT_THAT(
+      parser->BuildMemoryRegions(),
+      testing::Pair(
+          testing::ElementsAre(
+              MemoryRegionInfo({0x0, 0x10000}, no, no, no, no, ConstString(),
+                               unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x10000, 0x21000}, yes, yes, no, yes,
+                               ConstString(), unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x40000, 0x1000}, yes, no, no, yes,
+                               ConstString(), unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x7ffe0000, 0x1000}, yes, no, no, yes,
+                               ConstString(), unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x7ffe1000, 0xf000}, no, no, no, yes,
+                               ConstString(), unknown, 0, unknown, unknown)),
+          true));
 }
 
 TEST_F(MinidumpParserTest, GetMemoryRegionInfoFromMemoryList) {
@@ -393,30 +404,35 @@ Streams:
 ...
 )"),
                     llvm::Succeeded());
+
   // Test we can get memory regions from the MINIDUMP_MEMORY_LIST stream when
   // we don't have a MemoryInfoListStream.
 
-  // Test addres before the first entry comes back with nothing mapped up
-  // to first valid region info
-  check_region(*parser, 0x00000000, 0x00001000, no, no, no, no);
-  check_region(*parser, 0x00001000, 0x00001010, yes, unknown, unknown, yes);
-  check_region(*parser, 0x00001010, 0x00002000, no, no, no, no);
-  check_region(*parser, 0x00002000, 0x00002020, yes, unknown, unknown, yes);
-  check_region(*parser, 0x00002020, UINT64_MAX, no, no, no, no);
+  EXPECT_THAT(
+      parser->BuildMemoryRegions(),
+      testing::Pair(
+          testing::ElementsAre(
+              MemoryRegionInfo({0x1000, 0x10}, yes, unknown, unknown, yes,
+                               ConstString(), unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x2000, 0x20}, yes, unknown, unknown, yes,
+                               ConstString(), unknown, 0, unknown, unknown)),
+          false));
 }
 
 TEST_F(MinidumpParserTest, GetMemoryRegionInfoFromMemory64List) {
   SetUpData("regions-memlist64.dmp");
+
   // Test we can get memory regions from the MINIDUMP_MEMORY64_LIST stream when
   // we don't have a MemoryInfoListStream.
-
-  // Test addres before the first entry comes back with nothing mapped up
-  // to first valid region info
-  check_region(*parser, 0x00000000, 0x00001000, no, no, no, no);
-  check_region(*parser, 0x00001000, 0x00001010, yes, unknown, unknown, yes);
-  check_region(*parser, 0x00001010, 0x00002000, no, no, no, no);
-  check_region(*parser, 0x00002000, 0x00002020, yes, unknown, unknown, yes);
-  check_region(*parser, 0x00002020, UINT64_MAX, no, no, no, no);
+  EXPECT_THAT(
+      parser->BuildMemoryRegions(),
+      testing::Pair(
+          testing::ElementsAre(
+              MemoryRegionInfo({0x1000, 0x10}, yes, unknown, unknown, yes,
+                               ConstString(), unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x2000, 0x20}, yes, unknown, unknown, yes,
+                               ConstString(), unknown, 0, unknown, unknown)),
+          false));
 }
 
 TEST_F(MinidumpParserTest, GetMemoryRegionInfoLinuxMaps) {
@@ -428,57 +444,56 @@ Streams:
       400d9000-400db000 r-xp 00000000 b3:04 227        /system/bin/app_process
       400db000-400dc000 r--p 00001000 b3:04 227        /system/bin/app_process
       400dc000-400dd000 rw-p 00000000 00:00 0
-      400dd000-400ec000 r-xp 00000000 b3:04 300        /system/bin/linker
       400ec000-400ed000 r--p 00000000 00:00 0
-      400ed000-400ee000 r--p 0000f000 b3:04 300        /system/bin/linker
       400ee000-400ef000 rw-p 00010000 b3:04 300        /system/bin/linker
-      400ef000-400fb000 rw-p 00000000 00:00 0
-      400fb000-400fc000 r-xp 00000000 b3:04 1096       /system/lib/liblog.so
       400fc000-400fd000 rwxp 00001000 b3:04 1096       /system/lib/liblog.so
-      400fd000-400ff000 r-xp 00002000 b3:04 1096       /system/lib/liblog.so
-      400ff000-40100000 r--p 00003000 b3:04 1096       /system/lib/liblog.so
-      40100000-40101000 rw-p 00004000 b3:04 1096       /system/lib/liblog.so
-      40101000-40122000 r-xp 00000000 b3:04 955        /system/lib/libc.so
-      40122000-40123000 rwxp 00021000 b3:04 955        /system/lib/libc.so
-      40123000-40167000 r-xp 00022000 b3:04 955        /system/lib/libc.so
-      40167000-40169000 r--p 00065000 b3:04 955        /system/lib/libc.so
-      40169000-4016b000 rw-p 00067000 b3:04 955        /system/lib/libc.so
-      4016b000-40176000 rw-p 00000000 00:00 0
 
 ...
 )"),
                     llvm::Succeeded());
   // Test we can get memory regions from the linux /proc/<pid>/maps stream when
   // we don't have a MemoryInfoListStream.
+  ConstString app_process("/system/bin/app_process");
+  ConstString linker("/system/bin/linker");
+  ConstString liblog("/system/lib/liblog.so");
+  EXPECT_THAT(
+      parser->BuildMemoryRegions(),
+      testing::Pair(
+          testing::ElementsAre(
+              MemoryRegionInfo({0x400d9000, 0x2000}, yes, no, yes, yes,
+                               app_process, unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x400db000, 0x1000}, yes, no, no, yes,
+                               app_process, unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x400dc000, 0x1000}, yes, yes, no, yes,
+                               ConstString(), unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x400ec000, 0x1000}, yes, no, no, yes,
+                               ConstString(), unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x400ee000, 0x1000}, yes, yes, no, yes, linker,
+                               unknown, 0, unknown, unknown),
+              MemoryRegionInfo({0x400fc000, 0x1000}, yes, yes, yes, yes, liblog,
+                               unknown, 0, unknown, unknown)),
+          true));
+}
 
-  // Test addres before the first entry comes back with nothing mapped up
-  // to first valid region info
-  ConstString a("/system/bin/app_process");
-  ConstString b("/system/bin/linker");
-  ConstString c("/system/lib/liblog.so");
-  ConstString d("/system/lib/libc.so");
-  ConstString n;
-  check_region(*parser, 0x00000000, 0x400d9000, no, no, no, no, n);
-  check_region(*parser, 0x400d9000, 0x400db000, yes, no, yes, yes, a);
-  check_region(*parser, 0x400db000, 0x400dc000, yes, no, no, yes, a);
-  check_region(*parser, 0x400dc000, 0x400dd000, yes, yes, no, yes, n);
-  check_region(*parser, 0x400dd000, 0x400ec000, yes, no, yes, yes, b);
-  check_region(*parser, 0x400ec000, 0x400ed000, yes, no, no, yes, n);
-  check_region(*parser, 0x400ed000, 0x400ee000, yes, no, no, yes, b);
-  check_region(*parser, 0x400ee000, 0x400ef000, yes, yes, no, yes, b);
-  check_region(*parser, 0x400ef000, 0x400fb000, yes, yes, no, yes, n);
-  check_region(*parser, 0x400fb000, 0x400fc000, yes, no, yes, yes, c);
-  check_region(*parser, 0x400fc000, 0x400fd000, yes, yes, yes, yes, c);
-  check_region(*parser, 0x400fd000, 0x400ff000, yes, no, yes, yes, c);
-  check_region(*parser, 0x400ff000, 0x40100000, yes, no, no, yes, c);
-  check_region(*parser, 0x40100000, 0x40101000, yes, yes, no, yes, c);
-  check_region(*parser, 0x40101000, 0x40122000, yes, no, yes, yes, d);
-  check_region(*parser, 0x40122000, 0x40123000, yes, yes, yes, yes, d);
-  check_region(*parser, 0x40123000, 0x40167000, yes, no, yes, yes, d);
-  check_region(*parser, 0x40167000, 0x40169000, yes, no, no, yes, d);
-  check_region(*parser, 0x40169000, 0x4016b000, yes, yes, no, yes, d);
-  check_region(*parser, 0x4016b000, 0x40176000, yes, yes, no, yes, n);
-  check_region(*parser, 0x40176000, UINT64_MAX, no, no, no, no, n);
+TEST_F(MinidumpParserTest, GetMemoryRegionInfoLinuxMapsError) {
+  ASSERT_THAT_ERROR(SetUpFromYaml(R"(
+--- !minidump
+Streams:
+  - Type:            LinuxMaps
+    Text:             |
+      400d9000-400db000 r?xp 00000000 b3:04 227
+      400fc000-400fd000 rwxp 00001000 b3:04 1096
+...
+)"),
+                    llvm::Succeeded());
+  // Test that when a /proc/maps region fails to parse
+  // we handle the error and continue with the rest.
+  EXPECT_THAT(
+      parser->BuildMemoryRegions(),
+      testing::Pair(testing::ElementsAre(MemoryRegionInfo(
+                        {0x400fc000, 0x1000}, yes, yes, yes, yes,
+                        ConstString(nullptr), unknown, 0, unknown, unknown)),
+                    true));
 }
 
 // Windows Minidump tests
@@ -699,6 +714,171 @@ Streams:
   EXPECT_EQ(0x0000000000001000u, filtered_modules[0]->BaseOfImage);
 }
 
+TEST_F(MinidumpParserTest, MinidumpDuplicateModuleMappedFirst) {
+  ASSERT_THAT_ERROR(SetUpFromYaml(R"(
+--- !minidump
+Streams:
+  - Type:            ModuleList
+    Modules:
+      - Base of Image:   0x400d0000
+        Size of Image:   0x00002000
+        Module Name:     '/usr/lib/libc.so'
+        CodeView Record: ''
+      - Base of Image:   0x400d3000
+        Size of Image:   0x00001000
+        Module Name:     '/usr/lib/libc.so'
+        CodeView Record: ''
+  - Type:            LinuxMaps
+    Text:             |
+      400d0000-400d2000 r--p 00000000 b3:04 227        /usr/lib/libc.so
+      400d2000-400d3000 rw-p 00000000 00:00 0
+      400d3000-400d4000 r-xp 00010000 b3:04 227        /usr/lib/libc.so
+      400d4000-400d5000 rwxp 00001000 b3:04 227        /usr/lib/libc.so
+...
+)"),
+                    llvm::Succeeded());
+  // If we have a module mentioned twice in the module list, and we have full
+  // linux maps for all of the memory regions, make sure we pick the one that
+  // has a consecutive region with a matching path that has executable
+  // permissions. If clients open an object file with mmap, breakpad can create
+  // multiple mappings for a library errnoneously and the lowest address isn't
+  // always the right address. In this case we check the consective memory
+  // regions whose path matches starting at the base of image address and make
+  // sure one of the regions is executable and prefer that one.
+  //
+  // This test will make sure that if the executable is second in the module
+  // list, that it will become the selected module in the filtered list.
+  std::vector<const minidump::Module *> filtered_modules =
+      parser->GetFilteredModuleList();
+  ASSERT_EQ(1u, filtered_modules.size());
+  EXPECT_EQ(0x400d3000u, filtered_modules[0]->BaseOfImage);
+}
+
+TEST_F(MinidumpParserTest, MinidumpDuplicateModuleMappedSecond) {
+  ASSERT_THAT_ERROR(SetUpFromYaml(R"(
+--- !minidump
+Streams:
+  - Type:            ModuleList
+    Modules:
+      - Base of Image:   0x400d0000
+        Size of Image:   0x00002000
+        Module Name:     '/usr/lib/libc.so'
+        CodeView Record: ''
+      - Base of Image:   0x400d3000
+        Size of Image:   0x00001000
+        Module Name:     '/usr/lib/libc.so'
+        CodeView Record: ''
+  - Type:            LinuxMaps
+    Text:             |
+      400d0000-400d1000 r-xp 00010000 b3:04 227        /usr/lib/libc.so
+      400d1000-400d2000 rwxp 00001000 b3:04 227        /usr/lib/libc.so
+      400d2000-400d3000 rw-p 00000000 00:00 0
+      400d3000-400d5000 r--p 00000000 b3:04 227        /usr/lib/libc.so
+...
+)"),
+                    llvm::Succeeded());
+  // If we have a module mentioned twice in the module list, and we have full
+  // linux maps for all of the memory regions, make sure we pick the one that
+  // has a consecutive region with a matching path that has executable
+  // permissions. If clients open an object file with mmap, breakpad can create
+  // multiple mappings for a library errnoneously and the lowest address isn't
+  // always the right address. In this case we check the consective memory
+  // regions whose path matches starting at the base of image address and make
+  // sure one of the regions is executable and prefer that one.
+  //
+  // This test will make sure that if the executable is first in the module
+  // list, that it will remain the correctly selected module in the filtered
+  // list.
+  std::vector<const minidump::Module *> filtered_modules =
+      parser->GetFilteredModuleList();
+  ASSERT_EQ(1u, filtered_modules.size());
+  EXPECT_EQ(0x400d0000u, filtered_modules[0]->BaseOfImage);
+}
+
+TEST_F(MinidumpParserTest, MinidumpDuplicateModuleMappedSecondHigh) {
+  ASSERT_THAT_ERROR(SetUpFromYaml(R"(
+--- !minidump
+Streams:
+  - Type:            ModuleList
+    Modules:
+      - Base of Image:   0x400d3000
+        Size of Image:   0x00002000
+        Module Name:     '/usr/lib/libc.so'
+        CodeView Record: ''
+      - Base of Image:   0x400d0000
+        Size of Image:   0x00001000
+        Module Name:     '/usr/lib/libc.so'
+        CodeView Record: ''
+  - Type:            LinuxMaps
+    Text:             |
+      400d0000-400d2000 r--p 00000000 b3:04 227        /usr/lib/libc.so
+      400d2000-400d3000 rw-p 00000000 00:00 0
+      400d3000-400d4000 r-xp 00010000 b3:04 227        /usr/lib/libc.so
+      400d4000-400d5000 rwxp 00001000 b3:04 227        /usr/lib/libc.so
+...
+)"),
+                    llvm::Succeeded());
+  // If we have a module mentioned twice in the module list, and we have full
+  // linux maps for all of the memory regions, make sure we pick the one that
+  // has a consecutive region with a matching path that has executable
+  // permissions. If clients open an object file with mmap, breakpad can create
+  // multiple mappings for a library errnoneously and the lowest address isn't
+  // always the right address. In this case we check the consective memory
+  // regions whose path matches starting at the base of image address and make
+  // sure one of the regions is executable and prefer that one.
+  //
+  // This test will make sure that if the executable is first in the module
+  // list, that it will remain the correctly selected module in the filtered
+  // list, even if the non-executable module was loaded at a lower base address.
+  std::vector<const minidump::Module *> filtered_modules =
+      parser->GetFilteredModuleList();
+  ASSERT_EQ(1u, filtered_modules.size());
+  EXPECT_EQ(0x400d3000u, filtered_modules[0]->BaseOfImage);
+}
+
+TEST_F(MinidumpParserTest, MinidumpDuplicateModuleSeparateCode) {
+  ASSERT_THAT_ERROR(SetUpFromYaml(R"(
+--- !minidump
+Streams:
+  - Type:            ModuleList
+    Modules:
+      - Base of Image:   0x400d0000
+        Size of Image:   0x00002000
+        Module Name:     '/usr/lib/libc.so'
+        CodeView Record: ''
+      - Base of Image:   0x400d5000
+        Size of Image:   0x00001000
+        Module Name:     '/usr/lib/libc.so'
+        CodeView Record: ''
+  - Type:            LinuxMaps
+    Text:             |
+      400d0000-400d3000 r--p 00000000 b3:04 227        /usr/lib/libc.so
+      400d3000-400d5000 rw-p 00000000 00:00 0
+      400d5000-400d6000 r--p 00000000 b3:04 227        /usr/lib/libc.so
+      400d6000-400d7000 r-xp 00010000 b3:04 227        /usr/lib/libc.so
+      400d7000-400d8000 rwxp 00001000 b3:04 227        /usr/lib/libc.so
+...
+)"),
+                    llvm::Succeeded());
+  // If we have a module mentioned twice in the module list, and we have full
+  // linux maps for all of the memory regions, make sure we pick the one that
+  // has a consecutive region with a matching path that has executable
+  // permissions. If clients open an object file with mmap, breakpad can create
+  // multiple mappings for a library errnoneously and the lowest address isn't
+  // always the right address. In this case we check the consective memory
+  // regions whose path matches starting at the base of image address and make
+  // sure one of the regions is executable and prefer that one.
+  //
+  // This test will make sure if binaries are compiled with "-z separate-code",
+  // where the first region for a binary won't be marked as executable, that
+  // it gets selected by detecting the second consecutive mapping at 0x400d7000
+  // when asked about the a module mamed "/usr/lib/libc.so" at 0x400d5000.
+  std::vector<const minidump::Module *> filtered_modules =
+      parser->GetFilteredModuleList();
+  ASSERT_EQ(1u, filtered_modules.size());
+  EXPECT_EQ(0x400d5000u, filtered_modules[0]->BaseOfImage);
+}
+
 TEST_F(MinidumpParserTest, MinidumpModuleOrder) {
   ASSERT_THAT_ERROR(SetUpFromYaml(R"(
 --- !minidump
@@ -731,4 +911,3 @@ Streams:
       parser->GetMinidumpFile().getString(filtered_modules[1]->ModuleNameRVA),
       llvm::HasValue("/tmp/b"));
 }
-

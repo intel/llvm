@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,9 +9,11 @@
 // Test that _LIBCPP_NODISCARD_AFTER_CXX17 is disabled whenever
 // _LIBCPP_DISABLE_NODISCARD_AFTER_CXX17 is defined by the user.
 
-// MODULES_DEFINES: _LIBCPP_DISABLE_NODISCARD_AFTER_CXX17
-#define _LIBCPP_DISABLE_NODISCARD_AFTER_CXX17
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_NODISCARD_AFTER_CXX17
+
 #include <__config>
+
+#include "test_macros.h"
 
 _LIBCPP_NODISCARD_AFTER_CXX17 int foo() { return 6; }
 

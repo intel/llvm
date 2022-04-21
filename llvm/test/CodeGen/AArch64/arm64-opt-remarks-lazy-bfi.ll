@@ -1,10 +1,12 @@
 ; RUN: llc < %s -mtriple=arm64-apple-ios7.0 -pass-remarks-analysis=asm-printer \
+; RUN:       --debugify-and-strip-all-safe=0 \
 ; RUN:       -verify-machineinstrs \
 ; RUN:       -pass-remarks-with-hotness=1 -asm-verbose=0 \
 ; RUN:       -debug-only=lazy-machine-block-freq,block-freq \
 ; RUN:       -debug-pass=Executions 2>&1 | FileCheck %s -check-prefix=HOTNESS
 
 ; RUN: llc < %s -mtriple=arm64-apple-ios7.0 -pass-remarks-analysis=asm-printer \
+; RUN:       --debugify-and-strip-all-safe=0 \
 ; RUN:       -verify-machineinstrs \
 ; RUN:       -pass-remarks-with-hotness=0 -asm-verbose=0 \
 ; RUN:       -debug-only=lazy-machine-block-freq,block-freq \
@@ -32,6 +34,10 @@
 ; HOTNESS-NEXT:  Executing Pass 'Function Pass Manager'
 ; HOTNESS-NEXT: Executing Pass 'Verify generated machine code'
 ; HOTNESS-NEXT: Freeing Pass 'Verify generated machine code'
+; HOTNESS-NEXT: Executing Pass 'Unpack machine instruction bundles'
+; HOTNESS-NEXT: Freeing Pass 'Unpack machine instruction bundles'
+; HOTNESS-NEXT: Executing Pass 'Verify generated machine code'
+; HOTNESS-NEXT: Freeing Pass 'Verify generated machine code'
 ; HOTNESS-NEXT: Executing Pass 'Lazy Machine Block Frequency Analysis'
 ; HOTNESS-NEXT: Executing Pass 'Machine Optimization Remark Emitter'
 ; HOTNESS-NEXT: Building MachineBlockFrequencyInfo on the fly
@@ -47,6 +53,10 @@
 
 ; NO_HOTNESS:      Freeing Pass 'Machine Outliner'
 ; NO_HOTNESS-NEXT:  Executing Pass 'Function Pass Manager'
+; NO_HOTNESS-NEXT: Executing Pass 'Verify generated machine code'
+; NO_HOTNESS-NEXT: Freeing Pass 'Verify generated machine code'
+; NO_HOTNESS-NEXT: Executing Pass 'Unpack machine instruction bundles'
+; NO_HOTNESS-NEXT: Freeing Pass 'Unpack machine instruction bundles'
 ; NO_HOTNESS-NEXT: Executing Pass 'Verify generated machine code'
 ; NO_HOTNESS-NEXT: Freeing Pass 'Verify generated machine code'
 ; NO_HOTNESS-NEXT: Executing Pass 'Lazy Machine Block Frequency Analysis'

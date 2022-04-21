@@ -13,12 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/LiveStacks.h"
-#include "llvm/CodeGen/LiveIntervals.h"
-#include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/InitializePasses.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "livestacks"
@@ -58,9 +55,10 @@ LiveStacks::getOrCreateInterval(int Slot, const TargetRegisterClass *RC) {
   assert(Slot >= 0 && "Spill slot indice must be >= 0");
   SS2IntervalMap::iterator I = S2IMap.find(Slot);
   if (I == S2IMap.end()) {
-    I = S2IMap.emplace(std::piecewise_construct, std::forward_as_tuple(Slot),
-                       std::forward_as_tuple(
-                           TargetRegisterInfo::index2StackSlot(Slot), 0.0F))
+    I = S2IMap
+            .emplace(
+                std::piecewise_construct, std::forward_as_tuple(Slot),
+                std::forward_as_tuple(Register::index2StackSlot(Slot), 0.0F))
             .first;
     S2RCMap.insert(std::make_pair(Slot, RC));
   } else {

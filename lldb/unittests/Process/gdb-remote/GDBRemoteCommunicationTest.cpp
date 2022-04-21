@@ -1,4 +1,4 @@
-//===-- GDBRemoteCommunicationTest.cpp --------------------------*- C++ -*-===//
+//===-- GDBRemoteCommunicationTest.cpp ------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -45,7 +45,9 @@ protected:
 };
 } // end anonymous namespace
 
-TEST_F(GDBRemoteCommunicationTest, ReadPacket_checksum) {
+// Test that we can decode packets correctly. In particular, verify that
+// checksum calculation works.
+TEST_F(GDBRemoteCommunicationTest, ReadPacket) {
   struct TestCase {
     llvm::StringLiteral Packet;
     llvm::StringLiteral Payload;
@@ -53,8 +55,10 @@ TEST_F(GDBRemoteCommunicationTest, ReadPacket_checksum) {
   static constexpr TestCase Tests[] = {
       {{"$#00"}, {""}},
       {{"$foobar#79"}, {"foobar"}},
-      {{"$}}#fa"}, {"]"}},
-      {{"$x*%#c7"}, {"xxxxxxxxx"}},
+      {{"$}]#da"}, {"}"}},          // Escaped }
+      {{"$x*%#c7"}, {"xxxxxxxxx"}}, // RLE
+      {{"+$#00"}, {""}},            // Spurious ACK
+      {{"-$#00"}, {""}},            // Spurious NAK
   };
   for (const auto &Test : Tests) {
     SCOPED_TRACE(Test.Packet + " -> " + Test.Payload);

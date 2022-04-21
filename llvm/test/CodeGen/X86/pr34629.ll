@@ -4,14 +4,14 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-@b = common local_unnamed_addr global i64 0, align 8
-@a = common local_unnamed_addr global i8 0, align 1
+@b = common dso_local local_unnamed_addr global i64 0, align 8
+@a = common dso_local local_unnamed_addr global i8 0, align 1
 
 ; Function Attrs: norecurse nounwind uwtable
-define void @c() local_unnamed_addr #0 {
+define dso_local void @c() local_unnamed_addr #0 {
 ; CHECK-LABEL: c:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    movq {{.*}}(%rip), %rax
+; CHECK-NEXT:    movq b(%rip), %rax
 ; CHECK-NEXT:    leaq (%rax,%rax,4), %rcx
 ; CHECK-NEXT:    negq %rcx
 ; CHECK-NEXT:    leaq (%rax,%rax,8), %rax
@@ -19,7 +19,7 @@ define void @c() local_unnamed_addr #0 {
 ; CHECK-NEXT:    testq %rax, %rcx
 ; CHECK-NEXT:    je .LBB0_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
-; CHECK-NEXT:    movb $0, {{.*}}(%rip)
+; CHECK-NEXT:    movb $0, a(%rip)
 ; CHECK-NEXT:  .LBB0_2: # %if.end
 ; CHECK-NEXT:    retq
 entry:
@@ -38,7 +38,7 @@ if.end:                                           ; preds = %entry, %if.then
   ret void
 }
 
-attributes #0 = { norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0}
 !llvm.ident = !{!1}

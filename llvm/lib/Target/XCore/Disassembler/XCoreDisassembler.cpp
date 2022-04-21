@@ -19,7 +19,7 @@
 #include "llvm/MC/MCFixedLenDisassembler.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -37,7 +37,6 @@ public:
 
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
-                              raw_ostream &VStream,
                               raw_ostream &CStream) const override;
 };
 }
@@ -67,140 +66,116 @@ static bool readInstruction32(ArrayRef<uint8_t> Bytes, uint64_t Address,
   return true;
 }
 
-static unsigned getReg(const void *D, unsigned RC, unsigned RegNo) {
-  const XCoreDisassembler *Dis = static_cast<const XCoreDisassembler*>(D);
-  const MCRegisterInfo *RegInfo = Dis->getContext().getRegisterInfo();
+static unsigned getReg(const MCDisassembler *D, unsigned RC, unsigned RegNo) {
+  const MCRegisterInfo *RegInfo = D->getContext().getRegisterInfo();
   return *(RegInfo->getRegClass(RC).begin() + RegNo);
 }
 
-static DecodeStatus DecodeGRRegsRegisterClass(MCInst &Inst,
-                                              unsigned RegNo,
+static DecodeStatus DecodeGRRegsRegisterClass(MCInst &Inst, unsigned RegNo,
                                               uint64_t Address,
-                                              const void *Decoder);
+                                              const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeRRegsRegisterClass(MCInst &Inst,
-                                             unsigned RegNo,
+static DecodeStatus DecodeRRegsRegisterClass(MCInst &Inst, unsigned RegNo,
                                              uint64_t Address,
-                                             const void *Decoder);
+                                             const MCDisassembler *Decoder);
 
 static DecodeStatus DecodeBitpOperand(MCInst &Inst, unsigned Val,
-                                      uint64_t Address, const void *Decoder);
+                                      uint64_t Address,
+                                      const MCDisassembler *Decoder);
 
 static DecodeStatus DecodeNegImmOperand(MCInst &Inst, unsigned Val,
-                                        uint64_t Address, const void *Decoder);
-
-static DecodeStatus Decode2RInstruction(MCInst &Inst,
-                                        unsigned Insn,
                                         uint64_t Address,
-                                        const void *Decoder);
+                                        const MCDisassembler *Decoder);
 
-static DecodeStatus Decode2RImmInstruction(MCInst &Inst,
-                                           unsigned Insn,
+static DecodeStatus Decode2RInstruction(MCInst &Inst, unsigned Insn,
+                                        uint64_t Address,
+                                        const MCDisassembler *Decoder);
+
+static DecodeStatus Decode2RImmInstruction(MCInst &Inst, unsigned Insn,
                                            uint64_t Address,
-                                           const void *Decoder);
+                                           const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeR2RInstruction(MCInst &Inst,
-                                         unsigned Insn,
+static DecodeStatus DecodeR2RInstruction(MCInst &Inst, unsigned Insn,
                                          uint64_t Address,
-                                         const void *Decoder);
+                                         const MCDisassembler *Decoder);
 
-static DecodeStatus Decode2RSrcDstInstruction(MCInst &Inst,
-                                              unsigned Insn,
+static DecodeStatus Decode2RSrcDstInstruction(MCInst &Inst, unsigned Insn,
                                               uint64_t Address,
-                                              const void *Decoder);
+                                              const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeRUSInstruction(MCInst &Inst,
-                                         unsigned Insn,
+static DecodeStatus DecodeRUSInstruction(MCInst &Inst, unsigned Insn,
                                          uint64_t Address,
-                                         const void *Decoder);
+                                         const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeRUSBitpInstruction(MCInst &Inst,
-                                             unsigned Insn,
+static DecodeStatus DecodeRUSBitpInstruction(MCInst &Inst, unsigned Insn,
                                              uint64_t Address,
-                                             const void *Decoder);
+                                             const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeRUSSrcDstBitpInstruction(MCInst &Inst,
-                                                   unsigned Insn,
-                                                   uint64_t Address,
-                                                   const void *Decoder);
+static DecodeStatus
+DecodeRUSSrcDstBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
+                               const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL2RInstruction(MCInst &Inst,
-                                         unsigned Insn,
+static DecodeStatus DecodeL2RInstruction(MCInst &Inst, unsigned Insn,
                                          uint64_t Address,
-                                         const void *Decoder);
+                                         const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeLR2RInstruction(MCInst &Inst,
-                                          unsigned Insn,
+static DecodeStatus DecodeLR2RInstruction(MCInst &Inst, unsigned Insn,
                                           uint64_t Address,
-                                          const void *Decoder);
+                                          const MCDisassembler *Decoder);
 
-static DecodeStatus Decode3RInstruction(MCInst &Inst,
-                                        unsigned Insn,
+static DecodeStatus Decode3RInstruction(MCInst &Inst, unsigned Insn,
                                         uint64_t Address,
-                                        const void *Decoder);
+                                        const MCDisassembler *Decoder);
 
-static DecodeStatus Decode3RImmInstruction(MCInst &Inst,
-                                           unsigned Insn,
+static DecodeStatus Decode3RImmInstruction(MCInst &Inst, unsigned Insn,
                                            uint64_t Address,
-                                           const void *Decoder);
+                                           const MCDisassembler *Decoder);
 
-static DecodeStatus Decode2RUSInstruction(MCInst &Inst,
-                                          unsigned Insn,
+static DecodeStatus Decode2RUSInstruction(MCInst &Inst, unsigned Insn,
                                           uint64_t Address,
-                                          const void *Decoder);
+                                          const MCDisassembler *Decoder);
 
-static DecodeStatus Decode2RUSBitpInstruction(MCInst &Inst,
-                                              unsigned Insn,
+static DecodeStatus Decode2RUSBitpInstruction(MCInst &Inst, unsigned Insn,
                                               uint64_t Address,
-                                              const void *Decoder);
+                                              const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL3RInstruction(MCInst &Inst,
-                                         unsigned Insn,
+static DecodeStatus DecodeL3RInstruction(MCInst &Inst, unsigned Insn,
                                          uint64_t Address,
-                                         const void *Decoder);
+                                         const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL3RSrcDstInstruction(MCInst &Inst,
-                                               unsigned Insn,
+static DecodeStatus DecodeL3RSrcDstInstruction(MCInst &Inst, unsigned Insn,
                                                uint64_t Address,
-                                               const void *Decoder);
+                                               const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL2RUSInstruction(MCInst &Inst,
-                                           unsigned Insn,
+static DecodeStatus DecodeL2RUSInstruction(MCInst &Inst, unsigned Insn,
                                            uint64_t Address,
-                                           const void *Decoder);
+                                           const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL2RUSBitpInstruction(MCInst &Inst,
-                                               unsigned Insn,
+static DecodeStatus DecodeL2RUSBitpInstruction(MCInst &Inst, unsigned Insn,
                                                uint64_t Address,
-                                               const void *Decoder);
+                                               const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL6RInstruction(MCInst &Inst,
-                                         unsigned Insn,
+static DecodeStatus DecodeL6RInstruction(MCInst &Inst, unsigned Insn,
                                          uint64_t Address,
-                                         const void *Decoder);
+                                         const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL5RInstruction(MCInst &Inst,
-                                         unsigned Insn,
+static DecodeStatus DecodeL5RInstruction(MCInst &Inst, unsigned Insn,
                                          uint64_t Address,
-                                         const void *Decoder);
+                                         const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL4RSrcDstInstruction(MCInst &Inst,
-                                               unsigned Insn,
+static DecodeStatus DecodeL4RSrcDstInstruction(MCInst &Inst, unsigned Insn,
                                                uint64_t Address,
-                                               const void *Decoder);
+                                               const MCDisassembler *Decoder);
 
-static DecodeStatus DecodeL4RSrcDstSrcDstInstruction(MCInst &Inst,
-                                                     unsigned Insn,
-                                                     uint64_t Address,
-                                                     const void *Decoder);
+static DecodeStatus
+DecodeL4RSrcDstSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
+                                 const MCDisassembler *Decoder);
 
 #include "XCoreGenDisassemblerTables.inc"
 
-static DecodeStatus DecodeGRRegsRegisterClass(MCInst &Inst,
-                                              unsigned RegNo,
+static DecodeStatus DecodeGRRegsRegisterClass(MCInst &Inst, unsigned RegNo,
                                               uint64_t Address,
-                                              const void *Decoder)
-{
+                                              const MCDisassembler *Decoder) {
   if (RegNo > 11)
     return MCDisassembler::Fail;
   unsigned Reg = getReg(Decoder, XCore::GRRegsRegClassID, RegNo);
@@ -208,11 +183,9 @@ static DecodeStatus DecodeGRRegsRegisterClass(MCInst &Inst,
   return MCDisassembler::Success;
 }
 
-static DecodeStatus DecodeRRegsRegisterClass(MCInst &Inst,
-                                             unsigned RegNo,
+static DecodeStatus DecodeRRegsRegisterClass(MCInst &Inst, unsigned RegNo,
                                              uint64_t Address,
-                                             const void *Decoder)
-{
+                                             const MCDisassembler *Decoder) {
   if (RegNo > 15)
     return MCDisassembler::Fail;
   unsigned Reg = getReg(Decoder, XCore::RRegsRegClassID, RegNo);
@@ -221,7 +194,8 @@ static DecodeStatus DecodeRRegsRegisterClass(MCInst &Inst,
 }
 
 static DecodeStatus DecodeBitpOperand(MCInst &Inst, unsigned Val,
-                                      uint64_t Address, const void *Decoder) {
+                                      uint64_t Address,
+                                      const MCDisassembler *Decoder) {
   if (Val > 11)
     return MCDisassembler::Fail;
   static const unsigned Values[] = {
@@ -232,7 +206,8 @@ static DecodeStatus DecodeBitpOperand(MCInst &Inst, unsigned Val,
 }
 
 static DecodeStatus DecodeNegImmOperand(MCInst &Inst, unsigned Val,
-                                        uint64_t Address, const void *Decoder) {
+                                        uint64_t Address,
+                                        const MCDisassembler *Decoder) {
   Inst.addOperand(MCOperand::createImm(-(int64_t)Val));
   return MCDisassembler::Success;
 }
@@ -271,9 +246,9 @@ Decode3OpInstruction(unsigned Insn, unsigned &Op1, unsigned &Op2,
   return MCDisassembler::Success;
 }
 
-static DecodeStatus
-Decode2OpInstructionFail(MCInst &Inst, unsigned Insn, uint64_t Address,
-                         const void *Decoder) {
+static DecodeStatus Decode2OpInstructionFail(MCInst &Inst, unsigned Insn,
+                                             uint64_t Address,
+                                             const MCDisassembler *Decoder) {
   // Try and decode as a 3R instruction.
   unsigned Opcode = fieldFromInstruction(Insn, 11, 5);
   switch (Opcode) {
@@ -341,9 +316,9 @@ Decode2OpInstructionFail(MCInst &Inst, unsigned Insn, uint64_t Address,
   return MCDisassembler::Fail;
 }
 
-static DecodeStatus
-Decode2RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                    const void *Decoder) {
+static DecodeStatus Decode2RInstruction(MCInst &Inst, unsigned Insn,
+                                        uint64_t Address,
+                                        const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(Insn, Op1, Op2);
   if (S != MCDisassembler::Success)
@@ -354,9 +329,9 @@ Decode2RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-Decode2RImmInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                       const void *Decoder) {
+static DecodeStatus Decode2RImmInstruction(MCInst &Inst, unsigned Insn,
+                                           uint64_t Address,
+                                           const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(Insn, Op1, Op2);
   if (S != MCDisassembler::Success)
@@ -367,9 +342,9 @@ Decode2RImmInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeR2RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                     const void *Decoder) {
+static DecodeStatus DecodeR2RInstruction(MCInst &Inst, unsigned Insn,
+                                         uint64_t Address,
+                                         const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(Insn, Op2, Op1);
   if (S != MCDisassembler::Success)
@@ -380,9 +355,9 @@ DecodeR2RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-Decode2RSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                          const void *Decoder) {
+static DecodeStatus Decode2RSrcDstInstruction(MCInst &Inst, unsigned Insn,
+                                              uint64_t Address,
+                                              const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(Insn, Op1, Op2);
   if (S != MCDisassembler::Success)
@@ -394,9 +369,9 @@ Decode2RSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeRUSInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                     const void *Decoder) {
+static DecodeStatus DecodeRUSInstruction(MCInst &Inst, unsigned Insn,
+                                         uint64_t Address,
+                                         const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(Insn, Op1, Op2);
   if (S != MCDisassembler::Success)
@@ -407,9 +382,9 @@ DecodeRUSInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeRUSBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                         const void *Decoder) {
+static DecodeStatus DecodeRUSBitpInstruction(MCInst &Inst, unsigned Insn,
+                                             uint64_t Address,
+                                             const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(Insn, Op1, Op2);
   if (S != MCDisassembler::Success)
@@ -422,7 +397,7 @@ DecodeRUSBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
 
 static DecodeStatus
 DecodeRUSSrcDstBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                               const void *Decoder) {
+                               const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(Insn, Op1, Op2);
   if (S != MCDisassembler::Success)
@@ -434,9 +409,9 @@ DecodeRUSSrcDstBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeL2OpInstructionFail(MCInst &Inst, unsigned Insn, uint64_t Address,
-                          const void *Decoder) {
+static DecodeStatus DecodeL2OpInstructionFail(MCInst &Inst, unsigned Insn,
+                                              uint64_t Address,
+                                              const MCDisassembler *Decoder) {
   // Try and decode as a L3R / L2RUS instruction.
   unsigned Opcode = fieldFromInstruction(Insn, 16, 4) |
                     fieldFromInstruction(Insn, 27, 5) << 4;
@@ -505,9 +480,9 @@ DecodeL2OpInstructionFail(MCInst &Inst, unsigned Insn, uint64_t Address,
   return MCDisassembler::Fail;
 }
 
-static DecodeStatus
-DecodeL2RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                               const void *Decoder) {
+static DecodeStatus DecodeL2RInstruction(MCInst &Inst, unsigned Insn,
+                                         uint64_t Address,
+                                         const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(fieldFromInstruction(Insn, 0, 16),
                                         Op1, Op2);
@@ -519,9 +494,9 @@ DecodeL2RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeLR2RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                               const void *Decoder) {
+static DecodeStatus DecodeLR2RInstruction(MCInst &Inst, unsigned Insn,
+                                          uint64_t Address,
+                                          const MCDisassembler *Decoder) {
   unsigned Op1, Op2;
   DecodeStatus S = Decode2OpInstruction(fieldFromInstruction(Insn, 0, 16),
                                         Op1, Op2);
@@ -533,9 +508,9 @@ DecodeLR2RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-Decode3RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                    const void *Decoder) {
+static DecodeStatus Decode3RInstruction(MCInst &Inst, unsigned Insn,
+                                        uint64_t Address,
+                                        const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   DecodeStatus S = Decode3OpInstruction(Insn, Op1, Op2, Op3);
   if (S == MCDisassembler::Success) {
@@ -546,9 +521,9 @@ Decode3RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-Decode3RImmInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                       const void *Decoder) {
+static DecodeStatus Decode3RImmInstruction(MCInst &Inst, unsigned Insn,
+                                           uint64_t Address,
+                                           const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   DecodeStatus S = Decode3OpInstruction(Insn, Op1, Op2, Op3);
   if (S == MCDisassembler::Success) {
@@ -559,9 +534,9 @@ Decode3RImmInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-Decode2RUSInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                      const void *Decoder) {
+static DecodeStatus Decode2RUSInstruction(MCInst &Inst, unsigned Insn,
+                                          uint64_t Address,
+                                          const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   DecodeStatus S = Decode3OpInstruction(Insn, Op1, Op2, Op3);
   if (S == MCDisassembler::Success) {
@@ -572,9 +547,9 @@ Decode2RUSInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-Decode2RUSBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                      const void *Decoder) {
+static DecodeStatus Decode2RUSBitpInstruction(MCInst &Inst, unsigned Insn,
+                                              uint64_t Address,
+                                              const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   DecodeStatus S = Decode3OpInstruction(Insn, Op1, Op2, Op3);
   if (S == MCDisassembler::Success) {
@@ -585,9 +560,9 @@ Decode2RUSBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeL3RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                     const void *Decoder) {
+static DecodeStatus DecodeL3RInstruction(MCInst &Inst, unsigned Insn,
+                                         uint64_t Address,
+                                         const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   DecodeStatus S =
     Decode3OpInstruction(fieldFromInstruction(Insn, 0, 16), Op1, Op2, Op3);
@@ -599,9 +574,9 @@ DecodeL3RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeL3RSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                           const void *Decoder) {
+static DecodeStatus DecodeL3RSrcDstInstruction(MCInst &Inst, unsigned Insn,
+                                               uint64_t Address,
+                                               const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   DecodeStatus S =
   Decode3OpInstruction(fieldFromInstruction(Insn, 0, 16), Op1, Op2, Op3);
@@ -614,9 +589,9 @@ DecodeL3RSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeL2RUSInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                       const void *Decoder) {
+static DecodeStatus DecodeL2RUSInstruction(MCInst &Inst, unsigned Insn,
+                                           uint64_t Address,
+                                           const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   DecodeStatus S =
   Decode3OpInstruction(fieldFromInstruction(Insn, 0, 16), Op1, Op2, Op3);
@@ -628,9 +603,9 @@ DecodeL2RUSInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeL2RUSBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                           const void *Decoder) {
+static DecodeStatus DecodeL2RUSBitpInstruction(MCInst &Inst, unsigned Insn,
+                                               uint64_t Address,
+                                               const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   DecodeStatus S =
   Decode3OpInstruction(fieldFromInstruction(Insn, 0, 16), Op1, Op2, Op3);
@@ -642,9 +617,9 @@ DecodeL2RUSBitpInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeL6RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                     const void *Decoder) {
+static DecodeStatus DecodeL6RInstruction(MCInst &Inst, unsigned Insn,
+                                         uint64_t Address,
+                                         const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3, Op4, Op5, Op6;
   DecodeStatus S =
     Decode3OpInstruction(fieldFromInstruction(Insn, 0, 16), Op1, Op2, Op3);
@@ -662,9 +637,9 @@ DecodeL6RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeL5RInstructionFail(MCInst &Inst, unsigned Insn, uint64_t Address,
-                     const void *Decoder) {
+static DecodeStatus DecodeL5RInstructionFail(MCInst &Inst, unsigned Insn,
+                                             uint64_t Address,
+                                             const MCDisassembler *Decoder) {
   // Try and decode as a L6R instruction.
   Inst.clear();
   unsigned Opcode = fieldFromInstruction(Insn, 27, 5);
@@ -676,9 +651,9 @@ DecodeL5RInstructionFail(MCInst &Inst, unsigned Insn, uint64_t Address,
   return MCDisassembler::Fail;
 }
 
-static DecodeStatus
-DecodeL5RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                     const void *Decoder) {
+static DecodeStatus DecodeL5RInstruction(MCInst &Inst, unsigned Insn,
+                                         uint64_t Address,
+                                         const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3, Op4, Op5;
   DecodeStatus S =
     Decode3OpInstruction(fieldFromInstruction(Insn, 0, 16), Op1, Op2, Op3);
@@ -696,9 +671,9 @@ DecodeL5RInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-static DecodeStatus
-DecodeL4RSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                           const void *Decoder) {
+static DecodeStatus DecodeL4RSrcDstInstruction(MCInst &Inst, unsigned Insn,
+                                               uint64_t Address,
+                                               const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   unsigned Op4 = fieldFromInstruction(Insn, 16, 4);
   DecodeStatus S =
@@ -717,7 +692,7 @@ DecodeL4RSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
 
 static DecodeStatus
 DecodeL4RSrcDstSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
-                                 const void *Decoder) {
+                                 const MCDisassembler *Decoder) {
   unsigned Op1, Op2, Op3;
   unsigned Op4 = fieldFromInstruction(Insn, 16, 4);
   DecodeStatus S =
@@ -735,9 +710,10 @@ DecodeL4RSrcDstSrcDstInstruction(MCInst &Inst, unsigned Insn, uint64_t Address,
   return S;
 }
 
-MCDisassembler::DecodeStatus XCoreDisassembler::getInstruction(
-    MCInst &instr, uint64_t &Size, ArrayRef<uint8_t> Bytes, uint64_t Address,
-    raw_ostream &vStream, raw_ostream &cStream) const {
+MCDisassembler::DecodeStatus
+XCoreDisassembler::getInstruction(MCInst &instr, uint64_t &Size,
+                                  ArrayRef<uint8_t> Bytes, uint64_t Address,
+                                  raw_ostream &cStream) const {
   uint16_t insn16;
 
   if (!readInstruction16(Bytes, Address, Size, insn16)) {
@@ -774,7 +750,7 @@ static MCDisassembler *createXCoreDisassembler(const Target &T,
   return new XCoreDisassembler(STI, Ctx);
 }
 
-extern "C" void LLVMInitializeXCoreDisassembler() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXCoreDisassembler() {
   // Register the disassembler.
   TargetRegistry::RegisterMCDisassembler(getTheXCoreTarget(),
                                          createXCoreDisassembler);

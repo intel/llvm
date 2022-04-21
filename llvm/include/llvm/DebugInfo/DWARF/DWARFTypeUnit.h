@@ -11,12 +11,11 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/DebugInfo/DWARF/DWARFUnit.h"
-#include "llvm/DebugInfo/DWARF/DWARFUnitIndex.h"
-#include "llvm/Support/DataExtractor.h"
 #include <cstdint>
 
 namespace llvm {
 
+struct DIDumpOptions;
 class DWARFContext;
 class DWARFDebugAbbrev;
 struct DWARFSection;
@@ -34,7 +33,7 @@ public:
                   LS, LE, IsDWO, UnitVector) {}
 
   uint64_t getTypeHash() const { return getHeader().getTypeHash(); }
-  uint32_t getTypeOffset() const { return getHeader().getTypeOffset(); }
+  uint64_t getTypeOffset() const { return getHeader().getTypeOffset(); }
 
   void dump(raw_ostream &OS, DIDumpOptions DumpOpts = {}) override;
   // Enable LLVM-style RTTI.

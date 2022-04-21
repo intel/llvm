@@ -1,4 +1,4 @@
-; RUN: opt -metarenamer -S < %s | FileCheck %s
+; RUN: opt -passes=metarenamer -S < %s | FileCheck %s
 
 ; CHECK: target triple {{.*}}
 ; CHECK-NOT: {{^x*}}xxx{{^x*}}
@@ -22,7 +22,7 @@ define i32 @func_3_xxx() nounwind uwtable ssp {
   ret i32 3
 }
 
-define void @func_4_xxx(%struct.foo_xxx* sret %agg.result) nounwind uwtable ssp {
+define void @func_4_xxx(%struct.foo_xxx* sret(%struct.foo_xxx) %agg.result) nounwind uwtable ssp {
   %1 = alloca %struct.foo_xxx, align 8
   %2 = getelementptr inbounds %struct.foo_xxx, %struct.foo_xxx* %1, i32 0, i32 0
   store i32 1, i32* %2, align 4
@@ -97,17 +97,17 @@ define i32 @varargs_func_6_xxx(i32 %arg_1_xxx, i32 %arg_2_xxx, ...) nounwind uwt
   ret i32 6
 }
 
-declare noalias i8* @malloc(i32)
+declare noalias i8* @malloc(i64)
 declare void @free(i8* nocapture)
 
 define void @dont_rename_lib_funcs() {
 ; CHECK-LABEL: @foo(
 ; CHECK-NEXT:  bb:
-; CHECK-NEXT:    [[TMP:%.*]] = call i8* @malloc(i32 23)
+; CHECK-NEXT:    [[TMP:%.*]] = call i8* @malloc(i64 23)
 ; CHECK-NEXT:    call void @free(i8* [[TMP]])
 ; CHECK-NEXT:    ret void
 ;
-  %x = call i8* @malloc(i32 23)
+  %x = call i8* @malloc(i64 23)
   call void @free(i8* %x)
   ret void
 }

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <vector>
 
@@ -15,7 +15,8 @@
 
 #include <vector>
 
-#include "poisoned_hash_helper.hpp"
+#include "poisoned_hash_helper.h"
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**) {

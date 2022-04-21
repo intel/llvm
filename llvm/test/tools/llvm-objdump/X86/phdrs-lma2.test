@@ -1,4 +1,4 @@
-# RUN: yaml2obj %s > %t
+# RUN: yaml2obj %s -o %t
 
 ## If there are no sections with different LMA to VMA,
 ## we do not display LMA column.
@@ -45,16 +45,13 @@ Sections:
     Content:         "00000000"
     Address:         0x00002000
 ProgramHeaders:
-  - Type: PT_LOAD
-    Flags: [ PF_X, PF_R ]
-    VAddr: 0x00001000
-    PAddr: 0x00001000
-    Sections:
-      - Section: .text
-      - Section: .init
-  - Type: PT_LOAD
-    Flags: [ PF_R ]
-    VAddr: 0x00002000
-    PAddr: 0x00002000
-    Sections:
-      - Section: .data
+  - Type:     PT_LOAD
+    Flags:    [ PF_X, PF_R ]
+    VAddr:    0x00001000
+    FirstSec: .text
+    LastSec:  .init
+  - Type:     PT_LOAD
+    Flags:    [ PF_R ]
+    VAddr:    0x00002000
+    FirstSec: .data
+    LastSec:  .data

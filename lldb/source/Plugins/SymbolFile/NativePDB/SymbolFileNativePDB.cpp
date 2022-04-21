@@ -1,4 +1,4 @@
-//===-- SymbolFileNativePDB.cpp ---------------------------------*- C++ -*-===//
+//===-- SymbolFileNativePDB.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,15 +14,14 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Type.h"
 
+#include "Plugins/ExpressionParser/Clang/ClangUtil.h"
 #include "Plugins/Language/CPlusPlus/MSVCUndecoratedNameParser.h"
+#include "Plugins/ObjectFile/PDB/ObjectFilePDB.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/StreamBuffer.h"
 #include "lldb/Core/StreamFile.h"
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangASTImporter.h"
-#include "lldb/Symbol/ClangExternalASTSourceCommon.h"
-#include "lldb/Symbol/ClangUtil.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/ObjectFile.h"
@@ -30,6 +29,8 @@
 #include "lldb/Symbol/SymbolVendor.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Symbol/VariableList.h"
+#include "lldb/Utility/LLDBLog.h"
+#include "lldb/Utility/Log.h"
 
 #include "llvm/DebugInfo/CodeView/CVRecord.h"
 #include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
@@ -43,9 +44,11 @@
 #include "llvm/DebugInfo/PDB/Native/GlobalsStream.h"
 #include "llvm/DebugInfo/PDB/Native/InfoStream.h"
 #include "llvm/DebugInfo/PDB/Native/ModuleDebugStream.h"
+#include "llvm/DebugInfo/PDB/Native/NativeSession.h"
 #include "llvm/DebugInfo/PDB/Native/PDBFile.h"
 #include "llvm/DebugInfo/PDB/Native/SymbolStream.h"
 #include "llvm/DebugInfo/PDB/Native/TpiStream.h"
+#include "llvm/DebugInfo/PDB/PDB.h"
 #include "llvm/DebugInfo/PDB/PDBTypes.h"
 #include "llvm/Demangle/MicrosoftDemangle.h"
 #include "llvm/Object/COFF.h"
@@ -67,6 +70,8 @@ using namespace npdb;
 using namespace llvm::codeview;
 using namespace llvm::pdb;
 
+char SymbolFileNativePDB::ID;
+
 static lldb::LanguageType TranslateLanguage(PDB_Lang lang) {
   switch (lang) {
   case PDB_Lang::Cpp:
@@ -75,35 +80,11 @@ static lldb::LanguageType TranslateLanguage(PDB_Lang lang) {
     return lldb::LanguageType::eLanguageTypeC;
   case PDB_Lang::Swift:
     return lldb::LanguageType::eLanguageTypeSwift;
+  case PDB_Lang::Rust:
+    return lldb::LanguageType::eLanguageTypeRust;
   default:
     return lldb::LanguageType::eLanguageTypeUnknown;
   }
-}
-
-static std::unique_ptr<PDBFile> loadPDBFile(std::string PdbPath,
-                                            llvm::BumpPtrAllocator &Allocator) {
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ErrorOrBuffer =
-      llvm::MemoryBuffer::getFile(PdbPath, /*FileSize=*/-1,
-                                  /*RequiresNullTerminator=*/false);
-  if (!ErrorOrBuffer)
-    return nullptr;
-  std::unique_ptr<llvm::MemoryBuffer> Buffer = std::move(*ErrorOrBuffer);
-
-  llvm::StringRef Path = Buffer->getBufferIdentifier();
-  auto Stream = llvm::make_unique<llvm::MemoryBufferByteStream>(
-      std::move(Buffer), llvm::support::little);
-
-  auto File = llvm::make_unique<PDBFile>(Path, std::move(Stream), Allocator);
-  if (auto EC = File->parseFileHeaders()) {
-    llvm::consumeError(std::move(EC));
-    return nullptr;
-  }
-  if (auto EC = File->parseStreamData()) {
-    llvm::consumeError(std::move(EC));
-    return nullptr;
-  }
-
-  return File;
 }
 
 static std::unique_ptr<PDBFile>
@@ -119,6 +100,8 @@ loadMatchingPDBFile(std::string exe_path, llvm::BumpPtrAllocator &allocator) {
   }
   OwningBinary<Binary> binary = std::move(*expected_binary);
 
+  // TODO: Avoid opening the PE/COFF binary twice by reading this information
+  // directly from the lldb_private::ObjectFile.
   auto *obj = llvm::dyn_cast<llvm::object::COFFObjectFile>(binary.getBinary());
   if (!obj)
     return nullptr;
@@ -126,17 +109,22 @@ loadMatchingPDBFile(std::string exe_path, llvm::BumpPtrAllocator &allocator) {
 
   // If it doesn't have a debug directory, fail.
   llvm::StringRef pdb_file;
-  auto ec = obj->getDebugPDBInfo(pdb_info, pdb_file);
-  if (ec)
+  if (llvm::Error e = obj->getDebugPDBInfo(pdb_info, pdb_file)) {
+    consumeError(std::move(e));
     return nullptr;
+  }
 
-  // if the file doesn't exist, is not a pdb, or doesn't have a matching guid,
-  // fail.
-  llvm::file_magic magic;
-  ec = llvm::identify_magic(pdb_file, magic);
-  if (ec || magic != llvm::file_magic::pdb)
-    return nullptr;
-  std::unique_ptr<PDBFile> pdb = loadPDBFile(pdb_file, allocator);
+  // If the file doesn't exist, perhaps the path specified at build time
+  // doesn't match the PDB's current location, so check the location of the
+  // executable.
+  if (!FileSystem::Instance().Exists(pdb_file)) {
+    const auto exe_dir = FileSpec(exe_path).CopyByRemovingLastPathComponent();
+    const auto pdb_name = FileSpec(pdb_file).GetFilename().GetCString();
+    pdb_file = exe_dir.CopyByAppendingPathComponent(pdb_name).GetCString();
+  }
+
+  // If the file is not a PDB or if it doesn't have a matching GUID, fail.
+  auto pdb = ObjectFilePDB::loadPDBFile(std::string(pdb_file), allocator);
   if (!pdb)
     return nullptr;
 
@@ -185,6 +173,8 @@ static llvm::StringRef GetSimpleTypeName(SimpleTypeKind kind) {
     return "char16_t";
   case SimpleTypeKind::Character32:
     return "char32_t";
+  case SimpleTypeKind::Character8:
+    return "char8_t";
   case SimpleTypeKind::Complex80:
   case SimpleTypeKind::Complex64:
   case SimpleTypeKind::Complex32:
@@ -255,49 +245,39 @@ void SymbolFileNativePDB::Terminate() {
 
 void SymbolFileNativePDB::DebuggerInitialize(Debugger &debugger) {}
 
-ConstString SymbolFileNativePDB::GetPluginNameStatic() {
-  static ConstString g_name("native-pdb");
-  return g_name;
-}
-
-const char *SymbolFileNativePDB::GetPluginDescriptionStatic() {
+llvm::StringRef SymbolFileNativePDB::GetPluginDescriptionStatic() {
   return "Microsoft PDB debug symbol cross-platform file reader.";
 }
 
-SymbolFile *SymbolFileNativePDB::CreateInstance(ObjectFile *obj_file) {
-  return new SymbolFileNativePDB(obj_file);
+SymbolFile *SymbolFileNativePDB::CreateInstance(ObjectFileSP objfile_sp) {
+  return new SymbolFileNativePDB(std::move(objfile_sp));
 }
 
-SymbolFileNativePDB::SymbolFileNativePDB(ObjectFile *object_file)
-    : SymbolFile(object_file) {}
+SymbolFileNativePDB::SymbolFileNativePDB(ObjectFileSP objfile_sp)
+    : SymbolFile(std::move(objfile_sp)) {}
 
-SymbolFileNativePDB::~SymbolFileNativePDB() {}
+SymbolFileNativePDB::~SymbolFileNativePDB() = default;
 
 uint32_t SymbolFileNativePDB::CalculateAbilities() {
   uint32_t abilities = 0;
-  if (!m_obj_file)
+  if (!m_objfile_sp)
     return 0;
 
   if (!m_index) {
     // Lazily load and match the PDB file, but only do this once.
-    std::unique_ptr<PDBFile> file_up =
-        loadMatchingPDBFile(m_obj_file->GetFileSpec().GetPath(), m_allocator);
-
-    if (!file_up) {
-      auto module_sp = m_obj_file->GetModule();
-      if (!module_sp)
-        return 0;
-      // See if any symbol file is specified through `--symfile` option.
-      FileSpec symfile = module_sp->GetSymbolFileFileSpec();
-      if (!symfile)
-        return 0;
-      file_up = loadPDBFile(symfile.GetPath(), m_allocator);
+    PDBFile *pdb_file;
+    if (auto *pdb = llvm::dyn_cast<ObjectFilePDB>(m_objfile_sp.get())) {
+      pdb_file = &pdb->GetPDBFile();
+    } else {
+      m_file_up = loadMatchingPDBFile(m_objfile_sp->GetFileSpec().GetPath(),
+                                      m_allocator);
+      pdb_file = m_file_up.get();
     }
 
-    if (!file_up)
+    if (!pdb_file)
       return 0;
 
-    auto expected_index = PdbIndex::create(std::move(file_up));
+    auto expected_index = PdbIndex::create(pdb_file);
     if (!expected_index) {
       llvm::consumeError(expected_index.takeError());
       return 0;
@@ -317,19 +297,27 @@ uint32_t SymbolFileNativePDB::CalculateAbilities() {
 }
 
 void SymbolFileNativePDB::InitializeObject() {
-  m_obj_load_address = m_obj_file->GetBaseAddress().GetFileAddress();
+  m_obj_load_address = m_objfile_sp->GetModule()
+                           ->GetObjectFile()
+                           ->GetBaseAddress()
+                           .GetFileAddress();
   m_index->SetLoadAddress(m_obj_load_address);
   m_index->ParseSectionContribs();
 
-  TypeSystem *ts = m_obj_file->GetModule()->GetTypeSystemForLanguage(
+  auto ts_or_err = m_objfile_sp->GetModule()->GetTypeSystemForLanguage(
       lldb::eLanguageTypeC_plus_plus);
-  if (ts)
-    ts->SetSymbolFile(this);
-
-  m_ast = llvm::make_unique<PdbAstBuilder>(*m_obj_file, *m_index);
+  if (auto err = ts_or_err.takeError()) {
+    LLDB_LOG_ERROR(GetLog(LLDBLog::Symbols), std::move(err),
+                   "Failed to initialize");
+  } else {
+    ts_or_err->SetSymbolFile(this);
+    auto *clang = llvm::cast_or_null<TypeSystemClang>(&ts_or_err.get());
+    lldbassert(clang);
+    m_ast = std::make_unique<PdbAstBuilder>(*m_objfile_sp, *m_index, *clang);
+  }
 }
 
-uint32_t SymbolFileNativePDB::GetNumCompileUnits() {
+uint32_t SymbolFileNativePDB::CalculateNumCompileUnits() {
   const DbiModuleList &modules = m_index->dbi().modules();
   uint32_t count = modules.getModuleCount();
   if (count == 0)
@@ -347,31 +335,65 @@ uint32_t SymbolFileNativePDB::GetNumCompileUnits() {
 Block &SymbolFileNativePDB::CreateBlock(PdbCompilandSymId block_id) {
   CompilandIndexItem *cii = m_index->compilands().GetCompiland(block_id.modi);
   CVSymbol sym = cii->m_debug_stream.readSymbolAtOffset(block_id.offset);
-
-  if (sym.kind() == S_GPROC32 || sym.kind() == S_LPROC32) {
-    // This is a function.  It must be global.  Creating the Function entry for
-    // it automatically creates a block for it.
-    CompUnitSP comp_unit = GetOrCreateCompileUnit(*cii);
-    return GetOrCreateFunction(block_id, *comp_unit)->GetBlock(false);
-  }
-
-  lldbassert(sym.kind() == S_BLOCK32);
-
-  // This is a block.  Its parent is either a function or another block.  In
-  // either case, its parent can be viewed as a block (e.g. a function contains
-  // 1 big block.  So just get the parent block and add this block to it.
-  BlockSym block(static_cast<SymbolRecordKind>(sym.kind()));
-  cantFail(SymbolDeserializer::deserializeAs<BlockSym>(sym, block));
-  lldbassert(block.Parent != 0);
-  PdbCompilandSymId parent_id(block_id.modi, block.Parent);
-  Block &parent_block = GetOrCreateBlock(parent_id);
+  CompUnitSP comp_unit = GetOrCreateCompileUnit(*cii);
   lldb::user_id_t opaque_block_uid = toOpaqueUid(block_id);
   BlockSP child_block = std::make_shared<Block>(opaque_block_uid);
-  parent_block.AddChild(child_block);
 
-  m_ast->GetOrCreateBlockDecl(block_id);
+  switch (sym.kind()) {
+  case S_GPROC32:
+  case S_LPROC32: {
+    // This is a function.  It must be global.  Creating the Function entry
+    // for it automatically creates a block for it.
+    FunctionSP func = GetOrCreateFunction(block_id, *comp_unit);
+    Block &block = func->GetBlock(false);
+    if (block.GetNumRanges() == 0)
+      block.AddRange(Block::Range(0, func->GetAddressRange().GetByteSize()));
+    return block;
+  }
+  case S_BLOCK32: {
+    // This is a block.  Its parent is either a function or another block.  In
+    // either case, its parent can be viewed as a block (e.g. a function
+    // contains 1 big block.  So just get the parent block and add this block
+    // to it.
+    BlockSym block(static_cast<SymbolRecordKind>(sym.kind()));
+    cantFail(SymbolDeserializer::deserializeAs<BlockSym>(sym, block));
+    lldbassert(block.Parent != 0);
+    PdbCompilandSymId parent_id(block_id.modi, block.Parent);
+    Block &parent_block = GetOrCreateBlock(parent_id);
+    parent_block.AddChild(child_block);
+    m_ast->GetOrCreateBlockDecl(block_id);
+    m_blocks.insert({opaque_block_uid, child_block});
+    break;
+  }
+  case S_INLINESITE: {
+    // This ensures line table is parsed first so we have inline sites info.
+    comp_unit->GetLineTable();
 
-  m_blocks.insert({opaque_block_uid, child_block});
+    std::shared_ptr<InlineSite> inline_site = m_inline_sites[opaque_block_uid];
+    Block &parent_block = GetOrCreateBlock(inline_site->parent_id);
+    parent_block.AddChild(child_block);
+    m_ast->GetOrCreateInlinedFunctionDecl(block_id);
+    // Copy ranges from InlineSite to Block.
+    for (size_t i = 0; i < inline_site->ranges.GetSize(); ++i) {
+      auto *entry = inline_site->ranges.GetEntryAtIndex(i);
+      child_block->AddRange(
+          Block::Range(entry->GetRangeBase(), entry->GetByteSize()));
+    }
+    child_block->FinalizeRanges();
+
+    // Get the inlined function callsite info.
+    Declaration &decl = inline_site->inline_function_info->GetDeclaration();
+    Declaration &callsite = inline_site->inline_function_info->GetCallSite();
+    child_block->SetInlinedFunctionInfo(
+        inline_site->inline_function_info->GetName().GetCString(), nullptr,
+        &decl, &callsite);
+    m_blocks.insert({opaque_block_uid, child_block});
+    break;
+  }
+  default:
+    lldbassert(false && "Symbol is not a block!");
+  }
+
   return *child_block;
 }
 
@@ -430,11 +452,10 @@ SymbolFileNativePDB::CreateCompileUnit(const CompilandIndexItem &cci) {
   FileSpec fs(source_file_name);
 
   CompUnitSP cu_sp =
-      std::make_shared<CompileUnit>(m_obj_file->GetModule(), nullptr, fs,
+      std::make_shared<CompileUnit>(m_objfile_sp->GetModule(), nullptr, fs,
                                     toOpaqueUid(cci.m_id), lang, optimized);
 
-  m_obj_file->GetModule()->GetSymbolVendor()->SetCompileUnitAtIndex(
-      cci.m_id.modi, cu_sp);
+  SetCompileUnitAtIndex(cci.m_id.modi, cu_sp);
   return cu_sp;
 }
 
@@ -445,16 +466,16 @@ lldb::TypeSP SymbolFileNativePDB::CreateModifierType(PdbTypeSymId type_id,
 
   std::string name;
   if (mr.ModifiedType.isSimple())
-    name = GetSimpleTypeName(mr.ModifiedType.getSimpleKind());
+    name = std::string(GetSimpleTypeName(mr.ModifiedType.getSimpleKind()));
   else
     name = computeTypeName(stream.typeCollection(), mr.ModifiedType);
   Declaration decl;
   lldb::TypeSP modified_type = GetOrCreateType(mr.ModifiedType);
 
   return std::make_shared<Type>(toOpaqueUid(type_id), this, ConstString(name),
-                                modified_type->GetByteSize(), nullptr,
+                                modified_type->GetByteSize(nullptr), nullptr,
                                 LLDB_INVALID_UID, Type::eEncodingIsUID, decl,
-                                ct, Type::eResolveStateFull);
+                                ct, Type::ResolveState::Full);
 }
 
 lldb::TypeSP
@@ -474,7 +495,7 @@ SymbolFileNativePDB::CreatePointerType(PdbTypeSymId type_id,
   return std::make_shared<Type>(toOpaqueUid(type_id), this, ConstString(),
                                 pr.getSize(), nullptr, LLDB_INVALID_UID,
                                 Type::eEncodingIsUID, decl, ct,
-                                Type::eResolveStateFull);
+                                Type::ResolveState::Full);
 }
 
 lldb::TypeSP SymbolFileNativePDB::CreateSimpleType(TypeIndex ti,
@@ -484,7 +505,7 @@ lldb::TypeSP SymbolFileNativePDB::CreateSimpleType(TypeIndex ti,
     Declaration decl;
     return std::make_shared<Type>(
         uid, this, ConstString("std::nullptr_t"), 0, nullptr, LLDB_INVALID_UID,
-        Type::eEncodingIsUID, decl, ct, Type::eResolveStateFull);
+        Type::eEncodingIsUID, decl, ct, Type::ResolveState::Full);
   }
 
   if (ti.getSimpleMode() != SimpleTypeMode::Direct) {
@@ -505,7 +526,7 @@ lldb::TypeSP SymbolFileNativePDB::CreateSimpleType(TypeIndex ti,
     Declaration decl;
     return std::make_shared<Type>(
         uid, this, ConstString(), pointer_size, nullptr, LLDB_INVALID_UID,
-        Type::eEncodingIsUID, decl, ct, Type::eResolveStateFull);
+        Type::eEncodingIsUID, decl, ct, Type::ResolveState::Full);
   }
 
   if (ti.getSimpleKind() == SimpleTypeKind::NotTranslated)
@@ -517,7 +538,7 @@ lldb::TypeSP SymbolFileNativePDB::CreateSimpleType(TypeIndex ti,
   Declaration decl;
   return std::make_shared<Type>(uid, this, ConstString(type_name), size,
                                 nullptr, LLDB_INVALID_UID, Type::eEncodingIsUID,
-                                decl, ct, Type::eResolveStateFull);
+                                decl, ct, Type::ResolveState::Full);
 }
 
 static std::string GetUnqualifiedTypeName(const TagRecord &record) {
@@ -525,14 +546,14 @@ static std::string GetUnqualifiedTypeName(const TagRecord &record) {
     MSVCUndecoratedNameParser parser(record.Name);
     llvm::ArrayRef<MSVCUndecoratedNameSpecifier> specs = parser.GetSpecifiers();
 
-    return specs.back().GetBaseName();
+    return std::string(specs.back().GetBaseName());
   }
 
   llvm::ms_demangle::Demangler demangler;
   StringView sv(record.UniqueName.begin(), record.UniqueName.size());
   llvm::ms_demangle::TagTypeNode *ttn = demangler.parseTagUniqueName(sv);
   if (demangler.Error)
-    return record.Name;
+    return std::string(record.Name);
 
   llvm::ms_demangle::IdentifierNode *idn =
       ttn->QualifiedName->getUnqualifiedIdentifier();
@@ -551,7 +572,7 @@ SymbolFileNativePDB::CreateClassStructUnion(PdbTypeSymId type_id,
   return std::make_shared<Type>(toOpaqueUid(type_id), this, ConstString(uname),
                                 size, nullptr, LLDB_INVALID_UID,
                                 Type::eEncodingIsUID, decl, ct,
-                                Type::eResolveStateForward);
+                                Type::ResolveState::Forward);
 }
 
 lldb::TypeSP SymbolFileNativePDB::CreateTagType(PdbTypeSymId type_id,
@@ -576,9 +597,9 @@ lldb::TypeSP SymbolFileNativePDB::CreateTagType(PdbTypeSymId type_id,
 
   return std::make_shared<lldb_private::Type>(
       toOpaqueUid(type_id), this, ConstString(uname),
-      underlying_type->GetByteSize(), nullptr, LLDB_INVALID_UID,
+      underlying_type->GetByteSize(nullptr), nullptr, LLDB_INVALID_UID,
       lldb_private::Type::eEncodingIsUID, decl, ct,
-      lldb_private::Type::eResolveStateForward);
+      lldb_private::Type::ResolveState::Forward);
 }
 
 TypeSP SymbolFileNativePDB::CreateArrayType(PdbTypeSymId type_id,
@@ -590,7 +611,7 @@ TypeSP SymbolFileNativePDB::CreateArrayType(PdbTypeSymId type_id,
   TypeSP array_sp = std::make_shared<lldb_private::Type>(
       toOpaqueUid(type_id), this, ConstString(), ar.Size, nullptr,
       LLDB_INVALID_UID, lldb_private::Type::eEncodingIsUID, decl, ct,
-      lldb_private::Type::eResolveStateFull);
+      lldb_private::Type::ResolveState::Full);
   array_sp->SetEncodingType(element_type.get());
   return array_sp;
 }
@@ -603,7 +624,7 @@ TypeSP SymbolFileNativePDB::CreateFunctionType(PdbTypeSymId type_id,
   return std::make_shared<lldb_private::Type>(
       toOpaqueUid(type_id), this, ConstString(), 0, nullptr, LLDB_INVALID_UID,
       lldb_private::Type::eEncodingIsUID, decl, ct,
-      lldb_private::Type::eResolveStateFull);
+      lldb_private::Type::ResolveState::Full);
 }
 
 TypeSP SymbolFileNativePDB::CreateProcedureType(PdbTypeSymId type_id,
@@ -613,7 +634,7 @@ TypeSP SymbolFileNativePDB::CreateProcedureType(PdbTypeSymId type_id,
   return std::make_shared<lldb_private::Type>(
       toOpaqueUid(type_id), this, ConstString(), 0, nullptr, LLDB_INVALID_UID,
       lldb_private::Type::eEncodingIsUID, decl, ct,
-      lldb_private::Type::eResolveStateFull);
+      lldb_private::Type::ResolveState::Full);
 }
 
 TypeSP SymbolFileNativePDB::CreateType(PdbTypeSymId type_id, CompilerType ct) {
@@ -730,7 +751,7 @@ TypeSP SymbolFileNativePDB::GetOrCreateType(PdbTypeSymId type_id) {
 
   TypeSP type = CreateAndCacheType(type_id);
   if (type)
-    m_obj_file->GetModule()->GetTypeList()->Insert(type);
+    GetTypeList().Insert(type);
   return type;
 }
 
@@ -801,11 +822,13 @@ VariableSP SymbolFileNativePDB::CreateGlobalVariable(PdbGlobalSymId var_id) {
 
   std::string global_name("::");
   global_name += name;
+  bool artificial = false;
+  bool location_is_constant_data = false;
+  bool static_member = false;
   VariableSP var_sp = std::make_shared<Variable>(
       toOpaqueUid(var_id), name.str().c_str(), global_name.c_str(), type_sp,
-      scope, comp_unit.get(), ranges, &decl, location, is_external, false,
-      false);
-  var_sp->SetLocationIsConstantValueData(false);
+      scope, comp_unit.get(), ranges, &decl, location, is_external, artificial,
+      location_is_constant_data, static_member);
 
   return var_sp;
 }
@@ -829,11 +852,14 @@ SymbolFileNativePDB::CreateConstantSymbol(PdbGlobalSymId var_id,
   DWARFExpression location = MakeConstantLocationExpression(
       constant.Type, tpi, constant.Value, module);
 
+  bool external = false;
+  bool artificial = false;
+  bool location_is_constant_data = true;
+  bool static_member = false;
   VariableSP var_sp = std::make_shared<Variable>(
       toOpaqueUid(var_id), constant.Name.str().c_str(), global_name.c_str(),
       type_sp, eValueTypeVariableGlobal, module.get(), ranges, &decl, location,
-      false, false, false);
-  var_sp->SetLocationIsConstantValueData(true);
+      external, artificial, location_is_constant_data, static_member);
   return var_sp;
 }
 
@@ -900,6 +926,7 @@ lldb::CompUnitSP SymbolFileNativePDB::ParseCompileUnitAtIndex(uint32_t index) {
 }
 
 lldb::LanguageType SymbolFileNativePDB::ParseLanguage(CompileUnit &comp_unit) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   PdbSymUid uid(comp_unit.GetID());
   lldbassert(uid.kind() == PdbSymUidKind::Compiland);
 
@@ -912,9 +939,10 @@ lldb::LanguageType SymbolFileNativePDB::ParseLanguage(CompileUnit &comp_unit) {
   return TranslateLanguage(item->m_compile_opts->getLanguage());
 }
 
-void SymbolFileNativePDB::AddSymbols(Symtab &symtab) { return; }
+void SymbolFileNativePDB::AddSymbols(Symtab &symtab) {}
 
 size_t SymbolFileNativePDB::ParseFunctions(CompileUnit &comp_unit) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   PdbSymUid uid{comp_unit.GetID()};
   lldbassert(uid.kind() == PdbSymUidKind::Compiland);
   uint16_t modi = uid.asCompiland().modi;
@@ -948,6 +976,7 @@ static bool NeedsResolvedCompileUnit(uint32_t resolve_scope) {
 
 uint32_t SymbolFileNativePDB::ResolveSymbolContext(
     const Address &addr, SymbolContextItem resolve_scope, SymbolContext &sc) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   uint32_t resolved_flags = 0;
   lldb::addr_t file_addr = addr.GetFileAddress();
 
@@ -955,11 +984,11 @@ uint32_t SymbolFileNativePDB::ResolveSymbolContext(
     llvm::Optional<uint16_t> modi = m_index->GetModuleIndexForVa(file_addr);
     if (!modi)
       return 0;
-    CompilandIndexItem *cci = m_index->compilands().GetCompiland(*modi);
-    if (!cci)
+    CompUnitSP cu_sp = GetCompileUnitAtIndex(modi.getValue());
+    if (!cu_sp)
       return 0;
 
-    sc.comp_unit = GetOrCreateCompileUnit(*cci).get();
+    sc.comp_unit = cu_sp.get();
     resolved_flags |= eSymbolContextCompUnit;
   }
 
@@ -981,16 +1010,22 @@ uint32_t SymbolFileNativePDB::ResolveSymbolContext(
         continue;
       if (type == PDB_SymType::Function) {
         sc.function = GetOrCreateFunction(csid, *sc.comp_unit).get();
-        sc.block = sc.GetFunctionBlock();
+        Block &block = sc.function->GetBlock(true);
+        addr_t func_base =
+            sc.function->GetAddressRange().GetBaseAddress().GetFileAddress();
+        addr_t offset = file_addr - func_base;
+        sc.block = block.FindInnermostBlockByOffset(offset);
       }
 
       if (type == PDB_SymType::Block) {
         sc.block = &GetOrCreateBlock(csid);
         sc.function = sc.block->CalculateSymbolContextFunction();
       }
-    resolved_flags |= eSymbolContextFunction;
-    resolved_flags |= eSymbolContextBlock;
-    break;
+      if (sc.function)
+        resolved_flags |= eSymbolContextFunction;
+      if (sc.block)
+        resolved_flags |= eSymbolContextBlock;
+      break;
     }
   }
 
@@ -1006,45 +1041,26 @@ uint32_t SymbolFileNativePDB::ResolveSymbolContext(
 }
 
 uint32_t SymbolFileNativePDB::ResolveSymbolContext(
-    const FileSpec &file_spec, uint32_t line, bool check_inlines,
+    const SourceLocationSpec &src_location_spec,
     lldb::SymbolContextItem resolve_scope, SymbolContextList &sc_list) {
-  return 0;
-}
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  const uint32_t prev_size = sc_list.GetSize();
+  if (resolve_scope & eSymbolContextCompUnit) {
+    for (uint32_t cu_idx = 0, num_cus = GetNumCompileUnits(); cu_idx < num_cus;
+         ++cu_idx) {
+      CompileUnit *cu = ParseCompileUnitAtIndex(cu_idx).get();
+      if (!cu)
+        continue;
 
-static void AppendLineEntryToSequence(LineTable &table, LineSequence &sequence,
-                                      const CompilandIndexItem &cci,
-                                      lldb::addr_t base_addr,
-                                      uint32_t file_number,
-                                      const LineFragmentHeader &block,
-                                      const LineNumberEntry &cur) {
-  LineInfo cur_info(cur.Flags);
-
-  if (cur_info.isAlwaysStepInto() || cur_info.isNeverStepInto())
-    return;
-
-  uint64_t addr = base_addr + cur.Offset;
-
-  bool is_statement = cur_info.isStatement();
-  bool is_prologue = IsFunctionPrologue(cci, addr);
-  bool is_epilogue = IsFunctionEpilogue(cci, addr);
-
-  uint32_t lno = cur_info.getStartLine();
-
-  table.AppendLineEntryToSequence(&sequence, addr, lno, 0, file_number,
-                                  is_statement, false, is_prologue, is_epilogue,
-                                  false);
-}
-
-static void TerminateLineSequence(LineTable &table,
-                                  const LineFragmentHeader &block,
-                                  lldb::addr_t base_addr, uint32_t file_number,
-                                  uint32_t last_line,
-                                  std::unique_ptr<LineSequence> seq) {
-  // The end is always a terminal entry, so insert it regardless.
-  table.AppendLineEntryToSequence(seq.get(), base_addr + block.CodeSize,
-                                  last_line, 0, file_number, false, false,
-                                  false, false, true);
-  table.InsertSequence(seq.release());
+      bool file_spec_matches_cu_file_spec = FileSpec::Match(
+          src_location_spec.GetFileSpec(), cu->GetPrimaryFile());
+      if (file_spec_matches_cu_file_spec) {
+        cu->ResolveSymbolContext(src_location_spec, resolve_scope, sc_list);
+        break;
+      }
+    }
+  }
+  return sc_list.GetSize() - prev_size;
 }
 
 bool SymbolFileNativePDB::ParseLineTable(CompileUnit &comp_unit) {
@@ -1052,18 +1068,24 @@ bool SymbolFileNativePDB::ParseLineTable(CompileUnit &comp_unit) {
   // all at once, even if all it really needs is line info for a specific
   // function.  In the future it would be nice if it could set the sc.m_function
   // member, and we could only get the line info for the function in question.
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   PdbSymUid cu_id(comp_unit.GetID());
   lldbassert(cu_id.kind() == PdbSymUidKind::Compiland);
-  CompilandIndexItem *cci =
-      m_index->compilands().GetCompiland(cu_id.asCompiland().modi);
-  lldbassert(cci);
-  auto line_table = llvm::make_unique<LineTable>(&comp_unit);
+  uint16_t modi = cu_id.asCompiland().modi;
+  CompilandIndexItem *cii = m_index->compilands().GetCompiland(modi);
+  lldbassert(cii);
+
+  // Parse DEBUG_S_LINES subsections first, then parse all S_INLINESITE records
+  // in this CU. Add line entries into the set first so that if there are line
+  // entries with same addres, the later is always more accurate than the
+  // former.
+  std::set<LineTable::Entry, LineTableEntryComparator> line_set;
 
   // This is basically a copy of the .debug$S subsections from all original COFF
   // object files merged together with address relocations applied.  We are
   // looking for all DEBUG_S_LINES subsections.
   for (const DebugSubsectionRecord &dssr :
-       cci->m_debug_stream.getSubsectionsArray()) {
+       cii->m_debug_stream.getSubsectionsArray()) {
     if (dssr.kind() != DebugSubsectionKind::Lines)
       continue;
 
@@ -1078,43 +1100,115 @@ bool SymbolFileNativePDB::ParseLineTable(CompileUnit &comp_unit) {
     uint64_t virtual_addr =
         m_index->MakeVirtualAddress(lfh->RelocSegment, lfh->RelocOffset);
 
-    const auto &checksums = cci->m_strings.checksums().getArray();
-    const auto &strings = cci->m_strings.strings();
     for (const LineColumnEntry &group : lines) {
-      // Indices in this structure are actually offsets of records in the
-      // DEBUG_S_FILECHECKSUMS subsection.  Those entries then have an index
-      // into the global PDB string table.
-      auto iter = checksums.at(group.NameIndex);
-      if (iter == checksums.end())
+      llvm::Expected<uint32_t> file_index_or_err =
+          GetFileIndex(*cii, group.NameIndex);
+      if (!file_index_or_err)
         continue;
-
-      llvm::Expected<llvm::StringRef> efn =
-          strings.getString(iter->FileNameOffset);
-      if (!efn) {
-        llvm::consumeError(efn.takeError());
-        continue;
-      }
-
-      // LLDB wants the index of the file in the list of support files.
-      auto fn_iter = llvm::find(cci->m_file_list, *efn);
-      lldbassert(fn_iter != cci->m_file_list.end());
-      // LLDB support file indices are 1-based.
-      uint32_t file_index =
-          1 + std::distance(cci->m_file_list.begin(), fn_iter);
-
-      std::unique_ptr<LineSequence> sequence(
-          line_table->CreateLineSequenceContainer());
+      uint32_t file_index = file_index_or_err.get();
       lldbassert(!group.LineNumbers.empty());
-
+      CompilandIndexItem::GlobalLineTable::Entry line_entry(
+          LLDB_INVALID_ADDRESS, 0);
       for (const LineNumberEntry &entry : group.LineNumbers) {
-        AppendLineEntryToSequence(*line_table, *sequence, *cci, virtual_addr,
-                                  file_index, *lfh, entry);
+        LineInfo cur_info(entry.Flags);
+
+        if (cur_info.isAlwaysStepInto() || cur_info.isNeverStepInto())
+          continue;
+
+        uint64_t addr = virtual_addr + entry.Offset;
+
+        bool is_statement = cur_info.isStatement();
+        bool is_prologue = IsFunctionPrologue(*cii, addr);
+        bool is_epilogue = IsFunctionEpilogue(*cii, addr);
+
+        uint32_t lno = cur_info.getStartLine();
+
+        LineTable::Entry new_entry(addr, lno, 0, file_index, is_statement, false,
+                                 is_prologue, is_epilogue, false);
+        // Terminal entry has lower precedence than new entry.
+        auto iter = line_set.find(new_entry);
+        if (iter != line_set.end() && iter->is_terminal_entry)
+          line_set.erase(iter);
+        line_set.insert(new_entry);
+
+        if (line_entry.GetRangeBase() != LLDB_INVALID_ADDRESS) {
+          line_entry.SetRangeEnd(addr);
+          cii->m_global_line_table.Append(line_entry);
+        }
+        line_entry.SetRangeBase(addr);
+        line_entry.data = {file_index, lno};
       }
       LineInfo last_line(group.LineNumbers.back().Flags);
-      TerminateLineSequence(*line_table, *lfh, virtual_addr, file_index,
-                            last_line.getEndLine(), std::move(sequence));
+      line_set.emplace(virtual_addr + lfh->CodeSize, last_line.getEndLine(), 0,
+                       file_index, false, false, false, false, true);
+
+      if (line_entry.GetRangeBase() != LLDB_INVALID_ADDRESS) {
+        line_entry.SetRangeEnd(virtual_addr + lfh->CodeSize);
+        cii->m_global_line_table.Append(line_entry);
+      }
     }
   }
+
+  cii->m_global_line_table.Sort();
+
+  // Parse all S_INLINESITE in this CU.
+  const CVSymbolArray &syms = cii->m_debug_stream.getSymbolArray();
+  for (auto iter = syms.begin(); iter != syms.end();) {
+    if (iter->kind() != S_LPROC32 && iter->kind() != S_GPROC32) {
+      ++iter;
+      continue;
+    }
+
+    uint32_t record_offset = iter.offset();
+    CVSymbol func_record =
+        cii->m_debug_stream.readSymbolAtOffset(record_offset);
+    SegmentOffsetLength sol = GetSegmentOffsetAndLength(func_record);
+    addr_t file_vm_addr = m_index->MakeVirtualAddress(sol.so);
+    AddressRange func_range(file_vm_addr, sol.length,
+                            comp_unit.GetModule()->GetSectionList());
+    Address func_base = func_range.GetBaseAddress();
+    PdbCompilandSymId func_id{modi, record_offset};
+
+    // Iterate all S_INLINESITEs in the function.
+    auto parse_inline_sites = [&](SymbolKind kind, PdbCompilandSymId id) {
+      if (kind != S_INLINESITE)
+        return false;
+
+      ParseInlineSite(id, func_base);
+
+      for (const auto &line_entry :
+           m_inline_sites[toOpaqueUid(id)]->line_entries) {
+        // If line_entry is not terminal entry, remove previous line entry at
+        // the same address and insert new one. Terminal entry inside an inline
+        // site might not be terminal entry for its parent.
+        if (!line_entry.is_terminal_entry)
+          line_set.erase(line_entry);
+        line_set.insert(line_entry);
+      }
+      // No longer useful after adding to line_set.
+      m_inline_sites[toOpaqueUid(id)]->line_entries.clear();
+      return true;
+    };
+    ParseSymbolArrayInScope(func_id, parse_inline_sites);
+    // Jump to the end of the function record.
+    iter = syms.at(getScopeEndOffset(func_record));
+  }
+
+  cii->m_global_line_table.Clear();
+
+  // Add line entries in line_set to line_table.
+  auto line_table = std::make_unique<LineTable>(&comp_unit);
+  std::unique_ptr<LineSequence> sequence(
+      line_table->CreateLineSequenceContainer());
+  for (const auto &line_entry : line_set) {
+    line_table->AppendLineEntryToSequence(
+        sequence.get(), line_entry.file_addr, line_entry.line,
+        line_entry.column, line_entry.file_idx,
+        line_entry.is_start_of_statement, line_entry.is_start_of_basic_block,
+        line_entry.is_prologue_end, line_entry.is_epilogue_begin,
+        line_entry.is_terminal_entry);
+  }
+  line_table->InsertSequence(sequence.get());
 
   if (line_table->GetSize() == 0)
     return false;
@@ -1128,8 +1222,36 @@ bool SymbolFileNativePDB::ParseDebugMacros(CompileUnit &comp_unit) {
   return false;
 }
 
+llvm::Expected<uint32_t>
+SymbolFileNativePDB::GetFileIndex(const CompilandIndexItem &cii,
+                                  uint32_t file_id) {
+  auto index_iter = m_file_indexes.find(file_id);
+  if (index_iter != m_file_indexes.end())
+    return index_iter->getSecond();
+  const auto &checksums = cii.m_strings.checksums().getArray();
+  const auto &strings = cii.m_strings.strings();
+  // Indices in this structure are actually offsets of records in the
+  // DEBUG_S_FILECHECKSUMS subsection.  Those entries then have an index
+  // into the global PDB string table.
+  auto iter = checksums.at(file_id);
+  if (iter == checksums.end())
+    return llvm::make_error<RawError>(raw_error_code::no_entry);
+
+  llvm::Expected<llvm::StringRef> efn = strings.getString(iter->FileNameOffset);
+  if (!efn) {
+    return efn.takeError();
+  }
+
+  // LLDB wants the index of the file in the list of support files.
+  auto fn_iter = llvm::find(cii.m_file_list, *efn);
+  lldbassert(fn_iter != cii.m_file_list.end());
+  m_file_indexes[file_id] = std::distance(cii.m_file_list.begin(), fn_iter);
+  return m_file_indexes[file_id];
+}
+
 bool SymbolFileNativePDB::ParseSupportFiles(CompileUnit &comp_unit,
                                             FileSpecList &support_files) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   PdbSymUid cu_id(comp_unit.GetID());
   lldbassert(cu_id.kind() == PdbSymUidKind::Compiland);
   CompilandIndexItem *cci =
@@ -1142,14 +1264,6 @@ bool SymbolFileNativePDB::ParseSupportFiles(CompileUnit &comp_unit,
     FileSpec spec(f, style);
     support_files.Append(spec);
   }
-
-  llvm::SmallString<64> main_source_file =
-      m_index->compilands().GetMainSourceFile(*cci);
-  FileSpec::Style style = main_source_file.startswith("/")
-                              ? FileSpec::Style::posix
-                              : FileSpec::Style::windows;
-  FileSpec spec(main_source_file, style);
-  support_files.Insert(0, spec);
   return true;
 }
 
@@ -1159,17 +1273,231 @@ bool SymbolFileNativePDB::ParseImportedModules(
   return false;
 }
 
+void SymbolFileNativePDB::ParseInlineSite(PdbCompilandSymId id,
+                                          Address func_addr) {
+  lldb::user_id_t opaque_uid = toOpaqueUid(id);
+  if (m_inline_sites.find(opaque_uid) != m_inline_sites.end())
+    return;
+
+  addr_t func_base = func_addr.GetFileAddress();
+  CompilandIndexItem *cii = m_index->compilands().GetCompiland(id.modi);
+  CVSymbol sym = cii->m_debug_stream.readSymbolAtOffset(id.offset);
+  CompUnitSP comp_unit = GetOrCreateCompileUnit(*cii);
+
+  InlineSiteSym inline_site(static_cast<SymbolRecordKind>(sym.kind()));
+  cantFail(SymbolDeserializer::deserializeAs<InlineSiteSym>(sym, inline_site));
+  PdbCompilandSymId parent_id(id.modi, inline_site.Parent);
+
+  std::shared_ptr<InlineSite> inline_site_sp =
+      std::make_shared<InlineSite>(parent_id);
+
+  // Get the inlined function declaration info.
+  auto iter = cii->m_inline_map.find(inline_site.Inlinee);
+  if (iter == cii->m_inline_map.end())
+    return;
+  InlineeSourceLine inlinee_line = iter->second;
+
+  const FileSpecList &files = comp_unit->GetSupportFiles();
+  FileSpec decl_file;
+  llvm::Expected<uint32_t> file_index_or_err =
+      GetFileIndex(*cii, inlinee_line.Header->FileID);
+  if (!file_index_or_err)
+    return;
+  uint32_t decl_file_idx = file_index_or_err.get();
+  decl_file = files.GetFileSpecAtIndex(decl_file_idx);
+  uint32_t decl_line = inlinee_line.Header->SourceLineNum;
+  std::unique_ptr<Declaration> decl_up =
+      std::make_unique<Declaration>(decl_file, decl_line);
+
+  // Parse range and line info.
+  uint32_t code_offset = 0;
+  int32_t line_offset = 0;
+  bool has_base = false;
+  bool is_new_line_offset = false;
+
+  bool is_start_of_statement = false;
+  // The first instruction is the prologue end.
+  bool is_prologue_end = true;
+
+  auto change_code_offset = [&](uint32_t code_delta) {
+    if (has_base) {
+      inline_site_sp->ranges.Append(RangeSourceLineVector::Entry(
+          code_offset, code_delta, decl_line + line_offset));
+      is_prologue_end = false;
+      is_start_of_statement = false;
+    } else {
+      is_start_of_statement = true;
+    }
+    has_base = true;
+    code_offset += code_delta;
+
+    if (is_new_line_offset) {
+      LineTable::Entry line_entry(func_base + code_offset,
+                                  decl_line + line_offset, 0, decl_file_idx,
+                                  true, false, is_prologue_end, false, false);
+      inline_site_sp->line_entries.push_back(line_entry);
+      is_new_line_offset = false;
+    }
+  };
+  auto change_code_length = [&](uint32_t length) {
+    inline_site_sp->ranges.Append(RangeSourceLineVector::Entry(
+        code_offset, length, decl_line + line_offset));
+    has_base = false;
+
+    LineTable::Entry end_line_entry(func_base + code_offset + length,
+                                    decl_line + line_offset, 0, decl_file_idx,
+                                    false, false, false, false, true);
+    inline_site_sp->line_entries.push_back(end_line_entry);
+  };
+  auto change_line_offset = [&](int32_t line_delta) {
+    line_offset += line_delta;
+    if (has_base) {
+      LineTable::Entry line_entry(
+          func_base + code_offset, decl_line + line_offset, 0, decl_file_idx,
+          is_start_of_statement, false, is_prologue_end, false, false);
+      inline_site_sp->line_entries.push_back(line_entry);
+    } else {
+      // Add line entry in next call to change_code_offset.
+      is_new_line_offset = true;
+    }
+  };
+
+  for (auto &annot : inline_site.annotations()) {
+    switch (annot.OpCode) {
+    case BinaryAnnotationsOpCode::CodeOffset:
+    case BinaryAnnotationsOpCode::ChangeCodeOffset:
+    case BinaryAnnotationsOpCode::ChangeCodeOffsetBase:
+      change_code_offset(annot.U1);
+      break;
+    case BinaryAnnotationsOpCode::ChangeLineOffset:
+      change_line_offset(annot.S1);
+      break;
+    case BinaryAnnotationsOpCode::ChangeCodeLength:
+      change_code_length(annot.U1);
+      code_offset += annot.U1;
+      break;
+    case BinaryAnnotationsOpCode::ChangeCodeOffsetAndLineOffset:
+      change_code_offset(annot.U1);
+      change_line_offset(annot.S1);
+      break;
+    case BinaryAnnotationsOpCode::ChangeCodeLengthAndCodeOffset:
+      change_code_offset(annot.U2);
+      change_code_length(annot.U1);
+      break;
+    default:
+      break;
+    }
+  }
+
+  inline_site_sp->ranges.Sort();
+  inline_site_sp->ranges.CombineConsecutiveEntriesWithEqualData();
+
+  // Get the inlined function callsite info.
+  std::unique_ptr<Declaration> callsite_up;
+  if (!inline_site_sp->ranges.IsEmpty()) {
+    auto *entry = inline_site_sp->ranges.GetEntryAtIndex(0);
+    addr_t base_offset = entry->GetRangeBase();
+    if (cii->m_debug_stream.readSymbolAtOffset(parent_id.offset).kind() ==
+        S_INLINESITE) {
+      // Its parent is another inline site, lookup parent site's range vector
+      // for callsite line.
+      ParseInlineSite(parent_id, func_base);
+      std::shared_ptr<InlineSite> parent_site =
+          m_inline_sites[toOpaqueUid(parent_id)];
+      FileSpec &parent_decl_file =
+          parent_site->inline_function_info->GetDeclaration().GetFile();
+      if (auto *parent_entry =
+              parent_site->ranges.FindEntryThatContains(base_offset)) {
+        callsite_up =
+            std::make_unique<Declaration>(parent_decl_file, parent_entry->data);
+      }
+    } else {
+      // Its parent is a function, lookup global line table for callsite.
+      if (auto *entry = cii->m_global_line_table.FindEntryThatContains(
+              func_base + base_offset)) {
+        const FileSpec &callsite_file =
+            files.GetFileSpecAtIndex(entry->data.first);
+        callsite_up =
+            std::make_unique<Declaration>(callsite_file, entry->data.second);
+      }
+    }
+  }
+
+  // Get the inlined function name.
+  CVType inlinee_cvt = m_index->ipi().getType(inline_site.Inlinee);
+  std::string inlinee_name;
+  if (inlinee_cvt.kind() == LF_MFUNC_ID) {
+    MemberFuncIdRecord mfr;
+    cantFail(
+        TypeDeserializer::deserializeAs<MemberFuncIdRecord>(inlinee_cvt, mfr));
+    LazyRandomTypeCollection &types = m_index->tpi().typeCollection();
+    inlinee_name.append(std::string(types.getTypeName(mfr.ClassType)));
+    inlinee_name.append("::");
+    inlinee_name.append(mfr.getName().str());
+  } else if (inlinee_cvt.kind() == LF_FUNC_ID) {
+    FuncIdRecord fir;
+    cantFail(TypeDeserializer::deserializeAs<FuncIdRecord>(inlinee_cvt, fir));
+    TypeIndex parent_idx = fir.getParentScope();
+    if (!parent_idx.isNoneType()) {
+      LazyRandomTypeCollection &ids = m_index->ipi().typeCollection();
+      inlinee_name.append(std::string(ids.getTypeName(parent_idx)));
+      inlinee_name.append("::");
+    }
+    inlinee_name.append(fir.getName().str());
+  }
+  inline_site_sp->inline_function_info = std::make_shared<InlineFunctionInfo>(
+      inlinee_name.c_str(), llvm::StringRef(), decl_up.get(),
+      callsite_up.get());
+
+  m_inline_sites[opaque_uid] = inline_site_sp;
+}
+
 size_t SymbolFileNativePDB::ParseBlocksRecursive(Function &func) {
-  GetOrCreateBlock(PdbSymUid(func.GetID()).asCompilandSym());
-  // FIXME: Parse child blocks
-  return 1;
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  PdbCompilandSymId func_id = PdbSymUid(func.GetID()).asCompilandSym();
+  // After we iterate through inline sites inside the function, we already get
+  // all the info needed, removing from the map to save memory.
+  std::set<uint64_t> remove_uids;
+  auto parse_blocks = [&](SymbolKind kind, PdbCompilandSymId id) {
+    if (kind == S_GPROC32 || kind == S_LPROC32 || kind == S_BLOCK32 ||
+        kind == S_INLINESITE) {
+      GetOrCreateBlock(id);
+      if (kind == S_INLINESITE)
+        remove_uids.insert(toOpaqueUid(id));
+      return true;
+    }
+    return false;
+  };
+  size_t count = ParseSymbolArrayInScope(func_id, parse_blocks);
+  for (uint64_t uid : remove_uids) {
+    m_inline_sites.erase(uid);
+  }
+  return count;
+}
+
+size_t SymbolFileNativePDB::ParseSymbolArrayInScope(
+    PdbCompilandSymId parent_id,
+    llvm::function_ref<bool(SymbolKind, PdbCompilandSymId)> fn) {
+  CompilandIndexItem *cii = m_index->compilands().GetCompiland(parent_id.modi);
+  CVSymbolArray syms =
+      cii->m_debug_stream.getSymbolArrayForScope(parent_id.offset);
+
+  size_t count = 1;
+  for (auto iter = syms.begin(); iter != syms.end(); ++iter) {
+    PdbCompilandSymId child_id(parent_id.modi, iter.offset());
+    if (fn(iter->kind(), child_id))
+      ++count;
+  }
+
+  return count;
 }
 
 void SymbolFileNativePDB::DumpClangAST(Stream &s) { m_ast->Dump(s); }
 
-uint32_t SymbolFileNativePDB::FindGlobalVariables(
-    ConstString name, const CompilerDeclContext *parent_decl_ctx,
+void SymbolFileNativePDB::FindGlobalVariables(
+    ConstString name, const CompilerDeclContext &parent_decl_ctx,
     uint32_t max_matches, VariableList &variables) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   using SymbolAndOffset = std::pair<uint32_t, llvm::codeview::CVSymbol>;
 
   std::vector<SymbolAndOffset> results = m_index->globals().findRecordsByName(
@@ -1191,16 +1519,17 @@ uint32_t SymbolFileNativePDB::FindGlobalVariables(
       continue;
     }
   }
-  return variables.GetSize();
 }
 
-uint32_t SymbolFileNativePDB::FindFunctions(
-    ConstString name, const CompilerDeclContext *parent_decl_ctx,
-    FunctionNameType name_type_mask, bool include_inlines, bool append,
+void SymbolFileNativePDB::FindFunctions(
+    ConstString name, const CompilerDeclContext &parent_decl_ctx,
+    FunctionNameType name_type_mask, bool include_inlines,
     SymbolContextList &sc_list) {
-  // For now we only support lookup by method name.
-  if (!(name_type_mask & eFunctionNameTypeMethod))
-    return 0;
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  // For now we only support lookup by method name or full name.
+  if (!(name_type_mask & eFunctionNameTypeFull ||
+        name_type_mask & eFunctionNameTypeMethod))
+    return;
 
   using SymbolAndOffset = std::pair<uint32_t, llvm::codeview::CVSymbol>;
 
@@ -1225,45 +1554,35 @@ uint32_t SymbolFileNativePDB::FindFunctions(
 
     sc_list.Append(sc);
   }
-
-  return sc_list.GetSize();
 }
 
-uint32_t SymbolFileNativePDB::FindFunctions(const RegularExpression &regex,
-                                            bool include_inlines, bool append,
-                                            SymbolContextList &sc_list) {
-  return 0;
-}
+void SymbolFileNativePDB::FindFunctions(const RegularExpression &regex,
+                                        bool include_inlines,
+                                        SymbolContextList &sc_list) {}
 
-uint32_t SymbolFileNativePDB::FindTypes(
-    ConstString name, const CompilerDeclContext *parent_decl_ctx,
-    bool append, uint32_t max_matches,
-    llvm::DenseSet<SymbolFile *> &searched_symbol_files, TypeMap &types) {
-  if (!append)
-    types.Clear();
+void SymbolFileNativePDB::FindTypes(
+    ConstString name, const CompilerDeclContext &parent_decl_ctx,
+    uint32_t max_matches, llvm::DenseSet<SymbolFile *> &searched_symbol_files,
+    TypeMap &types) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   if (!name)
-    return 0;
+    return;
 
   searched_symbol_files.clear();
   searched_symbol_files.insert(this);
 
   // There is an assumption 'name' is not a regex
-  size_t match_count = FindTypesByName(name.GetStringRef(), max_matches, types);
-
-  return match_count;
+  FindTypesByName(name.GetStringRef(), max_matches, types);
 }
 
-size_t
-SymbolFileNativePDB::FindTypes(const std::vector<CompilerContext> &context,
-                               bool append, TypeMap &types) {
-  return 0;
-}
+void SymbolFileNativePDB::FindTypes(
+    llvm::ArrayRef<CompilerContext> pattern, LanguageSet languages,
+    llvm::DenseSet<SymbolFile *> &searched_symbol_files, TypeMap &types) {}
 
-size_t SymbolFileNativePDB::FindTypesByName(llvm::StringRef name,
-                                            uint32_t max_matches,
-                                            TypeMap &types) {
+void SymbolFileNativePDB::FindTypesByName(llvm::StringRef name,
+                                          uint32_t max_matches,
+                                          TypeMap &types) {
 
-  size_t match_count = 0;
   std::vector<TypeIndex> matches = m_index->tpi().findRecordsByName(name);
   if (max_matches > 0 && max_matches < matches.size())
     matches.resize(max_matches);
@@ -1274,17 +1593,16 @@ size_t SymbolFileNativePDB::FindTypesByName(llvm::StringRef name,
       continue;
 
     types.Insert(type);
-    ++match_count;
   }
-  return match_count;
 }
 
 size_t SymbolFileNativePDB::ParseTypes(CompileUnit &comp_unit) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   // Only do the full type scan the first time.
   if (m_done_full_type_scan)
     return 0;
 
-  size_t old_count = m_obj_file->GetModule()->GetTypeList()->GetSize();
+  const size_t old_count = GetTypeList().GetSize();
   LazyRandomTypeCollection &types = m_index->tpi().typeCollection();
 
   // First process the entire TPI stream.
@@ -1314,7 +1632,7 @@ size_t SymbolFileNativePDB::ParseTypes(CompileUnit &comp_unit) {
       GetOrCreateTypedef(global);
   }
 
-  size_t new_count = m_obj_file->GetModule()->GetTypeList()->GetSize();
+  const size_t new_count = GetTypeList().GetSize();
 
   m_done_full_type_scan = true;
 
@@ -1347,12 +1665,17 @@ VariableSP SymbolFileNativePDB::CreateLocalVariable(PdbCompilandSymId scope_id,
   SymbolFileTypeSP sftype =
       std::make_shared<SymbolFileType>(*this, type_sp->GetID());
 
+  is_param |= var_info.is_param;
   ValueType var_scope =
       is_param ? eValueTypeVariableArgument : eValueTypeVariableLocal;
+  bool external = false;
+  bool artificial = false;
+  bool location_is_constant_data = false;
+  bool static_member = false;
   VariableSP var_sp = std::make_shared<Variable>(
       toOpaqueUid(var_id), name.c_str(), name.c_str(), sftype, var_scope,
-      comp_unit_sp.get(), *var_info.ranges, &decl, *var_info.location, false,
-      false, false);
+      &block, *var_info.ranges, &decl, *var_info.location, external,
+      artificial, location_is_constant_data, static_member);
 
   if (!is_param)
     m_ast->GetOrCreateVariableDecl(scope_id, var_id);
@@ -1382,10 +1705,11 @@ TypeSP SymbolFileNativePDB::CreateTypedef(PdbGlobalSymId id) {
 
   Declaration decl;
   return std::make_shared<lldb_private::Type>(
-      toOpaqueUid(id), this, ConstString(udt.Name), target_type->GetByteSize(),
-      nullptr, target_type->GetID(), lldb_private::Type::eEncodingIsTypedefUID,
-      decl, target_type->GetForwardCompilerType(),
-      lldb_private::Type::eResolveStateForward);
+      toOpaqueUid(id), this, ConstString(udt.Name),
+      target_type->GetByteSize(nullptr), nullptr, target_type->GetID(),
+      lldb_private::Type::eEncodingIsTypedefUID, decl,
+      target_type->GetForwardCompilerType(),
+      lldb_private::Type::ResolveState::Forward);
 }
 
 TypeSP SymbolFileNativePDB::GetOrCreateTypedef(PdbGlobalSymId id) {
@@ -1417,6 +1741,8 @@ size_t SymbolFileNativePDB::ParseVariablesForBlock(PdbCompilandSymId block_id) {
   }
   case S_BLOCK32:
     break;
+  case S_INLINESITE:
+    break;
   default:
     lldbassert(false && "Symbol is not a block!");
     return 0;
@@ -1443,8 +1769,10 @@ size_t SymbolFileNativePDB::ParseVariablesForBlock(PdbCompilandSymId block_id) {
     PdbCompilandSymId child_sym_id(block_id.modi, record_offset);
     ++iter;
 
-    // If this is a block, recurse into its children and then skip it.
-    if (variable_cvs.kind() == S_BLOCK32) {
+    // If this is a block or inline site, recurse into its children and then
+    // skip it.
+    if (variable_cvs.kind() == S_BLOCK32 ||
+        variable_cvs.kind() == S_INLINESITE) {
       uint32_t block_end = getScopeEndOffset(variable_cvs);
       count += ParseVariablesForBlock(child_sym_id);
       iter = syms.at(block_end);
@@ -1476,6 +1804,7 @@ size_t SymbolFileNativePDB::ParseVariablesForBlock(PdbCompilandSymId block_id) {
 }
 
 size_t SymbolFileNativePDB::ParseVariablesForContext(const SymbolContext &sc) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   lldbassert(sc.function || sc.comp_unit);
 
   VariableListSP variables;
@@ -1506,9 +1835,10 @@ size_t SymbolFileNativePDB::ParseVariablesForContext(const SymbolContext &sc) {
 }
 
 CompilerDecl SymbolFileNativePDB::GetDeclForUID(lldb::user_id_t uid) {
-  clang::Decl *decl = m_ast->GetOrCreateDeclForUid(PdbSymUid(uid));
-
-  return m_ast->ToCompilerDecl(*decl);
+  if (auto decl = m_ast->GetOrCreateDeclForUid(uid))
+    return decl.getValue();
+  else
+    return CompilerDecl();
 }
 
 CompilerDeclContext
@@ -1528,6 +1858,7 @@ SymbolFileNativePDB::GetDeclContextContainingUID(lldb::user_id_t uid) {
 }
 
 Type *SymbolFileNativePDB::ResolveTypeUID(lldb::user_id_t type_uid) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   auto iter = m_types.find(type_uid);
   // lldb should not be passing us non-sensical type uids.  the only way it
   // could have a type uid in the first place is if we handed it out, in which
@@ -1561,30 +1892,28 @@ bool SymbolFileNativePDB::CompleteType(CompilerType &compiler_type) {
   return m_ast->CompleteType(qt);
 }
 
-size_t SymbolFileNativePDB::GetTypes(lldb_private::SymbolContextScope *sc_scope,
-                                     TypeClass type_mask,
-                                     lldb_private::TypeList &type_list) {
-  return 0;
-}
+void SymbolFileNativePDB::GetTypes(lldb_private::SymbolContextScope *sc_scope,
+                                   TypeClass type_mask,
+                                   lldb_private::TypeList &type_list) {}
 
 CompilerDeclContext
 SymbolFileNativePDB::FindNamespace(ConstString name,
-                                   const CompilerDeclContext *parent_decl_ctx) {
+                                   const CompilerDeclContext &parent_decl_ctx) {
   return {};
 }
 
-TypeSystem *
+llvm::Expected<TypeSystem &>
 SymbolFileNativePDB::GetTypeSystemForLanguage(lldb::LanguageType language) {
-  auto type_system =
-      m_obj_file->GetModule()->GetTypeSystemForLanguage(language);
-  if (type_system)
-    type_system->SetSymbolFile(this);
-  return type_system;
+  auto type_system_or_err =
+      m_objfile_sp->GetModule()->GetTypeSystemForLanguage(language);
+  if (type_system_or_err) {
+    type_system_or_err->SetSymbolFile(this);
+  }
+  return type_system_or_err;
 }
 
-ConstString SymbolFileNativePDB::GetPluginName() {
-  static ConstString g_name("pdb");
-  return g_name;
+uint64_t SymbolFileNativePDB::GetDebugInfoSize() {
+  // PDB files are a separate file that contains all debug info.
+  return m_index->pdb().getFileSize();
 }
 
-uint32_t SymbolFileNativePDB::GetPluginVersion() { return 1; }

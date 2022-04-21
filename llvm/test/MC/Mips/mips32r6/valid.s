@@ -126,7 +126,6 @@ a:
         lapc    $4, 100          # CHECK: lapc $4, 100     # encoding: [0xec,0x80,0x00,0x19]
         lsa     $2, $3, $4, 3    # CHECK: lsa  $2, $3, $4, 3 # encoding: [0x00,0x64,0x10,0x85]
         lwpc    $2,268           # CHECK: lwpc $2, 268     # encoding: [0xec,0x48,0x00,0x43]
-        lwupc   $2,268           # CHECK: lwupc $2, 268    # encoding: [0xec,0x50,0x00,0x43]
         mfc0    $8,$15,1         # CHECK: mfc0 $8, $15, 1  # encoding: [0x40,0x08,0x78,0x01]
         mod     $2,$3,$4         # CHECK: mod $2, $3, $4   # encoding: [0x00,0x64,0x10,0xda]
         modu    $2,$3,$4         # CHECK: modu $2, $3, $4  # encoding: [0x00,0x64,0x10,0xdb]
@@ -150,8 +149,7 @@ a:
         not       $3, $4         # CHECK: not $3, $4             # encoding: [0x00,0x80,0x18,0x27]
         not       $3             # CHECK: not $3, $3             # encoding: [0x00,0x60,0x18,0x27]
         pause                    # CHECK: pause                  # encoding:  [0x00,0x00,0x01,0x40]
-                                 # CHECK-NEXT:                   # <MCInst #{{[0-9]+}} PAUSE
-                                 # CHECK-NOT                     # <MCInst #{{[0-9}+}} PAUSE_MM
+                                 # CHECK-NEXT:                   # <MCInst #{{[0-9]+}} PAUSE>
         pref    1, 8($5)         # CHECK: pref 1, 8($5)          # encoding: [0x7c,0xa1,0x04,0x35]
                                  # CHECK-NEXT:                   # <MCInst #{{.*}} PREF_R6
         # FIXME: Use the code generator in order to print the .set directives

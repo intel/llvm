@@ -15,6 +15,7 @@
 
 #include "OSTargets.h"
 #include "clang/Basic/TargetBuiltins.h"
+#include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/TargetParser.h"
 
 namespace clang {
@@ -28,24 +29,48 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   enum FPUModeEnum { FPUMode, NeonMode = (1 << 0), SveMode = (1 << 1) };
 
   unsigned FPU;
-  unsigned CRC;
-  unsigned Crypto;
-  unsigned Unaligned;
-  unsigned HasFullFP16;
-  unsigned HasDotProd;
-  unsigned HasFP16FML;
-  unsigned HasMTE;
+  bool HasCRC;
+  bool HasAES;
+  bool HasSHA2;
+  bool HasSHA3;
+  bool HasSM4;
+  bool HasUnaligned;
+  bool HasFullFP16;
+  bool HasDotProd;
+  bool HasFP16FML;
+  bool HasMTE;
+  bool HasTME;
+  bool HasPAuth;
+  bool HasLS64;
+  bool HasRandGen;
+  bool HasMatMul;
+  bool HasSVE2;
+  bool HasSVE2AES;
+  bool HasSVE2SHA3;
+  bool HasSVE2SM4;
+  bool HasSVE2BitPerm;
+  bool HasMatmulFP64;
+  bool HasMatmulFP32;
+  bool HasLSE;
+  bool HasFlagM;
+  bool HasMOPS;
+
   llvm::AArch64::ArchKind ArchKind;
 
   static const Builtin::Info BuiltinInfo[];
 
   std::string ABI;
+  StringRef getArchProfile() const;
 
 public:
   AArch64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts);
 
   StringRef getABI() const override;
   bool setABI(const std::string &Name) override;
+
+  bool validateBranchProtection(StringRef Spec, StringRef Arch,
+                                BranchProtectionInfo &BPI,
+                                StringRef &Err) const override;
 
   bool isValidCPUName(StringRef Name) const override;
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
@@ -59,10 +84,33 @@ public:
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV82A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
+  void getTargetDefinesARMV83A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV84A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV85A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV86A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV87A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV88A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV9A(const LangOptions &Opts,
+                              MacroBuilder &Builder) const;
+  void getTargetDefinesARMV91A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV92A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV93A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 
   ArrayRef<Builtin::Info> getTargetBuiltins() const override;
+
+  Optional<std::pair<unsigned, unsigned>>
+  getVScaleRange(const LangOptions &LangOpts) const override;
 
   bool hasFeature(StringRef Feature) const override;
   bool handleTargetFeatures(std::vector<std::string> &Features,
@@ -76,6 +124,21 @@ public:
 
   ArrayRef<const char *> getGCCRegNames() const override;
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
+
+  std::string convertConstraint(const char *&Constraint) const override {
+    std::string R;
+    switch (*Constraint) {
+    case 'U': // Three-character constraint; add "@3" hint for later parsing.
+      R = std::string("@3") + std::string(Constraint, 3);
+      Constraint += 2;
+      break;
+    default:
+      R = TargetInfo::convertConstraint(Constraint);
+      break;
+    }
+    return R;
+  }
+
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &Info) const override;
   bool
@@ -89,6 +152,11 @@ public:
   }
 
   int getEHDataRegisterNumber(unsigned RegNo) const override;
+
+  const char *getBFloat16Mangling() const override { return "u6__bf16"; };
+  bool hasInt128Type() const override;
+
+  bool hasBitIntType() const override { return true; }
 };
 
 class LLVM_LIBRARY_VISIBILITY AArch64leTargetInfo : public AArch64TargetInfo {
@@ -123,8 +191,6 @@ public:
   MicrosoftARM64TargetInfo(const llvm::Triple &Triple,
                            const TargetOptions &Opts);
 
-  void getVisualStudioDefines(const LangOptions &Opts,
-                              MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
   TargetInfo::CallingConvKind

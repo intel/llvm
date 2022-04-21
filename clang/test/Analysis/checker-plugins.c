@@ -1,5 +1,9 @@
 // REQUIRES: plugins
 
+// FIXME: This test fails on clang-stage2-cmake-RgSan,
+// see also https://reviews.llvm.org/D62445#1613268
+// UNSUPPORTED: darwin
+
 // RUN: %clang_analyze_cc1 -verify %s \
 // RUN:   -load %llvmshlibdir/SampleAnalyzerPlugin%pluginext \
 // RUN:   -analyzer-checker='example.MainCallChecker'
@@ -104,3 +108,13 @@ void caller() {
 // RUN:   2>&1 | FileCheck %s -check-prefix=CHECK-CORRECTED-BOOL-VALUE
 
 // CHECK-CORRECTED-BOOL-VALUE: example.MyChecker:ExampleOption = false
+
+// RUN: %clang_analyze_cc1 %s \
+// RUN:   -load %llvmshlibdir/CheckerOptionHandlingAnalyzerPlugin%pluginext\
+// RUN:   -analyzer-checker=example.MyChecker \
+// RUN:   -analyzer-checker-option-help \
+// RUN:   2>&1 | FileCheck %s -check-prefix=CHECK-CHECKER-OPTION-HELP
+
+// CHECK-CHECKER-OPTION-HELP: example.MyChecker:ExampleOption  (bool) This is an
+// CHECK-CHECKER-OPTION-HELP-SAME: example checker opt. (default:
+// CHECK-CHECKER-OPTION-HELP-NEXT: false)

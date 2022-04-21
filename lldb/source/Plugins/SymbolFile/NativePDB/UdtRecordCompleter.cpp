@@ -5,15 +5,19 @@
 #include "PdbSymUid.h"
 #include "PdbUtil.h"
 
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangASTImporter.h"
+#include "Plugins/ExpressionParser/Clang/ClangASTImporter.h"
+#include "Plugins/ExpressionParser/Clang/ClangUtil.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-forward.h"
 
+#include "llvm/DebugInfo/CodeView/SymbolDeserializer.h"
 #include "llvm/DebugInfo/CodeView/TypeDeserializer.h"
 #include "llvm/DebugInfo/CodeView/TypeIndex.h"
+#include "llvm/DebugInfo/PDB/Native/GlobalsStream.h"
 #include "llvm/DebugInfo/PDB/Native/TpiStream.h"
 #include "llvm/DebugInfo/PDB/PDBTypes.h"
 
@@ -25,14 +29,16 @@ using namespace lldb_private::npdb;
 
 using Error = llvm::Error;
 
-UdtRecordCompleter::UdtRecordCompleter(PdbTypeSymId id,
-                                       CompilerType &derived_ct,
-                                       clang::TagDecl &tag_decl,
-                                       PdbAstBuilder &ast_builder,
-                                       TpiStream &tpi)
+UdtRecordCompleter::UdtRecordCompleter(
+    PdbTypeSymId id, CompilerType &derived_ct, clang::TagDecl &tag_decl,
+    PdbAstBuilder &ast_builder, PdbIndex &index,
+    llvm::DenseMap<lldb::opaque_compiler_type_t,
+                   llvm::SmallSet<std::pair<llvm::StringRef, CompilerType>, 8>>
+        &cxx_record_map)
     : m_id(id), m_derived_ct(derived_ct), m_tag_decl(tag_decl),
-      m_ast_builder(ast_builder), m_tpi(tpi) {
-  CVType cvt = m_tpi.getType(m_id.index);
+      m_ast_builder(ast_builder), m_index(index),
+      m_cxx_record_map(cxx_record_map) {
+  CVType cvt = m_index.tpi().getType(m_id.index);
   switch (cvt.kind()) {
   case LF_ENUM:
     llvm::cantFail(TypeDeserializer::deserializeAs<EnumRecord>(cvt, m_cvr.er));
@@ -55,7 +61,7 @@ clang::QualType UdtRecordCompleter::AddBaseClassForTypeIndex(
   PdbTypeSymId type_id(ti);
   clang::QualType qt = m_ast_builder.GetOrCreateType(type_id);
 
-  CVType udt_cvt = m_tpi.getType(ti);
+  CVType udt_cvt = m_index.tpi().getType(ti);
 
   std::unique_ptr<clang::CXXBaseSpecifier> base_spec =
       m_ast_builder.clang().CreateBaseClassSpecifier(
@@ -75,14 +81,24 @@ void UdtRecordCompleter::AddMethod(llvm::StringRef name, TypeIndex type_idx,
   clang::QualType method_qt =
       m_ast_builder.GetOrCreateType(PdbTypeSymId(type_idx));
   m_ast_builder.CompleteType(method_qt);
+  CompilerType method_ct = m_ast_builder.ToCompilerType(method_qt);
+  lldb::opaque_compiler_type_t derived_opaque_ty = m_derived_ct.GetOpaqueQualType();
+  auto iter = m_cxx_record_map.find(derived_opaque_ty);
+  if (iter != m_cxx_record_map.end()) {
+    if (iter->getSecond().contains({name, method_ct})) {
+      return;
+    }
+  }
 
   lldb::AccessType access_type = TranslateMemberAccess(access);
   bool is_artificial = (options & MethodOptions::CompilerGenerated) ==
                        MethodOptions::CompilerGenerated;
   m_ast_builder.clang().AddMethodToCXXRecordType(
-      m_derived_ct.GetOpaqueQualType(), name.data(), nullptr,
-      m_ast_builder.ToCompilerType(method_qt), access_type, attrs.isVirtual(),
-      attrs.isStatic(), false, false, false, is_artificial);
+      derived_opaque_ty, name.data(), nullptr, method_ct,
+      access_type, attrs.isVirtual(), attrs.isStatic(), false, false, false,
+      is_artificial);
+
+  m_cxx_record_map[derived_opaque_ty].insert({name, method_ct});
 }
 
 Error UdtRecordCompleter::visitKnownMember(CVMemberRecord &cvr,
@@ -122,14 +138,73 @@ Error UdtRecordCompleter::visitKnownMember(
   clang::QualType member_type =
       m_ast_builder.GetOrCreateType(PdbTypeSymId(static_data_member.Type));
 
-  m_ast_builder.CompleteType(member_type);
-
   CompilerType member_ct = m_ast_builder.ToCompilerType(member_type);
 
   lldb::AccessType access =
       TranslateMemberAccess(static_data_member.getAccess());
-  ClangASTContext::AddVariableToRecordType(
+  auto decl = TypeSystemClang::AddVariableToRecordType(
       m_derived_ct, static_data_member.Name, member_ct, access);
+
+  // Static constant members may be a const[expr] declaration.
+  // Query the symbol's value as the variable initializer if valid.
+  if (member_ct.IsConst() && member_ct.IsCompleteType()) {
+    std::string qual_name = decl->getQualifiedNameAsString();
+
+    auto results =
+        m_index.globals().findRecordsByName(qual_name, m_index.symrecords());
+
+    for (const auto &result : results) {
+      if (result.second.kind() == SymbolKind::S_CONSTANT) {
+        ConstantSym constant(SymbolRecordKind::ConstantSym);
+        cantFail(SymbolDeserializer::deserializeAs<ConstantSym>(result.second,
+                                                                constant));
+
+        clang::QualType qual_type = decl->getType();
+        unsigned type_width = decl->getASTContext().getIntWidth(qual_type);
+        unsigned constant_width = constant.Value.getBitWidth();
+
+        if (qual_type->isIntegralOrEnumerationType()) {
+          if (type_width >= constant_width) {
+            TypeSystemClang::SetIntegerInitializerForVariable(
+                decl, constant.Value.extOrTrunc(type_width));
+          } else {
+            LLDB_LOG(GetLog(LLDBLog::AST),
+                     "Class '{0}' has a member '{1}' of type '{2}' ({3} bits) "
+                     "which resolves to a wider constant value ({4} bits). "
+                     "Ignoring constant.",
+                     m_derived_ct.GetTypeName(), static_data_member.Name,
+                     member_ct.GetTypeName(), type_width, constant_width);
+          }
+        } else {
+          lldb::BasicType basic_type_enum = member_ct.GetBasicTypeEnumeration();
+          switch (basic_type_enum) {
+          case lldb::eBasicTypeFloat:
+          case lldb::eBasicTypeDouble:
+          case lldb::eBasicTypeLongDouble:
+            if (type_width == constant_width) {
+              TypeSystemClang::SetFloatingInitializerForVariable(
+                  decl, basic_type_enum == lldb::eBasicTypeFloat
+                            ? llvm::APFloat(constant.Value.bitsToFloat())
+                            : llvm::APFloat(constant.Value.bitsToDouble()));
+              decl->setConstexpr(true);
+            } else {
+              LLDB_LOG(
+                  GetLog(LLDBLog::AST),
+                  "Class '{0}' has a member '{1}' of type '{2}' ({3} bits) "
+                  "which resolves to a constant value of mismatched width "
+                  "({4} bits). Ignoring constant.",
+                  m_derived_ct.GetTypeName(), static_data_member.Name,
+                  member_ct.GetTypeName(), type_width, constant_width);
+            }
+            break;
+          default:
+            break;
+          }
+        }
+        break;
+      }
+    }
+  }
 
   // FIXME: Add a PdbSymUid namespace for field list members and update
   // the m_uid_to_decl map with this decl.
@@ -149,7 +224,7 @@ Error UdtRecordCompleter::visitKnownMember(CVMemberRecord &cvr,
 
   TypeIndex ti(data_member.Type);
   if (!ti.isSimple()) {
-    CVType cvt = m_tpi.getType(ti);
+    CVType cvt = m_index.tpi().getType(ti);
     if (cvt.kind() == LF_BITFIELD) {
       BitFieldRecord bfr;
       llvm::cantFail(TypeDeserializer::deserializeAs<BitFieldRecord>(cvt, bfr));
@@ -164,7 +239,7 @@ Error UdtRecordCompleter::visitKnownMember(CVMemberRecord &cvr,
 
   lldb::AccessType access = TranslateMemberAccess(data_member.getAccess());
 
-  clang::FieldDecl *decl = ClangASTContext::AddFieldToRecordType(
+  clang::FieldDecl *decl = TypeSystemClang::AddFieldToRecordType(
       m_derived_ct, data_member.Name, m_ast_builder.ToCompilerType(member_qt),
       access, bitfield_width);
   // FIXME: Add a PdbSymUid namespace for field list members and update
@@ -187,7 +262,7 @@ Error UdtRecordCompleter::visitKnownMember(CVMemberRecord &cvr,
                                            OverloadedMethodRecord &overloaded) {
   TypeIndex method_list_idx = overloaded.MethodList;
 
-  CVType method_list_type = m_tpi.getType(method_list_idx);
+  CVType method_list_type = m_index.tpi().getType(method_list_idx);
   assert(method_list_type.kind() == LF_METHODLIST);
 
   MethodOverloadListRecord method_list;
@@ -223,14 +298,14 @@ void UdtRecordCompleter::complete() {
   for (auto &ib : m_bases)
     bases.push_back(std::move(ib.second));
 
-  ClangASTContext &clang = m_ast_builder.clang();
+  TypeSystemClang &clang = m_ast_builder.clang();
   clang.TransferBaseClasses(m_derived_ct.GetOpaqueQualType(), std::move(bases));
 
   clang.AddMethodOverridesForCXXRecordType(m_derived_ct.GetOpaqueQualType());
-  ClangASTContext::BuildIndirectFields(m_derived_ct);
-  ClangASTContext::CompleteTagDeclarationDefinition(m_derived_ct);
+  TypeSystemClang::BuildIndirectFields(m_derived_ct);
+  TypeSystemClang::CompleteTagDeclarationDefinition(m_derived_ct);
 
   if (auto *record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(&m_tag_decl)) {
-    m_ast_builder.importer().InsertRecordDecl(record_decl, m_layout);
+    m_ast_builder.importer().SetRecordLayout(record_decl, m_layout);
   }
 }

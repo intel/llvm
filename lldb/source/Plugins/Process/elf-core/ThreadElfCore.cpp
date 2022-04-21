@@ -1,4 +1,4 @@
-//===-- ThreadElfCore.cpp --------------------------------------*- C++ -*-===//
+//===-- ThreadElfCore.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,6 +11,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Unwind.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 #include "Plugins/Process/Utility/RegisterContextFreeBSD_i386.h"
@@ -18,10 +19,9 @@
 #include "Plugins/Process/Utility/RegisterContextFreeBSD_powerpc.h"
 #include "Plugins/Process/Utility/RegisterContextFreeBSD_x86_64.h"
 #include "Plugins/Process/Utility/RegisterContextLinux_i386.h"
-#include "Plugins/Process/Utility/RegisterContextLinux_mips.h"
-#include "Plugins/Process/Utility/RegisterContextLinux_mips64.h"
 #include "Plugins/Process/Utility/RegisterContextLinux_s390x.h"
 #include "Plugins/Process/Utility/RegisterContextLinux_x86_64.h"
+#include "Plugins/Process/Utility/RegisterContextNetBSD_i386.h"
 #include "Plugins/Process/Utility/RegisterContextNetBSD_x86_64.h"
 #include "Plugins/Process/Utility/RegisterContextOpenBSD_i386.h"
 #include "Plugins/Process/Utility/RegisterContextOpenBSD_x86_64.h"
@@ -65,7 +65,7 @@ RegisterContextSP
 ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
   RegisterContextSP reg_ctx_sp;
   uint32_t concrete_frame_idx = 0;
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
 
   if (frame)
     concrete_frame_idx = frame->GetConcreteFrameIndex();
@@ -82,10 +82,7 @@ ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
     case llvm::Triple::FreeBSD: {
       switch (arch.GetMachine()) {
       case llvm::Triple::aarch64:
-        reg_interface = new RegisterInfoPOSIX_arm64(arch);
-        break;
       case llvm::Triple::arm:
-        reg_interface = new RegisterInfoPOSIX_arm(arch);
         break;
       case llvm::Triple::ppc:
         reg_interface = new RegisterContextFreeBSD_powerpc32(arch);
@@ -111,7 +108,9 @@ ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
     case llvm::Triple::NetBSD: {
       switch (arch.GetMachine()) {
       case llvm::Triple::aarch64:
-        reg_interface = new RegisterInfoPOSIX_arm64(arch);
+        break;
+      case llvm::Triple::x86:
+        reg_interface = new RegisterContextNetBSD_i386(arch);
         break;
       case llvm::Triple::x86_64:
         reg_interface = new RegisterContextNetBSD_x86_64(arch);
@@ -124,19 +123,7 @@ ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
 
     case llvm::Triple::Linux: {
       switch (arch.GetMachine()) {
-      case llvm::Triple::arm:
-        reg_interface = new RegisterInfoPOSIX_arm(arch);
-        break;
       case llvm::Triple::aarch64:
-        reg_interface = new RegisterInfoPOSIX_arm64(arch);
-        break;
-      case llvm::Triple::mipsel:
-      case llvm::Triple::mips:
-        reg_interface = new RegisterContextLinux_mips(arch);
-        break;
-      case llvm::Triple::mips64el:
-      case llvm::Triple::mips64:
-        reg_interface = new RegisterContextLinux_mips64(arch);
         break;
       case llvm::Triple::ppc64le:
         reg_interface = new RegisterInfoPOSIX_ppc64le(arch);
@@ -159,10 +146,6 @@ ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
     case llvm::Triple::OpenBSD: {
       switch (arch.GetMachine()) {
       case llvm::Triple::aarch64:
-        reg_interface = new RegisterInfoPOSIX_arm64(arch);
-        break;
-      case llvm::Triple::arm:
-        reg_interface = new RegisterInfoPOSIX_arm(arch);
         break;
       case llvm::Triple::x86:
         reg_interface = new RegisterContextOpenBSD_i386(arch);
@@ -180,21 +163,22 @@ ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
       break;
     }
 
-    if (!reg_interface) {
-      if (log)
-        log->Printf("elf-core::%s:: Architecture(%d) or OS(%d) not supported",
-                    __FUNCTION__, arch.GetMachine(), arch.GetTriple().getOS());
+    if (!reg_interface && arch.GetMachine() != llvm::Triple::aarch64 &&
+        arch.GetMachine() != llvm::Triple::arm) {
+      LLDB_LOGF(log, "elf-core::%s:: Architecture(%d) or OS(%d) not supported",
+                __FUNCTION__, arch.GetMachine(), arch.GetTriple().getOS());
       assert(false && "Architecture or OS not supported");
     }
 
     switch (arch.GetMachine()) {
     case llvm::Triple::aarch64:
-      m_thread_reg_ctx_sp = std::make_shared<RegisterContextCorePOSIX_arm64>(
-          *this, reg_interface, m_gpregset_data, m_notes);
+      m_thread_reg_ctx_sp = RegisterContextCorePOSIX_arm64::Create(
+          *this, arch, m_gpregset_data, m_notes);
       break;
     case llvm::Triple::arm:
       m_thread_reg_ctx_sp = std::make_shared<RegisterContextCorePOSIX_arm>(
-          *this, reg_interface, m_gpregset_data, m_notes);
+          *this, std::make_unique<RegisterInfoPOSIX_arm>(arch), m_gpregset_data,
+          m_notes);
       break;
     case llvm::Triple::mipsel:
     case llvm::Triple::mips:
@@ -230,9 +214,7 @@ ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
 
     reg_ctx_sp = m_thread_reg_ctx_sp;
   } else {
-    Unwind *unwinder = GetUnwinder();
-    if (unwinder != nullptr)
-      reg_ctx_sp = unwinder->CreateRegisterContextForFrame(frame);
+    reg_ctx_sp = GetUnwinder().CreateRegisterContextForFrame(frame);
   }
   return reg_ctx_sp;
 }
@@ -297,25 +279,25 @@ Status ELFLinuxPrStatus::Parse(const DataExtractor &data,
   pr_cursig = data.GetU16(&offset);
   offset += 2; // pad
 
-  pr_sigpend = data.GetPointer(&offset);
-  pr_sighold = data.GetPointer(&offset);
+  pr_sigpend = data.GetAddress(&offset);
+  pr_sighold = data.GetAddress(&offset);
 
   pr_pid = data.GetU32(&offset);
   pr_ppid = data.GetU32(&offset);
   pr_pgrp = data.GetU32(&offset);
   pr_sid = data.GetU32(&offset);
 
-  pr_utime.tv_sec = data.GetPointer(&offset);
-  pr_utime.tv_usec = data.GetPointer(&offset);
+  pr_utime.tv_sec = data.GetAddress(&offset);
+  pr_utime.tv_usec = data.GetAddress(&offset);
 
-  pr_stime.tv_sec = data.GetPointer(&offset);
-  pr_stime.tv_usec = data.GetPointer(&offset);
+  pr_stime.tv_sec = data.GetAddress(&offset);
+  pr_stime.tv_usec = data.GetAddress(&offset);
 
-  pr_cutime.tv_sec = data.GetPointer(&offset);
-  pr_cutime.tv_usec = data.GetPointer(&offset);
+  pr_cutime.tv_sec = data.GetAddress(&offset);
+  pr_cutime.tv_usec = data.GetAddress(&offset);
 
-  pr_cstime.tv_sec = data.GetPointer(&offset);
-  pr_cstime.tv_usec = data.GetPointer(&offset);
+  pr_cstime.tv_sec = data.GetAddress(&offset);
+  pr_cstime.tv_usec = data.GetAddress(&offset);
 
   return error;
 }
@@ -368,7 +350,7 @@ Status ELFLinuxPrPsInfo::Parse(const DataExtractor &data,
     offset += 4;
   }
 
-  pr_flag = data.GetPointer(&offset);
+  pr_flag = data.GetAddress(&offset);
 
   if (arch.IsMIPS()) {
     // The pr_uid and pr_gid is always 32 bit irrespective of platforms

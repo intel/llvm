@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // <exception>
 
 // void rethrow_exception [[noreturn]] (exception_ptr p);
 
 #include <exception>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct A
 {

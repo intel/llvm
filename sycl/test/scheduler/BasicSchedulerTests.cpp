@@ -1,8 +1,5 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
 //==------------------- BasicSchedulerTests.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -27,7 +24,7 @@ template <class TestFuncT> void runTest(TestFuncT TestFunc) {
 
   sycl::queue Queue([&AsyncException](sycl::exception_list ExceptionList) {
     AsyncException = true;
-    for (sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+    for (std::exception_ptr ExceptionPtr : ExceptionList) {
       try {
         std::rethrow_exception(ExceptionPtr);
       } catch (sycl::exception &E) {

@@ -15,6 +15,7 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)
@@ -34,12 +35,12 @@ int main(int, char**)
         assert(*r == 1);
 
         r = m.insert(m.cend(), M::value_type(3));
-        assert(r == prev(m.end()));
+        assert(r == std::prev(m.end()));
         assert(m.size() == 3);
         assert(*r == 3);
 
         r = m.insert(m.cend(), M::value_type(3));
-        assert(r == prev(m.end()));
+        assert(r == std::prev(m.end()));
         assert(m.size() == 4);
         assert(*r == 3);
     }
@@ -59,12 +60,12 @@ int main(int, char**)
         assert(*r == 1);
 
         r = m.insert(m.cend(), M::value_type(3));
-        assert(r == prev(m.end()));
+        assert(r == std::prev(m.end()));
         assert(m.size() == 3);
         assert(*r == 3);
 
         r = m.insert(m.cend(), M::value_type(3));
-        assert(r == prev(m.end()));
+        assert(r == std::prev(m.end()));
         assert(m.size() == 4);
         assert(*r == 3);
     }

@@ -1,8 +1,12 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
-; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj -o - %t.ll | llvm-dwarfdump -debug-loc - | FileCheck %s
+; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj -o - %t.ll -experimental-debug-variable-locations=false | llvm-dwarfdump -name i4 - \
+; RUN:     | FileCheck %s
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 
 ; The test inlines the function F four times, with each inlined variable for
 ; "i4" sharing the same virtual register. This means the live interval of the
@@ -14,11 +18,11 @@
 ; Generated from:
 ;
 ; extern int foobar(int, int, int, int, int);
-; 
+;
 ; int F(int i1, int i2, int i3, int i4, int i5) {
 ;   return foobar(i1, i2, i3, i4, i5);
 ; }
-; 
+;
 ; int foo(int a, int b, int c, int d, int e) {
 ;   return F(a,b,c,d,e) +
 ;          F(a,b,c,d,e) +
@@ -26,12 +30,13 @@
 ;          F(a,b,c,d,e);
 ; }
 
-; CHECK:      .debug_loc contents:
-; CHECK-NEXT: 0x00000000:
-;   We currently emit an entry for the function prologue, too, which could be optimized away.
-; CHECK:              [0x0000000000000018, 0x0000000000000072): DW_OP_reg3 RBX
-;   We should only have one entry inside the function.
-; CHECK-NOT: :
+; Ignore the abstract entry.
+; CHECK: DW_TAG_formal_parameter
+; Check concrete entry has a single location.
+; CHECK:      DW_TAG_formal_parameter
+; CHECK-NEXT:   DW_AT_location (DW_OP_reg3 RBX)
+; CHECK-NEXT:   DW_AT_abstract_origin
+; CHECK-NOT:  DW_TAG_formal_parameter
 
 declare i32 @foobar(i32, i32, i32, i32, i32)
 
@@ -83,5 +88,3 @@ declare void @llvm.dbg.value(metadata, i64, metadata, metadata)
 !66 = !DILocation(line: 4, column: 10, scope: !7, inlinedAt: !61)
 !67 = !DILocation(line: 10, column: 23, scope: !25)
 !68 = !DILocation(line: 8, column: 3, scope: !25)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class month;
@@ -43,10 +43,10 @@ int main(int, char**)
 
     for (unsigned i = 0; i <= 10; ++i)
     {
-        month month(i);
-        assert(static_cast<unsigned>(++month) == i + 1);
-        assert(static_cast<unsigned>(month++) == i + 1);
-        assert(static_cast<unsigned>(month)   == i + 2);
+        month m(i);
+        assert(static_cast<unsigned>(++m) == i + 1);
+        assert(static_cast<unsigned>(m++) == i + 1);
+        assert(static_cast<unsigned>(m)   == i + 2);
     }
 
   return 0;

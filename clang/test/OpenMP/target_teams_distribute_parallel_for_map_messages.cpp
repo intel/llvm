@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify=expected,lt50,lt51 -fopenmp -fno-openmp-extensions -fopenmp-version=45 -ferror-limit 100 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,ge50,lt51 -fopenmp -fno-openmp-extensions -fopenmp-version=50 -ferror-limit 100 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,ge50,ge51 -fopenmp -fno-openmp-extensions -fopenmp-version=51 -ferror-limit 100 %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify=expected,lt50,lt51 -fopenmp-simd -fno-openmp-extensions -fopenmp-version=45 -ferror-limit 100 %s -Wno-openmp-mapping -Wuninitialized
 
 void foo() {
 }
@@ -9,7 +11,14 @@ bool foobool(int argc) {
   return argc;
 }
 
-struct S1; // expected-note 2 {{declared here}}
+void xxx(int argc) {
+  int map; // expected-note {{initialize the variable 'map' to silence this warning}}
+#pragma omp target teams distribute parallel for map(tofrom: map) // expected-warning {{variable 'map' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
+
+struct S1; // expected-note 2 {{declared here}} // expected-note 3 {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;
@@ -61,7 +70,7 @@ T tmain(T argc) {
   T &j = i;
   T *k = &j;
   T x;
-  T y;
+  T y, z;
   T to, tofrom, always;
   const T (&l)[5] = da;
 
@@ -96,13 +105,15 @@ T tmain(T argc) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(T) // expected-error {{'T' does not refer to a value}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(I) // expected-error 2 {{expected expression containing only member accesses and/or array sections based on named variables}}
+// ge50-error@+2 2 {{expected addressable lvalue in 'map' clause}}
+// lt50-error@+1 2 {{expected expression containing only member accesses and/or array sections based on named variables}}
+#pragma omp target teams distribute parallel for map(I)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(S2::S2s)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(S2::S2sc)
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(x)
+#pragma omp target teams distribute parallel for map(x, z)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(to: x)
   for (i = 0; i < argc; ++i) foo();
@@ -114,7 +125,10 @@ T tmain(T argc) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(to x) // expected-error {{expected ',' or ')' in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(tofrom: argc > 0 ? x : y) // expected-error 2 {{expected expression containing only member accesses and/or array sections based on named variables}} 
+// ge50-error@+3 2 {{expected addressable lvalue in 'map' clause}}
+// lt50-error@+2 2 {{expected expression containing only member accesses and/or array sections based on named variables}}
+#pragma omp target teams distribute parallel for map(tofrom \
+                                                     : argc > 0 ? x : y)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(argc)
   for (i = 0; i < argc; ++i) foo();
@@ -136,25 +150,26 @@ T tmain(T argc) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(h) // expected-error {{threadprivate variables are not allowed in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(k), map(k) // expected-error 2 {{variable already marked as mapped in current construct}} expected-note 2 {{used here}}
+#pragma omp target teams distribute parallel for map(k), map(k) // lt50-error 2 {{variable already marked as mapped in current construct}} lt50-note 2 {{used here}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(k), map(k[:5]) // expected-error 2 {{pointer cannot be mapped along with a section derived from itself}} expected-note 2 {{used here}}
+#pragma omp target teams distribute parallel for map(k), map(k[:5]) // lt50-error 2 {{pointer cannot be mapped along with a section derived from itself}} lt50-note 2 {{used here}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(da)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(da[:4])
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target data map(k, j, l) // expected-note 2 {{used here}}
-#pragma omp target teams distribute parallel for map(k[:4]) // expected-error 2 {{pointer cannot be mapped along with a section derived from itself}}
+#pragma omp target data map(k, j, l)                        // lt50-note 2 {{used here}}
+#pragma omp target teams distribute parallel for map(k[:4]) // lt50-error 2 {{pointer cannot be mapped along with a section derived from itself}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(j)
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(l) map(l[:5]) // expected-error 2 {{variable already marked as mapped in current construct}} expected-note 2 {{used here}}
+#pragma omp target teams distribute parallel for map(l) map(l[:5]) // lt50-error 2 {{variable already marked as mapped in current construct}} lt50-note 2 {{used here}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target data map(k[:4], j, l[:5]) // expected-note 2 {{used here}}
-{
-#pragma omp target teams distribute parallel for map(k) // expected-error 2 {{pointer cannot be mapped along with a section derived from itself}}
-  for (i = 0; i < argc; ++i) foo();
+#pragma omp target data map(k[:4], j, l[:5]) // lt50-note 2 {{used here}}
+  {
+#pragma omp target teams distribute parallel for map(k) // lt50-error 2 {{pointer cannot be mapped along with a section derived from itself}}
+    for (i = 0; i < argc; ++i)
+      foo();
 #pragma omp target teams distribute parallel for map(j)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(l)
@@ -165,7 +180,10 @@ T tmain(T argc) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(always: x) // expected-error {{missing map type}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always', 'close', or 'mapper'}} expected-error {{missing map type}}
+// ge51-error@+3 {{incorrect map type modifier, expected one of: 'always', 'close', 'mapper', 'present'}}
+// lt51-error@+2 {{incorrect map type modifier, expected one of: 'always', 'close', 'mapper'}}
+// expected-error@+1 {{missing map type}}
+#pragma omp target teams distribute parallel for map(tofrom, always: x)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(always, tofrom: always, tofrom, x)
   for (i = 0; i < argc; ++i) foo();
@@ -184,7 +202,7 @@ int main(int argc, char **argv) {
   int &j = i;
   int *k = &j;
   int x;
-  int y;
+  int y, z;
   int to, tofrom, always;
   const int (&l)[5] = da;
 
@@ -222,7 +240,10 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(to x) // expected-error {{expected ',' or ')' in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(tofrom: argc > 0 ? argv[1] : argv[2]) // expected-error {{expected expression containing only member accesses and/or array sections based on named variables}}
+// ge50-error@+3 {{expected addressable lvalue in 'map' clause}}
+// lt50-error@+2 {{expected expression containing only member accesses and/or array sections based on named variables}}
+#pragma omp target teams distribute parallel for map(tofrom \
+                                                     : argc > 0 ? argv[1] : argv[2])
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(argc)
   for (i = 0; i < argc; ++i) foo();
@@ -232,7 +253,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(argv[1])
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(ba)
+#pragma omp target teams distribute parallel for map(ba, z)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(ca)
   for (i = 0; i < argc; ++i) foo();
@@ -245,42 +266,57 @@ int main(int argc, char **argv) {
 #pragma omp target teams distribute parallel for map(e, g)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(h) // expected-error {{threadprivate variables are not allowed in 'map' clause}}
-  for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(k), map(k) // expected-error {{variable already marked as mapped in current construct}} expected-note {{used here}}
-  for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(k), map(k[:5]) // expected-error {{pointer cannot be mapped along with a section derived from itself}} expected-note {{used here}}
+  for (i = 0; i < argc; ++i)
+    foo();
+#pragma omp target teams distribute parallel for map(k), map(k) // lt50-error {{variable already marked as mapped in current construct}} lt50-note {{used here}}
+  for (i = 0; i < argc; ++i)
+    foo();
+#pragma omp target teams distribute parallel for map(k), map(k[:5]) // lt50-error {{pointer cannot be mapped along with a section derived from itself}} lt50-note {{used here}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(da)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(da[:4])
-  for (i = 0; i < argc; ++i) foo();
-#pragma omp target data map(k, j, l) // expected-note {{used here}}
-#pragma omp target teams distribute parallel for map(k[:4]) // expected-error {{pointer cannot be mapped along with a section derived from itself}}
+  for (i = 0; i < argc; ++i)
+    foo();
+#pragma omp target data map(k, j, l)                        // lt50-note {{used here}}
+#pragma omp target teams distribute parallel for map(k[:4]) // lt50-error {{pointer cannot be mapped along with a section derived from itself}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(j)
-  for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(l) map(l[:5]) // expected-error 1 {{variable already marked as mapped in current construct}} expected-note 1 {{used here}}
-  for (i = 0; i < argc; ++i) foo();
-#pragma omp target data map(k[:4], j, l[:5]) // expected-note {{used here}}
-{
-#pragma omp target teams distribute parallel for map(k) // expected-error {{pointer cannot be mapped along with a section derived from itself}}
-  for (i = 0; i < argc; ++i) foo();
+  for (i = 0; i < argc; ++i)
+    foo();
+#pragma omp target teams distribute parallel for map(l) map(l[:5]) // lt50-error {{variable already marked as mapped in current construct}} lt50-note {{used here}}
+  for (i = 0; i < argc; ++i)
+    foo();
+#pragma omp target data map(k[:4], j, l[:5]) // lt50-note {{used here}}
+  {
+#pragma omp target teams distribute parallel for map(k) // lt50-error {{pointer cannot be mapped along with a section derived from itself}}
+    for (i = 0; i < argc; ++i)
+      foo();
 #pragma omp target teams distribute parallel for map(j)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(l)
   for (i = 0; i < argc; ++i) foo();
-}
+  }
 
 #pragma omp target teams distribute parallel for map(always, tofrom: x)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(always: x) // expected-error {{missing map type}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always', 'close', or 'mapper'}} expected-error {{missing map type}}
+// ge51-error@+3 {{incorrect map type modifier, expected one of: 'always', 'close', 'mapper', 'present'}}
+// lt51-error@+2 {{incorrect map type modifier, expected one of: 'always', 'close', 'mapper'}}
+// expected-error@+1 {{missing map type}}
+#pragma omp target teams distribute parallel for map(tofrom, always: x)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(always, tofrom: always, tofrom, x)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for map(tofrom j) // expected-error {{expected ',' or ')' in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
+#pragma omp target teams distribute parallel for map(delete: j) // expected-error {{map type 'delete' is not allowed for '#pragma omp target teams distribute parallel for'}}
+  for (i = 0; i < argc; ++i)
+    foo();
+#pragma omp target teams distribute parallel for map(release: j) // expected-error {{map type 'release' is not allowed for '#pragma omp target teams distribute parallel for'}}
+  for (i = 0; i < argc; ++i)
+    foo();
 
   return tmain<int, 3>(argc)+tmain<from, 4>(argc); // expected-note {{in instantiation of function template specialization 'tmain<int, 3>' requested here}} expected-note {{in instantiation of function template specialization 'tmain<int, 4>' requested here}}
 }

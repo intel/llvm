@@ -16,6 +16,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 class testbuf
     : public std::basic_streambuf<CharT>
@@ -74,7 +76,7 @@ int main(int, char**)
     {
         testbuf<char> sb;
         std::ostream os(&sb);
-        hex(os);
+        std::hex(os);
         unsigned int n = 0xFFF6;
         os << n;
         assert(sb.str() == "fff6");

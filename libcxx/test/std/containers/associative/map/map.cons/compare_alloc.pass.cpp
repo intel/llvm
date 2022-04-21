@@ -15,6 +15,7 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
@@ -22,7 +23,7 @@
 int main(int, char**)
 {
     {
-    typedef test_compare<std::less<int> > C;
+    typedef test_less<int> C;
     typedef test_allocator<std::pair<const int, double> > A;
     std::map<int, double, C, A> m(C(4), A(5));
     assert(m.empty());
@@ -32,7 +33,7 @@ int main(int, char**)
     }
 #if TEST_STD_VER >= 11
     {
-    typedef test_compare<std::less<int> > C;
+    typedef test_less<int> C;
     typedef min_allocator<std::pair<const int, double> > A;
     std::map<int, double, C, A> m(C(4), A());
     assert(m.empty());
@@ -41,7 +42,7 @@ int main(int, char**)
     assert(m.get_allocator() == A());
     }
     {
-    typedef test_compare<std::less<int> > C;
+    typedef test_less<int> C;
     typedef explicit_allocator<std::pair<const int, double> > A;
     std::map<int, double, C, A> m(C(4), A{});
     assert(m.empty());

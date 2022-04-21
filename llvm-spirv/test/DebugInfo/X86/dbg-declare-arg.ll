@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 -fast-isel=true  -filetype=obj -o - %t.ll | llvm-dwarfdump -v - | FileCheck %s
@@ -29,7 +29,7 @@ target triple = "spir64-unknown-unknown"
 
 %class.A = type { i32, i32, i32, i32 }
 
-define void @_Z3fooi(%class.A* sret %agg.result, i32 %i) ssp !dbg !19 {
+define void @_Z3fooi(%class.A* sret(%class.A) %agg.result, i32 %i) ssp !dbg !19 {
 entry:
   %i.addr = alloca i32, align 4
   %j = alloca i32, align 4

@@ -1,4 +1,4 @@
-//===-- WatchpointList.cpp --------------------------------------*- C++ -*-===//
+//===-- WatchpointList.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,10 +12,9 @@
 using namespace lldb;
 using namespace lldb_private;
 
-WatchpointList::WatchpointList()
-    : m_watchpoints(), m_mutex(), m_next_wp_id(0) {}
+WatchpointList::WatchpointList() = default;
 
-WatchpointList::~WatchpointList() {}
+WatchpointList::~WatchpointList() = default;
 
 // Add a watchpoint to the list.
 lldb::watch_id_t WatchpointList::Add(const WatchpointSP &wp_sp, bool notify) {

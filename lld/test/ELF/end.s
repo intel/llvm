@@ -14,18 +14,18 @@
 // DEFAULT-NEXT:       SHF_ALLOC
 // DEFAULT-NEXT:       SHF_WRITE
 // DEFAULT-NEXT:     ]
-// DEFAULT-NEXT:     Address: 0x202002
+// DEFAULT-NEXT:     Address: 0x20215B
 // DEFAULT-NEXT:     Offset:
 // DEFAULT-NEXT:     Size: 6
 // DEFAULT: ]
 // DEFAULT: Symbols [
 // DEFAULT:     Name: _end
-// DEFAULT-NEXT:     Value: 0x202008
+// DEFAULT-NEXT:     Value: 0x202161
 // DEFAULT: ]
 
-// RUN: ld.lld -r %t.o -o %t2
-// RUN: llvm-objdump -t %t2 | FileCheck %s --check-prefix=RELOCATABLE
-// RELOCATABLE: 0000000000000000 *UND* 00000000 _end
+// RUN: ld.lld -r %t.o -o %t
+// RUN: llvm-readelf -s %t | FileCheck %s --check-prefix=RELOCATABLE
+// RELOCATABLE: 0000000000000000 0 NOTYPE GLOBAL DEFAULT UND _end
 
 .global _start,_end
 .text

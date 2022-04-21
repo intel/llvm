@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <variant>
 
@@ -15,7 +15,9 @@
 
 #include <variant>
 
-#include "poisoned_hash_helper.hpp"
+#include "poisoned_hash_helper.h"
+
+#include "test_macros.h"
 
 int main(int, char**) {
   test_library_hash_specializations_available();

@@ -13,19 +13,30 @@
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
-#include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
 #include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelWorkList.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "gi-combiner"
 
 using namespace llvm;
+
+namespace llvm {
+cl::OptionCategory GICombinerOptionCategory(
+    "GlobalISel Combiner",
+    "Control the rules which are enabled. These options all take a comma "
+    "separated list of rules to disable and may be specified by number "
+    "or number range (e.g. 1-10)."
+#ifndef NDEBUG
+    " They may also be specified by name."
+#endif
+);
+} // end namespace llvm
 
 namespace {
 /// This class acts as the glue the joins the CombinerHelper to the overall
@@ -44,10 +55,8 @@ class WorkListMaintainer : public GISelChangeObserver {
   SmallPtrSet<const MachineInstr *, 4> CreatedInstrs;
 
 public:
-  WorkListMaintainer(WorkListTy &WorkList)
-      : GISelChangeObserver(), WorkList(WorkList) {}
-  virtual ~WorkListMaintainer() {
-  }
+  WorkListMaintainer(WorkListTy &WorkList) : WorkList(WorkList) {}
+  virtual ~WorkListMaintainer() = default;
 
   void erasingInstr(MachineInstr &MI) override {
     LLVM_DEBUG(dbgs() << "Erasing: " << MI << "\n");
@@ -92,7 +101,7 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
     return false;
 
   Builder =
-      CSEInfo ? make_unique<CSEMIRBuilder>() : make_unique<MachineIRBuilder>();
+      CSEInfo ? std::make_unique<CSEMIRBuilder>() : std::make_unique<MachineIRBuilder>();
   MRI = &MF.getRegInfo();
   Builder->setMF(MF);
   if (CSEInfo)
@@ -104,7 +113,7 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
 
   bool MFChanged = false;
   bool Changed;
-  MachineIRBuilder &B = *Builder.get();
+  MachineIRBuilder &B = *Builder;
 
   do {
     // Collect all instructions. Do a post order traversal for basic blocks and
@@ -118,18 +127,15 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
       WrapperObserver.addObserver(CSEInfo);
     RAIIDelegateInstaller DelInstall(MF, &WrapperObserver);
     for (MachineBasicBlock *MBB : post_order(&MF)) {
-      if (MBB->empty())
-        continue;
-      for (auto MII = MBB->rbegin(), MIE = MBB->rend(); MII != MIE;) {
-        MachineInstr *CurMI = &*MII;
-        ++MII;
+      for (MachineInstr &CurMI :
+           llvm::make_early_inc_range(llvm::reverse(*MBB))) {
         // Erase dead insts before even adding to the list.
-        if (isTriviallyDead(*CurMI, *MRI)) {
-          LLVM_DEBUG(dbgs() << *CurMI << "Is dead; erasing.\n");
-          CurMI->eraseFromParentAndMarkDBGValuesForRemoval();
+        if (isTriviallyDead(CurMI, *MRI)) {
+          LLVM_DEBUG(dbgs() << CurMI << "Is dead; erasing.\n");
+          CurMI.eraseFromParent();
           continue;
         }
-        WorkList.deferred_insert(CurMI);
+        WorkList.deferred_insert(&CurMI);
       }
     }
     WorkList.finalize();
@@ -143,5 +149,14 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
     MFChanged |= Changed;
   } while (Changed);
 
+#ifndef NDEBUG
+  if (CSEInfo) {
+    if (auto E = CSEInfo->verify()) {
+      errs() << E << '\n';
+      assert(false && "CSEInfo is not consistent. Likely missing calls to "
+                      "observer on mutations.");
+    }
+  }
+#endif
   return MFChanged;
 }

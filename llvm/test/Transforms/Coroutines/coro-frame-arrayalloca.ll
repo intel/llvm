@@ -1,5 +1,5 @@
 ; Check that we can handle spills of array allocas
-; RUN: opt < %s -coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 declare void @consume.double.ptr(double*)
 declare void @consume.i32.ptr(i32*)
@@ -35,23 +35,23 @@ suspend:
 }
 
 ; See if the array alloca was stored as an array field.
-; CHECK-LABEL: %f.Frame = type { void (%f.Frame*)*, void (%f.Frame*)*, i1, i1, double, [4 x i32], double }
+; CHECK-LABEL: %f.Frame = type { void (%f.Frame*)*, void (%f.Frame*)*, double, double, [4 x i32], i1 }
 
 ; See if we used correct index to access prefix, data, suffix (@f)
 ; CHECK-LABEL: @f(
-; CHECK:       %prefix = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 4
-; CHECK-NEXT:  %data = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 5
-; CHECK-NEXT:  %suffix = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 6
-; CHECK-NEXT:  call void @consume.double.ptr(double* %prefix)
-; CHECK-NEXT:  call void @consume.i32.ptr(i32* %data)
-; CHECK-NEXT:  call void @consume.double.ptr(double* %suffix)
+; CHECK:       %[[PREFIX:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 2
+; CHECK-NEXT:  %[[DATA:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 4
+; CHECK-NEXT:  %[[SUFFIX:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 3
+; CHECK-NEXT:  call void @consume.double.ptr(double* %[[PREFIX:.+]])
+; CHECK-NEXT:  call void @consume.i32.ptr(i32* %[[DATA:.+]])
+; CHECK-NEXT:  call void @consume.double.ptr(double* %[[SUFFIX:.+]])
 ; CHECK: ret i8*
 
 ; See if we used correct index to access prefix, data, suffix (@f.resume)
 ; CHECK-LABEL: @f.resume(
-; CHECK:       %[[SUFFIX:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 6
-; CHECK:       %[[DATA:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 5
-; CHECK:       %[[PREFIX:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 4
+; CHECK:       %[[PREFIX:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 2
+; CHECK:       %[[DATA:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 4
+; CHECK:       %[[SUFFIX:.+]] = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 3
 ; CHECK:       call void @consume.double.ptr(double* %[[PREFIX]])
 ; CHECK-NEXT:  call void @consume.i32.ptr(i32* %[[DATA]])
 ; CHECK-NEXT:  call void @consume.double.ptr(double* %[[SUFFIX]])

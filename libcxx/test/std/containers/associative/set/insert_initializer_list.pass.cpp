@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <set>
 
@@ -18,6 +18,7 @@
 #include <cassert>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)
@@ -28,7 +29,7 @@ int main(int, char**)
     C m = {10, 8};
     m.insert({1, 2, 3, 4, 5, 6});
     assert(m.size() == 8);
-    assert(static_cast<std::size_t>(distance(m.begin(), m.end())) == m.size());
+    assert(static_cast<std::size_t>(std::distance(m.begin(), m.end())) == m.size());
     C::const_iterator i = m.cbegin();
     assert(*i == V(1));
     assert(*++i == V(2));
@@ -45,7 +46,7 @@ int main(int, char**)
     C m = {10, 8};
     m.insert({1, 2, 3, 4, 5, 6});
     assert(m.size() == 8);
-    assert(static_cast<std::size_t>(distance(m.begin(), m.end())) == m.size());
+    assert(static_cast<std::size_t>(std::distance(m.begin(), m.end())) == m.size());
     C::const_iterator i = m.cbegin();
     assert(*i == V(1));
     assert(*++i == V(2));

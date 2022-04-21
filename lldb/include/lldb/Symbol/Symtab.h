@@ -6,13 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Symtab_h_
-#define liblldb_Symtab_h_
+#ifndef LLDB_SYMBOL_SYMTAB_H
+#define LLDB_SYMBOL_SYMTAB_H
 
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Utility/RangeMap.h"
 #include "lldb/lldb-private.h"
+#include <map>
 #include <mutex>
 #include <vector>
 
@@ -40,8 +41,12 @@ public:
   uint32_t AddSymbol(const Symbol &symbol);
   size_t GetNumSymbols() const;
   void SectionFileAddressesChanged();
-  void Dump(Stream *s, Target *target, SortOrder sort_type);
-  void Dump(Stream *s, Target *target, std::vector<uint32_t> &indexes) const;
+  void
+  Dump(Stream *s, Target *target, SortOrder sort_type,
+       Mangled::NamePreference name_preference = Mangled::ePreferDemangled);
+  void Dump(Stream *s, Target *target, std::vector<uint32_t> &indexes,
+            Mangled::NamePreference name_preference =
+                Mangled::ePreferDemangled) const;
   uint32_t GetIndexForSymbol(const Symbol *symbol) const;
   std::recursive_mutex &GetMutex() { return m_mutex; }
   Symbol *FindSymbolByID(lldb::user_id_t uid) const;
@@ -92,15 +97,15 @@ public:
       const RegularExpression &regex, lldb::SymbolType symbol_type,
       Debug symbol_debug_type, Visibility symbol_visibility,
       std::vector<uint32_t> &indexes);
-  size_t FindAllSymbolsWithNameAndType(ConstString name,
-                                       lldb::SymbolType symbol_type,
-                                       std::vector<uint32_t> &symbol_indexes);
-  size_t FindAllSymbolsWithNameAndType(ConstString name,
-                                       lldb::SymbolType symbol_type,
-                                       Debug symbol_debug_type,
-                                       Visibility symbol_visibility,
-                                       std::vector<uint32_t> &symbol_indexes);
-  size_t FindAllSymbolsMatchingRexExAndType(
+  void FindAllSymbolsWithNameAndType(ConstString name,
+                                     lldb::SymbolType symbol_type,
+                                     std::vector<uint32_t> &symbol_indexes);
+  void FindAllSymbolsWithNameAndType(ConstString name,
+                                     lldb::SymbolType symbol_type,
+                                     Debug symbol_debug_type,
+                                     Visibility symbol_visibility,
+                                     std::vector<uint32_t> &symbol_indexes);
+  void FindAllSymbolsMatchingRexExAndType(
       const RegularExpression &regex, lldb::SymbolType symbol_type,
       Debug symbol_debug_type, Visibility symbol_visibility,
       std::vector<uint32_t> &symbol_indexes);
@@ -112,34 +117,152 @@ public:
   Symbol *FindSymbolContainingFileAddress(lldb::addr_t file_addr);
   void ForEachSymbolContainingFileAddress(
       lldb::addr_t file_addr, std::function<bool(Symbol *)> const &callback);
-  size_t FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
-                             SymbolContextList &sc_list);
-  void CalculateSymbolSizes();
+  void FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
+                           SymbolContextList &sc_list);
 
   void SortSymbolIndexesByValue(std::vector<uint32_t> &indexes,
                                 bool remove_duplicates) const;
 
   static void DumpSymbolHeader(Stream *s);
 
-  void Finalize() {
-    // Shrink to fit the symbols so we don't waste memory
-    if (m_symbols.capacity() > m_symbols.size()) {
-      collection new_symbols(m_symbols.begin(), m_symbols.end());
-      m_symbols.swap(new_symbols);
-    }
-  }
+  void Finalize();
 
   void AppendSymbolNamesToMap(const IndexCollection &indexes,
                               bool add_demangled, bool add_mangled,
                               NameToIndexMap &name_to_index_map) const;
 
-  ObjectFile *GetObjectFile() { return m_objfile; }
+  ObjectFile *GetObjectFile() const { return m_objfile; }
+
+  /// Decode a serialized version of this object from data.
+  ///
+  /// \param data
+  ///   The decoder object that references the serialized data.
+  ///
+  /// \param offset_ptr
+  ///   A pointer that contains the offset from which the data will be decoded
+  ///   from that gets updated as data gets decoded.
+  ///
+  /// \param[out] uuid_mismatch
+  ///   Set to true if a cache file exists but the UUID didn't match, false
+  ///   otherwise.
+  ///
+  /// \return
+  ///   True if the symbol table is successfully decoded and can be used,
+  ///   false otherwise.
+  bool Decode(const DataExtractor &data, lldb::offset_t *offset_ptr,
+              bool &uuid_mismatch);
+
+  /// Encode this object into a data encoder object.
+  ///
+  /// This allows this object to be serialized to disk. The object file must
+  /// have a valid Signature in order to be serialized as it is used to make
+  /// sure the cached information matches when cached data is loaded at a later
+  /// time. If the object file doesn't have a valid signature false will be
+  /// returned and it will indicate we should not cache this data.
+  ///
+  /// \param encoder
+  ///   A data encoder object that serialized bytes will be encoded into.
+  ///
+  /// \return
+  ///   True if the symbol table's object file can generate a valid signature
+  ///   and all data for the symbol table was encoded, false otherwise.
+  bool Encode(DataEncoder &encoder) const;
+
+  /// Get the cache key string for this symbol table.
+  ///
+  /// The cache key must start with the module's cache key and is followed
+  /// by information that indicates this key is for caching the symbol table
+  /// contents and should also include the has of the object file. A module can
+  /// be represented by an ObjectFile object for the main executable, but can
+  /// also have a symbol file that is from the same or a different object file.
+  /// This means we might have two symbol tables cached in the index cache, one
+  /// for the main executable and one for the symbol file.
+  ///
+  /// \return
+  ///   The unique cache key used to save and retrieve data from the index cache.
+  std::string GetCacheKey();
+
+  /// Save the symbol table data out into a cache.
+  ///
+  /// The symbol table will only be saved to a cache file if caching is enabled.
+  ///
+  /// We cache the contents of the symbol table since symbol tables in LLDB take
+  /// some time to initialize. This is due to the many sources for data that are
+  /// used to create a symbol table:
+  /// - standard symbol table
+  /// - dynamic symbol table (ELF)
+  /// - compressed debug info sections
+  /// - unwind information
+  /// - function pointers found in runtimes for global constructor/destructors
+  /// - other sources.
+  /// All of the above sources are combined and one symbol table results after
+  /// all sources have been considered.
+  void SaveToCache();
+
+  /// Load the symbol table from the index cache.
+  ///
+  /// Quickly load the finalized symbol table from the index cache. This saves
+  /// time when the debugger starts up. The index cache file for the symbol
+  /// table has the modification time set to the same time as the main module.
+  /// If the cache file exists and the modification times match, we will load
+  /// the symbol table from the serlized cache file.
+  ///
+  /// \return
+  ///   True if the symbol table was successfully loaded from the index cache,
+  ///   false if the symbol table wasn't cached or was out of date.
+  bool LoadFromCache();
+
+
+  /// Accessors for the bool that indicates if the debug info index was loaded
+  /// from, or saved to the module index cache.
+  ///
+  /// In statistics it is handy to know if a module's debug info was loaded from
+  /// or saved to the cache. When the debug info index is loaded from the cache
+  /// startup times can be faster. When the cache is enabled and the debug info
+  /// index is saved to the cache, debug sessions can be slower. These accessors
+  /// can be accessed by the statistics and emitted to help track these costs.
+  /// \{
+  bool GetWasLoadedFromCache() const {
+    return m_loaded_from_cache;
+  }
+  void SetWasLoadedFromCache() {
+    m_loaded_from_cache = true;
+  }
+  bool GetWasSavedToCache() const {
+    return m_saved_to_cache;
+  }
+  void SetWasSavedToCache() {
+    m_saved_to_cache = true;
+  }
+  /// \}
 
 protected:
   typedef std::vector<Symbol> collection;
   typedef collection::iterator iterator;
   typedef collection::const_iterator const_iterator;
-  typedef RangeDataVector<lldb::addr_t, lldb::addr_t, uint32_t>
+  class FileRangeToIndexMapCompare {
+  public:
+    FileRangeToIndexMapCompare(const Symtab &symtab) : m_symtab(symtab) {}
+    bool operator()(const uint32_t a_data, const uint32_t b_data) const {
+      return rank(a_data) > rank(b_data);
+    }
+
+  private:
+    // How much preferred is this symbol?
+    int rank(const uint32_t data) const {
+      const Symbol &symbol = *m_symtab.SymbolAtIndex(data);
+      if (symbol.IsExternal())
+        return 3;
+      if (symbol.IsWeak())
+        return 2;
+      if (symbol.IsDebug())
+        return 0;
+      return 1;
+    }
+    const Symtab &m_symtab;
+  };
+  typedef RangeDataVector<lldb::addr_t, lldb::addr_t, uint32_t, 0,
+                          FileRangeToIndexMapCompare>
       FileRangeToIndexMap;
   void InitNameIndexes();
   void InitAddressIndexes();
@@ -147,15 +270,22 @@ protected:
   ObjectFile *m_objfile;
   collection m_symbols;
   FileRangeToIndexMap m_file_addr_to_index;
-  UniqueCStringMap<uint32_t> m_name_to_index;
-  UniqueCStringMap<uint32_t> m_basename_to_index;
-  UniqueCStringMap<uint32_t> m_method_to_index;
-  UniqueCStringMap<uint32_t> m_selector_to_index;
+
+  /// Maps function names to symbol indices (grouped by FunctionNameTypes)
+  std::map<lldb::FunctionNameType, UniqueCStringMap<uint32_t>>
+      m_name_to_symbol_indices;
   mutable std::recursive_mutex
       m_mutex; // Provide thread safety for this symbol table
-  bool m_file_addr_to_index_computed : 1, m_name_indexes_computed : 1;
+  bool m_file_addr_to_index_computed : 1, m_name_indexes_computed : 1,
+    m_loaded_from_cache : 1, m_saved_to_cache : 1;
 
 private:
+  UniqueCStringMap<uint32_t> &
+  GetNameToSymbolIndexMap(lldb::FunctionNameType type) {
+    auto map = m_name_to_symbol_indices.find(type);
+    assert(map != m_name_to_symbol_indices.end());
+    return map->second;
+  }
   bool CheckSymbolAtIndex(size_t idx, Debug symbol_debug_type,
                           Visibility symbol_visibility) const {
     switch (symbol_debug_type) {
@@ -186,11 +316,31 @@ private:
     return false;
   }
 
+  /// A helper function that looks up full function names.
+  ///
+  /// We generate unique names for synthetic symbols so that users can look
+  /// them up by name when needed. But because doing so is uncommon in normal
+  /// debugger use, we trade off some performance at lookup time for faster
+  /// symbol table building by detecting these symbols and generating their
+  /// names lazily, rather than adding them to the normal symbol indexes. This
+  /// function does the job of first consulting the name indexes, and if that
+  /// fails it extracts the information it needs from the synthetic name and
+  /// locates the symbol.
+  ///
+  /// @param[in] symbol_name The symbol name to search for.
+  ///
+  /// @param[out] indexes The vector if symbol indexes to update with results.
+  ///
+  /// @returns The number of indexes added to the index vector. Zero if no
+  /// matches were found.
+  uint32_t GetNameIndexes(ConstString symbol_name,
+                          std::vector<uint32_t> &indexes);
+
   void SymbolIndicesToSymbolContextList(std::vector<uint32_t> &symbol_indexes,
                                         SymbolContextList &sc_list);
 
   void RegisterMangledNameEntry(
-      NameToIndexMap::Entry &entry, std::set<const char *> &class_contexts,
+      uint32_t value, std::set<const char *> &class_contexts,
       std::vector<std::pair<NameToIndexMap::Entry, const char *>> &backlog,
       RichManglingContext &rmc);
 
@@ -198,9 +348,10 @@ private:
                             const char *decl_context,
                             const std::set<const char *> &class_contexts);
 
-  DISALLOW_COPY_AND_ASSIGN(Symtab);
+  Symtab(const Symtab &) = delete;
+  const Symtab &operator=(const Symtab &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Symtab_h_
+#endif // LLDB_SYMBOL_SYMTAB_H

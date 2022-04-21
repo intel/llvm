@@ -49,8 +49,19 @@ public:
     return TTI::PSK_Software;
   }
 
-  int getIntImmCost(const APInt &Imm, Type *Ty) {
+  InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
+                                TTI::TargetCostKind CostKind) {
     assert(Ty->isIntegerTy());
+    unsigned BitSize = Ty->getPrimitiveSizeInBits();
+    // There is no cost model for constants with a bit size of 0. Return
+    // TCC_Free here, so that constant hoisting will ignore this constant.
+    if (BitSize == 0)
+      return TTI::TCC_Free;
+    // No cost model for operations on integers larger than 64 bit implemented
+    // yet.
+    if (BitSize > 64)
+      return TTI::TCC_Free;
+
     if (Imm == 0)
       return TTI::TCC_Free;
     if (isInt<16>(Imm.getSExtValue()))
@@ -66,27 +77,33 @@ public:
     return 4 * TTI::TCC_Basic;
   }
 
-  int getIntImmCost(unsigned Opc, unsigned Idx, const APInt &Imm, Type *Ty) {
-    return getIntImmCost(Imm, Ty);
+  InstructionCost getIntImmCostInst(unsigned Opc, unsigned Idx,
+                                    const APInt &Imm, Type *Ty,
+                                    TTI::TargetCostKind CostKind,
+                                    Instruction *Inst = nullptr) {
+    return getIntImmCost(Imm, Ty, CostKind);
   }
 
-  int getIntImmCost(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                    Type *Ty) {
-    return getIntImmCost(Imm, Ty);
+  InstructionCost getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                      const APInt &Imm, Type *Ty,
+                                      TTI::TargetCostKind CostKind) {
+    return getIntImmCost(Imm, Ty, CostKind);
   }
 
-  unsigned getArithmeticInstrCost(
-      unsigned Opcode, Type *Ty,
+  InstructionCost getArithmeticInstrCost(
+      unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
       TTI::OperandValueKind Opd1Info = TTI::OK_AnyValue,
       TTI::OperandValueKind Opd2Info = TTI::OK_AnyValue,
       TTI::OperandValueProperties Opd1PropInfo = TTI::OP_None,
       TTI::OperandValueProperties Opd2PropInfo = TTI::OP_None,
-      ArrayRef<const Value *> Args = ArrayRef<const Value *>()) {
+      ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
+      const Instruction *CxtI = nullptr) {
     int ISD = TLI->InstructionOpcodeToISD(Opcode);
 
     switch (ISD) {
     default:
-      return BaseT::getArithmeticInstrCost(Opcode, Ty, Opd1Info, Opd2Info,
+      return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Opd1Info,
+                                           Opd2Info,
                                            Opd1PropInfo, Opd2PropInfo);
     case ISD::MUL:
     case ISD::SDIV:
@@ -97,7 +114,8 @@ public:
       // instruction cost was arbitrarily chosen to reduce the desirability
       // of emitting arithmetic instructions that are emulated in software.
       // TODO: Investigate the performance impact given specialized lowerings.
-      return 64 * BaseT::getArithmeticInstrCost(Opcode, Ty, Opd1Info, Opd2Info,
+      return 64 * BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Opd1Info,
+                                                Opd2Info,
                                                 Opd1PropInfo, Opd2PropInfo);
     }
   }

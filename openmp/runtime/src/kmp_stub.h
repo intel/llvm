@@ -25,8 +25,8 @@ void __kmps_set_library(int arg);
 int __kmps_get_library(void);
 void __kmps_set_nested(int arg);
 int __kmps_get_nested(void);
-void __kmps_set_stacksize(int arg);
-int __kmps_get_stacksize();
+void __kmps_set_stacksize(size_t arg);
+size_t __kmps_get_stacksize();
 
 #ifndef KMP_SCHED_TYPE_DEFINED
 #define KMP_SCHED_TYPE_DEFINED
@@ -41,10 +41,7 @@ typedef enum kmp_sched {
 void __kmps_set_schedule(kmp_sched_t kind, int modifier);
 void __kmps_get_schedule(kmp_sched_t *kind, int *modifier);
 
-#if OMP_40_ENABLED
-void __kmps_set_proc_bind(kmp_proc_bind_t arg);
 kmp_proc_bind_t __kmps_get_proc_bind(void);
-#endif /* OMP_40_ENABLED */
 
 double __kmps_get_wtime();
 double __kmps_get_wtick();

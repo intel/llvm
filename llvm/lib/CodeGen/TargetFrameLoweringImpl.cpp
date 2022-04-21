@@ -20,7 +20,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Function.h"
-#include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -40,8 +40,9 @@ bool TargetFrameLowering::enableCalleeSaveSkip(const MachineFunction &MF) const 
 /// frame of the specified index, along with the frame register used
 /// (in output arg FrameReg). This is the default implementation which
 /// is overridden for some targets.
-int TargetFrameLowering::getFrameIndexReference(const MachineFunction &MF,
-                                             int FI, unsigned &FrameReg) const {
+StackOffset
+TargetFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
+                                            Register &FrameReg) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *RI = MF.getSubtarget().getRegisterInfo();
 
@@ -50,13 +51,27 @@ int TargetFrameLowering::getFrameIndexReference(const MachineFunction &MF,
   // something different.
   FrameReg = RI->getFrameRegister(MF);
 
-  return MFI.getObjectOffset(FI) + MFI.getStackSize() -
-         getOffsetOfLocalArea() + MFI.getOffsetAdjustment();
+  return StackOffset::getFixed(MFI.getObjectOffset(FI) + MFI.getStackSize() -
+                               getOffsetOfLocalArea() +
+                               MFI.getOffsetAdjustment());
 }
 
 bool TargetFrameLowering::needsFrameIndexResolution(
     const MachineFunction &MF) const {
   return MF.getFrameInfo().hasStackObjects();
+}
+
+void TargetFrameLowering::getCalleeSaves(const MachineFunction &MF,
+                                         BitVector &CalleeSaves) const {
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  CalleeSaves.resize(TRI.getNumRegs());
+
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  if (!MFI.isCalleeSavedInfoValid())
+    return;
+
+  for (const CalleeSavedInfo &Info : MFI.getCalleeSavedInfo())
+    CalleeSaves.set(Info.getReg());
 }
 
 void TargetFrameLowering::determineCalleeSaves(MachineFunction &MF,
@@ -71,7 +86,9 @@ void TargetFrameLowering::determineCalleeSaves(MachineFunction &MF,
 
   // When interprocedural register allocation is enabled caller saved registers
   // are preferred over callee saved registers.
-  if (MF.getTarget().Options.EnableIPRA && isSafeForNoCSROpt(MF.getFunction()))
+  if (MF.getTarget().Options.EnableIPRA &&
+      isSafeForNoCSROpt(MF.getFunction()) &&
+      isProfitableForNoCSROpt(MF.getFunction()))
     return;
 
   // Get the callee saved register list...
@@ -118,11 +135,39 @@ unsigned TargetFrameLowering::getStackAlignmentSkew(
   return 0;
 }
 
+bool TargetFrameLowering::allocateScavengingFrameIndexesNearIncomingSP(
+  const MachineFunction &MF) const {
+  if (!hasFP(MF))
+    return false;
+
+  const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
+  return RegInfo->useFPForScavengingIndex(MF) &&
+         !RegInfo->hasStackRealignment(MF);
+}
+
+bool TargetFrameLowering::isSafeForNoCSROpt(const Function &F) {
+  if (!F.hasLocalLinkage() || F.hasAddressTaken() ||
+      !F.hasFnAttribute(Attribute::NoRecurse))
+    return false;
+  // Function should not be optimized as tail call.
+  for (const User *U : F.users())
+    if (auto *CB = dyn_cast<CallBase>(U))
+      if (CB->isTailCall())
+        return false;
+  return true;
+}
+
 int TargetFrameLowering::getInitialCFAOffset(const MachineFunction &MF) const {
   llvm_unreachable("getInitialCFAOffset() not implemented!");
 }
 
-unsigned TargetFrameLowering::getInitialCFARegister(const MachineFunction &MF)
-    const {
+Register
+TargetFrameLowering::getInitialCFARegister(const MachineFunction &MF) const {
   llvm_unreachable("getInitialCFARegister() not implemented!");
+}
+
+TargetFrameLowering::DwarfFrameBase
+TargetFrameLowering::getDwarfFrameBase(const MachineFunction &MF) const {
+  const TargetRegisterInfo *RI = MF.getSubtarget().getRegisterInfo();
+  return DwarfFrameBase{DwarfFrameBase::Register, {RI->getFrameRegister(MF)}};
 }

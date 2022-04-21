@@ -1,4 +1,4 @@
-//===-- SystemLifetimeManager.cpp ------------------------------*- C++ -*-===//
+//===-- SystemLifetimeManager.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,8 +15,7 @@
 
 using namespace lldb_private;
 
-SystemLifetimeManager::SystemLifetimeManager()
-    : m_mutex(), m_initialized(false) {}
+SystemLifetimeManager::SystemLifetimeManager() : m_mutex() {}
 
 SystemLifetimeManager::~SystemLifetimeManager() {
   assert(!m_initialized &&

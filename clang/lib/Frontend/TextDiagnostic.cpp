@@ -44,7 +44,7 @@ static const enum raw_ostream::Colors savedColor =
 /// Add highlights to differences in template strings.
 static void applyTemplateHighlighting(raw_ostream &OS, StringRef Str,
                                       bool &Normal, bool Bold) {
-  while (1) {
+  while (true) {
     size_t Pos = Str.find(ToggleHighlight);
     OS << Str.slice(0, Pos);
     if (Pos == StringRef::npos)
@@ -683,8 +683,8 @@ void TextDiagnostic::emitDiagnosticMessage(
   if (DiagOpts->ShowColors)
     OS.resetColor();
 
-  printDiagnosticLevel(OS, Level, DiagOpts->ShowColors,
-                       DiagOpts->CLFallbackMode);
+  if (DiagOpts->ShowLevel)
+    printDiagnosticLevel(OS, Level, DiagOpts->ShowColors);
   printDiagnosticMessage(OS,
                          /*IsSupplemental*/ Level == DiagnosticsEngine::Note,
                          Message, OS.tell() - StartOfLocationInfo,
@@ -694,8 +694,7 @@ void TextDiagnostic::emitDiagnosticMessage(
 /*static*/ void
 TextDiagnostic::printDiagnosticLevel(raw_ostream &OS,
                                      DiagnosticsEngine::Level Level,
-                                     bool ShowColors,
-                                     bool CLFallbackMode) {
+                                     bool ShowColors) {
   if (ShowColors) {
     // Print diagnostic category in bold and color
     switch (Level) {
@@ -712,21 +711,12 @@ TextDiagnostic::printDiagnosticLevel(raw_ostream &OS,
   switch (Level) {
   case DiagnosticsEngine::Ignored:
     llvm_unreachable("Invalid diagnostic type");
-  case DiagnosticsEngine::Note:    OS << "note"; break;
-  case DiagnosticsEngine::Remark:  OS << "remark"; break;
-  case DiagnosticsEngine::Warning: OS << "warning"; break;
-  case DiagnosticsEngine::Error:   OS << "error"; break;
-  case DiagnosticsEngine::Fatal:   OS << "fatal error"; break;
+  case DiagnosticsEngine::Note:    OS << "note: "; break;
+  case DiagnosticsEngine::Remark:  OS << "remark: "; break;
+  case DiagnosticsEngine::Warning: OS << "warning: "; break;
+  case DiagnosticsEngine::Error:   OS << "error: "; break;
+  case DiagnosticsEngine::Fatal:   OS << "fatal error: "; break;
   }
-
-  // In clang-cl /fallback mode, print diagnostics as "error(clang):". This
-  // makes it more clear whether a message is coming from clang or cl.exe,
-  // and it prevents MSBuild from concluding that the build failed just because
-  // there is an "error:" in the output.
-  if (CLFallbackMode)
-    OS << "(clang)";
-
-  OS << ": ";
 
   if (ShowColors)
     OS.resetColor();
@@ -760,15 +750,35 @@ void TextDiagnostic::printDiagnosticMessage(raw_ostream &OS,
 }
 
 void TextDiagnostic::emitFilename(StringRef Filename, const SourceManager &SM) {
-  SmallVector<char, 128> AbsoluteFilename;
+#ifdef _WIN32
+  SmallString<4096> TmpFilename;
+#endif
   if (DiagOpts->AbsolutePath) {
-    const DirectoryEntry *Dir = SM.getFileManager().getDirectory(
-        llvm::sys::path::parent_path(Filename));
-    if (Dir) {
-      StringRef DirName = SM.getFileManager().getCanonicalName(Dir);
-      llvm::sys::path::append(AbsoluteFilename, DirName,
-                              llvm::sys::path::filename(Filename));
-      Filename = StringRef(AbsoluteFilename.data(), AbsoluteFilename.size());
+    auto File = SM.getFileManager().getFile(Filename);
+    if (File) {
+      // We want to print a simplified absolute path, i. e. without "dots".
+      //
+      // The hardest part here are the paths like "<part1>/<link>/../<part2>".
+      // On Unix-like systems, we cannot just collapse "<link>/..", because
+      // paths are resolved sequentially, and, thereby, the path
+      // "<part1>/<part2>" may point to a different location. That is why
+      // we use FileManager::getCanonicalName(), which expands all indirections
+      // with llvm::sys::fs::real_path() and caches the result.
+      //
+      // On the other hand, it would be better to preserve as much of the
+      // original path as possible, because that helps a user to recognize it.
+      // real_path() expands all links, which sometimes too much. Luckily,
+      // on Windows we can just use llvm::sys::path::remove_dots(), because,
+      // on that system, both aforementioned paths point to the same place.
+#ifdef _WIN32
+      TmpFilename = (*File)->getName();
+      llvm::sys::fs::make_absolute(TmpFilename);
+      llvm::sys::path::native(TmpFilename);
+      llvm::sys::path::remove_dots(TmpFilename, /* remove_dot_dot */ true);
+      Filename = StringRef(TmpFilename.data(), TmpFilename.size());
+#else
+      Filename = SM.getFileManager().getCanonicalName(*File);
+#endif
     }
   }
 
@@ -806,7 +816,10 @@ void TextDiagnostic::emitDiagnosticLoc(FullSourceLoc Loc, PresumedLoc PLoc,
 
   emitFilename(PLoc.getFilename(), Loc.getManager());
   switch (DiagOpts->getFormat()) {
-  case DiagnosticOptions::Clang: OS << ':'  << LineNo; break;
+  case DiagnosticOptions::Clang:
+    if (DiagOpts->ShowLine)
+      OS << ':' << LineNo;
+    break;
   case DiagnosticOptions::MSVC:  OS << '('  << LineNo; break;
   case DiagnosticOptions::Vi:    OS << " +" << LineNo; break;
   }

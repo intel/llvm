@@ -12,6 +12,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/DebugInfo/PDB/Native/LinePrinter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -49,6 +50,8 @@ enum class ModuleSubsection {
   CoffSymbolRVAs,
   All
 };
+
+extern FilterOptions Filters;
 
 namespace pretty {
 
@@ -141,6 +144,7 @@ extern llvm::cl::opt<bool> DumpFpm;
 extern llvm::cl::opt<bool> DumpStreams;
 extern llvm::cl::opt<bool> DumpSymbolStats;
 extern llvm::cl::opt<bool> DumpTypeStats;
+extern llvm::cl::opt<bool> DumpIDStats;
 extern llvm::cl::opt<bool> DumpUdtStats;
 extern llvm::cl::opt<bool> DumpStreamBlocks;
 

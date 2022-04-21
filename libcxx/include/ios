@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===---------------------------- ios -------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -202,25 +202,29 @@ enum class io_errc
 };
 
 concept_map ErrorCodeEnum<io_errc> { };
-error_code make_error_code(io_errc e) noexcept; 
-error_condition make_error_condition(io_errc e) noexcept; 
+error_code make_error_code(io_errc e) noexcept;
+error_condition make_error_condition(io_errc e) noexcept;
 storage-class-specifier const error_category& iostream_category() noexcept;
 
 }  // std
 
 */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
-#include <iosfwd>
+#include <__ios/fpos.h>
 #include <__locale>
+#include <__utility/swap.h>
+#include <iosfwd>
 #include <system_error>
+#include <version>
 
 #if !defined(_LIBCPP_HAS_NO_ATOMIC_HEADER)
 #include <atomic>     // for __xindex_
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -308,11 +312,9 @@ public:
     typedef void (*event_callback)(event, ios_base&, int __index);
     void register_callback(event_callback __fn, int __index);
 
-private:
-    ios_base(const ios_base&); // = delete;
-    ios_base& operator=(const ios_base&); // = delete;
+    ios_base(const ios_base&) = delete;
+    ios_base& operator=(const ios_base&) = delete;
 
-public:
     static bool sync_with_stdio(bool __sync = true);
 
     _LIBCPP_INLINE_VISIBILITY iostate rdstate() const;
@@ -403,7 +405,7 @@ _LIBCPP_DECLARE_STRONG_ENUM_EPILOG(io_errc)
 template <>
 struct _LIBCPP_TEMPLATE_VIS is_error_code_enum<io_errc> : public true_type { };
 
-#ifdef _LIBCPP_HAS_NO_STRONG_ENUMS
+#ifdef _LIBCPP_CXX03_LANG
 template <>
 struct _LIBCPP_TEMPLATE_VIS is_error_code_enum<io_errc::__lx> : public true_type { };
 #endif
@@ -431,7 +433,8 @@ class _LIBCPP_EXCEPTION_ABI ios_base::failure
 public:
     explicit failure(const string& __msg, const error_code& __ec = io_errc::stream);
     explicit failure(const char* __msg, const error_code& __ec = io_errc::stream);
-    virtual ~failure() throw();
+    failure(const failure&) _NOEXCEPT = default;
+    virtual ~failure() _NOEXCEPT;
 };
 
 _LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY
@@ -590,13 +593,6 @@ ios_base::exceptions(iostate __iostate)
     clear(__rdstate_);
 }
 
-#if defined(_LIBCPP_CXX03_LANG)
-struct _LIBCPP_TYPE_VIS __cxx03_bool {
-  typedef void (__cxx03_bool::*__bool_type)();
-  void __true_value() {}
-};
-#endif
-
 template <class _CharT, class _Traits>
 class _LIBCPP_TEMPLATE_VIS basic_ios
     : public ios_base
@@ -613,17 +609,14 @@ public:
     static_assert((is_same<_CharT, typename traits_type::char_type>::value),
                   "traits_type::char_type must be the same type as CharT");
 
-  // __true_value will generate undefined references when linking unless
-  // we give it internal linkage.
-
-#if defined(_LIBCPP_CXX03_LANG)
+#ifdef _LIBCPP_CXX03_LANG
+    // Preserve the ability to compare with literal 0,
+    // and implicitly convert to bool, but not implicitly convert to int.
     _LIBCPP_INLINE_VISIBILITY
-    operator __cxx03_bool::__bool_type() const {
-        return !fail() ? &__cxx03_bool::__true_value : nullptr;
-    }
+    operator void*() const {return fail() ? nullptr : (void*)this;}
 #else
     _LIBCPP_INLINE_VISIBILITY
-    _LIBCPP_EXPLICIT operator bool() const {return !fail();}
+    explicit operator bool() const {return !fail();}
 #endif
 
     _LIBCPP_INLINE_VISIBILITY bool operator!() const    {return  fail();}
@@ -644,47 +637,45 @@ public:
     virtual ~basic_ios();
 
     // 27.5.4.2 Members:
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     basic_ostream<char_type, traits_type>* tie() const;
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     basic_ostream<char_type, traits_type>* tie(basic_ostream<char_type, traits_type>* __tiestr);
 
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     basic_streambuf<char_type, traits_type>* rdbuf() const;
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     basic_streambuf<char_type, traits_type>* rdbuf(basic_streambuf<char_type, traits_type>* __sb);
 
     basic_ios& copyfmt(const basic_ios& __rhs);
 
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     char_type fill() const;
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     char_type fill(char_type __ch);
 
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     locale imbue(const locale& __loc);
 
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     char narrow(char_type __c, char __dfault) const;
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     char_type widen(char __c) const;
 
 protected:
     _LIBCPP_INLINE_VISIBILITY
     basic_ios() {// purposefully does no initialization
                 }
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     void init(basic_streambuf<char_type, traits_type>* __sb);
 
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     void move(basic_ios& __rhs);
-#ifndef _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY
     void move(basic_ios&& __rhs) {move(__rhs);}
-#endif
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     void swap(basic_ios& __rhs) _NOEXCEPT;
-    _LIBCPP_INLINE_VISIBILITY 
+    _LIBCPP_INLINE_VISIBILITY
     void set_rdbuf(basic_streambuf<char_type, traits_type>* __sb);
 private:
     basic_ostream<char_type, traits_type>* __tie_;
@@ -709,7 +700,7 @@ void
 basic_ios<_CharT, _Traits>::init(basic_streambuf<char_type, traits_type>* __sb)
 {
     ios_base::init(__sb);
-    __tie_ = 0;
+    __tie_ = nullptr;
     __fill_ = traits_type::eof();
 }
 
@@ -792,6 +783,8 @@ inline _LIBCPP_INLINE_VISIBILITY
 _CharT
 basic_ios<_CharT, _Traits>::fill(char_type __ch)
 {
+    if (traits_type::eq_int_type(traits_type::eof(), __fill_))
+        __fill_ = widen(' ');
     char_type __r = __fill_;
     __fill_ = __ch;
     return __r;
@@ -820,7 +813,7 @@ basic_ios<_CharT, _Traits>::move(basic_ios& __rhs)
 {
     ios_base::move(__rhs);
     __tie_ = __rhs.__tie_;
-    __rhs.__tie_ = 0;
+    __rhs.__tie_ = nullptr;
     __fill_ = __rhs.__fill_;
 }
 
@@ -842,7 +835,7 @@ basic_ios<_CharT, _Traits>::set_rdbuf(basic_streambuf<char_type, traits_type>* _
     ios_base::set_rdbuf(__sb);
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 boolalpha(ios_base& __str)
 {
@@ -850,7 +843,7 @@ boolalpha(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 noboolalpha(ios_base& __str)
 {
@@ -858,7 +851,7 @@ noboolalpha(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 showbase(ios_base& __str)
 {
@@ -866,7 +859,7 @@ showbase(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 noshowbase(ios_base& __str)
 {
@@ -874,7 +867,7 @@ noshowbase(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 showpoint(ios_base& __str)
 {
@@ -882,7 +875,7 @@ showpoint(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 noshowpoint(ios_base& __str)
 {
@@ -890,7 +883,7 @@ noshowpoint(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 showpos(ios_base& __str)
 {
@@ -898,7 +891,7 @@ showpos(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 noshowpos(ios_base& __str)
 {
@@ -906,7 +899,7 @@ noshowpos(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 skipws(ios_base& __str)
 {
@@ -914,7 +907,7 @@ skipws(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 noskipws(ios_base& __str)
 {
@@ -922,7 +915,7 @@ noskipws(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 uppercase(ios_base& __str)
 {
@@ -930,7 +923,7 @@ uppercase(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 nouppercase(ios_base& __str)
 {
@@ -938,7 +931,7 @@ nouppercase(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 unitbuf(ios_base& __str)
 {
@@ -946,7 +939,7 @@ unitbuf(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 nounitbuf(ios_base& __str)
 {
@@ -954,7 +947,7 @@ nounitbuf(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 internal(ios_base& __str)
 {
@@ -962,7 +955,7 @@ internal(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 left(ios_base& __str)
 {
@@ -970,7 +963,7 @@ left(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 right(ios_base& __str)
 {
@@ -978,7 +971,7 @@ right(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 dec(ios_base& __str)
 {
@@ -986,7 +979,7 @@ dec(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 hex(ios_base& __str)
 {
@@ -994,7 +987,7 @@ hex(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 oct(ios_base& __str)
 {
@@ -1002,7 +995,7 @@ oct(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 fixed(ios_base& __str)
 {
@@ -1010,7 +1003,7 @@ fixed(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 scientific(ios_base& __str)
 {
@@ -1018,7 +1011,7 @@ scientific(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 hexfloat(ios_base& __str)
 {
@@ -1026,7 +1019,7 @@ hexfloat(ios_base& __str)
     return __str;
 }
 
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 ios_base&
 defaultfloat(ios_base& __str)
 {
@@ -1034,33 +1027,6 @@ defaultfloat(ios_base& __str)
     return __str;
 }
 
-template <class _CharT, class _Traits>
-class __save_flags
-{
-    typedef basic_ios<_CharT, _Traits> __stream_type;
-    typedef typename __stream_type::fmtflags fmtflags;
-
-    __stream_type& __stream_;
-    fmtflags       __fmtflags_;
-    _CharT         __fill_;
-
-    __save_flags(const __save_flags&);
-    __save_flags& operator=(const __save_flags&);
-public:
-    _LIBCPP_INLINE_VISIBILITY
-    explicit __save_flags(__stream_type& __stream)
-        : __stream_(__stream),
-          __fmtflags_(__stream.flags()),
-          __fill_(__stream.fill())
-        {}
-    _LIBCPP_INLINE_VISIBILITY
-    ~__save_flags()
-    {
-        __stream_.flags(__fmtflags_);
-        __stream_.fill(__fill_);
-    }
-};
-
 _LIBCPP_END_NAMESPACE_STD
 
-#endif  // _LIBCPP_IOS
+#endif // _LIBCPP_IOS

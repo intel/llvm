@@ -4,7 +4,7 @@
 ; CHECK: DW_TAG_structure_type
 ; CHECK:  DW_AT_APPLE_objc_complete_type
 ; CHECK:  DW_AT_name [DW_FORM_strp] ( .debug_str[0x{{[0-9a-fA-F]+}}] = "Foo")
-; CHECK   DW_AT_APPLE_runtime_class [DW_FORM_data1]       (DW_LANG_ObjC)
+; CHECK:  DW_AT_APPLE_runtime_class [DW_FORM_data1]       (DW_LANG_ObjC)
 ; CHECK: DW_TAG_APPLE_property
 ; CHECK:  DW_AT_APPLE_property_name [DW_FORM_strp] ( .debug_str[0x{{[0-9a-fA-F]+}}] = "foo")
 
@@ -66,7 +66,7 @@ entry:
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { ssp uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { ssp uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

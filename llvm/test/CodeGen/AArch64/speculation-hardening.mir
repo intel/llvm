@@ -1,6 +1,6 @@
 # RUN: llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu \
 # RUN:     -start-before aarch64-speculation-hardening -o - %s \
-# RUN:   | FileCheck %s --dump-input-on-failure
+# RUN:   | FileCheck %s
 
 # Check that the speculation hardening pass generates code as expected for
 # basic blocks ending with a variety of branch patterns:
@@ -167,7 +167,7 @@ body:             |
   bb.0:
     ; CHECK-LABEL: indirect_call_lr
     ; CHECK:            mov x1, sp
-    ; CHECK-NEXT:       and x1, x1, x16
+    ; CHECK:            and x1, x1, x16
     ; CHECK-NEXT:       mov sp, x1
     ; CHECK-NEXT:       blr x30
     liveins: $x0, $lr

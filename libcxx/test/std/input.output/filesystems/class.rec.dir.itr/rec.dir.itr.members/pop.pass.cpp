@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,13 +15,13 @@
 // void pop();
 // void pop(error_code& ec);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -39,16 +39,17 @@ TEST_CASE(signature_tests)
 // seen files at each depth to determine the new depth after a 'pop()' operation.
 TEST_CASE(test_depth)
 {
+    static_test_env static_env;
     const recursive_directory_iterator endIt{};
 
-    auto& DE0 = StaticEnv::DirIterationList;
-    std::set<path> notSeenDepth0(std::begin(DE0), std::end(DE0));
+    auto& DE0 = static_env.DirIterationList;
+    std::set<path> notSeenDepth0(DE0.begin(), DE0.end());
 
-    auto& DE1 = StaticEnv::DirIterationListDepth1;
-    std::set<path> notSeenDepth1(std::begin(DE1), std::end(DE1));
+    auto& DE1 = static_env.DirIterationListDepth1;
+    std::set<path> notSeenDepth1(DE1.begin(), DE1.end());
 
     std::error_code ec;
-    recursive_directory_iterator it(StaticEnv::Dir, ec);
+    recursive_directory_iterator it(static_env.Dir, ec);
     TEST_REQUIRE(it != endIt);
     TEST_CHECK(it.depth() == 0);
 

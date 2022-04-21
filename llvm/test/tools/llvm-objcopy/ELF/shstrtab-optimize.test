@@ -1,4 +1,4 @@
-# RUN: yaml2obj %s > %t
+# RUN: yaml2obj %s -o %t
 # RUN: llvm-objcopy %t %t2
 # RUN: llvm-readobj --sections %t2 | FileCheck %s
 
@@ -11,7 +11,7 @@
 # CHECK-NEXT: ]
 # CHECK-NEXT: Address:
 # CHECK-NEXT: Offset:
-# CHECK-NEXT: Size: 36
+# CHECK-NEXT: Size: 28
 
 !ELF
 FileHeader:

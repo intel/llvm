@@ -1,4 +1,4 @@
-//===- ParallelDSP.cpp - Parallel DSP Pass --------------------------------===//
+//===- ARMParallelDSP.cpp - Parallel DSP Pass -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,25 +14,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/Analysis/LoopAccessAnalysis.h"
-#include "llvm/Analysis/LoopPass.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/NoFolder.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Transforms/Utils/LoopUtils.h"
-#include "llvm/Pass.h"
-#include "llvm/PassRegistry.h"
-#include "llvm/PassSupport.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/IR/PatternMatch.h"
-#include "llvm/CodeGen/TargetPassConfig.h"
 #include "ARM.h"
 #include "ARMSubtarget.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/LoopAccessAnalysis.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicsARM.h"
+#include "llvm/IR/NoFolder.h"
+#include "llvm/IR/PatternMatch.h"
+#include "llvm/Pass.h"
+#include "llvm/PassRegistry.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 using namespace llvm;
 using namespace PatternMatch;
@@ -45,67 +45,154 @@ static cl::opt<bool>
 DisableParallelDSP("disable-arm-parallel-dsp", cl::Hidden, cl::init(false),
                    cl::desc("Disable the ARM Parallel DSP pass"));
 
+static cl::opt<unsigned>
+NumLoadLimit("arm-parallel-dsp-load-limit", cl::Hidden, cl::init(16),
+             cl::desc("Limit the number of loads analysed"));
+
 namespace {
-  struct OpChain;
-  struct BinOpChain;
-  struct Reduction;
+  struct MulCandidate;
+  class Reduction;
 
-  using OpChainList     = SmallVector<std::unique_ptr<OpChain>, 8>;
-  using ReductionList   = SmallVector<Reduction, 8>;
-  using ValueList       = SmallVector<Value*, 8>;
-  using MemInstList     = SmallVector<LoadInst*, 8>;
-  using PMACPair        = std::pair<BinOpChain*,BinOpChain*>;
-  using PMACPairList    = SmallVector<PMACPair, 8>;
-  using Instructions    = SmallVector<Instruction*,16>;
-  using MemLocList      = SmallVector<MemoryLocation, 4>;
+  using MulCandList = SmallVector<std::unique_ptr<MulCandidate>, 8>;
+  using MemInstList = SmallVectorImpl<LoadInst*>;
+  using MulPairList = SmallVector<std::pair<MulCandidate*, MulCandidate*>, 8>;
 
-  struct OpChain {
+  // 'MulCandidate' holds the multiplication instructions that are candidates
+  // for parallel execution.
+  struct MulCandidate {
     Instruction   *Root;
-    ValueList     AllValues;
-    MemInstList   VecLd;    // List of all load instructions.
-    MemInstList   Loads;
+    Value*        LHS;
+    Value*        RHS;
+    bool          Exchange = false;
     bool          ReadOnly = true;
+    bool          Paired = false;
+    SmallVector<LoadInst*, 2> VecLd;    // Container for loads to widen.
 
-    OpChain(Instruction *I, ValueList &vl) : Root(I), AllValues(vl) { }
-    virtual ~OpChain() = default;
+    MulCandidate(Instruction *I, Value *lhs, Value *rhs) :
+      Root(I), LHS(lhs), RHS(rhs) { }
 
-    void PopulateLoads() {
-      for (auto *V : AllValues) {
-        if (auto *Ld = dyn_cast<LoadInst>(V))
-          Loads.push_back(Ld);
+    bool HasTwoLoadInputs() const {
+      return isa<LoadInst>(LHS) && isa<LoadInst>(RHS);
+    }
+
+    LoadInst *getBaseLoad() const {
+      return VecLd.front();
+    }
+  };
+
+  /// Represent a sequence of multiply-accumulate operations with the aim to
+  /// perform the multiplications in parallel.
+  class Reduction {
+    Instruction     *Root = nullptr;
+    Value           *Acc = nullptr;
+    MulCandList     Muls;
+    MulPairList        MulPairs;
+    SetVector<Instruction*> Adds;
+
+  public:
+    Reduction() = delete;
+
+    Reduction (Instruction *Add) : Root(Add) { }
+
+    /// Record an Add instruction that is a part of the this reduction.
+    void InsertAdd(Instruction *I) { Adds.insert(I); }
+
+    /// Create MulCandidates, each rooted at a Mul instruction, that is a part
+    /// of this reduction.
+    void InsertMuls() {
+      auto GetMulOperand = [](Value *V) -> Instruction* {
+        if (auto *SExt = dyn_cast<SExtInst>(V)) {
+          if (auto *I = dyn_cast<Instruction>(SExt->getOperand(0)))
+            if (I->getOpcode() == Instruction::Mul)
+              return I;
+        } else if (auto *I = dyn_cast<Instruction>(V)) {
+          if (I->getOpcode() == Instruction::Mul)
+            return I;
+        }
+        return nullptr;
+      };
+
+      auto InsertMul = [this](Instruction *I) {
+        Value *LHS = cast<Instruction>(I->getOperand(0))->getOperand(0);
+        Value *RHS = cast<Instruction>(I->getOperand(1))->getOperand(0);
+        Muls.push_back(std::make_unique<MulCandidate>(I, LHS, RHS));
+      };
+
+      for (auto *Add : Adds) {
+        if (Add == Acc)
+          continue;
+        if (auto *Mul = GetMulOperand(Add->getOperand(0)))
+          InsertMul(Mul);
+        if (auto *Mul = GetMulOperand(Add->getOperand(1)))
+          InsertMul(Mul);
       }
     }
 
-    unsigned size() const { return AllValues.size(); }
-  };
+    /// Add the incoming accumulator value, returns true if a value had not
+    /// already been added. Returning false signals to the user that this
+    /// reduction already has a value to initialise the accumulator.
+    bool InsertAcc(Value *V) {
+      if (Acc)
+        return false;
+      Acc = V;
+      return true;
+    }
 
-  // 'BinOpChain' and 'Reduction' are just some bookkeeping data structures.
-  // 'Reduction' contains the phi-node and accumulator statement from where we
-  // start pattern matching, and 'BinOpChain' the multiplication
-  // instructions that are candidates for parallel execution.
-  struct BinOpChain : public OpChain {
-    ValueList     LHS;      // List of all (narrow) left hand operands.
-    ValueList     RHS;      // List of all (narrow) right hand operands.
-    bool Exchange = false;
+    /// Set two MulCandidates, rooted at muls, that can be executed as a single
+    /// parallel operation.
+    void AddMulPair(MulCandidate *Mul0, MulCandidate *Mul1,
+                    bool Exchange = false) {
+      LLVM_DEBUG(dbgs() << "Pairing:\n"
+                 << *Mul0->Root << "\n"
+                 << *Mul1->Root << "\n");
+      Mul0->Paired = true;
+      Mul1->Paired = true;
+      if (Exchange)
+        Mul1->Exchange = true;
+      MulPairs.push_back(std::make_pair(Mul0, Mul1));
+    }
 
-    BinOpChain(Instruction *I, ValueList &lhs, ValueList &rhs) :
-      OpChain(I, lhs), LHS(lhs), RHS(rhs) {
-        for (auto *V : RHS)
-          AllValues.push_back(V);
-      }
+    /// Return true if enough mul operations are found that can be executed in
+    /// parallel.
+    bool CreateParallelPairs();
 
-    bool AreSymmetrical(BinOpChain *Other);
-  };
+    /// Return the add instruction which is the root of the reduction.
+    Instruction *getRoot() { return Root; }
 
-  struct Reduction {
-    PHINode         *Phi;             // The Phi-node from where we start
-                                      // pattern matching.
-    Instruction     *AccIntAdd;       // The accumulating integer add statement,
-                                      // i.e, the reduction statement.
-    OpChainList     MACCandidates;    // The MAC candidates associated with
-                                      // this reduction statement.
-    PMACPairList    PMACPairs;
-    Reduction (PHINode *P, Instruction *Acc) : Phi(P), AccIntAdd(Acc) { };
+    bool is64Bit() const { return Root->getType()->isIntegerTy(64); }
+
+    Type *getType() const { return Root->getType(); }
+
+    /// Return the incoming value to be accumulated. This maybe null.
+    Value *getAccumulator() { return Acc; }
+
+    /// Return the set of adds that comprise the reduction.
+    SetVector<Instruction*> &getAdds() { return Adds; }
+
+    /// Return the MulCandidate, rooted at mul instruction, that comprise the
+    /// the reduction.
+    MulCandList &getMuls() { return Muls; }
+
+    /// Return the MulCandidate, rooted at mul instructions, that have been
+    /// paired for parallel execution.
+    MulPairList &getMulPairs() { return MulPairs; }
+
+    /// To finalise, replace the uses of the root with the intrinsic call.
+    void UpdateRoot(Instruction *SMLAD) {
+      Root->replaceAllUsesWith(SMLAD);
+    }
+
+    void dump() {
+      LLVM_DEBUG(dbgs() << "Reduction:\n";
+        for (auto *Add : Adds)
+          LLVM_DEBUG(dbgs() << *Add << "\n");
+        for (auto &Mul : Muls)
+          LLVM_DEBUG(dbgs() << *Mul->Root << "\n"
+                     << "  " << *Mul->LHS << "\n"
+                     << "  " << *Mul->RHS << "\n");
+        LLVM_DEBUG(if (Acc) dbgs() << "Acc in: " << *Acc << "\n")
+      );
+    }
   };
 
   class WidenedLoad {
@@ -115,36 +202,32 @@ namespace {
   public:
     WidenedLoad(SmallVectorImpl<LoadInst*> &Lds, LoadInst *Wide)
       : NewLd(Wide) {
-      for (auto *I : Lds)
-        Loads.push_back(I);
+      append_range(Loads, Lds);
     }
     LoadInst *getLoad() {
       return NewLd;
     }
   };
 
-  class ARMParallelDSP : public LoopPass {
+  class ARMParallelDSP : public FunctionPass {
     ScalarEvolution   *SE;
     AliasAnalysis     *AA;
     TargetLibraryInfo *TLI;
     DominatorTree     *DT;
-    LoopInfo          *LI;
-    Loop              *L;
     const DataLayout  *DL;
     Module            *M;
     std::map<LoadInst*, LoadInst*> LoadPairs;
+    SmallPtrSet<LoadInst*, 4> OffsetLoads;
     std::map<LoadInst*, std::unique_ptr<WidenedLoad>> WideLoads;
 
+    template<unsigned>
+    bool IsNarrowSequence(Value *V);
+    bool Search(Value *V, BasicBlock *BB, Reduction &R);
     bool RecordMemoryOps(BasicBlock *BB);
-    bool InsertParallelMACs(Reduction &Reduction);
+    void InsertParallelMACs(Reduction &Reduction);
     bool AreSequentialLoads(LoadInst *Ld0, LoadInst *Ld1, MemInstList &VecMem);
-    LoadInst* CreateWideLoad(SmallVectorImpl<LoadInst*> &Loads,
-                             IntegerType *LoadTy);
-    void CreateParallelMACPairs(Reduction &R);
-    Instruction *CreateSMLADCall(SmallVectorImpl<LoadInst*> &VecLd0,
-                                 SmallVectorImpl<LoadInst*> &VecLd1,
-                                 Instruction *Acc, bool Exchange,
-                                 Instruction *InsertAfter);
+    LoadInst* CreateWideLoad(MemInstList &Loads, IntegerType *LoadTy);
+    bool CreateParallelPairs(Reduction &R);
 
     /// Try to match and generate: SMLAD, SMLADX - Signed Multiply Accumulate
     /// Dual performs two signed 16x16-bit multiplications. It adds the
@@ -156,58 +239,33 @@ namespace {
   public:
     static char ID;
 
-    ARMParallelDSP() : LoopPass(ID) { }
-
-    bool doInitialization(Loop *L, LPPassManager &LPM) override {
-      LoadPairs.clear();
-      WideLoads.clear();
-      return true;
-    }
+    ARMParallelDSP() : FunctionPass(ID) { }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
-      LoopPass::getAnalysisUsage(AU);
+      FunctionPass::getAnalysisUsage(AU);
       AU.addRequired<AssumptionCacheTracker>();
       AU.addRequired<ScalarEvolutionWrapperPass>();
       AU.addRequired<AAResultsWrapperPass>();
       AU.addRequired<TargetLibraryInfoWrapperPass>();
-      AU.addRequired<LoopInfoWrapperPass>();
       AU.addRequired<DominatorTreeWrapperPass>();
       AU.addRequired<TargetPassConfig>();
-      AU.addPreserved<LoopInfoWrapperPass>();
+      AU.addPreserved<ScalarEvolutionWrapperPass>();
+      AU.addPreserved<GlobalsAAWrapperPass>();
       AU.setPreservesCFG();
     }
 
-    bool runOnLoop(Loop *TheLoop, LPPassManager &) override {
+    bool runOnFunction(Function &F) override {
       if (DisableParallelDSP)
         return false;
-      L = TheLoop;
+      if (skipFunction(F))
+        return false;
+
       SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
       AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
-      TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
       DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-      LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
       auto &TPC = getAnalysis<TargetPassConfig>();
 
-      BasicBlock *Header = TheLoop->getHeader();
-      if (!Header)
-        return false;
-
-      // TODO: We assume the loop header and latch to be the same block.
-      // This is not a fundamental restriction, but lifting this would just
-      // require more work to do the transformation and then patch up the CFG.
-      if (Header != TheLoop->getLoopLatch()) {
-        LLVM_DEBUG(dbgs() << "The loop header is not the loop latch: not "
-                             "running pass ARMParallelDSP\n");
-        return false;
-      }
-
-      // We need a preheader as getIncomingValueForBlock assumes there is one.
-      if (!TheLoop->getLoopPreheader()) {
-        LLVM_DEBUG(dbgs() << "No preheader found, bailing out\n");
-        return false;
-      }
-
-      Function &F = *Header->getParent();
       M = F.getParent();
       DL = &M->getDataLayout();
 
@@ -232,67 +290,13 @@ namespace {
         return false;
       }
 
-      LoopAccessInfo LAI(L, SE, TLI, AA, DT, LI);
-
       LLVM_DEBUG(dbgs() << "\n== Parallel DSP pass ==\n");
       LLVM_DEBUG(dbgs() << " - " << F.getName() << "\n\n");
-
-      if (!RecordMemoryOps(Header)) {
-        LLVM_DEBUG(dbgs() << " - No sequential loads found.\n");
-        return false;
-      }
 
       bool Changes = MatchSMLAD(F);
       return Changes;
     }
   };
-}
-
-// MaxBitwidth: the maximum supported bitwidth of the elements in the DSP
-// instructions, which is set to 16. So here we should collect all i8 and i16
-// narrow operations.
-// TODO: we currently only collect i16, and will support i8 later, so that's
-// why we check that types are equal to MaxBitWidth, and not <= MaxBitWidth.
-template<unsigned MaxBitWidth>
-static bool IsNarrowSequence(Value *V, ValueList &VL) {
-  ConstantInt *CInt;
-
-  if (match(V, m_ConstantInt(CInt))) {
-    // TODO: if a constant is used, it needs to fit within the bit width.
-    return false;
-  }
-
-  auto *I = dyn_cast<Instruction>(V);
-  if (!I)
-   return false;
-
-  Value *Val, *LHS, *RHS;
-  if (match(V, m_Trunc(m_Value(Val)))) {
-    if (cast<TruncInst>(I)->getDestTy()->getIntegerBitWidth() == MaxBitWidth)
-      return IsNarrowSequence<MaxBitWidth>(Val, VL);
-  } else if (match(V, m_Add(m_Value(LHS), m_Value(RHS)))) {
-    // TODO: we need to implement sadd16/sadd8 for this, which enables to
-    // also do the rewrite for smlad8.ll, but it is unsupported for now.
-    return false;
-  } else if (match(V, m_ZExtOrSExt(m_Value(Val)))) {
-    if (cast<CastInst>(I)->getSrcTy()->getIntegerBitWidth() != MaxBitWidth)
-      return false;
-
-    if (match(Val, m_Load(m_Value()))) {
-      VL.push_back(Val);
-      VL.push_back(I);
-      return true;
-    }
-  }
-  return false;
-}
-
-template<typename MemInst>
-static bool AreSequentialAccesses(MemInst *MemOp0, MemInst *MemOp1,
-                                  const DataLayout &DL, ScalarEvolution &SE) {
-  if (isConsecutiveAccess(MemOp0, MemOp1, DL, SE))
-    return true;
-  return false;
 }
 
 bool ARMParallelDSP::AreSequentialLoads(LoadInst *Ld0, LoadInst *Ld1,
@@ -314,11 +318,32 @@ bool ARMParallelDSP::AreSequentialLoads(LoadInst *Ld0, LoadInst *Ld1,
   return true;
 }
 
+// MaxBitwidth: the maximum supported bitwidth of the elements in the DSP
+// instructions, which is set to 16. So here we should collect all i8 and i16
+// narrow operations.
+// TODO: we currently only collect i16, and will support i8 later, so that's
+// why we check that types are equal to MaxBitWidth, and not <= MaxBitWidth.
+template<unsigned MaxBitWidth>
+bool ARMParallelDSP::IsNarrowSequence(Value *V) {
+  if (auto *SExt = dyn_cast<SExtInst>(V)) {
+    if (SExt->getSrcTy()->getIntegerBitWidth() != MaxBitWidth)
+      return false;
+
+    if (auto *Ld = dyn_cast<LoadInst>(SExt->getOperand(0))) {
+      // Check that this load could be paired.
+      return LoadPairs.count(Ld) || OffsetLoads.count(Ld);
+    }
+  }
+  return false;
+}
+
 /// Iterate through the block and record base, offset pairs of loads which can
 /// be widened into a single load.
 bool ARMParallelDSP::RecordMemoryOps(BasicBlock *BB) {
   SmallVector<LoadInst*, 8> Loads;
   SmallVector<Instruction*, 8> Writes;
+  LoadPairs.clear();
+  WideLoads.clear();
 
   // Collect loads and instruction that may write to memory. For now we only
   // record loads which are simple, sign-extended and have a single user.
@@ -333,21 +358,24 @@ bool ARMParallelDSP::RecordMemoryOps(BasicBlock *BB) {
     Loads.push_back(Ld);
   }
 
+  if (Loads.empty() || Loads.size() > NumLoadLimit)
+    return false;
+
   using InstSet = std::set<Instruction*>;
   using DepMap = std::map<Instruction*, InstSet>;
   DepMap RAWDeps;
 
   // Record any writes that may alias a load.
-  const auto Size = LocationSize::unknown();
-  for (auto Read : Loads) {
-    for (auto Write : Writes) {
+  const auto Size = LocationSize::beforeOrAfterPointer();
+  for (auto Write : Writes) {
+    for (auto Read : Loads) {
       MemoryLocation ReadLoc =
         MemoryLocation(Read->getPointerOperand(), Size);
 
       if (!isModOrRefSet(intersectModRef(AA->getModRefInfo(Write, ReadLoc),
           ModRefInfo::ModRef)))
         continue;
-      if (DT->dominates(Write, Read))
+      if (Write->comesBefore(Read))
         RAWDeps[Read].insert(Write);
     }
   }
@@ -355,17 +383,17 @@ bool ARMParallelDSP::RecordMemoryOps(BasicBlock *BB) {
   // Check whether there's not a write between the two loads which would
   // prevent them from being safely merged.
   auto SafeToPair = [&](LoadInst *Base, LoadInst *Offset) {
-    LoadInst *Dominator = DT->dominates(Base, Offset) ? Base : Offset;
-    LoadInst *Dominated = DT->dominates(Base, Offset) ? Offset : Base;
+    bool BaseFirst = Base->comesBefore(Offset);
+    LoadInst *Dominator = BaseFirst ? Base : Offset;
+    LoadInst *Dominated = BaseFirst ? Offset : Base;
 
     if (RAWDeps.count(Dominated)) {
       InstSet &WritesBefore = RAWDeps[Dominated];
 
       for (auto Before : WritesBefore) {
-
         // We can't move the second load backward, past a write, to merge
         // with the first load.
-        if (DT->dominates(Dominator, Before))
+        if (Dominator->comesBefore(Before))
           return false;
       }
     }
@@ -375,12 +403,13 @@ bool ARMParallelDSP::RecordMemoryOps(BasicBlock *BB) {
   // Record base, offset load pairs.
   for (auto *Base : Loads) {
     for (auto *Offset : Loads) {
-      if (Base == Offset)
+      if (Base == Offset || OffsetLoads.count(Offset))
         continue;
 
-      if (AreSequentialAccesses<LoadInst>(Base, Offset, *DL, *SE) &&
+      if (isConsecutiveAccess(Base, Offset, *DL, *SE) &&
           SafeToPair(Base, Offset)) {
         LoadPairs[Base] = Offset;
+        OffsetLoads.insert(Offset);
         break;
       }
     }
@@ -396,187 +425,59 @@ bool ARMParallelDSP::RecordMemoryOps(BasicBlock *BB) {
   return LoadPairs.size() > 1;
 }
 
-void ARMParallelDSP::CreateParallelMACPairs(Reduction &R) {
-  OpChainList &Candidates = R.MACCandidates;
-  PMACPairList &PMACPairs = R.PMACPairs;
-  const unsigned Elems = Candidates.size();
+// Search recursively back through the operands to find a tree of values that
+// form a multiply-accumulate chain. The search records the Add and Mul
+// instructions that form the reduction and allows us to find a single value
+// to be used as the initial input to the accumlator.
+bool ARMParallelDSP::Search(Value *V, BasicBlock *BB, Reduction &R) {
+  // If we find a non-instruction, try to use it as the initial accumulator
+  // value. This may have already been found during the search in which case
+  // this function will return false, signaling a search fail.
+  auto *I = dyn_cast<Instruction>(V);
+  if (!I)
+    return R.InsertAcc(V);
 
-  if (Elems < 2)
-    return;
-
-  auto CanPair = [&](BinOpChain *PMul0, BinOpChain *PMul1) {
-    if (!PMul0->AreSymmetrical(PMul1))
-      return false;
-
-    // The first elements of each vector should be loads with sexts. If we
-    // find that its two pairs of consecutive loads, then these can be
-    // transformed into two wider loads and the users can be replaced with
-    // DSP intrinsics.
-    for (unsigned x = 0; x < PMul0->LHS.size(); x += 2) {
-      auto *Ld0 = dyn_cast<LoadInst>(PMul0->LHS[x]);
-      auto *Ld1 = dyn_cast<LoadInst>(PMul1->LHS[x]);
-      auto *Ld2 = dyn_cast<LoadInst>(PMul0->RHS[x]);
-      auto *Ld3 = dyn_cast<LoadInst>(PMul1->RHS[x]);
-
-      if (!Ld0 || !Ld1 || !Ld2 || !Ld3)
-        return false;
-
-      LLVM_DEBUG(dbgs() << "Loads:\n"
-                 << " - " << *Ld0 << "\n"
-                 << " - " << *Ld1 << "\n"
-                 << " - " << *Ld2 << "\n"
-                 << " - " << *Ld3 << "\n");
-
-      if (AreSequentialLoads(Ld0, Ld1, PMul0->VecLd)) {
-        if (AreSequentialLoads(Ld2, Ld3, PMul1->VecLd)) {
-          LLVM_DEBUG(dbgs() << "OK: found two pairs of parallel loads!\n");
-          PMACPairs.push_back(std::make_pair(PMul0, PMul1));
-          return true;
-        } else if (AreSequentialLoads(Ld3, Ld2, PMul1->VecLd)) {
-          LLVM_DEBUG(dbgs() << "OK: found two pairs of parallel loads!\n");
-          LLVM_DEBUG(dbgs() << "    exchanging Ld2 and Ld3\n");
-          PMul1->Exchange = true;
-          PMACPairs.push_back(std::make_pair(PMul0, PMul1));
-          return true;
-        }
-      } else if (AreSequentialLoads(Ld1, Ld0, PMul0->VecLd) &&
-                 AreSequentialLoads(Ld2, Ld3, PMul1->VecLd)) {
-        LLVM_DEBUG(dbgs() << "OK: found two pairs of parallel loads!\n");
-        LLVM_DEBUG(dbgs() << "    exchanging Ld0 and Ld1\n");
-        LLVM_DEBUG(dbgs() << "    and swapping muls\n");
-        PMul0->Exchange = true;
-        // Only the second operand can be exchanged, so swap the muls.
-        PMACPairs.push_back(std::make_pair(PMul1, PMul0));
-        return true;
-      }
-    }
+  if (I->getParent() != BB)
     return false;
-  };
 
-  SmallPtrSet<const Instruction*, 4> Paired;
-  for (unsigned i = 0; i < Elems; ++i) {
-    BinOpChain *PMul0 = static_cast<BinOpChain*>(Candidates[i].get());
-    if (Paired.count(PMul0->Root))
-      continue;
+  switch (I->getOpcode()) {
+  default:
+    break;
+  case Instruction::PHI:
+    // Could be the accumulator value.
+    return R.InsertAcc(V);
+  case Instruction::Add: {
+    // Adds should be adding together two muls, or another add and a mul to
+    // be within the mac chain. One of the operands may also be the
+    // accumulator value at which point we should stop searching.
+    R.InsertAdd(I);
+    Value *LHS = I->getOperand(0);
+    Value *RHS = I->getOperand(1);
+    bool ValidLHS = Search(LHS, BB, R);
+    bool ValidRHS = Search(RHS, BB, R);
 
-    for (unsigned j = 0; j < Elems; ++j) {
-      if (i == j)
-        continue;
+    if (ValidLHS && ValidRHS)
+      return true;
 
-      BinOpChain *PMul1 = static_cast<BinOpChain*>(Candidates[j].get());
-      if (Paired.count(PMul1->Root))
-        continue;
-
-      const Instruction *Mul0 = PMul0->Root;
-      const Instruction *Mul1 = PMul1->Root;
-      if (Mul0 == Mul1)
-        continue;
-
-      assert(PMul0 != PMul1 && "expected different chains");
-
-      if (CanPair(PMul0, PMul1)) {
-        Paired.insert(Mul0);
-        Paired.insert(Mul1);
-        break;
-      }
-    }
+    return R.InsertAcc(I);
   }
-}
-
-bool ARMParallelDSP::InsertParallelMACs(Reduction &Reduction) {
-  Instruction *Acc = Reduction.Phi;
-  Instruction *InsertAfter = Reduction.AccIntAdd;
-
-  for (auto &Pair : Reduction.PMACPairs) {
-    BinOpChain *PMul0 = Pair.first;
-    BinOpChain *PMul1 = Pair.second;
-    LLVM_DEBUG(dbgs() << "Found parallel MACs:\n"
-               << "- " << *PMul0->Root << "\n"
-               << "- " << *PMul1->Root << "\n");
-
-    Acc = CreateSMLADCall(PMul0->VecLd, PMul1->VecLd, Acc, PMul1->Exchange,
-                          InsertAfter);
-    InsertAfter = Acc;
+  case Instruction::Mul: {
+    Value *MulOp0 = I->getOperand(0);
+    Value *MulOp1 = I->getOperand(1);
+    return IsNarrowSequence<16>(MulOp0) && IsNarrowSequence<16>(MulOp1);
   }
-
-  if (Acc != Reduction.Phi) {
-    LLVM_DEBUG(dbgs() << "Replace Accumulate: "; Acc->dump());
-    Reduction.AccIntAdd->replaceAllUsesWith(Acc);
-    return true;
+  case Instruction::SExt:
+    return Search(I->getOperand(0), BB, R);
   }
   return false;
 }
 
-static void MatchParallelMACSequences(Reduction &R,
-                                      OpChainList &Candidates) {
-  Instruction *Acc = R.AccIntAdd;
-  LLVM_DEBUG(dbgs() << "\n- Analysing:\t" << *Acc << "\n");
-
-  // Returns false to signal the search should be stopped.
-  std::function<bool(Value*)> Match =
-    [&Candidates, &Match](Value *V) -> bool {
-
-    auto *I = dyn_cast<Instruction>(V);
-    if (!I)
-      return false;
-
-    switch (I->getOpcode()) {
-    case Instruction::Add:
-      if (Match(I->getOperand(0)) || (Match(I->getOperand(1))))
-        return true;
-      break;
-    case Instruction::Mul: {
-      Value *MulOp0 = I->getOperand(0);
-      Value *MulOp1 = I->getOperand(1);
-      if (isa<SExtInst>(MulOp0) && isa<SExtInst>(MulOp1)) {
-        ValueList LHS;
-        ValueList RHS;
-        if (IsNarrowSequence<16>(MulOp0, LHS) &&
-            IsNarrowSequence<16>(MulOp1, RHS)) {
-          Candidates.push_back(make_unique<BinOpChain>(I, LHS, RHS));
-        }
-      }
-      return false;
-    }
-    case Instruction::SExt:
-      return Match(I->getOperand(0));
-    }
-    return false;
-  };
-
-  while (Match (Acc));
-  LLVM_DEBUG(dbgs() << "Finished matching MAC sequences, found "
-             << Candidates.size() << " candidates.\n");
-}
-
-static bool CheckMACMemory(OpChainList &Candidates) {
-  for (auto &C : Candidates) {
-    // A mul has 2 operands, and a narrow op consist of sext and a load; thus
-    // we expect at least 4 items in this operand value list.
-    if (C->size() < 4) {
-      LLVM_DEBUG(dbgs() << "Operand list too short.\n");
-      return false;
-    }
-    C->PopulateLoads();
-    ValueList &LHS = static_cast<BinOpChain*>(C.get())->LHS;
-    ValueList &RHS = static_cast<BinOpChain*>(C.get())->RHS;
-
-    // Use +=2 to skip over the expected extend instructions.
-    for (unsigned i = 0, e = LHS.size(); i < e; i += 2) {
-      if (!isa<LoadInst>(LHS[i]) || !isa<LoadInst>(RHS[i]))
-        return false;
-    }
-  }
-  return true;
-}
-
-// Loop Pass that needs to identify integer add/sub reductions of 16-bit vector
+// The pass needs to identify integer add/sub reductions of 16-bit vector
 // multiplications.
 // To use SMLAD:
-// 1) we first need to find integer add reduction PHIs,
-// 2) then from the PHI, look for this pattern:
+// 1) we first need to find integer add then look for this pattern:
 //
-// acc0 = phi i32 [0, %entry], [%acc1, %loop.body]
+// acc0 = ...
 // ld0 = load i16
 // sext0 = sext i16 %ld0 to i32
 // ld1 = load i16
@@ -592,8 +493,8 @@ static bool CheckMACMemory(OpChainList &Candidates) {
 //
 // Which can be selected to:
 //
-// ldr.h r0
-// ldr.h r1
+// ldr r0
+// ldr r1
 // smlad r2, r0, r1, r2
 //
 // If constants are used instead of loads, these will need to be hoisted
@@ -603,63 +504,228 @@ static bool CheckMACMemory(OpChainList &Candidates) {
 // before the loop begins.
 //
 bool ARMParallelDSP::MatchSMLAD(Function &F) {
+  bool Changed = false;
 
-  auto FindReductions = [&](ReductionList &Reductions) {
-    RecurrenceDescriptor RecDesc;
-    const bool HasFnNoNaNAttr =
-      F.getFnAttribute("no-nans-fp-math").getValueAsString() == "true";
-    BasicBlock *Latch = L->getLoopLatch();
+  for (auto &BB : F) {
+    SmallPtrSet<Instruction*, 4> AllAdds;
+    if (!RecordMemoryOps(&BB))
+      continue;
 
-    for (PHINode &Phi : Latch->phis()) {
-      const auto *Ty = Phi.getType();
+    for (Instruction &I : reverse(BB)) {
+      if (I.getOpcode() != Instruction::Add)
+        continue;
+
+      if (AllAdds.count(&I))
+        continue;
+
+      const auto *Ty = I.getType();
       if (!Ty->isIntegerTy(32) && !Ty->isIntegerTy(64))
         continue;
 
-      const bool IsReduction = RecurrenceDescriptor::AddReductionVar(
-        &Phi, RecurrenceDescriptor::RK_IntegerAdd, L, HasFnNoNaNAttr, RecDesc);
-
-      if (!IsReduction)
+      Reduction R(&I);
+      if (!Search(&I, &BB, R))
         continue;
 
-      Instruction *Acc = dyn_cast<Instruction>(Phi.getIncomingValueForBlock(Latch));
-      if (!Acc)
+      R.InsertMuls();
+      LLVM_DEBUG(dbgs() << "After search, Reduction:\n"; R.dump());
+
+      if (!CreateParallelPairs(R))
         continue;
 
-      Reductions.push_back(Reduction(&Phi, Acc));
+      InsertParallelMACs(R);
+      Changed = true;
+      AllAdds.insert(R.getAdds().begin(), R.getAdds().end());
     }
-    return !Reductions.empty();
-  };
-
-  ReductionList Reductions;
-  if (!FindReductions(Reductions))
-    return false;
-
-  for (auto &R : Reductions) {
-    OpChainList MACCandidates;
-    MatchParallelMACSequences(R, MACCandidates);
-    if (!CheckMACMemory(MACCandidates))
-      continue;
-
-    R.MACCandidates = std::move(MACCandidates);
-
-    LLVM_DEBUG(dbgs() << "MAC candidates:\n";
-      for (auto &M : R.MACCandidates)
-        M->Root->dump();
-      dbgs() << "\n";);
-  }
-
-  bool Changed = false;
-  // Check whether statements in the basic block that write to memory alias
-  // with the memory locations accessed by the MAC-chains.
-  for (auto &R : Reductions) {
-    CreateParallelMACPairs(R);
-    Changed |= InsertParallelMACs(R);
   }
 
   return Changed;
 }
 
-LoadInst* ARMParallelDSP::CreateWideLoad(SmallVectorImpl<LoadInst*> &Loads,
+bool ARMParallelDSP::CreateParallelPairs(Reduction &R) {
+
+  // Not enough mul operations to make a pair.
+  if (R.getMuls().size() < 2)
+    return false;
+
+  // Check that the muls operate directly upon sign extended loads.
+  for (auto &MulCand : R.getMuls()) {
+    if (!MulCand->HasTwoLoadInputs())
+      return false;
+  }
+
+  auto CanPair = [&](Reduction &R, MulCandidate *PMul0, MulCandidate *PMul1) {
+    // The first elements of each vector should be loads with sexts. If we
+    // find that its two pairs of consecutive loads, then these can be
+    // transformed into two wider loads and the users can be replaced with
+    // DSP intrinsics.
+    auto Ld0 = static_cast<LoadInst*>(PMul0->LHS);
+    auto Ld1 = static_cast<LoadInst*>(PMul1->LHS);
+    auto Ld2 = static_cast<LoadInst*>(PMul0->RHS);
+    auto Ld3 = static_cast<LoadInst*>(PMul1->RHS);
+
+    // Check that each mul is operating on two different loads.
+    if (Ld0 == Ld2 || Ld1 == Ld3)
+      return false;
+
+    if (AreSequentialLoads(Ld0, Ld1, PMul0->VecLd)) {
+      if (AreSequentialLoads(Ld2, Ld3, PMul1->VecLd)) {
+        LLVM_DEBUG(dbgs() << "OK: found two pairs of parallel loads!\n");
+        R.AddMulPair(PMul0, PMul1);
+        return true;
+      } else if (AreSequentialLoads(Ld3, Ld2, PMul1->VecLd)) {
+        LLVM_DEBUG(dbgs() << "OK: found two pairs of parallel loads!\n");
+        LLVM_DEBUG(dbgs() << "    exchanging Ld2 and Ld3\n");
+        R.AddMulPair(PMul0, PMul1, true);
+        return true;
+      }
+    } else if (AreSequentialLoads(Ld1, Ld0, PMul0->VecLd) &&
+               AreSequentialLoads(Ld2, Ld3, PMul1->VecLd)) {
+      LLVM_DEBUG(dbgs() << "OK: found two pairs of parallel loads!\n");
+      LLVM_DEBUG(dbgs() << "    exchanging Ld0 and Ld1\n");
+      LLVM_DEBUG(dbgs() << "    and swapping muls\n");
+      // Only the second operand can be exchanged, so swap the muls.
+      R.AddMulPair(PMul1, PMul0, true);
+      return true;
+    }
+    return false;
+  };
+
+  MulCandList &Muls = R.getMuls();
+  const unsigned Elems = Muls.size();
+  for (unsigned i = 0; i < Elems; ++i) {
+    MulCandidate *PMul0 = static_cast<MulCandidate*>(Muls[i].get());
+    if (PMul0->Paired)
+      continue;
+
+    for (unsigned j = 0; j < Elems; ++j) {
+      if (i == j)
+        continue;
+
+      MulCandidate *PMul1 = static_cast<MulCandidate*>(Muls[j].get());
+      if (PMul1->Paired)
+        continue;
+
+      const Instruction *Mul0 = PMul0->Root;
+      const Instruction *Mul1 = PMul1->Root;
+      if (Mul0 == Mul1)
+        continue;
+
+      assert(PMul0 != PMul1 && "expected different chains");
+
+      if (CanPair(R, PMul0, PMul1))
+        break;
+    }
+  }
+  return !R.getMulPairs().empty();
+}
+
+void ARMParallelDSP::InsertParallelMACs(Reduction &R) {
+
+  auto CreateSMLAD = [&](LoadInst* WideLd0, LoadInst *WideLd1,
+                         Value *Acc, bool Exchange,
+                         Instruction *InsertAfter) {
+    // Replace the reduction chain with an intrinsic call
+
+    Value* Args[] = { WideLd0, WideLd1, Acc };
+    Function *SMLAD = nullptr;
+    if (Exchange)
+      SMLAD = Acc->getType()->isIntegerTy(32) ?
+        Intrinsic::getDeclaration(M, Intrinsic::arm_smladx) :
+        Intrinsic::getDeclaration(M, Intrinsic::arm_smlaldx);
+    else
+      SMLAD = Acc->getType()->isIntegerTy(32) ?
+        Intrinsic::getDeclaration(M, Intrinsic::arm_smlad) :
+        Intrinsic::getDeclaration(M, Intrinsic::arm_smlald);
+
+    IRBuilder<NoFolder> Builder(InsertAfter->getParent(),
+                                BasicBlock::iterator(InsertAfter));
+    Instruction *Call = Builder.CreateCall(SMLAD, Args);
+    NumSMLAD++;
+    return Call;
+  };
+
+  // Return the instruction after the dominated instruction.
+  auto GetInsertPoint = [this](Value *A, Value *B) {
+    assert((isa<Instruction>(A) || isa<Instruction>(B)) &&
+           "expected at least one instruction");
+
+    Value *V = nullptr;
+    if (!isa<Instruction>(A))
+      V = B;
+    else if (!isa<Instruction>(B))
+      V = A;
+    else
+      V = DT->dominates(cast<Instruction>(A), cast<Instruction>(B)) ? B : A;
+
+    return &*++BasicBlock::iterator(cast<Instruction>(V));
+  };
+
+  Value *Acc = R.getAccumulator();
+
+  // For any muls that were discovered but not paired, accumulate their values
+  // as before.
+  IRBuilder<NoFolder> Builder(R.getRoot()->getParent());
+  MulCandList &MulCands = R.getMuls();
+  for (auto &MulCand : MulCands) {
+    if (MulCand->Paired)
+      continue;
+
+    Instruction *Mul = cast<Instruction>(MulCand->Root);
+    LLVM_DEBUG(dbgs() << "Accumulating unpaired mul: " << *Mul << "\n");
+
+    if (R.getType() != Mul->getType()) {
+      assert(R.is64Bit() && "expected 64-bit result");
+      Builder.SetInsertPoint(&*++BasicBlock::iterator(Mul));
+      Mul = cast<Instruction>(Builder.CreateSExt(Mul, R.getRoot()->getType()));
+    }
+
+    if (!Acc) {
+      Acc = Mul;
+      continue;
+    }
+
+    // If Acc is the original incoming value to the reduction, it could be a
+    // phi. But the phi will dominate Mul, meaning that Mul will be the
+    // insertion point.
+    Builder.SetInsertPoint(GetInsertPoint(Mul, Acc));
+    Acc = Builder.CreateAdd(Mul, Acc);
+  }
+
+  if (!Acc) {
+    Acc = R.is64Bit() ?
+      ConstantInt::get(IntegerType::get(M->getContext(), 64), 0) :
+      ConstantInt::get(IntegerType::get(M->getContext(), 32), 0);
+  } else if (Acc->getType() != R.getType()) {
+    Builder.SetInsertPoint(R.getRoot());
+    Acc = Builder.CreateSExt(Acc, R.getType());
+  }
+
+  // Roughly sort the mul pairs in their program order.
+  llvm::sort(R.getMulPairs(), [](auto &PairA, auto &PairB) {
+    const Instruction *A = PairA.first->Root;
+    const Instruction *B = PairB.first->Root;
+    return A->comesBefore(B);
+  });
+
+  IntegerType *Ty = IntegerType::get(M->getContext(), 32);
+  for (auto &Pair : R.getMulPairs()) {
+    MulCandidate *LHSMul = Pair.first;
+    MulCandidate *RHSMul = Pair.second;
+    LoadInst *BaseLHS = LHSMul->getBaseLoad();
+    LoadInst *BaseRHS = RHSMul->getBaseLoad();
+    LoadInst *WideLHS = WideLoads.count(BaseLHS) ?
+      WideLoads[BaseLHS]->getLoad() : CreateWideLoad(LHSMul->VecLd, Ty);
+    LoadInst *WideRHS = WideLoads.count(BaseRHS) ?
+      WideLoads[BaseRHS]->getLoad() : CreateWideLoad(RHSMul->VecLd, Ty);
+
+    Instruction *InsertAfter = GetInsertPoint(WideLHS, WideRHS);
+    InsertAfter = GetInsertPoint(InsertAfter, Acc);
+    Acc = CreateSMLAD(WideLHS, WideRHS, Acc, RHSMul->Exchange, InsertAfter);
+  }
+  R.UpdateRoot(cast<Instruction>(Acc));
+}
+
+LoadInst* ARMParallelDSP::CreateWideLoad(MemInstList &Loads,
                                          IntegerType *LoadTy) {
   assert(Loads.size() == 2 && "currently only support widening two loads");
 
@@ -686,8 +752,8 @@ LoadInst* ARMParallelDSP::CreateWideLoad(SmallVectorImpl<LoadInst*> &Loads,
         return;
 
       Source->moveBefore(Sink);
-      for (auto &U : Source->uses())
-        MoveBefore(Source, U.getUser());
+      for (auto &Op : Source->operands())
+        MoveBefore(Op, Source);
     };
 
   // Insert the load at the point of the original dominating load.
@@ -701,8 +767,7 @@ LoadInst* ARMParallelDSP::CreateWideLoad(SmallVectorImpl<LoadInst*> &Loads,
   const unsigned AddrSpace = DomLoad->getPointerAddressSpace();
   Value *VecPtr = IRB.CreateBitCast(Base->getPointerOperand(),
                                     LoadTy->getPointerTo(AddrSpace));
-  LoadInst *WideLoad = IRB.CreateAlignedLoad(LoadTy, VecPtr,
-                                             Base->getAlignment());
+  LoadInst *WideLoad = IRB.CreateAlignedLoad(LoadTy, VecPtr, Base->getAlign());
 
   // Make sure everything is in the correct order in the basic block.
   MoveBefore(Base->getPointerOperand(), VecPtr);
@@ -712,92 +777,28 @@ LoadInst* ARMParallelDSP::CreateWideLoad(SmallVectorImpl<LoadInst*> &Loads,
   // Loads[0] needs trunc while Loads[1] needs a lshr and trunc.
   // TODO: Support big-endian as well.
   Value *Bottom = IRB.CreateTrunc(WideLoad, Base->getType());
-  BaseSExt->setOperand(0, Bottom);
+  Value *NewBaseSExt = IRB.CreateSExt(Bottom, BaseSExt->getType());
+  BaseSExt->replaceAllUsesWith(NewBaseSExt);
 
   IntegerType *OffsetTy = cast<IntegerType>(Offset->getType());
   Value *ShiftVal = ConstantInt::get(LoadTy, OffsetTy->getBitWidth());
   Value *Top = IRB.CreateLShr(WideLoad, ShiftVal);
   Value *Trunc = IRB.CreateTrunc(Top, OffsetTy);
-  OffsetSExt->setOperand(0, Trunc);
+  Value *NewOffsetSExt = IRB.CreateSExt(Trunc, OffsetSExt->getType());
+  OffsetSExt->replaceAllUsesWith(NewOffsetSExt);
 
+  LLVM_DEBUG(dbgs() << "From Base and Offset:\n"
+             << *Base << "\n" << *Offset << "\n"
+             << "Created Wide Load:\n"
+             << *WideLoad << "\n"
+             << *Bottom << "\n"
+             << *NewBaseSExt << "\n"
+             << *Top << "\n"
+             << *Trunc << "\n"
+             << *NewOffsetSExt << "\n");
   WideLoads.emplace(std::make_pair(Base,
-                                   make_unique<WidenedLoad>(Loads, WideLoad)));
+                                   std::make_unique<WidenedLoad>(Loads, WideLoad)));
   return WideLoad;
-}
-
-Instruction *ARMParallelDSP::CreateSMLADCall(SmallVectorImpl<LoadInst*> &VecLd0,
-                                             SmallVectorImpl<LoadInst*> &VecLd1,
-                                             Instruction *Acc, bool Exchange,
-                                             Instruction *InsertAfter) {
-  LLVM_DEBUG(dbgs() << "Create SMLAD intrinsic using:\n"
-             << "- " << *VecLd0[0] << "\n"
-             << "- " << *VecLd0[1] << "\n"
-             << "- " << *VecLd1[0] << "\n"
-             << "- " << *VecLd1[1] << "\n"
-             << "- " << *Acc << "\n"
-             << "- Exchange: " << Exchange << "\n");
-
-  // Replace the reduction chain with an intrinsic call
-  IntegerType *Ty = IntegerType::get(M->getContext(), 32);
-  LoadInst *WideLd0 = WideLoads.count(VecLd0[0]) ?
-    WideLoads[VecLd0[0]]->getLoad() : CreateWideLoad(VecLd0, Ty);
-  LoadInst *WideLd1 = WideLoads.count(VecLd1[0]) ?
-    WideLoads[VecLd1[0]]->getLoad() : CreateWideLoad(VecLd1, Ty);
-
-  Value* Args[] = { WideLd0, WideLd1, Acc };
-  Function *SMLAD = nullptr;
-  if (Exchange)
-    SMLAD = Acc->getType()->isIntegerTy(32) ?
-      Intrinsic::getDeclaration(M, Intrinsic::arm_smladx) :
-      Intrinsic::getDeclaration(M, Intrinsic::arm_smlaldx);
-  else
-    SMLAD = Acc->getType()->isIntegerTy(32) ?
-      Intrinsic::getDeclaration(M, Intrinsic::arm_smlad) :
-      Intrinsic::getDeclaration(M, Intrinsic::arm_smlald);
-
-  IRBuilder<NoFolder> Builder(InsertAfter->getParent(),
-                              ++BasicBlock::iterator(InsertAfter));
-  CallInst *Call = Builder.CreateCall(SMLAD, Args);
-  NumSMLAD++;
-  return Call;
-}
-
-// Compare the value lists in Other to this chain.
-bool BinOpChain::AreSymmetrical(BinOpChain *Other) {
-  // Element-by-element comparison of Value lists returning true if they are
-  // instructions with the same opcode or constants with the same value.
-  auto CompareValueList = [](const ValueList &VL0,
-                             const ValueList &VL1) {
-    if (VL0.size() != VL1.size()) {
-      LLVM_DEBUG(dbgs() << "Muls are mismatching operand list lengths: "
-                        << VL0.size() << " != " << VL1.size() << "\n");
-      return false;
-    }
-
-    const unsigned Pairs = VL0.size();
-
-    for (unsigned i = 0; i < Pairs; ++i) {
-      const Value *V0 = VL0[i];
-      const Value *V1 = VL1[i];
-      const auto *Inst0 = dyn_cast<Instruction>(V0);
-      const auto *Inst1 = dyn_cast<Instruction>(V1);
-
-      if (!Inst0 || !Inst1)
-        return false;
-
-      if (Inst0->isSameOperationAs(Inst1))
-        continue;
-
-      const APInt *C0, *C1;
-      if (!(match(V0, m_APInt(C0)) && match(V1, m_APInt(C1)) && C0 == C1))
-        return false;
-    }
-
-    return true;
-  };
-
-  return CompareValueList(LHS, Other->LHS) &&
-         CompareValueList(RHS, Other->RHS);
 }
 
 Pass *llvm::createARMParallelDSPPass() {
@@ -807,6 +808,6 @@ Pass *llvm::createARMParallelDSPPass() {
 char ARMParallelDSP::ID = 0;
 
 INITIALIZE_PASS_BEGIN(ARMParallelDSP, "arm-parallel-dsp",
-                "Transform loops to use DSP intrinsics", false, false)
+                "Transform functions to use DSP intrinsics", false, false)
 INITIALIZE_PASS_END(ARMParallelDSP, "arm-parallel-dsp",
-                "Transform loops to use DSP intrinsics", false, false)
+                "Transform functions to use DSP intrinsics", false, false)

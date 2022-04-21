@@ -12,8 +12,10 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Signals.h"
 #include "gtest/gtest.h"
 #include <stdlib.h>
+#include <thread>
 #if defined(__APPLE__)
 # include <crt_externs.h>
 #elif !defined(_MSC_VER)
@@ -109,17 +111,26 @@ protected:
 };
 
 #ifdef _WIN32
+void checkSeparators(StringRef Path) {
+  char UndesiredSeparator = sys::path::get_separator()[0] == '/' ? '\\' : '/';
+  ASSERT_EQ(Path.find(UndesiredSeparator), StringRef::npos);
+}
+
 TEST_F(ProgramEnvTest, CreateProcessLongPath) {
   if (getenv("LLVM_PROGRAM_TEST_LONG_PATH"))
     exit(0);
 
   // getMainExecutable returns an absolute path; prepend the long-path prefix.
-  std::string MyAbsExe =
-      sys::fs::getMainExecutable(TestMainArgv0, &ProgramTestStringArg1);
+  SmallString<128> MyAbsExe(
+      sys::fs::getMainExecutable(TestMainArgv0, &ProgramTestStringArg1));
+  checkSeparators(MyAbsExe);
+  // Force a path with backslashes, when we are going to prepend the \\?\
+  // prefix.
+  sys::path::native(MyAbsExe, sys::path::Style::windows_backslash);
   std::string MyExe;
   if (!StringRef(MyAbsExe).startswith("\\\\?\\"))
     MyExe.append("\\\\?\\");
-  MyExe.append(MyAbsExe);
+  MyExe.append(std::string(MyAbsExe.begin(), MyAbsExe.end()));
 
   StringRef ArgV[] = {MyExe,
                       "--gtest_filter=ProgramEnvTest.CreateProcessLongPath"};
@@ -277,8 +288,8 @@ TEST(ProgramTest, TestExecuteNegative) {
     bool ExecutionFailed;
     int RetCode = ExecuteAndWait(Executable, argv, llvm::None, {}, 0, 0, &Error,
                                  &ExecutionFailed);
-    ASSERT_TRUE(RetCode < 0) << "On error ExecuteAndWait should return 0 or "
-                                "positive value indicating the result code";
+    ASSERT_LT(RetCode, 0) << "On error ExecuteAndWait should return 0 or "
+                             "positive value indicating the result code";
     ASSERT_TRUE(ExecutionFailed);
     ASSERT_FALSE(Error.empty());
   }
@@ -319,13 +330,15 @@ TEST(ProgramTest, TestWriteWithSystemEncoding) {
 #if defined(_WIN32)
   char buf[18];
   ASSERT_EQ(::read(fd, buf, 18), 18);
+  const char *utf16_text;
   if (strncmp(buf, "\xfe\xff", 2) == 0) { // UTF16-BE
-    ASSERT_EQ(strncmp(&buf[2], utf16be_text, 16), 0);
+    utf16_text = utf16be_text;
   } else if (strncmp(buf, "\xff\xfe", 2) == 0) { // UTF16-LE
-    ASSERT_EQ(strncmp(&buf[2], utf16le_text, 16), 0);
+    utf16_text = utf16le_text;
   } else {
     FAIL() << "Invalid BOM in UTF-16 file";
   }
+  ASSERT_EQ(strncmp(&buf[2], utf16_text, 16), 0);
 #else
   char buf[10];
   ASSERT_EQ(::read(fd, buf, 10), 10);
@@ -334,6 +347,108 @@ TEST(ProgramTest, TestWriteWithSystemEncoding) {
   ::close(fd);
   ASSERT_NO_ERROR(fs::remove(file_pathname.str()));
   ASSERT_NO_ERROR(fs::remove(TestDirectory.str()));
+}
+
+TEST_F(ProgramEnvTest, TestExecuteAndWaitStatistics) {
+  using namespace llvm::sys;
+
+  if (getenv("LLVM_PROGRAM_TEST_STATISTICS"))
+    exit(0);
+
+  std::string Executable =
+      sys::fs::getMainExecutable(TestMainArgv0, &ProgramTestStringArg1);
+  StringRef argv[] = {
+      Executable, "--gtest_filter=ProgramEnvTest.TestExecuteAndWaitStatistics"};
+
+  // Add LLVM_PROGRAM_TEST_STATISTICS to the environment of the child.
+  addEnvVar("LLVM_PROGRAM_TEST_STATISTICS=1");
+
+  std::string Error;
+  bool ExecutionFailed;
+  Optional<ProcessStatistics> ProcStat;
+  int RetCode = ExecuteAndWait(Executable, argv, getEnviron(), {}, 0, 0, &Error,
+                               &ExecutionFailed, &ProcStat);
+  ASSERT_EQ(0, RetCode);
+  ASSERT_TRUE(ProcStat);
+  ASSERT_GE(ProcStat->UserTime, std::chrono::microseconds(0));
+  ASSERT_GE(ProcStat->TotalTime, ProcStat->UserTime);
+}
+
+TEST_F(ProgramEnvTest, TestLockFile) {
+  using namespace llvm::sys;
+
+  if (const char *LockedFile = getenv("LLVM_PROGRAM_TEST_LOCKED_FILE")) {
+    // Child process.
+    int FD2;
+    ASSERT_NO_ERROR(fs::openFileForReadWrite(LockedFile, FD2,
+                                             fs::CD_OpenExisting, fs::OF_None));
+
+    std::error_code ErrC = fs::tryLockFile(FD2, std::chrono::seconds(5));
+    ASSERT_NO_ERROR(ErrC);
+    ASSERT_NO_ERROR(fs::unlockFile(FD2));
+    close(FD2);
+    exit(0);
+  }
+
+  // Create file that will be locked.
+  SmallString<64> LockedFile;
+  int FD1;
+  ASSERT_NO_ERROR(
+      fs::createTemporaryFile("TestLockFile", "temp", FD1, LockedFile));
+
+  std::string Executable =
+      sys::fs::getMainExecutable(TestMainArgv0, &ProgramTestStringArg1);
+  StringRef argv[] = {Executable, "--gtest_filter=ProgramEnvTest.TestLockFile"};
+
+  // Add LLVM_PROGRAM_TEST_LOCKED_FILE to the environment of the child.
+  std::string EnvVar = "LLVM_PROGRAM_TEST_LOCKED_FILE=";
+  EnvVar += LockedFile.str();
+  addEnvVar(EnvVar);
+
+  // Lock the file.
+  ASSERT_NO_ERROR(fs::tryLockFile(FD1));
+
+  std::string Error;
+  bool ExecutionFailed;
+  ProcessInfo PI2 = ExecuteNoWait(Executable, argv, getEnviron(), {}, 0, &Error,
+                                  &ExecutionFailed);
+  ASSERT_FALSE(ExecutionFailed) << Error;
+  ASSERT_TRUE(Error.empty());
+  ASSERT_NE(PI2.Pid, ProcessInfo::InvalidPid) << "Invalid process id";
+
+  // Wait some time to give the child process a chance to start.
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  ASSERT_NO_ERROR(fs::unlockFile(FD1));
+  ProcessInfo WaitResult = llvm::sys::Wait(PI2, 5 /* seconds */, true, &Error);
+  ASSERT_TRUE(Error.empty());
+  ASSERT_EQ(0, WaitResult.ReturnCode);
+  ASSERT_EQ(WaitResult.Pid, PI2.Pid);
+  sys::fs::remove(LockedFile);
+}
+
+TEST_F(ProgramEnvTest, TestExecuteWithNoStacktraceHandler) {
+  using namespace llvm::sys;
+
+  if (getenv("LLVM_PROGRAM_TEST_NO_STACKTRACE_HANDLER")) {
+    sys::PrintStackTrace(errs());
+    exit(0);
+  }
+
+  std::string Executable =
+      sys::fs::getMainExecutable(TestMainArgv0, &ProgramTestStringArg1);
+  StringRef argv[] = {
+      Executable,
+      "--gtest_filter=ProgramEnvTest.TestExecuteWithNoStacktraceHandler"};
+
+  addEnvVar("LLVM_PROGRAM_TEST_NO_STACKTRACE_HANDLER=1");
+
+  std::string Error;
+  bool ExecutionFailed;
+  int RetCode = ExecuteAndWait(Executable, argv, getEnviron(), {}, 0, 0, &Error,
+                               &ExecutionFailed);
+  EXPECT_FALSE(ExecutionFailed) << Error;
+  ASSERT_EQ(0, RetCode);
 }
 
 } // end anonymous namespace

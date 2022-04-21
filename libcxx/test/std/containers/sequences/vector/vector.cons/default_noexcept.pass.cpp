@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <vector>
 
@@ -27,6 +27,7 @@ struct some_alloc
 {
     typedef T value_type;
     some_alloc(const some_alloc&);
+    void allocate(size_t);
 };
 
 int main(int, char**)

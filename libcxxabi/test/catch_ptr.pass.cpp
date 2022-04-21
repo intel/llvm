@@ -1,4 +1,4 @@
-//===---------------------- catch_class_04.cpp ----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,18 +12,16 @@
     check against.  It also checks that virtual bases work properly
 */
 
-// UNSUPPORTED: libcxxabi-no-exceptions
+// UNSUPPORTED: no-exceptions
+
+// Compilers emit warnings about exceptions of type 'Child' being caught by
+// an earlier handler of type 'Base'. Congrats, you've just diagnosed the
+// behavior under test.
+// ADDITIONAL_COMPILE_FLAGS: -Wno-exceptions
 
 #include <exception>
 #include <stdlib.h>
 #include <assert.h>
-
-// Clang emits  warnings about exceptions of type 'Child' being caught by
-// an earlier handler of type 'Base'. Congrats clang, you've just
-// diagnosed the behavior under test.
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Wexceptions"
-#endif
 
 struct B
 {
@@ -72,11 +70,11 @@ struct A
 
 int A::count = 0;
 
-A a(5);
+A global_a(5);
 
 void f1()
 {
-    throw &a;
+    throw &global_a;
     assert(false);
 }
 
@@ -176,7 +174,7 @@ void f5()
     }
 }
 
-int main()
+int main(int, char**)
 {
     try
     {
@@ -186,4 +184,6 @@ int main()
     catch (...)
     {
     }
+
+    return 0;
 }

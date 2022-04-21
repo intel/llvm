@@ -6,18 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_SCALAR_CALLSITESPLITTING__H
-#define LLVM_TRANSFORMS_SCALAR_CALLSITESPLITTING__H
+#ifndef LLVM_TRANSFORMS_SCALAR_CALLSITESPLITTING_H
+#define LLVM_TRANSFORMS_SCALAR_CALLSITESPLITTING_H
 
-#include "llvm/ADT/SetVector.h"
-#include "llvm/Analysis/AssumptionCache.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Support/Compiler.h"
-#include <vector>
 
 namespace llvm {
+
+class Function;
 
 struct CallSiteSplittingPass : PassInfoMixin<CallSiteSplittingPass> {
   /// Run the pass over the function.
@@ -25,4 +21,4 @@ struct CallSiteSplittingPass : PassInfoMixin<CallSiteSplittingPass> {
 };
 } // end namespace llvm
 
-#endif // LLVM_TRANSFORMS_SCALAR_CALLSITESPLITTING__H
+#endif // LLVM_TRANSFORMS_SCALAR_CALLSITESPLITTING_H

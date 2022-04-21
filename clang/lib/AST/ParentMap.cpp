@@ -83,6 +83,18 @@ static void BuildParentMap(MapTy& M, Stmt* S,
     }
     break;
   }
+  case Stmt::CapturedStmtClass:
+    for (Stmt *SubStmt : S->children()) {
+      if (SubStmt) {
+        M[SubStmt] = S;
+        BuildParentMap(M, SubStmt, OVMode);
+      }
+    }
+    if (Stmt *SubStmt = cast<CapturedStmt>(S)->getCapturedStmt()) {
+      M[SubStmt] = S;
+      BuildParentMap(M, SubStmt, OVMode);
+    }
+    break;
   default:
     for (Stmt *SubStmt : S->children()) {
       if (SubStmt) {
@@ -121,8 +133,7 @@ void ParentMap::setParent(const Stmt *S, const Stmt *Parent) {
 
 Stmt* ParentMap::getParent(Stmt* S) const {
   MapTy* M = (MapTy*) Impl;
-  MapTy::iterator I = M->find(S);
-  return I == M->end() ? nullptr : I->second;
+  return M->lookup(S);
 }
 
 Stmt *ParentMap::getParentIgnoreParens(Stmt *S) const {

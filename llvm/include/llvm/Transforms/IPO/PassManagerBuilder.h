@@ -14,8 +14,8 @@
 #ifndef LLVM_TRANSFORMS_IPO_PASSMANAGERBUILDER_H
 #define LLVM_TRANSFORMS_IPO_PASSMANAGERBUILDER_H
 
+#include "llvm-c/Transforms/PassManagerBuilder.h"
 #include <functional>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -23,7 +23,6 @@ namespace llvm {
 class ModuleSummaryIndex;
 class Pass;
 class TargetLibraryInfoImpl;
-class TargetMachine;
 
 // The old pass manager infrastructure is hidden in a legacy namespace now.
 namespace legacy {
@@ -62,6 +61,8 @@ public:
   typedef std::function<void(const PassManagerBuilder &Builder,
                              legacy::PassManagerBase &PM)>
       ExtensionFn;
+  typedef int GlobalExtensionID;
+
   enum ExtensionPointTy {
     /// EP_EarlyAsPossible - This extension point allows adding passes before
     /// any other transformations, allowing them to see the code as it is coming
@@ -112,6 +113,16 @@ public:
     /// passes at the end of the main CallGraphSCC passes and before any
     /// function simplification passes run by CGPassManager.
     EP_CGSCCOptimizerLate,
+
+    /// EP_FullLinkTimeOptimizationEarly - This extensions point allow adding
+    /// passes that
+    /// run at Link Time, before Full Link Time Optimization.
+    EP_FullLinkTimeOptimizationEarly,
+
+    /// EP_FullLinkTimeOptimizationLast - This extensions point allow adding
+    /// passes that
+    /// run at Link Time, after Full Link Time Optimization.
+    EP_FullLinkTimeOptimizationLast,
   };
 
   /// The Optimization Level - Specify the basic optimization level.
@@ -141,8 +152,8 @@ public:
   /// tests.
   const ModuleSummaryIndex *ImportSummary = nullptr;
 
-  bool DisableTailCalls;
   bool DisableUnrollLoops;
+  bool CallGraphProfile;
   bool SLPVectorize;
   bool LoopVectorize;
   bool LoopsInterleaved;
@@ -183,7 +194,17 @@ public:
   /// Adds an extension that will be used by all PassManagerBuilder instances.
   /// This is intended to be used by plugins, to register a set of
   /// optimisations to run automatically.
-  static void addGlobalExtension(ExtensionPointTy Ty, ExtensionFn Fn);
+  ///
+  /// \returns A global extension identifier that can be used to remove the
+  /// extension.
+  static GlobalExtensionID addGlobalExtension(ExtensionPointTy Ty,
+                                              ExtensionFn Fn);
+  /// Removes an extension that was previously added using addGlobalExtension.
+  /// This is also intended to be used by plugins, to remove any extension that
+  /// was previously registered before being unloaded.
+  ///
+  /// \param ExtensionID Identifier of the extension to be removed.
+  static void removeGlobalExtension(GlobalExtensionID ExtensionID);
   void addExtension(ExtensionPointTy Ty, ExtensionFn Fn);
 
 private:
@@ -194,7 +215,7 @@ private:
   void addLateLTOOptimizationPasses(legacy::PassManagerBase &PM);
   void addPGOInstrPasses(legacy::PassManagerBase &MPM, bool IsCS);
   void addFunctionSimplificationPasses(legacy::PassManagerBase &MPM);
-  void addInstructionCombiningPass(legacy::PassManagerBase &MPM) const;
+  void addVectorPasses(legacy::PassManagerBase &PM, bool IsFullLTO);
 
 public:
   /// populateFunctionPassManager - This fills in the function pass manager,
@@ -212,12 +233,30 @@ public:
 /// used by optimizer plugins to allow all front ends to transparently use
 /// them.  Create a static instance of this class in your plugin, providing a
 /// private function that the PassManagerBuilder can use to add your passes.
-struct RegisterStandardPasses {
+class RegisterStandardPasses {
+  PassManagerBuilder::GlobalExtensionID ExtensionID;
+
+public:
   RegisterStandardPasses(PassManagerBuilder::ExtensionPointTy Ty,
                          PassManagerBuilder::ExtensionFn Fn) {
-    PassManagerBuilder::addGlobalExtension(Ty, std::move(Fn));
+    ExtensionID = PassManagerBuilder::addGlobalExtension(Ty, std::move(Fn));
+  }
+
+  ~RegisterStandardPasses() {
+    // If the collection holding the global extensions is destroyed after the
+    // plugin is unloaded, the extension has to be removed here. Indeed, the
+    // destructor of the ExtensionFn may reference code in the plugin.
+    PassManagerBuilder::removeGlobalExtension(ExtensionID);
   }
 };
+
+inline PassManagerBuilder *unwrap(LLVMPassManagerBuilderRef P) {
+    return reinterpret_cast<PassManagerBuilder*>(P);
+}
+
+inline LLVMPassManagerBuilderRef wrap(PassManagerBuilder *P) {
+  return reinterpret_cast<LLVMPassManagerBuilderRef>(P);
+}
 
 } // end namespace llvm
 #endif

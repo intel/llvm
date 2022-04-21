@@ -19,27 +19,18 @@ namespace tidy {
 namespace modernize {
 
 void ReturnBracedInitListCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   // Skip list initialization and constructors with an initializer list.
   auto ConstructExpr =
       cxxConstructExpr(
           unless(anyOf(hasDeclaration(cxxConstructorDecl(isExplicit())),
-                       isListInitialization(), hasDescendant(initListExpr()),
-                       isInTemplateInstantiation())))
+                       isListInitialization(), hasDescendant(initListExpr()))))
           .bind("ctor");
 
-  auto CtorAsArgument = materializeTemporaryExpr(anyOf(
-      has(ConstructExpr), has(cxxFunctionalCastExpr(has(ConstructExpr)))));
-
   Finder->addMatcher(
-      functionDecl(isDefinition(), // Declarations don't have return statements.
-                   returns(unless(anyOf(builtinType(), autoType()))),
-                   hasDescendant(returnStmt(hasReturnValue(
-                       has(cxxConstructExpr(has(CtorAsArgument)))))))
-          .bind("fn"),
+      returnStmt(hasReturnValue(ConstructExpr),
+                 forFunction(functionDecl(returns(unless(anyOf(builtinType(),
+                                                               autoType()))))
+                                 .bind("fn"))),
       this);
 }
 

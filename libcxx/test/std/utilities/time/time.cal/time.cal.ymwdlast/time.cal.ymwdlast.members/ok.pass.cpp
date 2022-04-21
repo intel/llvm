@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_weekday_last;
@@ -37,11 +37,11 @@ int main(int, char**)
 
     static_assert(!year_month_weekday_last{year{-32768}, January, weekday_last{Tuesday}}.ok(),    ""); // Bad year
     static_assert(!year_month_weekday_last{year{2019},   month{}, weekday_last{Tuesday}}.ok(),    ""); // Bad month
-    static_assert(!year_month_weekday_last{year{2019},   January, weekday_last{weekday{7}}}.ok(), ""); // Bad day
+    static_assert(!year_month_weekday_last{year{2019},   January, weekday_last{weekday{8}}}.ok(), ""); // Bad day
 
     static_assert(!year_month_weekday_last{year{-32768}, month{}, weekday_last{Tuesday}}.ok(),    ""); // Bad year & month
-    static_assert(!year_month_weekday_last{year{2019},   month{}, weekday_last{weekday{7}}}.ok(), ""); // Bad month & day
-    static_assert(!year_month_weekday_last{year{-32768}, January, weekday_last{weekday{7}}}.ok(), ""); // Bad year & day
+    static_assert(!year_month_weekday_last{year{2019},   month{}, weekday_last{weekday{8}}}.ok(), ""); // Bad month & day
+    static_assert(!year_month_weekday_last{year{-32768}, January, weekday_last{weekday{8}}}.ok(), ""); // Bad year & day
 
     static_assert( year_month_weekday_last{year{2019},   January, weekday_last{Tuesday}}.ok(),    ""); // All OK
 

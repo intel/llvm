@@ -1,15 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===--------------- fixtfdi_test.c - Test __fixtfdi ----------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __fixtfdi for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_fixtfdi
 
 #include "int_lib.h"
 #include <stdio.h>

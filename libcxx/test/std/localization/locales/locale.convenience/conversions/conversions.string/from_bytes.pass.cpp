@@ -15,9 +15,13 @@
 // wide_string from_bytes(const byte_string& str);
 // wide_string from_bytes(const char* first, const char* last);
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <codecvt>
 #include <cassert>
+
+#include "test_macros.h"
 
 template <class CharT, size_t = sizeof(CharT)>
 struct TestHelper;

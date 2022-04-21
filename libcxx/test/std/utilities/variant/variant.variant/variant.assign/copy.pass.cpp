@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,13 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// The following compilers don't generate constexpr special members correctly.
-// XFAIL: clang-3.5, clang-3.6, clang-3.7, clang-3.8
-// XFAIL: apple-clang-6, apple-clang-7, apple-clang-8.0
-
-// XFAIL: dylib-has-no-bad_variant_access && !libcpp-no-exceptions
+// Throwing bad_variant_access is supported starting in macosx10.13
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}} && !no-exceptions
 
 // <variant>
 
@@ -453,7 +449,7 @@ void test_copy_assignment_different_index() {
   {
     using V = std::variant<int, CopyAssign, unsigned>;
     CopyAssign::reset();
-    V v1(std::in_place_type<unsigned>, 43);
+    V v1(std::in_place_type<unsigned>, 43u);
     V v2(std::in_place_type<CopyAssign>, 42);
     assert(CopyAssign::copy_construct == 0);
     assert(CopyAssign::move_construct == 0);
@@ -547,7 +543,7 @@ void test_copy_assignment_different_index() {
     struct {
       constexpr Result<int> operator()() const {
         using V = std::variant<int, TCopyAssign, unsigned>;
-        V v(std::in_place_type<unsigned>, 43);
+        V v(std::in_place_type<unsigned>, 43u);
         V v2(std::in_place_type<TCopyAssign>, 42);
         v = v2;
         return {v.index(), std::get<1>(v).value};

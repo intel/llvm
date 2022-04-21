@@ -1,4 +1,4 @@
-//===-- SectionLoadHistory.cpp ----------------------------------*- C++ -*-===//
+//===-- SectionLoadHistory.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -97,7 +97,7 @@ SectionLoadList &SectionLoadHistory::GetCurrentSectionLoadList() {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
   SectionLoadList *section_load_list =
       GetSectionLoadListForStopID(eStopIDNow, read_only);
-  assert(section_load_list != NULL);
+  assert(section_load_list != nullptr);
   return *section_load_list;
 }
 

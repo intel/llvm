@@ -12,14 +12,11 @@
 
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm-c/Support.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Config/config.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Mutex.h"
-#include <cstdio>
-#include <cstring>
 #include <vector>
 
 using namespace llvm;
@@ -39,9 +36,7 @@ public:
   HandleSet() : Process(nullptr) {}
   ~HandleSet();
 
-  HandleList::iterator Find(void *Handle) {
-    return std::find(Handles.begin(), Handles.end(), Handle);
-  }
+  HandleList::iterator Find(void *Handle) { return find(Handles, Handle); }
 
   bool Contains(void *Handle) {
     return Handle == Process || Find(Handle) != Handles.end();
@@ -118,7 +113,7 @@ static llvm::ManagedStatic<llvm::StringMap<void *>> ExplicitSymbols;
 static llvm::ManagedStatic<DynamicLibrary::HandleSet> OpenedHandles;
 // Lock for ExplicitSymbols and OpenedHandles.
 static llvm::ManagedStatic<llvm::sys::SmartMutex<true>> SymbolsMutex;
-}
+} // namespace
 
 #ifdef _WIN32
 
@@ -138,7 +133,7 @@ namespace llvm {
 void *SearchForAddressOfSpecialSymbol(const char *SymbolName) {
   return DoSearch(SymbolName); // DynamicLibrary.inc
 }
-}
+} // namespace llvm
 
 void DynamicLibrary::AddSymbol(StringRef SymbolName, void *SymbolValue) {
   SmartScopedLock<true> Lock(*SymbolsMutex);

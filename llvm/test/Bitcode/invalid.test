@@ -29,13 +29,13 @@ RUN:   FileCheck --check-prefix=MISMATCHED-EXPLICIT-INVOKE %s
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-invoke-non-function-explicit-type.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=NON-FUNCTION-EXPLICIT-INVOKE %s
 
-INVALID-EMPTY: Invalid bitcode signature
+INVALID-EMPTY: error: file too small to contain bitcode header
 INVALID-ENCODING: Invalid encoding
-BAD-ABBREV: Malformed block
-UNEXPECTED-EOF: Malformed block
-BAD-ABBREV-NUMBER: Malformed block
+BAD-ABBREV: error: can't skip to bit
+UNEXPECTED-EOF: error: can't skip to bit
+BAD-ABBREV-NUMBER: error: can't skip to bit
 BAD-TYPE-TABLE-FORWARD-REF: Invalid TYPE table: Only named structs can be forward referenced
-BAD-BITWIDTH: Malformed block
+BAD-BITWIDTH: error: can't skip to bit
 BAD-ALIGN: Invalid alignment value
 MISMATCHED-EXPLICIT-GEP: Explicit gep type does not match pointee type of pointer operand
 MISMATCHED-EXPLICIT-LOAD: Explicit load/store type does not match pointee type of pointer operand
@@ -65,11 +65,6 @@ EXTRACT-IDXS: EXTRACTVAL: Invalid type
 INSERT-ARRAY: INSERTVAL: Invalid array index
 INSERT-STRUCT: INSERTVAL: Invalid struct index
 INSERT-IDXS: INSERTVAL: Invalid type
-
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-no-proper-module.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=NO-MODULE %s
-
-NO-MODULE: Expected a single module
 
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-fp-shift.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=FP-SHIFT %s
@@ -134,7 +129,7 @@ HUGE-FWDREF: Invalid record
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-load-pointer-type.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=LOAD-BAD-TYPE %s
 
-LOAD-BAD-TYPE: Load/Store operand is not a pointer type
+LOAD-BAD-TYPE: Load operand is not a pointer type
 
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-GCTable-overflow.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=GCTABLE-OFLOW %s
@@ -154,7 +149,7 @@ EXTRACT-0-IDXS: EXTRACTVAL: Invalid instruction with 0 indices
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-load-ptr-type.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=BAD-LOAD-PTR-TYPE %s
 
-BAD-LOAD-PTR-TYPE: Malformed block
+BAD-LOAD-PTR-TYPE: error: can't skip to bit
 
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-inserted-value-type-mismatch.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=INSERT-TYPE-MISMATCH %s
@@ -164,7 +159,7 @@ INSERT-TYPE-MISMATCH: Inserted value type doesn't match aggregate type
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-code-len-width.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=INVALID-CODELENWIDTH %s
 
-INVALID-CODELENWIDTH: Malformed block
+INVALID-CODELENWIDTH: error: can't skip to bit
 
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-function-argument-type.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=INVALID-ARGUMENT-TYPE %s
@@ -224,7 +219,12 @@ VOID-CONSTANT-TYPE: Invalid constant type
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-gep-no-operands.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=GEP-NO-OPERANDS %s
 
-GEP-NO-OPERANDS: Invalid gep with no operands
+GEP-NO-OPERANDS: Constant GEP record must have at least two elements
+
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-constant-gep.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-CONSTANT-GEP %s
+
+INVALID-CONSTANT-GEP: Constant GEP record must have at least two elements
 
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-nonpointer-storeatomic.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=NONPOINTER-STOREATOMIC %s
@@ -235,3 +235,64 @@ RUN: not llvm-dis -disable-output %p/Inputs/invalid-nonpointer-atomicrmw.bc 2>&1
 RUN:   FileCheck --check-prefix=NONPOINTER-ATOMICRMW %s
 
 NONPOINTER-ATOMICRMW: Invalid record
+
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-fcmp-opnum.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-FCMP-OPNUM %s
+
+INVALID-FCMP-OPNUM: Invalid record: operand number exceeded available operands
+
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-cmpxchg-ordering.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=CMPXCHG-ORDERING %s
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-cmpxchg-ordering-2.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=CMPXCHG-ORDERING %s
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-cmpxchg-ordering-3.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=CMPXCHG-ORDERING %s
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-cmpxchg-ordering-4.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=CMPXCHG-ORDERING %s
+
+CMPXCHG-ORDERING: Invalid cmpxchg {{failure|success}} ordering
+
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-abbrev-number.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-ABBREV-NUMBER %s
+
+INVALID-ABBREV-NUMBER: Invalid abbrev number
+
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-attribute-group-entry.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-ATTRIBUTE-GROUP-ENTRY %s
+
+INVALID-ATTRIBUTE-GROUP-ENTRY: Invalid attribute group entry
+
+RUN: not llvm-dis -disable-output %p/Inputs/unterminated-blob.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=UNTERMINATED-BLOB %s
+
+UNTERMINATED-BLOB: Blob ends too soon
+
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-value-symbol-table.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-VALUE-SYMBOL-TABLE %s
+
+INVALID-VALUE-SYMBOL-TABLE: Invalid value reference in symbol table
+
+RUN: not llvm-dis -disable-output %p/Inputs/unterminated-vbr.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=UNTERMINATED-VBR %s
+
+UNTERMINATED-VBR: Failed to read size: Unterminated VBR
+
+RUN: not llvm-dis -disable-output %p/Inputs/comdat-name-too-large.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=COMDAT-NAME-TOO-LARGE %s
+
+COMDAT-NAME-TOO-LARGE: Comdat name size too large
+
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-chunk-size.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-CHUNK-SIZE %s
+
+INVALID-CHUNK-SIZE: Fixed or VBR abbrev record with size > MaxChunkData
+
+RUN: not llvm-dis -disable-output %p/Inputs/invalid-diimportedentity-record.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-DIIMPORTEDENTITY-RECORD %s
+
+INVALID-DIIMPORTEDENTITY-RECORD: Invalid DIImportedEntity record
+
+RUN: not llvm-dis -disable-output -opaque-pointers %p/Inputs/invalid-forward-declare.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-FORWARD-DECLARE %s
+
+INVALID-FORWARD-DECLARE: Assigned value does not match type of forward declaration

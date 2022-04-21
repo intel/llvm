@@ -1,0 +1,26 @@
+# For TBB
+:eadb PATH={TBBROOT}/{TBBVER}/redist/intel64/vc14
+:eadb LIB={TBBROOT}/{TBBVER}/lib/intel64/vc14
+:eadb INCLUDE={TBBROOT}/{TBBVER}/include
+:eadb CPATH={TBBROOT}/{TBBVER}/include
+
+# For CPU
+:eadb PATH={OCLCPUROOT}/{OCLCPUVER}/intel64_win
+:eadb OCL_ICD_FILENAMES={OCLCPUROOT}/{OCLCPUVER}/intel64_win/intelocl64.dll
+
+# For FPGA
+:eadb PATH={OCLFPGAROOT}/{OCLFPGAVER}/build/bin
+
+# For FPGA EMU
+:eadb PATH={OCLFPGAEMUROOT}/{OCLFPGAEMUVER}/bin
+:eadb PATH={OCLFPGAEMUROOT}/{OCLFPGAEMUVER}/intel64_win
+:eadb OCL_ICD_FILENAMES={OCLFPGAEMUROOT}/{OCLFPGAEMUVER}/intelocl64_emu.dll
+
+# For Compiler
+:eadb PATH={COMP_ROOT}/bin
+:eadb PATH={COMP_ROOT}/lib
+:eadb PATH={COMP_ROOT}/install/bin
+:eadb PATH={COMP_ROOT}/install/lib
+
+# For OCLOC
+:eade PATH={OCLOCROOT}/{OCLOCVER}

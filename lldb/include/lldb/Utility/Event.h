@@ -22,8 +22,8 @@
 #include <memory>
 #include <string>
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class Event;
@@ -42,13 +42,16 @@ public:
   virtual ~EventData();
 
   virtual ConstString GetFlavor() const = 0;
-
+  
+  virtual Log *GetLogChannel() { return nullptr; }
+  
   virtual void Dump(Stream *s) const;
 
 private:
   virtual void DoOnRemoval(Event *event_ptr) {}
 
-  DISALLOW_COPY_AND_ASSIGN(EventData);
+  EventData(const EventData &) = delete;
+  const EventData &operator=(const EventData &) = delete;
 };
 
 // lldb::EventDataBytes
@@ -92,14 +95,15 @@ public:
 private:
   std::string m_bytes;
 
-  DISALLOW_COPY_AND_ASSIGN(EventDataBytes);
+  EventDataBytes(const EventDataBytes &) = delete;
+  const EventDataBytes &operator=(const EventDataBytes &) = delete;
 };
 
 class EventDataReceipt : public EventData {
 public:
-  EventDataReceipt() : EventData(), m_predicate(false) {}
+  EventDataReceipt() : m_predicate(false) {}
 
-  ~EventDataReceipt() override {}
+  ~EventDataReceipt() override = default;
 
   static ConstString GetFlavorString() {
     static ConstString g_flavor("Process::ProcessEventData");
@@ -169,7 +173,9 @@ private:
   StructuredData::ObjectSP m_object_sp;
   lldb::StructuredDataPluginSP m_plugin_sp;
 
-  DISALLOW_COPY_AND_ASSIGN(EventDataStructuredData);
+  EventDataStructuredData(const EventDataStructuredData &) = delete;
+  const EventDataStructuredData &
+  operator=(const EventDataStructuredData &) = delete;
 };
 
 // lldb::Event
@@ -242,7 +248,8 @@ private:
   uint32_t m_type;             // The bit describing this event
   lldb::EventDataSP m_data_sp; // User specific data for this event
 
-  DISALLOW_COPY_AND_ASSIGN(Event);
+  Event(const Event &) = delete;
+  const Event &operator=(const Event &) = delete;
   Event() = delete;
 };
 

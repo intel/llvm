@@ -10,12 +10,13 @@
 
 // template <class... Args> iterator emplace(const_iterator p, Args&&... args);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <deque>
 #include <cassert>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "../../../Emplaceable.h"
 #include "min_allocator.h"
 
@@ -51,7 +52,7 @@ test(int P, C& c1)
     CI i = c1.emplace(c1.begin() + P, Emplaceable(1, 2.5));
     assert(i == c1.begin() + P);
     assert(c1.size() == c1_osize + 1);
-    assert(static_cast<std::size_t>(distance(c1.begin(), c1.end())) == c1.size());
+    assert(static_cast<std::size_t>(std::distance(c1.begin(), c1.end())) == c1.size());
     assert(*i == Emplaceable(1, 2.5));
 }
 

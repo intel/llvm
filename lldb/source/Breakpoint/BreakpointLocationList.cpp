@@ -1,4 +1,4 @@
-//===-- BreakpointLocationList.cpp ------------------------------*- C++ -*-===//
+//===-- BreakpointLocationList.cpp ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,8 +20,7 @@ using namespace lldb;
 using namespace lldb_private;
 
 BreakpointLocationList::BreakpointLocationList(Breakpoint &owner)
-    : m_owner(owner), m_locations(), m_address_to_location(), m_mutex(),
-      m_next_id(0), m_new_location_recorder(nullptr) {}
+    : m_owner(owner), m_next_id(0), m_new_location_recorder(nullptr) {}
 
 BreakpointLocationList::~BreakpointLocationList() = default;
 

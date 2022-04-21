@@ -1,3 +1,5 @@
+add_llvm_component_group(ARM HAS_JIT)
+
 set(LLVM_TARGET_DEFINITIONS ARM.td)
 
 tablegen(LLVM ARMGenAsmMatcher.inc -gen-asm-matcher)
@@ -22,9 +24,10 @@ add_llvm_target(ARMCodeGen
   ARMAsmPrinter.cpp
   ARMBaseInstrInfo.cpp
   ARMBaseRegisterInfo.cpp
+  ARMBasicBlockInfo.cpp
+  ARMBranchTargets.cpp
   ARMCallingConv.cpp
   ARMCallLowering.cpp
-  ARMCodeGenPrepare.cpp
   ARMConstantIslandPass.cpp
   ARMConstantPoolValue.cpp
   ARMExpandPseudoInsts.cpp
@@ -38,6 +41,8 @@ add_llvm_target(ARMCodeGen
   ARMLegalizerInfo.cpp
   ARMParallelDSP.cpp
   ARMLoadStoreOptimizer.cpp
+  ARMLowOverheadLoops.cpp
+  ARMBlockPlacement.cpp
   ARMMCInstLower.cpp
   ARMMachineFunctionInfo.cpp
   ARMMacroFusion.cpp
@@ -45,18 +50,44 @@ add_llvm_target(ARMCodeGen
   ARMOptimizeBarriersPass.cpp
   ARMRegisterBankInfo.cpp
   ARMSelectionDAGInfo.cpp
+  ARMSLSHardening.cpp
   ARMSubtarget.cpp
   ARMTargetMachine.cpp
   ARMTargetObjectFile.cpp
   ARMTargetTransformInfo.cpp
   MLxExpansionPass.cpp
+  MVEGatherScatterLowering.cpp
+  MVELaneInterleavingPass.cpp
+  MVETailPredication.cpp
+  MVEVPTBlockPass.cpp
+  MVETPAndVPTOptimisationsPass.cpp
   Thumb1FrameLowering.cpp
   Thumb1InstrInfo.cpp
   ThumbRegisterInfo.cpp
   Thumb2ITBlockPass.cpp
   Thumb2InstrInfo.cpp
   Thumb2SizeReduction.cpp
-  ARMComputeBlockSize.cpp
+
+  LINK_COMPONENTS
+  ARMDesc
+  ARMInfo
+  Analysis
+  AsmPrinter
+  CodeGen
+  Core
+  IPO
+  MC
+  Scalar
+  SelectionDAG
+  Support
+  Target
+  GlobalISel
+  ARMUtils
+  TransformUtils
+  CFGuard
+
+  ADD_TO_COMPONENT
+  ARM
   )
 
 add_subdirectory(AsmParser)

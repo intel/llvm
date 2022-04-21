@@ -73,10 +73,7 @@ public:
   ///                 otherwise.  The name r derives from the fact that the mod
   ///                 bits indicate whether the R/M bits [bits 2-0] signify a
   ///                 register or a memory operand.
-  ModFilter(bool r) :
-    ModRMFilter(),
-    R(r) {
-  }
+  ModFilter(bool r) : R(r) {}
 
   bool accepts(uint8_t modRM) const override {
     return (R == ((modRM & 0xc0) == 0xc0));
@@ -95,11 +92,7 @@ public:
   /// \param r   True if the mod field must be set to 11; false otherwise.
   ///            The name is explained at ModFilter.
   /// \param nnn The required value of the nnn field.
-  ExtendedFilter(bool r, uint8_t nnn) :
-    ModRMFilter(),
-    R(r),
-    NNN(nnn) {
-  }
+  ExtendedFilter(bool r, uint8_t nnn) : R(r), NNN(nnn) {}
 
   bool accepts(uint8_t modRM) const override {
     return (((R  && ((modRM & 0xc0) == 0xc0)) ||
@@ -108,6 +101,25 @@ public:
   }
 };
 
+/// ExtendedRMFilter - Extended opcodes are classified based on the value of the
+///   mod field [bits 7-6] and the value of the nnn field [bits 2-0].
+class ExtendedRMFilter : public ModRMFilter {
+  void anchor() override;
+  bool R;
+  uint8_t NNN;
+public:
+  /// Constructor
+  ///
+  /// \param r   True if the mod field must be set to 11; false otherwise.
+  ///            The name is explained at ModFilter.
+  /// \param nnn The required value of the nnn field.
+  ExtendedRMFilter(bool r, uint8_t nnn) : R(r), NNN(nnn) {}
+
+  bool accepts(uint8_t modRM) const override {
+    return ((R && ((modRM & 0xc0) == 0xc0)) &&
+            ((modRM & 0x7) == NNN));
+  }
+};
 /// ExactFilter - The occasional extended opcode (such as VMCALL or MONITOR)
 ///   requires the ModR/M byte to have a specific value.
 class ExactFilter : public ModRMFilter {
@@ -117,10 +129,7 @@ public:
   /// Constructor
   ///
   /// \param modRM The required value of the full ModR/M byte.
-  ExactFilter(uint8_t modRM) :
-    ModRMFilter(),
-    ModRM(modRM) {
-  }
+  ExactFilter(uint8_t modRM) : ModRM(modRM) {}
 
   bool accepts(uint8_t modRM) const override {
     return (ModRM == modRM);

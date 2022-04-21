@@ -29,9 +29,9 @@ namespace std {
     typedef const _E* iterator;
     typedef const _E* const_iterator;
 
-    initializer_list() : __begin_(nullptr), __size_(0) {}
+    constexpr initializer_list() : __begin_(nullptr), __size_(0) {}
 
-    size_t    size()  const {return __size_;}
+    constexpr size_t    size()  const {return __size_;}
     const _E* begin() const {return __begin_;}
     const _E* end()   const {return __begin_ + __size_;}
   };
@@ -353,4 +353,36 @@ namespace no_conversion_after_auto_list_deduction {
 
   struct Y { using T = std::initializer_list<Y>(*)(); operator T(); };
   auto (*y)() = { Y() }; // expected-error {{from initializer list}}
+}
+
+namespace designated_init {
+  constexpr auto a = {.a = 1, .b = 2}; // expected-error {{cannot deduce}}
+  constexpr auto b = {[0] = 1, [4] = 2}; // expected-error {{cannot deduce}} expected-warning {{C99}}
+  constexpr auto c = {1, [4] = 2}; // expected-error {{cannot deduce}} expected-warning 2{{C99}} expected-note {{here}}
+  constexpr auto d = {1, [0] = 2}; // expected-error {{cannot deduce}} expected-warning 2{{C99}} expected-note {{here}}
+
+  // If we ever start accepting the above, these assertions should pass.
+  static_assert(c.size() == 5, "");
+  static_assert(d.size() == 1, "");
+}
+
+namespace weird_initlist {
+  struct weird {};
+}
+template<> struct std::initializer_list<weird_initlist::weird> { int a, b, c; };
+namespace weird_initlist {
+  // We don't check the struct layout in Sema.
+  auto x = {weird{}, weird{}, weird{}, weird{}, weird{}};
+  // ... but we do in constant evaluation.
+  constexpr auto y = {weird{}, weird{}, weird{}, weird{}, weird{}}; // expected-error {{constant}} expected-note {{type 'const std::initializer_list<weird_initlist::weird>' has unexpected layout}}
+}
+
+auto v = std::initializer_list<int>{1,2,3}; // expected-warning {{array backing local initializer list 'v' will be destroyed at the end of the full-expression}}
+
+std::initializer_list<int> get(int cond) {
+  if (cond == 0)
+    return {};
+  if (cond == 1)
+    return {1, 2, 3}; // expected-warning {{returning address of local temporary object}}
+  return std::initializer_list<int>{1, 2, 3}; // expected-warning {{returning address of local temporary object}}
 }

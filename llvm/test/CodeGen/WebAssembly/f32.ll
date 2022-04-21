@@ -2,7 +2,6 @@
 
 ; Test that basic 32-bit floating-point operations assemble as expected.
 
-target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 declare float @llvm.fabs.f32(float)
@@ -149,6 +148,15 @@ define float @fmin32_intrinsic(float %x, float %y) {
   ret float %a
 }
 
+; CHECK-LABEL: fminnum32_intrinsic:
+; CHECK: f32.min $push0=, $pop{{[0-9]+}}, $pop{{[0-9]+}}{{$}}
+; CHECK-NEXT: return $pop0{{$}}
+declare float @llvm.minnum.f32(float, float)
+define float @fminnum32_intrinsic(float %x, float %y) {
+  %a = call nnan float @llvm.minnum.f32(float %x, float %y)
+  ret float %a
+}
+
 ; CHECK-LABEL: fmax32_intrinsic:
 ; CHECK: f32.max $push0=, $pop{{[0-9]+}}, $pop{{[0-9]+}}{{$}}
 ; CHECK-NEXT: return $pop0{{$}}
@@ -158,8 +166,17 @@ define float @fmax32_intrinsic(float %x, float %y) {
   ret float %a
 }
 
+; CHECK-LABEL: fmaxnum32_intrinsic:
+; CHECK: f32.max $push0=, $pop{{[0-9]+}}, $pop{{[0-9]+}}{{$}}
+; CHECK-NEXT: return $pop0{{$}}
+declare float @llvm.maxnum.f32(float, float)
+define float @fmaxnum32_intrinsic(float %x, float %y) {
+  %a = call nnan float @llvm.maxnum.f32(float %x, float %y)
+  ret float %a
+}
+
 ; CHECK-LABEL: fma32:
-; CHECK: {{^}} f32.call $push[[LR:[0-9]+]]=, fmaf, $pop{{[0-9]+}}, $pop{{[0-9]+}}, $pop{{[0-9]+}}{{$}}
+; CHECK: {{^}} call $push[[LR:[0-9]+]]=, fmaf, $pop{{[0-9]+}}, $pop{{[0-9]+}}, $pop{{[0-9]+}}{{$}}
 ; CHECK-NEXT: return $pop[[LR]]{{$}}
 define float @fma32(float %a, float %b, float %c) {
   %d = call float @llvm.fma.f32(float %a, float %b, float %c)

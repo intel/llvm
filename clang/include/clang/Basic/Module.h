@@ -15,16 +15,16 @@
 #ifndef LLVM_CLANG_BASIC_MODULE_H
 #define LLVM_CLANG_BASIC_MODULE_H
 
-#include "clang/Basic/FileManager.h"
+#include "clang/Basic/DirectoryEntry.h"
+#include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
-#include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -32,6 +32,7 @@
 #include <cassert>
 #include <cstdint>
 #include <ctime>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -44,6 +45,7 @@ class raw_ostream;
 
 namespace clang {
 
+class FileManager;
 class LangOptions;
 class TargetInfo;
 
@@ -51,12 +53,42 @@ class TargetInfo;
 using ModuleId = SmallVector<std::pair<std::string, SourceLocation>, 2>;
 
 /// The signature of a module, which is a hash of the AST content.
-struct ASTFileSignature : std::array<uint32_t, 5> {
-  ASTFileSignature(std::array<uint32_t, 5> S = {{0}})
-      : std::array<uint32_t, 5>(std::move(S)) {}
+struct ASTFileSignature : std::array<uint8_t, 20> {
+  using BaseT = std::array<uint8_t, 20>;
 
-  explicit operator bool() const {
-    return *this != std::array<uint32_t, 5>({{0}});
+  static constexpr size_t size = std::tuple_size<BaseT>::value;
+
+  ASTFileSignature(BaseT S = {{0}}) : BaseT(std::move(S)) {}
+
+  explicit operator bool() const { return *this != BaseT({{0}}); }
+
+  /// Returns the value truncated to the size of an uint64_t.
+  uint64_t truncatedValue() const {
+    uint64_t Value = 0;
+    static_assert(sizeof(*this) >= sizeof(uint64_t), "No need to truncate.");
+    for (unsigned I = 0; I < sizeof(uint64_t); ++I)
+      Value |= static_cast<uint64_t>((*this)[I]) << (I * 8);
+    return Value;
+  }
+
+  static ASTFileSignature create(StringRef Bytes) {
+    return create(Bytes.bytes_begin(), Bytes.bytes_end());
+  }
+
+  static ASTFileSignature createDISentinel() {
+    ASTFileSignature Sentinel;
+    Sentinel.fill(0xFF);
+    return Sentinel;
+  }
+
+  template <typename InputIt>
+  static ASTFileSignature create(InputIt First, InputIt Last) {
+    assert(std::distance(First, Last) == size &&
+           "Wrong amount of bytes to create an ASTFileSignature");
+
+    ASTFileSignature Signature;
+    std::copy(First, Last, Signature.begin());
+    return Signature;
   }
 };
 
@@ -74,8 +106,17 @@ public:
     /// of header files.
     ModuleMapModule,
 
-    /// This is a C++ Modules TS module interface unit.
+    /// This is a C++20 module interface unit.
     ModuleInterfaceUnit,
+
+    /// This is a C++ 20 header unit.
+    ModuleHeaderUnit,
+
+    /// This is a C++ 20 module partition interface.
+    ModulePartitionInterface,
+
+    /// This is a C++ 20 module partition implementation.
+    ModulePartitionImplementation,
 
     /// This is a fragment of the global module within some C++ module.
     GlobalModuleFragment,
@@ -101,7 +142,7 @@ public:
   std::string PresumedModuleMapFile;
 
   /// The umbrella header or directory.
-  llvm::PointerUnion<const DirectoryEntry *, const FileEntry *> Umbrella;
+  llvm::PointerUnion<const FileEntry *, const DirectoryEntry *> Umbrella;
 
   /// The module signature.
   ASTFileSignature Signature;
@@ -109,14 +150,23 @@ public:
   /// The name of the umbrella entry, as written in the module map.
   std::string UmbrellaAsWritten;
 
+  // The path to the umbrella entry relative to the root module's \c Directory.
+  std::string UmbrellaRelativeToRootModuleDirectory;
+
   /// The module through which entities defined in this module will
   /// eventually be exposed, for use in "private" modules.
   std::string ExportAsModule;
 
   /// Does this Module scope describe part of the purview of a named C++ module?
   bool isModulePurview() const {
-    return Kind == ModuleInterfaceUnit || Kind == PrivateModuleFragment;
+    return Kind == ModuleInterfaceUnit || Kind == ModulePartitionInterface ||
+           Kind == ModulePartitionImplementation ||
+           Kind == PrivateModuleFragment;
   }
+
+  /// Does this Module scope describe a fragment of the global module within
+  /// some C++ module.
+  bool isGlobalModule() const { return Kind == GlobalModuleFragment; }
 
 private:
   /// The submodules of this module, indexed by name.
@@ -128,7 +178,7 @@ private:
 
   /// The AST file if this is a top-level module which has a
   /// corresponding serialized AST file, or null otherwise.
-  const FileEntry *ASTFile = nullptr;
+  Optional<FileEntryRef> ASTFile;
 
   /// The top-level headers associated with this module.
   llvm::SmallSetVector<const FileEntry *, 2> TopHeaders;
@@ -156,6 +206,7 @@ public:
   /// file.
   struct Header {
     std::string NameAsWritten;
+    std::string PathRelativeToRootModuleDirectory;
     const FileEntry *Entry;
 
     explicit operator bool() { return Entry; }
@@ -165,6 +216,7 @@ public:
   /// file.
   struct DirectoryName {
     std::string NameAsWritten;
+    std::string PathRelativeToRootModuleDirectory;
     const DirectoryEntry *Entry;
 
     explicit operator bool() { return Entry; }
@@ -206,8 +258,10 @@ public:
   /// A module with the same name that shadows this module.
   Module *ShadowingModule = nullptr;
 
-  /// Whether this module is missing a feature from \c Requirements.
-  unsigned IsMissingRequirement : 1;
+  /// Whether this module has declared itself unimportable, either because
+  /// it's missing a requirement from \p Requirements or because it's been
+  /// shadowed by another module.
+  unsigned IsUnimportable : 1;
 
   /// Whether we tried and failed to load a module file for this module.
   unsigned HasIncompatibleModuleFile : 1;
@@ -320,6 +374,10 @@ public:
   /// The set of use declarations that have yet to be resolved.
   SmallVector<ModuleId, 2> UnresolvedDirectUses;
 
+  /// When \c NoUndeclaredIncludes is true, the set of modules this module tried
+  /// to import but didn't because they are not direct uses.
+  llvm::SmallSetVector<const Module *, 2> UndeclaredUses;
+
   /// A library or framework to link against when an entity from this
   /// module is used.
   struct LinkLibrary {
@@ -380,6 +438,25 @@ public:
 
   ~Module();
 
+  /// Determine whether this module has been declared unimportable.
+  bool isUnimportable() const { return IsUnimportable; }
+
+  /// Determine whether this module has been declared unimportable.
+  ///
+  /// \param LangOpts The language options used for the current
+  /// translation unit.
+  ///
+  /// \param Target The target options used for the current translation unit.
+  ///
+  /// \param Req If this module is unimportable because of a missing
+  /// requirement, this parameter will be set to one of the requirements that
+  /// is not met for use of this module.
+  ///
+  /// \param ShadowingModule If this module is unimportable because it is
+  /// shadowed, this parameter will be set to the shadowing module.
+  bool isUnimportable(const LangOptions &LangOpts, const TargetInfo &Target,
+                      Requirement &Req, Module *&ShadowingModule) const;
+
   /// Determine whether this module is available for use within the
   /// current translation unit.
   bool isAvailable() const { return IsAvailable; }
@@ -410,8 +487,12 @@ public:
   /// Determine whether this module is a submodule.
   bool isSubModule() const { return Parent != nullptr; }
 
-  /// Determine whether this module is a submodule of the given other
-  /// module.
+  /// Check if this module is a (possibly transitive) submodule of \p Other.
+  ///
+  /// The 'A is a submodule of B' relation is a partial order based on the
+  /// the parent-child relationship between individual modules.
+  ///
+  /// Returns \c false if \p Other is \c nullptr.
   bool isSubModuleOf(const Module *Other) const;
 
   /// Determine whether this module is a part of a framework,
@@ -438,6 +519,28 @@ public:
     Parent = M;
     Parent->SubModuleIndex[Name] = Parent->SubModules.size();
     Parent->SubModules.push_back(this);
+  }
+
+  /// Is this a module partition.
+  bool isModulePartition() const {
+    return Kind == ModulePartitionInterface ||
+           Kind == ModulePartitionImplementation;
+  }
+
+  /// Is this module a header unit.
+  bool isHeaderUnit() const { return Kind == ModuleHeaderUnit; }
+  // Is this a C++20 module interface or a partition.
+  bool isInterfaceOrPartition() const {
+    return Kind == ModuleInterfaceUnit || isModulePartition();
+  }
+
+  /// Get the primary module interface name from a partition.
+  StringRef getPrimaryModuleInterfaceName() const {
+    if (isModulePartition()) {
+      auto pos = Name.find(':');
+      return StringRef(Name.data(), pos);
+    }
+    return Name;
   }
 
   /// Retrieve the full name of this module, including the path from
@@ -469,14 +572,14 @@ public:
   }
 
   /// The serialized AST file for this module, if one was created.
-  const FileEntry *getASTFile() const {
+  OptionalFileEntryRefDegradesToFileEntryPtr getASTFile() const {
     return getTopLevelModule()->ASTFile;
   }
 
   /// Set the serialized AST file for the top-level module of this module.
-  void setASTFile(const FileEntry *File) {
-    assert((File == nullptr || getASTFile() == nullptr ||
-            getASTFile() == File) && "file path changed");
+  void setASTFile(Optional<FileEntryRef> File) {
+    assert((!File || !getASTFile() || getASTFile() == File) &&
+           "file path changed");
     getTopLevelModule()->ASTFile = File;
   }
 
@@ -487,8 +590,9 @@ public:
   /// Retrieve the header that serves as the umbrella header for this
   /// module.
   Header getUmbrellaHeader() const {
-    if (auto *E = Umbrella.dyn_cast<const FileEntry *>())
-      return Header{UmbrellaAsWritten, E};
+    if (auto *FE = Umbrella.dyn_cast<const FileEntry *>())
+      return Header{UmbrellaAsWritten, UmbrellaRelativeToRootModuleDirectory,
+                    FE};
     return Header{};
   }
 
@@ -499,14 +603,11 @@ public:
   }
 
   /// Add a top-level header associated with this module.
-  void addTopHeader(const FileEntry *File) {
-    assert(File);
-    TopHeaders.insert(File);
-  }
+  void addTopHeader(const FileEntry *File);
 
   /// Add a top-level header filename associated with this module.
   void addTopHeaderFilename(StringRef Filename) {
-    TopHeaderNames.push_back(Filename);
+    TopHeaderNames.push_back(std::string(Filename));
   }
 
   /// The top-level headers associated with this module.
@@ -514,7 +615,7 @@ public:
 
   /// Determine whether this module has declared its intention to
   /// directly use another module.
-  bool directlyUses(const Module *Requested) const;
+  bool directlyUses(const Module *Requested);
 
   /// Add the given feature requirement to the list of features
   /// required by this module.
@@ -535,7 +636,7 @@ public:
                       const TargetInfo &Target);
 
   /// Mark this module and all of its submodules as unavailable.
-  void markUnavailable(bool MissingRequirement = false);
+  void markUnavailable(bool Unimportable);
 
   /// Find the submodule with the given name.
   ///
@@ -583,7 +684,7 @@ public:
   }
 
   /// Print the module map for this module to the given stream.
-  void print(raw_ostream &OS, unsigned Indent = 0) const;
+  void print(raw_ostream &OS, unsigned Indent = 0, bool Dump = false) const;
 
   /// Dump the contents of this module to the given output stream.
   void dump() const;
@@ -653,6 +754,32 @@ private:
   /// Visibility generation, bumped every time the visibility state changes.
   unsigned Generation = 0;
 };
+
+/// Abstracts clang modules and precompiled header files and holds
+/// everything needed to generate debug info for an imported module
+/// or PCH.
+class ASTSourceDescriptor {
+  StringRef PCHModuleName;
+  StringRef Path;
+  StringRef ASTFile;
+  ASTFileSignature Signature;
+  Module *ClangModule = nullptr;
+
+public:
+  ASTSourceDescriptor() = default;
+  ASTSourceDescriptor(StringRef Name, StringRef Path, StringRef ASTFile,
+                      ASTFileSignature Signature)
+      : PCHModuleName(std::move(Name)), Path(std::move(Path)),
+        ASTFile(std::move(ASTFile)), Signature(Signature) {}
+  ASTSourceDescriptor(Module &M);
+
+  std::string getModuleName() const;
+  StringRef getPath() const { return Path; }
+  StringRef getASTFile() const { return ASTFile; }
+  ASTFileSignature getSignature() const { return Signature; }
+  Module *getModuleOrNull() const { return ClangModule; }
+};
+
 
 } // namespace clang
 

@@ -6,7 +6,7 @@ namespace test0 {
   struct A { A(); ~A(); };
   struct V { V(const A &a = A()); ~V(); };
 
-  // CHECK-LABEL: define linkonce_odr i32 @_ZN5test04testILi0EEEii
+  // CHECK-LABEL: define linkonce_odr noundef i32 @_ZN5test04testILi0EEEii
   template<int X> int test(int x) {
     // CHECK:      [[RET:%.*]] = alloca i32
     // CHECK-NEXT: [[X:%.*]] = alloca i32
@@ -17,17 +17,17 @@ namespace test0 {
     // CHECK-NEXT: [[V:%.*]] = alloca [[V:%.*]]*,
     // CHECK-NEXT: [[TMP:%.*]] = alloca [[A]]
     // CHECK-NEXT: [[CLEANUPACTIVE:%.*]] = alloca i1
-    // CHECK:      call void @_ZN5test01AC1Ev([[A]]* [[Y]])
-    // CHECK-NEXT: invoke void @_ZN5test01AC1Ev([[A]]* [[Z]])
-    // CHECK:      [[NEW:%.*]] = invoke i8* @_Znwm(i64 1)
+    // CHECK:      call void @_ZN5test01AC1Ev([[A]]* {{[^,]*}} [[Y]])
+    // CHECK-NEXT: invoke void @_ZN5test01AC1Ev([[A]]* {{[^,]*}} [[Z]])
+    // CHECK:      [[NEW:%.*]] = invoke noalias noundef nonnull i8* @_Znwm(i64 noundef 1)
     // CHECK:      store i1 true, i1* [[CLEANUPACTIVE]]
     // CHECK:      [[NEWCAST:%.*]] = bitcast i8* [[NEW]] to [[V]]*
-    // CHECK-NEXT: invoke void @_ZN5test01AC1Ev([[A]]* [[TMP]])
-    // CHECK:      invoke void @_ZN5test01VC1ERKNS_1AE([[V]]* [[NEWCAST]], [[A]]* dereferenceable({{[0-9]+}}) [[TMP]])
+    // CHECK-NEXT: invoke void @_ZN5test01AC1Ev([[A]]* {{[^,]*}} [[TMP]])
+    // CHECK:      invoke void @_ZN5test01VC1ERKNS_1AE([[V]]* {{[^,]*}} [[NEWCAST]], [[A]]* noundef nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) [[TMP]])
     // CHECK:      store i1 false, i1* [[CLEANUPACTIVE]]
 
-    // CHECK98-NEXT: invoke void @_ZN5test01AD1Ev([[A]]* [[TMP]])
-    // CHECK11-NEXT: call void @_ZN5test01AD1Ev([[A]]* [[TMP]])
+    // CHECK98-NEXT: invoke void @_ZN5test01AD1Ev([[A]]* {{[^,]*}} [[TMP]])
+    // CHECK11-NEXT: call void @_ZN5test01AD1Ev([[A]]* {{[^,]*}} [[TMP]])
     A y;
     try {
       A z;

@@ -1,5 +1,7 @@
 ; RUN: llc -mtriple=aarch64-windows-msvc %s -o - | FileCheck %s
 ; RUN: llc -mtriple=aarch64-linux-gnu %s -o - | FileCheck %s
+; RUN: llc -global-isel -global-isel-abort=2 -verify-machineinstrs -mtriple=aarch64-windows-msvc %s -o - | FileCheck %s
+; RUN: llc -global-isel -global-isel-abort=2 -verify-machineinstrs -mtriple=aarch64-linux-gnu %s -o - | FileCheck %s
 
 target datalayout = "e-m:w-p:64:64-i32:32-i64:64-i128:128-n32:64-S128"
 
@@ -28,7 +30,7 @@ entry:
 attributes #1 = { noinline optnone "thunk" }
 
 ; CHECK: mov     v16.16b, v0.16b
-; CHECK: ldr     x8, [x0]
-; CHECK: ldr     x8, [x8]
+; CHECK: ldr     x9, [x0]
+; CHECK: ldr     x9, [x9]
 ; CHECK: mov     v0.16b, v16.16b
-; CHECK: br      x8
+; CHECK: br      x9

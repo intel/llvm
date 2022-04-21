@@ -1,4 +1,4 @@
-//===----------------------------- test_guard.cpp -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,10 @@
 
 #ifndef _LIBCXXABI_HAS_NO_THREADS
 #include <thread>
+#include "make_test_thread.h"
 #endif
+
+#include "test_macros.h"
 
 // Ensure that we initialize each variable once and only once.
 namespace test1 {
@@ -40,7 +43,7 @@ namespace test1 {
 // When initialization fails, ensure that we try to initialize it again next
 // time.
 namespace test2 {
-#ifndef LIBCXXABI_HAS_NO_EXCEPTIONS
+#ifndef TEST_HAS_NO_EXCEPTIONS
     static int run_count = 0;
     int increment() {
         ++run_count;
@@ -95,7 +98,8 @@ namespace test4 {
     }
 
     void test() {
-        std::thread t1(helper), t2(helper);
+        std::thread t1 = support::make_test_thread(helper);
+        std::thread t2 = support::make_test_thread(helper);
         t1.join();
         t2.join();
         assert(run_count == 1);
@@ -122,19 +126,19 @@ namespace test5 {
 
     void helper() {
         static int a = one(); ((void)a);
-        std::thread t(another_helper);
+        std::thread t = support::make_test_thread(another_helper);
         t.join();
     }
 
     void test() {
-        std::thread t(helper);
+        std::thread t = support::make_test_thread(helper);
         t.join();
         assert(run_count == 1);
     }
 }
 #endif /* _LIBCXXABI_HAS_NO_THREADS */
 
-int main()
+int main(int, char**)
 {
     test1::test();
     test2::test();
@@ -143,4 +147,6 @@ int main()
     test4::test();
     test5::test();
 #endif
+
+    return 0;
 }

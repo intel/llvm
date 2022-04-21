@@ -46,7 +46,7 @@ enum ID {
 #include "Opts.inc"
 #undef PREFIX
 
-static const opt::OptTable::Info InfoTable[] = {
+const opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
 {                                                                              \
@@ -64,7 +64,7 @@ public:
 };
 } // namespace
 
-LLVM_ATTRIBUTE_NORETURN void reportError(Twine Msg) {
+[[noreturn]] static void reportError(Twine Msg) {
   WithColor::error(errs(), "llvm-mt") << Msg << '\n';
   exit(1);
 }
@@ -73,12 +73,7 @@ static void reportError(StringRef Input, std::error_code EC) {
   reportError(Twine(Input) + ": " + EC.message());
 }
 
-void error(std::error_code EC) {
-  if (EC)
-    reportError(EC.message());
-}
-
-void error(Error EC) {
+static void error(Error EC) {
   if (EC)
     handleAllErrors(std::move(EC), [&](const ErrorInfoBase &EI) {
       reportError(EI.message());
@@ -114,7 +109,7 @@ int main(int Argc, const char **Argv) {
   }
 
   if (InputArgs.hasArg(OPT_help)) {
-    T.PrintHelp(outs(), "llvm-mt [options] file...", "Manifest Tool", false);
+    T.printHelp(outs(), "llvm-mt [options] file...", "Manifest Tool", false);
     return 0;
   }
 
@@ -140,13 +135,35 @@ int main(int Argc, const char **Argv) {
         MemoryBuffer::getFile(File);
     if (!ManifestOrErr)
       reportError(File, ManifestOrErr.getError());
-    MemoryBuffer &Manifest = *ManifestOrErr.get();
-    error(Merger.merge(Manifest));
+    error(Merger.merge(*ManifestOrErr.get()));
   }
 
   std::unique_ptr<MemoryBuffer> OutputBuffer = Merger.getMergedManifest();
   if (!OutputBuffer)
     reportError("empty manifest not written");
+
+  int ExitCode = 0;
+  if (InputArgs.hasArg(OPT_notify_update)) {
+    ErrorOr<std::unique_ptr<MemoryBuffer>> OutBuffOrErr =
+        MemoryBuffer::getFile(OutputFile);
+    // Assume if we couldn't open the output file then it doesn't exist meaning
+    // there was a change.
+    bool Same = false;
+    if (OutBuffOrErr) {
+      const std::unique_ptr<MemoryBuffer> &FileBuffer = *OutBuffOrErr;
+      Same = std::equal(OutputBuffer->getBufferStart(),
+                        OutputBuffer->getBufferEnd(),
+                        FileBuffer->getBufferStart());
+    }
+    if (!Same) {
+#if LLVM_ON_UNIX
+      ExitCode = 0xbb;
+#elif defined(_WIN32)
+      ExitCode = 0x41020001;
+#endif
+    }
+  }
+
   Expected<std::unique_ptr<FileOutputBuffer>> FileOrErr =
       FileOutputBuffer::create(OutputFile, OutputBuffer->getBufferSize());
   if (!FileOrErr)
@@ -155,5 +172,5 @@ int main(int Argc, const char **Argv) {
   std::copy(OutputBuffer->getBufferStart(), OutputBuffer->getBufferEnd(),
             FileBuffer->getBufferStart());
   error(FileBuffer->commit());
-  return 0;
+  return ExitCode;
 }

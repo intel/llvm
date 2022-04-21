@@ -19,13 +19,10 @@
 #include "unique_ptr_test_helper.h"
 
 
-#if defined(_LIBCPP_VERSION) && TEST_STD_VER >= 11
-_LIBCPP_SAFE_STATIC std::unique_ptr<int> global_static_unique_ptr_single(nullptr);
-_LIBCPP_SAFE_STATIC std::unique_ptr<int[]> global_static_unique_ptr_runtime(nullptr);
-#endif
-
-
 #if TEST_STD_VER >= 11
+TEST_CONSTINIT std::unique_ptr<int> global_static_unique_ptr_single(nullptr);
+TEST_CONSTINIT std::unique_ptr<int[]> global_static_unique_ptr_runtime(nullptr);
+
 struct NonDefaultDeleter {
   NonDefaultDeleter() = delete;
   void operator()(void*) const {}
@@ -53,12 +50,17 @@ void test_basic() {
     assert(p.get() == 0);
     assert(p.get_deleter().state() == 0);
   }
+  {
+    std::unique_ptr<VT, DefaultCtorDeleter<VT> > p(nullptr);
+    assert(p.get() == 0);
+    assert(p.get_deleter().state() == 0);
+  }
 }
 
 template <class VT>
 void test_sfinae() {
 #if TEST_STD_VER >= 11
-  { // the constructor does not participate in overload resultion when
+  { // the constructor does not participate in overload resolution when
     // the deleter is a pointer type
     using U = std::unique_ptr<VT, void (*)(void*)>;
     static_assert(!std::is_constructible<U, decltype(nullptr)>::value, "");

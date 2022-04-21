@@ -287,3 +287,26 @@ define amdgpu_kernel void @v2i32_to_v4f16(<4 x half> addrspace(1)* %out, <2 x i3
   store <4 x half> %add.bitcast, <4 x half> addrspace(1)* %out
   ret void
 }
+
+declare <4 x float> @llvm.amdgcn.s.buffer.load.v4f32(<4 x i32>, i32, i32 immarg)
+
+; FUNC-LABEL: {{^}}bitcast_v4f32_to_v2i64:
+; GCN: s_buffer_load_dwordx4
+define <2 x i64> @bitcast_v4f32_to_v2i64(<2 x i64> %arg) {
+  %val = call <4 x float> @llvm.amdgcn.s.buffer.load.v4f32(<4 x i32> undef, i32 0, i32 0)
+  %cast = bitcast <4 x float> %val to <2 x i64>
+  %div = udiv <2 x i64> %cast, %arg
+  ret <2 x i64> %div
+}
+
+declare half @llvm.canonicalize.f16(half)
+
+; FUNC-LABEL: {{^}}bitcast_f32_to_v1i32:
+define amdgpu_kernel void @bitcast_f32_to_v1i32(i32 addrspace(1)* %out) {
+  %f16 = call arcp afn half @llvm.canonicalize.f16(half 0xH03F0)
+  %f32 = fpext half %f16 to float
+  %v = bitcast float %f32 to <1 x i32>
+  %v1 = extractelement <1 x i32> %v, i32 0
+  store i32 %v1, i32 addrspace(1)* %out
+  ret void
+}

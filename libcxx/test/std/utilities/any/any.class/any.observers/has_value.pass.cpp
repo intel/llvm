@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <any>
 
@@ -15,19 +15,18 @@
 #include <any>
 #include <cassert>
 
+#include "test_macros.h"
 #include "any_helpers.h"
 
 int main(int, char**)
 {
-    using std::any;
-    // noexcept test
     {
-        any a;
-        static_assert(noexcept(a.has_value()), "any::has_value() must be noexcept");
+        std::any a;
+        ASSERT_NOEXCEPT(a.has_value());
     }
     // empty
     {
-        any a;
+        std::any a;
         assert(!a.has_value());
 
         a.reset();
@@ -38,26 +37,24 @@ int main(int, char**)
     }
     // small object
     {
-        small const s(1);
-        any a(s);
+        std::any a = small(1);
         assert(a.has_value());
 
         a.reset();
         assert(!a.has_value());
 
-        a = s;
+        a = small(1);
         assert(a.has_value());
     }
     // large object
     {
-        large const l(1);
-        any a(l);
+        std::any a = large(1);
         assert(a.has_value());
 
         a.reset();
         assert(!a.has_value());
 
-        a = l;
+        a = large(1);
         assert(a.has_value());
     }
 

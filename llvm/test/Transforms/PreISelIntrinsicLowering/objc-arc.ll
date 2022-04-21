@@ -1,13 +1,15 @@
 ; RUN: opt -pre-isel-intrinsic-lowering -S -o - %s | FileCheck %s
-; RUN: opt -passes='pre-isel-intrinsic-lowering' -S -o - %s | FileCheck %s
 
 ; Make sure calls to the objc intrinsics are translated to calls in to the
 ; runtime
 
+declare i8* @foo()
+declare i32 @__gxx_personality_v0(...)
+
 define i8* @test_objc_autorelease(i8* %arg0) {
 ; CHECK-LABEL: test_objc_autorelease
 ; CHECK-NEXT: entry
-; CHECK-NEXT: %0 = call i8* @objc_autorelease(i8* %arg0)
+; CHECK-NEXT: %0 = notail call i8* @objc_autorelease(i8* %arg0)
 ; CHECK-NEXT: ret i8* %0
 entry:
   %0 = call i8* @llvm.objc.autorelease(i8* %arg0)
@@ -37,7 +39,7 @@ entry:
 define i8* @test_objc_autoreleaseReturnValue(i8* %arg0) {
 ; CHECK-LABEL: test_objc_autoreleaseReturnValue
 ; CHECK-NEXT: entry
-; CHECK-NEXT: %0 = call i8* @objc_autoreleaseReturnValue(i8* %arg0)
+; CHECK-NEXT: %0 = tail call i8* @objc_autoreleaseReturnValue(i8* %arg0)
 ; CHECK-NEXT: ret i8* %0
 entry:
   %0 = call i8* @llvm.objc.autoreleaseReturnValue(i8* %arg0)
@@ -117,7 +119,7 @@ entry:
 define i8* @test_objc_retain(i8* %arg0) {
 ; CHECK-LABEL: test_objc_retain
 ; CHECK-NEXT: entry
-; CHECK-NEXT: %0 = call i8* @objc_retain(i8* %arg0)
+; CHECK-NEXT: %0 = tail call i8* @objc_retain(i8* %arg0)
 ; CHECK-NEXT: ret i8* %0
 entry:
   %0 = call i8* @llvm.objc.retain(i8* %arg0)
@@ -147,11 +149,35 @@ entry:
 define i8* @test_objc_retainAutoreleasedReturnValue(i8* %arg0) {
 ; CHECK-LABEL: test_objc_retainAutoreleasedReturnValue
 ; CHECK-NEXT: entry
-; CHECK-NEXT: %0 = call i8* @objc_retainAutoreleasedReturnValue(i8* %arg0)
+; CHECK-NEXT: %0 = tail call i8* @objc_retainAutoreleasedReturnValue(i8* %arg0)
 ; CHECK-NEXT: ret i8* %0
 entry:
   %0 = call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* %arg0)
 	ret i8* %0
+}
+
+define void @test_objc_retainAutoreleasedReturnValue_bundle() {
+; CHECK-LABEL: test_objc_retainAutoreleasedReturnValue_bundle(
+; CHECK-NEXT: call i8* @foo() [ "clang.arc.attachedcall"(i8* (i8*)* @objc_retainAutoreleasedReturnValue) ]
+  call i8* @foo() [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
+  ret void
+}
+
+define void @test_objc_retainAutoreleasedReturnValue_bundle_invoke() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+; CHECK-LABEL: test_objc_retainAutoreleasedReturnValue_bundle_invoke(
+; CHECK-NEXT: entry
+; CHECK-NEXT: invoke i8* @foo() [ "clang.arc.attachedcall"(i8* (i8*)* @objc_retainAutoreleasedReturnValue) ]
+entry:
+  invoke i8* @foo() [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
+      to label %invoke.cont unwind label %lpad
+
+invoke.cont:
+  ret void
+
+lpad:
+  %1 = landingpad { i8*, i32 }
+          cleanup
+  resume { i8*, i32 } %1
 }
 
 define i8* @test_objc_retainBlock(i8* %arg0) {
@@ -187,11 +213,18 @@ entry:
 define i8* @test_objc_unsafeClaimAutoreleasedReturnValue(i8* %arg0) {
 ; CHECK-LABEL: test_objc_unsafeClaimAutoreleasedReturnValue
 ; CHECK-NEXT: entry
-; CHECK-NEXT: %0 = call i8* @objc_unsafeClaimAutoreleasedReturnValue(i8* %arg0)
+; CHECK-NEXT: %0 = tail call i8* @objc_unsafeClaimAutoreleasedReturnValue(i8* %arg0)
 ; CHECK-NEXT: ret i8* %0
 entry:
   %0 = call i8* @llvm.objc.unsafeClaimAutoreleasedReturnValue(i8* %arg0)
   ret i8* %0
+}
+
+define void @test_objc_unsafeClaimAutoreleasedReturnValue_bundle() {
+; CHECK-LABEL: test_objc_unsafeClaimAutoreleasedReturnValue_bundle(
+; CHECK-NEXT: call i8* @foo() [ "clang.arc.attachedcall"(i8* (i8*)* @objc_unsafeClaimAutoreleasedReturnValue) ]
+  call i8* @foo() [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.unsafeClaimAutoreleasedReturnValue) ]
+  ret void
 }
 
 define i8* @test_objc_retainedObject(i8* %arg0) {

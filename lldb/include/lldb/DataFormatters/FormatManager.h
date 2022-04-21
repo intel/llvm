@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_FormatManager_h_
-#define lldb_FormatManager_h_
+#ifndef LLDB_DATAFORMATTERS_FORMATMANAGER_H
+#define LLDB_DATAFORMATTERS_FORMATMANAGER_H
 
 #include <atomic>
 #include <initializer_list>
@@ -34,7 +34,7 @@ namespace lldb_private {
 // this file's objects directly
 
 class FormatManager : public IFormatChangeListener {
-  typedef FormatMap<ConstString, TypeSummaryImpl> NamedSummariesMap;
+  typedef FormattersContainer<TypeSummaryImpl> NamedSummariesMap;
   typedef TypeCategoryMap::MapType::iterator CategoryMapIterator;
 
 public:
@@ -52,24 +52,15 @@ public:
   void
   EnableCategory(ConstString category_name,
                  TypeCategoryMap::Position pos = TypeCategoryMap::Default) {
-    EnableCategory(category_name, pos,
-                   std::initializer_list<lldb::LanguageType>());
+    EnableCategory(category_name, pos, {});
   }
 
   void EnableCategory(ConstString category_name,
                       TypeCategoryMap::Position pos, lldb::LanguageType lang) {
-    std::initializer_list<lldb::LanguageType> langs = {lang};
-    EnableCategory(category_name, pos, langs);
-  }
-
-  void EnableCategory(ConstString category_name,
-                      TypeCategoryMap::Position pos = TypeCategoryMap::Default,
-                      std::initializer_list<lldb::LanguageType> langs = {}) {
     TypeCategoryMap::ValueSP category_sp;
     if (m_categories_map.Get(category_name, category_sp) && category_sp) {
       m_categories_map.Enable(category_sp, pos);
-      for (const lldb::LanguageType lang : langs)
-        category_sp->AddLanguage(lang);
+      category_sp->AddLanguage(lang);
     }
   }
 
@@ -127,9 +118,6 @@ public:
   lldb::ScriptedSyntheticChildrenSP
   GetSyntheticForType(lldb::TypeNameSpecifierImplSP type_sp);
 
-  lldb::TypeValidatorImplSP
-  GetValidatorForType(lldb::TypeNameSpecifierImplSP type_sp);
-
   lldb::TypeFormatImplSP GetFormat(ValueObject &valobj,
                                    lldb::DynamicValueType use_dynamic);
 
@@ -138,9 +126,6 @@ public:
 
   lldb::SyntheticChildrenSP
   GetSyntheticChildren(ValueObject &valobj, lldb::DynamicValueType use_dynamic);
-
-  lldb::TypeValidatorImplSP GetValidator(ValueObject &valobj,
-                                         lldb::DynamicValueType use_dynamic);
 
   bool
   AnyMatches(ConstString type_name,
@@ -158,13 +143,6 @@ public:
   static char GetFormatAsFormatChar(lldb::Format format);
 
   static const char *GetFormatAsCString(lldb::Format format);
-
-  // if the user tries to add formatters for, say, "struct Foo" those will not
-  // match any type because of the way we strip qualifiers from typenames this
-  // method looks for the case where the user is adding a
-  // "class","struct","enum" or "union" Foo and strips the unnecessary
-  // qualifier
-  static ConstString GetValidTypeName(ConstString type);
 
   // when DataExtractor dumps a vectorOfT, it uses a predefined format for each
   // item this method returns it, or eFormatInvalid if vector_format is not a
@@ -185,7 +163,6 @@ public:
   GetPossibleMatches(ValueObject &valobj, lldb::DynamicValueType use_dynamic) {
     FormattersMatchVector matches;
     GetPossibleMatches(valobj, valobj.GetCompilerType(),
-                       lldb_private::eFormatterChoiceCriterionDirectChoice,
                        use_dynamic, matches, false, false, false, true);
     return matches;
   }
@@ -198,11 +175,8 @@ public:
   GetCandidateLanguages(lldb::LanguageType lang_type);
 
 private:
-  static std::vector<lldb::LanguageType>
-  GetCandidateLanguages(ValueObject &valobj);
-
   static void GetPossibleMatches(ValueObject &valobj,
-                                 CompilerType compiler_type, uint32_t reason,
+                                 CompilerType compiler_type,
                                  lldb::DynamicValueType use_dynamic,
                                  FormattersMatchVector &entries,
                                  bool did_strip_ptr, bool did_strip_ref,
@@ -220,14 +194,10 @@ private:
   ConstString m_system_category_name;
   ConstString m_vectortypes_category_name;
 
-  lldb::TypeFormatImplSP GetHardcodedFormat(FormattersMatchData &);
-
-  lldb::TypeSummaryImplSP GetHardcodedSummaryFormat(FormattersMatchData &);
-
-  lldb::SyntheticChildrenSP
-  GetHardcodedSyntheticChildren(FormattersMatchData &);
-
-  lldb::TypeValidatorImplSP GetHardcodedValidator(FormattersMatchData &);
+  template <typename ImplSP>
+  ImplSP Get(ValueObject &valobj, lldb::DynamicValueType use_dynamic);
+  template <typename ImplSP> ImplSP GetCached(FormattersMatchData &match_data);
+  template <typename ImplSP> ImplSP GetHardcoded(FormattersMatchData &);
 
   TypeCategoryMap &GetCategories() { return m_categories_map; }
 
@@ -246,4 +216,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // lldb_FormatManager_h_
+#endif // LLDB_DATAFORMATTERS_FORMATMANAGER_H

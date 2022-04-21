@@ -2,11 +2,8 @@
 ; formats. This checks that we produce the same profile annotations regardless
 ; of the profile format.
 ;
-; RUN: opt < %s -sample-profile -sample-profile-file=%S/Inputs/fnptr.prof | opt -analyze -branch-prob | FileCheck %s
-; RUN: opt < %s -sample-profile -sample-profile-file=%S/Inputs/fnptr.binprof | opt -analyze -branch-prob | FileCheck %s
-
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/fnptr.prof | opt -analyze -branch-prob | FileCheck %s
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/fnptr.binprof | opt -analyze -branch-prob | FileCheck %s
+; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/fnptr.prof | opt -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/fnptr.binprof | opt -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
 
 ; CHECK:   edge for.body3 -> if.then probability is 0x1a56a56a / 0x80000000 = 20.58%
 ; CHECK:   edge for.body3 -> if.else probability is 0x65a95a96 / 0x80000000 = 79.42%
@@ -126,6 +123,9 @@ declare i32 @rand() #1
 
 ; Function Attrs: nounwind
 declare i32 @printf(i8* nocapture readonly, ...) #1
+
+attributes #0 = {"use-sample-profile"}
+attributes #2 = {"use-sample-profile"}
 
 !llvm.module.flags = !{!0}
 !llvm.ident = !{!1}

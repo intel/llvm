@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only -main-file-name builtinmacro.c %s | FileCheck %s
+// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only -main-file-name builtinmacro.c %s | FileCheck %s
 
 // Test the coverage mapping generation for built-in macroes.
 
@@ -8,7 +8,7 @@ const char *filename (const char *name) { // CHECK-NEXT: File 0, [[@LINE]]:41 ->
   return this_file;
 }
 
-int main() { // CHECK-NEXT: main
+int main(void) { // CHECK-NEXT: main
   filename(__FILE__ "test.c");
   return 0;
 }

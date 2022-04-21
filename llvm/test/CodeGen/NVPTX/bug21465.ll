@@ -7,7 +7,7 @@ target triple = "nvptx64-unknown-unknown"
 %struct.S = type { i32, i32 }
 
 ; Function Attrs: nounwind
-define void @_Z11TakesStruct1SPi(%struct.S* byval nocapture readonly %input, i32* nocapture %output) #0 {
+define void @_Z11TakesStruct1SPi(%struct.S* byval(%struct.S) nocapture readonly %input, i32* nocapture %output) #0 {
 entry:
 ; CHECK-LABEL: @_Z11TakesStruct1SPi
 ; PTX-LABEL: .visible .entry _Z11TakesStruct1SPi(
@@ -21,7 +21,7 @@ entry:
   ret void
 }
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !nvvm.annotations = !{!0}
 

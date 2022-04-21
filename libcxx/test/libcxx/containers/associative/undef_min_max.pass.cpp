@@ -6,10 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic ignored "-W#warnings"
-#endif
-
 #define min THIS IS A NASTY MACRO!
 #define max THIS IS A NASTY MACRO!
 

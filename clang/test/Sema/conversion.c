@@ -233,7 +233,7 @@ void test8(int v) {
   takes_int(v);
   takes_long(v);
   takes_longlong(v);
-  takes_float(v);
+  takes_float(v); // expected-warning {{implicit conversion from 'int' to 'float' may lose precision}}
   takes_double(v);
   takes_longdouble(v);
 }
@@ -244,8 +244,8 @@ void test9(long v) {
   takes_int(v); // expected-warning {{implicit conversion loses integer precision}}
   takes_long(v);
   takes_longlong(v);
-  takes_float(v);
-  takes_double(v);
+  takes_float(v);  // expected-warning {{implicit conversion from 'long' to 'float' may lose precision}}
+  takes_double(v); // expected-warning {{implicit conversion from 'long' to 'double' may lose precision}}
   takes_longdouble(v);
 }
 
@@ -255,8 +255,8 @@ void test10(long long v) {
   takes_int(v); // expected-warning {{implicit conversion loses integer precision}}
   takes_long(v);
   takes_longlong(v);
-  takes_float(v);
-  takes_double(v);
+  takes_float(v);  // expected-warning {{implicit conversion from 'long long' to 'float' may lose precision}}
+  takes_double(v); // expected-warning {{implicit conversion from 'long long' to 'double' may lose precision}}
   takes_longdouble(v);
 }
 
@@ -294,7 +294,7 @@ void test13(long double v) {
 }
 
 void test14(long l) {
-  // Fine because of the boolean whitelist.
+  // Fine because of the boolean allowlist.
   char c;
   c = (l == 4);
   c = ((l <= 4) && (l >= 0));
@@ -313,7 +313,7 @@ void test16(void) {
 }
 
 // PR 5938
-void test17() {
+void test17(void) {
   union {
     unsigned long long a : 8;
     unsigned long long b : 32;
@@ -327,7 +327,7 @@ void test17() {
 }
 
 // PR 5939
-void test18() {
+void test18(void) {
   union {
     unsigned long long a : 1;
     unsigned long long b;

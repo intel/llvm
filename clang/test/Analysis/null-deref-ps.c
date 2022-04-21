@@ -1,5 +1,5 @@
-// RUN: %clang_analyze_cc1 -triple i386-apple-darwin10 -Wno-tautological-constant-compare -Wtautological-unsigned-zero-compare -analyzer-checker=core,deadcode,alpha.core -std=gnu99 -analyzer-store=region -analyzer-purge=none -verify %s -Wno-error=return-type
-// RUN: %clang_analyze_cc1 -triple i386-apple-darwin10 -Wno-tautological-constant-compare -Wtautological-unsigned-zero-compare -analyzer-checker=core,deadcode,alpha.core -std=gnu99 -analyzer-store=region -verify %s -Wno-error=return-type
+// RUN: %clang_analyze_cc1 -triple i386-apple-darwin10 -Wno-strict-prototypes -Wno-tautological-constant-compare -Wtautological-unsigned-zero-compare -analyzer-checker=core,deadcode,alpha.core -std=gnu99 -analyzer-store=region -analyzer-purge=none -verify %s -Wno-error=return-type
+// RUN: %clang_analyze_cc1 -triple i386-apple-darwin10 -Wno-strict-prototypes -Wno-tautological-constant-compare -Wtautological-unsigned-zero-compare -analyzer-checker=core,deadcode,alpha.core -std=gnu99 -analyzer-store=region -verify %s -Wno-error=return-type
 
 typedef unsigned uintptr_t;
 
@@ -58,7 +58,7 @@ int f4(int *p) {
   return *q; // expected-warning{{Dereference of null pointer (loaded from variable 'q')}}
 }
 
-int f4_b() {
+int f4_b(void) {
   short array[2];
   uintptr_t x = array; // expected-warning{{incompatible pointer to integer conversion}}
   short *p = x; // expected-warning{{incompatible integer to pointer conversion}}
@@ -79,7 +79,7 @@ int f4_b() {
   return 0;
 }
 
-int f5() {
+int f5(void) {
   
   char *s = "hello world";
   return s[0]; // no-warning
@@ -88,21 +88,21 @@ int f5() {
 int bar(int* p, int q) __attribute__((nonnull));
 
 int f6(int *p) { 
-  return !p ? bar(p, 1) // expected-warning {{Null pointer passed as an argument to a 'nonnull' parameter}}
+  return !p ? bar(p, 1) // expected-warning {{Null pointer passed to 1st parameter expecting 'nonnull'}}
          : bar(p, 0);   // no-warning
 }
 
 int bar2(int* p, int q) __attribute__((nonnull(1)));
 
 int f6b(int *p) { 
-  return !p ? bar2(p, 1) // expected-warning {{Null pointer passed as an argument to a 'nonnull' parameter}}
+  return !p ? bar2(p, 1) // expected-warning {{Null pointer passed to 1st parameter expecting 'nonnull'}}
          : bar2(p, 0);   // no-warning
 }
 
 int bar3(int*p, int q, int *r) __attribute__((nonnull(1,3)));
 
 int f6c(int *p, int *q) {
-   return !p ? bar3(q, 2, p) // expected-warning {{Null pointer passed as an argument to a 'nonnull' parameter}}
+   return !p ? bar3(q, 2, p) // expected-warning {{Null pointer passed to 3rd parameter expecting 'nonnull'}}
              : bar3(p, 2, q); // no-warning
 }
 
@@ -275,7 +275,7 @@ void f12(HF12ITEM i, char *q) {
 }
 
 // Test handling of translating between integer "pointers" and back.
-void f13() {
+void f13(void) {
   int *x = 0;
   if (((((int) x) << 2) + 1) >> 1) *x = 1;
 }
@@ -284,7 +284,7 @@ void f13() {
 // handling pointer values that were undefined.
 void pr4759_aux(int *p) __attribute__((nonnull));
 
-void pr4759() {
+void pr4759(void) {
   int *p;
   pr4759_aux(p); // expected-warning{{1st function call argument is an uninitialized value}}
 }
@@ -323,7 +323,7 @@ void test_address_space_condition(int AS_ATTRIBUTE *cpu_data) {
   }
 }
 struct X { int member; };
-int test_address_space_member() {
+int test_address_space_member(void) {
   struct X AS_ATTRIBUTE *data = (struct X AS_ATTRIBUTE *)0UL;
   int ret;
   ret = data->member; // no-warning

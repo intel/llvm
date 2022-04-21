@@ -25,18 +25,20 @@ namespace clang {
 
   // Import the diagnostic enums themselves.
   namespace diag {
+    enum class Group;
+
     // Size of each of the diagnostic categories.
     enum {
       DIAG_SIZE_COMMON        =  300,
-      DIAG_SIZE_DRIVER        =  200,
+      DIAG_SIZE_DRIVER        =  300,
       DIAG_SIZE_FRONTEND      =  150,
       DIAG_SIZE_SERIALIZATION =  120,
       DIAG_SIZE_LEX           =  400,
-      DIAG_SIZE_PARSE         =  500,
-      DIAG_SIZE_AST           =  200,
+      DIAG_SIZE_PARSE         =  700,
+      DIAG_SIZE_AST           =  250,
       DIAG_SIZE_COMMENT       =  100,
       DIAG_SIZE_CROSSTU       =  100,
-      DIAG_SIZE_SEMA          = 4000,
+      DIAG_SIZE_SEMA          = 5000,
       DIAG_SIZE_ANALYSIS      =  100,
       DIAG_SIZE_REFACTORING   = 1000,
     };
@@ -64,8 +66,9 @@ namespace clang {
 
     // Get typedefs for common diagnostics.
     enum {
-#define DIAG(ENUM,FLAGS,DEFAULT_MAPPING,DESC,GROUP,\
-             SFINAE,CATEGORY,NOWERROR,SHOWINSYSHEADER) ENUM,
+#define DIAG(ENUM, FLAGS, DEFAULT_MAPPING, DESC, GROUP, SFINAE, CATEGORY,      \
+             NOWERROR, SHOWINSYSHEADER, SHOWINSYSMACRO, DEFFERABLE)            \
+  ENUM,
 #define COMMONSTART
 #include "clang/Basic/DiagnosticCommonKinds.inc"
       NUM_BUILTIN_COMMON_DIAGNOSTICS
@@ -169,7 +172,7 @@ public:
 
 private:
   /// Information for uniquing and looking up custom diags.
-  diag::CustomDiagInfo *CustomDiagInfo;
+  std::unique_ptr<diag::CustomDiagInfo> CustomDiagInfo;
 
 public:
   DiagnosticIDs();
@@ -223,6 +226,10 @@ public:
   ///
   static bool isBuiltinExtensionDiag(unsigned DiagID, bool &EnabledByDefault);
 
+  /// Given a group ID, returns the flag that toggles the group.
+  /// For example, for Group::DeprecatedDeclarations, returns
+  /// "deprecated-declarations".
+  static StringRef getWarningOptionForGroup(diag::Group);
 
   /// Return the lowest-level warning option that enables the specified
   /// diagnostic.
@@ -279,6 +286,13 @@ public:
   /// errors, such as those errors that involve C++ access control,
   /// are not SFINAE errors.
   static SFINAEResponse getDiagnosticSFINAEResponse(unsigned DiagID);
+
+  /// Whether the diagnostic message can be deferred.
+  ///
+  /// For single source offloading languages, a diagnostic message occurred
+  /// in a device host function may be deferred until the function is sure
+  /// to be emitted.
+  static bool isDeferrable(unsigned DiagID);
 
   /// Get the string of all diagnostic flags.
   ///

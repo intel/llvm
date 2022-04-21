@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-apple-macosx10.13.0 -fobjc-arc -fblocks -Wno-objc-root-class -O0 %s -S -emit-llvm -o - | FileCheck %s --dump-input-on-failure
-// RUN: %clang_cc1 -triple x86_64-apple-macosx10.13.0 -fobjc-arc -fblocks -Wno-objc-root-class -O0 -xobjective-c++ -std=c++11 %s -S -emit-llvm -o - | FileCheck %s --check-prefix CHECKXX --dump-input-on-failure
+// RUN: %clang_cc1 -triple x86_64-apple-macosx10.13.0 -fobjc-arc -fblocks -Wno-objc-root-class -O0 %s -S -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-apple-macosx10.13.0 -fobjc-arc -fblocks -Wno-objc-root-class -O0 -xobjective-c++ -std=c++11 %s -S -emit-llvm -o - | FileCheck %s --check-prefix CHECKXX
 
 #define EXT_RET __attribute__((objc_externally_retained))
 
@@ -20,26 +20,26 @@ extern "C" void block_param();
 #endif
 
 void param(ObjTy *p) EXT_RET {
-  // CHECK-LABEL: define void @param
-  // CHECK-NOT: llvm.objc.
-  // CHECK ret
-}
-
-void local() {
-  EXT_RET ObjTy *local = global;
-  // CHECK-LABEL: define void @local
+  // CHECK-LABEL: define{{.*}} void @param
   // CHECK-NOT: llvm.objc.
   // CHECK: ret
 }
 
-void in_init() {
+void local(void) {
+  EXT_RET ObjTy *local = global;
+  // CHECK-LABEL: define{{.*}} void @local
+  // CHECK-NOT: llvm.objc.
+  // CHECK: ret
+}
+
+void in_init(void) {
   // Test that we do the right thing when a variable appears in it's own
   // initializer. Here, we release the value stored in 'wat' after overwriting
   // it, in case it was somehow set to point to a non-null object while it's
   // initializer is being evaluated.
   EXT_RET ObjTy *wat = 0 ? wat : global;
 
-  // CHECK-LABEL: define void @in_init
+  // CHECK-LABEL: define{{.*}} void @in_init
   // CHECK: [[WAT:%.*]] = alloca
   // CHECK-NEXT: store {{.*}} null, {{.*}} [[WAT]]
   // CHECK-NEXT: [[GLOBAL:%.*]] = load {{.*}} @global
@@ -52,12 +52,12 @@ void in_init() {
   // CHECK: ret
 }
 
-void esc(void (^)());
+void esc(void (^)(void));
 
 void block_capture(ObjTy *obj) EXT_RET {
   esc(^{ (void)obj; });
 
-  // CHECK-LABEL: define void @block_capture
+  // CHECK-LABEL: define{{.*}} void @block_capture
   // CHECK-NOT: llvm.objc.
   // CHECK: call i8* @llvm.objc.retain
   // CHECK-NOT: llvm.objc.
@@ -82,7 +82,7 @@ void block_capture(ObjTy *obj) EXT_RET {
 
 void escp(void (^)(ObjTy *));
 
-void block_param() {
+void block_param(void) {
   escp(^(ObjTy *p) EXT_RET {});
 
   // CHECK-LABEL: define internal void @__block_param_block_invoke

@@ -11,7 +11,7 @@ define amdgpu_kernel void @test_a(i32 addrspace(1)* %out, float %in) {
 entry:
   %0 = fcmp olt float %in, 0.000000e+00
   %1 = select i1 %0, float 1.000000e+00, float 0.000000e+00
-  %2 = fsub float -0.000000e+00, %1
+  %2 = fneg float %1
   %3 = fptosi float %2 to i32
   %4 = bitcast i32 %3 to float
   %5 = bitcast float %4 to i32
@@ -39,7 +39,7 @@ define amdgpu_kernel void @test_b(i32 addrspace(1)* %out, float %in) {
 entry:
   %0 = fcmp olt float %in, 0.0
   %1 = select i1 %0, float 1.000000e+00, float 0.000000e+00
-  %2 = fsub float -0.000000e+00, %1
+  %2 = fneg float %1
   %3 = fptosi float %2 to i32
   %4 = bitcast i32 %3 to float
   %5 = bitcast float %4 to i32
@@ -68,8 +68,8 @@ entry:
 }
 
 ; FUNC-LABEL: {{^}}selectcc_bool:
-; SI: v_cmp_ne_u32
-; SI-NEXT: v_cndmask_b32_e64
+; SI: s_cmp_lg_u32
+; SI: v_cndmask_b32_e64
 ; SI-NOT: cmp
 ; SI-NOT: cndmask
 define amdgpu_kernel void @selectcc_bool(i32 addrspace(1)* %out, i32 %a, i32 %b) nounwind {

@@ -23,10 +23,11 @@ UnnamedNamespaceInHeaderCheck::UnnamedNamespaceInHeaderCheck(
     : ClangTidyCheck(Name, Context),
       RawStringHeaderFileExtensions(Options.getLocalOrGlobal(
           "HeaderFileExtensions", utils::defaultHeaderFileExtensions())) {
-  if (!utils::parseHeaderFileExtensions(RawStringHeaderFileExtensions,
-                                        HeaderFileExtensions, ',')) {
-    llvm::errs() << "Invalid header file extension: "
-                 << RawStringHeaderFileExtensions << "\n";
+  if (!utils::parseFileExtensions(RawStringHeaderFileExtensions,
+                                  HeaderFileExtensions,
+                                  utils::defaultFileExtensionDelimiters())) {
+    this->configurationDiag("Invalid header file extension: '%0'")
+        << RawStringHeaderFileExtensions;
   }
 }
 
@@ -37,9 +38,6 @@ void UnnamedNamespaceInHeaderCheck::storeOptions(
 
 void UnnamedNamespaceInHeaderCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (getLangOpts().CPlusPlus)
     Finder->addMatcher(namespaceDecl(isAnonymous()).bind("anonymousNamespace"),
                        this);
 }

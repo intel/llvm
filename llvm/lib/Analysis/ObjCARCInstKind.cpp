@@ -19,7 +19,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/ObjCARCInstKind.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/ObjCARCAnalysisUtils.h"
 #include "llvm/IR/Intrinsics.h"
 
@@ -33,8 +32,8 @@ raw_ostream &llvm::objcarc::operator<<(raw_ostream &OS,
     return OS << "ARCInstKind::Retain";
   case ARCInstKind::RetainRV:
     return OS << "ARCInstKind::RetainRV";
-  case ARCInstKind::ClaimRV:
-    return OS << "ARCInstKind::ClaimRV";
+  case ARCInstKind::UnsafeClaimRV:
+    return OS << "ARCInstKind::UnsafeClaimRV";
   case ARCInstKind::RetainBlock:
     return OS << "ARCInstKind::RetainBlock";
   case ARCInstKind::Release:
@@ -128,7 +127,7 @@ ARCInstKind llvm::objcarc::GetFunctionClass(const Function *F) {
   case Intrinsic::objc_clang_arc_use:
     return ARCInstKind::IntrinsicUser;
   case Intrinsic::objc_unsafeClaimAutoreleasedReturnValue:
-    return ARCInstKind::ClaimRV;
+    return ARCInstKind::UnsafeClaimRV;
   case Intrinsic::objc_retainedObject:
     return ARCInstKind::NoopCast;
   case Intrinsic::objc_unretainedObject:
@@ -141,6 +140,7 @@ ARCInstKind llvm::objcarc::GetFunctionClass(const Function *F) {
     return ARCInstKind::User;
   case Intrinsic::objc_sync_exit:
     return ARCInstKind::User;
+  case Intrinsic::objc_clang_arc_noop_use:
   case Intrinsic::objc_arc_annotation_topdown_bbstart:
   case Intrinsic::objc_arc_annotation_topdown_bbend:
   case Intrinsic::objc_arc_annotation_bottomup_bbstart:
@@ -153,7 +153,7 @@ ARCInstKind llvm::objcarc::GetFunctionClass(const Function *F) {
   }
 }
 
-// A whitelist of intrinsics that we know do not use objc pointers or decrement
+// A list of intrinsics that we know do not use objc pointers or decrement
 // ref counts.
 static bool isInertIntrinsic(unsigned ID) {
   // TODO: Make this into a covered switch.
@@ -192,7 +192,7 @@ static bool isInertIntrinsic(unsigned ID) {
   }
 }
 
-// A whitelist of intrinsics that we know do not use objc pointers or decrement
+// A list of intrinsics that we know do not use objc pointers or decrement
 // ref counts.
 static bool isUseOnlyIntrinsic(unsigned ID) {
   // We are conservative and even though intrinsics are unlikely to touch
@@ -234,11 +234,11 @@ ARCInstKind llvm::objcarc::GetARCInstKind(const Value *V) {
       }
 
       // Otherwise, be conservative.
-      return GetCallSiteClass(CI);
+      return GetCallSiteClass(*CI);
     }
     case Instruction::Invoke:
       // Otherwise, be conservative.
-      return GetCallSiteClass(cast<InvokeInst>(I));
+      return GetCallSiteClass(cast<InvokeInst>(*I));
     case Instruction::BitCast:
     case Instruction::GetElementPtr:
     case Instruction::Select:
@@ -296,9 +296,8 @@ ARCInstKind llvm::objcarc::GetARCInstKind(const Value *V) {
       // operand isn't actually being dereferenced, it is being stored to
       // memory where we can no longer track who might read it and dereference
       // it, so we have to consider it potentially used.
-      for (User::const_op_iterator OI = I->op_begin(), OE = I->op_end();
-           OI != OE; ++OI)
-        if (IsPotentialRetainableObjPtr(*OI))
+      for (const Use &U : I->operands())
+        if (IsPotentialRetainableObjPtr(U))
           return ARCInstKind::User;
     }
   }
@@ -335,7 +334,7 @@ bool llvm::objcarc::IsUser(ARCInstKind Class) {
   case ARCInstKind::StoreStrong:
   case ARCInstKind::Call:
   case ARCInstKind::None:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
     return false;
   }
   llvm_unreachable("covered switch isn't covered?");
@@ -371,7 +370,7 @@ bool llvm::objcarc::IsRetain(ARCInstKind Class) {
   case ARCInstKind::Call:
   case ARCInstKind::User:
   case ARCInstKind::None:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
     return false;
   }
   llvm_unreachable("covered switch isn't covered?");
@@ -385,7 +384,7 @@ bool llvm::objcarc::IsAutorelease(ARCInstKind Class) {
     return true;
   case ARCInstKind::Retain:
   case ARCInstKind::RetainRV:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
   case ARCInstKind::RetainBlock:
   case ARCInstKind::Release:
   case ARCInstKind::AutoreleasepoolPush:
@@ -417,7 +416,7 @@ bool llvm::objcarc::IsForwarding(ARCInstKind Class) {
   switch (Class) {
   case ARCInstKind::Retain:
   case ARCInstKind::RetainRV:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
   case ARCInstKind::Autorelease:
   case ARCInstKind::AutoreleaseRV:
   case ARCInstKind::NoopCast:
@@ -452,7 +451,7 @@ bool llvm::objcarc::IsNoopOnNull(ARCInstKind Class) {
   switch (Class) {
   case ARCInstKind::Retain:
   case ARCInstKind::RetainRV:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
   case ARCInstKind::Release:
   case ARCInstKind::Autorelease:
   case ARCInstKind::AutoreleaseRV:
@@ -481,6 +480,41 @@ bool llvm::objcarc::IsNoopOnNull(ARCInstKind Class) {
   llvm_unreachable("covered switch isn't covered?");
 }
 
+/// Test if the given class represents instructions which do nothing if
+/// passed a global variable.
+bool llvm::objcarc::IsNoopOnGlobal(ARCInstKind Class) {
+  switch (Class) {
+  case ARCInstKind::Retain:
+  case ARCInstKind::RetainRV:
+  case ARCInstKind::UnsafeClaimRV:
+  case ARCInstKind::Release:
+  case ARCInstKind::Autorelease:
+  case ARCInstKind::AutoreleaseRV:
+  case ARCInstKind::RetainBlock:
+  case ARCInstKind::FusedRetainAutorelease:
+  case ARCInstKind::FusedRetainAutoreleaseRV:
+    return true;
+  case ARCInstKind::AutoreleasepoolPush:
+  case ARCInstKind::AutoreleasepoolPop:
+  case ARCInstKind::LoadWeakRetained:
+  case ARCInstKind::StoreWeak:
+  case ARCInstKind::InitWeak:
+  case ARCInstKind::LoadWeak:
+  case ARCInstKind::MoveWeak:
+  case ARCInstKind::CopyWeak:
+  case ARCInstKind::DestroyWeak:
+  case ARCInstKind::StoreStrong:
+  case ARCInstKind::IntrinsicUser:
+  case ARCInstKind::CallOrUser:
+  case ARCInstKind::Call:
+  case ARCInstKind::User:
+  case ARCInstKind::None:
+  case ARCInstKind::NoopCast:
+    return false;
+  }
+  llvm_unreachable("covered switch isn't covered?");
+}
+
 /// Test if the given class represents instructions which are always safe
 /// to mark with the "tail" keyword.
 bool llvm::objcarc::IsAlwaysTail(ARCInstKind Class) {
@@ -488,7 +522,7 @@ bool llvm::objcarc::IsAlwaysTail(ARCInstKind Class) {
   switch (Class) {
   case ARCInstKind::Retain:
   case ARCInstKind::RetainRV:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
   case ARCInstKind::AutoreleaseRV:
     return true;
   case ARCInstKind::Release:
@@ -529,7 +563,7 @@ bool llvm::objcarc::IsNeverTail(ARCInstKind Class) {
     return true;
   case ARCInstKind::Retain:
   case ARCInstKind::RetainRV:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
   case ARCInstKind::AutoreleaseRV:
   case ARCInstKind::Release:
   case ARCInstKind::RetainBlock:
@@ -564,7 +598,7 @@ bool llvm::objcarc::IsNoThrow(ARCInstKind Class) {
   switch (Class) {
   case ARCInstKind::Retain:
   case ARCInstKind::RetainRV:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
   case ARCInstKind::Release:
   case ARCInstKind::Autorelease:
   case ARCInstKind::AutoreleaseRV:
@@ -609,7 +643,7 @@ bool llvm::objcarc::CanInterruptRV(ARCInstKind Class) {
     return true;
   case ARCInstKind::Retain:
   case ARCInstKind::RetainRV:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
   case ARCInstKind::Release:
   case ARCInstKind::AutoreleasepoolPush:
   case ARCInstKind::RetainBlock:
@@ -662,7 +696,7 @@ bool llvm::objcarc::CanDecrementRefCount(ARCInstKind Kind) {
   case ARCInstKind::StoreStrong:
   case ARCInstKind::CallOrUser:
   case ARCInstKind::Call:
-  case ARCInstKind::ClaimRV:
+  case ARCInstKind::UnsafeClaimRV:
     return true;
   }
 

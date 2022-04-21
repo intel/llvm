@@ -15,7 +15,7 @@
 declare i64* @get_ptr()
 declare void @use_i64(i64 %v)
 
-define void @test_ldrd(i64 %a) nounwind readonly "no-frame-pointer-elim"="true" {
+define void @test_ldrd(i64 %a) nounwind readonly "frame-pointer"="all" {
 ; CHECK-LABEL: test_ldrd:
 ; NORMAL: bl{{x?}} _get_ptr
 ; A8: ldrd r0, r1, [r0]
@@ -49,7 +49,7 @@ define void @test_ldrd(i64 %a) nounwind readonly "no-frame-pointer-elim"="true" 
 ; GREEDY: %bb
 ; GREEDY: ldrd
 ; GREEDY: str
-define void @f(i32* nocapture %a, i32* nocapture %b, i32 %n) nounwind "no-frame-pointer-elim"="true" {
+define void @f(i32* nocapture %a, i32* nocapture %b, i32 %n) nounwind "frame-pointer"="all" {
 entry:
   %0 = add nsw i32 %n, -1                         ; <i32> [#uses=2]
   %1 = icmp sgt i32 %0, 0                         ; <i1> [#uses=1]
@@ -79,13 +79,14 @@ return:                                           ; preds = %bb, %entry
 @TestVar = external global %struct.Test
 
 ; CHECK-LABEL: Func1:
-define void @Func1() nounwind ssp "no-frame-pointer-elim"="true" {
+define void @Func1() nounwind ssp "frame-pointer"="all" {
 entry:
-; A8: movw [[BASE:r[0-9]+]], :lower16:{{.*}}TestVar{{.*}}
-; A8: movt [[BASE]], :upper16:{{.*}}TestVar{{.*}}
-; A8: ldrd [[FIELD1:r[0-9]+]], [[FIELD2:r[0-9]+]], {{\[}}[[BASE]], #4]
-; A8-NEXT: add [[FIELD1]], [[FIELD2]]
-; A8-NEXT: str [[FIELD1]], {{\[}}[[BASE]]{{\]}}
+; A8: movw [[BASER:r[0-9]+]], :lower16:{{.*}}TestVar{{.*}}
+; A8: movt [[BASER]], :upper16:{{.*}}TestVar{{.*}}
+; A8: ldr [[BASE:r[0-9]+]], [[[BASER]]]
+; A8: ldrd [[FIELD1:r[0-9]+]], [[FIELD2:r[0-9]+]], [[[BASE]], #4]
+; A8-NEXT: add [[FIELD2]], [[FIELD1]]
+; A8-NEXT: str [[FIELD2]], [[[BASE]]]
 ; CONSERVATIVE-NOT: ldrd
   %orig_blocks = alloca [256 x i16], align 2
   %0 = bitcast [256 x i16]* %orig_blocks to i8*call void @llvm.lifetime.start.p0i8(i64 512, i8* %0) nounwind
@@ -104,7 +105,7 @@ declare void @extfunc(i32, i32, i32, i32)
 ; A8: ldrd
 ; CHECK: bl{{x?}} _extfunc
 ; A8: pop
-define void @Func2(i32* %p) "no-frame-pointer-elim"="true" {
+define void @Func2(i32* %p) "frame-pointer"="all" {
 entry:
   %addr0 = getelementptr i32, i32* %p, i32 0
   %addr1 = getelementptr i32, i32* %p, i32 1
@@ -129,7 +130,7 @@ entry:
 ; GREEDY: ldrd r1, r2, [sp]
 ; CONSERVATIVE: ldrd r1, r2, [sp]
 ; CHECK: bl{{x?}} _extfunc
-define void @strd_spill_ldrd_reload(i32 %v0, i32 %v1) "no-frame-pointer-elim"="true" {
+define void @strd_spill_ldrd_reload(i32 %v0, i32 %v1) "frame-pointer"="all" {
   ; force %v0 and %v1 to be spilled
   call void asm sideeffect "", "~{r0},~{r1},~{r2},~{r3},~{r4},~{r5},~{r6},~{r7},~{r8},~{r9},~{r10},~{r11},~{r12},~{lr}"()
   ; force the reloaded %v0, %v1 into different registers
@@ -143,7 +144,7 @@ declare void @extfunc2(i32*, i32, i32)
 ; NORMAL: ldrd r1, r2, [r0], #-8
 ; CONSERVATIVE-NOT: ldrd
 ; CHECK: bl{{x?}} _extfunc
-define void @ldrd_postupdate_dec(i32* %p0) "no-frame-pointer-elim"="true" {
+define void @ldrd_postupdate_dec(i32* %p0) "frame-pointer"="all" {
   %p0.1 = getelementptr i32, i32* %p0, i32 1
   %v0 = load i32, i32* %p0
   %v1 = load i32, i32* %p0.1
@@ -156,7 +157,7 @@ define void @ldrd_postupdate_dec(i32* %p0) "no-frame-pointer-elim"="true" {
 ; NORMAL: ldrd r1, r2, [r0], #8
 ; CONSERVATIVE-NOT: ldrd
 ; CHECK: bl{{x?}} _extfunc
-define void @ldrd_postupdate_inc(i32* %p0) "no-frame-pointer-elim"="true" {
+define void @ldrd_postupdate_inc(i32* %p0) "frame-pointer"="all" {
   %p0.1 = getelementptr i32, i32* %p0, i32 1
   %v0 = load i32, i32* %p0
   %v1 = load i32, i32* %p0.1
@@ -169,7 +170,7 @@ define void @ldrd_postupdate_inc(i32* %p0) "no-frame-pointer-elim"="true" {
 ; NORMAL: strd r1, r2, [r0], #-8
 ; CONSERVATIVE-NOT: strd
 ; CHECK: bx lr
-define i32* @strd_postupdate_dec(i32* %p0, i32 %v0, i32 %v1) "no-frame-pointer-elim"="true" {
+define i32* @strd_postupdate_dec(i32* %p0, i32 %v0, i32 %v1) "frame-pointer"="all" {
   %p0.1 = getelementptr i32, i32* %p0, i32 1
   store i32 %v0, i32* %p0
   store i32 %v1, i32* %p0.1
@@ -181,7 +182,7 @@ define i32* @strd_postupdate_dec(i32* %p0, i32 %v0, i32 %v1) "no-frame-pointer-e
 ; NORMAL: strd r1, r2, [r0], #8
 ; CONSERVATIVE-NOT: strd
 ; CHECK: bx lr
-define i32* @strd_postupdate_inc(i32* %p0, i32 %v0, i32 %v1) "no-frame-pointer-elim"="true" {
+define i32* @strd_postupdate_inc(i32* %p0, i32 %v0, i32 %v1) "frame-pointer"="all" {
   %p0.1 = getelementptr i32, i32* %p0, i32 1
   store i32 %v0, i32* %p0
   store i32 %v1, i32* %p0.1

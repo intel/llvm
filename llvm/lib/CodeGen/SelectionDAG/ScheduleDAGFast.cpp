@@ -11,16 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "InstrEmitter.h"
-#include "ScheduleDAGSDNodes.h"
 #include "SDNodeDbgValue.h"
-#include "llvm/ADT/STLExtras.h"
+#include "ScheduleDAGSDNodes.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/SchedulerRegistry.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -56,9 +54,7 @@ namespace {
 
     SUnit *pop() {
       if (empty()) return nullptr;
-      SUnit *V = Queue.back();
-      Queue.pop_back();
-      return V;
+      return Queue.pop_back_val();
     }
   };
 
@@ -498,7 +494,7 @@ bool ScheduleDAGFast::DelayForLiveRegsBottomUp(SUnit *SU,
           // Check for def of register or earlyclobber register.
           for (; NumVals; --NumVals, ++i) {
             unsigned Reg = cast<RegisterSDNode>(Node->getOperand(i))->getReg();
-            if (TargetRegisterInfo::isPhysicalRegister(Reg))
+            if (Register::isPhysicalRegister(Reg))
               CheckForLiveRegDef(SU, Reg, LiveRegDefs, RegAdded, LRegs, TRI);
           }
         } else
@@ -760,8 +756,8 @@ void ScheduleDAGLinearize::Schedule() {
 
 MachineBasicBlock*
 ScheduleDAGLinearize::EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
-  InstrEmitter Emitter(BB, InsertPos);
-  DenseMap<SDValue, unsigned> VRBaseMap;
+  InstrEmitter Emitter(DAG->getTarget(), BB, InsertPos);
+  DenseMap<SDValue, Register> VRBaseMap;
 
   LLVM_DEBUG({ dbgs() << "\n*** Final schedule ***\n"; });
 

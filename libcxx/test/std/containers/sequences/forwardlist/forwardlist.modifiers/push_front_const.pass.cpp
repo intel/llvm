@@ -13,6 +13,7 @@
 #include <forward_list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)
@@ -23,11 +24,11 @@ int main(int, char**)
         C c;
         c.push_front(1);
         assert(c.front() == 1);
-        assert(distance(c.begin(), c.end()) == 1);
+        assert(std::distance(c.begin(), c.end()) == 1);
         c.push_front(3);
         assert(c.front() == 3);
-        assert(*next(c.begin()) == 1);
-        assert(distance(c.begin(), c.end()) == 2);
+        assert(*std::next(c.begin()) == 1);
+        assert(std::distance(c.begin(), c.end()) == 2);
     }
 #if TEST_STD_VER >= 11
     {
@@ -36,11 +37,11 @@ int main(int, char**)
         C c;
         c.push_front(1);
         assert(c.front() == 1);
-        assert(distance(c.begin(), c.end()) == 1);
+        assert(std::distance(c.begin(), c.end()) == 1);
         c.push_front(3);
         assert(c.front() == 3);
-        assert(*next(c.begin()) == 1);
-        assert(distance(c.begin(), c.end()) == 2);
+        assert(*std::next(c.begin()) == 1);
+        assert(std::distance(c.begin(), c.end()) == 2);
     }
 #endif
 

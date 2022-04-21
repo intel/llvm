@@ -13,14 +13,16 @@
 
 #include "X86InstPrinterCommon.h"
 #include "X86BaseInfo.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCInstrInfo.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Casting.h"
-#include <cstdint>
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
+#include <cstdint>
 
 using namespace llvm;
 
@@ -263,6 +265,24 @@ void X86InstPrinterCommon::printCMPMnemonic(const MCInst *MI, bool IsVCmp,
   case X86::VCMPSSZrrb_Int: case X86::VCMPSSZrrb_Intk:
     OS << "ss\t";
     break;
+  case X86::VCMPPHZ128rmi:  case X86::VCMPPHZ128rri:
+  case X86::VCMPPHZ256rmi:  case X86::VCMPPHZ256rri:
+  case X86::VCMPPHZrmi:     case X86::VCMPPHZrri:
+  case X86::VCMPPHZ128rmik: case X86::VCMPPHZ128rrik:
+  case X86::VCMPPHZ256rmik: case X86::VCMPPHZ256rrik:
+  case X86::VCMPPHZrmik:    case X86::VCMPPHZrrik:
+  case X86::VCMPPHZ128rmbi: case X86::VCMPPHZ128rmbik:
+  case X86::VCMPPHZ256rmbi: case X86::VCMPPHZ256rmbik:
+  case X86::VCMPPHZrmbi:    case X86::VCMPPHZrmbik:
+  case X86::VCMPPHZrrib:    case X86::VCMPPHZrribk:
+    OS << "ph\t";
+    break;
+  case X86::VCMPSHZrm:      case X86::VCMPSHZrr:
+  case X86::VCMPSHZrm_Int:  case X86::VCMPSHZrr_Int:
+  case X86::VCMPSHZrrb_Int: case X86::VCMPSHZrrb_Intk:
+  case X86::VCMPSHZrm_Intk: case X86::VCMPSHZrr_Intk:
+    OS << "sh\t";
+    break;
   }
 }
 
@@ -287,16 +307,27 @@ void X86InstPrinterCommon::printRoundingControl(const MCInst *MI, unsigned Op,
   }
 }
 
-/// printPCRelImm - This is used to print an immediate value that ends up
-/// being encoded as a pc-relative value (e.g. for jumps and calls).  In
-/// Intel-style these print slightly differently than normal immediates.
-/// for example, a $ is not emitted.
-void X86InstPrinterCommon::printPCRelImm(const MCInst *MI, unsigned OpNo,
-                                         raw_ostream &O) {
+/// value (e.g. for jumps and calls). In Intel-style these print slightly
+/// differently than normal immediates. For example, a $ is not emitted.
+///
+/// \p Address The address of the next instruction.
+/// \see MCInstPrinter::printInst
+void X86InstPrinterCommon::printPCRelImm(const MCInst *MI, uint64_t Address,
+                                         unsigned OpNo, raw_ostream &O) {
+  // Do not print the numberic target address when symbolizing.
+  if (SymbolizeOperands)
+    return;
+
   const MCOperand &Op = MI->getOperand(OpNo);
-  if (Op.isImm())
-    O << formatImm(Op.getImm());
-  else {
+  if (Op.isImm()) {
+    if (PrintBranchImmAsAddress) {
+      uint64_t Target = Address + Op.getImm();
+      if (MAI.getCodePointerSize() == 4)
+        Target &= 0xffffffff;
+      O << formatHex(Target);
+    } else
+      O << formatImm(Op.getImm());
+  } else {
     assert(Op.isExpr() && "unknown pcrel immediate operand");
     // If a symbolic branch target was added as a constant expression then print
     // that address in hex.
@@ -319,7 +350,8 @@ void X86InstPrinterCommon::printOptionalSegReg(const MCInst *MI, unsigned OpNo,
   }
 }
 
-void X86InstPrinterCommon::printInstFlags(const MCInst *MI, raw_ostream &O) {
+void X86InstPrinterCommon::printInstFlags(const MCInst *MI, raw_ostream &O,
+                                          const MCSubtargetInfo &STI) {
   const MCInstrDesc &Desc = MII.get(MI->getOpcode());
   uint64_t TSFlags = Desc.TSFlags;
   unsigned Flags = MI->getFlags();
@@ -334,4 +366,58 @@ void X86InstPrinterCommon::printInstFlags(const MCInst *MI, raw_ostream &O) {
     O << "\trepne\t";
   else if (Flags & X86::IP_HAS_REPEAT)
     O << "\trep\t";
+
+  // These all require a pseudo prefix
+  if ((Flags & X86::IP_USE_VEX) || (TSFlags & X86II::ExplicitVEXPrefix))
+    O << "\t{vex}";
+  else if (Flags & X86::IP_USE_VEX2)
+    O << "\t{vex2}";
+  else if (Flags & X86::IP_USE_VEX3)
+    O << "\t{vex3}";
+  else if (Flags & X86::IP_USE_EVEX)
+    O << "\t{evex}";
+
+  if (Flags & X86::IP_USE_DISP8)
+    O << "\t{disp8}";
+  else if (Flags & X86::IP_USE_DISP32)
+    O << "\t{disp32}";
+
+  // Determine where the memory operand starts, if present
+  int MemoryOperand = X86II::getMemoryOperandNo(TSFlags);
+  if (MemoryOperand != -1)
+    MemoryOperand += X86II::getOperandBias(Desc);
+
+  // Address-Size override prefix
+  if (Flags & X86::IP_HAS_AD_SIZE &&
+      !X86_MC::needsAddressSizeOverride(*MI, STI, MemoryOperand, TSFlags)) {
+    if (STI.hasFeature(X86::Is16Bit) || STI.hasFeature(X86::Is64Bit))
+      O << "\taddr32\t";
+    else if (STI.hasFeature(X86::Is32Bit))
+      O << "\taddr16\t";
+  }
+}
+
+void X86InstPrinterCommon::printVKPair(const MCInst *MI, unsigned OpNo,
+                                       raw_ostream &OS) {
+  // In assembly listings, a pair is represented by one of its members, any
+  // of the two.  Here, we pick k0, k2, k4, k6, but we could as well
+  // print K2_K3 as "k3".  It would probably make a lot more sense, if
+  // the assembly would look something like:
+  // "vp2intersect %zmm5, %zmm7, {%k2, %k3}"
+  // but this can work too.
+  switch (MI->getOperand(OpNo).getReg()) {
+  case X86::K0_K1:
+    printRegName(OS, X86::K0);
+    return;
+  case X86::K2_K3:
+    printRegName(OS, X86::K2);
+    return;
+  case X86::K4_K5:
+    printRegName(OS, X86::K4);
+    return;
+  case X86::K6_K7:
+    printRegName(OS, X86::K6);
+    return;
+  }
+  llvm_unreachable("Unknown mask pair register name");
 }

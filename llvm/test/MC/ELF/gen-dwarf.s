@@ -1,4 +1,4 @@
-// RUN: llvm-mc -g -dwarf-version 2 -triple  i686-pc-linux-gnu %s -filetype=obj -o - | llvm-readobj -r | FileCheck %s
+// RUN: llvm-mc -g -dwarf-version 2 -triple  i686-pc-linux-gnu %s -filetype=obj -o - | llvm-readobj -r - | FileCheck %s
 // RUN: not llvm-mc -g -dwarf-version 1  -triple  i686-pc-linux-gnu %s -filetype=asm -o - 2>&1 | FileCheck --check-prefix=DWARF1 %s
 // RUN: llvm-mc -g -dwarf-version 2 -triple  i686-pc-linux-gnu %s -filetype=asm -o - | FileCheck --check-prefix=ASM --check-prefix=DWARF2 %s
 // RUN: llvm-mc -g -dwarf-version 3 -triple  i686-pc-linux-gnu %s -filetype=asm -o - | FileCheck --check-prefix=ASM --check-prefix=DWARF3 %s
@@ -22,12 +22,12 @@ foo:
 
 // CHECK:      Relocations [
 // CHECK:        Section ({{[^ ]+}}) .rel.debug_info {
-// CHECK-NEXT:     0x6 R_386_32 .debug_abbrev 0x0
-// CHECK-NEXT:     0xC R_386_32 .debug_line 0x0
+// CHECK-NEXT:     0x6 R_386_32 .debug_abbrev
+// CHECK-NEXT:     0xC R_386_32 .debug_line
 // CHECK:        }
 // CHECK-NEXT:   Section ({{[^ ]+}}) .rel.debug_aranges {
-// CHECK-NEXT:     0x6 R_386_32 .debug_info 0x0
-// CHECK-NEXT:     0x10 R_386_32 .text 0x0
+// CHECK-NEXT:     0x6 R_386_32 .debug_info
+// CHECK-NEXT:     0x10 R_386_32 .text
 // CHECK-NEXT:   }
 // CHECK:      ]
 

@@ -11,18 +11,19 @@
 // template<BidirectionalIterator Iter, StrictWeakOrder<auto, Iter::value_type> Compare>
 //   requires ShuffleIterator<Iter>
 //         && CopyConstructible<Compare>
-//   bool
+//   constexpr bool  // constexpr in C++20
 //   next_permutation(Iter first, Iter last, Compare comp);
 
 #include <algorithm>
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 #include <cstdio>
 
-int factorial(int x)
+TEST_CONSTEXPR_CXX14 int factorial(int x)
 {
     int r = 1;
     for (; x; --x)
@@ -31,7 +32,7 @@ int factorial(int x)
 }
 
 template <class Iter>
-void
+TEST_CONSTEXPR_CXX20 bool
 test()
 {
     typedef std::greater<int> C;
@@ -57,6 +58,7 @@ test()
         } while (x);
         assert(count == factorial(e));
     }
+    return true;
 }
 
 int main(int, char**)
@@ -65,5 +67,11 @@ int main(int, char**)
     test<random_access_iterator<int*> >();
     test<int*>();
 
-  return 0;
+#if TEST_STD_VER >= 20
+    static_assert(test<bidirectional_iterator<int*>>());
+    static_assert(test<random_access_iterator<int*>>());
+    static_assert(test<int*>());
+#endif
+
+    return 0;
 }

@@ -12,10 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_SYNCAPI_H
-#define LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_SYNCAPI_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_SYNCAPI_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_SYNCAPI_H
 
 #include "ClangdServer.h"
+#include "Protocol.h"
 #include "index/Index.h"
 
 namespace clang {
@@ -23,14 +24,17 @@ namespace clangd {
 
 // Calls addDocument and then blockUntilIdleForTest.
 void runAddDocument(ClangdServer &Server, PathRef File, StringRef Contents,
-                    WantDiagnostics WantDiags = WantDiagnostics::Auto);
+                    StringRef Version = "null",
+                    WantDiagnostics WantDiags = WantDiagnostics::Auto,
+                    bool ForceRebuild = false);
 
 llvm::Expected<CodeCompleteResult>
 runCodeComplete(ClangdServer &Server, PathRef File, Position Pos,
                 clangd::CodeCompleteOptions Opts);
 
 llvm::Expected<SignatureHelp> runSignatureHelp(ClangdServer &Server,
-                                               PathRef File, Position Pos);
+                                               PathRef File, Position Pos,
+                                               MarkupKind DocumentationFormat);
 
 llvm::Expected<std::vector<LocatedSymbol>>
 runLocateSymbolAt(ClangdServer &Server, PathRef File, Position Pos);
@@ -38,22 +42,33 @@ runLocateSymbolAt(ClangdServer &Server, PathRef File, Position Pos);
 llvm::Expected<std::vector<DocumentHighlight>>
 runFindDocumentHighlights(ClangdServer &Server, PathRef File, Position Pos);
 
-llvm::Expected<std::vector<TextEdit>>
-runRename(ClangdServer &Server, PathRef File, Position Pos, StringRef NewName);
+llvm::Expected<RenameResult> runRename(ClangdServer &Server, PathRef File,
+                                       Position Pos, StringRef NewName,
+                                       const clangd::RenameOptions &RenameOpts);
 
-std::string runDumpAST(ClangdServer &Server, PathRef File);
+llvm::Expected<RenameResult>
+runPrepareRename(ClangdServer &Server, PathRef File, Position Pos,
+                 llvm::Optional<std::string> NewName,
+                 const clangd::RenameOptions &RenameOpts);
 
-llvm::Expected<std::vector<SymbolInformation>>
-runWorkspaceSymbols(ClangdServer &Server, StringRef Query, int Limit);
-
-Expected<std::vector<DocumentSymbol>> runDocumentSymbols(ClangdServer &Server,
-                                                         PathRef File);
+llvm::Expected<tooling::Replacements>
+runFormatFile(ClangdServer &Server, PathRef File, llvm::Optional<Range>);
 
 SymbolSlab runFuzzyFind(const SymbolIndex &Index, StringRef Query);
 SymbolSlab runFuzzyFind(const SymbolIndex &Index, const FuzzyFindRequest &Req);
 RefSlab getRefs(const SymbolIndex &Index, SymbolID ID);
 
+llvm::Expected<std::vector<SelectionRange>>
+runSemanticRanges(ClangdServer &Server, PathRef File,
+                  const std::vector<Position> &Pos);
+
+llvm::Expected<llvm::Optional<clangd::Path>>
+runSwitchHeaderSource(ClangdServer &Server, PathRef File);
+
+llvm::Error runCustomAction(ClangdServer &Server, PathRef File,
+                            llvm::function_ref<void(InputsAndAST)>);
+
 } // namespace clangd
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_SYNCAPI_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_SYNCAPI_H

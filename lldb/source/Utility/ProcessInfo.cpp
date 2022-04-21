@@ -1,4 +1,4 @@
-//===-- ProcessInfo.cpp -----------------------------------------*- C++ -*-===//
+//===-- ProcessInfo.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,6 +9,7 @@
 #include "lldb/Utility/ProcessInfo.h"
 
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/UserIDResolver.h"
@@ -18,15 +19,15 @@
 
 using namespace lldb;
 using namespace lldb_private;
+using namespace lldb_private::repro;
 
 ProcessInfo::ProcessInfo()
-    : m_executable(), m_arguments(), m_environment(), m_uid(UINT32_MAX),
-      m_gid(UINT32_MAX), m_arch(), m_pid(LLDB_INVALID_PROCESS_ID) {}
+    : m_executable(), m_arguments(), m_environment(), m_arch() {}
 
 ProcessInfo::ProcessInfo(const char *name, const ArchSpec &arch,
                          lldb::pid_t pid)
-    : m_executable(name), m_arguments(), m_environment(), m_uid(UINT32_MAX),
-      m_gid(UINT32_MAX), m_arch(arch), m_pid(pid) {}
+    : m_executable(name), m_arguments(), m_environment(), m_arch(arch),
+      m_pid(pid) {}
 
 void ProcessInfo::Clear() {
   m_executable.Clear();
@@ -42,14 +43,14 @@ const char *ProcessInfo::GetName() const {
   return m_executable.GetFilename().GetCString();
 }
 
-size_t ProcessInfo::GetNameLength() const {
-  return m_executable.GetFilename().GetLength();
+llvm::StringRef ProcessInfo::GetNameAsStringRef() const {
+  return m_executable.GetFilename().GetStringRef();
 }
 
 void ProcessInfo::Dump(Stream &s, Platform *platform) const {
   s << "Executable: " << GetName() << "\n";
   s << "Triple: ";
-  m_arch.DumpTriple(s);
+  m_arch.DumpTriple(s.AsRawOstream());
   s << "\n";
 
   s << "Arguments:\n";
@@ -75,7 +76,7 @@ void ProcessInfo::SetExecutableFile(const FileSpec &exe_file,
 
 llvm::StringRef ProcessInfo::GetArg0() const { return m_arg0; }
 
-void ProcessInfo::SetArg0(llvm::StringRef arg) { m_arg0 = arg; }
+void ProcessInfo::SetArg0(llvm::StringRef arg) { m_arg0 = std::string(arg); }
 
 void ProcessInfo::SetArguments(char const **argv,
                                bool first_arg_is_executable) {
@@ -119,7 +120,7 @@ void ProcessInstanceInfo::Dump(Stream &s, UserIDResolver &resolver) const {
   if (m_executable) {
     s.Printf("   name = %s\n", m_executable.GetFilename().GetCString());
     s.PutCString("   file = ");
-    m_executable.Dump(&s);
+    m_executable.Dump(s.AsRawOstream());
     s.EOL();
   }
   const uint32_t argc = m_arguments.GetArgumentCount();
@@ -137,7 +138,7 @@ void ProcessInstanceInfo::Dump(Stream &s, UserIDResolver &resolver) const {
 
   if (m_arch.IsValid()) {
     s.Printf("   arch = ");
-    m_arch.DumpTriple(s);
+    m_arch.DumpTriple(s.AsRawOstream());
     s.EOL();
   }
 
@@ -169,13 +170,15 @@ void ProcessInstanceInfo::DumpTableHeader(Stream &s, bool show_args,
 
   if (verbose) {
     s.Printf("PID    PARENT USER       GROUP      EFF USER   EFF GROUP  TRIPLE "
-             "                  %s\n",
+             "                        %s\n",
              label);
-    s.PutCString("====== ====== ========== ========== ========== ========== "
-                 "======================== ============================\n");
+    s.PutCString(
+        "====== ====== ========== ========== ========== ========== "
+        "============================== ============================\n");
   } else {
-    s.Printf("PID    PARENT USER       TRIPLE                   %s\n", label);
-    s.PutCString("====== ====== ========== ======================== "
+    s.Printf("PID    PARENT USER       TRIPLE                         %s\n",
+             label);
+    s.PutCString("====== ====== ========== ============================== "
                  "============================\n");
   }
 }
@@ -187,36 +190,49 @@ void ProcessInstanceInfo::DumpAsTableRow(Stream &s, UserIDResolver &resolver,
 
     StreamString arch_strm;
     if (m_arch.IsValid())
-      m_arch.DumpTriple(arch_strm);
+      m_arch.DumpTriple(arch_strm.AsRawOstream());
 
-    auto print = [&](UserIDResolver::id_t id,
-                     llvm::Optional<llvm::StringRef> (UserIDResolver::*get)(
+    auto print = [&](bool (ProcessInstanceInfo::*isValid)() const,
+                     uint32_t (ProcessInstanceInfo::*getID)() const,
+                     llvm::Optional<llvm::StringRef> (UserIDResolver::*getName)(
                          UserIDResolver::id_t id)) {
-      if (auto name = (resolver.*get)(id))
-        s.Format("{0,-10} ", *name);
+      const char *format = "{0,-10} ";
+      if (!(this->*isValid)()) {
+        s.Format(format, "");
+        return;
+      }
+      uint32_t id = (this->*getID)();
+      if (auto name = (resolver.*getName)(id))
+        s.Format(format, *name);
       else
-        s.Format("{0,-10} ", id);
+        s.Format(format, id);
     };
     if (verbose) {
-      print(m_uid, &UserIDResolver::GetUserName);
-      print(m_gid, &UserIDResolver::GetGroupName);
-      print(m_euid, &UserIDResolver::GetUserName);
-      print(m_egid, &UserIDResolver::GetGroupName);
+      print(&ProcessInstanceInfo::UserIDIsValid,
+            &ProcessInstanceInfo::GetUserID, &UserIDResolver::GetUserName);
+      print(&ProcessInstanceInfo::GroupIDIsValid,
+            &ProcessInstanceInfo::GetGroupID, &UserIDResolver::GetGroupName);
+      print(&ProcessInstanceInfo::EffectiveUserIDIsValid,
+            &ProcessInstanceInfo::GetEffectiveUserID,
+            &UserIDResolver::GetUserName);
+      print(&ProcessInstanceInfo::EffectiveGroupIDIsValid,
+            &ProcessInstanceInfo::GetEffectiveGroupID,
+            &UserIDResolver::GetGroupName);
 
-      s.Printf("%-24s ", arch_strm.GetData());
+      s.Printf("%-30s ", arch_strm.GetData());
     } else {
-      print(m_euid, &UserIDResolver::GetUserName);
-      s.Printf(" %-24s ", arch_strm.GetData());
+      print(&ProcessInstanceInfo::EffectiveUserIDIsValid,
+            &ProcessInstanceInfo::GetEffectiveUserID,
+            &UserIDResolver::GetUserName);
+      s.Printf("%-30s ", arch_strm.GetData());
     }
 
     if (verbose || show_args) {
+      s.PutCString(m_arg0);
       const uint32_t argc = m_arguments.GetArgumentCount();
-      if (argc > 0) {
-        for (uint32_t i = 0; i < argc; i++) {
-          if (i > 0)
-            s.PutChar(' ');
-          s.PutCString(m_arguments.GetArgumentAtIndex(i));
-        }
+      for (uint32_t i = 0; i < argc; i++) {
+        s.PutChar(' ');
+        s.PutCString(m_arguments.GetArgumentAtIndex(i));
       }
     } else {
       s.PutCString(GetName());
@@ -226,8 +242,14 @@ void ProcessInstanceInfo::DumpAsTableRow(Stream &s, UserIDResolver &resolver,
   }
 }
 
+bool ProcessInstanceInfoMatch::ArchitectureMatches(
+    const ArchSpec &arch_spec) const {
+  return !m_match_info.GetArchitecture().IsValid() ||
+         m_match_info.GetArchitecture().IsCompatibleMatch(arch_spec);
+}
+
 bool ProcessInstanceInfoMatch::NameMatches(const char *process_name) const {
-  if (m_name_match_type == NameMatch::Ignore || process_name == nullptr)
+  if (m_name_match_type == NameMatch::Ignore)
     return true;
   const char *match_name = m_match_info.GetName();
   if (!match_name)
@@ -236,11 +258,8 @@ bool ProcessInstanceInfoMatch::NameMatches(const char *process_name) const {
   return lldb_private::NameMatches(process_name, m_name_match_type, match_name);
 }
 
-bool ProcessInstanceInfoMatch::Matches(
+bool ProcessInstanceInfoMatch::ProcessIDsMatch(
     const ProcessInstanceInfo &proc_info) const {
-  if (!NameMatches(proc_info.GetName()))
-    return false;
-
   if (m_match_info.ProcessIDIsValid() &&
       m_match_info.GetProcessID() != proc_info.GetProcessID())
     return false;
@@ -248,7 +267,11 @@ bool ProcessInstanceInfoMatch::Matches(
   if (m_match_info.ParentProcessIDIsValid() &&
       m_match_info.GetParentProcessID() != proc_info.GetParentProcessID())
     return false;
+  return true;
+}
 
+bool ProcessInstanceInfoMatch::UserIDsMatch(
+    const ProcessInstanceInfo &proc_info) const {
   if (m_match_info.UserIDIsValid() &&
       m_match_info.GetUserID() != proc_info.GetUserID())
     return false;
@@ -264,12 +287,13 @@ bool ProcessInstanceInfoMatch::Matches(
   if (m_match_info.EffectiveGroupIDIsValid() &&
       m_match_info.GetEffectiveGroupID() != proc_info.GetEffectiveGroupID())
     return false;
-
-  if (m_match_info.GetArchitecture().IsValid() &&
-      !m_match_info.GetArchitecture().IsCompatibleMatch(
-          proc_info.GetArchitecture()))
-    return false;
   return true;
+}
+bool ProcessInstanceInfoMatch::Matches(
+    const ProcessInstanceInfo &proc_info) const {
+  return ArchitectureMatches(proc_info.GetArchitecture()) &&
+         ProcessIDsMatch(proc_info) && UserIDsMatch(proc_info) &&
+         NameMatches(proc_info.GetName());
 }
 
 bool ProcessInstanceInfoMatch::MatchAllProcesses() const {
@@ -307,4 +331,46 @@ void ProcessInstanceInfoMatch::Clear() {
   m_match_info.Clear();
   m_name_match_type = NameMatch::Ignore;
   m_match_all_users = false;
+}
+
+void llvm::yaml::MappingTraits<ProcessInstanceInfo>::mapping(
+    IO &io, ProcessInstanceInfo &Info) {
+  io.mapRequired("executable", Info.m_executable);
+  io.mapRequired("arg0", Info.m_arg0);
+  io.mapRequired("args", Info.m_arguments);
+  io.mapRequired("arch", Info.m_arch);
+  io.mapRequired("uid", Info.m_uid);
+  io.mapRequired("gid", Info.m_gid);
+  io.mapRequired("pid", Info.m_pid);
+  io.mapRequired("effective-uid", Info.m_euid);
+  io.mapRequired("effective-gid", Info.m_egid);
+  io.mapRequired("parent-pid", Info.m_parent_pid);
+}
+
+
+llvm::Optional<ProcessInstanceInfoList>
+repro::GetReplayProcessInstanceInfoList() {
+  static std::unique_ptr<repro::MultiLoader<repro::ProcessInfoProvider>>
+      loader = repro::MultiLoader<repro::ProcessInfoProvider>::Create(
+          repro::Reproducer::Instance().GetLoader());
+
+  if (!loader)
+    return {};
+
+  llvm::Optional<std::string> nextfile = loader->GetNextFile();
+  if (!nextfile)
+    return {};
+
+  auto error_or_file = llvm::MemoryBuffer::getFile(*nextfile);
+  if (std::error_code err = error_or_file.getError())
+    return {};
+
+  ProcessInstanceInfoList infos;
+  llvm::yaml::Input yin((*error_or_file)->getBuffer());
+  yin >> infos;
+
+  if (auto err = yin.error())
+    return {};
+
+  return infos;
 }

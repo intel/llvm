@@ -1,15 +1,15 @@
-; RUN: llc -march=amdgcn -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-amd-amdhsa -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI -check-prefix=GFX8_9_10 -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=GFX9_10 -check-prefix=GFX8_9_10 -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX10 -check-prefix=GFX9_10 -check-prefix=GFX8_9_10 -check-prefix=FUNC %s
-; RUN: llc -march=r600 -mtriple=r600-- -mcpu=cypress -verify-machineinstrs < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-amd-amdhsa -mcpu=kaveri -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,CI,FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-amd-amdhsa -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,VI,GFX8_9_10,FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX9_10,GFX8_9_10,FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX10,GFX9_10,GFX8_9_10,FUNC %s
+; RUN: llc -march=r600 -mtriple=r600-- -mcpu=cypress -verify-machineinstrs < %s | FileCheck --check-prefixes=EG,FUNC %s
 
 ; FUNC-LABEL: {{^}}v_test_imin_sle_i32:
 ; GCN: v_min_i32_e32
 
 ; EG: MIN_INT
 define amdgpu_kernel void @v_test_imin_sle_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %a.ptr, i32 addrspace(1)* %b.ptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds i32, i32 addrspace(1)* %a.ptr, i32 %tid
   %b.gep = getelementptr inbounds i32, i32 addrspace(1)* %b.ptr, i32 %tid
   %out.gep = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %tid
@@ -80,15 +80,15 @@ define amdgpu_kernel void @s_test_imin_sle_i8(i8 addrspace(1)* %out, [8 x i32], 
 ; GCN-DAG: s_load_dword s
 ; GCN-NOT: _load_
 
-; SI: s_min_i32
-; SI: s_min_i32
-; SI: s_min_i32
-; SI: s_min_i32
+; CI: s_min_i32
+; CI: s_min_i32
+; CI: s_min_i32
+; CI: s_min_i32
 
-; VI: s_min_i32
-; VI: s_min_i32
-; VI: s_min_i32
-; VI: v_min_i32_sdwa
+; VI-DAG: s_min_i32
+; VI-DAG: s_min_i32
+; VI-DAG: s_min_i32
+; VI-DAG: v_min_i32_sdwa
 
 ; GFX9_10: v_min_i16
 ; GFX9_10: v_min_i16
@@ -107,15 +107,15 @@ define amdgpu_kernel void @s_test_imin_sle_v4i8(<4 x i8> addrspace(1)* %out, [8 
 }
 
 ; FUNC-LABEL: {{^}}s_test_imin_sle_v2i16:
-; GCN: s_load_dword s
-; GCN: s_load_dword s
+; GCN: s_load_dwordx2 s
+; GCN: s_load_dwordx2 s
 
-; SI: s_ashr_i32
-; SI: s_ashr_i32
-; SI: s_sext_i32_i16
-; SI: s_sext_i32_i16
-; SI: s_min_i32
-; SI: s_min_i32
+; CI: s_ashr_i32
+; CI: s_sext_i32_i16
+; CI: s_ashr_i32
+; CI: s_sext_i32_i16
+; CI: s_min_i32
+; CI: s_min_i32
 
 ; VI: s_sext_i32_i16
 ; VI: s_sext_i32_i16
@@ -134,11 +134,11 @@ define amdgpu_kernel void @s_test_imin_sle_v2i16(<2 x i16> addrspace(1)* %out, <
 }
 
 ; FUNC-LABEL: {{^}}s_test_imin_sle_v4i16:
-; SI-NOT: buffer_load
-; SI: s_min_i32
-; SI: s_min_i32
-; SI: s_min_i32
-; SI: s_min_i32
+; CI-NOT: buffer_load
+; CI: s_min_i32
+; CI: s_min_i32
+; CI: s_min_i32
+; CI: s_min_i32
 
 ; VI: s_min_i32
 ; VI: s_min_i32
@@ -164,7 +164,7 @@ define amdgpu_kernel void @s_test_imin_sle_v4i16(<4 x i16> addrspace(1)* %out, <
 
 ; EG: MIN_INT
 define amdgpu_kernel void @v_test_imin_slt_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %aptr, i32 addrspace(1)* %bptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds i32, i32 addrspace(1)* %aptr, i32 %tid
   %b.gep = getelementptr inbounds i32, i32 addrspace(1)* %bptr, i32 %tid
   %out.gep = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %tid
@@ -177,14 +177,14 @@ define amdgpu_kernel void @v_test_imin_slt_i32(i32 addrspace(1)* %out, i32 addrs
 }
 
 ; FUNC-LABEL: @v_test_imin_slt_i16
-; SI: v_min_i32_e32
+; CI: v_min_i32_e32
 
 ; GFX8_9: v_min_i16_e32
-; GFX10:  v_min_i16_e64
+; GFX10:  v_min_i16
 
 ; EG: MIN_INT
 define amdgpu_kernel void @v_test_imin_slt_i16(i16 addrspace(1)* %out, i16 addrspace(1)* %aptr, i16 addrspace(1)* %bptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds i16, i16 addrspace(1)* %aptr, i32 %tid
   %b.gep = getelementptr inbounds i16, i16 addrspace(1)* %bptr, i32 %tid
   %out.gep = getelementptr inbounds i16, i16 addrspace(1)* %out, i32 %tid
@@ -248,7 +248,7 @@ define amdgpu_kernel void @s_test_imin_sle_imm_i32(i32 addrspace(1)* %out, i32 %
 
 ; EG: MIN_UINT
 define amdgpu_kernel void @v_test_umin_ule_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %a.ptr, i32 addrspace(1)* %b.ptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds i32, i32 addrspace(1)* %a.ptr, i32 %tid
   %b.gep = getelementptr inbounds i32, i32 addrspace(1)* %b.ptr, i32 %tid
   %out.gep = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %tid
@@ -271,7 +271,7 @@ define amdgpu_kernel void @v_test_umin_ule_i32(i32 addrspace(1)* %out, i32 addrs
 ; EG: MIN_UINT
 ; EG: MIN_UINT
 define amdgpu_kernel void @v_test_umin_ule_v3i32(<3 x i32> addrspace(1)* %out, <3 x i32> addrspace(1)* %a.ptr, <3 x i32> addrspace(1)* %b.ptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds <3 x i32>, <3 x i32> addrspace(1)* %a.ptr, i32 %tid
   %b.gep = getelementptr inbounds <3 x i32>, <3 x i32> addrspace(1)* %b.ptr, i32 %tid
   %out.gep = getelementptr inbounds <3 x i32>, <3 x i32> addrspace(1)* %out, i32 %tid
@@ -286,10 +286,10 @@ define amdgpu_kernel void @v_test_umin_ule_v3i32(<3 x i32> addrspace(1)* %out, <
 
 ; FIXME: Reduce unused packed component to scalar
 ; FUNC-LABEL: @v_test_umin_ule_v3i16{{$}}
-; SI: v_min_u32_e32
-; SI: v_min_u32_e32
-; SI: v_min_u32_e32
-; SI-NOT: v_min_u32_e32
+; CI: v_min_u32_e32
+; CI: v_min_u32_e32
+; CI: v_min_u32_e32
+; CI-NOT: v_min_u32_e32
 
 ; VI: v_min_u16_e32
 ; VI: v_min_u16_sdwa v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
@@ -305,7 +305,7 @@ define amdgpu_kernel void @v_test_umin_ule_v3i32(<3 x i32> addrspace(1)* %out, <
 ; EG: MIN_UINT
 ; EG: MIN_UINT
 define amdgpu_kernel void @v_test_umin_ule_v3i16(<3 x i16> addrspace(1)* %out, <3 x i16> addrspace(1)* %a.ptr, <3 x i16> addrspace(1)* %b.ptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds <3 x i16>, <3 x i16> addrspace(1)* %a.ptr, i32 %tid
   %b.gep = getelementptr inbounds <3 x i16>, <3 x i16> addrspace(1)* %b.ptr, i32 %tid
   %out.gep = getelementptr inbounds <3 x i16>, <3 x i16> addrspace(1)* %out, i32 %tid
@@ -334,7 +334,7 @@ define amdgpu_kernel void @s_test_umin_ule_i32(i32 addrspace(1)* %out, i32 %a, i
 
 ; EG: MIN_UINT
 define amdgpu_kernel void @v_test_umin_ult_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %a.ptr, i32 addrspace(1)* %b.ptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds i32, i32 addrspace(1)* %a.ptr, i32 %tid
   %b.gep = getelementptr inbounds i32, i32 addrspace(1)* %b.ptr, i32 %tid
   %out.gep = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %tid
@@ -347,18 +347,18 @@ define amdgpu_kernel void @v_test_umin_ult_i32(i32 addrspace(1)* %out, i32 addrs
 }
 
 ; FUNC-LABEL: {{^}}v_test_umin_ult_i8:
-; SI: {{buffer|flat|global}}_load_ubyte
-; SI: {{buffer|flat|global}}_load_ubyte
-; SI: v_min_u32_e32
+; CI: {{buffer|flat|global}}_load_ubyte
+; CI: {{buffer|flat|global}}_load_ubyte
+; CI: v_min_u32_e32
 
 ; GFX8_9_10: {{flat|global}}_load_ubyte
 ; GFX8_9_10: {{flat|global}}_load_ubyte
 ; GFX8_9:    v_min_u16_e32
-; GFX10:     v_min_u16_e64
+; GFX10:     v_min_u16
 
 ; EG: MIN_UINT
 define amdgpu_kernel void @v_test_umin_ult_i8(i8 addrspace(1)* %out, i8 addrspace(1)* %a.ptr, i8 addrspace(1)* %b.ptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds i8, i8 addrspace(1)* %a.ptr, i32 %tid
   %b.gep = getelementptr inbounds i8, i8 addrspace(1)* %b.ptr, i32 %tid
   %out.gep = getelementptr inbounds i8, i8 addrspace(1)* %out, i32 %tid
@@ -383,11 +383,11 @@ define amdgpu_kernel void @s_test_umin_ult_i32(i32 addrspace(1)* %out, i32 %a, i
 }
 
 ; FUNC-LABEL: @v_test_umin_ult_i32_multi_use
-; SI-NOT: v_min
-; GCN: v_cmp_lt_u32
-; SI-NOT: v_min
-; SI: v_cndmask_b32
-; SI-NOT: v_min
+; CI-NOT: v_min
+; GCN: s_cmp_lt_u32
+; CI-NOT: v_min
+; CI: v_cndmask_b32
+; CI-NOT: v_min
 ; GCN: s_endpgm
 
 ; EG-NOT: MIN_UINT
@@ -404,7 +404,7 @@ define amdgpu_kernel void @v_test_umin_ult_i32_multi_use(i32 addrspace(1)* %out0
 ; FUNC-LABEL: @v_test_umin_ult_i16_multi_use
 ; GCN-NOT: v_min
 ; GCN: v_cmp_lt_u32
-; GCN-NEXT: v_cndmask_b32
+; GCN: v_cndmask_b32
 ; GCN-NOT: v_min
 ; GCN: s_endpgm
 
@@ -458,14 +458,14 @@ define amdgpu_kernel void @s_test_umin_ult_v8i32(<8 x i32> addrspace(1)* %out, <
 
 ; FUNC-LABEL: {{^}}s_test_umin_ult_v8i16:
 ; GCN-NOT: {{buffer|flat|global}}_load
-; SI: s_min_u32
-; SI: s_min_u32
-; SI: s_min_u32
-; SI: s_min_u32
-; SI: s_min_u32
-; SI: s_min_u32
-; SI: s_min_u32
-; SI: s_min_u32
+; CI: s_min_u32
+; CI: s_min_u32
+; CI: s_min_u32
+; CI: s_min_u32
+; CI: s_min_u32
+; CI: s_min_u32
+; CI: s_min_u32
+; CI: s_min_u32
 
 ; VI: s_min_u32
 ; VI: s_min_u32
@@ -495,8 +495,8 @@ define amdgpu_kernel void @s_test_umin_ult_v8i16(<8 x i16> addrspace(1)* %out, <
 ; FUNC-LABEL: {{^}}simplify_demanded_bits_test_umin_ult_i16:
 ; GCN-DAG: s_load_dword [[A:s[0-9]+]], {{s\[[0-9]+:[0-9]+\]}}, {{0xa|0x28}}
 ; GCN-DAG: s_load_dword [[B:s[0-9]+]], {{s\[[0-9]+:[0-9]+\]}}, {{0x13|0x4c}}
-; GCN: s_min_u32 [[MIN:s[0-9]+]], [[A]], [[B]]
-; GCN: v_mov_b32_e32 [[VMIN:v[0-9]+]], [[MIN]]
+; GCN: s_min_u32 [[MIN:s[0-9]+]], s{{[0-9]}}, s{{[0-9]}}
+; GCN: v_mov_b32_e32 [[VMIN:v[0-9]+]], s{{[0-9]}}
 ; GCN: buffer_store_dword [[VMIN]]
 
 ; EG: MIN_UINT
@@ -595,8 +595,8 @@ define amdgpu_kernel void @test_imin_sle_i64(i64 addrspace(1)* %out, i64 %a, i64
 }
 
 ; FUNC-LABEL: {{^}}v_test_imin_sle_v2i16:
-; SI: v_min_i32
-; SI: v_min_i32
+; CI: v_min_i32
+; CI: v_min_i32
 
 ; VI: v_min_i16
 ; VI: v_min_i16
@@ -606,7 +606,7 @@ define amdgpu_kernel void @test_imin_sle_i64(i64 addrspace(1)* %out, i64 %a, i64
 ; EG: MIN_INT
 ; EG: MIN_INT
 define amdgpu_kernel void @v_test_imin_sle_v2i16(<2 x i16> addrspace(1)* %out, <2 x i16> addrspace(1)* %a.ptr, <2 x i16> addrspace(1)* %b.ptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds <2 x i16>, <2 x i16> addrspace(1)* %a.ptr, i32 %tid
   %b.gep = getelementptr inbounds <2 x i16>, <2 x i16> addrspace(1)* %b.ptr, i32 %tid
   %out.gep = getelementptr inbounds <2 x i16>, <2 x i16> addrspace(1)* %out, i32 %tid
@@ -620,8 +620,8 @@ define amdgpu_kernel void @v_test_imin_sle_v2i16(<2 x i16> addrspace(1)* %out, <
 
 ; FIXME: i16 min
 ; FUNC-LABEL: {{^}}v_test_imin_ule_v2i16:
-; SI: v_min_u32
-; SI: v_min_u32
+; CI: v_min_u32
+; CI: v_min_u32
 
 ; VI: v_min_u16
 ; VI: v_min_u16
@@ -631,7 +631,7 @@ define amdgpu_kernel void @v_test_imin_sle_v2i16(<2 x i16> addrspace(1)* %out, <
 ; EG: MIN_UINT
 ; EG: MIN_UINT
 define amdgpu_kernel void @v_test_imin_ule_v2i16(<2 x i16> addrspace(1)* %out, <2 x i16> addrspace(1)* %a.ptr, <2 x i16> addrspace(1)* %b.ptr) #0 {
-  %tid = call i32 @llvm.r600.read.tidig.x()
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %a.gep = getelementptr inbounds <2 x i16>, <2 x i16> addrspace(1)* %a.ptr, i32 %tid
   %b.gep = getelementptr inbounds <2 x i16>, <2 x i16> addrspace(1)* %b.ptr, i32 %tid
   %out.gep = getelementptr inbounds <2 x i16>, <2 x i16> addrspace(1)* %out, i32 %tid
@@ -643,7 +643,7 @@ define amdgpu_kernel void @v_test_imin_ule_v2i16(<2 x i16> addrspace(1)* %out, <
   ret void
 }
 
-declare i32 @llvm.r600.read.tidig.x() #1
+declare i32 @llvm.amdgcn.workitem.id.x() #1
 
 attributes #0 = { nounwind }
 attributes #1 = { nounwind readnone }

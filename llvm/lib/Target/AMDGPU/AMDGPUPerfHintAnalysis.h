@@ -1,4 +1,4 @@
-//===- AMDGPUPerfHintAnalysis.h - analysis of functions memory traffic ----===//
+//===- AMDGPUPerfHintAnalysis.h ---- analysis of memory traffic -*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,18 +14,19 @@
 
 #ifndef LLVM_LIB_TARGET_AMDGPU_MDGPUPERFHINTANALYSIS_H
 #define LLVM_LIB_TARGET_AMDGPU_MDGPUPERFHINTANALYSIS_H
+
+#include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/IR/ValueMap.h"
-#include "llvm/Pass.h"
 
 namespace llvm {
 
-struct AMDGPUPerfHintAnalysis : public FunctionPass {
+struct AMDGPUPerfHintAnalysis : public CallGraphSCCPass {
   static char ID;
 
 public:
-  AMDGPUPerfHintAnalysis() : FunctionPass(ID) {}
+  AMDGPUPerfHintAnalysis() : CallGraphSCCPass(ID) {}
 
-  bool runOnFunction(Function &F) override;
+  bool runOnSCC(CallGraphSCC &SCC) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -36,12 +37,11 @@ public:
   bool needsWaveLimiter(const Function *F) const;
 
   struct FuncInfo {
-    unsigned MemInstCount;
-    unsigned InstCount;
-    unsigned IAMInstCount; // Indirect access memory instruction count
-    unsigned LSMInstCount; // Large stride memory instruction count
-    FuncInfo() : MemInstCount(0), InstCount(0), IAMInstCount(0),
-                 LSMInstCount(0) {}
+    unsigned MemInstCost;
+    unsigned InstCost;
+    unsigned IAMInstCost; // Indirect access memory instruction count
+    unsigned LSMInstCost; // Large stride memory instruction count
+    FuncInfo() : MemInstCost(0), InstCost(0), IAMInstCost(0), LSMInstCost(0) {}
   };
 
   typedef ValueMap<const Function*, FuncInfo> FuncInfoMap;

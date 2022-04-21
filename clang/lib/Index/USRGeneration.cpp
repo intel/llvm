@@ -8,8 +8,10 @@
 
 #include "clang/Index/USRGeneration.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Lex/PreprocessingRecord.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -381,6 +383,14 @@ void USRGenerator::VisitNamespaceAliasDecl(const NamespaceAliasDecl *D) {
     Out << "@NA@" << D->getName();
 }
 
+static const ObjCCategoryDecl *getCategoryContext(const NamedDecl *D) {
+  if (auto *CD = dyn_cast<ObjCCategoryDecl>(D->getDeclContext()))
+    return CD;
+  if (auto *ICD = dyn_cast<ObjCCategoryImplDecl>(D->getDeclContext()))
+    return ICD->getCategoryDecl();
+  return nullptr;
+}
+
 void USRGenerator::VisitObjCMethodDecl(const ObjCMethodDecl *D) {
   const DeclContext *container = D->getDeclContext();
   if (const ObjCProtocolDecl *pd = dyn_cast<ObjCProtocolDecl>(container)) {
@@ -394,14 +404,6 @@ void USRGenerator::VisitObjCMethodDecl(const ObjCMethodDecl *D) {
       IgnoreResults = true;
       return;
     }
-    auto getCategoryContext = [](const ObjCMethodDecl *D) ->
-                                    const ObjCCategoryDecl * {
-      if (auto *CD = dyn_cast<ObjCCategoryDecl>(D->getDeclContext()))
-        return CD;
-      if (auto *ICD = dyn_cast<ObjCCategoryImplDecl>(D->getDeclContext()))
-        return ICD->getCategoryDecl();
-      return nullptr;
-    };
     auto *CD = getCategoryContext(D);
     VisitObjCContainerDecl(ID, CD);
   }
@@ -474,7 +476,7 @@ void USRGenerator::VisitObjCPropertyDecl(const ObjCPropertyDecl *D) {
   // The USR for a property declared in a class extension or category is based
   // on the ObjCInterfaceDecl, not the ObjCCategoryDecl.
   if (const ObjCInterfaceDecl *ID = Context->getObjContainingInterface(D))
-    Visit(ID);
+    VisitObjCContainerDecl(ID, getCategoryContext(D));
   else
     Visit(cast<Decl>(D->getDeclContext()));
   GenObjCProperty(D->getName(), D->isClassProperty());
@@ -547,21 +549,21 @@ void USRGenerator::VisitTagDecl(const TagDecl *D) {
     if (const TypedefNameDecl *TD = D->getTypedefNameForAnonDecl()) {
       Buf[off] = 'A';
       Out << '@' << *TD;
-    }
-  else {
-    if (D->isEmbeddedInDeclarator() && !D->isFreeStanding()) {
-      printLoc(Out, D->getLocation(), Context->getSourceManager(), true);
     } else {
-      Buf[off] = 'a';
-      if (auto *ED = dyn_cast<EnumDecl>(D)) {
-        // Distinguish USRs of anonymous enums by using their first enumerator.
-        auto enum_range = ED->enumerators();
-        if (enum_range.begin() != enum_range.end()) {
-          Out << '@' << **enum_range.begin();
+      if (D->isEmbeddedInDeclarator() && !D->isFreeStanding()) {
+        printLoc(Out, D->getLocation(), Context->getSourceManager(), true);
+      } else {
+        Buf[off] = 'a';
+        if (auto *ED = dyn_cast<EnumDecl>(D)) {
+          // Distinguish USRs of anonymous enums by using their first
+          // enumerator.
+          auto enum_range = ED->enumerators();
+          if (enum_range.begin() != enum_range.end()) {
+            Out << '@' << **enum_range.begin();
+          }
         }
       }
     }
-  }
   }
 
   // For a class template specialization, mangle the template arguments.
@@ -703,6 +705,7 @@ void USRGenerator::VisitType(QualType T) {
           c = 'f'; break;
         case BuiltinType::Double:
           c = 'd'; break;
+        case BuiltinType::Ibm128: // FIXME: Need separate tag
         case BuiltinType::LongDouble:
           c = 'D'; break;
         case BuiltinType::Float128:
@@ -716,6 +719,11 @@ void USRGenerator::VisitType(QualType T) {
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
         case BuiltinType::Id:
 #include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
         case BuiltinType::Id:
 #include "clang/Basic/OpenCLExtensionTypes.def"
@@ -724,6 +732,14 @@ void USRGenerator::VisitType(QualType T) {
         case BuiltinType::OCLQueue:
         case BuiltinType::OCLReserveID:
         case BuiltinType::OCLSampler:
+#define SVE_TYPE(Name, Id, SingletonId) \
+        case BuiltinType::Id:
+#include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
+        case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
+#define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/RISCVVTypes.def"
         case BuiltinType::ShortAccum:
         case BuiltinType::Accum:
         case BuiltinType::LongAccum:
@@ -748,6 +764,7 @@ void USRGenerator::VisitType(QualType T) {
         case BuiltinType::SatUShortFract:
         case BuiltinType::SatUFract:
         case BuiltinType::SatULongFract:
+        case BuiltinType::BFloat16:
           IgnoreResults = true;
           return;
         case BuiltinType::ObjCId:
@@ -1092,15 +1109,14 @@ bool clang::index::generateUSRForMacro(const MacroDefinitionRecord *MD,
 bool clang::index::generateUSRForMacro(StringRef MacroName, SourceLocation Loc,
                                        const SourceManager &SM,
                                        SmallVectorImpl<char> &Buf) {
-  // Don't generate USRs for things with invalid locations.
-  if (MacroName.empty() || Loc.isInvalid())
+  if (MacroName.empty())
     return true;
 
   llvm::raw_svector_ostream Out(Buf);
 
   // Assume that system headers are sane.  Don't put source location
   // information into the USR if the macro comes from a system header.
-  bool ShouldGenerateLocation = !SM.isInSystemHeader(Loc);
+  bool ShouldGenerateLocation = Loc.isValid() && !SM.isInSystemHeader(Loc);
 
   Out << getUSRSpacePrefix();
   if (ShouldGenerateLocation)

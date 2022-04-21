@@ -1,6 +1,6 @@
-; RUN: llc -verify-machineinstrs < %s -mtriple=aarch64-none-linux-gnu -frame-pointer=all -tailcallopt | FileCheck %s -check-prefix CHECK-TAIL
-; RUN: llc -verify-machineinstrs < %s -mtriple=aarch64-none-linux-gnu -frame-pointer=all | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s -mtriple=aarch64-none-linux-gnu -frame-pointer=all -tailcallopt -aarch64-redzone | FileCheck %s -check-prefix CHECK-TAIL-RZ
+; RUN: llc -verify-machineinstrs < %s -mtriple=aarch64-none-linux-gnu -frame-pointer=non-leaf -tailcallopt | FileCheck %s -check-prefix CHECK-TAIL
+; RUN: llc -verify-machineinstrs < %s -mtriple=aarch64-none-linux-gnu -frame-pointer=non-leaf | FileCheck %s
+; RUN: llc -verify-machineinstrs < %s -mtriple=aarch64-none-linux-gnu -frame-pointer=non-leaf -tailcallopt -aarch64-redzone | FileCheck %s -check-prefix CHECK-TAIL-RZ
 
 ; Without tailcallopt fastcc still means the caller cleans up the
 ; stack, so try to make sure this is respected.
@@ -13,12 +13,13 @@ define fastcc void @func_stack0() {
 
 ; CHECK-TAIL-LABEL: func_stack0:
 ; CHECK-TAIL: sub sp, sp, #48
+; CHECK-TAIL-NEXT: .cfi_def_cfa_offset 48
 ; CHECK-TAIL-NEXT: stp x29, x30, [sp, #32]
 ; CHECK-TAIL-NEXT: add x29, sp, #32
 ; CHECK-TAIL: str w{{[0-9]+}}, [sp]
 
 
-  call fastcc void @func_stack8([8 x i32] undef, i32 42)
+  call fastcc void @func_stack8([8 x i64] undef, i32 42)
 ; CHECK:  bl func_stack8
 ; CHECK-NOT: sub sp, sp,
 ; CHECK-NOT: [sp, #{{[-0-9]+}}]!
@@ -28,7 +29,7 @@ define fastcc void @func_stack0() {
 ; CHECK-TAIL: stp xzr, xzr, [sp, #-16]!
 
 
-  call fastcc void @func_stack32([8 x i32] undef, i128 0, i128 9)
+  call fastcc void @func_stack32([8 x i64] undef, i128 0, i128 9)
 ; CHECK: bl func_stack32
 ; CHECK-NOT: sub sp, sp,
 
@@ -56,7 +57,7 @@ define fastcc void @func_stack0() {
 ; CHECK-TAIL-NEXT: ret
 }
 
-define fastcc void @func_stack8([8 x i32], i32 %stacked) {
+define fastcc void @func_stack8([8 x i64], i32 %stacked) {
 ; CHECK-LABEL: func_stack8:
 ; CHECK: sub sp, sp, #48
 ; CHECK: stp x29, x30, [sp, #32]
@@ -71,7 +72,7 @@ define fastcc void @func_stack8([8 x i32], i32 %stacked) {
 ; CHECK-TAIL: str w{{[0-9]+}}, [sp]
 
 
-  call fastcc void @func_stack8([8 x i32] undef, i32 42)
+  call fastcc void @func_stack8([8 x i64] undef, i32 42)
 ; CHECK:  bl func_stack8
 ; CHECK-NOT: sub sp, sp,
 ; CHECK-NOT: [sp, #{{[-0-9]+}}]!
@@ -82,7 +83,7 @@ define fastcc void @func_stack8([8 x i32], i32 %stacked) {
 ; CHECK-TAIL: stp xzr, xzr, [sp, #-16]!
 
 
-  call fastcc void @func_stack32([8 x i32] undef, i128 0, i128 9)
+  call fastcc void @func_stack32([8 x i64] undef, i128 0, i128 9)
 ; CHECK: bl func_stack32
 ; CHECK-NOT: sub sp, sp,
 
@@ -109,7 +110,7 @@ define fastcc void @func_stack8([8 x i32], i32 %stacked) {
 ; CHECK-TAIL-NEXT: ret
 }
 
-define fastcc void @func_stack32([8 x i32], i128 %stacked0, i128 %stacked1) {
+define fastcc void @func_stack32([8 x i64], i128 %stacked0, i128 %stacked1) {
 ; CHECK-LABEL: func_stack32:
 ; CHECK: add x29, sp, #32
 
@@ -117,7 +118,7 @@ define fastcc void @func_stack32([8 x i32], i128 %stacked0, i128 %stacked1) {
 ; CHECK-TAIL: add x29, sp, #32
 
 
-  call fastcc void @func_stack8([8 x i32] undef, i32 42)
+  call fastcc void @func_stack8([8 x i64] undef, i32 42)
 ; CHECK:  bl func_stack8
 ; CHECK-NOT: sub sp, sp,
 ; CHECK-NOT: [sp, #{{[-0-9]+}}]!
@@ -127,7 +128,7 @@ define fastcc void @func_stack32([8 x i32], i128 %stacked0, i128 %stacked1) {
 ; CHECK-TAIL: stp xzr, xzr, [sp, #-16]!
 
 
-  call fastcc void @func_stack32([8 x i32] undef, i128 0, i128 9)
+  call fastcc void @func_stack32([8 x i64] undef, i128 0, i128 9)
 ; CHECK: bl func_stack32
 ; CHECK-NOT: sub sp, sp,
 
@@ -155,7 +156,7 @@ define fastcc void @func_stack32([8 x i32], i128 %stacked0, i128 %stacked1) {
 }
 
 ; Check that arg stack pop is done after callee-save restore when no frame pointer is used.
-define fastcc void @func_stack32_leaf([8 x i32], i128 %stacked0, i128 %stacked1) {
+define fastcc void @func_stack32_leaf([8 x i64], i128 %stacked0, i128 %stacked1) {
 ; CHECK-LABEL: func_stack32_leaf:
 ; CHECK: str     x20, [sp, #-16]!
 ; CHECK: nop
@@ -186,9 +187,10 @@ define fastcc void @func_stack32_leaf([8 x i32], i128 %stacked0, i128 %stacked1)
 }
 
 ; Check that arg stack pop is done after callee-save restore when no frame pointer is used.
-define fastcc void @func_stack32_leaf_local([8 x i32], i128 %stacked0, i128 %stacked1) {
+define fastcc void @func_stack32_leaf_local([8 x i64], i128 %stacked0, i128 %stacked1) {
 ; CHECK-LABEL: func_stack32_leaf_local:
 ; CHECK: sub     sp, sp, #32
+; CHECK-NEXT:  .cfi_def_cfa_offset 32
 ; CHECK-NEXT: str     x20, [sp, #16]
 ; CHECK: nop
 ; CHECK-NEXT: //NO_APP
@@ -198,6 +200,7 @@ define fastcc void @func_stack32_leaf_local([8 x i32], i128 %stacked0, i128 %sta
 
 ; CHECK-TAIL-LABEL: func_stack32_leaf_local:
 ; CHECK-TAIL: sub     sp, sp, #32
+; CHECK-TAIL-NEXT: .cfi_def_cfa_offset 32
 ; CHECK-TAIL-NEXT: str     x20, [sp, #16]
 ; CHECK-TAIL: nop
 ; CHECK-TAIL-NEXT: //NO_APP
@@ -222,7 +225,7 @@ define fastcc void @func_stack32_leaf_local([8 x i32], i128 %stacked0, i128 %sta
 }
 
 ; Check that arg stack pop is done after callee-save restore when no frame pointer is used.
-define fastcc void @func_stack32_leaf_local_nocs([8 x i32], i128 %stacked0, i128 %stacked1) {
+define fastcc void @func_stack32_leaf_local_nocs([8 x i64], i128 %stacked0, i128 %stacked1) {
 ; CHECK-LABEL: func_stack32_leaf_local_nocs:
 ; CHECK: sub     sp, sp, #16
 ; CHECK: add     sp, sp, #16

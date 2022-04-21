@@ -52,23 +52,24 @@ void SetSignalHandler(const FuzzingOptions& Options);
 
 void SleepSeconds(int Seconds);
 
-bool Mprotect(void *Ptr, size_t Size, bool AllowReadWrite);
-
 unsigned long GetPid();
 
 size_t GetPeakRSSMb();
 
 int ExecuteCommand(const Command &Cmd);
+bool ExecuteCommand(const Command &Cmd, std::string *CmdOutput);
 
+// Fuchsia does not have popen/pclose.
 FILE *OpenProcessPipe(const char *Command, const char *Mode);
+int CloseProcessPipe(FILE *F);
 
 const void *SearchMemory(const void *haystack, size_t haystacklen,
                          const void *needle, size_t needlelen);
 
-std::string CloneArgsWithoutX(const Vector<std::string> &Args,
+std::string CloneArgsWithoutX(const std::vector<std::string> &Args,
                               const char *X1, const char *X2);
 
-inline std::string CloneArgsWithoutX(const Vector<std::string> &Args,
+inline std::string CloneArgsWithoutX(const std::vector<std::string> &Args,
                                      const char *X) {
   return CloneArgsWithoutX(Args, X, X);
 }
@@ -81,13 +82,17 @@ inline std::pair<std::string, std::string> SplitBefore(std::string X,
   return std::make_pair(S.substr(0, Pos), S.substr(Pos));
 }
 
+void DiscardOutput(int Fd);
+
 std::string DisassembleCmd(const std::string &FileName);
 
 std::string SearchRegexCmd(const std::string &Regex);
 
-size_t SimpleFastHash(const uint8_t *Data, size_t Size);
+uint64_t SimpleFastHash(const void *Data, size_t Size, uint64_t Initial = 0);
 
-inline uint32_t Log(uint32_t X) { return 32 - Clz(X) - 1; }
+inline size_t Log(size_t X) {
+  return static_cast<size_t>((sizeof(unsigned long long) * 8) - Clzll(X) - 1);
+}
 
 inline size_t PageSize() { return 4096; }
 inline uint8_t *RoundUpByPage(uint8_t *P) {
@@ -102,6 +107,12 @@ inline uint8_t *RoundDownByPage(uint8_t *P) {
   X = X & ~Mask;
   return reinterpret_cast<uint8_t *>(X);
 }
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+template <typename T> T HostToLE(T X) { return X; }
+#else
+template <typename T> T HostToLE(T X) { return Bswap(X); }
+#endif
 
 }  // namespace fuzzer
 

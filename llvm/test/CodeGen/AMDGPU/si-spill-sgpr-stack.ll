@@ -1,28 +1,23 @@
-; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-flat-for-global -amdgpu-spill-sgpr-to-smem=0 -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=SGPR %s
-; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-flat-for-global -amdgpu-spill-sgpr-to-smem=1 -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=SMEM %s
+; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=SGPR %s
 
 ; Make sure this doesn't crash.
 ; ALL-LABEL: {{^}}test:
 ; ALL: s_mov_b32 s[[LO:[0-9]+]], SCRATCH_RSRC_DWORD0
-; ALL: s_mov_b32 s[[OFF:[0-9]+]], s3
 ; ALL: s_mov_b32 s[[HI:[0-9]+]], 0xe80000
 
 ; Make sure we are handling hazards correctly.
-; SGPR: buffer_load_dword [[VHI:v[0-9]+]], off, s[{{[0-9]+:[0-9]+}}], s{{[0-9]+}} offset:16
+; SGPR: buffer_load_dword [[VHI:v[0-9]+]], off, s[{{[0-9]+:[0-9]+}}], 0 offset:4
 ; SGPR-NEXT: s_waitcnt vmcnt(0)
-; SGPR-NEXT: v_readfirstlane_b32 s[[HI:[0-9]+]], [[VHI]]
-; SGPR-NEXT: s_nop 4
-; SGPR-NEXT: buffer_store_dword v0, off, s[0:[[HI]]{{\]}}, 0
+; SGPR-NEXT: v_readlane_b32 s{{[0-9]+}}, [[VHI]], 0
+; SGPR-NEXT: v_readlane_b32 s{{[0-9]+}}, [[VHI]], 1
+; SGPR-NEXT: v_readlane_b32 s{{[0-9]+}}, [[VHI]], 2
+; SGPR-NEXT: v_readlane_b32 s[[HI:[0-9]+]], [[VHI]], 3
+; SGPR-NEXT: buffer_load_dword [[VHI]], off, s[96:99], 0
+; SGPR-NEXT: s_waitcnt vmcnt(0)
+; SGPR-NEXT: s_mov_b64 exec, s[4:5]
+; SGPR-NEXT: s_nop 1
+; SGPR-NEXT: buffer_store_dword v0, off, s[0:3], 0
 
-; Make sure scratch wave offset register is correctly incremented and
-; then restored.
-; SMEM: s_add_u32 m0, s[[OFF]], 0x100{{$}}
-; SMEM: s_buffer_store_dwordx4 s{{\[[0-9]+:[0-9]+\]}}, s{{\[}}[[LO]]:[[HI]]], m0 ; 16-byte Folded Spill
-
-; SMEM: s_add_u32 m0, s[[OFF]], 0x100{{$}}
-; SMEM: s_buffer_load_dwordx4 s{{\[[0-9]+:[0-9]+\]}}, s{{\[}}[[LO]]:[[HI]]], m0 ; 16-byte Folded Reload
-
-; SMEM: s_dcache_wb
 ; ALL: s_endpgm
 define amdgpu_kernel void @test(i32 addrspace(1)* %out, i32 %in) {
   call void asm sideeffect "", "~{s[0:7]}" ()

@@ -13,20 +13,29 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+/// Defines the iteration domain of both the work-groups and the overall
+/// dispatch.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1> class nd_range {
   range<dimensions> globalSize;
   range<dimensions> localSize;
   id<dimensions> offset;
+  static_assert(dimensions >= 1 && dimensions <= 3,
+                "nd_range can only be 1, 2, or 3 dimensional.");
 
 public:
-  template <int N = dimensions>
-  nd_range(
-      typename std::enable_if<((N > 0) && (N < 4)), range<dimensions>>::type globalSize,
-      range<dimensions> localSize, id<dimensions> offset = id<dimensions>())
+  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
+  nd_range(range<dimensions> globalSize, range<dimensions> localSize,
+           id<dimensions> offset)
       : globalSize(globalSize), localSize(localSize), offset(offset) {}
+
+  nd_range(range<dimensions> globalSize, range<dimensions> localSize)
+      : globalSize(globalSize), localSize(localSize), offset(id<dimensions>()) {
+  }
 
   range<dimensions> get_global_range() const { return globalSize; }
 
@@ -34,6 +43,7 @@ public:
 
   range<dimensions> get_group_range() const { return globalSize / localSize; }
 
+  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   id<dimensions> get_offset() const { return offset; }
 
   // Common special member functions for by-value semantics
@@ -55,4 +65,4 @@ public:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

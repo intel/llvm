@@ -1,4 +1,4 @@
-//===-- ClangFunctionCaller.cpp ---------------------------------*- C++ -*-===//
+//===-- ClangFunctionCaller.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,12 +21,12 @@
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/IR/Module.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectList.h"
 #include "lldb/Expression/IRExecutionUnit.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -37,10 +37,13 @@
 #include "lldb/Target/ThreadPlan.h"
 #include "lldb/Target/ThreadPlanCallFunction.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
 
 using namespace lldb_private;
+
+char ClangFunctionCaller::ID;
 
 // ClangFunctionCaller constructor
 ClangFunctionCaller::ClangFunctionCaller(ExecutionContextScope &exe_scope,
@@ -57,7 +60,7 @@ ClangFunctionCaller::ClangFunctionCaller(ExecutionContextScope &exe_scope,
 }
 
 // Destructor
-ClangFunctionCaller::~ClangFunctionCaller() {}
+ClangFunctionCaller::~ClangFunctionCaller() = default;
 
 unsigned
 
@@ -178,19 +181,18 @@ ClangFunctionCaller::CompileFunction(lldb::ThreadSP thread_to_use_sp,
   m_wrapper_function_text.append(args_list_buffer);
   m_wrapper_function_text.append(");\n}\n");
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
-  if (log)
-    log->Printf("Expression: \n\n%s\n\n", m_wrapper_function_text.c_str());
+  Log *log = GetLog(LLDBLog::Expressions);
+  LLDB_LOGF(log, "Expression: \n\n%s\n\n", m_wrapper_function_text.c_str());
 
   // Okay, now compile this expression
 
   lldb::ProcessSP jit_process_sp(m_jit_process_wp.lock());
   if (jit_process_sp) {
     const bool generate_debug_info = true;
-    m_parser.reset(new ClangExpressionParser(jit_process_sp.get(), *this,
-                                             generate_debug_info));
-
-    num_errors = m_parser->Parse(diagnostic_manager);
+    auto *clang_parser = new ClangExpressionParser(jit_process_sp.get(), *this,
+                                                   generate_debug_info);
+    num_errors = clang_parser->Parse(diagnostic_manager);
+    m_parser.reset(clang_parser);
   } else {
     diagnostic_manager.PutString(eDiagnosticSeverityError,
                                  "no process - unable to inject function");
@@ -208,8 +210,8 @@ ClangFunctionCaller::CompileFunction(lldb::ThreadSP thread_to_use_sp,
 clang::ASTConsumer *
 ClangFunctionCaller::ClangFunctionCallerHelper::ASTTransformer(
     clang::ASTConsumer *passthrough) {
-  m_struct_extractor.reset(new ASTStructExtractor(
-      passthrough, m_owner.GetWrapperStructName(), m_owner));
+  m_struct_extractor = std::make_unique<ASTStructExtractor>(
+      passthrough, m_owner.GetWrapperStructName(), m_owner);
 
   return m_struct_extractor.get();
 }

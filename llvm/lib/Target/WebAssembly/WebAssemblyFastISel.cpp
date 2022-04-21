@@ -16,6 +16,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "Utils/WebAssemblyTypeUtilities.h"
+#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssembly.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
@@ -26,6 +28,7 @@
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -58,6 +61,9 @@ class WebAssemblyFastISel final : public FastISel {
       int FI;
     } Base;
 
+    // Whether the base has been determined yet
+    bool IsBaseSet = false;
+
     int64_t Offset = 0;
 
     const GlobalValue *GV = nullptr;
@@ -74,8 +80,9 @@ class WebAssemblyFastISel final : public FastISel {
     bool isFIBase() const { return Kind == FrameIndexBase; }
     void setReg(unsigned Reg) {
       assert(isRegBase() && "Invalid base register access!");
-      assert(Base.Reg == 0 && "Overwriting non-zero register");
+      assert(!IsBaseSet && "Base cannot be reset");
       Base.Reg = Reg;
+      IsBaseSet = true;
     }
     unsigned getReg() const {
       assert(isRegBase() && "Invalid base register access!");
@@ -83,8 +90,9 @@ class WebAssemblyFastISel final : public FastISel {
     }
     void setFI(unsigned FI) {
       assert(isFIBase() && "Invalid base frame index access!");
-      assert(Base.FI == 0 && "Overwriting non-zero frame index");
+      assert(!IsBaseSet && "Base cannot be reset");
       Base.FI = FI;
+      IsBaseSet = true;
     }
     unsigned getFI() const {
       assert(isFIBase() && "Invalid base frame index access!");
@@ -98,13 +106,7 @@ class WebAssemblyFastISel final : public FastISel {
     int64_t getOffset() const { return Offset; }
     void setGlobalValue(const GlobalValue *G) { GV = G; }
     const GlobalValue *getGlobalValue() const { return GV; }
-    bool isSet() const {
-      if (isRegBase()) {
-        return Base.Reg != 0;
-      } else {
-        return Base.FI != 0;
-      }
-    }
+    bool isSet() const { return IsBaseSet; }
   };
 
   /// Keep a pointer to the WebAssemblySubtarget around so that we can make the
@@ -115,7 +117,7 @@ class WebAssemblyFastISel final : public FastISel {
 private:
   // Utility helper routines
   MVT::SimpleValueType getSimpleType(Type *Ty) {
-    EVT VT = TLI.getValueType(DL, Ty, /*HandleUnknown=*/true);
+    EVT VT = TLI.getValueType(DL, Ty, /*AllowUnknown=*/true);
     return VT.isSimple() ? VT.getSimpleVT().SimpleTy
                          : MVT::INVALID_SIMPLE_VALUE_TYPE;
   }
@@ -129,20 +131,21 @@ private:
     case MVT::i64:
     case MVT::f32:
     case MVT::f64:
-    case MVT::ExceptRef:
       return VT;
+    case MVT::funcref:
+    case MVT::externref:
+      if (Subtarget->hasReferenceTypes())
+        return VT;
+      break;
     case MVT::f16:
       return MVT::f32;
     case MVT::v16i8:
     case MVT::v8i16:
     case MVT::v4i32:
     case MVT::v4f32:
-      if (Subtarget->hasSIMD128())
-        return VT;
-      break;
     case MVT::v2i64:
     case MVT::v2f64:
-      if (Subtarget->hasUnimplementedSIMD128())
+      if (Subtarget->hasSIMD128())
         return VT;
       break;
     default:
@@ -155,7 +158,7 @@ private:
   void addLoadStoreOperands(const Address &Addr, const MachineInstrBuilder &MIB,
                             MachineMemOperand *MMO);
   unsigned maskI1Value(unsigned Reg, const Value *V);
-  unsigned getRegForI1Value(const Value *V, bool &Not);
+  unsigned getRegForI1Value(const Value *V, const BasicBlock *BB, bool &Not);
   unsigned zeroExtendToI32(unsigned Reg, const Value *V,
                            MVT::SimpleValueType From);
   unsigned signExtendToI32(unsigned Reg, const Value *V,
@@ -233,6 +236,8 @@ bool WebAssemblyFastISel::computeAddress(const Value *Obj, Address &Addr) {
       return false;
     if (Addr.getGlobalValue())
       return false;
+    if (GV->isThreadLocal())
+      return false;
     Addr.setGlobalValue(GV);
     return true;
   }
@@ -282,7 +287,7 @@ bool WebAssemblyFastISel::computeAddress(const Value *Obj, Address &Addr) {
           }
           if (S == 1 && Addr.isRegBase() && Addr.getReg() == 0) {
             // An unscaled add of a register. Set it as the new base.
-            unsigned Reg = getRegForValue(Op);
+            Register Reg = getRegForValue(Op);
             if (Reg == 0)
               return false;
             Addr.setReg(Reg);
@@ -368,7 +373,7 @@ bool WebAssemblyFastISel::computeAddress(const Value *Obj, Address &Addr) {
   if (Addr.isSet()) {
     return false;
   }
-  unsigned Reg = getRegForValue(Obj);
+  Register Reg = getRegForValue(Obj);
   if (Reg == 0)
     return false;
   Addr.setReg(Reg);
@@ -414,22 +419,19 @@ unsigned WebAssemblyFastISel::maskI1Value(unsigned Reg, const Value *V) {
   return zeroExtendToI32(Reg, V, MVT::i1);
 }
 
-unsigned WebAssemblyFastISel::getRegForI1Value(const Value *V, bool &Not) {
+unsigned WebAssemblyFastISel::getRegForI1Value(const Value *V,
+                                               const BasicBlock *BB,
+                                               bool &Not) {
   if (const auto *ICmp = dyn_cast<ICmpInst>(V))
     if (const ConstantInt *C = dyn_cast<ConstantInt>(ICmp->getOperand(1)))
-      if (ICmp->isEquality() && C->isZero() && C->getType()->isIntegerTy(32)) {
+      if (ICmp->isEquality() && C->isZero() && C->getType()->isIntegerTy(32) &&
+          ICmp->getParent() == BB) {
         Not = ICmp->isTrueWhenEqual();
         return getRegForValue(ICmp->getOperand(0));
       }
 
-  Value *NotV;
-  if (match(V, m_Not(m_Value(NotV))) && V->getType()->isIntegerTy(32)) {
-    Not = true;
-    return getRegForValue(NotV);
-  }
-
   Not = false;
-  unsigned Reg = getRegForValue(V);
+  Register Reg = getRegForValue(V);
   if (Reg == 0)
     return 0;
   return maskI1Value(Reg, V);
@@ -457,12 +459,12 @@ unsigned WebAssemblyFastISel::zeroExtendToI32(unsigned Reg, const Value *V,
     return 0;
   }
 
-  unsigned Imm = createResultReg(&WebAssembly::I32RegClass);
+  Register Imm = createResultReg(&WebAssembly::I32RegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
           TII.get(WebAssembly::CONST_I32), Imm)
       .addImm(~(~uint64_t(0) << MVT(From).getSizeInBits()));
 
-  unsigned Result = createResultReg(&WebAssembly::I32RegClass);
+  Register Result = createResultReg(&WebAssembly::I32RegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
           TII.get(WebAssembly::AND_I32), Result)
       .addReg(Reg)
@@ -487,18 +489,18 @@ unsigned WebAssemblyFastISel::signExtendToI32(unsigned Reg, const Value *V,
     return 0;
   }
 
-  unsigned Imm = createResultReg(&WebAssembly::I32RegClass);
+  Register Imm = createResultReg(&WebAssembly::I32RegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
           TII.get(WebAssembly::CONST_I32), Imm)
       .addImm(32 - MVT(From).getSizeInBits());
 
-  unsigned Left = createResultReg(&WebAssembly::I32RegClass);
+  Register Left = createResultReg(&WebAssembly::I32RegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
           TII.get(WebAssembly::SHL_I32), Left)
       .addReg(Reg)
       .addReg(Imm);
 
-  unsigned Right = createResultReg(&WebAssembly::I32RegClass);
+  Register Right = createResultReg(&WebAssembly::I32RegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
           TII.get(WebAssembly::SHR_S_I32), Right)
       .addReg(Left)
@@ -516,7 +518,7 @@ unsigned WebAssemblyFastISel::zeroExtend(unsigned Reg, const Value *V,
 
     Reg = zeroExtendToI32(Reg, V, From);
 
-    unsigned Result = createResultReg(&WebAssembly::I64RegClass);
+    Register Result = createResultReg(&WebAssembly::I64RegClass);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
             TII.get(WebAssembly::I64_EXTEND_U_I32), Result)
         .addReg(Reg);
@@ -538,7 +540,7 @@ unsigned WebAssemblyFastISel::signExtend(unsigned Reg, const Value *V,
 
     Reg = signExtendToI32(Reg, V, From);
 
-    unsigned Result = createResultReg(&WebAssembly::I64RegClass);
+    Register Result = createResultReg(&WebAssembly::I64RegClass);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
             TII.get(WebAssembly::I64_EXTEND_S_I32), Result)
         .addReg(Reg);
@@ -554,7 +556,7 @@ unsigned WebAssemblyFastISel::signExtend(unsigned Reg, const Value *V,
 unsigned WebAssemblyFastISel::getRegForUnsignedValue(const Value *V) {
   MVT::SimpleValueType From = getSimpleType(V->getType());
   MVT::SimpleValueType To = getLegalType(From);
-  unsigned VReg = getRegForValue(V);
+  Register VReg = getRegForValue(V);
   if (VReg == 0)
     return 0;
   return zeroExtend(VReg, V, From, To);
@@ -563,7 +565,7 @@ unsigned WebAssemblyFastISel::getRegForUnsignedValue(const Value *V) {
 unsigned WebAssemblyFastISel::getRegForSignedValue(const Value *V) {
   MVT::SimpleValueType From = getSimpleType(V->getType());
   MVT::SimpleValueType To = getLegalType(From);
-  unsigned VReg = getRegForValue(V);
+  Register VReg = getRegForValue(V);
   if (VReg == 0)
     return 0;
   return signExtend(VReg, V, From, To);
@@ -577,7 +579,7 @@ unsigned WebAssemblyFastISel::getRegForPromotedValue(const Value *V,
 unsigned WebAssemblyFastISel::notValue(unsigned Reg) {
   assert(MRI.getRegClass(Reg) == &WebAssembly::I32RegClass);
 
-  unsigned NotReg = createResultReg(&WebAssembly::I32RegClass);
+  Register NotReg = createResultReg(&WebAssembly::I32RegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
           TII.get(WebAssembly::EQZ_I32), NotReg)
       .addReg(Reg);
@@ -585,7 +587,7 @@ unsigned WebAssemblyFastISel::notValue(unsigned Reg) {
 }
 
 unsigned WebAssemblyFastISel::copyValue(unsigned Reg) {
-  unsigned ResultReg = createResultReg(MRI.getRegClass(Reg));
+  Register ResultReg = createResultReg(MRI.getRegClass(Reg));
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(WebAssembly::COPY),
           ResultReg)
       .addReg(Reg);
@@ -597,7 +599,7 @@ unsigned WebAssemblyFastISel::fastMaterializeAlloca(const AllocaInst *AI) {
       FuncInfo.StaticAllocaMap.find(AI);
 
   if (SI != FuncInfo.StaticAllocaMap.end()) {
-    unsigned ResultReg =
+    Register ResultReg =
         createResultReg(Subtarget->hasAddr64() ? &WebAssembly::I64RegClass
                                                : &WebAssembly::I32RegClass);
     unsigned Opc =
@@ -614,7 +616,9 @@ unsigned WebAssemblyFastISel::fastMaterializeConstant(const Constant *C) {
   if (const GlobalValue *GV = dyn_cast<GlobalValue>(C)) {
     if (TLI.isPositionIndependent())
       return 0;
-    unsigned ResultReg =
+    if (GV->isThreadLocal())
+      return 0;
+    Register ResultReg =
         createResultReg(Subtarget->hasAddr64() ? &WebAssembly::I64RegClass
                                                : &WebAssembly::I32RegClass);
     unsigned Opc = Subtarget->hasAddr64() ? WebAssembly::CONST_I64
@@ -636,14 +640,17 @@ bool WebAssemblyFastISel::fastLowerArguments() {
   if (F->isVarArg())
     return false;
 
+  if (FuncInfo.Fn->getCallingConv() == CallingConv::Swift)
+    return false;
+
   unsigned I = 0;
   for (auto const &Arg : F->args()) {
     const AttributeList &Attrs = F->getAttributes();
-    if (Attrs.hasParamAttribute(I, Attribute::ByVal) ||
-        Attrs.hasParamAttribute(I, Attribute::SwiftSelf) ||
-        Attrs.hasParamAttribute(I, Attribute::SwiftError) ||
-        Attrs.hasParamAttribute(I, Attribute::InAlloca) ||
-        Attrs.hasParamAttribute(I, Attribute::Nest))
+    if (Attrs.hasParamAttr(I, Attribute::ByVal) ||
+        Attrs.hasParamAttr(I, Attribute::SwiftSelf) ||
+        Attrs.hasParamAttr(I, Attribute::SwiftError) ||
+        Attrs.hasParamAttr(I, Attribute::InAlloca) ||
+        Attrs.hasParamAttr(I, Attribute::Nest))
       return false;
 
     Type *ArgTy = Arg.getType();
@@ -698,14 +705,18 @@ bool WebAssemblyFastISel::fastLowerArguments() {
       Opc = WebAssembly::ARGUMENT_v2f64;
       RC = &WebAssembly::V128RegClass;
       break;
-    case MVT::ExceptRef:
-      Opc = WebAssembly::ARGUMENT_ExceptRef;
-      RC = &WebAssembly::EXCEPT_REFRegClass;
+    case MVT::funcref:
+      Opc = WebAssembly::ARGUMENT_funcref;
+      RC = &WebAssembly::FUNCREFRegClass;
+      break;
+    case MVT::externref:
+      Opc = WebAssembly::ARGUMENT_externref;
+      RC = &WebAssembly::EXTERNREFRegClass;
       break;
     default:
       return false;
     }
-    unsigned ResultReg = createResultReg(RC);
+    Register ResultReg = createResultReg(RC);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(Opc), ResultReg)
         .addImm(I);
     updateValueMap(&Arg, ResultReg);
@@ -741,6 +752,7 @@ bool WebAssemblyFastISel::fastLowerArguments() {
 bool WebAssemblyFastISel::selectCall(const Instruction *I) {
   const auto *Call = cast<CallInst>(I);
 
+  // TODO: Support tail calls in FastISel
   if (Call->isMustTailCall() || Call->isInlineAsm() ||
       Call->getFunctionType()->isVarArg())
     return false;
@@ -749,17 +761,18 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
   if (Func && Func->isIntrinsic())
     return false;
 
+  if (Call->getCallingConv() == CallingConv::Swift)
+    return false;
+
   bool IsDirect = Func != nullptr;
-  if (!IsDirect && isa<ConstantExpr>(Call->getCalledValue()))
+  if (!IsDirect && isa<ConstantExpr>(Call->getCalledOperand()))
     return false;
 
   FunctionType *FuncTy = Call->getFunctionType();
-  unsigned Opc;
+  unsigned Opc = IsDirect ? WebAssembly::CALL : WebAssembly::CALL_INDIRECT;
   bool IsVoid = FuncTy->getReturnType()->isVoidTy();
   unsigned ResultReg;
-  if (IsVoid) {
-    Opc = IsDirect ? WebAssembly::CALL_VOID : WebAssembly::PCALL_INDIRECT_VOID;
-  } else {
+  if (!IsVoid) {
     if (!Subtarget->hasSIMD128() && Call->getType()->isVectorTy())
       return false;
 
@@ -769,55 +782,40 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
     case MVT::i8:
     case MVT::i16:
     case MVT::i32:
-      Opc = IsDirect ? WebAssembly::CALL_I32 : WebAssembly::PCALL_INDIRECT_I32;
       ResultReg = createResultReg(&WebAssembly::I32RegClass);
       break;
     case MVT::i64:
-      Opc = IsDirect ? WebAssembly::CALL_I64 : WebAssembly::PCALL_INDIRECT_I64;
       ResultReg = createResultReg(&WebAssembly::I64RegClass);
       break;
     case MVT::f32:
-      Opc = IsDirect ? WebAssembly::CALL_F32 : WebAssembly::PCALL_INDIRECT_F32;
       ResultReg = createResultReg(&WebAssembly::F32RegClass);
       break;
     case MVT::f64:
-      Opc = IsDirect ? WebAssembly::CALL_F64 : WebAssembly::PCALL_INDIRECT_F64;
       ResultReg = createResultReg(&WebAssembly::F64RegClass);
       break;
     case MVT::v16i8:
-      Opc = IsDirect ? WebAssembly::CALL_v16i8
-                     : WebAssembly::PCALL_INDIRECT_v16i8;
       ResultReg = createResultReg(&WebAssembly::V128RegClass);
       break;
     case MVT::v8i16:
-      Opc = IsDirect ? WebAssembly::CALL_v8i16
-                     : WebAssembly::PCALL_INDIRECT_v8i16;
       ResultReg = createResultReg(&WebAssembly::V128RegClass);
       break;
     case MVT::v4i32:
-      Opc = IsDirect ? WebAssembly::CALL_v4i32
-                     : WebAssembly::PCALL_INDIRECT_v4i32;
       ResultReg = createResultReg(&WebAssembly::V128RegClass);
       break;
     case MVT::v2i64:
-      Opc = IsDirect ? WebAssembly::CALL_v2i64
-                     : WebAssembly::PCALL_INDIRECT_v2i64;
       ResultReg = createResultReg(&WebAssembly::V128RegClass);
       break;
     case MVT::v4f32:
-      Opc = IsDirect ? WebAssembly::CALL_v4f32
-                     : WebAssembly::PCALL_INDIRECT_v4f32;
       ResultReg = createResultReg(&WebAssembly::V128RegClass);
       break;
     case MVT::v2f64:
-      Opc = IsDirect ? WebAssembly::CALL_v2f64
-                     : WebAssembly::PCALL_INDIRECT_v2f64;
       ResultReg = createResultReg(&WebAssembly::V128RegClass);
       break;
-    case MVT::ExceptRef:
-      Opc = IsDirect ? WebAssembly::CALL_EXCEPT_REF
-                     : WebAssembly::PCALL_INDIRECT_EXCEPT_REF;
-      ResultReg = createResultReg(&WebAssembly::EXCEPT_REFRegClass);
+    case MVT::funcref:
+      ResultReg = createResultReg(&WebAssembly::FUNCREFRegClass);
+      break;
+    case MVT::externref:
+      ResultReg = createResultReg(&WebAssembly::EXTERNREFRegClass);
       break;
     default:
       return false;
@@ -825,25 +823,25 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
   }
 
   SmallVector<unsigned, 8> Args;
-  for (unsigned I = 0, E = Call->getNumArgOperands(); I < E; ++I) {
+  for (unsigned I = 0, E = Call->arg_size(); I < E; ++I) {
     Value *V = Call->getArgOperand(I);
     MVT::SimpleValueType ArgTy = getSimpleType(V->getType());
     if (ArgTy == MVT::INVALID_SIMPLE_VALUE_TYPE)
       return false;
 
     const AttributeList &Attrs = Call->getAttributes();
-    if (Attrs.hasParamAttribute(I, Attribute::ByVal) ||
-        Attrs.hasParamAttribute(I, Attribute::SwiftSelf) ||
-        Attrs.hasParamAttribute(I, Attribute::SwiftError) ||
-        Attrs.hasParamAttribute(I, Attribute::InAlloca) ||
-        Attrs.hasParamAttribute(I, Attribute::Nest))
+    if (Attrs.hasParamAttr(I, Attribute::ByVal) ||
+        Attrs.hasParamAttr(I, Attribute::SwiftSelf) ||
+        Attrs.hasParamAttr(I, Attribute::SwiftError) ||
+        Attrs.hasParamAttr(I, Attribute::InAlloca) ||
+        Attrs.hasParamAttr(I, Attribute::Nest))
       return false;
 
     unsigned Reg;
 
-    if (Attrs.hasParamAttribute(I, Attribute::SExt))
+    if (Attrs.hasParamAttr(I, Attribute::SExt))
       Reg = getRegForSignedValue(V);
-    else if (Attrs.hasParamAttribute(I, Attribute::ZExt))
+    else if (Attrs.hasParamAttr(I, Attribute::ZExt))
       Reg = getRegForUnsignedValue(V);
     else
       Reg = getRegForValue(V);
@@ -856,7 +854,7 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
 
   unsigned CalleeReg = 0;
   if (!IsDirect) {
-    CalleeReg = getRegForValue(Call->getCalledValue());
+    CalleeReg = getRegForValue(Call->getCalledOperand());
     if (!CalleeReg)
       return false;
   }
@@ -866,13 +864,42 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
   if (!IsVoid)
     MIB.addReg(ResultReg, RegState::Define);
 
-  if (IsDirect)
+  if (IsDirect) {
     MIB.addGlobalAddress(Func);
-  else
-    MIB.addReg(CalleeReg);
+  } else {
+    // Placeholder for the type index.
+    MIB.addImm(0);
+    // The table into which this call_indirect indexes.
+    MCSymbolWasm *Table = WebAssembly::getOrCreateFunctionTableSymbol(
+        MF->getMMI().getContext(), Subtarget);
+    if (Subtarget->hasReferenceTypes()) {
+      MIB.addSym(Table);
+    } else {
+      // Otherwise for the MVP there is at most one table whose number is 0, but
+      // we can't write a table symbol or issue relocations.  Instead we just
+      // ensure the table is live.
+      Table->setNoStrip();
+      MIB.addImm(0);
+    }
+    // See if we must truncate the function pointer.
+    // CALL_INDIRECT takes an i32, but in wasm64 we represent function pointers
+    // as 64-bit for uniformity with other pointer types.
+    // See also: WebAssemblyISelLowering.cpp: LowerCallResults
+    if (Subtarget->hasAddr64()) {
+      auto Wrap = BuildMI(*FuncInfo.MBB, std::prev(FuncInfo.InsertPt), DbgLoc,
+                          TII.get(WebAssembly::I32_WRAP_I64));
+      Register Reg32 = createResultReg(&WebAssembly::I32RegClass);
+      Wrap.addReg(Reg32, RegState::Define);
+      Wrap.addReg(CalleeReg);
+      CalleeReg = Reg32;
+    }
+  }
 
   for (unsigned ArgReg : Args)
     MIB.addReg(ArgReg);
+
+  if (!IsDirect)
+    MIB.addReg(CalleeReg);
 
   if (!IsVoid)
     updateValueMap(Call, ResultReg);
@@ -883,15 +910,16 @@ bool WebAssemblyFastISel::selectSelect(const Instruction *I) {
   const auto *Select = cast<SelectInst>(I);
 
   bool Not;
-  unsigned CondReg = getRegForI1Value(Select->getCondition(), Not);
+  unsigned CondReg =
+      getRegForI1Value(Select->getCondition(), I->getParent(), Not);
   if (CondReg == 0)
     return false;
 
-  unsigned TrueReg = getRegForValue(Select->getTrueValue());
+  Register TrueReg = getRegForValue(Select->getTrueValue());
   if (TrueReg == 0)
     return false;
 
-  unsigned FalseReg = getRegForValue(Select->getFalseValue());
+  Register FalseReg = getRegForValue(Select->getFalseValue());
   if (FalseReg == 0)
     return false;
 
@@ -920,15 +948,19 @@ bool WebAssemblyFastISel::selectSelect(const Instruction *I) {
     Opc = WebAssembly::SELECT_F64;
     RC = &WebAssembly::F64RegClass;
     break;
-  case MVT::ExceptRef:
-    Opc = WebAssembly::SELECT_EXCEPT_REF;
-    RC = &WebAssembly::EXCEPT_REFRegClass;
+  case MVT::funcref:
+    Opc = WebAssembly::SELECT_FUNCREF;
+    RC = &WebAssembly::FUNCREFRegClass;
+    break;
+  case MVT::externref:
+    Opc = WebAssembly::SELECT_EXTERNREF;
+    RC = &WebAssembly::EXTERNREFRegClass;
     break;
   default:
     return false;
   }
 
-  unsigned ResultReg = createResultReg(RC);
+  Register ResultReg = createResultReg(RC);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(Opc), ResultReg)
       .addReg(TrueReg)
       .addReg(FalseReg)
@@ -941,12 +973,12 @@ bool WebAssemblyFastISel::selectSelect(const Instruction *I) {
 bool WebAssemblyFastISel::selectTrunc(const Instruction *I) {
   const auto *Trunc = cast<TruncInst>(I);
 
-  unsigned Reg = getRegForValue(Trunc->getOperand(0));
+  Register Reg = getRegForValue(Trunc->getOperand(0));
   if (Reg == 0)
     return false;
 
   if (Trunc->getOperand(0)->getType()->isIntegerTy(64)) {
-    unsigned Result = createResultReg(&WebAssembly::I32RegClass);
+    Register Result = createResultReg(&WebAssembly::I32RegClass);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
             TII.get(WebAssembly::I32_WRAP_I64), Result)
         .addReg(Reg);
@@ -963,7 +995,7 @@ bool WebAssemblyFastISel::selectZExt(const Instruction *I) {
   const Value *Op = ZExt->getOperand(0);
   MVT::SimpleValueType From = getSimpleType(Op->getType());
   MVT::SimpleValueType To = getLegalType(getSimpleType(ZExt->getType()));
-  unsigned In = getRegForValue(Op);
+  Register In = getRegForValue(Op);
   if (In == 0)
     return false;
   unsigned Reg = zeroExtend(In, Op, From, To);
@@ -980,7 +1012,7 @@ bool WebAssemblyFastISel::selectSExt(const Instruction *I) {
   const Value *Op = SExt->getOperand(0);
   MVT::SimpleValueType From = getSimpleType(Op->getType());
   MVT::SimpleValueType To = getLegalType(getSimpleType(SExt->getType()));
-  unsigned In = getRegForValue(Op);
+  Register In = getRegForValue(Op);
   if (In == 0)
     return false;
   unsigned Reg = signExtend(In, Op, From, To);
@@ -1044,7 +1076,7 @@ bool WebAssemblyFastISel::selectICmp(const Instruction *I) {
   if (RHS == 0)
     return false;
 
-  unsigned ResultReg = createResultReg(&WebAssembly::I32RegClass);
+  Register ResultReg = createResultReg(&WebAssembly::I32RegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(Opc), ResultReg)
       .addReg(LHS)
       .addReg(RHS);
@@ -1055,11 +1087,11 @@ bool WebAssemblyFastISel::selectICmp(const Instruction *I) {
 bool WebAssemblyFastISel::selectFCmp(const Instruction *I) {
   const auto *FCmp = cast<FCmpInst>(I);
 
-  unsigned LHS = getRegForValue(FCmp->getOperand(0));
+  Register LHS = getRegForValue(FCmp->getOperand(0));
   if (LHS == 0)
     return false;
 
-  unsigned RHS = getRegForValue(FCmp->getOperand(1));
+  Register RHS = getRegForValue(FCmp->getOperand(1));
   if (RHS == 0)
     return false;
 
@@ -1105,7 +1137,7 @@ bool WebAssemblyFastISel::selectFCmp(const Instruction *I) {
     return false;
   }
 
-  unsigned ResultReg = createResultReg(&WebAssembly::I32RegClass);
+  Register ResultReg = createResultReg(&WebAssembly::I32RegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(Opc), ResultReg)
       .addReg(LHS)
       .addReg(RHS);
@@ -1126,7 +1158,7 @@ bool WebAssemblyFastISel::selectBitCast(const Instruction *I) {
   if (!VT.isSimple() || !RetVT.isSimple())
     return false;
 
-  unsigned In = getRegForValue(I->getOperand(0));
+  Register In = getRegForValue(I->getOperand(0));
   if (In == 0)
     return false;
 
@@ -1136,14 +1168,14 @@ bool WebAssemblyFastISel::selectBitCast(const Instruction *I) {
     return true;
   }
 
-  unsigned Reg = fastEmit_ISD_BITCAST_r(VT.getSimpleVT(), RetVT.getSimpleVT(),
-                                        In, I->getOperand(0)->hasOneUse());
+  Register Reg = fastEmit_ISD_BITCAST_r(VT.getSimpleVT(), RetVT.getSimpleVT(),
+                                        In);
   if (!Reg)
     return false;
   MachineBasicBlock::iterator Iter = FuncInfo.InsertPt;
   --Iter;
   assert(Iter->isBitcast());
-  Iter->setPhysRegsDeadExcept(ArrayRef<unsigned>(), TRI);
+  Iter->setPhysRegsDeadExcept(ArrayRef<Register>(), TRI);
   updateValueMap(I, Reg);
   return true;
 }
@@ -1151,6 +1183,8 @@ bool WebAssemblyFastISel::selectBitCast(const Instruction *I) {
 bool WebAssemblyFastISel::selectLoad(const Instruction *I) {
   const auto *Load = cast<LoadInst>(I);
   if (Load->isAtomic())
+    return false;
+  if (!WebAssembly::isDefaultAddressSpace(Load->getPointerAddressSpace()))
     return false;
   if (!Subtarget->hasSIMD128() && Load->getType()->isVectorTy())
     return false;
@@ -1163,30 +1197,31 @@ bool WebAssemblyFastISel::selectLoad(const Instruction *I) {
 
   unsigned Opc;
   const TargetRegisterClass *RC;
+  bool A64 = Subtarget->hasAddr64();
   switch (getSimpleType(Load->getType())) {
   case MVT::i1:
   case MVT::i8:
-    Opc = WebAssembly::LOAD8_U_I32;
+    Opc = A64 ? WebAssembly::LOAD8_U_I32_A64 : WebAssembly::LOAD8_U_I32_A32;
     RC = &WebAssembly::I32RegClass;
     break;
   case MVT::i16:
-    Opc = WebAssembly::LOAD16_U_I32;
+    Opc = A64 ? WebAssembly::LOAD16_U_I32_A64 : WebAssembly::LOAD16_U_I32_A32;
     RC = &WebAssembly::I32RegClass;
     break;
   case MVT::i32:
-    Opc = WebAssembly::LOAD_I32;
+    Opc = A64 ? WebAssembly::LOAD_I32_A64 : WebAssembly::LOAD_I32_A32;
     RC = &WebAssembly::I32RegClass;
     break;
   case MVT::i64:
-    Opc = WebAssembly::LOAD_I64;
+    Opc = A64 ? WebAssembly::LOAD_I64_A64 : WebAssembly::LOAD_I64_A32;
     RC = &WebAssembly::I64RegClass;
     break;
   case MVT::f32:
-    Opc = WebAssembly::LOAD_F32;
+    Opc = A64 ? WebAssembly::LOAD_F32_A64 : WebAssembly::LOAD_F32_A32;
     RC = &WebAssembly::F32RegClass;
     break;
   case MVT::f64:
-    Opc = WebAssembly::LOAD_F64;
+    Opc = A64 ? WebAssembly::LOAD_F64_A64 : WebAssembly::LOAD_F64_A32;
     RC = &WebAssembly::F64RegClass;
     break;
   default:
@@ -1195,7 +1230,7 @@ bool WebAssemblyFastISel::selectLoad(const Instruction *I) {
 
   materializeLoadStoreOperands(Addr);
 
-  unsigned ResultReg = createResultReg(RC);
+  Register ResultReg = createResultReg(RC);
   auto MIB = BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(Opc),
                      ResultReg);
 
@@ -1209,6 +1244,8 @@ bool WebAssemblyFastISel::selectStore(const Instruction *I) {
   const auto *Store = cast<StoreInst>(I);
   if (Store->isAtomic())
     return false;
+  if (!WebAssembly::isDefaultAddressSpace(Store->getPointerAddressSpace()))
+    return false;
   if (!Subtarget->hasSIMD128() &&
       Store->getValueOperand()->getType()->isVectorTy())
     return false;
@@ -1219,27 +1256,28 @@ bool WebAssemblyFastISel::selectStore(const Instruction *I) {
 
   unsigned Opc;
   bool VTIsi1 = false;
+  bool A64 = Subtarget->hasAddr64();
   switch (getSimpleType(Store->getValueOperand()->getType())) {
   case MVT::i1:
     VTIsi1 = true;
     LLVM_FALLTHROUGH;
   case MVT::i8:
-    Opc = WebAssembly::STORE8_I32;
+    Opc = A64 ? WebAssembly::STORE8_I32_A64 : WebAssembly::STORE8_I32_A32;
     break;
   case MVT::i16:
-    Opc = WebAssembly::STORE16_I32;
+    Opc = A64 ? WebAssembly::STORE16_I32_A64 : WebAssembly::STORE16_I32_A32;
     break;
   case MVT::i32:
-    Opc = WebAssembly::STORE_I32;
+    Opc = A64 ? WebAssembly::STORE_I32_A64 : WebAssembly::STORE_I32_A32;
     break;
   case MVT::i64:
-    Opc = WebAssembly::STORE_I64;
+    Opc = A64 ? WebAssembly::STORE_I64_A64 : WebAssembly::STORE_I64_A32;
     break;
   case MVT::f32:
-    Opc = WebAssembly::STORE_F32;
+    Opc = A64 ? WebAssembly::STORE_F32_A64 : WebAssembly::STORE_F32_A32;
     break;
   case MVT::f64:
-    Opc = WebAssembly::STORE_F64;
+    Opc = A64 ? WebAssembly::STORE_F64_A64 : WebAssembly::STORE_F64_A32;
     break;
   default:
     return false;
@@ -1247,7 +1285,7 @@ bool WebAssemblyFastISel::selectStore(const Instruction *I) {
 
   materializeLoadStoreOperands(Addr);
 
-  unsigned ValueReg = getRegForValue(Store->getValueOperand());
+  Register ValueReg = getRegForValue(Store->getValueOperand());
   if (ValueReg == 0)
     return false;
   if (VTIsi1)
@@ -1273,7 +1311,7 @@ bool WebAssemblyFastISel::selectBr(const Instruction *I) {
   MachineBasicBlock *FBB = FuncInfo.MBBMap[Br->getSuccessor(1)];
 
   bool Not;
-  unsigned CondReg = getRegForI1Value(Br->getCondition(), Not);
+  unsigned CondReg = getRegForI1Value(Br->getCondition(), Br->getParent(), Not);
   if (CondReg == 0)
     return false;
 
@@ -1297,60 +1335,43 @@ bool WebAssemblyFastISel::selectRet(const Instruction *I) {
 
   if (Ret->getNumOperands() == 0) {
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
-            TII.get(WebAssembly::RETURN_VOID));
+            TII.get(WebAssembly::RETURN));
     return true;
   }
+
+  // TODO: support multiple return in FastISel
+  if (Ret->getNumOperands() > 1)
+    return false;
 
   Value *RV = Ret->getOperand(0);
   if (!Subtarget->hasSIMD128() && RV->getType()->isVectorTy())
     return false;
 
-  unsigned Opc;
   switch (getSimpleType(RV->getType())) {
   case MVT::i1:
   case MVT::i8:
   case MVT::i16:
   case MVT::i32:
-    Opc = WebAssembly::RETURN_I32;
-    break;
   case MVT::i64:
-    Opc = WebAssembly::RETURN_I64;
-    break;
   case MVT::f32:
-    Opc = WebAssembly::RETURN_F32;
-    break;
   case MVT::f64:
-    Opc = WebAssembly::RETURN_F64;
-    break;
   case MVT::v16i8:
-    Opc = WebAssembly::RETURN_v16i8;
-    break;
   case MVT::v8i16:
-    Opc = WebAssembly::RETURN_v8i16;
-    break;
   case MVT::v4i32:
-    Opc = WebAssembly::RETURN_v4i32;
-    break;
   case MVT::v2i64:
-    Opc = WebAssembly::RETURN_v2i64;
-    break;
   case MVT::v4f32:
-    Opc = WebAssembly::RETURN_v4f32;
-    break;
   case MVT::v2f64:
-    Opc = WebAssembly::RETURN_v2f64;
-    break;
-  case MVT::ExceptRef:
-    Opc = WebAssembly::RETURN_EXCEPT_REF;
+  case MVT::funcref:
+  case MVT::externref:
     break;
   default:
     return false;
   }
 
   unsigned Reg;
-  if (FuncInfo.Fn->getAttributes().hasAttribute(0, Attribute::SExt))
+  if (FuncInfo.Fn->getAttributes().hasRetAttr(Attribute::SExt))
     Reg = getRegForSignedValue(RV);
-  else if (FuncInfo.Fn->getAttributes().hasAttribute(0, Attribute::ZExt))
+  else if (FuncInfo.Fn->getAttributes().hasRetAttr(Attribute::ZExt))
     Reg = getRegForUnsignedValue(RV);
   else
     Reg = getRegForValue(RV);
@@ -1358,7 +1379,9 @@ bool WebAssemblyFastISel::selectRet(const Instruction *I) {
   if (Reg == 0)
     return false;
 
-  BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(Opc)).addReg(Reg);
+  BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
+          TII.get(WebAssembly::RETURN))
+      .addReg(Reg);
   return true;
 }
 

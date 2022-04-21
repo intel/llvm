@@ -42,10 +42,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/LangStandard.h"
+#include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/Types.h"
-#include "clang/Frontend/LangStandard.h"
 #include "clang/Tooling/CompilationDatabase.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringExtras.h"
@@ -114,6 +116,9 @@ static types::ID foldType(types::ID Lang) {
   case types::TY_ObjCXX:
   case types::TY_ObjCXXHeader:
     return types::TY_ObjCXX;
+  case types::TY_CUDA:
+  case types::TY_CUDA_DEVICE:
+    return types::TY_CUDA;
   default:
     return types::TY_INVALID;
   }
@@ -131,8 +136,7 @@ struct TransferableCommand {
   bool ClangCLMode;
 
   TransferableCommand(CompileCommand C)
-      : Cmd(std::move(C)), Type(guessType(Cmd.Filename)),
-        ClangCLMode(checkIsCLMode(Cmd.CommandLine)) {
+      : Cmd(std::move(C)), Type(guessType(Cmd.Filename)) {
     std::vector<std::string> OldArgs = std::move(Cmd.CommandLine);
     Cmd.CommandLine.clear();
 
@@ -142,6 +146,9 @@ struct TransferableCommand {
       SmallVector<const char *, 16> TmpArgv;
       for (const std::string &S : OldArgs)
         TmpArgv.push_back(S.c_str());
+      ClangCLMode = !TmpArgv.empty() &&
+                    driver::IsClangCL(driver::getDriverMode(
+                        TmpArgv.front(), llvm::makeArrayRef(TmpArgv).slice(1)));
       ArgList = {TmpArgv.begin(), TmpArgv.end()};
     }
 
@@ -149,16 +156,17 @@ struct TransferableCommand {
     // We parse each argument individually so that we can retain the exact
     // spelling of each argument; re-rendering is lossy for aliased flags.
     // E.g. in CL mode, /W4 maps to -Wall.
-    auto OptTable = clang::driver::createDriverOptTable();
-    Cmd.CommandLine.emplace_back(OldArgs.front());
+    auto &OptTable = clang::driver::getDriverOptTable();
+    if (!OldArgs.empty())
+      Cmd.CommandLine.emplace_back(OldArgs.front());
     for (unsigned Pos = 1; Pos < OldArgs.size();) {
       using namespace driver::options;
 
       const unsigned OldPos = Pos;
-      std::unique_ptr<llvm::opt::Arg> Arg(OptTable->ParseOneArg(
+      std::unique_ptr<llvm::opt::Arg> Arg(OptTable.ParseOneArg(
           ArgList, Pos,
-          /* Include */ClangCLMode ? CoreOption | CLOption : 0,
-          /* Exclude */ClangCLMode ? 0 : CLOption));
+          /* Include */ ClangCLMode ? CoreOption | CLOption : 0,
+          /* Exclude */ ClangCLMode ? 0 : CLOption));
 
       if (!Arg)
         continue;
@@ -172,6 +180,10 @@ struct TransferableCommand {
                            Opt.matches(OPT__SLASH_Fi) ||
                            Opt.matches(OPT__SLASH_Fo))))
         continue;
+
+      // ...including when the inputs are passed after --.
+      if (Opt.matches(OPT__DASH_DASH))
+        break;
 
       // Strip -x, but record the overridden language.
       if (const auto GivenType = tryParseTypeArg(*Arg)) {
@@ -190,7 +202,8 @@ struct TransferableCommand {
                              OldArgs.data() + OldPos, OldArgs.data() + Pos);
     }
 
-    if (Std != LangStandard::lang_unspecified) // -std take precedence over -x
+    // Make use of -std iff -x was missing.
+    if (Type == types::TY_INVALID && Std != LangStandard::lang_unspecified)
       Type = toType(LangStandard::getLangStandardForKind(Std).getLanguage());
     Type = foldType(*Type);
     // The contract is to store None instead of TY_INVALID.
@@ -199,9 +212,11 @@ struct TransferableCommand {
   }
 
   // Produce a CompileCommand for \p filename, based on this one.
-  CompileCommand transferTo(StringRef Filename) const {
-    CompileCommand Result = Cmd;
-    Result.Filename = Filename;
+  // (This consumes the TransferableCommand just to avoid copying Cmd).
+  CompileCommand transferTo(StringRef Filename) && {
+    CompileCommand Result = std::move(Cmd);
+    Result.Heuristic = "inferred from " + Result.Filename;
+    Result.Filename = std::string(Filename);
     bool TypeCertain;
     auto TargetType = guessType(Filename, &TypeCertain);
     // If the filename doesn't determine the language (.h), transfer with -x.
@@ -215,7 +230,7 @@ struct TransferableCommand {
       if (ClangCLMode) {
         const StringRef Flag = toCLFlag(TargetType);
         if (!Flag.empty())
-          Result.CommandLine.push_back(Flag);
+          Result.CommandLine.push_back(std::string(Flag));
       } else {
         Result.CommandLine.push_back("-x");
         Result.CommandLine.push_back(types::getTypeName(TargetType));
@@ -228,34 +243,22 @@ struct TransferableCommand {
           llvm::Twine(ClangCLMode ? "/std:" : "-std=") +
           LangStandard::getLangStandardForKind(Std).getName()).str());
     }
-    Result.CommandLine.push_back(Filename);
-    Result.Heuristic = "inferred from " + Cmd.Filename;
+    Result.CommandLine.push_back("--");
+    Result.CommandLine.push_back(std::string(Filename));
     return Result;
   }
 
 private:
-  // Determine whether the given command line is intended for the CL driver.
-  static bool checkIsCLMode(ArrayRef<std::string> CmdLine) {
-    // First look for --driver-mode.
-    for (StringRef S : llvm::reverse(CmdLine)) {
-      if (S.consume_front("--driver-mode="))
-        return S == "cl";
-    }
-
-    // Otherwise just check the clang executable file name.
-    return llvm::sys::path::stem(CmdLine.front()).endswith_lower("cl");
-  }
-
   // Map the language from the --std flag to that of the -x flag.
-  static types::ID toType(InputKind::Language Lang) {
+  static types::ID toType(Language Lang) {
     switch (Lang) {
-    case InputKind::C:
+    case Language::C:
       return types::TY_C;
-    case InputKind::CXX:
+    case Language::CXX:
       return types::TY_CXX;
-    case InputKind::ObjC:
+    case Language::ObjC:
       return types::TY_ObjC;
-    case InputKind::ObjCXX:
+    case Language::ObjCXX:
       return types::TY_ObjCXX;
     default:
       return types::TY_INVALID;
@@ -295,15 +298,8 @@ private:
   // Try to interpret the argument as '-std='.
   Optional<LangStandard::Kind> tryParseStdArg(const llvm::opt::Arg &Arg) {
     using namespace driver::options;
-    if (Arg.getOption().matches(ClangCLMode ? OPT__SLASH_std : OPT_std_EQ)) {
-      return llvm::StringSwitch<LangStandard::Kind>(Arg.getValue())
-#define LANGSTANDARD(id, name, lang, ...) .Case(name, LangStandard::lang_##id)
-#define LANGSTANDARD_ALIAS(id, alias) .Case(alias, LangStandard::lang_##id)
-#include "clang/Frontend/LangStandards.def"
-#undef LANGSTANDARD_ALIAS
-#undef LANGSTANDARD
-                 .Default(LangStandard::lang_unspecified);
-    }
+    if (Arg.getOption().matches(ClangCLMode ? OPT__SLASH_std : OPT_std_EQ))
+      return LangStandard::getLangKind(Arg.getValue());
     return None;
   }
 };
@@ -476,8 +472,7 @@ private:
                                  ArrayRef<SubstringAndIndex> Idx) const {
     assert(!Idx.empty());
     // Longest substring match will be adjacent to a direct lookup.
-    auto It =
-        std::lower_bound(Idx.begin(), Idx.end(), SubstringAndIndex{Key, 0});
+    auto It = llvm::lower_bound(Idx, SubstringAndIndex{Key, 0});
     if (It == Idx.begin())
       return *It;
     if (It == Idx.end())
@@ -523,7 +518,7 @@ public:
         Inner->getCompileCommands(Index.chooseProxy(Filename, foldType(Lang)));
     if (ProxyCommands.empty())
       return {};
-    return {TransferableCommand(ProxyCommands[0]).transferTo(Filename)};
+    return {transferCompileCommand(std::move(ProxyCommands.front()), Filename)};
   }
 
   std::vector<std::string> getAllFiles() const override {
@@ -543,7 +538,12 @@ private:
 
 std::unique_ptr<CompilationDatabase>
 inferMissingCompileCommands(std::unique_ptr<CompilationDatabase> Inner) {
-  return llvm::make_unique<InterpolatingCompilationDatabase>(std::move(Inner));
+  return std::make_unique<InterpolatingCompilationDatabase>(std::move(Inner));
+}
+
+tooling::CompileCommand transferCompileCommand(CompileCommand Cmd,
+                                               StringRef Filename) {
+  return TransferableCommand(std::move(Cmd)).transferTo(Filename);
 }
 
 } // namespace tooling

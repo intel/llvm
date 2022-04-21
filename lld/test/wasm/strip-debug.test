@@ -1,4 +1,4 @@
-RUN: llc -filetype=obj %p/Inputs/start.ll -o %t.start.o
+RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown %p/Inputs/start.s -o %t.start.o
 RUN: wasm-ld --strip-debug -o %t.wasm %t.start.o
 RUN: obj2yaml %t.wasm | FileCheck %s
 
@@ -6,5 +6,5 @@ RUN: obj2yaml %t.wasm | FileCheck %s
 RUN: wasm-ld -S -o %t.wasm %t.start.o
 RUN: obj2yaml %t.wasm | FileCheck %s
 
-# Check that there is no name section
-CHECK-NOT:   Name:    name
+# Check that there is a name section
+CHECK:   Name:    name

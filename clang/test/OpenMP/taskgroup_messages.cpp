@@ -1,6 +1,12 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
+
+void xxx(int argc) {
+  int x; // expected-note {{initialize the variable 'x' to silence this warning}}
+#pragma omp taskgroup
+  argc = x; // expected-warning {{variable 'x' is uninitialized when used here}}
+}
 
 int foo();
 
@@ -65,7 +71,7 @@ int foo() {
     foo();
   }
 
-#pragma omp taskgroup init // expected-warning {{extra tokens at the end of '#pragma omp taskgroup' are ignored}}
+#pragma omp taskgroup initi // expected-warning {{extra tokens at the end of '#pragma omp taskgroup' are ignored}}
   ;
   return 0;
 }

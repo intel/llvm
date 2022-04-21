@@ -1,4 +1,4 @@
-//===-- PlatformRemoteiOS.cpp -----------------------------------*- C++ -*-===//
+//===-- PlatformRemoteiOS.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,12 +18,15 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(PlatformRemoteiOS)
 
 // Static Variables
 static uint32_t g_initialize_count = 0;
@@ -50,7 +53,7 @@ void PlatformRemoteiOS::Terminate() {
 }
 
 PlatformSP PlatformRemoteiOS::CreateInstance(bool force, const ArchSpec *arch) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   if (log) {
     const char *arch_name;
     if (arch && arch->GetArchitectureName())
@@ -61,8 +64,8 @@ PlatformSP PlatformRemoteiOS::CreateInstance(bool force, const ArchSpec *arch) {
     const char *triple_cstr =
         arch ? arch->GetTriple().getTriple().c_str() : "<null>";
 
-    log->Printf("PlatformRemoteiOS::%s(force=%s, arch={%s,%s})", __FUNCTION__,
-                force ? "true" : "false", arch_name, triple_cstr);
+    LLDB_LOGF(log, "PlatformRemoteiOS::%s(force=%s, arch={%s,%s})",
+              __FUNCTION__, force ? "true" : "false", arch_name, triple_cstr);
   }
 
   bool create = force;
@@ -111,24 +114,19 @@ PlatformSP PlatformRemoteiOS::CreateInstance(bool force, const ArchSpec *arch) {
 
   if (create) {
     if (log)
-      log->Printf("PlatformRemoteiOS::%s() creating platform", __FUNCTION__);
+      LLDB_LOGF(log, "PlatformRemoteiOS::%s() creating platform", __FUNCTION__);
 
     return lldb::PlatformSP(new PlatformRemoteiOS());
   }
 
   if (log)
-    log->Printf("PlatformRemoteiOS::%s() aborting creation of platform",
-                __FUNCTION__);
+    LLDB_LOGF(log, "PlatformRemoteiOS::%s() aborting creation of platform",
+              __FUNCTION__);
 
   return lldb::PlatformSP();
 }
 
-lldb_private::ConstString PlatformRemoteiOS::GetPluginNameStatic() {
-  static ConstString g_name("remote-ios");
-  return g_name;
-}
-
-const char *PlatformRemoteiOS::GetDescriptionStatic() {
+llvm::StringRef PlatformRemoteiOS::GetDescriptionStatic() {
   return "Remote iOS platform plug-in.";
 }
 
@@ -136,19 +134,24 @@ const char *PlatformRemoteiOS::GetDescriptionStatic() {
 PlatformRemoteiOS::PlatformRemoteiOS()
     : PlatformRemoteDarwinDevice() {}
 
-bool PlatformRemoteiOS::GetSupportedArchitectureAtIndex(uint32_t idx,
-                                                        ArchSpec &arch) {
-  return ARMGetSupportedArchitectureAtIndex(idx, arch);
+std::vector<ArchSpec> PlatformRemoteiOS::GetSupportedArchitectures(
+    const ArchSpec &process_host_arch) {
+  std::vector<ArchSpec> result;
+  ARMGetSupportedArchitectures(result, llvm::Triple::IOS);
+  return result;
 }
 
-
-void PlatformRemoteiOS::GetDeviceSupportDirectoryNames (std::vector<std::string> &dirnames) 
-{
-    dirnames.clear();
-    dirnames.push_back("iOS DeviceSupport");
+bool PlatformRemoteiOS::CheckLocalSharedCache() const {
+  // You can run iPhone and iPad apps on Mac with Apple Silicon. At the
+  // platform level there's no way to distinguish them from remote iOS
+  // applications. Make sure we still read from our own shared cache.
+  return true;
 }
 
-std::string PlatformRemoteiOS::GetPlatformName ()
-{
-    return "iPhoneOS.platform";
+llvm::StringRef PlatformRemoteiOS::GetDeviceSupportDirectoryName() {
+  return "iOS DeviceSupport";
+}
+
+llvm::StringRef PlatformRemoteiOS::GetPlatformName() {
+  return "iPhoneOS.platform";
 }

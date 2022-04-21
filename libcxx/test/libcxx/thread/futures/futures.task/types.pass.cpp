@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <future>
 
@@ -21,6 +21,8 @@
 
 #include <future>
 #include <type_traits>
+
+#include "test_macros.h"
 
 struct A {};
 

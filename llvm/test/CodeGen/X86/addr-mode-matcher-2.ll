@@ -24,8 +24,7 @@
 define void @foo(i1 zeroext, i32) nounwind {
 ; X86-LABEL: foo:
 ; X86:       # %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
-; X86-NEXT:    testb %al, %al
+; X86-NEXT:    cmpb $0, {{[0-9]+}}(%esp)
 ; X86-NEXT:    je .LBB0_1
 ; X86-NEXT:  # %bb.3:
 ; X86-NEXT:    retl
@@ -36,7 +35,7 @@ define void @foo(i1 zeroext, i32) nounwind {
 ; X86-NEXT:    leal (%eax,%eax,4), %eax
 ; X86-NEXT:    leal 20(,%eax,4), %eax
 ; X86-NEXT:    pushl %eax
-; X86-NEXT:    calll bar
+; X86-NEXT:    calll bar@PLT
 ; X86-NEXT:    addl $4, %esp
 ; X86-NEXT:    jmp .LBB0_2
 ;
@@ -56,7 +55,7 @@ define void @foo(i1 zeroext, i32) nounwind {
 ; X64-NEXT:    cltq
 ; X64-NEXT:    shlq $2, %rax
 ; X64-NEXT:    leaq (%rax,%rax,4), %rdi
-; X64-NEXT:    callq bar
+; X64-NEXT:    callq bar@PLT
 ; X64-NEXT:    jmp .LBB0_2
   br i1 %0, label %9, label %3
 

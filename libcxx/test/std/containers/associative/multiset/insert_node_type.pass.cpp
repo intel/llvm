@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <set>
 
@@ -16,6 +16,7 @@
 
 #include <set>
 #include <type_traits>
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class Container>

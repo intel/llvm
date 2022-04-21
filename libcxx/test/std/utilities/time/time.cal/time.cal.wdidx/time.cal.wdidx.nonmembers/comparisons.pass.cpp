@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class weekday_indexed;
@@ -36,7 +36,7 @@ int main(int, char**)
     static_assert(!(weekday_indexed{} == weekday_indexed{std::chrono::Tuesday, 1}), "");
     static_assert( (weekday_indexed{} != weekday_indexed{std::chrono::Tuesday, 1}), "");
 
-//  Some 'ok' values as well
+    //  Some 'ok' values as well
     static_assert( (weekday_indexed{weekday{1}, 2} == weekday_indexed{weekday{1}, 2}), "");
     static_assert(!(weekday_indexed{weekday{1}, 2} != weekday_indexed{weekday{1}, 2}), "");
 
@@ -45,5 +45,5 @@ int main(int, char**)
     static_assert(!(weekday_indexed{weekday{1}, 2} == weekday_indexed{weekday{2}, 2}),  "");
     static_assert( (weekday_indexed{weekday{1}, 2} != weekday_indexed{weekday{2}, 2}),  "");
 
-  return 0;
+    return 0;
 }

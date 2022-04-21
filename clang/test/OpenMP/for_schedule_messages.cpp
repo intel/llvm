@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd %s -Wuninitialized
 
 void foo() {
 }
@@ -13,6 +15,7 @@ struct S1; // expected-note {{declared here}}
 
 template <class T, typename S, int N, int ST> // expected-note {{declared here}}
 T tmain(T argc, S **argv) {
+  T z;
   #pragma omp for schedule // expected-error {{expected '(' after 'schedule'}}
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
   #pragma omp for schedule ( // expected-error {{expected 'static', 'dynamic', 'guided', 'auto', 'runtime', 'monotonic', 'nonmonotonic' or 'simd' in OpenMP clause 'schedule'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
@@ -31,7 +34,7 @@ T tmain(T argc, S **argv) {
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
   #pragma omp for schedule (monotonic, auto // expected-error {{expected ')'}} expected-warning {{missing ':' after schedule modifier - ignoring}} expected-error {{expected 'simd' in OpenMP clause 'schedule'}} expected-note {{to match this '('}}
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
-  #pragma omp for schedule (nonmonotonic: auto, // expected-error {{expected ')'}} expected-error {{'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind}} expected-note {{to match this '('}}
+  #pragma omp for schedule (nonmonotonic: auto, // expected-error {{expected ')'}} omp45-error {{'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind}} expected-note {{to match this '('}}
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
   #pragma omp for schedule (auto,  // expected-error {{expected ')'}} expected-note {{to match this '('}}
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
@@ -45,7 +48,7 @@ T tmain(T argc, S **argv) {
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
   #pragma omp for schedule (dynamic, 1)) // expected-warning {{extra tokens at the end of '#pragma omp for' are ignored}}
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
-  #pragma omp for schedule (guided, (ST > 0) ? 1 + ST : 2)
+  #pragma omp for schedule (guided, (ST > 0) ? 1 + ST : 2 + z)
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
   // expected-error@+2 2 {{directive '#pragma omp for' cannot contain more than one 'schedule' clause}}
   // expected-error@+1 {{argument to 'schedule' clause must be a strictly positive integer value}}
@@ -60,11 +63,11 @@ T tmain(T argc, S **argv) {
   for (int i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
   #pragma omp for schedule (static, N) // expected-error {{argument to 'schedule' clause must be a strictly positive integer value}}
   for (T i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
-  #pragma omp for schedule (nonmonotonic: static) // expected-error {{'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind}}
+  #pragma omp for schedule (nonmonotonic: static) // omp45-error {{'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind}}
   for (T i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
-  #pragma omp for schedule (nonmonotonic: auto) // expected-error {{'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind}}
+  #pragma omp for schedule (nonmonotonic: auto) // omp45-error {{'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind}}
   for (T i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
-  #pragma omp for schedule (nonmonotonic: runtime) // expected-error {{'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind}}
+  #pragma omp for schedule (nonmonotonic: runtime) // omp45-error {{'nonmonotonic' modifier can only be specified with 'dynamic' or 'guided' schedule kind}}
   for (T i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
   #pragma omp for schedule (monotonic, nonmonotonic: auto) // expected-error {{modifier 'nonmonotonic' cannot be used along with modifier 'monotonic'}}
   for (T i = ST; i < N; i++) argv[0][i] = argv[0][i] - argv[0][i-ST];
@@ -82,6 +85,7 @@ T tmain(T argc, S **argv) {
 }
 
 int main(int argc, char **argv) {
+  int z;
   #pragma omp for schedule // expected-error {{expected '(' after 'schedule'}}
   for (int i = 4; i < 12; i++) argv[0][i] = argv[0][i] - argv[0][i-4];
   #pragma omp for schedule ( // expected-error {{expected 'static', 'dynamic', 'guided', 'auto', 'runtime', 'monotonic', 'nonmonotonic' or 'simd' in OpenMP clause 'schedule'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
@@ -98,7 +102,7 @@ int main(int argc, char **argv) {
   for (int i = 4; i < 12; i++) argv[0][i] = argv[0][i] - argv[0][i-4];
   #pragma omp for schedule (guided, 4 // expected-error {{expected ')'}} expected-note {{to match this '('}}
   for (int i = 4; i < 12; i++) argv[0][i] = argv[0][i] - argv[0][i-4];
-  #pragma omp for schedule (static, 2+2)) // expected-warning {{extra tokens at the end of '#pragma omp for' are ignored}}
+  #pragma omp for schedule (static, 2+2-z)) // expected-warning {{extra tokens at the end of '#pragma omp for' are ignored}}
   for (int i = 4; i < 12; i++) argv[0][i] = argv[0][i] - argv[0][i-4];
   #pragma omp for schedule (dynamic, foobool(1) > 0 ? 1 : 2)
   for (int i = 4; i < 12; i++) argv[0][i] = argv[0][i] - argv[0][i-4];

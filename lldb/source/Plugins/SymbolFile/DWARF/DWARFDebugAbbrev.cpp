@@ -1,4 +1,4 @@
-//===-- DWARFDebugAbbrev.cpp ------------------------------------*- C++ -*-===//
+//===-- DWARFDebugAbbrev.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,6 @@
 
 using namespace lldb;
 using namespace lldb_private;
-using namespace std;
 
 // DWARFAbbreviationDeclarationSet::Clear()
 void DWARFAbbreviationDeclarationSet::Clear() {
@@ -29,21 +28,19 @@ DWARFAbbreviationDeclarationSet::extract(const DWARFDataExtractor &data,
   Clear();
   DWARFAbbreviationDeclaration abbrevDeclaration;
   dw_uleb128_t prev_abbr_code = 0;
-  DWARFEnumState state = DWARFEnumState::MoreItems;
-  while (state == DWARFEnumState::MoreItems) {
+  while (true) {
     llvm::Expected<DWARFEnumState> es =
         abbrevDeclaration.extract(data, offset_ptr);
     if (!es)
       return es.takeError();
-
-    state = *es;
+    if (*es == DWARFEnumState::Complete)
+      break;
     m_decls.push_back(abbrevDeclaration);
     if (m_idx_offset == 0)
       m_idx_offset = abbrevDeclaration.Code();
-    else {
-      if (prev_abbr_code + 1 != abbrevDeclaration.Code())
-        m_idx_offset =
-            UINT32_MAX; // Out of order indexes, we can't do O(1) lookups...
+    else if (prev_abbr_code + 1 != abbrevDeclaration.Code()) {
+      // Out of order indexes, we can't do O(1) lookups...
+      m_idx_offset = UINT32_MAX;
     }
     prev_abbr_code = abbrevDeclaration.Code();
   }
@@ -66,7 +63,7 @@ DWARFAbbreviationDeclarationSet::GetAbbreviationDeclaration(
     if (idx < m_decls.size())
       return &m_decls[idx];
   }
-  return NULL;
+  return nullptr;
 }
 
 
@@ -137,7 +134,7 @@ DWARFDebugAbbrev::GetAbbreviationDeclarationSet(
 
   if (pos != m_abbrevCollMap.end())
     return &(pos->second);
-  return NULL;
+  return nullptr;
 }
 
 // DWARFDebugAbbrev::GetUnsupportedForms()

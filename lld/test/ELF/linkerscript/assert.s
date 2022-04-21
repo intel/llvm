@@ -6,8 +6,8 @@
 # RUN: llvm-readobj %t1 > /dev/null
 
 # RUN: echo "SECTIONS { ASSERT(0, fail) }" > %t3.script
-# RUN: not ld.lld -shared -o /dev/null --script %t3.script %t1.o > %t.log 2>&1
-# RUN: FileCheck %s -check-prefix=FAIL < %t.log
+# RUN: not ld.lld -o /dev/null -T %t3.script %t1.o 2>&1 | FileCheck --check-prefix=FAIL %s
+# RUN: ld.lld -o /dev/null -T %t3.script %t1.o --noinhibit-exec 2>&1 | FileCheck --check-prefix=FAIL %s
 # FAIL: fail
 
 # RUN: echo "SECTIONS { . = ASSERT(0x1000, fail); }" > %t4.script
@@ -25,7 +25,7 @@
 # RUN: ld.lld -shared -o %t5 --script %t5.script %t1.o
 # RUN: llvm-readobj %t5 > /dev/null
 
-## Test assertions inside of output section decriptions.
+## Test assertions inside of output section descriptions.
 # RUN: echo "SECTIONS { .foo : { *(.foo) ASSERT(SIZEOF(.foo) == 8, \"true\"); } }" > %t6.script
 # RUN: ld.lld -shared -o %t6 --script %t6.script %t1.o
 # RUN: llvm-readobj %t6 > /dev/null

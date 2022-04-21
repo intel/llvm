@@ -1,7 +1,32 @@
-// RUN: %clang_analyze_cc1 -w -analyzer-checker=core,alpha.deadcode.UnreachableCode,alpha.core.CastSize,unix.Malloc,cplusplus.NewDelete -analyzer-store=region -verify %s
-// RUN: %clang_analyze_cc1 -triple i386-unknown-linux-gnu -w -analyzer-checker=core,alpha.deadcode.UnreachableCode,alpha.core.CastSize,unix.Malloc,cplusplus.NewDelete -analyzer-store=region -verify %s
-// RUN: %clang_analyze_cc1 -w -analyzer-checker=core,alpha.deadcode.UnreachableCode,alpha.core.CastSize,unix.Malloc,cplusplus.NewDelete -analyzer-store=region -DTEST_INLINABLE_ALLOCATORS -verify %s
-// RUN: %clang_analyze_cc1 -triple i386-unknown-linux-gnu -w -analyzer-checker=core,alpha.deadcode.UnreachableCode,alpha.core.CastSize,unix.Malloc,cplusplus.NewDelete -analyzer-store=region -DTEST_INLINABLE_ALLOCATORS -verify %s
+// RUN: %clang_analyze_cc1 -w -verify %s \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=alpha.deadcode.UnreachableCode \
+// RUN:   -analyzer-checker=alpha.core.CastSize \
+// RUN:   -analyzer-checker=unix.Malloc \
+// RUN:   -analyzer-checker=cplusplus.NewDelete
+
+// RUN: %clang_analyze_cc1 -w -verify %s \
+// RUN:   -triple i386-unknown-linux-gnu \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=alpha.deadcode.UnreachableCode \
+// RUN:   -analyzer-checker=alpha.core.CastSize \
+// RUN:   -analyzer-checker=unix.Malloc \
+// RUN:   -analyzer-checker=cplusplus.NewDelete
+
+// RUN: %clang_analyze_cc1 -w -verify %s -DTEST_INLINABLE_ALLOCATORS \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=alpha.deadcode.UnreachableCode \
+// RUN:   -analyzer-checker=alpha.core.CastSize \
+// RUN:   -analyzer-checker=unix.Malloc \
+// RUN:   -analyzer-checker=cplusplus.NewDelete
+
+// RUN: %clang_analyze_cc1 -w -verify %s -DTEST_INLINABLE_ALLOCATORS \
+// RUN:   -triple i386-unknown-linux-gnu \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=alpha.deadcode.UnreachableCode \
+// RUN:   -analyzer-checker=alpha.core.CastSize \
+// RUN:   -analyzer-checker=unix.Malloc \
+// RUN:   -analyzer-checker=cplusplus.NewDelete
 
 #include "Inputs/system-header-simulator-cxx.h"
 
@@ -164,3 +189,29 @@ void test(A a) {
   (void)a.getName();
 }
 } // namespace argument_leak
+
+#define ZERO_SIZE_PTR ((void *)16)
+
+void test_delete_ZERO_SIZE_PTR() {
+  int *Ptr = (int *)ZERO_SIZE_PTR;
+  // ZERO_SIZE_PTR is specially handled but only for malloc family
+  delete Ptr; // expected-warning{{Argument to 'delete' is a constant address (16)}}
+}
+
+namespace pr46253_class {
+class a {
+  void *realloc(int, bool = false) { realloc(1); } // no-crash
+};
+} // namespace pr46253_class
+
+namespace pr46253_retty{
+void realloc(void *ptr, size_t size) { realloc(ptr, size); } // no-crash
+} // namespace pr46253_retty
+
+namespace pr46253_paramty{
+void *realloc(void **ptr, size_t size) { realloc(ptr, size); } // no-crash
+} // namespace pr46253_paramty
+
+namespace pr46253_paramty2{
+void *realloc(void *ptr, int size) { realloc(ptr, size); } // no-crash
+} // namespace pr46253_paramty2

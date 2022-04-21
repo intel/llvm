@@ -96,9 +96,8 @@ static bool replaceDominatedUses(MachineBasicBlock &MBB, MachineInstr &MI,
 
   SmallVector<SlotIndex, 4> Indices;
 
-  for (auto I = MRI.use_nodbg_begin(FromReg), E = MRI.use_nodbg_end();
-       I != E;) {
-    MachineOperand &O = *I++;
+  for (MachineOperand &O :
+       llvm::make_early_inc_range(MRI.use_nodbg_operands(FromReg))) {
     MachineInstr *Where = O.getParent();
 
     // Check that MI dominates the instruction in the normal way.
@@ -166,8 +165,8 @@ static bool optimizeCall(MachineBasicBlock &MBB, MachineInstr &MI,
   if (!LibInfo.getLibFunc(Name, Func))
     return false;
 
-  unsigned FromReg = MI.getOperand(2).getReg();
-  unsigned ToReg = MI.getOperand(0).getReg();
+  Register FromReg = MI.getOperand(2).getReg();
+  Register ToReg = MI.getOperand(0).getReg();
   if (MRI.getRegClass(FromReg) != MRI.getRegClass(ToReg))
     report_fatal_error("Memory Intrinsic results: call to builtin function "
                        "with wrong signature, from/to mismatch");
@@ -184,7 +183,8 @@ bool WebAssemblyMemIntrinsicResults::runOnMachineFunction(MachineFunction &MF) {
   auto &MDT = getAnalysis<MachineDominatorTree>();
   const WebAssemblyTargetLowering &TLI =
       *MF.getSubtarget<WebAssemblySubtarget>().getTargetLowering();
-  const auto &LibInfo = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  const auto &LibInfo =
+      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(MF.getFunction());
   auto &LIS = getAnalysis<LiveIntervals>();
   bool Changed = false;
 
@@ -200,8 +200,7 @@ bool WebAssemblyMemIntrinsicResults::runOnMachineFunction(MachineFunction &MF) {
       switch (MI.getOpcode()) {
       default:
         break;
-      case WebAssembly::CALL_I32:
-      case WebAssembly::CALL_I64:
+      case WebAssembly::CALL:
         Changed |= optimizeCall(MBB, MI, MRI, MDT, LIS, TLI, LibInfo);
         break;
       }

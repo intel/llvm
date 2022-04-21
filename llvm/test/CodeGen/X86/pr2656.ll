@@ -13,19 +13,20 @@ target triple = "i686-apple-darwin9.4.0"
 ; We can fold the 16-byte constant load into either 'xor' instruction,
 ; but we do not. It has more than one use, so it gets loaded into a register.
 
-define void @foo(%struct.anon* byval %p) nounwind {
+define void @foo(%struct.anon* byval(%struct.anon) %p) nounwind {
 ; CHECK-LABEL: foo:
 ; CHECK:       ## %bb.0: ## %entry
 ; CHECK-NEXT:    subl $28, %esp
-; CHECK-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; CHECK-NEXT:    movaps {{.*#+}} xmm0 = [-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0]
 ; CHECK-NEXT:    movss {{.*#+}} xmm1 = mem[0],zero,zero,zero
-; CHECK-NEXT:    movaps {{.*#+}} xmm2 = [-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0]
-; CHECK-NEXT:    xorps %xmm2, %xmm0
-; CHECK-NEXT:    cvtss2sd %xmm0, %xmm0
-; CHECK-NEXT:    xorps %xmm2, %xmm1
+; CHECK-NEXT:    movss {{.*#+}} xmm2 = mem[0],zero,zero,zero
+; CHECK-NEXT:    xorps %xmm0, %xmm1
 ; CHECK-NEXT:    cvtss2sd %xmm1, %xmm1
-; CHECK-NEXT:    movsd %xmm1, {{[0-9]+}}(%esp)
+; CHECK-NEXT:    xorps %xmm0, %xmm2
+; CHECK-NEXT:    xorps %xmm0, %xmm0
+; CHECK-NEXT:    cvtss2sd %xmm2, %xmm0
 ; CHECK-NEXT:    movsd %xmm0, {{[0-9]+}}(%esp)
+; CHECK-NEXT:    movsd %xmm1, {{[0-9]+}}(%esp)
 ; CHECK-NEXT:    movl $_.str, (%esp)
 ; CHECK-NEXT:    calll _printf
 ; CHECK-NEXT:    addl $28, %esp
@@ -55,7 +56,7 @@ define double @PR22371(double %x) {
 ; CHECK-NEXT:    subl $12, %esp
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    movsd {{.*#+}} xmm0 = mem[0],zero
-; CHECK-NEXT:    andps LCPI1_0, %xmm0
+; CHECK-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0
 ; CHECK-NEXT:    movlps %xmm0, (%esp)
 ; CHECK-NEXT:    fldl (%esp)
 ; CHECK-NEXT:    addl $12, %esp

@@ -1,4 +1,4 @@
-; RUN: opt < %s -loop-vectorize -force-vector-interleave=1 -force-vector-width=4 -dce -instcombine -S -simplifycfg | FileCheck %s
+; RUN: opt < %s -loop-vectorize -force-vector-interleave=1 -force-vector-width=4 -dce -instcombine -S -simplifycfg -simplifycfg-require-and-preserve-domtree=1 | FileCheck %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 
@@ -65,7 +65,7 @@ _ZSt10accumulateIPiiET0_T_S2_S1_.exit:            ; preds = %for.body.i, %entry
   ret i32 %__init.addr.0.lcssa.i
 }
 
-attributes #0 = { nounwind readonly ssp uwtable "fp-contract-model"="standard" "no-frame-pointer-elim" "no-frame-pointer-elim-non-leaf" "realign-stack" "relocation-model"="pic" "ssp-buffers-size"="8" }
+attributes #0 = { nounwind readonly ssp uwtable "fp-contract-model"="standard" "frame-pointer"="non-leaf" "realign-stack" "relocation-model"="pic" "ssp-buffers-size"="8" }
 
 ; CHECK: !0 = distinct !{!0, !1}
 ; CHECK: !1 = !{!"llvm.loop.isvectorized", i32 1}

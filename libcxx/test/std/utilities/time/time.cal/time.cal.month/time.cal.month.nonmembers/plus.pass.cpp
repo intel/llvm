@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class month;
@@ -36,10 +36,10 @@ constexpr bool testConstexpr()
 {
     M m{1};
     Ms offset{4};
-    if (m + offset != M{5}) return false;
-    if (offset + m != M{5}) return false;
-//  Check the example
-    if (M{2} + Ms{11} != M{1}) return false;
+    assert(m + offset == M{5});
+    assert(offset + m == M{5});
+    //  Check the example
+    assert(M{2} + Ms{11} == M{1});
     return true;
 }
 
@@ -69,5 +69,5 @@ int main(int, char**)
         assert(static_cast<unsigned>(m2) == exp);
     }
 
-  return 0;
+    return 0;
 }

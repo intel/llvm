@@ -11,25 +11,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "float2int"
-
 #include "llvm/Transforms/Scalar/Float2Int.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstIterator.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include <deque>
 #include <functional> // For std::function
+
+#define DEBUG_TYPE "float2int"
+
 using namespace llvm;
 
 // The algorithm is simple. Start at instructions that convert from the
@@ -60,11 +61,13 @@ namespace {
       if (skipFunction(F))
         return false;
 
-      return Impl.runImpl(F);
+      const DominatorTree &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+      return Impl.runImpl(F, DT);
     }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesCFG();
+      AU.addRequired<DominatorTreeWrapperPass>();
       AU.addPreserved<GlobalsAAWrapperPass>();
     }
 
@@ -116,21 +119,28 @@ static Instruction::BinaryOps mapBinOpcode(unsigned Opcode) {
 
 // Find the roots - instructions that convert from the FP domain to
 // integer domain.
-void Float2IntPass::findRoots(Function &F, SmallPtrSet<Instruction*,8> &Roots) {
-  for (auto &I : instructions(F)) {
-    if (isa<VectorType>(I.getType()))
+void Float2IntPass::findRoots(Function &F, const DominatorTree &DT) {
+  for (BasicBlock &BB : F) {
+    // Unreachable code can take on strange forms that we are not prepared to
+    // handle. For example, an instruction may have itself as an operand.
+    if (!DT.isReachableFromEntry(&BB))
       continue;
-    switch (I.getOpcode()) {
-    default: break;
-    case Instruction::FPToUI:
-    case Instruction::FPToSI:
-      Roots.insert(&I);
-      break;
-    case Instruction::FCmp:
-      if (mapFCmpPred(cast<CmpInst>(&I)->getPredicate()) !=
-          CmpInst::BAD_ICMP_PREDICATE)
+
+    for (Instruction &I : BB) {
+      if (isa<VectorType>(I.getType()))
+        continue;
+      switch (I.getOpcode()) {
+      default: break;
+      case Instruction::FPToUI:
+      case Instruction::FPToSI:
         Roots.insert(&I);
-      break;
+        break;
+      case Instruction::FCmp:
+        if (mapFCmpPred(cast<CmpInst>(&I)->getPredicate()) !=
+            CmpInst::BAD_ICMP_PREDICATE)
+          Roots.insert(&I);
+        break;
+      }
     }
   }
 }
@@ -172,7 +182,7 @@ ConstantRange Float2IntPass::validateRange(ConstantRange R) {
 
 // Breadth-first walk of the use-def graph; determine the set of nodes
 // we care about and eagerly determine if some of them are poisonous.
-void Float2IntPass::walkBackwards(const SmallPtrSetImpl<Instruction*> &Roots) {
+void Float2IntPass::walkBackwards() {
   std::deque<Instruction*> Worklist(Roots.begin(), Roots.end());
   while (!Worklist.empty()) {
     Instruction *I = Worklist.back();
@@ -200,6 +210,7 @@ void Float2IntPass::walkBackwards(const SmallPtrSetImpl<Instruction*> &Roots) {
       continue;
     }
 
+    case Instruction::FNeg:
     case Instruction::FAdd:
     case Instruction::FSub:
     case Instruction::FMul:
@@ -224,6 +235,92 @@ void Float2IntPass::walkBackwards(const SmallPtrSetImpl<Instruction*> &Roots) {
   }
 }
 
+// Calculate result range from operand ranges
+ConstantRange Float2IntPass::calcRange(Instruction *I) {
+  SmallVector<ConstantRange, 4> OpRanges;
+  for (Value *O : I->operands()) {
+    if (Instruction *OI = dyn_cast<Instruction>(O)) {
+      assert(SeenInsts.find(OI) != SeenInsts.end() &&
+             "def not seen before use!");
+      OpRanges.push_back(SeenInsts.find(OI)->second);
+    } else if (ConstantFP *CF = dyn_cast<ConstantFP>(O)) {
+      // Work out if the floating point number can be losslessly represented
+      // as an integer.
+      // APFloat::convertToInteger(&Exact) purports to do what we want, but
+      // the exactness can be too precise. For example, negative zero can
+      // never be exactly converted to an integer.
+      //
+      // Instead, we ask APFloat to round itself to an integral value - this
+      // preserves sign-of-zero - then compare the result with the original.
+      //
+      const APFloat &F = CF->getValueAPF();
+
+      // First, weed out obviously incorrect values. Non-finite numbers
+      // can't be represented and neither can negative zero, unless
+      // we're in fast math mode.
+      if (!F.isFinite() ||
+          (F.isZero() && F.isNegative() && isa<FPMathOperator>(I) &&
+           !I->hasNoSignedZeros()))
+        return badRange();
+
+      APFloat NewF = F;
+      auto Res = NewF.roundToIntegral(APFloat::rmNearestTiesToEven);
+      if (Res != APFloat::opOK || NewF != F)
+        return badRange();
+
+      // OK, it's representable. Now get it.
+      APSInt Int(MaxIntegerBW+1, false);
+      bool Exact;
+      CF->getValueAPF().convertToInteger(Int,
+                                         APFloat::rmNearestTiesToEven,
+                                         &Exact);
+      OpRanges.push_back(ConstantRange(Int));
+    } else {
+      llvm_unreachable("Should have already marked this as badRange!");
+    }
+  }
+
+  switch (I->getOpcode()) {
+  // FIXME: Handle select and phi nodes.
+  default:
+  case Instruction::UIToFP:
+  case Instruction::SIToFP:
+    llvm_unreachable("Should have been handled in walkForwards!");
+
+  case Instruction::FNeg: {
+    assert(OpRanges.size() == 1 && "FNeg is a unary operator!");
+    unsigned Size = OpRanges[0].getBitWidth();
+    auto Zero = ConstantRange(APInt::getZero(Size));
+    return Zero.sub(OpRanges[0]);
+  }
+
+  case Instruction::FAdd:
+  case Instruction::FSub:
+  case Instruction::FMul: {
+    assert(OpRanges.size() == 2 && "its a binary operator!");
+    auto BinOp = (Instruction::BinaryOps) I->getOpcode();
+    return OpRanges[0].binaryOp(BinOp, OpRanges[1]);
+  }
+
+  //
+  // Root-only instructions - we'll only see these if they're the
+  //                          first node in a walk.
+  //
+  case Instruction::FPToUI:
+  case Instruction::FPToSI: {
+    assert(OpRanges.size() == 1 && "FPTo[US]I is a unary operator!");
+    // Note: We're ignoring the casts output size here as that's what the
+    // caller expects.
+    auto CastOp = (Instruction::CastOps)I->getOpcode();
+    return OpRanges[0].castOp(CastOp, MaxIntegerBW+1);
+  }
+
+  case Instruction::FCmp:
+    assert(OpRanges.size() == 2 && "FCmp is a binary operator!");
+    return OpRanges[0].unionWith(OpRanges[1]);
+  }
+}
+
 // Walk forwards down the list of seen instructions, so we visit defs before
 // uses.
 void Float2IntPass::walkForwards() {
@@ -232,99 +329,7 @@ void Float2IntPass::walkForwards() {
       continue;
 
     Instruction *I = It.first;
-    std::function<ConstantRange(ArrayRef<ConstantRange>)> Op;
-    switch (I->getOpcode()) {
-      // FIXME: Handle select and phi nodes.
-    default:
-    case Instruction::UIToFP:
-    case Instruction::SIToFP:
-      llvm_unreachable("Should have been handled in walkForwards!");
-
-    case Instruction::FAdd:
-    case Instruction::FSub:
-    case Instruction::FMul:
-      Op = [I](ArrayRef<ConstantRange> Ops) {
-        assert(Ops.size() == 2 && "its a binary operator!");
-        auto BinOp = (Instruction::BinaryOps) I->getOpcode();
-        return Ops[0].binaryOp(BinOp, Ops[1]);
-      };
-      break;
-
-    //
-    // Root-only instructions - we'll only see these if they're the
-    //                          first node in a walk.
-    //
-    case Instruction::FPToUI:
-    case Instruction::FPToSI:
-      Op = [I](ArrayRef<ConstantRange> Ops) {
-        assert(Ops.size() == 1 && "FPTo[US]I is a unary operator!");
-        // Note: We're ignoring the casts output size here as that's what the
-        // caller expects.
-        auto CastOp = (Instruction::CastOps)I->getOpcode();
-        return Ops[0].castOp(CastOp, MaxIntegerBW+1);
-      };
-      break;
-
-    case Instruction::FCmp:
-      Op = [](ArrayRef<ConstantRange> Ops) {
-        assert(Ops.size() == 2 && "FCmp is a binary operator!");
-        return Ops[0].unionWith(Ops[1]);
-      };
-      break;
-    }
-
-    bool Abort = false;
-    SmallVector<ConstantRange,4> OpRanges;
-    for (Value *O : I->operands()) {
-      if (Instruction *OI = dyn_cast<Instruction>(O)) {
-        assert(SeenInsts.find(OI) != SeenInsts.end() &&
-               "def not seen before use!");
-        OpRanges.push_back(SeenInsts.find(OI)->second);
-      } else if (ConstantFP *CF = dyn_cast<ConstantFP>(O)) {
-        // Work out if the floating point number can be losslessly represented
-        // as an integer.
-        // APFloat::convertToInteger(&Exact) purports to do what we want, but
-        // the exactness can be too precise. For example, negative zero can
-        // never be exactly converted to an integer.
-        //
-        // Instead, we ask APFloat to round itself to an integral value - this
-        // preserves sign-of-zero - then compare the result with the original.
-        //
-        const APFloat &F = CF->getValueAPF();
-
-        // First, weed out obviously incorrect values. Non-finite numbers
-        // can't be represented and neither can negative zero, unless
-        // we're in fast math mode.
-        if (!F.isFinite() ||
-            (F.isZero() && F.isNegative() && isa<FPMathOperator>(I) &&
-             !I->hasNoSignedZeros())) {
-          seen(I, badRange());
-          Abort = true;
-          break;
-        }
-
-        APFloat NewF = F;
-        auto Res = NewF.roundToIntegral(APFloat::rmNearestTiesToEven);
-        if (Res != APFloat::opOK || NewF.compare(F) != APFloat::cmpEqual) {
-          seen(I, badRange());
-          Abort = true;
-          break;
-        }
-        // OK, it's representable. Now get it.
-        APSInt Int(MaxIntegerBW+1, false);
-        bool Exact;
-        CF->getValueAPF().convertToInteger(Int,
-                                           APFloat::rmNearestTiesToEven,
-                                           &Exact);
-        OpRanges.push_back(ConstantRange(Int));
-      } else {
-        llvm_unreachable("Should have already marked this as badRange!");
-      }
-    }
-
-    // Reduce the operands' ranges to a single range and return.
-    if (!Abort)
-      seen(I, Op(OpRanges));
+    seen(I, calcRange(I));
   }
 }
 
@@ -351,7 +356,7 @@ bool Float2IntPass::validateAndTransform() {
       // If it does, transformation would be illegal.
       //
       // Don't count the roots, as they terminate the graphs.
-      if (Roots.count(I) == 0) {
+      if (!Roots.contains(I)) {
         // Set the type of the conversion while we're here.
         if (!ConvertedToTy)
           ConvertedToTy = I->getType();
@@ -426,7 +431,7 @@ Value *Float2IntPass::convert(Instruction *I, Type *ToTy) {
     } else if (Instruction *VI = dyn_cast<Instruction>(V)) {
       NewOperands.push_back(convert(VI, ToTy));
     } else if (ConstantFP *CF = dyn_cast<ConstantFP>(V)) {
-      APSInt Val(ToTy->getPrimitiveSizeInBits(), /*IsUnsigned=*/false);
+      APSInt Val(ToTy->getPrimitiveSizeInBits(), /*isUnsigned=*/false);
       bool Exact;
       CF->getValueAPF().convertToInteger(Val,
                                          APFloat::rmNearestTiesToEven,
@@ -466,6 +471,10 @@ Value *Float2IntPass::convert(Instruction *I, Type *ToTy) {
     NewV = IRB.CreateSExtOrTrunc(NewOperands[0], ToTy);
     break;
 
+  case Instruction::FNeg:
+    NewV = IRB.CreateNeg(NewOperands[0], I->getName());
+    break;
+
   case Instruction::FAdd:
   case Instruction::FSub:
   case Instruction::FMul:
@@ -489,7 +498,7 @@ void Float2IntPass::cleanup() {
     I.first->eraseFromParent();
 }
 
-bool Float2IntPass::runImpl(Function &F) {
+bool Float2IntPass::runImpl(Function &F, const DominatorTree &DT) {
   LLVM_DEBUG(dbgs() << "F2I: Looking at function " << F.getName() << "\n");
   // Clear out all state.
   ECs = EquivalenceClasses<Instruction*>();
@@ -499,9 +508,9 @@ bool Float2IntPass::runImpl(Function &F) {
 
   Ctx = &F.getParent()->getContext();
 
-  findRoots(F, Roots);
+  findRoots(F, DT);
 
-  walkBackwards(Roots);
+  walkBackwards();
   walkForwards();
 
   bool Modified = validateAndTransform();
@@ -513,13 +522,13 @@ bool Float2IntPass::runImpl(Function &F) {
 namespace llvm {
 FunctionPass *createFloat2IntPass() { return new Float2IntLegacyPass(); }
 
-PreservedAnalyses Float2IntPass::run(Function &F, FunctionAnalysisManager &) {
-  if (!runImpl(F))
+PreservedAnalyses Float2IntPass::run(Function &F, FunctionAnalysisManager &AM) {
+  const DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+  if (!runImpl(F, DT))
     return PreservedAnalyses::all();
 
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
-  PA.preserve<GlobalsAA>();
   return PA;
 }
 } // End namespace llvm

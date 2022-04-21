@@ -5,14 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_day;
 
 //  constexpr year_month_day(const sys_days& dp) noexcept;
 //
-//  Effects:  Constructs an object of type year_month_day that corresponds 
+//  Effects:  Constructs an object of type year_month_day that corresponds
 //                to the date represented by dp.
 //
 //  Remarks: For any value ymd of type year_month_day for which ymd.ok() is true,
@@ -59,8 +59,8 @@ int main(int, char**)
     }
 
 
-//  There's one more leap day between 1/1/40 and 1/1/70
-//  when compared to 1/1/70 -> 1/1/2000
+    //  There's one more leap day between 1/1/40 and 1/1/70
+    //  when compared to 1/1/70 -> 1/1/2000
     {
     constexpr sys_days sd{days{-10957}};
     constexpr year_month_day ymd{sd};
@@ -81,5 +81,5 @@ int main(int, char**)
     assert( ymd.day()   == day{29});
     }
 
-  return 0;
+    return 0;
 }

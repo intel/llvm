@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_DomainSocket_h_
-#define liblldb_DomainSocket_h_
+#ifndef LLDB_HOST_POSIX_DOMAINSOCKET_H
+#define LLDB_HOST_POSIX_DOMAINSOCKET_H
 
 #include "lldb/Host/Socket.h"
 
@@ -20,15 +20,18 @@ public:
   Status Listen(llvm::StringRef name, int backlog) override;
   Status Accept(Socket *&socket) override;
 
+  std::string GetRemoteConnectionURI() const override;
+
 protected:
   DomainSocket(SocketProtocol protocol, bool child_processes_inherit);
 
   virtual size_t GetNameOffset() const;
   virtual void DeleteSocketFile(llvm::StringRef name);
+  std::string GetSocketName() const;
 
 private:
   DomainSocket(NativeSocket socket, const DomainSocket &listen_socket);
 };
 }
 
-#endif // ifndef liblldb_DomainSocket_h_
+#endif // LLDB_HOST_POSIX_DOMAINSOCKET_H

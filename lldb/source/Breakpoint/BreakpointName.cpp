@@ -1,4 +1,4 @@
-//===-- BreakpointName.cpp --------------------------------------*- C++ -*-===//
+//===-- BreakpointName.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -81,6 +81,6 @@ bool BreakpointName::GetDescription(Stream *s, lldb::DescriptionLevel level) {
 
 void BreakpointName::ConfigureBreakpoint(lldb::BreakpointSP bp_sp)
 {
-   bp_sp->GetOptions()->CopyOverSetOptions(GetOptions());
-   bp_sp->GetPermissions().MergeInto(GetPermissions());
+  bp_sp->GetOptions().CopyOverSetOptions(GetOptions());
+  bp_sp->GetPermissions().MergeInto(GetPermissions());
 }

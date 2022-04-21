@@ -16,6 +16,7 @@
 #include <istream>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 template <class CharT>
@@ -56,6 +57,7 @@ int main(int, char**)
         assert(is.eof());
         assert(!is.fail());
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         testbuf<wchar_t> sb(L"  Sat Dec 31 23:55:59 2061");
         std::wistream is(&sb);
@@ -72,6 +74,7 @@ int main(int, char**)
         assert(is.eof());
         assert(!is.fail());
     }
+#endif
 
   return 0;
 }

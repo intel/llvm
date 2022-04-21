@@ -55,8 +55,7 @@ namespace PR6031 {
   struct NoDepBase {
     int foo() {
       class NoDepBase::Nested nested; // expected-error{{no class named 'Nested' in 'NoDepBase<T>'}}
-      typedef typename NoDepBase::template MemberTemplate<T>::type type; // expected-error{{no member named 'MemberTemplate' in 'NoDepBase<T>'}} \
-      // FIXME: expected-error{{unqualified-id}}
+      typedef typename NoDepBase::template MemberTemplate<T>::type type; // expected-error{{no member named 'MemberTemplate' in 'NoDepBase<T>'}}
       return NoDepBase::a; // expected-error{{no member named 'a' in 'NoDepBase<T>'}}
     }
   };
@@ -65,11 +64,11 @@ namespace PR6031 {
 namespace Ambig {
   template<typename T>
   struct Base1 {
-    typedef int type; // expected-note{{member found by ambiguous name lookup}}
+    typedef int type; // expected-note{{member type 'int' found by ambiguous name lookup}}
   };
 
   struct Base2 {
-    typedef float type; // expected-note{{member found by ambiguous name lookup}}
+    typedef float type; // expected-note{{member type 'float' found by ambiguous name lookup}}
   };
 
   template<typename T>
@@ -103,10 +102,7 @@ namespace PR6081 {
     template< class X >
     void f0(const X & k)
     {
-      this->template f1<int>()(k); // expected-error{{no member named 'f1' in 'C<T>'}} \
-      // FIXME: expected-error{{unqualified-id}} \
-      // expected-error{{function-style cast or type construction}} \
-      // expected-error{{expected expression}}
+      this->template f1<int>()(k); // expected-error{{no member named 'f1' in 'C<T>'}}
     }
   };
 }

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple i386-unknown-unknown %s -emit-llvm -o - -fblocks | FileCheck %s
+// RUN: %clang_cc1 -triple i386-unknown-unknown %s -emit-llvm -Wno-strict-prototypes -o - -fblocks | FileCheck %s
 
 // CHECK: %[[STRUCT_BLOCK_DESCRIPTOR:.*]] = type { i32, i32 }
 
@@ -18,7 +18,7 @@ struct s0 {
   int a[64];
 };
 
-// CHECK: define internal void @__f2_block_invoke(%struct.s0* noalias sret {{%.*}}, i8* {{%.*}}, %struct.s0* byval align 4 {{.*}})
+// CHECK: define internal void @__f2_block_invoke(%struct.s0* noalias sret(%struct.s0) align 4 {{%.*}}, i8* noundef {{%.*}}, %struct.s0* noundef byval(%struct.s0) align 4 {{.*}})
 struct s0 f2(struct s0 a0) {
   return ^(struct s0 a1){ return a1; }(a0);
 }
@@ -33,7 +33,7 @@ void (^test1)(void) = ^(void) {
   ^ { i = 1; }();
 };
 
-// CHECK-LABEL: define linkonce_odr hidden void @__copy_helper_block_4_20r(i8*, i8*) unnamed_addr
+// CHECK-LABEL: define linkonce_odr hidden void @__copy_helper_block_4_20r(i8* noundef %0, i8* noundef %1) unnamed_addr
 // CHECK: %[[_ADDR:.*]] = alloca i8*, align 4
 // CHECK-NEXT: %[[_ADDR1:.*]] = alloca i8*, align 4
 // CHECK-NEXT: store i8* %0, i8** %[[_ADDR]], align 4
@@ -49,7 +49,7 @@ void (^test1)(void) = ^(void) {
 // CHECK-NEXT: call void @_Block_object_assign(i8* %[[V6]], i8* %[[BLOCKCOPY_SRC]], i32 8)
 // CHECK-NEXT: ret void
 
-// CHECK-LABEL: define linkonce_odr hidden void @__destroy_helper_block_4_20r(i8*) unnamed_addr
+// CHECK-LABEL: define linkonce_odr hidden void @__destroy_helper_block_4_20r(i8* noundef %0) unnamed_addr
 // CHECK: %[[_ADDR:.*]] = alloca i8*, align 4
 // CHECK-NEXT: store i8* %0, i8** %[[_ADDR]], align 4
 // CHECK-NEXT: %[[V1:.*]] = load i8*, i8** %[[_ADDR]], align 4
@@ -68,7 +68,7 @@ ftype ^test2 = ^ftype {
 
 // rdar://problem/8605032
 void f3_helper(void (^)(void));
-void f3() {
+void f3(void) {
   _Bool b = 0;
   f3_helper(^{ if (b) {} });
 }
@@ -77,7 +77,7 @@ void f3() {
 // The bool can fill in between the header and the long long.
 // Add the appropriate amount of padding between them.
 void f4_helper(long long (^)(void));
-// CHECK-LABEL: define void @f4()
+// CHECK-LABEL: define{{.*}} void @f4()
 void f4(void) {
   _Bool b = 0;
   long long ll = 0;
@@ -92,7 +92,7 @@ struct F5 {
   char buffer[32] __attribute((aligned));
 };
 void f5_helper(void (^)(struct F5 *));
-// CHECK-LABEL: define void @f5()
+// CHECK-LABEL: define{{.*}} void @f5()
 void f5(void) {
   struct F5 value;
   // CHECK: alloca <{ i8*, i32, i32, i8*, {{%.*}}*, [12 x i8], [[F5:%.*]] }>, align 16
@@ -101,7 +101,7 @@ void f5(void) {
 
 // rdar://14085217
 void (^b)() = ^{};
-int main() {
+int main(void) {
    (b?: ^{})();
 }
 // CHECK: [[ZERO:%.*]] = load void (...)*, void (...)** @b
@@ -112,12 +112,12 @@ int main() {
 
 // Ensure that we don't emit helper code in copy/dispose routines for variables
 // that are const-captured.
-void testConstCaptureInCopyAndDestroyHelpers() {
+void testConstCaptureInCopyAndDestroyHelpers(void) {
   const int x = 0;
   __block int i;
   (^ { i = x; })();
 }
-// CHECK-LABEL: define void @testConstCaptureInCopyAndDestroyHelpers(
+// CHECK-LABEL: define{{.*}} void @testConstCaptureInCopyAndDestroyHelpers(
 // CHECK: %[[BLOCK_DESCRIPTOR:.*]] = getelementptr inbounds <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>, <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>* %{{.*}}, i32 0, i32 4
 // CHECK: store %[[STRUCT_BLOCK_DESCRIPTOR]]* bitcast ({ i32, i32, i8*, i8*, i8*, i8* }* @[[BLOCK_DESCRIPTOR_TMP21]] to %[[STRUCT_BLOCK_DESCRIPTOR]]*), %[[STRUCT_BLOCK_DESCRIPTOR]]** %[[BLOCK_DESCRIPTOR]], align 4
 

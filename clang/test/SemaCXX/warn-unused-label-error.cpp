@@ -12,15 +12,15 @@ namespace PR8455 {
 
   void g() {
     C: // unused label 'C' will not appear here because an error has occurred
-      __attribute__((unused))
-      #pragma weak unused_local_static  // expected-error {{expected ';' after __attribute__}}
+      __attribute__((unused)) // expected-error {{an attribute list cannot appear here}}
+      #pragma weak unused_local_static
       ;
   }
 
   void h() {
-    D: // expected-warning {{unused label 'D'}}
-      #pragma weak unused_local_static
-      __attribute__((unused))  // expected-warning {{declaration does not declare anything}}
-      ;
+  D:
+#pragma weak unused_local_static
+    __attribute__((unused)) // expected-error {{'unused' attribute cannot be applied to a statement}}
+    ;
   }
 }

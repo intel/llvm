@@ -69,19 +69,12 @@ public:
     return Lanai::NumTargetFixupKinds;
   }
 
-  bool mayNeedRelaxation(const MCInst & /*Inst*/,
-                         const MCSubtargetInfo &STI) const override {
-    return false;
-  }
-
-  void relaxInstruction(const MCInst & /*Inst*/,
-                        const MCSubtargetInfo & /*STI*/,
-                        MCInst & /*Res*/) const override {}
-
-  bool writeNopData(raw_ostream &OS, uint64_t Count) const override;
+  bool writeNopData(raw_ostream &OS, uint64_t Count,
+                    const MCSubtargetInfo *STI) const override;
 };
 
-bool LanaiAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
+bool LanaiAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
+                                   const MCSubtargetInfo *STI) const {
   if ((Count % 4) != 0)
     return false;
 

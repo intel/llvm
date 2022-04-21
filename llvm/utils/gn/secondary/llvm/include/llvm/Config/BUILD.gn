@@ -1,7 +1,11 @@
 import("//llvm/lib/DebugInfo/PDB/enable_dia.gni")
 import("//llvm/lib/Target/targets.gni")
+import("//llvm/lib/Target/targets_with_asm_parsers.gni")
+import("//llvm/lib/Target/targets_with_disassemblers.gni")
+import("//llvm/lib/Target/targets_with_mcas.gni")
 import("//llvm/triples.gni")
 import("//llvm/utils/gn/build/buildflags.gni")
+import("//llvm/utils/gn/build/libs/curl/enable.gni")
 import("//llvm/utils/gn/build/libs/edit/enable.gni")
 import("//llvm/utils/gn/build/libs/pthread/enable.gni")
 import("//llvm/utils/gn/build/libs/terminfo/enable.gni")
@@ -43,6 +47,10 @@ declare_args() {
 
   # Iterate unordered llvm containers in reverse.
   llvm_enable_reverse_iteration = false
+
+  # glibc is at least 2.33 which has mallinfo2.
+  # TODO: remove this once nobody using the gn build is building against an old glibc.
+  llvm_have_mallinfo2 = false
 }
 
 write_cmake_config("abi-breaking") {
@@ -64,14 +72,12 @@ write_cmake_config("abi-breaking") {
 }
 
 write_cmake_config("config") {
-  public_deps = [
-    ":llvm-config",
-  ]
+  public_deps = [ ":llvm-config" ]
 
   input = "config.h.cmake"
   output = "$target_gen_dir/config.h"
   values = [
-    "BUG_REPORT_URL=https://bugs.llvm.org/",
+    "BUG_REPORT_URL=https://github.com/llvm/llvm-project/issues/",
     "ENABLE_BACKTRACES=1",
     "ENABLE_CRASH_OVERRIDES=1",
     "BACKTRACE_HEADER=execinfo.h",
@@ -113,25 +119,26 @@ write_cmake_config("config") {
     "HAVE____CHKSTK=",
     "HAVE____CHKSTK_MS=",
     "HOST_LINK_VERSION=",
+    "LIBPFM_HAS_FIELD_CYCLES=",
     "LLVM_TARGET_TRIPLE_ENV=",
     "LLVM_VERSION_INFO=",
     "LLVM_VERSION_PRINTER_SHOW_HOST_TARGET_INFO=1",
-    "PACKAGE_BUGREPORT=https://bugs.llvm.org/",
+    "LLVM_WINDOWS_PREFER_FORWARD_SLASH=",
+    "PACKAGE_BUGREPORT=https://github.com/llvm/llvm-project/issues/",
     "PACKAGE_NAME=LLVM",
-    "PACKAGE_STRING=LLVM ${llvm_version}svn",
-    "PACKAGE_VERSION=${llvm_version}svn",
+    "PACKAGE_STRING=LLVM ${llvm_version}git",
+    "PACKAGE_VERSION=${llvm_version}git",
     "PACKAGE_VENDOR=",
     "RETSIGTYPE=void",
     "LLVM_GISEL_COV_ENABLED=",
     "LLVM_GISEL_COV_PREFIX=",
-    "LLVM_WITH_Z3=",
-
-    # FIXME: Set to 1 on mac once the 10.14 SDK is in common use.
-    "LLVM_SUPPORT_XCODE_SIGNPOSTS=",
 
     # This is both in llvm-config.h and config.h; llvm-config.h doesn't
     # define it if it's not set while config.h defines it to empty in that case.
     "LLVM_DEFAULT_TARGET_TRIPLE=$llvm_target_triple",
+
+    # FIXME: Set to 1 on mac once the 10.14 SDK is in common use.
+    "LLVM_SUPPORT_XCODE_SIGNPOSTS=",
   ]
 
   if (current_os == "linux" || current_os == "android") {
@@ -140,9 +147,6 @@ write_cmake_config("config") {
       "HAVE_LINK_H=1",
       "HAVE_LSEEK64=1",
       "HAVE_MALLINFO=1",
-      "HAVE_POSIX_FALLOCATE=1",
-      "HAVE_SCHED_GETAFFINITY=1",
-      "HAVE_CPU_COUNT=1",
       "HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC=1",
     ]
   } else {
@@ -151,9 +155,6 @@ write_cmake_config("config") {
       "HAVE_LINK_H=",
       "HAVE_LSEEK64=",
       "HAVE_MALLINFO=",
-      "HAVE_POSIX_FALLOCATE=",
-      "HAVE_SCHED_GETAFFINITY=",
-      "HAVE_CPU_COUNT=",
       "HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC=",
     ]
   }
@@ -166,7 +167,9 @@ write_cmake_config("config") {
       "HAVE_MACH_MACH_H=1",
       "HAVE_MALLOC_MALLOC_H=1",
       "HAVE_MALLOC_ZONE_STATISTICS=1",
+      "HAVE_PROC_PID_RUSAGE=1",
       "HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC=1",
+      "HAVE_UNW_ADD_DYNAMIC_FDE=1",
     ]
   } else {
     values += [
@@ -176,7 +179,9 @@ write_cmake_config("config") {
       "HAVE_MACH_MACH_H=",
       "HAVE_MALLOC_MALLOC_H=",
       "HAVE_MALLOC_ZONE_STATISTICS=",
+      "HAVE_PROC_PID_RUSAGE=",
       "HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC=",
+      "HAVE_UNW_ADD_DYNAMIC_FDE=",
     ]
   }
 
@@ -194,6 +199,18 @@ write_cmake_config("config") {
     ]
   }
 
+  if (current_os == "win" || current_cpu == "arm") {
+    values += [
+      "HAVE_DEREGISTER_FRAME=",
+      "HAVE_REGISTER_FRAME=",
+    ]
+  } else {
+    values += [
+      "HAVE_DEREGISTER_FRAME=1",
+      "HAVE_REGISTER_FRAME=1",
+    ]
+  }
+
   if (current_os == "win") {
     values += [
       "HAVE_DECL_STRERROR_S=1",
@@ -206,7 +223,6 @@ write_cmake_config("config") {
       "HAVE_ISATTY=",
       "HAVE_LIBPTHREAD=",
       "HAVE_PTHREAD_SETNAME_NP=",
-      "HAVE_LIBZ=",
       "HAVE_PREAD=",
       "HAVE_PTHREAD_GETSPECIFIC=",
       "HAVE_PTHREAD_H=",
@@ -225,7 +241,6 @@ write_cmake_config("config") {
       "HAVE_SYS_TIME_H=",
       "HAVE_TERMIOS_H=",
       "HAVE_UNISTD_H=",
-      "HAVE_ZLIB_H=",
       "HAVE__CHSIZE_S=1",
       "HAVE__UNWIND_BACKTRACE=",
       "stricmp=_stricmp",
@@ -244,7 +259,6 @@ write_cmake_config("config") {
       "HAVE_ISATTY=1",
       "HAVE_LIBPTHREAD=1",
       "HAVE_PTHREAD_SETNAME_NP=1",
-      "HAVE_LIBZ=1",
       "HAVE_PREAD=1",
       "HAVE_PTHREAD_GETSPECIFIC=1",
       "HAVE_PTHREAD_H=1",
@@ -263,7 +277,6 @@ write_cmake_config("config") {
       "HAVE_SYS_TIME_H=1",
       "HAVE_TERMIOS_H=1",
       "HAVE_UNISTD_H=1",
-      "HAVE_ZLIB_H=1",
       "HAVE__CHSIZE_S=",
       "HAVE__UNWIND_BACKTRACE=1",
       "stricmp=",
@@ -272,12 +285,16 @@ write_cmake_config("config") {
   }
 
   if (current_os == "mac") {
-    values += [ "LTDL_SHLIB_EXT=.dylib" ]
+    shlib_ext = ".dylib"
   } else if (current_os == "win") {
-    values += [ "LTDL_SHLIB_EXT=.dll" ]
+    shlib_ext = ".dll"
   } else {
-    values += [ "LTDL_SHLIB_EXT=.so" ]
+    shlib_ext = ".so"
   }
+  values += [
+    "LLVM_PLUGIN_EXT=$shlib_ext",
+    "LTDL_SHLIB_EXT=$shlib_ext",
+  ]
 
   if (llvm_enable_libedit) {
     values += [ "HAVE_LIBEDIT=1" ]
@@ -285,16 +302,10 @@ write_cmake_config("config") {
     values += [ "HAVE_LIBEDIT=" ]
   }
 
-  if (llvm_enable_libxar) {
-    values += [ "HAVE_LIBXAR=1" ]
-  } else {
-    values += [ "HAVE_LIBXAR=" ]
-  }
-
   if (llvm_enable_terminfo) {
-    values += [ "HAVE_TERMINFO=1" ]
+    values += [ "LLVM_ENABLE_TERMINFO=1" ]
   } else {
-    values += [ "HAVE_TERMINFO=" ]
+    values += [ "LLVM_ENABLE_TERMINFO=" ]
   }
 
   if (llvm_enable_dia_sdk) {
@@ -303,16 +314,16 @@ write_cmake_config("config") {
     values += [ "LLVM_ENABLE_DIA_SDK=" ]
   }
 
-  if (llvm_enable_zlib) {
-    values += [ "LLVM_ENABLE_ZLIB=1" ]
+  if (llvm_enable_libxml2) {
+    values += [ "LLVM_ENABLE_LIBXML2=1" ]
   } else {
-    values += [ "LLVM_ENABLE_ZLIB=" ]
+    values += [ "LLVM_ENABLE_LIBXML2=" ]
   }
 
-  if (llvm_enable_libxml2) {
-    values += [ "LLVM_LIBXML2_ENABLED=1" ]
+  if (llvm_have_mallinfo2) {
+    values += [ "HAVE_MALLINFO2=1" ]
   } else {
-    values += [ "LLVM_LIBXML2_ENABLED=" ]
+    values += [ "HAVE_MALLINFO2=" ]
   }
 }
 
@@ -320,10 +331,15 @@ write_cmake_config("llvm-config") {
   input = "llvm-config.h.cmake"
   output = "$target_gen_dir/llvm-config.h"
   values = [
-    "LLVM_ENABLE_DUMP=",
-    "LINK_POLLY_INTO_TOOLS=",
+    "LLVM_BUILD_LLVM_DYLIB=",
+    "LLVM_BUILD_SHARED_LIBS=",
     "LLVM_DEFAULT_TARGET_TRIPLE=$llvm_target_triple",
+    "LLVM_ENABLE_DUMP=",
+    "LLVM_ENABLE_NEW_PASS_MANAGER=1",
+    "LLVM_FORCE_ENABLE_STATS=",
+    "LLVM_FORCE_USE_OLD_TOOLCHAIN=",
     "LLVM_HAS_ATOMICS=1",
+    "LLVM_HAVE_TF_API=",
     "LLVM_HOST_TRIPLE=$llvm_current_triple",
     "LLVM_NATIVE_ARCH=$native_target",
     "LLVM_NATIVE_ASMPARSER=1",
@@ -332,26 +348,52 @@ write_cmake_config("llvm-config") {
     "LLVM_NATIVE_TARGET=1",
     "LLVM_NATIVE_TARGETINFO=1",
     "LLVM_NATIVE_TARGETMC=1",
+    "LLVM_NATIVE_TARGETMCA=1",
+    "LLVM_UNREACHABLE_OPTIMIZE=1",
     "LLVM_USE_INTEL_JITEVENTS=",
     "LLVM_USE_OPROFILE=",
     "LLVM_USE_PERF=",
     "LLVM_VERSION_MAJOR=$llvm_version_major",
     "LLVM_VERSION_MINOR=$llvm_version_minor",
     "LLVM_VERSION_PATCH=$llvm_version_patch",
-    "PACKAGE_VERSION=${llvm_version}svn",
-    "LLVM_FORCE_ENABLE_STATS=",
+    "LLVM_WITH_Z3=",
+    "PACKAGE_VERSION=${llvm_version}git",
   ]
 
   if (current_os == "win") {
-    values += [ "LLVM_ON_UNIX=" ]
+    values += [
+      "HAVE_SYSEXITS_H=",
+      "LLVM_ON_UNIX=",
+    ]
   } else {
-    values += [ "LLVM_ON_UNIX=1" ]
+    values += [
+      "HAVE_SYSEXITS_H=1",
+      "LLVM_ON_UNIX=1",
+    ]
+  }
+
+  if (llvm_enable_libxar) {
+    values += [ "LLVM_HAVE_LIBXAR=1" ]
+  } else {
+    values += [ "LLVM_HAVE_LIBXAR=" ]
   }
 
   if (llvm_enable_threads) {
     values += [ "LLVM_ENABLE_THREADS=1" ]
   } else {
     values += [ "LLVM_ENABLE_THREADS=" ]
+  }
+
+  if (llvm_enable_zlib) {
+    values += [ "LLVM_ENABLE_ZLIB=1" ]
+  } else {
+    values += [ "LLVM_ENABLE_ZLIB=" ]
+  }
+
+  if (llvm_enable_libcurl) {
+    values += [ "LLVM_ENABLE_CURL=1" ]
+  } else {
+    values += [ "LLVM_ENABLE_CURL=" ]
   }
 }
 
@@ -367,13 +409,22 @@ template("write_target_def_file") {
     input = "$target_name.in"
     output = "$target_gen_dir/$target_name"
 
+    if (defined(invoker.all_targets)) {
+      all_targets = invoker.all_targets
+    } else {
+      all_targets = llvm_targets_to_build
+    }
+
     # Build something like
     # `LLVM_ENUM_ASM_PARSERS=LLVM_ASM_PARSER(ARM)\nLLVM_ASM_PARSER(X86)\n`. Note
     # that \n is a literal '\' followed by a literal 'n', not a newline
     # character.  (write_cmake_config.py replaces that with a real newline).
     value = ""
-    foreach(target, llvm_targets_to_build) {
+    foreach(target, all_targets) {
       value = "$value${invoker.value}($target)\n"
+    }
+    if (all_targets == []) {
+      not_needed(invoker, [ "value" ])
     }
     values = [ "${invoker.key}=$value" ]
   }
@@ -382,6 +433,7 @@ template("write_target_def_file") {
 write_target_def_file("AsmParsers.def") {
   key = "LLVM_ENUM_ASM_PARSERS"
   value = "LLVM_ASM_PARSER"
+  all_targets = targets_with_asm_parsers
 }
 
 write_target_def_file("AsmPrinters.def") {
@@ -392,11 +444,18 @@ write_target_def_file("AsmPrinters.def") {
 write_target_def_file("Disassemblers.def") {
   key = "LLVM_ENUM_DISASSEMBLERS"
   value = "LLVM_DISASSEMBLER"
+  all_targets = targets_with_disassemblers
 }
 
 write_target_def_file("Targets.def") {
   key = "LLVM_ENUM_TARGETS"
   value = "LLVM_TARGET"
+}
+
+write_target_def_file("TargetMCAs.def") {
+  key = "LLVM_ENUM_TARGETMCAS"
+  value = "LLVM_TARGETMCA"
+  all_targets = targets_with_mcas
 }
 
 group("write_target_def_files") {
@@ -408,6 +467,7 @@ group("write_target_def_files") {
     ":AsmParsers.def",
     ":AsmPrinters.def",
     ":Disassemblers.def",
+    ":TargetMCAs.def",
     ":Targets.def",
   ]
 }

@@ -1,4 +1,4 @@
-//===--------------------- TildeExpressionResolver.cpp ----------*- C++ -*-===//
+//===-- TildeExpressionResolver.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,7 @@
 
 #include "lldb/Utility/TildeExpressionResolver.h"
 
-#include <assert.h>
+#include <cassert>
 #include <system_error>
 
 #include "llvm/ADT/STLExtras.h"
@@ -27,7 +27,7 @@ using namespace llvm;
 namespace fs = llvm::sys::fs;
 namespace path = llvm::sys::path;
 
-TildeExpressionResolver::~TildeExpressionResolver() {}
+TildeExpressionResolver::~TildeExpressionResolver() = default;
 
 bool StandardTildeExpressionResolver::ResolveExact(
     StringRef Expr, SmallVectorImpl<char> &Output) {
@@ -75,9 +75,8 @@ bool StandardTildeExpressionResolver::ResolvePartial(StringRef Expr,
 
 bool TildeExpressionResolver::ResolveFullPath(
     StringRef Expr, llvm::SmallVectorImpl<char> &Output) {
-  Output.clear();
   if (!Expr.startswith("~")) {
-    Output.append(Expr.begin(), Expr.end());
+    Output.assign(Expr.begin(), Expr.end());
     return false;
   }
 
@@ -85,8 +84,10 @@ bool TildeExpressionResolver::ResolveFullPath(
   StringRef Left =
       Expr.take_until([](char c) { return path::is_separator(c); });
 
-  if (!ResolveExact(Left, Output))
+  if (!ResolveExact(Left, Output)) {
+    Output.assign(Expr.begin(), Expr.end());
     return false;
+  }
 
   Output.append(Expr.begin() + Left.size(), Expr.end());
   return true;

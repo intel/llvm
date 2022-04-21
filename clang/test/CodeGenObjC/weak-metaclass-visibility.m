@@ -24,14 +24,14 @@ __attribute__((availability(macosx,introduced=9876.5)))
 }
 @end
 
-void kit()
+void kit(void)
 {
     MyClass *wrapper = [MyClass alloc];
 }
 
-// CHECK: @"OBJC_CLASS_$_MyClass" = global %struct._class_t
+// CHECK: @"OBJC_CLASS_$_MyClass" ={{.*}} global %struct._class_t
 // CHECK: @"OBJC_METACLASS_$_NSObject" = external global %struct._class_t
-// CHECK: @"OBJC_METACLASS_$_MyClass" = global %struct._class_t
+// CHECK: @"OBJC_METACLASS_$_MyClass" ={{.*}} global %struct._class_t
 // CHECK: @"OBJC_CLASS_$_NSObject" = external global %struct._class_t
 
 // rdar://16529125
@@ -56,5 +56,5 @@ __attribute__((visibility("default"))) __attribute__((availability(ios,introduce
 @implementation AVScheduledAudioParameters @end
 @implementation XXXX @end
 
-// CHECK: @"OBJC_CLASS_$_AVScheduledAudioParameters" = global %struct._class_t
-// CHECK: @"OBJC_METACLASS_$_AVScheduledAudioParameters" = global %struct._class_t 
+// CHECK: @"OBJC_CLASS_$_AVScheduledAudioParameters" ={{.*}} global %struct._class_t
+// CHECK: @"OBJC_METACLASS_$_AVScheduledAudioParameters" ={{.*}} global %struct._class_t 

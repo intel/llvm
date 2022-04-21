@@ -7,12 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++03, c++11, c++14
+
 #include "support/pstl_test_config.h"
 
 #include <execution>
 #include <algorithm>
 #include <set>
-#include <cassert>
 #include <cmath>
 
 #include "support/utils.h"
@@ -172,7 +173,7 @@ struct test_non_const
     }
 };
 
-int32_t
+int
 main()
 {
     using TestUtils::float64_t;

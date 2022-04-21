@@ -3,6 +3,16 @@
 # header file spirv.hpp.
 #
 
+# The NameMaps that will be generated into SPIRVNameMapEnum.h
+nameMapEnums="LinkageType Decoration BuiltIn Capability"
+
+# The isValid functions that will be generated into SPIRVIsValidEnum.h
+isValidEnums="ExecutionModel AddressingModel MemoryModel StorageClass \
+              LinkageType AccessQualifier FunctionParameterAttribute BuiltIn"
+
+# The isValidxxxMask functions that will be generated into SPIRVIsValidEnum.h
+isValidMaskEnums="FunctionControlMask"
+
 
 ######################
 #
@@ -12,11 +22,14 @@
 
 genNameMap() {
 prefix=$1
-echo "template<> inline void
-SPIRVMap<$prefix, std::string>::init() {"
+echo "template <> inline void SPIRVMap<$prefix, std::string>::init() {"
 
 cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\([0x]*[0-9][0-9]*\).*:\1 \2:p"  | while read a b; do
-  printf "  add(${prefix}%s, \"%s\");\n" $a $a
+  stringRep="$a"
+  if [[ $prefix == "BuiltIn" ]]; then
+    stringRep="BuiltIn$a"
+  fi
+  printf "  add(${prefix}%s, \"%s\");\n" "$a" "$stringRep"
 done
 
 echo "}
@@ -32,20 +45,27 @@ SPIRV_DEF_NAMEMAP($prefix, SPIRV${prefix}NameMap)
 ###########################
 genIsValid() {
 prefix=$1
-echo "inline bool
-isValid(spv::$prefix V) {
-  switch(V) {"
+echo "inline bool isValid(spv::$prefix V) {
+  switch (V) {"
 
+  prevValue=
   cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\(.*\).*:\1 \2:p"  | while read a b; do
-  if [[ $a == CapabilityNone ]]; then
-    continue
-  fi
-  printf "    case ${prefix}%s:\n" $a
-done
+    if [[ "$a" == "Max" ]]; then
+      # The "Max" enum value is not valid.
+      continue
+    fi
+    if [[ "$b" == "$prevValue" ]]; then
+      # This enum value is an alias for the previous.  Skip to avoid duplicate case values.
+      continue
+    fi
 
-echo "      return true;
-    default:
-      return false;
+    printf "  case ${prefix}%s:\n" "$a"
+    prevValue=$b
+  done
+
+echo "    return true;
+  default:
+    return false;
   }
 }
 "
@@ -53,8 +73,7 @@ echo "      return true;
 genMaskIsValid() {
 prefix=$1
 subprefix=`echo $prefix | sed -e "s:Mask::g"`
-echo "inline bool
-isValid$prefix(SPIRVWord Mask) {
+echo "inline bool isValid$prefix(SPIRVWord Mask) {
   SPIRVWord ValidMask = 0u;"
 
   cat $spirvHeader | sed -n -e "/^ *${subprefix}[^a-z]/s:^ *${subprefix}\([^= ][^= ]*\)Mask[= ][= ]*\(.*\).*:\1 \2:p"  | while read a b; do
@@ -70,80 +89,32 @@ echo "
 "
 }
 
-##############################
-#
-# generate entries for td file
-#
-##############################
-genTd() {
-prefix=$1
-
-if [[ $prefix == "Capability" ]]; then
-  echo "class SPIRV${prefix}_ {"
-else
-  echo "def SPIRV${prefix} : Operand<i32> {
-  let PrintMethod = \"printSPIRV${prefix}\";
-"
-fi
-
-cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\([0xX]*[0-9a-fA-F][0-9a-fA-F]*\).*:\1 \2:p"  | while read a b; do
-  if [[ $a == CapabilityNone ]]; then
-    continue
-  fi
-  printf "  int %s = %s;\n" $a $b
-done
-
-if [[ $prefix == "Capability" ]]; then
-  echo "}
-def SPIRV${prefix} : SPIRV${prefix}_;
-"
-else 
-  echo "}
-"
-fi
-}
-
 gen() {
 type=$1
-for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel ExecutionMode StorageClass Dim SamplerAddressingMode SamplerFilterMode ImageFormat \
-  ImageChannelOrder ImageChannelDataType FPRoundingMode LinkageType AccessQualifier FunctionParameterAttribute Decoration BuiltIn Scope GroupOperation \
-  KernelEnqueueFlags Capability Op; do
-  if [[ "$type" == NameMap ]]; then
-    genNameMap $prefix
-  elif [[ "$type" == isValid ]]; then
-    genIsValid $prefix
-  elif [[ "$type" == td ]]; then
-    genTd $prefix
-  else
-    echo "invalid type \"$type\"."
-    exit
-  fi
-done
-for prefix in ImageOperandsMask FPFastMathModeMask SelectionControlMask LoopControlMask FunctionControlMask MemorySemanticsMask MemoryAccessMask \
-  KernelProfilingInfoMask; do
-  if [[ "$type" == isValid ]]; then
-    genMaskIsValid $prefix
-  fi
-done
-}
-
-####################
-#
-# main
-#
-####################
-
-if [[ $# -ne 3 ]]; then
-  echo "usage: gen_spirv path_to_spirv.hpp [NameMap|isValid|td] output_file"
+if [[ "$type" == NameMap ]]; then
+  for prefix in ${nameMapEnums} ; do
+    genNameMap "$prefix"
+  done
+elif [[ "$type" == isValid ]]; then
+  for prefix in ${isValidEnums} ; do
+    genIsValid "$prefix"
+  done
+  for prefix in ${isValidMaskEnums} ; do
+    genMaskIsValid "$prefix"
+  done
+else
+  echo "invalid type \"$type\"."
   exit
 fi
+}
 
-spirvHeader=$1
-type=$2
-outputFile=$3
-includeGuard="`echo ${outputFile} | tr '[:lower:]' '[:upper:]' | sed -e 's/\./_/g'`_"
+genFile() {
+  outputFile=$1
+  genType=$2
+  outputBasename="$(basename ${outputFile})"
+  includeGuard="SPIRV_LIBSPIRV_`echo ${outputBasename} | tr '[:lower:]' '[:upper:]' | sed -e 's/[\.\/]/_/g'`"
 
-echo "//===- ${outputFile} - SPIR-V ${type} enums ----------------*- C++ -*-===//
+  echo "//===- ${outputBasename} - SPIR-V ${genType} enums ----------------*- C++ -*-===//
 //
 //                     The LLVM/SPIRV Translator
 //
@@ -178,7 +149,7 @@ echo "//===- ${outputFile} - SPIR-V ${type} enums ----------------*- C++ -*-===/
 //===----------------------------------------------------------------------===//
 /// \\file
 ///
-/// This file defines SPIR-V ${type} enums.
+/// This file defines SPIR-V ${genType} enums.
 ///
 //===----------------------------------------------------------------------===//
 // WARNING:
@@ -191,16 +162,33 @@ echo "//===- ${outputFile} - SPIR-V ${type} enums ----------------*- C++ -*-===/
 #ifndef ${includeGuard}
 #define ${includeGuard}
 
-#include \"spirv.hpp\"
 #include \"SPIRVEnum.h\"
+#include \"spirv.hpp\"
+#include \"spirv_internal.hpp\"
 
 using namespace spv;
 
 namespace SPIRV {
 " > ${outputFile}
 
-gen $type >> ${outputFile}
+  gen $genType >> ${outputFile}
 
-echo "} /* namespace SPIRV */
+  echo "} /* namespace SPIRV */
 
-#endif /* ${includeGuard} */" >> ${outputFile}
+#endif // ${includeGuard}" >> ${outputFile}
+}
+
+####################
+#
+# main
+#
+####################
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: gen_spirv path_to_spirv.hpp"
+  exit
+fi
+
+spirvHeader=$1
+genFile "lib/SPIRV/libSPIRV/SPIRVNameMapEnum.h" NameMap
+genFile "lib/SPIRV/libSPIRV/SPIRVIsValidEnum.h" isValid

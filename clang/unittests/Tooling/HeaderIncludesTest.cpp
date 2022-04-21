@@ -25,7 +25,7 @@ protected:
     assert(Header.startswith("\"") || Header.startswith("<"));
     auto R = Includes.insert(Header.trim("\"<>"), Header.startswith("<"));
     if (!R)
-      return Code;
+      return std::string(Code);
     auto Result = applyAllReplacements(Code, Replacements(*R));
     EXPECT_TRUE(static_cast<bool>(Result));
     return *Result;
@@ -40,7 +40,7 @@ protected:
     return *Result;
   }
 
-  const std::string FileName = "fix.cpp";
+  std::string FileName = "fix.cpp";
   IncludeStyle Style = format::getLLVMStyle().IncludeStyle;
 };
 
@@ -49,6 +49,15 @@ TEST_F(HeaderIncludesTest, NoExistingIncludeWithoutDefine) {
   std::string Expected = "#include \"a.h\"\n"
                          "int main() {}";
   EXPECT_EQ(Expected, insert(Code, "\"a.h\""));
+}
+
+TEST_F(HeaderIncludesTest, RepeatedIncludes) {
+  std::string Code;
+  for (int i = 0; i < 100; ++i) {
+    Code += "#include \"a.h\"\n";
+  }
+  std::string Expected = Code + "#include \"a2.h\"\n";
+  EXPECT_EQ(Expected, insert(Code, "\"a2.h\""));
 }
 
 TEST_F(HeaderIncludesTest, NoExistingIncludeWithDefine) {
@@ -102,6 +111,15 @@ TEST_F(HeaderIncludesTest, InsertAfterMainHeader) {
   Style = format::getGoogleStyle(format::FormatStyle::LanguageKind::LK_Cpp)
               .IncludeStyle;
   EXPECT_EQ(Expected, insert(Code, "<a>"));
+
+  FileName = "fix.cu.cpp";
+  EXPECT_EQ(Expected, insert(Code, "<a>"));
+
+  FileName = "fix_test.cu.cpp";
+  EXPECT_EQ(Expected, insert(Code, "<a>"));
+
+  FileName = "bar.cpp";
+  EXPECT_NE(Expected, insert(Code, "<a>")) << "Not main header";
 }
 
 TEST_F(HeaderIncludesTest, InsertBeforeSystemHeaderLLVM) {
@@ -345,6 +363,18 @@ TEST_F(HeaderIncludesTest, FakeHeaderGuard) {
                          "#ifndef X\n"
                          "#define 1\n";
   EXPECT_EQ(Expected, insert(Code, "<vector>"));
+}
+
+TEST_F(HeaderIncludesTest, FakeHeaderGuardIfnDef) {
+  std::string Code = "#ifndef A_H\n"
+                     "#define A_H 1\n"
+                     "#endif";
+  std::string Expected = "#include \"b.h\"\n"
+                         "#ifndef A_H\n"
+                         "#define A_H 1\n"
+                         "#endif";
+
+  EXPECT_EQ(Expected, insert(Code, "\"b.h\""));
 }
 
 TEST_F(HeaderIncludesTest, HeaderGuardWithComment) {

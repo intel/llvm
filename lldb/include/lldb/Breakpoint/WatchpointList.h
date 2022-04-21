@@ -6,14 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_WatchpointList_h_
-#define liblldb_WatchpointList_h_
+#ifndef LLDB_BREAKPOINT_WATCHPOINTLIST_H
+#define LLDB_BREAKPOINT_WATCHPOINTLIST_H
 
 #include <list>
 #include <mutex>
 #include <vector>
 
 #include "lldb/Core/Address.h"
+#include "lldb/Utility/Iterable.h"
 #include "lldb/lldb-private.h"
 
 namespace lldb_private {
@@ -36,6 +37,11 @@ public:
 
   /// Destructor, currently does nothing.
   ~WatchpointList();
+
+  typedef std::list<lldb::WatchpointSP> wp_collection;
+  typedef LockingAdaptedIterable<wp_collection, lldb::WatchpointSP,
+                                 vector_adapter, std::recursive_mutex>
+      WatchpointIterable;
 
   /// Add a Watchpoint to the list.
   ///
@@ -180,12 +186,15 @@ public:
 
   /// Sets the passed in Locker to hold the Watchpoint List mutex.
   ///
-  /// \param[in] locker
+  /// \param[in] lock
   ///   The locker object that is set.
   void GetListMutex(std::unique_lock<std::recursive_mutex> &lock);
 
+  WatchpointIterable Watchpoints() const {
+    return WatchpointIterable(m_watchpoints, m_mutex);
+  }
+
 protected:
-  typedef std::list<lldb::WatchpointSP> wp_collection;
   typedef std::vector<lldb::watch_id_t> id_vector;
 
   id_vector GetWatchpointIDs() const;
@@ -198,9 +207,9 @@ protected:
   wp_collection m_watchpoints;
   mutable std::recursive_mutex m_mutex;
 
-  lldb::watch_id_t m_next_wp_id;
+  lldb::watch_id_t m_next_wp_id = 0;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_WatchpointList_h_
+#endif // LLDB_BREAKPOINT_WATCHPOINTLIST_H

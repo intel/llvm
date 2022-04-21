@@ -1,5 +1,3 @@
-// REQUIRES: shell
-
 // RUN: rm -rf %t
 // RUN: mkdir %t
 
@@ -13,5 +11,5 @@
 
 #import <A/A.h>
 
-int bar() { return foo(); }
+int bar(void) { return foo(); }
 

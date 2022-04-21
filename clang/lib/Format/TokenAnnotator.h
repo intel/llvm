@@ -19,8 +19,6 @@
 #include "clang/Format/Format.h"
 
 namespace clang {
-class SourceManager;
-
 namespace format {
 
 enum LineType {
@@ -31,7 +29,8 @@ enum LineType {
   LT_ObjCProperty, // An @property line.
   LT_Other,
   LT_PreprocessorDirective,
-  LT_VirtualFunctionDecl
+  LT_VirtualFunctionDecl,
+  LT_ArrayOfStructInitializer,
 };
 
 class AnnotatedLine {
@@ -52,12 +51,9 @@ public:
     // left them in a different state.
     First->Previous = nullptr;
     FormatToken *Current = First;
-    for (std::list<UnwrappedLineNode>::const_iterator I = ++Line.Tokens.begin(),
-                                                      E = Line.Tokens.end();
-         I != E; ++I) {
-      const UnwrappedLineNode &Node = *I;
-      Current->Next = I->Tok;
-      I->Tok->Previous = Current;
+    for (const UnwrappedLineNode &Node : llvm::drop_begin(Line.Tokens)) {
+      Current->Next = Node.Tok;
+      Node.Tok->Previous = Current;
       Current = Current->Next;
       Current->Children.clear();
       for (const auto &Child : Node.Children) {
@@ -70,9 +66,8 @@ public:
   }
 
   ~AnnotatedLine() {
-    for (unsigned i = 0, e = Children.size(); i != e; ++i) {
-      delete Children[i];
-    }
+    for (AnnotatedLine *Child : Children)
+      delete Child;
     FormatToken *Current = First;
     while (Current) {
       Current->Children.clear();
@@ -114,7 +109,7 @@ public:
 
   /// \c true if this line starts a namespace definition.
   bool startsWithNamespace() const {
-    return startsWith(tok::kw_namespace) ||
+    return startsWith(tok::kw_namespace) || startsWith(TT_NamespaceMacro) ||
            startsWith(tok::kw_inline, tok::kw_namespace) ||
            startsWith(tok::kw_export, tok::kw_namespace);
   }
@@ -188,6 +183,17 @@ private:
   void printDebugInfo(const AnnotatedLine &Line);
 
   void calculateUnbreakableTailLengths(AnnotatedLine &Line);
+
+  void calculateArrayInitializerColumnList(AnnotatedLine &Line);
+
+  FormatToken *calculateInitializerColumnList(AnnotatedLine &Line,
+                                              FormatToken *CurrentToken,
+                                              unsigned Depth);
+  FormatStyle::PointerAlignmentStyle
+  getTokenReferenceAlignment(const FormatToken &PointerOrReference);
+
+  FormatStyle::PointerAlignmentStyle
+  getTokenPointerOrReferenceAlignment(const FormatToken &PointerOrReference);
 
   const FormatStyle &Style;
 

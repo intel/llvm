@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
+; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
 ; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX89 %s
 ; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX89,GFX9 %s
 
@@ -62,7 +62,7 @@ define amdgpu_kernel void @v_clamp_add_neg_src_f32(float addrspace(1)* %out, flo
   %out.gep = getelementptr float, float addrspace(1)* %out, i32 %tid
   %a = load float, float addrspace(1)* %gep0
   %floor = call float @llvm.floor.f32(float %a)
-  %neg.floor = fsub float -0.0, %floor
+  %neg.floor = fneg float %floor
   %max = call float @llvm.maxnum.f32(float %neg.floor, float 0.0)
   %clamp = call float @llvm.minnum.f32(float %max, float 1.0)
   store float %clamp, float addrspace(1)* %out.gep
@@ -139,7 +139,7 @@ define amdgpu_kernel void @v_clamp_add_src_f16_no_denormals(half addrspace(1)* %
 }
 
 ; GCN-LABEL: {{^}}v_clamp_add_src_v2f32:
-; GCN: {{buffer|flat|global}}_load_dwordx2 v{{\[}}[[A:[0-9]+]]:[[B:[0-9]+]]{{\]}}
+; GCN: {{buffer|flat|global}}_load_dwordx2 v[[[A:[0-9]+]]:[[B:[0-9]+]]]
 ; GCN-DAG: v_add_f32_e64 v{{[0-9]+}}, v[[A]], 1.0 clamp{{$}}
 ; GCN-DAG: v_add_f32_e64 v{{[0-9]+}}, v[[B]], 1.0 clamp{{$}}
 define amdgpu_kernel void @v_clamp_add_src_v2f32(<2 x float> addrspace(1)* %out, <2 x float> addrspace(1)* %aptr) #0 {
@@ -389,10 +389,10 @@ declare <2 x half> @llvm.amdgcn.cvt.pkrtz(float, float) #1
 
 declare void @llvm.dbg.value(metadata, i64, metadata, metadata) #1
 
-attributes #0 = { nounwind }
+attributes #0 = { nounwind "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { nounwind "target-features"="+fp32-denormals" }
-attributes #3 = { nounwind "target-features"="-fp64-fp16-denormals" }
+attributes #2 = { nounwind "denormal-fp-math-f32"="ieee.ieee" }
+attributes #3 = { nounwind "denormal-fp-math-f32"="ieee,ieee" "denormal-fp-math"="preserve-sign,preserve-sign" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!2, !3}

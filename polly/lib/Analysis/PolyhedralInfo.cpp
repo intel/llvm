@@ -25,6 +25,7 @@
 #include "polly/ScopInfo.h"
 #include "polly/Support/GICHelper.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "isl/union_map.h"
 
@@ -85,10 +86,12 @@ bool PolyhedralInfo::checkParallel(Loop *L, isl_pw_aff **MinDepDistPtr) const {
                        Dependences::TYPE_WAR | Dependences::TYPE_RED)
           .release();
 
-  LLVM_DEBUG(dbgs() << "Dependences :\t" << stringFromIslObj(Deps) << "\n");
+  LLVM_DEBUG(dbgs() << "Dependences :\t" << stringFromIslObj(Deps, "null")
+                    << "\n");
 
   isl_union_map *Schedule = getScheduleForLoop(S, L);
-  LLVM_DEBUG(dbgs() << "Schedule: \t" << stringFromIslObj(Schedule) << "\n");
+  LLVM_DEBUG(dbgs() << "Schedule: \t" << stringFromIslObj(Schedule, "null")
+                    << "\n");
 
   IsParallel = D.isParallel(Schedule, Deps, MinDepDistPtr);
   isl_union_map_free(Schedule);
@@ -162,3 +165,52 @@ INITIALIZE_PASS_DEPENDENCY(ScopInfoWrapperPass);
 INITIALIZE_PASS_END(PolyhedralInfo, "polyhedral-info",
                     "Polly - Interface to polyhedral analysis engine", false,
                     false)
+
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Print result from PolyhedralInfo.
+class PolyhedralInfoPrinterLegacyPass : public FunctionPass {
+public:
+  static char ID;
+
+  PolyhedralInfoPrinterLegacyPass() : PolyhedralInfoPrinterLegacyPass(outs()) {}
+  explicit PolyhedralInfoPrinterLegacyPass(llvm::raw_ostream &OS)
+      : FunctionPass(ID), OS(OS) {}
+
+  bool runOnFunction(Function &F) override {
+    PolyhedralInfo &P = getAnalysis<PolyhedralInfo>();
+
+    OS << "Printing analysis '" << P.getPassName() << "' for function '"
+       << F.getName() << "':\n";
+    P.print(OS);
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    FunctionPass::getAnalysisUsage(AU);
+    AU.addRequired<PolyhedralInfo>();
+    AU.setPreservesAll();
+  }
+
+private:
+  llvm::raw_ostream &OS;
+};
+
+char PolyhedralInfoPrinterLegacyPass::ID = 0;
+} // namespace
+
+Pass *polly::createPolyhedralInfoPrinterLegacyPass(raw_ostream &OS) {
+  return new PolyhedralInfoPrinterLegacyPass(OS);
+}
+
+INITIALIZE_PASS_BEGIN(
+    PolyhedralInfoPrinterLegacyPass, "print-polyhedral-info",
+    "Polly - Print interface to polyhedral analysis engine analysis", false,
+    false);
+INITIALIZE_PASS_DEPENDENCY(PolyhedralInfo);
+INITIALIZE_PASS_END(
+    PolyhedralInfoPrinterLegacyPass, "print-polyhedral-info",
+    "Polly - Print interface to polyhedral analysis engine analysis", false,
+    false)

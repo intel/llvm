@@ -12,30 +12,30 @@
 /*****************************************************************************/
 
 SWIFTCALL void indirect_result_1(OUT int *arg0, OUT float *arg1) {}
-// CHECK-LABEL: define {{.*}} void @indirect_result_1(i32* noalias sret align 4 dereferenceable(4){{.*}}, float* noalias align 4 dereferenceable(4){{.*}})
+// CHECK-LABEL: define {{.*}} void @indirect_result_1(i32* noalias noundef sret(i32*) align 4 dereferenceable(4){{.*}}, float* noalias noundef align 4 dereferenceable(4){{.*}})
 
 // TODO: maybe this shouldn't suppress sret.
 SWIFTCALL int indirect_result_2(OUT int *arg0, OUT float *arg1) {  __builtin_unreachable(); }
-// CHECK-LABEL: define {{.*}} i32 @indirect_result_2(i32* noalias align 4 dereferenceable(4){{.*}}, float* noalias align 4 dereferenceable(4){{.*}})
+// CHECK-LABEL: define {{.*}} i32 @indirect_result_2(i32* noalias noundef align 4 dereferenceable(4){{.*}}, float* noalias noundef align 4 dereferenceable(4){{.*}})
 
 typedef struct { char array[1024]; } struct_reallybig;
 SWIFTCALL struct_reallybig indirect_result_3(OUT int *arg0, OUT float *arg1) { __builtin_unreachable(); }
-// CHECK-LABEL: define {{.*}} void @indirect_result_3({{.*}}* noalias sret {{.*}}, i32* noalias align 4 dereferenceable(4){{.*}}, float* noalias align 4 dereferenceable(4){{.*}})
+// CHECK-LABEL: define {{.*}} void @indirect_result_3({{.*}}* noalias sret({{.*}}) {{.*}}, i32* noalias noundef align 4 dereferenceable(4){{.*}}, float* noalias noundef align 4 dereferenceable(4){{.*}})
 
 SWIFTCALL void context_1(CONTEXT void *self) {}
-// CHECK-LABEL: define {{.*}} void @context_1(i8* swiftself
+// CHECK-LABEL: define {{.*}} void @context_1(i8* noundef swiftself
 
 SWIFTCALL void context_2(void *arg0, CONTEXT void *self) {}
-// CHECK-LABEL: define {{.*}} void @context_2(i8*{{.*}}, i8* swiftself
+// CHECK-LABEL: define {{.*}} void @context_2(i8*{{.*}}, i8* noundef swiftself
 
 SWIFTCALL void context_error_1(CONTEXT int *self, ERROR float **error) {}
-// CHECK-LABEL: define {{.*}} void @context_error_1(i32* swiftself{{.*}}, float** swifterror)
+// CHECK-LABEL: define {{.*}} void @context_error_1(i32* noundef swiftself{{.*}}, float** noundef swifterror %0)
 // CHECK:       [[TEMP:%.*]] = alloca float*, align 8
 // CHECK:       [[T0:%.*]] = load float*, float** [[ERRORARG:%.*]], align 8
 // CHECK:       store float* [[T0]], float** [[TEMP]], align 8
 // CHECK:       [[T0:%.*]] = load float*, float** [[TEMP]], align 8
 // CHECK:       store float* [[T0]], float** [[ERRORARG]], align 8
-void test_context_error_1() {
+void test_context_error_1(void) {
   int x;
   float *error;
   context_error_1(&x, &error);
@@ -46,12 +46,12 @@ void test_context_error_1() {
 // CHECK:       [[TEMP:%.*]] = alloca swifterror float*, align 8
 // CHECK:       [[T0:%.*]] = load float*, float** [[ERROR]], align 8
 // CHECK:       store float* [[T0]], float** [[TEMP]], align 8
-// CHECK:       call [[SWIFTCC:swiftcc]] void @context_error_1(i32* swiftself [[X]], float** swifterror [[TEMP]])
+// CHECK:       call [[SWIFTCC:swiftcc]] void @context_error_1(i32* noundef swiftself [[X]], float** noundef swifterror [[TEMP]])
 // CHECK:       [[T0:%.*]] = load float*, float** [[TEMP]], align 8
 // CHECK:       store float* [[T0]], float** [[ERROR]], align 8
 
 SWIFTCALL void context_error_2(short s, CONTEXT int *self, ERROR float **error) {}
-// CHECK-LABEL: define {{.*}} void @context_error_2(i16{{.*}}, i32* swiftself{{.*}}, float** swifterror)
+// CHECK-LABEL: define {{.*}} void @context_error_2(i16{{.*}}, i32* noundef swiftself{{.*}}, float** noundef swifterror %0)
 
 /*****************************************************************************/
 /********************************** LOWERING *********************************/
@@ -73,7 +73,7 @@ typedef int int8 __attribute__((ext_vector_type(8)));
   }                                      \
   SWIFTCALL void take_##TYPE(TYPE v) {   \
   }                                      \
-  void test_##TYPE() {                   \
+  void test_##TYPE(void) {               \
     take_##TYPE(return_##TYPE());        \
   }
 
@@ -109,7 +109,7 @@ TEST(struct_1);
 // CHECK:   [[R1:%.*]] = insertvalue { i64, i64 } [[R0]], i64 [[T1]], 1
 // CHECK:   ret { i64, i64 } [[R1]]
 // CHECK: }
-// CHECK-LABEL: define dso_local swiftcc void @take_struct_1(i64, i64) {{.*}}{
+// CHECK-LABEL: define dso_local swiftcc void @take_struct_1(i64 %0, i64 %1) {{.*}}{
 // CHECK:   [[V:%.*]] = alloca [[STRUCT1:%.*]], align 4
 // CHECK:   [[CAST:%.*]] = bitcast [[STRUCT1]]* [[V]] to { i64, i64 }*
 // CHECK:   [[GEP0:%.*]] = getelementptr inbounds { i64, i64 }, { i64, i64 }* [[CAST]], i32 0, i32 0
@@ -158,7 +158,7 @@ TEST(struct_2);
 // CHECK:   [[R1:%.*]] = insertvalue { i64, i64 } [[R0]], i64 [[T1]], 1
 // CHECK:   ret { i64, i64 } [[R1]]
 // CHECK: }
-// CHECK-LABEL: define dso_local swiftcc void @take_struct_2(i64, i64) {{.*}}{
+// CHECK-LABEL: define dso_local swiftcc void @take_struct_2(i64 %0, i64 %1) {{.*}}{
 // CHECK:   [[V:%.*]] = alloca [[STRUCT:%.*]], align 4
 // CHECK:   [[CAST:%.*]] = bitcast [[STRUCT]]* [[V]] to { i64, i64 }*
 // CHECK:   [[GEP0:%.*]] = getelementptr inbounds { i64, i64 }, { i64, i64 }* [[CAST]], i32 0, i32 0
@@ -206,7 +206,7 @@ TEST(struct_misaligned_1)
 // CHECK:  [[R0:%.*]] = load i64, i64* [[GEP]], align 1
 // CHECK:  ret i64 [[R0]]
 // CHECK:}
-// CHECK-LABEL: define dso_local swiftcc void @take_struct_misaligned_1(i64) {{.*}}{
+// CHECK-LABEL: define dso_local swiftcc void @take_struct_misaligned_1(i64 %0) {{.*}}{
 // CHECK:   [[V:%.*]] = alloca [[STRUCT:%.*]], align 1
 // CHECK:   [[CAST:%.*]] = bitcast [[STRUCT]]* [[V]] to { i64 }*
 // CHECK:   [[GEP:%.*]] = getelementptr inbounds { i64 }, { i64 }* [[CAST]], i32 0, i32 0
@@ -235,7 +235,7 @@ TEST(struct_big_1)
 // CHECK-LABEL: define {{.*}} void @return_struct_big_1({{.*}} noalias sret
 
 // Should not be byval.
-// CHECK-LABEL: define {{.*}} void @take_struct_big_1({{.*}}*{{( %.*)?}})
+// CHECK-LABEL: define {{.*}} void @take_struct_big_1({{.*}}* noundef{{( %.*)?}})
 
 /*****************************************************************************/
 /********************************* TYPE MERGING ******************************/
@@ -254,7 +254,7 @@ TEST(union_het_fp)
 // CHECK:  [[GEP:%.*]] = getelementptr inbounds { i64 }, { i64 }* [[CAST]], i32 0, i32 0
 // CHECK:  [[R0:%.*]] = load i64, i64* [[GEP]], align 8
 // CHECK:  ret i64 [[R0]]
-// CHECK-LABEL: define dso_local swiftcc void @take_union_het_fp(i64) {{.*}}{
+// CHECK-LABEL: define dso_local swiftcc void @take_union_het_fp(i64 %0) {{.*}}{
 // CHECK:   [[V:%.*]] = alloca [[UNION:%.*]], align 8
 // CHECK:   [[CAST:%.*]] = bitcast [[UNION]]* [[V]] to { i64 }*
 // CHECK:   [[GEP:%.*]] = getelementptr inbounds { i64 }, { i64 }* [[CAST]], i32 0, i32 0
@@ -378,7 +378,7 @@ TEST(int8)
 // CHECK:   [[T0:%.*]] = insertvalue [[UAGG:{ <4 x i32>, <4 x i32> }]] undef, <4 x i32> [[FIRST]], 0
 // CHECK:   [[T1:%.*]] = insertvalue [[UAGG]] [[T0]], <4 x i32> [[SECOND]], 1
 // CHECK:   ret [[UAGG]] [[T1]]
-// CHECK-LABEL: define {{.*}} @take_int8(<4 x i32>, <4 x i32>)
+// CHECK-LABEL: define {{.*}} @take_int8(<4 x i32> noundef %0, <4 x i32> noundef %1)
 // CHECK:   [[V:%.*]] = alloca [[REC]], align
 // CHECK:   [[CAST_TMP:%.*]] = bitcast [[REC]]* [[V]] to [[AGG]]*
 // CHECK:   [[T0:%.*]] = getelementptr inbounds [[AGG]], [[AGG]]* [[CAST_TMP]], i32 0, i32 0
@@ -404,7 +404,7 @@ TEST(int8)
 // CHECK:   [[FIRST:%.*]] = load <4 x i32>, <4 x i32>* [[T0]], align
 // CHECK:   [[T0:%.*]] = getelementptr inbounds [[AGG]], [[AGG]]* [[CAST_TMP]], i32 0, i32 1
 // CHECK:   [[SECOND:%.*]] = load <4 x i32>, <4 x i32>* [[T0]], align
-// CHECK:   call [[SWIFTCC]] void @take_int8(<4 x i32> [[FIRST]], <4 x i32> [[SECOND]])
+// CHECK:   call [[SWIFTCC]] void @take_int8(<4 x i32> noundef [[FIRST]], <4 x i32> noundef [[SECOND]])
 // CHECK:   ret void
 
 TEST(int5)
@@ -422,7 +422,7 @@ TEST(int5)
 // CHECK:   [[T0:%.*]] = insertvalue [[UAGG:{ <4 x i32>, i32 }]] undef, <4 x i32> [[FIRST]], 0
 // CHECK:   [[T1:%.*]] = insertvalue [[UAGG]] [[T0]], i32 [[SECOND]], 1
 // CHECK:   ret [[UAGG]] [[T1]]
-// CHECK-LABEL: define {{.*}} @take_int5(<4 x i32>, i32)
+// CHECK-LABEL: define {{.*}} @take_int5(<4 x i32> %0, i32 %1)
 // CHECK:   [[V:%.*]] = alloca [[REC]], align
 // CHECK:   [[CAST_TMP:%.*]] = bitcast [[REC]]* [[V]] to [[AGG]]*
 // CHECK:   [[T0:%.*]] = getelementptr inbounds [[AGG]], [[AGG]]* [[CAST_TMP]], i32 0, i32 0
@@ -456,4 +456,4 @@ typedef struct {
   int3 v __attribute__((packed));
 } misaligned_int3;
 TEST(misaligned_int3)
-// CHECK-LABEL: define dso_local swiftcc void @take_misaligned_int3(i64, i64)
+// CHECK-LABEL: define dso_local swiftcc void @take_misaligned_int3(i64 %0, i64 %1)

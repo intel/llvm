@@ -15,12 +15,14 @@
 #include "DeprecatedHeadersCheck.h"
 #include "DeprecatedIosBaseAliasesCheck.h"
 #include "LoopConvertCheck.h"
+#include "MacroToEnumCheck.h"
 #include "MakeSharedCheck.h"
 #include "MakeUniqueCheck.h"
 #include "PassByValueCheck.h"
 #include "RawStringLiteralCheck.h"
 #include "RedundantVoidArgCheck.h"
 #include "ReplaceAutoPtrCheck.h"
+#include "ReplaceDisallowCopyAndAssignMacroCheck.h"
 #include "ReplaceRandomShuffleCheck.h"
 #include "ReturnBracedInitListCheck.h"
 #include "ShrinkToFitCheck.h"
@@ -58,6 +60,7 @@ public:
     CheckFactories.registerCheck<DeprecatedIosBaseAliasesCheck>(
         "modernize-deprecated-ios-base-aliases");
     CheckFactories.registerCheck<LoopConvertCheck>("modernize-loop-convert");
+    CheckFactories.registerCheck<MacroToEnumCheck>("modernize-macro-to-enum");
     CheckFactories.registerCheck<MakeSharedCheck>("modernize-make-shared");
     CheckFactories.registerCheck<MakeUniqueCheck>("modernize-make-unique");
     CheckFactories.registerCheck<PassByValueCheck>("modernize-pass-by-value");
@@ -67,6 +70,8 @@ public:
         "modernize-redundant-void-arg");
     CheckFactories.registerCheck<ReplaceAutoPtrCheck>(
         "modernize-replace-auto-ptr");
+    CheckFactories.registerCheck<ReplaceDisallowCopyAndAssignMacroCheck>(
+        "modernize-replace-disallow-copy-and-assign-macro");
     CheckFactories.registerCheck<ReplaceRandomShuffleCheck>(
         "modernize-replace-random-shuffle");
     CheckFactories.registerCheck<ReturnBracedInitListCheck>(

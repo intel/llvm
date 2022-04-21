@@ -1,4 +1,4 @@
-; RUN: opt -simplifycfg -S < %s | FileCheck %s
+; RUN: opt -simplifycfg -simplifycfg-require-and-preserve-domtree=1 -hoist-common-insts=true -S < %s | FileCheck %s
 ; Verify that we don't crash due an invalid !dbg location on the hoisted llvm.dbg.value
 
 define i64 @caller(i64* %ptr, i64 %flag) !dbg !10 {
@@ -26,6 +26,8 @@ test.exit:                                      ; preds = %a, %b
   %retv = phi i64 [ %vala, %a ], [ %valbmasked, %b ]
   ret i64 %retv
 }
+
+; CHECK: [[MD]] = !DILocalVariable(name: "var"
 
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #0

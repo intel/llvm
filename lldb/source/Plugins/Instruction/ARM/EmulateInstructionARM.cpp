@@ -1,4 +1,4 @@
-//===-- EmulateInstructionARM.cpp -------------------------------*- C++ -*-===//
+//===-- EmulateInstructionARM.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <stdlib.h>
+#include <cstdlib>
 
 #include "EmulateInstructionARM.h"
 #include "EmulationStateARM.h"
@@ -29,6 +29,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionARM, InstructionARM)
 
 // Convenient macro definitions.
 #define APSR_C Bit32(m_opcode_cpsr, CPSR_C_POS)
@@ -603,9 +605,6 @@ static uint32_t CountITSize(uint32_t ITMask) {
   // First count the trailing zeros of the IT mask.
   uint32_t TZ = llvm::countTrailingZeros(ITMask);
   if (TZ > 3) {
-#ifdef LLDB_CONFIGURATION_DEBUG
-    printf("Encoding error: IT Mask '0000'\n");
-#endif
     return 0;
   }
   return (4 - TZ);
@@ -620,15 +619,9 @@ bool ITSession::InitIT(uint32_t bits7_0) {
   // A8.6.50 IT
   unsigned short FirstCond = Bits32(bits7_0, 7, 4);
   if (FirstCond == 0xF) {
-#ifdef LLDB_CONFIGURATION_DEBUG
-    printf("Encoding error: IT FirstCond '1111'\n");
-#endif
     return false;
   }
   if (FirstCond == 0xE && ITCounter != 1) {
-#ifdef LLDB_CONFIGURATION_DEBUG
-    printf("Encoding error: IT FirstCond '1110' && Mask != '1000'\n");
-#endif
     return false;
   }
 
@@ -720,12 +713,7 @@ void EmulateInstructionARM::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-ConstString EmulateInstructionARM::GetPluginNameStatic() {
-  static ConstString g_name("arm");
-  return g_name;
-}
-
-const char *EmulateInstructionARM::GetPluginDescriptionStatic() {
+llvm::StringRef EmulateInstructionARM::GetPluginDescriptionStatic() {
   return "Emulate instructions for the ARM architecture.";
 }
 
@@ -749,7 +737,7 @@ EmulateInstructionARM::CreateInstance(const ArchSpec &arch,
     }
   }
 
-  return NULL;
+  return nullptr;
 }
 
 bool EmulateInstructionARM::SetTargetTriple(const ArchSpec &arch) {
@@ -850,6 +838,7 @@ uint32_t EmulateInstructionARM::GetFramePointerRegisterNumber() const {
 
   /* On Apple iOS et al, the frame pointer register is always r7.
    * Typically on other ARM systems, thumb code uses r7; arm code uses r11.
+   * Windows on ARM, which is in thumb mode, uses r11 though.
    */
 
   uint32_t fp_regnum = 11;
@@ -857,7 +846,7 @@ uint32_t EmulateInstructionARM::GetFramePointerRegisterNumber() const {
   if (is_apple)
     fp_regnum = 7;
 
-  if (m_opcode_mode == eModeThumb)
+  if (m_opcode_mode == eModeThumb && !m_arch.GetTriple().isOSWindows())
     fp_regnum = 7;
 
   return fp_regnum;
@@ -879,6 +868,7 @@ uint32_t EmulateInstructionARM::GetFramePointerDWARFRegisterNumber() const {
 
   /* On Apple iOS et al, the frame pointer register is always r7.
    * Typically on other ARM systems, thumb code uses r7; arm code uses r11.
+   * Windows on ARM, which is in thumb mode, uses r11 though.
    */
 
   uint32_t fp_regnum = dwarf_r11;
@@ -886,7 +876,7 @@ uint32_t EmulateInstructionARM::GetFramePointerDWARFRegisterNumber() const {
   if (is_apple)
     fp_regnum = dwarf_r7;
 
-  if (m_opcode_mode == eModeThumb)
+  if (m_opcode_mode == eModeThumb && !m_arch.GetTriple().isOSWindows())
     fp_regnum = dwarf_r7;
 
   return fp_regnum;
@@ -1343,6 +1333,8 @@ bool EmulateInstructionARM::EmulateMOVRdRm(const uint32_t opcode,
     EmulateInstruction::Context context;
     if (Rd == 13)
       context.type = EmulateInstruction::eContextAdjustStackPointer;
+    else if (Rd == GetFramePointerRegisterNumber() && Rm == 13)
+      context.type = EmulateInstruction::eContextSetFramePointer;
     else
       context.type = EmulateInstruction::eContextRegisterPlusOffset;
     RegisterInfo dwarf_reg;
@@ -7226,7 +7218,7 @@ bool EmulateInstructionARM::EmulateLDRHImmediate(const uint32_t opcode,
   return true;
 }
 
-// LDRH (literal) caculates an address from the PC value and an immediate
+// LDRH (literal) calculates an address from the PC value and an immediate
 // offset, loads a halfword from memory,
 // zero-extends it to form a 32-bit word, and writes it to a register.
 bool EmulateInstructionARM::EmulateLDRHLiteral(const uint32_t opcode,
@@ -8512,7 +8504,7 @@ bool EmulateInstructionARM::EmulateSXTH(const uint32_t opcode,
   return true;
 }
 
-// UXTB extracts an 8-bit value from a register, zero-extneds it to 32 bits, and
+// UXTB extracts an 8-bit value from a register, zero-extends it to 32 bits, and
 // writes the result to the destination
 // register.  You can specify a rotation by 0, 8, 16, or 24 bits before
 // extracting the 8-bit value.
@@ -13213,7 +13205,7 @@ EmulateInstructionARM::GetARMOpcodeForInstruction(const uint32_t opcode,
         (g_arm_opcodes[i].variants & arm_isa) != 0)
       return &g_arm_opcodes[i];
   }
-  return NULL;
+  return nullptr;
 }
 
 EmulateInstructionARM::ARMOpcode *
@@ -13763,41 +13755,39 @@ EmulateInstructionARM::GetThumbOpcodeForInstruction(const uint32_t opcode,
         (g_thumb_opcodes[i].variants & arm_isa) != 0)
       return &g_thumb_opcodes[i];
   }
-  return NULL;
+  return nullptr;
 }
 
 bool EmulateInstructionARM::SetArchitecture(const ArchSpec &arch) {
   m_arch = arch;
   m_arm_isa = 0;
-  const char *arch_cstr = arch.GetArchitectureName();
-  if (arch_cstr) {
-    if (0 == ::strcasecmp(arch_cstr, "armv4t"))
-      m_arm_isa = ARMv4T;
-    else if (0 == ::strcasecmp(arch_cstr, "armv5tej"))
-      m_arm_isa = ARMv5TEJ;
-    else if (0 == ::strcasecmp(arch_cstr, "armv5te"))
-      m_arm_isa = ARMv5TE;
-    else if (0 == ::strcasecmp(arch_cstr, "armv5t"))
-      m_arm_isa = ARMv5T;
-    else if (0 == ::strcasecmp(arch_cstr, "armv6k"))
-      m_arm_isa = ARMv6K;
-    else if (0 == ::strcasecmp(arch_cstr, "armv6t2"))
-      m_arm_isa = ARMv6T2;
-    else if (0 == ::strcasecmp(arch_cstr, "armv7s"))
-      m_arm_isa = ARMv7S;
-    else if (0 == ::strcasecmp(arch_cstr, "arm"))
-      m_arm_isa = ARMvAll;
-    else if (0 == ::strcasecmp(arch_cstr, "thumb"))
-      m_arm_isa = ARMvAll;
-    else if (0 == ::strncasecmp(arch_cstr, "armv4", 5))
-      m_arm_isa = ARMv4;
-    else if (0 == ::strncasecmp(arch_cstr, "armv6", 5))
-      m_arm_isa = ARMv6;
-    else if (0 == ::strncasecmp(arch_cstr, "armv7", 5))
-      m_arm_isa = ARMv7;
-    else if (0 == ::strncasecmp(arch_cstr, "armv8", 5))
-      m_arm_isa = ARMv8;
-  }
+  llvm::StringRef arch_cstr = arch.GetArchitectureName();
+  if (arch_cstr.equals_insensitive("armv4t"))
+    m_arm_isa = ARMv4T;
+  else if (arch_cstr.equals_insensitive("armv5tej"))
+    m_arm_isa = ARMv5TEJ;
+  else if (arch_cstr.equals_insensitive("armv5te"))
+    m_arm_isa = ARMv5TE;
+  else if (arch_cstr.equals_insensitive("armv5t"))
+    m_arm_isa = ARMv5T;
+  else if (arch_cstr.equals_insensitive("armv6k"))
+    m_arm_isa = ARMv6K;
+  else if (arch_cstr.equals_insensitive("armv6t2"))
+    m_arm_isa = ARMv6T2;
+  else if (arch_cstr.equals_insensitive("armv7s"))
+    m_arm_isa = ARMv7S;
+  else if (arch_cstr.equals_insensitive("arm"))
+    m_arm_isa = ARMvAll;
+  else if (arch_cstr.equals_insensitive("thumb"))
+    m_arm_isa = ARMvAll;
+  else if (arch_cstr.startswith_insensitive("armv4"))
+    m_arm_isa = ARMv4;
+  else if (arch_cstr.startswith_insensitive("armv6"))
+    m_arm_isa = ARMv6;
+  else if (arch_cstr.startswith_insensitive("armv7"))
+    m_arm_isa = ARMv7;
+  else if (arch_cstr.startswith_insensitive("armv8"))
+    m_arm_isa = ARMv8;
   return m_arm_isa != 0;
 }
 
@@ -14311,7 +14301,7 @@ bool EmulateInstructionARM::WriteFlags(Context &context, const uint32_t result,
 }
 
 bool EmulateInstructionARM::EvaluateInstruction(uint32_t evaluate_options) {
-  ARMOpcode *opcode_data = NULL;
+  ARMOpcode *opcode_data = nullptr;
 
   if (m_opcode_mode == eModeThumb)
     opcode_data =
@@ -14364,7 +14354,7 @@ bool EmulateInstructionARM::EvaluateInstruction(uint32_t evaluate_options) {
     if (!success)
       return false;
 
-    if (auto_advance_pc && (after_pc_value == orig_pc_value)) {
+    if (after_pc_value == orig_pc_value) {
       after_pc_value += m_opcode.GetByteSize();
 
       EmulateInstruction::Context context;
@@ -14400,7 +14390,7 @@ bool EmulateInstructionARM::TestEmulation(Stream *out_stream, ArchSpec &arch,
   OptionValueSP value_sp = test_data->GetValueForKey(opcode_key);
 
   uint32_t test_opcode;
-  if ((value_sp.get() == NULL) ||
+  if ((value_sp.get() == nullptr) ||
       (value_sp->GetType() != OptionValue::eTypeUInt64)) {
     out_stream->Printf("TestEmulation: Error reading opcode from test file.\n");
     return false;
@@ -14426,7 +14416,7 @@ bool EmulateInstructionARM::TestEmulation(Stream *out_stream, ArchSpec &arch,
   EmulationStateARM after_state;
 
   value_sp = test_data->GetValueForKey(before_key);
-  if ((value_sp.get() == NULL) ||
+  if ((value_sp.get() == nullptr) ||
       (value_sp->GetType() != OptionValue::eTypeDictionary)) {
     out_stream->Printf("TestEmulation:  Failed to find 'before' state.\n");
     return false;
@@ -14439,7 +14429,7 @@ bool EmulateInstructionARM::TestEmulation(Stream *out_stream, ArchSpec &arch,
   }
 
   value_sp = test_data->GetValueForKey(after_key);
-  if ((value_sp.get() == NULL) ||
+  if ((value_sp.get() == nullptr) ||
       (value_sp->GetType() != OptionValue::eTypeDictionary)) {
     out_stream->Printf("TestEmulation:  Failed to find 'after' state.\n");
     return false;
@@ -14507,6 +14497,7 @@ bool EmulateInstructionARM::CreateFunctionEntryUnwind(UnwindPlan &unwind_plan) {
   unwind_plan.SetSourceName("EmulateInstructionARM");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolNo);
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolYes);
+  unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetReturnAddressRegister(dwarf_lr);
   return true;
 }

@@ -1,4 +1,4 @@
-//===-- ConstString.cpp -----------------------------------------*- C++ -*-===//
+//===-- ConstString.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,21 +18,48 @@
 #include "llvm/Support/RWMutex.h"
 #include "llvm/Support/Threading.h"
 
-#include <algorithm>
 #include <array>
 #include <utility>
 
-#include <inttypes.h>
-#include <stdint.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstdint>
+#include <cstring>
 
 using namespace lldb_private;
 
 class Pool {
 public:
+  /// The default BumpPtrAllocatorImpl slab size.
+  static const size_t AllocatorSlabSize = 4096;
+  static const size_t SizeThreshold = AllocatorSlabSize;
+  /// Every Pool has its own allocator which receives an equal share of
+  /// the ConstString allocations. This means that when allocating many
+  /// ConstStrings, every allocator sees only its small share of allocations and
+  /// assumes LLDB only allocated a small amount of memory so far. In reality
+  /// LLDB allocated a total memory that is N times as large as what the
+  /// allocator sees (where N is the number of string pools). This causes that
+  /// the BumpPtrAllocator continues a long time to allocate memory in small
+  /// chunks which only makes sense when allocating a small amount of memory
+  /// (which is true from the perspective of a single allocator). On some
+  /// systems doing all these small memory allocations causes LLDB to spend
+  /// a lot of time in malloc, so we need to force all these allocators to
+  /// behave like one allocator in terms of scaling their memory allocations
+  /// with increased demand. To do this we set the growth delay for each single
+  /// allocator to a rate so that our pool of allocators scales their memory
+  /// allocations similar to a single BumpPtrAllocatorImpl.
+  ///
+  /// Currently we have 256 string pools and the normal growth delay of the
+  /// BumpPtrAllocatorImpl is 128 (i.e., the memory allocation size increases
+  /// every 128 full chunks), so by changing the delay to 1 we get a
+  /// total growth delay in our allocator collection of 256/1 = 256. This is
+  /// still only half as fast as a normal allocator but we can't go any faster
+  /// without decreasing the number of string pools.
+  static const size_t AllocatorGrowthDelay = 1;
+  typedef llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator, AllocatorSlabSize,
+                                     SizeThreshold, AllocatorGrowthDelay>
+      Allocator;
   typedef const char *StringPoolValueType;
-  typedef llvm::StringMap<StringPoolValueType, llvm::BumpPtrAllocator>
-      StringPool;
+  typedef llvm::StringMap<StringPoolValueType, Allocator> StringPool;
   typedef llvm::StringMapEntry<StringPoolValueType> StringPoolEntryType;
 
   static StringPoolEntryType &
@@ -57,23 +84,6 @@ public:
       return GetStringMapEntryFromKeyData(ccstr).getValue();
     }
     return nullptr;
-  }
-
-  bool SetMangledCounterparts(const char *key_ccstr, const char *value_ccstr) {
-    if (key_ccstr != nullptr && value_ccstr != nullptr) {
-      {
-        const uint8_t h = hash(llvm::StringRef(key_ccstr));
-        llvm::sys::SmartScopedWriter<false> wlock(m_string_pools[h].m_mutex);
-        GetStringMapEntryFromKeyData(key_ccstr).setValue(value_ccstr);
-      }
-      {
-        const uint8_t h = hash(llvm::StringRef(value_ccstr));
-        llvm::sys::SmartScopedWriter<false> wlock(m_string_pools[h].m_mutex);
-        GetStringMapEntryFromKeyData(value_ccstr).setValue(key_ccstr);
-      }
-      return true;
-    }
-    return false;
   }
 
   const char *GetConstCString(const char *cstr) {
@@ -149,16 +159,15 @@ public:
     return nullptr;
   }
 
-  // Return the size in bytes that this object and any items in its collection
-  // of uniqued strings + data count values takes in memory.
-  size_t MemorySize() const {
-    size_t mem_size = sizeof(Pool);
+  ConstString::MemoryStats GetMemoryStats() const {
+    ConstString::MemoryStats stats;
     for (const auto &pool : m_string_pools) {
       llvm::sys::SmartScopedReader<false> rlock(pool.m_mutex);
-      for (const auto &entry : pool.m_string_map)
-        mem_size += sizeof(StringPoolEntryType) + entry.getKey().size();
+      const Allocator &alloc = pool.m_string_map.getAllocator();
+      stats.bytes_total += alloc.getTotalMemory();
+      stats.bytes_used += alloc.getBytesAllocated();
     }
-    return mem_size;
+    return stats;
   }
 
 protected:
@@ -243,7 +252,7 @@ bool ConstString::Equals(ConstString lhs, ConstString rhs,
   // perform case insensitive equality test
   llvm::StringRef lhs_string_ref(lhs.GetStringRef());
   llvm::StringRef rhs_string_ref(rhs.GetStringRef());
-  return lhs_string_ref.equals_lower(rhs_string_ref);
+  return lhs_string_ref.equals_insensitive(rhs_string_ref);
 }
 
 int ConstString::Compare(ConstString lhs, ConstString rhs,
@@ -260,7 +269,7 @@ int ConstString::Compare(ConstString lhs, ConstString rhs,
     if (case_sensitive) {
       return lhs_string_ref.compare(rhs_string_ref);
     } else {
-      return lhs_string_ref.compare_lower(rhs_string_ref);
+      return lhs_string_ref.compare_insensitive(rhs_string_ref);
     }
   }
 
@@ -298,7 +307,7 @@ void ConstString::SetString(const llvm::StringRef &s) {
 }
 
 void ConstString::SetStringWithMangledCounterpart(llvm::StringRef demangled,
-                                                   ConstString mangled) {
+                                                  ConstString mangled) {
   m_string = StringPool().GetConstCStringAndSetMangledCounterPart(
       demangled, mangled.m_string);
 }
@@ -317,13 +326,24 @@ void ConstString::SetTrimmedCStringWithLength(const char *cstr,
   m_string = StringPool().GetConstTrimmedCStringWithLength(cstr, cstr_len);
 }
 
-size_t ConstString::StaticMemorySize() {
-  // Get the size of the static string pool
-  return StringPool().MemorySize();
+ConstString::MemoryStats ConstString::GetMemoryStats() {
+  return StringPool().GetMemoryStats();
 }
 
 void llvm::format_provider<ConstString>::format(const ConstString &CS,
                                                 llvm::raw_ostream &OS,
                                                 llvm::StringRef Options) {
-  format_provider<StringRef>::format(CS.AsCString(), OS, Options);
+  format_provider<StringRef>::format(CS.GetStringRef(), OS, Options);
+}
+
+void llvm::yaml::ScalarTraits<ConstString>::output(const ConstString &Val,
+                                                   void *, raw_ostream &Out) {
+  Out << Val.GetStringRef();
+}
+
+llvm::StringRef
+llvm::yaml::ScalarTraits<ConstString>::input(llvm::StringRef Scalar, void *,
+                                             ConstString &Val) {
+  Val = ConstString(Scalar);
+  return {};
 }

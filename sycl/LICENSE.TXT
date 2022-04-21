@@ -239,7 +239,7 @@ Legacy LLVM License (https://llvm.org/docs/DeveloperPolicy.html#legacy):
 University of Illinois/NCSA
 Open Source License
 
-Copyright (c) 2003-2019 University of Illinois at Urbana-Champaign.
+Copyright (c) 2003-2020 University of Illinois at Urbana-Champaign.
 All rights reserved.
 
 Developed by:

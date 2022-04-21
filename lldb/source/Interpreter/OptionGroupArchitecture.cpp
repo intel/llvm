@@ -1,4 +1,4 @@
-//===-- OptionGroupArchitecture.cpp -----------------------------*- C++ -*-===//
+//===-- OptionGroupArchitecture.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,10 +12,6 @@
 
 using namespace lldb;
 using namespace lldb_private;
-
-OptionGroupArchitecture::OptionGroupArchitecture() : m_arch_str() {}
-
-OptionGroupArchitecture::~OptionGroupArchitecture() {}
 
 static constexpr OptionDefinition g_option_table[] = {
     {LLDB_OPT_SET_1, false, "arch", 'a', OptionParser::eRequiredArgument,
@@ -42,12 +38,11 @@ OptionGroupArchitecture::SetOptionValue(uint32_t option_idx,
 
   switch (short_option) {
   case 'a':
-    m_arch_str.assign(option_arg);
+    m_arch_str.assign(std::string(option_arg));
     break;
 
   default:
-    error.SetErrorStringWithFormat("unrecognized option '%c'", short_option);
-    break;
+    llvm_unreachable("Unimplemented option");
   }
 
   return error;

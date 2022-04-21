@@ -1,6 +1,6 @@
 ; REQUIRES: asserts
-; RUN: opt -S -basicaa -licm -ipt-expensive-asserts=true < %s | FileCheck %s
-; RUN: opt -aa-pipeline=basic-aa -passes='require<opt-remark-emit>,loop(licm)' -ipt-expensive-asserts=true -S %s | FileCheck %s
+; RUN: opt -S -basic-aa -licm -ipt-expensive-asserts=true < %s | FileCheck %s
+; RUN: opt -aa-pipeline=basic-aa -passes='require<opt-remark-emit>,loop-mssa(licm)' -ipt-expensive-asserts=true -S %s | FileCheck %s
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
@@ -129,8 +129,6 @@ fail:
 }
 
 ; requires fact length is non-zero
-; TODO: IsKnownNonNullFromDominatingConditions is currently only be done for
-; pointers; should handle integers too
 define i32 @test4(i32* noalias nocapture readonly %a) nounwind uwtable {
 ; CHECK-LABEL: @test4(
 ; CHECK-NEXT:  entry:
@@ -138,6 +136,7 @@ define i32 @test4(i32* noalias nocapture readonly %a) nounwind uwtable {
 ; CHECK-NEXT:    [[IS_ZERO:%.*]] = icmp eq i32 [[LEN]], 0
 ; CHECK-NEXT:    br i1 [[IS_ZERO]], label [[FAIL:%.*]], label [[PREHEADER:%.*]]
 ; CHECK:       preheader:
+; CHECK-NEXT:    [[I1:%.*]] = load i32, i32* [[A]], align 4
 ; CHECK-NEXT:    br label [[FOR_BODY:%.*]]
 ; CHECK:       for.body:
 ; CHECK-NEXT:    [[IV:%.*]] = phi i32 [ 0, [[PREHEADER]] ], [ [[INC:%.*]], [[CONTINUE:%.*]] ]
@@ -145,7 +144,6 @@ define i32 @test4(i32* noalias nocapture readonly %a) nounwind uwtable {
 ; CHECK-NEXT:    [[R_CHK:%.*]] = icmp ult i32 [[IV]], [[LEN]]
 ; CHECK-NEXT:    br i1 [[R_CHK]], label [[CONTINUE]], label [[FAIL_LOOPEXIT:%.*]]
 ; CHECK:       continue:
-; CHECK-NEXT:    [[I1:%.*]] = load i32, i32* [[A]], align 4
 ; CHECK-NEXT:    [[ADD]] = add nsw i32 [[I1]], [[ACC]]
 ; CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[IV]], 1
 ; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp eq i32 [[INC]], 1000

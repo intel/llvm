@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -17,13 +17,13 @@
 // void assign(path const&);
 // void replace_filename(path const&);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 TEST_SUITE(directory_entry_mods_suite)
 
@@ -100,6 +100,24 @@ TEST_CASE(test_assign_calls_refresh) {
 TEST_CASE(test_assign_propagates_error) {
   using namespace fs;
   scoped_test_env env;
+#ifdef _WIN32
+  // Windows doesn't support setting perms::none to trigger failures
+  // reading directories; test using a special inaccessible directory
+  // instead.
+  const path dir = GetWindowsInaccessibleDir();
+  if (dir.empty())
+    TEST_UNSUPPORTED();
+  const path file = dir / "inaccessible_file";
+  // We can't create files in the inaccessible directory, so this doesn't
+  // test exactly the same as the code below.
+  const path sym_out_of_dir = env.create_symlink(file, "sym");
+  {
+    directory_entry ent;
+    std::error_code ec = GetTestEC();
+    ent.assign(file, ec);
+    TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
+  }
+#else
   const path dir = env.create_dir("dir");
   const path file = env.create_file("dir/file", 42);
   const path sym_out_of_dir = env.create_symlink("dir/file", "sym");
@@ -120,6 +138,7 @@ TEST_CASE(test_assign_propagates_error) {
     ent.assign(sym_in_dir, ec);
     TEST_CHECK(ErrorIs(ec, std::errc::permission_denied));
   }
+#endif
   {
     directory_entry ent;
     std::error_code ec = GetTestEC();

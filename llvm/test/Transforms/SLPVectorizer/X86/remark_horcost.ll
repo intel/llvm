@@ -16,38 +16,15 @@ define i32 @foo(i32* %diff) #0 {
 ; CHECK-NEXT:    [[TMP2:%.*]] = or i64 [[TMP1]], 4
 ; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i32, i32* [[DIFF]], i64 [[TMP2]]
 ; CHECK-NEXT:    [[ARRAYIDX6:%.*]] = getelementptr inbounds [8 x [8 x i32]], [8 x [8 x i32]]* [[M2]], i64 0, i64 [[INDVARS_IV]], i64 0
-; CHECK-NEXT:    [[TMP3:%.*]] = or i64 [[TMP1]], 1
-; CHECK-NEXT:    [[ARRAYIDX13:%.*]] = getelementptr inbounds i32, i32* [[DIFF]], i64 [[TMP3]]
-; CHECK-NEXT:    [[TMP4:%.*]] = or i64 [[TMP1]], 5
-; CHECK-NEXT:    [[ARRAYIDX16:%.*]] = getelementptr inbounds i32, i32* [[DIFF]], i64 [[TMP4]]
-; CHECK-NEXT:    [[TMP5:%.*]] = or i64 [[TMP1]], 2
-; CHECK-NEXT:    [[ARRAYIDX27:%.*]] = getelementptr inbounds i32, i32* [[DIFF]], i64 [[TMP5]]
-; CHECK-NEXT:    [[TMP6:%.*]] = or i64 [[TMP1]], 6
-; CHECK-NEXT:    [[ARRAYIDX30:%.*]] = getelementptr inbounds i32, i32* [[DIFF]], i64 [[TMP6]]
-; CHECK-NEXT:    [[TMP7:%.*]] = or i64 [[TMP1]], 3
-; CHECK-NEXT:    [[ARRAYIDX41:%.*]] = getelementptr inbounds i32, i32* [[DIFF]], i64 [[TMP7]]
-; CHECK-NEXT:    [[TMP8:%.*]] = bitcast i32* [[ARRAYIDX]] to <4 x i32>*
-; CHECK-NEXT:    [[TMP9:%.*]] = load <4 x i32>, <4 x i32>* [[TMP8]], align 4
-; CHECK-NEXT:    [[TMP10:%.*]] = or i64 [[TMP1]], 7
-; CHECK-NEXT:    [[ARRAYIDX44:%.*]] = getelementptr inbounds i32, i32* [[DIFF]], i64 [[TMP10]]
-; CHECK-NEXT:    [[TMP11:%.*]] = bitcast i32* [[ARRAYIDX2]] to <4 x i32>*
-; CHECK-NEXT:    [[TMP12:%.*]] = load <4 x i32>, <4 x i32>* [[TMP11]], align 4
-; CHECK-NEXT:    [[TMP13:%.*]] = add nsw <4 x i32> [[TMP12]], [[TMP9]]
-; CHECK-NEXT:    [[ADD10:%.*]] = add nsw i32 undef, [[A_088]]
-; CHECK-NEXT:    [[ARRAYIDX20:%.*]] = getelementptr inbounds [8 x [8 x i32]], [8 x [8 x i32]]* [[M2]], i64 0, i64 [[INDVARS_IV]], i64 1
-; CHECK-NEXT:    [[ADD24:%.*]] = add nsw i32 [[ADD10]], undef
-; CHECK-NEXT:    [[ARRAYIDX34:%.*]] = getelementptr inbounds [8 x [8 x i32]], [8 x [8 x i32]]* [[M2]], i64 0, i64 [[INDVARS_IV]], i64 2
-; CHECK-NEXT:    [[ADD38:%.*]] = add nsw i32 [[ADD24]], undef
-; CHECK-NEXT:    [[ARRAYIDX48:%.*]] = getelementptr inbounds [8 x [8 x i32]], [8 x [8 x i32]]* [[M2]], i64 0, i64 [[INDVARS_IV]], i64 3
-; CHECK-NEXT:    [[TMP14:%.*]] = bitcast i32* [[ARRAYIDX6]] to <4 x i32>*
-; CHECK-NEXT:    store <4 x i32> [[TMP13]], <4 x i32>* [[TMP14]], align 16
-; CHECK-NEXT:    [[RDX_SHUF:%.*]] = shufflevector <4 x i32> [[TMP13]], <4 x i32> undef, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
-; CHECK-NEXT:    [[BIN_RDX:%.*]] = add nsw <4 x i32> [[TMP13]], [[RDX_SHUF]]
-; CHECK-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <4 x i32> [[BIN_RDX]], <4 x i32> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[BIN_RDX2:%.*]] = add nsw <4 x i32> [[BIN_RDX]], [[RDX_SHUF1]]
-; CHECK-NEXT:    [[TMP15:%.*]] = extractelement <4 x i32> [[BIN_RDX2]], i32 0
-; CHECK-NEXT:    [[OP_EXTRA]] = add nsw i32 [[TMP15]], [[A_088]]
-; CHECK-NEXT:    [[ADD52:%.*]] = add nsw i32 [[ADD38]], undef
+; CHECK-NEXT:    [[TMP3:%.*]] = bitcast i32* [[ARRAYIDX]] to <4 x i32>*
+; CHECK-NEXT:    [[TMP4:%.*]] = load <4 x i32>, <4 x i32>* [[TMP3]], align 4
+; CHECK-NEXT:    [[TMP5:%.*]] = bitcast i32* [[ARRAYIDX2]] to <4 x i32>*
+; CHECK-NEXT:    [[TMP6:%.*]] = load <4 x i32>, <4 x i32>* [[TMP5]], align 4
+; CHECK-NEXT:    [[TMP7:%.*]] = add nsw <4 x i32> [[TMP6]], [[TMP4]]
+; CHECK-NEXT:    [[TMP8:%.*]] = bitcast i32* [[ARRAYIDX6]] to <4 x i32>*
+; CHECK-NEXT:    store <4 x i32> [[TMP7]], <4 x i32>* [[TMP8]], align 16
+; CHECK-NEXT:    [[TMP9:%.*]] = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> [[TMP7]])
+; CHECK-NEXT:    [[OP_EXTRA]] = add nsw i32 [[TMP9]], [[A_088]]
 ; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
 ; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp eq i64 [[INDVARS_IV_NEXT]], 8
 ; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_END:%.*]], label [[FOR_BODY]]
@@ -114,7 +91,7 @@ for.body:                                         ; preds = %for.body, %entry
   ; YAML-NEXT: Function:        foo
   ; YAML-NEXT: Args:
   ; YAML-NEXT:   - String:          'Stores SLP vectorized with cost '
-  ; YAML-NEXT:   - Cost:            '-8'
+  ; YAML-NEXT:   - Cost:            '-5'
   ; YAML-NEXT:   - String:          ' and with tree size '
   ; YAML-NEXT:   - TreeSize:        '4'
 
@@ -124,7 +101,7 @@ for.body:                                         ; preds = %for.body, %entry
   ; YAML-NEXT: Function:        foo
   ; YAML-NEXT: Args:
   ; YAML-NEXT:   - String:          'Vectorized horizontal reduction with cost '
-  ; YAML-NEXT:   - Cost:            '-2'
+  ; YAML-NEXT:   - Cost:            '-7'
   ; YAML-NEXT:   - String:          ' and with tree size '
   ; YAML-NEXT:   - TreeSize:        '1'
 

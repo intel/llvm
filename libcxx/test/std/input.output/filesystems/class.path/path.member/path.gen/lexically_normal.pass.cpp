@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,16 +14,13 @@
 
 // path lexically_normal() const;
 
-#include "filesystem_include.hpp"
-#include <type_traits>
-#include <vector>
-#include <iostream>
-#include <cassert>
+#include "filesystem_include.h"
+#include <cstdio>
+#include <string>
 
 #include "test_macros.h"
-#include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 
 int main(int, char**) {
@@ -57,10 +54,17 @@ int main(int, char**) {
       {"/a/b/./", "/a/b/"},
       {"/a/b/c/../d", "/a/b/d"},
       {"/a/b/c/../d/", "/a/b/d/"},
+#ifdef _WIN32
+      {"//a/", "//a/"},
+      {"//a/b/", "//a/b/"},
+      {"//a/b/.", "//a/b/"},
+      {"//a/..", "//a/"},
+#else
       {"//a/", "/a/"},
       {"//a/b/", "/a/b/"},
       {"//a/b/.", "/a/b/"},
       {"//a/..", "/"},
+#endif
       ///===---------------------------------------------------------------===//
       /// Tests specifically for the clauses under [fs.path.generic]p6
       ///===---------------------------------------------------------------===//
@@ -70,9 +74,9 @@ int main(int, char**) {
       // separator.
       {"NO_ROOT_NAME_ON_LINUX", "NO_ROOT_NAME_ON_LINUX"},
       // p3: Replace each directory-separator with a preferred-separator.
-      // [ Note: The generic pathname grammar ([fs.path.generic]) defines
+      // [ Note: The generic pathname grammar ([fs.path.generic]) defines
       //   directory-separator as one or more slashes and preferred-separators.
-      //   — end note ]
+      //   — end note ]
       {"/", "/"},
       {"//", "/"},
       {"///", "/"},
@@ -103,8 +107,8 @@ int main(int, char**) {
       {"foo/bar/./..", "foo/"},
       {"foo/bar/./../", "foo/"},
       // p6: If there is a root-directory, remove all dot-dot filenames and any
-      // directory-separators immediately following them. [ Note: These dot-dot
-      // filenames attempt to refer to nonexistent parent directories. — end note ]
+      // directory-separators immediately following them. [ Note: These dot-dot
+      // filenames attempt to refer to nonexistent parent directories. — end note ]
       {"/..", "/"},
       {"/../", "/"},
       {"/foo/../..", "/"},
@@ -128,13 +132,15 @@ int main(int, char**) {
     ++ID;
     fs::path p(TC.input);
     const fs::path output = p.lexically_normal();
-    if (!PathEq(output, TC.expect)) {
+    fs::path expect(TC.expect);
+    expect.make_preferred();
+    if (!PathEq(output, expect)) {
       Failed = true;
-      std::cerr << "TEST CASE #" << ID << " FAILED: \n";
-      std::cerr << "  Input: '" << TC.input << "'\n";
-      std::cerr << "  Expected: '" << TC.expect << "'\n";
-      std::cerr << "  Output: '" << output.native() << "'";
-      std::cerr << std::endl;
+      std::fprintf(stderr, "TEST CASE #%d FAILED:\n"
+                  "  Input: '%s'\n"
+                  "  Expected: '%s'\n"
+                  "  Output: '%s'\n",
+        ID, TC.input.c_str(), expect.string().c_str(), output.string().c_str());
     }
   }
   return Failed;

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_DataBufferHeap_h_
-#define liblldb_DataBufferHeap_h_
+#ifndef LLDB_UTILITY_DATABUFFERHEAP_H
+#define LLDB_UTILITY_DATABUFFERHEAP_H
 
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/lldb-types.h"
@@ -80,8 +80,8 @@ public:
   ///     to resize itself to.
   ///
   /// \return
-  ///     The size in bytes after that this heap buffer was
-  ///     successfully resized to.
+  ///     The size in bytes after this heap buffer was resized. If
+  ///     the resize failed the size will remain unchanged.
   lldb::offset_t SetByteSize(lldb::offset_t byte_size);
 
   /// Makes a copy of the \a src_len bytes in \a src.
@@ -109,4 +109,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_DataBufferHeap_h_
+#endif // LLDB_UTILITY_DATABUFFERHEAP_H

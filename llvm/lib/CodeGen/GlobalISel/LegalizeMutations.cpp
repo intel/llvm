@@ -43,6 +43,16 @@ LegalizeMutation LegalizeMutations::changeElementTo(unsigned TypeIdx,
   };
 }
 
+LegalizeMutation LegalizeMutations::changeElementSizeTo(unsigned TypeIdx,
+                                                        unsigned FromTypeIdx) {
+  return [=](const LegalityQuery &Query) {
+    const LLT OldTy = Query.Types[TypeIdx];
+    const LLT NewTy = Query.Types[FromTypeIdx];
+    const LLT NewEltTy = LLT::scalar(NewTy.getScalarSizeInBits());
+    return std::make_pair(TypeIdx, OldTy.changeElementType(NewEltTy));
+  };
+}
+
 LegalizeMutation LegalizeMutations::widenScalarOrEltToNextPow2(unsigned TypeIdx,
                                                                unsigned Min) {
   return [=](const LegalityQuery &Query) {
@@ -53,14 +63,24 @@ LegalizeMutation LegalizeMutations::widenScalarOrEltToNextPow2(unsigned TypeIdx,
   };
 }
 
+LegalizeMutation
+LegalizeMutations::widenScalarOrEltToNextMultipleOf(unsigned TypeIdx,
+                                                    unsigned Size) {
+  return [=](const LegalityQuery &Query) {
+    const LLT Ty = Query.Types[TypeIdx];
+    unsigned NewEltSizeInBits = alignTo(Ty.getScalarSizeInBits(), Size);
+    return std::make_pair(TypeIdx, Ty.changeElementSize(NewEltSizeInBits));
+  };
+}
+
 LegalizeMutation LegalizeMutations::moreElementsToNextPow2(unsigned TypeIdx,
                                                            unsigned Min) {
   return [=](const LegalityQuery &Query) {
     const LLT VecTy = Query.Types[TypeIdx];
     unsigned NewNumElements =
         std::max(1u << Log2_32_Ceil(VecTy.getNumElements()), Min);
-    return std::make_pair(TypeIdx,
-                          LLT::vector(NewNumElements, VecTy.getElementType()));
+    return std::make_pair(
+        TypeIdx, LLT::fixed_vector(NewNumElements, VecTy.getElementType()));
   };
 }
 

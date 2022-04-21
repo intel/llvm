@@ -16,15 +16,17 @@ struct Container {
 };
 
 bool getBool() {
+  extern void mayThrow();
+  mayThrow();
   return false;
 }
 
 Class0 *g;
 
 // CHECK: define {{.*}} @_Z4testv()
-// CHECK: invoke zeroext i1 @_Z7getBoolv()
+// CHECK: invoke noundef zeroext i1 @_Z7getBoolv()
 // CHECK: landingpad { i8*, i32 }
-// CHECK: call void @_ZN6Class1D1Ev(%[[STRUCT_CLASS1]]* %{{.*}})
+// CHECK: call void @_ZN6Class1D1Ev(%[[STRUCT_CLASS1]]* {{[^,]*}} %{{.*}})
 // CHECK: br label
 
 // CHECK: define linkonce_odr void @_ZN6Class1D1Ev(

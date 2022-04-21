@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fexceptions -fsyntax-only -verify -std=c++11 -Wc++14-compat -Wc++14-extensions -Wc++17-extensions %s
+// RUN: %clang_cc1 -fcxx-exceptions -fdeclspec -fexceptions -fsyntax-only -verify -std=c++11 -Wc++14-compat -Wc++14-extensions -Wc++17-extensions %s
 
 // Need std::initializer_list
 namespace std {
@@ -131,12 +131,12 @@ extern "C++" [[]] { } // expected-error {{an attribute list cannot appear here}}
 [[]] static_assert(true, ""); //expected-error {{an attribute list cannot appear here}}
 [[]] asm(""); // expected-error {{an attribute list cannot appear here}}
 
-[[]] using ns::i; // expected-error {{an attribute list cannot appear here}}
+[[]] using ns::i;
 [[unknown]] using namespace ns; // expected-warning {{unknown attribute 'unknown' ignored}}
 [[noreturn]] using namespace ns; // expected-error {{'noreturn' attribute only applies to functions}}
 namespace [[]] ns2 {} // expected-warning {{attributes on a namespace declaration are a C++17 extension}}
 
-using [[]] alignas(4) [[]] ns::i; // expected-error {{an attribute list cannot appear here}}
+using[[]] alignas(4)[[]] ns::i;          // expected-error {{an attribute list cannot appear here}} expected-error {{'alignas' attribute only applies to variables, data members and tag types}} expected-warning {{ISO C++}}
 using [[]] alignas(4) [[]] foobar = int; // expected-error {{an attribute list cannot appear here}} expected-error {{'alignas' attribute only applies to}}
 
 void bad_attributes_in_do_while() {
@@ -152,12 +152,22 @@ void bad_attributes_in_do_while() {
       [[ab]ab] ns::i); // expected-error {{an attribute list cannot appear here}}
   do {} while ( // expected-note {{to match this '('}}
       alignas(4 ns::i; // expected-note {{to match this '('}}
+                       // expected-error@-1 {{expected ';' after do/while}}
 } // expected-error 2{{expected ')'}} expected-error {{expected expression}}
 
 [[]] using T = int; // expected-error {{an attribute list cannot appear here}}
 using T [[]] = int; // ok
 template<typename T> using U [[]] = T;
-using ns::i [[]]; // expected-error {{an attribute list cannot appear here}}
+using ns::i [[]];
+using ns::i [[]], ns::i [[]]; // expected-warning {{use of multiple declarators in a single using declaration is a C++17 extension}}
+struct using_in_struct_base {
+  typedef int i, j, k, l;
+};
+struct using_in_struct : using_in_struct_base {
+  [[]] using using_in_struct_base::i;
+  using using_in_struct_base::j [[]];
+  [[]] using using_in_struct_base::k [[]], using_in_struct_base::l [[]]; // expected-warning {{use of multiple declarators in a single using declaration is a C++17 extension}}
+};
 using [[]] ns::i; // expected-error {{an attribute list cannot appear here}}
 using T [[unknown]] = int; // expected-warning {{unknown attribute 'unknown' ignored}}
 using T [[noreturn]] = int; // expected-error {{'noreturn' attribute only applies to functions}}
@@ -179,6 +189,7 @@ struct [[]] N::S s; // expected-error {{an attribute list cannot appear here}}
 struct [[]] Template<int> t; // expected-error {{an attribute list cannot appear here}}
 struct [[]] ::template Template<int> u; // expected-error {{an attribute list cannot appear here}}
 template struct [[]] Template<char>; // expected-error {{an attribute list cannot appear here}}
+template struct __attribute__((pure)) Template<std::size_t>; // We still allow GNU-style attributes here
 template <> struct [[]] Template<void>;
 
 enum [[]] E1 {};
@@ -250,6 +261,19 @@ void foo () {
 
 template<typename...Ts> void variadic() {
   void bar [[noreturn...]] (); // expected-error {{attribute 'noreturn' cannot be used as an attribute pack}}
+}
+
+template <int... Is> void variadic_nttp() {
+  void bar [[noreturn...]] ();                        // expected-error {{attribute 'noreturn' cannot be used as an attribute pack}}
+  void baz [[clang::no_sanitize(Is...)]] ();          // expected-error {{attribute 'no_sanitize' does not support argument pack expansion}}
+  void bor [[clang::annotate("A", "V" ...)]] ();      // expected-error {{pack expansion does not contain any unexpanded parameter packs}}
+  void bir [[clang::annotate("B", {1, 2, 3, 4})]] (); // expected-error {{'annotate' attribute requires parameter 1 to be a constant expression}} expected-note {{subexpression not valid in a constant expression}}
+  void boo [[unknown::foo(Is...)]] ();                // expected-warning {{unknown attribute 'foo' ignored}}
+  void faz [[clang::annotate("C", (Is + ...))]] ();   // expected-warning {{pack fold expression is a C++17 extension}}
+  void far [[clang::annotate("D", Is...)]] ();
+  void foz [[clang::annotate("E", 1, 2, 3, Is...)]] ();
+  void fiz [[clang::annotate("F", Is..., 1, 2, 3)]] ();
+  void fir [[clang::annotate("G", 1, Is..., 2, 3)]] ();
 }
 
 // Expression tests
@@ -366,6 +390,22 @@ int fallthru(int n) {
   }
   return n;
 }
+
+template<typename T> struct TemplateStruct {};
+class FriendClassesWithAttributes {
+  // We allow GNU-style attributes here
+  template <class _Tp, class _Alloc> friend class __attribute__((__type_visibility__("default"))) vector;
+  template <class _Tp, class _Alloc> friend class __declspec(code_seg("foo,whatever")) vector2;
+  // But not C++11 ones
+  template <class _Tp, class _Alloc> friend class[[]] vector3;                                         // expected-error {{an attribute list cannot appear here}}
+  template <class _Tp, class _Alloc> friend class [[clang::__type_visibility__(("default"))]] vector4; // expected-error {{an attribute list cannot appear here}}
+
+  // Also allowed
+  friend struct __attribute__((__type_visibility__("default"))) TemplateStruct<FriendClassesWithAttributes>;
+  friend struct __declspec(code_seg("foo,whatever")) TemplateStruct<FriendClassesWithAttributes>;
+  friend struct[[]] TemplateStruct<FriendClassesWithAttributes>;                                       // expected-error {{an attribute list cannot appear here}}
+  friend struct [[clang::__type_visibility__("default")]] TemplateStruct<FriendClassesWithAttributes>; // expected-error {{an attribute list cannot appear here}}
+};
 
 #define attr_name bitand
 #define attr_name_2(x) x

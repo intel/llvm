@@ -1,12 +1,11 @@
-// -*- C++ -*-
-//===------------------------------ span ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+//===----------------------------------------------------------------------===//
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
@@ -22,14 +21,11 @@
 
 
 #include <span>
+#include <array>
 #include <cassert>
 #include <string>
 
 #include "test_macros.h"
-// std::array is explicitly allowed to be initialized with A a = { init-list };.
-// Disable the missing braces warning for this reason.
-#include "disable_missing_braces_warning.h"
-
 
 void checkCV()
 {
@@ -67,49 +63,58 @@ void checkCV()
     }
 }
 
-
-template <typename T>
-constexpr bool testConstexprSpan()
-{
-    constexpr std::array<T,2> val = { T(), T() };
-    ASSERT_NOEXCEPT(std::span<const T>   {val});
-    ASSERT_NOEXCEPT(std::span<const T, 2>{val});
-    std::span<const T>    s1{val};
-    std::span<const T, 2> s2{val};
-    return
-        s1.data() == &val[0] && s1.size() == 2
-    &&  s2.data() == &val[0] && s2.size() == 2;
+template <typename T, typename U>
+constexpr bool testConstructorArray() {
+  std::array<U, 2> val = {U(), U()};
+  ASSERT_NOEXCEPT(std::span<T>{val});
+  ASSERT_NOEXCEPT(std::span<T, 2>{val});
+  std::span<T> s1{val};
+  std::span<T, 2> s2{val};
+  return s1.data() == &val[0] && s1.size() == 2 && s2.data() == &val[0] &&
+         s2.size() == 2;
 }
 
+template <typename T, typename U>
+constexpr bool testConstructorConstArray() {
+  const std::array<U, 2> val = {U(), U()};
+  ASSERT_NOEXCEPT(std::span<const T>{val});
+  ASSERT_NOEXCEPT(std::span<const T, 2>{val});
+  std::span<const T> s1{val};
+  std::span<const T, 2> s2{val};
+  return s1.data() == &val[0] && s1.size() == 2 && s2.data() == &val[0] &&
+         s2.size() == 2;
+}
 
 template <typename T>
-void testRuntimeSpan()
-{
-    std::array<T,2> val;
-    ASSERT_NOEXCEPT(std::span<T>   {val});
-    ASSERT_NOEXCEPT(std::span<T, 2>{val});
-    std::span<T>    s1{val};
-    std::span<T, 2> s2{val};
-    assert(s1.data() == &val[0] && s1.size() == 2);
-    assert(s2.data() == &val[0] && s2.size() == 2);
+constexpr bool testConstructors() {
+  static_assert(testConstructorArray<T, T>(), "");
+  static_assert(testConstructorArray<const T, const T>(), "");
+  static_assert(testConstructorArray<const T, T>(), "");
+  static_assert(testConstructorConstArray<T, T>(), "");
+  static_assert(testConstructorConstArray<const T, const T>(), "");
+  static_assert(testConstructorConstArray<const T, T>(), "");
+
+  return testConstructorArray<T, T>() &&
+         testConstructorArray<const T, const T>() &&
+         testConstructorArray<const T, T>() &&
+         testConstructorConstArray<T, T>() &&
+         testConstructorConstArray<const T, const T>() &&
+         testConstructorConstArray<const T, T>();
 }
 
 struct A{};
 
 int main(int, char**)
 {
-    static_assert(testConstexprSpan<int>(),    "");
-    static_assert(testConstexprSpan<long>(),   "");
-    static_assert(testConstexprSpan<double>(), "");
-    static_assert(testConstexprSpan<A>(),      "");
+    assert(testConstructors<int>());
+    assert(testConstructors<long>());
+    assert(testConstructors<double>());
+    assert(testConstructors<A>());
 
-    testRuntimeSpan<int>();
-    testRuntimeSpan<long>();
-    testRuntimeSpan<double>();
-    testRuntimeSpan<std::string>();
-    testRuntimeSpan<A>();
+    assert(testConstructors<int*>());
+    assert(testConstructors<const int*>());
 
     checkCV();
 
-  return 0;
+    return 0;
 }

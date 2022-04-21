@@ -15,11 +15,12 @@
 
 // This tests a conforming extension
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "test_allocator.h"
 
@@ -28,6 +29,7 @@ struct some_alloc
 {
     typedef T value_type;
     some_alloc(const some_alloc&);
+    void allocate(size_t);
 };
 
 template <class T>
@@ -37,6 +39,7 @@ struct some_alloc2
 
     some_alloc2() {}
     some_alloc2(const some_alloc2&);
+    void allocate(size_t);
     void deallocate(void*, unsigned) {}
 
     typedef std::false_type propagate_on_container_move_assignment;
@@ -50,6 +53,7 @@ struct some_alloc3
 
     some_alloc3() {}
     some_alloc3(const some_alloc3&);
+    void allocate(size_t);
     void deallocate(void*, unsigned) {}
 
     typedef std::false_type propagate_on_container_move_assignment;

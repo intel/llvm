@@ -14,7 +14,7 @@
 // CHECK-RECORD:   LLVMType:%struct.s0 = type { [3 x i8] }
 // CHECK-RECORD:   IsZeroInitializable:1
 // CHECK-RECORD:   BitFields:[
-// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:24 IsSigned:1 StorageSize:24 StorageOffset:0>
+// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:24 IsSigned:1 StorageSize:24 StorageOffset:0
 struct __attribute((packed)) s0 {
   int f0 : 24;
 };
@@ -32,10 +32,10 @@ int f0_reload(struct s0 *a0) {
   return (a0->f0 += 1);
 }
 
-// CHECK-OPT-LABEL: define i64 @test_0()
+// CHECK-OPT-LABEL: define{{.*}} i64 @test_0()
 // CHECK-OPT:  ret i64 1
 // CHECK-OPT: }
-unsigned long long test_0() {
+unsigned long long test_0(void) {
   struct s0 g0 = { 0xdeadbeef };
   unsigned long long res = 0;
   res ^= g0.f0;
@@ -54,8 +54,8 @@ unsigned long long test_0() {
 // CHECK-RECORD:   LLVMType:%struct.s1 = type { [3 x i8] }
 // CHECK-RECORD:   IsZeroInitializable:1
 // CHECK-RECORD:   BitFields:[
-// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:10 IsSigned:1 StorageSize:24 StorageOffset:0>
-// CHECK-RECORD:     <CGBitFieldInfo Offset:10 Size:10 IsSigned:1 StorageSize:24 StorageOffset:0>
+// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:10 IsSigned:1 StorageSize:24 StorageOffset:0
+// CHECK-RECORD:     <CGBitFieldInfo Offset:10 Size:10 IsSigned:1 StorageSize:24 StorageOffset:0
 
 #pragma pack(push)
 #pragma pack(1)
@@ -78,10 +78,10 @@ int f1_reload(struct s1 *a0) {
   return (a0->f1 += 1234);
 }
 
-// CHECK-OPT-LABEL: define i64 @test_1()
+// CHECK-OPT-LABEL: define{{.*}} i64 @test_1()
 // CHECK-OPT:  ret i64 210
 // CHECK-OPT: }
-unsigned long long test_1() {
+unsigned long long test_1(void) {
   struct s1 g1 = { 0xdeadbeef, 0xdeadbeef };
   unsigned long long res = 0;
   res ^= g1.f0 ^ g1.f1;
@@ -102,7 +102,7 @@ unsigned long long test_1() {
 // CHECK-RECORD:   LLVMType:%union.u2 = type { i8 }
 // CHECK-RECORD:   IsZeroInitializable:1
 // CHECK-RECORD:   BitFields:[
-// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:3 IsSigned:0 StorageSize:8 StorageOffset:0>
+// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:3 IsSigned:0 StorageSize:8 StorageOffset:0
 
 union __attribute__((packed)) u2 {
   unsigned long long f0 : 3;
@@ -120,10 +120,10 @@ int f2_reload(union u2 *a0) {
   return (a0->f0 += 1234);
 }
 
-// CHECK-OPT-LABEL: define i64 @test_2()
+// CHECK-OPT-LABEL: define{{.*}} i64 @test_2()
 // CHECK-OPT:  ret i64 2
 // CHECK-OPT: }
-unsigned long long test_2() {
+unsigned long long test_2(void) {
   union u2 g2 = { 0xdeadbeef };
   unsigned long long res = 0;
   res ^= g2.f0;
@@ -156,10 +156,10 @@ int f3_reload(struct s3 *a0) {
   return (a0->f0 += 1234);
 }
 
-// CHECK-OPT-LABEL: define i64 @test_3()
+// CHECK-OPT-LABEL: define{{.*}} i64 @test_3()
 // CHECK-OPT:  ret i64 -559039940
 // CHECK-OPT: }
-unsigned long long test_3() {
+unsigned long long test_3(void) {
   struct s3 g3 = { 0xdeadbeef, 0xdeadbeef };
   unsigned long long res = 0;
   res ^= g3.f0 ^ g3.f1;
@@ -190,10 +190,10 @@ int f4_reload(struct s4 *a0) {
   return (a0->f0 += 1234) ^ (a0->f1 += 5678);
 }
 
-// CHECK-OPT-LABEL: define i64 @test_4()
+// CHECK-OPT-LABEL: define{{.*}} i64 @test_4()
 // CHECK-OPT:  ret i64 4860
 // CHECK-OPT: }
-unsigned long long test_4() {
+unsigned long long test_4(void) {
   struct s4 g4 = { 0xdeadbeef, 0xdeadbeef };
   unsigned long long res = 0;
   res ^= g4.f0 ^ g4.f1;
@@ -222,10 +222,10 @@ int f5_reload(struct s5 *a0) {
   return (a0->f0 += 0xF) ^ (a0->f1 += 0xF) ^ (a0->f2 += 0xF);
 }
 
-// CHECK-OPT-LABEL: define i64 @test_5()
+// CHECK-OPT-LABEL: define{{.*}} i64 @test_5()
 // CHECK-OPT:  ret i64 2
 // CHECK-OPT: }
-unsigned long long test_5() {
+unsigned long long test_5(void) {
   struct s5 g5 = { 0xdeadbeef, 0xdeadbeef, 0xdeadbeef };
   unsigned long long res = 0;
   res ^= g5.f0 ^ g5.f1 ^ g5.f2;
@@ -252,10 +252,10 @@ int f6_reload(struct s6 *a0) {
   return (a0->f0 += 0xF);
 }
 
-// CHECK-OPT-LABEL: define zeroext i1 @test_6()
+// CHECK-OPT-LABEL: define{{.*}} zeroext i1 @test_6()
 // CHECK-OPT:  ret i1 true
 // CHECK-OPT: }
-_Bool test_6() {
+_Bool test_6(void) {
   struct s6 g6 = { 0xF };
   unsigned long long res = 0;
   res ^= g6.f0;
@@ -274,8 +274,8 @@ _Bool test_6() {
 // CHECK-RECORD:   LLVMType:%struct.s7 = type { i32, i32, i32, i8, i32, [12 x i8] }
 // CHECK-RECORD:   IsZeroInitializable:1
 // CHECK-RECORD:   BitFields:[
-// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:5 IsSigned:1 StorageSize:8 StorageOffset:12>
-// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:29 IsSigned:1 StorageSize:32 StorageOffset:16>
+// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:5 IsSigned:1 StorageSize:8 StorageOffset:12
+// CHECK-RECORD:     <CGBitFieldInfo Offset:0 Size:29 IsSigned:1 StorageSize:32 StorageOffset:16
 
 struct __attribute__((aligned(16))) s7 {
   int a, b, c;
@@ -310,10 +310,10 @@ int f8_reload(struct s8 *a0) {
   return (a0->f0 += 0xFD) ^ (a0->f2 += 0xFD) ^ (a0->f3 += 0xFD);
 }
 
-// CHECK-OPT-LABEL: define i32 @test_8()
+// CHECK-OPT-LABEL: define{{.*}} i32 @test_8()
 // CHECK-OPT:  ret i32 -3
 // CHECK-OPT: }
-unsigned test_8() {
+unsigned test_8(void) {
   struct s8 g8 = { 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef };
   unsigned long long res = 0;
   res ^= g8.f0 ^ g8.f2 ^ g8.f3;

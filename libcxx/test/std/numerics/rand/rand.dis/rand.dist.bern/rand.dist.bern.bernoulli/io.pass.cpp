@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: libcpp-has-no-localization
+
 // <random>
 
 // class bernoulli_distribution
@@ -23,6 +25,8 @@
 #include <random>
 #include <sstream>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

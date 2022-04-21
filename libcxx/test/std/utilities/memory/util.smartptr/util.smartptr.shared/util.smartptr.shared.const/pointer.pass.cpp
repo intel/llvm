@@ -13,6 +13,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     static int count;
@@ -27,21 +29,54 @@ int A::count = 0;
 int main(int, char**)
 {
     {
-    A* ptr = new A;
-    std::shared_ptr<A> p(ptr);
-    assert(A::count == 1);
-    assert(p.use_count() == 1);
-    assert(p.get() == ptr);
+        assert(A::count == 0);
+        A* ptr = new A;
+        std::shared_ptr<A> p(ptr);
+        assert(A::count == 1);
+        assert(p.use_count() == 1);
+        assert(p.get() == ptr);
     }
-    assert(A::count == 0);
-    {
-    A* ptr = new A;
-    std::shared_ptr<void> p(ptr);
-    assert(A::count == 1);
-    assert(p.use_count() == 1);
-    assert(p.get() == ptr);
-    }
-    assert(A::count == 0);
 
-  return 0;
+    {
+        assert(A::count == 0);
+        A const* ptr = new A;
+        std::shared_ptr<A const> p(ptr);
+        assert(A::count == 1);
+        assert(p.use_count() == 1);
+        assert(p.get() == ptr);
+    }
+
+    {
+        assert(A::count == 0);
+        A* ptr = new A;
+        std::shared_ptr<void> p(ptr);
+        assert(A::count == 1);
+        assert(p.use_count() == 1);
+        assert(p.get() == ptr);
+    }
+
+#if TEST_STD_VER > 14
+    {
+        assert(A::count == 0);
+        std::shared_ptr<A[8]> pA(new A[8]);
+        assert(pA.use_count() == 1);
+        assert(A::count == 8);
+    }
+
+    {
+        assert(A::count == 0);
+        std::shared_ptr<A[]> pA(new A[8]);
+        assert(pA.use_count() == 1);
+        assert(A::count == 8);
+    }
+
+    {
+          assert(A::count == 0);
+        std::shared_ptr<const A[]> pA(new A[8]);
+        assert(pA.use_count() == 1);
+        assert(A::count == 8);
+    }
+#endif
+
+    return 0;
 }

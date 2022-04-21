@@ -47,14 +47,14 @@ entry:
 ; CHECK: 	restore	$16, $17, $ra, $18, [[FS]]
 ; CHECK: 	.end	foo3
 ; NEG: 	.ent	foo3
-; NEG-NOT: 	save	$16, $17, $ra, $18, [[FS:[0-9]+]] # 16 bit inst
-; NEG-NOT: 	restore	$16, $17, $ra, $18, [[FS]] # 16 bit inst
+; NEG-NOT: 	save	$16, $17, $ra, $18, {{[0-9]+}} # 16 bit inst
+; NEG-NOT: 	restore	$16, $17, $ra, $18, {{[0-9]+}} # 16 bit inst
 ; NEG: 	.end	foo3
 }
 
 declare float @xf() #1
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 

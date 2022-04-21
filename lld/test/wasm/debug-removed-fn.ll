@@ -1,10 +1,16 @@
 ; RUN: llc -filetype=obj < %s -o %t.o
 ; RUN: wasm-ld %t.o --no-entry --export=foo -o %t.wasm
-; RUN: llvm-dwarfdump -debug-line %t.wasm | FileCheck %s
+; RUN: llvm-dwarfdump -debug-line -debug-ranges %t.wasm | FileCheck %s
 
 ; CHECK: Address
-; CHECK: 0x0000000000000005
-; CHECK: 0x0000000000000000
+; CHECK: 0x0000000000000003
+; CHECK-NEXT: 0x0000000000000006
+; CHECK-EMPTY:
+
+; CHECK: .debug_ranges contents:
+; CHECK: 00000000 {{[0-9]+}} {{[0-9]+}}
+; CHECK: 00000000 fffffffe fffffffe
+; CHECK: 00000000 <End of list>
 
 ; ModuleID = 't.bc'
 target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
@@ -22,7 +28,7 @@ entry:
   ret i32 6, !dbg !13
 }
 
-attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

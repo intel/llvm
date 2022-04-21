@@ -1,5 +1,4 @@
-//===-- CF.cpp ----------------------------------------------------*- C++
-//-*-===//
+//===-- CF.cpp ------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,18 +8,19 @@
 
 #include "CF.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/Language.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Endian.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Stream.h"
+
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -29,7 +29,7 @@ using namespace lldb_private::formatters;
 bool lldb_private::formatters::CFAbsoluteTimeSummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
   time_t epoch = GetOSXEpoch();
-  epoch = epoch + (time_t)valobj.GetValueAsUnsigned(0);
+  epoch = epoch + (time_t)valobj.GetValueAsSigned(0);
   tm *tm_date = localtime(&epoch);
   if (!tm_date)
     return false;
@@ -50,9 +50,7 @@ bool lldb_private::formatters::CFBagSummaryProvider(
   if (!process_sp)
     return false;
 
-  ObjCLanguageRuntime *runtime =
-      (ObjCLanguageRuntime *)process_sp->GetLanguageRuntime(
-          lldb::eLanguageTypeObjC);
+  ObjCLanguageRuntime *runtime = ObjCLanguageRuntime::Get(*process_sp);
 
   if (!runtime)
     return false;
@@ -76,10 +74,10 @@ bool lldb_private::formatters::CFBagSummaryProvider(
   if (descriptor->IsCFType()) {
     ConstString type_name(valobj.GetTypeName());
 
-    static ConstString g___CFBag("__CFBag");
+    static ConstString g_CFBag("__CFBag");
     static ConstString g_conststruct__CFBag("const struct __CFBag");
 
-    if (type_name == g___CFBag || type_name == g_conststruct__CFBag) {
+    if (type_name == g_CFBag || type_name == g_conststruct__CFBag) {
       if (valobj.IsPointerType())
         is_type_ok = true;
     }
@@ -114,9 +112,7 @@ bool lldb_private::formatters::CFBitVectorSummaryProvider(
   if (!process_sp)
     return false;
 
-  ObjCLanguageRuntime *runtime =
-      (ObjCLanguageRuntime *)process_sp->GetLanguageRuntime(
-          lldb::eLanguageTypeObjC);
+  ObjCLanguageRuntime *runtime = ObjCLanguageRuntime::Get(*process_sp);
 
   if (!runtime)
     return false;
@@ -236,9 +232,7 @@ bool lldb_private::formatters::CFBinaryHeapSummaryProvider(
   if (!process_sp)
     return false;
 
-  ObjCLanguageRuntime *runtime =
-      (ObjCLanguageRuntime *)process_sp->GetLanguageRuntime(
-          lldb::eLanguageTypeObjC);
+  ObjCLanguageRuntime *runtime = ObjCLanguageRuntime::Get(*process_sp);
 
   if (!runtime)
     return false;
@@ -263,12 +257,12 @@ bool lldb_private::formatters::CFBinaryHeapSummaryProvider(
   if (descriptor->IsCFType()) {
     ConstString type_name(valobj.GetTypeName());
 
-    static ConstString g___CFBinaryHeap("__CFBinaryHeap");
+    static ConstString g_CFBinaryHeap("__CFBinaryHeap");
     static ConstString g_conststruct__CFBinaryHeap(
         "const struct __CFBinaryHeap");
     static ConstString g_CFBinaryHeapRef("CFBinaryHeapRef");
 
-    if (type_name == g___CFBinaryHeap ||
+    if (type_name == g_CFBinaryHeap ||
         type_name == g_conststruct__CFBinaryHeap ||
         type_name == g_CFBinaryHeapRef) {
       if (valobj.IsPointerType())

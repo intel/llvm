@@ -56,7 +56,7 @@ define <8 x i32> @vroll_extract_mul(<8 x i32> %i) nounwind {
 define <2 x i64> @vrolq_extract_udiv(<2 x i64> %i) nounwind {
 ; X86-LABEL: vrolq_extract_udiv:
 ; X86:       # %bb.0:
-; X86-NEXT:    subl $44, %esp
+; X86-NEXT:    subl $32, %esp
 ; X86-NEXT:    vmovups %xmm0, {{[-0-9]+}}(%e{{[sb]}}p) # 16-byte Spill
 ; X86-NEXT:    vextractps $1, %xmm0, {{[0-9]+}}(%esp)
 ; X86-NEXT:    vmovss %xmm0, (%esp)
@@ -77,7 +77,7 @@ define <2 x i64> @vrolq_extract_udiv(<2 x i64> %i) nounwind {
 ; X86-NEXT:    vpinsrd $3, %edx, %xmm0, %xmm0
 ; X86-NEXT:    vprolq $57, %zmm0, %zmm0
 ; X86-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
-; X86-NEXT:    addl $44, %esp
+; X86-NEXT:    addl $32, %esp
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
 ;
@@ -86,13 +86,12 @@ define <2 x i64> @vrolq_extract_udiv(<2 x i64> %i) nounwind {
 ; X64-NEXT:    vpextrq $1, %xmm0, %rax
 ; X64-NEXT:    movabsq $-6148914691236517205, %rcx # imm = 0xAAAAAAAAAAAAAAAB
 ; X64-NEXT:    mulq %rcx
-; X64-NEXT:    shrq %rdx
 ; X64-NEXT:    vmovq %rdx, %xmm1
 ; X64-NEXT:    vmovq %xmm0, %rax
 ; X64-NEXT:    mulq %rcx
-; X64-NEXT:    shrq %rdx
 ; X64-NEXT:    vmovq %rdx, %xmm0
 ; X64-NEXT:    vpunpcklqdq {{.*#+}} xmm0 = xmm0[0],xmm1[0]
+; X64-NEXT:    vpsrlq $1, %xmm0, %xmm0
 ; X64-NEXT:    vprolq $57, %zmm0, %zmm0
 ; X64-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
 ; X64-NEXT:    vzeroupper
@@ -110,7 +109,7 @@ define <4 x i32> @vrolw_extract_mul_with_mask(<4 x i32> %i) nounwind {
 ; X86-NEXT:    vpbroadcastd {{.*#+}} xmm1 = [9,9,9,9]
 ; X86-NEXT:    vpmulld %xmm1, %xmm0, %xmm0
 ; X86-NEXT:    vprold $7, %zmm0, %zmm0
-; X86-NEXT:    vpand {{\.LCPI.*}}, %xmm0, %xmm0
+; X86-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
 ;
@@ -119,7 +118,7 @@ define <4 x i32> @vrolw_extract_mul_with_mask(<4 x i32> %i) nounwind {
 ; X64-NEXT:    vpbroadcastd {{.*#+}} xmm1 = [9,9,9,9]
 ; X64-NEXT:    vpmulld %xmm1, %xmm0, %xmm0
 ; X64-NEXT:    vprold $7, %zmm0, %zmm0
-; X64-NEXT:    vpand {{.*}}(%rip), %xmm0, %xmm0
+; X64-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
   %lhs_mul = mul <4 x i32> %i, <i32 1152, i32 1152, i32 1152, i32 1152>
@@ -133,18 +132,18 @@ define <4 x i32> @vrolw_extract_mul_with_mask(<4 x i32> %i) nounwind {
 define <32 x i16> @illegal_no_extract_mul(<32 x i16> %i) nounwind {
 ; X86-LABEL: illegal_no_extract_mul:
 ; X86:       # %bb.0:
-; X86-NEXT:    vpmullw {{\.LCPI.*}}, %zmm0, %zmm1
-; X86-NEXT:    vpmullw {{\.LCPI.*}}, %zmm0, %zmm0
-; X86-NEXT:    vpsrlw $10, %zmm0, %zmm0
-; X86-NEXT:    vporq %zmm0, %zmm1, %zmm0
+; X86-NEXT:    vpmullw {{\.?LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
+; X86-NEXT:    vpsrlw $10, %zmm0, %zmm1
+; X86-NEXT:    vpsllw $6, %zmm0, %zmm0
+; X86-NEXT:    vporq %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: illegal_no_extract_mul:
 ; X64:       # %bb.0:
-; X64-NEXT:    vpmullw {{.*}}(%rip), %zmm0, %zmm1
-; X64-NEXT:    vpmullw {{.*}}(%rip), %zmm0, %zmm0
-; X64-NEXT:    vpsrlw $10, %zmm0, %zmm0
-; X64-NEXT:    vporq %zmm0, %zmm1, %zmm0
+; X64-NEXT:    vpmullw {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
+; X64-NEXT:    vpsrlw $10, %zmm0, %zmm1
+; X64-NEXT:    vpsllw $6, %zmm0, %zmm0
+; X64-NEXT:    vporq %zmm1, %zmm0, %zmm0
 ; X64-NEXT:    retq
   %lhs_mul = mul <32 x i16> %i, <i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640, i16 640>
   %rhs_mul = mul <32 x i16> %i, <i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10, i16 10>
@@ -208,7 +207,7 @@ define <8 x i32> @no_extract_mul(<8 x i32> %i) nounwind {
 define <2 x i64> @no_extract_udiv(<2 x i64> %i) nounwind {
 ; X86-LABEL: no_extract_udiv:
 ; X86:       # %bb.0:
-; X86-NEXT:    subl $60, %esp
+; X86-NEXT:    subl $48, %esp
 ; X86-NEXT:    vmovups %xmm0, {{[-0-9]+}}(%e{{[sb]}}p) # 16-byte Spill
 ; X86-NEXT:    vextractps $1, %xmm0, {{[0-9]+}}(%esp)
 ; X86-NEXT:    vmovss %xmm0, (%esp)
@@ -247,7 +246,7 @@ define <2 x i64> @no_extract_udiv(<2 x i64> %i) nounwind {
 ; X86-NEXT:    vmovdqu {{[-0-9]+}}(%e{{[sb]}}p), %xmm1 # 16-byte Reload
 ; X86-NEXT:    vpsllq $56, %xmm1, %xmm1
 ; X86-NEXT:    vpor %xmm0, %xmm1, %xmm0
-; X86-NEXT:    addl $60, %esp
+; X86-NEXT:    addl $48, %esp
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: no_extract_udiv:
@@ -256,24 +255,22 @@ define <2 x i64> @no_extract_udiv(<2 x i64> %i) nounwind {
 ; X64-NEXT:    movabsq $-6148914691236517205, %rdi # imm = 0xAAAAAAAAAAAAAAAB
 ; X64-NEXT:    movq %rcx, %rax
 ; X64-NEXT:    mulq %rdi
-; X64-NEXT:    shrq %rdx
 ; X64-NEXT:    vmovq %rdx, %xmm1
 ; X64-NEXT:    vmovq %xmm0, %rsi
 ; X64-NEXT:    movq %rsi, %rax
 ; X64-NEXT:    mulq %rdi
-; X64-NEXT:    shrq %rdx
 ; X64-NEXT:    vmovq %rdx, %xmm0
 ; X64-NEXT:    vpunpcklqdq {{.*#+}} xmm0 = xmm0[0],xmm1[0]
+; X64-NEXT:    vpsrlq $1, %xmm0, %xmm0
 ; X64-NEXT:    movabsq $-6180857105216966645, %rdi # imm = 0xAA392F35DC17F00B
 ; X64-NEXT:    movq %rcx, %rax
 ; X64-NEXT:    mulq %rdi
-; X64-NEXT:    shrq $9, %rdx
 ; X64-NEXT:    vmovq %rdx, %xmm1
 ; X64-NEXT:    movq %rsi, %rax
 ; X64-NEXT:    mulq %rdi
-; X64-NEXT:    shrq $9, %rdx
 ; X64-NEXT:    vmovq %rdx, %xmm2
 ; X64-NEXT:    vpunpcklqdq {{.*#+}} xmm1 = xmm2[0],xmm1[0]
+; X64-NEXT:    vpsrlq $9, %xmm1, %xmm1
 ; X64-NEXT:    vpsllq $56, %xmm0, %xmm0
 ; X64-NEXT:    vpor %xmm1, %xmm0, %xmm0
 ; X64-NEXT:    retq
@@ -282,4 +279,46 @@ define <2 x i64> @no_extract_udiv(<2 x i64> %i) nounwind {
   %lhs_shift = shl <2 x i64> %lhs_div, <i64 56, i64 56>
   %out = or <2 x i64> %lhs_shift, %rhs_div
   ret <2 x i64> %out
+}
+
+; DAGCombiner transforms shl X, 1 into add X, X.
+define <4 x i32> @extract_add_1(<4 x i32> %i) nounwind {
+; CHECK-LABEL: extract_add_1:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $xmm0 killed $xmm0 def $zmm0
+; CHECK-NEXT:    vprold $1, %zmm0, %zmm0
+; CHECK-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; CHECK-NEXT:    vzeroupper
+; CHECK-NEXT:    ret{{[l|q]}}
+  %ii = add <4 x i32> %i, %i
+  %rhs = lshr <4 x i32> %i, <i32 31, i32 31, i32 31, i32 31>
+  %out = or <4 x i32> %ii, %rhs
+  ret <4 x i32> %out
+}
+
+define <4 x i32> @extract_add_1_comut(<4 x i32> %i) nounwind {
+; CHECK-LABEL: extract_add_1_comut:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $xmm0 killed $xmm0 def $zmm0
+; CHECK-NEXT:    vprold $1, %zmm0, %zmm0
+; CHECK-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; CHECK-NEXT:    vzeroupper
+; CHECK-NEXT:    ret{{[l|q]}}
+  %ii = add <4 x i32> %i, %i
+  %lhs = lshr <4 x i32> %i, <i32 31, i32 31, i32 31, i32 31>
+  %out = or <4 x i32> %lhs, %ii
+  ret <4 x i32> %out
+}
+
+define <4 x i32> @no_extract_add_1(<4 x i32> %i) nounwind {
+; CHECK-LABEL: no_extract_add_1:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vpaddd %xmm0, %xmm0, %xmm1
+; CHECK-NEXT:    vpsrld $27, %xmm0, %xmm0
+; CHECK-NEXT:    vpor %xmm0, %xmm1, %xmm0
+; CHECK-NEXT:    ret{{[l|q]}}
+  %ii = add <4 x i32> %i, %i
+  %rhs = lshr <4 x i32> %i, <i32 27, i32 27, i32 27, i32 27>
+  %out = or <4 x i32> %ii, %rhs
+  ret <4 x i32> %out
 }

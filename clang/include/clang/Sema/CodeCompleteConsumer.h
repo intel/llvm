@@ -329,6 +329,9 @@ public:
     /// Code completion inside the filename part of a #include directive.
     CCC_IncludedFile,
 
+    /// Code completion of an attribute name.
+    CCC_Attribute,
+
     /// An unknown context, in which we are recovering from a parsing
     /// error and don't know which completions we should give.
     CCC_Recovery
@@ -338,6 +341,11 @@ public:
 
 private:
   Kind CCKind;
+
+  /// Indicates whether we are completing a name of a using declaration, e.g.
+  ///     using ^;
+  ///     using a::^;
+  bool IsUsingDeclaration;
 
   /// The type that would prefer to see at this point (e.g., the type
   /// of an initializer or function parameter).
@@ -359,12 +367,13 @@ private:
 
 public:
   /// Construct a new code-completion context of the given kind.
-  CodeCompletionContext(Kind CCKind) : CCKind(CCKind), SelIdents(None) {}
+  CodeCompletionContext(Kind CCKind)
+      : CCKind(CCKind), IsUsingDeclaration(false), SelIdents(None) {}
 
   /// Construct a new code-completion context of the given kind.
   CodeCompletionContext(Kind CCKind, QualType T,
                         ArrayRef<IdentifierInfo *> SelIdents = None)
-      : CCKind(CCKind), SelIdents(SelIdents) {
+      : CCKind(CCKind), IsUsingDeclaration(false), SelIdents(SelIdents) {
     if (CCKind == CCC_DotMemberAccess || CCKind == CCC_ArrowMemberAccess ||
         CCKind == CCC_ObjCPropertyAccess || CCKind == CCC_ObjCClassMessage ||
         CCKind == CCC_ObjCInstanceMessage)
@@ -372,6 +381,9 @@ public:
     else
       PreferredType = T;
   }
+
+  bool isUsingDeclaration() const { return IsUsingDeclaration; }
+  void setIsUsingDeclaration(bool V) { IsUsingDeclaration = V; }
 
   /// Retrieve the kind of code-completion context.
   Kind getKind() const { return CCKind; }
@@ -983,9 +995,6 @@ inline bool operator>=(const CodeCompletionResult &X,
   return !(X < Y);
 }
 
-raw_ostream &operator<<(raw_ostream &OS,
-                              const CodeCompletionString &CCS);
-
 /// Abstract interface for a consumer of code-completion
 /// information.
 class CodeCompleteConsumer {
@@ -1000,12 +1009,18 @@ public:
       /// The candidate is a function declaration.
       CK_Function,
 
-      /// The candidate is a function template.
+      /// The candidate is a function template, arguments are being completed.
       CK_FunctionTemplate,
 
       /// The "candidate" is actually a variable, expression, or block
       /// for which we only have a function prototype.
-      CK_FunctionType
+      CK_FunctionType,
+
+      /// The candidate is a template, template arguments are being completed.
+      CK_Template,
+
+      /// The candidate is aggregate initialization of a record type.
+      CK_Aggregate,
     };
 
   private:
@@ -1024,17 +1039,39 @@ public:
       /// The function type that describes the entity being called,
       /// when Kind == CK_FunctionType.
       const FunctionType *Type;
+
+      /// The template overload candidate, available when
+      /// Kind == CK_Template.
+      const TemplateDecl *Template;
+
+      /// The class being aggregate-initialized,
+      /// when Kind == CK_Aggregate
+      const RecordDecl *AggregateType;
     };
 
   public:
     OverloadCandidate(FunctionDecl *Function)
-        : Kind(CK_Function), Function(Function) {}
+        : Kind(CK_Function), Function(Function) {
+      assert(Function != nullptr);
+    }
 
     OverloadCandidate(FunctionTemplateDecl *FunctionTemplateDecl)
-        : Kind(CK_FunctionTemplate), FunctionTemplate(FunctionTemplateDecl) {}
+        : Kind(CK_FunctionTemplate), FunctionTemplate(FunctionTemplateDecl) {
+      assert(FunctionTemplateDecl != nullptr);
+    }
 
     OverloadCandidate(const FunctionType *Type)
-        : Kind(CK_FunctionType), Type(Type) {}
+        : Kind(CK_FunctionType), Type(Type) {
+      assert(Type != nullptr);
+    }
+
+    OverloadCandidate(const RecordDecl *Aggregate)
+        : Kind(CK_Aggregate), AggregateType(Aggregate) {
+      assert(Aggregate != nullptr);
+    }
+
+    OverloadCandidate(const TemplateDecl *Template)
+        : Kind(CK_Template), Template(Template) {}
 
     /// Determine the kind of overload candidate.
     CandidateKind getKind() const { return Kind; }
@@ -1053,13 +1090,35 @@ public:
     /// function is stored.
     const FunctionType *getFunctionType() const;
 
+    const TemplateDecl *getTemplate() const {
+      assert(getKind() == CK_Template && "Not a template");
+      return Template;
+    }
+
+    /// Retrieve the aggregate type being initialized.
+    const RecordDecl *getAggregate() const {
+      assert(getKind() == CK_Aggregate);
+      return AggregateType;
+    }
+
+    /// Get the number of parameters in this signature.
+    unsigned getNumParams() const;
+
+    /// Get the type of the Nth parameter.
+    /// Returns null if the type is unknown or N is out of range.
+    QualType getParamType(unsigned N) const;
+
+    /// Get the declaration of the Nth parameter.
+    /// Returns null if the decl is unknown or N is out of range.
+    const NamedDecl *getParamDecl(unsigned N) const;
+
     /// Create a new code-completion string that describes the function
     /// signature of this overload candidate.
-    CodeCompletionString *CreateSignatureString(unsigned CurrentArg,
-                                                Sema &S,
-                                      CodeCompletionAllocator &Allocator,
-                                      CodeCompletionTUInfo &CCTUInfo,
-                                      bool IncludeBriefComments) const;
+    CodeCompletionString *
+    CreateSignatureString(unsigned CurrentArg, Sema &S,
+                          CodeCompletionAllocator &Allocator,
+                          CodeCompletionTUInfo &CCTUInfo,
+                          bool IncludeBriefComments, bool Braced) const;
   };
 
   CodeCompleteConsumer(const CodeCompleteOptions &CodeCompleteOpts)
@@ -1133,7 +1192,8 @@ public:
   virtual void ProcessOverloadCandidates(Sema &S, unsigned CurrentArg,
                                          OverloadCandidate *Candidates,
                                          unsigned NumCandidates,
-                                         SourceLocation OpenParLoc) {}
+                                         SourceLocation OpenParLoc,
+                                         bool Braced) {}
   //@}
 
   /// Retrieve the allocator that will be used to allocate
@@ -1184,7 +1244,8 @@ public:
   void ProcessOverloadCandidates(Sema &S, unsigned CurrentArg,
                                  OverloadCandidate *Candidates,
                                  unsigned NumCandidates,
-                                 SourceLocation OpenParLoc) override;
+                                 SourceLocation OpenParLoc,
+                                 bool Braced) override;
 
   bool isResultFilteredOut(StringRef Filter, CodeCompletionResult Results) override;
 

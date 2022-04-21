@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_BASIC_TOKENKINDS_H
 #define LLVM_CLANG_BASIC_TOKENKINDS_H
 
+#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/Support/Compiler.h"
 
 namespace clang {
@@ -67,6 +68,9 @@ const char *getPunctuatorSpelling(TokenKind Kind) LLVM_READNONE;
 /// tokens like 'int' and 'dynamic_cast'. Returns NULL for other token kinds.
 const char *getKeywordSpelling(TokenKind Kind) LLVM_READNONE;
 
+/// Returns the spelling of preprocessor keywords, such as "else".
+const char *getPPKeywordSpelling(PPKeywordKind Kind) LLVM_READNONE;
+
 /// Return true if this is a raw identifier or an identifier kind.
 inline bool isAnyIdentifier(TokenKind K) {
   return (K == tok::identifier) || (K == tok::raw_identifier);
@@ -90,15 +94,30 @@ inline bool isLiteral(TokenKind K) {
 }
 
 /// Return true if this is any of tok::annot_* kinds.
-inline bool isAnnotation(TokenKind K) {
-#define ANNOTATION(NAME) \
-  if (K == tok::annot_##NAME) \
-    return true;
-#include "clang/Basic/TokenKinds.def"
-  return false;
-}
+bool isAnnotation(TokenKind K);
 
-}  // end namespace tok
-}  // end namespace clang
+/// Return true if this is an annotation token representing a pragma.
+bool isPragmaAnnotation(TokenKind K);
+
+} // end namespace tok
+} // end namespace clang
+
+namespace llvm {
+template <> struct DenseMapInfo<clang::tok::PPKeywordKind> {
+  static inline clang::tok::PPKeywordKind getEmptyKey() {
+    return clang::tok::PPKeywordKind::pp_not_keyword;
+  }
+  static inline clang::tok::PPKeywordKind getTombstoneKey() {
+    return clang::tok::PPKeywordKind::NUM_PP_KEYWORDS;
+  }
+  static unsigned getHashValue(const clang::tok::PPKeywordKind &Val) {
+    return static_cast<unsigned>(Val);
+  }
+  static bool isEqual(const clang::tok::PPKeywordKind &LHS,
+                      const clang::tok::PPKeywordKind &RHS) {
+    return LHS == RHS;
+  }
+};
+} // namespace llvm
 
 #endif

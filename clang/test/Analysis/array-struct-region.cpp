@@ -1,20 +1,26 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,alpha.core\
 // RUN:                    -analyzer-checker=debug.ExprInspection -verify\
+// RUN:                    -Wno-tautological-compare\
 // RUN:                    -x c %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,alpha.core\
 // RUN:                    -analyzer-checker=debug.ExprInspection -verify\
+// RUN:                    -Wno-tautological-compare\
 // RUN:                    -x c++ -std=c++14 %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,alpha.core\
 // RUN:                    -analyzer-checker=debug.ExprInspection -verify\
+// RUN:                    -Wno-tautological-compare\
 // RUN:                    -x c++ -std=c++17 %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,alpha.core\
 // RUN:                    -analyzer-checker=debug.ExprInspection -verify\
+// RUN:                    -Wno-tautological-compare\
 // RUN:                    -DINLINE -x c %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,alpha.core\
 // RUN:                    -analyzer-checker=debug.ExprInspection -verify\
+// RUN:                    -Wno-tautological-compare\
 // RUN:                    -DINLINE -x c++ -std=c++14 %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,alpha.core\
 // RUN:                    -analyzer-checker=debug.ExprInspection -verify\
+// RUN:                    -Wno-tautological-compare\
 // RUN:                    -DINLINE -x c++ -std=c++17 %s
 
 void clang_analyzer_eval(int);
@@ -40,16 +46,16 @@ bool operator ~(const struct S &s) { return (&s) != &s; }
 
 
 #ifdef INLINE
-struct S getS() {
+struct S getS(void) {
   struct S s = { 42 };
   return s;
 }
 #else
-struct S getS();
+struct S getS(void);
 #endif
 
 
-void testAssignment() {
+void testAssignment(void) {
   struct S s = getS();
 
   if (s.field != 42) return;
@@ -72,7 +78,7 @@ void testAssignment() {
 }
 
 
-void testImmediateUse() {
+void testImmediateUse(void) {
   int x = getS().field;
 
   if (x != 42) return;
@@ -99,12 +105,12 @@ int getAssignedField(struct S s) {
   return s.field;
 }
 
-void testArgument() {
+void testArgument(void) {
   clang_analyzer_eval(getConstrainedField(getS()) == 42); // expected-warning{{TRUE}}
   clang_analyzer_eval(getAssignedField(getS()) == 42); // expected-warning{{TRUE}}
 }
 
-void testImmediateUseParens() {
+void testImmediateUseParens(void) {
   int x = ((getS())).field;
 
   if (x != 42) return;

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <functional>
 //
@@ -17,6 +17,8 @@
 
 #include <functional>
 #include <cassert>
+
+#include "test_macros.h"
 
 
 struct Foo;
@@ -36,6 +38,7 @@ Foo& get_foo() {
     return foo;
 }
 
-int main() {
+int main(int, char**) {
     test();
+    return 0;
 }

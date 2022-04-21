@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <experimental/memory_resource>
 
@@ -18,21 +18,21 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "count_new.hpp"
+#include "count_new.h"
 
 namespace ex = std::experimental::pmr;
 
 struct assert_on_compare : public ex::memory_resource
 {
 protected:
-    virtual void * do_allocate(size_t, size_t)
+    void * do_allocate(size_t, size_t) override
+    { assert(false); return nullptr; }
+
+    void do_deallocate(void *, size_t, size_t) override
     { assert(false); }
 
-    virtual void do_deallocate(void *, size_t, size_t)
-    { assert(false); }
-
-    virtual bool do_is_equal(ex::memory_resource const &) const noexcept
-    { assert(false); }
+    bool do_is_equal(ex::memory_resource const &) const noexcept override
+    { assert(false); return false; }
 };
 
 void test_return()

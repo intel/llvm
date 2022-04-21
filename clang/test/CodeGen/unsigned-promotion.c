@@ -8,9 +8,9 @@
 
 unsigned short si, sj, sk;
 
-// CHECKS-LABEL:   define void @testshortmul()
-// CHECKU-LABEL: define void @testshortmul()
-void testshortmul() {
+// CHECKS-LABEL:   define{{.*}} void @testshortmul()
+// CHECKU-LABEL: define{{.*}} void @testshortmul()
+void testshortmul(void) {
 
   // CHECKS:        load i16, i16* @sj
   // CHECKS:        load i16, i16* @sk

@@ -4,7 +4,7 @@
 # RUN: ld.lld %t.o -o %t
 # RUN: llvm-readobj --symbols %t | FileCheck %s
 # CHECK:    Name: __ehdr_start (1)
-# CHECK-NEXT:    Value: 0x200000
+# CHECK-NEXT:    Value: [[ADDR:.*]]
 # CHECK-NEXT:    Size: 0
 # CHECK-NEXT:    Binding: Local (0x0)
 # CHECK-NEXT:    Type: None (0x0)
@@ -14,7 +14,7 @@
 # CHECK-NEXT:    Section: .text (0x1)
 
 # CHECK:    Name: __executable_start
-# CHECK-NEXT:    Value: 0x200000
+# CHECK-NEXT:    Value: [[ADDR]]
 # CHECK-NEXT:    Size: 0
 # CHECK-NEXT:    Binding: Local
 # CHECK-NEXT:    Type: None
@@ -24,7 +24,7 @@
 # CHECK-NEXT:    Section: .text
 
 .text
-.global _start, __ehdr_start
+.global __ehdr_start, _start
 _start:
   .quad __ehdr_start
   .quad __executable_start

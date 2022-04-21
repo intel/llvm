@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
-// XFAIL: apple-clang-7, clang-3.7, clang-3.8
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,9 +14,11 @@
 
 //          directory_entry() noexcept = default;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**) {
   using namespace fs;

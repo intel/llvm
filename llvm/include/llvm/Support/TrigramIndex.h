@@ -27,8 +27,6 @@
 #define LLVM_SUPPORT_TRIGRAMINDEX_H
 
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringMap.h"
-
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -39,7 +37,7 @@ class StringRef;
 class TrigramIndex {
  public:
   /// Inserts a new Regex into the index.
-  void insert(std::string Regex);
+  void insert(const std::string &Regex);
 
   /// Returns true, if special case list definitely does not have a line
   /// that matches the query. Returns false, if it's not sure.

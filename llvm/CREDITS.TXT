@@ -52,7 +52,7 @@ E: neil@daikokuya.co.uk
 D: APFloat implementation.
 
 N: Alex Bradbury
-E: asb@lowrisc.org
+E: asb@igalia.com
 D: RISC-V backend
 
 N: Misha Brukman
@@ -163,7 +163,7 @@ E: foldr@codedgers.com
 D: Author of llvmc2
 
 N: Dan Gohman
-E: sunfish@mozilla.com
+E: llvm@sunfishcode.online
 D: Miscellaneous bug fixes
 D: WebAssembly Backend
 
@@ -324,6 +324,10 @@ D: Mips backend
 D: Random ARM integrated assembler and assembly parser improvements
 D: General X86 AVX1 support
 
+N: Weining Lu
+E: luweining@loongson.cn
+D: LoongArch backend
+
 N: Duraid Madina
 E: duraid@octopus.com.au
 W: http://kinoko.c.u-tokyo.ac.jp/~duraid/
@@ -336,6 +340,10 @@ D: Clang semantic analysis and IR generation
 N: Michael McCracken
 E: michael.mccracken@gmail.com
 D: Line number support for llvmgcc
+
+N: Fanbo Meng
+E: fanbo.meng@ibm.com
+D: z/OS support
 
 N: Vladimir Merzliakov
 E: wanderer@rsu.ru
@@ -412,6 +420,10 @@ W: http://vladimir_prus.blogspot.com
 E: ghost@cs.msu.su
 D: Made inst_iterator behave like a proper iterator, LowerConstantExprs pass
 
+N: QIU Chaofan
+E: qiucofan@cn.ibm.com
+D: PowerPC Backend Developer
+
 N: Kalle Raiskila
 E: kalle.rasikila@nokia.com
 D: Some bugfixes to CellSPU
@@ -452,6 +464,10 @@ N: Ruchira Sasanka
 E: sasanka@uiuc.edu
 D: Graph coloring register allocator for the Sparc64 backend
 
+N: Alina Sbirlea
+E: alina.sbirlea@gmail.com
+D: MemorySSA, BatchAA, misc loop and new pass manager work.
+
 N: Arnold Schwaighofer
 E: arnold.schwaighofer@gmail.com
 D: Tail call optimization for the x86 backend
@@ -473,6 +489,10 @@ N: Reid Spencer
 E: rspencer@reidspencer.com
 W: http://reidspencer.com/
 D: Lots of stuff, see: http://wiki.llvm.org/index.php/User:Reid
+
+N: Abhina Sreeskantharajan
+E: Abhina.Sreeskantharajan@ibm.com
+D: z/OS support
 
 N: Alp Toker
 E: alp@nuanti.com
@@ -511,16 +531,16 @@ E: bob.wilson@acm.org
 D: Advanced SIMD (NEON) support in the ARM backend.
 
 N: QingShan Zhang
-E: qshanz@cn.ibm.com
-D: PowerPC Backend Developer
+N: steven.zhang
+E: zhangqingshan.zll@bytedance.com
 
 N: Li Jia He
 E: hljhehlj@cn.ibm.com
 D: PowerPC Backend Developer
 
-N: Zixuan Wu
-E: wuzish@cn.ibm.com
-D: PowerPC Backend Developer
+N: Zi Xuan Wu
+N: Zeson
+E: zixuan.wu@linux.alibaba.com
 
 N: Kang Zhang
 E: shkzhang@cn.ibm.com
@@ -530,6 +550,10 @@ N: Zheng Chen
 E: czhengsz@cn.ibm.com
 D: PowerPC Backend Developer
 
-N: Qiu Chaofan
-E: qiucf@cn.ibm.com
-D: PowerPC Backend Developer
+N: Djordje Todorovic
+E: djordje.todorovic@rt-rk.com
+D: Debug Information
+
+N: Biplob Mishra
+E: biplmish@in.ibm.com
+D: PowerPC Analysis

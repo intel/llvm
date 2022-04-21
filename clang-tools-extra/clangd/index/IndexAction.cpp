@@ -7,10 +7,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "IndexAction.h"
+#include "AST.h"
+#include "Headers.h"
+#include "index/Relation.h"
 #include "index/SymbolOrigin.h"
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/FrontendAction.h"
 #include "clang/Index/IndexingAction.h"
-#include "clang/Tooling/Tooling.h"
+#include "clang/Index/IndexingOptions.h"
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <utility>
 
 namespace clang {
 namespace clangd {
@@ -46,7 +58,7 @@ public:
       return;
 
     const auto FileID = SM.getFileID(Loc);
-    const auto File = SM.getFileEntryForID(FileID);
+    const auto *File = SM.getFileEntryForID(FileID);
     auto URI = toURI(File);
     if (!URI)
       return;
@@ -64,7 +76,8 @@ public:
     }
     if (auto Digest = digestFile(SM, FileID))
       Node.Digest = std::move(*Digest);
-    Node.IsTU = FileID == SM.getMainFileID();
+    if (FileID == SM.getMainFileID())
+      Node.Flags |= IncludeGraphNode::SourceFlag::IsTU;
     Node.URI = I->getKey();
   }
 
@@ -90,10 +103,10 @@ public:
   }
 
   // Sanity check to ensure we have already populated a skipped file.
-  void FileSkipped(const FileEntry &SkippedFile, const Token &FilenameTok,
+  void FileSkipped(const FileEntryRef &SkippedFile, const Token &FilenameTok,
                    SrcMgr::CharacteristicKind FileType) override {
 #ifndef NDEBUG
-    auto URI = toURI(&SkippedFile);
+    auto URI = toURI(&SkippedFile.getFileEntry());
     if (!URI)
       return;
     auto I = IG.try_emplace(*URI);
@@ -109,52 +122,68 @@ private:
 };
 
 // Wraps the index action and reports index data after each translation unit.
-class IndexAction : public WrapperFrontendAction {
+class IndexAction : public ASTFrontendAction {
 public:
   IndexAction(std::shared_ptr<SymbolCollector> C,
               std::unique_ptr<CanonicalIncludes> Includes,
               const index::IndexingOptions &Opts,
               std::function<void(SymbolSlab)> SymbolsCallback,
               std::function<void(RefSlab)> RefsCallback,
+              std::function<void(RelationSlab)> RelationsCallback,
               std::function<void(IncludeGraph)> IncludeGraphCallback)
-      : WrapperFrontendAction(index::createIndexingAction(C, Opts, nullptr)),
-        SymbolsCallback(SymbolsCallback), RefsCallback(RefsCallback),
+      : SymbolsCallback(SymbolsCallback), RefsCallback(RefsCallback),
+        RelationsCallback(RelationsCallback),
         IncludeGraphCallback(IncludeGraphCallback), Collector(C),
-        Includes(std::move(Includes)),
-        PragmaHandler(collectIWYUHeaderMaps(this->Includes.get())) {}
+        Includes(std::move(Includes)), Opts(Opts),
+        PragmaHandler(collectIWYUHeaderMaps(this->Includes.get())) {
+    this->Opts.ShouldTraverseDecl = [this](const Decl *D) {
+      // Many operations performed during indexing is linear in terms of depth
+      // of the decl (USR generation, name lookups, figuring out role of a
+      // reference are some examples). Since we index all the decls nested
+      // inside, it becomes quadratic. So we give up on nested symbols.
+      if (isDeeplyNested(D))
+        return false;
+      auto &SM = D->getASTContext().getSourceManager();
+      auto FID = SM.getFileID(SM.getExpansionLoc(D->getLocation()));
+      if (!FID.isValid())
+        return true;
+      return Collector->shouldIndexFile(FID);
+    };
+  }
 
   std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, llvm::StringRef InFile) override {
     CI.getPreprocessor().addCommentHandler(PragmaHandler.get());
+    Includes->addSystemHeadersMapping(CI.getLangOpts());
     if (IncludeGraphCallback != nullptr)
       CI.getPreprocessor().addPPCallbacks(
-          llvm::make_unique<IncludeGraphCollector>(CI.getSourceManager(), IG));
-    return WrapperFrontendAction::CreateASTConsumer(CI, InFile);
+          std::make_unique<IncludeGraphCollector>(CI.getSourceManager(), IG));
+
+    return index::createIndexingASTConsumer(Collector, Opts,
+                                            CI.getPreprocessorPtr());
   }
 
   bool BeginInvocation(CompilerInstance &CI) override {
     // We want all comments, not just the doxygen ones.
     CI.getLangOpts().CommentOpts.ParseAllComments = true;
+    CI.getLangOpts().RetainCommentsFromSystemHeaders = true;
     // Index the whole file even if there are warnings and -Werror is set.
     // Avoids some analyses too. Set in two places as we're late to the party.
     CI.getDiagnosticOpts().IgnoreWarnings = true;
     CI.getDiagnostics().setIgnoreAllWarnings(true);
-
-    return WrapperFrontendAction::BeginInvocation(CI);
+    // Instruct the parser to ask our ASTConsumer if it should skip function
+    // bodies. The ASTConsumer will take care of skipping only functions inside
+    // the files that we have already processed.
+    CI.getFrontendOpts().SkipFunctionBodies = true;
+    return true;
   }
 
   void EndSourceFileAction() override {
-    WrapperFrontendAction::EndSourceFileAction();
-
-    const auto &CI = getCompilerInstance();
-    if (CI.hasDiagnostics() &&
-        CI.getDiagnostics().hasUncompilableErrorOccurred()) {
-      llvm::errs() << "Skipping TU due to uncompilable errors\n";
-      return;
-    }
     SymbolsCallback(Collector->takeSymbols());
     if (RefsCallback != nullptr)
       RefsCallback(Collector->takeRefs());
+    if (RelationsCallback != nullptr)
+      RelationsCallback(Collector->takeRelations());
     if (IncludeGraphCallback != nullptr) {
 #ifndef NDEBUG
       // This checks if all nodes are initialized.
@@ -168,9 +197,11 @@ public:
 private:
   std::function<void(SymbolSlab)> SymbolsCallback;
   std::function<void(RefSlab)> RefsCallback;
+  std::function<void(RelationSlab)> RelationsCallback;
   std::function<void(IncludeGraph)> IncludeGraphCallback;
   std::shared_ptr<SymbolCollector> Collector;
   std::unique_ptr<CanonicalIncludes> Includes;
+  index::IndexingOptions Opts;
   std::unique_ptr<CommentHandler> PragmaHandler;
   IncludeGraph IG;
 };
@@ -181,10 +212,13 @@ std::unique_ptr<FrontendAction> createStaticIndexingAction(
     SymbolCollector::Options Opts,
     std::function<void(SymbolSlab)> SymbolsCallback,
     std::function<void(RefSlab)> RefsCallback,
+    std::function<void(RelationSlab)> RelationsCallback,
     std::function<void(IncludeGraph)> IncludeGraphCallback) {
   index::IndexingOptions IndexOpts;
   IndexOpts.SystemSymbolFilter =
       index::IndexingOptions::SystemSymbolFilterKind::All;
+  // We index function-local classes and its member functions only.
+  IndexOpts.IndexFunctionLocals = true;
   Opts.CollectIncludePath = true;
   if (Opts.Origin == SymbolOrigin::Unknown)
     Opts.Origin = SymbolOrigin::Static;
@@ -193,12 +227,12 @@ std::unique_ptr<FrontendAction> createStaticIndexingAction(
     Opts.RefFilter = RefKind::All;
     Opts.RefsInHeaders = true;
   }
-  auto Includes = llvm::make_unique<CanonicalIncludes>();
-  addSystemHeadersMapping(Includes.get());
+  auto Includes = std::make_unique<CanonicalIncludes>();
   Opts.Includes = Includes.get();
-  return llvm::make_unique<IndexAction>(
+  return std::make_unique<IndexAction>(
       std::make_shared<SymbolCollector>(std::move(Opts)), std::move(Includes),
-      IndexOpts, SymbolsCallback, RefsCallback, IncludeGraphCallback);
+      IndexOpts, SymbolsCallback, RefsCallback, RelationsCallback,
+      IncludeGraphCallback);
 }
 
 } // namespace clangd

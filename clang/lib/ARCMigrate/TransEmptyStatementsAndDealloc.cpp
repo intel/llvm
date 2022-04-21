@@ -42,9 +42,8 @@ static bool isEmptyARCMTMacroStatement(NullStmt *S,
     return false;
 
   SourceManager &SM = Ctx.getSourceManager();
-  std::vector<SourceLocation>::iterator
-    I = std::upper_bound(MacroLocs.begin(), MacroLocs.end(), SemiLoc,
-                         BeforeThanCompare<SourceLocation>(SM));
+  std::vector<SourceLocation>::iterator I = llvm::upper_bound(
+      MacroLocs, SemiLoc, BeforeThanCompare<SourceLocation>(SM));
   --I;
   SourceLocation
       AfterMacroLoc = I->getLocWithOffset(getARCMTMacroName().size());
@@ -53,7 +52,7 @@ static bool isEmptyARCMTMacroStatement(NullStmt *S,
   if (AfterMacroLoc == SemiLoc)
     return true;
 
-  int RelOffs = 0;
+  SourceLocation::IntTy RelOffs = 0;
   if (!SM.isInSameSLocAddrSpace(AfterMacroLoc, SemiLoc, &RelOffs))
     return false;
   if (RelOffs < 0)

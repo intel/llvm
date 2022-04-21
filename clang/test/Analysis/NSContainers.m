@@ -2,6 +2,8 @@
 
 void clang_analyzer_eval(int);
 
+#define nil ((id)0)
+
 typedef unsigned long NSUInteger;
 typedef signed char BOOL;
 typedef struct _NSZone NSZone;
@@ -110,33 +112,33 @@ typedef struct {
 @end
 
 // NSMutableArray API
-void testNilArgNSMutableArray1() {
+void testNilArgNSMutableArray1(void) {
   NSMutableArray *marray = [[NSMutableArray alloc] init];
   [marray addObject:0]; // expected-warning {{Argument to 'NSMutableArray' method 'addObject:' cannot be nil}}
 }
 
-void testNilArgNSMutableArray2() {
+void testNilArgNSMutableArray2(void) {
   NSMutableArray *marray = [[NSMutableArray alloc] init];
   [marray insertObject:0 atIndex:1]; // expected-warning {{Argument to 'NSMutableArray' method 'insertObject:atIndex:' cannot be nil}}
 }
 
-void testNilArgNSMutableArray3() {
+void testNilArgNSMutableArray3(void) {
   NSMutableArray *marray = [[NSMutableArray alloc] init];
   [marray replaceObjectAtIndex:1 withObject:0]; // expected-warning {{Argument to 'NSMutableArray' method 'replaceObjectAtIndex:withObject:' cannot be nil}}
 }
 
-void testNilArgNSMutableArray4() {
+void testNilArgNSMutableArray4(void) {
   NSMutableArray *marray = [[NSMutableArray alloc] init];
   [marray setObject:0 atIndexedSubscript:1]; // expected-warning {{Argument to 'NSMutableArray' method 'setObject:atIndexedSubscript:' cannot be nil}}
 }
 
-void testNilArgNSMutableArray5() {
+void testNilArgNSMutableArray5(void) {
   NSMutableArray *marray = [[NSMutableArray alloc] init];
   marray[1] = 0; // expected-warning {{Array element cannot be nil}}
 }
 
 // NSArray API
-void testNilArgNSArray1() {
+void testNilArgNSArray1(void) {
   NSArray *array = [[NSArray alloc] init];
   NSArray *copyArray = [array arrayByAddingObject:0]; // expected-warning {{Argument to 'NSArray' method 'arrayByAddingObject:' cannot be nil}}
 }
@@ -222,7 +224,7 @@ void idc2(id x) {
 	if (!x)
 		return;
 }
-Foo *retNil() {
+Foo *retNil(void) {
   return 0;
 }
 
@@ -280,7 +282,7 @@ void testCountAwareNSOrderedSet(NSOrderedSet *containers, int *validptr) {
 	}
 }
 
-void testLiteralsNonNil() {
+void testLiteralsNonNil(void) {
   clang_analyzer_eval(!!@[]); // expected-warning{{TRUE}}
   clang_analyzer_eval(!!@{}); // expected-warning{{TRUE}}
 }
@@ -309,4 +311,15 @@ void testNoReportWhenReceiverNil(NSMutableArray *array, int b) {
   // When view is nil, subviews is also nil so there should be no warning
   // here either.
   [subviews addObject:view]; // no-warning
+}
+
+NSString *getStringFromString(NSString *string) {
+  if (!string)
+    return nil;
+  return @"New String";
+}
+void testInlinedDefensiveCheck(NSMutableDictionary *dict, id obj) {
+  // The check in getStringFromString() is not a good indication
+  // that 'obj' can be nil in this context.
+  dict[obj] = getStringFromString(obj); // no-warning
 }

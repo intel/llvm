@@ -14,15 +14,15 @@
 
 ; The imports file for this module contains the bitcode file for
 ; Inputs/thinlto.ll
-; RUN: cat %t1.o.imports | count 1
-; RUN: cat %t1.o.imports | FileCheck %s --check-prefix=IMPORTS1
+; RUN: count 1 < %t1.o.imports
+; RUN: FileCheck %s --check-prefix=IMPORTS1 < %t1.o.imports
 ; IMPORTS1: thinlto-emit-imports.ll.tmp2.o
 
 ; The imports file for Input/thinlto.ll is empty as it does not import anything.
-; RUN: cat %t2.o.imports | count 0
+; RUN: count 0 < %t2.o.imports
 
 ; The imports file for Input/thinlto_empty.ll is empty but should exist.
-; RUN: cat %t3.o.imports | count 0
+; RUN: count 0 < %t3.o.imports
 
 ; The index file should be created even for the input with an empty summary.
 ; RUN: ls %t3.o.thinlto.bc
@@ -31,8 +31,8 @@
 ; RUN: rm -f %t3.o.imports
 ; RUN: touch %t3.o.imports
 ; RUN: chmod 400 %t3.o.imports
-; RUN: not ld.lld --plugin-opt=thinlto-index-only --plugin-opt=thinlto-emit-imports-files -shared %t1.o %t2.o %t3.o -o %t4 2>&1 | FileCheck %s --check-prefix=ERR
-; ERR: cannot open {{.*}}3.o.imports: {{P|p}}ermission denied
+; RUN: not ld.lld --plugin-opt=thinlto-index-only --plugin-opt=thinlto-emit-imports-files -shared %t1.o %t2.o %t3.o -o /dev/null 2>&1 | FileCheck -DMSG=%errc_EACCES %s --check-prefix=ERR
+; ERR: cannot open {{.*}}3.o.imports: [[MSG]]
 
 ; Ensure lld doesn't generate import files when thinlto-index-only is not enabled
 ; RUN: rm -f %t1.o.imports
@@ -43,7 +43,14 @@
 ; RUN: not ls %t2.o.imports
 ; RUN: not ls %t3.o.imports
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+; Check that imports files are generated also when --thinlto-index-only
+; is specified without --plugin-opt=.
+; RUN: rm -f %t1.o.imports
+; RUN: ld.lld --thinlto-index-only --thinlto-emit-imports-files -shared %t1.o %t2.o %t3.o -o %t4
+; RUN: count 1 < %t1.o.imports
+; RUN: FileCheck %s --check-prefix=IMPORTS1 < %t1.o.imports
+
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 declare void @g(...)

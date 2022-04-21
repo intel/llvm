@@ -5,7 +5,5 @@ executable("llvm-as") {
     "//llvm/lib/IR",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "llvm-as.cpp",
-  ]
+  sources = [ "llvm-as.cpp" ]
 }

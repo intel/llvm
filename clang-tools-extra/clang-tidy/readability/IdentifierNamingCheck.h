@@ -9,14 +9,13 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_IDENTIFIERNAMINGCHECK_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_IDENTIFIERNAMINGCHECK_H
 
-#include "../ClangTidyCheck.h"
-
+#include "../utils/RenamerClangTidyCheck.h"
+#include "llvm/ADT/Optional.h"
 namespace clang {
-
-class MacroInfo;
-
 namespace tidy {
 namespace readability {
+
+enum StyleKind : int;
 
 /// Checks for identifiers naming style mismatch.
 ///
@@ -31,16 +30,12 @@ namespace readability {
 /// different rules for different kind of identifier. In general, the
 /// rules are falling back to a more generic rule if the specific case is not
 /// configured.
-class IdentifierNamingCheck : public ClangTidyCheck {
+class IdentifierNamingCheck final : public RenamerClangTidyCheck {
 public:
   IdentifierNamingCheck(StringRef Name, ClangTidyContext *Context);
+  ~IdentifierNamingCheck();
 
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
-  void registerMatchers(ast_matchers::MatchFinder *Finder) override;
-  void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
-                           Preprocessor *ModuleExpanderPP) override;
-  void onEndOfTranslationUnit() override;
 
   enum CaseType {
     CT_AnyCase = 0,
@@ -52,57 +47,170 @@ public:
     CT_CamelSnakeBack
   };
 
+  enum HungarianPrefixType {
+    HPT_Off = 0,
+    HPT_On,
+    HPT_LowerCase,
+    HPT_CamelCase,
+  };
+
+  struct HungarianNotationOption {
+    HungarianNotationOption() : HPType(HungarianPrefixType::HPT_Off) {}
+
+    llvm::Optional<CaseType> Case;
+    HungarianPrefixType HPType;
+    llvm::StringMap<std::string> General;
+    llvm::StringMap<std::string> CString;
+    llvm::StringMap<std::string> PrimitiveType;
+    llvm::StringMap<std::string> UserDefinedType;
+    llvm::StringMap<std::string> DerivedType;
+  };
+
   struct NamingStyle {
     NamingStyle() = default;
 
     NamingStyle(llvm::Optional<CaseType> Case, const std::string &Prefix,
-                const std::string &Suffix)
-        : Case(Case), Prefix(Prefix), Suffix(Suffix) {}
+                const std::string &Suffix, const std::string &IgnoredRegexpStr,
+                HungarianPrefixType HPType);
+    NamingStyle(const NamingStyle &O) = delete;
+    NamingStyle &operator=(NamingStyle &&O) = default;
+    NamingStyle(NamingStyle &&O) = default;
 
     llvm::Optional<CaseType> Case;
     std::string Prefix;
     std::string Suffix;
+    // Store both compiled and non-compiled forms so original value can be
+    // serialized
+    llvm::Regex IgnoredRegexp;
+    std::string IgnoredRegexpStr;
+
+    HungarianPrefixType HPType;
   };
 
-  /// \brief Holds an identifier name check failure, tracking the kind of the
-  /// identifer, its possible fixup and the starting locations of all the
-  /// identifier usages.
-  struct NamingCheckFailure {
-    std::string KindName;
-    std::string Fixup;
+  struct HungarianNotation {
+  public:
+    bool checkOptionValid(int StyleKindIndex, StringRef StyleString) const;
+    bool isOptionEnabled(StringRef OptionKey,
+                         const llvm::StringMap<std::string> &StrMap) const;
+    void loadDefaultConfig(
+        IdentifierNamingCheck::HungarianNotationOption &HNOption) const;
+    void loadFileConfig(
+        const ClangTidyCheck::OptionsView &Options,
+        IdentifierNamingCheck::HungarianNotationOption &HNOption) const;
 
-    /// \brief Whether the failure should be fixed or not.
-    ///
-    /// ie: if the identifier was used or declared within a macro we won't offer
-    /// a fixup for safety reasons.
-    bool ShouldFix;
+    bool removeDuplicatedPrefix(
+        SmallVector<StringRef, 8> &Words,
+        const IdentifierNamingCheck::HungarianNotationOption &HNOption) const;
 
-    /// \brief A set of all the identifier usages starting SourceLocation, in
-    /// their encoded form.
-    llvm::DenseSet<unsigned> RawUsageLocs;
+    std::string getPrefix(
+        const Decl *D,
+        const IdentifierNamingCheck::HungarianNotationOption &HNOption) const;
 
-    NamingCheckFailure() : ShouldFix(true) {}
+    std::string getDataTypePrefix(
+        StringRef TypeName, const NamedDecl *ND,
+        const IdentifierNamingCheck::HungarianNotationOption &HNOption) const;
+
+    std::string getClassPrefix(
+        const CXXRecordDecl *CRD,
+        const IdentifierNamingCheck::HungarianNotationOption &HNOption) const;
+
+    std::string getEnumPrefix(const EnumConstantDecl *ECD) const;
+    std::string getDeclTypeName(const NamedDecl *ND) const;
   };
 
-  typedef std::pair<SourceLocation, std::string> NamingCheckId;
+  struct FileStyle {
+    FileStyle() : IsActive(false), IgnoreMainLikeFunctions(false) {}
+    FileStyle(SmallVectorImpl<Optional<NamingStyle>> &&Styles,
+              HungarianNotationOption HNOption, bool IgnoreMainLike)
+        : Styles(std::move(Styles)), HNOption(std::move(HNOption)),
+          IsActive(true), IgnoreMainLikeFunctions(IgnoreMainLike) {}
 
-  typedef llvm::DenseMap<NamingCheckId, NamingCheckFailure>
-      NamingCheckFailureMap;
+    ArrayRef<Optional<NamingStyle>> getStyles() const {
+      assert(IsActive);
+      return Styles;
+    }
 
-  /// Check Macros for style violations.
-  void checkMacro(SourceManager &sourceMgr, const Token &MacroNameTok,
-                  const MacroInfo *MI);
+    const HungarianNotationOption &getHNOption() const {
+      assert(IsActive);
+      return HNOption;
+    }
 
-  /// Add a usage of a macro if it already has a violation.
-  void expandMacro(const Token &MacroNameTok, const MacroInfo *MI);
+    bool isActive() const { return IsActive; }
+    bool isIgnoringMainLikeFunction() const { return IgnoreMainLikeFunctions; }
+
+  private:
+    SmallVector<Optional<NamingStyle>, 0> Styles;
+    HungarianNotationOption HNOption;
+    bool IsActive;
+    bool IgnoreMainLikeFunctions;
+  };
+
+  IdentifierNamingCheck::FileStyle
+  getFileStyleFromOptions(const ClangTidyCheck::OptionsView &Options) const;
+
+  bool
+  matchesStyle(StringRef Type, StringRef Name,
+               const IdentifierNamingCheck::NamingStyle &Style,
+               const IdentifierNamingCheck::HungarianNotationOption &HNOption,
+               const NamedDecl *Decl) const;
+
+  std::string
+  fixupWithCase(StringRef Type, StringRef Name, const Decl *D,
+                const IdentifierNamingCheck::NamingStyle &Style,
+                const IdentifierNamingCheck::HungarianNotationOption &HNOption,
+                IdentifierNamingCheck::CaseType Case) const;
+
+  std::string
+  fixupWithStyle(StringRef Type, StringRef Name,
+                 const IdentifierNamingCheck::NamingStyle &Style,
+                 const IdentifierNamingCheck::HungarianNotationOption &HNOption,
+                 const Decl *D) const;
+
+  StyleKind findStyleKind(
+      const NamedDecl *D,
+      ArrayRef<llvm::Optional<IdentifierNamingCheck::NamingStyle>> NamingStyles,
+      bool IgnoreMainLikeFunctions) const;
+
+  llvm::Optional<RenamerClangTidyCheck::FailureInfo> getFailureInfo(
+      StringRef Type, StringRef Name, const NamedDecl *ND,
+      SourceLocation Location,
+      ArrayRef<llvm::Optional<IdentifierNamingCheck::NamingStyle>> NamingStyles,
+      const IdentifierNamingCheck::HungarianNotationOption &HNOption,
+      StyleKind SK, const SourceManager &SM, bool IgnoreFailedSplit) const;
+
+  bool isParamInMainLikeFunction(const ParmVarDecl &ParmDecl,
+                                 bool IncludeMainLike) const;
 
 private:
-  std::vector<llvm::Optional<NamingStyle>> NamingStyles;
-  bool IgnoreFailedSplit;
-  NamingCheckFailureMap NamingCheckFailures;
+  llvm::Optional<FailureInfo>
+  getDeclFailureInfo(const NamedDecl *Decl,
+                     const SourceManager &SM) const override;
+  llvm::Optional<FailureInfo>
+  getMacroFailureInfo(const Token &MacroNameTok,
+                      const SourceManager &SM) const override;
+  DiagInfo getDiagInfo(const NamingCheckId &ID,
+                       const NamingCheckFailure &Failure) const override;
+
+  const FileStyle &getStyleForFile(StringRef FileName) const;
+
+  /// Stores the style options as a vector, indexed by the specified \ref
+  /// StyleKind, for a given directory.
+  mutable llvm::StringMap<FileStyle> NamingStylesCache;
+  FileStyle *MainFileStyle;
+  ClangTidyContext *Context;
+  const std::string CheckName;
+  const bool GetConfigPerFile;
+  const bool IgnoreFailedSplit;
+  HungarianNotation HungarianNotation;
 };
 
 } // namespace readability
+template <>
+struct OptionEnumMapping<readability::IdentifierNamingCheck::CaseType> {
+  static llvm::ArrayRef<
+      std::pair<readability::IdentifierNamingCheck::CaseType, StringRef>>
+  getEnumMapping();
+};
 } // namespace tidy
 } // namespace clang
 

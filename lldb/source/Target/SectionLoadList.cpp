@@ -1,4 +1,4 @@
-//===-- SectionLoadList.cpp -------------------------------------*- C++ -*-===//
+//===-- SectionLoadList.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,6 +13,7 @@
 #include "lldb/Symbol/Block.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/SymbolContext.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Stream.h"
 
@@ -63,7 +64,7 @@ SectionLoadList::GetSectionLoadAddress(const lldb::SectionSP &section) const {
 bool SectionLoadList::SetSectionLoadAddress(const lldb::SectionSP &section,
                                             addr_t load_addr,
                                             bool warn_multiple) {
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+  Log *log = GetLog(LLDBLog::DynamicLoader);
   ModuleSP module_sp(section->GetModule());
 
   if (module_sp) {
@@ -121,7 +122,8 @@ bool SectionLoadList::SetSectionLoadAddress(const lldb::SectionSP &section,
 
   } else {
     if (log) {
-      log->Printf(
+      LLDB_LOGF(
+          log,
           "SectionLoadList::%s (section = %p (%s), load_addr = 0x%16.16" PRIx64
           ") error: module has been deleted",
           __FUNCTION__, static_cast<void *>(section.get()),
@@ -135,7 +137,7 @@ size_t SectionLoadList::SetSectionUnloaded(const lldb::SectionSP &section_sp) {
   size_t unload_count = 0;
 
   if (section_sp) {
-    Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+    Log *log = GetLog(LLDBLog::DynamicLoader);
 
     if (log && log->GetVerbose()) {
       ModuleSP module_sp = section_sp->GetModule();
@@ -145,9 +147,9 @@ size_t SectionLoadList::SetSectionUnloaded(const lldb::SectionSP &section_sp) {
             section_sp->GetModule()->GetFileSpec());
         module_name = module_file_spec.GetPath();
       }
-      log->Printf("SectionLoadList::%s (section = %p (%s.%s))", __FUNCTION__,
-                  static_cast<void *>(section_sp.get()), module_name.c_str(),
-                  section_sp->GetName().AsCString());
+      LLDB_LOGF(log, "SectionLoadList::%s (section = %p (%s.%s))", __FUNCTION__,
+                static_cast<void *>(section_sp.get()), module_name.c_str(),
+                section_sp->GetName().AsCString());
     }
 
     std::lock_guard<std::recursive_mutex> guard(m_mutex);
@@ -170,7 +172,7 @@ size_t SectionLoadList::SetSectionUnloaded(const lldb::SectionSP &section_sp) {
 
 bool SectionLoadList::SetSectionUnloaded(const lldb::SectionSP &section_sp,
                                          addr_t load_addr) {
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+  Log *log = GetLog(LLDBLog::DynamicLoader);
 
   if (log && log->GetVerbose()) {
     ModuleSP module_sp = section_sp->GetModule();
@@ -179,7 +181,8 @@ bool SectionLoadList::SetSectionUnloaded(const lldb::SectionSP &section_sp,
       const FileSpec &module_file_spec(section_sp->GetModule()->GetFileSpec());
       module_name = module_file_spec.GetPath();
     }
-    log->Printf(
+    LLDB_LOGF(
+        log,
         "SectionLoadList::%s (section = %p (%s.%s), load_addr = 0x%16.16" PRIx64
         ")",
         __FUNCTION__, static_cast<void *>(section_sp.get()),
@@ -251,6 +254,6 @@ void SectionLoadList::Dump(Stream &s, Target *target) {
        ++pos) {
     s.Printf("addr = 0x%16.16" PRIx64 ", section = %p: ", pos->first,
              static_cast<void *>(pos->second.get()));
-    pos->second->Dump(&s, target, 0);
+    pos->second->Dump(s.AsRawOstream(), s.GetIndentLevel(), target, 0);
   }
 }

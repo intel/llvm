@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjectContainer_h_
-#define liblldb_ObjectContainer_h_
+#ifndef LLDB_SYMBOL_OBJECTCONTAINER_H
+#define LLDB_SYMBOL_OBJECTCONTAINER_H
 
 #include "lldb/Core/ModuleChild.h"
 #include "lldb/Core/PluginInterface.h"
@@ -39,7 +39,7 @@ public:
                   lldb::DataBufferSP &data_sp, lldb::offset_t data_offset)
       : ModuleChild(module_sp),
         m_file(), // This file can be different than the module's file spec
-        m_offset(file_offset), m_length(length), m_data() {
+        m_offset(file_offset), m_length(length) {
     if (file)
       m_file = *file;
     if (data_sp)
@@ -167,9 +167,10 @@ protected:
       m_data; ///< The data for this object file so things can be parsed lazily.
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ObjectContainer);
+  ObjectContainer(const ObjectContainer &) = delete;
+  const ObjectContainer &operator=(const ObjectContainer &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ObjectContainer_h_
+#endif // LLDB_SYMBOL_OBJECTCONTAINER_H

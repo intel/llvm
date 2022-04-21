@@ -1,5 +1,4 @@
-; RUN: opt %loadPolly -polly-scops -polly-allow-nonaffine-branches \
-; RUN:                -analyze < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-allow-nonaffine-branches -polly-print-scops -disable-output < %s | FileCheck %s
 ;
 ;    void f(float *A) {
 ;      for (int i = 0; i < 1024; i++)
@@ -18,7 +17,7 @@
 ; CHECK-NEXT: {  :  }
 ; CHECK-NEXT: Invalid Context:
 ; CHECK-NEXT: {  : false }
-; CHECK-NEXT: Arrays {
+; CHECK:      Arrays {
 ; CHECK-NEXT:     float MemRef_A[*]; // Element size 4
 ; CHECK-NEXT: }
 ; CHECK-NEXT: Arrays (Bounds as pw_affs) {

@@ -10,9 +10,7 @@
 
 // void_t
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
-
-// XFAIL: gcc-5.1, gcc-5.2
+// UNSUPPORTED: c++03, c++11, c++14
 
 #include <type_traits>
 

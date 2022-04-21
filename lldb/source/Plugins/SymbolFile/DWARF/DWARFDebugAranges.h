@@ -6,15 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_DWARFDebugAranges_h_
-#define SymbolFileDWARF_DWARFDebugAranges_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGARANGES_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGARANGES_H
 
-#include "DWARFDebugArangeSet.h"
+#include "lldb/Core/dwarf.h"
 #include "lldb/Utility/RangeMap.h"
 #include "llvm/Support/Error.h"
-#include <list>
-
-class SymbolFileDWARF;
 
 class DWARFDebugAranges {
 protected:
@@ -29,8 +26,7 @@ public:
 
   void Clear() { m_aranges.Clear(); }
 
-  llvm::Error
-  extract(const lldb_private::DWARFDataExtractor &debug_aranges_data);
+  void extract(const lldb_private::DWARFDataExtractor &debug_aranges_data);
 
   // Use append range multiple times and then call sort
   void AppendRange(dw_offset_t cu_offset, dw_addr_t low_pc, dw_addr_t high_pc);
@@ -55,4 +51,4 @@ protected:
   RangeToDIE m_aranges;
 };
 
-#endif // SymbolFileDWARF_DWARFDebugAranges_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGARANGES_H

@@ -264,14 +264,14 @@ uint16x8_t test_vcvtpq_u16_f16 (float16x8_t a) {
 
 // FIXME: Fix the zero constant when fp16 non-storage-only type becomes available.
 // CHECK-LABEL: test_vneg_f16
-// CHECK:  [[NEG:%.*]] = fsub <4 x half> <half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000>, %a
+// CHECK:  [[NEG:%.*]] = fneg <4 x half> %a
 // CHECK:  ret <4 x half> [[NEG]]
 float16x4_t test_vneg_f16(float16x4_t a) {
   return vneg_f16(a);
 }
 
 // CHECK-LABEL: test_vnegq_f16
-// CHECK:  [[NEG:%.*]] = fsub <8 x half> <half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000>, %a
+// CHECK:  [[NEG:%.*]] = fneg <8 x half> %a
 // CHECK:  ret <8 x half> [[NEG]]
 float16x8_t test_vnegq_f16(float16x8_t a) {
   return vnegq_f16(a);
@@ -757,7 +757,7 @@ float16x8_t test_vfmaq_f16(float16x8_t a, float16x8_t b, float16x8_t c) {
 }
 
 // CHECK-LABEL: test_vfms_f16
-// CHECK:  [[SUB:%.*]] = fsub <4 x half> <half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000>, %b
+// CHECK:  [[SUB:%.*]] = fneg <4 x half> %b
 // CHECK:  [[ADD:%.*]] = call <4 x half> @llvm.fma.v4f16(<4 x half> [[SUB]], <4 x half> %c, <4 x half> %a)
 // CHECK:  ret <4 x half> [[ADD]]
 float16x4_t test_vfms_f16(float16x4_t a, float16x4_t b, float16x4_t c) {
@@ -765,7 +765,7 @@ float16x4_t test_vfms_f16(float16x4_t a, float16x4_t b, float16x4_t c) {
 }
 
 // CHECK-LABEL: test_vfmsq_f16
-// CHECK:  [[SUB:%.*]] = fsub <8 x half> <half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000, half 0xH8000>, %b
+// CHECK:  [[SUB:%.*]] = fneg <8 x half> %b
 // CHECK:  [[ADD:%.*]] = call <8 x half> @llvm.fma.v8f16(<8 x half> [[SUB]], <8 x half> %c, <8 x half> %a)
 // CHECK:  ret <8 x half> [[ADD]]
 float16x8_t test_vfmsq_f16(float16x8_t a, float16x8_t b, float16x8_t c) {
@@ -773,19 +773,23 @@ float16x8_t test_vfmsq_f16(float16x8_t a, float16x8_t b, float16x8_t c) {
 }
 
 // CHECK-LABEL: test_vmul_lane_f16
-// CHECK: [[TMP0:%.*]] = shufflevector <4 x half> %b, <4 x half> %b, <4 x i32> <i32 3, i32 3, i32 3, i32 3>
-// CHECK: [[MUL:%.*]]  = fmul <4 x half> %a, [[TMP0]]
+// CHECK: [[TMP0:%.*]] = bitcast <4 x half> [[B:%.*]] to <8 x i8>
+// CHECK: [[TMP1:%.*]] = bitcast <8 x i8> [[TMP0]] to <4 x half>
+// CHECK: [[LANE:%.*]] = shufflevector <4 x half> [[TMP1]], <4 x half> [[TMP1]], <4 x i32> <i32 3, i32 3, i32 3, i32 3>
+// CHECK: [[MUL:%.*]] = fmul <4 x half> [[A:%.*]], [[LANE]]
 // CHECK: ret <4 x half> [[MUL]]
 float16x4_t test_vmul_lane_f16(float16x4_t a, float16x4_t b) {
   return vmul_lane_f16(a, b, 3);
 }
 
 // CHECK-LABEL: test_vmulq_lane_f16
-// CHECK: [[TMP0:%.*]] = shufflevector <4 x half> %b, <4 x half> %b, <8 x i32> <i32 7, i32 7, i32 7, i32 7, i32 7, i32 7, i32 7, i32 7>
-// CHECK: [[MUL:%.*]]  = fmul <8 x half> %a, [[TMP0]]
+// CHECK: [[TMP0:%.*]] = bitcast <4 x half> [[B:%.*]] to <8 x i8>
+// CHECK: [[TMP1:%.*]] = bitcast <8 x i8> [[TMP0]] to <4 x half>
+// CHECK: [[LANE:%.*]] = shufflevector <4 x half> [[TMP1]], <4 x half> [[TMP1]], <8 x i32> <i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>
+// CHECK: [[MUL:%.*]] = fmul <8 x half> [[A:%.*]], [[LANE]]
 // CHECK: ret <8 x half> [[MUL]]
 float16x8_t test_vmulq_lane_f16(float16x8_t a, float16x4_t b) {
-  return vmulq_lane_f16(a, b, 7);
+  return vmulq_lane_f16(a, b, 3);
 }
 
 // CHECK-LABEL: test_vmul_n_f16
@@ -939,17 +943,21 @@ float16x8_t test_vdupq_n_f16(float16_t a) {
 }
 
 // CHECK-LABEL: test_vdup_lane_f16
-// CHECK:   [[SHFL:%.*]] = shufflevector <4 x half> %a, <4 x half> %a, <4 x i32> <i32 3, i32 3, i32 3, i32 3>
-// CHECK:   ret <4 x half> [[SHFL]]
+// CHECK:   [[TMP0:%.*]] = bitcast <4 x half> [[A:%.*]] to <8 x i8>
+// CHECK:   [[TMP1:%.*]] = bitcast <8 x i8> [[TMP0]] to <4 x half>
+// CHECK:   [[LANE:%.*]] = shufflevector <4 x half> [[TMP1]], <4 x half> [[TMP1]], <4 x i32> <i32 3, i32 3, i32 3, i32 3>
+// CHECK:   ret <4 x half> [[LANE]]
 float16x4_t test_vdup_lane_f16(float16x4_t a) {
   return vdup_lane_f16(a, 3);
 }
 
 // CHECK-LABEL: test_vdupq_lane_f16
-// CHECK:   [[SHFL:%.*]] = shufflevector <4 x half> %a, <4 x half> %a, <8 x i32> <i32 7, i32 7, i32 7, i32 7, i32 7, i32 7, i32 7, i32 7>
-// CHECK:   ret <8 x half> [[SHFL]]
+// CHECK:   [[TMP0:%.*]] = bitcast <4 x half> [[A:%.*]] to <8 x i8>
+// CHECK:   [[TMP1:%.*]] = bitcast <8 x i8> [[TMP0]] to <4 x half>
+// CHECK:   [[LANE:%.*]] = shufflevector <4 x half> [[TMP1]], <4 x half> [[TMP1]], <8 x i32> <i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>
+// CHECK:   ret <8 x half> [[LANE]]
 float16x8_t test_vdupq_lane_f16(float16x4_t a) {
-  return vdupq_lane_f16(a, 7);
+  return vdupq_lane_f16(a, 3);
 }
 
 // CHECK-LABEL: @test_vext_f16(

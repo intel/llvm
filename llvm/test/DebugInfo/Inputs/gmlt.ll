@@ -1,5 +1,3 @@
-; REQUIRES: object-emission
-
 ; Generated from the following source compiled with clang++ -gmlt:
 ; void f1() {}
 ; void __attribute__((section("__TEXT,__bar"))) f2() {}
@@ -43,13 +41,8 @@
 ; definitions from -gmlt here.
 
 ; CHECK: DW_TAG_subprogram
-; CHECK-NEXT:     DW_AT_name {{.*}} "f3"
-
-; FIXME: We don't really need DW_AT_inline, consumers can ignore this due to
-; the absence of high_pc/low_pc/ranges and know that they just need it for
-; retrieving the name of a concrete inlined instance
-
-; CHECK-NOT: {{DW_TAG|DW_AT|NULL}}
+; CHECK-NEXT:     DW_AT_name {{.*}}"f3"
+; CHECK-NEXT:     DW_AT_inline
 
 ; Check that we only provide the minimal attributes on a subprogram to save space.
 ; CHECK:   DW_TAG_subprogram
@@ -67,6 +60,7 @@
 ; CHECK-NEXT:       DW_AT_high_pc
 ; CHECK-NEXT:       DW_AT_call_file
 ; CHECK-NEXT:       DW_AT_call_line
+; CHECK-NEXT:       DW_AT_call_column
 
 ; Make sure we don't have any other subprograms here (subprograms with no
 ; inlined subroutines are omitted by design to save space)
@@ -116,8 +110,8 @@ entry:
   ret void, !dbg !19
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { alwaysinline nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { alwaysinline nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #2 = { nounwind }
 
 !llvm.dbg.cu = !{!0}

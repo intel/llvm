@@ -1,7 +1,7 @@
-; RUN: opt -S %loadPolly -polly-dependences \
-; RUN:                   -analyze < %s | FileCheck %s
-; RUN: opt -S %loadPolly -polly-function-dependences \
-; RUN:                   -analyze < %s | FileCheck %s -check-prefix=FUNC
+; RUN: opt -S %loadPolly -polly-print-dependences \
+; RUN:                   -disable-output < %s | FileCheck %s
+; RUN: opt -S %loadPolly -polly-print-function-dependences \
+; RUN:                   -disable-output < %s | FileCheck %s -check-prefix=FUNC
 
 ; CHECK: RAW dependences:
 ; CHECK:   { Stmt_bb9[0] -> Stmt_bb10[0] }
@@ -15,7 +15,7 @@
 ; FUNC: RAW dependences:
 ; FUNC-NEXT:   { Stmt_bb9[0] -> Stmt_bb10[0]; [Stmt_bb9[0] -> Stmt_bb9_Write0[]] -> [Stmt_bb10[0] -> Stmt_bb10_Read0[]] }
 ; FUNC-NEXT: WAR dependences:
-; FUNC-NEXT:   { [Stmt_bb3[0] -> Stmt_bb3_Read0[]] -> [Stmt_bb10[0] -> Stmt_bb10_Write1[]]; Stmt_bb3[0] -> Stmt_bb10[0] }
+; FUNC-NEXT:   { Stmt_bb3[0] -> Stmt_bb10[0]; [Stmt_bb3[0] -> Stmt_bb3_Read0[]] -> [Stmt_bb10[0] -> Stmt_bb10_Write1[]] }
 ; FUNC-NEXT: WAW dependences:
 ; FUNC-NEXT:   { Stmt_bb3[0] -> Stmt_bb10[0]; [Stmt_bb3[0] -> Stmt_bb3_Write1[]] -> [Stmt_bb10[0] -> Stmt_bb10_Write1[]] }
 ; FUNC-NEXT: Reduction dependences:

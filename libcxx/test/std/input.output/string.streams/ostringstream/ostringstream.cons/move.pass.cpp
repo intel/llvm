@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
-
 // <sstream>
 
 // template <class charT, class traits = char_traits<charT>, class Allocator = allocator<charT> >
@@ -17,6 +15,8 @@
 
 #include <sstream>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {
@@ -30,6 +30,7 @@ int main(int, char**)
         ss << i << ' ' << 567;
         assert(ss.str() == "234 5676");
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wostringstream ss0(L" 123 456");
         std::wostringstream ss(std::move(ss0));
@@ -40,6 +41,7 @@ int main(int, char**)
         ss << i << ' ' << 567;
         assert(ss.str() == L"234 5676");
     }
+#endif
 
   return 0;
 }

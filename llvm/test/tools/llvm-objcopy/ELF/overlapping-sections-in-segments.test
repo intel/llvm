@@ -4,18 +4,6 @@
 ## inputs somehow.
 # RUN: yaml2obj %s -o %t.o
 
-## First, check that the section header table appears immediately after the program
-## header table.
-# RUN: llvm-readobj --file-headers %t.o | FileCheck %s --check-prefix=SHDRS-OFFSET
-# SHDRS-OFFSET: SectionHeaderOffset: 0x78{{$}}
-
-## Binary edit the section header sh_offset field of the second section to
-## overlap the first one.
-# RUN: %python -c "with open('%/t.o', 'r+b') as input: import struct; bytes = struct.pack('<Q', 0x1001); input.seek(272); input.write(bytes)"
-
-## Sanity check that the binary editing modified the correct field.
-# RUN: llvm-readobj --section-headers %t.o | FileCheck %s
-
 ## Check that the contents are as expected before the copy.
 # RUN: llvm-readobj -x .first -x .second %t.o | FileCheck %s --check-prefix=CONTENTS
 
@@ -32,6 +20,7 @@
 
 # CONTENTS:      Hex dump of section '.first':
 # CONTENTS-NEXT: 0x00000000 01234567
+# CONTENTS-EMPTY:
 # CONTENTS-NEXT: Hex dump of section '.second':
 # CONTENTS-NEXT: 0x00000000 23456789
 
@@ -49,6 +38,7 @@ Sections:
   - Name: .second
     Type: SHT_PROGBITS
     Content: '89abcdef'
+    ShOffset: 0x1001
 ProgramHeaders:
   - Type:     PT_LOAD
     FileSize: 5

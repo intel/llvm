@@ -2,13 +2,12 @@
 ; RUN: llvm-as < %s | llvm-dis | FileCheck %s
 ; RUN: verify-uselistorder %s
 
+%0 = type opaque;
+
 declare i8 @llvm.ctlz.i8(i8)
 declare i16 @llvm.ctlz.i16(i16)
 declare i32 @llvm.ctlz.i32(i32)
 declare i42 @llvm.ctlz.i42(i42)  ; Not a power-of-2
-
-
-declare i32 @llvm.objectsize.i32(i8*, i1) nounwind readonly
 
 
 define void @test.ctlz(i8 %a, i16 %b, i32 %c, i42 %d) {
@@ -51,6 +50,7 @@ entry:
 
 @a = private global [60 x i8] zeroinitializer, align 1
 
+declare i32 @llvm.objectsize.i32(i8*, i1) nounwind readonly
 define i32 @test.objectsize() {
 ; CHECK-LABEL: @test.objectsize(
 ; CHECK: @llvm.objectsize.i32.p0i8(i8* getelementptr inbounds ([60 x i8], [60 x i8]* @a, i32 0, i32 0), i1 false, i1 false, i1 false)
@@ -63,6 +63,24 @@ define i64 @test.objectsize.2() {
 ; CHECK-LABEL: @test.objectsize.2(
 ; CHECK: @llvm.objectsize.i64.p0i8(i8* getelementptr inbounds ([60 x i8], [60 x i8]* @a, i32 0, i32 0), i1 false, i1 false, i1 false)
   %s = call i64 @llvm.objectsize.i64.p0i8(i8* getelementptr inbounds ([60 x i8], [60 x i8]* @a, i32 0, i32 0), i1 false)
+  ret i64 %s
+}
+
+@u = private global [60 x %0*] zeroinitializer, align 1
+
+declare i32 @llvm.objectsize.i32.unnamed(%0**, i1) nounwind readonly
+define i32 @test.objectsize.unnamed() {
+; CHECK-LABEL: @test.objectsize.unnamed(
+; CHECK: @llvm.objectsize.i32.p0p0s_s.0(%0** getelementptr inbounds ([60 x %0*], [60 x %0*]* @u, i32 0, i32 0), i1 false, i1 false, i1 false)
+  %s = call i32 @llvm.objectsize.i32.unnamed(%0** getelementptr inbounds ([60 x %0*], [60 x %0*]* @u, i32 0, i32 0), i1 false)
+  ret i32 %s
+}
+
+declare i64 @llvm.objectsize.i64.p0p0s_s.0(%0**, i1) nounwind readonly
+define i64 @test.objectsize.unnamed.2() {
+; CHECK-LABEL: @test.objectsize.unnamed.2(
+; CHECK: @llvm.objectsize.i64.p0p0s_s.0(%0** getelementptr inbounds ([60 x %0*], [60 x %0*]* @u, i32 0, i32 0), i1 false, i1 false, i1 false)
+  %s = call i64 @llvm.objectsize.i64.p0p0s_s.0(%0** getelementptr inbounds ([60 x %0*], [60 x %0*]* @u, i32 0, i32 0), i1 false)
   ret i64 %s
 }
 
@@ -98,7 +116,7 @@ declare void @llvm.masked.scatter.v2f64(<2 x double> %val, <2 x double*> %ptrs, 
 define void @tests.masked.scatter(<2 x double*> %ptr, <2 x i1> %mask, <2 x double> %val)  {
 ; CHECK-LABEL: @tests.masked.scatter(
 ; CHECK: @llvm.masked.scatter.v2f64.v2p0f64
-  call void @llvm.masked.scatter.v2f64(<2 x double> %val, <2 x double*> %ptr, i32 3, <2 x i1> %mask)
+  call void @llvm.masked.scatter.v2f64(<2 x double> %val, <2 x double*> %ptr, i32 1, <2 x i1> %mask)
   ret void
 }
 
@@ -113,6 +131,20 @@ define void @tests.invariant.start.end() {
   store i8 0, i8* %a
   call void @llvm.invariant.end({}* %i, i64 1, i8* %a)
   ; CHECK: call void @llvm.invariant.end.p0i8
+  ret void
+}
+
+declare {}* @llvm.invariant.start.unnamed(i64, %0** nocapture) nounwind readonly
+declare void @llvm.invariant.end.unnamed({}*, i64, %0** nocapture) nounwind
+
+define void @tests.invariant.start.end.unnamed() {
+  ; CHECK-LABEL: @tests.invariant.start.end.unnamed(
+  %a = alloca %0*
+  %i = call {}* @llvm.invariant.start.unnamed(i64 1, %0** %a)
+  ; CHECK: call {}* @llvm.invariant.start.p0p0s_s.0
+  store %0* null, %0** %a
+  call void @llvm.invariant.end.unnamed({}* %i, i64 1, %0** %a)
+  ; CHECK: call void @llvm.invariant.end.p0p0s_s.0
   ret void
 }
 
@@ -140,11 +172,50 @@ define void @tests.lifetime.start.end() {
   ret void
 }
 
+declare void  @llvm.lifetime.start.unnamed(i64, %0** nocapture) nounwind readonly
+declare void @llvm.lifetime.end.unnamed(i64, %0** nocapture) nounwind
+
+define void @tests.lifetime.start.end.unnamed() {
+  ; CHECK-LABEL: @tests.lifetime.start.end.unnamed(
+  %a = alloca %0*
+  call void @llvm.lifetime.start.unnamed(i64 1, %0** %a)
+  ; CHECK: call void @llvm.lifetime.start.p0p0s_s.0(i64 1, %0** %a)
+  store %0* null, %0** %a
+  call void @llvm.lifetime.end.unnamed(i64 1, %0** %a)
+  ; CHECK: call void @llvm.lifetime.end.p0p0s_s.0(i64 1, %0** %a)
+  ret void
+}
+
+declare void @llvm.prefetch(i8*, i32, i32, i32)
+define void @test.prefetch(i8* %ptr) {
+; CHECK-LABEL: @test.prefetch(
+; CHECK: @llvm.prefetch.p0i8(i8* %ptr, i32 0, i32 3, i32 2)
+  call void @llvm.prefetch(i8* %ptr, i32 0, i32 3, i32 2)
+  ret void
+}
+
+declare void @llvm.prefetch.p0i8(i8*, i32, i32, i32)
+define void @test.prefetch.2(i8* %ptr) {
+; CHECK-LABEL: @test.prefetch.2(
+; CHECK: @llvm.prefetch.p0i8(i8* %ptr, i32 0, i32 3, i32 2)
+  call void @llvm.prefetch(i8* %ptr, i32 0, i32 3, i32 2)
+  ret void
+}
+
+declare void @llvm.prefetch.unnamed(%0**, i32, i32, i32)
+define void @test.prefetch.unnamed(%0** %ptr) {
+; CHECK-LABEL: @test.prefetch.unnamed(
+; CHECK: @llvm.prefetch.p0p0s_s.0(%0** %ptr, i32 0, i32 3, i32 2)
+  call void @llvm.prefetch.unnamed(%0** %ptr, i32 0, i32 3, i32 2)
+  ret void
+}
 
 ; This is part of @test.objectsize(), since llvm.objectsize declaration gets
 ; emitted at the end.
 ; CHECK: declare i32 @llvm.objectsize.i32.p0i8
-
+; CHECK: declare i32 @llvm.objectsize.i32.p0p0s_s.0
 
 ; CHECK: declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture)
 ; CHECK: declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture)
+; CHECK: declare void @llvm.lifetime.start.p0p0s_s.0(i64 immarg, %0** nocapture)
+; CHECK: declare void @llvm.lifetime.end.p0p0s_s.0(i64 immarg, %0** nocapture)

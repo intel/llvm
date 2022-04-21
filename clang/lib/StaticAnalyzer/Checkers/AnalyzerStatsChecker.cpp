@@ -93,17 +93,16 @@ void AnalyzerStatsChecker::checkEndAnalysis(ExplodedGraph &G,
   if (!Loc.isValid())
     return;
 
-  if (isa<FunctionDecl>(D) || isa<ObjCMethodDecl>(D)) {
+  if (isa<FunctionDecl, ObjCMethodDecl>(D)) {
     const NamedDecl *ND = cast<NamedDecl>(D);
     output << *ND;
-  }
-  else if (isa<BlockDecl>(D)) {
+  } else if (isa<BlockDecl>(D)) {
     output << "block(line:" << Loc.getLine() << ":col:" << Loc.getColumn();
   }
 
   NumBlocksUnreachable += unreachable;
   NumBlocks += total;
-  std::string NameOfRootFunction = output.str();
+  std::string NameOfRootFunction = std::string(output.str());
 
   output << " -> Total CFGBlocks: " << total << " | Unreachable CFGBlocks: "
       << unreachable << " | Exhausted Block: "
@@ -140,6 +139,6 @@ void ento::registerAnalyzerStatsChecker(CheckerManager &mgr) {
   mgr.registerChecker<AnalyzerStatsChecker>();
 }
 
-bool ento::shouldRegisterAnalyzerStatsChecker(const LangOptions &LO) {
+bool ento::shouldRegisterAnalyzerStatsChecker(const CheckerManager &mgr) {
   return true;
 }

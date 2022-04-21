@@ -1,8 +1,14 @@
 # RUN: llvm-mc -triple=wasm32-unknown-unknown -filetype=obj < %s | obj2yaml | FileCheck %s
+# RUN: llvm-mc -triple=wasm32-unknown-unknown -mattr=+reference-types -filetype=obj < %s | obj2yaml | FileCheck --check-prefix=REF %s
 
 # Verify that @GOT relocation entryes result in R_WASM_GLOBAL_INDEX_LEB against
 # against the corrsponding function or data symbol and that the corresponding
 # data symbols are imported as a wasm globals.
+
+.functype default_func () -> (i32)
+
+.globaltype __memory_base, i32
+.globaltype __table_base, i32
 
 load_default_data:
     .functype   load_default_data () -> (i32)
@@ -43,35 +49,46 @@ hidden_func:
 #.hidden hidden_func
 #.hidden hidden_data
 .size default_data, 4
-.functype default_func () -> (i32)
 
 # CHECK:      --- !WASM
 # CHECK-NEXT: FileHeader:
-# CHECK-NEXT:   Version:         0x00000001
+# CHECK-NEXT:   Version:         0x1
 # CHECK-NEXT: Sections:
 # CHECK-NEXT:   - Type:            TYPE
 # CHECK-NEXT:     Signatures:
 # CHECK-NEXT:       - Index:           0
-# CHECK-NEXT:         ReturnType:      I32
 # CHECK-NEXT:         ParamTypes:      []
+# CHECK-NEXT:         ReturnTypes:
+# CHECK-NEXT:           - I32
 # CHECK-NEXT:   - Type:            IMPORT
 # CHECK-NEXT:     Imports:
 # CHECK-NEXT:       - Module:          env
 # CHECK-NEXT:         Field:           __linear_memory
 # CHECK-NEXT:         Kind:            MEMORY
 # CHECK-NEXT:         Memory:
-# CHECK-NEXT:           Initial:         0x00000001
-# CHECK-NEXT:       - Module:          env
-# CHECK-NEXT:         Field:           __indirect_function_table
-# CHECK-NEXT:         Kind:            TABLE
-# CHECK-NEXT:         Table:
-# CHECK-NEXT:           ElemType:        FUNCREF
-# CHECK-NEXT:           Limits:
-# CHECK-NEXT:             Initial:         0x00000000
+# CHECK-NEXT:           Minimum:         0x1
 # CHECK-NEXT:       - Module:          env
 # CHECK-NEXT:         Field:           default_func
 # CHECK-NEXT:         Kind:            FUNCTION
 # CHECK-NEXT:         SigIndex:        0
+# CHECK-NEXT:       - Module:          env
+# CHECK-NEXT:         Field:           __memory_base
+# CHECK-NEXT:         Kind:            GLOBAL
+# CHECK-NEXT:         GlobalType:      I32
+# CHECK-NEXT:         GlobalMutable:   true
+# CHECK-NEXT:       - Module:          env
+# CHECK-NEXT:         Field:           __table_base
+# CHECK-NEXT:         Kind:            GLOBAL
+# CHECK-NEXT:         GlobalType:      I32
+# CHECK-NEXT:         GlobalMutable:   true
+# CHECK-NEXT:       - Module:          env
+# CHECK-NEXT:         Field:           __indirect_function_table
+# CHECK-NEXT:         Kind:            TABLE
+# CHECK-NEXT:         Table:
+# CHECK-NEXT:           Index:           0
+# CHECK-NEXT:           ElemType:        FUNCREF
+# CHECK-NEXT:           Limits:
+# CHECK-NEXT:             Minimum:         0x1
 # CHECK-NEXT:       - Module:          GOT.mem
 # CHECK-NEXT:         Field:           default_data
 # CHECK-NEXT:         Kind:            GLOBAL
@@ -84,41 +101,47 @@ hidden_func:
 # CHECK-NEXT:         GlobalMutable:   true
 # CHECK-NEXT:   - Type:            FUNCTION
 # CHECK-NEXT:     FunctionTypes:   [ 0, 0, 0, 0, 0 ]
+# CHECK-NEXT:   - Type:            ELEM
+# CHECK-NEXT:     Segments:
+# CHECK-NEXT:        Offset:
+# CHECK-NEXT:          Opcode:          I32_CONST
+# CHECK-NEXT:          Value:           1
+# CHECK-NEXT:        Functions:       [ 5 ]
 # CHECK-NEXT:   - Type:            DATACOUNT
 # CHECK-NEXT:     Count:           1
 # CHECK-NEXT:   - Type:            CODE
 # CHECK-NEXT:     Relocations:
 # CHECK-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 # CHECK-NEXT:         Index:           1
-# CHECK-NEXT:         Offset:          0x00000004
+# CHECK-NEXT:         Offset:          0x4
 # CHECK-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 # CHECK-NEXT:         Index:           3
-# CHECK-NEXT:         Offset:          0x00000010
-# CHECK-NEXT:       - Type:            R_WASM_MEMORY_ADDR_LEB
+# CHECK-NEXT:         Offset:          0x10
+# CHECK-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 # CHECK-NEXT:         Index:           5
-# CHECK-NEXT:         Offset:          0x0000001C
+# CHECK-NEXT:         Offset:          0x1C
 # CHECK-NEXT:       - Type:            R_WASM_MEMORY_ADDR_REL_SLEB
 # CHECK-NEXT:         Index:           6
-# CHECK-NEXT:         Offset:          0x00000022
-# CHECK-NEXT:       - Type:            R_WASM_MEMORY_ADDR_LEB
+# CHECK-NEXT:         Offset:          0x22
+# CHECK-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 # CHECK-NEXT:         Index:           8
-# CHECK-NEXT:         Offset:          0x0000002C
+# CHECK-NEXT:         Offset:          0x2C
 # CHECK-NEXT:       - Type:            R_WASM_TABLE_INDEX_REL_SLEB
 # CHECK-NEXT:         Index:           9
-# CHECK-NEXT:         Offset:          0x00000032
+# CHECK-NEXT:         Offset:          0x32
 # CHECK-NEXT:     Functions:
 # CHECK-NEXT:       - Index:           1
 # CHECK-NEXT:         Locals:          []
-# CHECK-NEXT:         Body:            2380808080002800000B
+# CHECK-NEXT:         Body:            2382808080002802000B
 # CHECK-NEXT:       - Index:           2
 # CHECK-NEXT:         Locals:          []
-# CHECK-NEXT:         Body:            2381808080002800000B
+# CHECK-NEXT:         Body:            2383808080002802000B
 # CHECK-NEXT:       - Index:           3
 # CHECK-NEXT:         Locals:          []
 # CHECK-NEXT:         Body:            2380808080004180808080006A0B
 # CHECK-NEXT:       - Index:           4
 # CHECK-NEXT:         Locals:          []
-# CHECK-NEXT:         Body:            2380808080004180808080006A0B
+# CHECK-NEXT:         Body:            2381808080004180808080006A0B
 # CHECK-NEXT:       - Index:           5
 # CHECK-NEXT:         Locals:          []
 # CHECK-NEXT:         Body:            41000B
@@ -159,9 +182,10 @@ hidden_func:
 # CHECK-NEXT:         Flags:           [ BINDING_LOCAL ]
 # CHECK-NEXT:         Function:        3
 # CHECK-NEXT:       - Index:           5
-# CHECK-NEXT:         Kind:            DATA
+# CHECK-NEXT:         Kind:            GLOBAL
 # CHECK-NEXT:         Name:            __memory_base
 # CHECK-NEXT:         Flags:           [ UNDEFINED ]
+# CHECK-NEXT:         Global:          0
 # CHECK-NEXT:       - Index:           6
 # CHECK-NEXT:         Kind:            DATA
 # CHECK-NEXT:         Name:            .L.hidden_data
@@ -174,14 +198,20 @@ hidden_func:
 # CHECK-NEXT:         Flags:           [ BINDING_LOCAL ]
 # CHECK-NEXT:         Function:        4
 # CHECK-NEXT:       - Index:           8
-# CHECK-NEXT:         Kind:            DATA
+# CHECK-NEXT:         Kind:            GLOBAL
 # CHECK-NEXT:         Name:            __table_base
 # CHECK-NEXT:         Flags:           [ UNDEFINED ]
+# CHECK-NEXT:         Global:          1
 # CHECK-NEXT:       - Index:           9
 # CHECK-NEXT:         Kind:            FUNCTION
 # CHECK-NEXT:         Name:            hidden_func
 # CHECK-NEXT:         Flags:           [ BINDING_LOCAL ]
 # CHECK-NEXT:         Function:        5
+# REF:              - Index:           10
+# REF-NEXT:           Kind:            TABLE
+# REF-NEXT:           Name:            __indirect_function_table
+# REF-NEXT:           Flags:           [ UNDEFINED, NO_STRIP ]
+# REF-NEXT:           Table:           0
 # CHECK-NEXT:     SegmentInfo:
 # CHECK-NEXT:       - Index:           0
 # CHECK-NEXT:         Name:            .rodata.hidden_data

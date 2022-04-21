@@ -161,7 +161,7 @@ std::unique_ptr<include_fixer::SymbolIndexManager>
 createSymbolIndexManager(StringRef FilePath) {
   using find_all_symbols::SymbolInfo;
 
-  auto SymbolIndexMgr = llvm::make_unique<include_fixer::SymbolIndexManager>();
+  auto SymbolIndexMgr = std::make_unique<include_fixer::SymbolIndexManager>();
   switch (DatabaseFormat) {
   case fixed: {
     // Parse input and fill the database with it.
@@ -185,7 +185,7 @@ createSymbolIndexManager(StringRef FilePath) {
                                  /*Used=*/0)});
     }
     SymbolIndexMgr->addSymbolIndex([=]() {
-      return llvm::make_unique<include_fixer::InMemorySymbolIndex>(Symbols);
+      return std::make_unique<include_fixer::InMemorySymbolIndex>(Symbols);
     });
     break;
   }
@@ -263,7 +263,13 @@ void writeToJson(llvm::raw_ostream &OS, const IncludeFixerContext& Context) {
 }
 
 int includeFixerMain(int argc, const char **argv) {
-  tooling::CommonOptionsParser options(argc, argv, IncludeFixerCategory);
+  auto ExpectedParser =
+      tooling::CommonOptionsParser::create(argc, argv, IncludeFixerCategory);
+  if (!ExpectedParser) {
+    llvm::errs() << ExpectedParser.takeError();
+    return 1;
+  }
+  tooling::CommonOptionsParser &options = ExpectedParser.get();
   tooling::ClangTool tool(options.getCompilations(),
                           options.getSourcePathList());
 

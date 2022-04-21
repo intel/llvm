@@ -1,6 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
-; XFAIL: *
-; LSR changes required.
+; RUN: llc -march=hexagon < %s -pipeliner-experimental-cg=true | FileCheck %s
 
 ; This version of the conv3x3 test has both loops. This test checks that the
 ; inner loop has 13 packets.

@@ -1,4 +1,4 @@
-//===-- DYLDRendezvous.cpp --------------------------------------*- C++ -*-===//
+//===-- DYLDRendezvous.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,6 +14,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 
@@ -24,105 +25,112 @@
 using namespace lldb;
 using namespace lldb_private;
 
-/// Locates the address of the rendezvous structure.  Returns the address on
-/// success and LLDB_INVALID_ADDRESS on failure.
-static addr_t ResolveRendezvousAddress(Process *process) {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+DYLDRendezvous::DYLDRendezvous(Process *process)
+    : m_process(process), m_rendezvous_addr(LLDB_INVALID_ADDRESS),
+      m_executable_interpreter(false), m_current(), m_previous(),
+      m_loaded_modules(), m_soentries(), m_added_soentries(),
+      m_removed_soentries() {
+  m_thread_info.valid = false;
+  UpdateExecutablePath();
+}
+
+addr_t DYLDRendezvous::ResolveRendezvousAddress() {
+  Log *log = GetLog(LLDBLog::DynamicLoader);
   addr_t info_location;
   addr_t info_addr;
   Status error;
 
-  if (!process) {
-    if (log)
-      log->Printf("%s null process provided", __FUNCTION__);
+  if (!m_process) {
+    LLDB_LOGF(log, "%s null process provided", __FUNCTION__);
     return LLDB_INVALID_ADDRESS;
   }
 
   // Try to get it from our process.  This might be a remote process and might
   // grab it via some remote-specific mechanism.
-  info_location = process->GetImageInfoAddress();
-  if (log)
-    log->Printf("%s info_location = 0x%" PRIx64, __FUNCTION__, info_location);
+  info_location = m_process->GetImageInfoAddress();
+  LLDB_LOGF(log, "%s info_location = 0x%" PRIx64, __FUNCTION__, info_location);
 
   // If the process fails to return an address, fall back to seeing if the
   // local object file can help us find it.
   if (info_location == LLDB_INVALID_ADDRESS) {
-    Target *target = &process->GetTarget();
+    Target *target = &m_process->GetTarget();
     if (target) {
       ObjectFile *obj_file = target->GetExecutableModule()->GetObjectFile();
       Address addr = obj_file->GetImageInfoAddress(target);
 
       if (addr.IsValid()) {
         info_location = addr.GetLoadAddress(target);
-        if (log)
-          log->Printf(
-              "%s resolved via direct object file approach to 0x%" PRIx64,
-              __FUNCTION__, info_location);
+        LLDB_LOGF(log,
+                  "%s resolved via direct object file approach to 0x%" PRIx64,
+                  __FUNCTION__, info_location);
       } else {
-        if (log)
-          log->Printf("%s FAILED - direct object file approach did not yield a "
-                      "valid address",
-                      __FUNCTION__);
+        const Symbol *_r_debug =
+            target->GetExecutableModule()->FindFirstSymbolWithNameAndType(
+                ConstString("_r_debug"));
+        if (_r_debug) {
+          info_addr = _r_debug->GetAddress().GetLoadAddress(target);
+          if (info_addr != LLDB_INVALID_ADDRESS) {
+            LLDB_LOGF(log,
+                      "%s resolved by finding symbol '_r_debug' whose value is "
+                      "0x%" PRIx64,
+                      __FUNCTION__, info_addr);
+            m_executable_interpreter = true;
+            return info_addr;
+          }
+        }
+        LLDB_LOGF(log,
+                  "%s FAILED - direct object file approach did not yield a "
+                  "valid address",
+                  __FUNCTION__);
       }
     }
   }
 
   if (info_location == LLDB_INVALID_ADDRESS) {
-    if (log)
-      log->Printf("%s FAILED - invalid info address", __FUNCTION__);
+    LLDB_LOGF(log, "%s FAILED - invalid info address", __FUNCTION__);
     return LLDB_INVALID_ADDRESS;
   }
 
-  if (log)
-    log->Printf("%s reading pointer (%" PRIu32 " bytes) from 0x%" PRIx64,
-                __FUNCTION__, process->GetAddressByteSize(), info_location);
+  LLDB_LOGF(log, "%s reading pointer (%" PRIu32 " bytes) from 0x%" PRIx64,
+            __FUNCTION__, m_process->GetAddressByteSize(), info_location);
 
-  info_addr = process->ReadPointerFromMemory(info_location, error);
+  info_addr = m_process->ReadPointerFromMemory(info_location, error);
   if (error.Fail()) {
-    if (log)
-      log->Printf("%s FAILED - could not read from the info location: %s",
-                  __FUNCTION__, error.AsCString());
+    LLDB_LOGF(log, "%s FAILED - could not read from the info location: %s",
+              __FUNCTION__, error.AsCString());
     return LLDB_INVALID_ADDRESS;
   }
 
   if (info_addr == 0) {
-    if (log)
-      log->Printf("%s FAILED - the rendezvous address contained at 0x%" PRIx64
-                  " returned a null value",
-                  __FUNCTION__, info_location);
+    LLDB_LOGF(log,
+              "%s FAILED - the rendezvous address contained at 0x%" PRIx64
+              " returned a null value",
+              __FUNCTION__, info_location);
     return LLDB_INVALID_ADDRESS;
   }
 
   return info_addr;
 }
 
-DYLDRendezvous::DYLDRendezvous(Process *process)
-    : m_process(process), m_rendezvous_addr(LLDB_INVALID_ADDRESS), m_current(),
-      m_previous(), m_loaded_modules(), m_soentries(), m_added_soentries(),
-      m_removed_soentries() {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
-
-  m_thread_info.valid = false;
-
-  // Cache a copy of the executable path
+void DYLDRendezvous::UpdateExecutablePath() {
   if (m_process) {
+    Log *log = GetLog(LLDBLog::DynamicLoader);
     Module *exe_mod = m_process->GetTarget().GetExecutableModulePointer();
     if (exe_mod) {
       m_exe_file_spec = exe_mod->GetPlatformFileSpec();
-      if (log)
-        log->Printf("DYLDRendezvous::%s exe module executable path set: '%s'",
-                    __FUNCTION__, m_exe_file_spec.GetCString());
+      LLDB_LOGF(log, "DYLDRendezvous::%s exe module executable path set: '%s'",
+                __FUNCTION__, m_exe_file_spec.GetCString());
     } else {
-      if (log)
-        log->Printf("DYLDRendezvous::%s cannot cache exe module path: null "
-                    "executable module pointer",
-                    __FUNCTION__);
+      LLDB_LOGF(log,
+                "DYLDRendezvous::%s cannot cache exe module path: null "
+                "executable module pointer",
+                __FUNCTION__);
     }
   }
 }
 
 bool DYLDRendezvous::Resolve() {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+  Log *log = GetLog(LLDBLog::DynamicLoader);
 
   const size_t word_size = 4;
   Rendezvous info;
@@ -133,17 +141,17 @@ bool DYLDRendezvous::Resolve() {
 
   address_size = m_process->GetAddressByteSize();
   padding = address_size - word_size;
-  if (log)
-    log->Printf("DYLDRendezvous::%s address size: %" PRIu64
-                ", padding %" PRIu64,
-                __FUNCTION__, uint64_t(address_size), uint64_t(padding));
+  LLDB_LOGF(log,
+            "DYLDRendezvous::%s address size: %" PRIu64 ", padding %" PRIu64,
+            __FUNCTION__, uint64_t(address_size), uint64_t(padding));
 
   if (m_rendezvous_addr == LLDB_INVALID_ADDRESS)
-    cursor = info_addr = ResolveRendezvousAddress(m_process);
+    cursor = info_addr =
+        ResolveRendezvousAddress();
   else
     cursor = info_addr = m_rendezvous_addr;
-  if (log)
-    log->Printf("DYLDRendezvous::%s cursor = 0x%" PRIx64, __FUNCTION__, cursor);
+  LLDB_LOGF(log, "DYLDRendezvous::%s cursor = 0x%" PRIx64, __FUNCTION__,
+            cursor);
 
   if (cursor == LLDB_INVALID_ADDRESS)
     return false;
@@ -168,7 +176,10 @@ bool DYLDRendezvous::Resolve() {
   m_previous = m_current;
   m_current = info;
 
-  if (UpdateSOEntries(true))
+  if (m_current.map_addr == 0)
+    return false;
+
+  if (UpdateSOEntriesFromRemote())
     return true;
 
   return UpdateSOEntries();
@@ -178,53 +189,91 @@ bool DYLDRendezvous::IsValid() {
   return m_rendezvous_addr != LLDB_INVALID_ADDRESS;
 }
 
-bool DYLDRendezvous::UpdateSOEntries(bool fromRemote) {
-  SOEntry entry;
-  LoadedModuleInfoList module_list;
+DYLDRendezvous::RendezvousAction DYLDRendezvous::GetAction() const {
+  switch (m_current.state) {
 
-  // If we can't get the SO info from the remote, return failure.
-  if (fromRemote && m_process->LoadModules(module_list) == 0)
-    return false;
+  case eConsistent:
+    switch (m_previous.state) {
+    // When the previous and current states are consistent this is the first
+    // time we have been asked to update.  Just take a snapshot of the
+    // currently loaded modules.
+    case eConsistent:
+      return eTakeSnapshot;
+    // If we are about to add or remove a shared object clear out the current
+    // state and take a snapshot of the currently loaded images.
+    case eAdd:
+      return eAddModules;
+    case eDelete:
+      return eRemoveModules;
+    }
+    break;
 
-  if (!fromRemote && m_current.map_addr == 0)
-    return false;
-
-  // When the previous and current states are consistent this is the first time
-  // we have been asked to update.  Just take a snapshot of the currently
-  // loaded modules.
-  if (m_previous.state == eConsistent && m_current.state == eConsistent)
-    return fromRemote ? SaveSOEntriesFromRemote(module_list)
-                      : TakeSnapshot(m_soentries);
-
-  // If we are about to add or remove a shared object clear out the current
-  // state and take a snapshot of the currently loaded images.
-  if (m_current.state == eAdd || m_current.state == eDelete) {
-    // Some versions of the android dynamic linker might send two notifications
-    // with state == eAdd back to back. Ignore them until we get an eConsistent
-    // notification.
+  case eAdd:
+  case eDelete:
+    // Some versions of the android dynamic linker might send two
+    // notifications with state == eAdd back to back. Ignore them until we
+    // get an eConsistent notification.
     if (!(m_previous.state == eConsistent ||
           (m_previous.state == eAdd && m_current.state == eDelete)))
-      return false;
+      return eNoAction;
 
+    return eTakeSnapshot;
+  }
+
+  return eNoAction;
+}
+
+bool DYLDRendezvous::UpdateSOEntriesFromRemote() {
+  auto action = GetAction();
+
+  if (action == eNoAction)
+    return false;
+
+  if (action == eTakeSnapshot) {
+    m_added_soentries.clear();
+    m_removed_soentries.clear();
+    // We already have the loaded list from the previous update so no need to
+    // find all the modules again.
+    if (!m_loaded_modules.m_list.empty())
+      return true;
+  }
+
+  llvm::Expected<LoadedModuleInfoList> module_list =
+      m_process->GetLoadedModuleList();
+  if (!module_list) {
+    llvm::consumeError(module_list.takeError());
+    return false;
+  }
+
+  switch (action) {
+  case eTakeSnapshot:
     m_soentries.clear();
-    if (fromRemote)
-      return SaveSOEntriesFromRemote(module_list);
+    return SaveSOEntriesFromRemote(*module_list);
+  case eAddModules:
+    return AddSOEntriesFromRemote(*module_list);
+  case eRemoveModules:
+    return RemoveSOEntriesFromRemote(*module_list);
+  case eNoAction:
+    return false;
+  }
+  llvm_unreachable("Fully covered switch above!");
+}
 
+bool DYLDRendezvous::UpdateSOEntries() {
+  switch (GetAction()) {
+  case eTakeSnapshot:
+    m_soentries.clear();
     m_added_soentries.clear();
     m_removed_soentries.clear();
     return TakeSnapshot(m_soentries);
+  case eAddModules:
+    return AddSOEntries();
+  case eRemoveModules:
+    return RemoveSOEntries();
+  case eNoAction:
+    return false;
   }
-  assert(m_current.state == eConsistent);
-
-  // Otherwise check the previous state to determine what to expect and update
-  // accordingly.
-  if (m_previous.state == eAdd)
-    return fromRemote ? AddSOEntriesFromRemote(module_list) : AddSOEntries();
-  else if (m_previous.state == eDelete)
-    return fromRemote ? RemoveSOEntriesFromRemote(module_list)
-                      : RemoveSOEntries();
-
-  return false;
+  llvm_unreachable("Fully covered switch above!");
 }
 
 bool DYLDRendezvous::FillSOEntryFromModuleInfo(
@@ -255,22 +304,25 @@ bool DYLDRendezvous::FillSOEntryFromModuleInfo(
 }
 
 bool DYLDRendezvous::SaveSOEntriesFromRemote(
-    LoadedModuleInfoList &module_list) {
+    const LoadedModuleInfoList &module_list) {
   for (auto const &modInfo : module_list.m_list) {
     SOEntry entry;
     if (!FillSOEntryFromModuleInfo(modInfo, entry))
       return false;
 
     // Only add shared libraries and not the executable.
-    if (!SOEntryIsMainExecutable(entry))
+    if (!SOEntryIsMainExecutable(entry)) {
+      UpdateFileSpecIfNecessary(entry);
       m_soentries.push_back(entry);
+    }
   }
 
   m_loaded_modules = module_list;
   return true;
 }
 
-bool DYLDRendezvous::AddSOEntriesFromRemote(LoadedModuleInfoList &module_list) {
+bool DYLDRendezvous::AddSOEntriesFromRemote(
+    const LoadedModuleInfoList &module_list) {
   for (auto const &modInfo : module_list.m_list) {
     bool found = false;
     for (auto const &existing : m_loaded_modules.m_list) {
@@ -288,8 +340,11 @@ bool DYLDRendezvous::AddSOEntriesFromRemote(LoadedModuleInfoList &module_list) {
       return false;
 
     // Only add shared libraries and not the executable.
-    if (!SOEntryIsMainExecutable(entry))
+    if (!SOEntryIsMainExecutable(entry)) {
+      UpdateFileSpecIfNecessary(entry);
       m_soentries.push_back(entry);
+      m_added_soentries.push_back(entry);
+    }
   }
 
   m_loaded_modules = module_list;
@@ -297,7 +352,7 @@ bool DYLDRendezvous::AddSOEntriesFromRemote(LoadedModuleInfoList &module_list) {
 }
 
 bool DYLDRendezvous::RemoveSOEntriesFromRemote(
-    LoadedModuleInfoList &module_list) {
+    const LoadedModuleInfoList &module_list) {
   for (auto const &existing : m_loaded_modules.m_list) {
     bool found = false;
     for (auto const &modInfo : module_list.m_list) {
@@ -321,6 +376,7 @@ bool DYLDRendezvous::RemoveSOEntriesFromRemote(
         return false;
 
       m_soentries.erase(pos);
+      m_removed_soentries.push_back(entry);
     }
   }
 
@@ -344,6 +400,8 @@ bool DYLDRendezvous::AddSOEntries() {
     // Only add shared libraries and not the executable.
     if (SOEntryIsMainExecutable(entry))
       continue;
+
+    UpdateFileSpecIfNecessary(entry);
 
     pos = std::find(m_soentries.begin(), m_soentries.end(), entry);
     if (pos == m_soentries.end()) {
@@ -386,6 +444,10 @@ bool DYLDRendezvous::SOEntryIsMainExecutable(const SOEntry &entry) {
   case llvm::Triple::Linux:
     if (triple.isAndroid())
       return entry.file_spec == m_exe_file_spec;
+    // If we are debugging ld.so, then all SOEntries should be treated as
+    // libraries, including the "main" one (denoted by an empty string).
+    if (!entry.file_spec && m_executable_interpreter)
+      return false;
     return !entry.file_spec;
   default:
     return false;
@@ -408,6 +470,8 @@ bool DYLDRendezvous::TakeSnapshot(SOEntryList &entry_list) {
     // Only add shared libraries and not the executable.
     if (SOEntryIsMainExecutable(entry))
       continue;
+
+    UpdateFileSpecIfNecessary(entry);
 
     entry_list.push_back(entry);
   }
@@ -474,6 +538,19 @@ void DYLDRendezvous::UpdateBaseAddrIfNecessary(SOEntry &entry,
   }
 }
 
+void DYLDRendezvous::UpdateFileSpecIfNecessary(SOEntry &entry) {
+  // Updates filename if empty. It is useful while debugging ld.so,
+  // when the link map returns empty string for the main executable.
+  if (!entry.file_spec) {
+    MemoryRegionInfo region;
+    Status region_status =
+        m_process->GetMemoryRegionInfo(entry.dyn_addr, region);
+    if (!region.GetName().IsEmpty())
+      entry.file_spec.SetFile(region.GetName().AsCString(),
+                              FileSpec::Style::native);
+  }
+}
+
 bool DYLDRendezvous::ReadSOEntryFromMemory(lldb::addr_t addr, SOEntry &entry) {
   entry.clear();
 
@@ -521,9 +598,10 @@ bool DYLDRendezvous::FindMetadata(const char *name, PThreadField field,
   Target &target = m_process->GetTarget();
 
   SymbolContextList list;
-  if (!target.GetImages().FindSymbolsWithNameAndType(ConstString(name),
-                                                     eSymbolTypeAny, list))
-    return false;
+  target.GetImages().FindSymbolsWithNameAndType(ConstString(name),
+                                                eSymbolTypeAny, list);
+  if (list.IsEmpty())
+  return false;
 
   Address address = list[0].symbol->GetAddress();
   addr_t addr = address.GetLoadAddress(&target);
@@ -569,16 +647,16 @@ void DYLDRendezvous::DumpToLog(Log *log) const {
     return;
 
   log->PutCString("DYLDRendezvous:");
-  log->Printf("   Address: %" PRIx64, GetRendezvousAddress());
-  log->Printf("   Version: %" PRIu64, GetVersion());
-  log->Printf("   Link   : %" PRIx64, GetLinkMapAddress());
-  log->Printf("   Break  : %" PRIx64, GetBreakAddress());
-  log->Printf("   LDBase : %" PRIx64, GetLDBase());
-  log->Printf("   State  : %s",
-              (state == eConsistent)
-                  ? "consistent"
-                  : (state == eAdd) ? "add" : (state == eDelete) ? "delete"
-                                                                 : "unknown");
+  LLDB_LOGF(log, "   Address: %" PRIx64, GetRendezvousAddress());
+  LLDB_LOGF(log, "   Version: %" PRIu64, GetVersion());
+  LLDB_LOGF(log, "   Link   : %" PRIx64, GetLinkMapAddress());
+  LLDB_LOGF(log, "   Break  : %" PRIx64, GetBreakAddress());
+  LLDB_LOGF(log, "   LDBase : %" PRIx64, GetLDBase());
+  LLDB_LOGF(log, "   State  : %s",
+            (state == eConsistent)
+                ? "consistent"
+                : (state == eAdd) ? "add"
+                                  : (state == eDelete) ? "delete" : "unknown");
 
   iterator I = begin();
   iterator E = end();
@@ -587,11 +665,11 @@ void DYLDRendezvous::DumpToLog(Log *log) const {
     log->PutCString("DYLDRendezvous SOEntries:");
 
   for (int i = 1; I != E; ++I, ++i) {
-    log->Printf("\n   SOEntry [%d] %s", i, I->file_spec.GetCString());
-    log->Printf("      Base : %" PRIx64, I->base_addr);
-    log->Printf("      Path : %" PRIx64, I->path_addr);
-    log->Printf("      Dyn  : %" PRIx64, I->dyn_addr);
-    log->Printf("      Next : %" PRIx64, I->next);
-    log->Printf("      Prev : %" PRIx64, I->prev);
+    LLDB_LOGF(log, "\n   SOEntry [%d] %s", i, I->file_spec.GetCString());
+    LLDB_LOGF(log, "      Base : %" PRIx64, I->base_addr);
+    LLDB_LOGF(log, "      Path : %" PRIx64, I->path_addr);
+    LLDB_LOGF(log, "      Dyn  : %" PRIx64, I->dyn_addr);
+    LLDB_LOGF(log, "      Next : %" PRIx64, I->next);
+    LLDB_LOGF(log, "      Prev : %" PRIx64, I->prev);
   }
 }

@@ -1,19 +1,23 @@
 // RUN: %clang_cc1 %s -triple x86_64-unknown-linux-gnu -O0 -ffake-address-space-map -cl-std=CL2.0 -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 %s -triple x86_64-unknown-linux-gnu -O0 -ffake-address-space-map -cl-std=CL3.0 -cl-ext=+__opencl_c_generic_address_space -emit-llvm -o - | FileCheck %s
 // RUN: %clang_cc1 %s -triple x86_64-unknown-linux-gnu -O0 -cl-std=CL2.0 -emit-llvm -o - | FileCheck --check-prefix=CHECK-NOFAKE %s
+// RUN: %clang_cc1 %s -triple x86_64-unknown-linux-gnu -O0 -cl-std=CL3.0 -cl-ext=+__opencl_c_generic_address_space -emit-llvm -o - | FileCheck --check-prefix=CHECK-NOFAKE %s
 // When -ffake-address-space-map is not used, all addr space mapped to 0 for x86_64.
 
 // test that we generate address space casts everywhere we need conversions of
 // pointers to different address spaces
 
-// CHECK: define void @test
-void test(global int *arg_glob, generic int *arg_gen) {
+// CHECK: define{{.*}} void @test
+void test(global int *arg_glob, generic int *arg_gen,
+          __attribute__((opencl_global_device)) int *arg_device,
+          __attribute__((opencl_global_host)) int *arg_host) {
   int var_priv;
   arg_gen = arg_glob; // implicit cast global -> generic
   // CHECK: %{{[0-9]+}} = addrspacecast i32 addrspace(1)* %{{[0-9]+}} to i32 addrspace(4)*
   // CHECK-NOFAKE-NOT: addrspacecast
 
   arg_gen = &var_priv; // implicit cast with obtaining adr, private -> generic
-  // CHECK: %{{[0-9]+}} = addrspacecast i32* %var_priv to i32 addrspace(4)*
+  // CHECK: %{{[._a-z0-9]+}} = addrspacecast i32* %{{[._a-z0-9]+}} to i32 addrspace(4)*
   // CHECK-NOFAKE-NOT: addrspacecast
 
   arg_glob = (global int *)arg_gen; // explicit cast
@@ -39,10 +43,34 @@ void test(global int *arg_glob, generic int *arg_gen) {
   // CHECK-NOT: bitcast
   // CHECK-NOFAKE: bitcast
   // CHECK-NOFAKE-NOT: addrspacecast
+
+  arg_glob = arg_device; // implicit cast
+  // CHECK: addrspacecast
+  // CHECK-NOFAKE-NOT: addrspacecast
+
+  arg_glob = arg_host; // implicit cast
+  // CHECK: addrspacecast
+  // CHECK-NOFAKE-NOT: addrspacecast
+
+  arg_glob = (global int *)arg_device; // explicit cast
+  // CHECK: addrspacecast
+  // CHECK-NOFAKE-NOT: addrspacecast
+
+  arg_glob = (global int *)arg_host; // explicit cast
+  // CHECK: addrspacecast
+  // CHECK-NOFAKE-NOT: addrspacecast
+
+  arg_device = (__attribute((opencl_global_device)) int *)arg_glob; // explicit cast
+  // CHECK: addrspacecast
+  // CHECK-NOFAKE-NOT: addrspacecast
+
+  arg_host = (__attribute((opencl_global_host)) int *)arg_glob; // explicit cast
+  // CHECK: addrspacecast
+  // CHECK-NOFAKE-NOT: addrspacecast
 }
 
 // Test ternary operator.
-// CHECK: define void @test_ternary
+// CHECK: define{{.*}} void @test_ternary
 void test_ternary(void) {
   global int *var_glob;
   generic int *var_gen;

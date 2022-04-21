@@ -13,7 +13,5 @@ executable("clang-move") {
     "//clang/lib/Tooling/Core",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "ClangMove.cpp",
-  ]
+  sources = [ "ClangMove.cpp" ]
 }

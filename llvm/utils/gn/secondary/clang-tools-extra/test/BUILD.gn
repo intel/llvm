@@ -1,3 +1,4 @@
+import("//clang-tools-extra/clang-tidy/enable.gni")
 import("//clang/lib/StaticAnalyzer/Frontend/enable.gni")
 import("//llvm/triples.gni")
 import("//llvm/utils/gn/build/write_cmake_config.gni")
@@ -13,7 +14,7 @@ template("write_lit_config") {
           rebase_path(get_label_info("//clang-tools-extra", "target_out_dir")),
       "CLANG_TOOLS_SOURCE_DIR=" + rebase_path("//clang-tools-extra"),
       "LLVM_LIBS_DIR=",  # needed only for shared builds
-      "TARGET_TRIPLE=$llvm_target_triple",
+      "LLVM_TARGET_TRIPLE=$llvm_target_triple",
     ]
     if (host_os == "win") {
       # See comment for Windows solink in llvm/utils/gn/build/toolchain/BUILD.gn
@@ -31,16 +32,27 @@ write_lit_config("lit_site_cfg") {
   output = clang_tools_extra_lit_site_cfg_file
 
   extra_values = [
-    "CLANG_TOOLS_DIR=" + rebase_path("$root_out_dir/bin"),
+    "CURRENT_TOOLS_DIR=" + rebase_path("$root_out_dir/bin"),
+    "CLANG_PLUGIN_SUPPORT=0",
+    "LLVM_HOST_TRIPLE=$llvm_current_triple",
+    "LLVM_INSTALL_TOOLCHAIN_ONLY=0",
     "LLVM_LIT_TOOLS_DIR=",  # Intentionally empty, matches cmake build.
     "LLVM_TOOLS_DIR=" + rebase_path("$root_out_dir/bin"),
-    "PYTHON_EXECUTABLE=$python_path",
+    "Python3_EXECUTABLE=$python_path",
   ]
 
-  if (clang_enable_static_analyzer) {
-    extra_values += [ "CLANG_ENABLE_STATIC_ANALYZER=1" ]
+  if (clang_tidy_enable_static_analyzer) {
+    extra_values += [ "CLANG_TIDY_ENABLE_STATIC_ANALYZER=1" ]
   } else {
-    extra_values += [ "CLANG_ENABLE_STATIC_ANALYZER=0" ]
+    extra_values += [ "CLANG_TIDY_ENABLE_STATIC_ANALYZER=0" ]
+  }
+
+  if (host_os == "mac") {
+    extra_values += [ "LLVM_PLUGIN_EXT=.dylib" ]
+  } else if (host_os == "win") {
+    extra_values += [ "LLVM_PLUGIN_EXT=.dll" ]
+  } else {
+    extra_values += [ "LLVM_PLUGIN_EXT=.so" ]
   }
 }
 
@@ -90,25 +102,16 @@ action("check-clang-tools") {
   }
   args = [
     "-sv",
-    "--param",
-    "clang_site_config=" +
-        rebase_path(clang_tools_extra_lit_site_cfg_file, root_out_dir),
-    "--param",
-    "clang_unit_site_config=" +
-        rebase_path(clang_tools_extra_lit_unit_site_cfg_file, root_out_dir),
     rebase_path(".", root_out_dir),
   ]
-  outputs = [
-    "$target_gen_dir/run-lit",  # Non-existing, so that ninja runs it each time.
-  ]
+  outputs = [ "$target_gen_dir/run-lit" ]  # Non-existing, so that ninja runs it
+                                           # each time.
 
   # Since check-clang-tools is always dirty, //:default doesn't depend on it so
   # that it's not part of the default ninja target.  Hence, check-clang-tools
   # shouldn't have any deps except :test. so that the default target is sure to
   # build all the deps.
-  deps = [
-    ":test",
-  ]
+  deps = [ ":test" ]
   testonly = true
 
   pool = "//:console"

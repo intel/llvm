@@ -1,6 +1,6 @@
 // RUN: llvm-mc < %s -triple=armv7-linux-gnueabi -filetype=obj -o %t -g -fdebug-compilation-dir=/tmp -dwarf-version 2 2>&1 | FileCheck -check-prefix MESSAGES %s
 // RUN: llvm-dwarfdump -a %t | FileCheck -check-prefix DWARF %s
-// RUN: llvm-objdump -r %t | FileCheck -check-prefix RELOC %s
+// RUN: llvm-objdump -r %t | FileCheck --check-prefix=RELOC %s
 
   .section .text, "ax"
 a:
@@ -26,15 +26,15 @@ b:
 // DWARF: .debug_info contents:
 // DWARF: DW_TAG_compile_unit
 // DWARF-NOT: DW_TAG_
-// DWARF:               DW_AT_low_pc {{.*}}(0x0000000000000000)
-// DWARF:               DW_AT_high_pc {{.*}}(0x0000000000000004)
+// DWARF:               DW_AT_low_pc {{.*}}(0x00000000)
+// DWARF:               DW_AT_high_pc {{.*}}(0x00000004)
 
 // DWARF: DW_TAG_label
 // DWARF-NEXT: DW_AT_name {{.*}}("a")
 
 
 // DWARF: .debug_aranges contents:
-// DWARF-NEXT: Address Range Header: length = 0x00000024, version = 0x0002, cu_offset = 0x00000000, addr_size = 0x04, seg_size = 0x00
+// DWARF-NEXT: Address Range Header: length = 0x00000024, format = DWARF32, version = 0x0002, cu_offset = 0x00000000, addr_size = 0x04, seg_size = 0x00
 // DWARF-NEXT: [0x00000000, 0x00000004)
 // DWARF-NEXT: [0x00000000, 0x00000004)
 
@@ -50,6 +50,7 @@ b:
 
 
 // RELOC: RELOCATION RECORDS FOR [.debug_info]:
+// RELOC-NEXT: OFFSET TYPE VALUE
 // RELOC-NEXT: 00000006 R_ARM_ABS32 .debug_abbrev
 // RELOC-NEXT: 0000000c R_ARM_ABS32 .debug_line
 // RELOC-NEXT: R_ARM_ABS32 .text
@@ -60,6 +61,7 @@ b:
 // RELOC-NOT: RELOCATION RECORDS FOR [.debug_ranges]:
 
 // RELOC: RELOCATION RECORDS FOR [.debug_aranges]:
+// RELOC-NEXT: OFFSET TYPE VALUE
 // RELOC-NEXT: 00000006 R_ARM_ABS32 .debug_info
 // RELOC-NEXT: 00000010 R_ARM_ABS32 .text
 // RELOC-NEXT: 00000018 R_ARM_ABS32 foo

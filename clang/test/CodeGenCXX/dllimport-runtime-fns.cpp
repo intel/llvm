@@ -28,14 +28,14 @@ void foo2() noexcept(true) { bar(); }
 // MSVC: declare dso_local void @__std_terminate()
 
 // _ZSt9terminatev and __cxa_begin_catch should be marked dllimport.
-// ITANIUM-LABEL: define linkonce_odr hidden void @__clang_call_terminate(i8*)
+// ITANIUM-LABEL: define linkonce_odr hidden void @__clang_call_terminate(i8* %0)
 // ITANIUM: call i8* @__cxa_begin_catch({{.*}})
 // ITANIUM: call void @_ZSt9terminatev()
 // ITANIUM: declare dllimport i8* @__cxa_begin_catch(i8*)
 // ITANIUM: declare dllimport void @_ZSt9terminatev()
 
 // .. not for mingw.
-// GNU-LABEL: define linkonce_odr hidden void @__clang_call_terminate(i8*)
+// GNU-LABEL: define linkonce_odr hidden void @__clang_call_terminate(i8* %0)
 // GNU: call i8* @__cxa_begin_catch({{.*}})
 // GNU: call void @_ZSt9terminatev()
 // GNU: declare dso_local i8* @__cxa_begin_catch(i8*)
@@ -48,16 +48,16 @@ struct C : A, virtual B {};
 struct T {};
 T *foo3() { return dynamic_cast<T *>((C *)0); }
 // __RTDynamicCast should not be marked dllimport.
-// MSVC-LABEL: define dso_local %struct.T* @"?foo3@@YAPEAUT@@XZ"
+// MSVC-LABEL: define dso_local noundef %struct.T* @"?foo3@@YAPEAUT@@XZ"
 // MSVC: call i8* @__RTDynamicCast({{.*}})
 // MSVC: declare dso_local i8* @__RTDynamicCast(i8*, i32, i8*, i8*, i32)
 
 // Again, imported
-// ITANIUM-LABEL: define dso_local %struct.T* @_Z4foo3v()
+// ITANIUM-LABEL: define dso_local noundef %struct.T* @_Z4foo3v()
 // ITANIUM: call i8* @__dynamic_cast({{.*}})
 // ITANIUM: declare dllimport i8* @__dynamic_cast({{.*}})
 
 // Not imported
-// GNU-LABEL: define dso_local %struct.T* @_Z4foo3v()
+// GNU-LABEL: define dso_local noundef %struct.T* @_Z4foo3v()
 // GNU: call i8* @__dynamic_cast({{.*}})
 // GNU: declare dso_local i8* @__dynamic_cast({{.*}})

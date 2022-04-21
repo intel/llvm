@@ -8,9 +8,13 @@
 
 // test type_info
 
+// UNSUPPORTED: no-rtti
+
 #include <typeinfo>
 #include <cstring>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

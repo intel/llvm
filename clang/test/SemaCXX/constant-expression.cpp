@@ -88,8 +88,8 @@ enum {
 
 void diags(int n) {
   switch (n) {
-    case (1/0, 1): // expected-error {{not an integral constant expression}} expected-note {{division by zero}}
-    case (int)(1/0, 2.0): // expected-error {{not an integral constant expression}} expected-note {{division by zero}}
+    case (1/0, 1): // expected-error {{not an integral constant expression}} expected-note {{division by zero}} expected-warning {{left operand of comma operator has no effect}}
+    case (int)(1/0, 2.0): // expected-error {{not an integral constant expression}} expected-note {{division by zero}} expected-warning {{left operand of comma operator has no effect}}
     case __imag(1/0): // expected-error {{not an integral constant expression}} expected-note {{division by zero}}
     case (int)__imag((double)(1/0)): // expected-error {{not an integral constant expression}} expected-note {{division by zero}}
       ;
@@ -98,24 +98,24 @@ void diags(int n) {
 
 namespace IntOrEnum {
   const int k = 0;
-  const int &p = k;
+  const int &p = k; // expected-note {{declared here}}
   template<int n> struct S {};
-  S<p> s; // expected-error {{not an integral constant expression}}
+  S<p> s; // expected-error {{not an integral constant expression}} expected-note {{read of variable 'p' of non-integral, non-enumeration type 'const int &'}}
 }
 
 extern const int recurse1;
 // recurse2 cannot be used in a constant expression because it is not
 // initialized by a constant expression. The same expression appearing later in
 // the TU would be a constant expression, but here it is not.
-const int recurse2 = recurse1;
+const int recurse2 = recurse1; // expected-note {{here}}
 const int recurse1 = 1;
 int array1[recurse1]; // ok
-int array2[recurse2]; // expected-warning {{variable length array}} expected-warning {{integer constant expression}}
+int array2[recurse2]; // expected-warning 2{{variable length array}} expected-note {{initializer of 'recurse2' is not a constant expression}}
 
 namespace FloatConvert {
   typedef int a[(int)42.3];
   typedef int a[(int)42.997];
-  typedef int b[(long long)4e20]; // expected-warning {{variable length}} expected-error {{variable length}} expected-warning {{'long long' is a C++11 extension}}
+  typedef int b[(long long)4e20]; // expected-warning {{variable length}} expected-error {{variable length}} expected-warning {{'long long' is a C++11 extension}} expected-note {{value 4.0E+20 is outside the range of representable values}}
 }
 
 // PR12626

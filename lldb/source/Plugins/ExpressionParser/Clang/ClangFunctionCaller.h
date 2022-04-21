@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ClangFunctionCaller_h_
-#define liblldb_ClangFunctionCaller_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGFUNCTIONCALLER_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGFUNCTIONCALLER_H
 
 #include "ClangExpressionHelper.h"
 
 #include "lldb/Core/Address.h"
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObjectList.h"
 #include "lldb/Expression/FunctionCaller.h"
@@ -22,7 +21,6 @@
 namespace lldb_private {
 
 class ASTStructExtractor;
-class ClangExpressionParser;
 
 /// \class ClangFunctionCaller ClangFunctionCaller.h
 /// "lldb/Expression/ClangFunctionCaller.h" Encapsulates a function that can
@@ -59,11 +57,6 @@ class ClangExpressionParser;
 class ClangFunctionCaller : public FunctionCaller {
   friend class ASTStructExtractor;
 
-  /// LLVM-style RTTI support.
-  static bool classof(const Expression *E) {
-    return E->getKind() == eKindClangFunctionCaller;
-  }
-
   class ClangFunctionCallerHelper : public ClangExpressionHelper {
   public:
     ClangFunctionCallerHelper(ClangFunctionCaller &owner) : m_owner(owner) {}
@@ -72,7 +65,7 @@ class ClangFunctionCaller : public FunctionCaller {
 
     /// Return the object that the parser should use when resolving external
     /// values.  May be NULL if everything should be self-contained.
-    ClangExpressionDeclMap *DeclMap() override { return NULL; }
+    ClangExpressionDeclMap *DeclMap() override { return nullptr; }
 
     /// Return the object that the parser should allow to access ASTs. May be
     /// NULL if the ASTs do not need to be transformed.
@@ -91,18 +84,23 @@ class ClangFunctionCaller : public FunctionCaller {
                                                             ///layout.
   };
 
+  // LLVM RTTI support
+  static char ID;
+
 public:
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || FunctionCaller::isA(ClassID);
+  }
+  static bool classof(const Expression *obj) { return obj->isA(&ID); }
+
   /// Constructor
   ///
   /// \param[in] exe_scope
   ///     An execution context scope that gets us at least a target and
   ///     process.
   ///
-  /// \param[in] ast_context
-  ///     The AST context to evaluate argument types in.
-  ///
-  /// \param[in] return_qualtype
-  ///     An opaque Clang QualType for the function result.  Should be
+  /// \param[in] return_type
+  ///     A compiler type for the function result.  Should be
   ///     defined in ast_context.
   ///
   /// \param[in] function_address
@@ -150,4 +148,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_ClangFunctionCaller_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGFUNCTIONCALLER_H

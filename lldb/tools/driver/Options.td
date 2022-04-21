@@ -5,6 +5,8 @@ class S<string name>: Separate<["--", "-"], name>;
 class R<list<string> prefixes, string name>
   : Option<prefixes, name, KIND_REMAINING_ARGS>;
 
+// Please keep this in sync with the man page in docs/man/lldb.rst
+
 // Attaching options.
 def grp_attach : OptionGroup<"attaching">, HelpText<"ATTACHING">;
 
@@ -44,6 +46,10 @@ def python_path: F<"python-path">,
 def: Flag<["-"], "P">,
   Alias<python_path>,
   HelpText<"Alias for --python-path">,
+  Group<grp_scripting>;
+
+def print_script_interpreter_info: F<"print-script-interpreter-info">,
+  HelpText<"Prints out a json dictionary with information about the scripting language interpreter.">,
   Group<grp_scripting>;
 
 def script_language: Separate<["--", "-"], "script-language">,
@@ -108,7 +114,7 @@ def: Flag<["-"], "b">,
   Group<grp_command>;
 
 def source_quietly: F<"source-quietly">,
-  HelpText<"Tells the debugger to execute this one-line lldb command before any file has been loaded.">,
+  HelpText<"Tells the debugger not to echo commands while sourcing files or one-line commands provided on the command line.">,
   Group<grp_command>;
 def: Flag<["-"], "Q">,
   Alias<source_quietly>,
@@ -117,7 +123,7 @@ def: Flag<["-"], "Q">,
 
 def one_line_on_crash: Separate<["--", "-"], "one-line-on-crash">,
   MetaVarName<"<command>">,
-  HelpText<"When in batch mode, tells the debugger to source this file of lldb commands if the target crashes.">,
+  HelpText<"When in batch mode, tells the debugger to run this one-line lldb command if the target crashes.">,
   Group<grp_command>;
 def: Separate<["-"], "k">,
   Alias<one_line_on_crash>,
@@ -227,8 +233,7 @@ def capture: F<"capture">,
 def capture_path: Separate<["--", "-"], "capture-path">,
   MetaVarName<"<filename>">,
   HelpText<"Tells the debugger to use the given filename for the reproducer.">;
-def replay: Separate<["--", "-"], "replay">,
-  MetaVarName<"<filename>">,
-  HelpText<"Tells the debugger to replay a reproducer from <filename>.">;
+def generate_on_exit: F<"reproducer-generate-on-exit">,
+  HelpText<"Generate reproducer on exit.">;
 
 def REM : R<["--"], "">;

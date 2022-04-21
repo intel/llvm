@@ -199,6 +199,37 @@ define amdgpu_ps void @ps_mesa_inreg_v2i16(<2 x i16> inreg %arg0) {
   ret void
 }
 
+; FIXME: Differenet ABI for VI+
+; GCN-LABEL: {{^}}ps_mesa_v4f16:
+; SI: v_cvt_f16_f32_e32 v3, v3
+; SI: v_cvt_f16_f32_e32 v2, v2
+; SI: v_cvt_f16_f32_e32 v1, v1
+; SI: v_cvt_f16_f32_e32 v0, v0
+
+; VI: v_add_f16_e32 v2, 1.0, v1
+; VI: v_add_f16_sdwa v1, v1, v3 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
+; VI: v_add_f16_e32 v4, 1.0, v0
+; VI: v_add_f16_sdwa v0, v0, v3 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
+define amdgpu_ps <4 x half> @ps_mesa_v4f16(<4 x half> %arg0) {
+  %add = fadd <4 x half> %arg0, <half 1.0, half 1.0, half 1.0, half 1.0>
+  ret <4 x half> %add
+}
+
+; GCN-LABEL: {{^}}ps_mesa_inreg_v4f16:
+; SI: v_cvt_f16_f32_e32 v{{[0-9]+}}, s3
+; SI: v_cvt_f16_f32_e32 v{{[0-9]+}}, s2
+; SI: v_cvt_f16_f32_e32 v{{[0-9]+}}, s1
+; SI: v_cvt_f16_f32_e32 v{{[0-9]+}}, s0
+
+; VI: v_add_f16_e64
+; VI: v_add_f16_sdwa
+; VI: v_add_f16_e64
+; VI: v_add_f16_sdwa
+define amdgpu_ps <4 x half> @ps_mesa_inreg_v4f16(<4 x half> inreg %arg0) {
+  %add = fadd <4 x half> %arg0, <half 1.0, half 1.0, half 1.0, half 1.0>
+  ret <4 x half> %add
+}
+
 ; GCN-LABEL: {{^}}ps_mesa_inreg_v3i32:
 ; GCN-DAG: s_add_i32 s0, s0, 1
 ; GCN-DAG: s_add_i32 s{{[0-9]*}}, s1, 2
@@ -287,6 +318,27 @@ define amdgpu_ps void @ps_mesa_v5f32(<5 x float> %arg0) {
   ret void
 }
 
+; GCN-LABEL: {{^}}ps_mesa_i16:
+; SI: v_add_i32_e32 v{{[0-9]+}}, vcc, v0, v0
+; VI: v_add_u16_e32 v{{[0-9]+}}, v0, v0
+define amdgpu_ps void @ps_mesa_i16(i16 %arg0) {
+  %add = add i16 %arg0, %arg0
+  store i16 %add, i16 addrspace(1)* undef
+  ret void
+}
 
+; GCN-LABEL: {{^}}ps_mesa_inreg_i16:
+; GCN: s_add_i32 s{{[0-9]+}}, s0, s0
+define amdgpu_ps void @ps_mesa_inreg_i16(i16 inreg %arg0) {
+  %add = add i16 %arg0, %arg0
+  store i16 %add, i16 addrspace(1)* undef
+  ret void
+}
+
+; GCN-LABEL: {{^}}ret_ps_mesa_i16:
+; GCN: s_movk_i32 s0, 0x7b
+define amdgpu_ps i16 @ret_ps_mesa_i16() {
+  ret i16 123
+}
 
 attributes #0 = { nounwind noinline }

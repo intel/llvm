@@ -1,0 +1,91 @@
+# This workflow is intended to check that out-of-tree build of the translator is
+# healthy and all tests pass. It is used in pre-commits and nightly builds.
+#
+# Documentation for GitHub Actions:
+# [workflow-syntax]: https://docs.github.com/en/free-pro-team@latest/actions/reference/workflow-syntax-for-github-actions
+# [context-and-expression-syntax]: https://docs.github.com/en/free-pro-team@latest/actions/reference/context-and-expression-syntax-for-github-actions
+name: Out-of-tree build & tests
+
+on:
+  push:
+    branches:
+      - master
+      - llvm_release_*
+    paths-ignore: # no need to check build for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-in-tree-build.yml' # check-in-tree-build workflow
+  pull_request:
+    branches:
+      - master
+      - llvm_release_*
+    paths-ignore: # no need to check build for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-in-tree-build.yml' # check-in-tree-build workflow
+  schedule:
+    - cron: 0 0 * * *
+
+env:
+  LLVM_VERSION: 15
+
+jobs:
+  build_and_test:
+    name: Linux
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+      fail-fast: false
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Install dependencies
+        run: |
+          curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
+          curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
+          echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a /etc/apt/sources.list
+          sudo apt-get update
+          sudo apt-get -yq --no-install-suggests --no-install-recommends install \
+            clang-${{ env.LLVM_VERSION }} \
+            llvm-${{ env.LLVM_VERSION }}-dev \
+            libomp-${{ env.LLVM_VERSION }}-dev \
+            llvm-${{ env.LLVM_VERSION }}-tools \
+            spirv-tools
+          # Linux systems in GitHub Actions already have older versions of clang
+          # pre-installed. Make sure to override these with the relevant version.
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
+      - name:  Checkout the translator sources
+        uses: actions/checkout@v2
+        with:
+          path: SPIRV-LLVM-Translator
+      - name:  Get tag for SPIR-V Headers
+        id: spirv-headers-tag
+        run: |
+          echo "spirv_headers_tag=$(cat SPIRV-LLVM-Translator/spirv-headers-tag.conf)" >> $GITHUB_ENV
+      - name:  Checkout SPIR-V Headers
+        uses: actions/checkout@v2
+        with:
+          repository: KhronosGroup/SPIRV-Headers
+          ref: ${{ env.spirv_headers_tag }}
+          path: SPIRV-Headers
+      - name: Configure
+        run: |
+          mkdir build && cd build
+          cmake ${{ github.workspace }}/SPIRV-LLVM-Translator \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_FLAGS="-Werror" \
+            -DLLVM_INCLUDE_TESTS=ON \
+            -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${{ env.LLVM_VERSION }}/build/utils/lit/lit.py" \
+            -DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers" \
+            -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=${{ github.workspace }}/SPIRV-Headers \
+            -G "Unix Makefiles"
+      - name: Build
+        run: |
+          cd build
+          make llvm-spirv -j2
+      - name: Build tests & test
+        run: |
+          cd build
+          make check-llvm-spirv -j2

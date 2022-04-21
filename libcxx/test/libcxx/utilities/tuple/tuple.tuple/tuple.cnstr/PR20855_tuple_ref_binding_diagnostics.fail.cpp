@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,18 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <tuple>
 
 // See llvm.org/PR20855
 
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wdangling-field"
-#endif
-
 #include <tuple>
 #include <string>
+
 #include "test_macros.h"
 
 template <class Tp>
@@ -73,7 +69,7 @@ int main(int, char**) {
     std::tuple<Base const&, int> t(ct, 42); // expected-note {{requested here}}
   }
   {
-    std::allocator<void> alloc;
+    std::allocator<int> alloc;
     std::tuple<std::string &&> t2("hello"); // expected-note {{requested here}}
     std::tuple<std::string &&> t3(std::allocator_arg, alloc, "hello"); // expected-note {{requested here}}
   }

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <utility>
 
@@ -15,6 +15,8 @@
 // template <class U, class V> EXPLICIT constexpr pair(const pair<U, V>& p);
 
 #include <utility>
+
+#include "test_macros.h"
 
 
 struct ExplicitT {

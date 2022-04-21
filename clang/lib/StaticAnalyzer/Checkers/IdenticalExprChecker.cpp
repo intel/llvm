@@ -115,7 +115,7 @@ bool FindIdenticalExprVisitor::VisitIfStmt(const IfStmt *I) {
   if (const CompoundStmt *CS = dyn_cast<CompoundStmt>(Stmt1)) {
     if (!CS->body_empty()) {
       const IfStmt *InnerIf = dyn_cast<IfStmt>(*CS->body_begin());
-      if (InnerIf && isIdenticalStmt(AC->getASTContext(), I->getCond(), InnerIf->getCond(), /*ignoreSideEffects=*/ false)) {
+      if (InnerIf && isIdenticalStmt(AC->getASTContext(), I->getCond(), InnerIf->getCond(), /*IgnoreSideEffects=*/ false)) {
         PathDiagnosticLocation ELoc(InnerIf->getCond(), BR.getSourceManager(), AC);
         BR.EmitBasicReport(AC->getDecl(), Checker, "Identical conditions",
           categories::LogicError,
@@ -351,6 +351,8 @@ static bool isIdenticalStmt(const ASTContext &Ctx, const Stmt *Stmt1,
   case Stmt::CallExprClass:
   case Stmt::ArraySubscriptExprClass:
   case Stmt::OMPArraySectionExprClass:
+  case Stmt::OMPArrayShapingExprClass:
+  case Stmt::OMPIteratorExprClass:
   case Stmt::ImplicitCastExprClass:
   case Stmt::ParenExprClass:
   case Stmt::BreakStmtClass:
@@ -513,6 +515,6 @@ void ento::registerIdenticalExprChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<FindIdenticalExprChecker>();
 }
 
-bool ento::shouldRegisterIdenticalExprChecker(const LangOptions &LO) {
+bool ento::shouldRegisterIdenticalExprChecker(const CheckerManager &mgr) {
   return true;
 }

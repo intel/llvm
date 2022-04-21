@@ -1,8 +1,7 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin9 %s -std=c++14 -fcoroutines-ts -fsyntax-only -Wall -Wextra -Wuninitialized  -fblocks
+// RUN: %clang_cc1 -triple x86_64-apple-darwin9 %s -std=c++20 -fsyntax-only -Wall -Wextra -Wuninitialized  -fblocks
 #include "Inputs/std-coroutine.h"
 
-using namespace std::experimental;
-
+using namespace std;
 
 struct A {
   bool await_ready() { return true; }
@@ -16,7 +15,7 @@ struct coro_t {
   struct promise_type {
     coro_t get_return_object() { return {}; }
     suspend_never initial_suspend() { return {}; }
-    suspend_never final_suspend() { return {}; }
+    suspend_never final_suspend() noexcept { return {}; }
     A yield_value(int) { return {}; }
     void return_void() {}
     static void unhandled_exception() {}

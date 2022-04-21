@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+def IsTargetXPLINK64      : Predicate<"Subtarget->isTargetXPLINK64()">;
+def IsTargetELF           : Predicate<"Subtarget->isTargetELF()">;
+
 //===----------------------------------------------------------------------===//
 // Stack allocation
 //===----------------------------------------------------------------------===//
@@ -29,6 +32,19 @@ let hasNoSchedulingInfo = 1, hasSideEffects = 1 in {
 def ADJDYNALLOC : Pseudo<(outs GR64:$dst), (ins dynalloc12only:$src),
                          [(set GR64:$dst, dynalloc12only:$src)]>;
 
+let Defs = [R15D, CC], Uses = [R15D], hasNoSchedulingInfo = 1,
+    usesCustomInserter = 1 in
+  def PROBED_ALLOCA : Pseudo<(outs GR64:$dst),
+                             (ins GR64:$oldSP, GR64:$space),
+           [(set GR64:$dst, (z_probed_alloca GR64:$oldSP, GR64:$space))]>;
+
+let Defs = [R1D, R15D, CC], Uses = [R15D], hasNoSchedulingInfo = 1,
+    hasSideEffects = 1 in
+  def PROBED_STACKALLOC : Pseudo<(outs), (ins i64imm:$stacksize), []>;
+
+let Defs = [R3D, CC], Uses = [R3D, R4D], hasNoSchedulingInfo = 1,
+    hasSideEffects = 1 in
+  def XPLINK_STACKALLOC : Pseudo<(outs), (ins), []>;
 
 //===----------------------------------------------------------------------===//
 // Branch instructions
@@ -69,7 +85,7 @@ let isBranch = 1, isTerminator = 1, Uses = [CC] in {
   foreach V = [ "E", "NE", "H", "NH", "L", "NL", "HE", "NHE", "LE", "NLE",
                 "Z", "NZ", "P", "NP", "M", "NM", "LH", "NLH", "O", "NO" ] in {
     def JAsm#V  : FixedCondBranchRI <CV<V>, "j#",  0xA74>;
-    def JGAsm#V : FixedCondBranchRIL<CV<V>, "jg#", 0xC04>;
+    def JGAsm#V : FixedCondBranchRIL<CV<V>, "j{g|l}#", 0xC04>;
     let isIndirectBranch = 1 in {
       def BAsm#V  : FixedCondBranchRX <CV<V>, "b#",  0x47>;
       def BRAsm#V : FixedCondBranchRR <CV<V>, "b#r", 0x07>;
@@ -83,7 +99,7 @@ let isBranch = 1, isTerminator = 1, Uses = [CC] in {
 // conditional branches with the condition mask set to "always".
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
   def J  : FixedCondBranchRI <CondAlways, "j",  0xA74, br>;
-  def JG : FixedCondBranchRIL<CondAlways, "jg", 0xC04>;
+  def JG : FixedCondBranchRIL<CondAlways, "j{g|lu}", 0xC04>;
   let isIndirectBranch = 1 in {
     def B  : FixedCondBranchRX<CondAlways, "b",  0x47>;
     def BR : FixedCondBranchRR<CondAlways, "br", 0x07, brind>;
@@ -92,10 +108,21 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
   }
 }
 
-// NOPs.  These are again variants of the conditional branches,
-// with the condition mask set to "never".
+// NOPs.  These are again variants of the conditional branches, with the
+// condition mask set to "never".  NOP_bare can't be an InstAlias since it
+// would need R0D hard coded which is not part of ADDR64BitRegClass.
 def NOP  : InstAlias<"nop\t$XBD", (BCAsm 0, bdxaddr12only:$XBD), 0>;
+let isAsmParserOnly = 1, hasNoSchedulingInfo = 1, M1 = 0, XBD2 = 0 in
+  def NOP_bare  : InstRXb<0x47,(outs), (ins), "nop", []>;
 def NOPR : InstAlias<"nopr\t$R", (BCRAsm 0, GR64:$R), 0>;
+def NOPR_bare : InstAlias<"nopr", (BCRAsm 0, R0D), 0>;
+
+// An alias of BRC 0, label
+def JNOP : InstAlias<"jnop\t$RI2", (BRCAsm 0, brtarget16:$RI2), 0>;
+
+// An alias of BRCL 0, label
+// jgnop on att ; jlnop on hlasm
+def JGNOP : InstAlias<"{jgnop|jlnop}\t$RI2", (BRCLAsm 0, brtarget32:$RI2), 0>;
 
 // Fused compare-and-branch instructions.
 //
@@ -254,59 +281,88 @@ let isCall = 1, Defs = [CC] in {
   def BASR  : CallRR <"basr", 0x0D>;
 }
 
+// z/OS XPLINK
+let Predicates = [IsTargetXPLINK64] in {
+  let isCall = 1, Defs = [R7D, CC], Uses = [FPC] in {
+    def CallBRASL_XPLINK64 : Alias<8, (outs), (ins pcrel32:$I2, variable_ops),
+                          [(z_call pcrel32:$I2)]>;
+    def CallBASR_XPLINK64  : Alias<4, (outs), (ins ADDR64:$R2, variable_ops),
+                          [(z_call ADDR64:$R2)]>;
+  }
+
+  let isCall = 1, Defs = [R3D, CC], Uses = [FPC] in {
+    def CallBASR_STACKEXT  : Alias<4, (outs), (ins ADDR64:$R2), []>;
+  }
+}
+
 // Regular calls.
-let isCall = 1, Defs = [R14D, CC], Uses = [FPC] in {
-  def CallBRASL : Alias<6, (outs), (ins pcrel32:$I2, variable_ops),
-                        [(z_call pcrel32:$I2)]>;
-  def CallBASR  : Alias<2, (outs), (ins ADDR64:$R2, variable_ops),
-                        [(z_call ADDR64:$R2)]>;
+// z/Linux ELF
+let Predicates = [IsTargetELF] in {
+  let isCall = 1, Defs = [R14D, CC], Uses = [FPC] in {
+    def CallBRASL : Alias<6, (outs), (ins pcrel32:$I2, variable_ops),
+                          [(z_call pcrel32:$I2)]>;
+    def CallBASR  : Alias<2, (outs), (ins ADDR64:$R2, variable_ops),
+                          [(z_call ADDR64:$R2)]>;
+  }
+
+  // TLS calls.  These will be lowered into a call to __tls_get_offset,
+  // with an extra relocation specifying the TLS symbol.
+  let isCall = 1, Defs = [R14D, CC] in {
+    def TLS_GDCALL : Alias<6, (outs), (ins tlssym:$I2, variable_ops),
+                           [(z_tls_gdcall tglobaltlsaddr:$I2)]>;
+    def TLS_LDCALL : Alias<6, (outs), (ins tlssym:$I2, variable_ops),
+                           [(z_tls_ldcall tglobaltlsaddr:$I2)]>;
+  }
 }
 
-// TLS calls.  These will be lowered into a call to __tls_get_offset,
-// with an extra relocation specifying the TLS symbol.
-let isCall = 1, Defs = [R14D, CC] in {
-  def TLS_GDCALL : Alias<6, (outs), (ins tlssym:$I2, variable_ops),
-                         [(z_tls_gdcall tglobaltlsaddr:$I2)]>;
-  def TLS_LDCALL : Alias<6, (outs), (ins tlssym:$I2, variable_ops),
-                         [(z_tls_ldcall tglobaltlsaddr:$I2)]>;
-}
-
-// Sibling calls.  Indirect sibling calls must be via R1, since R2 upwards
-// are argument registers and since branching to R0 is a no-op.
+// Sibling calls. Indirect sibling calls must be via R6 for XPLink,
+// R1 used for ELF
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1 in {
   def CallJG : Alias<6, (outs), (ins pcrel32:$I2),
                      [(z_sibcall pcrel32:$I2)]>;
-  let Uses = [R1D] in
-    def CallBR : Alias<2, (outs), (ins), [(z_sibcall R1D)]>;
+  def CallBR : Alias<2, (outs), (ins ADDR64:$R2),
+                     [(z_sibcall ADDR64:$R2)]>;
 }
 
 // Conditional sibling calls.
 let CCMaskFirst = 1, isCall = 1, isTerminator = 1, isReturn = 1 in {
   def CallBRCL : Alias<6, (outs), (ins cond4:$valid, cond4:$R1,
                                    pcrel32:$I2), []>;
-  let Uses = [R1D] in
-    def CallBCR : Alias<2, (outs), (ins cond4:$valid, cond4:$R1), []>;
+  def CallBCR : Alias<2, (outs), (ins cond4:$valid, cond4:$R1,
+                                  ADDR64:$R2), []>;
 }
 
 // Fused compare and conditional sibling calls.
-let isCall = 1, isTerminator = 1, isReturn = 1, Uses = [R1D] in {
-  def CRBCall : Alias<6, (outs), (ins GR32:$R1, GR32:$R2, cond4:$M3), []>;
-  def CGRBCall : Alias<6, (outs), (ins GR64:$R1, GR64:$R2, cond4:$M3), []>;
-  def CIBCall : Alias<6, (outs), (ins GR32:$R1, imm32sx8:$I2, cond4:$M3), []>;
-  def CGIBCall : Alias<6, (outs), (ins GR64:$R1, imm64sx8:$I2, cond4:$M3), []>;
-  def CLRBCall : Alias<6, (outs), (ins GR32:$R1, GR32:$R2, cond4:$M3), []>;
-  def CLGRBCall : Alias<6, (outs), (ins GR64:$R1, GR64:$R2, cond4:$M3), []>;
-  def CLIBCall : Alias<6, (outs), (ins GR32:$R1, imm32zx8:$I2, cond4:$M3), []>;
-  def CLGIBCall : Alias<6, (outs), (ins GR64:$R1, imm64zx8:$I2, cond4:$M3), []>;
+let isCall = 1, isTerminator = 1, isReturn = 1 in {
+  def CRBCall : Alias<6, (outs), (ins GR32:$R1, GR32:$R2, cond4:$M3, ADDR64:$R4), []>;
+  def CGRBCall : Alias<6, (outs), (ins GR64:$R1, GR64:$R2, cond4:$M3, ADDR64:$R4), []>;
+  def CIBCall : Alias<6, (outs), (ins GR32:$R1, imm32sx8:$I2, cond4:$M3, ADDR64:$R4), []>;
+  def CGIBCall : Alias<6, (outs), (ins GR64:$R1, imm64sx8:$I2, cond4:$M3, ADDR64:$R4), []>;
+  def CLRBCall : Alias<6, (outs), (ins GR32:$R1, GR32:$R2, cond4:$M3, ADDR64:$R4), []>;
+  def CLGRBCall : Alias<6, (outs), (ins GR64:$R1, GR64:$R2, cond4:$M3, ADDR64:$R4), []>;
+  def CLIBCall : Alias<6, (outs), (ins GR32:$R1, imm32zx8:$I2, cond4:$M3, ADDR64:$R4), []>;
+  def CLGIBCall : Alias<6, (outs), (ins GR64:$R1, imm64zx8:$I2, cond4:$M3, ADDR64:$R4), []>;
 }
 
-// A return instruction (br %r14).
-let isReturn = 1, isTerminator = 1, isBarrier = 1, hasCtrlDep = 1 in
-  def Return : Alias<2, (outs), (ins), [(z_retflag)]>;
+let Predicates = [IsTargetXPLINK64] in {
+  // A return instruction (b 2(%r7)).
+  let isReturn = 1, isTerminator = 1, isBarrier = 1, hasCtrlDep = 1 in
+    def Return_XPLINK : Alias<4, (outs), (ins), [(z_retflag)]>;
 
-// A conditional return instruction (bcr <cond>, %r14).
-let isReturn = 1, isTerminator = 1, hasCtrlDep = 1, CCMaskFirst = 1, Uses = [CC] in
-  def CondReturn : Alias<2, (outs), (ins cond4:$valid, cond4:$R1), []>;
+  // A conditional return instruction (bc <cond>, 2(%r7)).
+  let isReturn = 1, isTerminator = 1, hasCtrlDep = 1, CCMaskFirst = 1, Uses = [CC] in
+    def CondReturn_XPLINK : Alias<4, (outs), (ins cond4:$valid, cond4:$R1), []>;
+}
+
+let Predicates = [IsTargetELF] in {
+  // A return instruction (br %r14).
+  let isReturn = 1, isTerminator = 1, isBarrier = 1, hasCtrlDep = 1 in
+    def Return : Alias<2, (outs), (ins), [(z_retflag)]>;
+
+  // A conditional return instruction (bcr <cond>, %r14).
+  let isReturn = 1, isTerminator = 1, hasCtrlDep = 1, CCMaskFirst = 1, Uses = [CC] in
+    def CondReturn : Alias<2, (outs), (ins cond4:$valid, cond4:$R1), []>;
+}
 
 // Fused compare and conditional returns.
 let isReturn = 1, isTerminator = 1, hasCtrlDep = 1 in {
@@ -337,15 +393,15 @@ defm CondStore8Mux  : CondStores<GRX32, nonvolatile_truncstorei8,
 defm CondStore16Mux : CondStores<GRX32, nonvolatile_truncstorei16,
                                  nonvolatile_anyextloadi16, bdxaddr20only>,
                       Requires<[FeatureHighWord]>;
-defm CondStore32Mux : CondStores<GRX32, nonvolatile_store,
-                                 nonvolatile_load, bdxaddr20only>,
+defm CondStore32Mux : CondStores<GRX32, simple_store,
+                                 simple_load, bdxaddr20only>,
                       Requires<[FeatureLoadStoreOnCond2]>;
 defm CondStore8     : CondStores<GR32, nonvolatile_truncstorei8,
                                  nonvolatile_anyextloadi8, bdxaddr20only>;
 defm CondStore16    : CondStores<GR32, nonvolatile_truncstorei16,
                                  nonvolatile_anyextloadi16, bdxaddr20only>;
-defm CondStore32    : CondStores<GR32, nonvolatile_store,
-                                 nonvolatile_load, bdxaddr20only>;
+defm CondStore32    : CondStores<GR32, simple_store,
+                                 simple_load, bdxaddr20only>;
 
 defm : CondStores64<CondStore8, CondStore8Inv, nonvolatile_truncstorei8,
                     nonvolatile_anyextloadi8, bdxaddr20only>;
@@ -353,8 +409,8 @@ defm : CondStores64<CondStore16, CondStore16Inv, nonvolatile_truncstorei16,
                     nonvolatile_anyextloadi16, bdxaddr20only>;
 defm : CondStores64<CondStore32, CondStore32Inv, nonvolatile_truncstorei32,
                     nonvolatile_anyextloadi32, bdxaddr20only>;
-defm CondStore64 : CondStores<GR64, nonvolatile_store,
-                              nonvolatile_load, bdxaddr20only>;
+defm CondStore64 : CondStores<GR64, simple_store,
+                              simple_load, bdxaddr20only>;
 
 //===----------------------------------------------------------------------===//
 // Move instructions
@@ -467,12 +523,23 @@ def MVGHI : StoreSIL<"mvghi", 0xE548, store,         imm64sx16>;
 
 // Memory-to-memory moves.
 let mayLoad = 1, mayStore = 1 in
-  defm MVC : MemorySS<"mvc", 0xD2, z_mvc, z_mvc_loop>;
+  defm MVC : MemorySS<"mvc", 0xD2, z_mvc>;
 let mayLoad = 1, mayStore = 1, Defs = [CC] in {
   def MVCL  : SideEffectBinaryMemMemRR<"mvcl", 0x0E, GR128, GR128>;
   def MVCLE : SideEffectTernaryMemMemRS<"mvcle", 0xA8, GR128, GR128>;
   def MVCLU : SideEffectTernaryMemMemRSY<"mvclu", 0xEB8E, GR128, GR128>;
 }
+
+// Memset[Length][Byte] pseudos.
+def MemsetImmImm : MemsetPseudo<imm64, imm32zx8trunc>;
+def MemsetImmReg : MemsetPseudo<imm64, GR32>;
+def MemsetRegImm : MemsetPseudo<ADDR64, imm32zx8trunc>;
+def MemsetRegReg : MemsetPseudo<ADDR64, GR32>;
+
+// Move right.
+let Predicates = [FeatureMiscellaneousExtensions3],
+    mayLoad = 1, mayStore = 1, Uses = [R0L] in
+  def MVCRL : SideEffectBinarySSE<"mvcrl", 0xE50A>;
 
 // String moves.
 let mayLoad = 1, mayStore = 1, Defs = [CC] in
@@ -481,6 +548,29 @@ let mayLoad = 1, mayStore = 1, Defs = [CC] in
 //===----------------------------------------------------------------------===//
 // Conditional move instructions
 //===----------------------------------------------------------------------===//
+
+let Predicates = [FeatureMiscellaneousExtensions3], Uses = [CC] in {
+  // Select.
+  let isCommutable = 1 in {
+    // Expands to SELR or SELFHR or a branch-and-move sequence,
+    // depending on the choice of registers.
+    def  SELRMux : CondBinaryRRFaPseudo<"MUXselr", GRX32, GRX32, GRX32>;
+    defm SELFHR  : CondBinaryRRFaPair<"selfhr", 0xB9C0, GRH32, GRH32, GRH32>;
+    defm SELR    : CondBinaryRRFaPair<"selr",   0xB9F0, GR32, GR32, GR32>;
+    defm SELGR   : CondBinaryRRFaPair<"selgr",  0xB9E3, GR64, GR64, GR64>;
+  }
+
+  // Define AsmParser extended mnemonics for each general condition-code mask.
+  foreach V = [ "E", "NE", "H", "NH", "L", "NL", "HE", "NHE", "LE", "NLE",
+                "Z", "NZ", "P", "NP", "M", "NM", "LH", "NLH", "O", "NO" ] in {
+    def SELRAsm#V   : FixedCondBinaryRRFa<CV<V>, "selr",   0xB9F0,
+                                          GR32, GR32, GR32>;
+    def SELFHRAsm#V : FixedCondBinaryRRFa<CV<V>, "selfhr", 0xB9C0,
+                                          GRH32, GRH32, GRH32>;
+    def SELGRAsm#V  : FixedCondBinaryRRFa<CV<V>, "selgr",  0xB9E3,
+                                          GR64, GR64, GR64>;
+  }
+}
 
 let Predicates = [FeatureLoadStoreOnCond2], Uses = [CC] in {
   // Load immediate on condition.  Matched via DAG pattern and created
@@ -497,14 +587,14 @@ let Predicates = [FeatureLoadStoreOnCond2], Uses = [CC] in {
   let isCommutable = 1 in {
     // Expands to LOCR or LOCFHR or a branch-and-move sequence,
     // depending on the choice of registers.
-    def LOCRMux : CondBinaryRRFPseudo<GRX32, GRX32>;
+    def LOCRMux : CondBinaryRRFPseudo<"MUXlocr", GRX32, GRX32>;
     defm LOCFHR : CondBinaryRRFPair<"locfhr", 0xB9E0, GRH32, GRH32>;
   }
 
   // Load on condition.  Matched via DAG pattern.
   // Expands to LOC or LOCFH, depending on the choice of register.
-  def LOCMux : CondUnaryRSYPseudo<nonvolatile_load, GRX32, 4>;
-  defm LOCFH : CondUnaryRSYPair<"locfh", 0xEBE0, nonvolatile_load, GRH32, 4>;
+  defm LOCMux : CondUnaryRSYPseudoAndMemFold<"MUXloc", simple_load, GRX32, 4>;
+  defm LOCFH : CondUnaryRSYPair<"locfh", 0xEBE0, simple_load, GRH32, 4>;
 
   // Store on condition.  Expanded from CondStore* pseudos.
   // Expands to STOC or STOCFH, depending on the choice of register.
@@ -535,8 +625,8 @@ let Predicates = [FeatureLoadStoreOnCond], Uses = [CC] in {
   }
 
   // Load on condition.  Matched via DAG pattern.
-  defm LOC  : CondUnaryRSYPair<"loc",  0xEBF2, nonvolatile_load, GR32, 4>;
-  defm LOCG : CondUnaryRSYPair<"locg", 0xEBE2, nonvolatile_load, GR64, 8>;
+  defm LOC  : CondUnaryRSYPair<"loc",  0xEBF2, simple_load, GR32, 4>;
+  defm LOCG : CondUnaryRSYPairAndMemFold<"locg", 0xEBE2, simple_load, GR64, 8>;
 
   // Store on condition.  Expanded from CondStore* pseudos.
   defm STOC  : CondStoreRSYPair<"stoc",  0xEBF3, GR32, 4>;
@@ -791,16 +881,13 @@ def GOT : Alias<6, (outs GR64:$R1), (ins),
 
 let Defs = [CC] in {
   let CCValues = 0xF, CompareZeroCCMask = 0x8 in {
-    def LPR  : UnaryRR <"lpr",  0x10,   z_iabs, GR32, GR32>;
-    def LPGR : UnaryRRE<"lpgr", 0xB900, z_iabs, GR64, GR64>;
+    def LPR  : UnaryRR <"lpr",  0x10,   abs, GR32, GR32>;
+    def LPGR : UnaryRRE<"lpgr", 0xB900, abs, GR64, GR64>;
   }
   let CCValues = 0xE, CompareZeroCCMask = 0xE in
     def LPGFR : UnaryRRE<"lpgfr", 0xB910, null_frag, GR64, GR32>;
 }
-def : Pat<(z_iabs32 GR32:$src), (LPR  GR32:$src)>;
-def : Pat<(z_iabs64 GR64:$src), (LPGR GR64:$src)>;
-defm : SXU<z_iabs,   LPGFR>;
-defm : SXU<z_iabs64, LPGFR>;
+defm : SXU<abs, LPGFR>;
 
 let Defs = [CC] in {
   let CCValues = 0xF, CompareZeroCCMask = 0x8 in {
@@ -810,10 +897,7 @@ let Defs = [CC] in {
   let CCValues = 0xE, CompareZeroCCMask = 0xE in
     def LNGFR : UnaryRRE<"lngfr", 0xB911, null_frag, GR64, GR32>;
 }
-def : Pat<(z_inegabs32 GR32:$src), (LNR  GR32:$src)>;
-def : Pat<(z_inegabs64 GR64:$src), (LNGR GR64:$src)>;
-defm : SXU<z_inegabs,   LNGFR>;
-defm : SXU<z_inegabs64, LNGFR>;
+defm : SXU<z_inegabs, LNGFR>;
 
 let Defs = [CC] in {
   let CCValues = 0xF, CompareZeroCCMask = 0x8 in {
@@ -887,7 +971,7 @@ def : Pat<(or (zext32 GR32:$src), imm64hf32:$imm),
 //===----------------------------------------------------------------------===//
 
 // Addition producing a signed overflow flag.
-let Defs = [CC], CCValues = 0xF, CompareZeroCCMask = 0x8 in {
+let Defs = [CC], CCValues = 0xF, CCIfNoSignedWrap = 1 in {
   // Addition of a register.
   let isCommutable = 1 in {
     defm AR : BinaryRRAndK<"ar", 0x1A, 0xB9F8, z_sadd, GR32, GR32>;
@@ -916,11 +1000,11 @@ let Defs = [CC], CCValues = 0xF, CompareZeroCCMask = 0x8 in {
 
   // Addition of memory.
   defm AH  : BinaryRXPair<"ah", 0x4A, 0xE37A, z_sadd, GR32, asextloadi16, 2>;
-  defm A   : BinaryRXPair<"a",  0x5A, 0xE35A, z_sadd, GR32, load, 4>;
+  defm A   : BinaryRXPairAndPseudo<"a",  0x5A, 0xE35A, z_sadd, GR32, load, 4>;
   def  AGH : BinaryRXY<"agh", 0xE338, z_sadd, GR64, asextloadi16, 2>,
              Requires<[FeatureMiscellaneousExtensions2]>;
   def  AGF : BinaryRXY<"agf", 0xE318, z_sadd, GR64, asextloadi32, 4>;
-  def  AG  : BinaryRXY<"ag",  0xE308, z_sadd, GR64, load, 8>;
+  defm AG  : BinaryRXYAndPseudo<"ag",  0xE308, z_sadd, GR64, load, 8>;
 
   // Addition to memory.
   def ASI  : BinarySIY<"asi",  0xEB6A, add, imm32sx8>;
@@ -929,7 +1013,7 @@ let Defs = [CC], CCValues = 0xF, CompareZeroCCMask = 0x8 in {
 defm : SXB<z_sadd, GR64, AGFR>;
 
 // Addition producing a carry.
-let Defs = [CC] in {
+let Defs = [CC], CCValues = 0xF, IsLogical = 1 in {
   // Addition of a register.
   let isCommutable = 1 in {
     defm ALR : BinaryRRAndK<"alr", 0x1E, 0xB9FA, z_uadd, GR32, GR32>;
@@ -958,9 +1042,9 @@ let Defs = [CC] in {
               Requires<[FeatureHighWord]>;
 
   // Addition of memory.
-  defm AL   : BinaryRXPair<"al", 0x5E, 0xE35E, z_uadd, GR32, load, 4>;
+  defm AL   : BinaryRXPairAndPseudo<"al", 0x5E, 0xE35E, z_uadd, GR32, load, 4>;
   def  ALGF : BinaryRXY<"algf", 0xE31A, z_uadd, GR64, azextloadi32, 4>;
-  def  ALG  : BinaryRXY<"alg",  0xE30A, z_uadd, GR64, load, 8>;
+  defm ALG  : BinaryRXYAndPseudo<"alg",  0xE30A, z_uadd, GR64, load, 8>;
 
   // Addition to memory.
   def ALSI  : BinarySIY<"alsi",  0xEB6E, null_frag, imm32sx8>;
@@ -969,7 +1053,7 @@ let Defs = [CC] in {
 defm : ZXB<z_uadd, GR64, ALGFR>;
 
 // Addition producing and using a carry.
-let Defs = [CC], Uses = [CC] in {
+let Defs = [CC], Uses = [CC], CCValues = 0xF, IsLogical = 1 in {
   // Addition of a register.
   def ALCR  : BinaryRRE<"alcr",  0xB998, z_addcarry, GR32, GR32>;
   def ALCGR : BinaryRRE<"alcgr", 0xB988, z_addcarry, GR64, GR64>;
@@ -989,7 +1073,8 @@ def ALSIHN : BinaryRIL<"alsihn", 0xCCB, null_frag, GRH32, simm32>,
 //===----------------------------------------------------------------------===//
 
 // Subtraction producing a signed overflow flag.
-let Defs = [CC], CCValues = 0xF, CompareZeroCCMask = 0x8 in {
+let Defs = [CC], CCValues = 0xF, CompareZeroCCMask = 0x8,
+    CCIfNoSignedWrap = 1 in {
   // Subtraction of a register.
   defm SR : BinaryRRAndK<"sr", 0x1B, 0xB9F9, z_ssub, GR32, GR32>;
   def SGFR : BinaryRRE<"sgfr", 0xB919, null_frag, GR64, GR32>;
@@ -1003,11 +1088,11 @@ let Defs = [CC], CCValues = 0xF, CompareZeroCCMask = 0x8 in {
 
   // Subtraction of memory.
   defm SH  : BinaryRXPair<"sh", 0x4B, 0xE37B, z_ssub, GR32, asextloadi16, 2>;
-  defm S   : BinaryRXPair<"s", 0x5B, 0xE35B, z_ssub, GR32, load, 4>;
+  defm S   : BinaryRXPairAndPseudo<"s", 0x5B, 0xE35B, z_ssub, GR32, load, 4>;
   def  SGH : BinaryRXY<"sgh", 0xE339, z_ssub, GR64, asextloadi16, 2>,
              Requires<[FeatureMiscellaneousExtensions2]>;
   def  SGF : BinaryRXY<"sgf", 0xE319, z_ssub, GR64, asextloadi32, 4>;
-  def  SG  : BinaryRXY<"sg",  0xE309, z_ssub, GR64, load, 8>;
+  defm SG  : BinaryRXYAndPseudo<"sg",  0xE309, z_ssub, GR64, load, 8>;
 }
 defm : SXB<z_ssub, GR64, SGFR>;
 
@@ -1038,7 +1123,7 @@ def : Pat<(z_saddo GR64:$src1, imm64lf32n:$src2),
           (SGR GR64:$src1, (LLILF imm64lf32n:$src2))>;
 
 // Subtraction producing a carry.
-let Defs = [CC] in {
+let Defs = [CC], CCValues = 0x7, IsLogical = 1 in {
   // Subtraction of a register.
   defm SLR : BinaryRRAndK<"slr", 0x1F, 0xB9FB, z_usub, GR32, GR32>;
   def SLGFR : BinaryRRE<"slgfr", 0xB91B, null_frag, GR64, GR32>;
@@ -1055,9 +1140,9 @@ let Defs = [CC] in {
   def SLGFI : BinaryRIL<"slgfi", 0xC24, z_usub, GR64, imm64zx32>;
 
   // Subtraction of memory.
-  defm SL   : BinaryRXPair<"sl", 0x5F, 0xE35F, z_usub, GR32, load, 4>;
+  defm SL   : BinaryRXPairAndPseudo<"sl", 0x5F, 0xE35F, z_usub, GR32, load, 4>;
   def  SLGF : BinaryRXY<"slgf", 0xE31B, z_usub, GR64, azextloadi32, 4>;
-  def  SLG  : BinaryRXY<"slg",  0xE30B, z_usub, GR64, load, 8>;
+  defm SLG  : BinaryRXYAndPseudo<"slg",  0xE30B, z_usub, GR64, load, 8>;
 }
 defm : ZXB<z_usub, GR64, SLGFR>;
 
@@ -1076,7 +1161,7 @@ def : Pat<(add GR64:$src1, imm64zx32n:$src2),
           (SLGFI GR64:$src1, imm64zx32n:$src2)>;
 
 // Subtraction producing and using a carry.
-let Defs = [CC], Uses = [CC] in {
+let Defs = [CC], Uses = [CC], CCValues = 0xF, IsLogical = 1 in {
   // Subtraction of a register.
   def SLBR  : BinaryRRE<"slbr",  0xB999, z_subcarry, GR32, GR32>;
   def SLBGR : BinaryRRE<"slbgr", 0xB989, z_subcarry, GR64, GR64>;
@@ -1132,8 +1217,8 @@ let Defs = [CC] in {
 
   // ANDs of memory.
   let CCValues = 0xC, CompareZeroCCMask = 0x8 in {
-    defm N  : BinaryRXPair<"n", 0x54, 0xE354, and, GR32, load, 4>;
-    def  NG : BinaryRXY<"ng", 0xE380, and, GR64, load, 8>;
+    defm N  : BinaryRXPairAndPseudo<"n", 0x54, 0xE354, and, GR32, load, 4>;
+    defm NG : BinaryRXYAndPseudo<"ng", 0xE380, and, GR64, load, 8>;
   }
 
   // AND to memory
@@ -1141,7 +1226,7 @@ let Defs = [CC] in {
 
   // Block AND.
   let mayLoad = 1, mayStore = 1 in
-    defm NC : MemorySS<"nc", 0xD4, z_nc, z_nc_loop>;
+    defm NC : MemorySS<"nc", 0xD4, z_nc>;
 }
 defm : RMWIByte<and, bdaddr12pair, NI>;
 defm : RMWIByte<and, bdaddr20pair, NIY>;
@@ -1189,8 +1274,8 @@ let Defs = [CC] in {
 
   // ORs of memory.
   let CCValues = 0xC, CompareZeroCCMask = 0x8 in {
-    defm O  : BinaryRXPair<"o", 0x56, 0xE356, or, GR32, load, 4>;
-    def  OG : BinaryRXY<"og", 0xE381, or, GR64, load, 8>;
+    defm O  : BinaryRXPairAndPseudo<"o", 0x56, 0xE356, or, GR32, load, 4>;
+    defm OG : BinaryRXYAndPseudo<"og", 0xE381, or, GR64, load, 8>;
   }
 
   // OR to memory
@@ -1198,7 +1283,7 @@ let Defs = [CC] in {
 
   // Block OR.
   let mayLoad = 1, mayStore = 1 in
-    defm OC : MemorySS<"oc", 0xD6, z_oc, z_oc_loop>;
+    defm OC : MemorySS<"oc", 0xD6, z_oc>;
 }
 defm : RMWIByte<or, bdaddr12pair, OI>;
 defm : RMWIByte<or, bdaddr20pair, OIY>;
@@ -1229,8 +1314,8 @@ let Defs = [CC] in {
 
   // XORs of memory.
   let CCValues = 0xC, CompareZeroCCMask = 0x8 in {
-    defm X  : BinaryRXPair<"x",0x57, 0xE357, xor, GR32, load, 4>;
-    def  XG : BinaryRXY<"xg", 0xE382, xor, GR64, load, 8>;
+    defm X  : BinaryRXPairAndPseudo<"x",0x57, 0xE357, xor, GR32, load, 4>;
+    defm XG : BinaryRXYAndPseudo<"xg", 0xE382, xor, GR64, load, 8>;
   }
 
   // XOR to memory
@@ -1238,10 +1323,47 @@ let Defs = [CC] in {
 
   // Block XOR.
   let mayLoad = 1, mayStore = 1 in
-    defm XC : MemorySS<"xc", 0xD7, z_xc, z_xc_loop>;
+    defm XC : MemorySS<"xc", 0xD7, z_xc>;
 }
 defm : RMWIByte<xor, bdaddr12pair, XI>;
 defm : RMWIByte<xor, bdaddr20pair, XIY>;
+
+//===----------------------------------------------------------------------===//
+// Combined logical operations
+//===----------------------------------------------------------------------===//
+
+let Predicates = [FeatureMiscellaneousExtensions3],
+    Defs = [CC] in {
+  // AND with complement.
+  let CCValues = 0xC, CompareZeroCCMask = 0x8 in {
+    def NCRK : BinaryRRFa<"ncrk", 0xB9F5, andc, GR32, GR32, GR32>;
+    def NCGRK : BinaryRRFa<"ncgrk", 0xB9E5, andc, GR64, GR64, GR64>;
+  }
+
+  // OR with complement.
+  let CCValues = 0xC, CompareZeroCCMask = 0x8 in {
+    def OCRK : BinaryRRFa<"ocrk", 0xB975, orc, GR32, GR32, GR32>;
+    def OCGRK : BinaryRRFa<"ocgrk", 0xB965, orc, GR64, GR64, GR64>;
+  }
+
+  // NAND.
+  let isCommutable = 1, CCValues = 0xC, CompareZeroCCMask = 0x8 in {
+    def NNRK : BinaryRRFa<"nnrk", 0xB974, nand, GR32, GR32, GR32>;
+    def NNGRK : BinaryRRFa<"nngrk", 0xB964, nand, GR64, GR64, GR64>;
+  }
+
+  // NOR.
+  let isCommutable = 1, CCValues = 0xC, CompareZeroCCMask = 0x8 in {
+    def NORK : BinaryRRFa<"nork", 0xB976, nor, GR32, GR32, GR32>;
+    def NOGRK : BinaryRRFa<"nogrk", 0xB966, nor, GR64, GR64, GR64>;
+  }
+
+  // NXOR.
+  let isCommutable = 1, CCValues = 0xC, CompareZeroCCMask = 0x8 in {
+    def NXRK : BinaryRRFa<"nxrk", 0xB977, nxor, GR32, GR32, GR32>;
+    def NXGRK : BinaryRRFa<"nxgrk", 0xB967, nxor, GR64, GR64, GR64>;
+  }
+}
 
 //===----------------------------------------------------------------------===//
 // Multiplication
@@ -1282,8 +1404,8 @@ def  MSG  : BinaryRXY<"msg",  0xE30C, mul, GR64, load, 8>;
 
 // Multiplication of memory, setting the condition code.
 let Predicates = [FeatureMiscellaneousExtensions2], Defs = [CC] in {
-  def MSC  : BinaryRXY<"msc",  0xE353, null_frag, GR32, load, 4>;
-  def MSGC : BinaryRXY<"msgc", 0xE383, null_frag, GR64, load, 8>;
+  defm MSC  : BinaryRXYAndPseudo<"msc",  0xE353, null_frag, GR32, load, 4>;
+  defm MSGC : BinaryRXYAndPseudo<"msgc", 0xE383, null_frag, GR64, load, 8>;
 }
 
 // Multiplication of a register, producing two results.
@@ -1528,7 +1650,7 @@ defm : ZXB<z_ucmp, GR64, CLGFR>;
 
 // Memory-to-memory comparison.
 let mayLoad = 1, Defs = [CC] in {
-  defm CLC : CompareMemorySS<"clc", 0xD5, z_clc, z_clc_loop>;
+  defm CLC : CompareMemorySS<"clc", 0xD5, z_clc>;
   def CLCL  : SideEffectBinaryMemMemRR<"clcl", 0x0F, GR128, GR128>;
   def CLCLE : SideEffectTernaryMemMemRS<"clcle", 0xA9, GR128, GR128>;
   def CLCLU : SideEffectTernaryMemMemRSY<"clclu", 0xEB8F, GR128, GR128>;
@@ -1837,6 +1959,9 @@ let mayLoad = 1, mayStore = 1, Uses = [R0L, R1D], Defs = [CC] in {
   let Predicates = [FeatureMessageSecurityAssist8] in
     def KMA : SideEffectTernaryMemMemMemRRFb<"kma", 0xB929,
                                               GR128, GR128, GR128>;
+
+  let Predicates = [FeatureMessageSecurityAssist9] in
+    def KDSA : SideEffectBinaryMemRRE<"kdsa", 0xB93A, GR64, GR128>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2001,7 +2126,7 @@ let Predicates = [FeatureProcessorAssist] in {
     def PPA : SideEffectTernaryRRFc<"ppa", 0xB2E8, GR64, GR64, imm32zx4>;
   def : Pat<(int_s390_ppa_txassist GR32:$src),
             (PPA (INSERT_SUBREG (i64 (IMPLICIT_DEF)), GR32:$src, subreg_l32),
-                 0, 1)>;
+                 zero_reg, 1)>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2014,10 +2139,15 @@ let Predicates = [FeatureProcessorAssist] in {
 // cleared.  We only use the first result here.
 let Defs = [CC] in
   def FLOGR : UnaryRRE<"flogr", 0xB983, null_frag, GR128, GR64>;
-def : Pat<(ctlz GR64:$src),
+def : Pat<(i64 (ctlz GR64:$src)),
           (EXTRACT_SUBREG (FLOGR GR64:$src), subreg_h64)>;
 
-// Population count.  Counts bits set per byte.
+// Population count.  Counts bits set per byte or doubleword.
+let Predicates = [FeatureMiscellaneousExtensions3] in {
+  let Defs = [CC] in
+    def POPCNTOpt : BinaryRRFc<"popcnt", 0xB9E1, GR64, GR64>;
+  def : Pat<(ctpop GR64:$src), (POPCNTOpt GR64:$src, 8)>;
+}
 let Predicates = [FeaturePopulationCount], Defs = [CC] in
   def POPCNT : UnaryRRE<"popcnt", 0xB9E1, z_popcnt, GR64, GR64>;
 
@@ -2048,10 +2178,30 @@ let mayLoad = 1, Defs = [CC] in
 let mayLoad = 1, mayStore = 1, Defs = [CC, R1D], Uses = [R0L, R1D] in
   def CMPSC : SideEffectBinaryMemMemRRE<"cmpsc", 0xB263, GR128, GR128>;
 
+// Sort lists.
+let Predicates = [FeatureEnhancedSort],
+    mayLoad = 1, mayStore = 1, Defs = [CC], Uses = [R0L, R1D] in
+  def SORTL : SideEffectBinaryMemMemRRE<"sortl", 0xB938, GR128, GR128>;
+
+// Deflate conversion call.
+let Predicates = [FeatureDeflateConversion],
+    mayLoad = 1, mayStore = 1, Defs = [CC], Uses = [R0L, R1D] in
+  def DFLTCC : SideEffectTernaryMemMemRRFa<"dfltcc", 0xB939,
+                                           GR128, GR128, GR64>;
+
+// NNPA.
+let Predicates = [FeatureNNPAssist],
+    mayLoad = 1, mayStore = 1, Defs = [R0D, CC], Uses = [R0D, R1D] in
+  def NNPA : SideEffectInherentRRE<"nnpa", 0xB93B>;
+
 // Execute.
 let hasSideEffects = 1 in {
-  def EX   : SideEffectBinaryRX<"ex", 0x44, GR64>;
-  def EXRL : SideEffectBinaryRILPC<"exrl", 0xC60, GR64>;
+  def EX   : SideEffectBinaryRX<"ex", 0x44, ADDR64>;
+  def EXRL : SideEffectBinaryRILPC<"exrl", 0xC60, ADDR64>;
+  let hasNoSchedulingInfo = 1 in
+    def EXRL_Pseudo : Alias<6, (outs), (ins i64imm:$TargetOpc, ADDR64:$lenMinus1,
+                                          bdaddr12only:$bdl1, bdaddr12only:$bd2),
+                                          []>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2148,6 +2298,31 @@ let isCodeGenOnly = 1, hasSideEffects = 1 in {
                                  (ins imm64zx48:$enc, bdaddr12only:$BD1,
                                       bdaddr12only:$BD2, AnyReg:$R3),
                                  ".insn ssf,$enc,$BD1,$BD2,$R3", []>;
+  def InsnVRI : DirectiveInsnVRI<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1, VR128:$V2,
+                                  imm32zx12:$I3, imm32zx4:$M4, imm32zx4:$M5),
+                                 ".insn vri,$enc,$V1,$V2,$I3,$M4,$M5", []>;
+  def InsnVRR : DirectiveInsnVRR<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1, VR128:$V2,
+                                  VR128:$V3, imm32zx4:$M4, imm32zx4:$M5,
+                                  imm32zx4:$M6),
+                                  ".insn vrr,$enc,$V1,$V2,$V3,$M4,$M5,$M6", []>;
+  def InsnVRS : DirectiveInsnVRS<(outs),
+                                 (ins imm64zx48:$enc, AnyReg:$R1, VR128:$V3,
+                                  bdaddr12only:$BD2, imm32zx4:$M4),
+                                 ".insn vrs,$enc,$BD2,$M4", []>;
+  def InsnVRV : DirectiveInsnVRV<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1,
+                                      bdvaddr12only:$VBD2, imm32zx4:$M3),
+                                 ".insn vrv,$enc,$V1,$VBD2,$M3", []>;
+  def InsnVRX : DirectiveInsnVRX<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1,
+                                  bdxaddr12only:$XBD2, imm32zx4:$M3),
+                                 ".insn vrx,$enc,$V1,$XBD2,$M3", []>;
+  def InsnVSI : DirectiveInsnVSI<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1,
+                                  bdaddr12only:$BD2, imm32zx8:$I3),
+                                  ".insn vsi,$enc,$V1,$BD2,$I3", []>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2206,18 +2381,36 @@ let AddedComplexity = 4 in {
             (RLLG GR64:$val, (LCR GR32:$shift), 0)>;
 }
 
-// Peepholes for turning scalar operations into block operations.
-defm : BlockLoadStore<anyextloadi8, i32, MVCSequence, NCSequence, OCSequence,
-                      XCSequence, 1>;
-defm : BlockLoadStore<anyextloadi16, i32, MVCSequence, NCSequence, OCSequence,
-                      XCSequence, 2>;
-defm : BlockLoadStore<load, i32, MVCSequence, NCSequence, OCSequence,
-                      XCSequence, 4>;
-defm : BlockLoadStore<anyextloadi8, i64, MVCSequence, NCSequence,
-                      OCSequence, XCSequence, 1>;
-defm : BlockLoadStore<anyextloadi16, i64, MVCSequence, NCSequence, OCSequence,
-                      XCSequence, 2>;
-defm : BlockLoadStore<anyextloadi32, i64, MVCSequence, NCSequence, OCSequence,
-                      XCSequence, 4>;
-defm : BlockLoadStore<load, i64, MVCSequence, NCSequence, OCSequence,
-                      XCSequence, 8>;
+// Peepholes for turning scalar operations into block operations.  The length
+// is given as one less for these pseudos.
+defm : BlockLoadStore<anyextloadi8, i32, MVCImm, NCImm, OCImm, XCImm, 0>;
+defm : BlockLoadStore<anyextloadi16, i32, MVCImm, NCImm, OCImm, XCImm, 1>;
+defm : BlockLoadStore<load, i32, MVCImm, NCImm, OCImm, XCImm, 3>;
+defm : BlockLoadStore<anyextloadi8, i64, MVCImm, NCImm, OCImm, XCImm, 0>;
+defm : BlockLoadStore<anyextloadi16, i64, MVCImm, NCImm, OCImm, XCImm, 1>;
+defm : BlockLoadStore<anyextloadi32, i64, MVCImm, NCImm, OCImm, XCImm, 3>;
+defm : BlockLoadStore<load, i64, MVCImm, NCImm, OCImm, XCImm, 7>;
+
+//===----------------------------------------------------------------------===//
+// Mnemonic Aliases
+//===----------------------------------------------------------------------===//
+
+def JCT   : MnemonicAlias<"jct", "brct">;
+def JCTG  : MnemonicAlias<"jctg", "brctg">;
+def JAS   : MnemonicAlias<"jas", "bras">;
+def JASL  : MnemonicAlias<"jasl", "brasl">;
+def JXH   : MnemonicAlias<"jxh", "brxh">;
+def JXLE  : MnemonicAlias<"jxle", "brxle">;
+def JXHG  : MnemonicAlias<"jxhg", "brxhg">;
+def JXLEG : MnemonicAlias<"jxleg", "brxlg">;
+
+def BRU   : MnemonicAlias<"bru", "j">;
+def BRUL  : MnemonicAlias<"brul", "jg", "att">;
+def BRUL_HLASM  : MnemonicAlias<"brul", "jlu", "hlasm">;
+
+foreach V = [ "E", "NE", "H", "NH", "L", "NL", "HE", "NHE", "LE", "NLE",
+              "Z", "NZ", "P", "NP", "M", "NM", "LH", "NLH", "O", "NO" ] in {
+  defm BRUAsm#V  : MnemonicCondBranchAlias <CV<V>, "br#", "j#">;
+  defm BRULAsm#V : MnemonicCondBranchAlias <CV<V>, "br#l", "jg#", "att">;
+  defm BRUL_HLASMAsm#V : MnemonicCondBranchAlias <CV<V>, "br#l", "jl#", "hlasm">;
+}

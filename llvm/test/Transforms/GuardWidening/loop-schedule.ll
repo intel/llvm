@@ -1,17 +1,16 @@
-; RUN: opt -S -licm -loop-guard-widening -licm -debug-pass=Structure < %s 2>&1   | FileCheck %s
+; RUN: opt -S -passes='licm,guard-widening,licm' -verify-memoryssa -debug-pass-manager < %s 2>&1 | FileCheck %s
 
 ; Main point of this test is to check the scheduling -- there should be
 ; no analysis passes needed between LICM and LoopGuardWidening
 
-; CHECK: Loop Pass Manager
-; CHECK:   Loop Invariant Code Motion
-; CHECK:   Widen guards (within a single loop, as a loop pass)
-; CHECK:   Loop Invariant Code Motion
+; CHECK: LICMPass
+; CHECK-NEXT: GuardWideningPass
+; CHECK-NEXT: LICMPass
 
 declare void @llvm.experimental.guard(i1,...)
 
 define void @iter(i32 %a, i32 %b, i1* %c_p) {
-; CHECK-LABEL @iter
+; CHECK-LABEL: @iter
 ; CHECK:  %cond_0 = icmp ult i32 %a, 10
 ; CHECK:  %cond_1 = icmp ult i32 %b, 10
 ; CHECK:  %wide.chk = and i1 %cond_0, %cond_1
@@ -37,7 +36,7 @@ leave:                                            ; preds = %leave.loopexit, %en
 }
 
 define void @within_loop(i32 %a, i32 %b, i1* %c_p) {
-; CHECK-LABEL @within_loop
+; CHECK-LABEL: @within_loop
 ; CHECK:  %cond_0 = icmp ult i32 %a, 10
 ; CHECK:  %cond_1 = icmp ult i32 %b, 10
 ; CHECK:  %wide.chk = and i1 %cond_0, %cond_1

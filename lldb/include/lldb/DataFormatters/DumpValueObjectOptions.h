@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_DumpValueObjectOptions_h_
-#define lldb_DumpValueObjectOptions_h_
+#ifndef LLDB_DATAFORMATTERS_DUMPVALUEOBJECTOPTIONS_H
+#define LLDB_DATAFORMATTERS_DUMPVALUEOBJECTOPTIONS_H
 
 #include <string>
 
@@ -35,12 +35,11 @@ public:
   };
 
   struct PointerAsArraySettings {
-    size_t m_element_count;
-    size_t m_base_element;
-    size_t m_stride;
+    size_t m_element_count = 0;
+    size_t m_base_element = 0;
+    size_t m_stride = 0;
 
-    PointerAsArraySettings()
-        : m_element_count(0), m_base_element(0), m_stride() {}
+    PointerAsArraySettings() = default;
 
     PointerAsArraySettings(size_t elem_count, size_t base_elem = 0,
                            size_t stride = 1)
@@ -61,8 +60,6 @@ public:
   }
 
   DumpValueObjectOptions();
-
-  DumpValueObjectOptions(const DumpValueObjectOptions &rhs) = default;
 
   DumpValueObjectOptions(ValueObject &valobj);
 
@@ -127,7 +124,6 @@ public:
   DumpValueObjectOptions &
   SetPointerAsArray(const PointerAsArraySettings &ptr_array);
 
-public:
   uint32_t m_max_depth = UINT32_MAX;
   lldb::DynamicValueType m_use_dynamic = lldb::eNoDynamicValues;
   uint32_t m_omit_summary_depth = 0;
@@ -157,4 +153,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // lldb_DumpValueObjectOptions_h_
+#endif // LLDB_DATAFORMATTERS_DUMPVALUEOBJECTOPTIONS_H

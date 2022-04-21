@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 #include <functional>
 #include <string>
+
+#include "test_macros.h"
 
 template <class T>
 struct is_transparent

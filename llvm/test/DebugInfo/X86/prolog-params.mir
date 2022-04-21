@@ -92,15 +92,15 @@
 name:            foo
 tracksRegLiveness: true
 fixedStack:
-  - { id: 0, type: default, offset: 16, size: 4, alignment: 16, stack-id: 0,
+  - { id: 0, type: default, offset: 16, size: 4, alignment: 16, stack-id: default,
       isImmutable: true, isAliased: false, callee-saved-register: '', callee-saved-restored: true }
-  - { id: 1, type: default, offset: 8, size: 4, alignment: 8, stack-id: 0,
+  - { id: 1, type: default, offset: 8, size: 4, alignment: 8, stack-id: default,
       isImmutable: true, isAliased: false, callee-saved-register: '', callee-saved-restored: true }
-  - { id: 2, type: default, offset: 0, size: 4, alignment: 16, stack-id: 0,
+  - { id: 2, type: default, offset: 0, size: 4, alignment: 16, stack-id: default,
       isImmutable: true, isAliased: false, callee-saved-register: '', callee-saved-restored: true }
 stack:
   - { id: 0, name: arr, type: default, offset: 0, size: 8, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true }
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true }
 body:             |
   bb.0.entry:
     DBG_VALUE $edi, $noreg, !18, !DIExpression(), debug-location !28
@@ -110,7 +110,6 @@ body:             |
     DBG_VALUE $r8d, $noreg, !21, !DIExpression(), debug-location !28
     DBG_VALUE %fixed-stack.2, 0, !23, !DIExpression(), debug-location !28
     DBG_VALUE $r9d, $noreg, !22, !DIExpression(), debug-location !28
-    DBG_VALUE $r9d, $noreg, !23, !DIExpression(), debug-location !28
     DBG_VALUE %fixed-stack.1, 0, !24, !DIExpression(), debug-location !28
     DBG_VALUE %fixed-stack.0, 0, !25, !DIExpression(), debug-location !28
     DBG_VALUE $edi, $noreg, !26, !DIExpression(), debug-location !28
@@ -149,7 +148,6 @@ body:             |
 
 # Locals and stack parameters are emitted after the prologue code.
 # CHECK: DBG_VALUE $rsp, 0, ![[P6]], !DIExpression(DW_OP_plus_uconst, 16)
-# CHECK-NEXT: DBG_VALUE $r9d, $noreg, ![[P6]], !DIExpression()
 # CHECK-NEXT: DBG_VALUE $rsp, 0, ![[P7]], !DIExpression(DW_OP_plus_uconst, 24)
 # CHECK-NEXT: DBG_VALUE $rsp, 0, ![[P8]], !DIExpression(DW_OP_plus_uconst, 32)
 # CHECK-NEXT: DBG_VALUE $edi, $noreg, ![[LOCAL1]], !DIExpression()

@@ -45,20 +45,68 @@ TEST(VerifierTest, Branch_i1) {
   EXPECT_TRUE(verifyFunction(*F));
 }
 
+TEST(VerifierTest, Freeze) {
+  LLVMContext C;
+  Module M("M", C);
+  FunctionType *FTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg=*/false);
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", M);
+  BasicBlock *Entry = BasicBlock::Create(C, "entry", F);
+  ReturnInst *RI = ReturnInst::Create(C, Entry);
+
+  IntegerType *ITy = IntegerType::get(C, 32);
+  ConstantInt *CI = ConstantInt::get(ITy, 0);
+
+  // Valid type : freeze(<2 x i32>)
+  Constant *CV = ConstantVector::getSplat(ElementCount::getFixed(2), CI);
+  FreezeInst *FI_vec = new FreezeInst(CV);
+  FI_vec->insertBefore(RI);
+
+  EXPECT_FALSE(verifyFunction(*F));
+
+  FI_vec->eraseFromParent();
+
+  // Valid type : freeze(float)
+  Constant *CFP = ConstantFP::get(Type::getDoubleTy(C), 0.0);
+  FreezeInst *FI_dbl = new FreezeInst(CFP);
+  FI_dbl->insertBefore(RI);
+
+  EXPECT_FALSE(verifyFunction(*F));
+
+  FI_dbl->eraseFromParent();
+
+  // Valid type : freeze(i32*)
+  PointerType *PT = PointerType::get(ITy, 0);
+  ConstantPointerNull *CPN = ConstantPointerNull::get(PT);
+  FreezeInst *FI_ptr = new FreezeInst(CPN);
+  FI_ptr->insertBefore(RI);
+
+  EXPECT_FALSE(verifyFunction(*F));
+
+  FI_ptr->eraseFromParent();
+
+  // Valid type : freeze(int)
+  FreezeInst *FI = new FreezeInst(CI);
+  FI->insertBefore(RI);
+
+  EXPECT_FALSE(verifyFunction(*F));
+
+  FI->eraseFromParent();
+}
+
 TEST(VerifierTest, InvalidRetAttribute) {
   LLVMContext C;
   Module M("M", C);
   FunctionType *FTy = FunctionType::get(Type::getInt32Ty(C), /*isVarArg=*/false);
   Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", M);
   AttributeList AS = F->getAttributes();
-  F->setAttributes(
-      AS.addAttribute(C, AttributeList::ReturnIndex, Attribute::UWTable));
+  F->setAttributes(AS.addRetAttribute(
+      C, Attribute::getWithUWTableKind(C, UWTableKind::Default)));
 
   std::string Error;
   raw_string_ostream ErrorOS(Error);
   EXPECT_TRUE(verifyModule(M, &ErrorOS));
   EXPECT_TRUE(StringRef(ErrorOS.str()).startswith(
-      "Attribute 'uwtable' only applies to functions!"));
+      "Attribute 'uwtable' does not apply to function return values"));
 }
 
 TEST(VerifierTest, CrossModuleRef) {
@@ -89,17 +137,17 @@ TEST(VerifierTest, CrossModuleRef) {
   raw_string_ostream ErrorOS(Error);
   EXPECT_TRUE(verifyModule(M2, &ErrorOS));
   EXPECT_TRUE(StringRef(ErrorOS.str())
-                  .equals("Global is used by function in a different module\n"
-                          "i32 ()* @foo2\n"
-                          "; ModuleID = 'M2'\n"
-                          "i32 ()* @foo3\n"
-                          "; ModuleID = 'M3'\n"
-                          "Global is referenced in a different module!\n"
+                  .equals("Global is referenced in a different module!\n"
                           "i32 ()* @foo2\n"
                           "; ModuleID = 'M2'\n"
                           "  %call = call i32 @foo2()\n"
                           "i32 ()* @foo1\n"
-                          "; ModuleID = 'M1'\n"));
+                          "; ModuleID = 'M1'\n"
+                          "Global is used by function in a different module\n"
+                          "i32 ()* @foo2\n"
+                          "; ModuleID = 'M2'\n"
+                          "i32 ()* @foo3\n"
+                          "; ModuleID = 'M3'\n"));
 
   Error.clear();
   EXPECT_TRUE(verifyModule(M1, &ErrorOS));
@@ -188,6 +236,38 @@ TEST(VerifierTest, DetectInvalidDebugInfo) {
     M.eraseNamedMetadata(M.getOrInsertNamedMetadata("llvm.dbg.cu"));
     EXPECT_TRUE(verifyModule(M));
   }
+}
+
+TEST(VerifierTest, MDNodeWrongContext) {
+  LLVMContext C1, C2;
+  auto *Node = MDNode::get(C1, None);
+
+  Module M("M", C2);
+  auto *NamedNode = M.getOrInsertNamedMetadata("test");
+  NamedNode->addOperand(Node);
+
+  std::string Error;
+  raw_string_ostream ErrorOS(Error);
+  EXPECT_TRUE(verifyModule(M, &ErrorOS));
+  EXPECT_TRUE(StringRef(ErrorOS.str())
+                  .startswith("MDNode context does not match Module context!"));
+}
+
+TEST(VerifierTest, AttributesWrongContext) {
+  LLVMContext C1, C2;
+  Module M1("M", C1);
+  FunctionType *FTy1 =
+      FunctionType::get(Type::getVoidTy(C1), /*isVarArg=*/false);
+  Function *F1 = Function::Create(FTy1, Function::ExternalLinkage, "foo", M1);
+  F1->setDoesNotReturn();
+
+  Module M2("M", C2);
+  FunctionType *FTy2 =
+      FunctionType::get(Type::getVoidTy(C2), /*isVarArg=*/false);
+  Function *F2 = Function::Create(FTy2, Function::ExternalLinkage, "foo", M2);
+  F2->copyAttributesFrom(F1);
+
+  EXPECT_TRUE(verifyFunction(*F2));
 }
 
 } // end anonymous namespace

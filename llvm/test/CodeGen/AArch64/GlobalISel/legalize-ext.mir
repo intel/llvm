@@ -14,43 +14,33 @@ body:             |
     ; CHECK: $w0 = COPY [[TRUNC2]](s32)
     ; CHECK: [[TRUNC3:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
     ; CHECK: $w0 = COPY [[TRUNC3]](s32)
-    ; CHECK: [[COPY1:%[0-9]+]]:_(s64) = COPY [[COPY]](s64)
-    ; CHECK: $x0 = COPY [[COPY1]](s64)
+    ; CHECK: $x0 = COPY [[COPY]](s64)
     ; CHECK: [[C:%[0-9]+]]:_(s64) = G_CONSTANT i64 255
-    ; CHECK: [[COPY2:%[0-9]+]]:_(s64) = COPY [[COPY]](s64)
-    ; CHECK: [[AND:%[0-9]+]]:_(s64) = G_AND [[COPY2]], [[C]]
+    ; CHECK: [[AND:%[0-9]+]]:_(s64) = G_AND [[COPY]], [[C]]
     ; CHECK: $x0 = COPY [[AND]](s64)
-    ; CHECK: [[COPY3:%[0-9]+]]:_(s64) = COPY [[COPY]](s64)
-    ; CHECK: $x0 = COPY [[COPY3]](s64)
-    ; CHECK: [[C1:%[0-9]+]]:_(s64) = G_CONSTANT i64 32
-    ; CHECK: [[COPY4:%[0-9]+]]:_(s64) = COPY [[COPY]](s64)
-    ; CHECK: [[SHL:%[0-9]+]]:_(s64) = G_SHL [[COPY4]], [[C1]]
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s64) = G_ASHR [[SHL]], [[C1]]
-    ; CHECK: $x0 = COPY [[ASHR]](s64)
-    ; CHECK: [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 31
+    ; CHECK: $x0 = COPY [[COPY]](s64)
+    ; CHECK: [[SEXT_INREG:%[0-9]+]]:_(s64) = G_SEXT_INREG [[COPY]], 32
+    ; CHECK: $x0 = COPY [[SEXT_INREG]](s64)
     ; CHECK: [[TRUNC4:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
-    ; CHECK: [[SHL1:%[0-9]+]]:_(s32) = G_SHL [[TRUNC4]], [[C2]]
-    ; CHECK: [[ASHR1:%[0-9]+]]:_(s32) = G_ASHR [[SHL1]], [[C2]]
-    ; CHECK: $w0 = COPY [[ASHR1]](s32)
-    ; CHECK: [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 255
+    ; CHECK: [[SEXT_INREG1:%[0-9]+]]:_(s32) = G_SEXT_INREG [[TRUNC4]], 1
+    ; CHECK: $w0 = COPY [[SEXT_INREG1]](s32)
+    ; CHECK: [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 255
     ; CHECK: [[TRUNC5:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
-    ; CHECK: [[AND1:%[0-9]+]]:_(s32) = G_AND [[TRUNC5]], [[C3]]
+    ; CHECK: [[AND1:%[0-9]+]]:_(s32) = G_AND [[TRUNC5]], [[C1]]
     ; CHECK: $w0 = COPY [[AND1]](s32)
     ; CHECK: [[TRUNC6:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
     ; CHECK: $w0 = COPY [[TRUNC6]](s32)
-    ; CHECK: [[C4:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
+    ; CHECK: [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
     ; CHECK: [[TRUNC7:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
-    ; CHECK: [[AND2:%[0-9]+]]:_(s32) = G_AND [[TRUNC7]], [[C4]]
+    ; CHECK: [[AND2:%[0-9]+]]:_(s32) = G_AND [[TRUNC7]], [[C2]]
     ; CHECK: $w0 = COPY [[AND2]](s32)
     ; CHECK: [[TRUNC8:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
     ; CHECK: $w0 = COPY [[TRUNC8]](s32)
-    ; CHECK: [[C5:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
     ; CHECK: [[TRUNC9:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
-    ; CHECK: [[SHL2:%[0-9]+]]:_(s32) = G_SHL [[TRUNC9]], [[C5]]
-    ; CHECK: [[ASHR2:%[0-9]+]]:_(s32) = G_ASHR [[SHL2]], [[C5]]
-    ; CHECK: $w0 = COPY [[ASHR2]](s32)
+    ; CHECK: [[SEXT_INREG2:%[0-9]+]]:_(s32) = G_SEXT_INREG [[TRUNC9]], 16
+    ; CHECK: $w0 = COPY [[SEXT_INREG2]](s32)
     ; CHECK: [[TRUNC10:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
-    ; CHECK: [[AND3:%[0-9]+]]:_(s32) = G_AND [[TRUNC10]], [[C4]]
+    ; CHECK: [[AND3:%[0-9]+]]:_(s32) = G_AND [[TRUNC10]], [[C2]]
     ; CHECK: $w0 = COPY [[AND3]](s32)
     ; CHECK: [[TRUNC11:%[0-9]+]]:_(s32) = G_TRUNC [[COPY]](s64)
     ; CHECK: $w0 = COPY [[TRUNC11]](s32)
@@ -58,8 +48,10 @@ body:             |
     ; CHECK: $w0 = COPY [[TRUNC12]](s32)
     ; CHECK: [[FPEXT:%[0-9]+]]:_(s64) = G_FPEXT [[TRUNC12]](s32)
     ; CHECK: $x0 = COPY [[FPEXT]](s64)
-    ; CHECK: [[C7:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
-    ; CHECK: $w0 = COPY [[C7]](s32)
+    ; CHECK: [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
+    ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[C3]](s32)
+    ; CHECK: $w0 = COPY [[COPY1]](s32)
+    ; CHECK: $w0 = COPY [[C3]](s32)
     ; CHECK: [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
     ; CHECK: $w0 = COPY [[DEF]](s32)
     %0:_(s64) = COPY $x0
@@ -121,8 +113,7 @@ body:             |
 
     ; CHECK-LABEL: name: test_anyext_anyext
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $w0
-    ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: $w0 = COPY [[COPY1]](s32)
+    ; CHECK: $w0 = COPY [[COPY]](s32)
     %0:_(s32) = COPY $w0
     %1:_(s1) = G_TRUNC %0(s32)
     %2:_(s8) = G_ANYEXT %1(s1)
@@ -138,11 +129,8 @@ body:             |
 
     ; CHECK-LABEL: name: test_anyext_sext
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $w0
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 31
-    ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[C]]
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[C]]
-    ; CHECK: $w0 = COPY [[ASHR]](s32)
+    ; CHECK: [[SEXT_INREG:%[0-9]+]]:_(s32) = G_SEXT_INREG [[COPY]], 1
+    ; CHECK: $w0 = COPY [[SEXT_INREG]](s32)
     %0:_(s32) = COPY $w0
     %1:_(s1) = G_TRUNC %0(s32)
     %2:_(s8) = G_SEXT %1(s1)
@@ -159,8 +147,7 @@ body:             |
     ; CHECK-LABEL: name: test_anyext_zext
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $w0
     ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
-    ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[AND:%[0-9]+]]:_(s32) = G_AND [[COPY1]], [[C]]
+    ; CHECK: [[AND:%[0-9]+]]:_(s32) = G_AND [[COPY]], [[C]]
     ; CHECK: $w0 = COPY [[AND]](s32)
     %0:_(s32) = COPY $w0
     %1:_(s1) = G_TRUNC %0(s32)
@@ -171,7 +158,7 @@ body:             |
 ...
 ---
 name:            test_zext_v8s16_from_v8s8
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 machineFunctionInfo: {}
 body:             |
@@ -191,7 +178,7 @@ body:             |
 ...
 ---
 name:            test_sext_v8s16_from_v8s8
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 machineFunctionInfo: {}
 body:             |
@@ -211,7 +198,7 @@ body:             |
 ...
 ---
 name:            test_anyext_v8s16_from_v8s8
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 machineFunctionInfo: {}
 body:             |
@@ -231,7 +218,7 @@ body:             |
 ...
 ---
 name:            test_zext_v4s32_from_v4s16
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 machineFunctionInfo: {}
 body:             |
@@ -252,7 +239,7 @@ body:             |
 ...
 ---
 name:            test_sext_v4s32_from_v4s16
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 machineFunctionInfo: {}
 body:             |
@@ -273,7 +260,7 @@ body:             |
 ...
 ---
 name:            test_anyext_v4s32_from_v4s16
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 machineFunctionInfo: {}
 body:             |
@@ -294,7 +281,7 @@ body:             |
 ...
 ---
 name:            test_zext_v2s64_from_v2s32
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -318,7 +305,7 @@ body:             |
 ...
 ---
 name:            test_sext_v2s64_from_v2s32
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -342,7 +329,7 @@ body:             |
 ...
 ---
 name:            test_anyext_v2s64_from_v2s32
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }

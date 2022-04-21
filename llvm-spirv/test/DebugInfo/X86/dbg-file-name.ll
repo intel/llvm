@@ -1,8 +1,11 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
-; RUN: llc -enable-dwarf-directory -mtriple x86_64-apple-darwin10.0.0  < %t.ll | FileCheck %s
+; RUN: llc -mtriple x86_64-apple-darwin10.0.0  < %t.ll | FileCheck %s
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 
 ; Verify that the file name is relative to the directory.
 ; rdar://problem/8884898
@@ -26,5 +29,3 @@ define i32 @main() nounwind !dbg !6 {
 !10 = !DIFile(filename: "simple.c", directory: "/Users/manav/one/two")
 !11 = !{}
 !12 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

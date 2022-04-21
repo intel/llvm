@@ -13,12 +13,13 @@
 // template <class Alloc>
 //   tuple(allocator_arg_t, const Alloc& a, const Types&...);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <tuple>
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 #include "../alloc_first.h"
 #include "../alloc_last.h"
@@ -32,19 +33,19 @@ struct ImplicitCopy {
 // copy conversions in return value expressions.
 std::tuple<ImplicitCopy> testImplicitCopy1() {
     ImplicitCopy i(42);
-    return {std::allocator_arg, std::allocator<void>{}, i};
+    return {std::allocator_arg, std::allocator<int>{}, i};
 }
 
 std::tuple<ImplicitCopy> testImplicitCopy2() {
     const ImplicitCopy i(42);
-    return {std::allocator_arg, std::allocator<void>{}, i};
+    return {std::allocator_arg, std::allocator<int>{}, i};
 }
 
 int main(int, char**)
 {
     {
         // check that the literal '0' can implicitly initialize a stored pointer.
-        std::tuple<int*> t = {std::allocator_arg, std::allocator<void>{}, 0};
+        std::tuple<int*>{std::allocator_arg, std::allocator<int>{}, 0};
     }
     {
         std::tuple<int> t(std::allocator_arg, A1<int>(), 3);
@@ -94,6 +95,14 @@ int main(int, char**)
         assert(!alloc_last::allocator_constructed);
         assert(std::get<2>(t) == alloc_last(3));
     }
+    {
+        // Test that we can use a tag derived from allocator_arg_t
+        struct DerivedFromAllocatorArgT : std::allocator_arg_t { };
+        DerivedFromAllocatorArgT derived;
+        std::tuple<> t1(derived, A1<int>());
+        std::tuple<int> t2(derived, A1<int>(), 1);
+        std::tuple<int, int> t3(derived, A1<int>(), 1, 2);
+    }
 
-  return 0;
+    return 0;
 }

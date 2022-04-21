@@ -96,8 +96,8 @@ public:
     FileManager *FileMgr = new FileManager(FSOpts, VFS);
 
     std::unique_ptr<ASTUnit> AST = ASTUnit::LoadFromCompilerInvocation(
-      CI, PCHContainerOpts, Diags, FileMgr, false, false,
-      /*PrecompilePreambleAfterNParses=*/1);
+        CI, PCHContainerOpts, Diags, FileMgr, false, CaptureDiagsKind::None,
+        /*PrecompilePreambleAfterNParses=*/1);
     return AST;
   }
 
@@ -117,7 +117,7 @@ private:
     for (const auto &RemappedFile : RemappedFiles) {
       std::unique_ptr<MemoryBuffer> buf = MemoryBuffer::getMemBufferCopy(
         RemappedFile.second, RemappedFile.first());
-      Remapped.emplace_back(RemappedFile.first(), buf.release());
+      Remapped.emplace_back(std::string(RemappedFile.first()), buf.release());
     }
     return Remapped;
   }

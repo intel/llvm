@@ -1,9 +1,9 @@
 // RUN: llvm-mc -triple i386-apple-darwin10 %s -filetype=obj -o %t.o
-// RUN: llvm-readobj --file-headers -S --sd -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols < %t.o > %t.dump
+// RUN: llvm-readobj --file-headers -S --sd -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols < %t.o - > %t.dump
 // RUN: FileCheck --check-prefix=CHECK-I386 < %t.dump %s
 
 // RUN: llvm-mc -triple x86_64-apple-darwin10 %s -filetype=obj -o %t.o
-// RUN: llvm-readobj --file-headers -S --sd -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols < %t.o > %t.dump
+// RUN: llvm-readobj --file-headers -S --sd -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols < %t.o - > %t.dump
 // RUN: FileCheck --check-prefix=CHECK-X86_64 < %t.dump %s
 
 .data
@@ -71,7 +71,7 @@ Lt0_x = Lt0_a - Lt0_b
 // CHECK-I386:     Alignment: 0
 // CHECK-I386:     RelocationOffset: 0x0
 // CHECK-I386:     RelocationCount: 0
-// CHECK-I386:     Type: 0x0
+// CHECK-I386:     Type: Regular (0x0)
 // CHECK-I386:     Attributes [ (0x800004)
 // CHECK-I386:       PureInstructions (0x800000)
 // CHECK-I386:       SomeInstructions (0x4)
@@ -92,7 +92,7 @@ Lt0_x = Lt0_a - Lt0_b
 // CHECK-I386:     Alignment: 0
 // CHECK-I386:     RelocationOffset: 0x190
 // CHECK-I386:     RelocationCount: 9
-// CHECK-I386:     Type: 0x0
+// CHECK-I386:     Type: Regular (0x0)
 // CHECK-I386:     Attributes [ (0x0)
 // CHECK-I386:     ]
 // CHECK-I386:     Reserved1: 0x0
@@ -278,7 +278,7 @@ Lt0_x = Lt0_a - Lt0_b
 // CHECK-X86_64:     Alignment: 0
 // CHECK-X86_64:     RelocationOffset: 0x0
 // CHECK-X86_64:     RelocationCount: 0
-// CHECK-X86_64:     Type: 0x0
+// CHECK-X86_64:     Type: Regular (0x0)
 // CHECK-X86_64:     Attributes [ (0x800004)
 // CHECK-X86_64:       PureInstructions (0x800000)
 // CHECK-X86_64:       SomeInstructions (0x4)
@@ -298,9 +298,9 @@ Lt0_x = Lt0_a - Lt0_b
 // CHECK-X86_64:     Size: 0x38
 // CHECK-X86_64:     Offset: 385
 // CHECK-X86_64:     Alignment: 0
-// CHECK-X86_64:     RelocationOffset: 0x1BC
+// CHECK-X86_64:     RelocationOffset: 0x1C0
 // CHECK-X86_64:     RelocationCount: 9
-// CHECK-X86_64:     Type: 0x0
+// CHECK-X86_64:     Type: Regular (0x0)
 // CHECK-X86_64:     Attributes [ (0x0)
 // CHECK-X86_64:     ]
 // CHECK-X86_64:     Reserved1: 0x0

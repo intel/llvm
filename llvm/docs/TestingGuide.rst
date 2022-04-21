@@ -23,7 +23,7 @@ Requirements
 ============
 
 In order to use the LLVM testing infrastructure, you will need all of the
-software required to build LLVM, as well as `Python <http://python.org>`_ 2.7 or
+software required to build LLVM, as well as `Python <http://python.org>`_ 3.6 or
 later.
 
 LLVM Testing Infrastructure Organization
@@ -36,17 +36,21 @@ and ``llvm/test`` respectively and are expected to always pass -- they should be
 run before every commit.
 
 The whole programs tests are referred to as the "LLVM test suite" (or
-"test-suite") and are in the ``test-suite`` module in subversion. For
-historical reasons, these tests are also referred to as the "nightly
+"test-suite") and are in the ``test-suite``
+`repository on GitHub <https://github.com/llvm/llvm-test-suite.git>`_.
+For historical reasons, these tests are also referred to as the "nightly
 tests" in places, which is less ambiguous than "test-suite" and remains
 in use although we run them much more often than nightly.
 
 Unit tests
 ----------
 
-Unit tests are written using `Google Test <https://github.com/google/googletest/blob/master/googletest/docs/primer.md>`_
-and `Google Mock <https://github.com/google/googletest/blob/master/googlemock/docs/ForDummies.md>`_
+Unit tests are written using `Google Test <https://github.com/google/googletest/blob/master/docs/primer.md>`_
+and `Google Mock <https://github.com/google/googletest/blob/master/docs/gmock_for_dummies.md>`_
 and are located in the ``llvm/unittests`` directory.
+In general unit tests are reserved for targeting the support library and other
+generic data structure, we prefer relying on regression tests for testing
+transformations and analysis on the IR.
 
 Regression tests
 ----------------
@@ -61,6 +65,17 @@ Typically when a bug is found in LLVM, a regression test containing just
 enough code to reproduce the problem should be written and placed
 somewhere underneath this directory. For example, it can be a small
 piece of LLVM IR distilled from an actual application or benchmark.
+
+Testing Analysis
+----------------
+
+An analysis is a pass that infer properties on some part of the IR and not
+transforming it. They are tested in general using the same infrastructure as the
+regression tests, by creating a separate "Printer" pass to consume the analysis
+result and print it on the standard output in a textual format suitable for
+FileCheck.
+See `llvm/test/Analysis/BranchProbabilityInfo/loop.ll <https://github.com/llvm/llvm-project/blob/main/llvm/test/Analysis/BranchProbabilityInfo/loop.ll>`_
+for an example of such test.
 
 ``test-suite``
 --------------
@@ -80,7 +95,8 @@ serve as a way of benchmarking LLVM performance, both in terms of the
 efficiency of the programs generated as well as the speed with which
 LLVM compiles, optimizes, and generates code.
 
-The test-suite is located in the ``test-suite`` Subversion module.
+The test-suite is located in the ``test-suite``
+`repository on GitHub <https://github.com/llvm/llvm-test-suite.git>`_.
 
 See the :doc:`TestSuiteGuide` for details.
 
@@ -92,14 +108,14 @@ The test are written in C based languages or in LLVM assembly language.
 
 These tests are compiled and run under a debugger. The debugger output
 is checked to validate of debugging information. See README.txt in the
-test suite for more information . This test suite is located in the
-``debuginfo-tests`` Subversion module.
+test suite for more information. This test suite is located in the
+``cross-project-tests/debuginfo-tests`` directory.
 
 Quick start
 ===========
 
-The tests are located in two separate Subversion modules. The unit and
-regression tests are in the main "llvm" module under the directories
+The tests are located in two separate repositories. The unit and
+regression tests are in the main "llvm"/ directory under the directories
 ``llvm/unittests`` and ``llvm/test`` (so you get these tests for free with the
 main LLVM tree). Use ``make check-all`` to run the unit and regression tests
 after building LLVM.
@@ -129,7 +145,7 @@ in release mode, i.e.
 
     % cmake -DCMAKE_BUILD_TYPE="Release" -DLLVM_ENABLE_ASSERTIONS=On
 
-If you have `Clang <http://clang.llvm.org/>`_ checked out and built, you
+If you have `Clang <https://clang.llvm.org/>`_ checked out and built, you
 can run the LLVM and Clang tests simultaneously using:
 
 .. code-block:: bash
@@ -151,7 +167,7 @@ script which is built as part of LLVM. For example, to run the
 
 .. code-block:: bash
 
-    % llvm-lit ~/llvm/test/Integer/BitPacked.ll 
+    % llvm-lit ~/llvm/test/Integer/BitPacked.ll
 
 or to run all of the ARM CodeGen tests:
 
@@ -159,13 +175,18 @@ or to run all of the ARM CodeGen tests:
 
     % llvm-lit ~/llvm/test/CodeGen/ARM
 
+The regression tests will use the Python psutil module only if installed in a
+**non-user** location. Under Linux, install with sudo or within a virtual
+environment. Under Windows, install Python for all users and then run
+``pip install psutil`` in an elevated command prompt.
+
 For more information on using the :program:`lit` tool, see ``llvm-lit --help``
 or the :doc:`lit man page <CommandGuide/lit>`.
 
 Debugging Information tests
 ---------------------------
 
-To run debugging information tests simply add the ``debuginfo-tests``
+To run debugging information tests simply add the ``cross-project-tests``
 project to your ``LLVM_ENABLE_PROJECTS`` define on the cmake
 command-line.
 
@@ -184,7 +205,7 @@ Writing new regression tests
 ----------------------------
 
 The regression test structure is very simple, but does require some
-information to be set. This information is gathered via ``configure``
+information to be set. This information is gathered via ``cmake``
 and is written to a file, ``test/lit.site.cfg`` in the build directory.
 The ``llvm/test`` Makefile does this work for you.
 
@@ -254,11 +275,70 @@ Put related tests into a single file rather than having a separate file per
 test. Check if there are files already covering your feature and consider
 adding your code there instead of creating a new file.
 
+Generating assertions in regression tests
+-----------------------------------------
+
+Some regression test cases are very large and complex to write/update by hand.
+In that case to reduce the human work we can use the scripts available in
+llvm/utils/ to generate the assertions.
+
+For example to generate assertions in an :program:`llc`-based test, run:
+
+ .. code-block:: bash
+
+     % llvm/utils/update_llc_test_checks.py --llc-binary build/bin/llc test.ll
+
+And if you want to update assertions in an existing test case, pass `-u` option
+which first check the ``NOTE:`` line exists and matches the script name.
+
+These are the most common scripts and their purposes/applications in generating
+assertions:
+
+.. code-block:: none
+
+  update_analyze_test_checks.py
+  opt -passes='print<cost-model>'
+
+  update_cc_test_checks.py
+  C/C++, or clang/clang++ (IR checks)
+
+  update_llc_test_checks.py
+  llc (assembly checks)
+
+  update_mca_test_checks.py
+  llvm-mca
+
+  update_mir_test_checks.py
+  llc (MIR checks)
+
+  update_test_checks.py
+  opt
+
 Extra files
 -----------
 
-If your test requires extra files besides the file containing the ``RUN:``
-lines, the idiomatic place to put them is in a subdirectory ``Inputs``.
+If your test requires extra files besides the file containing the ``RUN:`` lines
+and the extra files are small, consider specifying them in the same file and
+using ``split-file`` to extract them. For example,
+
+.. code-block:: llvm
+
+  ; RUN: split-file %s %t
+  ; RUN: llvm-link -S %t/a.ll %t/b.ll | FileCheck %s
+
+  ; CHECK: ...
+
+  ;--- a.ll
+  ...
+  ;--- b.ll
+  ...
+
+The parts are separated by the regex ``^(.|//)--- <part>``.
+
+If you want to test relative line numbers like ``[[#@LINE+1]]``, specify
+``--leading-lines`` to add leading empty lines to preserve line numbers.
+
+If the extra files are large, the idiomatic place to put them is in a subdirectory ``Inputs``.
 You can then refer to the extra files as ``%S/Inputs/foo.bar``.
 
 For example, consider ``test/Linker/ident.ll``. The directory structure is
@@ -426,8 +506,12 @@ will be a failure if its execution succeeds.
 ``REQUIRES`` and ``UNSUPPORTED`` and ``XFAIL`` all accept a comma-separated
 list of boolean expressions. The values in each expression may be:
 
-- Features added to ``config.available_features`` by 
-  configuration files such as ``lit.cfg``.
+- Features added to ``config.available_features`` by configuration files such as ``lit.cfg``.
+  String comparison of features is case-sensitive. Furthermore, a boolean expression can
+  contain any Python regular expression enclosed in ``{{ }}``, in which case the boolean
+  expression is satisfied if any feature matches the regular expression. Regular
+  expressions can appear inside an identifier, so for example ``he{{l+}}o`` would match
+  ``helo``, ``hello``, ``helllo``, and so on.
 - Substrings of the target triple (``UNSUPPORTED`` and ``XFAIL`` only).
 
 | ``REQUIRES`` enables the test if all expressions are true.
@@ -485,13 +569,25 @@ RUN lines:
 
    Expands to the path separator, i.e. ``:`` (or ``;`` on Windows).
 
+``${fs-src-root}``
+   Expands to the root component of file system paths for the source directory,
+   i.e. ``/`` on Unix systems or ``C:\`` (or another drive) on Windows.
+
+``${fs-tmp-root}``
+   Expands to the root component of file system paths for the test's temporary
+   directory, i.e. ``/`` on Unix systems or ``C:\`` (or another drive) on
+   Windows.
+
+``${fs-sep}``
+   Expands to the file system separator, i.e. ``/`` or ``\`` on Windows.
+
 ``%/s, %/S, %/t, %/T:``
 
   Act like the corresponding substitution above but replace any ``\``
   character with a ``/``. This is useful to normalize path separators.
 
    Example: ``%s:  C:\Desktop Files/foo_test.s.tmp``
-   
+
    Example: ``%/s: C:/Desktop Files/foo_test.s.tmp``
 
 ``%:s, %:S, %:t, %:T:``
@@ -504,6 +600,17 @@ RUN lines:
 
    Example: ``%:s: C\Desktop Files\foo_test.s.tmp``
 
+``%errc_<ERRCODE>``
+
+ Some error messages may be substituted to allow different spellings
+ based on the host platform.
+
+   The following error codes are currently supported:
+   ENOENT, EISDIR, EINVAL, EACCES.
+
+   Example: ``Linux %errc_ENOENT: No such file or directory``
+
+   Example: ``Windows %errc_ENOENT: no such file or directory``
 
 **LLVM-specific substitutions:**
 
@@ -511,7 +618,7 @@ RUN lines:
    The suffix for the host platforms shared library files. This includes the
    period as the first character.
 
-   Example: ``.so`` (Linux), ``.dylib`` (OS X), ``.dll`` (Windows)
+   Example: ``.so`` (Linux), ``.dylib`` (macOS), ``.dll`` (Windows)
 
 ``%exeext``
    The suffix for the host platforms executable files. This includes the
@@ -549,7 +656,14 @@ RUN lines:
    ``i686-pc-mingw32``. This allows a test to run with a specific ABI without
    constraining it to a specific triple.
 
-To add more substituations, look at ``test/lit.cfg`` or ``lit.local.cfg``.
+**FileCheck-specific substitutions:**
+
+``%ProtectFileCheckOutput``
+   This should precede a ``FileCheck`` call if and only if the call's textual
+   output affects test results.  It's usually easy to tell: just look for
+   redirection or piping of the ``FileCheck`` call's stdout or stderr.
+
+To add more substitutions, look at ``test/lit.cfg`` or ``lit.local.cfg``.
 
 
 Options
@@ -586,7 +700,7 @@ To make the output more useful, :program:`lit` will scan
 the lines of the test case for ones that contain a pattern that matches
 ``PR[0-9]+``. This is the syntax for specifying a PR (Problem Report) number
 that is related to the test case. The number after "PR" specifies the
-LLVM bugzilla number. When a PR number is specified, it will be used in
+LLVM Bugzilla number. When a PR number is specified, it will be used in
 the pass/fail reporting. This is useful to quickly get some context when
 a test fails.
 

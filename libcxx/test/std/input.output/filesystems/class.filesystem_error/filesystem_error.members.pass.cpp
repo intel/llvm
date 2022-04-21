@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -20,9 +20,11 @@
 // const path& path1() const noexcept;
 // const path& path2() const noexcept;
 
-#include "filesystem_include.hpp"
-#include <type_traits>
+#include "filesystem_include.h"
 #include <cassert>
+#include <string>
+#include <system_error>
+#include <type_traits>
 
 #include "test_macros.h"
 

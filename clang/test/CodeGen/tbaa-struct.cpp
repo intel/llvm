@@ -17,7 +17,7 @@ typedef A __attribute__((may_alias)) AA;
 
 void copy(A *a1, A *a2) {
 // CHECK-LABEL: _Z4copyP1AS0_
-// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %{{.*}}, i8* align 4 %{{.*}}, i64 16, i1 false)
+// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 4 dereferenceable(16) %{{.*}}, i8* noundef nonnull align 4 dereferenceable(16) %{{.*}}, i64 16, i1 false)
 // CHECK-OLD-SAME: !tbaa.struct [[TS:!.*]]
 // CHECK-NEW-SAME: !tbaa [[TAG_A:![0-9]*]]
   *a1 = *a2;
@@ -31,7 +31,7 @@ struct B {
 
 void copy2(B *b1, B *b2) {
 // CHECK-LABEL: _Z5copy2P1BS0_
-// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %{{.*}}, i8* align 4 %{{.*}}, i64 24, i1 false)
+// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 4 dereferenceable(24) %{{.*}}, i8* noundef nonnull align 4 dereferenceable(24) %{{.*}}, i64 24, i1 false)
 // CHECK-OLD-SAME: !tbaa.struct [[TS2:!.*]]
 // CHECK-NEW-SAME: !tbaa [[TAG_B:![0-9]*]]
   *b1 = *b2;
@@ -49,7 +49,7 @@ union U {
 
 void copy3(U *u1, U *u2) {
 // CHECK-LABEL: _Z5copy3P1US0_
-// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %{{.*}}, i8* align 4 %{{.*}}, i64 12, i1 false)
+// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 4 dereferenceable(12) %{{.*}}, i8* noundef nonnull align 4 dereferenceable(12) %{{.*}}, i64 12, i1 false)
 // CHECK-OLD-SAME: !tbaa.struct [[TS3:!.*]]
 // CHECK-NEW-SAME: !tbaa [[TAG_U:![0-9]*]]
   *u1 = *u2;
@@ -65,7 +65,7 @@ struct C {
 
 void copy4(C *c1, C *c2) {
 // CHECK-LABEL: _Z5copy4P1CS0_
-// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* {{.*}}, i8* {{.*}}, i64 3, i1 false)
+// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 1 dereferenceable(3) {{.*}}, i8* noundef nonnull align 1 dereferenceable(3) {{.*}}, i64 3, i1 false)
 // CHECK-OLD-SAME: !tbaa.struct [[TS4:!.*]]
 // CHECK-NEW-SAME: !tbaa [[TAG_C:![0-9]*]]
   *c1 = *c2;
@@ -80,7 +80,7 @@ struct D {
 
 void copy5(D *d1, D *d2) {
 // CHECK-LABEL: _Z5copy5P1DS0_
-// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* {{.*}}, i8* {{.*}}, i64 6, i1 false)
+// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 1 dereferenceable(6) {{.*}}, i8* noundef nonnull align 1 dereferenceable(6) {{.*}}, i64 6, i1 false)
 // CHECK-OLD-SAME: !tbaa.struct [[TS5:!.*]]
 // CHECK-NEW-SAME: !tbaa [[TAG_D:![0-9]*]]
   *d1 = *d2;
@@ -88,7 +88,7 @@ void copy5(D *d1, D *d2) {
 
 void copy6(AA *a1, A *a2) {
 // CHECK-LABEL: _Z5copy6P1AS0_
-// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %{{.*}}, i8* align 4 %{{.*}}, i64 16, i1 false)
+// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 4 dereferenceable(16) %{{.*}}, i8* noundef nonnull align 4 dereferenceable(16) %{{.*}}, i64 16, i1 false)
 // CHECK-OLD-SAME: !tbaa.struct [[TS]]
 // CHECK-NEW-SAME: !tbaa [[TAG_char:![0-9]*]]
   *a1 = *a2;
@@ -96,7 +96,7 @@ void copy6(AA *a1, A *a2) {
 
 void copy7(A *a1, AA *a2) {
 // CHECK-LABEL: _Z5copy7P1AS0_
-// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %{{.*}}, i8* align 4 %{{.*}}, i64 16, i1 false)
+// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 4 dereferenceable(16) %{{.*}}, i8* noundef nonnull align 4 dereferenceable(16) %{{.*}}, i64 16, i1 false)
 // CHECK-OLD-SAME: !tbaa.struct [[TS]]
 // CHECK-NEW-SAME: !tbaa [[TAG_char]]
   *a1 = *a2;
@@ -111,8 +111,8 @@ void copy7(A *a1, AA *a2) {
 // CHECK-OLD: [[TS2]] = !{i64 0, i64 1, !{{.*}}, i64 4, i64 2, !{{.*}}, i64 8, i64 4, !{{.*}}, i64 12, i64 1, !{{.*}}, i64 16, i64 4, {{.*}}, i64 20, i64 4, {{.*}}}
 // (offset, size) = (0,8) char; (0,2) char; (4,8) char
 // CHECK-OLD: [[TS3]] = !{i64 0, i64 8, !{{.*}}, i64 0, i64 2, !{{.*}}, i64 4, i64 8, !{{.*}}}
-// CHECK-OLD: [[TS4]] = !{i64 0, i64 1, [[TAG_CHAR]], i64 1, i64 4, [[TAG_INT]], i64 1, i64 1, [[TAG_CHAR]], i64 2, i64 1, [[TAG_CHAR]]}
-// CHECK-OLD: [[TS5]] = !{i64 0, i64 1, [[TAG_CHAR]], i64 4, i64 4, [[TAG_INT]], i64 4, i64 1, [[TAG_CHAR]], i64 5, i64 1, [[TAG_CHAR]]}
+// CHECK-OLD: [[TS4]] = !{i64 0, i64 1, [[TAG_CHAR]], i64 1, i64 1, [[TAG_CHAR]], i64 2, i64 1, [[TAG_CHAR]]}
+// CHECK-OLD: [[TS5]] = !{i64 0, i64 1, [[TAG_CHAR]], i64 4, i64 1, [[TAG_CHAR]], i64 5, i64 1, [[TAG_CHAR]]}
 
 // CHECK-NEW-DAG: [[TYPE_char:!.*]] = !{{{.*}}, i64 1, !"omnipotent char"}
 // CHECK-NEW-DAG: [[TAG_char]] = !{[[TYPE_char]], [[TYPE_char]], i64 0, i64 0}
@@ -123,7 +123,7 @@ void copy7(A *a1, AA *a2) {
 // CHECK-NEW-DAG: [[TYPE_B:!.*]] = !{[[TYPE_char]], i64 24, !"_ZTS1B", [[TYPE_char]], i64 0, i64 1, [[TYPE_A]], i64 4, i64 16, [[TYPE_int]], i64 20, i64 4}
 // CHECK-NEW-DAG: [[TAG_B]] = !{[[TYPE_B]], [[TYPE_B]], i64 0, i64 24}
 // CHECK-NEW-DAG: [[TAG_U]] = !{[[TYPE_char]], [[TYPE_char]], i64 0, i64 12}
-// CHECK-NEW-DAG: [[TYPE_C:!.*]] = !{[[TYPE_char]], i64 3, !"_ZTS1C", [[TYPE_char]], i64 0, i64 1, [[TYPE_int]], i64 1, i64 4, [[TYPE_char]], i64 1, i64 1, [[TYPE_char]], i64 2, i64 1}
+// CHECK-NEW-DAG: [[TYPE_C:!.*]] = !{[[TYPE_char]], i64 3, !"_ZTS1C", [[TYPE_char]], i64 0, i64 1, [[TYPE_char]], i64 1, i64 1, [[TYPE_char]], i64 2, i64 1}
 // CHECK-NEW-DAG: [[TAG_C]] = !{[[TYPE_C]], [[TYPE_C]], i64 0, i64 3}
-// CHECK-NEW-DAG: [[TYPE_D:!.*]] = !{[[TYPE_char]], i64 6, !"_ZTS1D", [[TYPE_char]], i64 0, i64 1, [[TYPE_int]], i64 4, i64 4, [[TYPE_char]], i64 4, i64 1, [[TYPE_char]], i64 5, i64 1}
+// CHECK-NEW-DAG: [[TYPE_D:!.*]] = !{[[TYPE_char]], i64 6, !"_ZTS1D", [[TYPE_char]], i64 0, i64 1, [[TYPE_char]], i64 4, i64 1, [[TYPE_char]], i64 5, i64 1}
 // CHECK-NEW-DAG: [[TAG_D]] = !{[[TYPE_D]], [[TYPE_D]], i64 0, i64 6}

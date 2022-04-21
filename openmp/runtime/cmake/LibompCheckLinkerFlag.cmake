@@ -8,6 +8,8 @@
 #//===----------------------------------------------------------------------===//
 #
 
+include(GNUInstallDirs)
+
 # Checking a linker flag to build a shared library
 # There is no real trivial way to do this in CMake, so we implement it here
 # this will have ${boolean} = TRUE if the flag succeeds, otherwise FALSE.
@@ -17,11 +19,13 @@ function(libomp_check_linker_flag flag boolean)
   set(library_source
     "int foo(int a) { return a*a; }")
   set(cmake_source
-    "cmake_minimum_required(VERSION 2.8)
+    "cmake_minimum_required(VERSION 3.13.4)
      project(foo C)
      set(CMAKE_SHARED_LINKER_FLAGS \"${flag}\")
      add_library(foo SHARED src_to_link.c)")
-  set(failed_regexes "[Ee]rror;[Uu]nknown;[Ss]kipping;LINK : warning")
+  # Compiling as a part of runtimes introduces ARCH-unknown-linux-gnu as a part
+  # of a working directory.  So adding a guard for unknown.
+  set(failed_regexes "[Ee]rror;[Uu]nknown[^-];[Ss]kipping;LINK : warning;Unsupported command line")
   set(base_dir ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/link_flag_check_${boolean})
   file(MAKE_DIRECTORY ${base_dir})
   file(MAKE_DIRECTORY ${base_dir}/build)
@@ -38,7 +42,8 @@ function(libomp_check_linker_flag flag boolean)
 
   if(try_compile_result)
     foreach(regex IN LISTS failed_regexes)
-      if("${OUTPUT}" MATCHES ${regex})
+      # Ignore the warning about the newer or unknown CUDA version.
+      if(("${OUTPUT}" MATCHES ${regex}) AND NOT ("${OUTPUT}" MATCHES "Unknown CUDA version"))
         set(retval FALSE)
       endif()
     endforeach()

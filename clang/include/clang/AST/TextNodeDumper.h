@@ -19,12 +19,16 @@
 #include "clang/AST/CommentCommandTraits.h"
 #include "clang/AST/CommentVisitor.h"
 #include "clang/AST/DeclVisitor.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeVisitor.h"
 
 namespace clang {
+
+class APValue;
 
 class TextTreeStructure {
   raw_ostream &OS;
@@ -66,10 +70,8 @@ public:
       return;
     }
 
-    // We need to capture an owning-string in the lambda because the lambda
-    // is invoked in a deferred manner.
-    std::string LabelStr = Label;
-    auto DumpWithIndent = [this, DoAddChild, LabelStr](bool IsLastChild) {
+    auto DumpWithIndent = [this, DoAddChild,
+                           Label(Label.str())](bool IsLastChild) {
       // Print out the appropriate tree structure and work out the prefix for
       // children of this node. For instance:
       //
@@ -86,8 +88,8 @@ public:
         OS << '\n';
         ColorScope Color(OS, ShowColors, IndentColor);
         OS << Prefix << (IsLastChild ? '`' : '|') << '-';
-        if (!LabelStr.empty())
-          OS << LabelStr << ": ";
+        if (!Label.empty())
+          OS << Label << ": ";
 
         this->Prefix.push_back(IsLastChild ? ' ' : '|');
         this->Prefix.push_back(' ');
@@ -139,19 +141,30 @@ class TextNodeDumper
   const char *LastLocFilename = "";
   unsigned LastLocLine = ~0U;
 
-  const SourceManager *SM;
+  /// \p Context, \p SM, and \p Traits can be null. This is because we want
+  /// to be able to call \p dump() in a debugger without having to pass the
+  /// \p ASTContext to \p dump. Not all parts of the AST dump output will be
+  /// available without the \p ASTContext.
+  const ASTContext *Context = nullptr;
+  const SourceManager *SM = nullptr;
 
   /// The policy to use for printing; can be defaulted.
-  PrintingPolicy PrintPolicy;
+  PrintingPolicy PrintPolicy = LangOptions();
 
-  const comments::CommandTraits *Traits;
+  const comments::CommandTraits *Traits = nullptr;
 
   const char *getCommandName(unsigned CommandID);
+  void printFPOptions(FPOptionsOverride FPO);
+
+  void dumpAPValueChildren(const APValue &Value, QualType Ty,
+                           const APValue &(*IdxToChildFun)(const APValue &,
+                                                           unsigned),
+                           unsigned NumChildren, StringRef LabelSingular,
+                           StringRef LabelPlurial);
 
 public:
-  TextNodeDumper(raw_ostream &OS, bool ShowColors, const SourceManager *SM,
-                 const PrintingPolicy &PrintPolicy,
-                 const comments::CommandTraits *Traits);
+  TextNodeDumper(raw_ostream &OS, const ASTContext &Context, bool ShowColors);
+  TextNodeDumper(raw_ostream &OS, bool ShowColors);
 
   void Visit(const comments::Comment *C, const comments::FullComment *FC);
 
@@ -176,6 +189,10 @@ public:
 
   void Visit(const GenericSelectionExpr::ConstAssociation &A);
 
+  void Visit(const concepts::Requirement *R);
+
+  void Visit(const APValue &Value, QualType Ty);
+
   void dumpPointer(const void *Ptr);
   void dumpLocation(SourceLocation Loc);
   void dumpSourceRange(SourceRange R);
@@ -184,6 +201,7 @@ public:
   void dumpBareDeclRef(const Decl *D);
   void dumpName(const NamedDecl *ND);
   void dumpAccessSpecifier(AccessSpecifier AS);
+  void dumpCleanupObject(const ExprWithCleanups::CleanupObject &C);
 
   void dumpDeclRef(const Decl *D, StringRef Label = {});
 
@@ -228,10 +246,14 @@ public:
   void VisitLabelStmt(const LabelStmt *Node);
   void VisitGotoStmt(const GotoStmt *Node);
   void VisitCaseStmt(const CaseStmt *Node);
+  void VisitConstantExpr(const ConstantExpr *Node);
   void VisitCallExpr(const CallExpr *Node);
+  void VisitCXXOperatorCallExpr(const CXXOperatorCallExpr *Node);
   void VisitCastExpr(const CastExpr *Node);
   void VisitImplicitCastExpr(const ImplicitCastExpr *Node);
   void VisitDeclRefExpr(const DeclRefExpr *Node);
+  void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *Node);
+  void VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *Node);
   void VisitPredefinedExpr(const PredefinedExpr *Node);
   void VisitCharacterLiteral(const CharacterLiteral *Node);
   void VisitIntegerLiteral(const IntegerLiteral *Node);
@@ -251,11 +273,15 @@ public:
   void VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr *Node);
   void VisitCXXThisExpr(const CXXThisExpr *Node);
   void VisitCXXFunctionalCastExpr(const CXXFunctionalCastExpr *Node);
+  void VisitCXXStaticCastExpr(const CXXStaticCastExpr *Node);
   void VisitCXXUnresolvedConstructExpr(const CXXUnresolvedConstructExpr *Node);
   void VisitCXXConstructExpr(const CXXConstructExpr *Node);
   void VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *Node);
   void VisitCXXNewExpr(const CXXNewExpr *Node);
   void VisitCXXDeleteExpr(const CXXDeleteExpr *Node);
+  void VisitTypeTraitExpr(const TypeTraitExpr *Node);
+  void VisitArrayTypeTraitExpr(const ArrayTypeTraitExpr *Node);
+  void VisitExpressionTraitExpr(const ExpressionTraitExpr *Node);
   void VisitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *Node);
   void VisitExprWithCleanups(const ExprWithCleanups *Node);
   void VisitUnresolvedLookupExpr(const UnresolvedLookupExpr *Node);
@@ -272,6 +298,9 @@ public:
   void VisitObjCSubscriptRefExpr(const ObjCSubscriptRefExpr *Node);
   void VisitObjCIvarRefExpr(const ObjCIvarRefExpr *Node);
   void VisitObjCBoolLiteralExpr(const ObjCBoolLiteralExpr *Node);
+  void VisitOMPIteratorExpr(const OMPIteratorExpr *Node);
+  void VisitConceptSpecializationExpr(const ConceptSpecializationExpr *Node);
+  void VisitRequiresExpr(const RequiresExpr *Node);
 
   void VisitRValueReferenceType(const ReferenceType *T);
   void VisitArrayType(const ArrayType *T);
@@ -283,6 +312,7 @@ public:
   void VisitFunctionType(const FunctionType *T);
   void VisitFunctionProtoType(const FunctionProtoType *T);
   void VisitUnresolvedUsingType(const UnresolvedUsingType *T);
+  void VisitUsingType(const UsingType *T);
   void VisitTypedefType(const TypedefType *T);
   void VisitUnaryTransformType(const UnaryTransformType *T);
   void VisitTagType(const TagType *T);
@@ -327,6 +357,7 @@ public:
   void VisitUsingDecl(const UsingDecl *D);
   void VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenameDecl *D);
   void VisitUnresolvedUsingValueDecl(const UnresolvedUsingValueDecl *D);
+  void VisitUsingEnumDecl(const UsingEnumDecl *D);
   void VisitUsingShadowDecl(const UsingShadowDecl *D);
   void VisitConstructorUsingShadowDecl(const ConstructorUsingShadowDecl *D);
   void VisitLinkageSpecDecl(const LinkageSpecDecl *D);
@@ -344,9 +375,9 @@ public:
   void VisitObjCPropertyDecl(const ObjCPropertyDecl *D);
   void VisitObjCPropertyImplDecl(const ObjCPropertyImplDecl *D);
   void VisitBlockDecl(const BlockDecl *D);
-
-private:
-  void dumpCXXTemporary(const CXXTemporary *Temporary);
+  void VisitConceptDecl(const ConceptDecl *D);
+  void
+  VisitLifetimeExtendedTemporaryDecl(const LifetimeExtendedTemporaryDecl *D);
 };
 
 } // namespace clang

@@ -9,12 +9,12 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOLID_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOLID_H
 
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 #include <array>
+#include <cstdint>
 #include <string>
 
 namespace clang {
@@ -36,6 +36,9 @@ public:
   bool operator==(const SymbolID &Sym) const {
     return HashValue == Sym.HashValue;
   }
+  bool operator!=(const SymbolID &Sym) const {
+    return !(*this == Sym);
+  }
   bool operator<(const SymbolID &Sym) const {
     return HashValue < Sym.HashValue;
   }
@@ -50,8 +53,11 @@ public:
   std::string str() const;
   static llvm::Expected<SymbolID> fromStr(llvm::StringRef);
 
+  bool isNull() const { return *this == SymbolID(); }
+  explicit operator bool() const { return !isNull(); }
+
 private:
-  std::array<uint8_t, RawSize> HashValue;
+  std::array<uint8_t, RawSize> HashValue{};
 };
 
 llvm::hash_code hash_value(const SymbolID &ID);

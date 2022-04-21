@@ -1,4 +1,4 @@
-//===-- VectorType.cpp ------------------------------------------*- C++ -*-===//
+//===-- VectorType.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,6 +15,7 @@
 #include "lldb/Target/Target.h"
 
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/Log.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -188,8 +189,7 @@ namespace formatters {
 class VectorTypeSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
 public:
   VectorTypeSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
-      : SyntheticChildrenFrontEnd(*valobj_sp), m_parent_format(eFormatInvalid),
-        m_item_format(eFormatInvalid), m_child_type(), m_num_children(0) {}
+      : SyntheticChildrenFrontEnd(*valobj_sp), m_child_type() {}
 
   ~VectorTypeSyntheticFrontEnd() override = default;
 
@@ -218,14 +218,9 @@ public:
     m_parent_format = m_backend.GetFormat();
     CompilerType parent_type(m_backend.GetCompilerType());
     CompilerType element_type;
-    parent_type.IsVectorType(&element_type, nullptr);
-    TargetSP target_sp(m_backend.GetTargetSP());
-    m_child_type = ::GetCompilerTypeForFormat(
-        m_parent_format, element_type,
-        target_sp
-            ? target_sp->GetScratchTypeSystemForLanguage(nullptr,
-                                                         lldb::eLanguageTypeC)
-            : nullptr);
+    parent_type.IsVectorType(&element_type);
+    m_child_type = ::GetCompilerTypeForFormat(m_parent_format, element_type,
+                                              parent_type.GetTypeSystem());
     m_num_children = ::CalculateNumChildren(parent_type, m_child_type);
     m_item_format = GetItemFormatForFormat(m_parent_format, m_child_type);
     return false;
@@ -242,10 +237,10 @@ public:
   }
 
 private:
-  lldb::Format m_parent_format;
-  lldb::Format m_item_format;
+  lldb::Format m_parent_format = eFormatInvalid;
+  lldb::Format m_item_format = eFormatInvalid;
   CompilerType m_child_type;
-  size_t m_num_children;
+  size_t m_num_children = 0;
 };
 
 } // namespace formatters

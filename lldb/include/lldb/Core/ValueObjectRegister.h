@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObjectRegister_h_
-#define liblldb_ValueObjectRegister_h_
+#ifndef LLDB_CORE_VALUEOBJECTREGISTER_H
+#define LLDB_CORE_VALUEOBJECTREGISTER_H
 
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Symbol/CompilerType.h"
@@ -18,8 +18,8 @@
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private-types.h"
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class DataExtractor;
@@ -27,43 +27,6 @@ class Status;
 class ExecutionContextScope;
 class Scalar;
 class Stream;
-
-// A ValueObject that contains a root variable that may or may not
-// have children.
-class ValueObjectRegisterContext : public ValueObject {
-public:
-  ~ValueObjectRegisterContext() override;
-
-  uint64_t GetByteSize() override;
-
-  lldb::ValueType GetValueType() const override {
-    return lldb::eValueTypeRegisterSet;
-  }
-
-  ConstString GetTypeName() override;
-
-  ConstString GetQualifiedTypeName() override;
-
-  ConstString GetDisplayTypeName() override;
-
-  size_t CalculateNumChildren(uint32_t max) override;
-
-  ValueObject *CreateChildAtIndex(size_t idx, bool synthetic_array_member,
-                                  int32_t synthetic_index) override;
-
-protected:
-  bool UpdateValue() override;
-
-  CompilerType GetCompilerTypeImpl() override;
-
-  lldb::RegisterContextSP m_reg_ctx_sp;
-
-private:
-  ValueObjectRegisterContext(ValueObject &parent,
-                             lldb::RegisterContextSP &reg_ctx_sp);
-  // For ValueObject only
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectRegisterContext);
-};
 
 class ValueObjectRegisterSet : public ValueObject {
 public:
@@ -73,7 +36,7 @@ public:
                                     lldb::RegisterContextSP &reg_ctx_sp,
                                     uint32_t set_idx);
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   lldb::ValueType GetValueType() const override {
     return lldb::eValueTypeRegisterSet;
@@ -106,10 +69,13 @@ private:
   friend class ValueObjectRegisterContext;
 
   ValueObjectRegisterSet(ExecutionContextScope *exe_scope,
+                         ValueObjectManager &manager,
                          lldb::RegisterContextSP &reg_ctx_sp, uint32_t set_idx);
 
   // For ValueObject only
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectRegisterSet);
+  ValueObjectRegisterSet(const ValueObjectRegisterSet &) = delete;
+  const ValueObjectRegisterSet &
+  operator=(const ValueObjectRegisterSet &) = delete;
 };
 
 class ValueObjectRegister : public ValueObject {
@@ -118,9 +84,9 @@ public:
 
   static lldb::ValueObjectSP Create(ExecutionContextScope *exe_scope,
                                     lldb::RegisterContextSP &reg_ctx_sp,
-                                    uint32_t reg_num);
+                                    const RegisterInfo *reg_info);
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   lldb::ValueType GetValueType() const override {
     return lldb::eValueTypeRegister;
@@ -137,7 +103,7 @@ public:
   bool ResolveValue(Scalar &scalar) override;
 
   void
-  GetExpressionPath(Stream &s, bool qualify_cxx_base_classes,
+  GetExpressionPath(Stream &s,
                     GetExpressionPathFormat epformat =
                         eGetExpressionPathFormatDereferencePointers) override;
 
@@ -153,19 +119,22 @@ protected:
   CompilerType m_compiler_type;
 
 private:
-  void ConstructObject(uint32_t reg_num);
+  void ConstructObject(const RegisterInfo *reg_info);
 
   friend class ValueObjectRegisterSet;
 
   ValueObjectRegister(ValueObject &parent, lldb::RegisterContextSP &reg_ctx_sp,
-                      uint32_t reg_num);
+                      const RegisterInfo *reg_info);
   ValueObjectRegister(ExecutionContextScope *exe_scope,
-                      lldb::RegisterContextSP &reg_ctx_sp, uint32_t reg_num);
+                      ValueObjectManager &manager,
+                      lldb::RegisterContextSP &reg_ctx_sp,
+                      const RegisterInfo *reg_info);
 
   // For ValueObject only
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectRegister);
+  ValueObjectRegister(const ValueObjectRegister &) = delete;
+  const ValueObjectRegister &operator=(const ValueObjectRegister &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObjectRegister_h_
+#endif // LLDB_CORE_VALUEOBJECTREGISTER_H

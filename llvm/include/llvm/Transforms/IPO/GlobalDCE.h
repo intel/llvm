@@ -19,11 +19,18 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/IR/Module.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/PassManager.h"
 #include <unordered_map>
 
 namespace llvm {
+class Comdat;
+class Constant;
+class Function;
+class GlobalVariable;
+class Metadata;
+class Module;
+class Value;
 
 /// Pass to remove unused function declarations.
 class GlobalDCEPass : public PassInfoMixin<GlobalDCEPass> {
@@ -43,10 +50,24 @@ private:
   /// Comdat -> Globals in that Comdat section.
   std::unordered_multimap<Comdat *, GlobalValue *> ComdatMembers;
 
+  /// !type metadata -> set of (vtable, offset) pairs
+  DenseMap<Metadata *, SmallSet<std::pair<GlobalVariable *, uint64_t>, 4>>
+      TypeIdMap;
+
+  // Global variables which are vtables, and which we have enough information
+  // about to safely do dead virtual function elimination.
+  SmallPtrSet<GlobalValue *, 32> VFESafeVTables;
+
   void UpdateGVDependencies(GlobalValue &GV);
   void MarkLive(GlobalValue &GV,
                 SmallVectorImpl<GlobalValue *> *Updates = nullptr);
   bool RemoveUnusedGlobalValue(GlobalValue &GV);
+
+  // Dead virtual function elimination.
+  void AddVirtualFunctionDependencies(Module &M);
+  void ScanVTables(Module &M);
+  void ScanTypeCheckedLoadIntrinsics(Module &M);
+  void ScanVTableLoad(Function *Caller, Metadata *TypeId, uint64_t CallOffset);
 
   void ComputeDependencies(Value *V, SmallPtrSetImpl<GlobalValue *> &U);
 };

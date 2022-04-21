@@ -1,4 +1,4 @@
-; RUN: opt -S <%s -simplifycfg | FileCheck %s
+; RUN: opt -S <%s -simplifycfg -simplifycfg-require-and-preserve-domtree=1 | FileCheck %s
 
 define void @test_br(i32 %x) {
 entry:
@@ -37,10 +37,7 @@ define void @test_indirectbr(i32 %x) {
 entry:
 ; CHECK-LABEL: @test_indirectbr(
 ; CHECK-NEXT: entry:
-; Ideally this should now check:
-;   CHK-NEXT: ret void
-; But that doesn't happen yet. Instead:
-; CHECK-NEXT: br label %L1
+; CHECK-NEXT:   ret void
 
   %label = bitcast i8* blockaddress(@test_indirectbr, %L1) to i8*
   indirectbr i8* %label, [label %L1, label %L2]

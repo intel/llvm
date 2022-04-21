@@ -1,7 +1,12 @@
 // RUN: %clang_cc1 -triple i386-pc-solaris -dM -E %s -o - | FileCheck %s -check-prefix CHECK-SOLARIS
 // CHECK-SOLARIS-DAG: #define __WCHAR_MAX__ 2147483647
-// CHECK-SOLARIS-DAG: #define __WCHAR_TYPE__ int
+// CHECK-SOLARIS-DAG: #define __WCHAR_TYPE__ long int
 // CHECK-SOLARIS-NOT: #define __WCHAR_UNSIGNED__ 0
+
+// RUN: %clang_cc1 -triple x86_64-pc-solaris -dM -E %s -o - | FileCheck %s -check-prefix CHECK-SOLARIS64
+// CHECK-SOLARIS64-DAG: #define __WCHAR_MAX__ 2147483647
+// CHECK-SOLARIS64-DAG: #define __WCHAR_TYPE__ int
+// CHECK-SOLARIS64-NOT: #define __WCHAR_UNSIGNED__ 0
 
 // RUN: %clang_cc1 -triple avr-unknown-unknown -fwchar-type=int -fsigned-wchar -dM -E %s -o - | FileCheck %s -check-prefix CHECK-AVR
 // CHECK-AVR-DAG: #define __WCHAR_MAX__ 32767
@@ -42,6 +47,11 @@
 // CHECK-ARM64-AAPCS64-DAG: #define __WCHAR_MAX__ 4294967295U
 // CHECK-ARM64-AAPCS64-DAG: #define __WCHAR_TYPE__ unsigned int
 // CHECK-ARM64-AAPCS64-DAG: #define __WCHAR_UNSIGNED__ 1
+
+// RUN: %clang_cc1 -triple s390x-none-zos -fwchar-type=int -fno-signed-wchar -dM -E %s -o - | FileCheck %s -check-prefix CHECK-ZOS
+// CHECK-ZOS: #define __WCHAR_MAX__ 4294967295U
+// CHECK-ZOS: #define __WCHAR_TYPE__ unsigned int
+// CHECK-ZOS: #define __WCHAR_UNSIGNED__ 1
 
 // RUN: %clang_cc1 -triple xcore-unknown-unknown -fwchar-type=char -fno-signed-wchar -dM -E %s -o - | FileCheck %s -check-prefix CHECK-XCORE
 // CHECK-XCORE-DAG: #define __WCHAR_MAX__ 255

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -17,13 +17,13 @@
 // void assign(path const&);
 // void replace_filename(path const&);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 TEST_SUITE(directory_entry_mods_suite)
 
@@ -53,6 +53,7 @@ TEST_CASE(test_replace_filename_method) {
 TEST_CASE(test_replace_filename_ec_method) {
   using namespace fs;
 
+  static_test_env static_env;
   {
     directory_entry e;
     path replace;
@@ -75,9 +76,9 @@ TEST_CASE(test_replace_filename_ec_method) {
     TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
   }
   {
-    const path p = StaticEnv::EmptyFile;
-    const path expect = StaticEnv::NonEmptyFile;
-    const path replace = StaticEnv::NonEmptyFile.filename();
+    const path p = static_env.EmptyFile;
+    const path expect = static_env.NonEmptyFile;
+    const path replace = static_env.NonEmptyFile.filename();
     TEST_REQUIRE(expect.parent_path() == p.parent_path());
     directory_entry e(p);
     TEST_CHECK(e.path() == p);
@@ -122,6 +123,9 @@ TEST_CASE(test_replace_filename_calls_refresh) {
   }
 }
 
+#ifndef TEST_WIN_NO_FILESYSTEM_PERMS_NONE
+// Windows doesn't support setting perms::none to trigger failures
+// reading directories.
 TEST_CASE(test_replace_filename_propagates_error) {
   using namespace fs;
   scoped_test_env env;
@@ -164,5 +168,6 @@ TEST_CASE(test_replace_filename_propagates_error) {
     TEST_CHECK(ErrorIs(ec, std::errc::permission_denied));
   }
 }
+#endif
 
 TEST_SUITE_END()

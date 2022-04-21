@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBSymbolContext_h_
-#define LLDB_SBSymbolContext_h_
+#ifndef LLDB_API_SBSYMBOLCONTEXT_H
+#define LLDB_API_SBSYMBOLCONTEXT_H
 
 #include "lldb/API/SBBlock.h"
 #include "lldb/API/SBCompileUnit.h"
@@ -25,7 +25,7 @@ public:
 
   SBSymbolContext(const lldb::SBSymbolContext &rhs);
 
-  SBSymbolContext(const lldb_private::SymbolContext *sc_ptr);
+  SBSymbolContext(const lldb_private::SymbolContext &sc_ptr);
 
   ~SBSymbolContext();
 
@@ -72,12 +72,10 @@ protected:
 
   lldb_private::SymbolContext *get() const;
 
-  void SetSymbolContext(const lldb_private::SymbolContext *sc_ptr);
-
 private:
   std::unique_ptr<lldb_private::SymbolContext> m_opaque_up;
 };
 
 } // namespace lldb
 
-#endif // LLDB_SBSymbolContext_h_
+#endif // LLDB_API_SBSYMBOLCONTEXT_H

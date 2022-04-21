@@ -1,5 +1,5 @@
 ; REQUIRES: asserts
-; RUN: opt -S -mtriple=systemz-unknown -mcpu=z13  -O3 -enable-mssa-loop-dependency -enable-simple-loop-unswitch -verify-memoryssa  < %s | FileCheck %s
+; RUN: opt -S -mtriple=systemz-unknown -mcpu=z13  -O3 -enable-simple-loop-unswitch -verify-memoryssa  < %s | FileCheck %s
 
 target datalayout = "E-m:e-i1:8:16-i8:8:16-i64:64-f128:64-v128:64-a:8:16-n32:64"
 target triple = "s390x-ibm-linux"
@@ -70,7 +70,7 @@ bb18:                                             ; preds = %bb12, %bb1
 ; Function Attrs: cold noreturn nounwind
 declare void @llvm.trap() #1
 
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="z13" "target-features"="+transactional-execution,+vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="z13" "target-features"="+transactional-execution,+vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { cold noreturn nounwind }
 
 !llvm.ident = !{!0}

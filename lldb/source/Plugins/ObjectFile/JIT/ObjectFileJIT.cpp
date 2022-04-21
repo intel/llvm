@@ -1,4 +1,4 @@
-//===-- ObjectFileJIT.cpp ---------------------------------------*- C++ -*-===//
+//===-- ObjectFileJIT.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,6 +39,10 @@
 using namespace lldb;
 using namespace lldb_private;
 
+LLDB_PLUGIN_DEFINE(ObjectFileJIT)
+
+char ObjectFileJIT::ID;
+
 void ObjectFileJIT::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                 GetPluginDescriptionStatic(), CreateInstance,
@@ -49,15 +53,6 @@ void ObjectFileJIT::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString ObjectFileJIT::GetPluginNameStatic() {
-  static ConstString g_name("jit");
-  return g_name;
-}
-
-const char *ObjectFileJIT::GetPluginDescriptionStatic() {
-  return "JIT code object file";
-}
-
 ObjectFile *ObjectFileJIT::CreateInstance(const lldb::ModuleSP &module_sp,
                                           DataBufferSP &data_sp,
                                           lldb::offset_t data_offset,
@@ -66,7 +61,7 @@ ObjectFile *ObjectFileJIT::CreateInstance(const lldb::ModuleSP &module_sp,
                                           lldb::offset_t length) {
   // JIT'ed object file is backed by the ObjectFileJITDelegate, never read from
   // a file
-  return NULL;
+  return nullptr;
 }
 
 ObjectFile *ObjectFileJIT::CreateMemoryInstance(const lldb::ModuleSP &module_sp,
@@ -75,7 +70,7 @@ ObjectFile *ObjectFileJIT::CreateMemoryInstance(const lldb::ModuleSP &module_sp,
                                                 lldb::addr_t header_addr) {
   // JIT'ed object file is backed by the ObjectFileJITDelegate, never read from
   // memory
-  return NULL;
+  return nullptr;
 }
 
 size_t ObjectFileJIT::GetModuleSpecifications(
@@ -88,7 +83,7 @@ size_t ObjectFileJIT::GetModuleSpecifications(
 
 ObjectFileJIT::ObjectFileJIT(const lldb::ModuleSP &module_sp,
                              const ObjectFileJITDelegateSP &delegate_sp)
-    : ObjectFile(module_sp, NULL, 0, 0, DataBufferSP(), 0), m_delegate_wp() {
+    : ObjectFile(module_sp, nullptr, 0, 0, DataBufferSP(), 0), m_delegate_wp() {
   if (delegate_sp) {
     m_delegate_wp = delegate_sp;
     m_data.SetByteOrder(delegate_sp->GetByteOrder());
@@ -96,7 +91,7 @@ ObjectFileJIT::ObjectFileJIT(const lldb::ModuleSP &module_sp,
   }
 }
 
-ObjectFileJIT::~ObjectFileJIT() {}
+ObjectFileJIT::~ObjectFileJIT() = default;
 
 bool ObjectFileJIT::ParseHeader() {
   // JIT code is never in a file, nor is it required to have any header
@@ -111,22 +106,10 @@ uint32_t ObjectFileJIT::GetAddressByteSize() const {
   return m_data.GetAddressByteSize();
 }
 
-Symtab *ObjectFileJIT::GetSymtab() {
-  ModuleSP module_sp(GetModule());
-  if (module_sp) {
-    std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
-    if (m_symtab_up == NULL) {
-      m_symtab_up.reset(new Symtab(this));
-      std::lock_guard<std::recursive_mutex> symtab_guard(
-          m_symtab_up->GetMutex());
-      ObjectFileJITDelegateSP delegate_sp(m_delegate_wp.lock());
-      if (delegate_sp)
-        delegate_sp->PopulateSymtab(this, *m_symtab_up);
-      // TODO: get symbols from delegate
-      m_symtab_up->Finalize();
-    }
-  }
-  return m_symtab_up.get();
+void ObjectFileJIT::ParseSymtab(Symtab &symtab) {
+  ObjectFileJITDelegateSP delegate_sp(m_delegate_wp.lock());
+  if (delegate_sp)
+    delegate_sp->PopulateSymtab(this, symtab);
 }
 
 bool ObjectFileJIT::IsStripped() {
@@ -135,7 +118,7 @@ bool ObjectFileJIT::IsStripped() {
 
 void ObjectFileJIT::CreateSections(SectionList &unified_section_list) {
   if (!m_sections_up) {
-    m_sections_up.reset(new SectionList());
+    m_sections_up = std::make_unique<SectionList>();
     ObjectFileJITDelegateSP delegate_sp(m_delegate_wp.lock());
     if (delegate_sp) {
       delegate_sp->PopulateSectionList(this, *m_sections_up);
@@ -159,10 +142,11 @@ void ObjectFileJIT::Dump(Stream *s) {
 
     SectionList *sections = GetSectionList();
     if (sections)
-      sections->Dump(s, NULL, true, UINT32_MAX);
+      sections->Dump(s->AsRawOstream(), s->GetIndentLevel(), nullptr, true,
+                     UINT32_MAX);
 
     if (m_symtab_up)
-      m_symtab_up->Dump(s, NULL, eSortOrderNone);
+      m_symtab_up->Dump(s, nullptr, eSortOrderNone);
   }
 }
 
@@ -193,13 +177,6 @@ ArchSpec ObjectFileJIT::GetArchitecture() {
     return delegate_sp->GetArchitecture();
   return ArchSpec();
 }
-
-// PluginInterface protocol
-lldb_private::ConstString ObjectFileJIT::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t ObjectFileJIT::GetPluginVersion() { return 1; }
 
 bool ObjectFileJIT::SetLoadAddress(Target &target, lldb::addr_t value,
                                    bool value_is_offset) {
@@ -246,14 +223,12 @@ size_t ObjectFileJIT::ReadSectionData(
   if (section->GetFileSize()) {
     const void *src = (void *)(uintptr_t)section->GetFileOffset();
 
-    DataBufferSP data_sp(
-        new lldb_private::DataBufferHeap(src, section->GetFileSize()));
-    if (data_sp) {
-      section_data.SetData(data_sp, 0, data_sp->GetByteSize());
-      section_data.SetByteOrder(GetByteOrder());
-      section_data.SetAddressByteSize(GetAddressByteSize());
-      return section_data.GetByteSize();
-    }
+    DataBufferSP data_sp =
+        std::make_shared<DataBufferHeap>(src, section->GetFileSize());
+    section_data.SetData(data_sp, 0, data_sp->GetByteSize());
+    section_data.SetByteOrder(GetByteOrder());
+    section_data.SetAddressByteSize(GetAddressByteSize());
+    return section_data.GetByteSize();
   }
   section_data.Clear();
   return 0;

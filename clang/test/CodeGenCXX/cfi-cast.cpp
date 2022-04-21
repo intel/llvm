@@ -23,7 +23,7 @@ void abp(A *a) {
   // CHECK-DCAST-NEXT: br i1 [[P]], label %[[CONTBB:[^ ]*]], label %[[TRAPBB:[^ ,]*]]
 
   // CHECK-DCAST: [[TRAPBB]]
-  // CHECK-DCAST-NEXT: call void @llvm.trap()
+  // CHECK-DCAST-NEXT: call void @llvm.ubsantrap(i8 2)
   // CHECK-DCAST-NEXT: unreachable
 
   // CHECK-DCAST: [[CONTBB]]
@@ -37,7 +37,7 @@ void abr(A &a) {
   // CHECK-DCAST-NEXT: br i1 [[P]], label %[[CONTBB:[^ ]*]], label %[[TRAPBB:[^ ,]*]]
 
   // CHECK-DCAST: [[TRAPBB]]
-  // CHECK-DCAST-NEXT: call void @llvm.trap()
+  // CHECK-DCAST-NEXT: call void @llvm.ubsantrap(i8 2)
   // CHECK-DCAST-NEXT: unreachable
 
   // CHECK-DCAST: [[CONTBB]]
@@ -51,7 +51,7 @@ void abrr(A &&a) {
   // CHECK-DCAST-NEXT: br i1 [[P]], label %[[CONTBB:[^ ]*]], label %[[TRAPBB:[^ ,]*]]
 
   // CHECK-DCAST: [[TRAPBB]]
-  // CHECK-DCAST-NEXT: call void @llvm.trap()
+  // CHECK-DCAST-NEXT: call void @llvm.ubsantrap(i8 2)
   // CHECK-DCAST-NEXT: unreachable
 
   // CHECK-DCAST: [[CONTBB]]
@@ -65,7 +65,7 @@ void vbp(void *p) {
   // CHECK-UCAST-NEXT: br i1 [[P]], label %[[CONTBB:[^ ]*]], label %[[TRAPBB:[^ ,]*]]
 
   // CHECK-UCAST: [[TRAPBB]]
-  // CHECK-UCAST-NEXT: call void @llvm.trap()
+  // CHECK-UCAST-NEXT: call void @llvm.ubsantrap(i8 2)
   // CHECK-UCAST-NEXT: unreachable
 
   // CHECK-UCAST: [[CONTBB]]
@@ -79,7 +79,7 @@ void vbr(char &r) {
   // CHECK-UCAST-NEXT: br i1 [[P]], label %[[CONTBB:[^ ]*]], label %[[TRAPBB:[^ ,]*]]
 
   // CHECK-UCAST: [[TRAPBB]]
-  // CHECK-UCAST-NEXT: call void @llvm.trap()
+  // CHECK-UCAST-NEXT: call void @llvm.ubsantrap(i8 2)
   // CHECK-UCAST-NEXT: unreachable
 
   // CHECK-UCAST: [[CONTBB]]
@@ -93,7 +93,7 @@ void vbrr(char &&r) {
   // CHECK-UCAST-NEXT: br i1 [[P]], label %[[CONTBB:[^ ]*]], label %[[TRAPBB:[^ ,]*]]
 
   // CHECK-UCAST: [[TRAPBB]]
-  // CHECK-UCAST-NEXT: call void @llvm.trap()
+  // CHECK-UCAST-NEXT: call void @llvm.ubsantrap(i8 2)
   // CHECK-UCAST-NEXT: unreachable
 
   // CHECK-UCAST: [[CONTBB]]
@@ -125,8 +125,8 @@ void bcp_call(B *p) {
   ((C *)p)->f();
 }
 
-// CHECK-UCAST-LABEL: define hidden i32 @_Z6a_callP1A
-// CHECK-UCAST-STRICT-LABEL: define hidden i32 @_Z6a_callP1A
+// CHECK-UCAST-LABEL: define hidden noundef i32 @_Z6a_callP1A
+// CHECK-UCAST-STRICT-LABEL: define hidden noundef i32 @_Z6a_callP1A
 int a_call(A *a) {
   // CHECK-UCAST-NOT: @llvm.type.test
   // CHECK-UCAST-STRICT-NOT: @llvm.type.test

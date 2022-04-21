@@ -1,4 +1,4 @@
-//===-- RegisterContextPOSIXCore_s390x.cpp ----------------------*- C++ -*-===//
+//===-- RegisterContextPOSIXCore_s390x.cpp --------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -33,7 +33,7 @@ RegisterContextCorePOSIX_s390x::RegisterContextCorePOSIX_s390x(
   m_fpr.SetByteOrder(fpregset.GetByteOrder());
 }
 
-RegisterContextCorePOSIX_s390x::~RegisterContextCorePOSIX_s390x() {}
+RegisterContextCorePOSIX_s390x::~RegisterContextCorePOSIX_s390x() = default;
 
 bool RegisterContextCorePOSIX_s390x::ReadGPR() { return true; }
 

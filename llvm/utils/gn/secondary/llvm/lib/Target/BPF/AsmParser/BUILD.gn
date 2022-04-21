@@ -17,7 +17,5 @@ static_library("AsmParser") {
     "//llvm/lib/Target/BPF/TargetInfo",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "BPFAsmParser.cpp",
-  ]
+  sources = [ "BPFAsmParser.cpp" ]
 }

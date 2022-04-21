@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: locale.en_US.UTF-8
+// XFAIL: LIBCXX-WINDOWS-FIXME
+// XFAIL: LIBCXX-AIX-FIXME
+// XFAIL: libcpp-has-no-wide-characters
 
 // <locale>
 
@@ -21,6 +24,7 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 int main(int, char**)

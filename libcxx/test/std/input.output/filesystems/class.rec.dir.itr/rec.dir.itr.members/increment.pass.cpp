@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,14 +15,14 @@
 // recursive_directory_iterator& operator++();
 // recursive_directory_iterator& increment(error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -42,9 +42,10 @@ TEST_CASE(test_increment_signatures)
 
 TEST_CASE(test_prefix_increment)
 {
-    const path testDir = StaticEnv::Dir;
-    const std::set<path> dir_contents(std::begin(StaticEnv::RecDirIterationList),
-                                      std::end(  StaticEnv::RecDirIterationList));
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
+    const std::set<path> dir_contents(static_env.RecDirIterationList.begin(),
+                                      static_env.RecDirIterationList.end());
     const recursive_directory_iterator endIt{};
 
     std::error_code ec;
@@ -65,9 +66,10 @@ TEST_CASE(test_prefix_increment)
 
 TEST_CASE(test_postfix_increment)
 {
-    const path testDir = StaticEnv::Dir;
-    const std::set<path> dir_contents(std::begin(StaticEnv::RecDirIterationList),
-                                      std::end(  StaticEnv::RecDirIterationList));
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
+    const std::set<path> dir_contents(static_env.RecDirIterationList.begin(),
+                                      static_env.RecDirIterationList.end());
     const recursive_directory_iterator endIt{};
 
     std::error_code ec;
@@ -88,9 +90,10 @@ TEST_CASE(test_postfix_increment)
 
 TEST_CASE(test_increment_method)
 {
-    const path testDir = StaticEnv::Dir;
-    const std::set<path> dir_contents(std::begin(StaticEnv::RecDirIterationList),
-                                      std::end(  StaticEnv::RecDirIterationList));
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
+    const std::set<path> dir_contents(static_env.RecDirIterationList.begin(),
+                                      static_env.RecDirIterationList.end());
     const recursive_directory_iterator endIt{};
 
     std::error_code ec;
@@ -112,10 +115,11 @@ TEST_CASE(test_increment_method)
 
 TEST_CASE(test_follow_symlinks)
 {
-    const path testDir = StaticEnv::Dir;
-    auto const& IterList = StaticEnv::RecDirFollowSymlinksIterationList;
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
+    auto const& IterList = static_env.RecDirFollowSymlinksIterationList;
 
-    const std::set<path> dir_contents(std::begin(IterList), std::end(IterList));
+    const std::set<path> dir_contents(IterList.begin(), IterList.end());
     const recursive_directory_iterator endIt{};
 
     std::error_code ec;
@@ -136,6 +140,9 @@ TEST_CASE(test_follow_symlinks)
     TEST_CHECK(it == endIt);
 }
 
+// Windows doesn't support setting perms::none to trigger failures
+// reading directories.
+#ifndef TEST_WIN_NO_FILESYSTEM_PERMS_NONE
 TEST_CASE(access_denied_on_recursion_test_case)
 {
     using namespace fs;
@@ -256,8 +263,7 @@ TEST_CASE(test_PR35078)
                 perms::group_exec|perms::owner_exec|perms::others_exec,
                 perm_options::remove);
 
-    const std::error_code eacess_ec =
-        std::make_error_code(std::errc::permission_denied);
+    const std::errc eacess = std::errc::permission_denied;
     std::error_code ec = GetTestEC();
 
     const recursive_directory_iterator endIt;
@@ -283,7 +289,7 @@ TEST_CASE(test_PR35078)
       ec = GetTestEC();
       it.increment(ec);
       TEST_CHECK(ec);
-      TEST_CHECK(ec == eacess_ec);
+      TEST_CHECK(ErrorIs(ec, eacess));
       TEST_CHECK(it == endIt);
     }
     {
@@ -310,7 +316,7 @@ TEST_CASE(test_PR35078)
       ExceptionChecker Checker(std::errc::permission_denied,
                                "recursive_directory_iterator::operator++()",
                                format_string("attempting recursion into \"%s\"",
-                                             nestedDir.native()));
+                                             nestedDir.string().c_str()));
       TEST_CHECK_THROW_RESULT(filesystem_error, Checker, ++it);
     }
 }
@@ -326,7 +332,7 @@ TEST_CASE(test_PR35078_with_symlink)
         env.create_file("dir1/file1"),
         env.create_dir("sym_dir"),
         env.create_dir("sym_dir/nested_sym_dir"),
-        env.create_symlink("sym_dir/nested_sym_dir", "dir1/dir2"),
+        env.create_directory_symlink("sym_dir/nested_sym_dir", "dir1/dir2"),
         env.create_dir("sym_dir/dir1"),
         env.create_dir("sym_dir/dir1/dir2"),
 
@@ -342,8 +348,7 @@ TEST_CASE(test_PR35078_with_symlink)
                 perms::group_exec|perms::owner_exec|perms::others_exec,
                 perm_options::remove);
 
-    const std::error_code eacess_ec =
-        std::make_error_code(std::errc::permission_denied);
+    const std::errc eacess = std::errc::permission_denied;
     std::error_code ec = GetTestEC();
 
     const recursive_directory_iterator endIt;
@@ -393,7 +398,7 @@ TEST_CASE(test_PR35078_with_symlink)
         }
       } else {
         TEST_CHECK(ec);
-        TEST_CHECK(ec == eacess_ec);
+        TEST_CHECK(ErrorIs(ec, eacess));
         TEST_CHECK(it == endIt);
       }
     }
@@ -426,8 +431,7 @@ TEST_CASE(test_PR35078_with_symlink_file)
                 perms::group_exec|perms::owner_exec|perms::others_exec,
                 perm_options::remove);
 
-    const std::error_code eacess_ec =
-        std::make_error_code(std::errc::permission_denied);
+    const std::errc eacess = std::errc::permission_denied;
     std::error_code ec = GetTestEC();
 
     const recursive_directory_iterator EndIt;
@@ -484,11 +488,12 @@ TEST_CASE(test_PR35078_with_symlink_file)
         TEST_CHECK(it == EndIt);
       } else {
         TEST_CHECK(ec);
-        TEST_CHECK(ec == eacess_ec);
+        TEST_CHECK(ErrorIs(ec, eacess));
         TEST_CHECK(it == EndIt);
       }
     }
 }
+#endif
 
 
 TEST_SUITE_END()

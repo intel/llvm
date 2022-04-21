@@ -6,7 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// Address Sanitizer doesn't instrument weak symbols on Linux. When a key
+// function is defined for bad_function_call's vtable, its typeinfo and vtable
+// will be defined as strong symbols in the library and weak symbols in other
+// translation units. Only the strong symbol will be instrumented, increasing
+// its size (due to the redzone) and leading to a serious ODR violation
+// resulting in a crash.
+// Some relevant bugs:
+// https://github.com/google/sanitizers/issues/1017
+// https://github.com/google/sanitizers/issues/619
+// https://github.com/google/sanitizers/issues/398
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=68016
+// UNSUPPORTED: c++03, asan
 
 // <functional>
 
@@ -15,11 +26,13 @@
 // template<Returnable R, CopyConstructible Fn, CopyConstructible... Types>
 //   unspecified bind(Fn, Types...);
 
-// https://bugs.llvm.org/show_bug.cgi?id=16385
+// https://llvm.org/PR16385
 
 #include <functional>
 #include <cmath>
 #include <cassert>
+
+#include "test_macros.h"
 
 float _pow(float a, float b)
 {

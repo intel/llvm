@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ConstString_h_
-#define liblldb_ConstString_h_
+#ifndef LLDB_UTILITY_CONSTSTRING_H
+#define LLDB_UTILITY_CONSTSTRING_H
 
+#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/YAMLTraits.h"
 
-#include <stddef.h>
+#include <cstddef>
 
 namespace lldb_private {
 class Stream;
@@ -40,15 +42,7 @@ public:
   /// Default constructor
   ///
   /// Initializes the string to an empty string.
-  ConstString() : m_string(nullptr) {}
-
-  /// Copy constructor
-  ///
-  /// Copies the string value in \a rhs into this object.
-  ///
-  /// \param[in] rhs
-  ///     Another string object to copy.
-  ConstString(const ConstString &rhs) : m_string(rhs.m_string) {}
+  ConstString() = default;
 
   explicit ConstString(const llvm::StringRef &s);
 
@@ -84,12 +78,6 @@ public:
   ///     from \a cstr.
   explicit ConstString(const char *cstr, size_t max_cstr_len);
 
-  /// Destructor
-  ///
-  /// Since constant string values are currently not reference counted, there
-  /// isn't much to do here.
-  ~ConstString() = default;
-
   /// C string equality binary predicate function object for ConstString
   /// objects.
   struct StringIsEqual {
@@ -122,20 +110,6 @@ public:
   ///     false otherwise.
   explicit operator bool() const { return !IsEmpty(); }
 
-  /// Assignment operator
-  ///
-  /// Assigns the string in this object with the value from \a rhs.
-  ///
-  /// \param[in] rhs
-  ///     Another string object to copy into this object.
-  ///
-  /// \return
-  ///     A const reference to this object.
-  ConstString operator=(ConstString rhs) {
-    m_string = rhs.m_string;
-    return *this;
-  }
-
   /// Equal to operator
   ///
   /// Returns true if this string is equal to the string in \a rhs. This
@@ -146,8 +120,8 @@ public:
   ///     Another string object to compare this object to.
   ///
   /// \return
-  ///     \li \b true if this object is equal to \a rhs.
-  ///     \li \b false if this object is not equal to \a rhs.
+  ///     true if this object is equal to \a rhs.
+  ///     false if this object is not equal to \a rhs.
   bool operator==(ConstString rhs) const {
     // We can do a pointer compare to compare these strings since they must
     // come from the same pool in order to be equal.
@@ -165,8 +139,8 @@ public:
   ///     Another string object to compare this object to.
   ///
   /// \return
-  ///     \li \b true if this object is equal to \a rhs.
-  ///     \li \b false if this object is not equal to \a rhs.
+  ///     \b true if this object is equal to \a rhs.
+  ///     \b false if this object is not equal to \a rhs.
   bool operator==(const char *rhs) const {
     // ConstString differentiates between empty strings and nullptr strings, but
     // StringRef doesn't. Therefore we have to do this check manually now.
@@ -188,11 +162,9 @@ public:
   ///     Another string object to compare this object to.
   ///
   /// \return
-  ///     \li \b true if this object is not equal to \a rhs.
-  ///     \li \b false if this object is equal to \a rhs.
-  bool operator!=(ConstString rhs) const {
-    return m_string != rhs.m_string;
-  }
+  ///     \b true if this object is not equal to \a rhs.
+  ///     \b false if this object is equal to \a rhs.
+  bool operator!=(ConstString rhs) const { return m_string != rhs.m_string; }
 
   /// Not equal to operator against a non-ConstString value.
   ///
@@ -204,9 +176,7 @@ public:
   /// \param[in] rhs
   ///     Another string object to compare this object to.
   ///
-  /// \return
-  ///     \li \b true if this object is not equal to \a rhs.
-  ///     \li \b false if this object is equal to \a rhs.
+  /// \return \b true if this object is not equal to \a rhs, false otherwise.
   bool operator!=(const char *rhs) const { return !(*this == rhs); }
 
   bool operator<(ConstString rhs) const;
@@ -218,8 +188,7 @@ public:
   ///
   /// If \a value_if_empty is nullptr, then nullptr will be returned.
   ///
-  /// \return
-  ///     Returns \a value_if_empty if the string is empty, otherwise
+  /// \return Returns \a value_if_empty if the string is empty, otherwise
   ///     the C string value contained in this object.
   const char *AsCString(const char *value_if_empty = nullptr) const {
     return (IsEmpty() ? value_if_empty : m_string);
@@ -269,7 +238,7 @@ public:
   /// in a pointer comparison since all strings are in a uniqued in a global
   /// string pool.
   ///
-  /// \param[in] rhs
+  /// \param[in] lhs
   ///     The Left Hand Side const ConstString object reference.
   ///
   /// \param[in] rhs
@@ -279,9 +248,7 @@ public:
   ///     Case sensitivity. If true, case sensitive equality
   ///     will be tested, otherwise character case will be ignored
   ///
-  /// \return
-  ///     \li \b true if this object is equal to \a rhs.
-  ///     \li \b false if this object is not equal to \a rhs.
+  /// \return \b true if this object is equal to \a rhs, \b false otherwise.
   static bool Equals(ConstString lhs, ConstString rhs,
                      const bool case_sensitive = true);
 
@@ -305,10 +272,7 @@ public:
   ///     Case sensitivity of compare. If true, case sensitive compare
   ///     will be performed, otherwise character case will be ignored
   ///
-  /// \return
-  ///     \li -1 if lhs < rhs
-  ///     \li 0 if lhs == rhs
-  ///     \li 1 if lhs > rhs
+  /// \return -1 if lhs < rhs, 0 if lhs == rhs, 1 if lhs > rhs
   static int Compare(ConstString lhs, ConstString rhs,
                      const bool case_sensitive = true);
 
@@ -335,15 +299,15 @@ public:
   /// Test for empty string.
   ///
   /// \return
-  ///     \li \b true if the contained string is empty.
-  ///     \li \b false if the contained string is not empty.
+  ///     \b true if the contained string is empty.
+  ///     \b false if the contained string is not empty.
   bool IsEmpty() const { return m_string == nullptr || m_string[0] == '\0'; }
 
   /// Test for null string.
   ///
   /// \return
-  ///     \li \b true if there is no string associated with this instance.
-  ///     \li \b false if there is a string associated with this instance.
+  ///     \b true if there is no string associated with this instance.
+  ///     \b false if there is a string associated with this instance.
   bool IsNull() const { return m_string == nullptr; }
 
   /// Set the C string value.
@@ -430,23 +394,28 @@ public:
   ///
   /// \return
   ///     The number of bytes that this object occupies in memory.
-  ///
-  /// \see ConstString::StaticMemorySize ()
   size_t MemorySize() const { return sizeof(ConstString); }
 
-  /// Get the size in bytes of the current global string pool.
-  ///
-  /// Reports the size in bytes of all shared C string values, containers and
-  /// any other values as a byte size for the entire string pool.
-  ///
-  /// \return
-  ///     The number of bytes that the global string pool occupies
-  ///     in memory.
-  static size_t StaticMemorySize();
+  struct MemoryStats {
+    size_t GetBytesTotal() const { return bytes_total; }
+    size_t GetBytesUsed() const { return bytes_used; }
+    size_t GetBytesUnused() const { return bytes_total - bytes_used; }
+    size_t bytes_total = 0;
+    size_t bytes_used = 0;
+  };
+
+  static MemoryStats GetMemoryStats();
 
 protected:
-  // Member variables
-  const char *m_string;
+  template <typename T, typename Enable> friend struct ::llvm::DenseMapInfo;
+  /// Only used by DenseMapInfo.
+  static ConstString FromStringPoolPointer(const char *ptr) {
+    ConstString s;
+    s.m_string = ptr;
+    return s;
+  };
+
+  const char *m_string = nullptr;
 };
 
 /// Stream the string value \a str to the stream \a s
@@ -459,6 +428,42 @@ template <> struct format_provider<lldb_private::ConstString> {
   static void format(const lldb_private::ConstString &CS, llvm::raw_ostream &OS,
                      llvm::StringRef Options);
 };
-}
 
-#endif // liblldb_ConstString_h_
+/// DenseMapInfo implementation.
+/// \{
+template <> struct DenseMapInfo<lldb_private::ConstString> {
+  static inline lldb_private::ConstString getEmptyKey() {
+    return lldb_private::ConstString::FromStringPoolPointer(
+        DenseMapInfo<const char *>::getEmptyKey());
+  }
+  static inline lldb_private::ConstString getTombstoneKey() {
+    return lldb_private::ConstString::FromStringPoolPointer(
+        DenseMapInfo<const char *>::getTombstoneKey());
+  }
+  static unsigned getHashValue(lldb_private::ConstString val) {
+    return DenseMapInfo<const char *>::getHashValue(val.m_string);
+  }
+  static bool isEqual(lldb_private::ConstString LHS,
+                      lldb_private::ConstString RHS) {
+    return LHS == RHS;
+  }
+};
+/// \}
+
+namespace yaml {
+template <> struct ScalarTraits<lldb_private::ConstString> {
+  static void output(const lldb_private::ConstString &, void *, raw_ostream &);
+  static StringRef input(StringRef, void *, lldb_private::ConstString &);
+  static QuotingType mustQuote(StringRef S) { return QuotingType::Double; }
+};
+} // namespace yaml
+
+inline raw_ostream &operator<<(raw_ostream &os, lldb_private::ConstString s) {
+  os << s.GetStringRef();
+  return os;
+}
+} // namespace llvm
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(lldb_private::ConstString)
+
+#endif // LLDB_UTILITY_CONSTSTRING_H

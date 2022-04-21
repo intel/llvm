@@ -1,4 +1,4 @@
-; RUN: opt < %s -globalopt -S | FileCheck %s
+; RUN: opt < %s -passes=globalopt -S | FileCheck %s
 
 ; Check that naked functions don't get marked with fast calling conventions
 
@@ -18,6 +18,6 @@ entry:
   unreachable
 }
 
-; CHECK: define internal i32 @foo(i32*)
+; CHECK: define internal i32 @foo(i32* %0)
 
 attributes #0 = { naked }

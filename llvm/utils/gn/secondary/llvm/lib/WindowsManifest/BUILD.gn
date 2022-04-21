@@ -5,7 +5,5 @@ static_library("WindowsManifest") {
     "//llvm/lib/Support",
     "//llvm/utils/gn/build/libs/xml",
   ]
-  sources = [
-    "WindowsManifestMerger.cpp",
-  ]
+  sources = [ "WindowsManifestMerger.cpp" ]
 }

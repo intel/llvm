@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_StackFrame_h_
-#define liblldb_StackFrame_h_
+#ifndef LLDB_TARGET_STACKFRAME_H
+#define LLDB_TARGET_STACKFRAME_H
 
 #include <memory>
 #include <mutex>
@@ -99,8 +99,6 @@ public:
   /// \param [in] pc
   ///   The current pc value of this stack frame.
   ///
-  /// \param [in] frame_kind
-  ///
   /// \param [in] sc_ptr
   ///   Optionally seed the StackFrame with the SymbolContext information that
   ///   has
@@ -108,17 +106,19 @@ public:
   StackFrame(const lldb::ThreadSP &thread_sp, lldb::user_id_t frame_idx,
              lldb::user_id_t concrete_frame_idx, lldb::addr_t cfa,
              bool cfa_is_valid, lldb::addr_t pc, Kind frame_kind,
+             bool behaves_like_zeroth_frame, const SymbolContext *sc_ptr);
+
+  StackFrame(const lldb::ThreadSP &thread_sp, lldb::user_id_t frame_idx,
+             lldb::user_id_t concrete_frame_idx,
+             const lldb::RegisterContextSP &reg_context_sp, lldb::addr_t cfa,
+             lldb::addr_t pc, bool behaves_like_zeroth_frame,
              const SymbolContext *sc_ptr);
 
   StackFrame(const lldb::ThreadSP &thread_sp, lldb::user_id_t frame_idx,
              lldb::user_id_t concrete_frame_idx,
              const lldb::RegisterContextSP &reg_context_sp, lldb::addr_t cfa,
-             lldb::addr_t pc, const SymbolContext *sc_ptr);
-
-  StackFrame(const lldb::ThreadSP &thread_sp, lldb::user_id_t frame_idx,
-             lldb::user_id_t concrete_frame_idx,
-             const lldb::RegisterContextSP &reg_context_sp, lldb::addr_t cfa,
-             const Address &pc, const SymbolContext *sc_ptr);
+             const Address &pc, bool behaves_like_zeroth_frame,
+             const SymbolContext *sc_ptr);
 
   ~StackFrame() override;
 
@@ -133,6 +133,24 @@ public:
   /// \return
   ///   The Address object set to the current PC value.
   const Address &GetFrameCodeAddress();
+
+  /// Get the current code Address suitable for symbolication,
+  /// may not be the same as GetFrameCodeAddress().
+  ///
+  /// For a frame in the middle of the stack, the return-pc is the
+  /// current code address, but for symbolication purposes the
+  /// return address after a noreturn call may point to the next
+  /// function, a DWARF location list entry that is a completely
+  /// different code path, or the wrong source line.
+  ///
+  /// The address returned should be used for symbolication (source line,
+  /// block, function, DWARF location entry selection) but should NOT
+  /// be shown to the user.  It may not point to an actual instruction
+  /// boundary.
+  ///
+  /// \return
+  ///   The Address object set to the current PC value.
+  Address GetFrameCodeAddressForSymbolication();
 
   /// Change the pc value for a given thread.
   ///
@@ -153,7 +171,7 @@ public:
   /// functions looking up symbolic information for a given pc value multiple
   /// times.
   ///
-  /// \params [in] resolve_scope
+  /// \param [in] resolve_scope
   ///   Flags from the SymbolContextItem enumerated type which specify what
   ///   type of symbol context is needed by this caller.
   ///
@@ -287,18 +305,18 @@ public:
       llvm::StringRef var_expr, lldb::DynamicValueType use_dynamic,
       uint32_t options, lldb::VariableSP &var_sp, Status &error);
 
-  /// Determine whether this StackFrame has debug information available or not
+  /// Determine whether this StackFrame has debug information available or not.
   ///
   /// \return
-  //    true if debug information is available for this frame (function,
-  //    compilation unit, block, etc.)
+  ///    true if debug information is available for this frame (function,
+  ///    compilation unit, block, etc.)
   bool HasDebugInformation();
 
   /// Return the disassembly for the instructions of this StackFrame's
   /// function as a single C string.
   ///
   /// \return
-  //    C string with the assembly instructions for this function.
+  ///    C string with the assembly instructions for this function.
   const char *Disassemble();
 
   /// Print a description for this frame using the frame-format formatter
@@ -390,35 +408,19 @@ public:
 
   /// Create a ValueObject for a given Variable in this StackFrame.
   ///
-  /// \params [in] variable_sp
+  /// \param [in] variable_sp
   ///   The Variable to base this ValueObject on
   ///
-  /// \params [in] use_dynamic
+  /// \param [in] use_dynamic
   ///     Whether the correct dynamic type of the variable should be
   ///     determined before creating the ValueObject, or if the static type
   ///     is sufficient.  One of the DynamicValueType enumerated values.
   ///
   /// \return
-  //    A ValueObject for this variable.
+  ///     A ValueObject for this variable.
   lldb::ValueObjectSP
   GetValueObjectForFrameVariable(const lldb::VariableSP &variable_sp,
                                  lldb::DynamicValueType use_dynamic);
-
-  /// Add an arbitrary Variable object (e.g. one that specifics a global or
-  /// static) to a StackFrame's list of ValueObjects.
-  ///
-  /// \params [in] variable_sp
-  ///   The Variable to base this ValueObject on
-  ///
-  /// \params [in] use_dynamic
-  ///     Whether the correct dynamic type of the variable should be
-  ///     determined before creating the ValueObject, or if the static type
-  ///     is sufficient.  One of the DynamicValueType enumerated values.
-  ///
-  /// \return
-  //    A ValueObject for this variable.
-  lldb::ValueObjectSP TrackGlobalVariable(const lldb::VariableSP &variable_sp,
-                                          lldb::DynamicValueType use_dynamic);
 
   /// Query this frame to determine what the default language should be when
   /// parsing expressions given the execution context.
@@ -435,7 +437,7 @@ public:
   /// the current instruction.  The ExpressionPath should indicate how to get
   /// to this value using "frame variable."
   ///
-  /// \params [in] addr
+  /// \param [in] addr
   ///   The raw address.
   ///
   /// \return
@@ -446,10 +448,10 @@ public:
   /// given register plus an offset.  The ExpressionPath should indicate how
   /// to get to this value using "frame variable."
   ///
-  /// \params [in] reg
+  /// \param [in] reg
   ///   The name of the register.
   ///
-  /// \params [in] offset
+  /// \param [in] offset
   ///   The offset from the register.  Particularly important for sp...
   ///
   /// \return
@@ -463,7 +465,7 @@ public:
   /// PC in the stack frame and traverse through all parent blocks stopping at
   /// inlined function boundaries.
   ///
-  /// \params [in] name
+  /// \param [in] name
   ///   The name of the variable.
   ///
   /// \return
@@ -511,6 +513,12 @@ private:
   bool m_cfa_is_valid; // Does this frame have a CFA?  Different from CFA ==
                        // LLDB_INVALID_ADDRESS
   Kind m_stack_frame_kind;
+
+  // Whether this frame behaves like the zeroth frame, in the sense
+  // that its pc value might not immediately follow a call (and thus might
+  // be the first address of its function). True for actual frame zero as
+  // well as any other frame with the same trait.
+  bool m_behaves_like_zeroth_frame;
   lldb::VariableListSP m_variable_list_sp;
   ValueObjectList m_variable_list_value_objects; // Value objects for each
                                                  // variable in
@@ -519,9 +527,10 @@ private:
   StreamString m_disassembly;
   std::recursive_mutex m_mutex;
 
-  DISALLOW_COPY_AND_ASSIGN(StackFrame);
+  StackFrame(const StackFrame &) = delete;
+  const StackFrame &operator=(const StackFrame &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_StackFrame_h_
+#endif // LLDB_TARGET_STACKFRAME_H

@@ -18,17 +18,14 @@ namespace modernize {
 
 UseTransparentFunctorsCheck::UseTransparentFunctorsCheck(
     StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context), SafeMode(Options.get("SafeMode", 0)) {}
+    : ClangTidyCheck(Name, Context), SafeMode(Options.get("SafeMode", false)) {}
 
 void UseTransparentFunctorsCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "SafeMode", SafeMode ? 1 : 0);
+  Options.store(Opts, "SafeMode", SafeMode);
 }
 
 void UseTransparentFunctorsCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus14)
-    return;
-
   const auto TransparentFunctors =
       classTemplateSpecializationDecl(
           unless(hasAnyTemplateArgument(refersToType(voidType()))),
@@ -67,7 +64,7 @@ void UseTransparentFunctorsCheck::registerMatchers(MatchFinder *Finder) {
                      this);
 }
 
-static const StringRef Message = "prefer transparent functors '%0'";
+static const StringRef Message = "prefer transparent functors '%0<>'";
 
 template <typename T> static T getInnerTypeLocAs(TypeLoc Loc) {
   T Result;
@@ -84,8 +81,7 @@ void UseTransparentFunctorsCheck::check(
       Result.Nodes.getNodeAs<ClassTemplateSpecializationDecl>("FunctorClass");
   if (const auto *FuncInst =
           Result.Nodes.getNodeAs<CXXConstructExpr>("FuncInst")) {
-    diag(FuncInst->getBeginLoc(), Message)
-        << (FuncClass->getName() + "<>").str();
+    diag(FuncInst->getBeginLoc(), Message) << FuncClass->getName();
     return;
   }
 
@@ -122,7 +118,7 @@ void UseTransparentFunctorsCheck::check(
   SourceLocation ReportLoc = FunctorLoc.getLocation();
   if (ReportLoc.isInvalid())
     return;
-  diag(ReportLoc, Message) << (FuncClass->getName() + "<>").str()
+  diag(ReportLoc, Message) << FuncClass->getName()
                            << FixItHint::CreateRemoval(
                                   FunctorTypeLoc.getArgLoc(0).getSourceRange());
 }

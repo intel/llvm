@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TargetInfo/NVPTXTargetInfo.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 using namespace llvm;
 
 Target &llvm::getTheNVPTXTarget32() {
@@ -19,7 +19,7 @@ Target &llvm::getTheNVPTXTarget64() {
   return TheNVPTXTarget64;
 }
 
-extern "C" void LLVMInitializeNVPTXTargetInfo() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTargetInfo() {
   RegisterTarget<Triple::nvptx> X(getTheNVPTXTarget32(), "nvptx",
                                   "NVIDIA PTX 32-bit", "NVPTX");
   RegisterTarget<Triple::nvptx64> Y(getTheNVPTXTarget64(), "nvptx64",

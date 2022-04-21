@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <future>
 
@@ -18,6 +18,9 @@
 
 #include <future>
 #include <cassert>
+
+#include "make_test_thread.h"
+#include "test_macros.h"
 
 void func(std::promise<int> p)
 {
@@ -30,7 +33,7 @@ int main(int, char**)
         typedef int T;
         std::promise<T> p;
         std::future<T> f = p.get_future();
-        std::thread(func, std::move(p)).detach();
+        support::make_test_thread(func, std::move(p)).detach();
         try
         {
             f.get();

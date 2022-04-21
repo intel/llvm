@@ -9,7 +9,6 @@ add_lldb_library(lldbPluginAppleObjCRuntime PLUGIN
   AppleObjCTypeEncodingParser.cpp
 
   LINK_LIBS
-    clangAST
     lldbBreakpoint
     lldbCore
     lldbExpression
@@ -19,6 +18,10 @@ add_lldb_library(lldbPluginAppleObjCRuntime PLUGIN
     lldbTarget
     lldbUtility
     lldbPluginExpressionParserClang
+    lldbPluginCPPRuntime
+    lldbPluginTypeSystemClang
+  CLANG_LIBS
+    clangAST
   LINK_COMPONENTS
     Support
   )

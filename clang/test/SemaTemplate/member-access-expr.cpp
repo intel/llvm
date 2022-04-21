@@ -156,7 +156,18 @@ namespace test6 {
     void get(B **ptr) {
       // It's okay if at some point we figure out how to diagnose this
       // at instantiation time.
-      *ptr = field;
+      *ptr = field; // expected-error {{incompatible pointer types assigning to 'test6::B *' from 'test6::A *'}}
     }
   };
+}
+
+namespace test7 {
+  struct C { void g(); };
+  template<typename T> struct A {
+    T x;
+    static void f() {
+      (x.g()); // expected-error {{invalid use of member 'x' in static member function}}
+    }
+  };
+  void h() { A<C>::f(); }
 }

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,17 +15,20 @@
 // file_status status() const;
 // file_status status(error_code const&) const noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
-#include "filesystem_test_helper.hpp"
-#include "rapid-cxx-test.hpp"
+#include "filesystem_test_helper.h"
+#include "rapid-cxx-test.h"
+
+#include "test_macros.h"
 
 TEST_SUITE(directory_entry_status_testsuite)
 
 TEST_CASE(test_basic) {
   using namespace fs;
+  static_test_env static_env;
   {
     const fs::directory_entry e("foo");
     std::error_code ec;
@@ -34,8 +37,8 @@ TEST_CASE(test_basic) {
     static_assert(noexcept(e.status()) == false, "");
     static_assert(noexcept(e.status(ec)) == true, "");
   }
-  path TestCases[] = {StaticEnv::File, StaticEnv::Dir, StaticEnv::SymlinkToFile,
-                      StaticEnv::DNE};
+  path TestCases[] = {static_env.File, static_env.Dir, static_env.SymlinkToFile,
+                      static_env.DNE};
   for (const auto& p : TestCases) {
     const directory_entry e(p);
     std::error_code pec = GetTestEC(), eec = GetTestEC(1);

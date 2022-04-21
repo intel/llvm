@@ -6,13 +6,29 @@
 //
 //===----------------------------------------------------------------------===//
 #include "TestFS.h"
+#include "GlobalCompilationDatabase.h"
 #include "URI.h"
+#include "support/Logger.h"
+#include "support/Path.h"
+#include "llvm/ADT/None.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Errc.h"
 #include "llvm/Support/Path.h"
 
 namespace clang {
 namespace clangd {
+
+namespace {
+
+// Tries to strip \p Prefix from beginning of \p Path. Returns true on success.
+// If \p Prefix doesn't match, leaves \p Path untouched and returns false.
+bool pathConsumeFront(PathRef &Path, PathRef Prefix) {
+  if (!pathStartsWith(Prefix, Path))
+    return false;
+  Path = Path.drop_front(Prefix.size());
+  return true;
+}
+} // namespace
 
 llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem>
 buildTestFS(llvm::StringMap<std::string> const &Files,
@@ -36,9 +52,13 @@ MockCompilationDatabase::MockCompilationDatabase(llvm::StringRef Directory,
   // -ffreestanding avoids implicit stdc-predef.h.
 }
 
+llvm::Optional<ProjectInfo>
+MockCompilationDatabase::getProjectInfo(PathRef File) const {
+  return ProjectInfo{std::string(Directory)};
+}
+
 llvm::Optional<tooling::CompileCommand>
-MockCompilationDatabase::getCompileCommand(PathRef File,
-                                           ProjectInfo *Project) const {
+MockCompilationDatabase::getCompileCommand(PathRef File) const {
   if (ExtraClangFlags.empty())
     return None;
 
@@ -49,16 +69,14 @@ MockCompilationDatabase::getCompileCommand(PathRef File,
   CommandLine.insert(CommandLine.begin(), "clang");
   if (RelPathPrefix.empty()) {
     // Use the absolute path in the compile command.
-    CommandLine.push_back(File);
+    CommandLine.push_back(std::string(File));
   } else {
     // Build a relative path using RelPathPrefix.
     llvm::SmallString<32> RelativeFilePath(RelPathPrefix);
     llvm::sys::path::append(RelativeFilePath, FileName);
-    CommandLine.push_back(RelativeFilePath.str());
+    CommandLine.push_back(std::string(RelativeFilePath.str()));
   }
 
-  if (Project)
-    Project->SourceRoot = Directory;
   return {tooling::CompileCommand(Directory != llvm::StringRef()
                                       ? Directory
                                       : llvm::sys::path::parent_path(File),
@@ -73,14 +91,14 @@ const char *testRoot() {
 #endif
 }
 
-std::string testPath(PathRef File) {
+std::string testPath(PathRef File, llvm::sys::path::Style Style) {
   assert(llvm::sys::path::is_relative(File) && "FileName should be relative");
 
   llvm::SmallString<32> NativeFile = File;
-  llvm::sys::path::native(NativeFile);
+  llvm::sys::path::native(NativeFile, Style);
   llvm::SmallString<32> Path;
-  llvm::sys::path::append(Path, testRoot(), NativeFile);
-  return Path.str();
+  llvm::sys::path::append(Path, Style, testRoot(), NativeFile);
+  return std::string(Path.str());
 }
 
 /// unittest: is a scheme that refers to files relative to testRoot().
@@ -93,14 +111,11 @@ public:
   llvm::Expected<std::string>
   getAbsolutePath(llvm::StringRef /*Authority*/, llvm::StringRef Body,
                   llvm::StringRef HintPath) const override {
-    if (!HintPath.startswith(testRoot()))
-      return llvm::make_error<llvm::StringError>(
-          "Hint path doesn't start with test root: " + HintPath,
-          llvm::inconvertibleErrorCode());
+    if (!HintPath.empty() && !pathStartsWith(testRoot(), HintPath))
+      return error("Hint path is not empty and doesn't start with {0}: {1}",
+                   testRoot(), HintPath);
     if (!Body.consume_front("/"))
-      return llvm::make_error<llvm::StringError>(
-          "Body of an unittest: URI must start with '/'",
-          llvm::inconvertibleErrorCode());
+      return error("Body of an unittest: URI must start with '/'");
     llvm::SmallString<16> Path(Body.begin(), Body.end());
     llvm::sys::path::native(Path);
     return testPath(Path);
@@ -108,14 +123,11 @@ public:
 
   llvm::Expected<URI>
   uriFromAbsolutePath(llvm::StringRef AbsolutePath) const override {
-    llvm::StringRef Body = AbsolutePath;
-    if (!Body.consume_front(testRoot()))
-      return llvm::make_error<llvm::StringError>(
-          AbsolutePath + "does not start with " + testRoot(),
-          llvm::inconvertibleErrorCode());
+    if (!pathConsumeFront(AbsolutePath, testRoot()))
+      return error("{0} does not start with {1}", AbsolutePath, testRoot());
 
     return URI(Scheme, /*Authority=*/"",
-               llvm::sys::path::convert_to_slash(Body));
+               llvm::sys::path::convert_to_slash(AbsolutePath));
   }
 };
 

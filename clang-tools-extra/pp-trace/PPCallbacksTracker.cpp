@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief Implementations for preprocessor tracking.
+/// Implementations for preprocessor tracking.
 ///
 /// See the header for details.
 ///
 //===----------------------------------------------------------------------===//
 
 #include "PPCallbacksTracker.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Lex/MacroArgs.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -77,6 +78,12 @@ static const char *const PragmaMessageKindStrings[] = {
   "PMK_Message", "PMK_Warning", "PMK_Error"
 };
 
+// PragmaWarningSpecifier strings.
+static const char *const PragmaWarningSpecifierStrings[] = {
+    "PWS_Default", "PWS_Disable", "PWS_Error",  "PWS_Once",   "PWS_Suppress",
+    "PWS_Level1",  "PWS_Level2",  "PWS_Level3", "PWS_Level4",
+};
+
 // ConditionValueKind strings.
 static const char *const ConditionValueKindStrings[] = {
   "CVK_NotEvaluated", "CVK_False", "CVK_True"
@@ -112,23 +119,13 @@ void PPCallbacksTracker::FileChanged(SourceLocation Loc,
 
 // Callback invoked whenever a source file is skipped as the result
 // of header guard optimization.
-void PPCallbacksTracker::FileSkipped(const FileEntry &SkippedFile,
+void PPCallbacksTracker::FileSkipped(const FileEntryRef &SkippedFile,
                                      const Token &FilenameTok,
                                      SrcMgr::CharacteristicKind FileType) {
   beginCallback("FileSkipped");
-  appendArgument("ParentFile", &SkippedFile);
+  appendArgument("ParentFile", &SkippedFile.getFileEntry());
   appendArgument("FilenameTok", FilenameTok);
   appendArgument("FileType", FileType, CharacteristicKindStrings);
-}
-
-// Callback invoked whenever an inclusion directive results in a
-// file-not-found error.
-bool
-PPCallbacksTracker::FileNotFound(llvm::StringRef FileName,
-                                 llvm::SmallVectorImpl<char> &RecoveryPath) {
-  beginCallback("FileNotFound");
-  appendFilePathArgument("FileName", FileName);
-  return false;
 }
 
 // Callback invoked whenever an inclusion directive of
@@ -221,7 +218,7 @@ void PPCallbacksTracker::PragmaMessage(SourceLocation Loc,
   appendArgument("Str", Str);
 }
 
-// Callback invoked when a #pragma gcc dianostic push directive
+// Callback invoked when a #pragma gcc diagnostic push directive
 // is read.
 void PPCallbacksTracker::PragmaDiagnosticPush(SourceLocation Loc,
                                               llvm::StringRef Namespace) {
@@ -230,7 +227,7 @@ void PPCallbacksTracker::PragmaDiagnosticPush(SourceLocation Loc,
   appendArgument("Namespace", Namespace);
 }
 
-// Callback invoked when a #pragma gcc dianostic pop directive
+// Callback invoked when a #pragma gcc diagnostic pop directive
 // is read.
 void PPCallbacksTracker::PragmaDiagnosticPop(SourceLocation Loc,
                                              llvm::StringRef Namespace) {
@@ -239,7 +236,7 @@ void PPCallbacksTracker::PragmaDiagnosticPop(SourceLocation Loc,
   appendArgument("Namespace", Namespace);
 }
 
-// Callback invoked when a #pragma gcc dianostic directive is read.
+// Callback invoked when a #pragma gcc diagnostic directive is read.
 void PPCallbacksTracker::PragmaDiagnostic(SourceLocation Loc,
                                           llvm::StringRef Namespace,
                                           diag::Severity Mapping,
@@ -266,11 +263,11 @@ void PPCallbacksTracker::PragmaOpenCLExtension(SourceLocation NameLoc,
 
 // Callback invoked when a #pragma warning directive is read.
 void PPCallbacksTracker::PragmaWarning(SourceLocation Loc,
-                                       llvm::StringRef WarningSpec,
+                                       PragmaWarningSpecifier WarningSpec,
                                        llvm::ArrayRef<int> Ids) {
   beginCallback("PragmaWarning");
   appendArgument("Loc", Loc);
-  appendArgument("WarningSpec", WarningSpec);
+  appendArgument("WarningSpec", WarningSpec, PragmaWarningSpecifierStrings);
 
   std::string Str;
   llvm::raw_string_ostream SS(Str);

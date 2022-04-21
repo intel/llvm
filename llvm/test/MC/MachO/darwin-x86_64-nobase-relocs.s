@@ -1,4 +1,4 @@
-// RUN: llvm-mc -n -triple x86_64-apple-darwin9 %s -filetype=obj -o - | llvm-readobj --file-headers -S --sd -r --macho-segment | FileCheck %s
+// RUN: llvm-mc -n -triple x86_64-apple-darwin9 %s -filetype=obj -o - | llvm-readobj --file-headers -S --sd -r --macho-segment - | FileCheck %s
 
 // Test case for rdar://10062261
 
@@ -41,7 +41,7 @@ Lbar:
 // CHECK:     Alignment: 0
 // CHECK:     RelocationOffset: 0x0
 // CHECK:     RelocationCount: 0
-// CHECK:     Type: 0x0
+// CHECK:     Type: Regular (0x0)
 // CHECK:     Attributes [ (0x800004)
 // CHECK:       PureInstructions (0x800000)
 // CHECK:       SomeInstructions (0x4)

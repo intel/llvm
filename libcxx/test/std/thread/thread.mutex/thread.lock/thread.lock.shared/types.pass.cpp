@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 
 // <shared_mutex>
@@ -21,7 +21,10 @@
 // };
 
 #include <shared_mutex>
+#include <mutex>
 #include <type_traits>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

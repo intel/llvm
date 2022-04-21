@@ -8,12 +8,11 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 # System modules
-import collections
 import errno
 import os
 import re
 import sys
-import time
+import subprocess
 
 # Third-party modules
 from six import StringIO as SixStringIO
@@ -21,7 +20,11 @@ import six
 
 # LLDB modules
 import lldb
+from . import lldbtest_config
+from . import configuration
 
+# How often failed simulator process launches are retried.
+SIMULATOR_RETRY = 3
 
 # ===================================================
 # Utilities for locating/checking executable programs
@@ -53,6 +56,50 @@ def mkdir_p(path):
             raise
     if not os.path.isdir(path):
         raise OSError(errno.ENOTDIR, "%s is not a directory"%path)
+
+
+# ============================
+# Dealing with SDK and triples
+# ============================
+
+def get_xcode_sdk(os, env):
+    # Respect --apple-sdk <path> if it's specified. If the SDK is simply
+    # mounted from some disk image, and not actually installed, this is the
+    # only way to use it.
+    if configuration.apple_sdk:
+        return configuration.apple_sdk
+    if os == "ios":
+        if env == "simulator":
+            return "iphonesimulator"
+        if env == "macabi":
+            return "macosx"
+        return "iphoneos"
+    elif os == "tvos":
+        if env == "simulator":
+            return "appletvsimulator"
+        return "appletvos"
+    elif os == "watchos":
+        if env == "simulator":
+            return "watchsimulator"
+        return "watchos"
+    return os
+
+
+def get_xcode_sdk_version(sdk):
+    return subprocess.check_output(
+        ['xcrun', '--sdk', sdk, '--show-sdk-version']).rstrip().decode('utf-8')
+
+
+def get_xcode_sdk_root(sdk):
+    return subprocess.check_output(['xcrun', '--sdk', sdk, '--show-sdk-path'
+                                    ]).rstrip().decode('utf-8')
+
+
+def get_xcode_clang(sdk):
+    return subprocess.check_output(['xcrun', '-sdk', sdk, '-f', 'clang'
+                                    ]).rstrip().decode("utf-8")
+
+
 # ===================================================
 # Disassembly for an SBFunction or an SBSymbol object
 # ===================================================
@@ -205,6 +252,12 @@ def stop_reason_to_str(enum):
         return "watchpoint"
     elif enum == lldb.eStopReasonExec:
         return "exec"
+    elif enum == lldb.eStopReasonFork:
+        return "fork"
+    elif enum == lldb.eStopReasonVFork:
+        return "vfork"
+    elif enum == lldb.eStopReasonVForkDone:
+        return "vforkdone"
     elif enum == lldb.eStopReasonSignal:
         return "signal"
     elif enum == lldb.eStopReasonException:
@@ -503,6 +556,29 @@ def run_break_set_by_source_regexp(
 
     return get_bpno_from_match(break_results)
 
+def run_break_set_by_file_colon_line(
+        test,
+        specifier,
+        path,
+        line_number,
+        column_number = 0,
+        extra_options=None,
+        num_expected_locations=-1):
+    command = 'breakpoint set -y "%s"'%(specifier)
+    if extra_options:
+        command += " " + extra_options
+
+    print("About to run: '%s'", command)
+    break_results = run_break_set_command(test, command)
+    check_breakpoint_result(
+        test,
+        break_results,
+        num_locations = num_expected_locations,
+        file_name = path,
+        line_number = line_number,
+        column_number = column_number)
+
+    return get_bpno_from_match(break_results)
 
 def run_break_set_command(test, command):
     """Run the command passed in - it must be some break set variant - and analyze the result.
@@ -516,6 +592,7 @@ def run_break_set_command(test, command):
     If there is only one location, the dictionary MAY contain:
         file          - source file name
         line_no       - source line number
+        column        - source column number
         symbol        - symbol name
         inline_symbol - inlined symbol name
         offset        - offset from the original symbol
@@ -567,6 +644,7 @@ def check_breakpoint_result(
         break_results,
         file_name=None,
         line_number=-1,
+        column_number=0,
         symbol_name=None,
         symbol_match_exact=True,
         module_name=None,
@@ -606,6 +684,17 @@ def check_breakpoint_result(
             (line_number,
              out_line_number))
 
+    if column_number != 0:
+        out_column_number = 0
+        if 'column' in break_results:
+            out_column_number = break_results['column']
+
+        test.assertTrue(
+            column_number == out_column_number,
+            "Breakpoint column number %s doesn't match resultant column %s." %
+            (column_number,
+             out_column_number))
+
     if symbol_name:
         out_symbol_name = ""
         # Look first for the inlined symbol name, otherwise use the symbol
@@ -640,6 +729,62 @@ def check_breakpoint_result(
             "Symbol module name '%s' isn't in expected module name '%s'." %
             (out_module_name,
              module_name))
+
+def check_breakpoint(
+            test,
+            bpno,
+            expected_locations = None,
+            expected_resolved_count = None,
+            expected_hit_count = None,
+            location_id = None,
+            expected_location_resolved = True,
+            expected_location_hit_count = None):
+    """
+    Test breakpoint or breakpoint location.
+    Breakpoint resolved count is always checked. If not specified the assumption is that all locations 
+    should be resolved. 
+    To test a breakpoint location, breakpoint number (bpno) and location_id must be set. In this case
+    the resolved count for a breakpoint is not tested by default. The location is expected to be resolved,
+    unless expected_location_resolved is set to False.
+    test - test context
+    bpno - breakpoint number to test
+    expected_locations - expected number of locations for this breakpoint. If 'None' this parameter is not tested.
+    expected_resolved_count - expected resolved locations number for the breakpoint.  If 'None' - all locations should be resolved.
+    expected_hit_count - expected hit count for this breakpoint. If 'None' this parameter is not tested.
+    location_id - If not 'None' sets the location ID for the breakpoint to test.
+    expected_location_resolved - Extected resolved status for the location_id (True/False). Default - True.
+    expected_location_hit_count - Expected hit count for the breakpoint at location_id. Must be set if the location_id parameter is set.
+    """
+
+    if isinstance(test.target, lldb.SBTarget):
+        target = test.target
+    else:
+        target = test.target()
+    bkpt = target.FindBreakpointByID(bpno)
+
+    test.assertTrue(bkpt.IsValid(), "Breakpoint is not valid.")
+
+    if expected_locations is not None:
+        test.assertEquals(expected_locations, bkpt.GetNumLocations())
+
+    if expected_resolved_count is not None:
+        test.assertEquals(expected_resolved_count, bkpt.GetNumResolvedLocations())
+    else:
+        expected_resolved_count = bkpt.GetNumLocations()
+        if location_id is None:
+            test.assertEquals(expected_resolved_count, bkpt.GetNumResolvedLocations())
+
+    if expected_hit_count is not None:
+        test.assertEquals(expected_hit_count, bkpt.GetHitCount())
+
+    if location_id is not None:
+        loc_bkpt = bkpt.FindLocationByID(location_id)
+        test.assertTrue(loc_bkpt.IsValid(), "Breakpoint location is not valid.")
+        test.assertEquals(loc_bkpt.IsResolved(), expected_location_resolved)
+        if expected_location_hit_count is not None:
+            test.assertEquals(expected_location_hit_count, loc_bkpt.GetHitCount())
+
+
 
 # ==================================================
 # Utility functions related to Threads and Processes
@@ -760,34 +905,67 @@ def run_to_breakpoint_make_target(test, exe_name = "a.out", in_cwd = True):
     # Create the target
     target = test.dbg.CreateTarget(exe)
     test.assertTrue(target, "Target: %s is not valid."%(exe_name))
+
+    # Set environment variables for the inferior.
+    if lldbtest_config.inferior_env:
+        test.runCmd('settings set target.env-vars {}'.format(
+            lldbtest_config.inferior_env))
+
     return target
 
-def run_to_breakpoint_do_run(test, target, bkpt, launch_info = None):
+def run_to_breakpoint_do_run(test, target, bkpt, launch_info = None,
+                             only_one_thread = True, extra_images = None):
 
     # Launch the process, and do not stop at the entry point.
     if not launch_info:
-        launch_info = lldb.SBLaunchInfo(None)
+        launch_info = target.GetLaunchInfo()
         launch_info.SetWorkingDirectory(test.get_process_working_directory())
+
+    if extra_images:
+        environ = test.registerSharedLibrariesWithTarget(target, extra_images)
+        launch_info.SetEnvironmentEntries(environ, True)
 
     error = lldb.SBError()
     process = target.Launch(launch_info, error)
 
+    # Unfortunate workaround for the iPhone simulator.
+    retry = SIMULATOR_RETRY
+    while (retry and error.Fail() and error.GetCString() and
+           "Unable to boot the Simulator" in error.GetCString()):
+        retry -= 1
+        print("** Simulator is unresponsive. Retrying %d more time(s)"%retry)
+        import time
+        time.sleep(60)
+        error = lldb.SBError()
+        process = target.Launch(launch_info, error)
+
     test.assertTrue(process,
-                    "Could not create a valid process for %s: %s"%(target.GetExecutable().GetFilename(),
-                    error.GetCString()))
+                    "Could not create a valid process for %s: %s" %
+                    (target.GetExecutable().GetFilename(), error.GetCString()))
+    test.assertFalse(error.Fail(),
+                     "Process launch failed: %s" % (error.GetCString()))
+
+    test.assertEqual(process.GetState(), lldb.eStateStopped)
 
     # Frame #0 should be at our breakpoint.
     threads = get_threads_stopped_at_breakpoint(
                 process, bkpt)
 
-    test.assertTrue(len(threads) == 1, "Expected 1 thread to stop at breakpoint, %d did."%(len(threads)))
+    num_threads = len(threads)
+    if only_one_thread:
+        test.assertEqual(num_threads, 1, "Expected 1 thread to stop at breakpoint, %d did."%(num_threads))
+    else:
+        test.assertGreater(num_threads, 0, "No threads stopped at breakpoint")
+
     thread = threads[0]
     return (target, process, thread, bkpt)
 
 def run_to_name_breakpoint (test, bkpt_name, launch_info = None,
                             exe_name = "a.out",
                             bkpt_module = None,
-                            in_cwd = True):
+                            in_cwd = True,
+                            only_one_thread = True,
+                            extra_images = None):
     """Start up a target, using exe_name as the executable, and run it to
        a breakpoint set by name on bkpt_name restricted to bkpt_module.
 
@@ -809,6 +987,11 @@ def run_to_name_breakpoint (test, bkpt_name, launch_info = None,
        If successful it returns a tuple with the target process and
        thread that hit the breakpoint, and the breakpoint that we set
        for you.
+
+       If only_one_thread is true, we require that there be only one
+       thread stopped at the breakpoint.  Otherwise we only require one
+       or more threads stop there.  If there are more than one, we return
+       the first thread that stopped.
     """
 
     target = run_to_breakpoint_make_target(test, exe_name, in_cwd)
@@ -818,12 +1001,16 @@ def run_to_name_breakpoint (test, bkpt_name, launch_info = None,
 
     test.assertTrue(breakpoint.GetNumLocations() > 0,
                     "No locations found for name breakpoint: '%s'."%(bkpt_name))
-    return run_to_breakpoint_do_run(test, target, breakpoint, launch_info)
+    return run_to_breakpoint_do_run(test, target, breakpoint, launch_info,
+                                    only_one_thread, extra_images)
 
 def run_to_source_breakpoint(test, bkpt_pattern, source_spec,
                              launch_info = None, exe_name = "a.out",
                              bkpt_module = None,
-                             in_cwd = True):
+                             in_cwd = True,
+                             only_one_thread = True,
+                             extra_images = None,
+                             has_locations_before_run = True):
     """Start up a target, using exe_name as the executable, and run it to
        a breakpoint set by source regex bkpt_pattern.
 
@@ -834,15 +1021,19 @@ def run_to_source_breakpoint(test, bkpt_pattern, source_spec,
     # Set the breakpoints
     breakpoint = target.BreakpointCreateBySourceRegex(
             bkpt_pattern, source_spec, bkpt_module)
-    test.assertTrue(breakpoint.GetNumLocations() > 0,
-        'No locations found for source breakpoint: "%s", file: "%s", dir: "%s"'
-        %(bkpt_pattern, source_spec.GetFilename(), source_spec.GetDirectory()))
-    return run_to_breakpoint_do_run(test, target, breakpoint, launch_info)
+    if has_locations_before_run:
+        test.assertTrue(breakpoint.GetNumLocations() > 0,
+                        'No locations found for source breakpoint: "%s", file: "%s", dir: "%s"'
+                        %(bkpt_pattern, source_spec.GetFilename(), source_spec.GetDirectory()))
+    return run_to_breakpoint_do_run(test, target, breakpoint, launch_info,
+                                    only_one_thread, extra_images)
 
 def run_to_line_breakpoint(test, source_spec, line_number, column = 0,
                            launch_info = None, exe_name = "a.out",
                            bkpt_module = None,
-                           in_cwd = True):
+                           in_cwd = True,
+                           only_one_thread = True,
+                           extra_images = None):
     """Start up a target, using exe_name as the executable, and run it to
        a breakpoint set by (source_spec, line_number(, column)).
 
@@ -857,7 +1048,8 @@ def run_to_line_breakpoint(test, source_spec, line_number, column = 0,
         'No locations found for line breakpoint: "%s:%d(:%d)", dir: "%s"'
         %(source_spec.GetFilename(), line_number, column,
           source_spec.GetDirectory()))
-    return run_to_breakpoint_do_run(test, target, breakpoint, launch_info)
+    return run_to_breakpoint_do_run(test, target, breakpoint, launch_info,
+                                    only_one_thread, extra_images)
 
 
 def continue_to_breakpoint(process, bkpt):
@@ -1031,7 +1223,7 @@ def print_stacktraces(process, string_buffer=False):
         return output.getvalue()
 
 
-def expect_state_changes(test, listener, process, states, timeout=5):
+def expect_state_changes(test, listener, process, states, timeout=30):
     """Listens for state changed events on the listener and makes sure they match what we
     expect. Stop-and-restart events (where GetRestartedFromEvent() returns true) are ignored."""
 
@@ -1062,6 +1254,29 @@ def expect_state_changes(test, listener, process, states, timeout=5):
         test.assertEqual(
             lldb.SBProcess.GetStateFromEvent(event),
             expected_state)
+
+def start_listening_from(broadcaster, event_mask):
+    """Creates a listener for a specific event mask and add it to the source broadcaster."""
+
+    listener = lldb.SBListener("lldb.test.listener")
+    broadcaster.AddListener(listener, event_mask)
+    return listener
+
+def fetch_next_event(test, listener, broadcaster, timeout=10):
+    """Fetch one event from the listener and return it if it matches the provided broadcaster.
+    Fails otherwise."""
+
+    event = lldb.SBEvent()
+
+    if listener.WaitForEvent(timeout, event):
+        if event.BroadcasterMatchesRef(broadcaster):
+            return event
+
+        test.fail("received event '%s' from unexpected broadcaster '%s'." %
+                  (event.GetDescription(), event.GetBroadcaster().GetName()))
+
+    test.fail("couldn't fetch an event before reaching the timeout.")
+
 
 # ===================================
 # Utility functions related to Frames
@@ -1389,3 +1604,41 @@ def wait_for_file_on_target(testcase, file_path, max_attempts=6):
             (file_path, max_attempts))
 
     return read_file_on_target(testcase, file_path)
+
+def packetlog_get_process_info(log):
+    """parse a gdb-remote packet log file and extract the response to qProcessInfo"""
+    process_info = dict()
+    with open(log, "r") as logfile:
+        process_info_ostype = None
+        expect_process_info_response = False
+        for line in logfile:
+            if expect_process_info_response:
+                for pair in line.split(';'):
+                    keyval = pair.split(':')
+                    if len(keyval) == 2:
+                        process_info[keyval[0]] = keyval[1]
+                break
+            if 'send packet: $qProcessInfo#' in line:
+                expect_process_info_response = True
+    return process_info
+
+def packetlog_get_dylib_info(log):
+    """parse a gdb-remote packet log file and extract the *last* complete
+    (=> fetch_all_solibs=true) response to jGetLoadedDynamicLibrariesInfos"""
+    import json
+    dylib_info = None
+    with open(log, "r") as logfile:
+        dylib_info = None
+        expect_dylib_info_response = False
+        for line in logfile:
+            if expect_dylib_info_response:
+                while line[0] != '$':
+                    line = line[1:]
+                line = line[1:]
+                # Unescape '}'.
+                dylib_info = json.loads(line.replace('}]','}')[:-4])
+                expect_dylib_info_response = False
+            if 'send packet: $jGetLoadedDynamicLibrariesInfos:{"fetch_all_solibs":true}' in line:
+                expect_dylib_info_response = True
+
+    return dylib_info

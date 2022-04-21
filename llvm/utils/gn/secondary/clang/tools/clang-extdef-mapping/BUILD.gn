@@ -11,7 +11,5 @@ executable("clang-extdef-mapping") {
     "//llvm/lib/MC",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "ClangExtDefMapGen.cpp",
-  ]
+  sources = [ "ClangExtDefMapGen.cpp" ]
 }

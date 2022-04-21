@@ -5,21 +5,23 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-//  This file provides Optional, a template class modeled in the spirit of
-//  OCaml's 'opt' variant.  The idea is to strongly type whether or not
-//  a value can be optional.
-//
+///
+/// \file
+///  This file provides Optional, a template class modeled in the spirit of
+///  OCaml's 'opt' variant.  The idea is to strongly type whether or not
+///  a value can be optional.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_OPTIONAL_H
 #define LLVM_ADT_OPTIONAL_H
 
+#include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/None.h"
+#include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/type_traits.h"
 #include <cassert>
-#include <memory>
 #include <new>
 #include <utility>
 
@@ -29,35 +31,57 @@ class raw_ostream;
 
 namespace optional_detail {
 
-struct in_place_t {};
-
 /// Storage for any type.
-template <typename T, bool = is_trivially_copyable<T>::value>
+//
+// The specialization condition intentionally uses
+// llvm::is_trivially_{copy/move}_constructible instead of
+// std::is_trivially_{copy/move}_constructible. GCC versions prior to 7.4 may
+// instantiate the copy/move constructor of `T` when
+// std::is_trivially_{copy/move}_constructible is instantiated.  This causes
+// compilation to fail if we query the trivially copy/move constructible
+// property of a class which is not copy/move constructible.
+//
+// The current implementation of OptionalStorage insists that in order to use
+// the trivial specialization, the value_type must be trivially copy
+// constructible and trivially copy assignable due to =default implementations
+// of the copy/move constructor/assignment.  It does not follow that this is
+// necessarily the case std::is_trivially_copyable is true (hence the expanded
+// specialization condition).
+//
+// The move constructible / assignable conditions emulate the remaining behavior
+// of std::is_trivially_copyable.
+template <typename T,
+          bool = (llvm::is_trivially_copy_constructible<T>::value &&
+                  std::is_trivially_copy_assignable<T>::value &&
+                  (llvm::is_trivially_move_constructible<T>::value ||
+                   !std::is_move_constructible<T>::value) &&
+                  (std::is_trivially_move_assignable<T>::value ||
+                   !std::is_move_assignable<T>::value))>
 class OptionalStorage {
   union {
     char empty;
     T value;
   };
-  bool hasVal;
+  bool hasVal = false;
 
 public:
   ~OptionalStorage() { reset(); }
 
-  OptionalStorage() noexcept : empty(), hasVal(false) {}
+  constexpr OptionalStorage() noexcept : empty() {}
 
-  OptionalStorage(OptionalStorage const &other) : OptionalStorage() {
+  constexpr OptionalStorage(OptionalStorage const &other) : OptionalStorage() {
     if (other.hasValue()) {
       emplace(other.value);
     }
   }
-  OptionalStorage(OptionalStorage &&other) : OptionalStorage() {
+  constexpr OptionalStorage(OptionalStorage &&other) : OptionalStorage() {
     if (other.hasValue()) {
       emplace(std::move(other.value));
     }
   }
 
   template <class... Args>
-  explicit OptionalStorage(in_place_t, Args &&... args)
+  constexpr explicit OptionalStorage(in_place_t, Args &&...args)
       : value(std::forward<Args>(args)...), hasVal(true) {}
 
   void reset() noexcept {
@@ -67,24 +91,22 @@ public:
     }
   }
 
-  bool hasValue() const noexcept { return hasVal; }
+  constexpr bool hasValue() const noexcept { return hasVal; }
 
-  T &getValue() LLVM_LVALUE_FUNCTION noexcept {
+  T &getValue() &noexcept {
     assert(hasVal);
     return value;
   }
-  T const &getValue() const LLVM_LVALUE_FUNCTION noexcept {
+  constexpr T const &getValue() const &noexcept {
     assert(hasVal);
     return value;
   }
-#if LLVM_HAS_RVALUE_REFERENCE_THIS
-  T &&getValue() && noexcept {
+  T &&getValue() &&noexcept {
     assert(hasVal);
     return std::move(value);
   }
-#endif
 
-  template <class... Args> void emplace(Args &&... args) {
+  template <class... Args> void emplace(Args &&...args) {
     reset();
     ::new ((void *)std::addressof(value)) T(std::forward<Args>(args)...);
     hasVal = true;
@@ -148,16 +170,16 @@ template <typename T> class OptionalStorage<T, true> {
 public:
   ~OptionalStorage() = default;
 
-  OptionalStorage() noexcept : empty{} {}
+  constexpr OptionalStorage() noexcept : empty{} {}
 
-  OptionalStorage(OptionalStorage const &other) = default;
-  OptionalStorage(OptionalStorage &&other) = default;
+  constexpr OptionalStorage(OptionalStorage const &other) = default;
+  constexpr OptionalStorage(OptionalStorage &&other) = default;
 
   OptionalStorage &operator=(OptionalStorage const &other) = default;
   OptionalStorage &operator=(OptionalStorage &&other) = default;
 
   template <class... Args>
-  explicit OptionalStorage(in_place_t, Args &&... args)
+  constexpr explicit OptionalStorage(in_place_t, Args &&... args)
       : value(std::forward<Args>(args)...), hasVal(true) {}
 
   void reset() noexcept {
@@ -167,24 +189,22 @@ public:
     }
   }
 
-  bool hasValue() const noexcept { return hasVal; }
+  constexpr bool hasValue() const noexcept { return hasVal; }
 
-  T &getValue() LLVM_LVALUE_FUNCTION noexcept {
+  T &getValue() &noexcept {
     assert(hasVal);
     return value;
   }
-  T const &getValue() const LLVM_LVALUE_FUNCTION noexcept {
+  constexpr T const &getValue() const &noexcept {
     assert(hasVal);
     return value;
   }
-#if LLVM_HAS_RVALUE_REFERENCE_THIS
-  T &&getValue() && noexcept {
+  T &&getValue() &&noexcept {
     assert(hasVal);
     return std::move(value);
   }
-#endif
 
-  template <class... Args> void emplace(Args &&... args) {
+  template <class... Args> void emplace(Args &&...args) {
     reset();
     ::new ((void *)std::addressof(value)) T(std::forward<Args>(args)...);
     hasVal = true;
@@ -218,14 +238,18 @@ template <typename T> class Optional {
 public:
   using value_type = T;
 
-  constexpr Optional() {}
+  constexpr Optional() = default;
   constexpr Optional(NoneType) {}
 
-  Optional(const T &y) : Storage(optional_detail::in_place_t{}, y) {}
-  Optional(const Optional &O) = default;
+  constexpr Optional(const T &y) : Storage(in_place, y) {}
+  constexpr Optional(const Optional &O) = default;
 
-  Optional(T &&y) : Storage(optional_detail::in_place_t{}, std::move(y)) {}
-  Optional(Optional &&O) = default;
+  constexpr Optional(T &&y) : Storage(in_place, std::move(y)) {}
+  constexpr Optional(Optional &&O) = default;
+
+  template <typename... ArgTypes>
+  constexpr Optional(in_place_t, ArgTypes &&...Args)
+      : Storage(in_place, std::forward<ArgTypes>(Args)...) {}
 
   Optional &operator=(T &&y) {
     Storage = std::move(y);
@@ -238,7 +262,7 @@ public:
     Storage.emplace(std::forward<ArgTypes>(Args)...);
   }
 
-  static inline Optional create(const T *y) {
+  static constexpr Optional create(const T *y) {
     return y ? Optional(*y) : Optional();
   }
 
@@ -250,165 +274,198 @@ public:
 
   void reset() { Storage.reset(); }
 
-  const T *getPointer() const { return &Storage.getValue(); }
+  constexpr const T *getPointer() const { return &Storage.getValue(); }
   T *getPointer() { return &Storage.getValue(); }
-  const T &getValue() const LLVM_LVALUE_FUNCTION { return Storage.getValue(); }
-  T &getValue() LLVM_LVALUE_FUNCTION { return Storage.getValue(); }
+  constexpr const T &getValue() const & { return Storage.getValue(); }
+  T &getValue() & { return Storage.getValue(); }
 
-  explicit operator bool() const { return hasValue(); }
-  bool hasValue() const { return Storage.hasValue(); }
-  const T *operator->() const { return getPointer(); }
+  constexpr explicit operator bool() const { return hasValue(); }
+  constexpr bool hasValue() const { return Storage.hasValue(); }
+  constexpr const T *operator->() const { return getPointer(); }
   T *operator->() { return getPointer(); }
-  const T &operator*() const LLVM_LVALUE_FUNCTION { return getValue(); }
-  T &operator*() LLVM_LVALUE_FUNCTION { return getValue(); }
+  constexpr const T &operator*() const & { return getValue(); }
+  T &operator*() & { return getValue(); }
 
-  template <typename U>
-  constexpr T getValueOr(U &&value) const LLVM_LVALUE_FUNCTION {
+  template <typename U> constexpr T getValueOr(U &&value) const & {
     return hasValue() ? getValue() : std::forward<U>(value);
   }
 
-#if LLVM_HAS_RVALUE_REFERENCE_THIS
+  /// Apply a function to the value if present; otherwise return None.
+  template <class Function>
+  auto map(const Function &F) const & -> Optional<decltype(F(getValue()))> {
+    if (*this)
+      return F(getValue());
+    return None;
+  }
+
   T &&getValue() && { return std::move(Storage.getValue()); }
   T &&operator*() && { return std::move(Storage.getValue()); }
 
-  template <typename U>
-  T getValueOr(U &&value) && {
+  template <typename U> T getValueOr(U &&value) && {
     return hasValue() ? std::move(getValue()) : std::forward<U>(value);
   }
-#endif
+
+  /// Apply a function to the value if present; otherwise return None.
+  template <class Function>
+  auto map(const Function &F)
+      && -> Optional<decltype(F(std::move(*this).getValue()))> {
+    if (*this)
+      return F(std::move(*this).getValue());
+    return None;
+  }
 };
 
+template <class T> llvm::hash_code hash_value(const Optional<T> &O) {
+  return O ? hash_combine(true, *O) : hash_value(false);
+}
+
 template <typename T, typename U>
-bool operator==(const Optional<T> &X, const Optional<U> &Y) {
+constexpr bool operator==(const Optional<T> &X, const Optional<U> &Y) {
   if (X && Y)
     return *X == *Y;
   return X.hasValue() == Y.hasValue();
 }
 
 template <typename T, typename U>
-bool operator!=(const Optional<T> &X, const Optional<U> &Y) {
+constexpr bool operator!=(const Optional<T> &X, const Optional<U> &Y) {
   return !(X == Y);
 }
 
 template <typename T, typename U>
-bool operator<(const Optional<T> &X, const Optional<U> &Y) {
+constexpr bool operator<(const Optional<T> &X, const Optional<U> &Y) {
   if (X && Y)
     return *X < *Y;
   return X.hasValue() < Y.hasValue();
 }
 
 template <typename T, typename U>
-bool operator<=(const Optional<T> &X, const Optional<U> &Y) {
+constexpr bool operator<=(const Optional<T> &X, const Optional<U> &Y) {
   return !(Y < X);
 }
 
 template <typename T, typename U>
-bool operator>(const Optional<T> &X, const Optional<U> &Y) {
+constexpr bool operator>(const Optional<T> &X, const Optional<U> &Y) {
   return Y < X;
 }
 
 template <typename T, typename U>
-bool operator>=(const Optional<T> &X, const Optional<U> &Y) {
+constexpr bool operator>=(const Optional<T> &X, const Optional<U> &Y) {
   return !(X < Y);
 }
 
-template<typename T>
-bool operator==(const Optional<T> &X, NoneType) {
+template <typename T>
+constexpr bool operator==(const Optional<T> &X, NoneType) {
   return !X;
 }
 
-template<typename T>
-bool operator==(NoneType, const Optional<T> &X) {
+template <typename T>
+constexpr bool operator==(NoneType, const Optional<T> &X) {
   return X == None;
 }
 
-template<typename T>
-bool operator!=(const Optional<T> &X, NoneType) {
+template <typename T>
+constexpr bool operator!=(const Optional<T> &X, NoneType) {
   return !(X == None);
 }
 
-template<typename T>
-bool operator!=(NoneType, const Optional<T> &X) {
+template <typename T>
+constexpr bool operator!=(NoneType, const Optional<T> &X) {
   return X != None;
 }
 
-template <typename T> bool operator<(const Optional<T> &X, NoneType) {
+template <typename T> constexpr bool operator<(const Optional<T> &, NoneType) {
   return false;
 }
 
-template <typename T> bool operator<(NoneType, const Optional<T> &X) {
+template <typename T> constexpr bool operator<(NoneType, const Optional<T> &X) {
   return X.hasValue();
 }
 
-template <typename T> bool operator<=(const Optional<T> &X, NoneType) {
+template <typename T>
+constexpr bool operator<=(const Optional<T> &X, NoneType) {
   return !(None < X);
 }
 
-template <typename T> bool operator<=(NoneType, const Optional<T> &X) {
+template <typename T>
+constexpr bool operator<=(NoneType, const Optional<T> &X) {
   return !(X < None);
 }
 
-template <typename T> bool operator>(const Optional<T> &X, NoneType) {
+template <typename T> constexpr bool operator>(const Optional<T> &X, NoneType) {
   return None < X;
 }
 
-template <typename T> bool operator>(NoneType, const Optional<T> &X) {
+template <typename T> constexpr bool operator>(NoneType, const Optional<T> &X) {
   return X < None;
 }
 
-template <typename T> bool operator>=(const Optional<T> &X, NoneType) {
+template <typename T>
+constexpr bool operator>=(const Optional<T> &X, NoneType) {
   return None <= X;
 }
 
-template <typename T> bool operator>=(NoneType, const Optional<T> &X) {
+template <typename T>
+constexpr bool operator>=(NoneType, const Optional<T> &X) {
   return X <= None;
 }
 
-template <typename T> bool operator==(const Optional<T> &X, const T &Y) {
+template <typename T>
+constexpr bool operator==(const Optional<T> &X, const T &Y) {
   return X && *X == Y;
 }
 
-template <typename T> bool operator==(const T &X, const Optional<T> &Y) {
+template <typename T>
+constexpr bool operator==(const T &X, const Optional<T> &Y) {
   return Y && X == *Y;
 }
 
-template <typename T> bool operator!=(const Optional<T> &X, const T &Y) {
+template <typename T>
+constexpr bool operator!=(const Optional<T> &X, const T &Y) {
   return !(X == Y);
 }
 
-template <typename T> bool operator!=(const T &X, const Optional<T> &Y) {
+template <typename T>
+constexpr bool operator!=(const T &X, const Optional<T> &Y) {
   return !(X == Y);
 }
 
-template <typename T> bool operator<(const Optional<T> &X, const T &Y) {
+template <typename T>
+constexpr bool operator<(const Optional<T> &X, const T &Y) {
   return !X || *X < Y;
 }
 
-template <typename T> bool operator<(const T &X, const Optional<T> &Y) {
+template <typename T>
+constexpr bool operator<(const T &X, const Optional<T> &Y) {
   return Y && X < *Y;
 }
 
-template <typename T> bool operator<=(const Optional<T> &X, const T &Y) {
+template <typename T>
+constexpr bool operator<=(const Optional<T> &X, const T &Y) {
   return !(Y < X);
 }
 
-template <typename T> bool operator<=(const T &X, const Optional<T> &Y) {
+template <typename T>
+constexpr bool operator<=(const T &X, const Optional<T> &Y) {
   return !(Y < X);
 }
 
-template <typename T> bool operator>(const Optional<T> &X, const T &Y) {
+template <typename T>
+constexpr bool operator>(const Optional<T> &X, const T &Y) {
   return Y < X;
 }
 
-template <typename T> bool operator>(const T &X, const Optional<T> &Y) {
+template <typename T>
+constexpr bool operator>(const T &X, const Optional<T> &Y) {
   return Y < X;
 }
 
-template <typename T> bool operator>=(const Optional<T> &X, const T &Y) {
+template <typename T>
+constexpr bool operator>=(const Optional<T> &X, const T &Y) {
   return !(X < Y);
 }
 
-template <typename T> bool operator>=(const T &X, const Optional<T> &Y) {
+template <typename T>
+constexpr bool operator>=(const T &X, const Optional<T> &Y) {
   return !(X < Y);
 }
 

@@ -11,7 +11,7 @@ IB_DESIGNABLE @interface I
 
 IBInspectable @property (readonly) IBOutlet NSView *myView1; // expected-warning {{readonly IBOutlet property 'myView1' when auto-synthesized may not work correctly with 'nib' loader}} expected-note {{property should be changed to be readwrite}}
 
-@property (getter = MyGetter, READONLY) IBOutlet NSView *myView2; // expected-warning {{readonly IBOutlet property 'myView2' when auto-synthesized may not work correctly with 'nib' loader}}
+@property (getter = MyGetter2, READONLY) IBOutlet NSView *myView2; // expected-warning {{readonly IBOutlet property 'myView2' when auto-synthesized may not work correctly with 'nib' loader}}
 
 @end
 
@@ -45,7 +45,7 @@ IBInspectable @property (readonly) IBOutlet NSView *myView1; // expected-warning
 @property IBOutlet __weak WeakOutlet* WeakProp;
 @end
 
-WeakOutlet* func() {
+WeakOutlet* func(void) {
   __weak WeakOutlet* pwi;
   pwi.WeakProp = (WeakOutlet*)0;
   pwi.WeakProp = pwi.WeakProp;

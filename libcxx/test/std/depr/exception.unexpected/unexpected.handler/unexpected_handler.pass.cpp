@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++98 || c++03 || c++11 || c++14
+// REQUIRES: c++03 || c++11 || c++14
 
 // test unexpected_handler
 
 #include <exception>
+
+#include "test_macros.h"
 
 void f() {}
 

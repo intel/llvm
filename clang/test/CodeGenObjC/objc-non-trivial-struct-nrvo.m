@@ -21,9 +21,9 @@ typedef struct {
   __weak id x;
 } Weak;
 
-// CHECK: define i32 @testTrivial()
+// CHECK: define{{.*}} i32 @testTrivial()
 // CHECK: %[[RETVAL:.*]] = alloca %[[STRUCT_TRIVIAL]], align 4
-// CHECK-NEXT: call void @func0(%[[STRUCT_TRIVIAL]]* %[[RETVAL]])
+// CHECK-NEXT: call void @func0(%[[STRUCT_TRIVIAL]]* noundef %[[RETVAL]])
 // CHECK-NOT: memcpy
 // CHECK: ret i32 %
 
@@ -37,9 +37,8 @@ Trivial testTrivial(void) {
 
 void func1(TrivialBig *);
 
-// CHECK: define void @testTrivialBig(%[[STRUCT_TRIVIALBIG]]* noalias sret %[[AGG_RESULT:.*]])
-// CHECK-NOT: alloca
-// CHECK: call void @func1(%[[STRUCT_TRIVIALBIG]]* %[[AGG_RESULT]])
+// CHECK: define{{.*}} void @testTrivialBig(%[[STRUCT_TRIVIALBIG]]* noalias sret(%[[STRUCT_TRIVIALBIG]]) align 4 %[[AGG_RESULT:.*]])
+// CHECK: call void @func1(%[[STRUCT_TRIVIALBIG]]* noundef %[[AGG_RESULT]])
 // CHECK-NEXT: ret void
 
 TrivialBig testTrivialBig(void) {
@@ -48,7 +47,7 @@ TrivialBig testTrivialBig(void) {
   return a;
 }
 
-// CHECK: define i8* @testStrong()
+// CHECK: define{{.*}} i8* @testStrong()
 // CHECK: %[[RETVAL:.*]] = alloca %[[STRUCT_STRONG]], align 8
 // CHECK: %[[NRVO:.*]] = alloca i1, align 1
 // CHECK: %[[V0:.*]] = bitcast %[[STRUCT_STRONG]]* %[[RETVAL]] to i8**
@@ -70,7 +69,7 @@ Strong testStrong(void) {
   return a;
 }
 
-// CHECK: define void @testWeak(%[[STRUCT_WEAK]]* noalias sret %[[AGG_RESULT:.*]])
+// CHECK: define{{.*}} void @testWeak(%[[STRUCT_WEAK]]* noalias sret(%[[STRUCT_WEAK]]) align 8 %[[AGG_RESULT:.*]])
 // CHECK: %[[NRVO:.*]] = alloca i1, align 1
 // CHECK: %[[V0:.*]] = bitcast %[[STRUCT_WEAK]]* %[[AGG_RESULT]] to i8**
 // CHECK: call void @__default_constructor_8_w0(i8** %[[V0]])
@@ -90,7 +89,7 @@ Weak testWeak(void) {
   return a;
 }
 
-// CHECK: define void @testWeak2(
+// CHECK: define{{.*}} void @testWeak2(
 // CHECK: call void @__default_constructor_8_w0(
 // CHECK: call void @__default_constructor_8_w0(
 // CHECK: call void @__copy_constructor_8_8_w0(
@@ -106,7 +105,7 @@ Weak testWeak2(int c) {
     return b;
 }
 
-// CHECK: define internal void @"\01-[C1 foo1]"(%[[STRUCT_WEAK]]* noalias sret %[[AGG_RESULT:.*]], %{{.*}}* %{{.*}}, i8* %{{.*}})
+// CHECK: define internal void @"\01-[C1 foo1]"(%[[STRUCT_WEAK]]* noalias sret(%[[STRUCT_WEAK]]) align 8 %[[AGG_RESULT:.*]], %{{.*}}* noundef %{{.*}}, i8* noundef %{{.*}})
 // CHECK: %[[NRVO:.*]] = alloca i1, align 1
 // CHECK: %[[V0:.*]] = bitcast %[[STRUCT_WEAK]]* %[[AGG_RESULT]] to i8**
 // CHECK: call void @__default_constructor_8_w0(i8** %[[V0]])

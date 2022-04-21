@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class weekday;
@@ -18,9 +18,6 @@
 //    [days{0}, days{6}] satisfying y + d == x.
 // Otherwise the value returned is unspecified.
 // [Example: Sunday - Monday == days{6}. —end example]
-
-
-extern "C" int printf(const char *, ...);
 
 #include <chrono>
 #include <type_traits>
@@ -35,12 +32,13 @@ constexpr bool testConstexpr()
     {
     WD wd{5};
     Ds offset{3};
-    if (wd - offset != WD{2}) return false;
-    if (wd - WD{2} != offset) return false;
+    assert(wd - offset == WD{2});
+    assert(wd - WD{2} == offset);
     }
 
-//  Check the example
-    if (WD{0} - WD{1} != Ds{6}) return false;
+    //  Check the example
+    assert(WD{0} - WD{1} == Ds{6});
+
     return true;
 }
 
@@ -62,7 +60,7 @@ int main(int, char**)
         {
             weekday wd = weekday{i} - days{j};
             assert(wd + days{j} == weekday{i});
-            assert((static_cast<unsigned>(wd) == euclidian_subtraction<unsigned, 0, 6>(i, j)));
+            assert((wd.c_encoding() == euclidian_subtraction<unsigned, 0, 6>(i, j)));
         }
 
     for (unsigned i = 0; i <= 6; ++i)

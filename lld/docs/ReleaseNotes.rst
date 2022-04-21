@@ -1,19 +1,21 @@
-=======================
-lld 9.0.0 Release Notes
-=======================
+===========================
+lld |release| Release Notes
+===========================
 
 .. contents::
     :local:
 
-.. warning::
-   These are in-progress notes for the upcoming LLVM 9.0.0 release.
-   Release notes for previous releases can be found on
-   `the Download Page <https://releases.llvm.org/download.html>`_.
+.. only:: PreRelease
+
+  .. warning::
+     These are in-progress notes for the upcoming LLVM |release| release.
+     Release notes for previous releases can be found on
+     `the Download Page <https://releases.llvm.org/download.html>`_.
 
 Introduction
 ============
 
-This document contains the release notes for the lld linker, release 9.0.0.
+This document contains the release notes for the lld linker, release |release|.
 Here we describe the status of lld, including major improvements
 from the previous release. All lld releases may be downloaded
 from the `LLVM releases web site <https://llvm.org/releases/>`_.
@@ -24,37 +26,31 @@ Non-comprehensive list of changes in this release
 ELF Improvements
 ----------------
 
-* ...
+* ``-z pack-relative-relocs`` is now available to support ``DT_RELR`` for glibc 2.36+.
+  (`D120701 <https://reviews.llvm.org/D120701>`_)
+* ``--no-fortran-common`` (pre 12.0.0 behavior) is now the default.
+
+Breaking changes
+----------------
+
+* The GNU ld incompatible ``--no-define-common`` has been removed.
+* The obscure ``-dc``/``-dp`` options have been removed.
+* ``-d`` is now ignored.
+* If a prevailing COMDAT group defines STB_WEAK symbol, having a STB_GLOBAL symbol in a non-prevailing group is now rejected with a diagnostic.
+  (`D120626 <https://reviews.llvm.org/D120626>`_)
 
 COFF Improvements
 -----------------
 
-* lld-link now correctly reports duplicate symbol errors for obj files
-  that were compiled with /Gy.
-
-* lld-link now correctly reports duplicate symbol errors when several res
-  input files define resources with the same type, name, and language.
-  This can be demoted to a warning using ``/force:multipleres``.
-
-* Having more than two ``/natvis:`` now works correctly; it used to not
-  work for larger binaries before.
-
-* Undefined symbols are now printed only in demangled form. Pass
-  ``/demangle:no`` to see raw symbol names instead.
-
-* The following flags have been added: ``/functionpadmin``, ``/swaprun:``,
-  ``/threads:no``
-
-* Several speed and memory usage improvements.
-
+* Added autodetection of MSVC toolchain, a la clang-cl.  Also added /winsysroot
+  support for explicit specification of MSVC toolchain location.
+  (`D118070 <https://reviews.llvm.org/D118070>`_)
 * ...
 
 MinGW Improvements
 ------------------
 
-* lld now correctly links crtend.o as the last object file, handling
-  terminators for the sections such as .eh_frame properly, fixing
-  DWARF exception handling with libgcc and gcc's crtend.o.
+* ...
 
 MachO Improvements
 ------------------
@@ -64,4 +60,3 @@ MachO Improvements
 WebAssembly Improvements
 ------------------------
 
-* ...

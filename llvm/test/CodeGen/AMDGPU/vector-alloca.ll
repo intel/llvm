@@ -1,9 +1,10 @@
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=verde -mattr=-promote-alloca -verify-machineinstrs < %s | FileCheck -check-prefix=SI-ALLOCA -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=verde -mattr=+promote-alloca -verify-machineinstrs < %s | FileCheck -check-prefix=SI-PROMOTE -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=tonga -mattr=-promote-alloca -verify-machineinstrs < %s | FileCheck -check-prefix=SI-ALLOCA -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=tonga -mattr=+promote-alloca -verify-machineinstrs < %s | FileCheck -check-prefix=SI-PROMOTE -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=r600 -mtriple=r600-- -mcpu=redwood < %s | FileCheck --check-prefix=EG -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=verde -mattr=-promote-alloca -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=verde -mattr=+promote-alloca -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=tonga -mattr=-promote-alloca -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=tonga -mattr=+promote-alloca -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600-- -mcpu=redwood < %s | FileCheck --check-prefixes=EG,FUNC %s
 ; RUN: opt -S -mtriple=amdgcn-- -amdgpu-promote-alloca -sroa -instcombine < %s | FileCheck -check-prefix=OPT %s
+; RUN: opt -S -mtriple=amdgcn-- -passes=amdgpu-promote-alloca,sroa,instcombine < %s | FileCheck -check-prefix=OPT %s
 target datalayout = "A5"
 
 ; OPT-LABEL: @vector_read(
@@ -112,16 +113,9 @@ entry:
   ret void
 }
 
-; FIXME: Should be able to promote this. Instcombine should fold the
-; cast in the hasOneUse case so it might not matter in practice
-
 ; OPT-LABEL: @vector_read_bitcast_alloca(
-; OPT: alloca [4 x float]
-; OPT: store float
-; OPT: store float
-; OPT: store float
-; OPT: store float
-; OPT: load float
+; OPT: %0 = extractelement <4 x float> <float 0.000000e+00, float 1.000000e+00, float 2.000000e+00, float 4.000000e+00>, i32 %index
+; OPT: store float %0, float addrspace(1)* %out, align 4
 define amdgpu_kernel void @vector_read_bitcast_alloca(float addrspace(1)* %out, i32 %index) {
 entry:
   %tmp = alloca [4 x i32], addrspace(5)

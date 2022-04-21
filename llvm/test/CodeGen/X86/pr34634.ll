@@ -3,15 +3,15 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-@a = common local_unnamed_addr global [1 x [10 x i32]] zeroinitializer, align 16
-@c = common local_unnamed_addr global i32 0, align 4
-@b = common local_unnamed_addr global [1 x [7 x i32]] zeroinitializer, align 16
+@a = common dso_local local_unnamed_addr global [1 x [10 x i32]] zeroinitializer, align 16
+@c = common dso_local local_unnamed_addr global i32 0, align 4
+@b = common dso_local local_unnamed_addr global [1 x [7 x i32]] zeroinitializer, align 16
 
 ; Function Attrs: norecurse nounwind uwtable
-define void @fn1() local_unnamed_addr #0 {
+define dso_local void @fn1() local_unnamed_addr #0 {
 ; CHECK-LABEL: fn1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    movslq {{.*}}(%rip), %rax
+; CHECK-NEXT:    movslq c(%rip), %rax
 ; CHECK-NEXT:    leaq (%rax,%rax,4), %rcx
 ; CHECK-NEXT:    leaq (,%rax,4), %rdx
 ; CHECK-NEXT:    movl a(%rdx,%rcx,8), %ecx
@@ -31,10 +31,10 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind uwtable
-define i32 @main() local_unnamed_addr #0 {
+define dso_local i32 @main() local_unnamed_addr #0 {
 ; CHECK-LABEL: main:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    movslq {{.*}}(%rip), %rax
+; CHECK-NEXT:    movslq c(%rip), %rax
 ; CHECK-NEXT:    leaq (%rax,%rax,4), %rcx
 ; CHECK-NEXT:    leaq (,%rax,4), %rdx
 ; CHECK-NEXT:    movl a(%rdx,%rcx,8), %ecx
@@ -54,7 +54,7 @@ entry:
   ret i32 0
 }
 
-attributes #0 = { norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0}
 !llvm.ident = !{!1}

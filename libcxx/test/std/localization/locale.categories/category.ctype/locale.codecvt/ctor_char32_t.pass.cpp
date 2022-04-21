@@ -12,10 +12,13 @@
 
 // explicit codecvt(size_t refs = 0);
 
+// This test runs in C++20, but we have deprecated codecvt<char(16|32), char, mbstate_t> in C++20.
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <locale>
 #include <cassert>
 
-//#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
+#include "test_macros.h"
 
 typedef std::codecvt<char32_t, char, std::mbstate_t> F;
 
@@ -33,11 +36,8 @@ public:
 
 int my_facet::count = 0;
 
-//#endif
-
 int main(int, char**)
 {
-//#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
     {
         std::locale l(std::locale::classic(), new my_facet);
         assert(my_facet::count == 1);
@@ -53,7 +53,6 @@ int main(int, char**)
         assert(my_facet::count == 1);
     }
     assert(my_facet::count == 0);
-//#endif
 
   return 0;
 }

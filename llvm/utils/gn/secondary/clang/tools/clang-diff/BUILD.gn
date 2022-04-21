@@ -7,7 +7,5 @@ executable("clang-diff") {
     "//clang/lib/Tooling/ASTDiff",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "ClangDiff.cpp",
-  ]
+  sources = [ "ClangDiff.cpp" ]
 }

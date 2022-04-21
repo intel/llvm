@@ -1,5 +1,5 @@
 @ RUN: llvm-mc %s -triple=armv7-unknown-linux-gnueabi -filetype=obj -o - \
-@ RUN:   | llvm-readobj -S --sd --sr | FileCheck %s
+@ RUN:   | llvm-readobj -S --sd --sr - | FileCheck %s
 
 @ Check the .cantunwind directive
 
@@ -47,5 +47,5 @@ func1:
 @ CHECK:   }
 @ CHECK: ]
 @ CHECK:     Relocations [
-@ CHECK:       0x0 R_ARM_PREL31 .text 0x0
+@ CHECK:       0x0 R_ARM_PREL31 .text
 @ CHECK:     ]

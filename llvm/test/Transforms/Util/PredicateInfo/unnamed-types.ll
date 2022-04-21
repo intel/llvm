@@ -1,4 +1,4 @@
-; RUN: opt < %s -print-predicateinfo 2>&1 | FileCheck %s
+; RUN: opt < %s -passes=print-predicateinfo 2>&1 | FileCheck %s
 
 %1 = type opaque
 %0 = type opaque
@@ -7,13 +7,13 @@
 
 ; CHECK-LABEL: bb:
 ; CHECK: Has predicate info
-; CHECK: branch predicate info { TrueEdge: 1 Comparison:  %cmp1 = icmp ne %0* %arg, null Edge: [label %bb,label %bb1] }
-; CHECK-NEXT:  %arg.0 = call %0* @llvm.ssa.copy.{{.+}}(%0* %arg)
+; CHECK: branch predicate info { TrueEdge: 1 Comparison:  %cmp1 = icmp ne %0* %arg, null Edge: [label %bb,label %bb1], RenamedOp: %arg }
+; CHECK-NEXT:  %arg.0 = call %0* @llvm.ssa.copy.p0s_s.{{.+}}(%0* %arg)
 
 ; CHECK-LABEL: bb1:
 ; CHECK: Has predicate info
-; CHECK-NEXT: branch predicate info { TrueEdge: 0 Comparison:  %cmp2 = icmp ne %1* null, %tmp Edge: [label %bb1,label %bb3] }
-; CHECK-NEXT: %tmp.0 = call %1* @llvm.ssa.copy.{{.+}}(%1* %tmp)
+; CHECK-NEXT: branch predicate info { TrueEdge: 0 Comparison:  %cmp2 = icmp ne %1* null, %tmp Edge: [label %bb1,label %bb3], RenamedOp: %tmp }
+; CHECK-NEXT: %tmp.0 = call %1* @llvm.ssa.copy.p0s_s.{{.+}}(%1* %tmp)
 
 define void @f0(%0* %arg, %1* %tmp) {
 bb:

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // <algorithm>
-// XFAIL: c++98, c++03, c++11, c++14
+// XFAIL: c++03, c++11, c++14
 
 // template<class T, class Compare>
 //   const T&
@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <functional>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct Tag {
     Tag() : val(0), tag("Default") {}

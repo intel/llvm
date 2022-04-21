@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_BreakpointID_h_
-#define liblldb_BreakpointID_h_
-
+#ifndef LLDB_BREAKPOINT_BREAKPOINTID_H
+#define LLDB_BREAKPOINT_BREAKPOINTID_H
 
 #include "lldb/lldb-private.h"
 
@@ -65,7 +64,7 @@ public:
   /// If it is a mal-formed breakpoint name, error will be set to an appropriate
   /// error string.
   ///
-  /// \param[in] input
+  /// \param[in] str
   ///     A string containing JUST the breakpoint description.
   /// \param[out] error
   ///     If the name is a well-formed breakpoint name, set to success,
@@ -95,4 +94,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_BreakpointID_h_
+#endif // LLDB_BREAKPOINT_BREAKPOINTID_H

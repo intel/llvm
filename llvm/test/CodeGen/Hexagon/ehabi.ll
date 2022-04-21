@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
+; RUN: llc -march=hexagon -simplifycfg-require-and-preserve-domtree=1 < %s | FileCheck %s
 
 ; CHECK: GCC_except_table0:
 ; CHECK: Call site Encoding = uleb128
@@ -75,7 +75,7 @@ declare i8* @f4(i8*)
 
 declare void @f5()
 
-attributes #0 = { "no-frame-pointer-elim"="true" }
+attributes #0 = { "frame-pointer"="all" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind }
 attributes #3 = { noreturn }

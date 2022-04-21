@@ -27,6 +27,12 @@ module _Builtin_intrinsics [system] [extern_c] {
       header "arm_fp16.h"
       export *
     }
+
+    explicit module sve {
+      requires sve
+      header "arm_sve.h"
+      export *
+    }
   }
 
   explicit module intel {
@@ -154,4 +160,5 @@ module _Builtin_stddef_max_align_t [system] [extern_c] {
 module opencl_c {
   requires opencl
   header "opencl-c.h"
+  header "opencl-c-base.h"
 }

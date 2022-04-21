@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __DNBTimer_h__
-#define __DNBTimer_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBTIMER_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBTIMER_H
 
 #include "DNBDefs.h"
 #include "PThreadMutex.h"
+#include <cstdint>
 #include <memory>
-#include <stdint.h>
 #include <sys/time.h>
 
 class DNBTimer {
@@ -131,4 +131,4 @@ protected:
   struct timeval m_timeval;
 };
 
-#endif // #ifndef __DNBTimer_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBTIMER_H

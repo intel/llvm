@@ -11,7 +11,5 @@ executable("clang-import-test") {
     "//llvm/lib/IR",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "clang-import-test.cpp",
-  ]
+  sources = [ "clang-import-test.cpp" ]
 }

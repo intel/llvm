@@ -12,8 +12,8 @@
 
 #include "LanaiFrameLowering.h"
 
+#include "LanaiAluCode.h"
 #include "LanaiInstrInfo.h"
-#include "LanaiMachineFunctionInfo.h"
 #include "LanaiSubtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -32,8 +32,8 @@ void LanaiFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   unsigned FrameSize = MFI.getStackSize();
 
   // Get the alignment.
-  unsigned StackAlign = LRI->needsStackRealignment(MF) ? MFI.getMaxAlignment()
-                                                       : getStackAlignment();
+  Align StackAlign =
+      LRI->hasStackRealignment(MF) ? MFI.getMaxAlign() : getStackAlign();
 
   // Get the maximum call frame size of all the calls.
   unsigned MaxCallFrameSize = MFI.getMaxCallFrameSize();
@@ -65,17 +65,14 @@ void LanaiFrameLowering::replaceAdjDynAllocPseudo(MachineFunction &MF) const {
       *static_cast<const LanaiInstrInfo *>(STI.getInstrInfo());
   unsigned MaxCallFrameSize = MF.getFrameInfo().getMaxCallFrameSize();
 
-  for (MachineFunction::iterator MBB = MF.begin(), E = MF.end(); MBB != E;
-       ++MBB) {
-    MachineBasicBlock::iterator MBBI = MBB->begin();
-    while (MBBI != MBB->end()) {
-      MachineInstr &MI = *MBBI++;
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
       if (MI.getOpcode() == Lanai::ADJDYNALLOC) {
         DebugLoc DL = MI.getDebugLoc();
-        unsigned Dst = MI.getOperand(0).getReg();
-        unsigned Src = MI.getOperand(1).getReg();
+        Register Dst = MI.getOperand(0).getReg();
+        Register Src = MI.getOperand(1).getReg();
 
-        BuildMI(*MBB, MI, DL, LII.get(Lanai::ADD_I_LO), Dst)
+        BuildMI(MBB, MI, DL, LII.get(Lanai::ADD_I_LO), Dst)
             .addReg(Src)
             .addImm(MaxCallFrameSize);
         MI.eraseFromParent();

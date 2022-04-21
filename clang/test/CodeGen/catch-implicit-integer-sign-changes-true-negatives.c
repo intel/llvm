@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_implicit_conversion" --check-prefix=CHECK
-// RUN: %clang_cc1 -fsanitize=implicit-integer-sign-change -fno-sanitize-recover=implicit-integer-sign-change -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_implicit_conversion" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-NORECOVER
-// RUN: %clang_cc1 -fsanitize=implicit-integer-sign-change -fsanitize-recover=implicit-integer-sign-change -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_implicit_conversion" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-RECOVER
-// RUN: %clang_cc1 -fsanitize=implicit-integer-sign-change -fsanitize-trap=implicit-integer-sign-change -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_implicit_conversion" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-TRAP
+// RUN: %clang_cc1 -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_implicit_conversion"
+// RUN: %clang_cc1 -fsanitize=implicit-integer-sign-change -fno-sanitize-recover=implicit-integer-sign-change -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_implicit_conversion" --check-prefixes=CHECK,CHECK-SANITIZE
+// RUN: %clang_cc1 -fsanitize=implicit-integer-sign-change -fsanitize-recover=implicit-integer-sign-change -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_implicit_conversion" --check-prefixes=CHECK,CHECK-SANITIZE
+// RUN: %clang_cc1 -fsanitize=implicit-integer-sign-change -fsanitize-trap=implicit-integer-sign-change -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_implicit_conversion" --check-prefixes=CHECK,CHECK-SANITIZE
 
 // ========================================================================== //
 // The expected true-negatives.
@@ -10,25 +10,25 @@
 // Sanitization is explicitly disabled.
 // ========================================================================== //
 
-// CHECK-LABEL: @blacklist_0
-__attribute__((no_sanitize("undefined"))) unsigned int blacklist_0(signed int src) {
+// CHECK-LABEL: @ignorelist_0
+__attribute__((no_sanitize("undefined"))) unsigned int ignorelist_0(signed int src) {
   // We are not in "undefined" group, so that doesn't work.
   // CHECK-SANITIZE: call
   return src;
 }
 
-// CHECK-LABEL: @blacklist_1
-__attribute__((no_sanitize("integer"))) unsigned int blacklist_1(signed int src) {
+// CHECK-LABEL: @ignorelist_1
+__attribute__((no_sanitize("integer"))) unsigned int ignorelist_1(signed int src) {
   return src;
 }
 
-// CHECK-LABEL: @blacklist_2
-__attribute__((no_sanitize("implicit-conversion"))) unsigned int blacklist_2(signed int src) {
+// CHECK-LABEL: @ignorelist_2
+__attribute__((no_sanitize("implicit-conversion"))) unsigned int ignorelist_2(signed int src) {
   return src;
 }
 
-// CHECK-LABEL: @blacklist_3
-__attribute__((no_sanitize("implicit-integer-sign-change"))) unsigned int blacklist_3(signed int src) {
+// CHECK-LABEL: @ignorelist_3
+__attribute__((no_sanitize("implicit-integer-sign-change"))) unsigned int ignorelist_3(signed int src) {
   return src;
 }
 
@@ -143,10 +143,10 @@ uint32_t uint32_to_uint32(uint32_t src) {
 // ========================================================================== //
 
 enum a { b = ~2147483647 };
-enum a c();
+enum a c(void);
 void d(int);
-void e();
-void e() {
+void e(void);
+void e(void) {
   enum a f = c();
   d(f);
 }

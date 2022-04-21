@@ -3,7 +3,7 @@
 # RUN: llvm-mc %s -triple=riscv32 \
 # RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -riscv-no-aliases -d -r - \
+# RUN:     | llvm-objdump -M no-aliases -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-EXPAND,CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
 # RUN:     | llvm-objdump -d -r - \
@@ -14,22 +14,29 @@
 # CHECK-ALIAS....Match the alias (tests instr. to alias mapping)
 # CHECK-EXPAND...Match canonical instr. unconditionally (tests alias expansion)
 
+# Needed for testing valid %pcrel_lo expressions
+.Lpcrel_hi0: auipc a0, %pcrel_hi(foo)
 
 # CHECK-INST: addi a0, zero, 0
-# CHECK-ALIAS: mv a0, zero
+# CHECK-ALIAS: li a0, 0
 li x10, 0
-# CHECK-EXPAND: addi a0, zero, 1
+# CHECK-INST: addi a0, zero, 1
+# CHECK-ALIAS: li a0, 1
 li x10, 1
-# CHECK-EXPAND: addi a0, zero, -1
+# CHECK-INST: addi a0, zero, -1
+# CHECK-ALIAS: li a0, -1
 li x10, -1
-# CHECK-EXPAND: addi a0, zero, 2047
+# CHECK-INST: addi a0, zero, 2047
+# CHECK-ALIAS: li a0, 2047
 li x10, 2047
-# CHECK-EXPAND: addi a0, zero, -2047
+# CHECK-INST: addi a0, zero, -2047
+# CHECK-ALIAS: li a0, -2047
 li x10, -2047
 # CHECK-EXPAND: lui a1, 1
 # CHECK-EXPAND: addi a1, a1, -2048
 li x11, 2048
-# CHECK-EXPAND: addi a1, zero, -2048
+# CHECK-INST: addi a1, zero, -2048
+# CHECK-ALIAS: li a1, -2048
 li x11, -2048
 # CHECK-EXPAND: lui a1, 1
 # CHECK-EXPAND: addi a1, a1, -2047
@@ -66,21 +73,20 @@ li x12, -0x80000000
 
 # CHECK-EXPAND: lui a2, 524288
 li x12, 0x80000000
-# CHECK-EXPAND: addi a2, zero, -1
+# CHECK-INST: addi a2, zero, -1
+# CHECK-ALIAS: li a2, -1
 li x12, 0xFFFFFFFF
 
-# CHECK-EXPAND: addi a0, zero, 1110
+# CHECK-INST: addi a0, zero, 1110
+# CHECK-ALIAS: li a0, 1110
 li a0, %lo(0x123456)
-# CHECK-OBJ-NOALIAS: addi a0, zero, 0
-# CHECK-OBJ: R_RISCV_PCREL_LO12
-li a0, %pcrel_lo(0x123456)
 
 # CHECK-OBJ-NOALIAS: addi a0, zero, 0
 # CHECK-OBJ: R_RISCV_LO12
 li a0, %lo(foo)
 # CHECK-OBJ-NOALIAS: addi a0, zero, 0
 # CHECK-OBJ: R_RISCV_PCREL_LO12
-li a0, %pcrel_lo(foo)
+li a0, %pcrel_lo(.Lpcrel_hi0)
 
 .equ CONST, 0x123456
 # CHECK-EXPAND: lui a0, 291
@@ -122,3 +128,19 @@ sb x10, (x11)
 sh x10, (x11)
 # CHECK-EXPAND: sw a0, 0(a1)
 sw x10, (x11)
+
+# CHECK-EXPAND: slli a0, a1, 24
+# CHECK-EXPAND: srai a0, a0, 24
+sext.b x10, x11
+
+# CHECK-EXPAND: slli a0, a1, 16
+# CHECK-EXPAND: srai a0, a0, 16
+sext.h x10, x11
+
+# CHECK-INST: andi a0, a1, 255
+# CHECK-ALIAS: andi a0, a1, 255
+zext.b x10, x11
+
+# CHECK-EXPAND: slli a0, a1, 16
+# CHECK-EXPAND: srli a0, a0, 16
+zext.h x10, x11

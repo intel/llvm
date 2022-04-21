@@ -1,6 +1,13 @@
-// RUN: %clang_cc1 -fsyntax-only -fopenmp -triple x86_64-unknown-unknown -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -triple x86_64-unknown-unknown -verify %s -Wuninitialized
 
-// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -triple x86_64-unknown-unknown -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -triple x86_64-unknown-unknown -verify %s -Wuninitialized
+
+void xxx(int argc) {
+  int x; // expected-note {{initialize the variable 'x' to silence this warning}}
+#pragma omp taskloop
+  for (int i = 0; i < 10; ++i)
+    argc = x; // expected-warning {{variable 'x' is uninitialized when used here}}
+}
 
 // expected-error@+1 {{unexpected OpenMP directive '#pragma omp taskloop'}}
 #pragma omp taskloop
@@ -8,7 +15,7 @@
 // expected-error@+1 {{unexpected OpenMP directive '#pragma omp taskloop'}}
 #pragma omp taskloop foo
 
-void test_no_clause() {
+void test_no_clause(void) {
   int i;
 #pragma omp taskloop
   for (i = 0; i < 16; ++i)
@@ -19,7 +26,7 @@ void test_no_clause() {
   ++i;
 }
 
-void test_branch_protected_scope() {
+void test_branch_protected_scope(void) {
   int i = 0;
 L1:
   ++i;
@@ -47,7 +54,7 @@ L1:
     goto L1;
 }
 
-void test_invalid_clause() {
+void test_invalid_clause(void) {
   int i;
 #pragma omp parallel
 // expected-warning@+1 {{extra tokens at the end of '#pragma omp taskloop' are ignored}}
@@ -60,7 +67,7 @@ void test_invalid_clause() {
     ;
 }
 
-void test_non_identifiers() {
+void test_non_identifiers(void) {
   int i, x;
 
 #pragma omp parallel
@@ -88,9 +95,9 @@ void test_non_identifiers() {
     ;
 }
 
-extern int foo();
+extern int foo(void);
 
-void test_collapse() {
+void test_collapse(void) {
   int i;
 #pragma omp parallel
 // expected-error@+1 {{expected '('}}
@@ -172,12 +179,12 @@ void test_collapse() {
   for (i = 0; i < 16; ++i)
     ; // expected-error {{expected 4 for loops after '#pragma omp taskloop', but found only 1}}
 #pragma omp parallel
-// expected-error@+1 {{expression is not an integer constant expression}}
+// expected-error@+1 {{integer constant expression}}
 #pragma omp taskloop collapse(2.5)
   for (i = 0; i < 16; ++i)
     ;
 #pragma omp parallel
-// expected-error@+1 {{expression is not an integer constant expression}}
+// expected-error@+1 {{integer constant expression}}
 #pragma omp taskloop collapse(foo())
   for (i = 0; i < 16; ++i)
     ;
@@ -198,7 +205,7 @@ void test_collapse() {
     ;
 }
 
-void test_private() {
+void test_private(void) {
   int i;
 #pragma omp parallel
 // expected-error@+2 {{expected expression}}
@@ -249,7 +256,7 @@ void test_private() {
   }
 }
 
-void test_lastprivate() {
+void test_lastprivate(void) {
   int i;
 #pragma omp parallel
 // expected-error@+2 {{expected ')'}} expected-note@+2 {{to match this '('}}
@@ -300,7 +307,7 @@ void test_lastprivate() {
     ;
 }
 
-void test_firstprivate() {
+void test_firstprivate(void) {
   int i;
 #pragma omp parallel
 // expected-error@+2 {{expected ')'}} expected-note@+2 {{to match this '('}}
@@ -351,7 +358,7 @@ void test_firstprivate() {
     ;
 }
 
-void test_loop_messages() {
+void test_loop_messages(void) {
   float a[100], b[100], c[100];
 #pragma omp parallel
 // expected-error@+2 {{variable must be of integer or pointer type}}

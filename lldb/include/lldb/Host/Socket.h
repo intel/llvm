@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Host_Socket_h_
-#define liblldb_Host_Socket_h_
+#ifndef LLDB_HOST_SOCKET_H
+#define LLDB_HOST_SOCKET_H
 
 #include <memory>
 #include <string>
@@ -16,7 +16,6 @@
 
 #include "lldb/Host/SocketAddress.h"
 #include "lldb/Utility/IOObject.h"
-#include "lldb/Utility/Predicate.h"
 #include "lldb/Utility/Status.h"
 
 #ifdef _WIN32
@@ -31,11 +30,13 @@ class StringRef;
 
 namespace lldb_private {
 
-#if defined(_MSC_VER)
+#if defined(_WIN32)
 typedef SOCKET NativeSocket;
 #else
 typedef int NativeSocket;
 #endif
+class TCPSocket;
+class UDPSocket;
 
 class Socket : public IOObject {
 public:
@@ -44,6 +45,15 @@ public:
     ProtocolUdp,
     ProtocolUnixDomain,
     ProtocolUnixAbstract
+  };
+
+  struct HostAndPort {
+    std::string hostname;
+    uint16_t port;
+
+    bool operator==(const HostAndPort &R) const {
+      return port == R.port && hostname == R.hostname;
+    }
   };
 
   static const NativeSocket kInvalidSocketValue;
@@ -64,24 +74,15 @@ public:
   // Initialize a Tcp Socket object in listening mode.  listen and accept are
   // implemented separately because the caller may wish to manipulate or query
   // the socket after it is initialized, but before entering a blocking accept.
-  static Status TcpListen(llvm::StringRef host_and_port,
-                          bool child_processes_inherit, Socket *&socket,
-                          Predicate<uint16_t> *predicate, int backlog = 5);
-  static Status TcpConnect(llvm::StringRef host_and_port,
-                           bool child_processes_inherit, Socket *&socket);
-  static Status UdpConnect(llvm::StringRef host_and_port,
-                           bool child_processes_inherit, Socket *&socket);
-  static Status UnixDomainConnect(llvm::StringRef host_and_port,
-                                  bool child_processes_inherit,
-                                  Socket *&socket);
-  static Status UnixDomainAccept(llvm::StringRef host_and_port,
-                                 bool child_processes_inherit, Socket *&socket);
-  static Status UnixAbstractConnect(llvm::StringRef host_and_port,
-                                    bool child_processes_inherit,
-                                    Socket *&socket);
-  static Status UnixAbstractAccept(llvm::StringRef host_and_port,
-                                   bool child_processes_inherit,
-                                   Socket *&socket);
+  static llvm::Expected<std::unique_ptr<TCPSocket>>
+  TcpListen(llvm::StringRef host_and_port, bool child_processes_inherit,
+            int backlog = 5);
+
+  static llvm::Expected<std::unique_ptr<Socket>>
+  TcpConnect(llvm::StringRef host_and_port, bool child_processes_inherit);
+
+  static llvm::Expected<std::unique_ptr<UDPSocket>>
+  UdpConnect(llvm::StringRef host_and_port, bool child_processes_inherit);
 
   int GetOption(int level, int option_name, int &option_value);
   int SetOption(int level, int option_name, int option_value);
@@ -98,9 +99,11 @@ public:
   bool IsValid() const override { return m_socket != kInvalidSocketValue; }
   WaitableHandle GetWaitableHandle() override;
 
-  static bool DecodeHostAndPort(llvm::StringRef host_and_port,
-                                std::string &host_str, std::string &port_str,
-                                int32_t &port, Status *error_ptr);
+  static llvm::Expected<HostAndPort>
+  DecodeHostAndPort(llvm::StringRef host_and_port);
+
+  // If this Socket is connected then return the URI used to connect.
+  virtual std::string GetRemoteConnectionURI() const { return ""; };
 
 protected:
   Socket(SocketProtocol protocol, bool should_close,
@@ -119,8 +122,12 @@ protected:
   SocketProtocol m_protocol;
   NativeSocket m_socket;
   bool m_child_processes_inherit;
+  bool m_should_close_fd;
 };
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
+                              const Socket::HostAndPort &HP);
 
 } // namespace lldb_private
 
-#endif // liblldb_Host_Socket_h_
+#endif // LLDB_HOST_SOCKET_H

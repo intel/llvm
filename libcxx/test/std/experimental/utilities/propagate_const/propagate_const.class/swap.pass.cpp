@@ -6,13 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <propagate_const>
 
 // template <class T> constexpr void propagate_const::swap(propagate_const<T>& x);
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <cassert>
 
@@ -30,4 +31,3 @@ int main(int, char**) {
 
   return 0;
 }
-

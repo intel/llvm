@@ -1,4 +1,4 @@
-; RUN: opt < %s -simplifycfg -S | FileCheck %s
+; RUN: opt < %s -simplifycfg -simplifycfg-require-and-preserve-domtree=1 -S | FileCheck %s
 
 ; Skip simplifying unconditional branches from empty blocks in simplifyCFG,
 ; when it can destroy canonical loop structure.
@@ -27,7 +27,7 @@
 ; CHECK: br label %if.end
 ; CHECK-NOT: br label %for.cond
 ; CHECK: if.end:
-; CHECK br label %for.cond
+; CHECK: br label %for.cond
 define i1 @test(i32 %a, i32 %b, i32* %c) {
 entry:
   br label %for.cond

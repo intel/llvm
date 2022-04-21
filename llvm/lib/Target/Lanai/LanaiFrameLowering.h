@@ -13,7 +13,6 @@
 #ifndef LLVM_LIB_TARGET_LANAI_LANAIFRAMELOWERING_H
 #define LLVM_LIB_TARGET_LANAI_LANAIFRAMELOWERING_H
 
-#include "Lanai.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 
 namespace llvm {
@@ -32,7 +31,7 @@ protected:
 public:
   explicit LanaiFrameLowering(const LanaiSubtarget &Subtarget)
       : TargetFrameLowering(StackGrowsDown,
-                            /*StackAlignment=*/8,
+                            /*StackAlignment=*/Align(8),
                             /*LocalAreaOffset=*/0),
         STI(Subtarget) {}
 

@@ -84,13 +84,6 @@ void UseNodiscardCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void UseNodiscardCheck::registerMatchers(MatchFinder *Finder) {
-  // If we use ``[[nodiscard]]`` attribute, we require at least C++17. Use a
-  // macro or ``__attribute__`` with pre c++17 compilers by using
-  // ReplacementString option.
-  if ((NoDiscardMacro == "[[nodiscard]]" && !getLangOpts().CPlusPlus17) ||
-      !getLangOpts().CPlusPlus)
-    return;
-
   auto FunctionObj =
       cxxRecordDecl(hasAnyName("::std::function", "::boost::function"));
 
@@ -100,7 +93,9 @@ void UseNodiscardCheck::registerMatchers(MatchFinder *Finder) {
       cxxMethodDecl(
           allOf(isConst(), isDefinitionOrInline(),
                 unless(anyOf(
-                    returns(voidType()), isNoReturn(), isOverloadedOperator(),
+                    returns(voidType()),
+                    returns(hasDeclaration(decl(hasAttr(clang::attr::WarnUnusedResult)))),
+                    isNoReturn(), isOverloadedOperator(),
                     isVariadic(), hasTemplateReturnType(),
                     hasClassMutableFields(), isConversionOperator(),
                     hasAttr(clang::attr::WarnUnusedResult),
@@ -125,8 +120,8 @@ void UseNodiscardCheck::check(const MatchFinder::MatchResult &Result) {
 
   ASTContext &Context = *Result.Context;
 
-  auto Diag = diag(RetLoc, "function %0 should be marked " + NoDiscardMacro)
-              << MatchedDecl;
+  auto Diag = diag(RetLoc, "function %0 should be marked %1")
+              << MatchedDecl << NoDiscardMacro;
 
   // Check for the existence of the keyword being used as the ``[[nodiscard]]``.
   if (!doesNoDiscardMacroExist(Context, NoDiscardMacro))
@@ -137,6 +132,18 @@ void UseNodiscardCheck::check(const MatchFinder::MatchResult &Result) {
   // but performs some external I/O operation and the return value could be
   // ignored.
   Diag << FixItHint::CreateInsertion(RetLoc, NoDiscardMacro + " ");
+}
+
+bool UseNodiscardCheck::isLanguageVersionSupported(
+    const LangOptions &LangOpts) const {
+  // If we use ``[[nodiscard]]`` attribute, we require at least C++17. Use a
+  // macro or ``__attribute__`` with pre c++17 compilers by using
+  // ReplacementString option.
+
+  if (NoDiscardMacro == "[[nodiscard]]")
+    return LangOpts.CPlusPlus17;
+
+  return LangOpts.CPlusPlus;
 }
 
 } // namespace modernize

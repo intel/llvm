@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // <functional>
-// REQUIRES: c++98 || c++03 || c++11 || c++14
 
 // template <class Fn>
 // class binder1st
@@ -23,12 +22,14 @@
 //   typename Fn::result_type operator()(typename Fn::first_argument_type& x) const;
 // };
 
-#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
+// REQUIRES: c++03 || c++11 || c++14
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <functional>
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../test_func.h"
 
 class test

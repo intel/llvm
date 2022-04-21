@@ -10,16 +10,17 @@
 
 // template<BidirectionalIterator Iter>
 //   requires HasSwap<Iter::reference, Iter::reference>
-//   void
+//   constexpr void  // constexpr in C++20
 //   reverse(Iter first, Iter last);
 
 #include <algorithm>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class Iter>
-void
+TEST_CONSTEXPR_CXX20 bool
 test()
 {
     int ia[] = {0};
@@ -49,6 +50,8 @@ test()
     assert(id[1] == 2);
     assert(id[2] == 1);
     assert(id[3] == 0);
+
+    return true;
 }
 
 int main(int, char**)
@@ -57,5 +60,11 @@ int main(int, char**)
     test<random_access_iterator<int*> >();
     test<int*>();
 
-  return 0;
+#if TEST_STD_VER >= 20
+    static_assert(test<bidirectional_iterator<int*>>());
+    static_assert(test<random_access_iterator<int*>>());
+    static_assert(test<int*>());
+#endif
+
+    return 0;
 }

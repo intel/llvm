@@ -1,4 +1,4 @@
-//===--- FuchsiaTidyModule.cpp - clang-tidy--------------------------------===//
+//===--- FuchsiaTidyModule.cpp - clang-tidy -------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +10,10 @@
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
 #include "../google/UnnamedNamespaceInHeaderCheck.h"
-#include "DefaultArgumentsCheck.h"
+#include "DefaultArgumentsCallsCheck.h"
+#include "DefaultArgumentsDeclarationsCheck.h"
 #include "MultipleInheritanceCheck.h"
 #include "OverloadedOperatorCheck.h"
-#include "RestrictSystemIncludesCheck.h"
 #include "StaticallyConstructedObjectsCheck.h"
 #include "TrailingReturnCheck.h"
 #include "VirtualInheritanceCheck.h"
@@ -28,16 +28,16 @@ namespace fuchsia {
 class FuchsiaModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
-    CheckFactories.registerCheck<DefaultArgumentsCheck>(
-        "fuchsia-default-arguments");
+    CheckFactories.registerCheck<DefaultArgumentsCallsCheck>(
+        "fuchsia-default-arguments-calls");
+    CheckFactories.registerCheck<DefaultArgumentsDeclarationsCheck>(
+        "fuchsia-default-arguments-declarations");
     CheckFactories.registerCheck<google::build::UnnamedNamespaceInHeaderCheck>(
         "fuchsia-header-anon-namespaces");
     CheckFactories.registerCheck<MultipleInheritanceCheck>(
         "fuchsia-multiple-inheritance");
     CheckFactories.registerCheck<OverloadedOperatorCheck>(
         "fuchsia-overloaded-operator");
-    CheckFactories.registerCheck<RestrictSystemIncludesCheck>(
-        "fuchsia-restrict-system-includes");
     CheckFactories.registerCheck<StaticallyConstructedObjectsCheck>(
         "fuchsia-statically-constructed-objects");
     CheckFactories.registerCheck<TrailingReturnCheck>(

@@ -12,11 +12,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MacroFusion.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/ScheduleDAG.h"
+#include "llvm/CodeGen/ScheduleDAGInstrs.h"
 #include "llvm/CodeGen/ScheduleDAGMutation.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/Support/CommandLine.h"
@@ -36,8 +35,23 @@ static bool isHazard(const SDep &Dep) {
   return Dep.getKind() == SDep::Anti || Dep.getKind() == SDep::Output;
 }
 
-static bool fuseInstructionPair(ScheduleDAGInstrs &DAG, SUnit &FirstSU,
-                                SUnit &SecondSU) {
+static SUnit *getPredClusterSU(const SUnit &SU) {
+  for (const SDep &SI : SU.Preds)
+    if (SI.isCluster())
+      return SI.getSUnit();
+
+  return nullptr;
+}
+
+bool llvm::hasLessThanNumFused(const SUnit &SU, unsigned FuseLimit) {
+  unsigned Num = 1;
+  const SUnit *CurrentSU = &SU;
+  while ((CurrentSU = getPredClusterSU(*CurrentSU)) && Num < FuseLimit) Num ++;
+  return Num < FuseLimit;
+}
+
+bool llvm::fuseInstructionPair(ScheduleDAGInstrs &DAG, SUnit &FirstSU,
+                               SUnit &SecondSU) {
   // Check that neither instr is already paired with another along the edge
   // between them.
   for (SDep &SI : FirstSU.Succs)
@@ -55,6 +69,14 @@ static bool fuseInstructionPair(ScheduleDAGInstrs &DAG, SUnit &FirstSU,
   // to cause bottom-up scheduling to heavily prioritize the clustered instrs.
   if (!DAG.addEdge(&SecondSU, SDep(&FirstSU, SDep::Cluster)))
     return false;
+
+  // TODO - If we want to chain more than two instructions, we need to create
+  // artifical edges to make dependencies from the FirstSU also dependent
+  // on other chained instructions, and other chained instructions also
+  // dependent on the dependencies of the SecondSU, to prevent them from being
+  // scheduled into these chained instructions.
+  assert(hasLessThanNumFused(FirstSU, 2) &&
+         "Currently we only support chaining together two instructions");
 
   // Adjust the latency between both instrs.
   for (SDep &SI : FirstSU.Succs)
@@ -161,8 +183,10 @@ bool MacroFusion::scheduleAdjacentImpl(ScheduleDAGInstrs &DAG, SUnit &AnchorSU) 
     if (DepSU.isBoundaryNode())
       continue;
 
+    // Only chain two instructions together at most.
     const MachineInstr *DepMI = DepSU.getInstr();
-    if (!shouldScheduleAdjacent(TII, ST, DepMI, AnchorMI))
+    if (!hasLessThanNumFused(DepSU, 2) ||
+        !shouldScheduleAdjacent(TII, ST, DepMI, AnchorMI))
       continue;
 
     if (fuseInstructionPair(DAG, DepSU, AnchorSU))
@@ -176,7 +200,7 @@ std::unique_ptr<ScheduleDAGMutation>
 llvm::createMacroFusionDAGMutation(
      ShouldSchedulePredTy shouldScheduleAdjacent) {
   if(EnableMacroFusion)
-    return llvm::make_unique<MacroFusion>(shouldScheduleAdjacent, true);
+    return std::make_unique<MacroFusion>(shouldScheduleAdjacent, true);
   return nullptr;
 }
 
@@ -184,6 +208,6 @@ std::unique_ptr<ScheduleDAGMutation>
 llvm::createBranchMacroFusionDAGMutation(
      ShouldSchedulePredTy shouldScheduleAdjacent) {
   if(EnableMacroFusion)
-    return llvm::make_unique<MacroFusion>(shouldScheduleAdjacent, false);
+    return std::make_unique<MacroFusion>(shouldScheduleAdjacent, false);
   return nullptr;
 }

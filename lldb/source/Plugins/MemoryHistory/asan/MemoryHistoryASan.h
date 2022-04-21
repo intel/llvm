@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_MemoryHistoryASan_h_
-#define liblldb_MemoryHistoryASan_h_
+#ifndef LLDB_SOURCE_PLUGINS_MEMORYHISTORY_ASAN_MEMORYHISTORYASAN_H
+#define LLDB_SOURCE_PLUGINS_MEMORYHISTORY_ASAN_MEMORYHISTORYASAN_H
 
 #include "lldb/Target/ABI.h"
 #include "lldb/Target/MemoryHistory.h"
@@ -27,13 +27,9 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "asan"; }
 
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
-  }
-
-  uint32_t GetPluginVersion() override { return 1; }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   lldb_private::HistoryThreads GetHistoryThreads(lldb::addr_t address) override;
 
@@ -45,4 +41,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_MemoryHistoryASan_h_
+#endif // LLDB_SOURCE_PLUGINS_MEMORYHISTORY_ASAN_MEMORYHISTORYASAN_H

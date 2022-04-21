@@ -52,7 +52,7 @@ StoreRef StoreManager::enterStackFrame(Store OldStore,
   Call.getInitialStackFrameContents(LCtx, InitialBindings);
 
   for (const auto &I : InitialBindings)
-    Store = Bind(Store.getStore(), I.first, I.second);
+    Store = Bind(Store.getStore(), I.first.castAs<Loc>(), I.second);
 
   return Store;
 }
@@ -71,7 +71,8 @@ const ElementRegion *StoreManager::GetElementZeroRegion(const SubRegion *R,
   return MRMgr.getElementRegion(T, idx, R, Ctx);
 }
 
-const MemRegion *StoreManager::castRegion(const MemRegion *R, QualType CastToTy) {
+Optional<const MemRegion *> StoreManager::castRegion(const MemRegion *R,
+                                                     QualType CastToTy) {
   ASTContext &Ctx = StateMgr.getContext();
 
   // Handle casts to Objective-C objects.
@@ -83,30 +84,36 @@ const MemRegion *StoreManager::castRegion(const MemRegion *R, QualType CastToTy)
     // involved.  Blocks can be casted to/from 'id', as they can be treated
     // as Objective-C objects.  This could possibly be handled by enhancing
     // our reasoning of downcasts of symbolic objects.
-    if (isa<CodeTextRegion>(R) || isa<SymbolicRegion>(R))
+    if (isa<CodeTextRegion, SymbolicRegion>(R))
       return R;
 
     // We don't know what to make of it.  Return a NULL region, which
     // will be interpreted as UnknownVal.
-    return nullptr;
+    return None;
   }
 
   // Now assume we are casting from pointer to pointer. Other cases should
   // already be handled.
   QualType PointeeTy = CastToTy->getPointeeType();
   QualType CanonPointeeTy = Ctx.getCanonicalType(PointeeTy);
+  CanonPointeeTy = CanonPointeeTy.getLocalUnqualifiedType();
 
   // Handle casts to void*.  We just pass the region through.
-  if (CanonPointeeTy.getLocalUnqualifiedType() == Ctx.VoidTy)
+  if (CanonPointeeTy == Ctx.VoidTy)
     return R;
 
-  // Handle casts from compatible types.
-  if (R->isBoundable())
+  const auto IsSameRegionType = [&Ctx](const MemRegion *R, QualType OtherTy) {
     if (const auto *TR = dyn_cast<TypedValueRegion>(R)) {
       QualType ObjTy = Ctx.getCanonicalType(TR->getValueType());
-      if (CanonPointeeTy == ObjTy)
-        return R;
+      if (OtherTy == ObjTy.getLocalUnqualifiedType())
+        return true;
     }
+    return false;
+  };
+
+  // Handle casts from compatible types.
+  if (R->isBoundable() && IsSameRegionType(R, CanonPointeeTy))
+    return R;
 
   // Process region cast according to the kind of the region being cast.
   switch (R->getKind()) {
@@ -134,7 +141,8 @@ const MemRegion *StoreManager::castRegion(const MemRegion *R, QualType CastToTy)
     case MemRegion::FieldRegionKind:
     case MemRegion::ObjCIvarRegionKind:
     case MemRegion::ObjCStringRegionKind:
-    case MemRegion::VarRegionKind:
+    case MemRegion::NonParamVarRegionKind:
+    case MemRegion::ParamVarRegionKind:
     case MemRegion::CXXTempObjectRegionKind:
     case MemRegion::CXXBaseObjectRegionKind:
     case MemRegion::CXXDerivedObjectRegionKind:
@@ -167,21 +175,16 @@ const MemRegion *StoreManager::castRegion(const MemRegion *R, QualType CastToTy)
       // If we cannot compute a raw offset, throw up our hands and return
       // a NULL MemRegion*.
       if (!baseR)
-        return nullptr;
+        return None;
 
       CharUnits off = rawOff.getOffset();
 
       if (off.isZero()) {
-        // Edge case: we are at 0 bytes off the beginning of baseR.  We
-        // check to see if type we are casting to is the same as the base
-        // region.  If so, just return the base region.
-        if (const auto *TR = dyn_cast<TypedValueRegion>(baseR)) {
-          QualType ObjTy = Ctx.getCanonicalType(TR->getValueType());
-          QualType CanonPointeeTy = Ctx.getCanonicalType(PointeeTy);
-          if (CanonPointeeTy == ObjTy)
-            return baseR;
-        }
-
+        // Edge case: we are at 0 bytes off the beginning of baseR. We check to
+        // see if the type we are casting to is the same as the type of the base
+        // region. If so, just return the base region.
+        if (IsSameRegionType(baseR, CanonPointeeTy))
+          return baseR;
         // Otherwise, create a new ElementRegion at offset 0.
         return MakeElementRegion(cast<SubRegion>(baseR), PointeeTy);
       }
@@ -246,7 +249,7 @@ static bool regionMatchesCXXRecordType(SVal V, QualType Ty) {
 }
 
 SVal StoreManager::evalDerivedToBase(SVal Derived, const CastExpr *Cast) {
-  // Sanity check to avoid doing the wrong thing in the face of
+  // Early return to avoid doing the wrong thing in the face of
   // reinterpret_cast.
   if (!regionMatchesCXXRecordType(Derived, Cast->getSubExpr()->getType()))
     return UnknownVal();
@@ -311,10 +314,7 @@ static const CXXRecordDecl *getCXXRecordType(const MemRegion *MR) {
   return nullptr;
 }
 
-SVal StoreManager::attemptDownCast(SVal Base, QualType TargetType,
-                                   bool &Failed) {
-  Failed = false;
-
+Optional<SVal> StoreManager::evalBaseToDerived(SVal Base, QualType TargetType) {
   const MemRegion *MR = Base.getAsRegion();
   if (!MR)
     return UnknownVal();
@@ -389,44 +389,10 @@ SVal StoreManager::attemptDownCast(SVal Base, QualType TargetType,
   }
 
   // We failed if the region we ended up with has perfect type info.
-  Failed = isa<TypedValueRegion>(MR);
+  if (isa<TypedValueRegion>(MR))
+    return None;
+
   return UnknownVal();
-}
-
-/// CastRetrievedVal - Used by subclasses of StoreManager to implement
-///  implicit casts that arise from loads from regions that are reinterpreted
-///  as another region.
-SVal StoreManager::CastRetrievedVal(SVal V, const TypedValueRegion *R,
-                                    QualType castTy) {
-  if (castTy.isNull() || V.isUnknownOrUndef())
-    return V;
-
-  // The dispatchCast() call below would convert the int into a float.
-  // What we want, however, is a bit-by-bit reinterpretation of the int
-  // as a float, which usually yields nothing garbage. For now skip casts
-  // from ints to floats.
-  // TODO: What other combinations of types are affected?
-  if (castTy->isFloatingType()) {
-    SymbolRef Sym = V.getAsSymbol();
-    if (Sym && !Sym->getType()->isFloatingType())
-      return UnknownVal();
-  }
-
-  // When retrieving symbolic pointer and expecting a non-void pointer,
-  // wrap them into element regions of the expected type if necessary.
-  // SValBuilder::dispatchCast() doesn't do that, but it is necessary to
-  // make sure that the retrieved value makes sense, because there's no other
-  // cast in the AST that would tell us to cast it to the correct pointer type.
-  // We might need to do that for non-void pointers as well.
-  // FIXME: We really need a single good function to perform casts for us
-  // correctly every time we need it.
-  if (castTy->isPointerType() && !castTy->isVoidPointerType())
-    if (const auto *SR = dyn_cast_or_null<SymbolicRegion>(V.getAsRegion()))
-      if (SR->getSymbol()->getType().getCanonicalType() !=
-          castTy.getCanonicalType())
-        return loc::MemRegionVal(castRegion(SR, castTy));
-
-  return svalBuilder.dispatchCast(V, castTy);
 }
 
 SVal StoreManager::getLValueFieldOrIvar(const Decl *D, SVal Base) {
@@ -476,6 +442,19 @@ SVal StoreManager::getLValueIvar(const ObjCIvarDecl *decl, SVal base) {
 
 SVal StoreManager::getLValueElement(QualType elementType, NonLoc Offset,
                                     SVal Base) {
+
+  // Special case, if index is 0, return the same type as if
+  // this was not an array dereference.
+  if (Offset.isZeroConstant()) {
+    QualType BT = Base.getType(this->Ctx);
+    if (!BT.isNull() && !elementType.isNull()) {
+      QualType PointeeTy = BT->getPointeeType();
+      if (!PointeeTy.isNull() &&
+          PointeeTy.getCanonicalType() == elementType.getCanonicalType())
+        return Base;
+    }
+  }
+
   // If the base is an unknown or undefined value, just return it back.
   // FIXME: For absolute pointer addresses, we just return that value back as
   //  well, although in reality we should return the offset added to that

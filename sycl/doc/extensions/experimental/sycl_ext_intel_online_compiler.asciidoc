@@ -1,0 +1,199 @@
+= SYCL Intel extension: Online Compilation
+Konstantin Bobrovskii <konstantin.s.bobrovsky@intel.com>, John Pennycook <john.pennycook@intel.com>
+v0.1
+:source-highlighter: pygments
+:icons: font
+== Introduction
+This document describes an interface for online compilation from high-level languages, such as
+OpenCL, to a binary format, such as SPIR-V, loadable by SYCL backends. Unlike SYCL 2020 provisional's
+OpenCL backend online compilation interface, this interface is not bound to any particular backend and does
+not require available SYCL context for online compilation.
+
+This gives a flexibility to "cross-compile" to SPIR-V or other supported formats without any SYCL
+device or context available. The online compilation API uses the `online_compiler` class to access
+compilation services. Instances of the class are constructed based on a specification of the desired
+compilation target passed to the constructors - such as compiled code format, target architecture,
+etc. All the settings are optional, and by default the target is generic SPIR-V.
+
+This API is an Intel SYCL extension.
+
+== Online compilation API
+
+All online compilation API elements reside in the `sycl::INTEL` namespace.
+
+=== Source language specification
+
+Elements of the enum designate the source language:
+[source,c++]
+-----------------
+enum class source_language {
+  opencl_c, // OpenCL C language
+  cm        // Intel's C-for-Media language
+};
+-----------------
+
+=== APIs to express compilation target characteristics
+
+The desired format of the compiled code: 
+[source,c++]
+-----------------
+enum class compiled_code_format {
+  spir_v
+};
+-----------------
+
+Target device architecture:
+[source,c++]
+-----------------
+class device_arch {
+public:
+  static constexpr int any = 0; // designates an unspecified architecture 
+  device_arch(int Val);
+
+  // GPU architecture IDs
+  enum gpu { gpu_any = 1, ... };
+  // CPU architecture IDs
+  enum cpu { cpu_any = 1, ... };
+  // FPGA architecture IDs
+  enum fpga { fpga_any = 1, ... };
+
+  // Converts this architecture representation to an integer. 
+  operator int();
+};
+-----------------
+
+=== Compiler API
+
+To compile a source, a user program must first construct an instance of the `sycl::ext::intel::online_compiler` class. Then pass the source as an `std::string` object to online compiler's `compile` function along with other relevant parameters. The `online_compiler` is templated by the source language, and the `compile` function is a variadic template function. Instantiations of the `online_compiler::compile` for different languages may have different sets of formal parameters. The `compile` function returns a binary blob - an `std::vector<unsigned char>` - with the device code compiled according to the compilation target specification provided at online compiler construction time.
+
+==== Online compiler
+[source,c++]
+-----------------
+template <source_language Lang> class online_compiler;
+-----------------
+
+==== Compilation target specification elements.
+[cols="40,60",options="header"]
+|===
+|Element name and type |Description
+
+|`compiled_code_format` OutputFormat
+|Compiled code format.
+
+|`std::pair<int, int>` OutputFormatVersion
+|Compiled code format version - a pair of "major" and "minor" components.
+
+|`sycl::info::device_type` DeviceType
+|Target device type.
+
+|`device_arch` DeviceArch
+|Target device architecture.
+
+|`bool` Is64Bit
+|Whether the target device architecture is 64-bit.
+
+|`std::string` DeviceStepping
+|Target device stepping (implementation defined).
+|===
+
+Online compiler construction or source compilation may be unsuccessful, in which case an instance
+of `sycl::ext::intel::online_compile_error` is thrown. For example, when some of the compilation
+target specification elements are not supported by the implementation, or there is a syntax error
+in the source program.
+
+
+==== `sycl::ext::intel::online_compiler` constructors.
+[cols="40,60",options="header"]
+|===
+|Constructor |Description
+
+|`online_compiler(compiled_code_format fmt = compiled_code_format::spir_v)`
+| Constructs online compiler which can target any device and produces
+  given compiled code format. Produced device code is 64-bit. OutputFormatVersion is
+  implementation defined. The created compiler is "optimistic" - it assumes all applicable SYCL
+  device capabilities are supported by the target device(s).
+
+|`online_compiler(
+    sycl::info::device_type dev_type,
+    device_arch arch,
+    compiled_code_format fmt = compiled_code_format::spir_v)`
+| Constructor version which allows to specify target device type and architecture.
+
+|`online_compiler(const sycl::device &dev)`
+|Constructs online compiler for the target specified by given SYCL device.
+|===
+
+==== The compilation function - `online_compiler::compile`
+It compiles given in-memory source to a binary blob. Blob format,
+other parameters are set in the constructor. Specialization for each language will provide exact
+signatures, which can be different for different languages.Throws `online_compile_error` if
+compilation is not successful.
+[source,c++]
+-----------------
+template <typename... Tys>
+  std::vector<byte> compile(const std::string &src, const Tys&... args);
+-----------------
+
+Instantiations of the compilation function:
+[source,c++]
+-----------------
+/// Compiles given OpenCL source. May throw \c online_compile_error.
+/// @param src - contents of the source
+/// @param options - compilation options (implementation defined); standard
+///   OpenCL JIT compiler options must be supported
+template <>
+template <>
+std::vector<byte> online_compiler<source_language::opencl_c>::compile(
+    const std::string &src, const std::vector<std::string> &options);
+
+/// Compiles given CM source.
+template <>
+template <>
+std::vector<byte> online_compiler<source_language::cm>::compile(
+    const std::string &src);
+
+/// Compiles given CM source.
+/// @param options - compilation options (implementation defined)
+template <>
+template <>
+std::vector<byte> online_compiler<source_language::cm>::compile(
+    const std::string &src, const std::vector<std::string> &options);
+-----------------
+
+== API usage example
+This example compiles an OpenCL source to a generic SPIR-V.
+[source,c++]
+-----------------
+#include "sycl/ext/intel/online_compiler.hpp"
+
+#include <iostream>
+#include <vector>
+
+static const char *kernelSource = R"===(
+__kernel void my_kernel(__global int *in, __global int *out) {
+  size_t i = get_global_id(0);
+  out[i] = in[i] + 1;
+}
+)===";
+
+using namespace sycl::INTEL;
+
+int main(int argc, char **argv) {
+  online_compiler<source_language::opencl_c> compiler;
+  std::vector<byte> blob;
+
+  try {
+    blob = compiler.compile(
+      std::string(kernelSource),
+      std::vector<std::string> {
+        std::string("-cl-fast-relaxed-math")
+      }
+    );
+  }
+  catch (online_compile_error &e) {
+    std::cout << "compilation failed\n";
+    return 1;
+  }
+  return 0;
+}
+-----------------

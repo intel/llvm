@@ -744,7 +744,7 @@ File Bug</h3>
         return f
 
     def send_string(self, s, ctype='text/html', headers=True, mtime=None):
-        encoded_s = s.encode()
+        encoded_s = s.encode('utf-8')
         if headers:
             self.send_response(200)
             self.send_header("Content-type", ctype)
@@ -764,11 +764,11 @@ File Bug</h3>
             variables['report'] = m.group(2)
 
         try:
-            f = open(path,'r')
+            f = open(path,'rb')
         except IOError:
             return self.send_404()
         fs = os.fstat(f.fileno())
-        data = f.read()
+        data = f.read().decode('utf-8')
         for a,b in kReportReplacements:
             data = a.sub(b % variables, data)
         return self.send_string(data, ctype, mtime=fs.st_mtime)

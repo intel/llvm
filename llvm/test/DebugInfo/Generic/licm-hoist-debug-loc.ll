@@ -5,7 +5,7 @@
 ; Generated with
 ; clang -O0 -S -emit-llvm test.cpp -g -gline-tables-only -o t.ll
 ; opt -S -sroa -adce -simplifycfg -reassociate -domtree -loops \
-;     -loop-simplify -lcssa -basicaa -aa -scalar-evolution -loop-rotate t.ll > test.ll
+;     -loop-simplify -lcssa -basic-aa -aa -scalar-evolution -loop-rotate t.ll > test.ll
 ;
 ; void bar(int *);
 ; void foo(int k, int p)
@@ -18,9 +18,8 @@
 ; We make sure that the instruction that is hoisted into the preheader
 ; does not have a debug location.
 ; CHECK: for.body.lr.ph:
-; CHECK: getelementptr{{.*}}%p.addr, i64 4{{.*}} !dbg [[zero:![0-9]+]]
+; CHECK: getelementptr{{.*}}%p.addr, i64 4{{$}}
 ; CHECK: for.body:
-; CHECK: [[zero]] = !DILocation(line: 0
 ;
 ; ModuleID = 't.ll'
 source_filename = "test.c"

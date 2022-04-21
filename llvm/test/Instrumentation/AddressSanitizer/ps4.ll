@@ -1,4 +1,4 @@
-; RUN: opt < %s -asan -asan-module -S -mtriple=x86_64-scei-ps4 | FileCheck %s
+; RUN: opt < %s -passes='asan-pipeline' -S -mtriple=x86_64-scei-ps4 | FileCheck %s
 
 define i32 @read_4_bytes(i32* %a) sanitize_address {
 entry:

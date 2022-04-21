@@ -87,7 +87,7 @@ When using lld-link, the -flto option need only be added to the compile step:
 
 As mentioned earlier, by default the linkers will launch the ThinLTO backend
 threads in parallel, passing the resulting native object files back to the
-linker for the final native link.  As such, the usage model the same as
+linker for the final native link.  As such, the usage model is the same as
 non-LTO.
 
 With gold, if you see an error during the link of the form:
@@ -122,6 +122,15 @@ be reduced to ``N`` via:
   ``-Wl,--thinlto-jobs=N``
 - lld-link:
   ``/opt:lldltojobs=N``
+
+Other possible values for ``N`` are:
+
+- 0:
+  Use one thread per physical core (default)
+- 1:
+  Use a single thread only (disable multi-threading)
+- all:
+  Use one thread per logical core (uses all hyper-threads)
 
 Incremental
 -----------
@@ -194,11 +203,12 @@ Possible key-value pairs are:
 Clang Bootstrap
 ---------------
 
-To bootstrap clang/LLVM with ThinLTO, follow these steps:
+To `bootstrap clang/LLVM <https://llvm.org/docs/AdvancedBuilds.html#bootstrap-builds>`_
+with ThinLTO, follow these steps:
 
 1. The host compiler_ must be a version of clang that supports ThinLTO.
 #. The host linker_ must support ThinLTO (and in the case of gold, must be
-   `configured with plugins enabled <https://llvm.org/docs/GoldPlugin.html>`_.
+   `configured with plugins enabled <https://llvm.org/docs/GoldPlugin.html>`_).
 #. Use the following additional `CMake variables
    <https://llvm.org/docs/CMake.html#options-and-variables>`_
    when configuring the bootstrap compiler build:
@@ -224,6 +234,10 @@ To bootstrap clang/LLVM with ThinLTO, follow these steps:
    build directory. Specify any additional linker options after
    ``CMAKE_EXE_LINKER_FLAGS:STRING=``. Note the configure may fail if
    linker plugin options are instead specified directly in the previous step.
+
+The ``BOOTSTRAP_LLVM_ENABLE_LTO=Thin`` will enable ThinLTO for stage 2 and
+stage 3 in case the compiler used for stage 1 does not support the ThinLTO
+option.
 
 More Information
 ================

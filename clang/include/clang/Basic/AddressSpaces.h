@@ -36,19 +36,26 @@ enum class LangAS : unsigned {
   opencl_constant,
   opencl_private,
   opencl_generic,
+  opencl_global_device,
+  opencl_global_host,
 
   // CUDA specific address spaces.
   cuda_device,
   cuda_constant,
   cuda_shared,
 
+  // SYCL specific address spaces.
   sycl_global,
+  sycl_global_device,
+  sycl_global_host,
   sycl_local,
-  sycl_constant,
   sycl_private,
-  // Likely never used, but useful in the future to reserve the spot in the
-  // enum.
-  sycl_generic,
+
+  // Pointer size and extension address spaces.
+  ptr32_sptr,
+  ptr32_uptr,
+  ptr64,
+
   // This denotes the count of language-specific address spaces and also
   // the offset added to the target-specific address spaces, which are usually
   // specified by address space attributes __attribute__(address_space(n))).
@@ -73,6 +80,45 @@ inline unsigned toTargetAddressSpace(LangAS AS) {
 inline LangAS getLangASFromTargetAS(unsigned TargetAS) {
   return static_cast<LangAS>((TargetAS) +
                              (unsigned)LangAS::FirstTargetAddressSpace);
+}
+
+inline bool isPtrSizeAddressSpace(LangAS AS) {
+  return (AS == LangAS::ptr32_sptr || AS == LangAS::ptr32_uptr ||
+          AS == LangAS::ptr64);
+}
+
+inline LangAS asSYCLLangAS(LangAS AS) {
+  switch (AS) {
+  case LangAS::opencl_global:
+    return LangAS::sycl_global;
+  case LangAS::opencl_global_device:
+    return LangAS::sycl_global_device;
+  case LangAS::opencl_global_host:
+    return LangAS::sycl_global_host;
+  case LangAS::opencl_local:
+    return LangAS::sycl_local;
+  case LangAS::opencl_private:
+    return LangAS::sycl_private;
+  default:
+    return AS;
+  }
+}
+
+inline LangAS asOpenCLLangAS(LangAS AS) {
+  switch (AS) {
+  case LangAS::sycl_global:
+    return LangAS::opencl_global;
+  case LangAS::sycl_global_device:
+    return LangAS::opencl_global_device;
+  case LangAS::sycl_global_host:
+    return LangAS::opencl_global_host;
+  case LangAS::sycl_local:
+    return LangAS::opencl_local;
+  case LangAS::sycl_private:
+    return LangAS::opencl_private;
+  default:
+    return AS;
+  }
 }
 
 } // namespace clang

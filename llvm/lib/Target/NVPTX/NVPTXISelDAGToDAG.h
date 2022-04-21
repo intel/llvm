@@ -17,6 +17,7 @@
 #include "NVPTXISelLowering.h"
 #include "NVPTXRegisterInfo.h"
 #include "NVPTXTargetMachine.h"
+#include "MCTargetDesc/NVPTXBaseInfo.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Support/Compiler.h"
@@ -45,7 +46,7 @@ public:
     return "NVPTX DAG->DAG Pattern Instruction Selection";
   }
   bool runOnMachineFunction(MachineFunction &MF) override;
-  const NVPTXSubtarget *Subtarget;
+  const NVPTXSubtarget *Subtarget = nullptr;
 
   bool SelectInlineAsmMemoryOperand(const SDValue &Op,
                                     unsigned ConstraintID,

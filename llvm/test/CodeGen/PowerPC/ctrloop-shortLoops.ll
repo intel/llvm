@@ -1,16 +1,15 @@
 ; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -verify-machineinstrs -mcpu=pwr8 | FileCheck %s --check-prefixes=CHECK,CHECK-PWR8
-; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -verify-machineinstrs -mcpu=a2q | FileCheck %s --check-prefixes=CHECK,CHECK-A2Q
 
 ; Verify that we do NOT generate the mtctr instruction for loop trip counts < 4
 ; The latency of the mtctr is only justified if there are more than 4 comparisons that are removed as a result.
 
-@a = common local_unnamed_addr global i32 0, align 4
-@b = common local_unnamed_addr global i32 0, align 4
-@c = common local_unnamed_addr global i32 0, align 4
-@d = common local_unnamed_addr global i32 0, align 4
-@e = common local_unnamed_addr global i32 0, align 4
-@f = common local_unnamed_addr global i32 0, align 4
-@arr = common local_unnamed_addr global [5 x i32] zeroinitializer, align 4
+@a = local_unnamed_addr global i32 0, align 4
+@b = local_unnamed_addr global i32 0, align 4
+@c = local_unnamed_addr global i32 0, align 4
+@d = local_unnamed_addr global i32 0, align 4
+@e = local_unnamed_addr global i32 0, align 4
+@f = local_unnamed_addr global i32 0, align 4
+@arr = local_unnamed_addr global [5 x i32] zeroinitializer, align 4
 
 ; Function Attrs: norecurse nounwind readonly
 define signext i32 @testTripCount2(i32 signext %a) {
@@ -88,7 +87,7 @@ for.body:                                         ; preds = %entry, %for.body
 ; Function Attrs: norecurse nounwind
 define signext i32 @testTripCount2NonSmallLoop() {
 ; CHECK-LABEL: testTripCount2NonSmallLoop:
-; CHECK: bge
+; CHECK-PWR8-NOT: mtctr
 ; CHECK: blr
 
 entry:
@@ -118,12 +117,9 @@ for.end:                                          ; preds = %if.end
   ret i32 %conv
 }
 
-; On core a2q, IssueWidth is 1. On core pwr8, IssueWidth is 8.
-; a2q should use mtctr, but pwr8 should not use mtctr.
 define signext i32 @testTripCount5() {
 ; CHECK-LABEL: testTripCount5:
 ; CHECK-PWR8-NOT: mtctr
-; CHECK-A2Q: mtctr
  
 entry:
   %.prea = load i32, i32* @a, align 4

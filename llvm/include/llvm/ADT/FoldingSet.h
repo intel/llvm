@@ -5,16 +5,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file defines a hash set that can be used to remove duplication of nodes
-// in a graph.  This code was originally created by Chris Lattner for use with
-// SelectionDAGCSEMap, but was isolated to provide use across the llvm code set.
-//
+///
+/// \file
+/// This file defines a hash set that can be used to remove duplication of nodes
+/// in a graph.  This code was originally created by Chris Lattner for use with
+/// SelectionDAGCSEMap, but was isolated to provide use across the llvm code
+/// set.
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_FOLDINGSET_H
 #define LLVM_ADT_FOLDINGSET_H
 
+#include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/Support/Allocator.h"
@@ -85,17 +87,17 @@ namespace llvm {
 ///
 ///    MyNode *M = MyFoldingSet.FindNodeOrInsertPos(ID, InsertPoint);
 ///
-/// If found then M with be non-NULL, else InsertPoint will point to where it
+/// If found then M will be non-NULL, else InsertPoint will point to where it
 /// should be inserted using InsertNode.
 ///
-/// 3) If you get a NULL result from FindNodeOrInsertPos then you can as a new
-/// node with FindNodeOrInsertPos;
+/// 3) If you get a NULL result from FindNodeOrInsertPos then you can insert a
+/// new node with InsertNode;
 ///
-///    InsertNode(N, InsertPoint);
+///    MyFoldingSet.InsertNode(M, InsertPoint);
 ///
 /// 4) Finally, if you want to remove a node from the folding set call;
 ///
-///    bool WasRemoved = RemoveNode(N);
+///    bool WasRemoved = MyFoldingSet.RemoveNode(M);
 ///
 /// The result indicates whether the node existed in the folding set.
 
@@ -110,8 +112,6 @@ class StringRef;
 /// back to the bucket to facilitate node removal.
 ///
 class FoldingSetBase {
-  virtual void anchor(); // Out of line virtual method.
-
 protected:
   /// Buckets - Array of bucket chains.
   void **Buckets;
@@ -154,11 +154,6 @@ public:
   /// empty - Returns true if there are no nodes in the folding set.
   bool empty() const { return NumNodes == 0; }
 
-  /// reserve - Increase the number of buckets such that adding the
-  /// EltCount-th node won't cause a rebucket operation. reserve is permitted
-  /// to allocate more space than requested by EltCount.
-  void reserve(unsigned EltCount);
-
   /// capacity - Returns the number of nodes permitted in the folding set
   /// before a rebucket operation is performed.
   unsigned capacity() {
@@ -167,31 +162,45 @@ public:
     return NumBuckets * 2;
   }
 
+protected:
+  /// Functions provided by the derived class to compute folding properties.
+  /// This is effectively a vtable for FoldingSetBase, except that we don't
+  /// actually store a pointer to it in the object.
+  struct FoldingSetInfo {
+    /// GetNodeProfile - Instantiations of the FoldingSet template implement
+    /// this function to gather data bits for the given node.
+    void (*GetNodeProfile)(const FoldingSetBase *Self, Node *N,
+                           FoldingSetNodeID &ID);
+
+    /// NodeEquals - Instantiations of the FoldingSet template implement
+    /// this function to compare the given node with the given ID.
+    bool (*NodeEquals)(const FoldingSetBase *Self, Node *N,
+                       const FoldingSetNodeID &ID, unsigned IDHash,
+                       FoldingSetNodeID &TempID);
+
+    /// ComputeNodeHash - Instantiations of the FoldingSet template implement
+    /// this function to compute a hash value for the given node.
+    unsigned (*ComputeNodeHash)(const FoldingSetBase *Self, Node *N,
+                                FoldingSetNodeID &TempID);
+  };
+
 private:
   /// GrowHashTable - Double the size of the hash table and rehash everything.
-  void GrowHashTable();
+  void GrowHashTable(const FoldingSetInfo &Info);
 
   /// GrowBucketCount - resize the hash table and rehash everything.
   /// NewBucketCount must be a power of two, and must be greater than the old
   /// bucket count.
-  void GrowBucketCount(unsigned NewBucketCount);
+  void GrowBucketCount(unsigned NewBucketCount, const FoldingSetInfo &Info);
 
 protected:
-  /// GetNodeProfile - Instantiations of the FoldingSet template implement
-  /// this function to gather data bits for the given node.
-  virtual void GetNodeProfile(Node *N, FoldingSetNodeID &ID) const = 0;
-
-  /// NodeEquals - Instantiations of the FoldingSet template implement
-  /// this function to compare the given node with the given ID.
-  virtual bool NodeEquals(Node *N, const FoldingSetNodeID &ID, unsigned IDHash,
-                          FoldingSetNodeID &TempID) const=0;
-
-  /// ComputeNodeHash - Instantiations of the FoldingSet template implement
-  /// this function to compute a hash value for the given node.
-  virtual unsigned ComputeNodeHash(Node *N, FoldingSetNodeID &TempID) const = 0;
-
   // The below methods are protected to encourage subclasses to provide a more
   // type-safe API.
+
+  /// reserve - Increase the number of buckets such that adding the
+  /// EltCount-th node won't cause a rebucket operation. reserve is permitted
+  /// to allocate more space than requested by EltCount.
+  void reserve(unsigned EltCount, const FoldingSetInfo &Info);
 
   /// RemoveNode - Remove a node from the folding set, returning true if one
   /// was removed or false if the node was not in the folding set.
@@ -200,17 +209,18 @@ protected:
   /// GetOrInsertNode - If there is an existing simple Node exactly
   /// equal to the specified node, return it.  Otherwise, insert 'N' and return
   /// it instead.
-  Node *GetOrInsertNode(Node *N);
+  Node *GetOrInsertNode(Node *N, const FoldingSetInfo &Info);
 
   /// FindNodeOrInsertPos - Look up the node specified by ID.  If it exists,
   /// return it.  If not, return the insertion token that will make insertion
   /// faster.
-  Node *FindNodeOrInsertPos(const FoldingSetNodeID &ID, void *&InsertPos);
+  Node *FindNodeOrInsertPos(const FoldingSetNodeID &ID, void *&InsertPos,
+                            const FoldingSetInfo &Info);
 
   /// InsertNode - Insert the specified node into the folding set, knowing that
   /// it is not already in the folding set.  InsertPos must be obtained from
   /// FindNodeOrInsertPos.
-  void InsertNode(Node *N, void *InsertPos);
+  void InsertNode(Node *N, void *InsertPos, const FoldingSetInfo &Info);
 };
 
 //===----------------------------------------------------------------------===//
@@ -284,7 +294,9 @@ public:
 
   /// ComputeHash - Compute a strong hash value for this FoldingSetNodeIDRef,
   /// used to lookup the node in the FoldingSetBase.
-  unsigned ComputeHash() const;
+  unsigned ComputeHash() const {
+    return static_cast<unsigned>(hash_combine_range(Data, Data + Size));
+  }
 
   bool operator==(FoldingSetNodeIDRef) const;
 
@@ -314,13 +326,33 @@ public:
     : Bits(Ref.getData(), Ref.getData() + Ref.getSize()) {}
 
   /// Add* - Add various data types to Bit data.
-  void AddPointer(const void *Ptr);
-  void AddInteger(signed I);
-  void AddInteger(unsigned I);
-  void AddInteger(long I);
-  void AddInteger(unsigned long I);
-  void AddInteger(long long I);
-  void AddInteger(unsigned long long I);
+  void AddPointer(const void *Ptr) {
+    // Note: this adds pointers to the hash using sizes and endianness that
+    // depend on the host. It doesn't matter, however, because hashing on
+    // pointer values is inherently unstable. Nothing should depend on the
+    // ordering of nodes in the folding set.
+    static_assert(sizeof(uintptr_t) <= sizeof(unsigned long long),
+                  "unexpected pointer size");
+    AddInteger(reinterpret_cast<uintptr_t>(Ptr));
+  }
+  void AddInteger(signed I) { Bits.push_back(I); }
+  void AddInteger(unsigned I) { Bits.push_back(I); }
+  void AddInteger(long I) { AddInteger((unsigned long)I); }
+  void AddInteger(unsigned long I) {
+    if (sizeof(long) == sizeof(int))
+      AddInteger(unsigned(I));
+    else if (sizeof(long) == sizeof(long long)) {
+      AddInteger((unsigned long long)I);
+    } else {
+      llvm_unreachable("unexpected sizeof(long)");
+    }
+  }
+  void AddInteger(long long I) { AddInteger((unsigned long long)I); }
+  void AddInteger(unsigned long long I) {
+    AddInteger(unsigned(I));
+    AddInteger(unsigned(I >> 32));
+  }
+
   void AddBoolean(bool B) { AddInteger(B ? 1U : 0U); }
   void AddString(StringRef String);
   void AddNodeID(const FoldingSetNodeID &ID);
@@ -334,7 +366,9 @@ public:
 
   /// ComputeHash - Compute a strong hash value for this FoldingSetNodeID, used
   /// to lookup the node in the FoldingSetBase.
-  unsigned ComputeHash() const;
+  unsigned ComputeHash() const {
+    return FoldingSetNodeIDRef(Bits.data(), Bits.size()).ComputeHash();
+  }
 
   /// operator== - Used to compare two nodes to each other.
   bool operator==(const FoldingSetNodeID &RHS) const;
@@ -397,7 +431,7 @@ DefaultContextualFoldingSetTrait<T, Ctx>::ComputeHash(T &X,
 //===----------------------------------------------------------------------===//
 /// FoldingSetImpl - An implementation detail that lets us share code between
 /// FoldingSet and ContextualFoldingSet.
-template <class T> class FoldingSetImpl : public FoldingSetBase {
+template <class Derived, class T> class FoldingSetImpl : public FoldingSetBase {
 protected:
   explicit FoldingSetImpl(unsigned Log2InitSize)
       : FoldingSetBase(Log2InitSize) {}
@@ -427,29 +461,40 @@ public:
     return bucket_iterator(Buckets + (hash & (NumBuckets-1)), true);
   }
 
+  /// reserve - Increase the number of buckets such that adding the
+  /// EltCount-th node won't cause a rebucket operation. reserve is permitted
+  /// to allocate more space than requested by EltCount.
+  void reserve(unsigned EltCount) {
+    return FoldingSetBase::reserve(EltCount, Derived::getFoldingSetInfo());
+  }
+
   /// RemoveNode - Remove a node from the folding set, returning true if one
   /// was removed or false if the node was not in the folding set.
-  bool RemoveNode(T *N) { return FoldingSetBase::RemoveNode(N); }
+  bool RemoveNode(T *N) {
+    return FoldingSetBase::RemoveNode(N);
+  }
 
   /// GetOrInsertNode - If there is an existing simple Node exactly
   /// equal to the specified node, return it.  Otherwise, insert 'N' and
   /// return it instead.
   T *GetOrInsertNode(T *N) {
-    return static_cast<T *>(FoldingSetBase::GetOrInsertNode(N));
+    return static_cast<T *>(
+        FoldingSetBase::GetOrInsertNode(N, Derived::getFoldingSetInfo()));
   }
 
   /// FindNodeOrInsertPos - Look up the node specified by ID.  If it exists,
   /// return it.  If not, return the insertion token that will make insertion
   /// faster.
   T *FindNodeOrInsertPos(const FoldingSetNodeID &ID, void *&InsertPos) {
-    return static_cast<T *>(FoldingSetBase::FindNodeOrInsertPos(ID, InsertPos));
+    return static_cast<T *>(FoldingSetBase::FindNodeOrInsertPos(
+        ID, InsertPos, Derived::getFoldingSetInfo()));
   }
 
   /// InsertNode - Insert the specified node into the folding set, knowing that
   /// it is not already in the folding set.  InsertPos must be obtained from
   /// FindNodeOrInsertPos.
   void InsertNode(T *N, void *InsertPos) {
-    FoldingSetBase::InsertNode(N, InsertPos);
+    FoldingSetBase::InsertNode(N, InsertPos, Derived::getFoldingSetInfo());
   }
 
   /// InsertNode - Insert the specified node into the folding set, knowing that
@@ -470,31 +515,42 @@ public:
 /// moved-from state is not a valid state for anything other than
 /// move-assigning and destroying. This is primarily to enable movable APIs
 /// that incorporate these objects.
-template <class T> class FoldingSet final : public FoldingSetImpl<T> {
-  using Super = FoldingSetImpl<T>;
+template <class T>
+class FoldingSet : public FoldingSetImpl<FoldingSet<T>, T> {
+  using Super = FoldingSetImpl<FoldingSet, T>;
   using Node = typename Super::Node;
 
-  /// GetNodeProfile - Each instantiatation of the FoldingSet needs to provide a
+  /// GetNodeProfile - Each instantiation of the FoldingSet needs to provide a
   /// way to convert nodes into a unique specifier.
-  void GetNodeProfile(Node *N, FoldingSetNodeID &ID) const override {
+  static void GetNodeProfile(const FoldingSetBase *, Node *N,
+                             FoldingSetNodeID &ID) {
     T *TN = static_cast<T *>(N);
     FoldingSetTrait<T>::Profile(*TN, ID);
   }
 
   /// NodeEquals - Instantiations may optionally provide a way to compare a
   /// node with a specified ID.
-  bool NodeEquals(Node *N, const FoldingSetNodeID &ID, unsigned IDHash,
-                  FoldingSetNodeID &TempID) const override {
+  static bool NodeEquals(const FoldingSetBase *, Node *N,
+                         const FoldingSetNodeID &ID, unsigned IDHash,
+                         FoldingSetNodeID &TempID) {
     T *TN = static_cast<T *>(N);
     return FoldingSetTrait<T>::Equals(*TN, ID, IDHash, TempID);
   }
 
   /// ComputeNodeHash - Instantiations may optionally provide a way to compute a
   /// hash value directly from a node.
-  unsigned ComputeNodeHash(Node *N, FoldingSetNodeID &TempID) const override {
+  static unsigned ComputeNodeHash(const FoldingSetBase *, Node *N,
+                                  FoldingSetNodeID &TempID) {
     T *TN = static_cast<T *>(N);
     return FoldingSetTrait<T>::ComputeHash(*TN, TempID);
   }
+
+  static const FoldingSetBase::FoldingSetInfo &getFoldingSetInfo() {
+    static constexpr FoldingSetBase::FoldingSetInfo Info = {
+        GetNodeProfile, NodeEquals, ComputeNodeHash};
+    return Info;
+  }
+  friend Super;
 
 public:
   explicit FoldingSet(unsigned Log2InitSize = 6) : Super(Log2InitSize) {}
@@ -512,35 +568,51 @@ public:
 /// function with signature
 ///   void Profile(FoldingSetNodeID &, Ctx);
 template <class T, class Ctx>
-class ContextualFoldingSet final : public FoldingSetImpl<T> {
+class ContextualFoldingSet
+    : public FoldingSetImpl<ContextualFoldingSet<T, Ctx>, T> {
   // Unfortunately, this can't derive from FoldingSet<T> because the
   // construction of the vtable for FoldingSet<T> requires
   // FoldingSet<T>::GetNodeProfile to be instantiated, which in turn
   // requires a single-argument T::Profile().
 
-  using Super = FoldingSetImpl<T>;
+  using Super = FoldingSetImpl<ContextualFoldingSet, T>;
   using Node = typename Super::Node;
 
   Ctx Context;
 
+  static const Ctx &getContext(const FoldingSetBase *Base) {
+    return static_cast<const ContextualFoldingSet*>(Base)->Context;
+  }
+
   /// GetNodeProfile - Each instantiatation of the FoldingSet needs to provide a
   /// way to convert nodes into a unique specifier.
-  void GetNodeProfile(Node *N, FoldingSetNodeID &ID) const override {
+  static void GetNodeProfile(const FoldingSetBase *Base, Node *N,
+                             FoldingSetNodeID &ID) {
     T *TN = static_cast<T *>(N);
-    ContextualFoldingSetTrait<T, Ctx>::Profile(*TN, ID, Context);
+    ContextualFoldingSetTrait<T, Ctx>::Profile(*TN, ID, getContext(Base));
   }
 
-  bool NodeEquals(Node *N, const FoldingSetNodeID &ID, unsigned IDHash,
-                  FoldingSetNodeID &TempID) const override {
+  static bool NodeEquals(const FoldingSetBase *Base, Node *N,
+                         const FoldingSetNodeID &ID, unsigned IDHash,
+                         FoldingSetNodeID &TempID) {
     T *TN = static_cast<T *>(N);
     return ContextualFoldingSetTrait<T, Ctx>::Equals(*TN, ID, IDHash, TempID,
-                                                     Context);
+                                                     getContext(Base));
   }
 
-  unsigned ComputeNodeHash(Node *N, FoldingSetNodeID &TempID) const override {
+  static unsigned ComputeNodeHash(const FoldingSetBase *Base, Node *N,
+                                  FoldingSetNodeID &TempID) {
     T *TN = static_cast<T *>(N);
-    return ContextualFoldingSetTrait<T, Ctx>::ComputeHash(*TN, TempID, Context);
+    return ContextualFoldingSetTrait<T, Ctx>::ComputeHash(*TN, TempID,
+                                                          getContext(Base));
   }
+
+  static const FoldingSetBase::FoldingSetInfo &getFoldingSetInfo() {
+    static constexpr FoldingSetBase::FoldingSetInfo Info = {
+        GetNodeProfile, NodeEquals, ComputeNodeHash};
+    return Info;
+  }
+  friend Super;
 
 public:
   explicit ContextualFoldingSet(Ctx Context, unsigned Log2InitSize = 6)

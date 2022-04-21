@@ -13,6 +13,7 @@
 #ifndef LLVM_CLANG_AST_TEMPLATENAME_H
 #define LLVM_CLANG_AST_TEMPLATENAME_H
 
+#include "clang/AST/DependenceFlags.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/FoldingSet.h"
@@ -25,14 +26,12 @@ namespace clang {
 
 class ASTContext;
 class DependentTemplateName;
-class DiagnosticBuilder;
 class IdentifierInfo;
 class NamedDecl;
 class NestedNameSpecifier;
 enum OverloadedOperatorKind : int;
 class OverloadedTemplateStorage;
 class AssumedTemplateStorage;
-class PartialDiagnostic;
 struct PrintingPolicy;
 class QualifiedTemplateName;
 class SubstTemplateTemplateParmPackStorage;
@@ -119,6 +118,10 @@ public:
 
   iterator begin() const { return getStorage(); }
   iterator end() const { return getStorage() + size(); }
+
+  llvm::ArrayRef<NamedDecl*> decls() const {
+    return llvm::makeArrayRef(begin(), end());
+  }
 };
 
 /// A structure for storing an already-substituted template template
@@ -186,8 +189,8 @@ public:
 /// only be understood in the context of
 class TemplateName {
   using StorageType =
-      llvm::PointerUnion4<TemplateDecl *, UncommonTemplateNameStorage *,
-                          QualifiedTemplateName *, DependentTemplateName *>;
+      llvm::PointerUnion<TemplateDecl *, UncommonTemplateNameStorage *,
+                         QualifiedTemplateName *, DependentTemplateName *>;
 
   StorageType Storage;
 
@@ -291,6 +294,8 @@ public:
   /// the template, including any default template arguments.
   TemplateName getNameToSubstitute() const;
 
+  TemplateNameDependence getDependence() const;
+
   /// Determines whether this is a dependent template name.
   bool isDependent() const;
 
@@ -302,16 +307,17 @@ public:
   /// unexpanded parameter pack (for C++0x variadic templates).
   bool containsUnexpandedParameterPack() const;
 
+  enum class Qualified { None, AsWritten, Fully };
   /// Print the template name.
   ///
   /// \param OS the output stream to which the template name will be
   /// printed.
   ///
-  /// \param SuppressNNS if true, don't print the
-  /// nested-name-specifier that precedes the template name (if it has
-  /// one).
+  /// \param Qual print the (Qualified::None) simple name,
+  /// (Qualified::AsWritten) any written (possibly partial) qualifier, or
+  /// (Qualified::Fully) the fully qualified name.
   void print(raw_ostream &OS, const PrintingPolicy &Policy,
-             bool SuppressNNS = false) const;
+             Qualified Qual = Qualified::AsWritten) const;
 
   /// Debugging aid that dumps the template name.
   void dump(raw_ostream &OS) const;
@@ -335,10 +341,8 @@ public:
 
 /// Insertion operator for diagnostics.  This allows sending TemplateName's
 /// into a diagnostic with <<.
-const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                    TemplateName N);
-const PartialDiagnostic &operator<<(const PartialDiagnostic &PD,
-                                    TemplateName N);
+const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                      TemplateName N);
 
 /// A structure for storing the information associated with a
 /// substituted template template parameter.
@@ -555,7 +559,7 @@ struct PointerLikeTypeTraits<clang::TemplateName> {
   }
 
   // No bits are available!
-  enum { NumLowBitsAvailable = 0 };
+  static constexpr int NumLowBitsAvailable = 0;
 };
 
 } // namespace llvm.

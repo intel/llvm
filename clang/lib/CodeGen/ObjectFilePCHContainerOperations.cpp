@@ -21,16 +21,16 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Bitcode/BitstreamReader.h"
+#include "llvm/Bitstream/BitstreamReader.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/TargetRegistry.h"
 #include <memory>
 #include <utility>
 
@@ -49,7 +49,7 @@ class PCHContainerGenerator : public ASTConsumer {
   const PreprocessorOptions &PreprocessorOpts;
   CodeGenOptions CodeGenOpts;
   const TargetOptions TargetOpts;
-  const LangOptions LangOpts;
+  LangOptions LangOpts;
   std::unique_ptr<llvm::LLVMContext> VMContext;
   std::unique_ptr<llvm::Module> M;
   std::unique_ptr<CodeGen::CodeGenModule> Builder;
@@ -147,7 +147,7 @@ public:
     // The debug info output isn't affected by CodeModel and
     // ThreadModel, but the backend expects them to be nonempty.
     CodeGenOpts.CodeModel = "default";
-    CodeGenOpts.ThreadModel = "single";
+    LangOpts.setThreadModel(LangOptions::ThreadModelKind::Single);
     CodeGenOpts.DebugTypeExtRefs = true;
     // When building a module MainFileName is the name of the modulemap file.
     CodeGenOpts.MainFileName =
@@ -156,6 +156,7 @@ public:
     CodeGenOpts.setDebuggerTuning(CI.getCodeGenOpts().getDebuggerTuning());
     CodeGenOpts.DebugPrefixMap =
         CI.getInvocation().getCodeGenOpts().DebugPrefixMap;
+    CodeGenOpts.DebugStrictDwarf = CI.getCodeGenOpts().DebugStrictDwarf;
   }
 
   ~PCHContainerGenerator() override = default;
@@ -166,15 +167,15 @@ public:
     Ctx = &Context;
     VMContext.reset(new llvm::LLVMContext());
     M.reset(new llvm::Module(MainFileName, *VMContext));
-    M->setDataLayout(Ctx->getTargetInfo().getDataLayout());
+    M->setDataLayout(Ctx->getTargetInfo().getDataLayoutString());
     Builder.reset(new CodeGen::CodeGenModule(
         *Ctx, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, *M, Diags));
 
     // Prepare CGDebugInfo to emit debug info for a clang module.
     auto *DI = Builder->getModuleDebugInfo();
     StringRef ModuleName = llvm::sys::path::filename(MainFileName);
-    DI->setPCHDescriptor({ModuleName, "", OutputFileName,
-                          ASTFileSignature{{{~0U, ~0U, ~0U, ~0U, ~1U}}}});
+    DI->setPCHDescriptor(
+        {ModuleName, "", OutputFileName, ASTFileSignature::createDISentinel()});
     DI->setModuleMap(MMap);
   }
 
@@ -245,15 +246,15 @@ public:
       return;
 
     M->setTargetTriple(Ctx.getTargetInfo().getTriple().getTriple());
-    M->setDataLayout(Ctx.getTargetInfo().getDataLayout());
+    M->setDataLayout(Ctx.getTargetInfo().getDataLayoutString());
 
     // PCH files don't have a signature field in the control block,
     // but LLVM detects DWO CUs by looking for a non-zero DWO id.
     // We use the lower 64 bits for debug info.
+
     uint64_t Signature =
-        Buffer->Signature
-            ? (uint64_t)Buffer->Signature[1] << 32 | Buffer->Signature[0]
-            : ~1ULL;
+        Buffer->Signature ? Buffer->Signature.truncatedValue() : ~1ULL;
+
     Builder->getModuleDebugInfo()->setDwoId(Signature);
 
     // Finalize the Builder.
@@ -264,48 +265,65 @@ public:
     std::string Error;
     auto Triple = Ctx.getTargetInfo().getTriple();
     if (!llvm::TargetRegistry::lookupTarget(Triple.getTriple(), Error))
-      llvm::report_fatal_error(Error);
+      llvm::report_fatal_error(llvm::Twine(Error));
 
     // Emit the serialized Clang AST into its own section.
     assert(Buffer->IsComplete && "serialization did not complete");
     auto &SerializedAST = Buffer->Data;
     auto Size = SerializedAST.size();
-    auto Int8Ty = llvm::Type::getInt8Ty(*VMContext);
-    auto *Ty = llvm::ArrayType::get(Int8Ty, Size);
-    auto *Data = llvm::ConstantDataArray::getString(
-        *VMContext, StringRef(SerializedAST.data(), Size),
-        /*AddNull=*/false);
-    auto *ASTSym = new llvm::GlobalVariable(
-        *M, Ty, /*constant*/ true, llvm::GlobalVariable::InternalLinkage, Data,
-        "__clang_ast");
-    // The on-disk hashtable needs to be aligned.
-    ASTSym->setAlignment(8);
 
-    // Mach-O also needs a segment name.
-    if (Triple.isOSBinFormatMachO())
-      ASTSym->setSection("__CLANG,__clangast");
-    // COFF has an eight character length limit.
-    else if (Triple.isOSBinFormatCOFF())
-      ASTSym->setSection("clangast");
-    else
-      ASTSym->setSection("__clangast");
+    if (Triple.isOSBinFormatWasm()) {
+      // Emit __clangast in custom section instead of named data segment
+      // to find it while iterating sections.
+      // This could be avoided if all data segements (the wasm sense) were
+      // represented as their own sections (in the llvm sense).
+      // TODO: https://github.com/WebAssembly/tool-conventions/issues/138
+      llvm::NamedMDNode *MD =
+          M->getOrInsertNamedMetadata("wasm.custom_sections");
+      llvm::Metadata *Ops[2] = {
+          llvm::MDString::get(*VMContext, "__clangast"),
+          llvm::MDString::get(*VMContext,
+                              StringRef(SerializedAST.data(), Size))};
+      auto *NameAndContent = llvm::MDTuple::get(*VMContext, Ops);
+      MD->addOperand(NameAndContent);
+    } else {
+      auto Int8Ty = llvm::Type::getInt8Ty(*VMContext);
+      auto *Ty = llvm::ArrayType::get(Int8Ty, Size);
+      auto *Data = llvm::ConstantDataArray::getString(
+          *VMContext, StringRef(SerializedAST.data(), Size),
+          /*AddNull=*/false);
+      auto *ASTSym = new llvm::GlobalVariable(
+          *M, Ty, /*constant*/ true, llvm::GlobalVariable::InternalLinkage,
+          Data, "__clang_ast");
+      // The on-disk hashtable needs to be aligned.
+      ASTSym->setAlignment(llvm::Align(8));
+
+      // Mach-O also needs a segment name.
+      if (Triple.isOSBinFormatMachO())
+        ASTSym->setSection("__CLANG,__clangast");
+      // COFF has an eight character length limit.
+      else if (Triple.isOSBinFormatCOFF())
+        ASTSym->setSection("clangast");
+      else
+        ASTSym->setSection("__clangast");
+    }
 
     LLVM_DEBUG({
       // Print the IR for the PCH container to the debug output.
       llvm::SmallString<0> Buffer;
       clang::EmitBackendOutput(
           Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts, LangOpts,
-          Ctx.getTargetInfo().getDataLayout(), M.get(),
+          Ctx.getTargetInfo().getDataLayoutString(), M.get(),
           BackendAction::Backend_EmitLL,
-          llvm::make_unique<llvm::raw_svector_ostream>(Buffer));
+          std::make_unique<llvm::raw_svector_ostream>(Buffer));
       llvm::dbgs() << Buffer;
     });
 
     // Use the LLVM backend to emit the pch container.
     clang::EmitBackendOutput(Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts,
-                             LangOpts, Ctx.getTargetInfo().getDataLayout(),
-                             M.get(), BackendAction::Backend_EmitObj,
-                             std::move(OS));
+                             LangOpts,
+                             Ctx.getTargetInfo().getDataLayoutString(), M.get(),
+                             BackendAction::Backend_EmitObj, std::move(OS));
 
     // Free the memory for the temporary buffer.
     llvm::SmallVector<char, 0> Empty;
@@ -321,7 +339,7 @@ ObjectFilePCHContainerWriter::CreatePCHContainerGenerator(
     const std::string &OutputFileName,
     std::unique_ptr<llvm::raw_pwrite_stream> OS,
     std::shared_ptr<PCHBuffer> Buffer) const {
-  return llvm::make_unique<PCHContainerGenerator>(
+  return std::make_unique<PCHContainerGenerator>(
       CI, MainFileName, OutputFileName, std::move(OS), Buffer);
 }
 
@@ -335,7 +353,11 @@ ObjectFilePCHContainerReader::ExtractPCH(llvm::MemoryBufferRef Buffer) const {
     // Find the clang AST section in the container.
     for (auto &Section : OF->sections()) {
       StringRef Name;
-      Section.getName(Name);
+      if (Expected<StringRef> NameOrErr = Section.getName())
+        Name = *NameOrErr;
+      else
+        consumeError(NameOrErr.takeError());
+
       if ((!IsCOFF && Name == "__clangast") || (IsCOFF && Name == "clangast")) {
         if (Expected<StringRef> E = Section.getContents())
           return *E;

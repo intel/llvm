@@ -52,9 +52,10 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -87,19 +88,12 @@ namespace SPIRV {
 /// Propagates block_func to each spir_get_block_invoke through def-use chain of
 /// spir_block_bind, so that
 /// ret = block_func(context, args)
-class SPIRVLowerSPIRBlocks : public ModulePass {
+class SPIRVLowerSPIRBlocksBase {
 public:
-  SPIRVLowerSPIRBlocks() : ModulePass(ID), M(nullptr) {
-    initializeSPIRVLowerSPIRBlocksPass(*PassRegistry::getPassRegistry());
-  }
+  SPIRVLowerSPIRBlocksBase() : M(nullptr) {}
+  virtual ~SPIRVLowerSPIRBlocksBase() {}
 
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<CallGraphWrapperPass>();
-    AU.addRequired<AAResultsWrapperPass>();
-    AU.addRequired<AssumptionCacheTracker>();
-  }
-
-  bool runOnModule(Module &Module) override {
+  bool runLowerSPIRBlocks(Module &Module) {
     M = &Module;
     if (!lowerBlockBind()) {
       // There are no SPIR2 blocks in the module.
@@ -117,9 +111,12 @@ public:
     return true;
   }
 
-  static char ID;
+  virtual AssumptionCache *getAssumptionCache(llvm::Function &) = 0;
+  void setCallGraph(CallGraph *CallG) { CG = CallG; }
+  CallGraph *getCallGraph() { return CG; }
 
 private:
+  CallGraph *CG = nullptr;
   const static int MaxIter = 1000;
   Module *M;
 
@@ -161,8 +158,7 @@ private:
         continue;
       }
 
-      auto &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-      CallGraphNode *CGN = CG[F];
+      CallGraphNode *CGN = (*CG)[F];
 
       if (CGN->getNumReferences() != 0) {
         continue;
@@ -209,6 +205,7 @@ private:
       Value *CtxAlign = nullptr;
       getBlockInvokeFuncAndContext(CallBlkBind, &InvF, &Ctx, &CtxLen,
                                    &CtxAlign);
+      assert(Ctx && "Invalid context");
       for (auto II = CallBlkBind->user_begin(), EE = CallBlkBind->user_end();
            II != EE;) {
         auto BlkUser = *II++;
@@ -221,7 +218,7 @@ private:
         } else if (auto CI = dyn_cast<CallInst>(BlkUser)) {
           auto CallBindF = CI->getCalledFunction();
           auto Name = CallBindF->getName();
-          std::string DemangledName;
+          StringRef DemangledName;
           if (Name == SPIR_INTRINSIC_GET_BLOCK_INVOKE) {
             assert(CI->getArgOperand(0) == CallBlkBind);
             Changed |= lowerGetBlockInvoke(CI, cast<Function>(InvF));
@@ -230,7 +227,7 @@ private:
             // Handle context_ptr = spir_get_block_context(block)
             lowerGetBlockContext(CI, Ctx);
             Changed = true;
-          } else if (oclIsBuiltin(Name, &DemangledName)) {
+          } else if (oclIsBuiltin(Name, DemangledName)) {
             lowerBlockBuiltin(CI, InvF, Ctx, CtxLen, CtxAlign, DemangledName);
             Changed = true;
           } else
@@ -247,6 +244,7 @@ private:
     if (!Ctx)
       getBlockInvokeFuncAndContext(CallGetBlkCtx->getArgOperand(0), nullptr,
                                    &Ctx);
+    assert(Ctx && "Invalid context");
     CallGetBlkCtx->replaceAllUsesWith(Ctx);
     LLVM_DEBUG(dbgs() << "  [lowerGetBlockContext] " << *CallGetBlkCtx << " => "
                       << *Ctx << "\n\n");
@@ -267,7 +265,7 @@ private:
       LLVM_DEBUG(dbgs() << "[lowerGetBlockInvoke]  " << *CallInv);
       // Handle ret = block_func_ptr(context_ptr, args)
       auto CI = cast<CallInst>(CallInv);
-      auto F = CI->getCalledValue();
+      auto F = CI->getCalledOperand();
       if (InvokeF == nullptr) {
         getBlockInvokeFuncAndContext(CallGetBlkInvoke->getArgOperand(0),
                                      &InvokeF, nullptr);
@@ -285,7 +283,7 @@ private:
 
   void lowerBlockBuiltin(CallInst *CI, Function *InvF, Value *Ctx,
                          Value *CtxLen, Value *CtxAlign,
-                         const std::string &DemangledName) {
+                         StringRef DemangledName) {
     mutateCallInstSPIRV(M, CI, [=](CallInst *CI, std::vector<Value *> &Args) {
       size_t I = 0;
       size_t E = Args.size();
@@ -315,7 +313,7 @@ private:
         if (!isOCLClkEventPtrType(Args[5]->getType()))
           Args.insert(Args.begin() + 5, getOCLNullClkEventPtr());
       }
-      return getSPIRVFuncName(OCLSPIRVBuiltinMap::map(DemangledName));
+      return getSPIRVFuncName(OCLSPIRVBuiltinMap::map(DemangledName.str()));
     });
   }
   /// Transform return of a block.
@@ -340,14 +338,12 @@ private:
 
       LLVM_DEBUG(dbgs() << "[lowerReturnBlock] inline " << F->getName()
                         << '\n');
-      auto CG = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
-      auto ACT = &getAnalysis<AssumptionCacheTracker>();
-      std::function<AssumptionCache &(Function &)> GetAssumptionCache =
-          [&](Function &F) -> AssumptionCache & {
-        return ACT->getAssumptionCache(F);
+
+      auto GetAssumptionCache = [&](Function &F) -> AssumptionCache & {
+        return *getAssumptionCache(F);
       };
-      InlineFunctionInfo IFI(CG, &GetAssumptionCache);
-      InlineFunction(CI, IFI);
+      InlineFunctionInfo IFI(CG, GetAssumptionCache);
+      InlineFunction(*cast<CallBase>(CI), IFI);
       Inlined = true;
     }
     return Changed || Inlined;
@@ -365,7 +361,7 @@ private:
       Type *T = G.getInitializer()->getType();
       if (!T->isPointerTy())
         continue;
-      T = cast<PointerType>(T)->getElementType();
+      T = G.getValueType();
       if (!T->isStructTy())
         continue;
       StringRef STName = cast<StructType>(T)->getName();
@@ -461,21 +457,16 @@ private:
       // Redirect all users of the old function to the new one.
       for (User *U : F.users()) {
         ConstantExpr *CE = dyn_cast<ConstantExpr>(U);
-        CallSite CS(U);
         if (CE && CE->getOpcode() == Instruction::BitCast) {
           Constant *NewCE = ConstantExpr::getBitCast(NF, CE->getType());
           U->replaceAllUsesWith(NewCE);
-        } else if (CS) {
-          assert(isa<CallInst>(CS.getInstruction()) &&
-                 "Call instruction is expected");
-          CallInst *Call = cast<CallInst>(CS.getInstruction());
-
+        } else if (auto *Call = dyn_cast<CallInst>(U)) {
           std::vector<Value *> Args;
-          auto I = CS.arg_begin();
-          Args.assign(++I, CS.arg_end()); // Skip first argument.
+          auto I = Call->arg_begin();
+          Args.assign(++I, Call->arg_end()); // Skip first argument.
           CallInst *New = CallInst::Create(NF, Args, "", Call);
           assert(New->getType() == Call->getType());
-          New->setCallingConv(CS.getCallingConv());
+          New->setCallingConv(Call->getCallingConv());
           New->setAttributes(NF->getAttributes());
           if (Call->isTailCall())
             New->setTailCall();
@@ -572,15 +563,14 @@ private:
 
     F->dropAllReferences();
 
-    auto &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-    CallGraphNode *CGN = CG[F];
+    CallGraphNode *CGN = (*CG)[F];
 
     if (CGN->getNumReferences() != 0) {
       return;
     }
 
     CGN->removeAllCalledFunctions();
-    delete CG.removeFunctionFromModule(CGN);
+    delete CG->removeFunctionFromModule(CGN);
   }
 
   llvm::PointerType *getOCLClkEventType() {
@@ -594,7 +584,7 @@ private:
 
   bool isOCLClkEventPtrType(Type *T) {
     if (auto PT = dyn_cast<PointerType>(T))
-      return isPointerToOpaqueStructType(PT->getElementType(),
+      return isPointerToOpaqueStructType(PT->getPointerElementType(),
                                          SPIR_TYPE_NAME_CLK_EVENT_T);
     return false;
   }
@@ -609,17 +599,69 @@ private:
   }
 };
 
-char SPIRVLowerSPIRBlocks::ID = 0;
+class SPIRVLowerSPIRBlocksPass
+    : public llvm::PassInfoMixin<SPIRVLowerSPIRBlocksPass>,
+      public SPIRVLowerSPIRBlocksBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    MAManager = &MAM;
+    setCallGraph(&MAM.getResult<CallGraphAnalysis>(M));
+    return runLowerSPIRBlocks(M) ? llvm::PreservedAnalyses::none()
+                                 : llvm::PreservedAnalyses::all();
+  }
+
+  AssumptionCache *getAssumptionCache(llvm::Function &F) override {
+    return &(MAManager
+                 ->getResult<FunctionAnalysisManagerModuleProxy>(*F.getParent())
+                 .getManager())
+                .getResult<AssumptionAnalysis>(F);
+  }
+
+private:
+  llvm::ModuleAnalysisManager *MAManager = nullptr;
+};
+
+class SPIRVLowerSPIRBlocksLegacy : public ModulePass, SPIRVLowerSPIRBlocksBase {
+public:
+  SPIRVLowerSPIRBlocksLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerSPIRBlocksLegacyPass(*PassRegistry::getPassRegistry());
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<CallGraphWrapperPass>();
+    AU.addRequired<AAResultsWrapperPass>();
+    AU.addRequired<AssumptionCacheTracker>();
+  }
+
+  bool runOnModule(Module &Module) override {
+    setCallGraph(&(getAnalysis<CallGraphWrapperPass>().getCallGraph()));
+    ACT = &getAnalysis<AssumptionCacheTracker>();
+
+    return runLowerSPIRBlocks(Module);
+  }
+
+  AssumptionCache *getAssumptionCache(llvm::Function &F) override {
+    return &ACT->getAssumptionCache(F);
+  }
+
+  static char ID;
+
+private:
+  AssumptionCacheTracker *ACT = nullptr;
+};
+
+char SPIRVLowerSPIRBlocksLegacy::ID = 0;
 } // namespace SPIRV
 
-INITIALIZE_PASS_BEGIN(SPIRVLowerSPIRBlocks, "spv-lower-spir-blocks",
+INITIALIZE_PASS_BEGIN(SPIRVLowerSPIRBlocksLegacy, "spv-lower-spir-blocks",
                       "SPIR-V lower SPIR blocks", false, false)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
-INITIALIZE_PASS_END(SPIRVLowerSPIRBlocks, "spv-lower-spir-blocks",
+INITIALIZE_PASS_END(SPIRVLowerSPIRBlocksLegacy, "spv-lower-spir-blocks",
                     "SPIR-V lower SPIR blocks", false, false)
 
-ModulePass *llvm::createSPIRVLowerSPIRBlocks() {
-  return new SPIRVLowerSPIRBlocks();
+ModulePass *llvm::createSPIRVLowerSPIRBlocksLegacy() {
+  return new SPIRVLowerSPIRBlocksLegacy();
 }

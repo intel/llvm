@@ -27,9 +27,6 @@ VERSION {
         #
         ompt_start_tool;     # OMPT start interface
 
-        # icc drops weak attribute at linking step without the following line:
-        Annotate*;           # TSAN annotation
-
         ompc_*;    # omp.h renames some standard functions to ompc_*.
         kmp_*;     # Intel extensions.
         kmpc_*;    # Intel extensions.
@@ -37,7 +34,6 @@ VERSION {
         GOMP_*;    # GNU C compatibility functions.
 
         _You_must_link_with_*;     # Mutual detection/MS compatibility symbols.
-
 
         #
         # Debugger support.
@@ -108,6 +104,8 @@ OMP_4.0 {
 } OMP_3.1;
 OMP_4.5 {
 } OMP_4.0;
+OMP_5.0 {
+} OMP_4.5;
 
 # sets up GCC GOMP_ version dependency chain
 GOMP_1.0 {
@@ -120,5 +118,9 @@ GOMP_4.0 {
 } GOMP_3.0;
 GOMP_4.5 {
 } GOMP_4.0;
+GOMP_5.0 {
+} GOMP_4.5;
+GOMP_5.0.1 {
+} GOMP_5.0;
 
 # end of file #

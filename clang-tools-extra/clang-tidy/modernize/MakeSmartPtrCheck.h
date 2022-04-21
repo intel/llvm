@@ -41,16 +41,16 @@ protected:
   virtual SmartPtrTypeMatcher getSmartPointerTypeMatcher() const = 0;
 
   /// Returns whether the C++ version is compatible with current check.
-  virtual bool isLanguageVersionSupported(const LangOptions &LangOpts) const;
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
 
   static const char PointerType[];
 
 private:
-  std::unique_ptr<utils::IncludeInserter> Inserter;
-  const utils::IncludeSorter::IncludeStyle IncludeStyle;
+  utils::IncludeInserter Inserter;
   const std::string MakeSmartPtrFunctionHeader;
   const std::string MakeSmartPtrFunctionName;
   const bool IgnoreMacros;
+  const bool IgnoreDefaultInitialization;
 
   void checkConstruct(SourceManager &SM, ASTContext *Ctx,
                       const CXXConstructExpr *Construct, const QualType *Type,

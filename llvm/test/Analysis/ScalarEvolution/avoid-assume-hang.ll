@@ -1,4 +1,4 @@
-; RUN: opt %s -always-inline | opt -analyze -scalar-evolution
+; RUN: opt %s -always-inline | opt -passes='print<scalar-evolution>'
 ; There was optimization bug in ScalarEvolution, that causes too long 
 ; compute time and stack overflow crash.
 

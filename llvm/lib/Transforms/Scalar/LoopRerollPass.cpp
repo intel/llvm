@@ -24,40 +24,37 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/LoopReroll.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <iterator>
 #include <map>
 #include <utility>
@@ -160,12 +157,12 @@ namespace {
     IL_End
   };
 
-  class LoopReroll : public LoopPass {
+  class LoopRerollLegacyPass : public LoopPass {
   public:
     static char ID; // Pass ID, replacement for typeid
 
-    LoopReroll() : LoopPass(ID) {
-      initializeLoopRerollPass(*PassRegistry::getPassRegistry());
+    LoopRerollLegacyPass() : LoopPass(ID) {
+      initializeLoopRerollLegacyPassPass(*PassRegistry::getPassRegistry());
     }
 
     bool runOnLoop(Loop *L, LPPassManager &LPM) override;
@@ -174,6 +171,15 @@ namespace {
       AU.addRequired<TargetLibraryInfoWrapperPass>();
       getLoopAnalysisUsage(AU);
     }
+  };
+
+  class LoopReroll {
+  public:
+    LoopReroll(AliasAnalysis *AA, LoopInfo *LI, ScalarEvolution *SE,
+               TargetLibraryInfo *TLI, DominatorTree *DT, bool PreserveLCSSA)
+        : AA(AA), LI(LI), SE(SE), TLI(TLI), DT(DT),
+          PreserveLCSSA(PreserveLCSSA) {}
+    bool runOnLoop(Loop *L);
 
   protected:
     AliasAnalysis *AA;
@@ -483,16 +489,16 @@ namespace {
 
 } // end anonymous namespace
 
-char LoopReroll::ID = 0;
+char LoopRerollLegacyPass::ID = 0;
 
-INITIALIZE_PASS_BEGIN(LoopReroll, "loop-reroll", "Reroll loops", false, false)
+INITIALIZE_PASS_BEGIN(LoopRerollLegacyPass, "loop-reroll", "Reroll loops",
+                      false, false)
 INITIALIZE_PASS_DEPENDENCY(LoopPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_END(LoopReroll, "loop-reroll", "Reroll loops", false, false)
+INITIALIZE_PASS_END(LoopRerollLegacyPass, "loop-reroll", "Reroll loops", false,
+                    false)
 
-Pass *llvm::createLoopRerollPass() {
-  return new LoopReroll;
-}
+Pass *llvm::createLoopRerollPass() { return new LoopRerollLegacyPass; }
 
 // Returns true if the provided instruction is used outside the given loop.
 // This operates like Instruction::isUsedOutsideOfBlock, but considers PHIs in
@@ -548,12 +554,12 @@ bool LoopReroll::isLoopControlIV(Loop *L, Instruction *IV) {
           }
           // Must be a CMP or an ext (of a value with nsw) then CMP
           else {
-            Instruction *UUser = dyn_cast<Instruction>(UU);
+            auto *UUser = cast<Instruction>(UU);
             // Skip SExt if we are extending an nsw value
             // TODO: Allow ZExt too
-            if (BO->hasNoSignedWrap() && UUser && UUser->hasOneUse() &&
+            if (BO->hasNoSignedWrap() && UUser->hasOneUse() &&
                 isa<SExtInst>(UUser))
-              UUser = dyn_cast<Instruction>(*(UUser->user_begin()));
+              UUser = cast<Instruction>(*(UUser->user_begin()));
             if (!isCompareUsedByBranch(UUser))
               return false;
           }
@@ -705,9 +711,8 @@ void LoopReroll::DAGRootTracker::collectInLoopUserSet(
       }
 
     // We also want to collect single-user "feeder" values.
-    for (User::op_iterator OI = I->op_begin(),
-         OIE = I->op_end(); OI != OIE; ++OI) {
-      if (Instruction *Op = dyn_cast<Instruction>(*OI))
+    for (Use &U : I->operands()) {
+      if (Instruction *Op = dyn_cast<Instruction>(U))
         if (Op->hasOneUse() && L->contains(Op) && !Exclude.count(Op) &&
             !Final.count(Op))
           Queue.push_back(Op);
@@ -879,6 +884,12 @@ bool LoopReroll::DAGRootTracker::validateRootSet(DAGRootSet &DRS) {
   if (DRS.Roots.empty())
     return false;
 
+  // If the value of the base instruction is used outside the loop, we cannot
+  // reroll the loop. Check for other root instructions is unnecessary because
+  // they don't match any base instructions if their values are used outside.
+  if (hasUsesOutsideLoop(DRS.BaseInst, L))
+    return false;
+
   // Consider a DAGRootSet with N-1 roots (so N different values including
   //   BaseInst).
   // Define d = Roots[0] - BaseInst, which should be the same as
@@ -895,6 +906,8 @@ bool LoopReroll::DAGRootTracker::validateRootSet(DAGRootSet &DRS) {
   // Check that the first root is evenly spaced.
   unsigned N = DRS.Roots.size() + 1;
   const SCEV *StepSCEV = SE->getMinusSCEV(SE->getSCEV(DRS.Roots[0]), ADR);
+  if (isa<SCEVCouldNotCompute>(StepSCEV) || StepSCEV->getType()->isPointerTy())
+    return false;
   const SCEV *ScaleSCEV = SE->getConstant(StepSCEV->getType(), N);
   if (ADR->getStepRecurrence(*SE) != SE->getMulExpr(StepSCEV, ScaleSCEV))
     return false;
@@ -1064,6 +1077,12 @@ bool LoopReroll::DAGRootTracker::collectUsedInstructions(SmallInstructionSet &Po
   DenseSet<Instruction*> V;
   collectInLoopUserSet(LoopIncs, Exclude, PossibleRedSet, V);
   for (auto *I : V) {
+    if (I->mayHaveSideEffects()) {
+      LLVM_DEBUG(dbgs() << "LRR: Aborting - "
+                        << "An instruction which does not belong to any root "
+                        << "sets must not have side effects: " << *I);
+      return false;
+    }
     Uses[I].set(IL_All);
   }
 
@@ -1079,7 +1098,7 @@ LoopReroll::DAGRootTracker::nextInstr(int Val, UsesTy &In,
                                       UsesTy::iterator *StartI) {
   UsesTy::iterator I = StartI ? *StartI : In.begin();
   while (I != In.end() && (I->second.test(Val) == 0 ||
-                           Exclude.count(I->first) != 0))
+                           Exclude.contains(I->first)))
     ++I;
   return I;
 }
@@ -1125,7 +1144,7 @@ static bool isIgnorableInst(const Instruction *I) {
     case Intrinsic::annotation:
     case Intrinsic::ptr_annotation:
     case Intrinsic::var_annotation:
-    // TODO: the following intrinsics may also be whitelisted:
+    // TODO: the following intrinsics may also be allowed:
     //   lifetime_start, lifetime_end, invariant_start, invariant_end
       return true;
   }
@@ -1432,16 +1451,12 @@ void LoopReroll::DAGRootTracker::replace(const SCEV *BackedgeTakenCount) {
   }
 
   // Remove instructions associated with non-base iterations.
-  for (BasicBlock::reverse_iterator J = Header->rbegin(), JE = Header->rend();
-       J != JE;) {
-    unsigned I = Uses[&*J].find_first();
+  for (Instruction &Inst : llvm::make_early_inc_range(llvm::reverse(*Header))) {
+    unsigned I = Uses[&Inst].find_first();
     if (I > 0 && I < IL_All) {
-      LLVM_DEBUG(dbgs() << "LRR: removing: " << *J << "\n");
-      J++->eraseFromParent();
-      continue;
+      LLVM_DEBUG(dbgs() << "LRR: removing: " << Inst << "\n");
+      Inst.eraseFromParent();
     }
-
-    ++J;
   }
 
   // Rewrite each BaseInst using SCEV.
@@ -1637,17 +1652,7 @@ bool LoopReroll::reroll(Instruction *IV, Loop *L, BasicBlock *Header,
   return true;
 }
 
-bool LoopReroll::runOnLoop(Loop *L, LPPassManager &LPM) {
-  if (skipLoop(L))
-    return false;
-
-  AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
-  LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-  TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-  DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  PreserveLCSSA = mustPreserveAnalysisID(LCSSAID);
-
+bool LoopReroll::runOnLoop(Loop *L) {
   BasicBlock *Header = L->getHeader();
   LLVM_DEBUG(dbgs() << "LRR: F[" << Header->getParent()->getName() << "] Loop %"
                     << Header->getName() << " (" << L->getNumBlocks()
@@ -1695,4 +1700,27 @@ bool LoopReroll::runOnLoop(Loop *L, LPPassManager &LPM) {
     SE->forgetLoop(L);
 
   return Changed;
+}
+
+bool LoopRerollLegacyPass::runOnLoop(Loop *L, LPPassManager &LPM) {
+  if (skipLoop(L))
+    return false;
+
+  auto *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
+  auto *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+  auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
+  auto *TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(
+      *L->getHeader()->getParent());
+  auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+  bool PreserveLCSSA = mustPreserveAnalysisID(LCSSAID);
+
+  return LoopReroll(AA, LI, SE, TLI, DT, PreserveLCSSA).runOnLoop(L);
+}
+
+PreservedAnalyses LoopRerollPass::run(Loop &L, LoopAnalysisManager &AM,
+                                      LoopStandardAnalysisResults &AR,
+                                      LPMUpdater &U) {
+  return LoopReroll(&AR.AA, &AR.LI, &AR.SE, &AR.TLI, &AR.DT, true).runOnLoop(&L)
+             ? getLoopPassPreservedAnalyses()
+             : PreservedAnalyses::all();
 }

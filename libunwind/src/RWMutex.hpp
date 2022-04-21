@@ -1,4 +1,4 @@
-//===----------------------------- Registers.hpp --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,6 +17,9 @@
 #include <windows.h>
 #elif !defined(_LIBUNWIND_HAS_NO_THREADS)
 #include <pthread.h>
+#if defined(__ELF__) && defined(_LIBUNWIND_LINK_PTHREAD_LIB)
+#pragma comment(lib, "pthread")
+#endif
 #endif
 
 namespace libunwind {

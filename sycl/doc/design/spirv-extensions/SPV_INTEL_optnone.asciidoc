@@ -1,0 +1,115 @@
+SPV_INTEL_optnone
+=================
+
+Name Strings
+------------
+
+SPV_INTEL_optnone
+
+Contact
+-------
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+Contributors
+------------
+
+- Mariya Podchishchaeva, Intel
+- Ben Ashbaugh, Intel
+- Alexey Sotkin, Intel
+
+Notice
+------
+
+Copyright (c) 2020 Intel Corporation. All rights reserved.
+
+Status
+------
+First draft
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2020-12-17
+| Revision           | 2
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 4, Unified
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension adds new possible value for Function Control mask - *OptNoneINTEL*,
+which represents a strong request to not optimize the function.
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_optnone*
+----
+
+Modifications to the SPIR-V Specification, Version 1.5, Revision 4, Unified
+---------------------------------------------------------------------------
+Capabilities
+~~~~~~~~~~~~
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| 6094 | *CapabilityOptNoneINTEL* +
+Allow to use *OptNoneINTEL* Function Control mask value |
+|====
+--
+
+
+Function Control
+~~~~~~~~~~~~~~~~
+
+In section 3.24 "Function Control" add the following row to the Function Control
+table:
+[cols="1,4,4",options="header",width="100%"]
+|====
+2+| Function Control | <<Capability,Enabling Capabilities>> |
+0x10000 | *OptNoneINTEL* +
+Strong request, to the extent possible, to not optimize the function.
+| *CapabilityOptNoneINTEL*
+|====
+
+
+Issues
+------
+
+
+Discussion:
+
+...
+
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-12-15|Mariya Podchishchaeva|Initial revision
+|2|2020-12-17|Mariya Podchishchaeva|Do not require DontInline for OptNone
+|========================================

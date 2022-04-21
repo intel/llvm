@@ -10,7 +10,5 @@ executable("llvm-link") {
     "//llvm/lib/Transforms/IPO",
     "//llvm/lib/Transforms/Utils",
   ]
-  sources = [
-    "llvm-link.cpp",
-  ]
+  sources = [ "llvm-link.cpp" ]
 }

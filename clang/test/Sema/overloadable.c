@@ -1,6 +1,7 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s -Wincompatible-pointer-types
+// RUN: %clang_cc1 -fsyntax-only -fdouble-square-bracket-attributes -verify %s -Wincompatible-pointer-types -Wno-strict-prototypes
 
 int var __attribute__((overloadable)); // expected-error{{'overloadable' attribute only applies to functions}}
+void bad_attr_target(int) [[clang::overloadable]]; // expected-error{{'overloadable' attribute cannot be applied to types}}
 void params(void) __attribute__((overloadable(12))); // expected-error {{'overloadable' attribute takes no arguments}}
 
 int *f(int) __attribute__((overloadable)); // expected-note{{previous overload of function is here}}
@@ -26,7 +27,7 @@ float *accept_funcptr(int (*)(int, double)) __attribute__((overloadable)); //  \
 void test_funcptr(int (*f1)(int, double),
                   int (*f2)(int, float)) {
   float *fp = accept_funcptr(f1);
-  accept_funcptr(f2); // expected-error{{call to 'accept_funcptr' is ambiguous}}
+  accept_funcptr(f2); // expected-error{{no matching function for call to 'accept_funcptr'}}
 }
 
 struct X { int x; float y; };
@@ -119,8 +120,8 @@ void fn_type_conversions() {
   void disabled(char *c) __attribute__((overloadable, enable_if(1, "The function name lies.")));
   // To be clear, these should all point to the last overload of 'disabled'
   void (*dptr1)(char *c) = &disabled;
-  void (*dptr2)(void *c) = &disabled; // expected-warning{{incompatible pointer types initializing 'void (*)(void *)' with an expression of type '<overloaded function type>'}} expected-note@-5{{candidate function made ineligible by enable_if}} expected-note@-4{{candidate function made ineligible by enable_if}} expected-note@-3{{candidate function has type mismatch at 1st parameter (expected 'void *' but has 'char *')}}
-  void (*dptr3)(int *c) = &disabled; // expected-warning{{incompatible pointer types initializing 'void (*)(int *)' with an expression of type '<overloaded function type>'}} expected-note@-6{{candidate function made ineligible by enable_if}} expected-note@-5{{candidate function made ineligible by enable_if}} expected-note@-4{{candidate function has type mismatch at 1st parameter (expected 'int *' but has 'char *')}}
+  void (*dptr2)(void *c) = &disabled; // expected-warning{{incompatible function pointer types initializing 'void (*)(void *)' with an expression of type '<overloaded function type>'}} expected-note@-5{{candidate function made ineligible by enable_if}} expected-note@-4{{candidate function made ineligible by enable_if}} expected-note@-3{{candidate function has type mismatch at 1st parameter (expected 'void *' but has 'char *')}}
+  void (*dptr3)(int *c) = &disabled; // expected-warning{{incompatible function pointer types initializing 'void (*)(int *)' with an expression of type '<overloaded function type>'}} expected-note@-6{{candidate function made ineligible by enable_if}} expected-note@-5{{candidate function made ineligible by enable_if}} expected-note@-4{{candidate function has type mismatch at 1st parameter (expected 'int *' but has 'char *')}}
 
   void *specific_disabled = &disabled;
 }
@@ -247,3 +248,14 @@ void typeof_function_is_not_a_pointer() {
   // if take_fn is passed a void (**)(void *), we'll get a warning.
   take_fn(fn);
 }
+
+// PR53805
+// We previously failed to consider the attribute being written before the
+// declaration when considering whether to allow a variadic signature with no
+// other parameters, and so we handled these cases differently.
+__attribute__((overloadable)) void can_overload_1(...); // ok, was previously rejected
+void can_overload_2(...) __attribute__((overloadable)); // ok
+[[clang::overloadable]] void can_overload_3(...);       // ok, was previously rejected
+void can_overload_4 [[clang::overloadable]] (...);      // ok
+void cannot_overload(...) [[clang::overloadable]];      // expected-error {{ISO C requires a named parameter before '...'}} \
+                                                        // expected-error {{'overloadable' attribute cannot be applied to types}}

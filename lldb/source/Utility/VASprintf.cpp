@@ -1,4 +1,4 @@
-//===-- VASprintf.cpp -------------------------------------------*- C++ -*-===//
+//===-- VASprintf.cpp -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,9 +12,9 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
-#include <assert.h>
-#include <stdarg.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstdarg>
+#include <cstdio>
 
 bool lldb_private::VASprintf(llvm::SmallVectorImpl<char> &buf, const char *fmt,
                              va_list args) {

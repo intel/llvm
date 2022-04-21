@@ -16,6 +16,7 @@
 #include "lldb/lldb-private-enumerations.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Support/YAMLTraits.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -91,6 +92,23 @@ public:
     eARM_abi_hard_float = 0x00000400
   };
 
+  enum RISCVeflags {
+    eRISCV_rvc              = 0x00000001, /// RVC, +c
+    eRISCV_float_abi_soft   = 0x00000000, /// soft float
+    eRISCV_float_abi_single = 0x00000002, /// single precision floating point, +f
+    eRISCV_float_abi_double = 0x00000004, /// double precision floating point, +d
+    eRISCV_float_abi_quad   = 0x00000006, /// quad precision floating point, +q
+    eRISCV_float_abi_mask   = 0x00000006,
+    eRISCV_rve              = 0x00000008, /// RVE, +e
+    eRISCV_tso              = 0x00000010, /// RVTSO (total store ordering)
+  };
+
+  enum RISCVSubType {
+    eRISCVSubType_unknown,
+    eRISCVSubType_riscv32,
+    eRISCVSubType_riscv64,
+  };
+
   enum Core {
     eCore_arm_generic,
     eCore_arm_armv4,
@@ -101,6 +119,7 @@ public:
     eCore_arm_armv6,
     eCore_arm_armv6m,
     eCore_arm_armv7,
+    eCore_arm_armv7l,
     eCore_arm_armv7f,
     eCore_arm_armv7s,
     eCore_arm_armv7k,
@@ -122,6 +141,9 @@ public:
     eCore_thumbv7em,
     eCore_arm_arm64,
     eCore_arm_armv8,
+    eCore_arm_armv8l,
+    eCore_arm_arm64e,
+    eCore_arm_arm64_32,
     eCore_arm_aarch64,
 
     eCore_mips32,
@@ -180,8 +202,17 @@ public:
     eCore_hexagon_hexagonv4,
     eCore_hexagon_hexagonv5,
 
+    eCore_riscv32,
+    eCore_riscv64,
+
     eCore_uknownMach32,
     eCore_uknownMach64,
+
+    eCore_arc, // little endian ARC
+
+    eCore_avr,
+
+    eCore_wasm32,
 
     kNumCores,
 
@@ -255,20 +286,13 @@ public:
   /// Destructor.
   ~ArchSpec();
 
-  /// Assignment operator.
-  ///
-  /// \param[in] rhs another ArchSpec object to copy.
-  ///
-  /// \return A const reference to this object.
-  const ArchSpec &operator=(const ArchSpec &rhs);
-
   /// Returns true if the OS, vendor and environment fields of the triple are
   /// unset. The triple is expected to be normalized
   /// (llvm::Triple::normalize).
   static bool ContainsOnlyArch(const llvm::Triple &normalized_triple);
 
   static void ListSupportedArchNames(StringList &list);
-  static size_t AutoComplete(CompletionRequest &request);
+  static void AutoComplete(CompletionRequest &request);
 
   /// Returns a static string representing the current architecture.
   ///
@@ -435,7 +459,7 @@ public:
   /// \return A triple describing this ArchSpec.
   const llvm::Triple &GetTriple() const { return m_triple; }
 
-  void DumpTriple(Stream &s) const;
+  void DumpTriple(llvm::raw_ostream &s) const;
 
   /// Architecture triple setter.
   ///
@@ -502,7 +526,7 @@ public:
 
   void SetFlags(uint32_t flags) { m_flags = flags; }
 
-  void SetFlags(std::string elf_abi);
+  void SetFlags(const std::string &elf_abi);
 
 protected:
   bool IsEqualTo(const ArchSpec &rhs, bool exact_match) const;
@@ -539,4 +563,16 @@ bool ParseMachCPUDashSubtypeTriple(llvm::StringRef triple_str, ArchSpec &arch);
 
 } // namespace lldb_private
 
-#endif // #ifndef LLDB_UTILITY_ARCHSPEC_H
+namespace llvm {
+namespace yaml {
+template <> struct ScalarTraits<lldb_private::ArchSpec> {
+  static void output(const lldb_private::ArchSpec &, void *, raw_ostream &);
+  static StringRef input(StringRef, void *, lldb_private::ArchSpec &);
+  static QuotingType mustQuote(StringRef S) { return QuotingType::Double; }
+};
+} // namespace yaml
+} // namespace llvm
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(lldb_private::ArchSpec)
+
+#endif // LLDB_UTILITY_ARCHSPEC_H

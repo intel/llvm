@@ -1,14 +1,6 @@
-; RUN: opt -S %loadPolly -basicaa -polly-opt-isl \
-; RUN: -polly-pattern-matching-based-opts=false -polly-vectorizer=polly \
-; RUN: -polly-ast -analyze < %s | FileCheck %s 
-; RUN: opt -S %loadPolly -basicaa -polly-opt-isl \
-; RUN: -polly-pattern-matching-based-opts=false -polly-vectorizer=stripmine \
-; RUN: -polly-ast -analyze < %s | FileCheck %s
-
-; RUN: opt -S %loadPolly -basicaa -polly-opt-isl \
-; RUN: -polly-vectorizer=polly -polly-pattern-matching-based-opts=false \
-; RUN: -polly-ast -analyze -polly-prevect-width=16 < %s | \
-; RUN: FileCheck %s -check-prefix=VEC16
+; RUN: opt -S %loadPolly -basic-aa -polly-pattern-matching-based-opts=false -polly-vectorizer=polly                         -polly-opt-isl -polly-print-ast -disable-output < %s | FileCheck %s
+; RUN: opt -S %loadPolly -basic-aa -polly-pattern-matching-based-opts=false -polly-vectorizer=stripmine                     -polly-opt-isl -polly-print-ast -disable-output < %s | FileCheck %s
+; RUN: opt -S %loadPolly -basic-aa -polly-pattern-matching-based-opts=false -polly-vectorizer=polly -polly-prevect-width=16 -polly-opt-isl -polly-print-ast -disable-output < %s | FileCheck %s -check-prefix=VEC16
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
@@ -62,7 +54,7 @@ for.end30:                                        ; preds = %for.inc28
   ret void
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 ; CHECK: #pragma known-parallel
 ; CHECK: for (int c0 = 0; c0 <= 47; c0 += 1)

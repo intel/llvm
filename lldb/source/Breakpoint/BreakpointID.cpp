@@ -1,4 +1,4 @@
-//===-- BreakpointID.cpp ----------------------------------------*- C++ -*-===//
+//===-- BreakpointID.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "lldb/Breakpoint/Breakpoint.h"
 #include "lldb/Breakpoint/BreakpointID.h"
@@ -29,12 +29,7 @@ static llvm::StringRef g_range_specifiers[] = {"-", "to", "To", "TO"};
 // for specifying ID ranges at a later date.
 
 bool BreakpointID::IsRangeIdentifier(llvm::StringRef str) {
-  for (auto spec : g_range_specifiers) {
-    if (spec == str)
-      return true;
-  }
-
-  return false;
+  return llvm::is_contained(g_range_specifiers, str);
 }
 
 bool BreakpointID::IsValidIDExpression(llvm::StringRef str) {
@@ -96,7 +91,7 @@ bool BreakpointID::StringIsBreakpointName(llvm::StringRef str, Status &error) {
   error.Clear();
   if (str.empty())
   {
-    error.SetErrorStringWithFormat("Empty breakpoint names are not allowed");
+    error.SetErrorString("Empty breakpoint names are not allowed");
     return false;
   }
 
@@ -112,7 +107,7 @@ bool BreakpointID::StringIsBreakpointName(llvm::StringRef str, Status &error) {
   // Cannot contain ., -, or space.
   if (str.find_first_of(".- ") != llvm::StringRef::npos) {
     error.SetErrorStringWithFormat("Breakpoint names cannot contain "
-                                   "'.' or '-': \"%s\"",
+                                   "'.' or '-' or spaces: \"%s\"",
                                    str.str().c_str());
     return false;
   }

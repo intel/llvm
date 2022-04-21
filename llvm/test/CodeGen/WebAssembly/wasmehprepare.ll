@@ -1,9 +1,10 @@
 ; RUN: opt < %s -winehprepare -demote-catchswitch-only -wasmehprepare -S | FileCheck %s
+; RUN: opt < %s -winehprepare -demote-catchswitch-only -wasmehprepare -S --mattr=+atomics,+bulk-memory | FileCheck %s
 
 target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
-; CHECK: @__wasm_lpad_context = external global { i32, i8*, i32 }
+; CHECK: @__wasm_lpad_context = external thread_local global { i32, i8*, i32 }
 
 @_ZTIi = external constant i8*
 %struct.Temp = type { i8 }
@@ -37,7 +38,7 @@ catch.start:                                      ; preds = %catch.dispatch
   br i1 %matches, label %catch, label %rethrow
 ; CHECK: catch.start:
 ; CHECK-NEXT:   %[[CATCHPAD:.*]] = catchpad
-; CHECK-NEXT:   %[[EXN:.*]] = call i8* @llvm.wasm.extract.exception()
+; CHECK-NEXT:   %[[EXN:.*]] = call i8* @llvm.wasm.catch(i32 0)
 ; CHECK-NEXT:   call void @llvm.wasm.landingpad.index(token %[[CATCHPAD]], i32 0)
 ; CHECK-NEXT:   store i32 0, i32* getelementptr inbounds ({ i32, i8*, i32 }, { i32, i8*, i32 }* @__wasm_lpad_context, i32 0, i32 0)
 ; CHECK-NEXT:   %[[LSDA:.*]] = call i8* @llvm.wasm.lsda()
@@ -54,7 +55,7 @@ catch:                                            ; preds = %catch.start
 ; CHECK-NEXT:  call i8* @__cxa_begin_catch(i8* %[[EXN]])
 
 rethrow:                                          ; preds = %catch.start
-  call void @llvm.wasm.rethrow.in.catch() [ "funclet"(token %1) ]
+  call void @llvm.wasm.rethrow() [ "funclet"(token %1) ]
   unreachable
 
 try.cont:                                         ; preds = %entry, %catch
@@ -125,152 +126,11 @@ catch4:                                           ; preds = %catch.start3
   catchret from %6 to label %try.cont7
 
 rethrow:                                          ; preds = %catch.start3
-  call void @llvm.wasm.rethrow.in.catch() [ "funclet"(token %6) ]
+  call void @llvm.wasm.rethrow() [ "funclet"(token %6) ]
   unreachable
 
 try.cont7:                                        ; preds = %try.cont, %catch4
   ret void
-}
-
-; A nested try-catch within a catch.
-;
-; void foo();
-; void test2() {
-;   try {
-;     foo();
-;   } catch (int) {
-;     try {
-;       foo();
-;     } catch (int) {
-;     }
-;   }
-; }
-; Within the nested catchpad, wasm.lsda() call should NOT be generated.
-define void @test2() personality i8* bitcast (i32 (...)* @__gxx_wasm_personality_v0 to i8*) {
-; CHECK-LABEL: @test2()
-entry:
-  invoke void @foo()
-          to label %try.cont9 unwind label %catch.dispatch
-
-catch.dispatch:                                   ; preds = %entry
-  %0 = catchswitch within none [label %catch.start] unwind to caller
-
-catch.start:                                      ; preds = %catch.dispatch
-  %1 = catchpad within %0 [i8* bitcast (i8** @_ZTIi to i8*)]
-  %2 = call i8* @llvm.wasm.get.exception(token %1)
-  %3 = call i32 @llvm.wasm.get.ehselector(token %1)
-  %4 = call i32 @llvm.eh.typeid.for(i8* bitcast (i8** @_ZTIi to i8*))
-  %matches = icmp eq i32 %3, %4
-  br i1 %matches, label %catch, label %rethrow
-; CHECK: catch.start:
-; CHECK:   call i8* @llvm.wasm.lsda()
-
-catch:                                            ; preds = %catch.start
-  %5 = call i8* @__cxa_begin_catch(i8* %2) [ "funclet"(token %1) ]
-  invoke void @foo() [ "funclet"(token %1) ]
-          to label %try.cont unwind label %catch.dispatch2
-
-catch.dispatch2:                                  ; preds = %catch
-  %6 = catchswitch within %1 [label %catch.start3] unwind label %ehcleanup
-
-catch.start3:                                     ; preds = %catch.dispatch2
-  %7 = catchpad within %6 [i8* bitcast (i8** @_ZTIi to i8*)]
-  %8 = call i8* @llvm.wasm.get.exception(token %7)
-  %9 = call i32 @llvm.wasm.get.ehselector(token %7)
-  %10 = call i32 @llvm.eh.typeid.for(i8* bitcast (i8** @_ZTIi to i8*))
-  %matches4 = icmp eq i32 %9, %10
-  br i1 %matches4, label %catch6, label %rethrow5
-; CHECK: catch.start3:
-; CHECK-NOT:   call i8* @llvm.wasm.lsda()
-
-catch6:                                           ; preds = %catch.start3
-  %11 = call i8* @__cxa_begin_catch(i8* %8) [ "funclet"(token %7) ]
-  call void @__cxa_end_catch() [ "funclet"(token %7) ]
-  catchret from %7 to label %try.cont
-
-rethrow5:                                         ; preds = %catch.start3
-  invoke void @llvm.wasm.rethrow.in.catch() [ "funclet"(token %7) ]
-          to label %unreachable unwind label %ehcleanup
-
-try.cont:                                         ; preds = %catch, %catch6
-  call void @__cxa_end_catch() [ "funclet"(token %1) ]
-  catchret from %1 to label %try.cont9
-
-rethrow:                                          ; preds = %catch.start
-  call void @llvm.wasm.rethrow.in.catch() [ "funclet"(token %1) ]
-  unreachable
-
-try.cont9:                                        ; preds = %entry, %try.cont
-  ret void
-
-ehcleanup:                                        ; preds = %rethrow5, %catch.dispatch2
-  %12 = cleanuppad within %1 []
-  call void @__cxa_end_catch() [ "funclet"(token %12) ]
-  cleanupret from %12 unwind to caller
-; CHECK: ehcleanup:
-; CHECK-NEXT:   cleanuppad
-; CHECK-NOT:   call void @llvm.wasm.landingpad.index
-; CHECK-NOT:   store {{.*}} @__wasm_lpad_context
-; CHECK-NOT:   call i8* @llvm.wasm.lsda()
-; CHECK-NOT:   call i32 @_Unwind_CallPersonality
-; CHECK-NOT:   load {{.*}} @__wasm_lpad_context
-
-unreachable:                                      ; preds = %rethrow5
-  unreachable
-}
-
-; A cleanuppad with a call to __clang_call_terminate().
-; A call to wasm.catch() should be generated after the cleanuppad.
-;
-; void foo();
-; void test3() {
-;   try {
-;     foo();
-;   } catch (...) {
-;     foo();
-;   }
-; }
-define void @test3() personality i8* bitcast (i32 (...)* @__gxx_wasm_personality_v0 to i8*) {
-; CHECK-LABEL: @test3
-entry:
-  invoke void @foo()
-          to label %try.cont unwind label %catch.dispatch
-
-catch.dispatch:                                   ; preds = %entry
-  %0 = catchswitch within none [label %catch.start] unwind to caller
-
-catch.start:                                      ; preds = %catch.dispatch
-  %1 = catchpad within %0 [i8* null]
-  %2 = call i8* @llvm.wasm.get.exception(token %1)
-  %3 = call i32 @llvm.wasm.get.ehselector(token %1)
-  %4 = call i8* @__cxa_begin_catch(i8* %2) [ "funclet"(token %1) ]
-  invoke void @foo() [ "funclet"(token %1) ]
-          to label %invoke.cont1 unwind label %ehcleanup
-
-invoke.cont1:                                     ; preds = %catch.start
-  call void @__cxa_end_catch() [ "funclet"(token %1) ]
-  catchret from %1 to label %try.cont
-
-try.cont:                                         ; preds = %entry, %invoke.cont1
-  ret void
-
-ehcleanup:                                        ; preds = %catch.start
-  %5 = cleanuppad within %1 []
-  invoke void @__cxa_end_catch() [ "funclet"(token %5) ]
-          to label %invoke.cont2 unwind label %terminate
-
-invoke.cont2:                                     ; preds = %ehcleanup
-  cleanupret from %5 unwind to caller
-
-terminate:                                        ; preds = %ehcleanup
-  %6 = cleanuppad within %5 []
-  %7 = call i8* @llvm.wasm.get.exception(token %6)
-  call void @__clang_call_terminate(i8* %7) [ "funclet"(token %6) ]
-  unreachable
-; CHECK: terminate:
-; CHECK-NEXT: cleanuppad
-; CHECK-NEXT:   %[[EXN:.*]] = call i8* @llvm.wasm.extract.exception
-; CHECK-NEXT:   call void @__clang_call_terminate(i8* %[[EXN]])
 }
 
 ; PHI demotion test. Only the phi before catchswitch should be demoted; the phi
@@ -282,7 +142,7 @@ terminate:                                        ; preds = %ehcleanup
 ;   ~Temp() {}
 ; };
 ;
-; void test4() {
+; void test2() {
 ;   int num;
 ;   try {
 ;     Temp t;
@@ -302,8 +162,8 @@ terminate:                                        ; preds = %ehcleanup
 ;     bar(num);
 ;   }
 ; }
-define void @test4() personality i8* bitcast (i32 (...)* @__gxx_wasm_personality_v0 to i8*) {
-; CHECK-LABEL: @test4
+define void @test2() personality i8* bitcast (i32 (...)* @__gxx_wasm_personality_v0 to i8*) {
+; CHECK-LABEL: @test2
 entry:
   %t = alloca %struct.Temp, align 1
   invoke void @foo()
@@ -367,8 +227,8 @@ try.cont10:                                       ; preds = %invoke.cont3, %catc
 ; Tests if instructions after a call to @llvm.wasm.throw are deleted and the
 ; BB's dead children are deleted.
 
-; CHECK-LABEL: @test5
-define i32 @test5(i1 %b, i8* %p) {
+; CHECK-LABEL: @test3
+define i32 @test3(i1 %b, i8* %p) {
 entry:
   br i1 %b, label %bb.true, label %bb.false
 
@@ -396,14 +256,22 @@ declare void @foo()
 declare void @bar(i32)
 declare %struct.Temp* @_ZN4TempD2Ev(%struct.Temp* returned)
 declare i32 @__gxx_wasm_personality_v0(...)
-declare i8* @llvm.wasm.get.exception(token)
-declare i32 @llvm.wasm.get.ehselector(token)
-declare i32 @llvm.eh.typeid.for(i8*)
-declare void @llvm.wasm.throw(i32, i8*)
-declare void @llvm.wasm.rethrow.in.catch()
+; Function Attrs: nounwind
+declare i8* @llvm.wasm.get.exception(token) #0
+; Function Attrs: nounwind
+declare i32 @llvm.wasm.get.ehselector(token) #0
+; Function Attrs: nounwind
+declare i32 @llvm.eh.typeid.for(i8*) #0
+; Function Attrs: noreturn
+declare void @llvm.wasm.throw(i32, i8*) #1
+; Function Attrs: noreturn
+declare void @llvm.wasm.rethrow() #1
 declare i8* @__cxa_begin_catch(i8*)
 declare void @__cxa_end_catch()
-declare void @__clang_call_terminate(i8*)
+declare void @_ZSt9terminatev()
+
+attributes #0 = { nounwind }
+attributes #1 = { noreturn }
 
 ; CHECK-DAG: declare void @llvm.wasm.landingpad.index(token, i32 immarg)
 ; CHECK-DAG: declare i8* @llvm.wasm.lsda()

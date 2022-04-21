@@ -42,9 +42,8 @@ class Reference {
 public:
   /// Which universe defines the kindValue().
   enum class KindNamespace {
-    all     = 0,
+    all = 0,
     testing = 1,
-    mach_o  = 2,
   };
 
   KindNamespace kindNamespace() const { return (KindNamespace)_kindNamespace; }
@@ -91,7 +90,7 @@ public:
   /// Some relocations require a symbol and a value (e.g. foo + 4).
   virtual Addend addend() const = 0;
 
-  /// During linking, some optimzations may change addend value.
+  /// During linking, some optimizations may change addend value.
   virtual void setAddend(Addend) = 0;
 
   /// Returns target specific attributes of the reference.
@@ -104,7 +103,7 @@ protected:
 
   /// The memory for Reference objects is always managed by the owning File
   /// object.  Therefore, no one but the owning File object should call
-  /// delete on an Reference.  In fact, some File objects may bulk allocate
+  /// delete on a Reference.  In fact, some File objects may bulk allocate
   /// an array of References, so they cannot be individually deleted by anyone.
   virtual ~Reference() = default;
 

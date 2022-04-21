@@ -1,11 +1,11 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=debug.DumpCFG -triple x86_64-apple-darwin12 -std=c++11 -w %s > %t 2>&1
-// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX11,ELIDE,CXX11-ELIDE %s
+// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX11,CXX11-ELIDE %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=debug.DumpCFG -triple x86_64-apple-darwin12 -std=c++17 -w %s > %t 2>&1
-// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX17,ELIDE,CXX17-ELIDE %s
+// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX17 %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=debug.DumpCFG -triple x86_64-apple-darwin12 -std=c++11 -w -analyzer-config elide-constructors=false %s > %t 2>&1
-// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX11,NOELIDE,CXX11-NOELIDE %s
+// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX11,CXX11-NOELIDE %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=debug.DumpCFG -triple x86_64-apple-darwin12 -std=c++17 -w -analyzer-config elide-constructors=false %s > %t 2>&1
-// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX17,NOELIDE,CXX17-NOELIDE %s
+// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX17 %s
 
 class D {
 public:
@@ -59,8 +59,7 @@ void passArgumentIntoMessage(E *e) {
 // CXX17-NEXT:     3: {{\[}}[B1.2] bar] (CXXRecordTypedCall, [B1.5], [B1.4])
 // CXX17-NEXT:     4: [B1.3] (BindTemporary)
 // CXX17-NEXT:     5: D d = [e bar];
-// CXX17-NEXT:     6: ~D() (Temporary object destructor)
-// CXX17-NEXT:     7: [B1.5].~D() (Implicit destructor)
+// CXX17-NEXT:     6: [B1.5].~D() (Implicit destructor)
 void returnObjectFromMessage(E *e) {
   D d = [e bar];
 }

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MacroRepeatedSideEffectsCheck.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/MacroArgs.h"
 #include "clang/Lex/PPCallbacks.h"
@@ -173,7 +174,7 @@ bool MacroRepeatedPPCallbacks::hasSideEffects(
 
 void MacroRepeatedSideEffectsCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  PP->addPPCallbacks(::llvm::make_unique<MacroRepeatedPPCallbacks>(*this, *PP));
+  PP->addPPCallbacks(::std::make_unique<MacroRepeatedPPCallbacks>(*this, *PP));
 }
 
 } // namespace bugprone

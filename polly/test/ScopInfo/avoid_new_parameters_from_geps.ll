@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-scops -analyze < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-print-scops -disable-output < %s | FileCheck %s
 ;
 ; Check that we do no introduce a parameter here that is actually not needed.
 ;
@@ -12,7 +12,7 @@
 ; CHECK-NEXT:     {  :  }
 ; CHECK-NEXT:     Invalid Context:
 ; CHECK-NEXT:     {  : false }
-; CHECK-NEXT:     Arrays {
+; CHECK:          Arrays {
 ; CHECK-NEXT:         i32* MemRef_team2_0_in; // Element size 8
 ; CHECK-NEXT:     }
 ; CHECK-NEXT:     Arrays (Bounds as pw_affs) {

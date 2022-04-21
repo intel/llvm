@@ -56,8 +56,8 @@ define void @conv_v2f32_to_v4f16( <2 x float> %a, <4 x half>* %store ) {
 ; CHECK-NEXT:    .p2align 3
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI2_0:
-; CHECK-NEXT:    .long 3212836864 @ float -1
-; CHECK-NEXT:    .long 1065353216 @ float 1
+; CHECK-NEXT:    .long 0xbf800000 @ float -1
+; CHECK-NEXT:    .long 0x3f800000 @ float 1
 entry:
   %c = fadd <2 x float> %a, <float -1.0, float 1.0>
   %v = bitcast <2 x float> %c to <4 x half>
@@ -98,7 +98,7 @@ entry:
 define void @conv_v4i16_to_v4f16( <4 x i16> %a, <4 x half>* %store ) {
 ; CHECK-LABEL: conv_v4i16_to_v4f16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vmov.i64 d16, #0xffffffff0000
+; CHECK-NEXT:    vmov.i64 d16, #0xffff00000000ffff
 ; CHECK-NEXT:    vldr d17, [r0]
 ; CHECK-NEXT:    vrev64.16 d18, d0
 ; CHECK-NEXT:    vrev64.16 d17, d17
@@ -208,10 +208,10 @@ define void @conv_v4f32_to_v8f16( <4 x float> %a, <8 x half>* %store ) {
 ; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI8_0:
-; CHECK-NEXT:    .long 3212836864 @ float -1
-; CHECK-NEXT:    .long 1065353216 @ float 1
-; CHECK-NEXT:    .long 3212836864 @ float -1
-; CHECK-NEXT:    .long 1065353216 @ float 1
+; CHECK-NEXT:    .long 0xbf800000 @ float -1
+; CHECK-NEXT:    .long 0x3f800000 @ float 1
+; CHECK-NEXT:    .long 0xbf800000 @ float -1
+; CHECK-NEXT:    .long 0x3f800000 @ float 1
 entry:
   %c = fadd <4 x float> %a, <float -1.0, float 1.0, float -1.0, float 1.0>
   %v = bitcast <4 x float> %c to <8 x half>
@@ -325,10 +325,10 @@ define void @conv_v4f16_to_i64( <4 x half> %a, i64* %store ) {
 ; CHECK-NEXT:    .p2align 3
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI12_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 entry:
   %z = fadd <4 x half> %a, <half -1.0, half 1.0, half -1.0, half 1.0>
   %y = bitcast <4 x half> %z to i64
@@ -352,10 +352,10 @@ define void @conv_v4f16_to_f64( <4 x half> %a, double* %store ) {
 ; CHECK-NEXT:    .p2align 3
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI13_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 entry:
   %z = fadd <4 x half> %a, <half -1.0, half 1.0, half -1.0, half 1.0>
   %y = bitcast <4 x half> %z to double
@@ -381,10 +381,10 @@ define void @conv_v4f16_to_v2i32( <4 x half> %a, <2 x i32>* %store ) {
 ; CHECK-NEXT:    .p2align 3
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI14_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 ; CHECK-NEXT:  .LCPI14_1:
 ; CHECK-NEXT:    .long 4294967295 @ 0xffffffff
 ; CHECK-NEXT:    .long 1 @ 0x1
@@ -413,13 +413,13 @@ define void @conv_v4f16_to_v2f32( <4 x half> %a, <2 x float>* %store ) {
 ; CHECK-NEXT:    .p2align 3
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI15_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 ; CHECK-NEXT:  .LCPI15_1:
-; CHECK-NEXT:    .long 3212836864 @ float -1
-; CHECK-NEXT:    .long 1065353216 @ float 1
+; CHECK-NEXT:    .long 0xbf800000 @ float -1
+; CHECK-NEXT:    .long 0x3f800000 @ float 1
 entry:
   %z = fadd <4 x half> %a, <half -1.0, half 1.0, half -1.0, half 1.0>
   %y = bitcast <4 x half> %z to <2 x float>
@@ -444,10 +444,10 @@ define void @conv_v4f16_to_v4i16( <4 x half> %a, <4 x i16>* %store ) {
 ; CHECK-NEXT:    .p2align 3
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI16_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 ; CHECK-NEXT:  .LCPI16_1:
 ; CHECK-NEXT:    .short 65535 @ 0xffff
 ; CHECK-NEXT:    .short 1 @ 0x1
@@ -477,10 +477,10 @@ define void @conv_v4f16_to_v8f8( <4 x half> %a, <8 x i8>* %store ) {
 ; CHECK-NEXT:    .p2align 3
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI17_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 entry:
   %z = fadd <4 x half> %a, <half -1.0, half 1.0, half -1.0, half 1.0>
   %y = bitcast <4 x half> %z to <8 x i8>
@@ -492,35 +492,34 @@ entry:
 define void @conv_v8f16_to_i128( <8 x half> %a, i128* %store ) {
 ; CHECK-LABEL: conv_v8f16_to_i128:
 ; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    .save {r11, lr}
+; CHECK-NEXT:    push {r11, lr}
 ; CHECK-NEXT:    adr r1, .LCPI18_0
 ; CHECK-NEXT:    vrev64.16 q9, q0
 ; CHECK-NEXT:    vld1.64 {d16, d17}, [r1:128]
 ; CHECK-NEXT:    vrev64.16 q8, q8
 ; CHECK-NEXT:    vadd.f16 q8, q9, q8
 ; CHECK-NEXT:    vrev32.16 q8, q8
-; CHECK-NEXT:    vmov.32 r12, d17[1]
-; CHECK-NEXT:    vmov.32 r2, d17[0]
-; CHECK-NEXT:    vmov.32 r3, d16[1]
-; CHECK-NEXT:    vmov.32 r1, d16[0]
-; CHECK-NEXT:    subs r12, r12, #1
-; CHECK-NEXT:    sbcs r2, r2, #0
-; CHECK-NEXT:    sbcs r3, r3, #0
-; CHECK-NEXT:    sbc r1, r1, #0
-; CHECK-NEXT:    stm r0, {r1, r3}
-; CHECK-NEXT:    str r2, [r0, #8]
-; CHECK-NEXT:    str r12, [r0, #12]
-; CHECK-NEXT:    bx lr
+; CHECK-NEXT:    vmov r12, r2, d17
+; CHECK-NEXT:    vmov r3, r1, d16
+; CHECK-NEXT:    subs lr, r2, #1
+; CHECK-NEXT:    sbcs r2, r12, #0
+; CHECK-NEXT:    sbcs r1, r1, #0
+; CHECK-NEXT:    sbc r3, r3, #0
+; CHECK-NEXT:    str r3, [r0]
+; CHECK-NEXT:    stmib r0, {r1, r2, lr}
+; CHECK-NEXT:    pop {r11, pc}
 ; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI18_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 entry:
   %z = fadd <8 x half> %a, <half -1.0, half 1.0, half -1.0, half 1.0, half -1.0, half 1.0, half -1.0, half 1.0>
   %y = bitcast <8 x half> %z to i128
@@ -547,14 +546,14 @@ define void @conv_v8f16_to_v2f64( <8 x half> %a, <2 x double>* %store ) {
 ; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI19_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 entry:
   %z = fadd <8 x half> %a, <half -1.0, half 1.0, half -1.0, half 1.0, half -1.0, half 1.0, half -1.0, half 1.0>
   %y = bitcast <8 x half> %z to <2 x double>
@@ -582,14 +581,14 @@ define void @conv_v8f16_to_v4i32( <8 x half> %a, <4 x i32>* %store ) {
 ; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI20_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 ; CHECK-NEXT:  .LCPI20_1:
 ; CHECK-NEXT:    .long 4294967295 @ 0xffffffff
 ; CHECK-NEXT:    .long 1 @ 0x1
@@ -622,19 +621,19 @@ define void @conv_v8f16_to_v4f32( <8 x half> %a, <4 x float>* %store ) {
 ; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI21_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 ; CHECK-NEXT:  .LCPI21_1:
-; CHECK-NEXT:    .long 3212836864 @ float -1
-; CHECK-NEXT:    .long 1065353216 @ float 1
-; CHECK-NEXT:    .long 3212836864 @ float -1
-; CHECK-NEXT:    .long 1065353216 @ float 1
+; CHECK-NEXT:    .long 0xbf800000 @ float -1
+; CHECK-NEXT:    .long 0x3f800000 @ float 1
+; CHECK-NEXT:    .long 0xbf800000 @ float -1
+; CHECK-NEXT:    .long 0x3f800000 @ float 1
 entry:
   %z = fadd <8 x half> %a, <half -1.0, half 1.0, half -1.0, half 1.0, half -1.0, half 1.0, half -1.0, half 1.0>
   %y = bitcast <8 x half> %z to <4 x float>
@@ -661,14 +660,14 @@ define void @conv_v8f16_to_v8i16( <8 x half> %a, <8 x i16>* %store ) {
 ; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI22_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 ; CHECK-NEXT:  .LCPI22_1:
 ; CHECK-NEXT:    .short 65535 @ 0xffff
 ; CHECK-NEXT:    .short 1 @ 0x1
@@ -703,14 +702,14 @@ define void @conv_v8f16_to_v8f8( <8 x half> %a, <16 x i8>* %store ) {
 ; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  @ %bb.1:
 ; CHECK-NEXT:  .LCPI23_0:
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
-; CHECK-NEXT:    .short 48128 @ half -1
-; CHECK-NEXT:    .short 15360 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
+; CHECK-NEXT:    .short 0xbc00 @ half -1
+; CHECK-NEXT:    .short 0x3c00 @ half 1
 entry:
   %z = fadd <8 x half> %a, <half -1.0, half 1.0, half -1.0, half 1.0, half -1.0, half 1.0, half -1.0, half 1.0>
   %y = bitcast <8 x half> %z to <16 x i8>

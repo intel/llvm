@@ -16,7 +16,10 @@
 // class duration;
 
 #include <chrono>
+#include <ratio>
 #include <type_traits>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

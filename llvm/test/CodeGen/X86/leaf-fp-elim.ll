@@ -6,7 +6,7 @@ target triple = "x86_64-apple-darwin11.0"
 @msg = internal global i8* null                   ; <i8**> [#uses=1]
 @.str = private constant [2 x i8] c"x\00", align 1 ; <[2 x i8]*> [#uses=1]
 
-define void @test(i8* %p) "no-frame-pointer-elim-non-leaf" nounwind optsize ssp {
+define void @test(i8* %p) "frame-pointer"="non-leaf" nounwind optsize ssp {
 
 ; No stack frame, please.
 ; CHECK:     _test
@@ -19,7 +19,7 @@ entry:
   br i1 %0, label %return, label %bb
 
 bb:                                               ; preds = %entry
-  tail call void asm "mov $1, $0", "=*m,{cx},~{dirflag},~{fpsr},~{flags}"(i8** @msg, i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str, i64 0, i64 0)) nounwind
+  tail call void asm "mov $1, $0", "=*m,{cx},~{dirflag},~{fpsr},~{flags}"(i8** elementtype(i8*) @msg, i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str, i64 0, i64 0)) nounwind
   tail call void @llvm.trap()
   unreachable
 

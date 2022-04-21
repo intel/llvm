@@ -1,4 +1,4 @@
-// RUN: llvm-mc -triple x86_64-apple-darwin10 %s -filetype=obj -o - | llvm-readobj --file-headers -S --sd -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols | FileCheck %s
+// RUN: llvm-mc -triple x86_64-apple-darwin10 %s -filetype=obj -o - | llvm-readobj --file-headers -S --sd -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols - | FileCheck %s
 _g:
 LFB2:
 	.section __TEXT,__eh_frame,coalesced,no_toc+strip_static_syms+live_support
@@ -31,7 +31,7 @@ _g.eh:
 // CHECK:     Alignment: 0
 // CHECK:     RelocationOffset: 0x0
 // CHECK:     RelocationCount: 0
-// CHECK:     Type: 0x0
+// CHECK:     Type: Regular (0x0)
 // CHECK:     Attributes [ (0x800000)
 // CHECK:       PureInstructions (0x800000)
 // CHECK:     ]
@@ -51,7 +51,7 @@ _g.eh:
 // CHECK:     Alignment: 0
 // CHECK:     RelocationOffset: 0x188
 // CHECK:     RelocationCount: 2
-// CHECK:     Type: 0xB
+// CHECK:     Type: Coalesced (0xB)
 // CHECK:     Attributes [ (0x680000)
 // CHECK:       LiveSupport (0x80000)
 // CHECK:       NoTOC (0x400000)

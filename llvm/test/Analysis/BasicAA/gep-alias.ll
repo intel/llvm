@@ -1,4 +1,4 @@
-; RUN: opt < %s -basicaa -gvn -instcombine -S 2>&1 | FileCheck %s
+; RUN: opt < %s -basic-aa -gvn -instcombine -S 2>&1 | FileCheck %s
 
 target datalayout = "e-p:32:32:32-p1:16:16:16-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:128:128"
 
@@ -247,7 +247,7 @@ define i32 @test12(i32 %x, i32 %y, i8* %p) nounwind {
 ; CHECK: [[U0ADDR:%[a-zA-Z0-9_]+]] = getelementptr inbounds [3 x i8], [3 x i8]* %u, i32 0, i32 0
 ; CHECK: [[U0:%[a-zA-Z0-9_]+]] = load i8, i8* [[U0ADDR]], align 1
 ; CHECK: [[U0ARG:%[a-zA-Z0-9_]+]] = zext i8 [[U0]] to i32
-; CHECK: call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i32 [[T0ARG]], i32 [[U0ARG]])
+; CHECK: call i32 (i8*, ...) @printf(i8* noundef nonnull dereferenceable(1) getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i32 [[T0ARG]], i32 [[U0ARG]])
 ; CHECK: ret
 define void @test13() {
 entry:

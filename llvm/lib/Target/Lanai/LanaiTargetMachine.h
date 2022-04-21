@@ -13,16 +13,13 @@
 #ifndef LLVM_LIB_TARGET_LANAI_LANAITARGETMACHINE_H
 #define LLVM_LIB_TARGET_LANAI_LANAITARGETMACHINE_H
 
-#include "LanaiFrameLowering.h"
 #include "LanaiISelLowering.h"
 #include "LanaiInstrInfo.h"
 #include "LanaiSelectionDAGInfo.h"
 #include "LanaiSubtarget.h"
-#include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
-class formatted_raw_ostream;
 
 class LanaiTargetMachine : public LLVMTargetMachine {
   LanaiSubtarget Subtarget;
@@ -41,7 +38,7 @@ public:
     return &Subtarget;
   }
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   // Pass Pipeline Configuration
   TargetPassConfig *createPassConfig(PassManagerBase &pass_manager) override;

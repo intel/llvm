@@ -23,10 +23,16 @@ namespace modernize {
 /// http://clang.llvm.org/extra/clang-tidy/checks/modernize-avoid-std-bind.html
 class AvoidBindCheck : public ClangTidyCheck {
 public:
-  AvoidBindCheck(StringRef Name, ClangTidyContext *Context)
-      : ClangTidyCheck(Name, Context) {}
+  AvoidBindCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus14;
+  }
+  void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+
+private:
+  bool PermissiveParameterList = false;
 };
 } // namespace modernize
 } // namespace tidy

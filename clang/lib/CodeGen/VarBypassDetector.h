@@ -1,4 +1,4 @@
-//===--- VarBypassDetector.cpp - Bypass jumps detector ------------*- C++ -*-=//
+//===--- VarBypassDetector.h - Bypass jumps detector --------------*- C++ -*-=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -55,7 +55,7 @@ public:
   /// Returns true if the variable declaration was by bypassed by any goto or
   /// switch statement.
   bool IsBypassed(const VarDecl *D) const {
-    return AlwaysBypassed || Bypasses.find(D) != Bypasses.end();
+    return AlwaysBypassed || Bypasses.contains(D);
   }
 
 private:

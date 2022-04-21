@@ -15,7 +15,7 @@
 #define FLT_EPSILON     0x1.0p-23f
 
 #define FP_ILOGB0 (-2147483647 - 1)
-#define FP_ILOGBNAN (-2147483647 - 1)
+#define FP_ILOGBNAN 2147483647
 
 #define M_E_F           0x1.5bf0a8p+1f
 #define M_LOG2E_F       0x1.715476p+0f
@@ -71,8 +71,6 @@
 
 #ifdef cl_khr_fp16
 
-#if __OPENCL_VERSION__ >= 120
-
 #define HALF_DIG        3
 #define HALF_MANT_DIG   11
 #define HALF_MAX_10_EXP +4
@@ -84,7 +82,8 @@
 #define HALF_MAX        0x1.ffcp15h
 #define HALF_MIN        0x1.0p-14h
 #define HALF_EPSILON    0x1.0p-10h
+#define HALF_MAX_SQRT 0x1.0p+8h
+#define HALF_MIN_SQRT 0x1.0p-8h
 
-#endif
-
+#define M_PI_OVER_180_H 0x1.1ep-6h
 #endif

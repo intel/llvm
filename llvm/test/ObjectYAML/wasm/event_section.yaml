@@ -7,23 +7,24 @@ Sections:
   - Type:            TYPE
     Signatures:
       - Index:           0
-        ReturnType:      I32
         ParamTypes:
+          - I32
+        ReturnTypes:
           - I32
       - Index:           1
-        ReturnType:      NORESULT
         ParamTypes:
           - I32
+        ReturnTypes:      []
   - Type:            FUNCTION
     FunctionTypes:   [ 0 ]
-  - Type:            EVENT
-    Events:
-      - Index:           0
-        Attribute:       0
-        SigIndex:        1
+  - Type:            TAG
+    TagTypes:        [ 1 ]
   - Type:            CODE
     Relocations:
-      - Type:            R_WASM_EVENT_INDEX_LEB
+      - Type:            R_WASM_TAG_INDEX_LEB
+        Index:           1
+        Offset:          0x00000006
+      - Type:            10
         Index:           1
         Offset:          0x00000006
     Functions:
@@ -40,38 +41,39 @@ Sections:
         Flags:           [  ]
         Function:        0
       - Index:           1
-        Kind:            EVENT
+        Kind:            TAG
         Name:            __cpp_exception
         Flags:           [ BINDING_WEAK ]
-        Event:           0
+        Tag:             0
 ...
 
 # CHECK:      --- !WASM
 # CHECK-NEXT: FileHeader:
-# CHECK-NEXT:   Version:         0x00000001
+# CHECK-NEXT:   Version:         0x1
 # CHECK-NEXT: Sections:
 # CHECK-NEXT:   - Type:            TYPE
 # CHECK-NEXT:     Signatures:
 # CHECK-NEXT:       - Index:           0
-# CHECK-NEXT:         ReturnType:      I32
 # CHECK-NEXT:         ParamTypes:
+# CHECK-NEXT:           - I32
+# CHECK-NEXT:         ReturnTypes:
 # CHECK-NEXT:           - I32
 # CHECK-NEXT:       - Index:           1
-# CHECK-NEXT:         ReturnType:      NORESULT
 # CHECK-NEXT:         ParamTypes:
 # CHECK-NEXT:           - I32
+# CHECK-NEXT:         ReturnTypes:     []
 # CHECK-NEXT:   - Type:            FUNCTION
 # CHECK-NEXT:     FunctionTypes:   [ 0 ]
-# CHECK-NEXT:   - Type:            EVENT
-# CHECK-NEXT:     Events:
-# CHECK-NEXT:       - Index:           0
-# CHECK-NEXT:         Attribute:       0
-# CHECK-NEXT:         SigIndex:        1
+# CHECK-NEXT:   - Type:            TAG
+# CHECK-NEXT:     TagTypes:        [ 1 ]
 # CHECK-NEXT:   - Type:            CODE
 # CHECK-NEXT:     Relocations:
-# CHECK-NEXT:       - Type:            R_WASM_EVENT_INDEX_LEB
+# CHECK-NEXT:       - Type:            R_WASM_TAG_INDEX_LEB
 # CHECK-NEXT:         Index:           1
-# CHECK-NEXT:         Offset:          0x00000006
+# CHECK-NEXT:         Offset:          0x6
+# CHECK-NEXT:       - Type:            R_WASM_TAG_INDEX_LEB
+# CHECK-NEXT:         Index:           1
+# CHECK-NEXT:         Offset:          0x6
 # CHECK-NEXT:     Functions:
 # CHECK-NEXT:       - Index:           0
 # CHECK-NEXT:         Locals:
@@ -86,7 +88,7 @@ Sections:
 # CHECK-NEXT:         Flags:           [  ]
 # CHECK-NEXT:         Function:        0
 # CHECK-NEXT:       - Index:           1
-# CHECK-NEXT:         Kind:            EVENT
+# CHECK-NEXT:         Kind:            TAG
 # CHECK-NEXT:         Name:            __cpp_exception
 # CHECK-NEXT:         Flags:           [ BINDING_WEAK ]
-# CHECK-NEXT:         Event:           0
+# CHECK-NEXT:         Tag:             0

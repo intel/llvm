@@ -124,7 +124,7 @@ def SDTIntSatNoShOp : SDTypeProfile<1, 2, [   // ssat with no shift
 def SDTIntBinHiLoOp : SDTypeProfile<2, 2, [ // mulhi, mullo, sdivrem, udivrem
   SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>,SDTCisInt<0>
 ]>;
-def SDTIntScaledBinOp : SDTypeProfile<1, 3, [  // smulfix, umulfix
+def SDTIntScaledBinOp : SDTypeProfile<1, 3, [  // smulfix, sdivfix, etc
   SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisInt<0>, SDTCisInt<3>
 ]>;
 
@@ -137,8 +137,11 @@ def SDTFPSignOp : SDTypeProfile<1, 2, [     // fcopysign.
 def SDTFPTernaryOp : SDTypeProfile<1, 3, [  // fmadd, fnmsub, etc.
   SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>, SDTCisFP<0>
 ]>;
-def SDTIntUnaryOp : SDTypeProfile<1, 1, [   // ctlz, cttz
+def SDTIntUnaryOp : SDTypeProfile<1, 1, [ // bitreverse
   SDTCisSameAs<0, 1>, SDTCisInt<0>
+]>;
+def SDTIntBitCountUnaryOp : SDTypeProfile<1, 1, [   // ctlz, cttz
+  SDTCisInt<0>, SDTCisInt<1>
 ]>;
 def SDTIntExtendOp : SDTypeProfile<1, 1, [  // sext, zext, anyext
   SDTCisInt<0>, SDTCisInt<1>, SDTCisOpSmallerThanOp<1, 0>, SDTCisSameNumEltsAs<0, 1>
@@ -149,10 +152,10 @@ def SDTIntTruncOp  : SDTypeProfile<1, 1, [  // trunc
 def SDTFPUnaryOp  : SDTypeProfile<1, 1, [   // fneg, fsqrt, etc
   SDTCisSameAs<0, 1>, SDTCisFP<0>
 ]>;
-def SDTFPRoundOp  : SDTypeProfile<1, 1, [   // fround
+def SDTFPRoundOp  : SDTypeProfile<1, 1, [   // fpround
   SDTCisFP<0>, SDTCisFP<1>, SDTCisOpSmallerThanOp<0, 1>, SDTCisSameNumEltsAs<0, 1>
 ]>;
-def SDTFPExtendOp  : SDTypeProfile<1, 1, [  // fextend
+def SDTFPExtendOp  : SDTypeProfile<1, 1, [  // fpextend
   SDTCisFP<0>, SDTCisFP<1>, SDTCisOpSmallerThanOp<1, 0>, SDTCisSameNumEltsAs<0, 1>
 ]>;
 def SDTIntToFPOp : SDTypeProfile<1, 1, [    // [su]int_to_fp
@@ -160,6 +163,9 @@ def SDTIntToFPOp : SDTypeProfile<1, 1, [    // [su]int_to_fp
 ]>;
 def SDTFPToIntOp : SDTypeProfile<1, 1, [    // fp_to_[su]int
   SDTCisInt<0>, SDTCisFP<1>, SDTCisSameNumEltsAs<0, 1>
+]>;
+def SDTFPToIntSatOp : SDTypeProfile<1, 2, [    // fp_to_[su]int_sat
+  SDTCisInt<0>, SDTCisFP<1>, SDTCisSameNumEltsAs<0, 1>, SDTCisVT<2, OtherVT>
 ]>;
 def SDTExtInreg : SDTypeProfile<1, 2, [     // sext_inreg
   SDTCisSameAs<0, 1>, SDTCisInt<0>, SDTCisVT<2, OtherVT>,
@@ -209,6 +215,8 @@ def SDTCatchret : SDTypeProfile<0, 2, [     // catchret
 
 def SDTNone : SDTypeProfile<0, 0, []>;      // ret, trap
 
+def SDTUBSANTrap : SDTypeProfile<0, 1, []>;      // ubsantrap
+
 def SDTLoad : SDTypeProfile<1, 1, [         // load
   SDTCisPtrTy<1>
 ]>;
@@ -221,23 +229,36 @@ def SDTIStore : SDTypeProfile<1, 3, [       // indexed store
   SDTCisSameAs<0, 2>, SDTCisPtrTy<0>, SDTCisPtrTy<3>
 ]>;
 
-def SDTMaskedStore: SDTypeProfile<0, 3, [       // masked store
-  SDTCisVec<0>, SDTCisPtrTy<1>, SDTCisVec<2>, SDTCisSameNumEltsAs<0, 2>
+def SDTMaskedStore: SDTypeProfile<0, 4, [       // masked store
+  SDTCisVec<0>, SDTCisPtrTy<1>, SDTCisPtrTy<2>, SDTCisVec<3>, SDTCisSameNumEltsAs<0, 3>
 ]>;
 
-def SDTMaskedLoad: SDTypeProfile<1, 3, [       // masked load
-  SDTCisVec<0>, SDTCisPtrTy<1>, SDTCisVec<2>, SDTCisSameAs<0, 3>,
-  SDTCisSameNumEltsAs<0, 2>
+def SDTMaskedLoad: SDTypeProfile<1, 4, [       // masked load
+  SDTCisVec<0>, SDTCisPtrTy<1>, SDTCisPtrTy<2>, SDTCisVec<3>, SDTCisSameAs<0, 4>,
+  SDTCisSameNumEltsAs<0, 3>
 ]>;
 
 def SDTVecShuffle : SDTypeProfile<1, 2, [
   SDTCisSameAs<0, 1>, SDTCisSameAs<1, 2>
+]>;
+def SDTVecSlice : SDTypeProfile<1, 3, [     // vector splice
+  SDTCisSameAs<0, 1>, SDTCisSameAs<1, 2>, SDTCisInt<3>
 ]>;
 def SDTVecExtract : SDTypeProfile<1, 2, [   // vector extract
   SDTCisEltOfVec<0, 1>, SDTCisPtrTy<2>
 ]>;
 def SDTVecInsert : SDTypeProfile<1, 3, [    // vector insert
   SDTCisEltOfVec<2, 1>, SDTCisSameAs<0, 1>, SDTCisPtrTy<3>
+]>;
+def SDTVecReduce : SDTypeProfile<1, 1, [    // vector reduction
+  SDTCisInt<0>, SDTCisVec<1>
+]>;
+def SDTFPVecReduce : SDTypeProfile<1, 1, [  // FP vector reduction
+  SDTCisFP<0>, SDTCisVec<1>
+]>;
+
+def SDTVecReverse : SDTypeProfile<1, 1, [  // vector reverse
+  SDTCisVec<0>, SDTCisSameAs<0,1>
 ]>;
 
 def SDTSubVecExtract : SDTypeProfile<1, 2, [// subvector extract
@@ -276,10 +297,6 @@ def SDTAtomicLoad : SDTypeProfile<1, 1, [
   SDTCisInt<0>, SDTCisPtrTy<1>
 ]>;
 
-def SDTConvertOp : SDTypeProfile<1, 5, [ //cvtss, su, us, uu, ff, fs, fu, sf, su
-  SDTCisVT<2, OtherVT>, SDTCisVT<3, OtherVT>, SDTCisPtrTy<4>, SDTCisPtrTy<5>
-]>;
-
 class SDCallSeqStart<list<SDTypeConstraint> constraints> :
         SDTypeProfile<0, 2, constraints>;
 class SDCallSeqEnd<list<SDTypeConstraint> constraints> :
@@ -310,6 +327,7 @@ def vt         : SDNode<"ISD::VALUETYPE" , SDTOther   , [], "VTSDNode">;
 def bb         : SDNode<"ISD::BasicBlock", SDTOther   , [], "BasicBlockSDNode">;
 def cond       : SDNode<"ISD::CONDCODE"  , SDTOther   , [], "CondCodeSDNode">;
 def undef      : SDNode<"ISD::UNDEF"     , SDTUNDEF   , []>;
+def vscale     : SDNode<"ISD::VSCALE"    , SDTIntUnaryOp, []>;
 def globaladdr : SDNode<"ISD::GlobalAddress",         SDTPtrLeaf, [],
                         "GlobalAddressSDNode">;
 def tglobaladdr : SDNode<"ISD::TargetGlobalAddress",  SDTPtrLeaf, [],
@@ -347,6 +365,12 @@ def mul        : SDNode<"ISD::MUL"       , SDTIntBinOp,
                         [SDNPCommutative, SDNPAssociative]>;
 def mulhs      : SDNode<"ISD::MULHS"     , SDTIntBinOp, [SDNPCommutative]>;
 def mulhu      : SDNode<"ISD::MULHU"     , SDTIntBinOp, [SDNPCommutative]>;
+def avgfloors  : SDNode<"ISD::AVGFLOORS" , SDTIntBinOp, [SDNPCommutative]>;
+def avgflooru  : SDNode<"ISD::AVGFLOORU" , SDTIntBinOp, [SDNPCommutative]>;
+def avgceils   : SDNode<"ISD::AVGCEILS"  , SDTIntBinOp, [SDNPCommutative]>;
+def avgceilu   : SDNode<"ISD::AVGCEILU"  , SDTIntBinOp, [SDNPCommutative]>;
+def abds       : SDNode<"ISD::ABDS"      , SDTIntBinOp, [SDNPCommutative]>;
+def abdu       : SDNode<"ISD::ABDU"      , SDTIntBinOp, [SDNPCommutative]>;
 def smullohi   : SDNode<"ISD::SMUL_LOHI" , SDTIntBinHiLoOp, [SDNPCommutative]>;
 def umullohi   : SDNode<"ISD::UMUL_LOHI" , SDTIntBinHiLoOp, [SDNPCommutative]>;
 def sdiv       : SDNode<"ISD::SDIV"      , SDTIntBinOp>;
@@ -389,10 +413,17 @@ def saddsat    : SDNode<"ISD::SADDSAT"   , SDTIntBinOp, [SDNPCommutative]>;
 def uaddsat    : SDNode<"ISD::UADDSAT"   , SDTIntBinOp, [SDNPCommutative]>;
 def ssubsat    : SDNode<"ISD::SSUBSAT"   , SDTIntBinOp>;
 def usubsat    : SDNode<"ISD::USUBSAT"   , SDTIntBinOp>;
+def sshlsat    : SDNode<"ISD::SSHLSAT"   , SDTIntBinOp>;
+def ushlsat    : SDNode<"ISD::USHLSAT"   , SDTIntBinOp>;
 
 def smulfix    : SDNode<"ISD::SMULFIX"   , SDTIntScaledBinOp, [SDNPCommutative]>;
 def smulfixsat : SDNode<"ISD::SMULFIXSAT", SDTIntScaledBinOp, [SDNPCommutative]>;
 def umulfix    : SDNode<"ISD::UMULFIX"   , SDTIntScaledBinOp, [SDNPCommutative]>;
+def umulfixsat : SDNode<"ISD::UMULFIXSAT", SDTIntScaledBinOp, [SDNPCommutative]>;
+def sdivfix    : SDNode<"ISD::SDIVFIX"   , SDTIntScaledBinOp>;
+def sdivfixsat : SDNode<"ISD::SDIVFIXSAT", SDTIntScaledBinOp>;
+def udivfix    : SDNode<"ISD::UDIVFIX"   , SDTIntScaledBinOp>;
+def udivfixsat : SDNode<"ISD::UDIVFIXSAT", SDTIntScaledBinOp>;
 
 def sext_inreg : SDNode<"ISD::SIGN_EXTEND_INREG", SDTExtInreg>;
 def sext_invec : SDNode<"ISD::SIGN_EXTEND_VECTOR_INREG", SDTExtInvec>;
@@ -401,11 +432,11 @@ def zext_invec : SDNode<"ISD::ZERO_EXTEND_VECTOR_INREG", SDTExtInvec>;
 def abs        : SDNode<"ISD::ABS"        , SDTIntUnaryOp>;
 def bitreverse : SDNode<"ISD::BITREVERSE" , SDTIntUnaryOp>;
 def bswap      : SDNode<"ISD::BSWAP"      , SDTIntUnaryOp>;
-def ctlz       : SDNode<"ISD::CTLZ"       , SDTIntUnaryOp>;
-def cttz       : SDNode<"ISD::CTTZ"       , SDTIntUnaryOp>;
-def ctpop      : SDNode<"ISD::CTPOP"      , SDTIntUnaryOp>;
-def ctlz_zero_undef : SDNode<"ISD::CTLZ_ZERO_UNDEF", SDTIntUnaryOp>;
-def cttz_zero_undef : SDNode<"ISD::CTTZ_ZERO_UNDEF", SDTIntUnaryOp>;
+def ctlz       : SDNode<"ISD::CTLZ"       , SDTIntBitCountUnaryOp>;
+def cttz       : SDNode<"ISD::CTTZ"       , SDTIntBitCountUnaryOp>;
+def ctpop      : SDNode<"ISD::CTPOP"      , SDTIntBitCountUnaryOp>;
+def ctlz_zero_undef : SDNode<"ISD::CTLZ_ZERO_UNDEF", SDTIntBitCountUnaryOp>;
+def cttz_zero_undef : SDNode<"ISD::CTTZ_ZERO_UNDEF", SDTIntBitCountUnaryOp>;
 def sext       : SDNode<"ISD::SIGN_EXTEND", SDTIntExtendOp>;
 def zext       : SDNode<"ISD::ZERO_EXTEND", SDTIntExtendOp>;
 def anyext     : SDNode<"ISD::ANY_EXTEND" , SDTIntExtendOp>;
@@ -415,13 +446,20 @@ def addrspacecast : SDNode<"ISD::ADDRSPACECAST", SDTUnaryOp>;
 def extractelt : SDNode<"ISD::EXTRACT_VECTOR_ELT", SDTVecExtract>;
 def insertelt  : SDNode<"ISD::INSERT_VECTOR_ELT", SDTVecInsert>;
 
+def vecreduce_add  : SDNode<"ISD::VECREDUCE_ADD", SDTVecReduce>;
+def vecreduce_smax  : SDNode<"ISD::VECREDUCE_SMAX", SDTVecReduce>;
+def vecreduce_umax  : SDNode<"ISD::VECREDUCE_UMAX", SDTVecReduce>;
+def vecreduce_smin  : SDNode<"ISD::VECREDUCE_SMIN", SDTVecReduce>;
+def vecreduce_umin  : SDNode<"ISD::VECREDUCE_UMIN", SDTVecReduce>;
+def vecreduce_fadd  : SDNode<"ISD::VECREDUCE_FADD", SDTFPVecReduce>;
+
 def fadd       : SDNode<"ISD::FADD"       , SDTFPBinOp, [SDNPCommutative]>;
 def fsub       : SDNode<"ISD::FSUB"       , SDTFPBinOp>;
 def fmul       : SDNode<"ISD::FMUL"       , SDTFPBinOp, [SDNPCommutative]>;
 def fdiv       : SDNode<"ISD::FDIV"       , SDTFPBinOp>;
 def frem       : SDNode<"ISD::FREM"       , SDTFPBinOp>;
-def fma        : SDNode<"ISD::FMA"        , SDTFPTernaryOp>;
-def fmad       : SDNode<"ISD::FMAD"       , SDTFPTernaryOp>;
+def fma        : SDNode<"ISD::FMA"        , SDTFPTernaryOp, [SDNPCommutative]>;
+def fmad       : SDNode<"ISD::FMAD"       , SDTFPTernaryOp, [SDNPCommutative]>;
 def fabs       : SDNode<"ISD::FABS"       , SDTFPUnaryOp>;
 def fminnum    : SDNode<"ISD::FMINNUM"    , SDTFPBinOp,
                                   [SDNPCommutative, SDNPAssociative]>;
@@ -450,9 +488,12 @@ def fceil      : SDNode<"ISD::FCEIL"      , SDTFPUnaryOp>;
 def ffloor     : SDNode<"ISD::FFLOOR"     , SDTFPUnaryOp>;
 def fnearbyint : SDNode<"ISD::FNEARBYINT" , SDTFPUnaryOp>;
 def fround     : SDNode<"ISD::FROUND"     , SDTFPUnaryOp>;
+def froundeven : SDNode<"ISD::FROUNDEVEN" , SDTFPUnaryOp>;
 
 def lround     : SDNode<"ISD::LROUND"     , SDTFPToIntOp>;
 def llround    : SDNode<"ISD::LLROUND"    , SDTFPToIntOp>;
+def lrint      : SDNode<"ISD::LRINT"      , SDTFPToIntOp>;
+def llrint     : SDNode<"ISD::LLRINT"     , SDTFPToIntOp>;
 
 def fpround    : SDNode<"ISD::FP_ROUND"   , SDTFPRoundOp>;
 def fpextend   : SDNode<"ISD::FP_EXTEND"  , SDTFPExtendOp>;
@@ -462,8 +503,83 @@ def sint_to_fp : SDNode<"ISD::SINT_TO_FP" , SDTIntToFPOp>;
 def uint_to_fp : SDNode<"ISD::UINT_TO_FP" , SDTIntToFPOp>;
 def fp_to_sint : SDNode<"ISD::FP_TO_SINT" , SDTFPToIntOp>;
 def fp_to_uint : SDNode<"ISD::FP_TO_UINT" , SDTFPToIntOp>;
+def fp_to_sint_sat : SDNode<"ISD::FP_TO_SINT_SAT" , SDTFPToIntSatOp>;
+def fp_to_uint_sat : SDNode<"ISD::FP_TO_UINT_SAT" , SDTFPToIntSatOp>;
 def f16_to_fp  : SDNode<"ISD::FP16_TO_FP" , SDTIntToFPOp>;
 def fp_to_f16  : SDNode<"ISD::FP_TO_FP16" , SDTFPToIntOp>;
+
+def strict_fadd       : SDNode<"ISD::STRICT_FADD",
+                               SDTFPBinOp, [SDNPHasChain, SDNPCommutative]>;
+def strict_fsub       : SDNode<"ISD::STRICT_FSUB",
+                               SDTFPBinOp, [SDNPHasChain]>;
+def strict_fmul       : SDNode<"ISD::STRICT_FMUL",
+                               SDTFPBinOp, [SDNPHasChain, SDNPCommutative]>;
+def strict_fdiv       : SDNode<"ISD::STRICT_FDIV",
+                               SDTFPBinOp, [SDNPHasChain]>;
+def strict_frem       : SDNode<"ISD::STRICT_FREM",
+                               SDTFPBinOp, [SDNPHasChain]>;
+def strict_fma        : SDNode<"ISD::STRICT_FMA",
+                               SDTFPTernaryOp, [SDNPHasChain, SDNPCommutative]>;
+def strict_fsqrt      : SDNode<"ISD::STRICT_FSQRT",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_fsin       : SDNode<"ISD::STRICT_FSIN",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_fcos       : SDNode<"ISD::STRICT_FCOS",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_fexp2      : SDNode<"ISD::STRICT_FEXP2",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_fpow       : SDNode<"ISD::STRICT_FPOW",
+                               SDTFPBinOp, [SDNPHasChain]>;
+def strict_flog2      : SDNode<"ISD::STRICT_FLOG2",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_frint      : SDNode<"ISD::STRICT_FRINT",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_lrint      : SDNode<"ISD::STRICT_LRINT",
+                               SDTFPToIntOp, [SDNPHasChain]>;
+def strict_llrint     : SDNode<"ISD::STRICT_LLRINT",
+                               SDTFPToIntOp, [SDNPHasChain]>;
+def strict_fnearbyint : SDNode<"ISD::STRICT_FNEARBYINT",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_fceil      : SDNode<"ISD::STRICT_FCEIL",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_ffloor     : SDNode<"ISD::STRICT_FFLOOR",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_lround     : SDNode<"ISD::STRICT_LROUND",
+                               SDTFPToIntOp, [SDNPHasChain]>;
+def strict_llround    : SDNode<"ISD::STRICT_LLROUND",
+                               SDTFPToIntOp, [SDNPHasChain]>;
+def strict_fround     : SDNode<"ISD::STRICT_FROUND",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_froundeven : SDNode<"ISD::STRICT_FROUNDEVEN",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_ftrunc     : SDNode<"ISD::STRICT_FTRUNC",
+                               SDTFPUnaryOp, [SDNPHasChain]>;
+def strict_fminnum    : SDNode<"ISD::STRICT_FMINNUM",
+                               SDTFPBinOp, [SDNPHasChain,
+                                            SDNPCommutative, SDNPAssociative]>;
+def strict_fmaxnum    : SDNode<"ISD::STRICT_FMAXNUM",
+                               SDTFPBinOp, [SDNPHasChain,
+                                            SDNPCommutative, SDNPAssociative]>;
+def strict_fminimum   : SDNode<"ISD::STRICT_FMINIMUM",
+                               SDTFPBinOp, [SDNPHasChain,
+                                            SDNPCommutative, SDNPAssociative]>;
+def strict_fmaximum   : SDNode<"ISD::STRICT_FMAXIMUM",
+                               SDTFPBinOp, [SDNPHasChain,
+                                            SDNPCommutative, SDNPAssociative]>;
+def strict_fpround    : SDNode<"ISD::STRICT_FP_ROUND",
+                               SDTFPRoundOp, [SDNPHasChain]>;
+def strict_fpextend   : SDNode<"ISD::STRICT_FP_EXTEND",
+                               SDTFPExtendOp, [SDNPHasChain]>;
+def strict_fp_to_sint : SDNode<"ISD::STRICT_FP_TO_SINT",
+                               SDTFPToIntOp, [SDNPHasChain]>;
+def strict_fp_to_uint : SDNode<"ISD::STRICT_FP_TO_UINT",
+                               SDTFPToIntOp, [SDNPHasChain]>;
+def strict_sint_to_fp : SDNode<"ISD::STRICT_SINT_TO_FP",
+                               SDTIntToFPOp, [SDNPHasChain]>;
+def strict_uint_to_fp : SDNode<"ISD::STRICT_UINT_TO_FP",
+                               SDTIntToFPOp, [SDNPHasChain]>;
+def strict_fsetcc  : SDNode<"ISD::STRICT_FSETCC",  SDTSetCC, [SDNPHasChain]>;
+def strict_fsetccs : SDNode<"ISD::STRICT_FSETCCS", SDTSetCC, [SDNPHasChain]>;
 
 def setcc      : SDNode<"ISD::SETCC"      , SDTSetCC>;
 def select     : SDNode<"ISD::SELECT"     , SDTSelect>;
@@ -477,12 +593,12 @@ def br         : SDNode<"ISD::BR"         , SDTBr,     [SDNPHasChain]>;
 def catchret   : SDNode<"ISD::CATCHRET"   , SDTCatchret,
                         [SDNPHasChain, SDNPSideEffect]>;
 def cleanupret : SDNode<"ISD::CLEANUPRET" , SDTNone,   [SDNPHasChain]>;
-def catchpad   : SDNode<"ISD::CATCHPAD"   , SDTNone,
-                        [SDNPHasChain, SDNPSideEffect]>;
 
 def trap       : SDNode<"ISD::TRAP"       , SDTNone,
                         [SDNPHasChain, SDNPSideEffect]>;
 def debugtrap  : SDNode<"ISD::DEBUGTRAP"  , SDTNone,
+                        [SDNPHasChain, SDNPSideEffect]>;
+def ubsantrap  : SDNode<"ISD::UBSANTRAP"  , SDTUBSANTrap,
                         [SDNPHasChain, SDNPSideEffect]>;
 
 def prefetch   : SDNode<"ISD::PREFETCH"   , SDTPrefetch,
@@ -531,9 +647,9 @@ def atomic_load      : SDNode<"ISD::ATOMIC_LOAD", SDTAtomicLoad,
 def atomic_store     : SDNode<"ISD::ATOMIC_STORE", SDTAtomicStore,
                     [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 
-def masked_store : SDNode<"ISD::MSTORE",  SDTMaskedStore,
+def masked_st    : SDNode<"ISD::MSTORE",  SDTMaskedStore,
                        [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
-def masked_load  : SDNode<"ISD::MLOAD",  SDTMaskedLoad,
+def masked_ld    : SDNode<"ISD::MLOAD",  SDTMaskedLoad,
                        [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 
 // Do not use ld, st directly. Use load, extload, sextload, zextload, store,
@@ -546,7 +662,12 @@ def ist        : SDNode<"ISD::STORE"      , SDTIStore,
                         [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 
 def vector_shuffle : SDNode<"ISD::VECTOR_SHUFFLE", SDTVecShuffle, []>;
+def vector_reverse : SDNode<"ISD::VECTOR_REVERSE", SDTVecReverse>;
+def vector_splice : SDNode<"ISD::VECTOR_SPLICE", SDTVecSlice, []>;
 def build_vector : SDNode<"ISD::BUILD_VECTOR", SDTypeProfile<1, -1, []>, []>;
+def splat_vector : SDNode<"ISD::SPLAT_VECTOR", SDTypeProfile<1, 1, []>, []>;
+def step_vector : SDNode<"ISD::STEP_VECTOR", SDTypeProfile<1, 1,
+                       [SDTCisVec<0>, SDTCisInt<1>]>, []>;
 def scalar_to_vector : SDNode<"ISD::SCALAR_TO_VECTOR", SDTypeProfile<1, 1, []>,
                               []>;
 
@@ -580,25 +701,41 @@ def intrinsic_w_chain : SDNode<"ISD::INTRINSIC_W_CHAIN",
 def intrinsic_wo_chain : SDNode<"ISD::INTRINSIC_WO_CHAIN",
                                 SDTypeProfile<1, -1, [SDTCisPtrTy<1>]>, []>;
 
-def SDT_assertext : SDTypeProfile<1, 1,
+def SDT_assert : SDTypeProfile<1, 1,
   [SDTCisInt<0>, SDTCisInt<1>, SDTCisSameAs<1, 0>]>;
-def assertsext : SDNode<"ISD::AssertSext", SDT_assertext>;
-def assertzext : SDNode<"ISD::AssertZext", SDT_assertext>;
-
+def assertsext : SDNode<"ISD::AssertSext", SDT_assert>;
+def assertzext : SDNode<"ISD::AssertZext", SDT_assert>;
+def assertalign : SDNode<"ISD::AssertAlign", SDT_assert>;
 
 //===----------------------------------------------------------------------===//
 // Selection DAG Condition Codes
 
-class CondCode; // ISD::CondCode enums
-def SETOEQ : CondCode; def SETOGT : CondCode;
-def SETOGE : CondCode; def SETOLT : CondCode; def SETOLE : CondCode;
-def SETONE : CondCode; def SETO   : CondCode; def SETUO  : CondCode;
-def SETUEQ : CondCode; def SETUGT : CondCode; def SETUGE : CondCode;
-def SETULT : CondCode; def SETULE : CondCode; def SETUNE : CondCode;
+class CondCode<string fcmpName = "", string icmpName = ""> {
+  string ICmpPredicate = icmpName;
+  string FCmpPredicate = fcmpName;
+}
 
-def SETEQ : CondCode; def SETGT : CondCode; def SETGE : CondCode;
-def SETLT : CondCode; def SETLE : CondCode; def SETNE : CondCode;
-
+// ISD::CondCode enums, and mapping to CmpInst::Predicate names
+def SETOEQ : CondCode<"FCMP_OEQ">;
+def SETOGT : CondCode<"FCMP_OGT">;
+def SETOGE : CondCode<"FCMP_OGE">;
+def SETOLT : CondCode<"FCMP_OLT">;
+def SETOLE : CondCode<"FCMP_OLE">;
+def SETONE : CondCode<"FCMP_ONE">;
+def SETO   : CondCode<"FCMP_ORD">;
+def SETUO  : CondCode<"FCMP_UNO">;
+def SETUEQ : CondCode<"FCMP_UEQ">;
+def SETUGT : CondCode<"FCMP_UGT", "ICMP_UGT">;
+def SETUGE : CondCode<"FCMP_UGE", "ICMP_UGE">;
+def SETULT : CondCode<"FCMP_ULT", "ICMP_ULT">;
+def SETULE : CondCode<"FCMP_ULE", "ICMP_ULE">;
+def SETUNE : CondCode<"FCMP_UNE">;
+def SETEQ : CondCode<"", "ICMP_EQ">;
+def SETGT : CondCode<"", "ICMP_SGT">;
+def SETGE : CondCode<"", "ICMP_SGE">;
+def SETLT : CondCode<"", "ICMP_SLT">;
+def SETLE : CondCode<"", "ICMP_SLE">;
+def SETNE : CondCode<"", "ICMP_NE">;
 
 //===----------------------------------------------------------------------===//
 // Selection DAG Node Transformation Functions.
@@ -615,19 +752,6 @@ class SDNodeXForm<SDNode opc, code xformFunction> {
 def NOOP_SDNodeXForm : SDNodeXForm<imm, [{}]>;
 
 //===----------------------------------------------------------------------===//
-// PatPred Subclasses.
-//
-// These allow specifying different sorts of predicates that control whether a
-// node is matched.
-//
-class PatPred;
-
-class CodePatPred<code predicate> : PatPred {
-  code PredicateCode = predicate;
-}
-
-
-//===----------------------------------------------------------------------===//
 // Selection DAG Pattern Fragments.
 //
 // Pattern fragments are reusable chunks of dags that match specific things.
@@ -639,7 +763,7 @@ class CodePatPred<code predicate> : PatPred {
 /// PatFrags - Represents a set of pattern fragments.  Each single fragment
 /// can match something on the DAG, from a single node to multiple nested other
 /// fragments.   The whole set of fragments matches if any of the single
-/// fragemnts match.  This allows e.g. matching and "add with overflow" and
+/// fragments match.  This allows e.g. matching and "add with overflow" and
 /// a regular "add" with the same fragment set.
 ///
 class PatFrags<dag ops, list<dag> frags, code pred = [{}],
@@ -658,7 +782,7 @@ class PatFrags<dag ops, list<dag> frags, code pred = [{}],
   // This is useful when Fragments involves associative / commutative
   // operators: a single piece of code can easily refer to all operands even
   // when re-associated / commuted variants of the fragment are matched.
-  bit PredicateCodeUsesOperands = 0;
+  bit PredicateCodeUsesOperands = false;
 
   // Define a few pre-packaged predicates. This helps GlobalISel import
   // existing rules from SelectionDAG for many common cases.
@@ -687,6 +811,14 @@ class PatFrags<dag ops, list<dag> frags, code pred = [{}],
   // !cast<StoreSDNode>(N)->isTruncatingStore();
   // cast<StoreSDNode>(N)->isTruncatingStore();
   bit IsTruncStore = ?;
+
+  // cast<MemSDNode>(N)->getAddressSpace() ==
+  // If this empty, accept any address space.
+  list<int> AddressSpaces = ?;
+
+  // cast<MemSDNode>(N)->getAlignment() >=
+  // If this is empty, accept any alignment.
+  int MinAlignment = ?;
 
   // cast<AtomicSDNode>(N)->getOrdering() == AtomicOrdering::Monotonic
   bit IsAtomicOrderingMonotonic = ?;
@@ -749,14 +881,19 @@ class ImmLeaf<ValueType vt, code pred, SDNodeXForm xform = NOOP_SDNodeXForm,
               SDNode ImmNode = imm>
   : PatFrag<(ops), (vt ImmNode), [{}], xform> {
   let ImmediateCode = pred;
-  bit FastIselShouldIgnore = 0;
+  bit FastIselShouldIgnore = false;
 
   // Is the data type of the immediate an APInt?
-  bit IsAPInt = 0;
+  bit IsAPInt = false;
 
   // Is the data type of the immediate an APFloat?
-  bit IsAPFloat = 0;
+  bit IsAPFloat = false;
 }
+
+// Convenience wrapper for ImmLeaf to use timm/TargetConstant instead
+// of imm/Constant.
+class TImmLeaf<ValueType vt, code pred, SDNodeXForm xform = NOOP_SDNodeXForm,
+  SDNode ImmNode = timm> : ImmLeaf<vt, pred, xform, ImmNode>;
 
 // An ImmLeaf except that Imm is an APInt. This is useful when you need to
 // zero-extend the immediate instead of sign-extend it.
@@ -767,8 +904,8 @@ class ImmLeaf<ValueType vt, code pred, SDNodeXForm xform = NOOP_SDNodeXForm,
 // IntImmLeaf will allow GlobalISel to import the rule.
 class IntImmLeaf<ValueType vt, code pred, SDNodeXForm xform = NOOP_SDNodeXForm>
     : ImmLeaf<vt, pred, xform> {
-  let IsAPInt = 1;
-  let FastIselShouldIgnore = 1;
+  let IsAPInt = true;
+  let FastIselShouldIgnore = true;
 }
 
 // An ImmLeaf except that Imm is an APFloat.
@@ -777,8 +914,8 @@ class IntImmLeaf<ValueType vt, code pred, SDNodeXForm xform = NOOP_SDNodeXForm>
 // generate code for rules that make use of it.
 class FPImmLeaf<ValueType vt, code pred, SDNodeXForm xform = NOOP_SDNodeXForm>
   : ImmLeaf<vt, pred, xform, fpimm> {
-  let IsAPFloat = 1;
-  let FastIselShouldIgnore = 1;
+  let IsAPFloat = true;
+  let FastIselShouldIgnore = true;
 }
 
 // Leaf fragments.
@@ -786,16 +923,22 @@ class FPImmLeaf<ValueType vt, code pred, SDNodeXForm xform = NOOP_SDNodeXForm>
 def vtInt      : PatLeaf<(vt),  [{ return N->getVT().isInteger(); }]>;
 def vtFP       : PatLeaf<(vt),  [{ return N->getVT().isFloatingPoint(); }]>;
 
-// Use ISD::isBuildVectorAllOnes or ISD::isBuildVectorAllZeros to look for
-// the corresponding build_vector. Will look through bitcasts except when used
-// as a pattern root.
-def immAllOnesV; // ISD::isBuildVectorAllOnes
-def immAllZerosV; // ISD::isBuildVectorAllZeros
+// Use ISD::isConstantSplatVectorAllOnes or ISD::isConstantSplatVectorAllZeros
+// to look for the corresponding build_vector or splat_vector. Will look through
+// bitcasts and check for either opcode, except when used as a pattern root.
+// When used as a pattern root, only fixed-length build_vector and scalable
+// splat_vector are supported.
+def immAllOnesV  : SDPatternOperator; // ISD::isConstantSplatVectorAllOnes
+def immAllZerosV : SDPatternOperator; // ISD::isConstantSplatVectorAllZeros
 
 // Other helper fragments.
 def not  : PatFrag<(ops node:$in), (xor node:$in, -1)>;
 def vnot : PatFrag<(ops node:$in), (xor node:$in, immAllOnesV)>;
 def ineg : PatFrag<(ops node:$in), (sub 0, node:$in)>;
+
+def zanyext : PatFrags<(ops node:$op),
+                       [(zext node:$op),
+                        (anyext node:$op)]>;
 
 // null_frag - The null pattern operator is used in multiclass instantiations
 // which accept an SDPatternOperator for use in matching patterns for internal
@@ -806,213 +949,229 @@ def null_frag : SDPatternOperator;
 
 // load fragments.
 def unindexedload : PatFrag<(ops node:$ptr), (ld node:$ptr)> {
-  let IsLoad = 1;
-  let IsUnindexed = 1;
+  let IsLoad = true;
+  let IsUnindexed = true;
 }
 def load : PatFrag<(ops node:$ptr), (unindexedload node:$ptr)> {
-  let IsLoad = 1;
-  let IsNonExtLoad = 1;
+  let IsLoad = true;
+  let IsNonExtLoad = true;
 }
 
 // extending load fragments.
 def extload   : PatFrag<(ops node:$ptr), (unindexedload node:$ptr)> {
-  let IsLoad = 1;
-  let IsAnyExtLoad = 1;
+  let IsLoad = true;
+  let IsAnyExtLoad = true;
 }
 def sextload  : PatFrag<(ops node:$ptr), (unindexedload node:$ptr)> {
-  let IsLoad = 1;
-  let IsSignExtLoad = 1;
+  let IsLoad = true;
+  let IsSignExtLoad = true;
 }
 def zextload  : PatFrag<(ops node:$ptr), (unindexedload node:$ptr)> {
-  let IsLoad = 1;
-  let IsZeroExtLoad = 1;
+  let IsLoad = true;
+  let IsZeroExtLoad = true;
 }
 
 def extloadi1  : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i1;
 }
 def extloadi8  : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i8;
 }
 def extloadi16 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i16;
 }
 def extloadi32 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i32;
 }
+def extloadf16 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
+  let IsLoad = true;
+  let MemoryVT = f16;
+}
 def extloadf32 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = f32;
 }
 def extloadf64 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = f64;
 }
 
 def sextloadi1  : PatFrag<(ops node:$ptr), (sextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i1;
 }
 def sextloadi8  : PatFrag<(ops node:$ptr), (sextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i8;
 }
 def sextloadi16 : PatFrag<(ops node:$ptr), (sextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i16;
 }
 def sextloadi32 : PatFrag<(ops node:$ptr), (sextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i32;
 }
 
 def zextloadi1  : PatFrag<(ops node:$ptr), (zextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i1;
 }
 def zextloadi8  : PatFrag<(ops node:$ptr), (zextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i8;
 }
 def zextloadi16 : PatFrag<(ops node:$ptr), (zextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i16;
 }
 def zextloadi32 : PatFrag<(ops node:$ptr), (zextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let MemoryVT = i32;
 }
 
 def extloadvi1  : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i1;
 }
 def extloadvi8  : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i8;
 }
 def extloadvi16 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i16;
 }
 def extloadvi32 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i32;
 }
+def extloadvf16 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
+  let IsLoad = true;
+  let ScalarMemoryVT = f16;
+}
 def extloadvf32 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = f32;
 }
 def extloadvf64 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = f64;
 }
 
 def sextloadvi1  : PatFrag<(ops node:$ptr), (sextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i1;
 }
 def sextloadvi8  : PatFrag<(ops node:$ptr), (sextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i8;
 }
 def sextloadvi16 : PatFrag<(ops node:$ptr), (sextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i16;
 }
 def sextloadvi32 : PatFrag<(ops node:$ptr), (sextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i32;
 }
 
 def zextloadvi1  : PatFrag<(ops node:$ptr), (zextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i1;
 }
 def zextloadvi8  : PatFrag<(ops node:$ptr), (zextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i8;
 }
 def zextloadvi16 : PatFrag<(ops node:$ptr), (zextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i16;
 }
 def zextloadvi32 : PatFrag<(ops node:$ptr), (zextload node:$ptr)> {
-  let IsLoad = 1;
+  let IsLoad = true;
   let ScalarMemoryVT = i32;
 }
 
 // store fragments.
 def unindexedstore : PatFrag<(ops node:$val, node:$ptr),
                              (st node:$val, node:$ptr)> {
-  let IsStore = 1;
-  let IsUnindexed = 1;
+  let IsStore = true;
+  let IsUnindexed = true;
 }
 def store : PatFrag<(ops node:$val, node:$ptr),
                     (unindexedstore node:$val, node:$ptr)> {
-  let IsStore = 1;
-  let IsTruncStore = 0;
+  let IsStore = true;
+  let IsTruncStore = false;
 }
 
 // truncstore fragments.
 def truncstore : PatFrag<(ops node:$val, node:$ptr),
                          (unindexedstore node:$val, node:$ptr)> {
-  let IsStore = 1;
-  let IsTruncStore = 1;
+  let IsStore = true;
+  let IsTruncStore = true;
 }
 def truncstorei8 : PatFrag<(ops node:$val, node:$ptr),
                            (truncstore node:$val, node:$ptr)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i8;
+  let IsTruncStore = true;
 }
 def truncstorei16 : PatFrag<(ops node:$val, node:$ptr),
                             (truncstore node:$val, node:$ptr)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i16;
+  let IsTruncStore = true;
 }
 def truncstorei32 : PatFrag<(ops node:$val, node:$ptr),
                             (truncstore node:$val, node:$ptr)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i32;
+  let IsTruncStore = true;
+}
+def truncstoref16 : PatFrag<(ops node:$val, node:$ptr),
+                            (truncstore node:$val, node:$ptr)> {
+  let IsStore = true;
+  let MemoryVT = f16;
 }
 def truncstoref32 : PatFrag<(ops node:$val, node:$ptr),
                             (truncstore node:$val, node:$ptr)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = f32;
 }
 def truncstoref64 : PatFrag<(ops node:$val, node:$ptr),
                             (truncstore node:$val, node:$ptr)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = f64;
 }
 
 def truncstorevi8 : PatFrag<(ops node:$val, node:$ptr),
                             (truncstore node:$val, node:$ptr)> {
-  let IsStore = 1;
+  let IsStore = true;
   let ScalarMemoryVT = i8;
 }
 
 def truncstorevi16 : PatFrag<(ops node:$val, node:$ptr),
                              (truncstore node:$val, node:$ptr)> {
-  let IsStore = 1;
+  let IsStore = true;
   let ScalarMemoryVT = i16;
 }
 
 def truncstorevi32 : PatFrag<(ops node:$val, node:$ptr),
                              (truncstore node:$val, node:$ptr)> {
-  let IsStore = 1;
+  let IsStore = true;
   let ScalarMemoryVT = i32;
 }
 
 // indexed store fragments.
 def istore : PatFrag<(ops node:$val, node:$base, node:$offset),
                      (ist node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
-  let IsTruncStore = 0;
+  let IsStore = true;
+  let IsTruncStore = false;
 }
 
 def pre_store : PatFrag<(ops node:$val, node:$base, node:$offset),
@@ -1023,8 +1182,8 @@ def pre_store : PatFrag<(ops node:$val, node:$base, node:$offset),
 
 def itruncstore : PatFrag<(ops node:$val, node:$base, node:$offset),
                           (ist node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
-  let IsTruncStore = 1;
+  let IsStore = true;
+  let IsTruncStore = true;
 }
 def pre_truncst : PatFrag<(ops node:$val, node:$base, node:$offset),
                           (itruncstore node:$val, node:$base, node:$offset), [{
@@ -1033,28 +1192,38 @@ def pre_truncst : PatFrag<(ops node:$val, node:$base, node:$offset),
 }]>;
 def pre_truncsti1 : PatFrag<(ops node:$val, node:$base, node:$offset),
                             (pre_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i1;
 }
 def pre_truncsti8 : PatFrag<(ops node:$val, node:$base, node:$offset),
                             (pre_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i8;
 }
 def pre_truncsti16 : PatFrag<(ops node:$val, node:$base, node:$offset),
                              (pre_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i16;
 }
 def pre_truncsti32 : PatFrag<(ops node:$val, node:$base, node:$offset),
                              (pre_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i32;
 }
 def pre_truncstf32 : PatFrag<(ops node:$val, node:$base, node:$offset),
                              (pre_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = f32;
+}
+def pre_truncstvi8 : PatFrag<(ops node:$val, node:$base, node:$offset),
+                             (pre_truncst node:$val, node:$base, node:$offset)> {
+  let IsStore = true;
+  let ScalarMemoryVT = i8;
+}
+def pre_truncstvi16 : PatFrag<(ops node:$val, node:$base, node:$offset),
+                              (pre_truncst node:$val, node:$base, node:$offset)> {
+  let IsStore = true;
+  let ScalarMemoryVT = i16;
 }
 
 def post_store : PatFrag<(ops node:$val, node:$ptr, node:$offset),
@@ -1070,37 +1239,49 @@ def post_truncst : PatFrag<(ops node:$val, node:$base, node:$offset),
 }]>;
 def post_truncsti1 : PatFrag<(ops node:$val, node:$base, node:$offset),
                              (post_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i1;
 }
 def post_truncsti8 : PatFrag<(ops node:$val, node:$base, node:$offset),
                              (post_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i8;
 }
 def post_truncsti16 : PatFrag<(ops node:$val, node:$base, node:$offset),
                               (post_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i16;
 }
 def post_truncsti32 : PatFrag<(ops node:$val, node:$base, node:$offset),
                               (post_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = i32;
 }
 def post_truncstf32 : PatFrag<(ops node:$val, node:$base, node:$offset),
                               (post_truncst node:$val, node:$base, node:$offset)> {
-  let IsStore = 1;
+  let IsStore = true;
   let MemoryVT = f32;
 }
+def post_truncstvi8 : PatFrag<(ops node:$val, node:$base, node:$offset),
+                              (post_truncst node:$val, node:$base, node:$offset)> {
+  let IsStore = true;
+  let ScalarMemoryVT = i8;
+}
+def post_truncstvi16 : PatFrag<(ops node:$val, node:$base, node:$offset),
+                               (post_truncst node:$val, node:$base, node:$offset)> {
+  let IsStore = true;
+  let ScalarMemoryVT = i16;
+}
 
-def nonvolatile_load : PatFrag<(ops node:$ptr),
-                               (load node:$ptr), [{
-  return !cast<LoadSDNode>(N)->isVolatile();
+// TODO: Split these into volatile and unordered flavors to enable
+// selectively legal optimizations for each.  (See D66309)
+def simple_load : PatFrag<(ops node:$ptr),
+                          (load node:$ptr), [{
+  return cast<LoadSDNode>(N)->isSimple();
 }]>;
-def nonvolatile_store : PatFrag<(ops node:$val, node:$ptr),
-                                (store node:$val, node:$ptr), [{
-  return !cast<StoreSDNode>(N)->isVolatile();
+def simple_store : PatFrag<(ops node:$val, node:$ptr),
+                           (store node:$val, node:$ptr), [{
+  return cast<StoreSDNode>(N)->isSimple();
 }]>;
 
 // nontemporal store fragments.
@@ -1175,116 +1356,236 @@ def setle  : PatFrag<(ops node:$lhs, node:$rhs),
 def setne  : PatFrag<(ops node:$lhs, node:$rhs),
                      (setcc node:$lhs, node:$rhs, SETNE)>;
 
-multiclass binary_atomic_op_ord<SDNode atomic_op> {
-  def #NAME#_monotonic : PatFrag<(ops node:$ptr, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingMonotonic = 1;
+// We don't have strict FP extended loads as single DAG nodes, but we can
+// still provide convenience fragments to match those operations.
+def strict_extloadf32 : PatFrag<(ops node:$ptr),
+                                (strict_fpextend (f32 (load node:$ptr)))>;
+def strict_extloadf64 : PatFrag<(ops node:$ptr),
+                                (strict_fpextend (f64 (load node:$ptr)))>;
+
+// Convenience fragments to match both strict and non-strict fp operations
+def any_fadd       : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fadd node:$lhs, node:$rhs),
+                               (fadd node:$lhs, node:$rhs)]>;
+def any_fsub       : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fsub node:$lhs, node:$rhs),
+                               (fsub node:$lhs, node:$rhs)]>;
+def any_fmul       : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fmul node:$lhs, node:$rhs),
+                               (fmul node:$lhs, node:$rhs)]>;
+def any_fdiv       : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fdiv node:$lhs, node:$rhs),
+                               (fdiv node:$lhs, node:$rhs)]>;
+def any_frem       : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_frem node:$lhs, node:$rhs),
+                               (frem node:$lhs, node:$rhs)]>;
+def any_fma        : PatFrags<(ops node:$src1, node:$src2, node:$src3),
+                              [(strict_fma node:$src1, node:$src2, node:$src3),
+                               (fma node:$src1, node:$src2, node:$src3)]>;
+def any_fsqrt      : PatFrags<(ops node:$src),
+                              [(strict_fsqrt node:$src),
+                               (fsqrt node:$src)]>;
+def any_fsin       : PatFrags<(ops node:$src),
+                              [(strict_fsin node:$src),
+                               (fsin node:$src)]>;
+def any_fcos       : PatFrags<(ops node:$src),
+                              [(strict_fcos node:$src),
+                               (fcos node:$src)]>;
+def any_fexp2      : PatFrags<(ops node:$src),
+                              [(strict_fexp2 node:$src),
+                               (fexp2 node:$src)]>;
+def any_fpow       : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fpow node:$lhs, node:$rhs),
+                               (fpow node:$lhs, node:$rhs)]>;
+def any_flog2      : PatFrags<(ops node:$src),
+                              [(strict_flog2 node:$src),
+                               (flog2 node:$src)]>;
+def any_frint      : PatFrags<(ops node:$src),
+                              [(strict_frint node:$src),
+                               (frint node:$src)]>;
+def any_lrint      : PatFrags<(ops node:$src),
+                              [(strict_lrint node:$src),
+                               (lrint node:$src)]>;
+def any_llrint     : PatFrags<(ops node:$src),
+                              [(strict_llrint node:$src),
+                               (llrint node:$src)]>;
+def any_fnearbyint : PatFrags<(ops node:$src),
+                              [(strict_fnearbyint node:$src),
+                               (fnearbyint node:$src)]>;
+def any_fceil      : PatFrags<(ops node:$src),
+                              [(strict_fceil node:$src),
+                               (fceil node:$src)]>;
+def any_ffloor     : PatFrags<(ops node:$src),
+                              [(strict_ffloor node:$src),
+                               (ffloor node:$src)]>;
+def any_lround     : PatFrags<(ops node:$src),
+                              [(strict_lround node:$src),
+                               (lround node:$src)]>;
+def any_llround    : PatFrags<(ops node:$src),
+                              [(strict_llround node:$src),
+                               (llround node:$src)]>;
+def any_fround     : PatFrags<(ops node:$src),
+                              [(strict_fround node:$src),
+                               (fround node:$src)]>;
+def any_froundeven : PatFrags<(ops node:$src),
+                              [(strict_froundeven node:$src),
+                               (froundeven node:$src)]>;
+def any_ftrunc     : PatFrags<(ops node:$src),
+                              [(strict_ftrunc node:$src),
+                               (ftrunc node:$src)]>;
+def any_fmaxnum    : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fmaxnum node:$lhs, node:$rhs),
+                               (fmaxnum node:$lhs, node:$rhs)]>;
+def any_fminnum    : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fminnum node:$lhs, node:$rhs),
+                               (fminnum node:$lhs, node:$rhs)]>;
+def any_fmaximum   : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fmaximum node:$lhs, node:$rhs),
+                               (fmaximum node:$lhs, node:$rhs)]>;
+def any_fminimum   : PatFrags<(ops node:$lhs, node:$rhs),
+                              [(strict_fminimum node:$lhs, node:$rhs),
+                               (fminimum node:$lhs, node:$rhs)]>;
+def any_fpround    : PatFrags<(ops node:$src),
+                              [(strict_fpround node:$src),
+                               (fpround node:$src)]>;
+def any_fpextend   : PatFrags<(ops node:$src),
+                              [(strict_fpextend node:$src),
+                               (fpextend node:$src)]>;
+def any_extloadf32 : PatFrags<(ops node:$ptr),
+                              [(strict_extloadf32 node:$ptr),
+                               (extloadf32 node:$ptr)]>;
+def any_extloadf64 : PatFrags<(ops node:$ptr),
+                              [(strict_extloadf64 node:$ptr),
+                               (extloadf64 node:$ptr)]>;
+def any_fp_to_sint : PatFrags<(ops node:$src),
+                              [(strict_fp_to_sint node:$src),
+                               (fp_to_sint node:$src)]>;
+def any_fp_to_uint : PatFrags<(ops node:$src),
+                              [(strict_fp_to_uint node:$src),
+                               (fp_to_uint node:$src)]>;
+def any_sint_to_fp : PatFrags<(ops node:$src),
+                              [(strict_sint_to_fp node:$src),
+                               (sint_to_fp node:$src)]>;
+def any_uint_to_fp : PatFrags<(ops node:$src),
+                              [(strict_uint_to_fp node:$src),
+                               (uint_to_fp node:$src)]>;
+def any_fsetcc : PatFrags<(ops node:$lhs, node:$rhs, node:$pred),
+                          [(strict_fsetcc node:$lhs, node:$rhs, node:$pred),
+                           (setcc node:$lhs, node:$rhs, node:$pred)]>;
+def any_fsetccs : PatFrags<(ops node:$lhs, node:$rhs, node:$pred),
+                          [(strict_fsetccs node:$lhs, node:$rhs, node:$pred),
+                           (setcc node:$lhs, node:$rhs, node:$pred)]>;
+
+multiclass binary_atomic_op_ord {
+  def NAME#_monotonic : PatFrag<(ops node:$ptr, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingMonotonic = true;
   }
-  def #NAME#_acquire : PatFrag<(ops node:$ptr, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingAcquire = 1;
+  def NAME#_acquire : PatFrag<(ops node:$ptr, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingAcquire = true;
   }
-  def #NAME#_release : PatFrag<(ops node:$ptr, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingRelease = 1;
+  def NAME#_release : PatFrag<(ops node:$ptr, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingRelease = true;
   }
-  def #NAME#_acq_rel : PatFrag<(ops node:$ptr, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingAcquireRelease = 1;
+  def NAME#_acq_rel : PatFrag<(ops node:$ptr, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingAcquireRelease = true;
   }
-  def #NAME#_seq_cst : PatFrag<(ops node:$ptr, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingSequentiallyConsistent = 1;
+  def NAME#_seq_cst : PatFrag<(ops node:$ptr, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingSequentiallyConsistent = true;
   }
 }
 
-multiclass ternary_atomic_op_ord<SDNode atomic_op> {
-  def #NAME#_monotonic : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingMonotonic = 1;
+multiclass ternary_atomic_op_ord {
+  def NAME#_monotonic : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$cmp, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingMonotonic = true;
   }
-  def #NAME#_acquire : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingAcquire = 1;
+  def NAME#_acquire : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$cmp, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingAcquire = true;
   }
-  def #NAME#_release : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingRelease = 1;
+  def NAME#_release : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$cmp, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingRelease = true;
   }
-  def #NAME#_acq_rel : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingAcquireRelease = 1;
+  def NAME#_acq_rel : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$cmp, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingAcquireRelease = true;
   }
-  def #NAME#_seq_cst : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
-      (!cast<SDPatternOperator>(#NAME) node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
-    let IsAtomicOrderingSequentiallyConsistent = 1;
+  def NAME#_seq_cst : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
+      (!cast<SDPatternOperator>(NAME) node:$ptr, node:$cmp, node:$val)> {
+    let IsAtomic = true;
+    let IsAtomicOrderingSequentiallyConsistent = true;
   }
 }
 
-multiclass binary_atomic_op<SDNode atomic_op> {
+multiclass binary_atomic_op<SDNode atomic_op, bit IsInt = 1> {
   def _8 : PatFrag<(ops node:$ptr, node:$val),
                    (atomic_op  node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let MemoryVT = i8;
+    let IsAtomic = true;
+    let MemoryVT = !if(IsInt, i8, ?);
   }
   def _16 : PatFrag<(ops node:$ptr, node:$val),
                     (atomic_op node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let MemoryVT = i16;
+    let IsAtomic = true;
+    let MemoryVT = !if(IsInt, i16, f16);
   }
   def _32 : PatFrag<(ops node:$ptr, node:$val),
                     (atomic_op node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let MemoryVT = i32;
+    let IsAtomic = true;
+    let MemoryVT = !if(IsInt, i32, f32);
   }
   def _64 : PatFrag<(ops node:$ptr, node:$val),
                     (atomic_op node:$ptr, node:$val)> {
-    let IsAtomic = 1;
-    let MemoryVT = i64;
+    let IsAtomic = true;
+    let MemoryVT = !if(IsInt, i64, f64);
   }
 
-  defm NAME#_8  : binary_atomic_op_ord<atomic_op>;
-  defm NAME#_16 : binary_atomic_op_ord<atomic_op>;
-  defm NAME#_32 : binary_atomic_op_ord<atomic_op>;
-  defm NAME#_64 : binary_atomic_op_ord<atomic_op>;
+  defm NAME#_8  : binary_atomic_op_ord;
+  defm NAME#_16 : binary_atomic_op_ord;
+  defm NAME#_32 : binary_atomic_op_ord;
+  defm NAME#_64 : binary_atomic_op_ord;
 }
 
 multiclass ternary_atomic_op<SDNode atomic_op> {
   def _8 : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
                    (atomic_op  node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
+    let IsAtomic = true;
     let MemoryVT = i8;
   }
   def _16 : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
                     (atomic_op node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
+    let IsAtomic = true;
     let MemoryVT = i16;
   }
   def _32 : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
                     (atomic_op node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
+    let IsAtomic = true;
     let MemoryVT = i32;
   }
   def _64 : PatFrag<(ops node:$ptr, node:$cmp, node:$val),
                     (atomic_op node:$ptr, node:$cmp, node:$val)> {
-    let IsAtomic = 1;
+    let IsAtomic = true;
     let MemoryVT = i64;
   }
 
-  defm NAME#_8  : ternary_atomic_op_ord<atomic_op>;
-  defm NAME#_16 : ternary_atomic_op_ord<atomic_op>;
-  defm NAME#_32 : ternary_atomic_op_ord<atomic_op>;
-  defm NAME#_64 : ternary_atomic_op_ord<atomic_op>;
+  defm NAME#_8  : ternary_atomic_op_ord;
+  defm NAME#_16 : ternary_atomic_op_ord;
+  defm NAME#_32 : ternary_atomic_op_ord;
+  defm NAME#_64 : ternary_atomic_op_ord;
 }
 
 defm atomic_load_add  : binary_atomic_op<atomic_load_add>;
@@ -1305,25 +1606,25 @@ defm atomic_cmp_swap  : ternary_atomic_op<atomic_cmp_swap>;
 def atomic_load_8 :
   PatFrag<(ops node:$ptr),
           (atomic_load node:$ptr)> {
-  let IsAtomic = 1;
+  let IsAtomic = true;
   let MemoryVT = i8;
 }
 def atomic_load_16 :
   PatFrag<(ops node:$ptr),
           (atomic_load node:$ptr)> {
-  let IsAtomic = 1;
+  let IsAtomic = true;
   let MemoryVT = i16;
 }
 def atomic_load_32 :
   PatFrag<(ops node:$ptr),
           (atomic_load node:$ptr)> {
-  let IsAtomic = 1;
+  let IsAtomic = true;
   let MemoryVT = i32;
 }
 def atomic_load_64 :
   PatFrag<(ops node:$ptr),
           (atomic_load node:$ptr)> {
-  let IsAtomic = 1;
+  let IsAtomic = true;
   let MemoryVT = i64;
 }
 

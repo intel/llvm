@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBCommunication_h_
-#define LLDB_SBCommunication_h_
+#ifndef LLDB_API_SBCOMMUNICATION_H
+#define LLDB_API_SBCOMMUNICATION_H
 
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBError.h"
@@ -72,12 +72,13 @@ public:
                                           void *callback_baton);
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(SBCommunication);
+  SBCommunication(const SBCommunication &) = delete;
+  const SBCommunication &operator=(const SBCommunication &) = delete;
 
-  lldb_private::Communication *m_opaque;
-  bool m_opaque_owned;
+  lldb_private::Communication *m_opaque = nullptr;
+  bool m_opaque_owned = false;
 };
 
 } // namespace lldb
 
-#endif // LLDB_SBCommunication_h_
+#endif // LLDB_API_SBCOMMUNICATION_H

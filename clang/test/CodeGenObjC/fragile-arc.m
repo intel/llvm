@@ -14,7 +14,7 @@
 }
 @end
 
-// GLOBALS-LABEL @OBJC_METACLASS_A
+// GLOBALS-LABEL: @OBJC_METACLASS_A
 //  Strong layout: scan the first word.
 // GLOBALS: @OBJC_CLASS_NAME_{{.*}} = private unnamed_addr constant [2 x i8] c"\01\00"
 //  Weak layout: skip the first word, scan the second word.
@@ -137,15 +137,15 @@ void testBlockLayoutWeak(__weak id x) {
   useBlock(^{ (void) x; });
 }
 
-// CHECK-LABEL: define void @testCatch()
+// CHECK-LABEL: define{{.*}} void @testCatch()
 // CHECK: [[X:%.*]] = alloca [[A:%.*]]*, align 4
 // CHECK: [[Y:%.*]] = alloca i8*, align 4
 // CHECK: call void @objc_exception_try_enter
 // CHECK: br i1
-// CHECK: call void @checkpoint(i32 0)
+// CHECK: call void @checkpoint(i32 noundef 0)
 // CHECK: call void @objc_exception_try_exit
 // CHECK: br label
-// CHECK: call void @checkpoint(i32 3)
+// CHECK: call void @checkpoint(i32 noundef 3)
 // CHECK: [[EXN:%.*]] = call i8* @objc_exception_extract
 // CHECK: call i32 @objc_exception_match(
 // CHECK: br i1
@@ -154,16 +154,16 @@ void testBlockLayoutWeak(__weak id x) {
 // CHECK: [[T2:%.*]] = call i8* @llvm.objc.retain(i8* [[T1]])
 // CHECK: [[T3:%.*]] = bitcast i8* [[T2]] to [[A]]*
 // CHECK: store [[A]]* [[T3]], [[A]]** [[X]]
-// CHECK: call void @checkpoint(i32 1)
+// CHECK: call void @checkpoint(i32 noundef 1)
 // CHECK: [[T0:%.*]] = bitcast [[A]]** [[X]] to i8**
 // CHECK: call void @llvm.objc.storeStrong(i8** [[T0]], i8* null)
 // CHECK: br label
 // CHECK: [[T0:%.*]] = call i8* @llvm.objc.retain(i8* [[EXN]])
 // CHECK: store i8* [[T0]], i8** [[Y]]
-// CHECK: call void @checkpoint(i32 2)
+// CHECK: call void @checkpoint(i32 noundef 2)
 // CHECK: call void @llvm.objc.storeStrong(i8** [[Y]], i8* null)
 extern void checkpoint(int n);
-void testCatch() {
+void testCatch(void) {
   @try {
     checkpoint(0);
   } @catch (A *x) {

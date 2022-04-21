@@ -3,7 +3,7 @@
 ; RUN: llvm-nm %t.o.0 | FileCheck --check-prefix=CHECK0 %s
 ; RUN: llvm-nm %t.o.1 | FileCheck --check-prefix=CHECK1 %s
 
-; FIXME: Investigate test failures on these architecures.
+; FIXME: Investigate test failures on these architectures.
 ; UNSUPPORTED: mips, mipsel, aarch64, powerpc64
 
 target triple = "x86_64-unknown-linux-gnu"
@@ -11,7 +11,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; CHECK0-NOT: bar
 ; CHECK0: T foo
 ; CHECK0-NOT: bar
-define void @foo() {
+define void @foo() mustprogress {
   call void @bar()
   ret void
 }
@@ -19,7 +19,7 @@ define void @foo() {
 ; CHECK1-NOT: foo
 ; CHECK1: T bar
 ; CHECK1-NOT: foo
-define void @bar() {
+define void @bar() mustprogress {
   call void @foo()
   ret void
 }

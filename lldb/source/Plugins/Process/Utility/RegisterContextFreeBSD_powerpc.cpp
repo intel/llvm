@@ -1,4 +1,4 @@
-//===-- RegisterContextFreeBSD_powerpc.cpp ----------------------*- C++ -*-===//
+//===-- RegisterContextFreeBSD_powerpc.cpp --------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -178,7 +178,7 @@ RegisterContextFreeBSD_powerpc::RegisterContextFreeBSD_powerpc(
     const ArchSpec &target_arch)
     : RegisterInfoInterface(target_arch) {}
 
-RegisterContextFreeBSD_powerpc::~RegisterContextFreeBSD_powerpc() {}
+RegisterContextFreeBSD_powerpc::~RegisterContextFreeBSD_powerpc() = default;
 
 size_t RegisterContextFreeBSD_powerpc::GetGPRSize() const {
   // This is an 'abstract' base, so no GPR struct.
@@ -188,7 +188,7 @@ size_t RegisterContextFreeBSD_powerpc::GetGPRSize() const {
 const RegisterInfo *RegisterContextFreeBSD_powerpc::GetRegisterInfo() const {
   // assert (m_target_arch.GetCore() == ArchSpec::eCore_powerpc);
   llvm_unreachable("Abstract class!");
-  return NULL;
+  return nullptr;
 }
 
 uint32_t RegisterContextFreeBSD_powerpc::GetRegisterCount() const { return 0; }
@@ -197,7 +197,7 @@ RegisterContextFreeBSD_powerpc32::RegisterContextFreeBSD_powerpc32(
     const ArchSpec &target_arch)
     : RegisterContextFreeBSD_powerpc(target_arch) {}
 
-RegisterContextFreeBSD_powerpc32::~RegisterContextFreeBSD_powerpc32() {}
+RegisterContextFreeBSD_powerpc32::~RegisterContextFreeBSD_powerpc32() = default;
 
 size_t RegisterContextFreeBSD_powerpc32::GetGPRSize() const {
   return sizeof(GPR32);
@@ -217,7 +217,7 @@ RegisterContextFreeBSD_powerpc64::RegisterContextFreeBSD_powerpc64(
     const ArchSpec &target_arch)
     : RegisterContextFreeBSD_powerpc(target_arch) {}
 
-RegisterContextFreeBSD_powerpc64::~RegisterContextFreeBSD_powerpc64() {}
+RegisterContextFreeBSD_powerpc64::~RegisterContextFreeBSD_powerpc64() = default;
 
 size_t RegisterContextFreeBSD_powerpc64::GetGPRSize() const {
   return sizeof(GPR64);

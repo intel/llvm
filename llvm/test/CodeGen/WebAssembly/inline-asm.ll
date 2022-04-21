@@ -3,7 +3,6 @@
 ; Test basic inline assembly. Pass -no-integrated-as since these aren't
 ; actually valid assembly syntax.
 
-target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 ; CHECK-LABEL: foo:
@@ -46,13 +45,39 @@ entry:
   ret i64 %0
 }
 
+; CHECK-LABEL: foo_float:
+; CHECK-NEXT: .functype foo_float (f32) -> (f32){{$}}
+; CHECK-NEXT: #APP{{$}}
+; CHECK-NEXT: # 0 = aaa(0){{$}}
+; CHECK-NEXT: #NO_APP{{$}}
+; CHECK-NEXT: local.get $push0=, 0{{$}}
+; CHECK-NEXT: return $pop0{{$}}
+define float @foo_float(float %r) {
+entry:
+  %0 = tail call float asm sideeffect "# $0 = aaa($1)", "=r,r"(float %r) #0, !srcloc !0
+  ret float %0
+}
+
+; CHECK-LABEL: foo_double:
+; CHECK-NEXT: .functype foo_double (f64) -> (f64){{$}}
+; CHECK-NEXT: #APP{{$}}
+; CHECK-NEXT: # 0 = aaa(0){{$}}
+; CHECK-NEXT: #NO_APP{{$}}
+; CHECK-NEXT: local.get $push0=, 0{{$}}
+; CHECK-NEXT: return $pop0{{$}}
+define double @foo_double(double %r) {
+entry:
+  %0 = tail call double asm sideeffect "# $0 = aaa($1)", "=r,r"(double %r) #0, !srcloc !0
+  ret double %0
+}
+
 ; CHECK-LABEL: X_i16:
 ; CHECK: foo 1{{$}}
 ; CHECK: local.get $push[[S0:[0-9]+]]=, 0{{$}}
 ; CHECK-NEXT: local.get $push[[S1:[0-9]+]]=, 1{{$}}
 ; CHECK-NEXT: i32.store16 0($pop[[S0]]), $pop[[S1]]{{$}}
 define void @X_i16(i16 * %t) {
-  call void asm sideeffect "foo $0", "=*X,~{dirflag},~{fpsr},~{flags},~{memory}"(i16* %t)
+  call void asm sideeffect "foo $0", "=*X,~{dirflag},~{fpsr},~{flags},~{memory}"(i16* elementtype(i16) %t)
   ret void
 }
 
@@ -62,7 +87,7 @@ define void @X_i16(i16 * %t) {
 ; CHECK-NEXT: local.get $push[[S1:[0-9]+]]=, 1{{$}}
 ; CHECK-NEXT: i32.store 0($pop[[S0]]), $pop[[S1]]{{$}}
 define void @X_ptr(i16 ** %t) {
-  call void asm sideeffect "foo $0", "=*X,~{dirflag},~{fpsr},~{flags},~{memory}"(i16** %t)
+  call void asm sideeffect "foo $0", "=*X,~{dirflag},~{fpsr},~{flags},~{memory}"(i16** elementtype(i16*) %t)
   ret void
 }
 

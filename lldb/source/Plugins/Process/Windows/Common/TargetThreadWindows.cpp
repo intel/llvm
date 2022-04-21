@@ -1,4 +1,4 @@
-//===-- TargetThreadWindows.cpp----------------------------------*- C++ -*-===//
+//===-- TargetThreadWindows.cpp--------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,19 +11,23 @@
 #include "lldb/Host/windows/HostThreadWindows.h"
 #include "lldb/Host/windows/windows.h"
 #include "lldb/Target/RegisterContext.h"
+#include "lldb/Target/Unwind.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Logging.h"
 #include "lldb/Utility/State.h"
 
-#include "Plugins/Process/Utility/UnwindLLDB.h"
 #include "ProcessWindows.h"
 #include "ProcessWindowsLog.h"
 #include "TargetThreadWindows.h"
 
-#if defined(_WIN64)
+#if defined(__x86_64__) || defined(_M_AMD64)
 #include "x64/RegisterContextWindows_x64.h"
-#else
+#elif defined(__i386__) || defined(_M_IX86)
 #include "x86/RegisterContextWindows_x86.h"
+#elif defined(__aarch64__) || defined(_M_ARM64)
+#include "arm64/RegisterContextWindows_arm64.h"
+#elif defined(__arm__) || defined(_M_ARM)
+#include "arm/RegisterContextWindows_arm.h"
 #endif
 
 using namespace lldb;
@@ -57,7 +61,7 @@ RegisterContextSP
 TargetThreadWindows::CreateRegisterContextForFrame(StackFrame *frame) {
   RegisterContextSP reg_ctx_sp;
   uint32_t concrete_frame_idx = 0;
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
 
   if (frame)
     concrete_frame_idx = frame->GetConcreteFrameIndex();
@@ -66,33 +70,50 @@ TargetThreadWindows::CreateRegisterContextForFrame(StackFrame *frame) {
     if (!m_thread_reg_ctx_sp) {
       ArchSpec arch = HostInfo::GetArchitecture();
       switch (arch.GetMachine()) {
-      case llvm::Triple::x86:
-#if defined(_WIN64)
-        // FIXME: This is a Wow64 process, create a RegisterContextWindows_Wow64
-        LLDB_LOG(log, "This is a Wow64 process, we should create a "
-                      "RegisterContextWindows_Wow64, but we don't.");
-#else
+      case llvm::Triple::arm:
+      case llvm::Triple::thumb:
+#if defined(__arm__) || defined(_M_ARM)
         m_thread_reg_ctx_sp.reset(
-            new RegisterContextWindows_x86(*this, concrete_frame_idx));
+            new RegisterContextWindows_arm(*this, concrete_frame_idx));
+#else
+        LLDB_LOG(log, "debugging foreign targets is currently unsupported");
 #endif
         break;
+
+      case llvm::Triple::aarch64:
+#if defined(__aarch64__) || defined(_M_ARM64)
+        m_thread_reg_ctx_sp.reset(
+            new RegisterContextWindows_arm64(*this, concrete_frame_idx));
+#else
+        LLDB_LOG(log, "debugging foreign targets is currently unsupported");
+#endif
+        break;
+
+      case llvm::Triple::x86:
+#if defined(__i386__) || defined(_M_IX86)
+        m_thread_reg_ctx_sp.reset(
+            new RegisterContextWindows_x86(*this, concrete_frame_idx));
+#else
+        LLDB_LOG(log, "debugging foreign targets is currently unsupported");
+#endif
+        break;
+
       case llvm::Triple::x86_64:
-#if defined(_WIN64)
+#if defined(__x86_64__) || defined(_M_AMD64)
         m_thread_reg_ctx_sp.reset(
             new RegisterContextWindows_x64(*this, concrete_frame_idx));
 #else
-        LLDB_LOG(log, "LLDB is 32-bit, but the target process is 64-bit.");
+        LLDB_LOG(log, "debugging foreign targets is currently unsupported");
 #endif
-        LLVM_FALLTHROUGH;
+        break;
+
       default:
         break;
       }
     }
     reg_ctx_sp = m_thread_reg_ctx_sp;
   } else {
-    Unwind *unwinder = GetUnwinder();
-    if (unwinder != nullptr)
-      reg_ctx_sp = unwinder->CreateRegisterContextForFrame(frame);
+    reg_ctx_sp = GetUnwinder().CreateRegisterContextForFrame(frame);
   }
 
   return reg_ctx_sp;
@@ -103,14 +124,6 @@ bool TargetThreadWindows::CalculateStopInfo() {
   return true;
 }
 
-Unwind *TargetThreadWindows::GetUnwinder() {
-  // FIXME: Implement an unwinder based on the Windows unwinder exposed through
-  // DIA SDK.
-  if (!m_unwinder_up)
-    m_unwinder_up.reset(new UnwindLLDB(*this));
-  return m_unwinder_up.get();
-}
-
 Status TargetThreadWindows::DoResume() {
   StateType resume_state = GetTemporaryResumeState();
   StateType current_state = GetState();
@@ -118,12 +131,29 @@ Status TargetThreadWindows::DoResume() {
     return Status();
 
   if (resume_state == eStateStepping) {
+    Log *log = GetLog(LLDBLog::Thread);
+
     uint32_t flags_index =
         GetRegisterContext()->ConvertRegisterKindToRegisterNumber(
             eRegisterKindGeneric, LLDB_REGNUM_GENERIC_FLAGS);
     uint64_t flags_value =
         GetRegisterContext()->ReadRegisterAsUnsigned(flags_index, 0);
-    flags_value |= 0x100; // Set the trap flag on the CPU
+    ProcessSP process = GetProcess();
+    const ArchSpec &arch = process->GetTarget().GetArchitecture();
+    switch (arch.GetMachine()) {
+    case llvm::Triple::x86:
+    case llvm::Triple::x86_64:
+      flags_value |= 0x100; // Set the trap flag on the CPU
+      break;
+    case llvm::Triple::aarch64:
+    case llvm::Triple::arm:
+    case llvm::Triple::thumb:
+      flags_value |= 0x200000; // The SS bit in PState
+      break;
+    default:
+      LLDB_LOG(log, "single stepping unsupported on this architecture");
+      break;
+    }
     GetRegisterContext()->WriteRegisterFromUnsigned(flags_index, flags_value);
   }
 

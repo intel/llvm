@@ -20,9 +20,13 @@
 //     ...
 // };
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

@@ -1,4 +1,4 @@
-//===-- GDBRemoteCommunicationServerPlatform.cpp ----------------*- C++ -*-===//
+//===-- GDBRemoteCommunicationServerPlatform.cpp --------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,15 +8,17 @@
 
 #include "GDBRemoteCommunicationServerPlatform.h"
 
-#include <errno.h>
+#include <cerrno>
 
 #include <chrono>
 #include <csignal>
 #include <cstring>
 #include <mutex>
 #include <sstream>
+#include <thread>
 
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/Threading.h"
 
 #include "lldb/Host/Config.h"
@@ -24,20 +26,85 @@
 #include "lldb/Host/FileAction.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Interpreter/CommandCompletions.h"
 #include "lldb/Target/Platform.h"
 #include "lldb/Target/UnixSignals.h"
-#include "lldb/Utility/JSON.h"
+#include "lldb/Utility/GDBRemote.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/StreamGDBRemote.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StructuredData.h"
+#include "lldb/Utility/TildeExpressionResolver.h"
 #include "lldb/Utility/UriParser.h"
 
 #include "lldb/Utility/StringExtractorGDBRemote.h"
 
 using namespace lldb;
-using namespace lldb_private;
 using namespace lldb_private::process_gdb_remote;
+using namespace lldb_private;
+
+GDBRemoteCommunicationServerPlatform::PortMap::PortMap(uint16_t min_port,
+                                                       uint16_t max_port) {
+  for (; min_port < max_port; ++min_port)
+    m_port_map[min_port] = LLDB_INVALID_PROCESS_ID;
+}
+
+void GDBRemoteCommunicationServerPlatform::PortMap::AllowPort(uint16_t port) {
+  // Do not modify existing mappings
+  m_port_map.insert({port, LLDB_INVALID_PROCESS_ID});
+}
+
+llvm::Expected<uint16_t>
+GDBRemoteCommunicationServerPlatform::PortMap::GetNextAvailablePort() {
+  if (m_port_map.empty())
+    return 0; // Bind to port zero and get a port, we didn't have any
+              // limitations
+
+  for (auto &pair : m_port_map) {
+    if (pair.second == LLDB_INVALID_PROCESS_ID) {
+      pair.second = ~(lldb::pid_t)LLDB_INVALID_PROCESS_ID;
+      return pair.first;
+    }
+  }
+  return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                 "No free port found in port map");
+}
+
+bool GDBRemoteCommunicationServerPlatform::PortMap::AssociatePortWithProcess(
+    uint16_t port, lldb::pid_t pid) {
+  auto pos = m_port_map.find(port);
+  if (pos != m_port_map.end()) {
+    pos->second = pid;
+    return true;
+  }
+  return false;
+}
+
+bool GDBRemoteCommunicationServerPlatform::PortMap::FreePort(uint16_t port) {
+  std::map<uint16_t, lldb::pid_t>::iterator pos = m_port_map.find(port);
+  if (pos != m_port_map.end()) {
+    pos->second = LLDB_INVALID_PROCESS_ID;
+    return true;
+  }
+  return false;
+}
+
+bool GDBRemoteCommunicationServerPlatform::PortMap::FreePortForProcess(
+    lldb::pid_t pid) {
+  if (!m_port_map.empty()) {
+    for (auto &pair : m_port_map) {
+      if (pair.second == pid) {
+        pair.second = LLDB_INVALID_PROCESS_ID;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool GDBRemoteCommunicationServerPlatform::PortMap::empty() const {
+  return m_port_map.empty();
+}
 
 // GDBRemoteCommunicationServerPlatform constructor
 GDBRemoteCommunicationServerPlatform::GDBRemoteCommunicationServerPlatform(
@@ -68,6 +135,9 @@ GDBRemoteCommunicationServerPlatform::GDBRemoteCommunicationServerPlatform(
       StringExtractorGDBRemote::eServerPacketType_qProcessInfo,
       &GDBRemoteCommunicationServerPlatform::Handle_qProcessInfo);
   RegisterMemberFunctionHandler(
+      StringExtractorGDBRemote::eServerPacketType_qPathComplete,
+      &GDBRemoteCommunicationServerPlatform::Handle_qPathComplete);
+  RegisterMemberFunctionHandler(
       StringExtractorGDBRemote::eServerPacketType_QSetWorkingDir,
       &GDBRemoteCommunicationServerPlatform::Handle_QSetWorkingDir);
   RegisterMemberFunctionHandler(
@@ -84,13 +154,19 @@ GDBRemoteCommunicationServerPlatform::GDBRemoteCommunicationServerPlatform(
 }
 
 // Destructor
-GDBRemoteCommunicationServerPlatform::~GDBRemoteCommunicationServerPlatform() {}
+GDBRemoteCommunicationServerPlatform::~GDBRemoteCommunicationServerPlatform() =
+    default;
 
 Status GDBRemoteCommunicationServerPlatform::LaunchGDBServer(
     const lldb_private::Args &args, std::string hostname, lldb::pid_t &pid,
-    uint16_t &port, std::string &socket_name) {
-  if (port == UINT16_MAX)
-    port = GetNextAvailablePort();
+    llvm::Optional<uint16_t> &port, std::string &socket_name) {
+  if (!port) {
+    llvm::Expected<uint16_t> available_port = m_port_map.GetNextAvailablePort();
+    if (available_port)
+      port = *available_port;
+    else
+      return Status(available_port.takeError());
+  }
 
   // Spawn a new thread to accept the port that gets bound after binding to
   // port 0 (zero).
@@ -103,37 +179,28 @@ Status GDBRemoteCommunicationServerPlatform::LaunchGDBServer(
   if (hostname.empty())
     hostname = "127.0.0.1";
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
-  if (log)
-    log->Printf("Launching debugserver with: %s:%u...", hostname.c_str(), port);
+  Log *log = GetLog(LLDBLog::Platform);
+  LLDB_LOGF(log, "Launching debugserver with: %s:%u...", hostname.c_str(),
+            *port);
 
   // Do not run in a new session so that it can not linger after the platform
   // closes.
   debugserver_launch_info.SetLaunchInSeparateProcessGroup(false);
   debugserver_launch_info.SetMonitorProcessCallback(
       std::bind(&GDBRemoteCommunicationServerPlatform::DebugserverProcessReaped,
-                this, std::placeholders::_1),
-      false);
-
-  llvm::StringRef platform_scheme;
-  llvm::StringRef platform_ip;
-  int platform_port;
-  llvm::StringRef platform_path;
-  std::string platform_uri = GetConnection()->GetURI();
-  bool ok = UriParser::Parse(platform_uri, platform_scheme, platform_ip,
-                             platform_port, platform_path);
-  UNUSED_IF_ASSERT_DISABLED(ok);
-  assert(ok);
+                this, std::placeholders::_1));
 
   std::ostringstream url;
 // debugserver does not accept the URL scheme prefix.
 #if !defined(__APPLE__)
   url << m_socket_scheme << "://";
 #endif
-  uint16_t *port_ptr = &port;
-  if (m_socket_protocol == Socket::ProtocolTcp)
-    url << platform_ip.str() << ":" << port;
-  else {
+  uint16_t *port_ptr = port.getPointer();
+  if (m_socket_protocol == Socket::ProtocolTcp) {
+    std::string platform_uri = GetConnection()->GetURI();
+    llvm::Optional<URI> parsed_uri = URI::Parse(platform_uri);
+    url << '[' << parsed_uri->hostname.str() << "]:" << *port;
+  } else {
     socket_name = GetDomainSocketPath("gdbserver").GetPath();
     url << socket_name;
     port_ptr = nullptr;
@@ -146,11 +213,11 @@ Status GDBRemoteCommunicationServerPlatform::LaunchGDBServer(
   if (pid != LLDB_INVALID_PROCESS_ID) {
     std::lock_guard<std::recursive_mutex> guard(m_spawned_pids_mutex);
     m_spawned_pids.insert(pid);
-    if (port > 0)
-      AssociatePortWithProcess(port, pid);
+    if (*port > 0)
+      m_port_map.AssociatePortWithProcess(*port, pid);
   } else {
-    if (port > 0)
-      FreePort(port);
+    if (*port > 0)
+      m_port_map.FreePort(*port);
   }
   return error;
 }
@@ -161,22 +228,24 @@ GDBRemoteCommunicationServerPlatform::Handle_qLaunchGDBServer(
   // Spawn a local debugserver as a platform so we can then attach or launch a
   // process...
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
-  if (log)
-    log->Printf("GDBRemoteCommunicationServerPlatform::%s() called",
-                __FUNCTION__);
+  Log *log = GetLog(LLDBLog::Platform);
+  LLDB_LOGF(log, "GDBRemoteCommunicationServerPlatform::%s() called",
+            __FUNCTION__);
 
   ConnectionFileDescriptor file_conn;
   std::string hostname;
   packet.SetFilePos(::strlen("qLaunchGDBServer;"));
   llvm::StringRef name;
   llvm::StringRef value;
-  uint16_t port = UINT16_MAX;
+  llvm::Optional<uint16_t> port;
   while (packet.GetNameColonValue(name, value)) {
     if (name.equals("host"))
-      hostname = value;
-    else if (name.equals("port"))
-      value.getAsInteger(0, port);
+      hostname = std::string(value);
+    else if (name.equals("port")) {
+      // Make the Optional valid so we can use its value
+      port = 0;
+      value.getAsInteger(0, port.getValue());
+    }
   }
 
   lldb::pid_t debugserver_pid = LLDB_INVALID_PROCESS_ID;
@@ -184,21 +253,22 @@ GDBRemoteCommunicationServerPlatform::Handle_qLaunchGDBServer(
   Status error =
       LaunchGDBServer(Args(), hostname, debugserver_pid, port, socket_name);
   if (error.Fail()) {
-    if (log)
-      log->Printf("GDBRemoteCommunicationServerPlatform::%s() debugserver "
-                  "launch failed: %s",
-                  __FUNCTION__, error.AsCString());
+    LLDB_LOGF(log,
+              "GDBRemoteCommunicationServerPlatform::%s() debugserver "
+              "launch failed: %s",
+              __FUNCTION__, error.AsCString());
     return SendErrorResponse(9);
   }
 
-  if (log)
-    log->Printf("GDBRemoteCommunicationServerPlatform::%s() debugserver "
-                "launched successfully as pid %" PRIu64,
-                __FUNCTION__, debugserver_pid);
+  LLDB_LOGF(log,
+            "GDBRemoteCommunicationServerPlatform::%s() debugserver "
+            "launched successfully as pid %" PRIu64,
+            __FUNCTION__, debugserver_pid);
 
   StreamGDBRemote response;
+  assert(port);
   response.Printf("pid:%" PRIu64 ";port:%u;", debugserver_pid,
-                  port + m_port_offset);
+                  *port + m_port_offset);
   if (!socket_name.empty()) {
     response.PutCString("socket_name:");
     response.PutStringAsRawHex8(socket_name);
@@ -216,22 +286,21 @@ GDBRemoteCommunicationServerPlatform::Handle_qLaunchGDBServer(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerPlatform::Handle_qQueryGDBServer(
     StringExtractorGDBRemote &packet) {
+  namespace json = llvm::json;
+
   if (m_pending_gdb_server.pid == LLDB_INVALID_PROCESS_ID)
     return SendErrorResponse(4);
 
-  JSONObject::SP server_sp = std::make_shared<JSONObject>();
-  server_sp->SetObject("port",
-                       std::make_shared<JSONNumber>(m_pending_gdb_server.port));
-  if (!m_pending_gdb_server.socket_name.empty())
-    server_sp->SetObject(
-        "socket_name",
-        std::make_shared<JSONString>(m_pending_gdb_server.socket_name.c_str()));
+  json::Object server{{"port", m_pending_gdb_server.port}};
 
-  JSONArray server_list;
-  server_list.AppendObject(server_sp);
+  if (!m_pending_gdb_server.socket_name.empty())
+    server.try_emplace("socket_name", m_pending_gdb_server.socket_name);
+
+  json::Array server_list;
+  server_list.push_back(std::move(server));
 
   StreamGDBRemote response;
-  server_list.Write(response);
+  response.AsRawOstream() << std::move(server_list);
 
   StreamGDBRemote escaped_response;
   escaped_response.PutEscapedBytes(response.GetString().data(),
@@ -282,10 +351,9 @@ bool GDBRemoteCommunicationServerPlatform::KillSpawnedProcess(lldb::pid_t pid) {
         return true;
       }
     }
-    usleep(10000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  // check one more time after the final usleep
   {
     std::lock_guard<std::recursive_mutex> guard(m_spawned_pids_mutex);
     if (m_spawned_pids.find(pid) == m_spawned_pids.end())
@@ -304,10 +372,10 @@ bool GDBRemoteCommunicationServerPlatform::KillSpawnedProcess(lldb::pid_t pid) {
         return true;
       }
     }
-    usleep(10000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  // check one more time after the final usleep Scope for locker
+  // check one more time after the final sleep
   {
     std::lock_guard<std::recursive_mutex> guard(m_spawned_pids_mutex);
     if (m_spawned_pids.find(pid) == m_spawned_pids.end())
@@ -333,6 +401,38 @@ GDBRemoteCommunicationServerPlatform::Handle_qProcessInfo(
 
   StreamString response;
   CreateProcessInfoResponse_DebugServerStyle(proc_info, response);
+  return SendPacketNoLock(response.GetString());
+}
+
+GDBRemoteCommunication::PacketResult
+GDBRemoteCommunicationServerPlatform::Handle_qPathComplete(
+    StringExtractorGDBRemote &packet) {
+  packet.SetFilePos(::strlen("qPathComplete:"));
+  const bool only_dir = (packet.GetHexMaxU32(false, 0) == 1);
+  if (packet.GetChar() != ',')
+    return SendErrorResponse(85);
+  std::string path;
+  packet.GetHexByteString(path);
+
+  StringList matches;
+  StandardTildeExpressionResolver resolver;
+  if (only_dir)
+    CommandCompletions::DiskDirectories(path, matches, resolver);
+  else
+    CommandCompletions::DiskFiles(path, matches, resolver);
+
+  StreamString response;
+  response.PutChar('M');
+  llvm::StringRef separator;
+  std::sort(matches.begin(), matches.end());
+  for (const auto &match : matches) {
+    response << separator;
+    separator = ",";
+    // encode result strings into hex bytes to avoid unexpected error caused by
+    // special characters like '$'.
+    response.PutStringAsRawHex8(match.c_str());
+  }
+
   return SendPacketNoLock(response.GetString());
 }
 
@@ -416,12 +516,11 @@ GDBRemoteCommunicationServerPlatform::Handle_jSignalsInfo(
   return SendPacketNoLock(response.GetString());
 }
 
-bool GDBRemoteCommunicationServerPlatform::DebugserverProcessReaped(
+void GDBRemoteCommunicationServerPlatform::DebugserverProcessReaped(
     lldb::pid_t pid) {
   std::lock_guard<std::recursive_mutex> guard(m_spawned_pids_mutex);
-  FreePortForProcess(pid);
+  m_port_map.FreePortForProcess(pid);
   m_spawned_pids.erase(pid);
-  return true;
 }
 
 Status GDBRemoteCommunicationServerPlatform::LaunchProcess() {
@@ -432,11 +531,9 @@ Status GDBRemoteCommunicationServerPlatform::LaunchProcess() {
   // specify the process monitor if not already set.  This should generally be
   // what happens since we need to reap started processes.
   if (!m_process_launch_info.GetMonitorProcessCallback())
-    m_process_launch_info.SetMonitorProcessCallback(
-        std::bind(
-            &GDBRemoteCommunicationServerPlatform::DebugserverProcessReaped,
-            this, std::placeholders::_1),
-        false);
+    m_process_launch_info.SetMonitorProcessCallback(std::bind(
+        &GDBRemoteCommunicationServerPlatform::DebugserverProcessReaped, this,
+        std::placeholders::_1));
 
   Status error = Host::LaunchProcess(m_process_launch_info);
   if (!error.Success()) {
@@ -463,51 +560,6 @@ Status GDBRemoteCommunicationServerPlatform::LaunchProcess() {
 
 void GDBRemoteCommunicationServerPlatform::SetPortMap(PortMap &&port_map) {
   m_port_map = port_map;
-}
-
-uint16_t GDBRemoteCommunicationServerPlatform::GetNextAvailablePort() {
-  if (m_port_map.empty())
-    return 0; // Bind to port zero and get a port, we didn't have any
-              // limitations
-
-  for (auto &pair : m_port_map) {
-    if (pair.second == LLDB_INVALID_PROCESS_ID) {
-      pair.second = ~(lldb::pid_t)LLDB_INVALID_PROCESS_ID;
-      return pair.first;
-    }
-  }
-  return UINT16_MAX;
-}
-
-bool GDBRemoteCommunicationServerPlatform::AssociatePortWithProcess(
-    uint16_t port, lldb::pid_t pid) {
-  PortMap::iterator pos = m_port_map.find(port);
-  if (pos != m_port_map.end()) {
-    pos->second = pid;
-    return true;
-  }
-  return false;
-}
-
-bool GDBRemoteCommunicationServerPlatform::FreePort(uint16_t port) {
-  PortMap::iterator pos = m_port_map.find(port);
-  if (pos != m_port_map.end()) {
-    pos->second = LLDB_INVALID_PROCESS_ID;
-    return true;
-  }
-  return false;
-}
-
-bool GDBRemoteCommunicationServerPlatform::FreePortForProcess(lldb::pid_t pid) {
-  if (!m_port_map.empty()) {
-    for (auto &pair : m_port_map) {
-      if (pair.second == pid) {
-        pair.second = LLDB_INVALID_PROCESS_ID;
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 const FileSpec &GDBRemoteCommunicationServerPlatform::GetDomainSocketDir() {

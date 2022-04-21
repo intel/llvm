@@ -8,13 +8,13 @@
 
 #include "llvm/DebugInfo/CodeView/SymbolRecordHelpers.h"
 
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/DebugInfo/CodeView/SymbolDeserializer.h"
 
 using namespace llvm;
 using namespace llvm::codeview;
 
-template <typename RecordT> RecordT createRecord(const CVSymbol &sym) {
+template <typename RecordT> static RecordT createRecord(const CVSymbol &sym) {
   RecordT record(static_cast<SymbolRecordKind>(sym.kind()));
   cantFail(SymbolDeserializer::deserializeAs<RecordT>(sym, record));
   return record;

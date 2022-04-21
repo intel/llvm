@@ -25,7 +25,7 @@
 using namespace llvm;
 
 NVPTXFrameLowering::NVPTXFrameLowering()
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsUp, 8, 0) {}
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsUp, Align(8), 0) {}
 
 bool NVPTXFrameLowering::hasFP(const MachineFunction &MF) const { return true; }
 
@@ -35,6 +35,9 @@ void NVPTXFrameLowering::emitPrologue(MachineFunction &MF,
     assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
     MachineInstr *MI = &MBB.front();
     MachineRegisterInfo &MR = MF.getRegInfo();
+
+    const NVPTXRegisterInfo *NRI =
+        MF.getSubtarget<NVPTXSubtarget>().getRegisterInfo();
 
     // This instruction really occurs before first instruction
     // in the BB, so giving it no debug location.
@@ -50,25 +53,26 @@ void NVPTXFrameLowering::emitPrologue(MachineFunction &MF,
         (Is64Bit ? NVPTX::cvta_local_yes_64 : NVPTX::cvta_local_yes);
     unsigned MovDepotOpcode =
         (Is64Bit ? NVPTX::MOV_DEPOT_ADDR_64 : NVPTX::MOV_DEPOT_ADDR);
-    if (!MR.use_empty(NVPTX::VRFrame)) {
+    if (!MR.use_empty(NRI->getFrameRegister(MF))) {
       // If %SP is not used, do not bother emitting "cvta.local %SP, %SPL".
       MI = BuildMI(MBB, MI, dl,
                    MF.getSubtarget().getInstrInfo()->get(CvtaLocalOpcode),
-                   NVPTX::VRFrame)
-               .addReg(NVPTX::VRFrameLocal);
+                   NRI->getFrameRegister(MF))
+               .addReg(NRI->getFrameLocalRegister(MF));
     }
     BuildMI(MBB, MI, dl, MF.getSubtarget().getInstrInfo()->get(MovDepotOpcode),
-            NVPTX::VRFrameLocal)
+            NRI->getFrameLocalRegister(MF))
         .addImm(MF.getFunctionNumber());
   }
 }
 
-int NVPTXFrameLowering::getFrameIndexReference(const MachineFunction &MF,
-                                               int FI,
-                                               unsigned &FrameReg) const {
+StackOffset
+NVPTXFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
+                                           Register &FrameReg) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   FrameReg = NVPTX::VRDepot;
-  return MFI.getObjectOffset(FI) - getOffsetOfLocalArea();
+  return StackOffset::getFixed(MFI.getObjectOffset(FI) -
+                               getOffsetOfLocalArea());
 }
 
 void NVPTXFrameLowering::emitEpilogue(MachineFunction &MF,
@@ -82,4 +86,9 @@ MachineBasicBlock::iterator NVPTXFrameLowering::eliminateCallFramePseudoInstr(
   // Simply discard ADJCALLSTACKDOWN,
   // ADJCALLSTACKUP instructions.
   return MBB.erase(I);
+}
+
+TargetFrameLowering::DwarfFrameBase
+NVPTXFrameLowering::getDwarfFrameBase(const MachineFunction &MF) const {
+  return {DwarfFrameBase::CFA, {0}};
 }

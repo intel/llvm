@@ -1,30 +1,31 @@
-//===------------------------- cxa_default_handlers.cpp -------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
-// This file implements the default terminate_handler and unexpected_handler.
+// This file implements the default terminate_handler, unexpected_handler and
+// new_handler.
 //===----------------------------------------------------------------------===//
 
-#include <stdexcept>
-#include <new>
 #include <exception>
-#include <cstdlib>
+#include <stdlib.h>
 #include "abort_message.h"
 #include "cxxabi.h"
-#include "cxa_handlers.hpp"
-#include "cxa_exception.hpp"
+#include "cxa_handlers.h"
+#include "cxa_exception.h"
 #include "private_typeinfo.h"
-#include "include/atomic_support.h"
+#include "include/atomic_support.h" // from libc++
 
 #if !defined(LIBCXXABI_SILENT_TERMINATE)
-static const char* cause = "uncaught";
+
+static constinit const char* cause = "uncaught";
 
 __attribute__((noreturn))
 static void demangling_terminate_handler()
 {
+#ifndef _LIBCXXABI_NO_EXCEPTIONS
     // If there might be an uncaught exception
     using namespace __cxxabiv1;
     __cxa_eh_globals* globals = __cxa_get_globals_fast();
@@ -44,6 +45,7 @@ static void demangling_terminate_handler()
                         exception_header + 1;
                 const __shim_type_info* thrown_type =
                     static_cast<const __shim_type_info*>(exception_header->exceptionType);
+#if !defined(LIBCXXABI_NON_DEMANGLING_TERMINATE)
                 // Try to get demangled name of thrown_type
                 int status;
                 char buf[1024];
@@ -51,9 +53,12 @@ static void demangling_terminate_handler()
                 const char* name = __cxa_demangle(thrown_type->name(), buf, &len, &status);
                 if (status != 0)
                     name = thrown_type->name();
+#else
+                const char* name = thrown_type->name();
+#endif
                 // If the uncaught exception can be caught with std::exception&
                 const __shim_type_info* catch_type =
-				 static_cast<const __shim_type_info*>(&typeid(std::exception));
+                    static_cast<const __shim_type_info*>(&typeid(std::exception));
                 if (catch_type->can_catch(thrown_type, thrown_object))
                 {
                     // Include the what() message from the exception
@@ -71,6 +76,7 @@ static void demangling_terminate_handler()
                 abort_message("terminating with %s foreign exception", cause);
         }
     }
+#endif
     // Else just note that we're terminating
     abort_message("terminating");
 }
@@ -82,27 +88,30 @@ static void demangling_unexpected_handler()
     std::terminate();
 }
 
-static std::terminate_handler default_terminate_handler = demangling_terminate_handler;
-static std::terminate_handler default_unexpected_handler = demangling_unexpected_handler;
+static constexpr std::terminate_handler default_terminate_handler = demangling_terminate_handler;
+static constexpr std::terminate_handler default_unexpected_handler = demangling_unexpected_handler;
 #else
-static std::terminate_handler default_terminate_handler = std::abort;
-static std::terminate_handler default_unexpected_handler = std::terminate;
+static constexpr std::terminate_handler default_terminate_handler = ::abort;
+static constexpr std::terminate_handler default_unexpected_handler = std::terminate;
 #endif
 
 //
 // Global variables that hold the pointers to the current handler
 //
 _LIBCXXABI_DATA_VIS
-std::terminate_handler __cxa_terminate_handler = default_terminate_handler;
+constinit std::terminate_handler __cxa_terminate_handler = default_terminate_handler;
 
 _LIBCXXABI_DATA_VIS
-std::unexpected_handler __cxa_unexpected_handler = default_unexpected_handler;
+constinit std::unexpected_handler __cxa_unexpected_handler = default_unexpected_handler;
+
+_LIBCXXABI_DATA_VIS
+constinit std::new_handler __cxa_new_handler = nullptr;
 
 namespace std
 {
 
 unexpected_handler
-set_unexpected(unexpected_handler func) _NOEXCEPT
+set_unexpected(unexpected_handler func) noexcept
 {
     if (func == 0)
         func = default_unexpected_handler;
@@ -111,12 +120,18 @@ set_unexpected(unexpected_handler func) _NOEXCEPT
 }
 
 terminate_handler
-set_terminate(terminate_handler func) _NOEXCEPT
+set_terminate(terminate_handler func) noexcept
 {
     if (func == 0)
         func = default_terminate_handler;
     return __libcpp_atomic_exchange(&__cxa_terminate_handler, func,
                                     _AO_Acq_Rel);
+}
+
+new_handler
+set_new_handler(new_handler handler) noexcept
+{
+    return __libcpp_atomic_exchange(&__cxa_new_handler, handler, _AO_Acq_Rel);
 }
 
 }

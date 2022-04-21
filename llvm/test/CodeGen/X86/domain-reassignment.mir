@@ -49,7 +49,7 @@
 ...
 ---
 name:            test_fcmp_storefloat
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -145,7 +145,7 @@ body:             |
   ; CHECK:   [[DEF1:%[0-9]+]]:vr128 = IMPLICIT_DEF
   ; CHECK:   [[VMOVSSZrrk:%[0-9]+]]:vr128 = VMOVSSZrrk [[COPY15]], killed [[COPY14]], killed [[DEF1]], [[COPY5]]
   ; CHECK:   [[COPY16:%[0-9]+]]:fr32x = COPY [[VMOVSSZrrk]]
-  ; CHECK:   VMOVSSZmr [[COPY6]], 1, $noreg, 0, $noreg, killed [[COPY16]] :: (store 4 into %ir.fptr)
+  ; CHECK:   VMOVSSZmr [[COPY6]], 1, $noreg, 0, $noreg, killed [[COPY16]] :: (store (s32) into %ir.fptr)
   ; CHECK:   RET 0
   bb.0.entry:
     successors: %bb.1(0x40000000), %bb.2(0x40000000)
@@ -167,7 +167,7 @@ body:             |
   bb.1.if:
     successors: %bb.3(0x80000000)
 
-    %14 = VCMPSSZrr %7, %8, 0
+    %14 = VCMPSSZrr %7, %8, 0, implicit $mxcsr
 
     ; check that cross domain copies are replaced with same domain copies.
 
@@ -177,7 +177,7 @@ body:             |
 
   bb.2.else:
     successors: %bb.3(0x80000000)
-    %12 = VCMPSSZrr %9, %10, 0
+    %12 = VCMPSSZrr %9, %10, 0, implicit $mxcsr
 
     ; check that cross domain copies are replaced with same domain copies.
 
@@ -190,19 +190,19 @@ body:             |
 
     %2 = PHI %1, %bb.2, %0, %bb.1
     %17 = IMPLICIT_DEF
-    %16 = INSERT_SUBREG %17, %2, 1
+    %16 = INSERT_SUBREG %17, %2, %subreg.sub_8bit_hi
     %18 = COPY %16
     %19 = COPY %6
     %21 = IMPLICIT_DEF
     %20 = VMOVSSZrrk %19, killed %18, killed %21, %5
     %22 = COPY %20
-    VMOVSSZmr %4, 1, $noreg, 0, $noreg, killed %22 :: (store 4 into %ir.fptr)
+    VMOVSSZmr %4, 1, $noreg, 0, $noreg, killed %22 :: (store (s32) into %ir.fptr)
     RET 0
 
 ...
 ---
 name:            test_8bitops
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -292,7 +292,7 @@ body:             |
     %3 = COPY $zmm2
     %4 = COPY $zmm3
 
-    %5 = VCMPPDZrri %3, %4, 0
+    %5 = VCMPPDZrri %3, %4, 0, implicit $mxcsr
     %6 = COPY %5
     %7 = COPY %6.sub_8bit
 
@@ -305,7 +305,7 @@ body:             |
     %18 = ADD8rr %17, %14, implicit-def dead $eflags
 
     %8 = IMPLICIT_DEF
-    %9 = INSERT_SUBREG %8, %18, 1
+    %9 = INSERT_SUBREG %8, %18, %subreg.sub_8bit_hi
     %10 = COPY %9
     %11 = VMOVAPDZrrk %2, killed %10, %1
     VMOVAPDZmr %0, 1, $noreg, 0, $noreg, killed %11
@@ -323,7 +323,7 @@ body:             |
 ...
 ---
 name:            test_16bitops
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -411,7 +411,7 @@ body:             |
     %3 = COPY $zmm2
     %4 = COPY $zmm3
 
-    %5 = VCMPPSZrri %3, %4, 0
+    %5 = VCMPPSZrri %3, %4, 0, implicit $mxcsr
     %6 = COPY %5
     %7 = COPY %6.sub_16bit
 
@@ -423,7 +423,7 @@ body:             |
     %17 = XOR16rr %16, %12, implicit-def dead $eflags
 
     %8 = IMPLICIT_DEF
-    %9 = INSERT_SUBREG %8, %17, 3
+    %9 = INSERT_SUBREG %8, %17, %subreg.sub_16bit
     %10 = COPY %9
     %11 = VMOVAPSZrrk %2, killed %10, %1
     VMOVAPSZmr %0, 1, $noreg, 0, $noreg, killed %11
@@ -441,7 +441,7 @@ body:             |
 ...
 ---
 name:            test_32bitops
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -544,7 +544,7 @@ body:             |
 ...
 ---
 name:            test_64bitops
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -647,7 +647,7 @@ body:             |
 ...
 ---
 name:            test_16bitext
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -716,7 +716,7 @@ body:             |
 ...
 ---
 name:            test_32bitext
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -789,7 +789,7 @@ body:             |
 ...
 ---
 name:            test_64bitext
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false

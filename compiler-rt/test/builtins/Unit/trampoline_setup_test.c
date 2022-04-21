@@ -1,13 +1,5 @@
 // RUN: %clang_builtins %s %librt -fnested-functions -o %t && %run %t
-/* ===-- trampoline_setup_test.c - Test __trampoline_setup -----------------===
- *
- * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
- * See https://llvm.org/LICENSE.txt for license information.
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
- *
- * ===----------------------------------------------------------------------===
- */
-
+// REQUIRES: librt_has_trampoline_setup
 
 #include <stdio.h>
 #include <string.h>

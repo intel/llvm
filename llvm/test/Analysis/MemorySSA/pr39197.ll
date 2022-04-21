@@ -1,4 +1,4 @@
-; RUN: opt -mtriple=s390x-linux-gnu -mcpu=z13 -enable-mssa-loop-dependency -verify-memoryssa -sroa -globalopt -functionattrs -simplifycfg -licm -loop-unswitch %s -S | FileCheck %s
+; RUN: opt -mtriple=s390x-linux-gnu -mcpu=z13 -verify-memoryssa -sroa -globalopt -function-attrs -simplifycfg -licm -simple-loop-unswitch %s -S | FileCheck %s
 ; REQUIRES: asserts
 
 target datalayout = "E-m:e-i1:8:16-i8:8:16-i64:64-f128:64-v128:64-a:8:16-n32:64"
@@ -133,7 +133,7 @@ define dso_local void @safe_add_func_uint8_t_u_u() #0 {
   ret void
 }
 
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="z13" "target-features"="+transactional-execution,+vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="z13" "target-features"="+transactional-execution,+vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }
 attributes #2 = { nounwind }
 

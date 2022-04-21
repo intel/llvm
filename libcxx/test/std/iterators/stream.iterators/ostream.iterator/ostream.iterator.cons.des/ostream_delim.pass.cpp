@@ -16,6 +16,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 
 struct MyTraits : std::char_traits<char> {};
 
@@ -31,11 +33,13 @@ int main(int, char**)
         std::ostream_iterator<int> i(outf, ", ");
         assert(outf.good());
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wostringstream outf;
         std::ostream_iterator<double, wchar_t> i(outf, L", ");
         assert(outf.good());
     }
+#endif
     {
         StringStream outf;
         std::ostream_iterator<int, char, MyTraits> i(outf, ", ");

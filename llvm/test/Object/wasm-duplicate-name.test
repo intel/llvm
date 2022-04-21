@@ -7,8 +7,9 @@ Sections:
   - Type:            TYPE
     Signatures:
       - Index:           0
-        ReturnType:      I32
         ParamTypes:
+          - I32
+        ReturnTypes:
           - I32
   - Type:            IMPORT
     Imports:
@@ -25,4 +26,4 @@ Sections:
         Name:          b
 ...
 
-# CHECK: {{.*}}: Function named more than once
+# CHECK: {{.*}}: function named more than once

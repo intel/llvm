@@ -23,8 +23,10 @@
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
+#include <fstream>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -69,7 +71,7 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     SmallVector<Arg *, 4> AllocatedArgs;
     DerivedArgList *OffloadArgs = nullptr;
     // Translate offload toolchain arguments provided via the -Xopenmp-target
-    // or -Xsycl-target flags.
+    // or -Xsycl-target-frontend flags.
     if (DeviceOffloadKind == Action::OFK_OpenMP ||
         DeviceOffloadKind == Action::OFK_SYCL) {
       const ToolChain *HostTC = getSingleOffloadToolChain<Action::OFK_Host>();
@@ -78,16 +80,29 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
           *TranslatedArgs, SameTripleAsHost, AllocatedArgs, DeviceOffloadKind);
     }
 
+    DerivedArgList *NewDAL = nullptr;
     if (!OffloadArgs) {
+      NewDAL = TC->TranslateXarchArgs(*TranslatedArgs, BoundArch,
+                                      DeviceOffloadKind, &AllocatedArgs);
+    } else {
+      NewDAL = TC->TranslateXarchArgs(*OffloadArgs, BoundArch, DeviceOffloadKind,
+                                      &AllocatedArgs);
+      if (!NewDAL)
+        NewDAL = OffloadArgs;
+      else
+        delete OffloadArgs;
+    }
+
+    if (!NewDAL) {
       Entry = TC->TranslateArgs(*TranslatedArgs, BoundArch, DeviceOffloadKind);
       if (!Entry)
         Entry = TranslatedArgs;
     } else {
-      Entry = TC->TranslateArgs(*OffloadArgs, BoundArch, DeviceOffloadKind);
+      Entry = TC->TranslateArgs(*NewDAL, BoundArch, DeviceOffloadKind);
       if (!Entry)
-        Entry = OffloadArgs;
+        Entry = NewDAL;
       else
-        delete OffloadArgs;
+        delete NewDAL;
     }
 
     // Add allocated arguments to the final DAL.
@@ -128,11 +143,42 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   return true;
 }
 
-bool Compilation::CleanupFileList(const llvm::opt::ArgStringList &Files,
+bool Compilation::CleanupFileList(const TempFileList &Files,
                                   bool IssueErrors) const {
   bool Success = true;
-  for (const auto &File: Files)
-    Success &= CleanupFile(File, IssueErrors);
+  for (const auto &File: Files) {
+    // Temporary file lists contain files that need to be cleaned. The
+    // file containing the information is also removed
+    if (File.second == types::TY_Tempfilelist ||
+        File.second == types::TY_Tempfiletable ||
+        File.second == types::TY_FPGA_Dependencies_List) {
+      // These are temporary files and need to be removed.
+      bool IsTable = File.second == types::TY_Tempfiletable;
+
+      if (IsTable) {
+        if (llvm::sys::fs::exists(File.first)) {
+          auto T = llvm::util::SimpleTable::read(File.first);
+          if (!T) {
+            Success = false;
+            continue;
+          }
+          std::vector<std::string> TmpFileNames;
+          T->get()->linearize(TmpFileNames);
+
+          for (const auto &TmpFileName : TmpFileNames) {
+            if (!TmpFileName.empty())
+              Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
+          }
+        }
+      } else {
+        std::ifstream ListFile(File.first);
+        std::string TmpFileName;
+        while (std::getline(ListFile, TmpFileName) && !TmpFileName.empty())
+          Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
+      }
+    }
+    Success &= CleanupFile(File.first, IssueErrors);
+  }
   return Success;
 }
 
@@ -155,39 +201,48 @@ int Compilation::ExecuteCommand(const Command &C,
   if ((getDriver().CCPrintOptions ||
        getArgs().hasArg(options::OPT_v)) && !getDriver().CCGenDiagnostics) {
     raw_ostream *OS = &llvm::errs();
+    std::unique_ptr<llvm::raw_fd_ostream> OwnedStream;
 
     // Follow gcc implementation of CC_PRINT_OPTIONS; we could also cache the
     // output stream.
-    if (getDriver().CCPrintOptions && getDriver().CCPrintOptionsFilename) {
+    if (getDriver().CCPrintOptions &&
+        !getDriver().CCPrintOptionsFilename.empty()) {
       std::error_code EC;
-      OS = new llvm::raw_fd_ostream(getDriver().CCPrintOptionsFilename, EC,
-                                    llvm::sys::fs::F_Append |
-                                        llvm::sys::fs::F_Text);
+      OwnedStream.reset(new llvm::raw_fd_ostream(
+          getDriver().CCPrintOptionsFilename, EC,
+          llvm::sys::fs::OF_Append | llvm::sys::fs::OF_TextWithCRLF));
       if (EC) {
         getDriver().Diag(diag::err_drv_cc_print_options_failure)
             << EC.message();
         FailingCommand = &C;
-        delete OS;
         return 1;
       }
+      OS = OwnedStream.get();
     }
 
     if (getDriver().CCPrintOptions)
-      *OS << "[Logging clang options]";
+      *OS << "[Logging clang options]\n";
 
     C.Print(*OS, "\n", /*Quote=*/getDriver().CCPrintOptions);
-
-    if (OS != &llvm::errs())
-      delete OS;
   }
 
   std::string Error;
   bool ExecutionFailed;
   int Res = C.Execute(Redirects, &Error, &ExecutionFailed);
+  if (PostCallback)
+    PostCallback(C, Res);
   if (!Error.empty()) {
     assert(Res && "Error string set with 0 result code!");
     getDriver().Diag(diag::err_drv_command_failure) << Error;
   }
+
+  // When performing preprocessing, we need to be able to produce the
+  // preprocessed output even if the compilation is not valid.  If
+  // the device compilation fails for SYCL allow the failure to pass
+  // through so we can still generate the expected preprocessed files.
+  if (Res && C.getSource().isDeviceOffloading(Action::OFK_SYCL) &&
+      getArgs().hasArg(options::OPT_E))
+    return 0;
 
   if (Res)
     FailingCommand = &C;
@@ -202,10 +257,15 @@ static bool ActionFailed(const Action *A,
   if (FailingCommands.empty())
     return false;
 
-  // CUDA/HIP can have the same input source code compiled multiple times so do
-  // not compiled again if there are already failures. It is OK to abort the
-  // CUDA pipeline on errors.
-  if (A->isOffloading(Action::OFK_Cuda) || A->isOffloading(Action::OFK_HIP))
+  for (const auto &CI : FailingCommands)
+    if (!CI.second->getWillExitForErrorCode(CI.first))
+      return false;
+
+  // CUDA/HIP/SYCL can have the same input source code compiled multiple times
+  // so do not compile again if there are already failures. It is OK to abort
+  // the CUDA pipeline on errors.
+  if (A->isOffloading(Action::OFK_Cuda) || A->isOffloading(Action::OFK_HIP) ||
+      A->isOffloading(Action::OFK_SYCL))
     return true;
 
   for (const auto &CI : FailingCommands)
@@ -237,7 +297,9 @@ void Compilation::ExecuteJobs(const JobList &Jobs,
     if (int Res = ExecuteCommand(Job, FailingCommand)) {
       FailingCommands.push_back(std::make_pair(Res, FailingCommand));
       // Bail as soon as one command fails in cl driver mode.
-      if (TheDriver.IsCLMode())
+      // Do not bail when the tool is setup to allow for continuation upon
+      // failure.
+      if (TheDriver.IsCLMode() && FailingCommand->getWillExitForErrorCode(Res))
         return;
     }
   }
@@ -262,13 +324,22 @@ void Compilation::initCompilationForDiagnostics() {
 
   // Remove any user specified output.  Claim any unclaimed arguments, so as
   // to avoid emitting warnings about unused args.
-  OptSpecifier OutputOpts[] = { options::OPT_o, options::OPT_MD,
-                                options::OPT_MMD };
+  OptSpecifier OutputOpts[] = {
+      options::OPT_o,  options::OPT_MD, options::OPT_MMD, options::OPT_M,
+      options::OPT_MM, options::OPT_MF, options::OPT_MG,  options::OPT_MJ,
+      options::OPT_MQ, options::OPT_MT, options::OPT_MV};
   for (unsigned i = 0, e = llvm::array_lengthof(OutputOpts); i != e; ++i) {
     if (TranslatedArgs->hasArg(OutputOpts[i]))
       TranslatedArgs->eraseArg(OutputOpts[i]);
   }
   TranslatedArgs->ClaimAllArgs();
+
+  // Force re-creation of the toolchain Args, otherwise our modifications just
+  // above will have no effect.
+  for (auto Arg : TCArgs)
+    if (Arg.second != TranslatedArgs)
+      delete Arg.second;
+  TCArgs.clear();
 
   // Redirect stdout/stderr to /dev/null.
   Redirects = {None, {""}, {""}};

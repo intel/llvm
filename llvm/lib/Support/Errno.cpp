@@ -11,9 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/Errno.h"
-#include "llvm/Config/config.h" // Get autoconf configuration settings
-#include "llvm/Support/raw_ostream.h"
-#include <string.h>
+#include "llvm/Config/config.h"
+#include <cstring>
 
 #if HAVE_ERRNO_H
 #include <errno.h>

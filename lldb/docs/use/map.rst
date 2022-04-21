@@ -199,7 +199,7 @@ Execution Commands
                <td class="content">
                </td>
                <td class="content">
-                  <b>(lldb)</b> process launch -v DEBUG=1
+                  <b>(lldb)</b> process launch -E DEBUG=1
                   <br>
                </td>
          </tr>
@@ -609,6 +609,38 @@ Breakpoint Commands
                </td>
          </tr>
 
+         <tr>
+               <td class="header" colspan="2">Disable a breakpoint.</td>
+         </tr>
+         <tr>
+               <td class="content">
+                  <b>(gdb)</b> disable 1
+                  <br>
+               </td>
+               <td class="content">
+                  <b>(lldb)</b> breakpoint disable 1
+                  <br>
+                  <b>(lldb)</b> br dis 1
+                  <br>
+               </td>
+         </tr>
+
+         <tr>
+               <td class="header" colspan="2">Enable a breakpoint.</td>
+         </tr>
+         <tr>
+               <td class="content">
+                  <b>(gdb)</b> enable 1
+                  <br>
+               </td>
+               <td class="content">
+                  <b>(lldb)</b> breakpoint enable 1
+                  <br>
+                  <b>(lldb)</b> br en 1
+                  <br>
+               </td>
+         </tr>
+
       </tbody>
    </table>
 
@@ -876,6 +908,20 @@ Examining Variables
                   <b>(lldb)</b> target stop-hook add --classname MyClass --one-liner "frame variable *this"
                   <br>
                   <b>(lldb)</b> ta st a -c MyClass -o "fr v *this"
+                  <br>
+               </td>
+         </tr>
+
+         <tr>
+               <td class="header" colspan="2">Print an array of integers in memory, assuming we have a pointer like "int *ptr".</td>
+         </tr>
+         <tr>
+               <td class="content">
+                  <b>(gdb)</b> p *ptr@10
+                  <br>
+               </td>
+               <td class="content">
+                  <b>(lldb)</b> parray 10 ptr
                   <br>
                </td>
          </tr>

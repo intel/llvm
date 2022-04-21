@@ -8,6 +8,7 @@
 
 #include "MCTargetDesc/SparcFixupKinds.h"
 #include "MCTargetDesc/SparcMCTargetDesc.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
@@ -15,7 +16,8 @@
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCValue.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/EndianStream.h"
 
 using namespace llvm;
 
@@ -51,6 +53,7 @@ static unsigned adjustFixupValue(unsigned Kind, uint64_t Value) {
   case Sparc::fixup_sparc_tls_ldm_hi22:
   case Sparc::fixup_sparc_tls_ie_hi22:
   case Sparc::fixup_sparc_hi22:
+  case Sparc::fixup_sparc_lm:
     return (Value >> 10) & 0x3fffff;
 
   case Sparc::fixup_sparc_got13:
@@ -129,6 +132,23 @@ namespace {
       return Sparc::NumTargetFixupKinds;
     }
 
+    Optional<MCFixupKind> getFixupKind(StringRef Name) const override {
+      unsigned Type;
+      Type = llvm::StringSwitch<unsigned>(Name)
+#define ELF_RELOC(X, Y) .Case(#X, Y)
+#include "llvm/BinaryFormat/ELFRelocs/Sparc.def"
+#undef ELF_RELOC
+                 .Case("BFD_RELOC_NONE", ELF::R_SPARC_NONE)
+                 .Case("BFD_RELOC_8", ELF::R_SPARC_8)
+                 .Case("BFD_RELOC_16", ELF::R_SPARC_16)
+                 .Case("BFD_RELOC_32", ELF::R_SPARC_32)
+                 .Case("BFD_RELOC_64", ELF::R_SPARC_64)
+                 .Default(-1u);
+      if (Type == -1u)
+        return None;
+      return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
+    }
+
     const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override {
       const static MCFixupKindInfo InfosBE[Sparc::NumTargetFixupKinds] = {
         // name                    offset bits  flags
@@ -145,6 +165,7 @@ namespace {
         { "fixup_sparc_l44",       20,     12,  0 },
         { "fixup_sparc_hh",        10,     22,  0 },
         { "fixup_sparc_hm",        22,     10,  0 },
+        { "fixup_sparc_lm",        10,     22,  0 },
         { "fixup_sparc_pc22",      10,     22,  MCFixupKindInfo::FKF_IsPCRel },
         { "fixup_sparc_pc10",      22,     10,  MCFixupKindInfo::FKF_IsPCRel },
         { "fixup_sparc_got22",     10,     22,  0 },
@@ -186,6 +207,7 @@ namespace {
         { "fixup_sparc_l44",        0,     12,  0 },
         { "fixup_sparc_hh",         0,     22,  0 },
         { "fixup_sparc_hm",         0,     10,  0 },
+        { "fixup_sparc_lm",         0,     22,  0 },
         { "fixup_sparc_pc22",       0,     22,  MCFixupKindInfo::FKF_IsPCRel },
         { "fixup_sparc_pc10",       0,     10,  MCFixupKindInfo::FKF_IsPCRel },
         { "fixup_sparc_got22",      0,     22,  0 },
@@ -212,6 +234,11 @@ namespace {
         { "fixup_sparc_tls_le_lox10",   0,  0,  0 }
       };
 
+      // Fixup kinds from .reloc directive are like R_SPARC_NONE. They do
+      // not require any extra processing.
+      if (Kind >= FirstLiteralRelocationKind)
+        return MCAsmBackend::getFixupKindInfo(FK_NONE);
+
       if (Kind < FirstTargetFixupKind)
         return MCAsmBackend::getFixupKindInfo(Kind);
 
@@ -225,6 +252,8 @@ namespace {
 
     bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
                                const MCValue &Target) override {
+      if (Fixup.getKind() >= FirstLiteralRelocationKind)
+        return true;
       switch ((Sparc::Fixups)Fixup.getKind()) {
       default:
         return false;
@@ -254,12 +283,6 @@ namespace {
       }
     }
 
-    bool mayNeedRelaxation(const MCInst &Inst,
-                           const MCSubtargetInfo &STI) const override {
-      // FIXME.
-      return false;
-    }
-
     /// fixupNeedsRelaxation - Target specific predicate for whether a given
     /// fixup requires the associated instruction to be relaxed.
     bool fixupNeedsRelaxation(const MCFixup &Fixup,
@@ -270,13 +293,14 @@ namespace {
       llvm_unreachable("fixupNeedsRelaxation() unimplemented");
       return false;
     }
-    void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
-                          MCInst &Res) const override {
+    void relaxInstruction(MCInst &Inst,
+                          const MCSubtargetInfo &STI) const override {
       // FIXME.
       llvm_unreachable("relaxInstruction() unimplemented");
     }
 
-    bool writeNopData(raw_ostream &OS, uint64_t Count) const override {
+    bool writeNopData(raw_ostream &OS, uint64_t Count,
+                      const MCSubtargetInfo *STI) const override {
       // Cannot emit NOP with size not multiple of 32 bits.
       if (Count % 4 != 0)
         return false;
@@ -300,6 +324,8 @@ namespace {
                     uint64_t Value, bool IsResolved,
                     const MCSubtargetInfo *STI) const override {
 
+      if (Fixup.getKind() >= FirstLiteralRelocationKind)
+        return;
       Value = adjustFixupValue(Fixup.getKind(), Value);
       if (!Value) return;           // Doesn't change encoding.
 

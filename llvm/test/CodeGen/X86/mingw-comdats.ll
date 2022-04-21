@@ -2,7 +2,7 @@
 ; RUN: llc -function-sections -mtriple=x86_64-windows-msvc < %s | FileCheck %s
 ; RUN: llc -function-sections -mtriple=x86_64-w64-windows-gnu < %s | FileCheck %s --check-prefix=GNU
 ; RUN: llc -function-sections -mtriple=i686-w64-windows-gnu < %s | FileCheck %s --check-prefix=GNU32
-; RUN: llc -function-sections -mtriple=x86_64-w64-windows-gnu < %s -filetype=obj | llvm-objdump - -headers | FileCheck %s --check-prefix=GNUOBJ
+; RUN: llc -function-sections -mtriple=x86_64-w64-windows-gnu < %s -filetype=obj | llvm-objdump - --headers | FileCheck %s --check-prefix=GNUOBJ
 
 ; GCC and MSVC handle comdats completely differently. Make sure we do the right
 ; thing for each.
@@ -74,14 +74,26 @@ entry:
 ; GNU32: .long 42
 
 
+define linkonce_odr dso_local i32 @_Z3fooj(i32 %x) !section_prefix !0 {
+entry:
+  %call = tail call i32 @_Z3bari(i32 %x)
+  %0 = load i32, i32* @gv, align 4
+  %add = add nsw i32 %0, %call
+  ret i32 %add
+}
+
 ; Make sure the assembler puts the .xdata and .pdata in sections with the right
 ; names.
 ; GNUOBJ: .text$_Z3fooi
 ; GNUOBJ: .xdata$_Z3fooi
+; GNUOBJ: .text$unlikely$_Z3fooj
+; GNUOBJ: .xdata$unlikely$_Z3fooj
 ; GNUOBJ: .data$gv
 ; GNUOBJ: .pdata$_Z3fooi
+; GNUOBJ: .pdata$unlikely$_Z3fooj
 
 declare dso_local i32 @_Z3bari(i32)
 
 attributes #0 = { norecurse uwtable }
 attributes #1 = { inlinehint uwtable }
+!0 = !{!"function_section_prefix", !"unlikely"}

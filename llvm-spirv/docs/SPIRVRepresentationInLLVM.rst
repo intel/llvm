@@ -8,7 +8,7 @@ Overview
 ========
 
 As one of the goals of SPIR-V is to `"map easily to other IRs, including LLVM
-IR" <https://cvs.khronos.org/svn/repos/SPIRV/trunk/specs/SPIRV.html#_goals>`_,
+IR" <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_goals>`_,
 most of SPIR-V entities (global variables, constants, types, functions, basic
 blocks, instructions) have straightforward counterparts in LLVM. Therefore the
 focus of this document is those entities in SPIR-V which do not map to LLVM in
@@ -17,10 +17,11 @@ an obvious way. These include:
  * SPIR-V types mapped to LLVM types
  * SPIR-V instructions mapped to LLVM function calls
  * SPIR-V extended instructions mapped to LLVM function calls
- * SPIR-V builtins variables mapped to LLVM global variables
+ * SPIR-V builtin variables mapped to LLVM function calls or LLVM global variables
  * SPIR-V instructions mapped to LLVM metadata
  * SPIR-V types mapped to LLVM opaque types
  * SPIR-V decorations mapped to LLVM metadata or named attributes
+ * Additional requirements for LLVM module
 
 SPIR-V Types Mapped to LLVM Types
 =================================
@@ -74,6 +75,28 @@ mangled as __spirv_{TypeName}, where {TypeName} is the name of the SPIR-V
 type with "OpType" removed, e.g., OpTypeEvent is mapped to spirv.Event and
 mangled as __spirv_Event.
 
+Address spaces
+--------------
+
+The following
+`SPIR-V storage classes <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#Storage_Class>`_
+are naturally represented as LLVM IR address spaces with the following mapping:
+
+====================    ====================================
+SPIR-V storage class    LLVM IR address space
+====================    ====================================
+``Function``            No address space or ``addrspace(0)``
+``CrossWorkgroup``      ``addrspace(1)``
+``UniformConstant``     ``addrspace(2)``
+``Workgroup``           ``addrspace(3)``
+``Generic``             ``addrspace(4)``
+====================    ====================================
+
+SPIR-V extensions are allowed to add new storage classes. For example,
+SPV_INTEL_usm_storage_classes extension adds ``DeviceOnlyINTEL`` and
+``HostOnlyINTEL`` storage classes which are mapped to ``addrspace(5)`` and
+``addrspace(6)`` respectively.
+
 SPIR-V Instructions Mapped to LLVM Function Calls
 =================================================
 
@@ -81,7 +104,7 @@ Some SPIR-V instructions which can be included in basic blocks do not have
 corresponding LLVM instructions or intrinsics. These SPIR-V instructions are
 represented by function calls in LLVM. The function corresponding to a SPIR-V
 instruction is termed SPIR-V builtin function and its name is `IA64 mangled
-<https://mentorembedded.github.io/cxx-abi/abi.html#mangling>`_ with extensions
+<https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling>`_ with extensions
 for SPIR-V specific types. The unmangled name of a SPIR-V builtin function
 follows the convention
 
@@ -150,8 +173,17 @@ The unmangled names of SPIR-V builtin GenericCastToPtrExplicit function follow t
 .. code-block:: c
 
   __spirv_GenericCastToPtrExplicit_To{Global|Local|Private}
-  
-SPIR-V 1.1 Builtin CreatePipeFromPipeStorage Function Name 
+
+SPIR-V Builtin BuildNDRange Function Name
+----------------------------------------
+
+The unmangled names of SPIR-V builtin BuildNDRange functions follow the convention:
+
+.. code-block:: c
+
+  __spirv_{BuildNDRange}_{1|2|3}D
+
+SPIR-V 1.1 Builtin CreatePipeFromPipeStorage Function Name
 ----------------------------------------
 
 The unmangled names of SPIR-V builtin CreatePipeFromPipeStorage function follow the convention:
@@ -194,11 +226,58 @@ where
  * {VectorLoadOpCodeName} = vloadn|vload_half|vload_halfn|vloada_halfn
 
 
-SPIR-V Builtins Variables Mapped to LLVM Global Variables
-=========================================================
+SPIR-V Builtin Variables Mapped to LLVM Function Calls or LLVM Global Variables
+===============================================================================
 
-SPIR-V builtin variables are mapped to LLVM global variables with unmangled
-name __spirv_BuiltIn{Name}.
+By default each access of SPIR-V builtin variable's value is mapped to LLVM
+function call. The unmangled names of these functions follow the convention:
+
+.. code-block:: c
+
+  __spirv_BuiltIn{VariableName}
+
+In case if SPIR-V builtin variable has vector type, the corresponding
+LLVM function will have an integer argument, so each access of the variable's
+scalar component is mapped to a function call with index argument, i.e.:
+
+.. code-block:: llvm
+
+  ; For scalar variables
+  ; SPIR-V
+  OpDecorate %__spirv_BuiltInGlobalInvocationId BuiltIn GlobalInvocationId
+  %13 = OpLoad %uint %__spirv_BuiltInGlobalLinearId Aligned 4
+
+  ; Will be transformed into the following LLVM IR:
+  %0 = call spir_func i32 @_Z29__spirv_BuiltInGlobalLinearIdv()
+
+  ; For vector variables
+  ; SPIRV
+  OpDecorate %__spirv_BuiltInGlobalInvocationId BuiltIn GlobalInvocationId
+  %14 = OpLoad %v3ulong %__spirv_BuiltInGlobalInvocationId Aligned 32
+  %15 = OpCompositeExtract %ulong %14 1
+
+  ; Can be transformed into the following LLVM IR:
+  %0 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1)
+
+  ; However SPIRV-LLVM translator will transform it to the following pattern:
+  %1 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0)
+  %2 = insertelement <3 x i64> undef, i64 %1, i32 0
+  %3 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1)
+  %4 = insertelement <3 x i64> %2, i64 %3, i32 1
+  %5 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 2)
+  %6 = insertelement <3 x i64> %4, i64 %5, i32 2
+  %7 = extractelement <3 x i64> %6, i32 1
+  ; In case some actions are performed with the variable's value in vector form.
+
+SPIR-V builtin variables can also be mapped to LLVM global variables with
+unmangled name __spirv_BuiltIn{Name}.
+
+The representation with variables is closer to SPIR-V, so it is easier to
+translate from SPIR-V to LLVM and back using it.
+Hovewer in languages like OpenCL the functionality covered by SPIR-V builtin
+variables is usually represented by builtin functions, so it is easier to
+translate from/to SPIR-V friendly IR to/from LLVM IR produced from OpenCL-like
+source languages. That is why both forms of mapping are supported.
 
 SPIR-V instructions mapped to LLVM metadata
 ===========================================
@@ -209,9 +288,51 @@ following format:
 
 .. code-block:: llvm
 
-  !spirv.<OpCodeName> = !{!<InstructionMetadata1>, <InstructionMetadata2>, ..}
+  !spirv.<OpCodeName> = !{!<InstructionMetadata1>, !<InstructionMetadata2>, ..}
   !<InstructionMetadata1> = !{<Operand1>, <Operand2>, ..}
   !<InstructionMetadata2> = !{<Operand1>, <Operand2>, ..}
+
++--------------------+---------------------------------------------------------+
+| SPIR-V instruction | LLVM IR                                                 |
++====================+=========================================================+
+| OpSource           | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.Source = !{!0}                                |
+|                    |    !0 = !{i32 3, i32 66048, !1}                         |
+|                    |    ; 3 - OpenCL_C                                       |
+|                    |    ; 66048 = 0x10200 - OpenCL version 1.2               |
+|                    |    ; !1 - optional file id.                             |
+|                    |    !1 = !{!"/tmp/opencl/program.cl"}                    |
++--------------------+---------------------------------------------------------+
+| OpSourceExtension  | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.SourceExtension = !{!0, !1}                   |
+|                    |    !0 = !{!"cl_khr_fp16"}                               |
+|                    |    !1 = !{!"cl_khr_gl_sharing"}                         |
++--------------------+---------------------------------------------------------+
+| OpExtension        | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.Extension = !{!0}                             |
+|                    |    !0 = !{!"SPV_KHR_expect_assume"}                     |
++--------------------+---------------------------------------------------------+
+| OpCapability       | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.Capability = !{!0}                            |
+|                    |    !0 = !{i32 10} ; Float64 - program uses doubles      |
++--------------------+---------------------------------------------------------+
+| OpExecutionMode    | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.ExecutionMode = !{!0}                         |
+|                    |    !0 = !{void ()* @worker, i32 30, i32 262149}         |
+|                    |    ; Set execution mode with id 30 (VecTypeHint) and    |
+|                    |    ; literal `262149` operand.                          |
++--------------------+---------------------------------------------------------+
+| Generator's magic  | .. code-block:: llvm                                    |
+| number - word # 2  |                                                         |
+| in SPIR-V module   |    !spirv.Generator = !{!0}                             |
+|                    |    !0 = !{i16 6, i16 123}                               |
+|                    |    ; 6 - Generator Id, 123 - Generator Version          |
++--------------------+---------------------------------------------------------+
 
 For example:
 
@@ -239,3 +360,178 @@ For example:
   !9 = !{!7, i32 32}     ; independent forward progress is required for 'kernel2'
   !10 = !{i16 6, i16 123} ; 6 - Generator Id, 123 - Generator Version 
 
+Additional requirements for LLVM module
+=======================================
+
+Target triple and datalayout string
+-----------------------------------
+
+Target triple architecture must be ``spir`` (32-bit architecture) or ``spir64``
+(64-bit architecture) and ``datalayout`` string must be aligned with OpenCL
+environment specification requirements for data type sizes and alignments (e.g.
+3-element vector must have 4-element vector alignment). For example:
+
+.. code-block:: llvm
+
+   target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+   target triple = "spir-unknown-unknown"
+
+Target triple architecture is translated to
+`addressing model operand <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_addressing_model_a_addressing_model>`_
+of
+`OpMemoryModel <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_mode_setting_a_mode_setting_instructions>`_
+SPIR-V instruction.
+
+- ``spir`` -> Physical32
+- ``spir64`` -> Physical64
+
+Calling convention
+------------------
+
+``OpEntryPoint`` information is represented in LLVM IR in calling convention.
+A function with ``spir_kernel`` calling convention will be translated as an entry
+point of the SPIR-V module.
+
+Function metadata
+-----------------
+
+Some kernel parameter information is stored in LLVM IR as a function metadata.
+
+For example:
+
+.. code-block:: llvm
+
+  !kernel_arg_addr_space !1
+  !kernel_arg_access_qual !2
+  !kernel_arg_type !3
+  !kernel_arg_base_type !4
+  !kernel_arg_type_qual !5
+
+**NOTE**: All metadata from the example above are optional. Access qualifiers
+are translated for image types, but they should be encoded in LLVM IR type name
+rather than function metadata.
+
+Function parameter and global variable decoration through metadata
+------------------------------------------------------------------
+
+Both function parameters and global variables can be decorated using LLVM
+metadata through the metadata names ``spirv.ParameterDecorations`` and
+``spirv.Decorations`` respectively. ``spirv.ParameterDecorations`` must be tied
+to the kernel function while ``spirv.Decorations`` is tied directly to the
+global variable.
+
+A "decoration-node" is a metadata node consisting of one or more operands. The
+first operand is an integer literal representing the SPIR-V decoration
+identifier. The other operands are either an integer or string literal
+representing the remaining extra operands of the corresponding SPIR-V
+decoration.
+
+A "decoration-list" is a metadata node consisting of references to zero or more
+decoration-nodes.
+
+``spirv.Decorations`` must refer to a decoration-list while
+``spirv.ParameterDecorations`` must refer to a metadata node that contains N
+references to decoration-lists, where N is the number of arguments of the
+function the metadata is tied to.
+
+``spirv.Decorations`` example:
+
+.. code-block:: llvm
+
+  @v = global i32 0, !spirv.Decorations !1
+  ...
+  !1 = !{!2, !3}               ; decoration-list with two decoration nodes
+  !2 = !{i32 22}               ; decoration-node with no extra operands
+  !3 = !{i32 41, !"v", i32 0}  ; decoration-node with 2 extra operands
+
+decorates a global variable ``v`` with ``Constant`` and ``LinkageAttributes``
+with extra operands ``"v"`` and ``Export`` in SPIR-V.
+
+``spirv.ParameterDecorations`` example:
+
+.. code-block:: llvm
+
+  define spir_kernel void @k(float %a, float %b) #0 !spirv.ParameterDecorations !1
+  ...
+  !1 = !{!2, !3} ; metadata node with 2 decoration-lists
+  !2 = !{}       ; empty decoration-list
+  !3 = !{!4}     ; decoration-list with one decoration node
+  !4 = !{i32 19} ; decoration-node with no extra operands
+
+decorates the argument ``b`` of ``k`` with ``Restrict`` in SPIR-V while not
+adding any decoration to argument ``a``.
+
+Member decoration through pointer annotations
+---------------------------------------------
+
+Class members can be decorated using the ``llvm.ptr.annotation`` LLVM IR
+intrinsic. Member decorations specified in ``llvm.ptr.annotation`` must be in
+the second argument and must have the format ``{X}`` or ``{X:Y}`` where ``X`` is
+either one of the reserved names or an integer literal representing the SPIR-V
+decoration identifier and ``Y`` is 1 or more arguments separated by ",", where
+each argument must be either a word (including numbers) or a string enclosed by
+quotation marks. The ``llvm.ptr.annotation`` can contain any number decorations
+following this format.
+
+For example, both ``{5835:1,2,3}`` and ``{bank_bits:1,2,3}`` will result in the
+``BankwidthINTEL`` decoration with literals 1, 2, and 3 attached to the
+annotated member.
+
+The translator accepts a number of reserved names that correspond to SPIR-V
+member decorations.
+
++-----------------------+------------------+-----------------------------------+
+| Decoration            | Reserved Name    | Note                              |
++=======================+==================+===================================+
+| RegisterINTEL         | register         | Additional arguments are ignored, |
+|                       |                  | but reverse translation will add  |
+|                       |                  | a 1 argument, i.e.                |
+|                       |                  | ``{register:1}``.                 |
++-----------------------+------------------+-----------------------------------+
+| MemoryINTEL           | memory           |                                   |
++-----------------------+------------------+-----------------------------------+
+| NumbanksINTEL         | numbanks         |                                   |
++-----------------------+------------------+-----------------------------------+
+| BankwidthINTEL        | bankwidth        |                                   |
++-----------------------+------------------+-----------------------------------+
+| MaxPrivateCopiesINTEL | private_copies   |                                   |
++-----------------------+------------------+-----------------------------------+
+| SinglepumpINTEL       | pump             | Reserved name is shared with      |
+|                       |                  | DoublepumpINTEL. SinglepumpINTEL  |
+|                       |                  | will be selected if the argument  |
+|                       |                  | is 2, i.e ``{pump:1}``.           |
++-----------------------+------------------+-----------------------------------+
+| DoublepumpINTEL       | pump             | Reserved name is shared with      |
+|                       |                  | SinglepumpINTEL. DoublepumpINTEL  |
+|                       |                  | will be selected if the argument  |
+|                       |                  | is 2, i.e ``{pump:2}``.           |
++-----------------------+------------------+-----------------------------------+
+| MaxReplicatesINTEL    | max_replicates   |                                   |
++-----------------------+------------------+-----------------------------------+
+| SimpleDualPortINTEL   | simple_dual_port | Additional arguments are ignored, |
+|                       |                  | but reverse translation will add  |
+|                       |                  | a 1 argument, i.e.                |
+|                       |                  | ``{simple_dual_port:1}``.         |
++-----------------------+------------------+-----------------------------------+
+| MergeINTEL            | merge            | Arguments of this are separated by|
+|                       |                  | ":" rather than ",", i.e.         |
+|                       |                  | ``{merge:X:Y}``.                  |
++-----------------------+------------------+-----------------------------------+
+| BankBitsINTEL         | bank_bits        |                                   |
++-----------------------+------------------+-----------------------------------+
+| ForcePow2DepthINTEL   | force_pow2_depth |                                   |
++-----------------------+------------------+-----------------------------------+
+
+None of the special requirements imposed from using the reserved names apply to
+using decoration identifiers directly.
+
+During reverse translation, the translator prioritizes reserved names over
+decoration identifiers, even if the member decoration was generated using the
+corresponding decoration identifier. For example, this means that translating
+``{5825}`` to SPIR-V and back to LLVM IR will result in ``{register:1}`` being
+in the annotation string argument instead of the initial value.
+
+Debug information extension
+===========================
+
+**TBD**

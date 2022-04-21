@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ASTStructExtractor_h_
-#define liblldb_ASTStructExtractor_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_ASTSTRUCTEXTRACTOR_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_ASTSTRUCTEXTRACTOR_H
 
 #include "ClangExpressionVariable.h"
 #include "ClangFunctionCaller.h"
 
-#include "lldb/Core/ClangForward.h"
 #include "clang/Sema/SemaConsumer.h"
 
 namespace lldb_private {
@@ -121,8 +120,6 @@ private:
                                            ///for passthrough.  NULL if it's an
                                            ///ASTConsumer.
   clang::Sema *m_sema;                     ///< The Sema to use.
-  clang::Action
-      *m_action; ///< The Sema to use, cast to an Action so it's usable.
 
   ClangFunctionCaller &m_function; ///< The function to populate with
                                    ///information about the argument structure.
@@ -131,4 +128,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_ASTStructExtractor_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_ASTSTRUCTEXTRACTOR_H

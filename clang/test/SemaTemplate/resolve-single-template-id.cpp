@@ -65,12 +65,14 @@ int main()
   void (*u)(int) = oneT<int>;
 
   b = (void (*)()) twoT<int>;
-  
-  one < one; //expected-warning {{self-comparison always evaluates to false}} \
-             //expected-warning {{relational comparison result unused}}         
 
-  oneT<int> < oneT<int>;  //expected-warning {{self-comparison always evaluates to false}} \
-                          //expected-warning {{relational comparison result unused}}
+  one < one; // expected-warning {{self-comparison always evaluates to false}} \
+             // expected-warning {{relational comparison result unused}}       \
+             // expected-warning {{ordered comparison of function pointers}}
+
+  oneT<int> < oneT<int>; // expected-warning {{self-comparison always evaluates to false}} \
+                         // expected-warning {{relational comparison result unused}}       \
+                         // expected-warning {{ordered comparison of function pointers}}
 
   two < two; //expected-error 2 {{reference to overloaded function could not be resolved; did you mean to call it with no arguments?}} expected-error {{invalid operands to binary expression ('void' and 'void')}}
   twoT<int> < twoT<int>; //expected-error {{reference to overloaded function could not be resolved; did you mean to call it?}} {{cannot resolve overloaded function 'twoT' from context}}
@@ -87,4 +89,16 @@ struct rdar9108698 {
 
 void test_rdar9108698(rdar9108698 x) {
   x.f<int>; // expected-error{{reference to non-static member function must be called}}
+}
+
+namespace GCC_PR67898 {
+  void f(int);
+  void f(float);
+  template<typename T, T F, T G, bool b = F == G> struct X {
+    static_assert(b, "");
+  };
+  template<typename T> void test1() { X<void(T), f, f>(); }
+  template<typename T> void test2() { X<void(*)(T), f, f>(); }
+  template void test1<int>();
+  template void test2<int>();
 }

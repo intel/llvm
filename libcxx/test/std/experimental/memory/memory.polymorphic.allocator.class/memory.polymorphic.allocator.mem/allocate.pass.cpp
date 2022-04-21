@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <experimental/memory_resource>
 
@@ -22,7 +22,7 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "test_memory_resource.hpp"
+#include "test_memory_resource.h"
 
 namespace ex = std::experimental::pmr;
 
@@ -61,11 +61,11 @@ void testAllocForSizeThrows() {
     size_t sizeTypeMax = std::numeric_limits<std::size_t>::max();
     if (maxSize != sizeTypeMax)
     {
-        // Test that allocating size_t(~0) throws bad alloc.
+        // Test that allocating size_t(~0) throws bad_array_new_length.
         try {
             a.allocate(sizeTypeMax);
             assert(false);
-        } catch (std::exception const&) {
+        } catch (std::bad_array_new_length const&) {
         }
 
         // Test that allocating even one more than the max size does throw.
@@ -73,7 +73,7 @@ void testAllocForSizeThrows() {
         try {
             a.allocate(overSize);
             assert(false);
-        } catch (std::exception const&) {
+        } catch (std::bad_array_new_length const&) {
         }
     }
 }

@@ -47,14 +47,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CFG.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -64,6 +65,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 #define DEBUG_TYPE "safepoint-placement"
 
@@ -131,7 +133,7 @@ struct PlaceBackedgeSafepointsImpl : public FunctionPass {
     SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
     DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-    TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+    TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
     for (Loop *I : *LI) {
       runOnLoopAndSubLoops(I);
     }
@@ -188,7 +190,8 @@ static bool needsStatepoint(CallBase *Call, const TargetLibraryInfo &TLI) {
       return false;
   }
 
-  return !(isStatepoint(Call) || isGCRelocate(Call) || isGCResult(Call));
+  return !(isa<GCStatepointInst>(Call) || isa<GCRelocateInst>(Call) ||
+           isa<GCResultInst>(Call));
 }
 
 /// Returns true if this loop is known to contain a call safepoint which
@@ -240,8 +243,8 @@ static bool containsUnconditionalCallSafepoint(Loop *L, BasicBlock *Header,
 static bool mustBeFiniteCountedLoop(Loop *L, ScalarEvolution *SE,
                                     BasicBlock *Pred) {
   // A conservative bound on the loop as a whole.
-  const SCEV *MaxTrips = SE->getMaxBackedgeTakenCount(L);
-  if (MaxTrips != SE->getCouldNotCompute() &&
+  const SCEV *MaxTrips = SE->getConstantMaxBackedgeTakenCount(L);
+  if (!isa<SCEVCouldNotCompute>(MaxTrips) &&
       SE->getUnsignedRange(MaxTrips).getUnsignedMax().isIntN(
           CountedLoopTripWidth))
     return true;
@@ -253,7 +256,7 @@ static bool mustBeFiniteCountedLoop(Loop *L, ScalarEvolution *SE,
     // This returns an exact expression only.  TODO: We really only need an
     // upper bound here, but SE doesn't expose that.
     const SCEV *MaxExec = SE->getExitCount(L, Pred);
-    if (MaxExec != SE->getCouldNotCompute() &&
+    if (!isa<SCEVCouldNotCompute>(MaxExec) &&
         SE->getUnsignedRange(MaxExec).getUnsignedMax().isIntN(
             CountedLoopTripWidth))
         return true;
@@ -433,7 +436,7 @@ static Instruction *findLocationForEntrySafepoint(Function &F,
   return Cursor;
 }
 
-static const char *const GCSafepointPollName = "gc.safepoint_poll";
+const char GCSafepointPollName[] = "gc.safepoint_poll";
 
 static bool isGCSafepointPoll(Function &F) {
   return F.getName().equals(GCSafepointPollName);
@@ -478,7 +481,7 @@ bool PlaceSafepoints::runOnFunction(Function &F) {
     return false;
 
   const TargetLibraryInfo &TLI =
-      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
 
   bool Modified = false;
 
@@ -587,8 +590,7 @@ bool PlaceSafepoints::runOnFunction(Function &F) {
   for (Instruction *PollLocation : PollsNeeded) {
     std::vector<CallBase *> RuntimeCalls;
     InsertSafepointPoll(PollLocation, RuntimeCalls, TLI);
-    ParsePointNeeded.insert(ParsePointNeeded.end(), RuntimeCalls.begin(),
-                            RuntimeCalls.end());
+    llvm::append_range(ParsePointNeeded, RuntimeCalls);
   }
 
   return Modified;
@@ -649,7 +651,7 @@ InsertSafepointPoll(Instruction *InsertBefore,
 
   // Do the actual inlining
   InlineFunctionInfo IFI;
-  bool InlineStatus = InlineFunction(PollCall, IFI);
+  bool InlineStatus = InlineFunction(*PollCall, IFI).isSuccess();
   assert(InlineStatus && "inline must succeed");
   (void)InlineStatus; // suppress warning in release-asserts
 

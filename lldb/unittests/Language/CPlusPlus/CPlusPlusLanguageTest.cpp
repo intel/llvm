@@ -1,4 +1,4 @@
-//===-- CPlusPlusLanguageTest.cpp -------------------------------*- C++ -*-===//
+//===-- CPlusPlusLanguageTest.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
+#include "Plugins/Language/CPlusPlus/CPlusPlusNameParser.h"
+#include "TestingSupport/SubsystemRAII.h"
+#include "lldb/lldb-enumerations.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -139,12 +142,20 @@ TEST(CPlusPlusLanguage, ExtractContextAndIdentifier) {
        "std::vector<Class, std::allocator<Class>>",
        "_M_emplace_back_aux<Class const&>"},
       {"`anonymous namespace'::foo", "`anonymous namespace'", "foo"},
-      {"`operator<<A>'::`2'::B<0>::operator>",
-       "`operator<<A>'::`2'::B<0>",
+      {"`operator<<A>'::`2'::B<0>::operator>", "`operator<<A>'::`2'::B<0>",
        "operator>"},
       {"`anonymous namespace'::S::<<::__l2::Foo",
-       "`anonymous namespace'::S::<<::__l2",
-       "Foo"}};
+       "`anonymous namespace'::S::<<::__l2", "Foo"},
+      // These cases are idiosyncratic in how clang generates debug info for
+      // names when we have template parameters. They are not valid C++ names
+      // but if we fix this we need to support them for older compilers.
+      {"A::operator><A::B>", "A", "operator><A::B>"},
+      {"operator><A::B>", "", "operator><A::B>"},
+      {"A::operator<<A::B>", "A", "operator<<A::B>"},
+      {"operator<<A::B>", "", "operator<<A::B>"},
+      {"A::operator<<<A::B>", "A", "operator<<<A::B>"},
+      {"operator<<<A::B>", "", "operator<<<A::B>"},
+  };
 
   llvm::StringRef context, basename;
   for (const auto &test : test_cases) {
@@ -168,27 +179,43 @@ TEST(CPlusPlusLanguage, ExtractContextAndIdentifier) {
       "abc::", context, basename));
   EXPECT_FALSE(CPlusPlusLanguage::ExtractContextAndIdentifier(
       "f<A<B><C>>", context, basename));
+
+  // We expect these cases to fail until we turn on C++2a
+  EXPECT_FALSE(CPlusPlusLanguage::ExtractContextAndIdentifier(
+      "A::operator<=><A::B>", context, basename));
+  EXPECT_FALSE(CPlusPlusLanguage::ExtractContextAndIdentifier(
+      "operator<=><A::B>", context, basename));
 }
 
-static std::set<std::string> FindAlternate(llvm::StringRef Name) {
-  std::set<ConstString> Results;
-  uint32_t Count = CPlusPlusLanguage::FindAlternateFunctionManglings(
-      ConstString(Name), Results);
-  EXPECT_EQ(Count, Results.size());
-  std::set<std::string> Strings;
-  for (ConstString Str : Results)
-    Strings.insert(Str.GetStringRef());
+static std::vector<std::string> GenerateAlternate(llvm::StringRef Name) {
+  std::vector<std::string> Strings;
+  if (Language *CPlusPlusLang =
+          Language::FindPlugin(lldb::eLanguageTypeC_plus_plus)) {
+    std::vector<ConstString> Results =
+        CPlusPlusLang->GenerateAlternateFunctionManglings(ConstString(Name));
+    for (ConstString Str : Results)
+      Strings.push_back(std::string(Str.GetStringRef()));
+  }
   return Strings;
 }
 
-TEST(CPlusPlusLanguage, FindAlternateFunctionManglings) {
+TEST(CPlusPlusLanguage, GenerateAlternateFunctionManglings) {
   using namespace testing;
 
-  EXPECT_THAT(FindAlternate("_ZN1A1fEv"),
+  SubsystemRAII<CPlusPlusLanguage> lang;
+
+  EXPECT_THAT(GenerateAlternate("_ZN1A1fEv"),
               UnorderedElementsAre("_ZNK1A1fEv", "_ZLN1A1fEv"));
-  EXPECT_THAT(FindAlternate("_ZN1A1fEa"), Contains("_ZN1A1fEc"));
-  EXPECT_THAT(FindAlternate("_ZN1A1fEx"), Contains("_ZN1A1fEl"));
-  EXPECT_THAT(FindAlternate("_ZN1A1fEy"), Contains("_ZN1A1fEm"));
-  EXPECT_THAT(FindAlternate("_ZN1A1fEai"), Contains("_ZN1A1fEci"));
-  EXPECT_THAT(FindAlternate("_bogus"), IsEmpty());
+  EXPECT_THAT(GenerateAlternate("_ZN1A1fEa"), Contains("_ZN1A1fEc"));
+  EXPECT_THAT(GenerateAlternate("_ZN1A1fEx"), Contains("_ZN1A1fEl"));
+  EXPECT_THAT(GenerateAlternate("_ZN1A1fEy"), Contains("_ZN1A1fEm"));
+  EXPECT_THAT(GenerateAlternate("_ZN1A1fEai"), Contains("_ZN1A1fEci"));
+  EXPECT_THAT(GenerateAlternate("_ZN1AC1Ev"), Contains("_ZN1AC2Ev"));
+  EXPECT_THAT(GenerateAlternate("_ZN1AD1Ev"), Contains("_ZN1AD2Ev"));
+  EXPECT_THAT(GenerateAlternate("_bogus"), IsEmpty());
+}
+
+TEST(CPlusPlusLanguage, CPlusPlusNameParser) {
+  // Don't crash.
+  CPlusPlusNameParser((const char *)nullptr);
 }

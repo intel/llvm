@@ -25,7 +25,7 @@ nullptr_t f(nullptr_t null)
   pf = null;
   void (A::*pmf)() = nullptr;
   pmf = null;
-  bool b = nullptr;
+  bool b = nullptr; // expected-error {{cannot initialize}}
 
   // Can't convert nullptr to integral implicitly.
   uintptr_t i = nullptr; // expected-error {{cannot initialize}}
@@ -57,7 +57,7 @@ nullptr_t f(nullptr_t null)
   o2(nullptr); // expected-error {{ambiguous}}
 
   // nullptr is an rvalue, null is an lvalue
-  (void)&nullptr; // expected-error {{cannot take the address of an rvalue of type 'nullptr_t'}}
+  (void)&nullptr; // expected-error {{cannot take the address of an rvalue of type 'std::nullptr_t'}}
   nullptr_t *pn = &null;
 
   // You can reinterpret_cast nullptr to an integer.

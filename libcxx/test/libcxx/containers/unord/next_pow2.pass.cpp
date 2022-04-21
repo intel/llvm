@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // REQUIRES: long_tests
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // Not a portable test
 
@@ -21,6 +21,8 @@
 #include <__hash_table>
 #include <unordered_map>
 #include <cassert>
+
+#include "test_macros.h"
 
 
 bool

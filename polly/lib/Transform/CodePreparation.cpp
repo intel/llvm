@@ -22,6 +22,7 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/InitializePasses.h"
 
 using namespace llvm;
 using namespace polly;
@@ -47,10 +48,10 @@ public:
 
   /// @name FunctionPass interface.
   //@{
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-  virtual void releaseMemory();
-  virtual bool runOnFunction(Function &F);
-  virtual void print(raw_ostream &OS, const Module *) const;
+  void getAnalysisUsage(AnalysisUsage &AU) const override;
+  void releaseMemory() override;
+  bool runOnFunction(Function &F) override;
+  void print(raw_ostream &OS, const Module *) const override;
   //@}
 };
 } // namespace

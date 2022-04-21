@@ -8,8 +8,9 @@
 
 #include "SymbolIndexManager.h"
 #include "find-all-symbols/SymbolInfo.h"
-#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Path.h"
 
@@ -25,7 +26,7 @@ using find_all_symbols::SymbolAndSignals;
 // related to the given source file.
 static double similarityScore(llvm::StringRef FileName,
                               llvm::StringRef Header) {
-  // Compute the maximum number of common path segements between Header and
+  // Compute the maximum number of common path segments between Header and
   // a suffix of FileName.
   // We do not do a full longest common substring computation, as Header
   // specifies the path we would directly #include, so we assume it is rooted
@@ -47,7 +48,7 @@ static double similarityScore(llvm::StringRef FileName,
 
 static void rank(std::vector<SymbolAndSignals> &Symbols,
                  llvm::StringRef FileName) {
-  llvm::DenseMap<llvm::StringRef, double> Score;
+  llvm::StringMap<double> Score;
   for (const auto &Symbol : Symbols) {
     // Calculate a score from the similarity of the header the symbol is in
     // with the current file and the popularity of the symbol.
@@ -58,14 +59,14 @@ static void rank(std::vector<SymbolAndSignals> &Symbols,
   }
   // Sort by the gathered scores. Use file name as a tie breaker so we can
   // deduplicate.
-  std::sort(Symbols.begin(), Symbols.end(),
-            [&](const SymbolAndSignals &A, const SymbolAndSignals &B) {
-              auto AS = Score[A.Symbol.getFilePath()];
-              auto BS = Score[B.Symbol.getFilePath()];
-              if (AS != BS)
-                return AS > BS;
-              return A.Symbol.getFilePath() < B.Symbol.getFilePath();
-            });
+  llvm::sort(Symbols.begin(), Symbols.end(),
+             [&](const SymbolAndSignals &A, const SymbolAndSignals &B) {
+               auto AS = Score[A.Symbol.getFilePath()];
+               auto BS = Score[B.Symbol.getFilePath()];
+               if (AS != BS)
+                 return AS > BS;
+               return A.Symbol.getFilePath() < B.Symbol.getFilePath();
+             });
 }
 
 std::vector<find_all_symbols::SymbolInfo>
@@ -149,6 +150,7 @@ SymbolIndexManager::search(llvm::StringRef Identifier,
   rank(MatchedSymbols, FileName);
   // Strip signals, they are no longer needed.
   std::vector<SymbolInfo> Res;
+  Res.reserve(MatchedSymbols.size());
   for (auto &SymAndSig : MatchedSymbols)
     Res.push_back(std::move(SymAndSig.Symbol));
   return Res;

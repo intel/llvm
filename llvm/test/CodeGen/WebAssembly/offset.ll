@@ -2,7 +2,6 @@
 
 ; Test constant load and store address offsets.
 
-target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 ;===----------------------------------------------------------------------------
@@ -645,9 +644,9 @@ define void @aggregate_load_store({i32,i32,i32,i32}* %p, {i32,i32,i32,i32}* %q) 
 
 ; CHECK-LABEL: aggregate_return:
 ; CHECK: i64.const   $push[[L0:[0-9]+]]=, 0{{$}}
-; CHECK: i64.store   8($0):p2align=2, $pop[[L0]]{{$}}
+; CHECK: i64.store   8($0), $pop[[L0]]{{$}}
 ; CHECK: i64.const   $push[[L1:[0-9]+]]=, 0{{$}}
-; CHECK: i64.store   0($0):p2align=2, $pop[[L1]]{{$}}
+; CHECK: i64.store   0($0), $pop[[L1]]{{$}}
 define {i32,i32,i32,i32} @aggregate_return() {
   ret {i32,i32,i32,i32} zeroinitializer
 }

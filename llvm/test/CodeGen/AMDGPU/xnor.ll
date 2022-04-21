@@ -1,8 +1,8 @@
-; RUN: llc -march=amdgcn -mcpu=gfx600 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN --check-prefix=GFX600 %s
-; RUN: llc -march=amdgcn -mcpu=gfx700 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN --check-prefix=GFX700 %s
-; RUN: llc -march=amdgcn -mcpu=gfx801 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN --check-prefix=GFX801 %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN --check-prefix=GFX900 %s
-; RUN: llc -march=amdgcn -mcpu=gfx906 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN-DL --check-prefix=GFX906 %s
+; RUN: llc -march=amdgcn -mcpu=gfx600 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=gfx700 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=gfx801 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=gfx906 -verify-machineinstrs < %s | FileCheck --check-prefix=GCN-DL %s
 
 ; GCN-LABEL: {{^}}scalar_xnor_i32_one_use
 ; GCN: s_xnor_b32
@@ -61,8 +61,8 @@ entry:
 
 ; GCN-LABEL: {{^}}vector_xnor_i32_one_use
 ; GCN-NOT: s_xnor_b32
-; GCN: v_not_b32
 ; GCN: v_xor_b32
+; GCN: v_not_b32
 ; GCN-DL: v_xnor_b32
 define i32 @vector_xnor_i32_one_use(i32 %a, i32 %b) {
 entry:
@@ -73,10 +73,10 @@ entry:
 
 ; GCN-LABEL: {{^}}vector_xnor_i64_one_use
 ; GCN-NOT: s_xnor_b64
-; GCN: v_not_b32
-; GCN: v_not_b32
 ; GCN: v_xor_b32
 ; GCN: v_xor_b32
+; GCN: v_not_b32
+; GCN: v_not_b32
 ; GCN-DL: v_xnor_b32
 ; GCN-DL: v_xnor_b32
 define i64 @vector_xnor_i64_one_use(i64 %a, i64 %b) {
@@ -150,8 +150,8 @@ entry:
 
 ; GCN-LABEL: {{^}}vector_xor_na_b_i32_one_use
 ; GCN-NOT: s_xnor_b32
-; GCN: v_not_b32
 ; GCN: v_xor_b32
+; GCN: v_not_b32
 ; GCN-DL: v_xnor_b32
 define i32 @vector_xor_na_b_i32_one_use(i32 %a, i32 %b) {
 entry:
@@ -162,8 +162,8 @@ entry:
 
 ; GCN-LABEL: {{^}}vector_xor_a_nb_i32_one_use
 ; GCN-NOT: s_xnor_b32
-; GCN: v_not_b32
 ; GCN: v_xor_b32
+; GCN: v_not_b32
 ; GCN-DL: v_xnor_b32
 define i32 @vector_xor_a_nb_i32_one_use(i32 %a, i32 %b) {
 entry:

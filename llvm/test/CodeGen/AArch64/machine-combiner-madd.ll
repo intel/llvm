@@ -1,13 +1,14 @@
 ; Test all AArch64 subarches with scheduling models.
+; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=a64fx      < %s | FileCheck %s
 ; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=cortex-a57 < %s | FileCheck %s
 ; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=cortex-a72 < %s | FileCheck %s
 ; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=cortex-a73 < %s | FileCheck %s
 ; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=cyclone    < %s | FileCheck %s
-; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=exynos-m1  < %s | FileCheck %s
-; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=exynos-m2  < %s | FileCheck %s
 ; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=exynos-m3  < %s | FileCheck %s
 ; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=kryo       < %s | FileCheck %s
 ; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=thunderx2t99 < %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=thunderx3t110 < %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-linux-gnu -mcpu=tsv110 < %s | FileCheck %s
 
 ; Make sure that inst-combine fuses the multiply add in the addressing mode of
 ; the load.

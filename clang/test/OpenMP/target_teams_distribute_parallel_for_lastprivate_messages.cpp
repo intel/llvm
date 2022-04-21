@@ -1,8 +1,14 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,le45 -fopenmp-version=40 -fopenmp %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,le45 -fopenmp-version=45 -fopenmp %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-version=50 -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify=expected,le45 -fopenmp-version=45 -fopenmp-simd %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-version=50 -fopenmp-simd %s -Wuninitialized
 
+#pragma omp requires dynamic_allocators
 typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_null_allocator;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
 extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
 extern const omp_allocator_handle_t omp_const_mem_alloc;
@@ -101,6 +107,8 @@ int foomain(int argc, char **argv) {
 #pragma omp target teams distribute parallel for lastprivate(argc) allocate , allocate(, allocate(omp_default , allocate(omp_default_mem_alloc, allocate(omp_default_mem_alloc:, allocate(omp_default_mem_alloc: argc, allocate(omp_default_mem_alloc: argv), allocate(argv) // expected-error {{expected '(' after 'allocate'}} expected-error 2 {{expected expression}} expected-error 2 {{expected ')'}} expected-error {{use of undeclared identifier 'omp_default'}} expected-note 2 {{to match this '('}}
   for (int k = 0; k < argc; ++k) ++k;
 
+#pragma omp target teams distribute parallel for lastprivate(conditional: argc) lastprivate(conditional: // expected-error 2 {{use of undeclared identifier 'conditional'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
+  for (int k = 0; k < argc; ++k) ++k;
 #pragma omp target teams distribute parallel for lastprivate(S1) // expected-error {{'S1' does not refer to a value}}
   for (int k = 0; k < argc; ++k) ++k;
 
@@ -240,7 +248,7 @@ int main(int argc, char **argv) {
 #pragma omp target teams distribute parallel for lastprivate(si) // OK
   for (i = 0; i < argc; ++i) si = i + 1;
 
-#pragma omp target teams distribute parallel for lastprivate(k) map(k) // expected-error {{lastprivate variable cannot be in a map clause in '#pragma omp target teams distribute parallel for' directive}} expected-note {{defined as lastprivate}}
+#pragma omp target teams distribute parallel for lastprivate(k) map(k) // le45-error {{lastprivate variable cannot be in a map clause in '#pragma omp target teams distribute parallel for' directive}} le45-note {{defined as lastprivate}}
   for (i = 0; i < argc; ++i) foo();
 
   return foomain<S4, S5>(argc, argv); // expected-note {{in instantiation of function template specialization 'foomain<S4, S5>' requested here}}

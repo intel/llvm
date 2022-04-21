@@ -1,4 +1,4 @@
-//===-- ArchitectureMips.cpp -------------------------------------*- C++ -*-===//
+//===-- ArchitectureMips.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,14 +16,13 @@
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 using namespace lldb_private;
 using namespace lldb;
 
-ConstString ArchitectureMips::GetPluginNameStatic() {
-  return ConstString("mips");
-}
+LLDB_PLUGIN_DEFINE(ArchitectureMips)
 
 void ArchitectureMips::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
@@ -39,9 +38,6 @@ std::unique_ptr<Architecture> ArchitectureMips::Create(const ArchSpec &arch) {
   return arch.IsMIPS() ?
       std::unique_ptr<Architecture>(new ArchitectureMips(arch)) : nullptr;
 }
-
-ConstString ArchitectureMips::GetPluginName() { return GetPluginNameStatic(); }
-uint32_t ArchitectureMips::GetPluginVersion() { return 1; }
 
 addr_t ArchitectureMips::GetCallableLoadAddress(addr_t code_addr,
                                                 AddressClass addr_class) const {
@@ -76,7 +72,7 @@ addr_t ArchitectureMips::GetOpcodeLoadAddress(addr_t opcode_addr,
 lldb::addr_t ArchitectureMips::GetBreakableLoadAddress(lldb::addr_t addr,
                                                        Target &target) const {
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Breakpoints);
 
   Address resolved_addr;
 
@@ -118,26 +114,23 @@ lldb::addr_t ArchitectureMips::GetBreakableLoadAddress(lldb::addr_t addr,
   if (current_offset == 0)
     return addr;
 
-  ExecutionContext ctx;
-  target.CalculateExecutionContext(ctx);
-  auto insn = GetInstructionAtAddress(ctx, current_offset, addr);
+  auto insn = GetInstructionAtAddress(target, current_offset, addr);
 
   if (nullptr == insn || !insn->HasDelaySlot())
     return addr;
 
   // Adjust the breakable address
   uint64_t breakable_addr = addr - insn->GetOpcode().GetByteSize();
-  if (log)
-    log->Printf("Target::%s Breakpoint at 0x%8.8" PRIx64
-      " is adjusted to 0x%8.8" PRIx64 " due to delay slot\n",
-      __FUNCTION__, addr, breakable_addr);
+  LLDB_LOGF(log,
+            "Target::%s Breakpoint at 0x%8.8" PRIx64
+            " is adjusted to 0x%8.8" PRIx64 " due to delay slot\n",
+            __FUNCTION__, addr, breakable_addr);
 
   return breakable_addr;
 }
 
 Instruction *ArchitectureMips::GetInstructionAtAddress(
-    const ExecutionContext &exe_ctx, const Address &resolved_addr,
-    addr_t symbol_offset) const {
+    Target &target, const Address &resolved_addr, addr_t symbol_offset) const {
 
   auto loop_count = symbol_offset / 2;
 
@@ -161,7 +154,6 @@ Instruction *ArchitectureMips::GetInstructionAtAddress(
 
   InstructionList instruction_list;
   InstructionSP prev_insn;
-  bool prefer_file_cache = true; // Read from file
   uint32_t inst_to_choose = 0;
 
   Address addr = resolved_addr;
@@ -169,10 +161,10 @@ Instruction *ArchitectureMips::GetInstructionAtAddress(
   for (uint32_t i = 1; i <= loop_count; i++) {
     // Adjust the address to read from.
     addr.Slide(-2);
-    AddressRange range(addr, i * 2);
     uint32_t insn_size = 0;
 
-    disasm_sp->ParseInstructions(&exe_ctx, range, nullptr, prefer_file_cache);
+    disasm_sp->ParseInstructions(target, addr,
+                                 {Disassembler::Limit::Bytes, i * 2}, nullptr);
 
     uint32_t num_insns = disasm_sp->GetInstructionList().GetSize();
     if (num_insns) {

@@ -1,11 +1,11 @@
-// RUN: %clang_cc1 -std=c++98 -verify -fsyntax-only %s -Wno-c++11-extensions -Wno-c++1y-extensions -DPRECXX11
-// RUN: %clang_cc1 -std=c++11 -verify -fsyntax-only -Wno-c++1y-extensions %s
-// RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only %s -DCPP1Y
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++98 -verify -fsyntax-only %s -Wno-c++11-extensions -Wno-c++1y-extensions -DPRECXX11
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++11 -verify -fsyntax-only -Wno-c++1y-extensions %s
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++1y -verify -fsyntax-only %s -DCPP1Y
 
 #define CONST const
 
 #ifdef PRECXX11
-#define static_assert(expr, msg) typedef int static_assert[(expr) ? 1 : -1];
+#define static_assert _Static_assert
 #endif
 
 class A {
@@ -164,7 +164,7 @@ namespace constexpred {
                                                       // expected-error {{non-static data member cannot be constexpr; did you intend to make it const?}}
     template<typename T> constexpr float right<float,T> = 5;  // expected-error {{non-static data member cannot be constexpr; did you intend to make it static?}}
     template<> static constexpr int right<int,int> = 7;
-    template<> static constexpr float right<float,int>; // expected-error {{requires an initializer}}
+    template <> static constexpr float right<float, int>; // expected-error {{declaration of constexpr static data member 'right<float, int>' requires an initializer}}
     template static constexpr int right<int,int>;     // expected-error {{expected '<' after 'template'}}
   };
 }
@@ -237,7 +237,7 @@ namespace in_class_template {
   namespace definition_after_outer_instantiation {
     template<typename A> struct S {
       template<typename B> static const int V1;
-      template<typename B> static const int V2;
+      template<typename B> static const int V2; // expected-note 3{{here}}
     };
     template struct S<int>;
     template<typename A> template<typename B> const int S<A>::V1 = 123;
@@ -250,11 +250,11 @@ namespace in_class_template {
     // is instantiated. This is kind of implied by [temp.class.spec.mfunc]/2,
     // and matches our behavior for member class templates, but it's not clear
     // that this is intentional. See PR17294 and core-24030.
-    static_assert(S<int>::V2<int*> == 456, ""); // FIXME expected-error {{}}
-    static_assert(S<int>::V2<int&> == 789, ""); // expected-error {{}}
+    static_assert(S<int>::V2<int*> == 456, ""); // FIXME expected-error {{}} expected-note {{initializer of 'V2<int *>' is unknown}}
+    static_assert(S<int>::V2<int&> == 789, ""); // expected-error {{}} expected-note {{initializer of 'V2<int &>' is unknown}}
 
     template<typename A> template<typename B> const int S<A>::V2<B&> = 789;
-    static_assert(S<int>::V2<int&> == 789, ""); // FIXME expected-error {{}}
+    static_assert(S<int>::V2<int&> == 789, ""); // FIXME expected-error {{}} expected-note {{initializer of 'V2<int &>' is unknown}}
 
     // All is OK if the partial specialization is declared before the implicit
     // instantiation of the class template specialization.
@@ -394,4 +394,45 @@ namespace dependent_static_var_template {
     template<int = 0> static int n; // expected-note {{here}}
   }
   int &t = B::template n; // expected-error {{use of variable template 'n' requires template arguments}}
+
+  struct C {
+    template <class T> static T G;
+  };
+  template<class T> T C::G = T(6);
+
+  template <class T> T F() {
+    C c;
+    return c.G<T>;
+  }
+
+  int cf() { return F<int>(); }
 }
+
+#ifndef PRECXX11
+namespace template_vars_in_template {
+template <int> struct TakesInt {};
+
+template <class T2>
+struct S {
+  template <class T1>
+  static constexpr int v = 42;
+
+  template <class T>
+  void mf() {
+    constexpr int val = v<T>;
+  }
+
+  void mf2() {
+    constexpr int val = v<char>;
+    TakesInt<val> ti;
+    (void)ti.x; // expected-error{{no member named 'x' in 'template_vars_in_template::TakesInt<42>'}}
+  }
+};
+
+void useit() {
+  S<int> x;
+  x.mf<double>();
+  x.mf2(); // expected-note{{in instantiation of member function 'template_vars_in_template::S<int>::mf2' requested here}}
+}
+}
+#endif

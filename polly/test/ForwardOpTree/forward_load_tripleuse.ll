@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-optree -polly-codegen -analyze < %s | FileCheck %s -match-full-lines
+; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-print-optree -polly-codegen -disable-output < %s | FileCheck %s -match-full-lines
 ;
 ; %val1 is used three times: Twice by its own operand tree of %val2 and once
 ; more by the store in %bodyB.
@@ -53,7 +53,7 @@ return:
 
 ; CHECK: Statistics {
 ; CHECK:     Instructions copied: 1
-; CHECK:     Known loads forwarded: 3
+; CHECK:     Known loads forwarded: 2
 ; CHECK:     Operand trees forwarded: 2
 ; CHECK:     Statements with forwarded operand trees: 1
 ; CHECK: }
@@ -67,7 +67,7 @@ return:
 ; CHECK-NEXT:             MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 1]
 ; CHECK-NEXT:                 [n] -> { Stmt_bodyA[i0] -> MemRef_val2[] };
 ; CHECK-NEXT:             Instructions {
-; CHECK-NEXT:                   %val1 = load double, double* %A_idx
+; CHECK-NEXT:                   %val1 = load double, double* %A_idx, align 8
 ; CHECK-NEXT:                   %val2 = fadd double %val1, %val1
 ; CHECK-NEXT:             }
 ; CHECK-NEXT:     Stmt_bodyB
@@ -79,12 +79,11 @@ return:
 ; CHECK-NEXT:             MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 0]
 ; CHECK-NEXT:                 [n] -> { Stmt_bodyB[i0] -> MemRef_C[i0] };
 ; CHECK-NEXT:             Instructions {
-; CHECK-NEXT:                   %val1 = load double, double* %A_idx
-; CHECK-NEXT:                   %val1 = load double, double* %A_idx
+; CHECK-NEXT:                   %val1 = load double, double* %A_idx, align 8
 ; CHECK-NEXT:                   %val2 = fadd double %val1, %val1
-; CHECK-NEXT:                   %val1 = load double, double* %A_idx
-; CHECK-NEXT:                   store double %val1, double* %B_idx
-; CHECK-NEXT:                   store double %val2, double* %C_idx
+; CHECK-NEXT:                   %val1 = load double, double* %A_idx, align 8
+; CHECK-NEXT:                   store double %val1, double* %B_idx, align 8
+; CHECK-NEXT:                   store double %val2, double* %C_idx, align 8
 ; CHECK-NEXT:             }
 ; CHECK-NEXT: }
 
@@ -125,7 +124,7 @@ return:
 
 ; CHECK: Statistics {
 ; CHECK:     Instructions copied: 1
-; CHECK:     Known loads forwarded: 3
+; CHECK:     Known loads forwarded: 2
 ; CHECK:     Operand trees forwarded: 2
 ; CHECK:     Statements with forwarded operand trees: 1
 ; CHECK: }
@@ -139,7 +138,7 @@ return:
 ; CHECK-NEXT:             MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 1]
 ; CHECK-NEXT:                 [n] -> { Stmt_bodyA[i0] -> MemRef_val1[] };
 ; CHECK-NEXT:             Instructions {
-; CHECK-NEXT:                   %val1 = load double, double* %A_idx
+; CHECK-NEXT:                   %val1 = load double, double* %A_idx, align 8
 ; CHECK-NEXT:                   %val2 = fadd double %val1, %val1
 ; CHECK-NEXT:             }
 ; CHECK-NEXT:     Stmt_bodyB
@@ -151,11 +150,10 @@ return:
 ; CHECK-NEXT:             MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 0]
 ; CHECK-NEXT:                 [n] -> { Stmt_bodyB[i0] -> MemRef_C[i0] };
 ; CHECK-NEXT:             Instructions {
-; CHECK-NEXT:                   %val1 = load double, double* %A_idx
-; CHECK-NEXT:                   %val1 = load double, double* %A_idx
-; CHECK-NEXT:                   %val1 = load double, double* %A_idx
+; CHECK-NEXT:                   %val1 = load double, double* %A_idx, align 8
+; CHECK-NEXT:                   %val1 = load double, double* %A_idx, align 8
 ; CHECK-NEXT:                   %val2 = fadd double %val1, %val1
-; CHECK-NEXT:                   store double %val2, double* %B_idx
-; CHECK-NEXT:                   store double %val1, double* %C_idx
+; CHECK-NEXT:                   store double %val2, double* %B_idx, align 8
+; CHECK-NEXT:                   store double %val1, double* %C_idx, align 8
 ; CHECK-NEXT:             }
 ; CHECK-NEXT: }

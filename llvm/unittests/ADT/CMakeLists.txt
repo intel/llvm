@@ -4,21 +4,28 @@ set(LLVM_LINK_COMPONENTS
 
 add_llvm_unittest(ADTTests
   AnyTest.cpp
+  APFixedPointTest.cpp
   APFloatTest.cpp
   APIntTest.cpp
   APSIntTest.cpp
   ArrayRefTest.cpp
+  BitFieldsTest.cpp
   BitmaskEnumTest.cpp
   BitVectorTest.cpp
   BreadthFirstIteratorTest.cpp
   BumpPtrListTest.cpp
+  CoalescingBitVectorTest.cpp
+  CombinationGeneratorTest.cpp
   DAGDeltaAlgorithmTest.cpp
   DeltaAlgorithmTest.cpp
   DenseMapTest.cpp
   DenseSetTest.cpp
   DepthFirstIteratorTest.cpp
+  DirectedGraphTest.cpp
+  EnumeratedArrayTest.cpp
   EquivalenceClassesTest.cpp
   FallibleIteratorTest.cpp
+  FloatingPointMode.cpp
   FoldingSet.cpp
   FunctionExtrasTest.cpp
   FunctionRefTest.cpp
@@ -36,7 +43,6 @@ add_llvm_unittest(ADTTests
   IntervalMapTest.cpp
   IntrusiveRefCntPtrTest.cpp
   IteratorTest.cpp
-  MakeUniqueTest.cpp
   MappedIteratorTest.cpp
   MapVectorTest.cpp
   OptionalTest.cpp
@@ -50,6 +56,7 @@ add_llvm_unittest(ADTTests
   RangeAdapterTest.cpp
   SCCIteratorTest.cpp
   STLExtrasTest.cpp
+  STLForwardCompatTest.cpp
   ScopeExitTest.cpp
   SequenceTest.cpp
   SetVectorTest.cpp
@@ -65,11 +72,13 @@ add_llvm_unittest(ADTTests
   StringExtrasTest.cpp
   StringMapTest.cpp
   StringRefTest.cpp
+  StringSetTest.cpp
   StringSwitchTest.cpp
   TinyPtrVectorTest.cpp
   TripleTest.cpp
   TwineTest.cpp
-  VariadicFunctionTest.cpp
+  TypeSwitchTest.cpp
+  TypeTraitsTest.cpp
   )
 
 target_link_libraries(ADTTests PRIVATE LLVMTestingSupport)

@@ -11,6 +11,8 @@
 #include <inttypes.h>
 #include <type_traits>
 
+#include "test_macros.h"
+
 #ifndef INT8_MIN
 #error INT8_MIN not defined
 #endif
@@ -925,8 +927,10 @@ int main(int, char**)
     static_assert((std::is_same<decltype(imaxdiv(i, i)), imaxdiv_t>::value), "");
     static_assert((std::is_same<decltype(strtoimax("", (char**)0, 0)), intmax_t>::value), "");
     static_assert((std::is_same<decltype(strtoumax("", (char**)0, 0)), uintmax_t>::value), "");
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     static_assert((std::is_same<decltype(wcstoimax(L"", (wchar_t**)0, 0)), intmax_t>::value), "");
     static_assert((std::is_same<decltype(wcstoumax(L"", (wchar_t**)0, 0)), uintmax_t>::value), "");
+#endif
 
   return 0;
 }

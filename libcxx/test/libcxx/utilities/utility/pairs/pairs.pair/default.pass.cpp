@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <utility>
 
@@ -16,6 +16,8 @@
 
 #include <utility>
 #include <type_traits>
+
+#include "test_macros.h"
 
 
 struct ThrowingDefault {

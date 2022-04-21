@@ -27,28 +27,28 @@ void noescapeFunc3(__attribute__((noescape)) union U);
 // CHECK: %[[STRUCT_S0]] = type { i8*, i8* }
 // CHECK: @[[BLOCK_DESCIPTOR_TMP_2:.*ls32l8"]] = linkonce_odr hidden unnamed_addr constant { i64, i64, i8*, i64 } { i64 0, i64 40, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @{{.*}}, i32 0, i32 0), i64 256 }, align 8
 
-// CHECK-LABEL: define void @test0(
+// CHECK-LABEL: define{{.*}} void @test0(
 // CHECK: call void @noescapeFunc0({{.*}}, {{.*}} nocapture {{.*}})
-// CHECK: declare void @noescapeFunc0(i8*, {{.*}} nocapture)
+// CHECK: declare void @noescapeFunc0(i8* noundef, {{.*}} nocapture noundef)
 void test0(BlockTy b) {
   noescapeFunc0(0, b);
 }
 
-// CHECK-LABEL: define void @test1(
+// CHECK-LABEL: define{{.*}} void @test1(
 // CHECK: call void @noescapeFunc1({{.*}} nocapture {{.*}})
-// CHECK: declare void @noescapeFunc1({{.*}} nocapture)
+// CHECK: declare void @noescapeFunc1({{.*}} nocapture noundef)
 void test1(int *i) {
   noescapeFunc1(i);
 }
 
-// CHECK-LABEL: define void @test2(
+// CHECK-LABEL: define{{.*}} void @test2(
 // CHECK: call void @noescapeFunc2({{.*}} nocapture {{.*}})
-// CHECK: declare void @noescapeFunc2({{.*}} nocapture)
+// CHECK: declare void @noescapeFunc2({{.*}} nocapture noundef)
 void test2(id i) {
   noescapeFunc2(i);
 }
 
-// CHECK-LABEL: define void @test3(
+// CHECK-LABEL: define{{.*}} void @test3(
 // CHECK: call void @noescapeFunc3({{.*}} nocapture {{.*}})
 // CHECK: declare void @noescapeFunc3({{.*}} nocapture)
 void test3(union U u) {
@@ -57,7 +57,7 @@ void test3(union U u) {
 
 // CHECK: define internal void @"\01-[C0 m0:]"({{.*}}, {{.*}}, {{.*}} nocapture {{.*}})
 
-// CHECK-LABEL: define void @test4(
+// CHECK-LABEL: define{{.*}} void @test4(
 // CHECK: call void bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to void (i8*, i8*, i32*)*)(i8* {{.*}}, i8* {{.*}}, i32* nocapture {{.*}})
 
 @interface C0
@@ -73,8 +73,8 @@ void test4(C0 *c0, int *p) {
   [c0 m0:p];
 }
 
-// CHECK-LABEL: define void @test5(
-// CHECK: call void {{.*}}(i8* bitcast ({ i8**, i32, i32, i8*, {{.*}} }* @{{.*}} to i8*), i32* nocapture {{.*}})
+// CHECK-LABEL: define{{.*}} void @test5(
+// CHECK: call void {{.*}}(i8* noundef bitcast ({ i8**, i32, i32, i8*, {{.*}} }* @{{.*}} to i8*), i32* nocapture {{.*}})
 // CHECK: call void {{.*}}(i8* {{.*}}, i32* nocapture {{.*}})
 // CHECK: define internal void @{{.*}}(i8* {{.*}}, i32* nocapture {{.*}})
 
@@ -88,14 +88,13 @@ void test5(BlockTy2 b, int *p) {
 // If the block is non-escaping, set the BLOCK_IS_NOESCAPE and BLOCK_IS_GLOBAL
 // bits of field 'flags' and set the 'isa' field to 'NSConcreteGlobalBlock'.
 
-// CHECK: define void @test6(i8* %{{.*}}, i8* %[[B:.*]])
+// CHECK: define{{.*}} void @test6(i8* noundef %{{.*}}, i8* noundef %[[B:.*]])
 // CHECK: %{{.*}} = alloca i8*, align 8
 // CHECK: %[[B_ADDR:.*]] = alloca i8*, align 8
 // CHECK: %[[BLOCK:.*]] = alloca <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>, align 8
 // CHECK-NOARC: store i8* %[[B]], i8** %[[B_ADDR]], align 8
 // CHECK-ARC: store i8* null, i8** %[[B_ADDR]], align 8
 // CHECK-ARC: call void @llvm.objc.storeStrong(i8** %[[B_ADDR]], i8* %[[B]])
-// CHECK-ARC: %[[V0:.*]] = getelementptr inbounds <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>, <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>* %[[BLOCK]], i32 0, i32 5
 // CHECK: %[[BLOCK_ISA:.*]] = getelementptr inbounds <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>, <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>* %[[BLOCK]], i32 0, i32 0
 // CHECK: store i8* bitcast (i8** @_NSConcreteGlobalBlock to i8*), i8** %[[BLOCK_ISA]], align 8
 // CHECK: %[[BLOCK_FLAGS:.*]] = getelementptr inbounds <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>, <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>* %[[BLOCK]], i32 0, i32 1
@@ -109,7 +108,7 @@ void test5(BlockTy2 b, int *p) {
 // CHECK-ARC: %[[V3:.*]] = call i8* @llvm.objc.retain(i8* %[[V2]])
 // CHECK-ARC: store i8* %[[V3]], i8** %[[BLOCK_CAPTURED]], align 8
 // CHECK: call void @noescapeFunc0(
-// CHECK-ARC: call void @llvm.objc.storeStrong(i8** %[[V0]], i8* null)
+// CHECK-ARC: call void @llvm.objc.storeStrong(i8** %[[BLOCK_CAPTURED]], i8* null)
 // CHECK-ARC: call void @llvm.objc.storeStrong(i8** %[[B_ADDR]], i8* null)
 
 // Non-escaping blocks don't need copy/dispose helper functions.
@@ -126,7 +125,7 @@ void test6(id a, id b) {
 // We don't need either the byref helper functions or the byref structs for
 // __block variables that are not captured by escaping blocks.
 
-// CHECK: define void @test7(
+// CHECK: define{{.*}} void @test7(
 // CHECK: alloca i8*, align 8
 // CHECK: %[[B0:.*]] = alloca i8*, align 8
 // CHECK: %[[BLOCK:.*]] = alloca <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8** }>, align 8
@@ -136,7 +135,7 @@ void test6(id a, id b) {
 // CHECK-ARC-NOT: define internal void @__Block_byref_object_copy_
 // CHECK-ARC-NOT: define internal void @__Block_byref_object_dispose_
 
-void test7() {
+void test7(void) {
   id a;
   __block id b0;
   noescapeFunc0(a, ^{ (void)b0; });
@@ -144,7 +143,7 @@ void test7() {
 
 // __block variables captured by escaping blocks need byref helper functions.
 
-// CHECK: define void @test8(
+// CHECK: define{{.*}} void @test8(
 // CHECK: %[[A:.*]] = alloca i8*, align 8
 // CHECK: %[[B0:.*]] = alloca %[[STRUCT_BLOCK_BYREF_B0]], align 8
 // CHECK: alloca <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, i8* }>, align 8
@@ -162,7 +161,7 @@ struct S0 {
   id a, b;
 };
 
-void test8() {
+void test8(void) {
   id a;
   __block struct S0 b0;
   noescapeFunc0(a, ^{ (void)b0; });

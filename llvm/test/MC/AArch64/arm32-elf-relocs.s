@@ -1,9 +1,8 @@
-// RUN: llvm-mc -target-abi=ilp32 -triple=arm64-linux-gnu -o - < %s | \
-// RUN:   FileCheck %s
-// RUN: llvm-mc -target-abi=ilp32 -triple=arm64-linux-gnu -show-encoding \
+// RUN: llvm-mc -triple=arm64-linux-gnu_ilp32 -o - < %s | FileCheck %s
+// RUN: llvm-mc -triple=arm64-linux-gnu_ilp32 -show-encoding \
 // RUN:    -o - < %s | FileCheck --check-prefix=CHECK-ENCODING %s
-// RUN: llvm-mc -target-abi=ilp32 -triple=arm64-linux-gnu -filetype=obj < %s | \
-// RUN:   llvm-objdump -triple=arm64-linux-gnu - -r | \
+// RUN: llvm-mc -triple=arm64-linux-gnu_ilp32 -filetype=obj < %s | \
+// RUN:   llvm-objdump --triple=arm64-linux-gnu - -r | \
 // RUN:   FileCheck %s --check-prefix=CHECK-OBJ-ILP32
 
    add x0, x2, #:lo12:sym
@@ -32,37 +31,37 @@
 
         add x0, x2, #:lo12:sym+8
 // CHECK: add x0, x2, :lo12:sym
-// CHECK-OBJ-ILP32: 18 R_AARCH64_P32_ADD_ABS_LO12_NC sym+8
+// CHECK-OBJ-ILP32: 18 R_AARCH64_P32_ADD_ABS_LO12_NC sym+0x8
 
    add x5, x7, #:dtprel_lo12:sym+1
 // CHECK: add x5, x7, :dtprel_lo12:sym+1
-// CHECK-OBJ-ILP32: 1c R_AARCH64_P32_TLSLD_ADD_DTPREL_LO12 sym+1
+// CHECK-OBJ-ILP32: 1c R_AARCH64_P32_TLSLD_ADD_DTPREL_LO12 sym+0x1
 
    add x9, x12, #:dtprel_lo12_nc:sym+2
 // CHECK: add x9, x12, :dtprel_lo12_nc:sym+2
-// CHECK-OBJ-ILP32:20 R_AARCH64_P32_TLSLD_ADD_DTPREL_LO12_NC sym+2
+// CHECK-OBJ-ILP32:20 R_AARCH64_P32_TLSLD_ADD_DTPREL_LO12_NC sym+0x2
 
    add x20, x30, #:tprel_lo12:sym+12
 // CHECK: add x20, x30, :tprel_lo12:sym+12
-// CHECK-OBJ-ILP32: 24 R_AARCH64_P32_TLSLE_ADD_TPREL_LO12 sym+12
+// CHECK-OBJ-ILP32: 24 R_AARCH64_P32_TLSLE_ADD_TPREL_LO12 sym+0xc
 
    add x9, x12, #:tprel_lo12_nc:sym+54
 // CHECK: add x9, x12, :tprel_lo12_nc:sym+54
-// CHECK-OBJ-ILP32: 28 R_AARCH64_P32_TLSLE_ADD_TPREL_LO12_NC sym+54
+// CHECK-OBJ-ILP32: 28 R_AARCH64_P32_TLSLE_ADD_TPREL_LO12_NC sym+0x36
 
    add x5, x0, #:tlsdesc_lo12:sym+70
 // CHECK: add x5, x0, :tlsdesc_lo12:sym+70
-// CHECK-OBJ-ILP32: 2c R_AARCH64_P32_TLSDESC_ADD_LO12 sym+70
+// CHECK-OBJ-ILP32: 2c R_AARCH64_P32_TLSDESC_ADD_LO12 sym+0x46
 
         .hword sym + 4 - .
-// CHECK-OBJ-ILP32: 30 R_AARCH64_P32_PREL16 sym+4
+// CHECK-OBJ-ILP32: 30 R_AARCH64_P32_PREL16 sym+0x4
         .word sym - . + 8
-// CHECK-OBJ-ILP32: 32 R_AARCH64_P32_PREL32 sym+8
+// CHECK-OBJ-ILP32: 32 R_AARCH64_P32_PREL32 sym+0x8
 
         .hword sym
 // CHECK-OBJ-ILP32: 36 R_AARCH64_P32_ABS16 sym
         .word sym+1
-// CHECK-OBJ-ILP32: 38 R_AARCH64_P32_ABS32 sym+1
+// CHECK-OBJ-ILP32: 38 R_AARCH64_P32_ABS32 sym+0x1
 
    adrp x0, sym
 // CHECK: adrp x0, sym

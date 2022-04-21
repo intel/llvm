@@ -163,6 +163,18 @@ define <4 x i32> @test14(<4 x i32> %A) {
   ret <4 x i32> %1
 }
 
+; X & undef must fold to 0. So lane 0 must choose from the zero vector.
+
+define <4 x i32> @undef_lane(<4 x i32> %x) {
+; CHECK-LABEL: undef_lane:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    xorps %xmm1, %xmm1
+; CHECK-NEXT:    blendps {{.*#+}} xmm0 = xmm1[0],xmm0[1],xmm1[2],xmm0[3]
+; CHECK-NEXT:    retq
+  %r = and <4 x i32> %x, <i32 undef, i32 4294967295, i32 0, i32 4294967295>
+  ret <4 x i32> %r
+}
+
 define <4 x i32> @test15(<4 x i32> %A, <4 x i32> %B) {
 ; CHECK-LABEL: test15:
 ; CHECK:       # %bb.0:
@@ -290,7 +302,7 @@ define <16 x i8> @PR34620(<16 x i8> %a0, <16 x i8> %a1) {
 ; CHECK-LABEL: PR34620:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    psrlw $1, %xmm0
-; CHECK-NEXT:    pand {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    paddb %xmm1, %xmm0
 ; CHECK-NEXT:    retq
   %1 = lshr <16 x i8> %a0, <i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1>

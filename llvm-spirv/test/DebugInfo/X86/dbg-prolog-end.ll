@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 < %t.ll | FileCheck %s
@@ -30,7 +30,7 @@ entry:
 declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 
 ;CHECK-LABEL: main:
-;CHECK: .loc 1 0 0 prologue_end
+;CHECK: .loc 1 8 2 prologue_end
 
 define i32 @main() nounwind ssp !dbg !6 {
 entry:

@@ -9,14 +9,14 @@
 # The same test gets shrink wrapped on Linux ARM64.
 
 # WIN64-LABEL: bb.0.entry:
-# WIN64: early-clobber $sp = frame-setup STRXpre killed $x28, $sp, -32
+# WIN64: early-clobber $sp = frame-setup STRXpre killed $x19, $sp, -32
 # WIN64-LABEL: bb.1:
 # WIN64-LABEL: bb.2.if.then:
 
 # LINUX-LABEL: bb.0.entry:
 # LINUX-LABEL: bb.1:
 # LINUX-LABEL: bb.2.if.then:
-# LINUX: early-clobber $sp = frame-setup STRXpre killed $x28, $sp, -32
+# LINUX: early-clobber $sp = frame-setup STRXpre killed $fp, $sp, -32
 --- |
   ; ModuleID = 'shrink.cpp'
   target datalayout = "e-m:w-p:64:64-i32:32-i64:64-i128:128-n32:64-S128"
@@ -56,9 +56,9 @@
   ; Function Attrs: nounwind
   declare void @llvm.stackprotector(i8*, i8**) #3
 
-  attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
   attributes #1 = { argmemonly nounwind }
-  attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
   attributes #3 = { nounwind }
 
   !llvm.module.flags = !{!0}
@@ -74,7 +74,7 @@
 ...
 ---
 name:            '?func@@YAHHH@Z'
-alignment:       2
+alignment:       4
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -107,7 +107,7 @@ frameInfo:
 fixedStack:
 stack:
   - { id: 0, name: A, type: default, offset: 0, size: 4000, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -4000, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
 constants:
@@ -134,7 +134,7 @@ body:             |
     $x0 = ADDXri %stack.0.A, 0, 0
     BL @"?init@@YAXPEAH@Z", csr_aarch64_aapcs, implicit-def dead $lr, implicit $sp, implicit $x0, implicit-def $sp
     ADJCALLSTACKUP 0, 0, implicit-def dead $sp, implicit $sp
-    renamable $w8 = LDRWui %stack.0.A, 100 :: (dereferenceable load 4 from %ir.arrayidx, !tbaa !2)
+    renamable $w8 = LDRWui %stack.0.A, 100 :: (dereferenceable load (s32) from %ir.arrayidx, !tbaa !2)
     renamable $w8 = ADDWrr killed renamable $w19, killed renamable $w8
     renamable $w0 = ADDWri killed renamable $w8, 1, 0
 

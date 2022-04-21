@@ -12,7 +12,7 @@ void test0(id obj) {
     foo();
   }
 }
-// CHECK-LABEL:    define void @_Z5test0P11objc_object(
+// CHECK-LABEL:    define{{.*}} void @_Z5test0P11objc_object(
 //   Enter the @synchronized block.
 // CHECK:      call i32 @objc_sync_enter(i8* [[OBJ:%.*]])
 // CHECK:      call void @objc_exception_try_enter([[BUF_T:%.*]]* nonnull [[BUF:%.*]])
@@ -52,7 +52,7 @@ void test1(id obj, bool *failed) {
     *failed = true;
   }
 }
-// CHECK-LABEL:    define void @_Z5test1P11objc_objectPb(
+// CHECK-LABEL:    define{{.*}} void @_Z5test1P11objc_objectPb(
 //   Enter the @try block.
 // CHECK:      call void @objc_exception_try_enter([[BUF_T]]* nonnull [[BUF:%.*]])
 // CHECK-NEXT: [[T0:%.*]] = getelementptr inbounds [[BUF_T]], [[BUF_T]]* [[BUF]], i32 0, i32 0, i32 0
@@ -63,10 +63,16 @@ void test1(id obj, bool *failed) {
 //   Body.
 // CHECK:      invoke void @_Z3foov()
 
+//   Catch handler.  Reload of 'failed' address is unnecessary.
+// CHECK:      [[T0:%.*]] = load i8*, i8**
+// CHECK-NEXT: store i8 1, i8* [[T0]],
+// CHECK-NEXT: br label
+
 //   Leave the @try.
 // CHECK:      call void @objc_exception_try_exit([[BUF_T]]* nonnull [[BUF]])
 // CHECK-NEXT: br label
 // CHECK:      ret void
+
 
 //   Real EH cleanup.
 // CHECK:      [[T0:%.*]] = landingpad
@@ -74,7 +80,3 @@ void test1(id obj, bool *failed) {
 // CHECK-NEXT: call void @objc_exception_try_exit([[BUF_T]]* nonnull [[BUF]])
 // CHECK-NEXT: resume
 
-//   Catch handler.  Reload of 'failed' address is unnecessary.
-// CHECK:      [[T0:%.*]] = load i8*, i8**
-// CHECK-NEXT: store i8 1, i8* [[T0]],
-// CHECK-NEXT: br label

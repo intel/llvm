@@ -6,15 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-// NOTE: nullptr_t emulation cannot handle a reinterpret_cast to an
-// integral type
-// XFAIL: c++98, c++03
+// NOTE: nullptr_t emulation (used in libc++ ABI v.1) cannot handle a
+// reinterpret_cast to an integral type
+// UNSUPPORTED: c++03
 
 // typedef decltype(nullptr) nullptr_t;
 
 
 #include <cstddef>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

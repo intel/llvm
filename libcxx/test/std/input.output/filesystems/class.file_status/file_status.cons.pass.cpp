@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,11 +15,13 @@
 // explicit file_status() noexcept;
 // explicit file_status(file_type, perms prms = perms::unknown) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
-#include "test_convertible.hpp"
+#include "test_convertible.h"
+
+#include "test_macros.h"
 
 
 int main(int, char**) {

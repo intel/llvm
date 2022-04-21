@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/Hashing.h"
 #include "llvm/Support/DataTypes.h"
+#include "llvm/Support/HashBuilder.h"
 #include "gtest/gtest.h"
 #include <deque>
 #include <list>
@@ -99,6 +100,17 @@ TEST(HashingTest, HashValueStdPair) {
   NonPOD obj1(1, 2), obj2(3, 4), obj3(5, 6);
   EXPECT_EQ(hash_combine(obj1, hash_combine(obj2, obj3)),
             hash_value(std::make_pair(obj1, std::make_pair(obj2, obj3))));
+}
+
+TEST(HashingTest, HashValueStdTuple) {
+  EXPECT_EQ(hash_combine(), hash_value(std::make_tuple()));
+  EXPECT_EQ(hash_combine(42), hash_value(std::make_tuple(42)));
+  EXPECT_EQ(hash_combine(42, 'c'), hash_value(std::make_tuple(42, 'c')));
+
+  EXPECT_NE(hash_combine(43, 42), hash_value(std::make_tuple(42, 43)));
+  EXPECT_NE(hash_combine(42, 43), hash_value(std::make_tuple(42ull, 43ull)));
+  EXPECT_NE(hash_combine(42, 43), hash_value(std::make_tuple(42, 43ull)));
+  EXPECT_NE(hash_combine(42, 43), hash_value(std::make_tuple(42ull, 43)));
 }
 
 TEST(HashingTest, HashValueStdString) {
@@ -391,4 +403,36 @@ TEST(HashingTest, HashCombineArgs18) {
 #undef CHECK_SAME
 }
 
+struct StructWithHashBuilderSupport {
+  char C;
+  int I;
+  template <typename HasherT, llvm::support::endianness Endianness>
+  friend void addHash(llvm::HashBuilderImpl<HasherT, Endianness> &HBuilder,
+                      const StructWithHashBuilderSupport &Value) {
+    HBuilder.add(Value.C, Value.I);
+  }
+};
+
+TEST(HashingTest, HashWithHashBuilder) {
+  StructWithHashBuilderSupport S{'c', 1};
+  EXPECT_NE(static_cast<size_t>(llvm::hash_value(S)), static_cast<size_t>(0));
 }
+
+struct StructWithHashBuilderAndHashValueSupport {
+  char C;
+  int I;
+  template <typename HasherT, llvm::support::endianness Endianness>
+  friend void addHash(llvm::HashBuilderImpl<HasherT, Endianness> &HBuilder,
+                      const StructWithHashBuilderAndHashValueSupport &Value) {}
+  friend hash_code
+  hash_value(const StructWithHashBuilderAndHashValueSupport &Value) {
+    return 0xbeef;
+  }
+};
+
+TEST(HashingTest, HashBuilderAndHashValue) {
+  StructWithHashBuilderAndHashValueSupport S{'c', 1};
+  EXPECT_EQ(static_cast<size_t>(hash_value(S)), static_cast<size_t>(0xbeef));
+}
+
+} // namespace

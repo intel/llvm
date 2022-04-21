@@ -59,11 +59,10 @@ return:                                           ; preds = %if.end, %if.then
   %3 = load i32, i32* %retval
   ret i32 %3
 
-; FIXME: We should be saving VRSAVE on Darwin, but we're not!
 
 ; CHECK-LABEL: main:
 ; CHECK: std
-; Make sure that we're not saving VRSAVE on non-Darwin:
+; Make sure that we're not saving VRSAVE:
 ; CHECK-NOT: mfspr
 
 ; CHECK-DAG: stfd
@@ -81,8 +80,8 @@ return:                                           ; preds = %if.end, %if.then
 ; CHECK: # %bb.1:
 
 ; CHECK: .LBB1_3:
-; CHECK: mflr [[REGL:[0-9]+]]
 ; CHECK: ld [[REG2:[0-9]+]], [[OFF]](31)                   # 8-byte Folded Reload
+; CHECK: mflr [[REGL:[0-9]+]]
 ; CHECK: std [[REGL]], 8([[REG2]])
 ; CHECK: li 3, 0
 
@@ -172,7 +171,7 @@ declare i8* @llvm.stacksave() #3
 
 declare i32 @llvm.eh.sjlj.setjmp(i8*) #3
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { noreturn nounwind }
 attributes #2 = { nounwind readnone }
 attributes #3 = { nounwind }

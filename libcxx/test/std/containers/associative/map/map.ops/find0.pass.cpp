@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// XFAIL: c++98, c++03, c++11
+// XFAIL: c++03, c++11
 
 // <map>
 
@@ -23,6 +23,7 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "is_transparent.h"
 
 int main(int, char**)

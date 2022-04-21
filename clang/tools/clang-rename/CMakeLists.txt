@@ -7,7 +7,7 @@ add_clang_tool(clang-rename
   ClangRename.cpp
   )
 
-target_link_libraries(clang-rename
+clang_target_link_libraries(clang-rename
   PRIVATE
   clangBasic
   clangFrontend
@@ -15,12 +15,12 @@ target_link_libraries(clang-rename
   clangSerialization
   clangTooling
   clangToolingCore
-  clangToolingRefactor
+  clangToolingRefactoring
   )
 
 install(PROGRAMS clang-rename.py
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-rename)
 install(PROGRAMS clang-rename.el
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-rename)

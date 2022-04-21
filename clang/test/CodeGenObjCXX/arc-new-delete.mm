@@ -4,7 +4,7 @@
 typedef __strong id strong_id;
 typedef __weak id weak_id;
 
-// CHECK-LABEL: define void @_Z8test_newP11objc_object
+// CHECK-LABEL: define{{.*}} void @_Z8test_newP11objc_object
 void test_new(id invalue) {
   // CHECK: [[INVALUEADDR:%.*]] = alloca i8*
   // UNOPT-NEXT: store i8* null, i8** [[INVALUEADDR]]
@@ -12,32 +12,32 @@ void test_new(id invalue) {
   // OPT-NEXT: [[T0:%.*]] = call i8* @llvm.objc.retain(i8* [[INVALUE:%.*]])
   // OPT-NEXT: store i8* [[T0]], i8** [[INVALUEADDR]]
 
-  // CHECK: call i8* @_Znwm
+  // CHECK: [[CALL:%.*]] = call noalias noundef nonnull i8* @_Znwm
   // CHECK-NEXT: {{bitcast i8\*.*to i8\*\*}}
   // CHECK-NEXT: store i8* null, i8**
   new strong_id;
-  // CHECK: call i8* @_Znwm
+  // CHECK: [[CALL:%.*]] = call noalias noundef nonnull i8* @_Znwm
   // CHECK-NEXT: {{bitcast i8\*.*to i8\*\*}}
   // UNOPT-NEXT: store i8* null, i8**
   // OPT-NEXT: call i8* @llvm.objc.initWeak(i8** {{.*}}, i8* null)
   new weak_id;
 
-  // CHECK: call i8* @_Znwm
+  // CHECK: [[CALL:%.*]] = call noalias noundef nonnull i8* @_Znwm
   // CHECK-NEXT: {{bitcast i8\*.*to i8\*\*}}
   // CHECK-NEXT: store i8* null, i8**
   new __strong id;
-  // CHECK: call i8* @_Znwm
+  // CHECK: [[CALL:%.*]] = call noalias noundef nonnull i8* @_Znwm
   // CHECK-NEXT: {{bitcast i8\*.*to i8\*\*}}
   // UNOPT-NEXT: store i8* null, i8**
   // OPT-NEXT: call i8* @llvm.objc.initWeak(i8** {{.*}}, i8* null)
   new __weak id;
 
-  // CHECK: call i8* @_Znwm
+  // CHECK: [[CALL:%.*]] = call noalias noundef nonnull i8* @_Znwm
   // CHECK: call i8* @llvm.objc.retain
   // CHECK: store i8*
   new __strong id(invalue);
 
-  // CHECK: call i8* @_Znwm
+  // CHECK: [[CALL:%.*]] = call noalias noundef nonnull i8* @_Znwm
   // CHECK: call i8* @llvm.objc.initWeak
   new __weak id(invalue);
 
@@ -46,21 +46,21 @@ void test_new(id invalue) {
   // CHECK: ret void
 }
 
-// CHECK-LABEL: define void @_Z14test_array_new
+// CHECK-LABEL: define{{.*}} void @_Z14test_array_new
 void test_array_new() {
-  // CHECK: call i8* @_Znam
+  // CHECK: call noalias noundef nonnull i8* @_Znam
   // CHECK: store i64 17, i64*
   // CHECK: call void @llvm.memset.p0i8.i64
   new strong_id[17];
 
-  // CHECK: call i8* @_Znam
+  // CHECK: call noalias noundef nonnull i8* @_Znam
   // CHECK: store i64 17, i64*
   // CHECK: call void @llvm.memset.p0i8.i64
   new weak_id[17];
   // CHECK: ret void
 }
 
-// CHECK-LABEL: define void @_Z11test_deletePU8__strongP11objc_objectPU6__weakS0_
+// CHECK-LABEL: define{{.*}} void @_Z11test_deletePU8__strongP11objc_objectPU6__weakS0_
 void test_delete(__strong id *sptr, __weak id *wptr) {
   // CHECK: br i1
   // UNOPT: call void @llvm.objc.storeStrong(i8** {{.*}}, i8* null)
@@ -76,7 +76,7 @@ void test_delete(__strong id *sptr, __weak id *wptr) {
   // CHECK: ret void
 }
 
-// CHECK-LABEL: define void @_Z17test_array_deletePU8__strongP11objc_objectPU6__weakS0_
+// CHECK-LABEL: define{{.*}} void @_Z17test_array_deletePU8__strongP11objc_objectPU6__weakS0_
 void test_array_delete(__strong id *sptr, __weak id *wptr) {
   // CHECK: icmp eq i8** [[BEGIN:%.*]], null
   // CHECK: [[LEN:%.*]] = load i64, i64* {{%.*}}

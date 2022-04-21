@@ -17,8 +17,11 @@
 #include "X86InstrInfo.h"
 #include "X86Subtarget.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/ProfileSummaryInfo.h"
+#include "llvm/CodeGen/LazyMachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineSizeOpts.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetSchedule.h"
 #include "llvm/IR/Function.h"
@@ -51,6 +54,13 @@ namespace {
                    , Threshold(4) {}
 
     bool runOnMachineFunction(MachineFunction &MF) override;
+
+    void getAnalysisUsage(AnalysisUsage &AU) const override {
+      AU.addRequired<ProfileSummaryInfoWrapperPass>();
+      AU.addRequired<LazyMachineBlockFrequencyInfoPass>();
+      AU.addPreserved<LazyMachineBlockFrequencyInfoPass>();
+      MachineFunctionPass::getAnalysisUsage(AU);
+    }
 
     MachineFunctionProperties getRequiredProperties() const override {
       return MachineFunctionProperties().set(
@@ -105,6 +115,12 @@ bool PadShortFunc::runOnMachineFunction(MachineFunction &MF) {
 
   TSM.init(&MF.getSubtarget());
 
+  auto *PSI =
+      &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
+  auto *MBFI = (PSI && PSI->hasProfileSummary()) ?
+               &getAnalysis<LazyMachineBlockFrequencyInfoPass>().getBFI() :
+               nullptr;
+
   // Search through basic blocks and mark the ones that have early returns
   ReturnBBs.clear();
   VisitedBBs.clear();
@@ -113,10 +129,14 @@ bool PadShortFunc::runOnMachineFunction(MachineFunction &MF) {
   bool MadeChange = false;
 
   // Pad the identified basic blocks with NOOPs
-  for (DenseMap<MachineBasicBlock*, unsigned int>::iterator I = ReturnBBs.begin();
-       I != ReturnBBs.end(); ++I) {
-    MachineBasicBlock *MBB = I->first;
-    unsigned Cycles = I->second;
+  for (const auto &ReturnBB : ReturnBBs) {
+    MachineBasicBlock *MBB = ReturnBB.first;
+    unsigned Cycles = ReturnBB.second;
+
+    // Function::hasOptSize is already checked above.
+    bool OptForSize = llvm::shouldOptimizeForSize(MBB, PSI, MBFI);
+    if (OptForSize)
+      continue;
 
     if (Cycles < Threshold) {
       // BB ends in a return. Skip over any DBG_VALUE instructions
@@ -153,12 +173,9 @@ void PadShortFunc::findReturns(MachineBasicBlock *MBB, unsigned int Cycles) {
   }
 
   // Follow branches in BB and look for returns
-  for (MachineBasicBlock::succ_iterator I = MBB->succ_begin();
-       I != MBB->succ_end(); ++I) {
-    if (*I == MBB)
-      continue;
-    findReturns(*I, Cycles);
-  }
+  for (MachineBasicBlock *Succ : MBB->successors())
+    if (Succ != MBB)
+      findReturns(Succ, Cycles);
 }
 
 /// cyclesUntilReturn - return true if the MBB has a return instruction,
@@ -201,7 +218,7 @@ bool PadShortFunc::cyclesUntilReturn(MachineBasicBlock *MBB,
 void PadShortFunc::addPadding(MachineBasicBlock *MBB,
                               MachineBasicBlock::iterator &MBBI,
                               unsigned int NOOPsToAdd) {
-  DebugLoc DL = MBBI->getDebugLoc();
+  const DebugLoc &DL = MBBI->getDebugLoc();
   unsigned IssueWidth = TSM.getIssueWidth();
 
   for (unsigned i = 0, e = IssueWidth * NOOPsToAdd; i != e; ++i)

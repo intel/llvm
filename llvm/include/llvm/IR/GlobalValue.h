@@ -38,7 +38,7 @@ class GlobalObject;
 class Module;
 
 namespace Intrinsic {
-  enum ID : unsigned;
+typedef unsigned ID;
 } // end namespace Intrinsic
 
 class GlobalValue : public Constant {
@@ -79,15 +79,14 @@ protected:
         ValueType(Ty), Visibility(DefaultVisibility),
         UnnamedAddrVal(unsigned(UnnamedAddr::None)),
         DllStorageClass(DefaultStorageClass), ThreadLocal(NotThreadLocal),
-        HasLLVMReservedName(false), IsDSOLocal(false), IntID((Intrinsic::ID)0U),
-        Parent(nullptr) {
+        HasLLVMReservedName(false), IsDSOLocal(false), HasPartition(false) {
     setLinkage(Linkage);
     setName(Name);
   }
 
   Type *ValueType;
 
-  static const unsigned GlobalValueSubClassDataBits = 17;
+  static const unsigned GlobalValueSubClassDataBits = 16;
 
   // All bitfields use unsigned as the underlying type so that MSVC will pack
   // them.
@@ -108,9 +107,13 @@ protected:
   /// definition cannot be runtime preempted.
   unsigned IsDSOLocal : 1;
 
+  /// True if this symbol has a partition name assigned (see
+  /// https://lld.llvm.org/Partitions.html).
+  unsigned HasPartition : 1;
+
 private:
   // Give subclasses access to what otherwise would be wasted padding.
-  // (17 + 4 + 2 + 2 + 2 + 3 + 1 + 1) == 32.
+  // (16 + 4 + 2 + 2 + 2 + 3 + 1 + 1 + 1) == 32.
   unsigned SubClassData : GlobalValueSubClassDataBits;
 
   friend class Constant;
@@ -142,12 +145,6 @@ private:
     llvm_unreachable("Fully covered switch above!");
   }
 
-  void maybeSetDsoLocal() {
-    if (hasLocalLinkage() ||
-        (!hasDefaultVisibility() && !hasExternalWeakLinkage()))
-      setDSOLocal(true);
-  }
-
 protected:
   /// The intrinsic ID for this subclass (which must be a Function).
   ///
@@ -155,7 +152,7 @@ protected:
   /// Subclasses can use it to store their intrinsic ID, if they have one.
   ///
   /// This is stored here to save space in Function on 64-bit hosts.
-  Intrinsic::ID IntID;
+  Intrinsic::ID IntID = (Intrinsic::ID)0U;
 
   unsigned getGlobalValueSubClassData() const {
     return SubClassData;
@@ -165,7 +162,7 @@ protected:
     SubClassData = V;
   }
 
-  Module *Parent;             // The containing module.
+  Module *Parent = nullptr; // The containing module.
 
   // Used by SymbolTableListTraits.
   void setParent(Module *parent) {
@@ -187,7 +184,6 @@ public:
 
   GlobalValue(const GlobalValue &) = delete;
 
-  unsigned getAlignment() const;
   unsigned getAddressSpace() const;
 
   enum class UnnamedAddr {
@@ -239,7 +235,8 @@ public:
     assert((!hasLocalLinkage() || V == DefaultVisibility) &&
            "local linkage requires default visibility");
     Visibility = V;
-    maybeSetDsoLocal();
+    if (isImplicitDSOLocal())
+      setDSOLocal(true);
   }
 
   /// If the value is "Thread Local", its value isn't shared by the threads.
@@ -274,11 +271,22 @@ public:
 
   Type *getValueType() const { return ValueType; }
 
+  bool isImplicitDSOLocal() const {
+    return hasLocalLinkage() ||
+           (!hasDefaultVisibility() && !hasExternalWeakLinkage());
+  }
+
   void setDSOLocal(bool Local) { IsDSOLocal = Local; }
 
   bool isDSOLocal() const {
     return IsDSOLocal;
   }
+
+  bool hasPartition() const {
+    return HasPartition;
+  }
+  StringRef getPartition() const;
+  void setPartition(StringRef Part);
 
   static LinkageTypes getLinkOnceLinkage(bool ODR) {
     return ODR ? LinkOnceODRLinkage : LinkOnceAnyLinkage;
@@ -293,11 +301,14 @@ public:
   static bool isAvailableExternallyLinkage(LinkageTypes Linkage) {
     return Linkage == AvailableExternallyLinkage;
   }
+  static bool isLinkOnceAnyLinkage(LinkageTypes Linkage) {
+    return Linkage == LinkOnceAnyLinkage;
+  }
   static bool isLinkOnceODRLinkage(LinkageTypes Linkage) {
     return Linkage == LinkOnceODRLinkage;
   }
   static bool isLinkOnceLinkage(LinkageTypes Linkage) {
-    return Linkage == LinkOnceAnyLinkage || Linkage == LinkOnceODRLinkage;
+    return isLinkOnceAnyLinkage(Linkage) || isLinkOnceODRLinkage(Linkage);
   }
   static bool isWeakAnyLinkage(LinkageTypes Linkage) {
     return Linkage == WeakAnyLinkage;
@@ -413,16 +424,20 @@ public:
   }
 
   /// Return true if this global's definition can be substituted with an
-  /// *arbitrary* definition at link time.  We cannot do any IPO or inlinining
-  /// across interposable call edges, since the callee can be replaced with
-  /// something arbitrary at link time.
-  bool isInterposable() const { return isInterposableLinkage(getLinkage()); }
+  /// *arbitrary* definition at link time or load time. We cannot do any IPO or
+  /// inlining across interposable call edges, since the callee can be
+  /// replaced with something arbitrary.
+  bool isInterposable() const;
+  bool canBenefitFromLocalAlias() const;
 
   bool hasExternalLinkage() const { return isExternalLinkage(getLinkage()); }
   bool hasAvailableExternallyLinkage() const {
     return isAvailableExternallyLinkage(getLinkage());
   }
   bool hasLinkOnceLinkage() const { return isLinkOnceLinkage(getLinkage()); }
+  bool hasLinkOnceAnyLinkage() const {
+    return isLinkOnceAnyLinkage(getLinkage());
+  }
   bool hasLinkOnceODRLinkage() const {
     return isLinkOnceODRLinkage(getLinkage());
   }
@@ -445,7 +460,8 @@ public:
     if (isLocalLinkage(LT))
       Visibility = DefaultVisibility;
     Linkage = LT;
-    maybeSetDsoLocal();
+    if (isImplicitDSOLocal())
+      setDSOLocal(true);
   }
   LinkageTypes getLinkage() const { return LinkageTypes(Linkage); }
 
@@ -537,14 +553,10 @@ public:
     return !(isDeclarationForLinker() || isWeakForLinker());
   }
 
-  // Returns true if the alignment of the value can be unilaterally
-  // increased.
-  bool canIncreaseAlignment() const;
-
-  const GlobalObject *getBaseObject() const;
-  GlobalObject *getBaseObject() {
+  const GlobalObject *getAliaseeObject() const;
+  GlobalObject *getAliaseeObject() {
     return const_cast<GlobalObject *>(
-                       static_cast<const GlobalValue *>(this)->getBaseObject());
+        static_cast<const GlobalValue *>(this)->getAliaseeObject());
   }
 
   /// Returns whether this is a reference to an absolute symbol.

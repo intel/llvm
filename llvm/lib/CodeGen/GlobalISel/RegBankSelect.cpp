@@ -14,8 +14,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
@@ -25,13 +23,15 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterBank.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/BlockFrequency.h"
 #include "llvm/Support/CommandLine.h"
@@ -71,7 +71,6 @@ INITIALIZE_PASS_END(RegBankSelect, DEBUG_TYPE,
 
 RegBankSelect::RegBankSelect(Mode RunningMode)
     : MachineFunctionPass(ID), OptMode(RunningMode) {
-  initializeRegBankSelectPass(*PassRegistry::getPassRegistry());
   if (RegBankSelectMode.getNumOccurrences() != 0) {
     OptMode = RegBankSelectMode;
     if (RegBankSelectMode != RunningMode)
@@ -93,7 +92,7 @@ void RegBankSelect::init(MachineFunction &MF) {
     MBPI = nullptr;
   }
   MIRBuilder.setMF(MF);
-  MORE = llvm::make_unique<MachineOptimizationRemarkEmitter>(MF, MBFI);
+  MORE = std::make_unique<MachineOptimizationRemarkEmitter>(MF, MBFI);
 }
 
 void RegBankSelect::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -109,7 +108,7 @@ void RegBankSelect::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool RegBankSelect::assignmentMatch(
-    unsigned Reg, const RegisterBankInfo::ValueMapping &ValMapping,
+    Register Reg, const RegisterBankInfo::ValueMapping &ValMapping,
     bool &OnlyAssign) const {
   // By default we assume we will have to repair something.
   OnlyAssign = false;
@@ -119,35 +118,35 @@ bool RegBankSelect::assignmentMatch(
     return false;
 
   const RegisterBank *CurRegBank = RBI->getRegBank(Reg, *MRI, *TRI);
-  const RegisterBank *DesiredRegBrank = ValMapping.BreakDown[0].RegBank;
+  const RegisterBank *DesiredRegBank = ValMapping.BreakDown[0].RegBank;
   // Reg is free of assignment, a simple assignment will make the
   // register bank to match.
   OnlyAssign = CurRegBank == nullptr;
   LLVM_DEBUG(dbgs() << "Does assignment already match: ";
              if (CurRegBank) dbgs() << *CurRegBank; else dbgs() << "none";
              dbgs() << " against ";
-             assert(DesiredRegBrank && "The mapping must be valid");
-             dbgs() << *DesiredRegBrank << '\n';);
-  return CurRegBank == DesiredRegBrank;
+             assert(DesiredRegBank && "The mapping must be valid");
+             dbgs() << *DesiredRegBank << '\n';);
+  return CurRegBank == DesiredRegBank;
 }
 
 bool RegBankSelect::repairReg(
     MachineOperand &MO, const RegisterBankInfo::ValueMapping &ValMapping,
     RegBankSelect::RepairingPlacement &RepairPt,
-    const iterator_range<SmallVectorImpl<unsigned>::const_iterator> &NewVRegs) {
+    const iterator_range<SmallVectorImpl<Register>::const_iterator> &NewVRegs) {
 
   assert(ValMapping.NumBreakDowns == (unsigned)size(NewVRegs) &&
          "need new vreg for each breakdown");
 
   // An empty range of new register means no repairing.
-  assert(!empty(NewVRegs) && "We should not have to repair");
+  assert(!NewVRegs.empty() && "We should not have to repair");
 
   MachineInstr *MI;
   if (ValMapping.NumBreakDowns == 1) {
     // Assume we are repairing a use and thus, the original reg will be
     // the source of the repairing.
-    unsigned Src = MO.getReg();
-    unsigned Dst = *NewVRegs.begin();
+    Register Src = MO.getReg();
+    Register Dst = *NewVRegs.begin();
 
     // If we repair a definition, swap the source and destination for
     // the repairing.
@@ -155,7 +154,7 @@ bool RegBankSelect::repairReg(
       std::swap(Src, Dst);
 
     assert((RepairPt.getNumInsertPoints() == 1 ||
-            TargetRegisterInfo::isPhysicalRegister(Dst)) &&
+            Register::isPhysicalRegister(Dst)) &&
            "We are about to create several defs for Dst");
 
     // Build the instruction used to repair, then clone it at the right
@@ -194,14 +193,14 @@ bool RegBankSelect::repairReg(
         MIRBuilder.buildInstrNoInsert(MergeOp)
         .addDef(MO.getReg());
 
-      for (unsigned SrcReg : NewVRegs)
+      for (Register SrcReg : NewVRegs)
         MergeBuilder.addUse(SrcReg);
 
       MI = MergeBuilder;
     } else {
       MachineInstrBuilder UnMergeBuilder =
         MIRBuilder.buildInstrNoInsert(TargetOpcode::G_UNMERGE_VALUES);
-      for (unsigned DefReg : NewVRegs)
+      for (Register DefReg : NewVRegs)
         UnMergeBuilder.addDef(DefReg);
 
       UnMergeBuilder.addUse(MO.getReg());
@@ -260,11 +259,11 @@ uint64_t RegBankSelect::getRepairCost(
     return RBI->getBreakDownCost(ValMapping, CurRegBank);
 
   if (IsSameNumOfValues) {
-    const RegisterBank *DesiredRegBrank = ValMapping.BreakDown[0].RegBank;
+    const RegisterBank *DesiredRegBank = ValMapping.BreakDown[0].RegBank;
     // If we repair a definition, swap the source and destination for
     // the repairing.
     if (MO.isDef())
-      std::swap(CurRegBank, DesiredRegBrank);
+      std::swap(CurRegBank, DesiredRegBank);
     // TODO: It may be possible to actually avoid the copy.
     // If we repair something where the source is defined by a copy
     // and the source of that copy is on the right bank, we can reuse
@@ -276,7 +275,7 @@ uint64_t RegBankSelect::getRepairCost(
     // into a new virtual register.
     // We would also need to propagate this information in the
     // repairing placement.
-    unsigned Cost = RBI->copyCost(*DesiredRegBrank, *CurRegBank,
+    unsigned Cost = RBI->copyCost(*DesiredRegBank, *CurRegBank,
                                   RBI->getSizeInBits(MO.getReg(), *MRI, *TRI));
     // TODO: use a dedicated constant for ImpossibleCost.
     if (Cost != std::numeric_limits<unsigned>::max())
@@ -398,8 +397,8 @@ void RegBankSelect::tryAvoidingSplit(
   //   repairing.
 
   // Check if this is a physical or virtual register.
-  unsigned Reg = MO.getReg();
-  if (TargetRegisterInfo::isPhysicalRegister(Reg)) {
+  Register Reg = MO.getReg();
+  if (Register::isPhysicalRegister(Reg)) {
     // We are going to split every outgoing edges.
     // Check that this is possible.
     // FIXME: The machine representation is currently broken
@@ -469,7 +468,7 @@ RegBankSelect::MappingCost RegBankSelect::computeMapping(
     const MachineOperand &MO = MI.getOperand(OpIdx);
     if (!MO.isReg())
       continue;
-    unsigned Reg = MO.getReg();
+    Register Reg = MO.getReg();
     if (!Reg)
       continue;
     LLVM_DEBUG(dbgs() << "Opd" << OpIdx << '\n');
@@ -595,7 +594,7 @@ bool RegBankSelect::applyMapping(
     MachineOperand &MO = MI.getOperand(OpIdx);
     const RegisterBankInfo::ValueMapping &ValMapping =
         InstrMapping.getOperandMapping(OpIdx);
-    unsigned Reg = MO.getReg();
+    Register Reg = MO.getReg();
 
     switch (RepairPt.getKind()) {
     case RepairingPlacement::Reassign:
@@ -622,6 +621,24 @@ bool RegBankSelect::applyMapping(
 
 bool RegBankSelect::assignInstr(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "Assign: " << MI);
+
+  unsigned Opc = MI.getOpcode();
+  if (isPreISelGenericOptimizationHint(Opc)) {
+    assert((Opc == TargetOpcode::G_ASSERT_ZEXT ||
+            Opc == TargetOpcode::G_ASSERT_SEXT ||
+            Opc == TargetOpcode::G_ASSERT_ALIGN) &&
+           "Unexpected hint opcode!");
+    // The only correct mapping for these is to always use the source register
+    // bank.
+    const RegisterBank *RB = MRI->getRegBankOrNull(MI.getOperand(1).getReg());
+    // We can assume every instruction above this one has a selected register
+    // bank.
+    assert(RB && "Expected source register to have a register bank?");
+    LLVM_DEBUG(dbgs() << "... Hint always uses source's register bank.\n");
+    MRI->setRegBank(MI.getOperand(0).getReg(), *RB);
+    return true;
+  }
+
   // Remember the repairing placement for all the operands.
   SmallVector<RepairingPlacement, 4> RepairPts;
 
@@ -682,32 +699,34 @@ bool RegBankSelect::runOnMachineFunction(MachineFunction &MF) {
     // Set a sensible insertion point so that subsequent calls to
     // MIRBuilder.
     MIRBuilder.setMBB(*MBB);
-    for (MachineBasicBlock::iterator MII = MBB->begin(), End = MBB->end();
-         MII != End;) {
-      // MI might be invalidated by the assignment, so move the
-      // iterator before hand.
-      MachineInstr &MI = *MII++;
+    SmallVector<MachineInstr *> WorkList(
+        make_pointer_range(reverse(MBB->instrs())));
 
-      // Ignore target-specific instructions: they should use proper regclasses.
-      if (isTargetSpecificOpcode(MI.getOpcode()))
+    while (!WorkList.empty()) {
+      MachineInstr &MI = *WorkList.pop_back_val();
+
+      // Ignore target-specific post-isel instructions: they should use proper
+      // regclasses.
+      if (isTargetSpecificOpcode(MI.getOpcode()) && !MI.isPreISelOpcode())
+        continue;
+
+      // Ignore inline asm instructions: they should use physical
+      // registers/regclasses
+      if (MI.isInlineAsm())
+        continue;
+
+      // Ignore debug info.
+      if (MI.isDebugInstr())
+        continue;
+
+      // Ignore IMPLICIT_DEF which must have a regclass.
+      if (MI.isImplicitDef())
         continue;
 
       if (!assignInstr(MI)) {
         reportGISelFailure(MF, *TPC, *MORE, "gisel-regbankselect",
                            "unable to map instruction", MI);
         return false;
-      }
-
-      // It's possible the mapping changed control flow, and moved the following
-      // instruction to a new block, so figure out the new parent.
-      if (MII != End) {
-        MachineBasicBlock *NextInstBB = MII->getParent();
-        if (NextInstBB != MBB) {
-          LLVM_DEBUG(dbgs() << "Instruction mapping changed control flow\n");
-          MBB = NextInstBB;
-          MIRBuilder.setMBB(*MBB);
-          End = MBB->end();
-        }
       }
     }
   }
@@ -758,7 +777,7 @@ RegBankSelect::RepairingPlacement::RepairingPlacement(
     MachineBasicBlock &Pred = *MI.getOperand(OpIdx + 1).getMBB();
     // Check if we can move the insertion point prior to the
     // terminators of the predecessor.
-    unsigned Reg = MO.getReg();
+    Register Reg = MO.getReg();
     MachineBasicBlock::iterator It = Pred.getLastNonDebugInstr();
     for (auto Begin = Pred.begin(); It != Begin && It->isTerminator(); --It)
       if (It->modifiesRegister(Reg, &TRI)) {
@@ -837,7 +856,7 @@ void RegBankSelect::RepairingPlacement::addInsertPoint(
 
 RegBankSelect::InstrInsertPoint::InstrInsertPoint(MachineInstr &Instr,
                                                   bool Before)
-    : InsertPoint(), Instr(Instr), Before(Before) {
+    : Instr(Instr), Before(Before) {
   // Since we do not support splitting, we do not need to update
   // liveness and such, so do not do anything with P.
   assert((!Before || !Instr.isPHI()) &&

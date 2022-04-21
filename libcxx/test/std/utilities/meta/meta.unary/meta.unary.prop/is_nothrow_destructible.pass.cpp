@@ -10,11 +10,6 @@
 
 // is_nothrow_destructible
 
-// Prevent warning when testing the Abstract test type.
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Wdelete-non-virtual-dtor"
-#endif
-
 #include <type_traits>
 #include "test_macros.h"
 
@@ -101,7 +96,7 @@ int main(int, char**)
     test_is_nothrow_destructible<Abstract>();
     test_is_nothrow_destructible<Empty>();
     test_is_nothrow_destructible<Union>();
-
+#endif
     // requires access control
     test_is_not_nothrow_destructible<ProtectedDestructor>();
     test_is_not_nothrow_destructible<PrivateDestructor>();
@@ -109,7 +104,7 @@ int main(int, char**)
     test_is_not_nothrow_destructible<VirtualPrivateDestructor>();
     test_is_not_nothrow_destructible<PureProtectedDestructor>();
     test_is_not_nothrow_destructible<PurePrivateDestructor>();
-#endif
+
 
   return 0;
 }

@@ -19,11 +19,12 @@
 
 #include <locale>
 #include <cassert>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 #include "platform_support.h" // locale name macros
 
-typedef std::time_get_byname<char, input_iterator<const char*> > F;
+typedef std::time_get_byname<char, cpp17_input_iterator<const char*> > F;
 
 class my_facet
     : public F

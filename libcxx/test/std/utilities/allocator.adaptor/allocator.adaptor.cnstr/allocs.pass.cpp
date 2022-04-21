@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
-// <memory>
+// <scoped_allocator>
 
 // template <class OuterAlloc, class... InnerAllocs>
 //   class scoped_allocator_adaptor
@@ -20,6 +20,7 @@
 #include <scoped_allocator>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 
 int main(int, char**)

@@ -13,8 +13,7 @@ define void @testExpandPostRAPseudo(i32* nocapture readonly %ptr) {
 ; CHECK-P8:  # %bb.0: # %entry
 ; CHECK-P8:    lfiwzx f0, 0, r3
 ; CHECK-P8:    ld r4, .LC0@toc@l(r4)
-; CHECK-P8:    xxpermdi vs0, f0, f0, 2
-; CHECK-P8:    xxspltw v2, vs0, 3
+; CHECK-P8:    xxspltw v2, vs0, 1
 ; CHECK-P8:    stvx v2, 0, r4
 ; CHECK-P8:    lis r4, 1024
 ; CHECK-P8:    lfiwax f0, 0, r3
@@ -27,18 +26,16 @@ define void @testExpandPostRAPseudo(i32* nocapture readonly %ptr) {
 ;
 ; CHECK-P9-LABEL: testExpandPostRAPseudo:
 ; CHECK-P9:  # %bb.0: # %entry
-; CHECK-P9:    lfiwzx f0, 0, r3
 ; CHECK-P9:    addis r4, r2, .LC0@toc@ha
+; CHECK-P9:    lxvwsx vs0, 0, r3
 ; CHECK-P9:    ld r4, .LC0@toc@l(r4)
-; CHECK-P9:    xxpermdi vs0, f0, f0, 2
-; CHECK-P9:    xxspltw vs0, vs0, 3
-; CHECK-P9:    stxvx vs0, 0, r4
+; CHECK-P9:    stxv vs0, 0(r4)
+; CHECK-P9:    lis r4, 1024
 ; CHECK-P9:    lfiwax f0, 0, r3
 ; CHECK-P9:    addis r3, r2, .LC1@toc@ha
 ; CHECK-P9:    ld r3, .LC1@toc@l(r3)
 ; CHECK-P9:    xscvsxdsp f0, f0
 ; CHECK-P9:    ld r3, 0(r3)
-; CHECK-P9:    lis r4, 1024
 ; CHECK-P9:    stfsx f0, r3, r4
 ; CHECK-P9:    blr
 entry:

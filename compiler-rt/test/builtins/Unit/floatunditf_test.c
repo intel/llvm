@@ -1,15 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- floatunditf_test.c - Test __floatunditf ---------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __floatunditf for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_floatunditf
 
 #include "int_lib.h"
 #include <math.h>
@@ -22,9 +12,9 @@
 
 // Returns: long integer converted to long double
 
-COMPILER_RT_ABI long double __floatunditf(unsigned long long a);
+COMPILER_RT_ABI long double __floatunditf(du_int a);
 
-int test__floatunditf(unsigned long long a, uint64_t expectedHi, uint64_t expectedLo)
+int test__floatunditf(du_int a, uint64_t expectedHi, uint64_t expectedLo)
 {
     long double x = __floatunditf(a);
     int ret = compareResultLD(x, expectedHi, expectedLo);

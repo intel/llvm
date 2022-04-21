@@ -1,4 +1,4 @@
-/* RUN: %clang_cc1 -Wall -fsyntax-only -verify -std=c89 -pedantic %s
+/* RUN: %clang_cc1 -Wall -Wno-unused-but-set-variable -fsyntax-only -verify -std=c89 -pedantic %s
  */
 
 @class NSArray;
@@ -38,7 +38,7 @@ typedef struct {
 
 @end
 
-int main ()
+int main (void)
 {
  NSObject<NSFastEnumeration>* collection = ((void*)0);
  for (id thing in collection) { } /* expected-warning {{unused variable 'thing'}} */
@@ -56,7 +56,7 @@ void test2(NSObject<NSFastEnumeration> *collection) {
   }
 }
 
-int cond();
+int cond(void);
 
 void test3(NSObject<NSFastEnumeration> *a0, NSObject<NSFastEnumeration> *a1) {
   for (id i in a0) { /* expected-note 2 {{jump enters Objective-C fast enumeration loop}} */

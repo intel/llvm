@@ -87,7 +87,7 @@ my @warning = ( sub {}, \&warning, \&runtime_error );
 
 sub check_opts(\%$;$) {
 
-    my $opts = shift( @_ );  # Referense to hash containing real options and their values.
+    my $opts = shift( @_ );  # Reference to hash containing real options and their values.
     my $good = shift( @_ );  # Reference to an array containing all known option names.
     my $msg  = shift( @_ );  # Optional (non-mandatory) message.
 
@@ -237,7 +237,7 @@ B<Description:>
 
 It is very simple wrapper arounf Getopt::Long::GetOptions. It passes all arguments to GetOptions,
 and add definitions for standard help options: --help, --doc, --verbose, and --quiet.
-When GetOptions finihes, this subroutine checks exit code, if it is non-zero, standard error
+When GetOptions finishes, this subroutine checks exit code, if it is non-zero, standard error
 message is issued and script terminated.
 
 If --verbose or --quiet option is specified, C<tools.pm_verbose> environment variable is set.
@@ -256,7 +256,7 @@ sub get_options {
         "v|verbose"       => sub { ++ $verbose;     $ENV{ "tools.pm_verbose"    } = $verbose;    },
         "quiet"           => sub { -- $verbose;     $ENV{ "tools.pm_verbose"    } = $verbose;    },
         "with-timestamps" => sub { $timestamps = 1; $ENV{ "tools.pm_timestamps" } = $timestamps; },
-        @_, # Caller argumetsa are at the end so caller options overrides standard.
+        @_, # Caller arguments are at the end so caller options overrides standard.
     ) or cmdline_error();
 
 }; # sub get_options
@@ -333,7 +333,7 @@ B<Synopsis:>
 B<Description:>
 
 Package variable. It determines verbosity level, which affects C<warning()>, C<info()>, and
-C<debug()> subroutnes .
+C<debug()> subroutines .
 
 The variable gets initial value from C<tools.pm_verbose> environment variable if it is exists.
 If the environment variable does not exist, variable is set to 2.
@@ -357,7 +357,7 @@ B<Synopsis:>
 B<Description:>
 
 Package variable. It determines whether C<debug()>, C<info()>, C<warning()>, C<runtime_error()>
-subroutnes print timestamps or not.
+subroutines print timestamps or not.
 
 The variable gets initial value from C<tools.pm_timestamps> environment variable if it is exists.
 If the environment variable does not exist, variable is set to false.
@@ -700,17 +700,13 @@ Look for "echo" in the directories specified in PATH:
 
     my $echo = which( "echo" );
 
-Look for all occurenses of "cp" in the PATH:
+Look for all occurrences of "cp" in the PATH:
 
     my @cps = which( "cp", -all => 1 );
 
 Look for the first occurrence of "icc" in the specified directories:
 
     my $icc = which( "icc", -dirs => [ ".", "/usr/local/bin", "/usr/bin", "/bin" ] );
-
-Look for the the C<omp_lib.f> file:
-
-    my @omp_lib = which( "omp_lib.f", -all => 1, -exec => 0, -dirs => [ @include ] );
 
 =cut
 
@@ -875,7 +871,7 @@ Make a directory.
 This function makes a directory. If necessary, more than one level can be created.
 If directory exists, warning issues (the script behavior depends on value of
 C<-warning_level> option). If directory creation fails or C<$dir> exists but it is not a
-directory, error isssues.
+directory, error issues.
 
 Options:
 
@@ -1488,7 +1484,7 @@ B<Arguments:>
 
 =item B<$file>
 
-The name or handle of file to writte to.
+The name or handle of file to write to.
 
 =item B<$bulk>
 
@@ -1834,7 +1830,7 @@ Examples:
     execute( [ qw( cvs -n -q update . ) ], -stdout => \@output, -stderr => undef );
         # Execute specified command,  output is saved in @output
         # variable, stderr stream is redirected to null device
-        # (/dev/null in Linux* OS an nul in Windows* OS).
+        # (/dev/null in Linux* OS and nul in Windows* OS).
 
 =cut
 

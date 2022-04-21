@@ -1,4 +1,4 @@
-//===-- LibCxxMap.cpp -------------------------------------------*- C++ -*-===//
+//===-- LibCxxMap.cpp -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,10 +8,10 @@
 
 #include "LibCxx.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Endian.h"
@@ -26,7 +26,6 @@ class MapEntry {
 public:
   MapEntry() = default;
   explicit MapEntry(ValueObjectSP entry_sp) : m_entry_sp(entry_sp) {}
-  MapEntry(const MapEntry &rhs) = default;
   explicit MapEntry(ValueObject *entry)
       : m_entry_sp(entry ? entry->GetSP() : ValueObjectSP()) {}
 
@@ -86,13 +85,15 @@ class MapIterator {
 public:
   MapIterator() = default;
   MapIterator(MapEntry entry, size_t depth = 0)
-      : m_entry(entry), m_max_depth(depth), m_error(false) {}
+      : m_entry(std::move(entry)), m_max_depth(depth), m_error(false) {}
   MapIterator(ValueObjectSP entry, size_t depth = 0)
-      : m_entry(entry), m_max_depth(depth), m_error(false) {}
+      : m_entry(std::move(entry)), m_max_depth(depth), m_error(false) {}
   MapIterator(const MapIterator &rhs)
       : m_entry(rhs.m_entry), m_max_depth(rhs.m_max_depth), m_error(false) {}
   MapIterator(ValueObject *entry, size_t depth = 0)
       : m_entry(entry), m_max_depth(depth), m_error(false) {}
+
+  MapIterator &operator=(const MapIterator &) = default;
 
   ValueObjectSP value() { return m_entry.GetEntry(); }
 
@@ -136,7 +137,7 @@ protected:
   }
 
 private:
-  MapEntry tree_min(MapEntry &&x) {
+  MapEntry tree_min(MapEntry x) {
     if (x.null())
       return MapEntry();
     MapEntry left(x.left());
@@ -191,11 +192,11 @@ private:
 
   void GetValueOffset(const lldb::ValueObjectSP &node);
 
-  ValueObject *m_tree;
-  ValueObject *m_root_node;
+  ValueObject *m_tree = nullptr;
+  ValueObject *m_root_node = nullptr;
   CompilerType m_element_type;
-  uint32_t m_skip_size;
-  size_t m_count;
+  uint32_t m_skip_size = UINT32_MAX;
+  size_t m_count = UINT32_MAX;
   std::map<size_t, MapIterator> m_iterators;
 };
 } // namespace formatters
@@ -203,36 +204,34 @@ private:
 
 lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::
     LibcxxStdMapSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp), m_tree(nullptr),
-      m_root_node(nullptr), m_element_type(), m_skip_size(UINT32_MAX),
-      m_count(UINT32_MAX), m_iterators() {
+    : SyntheticChildrenFrontEnd(*valobj_sp), m_element_type(), m_iterators() {
   if (valobj_sp)
     Update();
 }
 
 size_t lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::
     CalculateNumChildren() {
-  static ConstString g___pair3_("__pair3_");
-  static ConstString g___first_("__first_");
-  static ConstString g___value_("__value_");
+  static ConstString g_pair3_("__pair3_");
+  static ConstString g_first_("__first_");
+  static ConstString g_value_("__value_");
 
   if (m_count != UINT32_MAX)
     return m_count;
   if (m_tree == nullptr)
     return 0;
-  ValueObjectSP m_item(m_tree->GetChildMemberWithName(g___pair3_, true));
+  ValueObjectSP m_item(m_tree->GetChildMemberWithName(g_pair3_, true));
   if (!m_item)
     return 0;
 
   switch (m_item->GetCompilerType().GetNumDirectBaseClasses()) {
   case 1:
     // Assume a pre llvm r300140 __compressed_pair implementation:
-    m_item = m_item->GetChildMemberWithName(g___first_, true);
+    m_item = m_item->GetChildMemberWithName(g_first_, true);
     break;
   case 2: {
     // Assume a post llvm r300140 __compressed_pair implementation:
     ValueObjectSP first_elem_parent = m_item->GetChildAtIndex(0, true);
-    m_item = first_elem_parent->GetChildMemberWithName(g___value_, true);
+    m_item = first_elem_parent->GetChildMemberWithName(g_value_, true);
     break;
   }
   default:
@@ -246,7 +245,7 @@ size_t lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::
 }
 
 bool lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetDataType() {
-  static ConstString g___value_("__value_");
+  static ConstString g_value_("__value_");
   static ConstString g_tree_("__tree_");
   static ConstString g_pair3("__pair3_");
 
@@ -258,7 +257,7 @@ bool lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetDataType() {
   deref = m_root_node->Dereference(error);
   if (!deref || error.Fail())
     return false;
-  deref = deref->GetChildMemberWithName(g___value_, true);
+  deref = deref->GetChildMemberWithName(g_value_, true);
   if (deref) {
     m_element_type = deref->GetCompilerType();
     return true;
@@ -296,8 +295,8 @@ void lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetValueOffset(
       UINT32_MAX) {
     m_skip_size = bit_offset / 8u;
   } else {
-    ClangASTContext *ast_ctx =
-        llvm::dyn_cast_or_null<ClangASTContext>(node_type.GetTypeSystem());
+    TypeSystemClang *ast_ctx =
+        llvm::dyn_cast_or_null<TypeSystemClang>(node_type.GetTypeSystem());
     if (!ast_ctx)
       return;
     CompilerType tree_node_type = ast_ctx->CreateStructForIdentifier(
@@ -329,9 +328,9 @@ void lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetValueOffset(
 lldb::ValueObjectSP
 lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetChildAtIndex(
     size_t idx) {
-  static ConstString g___cc("__cc");
-  static ConstString g___nc("__nc");
-  static ConstString g___value_("__value_");
+  static ConstString g_cc("__cc");
+  static ConstString g_nc("__nc");
+  static ConstString g_value_("__value_");
 
   if (idx >= CalculateNumChildren())
     return lldb::ValueObjectSP();
@@ -366,7 +365,7 @@ lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetChildAtIndex(
         return lldb::ValueObjectSP();
       }
       GetValueOffset(iterated_sp);
-      auto child_sp = iterated_sp->GetChildMemberWithName(g___value_, true);
+      auto child_sp = iterated_sp->GetChildMemberWithName(g_value_, true);
       if (child_sp)
         iterated_sp = child_sp;
       else
@@ -415,15 +414,15 @@ lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetChildAtIndex(
     switch (potential_child_sp->GetNumChildren()) {
     case 1: {
       auto child0_sp = potential_child_sp->GetChildAtIndex(0, true);
-      if (child0_sp && child0_sp->GetName() == g___cc)
+      if (child0_sp && child0_sp->GetName() == g_cc)
         potential_child_sp = child0_sp->Clone(ConstString(name.GetString()));
       break;
     }
     case 2: {
       auto child0_sp = potential_child_sp->GetChildAtIndex(0, true);
       auto child1_sp = potential_child_sp->GetChildAtIndex(1, true);
-      if (child0_sp && child0_sp->GetName() == g___cc && child1_sp &&
-          child1_sp->GetName() == g___nc)
+      if (child0_sp && child0_sp->GetName() == g_cc && child1_sp &&
+          child1_sp->GetName() == g_nc)
         potential_child_sp = child0_sp->Clone(ConstString(name.GetString()));
       break;
     }
@@ -434,15 +433,15 @@ lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetChildAtIndex(
 }
 
 bool lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::Update() {
-  static ConstString g___tree_("__tree_");
-  static ConstString g___begin_node_("__begin_node_");
+  static ConstString g_tree_("__tree_");
+  static ConstString g_begin_node_("__begin_node_");
   m_count = UINT32_MAX;
   m_tree = m_root_node = nullptr;
   m_iterators.clear();
-  m_tree = m_backend.GetChildMemberWithName(g___tree_, true).get();
+  m_tree = m_backend.GetChildMemberWithName(g_tree_, true).get();
   if (!m_tree)
     return false;
-  m_root_node = m_tree->GetChildMemberWithName(g___begin_node_, true).get();
+  m_root_node = m_tree->GetChildMemberWithName(g_begin_node_, true).get();
   return false;
 }
 

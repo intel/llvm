@@ -66,15 +66,21 @@ CAST_OPERATION(BitCast)
 ///    bool b; reinterpret_cast<char&>(b) = 'a';
 CAST_OPERATION(LValueBitCast)
 
+/// CK_LValueToRValueBitCast - A conversion that causes us to reinterpret the
+/// object representation of an lvalue as an rvalue. Created by
+/// __builtin_bit_cast.
+CAST_OPERATION(LValueToRValueBitCast)
+
 /// CK_LValueToRValue - A conversion which causes the extraction of
 /// an r-value from the operand gl-value.  The result of an r-value
 /// conversion is always unqualified.
 CAST_OPERATION(LValueToRValue)
 
 /// CK_NoOp - A conversion which does not affect the type other than
-/// (possibly) adding qualifiers.
+/// (possibly) adding qualifiers or removing noexcept.
 ///   int    -> int
 ///   char** -> const char * const *
+///   void () noexcept -> void ()
 CAST_OPERATION(NoOp)
 
 /// CK_BaseToDerived - A conversion from a C++ class pointer/reference
@@ -175,6 +181,9 @@ CAST_OPERATION(PointerToBoolean)
 ///    (void) malloc(2048)
 CAST_OPERATION(ToVoid)
 
+/// CK_MatrixCast - A cast between matrix types of the same dimensions.
+CAST_OPERATION(MatrixCast)
+
 /// CK_VectorSplat - A conversion from an arithmetic type to a
 /// vector of that element type.  Fills all elements ("splats") with
 /// the source value.
@@ -195,6 +204,14 @@ CAST_OPERATION(IntegralToBoolean)
 /// CK_IntegralToFloating - Integral to floating point.
 ///    float f = i;
 CAST_OPERATION(IntegralToFloating)
+
+/// CK_FloatingToFixedPoint - Floating to fixed point.
+///    _Accum a = f;
+CAST_OPERATION(FloatingToFixedPoint)
+
+/// CK_FixedPointToFloating - Fixed point to floating.
+///    (float) 2.5k
+CAST_OPERATION(FixedPointToFloating)
 
 /// CK_FixedPointCast - Fixed point to fixed point.
 ///    (_Accum) 0.5r

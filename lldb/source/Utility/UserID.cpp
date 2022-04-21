@@ -1,4 +1,4 @@
-//===-- UserID.cpp ----------------------------------------------*- C++ -*-===//
+//===-- UserID.cpp --------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,7 +9,7 @@
 #include "lldb/Utility/UserID.h"
 #include "lldb/Utility/Stream.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
 using namespace lldb;
 using namespace lldb_private;

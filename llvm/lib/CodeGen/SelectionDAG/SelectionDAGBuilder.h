@@ -14,21 +14,18 @@
 #define LLVM_LIB_CODEGEN_SELECTIONDAG_SELECTIONDAGBUILDER_H
 
 #include "StatepointLowering.h"
-#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
-#include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
+#include "llvm/CodeGen/SwitchLoweringUtils.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/ValueTypes.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Instruction.h"
-#include "llvm/IR/Statepoint.h"
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -41,6 +38,7 @@
 
 namespace llvm {
 
+class AAResults;
 class AllocaInst;
 class AtomicCmpXchgInst;
 class AtomicRMWInst;
@@ -54,7 +52,6 @@ class CatchSwitchInst;
 class CleanupPadInst;
 class CleanupReturnInst;
 class Constant;
-class ConstantInt;
 class ConstrainedFPIntrinsic;
 class DbgValueInst;
 class DataLayout;
@@ -66,6 +63,7 @@ class FunctionLoweringInfo;
 class GCFunctionInfo;
 class GCRelocateInst;
 class GCResultInst;
+class GCStatepointInst;
 class IndirectBrInst;
 class InvokeInst;
 class LandingPadInst;
@@ -76,7 +74,9 @@ class PHINode;
 class ResumeInst;
 class ReturnInst;
 class SDDbgValue;
+class SelectionDAG;
 class StoreInst;
+class SwiftErrorValueTracking;
 class SwitchInst;
 class TargetLibraryInfo;
 class TargetMachine;
@@ -141,441 +141,45 @@ private:
   /// tokenfactor for them just before terminator instructions.
   SmallVector<SDValue, 8> PendingExports;
 
+  /// Similar to loads, nodes corresponding to constrained FP intrinsics are
+  /// bunched up and emitted when necessary.  These can be moved across each
+  /// other and any (normal) memory operation (load or store), but not across
+  /// calls or instructions having unspecified side effects.  As a special
+  /// case, constrained FP intrinsics using fpexcept.strict may not be deleted
+  /// even if otherwise unused, so they need to be chained before any
+  /// terminator instruction (like PendingExports).  We track the latter
+  /// set of nodes in a separate list.
+  SmallVector<SDValue, 8> PendingConstrainedFP;
+  SmallVector<SDValue, 8> PendingConstrainedFPStrict;
+
+  /// Update root to include all chains from the Pending list.
+  SDValue updateRoot(SmallVectorImpl<SDValue> &Pending);
+
   /// A unique monotonically increasing number used to order the SDNodes we
   /// create.
   unsigned SDNodeOrder;
 
-  enum CaseClusterKind {
-    /// A cluster of adjacent case labels with the same destination, or just one
-    /// case.
-    CC_Range,
-    /// A cluster of cases suitable for jump table lowering.
-    CC_JumpTable,
-    /// A cluster of cases suitable for bit test lowering.
-    CC_BitTests
-  };
-
-  /// A cluster of case labels.
-  struct CaseCluster {
-    CaseClusterKind Kind;
-    const ConstantInt *Low, *High;
-    union {
-      MachineBasicBlock *MBB;
-      unsigned JTCasesIndex;
-      unsigned BTCasesIndex;
-    };
-    BranchProbability Prob;
-
-    static CaseCluster range(const ConstantInt *Low, const ConstantInt *High,
-                             MachineBasicBlock *MBB, BranchProbability Prob) {
-      CaseCluster C;
-      C.Kind = CC_Range;
-      C.Low = Low;
-      C.High = High;
-      C.MBB = MBB;
-      C.Prob = Prob;
-      return C;
-    }
-
-    static CaseCluster jumpTable(const ConstantInt *Low,
-                                 const ConstantInt *High, unsigned JTCasesIndex,
-                                 BranchProbability Prob) {
-      CaseCluster C;
-      C.Kind = CC_JumpTable;
-      C.Low = Low;
-      C.High = High;
-      C.JTCasesIndex = JTCasesIndex;
-      C.Prob = Prob;
-      return C;
-    }
-
-    static CaseCluster bitTests(const ConstantInt *Low, const ConstantInt *High,
-                                unsigned BTCasesIndex, BranchProbability Prob) {
-      CaseCluster C;
-      C.Kind = CC_BitTests;
-      C.Low = Low;
-      C.High = High;
-      C.BTCasesIndex = BTCasesIndex;
-      C.Prob = Prob;
-      return C;
-    }
-  };
-
-  using CaseClusterVector = std::vector<CaseCluster>;
-  using CaseClusterIt = CaseClusterVector::iterator;
-
-  struct CaseBits {
-    uint64_t Mask = 0;
-    MachineBasicBlock* BB = nullptr;
-    unsigned Bits = 0;
-    BranchProbability ExtraProb;
-
-    CaseBits() = default;
-    CaseBits(uint64_t mask, MachineBasicBlock* bb, unsigned bits,
-             BranchProbability Prob):
-      Mask(mask), BB(bb), Bits(bits), ExtraProb(Prob) {}
-  };
-
-  using CaseBitsVector = std::vector<CaseBits>;
-
-  /// Sort Clusters and merge adjacent cases.
-  void sortAndRangeify(CaseClusterVector &Clusters);
-
-  /// This structure is used to communicate between SelectionDAGBuilder and
-  /// SDISel for the code generation of additional basic blocks needed by
-  /// multi-case switch statements.
-  struct CaseBlock {
-    // The condition code to use for the case block's setcc node.
-    // Besides the integer condition codes, this can also be SETTRUE, in which
-    // case no comparison gets emitted.
-    ISD::CondCode CC;
-
-    // The LHS/MHS/RHS of the comparison to emit.
-    // Emit by default LHS op RHS. MHS is used for range comparisons:
-    // If MHS is not null: (LHS <= MHS) and (MHS <= RHS).
-    const Value *CmpLHS, *CmpMHS, *CmpRHS;
-
-    // The block to branch to if the setcc is true/false.
-    MachineBasicBlock *TrueBB, *FalseBB;
-
-    // The block into which to emit the code for the setcc and branches.
-    MachineBasicBlock *ThisBB;
-
-    /// The debug location of the instruction this CaseBlock was
-    /// produced from.
-    SDLoc DL;
-
-    // Branch weights.
-    BranchProbability TrueProb, FalseProb;
-
-    CaseBlock(ISD::CondCode cc, const Value *cmplhs, const Value *cmprhs,
-              const Value *cmpmiddle, MachineBasicBlock *truebb,
-              MachineBasicBlock *falsebb, MachineBasicBlock *me,
-              SDLoc dl,
-              BranchProbability trueprob = BranchProbability::getUnknown(),
-              BranchProbability falseprob = BranchProbability::getUnknown())
-        : CC(cc), CmpLHS(cmplhs), CmpMHS(cmpmiddle), CmpRHS(cmprhs),
-          TrueBB(truebb), FalseBB(falsebb), ThisBB(me), DL(dl),
-          TrueProb(trueprob), FalseProb(falseprob) {}
-  };
-
-  struct JumpTable {
-    /// The virtual register containing the index of the jump table entry
-    /// to jump to.
-    unsigned Reg;
-    /// The JumpTableIndex for this jump table in the function.
-    unsigned JTI;
-    /// The MBB into which to emit the code for the indirect jump.
-    MachineBasicBlock *MBB;
-    /// The MBB of the default bb, which is a successor of the range
-    /// check MBB.  This is when updating PHI nodes in successors.
-    MachineBasicBlock *Default;
-
-    JumpTable(unsigned R, unsigned J, MachineBasicBlock *M,
-              MachineBasicBlock *D): Reg(R), JTI(J), MBB(M), Default(D) {}
-  };
-  struct JumpTableHeader {
-    APInt First;
-    APInt Last;
-    const Value *SValue;
-    MachineBasicBlock *HeaderBB;
-    bool Emitted;
-    bool OmitRangeCheck;
-
-    JumpTableHeader(APInt F, APInt L, const Value *SV, MachineBasicBlock *H,
-                    bool E = false)
-        : First(std::move(F)), Last(std::move(L)), SValue(SV), HeaderBB(H),
-          Emitted(E), OmitRangeCheck(false) {}
-  };
-  using JumpTableBlock = std::pair<JumpTableHeader, JumpTable>;
-
-  struct BitTestCase {
-    uint64_t Mask;
-    MachineBasicBlock *ThisBB;
-    MachineBasicBlock *TargetBB;
-    BranchProbability ExtraProb;
-
-    BitTestCase(uint64_t M, MachineBasicBlock* T, MachineBasicBlock* Tr,
-                BranchProbability Prob):
-      Mask(M), ThisBB(T), TargetBB(Tr), ExtraProb(Prob) {}
-  };
-
-  using BitTestInfo = SmallVector<BitTestCase, 3>;
-
-  struct BitTestBlock {
-    APInt First;
-    APInt Range;
-    const Value *SValue;
-    unsigned Reg;
-    MVT RegVT;
-    bool Emitted;
-    bool ContiguousRange;
-    MachineBasicBlock *Parent;
-    MachineBasicBlock *Default;
-    BitTestInfo Cases;
-    BranchProbability Prob;
-    BranchProbability DefaultProb;
-
-    BitTestBlock(APInt F, APInt R, const Value *SV, unsigned Rg, MVT RgVT,
-                 bool E, bool CR, MachineBasicBlock *P, MachineBasicBlock *D,
-                 BitTestInfo C, BranchProbability Pr)
-        : First(std::move(F)), Range(std::move(R)), SValue(SV), Reg(Rg),
-          RegVT(RgVT), Emitted(E), ContiguousRange(CR), Parent(P), Default(D),
-          Cases(std::move(C)), Prob(Pr) {}
-  };
-
-  /// Return the range of value in [First..Last].
-  uint64_t getJumpTableRange(const CaseClusterVector &Clusters, unsigned First,
-                             unsigned Last) const;
-
-  /// Return the number of cases in [First..Last].
-  uint64_t getJumpTableNumCases(const SmallVectorImpl<unsigned> &TotalCases,
-                                unsigned First, unsigned Last) const;
-
-  /// Build a jump table cluster from Clusters[First..Last]. Returns false if it
-  /// decides it's not a good idea.
-  bool buildJumpTable(const CaseClusterVector &Clusters, unsigned First,
-                      unsigned Last, const SwitchInst *SI,
-                      MachineBasicBlock *DefaultMBB, CaseCluster &JTCluster);
-
-  /// Find clusters of cases suitable for jump table lowering.
-  void findJumpTables(CaseClusterVector &Clusters, const SwitchInst *SI,
-                      MachineBasicBlock *DefaultMBB);
-
-  /// Build a bit test cluster from Clusters[First..Last]. Returns false if it
-  /// decides it's not a good idea.
-  bool buildBitTests(CaseClusterVector &Clusters, unsigned First, unsigned Last,
-                     const SwitchInst *SI, CaseCluster &BTCluster);
-
-  /// Find clusters of cases suitable for bit test lowering.
-  void findBitTestClusters(CaseClusterVector &Clusters, const SwitchInst *SI);
-
-  struct SwitchWorkListItem {
-    MachineBasicBlock *MBB;
-    CaseClusterIt FirstCluster;
-    CaseClusterIt LastCluster;
-    const ConstantInt *GE;
-    const ConstantInt *LT;
-    BranchProbability DefaultProb;
-  };
-  using SwitchWorkList = SmallVector<SwitchWorkListItem, 4>;
-
   /// Determine the rank by weight of CC in [First,Last]. If CC has more weight
   /// than each cluster in the range, its rank is 0.
-  static unsigned caseClusterRank(const CaseCluster &CC, CaseClusterIt First,
-                                  CaseClusterIt Last);
+  unsigned caseClusterRank(const SwitchCG::CaseCluster &CC,
+                           SwitchCG::CaseClusterIt First,
+                           SwitchCG::CaseClusterIt Last);
 
   /// Emit comparison and split W into two subtrees.
-  void splitWorkItem(SwitchWorkList &WorkList, const SwitchWorkListItem &W,
-                     Value *Cond, MachineBasicBlock *SwitchMBB);
+  void splitWorkItem(SwitchCG::SwitchWorkList &WorkList,
+                     const SwitchCG::SwitchWorkListItem &W, Value *Cond,
+                     MachineBasicBlock *SwitchMBB);
 
   /// Lower W.
-  void lowerWorkItem(SwitchWorkListItem W, Value *Cond,
+  void lowerWorkItem(SwitchCG::SwitchWorkListItem W, Value *Cond,
                      MachineBasicBlock *SwitchMBB,
                      MachineBasicBlock *DefaultMBB);
 
   /// Peel the top probability case if it exceeds the threshold
-  MachineBasicBlock *peelDominantCaseCluster(const SwitchInst &SI,
-                                             CaseClusterVector &Clusters,
-                                             BranchProbability &PeeledCaseProb);
-
-  /// A class which encapsulates all of the information needed to generate a
-  /// stack protector check and signals to isel via its state being initialized
-  /// that a stack protector needs to be generated.
-  ///
-  /// *NOTE* The following is a high level documentation of SelectionDAG Stack
-  /// Protector Generation. The reason that it is placed here is for a lack of
-  /// other good places to stick it.
-  ///
-  /// High Level Overview of SelectionDAG Stack Protector Generation:
-  ///
-  /// Previously, generation of stack protectors was done exclusively in the
-  /// pre-SelectionDAG Codegen LLVM IR Pass "Stack Protector". This necessitated
-  /// splitting basic blocks at the IR level to create the success/failure basic
-  /// blocks in the tail of the basic block in question. As a result of this,
-  /// calls that would have qualified for the sibling call optimization were no
-  /// longer eligible for optimization since said calls were no longer right in
-  /// the "tail position" (i.e. the immediate predecessor of a ReturnInst
-  /// instruction).
-  ///
-  /// Then it was noticed that since the sibling call optimization causes the
-  /// callee to reuse the caller's stack, if we could delay the generation of
-  /// the stack protector check until later in CodeGen after the sibling call
-  /// decision was made, we get both the tail call optimization and the stack
-  /// protector check!
-  ///
-  /// A few goals in solving this problem were:
-  ///
-  ///   1. Preserve the architecture independence of stack protector generation.
-  ///
-  ///   2. Preserve the normal IR level stack protector check for platforms like
-  ///      OpenBSD for which we support platform-specific stack protector
-  ///      generation.
-  ///
-  /// The main problem that guided the present solution is that one can not
-  /// solve this problem in an architecture independent manner at the IR level
-  /// only. This is because:
-  ///
-  ///   1. The decision on whether or not to perform a sibling call on certain
-  ///      platforms (for instance i386) requires lower level information
-  ///      related to available registers that can not be known at the IR level.
-  ///
-  ///   2. Even if the previous point were not true, the decision on whether to
-  ///      perform a tail call is done in LowerCallTo in SelectionDAG which
-  ///      occurs after the Stack Protector Pass. As a result, one would need to
-  ///      put the relevant callinst into the stack protector check success
-  ///      basic block (where the return inst is placed) and then move it back
-  ///      later at SelectionDAG/MI time before the stack protector check if the
-  ///      tail call optimization failed. The MI level option was nixed
-  ///      immediately since it would require platform-specific pattern
-  ///      matching. The SelectionDAG level option was nixed because
-  ///      SelectionDAG only processes one IR level basic block at a time
-  ///      implying one could not create a DAG Combine to move the callinst.
-  ///
-  /// To get around this problem a few things were realized:
-  ///
-  ///   1. While one can not handle multiple IR level basic blocks at the
-  ///      SelectionDAG Level, one can generate multiple machine basic blocks
-  ///      for one IR level basic block. This is how we handle bit tests and
-  ///      switches.
-  ///
-  ///   2. At the MI level, tail calls are represented via a special return
-  ///      MIInst called "tcreturn". Thus if we know the basic block in which we
-  ///      wish to insert the stack protector check, we get the correct behavior
-  ///      by always inserting the stack protector check right before the return
-  ///      statement. This is a "magical transformation" since no matter where
-  ///      the stack protector check intrinsic is, we always insert the stack
-  ///      protector check code at the end of the BB.
-  ///
-  /// Given the aforementioned constraints, the following solution was devised:
-  ///
-  ///   1. On platforms that do not support SelectionDAG stack protector check
-  ///      generation, allow for the normal IR level stack protector check
-  ///      generation to continue.
-  ///
-  ///   2. On platforms that do support SelectionDAG stack protector check
-  ///      generation:
-  ///
-  ///     a. Use the IR level stack protector pass to decide if a stack
-  ///        protector is required/which BB we insert the stack protector check
-  ///        in by reusing the logic already therein. If we wish to generate a
-  ///        stack protector check in a basic block, we place a special IR
-  ///        intrinsic called llvm.stackprotectorcheck right before the BB's
-  ///        returninst or if there is a callinst that could potentially be
-  ///        sibling call optimized, before the call inst.
-  ///
-  ///     b. Then when a BB with said intrinsic is processed, we codegen the BB
-  ///        normally via SelectBasicBlock. In said process, when we visit the
-  ///        stack protector check, we do not actually emit anything into the
-  ///        BB. Instead, we just initialize the stack protector descriptor
-  ///        class (which involves stashing information/creating the success
-  ///        mbbb and the failure mbb if we have not created one for this
-  ///        function yet) and export the guard variable that we are going to
-  ///        compare.
-  ///
-  ///     c. After we finish selecting the basic block, in FinishBasicBlock if
-  ///        the StackProtectorDescriptor attached to the SelectionDAGBuilder is
-  ///        initialized, we produce the validation code with one of these
-  ///        techniques:
-  ///          1) with a call to a guard check function
-  ///          2) with inlined instrumentation
-  ///
-  ///        1) We insert a call to the check function before the terminator.
-  ///
-  ///        2) We first find a splice point in the parent basic block
-  ///        before the terminator and then splice the terminator of said basic
-  ///        block into the success basic block. Then we code-gen a new tail for
-  ///        the parent basic block consisting of the two loads, the comparison,
-  ///        and finally two branches to the success/failure basic blocks. We
-  ///        conclude by code-gening the failure basic block if we have not
-  ///        code-gened it already (all stack protector checks we generate in
-  ///        the same function, use the same failure basic block).
-  class StackProtectorDescriptor {
-  public:
-    StackProtectorDescriptor() = default;
-
-    /// Returns true if all fields of the stack protector descriptor are
-    /// initialized implying that we should/are ready to emit a stack protector.
-    bool shouldEmitStackProtector() const {
-      return ParentMBB && SuccessMBB && FailureMBB;
-    }
-
-    bool shouldEmitFunctionBasedCheckStackProtector() const {
-      return ParentMBB && !SuccessMBB && !FailureMBB;
-    }
-
-    /// Initialize the stack protector descriptor structure for a new basic
-    /// block.
-    void initialize(const BasicBlock *BB, MachineBasicBlock *MBB,
-                    bool FunctionBasedInstrumentation) {
-      // Make sure we are not initialized yet.
-      assert(!shouldEmitStackProtector() && "Stack Protector Descriptor is "
-             "already initialized!");
-      ParentMBB = MBB;
-      if (!FunctionBasedInstrumentation) {
-        SuccessMBB = AddSuccessorMBB(BB, MBB, /* IsLikely */ true);
-        FailureMBB = AddSuccessorMBB(BB, MBB, /* IsLikely */ false, FailureMBB);
-      }
-    }
-
-    /// Reset state that changes when we handle different basic blocks.
-    ///
-    /// This currently includes:
-    ///
-    /// 1. The specific basic block we are generating a
-    /// stack protector for (ParentMBB).
-    ///
-    /// 2. The successor machine basic block that will contain the tail of
-    /// parent mbb after we create the stack protector check (SuccessMBB). This
-    /// BB is visited only on stack protector check success.
-    void resetPerBBState() {
-      ParentMBB = nullptr;
-      SuccessMBB = nullptr;
-    }
-
-    /// Reset state that only changes when we switch functions.
-    ///
-    /// This currently includes:
-    ///
-    /// 1. FailureMBB since we reuse the failure code path for all stack
-    /// protector checks created in an individual function.
-    ///
-    /// 2.The guard variable since the guard variable we are checking against is
-    /// always the same.
-    void resetPerFunctionState() {
-      FailureMBB = nullptr;
-    }
-
-    MachineBasicBlock *getParentMBB() { return ParentMBB; }
-    MachineBasicBlock *getSuccessMBB() { return SuccessMBB; }
-    MachineBasicBlock *getFailureMBB() { return FailureMBB; }
-
-  private:
-    /// The basic block for which we are generating the stack protector.
-    ///
-    /// As a result of stack protector generation, we will splice the
-    /// terminators of this basic block into the successor mbb SuccessMBB and
-    /// replace it with a compare/branch to the successor mbbs
-    /// SuccessMBB/FailureMBB depending on whether or not the stack protector
-    /// was violated.
-    MachineBasicBlock *ParentMBB = nullptr;
-
-    /// A basic block visited on stack protector check success that contains the
-    /// terminators of ParentMBB.
-    MachineBasicBlock *SuccessMBB = nullptr;
-
-    /// This basic block visited on stack protector check failure that will
-    /// contain a call to __stack_chk_fail().
-    MachineBasicBlock *FailureMBB = nullptr;
-
-    /// Add a successor machine basic block to ParentMBB. If the successor mbb
-    /// has not been created yet (i.e. if SuccMBB = 0), then the machine basic
-    /// block will be created. Assign a large weight if IsLikely is true.
-    MachineBasicBlock *AddSuccessorMBB(const BasicBlock *BB,
-                                       MachineBasicBlock *ParentMBB,
-                                       bool IsLikely,
-                                       MachineBasicBlock *SuccMBB = nullptr);
-  };
+  MachineBasicBlock *
+  peelDominantCaseCluster(const SwitchInst &SI,
+                          SwitchCG::CaseClusterVector &Clusters,
+                          BranchProbability &PeeledCaseProb);
 
 private:
   const TargetMachine &TM;
@@ -586,21 +190,27 @@ public:
   static const unsigned LowestSDNodeOrder = 1;
 
   SelectionDAG &DAG;
-  const DataLayout *DL = nullptr;
-  AliasAnalysis *AA = nullptr;
+  AAResults *AA = nullptr;
   const TargetLibraryInfo *LibInfo;
 
-  /// Vector of CaseBlock structures used to communicate SwitchInst code
-  /// generation information.
-  std::vector<CaseBlock> SwitchCases;
+  class SDAGSwitchLowering : public SwitchCG::SwitchLowering {
+  public:
+    SDAGSwitchLowering(SelectionDAGBuilder *sdb, FunctionLoweringInfo &funcinfo)
+        : SwitchCG::SwitchLowering(funcinfo), SDB(sdb) {}
 
-  /// Vector of JumpTable structures used to communicate SwitchInst code
-  /// generation information.
-  std::vector<JumpTableBlock> JTCases;
+    virtual void addSuccessorWithProb(
+        MachineBasicBlock *Src, MachineBasicBlock *Dst,
+        BranchProbability Prob = BranchProbability::getUnknown()) override {
+      SDB->addSuccessorWithProb(Src, Dst, Prob);
+    }
 
-  /// Vector of BitTestBlock structures used to communicate SwitchInst code
-  /// generation information.
-  std::vector<BitTestBlock> BitTestCases;
+  private:
+    SelectionDAGBuilder *SDB;
+  };
+
+  // Data related to deferred switch lowerings. Used to construct additional
+  // Basic Blocks in SelectionDAGISel::FinishBasicBlock.
+  std::unique_ptr<SDAGSwitchLowering> SL;
 
   /// A StackProtectorDescriptor structure used to communicate stack protector
   /// information in between SelectBasicBlock and FinishBasicBlock.
@@ -612,6 +222,9 @@ public:
 
   /// Information about the function as a whole.
   FunctionLoweringInfo &FuncInfo;
+
+  /// Information about the swifterror values used throughout the function.
+  SwiftErrorValueTracking &SwiftError;
 
   /// Garbage collection metadata for the function.
   GCFunctionInfo *GFI;
@@ -626,11 +239,12 @@ public:
   LLVMContext *Context;
 
   SelectionDAGBuilder(SelectionDAG &dag, FunctionLoweringInfo &funcinfo,
-                      CodeGenOpt::Level ol)
-    : SDNodeOrder(LowestSDNodeOrder), TM(dag.getTarget()), DAG(dag),
-      FuncInfo(funcinfo) {}
+                      SwiftErrorValueTracking &swifterror, CodeGenOpt::Level ol)
+      : SDNodeOrder(LowestSDNodeOrder), TM(dag.getTarget()), DAG(dag),
+        SL(std::make_unique<SDAGSwitchLowering>(this, funcinfo)), FuncInfo(funcinfo),
+        SwiftError(swifterror) {}
 
-  void init(GCFunctionInfo *gfi, AliasAnalysis *AA,
+  void init(GCFunctionInfo *gfi, AAResults *AA,
             const TargetLibraryInfo *li);
 
   /// Clear out the current SelectionDAG and the associated state and prepare
@@ -648,12 +262,18 @@ public:
 
   /// Return the current virtual root of the Selection DAG, flushing any
   /// PendingLoad items. This must be done before emitting a store or any other
-  /// node that may need to be ordered after any prior load instructions.
+  /// memory node that may need to be ordered after any prior load instructions.
+  SDValue getMemoryRoot();
+
+  /// Similar to getMemoryRoot, but also flushes PendingConstrainedFP(Strict)
+  /// items. This must be done before emitting any call other any other node
+  /// that may need to be ordered after FP instructions due to other side
+  /// effects.
   SDValue getRoot();
 
   /// Similar to getRoot, but instead of flushing all the PendingLoad items,
-  /// flush all the PendingExports items. It is necessary to do this before
-  /// emitting a terminator instruction.
+  /// flush all the PendingExports (and PendingConstrainedFPStrict) items.
+  /// It is necessary to do this before emitting a terminator instruction.
   SDValue getControlRoot();
 
   SDLoc getCurSDLoc() const {
@@ -664,7 +284,8 @@ public:
     return CurInst ? CurInst->getDebugLoc() : DebugLoc();
   }
 
-  void CopyValueToVirtualRegister(const Value *V, unsigned Reg);
+  void CopyValueToVirtualRegister(const Value *V, unsigned Reg,
+                                  ISD::NodeType ExtendType = ISD::ANY_EXTEND);
 
   void visit(const Instruction &I);
 
@@ -673,6 +294,10 @@ public:
   /// If there was virtual register allocated for the value V emit CopyFromReg
   /// of the specified type Ty. Return empty SDValue() otherwise.
   SDValue getCopyFromRegs(const Value *V, Type *Ty);
+
+  /// Register a dbg_value which relies on a Value which we have not yet seen.
+  void addDanglingDebugInfo(const DbgValueInst *DI, DebugLoc DL,
+                            unsigned Order);
 
   /// If we have dangling debug info that describes \p Variable, or an
   /// overlapping part of variable considering the \p Expr, then this method
@@ -689,24 +314,16 @@ public:
   /// this cannot be done, produce an Undef debug value record.
   void salvageUnresolvedDbgValue(DanglingDebugInfo &DDI);
 
-  /// For a given Value, attempt to create and record a SDDbgValue in the
-  /// SelectionDAG.
-  bool handleDebugValue(const Value *V, DILocalVariable *Var,
-                        DIExpression *Expr, DebugLoc CurDL,
-                        DebugLoc InstDL, unsigned Order);
+  /// For a given list of Values, attempt to create and record a SDDbgValue in
+  /// the SelectionDAG.
+  bool handleDebugValue(ArrayRef<const Value *> Values, DILocalVariable *Var,
+                        DIExpression *Expr, DebugLoc CurDL, DebugLoc InstDL,
+                        unsigned Order, bool IsVariadic);
 
   /// Evict any dangling debug information, attempting to salvage it first.
   void resolveOrClearDbgInfo();
 
   SDValue getValue(const Value *V);
-  bool findValue(const Value *V) const;
-
-  /// Return the SDNode for the specified IR value if it exists.
-  SDNode *getNodeForIRValue(const Value *V) {
-    if (NodeMap.find(V) == NodeMap.end())
-      return nullptr;
-    return NodeMap[V].getNode();
-  }
 
   SDValue getNonRegisterValue(const Value *V);
   SDValue getValueImpl(const Value *V);
@@ -734,12 +351,12 @@ public:
                                     MachineBasicBlock *SwitchBB,
                                     BranchProbability TProb, BranchProbability FProb,
                                     bool InvertCond);
-  bool ShouldEmitAsBranches(const std::vector<CaseBlock> &Cases);
+  bool ShouldEmitAsBranches(const std::vector<SwitchCG::CaseBlock> &Cases);
   bool isExportableFromCurrentBlock(const Value *V, const BasicBlock *FromBB);
   void CopyToExportRegsIfNeeded(const Value *V);
   void ExportFromCurrentBlock(const Value *V);
-  void LowerCallTo(ImmutableCallSite CS, SDValue Callee, bool IsTailCall,
-                   const BasicBlock *EHPadBB = nullptr);
+  void LowerCallTo(const CallBase &CB, SDValue Callee, bool IsTailCall,
+                   bool IsMustTailCall, const BasicBlock *EHPadBB = nullptr);
 
   // Lower range metadata from 0 to N to assert zext to an integer of nearest
   // floor power of two.
@@ -808,7 +425,7 @@ public:
 
   // This function is responsible for the whole statepoint lowering process.
   // It uniformly handles invoke and call statepoints.
-  void LowerStatepoint(ImmutableStatepoint ISP,
+  void LowerStatepoint(const GCStatepointInst &I,
                        const BasicBlock *EHPadBB = nullptr);
 
   void LowerCallSiteWithDeoptBundle(const CallBase *Call, SDValue Callee,
@@ -847,20 +464,18 @@ private:
       BranchProbability Prob = BranchProbability::getUnknown());
 
 public:
-  void visitSwitchCase(CaseBlock &CB,
-                       MachineBasicBlock *SwitchBB);
+  void visitSwitchCase(SwitchCG::CaseBlock &CB, MachineBasicBlock *SwitchBB);
   void visitSPDescriptorParent(StackProtectorDescriptor &SPD,
                                MachineBasicBlock *ParentBB);
   void visitSPDescriptorFailure(StackProtectorDescriptor &SPD);
-  void visitBitTestHeader(BitTestBlock &B, MachineBasicBlock *SwitchBB);
-  void visitBitTestCase(BitTestBlock &BB,
-                        MachineBasicBlock* NextMBB,
-                        BranchProbability BranchProbToNext,
-                        unsigned Reg,
-                        BitTestCase &B,
-                        MachineBasicBlock *SwitchBB);
-  void visitJumpTable(JumpTable &JT);
-  void visitJumpTableHeader(JumpTable &JT, JumpTableHeader &JTH,
+  void visitBitTestHeader(SwitchCG::BitTestBlock &B,
+                          MachineBasicBlock *SwitchBB);
+  void visitBitTestCase(SwitchCG::BitTestBlock &BB, MachineBasicBlock *NextMBB,
+                        BranchProbability BranchProbToNext, unsigned Reg,
+                        SwitchCG::BitTestCase &B, MachineBasicBlock *SwitchBB);
+  void visitJumpTable(SwitchCG::JumpTable &JT);
+  void visitJumpTableHeader(SwitchCG::JumpTable &JT,
+                            SwitchCG::JumpTableHeader &JTH,
                             MachineBasicBlock *SwitchBB);
 
 private:
@@ -877,7 +492,7 @@ private:
   void visitAdd(const User &I)  { visitBinary(I, ISD::ADD); }
   void visitFAdd(const User &I) { visitBinary(I, ISD::FADD); }
   void visitSub(const User &I)  { visitBinary(I, ISD::SUB); }
-  void visitFSub(const User &I);
+  void visitFSub(const User &I) { visitBinary(I, ISD::FSUB); }
   void visitMul(const User &I)  { visitBinary(I, ISD::MUL); }
   void visitFMul(const User &I) { visitBinary(I, ISD::FMUL); }
   void visitURem(const User &I) { visitBinary(I, ISD::UREM); }
@@ -932,7 +547,7 @@ private:
   void visitFence(const FenceInst &I);
   void visitPHI(const PHINode &I);
   void visitCall(const CallInst &I);
-  bool visitMemCmpCall(const CallInst &I);
+  bool visitMemCmpBCmpCall(const CallInst &I);
   bool visitMemPCpyCall(const CallInst &I);
   bool visitMemChrCall(const CallInst &I);
   bool visitStrCpyCall(const CallInst &I, bool isStpcpy);
@@ -945,25 +560,38 @@ private:
   void visitAtomicStore(const StoreInst &I);
   void visitLoadFromSwiftError(const LoadInst &I);
   void visitStoreToSwiftError(const StoreInst &I);
+  void visitFreeze(const FreezeInst &I);
 
-  void visitInlineAsm(ImmutableCallSite CS);
+  void visitInlineAsm(const CallBase &Call,
+                      const BasicBlock *EHPadBB = nullptr);
   void visitIntrinsicCall(const CallInst &I, unsigned Intrinsic);
   void visitTargetIntrinsic(const CallInst &I, unsigned Intrinsic);
   void visitConstrainedFPIntrinsic(const ConstrainedFPIntrinsic &FPI);
+  void visitVPLoadGather(const VPIntrinsic &VPIntrin, EVT VT,
+                         SmallVector<SDValue, 7> &OpValues, bool IsGather);
+  void visitVPStoreScatter(const VPIntrinsic &VPIntrin,
+                           SmallVector<SDValue, 7> &OpValues, bool IsScatter);
+  void visitVPStridedLoad(const VPIntrinsic &VPIntrin, EVT VT,
+                          SmallVectorImpl<SDValue> &OpValues);
+  void visitVPStridedStore(const VPIntrinsic &VPIntrin,
+                           SmallVectorImpl<SDValue> &OpValues);
+  void visitVectorPredicationIntrinsic(const VPIntrinsic &VPIntrin);
 
   void visitVAStart(const CallInst &I);
   void visitVAArg(const VAArgInst &I);
   void visitVAEnd(const CallInst &I);
   void visitVACopy(const CallInst &I);
   void visitStackmap(const CallInst &I);
-  void visitPatchpoint(ImmutableCallSite CS,
-                       const BasicBlock *EHPadBB = nullptr);
+  void visitPatchpoint(const CallBase &CB, const BasicBlock *EHPadBB = nullptr);
 
   // These two are implemented in StatepointLowering.cpp
   void visitGCRelocate(const GCRelocateInst &Relocate);
   void visitGCResult(const GCResultInst &I);
 
   void visitVectorReduce(const CallInst &I, unsigned Intrinsic);
+  void visitVectorReverse(const CallInst &I);
+  void visitVectorSplice(const CallInst &I);
+  void visitStepVector(const CallInst &I);
 
   void visitUserOp1(const Instruction &I) {
     llvm_unreachable("UserOp1 should not exist at instruction selection time!");
@@ -977,14 +605,24 @@ private:
 
   void HandlePHINodesInSuccessorBlocks(const BasicBlock *LLVMBB);
 
-  void emitInlineAsmError(ImmutableCallSite CS, const Twine &Message);
+  void emitInlineAsmError(const CallBase &Call, const Twine &Message);
+
+  /// An enum that states to emit func argument dbg value the kind of intrinsic
+  /// it originally had. This controls the internal behavior of
+  /// EmitFuncArgumentDbgValue.
+  enum class FuncArgumentDbgValueKind {
+    Value,   // This was originally a llvm.dbg.value.
+    Addr,    // This was originally a llvm.dbg.addr.
+    Declare, // This was originally a llvm.dbg.declare.
+  };
 
   /// If V is an function argument then create corresponding DBG_VALUE machine
   /// instruction for it now. At the end of instruction selection, they will be
   /// inserted to the entry BB.
   bool EmitFuncArgumentDbgValue(const Value *V, DILocalVariable *Variable,
                                 DIExpression *Expr, DILocation *DL,
-                                bool IsDbgDeclare, const SDValue &N);
+                                FuncArgumentDbgValueKind Kind,
+                                const SDValue &N);
 
   /// Return the next block after MBB, or nullptr if there is none.
   MachineBasicBlock *NextBlock(MachineBasicBlock *MBB);
@@ -1000,6 +638,11 @@ private:
 
   /// Lowers CallInst to an external symbol.
   void lowerCallToExternalSymbol(const CallInst &I, const char *FunctionName);
+
+  SDValue lowerStartEH(SDValue Chain, const BasicBlock *EHPadBB,
+                       MCSymbol *&BeginLabel);
+  SDValue lowerEndEH(SDValue Chain, const InvokeInst *II,
+                     const BasicBlock *EHPadBB, MCSymbol *BeginLabel);
 };
 
 /// This struct represents the registers (physical or virtual)
@@ -1087,7 +730,7 @@ struct RegsForValue {
   }
 
   /// Return a list of registers and their sizes.
-  SmallVector<std::pair<unsigned, unsigned>, 4> getRegsAndSizes() const;
+  SmallVector<std::pair<unsigned, TypeSize>, 4> getRegsAndSizes() const;
 };
 
 } // end namespace llvm

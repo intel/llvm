@@ -1,5 +1,3 @@
-; REQUIRES: object-emission
-
 ; Test for DISPFlagPure, DISPFlagElement and DISPFlagRecursive.  These
 ; three DISPFlags are used to attach DW_AT_pure, DW_AT_element, and
 ; DW_AT_recursive attributes to DW_TAG_subprogram DIEs.
@@ -11,16 +9,16 @@
 ; RUN: llvm-dwarfdump -v -debug-info %t.o | FileCheck %s
 
 ; CHECK: DW_TAG_subprogram
-; CHECK-DAG: DW_AT_name {{.*}} "subroutine1"
+; CHECK-DAG: DW_AT_name {{.*}}"subroutine1"
 ; CHECK-DAG: DW_AT_pure [DW_FORM_flag_present] (true)
 ; CHECK: DW_TAG_subprogram
-; CHECK-DAG: DW_AT_name {{.*}} "subroutine2"
+; CHECK-DAG: DW_AT_name {{.*}}"subroutine2"
 ; CHECK-DAG: DW_AT_elemental [DW_FORM_flag_present] (true)
 ; CHECK: DW_TAG_subprogram
-; CHECK-DAG: DW_AT_name {{.*}} "subroutine3"
+; CHECK-DAG: DW_AT_name {{.*}}"subroutine3"
 ; CHECK-DAG: DW_AT_recursive [DW_FORM_flag_present] (true)
 ; CHECK: DW_TAG_subprogram
-; CHECK-DAG: DW_AT_name {{.*}} "subroutine4"
+; CHECK-DAG: DW_AT_name {{.*}}"subroutine4"
 ; CHECK-DAG: DW_AT_pure [DW_FORM_flag_present] (true)
 ; CHECK-DAG: DW_AT_elemental [DW_FORM_flag_present] (true)
 ; CHECK-DAG: DW_AT_recursive [DW_FORM_flag_present] (true)

@@ -1,0 +1,209 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+; Verify that OpVariable initializers containing various OpSpecConstantOp
+; operations are supported.  Also verify that edge cases such as division
+; by zero are handled gracefully.
+
+; CHECK: @var_sconvert = addrspace(1) global i8 53
+; CHECK: @var_uconvert = addrspace(1) global i8 53
+; CHECK: @var_snegate = addrspace(1) global i32 -53
+; CHECK: @var_not = addrspace(1) global i32 -54
+; CHECK: @var_iadd = addrspace(1) global i32 49
+; CHECK: @var_isub = addrspace(1) global i32 57
+; CHECK: @var_imul = addrspace(1) global i32 -212
+; CHECK: @var_udiv = addrspace(1) global i32 81037118
+; CHECK: @var_udiv0 = addrspace(1) global i32 poison
+; CHECK: @var_sdiv = addrspace(1) global i32 -13
+; CHECK: @var_sdiv0 = addrspace(1) global i32 poison
+; CHECK: @var_umod = addrspace(1) global i32 1
+; CHECK: @var_srem = addrspace(1) global i32 1
+; CHECK: @var_smod = addrspace(1) global i32 -3
+; CHECK: @var_srl = addrspace(1) global i32 268435455
+; CHECK: @var_sra = addrspace(1) global i32 -1
+; CHECK: @var_sll = addrspace(1) global i32 848
+; CHECK: @var_sll_big = addrspace(1) global i32 poison
+; CHECK: @var_bitor = addrspace(1) global i32 -3
+; CHECK: @var_bitxor = addrspace(1) global i32 -55
+; CHECK: @var_bitand = addrspace(1) global i32 52
+; CHECK: @var_vecshuf = addrspace(1) global <2 x i32> <i32 4, i32 53>
+; CHECK: @var_compext = addrspace(1) global i32 53
+; CHECK: @var_compins = addrspace(1) global <2 x i32> <i32 53, i32 53>
+; CHECK: @var_logor = addrspace(1) global i1 true
+; CHECK: @var_logand = addrspace(1) global i1 false
+; CHECK: @var_lognot = addrspace(1) global i1 false
+; CHECK: @var_logeq = addrspace(1) global i1 false
+; CHECK: @var_logne = addrspace(1) global i1 true
+; CHECK: @var_select = addrspace(1) global i32 53
+; CHECK: @var_icmpeq = addrspace(1) global i1 false
+; CHECK: @var_icmpne = addrspace(1) global i1 true
+; CHECK: @var_icmpult = addrspace(1) global i1 true
+; CHECK: @var_icmpslt = addrspace(1) global i1 false
+; CHECK: @var_icmpugt = addrspace(1) global i1 false
+; CHECK: @var_icmpsgt = addrspace(1) global i1 true
+; CHECK: @var_icmpule = addrspace(1) global i1 true
+; CHECK: @var_icmpsle = addrspace(1) global i1 false
+; CHECK: @var_icmpuge = addrspace(1) global i1 false
+; CHECK: @var_icmpsge = addrspace(1) global i1 true
+; CHECK: @var_bitcast = addrspace(1) global i32 1065353216
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Int8
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %15 "foo"
+               OpName %entry "entry"
+               OpDecorate %var_sconvert LinkageAttributes "var_sconvert" Export
+               OpDecorate %var_uconvert LinkageAttributes "var_uconvert" Export
+               OpDecorate %var_snegate LinkageAttributes "var_snegate" Export
+               OpDecorate %var_not LinkageAttributes "var_not" Export
+               OpDecorate %var_iadd LinkageAttributes "var_iadd" Export
+               OpDecorate %var_isub LinkageAttributes "var_isub" Export
+               OpDecorate %var_imul LinkageAttributes "var_imul" Export
+               OpDecorate %var_udiv LinkageAttributes "var_udiv" Export
+               OpDecorate %var_udiv0 LinkageAttributes "var_udiv0" Export
+               OpDecorate %var_sdiv LinkageAttributes "var_sdiv" Export
+               OpDecorate %var_sdiv0 LinkageAttributes "var_sdiv0" Export
+               OpDecorate %var_umod LinkageAttributes "var_umod" Export
+               OpDecorate %var_srem LinkageAttributes "var_srem" Export
+               OpDecorate %var_smod LinkageAttributes "var_smod" Export
+               OpDecorate %var_srl LinkageAttributes "var_srl" Export
+               OpDecorate %var_sra LinkageAttributes "var_sra" Export
+               OpDecorate %var_sll LinkageAttributes "var_sll" Export
+               OpDecorate %var_sll_big LinkageAttributes "var_sll_big" Export
+               OpDecorate %var_bitor LinkageAttributes "var_bitor" Export
+               OpDecorate %var_bitxor LinkageAttributes "var_bitxor" Export
+               OpDecorate %var_bitand LinkageAttributes "var_bitand" Export
+               OpDecorate %var_vecshuf LinkageAttributes "var_vecshuf" Export
+               OpDecorate %var_compext LinkageAttributes "var_compext" Export
+               OpDecorate %var_compins LinkageAttributes "var_compins" Export
+               OpDecorate %var_logor LinkageAttributes "var_logor" Export
+               OpDecorate %var_logand LinkageAttributes "var_logand" Export
+               OpDecorate %var_lognot LinkageAttributes "var_lognot" Export
+               OpDecorate %var_logeq LinkageAttributes "var_logeq" Export
+               OpDecorate %var_logne LinkageAttributes "var_logne" Export
+               OpDecorate %var_select LinkageAttributes "var_select" Export
+               OpDecorate %var_icmpeq LinkageAttributes "var_icmpeq" Export
+               OpDecorate %var_icmpne LinkageAttributes "var_icmpne" Export
+               OpDecorate %var_icmpult LinkageAttributes "var_icmpult" Export
+               OpDecorate %var_icmpslt LinkageAttributes "var_icmpslt" Export
+               OpDecorate %var_icmpugt LinkageAttributes "var_icmpugt" Export
+               OpDecorate %var_icmpsgt LinkageAttributes "var_icmpsgt" Export
+               OpDecorate %var_icmpule LinkageAttributes "var_icmpule" Export
+               OpDecorate %var_icmpsle LinkageAttributes "var_icmpsle" Export
+               OpDecorate %var_icmpuge LinkageAttributes "var_icmpuge" Export
+               OpDecorate %var_icmpsge LinkageAttributes "var_icmpsge" Export
+               OpDecorate %var_bitcast LinkageAttributes "var_bitcast" Export
+       %bool = OpTypeBool
+       %true = OpConstantTrue %bool
+      %false = OpConstantFalse %bool
+      %uchar = OpTypeInt 8 0
+       %uint = OpTypeInt 32 0
+      %float = OpTypeFloat 32
+      %v2i32 = OpTypeVector %uint 2
+     %uint_0 = OpConstant %uint 0
+     %uint_4 = OpConstant %uint 4
+    %uint_53 = OpConstant %uint 53
+  %uint_min4 = OpConstant %uint 0xfffffffc
+    %float_1 = OpConstant %float 1.0
+   %vec_53_0 = OpConstantComposite %v2i32 %uint_53 %uint_0
+    %vec_4_4 = OpConstantComposite %v2i32 %uint_4 %uint_4
+   %sconvert = OpSpecConstantOp %uchar SConvert %uint_53
+   %uconvert = OpSpecConstantOp %uchar UConvert %uint_53
+    %snegate = OpSpecConstantOp %uint SNegate %uint_53
+        %not = OpSpecConstantOp %uint Not %uint_53
+       %iadd = OpSpecConstantOp %uint IAdd %uint_53 %uint_min4
+       %isub = OpSpecConstantOp %uint ISub %uint_53 %uint_min4
+       %imul = OpSpecConstantOp %uint IMul %uint_53 %uint_min4
+       %udiv = OpSpecConstantOp %uint UDiv %uint_min4 %uint_53
+      %udiv0 = OpSpecConstantOp %uint UDiv %uint_min4 %uint_0
+       %sdiv = OpSpecConstantOp %uint SDiv %uint_53 %uint_min4
+      %sdiv0 = OpSpecConstantOp %uint SDiv %uint_53 %uint_0
+       %umod = OpSpecConstantOp %uint UMod %uint_53 %uint_4
+       %srem = OpSpecConstantOp %uint SRem %uint_53 %uint_min4
+       %smod = OpSpecConstantOp %uint SMod %uint_53 %uint_min4
+        %srl = OpSpecConstantOp %uint ShiftRightLogical %uint_min4 %uint_4
+        %sra = OpSpecConstantOp %uint ShiftRightArithmetic %uint_min4 %uint_4
+        %sll = OpSpecConstantOp %uint ShiftLeftLogical %uint_53 %uint_4
+    %sll_big = OpSpecConstantOp %uint ShiftLeftLogical %uint_4 %uint_53
+      %bitor = OpSpecConstantOp %uint BitwiseOr %uint_53 %uint_min4
+     %bitxor = OpSpecConstantOp %uint BitwiseXor %uint_53 %uint_min4
+     %bitand = OpSpecConstantOp %uint BitwiseAnd %uint_53 %uint_min4
+    %vecshuf = OpSpecConstantOp %v2i32 VectorShuffle %vec_53_0 %vec_4_4 2 0
+    %compext = OpSpecConstantOp %uint CompositeExtract %vec_53_0 0
+    %compins = OpSpecConstantOp %v2i32 CompositeInsert %uint_53 %vec_53_0 1
+      %logor = OpSpecConstantOp %bool LogicalOr %true %false
+     %logand = OpSpecConstantOp %bool LogicalAnd %true %false
+     %lognot = OpSpecConstantOp %bool LogicalNot %true
+      %logeq = OpSpecConstantOp %bool LogicalEqual %true %false
+      %logne = OpSpecConstantOp %bool LogicalNotEqual %true %false
+     %select = OpSpecConstantOp %uint Select %logeq %uint_4 %uint_53
+     %icmpeq = OpSpecConstantOp %bool IEqual %uint_53 %uint_min4
+     %icmpne = OpSpecConstantOp %bool INotEqual %uint_53 %uint_min4
+    %icmpult = OpSpecConstantOp %bool ULessThan %uint_53 %uint_min4
+    %icmpslt = OpSpecConstantOp %bool SLessThan %uint_53 %uint_min4
+    %icmpugt = OpSpecConstantOp %bool UGreaterThan %uint_53 %uint_min4
+    %icmpsgt = OpSpecConstantOp %bool SGreaterThan %uint_53 %uint_min4
+    %icmpule = OpSpecConstantOp %bool ULessThanEqual %uint_53 %uint_min4
+    %icmpsle = OpSpecConstantOp %bool SLessThanEqual %uint_53 %uint_min4
+    %icmpuge = OpSpecConstantOp %bool UGreaterThanEqual %uint_53 %uint_min4
+    %icmpsge = OpSpecConstantOp %bool SGreaterThanEqual %uint_53 %uint_min4
+    %bitcast = OpSpecConstantOp %uint Bitcast %float_1
+ %_ptr_uchar = OpTypePointer CrossWorkgroup %uchar
+  %_ptr_uint = OpTypePointer CrossWorkgroup %uint
+  %_ptr_bool = OpTypePointer CrossWorkgroup %bool
+ %_ptr_v2i32 = OpTypePointer CrossWorkgroup %v2i32
+       %void = OpTypeVoid
+         %14 = OpTypeFunction %void
+
+%var_sconvert = OpVariable %_ptr_uchar CrossWorkgroup %sconvert
+%var_uconvert = OpVariable %_ptr_uchar CrossWorkgroup %uconvert
+%var_snegate = OpVariable %_ptr_uint CrossWorkgroup %snegate
+    %var_not = OpVariable %_ptr_uint CrossWorkgroup %not
+   %var_iadd = OpVariable %_ptr_uint CrossWorkgroup %iadd
+   %var_isub = OpVariable %_ptr_uint CrossWorkgroup %isub
+   %var_imul = OpVariable %_ptr_uint CrossWorkgroup %imul
+   %var_udiv = OpVariable %_ptr_uint CrossWorkgroup %udiv
+  %var_udiv0 = OpVariable %_ptr_uint CrossWorkgroup %udiv0
+   %var_sdiv = OpVariable %_ptr_uint CrossWorkgroup %sdiv
+  %var_sdiv0 = OpVariable %_ptr_uint CrossWorkgroup %sdiv0
+   %var_umod = OpVariable %_ptr_uint CrossWorkgroup %umod
+   %var_srem = OpVariable %_ptr_uint CrossWorkgroup %srem
+   %var_smod = OpVariable %_ptr_uint CrossWorkgroup %smod
+    %var_srl = OpVariable %_ptr_uint CrossWorkgroup %srl
+    %var_sra = OpVariable %_ptr_uint CrossWorkgroup %sra
+    %var_sll = OpVariable %_ptr_uint CrossWorkgroup %sll
+%var_sll_big = OpVariable %_ptr_uint CrossWorkgroup %sll_big
+  %var_bitor = OpVariable %_ptr_uint CrossWorkgroup %bitor
+ %var_bitxor = OpVariable %_ptr_uint CrossWorkgroup %bitxor
+ %var_bitand = OpVariable %_ptr_uint CrossWorkgroup %bitand
+%var_vecshuf = OpVariable %_ptr_v2i32 CrossWorkgroup %vecshuf
+%var_compext = OpVariable %_ptr_uint CrossWorkgroup %compext
+%var_compins = OpVariable %_ptr_v2i32 CrossWorkgroup %compins
+  %var_logor = OpVariable %_ptr_bool CrossWorkgroup %logor
+ %var_logand = OpVariable %_ptr_bool CrossWorkgroup %logand
+ %var_lognot = OpVariable %_ptr_bool CrossWorkgroup %lognot
+  %var_logeq = OpVariable %_ptr_bool CrossWorkgroup %logeq
+  %var_logne = OpVariable %_ptr_bool CrossWorkgroup %logne
+ %var_select = OpVariable %_ptr_uint CrossWorkgroup %select
+ %var_icmpeq = OpVariable %_ptr_bool CrossWorkgroup %icmpeq
+ %var_icmpne = OpVariable %_ptr_bool CrossWorkgroup %icmpne
+%var_icmpult = OpVariable %_ptr_bool CrossWorkgroup %icmpult
+%var_icmpslt = OpVariable %_ptr_bool CrossWorkgroup %icmpslt
+%var_icmpugt = OpVariable %_ptr_bool CrossWorkgroup %icmpugt
+%var_icmpsgt = OpVariable %_ptr_bool CrossWorkgroup %icmpsgt
+%var_icmpule = OpVariable %_ptr_bool CrossWorkgroup %icmpule
+%var_icmpsle = OpVariable %_ptr_bool CrossWorkgroup %icmpsle
+%var_icmpuge = OpVariable %_ptr_bool CrossWorkgroup %icmpuge
+%var_icmpsge = OpVariable %_ptr_bool CrossWorkgroup %icmpsge
+%var_bitcast = OpVariable %_ptr_uint CrossWorkgroup %bitcast
+
+         %15 = OpFunction %void Pure %14
+      %entry = OpLabel
+               OpReturn
+               OpFunctionEnd

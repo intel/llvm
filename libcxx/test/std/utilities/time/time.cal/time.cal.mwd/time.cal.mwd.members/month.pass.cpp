@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class month_weekday;
@@ -30,8 +30,6 @@ int main(int, char**)
 
     ASSERT_NOEXCEPT(                 std::declval<const month_weekday>().month());
     ASSERT_SAME_TYPE(month, decltype(std::declval<const month_weekday>().month()));
-
-    static_assert( month_weekday{}.month() == month{}, "");
 
     for (unsigned i = 1; i <= 50; ++i)
     {

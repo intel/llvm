@@ -1,9 +1,9 @@
-# RUN: llvm-mc %s -filetype=obj -triple=riscv32 | llvm-readobj -h \
+# RUN: llvm-mc %s -filetype=obj -triple=riscv32 | llvm-readobj -h - \
 # RUN:     | FileCheck -check-prefix=RV32 %s
-# RUN: llvm-mc %s -filetype=obj -triple=riscv64 | llvm-readobj -h \
+# RUN: llvm-mc %s -filetype=obj -triple=riscv64 | llvm-readobj -h - \
 # RUN:     | FileCheck -check-prefix=RV64 %s
 
-# RV32: Format: ELF32-riscv
+# RV32: Format: elf32-littleriscv
 # RV32: Arch: riscv32
 # RV32: AddressSize: 32bit
 # RV32: ElfHeader {
@@ -22,7 +22,7 @@
 # RV32:   ]
 # RV32: }
 
-# RV64: Format: ELF64-riscv
+# RV64: Format: elf64-littleriscv
 # RV64: Arch: riscv64
 # RV64: AddressSize: 64bit
 # RV64: ElfHeader {

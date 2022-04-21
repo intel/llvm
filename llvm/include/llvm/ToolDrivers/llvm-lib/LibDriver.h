@@ -18,6 +18,7 @@ namespace llvm {
 template <typename T> class ArrayRef;
 
 int libDriverMain(ArrayRef<const char *> ARgs);
+
 }
 
 #endif

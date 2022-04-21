@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 // <string_view>
 
 // constexpr basic_string_view(const _CharT* _s)
@@ -18,7 +17,7 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "constexpr_char_traits.hpp"
+#include "constexpr_char_traits.h"
 
 template<typename CharT>
 size_t StrLen ( const CharT *s ) {

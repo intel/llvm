@@ -7,18 +7,18 @@ define void @bar__512(<16 x i32>* %var) #0 {
 ; CHECK-LABEL: bar__512:
 ; CHECK:       ## %bb.0: ## %allocas
 ; CHECK-NEXT:    pushq %rbx
-; CHECK-NEXT:    subq $112, %rsp
+; CHECK-NEXT:    subq $64, %rsp
 ; CHECK-NEXT:    movq %rdi, %rbx
 ; CHECK-NEXT:    vmovups (%rdi), %zmm0
 ; CHECK-NEXT:    vmovups %zmm0, (%rsp) ## 64-byte Spill
-; CHECK-NEXT:    vbroadcastss {{.*}}(%rip), %zmm1
+; CHECK-NEXT:    vbroadcastss {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]
 ; CHECK-NEXT:    vmovaps %zmm1, (%rdi)
 ; CHECK-NEXT:    callq _Print__512
 ; CHECK-NEXT:    vmovups (%rsp), %zmm0 ## 64-byte Reload
 ; CHECK-NEXT:    callq _Print__512
-; CHECK-NEXT:    vbroadcastss {{.*}}(%rip), %zmm0
+; CHECK-NEXT:    vbroadcastss {{.*#+}} zmm0 = [7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7]
 ; CHECK-NEXT:    vmovaps %zmm0, (%rbx)
-; CHECK-NEXT:    addq $112, %rsp
+; CHECK-NEXT:    addq $64, %rsp
 ; CHECK-NEXT:    popq %rbx
 ; CHECK-NEXT:    retq
 allocas:

@@ -1,4 +1,4 @@
-//===-- DumpDataExtractor.cpp -----------------------------------*- C++ -*-===//
+//===-- DumpDataExtractor.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,30 +14,33 @@
 #include "lldb/Core/Address.h"
 #include "lldb/Core/Disassembler.h"
 #include "lldb/Core/ModuleList.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/ExecutionContextScope.h"
+#include "lldb/Target/MemoryRegionInfo.h"
+#include "lldb/Target/MemoryTagManager.h"
+#include "lldb/Target/MemoryTagMap.h"
+#include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/Log.h"
 #include "lldb/Utility/Stream.h"
-
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/CanonicalType.h"
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <limits>
 #include <memory>
 #include <string>
 
-#include <assert.h>
-#include <ctype.h>
-#include <inttypes.h>
-#include <math.h>
+#include <cassert>
+#include <cctype>
+#include <cinttypes>
+#include <cmath>
 
 #include <bitset>
 #include <sstream>
@@ -52,7 +55,9 @@ static float half2float(uint16_t half) {
     float f;
     uint32_t u;
   } u;
-  int32_t v = (int16_t)half;
+  // Sign extend to 4 byte.
+  int32_t sign_extended = static_cast<int16_t>(half);
+  uint32_t v = static_cast<uint32_t>(sign_extended);
 
   if (0 == (v & 0x7c00)) {
     u.u = v & 0x80007FFFU;
@@ -64,8 +69,12 @@ static float half2float(uint16_t half) {
   return u.f * ldexpf(1, -112);
 }
 
-static bool GetAPInt(const DataExtractor &data, lldb::offset_t *offset_ptr,
-                     lldb::offset_t byte_size, llvm::APInt &result) {
+static llvm::Optional<llvm::APInt> GetAPInt(const DataExtractor &data,
+                                            lldb::offset_t *offset_ptr,
+                                            lldb::offset_t byte_size) {
+  if (byte_size == 0)
+    return llvm::None;
+
   llvm::SmallVector<uint64_t, 2> uint64_array;
   lldb::offset_t bytes_left = byte_size;
   uint64_t u64;
@@ -81,8 +90,7 @@ static bool GetAPInt(const DataExtractor &data, lldb::offset_t *offset_ptr,
       }
       uint64_array.push_back(u64);
     }
-    result = llvm::APInt(byte_size * 8, llvm::ArrayRef<uint64_t>(uint64_array));
-    return true;
+    return llvm::APInt(byte_size * 8, llvm::ArrayRef<uint64_t>(uint64_array));
   } else if (byte_order == lldb::eByteOrderBig) {
     lldb::offset_t be_offset = *offset_ptr + byte_size;
     lldb::offset_t temp_offset;
@@ -101,18 +109,17 @@ static bool GetAPInt(const DataExtractor &data, lldb::offset_t *offset_ptr,
       uint64_array.push_back(u64);
     }
     *offset_ptr += byte_size;
-    result = llvm::APInt(byte_size * 8, llvm::ArrayRef<uint64_t>(uint64_array));
-    return true;
+    return llvm::APInt(byte_size * 8, llvm::ArrayRef<uint64_t>(uint64_array));
   }
-  return false;
+  return llvm::None;
 }
 
 static lldb::offset_t DumpAPInt(Stream *s, const DataExtractor &data,
                                 lldb::offset_t offset, lldb::offset_t byte_size,
                                 bool is_signed, unsigned radix) {
-  llvm::APInt apint;
-  if (GetAPInt(data, &offset, byte_size, apint)) {
-    std::string apint_str(apint.toString(radix, is_signed));
+  llvm::Optional<llvm::APInt> apint = GetAPInt(data, &offset, byte_size);
+  if (apint.hasValue()) {
+    std::string apint_str = toString(apint.getValue(), radix, is_signed);
     switch (radix) {
     case 2:
       s->Write("0b", 2);
@@ -128,6 +135,206 @@ static lldb::offset_t DumpAPInt(Stream *s, const DataExtractor &data,
   return offset;
 }
 
+/// Dumps decoded instructions to a stream.
+static lldb::offset_t DumpInstructions(const DataExtractor &DE, Stream *s,
+                                       ExecutionContextScope *exe_scope,
+                                       offset_t start_offset,
+                                       uint64_t base_addr,
+                                       size_t number_of_instructions) {
+  offset_t offset = start_offset;
+
+  TargetSP target_sp;
+  if (exe_scope)
+    target_sp = exe_scope->CalculateTarget();
+  if (target_sp) {
+    DisassemblerSP disassembler_sp(
+        Disassembler::FindPlugin(target_sp->GetArchitecture(),
+                                 target_sp->GetDisassemblyFlavor(), nullptr));
+    if (disassembler_sp) {
+      lldb::addr_t addr = base_addr + start_offset;
+      lldb_private::Address so_addr;
+      bool data_from_file = true;
+      if (target_sp->GetSectionLoadList().ResolveLoadAddress(addr, so_addr)) {
+        data_from_file = false;
+      } else {
+        if (target_sp->GetSectionLoadList().IsEmpty() ||
+            !target_sp->GetImages().ResolveFileAddress(addr, so_addr))
+          so_addr.SetRawAddress(addr);
+      }
+
+      size_t bytes_consumed = disassembler_sp->DecodeInstructions(
+          so_addr, DE, start_offset, number_of_instructions, false,
+          data_from_file);
+
+      if (bytes_consumed) {
+        offset += bytes_consumed;
+        const bool show_address = base_addr != LLDB_INVALID_ADDRESS;
+        const bool show_bytes = true;
+        ExecutionContext exe_ctx;
+        exe_scope->CalculateExecutionContext(exe_ctx);
+        disassembler_sp->GetInstructionList().Dump(s, show_address, show_bytes,
+                                                   &exe_ctx);
+      }
+    }
+  } else
+    s->Printf("invalid target");
+
+  return offset;
+}
+
+/// Prints the specific escape sequence of the given character to the stream.
+/// If the character doesn't have a known specific escape sequence (e.g., '\a',
+/// '\n' but not generic escape sequences such as'\x12'), this function will
+/// not modify the stream and return false.
+static bool TryDumpSpecialEscapedChar(Stream &s, const char c) {
+  switch (c) {
+  case '\033':
+    // Common non-standard escape code for 'escape'.
+    s.Printf("\\e");
+    return true;
+  case '\a':
+    s.Printf("\\a");
+    return true;
+  case '\b':
+    s.Printf("\\b");
+    return true;
+  case '\f':
+    s.Printf("\\f");
+    return true;
+  case '\n':
+    s.Printf("\\n");
+    return true;
+  case '\r':
+    s.Printf("\\r");
+    return true;
+  case '\t':
+    s.Printf("\\t");
+    return true;
+  case '\v':
+    s.Printf("\\v");
+    return true;
+  case '\0':
+    s.Printf("\\0");
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// Dump the character to a stream. A character that is not printable will be
+/// represented by its escape sequence.
+static void DumpCharacter(Stream &s, const char c) {
+  if (TryDumpSpecialEscapedChar(s, c))
+    return;
+  if (llvm::isPrint(c)) {
+    s.PutChar(c);
+    return;
+  }
+  s.Printf("\\x%2.2x", c);
+}
+
+/// Dump a floating point type.
+template <typename FloatT>
+void DumpFloatingPoint(std::ostringstream &ss, FloatT f) {
+  static_assert(std::is_floating_point<FloatT>::value,
+                "Only floating point types can be dumped.");
+  // NaN and Inf are potentially implementation defined and on Darwin it
+  // seems NaNs are printed without their sign. Manually implement dumping them
+  // here to avoid having to deal with platform differences.
+  if (std::isnan(f)) {
+    if (std::signbit(f))
+      ss << '-';
+    ss << "nan";
+    return;
+  }
+  if (std::isinf(f)) {
+    if (std::signbit(f))
+      ss << '-';
+    ss << "inf";
+    return;
+  }
+  ss << f;
+}
+
+static llvm::Optional<MemoryTagMap>
+GetMemoryTags(lldb::addr_t addr, size_t length,
+              ExecutionContextScope *exe_scope) {
+  assert(addr != LLDB_INVALID_ADDRESS);
+
+  if (!exe_scope)
+    return llvm::None;
+
+  TargetSP target_sp = exe_scope->CalculateTarget();
+  if (!target_sp)
+    return llvm::None;
+
+  ProcessSP process_sp = target_sp->CalculateProcess();
+  if (!process_sp)
+    return llvm::None;
+
+  llvm::Expected<const MemoryTagManager *> tag_manager_or_err =
+      process_sp->GetMemoryTagManager();
+  if (!tag_manager_or_err) {
+    llvm::consumeError(tag_manager_or_err.takeError());
+    return llvm::None;
+  }
+
+  MemoryRegionInfos memory_regions;
+  // Don't check return status, list will be just empty if an error happened.
+  process_sp->GetMemoryRegions(memory_regions);
+
+  llvm::Expected<std::vector<MemoryTagManager::TagRange>> tagged_ranges_or_err =
+      (*tag_manager_or_err)
+          ->MakeTaggedRanges(addr, addr + length, memory_regions);
+  // Here we know that our range will not be inverted but we must still check
+  // for an error.
+  if (!tagged_ranges_or_err) {
+    llvm::consumeError(tagged_ranges_or_err.takeError());
+    return llvm::None;
+  }
+  if (tagged_ranges_or_err->empty())
+    return llvm::None;
+
+  MemoryTagMap memory_tag_map(*tag_manager_or_err);
+  for (const MemoryTagManager::TagRange &range : *tagged_ranges_or_err) {
+    llvm::Expected<std::vector<lldb::addr_t>> tags_or_err =
+        process_sp->ReadMemoryTags(range.GetRangeBase(), range.GetByteSize());
+
+    if (tags_or_err)
+      memory_tag_map.InsertTags(range.GetRangeBase(), *tags_or_err);
+    else
+      llvm::consumeError(tags_or_err.takeError());
+  }
+
+  if (memory_tag_map.Empty())
+    return llvm::None;
+
+  return memory_tag_map;
+}
+
+static void
+printMemoryTags(const DataExtractor &DE, Stream *s, lldb::addr_t addr,
+                size_t len,
+                const llvm::Optional<MemoryTagMap> &memory_tag_map) {
+  std::vector<llvm::Optional<lldb::addr_t>> tags =
+      memory_tag_map->GetTags(addr, len);
+
+  // Only print if there is at least one tag for this line
+  if (tags.empty())
+    return;
+
+  s->Printf(" (tag%s:", tags.size() > 1 ? "s" : "");
+  // Some granules may not be tagged but print something for them
+  // so that the ordering remains intact.
+  for (auto tag : tags) {
+    if (tag)
+      s->Printf(" 0x%" PRIx64, *tag);
+    else
+      s->PutCString(" <no tag>");
+  }
+  s->PutCString(")");
+}
+
 lldb::offset_t lldb_private::DumpDataExtractor(
     const DataExtractor &DE, Stream *s, offset_t start_offset,
     lldb::Format item_format, size_t item_byte_size, size_t item_count,
@@ -136,7 +343,7 @@ lldb::offset_t lldb_private::DumpDataExtractor(
                               // non-zero, the value is a bitfield
     uint32_t item_bit_offset, // If "item_bit_size" is non-zero, this is the
                               // shift amount to apply to a bitfield
-    ExecutionContextScope *exe_scope) {
+    ExecutionContextScope *exe_scope, bool show_memory_tags) {
   if (s == nullptr)
     return start_offset;
 
@@ -147,44 +354,14 @@ lldb::offset_t lldb_private::DumpDataExtractor(
 
   offset_t offset = start_offset;
 
-  if (item_format == eFormatInstruction) {
-    TargetSP target_sp;
-    if (exe_scope)
-      target_sp = exe_scope->CalculateTarget();
-    if (target_sp) {
-      DisassemblerSP disassembler_sp(Disassembler::FindPlugin(
-          target_sp->GetArchitecture(),
-          target_sp->GetDisassemblyFlavor(), nullptr));
-      if (disassembler_sp) {
-        lldb::addr_t addr = base_addr + start_offset;
-        lldb_private::Address so_addr;
-        bool data_from_file = true;
-        if (target_sp->GetSectionLoadList().ResolveLoadAddress(addr, so_addr)) {
-          data_from_file = false;
-        } else {
-          if (target_sp->GetSectionLoadList().IsEmpty() ||
-              !target_sp->GetImages().ResolveFileAddress(addr, so_addr))
-            so_addr.SetRawAddress(addr);
-        }
+  llvm::Optional<MemoryTagMap> memory_tag_map = llvm::None;
+  if (show_memory_tags && base_addr != LLDB_INVALID_ADDRESS)
+    memory_tag_map =
+        GetMemoryTags(base_addr, DE.GetByteSize() - offset, exe_scope);
 
-        size_t bytes_consumed = disassembler_sp->DecodeInstructions(
-            so_addr, DE, start_offset, item_count, false, data_from_file);
-
-        if (bytes_consumed) {
-          offset += bytes_consumed;
-          const bool show_address = base_addr != LLDB_INVALID_ADDRESS;
-          const bool show_bytes = true;
-          ExecutionContext exe_ctx;
-          exe_scope->CalculateExecutionContext(exe_ctx);
-          disassembler_sp->GetInstructionList().Dump(s, show_address,
-                                                     show_bytes, &exe_ctx);
-        }
-      }
-    } else
-      s->Printf("invalid target");
-
-    return offset;
-  }
+  if (item_format == eFormatInstruction)
+    return DumpInstructions(DE, s, exe_scope, start_offset, base_addr,
+                            item_count);
 
   if ((item_format == eFormatOSType || item_format == eFormatAddressInfo) &&
       item_byte_size > 8)
@@ -193,7 +370,10 @@ lldb::offset_t lldb_private::DumpDataExtractor(
   lldb::offset_t line_start_offset = start_offset;
   for (uint32_t count = 0; DE.ValidOffset(offset) && count < item_count;
        ++count) {
+    // If we are at the beginning or end of a line
+    // Note that the last line is handled outside this for loop.
     if ((count % num_per_line) == 0) {
+      // If we are at the end of a line
       if (count > 0) {
         if (item_format == eFormatBytesWithASCII &&
             offset > line_start_offset) {
@@ -205,6 +385,15 @@ lldb::offset_t lldb_private::DumpDataExtractor(
                             offset - line_start_offset, SIZE_MAX,
                             LLDB_INVALID_ADDRESS, 0, 0);
         }
+
+        if (base_addr != LLDB_INVALID_ADDRESS && memory_tag_map) {
+          size_t line_len = offset - line_start_offset;
+          lldb::addr_t line_base =
+              base_addr +
+              (offset - start_offset - line_len) / DE.getTargetByteSize();
+          printMemoryTags(DE, s, line_base, line_len, memory_tag_map);
+        }
+
         s->EOL();
       }
       if (base_addr != LLDB_INVALID_ADDRESS)
@@ -284,43 +473,14 @@ lldb::offset_t lldb_private::DumpDataExtractor(
 
       const uint64_t ch = DE.GetMaxU64Bitfield(&offset, item_byte_size,
                                                item_bit_size, item_bit_offset);
-      if (isprint(ch))
+      if (llvm::isPrint(ch))
         s->Printf("%c", (char)ch);
       else if (item_format != eFormatCharPrintable) {
-        switch (ch) {
-        case '\033':
-          s->Printf("\\e");
-          break;
-        case '\a':
-          s->Printf("\\a");
-          break;
-        case '\b':
-          s->Printf("\\b");
-          break;
-        case '\f':
-          s->Printf("\\f");
-          break;
-        case '\n':
-          s->Printf("\\n");
-          break;
-        case '\r':
-          s->Printf("\\r");
-          break;
-        case '\t':
-          s->Printf("\\t");
-          break;
-        case '\v':
-          s->Printf("\\v");
-          break;
-        case '\0':
-          s->Printf("\\0");
-          break;
-        default:
+        if (!TryDumpSpecialEscapedChar(*s, ch)) {
           if (item_byte_size == 1)
             s->Printf("\\x%2.2x", (uint8_t)ch);
           else
             s->Printf("%" PRIu64, ch);
-          break;
         }
       } else {
         s->PutChar(NON_PRINTABLE_CHAR);
@@ -375,42 +535,7 @@ lldb::offset_t lldb_private::DumpDataExtractor(
       s->PutChar('\'');
       for (uint32_t i = 0; i < item_byte_size; ++i) {
         uint8_t ch = (uint8_t)(uval64 >> ((item_byte_size - i - 1) * 8));
-        if (isprint(ch))
-          s->Printf("%c", ch);
-        else {
-          switch (ch) {
-          case '\033':
-            s->Printf("\\e");
-            break;
-          case '\a':
-            s->Printf("\\a");
-            break;
-          case '\b':
-            s->Printf("\\b");
-            break;
-          case '\f':
-            s->Printf("\\f");
-            break;
-          case '\n':
-            s->Printf("\\n");
-            break;
-          case '\r':
-            s->Printf("\\r");
-            break;
-          case '\t':
-            s->Printf("\\t");
-            break;
-          case '\v':
-            s->Printf("\\v");
-            break;
-          case '\0':
-            s->Printf("\\0");
-            break;
-          default:
-            s->Printf("\\x%2.2x", ch);
-            break;
-          }
-        }
+        DumpCharacter(*s, ch);
       }
       s->PutChar('\'');
     } break;
@@ -425,40 +550,7 @@ lldb::offset_t lldb_private::DumpDataExtractor(
         s->PutChar('\"');
 
         while (const char c = *cstr) {
-          if (isprint(c)) {
-            s->PutChar(c);
-          } else {
-            switch (c) {
-            case '\033':
-              s->Printf("\\e");
-              break;
-            case '\a':
-              s->Printf("\\a");
-              break;
-            case '\b':
-              s->Printf("\\b");
-              break;
-            case '\f':
-              s->Printf("\\f");
-              break;
-            case '\n':
-              s->Printf("\\n");
-              break;
-            case '\r':
-              s->Printf("\\r");
-              break;
-            case '\t':
-              s->Printf("\\t");
-              break;
-            case '\v':
-              s->Printf("\\v");
-              break;
-            default:
-              s->Printf("\\x%2.2x", c);
-              break;
-            }
-          }
-
+          DumpCharacter(*s, c);
           ++cstr;
         }
 
@@ -467,9 +559,10 @@ lldb::offset_t lldb_private::DumpDataExtractor(
     } break;
 
     case eFormatPointer:
-      s->Address(DE.GetMaxU64Bitfield(&offset, item_byte_size, item_bit_size,
-                                      item_bit_offset),
-                 sizeof(addr_t));
+      DumpAddress(s->AsRawOstream(),
+                  DE.GetMaxU64Bitfield(&offset, item_byte_size, item_bit_size,
+                                       item_bit_offset),
+                  sizeof(addr_t));
       break;
 
     case eFormatComplexInteger: {
@@ -555,49 +648,31 @@ lldb::offset_t lldb_private::DumpDataExtractor(
       if (exe_scope)
         target_sp = exe_scope->CalculateTarget();
       if (target_sp) {
-        ClangASTContext *clang_ast = target_sp->GetScratchClangASTContext();
-        if (clang_ast) {
-          clang::ASTContext *ast = clang_ast->getASTContext();
-          if (ast) {
-            llvm::SmallVector<char, 256> sv;
-            // Show full precision when printing float values
-            const unsigned format_precision = 0;
-            const unsigned format_max_padding = 100;
-            size_t item_bit_size = item_byte_size * 8;
+        auto type_system_or_err =
+            target_sp->GetScratchTypeSystemForLanguage(eLanguageTypeC);
+        if (!type_system_or_err) {
+          llvm::consumeError(type_system_or_err.takeError());
+        } else {
+          auto &type_system = *type_system_or_err;
+          llvm::SmallVector<char, 256> sv;
+          // Show full precision when printing float values
+          const unsigned format_precision = 0;
+          const unsigned format_max_padding =
+              target_sp->GetMaxZeroPaddingInFloatFormat();
 
-            if (item_bit_size == ast->getTypeSize(ast->FloatTy)) {
-              llvm::APInt apint(item_bit_size,
-                                DE.GetMaxU64(&offset, item_byte_size));
-              llvm::APFloat apfloat(ast->getFloatTypeSemantics(ast->FloatTy),
-                                    apint);
-              apfloat.toString(sv, format_precision, format_max_padding);
-            } else if (item_bit_size == ast->getTypeSize(ast->DoubleTy)) {
-              llvm::APInt apint;
-              if (GetAPInt(DE, &offset, item_byte_size, apint)) {
-                llvm::APFloat apfloat(ast->getFloatTypeSemantics(ast->DoubleTy),
-                                      apint);
-                apfloat.toString(sv, format_precision, format_max_padding);
-              }
-            } else if (item_bit_size == ast->getTypeSize(ast->LongDoubleTy)) {
-              const auto &semantics =
-                  ast->getFloatTypeSemantics(ast->LongDoubleTy);
+          const auto &semantics =
+              type_system.GetFloatTypeSemantics(item_byte_size);
 
-              offset_t byte_size = item_byte_size;
-              if (&semantics == &llvm::APFloatBase::x87DoubleExtended())
-                byte_size = (llvm::APFloat::getSizeInBits(semantics) + 7) / 8;
-
-              llvm::APInt apint;
-              if (GetAPInt(DE, &offset, byte_size, apint)) {
-                llvm::APFloat apfloat(semantics, apint);
-                apfloat.toString(sv, format_precision, format_max_padding);
-              }
-            } else if (item_bit_size == ast->getTypeSize(ast->HalfTy)) {
-              llvm::APInt apint(item_bit_size, DE.GetU16(&offset));
-              llvm::APFloat apfloat(ast->getFloatTypeSemantics(ast->HalfTy),
-                                    apint);
-              apfloat.toString(sv, format_precision, format_max_padding);
-            }
-
+          // Recalculate the byte size in case of a difference. This is possible
+          // when item_byte_size is 16 (128-bit), because you could get back the
+          // x87DoubleExtended semantics which has a byte size of 10 (80-bit).
+          const size_t semantics_byte_size =
+              (llvm::APFloat::getSizeInBits(semantics) + 7) / 8;
+          llvm::Optional<llvm::APInt> apint =
+              GetAPInt(DE, &offset, semantics_byte_size);
+          if (apint.hasValue()) {
+            llvm::APFloat apfloat(semantics, apint.getValue());
+            apfloat.toString(sv, format_precision, format_max_padding);
             if (!sv.empty()) {
               s->Printf("%*.*s", (int)sv.size(), (int)sv.size(), sv.data());
               used_upfloat = true;
@@ -617,14 +692,14 @@ lldb::offset_t lldb_private::DumpDataExtractor(
             f = DE.GetFloat(&offset);
           }
           ss.precision(std::numeric_limits<float>::digits10);
-          ss << f;
+          DumpFloatingPoint(ss, f);
         } else if (item_byte_size == sizeof(double)) {
           ss.precision(std::numeric_limits<double>::digits10);
-          ss << DE.GetDouble(&offset);
+          DumpFloatingPoint(ss, DE.GetDouble(&offset));
         } else if (item_byte_size == sizeof(long double) ||
                    item_byte_size == 10) {
           ss.precision(std::numeric_limits<long double>::digits10);
-          ss << DE.GetLongDouble(&offset);
+          DumpFloatingPoint(ss, DE.GetLongDouble(&offset));
         } else {
           s->Printf("error: unsupported byte size (%" PRIu64
                     ") for float format",
@@ -662,6 +737,21 @@ lldb::offset_t lldb_private::DumpDataExtractor(
             so_addr.SetOffset(addr);
             so_addr.Dump(s, exe_scope,
                          Address::DumpStyleResolvedPointerDescription);
+            if (ProcessSP process_sp = exe_scope->CalculateProcess()) {
+              if (ABISP abi_sp = process_sp->GetABI()) {
+                addr_t addr_fixed = abi_sp->FixCodeAddress(addr);
+                if (target_sp->GetSectionLoadList().ResolveLoadAddress(
+                        addr_fixed, so_addr)) {
+                  s->PutChar(' ');
+                  s->Printf("(0x%*.*" PRIx64 ")", (int)(2 * item_byte_size),
+                            (int)(2 * item_byte_size), addr_fixed);
+                  s->PutChar(' ');
+                  so_addr.Dump(s, exe_scope,
+                               Address::DumpStyleResolvedDescription,
+                               Address::DumpStyleModuleWithFileAddress);
+                }
+              }
+            }
           }
         }
       }
@@ -805,14 +895,28 @@ lldb::offset_t lldb_private::DumpDataExtractor(
     }
   }
 
-  if (item_format == eFormatBytesWithASCII && offset > line_start_offset) {
-    s->Printf("%*s", static_cast<int>(
-                         (num_per_line - (offset - line_start_offset)) * 3 + 2),
-              "");
-    DumpDataExtractor(DE, s, line_start_offset, eFormatCharPrintable, 1,
-                      offset - line_start_offset, SIZE_MAX,
-                      LLDB_INVALID_ADDRESS, 0, 0);
+  // If anything was printed we want to catch the end of the last line.
+  // Since we will exit the for loop above before we get a chance to append to
+  // it normally.
+  if (offset > line_start_offset) {
+    if (item_format == eFormatBytesWithASCII) {
+      s->Printf("%*s",
+                static_cast<int>(
+                    (num_per_line - (offset - line_start_offset)) * 3 + 2),
+                "");
+      DumpDataExtractor(DE, s, line_start_offset, eFormatCharPrintable, 1,
+                        offset - line_start_offset, SIZE_MAX,
+                        LLDB_INVALID_ADDRESS, 0, 0);
+    }
+
+    if (base_addr != LLDB_INVALID_ADDRESS && memory_tag_map) {
+      size_t line_len = offset - line_start_offset;
+      lldb::addr_t line_base = base_addr + (offset - start_offset - line_len) /
+                                               DE.getTargetByteSize();
+      printMemoryTags(DE, s, line_base, line_len, memory_tag_map);
+    }
   }
+
   return offset; // Return the offset at which we ended up
 }
 

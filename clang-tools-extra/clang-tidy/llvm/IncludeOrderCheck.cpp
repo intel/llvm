@@ -53,7 +53,7 @@ private:
 void IncludeOrderCheck::registerPPCallbacks(const SourceManager &SM,
                                             Preprocessor *PP,
                                             Preprocessor *ModuleExpanderPP) {
-  PP->addPPCallbacks(::llvm::make_unique<IncludeOrderPPCallbacks>(*this, SM));
+  PP->addPPCallbacks(::std::make_unique<IncludeOrderPPCallbacks>(*this, SM));
 }
 
 static int getPriority(StringRef Filename, bool IsAngled, bool IsMainModule) {
@@ -66,9 +66,14 @@ static int getPriority(StringRef Filename, bool IsAngled, bool IsMainModule) {
       Filename.startswith("clang/") || Filename.startswith("clang-c/"))
     return 2;
 
-  // System headers are sorted to the end.
-  if (IsAngled || Filename.startswith("gtest/"))
+  // Put these between system and llvm headers to be consistent with LLVM
+  // clang-format style.
+  if (Filename.startswith("gtest/") || Filename.startswith("gmock/"))
     return 3;
+
+  // System headers are sorted to the end.
+  if (IsAngled)
+    return 4;
 
   // Other headers are inserted between the main module header and LLVM headers.
   return 1;
@@ -81,7 +86,8 @@ void IncludeOrderPPCallbacks::InclusionDirective(
     SrcMgr::CharacteristicKind FileType) {
   // We recognize the first include as a special main module header and want
   // to leave it in the top position.
-  IncludeDirective ID = {HashLoc, FilenameRange, FileName, IsAngled, false};
+  IncludeDirective ID = {HashLoc, FilenameRange, std::string(FileName),
+                         IsAngled, false};
   if (LookForMainModule && !IsAngled) {
     ID.IsMainModule = true;
     LookForMainModule = false;

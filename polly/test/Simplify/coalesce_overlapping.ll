@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-import-jscop -polly-import-jscop-postfix=transformed -polly-simplify -analyze < %s | FileCheck -match-full-lines %s
+; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-import-jscop -polly-import-jscop-postfix=transformed -polly-print-simplify -disable-output < %s | FileCheck -match-full-lines %s
 ;
 ; Combine two partial stores (with overlapping domains) into one.
 ;
@@ -42,5 +42,5 @@ return:
 ; CHECK-NEXT:     Stmt_body
 ; CHECK-NEXT:             MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 0]
 ; CHECK-NEXT:                 [n] -> { Stmt_body[i0] -> MemRef_A[0] };
-; CHECK-NEXT:            new: [n] -> { Stmt_body[i0] -> MemRef_A[0] : n <= 2147483647 };
+; CHECK-NEXT:            new: [n] -> { Stmt_body[i0] -> MemRef_A[0] };
 ; CHECK-NEXT: }

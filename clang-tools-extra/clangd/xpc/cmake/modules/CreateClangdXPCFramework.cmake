@@ -28,7 +28,7 @@ macro(create_clangd_xpc_framework target name)
 
     # Copy the framework binary.
     COMMAND ${CMAKE_COMMAND} -E copy
-       "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/lib${target}.dylib"
+       "$<TARGET_FILE:${target}>"
        "${CLANGD_FRAMEWORK_OUT_LOCATION}/${name}"
 
     # Copy the XPC Service PLIST.
@@ -38,7 +38,7 @@ macro(create_clangd_xpc_framework target name)
 
     # Copy the Clangd binary.
     COMMAND ${CMAKE_COMMAND} -E copy
-      "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/clangd"
+      "$<TARGET_FILE:clangd>"
       "${CLANGD_XPC_SERVICE_OUT_LOCATION}/MacOS/clangd"
 
      COMMAND ${CMAKE_COMMAND} -E create_symlink "A"
@@ -70,4 +70,9 @@ macro(create_clangd_xpc_framework target name)
     ${target}
     ${CLANGD_FRAMEWORK_LOCATION}
   )
+
+  # clangd is already signed as a standalone executable, so it must be forced.
+  llvm_codesign(ClangdXPC BUNDLE_PATH "${CLANGD_FRAMEWORK_OUT_LOCATION}/XPCServices/${CLANGD_XPC_SERVICE_NAME}.xpc/" FORCE)
+  # ClangdXPC library is already signed as a standalone library, so it must be forced.
+  llvm_codesign(ClangdXPC BUNDLE_PATH "${CLANGD_FRAMEWORK_LOCATION}" FORCE)
 endmacro(create_clangd_xpc_framework)

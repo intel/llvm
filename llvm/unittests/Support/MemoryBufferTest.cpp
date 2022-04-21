@@ -11,13 +11,44 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SmallVectorMemoryBuffer.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
+#if LLVM_ENABLE_THREADS
+#include <thread>
+#endif
+#if LLVM_ON_UNIX
+#include <unistd.h>
+#endif
+#if _WIN32
+#include <windows.h>
+#endif
 
 using namespace llvm;
+
+#define ASSERT_NO_ERROR(x)                                                     \
+  if (std::error_code ASSERT_NO_ERROR_ec = x) {                                \
+    SmallString<128> MessageStorage;                                           \
+    raw_svector_ostream Message(MessageStorage);                               \
+    Message << #x ": did not return errc::success.\n"                          \
+            << "error number: " << ASSERT_NO_ERROR_ec.value() << "\n"          \
+            << "error message: " << ASSERT_NO_ERROR_ec.message() << "\n";      \
+    GTEST_FATAL_FAILURE_(MessageStorage.c_str());                              \
+  } else {                                                                     \
+  }
+
+#define ASSERT_ERROR(x)                                                        \
+  if (!x) {                                                                    \
+    SmallString<128> MessageStorage;                                           \
+    raw_svector_ostream Message(MessageStorage);                               \
+    Message << #x ": did not return a failure error code.\n";                  \
+    GTEST_FATAL_FAILURE_(MessageStorage.c_str());                              \
+  }
 
 namespace {
 
@@ -44,15 +75,15 @@ protected:
 TEST_F(MemoryBufferTest, get) {
   // Default name and null-terminator flag
   OwningBuffer MB1(MemoryBuffer::getMemBuffer(data));
-  EXPECT_TRUE(nullptr != MB1.get());
+  EXPECT_NE(nullptr, MB1.get());
 
   // RequiresNullTerminator = false
   OwningBuffer MB2(MemoryBuffer::getMemBuffer(data, "one", false));
-  EXPECT_TRUE(nullptr != MB2.get());
+  EXPECT_NE(nullptr, MB2.get());
 
   // RequiresNullTerminator = true
   OwningBuffer MB3(MemoryBuffer::getMemBuffer(data, "two", true));
-  EXPECT_TRUE(nullptr != MB3.get());
+  EXPECT_NE(nullptr, MB3.get());
 
   // verify all 3 buffers point to the same address
   EXPECT_EQ(MB1->getBufferStart(), MB2->getBufferStart());
@@ -63,6 +94,37 @@ TEST_F(MemoryBufferTest, get) {
   MB2.reset();
   MB3.reset();
   EXPECT_EQ("this is some data", data);
+}
+
+TEST_F(MemoryBufferTest, getOpenFile) {
+  int FD;
+  SmallString<64> TestPath;
+  ASSERT_EQ(sys::fs::createTemporaryFile("MemoryBufferTest_getOpenFile", "temp",
+                                         FD, TestPath),
+            std::error_code());
+
+  FileRemover Cleanup(TestPath);
+  raw_fd_ostream OF(FD, /*shouldClose*/ true);
+  OF << "12345678";
+  OF.close();
+
+  {
+    Expected<sys::fs::file_t> File = sys::fs::openNativeFileForRead(TestPath);
+    ASSERT_THAT_EXPECTED(File, Succeeded());
+    auto OnExit =
+        make_scope_exit([&] { ASSERT_NO_ERROR(sys::fs::closeFile(*File)); });
+    ErrorOr<OwningBuffer> MB = MemoryBuffer::getOpenFile(*File, TestPath, 6);
+    ASSERT_NO_ERROR(MB.getError());
+    EXPECT_EQ("123456", MB.get()->getBuffer());
+  }
+  {
+    Expected<sys::fs::file_t> File = sys::fs::openNativeFileForWrite(
+        TestPath, sys::fs::CD_OpenExisting, sys::fs::OF_None);
+    ASSERT_THAT_EXPECTED(File, Succeeded());
+    auto OnExit =
+        make_scope_exit([&] { ASSERT_NO_ERROR(sys::fs::closeFile(*File)); });
+    ASSERT_ERROR(MemoryBuffer::getOpenFile(*File, TestPath, 6).getError());
+  }
 }
 
 TEST_F(MemoryBufferTest, NullTerminator4K) {
@@ -91,40 +153,77 @@ TEST_F(MemoryBufferTest, NullTerminator4K) {
 TEST_F(MemoryBufferTest, copy) {
   // copy with no name
   OwningBuffer MBC1(MemoryBuffer::getMemBufferCopy(data));
-  EXPECT_TRUE(nullptr != MBC1.get());
+  EXPECT_NE(nullptr, MBC1.get());
 
   // copy with a name
   OwningBuffer MBC2(MemoryBuffer::getMemBufferCopy(data, "copy"));
-  EXPECT_TRUE(nullptr != MBC2.get());
+  EXPECT_NE(nullptr, MBC2.get());
 
   // verify the two copies do not point to the same place
   EXPECT_NE(MBC1->getBufferStart(), MBC2->getBufferStart());
 }
 
+#if LLVM_ENABLE_THREADS
+TEST_F(MemoryBufferTest, createFromPipe) {
+  sys::fs::file_t pipes[2];
+#if LLVM_ON_UNIX
+  ASSERT_EQ(::pipe(pipes), 0) << strerror(errno);
+#else
+  ASSERT_TRUE(::CreatePipe(&pipes[0], &pipes[1], nullptr, 0))
+      << ::GetLastError();
+#endif
+  auto ReadCloser = make_scope_exit([&] { sys::fs::closeFile(pipes[0]); });
+  std::thread Writer([&] {
+    auto WriteCloser = make_scope_exit([&] { sys::fs::closeFile(pipes[1]); });
+    for (unsigned i = 0; i < 5; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+#if LLVM_ON_UNIX
+      ASSERT_EQ(::write(pipes[1], "foo", 3), 3) << strerror(errno);
+#else
+      DWORD Written;
+      ASSERT_TRUE(::WriteFile(pipes[1], "foo", 3, &Written, nullptr))
+          << ::GetLastError();
+      ASSERT_EQ(Written, 3u);
+#endif
+    }
+  });
+  ErrorOr<OwningBuffer> MB =
+      MemoryBuffer::getOpenFile(pipes[0], "pipe", /*FileSize*/ -1);
+  Writer.join();
+  ASSERT_NO_ERROR(MB.getError());
+  EXPECT_EQ(MB.get()->getBuffer(), "foofoofoofoofoo");
+}
+#endif
+
 TEST_F(MemoryBufferTest, make_new) {
   // 0-sized buffer
   OwningBuffer Zero(WritableMemoryBuffer::getNewUninitMemBuffer(0));
-  EXPECT_TRUE(nullptr != Zero.get());
+  EXPECT_NE(nullptr, Zero.get());
 
   // uninitialized buffer with no name
   OwningBuffer One(WritableMemoryBuffer::getNewUninitMemBuffer(321));
-  EXPECT_TRUE(nullptr != One.get());
+  EXPECT_NE(nullptr, One.get());
 
   // uninitialized buffer with name
   OwningBuffer Two(WritableMemoryBuffer::getNewUninitMemBuffer(123, "bla"));
-  EXPECT_TRUE(nullptr != Two.get());
+  EXPECT_NE(nullptr, Two.get());
 
   // 0-initialized buffer with no name
   OwningBuffer Three(WritableMemoryBuffer::getNewMemBuffer(321, data));
-  EXPECT_TRUE(nullptr != Three.get());
+  EXPECT_NE(nullptr, Three.get());
   for (size_t i = 0; i < 321; ++i)
     EXPECT_EQ(0, Three->getBufferStart()[0]);
 
   // 0-initialized buffer with name
   OwningBuffer Four(WritableMemoryBuffer::getNewMemBuffer(123, "zeros"));
-  EXPECT_TRUE(nullptr != Four.get());
+  EXPECT_NE(nullptr, Four.get());
   for (size_t i = 0; i < 123; ++i)
     EXPECT_EQ(0, Four->getBufferStart()[0]);
+
+  // uninitialized buffer with rollover size
+  OwningBuffer Five(
+      WritableMemoryBuffer::getNewUninitMemBuffer(SIZE_MAX, "huge"));
+  EXPECT_EQ(nullptr, Five.get());
 }
 
 void MemoryBufferTest::testGetOpenFileSlice(bool Reopen) {
@@ -149,11 +248,11 @@ void MemoryBufferTest::testGetOpenFileSlice(bool Reopen) {
     EXPECT_FALSE(sys::fs::openFileForRead(TestPath.c_str(), TestFD));
   }
 
-  ErrorOr<OwningBuffer> Buf =
-      MemoryBuffer::getOpenFileSlice(TestFD, TestPath.c_str(),
-                                     40000, // Size
-                                     80000  // Offset
-                                     );
+  ErrorOr<OwningBuffer> Buf = MemoryBuffer::getOpenFileSlice(
+      sys::fs::convertFDToNativeFile(TestFD), TestPath.c_str(),
+      40000, // Size
+      80000  // Offset
+  );
 
   std::error_code EC = Buf.getError();
   EXPECT_FALSE(EC);
@@ -170,14 +269,6 @@ TEST_F(MemoryBufferTest, getOpenFileNoReopen) {
 
 TEST_F(MemoryBufferTest, getOpenFileReopened) {
   testGetOpenFileSlice(true);
-}
-
-TEST_F(MemoryBufferTest, reference) {
-  OwningBuffer MB(MemoryBuffer::getMemBuffer(data));
-  MemoryBufferRef MBR(*MB);
-
-  EXPECT_EQ(MB->getBufferStart(), MBR.getBufferStart());
-  EXPECT_EQ(MB->getBufferIdentifier(), MBR.getBufferIdentifier());
 }
 
 TEST_F(MemoryBufferTest, slice) {
@@ -288,4 +379,62 @@ TEST_F(MemoryBufferTest, writeThroughFile) {
   ASSERT_EQ(16u, MB.getBufferSize());
   EXPECT_EQ("xxxxxxxxxxxxxxxx", MB.getBuffer());
 }
+
+TEST_F(MemoryBufferTest, mmapVolatileNoNull) {
+  // Verify that `MemoryBuffer::getOpenFile` will use mmap when
+  // `RequiresNullTerminator = false`, `IsVolatile = true`, and the file is
+  // large enough to use mmap.
+  //
+  // This is done because Clang should use this mode to open module files, and
+  // falling back to malloc for them causes a huge memory usage increase.
+
+  int FD;
+  SmallString<64> TestPath;
+  ASSERT_NO_ERROR(sys::fs::createTemporaryFile(
+      "MemoryBufferTest_mmapVolatileNoNull", "temp", FD, TestPath));
+  FileRemover Cleanup(TestPath);
+  raw_fd_ostream OF(FD, true);
+  // Create a file large enough to mmap. 4 pages should be enough.
+  unsigned PageSize = sys::Process::getPageSizeEstimate();
+  unsigned FileWrites = (PageSize * 4) / 8;
+  for (unsigned i = 0; i < FileWrites; ++i)
+    OF << "01234567";
+  OF.close();
+
+  Expected<sys::fs::file_t> File = sys::fs::openNativeFileForRead(TestPath);
+  ASSERT_THAT_EXPECTED(File, Succeeded());
+  auto OnExit =
+      make_scope_exit([&] { ASSERT_NO_ERROR(sys::fs::closeFile(*File)); });
+
+  auto MBOrError = MemoryBuffer::getOpenFile(*File, TestPath,
+      /*FileSize=*/-1, /*RequiresNullTerminator=*/false, /*IsVolatile=*/true);
+  ASSERT_NO_ERROR(MBOrError.getError())
+  OwningBuffer MB = std::move(*MBOrError);
+  EXPECT_EQ(MB->getBufferKind(), MemoryBuffer::MemoryBuffer_MMap);
+  EXPECT_EQ(MB->getBufferSize(), std::size_t(FileWrites * 8));
+  EXPECT_TRUE(MB->getBuffer().startswith("01234567"));
 }
+
+// Test that SmallVector without a null terminator gets one.
+TEST(SmallVectorMemoryBufferTest, WithoutNullTerminatorRequiresNullTerminator) {
+  SmallString<0> Data("some data");
+
+  SmallVectorMemoryBuffer MB(std::move(Data),
+                             /*RequiresNullTerminator=*/true);
+  EXPECT_EQ(MB.getBufferSize(), 9u);
+  EXPECT_EQ(MB.getBufferEnd()[0], '\0');
+}
+
+// Test that SmallVector with a null terminator keeps it.
+TEST(SmallVectorMemoryBufferTest, WithNullTerminatorRequiresNullTerminator) {
+  SmallString<0> Data("some data");
+  Data.push_back('\0');
+  Data.pop_back();
+
+  SmallVectorMemoryBuffer MB(std::move(Data),
+                             /*RequiresNullTerminator=*/true);
+  EXPECT_EQ(MB.getBufferSize(), 9u);
+  EXPECT_EQ(MB.getBufferEnd()[0], '\0');
+}
+
+} // namespace

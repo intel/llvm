@@ -13,7 +13,5 @@ executable("clang-change-namespace") {
     "//clang/lib/Tooling/Core",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "ClangChangeNamespace.cpp",
-  ]
+  sources = [ "ClangChangeNamespace.cpp" ]
 }

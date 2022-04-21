@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-mapping -Wuninitialized
 
 void foo() {
 }
@@ -9,7 +9,7 @@ bool foobool(int argc) {
   return argc;
 }
 
-struct S1; // expected-note {{declared here}}
+struct S1; // expected-note {{declared here}}  // expected-note {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;

@@ -1,4 +1,4 @@
-//===-- PlatformNetBSD.cpp -------------------------------------*- C++ -*-===//
+//===-- PlatformNetBSD.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,8 +9,8 @@
 #include "PlatformNetBSD.h"
 #include "lldb/Host/Config.h"
 
-#include <stdio.h>
-#ifndef LLDB_DISABLE_POSIX
+#include <cstdio>
+#if LLDB_ENABLE_POSIX
 #include <sys/utsname.h>
 #endif
 
@@ -20,6 +20,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Status.h"
@@ -34,11 +35,13 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::platform_netbsd;
 
+LLDB_PLUGIN_DEFINE(PlatformNetBSD)
+
 static uint32_t g_initialize_count = 0;
 
 
 PlatformSP PlatformNetBSD::CreateInstance(bool force, const ArchSpec *arch) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   LLDB_LOG(log, "force = {0}, arch=({1}, {2})", force,
            arch ? arch->GetArchitectureName() : "<null>",
            arch ? arch->GetTriple().getTriple() : "<null>");
@@ -63,25 +66,10 @@ PlatformSP PlatformNetBSD::CreateInstance(bool force, const ArchSpec *arch) {
   return PlatformSP();
 }
 
-ConstString PlatformNetBSD::GetPluginNameStatic(bool is_host) {
-  if (is_host) {
-    static ConstString g_host_name(Platform::GetHostPlatformName());
-    return g_host_name;
-  } else {
-    static ConstString g_remote_name("remote-netbsd");
-    return g_remote_name;
-  }
-}
-
-const char *PlatformNetBSD::GetPluginDescriptionStatic(bool is_host) {
+llvm::StringRef PlatformNetBSD::GetPluginDescriptionStatic(bool is_host) {
   if (is_host)
     return "Local NetBSD user platform plug-in.";
-  else
-    return "Remote NetBSD user platform plug-in.";
-}
-
-ConstString PlatformNetBSD::GetPluginName() {
-  return GetPluginNameStatic(IsHost());
+  return "Remote NetBSD user platform plug-in.";
 }
 
 void PlatformNetBSD::Initialize() {
@@ -113,62 +101,31 @@ void PlatformNetBSD::Terminate() {
 /// Default Constructor
 PlatformNetBSD::PlatformNetBSD(bool is_host)
     : PlatformPOSIX(is_host) // This is the local host platform
-{}
-
-PlatformNetBSD::~PlatformNetBSD() = default;
-
-bool PlatformNetBSD::GetSupportedArchitectureAtIndex(uint32_t idx,
-                                                     ArchSpec &arch) {
-  if (IsHost()) {
+{
+  if (is_host) {
     ArchSpec hostArch = HostInfo::GetArchitecture(HostInfo::eArchKindDefault);
-    if (hostArch.GetTriple().isOSNetBSD()) {
-      if (idx == 0) {
-        arch = hostArch;
-        return arch.IsValid();
-      } else if (idx == 1) {
-        // If the default host architecture is 64-bit, look for a 32-bit
-        // variant
-        if (hostArch.IsValid() && hostArch.GetTriple().isArch64Bit()) {
-          arch = HostInfo::GetArchitecture(HostInfo::eArchKind32);
-          return arch.IsValid();
-        }
-      }
+    m_supported_architectures.push_back(hostArch);
+    if (hostArch.GetTriple().isArch64Bit()) {
+      m_supported_architectures.push_back(
+          HostInfo::GetArchitecture(HostInfo::eArchKind32));
     }
   } else {
-    if (m_remote_platform_sp)
-      return m_remote_platform_sp->GetSupportedArchitectureAtIndex(idx, arch);
-
-    llvm::Triple triple;
-    // Set the OS to NetBSD
-    triple.setOS(llvm::Triple::NetBSD);
-    // Set the architecture
-    switch (idx) {
-    case 0:
-      triple.setArchName("x86_64");
-      break;
-    case 1:
-      triple.setArchName("i386");
-      break;
-    default:
-      return false;
-    }
-    // Leave the vendor as "llvm::Triple:UnknownVendor" and don't specify the
-    // vendor by calling triple.SetVendorName("unknown") so that it is a
-    // "unspecified unknown". This means when someone calls
-    // triple.GetVendorName() it will return an empty string which indicates
-    // that the vendor can be set when two architectures are merged
-
-    // Now set the triple into "arch" and return true
-    arch.SetTriple(triple);
-    return true;
+    m_supported_architectures = CreateArchList(
+        {llvm::Triple::x86_64, llvm::Triple::x86}, llvm::Triple::NetBSD);
   }
-  return false;
+}
+
+std::vector<ArchSpec>
+PlatformNetBSD::GetSupportedArchitectures(const ArchSpec &process_host_arch) {
+  if (m_remote_platform_sp)
+    return m_remote_platform_sp->GetSupportedArchitectures(process_host_arch);
+  return m_supported_architectures;
 }
 
 void PlatformNetBSD::GetStatus(Stream &strm) {
   Platform::GetStatus(strm);
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
   // Display local kernel information only when we are running in host mode.
   // Otherwise, we would end up printing non-NetBSD information (when running
   // on Mac OS for example).
@@ -185,9 +142,9 @@ void PlatformNetBSD::GetStatus(Stream &strm) {
 #endif
 }
 
-int32_t
+uint32_t
 PlatformNetBSD::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
-  int32_t resume_count = 0;
+  uint32_t resume_count = 0;
 
   // Always resume past the initial stop when we use eLaunchFlagDebug
   if (launch_info.GetFlags().Test(eLaunchFlagDebug)) {
@@ -206,7 +163,7 @@ PlatformNetBSD::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
 
   // Figure out what shell we're planning on using.
   const char *shell_name = strrchr(shell_string.c_str(), '/');
-  if (shell_name == NULL)
+  if (shell_name == nullptr)
     shell_name = shell_string.c_str();
   else
     shell_name++;
@@ -229,121 +186,6 @@ bool PlatformNetBSD::CanDebugProcess() {
   }
 }
 
-// For local debugging, NetBSD will override the debug logic to use llgs-launch
-// rather than lldb-launch, llgs-attach.  This differs from current lldb-
-// launch, debugserver-attach approach on MacOSX.
-lldb::ProcessSP
-PlatformNetBSD::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
-                             Target *target, // Can be NULL, if NULL create a new
-                                             // target, else use existing one
-                             Status &error) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
-  LLDB_LOG(log, "target {0}", target);
-
-  // If we're a remote host, use standard behavior from parent class.
-  if (!IsHost())
-    return PlatformPOSIX::DebugProcess(launch_info, debugger, target, error);
-
-  //
-  // For local debugging, we'll insist on having ProcessGDBRemote create the
-  // process.
-  //
-
-  ProcessSP process_sp;
-
-  // Make sure we stop at the entry point
-  launch_info.GetFlags().Set(eLaunchFlagDebug);
-
-  // We always launch the process we are going to debug in a separate process
-  // group, since then we can handle ^C interrupts ourselves w/o having to
-  // worry about the target getting them as well.
-  launch_info.SetLaunchInSeparateProcessGroup(true);
-
-  // Ensure we have a target.
-  if (target == nullptr) {
-    LLDB_LOG(log, "creating new target");
-    TargetSP new_target_sp;
-    error = debugger.GetTargetList().CreateTarget(
-        debugger, "", "", eLoadDependentsNo, nullptr, new_target_sp);
-    if (error.Fail()) {
-      LLDB_LOG(log, "failed to create new target: {0}", error);
-      return process_sp;
-    }
-
-    target = new_target_sp.get();
-    if (!target) {
-      error.SetErrorString("CreateTarget() returned nullptr");
-      LLDB_LOG(log, "error: {0}", error);
-      return process_sp;
-    }
-  }
-
-  // Mark target as currently selected target.
-  debugger.GetTargetList().SetSelectedTarget(target);
-
-  // Now create the gdb-remote process.
-  LLDB_LOG(log, "having target create process with gdb-remote plugin");
-  process_sp =
-      target->CreateProcess(launch_info.GetListener(), "gdb-remote", nullptr);
-
-  if (!process_sp) {
-    error.SetErrorString("CreateProcess() failed for gdb-remote process");
-    LLDB_LOG(log, "error: {0}", error);
-    return process_sp;
-  }
-
-  LLDB_LOG(log, "successfully created process");
-  // Adjust launch for a hijacker.
-  ListenerSP listener_sp;
-  if (!launch_info.GetHijackListener()) {
-    LLDB_LOG(log, "setting up hijacker");
-    listener_sp =
-        Listener::MakeListener("lldb.PlatformNetBSD.DebugProcess.hijack");
-    launch_info.SetHijackListener(listener_sp);
-    process_sp->HijackProcessEvents(listener_sp);
-  }
-
-  // Log file actions.
-  if (log) {
-    LLDB_LOG(log, "launching process with the following file actions:");
-    StreamString stream;
-    size_t i = 0;
-    const FileAction *file_action;
-    while ((file_action = launch_info.GetFileActionAtIndex(i++)) != nullptr) {
-      file_action->Dump(stream);
-      LLDB_LOG(log, "{0}", stream.GetData());
-      stream.Clear();
-    }
-  }
-
-  // Do the launch.
-  error = process_sp->Launch(launch_info);
-  if (error.Success()) {
-    // Handle the hijacking of process events.
-    if (listener_sp) {
-      const StateType state = process_sp->WaitForProcessToStop(
-          llvm::None, NULL, false, listener_sp);
-
-      LLDB_LOG(log, "pid {0} state {0}", process_sp->GetID(), state);
-    }
-
-    // Hook up process PTY if we have one (which we should for local debugging
-    // with llgs).
-    int pty_fd = launch_info.GetPTY().ReleaseMasterFileDescriptor();
-    if (pty_fd != PseudoTerminal::invalid_fd) {
-      process_sp->SetSTDIOFileDescriptor(pty_fd);
-      LLDB_LOG(log, "hooked up STDIO pty to process");
-    } else
-      LLDB_LOG(log, "not using process STDIO pty");
-  } else {
-    LLDB_LOG(log, "process launch failed: {0}", error);
-    // FIXME figure out appropriate cleanup here.  Do we delete the target? Do
-    // we delete the process?  Does our caller do that?
-  }
-
-  return process_sp;
-}
-
 void PlatformNetBSD::CalculateTrapHandlerSymbolNames() {
   m_trap_handlers.push_back(ConstString("_sigtramp"));
 }
@@ -361,4 +203,145 @@ MmapArgList PlatformNetBSD::GetMmapArgumentList(const ArchSpec &arch,
 
   MmapArgList args({addr, length, prot, flags_platform, fd, offset});
   return args;
+}
+
+CompilerType PlatformNetBSD::GetSiginfoType(const llvm::Triple &triple) {
+  if (!m_type_system_up)
+    m_type_system_up.reset(new TypeSystemClang("siginfo", triple));
+  TypeSystemClang *ast = m_type_system_up.get();
+
+  // generic types
+  CompilerType int_type = ast->GetBasicType(eBasicTypeInt);
+  CompilerType uint_type = ast->GetBasicType(eBasicTypeUnsignedInt);
+  CompilerType long_type = ast->GetBasicType(eBasicTypeLong);
+  CompilerType long_long_type = ast->GetBasicType(eBasicTypeLongLong);
+  CompilerType voidp_type = ast->GetBasicType(eBasicTypeVoid).GetPointerType();
+
+  // platform-specific types
+  CompilerType &pid_type = int_type;
+  CompilerType &uid_type = uint_type;
+  CompilerType &clock_type = uint_type;
+  CompilerType &lwpid_type = int_type;
+
+  CompilerType sigval_type = ast->CreateRecordType(
+      nullptr, OptionalClangModuleID(), lldb::eAccessPublic, "__lldb_sigval_t",
+      clang::TTK_Union, lldb::eLanguageTypeC);
+  ast->StartTagDeclarationDefinition(sigval_type);
+  ast->AddFieldToRecordType(sigval_type, "sival_int", int_type,
+                            lldb::eAccessPublic, 0);
+  ast->AddFieldToRecordType(sigval_type, "sival_ptr", voidp_type,
+                            lldb::eAccessPublic, 0);
+  ast->CompleteTagDeclarationDefinition(sigval_type);
+
+  CompilerType ptrace_option_type = ast->CreateRecordType(
+      nullptr, OptionalClangModuleID(), lldb::eAccessPublic, "",
+      clang::TTK_Union, lldb::eLanguageTypeC);
+  ast->StartTagDeclarationDefinition(ptrace_option_type);
+  ast->AddFieldToRecordType(ptrace_option_type, "_pe_other_pid", pid_type,
+                            lldb::eAccessPublic, 0);
+  ast->AddFieldToRecordType(ptrace_option_type, "_pe_lwp", lwpid_type,
+                            lldb::eAccessPublic, 0);
+  ast->CompleteTagDeclarationDefinition(ptrace_option_type);
+
+  // siginfo_t
+  CompilerType siginfo_type = ast->CreateRecordType(
+      nullptr, OptionalClangModuleID(), lldb::eAccessPublic, "__lldb_siginfo_t",
+      clang::TTK_Union, lldb::eLanguageTypeC);
+  ast->StartTagDeclarationDefinition(siginfo_type);
+
+  // struct _ksiginfo
+  CompilerType ksiginfo_type = ast->CreateRecordType(
+      nullptr, OptionalClangModuleID(), lldb::eAccessPublic, "",
+      clang::TTK_Struct, lldb::eLanguageTypeC);
+  ast->StartTagDeclarationDefinition(ksiginfo_type);
+  ast->AddFieldToRecordType(ksiginfo_type, "_signo", int_type,
+                            lldb::eAccessPublic, 0);
+  ast->AddFieldToRecordType(ksiginfo_type, "_code", int_type,
+                            lldb::eAccessPublic, 0);
+  ast->AddFieldToRecordType(ksiginfo_type, "_errno", int_type,
+                            lldb::eAccessPublic, 0);
+
+  // the structure is padded on 64-bit arches to fix alignment
+  if (triple.isArch64Bit())
+    ast->AddFieldToRecordType(ksiginfo_type, "__pad0", int_type,
+                              lldb::eAccessPublic, 0);
+
+  // union used to hold the signal data
+  CompilerType union_type = ast->CreateRecordType(
+      nullptr, OptionalClangModuleID(), lldb::eAccessPublic, "",
+      clang::TTK_Union, lldb::eLanguageTypeC);
+  ast->StartTagDeclarationDefinition(union_type);
+
+  ast->AddFieldToRecordType(
+      union_type, "_rt",
+      ast->CreateStructForIdentifier(ConstString(),
+                                     {
+                                         {"_pid", pid_type},
+                                         {"_uid", uid_type},
+                                         {"_value", sigval_type},
+                                     }),
+      lldb::eAccessPublic, 0);
+
+  ast->AddFieldToRecordType(
+      union_type, "_child",
+      ast->CreateStructForIdentifier(ConstString(),
+                                     {
+                                         {"_pid", pid_type},
+                                         {"_uid", uid_type},
+                                         {"_status", int_type},
+                                         {"_utime", clock_type},
+                                         {"_stime", clock_type},
+                                     }),
+      lldb::eAccessPublic, 0);
+
+  ast->AddFieldToRecordType(
+      union_type, "_fault",
+      ast->CreateStructForIdentifier(ConstString(),
+                                     {
+                                         {"_addr", voidp_type},
+                                         {"_trap", int_type},
+                                         {"_trap2", int_type},
+                                         {"_trap3", int_type},
+                                     }),
+      lldb::eAccessPublic, 0);
+
+  ast->AddFieldToRecordType(
+      union_type, "_poll",
+      ast->CreateStructForIdentifier(ConstString(),
+                                     {
+                                         {"_band", long_type},
+                                         {"_fd", int_type},
+                                     }),
+      lldb::eAccessPublic, 0);
+
+  ast->AddFieldToRecordType(union_type, "_syscall",
+                            ast->CreateStructForIdentifier(
+                                ConstString(),
+                                {
+                                    {"_sysnum", int_type},
+                                    {"_retval", int_type.GetArrayType(2)},
+                                    {"_error", int_type},
+                                    {"_args", long_long_type.GetArrayType(8)},
+                                }),
+                            lldb::eAccessPublic, 0);
+
+  ast->AddFieldToRecordType(
+      union_type, "_ptrace_state",
+      ast->CreateStructForIdentifier(ConstString(),
+                                     {
+                                         {"_pe_report_event", int_type},
+                                         {"_option", ptrace_option_type},
+                                     }),
+      lldb::eAccessPublic, 0);
+
+  ast->CompleteTagDeclarationDefinition(union_type);
+  ast->AddFieldToRecordType(ksiginfo_type, "_reason", union_type,
+                            lldb::eAccessPublic, 0);
+
+  ast->CompleteTagDeclarationDefinition(ksiginfo_type);
+  ast->AddFieldToRecordType(siginfo_type, "_info", ksiginfo_type,
+                            lldb::eAccessPublic, 0);
+
+  ast->CompleteTagDeclarationDefinition(siginfo_type);
+  return siginfo_type;
 }

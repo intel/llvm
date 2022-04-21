@@ -1,5 +1,5 @@
 ; REQUIRES: asserts
-; RUN: llc < %s -mtriple=armv8r-eabi -mcpu=cortex-a57 -misched-postra -enable-misched -verify-misched -debug-only=machine-scheduler -o - 2>&1 > /dev/null | FileCheck %s
+; RUN: llc < %s -mtriple=armv8r-eabi -mcpu=cortex-a57 -mattr=use-misched -verify-misched -debug-only=machine-scheduler -o - 2>&1 > /dev/null | FileCheck %s
 
 ; CHECK:       ********** MI Scheduling **********
 ; We need second, post-ra scheduling to have VSTM instruction combined from single-stores
@@ -12,11 +12,11 @@
 ; CHECK:       Data
 ; CHECK-SAME:  Latency=1
 
-@a = global double 0.0, align 4
-@b = global double 0.0, align 4
-@c = global double 0.0, align 4
+@a = dso_local global double 0.0, align 4
+@b = dso_local global double 0.0, align 4
+@c = dso_local global double 0.0, align 4
 
-define i32 @bar(double* %vptr, i32 %iv1, i32* %iptr) minsize {
+define dso_local i32 @bar(double* %vptr, i32 %iv1, i32* %iptr) minsize {
   
   %vp2 = getelementptr double, double* %vptr, i32 1
   %vp3 = getelementptr double, double* %vptr, i32 2

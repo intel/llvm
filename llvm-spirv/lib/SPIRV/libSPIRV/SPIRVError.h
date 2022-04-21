@@ -41,6 +41,8 @@
 
 #include "SPIRVDebug.h"
 #include "SPIRVUtil.h"
+#include "llvm/IR/Instruction.h"
+#include <iostream>
 #include <sstream>
 #include <string>
 
@@ -48,17 +50,32 @@ namespace SPIRV {
 
 // Check condition and set error code and error msg.
 // To use this macro, function checkError must be defined in the scope.
+// Emit absolute path only in debug mode.
+#ifdef NDEBUG
+#define SPIRVCK(Condition, ErrCode, ErrMsg)                                    \
+  getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                       \
+                           std::string() + (ErrMsg), #Condition)
+#else
 #define SPIRVCK(Condition, ErrCode, ErrMsg)                                    \
   getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                       \
                            std::string() + (ErrMsg), #Condition, __FILE__,     \
                            __LINE__)
+#endif // NDEBUG
 
 // Check condition and set error code and error msg. If fail returns false.
+// Emit absolute path only in debug mode.
+#ifdef NDEBUG
+#define SPIRVCKRT(Condition, ErrCode, ErrMsg)                                  \
+  if (!getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                  \
+                                std::string() + (ErrMsg), #Condition))         \
+    return false;
+#else
 #define SPIRVCKRT(Condition, ErrCode, ErrMsg)                                  \
   if (!getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                  \
                                 std::string() + (ErrMsg), #Condition,          \
                                 __FILE__, __LINE__))                           \
     return false;
+#endif // NDEBUG
 
 // Defines error code enum type SPIRVErrorCode.
 enum SPIRVErrorCode {
@@ -93,11 +110,34 @@ public:
                   const std::string &DetailedMsg = "",
                   const char *CondString = nullptr,
                   const char *FileName = nullptr, unsigned LineNumber = 0);
+  // Check if Condition is satisfied and set ErrCode and DetailedMsg with Value
+  // text representation if not. Returns true if no error.
+  bool checkError(bool Condition, SPIRVErrorCode ErrCode, llvm::Value *Value,
+                  const std::string &DetailedMsg = "",
+                  const char *CondString = nullptr,
+                  const char *FileName = nullptr, unsigned LineNumber = 0);
 
 protected:
   SPIRVErrorCode ErrorCode;
   std::string ErrorMsg;
 };
+
+inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
+                                      llvm::Value *Value,
+                                      const std::string &Msg,
+                                      const char *CondString,
+                                      const char *FileName, unsigned LineNo) {
+  // Do early exit to avoid expensive toString() function call unless it is
+  // actually needed. That speeds up translator's execution.
+  if (Cond)
+    return Cond;
+  // Do not overwrite previous failure.
+  if (ErrorCode != SPIRVEC_Success)
+    return Cond;
+  std::string ValueIR = toString(Value);
+  return checkError(Cond, ErrCode, Msg + "\n" + ValueIR, CondString, FileName,
+                    LineNo);
+}
 
 inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
                                       const std::string &Msg,
@@ -113,10 +153,20 @@ inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
   if (SPIRVDbgErrorMsgIncludesSourceInfo && FileName)
     SS << " [Src: " << FileName << ":" << LineNo << " " << CondString << " ]";
   setError(ErrCode, SS.str());
-  if (SPIRVDbgAbortOnError) {
+  switch (SPIRVDbgError) {
+  case SPIRVDbgErrorHandlingKinds::Abort:
+    std::cerr << SS.str() << std::endl;
+    abort();
+    break;
+  case SPIRVDbgErrorHandlingKinds::Exit:
+    std::cerr << SS.str() << std::endl;
+    std::exit(ErrCode);
+    break;
+  case SPIRVDbgErrorHandlingKinds::Ignore:
+    // Still print info about the error into debug output stream
     spvdbgs() << SS.str() << '\n';
     spvdbgs().flush();
-    abort();
+    break;
   }
   return Cond;
 }

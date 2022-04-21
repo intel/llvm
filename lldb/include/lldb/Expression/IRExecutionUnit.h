@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_IRExecutionUnit_h_
-#define liblldb_IRExecutionUnit_h_
+#ifndef LLDB_EXPRESSION_IREXECUTIONUNIT_H
+#define LLDB_EXPRESSION_IREXECUTIONUNIT_H
 
 #include <atomic>
 #include <memory>
@@ -71,7 +71,7 @@ public:
   llvm::Module *GetModule() { return m_module; }
 
   llvm::Function *GetFunction() {
-    return ((m_module != nullptr) ? m_module->getFunction(m_name.AsCString())
+    return ((m_module != nullptr) ? m_module->getFunction(m_name.GetStringRef())
                                   : nullptr);
   }
 
@@ -101,7 +101,7 @@ public:
 
   lldb::ModuleSP GetJITModule();
 
-  lldb::addr_t FindSymbol(ConstString name);
+  lldb::addr_t FindSymbol(ConstString name, bool &missing_weak);
 
   void GetStaticInitializers(std::vector<lldb::addr_t> &static_initializers);
 
@@ -173,6 +173,8 @@ private:
   ///     The address in the target process.
   lldb::addr_t GetRemoteAddressForLocal(lldb::addr_t local_address);
 
+  typedef std::pair<lldb::addr_t, uintptr_t> AddrRange;
+
   /// Look up the object in m_address_map that contains a given address, find
   /// where it was copied to, and return its address range in the target
   /// process
@@ -182,12 +184,11 @@ private:
   ///
   /// \return
   ///     The range of the containing object in the target process.
-  typedef std::pair<lldb::addr_t, uintptr_t> AddrRange;
   AddrRange GetRemoteRangeForLocal(lldb::addr_t local_address);
 
   /// Commit all allocations to the process and record where they were stored.
   ///
-  /// \param[in] process
+  /// \param[in] process_sp
   ///     The process to allocate memory in.
   ///
   /// \return
@@ -204,7 +205,7 @@ private:
 
   /// Write the contents of all allocations to the process.
   ///
-  /// \param[in] local_address
+  /// \param[in] process_sp
   ///     The process containing the allocations.
   ///
   /// \return
@@ -213,25 +214,21 @@ private:
 
   Status DisassembleFunction(Stream &stream, lldb::ProcessSP &process_sp);
 
-  struct SearchSpec;
-
-  void CollectCandidateCNames(std::vector<SearchSpec> &C_specs,
+  void CollectCandidateCNames(std::vector<ConstString> &C_names,
                               ConstString name);
 
-  void CollectCandidateCPlusPlusNames(std::vector<SearchSpec> &CPP_specs,
-                                      const std::vector<SearchSpec> &C_specs,
+  void CollectCandidateCPlusPlusNames(std::vector<ConstString> &CPP_names,
+                                      const std::vector<ConstString> &C_names,
                                       const SymbolContext &sc);
 
-  void CollectFallbackNames(std::vector<SearchSpec> &fallback_specs,
-                            const std::vector<SearchSpec> &C_specs);
+  lldb::addr_t FindInSymbols(const std::vector<ConstString> &names,
+                             const lldb_private::SymbolContext &sc,
+                             bool &symbol_was_missing_weak);
 
-  lldb::addr_t FindInSymbols(const std::vector<SearchSpec> &specs,
-                             const lldb_private::SymbolContext &sc);
-
-  lldb::addr_t FindInRuntimes(const std::vector<SearchSpec> &specs,
+  lldb::addr_t FindInRuntimes(const std::vector<ConstString> &names,
                               const lldb_private::SymbolContext &sc);
 
-  lldb::addr_t FindInUserDefinedSymbols(const std::vector<SearchSpec> &specs,
+  lldb::addr_t FindInUserDefinedSymbols(const std::vector<ConstString> &names,
                                         const lldb_private::SymbolContext &sc);
 
   void ReportSymbolLookupError(ConstString name);
@@ -297,10 +294,19 @@ private:
       return false;
     }
 
+    // Ignore any EHFrame registration.
     void registerEHFrames(uint8_t *Addr, uint64_t LoadAddr,
                           size_t Size) override {}
+    void deregisterEHFrames() override {}
 
     uint64_t getSymbolAddress(const std::string &Name) override;
+
+    // Find the address of the symbol Name.  If Name is a missing weak symbol
+    // then missing_weak will be true.
+    uint64_t GetSymbolAddressAndPresence(const std::string &Name,
+                                         bool &missing_weak);
+
+    llvm::JITSymbol findSymbol(const std::string &Name) override;
 
     void *getPointerToNamedFunction(const std::string &Name,
                                     bool AbortOnFailure = true) override;
@@ -318,18 +324,16 @@ private:
 
   static const unsigned eSectionIDInvalid = (unsigned)-1;
 
-  /// \class AllocationRecord IRExecutionUnit.h
-  /// "lldb/Expression/IRExecutionUnit.h" Encapsulates a single allocation
-  /// request made by the JIT.
-  ///
-  /// Allocations made by the JIT are first queued up and then applied in bulk
-  /// to the underlying process.
   enum class AllocationKind { Stub, Code, Data, Global, Bytes };
 
   static lldb::SectionType
   GetSectionTypeFromSectionName(const llvm::StringRef &name,
                                 AllocationKind alloc_kind);
 
+  /// Encapsulates a single allocation request made by the JIT.
+  ///
+  /// Allocations made by the JIT are first queued up and then applied in bulk
+  /// to the underlying process.
   struct AllocationRecord {
     std::string m_name;
     lldb::addr_t m_process_address;
@@ -343,10 +347,9 @@ private:
     AllocationRecord(uintptr_t host_address, uint32_t permissions,
                      lldb::SectionType sect_type, size_t size,
                      unsigned alignment, unsigned section_id, const char *name)
-        : m_name(), m_process_address(LLDB_INVALID_ADDRESS),
-          m_host_address(host_address), m_permissions(permissions),
-          m_sect_type(sect_type), m_size(size), m_alignment(alignment),
-          m_section_id(section_id) {
+        : m_process_address(LLDB_INVALID_ADDRESS), m_host_address(host_address),
+          m_permissions(permissions), m_sect_type(sect_type), m_size(size),
+          m_alignment(alignment), m_section_id(section_id) {
       if (name && name[0])
         m_name = name;
     }
@@ -397,4 +400,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_IRExecutionUnit_h_
+#endif // LLDB_EXPRESSION_IREXECUTIONUNIT_H

@@ -14,7 +14,10 @@
 #ifndef LLVM_CLANG_AST_ASTIMPORTER_H
 #define LLVM_CLANG_AST_ASTIMPORTER_H
 
+#include "clang/AST/APValue.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
@@ -32,8 +35,8 @@
 namespace clang {
 
 class ASTContext;
+class ASTImporterSharedState;
 class Attr;
-class ASTImporterLookupTable;
 class CXXBaseSpecifier;
 class CXXCtorInitializer;
 class Decl;
@@ -59,8 +62,12 @@ class TypeSourceInfo;
 
     static char ID;
 
-    ImportError() : Error(Unknown) { }
-    ImportError(const ImportError &Other) : Error(Other.Error) { }
+    ImportError() : Error(Unknown) {}
+    ImportError(const ImportError &Other) : Error(Other.Error) {}
+    ImportError &operator=(const ImportError &Other) {
+      Error = Other.Error;
+      return *this;
+    }
     ImportError(ErrorKind Error) : Error(Error) { }
 
     std::string toString() const;
@@ -87,14 +94,142 @@ class TypeSourceInfo;
     using ImportedCXXBaseSpecifierMap =
         llvm::DenseMap<const CXXBaseSpecifier *, CXXBaseSpecifier *>;
 
-  private:
+    enum class ODRHandlingType { Conservative, Liberal };
 
-    /// Pointer to the import specific lookup table, which may be shared
-    /// amongst several ASTImporter objects.
-    /// This is an externally managed resource (and should exist during the
-    /// lifetime of the ASTImporter object)
-    /// If not set then the original C/C++ lookup is used.
-    ASTImporterLookupTable *LookupTable = nullptr;
+    // An ImportPath is the list of the AST nodes which we visit during an
+    // Import call.
+    // If node `A` depends on node `B` then the path contains an `A`->`B` edge.
+    // From the call stack of the import functions we can read the very same
+    // path.
+    //
+    // Now imagine the following AST, where the `->` represents dependency in
+    // therms of the import.
+    // ```
+    // A->B->C->D
+    //    `->E
+    // ```
+    // We would like to import A.
+    // The import behaves like a DFS, so we will visit the nodes in this order:
+    // ABCDE.
+    // During the visitation we will have the following ImportPaths:
+    // ```
+    // A
+    // AB
+    // ABC
+    // ABCD
+    // ABC
+    // AB
+    // ABE
+    // AB
+    // A
+    // ```
+    // If during the visit of E there is an error then we set an error for E,
+    // then as the call stack shrinks for B, then for A:
+    // ```
+    // A
+    // AB
+    // ABC
+    // ABCD
+    // ABC
+    // AB
+    // ABE // Error! Set an error to E
+    // AB  // Set an error to B
+    // A   // Set an error to A
+    // ```
+    // However, during the import we could import C and D without any error and
+    // they are independent from A,B and E.
+    // We must not set up an error for C and D.
+    // So, at the end of the import we have an entry in `ImportDeclErrors` for
+    // A,B,E but not for C,D.
+    //
+    // Now what happens if there is a cycle in the import path?
+    // Let's consider this AST:
+    // ```
+    // A->B->C->A
+    //    `->E
+    // ```
+    // During the visitation we will have the below ImportPaths and if during
+    // the visit of E there is an error then we will set up an error for E,B,A.
+    // But what's up with C?
+    // ```
+    // A
+    // AB
+    // ABC
+    // ABCA
+    // ABC
+    // AB
+    // ABE // Error! Set an error to E
+    // AB  // Set an error to B
+    // A   // Set an error to A
+    // ```
+    // This time we know that both B and C are dependent on A.
+    // This means we must set up an error for C too.
+    // As the call stack reverses back we get to A and we must set up an error
+    // to all nodes which depend on A (this includes C).
+    // But C is no longer on the import path, it just had been previously.
+    // Such situation can happen only if during the visitation we had a cycle.
+    // If we didn't have any cycle, then the normal way of passing an Error
+    // object through the call stack could handle the situation.
+    // This is why we must track cycles during the import process for each
+    // visited declaration.
+    class ImportPathTy {
+    public:
+      using VecTy = llvm::SmallVector<Decl *, 32>;
+
+      void push(Decl *D) {
+        Nodes.push_back(D);
+        ++Aux[D];
+      }
+
+      void pop() {
+        if (Nodes.empty())
+          return;
+        --Aux[Nodes.back()];
+        Nodes.pop_back();
+      }
+
+      /// Returns true if the last element can be found earlier in the path.
+      bool hasCycleAtBack() const {
+        auto Pos = Aux.find(Nodes.back());
+        return Pos != Aux.end() && Pos->second > 1;
+      }
+
+      using Cycle = llvm::iterator_range<VecTy::const_reverse_iterator>;
+      Cycle getCycleAtBack() const {
+        assert(Nodes.size() >= 2);
+        return Cycle(Nodes.rbegin(),
+                     std::find(Nodes.rbegin() + 1, Nodes.rend(), Nodes.back()) +
+                         1);
+      }
+
+      /// Returns the copy of the cycle.
+      VecTy copyCycleAtBack() const {
+        auto R = getCycleAtBack();
+        return VecTy(R.begin(), R.end());
+      }
+
+    private:
+      // All nodes of the path.
+      VecTy Nodes;
+      // Auxiliary container to be able to answer "Do we have a cycle ending
+      // at last element?" as fast as possible.
+      // We count each Decl's occurrence over the path.
+      llvm::SmallDenseMap<Decl *, int, 32> Aux;
+    };
+
+  private:
+    std::shared_ptr<ASTImporterSharedState> SharedState = nullptr;
+
+    /// The path which we go through during the import of a given AST node.
+    ImportPathTy ImportPath;
+    /// Sometimes we have to save some part of an import path, so later we can
+    /// set up properties to the saved nodes.
+    /// We may have several of these import paths associated to one Decl.
+    using SavedImportPathsForOneDecl =
+        llvm::SmallVector<ImportPathTy::VecTy, 32>;
+    using SavedImportPathsTy =
+        llvm::SmallDenseMap<Decl *, SavedImportPathsForOneDecl, 32>;
+    SavedImportPathsTy SavedImportPaths;
 
     /// The contexts we're importing to and from.
     ASTContext &ToContext, &FromContext;
@@ -104,6 +239,8 @@ class TypeSourceInfo;
 
     /// Whether to perform a minimal import.
     bool Minimal;
+
+    ODRHandlingType ODRHandling;
 
     /// Whether the last diagnostic came from the "from" context.
     bool LastDiagFromFrom = false;
@@ -115,6 +252,14 @@ class TypeSourceInfo;
     /// Mapping from the already-imported declarations in the "from"
     /// context to the corresponding declarations in the "to" context.
     llvm::DenseMap<Decl *, Decl *> ImportedDecls;
+
+    /// Mapping from the already-imported declarations in the "from"
+    /// context to the error status of the import of that declaration.
+    /// This map contains only the declarations that were not correctly
+    /// imported. The same declaration may or may not be included in
+    /// ImportedDecls. This map is updated continuously during imports and never
+    /// cleared (like ImportedDecls).
+    llvm::DenseMap<Decl *, ImportError> ImportDeclErrors;
 
     /// Mapping from the already-imported declarations in the "to"
     /// context to the corresponding declarations in the "from" context.
@@ -148,6 +293,9 @@ class TypeSourceInfo;
     /// decl on its own.
     virtual Expected<Decl *> ImportImpl(Decl *From);
 
+    /// Used only in unittests to verify the behaviour of the error handling.
+    virtual bool returnWithErrorInTest() { return false; };
+
   public:
 
     /// \param ToContext The context we'll be importing into.
@@ -162,19 +310,21 @@ class TypeSourceInfo;
     /// as little as it can, e.g., by importing declarations as forward
     /// declarations that can be completed at a later point.
     ///
-    /// \param LookupTable The importer specific lookup table which may be
+    /// \param SharedState The importer specific lookup table which may be
     /// shared amongst several ASTImporter objects.
     /// If not set then the original C/C++ lookup is used.
     ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
                 ASTContext &FromContext, FileManager &FromFileManager,
                 bool MinimalImport,
-                ASTImporterLookupTable *LookupTable = nullptr);
+                std::shared_ptr<ASTImporterSharedState> SharedState = nullptr);
 
     virtual ~ASTImporter();
 
     /// Whether the importer will perform a minimal import, creating
     /// to-be-completed forward declarations when possible.
     bool isMinimalImport() const { return Minimal; }
+
+    void setODRHandling(ODRHandlingType T) { ODRHandling = T; }
 
     /// \brief Import the given object, returns the result.
     ///
@@ -189,7 +339,17 @@ class TypeSourceInfo;
       return ToOrErr.takeError();
     }
 
+    /// Import cleanup objects owned by ExprWithCleanup.
+    llvm::Expected<ExprWithCleanups::CleanupObject>
+    Import(ExprWithCleanups::CleanupObject From);
+
     /// Import the given type from the "from" context into the "to"
+    /// context.
+    ///
+    /// \returns The equivalent type in the "to" context, or the import error.
+    llvm::Expected<const Type *> Import(const Type *FromT);
+
+    /// Import the given qualified type from the "from" context into the "to"
     /// context. A null type is imported as a null type (no error).
     ///
     /// \returns The equivalent type in the "to" context, or the import error.
@@ -219,6 +379,9 @@ class TypeSourceInfo;
       return Import(const_cast<Decl *>(FromD));
     }
 
+    llvm::Expected<InheritedConstructor>
+    Import(const InheritedConstructor &From);
+
     /// Return the copy of the given declaration in the "to" context if
     /// it has already been imported from the "from" context.  Otherwise return
     /// nullptr.
@@ -227,6 +390,20 @@ class TypeSourceInfo;
     /// Return the translation unit from where the declaration was
     /// imported. If it does not exist nullptr is returned.
     TranslationUnitDecl *GetFromTU(Decl *ToD);
+
+    /// Return the declaration in the "from" context from which the declaration
+    /// in the "to" context was imported. If it was not imported or of the wrong
+    /// type a null value is returned.
+    template <typename DeclT>
+    llvm::Optional<DeclT *> getImportedFromDecl(const DeclT *ToD) const {
+      auto FromI = ImportedFromDecls.find(ToD);
+      if (FromI == ImportedFromDecls.end())
+        return {};
+      auto *FromD = dyn_cast<DeclT>(FromI->second);
+      if (!FromD)
+        return {};
+      return FromD;
+    }
 
     /// Import the given declaration context from the "from"
     /// AST context into the "to" AST context.
@@ -324,6 +501,13 @@ class TypeSourceInfo;
     /// "to" context, or the import error.
     llvm::Expected<CXXBaseSpecifier *> Import(const CXXBaseSpecifier *FromSpec);
 
+    /// Import the given APValue from the "from" context into
+    /// the "to" context.
+    ///
+    /// \return the equivalent APValue in the "to" context or the import
+    /// error.
+    llvm::Expected<APValue> Import(const APValue &FromValue);
+
     /// Import the definition of the given declaration, including all of
     /// the declarations it contains.
     LLVM_NODISCARD llvm::Error ImportDefinition(Decl *From);
@@ -353,12 +537,11 @@ class TypeSourceInfo;
     ///
     /// \param NumDecls the number of conflicting declarations in \p Decls.
     ///
-    /// \returns the name that the newly-imported declaration should have.
-    virtual DeclarationName HandleNameConflict(DeclarationName Name,
-                                               DeclContext *DC,
-                                               unsigned IDNS,
-                                               NamedDecl **Decls,
-                                               unsigned NumDecls);
+    /// \returns the name that the newly-imported declaration should have. Or
+    /// an error if we can't handle the name conflict.
+    virtual Expected<DeclarationName>
+    HandleNameConflict(DeclarationName Name, DeclContext *DC, unsigned IDNS,
+                       NamedDecl **Decls, unsigned NumDecls);
 
     /// Retrieve the context that AST nodes are being imported into.
     ASTContext &getToContext() const { return ToContext; }
@@ -394,6 +577,8 @@ class TypeSourceInfo;
     void RegisterImportedDecl(Decl *FromD, Decl *ToD);
 
     /// Store and assign the imported declaration to its counterpart.
+    /// It may happen that several decls from the 'from' context are mapped to
+    /// the same decl in the 'to' context.
     Decl *MapImported(Decl *From, Decl *To);
 
     /// Called by StructuralEquivalenceContext.  If a RecordDecl is
@@ -403,6 +588,14 @@ class TypeSourceInfo;
     /// RecordDecl can be found, we can complete it without the need for
     /// importation, eliminating this loop.
     virtual Decl *GetOriginalDecl(Decl *To) { return nullptr; }
+
+    /// Return if import of the given declaration has failed and if yes
+    /// the kind of the problem. This gives the first error encountered with
+    /// the node.
+    llvm::Optional<ImportError> getImportDeclErrorIfAny(Decl *FromD) const;
+
+    /// Mark (newly) imported declaration with error.
+    void setImportDeclError(Decl *From, ImportError Error);
 
     /// Determine whether the given types are structurally
     /// equivalent.
@@ -414,7 +607,6 @@ class TypeSourceInfo;
     /// \returns The index of the field in its parent context (starting from 0).
     /// On error `None` is returned (parent context is non-record).
     static llvm::Optional<unsigned> getFieldIndex(Decl *F);
-
   };
 
 } // namespace clang

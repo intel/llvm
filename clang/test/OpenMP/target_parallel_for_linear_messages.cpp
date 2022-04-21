@@ -1,8 +1,9 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 %s -Wuninitialized
 
 typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_null_allocator;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
 extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
 extern const omp_allocator_handle_t omp_const_mem_alloc;
@@ -11,6 +12,13 @@ extern const omp_allocator_handle_t omp_low_lat_mem_alloc;
 extern const omp_allocator_handle_t omp_cgroup_mem_alloc;
 extern const omp_allocator_handle_t omp_pteam_mem_alloc;
 extern const omp_allocator_handle_t omp_thread_mem_alloc;
+
+void xxx(int argc) {
+  int i, lin, step; // expected-note {{initialize the variable 'lin' to silence this warning}} expected-note {{initialize the variable 'step' to silence this warning}}
+#pragma omp target parallel for linear(lin : step) // expected-warning {{variable 'lin' is uninitialized when used here}} expected-warning {{variable 'step' is uninitialized when used here}}
+  for (i = 0; i < 10; ++i)
+    ;
+}
 
 namespace X {
 int x;
@@ -129,7 +137,7 @@ template <class I, class C>
 int foomain(I argc, C **argv) {
   I e(4);
   I g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target parallel for linear // expected-error {{expected '(' after 'linear'}}
   for (int k = 0; k < argc; ++k)
@@ -163,10 +171,10 @@ int foomain(I argc, C **argv) {
 #pragma omp target parallel for linear(argv[1]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp target parallel for allocate(omp_thread_mem_alloc: e) linear(e, g) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target parallel for' directive}}
+#pragma omp target parallel for allocate(omp_thread_mem_alloc: e) linear(e, g) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target parallel for' directive}} expected-error {{allocator must be specified in the 'uses_allocators' clause}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp target parallel for linear(h) // expected-error {{threadprivate or thread local variable cannot be linear}}
+#pragma omp target parallel for linear(z, h) // expected-error {{threadprivate or thread local variable cannot be linear}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target parallel for linear(i)
@@ -214,7 +222,7 @@ int main(int argc, char **argv) {
 
   S4 e(4); // expected-note {{'e' defined here}}
   S5 g(5); // expected-note {{'g' defined here}}
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target parallel for linear // expected-error {{expected '(' after 'linear'}}
   for (int k = 0; k < argc; ++k)
@@ -234,7 +242,7 @@ int main(int argc, char **argv) {
 #pragma omp target parallel for linear(argc > 0 ? argv[1] : argv[2]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp target parallel for linear(argc)
+#pragma omp target parallel for linear(argc, z)
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target parallel for linear(S1) // expected-error {{'S1' does not refer to a value}}

@@ -1,30 +1,30 @@
 // This file contains references to sections of the Coroutines TS, which can be
 // found at http://wg21.link/coroutines.
 
-// RUN: %clang_cc1 -std=c++14 -fcoroutines-ts -verify %s -fcxx-exceptions -fexceptions -Wunused-result
+// RUN: %clang_cc1 -std=c++2b -fsyntax-only -verify=expected,cxx20_2b,cxx2b    %s -fcxx-exceptions -fexceptions -Wunused-result
+// RUN: %clang_cc1 -std=c++20 -fsyntax-only -verify=expected,cxx14_20,cxx20_2b %s -fcxx-exceptions -fexceptions -Wunused-result
 
 void no_coroutine_traits_bad_arg_await() {
-  co_await a; // expected-error {{include <experimental/coroutine>}}
+  co_await a; // expected-error {{include <coroutine>}}
   // expected-error@-1 {{use of undeclared identifier 'a'}}
 }
 
 void no_coroutine_traits_bad_arg_yield() {
-  co_yield a; // expected-error {{include <experimental/coroutine>}}
+  co_yield a; // expected-error {{include <coroutine>}}
   // expected-error@-1 {{use of undeclared identifier 'a'}}
 }
 
 
 void no_coroutine_traits_bad_arg_return() {
-  co_return a; // expected-error {{include <experimental/coroutine>}}
+  co_return a; // expected-error {{include <coroutine>}}
   // expected-error@-1 {{use of undeclared identifier 'a'}}
 }
 
 void no_coroutine_traits() {
-  co_await 4; // expected-error {{std::experimental::coroutine_traits type was not found; include <experimental/coroutine>}}
+  co_await 4; // expected-error {{std::coroutine_traits type was not found; include <coroutine>}}
 }
 
 namespace std {
-namespace experimental {
 
 template <class... Args>
 struct void_t_imp {
@@ -43,30 +43,33 @@ struct traits_sfinae_base<T, void_t<typename T::promise_type>> {
 
 template <class Ret, class... Args>
 struct coroutine_traits : public traits_sfinae_base<Ret> {};
-}}  // namespace std::experimental
+} // end of namespace std
 
 template<typename Promise> struct coro {};
 template <typename Promise, typename... Ps>
-struct std::experimental::coroutine_traits<coro<Promise>, Ps...> {
+struct std::coroutine_traits<coro<Promise>, Ps...> {
   using promise_type = Promise;
 };
 
 struct awaitable {
-  bool await_ready();
-  template <typename F> void await_suspend(F);
-  void await_resume();
+  bool await_ready() noexcept;
+  template <typename F>
+  void await_suspend(F) noexcept;
+  void await_resume() noexcept;
 } a;
 
 struct suspend_always {
-  bool await_ready() { return false; }
-  template <typename F> void await_suspend(F);
-  void await_resume() {}
+  bool await_ready() noexcept { return false; }
+  template <typename F>
+  void await_suspend(F) noexcept;
+  void await_resume() noexcept {}
 };
 
 struct suspend_never {
-  bool await_ready() { return true; }
-  template <typename F> void await_suspend(F);
-  void await_resume() {}
+  bool await_ready() noexcept { return true; }
+  template <typename F>
+  void await_suspend(F) noexcept;
+  void await_resume() noexcept {}
 };
 
 struct auto_await_suspend {
@@ -76,42 +79,46 @@ struct auto_await_suspend {
 };
 
 struct DummyVoidTag {};
-DummyVoidTag no_specialization() { // expected-error {{this function cannot be a coroutine: 'std::experimental::coroutine_traits<DummyVoidTag>' has no member named 'promise_type'}}
+DummyVoidTag no_specialization() { // expected-error {{this function cannot be a coroutine: 'std::coroutine_traits<DummyVoidTag>' has no member named 'promise_type'}}
   co_await a;
 }
 
 template <typename... T>
-struct std::experimental::coroutine_traits<int, T...> {};
+struct std::coroutine_traits<int, T...> {};
 
-int no_promise_type() { // expected-error {{this function cannot be a coroutine: 'std::experimental::coroutine_traits<int>' has no member named 'promise_type'}}
+int no_promise_type() { // expected-error {{this function cannot be a coroutine: 'std::coroutine_traits<int>' has no member named 'promise_type'}}
+  co_await a;
+}
+
+int no_promise_type_multiple_awaits(int) { // expected-error {{this function cannot be a coroutine: 'std::coroutine_traits<int, int>' has no member named 'promise_type'}}
+  co_await a;
   co_await a;
 }
 
 template <>
-struct std::experimental::coroutine_traits<double, double> { typedef int promise_type; };
-double bad_promise_type(double) { // expected-error {{this function cannot be a coroutine: 'experimental::coroutine_traits<double, double>::promise_type' (aka 'int') is not a class}}
+struct std::coroutine_traits<double, double> { typedef int promise_type; };
+double bad_promise_type(double) { // expected-error {{this function cannot be a coroutine: 'std::coroutine_traits<double, double>::promise_type' (aka 'int') is not a class}}
   co_await a;
 }
 
 template <>
-struct std::experimental::coroutine_traits<double, int> {
+struct std::coroutine_traits<double, int> {
   struct promise_type {};
 };
 double bad_promise_type_2(int) { // expected-error {{no member named 'initial_suspend'}}
-  co_yield 0; // expected-error {{no member named 'yield_value' in 'std::experimental::coroutine_traits<double, int>::promise_type'}}
+  co_yield 0;                    // expected-error {{no member named 'yield_value' in 'std::coroutine_traits<double, int>::promise_type'}}
 }
 
 struct promise; // expected-note {{forward declaration}}
 struct promise_void;
 struct void_tag {};
 template <typename... T>
-struct std::experimental::coroutine_traits<void, T...> { using promise_type = promise; };
+struct std::coroutine_traits<void, T...> { using promise_type = promise; };
 template <typename... T>
-struct std::experimental::coroutine_traits<void, void_tag, T...>
-{ using promise_type = promise_void; };
+struct std::coroutine_traits<void, void_tag, T...> { using promise_type = promise_void; };
 
 // FIXME: This diagnostic is terrible.
-void undefined_promise() { // expected-error {{this function cannot be a coroutine: 'experimental::coroutine_traits<void>::promise_type' (aka 'promise') is an incomplete type}}
+void undefined_promise() { // expected-error {{this function cannot be a coroutine: 'std::coroutine_traits<void>::promise_type' (aka 'promise') is an incomplete type}}
   co_await a;
 }
 
@@ -122,7 +129,7 @@ struct not_awaitable {};
 struct promise {
   void get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   awaitable yield_value(int); // expected-note 2{{candidate}}
   awaitable yield_value(yielded_thing); // expected-note 2{{candidate}}
   not_awaitable yield_value(void()); // expected-note 2{{candidate}}
@@ -133,29 +140,28 @@ struct promise {
 struct promise_void {
   void get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
 };
 
-void no_coroutine_handle() { // expected-error {{std::experimental::coroutine_handle type was not found; include <experimental/coroutine> before defining a coroutine}}
+void no_coroutine_handle() { // expected-error {{std::coroutine_handle type was not found; include <coroutine> before defining a coroutine}}
   //expected-note@-1 {{call to 'initial_suspend' implicitly required by the initial suspend point}}
   co_return 5; //expected-note {{function is a coroutine due to use of 'co_return' here}}
 }
 
 namespace std {
-namespace experimental {
 template <class PromiseType = void>
 struct coroutine_handle {
-  static coroutine_handle from_address(void *);
+  static coroutine_handle from_address(void *) noexcept;
 };
 template <>
 struct coroutine_handle<void> {
   template <class PromiseType>
-  coroutine_handle(coroutine_handle<PromiseType>);
-  static coroutine_handle from_address(void *);
+  coroutine_handle(coroutine_handle<PromiseType>) noexcept;
+  static coroutine_handle from_address(void *) noexcept;
 };
-}} // namespace std::experimental
+} // namespace std
 
 void yield() {
   co_yield 0;
@@ -179,7 +185,7 @@ void coreturn(int n) {
   if (n == 1)
     co_return {4}; // expected-warning {{braces around scalar initializer}}
   if (n == 2)
-    co_return "foo"; // expected-error {{cannot initialize a parameter of type 'int' with an lvalue of type 'const char [4]'}}
+    co_return "foo"; // expected-error {{cannot initialize a parameter of type 'int' with an lvalue of type 'const char[4]'}}
   co_return 42;
 }
 
@@ -296,18 +302,17 @@ struct CtorDtor {
   ~CtorDtor() {
     co_return 0; // expected-error {{'co_return' cannot be used in a destructor}}
   }
-  // FIXME: The spec says this is ill-formed.
   void operator=(CtorDtor&) {
-    co_yield 0; // expected-error {{'co_yield' cannot be used in a copy assignment operator}}
+    co_yield 0; // OK.
   }
   void operator=(CtorDtor const &) {
-    co_yield 0; // expected-error {{'co_yield' cannot be used in a copy assignment operator}}
+    co_yield 0; // OK.
   }
   void operator=(CtorDtor &&) {
-    co_await a; // expected-error {{'co_await' cannot be used in a move assignment operator}}
+    co_await a; // OK.
   }
   void operator=(CtorDtor const &&) {
-    co_await a; // expected-error {{'co_await' cannot be used in a move assignment operator}}
+    co_await a; // OK.
   }
   void operator=(int) {
     co_await a; // OK. Not a special member
@@ -321,6 +326,7 @@ void unevaluated() {
                         // expected-warning@-1 {{declaration does not declare anything}}
   sizeof(co_await a); // expected-error {{'co_await' cannot be used in an unevaluated context}}
                       // expected-error@-1 {{invalid application of 'sizeof' to an incomplete type 'void'}}
+                      // expected-warning@-2 {{expression with side effects has no effect in an unevaluated context}}
   typeid(co_await a); // expected-error {{'co_await' cannot be used in an unevaluated context}}
                       // expected-warning@-1 {{expression with side effects has no effect in an unevaluated context}}
                       // expected-warning@-2 {{expression result unused}}
@@ -328,6 +334,7 @@ void unevaluated() {
                         // expected-warning@-1 {{declaration does not declare anything}}
   sizeof(co_yield 2); // expected-error {{'co_yield' cannot be used in an unevaluated context}}
                       // expected-error@-1 {{invalid application of 'sizeof' to an incomplete type 'void'}}
+                      // expected-warning@-2 {{expression with side effects has no effect in an unevaluated context}}
   typeid(co_yield 3); // expected-error {{'co_yield' cannot be used in an unevaluated context}}
                       // expected-warning@-1 {{expression with side effects has no effect in an unevaluated context}}
                       // expected-warning@-2 {{expression result unused}}
@@ -398,7 +405,7 @@ struct await_arg_2 {};
 
 namespace adl_ns {
 struct coawait_arg_type {};
-awaitable operator co_await(coawait_arg_type);
+awaitable operator co_await(coawait_arg_type) noexcept;
 }
 
 namespace dependent_operator_co_await_lookup {
@@ -430,7 +437,7 @@ namespace dependent_operator_co_await_lookup {
     typedef transform_awaitable await_arg;
     coro<transform_promise> get_return_object();
     transformed initial_suspend();
-    ::adl_ns::coawait_arg_type final_suspend();
+    ::adl_ns::coawait_arg_type final_suspend() noexcept;
     transformed await_transform(transform_awaitable);
     void unhandled_exception();
     void return_void();
@@ -440,7 +447,7 @@ namespace dependent_operator_co_await_lookup {
     typedef AwaitArg await_arg;
     coro<basic_promise> get_return_object();
     awaitable initial_suspend();
-    awaitable final_suspend();
+    awaitable final_suspend() noexcept;
     void unhandled_exception();
     void return_void();
   };
@@ -518,14 +525,14 @@ namespace dependent_operator_co_await_lookup {
 
 struct yield_fn_tag {};
 template <>
-struct std::experimental::coroutine_traits<void, yield_fn_tag> {
+struct std::coroutine_traits<void, yield_fn_tag> {
   struct promise_type {
     // FIXME: add an await_transform overload for functions
     awaitable yield_value(int());
     void return_value(int());
 
     suspend_never initial_suspend();
-    suspend_never final_suspend();
+    suspend_never final_suspend() noexcept;
     void get_return_object();
     void unhandled_exception();
   };
@@ -559,7 +566,7 @@ namespace placeholder {
 
 struct bad_promise_1 {
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception();
   void return_void();
 };
@@ -569,7 +576,7 @@ coro<bad_promise_1> missing_get_return_object() { // expected-error {{no member 
 
 struct bad_promise_2 {
   coro<bad_promise_2> get_return_object();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception();
   void return_void();
 };
@@ -584,14 +591,14 @@ struct bad_promise_3 {
   void unhandled_exception();
   void return_void();
 };
-coro<bad_promise_3> missing_final_suspend() { // expected-error {{no member named 'final_suspend' in 'bad_promise_3'}}
+coro<bad_promise_3> missing_final_suspend() noexcept { // expected-error {{no member named 'final_suspend' in 'bad_promise_3'}}
   co_await a;
 }
 
 struct bad_promise_4 {
   coro<bad_promise_4> get_return_object();
   not_awaitable initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
 };
 // FIXME: This diagnostic is terrible.
@@ -603,7 +610,7 @@ coro<bad_promise_4> bad_initial_suspend() { // expected-error {{no member named 
 struct bad_promise_5 {
   coro<bad_promise_5> get_return_object();
   suspend_always initial_suspend();
-  not_awaitable final_suspend();
+  not_awaitable final_suspend() noexcept;
   void return_void();
 };
 // FIXME: This diagnostic is terrible.
@@ -615,7 +622,7 @@ coro<bad_promise_5> bad_final_suspend() { // expected-error {{no member named 'a
 struct bad_promise_6 {
   coro<bad_promise_6> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception();
   void return_void();           // expected-note 2 {{member 'return_void' first declared here}}
   void return_value(int) const; // expected-note 2 {{member 'return_value' first declared here}}
@@ -634,7 +641,7 @@ template coro<bad_promise_6> bad_implicit_return_dependent(bad_promise_6); // ex
 struct bad_promise_7 { // expected-note 2 {{defined here}}
   coro<bad_promise_7> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
 };
 coro<bad_promise_7> no_unhandled_exception() { // expected-error {{'bad_promise_7' is required to declare the member 'unhandled_exception()'}}
@@ -654,7 +661,7 @@ private:
 struct bad_promise_8 : bad_promise_base {
   coro<bad_promise_8> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception() __attribute__((unavailable)); // expected-note 2 {{marked unavailable here}}
   void unhandled_exception() const;
   void unhandled_exception(void *) const;
@@ -676,7 +683,7 @@ template coro<bad_promise_8> calls_unhandled_exception_dependent(bad_promise_8);
 struct bad_promise_9 {
   coro<bad_promise_9> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void await_transform(void *);
   awaitable await_transform(int) __attribute__((unavailable)); // expected-note {{explicitly marked unavailable}}
   void return_void();
@@ -689,7 +696,7 @@ coro<bad_promise_9> calls_await_transform() {
 struct bad_promise_10 {
   coro<bad_promise_10> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   int await_transform;
   void return_void();
   void unhandled_exception();
@@ -708,7 +715,7 @@ void ret_void();
 struct good_promise_1 {
   coro<good_promise_1> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception();
   static const call_operator await_transform;
   using Fn = void (*)();
@@ -720,8 +727,23 @@ coro<good_promise_1> ok_static_coawait() {
   co_await 42;
 }
 
-template<> struct std::experimental::coroutine_traits<int, int, const char**>
-{ using promise_type = promise; };
+template<typename T> void ok_generic_lambda_coawait_PR41909() {
+  [](auto& arg) -> coro<good_promise_1> { // expected-warning {{expression result unused}}
+    co_await 12;
+  };
+  [](auto &arg) -> coro<good_promise_1> {
+    co_await 24;
+  }("argument");
+  [](auto &arg) ->coro<good_promise_1> { // expected-warning {{expression result unused}}
+    []() -> coro<good_promise_1> {
+      co_await 36;
+    };
+    co_await 48;
+  };
+}
+template void ok_generic_lambda_coawait_PR41909<int>(); // expected-note {{in instantiation of function template specialization 'ok_generic_lambda_coawait_PR41909<int>' requested here}}
+
+template <> struct std::coroutine_traits<int, int, const char **> { using promise_type = promise; };
 
 int main(int, const char**) {
   co_await a; // expected-error {{'co_await' cannot be used in the 'main' function}}
@@ -730,16 +752,15 @@ int main(int, const char**) {
 struct good_promise_2 {
   float get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
 };
-template<> struct std::experimental::coroutine_handle<good_promise_2> {};
+template <> struct std::coroutine_handle<good_promise_2> {};
 
-template<> struct std::experimental::coroutine_traits<float>
-{ using promise_type = good_promise_2; };
+template <> struct std::coroutine_traits<float> { using promise_type = good_promise_2; };
 
-float badly_specialized_coro_handle() { // expected-error {{std::experimental::coroutine_handle missing a member named 'from_address'}}
+float badly_specialized_coro_handle() { // expected-error {{std::coroutine_handle must have a member named 'from_address'}}
   //expected-note@-1 {{call to 'initial_suspend' implicitly required by the initial suspend point}}
   co_return; //expected-note {{function is a coroutine due to use of 'co_return' here}}
 }
@@ -758,12 +779,12 @@ void  operator delete(void* __p, const std::nothrow_t&) noexcept;
 
 struct promise_on_alloc_failure_tag {};
 
-template<>
-struct std::experimental::coroutine_traits<int, promise_on_alloc_failure_tag> {
+template <>
+struct std::coroutine_traits<int, promise_on_alloc_failure_tag> {
   struct promise_type {
     int get_return_object() {}
     suspend_always initial_suspend() { return {}; }
-    suspend_always final_suspend() { return {}; }
+    suspend_always final_suspend() noexcept { return {}; }
     void return_void() {}
     int get_return_object_on_allocation_failure(); // expected-error{{'promise_type': 'get_return_object_on_allocation_failure()' must be a static member function}}
     void unhandled_exception();
@@ -777,7 +798,7 @@ extern "C" int f(promise_on_alloc_failure_tag) {
 struct bad_promise_11 {
   coro<bad_promise_11> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception();
   void return_void();
 
@@ -800,7 +821,7 @@ template coro<bad_promise_11> dependent_private_alloc_failure_handler(bad_promis
 struct bad_promise_12 {
   coro<bad_promise_12> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception();
   void return_void();
   static coro<bad_promise_12> get_return_object_on_allocation_failure();
@@ -822,7 +843,7 @@ template coro<bad_promise_12> dependent_throwing_in_class_new(bad_promise_12); /
 struct good_promise_13 {
   coro<good_promise_13> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception();
   void return_void();
   static coro<good_promise_13> get_return_object_on_allocation_failure();
@@ -840,7 +861,7 @@ template coro<good_promise_13> dependent_uses_nothrow_new(good_promise_13);
 struct good_promise_custom_new_operator {
   coro<good_promise_custom_new_operator> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
   void *operator new(SizeT, double, float, int);
@@ -856,7 +877,7 @@ struct coroutine_nonstatic_member_struct;
 struct good_promise_nonstatic_member_custom_new_operator {
   coro<good_promise_nonstatic_member_custom_new_operator> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
   void *operator new(SizeT, coroutine_nonstatic_member_struct &, double);
@@ -866,7 +887,7 @@ struct good_promise_noexcept_custom_new_operator {
   static coro<good_promise_noexcept_custom_new_operator> get_return_object_on_allocation_failure();
   coro<good_promise_noexcept_custom_new_operator> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
   void *operator new(SizeT, double, float, int) noexcept;
@@ -878,12 +899,12 @@ good_coroutine_calls_noexcept_custom_new_operator(double, float, int) {
 }
 
 struct mismatch_gro_type_tag1 {};
-template<>
-struct std::experimental::coroutine_traits<int, mismatch_gro_type_tag1> {
+template <>
+struct std::coroutine_traits<int, mismatch_gro_type_tag1> {
   struct promise_type {
     void get_return_object() {} //expected-note {{member 'get_return_object' declared here}}
     suspend_always initial_suspend() { return {}; }
-    suspend_always final_suspend() { return {}; }
+    suspend_always final_suspend() noexcept { return {}; }
     void return_void() {}
     void unhandled_exception();
   };
@@ -895,30 +916,31 @@ extern "C" int f(mismatch_gro_type_tag1) {
 }
 
 struct mismatch_gro_type_tag2 {};
-template<>
-struct std::experimental::coroutine_traits<int, mismatch_gro_type_tag2> {
+template <>
+struct std::coroutine_traits<int, mismatch_gro_type_tag2> {
   struct promise_type {
     void *get_return_object() {} //expected-note {{member 'get_return_object' declared here}}
     suspend_always initial_suspend() { return {}; }
-    suspend_always final_suspend() { return {}; }
+    suspend_always final_suspend() noexcept { return {}; }
     void return_void() {}
     void unhandled_exception();
   };
 };
 
 extern "C" int f(mismatch_gro_type_tag2) {
-  // expected-error@-1 {{cannot initialize return object of type 'int' with an lvalue of type 'void *'}}
+  // cxx2b-error@-1 {{cannot initialize return object of type 'int' with an rvalue of type 'void *'}}
+  // cxx14_20-error@-2 {{cannot initialize return object of type 'int' with an rvalue of type 'void *'}}
   co_return; //expected-note {{function is a coroutine due to use of 'co_return' here}}
 }
 
 struct mismatch_gro_type_tag3 {};
-template<>
-struct std::experimental::coroutine_traits<int, mismatch_gro_type_tag3> {
+template <>
+struct std::coroutine_traits<int, mismatch_gro_type_tag3> {
   struct promise_type {
     int get_return_object() {}
     static void get_return_object_on_allocation_failure() {} //expected-note {{member 'get_return_object_on_allocation_failure' declared here}}
     suspend_always initial_suspend() { return {}; }
-    suspend_always final_suspend() { return {}; }
+    suspend_always final_suspend() noexcept { return {}; }
     void return_void() {}
     void unhandled_exception();
   };
@@ -931,13 +953,13 @@ extern "C" int f(mismatch_gro_type_tag3) {
 
 
 struct mismatch_gro_type_tag4 {};
-template<>
-struct std::experimental::coroutine_traits<int, mismatch_gro_type_tag4> {
+template <>
+struct std::coroutine_traits<int, mismatch_gro_type_tag4> {
   struct promise_type {
     int get_return_object() {}
     static char *get_return_object_on_allocation_failure() {} //expected-note {{member 'get_return_object_on_allocation_failure' declared}}
     suspend_always initial_suspend() { return {}; }
-    suspend_always final_suspend() { return {}; }
+    suspend_always final_suspend() noexcept { return {}; }
     void return_void() {}
     void unhandled_exception();
   };
@@ -948,29 +970,46 @@ extern "C" int f(mismatch_gro_type_tag4) {
   co_return; //expected-note {{function is a coroutine due to use of 'co_return' here}}
 }
 
-struct bad_promise_no_return_func { // expected-note {{'bad_promise_no_return_func' defined here}}
-  coro<bad_promise_no_return_func> get_return_object();
+struct promise_no_return_func {
+  coro<promise_no_return_func> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void unhandled_exception();
 };
-// FIXME: The PDTS currently specifies this as UB, technically forbidding a
-// diagnostic.
-coro<bad_promise_no_return_func> no_return_value_or_return_void() {
-  // expected-error@-1 {{'bad_promise_no_return_func' must declare either 'return_value' or 'return_void'}}
+// [dcl.fct.def.coroutine]/p6
+// If searches for the names return_­void and return_­value in the scope of
+// the promise type each find any declarations, the program is ill-formed.
+// [Note 1: If return_­void is found, flowing off the end of a coroutine is
+// equivalent to a co_­return with no operand. Otherwise, flowing off the end
+// of a coroutine results in undefined behavior ([stmt.return.coroutine]). —
+// end note]
+//
+// So it isn't ill-formed if the promise doesn't define return_value and return_void.
+// It is just a potential UB.
+coro<promise_no_return_func> no_return_value_or_return_void() {
   co_await a;
+}
+
+// The following two tests that it would emit correct diagnostic message
+// if we co_return in `promise_no_return_func`.
+coro<promise_no_return_func> no_return_value_or_return_void_2() {
+  co_return; // expected-error {{no member named 'return_void'}}
+}
+
+coro<promise_no_return_func> no_return_value_or_return_void_3() {
+  co_return 43; // expected-error {{no member named 'return_value'}}
 }
 
 struct bad_await_suspend_return {
   bool await_ready();
   // expected-error@+1 {{return type of 'await_suspend' is required to be 'void' or 'bool' (have 'char')}}
-  char await_suspend(std::experimental::coroutine_handle<>);
+  char await_suspend(std::coroutine_handle<>);
   void await_resume();
 };
 struct bad_await_ready_return {
   // expected-note@+1 {{return type of 'await_ready' is required to be contextually convertible to 'bool'}}
   void await_ready();
-  bool await_suspend(std::experimental::coroutine_handle<>);
+  bool await_suspend(std::coroutine_handle<>);
   void await_resume();
 };
 struct await_ready_explicit_bool {
@@ -978,7 +1017,7 @@ struct await_ready_explicit_bool {
     explicit operator bool() const;
   };
   BoolT await_ready();
-  void await_suspend(std::experimental::coroutine_handle<>);
+  void await_suspend(std::coroutine_handle<>);
   void await_resume();
 };
 template <class SuspendTy>
@@ -986,7 +1025,8 @@ struct await_suspend_type_test {
   bool await_ready();
   // expected-error@+2 {{return type of 'await_suspend' is required to be 'void' or 'bool' (have 'bool &')}}
   // expected-error@+1 {{return type of 'await_suspend' is required to be 'void' or 'bool' (have 'bool &&')}}
-  SuspendTy await_suspend(std::experimental::coroutine_handle<>);
+  SuspendTy await_suspend(std::coroutine_handle<>);
+  // cxx20_2b-warning@-1 {{volatile-qualified return type 'const volatile bool' is deprecated}}
   void await_resume();
 };
 void test_bad_suspend() {
@@ -1008,7 +1048,7 @@ void test_bad_suspend() {
     await_suspend_type_test<bool &&> a;
     await_suspend_type_test<bool &> b;
     await_suspend_type_test<const void> c;
-    await_suspend_type_test<const volatile bool> d;
+    await_suspend_type_test<const volatile bool> d; // cxx20_2b-note {{in instantiation of template class}}
     co_await a; // expected-note {{call to 'await_suspend' implicitly required by coroutine function here}}
     co_await b; // expected-note {{call to 'await_suspend' implicitly required by coroutine function here}}
     co_await c; // OK
@@ -1045,7 +1085,7 @@ struct TypeTest {
 
   template <class... Args>
   static constexpr bool MatchesArgs = IsSameV<T,
-                                              std::experimental::coroutine_traits<CoroMemberTag, Args...>>;
+                                              std::coroutine_traits<CoroMemberTag, Args...>>;
 };
 
 template <class T>
@@ -1057,13 +1097,13 @@ struct AwaitReturnsType {
 
 template <class... CoroTraitsArgs>
 struct CoroMemberPromise {
-  using TraitsT = std::experimental::coroutine_traits<CoroTraitsArgs...>;
+  using TraitsT = std::coroutine_traits<CoroTraitsArgs...>;
   using TypeTestT = TypeTest<TraitsT>;
   using AwaitTestT = AwaitReturnsType<TypeTestT>;
 
   CoroMemberTag get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
 
   AwaitTestT yield_value(int);
 
@@ -1074,7 +1114,7 @@ struct CoroMemberPromise {
 } // namespace CoroHandleMemberFunctionTest
 
 template <class... Args>
-struct ::std::experimental::coroutine_traits<CoroHandleMemberFunctionTest::CoroMemberTag, Args...> {
+struct ::std::coroutine_traits<CoroHandleMemberFunctionTest::CoroMemberTag, Args...> {
   using promise_type = CoroHandleMemberFunctionTest::CoroMemberPromise<CoroHandleMemberFunctionTest::CoroMemberTag, Args...>;
 };
 
@@ -1088,7 +1128,7 @@ struct TestType {
     static_assert(!TC.MatchesArgs<TestType *>, "");
   }
 
-  CoroMemberTag test_sanity(int *) const {
+  CoroMemberTag test_asserts(int *) const {
     auto TC = co_yield 0;
     static_assert(TC.MatchesArgs<const TestType &>, ""); // expected-error {{static_assert failed}}
     static_assert(TC.MatchesArgs<const TestType &>, ""); // expected-error {{static_assert failed}}
@@ -1096,6 +1136,7 @@ struct TestType {
   }
 
   CoroMemberTag test_qual(int *, const float &&, volatile void *volatile) const {
+    // cxx20_2b-warning@-1 {{volatile-qualified parameter type}}
     auto TC = co_yield 0;
     static_assert(TC.MatchesArgs<const TestType &, int *, const float &&, volatile void *volatile>, "");
   }
@@ -1159,16 +1200,16 @@ struct TestType {
   }
 
   BadCoroMemberTag test_diagnostics() {
-    // expected-error@-1 {{this function cannot be a coroutine: 'std::experimental::coroutine_traits<CoroHandleMemberFunctionTest::BadCoroMemberTag, CoroHandleMemberFunctionTest::TestType &>' has no member named 'promise_type'}}
+    // expected-error@-1 {{this function cannot be a coroutine: 'std::coroutine_traits<CoroHandleMemberFunctionTest::BadCoroMemberTag, CoroHandleMemberFunctionTest::TestType &>' has no member named 'promise_type'}}
     co_return;
   }
   BadCoroMemberTag test_diagnostics(int) const && {
-    // expected-error@-1 {{this function cannot be a coroutine: 'std::experimental::coroutine_traits<CoroHandleMemberFunctionTest::BadCoroMemberTag, const CoroHandleMemberFunctionTest::TestType &&, int>' has no member named 'promise_type'}}
+    // expected-error@-1 {{this function cannot be a coroutine: 'std::coroutine_traits<CoroHandleMemberFunctionTest::BadCoroMemberTag, const CoroHandleMemberFunctionTest::TestType &&, int>' has no member named 'promise_type'}}
     co_return;
   }
 
   static BadCoroMemberTag test_static_diagnostics(long *) {
-    // expected-error@-1 {{this function cannot be a coroutine: 'std::experimental::coroutine_traits<CoroHandleMemberFunctionTest::BadCoroMemberTag, long *>' has no member named 'promise_type'}}
+    // expected-error@-1 {{this function cannot be a coroutine: 'std::coroutine_traits<CoroHandleMemberFunctionTest::BadCoroMemberTag, long *>' has no member named 'promise_type'}}
     co_return;
   }
 };
@@ -1179,7 +1220,7 @@ template CoroMemberTag TestType::test_static_template<void>(const char *volatile
 template <class... Args>
 struct DepTestType {
 
-  CoroMemberTag test_sanity(int *) const {
+  CoroMemberTag test_asserts(int *) const {
     auto TC = co_yield 0;
     static_assert(TC.template MatchesArgs<const DepTestType &>, ""); // expected-error {{static_assert failed}}
     static_assert(TC.template MatchesArgs<>, ""); // expected-error {{static_assert failed}}
@@ -1194,6 +1235,7 @@ struct DepTestType {
   }
 
   CoroMemberTag test_qual(int *, const float &&, volatile void *volatile) const {
+    // cxx20_2b-warning@-1 {{volatile-qualified parameter type}}
     auto TC = co_yield 0;
     static_assert(TC.template MatchesArgs<const DepTestType &, int *, const float &&, volatile void *volatile>, "");
   }
@@ -1272,14 +1314,14 @@ struct bad_promise_deleted_constructor {
   bad_promise_deleted_constructor() = delete;
   coro<bad_promise_deleted_constructor> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
 };
 
 coro<bad_promise_deleted_constructor>
 bad_coroutine_calls_deleted_promise_constructor() {
-  // expected-error@-1 {{call to deleted constructor of 'std::experimental::coroutine_traits<coro<CoroHandleMemberFunctionTest::bad_promise_deleted_constructor>>::promise_type' (aka 'CoroHandleMemberFunctionTest::bad_promise_deleted_constructor')}}
+  // expected-error@-1 {{call to deleted constructor of 'std::coroutine_traits<coro<CoroHandleMemberFunctionTest::bad_promise_deleted_constructor>>::promise_type' (aka 'CoroHandleMemberFunctionTest::bad_promise_deleted_constructor')}}
   co_return;
 }
 
@@ -1294,7 +1336,7 @@ struct good_promise_default_constructor {
   good_promise_default_constructor() = default;
   coro<good_promise_default_constructor> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
 };
@@ -1312,7 +1354,7 @@ struct good_promise_custom_constructor {
   good_promise_custom_constructor() = delete;
   coro<good_promise_custom_constructor> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
 };
@@ -1339,14 +1381,14 @@ struct bad_promise_no_matching_constructor {
   bad_promise_no_matching_constructor() = delete;
   coro<bad_promise_no_matching_constructor> get_return_object();
   suspend_always initial_suspend();
-  suspend_always final_suspend();
+  suspend_always final_suspend() noexcept;
   void return_void();
   void unhandled_exception();
 };
 
 coro<bad_promise_no_matching_constructor>
 bad_coroutine_calls_with_no_matching_constructor(int, int) {
-  // expected-error@-1 {{call to deleted constructor of 'std::experimental::coroutine_traits<coro<CoroHandleMemberFunctionTest::bad_promise_no_matching_constructor>, int, int>::promise_type' (aka 'CoroHandleMemberFunctionTest::bad_promise_no_matching_constructor')}}
+  // expected-error@-1 {{call to deleted constructor of 'std::coroutine_traits<coro<CoroHandleMemberFunctionTest::bad_promise_no_matching_constructor>, int, int>::promise_type' (aka 'CoroHandleMemberFunctionTest::bad_promise_no_matching_constructor')}}
   co_return;
 }
 
@@ -1362,27 +1404,26 @@ bad_coroutine_calls_with_no_matching_constructor(int, int, int) {
 
 class awaitable_no_unused_warn {
 public:
-  using handle_type = std::experimental::coroutine_handle<>;
-  constexpr bool await_ready()  { return false; }
+  using handle_type = std::coroutine_handle<>;
+  constexpr bool await_ready() noexcept { return false; }
   void await_suspend(handle_type) noexcept {}
-  int await_resume() { return 1; }
+  int await_resume() noexcept { return 1; }
 };
 
 
 class awaitable_unused_warn {
 public:
-  using handle_type = std::experimental::coroutine_handle<>;
-  constexpr bool await_ready()  { return false; }
+  using handle_type = std::coroutine_handle<>;
+  constexpr bool await_ready() noexcept { return false; }
   void await_suspend(handle_type) noexcept {}
-  [[nodiscard]]
-  int await_resume() { return 1; }
+  [[nodiscard]] int await_resume() noexcept { return 1; }
 };
 
 template <class Await>
 struct check_warning_promise {
   coro<check_warning_promise> get_return_object();
   Await initial_suspend();
-  Await final_suspend();
+  Await final_suspend() noexcept;
   Await yield_value(int);
   void return_void();
   void unhandled_exception();
@@ -1402,7 +1443,7 @@ test_unused_warning() {
 }
 
 struct missing_await_ready {
-  void await_suspend(std::experimental::coroutine_handle<>);
+  void await_suspend(std::coroutine_handle<>);
   void await_resume();
 };
 struct missing_await_suspend {
@@ -1411,11 +1452,21 @@ struct missing_await_suspend {
 };
 struct missing_await_resume {
   bool await_ready();
-  void await_suspend(std::experimental::coroutine_handle<>);
+  void await_suspend(std::coroutine_handle<>);
 };
 
 void test_missing_awaitable_members() {
   co_await missing_await_ready{}; // expected-error {{no member named 'await_ready' in 'missing_await_ready'}}
   co_await missing_await_suspend{}; // expected-error {{no member named 'await_suspend' in 'missing_await_suspend'}}
   co_await missing_await_resume{}; // expected-error {{no member named 'await_resume' in 'missing_await_resume'}}
+}
+
+__attribute__((__always_inline__))
+void warn_always_inline() { // expected-warning {{this coroutine may be split into pieces; not every piece is guaranteed to be inlined}}
+  co_await suspend_always{};
+}
+
+[[gnu::always_inline]]
+void warn_gnu_always_inline() { // expected-warning {{this coroutine may be split into pieces; not every piece is guaranteed to be inlined}}
+  co_await suspend_always{};
 }

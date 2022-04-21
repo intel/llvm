@@ -7,7 +7,11 @@ void clang_analyzer_eval(bool);
 
 @class NSString;
 typedef const struct __CFString *CFStringRef;
-typedef const struct __CFBoolean * CFBooleanRef;
+typedef const struct __CFBoolean *CFBooleanRef;
+
+#define CF_BRIDGED_TYPE(T) __attribute__((objc_bridge(T)))
+typedef const struct CF_BRIDGED_TYPE(NSNull) __CFNull *CFNullRef;
+extern const CFNullRef kCFNull;
 
 // Global NSString* is non-null.
 extern NSString *const StringConstGlobal;
@@ -100,4 +104,20 @@ void testNonnullBool() {
 extern CFBooleanRef kBoolMutable;
 void testNonnullNonconstBool() {
   clang_analyzer_eval(kBoolMutable); // expected-warning{{UNKNOWN}}
+}
+
+// If it's annotated as nonnull, it doesn't even need to be const.
+extern CFStringRef _Nonnull str3;
+void testNonnullNonconstCFString() {
+  clang_analyzer_eval(str3); // expected-warning{{TRUE}}
+}
+
+// This one's nonnull for two reasons.
+extern const CFStringRef _Nonnull str4;
+void testNonnullNonnullCFString() {
+  clang_analyzer_eval(str4); // expected-warning{{TRUE}}
+}
+
+void test_kCFNull() {
+  clang_analyzer_eval(kCFNull); // expected-warning{{TRUE}}
 }

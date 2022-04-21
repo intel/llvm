@@ -6,7 +6,5 @@ executable("llvm-split") {
     "//llvm/lib/Support",
     "//llvm/lib/Transforms/Utils",
   ]
-  sources = [
-    "llvm-split.cpp",
-  ]
+  sources = [ "llvm-split.cpp" ]
 }

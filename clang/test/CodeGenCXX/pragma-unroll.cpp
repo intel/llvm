@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -triple x86_64-apple-darwin -std=c++11 -emit-llvm -o - %s | FileCheck %s
 
+// Check that passing -fno-unroll-loops does not impact the decision made using pragmas.
+// RUN: %clang_cc1 -triple x86_64-apple-darwin -std=c++11 -emit-llvm -o - -O1 -disable-llvm-optzns -fno-unroll-loops %s | FileCheck %s
+
 // Verify while loop is recognized after unroll pragma.
 void while_test(int *List, int Length) {
   // CHECK: define {{.*}} @_Z10while_test
@@ -93,11 +96,11 @@ void template_test(double *List, int Length) {
   for_template_define_test<double>(List, Length, Value);
 }
 
-// CHECK: ![[LOOP_1]] = distinct !{![[LOOP_1]], ![[UNROLL_ENABLE:.*]]}
+// CHECK: ![[LOOP_1]] = distinct !{![[LOOP_1]], [[MP:![0-9]+]], ![[UNROLL_ENABLE:.*]]}
 // CHECK: ![[UNROLL_ENABLE]] = !{!"llvm.loop.unroll.enable"}
 // CHECK: ![[LOOP_2]] = distinct !{![[LOOP_2:.*]], ![[UNROLL_DISABLE:.*]]}
 // CHECK: ![[UNROLL_DISABLE]] = !{!"llvm.loop.unroll.disable"}
-// CHECK: ![[LOOP_3]] = distinct !{![[LOOP_3]], ![[UNROLL_8:.*]]}
+// CHECK: ![[LOOP_3]] = distinct !{![[LOOP_3]], [[MP]], ![[UNROLL_8:.*]]}
 // CHECK: ![[UNROLL_8]] = !{!"llvm.loop.unroll.count", i32 8}
 // CHECK: ![[LOOP_4]] = distinct !{![[LOOP_4]], ![[UNROLL_4:.*]]}
 // CHECK: ![[UNROLL_4]] = !{!"llvm.loop.unroll.count", i32 4}

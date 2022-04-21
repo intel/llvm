@@ -59,14 +59,20 @@ static_library("LLVMBPFCodeGen") {
   ]
   include_dirs = [ "." ]
   sources = [
+    "BPFAbstractMemberAccess.cpp",
+    "BPFAdjustOpt.cpp",
     "BPFAsmPrinter.cpp",
+    "BPFCheckAndAdjustIR.cpp",
     "BPFFrameLowering.cpp",
+    "BPFIRPeephole.cpp",
     "BPFISelDAGToDAG.cpp",
     "BPFISelLowering.cpp",
     "BPFInstrInfo.cpp",
     "BPFMCInstLower.cpp",
     "BPFMIChecking.cpp",
     "BPFMIPeephole.cpp",
+    "BPFMISimplifyPatchable.cpp",
+    "BPFPreserveDIType.cpp",
     "BPFRegisterInfo.cpp",
     "BPFSelectionDAGInfo.cpp",
     "BPFSubtarget.cpp",

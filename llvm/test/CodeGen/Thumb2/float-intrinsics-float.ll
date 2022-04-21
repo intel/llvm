@@ -1,10 +1,10 @@
 ; RUN: llc < %s -mtriple=thumbv7-none-eabi   -mcpu=cortex-m3                    | FileCheck %s -check-prefix=CHECK -check-prefix=SOFT -check-prefix=NONE
 ; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-m4                    | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=SP -check-prefix=NO-VMLA
 ; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-m33                   | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=SP -check-prefix=NO-VMLA
-; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-m7                    | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=DP -check-prefix=VFP  -check-prefix=FP-ARMv8  -check-prefix=VMLA
-; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-m7 -mattr=+fp-only-sp | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=SP -check-prefix=FP-ARMv8 -check-prefix=VMLA
-; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-a7                    | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=DP -check-prefix=NEON -check-prefix=VFP4 -check-prefix=NO-VMLA
-; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-a57                   | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=DP -check-prefix=NEON -check-prefix=FP-ARMv8 -check-prefix=VMLA
+; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-m7                    | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=VFP  -check-prefix=FP-ARMv8  -check-prefix=VMLA
+; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-m7 -mattr=-fp64 | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=SP -check-prefix=FP-ARMv8 -check-prefix=VMLA
+; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-a7                    | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=NEON-A7 -check-prefix=VFP4 -check-prefix=NO-VMLA
+; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mcpu=cortex-a57                   | FileCheck %s -check-prefix=CHECK -check-prefix=HARD -check-prefix=NEON-A57 -check-prefix=FP-ARMv8 -check-prefix=VMLA
 
 declare float     @llvm.sqrt.f32(float %Val)
 define float @sqrt_f(float %a) {
@@ -15,12 +15,12 @@ define float @sqrt_f(float %a) {
   ret float %1
 }
 
-declare float     @llvm.powi.f32(float %Val, i32 %power)
+declare float     @llvm.powi.f32.i32(float %Val, i32 %power)
 define float @powi_f(float %a, i32 %b) {
 ; CHECK-LABEL: powi_f:
 ; SOFT: bl __powisf2
 ; HARD: b __powisf2
-  %1 = call float @llvm.powi.f32(float %a, i32 %b)
+  %1 = call float @llvm.powi.f32.i32(float %a, i32 %b)
   ret float %1
 }
 
@@ -123,8 +123,20 @@ define float @copysign_f(float %a, float %b) {
 ; SP: bfi r{{[0-9]+}}, [[REG]], #31, #1
 ; VFP: lsrs [[REG:r[0-9]+]], r{{[0-9]+}}, #31
 ; VFP: bfi r{{[0-9]+}}, [[REG]], #31, #1
-; NEON: vmov.i32 [[REG:d[0-9]+]], #0x80000000
-; NEON: vbsl [[REG]], d
+; NEON-A7:       @ %bb.0:
+; NEON-A7-NEXT:    vmov.f32 s2, s1
+; NEON-A7-NEXT:    @ kill: def $s0 killed $s0 def $d0
+; NEON-A7-NEXT:    vmov.i32 d16, #0x80000000
+; NEON-A7-NEXT:    vbit d0, d1, d16
+; NEON-A7-NEXT:    @ kill: def $s0 killed $s0 killed $d0
+; NEON-A7-NEXT:    bx lr
+; NEON-A57:       @ %bb.0:
+; NEON-A57-NEXT:    vmov.f32 s2, s1
+; NEON-A57-NEXT:    vmov.i32 d16, #0x80000000
+; NEON-A57-NEXT:    @ kill: def $s0 killed $s0 def $d0
+; NEON-A57-NEXT:    vbit d0, d1, d16
+; NEON-A57-NEXT:    @ kill: def $s0 killed $s0 killed $d0
+; NEON-A57-NEXT:    bx lr
   %1 = call float @llvm.copysign.f32(float %a, float %b)
   ret float %1
 }
@@ -194,7 +206,7 @@ define float @fmuladd_f(float %a, float %b, float %c) {
 ; CHECK-LABEL: fmuladd_f:
 ; SOFT: bl __aeabi_fmul
 ; SOFT: bl __aeabi_fadd
-; VMLA: vmla.f32
+; VMLA: vfma.f32
 ; NO-VMLA: vmul.f32
 ; NO-VMLA: vadd.f32
   %1 = call float @llvm.fmuladd.f32(float %a, float %b, float %c)

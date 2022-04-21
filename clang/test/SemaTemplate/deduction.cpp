@@ -152,6 +152,16 @@ namespace test3 {
   };
 }
 
+namespace test4 {
+
+template <class> struct a { using b = const float; };
+template <class c> using d = typename a<c>::b;
+
+template <class c> void e(d<c> *, c) {}
+template void e(const float *, int);
+
+} // namespace test4
+
 // Verify that we can deduce enum-typed arguments correctly.
 namespace test14 {
   enum E { E0, E1 };
@@ -312,6 +322,13 @@ namespace nullptr_deduction {
     f(X<nullptr_t, nullptr>()); // expected-note {{instantiation of}}
   }
 
+  template<template<typename T, T> class X, typename T, int *P>
+    void f0(X<T, P>) {} // expected-note {{deduced non-type template argument does not have the same type as the corresponding template parameter ('std::nullptr_t' vs 'int *')}}
+  void h0() {
+    f0(X<int*, nullptr>());
+    f0(X<nullptr_t, nullptr>()); // expected-error {{no matching function}}
+  }
+
   template<template<typename T, T> class X, typename T, typename U, int *P>
     void f1(X<T, P>, X<U, P>) {} // expected-note 2{{values of conflicting types}}
   void h() {
@@ -365,7 +382,7 @@ namespace deduction_after_explicit_pack {
   int test(ExtraArgs..., unsigned vla_size, const char *input);
   int n = test(0, "");
 
-  template <typename... T> void i(T..., int, T..., ...); // expected-note 5{{deduced conflicting}}
+  template <typename... T> void i(T..., int, T..., ...); // expected-note 5{{deduced packs of different lengths}}
   void j() {
     i(0);
     i(0, 1); // expected-error {{no match}}
@@ -381,7 +398,7 @@ namespace deduction_after_explicit_pack {
   // parameter against the first argument, then passing the first argument
   // through the first parameter.
   template<typename... T> struct X { X(int); operator int(); };
-  template<typename... T> void p(T..., X<T...>, ...); // expected-note {{deduced conflicting}}
+  template<typename... T> void p(T..., X<T...>, ...); // expected-note {{deduced packs of different lengths for parameter 'T' (<> vs. <int>)}}
   void q() { p(X<int>(0), 0); } // expected-error {{no match}}
 
   struct A {
@@ -538,4 +555,73 @@ namespace dependent_list_deduction {
     // We deduce V$1 = (size_t)3, which in C++1z also deduces T$1 = size_t.
 #endif
   }
+}
+
+namespace designators {
+  template<typename T, int N> constexpr int f(T (&&)[N]) { return N; } // expected-note 2{{couldn't infer template argument 'T'}}
+  static_assert(f({1, 2, [20] = 3}) == 3, ""); // expected-error {{no matching function}} expected-warning 2{{C99}} expected-note {{}}
+
+  static_assert(f({.a = 1, .b = 2}) == 3, ""); // expected-error {{no matching function}}
+}
+
+namespace nested_packs {
+  template<typename ...T, typename ...U> void f(T (*...f)(U...)); // expected-note {{deduced packs of different lengths for parameter 'U' (<> vs. <int>)}}
+  void g() { f(g); f(g, g); f(g, g, g); }
+  void h(int) { f(h); f(h, h); f(h, h, h); }
+  void i() { f(g, h); } // expected-error {{no matching function}}
+
+#if __cplusplus >= 201703L
+  template<auto ...A> struct Q {};
+  template<typename ...T, T ...A, T ...B> void q(Q<A...>, Q<B...>); // #q
+  void qt(Q<> q0, Q<1, 2> qii, Q<1, 2, 3> qiii) {
+    q(q0, q0);
+    q(qii, qii);
+    q(qii, qiii); // expected-error {{no match}} expected-note@#q {{deduced packs of different lengths for parameter 'T' (<int, int> vs. <int, int, int>)}}
+    q(q0, qiii); // expected-error {{no match}} expected-note@#q {{deduced packs of different lengths for parameter 'T' (<> vs. <int, int, int>)}}
+  }
+#endif
+}
+
+namespace PR44890 {
+  template<typename ...Ts>
+    struct tuple {};
+
+  template<int I, typename ...Ts>
+    int get0(const tuple<Ts...> &t) { return 0; }
+
+  template<typename ...Ts> struct tuple_wrapper : tuple<Ts...> {
+    template<int I> int get() { return get0<0, Ts...>(*this); }
+  };
+
+  int f() {
+    tuple_wrapper<int> w;
+    return w.get<0>();
+  }
+}
+
+namespace merge_size_only_deductions {
+#if __cplusplus >= 201703L
+  // Based on a testcase by Hubert Tong.
+  template<typename ...> struct X {};
+  template<auto ...> struct Y {};
+  template<typename T> struct id { using Type = T; };
+
+  template<typename ...T, typename T::Type ...V>
+    int f(X<char [V] ...>, Y<V ...>, X<T ...>);
+
+  using size_t = __SIZE_TYPE__;
+  int a = f(X<char [1], char [2]>(), Y<(size_t)1, (size_t)2>(), X<id<size_t>, id<size_t>>());
+  int b = f(X<char [1], char [2]>(), Y<1, 2>(), X<id<int>, id<int>>());
+#endif
+}
+
+namespace PR49724 {
+  struct A;
+  template<int A::*> class X {};
+  template<int A::*P> void f(X<P>);
+  void g(X<nullptr> x) { f(x); }
+
+  template<void (A::*)()> class Y {};
+  template<void (A::*P)()> void f(Y<P>);
+  void g(Y<nullptr> y) { f(y); }
 }

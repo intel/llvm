@@ -1,9 +1,12 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=x86_64-macosx %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 
 ; CHECK: DW_TAG_subprogram [9] *
 ; CHECK-NOT: DW_AT_{{(MIPS_)?}}linkage_name
@@ -63,5 +66,3 @@ attributes #1 = { nounwind readnone }
 !21 = !DILocation(line: 6, column: 4, scope: !22)
 !22 = distinct !DILexicalBlock(scope: !14, file: !2, line: 5, column: 17)
 
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

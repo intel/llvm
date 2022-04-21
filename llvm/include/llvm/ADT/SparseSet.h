@@ -5,23 +5,24 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file defines the SparseSet class derived from the version described in
-// Briggs, Torczon, "An efficient representation for sparse sets", ACM Letters
-// on Programming Languages and Systems, Volume 2 Issue 1-4, March-Dec.  1993.
-//
-// A sparse set holds a small number of objects identified by integer keys from
-// a moderately sized universe. The sparse set uses more memory than other
-// containers in order to provide faster operations.
-//
+///
+/// \file
+/// This file defines the SparseSet class derived from the version described in
+/// Briggs, Torczon, "An efficient representation for sparse sets", ACM Letters
+/// on Programming Languages and Systems, Volume 2 Issue 1-4, March-Dec.  1993.
+///
+/// A sparse set holds a small number of objects identified by integer keys from
+/// a moderately sized universe. The sparse set uses more memory than other
+/// containers in order to provide faster operations.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_SPARSESET_H
 #define LLVM_ADT_SPARSESET_H
 
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/identity.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Allocator.h"
+#include "llvm/Support/AllocatorBase.h"
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
@@ -79,7 +80,7 @@ struct SparseSetValFunctor<KeyT, KeyT, KeyFunctorT> {
   }
 };
 
-/// SparseSet - Fast set implmentation for objects that can be identified by
+/// SparseSet - Fast set implementation for objects that can be identified by
 /// small unsigned keys.
 ///
 /// SparseSet allocates memory proportional to the size of the key universe, so
@@ -229,12 +230,15 @@ public:
     return const_cast<SparseSet*>(this)->findIndex(KeyIndexOf(Key));
   }
 
+  /// Check if the set contains the given \c Key.
+  ///
+  /// @param Key A valid key to find.
+  bool contains(const KeyT &Key) const { return find(Key) == end() ? 0 : 1; }
+
   /// count - Returns 1 if this set contains an element identified by Key,
   /// 0 otherwise.
   ///
-  size_type count(const KeyT &Key) const {
-    return find(Key) == end() ? 0 : 1;
-  }
+  size_type count(const KeyT &Key) const { return contains(Key) ? 1 : 0; }
 
   /// insert - Attempts to insert a new element.
   ///

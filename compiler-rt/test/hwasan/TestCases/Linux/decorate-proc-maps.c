@@ -1,4 +1,4 @@
-// RUN: %clang_hwasan -g %s -o %t
+// RUN: %clang_hwasan -mllvm -hwasan-globals=0  -g %s -o %t
 // RUN: %env_hwasan_opts=decorate_proc_maps=1 %run %t 2>&1 | FileCheck %s --check-prefix=A
 // RUN: %env_hwasan_opts=decorate_proc_maps=1 %run %t 2>&1 | FileCheck %s --check-prefix=B
 
@@ -8,22 +8,18 @@
 // A-NEXT: ---p {{.*}}shadow gap]
 // A-NEXT: rw-p {{.*}}high shadow]
 
-// B-DAG: rw-p {{.*}}SizeClassAllocator: region data]
-// B-DAG: rw-p {{.*}}SizeClassAllocator: region metadata]
-// B-DAG: rw-p {{.*}}SizeClassAllocator: freearray]
 // B-DAG: rw-p {{.*}}SizeClassAllocator: region info]
 // B-DAG: rw-p {{.*}}LargeMmapAllocator]
-// B-DAG: rw-p {{.*}}stack depot]
+// B-DAG: rw-p {{.*}}StackStore]
 
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <stdlib.h>
 
 void CopyFdToFd(int in_fd, int out_fd) {
   const size_t kBufSize = 0x10000;

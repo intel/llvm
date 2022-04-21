@@ -1,4 +1,4 @@
-//===-- StoppointCallbackContext.cpp ----------------------------*- C++ -*-===//
+//===-- StoppointCallbackContext.cpp --------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,8 +10,7 @@
 
 using namespace lldb_private;
 
-StoppointCallbackContext::StoppointCallbackContext()
-    : event(nullptr), exe_ctx_ref(), is_synchronous(false) {}
+StoppointCallbackContext::StoppointCallbackContext() = default;
 
 StoppointCallbackContext::StoppointCallbackContext(
     Event *e, const ExecutionContext &exe_ctx, bool synchronously)

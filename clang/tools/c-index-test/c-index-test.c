@@ -24,6 +24,7 @@
 #endif
 
 extern int indextest_core_main(int argc, const char **argv);
+extern int indextest_perform_shell_execution(const char *command_line);
 
 /******************************************************************************/
 /* Utility functions.                                                         */
@@ -88,6 +89,8 @@ static unsigned getDefaultParsingOptions() {
     options |= CXTranslationUnit_IncludeAttributedTypes;
   if (getenv("CINDEXTEST_VISIT_IMPLICIT_ATTRIBUTES"))
     options |= CXTranslationUnit_VisitImplicitAttributes;
+  if (getenv("CINDEXTEST_IGNORE_NONERRORS_FROM_INCLUDED_FILES"))
+    options |= CXTranslationUnit_IgnoreNonErrorsFromIncludedFiles;
 
   return options;
 }
@@ -494,6 +497,9 @@ static void DumpCXCommentInternal(struct CommentASTDumpingContext *Ctx,
       break;
     case CXCommentInlineCommandRenderKind_Emphasized:
       printf(" RenderEmphasized");
+      break;
+    case CXCommentInlineCommandRenderKind_Anchor:
+      printf(" RenderAnchor");
       break;
     }
     for (i = 0, e = clang_InlineCommandComment_getNumArgs(Comment);
@@ -1051,7 +1057,8 @@ static void PrintCursor(CXCursor Cursor, const char *CommentSchemaFile) {
     if (Cursor.kind == CXCursor_InclusionDirective) {
       CXFile File = clang_getIncludedFile(Cursor);
       CXString Included = clang_getFileName(File);
-      printf(" (%s)", clang_getCString(Included));
+      const char *IncludedString = clang_getCString(Included);
+      printf(" (%s)", IncludedString ? IncludedString : "(null)");
       clang_disposeString(Included);
       
       if (clang_isFileMultipleIncludeGuarded(TU, File))
@@ -1533,10 +1540,20 @@ static void PrintNullabilityKind(CXType T, const char *Format) {
 
   const char *nullability = 0;
   switch (N) {
-    case CXTypeNullability_NonNull: nullability = "nonnull"; break;
-    case CXTypeNullability_Nullable: nullability = "nullable"; break;
-    case CXTypeNullability_Unspecified: nullability = "unspecified"; break;
-    case CXTypeNullability_Invalid: break;
+  case CXTypeNullability_NonNull:
+    nullability = "nonnull";
+    break;
+  case CXTypeNullability_Nullable:
+    nullability = "nullable";
+    break;
+  case CXTypeNullability_NullableResult:
+    nullability = "nullable_result";
+    break;
+  case CXTypeNullability_Unspecified:
+    nullability = "unspecified";
+    break;
+  case CXTypeNullability_Invalid:
+    break;
   }
 
   if (nullability) {
@@ -1572,6 +1589,12 @@ static enum CXChildVisitResult PrintType(CXCursor cursor, CXCursor p,
         PrintTypeAndTypeKind(CT, " [canonicaltype=%s] [canonicaltypekind=%s]");
         PrintTypeTemplateArgs(CT, " [canonicaltemplateargs/%d=");
       }
+    }
+    /* Print the value type if it exists. */
+    {
+      CXType VT = clang_Type_getValueType(T);
+      if (VT.kind != CXType_Invalid)
+        PrintTypeAndTypeKind(VT, " [valuetype=%s] [valuetypekind=%s]");
     }
     /* Print the modified type if it exists. */
     {
@@ -2073,6 +2096,8 @@ int perform_test_reparse_source(int argc, const char **argv, int trials,
   enum CXErrorCode Err;
   int result, i;
   int trial;
+  int execute_after_trial = 0;
+  const char *execute_command = NULL;
   int remap_after_trial = 0;
   char *endptr = 0;
   
@@ -2111,12 +2136,26 @@ int perform_test_reparse_source(int argc, const char **argv, int trials,
   if (checkForErrors(TU) != 0)
     return -1;
 
+  if (getenv("CINDEXTEST_EXECUTE_COMMAND")) {
+    execute_command = getenv("CINDEXTEST_EXECUTE_COMMAND");
+  }
+  if (getenv("CINDEXTEST_EXECUTE_AFTER_TRIAL")) {
+    execute_after_trial =
+        strtol(getenv("CINDEXTEST_EXECUTE_AFTER_TRIAL"), &endptr, 10);
+  }
+
   if (getenv("CINDEXTEST_REMAP_AFTER_TRIAL")) {
     remap_after_trial =
         strtol(getenv("CINDEXTEST_REMAP_AFTER_TRIAL"), &endptr, 10);
   }
 
   for (trial = 0; trial < trials; ++trial) {
+    if (execute_command && trial == execute_after_trial) {
+      result = indextest_perform_shell_execution(execute_command);
+      if (result != 0)
+        return result;
+    }
+
     free_remapped_files(unsaved_files, num_unsaved_files);
     if (parse_remapped_files_with_try(trial, argc, argv, 0,
                                       &unsaved_files, &num_unsaved_files)) {
@@ -2165,6 +2204,34 @@ static int perform_single_file_parse(const char *filename) {
                                     /*unsaved_files=*/NULL,
                                     /*num_unsaved_files=*/0,
                                     CXTranslationUnit_SingleFileParse, &TU);
+  if (Err != CXError_Success) {
+    fprintf(stderr, "Unable to load translation unit!\n");
+    describeLibclangFailure(Err);
+    clang_disposeIndex(Idx);
+    return 1;
+  }
+
+  result = perform_test_load(Idx, TU, /*filter=*/"all", /*prefix=*/NULL, FilteredPrintingVisitor, /*PostVisit=*/NULL,
+                             /*CommentSchemaFile=*/NULL);
+  clang_disposeIndex(Idx);
+  return result;
+}
+
+static int perform_file_retain_excluded_cb(const char *filename) {
+  CXIndex Idx;
+  CXTranslationUnit TU;
+  enum CXErrorCode Err;
+  int result;
+
+  Idx = clang_createIndex(/* excludeDeclsFromPCH */1,
+                          /* displayDiagnostics=*/1);
+
+  Err = clang_parseTranslationUnit2(Idx, filename,
+                                    /*command_line_args=*/NULL,
+                                    /*num_command_line_args=*/0,
+                                    /*unsaved_files=*/NULL,
+                                    /*num_unsaved_files=*/0,
+                                    CXTranslationUnit_RetainExcludedConditionalBlocks, &TU);
   if (Err != CXError_Success) {
     fprintf(stderr, "Unable to load translation unit!\n");
     describeLibclangFailure(Err);
@@ -4642,18 +4709,19 @@ static void printDiagnosticSet(CXDiagnosticSet Diags, unsigned indent) {
     CXFile File;
     CXString FileName, DiagSpelling, DiagOption, DiagCat;
     unsigned line, column, offset;
-    const char *DiagOptionStr = 0, *DiagCatStr = 0;
+    const char *FileNameStr = 0, *DiagOptionStr = 0, *DiagCatStr = 0;
     
     D = clang_getDiagnosticInSet(Diags, i);
     DiagLoc = clang_getDiagnosticLocation(D);
     clang_getExpansionLocation(DiagLoc, &File, &line, &column, &offset);
     FileName = clang_getFileName(File);
+    FileNameStr = clang_getCString(FileName);
     DiagSpelling = clang_getDiagnosticSpelling(D);
-    
+
     printIndent(indent);
     
     fprintf(stderr, "%s:%d:%d: %s: %s",
-            clang_getCString(FileName),
+            FileNameStr ? FileNameStr : "(null)",
             line,
             column,
             getSeverityString(clang_getDiagnosticSeverity(D)),
@@ -4845,6 +4913,8 @@ int cindextest_main(int argc, const char **argv) {
   }
   else if (argc >= 3 && strcmp(argv[1], "-single-file-parse") == 0)
     return perform_single_file_parse(argv[2]);
+  else if (argc >= 3 && strcmp(argv[1], "-retain-excluded-conditional-blocks") == 0)
+    return perform_file_retain_excluded_cb(argv[2]);
   else if (argc >= 4 && strcmp(argv[1], "-test-file-scan") == 0)
     return perform_file_scan(argv[2], argv[3],
                              argc >= 5 ? argv[4] : 0);

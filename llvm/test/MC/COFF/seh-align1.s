@@ -1,6 +1,6 @@
 // This test checks the alignment and padding of the unwind info.
 
-// RUN: llvm-mc -triple x86_64-pc-win32 -filetype=obj %s | llvm-readobj -S --sd --sr -u | FileCheck %s
+// RUN: llvm-mc -triple x86_64-pc-win32 -filetype=obj %s | llvm-readobj -S --sd --sr -u - | FileCheck %s
 
 // CHECK:      Sections [
 // CHECK:        Section {
@@ -28,8 +28,8 @@
 // CHECK-NEXT:       IMAGE_SCN_MEM_READ
 // CHECK-NEXT:     ]
 // CHECK:          Relocations [
-// CHECK-NEXT:       [[BeginDisp:0x[A-F0-9]+]] IMAGE_REL_AMD64_ADDR32NB smallFunc
-// CHECK-NEXT:       [[EndDisp:0x[A-F0-9]+]] IMAGE_REL_AMD64_ADDR32NB smallFunc
+// CHECK-NEXT:       [[BeginDisp:0x[A-F0-9]+]] IMAGE_REL_AMD64_ADDR32NB .text
+// CHECK-NEXT:       [[EndDisp:0x[A-F0-9]+]] IMAGE_REL_AMD64_ADDR32NB .text
 // CHECK-NEXT:       [[UnwindDisp:0x[A-F0-9]+]] IMAGE_REL_AMD64_ADDR32NB .xdata
 // CHECK-NEXT:     ]
 // CHECK:          SectionData (

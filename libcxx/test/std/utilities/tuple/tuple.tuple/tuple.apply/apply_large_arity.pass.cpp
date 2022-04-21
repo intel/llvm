@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <tuple>
 
@@ -18,6 +18,8 @@
 #include <array>
 #include <utility>
 #include <cassert>
+
+#include "test_macros.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 template <class T, std::size_t Dummy = 0>

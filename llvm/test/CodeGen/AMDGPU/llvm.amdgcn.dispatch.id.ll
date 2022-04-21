@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=amdgcn--amdhsa -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -mtriple=amdgcn--amdhsa --amdhsa-code-object-version=2 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 declare i64 @llvm.amdgcn.dispatch.id() #1
 
@@ -8,7 +8,7 @@ declare i64 @llvm.amdgcn.dispatch.id() #1
 
 ; GCN-DAG: v_mov_b32_e32 v[[LO:[0-9]+]], s6
 ; GCN-DAG: v_mov_b32_e32 v[[HI:[0-9]+]], s7
-; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[}}[[LO]]:[[HI]]{{\]}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v[[[LO]]:[[HI]]]
 define amdgpu_kernel void @dispatch_id(i64 addrspace(1)* %out) #0 {
   %tmp0 = call i64 @llvm.amdgcn.dispatch.id()
   store i64 %tmp0, i64 addrspace(1)* %out

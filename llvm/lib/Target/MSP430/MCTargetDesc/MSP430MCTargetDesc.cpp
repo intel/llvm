@@ -17,7 +17,7 @@
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -44,7 +44,7 @@ static MCRegisterInfo *createMSP430MCRegisterInfo(const Triple &TT) {
 
 static MCSubtargetInfo *
 createMSP430MCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
-  return createMSP430MCSubtargetInfoImpl(TT, CPU, FS);
+  return createMSP430MCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
 
 static MCInstPrinter *createMSP430MCInstPrinter(const Triple &T,
@@ -57,7 +57,7 @@ static MCInstPrinter *createMSP430MCInstPrinter(const Triple &T,
   return nullptr;
 }
 
-extern "C" void LLVMInitializeMSP430TargetMC() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMSP430TargetMC() {
   Target &T = getTheMSP430Target();
 
   RegisterMCAsmInfo<MSP430MCAsmInfo> X(T);

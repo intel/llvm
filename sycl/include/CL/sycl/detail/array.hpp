@@ -1,4 +1,4 @@
-//==-------- array.hpp --- SYCL common iteration object ---------------------==//
+//==-------- array.hpp --- SYCL common iteration object --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,40 +7,45 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/exception.hpp>
 #include <functional>
 #include <stdexcept>
-#include <type_traits>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-template <int dimensions> struct id;
+template <int dimensions> class id;
 template <int dimensions> class range;
 namespace detail {
 
 template <int dimensions = 1> class array {
   static_assert(dimensions >= 1, "Array cannot be 0-dimensional.");
-public:
-  array() : common_array{0} {}
 
+public:
   /* The following constructor is only available in the array struct
    * specialization where: dimensions==1 */
   template <int N = dimensions>
-  array(typename std::enable_if<(N == 1), size_t>::type dim0)
+  array(typename detail::enable_if_t<(N == 1), size_t> dim0 = 0)
       : common_array{dim0} {}
 
-  /* The following constructor is only available in the array struct
+  /* The following constructors are only available in the array struct
    * specialization where: dimensions==2 */
   template <int N = dimensions>
-  array(typename std::enable_if<(N == 2), size_t>::type dim0, size_t dim1)
+  array(typename detail::enable_if_t<(N == 2), size_t> dim0, size_t dim1)
       : common_array{dim0, dim1} {}
 
-  /* The following constructor is only available in the array struct
+  template <int N = dimensions, detail::enable_if_t<(N == 2), size_t> = 0>
+  array() : array(0, 0) {}
+
+  /* The following constructors are only available in the array struct
    * specialization where: dimensions==3 */
   template <int N = dimensions>
-  array(typename std::enable_if<(N == 3), size_t>::type dim0, size_t dim1,
+  array(typename detail::enable_if_t<(N == 3), size_t> dim0, size_t dim1,
         size_t dim2)
       : common_array{dim0, dim1, dim2} {}
+
+  template <int N = dimensions, detail::enable_if_t<(N == 3), size_t> = 0>
+  array() : array(0, 0, 0) {}
 
   // Conversion operators to derived classes
   operator cl::sycl::id<dimensions>() const {
@@ -103,15 +108,17 @@ public:
 
 protected:
   size_t common_array[dimensions];
-  ALWAYS_INLINE void check_dimension(int dimension) const {
+  __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
 #ifndef __SYCL_DEVICE_ONLY__
     if (dimension >= dimensions || dimension < 0) {
-      throw cl::sycl::invalid_parameter_error("Index out of range");
+      throw cl::sycl::invalid_parameter_error("Index out of range",
+                                              PI_INVALID_VALUE);
     }
 #endif
+    (void)dimension;
   }
 };
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

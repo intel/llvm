@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
-#define LLDB_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
+#ifndef LLDB_SOURCE_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
+#define LLDB_SOURCE_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
 
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/ArchSpec.h"
@@ -21,7 +21,7 @@ public:
   static void Initialize();
   static void Terminate();
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "breakpad"; }
   static const char *GetPluginDescriptionStatic() {
     return "Breakpad object file reader.";
   }
@@ -44,9 +44,14 @@ public:
                                         ModuleSpecList &specs);
 
   // PluginInterface protocol
-  ConstString GetPluginName() override { return GetPluginNameStatic(); }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
-  uint32_t GetPluginVersion() override { return 1; }
+  // LLVM RTTI support
+  static char ID;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ObjectFile::isA(ClassID);
+  }
+  static bool classof(const ObjectFile *obj) { return obj->isA(&ID); }
 
   // ObjectFile Protocol.
 
@@ -66,7 +71,7 @@ public:
     return AddressClass::eInvalid;
   }
 
-  Symtab *GetSymtab() override;
+  void ParseSymtab(lldb_private::Symtab &symtab) override;
 
   bool IsStripped() override { return false; }
 
@@ -77,8 +82,6 @@ public:
   ArchSpec GetArchitecture() override { return m_arch; }
 
   UUID GetUUID() override { return m_uuid; }
-
-  FileSpecList GetDebugSymbolFilePaths() override { return FileSpecList(); }
 
   uint32_t GetDependentModules(FileSpecList &files) override { return 0; }
 
@@ -98,4 +101,4 @@ private:
 
 } // namespace breakpad
 } // namespace lldb_private
-#endif // LLDB_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
+#endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H

@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <variant>
 
@@ -29,5 +28,5 @@ int main(int, char**)
     std::variant<NotCopyConstructible> v;
     std::variant<NotCopyConstructible> v1;
     std::variant<NotCopyConstructible> v2(v); // expected-error {{call to implicitly-deleted copy constructor of 'std::variant<NotCopyConstructible>'}}
-    v1 = v; // expected-error {{object of type 'std::__1::variant<NotCopyConstructible>' cannot be assigned because its copy assignment operator is implicitly deleted}}
+    v1 = v; // expected-error-re {{object of type 'std:{{.*}}:variant<NotCopyConstructible>' cannot be assigned because its copy assignment operator is implicitly deleted}}
 }

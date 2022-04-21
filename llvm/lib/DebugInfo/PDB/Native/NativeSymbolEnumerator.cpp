@@ -8,7 +8,7 @@
 
 #include "llvm/DebugInfo/PDB/Native/NativeSymbolEnumerator.h"
 
-#include "llvm/DebugInfo/CodeView/SymbolRecord.h"
+#include "llvm/DebugInfo/PDB/Native/NativeSession.h"
 #include "llvm/DebugInfo/PDB/Native/NativeTypeBuiltin.h"
 #include "llvm/DebugInfo/PDB/Native/NativeTypeEnum.h"
 
@@ -22,7 +22,7 @@ NativeSymbolEnumerator::NativeSymbolEnumerator(
     : NativeRawSymbol(Session, PDB_SymType::Data, Id), Parent(Parent),
       Record(std::move(Record)) {}
 
-NativeSymbolEnumerator::~NativeSymbolEnumerator() {}
+NativeSymbolEnumerator::~NativeSymbolEnumerator() = default;
 
 void NativeSymbolEnumerator::dump(raw_ostream &OS, int Indent,
                                   PdbSymbolIdField ShowIdFields,
@@ -51,7 +51,9 @@ SymIndexId NativeSymbolEnumerator::getClassParentId() const {
 
 SymIndexId NativeSymbolEnumerator::getLexicalParentId() const { return 0; }
 
-std::string NativeSymbolEnumerator::getName() const { return Record.Name; }
+std::string NativeSymbolEnumerator::getName() const {
+  return std::string(Record.Name);
+}
 
 SymIndexId NativeSymbolEnumerator::getTypeId() const {
   return Parent.getTypeId();

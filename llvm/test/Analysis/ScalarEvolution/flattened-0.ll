@@ -1,4 +1,4 @@
-; RUN: opt < %s -scalar-evolution -analyze | FileCheck %s
+; RUN: opt < %s "-passes=print<scalar-evolution>" -disable-output 2>&1 | FileCheck %s
 
 define void @foo([7 x i8]* %a) {
 ; CHECK-LABEL: @foo

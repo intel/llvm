@@ -27,9 +27,9 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -50,7 +50,7 @@ namespace {
 
     bool IsRegInClass(unsigned Reg, const TargetRegisterClass *RC,
                       MachineRegisterInfo &MRI) {
-      if (TargetRegisterInfo::isVirtualRegister(Reg)) {
+      if (Register::isVirtualRegister(Reg)) {
         return RC->hasSubClassEq(MRI.getRegClass(Reg));
       } else if (RC->contains(Reg)) {
         return true;
@@ -102,7 +102,7 @@ protected:
                   IsVSFReg(SrcMO.getReg(), MRI)) &&
                  "Unknown source for a VSX copy");
 
-          unsigned NewVReg = MRI.createVirtualRegister(SrcRC);
+          Register NewVReg = MRI.createVirtualRegister(SrcRC);
           BuildMI(MBB, MI, MI.getDebugLoc(),
                   TII->get(TargetOpcode::SUBREG_TO_REG), NewVReg)
               .addImm(1) // add 1, not 0, because there is no implicit clearing
@@ -124,7 +124,7 @@ protected:
                  "Unknown destination for a VSX copy");
 
           // Copy the VSX value into a new VSX register of the correct subclass.
-          unsigned NewVReg = MRI.createVirtualRegister(DstRC);
+          Register NewVReg = MRI.createVirtualRegister(DstRC);
           BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(TargetOpcode::COPY),
                   NewVReg)
               .add(SrcMO);
@@ -148,11 +148,9 @@ public:
 
       bool Changed = false;
 
-      for (MachineFunction::iterator I = MF.begin(); I != MF.end();) {
-        MachineBasicBlock &B = *I++;
+      for (MachineBasicBlock &B : llvm::make_early_inc_range(MF))
         if (processBlock(B))
           Changed = true;
-      }
 
       return Changed;
     }
@@ -169,4 +167,3 @@ INITIALIZE_PASS(PPCVSXCopy, DEBUG_TYPE,
 char PPCVSXCopy::ID = 0;
 FunctionPass*
 llvm::createPPCVSXCopyPass() { return new PPCVSXCopy(); }
-

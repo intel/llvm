@@ -18,8 +18,8 @@ namespace misc {
 
 namespace {
 
-AST_MATCHER_P(NamedDecl, usesHeaderFileExtension,
-              utils::HeaderFileExtensionsSet, HeaderFileExtensions) {
+AST_MATCHER_P(NamedDecl, usesHeaderFileExtension, utils::FileExtensionsSet,
+              HeaderFileExtensions) {
   return utils::isExpansionLocInHeaderFile(
       Node.getBeginLoc(), Finder->getASTContext().getSourceManager(),
       HeaderFileExtensions);
@@ -33,12 +33,11 @@ DefinitionsInHeadersCheck::DefinitionsInHeadersCheck(StringRef Name,
       UseHeaderFileExtension(Options.get("UseHeaderFileExtension", true)),
       RawStringHeaderFileExtensions(Options.getLocalOrGlobal(
           "HeaderFileExtensions", utils::defaultHeaderFileExtensions())) {
-  if (!utils::parseHeaderFileExtensions(RawStringHeaderFileExtensions,
-                                        HeaderFileExtensions, ',')) {
-    // FIXME: Find a more suitable way to handle invalid configuration
-    // options.
-    llvm::errs() << "Invalid header file extension: "
-                 << RawStringHeaderFileExtensions << "\n";
+  if (!utils::parseFileExtensions(RawStringHeaderFileExtensions,
+                                  HeaderFileExtensions,
+                                  utils::defaultFileExtensionDelimiters())) {
+    this->configurationDiag("Invalid header file extension: '%0'")
+        << RawStringHeaderFileExtensions;
   }
 }
 
@@ -49,8 +48,6 @@ void DefinitionsInHeadersCheck::storeOptions(
 }
 
 void DefinitionsInHeadersCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
   auto DefinitionMatcher =
       anyOf(functionDecl(isDefinition(), unless(isDeleted())),
             varDecl(isDefinition()));
@@ -124,14 +121,22 @@ void DefinitionsInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
       }
     }
 
-    bool is_full_spec = FD->getTemplateSpecializationKind() != TSK_Undeclared;
+    bool IsFullSpec = FD->getTemplateSpecializationKind() != TSK_Undeclared;
     diag(FD->getLocation(),
          "%select{function|full function template specialization}0 %1 defined "
          "in a header file; function definitions in header files can lead to "
          "ODR violations")
-        << is_full_spec << FD << FixItHint::CreateInsertion(
-                     FD->getReturnTypeSourceRange().getBegin(), "inline ");
+        << IsFullSpec << FD;
+    // inline is not allowed for main function.
+    if (FD->isMain())
+      return;
+    diag(FD->getLocation(), /*Description=*/"make as 'inline'",
+         DiagnosticIDs::Note)
+        << FixItHint::CreateInsertion(FD->getInnerLocStart(), "inline ");
   } else if (const auto *VD = dyn_cast<VarDecl>(ND)) {
+    // C++14 variable templates are allowed.
+    if (VD->getDescribedVarTemplate())
+      return;
     // Static data members of a class template are allowed.
     if (VD->getDeclContext()->isDependentContext() && VD->isStaticDataMember())
       return;
@@ -143,6 +148,9 @@ void DefinitionsInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
       return;
     // Ignore inline variables.
     if (VD->isInline())
+      return;
+    // Ignore partial specializations.
+    if (isa<VarTemplatePartialSpecializationDecl>(VD))
       return;
 
     diag(VD->getLocation(),

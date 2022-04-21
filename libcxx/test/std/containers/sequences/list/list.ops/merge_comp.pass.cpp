@@ -9,12 +9,13 @@
 // <list>
 
 // template <class Compare> void merge(list& x, Compare comp);
-// If (&addressof(x) == this) does nothing; otherwise ...
+// If (addressof(x) == this) does nothing; otherwise ...
 
 #include <list>
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)

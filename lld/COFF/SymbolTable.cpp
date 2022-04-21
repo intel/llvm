@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SymbolTable.h"
+#include "COFFLinkerContext.h"
 #include "Config.h"
 #include "Driver.h"
 #include "LTO.h"
@@ -15,7 +16,10 @@
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Timer.h"
+#include "llvm/DebugInfo/DIContext.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/LTO/LTO.h"
+#include "llvm/Object/WindowsMachineFlag.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <utility>
@@ -25,517 +29,865 @@ using namespace llvm;
 namespace lld {
 namespace coff {
 
-static Timer LTOTimer("LTO", Timer::root());
+StringRef ltrim1(StringRef s, const char *chars) {
+  if (!s.empty() && strchr(chars, s[0]))
+    return s.substr(1);
+  return s;
+}
 
-SymbolTable *Symtab;
+void SymbolTable::addFile(InputFile *file) {
+  log("Reading " + toString(file));
+  if (file->lazy) {
+    if (auto *f = dyn_cast<BitcodeFile>(file))
+      f->parseLazy();
+    else
+      cast<ObjFile>(file)->parseLazy();
+  } else {
+    file->parse();
+    if (auto *f = dyn_cast<ObjFile>(file)) {
+      ctx.objFileInstances.push_back(f);
+    } else if (auto *f = dyn_cast<BitcodeFile>(file)) {
+      ctx.bitcodeFileInstances.push_back(f);
+    } else if (auto *f = dyn_cast<ImportFile>(file)) {
+      ctx.importFileInstances.push_back(f);
+    }
+  }
 
-void SymbolTable::addFile(InputFile *File) {
-  log("Reading " + toString(File));
-  File->parse();
-
-  MachineTypes MT = File->getMachineType();
-  if (Config->Machine == IMAGE_FILE_MACHINE_UNKNOWN) {
-    Config->Machine = MT;
-  } else if (MT != IMAGE_FILE_MACHINE_UNKNOWN && Config->Machine != MT) {
-    error(toString(File) + ": machine type " + machineToStr(MT) +
-          " conflicts with " + machineToStr(Config->Machine));
+  MachineTypes mt = file->getMachineType();
+  if (config->machine == IMAGE_FILE_MACHINE_UNKNOWN) {
+    config->machine = mt;
+    driver->addWinSysRootLibSearchPaths();
+  } else if (mt != IMAGE_FILE_MACHINE_UNKNOWN && config->machine != mt) {
+    error(toString(file) + ": machine type " + machineToStr(mt) +
+          " conflicts with " + machineToStr(config->machine));
     return;
   }
 
-  if (auto *F = dyn_cast<ObjFile>(File)) {
-    ObjFile::Instances.push_back(F);
-  } else if (auto *F = dyn_cast<BitcodeFile>(File)) {
-    BitcodeFile::Instances.push_back(F);
-  } else if (auto *F = dyn_cast<ImportFile>(File)) {
-    ImportFile::Instances.push_back(F);
-  }
-
-  Driver->parseDirectives(File);
+  driver->parseDirectives(file);
 }
 
-static void errorOrWarn(const Twine &S) {
-  if (Config->ForceUnresolved)
-    warn(S);
+static void errorOrWarn(const Twine &s) {
+  if (config->forceUnresolved)
+    warn(s);
   else
-    error(S);
+    error(s);
+}
+
+// Causes the file associated with a lazy symbol to be linked in.
+static void forceLazy(Symbol *s) {
+  s->pendingArchiveLoad = true;
+  switch (s->kind()) {
+  case Symbol::Kind::LazyArchiveKind: {
+    auto *l = cast<LazyArchive>(s);
+    l->file->addMember(l->sym);
+    break;
+  }
+  case Symbol::Kind::LazyObjectKind: {
+    InputFile *file = cast<LazyObject>(s)->file;
+    file->ctx.symtab.addFile(file);
+    break;
+  }
+  case Symbol::Kind::LazyDLLSymbolKind: {
+    auto *l = cast<LazyDLLSymbol>(s);
+    l->file->makeImport(l->sym);
+    break;
+  }
+  default:
+    llvm_unreachable(
+        "symbol passed to forceLazy is not a LazyArchive or LazyObject");
+  }
 }
 
 // Returns the symbol in SC whose value is <= Addr that is closest to Addr.
 // This is generally the global variable or function whose definition contains
 // Addr.
-static Symbol *getSymbol(SectionChunk *SC, uint32_t Addr) {
-  DefinedRegular *Candidate = nullptr;
+static Symbol *getSymbol(SectionChunk *sc, uint32_t addr) {
+  DefinedRegular *candidate = nullptr;
 
-  for (Symbol *S : SC->File->getSymbols()) {
-    auto *D = dyn_cast_or_null<DefinedRegular>(S);
-    if (!D || D->getChunk() != SC || D->getValue() > Addr ||
-        (Candidate && D->getValue() < Candidate->getValue()))
+  for (Symbol *s : sc->file->getSymbols()) {
+    auto *d = dyn_cast_or_null<DefinedRegular>(s);
+    if (!d || !d->data || d->file != sc->file || d->getChunk() != sc ||
+        d->getValue() > addr ||
+        (candidate && d->getValue() < candidate->getValue()))
       continue;
 
-    Candidate = D;
+    candidate = d;
   }
 
-  return Candidate;
+  return candidate;
 }
 
-std::string getSymbolLocations(ObjFile *File, uint32_t SymIndex) {
-  struct Location {
-    Symbol *Sym;
-    std::pair<StringRef, uint32_t> FileLine;
-  };
-  std::vector<Location> Locations;
+static std::vector<std::string> getSymbolLocations(BitcodeFile *file) {
+  std::string res("\n>>> referenced by ");
+  StringRef source = file->obj->getSourceFileName();
+  if (!source.empty())
+    res += source.str() + "\n>>>               ";
+  res += toString(file);
+  return {res};
+}
 
-  for (Chunk *C : File->getChunks()) {
-    auto *SC = dyn_cast<SectionChunk>(C);
-    if (!SC)
+static Optional<std::pair<StringRef, uint32_t>>
+getFileLineDwarf(const SectionChunk *c, uint32_t addr) {
+  Optional<DILineInfo> optionalLineInfo =
+      c->file->getDILineInfo(addr, c->getSectionNumber() - 1);
+  if (!optionalLineInfo)
+    return None;
+  const DILineInfo &lineInfo = *optionalLineInfo;
+  if (lineInfo.FileName == DILineInfo::BadString)
+    return None;
+  return std::make_pair(saver().save(lineInfo.FileName), lineInfo.Line);
+}
+
+static Optional<std::pair<StringRef, uint32_t>>
+getFileLine(const SectionChunk *c, uint32_t addr) {
+  // MinGW can optionally use codeview, even if the default is dwarf.
+  Optional<std::pair<StringRef, uint32_t>> fileLine =
+      getFileLineCodeView(c, addr);
+  // If codeview didn't yield any result, check dwarf in MinGW mode.
+  if (!fileLine && config->mingw)
+    fileLine = getFileLineDwarf(c, addr);
+  return fileLine;
+}
+
+// Given a file and the index of a symbol in that file, returns a description
+// of all references to that symbol from that file. If no debug information is
+// available, returns just the name of the file, else one string per actual
+// reference as described in the debug info.
+// Returns up to maxStrings string descriptions, along with the total number of
+// locations found.
+static std::pair<std::vector<std::string>, size_t>
+getSymbolLocations(ObjFile *file, uint32_t symIndex, size_t maxStrings) {
+  struct Location {
+    Symbol *sym;
+    std::pair<StringRef, uint32_t> fileLine;
+  };
+  std::vector<Location> locations;
+  size_t numLocations = 0;
+
+  for (Chunk *c : file->getChunks()) {
+    auto *sc = dyn_cast<SectionChunk>(c);
+    if (!sc)
       continue;
-    for (const coff_relocation &R : SC->getRelocs()) {
-      if (R.SymbolTableIndex != SymIndex)
+    for (const coff_relocation &r : sc->getRelocs()) {
+      if (r.SymbolTableIndex != symIndex)
         continue;
-      std::pair<StringRef, uint32_t> FileLine =
-          getFileLine(SC, R.VirtualAddress);
-      Symbol *Sym = getSymbol(SC, R.VirtualAddress);
-      if (!FileLine.first.empty() || Sym)
-        Locations.push_back({Sym, FileLine});
+      numLocations++;
+      if (locations.size() >= maxStrings)
+        continue;
+
+      Optional<std::pair<StringRef, uint32_t>> fileLine =
+          getFileLine(sc, r.VirtualAddress);
+      Symbol *sym = getSymbol(sc, r.VirtualAddress);
+      if (fileLine)
+        locations.push_back({sym, *fileLine});
+      else if (sym)
+        locations.push_back({sym, {"", 0}});
     }
   }
 
-  if (Locations.empty())
-    return "\n>>> referenced by " + toString(File);
+  if (maxStrings == 0)
+    return std::make_pair(std::vector<std::string>(), numLocations);
 
-  std::string Out;
-  llvm::raw_string_ostream OS(Out);
-  for (Location Loc : Locations) {
-    OS << "\n>>> referenced by ";
-    if (!Loc.FileLine.first.empty())
-      OS << Loc.FileLine.first << ":" << Loc.FileLine.second
+  if (numLocations == 0)
+    return std::make_pair(
+        std::vector<std::string>{"\n>>> referenced by " + toString(file)}, 1);
+
+  std::vector<std::string> symbolLocations(locations.size());
+  size_t i = 0;
+  for (Location loc : locations) {
+    llvm::raw_string_ostream os(symbolLocations[i++]);
+    os << "\n>>> referenced by ";
+    if (!loc.fileLine.first.empty())
+      os << loc.fileLine.first << ":" << loc.fileLine.second
          << "\n>>>               ";
-    OS << toString(File);
-    if (Loc.Sym)
-      OS << ":(" << toString(*Loc.Sym) << ')';
+    os << toString(file);
+    if (loc.sym)
+      os << ":(" << toString(*loc.sym) << ')';
   }
-  return OS.str();
+  return std::make_pair(symbolLocations, numLocations);
 }
 
-void SymbolTable::loadMinGWAutomaticImports() {
-  for (auto &I : SymMap) {
-    Symbol *Sym = I.second;
-    auto *Undef = dyn_cast<Undefined>(Sym);
-    if (!Undef)
+std::vector<std::string> getSymbolLocations(ObjFile *file, uint32_t symIndex) {
+  return getSymbolLocations(file, symIndex, SIZE_MAX).first;
+}
+
+static std::pair<std::vector<std::string>, size_t>
+getSymbolLocations(InputFile *file, uint32_t symIndex, size_t maxStrings) {
+  if (auto *o = dyn_cast<ObjFile>(file))
+    return getSymbolLocations(o, symIndex, maxStrings);
+  if (auto *b = dyn_cast<BitcodeFile>(file)) {
+    std::vector<std::string> symbolLocations = getSymbolLocations(b);
+    size_t numLocations = symbolLocations.size();
+    if (symbolLocations.size() > maxStrings)
+      symbolLocations.resize(maxStrings);
+    return std::make_pair(symbolLocations, numLocations);
+  }
+  llvm_unreachable("unsupported file type passed to getSymbolLocations");
+  return std::make_pair(std::vector<std::string>(), (size_t)0);
+}
+
+// For an undefined symbol, stores all files referencing it and the index of
+// the undefined symbol in each file.
+struct UndefinedDiag {
+  Symbol *sym;
+  struct File {
+    InputFile *file;
+    uint32_t symIndex;
+  };
+  std::vector<File> files;
+};
+
+static void reportUndefinedSymbol(const UndefinedDiag &undefDiag) {
+  std::string out;
+  llvm::raw_string_ostream os(out);
+  os << "undefined symbol: " << toString(*undefDiag.sym);
+
+  const size_t maxUndefReferences = 3;
+  size_t numDisplayedRefs = 0, numRefs = 0;
+  for (const UndefinedDiag::File &ref : undefDiag.files) {
+    std::vector<std::string> symbolLocations;
+    size_t totalLocations = 0;
+    std::tie(symbolLocations, totalLocations) = getSymbolLocations(
+        ref.file, ref.symIndex, maxUndefReferences - numDisplayedRefs);
+
+    numRefs += totalLocations;
+    numDisplayedRefs += symbolLocations.size();
+    for (const std::string &s : symbolLocations) {
+      os << s;
+    }
+  }
+  if (numDisplayedRefs < numRefs)
+    os << "\n>>> referenced " << numRefs - numDisplayedRefs << " more times";
+  errorOrWarn(os.str());
+}
+
+void SymbolTable::loadMinGWSymbols() {
+  for (auto &i : symMap) {
+    Symbol *sym = i.second;
+    auto *undef = dyn_cast<Undefined>(sym);
+    if (!undef)
       continue;
-    if (!Sym->IsUsedInRegularObj)
+    if (undef->getWeakAlias())
       continue;
 
-    StringRef Name = Undef->getName();
+    StringRef name = undef->getName();
 
-    if (Name.startswith("__imp_"))
-      continue;
-    // If we have an undefined symbol, but we have a Lazy representing a
-    // symbol we could load from file, make sure to load that.
-    Lazy *L = dyn_cast_or_null<Lazy>(find(("__imp_" + Name).str()));
-    if (!L || L->PendingArchiveLoad)
-      continue;
+    if (config->machine == I386 && config->stdcallFixup) {
+      // Check if we can resolve an undefined decorated symbol by finding
+      // the intended target as an undecorated symbol (only with a leading
+      // underscore).
+      StringRef origName = name;
+      StringRef baseName = name;
+      // Trim down stdcall/fastcall/vectorcall symbols to the base name.
+      baseName = ltrim1(baseName, "_@");
+      baseName = baseName.substr(0, baseName.find('@'));
+      // Add a leading underscore, as it would be in cdecl form.
+      std::string newName = ("_" + baseName).str();
+      Symbol *l;
+      if (newName != origName && (l = find(newName)) != nullptr) {
+        // If we found a symbol and it is lazy; load it.
+        if (l->isLazy() && !l->pendingArchiveLoad) {
+          log("Loading lazy " + l->getName() + " from " +
+              l->getFile()->getName() + " for stdcall fixup");
+          forceLazy(l);
+        }
+        // If it's lazy or already defined, hook it up as weak alias.
+        if (l->isLazy() || isa<Defined>(l)) {
+          if (config->warnStdcallFixup)
+            warn("Resolving " + origName + " by linking to " + newName);
+          else
+            log("Resolving " + origName + " by linking to " + newName);
+          undef->weakAlias = l;
+          continue;
+        }
+      }
+    }
 
-    log("Loading lazy " + L->getName() + " from " + L->File->getName() +
-        " for automatic import");
-    L->PendingArchiveLoad = true;
-    L->File->addMember(&L->Sym);
+    if (config->autoImport) {
+      if (name.startswith("__imp_"))
+        continue;
+      // If we have an undefined symbol, but we have a lazy symbol we could
+      // load, load it.
+      Symbol *l = find(("__imp_" + name).str());
+      if (!l || l->pendingArchiveLoad || !l->isLazy())
+        continue;
+
+      log("Loading lazy " + l->getName() + " from " + l->getFile()->getName() +
+          " for automatic import");
+      forceLazy(l);
+    }
   }
 }
 
-bool SymbolTable::handleMinGWAutomaticImport(Symbol *Sym, StringRef Name) {
-  if (Name.startswith("__imp_"))
-    return false;
-  Defined *Imp = dyn_cast_or_null<Defined>(find(("__imp_" + Name).str()));
-  if (!Imp)
+Defined *SymbolTable::impSymbol(StringRef name) {
+  if (name.startswith("__imp_"))
+    return nullptr;
+  return dyn_cast_or_null<Defined>(find(("__imp_" + name).str()));
+}
+
+bool SymbolTable::handleMinGWAutomaticImport(Symbol *sym, StringRef name) {
+  Defined *imp = impSymbol(name);
+  if (!imp)
     return false;
 
   // Replace the reference directly to a variable with a reference
   // to the import address table instead. This obviously isn't right,
-  // but we mark the symbol as IsRuntimePseudoReloc, and a later pass
+  // but we mark the symbol as isRuntimePseudoReloc, and a later pass
   // will add runtime pseudo relocations for every relocation against
   // this Symbol. The runtime pseudo relocation framework expects the
   // reference itself to point at the IAT entry.
-  size_t ImpSize = 0;
-  if (isa<DefinedImportData>(Imp)) {
-    log("Automatically importing " + Name + " from " +
-        cast<DefinedImportData>(Imp)->getDLLName());
-    ImpSize = sizeof(DefinedImportData);
-  } else if (isa<DefinedRegular>(Imp)) {
-    log("Automatically importing " + Name + " from " +
-        toString(cast<DefinedRegular>(Imp)->File));
-    ImpSize = sizeof(DefinedRegular);
+  size_t impSize = 0;
+  if (isa<DefinedImportData>(imp)) {
+    log("Automatically importing " + name + " from " +
+        cast<DefinedImportData>(imp)->getDLLName());
+    impSize = sizeof(DefinedImportData);
+  } else if (isa<DefinedRegular>(imp)) {
+    log("Automatically importing " + name + " from " +
+        toString(cast<DefinedRegular>(imp)->file));
+    impSize = sizeof(DefinedRegular);
   } else {
-    warn("unable to automatically import " + Name + " from " + Imp->getName() +
-         " from " + toString(cast<DefinedRegular>(Imp)->File) +
+    warn("unable to automatically import " + name + " from " + imp->getName() +
+         " from " + toString(cast<DefinedRegular>(imp)->file) +
          "; unexpected symbol type");
     return false;
   }
-  Sym->replaceKeepingName(Imp, ImpSize);
-  Sym->IsRuntimePseudoReloc = true;
+  sym->replaceKeepingName(imp, impSize);
+  sym->isRuntimePseudoReloc = true;
 
   // There may exist symbols named .refptr.<name> which only consist
   // of a single pointer to <name>. If it turns out <name> is
   // automatically imported, we don't need to keep the .refptr.<name>
   // pointer at all, but redirect all accesses to it to the IAT entry
   // for __imp_<name> instead, and drop the whole .refptr.<name> chunk.
-  DefinedRegular *Refptr =
-      dyn_cast_or_null<DefinedRegular>(find((".refptr." + Name).str()));
-  if (Refptr && Refptr->getChunk()->getSize() == Config->Wordsize) {
-    SectionChunk *SC = dyn_cast_or_null<SectionChunk>(Refptr->getChunk());
-    if (SC && SC->getRelocs().size() == 1 && *SC->symbols().begin() == Sym) {
-      log("Replacing .refptr." + Name + " with " + Imp->getName());
-      Refptr->getChunk()->Live = false;
-      Refptr->replaceKeepingName(Imp, ImpSize);
+  DefinedRegular *refptr =
+      dyn_cast_or_null<DefinedRegular>(find((".refptr." + name).str()));
+  if (refptr && refptr->getChunk()->getSize() == config->wordsize) {
+    SectionChunk *sc = dyn_cast_or_null<SectionChunk>(refptr->getChunk());
+    if (sc && sc->getRelocs().size() == 1 && *sc->symbols().begin() == sym) {
+      log("Replacing .refptr." + name + " with " + imp->getName());
+      refptr->getChunk()->live = false;
+      refptr->replaceKeepingName(imp, impSize);
     }
   }
   return true;
 }
 
-void SymbolTable::reportRemainingUndefines() {
-  SmallPtrSet<Symbol *, 8> Undefs;
-  DenseMap<Symbol *, Symbol *> LocalImports;
+/// Helper function for reportUnresolvable and resolveRemainingUndefines.
+/// This function emits an "undefined symbol" diagnostic for each symbol in
+/// undefs. If localImports is not nullptr, it also emits a "locally
+/// defined symbol imported" diagnostic for symbols in localImports.
+/// objFiles and bitcodeFiles (if not nullptr) are used to report where
+/// undefined symbols are referenced.
+static void reportProblemSymbols(
+    const COFFLinkerContext &ctx, const SmallPtrSetImpl<Symbol *> &undefs,
+    const DenseMap<Symbol *, Symbol *> *localImports, bool needBitcodeFiles) {
+  // Return early if there is nothing to report (which should be
+  // the common case).
+  if (undefs.empty() && (!localImports || localImports->empty()))
+    return;
 
-  for (auto &I : SymMap) {
-    Symbol *Sym = I.second;
-    auto *Undef = dyn_cast<Undefined>(Sym);
-    if (!Undef)
+  for (Symbol *b : config->gcroot) {
+    if (undefs.count(b))
+      errorOrWarn("<root>: undefined symbol: " + toString(*b));
+    if (localImports)
+      if (Symbol *imp = localImports->lookup(b))
+        warn("<root>: locally defined symbol imported: " + toString(*imp) +
+             " (defined in " + toString(imp->getFile()) + ") [LNK4217]");
+  }
+
+  std::vector<UndefinedDiag> undefDiags;
+  DenseMap<Symbol *, int> firstDiag;
+
+  auto processFile = [&](InputFile *file, ArrayRef<Symbol *> symbols) {
+    uint32_t symIndex = (uint32_t)-1;
+    for (Symbol *sym : symbols) {
+      ++symIndex;
+      if (!sym)
+        continue;
+      if (undefs.count(sym)) {
+        auto it = firstDiag.find(sym);
+        if (it == firstDiag.end()) {
+          firstDiag[sym] = undefDiags.size();
+          undefDiags.push_back({sym, {{file, symIndex}}});
+        } else {
+          undefDiags[it->second].files.push_back({file, symIndex});
+        }
+      }
+      if (localImports)
+        if (Symbol *imp = localImports->lookup(sym))
+          warn(toString(file) +
+               ": locally defined symbol imported: " + toString(*imp) +
+               " (defined in " + toString(imp->getFile()) + ") [LNK4217]");
+    }
+  };
+
+  for (ObjFile *file : ctx.objFileInstances)
+    processFile(file, file->getSymbols());
+
+  if (needBitcodeFiles)
+    for (BitcodeFile *file : ctx.bitcodeFileInstances)
+      processFile(file, file->getSymbols());
+
+  for (const UndefinedDiag &undefDiag : undefDiags)
+    reportUndefinedSymbol(undefDiag);
+}
+
+void SymbolTable::reportUnresolvable() {
+  SmallPtrSet<Symbol *, 8> undefs;
+  for (auto &i : symMap) {
+    Symbol *sym = i.second;
+    auto *undef = dyn_cast<Undefined>(sym);
+    if (!undef || sym->deferUndefined)
       continue;
-    if (!Sym->IsUsedInRegularObj)
+    if (undef->getWeakAlias())
+      continue;
+    StringRef name = undef->getName();
+    if (name.startswith("__imp_")) {
+      Symbol *imp = find(name.substr(strlen("__imp_")));
+      if (imp && isa<Defined>(imp))
+        continue;
+    }
+    if (name.contains("_PchSym_"))
+      continue;
+    if (config->autoImport && impSymbol(name))
+      continue;
+    undefs.insert(sym);
+  }
+
+  reportProblemSymbols(ctx, undefs,
+                       /* localImports */ nullptr, true);
+}
+
+void SymbolTable::resolveRemainingUndefines() {
+  SmallPtrSet<Symbol *, 8> undefs;
+  DenseMap<Symbol *, Symbol *> localImports;
+
+  for (auto &i : symMap) {
+    Symbol *sym = i.second;
+    auto *undef = dyn_cast<Undefined>(sym);
+    if (!undef)
+      continue;
+    if (!sym->isUsedInRegularObj)
       continue;
 
-    StringRef Name = Undef->getName();
+    StringRef name = undef->getName();
 
     // A weak alias may have been resolved, so check for that.
-    if (Defined *D = Undef->getWeakAlias()) {
+    if (Defined *d = undef->getWeakAlias()) {
       // We want to replace Sym with D. However, we can't just blindly
       // copy sizeof(SymbolUnion) bytes from D to Sym because D may be an
       // internal symbol, and internal symbols are stored as "unparented"
       // Symbols. For that reason we need to check which type of symbol we
       // are dealing with and copy the correct number of bytes.
-      if (isa<DefinedRegular>(D))
-        memcpy(Sym, D, sizeof(DefinedRegular));
-      else if (isa<DefinedAbsolute>(D))
-        memcpy(Sym, D, sizeof(DefinedAbsolute));
+      if (isa<DefinedRegular>(d))
+        memcpy(sym, d, sizeof(DefinedRegular));
+      else if (isa<DefinedAbsolute>(d))
+        memcpy(sym, d, sizeof(DefinedAbsolute));
       else
-        memcpy(Sym, D, sizeof(SymbolUnion));
+        memcpy(sym, d, sizeof(SymbolUnion));
       continue;
     }
 
     // If we can resolve a symbol by removing __imp_ prefix, do that.
     // This odd rule is for compatibility with MSVC linker.
-    if (Name.startswith("__imp_")) {
-      Symbol *Imp = find(Name.substr(strlen("__imp_")));
-      if (Imp && isa<Defined>(Imp)) {
-        auto *D = cast<Defined>(Imp);
-        replaceSymbol<DefinedLocalImport>(Sym, Name, D);
-        LocalImportChunks.push_back(cast<DefinedLocalImport>(Sym)->getChunk());
-        LocalImports[Sym] = D;
+    if (name.startswith("__imp_")) {
+      Symbol *imp = find(name.substr(strlen("__imp_")));
+      if (imp && isa<Defined>(imp)) {
+        auto *d = cast<Defined>(imp);
+        replaceSymbol<DefinedLocalImport>(sym, name, d);
+        localImportChunks.push_back(cast<DefinedLocalImport>(sym)->getChunk());
+        localImports[sym] = d;
         continue;
       }
     }
 
     // We don't want to report missing Microsoft precompiled headers symbols.
     // A proper message will be emitted instead in PDBLinker::aquirePrecompObj
-    if (Name.contains("_PchSym_"))
+    if (name.contains("_PchSym_"))
       continue;
 
-    if (Config->MinGW && handleMinGWAutomaticImport(Sym, Name))
+    if (config->autoImport && handleMinGWAutomaticImport(sym, name))
       continue;
 
     // Remaining undefined symbols are not fatal if /force is specified.
     // They are replaced with dummy defined symbols.
-    if (Config->ForceUnresolved)
-      replaceSymbol<DefinedAbsolute>(Sym, Name, 0);
-    Undefs.insert(Sym);
+    if (config->forceUnresolved)
+      replaceSymbol<DefinedAbsolute>(sym, name, 0);
+    undefs.insert(sym);
   }
 
-  if (Undefs.empty() && LocalImports.empty())
-    return;
-
-  for (Symbol *B : Config->GCRoot) {
-    if (Undefs.count(B))
-      errorOrWarn("<root>: undefined symbol: " + toString(*B));
-    if (Config->WarnLocallyDefinedImported)
-      if (Symbol *Imp = LocalImports.lookup(B))
-        warn("<root>: locally defined symbol imported: " + toString(*Imp) +
-             " (defined in " + toString(Imp->getFile()) + ") [LNK4217]");
-  }
-
-  for (ObjFile *File : ObjFile::Instances) {
-    size_t SymIndex = (size_t)-1;
-    for (Symbol *Sym : File->getSymbols()) {
-      ++SymIndex;
-      if (!Sym)
-        continue;
-      if (Undefs.count(Sym))
-        errorOrWarn("undefined symbol: " + toString(*Sym) +
-                    getSymbolLocations(File, SymIndex));
-      if (Config->WarnLocallyDefinedImported)
-        if (Symbol *Imp = LocalImports.lookup(Sym))
-          warn(toString(File) +
-               ": locally defined symbol imported: " + toString(*Imp) +
-               " (defined in " + toString(Imp->getFile()) + ") [LNK4217]");
-    }
-  }
+  reportProblemSymbols(
+      ctx, undefs, config->warnLocallyDefinedImported ? &localImports : nullptr,
+      false);
 }
 
-std::pair<Symbol *, bool> SymbolTable::insert(StringRef Name) {
-  bool Inserted = false;
-  Symbol *&Sym = SymMap[CachedHashStringRef(Name)];
-  if (!Sym) {
-    Sym = reinterpret_cast<Symbol *>(make<SymbolUnion>());
-    Sym->IsUsedInRegularObj = false;
-    Sym->PendingArchiveLoad = false;
-    Inserted = true;
+std::pair<Symbol *, bool> SymbolTable::insert(StringRef name) {
+  bool inserted = false;
+  Symbol *&sym = symMap[CachedHashStringRef(name)];
+  if (!sym) {
+    sym = reinterpret_cast<Symbol *>(make<SymbolUnion>());
+    sym->isUsedInRegularObj = false;
+    sym->pendingArchiveLoad = false;
+    sym->canInline = true;
+    inserted = true;
   }
-  return {Sym, Inserted};
+  return {sym, inserted};
 }
 
-std::pair<Symbol *, bool> SymbolTable::insert(StringRef Name, InputFile *File) {
-  std::pair<Symbol *, bool> Result = insert(Name);
-  if (!File || !isa<BitcodeFile>(File))
-    Result.first->IsUsedInRegularObj = true;
-  return Result;
+std::pair<Symbol *, bool> SymbolTable::insert(StringRef name, InputFile *file) {
+  std::pair<Symbol *, bool> result = insert(name);
+  if (!file || !isa<BitcodeFile>(file))
+    result.first->isUsedInRegularObj = true;
+  return result;
 }
 
-Symbol *SymbolTable::addUndefined(StringRef Name, InputFile *F,
-                                  bool IsWeakAlias) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(Name, F);
-  if (WasInserted || (isa<Lazy>(S) && IsWeakAlias)) {
-    replaceSymbol<Undefined>(S, Name);
-    return S;
+Symbol *SymbolTable::addUndefined(StringRef name, InputFile *f,
+                                  bool isWeakAlias) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(name, f);
+  if (wasInserted || (s->isLazy() && isWeakAlias)) {
+    replaceSymbol<Undefined>(s, name);
+    return s;
   }
-  if (auto *L = dyn_cast<Lazy>(S)) {
-    if (!S->PendingArchiveLoad) {
-      S->PendingArchiveLoad = true;
-      L->File->addMember(&L->Sym);
-    }
-  }
-  return S;
+  if (s->isLazy())
+    forceLazy(s);
+  return s;
 }
 
-void SymbolTable::addLazy(ArchiveFile *F, const Archive::Symbol Sym) {
-  StringRef Name = Sym.getName();
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(Name);
-  if (WasInserted) {
-    replaceSymbol<Lazy>(S, F, Sym);
+void SymbolTable::addLazyArchive(ArchiveFile *f, const Archive::Symbol &sym) {
+  StringRef name = sym.getName();
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(name);
+  if (wasInserted) {
+    replaceSymbol<LazyArchive>(s, f, sym);
     return;
   }
-  auto *U = dyn_cast<Undefined>(S);
-  if (!U || U->WeakAlias || S->PendingArchiveLoad)
+  auto *u = dyn_cast<Undefined>(s);
+  if (!u || u->weakAlias || s->pendingArchiveLoad)
     return;
-  S->PendingArchiveLoad = true;
-  F->addMember(&Sym);
+  s->pendingArchiveLoad = true;
+  f->addMember(sym);
 }
 
-void SymbolTable::reportDuplicate(Symbol *Existing, InputFile *NewFile) {
-  std::string Msg = "duplicate symbol: " + toString(*Existing) + " in " +
-                    toString(Existing->getFile()) + " and in " +
-                    toString(NewFile);
+void SymbolTable::addLazyObject(InputFile *f, StringRef n) {
+  assert(f->lazy);
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n, f);
+  if (wasInserted) {
+    replaceSymbol<LazyObject>(s, f, n);
+    return;
+  }
+  auto *u = dyn_cast<Undefined>(s);
+  if (!u || u->weakAlias || s->pendingArchiveLoad)
+    return;
+  s->pendingArchiveLoad = true;
+  f->lazy = false;
+  addFile(f);
+}
 
-  if (Config->ForceMultiple)
-    warn(Msg);
+void SymbolTable::addLazyDLLSymbol(DLLFile *f, DLLFile::Symbol *sym,
+                                   StringRef n) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n);
+  if (wasInserted) {
+    replaceSymbol<LazyDLLSymbol>(s, f, sym, n);
+    return;
+  }
+  auto *u = dyn_cast<Undefined>(s);
+  if (!u || u->weakAlias || s->pendingArchiveLoad)
+    return;
+  s->pendingArchiveLoad = true;
+  f->makeImport(sym);
+}
+
+static std::string getSourceLocationBitcode(BitcodeFile *file) {
+  std::string res("\n>>> defined at ");
+  StringRef source = file->obj->getSourceFileName();
+  if (!source.empty())
+    res += source.str() + "\n>>>            ";
+  res += toString(file);
+  return res;
+}
+
+static std::string getSourceLocationObj(ObjFile *file, SectionChunk *sc,
+                                        uint32_t offset, StringRef name) {
+  Optional<std::pair<StringRef, uint32_t>> fileLine;
+  if (sc)
+    fileLine = getFileLine(sc, offset);
+  if (!fileLine)
+    fileLine = file->getVariableLocation(name);
+
+  std::string res;
+  llvm::raw_string_ostream os(res);
+  os << "\n>>> defined at ";
+  if (fileLine)
+    os << fileLine->first << ":" << fileLine->second << "\n>>>            ";
+  os << toString(file);
+  return os.str();
+}
+
+static std::string getSourceLocation(InputFile *file, SectionChunk *sc,
+                                     uint32_t offset, StringRef name) {
+  if (!file)
+    return "";
+  if (auto *o = dyn_cast<ObjFile>(file))
+    return getSourceLocationObj(o, sc, offset, name);
+  if (auto *b = dyn_cast<BitcodeFile>(file))
+    return getSourceLocationBitcode(b);
+  return "\n>>> defined at " + toString(file);
+}
+
+// Construct and print an error message in the form of:
+//
+//   lld-link: error: duplicate symbol: foo
+//   >>> defined at bar.c:30
+//   >>>            bar.o
+//   >>> defined at baz.c:563
+//   >>>            baz.o
+void SymbolTable::reportDuplicate(Symbol *existing, InputFile *newFile,
+                                  SectionChunk *newSc,
+                                  uint32_t newSectionOffset) {
+  std::string msg;
+  llvm::raw_string_ostream os(msg);
+  os << "duplicate symbol: " << toString(*existing);
+
+  DefinedRegular *d = dyn_cast<DefinedRegular>(existing);
+  if (d && isa<ObjFile>(d->getFile())) {
+    os << getSourceLocation(d->getFile(), d->getChunk(), d->getValue(),
+                            existing->getName());
+  } else {
+    os << getSourceLocation(existing->getFile(), nullptr, 0, "");
+  }
+  os << getSourceLocation(newFile, newSc, newSectionOffset,
+                          existing->getName());
+
+  if (config->forceMultiple)
+    warn(os.str());
   else
-    error(Msg);
+    error(os.str());
 }
 
-Symbol *SymbolTable::addAbsolute(StringRef N, COFFSymbolRef Sym) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(N, nullptr);
-  S->IsUsedInRegularObj = true;
-  if (WasInserted || isa<Undefined>(S) || isa<Lazy>(S))
-    replaceSymbol<DefinedAbsolute>(S, N, Sym);
-  else if (!isa<DefinedCOFF>(S))
-    reportDuplicate(S, nullptr);
-  return S;
+Symbol *SymbolTable::addAbsolute(StringRef n, COFFSymbolRef sym) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n, nullptr);
+  s->isUsedInRegularObj = true;
+  if (wasInserted || isa<Undefined>(s) || s->isLazy())
+    replaceSymbol<DefinedAbsolute>(s, n, sym);
+  else if (auto *da = dyn_cast<DefinedAbsolute>(s)) {
+    if (da->getVA() != sym.getValue())
+      reportDuplicate(s, nullptr);
+  } else if (!isa<DefinedCOFF>(s))
+    reportDuplicate(s, nullptr);
+  return s;
 }
 
-Symbol *SymbolTable::addAbsolute(StringRef N, uint64_t VA) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(N, nullptr);
-  S->IsUsedInRegularObj = true;
-  if (WasInserted || isa<Undefined>(S) || isa<Lazy>(S))
-    replaceSymbol<DefinedAbsolute>(S, N, VA);
-  else if (!isa<DefinedCOFF>(S))
-    reportDuplicate(S, nullptr);
-  return S;
+Symbol *SymbolTable::addAbsolute(StringRef n, uint64_t va) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n, nullptr);
+  s->isUsedInRegularObj = true;
+  if (wasInserted || isa<Undefined>(s) || s->isLazy())
+    replaceSymbol<DefinedAbsolute>(s, n, va);
+  else if (auto *da = dyn_cast<DefinedAbsolute>(s)) {
+    if (da->getVA() != va)
+      reportDuplicate(s, nullptr);
+  } else if (!isa<DefinedCOFF>(s))
+    reportDuplicate(s, nullptr);
+  return s;
 }
 
-Symbol *SymbolTable::addSynthetic(StringRef N, Chunk *C) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(N, nullptr);
-  S->IsUsedInRegularObj = true;
-  if (WasInserted || isa<Undefined>(S) || isa<Lazy>(S))
-    replaceSymbol<DefinedSynthetic>(S, N, C);
-  else if (!isa<DefinedCOFF>(S))
-    reportDuplicate(S, nullptr);
-  return S;
+Symbol *SymbolTable::addSynthetic(StringRef n, Chunk *c) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n, nullptr);
+  s->isUsedInRegularObj = true;
+  if (wasInserted || isa<Undefined>(s) || s->isLazy())
+    replaceSymbol<DefinedSynthetic>(s, n, c);
+  else if (!isa<DefinedCOFF>(s))
+    reportDuplicate(s, nullptr);
+  return s;
 }
 
-Symbol *SymbolTable::addRegular(InputFile *F, StringRef N,
-                                const coff_symbol_generic *Sym,
-                                SectionChunk *C) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(N, F);
-  if (WasInserted || !isa<DefinedRegular>(S))
-    replaceSymbol<DefinedRegular>(S, F, N, /*IsCOMDAT*/ false,
-                                  /*IsExternal*/ true, Sym, C);
+Symbol *SymbolTable::addRegular(InputFile *f, StringRef n,
+                                const coff_symbol_generic *sym, SectionChunk *c,
+                                uint32_t sectionOffset) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n, f);
+  if (wasInserted || !isa<DefinedRegular>(s))
+    replaceSymbol<DefinedRegular>(s, f, n, /*IsCOMDAT*/ false,
+                                  /*IsExternal*/ true, sym, c);
   else
-    reportDuplicate(S, F);
-  return S;
+    reportDuplicate(s, f, c, sectionOffset);
+  return s;
 }
 
 std::pair<DefinedRegular *, bool>
-SymbolTable::addComdat(InputFile *F, StringRef N,
-                       const coff_symbol_generic *Sym) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(N, F);
-  if (WasInserted || !isa<DefinedRegular>(S)) {
-    replaceSymbol<DefinedRegular>(S, F, N, /*IsCOMDAT*/ true,
-                                  /*IsExternal*/ true, Sym, nullptr);
-    return {cast<DefinedRegular>(S), true};
+SymbolTable::addComdat(InputFile *f, StringRef n,
+                       const coff_symbol_generic *sym) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n, f);
+  if (wasInserted || !isa<DefinedRegular>(s)) {
+    replaceSymbol<DefinedRegular>(s, f, n, /*IsCOMDAT*/ true,
+                                  /*IsExternal*/ true, sym, nullptr);
+    return {cast<DefinedRegular>(s), true};
   }
-  auto *ExistingSymbol = cast<DefinedRegular>(S);
-  if (!ExistingSymbol->isCOMDAT())
-    reportDuplicate(S, F);
-  return {ExistingSymbol, false};
+  auto *existingSymbol = cast<DefinedRegular>(s);
+  if (!existingSymbol->isCOMDAT)
+    reportDuplicate(s, f);
+  return {existingSymbol, false};
 }
 
-Symbol *SymbolTable::addCommon(InputFile *F, StringRef N, uint64_t Size,
-                               const coff_symbol_generic *Sym, CommonChunk *C) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(N, F);
-  if (WasInserted || !isa<DefinedCOFF>(S))
-    replaceSymbol<DefinedCommon>(S, F, N, Size, Sym, C);
-  else if (auto *DC = dyn_cast<DefinedCommon>(S))
-    if (Size > DC->getSize())
-      replaceSymbol<DefinedCommon>(S, F, N, Size, Sym, C);
-  return S;
+Symbol *SymbolTable::addCommon(InputFile *f, StringRef n, uint64_t size,
+                               const coff_symbol_generic *sym, CommonChunk *c) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n, f);
+  if (wasInserted || !isa<DefinedCOFF>(s))
+    replaceSymbol<DefinedCommon>(s, f, n, size, sym, c);
+  else if (auto *dc = dyn_cast<DefinedCommon>(s))
+    if (size > dc->getSize())
+      replaceSymbol<DefinedCommon>(s, f, n, size, sym, c);
+  return s;
 }
 
-Symbol *SymbolTable::addImportData(StringRef N, ImportFile *F) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(N, nullptr);
-  S->IsUsedInRegularObj = true;
-  if (WasInserted || isa<Undefined>(S) || isa<Lazy>(S)) {
-    replaceSymbol<DefinedImportData>(S, N, F);
-    return S;
+Symbol *SymbolTable::addImportData(StringRef n, ImportFile *f) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(n, nullptr);
+  s->isUsedInRegularObj = true;
+  if (wasInserted || isa<Undefined>(s) || s->isLazy()) {
+    replaceSymbol<DefinedImportData>(s, n, f);
+    return s;
   }
 
-  reportDuplicate(S, F);
+  reportDuplicate(s, f);
   return nullptr;
 }
 
-Symbol *SymbolTable::addImportThunk(StringRef Name, DefinedImportData *ID,
-                                    uint16_t Machine) {
-  Symbol *S;
-  bool WasInserted;
-  std::tie(S, WasInserted) = insert(Name, nullptr);
-  S->IsUsedInRegularObj = true;
-  if (WasInserted || isa<Undefined>(S) || isa<Lazy>(S)) {
-    replaceSymbol<DefinedImportThunk>(S, Name, ID, Machine);
-    return S;
+Symbol *SymbolTable::addImportThunk(StringRef name, DefinedImportData *id,
+                                    uint16_t machine) {
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(name, nullptr);
+  s->isUsedInRegularObj = true;
+  if (wasInserted || isa<Undefined>(s) || s->isLazy()) {
+    replaceSymbol<DefinedImportThunk>(s, name, id, machine);
+    return s;
   }
 
-  reportDuplicate(S, ID->File);
+  reportDuplicate(s, id->file);
   return nullptr;
 }
 
-std::vector<Chunk *> SymbolTable::getChunks() {
-  std::vector<Chunk *> Res;
-  for (ObjFile *File : ObjFile::Instances) {
-    ArrayRef<Chunk *> V = File->getChunks();
-    Res.insert(Res.end(), V.begin(), V.end());
+void SymbolTable::addLibcall(StringRef name) {
+  Symbol *sym = findUnderscore(name);
+  if (!sym)
+    return;
+
+  if (auto *l = dyn_cast<LazyArchive>(sym)) {
+    MemoryBufferRef mb = l->getMemberBuffer();
+    if (isBitcode(mb))
+      addUndefined(sym->getName());
+  } else if (LazyObject *o = dyn_cast<LazyObject>(sym)) {
+    if (isBitcode(o->file->mb))
+      addUndefined(sym->getName());
   }
-  return Res;
 }
 
-Symbol *SymbolTable::find(StringRef Name) {
-  return SymMap.lookup(CachedHashStringRef(Name));
-}
-
-Symbol *SymbolTable::findUnderscore(StringRef Name) {
-  if (Config->Machine == I386)
-    return find(("_" + Name).str());
-  return find(Name);
-}
-
-StringRef SymbolTable::findByPrefix(StringRef Prefix) {
-  for (auto Pair : SymMap) {
-    StringRef Name = Pair.first.val();
-    if (Name.startswith(Prefix))
-      return Name;
+std::vector<Chunk *> SymbolTable::getChunks() const {
+  std::vector<Chunk *> res;
+  for (ObjFile *file : ctx.objFileInstances) {
+    ArrayRef<Chunk *> v = file->getChunks();
+    res.insert(res.end(), v.begin(), v.end());
   }
-  return "";
+  return res;
 }
 
-StringRef SymbolTable::findMangle(StringRef Name) {
-  if (Symbol *Sym = find(Name))
-    if (!isa<Undefined>(Sym))
-      return Name;
-  if (Config->Machine != I386)
-    return findByPrefix(("?" + Name + "@@Y").str());
-  if (!Name.startswith("_"))
-    return "";
+Symbol *SymbolTable::find(StringRef name) const {
+  return symMap.lookup(CachedHashStringRef(name));
+}
+
+Symbol *SymbolTable::findUnderscore(StringRef name) const {
+  if (config->machine == I386)
+    return find(("_" + name).str());
+  return find(name);
+}
+
+// Return all symbols that start with Prefix, possibly ignoring the first
+// character of Prefix or the first character symbol.
+std::vector<Symbol *> SymbolTable::getSymsWithPrefix(StringRef prefix) {
+  std::vector<Symbol *> syms;
+  for (auto pair : symMap) {
+    StringRef name = pair.first.val();
+    if (name.startswith(prefix) || name.startswith(prefix.drop_front()) ||
+        name.drop_front().startswith(prefix) ||
+        name.drop_front().startswith(prefix.drop_front())) {
+      syms.push_back(pair.second);
+    }
+  }
+  return syms;
+}
+
+Symbol *SymbolTable::findMangle(StringRef name) {
+  if (Symbol *sym = find(name))
+    if (!isa<Undefined>(sym))
+      return sym;
+
+  // Efficient fuzzy string lookup is impossible with a hash table, so iterate
+  // the symbol table once and collect all possibly matching symbols into this
+  // vector. Then compare each possibly matching symbol with each possible
+  // mangling.
+  std::vector<Symbol *> syms = getSymsWithPrefix(name);
+  auto findByPrefix = [&syms](const Twine &t) -> Symbol * {
+    std::string prefix = t.str();
+    for (auto *s : syms)
+      if (s->getName().startswith(prefix))
+        return s;
+    return nullptr;
+  };
+
+  // For non-x86, just look for C++ functions.
+  if (config->machine != I386)
+    return findByPrefix("?" + name + "@@Y");
+
+  if (!name.startswith("_"))
+    return nullptr;
   // Search for x86 stdcall function.
-  StringRef S = findByPrefix((Name + "@").str());
-  if (!S.empty())
-    return S;
+  if (Symbol *s = findByPrefix(name + "@"))
+    return s;
   // Search for x86 fastcall function.
-  S = findByPrefix(("@" + Name.substr(1) + "@").str());
-  if (!S.empty())
-    return S;
+  if (Symbol *s = findByPrefix("@" + name.substr(1) + "@"))
+    return s;
   // Search for x86 vectorcall function.
-  S = findByPrefix((Name.substr(1) + "@@").str());
-  if (!S.empty())
-    return S;
+  if (Symbol *s = findByPrefix(name.substr(1) + "@@"))
+    return s;
   // Search for x86 C++ non-member function.
-  return findByPrefix(("?" + Name.substr(1) + "@@Y").str());
+  return findByPrefix("?" + name.substr(1) + "@@Y");
 }
 
-void SymbolTable::mangleMaybe(Symbol *B) {
-  auto *U = dyn_cast<Undefined>(B);
-  if (!U || U->WeakAlias)
-    return;
-  StringRef Alias = findMangle(U->getName());
-  if (!Alias.empty()) {
-    log(U->getName() + " aliased to " + Alias);
-    U->WeakAlias = addUndefined(Alias);
-  }
+Symbol *SymbolTable::addUndefined(StringRef name) {
+  return addUndefined(name, nullptr, false);
 }
 
-Symbol *SymbolTable::addUndefined(StringRef Name) {
-  return addUndefined(Name, nullptr, false);
-}
-
-std::vector<StringRef> SymbolTable::compileBitcodeFiles() {
-  LTO.reset(new BitcodeCompiler);
-  for (BitcodeFile *F : BitcodeFile::Instances)
-    LTO->add(*F);
-  return LTO->compile();
-}
-
-void SymbolTable::addCombinedLTOObjects() {
-  if (BitcodeFile::Instances.empty())
+void SymbolTable::compileBitcodeFiles() {
+  if (ctx.bitcodeFileInstances.empty())
     return;
 
-  ScopedTimer T(LTOTimer);
-  for (StringRef Object : compileBitcodeFiles()) {
-    auto *Obj = make<ObjFile>(MemoryBufferRef(Object, "lto.tmp"));
-    Obj->parse();
-    ObjFile::Instances.push_back(Obj);
+  ScopedTimer t(ctx.ltoTimer);
+  lto.reset(new BitcodeCompiler());
+  for (BitcodeFile *f : ctx.bitcodeFileInstances)
+    lto->add(*f);
+  for (InputFile *newObj : lto->compile(ctx)) {
+    ObjFile *obj = cast<ObjFile>(newObj);
+    obj->parse();
+    ctx.objFileInstances.push_back(obj);
   }
 }
 

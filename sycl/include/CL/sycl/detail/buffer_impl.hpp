@@ -8,389 +8,189 @@
 
 #pragma once
 
-#include <CL/cl.h>
+#include "CL/sycl/detail/pi.h"
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
-#include <CL/sycl/detail/sycl_mem_obj.hpp>
-#include <CL/sycl/handler.hpp>
+#include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <type_traits>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declarations
 template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
 class accessor;
-template <typename T, int Dimensions, typename AllocatorT> class buffer;
-class handler;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
+template <typename DataT, int Dimensions, access::mode AccessMode>
+class host_accessor;
 
-using buffer_allocator = aligned_allocator<char, /*Alignment*/64>;
+using buffer_allocator = detail::sycl_memory_object_allocator;
 
 namespace detail {
-using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
-using cl::sycl::detail::SYCLMemObjT;
+class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
+  using BaseT = SYCLMemObjT;
+  using typename BaseT::MemObjType;
 
-using cl::sycl::detail::MemoryManager;
-
-template <typename AllocatorT> class buffer_impl : public SYCLMemObjT {
 public:
-  buffer_impl(size_t SizeInBytes, const property_list &PropList,
-              AllocatorT Allocator = AllocatorT())
-      : buffer_impl((void *)nullptr, SizeInBytes, PropList, Allocator) {}
+  buffer_impl(size_t SizeInBytes, size_t, const property_list &Props,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
-  buffer_impl(void *HostData, size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
-      : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
-
-    if (!HostData)
-      return;
-
-    set_final_data(reinterpret_cast<char *>(HostData));
-    if (MProps.has_property<property::buffer::use_host_ptr>()) {
-      MUserPtr = HostData;
-      return;
-    }
-
-    // TODO: Reuse user's pointer if it has sufficient alignment.
-    MShadowCopy = allocateHostMem();
-    MUserPtr = MShadowCopy;
-    std::memcpy(MUserPtr, HostData, SizeInBytes);
+    if (Props.has_property<sycl::property::buffer::use_host_ptr>())
+      throw sycl::invalid_object_error(
+          "The use_host_ptr property requires host pointer to be provided",
+          PI_INVALID_OPERATION);
   }
 
-  buffer_impl(const void *HostData, size_t SizeInBytes,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : buffer_impl(const_cast<void *>(HostData), SizeInBytes, Props,
-                    Allocator) {
-    MHostPtrReadOnly = true;
+  buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
+
+    if (Props.has_property<
+            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
+      throw sycl::invalid_object_error(
+          "The use_pinned_host_memory cannot be used with host pointer",
+          PI_INVALID_OPERATION);
+
+    BaseT::handleHostData(HostData, RequiredAlign);
+  }
+
+  buffer_impl(const void *HostData, size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
+
+    if (Props.has_property<
+            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
+      throw sycl::invalid_object_error(
+          "The use_pinned_host_memory cannot be used with host pointer",
+          PI_INVALID_OPERATION);
+
+    BaseT::handleHostData(HostData, RequiredAlign);
   }
 
   template <typename T>
-  buffer_impl(const shared_ptr_class<T> &HostData, const size_t SizeInBytes,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
-    // HostData can be destructed by the user so need to make copy
-    MUserPtr = MShadowCopy = allocateHostMem();
+  buffer_impl(const std::shared_ptr<T> &HostData, const size_t SizeInBytes,
+              size_t RequiredAlign, const property_list &Props,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
-    std::copy(HostData.get(), HostData.get() + SizeInBytes / sizeof(T),
-              (T *)MUserPtr);
+    if (Props.has_property<
+            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
+      throw sycl::invalid_object_error(
+          "The use_pinned_host_memory cannot be used with host pointer",
+          PI_INVALID_OPERATION);
 
-    set_final_data(weak_ptr_class<T>(HostData));
+    BaseT::handleHostData(HostData, RequiredAlign);
   }
 
-  template <typename Iterator>
-  using GetTypeFromIterator = typename std::remove_pointer<
-      typename std::iterator_traits<Iterator>::pointer>;
-
-  template <typename Iterator>
-  using IsConstIterator =
-      typename std::is_const<typename GetTypeFromIterator<Iterator>::type>;
-
-  template <typename Iterator>
-  using EnableIfConstIterator =
-      typename std::enable_if<IsConstIterator<Iterator>::value, Iterator>::type;
-
-  template <typename Iterator>
+  template <typename T>
   using EnableIfNotConstIterator =
-      typename std::enable_if<!IsConstIterator<Iterator>::value,
-                              Iterator>::type;
+      enable_if_t<!iterator_to_const_type_t<T>::value, T>;
 
   template <class InputIterator>
   buffer_impl(EnableIfNotConstIterator<InputIterator> First, InputIterator Last,
-              const size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
-      : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
+              const size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
-    // TODO: There is contradiction is the spec. It says SYCL RT must not
-    // allocate additional memory on the host if use_host_ptr prop was passed.
-    // On the other hand it says that SYCL RT should allocate temporal memory in
-    // this c'tor.
+    if (Props.has_property<sycl::property::buffer::use_host_ptr>())
+      throw sycl::invalid_object_error(
+          "Buffer constructor from a pair of iterator values cannot have the "
+          "use_host_ptr property.",
+          PI_INVALID_OPERATION);
 
-    if (0) {
-      MUserPtr = MShadowCopy = allocateHostMem();
-    } else {
-      size_t AllocatorValueSize = sizeof(typename AllocatorT::value_type);
-      size_t AllocationSize = get_size() / AllocatorValueSize;
-      AllocationSize += (get_size() % AllocatorValueSize) ? 1 : 0;
-      MUserPtr = MShadowCopy = MAllocator.allocate(AllocationSize);
-    }
-
-    // We need to cast MUserPtr to pointer to the iteration type to get correct
-    // offset in std::copy when it will increment destination pointer.
-    auto *Ptr =
-        reinterpret_cast<typename std::iterator_traits<InputIterator>::pointer>(
-            MUserPtr);
-    std::copy(First, Last, Ptr);
-
-    // TODO: There is contradiction in the spec, in one place it says
-    // the data is not copied back at all if the buffer is construted
-    // using this c'tor, another section says that the data will be
-    // copied back if iterators passed are not const.
-    set_final_data(First);
+    BaseT::handleHostData(First, Last, RequiredAlign);
   }
+
+  template <typename T>
+  using EnableIfConstIterator =
+      enable_if_t<iterator_to_const_type_t<T>::value, T>;
 
   template <class InputIterator>
   buffer_impl(EnableIfConstIterator<InputIterator> First, InputIterator Last,
-              const size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
-      : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
+              const size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
-    // TODO: There is contradiction is the spec. It says SYCL RT must not
-    // allocate addtional memory on the host if use_host_ptr prop was passed. On
-    // the other hand it says that SYCL RT should allocate temporal memory in
-    // this c'tor.
-    //
+    if (Props.has_property<sycl::property::buffer::use_host_ptr>())
+      throw sycl::invalid_object_error(
+          "Buffer constructor from a pair of iterator values cannot have the "
+          "use_host_ptr property.",
+          PI_INVALID_OPERATION);
 
-    if (0) {
-      MUserPtr = MShadowCopy = allocateHostMem();
-    } else {
-      size_t AllocatorValueSize = sizeof(typename AllocatorT::value_type);
-      size_t AllocationSize = get_size() / AllocatorValueSize;
-      AllocationSize += (get_size() % AllocatorValueSize) ? 1 : 0;
-      MUserPtr = MShadowCopy = MAllocator.allocate(AllocationSize);
-    }
-
-    // We need to cast MUserPtr to pointer to the iteration type to get correct
-    // offset in std::copy when it will increment destination pointer.
-    using value = typename std::iterator_traits<InputIterator>::value_type;
-    auto *Ptr = reinterpret_cast<typename std::add_pointer<
-        typename std::remove_const<value>::type>::type>(MUserPtr);
-    std::copy(First, Last, Ptr);
+    BaseT::handleHostData(First, Last, RequiredAlign);
   }
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
-              const size_t SizeInBytes, event AvailableEvent = {})
-      : MInteropMemObject(MemObject), MOpenCLInterop(true),
-        MSizeInBytes(SizeInBytes),
-        MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
-        MInteropContext(detail::getSyclObjImpl(SyclContext)) {
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
+      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                    std::move(Allocator), /*OwnNativeHandle*/ true,
+                    std::move(AvailableEvent)) {}
 
-    if (MInteropContext->is_host())
-      throw cl::sycl::invalid_parameter_error(
-          "Creation of interoperability buffer using host context is not "
-          "allowed");
+  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              bool OwnNativeHandle, event AvailableEvent)
+      : BaseT(MemObject, SyclContext, OwnNativeHandle,
+              std::move(AvailableEvent), std::move(Allocator)) {}
 
-    cl_context Context = nullptr;
-    CHECK_OCL_CODE(clGetMemObjectInfo(MInteropMemObject, CL_MEM_CONTEXT,
-                                      sizeof(Context), &Context, nullptr));
-    if (MInteropContext->getHandleRef() != Context)
-      throw cl::sycl::invalid_parameter_error(
-          "Input context must be the same as the context of cl_mem");
-    CHECK_OCL_CODE(clRetainMemObject(MInteropMemObject));
-  }
+  // TODO: remove the following 2 constructors when it is allowed to break ABI.
+  buffer_impl(cl_mem MemObject, const context &SyclContext,
+              const size_t SizeInBytes,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
+      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                    SizeInBytes, std::move(Allocator),
+                    std::move(AvailableEvent)) {}
 
-  size_t get_size() const { return MSizeInBytes; }
-
-  void set_write_back(bool flag) { MNeedWriteBack = flag; }
-
-  AllocatorT get_allocator() const { return MAllocator; }
-
-  ~buffer_impl() {
-    if (MUploadDataFn != nullptr && MNeedWriteBack) {
-      MUploadDataFn();
-    }
-
-    Scheduler::getInstance().removeMemoryObject(this);
-    releaseHostMem(MShadowCopy);
-
-    if (MOpenCLInterop)
-      CHECK_OCL_CODE_NO_EXC(clReleaseMemObject(MInteropMemObject));
-  }
-
-  void set_final_data(std::nullptr_t) { MUploadDataFn = nullptr; }
-
-  template <typename T> void set_final_data(weak_ptr_class<T> FinalData) {
-    MUploadDataFn = [this, FinalData]() {
-      if (auto finalData = FinalData.lock()) {
-        void *TempPtr = finalData.get();
-        detail::Requirement AccImpl({0, 0, 0}, {MSizeInBytes, 1, 1},
-                                    {MSizeInBytes, 1, 1}, access::mode::read,
-                                    this, 1, sizeof(char));
-        AccImpl.MData = TempPtr;
-
-        detail::EventImplPtr Event =
-            Scheduler::getInstance().addCopyBack(&AccImpl);
-        if (Event)
-          Event->wait(Event);
-      }
-    };
-  }
-
-  template <template <typename T> class C, typename T>
-  void set_final_data(
-      C<T> FinalData,
-      typename std::enable_if<
-          std::is_convertible<C<T>, weak_ptr_class<T>>::value>::type * = 0) {
-    weak_ptr_class<T> WeakFinalData(FinalData);
-    set_final_data(WeakFinalData);
-  }
-
-  template <typename Destination>
-  void set_final_data(
-      Destination FinalData,
-      typename std::enable_if<std::is_pointer<Destination>::value>::type * =
-          0) {
-    static_assert(!std::is_const<Destination>::value,
-                  "Сan not write in a constant Destination. Destination should "
-                  "not be const.");
-    MUploadDataFn = [this, FinalData]() mutable {
-
-      detail::Requirement AccImpl({0, 0, 0}, {MSizeInBytes, 1, 1},
-                                  {MSizeInBytes, 1, 1}, access::mode::read,
-                                  this, 1, sizeof(char));
-      AccImpl.MData = FinalData;
-
-      detail::EventImplPtr Event =
-          Scheduler::getInstance().addCopyBack(&AccImpl);
-      if (Event)
-        Event->wait(Event);
-    };
-  }
-
-  template <typename Destination>
-  void set_final_data(
-      Destination FinalData,
-      typename std::enable_if<!std::is_pointer<Destination>::value>::type * =
-          0) {
-    static_assert(!std::is_const<Destination>::value,
-                  "Сan not write in a constant Destination. Destination should "
-                  "not be const.");
-    MUploadDataFn = [this, FinalData]() mutable {
-      using FinalDataType =
-          typename std::iterator_traits<Destination>::value_type;
-
-      // addCopyBack method expects consecutive memory while iterator
-      // passed can point to non consecutive one.
-      // Can be optmized if iterator papssed is consecutive one.
-      std::vector<FinalDataType> TempBuffer(MSizeInBytes /
-                                            sizeof(FinalDataType));
-      void *TempPtr = TempBuffer.data();
-
-      detail::Requirement AccImpl({0, 0, 0}, {MSizeInBytes, 1, 1},
-                                  {MSizeInBytes, 1, 1}, access::mode::read,
-                                  this, 1, sizeof(char));
-      AccImpl.MData = TempPtr;
-
-      detail::EventImplPtr Event =
-          Scheduler::getInstance().addCopyBack(&AccImpl);
-      if (Event) {
-        Event->wait(Event);
-        std::copy(TempBuffer.begin(), TempBuffer.end(), FinalData);
-      }
-    };
-  }
-
-  template <typename T, int Dimensions, access::mode Mode,
-            access::target Target = access::target::global_buffer>
-  accessor<T, Dimensions, Mode, Target, access::placeholder::false_t>
-  get_access(buffer<T, Dimensions, AllocatorT> &Buffer,
-             handler &CommandGroupHandler) {
-    return accessor<T, Dimensions, Mode, Target, access::placeholder::false_t>(
-        Buffer, CommandGroupHandler);
-  }
-
-  template <typename T, int Dimensions, access::mode Mode>
-  accessor<T, Dimensions, Mode, access::target::host_buffer,
-           access::placeholder::false_t>
-  get_access(buffer<T, Dimensions, AllocatorT> &Buffer) {
-    return accessor<T, Dimensions, Mode, access::target::host_buffer,
-                    access::placeholder::false_t>(Buffer);
-  }
-
-  template <typename T, int dimensions, access::mode mode,
-            access::target target = access::target::global_buffer>
-  accessor<T, dimensions, mode, target, access::placeholder::false_t>
-  get_access(buffer<T, dimensions, AllocatorT> &Buffer,
-             handler &commandGroupHandler, range<dimensions> accessRange,
-             id<dimensions> accessOffset) {
-    return accessor<T, dimensions, mode, target, access::placeholder::false_t>(
-        Buffer, commandGroupHandler, accessRange, accessOffset);
-  }
-
-  template <typename T, int dimensions, access::mode mode>
-  accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t>
-  get_access(buffer<T, dimensions, AllocatorT> &Buffer,
-             range<dimensions> accessRange, id<dimensions> accessOffset) {
-    return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t>(Buffer, accessRange,
-                                                  accessOffset);
-  }
-
-  void *allocateHostMem() override {
-    assert(
-        !MProps.has_property<property::buffer::use_host_ptr>() &&
-        "Cannot allocate additional memory if use_host_ptr property is set.");
-    size_t AllocatorValueSize = sizeof(typename AllocatorT::value_type);
-    size_t AllocationSize = get_size() / AllocatorValueSize;
-    AllocationSize += (get_size() % AllocatorValueSize) ? 1 : 0;
-    return MAllocator.allocate(AllocationSize);
-  }
+  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
+              const size_t SizeInBytes,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
+      : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
+              std::move(Allocator)) {}
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    cl_event &OutEventToWait) override {
+                    void *HostPtr, RT::PiEvent &OutEventToWait) override;
+  void constructorNotification(const detail::code_location &CodeLoc,
+                               void *UserObj, const void *HostObj,
+                               const void *Type, uint32_t Dim,
+                               uint32_t ElemType, size_t Range[3]);
+  // TODO: remove once ABI break is allowed
+  void constructorNotification(const detail::code_location &CodeLoc,
+                               void *UserObj);
+  void destructorNotification(void *UserObj);
 
-    void *UserPtr = InitFromUserData ? getUserPtr() : nullptr;
+  MemObjType getType() const override { return MemObjType::Buffer; }
 
-    return MemoryManager::allocateMemBuffer(
-        std::move(Context), this, UserPtr, MHostPtrReadOnly, get_size(),
-        MInteropEvent, MInteropContext, OutEventToWait);
+  ~buffer_impl() {
+    try {
+      BaseT::updateHostMemory();
+    } catch (...) {
+    }
+    destructorNotification(this);
   }
 
-  MemObjType getType() const override { return MemObjType::BUFFER; }
-
-  void releaseHostMem(void *Ptr) override {
-    MAllocator.deallocate((typename AllocatorT::pointer)Ptr, get_size());
-  }
-
-  void releaseMem(ContextImplPtr Context, void *MemAllocation) override {
-    return MemoryManager::releaseMemBuf(Context, this, MemAllocation,
-                                        getUserPtr());
-  }
-
-  void *getUserPtr() const {
-    return MOpenCLInterop ? (void *)MInteropMemObject : MUserPtr;
-  }
-
-  template <typename propertyT> bool has_property() const {
-    return MProps.has_property<propertyT>();
-  }
-
-  template <typename propertyT> propertyT get_property() const {
-    return MProps.get_property<propertyT>();
-  }
-
-private:
-  bool MOpenCLInterop = false;
-  bool MHostPtrReadOnly = false;
-
-  bool MNeedWriteBack = true;
-
-  EventImplPtr MInteropEvent;
-  ContextImplPtr MInteropContext;
-  cl_mem MInteropMemObject = nullptr;
-
-  void *MUserPtr = nullptr;
-  void *MShadowCopy = nullptr;
-  size_t MSizeInBytes = 0;
-
-  property_list MProps;
-  std::function<void(void)> MUploadDataFn = nullptr;
-  AllocatorT MAllocator;
+  void resize(size_t size) { BaseT::MSizeInBytes = size; }
 };
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

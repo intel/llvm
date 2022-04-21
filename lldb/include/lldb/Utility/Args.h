@@ -14,6 +14,7 @@
 #include "lldb/lldb-types.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/YAMLTraits.h"
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,7 +35,11 @@ public:
   struct ArgEntry {
   private:
     friend class Args;
+    friend struct llvm::yaml::MappingTraits<Args>;
+    friend struct llvm::yaml::MappingTraits<Args::ArgEntry>;
+
     std::unique_ptr<char[]> ptr;
+    char quote;
 
     char *data() { return ptr.get(); }
 
@@ -42,12 +47,12 @@ public:
     ArgEntry() = default;
     ArgEntry(llvm::StringRef str, char quote);
 
-    llvm::StringRef ref;
-    char quote;
+    llvm::StringRef ref() const { return c_str(); }
     const char *c_str() const { return ptr.get(); }
 
     /// Returns true if this argument was quoted in any way.
     bool IsQuoted() const { return quote != '\0'; }
+    char GetQuoteChar() const { return quote; }
   };
 
   /// Construct with an option command string.
@@ -61,6 +66,7 @@ public:
 
   Args(const Args &rhs);
   explicit Args(const StringList &list);
+  explicit Args(llvm::ArrayRef<llvm::StringRef> args);
 
   Args &operator=(const Args &rhs);
 
@@ -109,7 +115,8 @@ public:
   ///
   /// \return
   ///     The number or arguments in this object.
-  size_t GetArgumentCount() const;
+  size_t GetArgumentCount() const { return m_entries.size(); }
+
   bool empty() const { return GetArgumentCount() == 0; }
 
   /// Gets the NULL terminated C string argument pointer for the argument at
@@ -121,7 +128,6 @@ public:
   const char *GetArgumentAtIndex(size_t idx) const;
 
   llvm::ArrayRef<ArgEntry> entries() const { return m_entries; }
-  char GetArgumentQuoteCharAtIndex(size_t idx) const;
 
   using const_iterator = std::vector<ArgEntry>::const_iterator;
 
@@ -168,8 +174,8 @@ public:
 
   /// Appends a new argument to the end of the list argument list.
   ///
-  /// \param[in] arg_cstr
-  ///     The new argument as a NULL terminated C string.
+  /// \param[in] arg_str
+  ///     The new argument.
   ///
   /// \param[in] quote_char
   ///     If the argument was originally quoted, put in the quote char here.
@@ -179,30 +185,27 @@ public:
 
   void AppendArguments(const char **argv);
 
-  /// Insert the argument value at index \a idx to \a arg_cstr.
+  /// Insert the argument value at index \a idx to \a arg_str.
   ///
   /// \param[in] idx
   ///     The index of where to insert the argument.
   ///
-  /// \param[in] arg_cstr
-  ///     The new argument as a NULL terminated C string.
+  /// \param[in] arg_str
+  ///     The new argument.
   ///
   /// \param[in] quote_char
   ///     If the argument was originally quoted, put in the quote char here.
-  ///
-  /// \return
-  ///     The NULL terminated C string of the copy of \a arg_cstr.
   void InsertArgumentAtIndex(size_t idx, llvm::StringRef arg_str,
                              char quote_char = '\0');
 
-  /// Replaces the argument value at index \a idx to \a arg_cstr if \a idx is
+  /// Replaces the argument value at index \a idx to \a arg_str if \a idx is
   /// a valid argument index.
   ///
   /// \param[in] idx
   ///     The index of the argument that will have its value replaced.
   ///
-  /// \param[in] arg_cstr
-  ///     The new argument as a NULL terminated C string.
+  /// \param[in] arg_str
+  ///     The new argument.
   ///
   /// \param[in] quote_char
   ///     If the argument was originally quoted, put in the quote char here.
@@ -238,55 +241,22 @@ public:
   /// \see Args::GetArgumentAtIndex (size_t) const
   void Shift();
 
-  /// Inserts a class owned copy of \a arg_cstr at the beginning of the
+  /// Inserts a class owned copy of \a arg_str at the beginning of the
   /// argument vector.
   ///
-  /// A copy \a arg_cstr will be made.
+  /// A copy \a arg_str will be made.
   ///
-  /// \param[in] arg_cstr
+  /// \param[in] arg_str
   ///     The argument to push on the front of the argument stack.
   ///
   /// \param[in] quote_char
   ///     If the argument was originally quoted, put in the quote char here.
   void Unshift(llvm::StringRef arg_str, char quote_char = '\0');
 
-  // Clear the arguments.
-  //
-  // For re-setting or blanking out the list of arguments.
+  /// Clear the arguments.
+  ///
+  /// For re-setting or blanking out the list of arguments.
   void Clear();
-
-  static const char *StripSpaces(std::string &s, bool leading = true,
-                                 bool trailing = true,
-                                 bool return_null_if_empty = true);
-
-  static bool UInt64ValueIsValidForByteSize(uint64_t uval64,
-                                            size_t total_byte_size) {
-    if (total_byte_size > 8)
-      return false;
-
-    if (total_byte_size == 8)
-      return true;
-
-    const uint64_t max = (static_cast<uint64_t>(1)
-                          << static_cast<uint64_t>(total_byte_size * 8)) -
-                         1;
-    return uval64 <= max;
-  }
-
-  static bool SInt64ValueIsValidForByteSize(int64_t sval64,
-                                            size_t total_byte_size) {
-    if (total_byte_size > 8)
-      return false;
-
-    if (total_byte_size == 8)
-      return true;
-
-    const int64_t max = (static_cast<int64_t>(1)
-                         << static_cast<uint64_t>(total_byte_size * 8 - 1)) -
-                        1;
-    const int64_t min = ~(max);
-    return min <= sval64 && sval64 <= max;
-  }
 
   static lldb::Encoding
   StringToEncoding(llvm::StringRef s,
@@ -294,32 +264,36 @@ public:
 
   static uint32_t StringToGenericRegister(llvm::StringRef s);
 
-  static const char *GetShellSafeArgument(const FileSpec &shell,
-                                          const char *unsafe_arg,
-                                          std::string &safe_arg);
+  static std::string GetShellSafeArgument(const FileSpec &shell,
+                                          llvm::StringRef unsafe_arg);
 
-  // EncodeEscapeSequences will change the textual representation of common
-  // escape sequences like "\n" (two characters) into a single '\n'. It does
-  // this for all of the supported escaped sequences and for the \0ooo (octal)
-  // and \xXX (hex). The resulting "dst" string will contain the character
-  // versions of all supported escape sequences. The common supported escape
-  // sequences are: "\a", "\b", "\f", "\n", "\r", "\t", "\v", "\'", "\"", "\\".
-
+  /// EncodeEscapeSequences will change the textual representation of common
+  /// escape sequences like "\n" (two characters) into a single '\n'. It does
+  /// this for all of the supported escaped sequences and for the \0ooo (octal)
+  /// and \xXX (hex). The resulting "dst" string will contain the character
+  /// versions of all supported escape sequences. The common supported escape
+  /// sequences are: "\a", "\b", "\f", "\n", "\r", "\t", "\v", "\'", "\"", "\\".
   static void EncodeEscapeSequences(const char *src, std::string &dst);
 
-  // ExpandEscapeSequences will change a string of possibly non-printable
-  // characters and expand them into text. So '\n' will turn into two
-  // characters like "\n" which is suitable for human reading. When a character
-  // is not printable and isn't one of the common in escape sequences listed in
-  // the help for EncodeEscapeSequences, then it will be encoded as octal.
-  // Printable characters are left alone.
+  /// ExpandEscapeSequences will change a string of possibly non-printable
+  /// characters and expand them into text. So '\n' will turn into two
+  /// characters like "\n" which is suitable for human reading. When a character
+  /// is not printable and isn't one of the common in escape sequences listed in
+  /// the help for EncodeEscapeSequences, then it will be encoded as octal.
+  /// Printable characters are left alone.
   static void ExpandEscapedCharacters(const char *src, std::string &dst);
 
   static std::string EscapeLLDBCommandArgument(const std::string &arg,
                                                char quote_char);
 
 private:
+  friend struct llvm::yaml::MappingTraits<Args>;
+
   std::vector<ArgEntry> m_entries;
+  /// The arguments as C strings with a trailing nullptr element.
+  ///
+  /// These strings are owned by the ArgEntry object in m_entries with the
+  /// same index.
   std::vector<char *> m_argv;
 };
 
@@ -408,5 +382,29 @@ private:
 };
 
 } // namespace lldb_private
+
+namespace llvm {
+namespace yaml {
+template <> struct MappingTraits<lldb_private::Args::ArgEntry> {
+  class NormalizedArgEntry {
+  public:
+    NormalizedArgEntry(IO &) {}
+    NormalizedArgEntry(IO &, lldb_private::Args::ArgEntry &entry)
+        : value(entry.ref()), quote(entry.quote) {}
+    lldb_private::Args::ArgEntry denormalize(IO &) {
+      return lldb_private::Args::ArgEntry(value, quote);
+    }
+    StringRef value;
+    uint8_t quote;
+  };
+  static void mapping(IO &io, lldb_private::Args::ArgEntry &v);
+};
+template <> struct MappingTraits<lldb_private::Args> {
+  static void mapping(IO &io, lldb_private::Args &v);
+};
+} // namespace yaml
+} // namespace llvm
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(lldb_private::Args::ArgEntry)
 
 #endif // LLDB_UTILITY_ARGS_H

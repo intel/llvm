@@ -1,18 +1,11 @@
 #include <clc/clc.h>
-#include "../clcmacro.h"
+#include <spirv/spirv.h>
+
+#include <clcmacro.h>
 
 #define SIGN(TYPE, F) \
 _CLC_DEF _CLC_OVERLOAD TYPE sign(TYPE x) { \
-  if (isnan(x)) { \
-    return 0.0F;   \
-  }               \
-  if (x > 0.0F) { \
-    return 1.0F;  \
-  }               \
-  if (x < 0.0F) { \
-    return -1.0F; \
-  }               \
-  return x; /* -0.0 or +0.0 */  \
+  return __spirv_ocl_sign(x); \
 }
 
 SIGN(float, f)

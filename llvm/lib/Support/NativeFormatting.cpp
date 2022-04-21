@@ -7,13 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/NativeFormatting.h"
-
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
-
-#include <float.h>
+#include "llvm/Support/MathExtras.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -89,7 +88,7 @@ static void write_signed(raw_ostream &S, T N, size_t MinDigits,
                          IntegerStyle Style) {
   static_assert(std::is_signed<T>::value, "Value is not signed!");
 
-  using UnsignedT = typename std::make_unsigned<T>::type;
+  using UnsignedT = std::make_unsigned_t<T>;
 
   if (N >= 0) {
     write_unsigned(S, static_cast<UnsignedT>(N), MinDigits, Style);
@@ -168,7 +167,7 @@ void llvm::write_double(raw_ostream &S, double N, FloatStyle Style,
     S << "nan";
     return;
   } else if (std::isinf(N)) {
-    S << "INF";
+    S << (std::signbit(N) ? "-INF" : "INF");
     return;
   }
 
@@ -259,5 +258,5 @@ size_t llvm::getDefaultPrecision(FloatStyle Style) {
   case FloatStyle::Percent:
     return 2; // Number of decimal places.
   }
-  LLVM_BUILTIN_UNREACHABLE;
+  llvm_unreachable("Unknown FloatStyle enum");
 }

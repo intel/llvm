@@ -1,4 +1,4 @@
-//===-- DynamicLoader.cpp ---------------------------------------*- C++ -*-===//
+//===-- DynamicLoader.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,19 +24,17 @@
 
 #include <memory>
 
-#include <assert.h>
+#include <cassert>
 
 using namespace lldb;
 using namespace lldb_private;
 
 DynamicLoader *DynamicLoader::FindPlugin(Process *process,
-                                         const char *plugin_name) {
+                                         llvm::StringRef plugin_name) {
   DynamicLoaderCreateInstance create_callback = nullptr;
-  if (plugin_name) {
-    ConstString const_plugin_name(plugin_name);
+  if (!plugin_name.empty()) {
     create_callback =
-        PluginManager::GetDynamicLoaderCreateCallbackForPluginName(
-            const_plugin_name);
+        PluginManager::GetDynamicLoaderCreateCallbackForPluginName(plugin_name);
     if (create_callback) {
       std::unique_ptr<DynamicLoader> instance_up(
           create_callback(process, true));
@@ -59,8 +57,6 @@ DynamicLoader *DynamicLoader::FindPlugin(Process *process,
 }
 
 DynamicLoader::DynamicLoader(Process *process) : m_process(process) {}
-
-DynamicLoader::~DynamicLoader() = default;
 
 // Accessosors to the global setting as to whether to stop at image (shared
 // library) loading/unloading.
@@ -193,7 +189,7 @@ ModuleSP DynamicLoader::LoadModuleAtAddress(const FileSpec &file,
     if (error.Success() && memory_info.GetMapped() &&
         memory_info.GetRange().GetRangeBase() == base_addr && 
         !(memory_info.GetName().IsEmpty())) {
-      ModuleSpec new_module_spec(FileSpec(memory_info.GetName().AsCString()),
+      ModuleSpec new_module_spec(FileSpec(memory_info.GetName().GetStringRef()),
                                  target.GetArchitecture());
 
       if ((module_sp = modules.FindFirstModule(new_module_spec))) {

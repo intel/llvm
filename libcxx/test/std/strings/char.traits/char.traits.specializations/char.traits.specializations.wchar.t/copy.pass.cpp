@@ -12,10 +12,14 @@
 
 // static char_type* copy(char_type* s1, const char_type* s2, size_t n);
 
+// UNSUPPORTED: libcpp-has-no-wide-characters
+
 #include <string>
 #include <cassert>
 
-int main(int, char**)
+#include "test_macros.h"
+
+TEST_CONSTEXPR_CXX20 bool test()
 {
     wchar_t s1[] = {1, 2, 3};
     wchar_t s2[3] = {0};
@@ -25,6 +29,17 @@ int main(int, char**)
     assert(s2[2] == wchar_t(3));
     assert(std::char_traits<wchar_t>::copy(NULL, s1, 0) == NULL);
     assert(std::char_traits<wchar_t>::copy(s1, NULL, 0) == s1);
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+
+#if TEST_STD_VER > 17
+  static_assert(test());
+#endif
 
   return 0;
 }

@@ -8,6 +8,7 @@ add_lldb_library(lldbBreakpoint
   BreakpointLocationList.cpp
   BreakpointName.cpp
   BreakpointOptions.cpp
+  BreakpointPrecondition.cpp
   BreakpointResolver.cpp
   BreakpointResolverAddress.cpp
   BreakpointResolverFileLine.cpp
@@ -18,7 +19,7 @@ add_lldb_library(lldbBreakpoint
   BreakpointSiteList.cpp
   Stoppoint.cpp
   StoppointCallbackContext.cpp
-  StoppointLocation.cpp
+  StoppointSite.cpp
   Watchpoint.cpp
   WatchpointList.cpp
   WatchpointOptions.cpp

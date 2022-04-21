@@ -1,4 +1,4 @@
-// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readobj -S | FileCheck %s
+// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readobj -S - | FileCheck %s
 // RUN: llvm-mc -filetype=asm -triple x86_64-pc-linux-gnu %s -o - |  FileCheck %s --check-prefix=ASM
 
 // Test that these names are accepted.
@@ -304,5 +304,17 @@ bar:
 // CHECK-NEXT:   Flags [
 // CHECK-NEXT:       SHF_MERGE
 // CHECK-NEXT:       SHF_STRINGS
+// CHECK-NEXT:   ]
+// CHECK: }
+
+// Test SHT_LLVM_SYMPART
+
+.section .llvm_sympart,"",@llvm_sympart
+// ASM: .section .llvm_sympart,"",@llvm_sympart
+
+// CHECK: Section {
+// CHECK:   Name: .llvm_sympart
+// CHECK-NEXT:   Type: SHT_LLVM_SYMPART
+// CHECK-NEXT:   Flags [
 // CHECK-NEXT:   ]
 // CHECK: }

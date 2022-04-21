@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Block_h_
-#define liblldb_Block_h_
+#ifndef LLDB_SYMBOL_BLOCK_H
+#define LLDB_SYMBOL_BLOCK_H
 
 #include "lldb/Core/AddressRange.h"
 #include "lldb/Symbol/CompilerType.h"
@@ -40,7 +40,7 @@ namespace lldb_private {
 /// blocks.
 class Block : public UserID, public SymbolContextScope {
 public:
-  typedef RangeArray<uint32_t, uint32_t, 1> RangeList;
+  typedef RangeVector<uint32_t, uint32_t, 1> RangeList;
   typedef RangeList::Entry Range;
 
   /// Construct with a User ID \a uid, \a depth.
@@ -57,12 +57,6 @@ public:
   ///     depth parsing. Common values would be the index into a
   ///     table, or an offset into the debug information.
   ///
-  /// \param[in] depth
-  ///     The integer depth of this block in the block list hierarchy.
-  ///
-  /// \param[in] block_list
-  ///     The block list that this object belongs to.
-  ///
   /// \see BlockList
   Block(lldb::user_id_t uid);
 
@@ -77,14 +71,6 @@ public:
   void AddChild(const lldb::BlockSP &child_block_sp);
 
   /// Add a new offset range to this block.
-  ///
-  /// \param[in] start_offset
-  ///     An offset into this Function's address range that
-  ///     describes the start address of a range for this block.
-  ///
-  /// \param[in] end_offset
-  ///     An offset into this Function's address range that
-  ///     describes the end address of a range for this block.
   void AddRange(const Range &range);
 
   void FinalizeRanges();
@@ -232,10 +218,6 @@ public:
   /// Get the variable list for this block and optionally all child blocks if
   /// \a get_child_variables is \b true.
   ///
-  /// \param[in] get_child_variables
-  ///     If \b true, all variables from all child blocks will be
-  ///     added to the variable list.
-  ///
   /// \param[in] can_create
   ///     If \b true, the variables can be parsed if they already
   ///     haven't been, else the current state of the block will be
@@ -243,11 +225,9 @@ public:
   ///     to see the current state of what has been parsed up to this
   ///     point.
   ///
-  /// \param[in] add_inline_child_block_variables
-  ///     If this is \b false, no child variables of child blocks
-  ///     that are inlined functions will be gotten. If \b true then
-  ///     all child variables will be added regardless of whether they
-  ///     come from inlined functions or not.
+  /// \param[in] get_child_block_variables
+  ///     If \b true, all variables from all child blocks will be
+  ///     added to the variable list.
   ///
   /// \return
   ///     A variable list shared pointer that contains all variables
@@ -358,6 +338,8 @@ public:
 
   Block *FindBlockByID(lldb::user_id_t block_id);
 
+  Block *FindInnermostBlockByOffset(const lldb::addr_t offset);
+
   size_t GetNumRanges() const { return m_ranges.GetSize(); }
 
   bool GetRangeContainingOffset(const lldb::addr_t offset, Range &range);
@@ -396,9 +378,10 @@ protected:
   Block *GetSiblingForChild(const Block *child_block) const;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(Block);
+  Block(const Block &) = delete;
+  const Block &operator=(const Block &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Block_h_
+#endif // LLDB_SYMBOL_BLOCK_H

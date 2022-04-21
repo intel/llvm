@@ -4,11 +4,13 @@
 ; but the original issue only reproduced if the cbz was immediately
 ; after the frame setup.)
 
-; CHECK:      sub     sp, sp, #32
-; CHECK-NEXT: stp     x29, x30, [sp, #16]
-; CHECK-NEXT: add     x29, sp, #16
+; CHECK: stp     x29, x30, [sp, #-32]!
+; CHECK-NEXT: .seh_save_fplr_x 32
+; CHECK-NEXT: mov     x29, sp
+; CHECK-NEXT: .seh_set_fp
+; CHECK-NEXT: .seh_endprologue
 ; CHECK-NEXT: mov     x1, #-2
-; CHECK-NEXT: stur    x1, [x29, #-16]
+; CHECK-NEXT: stur    x1, [x29, #16]
 ; CHECK-NEXT: cbz     w0, .LBB0_2
 
 target datalayout = "e-m:w-p:64:64-i32:32-i64:64-i128:128-n32:64-S128"

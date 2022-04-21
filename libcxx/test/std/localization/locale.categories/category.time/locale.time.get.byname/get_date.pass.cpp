@@ -14,8 +14,7 @@
 // REQUIRES: locale.ru_RU.UTF-8
 // REQUIRES: locale.zh_CN.UTF-8
 
-// GLIBC Expects "10/06/2009" for fr_FR as opposed to "10.06.2009"
-// GLIBC also fails on the zh_CN test.
+// GLIBC fails on the zh_CN test.
 // XFAIL: linux
 
 // <locale>
@@ -28,11 +27,12 @@
 
 #include <locale>
 #include <cassert>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 #include "platform_support.h" // locale name macros
 
-typedef input_iterator<const char*> I;
+typedef cpp17_input_iterator<const char*> I;
 
 typedef std::time_get_byname<char, I> F;
 
@@ -55,7 +55,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_date(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_mon == 5);
         assert(t.tm_mday == 10);
         assert(t.tm_year == 109);
@@ -63,11 +63,15 @@ int main(int, char**)
     }
     {
         const my_facet f(LOCALE_fr_FR_UTF_8, 1);
+#if defined(_WIN32) || defined(TEST_HAS_GLIBC)
+        const char in[] = "10/06/2009";
+#else
         const char in[] = "10.06.2009";
+#endif
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_date(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_mon == 5);
         assert(t.tm_mday == 10);
         assert(t.tm_year == 109);
@@ -79,7 +83,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_date(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_mon == 5);
         assert(t.tm_mday == 10);
         assert(t.tm_year == 109);
@@ -92,7 +96,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_date(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_mon == 5);
         assert(t.tm_mday == 10);
         assert(t.tm_year == 109);

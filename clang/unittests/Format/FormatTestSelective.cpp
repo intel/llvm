@@ -122,7 +122,8 @@ TEST_F(FormatTestSelective, FormatsCommentsLocally) {
             "int b;",
             format("int   a; // comment\n"
                    "// comment 2\n"
-                   "int b;", 28, 0));
+                   "int b;",
+                   28, 0));
   EXPECT_EQ("int aaaaaa; // comment\n"
             "int b;\n"
             "int c; // unrelated comment",
@@ -585,14 +586,13 @@ TEST_F(FormatTestSelective, StopFormattingWhenLeavingScope) {
 
 TEST_F(FormatTestSelective, SelectivelyRequoteJavaScript) {
   Style = getGoogleStyle(FormatStyle::LK_JavaScript);
-  EXPECT_EQ(
-      "var x = \"a\";\n"
-      "var x = 'a';\n"
-      "var x = \"a\";",
-      format("var x = \"a\";\n"
-             "var x = \"a\";\n"
-             "var x = \"a\";",
-             20, 0));
+  EXPECT_EQ("var x = \"a\";\n"
+            "var x = 'a';\n"
+            "var x = \"a\";",
+            format("var x = \"a\";\n"
+                   "var x = \"a\";\n"
+                   "var x = \"a\";",
+                   20, 0));
 }
 
 TEST_F(FormatTestSelective, KeepsIndentAfterCommentSectionImport) {
@@ -601,6 +601,14 @@ TEST_F(FormatTestSelective, KeepsIndentAfterCommentSectionImport) {
                      "\n"                       // this newline is char 47
                      "int i;";                  // this line is not indented
   EXPECT_EQ(Code, format(Code, 47, 1));
+}
+
+TEST_F(FormatTestSelective, DontAssert) {
+  // https://llvm.org/PR53880
+  std::string Code = "void f() {\n"
+                     "  return a == 8 ? 32 : 16;\n"
+                     "}\n";
+  EXPECT_EQ(Code, format(Code, 40, 0));
 }
 
 } // end namespace

@@ -1,13 +1,14 @@
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN %s
+; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN %s
 
 
-; There is no dependence between the store and the two loads. So we can combine the loads
-; and the combined load is at the original place of the second load.
+; There is no dependence between the store and the two loads. So we can combine
+; the loads and schedule it freely.
 
 ; GCN-LABEL: {{^}}ds_combine_nodep
 
-; GCN: ds_read2_b32 v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}} offset0:7 offset1:8
-; GCN-NEXT: ds_write2_b32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} offset0:26 offset1:27
+; GCN-DAG: ds_write2_b32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} offset0:26 offset1:27
+; GCN-DAG: ds_read2_b32 v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}} offset0:7 offset1:8
+; GCN: s_waitcnt lgkmcnt({{[0-9]+}})
 define amdgpu_kernel void @ds_combine_nodep(float addrspace(1)* %out, float addrspace(3)* %inptr) {
 
   %base = bitcast float addrspace(3)* %inptr to i8 addrspace(3)*
@@ -65,13 +66,15 @@ define amdgpu_kernel void @ds_combine_WAR(float addrspace(1)* %out, float addrsp
 }
 
 
-; The second load depends on the store. We can combine the two loads, and the combined load is
-; at the original place of the second load.
+; The second load depends on the store. We could combine the two loads, putting
+; the combined load at the original place of the second load, but we prefer to
+; leave the first load near the start of the function to hide its latency.
 
 ; GCN-LABEL: {{^}}ds_combine_RAW
 
 ; GCN:      ds_write2_b32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} offset0:26 offset1:27
-; GCN-NEXT: ds_read2_b32 v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}} offset0:8 offset1:26
+; GCN-NEXT: ds_read_b32 v{{[0-9]+}}, v{{[0-9]+}} offset:32
+; GCN-NEXT: ds_read_b32 v{{[0-9]+}}, v{{[0-9]+}} offset:104
 define amdgpu_kernel void @ds_combine_RAW(float addrspace(1)* %out, float addrspace(3)* %inptr) {
 
   %base = bitcast float addrspace(3)* %inptr to i8 addrspace(3)*

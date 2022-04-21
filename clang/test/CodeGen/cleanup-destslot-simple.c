@@ -7,8 +7,8 @@
 
 // There is no exception to handle here, lifetime.end is not a destructor,
 // so there is no need have cleanup dest slot related code
-// CHECK-LABEL: define i32 @test
-int test() {
+// CHECK-LABEL: define{{.*}} i32 @test
+int test(void) {
   int x = 3;
   int *volatile p = &x;
   return *p;

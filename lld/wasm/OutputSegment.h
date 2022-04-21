@@ -20,29 +20,33 @@ class InputSegment;
 
 class OutputSegment {
 public:
-  OutputSegment(StringRef N, uint32_t Index) : Name(N), Index(Index) {}
+  OutputSegment(StringRef n) : name(n) {}
 
-  void addInputSegment(InputSegment *InSeg) {
-    Alignment = std::max(Alignment, InSeg->getAlignment());
-    InputSegments.push_back(InSeg);
-    Size = llvm::alignTo(Size, 1ULL << InSeg->getAlignment());
-    InSeg->OutputSeg = this;
-    InSeg->OutputSegmentOffset = Size;
-    Size += InSeg->getSize();
-  }
+  void addInputSegment(InputChunk *inSeg);
+  void finalizeInputSegments();
+  // In most circumstances BSS segments don't need to be written
+  // to the output binary.  However if the memory is imported, and
+  // we can't use memory.fill during startup (due to lack of bulk
+  // memory feature) then we include BSS segments verbatim.
+  bool requiredInBinary() const { return !isBss || config->emitBssSegments; }
 
-  StringRef Name;
-  const uint32_t Index;
-  uint32_t SectionOffset = 0;
-  uint32_t Alignment = 0;
-  uint32_t StartVA = 0;
-  std::vector<InputSegment *> InputSegments;
+  bool isTLS() const { return name == ".tdata"; }
+
+  StringRef name;
+  bool isBss = false;
+  uint32_t index = 0;
+  uint32_t linkingFlags = 0;
+  uint32_t initFlags = 0;
+  uint32_t sectionOffset = 0;
+  uint32_t alignment = 0;
+  uint64_t startVA = 0;
+  std::vector<InputChunk *> inputSegments;
 
   // Sum of the size of the all the input segments
-  uint32_t Size = 0;
+  uint32_t size = 0;
 
   // Segment header
-  std::string Header;
+  std::string header;
 };
 
 } // namespace wasm

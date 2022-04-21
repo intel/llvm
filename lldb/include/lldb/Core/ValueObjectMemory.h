@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObjectMemory_h_
-#define liblldb_ValueObjectMemory_h_
+#ifndef LLDB_CORE_VALUEOBJECTMEMORY_H
+#define LLDB_CORE_VALUEOBJECTMEMORY_H
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/ValueObject.h"
@@ -18,14 +18,14 @@
 #include "lldb/lldb-forward.h"
 #include "llvm/ADT/StringRef.h"
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class ExecutionContextScope;
 
-// A ValueObject that represents memory at a given address, viewed as some
-// set lldb type.
+/// A ValueObject that represents memory at a given address, viewed as some
+/// set lldb type.
 class ValueObjectMemory : public ValueObject {
 public:
   ~ValueObjectMemory() override;
@@ -40,7 +40,7 @@ public:
                                     const Address &address,
                                     const CompilerType &ast_type);
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   ConstString GetTypeName() override;
 
@@ -64,15 +64,18 @@ protected:
   CompilerType m_compiler_type;
 
 private:
-  ValueObjectMemory(ExecutionContextScope *exe_scope, llvm::StringRef name,
+  ValueObjectMemory(ExecutionContextScope *exe_scope,
+                    ValueObjectManager &manager, llvm::StringRef name,
                     const Address &address, lldb::TypeSP &type_sp);
 
-  ValueObjectMemory(ExecutionContextScope *exe_scope, llvm::StringRef name,
+  ValueObjectMemory(ExecutionContextScope *exe_scope,
+                    ValueObjectManager &manager, llvm::StringRef name,
                     const Address &address, const CompilerType &ast_type);
   // For ValueObject only
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectMemory);
+  ValueObjectMemory(const ValueObjectMemory &) = delete;
+  const ValueObjectMemory &operator=(const ValueObjectMemory &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObjectMemory_h_
+#endif // LLDB_CORE_VALUEOBJECTMEMORY_H

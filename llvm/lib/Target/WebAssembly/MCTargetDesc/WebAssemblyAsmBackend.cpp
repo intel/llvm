@@ -31,10 +31,12 @@ namespace {
 
 class WebAssemblyAsmBackend final : public MCAsmBackend {
   bool Is64Bit;
+  bool IsEmscripten;
 
 public:
-  explicit WebAssemblyAsmBackend(bool Is64Bit)
-      : MCAsmBackend(support::little), Is64Bit(Is64Bit) {}
+  explicit WebAssemblyAsmBackend(bool Is64Bit, bool IsEmscripten)
+      : MCAsmBackend(support::little), Is64Bit(Is64Bit),
+        IsEmscripten(IsEmscripten) {}
 
   unsigned getNumFixupKinds() const override {
     return WebAssembly::NumTargetFixupKinds;
@@ -57,15 +59,8 @@ public:
     return false;
   }
 
-  bool mayNeedRelaxation(const MCInst &Inst,
-                         const MCSubtargetInfo &STI) const override {
-    return false;
-  }
-
-  void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
-                        MCInst &Res) const override {}
-
-  bool writeNopData(raw_ostream &OS, uint64_t Count) const override;
+  bool writeNopData(raw_ostream &OS, uint64_t Count,
+                    const MCSubtargetInfo *STI) const override;
 };
 
 const MCFixupKindInfo &
@@ -78,6 +73,7 @@ WebAssemblyAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_sleb128_i32", 0, 5 * 8, 0},
       {"fixup_sleb128_i64", 0, 10 * 8, 0},
       {"fixup_uleb128_i32", 0, 5 * 8, 0},
+      {"fixup_uleb128_i64", 0, 10 * 8, 0},
   };
 
   if (Kind < FirstTargetFixupKind)
@@ -88,8 +84,8 @@ WebAssemblyAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   return Infos[Kind - FirstTargetFixupKind];
 }
 
-bool WebAssemblyAsmBackend::writeNopData(raw_ostream &OS,
-                                         uint64_t Count) const {
+bool WebAssemblyAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
+                                         const MCSubtargetInfo *STI) const {
   for (uint64_t I = 0; I < Count; ++I)
     OS << char(WebAssembly::Nop);
 
@@ -123,11 +119,11 @@ void WebAssemblyAsmBackend::applyFixup(const MCAssembler &Asm,
 
 std::unique_ptr<MCObjectTargetWriter>
 WebAssemblyAsmBackend::createObjectTargetWriter() const {
-  return createWebAssemblyWasmObjectWriter(Is64Bit);
+  return createWebAssemblyWasmObjectWriter(Is64Bit, IsEmscripten);
 }
 
 } // end anonymous namespace
 
 MCAsmBackend *llvm::createWebAssemblyAsmBackend(const Triple &TT) {
-  return new WebAssemblyAsmBackend(TT.isArch64Bit());
+  return new WebAssemblyAsmBackend(TT.isArch64Bit(), TT.isOSEmscripten());
 }

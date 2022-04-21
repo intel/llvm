@@ -1,4 +1,4 @@
-//===-- RegisterContextMach_x86_64.cpp --------------------------*- C++ -*-===//
+//===-- RegisterContextMach_x86_64.cpp ------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,7 +19,7 @@ RegisterContextMach_x86_64::RegisterContextMach_x86_64(
     Thread &thread, uint32_t concrete_frame_idx)
     : RegisterContextDarwin_x86_64(thread, concrete_frame_idx) {}
 
-RegisterContextMach_x86_64::~RegisterContextMach_x86_64() {}
+RegisterContextMach_x86_64::~RegisterContextMach_x86_64() = default;
 
 int RegisterContextMach_x86_64::DoReadGPR(lldb::tid_t tid, int flavor,
                                           GPR &gpr) {

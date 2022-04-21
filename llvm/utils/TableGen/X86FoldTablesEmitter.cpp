@@ -13,10 +13,12 @@
 
 #include "CodeGenTarget.h"
 #include "X86RecognizableInstr.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/TableGenBackend.h"
 
 using namespace llvm;
+using namespace X86Disassembler;
 
 namespace {
 
@@ -38,8 +40,6 @@ struct ManualMapEntry {
                  UnfoldStrategy Strategy = NO_STRATEGY)
       : RegInstStr(RegInstStr), MemInstStr(MemInstStr), Strategy(Strategy) {}
 };
-
-class IsMatch;
 
 // List of instructions requiring explicitly aligned memory.
 const char *ExplicitAlign[] = {"MOVDQA",  "MOVAPS",  "MOVAPD",  "MOVNTPS",
@@ -78,13 +78,13 @@ const ManualMapEntry ManualMapSet[] = {
 
 static bool isExplicitAlign(const CodeGenInstruction *Inst) {
   return any_of(ExplicitAlign, [Inst](const char *InstStr) {
-    return Inst->TheDef->getName().find(InstStr) != StringRef::npos;
+    return Inst->TheDef->getName().contains(InstStr);
   });
 }
 
 static bool isExplicitUnalign(const CodeGenInstruction *Inst) {
   return any_of(ExplicitUnalign, [Inst](const char *InstStr) {
-    return Inst->TheDef->getName().find(InstStr) != StringRef::npos;
+    return Inst->TheDef->getName().contains(InstStr);
   });
 }
 
@@ -108,23 +108,37 @@ class X86FoldTablesEmitter {
                       const CodeGenInstruction *MemInst)
         : RegInst(RegInst), MemInst(MemInst) {}
 
-    friend raw_ostream &operator<<(raw_ostream &OS,
-                                   const X86FoldTableEntry &E) {
-      OS << "{ X86::" << E.RegInst->TheDef->getName()
-         << ", X86::" << E.MemInst->TheDef->getName() << ", ";
+    void print(formatted_raw_ostream &OS) const {
+      OS.indent(2);
+      OS << "{ X86::" << RegInst->TheDef->getName() << ",";
+      OS.PadToColumn(40);
+      OS  << "X86::" << MemInst->TheDef->getName() << ",";
+      OS.PadToColumn(75);
 
-      if (E.IsLoad)
-        OS << "TB_FOLDED_LOAD | ";
-      if (E.IsStore)
-        OS << "TB_FOLDED_STORE | ";
-      if (E.CannotUnfold)
-        OS << "TB_NO_REVERSE | ";
-      if (E.IsAligned)
-        OS << "TB_ALIGN_" << E.Alignment << " | ";
+      std::string Attrs;
+      if (IsLoad)
+        Attrs += "TB_FOLDED_LOAD | ";
+      if (IsStore)
+        Attrs += "TB_FOLDED_STORE | ";
+      if (CannotUnfold)
+        Attrs += "TB_NO_REVERSE | ";
+      if (IsAligned)
+        Attrs += "TB_ALIGN_" + std::to_string(Alignment) + " | ";
 
-      OS << "0 },\n";
+      StringRef SimplifiedAttrs = StringRef(Attrs).rtrim("| ");
+      if (SimplifiedAttrs.empty())
+        SimplifiedAttrs = "0";
 
-      return OS;
+      OS << SimplifiedAttrs << " },\n";
+    }
+
+    bool operator<(const X86FoldTableEntry &RHS) const {
+      bool LHSpseudo = RegInst->TheDef->getValueAsBit("isPseudo");
+      bool RHSpseudo = RHS.RegInst->TheDef->getValueAsBit("isPseudo");
+      if (LHSpseudo != RHSpseudo)
+        return LHSpseudo;
+
+      return RegInst->TheDef->getName() < RHS.RegInst->TheDef->getName();
     }
   };
 
@@ -144,7 +158,7 @@ public:
   X86FoldTablesEmitter(RecordKeeper &R) : Records(R), Target(R) {}
 
   // run - Generate the 6 X86 memory fold tables.
-  void run(raw_ostream &OS);
+  void run(formatted_raw_ostream &OS);
 
 private:
   // Decides to which table to add the entry with the given instructions.
@@ -162,21 +176,21 @@ private:
   // Print the given table as a static const C++ array of type
   // X86MemoryFoldTableEntry.
   void printTable(const FoldTable &Table, StringRef TableName,
-                  raw_ostream &OS) {
+                  formatted_raw_ostream &OS) {
     OS << "static const X86MemoryFoldTableEntry MemoryFold" << TableName
        << "[] = {\n";
 
     for (const X86FoldTableEntry &E : Table)
-      OS << E;
+      E.print(OS);
 
-    OS << "};\n";
+    OS << "};\n\n";
   }
 };
 
 // Return true if one of the instruction's operands is a RST register class
 static bool hasRSTRegClass(const CodeGenInstruction *Inst) {
   return any_of(Inst->Operands, [](const CGIOperandList::OperandInfo &OpIn) {
-    return OpIn.Rec->getName() == "RST";
+    return OpIn.Rec->getName() == "RST" || OpIn.Rec->getName() == "RSTi";
   });
 }
 
@@ -199,62 +213,6 @@ static inline uint64_t getValueFromBitsInit(const BitsInit *B) {
   return Value;
 }
 
-// Returns true if the two given BitsInits represent the same integer value
-static inline bool equalBitsInits(const BitsInit *B1, const BitsInit *B2) {
-  if (B1->getNumBits() != B2->getNumBits())
-    PrintFatalError("Comparing two BitsInits with different sizes!");
-
-  for (unsigned i = 0, e = B1->getNumBits(); i != e; ++i) {
-    BitInit *Bit1 = cast<BitInit>(B1->getBit(i));
-    BitInit *Bit2 = cast<BitInit>(B2->getBit(i));
-    if (Bit1->getValue() != Bit2->getValue())
-      return false;
-  }
-  return true;
-}
-
-// Return the size of the register operand
-static inline unsigned int getRegOperandSize(const Record *RegRec) {
-  if (RegRec->isSubClassOf("RegisterOperand"))
-    RegRec = RegRec->getValueAsDef("RegClass");
-  if (RegRec->isSubClassOf("RegisterClass"))
-    return RegRec->getValueAsListOfDefs("RegTypes")[0]->getValueAsInt("Size");
-
-  llvm_unreachable("Register operand's size not known!");
-}
-
-// Return the size of the memory operand
-static inline unsigned int
-getMemOperandSize(const Record *MemRec, const bool IntrinsicSensitive = false) {
-  if (MemRec->isSubClassOf("Operand")) {
-    // Intrinsic memory instructions use ssmem/sdmem.
-    if (IntrinsicSensitive &&
-        (MemRec->getName() == "sdmem" || MemRec->getName() == "ssmem"))
-      return 128;
-
-    StringRef Name =
-        MemRec->getValueAsDef("ParserMatchClass")->getValueAsString("Name");
-    if (Name == "Mem8")
-      return 8;
-    if (Name == "Mem16")
-      return 16;
-    if (Name == "Mem32")
-      return 32;
-    if (Name == "Mem64")
-      return 64;
-    if (Name == "Mem80")
-      return 80;
-    if (Name == "Mem128")
-      return 128;
-    if (Name == "Mem256")
-      return 256;
-    if (Name == "Mem512")
-      return 512;
-  }
-
-  llvm_unreachable("Memory operand's size not known!");
-}
-
 // Return true if the instruction defined as a register flavor.
 static inline bool hasRegisterFormat(const Record *Inst) {
   const BitsInit *FormBits = Inst->getValueAsBitsInit("FormBits");
@@ -274,23 +232,7 @@ static inline bool hasMemoryFormat(const Record *Inst) {
 }
 
 static inline bool isNOREXRegClass(const Record *Op) {
-  return Op->getName().find("_NOREX") != StringRef::npos;
-}
-
-static inline bool isRegisterOperand(const Record *Rec) {
-  return Rec->isSubClassOf("RegisterClass") ||
-         Rec->isSubClassOf("RegisterOperand") ||
-         Rec->isSubClassOf("PointerLikeRegClass");
-}
-
-static inline bool isMemoryOperand(const Record *Rec) {
-  return Rec->isSubClassOf("Operand") &&
-         Rec->getValueAsString("OperandType") == "OPERAND_MEMORY";
-}
-
-static inline bool isImmediateOperand(const Record *Rec) {
-  return Rec->isSubClassOf("Operand") &&
-         Rec->getValueAsString("OperandType") == "OPERAND_IMMEDIATE";
+  return Op->getName().contains("_NOREX");
 }
 
 // Get the alternative instruction pointed by "FoldGenRegForm" field.
@@ -316,47 +258,42 @@ public:
       : MemInst(Inst) {}
 
   bool operator()(const CodeGenInstruction *RegInst) {
-    Record *MemRec = MemInst->TheDef;
-    Record *RegRec = RegInst->TheDef;
+    X86Disassembler::RecognizableInstrBase RegRI(*RegInst);
+    X86Disassembler::RecognizableInstrBase MemRI(*MemInst);
+    const Record *RegRec = RegInst->TheDef;
+    const Record *MemRec = MemInst->TheDef;
+
+    // EVEX_B means different things for memory and register forms.
+    if (RegRI.HasEVEX_B != 0 || MemRI.HasEVEX_B != 0)
+      return false;
+
+    // Instruction's format - The register form's "Form" field should be
+    // the opposite of the memory form's "Form" field.
+    if (!areOppositeForms(RegRI.Form, MemRI.Form))
+      return false;
 
     // Return false if one (at least) of the encoding fields of both
     // instructions do not match.
-    if (RegRec->getValueAsDef("OpEnc") != MemRec->getValueAsDef("OpEnc") ||
-        !equalBitsInits(RegRec->getValueAsBitsInit("Opcode"),
-                        MemRec->getValueAsBitsInit("Opcode")) ||
-        // VEX/EVEX fields
-        RegRec->getValueAsDef("OpPrefix") !=
-            MemRec->getValueAsDef("OpPrefix") ||
-        RegRec->getValueAsDef("OpMap") != MemRec->getValueAsDef("OpMap") ||
-        RegRec->getValueAsDef("OpSize") != MemRec->getValueAsDef("OpSize") ||
-        RegRec->getValueAsDef("AdSize") != MemRec->getValueAsDef("AdSize") ||
-        RegRec->getValueAsBit("hasVEX_4V") !=
-            MemRec->getValueAsBit("hasVEX_4V") ||
-        RegRec->getValueAsBit("hasEVEX_K") !=
-            MemRec->getValueAsBit("hasEVEX_K") ||
-        RegRec->getValueAsBit("hasEVEX_Z") !=
-            MemRec->getValueAsBit("hasEVEX_Z") ||
-        // EVEX_B means different things for memory and register forms.
-        RegRec->getValueAsBit("hasEVEX_B") != 0 ||
-        MemRec->getValueAsBit("hasEVEX_B") != 0 ||
+    if (RegRI.Encoding != MemRI.Encoding || RegRI.Opcode != MemRI.Opcode ||
+        RegRI.OpPrefix != MemRI.OpPrefix || RegRI.OpMap != MemRI.OpMap ||
+        RegRI.OpSize != MemRI.OpSize || RegRI.AdSize != MemRI.AdSize ||
+        RegRI.HasREX_W != MemRI.HasREX_W ||
+        RegRI.HasVEX_4V != MemRI.HasVEX_4V ||
+        RegRI.HasVEX_L != MemRI.HasVEX_L ||
+        RegRI.HasVEX_W != MemRI.HasVEX_W ||
+        RegRI.IgnoresVEX_L != MemRI.IgnoresVEX_L ||
+        RegRI.IgnoresVEX_W != MemRI.IgnoresVEX_W ||
+        RegRI.HasEVEX_K != MemRI.HasEVEX_K ||
+        RegRI.HasEVEX_KZ != MemRI.HasEVEX_KZ ||
+        RegRI.HasEVEX_L2 != MemRI.HasEVEX_L2 ||
         RegRec->getValueAsBit("hasEVEX_RC") !=
             MemRec->getValueAsBit("hasEVEX_RC") ||
-        RegRec->getValueAsBit("hasREX_WPrefix") !=
-            MemRec->getValueAsBit("hasREX_WPrefix") ||
         RegRec->getValueAsBit("hasLockPrefix") !=
             MemRec->getValueAsBit("hasLockPrefix") ||
         RegRec->getValueAsBit("hasNoTrackPrefix") !=
             MemRec->getValueAsBit("hasNoTrackPrefix") ||
-        !equalBitsInits(RegRec->getValueAsBitsInit("EVEX_LL"),
-                        MemRec->getValueAsBitsInit("EVEX_LL")) ||
-        !equalBitsInits(RegRec->getValueAsBitsInit("VEX_WPrefix"),
-                        MemRec->getValueAsBitsInit("VEX_WPrefix")) ||
-        // Instruction's format - The register form's "Form" field should be
-        // the opposite of the memory form's "Form" field.
-        !areOppositeForms(RegRec->getValueAsBitsInit("FormBits"),
-                          MemRec->getValueAsBitsInit("FormBits")) ||
-        RegRec->getValueAsBit("isAsmParserOnly") !=
-            MemRec->getValueAsBit("isAsmParserOnly"))
+        RegRec->getValueAsBit("EVEX_W1_VEX_W0") !=
+            MemRec->getValueAsBit("EVEX_W1_VEX_W0"))
       return false;
 
     // Make sure the sizes of the operands of both instructions suit each other.
@@ -409,28 +346,24 @@ public:
 
 private:
   // Return true of the 2 given forms are the opposite of each other.
-  bool areOppositeForms(const BitsInit *RegFormBits,
-                        const BitsInit *MemFormBits) {
-    uint64_t MemFormNum = getValueFromBitsInit(MemFormBits);
-    uint64_t RegFormNum = getValueFromBitsInit(RegFormBits);
-
-    if ((MemFormNum == X86Local::MRM0m && RegFormNum == X86Local::MRM0r) ||
-        (MemFormNum == X86Local::MRM1m && RegFormNum == X86Local::MRM1r) ||
-        (MemFormNum == X86Local::MRM2m && RegFormNum == X86Local::MRM2r) ||
-        (MemFormNum == X86Local::MRM3m && RegFormNum == X86Local::MRM3r) ||
-        (MemFormNum == X86Local::MRM4m && RegFormNum == X86Local::MRM4r) ||
-        (MemFormNum == X86Local::MRM5m && RegFormNum == X86Local::MRM5r) ||
-        (MemFormNum == X86Local::MRM6m && RegFormNum == X86Local::MRM6r) ||
-        (MemFormNum == X86Local::MRM7m && RegFormNum == X86Local::MRM7r) ||
-        (MemFormNum == X86Local::MRMXm && RegFormNum == X86Local::MRMXr) ||
-        (MemFormNum == X86Local::MRMDestMem &&
-         RegFormNum == X86Local::MRMDestReg) ||
-        (MemFormNum == X86Local::MRMSrcMem &&
-         RegFormNum == X86Local::MRMSrcReg) ||
-        (MemFormNum == X86Local::MRMSrcMem4VOp3 &&
-         RegFormNum == X86Local::MRMSrcReg4VOp3) ||
-        (MemFormNum == X86Local::MRMSrcMemOp4 &&
-         RegFormNum == X86Local::MRMSrcRegOp4))
+  bool areOppositeForms(unsigned RegForm, unsigned MemForm) {
+    if ((MemForm == X86Local::MRM0m && RegForm == X86Local::MRM0r) ||
+        (MemForm == X86Local::MRM1m && RegForm == X86Local::MRM1r) ||
+        (MemForm == X86Local::MRM2m && RegForm == X86Local::MRM2r) ||
+        (MemForm == X86Local::MRM3m && RegForm == X86Local::MRM3r) ||
+        (MemForm == X86Local::MRM4m && RegForm == X86Local::MRM4r) ||
+        (MemForm == X86Local::MRM5m && RegForm == X86Local::MRM5r) ||
+        (MemForm == X86Local::MRM6m && RegForm == X86Local::MRM6r) ||
+        (MemForm == X86Local::MRM7m && RegForm == X86Local::MRM7r) ||
+        (MemForm == X86Local::MRMXm && RegForm == X86Local::MRMXr) ||
+        (MemForm == X86Local::MRMXmCC && RegForm == X86Local::MRMXrCC) ||
+        (MemForm == X86Local::MRMDestMem && RegForm == X86Local::MRMDestReg) ||
+        (MemForm == X86Local::MRMSrcMem && RegForm == X86Local::MRMSrcReg) ||
+        (MemForm == X86Local::MRMSrcMem4VOp3 &&
+         RegForm == X86Local::MRMSrcReg4VOp3) ||
+        (MemForm == X86Local::MRMSrcMemOp4 &&
+         RegForm == X86Local::MRMSrcRegOp4) ||
+        (MemForm == X86Local::MRMSrcMemCC && RegForm == X86Local::MRMSrcRegCC))
       return true;
 
     return false;
@@ -522,7 +455,10 @@ void X86FoldTablesEmitter::updateTables(const CodeGenInstruction *RegInstr,
     for (unsigned i = RegOutSize, e = RegInstr->Operands.size(); i < e; i++) {
       Record *RegOpRec = RegInstr->Operands[i].Rec;
       Record *MemOpRec = MemInstr->Operands[i].Rec;
-      if (isRegisterOperand(RegOpRec) && isMemoryOperand(MemOpRec)) {
+      // PointerLikeRegClass: For instructions like TAILJMPr, TAILJMPr64, TAILJMPr64_REX
+      if ((isRegisterOperand(RegOpRec) ||
+           RegOpRec->isSubClassOf("PointerLikeRegClass")) &&
+          isMemoryOperand(MemOpRec)) {
         switch (i) {
         case 0:
           addEntryWithFlags(Table0, RegInstr, MemInstr, S, 0);
@@ -556,11 +492,9 @@ void X86FoldTablesEmitter::updateTables(const CodeGenInstruction *RegInstr,
         getRegOperandSize(RegOpRec) == getMemOperandSize(MemOpRec))
       addEntryWithFlags(Table0, RegInstr, MemInstr, S, 0);
   }
-
-  return;
 }
 
-void X86FoldTablesEmitter::run(raw_ostream &OS) {
+void X86FoldTablesEmitter::run(formatted_raw_ostream &OS) {
   emitSourceFileHeader("X86 fold tables", OS);
 
   // Holds all memory instructions
@@ -572,10 +506,9 @@ void X86FoldTablesEmitter::run(raw_ostream &OS) {
       Target.getInstructionsByEnumValue();
 
   for (const CodeGenInstruction *Inst : NumberedInstructions) {
-    if (!Inst->TheDef->getNameInit() || !Inst->TheDef->isSubClassOf("X86Inst"))
-      continue;
-
     const Record *Rec = Inst->TheDef;
+    if (!Rec->isSubClassOf("X86Inst") || Rec->getValueAsBit("isAsmParserOnly"))
+      continue;
 
     // - Do not proceed if the instruction is marked as notMemoryFoldable.
     // - Instructions including RST register class operands are not relevant
@@ -606,14 +539,14 @@ void X86FoldTablesEmitter::run(raw_ostream &OS) {
     uint8_t Opc =
         getValueFromBitsInit(MemInst->TheDef->getValueAsBitsInit("Opcode"));
 
-    if (RegInsts.count(Opc) == 0)
+    auto RegInstsIt = RegInsts.find(Opc);
+    if (RegInstsIt == RegInsts.end())
       continue;
 
     // Two forms (memory & register) of the same instruction must have the same
     // opcode. try matching only with register form instructions with the same
     // opcode.
-    std::vector<const CodeGenInstruction *> &OpcRegInsts =
-        RegInsts.find(Opc)->second;
+    std::vector<const CodeGenInstruction *> &OpcRegInsts = RegInstsIt->second;
 
     auto Match = find_if(OpcRegInsts, IsMatch(MemInst, Records));
     if (Match != OpcRegInsts.end()) {
@@ -641,7 +574,15 @@ void X86FoldTablesEmitter::run(raw_ostream &OS) {
                  &(Target.getInstruction(MemInstIter)), Entry.Strategy);
   }
 
-  // Print all tables to raw_ostream OS.
+  // Sort the tables before printing.
+  llvm::sort(Table2Addr);
+  llvm::sort(Table0);
+  llvm::sort(Table1);
+  llvm::sort(Table2);
+  llvm::sort(Table3);
+  llvm::sort(Table4);
+
+  // Print all tables.
   printTable(Table2Addr, "Table2Addr", OS);
   printTable(Table0, "Table0", OS);
   printTable(Table1, "Table1", OS);
@@ -652,7 +593,8 @@ void X86FoldTablesEmitter::run(raw_ostream &OS) {
 
 namespace llvm {
 
-void EmitX86FoldTables(RecordKeeper &RK, raw_ostream &OS) {
+void EmitX86FoldTables(RecordKeeper &RK, raw_ostream &o) {
+  formatted_raw_ostream OS(o);
   X86FoldTablesEmitter(RK).run(OS);
 }
 } // namespace llvm

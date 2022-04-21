@@ -1,5 +1,5 @@
 # RUN: llvm-mc -triple x86_64-unknown-linux %s -filetype=obj -o %t.o
-# RUN: llvm-dwarfdump -v %t.o | FileCheck --check-prefix=OVERLAP %s
+# RUN: not llvm-dwarfdump -v %t.o 2>&1 | FileCheck --check-prefix=OVERLAP %s
 #
 # Test object to verify that llvm-dwarfdump handles an invalid string offsets
 # table with overlapping contributions.
@@ -20,7 +20,7 @@ str_TU:
 str_TU_type:
         .asciz "MyStruct"
 
-        .section .debug_str.dwo,"MS",@progbits,1
+        .section .debug_str.dwo,"MSe",@progbits,1
 dwo_str_CU_5_producer:
         .asciz "Handmade split DWARF producer"
 dwo_str_CU_5_name:
@@ -89,6 +89,4 @@ CU2_5_end:
         .long str_CU2_dir
 .debug_str_offsets_segment1_end:
 
-# OVERLAP:            .debug_str_offsets contents:
-# OVERLAP-NOT:        contents:
 # OVERLAP:            error: overlapping contributions to string offsets table in section .debug_str_offsets.

@@ -11,12 +11,11 @@
 
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyCallGraph.h"
-#include "llvm/IR/CallSite.h"
+#include "llvm/Analysis/Utils/ImportedFunctionsInliningStatistics.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Transforms/Utils/ImportedFunctionsInliningStatistics.h"
-#include <utility>
 
 namespace llvm {
 
@@ -36,6 +35,8 @@ struct LegacyInlinerBase : public CallGraphSCCPass {
   /// call the implementation here.
   void getAnalysisUsage(AnalysisUsage &Info) const override;
 
+  using llvm::Pass::doInitialization;
+
   bool doInitialization(CallGraph &CG) override;
 
   /// Main run interface method, this implements the interface required by the
@@ -51,7 +52,7 @@ struct LegacyInlinerBase : public CallGraphSCCPass {
   /// This method must be implemented by the subclass to determine the cost of
   /// inlining the specified call site.  If the cost returned is greater than
   /// the current inline threshold, the call site is not inlined.
-  virtual InlineCost getInlineCost(CallSite CS) = 0;
+  virtual InlineCost getInlineCost(CallBase &CB) = 0;
 
   /// Remove dead functions.
   ///
@@ -74,6 +75,7 @@ private:
 protected:
   AssumptionCacheTracker *ACT;
   ProfileSummaryInfo *PSI;
+  std::function<const TargetLibraryInfo &(Function &)> GetTLI;
   ImportedFunctionsInliningStatistics ImportedFunctionsStats;
 };
 
@@ -93,21 +95,64 @@ protected:
 /// passes be composed to achieve the same end result.
 class InlinerPass : public PassInfoMixin<InlinerPass> {
 public:
-  InlinerPass(InlineParams Params = getInlineParams())
-      : Params(std::move(Params)) {}
-  ~InlinerPass();
-  InlinerPass(InlinerPass &&Arg)
-      : Params(std::move(Arg.Params)),
-        ImportedFunctionsStats(std::move(Arg.ImportedFunctionsStats)) {}
+  InlinerPass(bool OnlyMandatory = false) : OnlyMandatory(OnlyMandatory) {}
+  InlinerPass(InlinerPass &&Arg) = default;
 
   PreservedAnalyses run(LazyCallGraph::SCC &C, CGSCCAnalysisManager &AM,
                         LazyCallGraph &CG, CGSCCUpdateResult &UR);
 
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
+
 private:
-  InlineParams Params;
-  std::unique_ptr<ImportedFunctionsInliningStatistics> ImportedFunctionsStats;
+  InlineAdvisor &getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
+                            FunctionAnalysisManager &FAM, Module &M);
+  std::unique_ptr<InlineAdvisor> OwnedAdvisor;
+  const bool OnlyMandatory;
 };
 
+/// Module pass, wrapping the inliner pass. This works in conjunction with the
+/// InlineAdvisorAnalysis to facilitate inlining decisions taking into account
+/// module-wide state, that need to keep track of inter-inliner pass runs, for
+/// a given module. An InlineAdvisor is configured and kept alive for the
+/// duration of the ModuleInlinerWrapperPass::run.
+class ModuleInlinerWrapperPass
+    : public PassInfoMixin<ModuleInlinerWrapperPass> {
+public:
+  ModuleInlinerWrapperPass(
+      InlineParams Params = getInlineParams(), bool MandatoryFirst = true,
+      InliningAdvisorMode Mode = InliningAdvisorMode::Default,
+      unsigned MaxDevirtIterations = 0);
+  ModuleInlinerWrapperPass(ModuleInlinerWrapperPass &&Arg) = default;
+
+  PreservedAnalyses run(Module &, ModuleAnalysisManager &);
+
+  /// Allow adding more CGSCC passes, besides inlining. This should be called
+  /// before run is called, as part of pass pipeline building.
+  CGSCCPassManager &getPM() { return PM; }
+
+  /// Add a module pass that runs before the CGSCC passes.
+  template <class T> void addModulePass(T Pass) {
+    MPM.addPass(std::move(Pass));
+  }
+
+  /// Add a module pass that runs after the CGSCC passes.
+  template <class T> void addLateModulePass(T Pass) {
+    AfterCGMPM.addPass(std::move(Pass));
+  }
+
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
+
+private:
+  const InlineParams Params;
+  const InliningAdvisorMode Mode;
+  const unsigned MaxDevirtIterations;
+  // TODO: Clean this up so we only have one ModulePassManager.
+  CGSCCPassManager PM;
+  ModulePassManager MPM;
+  ModulePassManager AfterCGMPM;
+};
 } // end namespace llvm
 
 #endif // LLVM_TRANSFORMS_IPO_INLINER_H

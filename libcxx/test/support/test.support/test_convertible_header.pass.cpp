@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
-// "support/test_convertible.hpp"
+// "support/test_convertible.h"
 
-#include "test_convertible.hpp"
+#include "test_convertible.h"
+
+#include "test_macros.h"
 
 struct ImplicitDefault {
   ImplicitDefault() {}

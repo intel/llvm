@@ -1,6 +1,6 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,osx.cocoa.RetainCount -fblocks -verify %s
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,osx.cocoa.RetainCount -fblocks -analyzer-output=plist-multi-file %s -o %t
-// RUN: cat %t | %diff_plist %S/Inputs/expected-plists/objc-radar17039661.m.plist -
+// RUN: %normalize_plist <%t | diff -ub %S/Inputs/expected-plists/objc-radar17039661.m.plist -
 
 @class NSString;
 typedef long NSInteger;
@@ -45,7 +45,7 @@ static inline BOOL performAction(NSNumber *(^action)(NSNumber *traitValue)) {
   return didFindTrait;
 }
 
-void runTest() {
+void runTest(void) {
   __attribute__((__blocks__(byref))) NSNumber *builtinResult = ((NSNumber *)0);
   BOOL wasBuiltinTrait = performAction(^(NSNumber *traitValue) {
     builtinResult = [traitValue retain];

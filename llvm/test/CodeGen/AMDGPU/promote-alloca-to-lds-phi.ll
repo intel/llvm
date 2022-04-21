@@ -129,7 +129,7 @@ endif:
 ; }
 
 ; FIXME: This should be promotable. We need to use
-; GetUnderlyingObjects when looking at the icmp user.
+; getUnderlyingObjects when looking at the icmp user.
 
 ; CHECK-LABEL: @ptr_induction_var_same_alloca(
 ; CHECK: %alloca = alloca [64 x i32], align 4
@@ -201,4 +201,4 @@ for.body:                                         ; preds = %for.body, %for.body
 
 declare i32* @get_unknown_pointer() #0
 
-attributes #0 = { nounwind "amdgpu-waves-per-eu"="1,1" }
+attributes #0 = { nounwind "amdgpu-waves-per-eu"="1,1" "amdgpu-flat-work-group-size"="1,256" }

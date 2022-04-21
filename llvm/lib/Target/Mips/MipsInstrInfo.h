@@ -92,8 +92,15 @@ public:
   /// Predicate to determine if an instruction can go in a forbidden slot.
   bool SafeInForbiddenSlot(const MachineInstr &MI) const;
 
+  /// Predicate to determine if an instruction can go in an FPU delay slot.
+  bool SafeInFPUDelaySlot(const MachineInstr &MIInSlot,
+                          const MachineInstr &FPUMI) const;
+
   /// Predicate to determine if an instruction has a forbidden slot.
   bool HasForbiddenSlot(const MachineInstr &MI) const;
+
+  /// Predicate to determine if an instruction has an FPU delay slot.
+  bool HasFPUDelaySlot(const MachineInstr &MI) const;
 
   /// Insert nop instruction when hazard condition is found
   void insertNoop(MachineBasicBlock &MBB,
@@ -106,12 +113,16 @@ public:
 
   virtual unsigned getOppositeBranchOpc(unsigned Opc) const = 0;
 
+  virtual bool isBranchWithImm(unsigned Opc) const {
+    return false;
+  }
+
   /// Return the number of bytes of code the specified instruction may be.
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MBBI,
-                           unsigned SrcReg, bool isKill, int FrameIndex,
+                           Register SrcReg, bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override {
     storeRegToStack(MBB, MBBI, SrcReg, isKill, FrameIndex, RC, TRI, 0);
@@ -119,7 +130,7 @@ public:
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI,
-                            unsigned DestReg, int FrameIndex,
+                            Register DestReg, int FrameIndex,
                             const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override {
     loadRegFromStack(MBB, MBBI, DestReg, FrameIndex, RC, TRI, 0);
@@ -127,14 +138,14 @@ public:
 
   virtual void storeRegToStack(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
-                               unsigned SrcReg, bool isKill, int FrameIndex,
+                               Register SrcReg, bool isKill, int FrameIndex,
                                const TargetRegisterClass *RC,
                                const TargetRegisterInfo *TRI,
                                int64_t Offset) const = 0;
 
   virtual void loadRegFromStack(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MI,
-                                unsigned DestReg, int FrameIndex,
+                                Register DestReg, int FrameIndex,
                                 const TargetRegisterClass *RC,
                                 const TargetRegisterInfo *TRI,
                                 int64_t Offset) const = 0;
@@ -148,7 +159,7 @@ public:
   MachineInstrBuilder genInstrWithNewOpc(unsigned NewOpc,
                                          MachineBasicBlock::iterator I) const;
 
-  bool findCommutedOpIndices(MachineInstr &MI, unsigned &SrcOpIdx1,
+  bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
                              unsigned &SrcOpIdx2) const override;
 
   /// Perform target specific instruction verification.
@@ -160,6 +171,12 @@ public:
 
   ArrayRef<std::pair<unsigned, const char *>>
   getSerializableDirectMachineOperandTargetFlags() const override;
+
+  Optional<RegImmPair> isAddImmediate(const MachineInstr &MI,
+                                      Register Reg) const override;
+
+  Optional<ParamLoadedValue> describeLoadedValue(const MachineInstr &MI,
+                                                 Register Reg) const override;
 
 protected:
   bool isZeroImm(const MachineOperand &op) const;

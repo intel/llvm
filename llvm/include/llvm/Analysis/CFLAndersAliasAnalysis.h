@@ -15,7 +15,6 @@
 #define LLVM_ANALYSIS_CFLANDERSALIASANALYSIS_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CFLAliasAnalysisUtils.h"
 #include "llvm/IR/PassManager.h"
@@ -25,6 +24,7 @@
 
 namespace llvm {
 
+template <typename T> class Optional;
 class Function;
 class MemoryLocation;
 class TargetLibraryInfo;
@@ -41,7 +41,8 @@ class CFLAndersAAResult : public AAResultBase<CFLAndersAAResult> {
   class FunctionInfo;
 
 public:
-  explicit CFLAndersAAResult(const TargetLibraryInfo &TLI);
+  explicit CFLAndersAAResult(
+      std::function<const TargetLibraryInfo &(Function &F)> GetTLI);
   CFLAndersAAResult(CFLAndersAAResult &&RHS);
   ~CFLAndersAAResult();
 
@@ -74,7 +75,7 @@ private:
   /// Build summary for a given function
   FunctionInfo buildInfoFrom(const Function &);
 
-  const TargetLibraryInfo &TLI;
+  std::function<const TargetLibraryInfo &(Function &F)> GetTLI;
 
   /// Cached mapping of Functions to their StratifiedSets.
   /// If a function's sets are currently being built, it is marked

@@ -1,7 +1,34 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.cstring,alpha.unix.cstring,debug.ExprInspection -analyzer-store=region -verify -analyzer-config eagerly-assume=false %s
-// RUN: %clang_analyze_cc1 -DUSE_BUILTINS -analyzer-checker=core,unix.cstring,alpha.unix.cstring,debug.ExprInspection -analyzer-store=region -verify -analyzer-config eagerly-assume=false %s
-// RUN: %clang_analyze_cc1 -DVARIANT -analyzer-checker=core,unix.cstring,alpha.unix.cstring,debug.ExprInspection -analyzer-store=region -verify -analyzer-config eagerly-assume=false %s
-// RUN: %clang_analyze_cc1 -DUSE_BUILTINS -DVARIANT -analyzer-checker=core,unix.cstring,alpha.unix.cstring,debug.ExprInspection -analyzer-store=region -verify -analyzer-config eagerly-assume=false %s
+// RUN: %clang_analyze_cc1 -verify %s \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=unix.cstring \
+// RUN:   -analyzer-checker=alpha.unix.cstring \
+// RUN:   -analyzer-disable-checker=alpha.unix.cstring.UninitializedRead \
+// RUN:   -analyzer-checker=debug.ExprInspection \
+// RUN:   -analyzer-config eagerly-assume=false  
+//
+// RUN: %clang_analyze_cc1 -verify %s -DUSE_BUILTINS \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=unix.cstring \
+// RUN:   -analyzer-checker=alpha.unix.cstring \
+// RUN:   -analyzer-disable-checker=alpha.unix.cstring.UninitializedRead \
+// RUN:   -analyzer-checker=debug.ExprInspection \
+// RUN:   -analyzer-config eagerly-assume=false
+//
+// RUN: %clang_analyze_cc1 -verify %s -DVARIANT \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=unix.cstring \
+// RUN:   -analyzer-checker=alpha.unix.cstring \
+// RUN:   -analyzer-disable-checker=alpha.unix.cstring.UninitializedRead \
+// RUN:   -analyzer-checker=debug.ExprInspection \
+// RUN:   -analyzer-config eagerly-assume=false
+//
+// RUN: %clang_analyze_cc1 -verify %s -DUSE_BUILTINS -DVARIANT \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=unix.cstring \
+// RUN:   -analyzer-checker=alpha.unix.cstring \
+// RUN:   -analyzer-disable-checker=alpha.unix.cstring.UninitializedRead \
+// RUN:   -analyzer-checker=debug.ExprInspection \
+// RUN:   -analyzer-config eagerly-assume=false
 
 //===----------------------------------------------------------------------===
 // Declarations
@@ -48,7 +75,7 @@ void *memcpy(void *restrict s1, const void *restrict s2, size_t n);
 #endif /* VARIANT */
 
 
-void memcpy0 () {
+void memcpy0 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[4] = {0};
 
@@ -61,84 +88,84 @@ void memcpy0 () {
   clang_analyzer_eval(dst[0] != 0); // expected-warning{{UNKNOWN}}
 }
 
-void memcpy1 () {
+void memcpy1 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[10];
 
   memcpy(dst, src, 5); // expected-warning{{Memory copy function accesses out-of-bound array element}}
 }
 
-void memcpy2 () {
+void memcpy2 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[1];
 
-  memcpy(dst, src, 4);  // expected-warning{{Memory copy function overflows destination buffer}}
+  memcpy(dst, src, 4); // expected-warning {{Memory copy function overflows the destination buffer}}
 #ifndef VARIANT
-  // expected-warning@-2{{memcpy' will always overflow; destination buffer has size 1, but size argument is 4}}
+  // expected-warning@-2 {{memcpy' will always overflow; destination buffer has size 1, but size argument is 4}}
 #endif
 }
 
-void memcpy3 () {
+void memcpy3 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[3];
 
   memcpy(dst+1, src+2, 2); // no-warning
 }
 
-void memcpy4 () {
+void memcpy4 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[10];
 
   memcpy(dst+2, src+2, 3); // expected-warning{{Memory copy function accesses out-of-bound array element}}
 }
 
-void memcpy5() {
+void memcpy5(void) {
   char src[] = {1, 2, 3, 4};
   char dst[3];
 
-  memcpy(dst+2, src+2, 2); // expected-warning{{Memory copy function overflows destination buffer}}
+  memcpy(dst + 2, src + 2, 2); // expected-warning{{Memory copy function overflows the destination buffer}}
 #ifndef VARIANT
   // expected-warning@-2{{memcpy' will always overflow; destination buffer has size 1, but size argument is 2}}
 #endif
 }
 
-void memcpy6() {
+void memcpy6(void) {
   int a[4] = {0};
   memcpy(a, a, 8); // expected-warning{{overlapping}}  
 }
 
-void memcpy7() {
+void memcpy7(void) {
   int a[4] = {0};
   memcpy(a+2, a+1, 8); // expected-warning{{overlapping}}
 }
 
-void memcpy8() {
+void memcpy8(void) {
   int a[4] = {0};
   memcpy(a+1, a+2, 8); // expected-warning{{overlapping}}
 }
 
-void memcpy9() {
+void memcpy9(void) {
   int a[4] = {0};
   memcpy(a+2, a+1, 4); // no-warning
   memcpy(a+1, a+2, 4); // no-warning
 }
 
-void memcpy10() {
+void memcpy10(void) {
   char a[4] = {0};
-  memcpy(0, a, 4); // expected-warning{{Null pointer argument in call to memory copy function}}
+  memcpy(0, a, 4); // expected-warning{{Null pointer passed as 1st argument to memory copy function}}
 }
 
-void memcpy11() {
+void memcpy11(void) {
   char a[4] = {0};
-  memcpy(a, 0, 4); // expected-warning{{Null pointer argument in call to memory copy function}}
+  memcpy(a, 0, 4); // expected-warning{{Null pointer passed as 2nd argument to memory copy function}}
 }
 
-void memcpy12() {
+void memcpy12(void) {
   char a[4] = {0};
   memcpy(0, a, 0); // no-warning
 }
 
-void memcpy13() {
+void memcpy13(void) {
   char a[4] = {0};
   memcpy(a, 0, 0); // no-warning
 }
@@ -150,7 +177,7 @@ void memcpy_unknown_size (size_t n) {
 
 void memcpy_unknown_size_warn (size_t n) {
   char a[4];
-  void *result = memcpy(a, 0, n); // expected-warning{{Null pointer argument in call to memory copy function}}
+  void *result = memcpy(a, 0, n); // expected-warning{{Null pointer passed as 2nd argument to memory copy function}}
   clang_analyzer_eval(result == a); // no-warning (above is fatal)
 }
 
@@ -174,7 +201,7 @@ void *mempcpy(void *restrict s1, const void *restrict s2, size_t n);
 #endif /* VARIANT */
 
 
-void mempcpy0 () {
+void mempcpy0 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[5] = {0};
 
@@ -187,83 +214,89 @@ void mempcpy0 () {
   clang_analyzer_eval(dst[0] != 0); // expected-warning{{UNKNOWN}}
 }
 
-void mempcpy1 () {
+void mempcpy1 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[10];
 
   mempcpy(dst, src, 5); // expected-warning{{Memory copy function accesses out-of-bound array element}}
 }
 
-void mempcpy2 () {
+void mempcpy2 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[1];
 
-  mempcpy(dst, src, 4); // expected-warning{{Memory copy function overflows destination buffer}}
+  mempcpy(dst, src, 4); // expected-warning{{Memory copy function overflows the destination buffer}}
+#ifndef VARIANT
+// expected-warning@-2{{'mempcpy' will always overflow; destination buffer has size 1, but size argument is 4}}
+#endif
 }
 
-void mempcpy3 () {
+void mempcpy3 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[3];
 
   mempcpy(dst+1, src+2, 2); // no-warning
 }
 
-void mempcpy4 () {
+void mempcpy4 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[10];
 
   mempcpy(dst+2, src+2, 3); // expected-warning{{Memory copy function accesses out-of-bound array element}}
 }
 
-void mempcpy5() {
+void mempcpy5(void) {
   char src[] = {1, 2, 3, 4};
   char dst[3];
 
-  mempcpy(dst+2, src+2, 2); // expected-warning{{Memory copy function overflows destination buffer}}
+  mempcpy(dst + 2, src + 2, 2); // expected-warning{{Memory copy function overflows the destination buffer}}
+#ifndef VARIANT
+// expected-warning@-2{{'mempcpy' will always overflow; destination buffer has size 1, but size argument is 2}}
+#endif
 }
 
-void mempcpy6() {
+void mempcpy6(void) {
   int a[4] = {0};
   mempcpy(a, a, 8); // expected-warning{{overlapping}}  
 }
 
-void mempcpy7() {
+void mempcpy7(void) {
   int a[4] = {0};
   mempcpy(a+2, a+1, 8); // expected-warning{{overlapping}}
 }
 
-void mempcpy8() {
+void mempcpy8(void) {
   int a[4] = {0};
   mempcpy(a+1, a+2, 8); // expected-warning{{overlapping}}
 }
 
-void mempcpy9() {
+void mempcpy9(void) {
   int a[4] = {0};
   mempcpy(a+2, a+1, 4); // no-warning
   mempcpy(a+1, a+2, 4); // no-warning
 }
 
-void mempcpy10() {
+void mempcpy10(void) {
   char a[4] = {0};
-  mempcpy(0, a, 4); // expected-warning{{Null pointer argument in call to memory copy function}}
+  mempcpy(0, a, 4); // expected-warning{{Null pointer passed as 1st argument to memory copy function}}
 }
 
-void mempcpy11() {
+void mempcpy11(void) {
   char a[4] = {0};
-  mempcpy(a, 0, 4); // expected-warning{{Null pointer argument in call to memory copy function}}
+  mempcpy(a, 0, 4); // expected-warning{{Null pointer passed as 2nd argument to memory copy function}}
 }
 
-void mempcpy12() {
+void mempcpy12(void) {
   char a[4] = {0};
   mempcpy(0, a, 0); // no-warning
 }
 
-void mempcpy13() {
+void mempcpy13(void) {
   char a[4] = {0};
   mempcpy(a, 0, 0); // no-warning
 }
 
-void mempcpy14() {
+void mempcpy14(void) {
   int src[] = {1, 2, 3, 4};
   int dst[5] = {0};
   int *p;
@@ -278,7 +311,7 @@ struct st {
   int j;
 };
 
-void mempcpy15() {
+void mempcpy15(void) {
   struct st s1 = {0};
   struct st s2;
   struct st *p1;
@@ -286,11 +319,11 @@ void mempcpy15() {
 
   p1 = (&s2) + 1;
   p2 = mempcpy(&s2, &s1, sizeof(struct st));
-
+  
   clang_analyzer_eval(p1 == p2); // expected-warning{{TRUE}}
 }
 
-void mempcpy16() {
+void mempcpy16(void) {
   struct st s1[10] = {{0}};
   struct st s2[10];
   struct st *p1;
@@ -304,7 +337,7 @@ void mempcpy16() {
 
 void mempcpy_unknown_size_warn (size_t n) {
   char a[4];
-  void *result = mempcpy(a, 0, n); // expected-warning{{Null pointer argument in call to memory copy function}}
+  void *result = mempcpy(a, 0, n); // expected-warning{{Null pointer passed as 2nd argument to memory copy function}}
   clang_analyzer_eval(result == a); // no-warning (above is fatal)
 }
 
@@ -333,7 +366,7 @@ void *memmove(void *s1, const void *s2, size_t n);
 #endif /* VARIANT */
 
 
-void memmove0 () {
+void memmove0 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[4] = {0};
 
@@ -346,18 +379,18 @@ void memmove0 () {
   clang_analyzer_eval(dst[0] != 0); // expected-warning{{UNKNOWN}}
 }
 
-void memmove1 () {
+void memmove1 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[10];
 
   memmove(dst, src, 5); // expected-warning{{out-of-bound}}
 }
 
-void memmove2 () {
+void memmove2 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[1];
 
-  memmove(dst, src, 4); // expected-warning{{Memory copy function overflows destination buffer}}
+  memmove(dst, src, 4); // expected-warning{{Memory copy function overflows the destination buffer}}
 #ifndef VARIANT
   // expected-warning@-2{{memmove' will always overflow; destination buffer has size 1, but size argument is 4}}
 #endif
@@ -381,28 +414,28 @@ int memcmp(const void *s1, const void *s2, size_t n);
 #endif /* VARIANT */
 
 
-void memcmp0 () {
+void memcmp0 (void) {
   char a[] = {1, 2, 3, 4};
   char b[4] = { 0 };
 
   memcmp(a, b, 4); // no-warning
 }
 
-void memcmp1 () {
+void memcmp1 (void) {
   char a[] = {1, 2, 3, 4};
   char b[10] = { 0 };
 
   memcmp(a, b, 5); // expected-warning{{out-of-bound}}
 }
 
-void memcmp2 () {
+void memcmp2 (void) {
   char a[] = {1, 2, 3, 4};
   char b[1] = { 0 };
 
   memcmp(a, b, 4); // expected-warning{{out-of-bound}}
 }
 
-void memcmp3 () {
+void memcmp3 (void) {
   char a[] = {1, 2, 3, 4};
 
   clang_analyzer_eval(memcmp(a, a, 4) == 0); // expected-warning{{TRUE}}
@@ -439,6 +472,12 @@ int memcmp7 (char *a, size_t x, size_t y, size_t n) {
          memcmp(&a[x*y], a, n);
 }
 
+int memcmp8(char *a, size_t n) {
+  char *b = 0;
+  // Do not warn about the first argument!
+  return memcmp(a, b, n); // expected-warning{{Null pointer passed as 2nd argument to memory comparison function}}
+}
+
 //===----------------------------------------------------------------------===
 // bcopy()
 //===----------------------------------------------------------------------===
@@ -448,7 +487,7 @@ int memcmp7 (char *a, size_t x, size_t y, size_t n) {
 void bcopy(/*const*/ void *s1, void *s2, size_t n);
 
 
-void bcopy0 () {
+void bcopy0 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[4] = {0};
 
@@ -459,14 +498,14 @@ void bcopy0 () {
   clang_analyzer_eval(dst[0] != 0); // expected-warning{{UNKNOWN}}
 }
 
-void bcopy1 () {
+void bcopy1 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[10];
 
   bcopy(src, dst, 5); // expected-warning{{out-of-bound}}
 }
 
-void bcopy2 () {
+void bcopy2 (void) {
   char src[] = {1, 2, 3, 4};
   char dst[1];
 
@@ -488,6 +527,6 @@ struct S {
 };
 
 void nocrash_on_locint_offset(void *addr, void* from, struct S s) {
-  int iAdd = (int) addr;
+  size_t iAdd = (size_t) addr;
   memcpy(((void *) &(s.f)), from, iAdd);
 }

@@ -2,11 +2,11 @@
 ; RUN: llc < %s -mtriple=i386-apple-darwin10.0 | FileCheck %s --check-prefix=CHECK-X86
 ; RUN: llc < %s -mtriple=x86_64-grtev4-linux-gnu | FileCheck %s --check-prefix=CHECK-X64
 
-@g_14 = global i8 -6, align 1                     ; <i8*> [#uses=1]
+@g_14 = dso_local global i8 -6, align 1                     ; <i8*> [#uses=1]
 
 declare i32 @func_16(i8 signext %p_19, i32 %p_20) nounwind
 
-define i32 @func_35(i64 %p_38) nounwind ssp {
+define dso_local i32 @func_35(i64 %p_38) nounwind ssp {
 ; CHECK-X86-LABEL: func_35:
 ; CHECK-X86:       ## %bb.0: ## %entry
 ; CHECK-X86-NEXT:    subl $12, %esp
@@ -26,11 +26,11 @@ define i32 @func_35(i64 %p_38) nounwind ssp {
 ; CHECK-X64-LABEL: func_35:
 ; CHECK-X64:       # %bb.0: # %entry
 ; CHECK-X64-NEXT:    pushq %rax
-; CHECK-X64-NEXT:    movsbl {{.*}}(%rip), %edi
+; CHECK-X64-NEXT:    movsbl g_14(%rip), %edi
 ; CHECK-X64-NEXT:    xorl %esi, %esi
 ; CHECK-X64-NEXT:    testl $255, %edi
 ; CHECK-X64-NEXT:    setg %sil
-; CHECK-X64-NEXT:    callq func_16
+; CHECK-X64-NEXT:    callq func_16@PLT
 ; CHECK-X64-NEXT:    movl $1, %eax
 ; CHECK-X64-NEXT:    popq %rcx
 ; CHECK-X64-NEXT:    retq
@@ -43,7 +43,7 @@ entry:
   ret i32 1
 }
 
-define void @fail(i16 %a, <2 x i8> %b) {
+define dso_local void @fail(i16 %a, <2 x i8> %b) {
 ; CHECK-X86-LABEL: fail:
 ; CHECK-X86:       ## %bb.0:
 ; CHECK-X86-NEXT:    subl $12, %esp
@@ -52,15 +52,13 @@ define void @fail(i16 %a, <2 x i8> %b) {
 ; CHECK-X86-NEXT:    cmpb $123, {{[0-9]+}}(%esp)
 ; CHECK-X86-NEXT:    sete %al
 ; CHECK-X86-NEXT:    testl $263, %ecx ## imm = 0x107
-; CHECK-X86-NEXT:    je LBB1_2
+; CHECK-X86-NEXT:    je LBB1_3
 ; CHECK-X86-NEXT:  ## %bb.1:
 ; CHECK-X86-NEXT:    testb %al, %al
-; CHECK-X86-NEXT:    jne LBB1_2
-; CHECK-X86-NEXT:  ## %bb.3: ## %no
+; CHECK-X86-NEXT:    jne LBB1_3
+; CHECK-X86-NEXT:  ## %bb.2: ## %no
 ; CHECK-X86-NEXT:    calll _bar
-; CHECK-X86-NEXT:    addl $12, %esp
-; CHECK-X86-NEXT:    retl
-; CHECK-X86-NEXT:  LBB1_2: ## %yes
+; CHECK-X86-NEXT:  LBB1_3: ## %yes
 ; CHECK-X86-NEXT:    addl $12, %esp
 ; CHECK-X86-NEXT:    retl
 ;
@@ -69,22 +67,16 @@ define void @fail(i16 %a, <2 x i8> %b) {
 ; CHECK-X64-NEXT:    pushq %rax
 ; CHECK-X64-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-X64-NEXT:    testl $263, %edi # imm = 0x107
-; CHECK-X64-NEXT:    je .LBB1_2
+; CHECK-X64-NEXT:    je .LBB1_3
 ; CHECK-X64-NEXT:  # %bb.1:
-; CHECK-X64-NEXT:    pand {{.*}}(%rip), %xmm0
-; CHECK-X64-NEXT:    pcmpeqd {{.*}}(%rip), %xmm0
-; CHECK-X64-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[1,0,3,2]
-; CHECK-X64-NEXT:    pand %xmm0, %xmm1
-; CHECK-X64-NEXT:    pextrw $4, %xmm1, %eax
+; CHECK-X64-NEXT:    pcmpeqb {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; CHECK-X64-NEXT:    pslldq {{.*#+}} xmm0 = zero,zero,zero,zero,zero,zero,zero,xmm0[0,1,2,3,4,5,6,7,8]
+; CHECK-X64-NEXT:    pextrw $4, %xmm0, %eax
 ; CHECK-X64-NEXT:    testb $1, %al
-; CHECK-X64-NEXT:    jne .LBB1_2
-; CHECK-X64-NEXT:  # %bb.3: # %no
-; CHECK-X64-NEXT:    callq bar
-; CHECK-X64-NEXT:    popq %rax
-; CHECK-X64-NEXT:    .cfi_def_cfa_offset 8
-; CHECK-X64-NEXT:    retq
-; CHECK-X64-NEXT:  .LBB1_2: # %yes
-; CHECK-X64-NEXT:    .cfi_def_cfa_offset 16
+; CHECK-X64-NEXT:    jne .LBB1_3
+; CHECK-X64-NEXT:  # %bb.2: # %no
+; CHECK-X64-NEXT:    callq bar@PLT
+; CHECK-X64-NEXT:  .LBB1_3: # %yes
 ; CHECK-X64-NEXT:    popq %rax
 ; CHECK-X64-NEXT:    .cfi_def_cfa_offset 8
 ; CHECK-X64-NEXT:    retq

@@ -19,28 +19,20 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_ANALYSIS_OBJCARCANALYSISUTILS_H
-#define LLVM_LIB_ANALYSIS_OBJCARCANALYSISUTILS_H
+#ifndef LLVM_ANALYSIS_OBJCARCANALYSISUTILS_H
+#define LLVM_ANALYSIS_OBJCARCANALYSISUTILS_H
 
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/ObjCARCInstKind.h"
-#include "llvm/Analysis/Passes.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/InstIterator.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueHandle.h"
-#include "llvm/Pass.h"
 
 namespace llvm {
-class raw_ostream;
-}
 
-namespace llvm {
+class AAResults;
+
 namespace objcarc {
 
 /// A handy option to enable/disable all ARC Optimizations.
@@ -74,10 +66,9 @@ inline bool ModuleHasARC(const Module &M) {
 /// This is a wrapper around getUnderlyingObject which also knows how to
 /// look through objc_retain and objc_autorelease calls, which we know to return
 /// their argument verbatim.
-inline const Value *GetUnderlyingObjCPtr(const Value *V,
-                                                const DataLayout &DL) {
+inline const Value *GetUnderlyingObjCPtr(const Value *V) {
   for (;;) {
-    V = GetUnderlyingObject(V, DL);
+    V = getUnderlyingObject(V);
     if (!IsForwarding(GetBasicARCInstKind(V)))
       break;
     V = cast<CallInst>(V)->getArgOperand(0);
@@ -87,14 +78,17 @@ inline const Value *GetUnderlyingObjCPtr(const Value *V,
 }
 
 /// A wrapper for GetUnderlyingObjCPtr used for results memoization.
-inline const Value *
-GetUnderlyingObjCPtrCached(const Value *V, const DataLayout &DL,
-                           DenseMap<const Value *, WeakTrackingVH> &Cache) {
-  if (auto InCache = Cache.lookup(V))
-    return InCache;
+inline const Value *GetUnderlyingObjCPtrCached(
+    const Value *V,
+    DenseMap<const Value *, std::pair<WeakVH, WeakTrackingVH>> &Cache) {
+  // The entry is invalid if either value handle is null.
+  auto InCache = Cache.lookup(V);
+  if (InCache.first && InCache.second)
+    return InCache.second;
 
-  const Value *Computed = GetUnderlyingObjCPtr(V, DL);
-  Cache[V] = const_cast<Value *>(Computed);
+  const Value *Computed = GetUnderlyingObjCPtr(V);
+  Cache[V] =
+      std::make_pair(const_cast<Value *>(V), const_cast<Value *>(Computed));
   return Computed;
 }
 
@@ -156,9 +150,7 @@ inline bool IsPotentialRetainableObjPtr(const Value *Op) {
     return false;
   // Special arguments can not be a valid retainable object pointer.
   if (const Argument *Arg = dyn_cast<Argument>(Op))
-    if (Arg->hasByValAttr() ||
-        Arg->hasInAllocaAttr() ||
-        Arg->hasNestAttr() ||
+    if (Arg->hasPassPointeeByValueCopyAttr() || Arg->hasNestAttr() ||
         Arg->hasStructRetAttr())
       return false;
   // Only consider values with pointer types.
@@ -174,34 +166,16 @@ inline bool IsPotentialRetainableObjPtr(const Value *Op) {
   return true;
 }
 
-inline bool IsPotentialRetainableObjPtr(const Value *Op,
-                                               AliasAnalysis &AA) {
-  // First make the rudimentary check.
-  if (!IsPotentialRetainableObjPtr(Op))
-    return false;
-
-  // Objects in constant memory are not reference-counted.
-  if (AA.pointsToConstantMemory(Op))
-    return false;
-
-  // Pointers in constant memory are not pointing to reference-counted objects.
-  if (const LoadInst *LI = dyn_cast<LoadInst>(Op))
-    if (AA.pointsToConstantMemory(LI->getPointerOperand()))
-      return false;
-
-  // Otherwise assume the worst.
-  return true;
-}
+bool IsPotentialRetainableObjPtr(const Value *Op, AAResults &AA);
 
 /// Helper for GetARCInstKind. Determines what kind of construct CS
 /// is.
-inline ARCInstKind GetCallSiteClass(ImmutableCallSite CS) {
-  for (ImmutableCallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
-       I != E; ++I)
-    if (IsPotentialRetainableObjPtr(*I))
-      return CS.onlyReadsMemory() ? ARCInstKind::User : ARCInstKind::CallOrUser;
+inline ARCInstKind GetCallSiteClass(const CallBase &CB) {
+  for (const Use &U : CB.args())
+    if (IsPotentialRetainableObjPtr(U))
+      return CB.onlyReadsMemory() ? ARCInstKind::User : ARCInstKind::CallOrUser;
 
-  return CS.onlyReadsMemory() ? ARCInstKind::None : ARCInstKind::Call;
+  return CB.onlyReadsMemory() ? ARCInstKind::None : ARCInstKind::Call;
 }
 
 /// Return true if this value refers to a distinct and identifiable
@@ -233,11 +207,10 @@ inline bool IsObjCIdentifiedObject(const Value *V) {
         return true;
 
       StringRef Section = GV->getSection();
-      if (Section.find("__message_refs") != StringRef::npos ||
-          Section.find("__objc_classrefs") != StringRef::npos ||
-          Section.find("__objc_superrefs") != StringRef::npos ||
-          Section.find("__objc_methname") != StringRef::npos ||
-          Section.find("__cstring") != StringRef::npos)
+      if (Section.contains("__message_refs") ||
+          Section.contains("__objc_classrefs") ||
+          Section.contains("__objc_superrefs") ||
+          Section.contains("__objc_methname") || Section.contains("__cstring"))
         return true;
     }
   }

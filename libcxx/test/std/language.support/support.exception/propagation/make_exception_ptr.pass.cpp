@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // <exception>
 
 // template<class E> exception_ptr make_exception_ptr(E e);
 
 #include <exception>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct A
 {

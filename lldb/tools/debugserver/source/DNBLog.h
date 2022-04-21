@@ -10,12 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __DNBLog_h__
-#define __DNBLog_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBLOG_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBLOG_H
 
 #include "DNBDefs.h"
-#include <stdint.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstdio>
 
 #ifdef __cplusplus
 extern "C" {
@@ -149,4 +149,4 @@ void DNBLogSetVerbose(int g);
 }
 #endif
 
-#endif // #ifndef __DNBLog_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBLOG_H

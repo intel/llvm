@@ -7,8 +7,8 @@ struct B : Spacer, A { };
 
 B &getB();
 
-// CHECK-LABEL: define dereferenceable({{[0-9]+}}) %struct.A* @_Z4getAv()
-// CHECK: call dereferenceable({{[0-9]+}}) %struct.B* @_Z4getBv()
+// CHECK-LABEL: define{{.*}} nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.A* @_Z4getAv()
+// CHECK: call noundef nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.B* @_Z4getBv()
 // CHECK-NEXT: bitcast %struct.B*
 // CHECK-NEXT: getelementptr inbounds i8, i8*
 // CHECK-NEXT: bitcast i8* {{.*}} to %struct.A*
@@ -19,18 +19,18 @@ int &getIntLValue();
 int &&getIntXValue();
 int getIntPRValue();
 
-// CHECK-LABEL: define dereferenceable({{[0-9]+}}) i32* @_Z2f0v()
-// CHECK: call dereferenceable({{[0-9]+}}) i32* @_Z12getIntLValuev()
+// CHECK-LABEL: define{{.*}} nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) i32* @_Z2f0v()
+// CHECK: call noundef nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) i32* @_Z12getIntLValuev()
 // CHECK-NEXT: ret i32*
 int &&f0() { return static_cast<int&&>(getIntLValue()); }
 
-// CHECK-LABEL: define dereferenceable({{[0-9]+}}) i32* @_Z2f1v()
-// CHECK: call dereferenceable({{[0-9]+}}) i32* @_Z12getIntXValuev()
+// CHECK-LABEL: define{{.*}} nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) i32* @_Z2f1v()
+// CHECK: call noundef nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) i32* @_Z12getIntXValuev()
 // CHECK-NEXT: ret i32*
 int &&f1() { return static_cast<int&&>(getIntXValue()); }
 
-// CHECK-LABEL: define dereferenceable({{[0-9]+}}) i32* @_Z2f2v
-// CHECK: call i32 @_Z13getIntPRValuev()
+// CHECK-LABEL: define{{.*}} nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) i32* @_Z2f2v
+// CHECK: call noundef i32 @_Z13getIntPRValuev()
 // CHECK-NEXT: store i32 {{.*}}, i32*
 // CHECK-NEXT: ret i32*
 int &&f2() { return static_cast<int&&>(getIntPRValue()); }
@@ -59,7 +59,7 @@ public:
 
 C test();
 
-// CHECK-LABEL: define void @_Z15elide_copy_initv
+// CHECK-LABEL: define{{.*}} void @_Z15elide_copy_initv
 void elide_copy_init() {
   ok = false;
   // CHECK: call void @_Z4testv
@@ -68,7 +68,7 @@ void elide_copy_init() {
   // CHECK-NEXT: ret void
 }
 
-// CHECK-LABEL: define void @_Z16test_move_returnv
+// CHECK-LABEL: define{{.*}} void @_Z16test_move_returnv
 C test_move_return() {
   // CHECK: call void @_ZN1CC1Ei
   C a1(3);
@@ -94,10 +94,10 @@ namespace test1 {
     B(int i);
   };
 
-  // CHECK-LABEL:    define void @_ZN5test11BC2Ei(
-  // CHECK:      [[T0:%.*]] = call dereferenceable({{[0-9]+}}) i32* @_ZN5test14moveERi(
+  // CHECK-LABEL:    define{{.*}} void @_ZN5test11BC2Ei(
+  // CHECK:      [[T0:%.*]] = call noundef nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) i32* @_ZN5test14moveERi(
   // CHECK-NEXT: [[T1:%.*]] = load i32, i32* [[T0]]
-  // CHECK-NEXT: call void @_ZN5test11AC1Ei({{.*}}, i32 [[T1]])
+  // CHECK-NEXT: call void @_ZN5test11AC1Ei({{.*}}, i32 noundef [[T1]])
   // CHECK-NEXT: ret void
   B::B(int i) : a(move(i)) {}
 }

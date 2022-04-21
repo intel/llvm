@@ -1,10 +1,10 @@
-; RUN: opt %loadPolly -polly-scops -analyze < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-print-scops -disable-output < %s | FileCheck %s
 ;
 ; CHECK:         Assumed Context:
 ; CHECK-NEXT:    [N] -> {  :  }
 ; CHECK-NEXT:    Invalid Context:
 ; CHECK-NEXT:    [N] -> {  : N >= 4294967297 }
-; CHECK-NEXT:    p0: %N
+; CHECK:         p0: %N
 ; CHECK:         Statements {
 ; CHECK-NEXT:    	Stmt_for_body
 ; CHECK-NEXT:            Domain :=

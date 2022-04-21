@@ -12,8 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/Utils/MetaRenamer.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -25,12 +27,40 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/TypeFinder.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils.h"
 
 using namespace llvm;
+
+static cl::opt<std::string> RenameExcludeFunctionPrefixes(
+    "rename-exclude-function-prefixes",
+    cl::desc("Prefixes for functions that don't need to be renamed, separated "
+             "by a comma"),
+    cl::Hidden);
+
+static cl::opt<std::string> RenameExcludeAliasPrefixes(
+    "rename-exclude-alias-prefixes",
+    cl::desc("Prefixes for aliases that don't need to be renamed, separated "
+             "by a comma"),
+    cl::Hidden);
+
+static cl::opt<std::string> RenameExcludeGlobalPrefixes(
+    "rename-exclude-global-prefixes",
+    cl::desc(
+        "Prefixes for global values that don't need to be renamed, separated "
+        "by a comma"),
+    cl::Hidden);
+
+static cl::opt<std::string> RenameExcludeStructPrefixes(
+    "rename-exclude-struct-prefixes",
+    cl::desc("Prefixes for structs that don't need to be renamed, separated "
+             "by a comma"),
+    cl::Hidden);
 
 static const char *const metaNames[] = {
   // See http://en.wikipedia.org/wiki/Metasyntactic_variable
@@ -39,124 +69,157 @@ static const char *const metaNames[] = {
 };
 
 namespace {
+// This PRNG is from the ISO C spec. It is intentionally simple and
+// unsuitable for cryptographic use. We're just looking for enough
+// variety to surprise and delight users.
+struct PRNG {
+  unsigned long next;
 
-  // This PRNG is from the ISO C spec. It is intentionally simple and
-  // unsuitable for cryptographic use. We're just looking for enough
-  // variety to surprise and delight users.
-  struct PRNG {
-    unsigned long next;
+  void srand(unsigned int seed) { next = seed; }
 
-    void srand(unsigned int seed) {
-      next = seed;
-    }
+  int rand() {
+    next = next * 1103515245 + 12345;
+    return (unsigned int)(next / 65536) % 32768;
+  }
+};
 
-    int rand() {
-      next = next * 1103515245 + 12345;
-      return (unsigned int)(next / 65536) % 32768;
-    }
+struct Renamer {
+  Renamer(unsigned int seed) { prng.srand(seed); }
+
+  const char *newName() {
+    return metaNames[prng.rand() % array_lengthof(metaNames)];
+  }
+
+  PRNG prng;
+};
+
+static void
+parseExcludedPrefixes(StringRef PrefixesStr,
+                      SmallVectorImpl<StringRef> &ExcludedPrefixes) {
+  for (;;) {
+    auto PrefixesSplit = PrefixesStr.split(',');
+    if (PrefixesSplit.first.empty())
+      break;
+    ExcludedPrefixes.push_back(PrefixesSplit.first);
+    PrefixesStr = PrefixesSplit.second;
+  }
+}
+
+void MetaRename(Function &F) {
+  for (Argument &Arg : F.args())
+    if (!Arg.getType()->isVoidTy())
+      Arg.setName("arg");
+
+  for (auto &BB : F) {
+    BB.setName("bb");
+
+    for (auto &I : BB)
+      if (!I.getType()->isVoidTy())
+        I.setName("tmp");
+  }
+}
+
+void MetaRename(Module &M,
+                function_ref<TargetLibraryInfo &(Function &)> GetTLI) {
+  // Seed our PRNG with simple additive sum of ModuleID. We're looking to
+  // simply avoid always having the same function names, and we need to
+  // remain deterministic.
+  unsigned int randSeed = 0;
+  for (auto C : M.getModuleIdentifier())
+    randSeed += C;
+
+  Renamer renamer(randSeed);
+
+  SmallVector<StringRef, 8> ExcludedAliasesPrefixes;
+  SmallVector<StringRef, 8> ExcludedGlobalsPrefixes;
+  SmallVector<StringRef, 8> ExcludedStructsPrefixes;
+  SmallVector<StringRef, 8> ExcludedFuncPrefixes;
+  parseExcludedPrefixes(RenameExcludeAliasPrefixes, ExcludedAliasesPrefixes);
+  parseExcludedPrefixes(RenameExcludeGlobalPrefixes, ExcludedGlobalsPrefixes);
+  parseExcludedPrefixes(RenameExcludeStructPrefixes, ExcludedStructsPrefixes);
+  parseExcludedPrefixes(RenameExcludeFunctionPrefixes, ExcludedFuncPrefixes);
+
+  auto IsNameExcluded = [](StringRef &Name,
+                           SmallVectorImpl<StringRef> &ExcludedPrefixes) {
+    return any_of(ExcludedPrefixes,
+                  [&Name](auto &Prefix) { return Name.startswith(Prefix); });
   };
 
-  struct Renamer {
-    Renamer(unsigned int seed) {
-      prng.srand(seed);
-    }
+  // Rename all aliases
+  for (GlobalAlias &GA : M.aliases()) {
+    StringRef Name = GA.getName();
+    if (Name.startswith("llvm.") || (!Name.empty() && Name[0] == 1) ||
+        IsNameExcluded(Name, ExcludedAliasesPrefixes))
+      continue;
 
-    const char *newName() {
-      return metaNames[prng.rand() % array_lengthof(metaNames)];
-    }
+    GA.setName("alias");
+  }
 
-    PRNG prng;
-  };
+  // Rename all global variables
+  for (GlobalVariable &GV : M.globals()) {
+    StringRef Name = GV.getName();
+    if (Name.startswith("llvm.") || (!Name.empty() && Name[0] == 1) ||
+        IsNameExcluded(Name, ExcludedGlobalsPrefixes))
+      continue;
 
-  struct MetaRenamer : public ModulePass {
-    // Pass identification, replacement for typeid
-    static char ID;
+    GV.setName("global");
+  }
 
-    MetaRenamer() : ModulePass(ID) {
-      initializeMetaRenamerPass(*PassRegistry::getPassRegistry());
-    }
+  // Rename all struct types
+  TypeFinder StructTypes;
+  StructTypes.run(M, true);
+  for (StructType *STy : StructTypes) {
+    StringRef Name = STy->getName();
+    if (STy->isLiteral() || Name.empty() ||
+        IsNameExcluded(Name, ExcludedStructsPrefixes))
+      continue;
 
-    void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<TargetLibraryInfoWrapperPass>();
-      AU.setPreservesAll();
-    }
+    SmallString<128> NameStorage;
+    STy->setName(
+        (Twine("struct.") + renamer.newName()).toStringRef(NameStorage));
+  }
 
-    bool runOnModule(Module &M) override {
-      // Seed our PRNG with simple additive sum of ModuleID. We're looking to
-      // simply avoid always having the same function names, and we need to
-      // remain deterministic.
-      unsigned int randSeed = 0;
-      for (auto C : M.getModuleIdentifier())
-        randSeed += C;
+  // Rename all functions
+  for (auto &F : M) {
+    StringRef Name = F.getName();
+    LibFunc Tmp;
+    // Leave library functions alone because their presence or absence could
+    // affect the behavior of other passes.
+    if (Name.startswith("llvm.") || (!Name.empty() && Name[0] == 1) ||
+        GetTLI(F).getLibFunc(F, Tmp) ||
+        IsNameExcluded(Name, ExcludedFuncPrefixes))
+      continue;
 
-      Renamer renamer(randSeed);
+    // Leave @main alone. The output of -metarenamer might be passed to
+    // lli for execution and the latter needs a main entry point.
+    if (Name != "main")
+      F.setName(renamer.newName());
 
-      // Rename all aliases
-      for (auto AI = M.alias_begin(), AE = M.alias_end(); AI != AE; ++AI) {
-        StringRef Name = AI->getName();
-        if (Name.startswith("llvm.") || (!Name.empty() && Name[0] == 1))
-          continue;
+    MetaRename(F);
+  }
+}
 
-        AI->setName("alias");
-      }
+struct MetaRenamer : public ModulePass {
+  // Pass identification, replacement for typeid
+  static char ID;
 
-      // Rename all global variables
-      for (auto GI = M.global_begin(), GE = M.global_end(); GI != GE; ++GI) {
-        StringRef Name = GI->getName();
-        if (Name.startswith("llvm.") || (!Name.empty() && Name[0] == 1))
-          continue;
+  MetaRenamer() : ModulePass(ID) {
+    initializeMetaRenamerPass(*PassRegistry::getPassRegistry());
+  }
 
-        GI->setName("global");
-      }
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<TargetLibraryInfoWrapperPass>();
+    AU.setPreservesAll();
+  }
 
-      // Rename all struct types
-      TypeFinder StructTypes;
-      StructTypes.run(M, true);
-      for (StructType *STy : StructTypes) {
-        if (STy->isLiteral() || STy->getName().empty()) continue;
-
-        SmallString<128> NameStorage;
-        STy->setName((Twine("struct.") +
-          renamer.newName()).toStringRef(NameStorage));
-      }
-
-      // Rename all functions
-      const TargetLibraryInfo &TLI =
-          getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-      for (auto &F : M) {
-        StringRef Name = F.getName();
-        LibFunc Tmp;
-        // Leave library functions alone because their presence or absence could
-        // affect the behavior of other passes.
-        if (Name.startswith("llvm.") || (!Name.empty() && Name[0] == 1) ||
-            TLI.getLibFunc(F, Tmp))
-          continue;
-
-        // Leave @main alone. The output of -metarenamer might be passed to
-        // lli for execution and the latter needs a main entry point.
-        if (Name != "main")
-          F.setName(renamer.newName());
-
-        runOnFunction(F);
-      }
-      return true;
-    }
-
-    bool runOnFunction(Function &F) {
-      for (auto AI = F.arg_begin(), AE = F.arg_end(); AI != AE; ++AI)
-        if (!AI->getType()->isVoidTy())
-          AI->setName("arg");
-
-      for (auto &BB : F) {
-        BB.setName("bb");
-
-        for (auto &I : BB)
-          if (!I.getType()->isVoidTy())
-            I.setName("tmp");
-      }
-      return true;
-    }
-  };
+  bool runOnModule(Module &M) override {
+    auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
+      return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+    };
+    MetaRename(M, GetTLI);
+    return true;
+  }
+};
 
 } // end anonymous namespace
 
@@ -174,4 +237,15 @@ INITIALIZE_PASS_END(MetaRenamer, "metarenamer",
 //
 ModulePass *llvm::createMetaRenamerPass() {
   return new MetaRenamer();
+}
+
+PreservedAnalyses MetaRenamerPass::run(Module &M, ModuleAnalysisManager &AM) {
+  FunctionAnalysisManager &FAM =
+      AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  auto GetTLI = [&FAM](Function &F) -> TargetLibraryInfo & {
+    return FAM.getResult<TargetLibraryAnalysis>(F);
+  };
+  MetaRename(M, GetTLI);
+
+  return PreservedAnalyses::all();
 }

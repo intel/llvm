@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <set>
 
@@ -15,6 +15,7 @@
 // node_type extract(const_iterator);
 
 #include <set>
+#include "test_macros.h"
 #include "min_allocator.h"
 #include "Counter.h"
 

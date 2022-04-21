@@ -1,15 +1,15 @@
-; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa -mattr=-code-object-v3 -mcpu=kaveri -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=CO-V2 -check-prefix=CI-HSA  %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa -mattr=-code-object-v3 -mcpu=carrizo -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=CO-V2 -check-prefix=VI-HSA  %s
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=UNKNOWN-OS -check-prefix=SI-MESA %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=UNKNOWN-OS -check-prefix=VI-MESA %s
-; RUN: llc -mtriple=amdgcn-unknown-mesa3d -mattr=-code-object-v3 -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefixes=ALL,CO-V2,SI-MESA %s
-; RUN: llc -mtriple=amdgcn-unknown-mesa3d -mattr=-code-object-v3 -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefixes=ALL,CO-V2,VI-MESA %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa --amdhsa-code-object-version=2 -mcpu=kaveri -verify-machineinstrs < %s | FileCheck --check-prefixes=ALL,CO-V2  %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa --amdhsa-code-object-version=2 -mcpu=carrizo -verify-machineinstrs < %s | FileCheck --check-prefixes=ALL,CO-V2  %s
+; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck --check-prefixes=ALL,UNKNOWN-OS %s
+; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck --check-prefixes=ALL,UNKNOWN-OS %s
+; RUN: llc -mtriple=amdgcn-unknown-mesa3d -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefixes=ALL,CO-V2 %s
+; RUN: llc -mtriple=amdgcn-unknown-mesa3d -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefixes=ALL,CO-V2 %s
 
 declare i32 @llvm.amdgcn.workgroup.id.x() #0
 declare i32 @llvm.amdgcn.workgroup.id.y() #0
 declare i32 @llvm.amdgcn.workgroup.id.z() #0
 
-; ALL-LABEL {{^}}test_workgroup_id_x:
+; ALL-LABEL: {{^}}test_workgroup_id_x:
 
 ; CO-V2: .amd_kernel_code_t
 ; CO-V2: user_sgpr_count = 6
@@ -40,7 +40,7 @@ define amdgpu_kernel void @test_workgroup_id_x(i32 addrspace(1)* %out) #1 {
   ret void
 }
 
-; ALL-LABEL {{^}}test_workgroup_id_y:
+; ALL-LABEL: {{^}}test_workgroup_id_y:
 ; CO-V2: user_sgpr_count = 6
 ; CO-V2: enable_sgpr_workgroup_id_x = 1
 ; CO-V2: enable_sgpr_workgroup_id_y = 1
@@ -67,7 +67,7 @@ define amdgpu_kernel void @test_workgroup_id_y(i32 addrspace(1)* %out) #1 {
   ret void
 }
 
-; ALL-LABEL {{^}}test_workgroup_id_z:
+; ALL-LABEL: {{^}}test_workgroup_id_z:
 ; CO-V2: user_sgpr_count = 6
 ; CO-V2: enable_sgpr_workgroup_id_x = 1
 ; CO-V2: enable_sgpr_workgroup_id_y = 0

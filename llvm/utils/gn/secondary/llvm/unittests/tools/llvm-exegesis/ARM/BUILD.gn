@@ -19,7 +19,5 @@ unittest("LLVMExegesisARMTests") {
     "//llvm/lib/Target/ARM",
     "//llvm/tools/llvm-exegesis/lib",
   ]
-  sources = [
-    "AssemblerTest.cpp",
-  ]
+  sources = [ "AssemblerTest.cpp" ]
 }

@@ -11,7 +11,8 @@ int main (int argc, const char * argv[])
   return x;
 }
 
-void foo() { int b=0; while (b==b); }
+#pragma clang diagnostic ignored "-Wmisleading-indentation"
+void foo(void) { int b=0; while (b==b); }
 
 // RUN: env CINDEXTEST_EDITING=1 CINDEXTEST_FAILONERROR=1 c-index-test -test-load-source-reparse 5 local \
 // RUN: -I%S/Inputs \

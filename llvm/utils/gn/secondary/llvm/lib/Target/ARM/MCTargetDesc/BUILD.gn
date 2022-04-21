@@ -36,7 +36,6 @@ tablegen("ARMGenSubtargetInfo") {
 group("tablegen") {
   visibility = [
     ":MCTargetDesc",
-    "../TargetInfo",
     "../Utils",
   ]
   public_deps = [
@@ -45,11 +44,10 @@ group("tablegen") {
     ":ARMGenSubtargetInfo",
   ]
 }
+
 static_library("MCTargetDesc") {
   output_name = "LLVMARMDesc"
-  public_deps = [
-    ":tablegen",
-  ]
+  public_deps = [ ":tablegen" ]
   deps = [
     ":ARMGenAsmWriter",
     ":ARMGenMCCodeEmitter",

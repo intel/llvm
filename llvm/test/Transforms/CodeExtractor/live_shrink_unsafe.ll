@@ -68,16 +68,16 @@ bb:
   ret void
 }
 
-; CHECK-LABEL define internal void @_Z3foo_unknown_calli.1_bb3
+; CHECK-LABEL: define internal void @_Z3foo_unknown_calli.1.bb3
 ; CHECK: newFuncRoot:
 ; CHECK-NEXT: br label %bb3
-
-; CHECK: bb4.exitStub:
-; CHECK-NEXT: ret void
 
 ; CHECK: bb3:
 ; CHECK-NOT: lifetime.ed
 ; CHECK: br label %bb4.exitStub
+
+; CHECK: bb4.exitStub:
+; CHECK-NEXT: ret void
 
 
 

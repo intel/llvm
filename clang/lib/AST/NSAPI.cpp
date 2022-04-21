@@ -75,17 +75,6 @@ Selector NSAPI::getNSStringSelector(NSStringMethodKind MK) const {
   return NSStringSelectors[MK];
 }
 
-Optional<NSAPI::NSStringMethodKind>
-NSAPI::getNSStringMethodKind(Selector Sel) const {
-  for (unsigned i = 0; i != NumNSStringMethods; ++i) {
-    NSStringMethodKind MK = NSStringMethodKind(i);
-    if (Sel == getNSStringSelector(MK))
-      return MK;
-  }
-
-  return None;
-}
-
 Selector NSAPI::getNSArraySelector(NSArrayMethodKind MK) const {
   if (NSArraySelectors[MK].isNull()) {
     Selector Sel;
@@ -467,12 +456,18 @@ NSAPI::getNSNumberFactoryMethodKind(QualType T) const {
   case BuiltinType::UInt128:
   case BuiltinType::Float16:
   case BuiltinType::Float128:
+  case BuiltinType::Ibm128:
   case BuiltinType::NullPtr:
   case BuiltinType::ObjCClass:
   case BuiltinType::ObjCId:
   case BuiltinType::ObjCSel:
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   case BuiltinType::Id:
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   case BuiltinType::Id:
@@ -482,6 +477,14 @@ NSAPI::getNSNumberFactoryMethodKind(QualType T) const {
   case BuiltinType::OCLClkEvent:
   case BuiltinType::OCLQueue:
   case BuiltinType::OCLReserveID:
+#define SVE_TYPE(Name, Id, SingletonId) \
+  case BuiltinType::Id:
+#include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
+  case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
+#define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/RISCVVTypes.def"
   case BuiltinType::BoundMember:
   case BuiltinType::Dependent:
   case BuiltinType::Overload:
@@ -490,7 +493,11 @@ NSAPI::getNSNumberFactoryMethodKind(QualType T) const {
   case BuiltinType::Half:
   case BuiltinType::PseudoObject:
   case BuiltinType::BuiltinFn:
+  case BuiltinType::IncompleteMatrixIdx:
   case BuiltinType::OMPArraySection:
+  case BuiltinType::OMPArrayShaping:
+  case BuiltinType::OMPIterator:
+  case BuiltinType::BFloat16:
     break;
   }
 

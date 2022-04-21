@@ -17,8 +17,8 @@
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Host.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
@@ -81,13 +81,6 @@ TargetMachine *EngineBuilder::selectTarget(const Triple &TargetTriple,
     for (unsigned i = 0; i != MAttrs.size(); ++i)
       Features.AddFeature(MAttrs[i]);
     FeaturesStr = Features.getString();
-  }
-
-  // FIXME: non-iOS ARM FastISel is broken with MCJIT.
-  if (TheTriple.getArch() == Triple::arm &&
-      !TheTriple.isiOS() &&
-      OptLevel == CodeGenOpt::None) {
-    OptLevel = CodeGenOpt::Less;
   }
 
   // Allocate a target...

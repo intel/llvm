@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef EmulateInstructionARM64_h_
-#define EmulateInstructionARM64_h_
+#ifndef LLDB_SOURCE_PLUGINS_INSTRUCTION_ARM64_EMULATEINSTRUCTIONARM64_H
+#define LLDB_SOURCE_PLUGINS_INSTRUCTION_ARM64_EMULATEINSTRUCTIONARM64_H
 
 #include "Plugins/Process/Utility/ARMDefines.h"
 #include "lldb/Core/EmulateInstruction.h"
@@ -24,9 +24,9 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "arm64"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static lldb_private::EmulateInstruction *
   CreateInstance(const lldb_private::ArchSpec &arch,
@@ -46,9 +46,7 @@ public:
     return false;
   }
 
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override { return 1; }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   bool SetTargetTriple(const lldb_private::ArchSpec &arch) override;
 
@@ -152,6 +150,9 @@ public:
   } ProcState;
 
 protected:
+  static uint64_t AddWithCarry(uint32_t N, uint64_t x, uint64_t y, bool carry_in,
+                               EmulateInstructionARM64::ProcState &proc_state);
+
   typedef struct {
     uint32_t mask;
     uint32_t value;
@@ -189,4 +190,4 @@ protected:
   bool m_ignore_conditions;
 };
 
-#endif // EmulateInstructionARM64_h_
+#endif // LLDB_SOURCE_PLUGINS_INSTRUCTION_ARM64_EMULATEINSTRUCTIONARM64_H

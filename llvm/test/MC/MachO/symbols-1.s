@@ -1,5 +1,5 @@
-// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj --file-headers -S -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols | FileCheck -check-prefix CHECK-X86_32 %s
-// RUN: llvm-mc -triple x86_64-apple-darwin10 %s -filetype=obj -o - | llvm-readobj --file-headers -S -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols | FileCheck -check-prefix CHECK-X86_64 %s
+// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj --file-headers -S -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols - | FileCheck -check-prefix CHECK-X86_32 %s
+// RUN: llvm-mc -triple x86_64-apple-darwin10 %s -filetype=obj -o - | llvm-readobj --file-headers -S -r --symbols --macho-segment --macho-dysymtab --macho-indirect-symbols - | FileCheck -check-prefix CHECK-X86_64 %s
 
 sym_local_B:
 .globl sym_globl_def_B
@@ -42,7 +42,7 @@ Lsym_asm_temp:
 // CHECK-X86_32:     Alignment: 0
 // CHECK-X86_32:     RelocationOffset: 0x0
 // CHECK-X86_32:     RelocationCount: 0
-// CHECK-X86_32:     Type: 0x0
+// CHECK-X86_32:     Type: Regular (0x0)
 // CHECK-X86_32:     Attributes [ (0x800000)
 // CHECK-X86_32:       PureInstructions (0x800000)
 // CHECK-X86_32:     ]
@@ -206,7 +206,7 @@ Lsym_asm_temp:
 // CHECK-X86_64:     Alignment: 0
 // CHECK-X86_64:     RelocationOffset: 0x0
 // CHECK-X86_64:     RelocationCount: 0
-// CHECK-X86_64:     Type: 0x0
+// CHECK-X86_64:     Type: Regular (0x0)
 // CHECK-X86_64:     Attributes [ (0x800000)
 // CHECK-X86_64:       PureInstructions (0x800000)
 // CHECK-X86_64:     ]

@@ -1,11 +1,11 @@
-; RUN: llc -fast-isel-sink-local-values -O0 < %s | FileCheck %s
+; RUN: llc -O0 < %s | FileCheck %s
 
 target datalayout = "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32"
 target triple = "i386-linux-gnu"
 
 ; Try some simple cases that show how local value sinking improves line tables.
 
-@sink_across = external global i32
+@sink_across = external dso_local global i32
 
 declare void @simple_callee(i32, i32)
 
@@ -140,6 +140,42 @@ try.cont:                                         ; preds = %entry, %lpad
 ; CHECK:         jmp     .LBB{{.*}}
 ; CHECK: .LBB{{.*}}:                                # %lpad
 ; CHECK:         movl    $42, sink_across
+; CHECK:         movl    $55, %{{[a-z]*}}
+; CHECK: .LBB{{.*}}:                                # %try.cont
+; CHECK:         retl
+
+
+define i32 @lpad_phi() personality i32 (...)* @__gxx_personality_v0 {
+entry:
+  store i32 42, i32* @sink_across
+  invoke void @may_throw()
+          to label %try.cont unwind label %lpad
+
+lpad:                                             ; preds = %entry
+  %p = phi i32 [ 11, %entry ]  ; Trivial, but -O0 keeps it
+  %0 = landingpad { i8*, i32 }
+          catch i8* null
+  store i32 %p, i32* @sink_across
+  br label %try.cont
+
+try.cont:                                         ; preds = %entry, %lpad
+  %r.0 = phi i32 [ 13, %entry ], [ 55, %lpad ]
+  ret i32 %r.0
+}
+
+; The constant materialization should be *after* the stores to sink_across, but
+; before any EH_LABEL.
+
+; CHECK-LABEL: lpad_phi:
+; CHECK:         movl    $42, sink_across
+; CHECK:         movl    $13, %{{[a-z]*}}
+; CHECK: .Ltmp{{.*}}:
+; CHECK:         calll   may_throw
+; CHECK: .Ltmp{{.*}}:
+; CHECK:         jmp     .LBB{{.*}}
+; CHECK: .LBB{{.*}}:                                # %lpad
+; CHECK-NEXT: .Ltmp{{.*}}:
+; CHECK:         movl    {{.*}}, sink_across
 ; CHECK:         movl    $55, %{{[a-z]*}}
 ; CHECK: .LBB{{.*}}:                                # %try.cont
 ; CHECK:         retl

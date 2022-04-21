@@ -13,16 +13,16 @@
 void __stdcall f1(void) {}
 // CHECK: define dso_local x86_stdcallcc void @"\01_f1@0"
 // X64: define dso_local void @f1(
-// ELF32: define x86_stdcallcc void @"\01_f1@0"
-// ELF64: define void @f1(
+// ELF32: define{{.*}} x86_stdcallcc void @"\01_f1@0"
+// ELF64: define{{.*}} void @f1(
 
 void __fastcall f2(void) {}
 // CHECK: define dso_local x86_fastcallcc void @"\01@f2@0"
 // X64: define dso_local void @f2(
-// ELF32: define x86_fastcallcc void @"\01@f2@0"
-// ELF64: define void @f2(
+// ELF32: define{{.*}} x86_fastcallcc void @"\01@f2@0"
+// ELF64: define{{.*}} void @f2(
 
-void __stdcall f3() {}
+void __stdcall f3(void) {}
 // CHECK: define dso_local x86_stdcallcc void @"\01_f3@0"
 // X64: define dso_local void @f3(
 
@@ -47,7 +47,7 @@ void __fastcall f8(long long a) {}
 // X64: define dso_local void @f8(
 
 void __fastcall f9(long long a, char b, char c, short d) {}
-// CHECK: define dso_local x86_fastcallcc void @"\01@f9@20"(i64 %a, i8 signext %b, i8 signext %c, i16 signext %d)
+// CHECK: define dso_local x86_fastcallcc void @"\01@f9@20"(i64 noundef %a, i8 noundef signext %b, i8 noundef signext %c, i16 noundef signext %d)
 // X64: define dso_local void @f9(
 
 void f12(void) {}
@@ -57,14 +57,14 @@ void f12(void) {}
 void __vectorcall v1(void) {}
 // CHECK: define dso_local x86_vectorcallcc void @"\01v1@@0"(
 // X64: define dso_local x86_vectorcallcc void @"\01v1@@0"(
-// ELF32: define x86_vectorcallcc void @"\01v1@@0"(
-// ELF64: define x86_vectorcallcc void @"\01v1@@0"(
+// ELF32: define{{.*}} x86_vectorcallcc void @"\01v1@@0"(
+// ELF64: define{{.*}} x86_vectorcallcc void @"\01v1@@0"(
 
 void __vectorcall v2(char a) {}
 // CHECK: define dso_local x86_vectorcallcc void @"\01v2@@4"(
 // X64: define dso_local x86_vectorcallcc void @"\01v2@@8"(
-// ELF32: define x86_vectorcallcc void @"\01v2@@4"(
-// ELF64: define x86_vectorcallcc void @"\01v2@@8"(
+// ELF32: define{{.*}} x86_vectorcallcc void @"\01v2@@4"(
+// ELF64: define{{.*}} x86_vectorcallcc void @"\01v2@@8"(
 
 void __vectorcall v3(short a) {}
 // CHECK: define dso_local x86_vectorcallcc void @"\01v3@@4"(

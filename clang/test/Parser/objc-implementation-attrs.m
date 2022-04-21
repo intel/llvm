@@ -2,15 +2,15 @@
 
 @interface I1 @end
 
-// expected-warning@+1 {{'always_inline' attribute only applies to functions}}
+// expected-warning@+1 {{'always_inline' attribute only applies to functions and statements}}
 __attribute__((always_inline))
 @implementation I1 @end
 
-// expected-warning@+1 {{'always_inline' attribute only applies to functions}}
+// expected-warning@+1 {{'always_inline' attribute only applies to functions and statements}}
 __attribute__((always_inline))
 @implementation I1 (MyCat) @end
 
-// expected-warning@+1 {{'always_inline' attribute only applies to functions}}
+// expected-warning@+1 {{'always_inline' attribute only applies to functions and statements}}
 __attribute__((always_inline))
 // expected-warning@+1 {{cannot find interface declaration for 'I2'}}
 @implementation I2 @end
@@ -41,7 +41,7 @@ typedef int AVAIL_ATTR unavail_int; // expected-note {{marked as being introduce
 
 I5 *i5;
 
-// expected-error@+1 2 {{'annotate' attribute takes one argument}}
+// expected-error@+1 2 {{'annotate' attribute takes at least 1 argument}}
 #pragma clang attribute push (__attribute__((annotate)), apply_to=objc_implementation)
 @interface I6 @end
 @interface I6 (MyCat) @end

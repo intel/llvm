@@ -62,6 +62,13 @@ public:
   /// isMem - Is this a memory operand?
   virtual bool isMem() const = 0;
 
+  /// isMemUseUpRegs - Is memory operand use up regs, for example, intel MS
+  /// inline asm may use ARR[baseReg + IndexReg + ...] which may use up regs
+  /// in [...] expr, so ARR[baseReg + IndexReg + ...] can not use extra reg
+  /// for ARR. For example, calculating ARR address to a reg or use another
+  /// base reg in PIC model.
+  virtual bool isMemUseUpRegs() const { return false; }
+
   /// getStartLoc - Get the location of the first token of this operand.
   virtual SMLoc getStartLoc() const = 0;
   /// getEndLoc - Get the location of the last token of this operand.
@@ -71,10 +78,10 @@ public:
   /// variable/label?   Only valid when parsing MS-style inline assembly.
   virtual bool needAddressOf() const { return false; }
 
-  /// isOffsetOf - Do we need to emit code to get the offset of the variable,
-  /// rather then the value of the variable?   Only valid when parsing MS-style
-  /// inline assembly.
-  virtual bool isOffsetOf() const { return false; }
+  /// isOffsetOfLocal - Do we need to emit code to get the offset of the local
+  /// variable, rather than its value?   Only valid when parsing MS-style inline
+  /// assembly.
+  virtual bool isOffsetOfLocal() const { return false; }
 
   /// getOffsetOfLoc - Get the location of the offset operator.
   virtual SMLoc getOffsetOfLoc() const { return SMLoc(); }

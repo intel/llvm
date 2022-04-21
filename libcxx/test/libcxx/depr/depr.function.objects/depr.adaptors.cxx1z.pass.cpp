@@ -13,12 +13,13 @@
 //  However, for backwards compatibility, if _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
 //  is defined before including <functional>, then they will be restored.
 
-// MODULES_DEFINES: _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
-#define _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
-#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <functional>
 #include <cassert>
+
+#include "test_macros.h"
 
 int identity(int v) { return v; }
 int sum(int a, int b) { return a + b; }

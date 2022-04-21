@@ -1,6 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -enable-ppc-quad-precision \
-; RUN:   -mtriple=powerpc64le-unknown-unknown -ppc-vsr-nums-as-vr \
-; RUN:   -ppc-asm-full-reg-names < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr9 -mtriple=powerpc64le-unknown-unknown \
+; RUN:   -ppc-vsr-nums-as-vr -ppc-asm-full-reg-names < %s | FileCheck %s
 
 @A = common global fp128 0xL00000000000000000000000000000000, align 16
 @B = common global fp128 0xL00000000000000000000000000000000, align 16
@@ -112,8 +111,8 @@ entry:
   %2 = call fp128 @llvm.ppc.scalar.insert.exp.qp(fp128 %0, i64 %1)
   ret fp128 %2
 ; CHECK-LABEL: insert_exp_qp
-; CHECK-DAG: mtvsrd [[FPREG:f[0-9]+]], r3
-; CHECK-DAG: lxvx [[VECREG:v[0-9]+]]
+; CHECK-DAG: mtfprd [[FPREG:f[0-9]+]], r3
+; CHECK-DAG: lxv [[VECREG:v[0-9]+]]
 ; CHECK: xsiexpqp v2, [[VECREG]], [[FPREG]]
 ; CHECK: blr
 }
@@ -128,7 +127,7 @@ entry:
   %1 = call i64 @llvm.ppc.scalar.extract.expq(fp128 %0)
   ret i64 %1
 ; CHECK-LABEL: extract_exp
-; CHECK: lxvx [[VECIN:v[0-9]+]]
+; CHECK: lxv [[VECIN:v[0-9]+]]
 ; CHECK: xsxexpqp [[VECOUT:v[0-9]+]], [[VECIN]]
 ; CHECK: mfvsrd r3, [[VECOUT]]
 ; CHECK: blr

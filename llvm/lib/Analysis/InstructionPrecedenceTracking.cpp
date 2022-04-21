@@ -19,9 +19,14 @@
 
 #include "llvm/Analysis/InstructionPrecedenceTracking.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
+
+#define DEBUG_TYPE "ipt"
+STATISTIC(NumInstScanned, "Number of insts scanned while updating ibt");
 
 #ifndef NDEBUG
 static cl::opt<bool> ExpensiveAsserts(
@@ -58,16 +63,18 @@ bool InstructionPrecedenceTracking::isPreceededBySpecialInstruction(
     const Instruction *Insn) {
   const Instruction *MaybeFirstSpecial =
       getFirstSpecialInstruction(Insn->getParent());
-  return MaybeFirstSpecial && OI.dominates(MaybeFirstSpecial, Insn);
+  return MaybeFirstSpecial && MaybeFirstSpecial->comesBefore(Insn);
 }
 
 void InstructionPrecedenceTracking::fill(const BasicBlock *BB) {
   FirstSpecialInsts.erase(BB);
-  for (auto &I : *BB)
+  for (auto &I : *BB) {
+    NumInstScanned++;
     if (isSpecialInstruction(&I)) {
       FirstSpecialInsts[BB] = &I;
       return;
     }
+  }
 
   // Mark this block as having no special instructions.
   FirstSpecialInsts[BB] = nullptr;
@@ -103,18 +110,23 @@ void InstructionPrecedenceTracking::insertInstructionTo(const Instruction *Inst,
                                                         const BasicBlock *BB) {
   if (isSpecialInstruction(Inst))
     FirstSpecialInsts.erase(BB);
-  OI.invalidateBlock(BB);
 }
 
 void InstructionPrecedenceTracking::removeInstruction(const Instruction *Inst) {
-  if (isSpecialInstruction(Inst))
-    FirstSpecialInsts.erase(Inst->getParent());
-  OI.invalidateBlock(Inst->getParent());
+  auto *BB = Inst->getParent();
+  assert(BB && "must be called before instruction is actually removed");
+  if (FirstSpecialInsts.count(BB) && FirstSpecialInsts[BB] == Inst)
+    FirstSpecialInsts.erase(BB);
+}
+
+void InstructionPrecedenceTracking::removeUsersOf(const Instruction *Inst) {
+  for (const auto *U : Inst->users()) {
+    if (const auto *UI = dyn_cast<Instruction>(U))
+      removeInstruction(UI);
+  }
 }
 
 void InstructionPrecedenceTracking::clear() {
-  for (auto It : FirstSpecialInsts)
-    OI.invalidateBlock(It.first);
   FirstSpecialInsts.clear();
 #ifndef NDEBUG
   // The map should be valid after clearing (at least empty).
@@ -129,26 +141,7 @@ bool ImplicitControlFlowTracking::isSpecialInstruction(
   // to avoid wrong assumptions of sort "if A is executed and B post-dominates
   // A, then B is also executed". This is not true is there is an implicit
   // control flow instruction (e.g. a guard) between them.
-  //
-  // TODO: Currently, isGuaranteedToTransferExecutionToSuccessor returns false
-  // for volatile stores and loads because they can trap. The discussion on
-  // whether or not it is correct is still ongoing. We might want to get rid
-  // of this logic in the future. Anyways, trapping instructions shouldn't
-  // introduce implicit control flow, so we explicitly allow them here. This
-  // must be removed once isGuaranteedToTransferExecutionToSuccessor is fixed.
-  if (isGuaranteedToTransferExecutionToSuccessor(Insn))
-    return false;
-  if (isa<LoadInst>(Insn)) {
-    assert(cast<LoadInst>(Insn)->isVolatile() &&
-           "Non-volatile load should transfer execution to successor!");
-    return false;
-  }
-  if (isa<StoreInst>(Insn)) {
-    assert(cast<StoreInst>(Insn)->isVolatile() &&
-           "Non-volatile store should transfer execution to successor!");
-    return false;
-  }
-  return true;
+  return !isGuaranteedToTransferExecutionToSuccessor(Insn);
 }
 
 bool MemoryWriteTracking::isSpecialInstruction(

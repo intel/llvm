@@ -5,8 +5,8 @@
 ; clang -cc1 -triple spir -disable-llvm-passes -triple spir /work/tmp/tmp.cl -O0 -debug-info-kind=standalone -emit-llvm -o /work/llvm/projects/llvm-spirv/test/DebugInfo/LocalAddressSpace.ll
 
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
-; RUN: llvm-spirv %t.bc -o - -spirv-text -spirv-mem2reg=false | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: cat %t.ll | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -22,7 +22,7 @@
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_name {{.*}} = "a")
 ; CHECK-NEXT: DW_AT_type {{.*}} "int")
-; CHECK-NEXT: DW_AT_decl_file {{.*}} ("/work/tmp/tmp.cl")
+; CHECK-NEXT: DW_AT_decl_file {{.*}} ("/work/tmp{{[/\\]}}tmp.cl")
 ; CHECK-NEXT: DW_AT_decl_line {{.*}} (2)
 ; CHECK-NEXT: DW_AT_location [DW_FORM_exprloc]      (DW_OP_addr 0x0)
 

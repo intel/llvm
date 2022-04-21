@@ -1,11 +1,15 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI,SIVI %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,VI,SIVI %s
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX10 %s
+; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SIVI %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SIVI %s
+; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-flat-for-global,+wavefrontsize64 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX10 %s
 
 declare i32 @llvm.amdgcn.workitem.id.x() #1
+declare half @llvm.fabs.f16(half)
+declare float @llvm.fabs.f32(float)
+declare double @llvm.fabs.f64(double)
 
 ; GCN-LABEL: {{^}}v_cnd_nan_nosgpr:
-; GCN: v_cmp_eq_u32_e64 [[COND:vcc|s\[[0-9]+:[0-9]+\]]], s{{[0-9]+}}, 0
+; GCN: s_cmp_eq_u32 s{{[0-9]+}}, 0
+; GCN: s_cselect_b64 [[COND:vcc|s\[[0-9]+:[0-9]+\]]], -1, 0
 ; GCN: v_cndmask_b32_e{{32|64}} v{{[0-9]}}, -1, v{{[0-9]+}}, [[COND]]
 ; GCN-DAG: v{{[0-9]}}
 ; All nan values are converted to 0xffffffff
@@ -27,9 +31,11 @@ define amdgpu_kernel void @v_cnd_nan_nosgpr(float addrspace(1)* %out, i32 %c, fl
 ; However on GFX10 constant bus is limited to 2 scalar operands, not one.
 
 ; GCN-LABEL: {{^}}v_cnd_nan:
-; SIVI:  v_cmp_eq_u32_e64 vcc, s{{[0-9]+}}, 0
+; SIVI:  s_cmp_eq_u32 s{{[0-9]+}}, 0
+; SIVI:  s_cselect_b64 vcc, -1, 0
 ; SIVI:  v_cndmask_b32_e32 v{{[0-9]+}}, -1, v{{[0-9]+}}, vcc
-; GFX10: v_cmp_eq_u32_e64 [[CC:s\[[0-9:]+\]]], s{{[0-9]+}}, 0
+; GFX10: s_cmp_eq_u32 s{{[0-9]+}}, 0
+; GFX10: s_cselect_b64 [[CC:s\[[0-9:]+\]]],
 ; GFX10: v_cndmask_b32_e64 v{{[0-9]+}}, -1, s{{[0-9]+}}, [[CC]]
 ; GCN-DAG: v{{[0-9]}}
 ; All nan values are converted to 0xffffffff
@@ -46,8 +52,8 @@ define amdgpu_kernel void @v_cnd_nan(float addrspace(1)* %out, i32 %c, float %f)
 ; (select (cmp (sgprX, constant)), constant, sgprZ)
 
 ; GCN-LABEL: {{^}}fcmp_sgprX_k0_select_k1_sgprZ_f32:
-; GCN: s_load_dwordx2
-; GCN: s_load_dwordx2 s{{\[}}[[X:[0-9]+]]:[[Z:[0-9]+]]{{\]}}
+; GCN: s_load_dwordx2 s[[[X:[0-9]+]]:[[Z:[0-9]+]]], s[0:1], {{0x4c|0x13}}
+
 ; SIVI-DAG:  v_cmp_nlg_f32_e64 [[CC:vcc]], s[[X]], 0
 ; GFX10-DAG: v_cmp_nlg_f32_e64 [[CC:s\[[0-9:]+\]]], s[[X]], 0
 ; SIVI-DAG:  v_mov_b32_e32 [[VZ:v[0-9]+]], s[[Z]]
@@ -81,7 +87,7 @@ define amdgpu_kernel void @fcmp_sgprX_k0_select_k1_sgprX_f32(float addrspace(1)*
 }
 
 ; GCN-LABEL: {{^}}fcmp_sgprX_k0_select_k0_sgprZ_f32:
-; GCN-DAG: s_load_dwordx2 s{{\[}}[[X:[0-9]+]]:[[Z:[0-9]+]]{{\]}}, s{{\[[0-9]+:[0-9]+\]}}, {{0x13|0x4c}}
+; GCN-DAG: s_load_dwordx2 s[[[X:[0-9]+]]:[[Z:[0-9]+]]], s{{\[[0-9]+:[0-9]+\]}}, {{0x13|0x4c}}
 ; SIVI-DAG:  v_cmp_nlg_f32_e64 [[CC:vcc]], s[[X]], 0
 ; GFX10-DAG: v_cmp_nlg_f32_e64 [[CC:s\[[0-9:]+\]]], s[[X]], 0
 ; SIVI-DAG:  v_mov_b32_e32 [[VZ:v[0-9]+]], s[[Z]]
@@ -205,17 +211,12 @@ define amdgpu_kernel void @icmp_vgprX_k0_select_k1_vgprZ_i32(i32 addrspace(1)* %
   ret void
 }
 
-; FIXME: Why does VI make the wrong regalloc choice?
 ; GCN-LABEL: {{^}}icmp_vgprX_k0_select_k1_vgprZ_i64:
-; GCN: {{buffer|flat|global}}_load_dwordx2 v{{\[}}[[X_LO:[0-9]+]]:[[X_HI:[0-9]+]]{{\]}}
-; GCN-DAG: {{buffer|flat|global}}_load_dwordx2 v{{\[}}[[Z_LO:[0-9]+]]:[[Z_HI:[0-9]+]]{{\]}}
-; SI-DAG: v_cmp_lt_i64_e32 vcc, -1, v{{\[}}[[X_LO]]:[[X_HI]]{{\]}}
-; SI-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, 0, v[[Z_HI]], vcc
-; SI-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, 2, v[[Z_LO]], vcc
-
-; VI-DAG: v_cmp_lt_i64_e32 vcc, -1, v{{\[}}[[X_LO]]:[[X_HI]]{{\]}}
-; VI-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, 0, v[[Z_HI]], vcc
-; VI-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, 2, v[[Z_LO]], vcc
+; GCN: {{buffer|flat|global}}_load_dwordx2 v[[[X_LO:[0-9]+]]:[[X_HI:[0-9]+]]]
+; GCN-DAG: {{buffer|flat|global}}_load_dwordx2 v[[[Z_LO:[0-9]+]]:[[Z_HI:[0-9]+]]]
+; GCN-DAG: v_cmp_lt_i64_e32 vcc, -1, v[[[X_LO]]:[[X_HI]]]
+; GCN-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, 0, v[[Z_HI]], vcc
+; GCN-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, 2, v[[Z_LO]], vcc
 define amdgpu_kernel void @icmp_vgprX_k0_select_k1_vgprZ_i64(i64 addrspace(1)* %out, i64 addrspace(1)* %x.ptr, i64 addrspace(1)* %z.ptr) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x() #1
   %tid.ext = sext i32 %tid to i64
@@ -306,7 +307,7 @@ define amdgpu_kernel void @fcmp_k0_vgprX_select_k1_vgprZ_v4f32(<4 x float> addrs
 ; GCN: load_dword
 ; GCN: load_ubyte
 ; GCN-DAG: v_cmp_gt_i32_e32 vcc, 0, v
-; DCN-DAG: v_and_b32_e32 v{{[0-9]+}}, 1,
+; GCN-DAG: v_and_b32_e32 v{{[0-9]+}}, 1,
 ; GCN-DAG: v_cmp_eq_u32_e64 s{{\[[0-9]+:[0-9]+\]}}, 1, v
 ; GCN-DAG: s_or_b64 s{{\[[0-9]+:[0-9]+\]}}, vcc, s{{\[[0-9]+:[0-9]+\]}}
 ; GCN: v_cndmask_b32_e64 v{{[0-9]+}}, 0, 1, s
@@ -413,6 +414,51 @@ define amdgpu_kernel void @fcmp_k0_vgprX_select_k1_vgprZ_f32_cond_use_x2(float a
   %select1 = select i1 %setcc, float -2.0, float %z
   store volatile float %select0, float addrspace(1)* %out.gep
   store volatile float %select1, float addrspace(1)* %out.gep
+  ret void
+}
+
+; Source modifiers abs/neg only work for f32
+
+; GCN-LABEL: {{^}}v_cndmask_abs_neg_f16:
+; GCN-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}},
+define amdgpu_kernel void @v_cndmask_abs_neg_f16(half addrspace(1)* %out, i32 %c, half addrspace(1)* %fptr) #0 {
+  %idx = call i32 @llvm.amdgcn.workitem.id.x() #1
+  %f.gep = getelementptr half, half addrspace(1)* %fptr, i32 %idx
+  %f = load half, half addrspace(1)* %f.gep
+  %f.abs = call half @llvm.fabs.f16(half %f)
+  %f.neg = fneg half %f
+  %setcc = icmp ne i32 %c, 0
+  %select = select i1 %setcc, half %f.abs, half %f.neg
+  store half %select, half addrspace(1)* %out
+  ret void
+}
+
+; GCN-LABEL: {{^}}v_cndmask_abs_neg_f32:
+; GCN-DAG: v_cndmask_b32_e64 v{{[0-9]+}}, -v{{[0-9]+}}, |v{{[0-9]+}}|,
+define amdgpu_kernel void @v_cndmask_abs_neg_f32(float addrspace(1)* %out, i32 %c, float addrspace(1)* %fptr) #0 {
+  %idx = call i32 @llvm.amdgcn.workitem.id.x() #1
+  %f.gep = getelementptr float, float addrspace(1)* %fptr, i32 %idx
+  %f = load float, float addrspace(1)* %f.gep
+  %f.abs = call float @llvm.fabs.f32(float %f)
+  %f.neg = fneg float %f
+  %setcc = icmp ne i32 %c, 0
+  %select = select i1 %setcc, float %f.abs, float %f.neg
+  store float %select, float addrspace(1)* %out
+  ret void
+}
+
+; GCN-LABEL: {{^}}v_cndmask_abs_neg_f64:
+; GCN-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}},
+; GCN-DAG: v_cndmask_b32_e32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}},
+define amdgpu_kernel void @v_cndmask_abs_neg_f64(double addrspace(1)* %out, i32 %c, double addrspace(1)* %fptr) #0 {
+  %idx = call i32 @llvm.amdgcn.workitem.id.x() #1
+  %f.gep = getelementptr double, double addrspace(1)* %fptr, i32 %idx
+  %f = load double, double addrspace(1)* %f.gep
+  %f.abs = call double @llvm.fabs.f64(double %f)
+  %f.neg = fneg double %f
+  %setcc = icmp ne i32 %c, 0
+  %select = select i1 %setcc, double %f.abs, double %f.neg
+  store double %select, double addrspace(1)* %out
   ret void
 }
 

@@ -78,7 +78,9 @@ private:
 class ReportResultActionFactory : public FrontendActionFactory {
 public:
   ReportResultActionFactory(ExecutionContext *Context) : Context(Context) {}
-  FrontendAction *create() override { return new ReportResultAction(Context); }
+  std::unique_ptr<FrontendAction> create() override {
+    return std::make_unique<ReportResultAction>(Context);
+  }
 
 private:
   ExecutionContext *const Context;
@@ -95,8 +97,6 @@ public:
 
   StringRef getExecutorName() const override { return ExecutorName; }
 
-  bool isSingleProcess() const override { return true; }
-
   llvm::Error
   execute(llvm::ArrayRef<std::pair<std::unique_ptr<FrontendActionFactory>,
                                    ArgumentsAdjuster>>) override {
@@ -112,7 +112,7 @@ public:
   }
 
   void mapVirtualFile(StringRef FilePath, StringRef Content) override {
-    VFS[FilePath] = Content;
+    VFS[std::string(FilePath)] = std::string(Content);
   }
 
 private:
@@ -127,7 +127,7 @@ class TestToolExecutorPlugin : public ToolExecutorPlugin {
 public:
   llvm::Expected<std::unique_ptr<ToolExecutor>>
   create(CommonOptionsParser &OptionsParser) override {
-    return llvm::make_unique<TestToolExecutor>(std::move(OptionsParser));
+    return std::make_unique<TestToolExecutor>(std::move(OptionsParser));
   }
 };
 
@@ -289,7 +289,7 @@ TEST(AllTUsToolTest, ManyFiles) {
   ASSERT_TRUE(!Err);
   std::vector<std::string> Results;
   Executor.getToolResults()->forEachResult(
-      [&](StringRef Name, StringRef) { Results.push_back(Name); });
+      [&](StringRef Name, StringRef) { Results.push_back(std::string(Name)); });
   EXPECT_THAT(ExpectedSymbols, ::testing::UnorderedElementsAreArray(Results));
 }
 

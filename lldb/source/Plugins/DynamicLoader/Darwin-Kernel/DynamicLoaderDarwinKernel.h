@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_DynamicLoaderDarwinKernel_h_
-#define liblldb_DynamicLoaderDarwinKernel_h_
+#ifndef LLDB_SOURCE_PLUGINS_DYNAMICLOADER_DARWIN_KERNEL_DYNAMICLOADERDARWINKERNEL_H
+#define LLDB_SOURCE_PLUGINS_DYNAMICLOADER_DARWIN_KERNEL_DYNAMICLOADERDARWINKERNEL_H
 
 #include <mutex>
 #include <string>
@@ -33,9 +33,9 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "darwin-kernel"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static lldb_private::DynamicLoader *
   CreateInstance(lldb_private::Process *process, bool force);
@@ -58,9 +58,7 @@ public:
   lldb_private::Status CanLoadImage() override;
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
 protected:
   void PrivateInitialize(lldb_private::Process *process);
@@ -125,11 +123,7 @@ protected:
 
   class KextImageInfo {
   public:
-    KextImageInfo()
-        : m_name(), m_module_sp(), m_memory_module_sp(),
-          m_load_process_stop_id(UINT32_MAX), m_uuid(),
-          m_load_address(LLDB_INVALID_ADDRESS), m_size(0),
-          m_kernel_image(false) {}
+    KextImageInfo() : m_name(), m_module_sp(), m_memory_module_sp(), m_uuid() {}
 
     void Clear() {
       m_load_address = LLDB_INVALID_ADDRESS;
@@ -201,24 +195,24 @@ protected:
     std::string m_name;
     lldb::ModuleSP m_module_sp;
     lldb::ModuleSP m_memory_module_sp;
-    uint32_t m_load_process_stop_id; // the stop-id when this module was added
-                                     // to the Target
+    uint32_t m_load_process_stop_id =
+        UINT32_MAX; // the stop-id when this module was added
+                    // to the Target
     lldb_private::UUID
         m_uuid; // UUID for this dylib if it has one, else all zeros
-    lldb::addr_t m_load_address;
-    uint64_t m_size;
-    bool m_kernel_image; // true if this is the kernel, false if this is a kext
+    lldb::addr_t m_load_address = LLDB_INVALID_ADDRESS;
+    uint64_t m_size = 0;
+    bool m_kernel_image =
+        false; // true if this is the kernel, false if this is a kext
   };
 
   struct OSKextLoadedKextSummaryHeader {
-    uint32_t version;
-    uint32_t entry_size;
-    uint32_t entry_count;
-    lldb::addr_t image_infos_addr;
+    uint32_t version = 0;
+    uint32_t entry_size = 0;
+    uint32_t entry_count = 0;
+    lldb::addr_t image_infos_addr = LLDB_INVALID_ADDRESS;
 
-    OSKextLoadedKextSummaryHeader()
-        : version(0), entry_size(0), entry_count(0),
-          image_infos_addr(LLDB_INVALID_ADDRESS) {}
+    OSKextLoadedKextSummaryHeader() = default;
 
     uint32_t GetSize() {
       switch (version) {
@@ -240,7 +234,7 @@ protected:
       image_infos_addr = LLDB_INVALID_ADDRESS;
     }
 
-    bool IsValid() const { return version >= 1 || version <= 2; }
+    bool IsValid() const { return version >= 1 && version <= 2; }
   };
 
   void RegisterNotificationCallbacks();
@@ -296,7 +290,9 @@ protected:
   lldb::user_id_t m_break_id;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(DynamicLoaderDarwinKernel);
+  DynamicLoaderDarwinKernel(const DynamicLoaderDarwinKernel &) = delete;
+  const DynamicLoaderDarwinKernel &
+  operator=(const DynamicLoaderDarwinKernel &) = delete;
 };
 
-#endif // liblldb_DynamicLoaderDarwinKernel_h_
+#endif // LLDB_SOURCE_PLUGINS_DYNAMICLOADER_DARWIN_KERNEL_DYNAMICLOADERDARWINKERNEL_H

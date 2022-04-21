@@ -1,4 +1,4 @@
-//===-- ClangParserTest.cpp --------------------------------------*- C++-*-===//
+//===-- ClangParserTest.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,7 +9,9 @@
 #include "clang/Basic/Version.h"
 
 #include "Plugins/ExpressionParser/Clang/ClangHost.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "TestingSupport/TestUtilities.h"
+#include "lldb/Host/Config.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Utility/FileSpec.h"
@@ -20,14 +22,7 @@ using namespace lldb_private;
 
 namespace {
 struct ClangHostTest : public testing::Test {
-  static void SetUpTestCase() {
-    FileSystem::Initialize();
-    HostInfo::Initialize();
-  }
-  static void TearDownTestCase() {
-    HostInfo::Terminate();
-    FileSystem::Terminate();
-  }
+  SubsystemRAII<FileSystem, HostInfo> subsystems;
 };
 } // namespace
 
@@ -42,7 +37,7 @@ static std::string ComputeClangResourceDir(std::string lldb_shlib_path,
 TEST_F(ClangHostTest, ComputeClangResourceDirectory) {
 #if !defined(_WIN32)
   std::string path_to_liblldb = "/foo/bar/lib/";
-  std::string path_to_clang_dir = "/foo/bar/lib/clang/" CLANG_VERSION_STRING;
+  std::string path_to_clang_dir = "/foo/bar/lib" LLDB_LIBDIR_SUFFIX "/clang/" CLANG_VERSION_STRING;
 #else
   std::string path_to_liblldb = "C:\\foo\\bar\\lib";
   std::string path_to_clang_dir = "C:\\foo\\bar\\lib\\clang\\" CLANG_VERSION_STRING;

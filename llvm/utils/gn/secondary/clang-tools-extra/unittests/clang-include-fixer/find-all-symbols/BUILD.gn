@@ -14,7 +14,5 @@ unittest("FindAllSymbolsTests") {
     "//llvm/lib/Support",
   ]
   include_dirs = [ "//clang-tools-extra/clang-include-fixer/find-all-symbols" ]
-  sources = [
-    "FindAllSymbolsTests.cpp",
-  ]
+  sources = [ "FindAllSymbolsTests.cpp" ]
 }

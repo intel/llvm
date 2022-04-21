@@ -26,11 +26,9 @@ template <class T, unsigned n> class SmallSetVector;
 namespace clang {
 
 class CXXConstructorDecl;
-class CXXDeleteExpr;
 class CXXRecordDecl;
 class DeclaratorDecl;
 class LookupResult;
-struct ObjCMethodList;
 class Scope;
 class Sema;
 class TypedefNameDecl;
@@ -50,10 +48,11 @@ struct ExternalVTableUse {
 /// external AST sources that also provide information for semantic
 /// analysis.
 class ExternalSemaSource : public ExternalASTSource {
+  /// LLVM-style RTTI.
+  static char ID;
+
 public:
-  ExternalSemaSource() {
-    ExternalASTSource::SemaSource = true;
-  }
+  ExternalSemaSource() = default;
 
   ~ExternalSemaSource() override;
 
@@ -192,6 +191,15 @@ public:
       llvm::MapVector<const FunctionDecl *, std::unique_ptr<LateParsedTemplate>>
           &LPTMap) {}
 
+  /// Read the set of decls to be checked for deferred diags.
+  ///
+  /// The external source should append its own potentially emitted function
+  /// and variable decls which may cause deferred diags. Note that this routine
+  /// may be invoked multiple times; the external source should take care not to
+  /// introduce the same declarations repeatedly.
+  virtual void
+  ReadDeclsToCheckForDeferredDiags(llvm::SmallSetVector<Decl *, 4> &Decls) {}
+
   /// \copydoc Sema::CorrectTypo
   /// \note LookupKind must correspond to a valid Sema::LookupNameKind
   ///
@@ -222,10 +230,13 @@ public:
     return false;
   }
 
-  // isa/cast/dyn_cast support
-  static bool classof(const ExternalASTSource *Source) {
-    return Source->SemaSource;
+  /// LLVM-style RTTI.
+  /// \{
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ExternalASTSource::isA(ClassID);
   }
+  static bool classof(const ExternalASTSource *S) { return S->isA(&ID); }
+  /// \}
 };
 
 } // end namespace clang

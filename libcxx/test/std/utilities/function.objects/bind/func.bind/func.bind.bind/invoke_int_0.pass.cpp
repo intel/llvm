@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <functional>
 
@@ -17,6 +17,8 @@
 
 #include <functional>
 #include <cassert>
+
+#include "test_macros.h"
 
 template <class R, class F>
 void

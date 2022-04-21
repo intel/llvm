@@ -1,4 +1,4 @@
-// RUN: llvm-mc -filetype=obj -triple i686-pc-linux-gnu %s -o - | llvm-readobj -h -S -r --symbols | FileCheck %s
+// RUN: llvm-mc -filetype=obj -triple i686-pc-linux-gnu %s -o - | llvm-readobj -h -S -r --symbols - | FileCheck %s
 
 	.text
 	.globl	main
@@ -46,9 +46,9 @@ main:                                   # @main
 
 // CHECK: Relocations [
 // CHECK:   Section {{.*}} .rel.text {
-// CHECK:     0x6  R_386_32   .L.str1
+// CHECK:     0x6  R_386_32   .rodata.str1.1
 // CHECK:     0xB  R_386_PC32 puts
-// CHECK:     0x12 R_386_32   .L.str2
+// CHECK:     0x12 R_386_32   .rodata.str1.1
 // CHECK:     0x17 R_386_PC32 puts
 // CHECK:   }
 // CHECK: ]

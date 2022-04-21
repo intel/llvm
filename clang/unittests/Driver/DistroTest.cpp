@@ -11,9 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/Distro.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
+
 using namespace clang;
 using namespace clang::driver;
 
@@ -44,13 +46,16 @@ TEST(DistroTest, DetectUbuntu) {
                                        "SUPPORT_URL=\"http://help.ubuntu.com/\"\n"
                                        "BUG_REPORT_URL=\"http://bugs.launchpad.net/ubuntu/\"\n"));
 
-  Distro UbuntuTrusty{UbuntuTrustyFileSystem};
+  Distro UbuntuTrusty{UbuntuTrustyFileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::UbuntuTrusty), UbuntuTrusty);
   ASSERT_TRUE(UbuntuTrusty.IsUbuntu());
   ASSERT_FALSE(UbuntuTrusty.IsRedhat());
   ASSERT_FALSE(UbuntuTrusty.IsOpenSUSE());
   ASSERT_FALSE(UbuntuTrusty.IsDebian());
   ASSERT_FALSE(UbuntuTrusty.IsGentoo());
+
+  Distro UbuntuTrusty2{UbuntuTrustyFileSystem, llvm::Triple("unknown-pc-windows")};
+  ASSERT_EQ(Distro(Distro::UnknownDistro), UbuntuTrusty2);
 
   llvm::vfs::InMemoryFileSystem UbuntuYakketyFileSystem;
   UbuntuYakketyFileSystem.addFile("/etc/debian_version", 0,
@@ -74,7 +79,7 @@ TEST(DistroTest, DetectUbuntu) {
                                        "VERSION_CODENAME=yakkety\n"
                                        "UBUNTU_CODENAME=yakkety\n"));
 
-  Distro UbuntuYakkety{UbuntuYakketyFileSystem};
+  Distro UbuntuYakkety{UbuntuYakketyFileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::UbuntuYakkety), UbuntuYakkety);
   ASSERT_TRUE(UbuntuYakkety.IsUbuntu());
   ASSERT_FALSE(UbuntuYakkety.IsRedhat());
@@ -109,7 +114,7 @@ TEST(DistroTest, DetectRedhat) {
                                        "REDHAT_SUPPORT_PRODUCT=\"Fedora\"\n"
                                        "REDHAT_SUPPORT_PRODUCT_VERSION=25\n"
                                        "PRIVACY_POLICY_URL=https://fedoraproject.org/wiki/Legal:PrivacyPolicy\n"));
-  Distro Fedora25{Fedora25FileSystem};
+  Distro Fedora25{Fedora25FileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::Fedora), Fedora25);
   ASSERT_FALSE(Fedora25.IsUbuntu());
   ASSERT_TRUE(Fedora25.IsRedhat());
@@ -146,7 +151,7 @@ TEST(DistroTest, DetectRedhat) {
                                        "REDHAT_SUPPORT_PRODUCT=\"centos\"\n"
                                        "REDHAT_SUPPORT_PRODUCT_VERSION=\"7\"\n"));
 
-  Distro CentOS7{CentOS7FileSystem};
+  Distro CentOS7{CentOS7FileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::RHEL7), CentOS7);
   ASSERT_FALSE(CentOS7.IsUbuntu());
   ASSERT_TRUE(CentOS7.IsRedhat());
@@ -174,7 +179,7 @@ TEST(DistroTest, DetectOpenSUSE) {
                                        "HOME_URL=\"https://opensuse.org/\"\n"
                                        "ID_LIKE=\"suse\"\n"));
 
-  Distro OpenSUSELeap421{OpenSUSELeap421FileSystem};
+  Distro OpenSUSELeap421{OpenSUSELeap421FileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::OpenSUSE), OpenSUSELeap421);
   ASSERT_FALSE(OpenSUSELeap421.IsUbuntu());
   ASSERT_FALSE(OpenSUSELeap421.IsRedhat());
@@ -200,7 +205,7 @@ TEST(DistroTest, DetectOpenSUSE) {
                                        "HOME_URL=\"https://opensuse.org/\"\n"
                                        "ID_LIKE=\"suse\"\n"));
 
-  Distro OpenSUSE132{OpenSUSE132FileSystem};
+  Distro OpenSUSE132{OpenSUSE132FileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::OpenSUSE), OpenSUSE132);
   ASSERT_FALSE(OpenSUSE132.IsUbuntu());
   ASSERT_FALSE(OpenSUSE132.IsRedhat());
@@ -217,7 +222,7 @@ TEST(DistroTest, DetectOpenSUSE) {
       llvm::MemoryBuffer::getMemBuffer("LSB_VERSION=\"core-2.0-noarch:core-3.0-noarch:core-2.0-x86_64:core-3.0-x86_64\"\n"));
 
   // SLES10 is unsupported and therefore evaluates to unknown
-  Distro SLES10{SLES10FileSystem};
+  Distro SLES10{SLES10FileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::UnknownDistro), SLES10);
   ASSERT_FALSE(SLES10.IsUbuntu());
   ASSERT_FALSE(SLES10.IsRedhat());
@@ -240,7 +245,7 @@ TEST(DistroTest, DetectDebian) {
                                        "SUPPORT_URL=\"http://www.debian.org/support\"\n"
                                        "BUG_REPORT_URL=\"https://bugs.debian.org/\"\n"));
 
-  Distro DebianJessie{DebianJessieFileSystem};
+  Distro DebianJessie{DebianJessieFileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::DebianJessie), DebianJessie);
   ASSERT_FALSE(DebianJessie.IsUbuntu());
   ASSERT_FALSE(DebianJessie.IsRedhat());
@@ -259,7 +264,7 @@ TEST(DistroTest, DetectDebian) {
                                        "SUPPORT_URL=\"http://www.debian.org/support\"\n"
                                        "BUG_REPORT_URL=\"https://bugs.debian.org/\"\n"));
 
-  Distro DebianStretchSid{DebianStretchSidFileSystem};
+  Distro DebianStretchSid{DebianStretchSidFileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::DebianStretch), DebianStretchSid);
   ASSERT_FALSE(DebianStretchSid.IsUbuntu());
   ASSERT_FALSE(DebianStretchSid.IsRedhat());
@@ -270,18 +275,16 @@ TEST(DistroTest, DetectDebian) {
 
 TEST(DistroTest, DetectExherbo) {
   llvm::vfs::InMemoryFileSystem ExherboFileSystem;
-  ExherboFileSystem.addFile("/etc/exherbo-release", 0, // (ASCII art)
-                                 llvm::MemoryBuffer::getMemBuffer(""));
   ExherboFileSystem.addFile("/etc/os-release", 0,
       llvm::MemoryBuffer::getMemBuffer("NAME=\"Exherbo\"\n"
                                        "PRETTY_NAME=\"Exherbo Linux\"\n"
-                                       "ID=\"exherbo\"\n"
+                                       "ID=exherbo\n"
                                        "ANSI_COLOR=\"0;32\"\n"
                                        "HOME_URL=\"https://www.exherbo.org/\"\n"
                                        "SUPPORT_URL=\"irc://irc.freenode.net/#exherbo\"\n"
                                        "BUG_REPORT_URL=\"https://bugs.exherbo.org/\"\n"));
 
-  Distro Exherbo{ExherboFileSystem};
+  Distro Exherbo{ExherboFileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::Exherbo), Exherbo);
   ASSERT_FALSE(Exherbo.IsUbuntu());
   ASSERT_FALSE(Exherbo.IsRedhat());
@@ -303,7 +306,7 @@ TEST(DistroTest, DetectArchLinux) {
                                        "SUPPORT_URL=\"https://bbs.archlinux.org/\"\n"
                                        "BUG_REPORT_URL=\"https://bugs.archlinux.org/\"\n"));
 
-  Distro ArchLinux{ArchLinuxFileSystem};
+  Distro ArchLinux{ArchLinuxFileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::ArchLinux), ArchLinux);
   ASSERT_FALSE(ArchLinux.IsUbuntu());
   ASSERT_FALSE(ArchLinux.IsRedhat());
@@ -328,13 +331,72 @@ TEST(DistroTest, DetectGentoo) {
           "SUPPORT_URL=\"https://www.gentoo.org/support/\"\n"
           "BUG_REPORT_URL=\"https://bugs.gentoo.org/\"\n"));
 
-  Distro Gentoo{GentooFileSystem};
+  Distro Gentoo{GentooFileSystem, llvm::Triple("unknown-pc-linux")};
   ASSERT_EQ(Distro(Distro::Gentoo), Gentoo);
   ASSERT_FALSE(Gentoo.IsUbuntu());
   ASSERT_FALSE(Gentoo.IsRedhat());
   ASSERT_FALSE(Gentoo.IsOpenSUSE());
   ASSERT_FALSE(Gentoo.IsDebian());
   ASSERT_TRUE(Gentoo.IsGentoo());
+}
+
+TEST(DistroTest, DetectWindowsAndCrossCompile) {
+
+  class CountingFileSystem : public llvm::vfs::ProxyFileSystem {
+  public:
+    CountingFileSystem() : ProxyFileSystem(llvm::vfs::getRealFileSystem()) {}
+
+    llvm::ErrorOr<llvm::vfs::Status> status(const llvm::Twine &Path) override {
+      ++Count;
+      return llvm::vfs::ProxyFileSystem::status(Path);
+    }
+
+    llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
+    openFileForRead(const llvm::Twine &Path) override {
+      ++Count;
+      return llvm::vfs::ProxyFileSystem::openFileForRead(Path);
+    }
+
+    unsigned Count{};
+  };
+
+  llvm::Triple Host(llvm::sys::getProcessTriple());
+  if (!Host.isOSWindows())
+    GTEST_SKIP();
+
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> RFS =
+      llvm::vfs::getRealFileSystem();
+
+  CountingFileSystem CFileSystem;
+  Distro LinuxDistro{CFileSystem, llvm::Triple("unknown-pc-linux")};
+  ASSERT_EQ(Distro(Distro::UnknownDistro), LinuxDistro);
+  ASSERT_GT(CFileSystem.Count, 0U);
+
+  Distro WinDistro{CFileSystem, llvm::Triple("unknown-pc-windows")};
+  ASSERT_EQ(Distro(Distro::UnknownDistro), WinDistro);
+  ASSERT_GT(CFileSystem.Count, 0U);
+
+  // When running on Windows along with a real file system, ensure that no
+  // distro is returned if targeting Linux
+  Distro LinuxRealDistro{*RFS, llvm::Triple("unknown-pc-linux")};
+  ASSERT_EQ(Distro(Distro::UnknownDistro), LinuxRealDistro);
+
+  Distro WinRealDistro{*RFS, llvm::Triple("unknown-pc-windows")};
+  ASSERT_EQ(Distro(Distro::UnknownDistro), WinRealDistro);
+}
+
+TEST(DistroTest, DetectLinux) {
+  llvm::Triple Host(llvm::sys::getProcessTriple());
+  if (!Host.isOSLinux())
+    GTEST_SKIP();
+
+  // When running on Linux, check if the distro is the same as the host when
+  // targeting Linux
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> RFS =
+      llvm::vfs::getRealFileSystem();
+  Distro HostDistro{*RFS, Host};
+  Distro LinuxRealDistro{*RFS, llvm::Triple("unknown-pc-linux")};
+  ASSERT_EQ(HostDistro, LinuxRealDistro);
 }
 
 } // end anonymous namespace

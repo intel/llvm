@@ -18,6 +18,7 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 #if TEST_STD_VER >= 11
@@ -106,7 +107,7 @@ int main(int, char**)
     test<bidirectional_iterator<S*> >();
     test<random_access_iterator<S*> >();
     test<S*>();
-#endif  // TEST_STD_VER >= 11
+#endif // TEST_STD_VER >= 11
 
   return 0;
 }

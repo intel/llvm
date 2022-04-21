@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -std=c++11 -verify %s
-
+// RUN: %clang_cc1 -std=c++2a -verify %s
 typedef int (*fp)(int);
 int surrogate(int);
 struct Incomplete;  // expected-note{{forward declaration of 'Incomplete'}} \
@@ -414,8 +414,8 @@ static_assert(templated<1>() == 1, "");
 
 template <int N> constexpr int callTemplated() { return templated<N>(); }
 
-constexpr int B = 10 + // the carat for the error should be pointing to the problematic call (on the next line), not here.
-    callTemplated<0>(); // expected-error{{initialized by a constant expression}} expected-error@-3{{no matching function for call to 'templated'}} expected-note{{in instantiation of function template}} expected-note@-10{{candidate disabled}}
+constexpr int B = 10 +                // expected-error {{initialized by a constant expression}}
+                  callTemplated<0>(); // expected-error@-3{{no matching function for call to 'templated'}} expected-note{{in instantiation of function template}} expected-note@-10{{candidate disabled}}
 static_assert(callTemplated<1>() == 1, "");
 }
 
@@ -533,3 +533,43 @@ namespace StringLiteralDetector {
   }
 }
 
+namespace IgnoreUnusedArgSideEffects {
+  struct A { ~A(); };
+  void f(A a, bool b) __attribute__((enable_if(b, ""))); // expected-note 2-3{{disabled}}
+  void test() {
+    f(A(), true);
+    f(A(), false); // expected-error {{no matching function}}
+    int n;
+    f((n = 1, A()), true);
+    f(A(), (n = 1, true)); // expected-error {{no matching function}}
+    f(A(), (A(), true));
+  }
+
+#if __cplusplus > 201702L
+  struct B { constexpr ~B() {} bool b; };
+  void g(B b) __attribute__((enable_if(b.b, ""))); // expected-note {{disabled}}
+  void test2() {
+    g(B{true});
+    g(B{false}); // expected-error {{no matching function}}
+    f(A(), B{true}.b);
+    f(A(), B{false}.b); // expected-error {{no matching function}}
+  }
+
+  // First condition is non-constant due to non-constexpr destructor of A.
+  int &h() __attribute__((enable_if((A(), true), "")));
+  float &h() __attribute__((enable_if((B(), true), "")));
+  float &x = h();
+#endif
+}
+
+namespace DefaultArgs {
+  void f(int n = __builtin_LINE()) __attribute__((enable_if(n == 12345, "only callable on line 12345"))); // expected-note {{only callable on line 12345}}
+  void g() { f(); } // expected-error {{no matching function}}
+#line 12345
+  void h() { f(); }
+
+  template<typename T> void x(int n = T()) __attribute__((enable_if(n == 0, ""))) {} // expected-note {{candidate}}
+  void y() { x<int>(); }
+  struct Z { constexpr operator int() const { return 1; } };
+  void z() { x<Z>(); } // expected-error {{no matching function}}
+}

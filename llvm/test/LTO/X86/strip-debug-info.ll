@@ -10,14 +10,14 @@
 ; RUN:     %t.bc -disable-verify 2>&1 | \
 ; RUN:     FileCheck %s -allow-empty -check-prefix=CHECK-WARN
 ; ---- Thin LTO (optimize, strip main file) -----------------
-; RUN: opt -disable-verify -module-summary %s -o %t.bc
-; RUN: opt -disable-verify -module-summary %S/Inputs/strip-debug-info-bar.ll \
+; RUN: opt -disable-verify -disable-upgrade-debug-info -module-summary %s -o %t.bc
+; RUN: opt -disable-verify -disable-upgrade-debug-info -module-summary %S/Inputs/strip-debug-info-bar.ll \
 ; RUN:     -o %t2.bc
 ; RUN: llvm-lto -thinlto -thinlto-action=run \
 ; RUN:     %t.bc -disable-verify 2>&1 | \
 ; RUN:     FileCheck %s -allow-empty -check-prefix=CHECK-WARN
 ; ---- Thin LTO (optimize, strip imported file) -------------
-; RUN: opt -disable-verify -strip-debug -module-summary %t.bc -o %t-stripped.bc
+; RUN: opt -module-summary %t.bc -o %t-stripped.bc
 ; RUN: llvm-lto -thinlto-action=thinlink -o %t.index.bc %t-stripped.bc %t2.bc
 ; RUN: llvm-lto -thinlto -thinlto-action=import \
 ; RUN:     -thinlto-index=%t.index.bc \
@@ -25,11 +25,10 @@
 ; RUN:     %t-stripped.bc -disable-verify 2>&1 | \
 ; RUN:     FileCheck %s -allow-empty -check-prefix=CHECK-WARN
 
-; CHECK-ERR: Broken module found, compilation aborted
 ; CHECK-WARN: warning{{.*}} ignoring invalid debug info
 ; CHECK-WARN-NOT: Broken module found
 ; CHECK: foo
-target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.12"
 
 declare void @bar()

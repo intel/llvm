@@ -1,4 +1,4 @@
-//===-- DWARFDebugMacro.cpp -------------------------------------*- C++ -*-===//
+//===-- DWARFDebugMacro.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,6 +14,7 @@
 #include "DWARFDataExtractor.h"
 
 using namespace lldb_private;
+using namespace lldb_private::dwarf;
 
 DWARFDebugMacroHeader
 DWARFDebugMacroHeader::ParseHeader(const DWARFDataExtractor &debug_macro_data,

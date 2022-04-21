@@ -6,13 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CommandObjectLanguage_h_
-#define liblldb_CommandObjectLanguage_h_
-
-
+#ifndef LLDB_SOURCE_COMMANDS_COMMANDOBJECTLANGUAGE_H
+#define LLDB_SOURCE_COMMANDS_COMMANDOBJECTLANGUAGE_H
 
 #include "lldb/Interpreter/CommandObjectMultiword.h"
-#include "lldb/lldb-types.h"
 
 namespace lldb_private {
 class CommandObjectLanguage : public CommandObjectMultiword {
@@ -26,4 +23,4 @@ protected:
 };
 } // namespace lldb_private
 
-#endif // liblldb_CommandObjectLanguage_h_
+#endif // LLDB_SOURCE_COMMANDS_COMMANDOBJECTLANGUAGE_H

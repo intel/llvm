@@ -23,6 +23,7 @@
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
@@ -81,6 +82,7 @@ bool CodeCompletionContext::wantConstructorResults() const {
   case CCC_ObjCInterfaceName:
   case CCC_ObjCCategoryName:
   case CCC_IncludedFile:
+  case CCC_Attribute:
     return false;
   }
 
@@ -160,6 +162,8 @@ StringRef clang::getCompletionKindString(CodeCompletionContext::Kind Kind) {
     return "ObjCCategoryName";
   case CCKind::CCC_IncludedFile:
     return "IncludedFile";
+  case CCKind::CCC_Attribute:
+    return "Attribute";
   case CCKind::CCC_Recovery:
     return "Recovery";
   }
@@ -331,7 +335,7 @@ std::string CodeCompletionString::getAsString() const {
       break;
     }
   }
-  return OS.str();
+  return Result;
 }
 
 const char *CodeCompletionString::getTypedText() const {
@@ -355,8 +359,7 @@ const char *CodeCompletionAllocator::CopyString(const Twine &String) {
 }
 
 StringRef CodeCompletionTUInfo::getParentName(const DeclContext *DC) {
-  const NamedDecl *ND = dyn_cast<NamedDecl>(DC);
-  if (!ND)
+  if (!isa<NamedDecl>(DC))
     return {};
 
   // Check whether we've already cached the parent name.
@@ -384,14 +387,13 @@ StringRef CodeCompletionTUInfo::getParentName(const DeclContext *DC) {
     SmallString<128> S;
     llvm::raw_svector_ostream OS(S);
     bool First = true;
-    for (unsigned I = Contexts.size(); I != 0; --I) {
+    for (const DeclContext *CurDC : llvm::reverse(Contexts)) {
       if (First)
         First = false;
       else {
         OS << "::";
       }
 
-      const DeclContext *CurDC = Contexts[I - 1];
       if (const auto *CatImpl = dyn_cast<ObjCCategoryImplDecl>(CurDC))
         CurDC = CatImpl->getCategoryDecl();
 
@@ -469,8 +471,7 @@ void CodeCompletionBuilder::addParentContext(const DeclContext *DC) {
   if (DC->isFunctionOrMethod())
     return;
 
-  const NamedDecl *ND = dyn_cast<NamedDecl>(DC);
-  if (!ND)
+  if (!isa<NamedDecl>(DC))
     return;
 
   ParentName = getCodeCompletionTUInfo().getParentName(DC);
@@ -505,9 +506,90 @@ CodeCompleteConsumer::OverloadCandidate::getFunctionType() const {
 
   case CK_FunctionType:
     return Type;
+
+  case CK_Template:
+  case CK_Aggregate:
+    return nullptr;
   }
 
   llvm_unreachable("Invalid CandidateKind!");
+}
+
+unsigned CodeCompleteConsumer::OverloadCandidate::getNumParams() const {
+  if (Kind == CK_Template)
+    return Template->getTemplateParameters()->size();
+
+  if (Kind == CK_Aggregate) {
+    unsigned Count =
+        std::distance(AggregateType->field_begin(), AggregateType->field_end());
+    if (const auto *CRD = dyn_cast<CXXRecordDecl>(AggregateType))
+      Count += CRD->getNumBases();
+    return Count;
+  }
+
+  if (const auto *FT = getFunctionType())
+    if (const auto *FPT = dyn_cast<FunctionProtoType>(FT))
+      return FPT->getNumParams();
+
+  return 0;
+}
+
+QualType
+CodeCompleteConsumer::OverloadCandidate::getParamType(unsigned N) const {
+  if (Kind == CK_Aggregate) {
+    if (const auto *CRD = dyn_cast<CXXRecordDecl>(AggregateType)) {
+      if (N < CRD->getNumBases())
+        return std::next(CRD->bases_begin(), N)->getType();
+      N -= CRD->getNumBases();
+    }
+    for (const auto *Field : AggregateType->fields())
+      if (N-- == 0)
+        return Field->getType();
+    return QualType();
+  }
+
+  if (Kind == CK_Template) {
+    TemplateParameterList *TPL = getTemplate()->getTemplateParameters();
+    if (N < TPL->size())
+      if (const auto *D = dyn_cast<NonTypeTemplateParmDecl>(TPL->getParam(N)))
+        return D->getType();
+    return QualType();
+  }
+
+  if (const auto *FT = getFunctionType())
+    if (const auto *FPT = dyn_cast<FunctionProtoType>(FT))
+      if (N < FPT->getNumParams())
+        return FPT->getParamType(N);
+  return QualType();
+}
+
+const NamedDecl *
+CodeCompleteConsumer::OverloadCandidate::getParamDecl(unsigned N) const {
+  if (Kind == CK_Aggregate) {
+    if (const auto *CRD = dyn_cast<CXXRecordDecl>(AggregateType)) {
+      if (N < CRD->getNumBases())
+        return std::next(CRD->bases_begin(), N)->getType()->getAsTagDecl();
+      N -= CRD->getNumBases();
+    }
+    for (const auto *Field : AggregateType->fields())
+      if (N-- == 0)
+        return Field;
+    return nullptr;
+  }
+
+  if (Kind == CK_Template) {
+    TemplateParameterList *TPL = getTemplate()->getTemplateParameters();
+    if (N < TPL->size())
+      return TPL->getParam(N);
+    return nullptr;
+  }
+
+  // Note that if we only have a FunctionProtoType, we don't have param decls.
+  if (const auto *FD = getFunction()) {
+    if (N < FD->param_size())
+      return FD->getParamDecl(N);
+  }
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -570,29 +652,10 @@ void PrintingCodeCompleteConsumer::ProcessCodeCompleteResults(
         if (const char *BriefComment = CCS->getBriefComment())
           OS << " : " << BriefComment;
       }
-      for (const FixItHint &FixIt : Results[I].FixIts) {
-        const SourceLocation BLoc = FixIt.RemoveRange.getBegin();
-        const SourceLocation ELoc = FixIt.RemoveRange.getEnd();
-
-        SourceManager &SM = SemaRef.SourceMgr;
-        std::pair<FileID, unsigned> BInfo = SM.getDecomposedLoc(BLoc);
-        std::pair<FileID, unsigned> EInfo = SM.getDecomposedLoc(ELoc);
-        // Adjust for token ranges.
-        if (FixIt.RemoveRange.isTokenRange())
-          EInfo.second += Lexer::MeasureTokenLength(ELoc, SM, SemaRef.LangOpts);
-
-        OS << " (requires fix-it:"
-           << " {" << SM.getLineNumber(BInfo.first, BInfo.second) << ':'
-           << SM.getColumnNumber(BInfo.first, BInfo.second) << '-'
-           << SM.getLineNumber(EInfo.first, EInfo.second) << ':'
-           << SM.getColumnNumber(EInfo.first, EInfo.second) << "}"
-           << " to \"" << FixIt.CodeToInsert << "\")";
-      }
-      OS << '\n';
       break;
 
     case CodeCompletionResult::RK_Keyword:
-      OS << Results[I].Keyword << '\n';
+      OS << Results[I].Keyword;
       break;
 
     case CodeCompletionResult::RK_Macro:
@@ -602,13 +665,31 @@ void PrintingCodeCompleteConsumer::ProcessCodeCompleteResults(
               includeBriefComments())) {
         OS << " : " << CCS->getAsString();
       }
-      OS << '\n';
       break;
 
     case CodeCompletionResult::RK_Pattern:
-      OS << "Pattern : " << Results[I].Pattern->getAsString() << '\n';
+      OS << "Pattern : " << Results[I].Pattern->getAsString();
       break;
     }
+    for (const FixItHint &FixIt : Results[I].FixIts) {
+      const SourceLocation BLoc = FixIt.RemoveRange.getBegin();
+      const SourceLocation ELoc = FixIt.RemoveRange.getEnd();
+
+      SourceManager &SM = SemaRef.SourceMgr;
+      std::pair<FileID, unsigned> BInfo = SM.getDecomposedLoc(BLoc);
+      std::pair<FileID, unsigned> EInfo = SM.getDecomposedLoc(ELoc);
+      // Adjust for token ranges.
+      if (FixIt.RemoveRange.isTokenRange())
+        EInfo.second += Lexer::MeasureTokenLength(ELoc, SM, SemaRef.LangOpts);
+
+      OS << " (requires fix-it:"
+         << " {" << SM.getLineNumber(BInfo.first, BInfo.second) << ':'
+         << SM.getColumnNumber(BInfo.first, BInfo.second) << '-'
+         << SM.getLineNumber(EInfo.first, EInfo.second) << ':'
+         << SM.getColumnNumber(EInfo.first, EInfo.second) << "}"
+         << " to \"" << FixIt.CodeToInsert << "\")";
+    }
+    OS << '\n';
   }
 }
 
@@ -640,12 +721,12 @@ static std::string getOverloadAsString(const CodeCompletionString &CCS) {
       break;
     }
   }
-  return OS.str();
+  return Result;
 }
 
 void PrintingCodeCompleteConsumer::ProcessOverloadCandidates(
     Sema &SemaRef, unsigned CurrentArg, OverloadCandidate *Candidates,
-    unsigned NumCandidates, SourceLocation OpenParLoc) {
+    unsigned NumCandidates, SourceLocation OpenParLoc, bool Braced) {
   OS << "OPENING_PAREN_LOC: ";
   OpenParLoc.print(OS, SemaRef.getSourceManager());
   OS << "\n";
@@ -653,7 +734,7 @@ void PrintingCodeCompleteConsumer::ProcessOverloadCandidates(
   for (unsigned I = 0; I != NumCandidates; ++I) {
     if (CodeCompletionString *CCS = Candidates[I].CreateSignatureString(
             CurrentArg, SemaRef, getAllocator(), CCTUInfo,
-            includeBriefComments())) {
+            includeBriefComments(), Braced)) {
       OS << "OVERLOAD: " << getOverloadAsString(*CCS) << "\n";
     }
   }
@@ -757,7 +838,7 @@ bool clang::operator<(const CodeCompletionResult &X,
   std::string XSaved, YSaved;
   StringRef XStr = X.getOrderedName(XSaved);
   StringRef YStr = Y.getOrderedName(YSaved);
-  int cmp = XStr.compare_lower(YStr);
+  int cmp = XStr.compare_insensitive(YStr);
   if (cmp)
     return cmp < 0;
 

@@ -9,9 +9,8 @@
 #ifndef LLVM_MC_MCPARSER_MCASMPARSEREXTENSION_H
 #define LLVM_MC_MCPARSER_MCASMPARSEREXTENSION_H
 
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/Support/SMLoc.h"
 
@@ -89,6 +88,7 @@ public:
                   const Twine &Msg = "unexpected token") {
     return getParser().parseToken(T, Msg);
   }
+  bool parseEOL() { return getParser().parseEOL(); }
 
   bool parseMany(function_ref<bool()> parseOne, bool hasComma = true) {
     return getParser().parseMany(parseOne, hasComma);
@@ -97,6 +97,8 @@ public:
   bool parseOptionalToken(AsmToken::TokenKind T) {
     return getParser().parseOptionalToken(T);
   }
+
+  bool ParseDirectiveCGProfile(StringRef, SMLoc);
 
   bool check(bool P, const Twine &Msg) {
     return getParser().check(P, Msg);

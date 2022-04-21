@@ -17,9 +17,9 @@ define <2 x float> @test4(<2 x float> %A, <2 x float> %B) nounwind {
 ; CHECK-LABEL: test4:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movaps %xmm0, %xmm2
-; CHECK-NEXT:    shufps {{.*#+}} xmm2 = xmm2[1,1],xmm0[2,3]
+; CHECK-NEXT:    shufps {{.*#+}} xmm2 = xmm2[1,1],xmm0[1,1]
 ; CHECK-NEXT:    addss %xmm1, %xmm0
-; CHECK-NEXT:    shufps {{.*#+}} xmm1 = xmm1[1,1,2,3]
+; CHECK-NEXT:    shufps {{.*#+}} xmm1 = xmm1[1,1,1,1]
 ; CHECK-NEXT:    subss %xmm1, %xmm2
 ; CHECK-NEXT:    unpcklps {{.*#+}} xmm0 = xmm0[0],xmm2[0],xmm0[1],xmm2[1]
 ; CHECK-NEXT:    ret{{[l|q]}}
@@ -180,7 +180,7 @@ define <4 x i32> @PR30512(<4 x i32> %x, <4 x i32> %y) nounwind {
 ; X86-NEXT:    movss {{.*#+}} xmm2 = mem[0],zero,zero,zero
 ; X86-NEXT:    unpcklps {{.*#+}} xmm2 = xmm2[0],xmm0[0],xmm2[1],xmm0[1]
 ; X86-NEXT:    movlhps {{.*#+}} xmm2 = xmm2[0],xmm1[0]
-; X86-NEXT:    andps {{\.LCPI.*}}, %xmm2
+; X86-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm2
 ; X86-NEXT:    movaps %xmm2, (%eax)
 ; X86-NEXT:    addl $16, %esp
 ; X86-NEXT:    popl %esi
@@ -218,7 +218,7 @@ define <4 x i32> @PR30512(<4 x i32> %x, <4 x i32> %y) nounwind {
 ; X64-NEXT:    movss {{.*#+}} xmm2 = mem[0],zero,zero,zero
 ; X64-NEXT:    unpcklps {{.*#+}} xmm2 = xmm2[0],xmm0[0],xmm2[1],xmm0[1]
 ; X64-NEXT:    movlhps {{.*#+}} xmm2 = xmm2[0],xmm1[0]
-; X64-NEXT:    andps {{.*}}(%rip), %xmm2
+; X64-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm2
 ; X64-NEXT:    movaps %xmm2, (%rax)
 ; X64-NEXT:    retq
   %cmp = icmp eq <4 x i32> %x, %y
@@ -238,12 +238,12 @@ define <4 x i32> @PR30512(<4 x i32> %x, <4 x i32> %y) nounwind {
 define <2 x float> @PR31672() #0 {
 ; X86-LABEL: PR31672:
 ; X86:       # %bb.0:
-; X86-NEXT:    sqrtps {{\.LCPI.*}}, %xmm0
+; X86-NEXT:    sqrtps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: PR31672:
 ; X64:       # %bb.0:
-; X64-NEXT:    sqrtps {{.*}}(%rip), %xmm0
+; X64-NEXT:    sqrtps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; X64-NEXT:    retq
   %t0 = call fast <2 x float> @llvm.sqrt.v2f32(<2 x float> <float 42.0, float 3.0>)
   ret <2 x float> %t0

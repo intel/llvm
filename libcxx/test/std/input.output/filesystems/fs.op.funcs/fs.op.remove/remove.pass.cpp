@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // bool remove(const path& p);
 // bool remove(const path& p, error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -60,7 +60,13 @@ TEST_CASE(test_error_reporting)
     permissions(bad_perms_dir, perms::none);
     const path testCases[] = {
         non_empty_dir,
+#ifndef TEST_WIN_NO_FILESYSTEM_PERMS_NONE
+        // Windows doesn't support setting perms::none on a directory to
+        // stop it from being accessed. And a fictional file under
+        // GetWindowsInaccessibleDir() doesn't cause fs::remove() to report
+        // errors, it just returns false cleanly.
         file_in_bad_dir,
+#endif
     };
     for (auto& p : testCases) {
         std::error_code ec;

@@ -4,6 +4,8 @@
 // RUN:   -verify %s
 // RUN: %clang_cc1 -triple powerpc64-pc-linux-gnu -DTEST_64BIT_PPC64 -fsyntax-only \
 // RUN:   -verify %s
+// RUN: %clang_cc1 -triple powerpc64-pc-linux-gnu -DTEST_F128_PPC64 -fsyntax-only \
+// RUN:   -verify -target-feature +float128 %s
 // RUN: %clang_cc1 -triple x86_64-pc-linux-gnux32 -DTEST_64BIT_X86 -fsyntax-only \
 // RUN:   -verify %s
 // RUN: %clang_cc1 -triple mips-linux-gnu -DTEST_MIPS_32 -fsyntax-only \
@@ -32,7 +34,7 @@ typedef unsigned unwind_word __attribute((mode(unwind_word)));
 
 int **__attribute((mode(QI)))* i32;  // expected-error{{mode attribute}}
 
-__attribute__((mode(QI))) int invalid_func() { return 1; } // expected-error{{'mode' attribute only applies to variables, enums, typedefs, and non-static data members}}
+__attribute__((mode(QI))) int invalid_func(void) { return 1; } // expected-error{{'mode' attribute only applies to variables, enums, typedefs, and non-static data members}}
 enum invalid_enum { A1 __attribute__((mode(QI))) }; // expected-error{{'mode' attribute only applies to}}
 
 typedef _Complex double c32 __attribute((mode(SC)));
@@ -90,6 +92,21 @@ void f_ft128_arg(long double *x);
 void f_ft128_complex_arg(_Complex long double *x);
 void test_TFtype(f128ibm *a) { f_ft128_arg (a); }
 void test_TCtype(c128ibm *a) { f_ft128_complex_arg (a); }
+typedef float w128ibm __attribute__((mode(IF)));
+typedef _Complex float cw128ibm __attribute__((mode(IC)));
+void f_ibm128_arg(__ibm128 *x);
+void f_ibm128_complex_arg(_Complex __ibm128 *x);
+void test_IFtype(w128ibm *a) { f_ibm128_arg(a); }
+void test_ICtype(cw128ibm *a) { f_ibm128_complex_arg(a); }
+#elif TEST_F128_PPC64
+typedef int invalid_7 __attribute((mode(KF))); // expected-error{{type of machine mode does not match type of base type}}
+typedef int invalid_8 __attribute((mode(KI))); // expected-error{{unknown machine mode}}
+typedef _Complex float cf128 __attribute__((mode(KC)));
+typedef float f128 __attribute__((mode(KF)));
+void f_f128_arg(__float128 *x);
+void f_f128_complex_arg(_Complex __float128 *x);
+void test_KFtype(f128 *a) { f_f128_arg(a); }
+void test_KCtype(cf128 *a) { f_f128_complex_arg(a); }
 #elif TEST_MIPS_32
 typedef unsigned int gcc_unwind_word __attribute__((mode(unwind_word)));
 int foo[sizeof(gcc_unwind_word) == 4 ? 1 : -1];

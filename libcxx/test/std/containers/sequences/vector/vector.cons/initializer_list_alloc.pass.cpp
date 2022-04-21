@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <vector>
 
@@ -15,6 +15,7 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 #include "asan_testing.h"
@@ -40,6 +41,12 @@ int main(int, char**)
     assert(d[1] == 4);
     assert(d[2] == 5);
     assert(d[3] == 6);
+    }
+    {
+    std::vector<int, min_allocator<int>> d({}, min_allocator<int>());
+    assert(d.size() == 0);
+    assert(d.empty());
+    assert(is_contiguous_container_asan_correct(d));
     }
 
   return 0;

@@ -34,10 +34,8 @@ This is a `good overview of GN <https://docs.google.com/presentation/d/15Zwb53Jc
 Quick start
 ===========
 
-GN only works in the monorepo layout.
-
 #. ``git clone https://github.com/llvm/llvm-project.git; cd llvm-project`` if
-   you don't have a monorepo checkout yet.
+   you don't have a checkout yet.
 
 #. ``llvm/utils/gn/get.py`` to download a prebuilt gn binary if you're on a
    64-bit X86 system running Linux, macOS, or Windows. `Build gn yourself
@@ -51,6 +49,8 @@ GN only works in the monorepo layout.
    you can manually pass these parameters and not use the wrapper if you
    prefer.)
 
+#. ``echo out >> .git/info/exclude`` to tell git to ignore files below ``out``.
+
 #. ``ninja -C out/gn check-lld`` to build all prerequisites for and run the LLD
    tests.
 
@@ -63,7 +63,7 @@ before starting the build.
 
 GN has extensive built-in help; try e.g. ``llvm/utils/gn/gn.py help gen`` to see
 the help for the ``gen`` command. The full GN reference is also `available
-online <https://gn.googlesource.com/gn/+/master/docs/reference.md>`_.
+online <https://gn.googlesource.com/gn/+/refs/heads/main/docs/reference.md>`_.
 
 GN has an autoformatter:
 ``git ls-files '*.gn' '*.gni' | xargs llvm/utils/gn/gn.py format``

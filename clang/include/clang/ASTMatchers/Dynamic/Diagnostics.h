@@ -40,7 +40,7 @@ struct SourceRange {
 
 /// A VariantValue instance annotated with its parser context.
 struct ParserValue {
-  ParserValue() : Text(), Range(), Value() {}
+  ParserValue() {}
   StringRef Text;
   SourceRange Range;
   VariantValue Value;
@@ -65,6 +65,9 @@ public:
     ET_RegistryNotBindable = 4,
     ET_RegistryAmbiguousOverload = 5,
     ET_RegistryValueNotFound = 6,
+    ET_RegistryUnknownEnumWithReplace = 7,
+    ET_RegistryNonNodeMatcher = 8,
+    ET_RegistryMatcherNoWithSupport = 9,
 
     ET_ParserStringError = 100,
     ET_ParserNoOpenParen = 101,
@@ -76,7 +79,9 @@ public:
     ET_ParserMalformedBindExpr = 107,
     ET_ParserTrailingCode = 108,
     ET_ParserNumberError = 109,
-    ET_ParserOverloadedType = 110
+    ET_ParserOverloadedType = 110,
+    ET_ParserMalformedChainedExpr = 111,
+    ET_ParserFailedToBuildMatcher = 112
   };
 
   /// Helper stream class.
@@ -181,4 +186,4 @@ private:
 }  // namespace ast_matchers
 }  // namespace clang
 
-#endif  // LLVM_CLANG_AST_MATCHERS_DYNAMIC_DIAGNOSTICS_H
+#endif // LLVM_CLANG_ASTMATCHERS_DYNAMIC_DIAGNOSTICS_H

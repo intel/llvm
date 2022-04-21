@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <utility>
 
@@ -15,6 +15,8 @@
 // pair(const T1& x, const T2& y);
 
 #include <utility>
+
+#include "test_macros.h"
 
 
 struct ExplicitT {

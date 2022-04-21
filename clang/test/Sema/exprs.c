@@ -14,13 +14,13 @@
 
 // Test that we don't report divide-by-zero errors in unreachable code.
 // This test should be left as is, as it also tests CFG functionality.
-void radar9171946() {
+void radar9171946(void) {
   if (0) {
-    0 / (0 ? 1 : 0); // expected-warning {{expression result unused}}
+    0 / (0 ? 1 : 0); // no-warning
   }
 }
 
-int test_pr8876() {
+int test_pr8876(void) {
   PR8876(0); // no-warning
   PR8876_pos(0); // expected-warning{{indirection of non-volatile null pointer will be deleted, not trap}} expected-note{{consider using __builtin_trap() or qualifying pointer with 'volatile'}}
   return 0;
@@ -35,22 +35,22 @@ void pr8183(unsigned long long test)
 }
 
 // PR1966
-_Complex double test1() {
+_Complex double test1(void) {
   return __extension__ 1.0if;
 }
 
-_Complex double test2() {
+_Complex double test2(void) {
   return 1.0if;    // expected-warning {{imaginary constants are a GNU extension}}
 }
 
 // rdar://6097308
-void test3() {
+void test3(void) {
   int x;
   (__extension__ x) = 10;
 }
 
 // rdar://6162726
-void test4() {
+void test4(void) {
       static int var;
       var =+ 5;  // expected-warning {{use of unary operator that may be intended as compound assignment (+=)}}
       var =- 5;  // expected-warning {{use of unary operator that may be intended as compound assignment (-=)}}
@@ -72,7 +72,7 @@ void test5(int *X, float *P) {
   FOO = P;   // expected-error {{assignment to cast is illegal, lvalue casts are not supported}}
 }
 
-void test6() {
+void test6(void) {
   int X;
   X();  // expected-error {{called object type 'int' is not a function or function pointer}}
 }
@@ -119,7 +119,7 @@ void test11(struct mystruct P, float F) {
 
 // PR3753
 int test12(const char *X) {
-  return X == "foo";  // expected-warning {{comparison against a string literal is unspecified (use strncmp instead)}}
+  return X == "foo";  // expected-warning {{comparison against a string literal is unspecified (use an explicit string comparison function instead)}}
 }
 
 int test12b(const char *X) {
@@ -128,12 +128,12 @@ int test12b(const char *X) {
 
 // rdar://6719156
 void test13(
-            void (^P)()) { // expected-error {{blocks support disabled - compile with -fblocks}}
+            void (^P)(void)) { // expected-error {{blocks support disabled - compile with -fblocks}}
   P();
-  P = ^(){}; // expected-error {{blocks support disabled - compile with -fblocks}}
+  P = ^(void){}; // expected-error {{blocks support disabled - compile with -fblocks}}
 }
 
-void test14() {
+void test14(void) {
   typedef long long __m64 __attribute__((__vector_size__(8)));
   typedef short __v4hi __attribute__((__vector_size__(8)));
 
@@ -163,12 +163,15 @@ void test17(int x) {
   x = sizeof(x/0);  // no warning.
 }
 
-// PR6501 & PR11857
+// PR6501, PR11857, and PR23564
 void test18_a(int a); // expected-note 2 {{'test18_a' declared here}}
 void test18_b(int); // expected-note {{'test18_b' declared here}}
 void test18_c(int a, int b); // expected-note 2 {{'test18_c' declared here}}
 void test18_d(int a, ...); // expected-note {{'test18_d' declared here}}
 void test18_e(int a, int b, ...); // expected-note {{'test18_e' declared here}}
+#define MY_EXPORT __attribute__((visibility("default")))
+MY_EXPORT void // (no "declared here" notes on this line, no "expanded from MY_EXPORT" notes either)
+test18_f(int a, int b); // expected-note 2 {{'test18_f' declared here}}
 void test18(int b) {
   test18_a(b, b); // expected-error {{too many arguments to function call, expected single argument 'a', have 2}}
   test18_a(); // expected-error {{too few arguments to function call, single argument 'a' was not specified}}
@@ -177,19 +180,31 @@ void test18(int b) {
   test18_c(b, b, b); // expected-error {{too many arguments to function call, expected 2, have 3}}
   test18_d(); // expected-error {{too few arguments to function call, at least argument 'a' must be specified}}
   test18_e(); // expected-error {{too few arguments to function call, expected at least 2, have 0}}
+  test18_f(b); // expected-error {{too few arguments to function call, expected 2, have 1}}
+  test18_f(b, b, b); // expected-error {{too many arguments to function call, expected 2, have 3}}
 }
 
+typedef int __attribute__((address_space(256))) int_AS256;
 // PR7569
-void test19() {
-  *(int*)0 = 0;   // expected-warning {{indirection of non-volatile null pointer}} \
+void test19(void) {
+  *(int *)0 = 0;                                     // expected-warning {{indirection of non-volatile null pointer}} \
                   // expected-note {{consider using __builtin_trap}}
-  *(volatile int*)0 = 0;  // Ok.
+  *(volatile int *)0 = 0;                            // Ok.
+  *(int __attribute__((address_space(256))) *)0 = 0; // Ok.
+  *(int __attribute__((address_space(0))) *)0 = 0;   // expected-warning {{indirection of non-volatile null pointer}} \
+                     // expected-note {{consider using __builtin_trap}}
+  *(int_AS256 *)0 = 0;                               // Ok.
 
   // rdar://9269271
-  int x = *(int*)0;  // expected-warning {{indirection of non-volatile null pointer}} \
+  int x = *(int *)0;                                                                          // expected-warning {{indirection of non-volatile null pointer}} \
                      // expected-note {{consider using __builtin_trap}}
-  int x2 = *(volatile int*)0; // Ok.
-  int *p = &(*(int*)0); // Ok;
+  int x2 = *(volatile int *)0;                                                                // Ok.
+  int x3 = *(int __attribute__((address_space(0))) *)0;                                       // expected-warning {{indirection of non-volatile null pointer}} \
+                     // expected-note {{consider using __builtin_trap}}
+  int x4 = *(int_AS256 *)0;                                                                   // Ok.
+  int *p = &(*(int *)0);                                                                      // Ok.
+  int_AS256 *p1 = &(*(int __attribute__((address_space(256))) *)0);                           // Ok.
+  int __attribute__((address_space(0))) *p2 = &(*(int __attribute__((address_space(0))) *)0); // Ok.
 }
 
 int test20(int x) {
@@ -241,7 +256,7 @@ void test21(volatile struct Test21 *ptr) {
 }
 
 // Make sure we do function/array decay.
-void test22() {
+void test22(void) {
   if ("help")
     (void) 0;
 

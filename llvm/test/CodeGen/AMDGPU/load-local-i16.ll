@@ -1,6 +1,6 @@
 ; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,SI,SICIVI,FUNC %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,SICIVI,GFX89,FUNC %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,GFX9,GFX89,FUNC %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-enable-ds128 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,SICIVI,GFX89,FUNC %s
+; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-enable-ds128 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,GFX9,GFX89,FUNC %s
 ; RUN: llc -march=r600 -mcpu=redwood -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefix=EG -check-prefix=FUNC %s
 
 ; Testing for ds_read/write_b128
@@ -232,8 +232,10 @@ define amdgpu_kernel void @local_sextload_v2i16_to_v2i32(<2 x i32> addrspace(3)*
 ; SICIVI: s_mov_b32 m0
 
 ; GCN: ds_read_b64
-; GCN-DAG: ds_write_b32
-; GCN-DAG: ds_write_b64
+; SI-DAG: ds_write_b32
+; SI-DAG: ds_write_b64
+; CIVI-DAG: ds_write_b96
+; GFX9-DAG: ds_write_b96
 
 ; EG: LDS_USHORT_READ_RET
 ; EG: LDS_USHORT_READ_RET
@@ -251,8 +253,10 @@ entry:
 ; SICIVI: s_mov_b32 m0
 
 ; GCN: ds_read_b64
-; GCN-DAG: ds_write_b32
-; GCN-DAG: ds_write_b64
+; SI-DAG: ds_write_b32
+; SI-DAG: ds_write_b64
+; CIVI-DAG: ds_write_b96
+; GFX9-DAG: ds_write_b96
 
 ; EG: LDS_USHORT_READ_RET
 ; EG: LDS_USHORT_READ_RET
@@ -602,7 +606,7 @@ define amdgpu_kernel void @local_sextload_v64i16_to_v64i32(<64 x i32> addrspace(
 ; GCN-DAG: ds_read_u16 v[[LO:[0-9]+]],
 ; GCN-DAG: v_mov_b32_e32 v[[HI:[0-9]+]], 0{{$}}
 
-; GCN: ds_write_b64 v{{[0-9]+}}, v{{\[}}[[LO]]:[[HI]]]
+; GCN: ds_write_b64 v{{[0-9]+}}, v[[[LO]]:[[HI]]]
 
 ; EG: MOV {{[* ]*}}[[FROM:T[0-9]+\.[XYZW]]], KC0[2].Z
 ; EG: LDS_USHORT_READ_RET {{.*}} [[FROM]]
@@ -629,7 +633,7 @@ define amdgpu_kernel void @local_zextload_i16_to_i64(i64 addrspace(3)* %out, i16
 ; GFX89: v_bfe_i32 v[[LO:[0-9]+]], v[[ULO]], 0, 16
 ; GCN-DAG: v_ashrrev_i32_e32 v[[HI:[0-9]+]], 31, v[[LO]]
 
-; GCN: ds_write_b64 v{{[0-9]+}}, v{{\[}}[[LO]]:[[HI]]]
+; GCN: ds_write_b64 v{{[0-9]+}}, v[[[LO]]:[[HI]]]
 
 ; EG: MOV {{[* ]*}}[[FROM:T[0-9]+\.[XYZW]]], KC0[2].Z
 ; EG: LDS_USHORT_READ_RET {{.*}} [[FROM]]

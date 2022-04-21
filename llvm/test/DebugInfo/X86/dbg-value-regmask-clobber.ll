@@ -1,5 +1,7 @@
 ; RUN: llc < %s | FileCheck %s --check-prefix=ASM
-; RUN: llc < %s -filetype=obj | llvm-dwarfdump -v - | FileCheck %s --check-prefix=DWARF
+; RUN: llc -force-instr-ref-livedebugvalues=1 < %s | FileCheck %s --check-prefix=ASM
+; RUN: llc < %s -filetype=obj | llvm-dwarfdump - | FileCheck %s --check-prefix=DWARF
+; RUN: llc -force-instr-ref-livedebugvalues=1 < %s -filetype=obj | llvm-dwarfdump - | FileCheck %s --check-prefix=DWARF
 
 ; Values in registers should be clobbered by calls, which use a regmask instead
 ; of individual register def operands.
@@ -9,8 +11,7 @@
 ; ASM: movl $1, x(%rip)
 ; ASM: callq clobber
 ; ASM-NEXT: [[argc_range_end:.Ltmp[0-9]+]]:
-; Previously LiveDebugValues would claim argc was still in ecx after the call.
-; ASM-NOT: #DEBUG_VALUE: main:argc
+; ASM: #DEBUG_VALUE: main:argc <- [DW_OP_LLVM_entry_value 1] $ecx
 
 ; argc is the first debug location.
 ; ASM: .Ldebug_loc1:
@@ -22,9 +23,10 @@
 ; argc is the first formal parameter.
 ; DWARF: .debug_info contents:
 ; DWARF:  DW_TAG_formal_parameter
-; DWARF-NEXT:    DW_AT_location [DW_FORM_sec_offset]   ({{0x.*}}
-; DWARF-NEXT:      [0x0000000000000000, 0x0000000000000013): DW_OP_reg2 RCX)
-; DWARF-NEXT:    DW_AT_name [DW_FORM_strp]     {{.*}} "argc"
+; DWARF-NEXT:    DW_AT_location ({{0x.*}}
+; DWARF-NEXT:    [0x0000000000000000, 0x0000000000000013): DW_OP_reg2 RCX
+; DWARF-NEXT:    [0x0000000000000013, 0x0000000000000043): DW_OP_GNU_entry_value(DW_OP_reg2 RCX), DW_OP_stack_value
+; DWARF-NEXT:    DW_AT_name ("argc")
 
 ; ModuleID = 't.cpp'
 source_filename = "test/DebugInfo/X86/dbg-value-regmask-clobber.ll"

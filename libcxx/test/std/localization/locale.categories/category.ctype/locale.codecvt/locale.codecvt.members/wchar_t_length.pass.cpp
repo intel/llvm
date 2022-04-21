@@ -12,8 +12,12 @@
 
 // int length(stateT& state, const externT* from, const externT* from_end, size_t max) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <cassert>
+
+#include "test_macros.h"
 
 typedef std::codecvt<wchar_t, char, std::mbstate_t> F;
 

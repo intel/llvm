@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <experimental/simd>
 //
@@ -17,6 +17,8 @@
 #include <experimental/simd>
 #include <cassert>
 #include <cstdint>
+
+#include "test_macros.h"
 
 namespace ex = std::experimental::parallelism_v2;
 
@@ -38,12 +40,12 @@ void test_access() {
     assert(a[0] % b[0] == 42 % 4);
     assert(a[0] << b[0] == (42 << 4));
     assert(a[0] >> b[0] == (42 >> 4));
-    assert(a[0] < b[0] == false);
-    assert(a[0] <= b[0] == false);
-    assert(a[0] > b[0] == true);
-    assert(a[0] >= b[0] == true);
-    assert(a[0] == b[0] == false);
-    assert(a[0] != b[0] == true);
+    assert((a[0] < b[0]) == false);
+    assert((a[0] <= b[0]) == false);
+    assert((a[0] > b[0]) == true);
+    assert((a[0] >= b[0]) == true);
+    assert((a[0] == b[0]) == false);
+    assert((a[0] != b[0]) == true);
     assert((a[0] & b[0]) == (42 & 4));
     assert((a[0] | b[0]) == (42 | 4));
     assert((a[0] ^ b[0]) == (42 ^ 4));
@@ -196,12 +198,12 @@ void test_access() {
     assert(a[0] % b[0] == 42 % 4);
     assert(a[0] << b[0] == (42 << 4));
     assert(a[0] >> b[0] == (42 >> 4));
-    assert(a[0] < b[0] == false);
-    assert(a[0] <= b[0] == false);
-    assert(a[0] > b[0] == true);
-    assert(a[0] >= b[0] == true);
-    assert(a[0] == b[0] == false);
-    assert(a[0] != b[0] == true);
+    assert((a[0] < b[0]) == false);
+    assert((a[0] <= b[0]) == false);
+    assert((a[0] > b[0]) == true);
+    assert((a[0] >= b[0]) == true);
+    assert((a[0] == b[0]) == false);
+    assert((a[0] != b[0]) == true);
     assert((a[0] & b[0]) == (42 & 4));
     assert((a[0] | b[0]) == (42 | 4));
     assert((a[0] ^ b[0]) == (42 ^ 4));

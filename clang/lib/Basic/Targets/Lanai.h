@@ -86,6 +86,8 @@ public:
   }
 
   const char *getClobbers() const override { return ""; }
+
+  bool hasBitIntType() const override { return true; }
 };
 } // namespace targets
 } // namespace clang

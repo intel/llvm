@@ -1,4 +1,4 @@
-//===------------------------- dynamic_cast_stress.cpp --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <cassert>
 #include <tuple>
-#include "support/timer.hpp"
+#include "support/timer.h"
 
 template <std::size_t Indx, std::size_t Depth>
 struct C
@@ -63,9 +63,11 @@ void test()
     assert(b != 0);
 }
 
-int main()
+int main(int, char**)
 {
     test();
+
+    return 0;
 }
 
 /*

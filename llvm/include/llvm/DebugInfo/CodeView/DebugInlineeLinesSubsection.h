@@ -12,7 +12,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/DebugInfo/CodeView/CodeView.h"
 #include "llvm/DebugInfo/CodeView/DebugSubsection.h"
-#include "llvm/DebugInfo/CodeView/Line.h"
 #include "llvm/DebugInfo/CodeView/TypeIndex.h"
 #include "llvm/Support/BinaryStreamArray.h"
 #include "llvm/Support/BinaryStreamReader.h"
@@ -70,6 +69,11 @@ public:
   }
 
   Error initialize(BinaryStreamReader Reader);
+  Error initialize(BinaryStreamRef Section) {
+    return initialize(BinaryStreamReader(Section));
+  }
+
+  bool valid() const { return Lines.valid(); }
   bool hasExtraFiles() const;
 
   Iterator begin() const { return Lines.begin(); }
@@ -77,7 +81,7 @@ public:
 
 private:
   InlineeLinesSignature Signature;
-  VarStreamArray<InlineeSourceLine> Lines;
+  LinesArray Lines;
 };
 
 class DebugInlineeLinesSubsection final : public DebugSubsection {

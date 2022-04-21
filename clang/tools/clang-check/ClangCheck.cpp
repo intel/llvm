@@ -24,6 +24,9 @@
 #include "clang/Rewrite/Frontend/FrontendActions.h"
 #include "clang/StaticAnalyzer/Frontend/FrontendActions.h"
 #include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/Syntax/BuildTree.h"
+#include "clang/Tooling/Syntax/Tokens.h"
+#include "clang/Tooling/Syntax/Tree.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Option/OptTable.h"
@@ -52,32 +55,46 @@ static cl::extrahelp MoreHelp(
 );
 
 static cl::OptionCategory ClangCheckCategory("clang-check options");
-static std::unique_ptr<opt::OptTable> Options(createDriverOptTable());
+static const opt::OptTable &Options = getDriverOptTable();
 static cl::opt<bool>
-ASTDump("ast-dump", cl::desc(Options->getOptionHelpText(options::OPT_ast_dump)),
-        cl::cat(ClangCheckCategory));
+    ASTDump("ast-dump",
+            cl::desc(Options.getOptionHelpText(options::OPT_ast_dump)),
+            cl::cat(ClangCheckCategory));
 static cl::opt<bool>
-ASTList("ast-list", cl::desc(Options->getOptionHelpText(options::OPT_ast_list)),
-        cl::cat(ClangCheckCategory));
+    ASTList("ast-list",
+            cl::desc(Options.getOptionHelpText(options::OPT_ast_list)),
+            cl::cat(ClangCheckCategory));
 static cl::opt<bool>
-ASTPrint("ast-print",
-         cl::desc(Options->getOptionHelpText(options::OPT_ast_print)),
-         cl::cat(ClangCheckCategory));
+    ASTPrint("ast-print",
+             cl::desc(Options.getOptionHelpText(options::OPT_ast_print)),
+             cl::cat(ClangCheckCategory));
 static cl::opt<std::string> ASTDumpFilter(
     "ast-dump-filter",
-    cl::desc(Options->getOptionHelpText(options::OPT_ast_dump_filter)),
+    cl::desc(Options.getOptionHelpText(options::OPT_ast_dump_filter)),
     cl::cat(ClangCheckCategory));
 static cl::opt<bool>
-Analyze("analyze", cl::desc(Options->getOptionHelpText(options::OPT_analyze)),
-        cl::cat(ClangCheckCategory));
+    Analyze("analyze",
+            cl::desc(Options.getOptionHelpText(options::OPT_analyze)),
+            cl::cat(ClangCheckCategory));
+static cl::opt<std::string>
+    AnalyzerOutput("analyzer-output-path",
+                   cl::desc(Options.getOptionHelpText(options::OPT_o)),
+                   cl::cat(ClangCheckCategory));
 
 static cl::opt<bool>
-Fixit("fixit", cl::desc(Options->getOptionHelpText(options::OPT_fixit)),
-      cl::cat(ClangCheckCategory));
+    Fixit("fixit", cl::desc(Options.getOptionHelpText(options::OPT_fixit)),
+          cl::cat(ClangCheckCategory));
 static cl::opt<bool> FixWhatYouCan(
     "fix-what-you-can",
-    cl::desc(Options->getOptionHelpText(options::OPT_fix_what_you_can)),
+    cl::desc(Options.getOptionHelpText(options::OPT_fix_what_you_can)),
     cl::cat(ClangCheckCategory));
+
+static cl::opt<bool> SyntaxTreeDump("syntax-tree-dump",
+                                    cl::desc("dump the syntax tree"),
+                                    cl::cat(ClangCheckCategory));
+static cl::opt<bool> TokensDump("tokens-dump",
+                                cl::desc("dump the preprocessed tokens"),
+                                cl::cat(ClangCheckCategory));
 
 namespace {
 
@@ -128,6 +145,30 @@ public:
   }
 };
 
+class DumpSyntaxTree : public clang::ASTFrontendAction {
+public:
+  std::unique_ptr<clang::ASTConsumer>
+  CreateASTConsumer(clang::CompilerInstance &CI, StringRef InFile) override {
+    class Consumer : public clang::ASTConsumer {
+    public:
+      Consumer(clang::CompilerInstance &CI) : Collector(CI.getPreprocessor()) {}
+
+      void HandleTranslationUnit(clang::ASTContext &AST) override {
+        clang::syntax::TokenBuffer TB = std::move(Collector).consume();
+        if (TokensDump)
+          llvm::outs() << TB.dumpForTests();
+        clang::syntax::Arena A(AST.getSourceManager(), AST.getLangOpts(), TB);
+        llvm::outs() << clang::syntax::buildSyntaxTree(A, AST)->dump(
+            AST.getSourceManager());
+      }
+
+    private:
+      clang::syntax::TokenCollector Collector;
+    };
+    return std::make_unique<Consumer>(CI);
+  }
+};
+
 class ClangCheckActionFactory {
 public:
   std::unique_ptr<clang::ASTConsumer> newASTConsumer() {
@@ -138,10 +179,11 @@ public:
                                     /*DumpDecls=*/true,
                                     /*Deserialize=*/false,
                                     /*DumpLookups=*/false,
+                                    /*DumpDeclTypes=*/false,
                                     clang::ADOF_Default);
     if (ASTPrint)
       return clang::CreateASTPrinter(nullptr, ASTDumpFilter);
-    return llvm::make_unique<clang::ASTConsumer>();
+    return std::make_unique<clang::ASTConsumer>();
   }
 };
 
@@ -156,19 +198,47 @@ int main(int argc, const char **argv) {
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
 
-  CommonOptionsParser OptionsParser(argc, argv, ClangCheckCategory);
+  auto ExpectedParser =
+      CommonOptionsParser::create(argc, argv, ClangCheckCategory);
+  if (!ExpectedParser) {
+    llvm::errs() << ExpectedParser.takeError();
+    return 1;
+  }
+  CommonOptionsParser &OptionsParser = ExpectedParser.get();
   ClangTool Tool(OptionsParser.getCompilations(),
                  OptionsParser.getSourcePathList());
 
-  // Clear adjusters because -fsyntax-only is inserted by the default chain.
-  Tool.clearArgumentsAdjusters();
-  Tool.appendArgumentsAdjuster(getClangStripOutputAdjuster());
-  Tool.appendArgumentsAdjuster(getClangStripDependencyFileAdjuster());
+  if (Analyze) {
+    // Set output path if is provided by user.
+    //
+    // As the original -o options have been removed by default via the
+    // strip-output adjuster, we only need to add the analyzer -o options here
+    // when it is provided by users.
+    if (!AnalyzerOutput.empty())
+      Tool.appendArgumentsAdjuster(
+          getInsertArgumentAdjuster(CommandLineArguments{"-o", AnalyzerOutput},
+                                    ArgumentInsertPosition::END));
 
-  // Running the analyzer requires --analyze. Other modes can work with the
-  // -fsyntax-only option.
-  Tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(
-      Analyze ? "--analyze" : "-fsyntax-only", ArgumentInsertPosition::BEGIN));
+    // Running the analyzer requires --analyze. Other modes can work with the
+    // -fsyntax-only option.
+    //
+    // The syntax-only adjuster is installed by default.
+    // Good: It also strips options that trigger extra output, like -save-temps.
+    // Bad:  We don't want the -fsyntax-only when executing the static analyzer.
+    //
+    // To enable the static analyzer, we first strip all -fsyntax-only options
+    // and then add an --analyze option to the front.
+    Tool.appendArgumentsAdjuster(
+        [&](const CommandLineArguments &Args, StringRef /*unused*/) {
+          CommandLineArguments AdjustedArgs;
+          for (const std::string &Arg : Args)
+            if (Arg != "-fsyntax-only")
+              AdjustedArgs.emplace_back(Arg);
+          return AdjustedArgs;
+        });
+    Tool.appendArgumentsAdjuster(
+        getInsertArgumentAdjuster("--analyze", ArgumentInsertPosition::BEGIN));
+  }
 
   ClangCheckActionFactory CheckFactory;
   std::unique_ptr<FrontendActionFactory> FrontendFactory;
@@ -178,6 +248,8 @@ int main(int argc, const char **argv) {
     FrontendFactory = newFrontendActionFactory<clang::ento::AnalysisAction>();
   else if (Fixit)
     FrontendFactory = newFrontendActionFactory<ClangCheckFixItAction>();
+  else if (SyntaxTreeDump || TokensDump)
+    FrontendFactory = newFrontendActionFactory<DumpSyntaxTree>();
   else
     FrontendFactory = newFrontendActionFactory(&CheckFactory);
 

@@ -1,11 +1,12 @@
 ; RUN: llc -mtriple=x86_64-apple-darwin < %s -filetype=obj \
 ; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck --check-prefix=CHECK --check-prefix=DARWIN %s
 ; RUN: llc -mtriple=x86_64-linux-gnu < %s -filetype=obj \
-; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck --check-prefix=CHECK --check-prefix=LINUX %s
+; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck %s
 ; RUN: llc -mtriple=x86_64-apple-darwin < %s -filetype=obj -regalloc=basic \
 ; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck --check-prefix=CHECK --check-prefix=DARWIN %s
 
 ; CHECK: DW_TAG_subprogram
+; DARWIN:  DW_AT_APPLE_omit_frame_ptr [DW_FORM_flag_present] (true)
 ; CHECK:   DW_AT_abstract_origin {{.*}} "foo"
 ; CHECK:   DW_TAG_formal_parameter
 ; CHECK-NOT: DW_TAG
@@ -30,6 +31,7 @@
 ;CHECK-NEXT: DW_AT_high_pc [DW_FORM_data4]
 ;CHECK-NEXT: DW_AT_call_file
 ;CHECK-NEXT: DW_AT_call_line
+;CHECK-NEXT: DW_AT_call_column
 
 ;CHECK: DW_TAG_formal_parameter
 ;CHECK-NOT: DW_TAG

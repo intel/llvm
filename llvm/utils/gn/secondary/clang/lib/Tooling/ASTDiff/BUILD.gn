@@ -7,7 +7,5 @@ static_library("ASTDiff") {
     "//clang/lib/Lex",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "ASTDiff.cpp",
-  ]
+  sources = [ "ASTDiff.cpp" ]
 }

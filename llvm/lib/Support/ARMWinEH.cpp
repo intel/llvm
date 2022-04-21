@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/ARMWinEH.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
 namespace ARM {
@@ -31,7 +30,7 @@ std::pair<uint16_t, uint32_t> SavedRegisterMask(const RuntimeFunction &RF) {
 
   return std::make_pair(GPRMask, VFPMask);
 }
-}
-}
-}
+} // namespace WinEH
+} // namespace ARM
+} // namespace llvm
 

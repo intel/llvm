@@ -27,7 +27,7 @@ class LLVM_LIBRARY_VISIBILITY WebAssemblyTargetInfo : public TargetInfo {
   enum SIMDEnum {
     NoSIMD,
     SIMD128,
-    UnimplementedSIMD128,
+    RelaxedSIMD,
   } SIMDLevel = NoSIMD;
 
   bool HasNontrappingFPToInt = false;
@@ -36,6 +36,12 @@ class LLVM_LIBRARY_VISIBILITY WebAssemblyTargetInfo : public TargetInfo {
   bool HasBulkMemory = false;
   bool HasAtomics = false;
   bool HasMutableGlobals = false;
+  bool HasMultivalue = false;
+  bool HasTailCall = false;
+  bool HasReferenceTypes = false;
+  bool HasExtendedConst = false;
+
+  std::string ABI;
 
 public:
   explicit WebAssemblyTargetInfo(const llvm::Triple &T, const TargetOptions &)
@@ -56,18 +62,25 @@ public:
     IntPtrType = SignedLong;
   }
 
+  StringRef getABI() const override;
+  bool setABI(const std::string &Name) override;
+
 protected:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 
 private:
-  static void setSIMDLevel(llvm::StringMap<bool> &Features, SIMDEnum Level);
+  static void setSIMDLevel(llvm::StringMap<bool> &Features, SIMDEnum Level,
+                           bool Enabled);
 
   bool
   initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
                  StringRef CPU,
                  const std::vector<std::string> &FeaturesVec) const override;
   bool hasFeature(StringRef Feature) const final;
+
+  void setFeatureEnabled(llvm::StringMap<bool> &Features, StringRef Name,
+                         bool Enabled) const final;
 
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) final;
@@ -112,14 +125,38 @@ private:
                ? (IsSigned ? SignedLongLong : UnsignedLongLong)
                : TargetInfo::getLeastIntTypeByWidth(BitWidth, IsSigned);
   }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    switch (CC) {
+    case CC_C:
+    case CC_Swift:
+      return CCCR_OK;
+    case CC_SwiftAsync:
+      return CCCR_Error;
+    default:
+      return CCCR_Warning;
+    }
+  }
+
+  bool hasBitIntType() const override { return true; }
+
+  bool hasProtectedVisibility() const override { return false; }
+
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override;
 };
+
 class LLVM_LIBRARY_VISIBILITY WebAssembly32TargetInfo
     : public WebAssemblyTargetInfo {
 public:
   explicit WebAssembly32TargetInfo(const llvm::Triple &T,
                                    const TargetOptions &Opts)
       : WebAssemblyTargetInfo(T, Opts) {
-    resetDataLayout("e-m:e-p:32:32-i64:64-n32:64-S128");
+    if (T.isOSEmscripten())
+      resetDataLayout("e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-f128:64-n32:64-"
+                      "S128-ni:1:10:20");
+    else
+      resetDataLayout(
+          "e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-n32:64-S128-ni:1:10:20");
   }
 
 protected:
@@ -138,7 +175,12 @@ public:
     SizeType = UnsignedLong;
     PtrDiffType = SignedLong;
     IntPtrType = SignedLong;
-    resetDataLayout("e-m:e-p:64:64-i64:64-n32:64-S128");
+    if (T.isOSEmscripten())
+      resetDataLayout("e-m:e-p:64:64-p10:8:8-p20:8:8-i64:64-f128:64-n32:64-"
+                      "S128-ni:1:10:20");
+    else
+      resetDataLayout(
+          "e-m:e-p:64:64-p10:8:8-p20:8:8-i64:64-n32:64-S128-ni:1:10:20");
   }
 
 protected:

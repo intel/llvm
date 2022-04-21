@@ -32,8 +32,8 @@ FindFirstNonCommonLetter(const std::vector<const
     // Check to see if letter i is the same across the set.
     char Letter = Matches[0]->first[i];
 
-    for (unsigned str = 0, e = Matches.size(); str != e; ++str)
-      if (Matches[str]->first[i] != Letter)
+    for (const StringMatcher::StringPair *Match : Matches)
+      if (Match->first[i] != Letter)
         return i;
   }
 
@@ -75,9 +75,8 @@ bool StringMatcher::EmitStringMatcherForChar(
   // Bucket the matches by the character we are comparing.
   std::map<char, std::vector<const StringPair*>> MatchesByLetter;
 
-  for (unsigned i = 0, e = Matches.size(); i != e; ++i)
-    MatchesByLetter[Matches[i]->first[CharNo]].push_back(Matches[i]);
-
+  for (const StringPair *Match : Matches)
+    MatchesByLetter[Match->first[CharNo]].push_back(Match);
 
   // If we have exactly one bucket to match, see how many characters are common
   // across the whole set and match all of them at once.
@@ -110,14 +109,14 @@ bool StringMatcher::EmitStringMatcherForChar(
   OS << Indent << "switch (" << StrVariableName << "[" << CharNo << "]) {\n";
   OS << Indent << "default: break;\n";
 
-  for (std::map<char, std::vector<const StringPair*>>::iterator LI =
-       MatchesByLetter.begin(), E = MatchesByLetter.end(); LI != E; ++LI) {
+  for (const auto &LI : MatchesByLetter) {
     // TODO: escape hard stuff (like \n) if we ever care about it.
-    OS << Indent << "case '" << LI->first << "':\t // "
-       << LI->second.size() << " string";
-    if (LI->second.size() != 1) OS << 's';
+    OS << Indent << "case '" << LI.first << "':\t // " << LI.second.size()
+       << " string";
+    if (LI.second.size() != 1)
+      OS << 's';
     OS << " to match.\n";
-    if (EmitStringMatcherForChar(LI->second, CharNo + 1, IndentCount + 1,
+    if (EmitStringMatcherForChar(LI.second, CharNo + 1, IndentCount + 1,
                                  IgnoreDuplicates))
       OS << Indent << "  break;\n";
   }
@@ -135,20 +134,19 @@ void StringMatcher::Emit(unsigned Indent, bool IgnoreDuplicates) const {
   // First level categorization: group strings by length.
   std::map<unsigned, std::vector<const StringPair*>> MatchesByLength;
 
-  for (unsigned i = 0, e = Matches.size(); i != e; ++i)
-    MatchesByLength[Matches[i].first.size()].push_back(&Matches[i]);
+  for (const StringPair &Match : Matches)
+    MatchesByLength[Match.first.size()].push_back(&Match);
 
   // Output a switch statement on length and categorize the elements within each
   // bin.
   OS.indent(Indent*2+2) << "switch (" << StrVariableName << ".size()) {\n";
   OS.indent(Indent*2+2) << "default: break;\n";
 
-  for (std::map<unsigned, std::vector<const StringPair*>>::iterator LI =
-       MatchesByLength.begin(), E = MatchesByLength.end(); LI != E; ++LI) {
-    OS.indent(Indent*2+2) << "case " << LI->first << ":\t // "
-       << LI->second.size()
-       << " string" << (LI->second.size() == 1 ? "" : "s") << " to match.\n";
-    if (EmitStringMatcherForChar(LI->second, 0, Indent, IgnoreDuplicates))
+  for (const auto &LI : MatchesByLength) {
+    OS.indent(Indent * 2 + 2)
+        << "case " << LI.first << ":\t // " << LI.second.size() << " string"
+        << (LI.second.size() == 1 ? "" : "s") << " to match.\n";
+    if (EmitStringMatcherForChar(LI.second, 0, Indent, IgnoreDuplicates))
       OS.indent(Indent*2+4) << "break;\n";
   }
 

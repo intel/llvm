@@ -11,12 +11,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/IR/Constant.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 using namespace llvm;
+
+namespace llvm {
+class Constant;
+}
 
 static void copyComdat(GlobalObject *Dst, const GlobalObject *Src) {
   const Comdat *SC = Src->getComdat();
@@ -48,7 +51,7 @@ std::unique_ptr<Module> llvm::CloneModule(
     function_ref<bool(const GlobalValue *)> ShouldCloneDefinition) {
   // First off, we need to create the new module.
   std::unique_ptr<Module> New =
-      llvm::make_unique<Module>(M.getModuleIdentifier(), M.getContext());
+      std::make_unique<Module>(M.getModuleIdentifier(), M.getContext());
   New->setSourceFileName(M.getSourceFileName());
   New->setDataLayout(M.getDataLayout());
   New->setTargetTriple(M.getTargetTriple());
@@ -58,17 +61,13 @@ std::unique_ptr<Module> llvm::CloneModule(
   // new module.  Here we add them to the VMap and to the new Module.  We
   // don't worry about attributes or initializers, they will come later.
   //
-  for (Module::const_global_iterator I = M.global_begin(), E = M.global_end();
-       I != E; ++I) {
-    GlobalVariable *GV = new GlobalVariable(*New,
-                                            I->getValueType(),
-                                            I->isConstant(), I->getLinkage(),
-                                            (Constant*) nullptr, I->getName(),
-                                            (GlobalVariable*) nullptr,
-                                            I->getThreadLocalMode(),
-                                            I->getType()->getAddressSpace());
-    GV->copyAttributesFrom(&*I);
-    VMap[&*I] = GV;
+  for (const GlobalVariable &I : M.globals()) {
+    GlobalVariable *NewGV = new GlobalVariable(
+        *New, I.getValueType(), I.isConstant(), I.getLinkage(),
+        (Constant *)nullptr, I.getName(), (GlobalVariable *)nullptr,
+        I.getThreadLocalMode(), I.getType()->getAddressSpace());
+    NewGV->copyAttributesFrom(&I);
+    VMap[&I] = NewGV;
   }
 
   // Loop over the functions in the module, making external functions as before
@@ -81,70 +80,76 @@ std::unique_ptr<Module> llvm::CloneModule(
   }
 
   // Loop over the aliases in the module
-  for (Module::const_alias_iterator I = M.alias_begin(), E = M.alias_end();
-       I != E; ++I) {
-    if (!ShouldCloneDefinition(&*I)) {
+  for (const GlobalAlias &I : M.aliases()) {
+    if (!ShouldCloneDefinition(&I)) {
       // An alias cannot act as an external reference, so we need to create
       // either a function or a global variable depending on the value type.
       // FIXME: Once pointee types are gone we can probably pick one or the
       // other.
       GlobalValue *GV;
-      if (I->getValueType()->isFunctionTy())
-        GV = Function::Create(cast<FunctionType>(I->getValueType()),
-                              GlobalValue::ExternalLinkage,
-                              I->getAddressSpace(), I->getName(), New.get());
+      if (I.getValueType()->isFunctionTy())
+        GV = Function::Create(cast<FunctionType>(I.getValueType()),
+                              GlobalValue::ExternalLinkage, I.getAddressSpace(),
+                              I.getName(), New.get());
       else
-        GV = new GlobalVariable(
-            *New, I->getValueType(), false, GlobalValue::ExternalLinkage,
-            nullptr, I->getName(), nullptr,
-            I->getThreadLocalMode(), I->getType()->getAddressSpace());
-      VMap[&*I] = GV;
+        GV = new GlobalVariable(*New, I.getValueType(), false,
+                                GlobalValue::ExternalLinkage, nullptr,
+                                I.getName(), nullptr, I.getThreadLocalMode(),
+                                I.getType()->getAddressSpace());
+      VMap[&I] = GV;
       // We do not copy attributes (mainly because copying between different
       // kinds of globals is forbidden), but this is generally not required for
       // correctness.
       continue;
     }
-    auto *GA = GlobalAlias::create(I->getValueType(),
-                                   I->getType()->getPointerAddressSpace(),
-                                   I->getLinkage(), I->getName(), New.get());
-    GA->copyAttributesFrom(&*I);
-    VMap[&*I] = GA;
+    auto *GA = GlobalAlias::create(I.getValueType(),
+                                   I.getType()->getPointerAddressSpace(),
+                                   I.getLinkage(), I.getName(), New.get());
+    GA->copyAttributesFrom(&I);
+    VMap[&I] = GA;
   }
 
   // Now that all of the things that global variable initializer can refer to
   // have been created, loop through and copy the global variable referrers
   // over...  We also set the attributes on the global now.
   //
-  for (Module::const_global_iterator I = M.global_begin(), E = M.global_end();
-       I != E; ++I) {
-    if (I->isDeclaration())
+  for (const GlobalVariable &G : M.globals()) {
+    GlobalVariable *GV = cast<GlobalVariable>(VMap[&G]);
+
+    SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
+    G.getAllMetadata(MDs);
+    for (auto MD : MDs)
+      GV->addMetadata(MD.first, *MapMetadata(MD.second, VMap));
+
+    if (G.isDeclaration())
       continue;
 
-    GlobalVariable *GV = cast<GlobalVariable>(VMap[&*I]);
-    if (!ShouldCloneDefinition(&*I)) {
+    if (!ShouldCloneDefinition(&G)) {
       // Skip after setting the correct linkage for an external reference.
       GV->setLinkage(GlobalValue::ExternalLinkage);
       continue;
     }
-    if (I->hasInitializer())
-      GV->setInitializer(MapValue(I->getInitializer(), VMap));
+    if (G.hasInitializer())
+      GV->setInitializer(MapValue(G.getInitializer(), VMap));
 
-    SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
-    I->getAllMetadata(MDs);
-    for (auto MD : MDs)
-      GV->addMetadata(MD.first,
-                      *MapMetadata(MD.second, VMap, RF_MoveDistinctMDs));
-
-    copyComdat(GV, &*I);
+    copyComdat(GV, &G);
   }
 
   // Similarly, copy over function bodies now...
   //
   for (const Function &I : M) {
-    if (I.isDeclaration())
-      continue;
-
     Function *F = cast<Function>(VMap[&I]);
+
+    if (I.isDeclaration()) {
+      // Copy over metadata for declarations since we're not doing it below in
+      // CloneFunctionInto().
+      SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
+      I.getAllMetadata(MDs);
+      for (auto MD : MDs)
+        F->addMetadata(MD.first, *MapMetadata(MD.second, VMap));
+      continue;
+    }
+
     if (!ShouldCloneDefinition(&I)) {
       // Skip after setting the correct linkage for an external reference.
       F->setLinkage(GlobalValue::ExternalLinkage);
@@ -154,14 +159,14 @@ std::unique_ptr<Module> llvm::CloneModule(
     }
 
     Function::arg_iterator DestI = F->arg_begin();
-    for (Function::const_arg_iterator J = I.arg_begin(); J != I.arg_end();
-         ++J) {
-      DestI->setName(J->getName());
-      VMap[&*J] = &*DestI++;
+    for (const Argument &J : I.args()) {
+      DestI->setName(J.getName());
+      VMap[&J] = &*DestI++;
     }
 
     SmallVector<ReturnInst *, 8> Returns; // Ignore returns cloned.
-    CloneFunctionInto(F, &I, VMap, /*ModuleLevelChanges=*/true, Returns);
+    CloneFunctionInto(F, &I, VMap, CloneFunctionChangeType::ClonedModule,
+                      Returns);
 
     if (I.hasPersonalityFn())
       F->setPersonalityFn(MapValue(I.getPersonalityFn(), VMap));
@@ -170,21 +175,17 @@ std::unique_ptr<Module> llvm::CloneModule(
   }
 
   // And aliases
-  for (Module::const_alias_iterator I = M.alias_begin(), E = M.alias_end();
-       I != E; ++I) {
+  for (const GlobalAlias &I : M.aliases()) {
     // We already dealt with undefined aliases above.
-    if (!ShouldCloneDefinition(&*I))
+    if (!ShouldCloneDefinition(&I))
       continue;
-    GlobalAlias *GA = cast<GlobalAlias>(VMap[&*I]);
-    if (const Constant *C = I->getAliasee())
+    GlobalAlias *GA = cast<GlobalAlias>(VMap[&I]);
+    if (const Constant *C = I.getAliasee())
       GA->setAliasee(MapValue(C, VMap));
   }
 
   // And named metadata....
-  for (Module::const_named_metadata_iterator I = M.named_metadata_begin(),
-                                             E = M.named_metadata_end();
-       I != E; ++I) {
-    const NamedMDNode &NMD = *I;
+  for (const NamedMDNode &NMD : M.named_metadata()) {
     NamedMDNode *NewNMD = New->getOrInsertNamedMetadata(NMD.getName());
     for (unsigned i = 0, e = NMD.getNumOperands(); i != e; ++i)
       NewNMD->addOperand(MapMetadata(NMD.getOperand(i), VMap));

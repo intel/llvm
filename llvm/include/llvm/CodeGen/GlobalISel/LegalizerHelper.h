@@ -17,23 +17,46 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CODEGEN_GLOBALISEL_MACHINELEGALIZEHELPER_H
-#define LLVM_CODEGEN_GLOBALISEL_MACHINELEGALIZEHELPER_H
+#ifndef LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
+#define LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
 
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
-#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
-#include "llvm/CodeGen/LowLevelType.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 
 namespace llvm {
 // Forward declarations.
+class APInt;
+class GAnyLoad;
+class GLoadStore;
+class GStore;
+class GenericMachineInstr;
+class MachineFunction;
+class MachineIRBuilder;
+class MachineInstr;
+class MachineInstrBuilder;
+struct MachinePointerInfo;
+template <typename T> class SmallVectorImpl;
 class LegalizerInfo;
-class Legalizer;
 class MachineRegisterInfo;
 class GISelChangeObserver;
+class LostDebugLocObserver;
+class TargetLowering;
 
 class LegalizerHelper {
+public:
+  /// Expose MIRBuilder so clients can set their own RecordInsertInstruction
+  /// functions
+  MachineIRBuilder &MIRBuilder;
+
+  /// To keep track of changes made by the LegalizerHelper.
+  GISelChangeObserver &Observer;
+
+private:
+  MachineRegisterInfo &MRI;
+  const LegalizerInfo &LI;
+  const TargetLowering &TLI;
+
 public:
   enum LegalizeResult {
     /// Instruction was already legal and no change was made to the
@@ -48,6 +71,10 @@ public:
     UnableToLegalize,
   };
 
+  /// Expose LegalizerInfo so the clients can re-use.
+  const LegalizerInfo &getLegalizerInfo() const { return LI; }
+  const TargetLowering &getTargetLowering() const { return TLI; }
+
   LegalizerHelper(MachineFunction &MF, GISelChangeObserver &Observer,
                   MachineIRBuilder &B);
   LegalizerHelper(MachineFunction &MF, const LegalizerInfo &LI,
@@ -60,10 +87,11 @@ public:
   ///
   /// Considered as an opaque blob, the legal code will use and define the same
   /// registers as \p MI.
-  LegalizeResult legalizeInstrStep(MachineInstr &MI);
+  LegalizeResult legalizeInstrStep(MachineInstr &MI,
+                                   LostDebugLocObserver &LocObserver);
 
   /// Legalize an instruction by emiting a runtime library call instead.
-  LegalizeResult libcall(MachineInstr &MI);
+  LegalizeResult libcall(MachineInstr &MI, LostDebugLocObserver &LocObserver);
 
   /// Legalize an instruction by reducing the width of the underlying scalar
   /// type.
@@ -73,6 +101,9 @@ public:
   /// (for example a 16-bit addition can be safely performed at 32-bits
   /// precision, ignoring the unused bits).
   LegalizeResult widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
+
+  /// Legalize an instruction by replacing the value type
+  LegalizeResult bitcast(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
   /// Legalize an instruction by splitting it into simpler parts, hopefully
   /// understood by the target.
@@ -88,14 +119,13 @@ public:
   LegalizeResult moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
                                     LLT MoreTy);
 
-  /// Expose MIRBuilder so clients can set their own RecordInsertInstruction
-  /// functions
-  MachineIRBuilder &MIRBuilder;
+  /// Cast the given value to an LLT::scalar with an equivalent size. Returns
+  /// the register to use if an instruction was inserted. Returns the original
+  /// register if no coercion was necessary.
+  //
+  // This may also fail and return Register() if there is no legal way to cast.
+  Register coerceToScalar(Register Val);
 
-  /// Expose LegalizerInfo so the clients can re-use.
-  const LegalizerInfo &getLegalizerInfo() const { return LI; }
-
-private:
   /// Legalize a single operand \p OpIdx of the machine instruction \p MI as a
   /// Use by extending the operand's type to \p WideTy using the specified \p
   /// ExtOpcode for the extension instruction, and replacing the vreg of the
@@ -129,6 +159,19 @@ private:
   /// original vector type, and replacing the vreg of the operand in place.
   void moreElementsVectorSrc(MachineInstr &MI, LLT MoreTy, unsigned OpIdx);
 
+  /// Legalize a single operand \p OpIdx of the machine instruction \p MI as a
+  /// use by inserting a G_BITCAST to \p CastTy
+  void bitcastSrc(MachineInstr &MI, LLT CastTy, unsigned OpIdx);
+
+  /// Legalize a single operand \p OpIdx of the machine instruction \p MI as a
+  /// def by inserting a G_BITCAST from \p CastTy
+  void bitcastDst(MachineInstr &MI, LLT CastTy, unsigned OpIdx);
+
+  /// Widen \p OrigReg to \p WideTy by merging to a wider type, padding with
+  /// G_IMPLICIT_DEF, and producing dead results.
+  Register widenWithUnmerge(LLT WideTy, Register OrigReg);
+
+private:
   LegalizeResult
   widenScalarMergeValues(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
   LegalizeResult
@@ -137,18 +180,28 @@ private:
   widenScalarExtract(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
   LegalizeResult
   widenScalarInsert(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
+  LegalizeResult widenScalarAddSubOverflow(MachineInstr &MI, unsigned TypeIdx,
+                                           LLT WideTy);
+  LegalizeResult widenScalarAddSubShlSat(MachineInstr &MI, unsigned TypeIdx,
+                                         LLT WideTy);
+  LegalizeResult widenScalarMulo(MachineInstr &MI, unsigned TypeIdx,
+                                 LLT WideTy);
 
   /// Helper function to split a wide generic register into bitwise blocks with
   /// the given Type (which implies the number of blocks needed). The generic
   /// registers created are appended to Ops, starting at bit 0 of Reg.
-  void extractParts(unsigned Reg, LLT Ty, int NumParts,
-                    SmallVectorImpl<unsigned> &VRegs);
+  void extractParts(Register Reg, LLT Ty, int NumParts,
+                    SmallVectorImpl<Register> &VRegs);
 
   /// Version which handles irregular splits.
-  bool extractParts(unsigned Reg, LLT RegTy, LLT MainTy,
+  bool extractParts(Register Reg, LLT RegTy, LLT MainTy,
                     LLT &LeftoverTy,
-                    SmallVectorImpl<unsigned> &VRegs,
-                    SmallVectorImpl<unsigned> &LeftoverVRegs);
+                    SmallVectorImpl<Register> &VRegs,
+                    SmallVectorImpl<Register> &LeftoverVRegs);
+
+  /// Version which handles irregular sub-vector splits.
+  void extractVectorParts(Register Reg, unsigned NumElst,
+                          SmallVectorImpl<Register> &VRegs);
 
   /// Helper function to build a wide generic register \p DstReg of type \p
   /// RegTy from smaller parts. This will produce a G_MERGE_VALUES,
@@ -159,77 +212,227 @@ private:
   ///
   /// If \p ResultTy does not evenly break into \p PartTy sized pieces, the
   /// remainder must be specified with \p LeftoverRegs of type \p LeftoverTy.
-  void insertParts(unsigned DstReg, LLT ResultTy,
-                   LLT PartTy, ArrayRef<unsigned> PartRegs,
-                   LLT LeftoverTy = LLT(), ArrayRef<unsigned> LeftoverRegs = {});
+  void insertParts(Register DstReg, LLT ResultTy,
+                   LLT PartTy, ArrayRef<Register> PartRegs,
+                   LLT LeftoverTy = LLT(), ArrayRef<Register> LeftoverRegs = {});
+
+  /// Merge \p PartRegs with different types into \p DstReg.
+  void mergeMixedSubvectors(Register DstReg, ArrayRef<Register> PartRegs);
+
+  void appendVectorElts(SmallVectorImpl<Register> &Elts, Register Reg);
+
+  /// Unmerge \p SrcReg into smaller sized values, and append them to \p
+  /// Parts. The elements of \p Parts will be the greatest common divisor type
+  /// of \p DstTy, \p NarrowTy and the type of \p SrcReg. This will compute and
+  /// return the GCD type.
+  LLT extractGCDType(SmallVectorImpl<Register> &Parts, LLT DstTy,
+                     LLT NarrowTy, Register SrcReg);
+
+  /// Unmerge \p SrcReg into \p GCDTy typed registers. This will append all of
+  /// the unpacked registers to \p Parts. This version is if the common unmerge
+  /// type is already known.
+  void extractGCDType(SmallVectorImpl<Register> &Parts, LLT GCDTy,
+                      Register SrcReg);
+
+  /// Produce a merge of values in \p VRegs to define \p DstReg. Perform a merge
+  /// from the least common multiple type, and convert as appropriate to \p
+  /// DstReg.
+  ///
+  /// \p VRegs should each have type \p GCDTy. This type should be greatest
+  /// common divisor type of \p DstReg, \p NarrowTy, and an undetermined source
+  /// type.
+  ///
+  /// \p NarrowTy is the desired result merge source type. If the source value
+  /// needs to be widened to evenly cover \p DstReg, inserts high bits
+  /// corresponding to the extension opcode \p PadStrategy.
+  ///
+  /// \p VRegs will be cleared, and the the result \p NarrowTy register pieces
+  /// will replace it. Returns The complete LCMTy that \p VRegs will cover when
+  /// merged.
+  LLT buildLCMMergePieces(LLT DstTy, LLT NarrowTy, LLT GCDTy,
+                          SmallVectorImpl<Register> &VRegs,
+                          unsigned PadStrategy = TargetOpcode::G_ANYEXT);
+
+  /// Merge the values in \p RemergeRegs to an \p LCMTy typed value. Extract the
+  /// low bits into \p DstReg. This is intended to use the outputs from
+  /// buildLCMMergePieces after processing.
+  void buildWidenedRemergeToDst(Register DstReg, LLT LCMTy,
+                                ArrayRef<Register> RemergeRegs);
 
   /// Perform generic multiplication of values held in multiple registers.
   /// Generated instructions use only types NarrowTy and i1.
   /// Destination can be same or two times size of the source.
-  void multiplyRegisters(SmallVectorImpl<unsigned> &DstRegs,
-                         ArrayRef<unsigned> Src1Regs,
-                         ArrayRef<unsigned> Src2Regs, LLT NarrowTy);
+  void multiplyRegisters(SmallVectorImpl<Register> &DstRegs,
+                         ArrayRef<Register> Src1Regs,
+                         ArrayRef<Register> Src2Regs, LLT NarrowTy);
 
-  LegalizeResult fewerElementsVectorImplicitDef(MachineInstr &MI,
-                                                unsigned TypeIdx, LLT NarrowTy);
+  void changeOpcode(MachineInstr &MI, unsigned NewOpcode);
 
-  /// Legalize a simple vector instruction where all operands are the same type
-  /// by splitting into multiple components.
-  LegalizeResult fewerElementsVectorBasic(MachineInstr &MI, unsigned TypeIdx,
-                                          LLT NarrowTy);
+  LegalizeResult tryNarrowPow2Reduction(MachineInstr &MI, Register SrcReg,
+                                        LLT SrcTy, LLT NarrowTy,
+                                        unsigned ScalarOpc);
 
-  /// Legalize a instruction with a vector type where each operand may have a
-  /// different element type. All type indexes must have the same number of
-  /// elements.
-  LegalizeResult fewerElementsVectorMultiEltType(MachineInstr &MI,
-                                                 unsigned TypeIdx, LLT NarrowTy);
+  // Memcpy family legalization helpers.
+  LegalizeResult lowerMemset(MachineInstr &MI, Register Dst, Register Val,
+                             uint64_t KnownLen, Align Alignment,
+                             bool IsVolatile);
+  LegalizeResult lowerMemcpyInline(MachineInstr &MI, Register Dst, Register Src,
+                                   uint64_t KnownLen, Align DstAlign,
+                                   Align SrcAlign, bool IsVolatile);
+  LegalizeResult lowerMemcpy(MachineInstr &MI, Register Dst, Register Src,
+                             uint64_t KnownLen, uint64_t Limit, Align DstAlign,
+                             Align SrcAlign, bool IsVolatile);
+  LegalizeResult lowerMemmove(MachineInstr &MI, Register Dst, Register Src,
+                              uint64_t KnownLen, Align DstAlign, Align SrcAlign,
+                              bool IsVolatile);
 
-  LegalizeResult fewerElementsVectorCasts(MachineInstr &MI, unsigned TypeIdx,
-                                          LLT NarrowTy);
+public:
+  /// Return the alignment to use for a stack temporary object with the given
+  /// type.
+  Align getStackTemporaryAlignment(LLT Type, Align MinAlign = Align()) const;
 
-  LegalizeResult
-  fewerElementsVectorCmp(MachineInstr &MI, unsigned TypeIdx, LLT NarrowTy);
+  /// Create a stack temporary based on the size in bytes and the alignment
+  MachineInstrBuilder createStackTemporary(TypeSize Bytes, Align Alignment,
+                                           MachinePointerInfo &PtrInfo);
 
-  LegalizeResult
-  fewerElementsVectorSelect(MachineInstr &MI, unsigned TypeIdx, LLT NarrowTy);
+  /// Get a pointer to vector element \p Index located in memory for a vector of
+  /// type \p VecTy starting at a base address of \p VecPtr. If \p Index is out
+  /// of bounds the returned pointer is unspecified, but will be within the
+  /// vector bounds.
+  Register getVectorElementPointer(Register VecPtr, LLT VecTy, Register Index);
 
-  LegalizeResult fewerElementsVectorPhi(MachineInstr &MI,
-                                        unsigned TypeIdx, LLT NarrowTy);
+  /// Handles most opcodes. Split \p MI into same instruction on sub-vectors or
+  /// scalars with \p NumElts elements (1 for scalar). Supports uneven splits:
+  /// there can be leftover sub-vector with fewer then \p NumElts or a leftover
+  /// scalar. To avoid this use moreElements first and set MI number of elements
+  /// to multiple of \p NumElts. Non-vector operands that should be used on all
+  /// sub-instructions without split are listed in \p NonVecOpIndices.
+  LegalizeResult fewerElementsVectorMultiEltType(
+      GenericMachineInstr &MI, unsigned NumElts,
+      std::initializer_list<unsigned> NonVecOpIndices = {});
+
+  LegalizeResult fewerElementsVectorPhi(GenericMachineInstr &MI,
+                                        unsigned NumElts);
 
   LegalizeResult moreElementsVectorPhi(MachineInstr &MI, unsigned TypeIdx,
                                        LLT MoreTy);
+  LegalizeResult moreElementsVectorShuffle(MachineInstr &MI, unsigned TypeIdx,
+                                           LLT MoreTy);
 
-  LegalizeResult
-  reduceLoadStoreWidth(MachineInstr &MI, unsigned TypeIdx, LLT NarrowTy);
+  LegalizeResult fewerElementsVectorUnmergeValues(MachineInstr &MI,
+                                                  unsigned TypeIdx,
+                                                  LLT NarrowTy);
+  LegalizeResult fewerElementsVectorMerge(MachineInstr &MI, unsigned TypeIdx,
+                                          LLT NarrowTy);
+  LegalizeResult fewerElementsVectorExtractInsertVectorElt(MachineInstr &MI,
+                                                           unsigned TypeIdx,
+                                                           LLT NarrowTy);
+
+  LegalizeResult reduceLoadStoreWidth(GLoadStore &MI, unsigned TypeIdx,
+                                      LLT NarrowTy);
+
+  LegalizeResult fewerElementsVectorSextInReg(MachineInstr &MI, unsigned TypeIdx,
+                                              LLT NarrowTy);
 
   LegalizeResult narrowScalarShiftByConstant(MachineInstr &MI, const APInt &Amt,
                                              LLT HalfTy, LLT ShiftAmtTy);
 
+  LegalizeResult fewerElementsVectorReductions(MachineInstr &MI,
+                                               unsigned TypeIdx, LLT NarrowTy);
+
+  LegalizeResult fewerElementsVectorShuffle(MachineInstr &MI, unsigned TypeIdx,
+                                            LLT NarrowTy);
+
   LegalizeResult narrowScalarShift(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarAddSub(MachineInstr &MI, unsigned TypeIdx,
+                                    LLT NarrowTy);
   LegalizeResult narrowScalarMul(MachineInstr &MI, LLT Ty);
+  LegalizeResult narrowScalarFPTOI(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult narrowScalarExtract(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult narrowScalarInsert(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
   LegalizeResult narrowScalarBasic(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarExt(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult narrowScalarSelect(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarCTLZ(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarCTTZ(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarCTPOP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
-  LegalizeResult lowerBitCount(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  /// Perform Bitcast legalize action on G_EXTRACT_VECTOR_ELT.
+  LegalizeResult bitcastExtractVectorElt(MachineInstr &MI, unsigned TypeIdx,
+                                         LLT CastTy);
+
+  /// Perform Bitcast legalize action on G_INSERT_VECTOR_ELT.
+  LegalizeResult bitcastInsertVectorElt(MachineInstr &MI, unsigned TypeIdx,
+                                        LLT CastTy);
+
+  LegalizeResult lowerBitcast(MachineInstr &MI);
+  LegalizeResult lowerLoad(GAnyLoad &MI);
+  LegalizeResult lowerStore(GStore &MI);
+  LegalizeResult lowerBitCount(MachineInstr &MI);
+  LegalizeResult lowerFunnelShiftWithInverse(MachineInstr &MI);
+  LegalizeResult lowerFunnelShiftAsShifts(MachineInstr &MI);
+  LegalizeResult lowerFunnelShift(MachineInstr &MI);
+  LegalizeResult lowerRotateWithReverseRotate(MachineInstr &MI);
+  LegalizeResult lowerRotate(MachineInstr &MI);
 
   LegalizeResult lowerU64ToF32BitOps(MachineInstr &MI);
-  LegalizeResult lowerUITOFP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
-  LegalizeResult lowerSITOFP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult lowerUITOFP(MachineInstr &MI);
+  LegalizeResult lowerSITOFP(MachineInstr &MI);
+  LegalizeResult lowerFPTOUI(MachineInstr &MI);
+  LegalizeResult lowerFPTOSI(MachineInstr &MI);
 
-  MachineRegisterInfo &MRI;
-  const LegalizerInfo &LI;
-  /// To keep track of changes made by the LegalizerHelper.
-  GISelChangeObserver &Observer;
+  LegalizeResult lowerFPTRUNC_F64_TO_F16(MachineInstr &MI);
+  LegalizeResult lowerFPTRUNC(MachineInstr &MI);
+  LegalizeResult lowerFPOWI(MachineInstr &MI);
+
+  LegalizeResult lowerMinMax(MachineInstr &MI);
+  LegalizeResult lowerFCopySign(MachineInstr &MI);
+  LegalizeResult lowerFMinNumMaxNum(MachineInstr &MI);
+  LegalizeResult lowerFMad(MachineInstr &MI);
+  LegalizeResult lowerIntrinsicRound(MachineInstr &MI);
+  LegalizeResult lowerFFloor(MachineInstr &MI);
+  LegalizeResult lowerMergeValues(MachineInstr &MI);
+  LegalizeResult lowerUnmergeValues(MachineInstr &MI);
+  LegalizeResult lowerExtractInsertVectorElt(MachineInstr &MI);
+  LegalizeResult lowerShuffleVector(MachineInstr &MI);
+  LegalizeResult lowerDynStackAlloc(MachineInstr &MI);
+  LegalizeResult lowerExtract(MachineInstr &MI);
+  LegalizeResult lowerInsert(MachineInstr &MI);
+  LegalizeResult lowerSADDO_SSUBO(MachineInstr &MI);
+  LegalizeResult lowerAddSubSatToMinMax(MachineInstr &MI);
+  LegalizeResult lowerAddSubSatToAddoSubo(MachineInstr &MI);
+  LegalizeResult lowerShlSat(MachineInstr &MI);
+  LegalizeResult lowerBswap(MachineInstr &MI);
+  LegalizeResult lowerBitreverse(MachineInstr &MI);
+  LegalizeResult lowerReadWriteRegister(MachineInstr &MI);
+  LegalizeResult lowerSMULH_UMULH(MachineInstr &MI);
+  LegalizeResult lowerSelect(MachineInstr &MI);
+  LegalizeResult lowerDIVREM(MachineInstr &MI);
+  LegalizeResult lowerAbsToAddXor(MachineInstr &MI);
+  LegalizeResult lowerAbsToMaxNeg(MachineInstr &MI);
+  LegalizeResult lowerVectorReduction(MachineInstr &MI);
+  LegalizeResult lowerMemcpyInline(MachineInstr &MI);
+  LegalizeResult lowerMemCpyFamily(MachineInstr &MI, unsigned MaxLen = 0);
 };
+
+/// Helper function that creates a libcall to the given \p Name using the given
+/// calling convention \p CC.
+LegalizerHelper::LegalizeResult
+createLibcall(MachineIRBuilder &MIRBuilder, const char *Name,
+              const CallLowering::ArgInfo &Result,
+              ArrayRef<CallLowering::ArgInfo> Args, CallingConv::ID CC);
 
 /// Helper function that creates the given libcall.
 LegalizerHelper::LegalizeResult
 createLibcall(MachineIRBuilder &MIRBuilder, RTLIB::Libcall Libcall,
               const CallLowering::ArgInfo &Result,
               ArrayRef<CallLowering::ArgInfo> Args);
+
+/// Create a libcall to memcpy et al.
+LegalizerHelper::LegalizeResult
+createMemLibcall(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
+                 MachineInstr &MI, LostDebugLocObserver &LocObserver);
 
 } // End namespace llvm.
 

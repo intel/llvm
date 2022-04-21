@@ -1,5 +1,5 @@
-; RUN: llc -verify-machineinstrs -enable-machine-outliner -mtriple=aarch64-apple-darwin < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -enable-machine-outliner -mtriple=aarch64-apple-darwin -mcpu=cortex-a53 -enable-misched=false < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -enable-machine-outliner -aarch64-load-store-renaming=true -mtriple=aarch64-apple-darwin < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -enable-machine-outliner -aarch64-load-store-renaming=true -mtriple=aarch64-apple-darwin -mcpu=cortex-a53 -enable-misched=false < %s | FileCheck %s
 ; RUN: llc -verify-machineinstrs -enable-machine-outliner -enable-linkonceodr-outlining -mtriple=aarch64-apple-darwin < %s | FileCheck %s -check-prefix=ODR
 ; RUN: llc -verify-machineinstrs -enable-machine-outliner -mtriple=aarch64-apple-darwin -stop-after=machine-outliner < %s | FileCheck %s -check-prefix=TARGET_FEATURES
 
@@ -9,6 +9,7 @@
 ; TARGET_FEATURES-SAME: #[[ATTR_NUM:[0-9]+]]
 ; TARGET_FEATURES-DAG: attributes #[[ATTR_NUM]] = {
 ; TARGET_FEATURES-SAME: minsize
+; TARGET_FEATURES-SAME: nounwind
 ; TARGET_FEATURES-SAME: optsize
 ; TARGET_FEATURES-SAME: "target-features"="+sse"
 
@@ -91,19 +92,16 @@ define void @dog() #0 {
 ; ODR: [[OUTLINED]]:
 ; CHECK: .p2align 2
 ; CHECK-NEXT: [[OUTLINED]]:
-; CHECK: mov     w8, #1
-; CHECK-NEXT: str     w8, [sp, #28]
-; CHECK-NEXT: mov     w8, #2
-; CHECK-NEXT: str     w8, [sp, #24]
-; CHECK-NEXT: mov     w8, #3
-; CHECK-NEXT: str     w8, [sp, #20]
-; CHECK-NEXT: mov     w8, #4
-; CHECK-NEXT: str     w8, [sp, #16]
-; CHECK-NEXT: mov     w8, #5
-; CHECK-NEXT: str     w8, [sp, #12]
-; CHECK-NEXT: mov     w8, #6
-; CHECK-NEXT: str     w8, [sp, #8]
-; CHECK-NEXT: add     sp, sp, #32
-; CHECK-NEXT: ret
+; CHECK:      mov     w9, #1
+; CHECK-DAG: mov     w8, #2
+; CHECK-DAG: stp     w8, w9, [sp, #24]
+; CHECK-DAG: mov     w9, #3
+; CHECK-DAG: mov     w8, #4
+; CHECK-DAG: stp     w8, w9, [sp, #16]
+; CHECK-DAG: mov     w9, #5
+; CHECK-DAG: mov     w8, #6
+; CHECK-DAG: stp     w8, w9, [sp, #8]
+; CHECK-DAG: add     sp, sp, #32
+; CHECK-DAG: ret
 
-attributes #0 = { noredzone "target-cpu"="cyclone" "target-features"="+sse" }
+attributes #0 = { nounwind noredzone "target-cpu"="cyclone" "target-features"="+sse" }

@@ -16,7 +16,8 @@
 namespace lldb_private {
 
 class HostThreadWindows : public HostNativeThreadBase {
-  DISALLOW_COPY_AND_ASSIGN(HostThreadWindows);
+  HostThreadWindows(const HostThreadWindows &) = delete;
+  const HostThreadWindows &operator=(const HostThreadWindows &) = delete;
 
 public:
   HostThreadWindows();
@@ -25,10 +26,10 @@ public:
 
   void SetOwnsHandle(bool owns);
 
-  virtual Status Join(lldb::thread_result_t *result);
-  virtual Status Cancel();
-  virtual void Reset();
-  virtual bool EqualsThread(lldb::thread_t thread) const;
+  Status Join(lldb::thread_result_t *result) override;
+  Status Cancel() override;
+  void Reset() override;
+  bool EqualsThread(lldb::thread_t thread) const override;
 
   lldb::tid_t GetThreadId() const;
 

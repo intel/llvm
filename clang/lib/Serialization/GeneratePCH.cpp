@@ -16,7 +16,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/SemaConsumer.h"
 #include "clang/Serialization/ASTWriter.h"
-#include "llvm/Bitcode/BitstreamWriter.h"
+#include "llvm/Bitstream/BitstreamWriter.h"
 
 using namespace clang;
 
@@ -50,12 +50,18 @@ void PCHGenerator::HandleTranslationUnit(ASTContext &Ctx) {
   Module *Module = nullptr;
   if (PP.getLangOpts().isCompilingModule()) {
     Module = PP.getHeaderSearchInfo().lookupModule(
-        PP.getLangOpts().CurrentModule, /*AllowSearch*/ false);
+        PP.getLangOpts().CurrentModule, SourceLocation(),
+        /*AllowSearch*/ false);
     if (!Module) {
       assert(hasErrors && "emitting module but current module doesn't exist");
       return;
     }
   }
+
+  // Errors that do not prevent the PCH from being written should not cause the
+  // overall compilation to fail either.
+  if (AllowASTWithErrors)
+    PP.getDiagnostics().getClient()->clear();
 
   // Emit the PCH file to the Buffer.
   assert(SemaPtr && "No Sema?");

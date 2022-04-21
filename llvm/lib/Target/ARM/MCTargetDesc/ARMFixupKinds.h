@@ -36,6 +36,8 @@ enum Fixups {
   // Equivalent to fixup_arm_pcrel_9, accounting for the short-swapped encoding
   // of Thumb2 instructions.
   fixup_t2_pcrel_9,
+  // 12-bit immediate value.
+  fixup_arm_ldst_abs_12,
   // 10-bit PC relative relocation for symbol addresses where the lower 2 bits
   // are not encoded (so it's encoded as an 8-bit immediate).
   fixup_thumb_adr_pcrel_10,
@@ -102,6 +104,15 @@ enum Fixups {
 
   // Fixup for Thumb2 8-bit rotated operand
   fixup_t2_so_imm,
+
+  // Fixups for Branch Future.
+  fixup_bf_branch,
+  fixup_bf_target,
+  fixup_bfl_target,
+  fixup_bfc_target,
+  fixup_bfcsel_else_target,
+  fixup_wls,
+  fixup_le,
 
   // Marker
   LastTargetFixupKind,

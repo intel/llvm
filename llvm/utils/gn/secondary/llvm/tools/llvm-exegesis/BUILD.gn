@@ -9,7 +9,5 @@ executable("llvm-exegesis") {
     "//llvm/lib/Support",
     "//llvm/lib/Target:NativeTarget",
   ]
-  sources = [
-    "llvm-exegesis.cpp",
-  ]
+  sources = [ "llvm-exegesis.cpp" ]
 }

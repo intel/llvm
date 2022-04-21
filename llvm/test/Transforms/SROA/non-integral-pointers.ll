@@ -1,4 +1,4 @@
-; RUN: opt -sroa -S < %s | FileCheck %s
+; RUN: opt -passes=sroa -S < %s | FileCheck %s
 
 ; This test checks that SROA does not introduce ptrtoint and inttoptr
 ; casts from and to non-integral pointers.  The "ni:4" bit in the
@@ -83,6 +83,20 @@ neverTaken:
   
 alwaysTaken:
   ret i64 addrspace(4)* null
+}
+
+%union.anon = type { i32* }
+
+; CHECK-LABEL: @f2(
+; CHECK-NOT: ptr2int
+; CHECK-NOT: int2ptr
+define i8 *@f2(i8 addrspace(4)* %p) {
+  %1 = alloca %union.anon, align 8
+  %2 = bitcast %union.anon* %1 to i8 addrspace(4)**
+  store i8 addrspace(4)* %p, i8 addrspace(4)** %2, align 8
+  %3 = bitcast %union.anon* %1 to i8**
+  %4 = load i8*, i8** %3, align 8
+  ret i8* %4
 }
 
 declare void @llvm.memset.p0i8.i64(i8*, i8, i64, i1)

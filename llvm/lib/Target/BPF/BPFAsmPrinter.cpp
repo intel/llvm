@@ -27,7 +27,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
@@ -38,7 +38,7 @@ class BPFAsmPrinter : public AsmPrinter {
 public:
   explicit BPFAsmPrinter(TargetMachine &TM,
                          std::unique_ptr<MCStreamer> Streamer)
-      : AsmPrinter(TM, std::move(Streamer)) {}
+      : AsmPrinter(TM, std::move(Streamer)), BTF(nullptr) {}
 
   StringRef getPassName() const override { return "BPF Assembly Printer"; }
   bool doInitialization(Module &M) override;
@@ -48,7 +48,10 @@ public:
   bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNum,
                              const char *ExtraCode, raw_ostream &O) override;
 
-  void EmitInstruction(const MachineInstr *MI) override;
+  void emitInstruction(const MachineInstr *MI) override;
+
+private:
+  BTFDebug *BTF;
 };
 } // namespace
 
@@ -56,9 +59,11 @@ bool BPFAsmPrinter::doInitialization(Module &M) {
   AsmPrinter::doInitialization(M);
 
   // Only emit BTF when debuginfo available.
-  if (MAI->doesSupportDebugInformation() && !empty(M.debug_compile_units())) {
-    Handlers.emplace_back(llvm::make_unique<BTFDebug>(this), "emit",
-                          "Debug Info Emission", "BTF", "BTF Emission");
+  if (MAI->doesSupportDebugInformation() && !M.debug_compile_units().empty()) {
+    BTF = new BTFDebug(this);
+    Handlers.push_back(HandlerInfo(std::unique_ptr<BTFDebug>(BTF), "emit",
+                                   "Debug Info Emission", "BTF",
+                                   "BTF Emission"));
   }
 
   return false;
@@ -132,17 +137,18 @@ bool BPFAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
   return false;
 }
 
-void BPFAsmPrinter::EmitInstruction(const MachineInstr *MI) {
-
-  BPFMCInstLower MCInstLowering(OutContext, *this);
-
+void BPFAsmPrinter::emitInstruction(const MachineInstr *MI) {
   MCInst TmpInst;
-  MCInstLowering.Lower(MI, TmpInst);
+
+  if (!BTF || !BTF->InstLower(MI, TmpInst)) {
+    BPFMCInstLower MCInstLowering(OutContext, *this);
+    MCInstLowering.Lower(MI, TmpInst);
+  }
   EmitToStreamer(*OutStreamer, TmpInst);
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeBPFAsmPrinter() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeBPFAsmPrinter() {
   RegisterAsmPrinter<BPFAsmPrinter> X(getTheBPFleTarget());
   RegisterAsmPrinter<BPFAsmPrinter> Y(getTheBPFbeTarget());
   RegisterAsmPrinter<BPFAsmPrinter> Z(getTheBPFTarget());

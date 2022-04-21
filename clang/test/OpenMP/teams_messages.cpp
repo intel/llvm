@@ -1,6 +1,15 @@
-// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-version=45 -fopenmp -std=c++11 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 -std=c++11 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-version=45 -fopenmp-simd -std=c++11 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-version=50 -fopenmp-simd -std=c++11 -o - %s -Wuninitialized
+
+void xxx(int argc) {
+  int x; // expected-note {{initialize the variable 'x' to silence this warning}}
+#pragma omp target
+#pragma omp teams
+  argc = x; // expected-warning {{variable 'x' is uninitialized when used here}}
+}
 
 void foo() {
 }
@@ -8,6 +17,8 @@ void foo() {
 #pragma omp teams // expected-error {{unexpected OpenMP directive '#pragma omp teams'}}
 
 int main(int argc, char **argv) {
+  #pragma omp teams // omp45-error {{orphaned 'omp teams' directives are prohibited; perhaps you forget to enclose the directive into a target region?}}
+  ;
   #pragma omp target
   #pragma omp teams
   f; // expected-error {{use of undeclared identifier 'f'}}

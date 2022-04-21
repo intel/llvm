@@ -16,7 +16,7 @@ using namespace llvm;
 
 TEST(ConvertUTFTest, ConvertUTF16LittleEndianToUTF8String) {
   // Src is the look of disapproval.
-  static const char Src[] = "\xff\xfe\xa0\x0c_\x00\xa0\x0c";
+  alignas(UTF16) static const char Src[] = "\xff\xfe\xa0\x0c_\x00\xa0\x0c";
   ArrayRef<char> Ref(Src, sizeof(Src) - 1);
   std::string Result;
   bool Success = convertUTF16ToUTF8String(Ref, Result);
@@ -25,14 +25,38 @@ TEST(ConvertUTFTest, ConvertUTF16LittleEndianToUTF8String) {
   EXPECT_EQ(Expected, Result);
 }
 
+TEST(ConvertUTFTest, ConvertUTF32LittleEndianToUTF8String) {
+  // Src is the look of disapproval.
+  alignas(UTF32) static const char Src[] =
+      "\xFF\xFE\x00\x00\xA0\x0C\x00\x00\x5F\x00\x00\x00\xA0\x0C\x00\x00";
+  ArrayRef<char> Ref(Src, sizeof(Src) - 1);
+  std::string Result;
+  bool Success = convertUTF32ToUTF8String(Ref, Result);
+  EXPECT_TRUE(Success);
+  std::string Expected("\xE0\xB2\xA0_\xE0\xB2\xA0");
+  EXPECT_EQ(Expected, Result);
+}
+
 TEST(ConvertUTFTest, ConvertUTF16BigEndianToUTF8String) {
   // Src is the look of disapproval.
-  static const char Src[] = "\xfe\xff\x0c\xa0\x00_\x0c\xa0";
+  alignas(UTF16) static const char Src[] = "\xfe\xff\x0c\xa0\x00_\x0c\xa0";
   ArrayRef<char> Ref(Src, sizeof(Src) - 1);
   std::string Result;
   bool Success = convertUTF16ToUTF8String(Ref, Result);
   EXPECT_TRUE(Success);
   std::string Expected("\xe0\xb2\xa0_\xe0\xb2\xa0");
+  EXPECT_EQ(Expected, Result);
+}
+
+TEST(ConvertUTFTest, ConvertUTF32BigEndianToUTF8String) {
+  // Src is the look of disapproval.
+  alignas(UTF32) static const char Src[] =
+      "\x00\x00\xFE\xFF\x00\x00\x0C\xA0\x00\x00\x00\x5F\x00\x00\x0C\xA0";
+  ArrayRef<char> Ref(Src, sizeof(Src) - 1);
+  std::string Result;
+  bool Success = convertUTF32ToUTF8String(Ref, Result);
+  EXPECT_TRUE(Success);
+  std::string Expected("\xE0\xB2\xA0_\xE0\xB2\xA0");
   EXPECT_EQ(Expected, Result);
 }
 
@@ -80,7 +104,7 @@ TEST(ConvertUTFTest, HasUTF16BOM) {
 
 TEST(ConvertUTFTest, UTF16WrappersForConvertUTF16ToUTF8String) {
   // Src is the look of disapproval.
-  static const char Src[] = "\xff\xfe\xa0\x0c_\x00\xa0\x0c";
+  alignas(UTF16) static const char Src[] = "\xff\xfe\xa0\x0c_\x00\xa0\x0c";
   ArrayRef<UTF16> SrcRef = makeArrayRef((const UTF16 *)Src, 4);
   std::string Result;
   bool Success = convertUTF16ToUTF8String(SrcRef, Result);

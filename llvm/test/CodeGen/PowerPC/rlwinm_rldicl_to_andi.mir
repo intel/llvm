@@ -60,7 +60,7 @@
     ret i64 %cond
   }
   
-  attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
   
   !llvm.module.flags = !{!0, !1}
   !llvm.ident = !{!2}
@@ -74,7 +74,7 @@
 name:            testRLWINMSingleUseDef
 # CHECK: testRLWINMSingleUseDef
 # CHECK-LATE: testRLWINMSingleUseDef
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -120,9 +120,9 @@ body:             |
     %0:g8rc = COPY $x3
     %2:gprc_and_gprc_nor0 = COPY %1.sub_32
     %3:gprc = LI -11
-    %4:gprc_and_gprc_nor0 = RLWINMo %3, 2, 20, 31, implicit-def $cr0
+    %4:gprc_and_gprc_nor0 = RLWINM_rec %3, 2, 20, 31, implicit-def $cr0
     ; CHECK: LI 4055
-    ; CHECK: ANDIo %3, 4055
+    ; CHECK: ANDI_rec %3, 4055
     ; CHECK-LATE-NOT: andi.
     ; CHECK-LATE: rlwinm.
     %5:crrc = COPY killed $cr0
@@ -134,7 +134,7 @@ body:             |
 ...
 ---
 name:            testRLWINMNoGPRUseZero
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -180,9 +180,9 @@ body:             |
     %0:g8rc = COPY $x3
     %2:gprc_and_gprc_nor0 = COPY %1.sub_32
     %3:gprc_and_gprc_nor0 = LI 1
-    %4:gprc = RLWINMo %3, 21, 20, 31, implicit-def $cr0
+    %4:gprc = RLWINM_rec %3, 21, 20, 31, implicit-def $cr0
     ; CHECK: LI 1
-    ; CHECK: ANDIo %3, 0
+    ; CHECK: ANDI_rec %3, 0
     ; CHECK-LATE: li [[IMM:[0-9]+]], 1
     ; CHECK-LATE: andi. {{[0-9]+}}, [[IMM]], 0
     %5:crrc = COPY killed $cr0
@@ -194,7 +194,7 @@ body:             |
 ...
 ---
 name:            testRLWINMNoGPRUseNonZero
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -240,9 +240,9 @@ body:             |
     %0:g8rc = COPY $x3
     %2:gprc_and_gprc_nor0 = COPY %1.sub_32
     %3:gprc_and_gprc_nor0 = LI -11
-    %4:gprc = RLWINMo %3, 2, 20, 31, implicit-def $cr0
+    %4:gprc = RLWINM_rec %3, 2, 20, 31, implicit-def $cr0
     ; CHECK: LI -11
-    ; CHECK: ANDIo %3, 65525
+    ; CHECK: ANDI_rec %3, 65525
     ; CHECK-LATE-NOT: andi.
     ; CHECK-LATE: rlwinm.
     %5:crrc = COPY killed $cr0
@@ -254,7 +254,7 @@ body:             |
 ...
 ---
 name:            testRLDICLSingleUseDef
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -295,9 +295,9 @@ body:             |
   
     %1:g8rc_and_g8rc_nox0 = COPY $x4
     %0:g8rc = LI8 -11
-    %2:g8rc_and_g8rc_nox0  = RLDICLo %0, 2, 49, implicit-def $cr0
+    %2:g8rc_and_g8rc_nox0  = RLDICL_rec %0, 2, 49, implicit-def $cr0
     ; CHECK: LI8 32727
-    ; CHECK: ANDIo8 %0, 32727
+    ; CHECK: ANDI8_rec %0, 32727
     ; CHECK-LATE-NOT: andi.
     ; CHECK-LATE: rldicl.
     %3:crrc = COPY killed $cr0
@@ -308,7 +308,7 @@ body:             |
 ...
 ---
 name:            testRLDICLNoGPRUseZero
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -349,9 +349,9 @@ body:             |
   
     %1:g8rc_and_g8rc_nox0 = COPY $x4
     %0:g8rc_and_g8rc_nox0 = LI8 1
-    %2:g8rc = RLDICLo %0, 32, 33, implicit-def $cr0
+    %2:g8rc = RLDICL_rec %0, 32, 33, implicit-def $cr0
     ; CHECK: LI8 1
-    ; CHECK: ANDIo8 %0, 0
+    ; CHECK: ANDI8_rec %0, 0
     ; CHECK-LATE: li [[IMM:[0-9]+]], 1
     ; CHECK-LATE: andi. {{[0-9]+}}, [[IMM]], 0
     %3:crrc = COPY killed $cr0
@@ -362,7 +362,7 @@ body:             |
 ...
 ---
 name:            testRLDICLNoGPRUseNonZero
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -403,9 +403,9 @@ body:             |
   
     %1:g8rc_and_g8rc_nox0 = COPY $x4
     %0:g8rc_and_g8rc_nox0 = LI8 -11
-    %2:g8rc = RLDICLo %0, 2, 49, implicit-def $cr0
+    %2:g8rc = RLDICL_rec %0, 2, 49, implicit-def $cr0
     ; CHECK: LI8 -11
-    ; CHECK: ANDIo8 %0, 65525
+    ; CHECK: ANDI8_rec %0, 65525
     ; CHECK-LATE-NOT: andi.
     ; CHECK-LATE: rldicl.
     %3:crrc = COPY killed $cr0

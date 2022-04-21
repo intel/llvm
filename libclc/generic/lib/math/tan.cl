@@ -5,3 +5,4 @@
 #define __CLC_FUNC tan
 #define __CLC_BODY <clc_sw_unary.inc>
 #include <clc/math/gentype.inc>
+#undef __CLC_SW_FUNC

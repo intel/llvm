@@ -12,7 +12,5 @@ executable("llvm-mt") {
     "//llvm/lib/Support",
     "//llvm/lib/WindowsManifest",
   ]
-  sources = [
-    "llvm-mt.cpp",
-  ]
+  sources = [ "llvm-mt.cpp" ]
 }

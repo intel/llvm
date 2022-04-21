@@ -14,13 +14,15 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_AGGRESSIVE_INSTCOMBINE_INSTCOMBINE_H
-#define LLVM_TRANSFORMS_AGGRESSIVE_INSTCOMBINE_INSTCOMBINE_H
+#ifndef LLVM_TRANSFORMS_AGGRESSIVEINSTCOMBINE_AGGRESSIVEINSTCOMBINE_H
+#define LLVM_TRANSFORMS_AGGRESSIVEINSTCOMBINE_AGGRESSIVEINSTCOMBINE_H
 
-#include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+
+class Function;
+class FunctionPass;
 
 class AggressiveInstCombinePass
     : public PassInfoMixin<AggressiveInstCombinePass> {

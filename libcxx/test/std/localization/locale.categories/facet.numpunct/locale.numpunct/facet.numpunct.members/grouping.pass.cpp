@@ -15,6 +15,8 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     std::locale l = std::locale::classic();
@@ -23,11 +25,13 @@ int main(int, char**)
         const std::numpunct<C>& np = std::use_facet<std::numpunct<C> >(l);
         assert(np.grouping() == std::string());
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         typedef wchar_t C;
         const std::numpunct<C>& np = std::use_facet<std::numpunct<C> >(l);
         assert(np.grouping() == std::string());
     }
+#endif
 
   return 0;
 }

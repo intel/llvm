@@ -7,19 +7,21 @@
 ; var2 is not prevailing and here we check it is not inlined.
 
 ; Check 'var2' was not inlined.
-; RUN: llvm-objdump -d %t2.o.1 | FileCheck %s
-; CHECK:      testVar1:
+; RUN: llvm-objdump -d -r %t2.o.1 | FileCheck %s
+; CHECK:      <testVar1>:
 ; CHECK-NEXT:   movl $10, %eax
 ; CHECK-NEXT:   retq
-; CHECK:      testVar2:
-; CHECK-NEXT:   movl  (%rip), %eax
+; CHECK:      <testVar2>:
+; CHECK-NEXT:   movq  (%rip), %rax
+; CHECK-NEXT:     R_X86_64_GOTPCREL var2-0x4
+; CHECK-NEXT:   movl  (%rax), %eax
 ; CHECK-NEXT:   retq
 
 ; Check 'var2' is undefined.
 ; RUN: llvm-readelf --symbols %t2.o.1 | FileCheck %s --check-prefix=UND
 ; UND: NOTYPE  GLOBAL DEFAULT UND var2
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 @var1 = global i32 10, align 4

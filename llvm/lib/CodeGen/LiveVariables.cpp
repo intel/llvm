@@ -26,6 +26,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/LiveVariables.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -57,18 +58,17 @@ void LiveVariables::getAnalysisUsage(AnalysisUsage &AU) const {
 
 MachineInstr *
 LiveVariables::VarInfo::findKill(const MachineBasicBlock *MBB) const {
-  for (unsigned i = 0, e = Kills.size(); i != e; ++i)
-    if (Kills[i]->getParent() == MBB)
-      return Kills[i];
+  for (MachineInstr *MI : Kills)
+    if (MI->getParent() == MBB)
+      return MI;
   return nullptr;
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void LiveVariables::VarInfo::dump() const {
   dbgs() << "  Alive in blocks: ";
-  for (SparseBitVector<>::iterator I = AliveBlocks.begin(),
-           E = AliveBlocks.end(); I != E; ++I)
-    dbgs() << *I << ", ";
+  for (unsigned AB : AliveBlocks)
+    dbgs() << AB << ", ";
   dbgs() << "\n  Killed by:";
   if (Kills.empty())
     dbgs() << " No instructions.\n";
@@ -81,17 +81,15 @@ LLVM_DUMP_METHOD void LiveVariables::VarInfo::dump() const {
 #endif
 
 /// getVarInfo - Get (possibly creating) a VarInfo object for the given vreg.
-LiveVariables::VarInfo &LiveVariables::getVarInfo(unsigned RegIdx) {
-  assert(TargetRegisterInfo::isVirtualRegister(RegIdx) &&
-         "getVarInfo: not a virtual register!");
-  VirtRegInfo.grow(RegIdx);
-  return VirtRegInfo[RegIdx];
+LiveVariables::VarInfo &LiveVariables::getVarInfo(Register Reg) {
+  assert(Reg.isVirtual() && "getVarInfo: not a virtual register!");
+  VirtRegInfo.grow(Reg);
+  return VirtRegInfo[Reg];
 }
 
-void LiveVariables::MarkVirtRegAliveInBlock(VarInfo& VRInfo,
-                                            MachineBasicBlock *DefBlock,
-                                            MachineBasicBlock *MBB,
-                                    std::vector<MachineBasicBlock*> &WorkList) {
+void LiveVariables::MarkVirtRegAliveInBlock(
+    VarInfo &VRInfo, MachineBasicBlock *DefBlock, MachineBasicBlock *MBB,
+    SmallVectorImpl<MachineBasicBlock *> &WorkList) {
   unsigned BBNum = MBB->getNumber();
 
   // Check to see if this basic block is one of the killing blocks.  If so,
@@ -117,23 +115,22 @@ void LiveVariables::MarkVirtRegAliveInBlock(VarInfo& VRInfo,
 void LiveVariables::MarkVirtRegAliveInBlock(VarInfo &VRInfo,
                                             MachineBasicBlock *DefBlock,
                                             MachineBasicBlock *MBB) {
-  std::vector<MachineBasicBlock*> WorkList;
+  SmallVector<MachineBasicBlock *, 16> WorkList;
   MarkVirtRegAliveInBlock(VRInfo, DefBlock, MBB, WorkList);
 
   while (!WorkList.empty()) {
-    MachineBasicBlock *Pred = WorkList.back();
-    WorkList.pop_back();
+    MachineBasicBlock *Pred = WorkList.pop_back_val();
     MarkVirtRegAliveInBlock(VRInfo, DefBlock, Pred, WorkList);
   }
 }
 
-void LiveVariables::HandleVirtRegUse(unsigned reg, MachineBasicBlock *MBB,
+void LiveVariables::HandleVirtRegUse(Register Reg, MachineBasicBlock *MBB,
                                      MachineInstr &MI) {
-  assert(MRI->getVRegDef(reg) && "Register use before def!");
+  assert(MRI->getVRegDef(Reg) && "Register use before def!");
 
   unsigned BBNum = MBB->getNumber();
 
-  VarInfo& VRInfo = getVarInfo(reg);
+  VarInfo &VRInfo = getVarInfo(Reg);
 
   // Check to see if this basic block is already a kill block.
   if (!VRInfo.Kills.empty() && VRInfo.Kills.back()->getParent() == MBB) {
@@ -144,8 +141,8 @@ void LiveVariables::HandleVirtRegUse(unsigned reg, MachineBasicBlock *MBB,
   }
 
 #ifndef NDEBUG
-  for (unsigned i = 0, e = VRInfo.Kills.size(); i != e; ++i)
-    assert(VRInfo.Kills[i]->getParent() != MBB && "entry should be at end!");
+  for (MachineInstr *Kill : VRInfo.Kills)
+    assert(Kill->getParent() != MBB && "entry should be at end!");
 #endif
 
   // This situation can occur:
@@ -164,7 +161,8 @@ void LiveVariables::HandleVirtRegUse(unsigned reg, MachineBasicBlock *MBB,
   // where there is a use in a PHI node that's a predecessor to the defining
   // block. We don't want to mark all predecessors as having the value "alive"
   // in this case.
-  if (MBB == MRI->getVRegDef(reg)->getParent()) return;
+  if (MBB == MRI->getVRegDef(Reg)->getParent())
+    return;
 
   // Add a new kill entry for this basic block. If this virtual register is
   // already marked as alive in this basic block, that means it is alive in at
@@ -173,12 +171,11 @@ void LiveVariables::HandleVirtRegUse(unsigned reg, MachineBasicBlock *MBB,
     VRInfo.Kills.push_back(&MI);
 
   // Update all dominating blocks to mark them as "known live".
-  for (MachineBasicBlock::const_pred_iterator PI = MBB->pred_begin(),
-         E = MBB->pred_end(); PI != E; ++PI)
-    MarkVirtRegAliveInBlock(VRInfo, MRI->getVRegDef(reg)->getParent(), *PI);
+  for (MachineBasicBlock *Pred : MBB->predecessors())
+    MarkVirtRegAliveInBlock(VRInfo, MRI->getVRegDef(Reg)->getParent(), Pred);
 }
 
-void LiveVariables::HandleVirtRegDef(unsigned Reg, MachineInstr &MI) {
+void LiveVariables::HandleVirtRegDef(Register Reg, MachineInstr &MI) {
   VarInfo &VRInfo = getVarInfo(Reg);
 
   if (VRInfo.AliveBlocks.empty())
@@ -188,8 +185,9 @@ void LiveVariables::HandleVirtRegDef(unsigned Reg, MachineInstr &MI) {
 
 /// FindLastPartialDef - Return the last partial def of the specified register.
 /// Also returns the sub-registers that're defined by the instruction.
-MachineInstr *LiveVariables::FindLastPartialDef(unsigned Reg,
-                                            SmallSet<unsigned,4> &PartDefRegs) {
+MachineInstr *
+LiveVariables::FindLastPartialDef(Register Reg,
+                                  SmallSet<unsigned, 4> &PartDefRegs) {
   unsigned LastDefReg = 0;
   unsigned LastDefDist = 0;
   MachineInstr *LastDef = nullptr;
@@ -214,7 +212,7 @@ MachineInstr *LiveVariables::FindLastPartialDef(unsigned Reg,
     MachineOperand &MO = LastDef->getOperand(i);
     if (!MO.isReg() || !MO.isDef() || MO.getReg() == 0)
       continue;
-    unsigned DefReg = MO.getReg();
+    Register DefReg = MO.getReg();
     if (TRI->isSubRegister(Reg, DefReg)) {
       for (MCSubRegIterator SubRegs(DefReg, TRI, /*IncludeSelf=*/true);
            SubRegs.isValid(); ++SubRegs)
@@ -227,7 +225,7 @@ MachineInstr *LiveVariables::FindLastPartialDef(unsigned Reg,
 /// HandlePhysRegUse - Turn previous partial def's into read/mod/writes. Add
 /// implicit defs to a machine instruction if there was an earlier def of its
 /// super-register.
-void LiveVariables::HandlePhysRegUse(unsigned Reg, MachineInstr &MI) {
+void LiveVariables::HandlePhysRegUse(Register Reg, MachineInstr &MI) {
   MachineInstr *LastDef = PhysRegDef[Reg];
   // If there was a previous use or a "full" def all is well.
   if (!LastDef && !PhysRegUse[Reg]) {
@@ -277,7 +275,7 @@ void LiveVariables::HandlePhysRegUse(unsigned Reg, MachineInstr &MI) {
 
 /// FindLastRefOrPartRef - Return the last reference or partial reference of
 /// the specified register.
-MachineInstr *LiveVariables::FindLastRefOrPartRef(unsigned Reg) {
+MachineInstr *LiveVariables::FindLastRefOrPartRef(Register Reg) {
   MachineInstr *LastDef = PhysRegDef[Reg];
   MachineInstr *LastUse = PhysRegUse[Reg];
   if (!LastDef && !LastUse)
@@ -307,7 +305,7 @@ MachineInstr *LiveVariables::FindLastRefOrPartRef(unsigned Reg) {
   return LastRefOrPartRef;
 }
 
-bool LiveVariables::HandlePhysRegKill(unsigned Reg, MachineInstr *MI) {
+bool LiveVariables::HandlePhysRegKill(Register Reg, MachineInstr *MI) {
   MachineInstr *LastDef = PhysRegDef[Reg];
   MachineInstr *LastUse = PhysRegUse[Reg];
   if (!LastDef && !LastUse)
@@ -439,7 +437,7 @@ void LiveVariables::HandleRegMask(const MachineOperand &MO) {
   }
 }
 
-void LiveVariables::HandlePhysRegDef(unsigned Reg, MachineInstr *MI,
+void LiveVariables::HandlePhysRegDef(Register Reg, MachineInstr *MI,
                                      SmallVectorImpl<unsigned> &Defs) {
   // What parts of the register are previously defined?
   SmallSet<unsigned, 32> Live;
@@ -485,8 +483,7 @@ void LiveVariables::HandlePhysRegDef(unsigned Reg, MachineInstr *MI,
 void LiveVariables::UpdatePhysRegDefs(MachineInstr &MI,
                                       SmallVectorImpl<unsigned> &Defs) {
   while (!Defs.empty()) {
-    unsigned Reg = Defs.back();
-    Defs.pop_back();
+    Register Reg = Defs.pop_back_val();
     for (MCSubRegIterator SubRegs(Reg, TRI, /*IncludeSelf=*/true);
          SubRegs.isValid(); ++SubRegs) {
       unsigned SubReg = *SubRegs;
@@ -498,7 +495,7 @@ void LiveVariables::UpdatePhysRegDefs(MachineInstr &MI,
 
 void LiveVariables::runOnInstr(MachineInstr &MI,
                                SmallVectorImpl<unsigned> &Defs) {
-  assert(!MI.isDebugInstr());
+  assert(!MI.isDebugOrPseudoInstr());
   // Process all of the operands of the instruction...
   unsigned NumOperandsToProcess = MI.getNumOperands();
 
@@ -519,10 +516,9 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
     }
     if (!MO.isReg() || MO.getReg() == 0)
       continue;
-    unsigned MOReg = MO.getReg();
+    Register MOReg = MO.getReg();
     if (MO.isUse()) {
-      if (!(TargetRegisterInfo::isPhysicalRegister(MOReg) &&
-            MRI->isReserved(MOReg)))
+      if (!(Register::isPhysicalRegister(MOReg) && MRI->isReserved(MOReg)))
         MO.setIsKill(false);
       if (MO.readsReg())
         UseRegs.push_back(MOReg);
@@ -530,8 +526,7 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
       assert(MO.isDef());
       // FIXME: We should not remove any dead flags. However the MIPS RDDSP
       // instruction needs it at the moment: http://llvm.org/PR27116.
-      if (TargetRegisterInfo::isPhysicalRegister(MOReg) &&
-          !MRI->isReserved(MOReg))
+      if (Register::isPhysicalRegister(MOReg) && !MRI->isReserved(MOReg))
         MO.setIsDead(false);
       DefRegs.push_back(MOReg);
     }
@@ -539,22 +534,20 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
 
   MachineBasicBlock *MBB = MI.getParent();
   // Process all uses.
-  for (unsigned i = 0, e = UseRegs.size(); i != e; ++i) {
-    unsigned MOReg = UseRegs[i];
-    if (TargetRegisterInfo::isVirtualRegister(MOReg))
+  for (unsigned MOReg : UseRegs) {
+    if (Register::isVirtualRegister(MOReg))
       HandleVirtRegUse(MOReg, MBB, MI);
     else if (!MRI->isReserved(MOReg))
       HandlePhysRegUse(MOReg, MI);
   }
 
   // Process all masked registers. (Call clobbers).
-  for (unsigned i = 0, e = RegMasks.size(); i != e; ++i)
-    HandleRegMask(MI.getOperand(RegMasks[i]));
+  for (unsigned Mask : RegMasks)
+    HandleRegMask(MI.getOperand(Mask));
 
   // Process all defs.
-  for (unsigned i = 0, e = DefRegs.size(); i != e; ++i) {
-    unsigned MOReg = DefRegs[i];
-    if (TargetRegisterInfo::isVirtualRegister(MOReg))
+  for (unsigned MOReg : DefRegs) {
+    if (Register::isVirtualRegister(MOReg))
       HandleVirtRegDef(MOReg, MI);
     else if (!MRI->isReserved(MOReg))
       HandlePhysRegDef(MOReg, &MI, Defs);
@@ -566,7 +559,7 @@ void LiveVariables::runOnBlock(MachineBasicBlock *MBB, const unsigned NumRegs) {
   // Mark live-in registers as live-in.
   SmallVector<unsigned, 4> Defs;
   for (const auto &LI : MBB->liveins()) {
-    assert(TargetRegisterInfo::isPhysicalRegister(LI.PhysReg) &&
+    assert(Register::isPhysicalRegister(LI.PhysReg) &&
            "Cannot have a live-in virtual register!");
     HandlePhysRegDef(LI.PhysReg, nullptr, Defs);
   }
@@ -575,7 +568,7 @@ void LiveVariables::runOnBlock(MachineBasicBlock *MBB, const unsigned NumRegs) {
   DistanceMap.clear();
   unsigned Dist = 0;
   for (MachineInstr &MI : *MBB) {
-    if (MI.isDebugInstr())
+    if (MI.isDebugOrPseudoInstr())
       continue;
     DistanceMap.insert(std::make_pair(&MI, Dist++));
 
@@ -589,19 +582,16 @@ void LiveVariables::runOnBlock(MachineBasicBlock *MBB, const unsigned NumRegs) {
   if (!PHIVarInfo[MBB->getNumber()].empty()) {
     SmallVectorImpl<unsigned> &VarInfoVec = PHIVarInfo[MBB->getNumber()];
 
-    for (SmallVectorImpl<unsigned>::iterator I = VarInfoVec.begin(),
-           E = VarInfoVec.end(); I != E; ++I)
+    for (unsigned I : VarInfoVec)
       // Mark it alive only in the block we are representing.
-      MarkVirtRegAliveInBlock(getVarInfo(*I),MRI->getVRegDef(*I)->getParent(),
+      MarkVirtRegAliveInBlock(getVarInfo(I), MRI->getVRegDef(I)->getParent(),
                               MBB);
   }
 
   // MachineCSE may CSE instructions which write to non-allocatable physical
   // registers across MBBs. Remember if any reserved register is liveout.
   SmallSet<unsigned, 4> LiveOuts;
-  for (MachineBasicBlock::const_succ_iterator SI = MBB->succ_begin(),
-         SE = MBB->succ_end(); SI != SE; ++SI) {
-    MachineBasicBlock *SuccMBB = *SI;
+  for (const MachineBasicBlock *SuccMBB : MBB->successors()) {
     if (SuccMBB->isEHPad())
       continue;
     for (const auto &LI : SuccMBB->liveins()) {
@@ -654,7 +644,7 @@ bool LiveVariables::runOnMachineFunction(MachineFunction &mf) {
   // Convert and transfer the dead / killed information we have gathered into
   // VirtRegInfo onto MI's.
   for (unsigned i = 0, e1 = VirtRegInfo.size(); i != e1; ++i) {
-    const unsigned Reg = TargetRegisterInfo::index2VirtReg(i);
+    const Register Reg = Register::index2VirtReg(i);
     for (unsigned j = 0, e2 = VirtRegInfo[Reg].Kills.size(); j != e2; ++j)
       if (VirtRegInfo[Reg].Kills[j] == MRI->getVRegDef(Reg))
         VirtRegInfo[Reg].Kills[j]->addRegisterDead(Reg, TRI);
@@ -666,8 +656,8 @@ bool LiveVariables::runOnMachineFunction(MachineFunction &mf) {
   // function.  If so, it is due to a bug in the instruction selector or some
   // other part of the code generator if this happens.
 #ifndef NDEBUG
-  for(MachineFunction::iterator i = MF->begin(), e = MF->end(); i != e; ++i)
-    assert(Visited.count(&*i) != 0 && "unreachable basic block found");
+  for (const MachineBasicBlock &MBB : *MF)
+    assert(Visited.contains(&MBB) && "unreachable basic block found");
 #endif
 
   PhysRegDef.clear();
@@ -677,9 +667,89 @@ bool LiveVariables::runOnMachineFunction(MachineFunction &mf) {
   return false;
 }
 
+void LiveVariables::recomputeForSingleDefVirtReg(Register Reg) {
+  assert(Reg.isVirtual());
+
+  VarInfo &VI = getVarInfo(Reg);
+  VI.AliveBlocks.clear();
+  VI.Kills.clear();
+
+  MachineInstr &DefMI = *MRI->getUniqueVRegDef(Reg);
+  MachineBasicBlock &DefBB = *DefMI.getParent();
+
+  // Handle the case where all uses have been removed.
+  if (MRI->use_nodbg_empty(Reg)) {
+    VI.Kills.push_back(&DefMI);
+    DefMI.addRegisterDead(Reg, nullptr);
+    return;
+  }
+  DefMI.clearRegisterDeads(Reg);
+
+  // Initialize a worklist of BBs that Reg is live-to-end of. (Here
+  // "live-to-end" means Reg is live at the end of a block even if it is only
+  // live because of phi uses in a successor. This is different from isLiveOut()
+  // which does not consider phi uses.)
+  SmallVector<MachineBasicBlock *> LiveToEndBlocks;
+  SparseBitVector<> UseBlocks;
+  for (auto &UseMO : MRI->use_nodbg_operands(Reg)) {
+    UseMO.setIsKill(false);
+    MachineInstr &UseMI = *UseMO.getParent();
+    MachineBasicBlock &UseBB = *UseMI.getParent();
+    UseBlocks.set(UseBB.getNumber());
+    if (UseMI.isPHI()) {
+      // If Reg is used in a phi then it is live-to-end of the corresponding
+      // predecessor.
+      unsigned Idx = UseMI.getOperandNo(&UseMO);
+      LiveToEndBlocks.push_back(UseMI.getOperand(Idx + 1).getMBB());
+    } else if (&UseBB == &DefBB) {
+      // A non-phi use in the same BB as the single def must come after the def.
+    } else {
+      // Otherwise Reg must be live-to-end of all predecessors.
+      LiveToEndBlocks.append(UseBB.pred_begin(), UseBB.pred_end());
+    }
+  }
+
+  // Iterate over the worklist adding blocks to AliveBlocks.
+  bool LiveToEndOfDefBB = false;
+  while (!LiveToEndBlocks.empty()) {
+    MachineBasicBlock &BB = *LiveToEndBlocks.pop_back_val();
+    if (&BB == &DefBB) {
+      LiveToEndOfDefBB = true;
+      continue;
+    }
+    if (VI.AliveBlocks.test(BB.getNumber()))
+      continue;
+    VI.AliveBlocks.set(BB.getNumber());
+    LiveToEndBlocks.append(BB.pred_begin(), BB.pred_end());
+  }
+
+  // Recompute kill flags. For each block in which Reg is used but is not
+  // live-through, find the last instruction that uses Reg. Ignore phi nodes
+  // because they should not be included in Kills.
+  for (unsigned UseBBNum : UseBlocks) {
+    if (VI.AliveBlocks.test(UseBBNum))
+      continue;
+    MachineBasicBlock &UseBB = *MF->getBlockNumbered(UseBBNum);
+    if (&UseBB == &DefBB && LiveToEndOfDefBB)
+      continue;
+    for (auto &MI : reverse(UseBB)) {
+      if (MI.isDebugOrPseudoInstr())
+        continue;
+      if (MI.isPHI())
+        break;
+      if (MI.readsRegister(Reg)) {
+        assert(!MI.killsRegister(Reg));
+        MI.addRegisterKilled(Reg, nullptr);
+        VI.Kills.push_back(&MI);
+        break;
+      }
+    }
+  }
+}
+
 /// replaceKillInstruction - Update register kill info by replacing a kill
 /// instruction with a new one.
-void LiveVariables::replaceKillInstruction(unsigned Reg, MachineInstr &OldMI,
+void LiveVariables::replaceKillInstruction(Register Reg, MachineInstr &OldMI,
                                            MachineInstr &NewMI) {
   VarInfo &VI = getVarInfo(Reg);
   std::replace(VI.Kills.begin(), VI.Kills.end(), &OldMI, &NewMI);
@@ -692,8 +762,8 @@ void LiveVariables::removeVirtualRegistersKilled(MachineInstr &MI) {
     MachineOperand &MO = MI.getOperand(i);
     if (MO.isReg() && MO.isKill()) {
       MO.setIsKill(false);
-      unsigned Reg = MO.getReg();
-      if (TargetRegisterInfo::isVirtualRegister(Reg)) {
+      Register Reg = MO.getReg();
+      if (Register::isVirtualRegister(Reg)) {
         bool removed = getVarInfo(Reg).removeKill(MI);
         assert(removed && "kill not in register's VarInfo?");
         (void)removed;
@@ -719,8 +789,7 @@ void LiveVariables::analyzePHINodes(const MachineFunction& Fn) {
 }
 
 bool LiveVariables::VarInfo::isLiveIn(const MachineBasicBlock &MBB,
-                                      unsigned Reg,
-                                      MachineRegisterInfo &MRI) {
+                                      Register Reg, MachineRegisterInfo &MRI) {
   unsigned Num = MBB.getNumber();
 
   // Reg is live-through.
@@ -736,12 +805,12 @@ bool LiveVariables::VarInfo::isLiveIn(const MachineBasicBlock &MBB,
   return findKill(&MBB);
 }
 
-bool LiveVariables::isLiveOut(unsigned Reg, const MachineBasicBlock &MBB) {
+bool LiveVariables::isLiveOut(Register Reg, const MachineBasicBlock &MBB) {
   LiveVariables::VarInfo &VI = getVarInfo(Reg);
 
   SmallPtrSet<const MachineBasicBlock *, 8> Kills;
-  for (unsigned i = 0, e = VI.Kills.size(); i != e; ++i)
-    Kills.insert(VI.Kills[i]->getParent());
+  for (MachineInstr *MI : VI.Kills)
+    Kills.insert(MI->getParent());
 
   // Loop over all of the successors of the basic block, checking to see if
   // the value is either live in the block, or if it is killed in the block.
@@ -781,20 +850,19 @@ void LiveVariables::addNewBlock(MachineBasicBlock *BB,
 
   // Record all vreg defs and kills of all instructions in SuccBB.
   for (; BBI != BBE; ++BBI) {
-    for (MachineInstr::mop_iterator I = BBI->operands_begin(),
-         E = BBI->operands_end(); I != E; ++I) {
-      if (I->isReg() && TargetRegisterInfo::isVirtualRegister(I->getReg())) {
-        if (I->isDef())
-          Defs.insert(I->getReg());
-        else if (I->isKill())
-          Kills.insert(I->getReg());
+    for (const MachineOperand &Op : BBI->operands()) {
+      if (Op.isReg() && Register::isVirtualRegister(Op.getReg())) {
+        if (Op.isDef())
+          Defs.insert(Op.getReg());
+        else if (Op.isKill())
+          Kills.insert(Op.getReg());
       }
     }
   }
 
   // Update info for all live variables
   for (unsigned i = 0, e = MRI->getNumVirtRegs(); i != e; ++i) {
-    unsigned Reg = TargetRegisterInfo::index2VirtReg(i);
+    Register Reg = Register::index2VirtReg(i);
 
     // If the Defs is defined in the successor it can't be live in BB.
     if (Defs.count(Reg))
@@ -805,5 +873,33 @@ void LiveVariables::addNewBlock(MachineBasicBlock *BB,
     VarInfo &VI = getVarInfo(Reg);
     if (Kills.count(Reg) || VI.AliveBlocks.test(SuccBB->getNumber()))
       VI.AliveBlocks.set(NumNew);
+  }
+}
+
+/// addNewBlock - Add a new basic block BB as an empty succcessor to DomBB. All
+/// variables that are live out of DomBB will be marked as passing live through
+/// BB. LiveInSets[BB] is *not* updated (because it is not needed during
+/// PHIElimination).
+void LiveVariables::addNewBlock(MachineBasicBlock *BB,
+                                MachineBasicBlock *DomBB,
+                                MachineBasicBlock *SuccBB,
+                                std::vector<SparseBitVector<>> &LiveInSets) {
+  const unsigned NumNew = BB->getNumber();
+
+  SparseBitVector<> &BV = LiveInSets[SuccBB->getNumber()];
+  for (unsigned R : BV) {
+    Register VirtReg = Register::index2VirtReg(R);
+    LiveVariables::VarInfo &VI = getVarInfo(VirtReg);
+    VI.AliveBlocks.set(NumNew);
+  }
+  // All registers used by PHI nodes in SuccBB must be live through BB.
+  for (MachineBasicBlock::iterator BBI = SuccBB->begin(),
+         BBE = SuccBB->end();
+       BBI != BBE && BBI->isPHI(); ++BBI) {
+    for (unsigned i = 1, e = BBI->getNumOperands(); i != e; i += 2)
+      if (BBI->getOperand(i + 1).getMBB() == BB &&
+          BBI->getOperand(i).readsReg())
+        getVarInfo(BBI->getOperand(i).getReg())
+          .AliveBlocks.set(NumNew);
   }
 }

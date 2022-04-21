@@ -1,4 +1,4 @@
-//===-- CommandReturnObject.cpp ---------------------------------*- C++ -*-===//
+//===-- CommandReturnObject.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,12 +14,21 @@
 using namespace lldb;
 using namespace lldb_private;
 
-static void DumpStringToStreamWithNewline(Stream &strm, const std::string &s,
-                                          bool add_newline_if_empty) {
+static llvm::raw_ostream &error(Stream &strm) {
+  return llvm::WithColor(strm.AsRawOstream(), llvm::HighlightColor::Error,
+                         llvm::ColorMode::Enable)
+         << "error: ";
+}
+
+static llvm::raw_ostream &warning(Stream &strm) {
+  return llvm::WithColor(strm.AsRawOstream(), llvm::HighlightColor::Warning,
+                         llvm::ColorMode::Enable)
+         << "warning: ";
+}
+
+static void DumpStringToStreamWithNewline(Stream &strm, const std::string &s) {
   bool add_newline = false;
-  if (s.empty()) {
-    add_newline = add_newline_if_empty;
-  } else {
+  if (!s.empty()) {
     // We already checked for empty above, now make sure there is a newline in
     // the error, and if there isn't one, add one.
     strm.Write(s.c_str(), s.size());
@@ -31,14 +40,12 @@ static void DumpStringToStreamWithNewline(Stream &strm, const std::string &s,
     strm.EOL();
 }
 
-CommandReturnObject::CommandReturnObject()
-    : m_out_stream(), m_err_stream(), m_status(eReturnStatusStarted),
-      m_did_change_process_state(false), m_interactive(true),
-      m_abnormal_stop_was_expected(false) {}
-
-CommandReturnObject::~CommandReturnObject() {}
+CommandReturnObject::CommandReturnObject(bool colors)
+    : m_out_stream(colors), m_err_stream(colors) {}
 
 void CommandReturnObject::AppendErrorWithFormat(const char *format, ...) {
+  SetStatus(eReturnStatusFailed);
+
   if (!format)
     return;
   va_list args;
@@ -47,11 +54,10 @@ void CommandReturnObject::AppendErrorWithFormat(const char *format, ...) {
   sstrm.PrintfVarArg(format, args);
   va_end(args);
 
-  const std::string &s = sstrm.GetString();
+  const std::string &s = std::string(sstrm.GetString());
   if (!s.empty()) {
-    Stream &error_strm = GetErrorStream();
-    error_strm.PutCString("error: ");
-    DumpStringToStreamWithNewline(error_strm, s, false);
+    error(GetErrorStream());
+    DumpStringToStreamWithNewline(GetErrorStream(), s);
   }
 }
 
@@ -76,70 +82,56 @@ void CommandReturnObject::AppendWarningWithFormat(const char *format, ...) {
   sstrm.PrintfVarArg(format, args);
   va_end(args);
 
-  GetErrorStream() << "warning: " << sstrm.GetString();
+  warning(GetErrorStream()) << sstrm.GetString();
 }
 
 void CommandReturnObject::AppendMessage(llvm::StringRef in_string) {
   if (in_string.empty())
     return;
-  GetOutputStream() << in_string << "\n";
+  GetOutputStream() << in_string.rtrim() << '\n';
 }
 
 void CommandReturnObject::AppendWarning(llvm::StringRef in_string) {
   if (in_string.empty())
     return;
-  GetErrorStream() << "warning: " << in_string << "\n";
-}
-
-// Similar to AppendWarning, but do not prepend 'warning: ' to message, and
-// don't append "\n" to the end of it.
-
-void CommandReturnObject::AppendRawWarning(llvm::StringRef in_string) {
-  if (in_string.empty())
-    return;
-  GetErrorStream() << in_string;
+  warning(GetErrorStream()) << in_string.rtrim() << '\n';
 }
 
 void CommandReturnObject::AppendError(llvm::StringRef in_string) {
+  SetStatus(eReturnStatusFailed);
   if (in_string.empty())
     return;
-  GetErrorStream() << "error: " << in_string << "\n";
+  error(GetErrorStream()) << in_string.rtrim() << '\n';
 }
 
 void CommandReturnObject::SetError(const Status &error,
                                    const char *fallback_error_cstr) {
-  const char *error_cstr = error.AsCString();
-  if (error_cstr == nullptr)
-    error_cstr = fallback_error_cstr;
-  SetError(error_cstr);
+  AppendError(error.AsCString(fallback_error_cstr));
 }
 
-void CommandReturnObject::SetError(llvm::StringRef error_str) {
-  if (error_str.empty())
-    return;
-
-  AppendError(error_str);
-  SetStatus(eReturnStatusFailed);
+void CommandReturnObject::SetError(llvm::Error error) {
+  if (error)
+    AppendError(llvm::toString(std::move(error)));
 }
 
 // Similar to AppendError, but do not prepend 'Status: ' to message, and don't
 // append "\n" to the end of it.
 
 void CommandReturnObject::AppendRawError(llvm::StringRef in_string) {
-  if (in_string.empty())
-    return;
+  SetStatus(eReturnStatusFailed);
+  assert(!in_string.empty() && "Expected a non-empty error message");
   GetErrorStream() << in_string;
 }
 
 void CommandReturnObject::SetStatus(ReturnStatus status) { m_status = status; }
 
-ReturnStatus CommandReturnObject::GetStatus() { return m_status; }
+ReturnStatus CommandReturnObject::GetStatus() const { return m_status; }
 
-bool CommandReturnObject::Succeeded() {
+bool CommandReturnObject::Succeeded() const {
   return m_status <= eReturnStatusSuccessContinuingResult;
 }
 
-bool CommandReturnObject::HasResult() {
+bool CommandReturnObject::HasResult() const {
   return (m_status == eReturnStatusSuccessFinishResult ||
           m_status == eReturnStatusSuccessContinuingResult);
 }
@@ -154,10 +146,11 @@ void CommandReturnObject::Clear() {
     static_cast<StreamString *>(stream_sp.get())->Clear();
   m_status = eReturnStatusStarted;
   m_did_change_process_state = false;
+  m_suppress_immediate_output = false;
   m_interactive = true;
 }
 
-bool CommandReturnObject::GetDidChangeProcessState() {
+bool CommandReturnObject::GetDidChangeProcessState() const {
   return m_did_change_process_state;
 }
 
@@ -168,3 +161,11 @@ void CommandReturnObject::SetDidChangeProcessState(bool b) {
 bool CommandReturnObject::GetInteractive() const { return m_interactive; }
 
 void CommandReturnObject::SetInteractive(bool b) { m_interactive = b; }
+
+bool CommandReturnObject::GetSuppressImmediateOutput() const {
+  return m_suppress_immediate_output;
+}
+
+void CommandReturnObject::SetSuppressImmediateOutput(bool b) {
+  m_suppress_immediate_output = b;
+}

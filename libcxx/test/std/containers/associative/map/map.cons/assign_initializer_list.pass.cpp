@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <map>
 
@@ -17,11 +17,12 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
+#include "test_allocator.h"
 
-int main(int, char**)
-{
-    {
+void test_basic() {
+  {
     typedef std::pair<const int, double> V;
     std::map<int, double> m =
                             {
@@ -40,10 +41,10 @@ int main(int, char**)
                                 {3, 2}
                             };
     assert(m.size() == 3);
-    assert(distance(m.begin(), m.end()) == 3);
+    assert(std::distance(m.begin(), m.end()) == 3);
     assert(*m.begin() == V(1, 1));
-    assert(*next(m.begin()) == V(2, 1));
-    assert(*next(m.begin(), 2) == V(3, 1));
+    assert(*std::next(m.begin()) == V(2, 1));
+    assert(*std::next(m.begin(), 2) == V(3, 1));
     }
     {
     typedef std::pair<const int, double> V;
@@ -64,11 +65,33 @@ int main(int, char**)
                                 {3, 2}
                             };
     assert(m.size() == 3);
-    assert(distance(m.begin(), m.end()) == 3);
+    assert(std::distance(m.begin(), m.end()) == 3);
     assert(*m.begin() == V(1, 1));
-    assert(*next(m.begin()) == V(2, 1));
-    assert(*next(m.begin(), 2) == V(3, 1));
+    assert(*std::next(m.begin()) == V(2, 1));
+    assert(*std::next(m.begin(), 2) == V(3, 1));
     }
+}
+
+
+void duplicate_keys_test() {
+  test_allocator_statistics alloc_stats;
+  typedef std::map<int, int, std::less<int>, test_allocator<std::pair<const int, int> > > Map;
+  {
+    LIBCPP_ASSERT(alloc_stats.alloc_count == 0);
+    Map s({{1, 0}, {2, 0}, {3, 0}}, std::less<int>(), test_allocator<std::pair<const int, int> >(&alloc_stats));
+    LIBCPP_ASSERT(alloc_stats.alloc_count == 3);
+    s = {{4, 0}, {4, 0}, {4, 0}, {4, 0}};
+    LIBCPP_ASSERT(alloc_stats.alloc_count == 1);
+    assert(s.size() == 1);
+    assert(s.begin()->first == 4);
+  }
+  LIBCPP_ASSERT(alloc_stats.alloc_count == 0);
+}
+
+int main(int, char**)
+{
+  test_basic();
+  duplicate_keys_test();
 
   return 0;
 }

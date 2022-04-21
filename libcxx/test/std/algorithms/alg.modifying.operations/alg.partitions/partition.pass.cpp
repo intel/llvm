@@ -11,22 +11,23 @@
 // template<BidirectionalIterator Iter, Predicate<auto, Iter::value_type> Pred>
 //   requires ShuffleIterator<Iter>
 //         && CopyConstructible<Pred>
-//   Iter
+//   constexpr Iter  // constexpr in C++20
 //   partition(Iter first, Iter last, Pred pred);
 
 #include <algorithm>
 #include <cassert>
 
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 struct is_odd
 {
-    bool operator()(const int& i) const {return i & 1;}
+    TEST_CONSTEXPR bool operator()(const int& i) const {return i & 1;}
 };
 
 template <class Iter>
-void
+TEST_CONSTEXPR_CXX20 bool
 test()
 {
     // check mixed
@@ -91,6 +92,8 @@ test()
         assert(is_odd()(*i));
     for (int* i = base(r); i < ia+sa; ++i)
         assert(!is_odd()(*i));
+
+    return true;
 }
 
 int main(int, char**)
@@ -99,5 +102,11 @@ int main(int, char**)
     test<random_access_iterator<int*> >();
     test<int*>();
 
-  return 0;
+#if TEST_STD_VER >= 20
+    static_assert(test<bidirectional_iterator<int*>>());
+    static_assert(test<random_access_iterator<int*>>());
+    static_assert(test<int*>());
+#endif
+
+    return 0;
 }

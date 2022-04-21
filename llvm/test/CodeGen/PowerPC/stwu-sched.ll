@@ -1,9 +1,9 @@
 ; RUN: llc  -mcpu=pwr9 -mtriple=powerpc64-unknown-linux-gnu < %s -verify-machineinstrs | FileCheck %s
 ; RUN: llc  -mcpu=pwr9 -mtriple=powerpc64le-unknown-linux-gnu < %s -verify-machineinstrs | FileCheck %s
-; RUN: llc  -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu < %s -verify-machineinstrs | FileCheck %s \
-; RUN: --check-prefix=CHECK-ITIN
-; RUN: llc  -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu < %s -verify-machineinstrs | FileCheck %s \
-; RUN: --check-prefix=CHECK-ITIN
+; RUN: llc  -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu -disable-ppc-ctrloops < %s -verify-machineinstrs \
+; RUN: | FileCheck %s --check-prefix=CHECK-ITIN
+; RUN: llc  -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu -disable-ppc-ctrloops < %s -verify-machineinstrs \
+; RUN: | FileCheck %s --check-prefix=CHECK-ITIN
 
 
 %0 = type { i32, i32 }
@@ -12,11 +12,11 @@
 define void @initCombList(%0* nocapture, i32 signext) local_unnamed_addr #0 {
 ; CHECK-LABEL: initCombList:
 ; CHECK: addi 4, 4, -8
-; CHECK: stwu 5, 64(3)
+; CHECK: stwu [[REG:[0-9]+]], 64(3)
 
 ; CHECK-ITIN-LABEL: initCombList:
-; CHECK-ITIN: stwu 5, 64(4)
-; CHECK-ITIN-NEXT:   addi 3, 3, -8
+; CHECK-ITIN: stwu [[REG:[0-9]+]], 64(3)
+; CHECK-ITIN-NEXT:   addi [[REG2:[0-9]+]], [[REG2]], 8
 
 
   %3 = zext i32 %1 to i64
@@ -58,7 +58,7 @@ define void @initCombList(%0* nocapture, i32 signext) local_unnamed_addr #0 {
   ret void
 }
 
-attributes #0 = { norecurse nounwind writeonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind writeonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.ident = !{!0}
 

@@ -70,9 +70,8 @@ define float @test5(float %p) #0 {
 ; ALL-NEXT:    retq
 ; ALL-NEXT:  LBB3_1: ## %if.end
 ; ALL-NEXT:    vcmpltss %xmm0, %xmm1, %k1
-; ALL-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; ALL-NEXT:    vmovss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; ALL-NEXT:    vmovss %xmm1, %xmm0, %xmm0 {%k1}
+; ALL-NEXT:    vmovss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0 {%k1}
 ; ALL-NEXT:    retq
 entry:
   %cmp = fcmp oeq float %p, 0.000000e+00
@@ -156,13 +155,10 @@ B:
 define i32 @test10(i64 %b, i64 %c, i1 %d) {
 ; ALL-LABEL: test10:
 ; ALL:       ## %bb.0:
-; ALL-NEXT:    movl %edx, %eax
-; ALL-NEXT:    andb $1, %al
 ; ALL-NEXT:    cmpq %rsi, %rdi
-; ALL-NEXT:    sete %cl
-; ALL-NEXT:    orb %dl, %cl
-; ALL-NEXT:    andb $1, %cl
-; ALL-NEXT:    cmpb %cl, %al
+; ALL-NEXT:    sete %al
+; ALL-NEXT:    notb %dl
+; ALL-NEXT:    testb %al, %dl
 ; ALL-NEXT:    je LBB8_1
 ; ALL-NEXT:  ## %bb.2: ## %if.end.i
 ; ALL-NEXT:    movl $6, %eax
@@ -181,4 +177,40 @@ if.then.i:
 
 if.end.i:
   ret i32 6
+}
+
+; This test previously caused an infinite loop in legalize vector ops. Due to
+; CSE triggering on the call to UpdateNodeOperands and the resulting node not
+; being passed to LowerOperation. The add is needed to force the zext into a
+; sext on that path. The shuffle keeps the zext alive. The xor somehow
+; influences the zext to be visited before the sext exposing the CSE opportunity
+; for the sext since zext of setcc is custom legalized to a sext and shift.
+define <8 x i32> @legalize_loop(<8 x double> %arg) {
+; KNL-LABEL: legalize_loop:
+; KNL:       ## %bb.0:
+; KNL-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
+; KNL-NEXT:    vcmpnltpd %zmm0, %zmm1, %k1
+; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpsrld $31, %ymm0, %ymm1
+; KNL-NEXT:    vpshufd {{.*#+}} ymm1 = ymm1[3,2,1,0,7,6,5,4]
+; KNL-NEXT:    vpermq {{.*#+}} ymm1 = ymm1[2,3,0,1]
+; KNL-NEXT:    vpsubd %ymm0, %ymm1, %ymm0
+; KNL-NEXT:    retq
+;
+; SKX-LABEL: legalize_loop:
+; SKX:       ## %bb.0:
+; SKX-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
+; SKX-NEXT:    vcmpnltpd %zmm0, %zmm1, %k0
+; SKX-NEXT:    vpmovm2d %k0, %ymm0
+; SKX-NEXT:    vpsrld $31, %ymm0, %ymm1
+; SKX-NEXT:    vpshufd {{.*#+}} ymm1 = ymm1[3,2,1,0,7,6,5,4]
+; SKX-NEXT:    vpermq {{.*#+}} ymm1 = ymm1[2,3,0,1]
+; SKX-NEXT:    vpsubd %ymm0, %ymm1, %ymm0
+; SKX-NEXT:    retq
+  %tmp = fcmp ogt <8 x double> %arg, zeroinitializer
+  %tmp1 = xor <8 x i1> %tmp, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+  %tmp2 = zext <8 x i1> %tmp1 to <8 x i32>
+  %tmp3 = shufflevector <8 x i32> %tmp2, <8 x i32> undef, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+  %tmp4 = add <8 x i32> %tmp2, %tmp3
+  ret <8 x i32> %tmp4
 }

@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===-------------------------- __string ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,57 +10,30 @@
 #ifndef _LIBCPP___STRING
 #define _LIBCPP___STRING
 
-/*
-    string synopsis
-
-namespace std
-{
-
-template <class charT>
-struct char_traits
-{
-    typedef charT     char_type;
-    typedef ...       int_type;
-    typedef streamoff off_type;
-    typedef streampos pos_type;
-    typedef mbstate_t state_type;
-
-    static constexpr void assign(char_type& c1, const char_type& c2) noexcept;
-    static constexpr bool eq(char_type c1, char_type c2) noexcept;
-    static constexpr bool lt(char_type c1, char_type c2) noexcept;
-
-    static constexpr int    compare(const char_type* s1, const char_type* s2, size_t n);
-    static constexpr size_t length(const char_type* s);
-    static constexpr const char_type* 
-                            find(const char_type* s, size_t n, const char_type& a);
-    static char_type*       move(char_type* s1, const char_type* s2, size_t n);
-    static char_type*       copy(char_type* s1, const char_type* s2, size_t n);
-    static char_type*       assign(char_type* s, size_t n, char_type a);
-
-    static constexpr int_type  not_eof(int_type c) noexcept;
-    static constexpr char_type to_char_type(int_type c) noexcept;
-    static constexpr int_type  to_int_type(char_type c) noexcept;
-    static constexpr bool      eq_int_type(int_type c1, int_type c2) noexcept;
-    static constexpr int_type  eof() noexcept;
-};
-
-template <> struct char_traits<char>;
-template <> struct char_traits<wchar_t>;
-template <> struct char_traits<char8_t>;  // c++20
-
-}  // std
-
-*/
-
+#include <__algorithm/copy.h>
+#include <__algorithm/copy_backward.h>
+#include <__algorithm/copy_n.h>
+#include <__algorithm/fill_n.h>
+#include <__algorithm/find_end.h>
+#include <__algorithm/find_first_of.h>
+#include <__algorithm/min.h>
+#include <__assert>
 #include <__config>
-#include <algorithm>  // for search and min
-#include <cstdio>     // For EOF.
-#include <memory>     // for __murmur2_or_cityhash
-
 #include <__debug>
+#include <__functional/hash.h>     // for __murmur2_or_cityhash
+#include <__iterator/iterator_traits.h>
+#include <cstdint>     // for uint_least16_t
+#include <cstdio>      // for EOF
+#include <cstring>     // for memcpy
+#include <iosfwd>      // for streampos & friends
+#include <type_traits> // for __libcpp_is_constant_evaluated
+
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#   include <cwchar> // for wmemcpy
+#endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS
@@ -68,6 +41,120 @@ _LIBCPP_PUSH_MACROS
 
 
 _LIBCPP_BEGIN_NAMESPACE_STD
+
+// The extern template ABI lists are kept outside of <string> to improve the
+// readability of that header. We maintain 2 ABI lists:
+// - _LIBCPP_STRING_V1_EXTERN_TEMPLATE_LIST
+// - _LIBCPP_STRING_UNSTABLE_EXTERN_TEMPLATE_LIST
+// As the name implies, the ABI lists define the V1 (Stable) and unstable ABI.
+//
+// For unstable, we may explicitly remove function that are external in V1,
+// and add (new) external functions to better control inlining and compiler
+// optimization opportunities.
+//
+// For stable, the ABI list should rarely change, except for adding new
+// functions supporting new c++ version / API changes. Typically entries
+// must never be removed from the stable list.
+#define _LIBCPP_STRING_V1_EXTERN_TEMPLATE_LIST(_Func, _CharType) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::replace(size_type, size_type, value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::rfind(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__init(value_type const*, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::basic_string(basic_string const&)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::replace(size_type, size_type, value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::basic_string(basic_string const&, allocator<_CharType> const&)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find_last_not_of(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::~basic_string()) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find_first_not_of(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::insert(size_type, size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::operator=(value_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__init(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS const _CharType& basic_string<_CharType>::at(size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::insert(size_type, value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find_first_of(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::replace(size_type, size_type, size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::assign(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::reserve(size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::append(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::assign(basic_string const&, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::copy(value_type*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::basic_string(basic_string const&, size_type, size_type, allocator<_CharType> const&)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find(value_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__init(size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::insert(size_type, value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find_last_of(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__grow_by(size_type, size_type, size_type, size_type, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__grow_by_and_replace(size_type, size_type, size_type, size_type, size_type, size_type, value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::push_back(value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::append(size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::rfind(value_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS const basic_string<_CharType>::size_type basic_string<_CharType>::npos) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::assign(size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::erase(size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::append(basic_string const&, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS int basic_string<_CharType>::compare(value_type const*) const) \
+  _Func(_LIBCPP_FUNC_VIS int basic_string<_CharType>::compare(size_type, size_type, value_type const*) const) \
+  _Func(_LIBCPP_FUNC_VIS _CharType& basic_string<_CharType>::at(size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::assign(value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS int basic_string<_CharType>::compare(size_type, size_type, basic_string const&, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS int basic_string<_CharType>::compare(size_type, size_type, value_type const*, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::operator=(basic_string const&)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::append(value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::replace(size_type, size_type, basic_string const&, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::iterator basic_string<_CharType>::insert(basic_string::const_iterator, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::resize(size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::insert(size_type, basic_string const&, size_type, size_type))
+
+#define _LIBCPP_STRING_UNSTABLE_EXTERN_TEMPLATE_LIST(_Func, _CharType) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::replace(size_type, size_type, value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::rfind(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__init(value_type const*, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::replace(size_type, size_type, value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find_last_not_of(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::~basic_string()) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find_first_not_of(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::insert(size_type, size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::operator=(value_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__init(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__init_copy_ctor_external(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS const _CharType& basic_string<_CharType>::at(size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::insert(size_type, value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find_first_of(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::replace(size_type, size_type, size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::__assign_external(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::__assign_external(value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::reserve(size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::append(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::assign(basic_string const&, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::copy(value_type*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::basic_string(basic_string const&, size_type, size_type, allocator<_CharType> const&)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find(value_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__init(size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::insert(size_type, value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find_last_of(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__grow_by(size_type, size_type, size_type, size_type, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__grow_by_and_replace(size_type, size_type, size_type, size_type, size_type, size_type, value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::__assign_no_alias<false>(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::__assign_no_alias<true>(value_type const*, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::push_back(value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::append(size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::rfind(value_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS const basic_string<_CharType>::size_type basic_string<_CharType>::npos) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::assign(size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::__erase_external_with_move(size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::append(basic_string const&, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS int basic_string<_CharType>::compare(value_type const*) const) \
+  _Func(_LIBCPP_FUNC_VIS int basic_string<_CharType>::compare(size_type, size_type, value_type const*) const) \
+  _Func(_LIBCPP_FUNC_VIS _CharType& basic_string<_CharType>::at(size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::size_type basic_string<_CharType>::find(value_type const*, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS int basic_string<_CharType>::compare(size_type, size_type, basic_string const&, size_type, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS int basic_string<_CharType>::compare(size_type, size_type, value_type const*, size_type) const) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::append(value_type const*)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::replace(size_type, size_type, basic_string const&, size_type, size_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>::iterator basic_string<_CharType>::insert(basic_string::const_iterator, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS void basic_string<_CharType>::resize(size_type, value_type)) \
+  _Func(_LIBCPP_FUNC_VIS basic_string<_CharType>& basic_string<_CharType>::insert(size_type, basic_string const&, size_type, size_type))
+
 
 // char_traits
 
@@ -93,11 +180,14 @@ struct _LIBCPP_TEMPLATE_VIS char_traits
     size_t length(const char_type* __s);
     _LIBCPP_INLINE_VISIBILITY static _LIBCPP_CONSTEXPR_AFTER_CXX14
     const char_type* find(const char_type* __s, size_t __n, const char_type& __a);
-    static char_type*       move(char_type* __s1, const char_type* __s2, size_t __n);
+    static _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type*       move(char_type* __s1, const char_type* __s2, size_t __n);
     _LIBCPP_INLINE_VISIBILITY
-    static char_type*       copy(char_type* __s1, const char_type* __s2, size_t __n);
+    static _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type*       copy(char_type* __s1, const char_type* __s2, size_t __n);
     _LIBCPP_INLINE_VISIBILITY
-    static char_type*       assign(char_type* __s, size_t __n, char_type __a);
+    static _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type*       assign(char_type* __s, size_t __n, char_type __a);
 
     static inline _LIBCPP_CONSTEXPR int_type  not_eof(int_type __c) _NOEXCEPT
         {return eq_int_type(__c, eof()) ? ~eof() : __c;}
@@ -147,13 +237,14 @@ char_traits<_CharT>::find(const char_type* __s, size_t __n, const char_type& __a
             return __s;
         ++__s;
     }
-    return 0;
+    return nullptr;
 }
 
 template <class _CharT>
-_CharT*
+_LIBCPP_CONSTEXPR_AFTER_CXX17 _CharT*
 char_traits<_CharT>::move(char_type* __s1, const char_type* __s2, size_t __n)
 {
+    if (__n == 0) return __s1;
     char_type* __r = __s1;
     if (__s1 < __s2)
     {
@@ -171,11 +262,13 @@ char_traits<_CharT>::move(char_type* __s1, const char_type* __s2, size_t __n)
 }
 
 template <class _CharT>
-inline
+inline _LIBCPP_CONSTEXPR_AFTER_CXX17
 _CharT*
 char_traits<_CharT>::copy(char_type* __s1, const char_type* __s2, size_t __n)
 {
-    _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+    if (!__libcpp_is_constant_evaluated()) {
+        _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+    }
     char_type* __r = __s1;
     for (; __n; --__n, ++__s1, ++__s2)
         assign(*__s1, *__s2);
@@ -183,7 +276,7 @@ char_traits<_CharT>::copy(char_type* __s1, const char_type* __s2, size_t __n)
 }
 
 template <class _CharT>
-inline
+inline _LIBCPP_CONSTEXPR_AFTER_CXX17
 _CharT*
 char_traits<_CharT>::assign(char_type* __s, size_t __n, char_type __a)
 {
@@ -191,6 +284,40 @@ char_traits<_CharT>::assign(char_type* __s, size_t __n, char_type __a)
     for (; __n; --__n, ++__s)
         assign(*__s, __a);
     return __r;
+}
+
+// constexpr versions of move/copy/assign.
+
+template <class _CharT>
+static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+_CharT* __copy_constexpr(_CharT* __dest, const _CharT* __source, size_t __n) _NOEXCEPT
+{
+  _LIBCPP_ASSERT(__libcpp_is_constant_evaluated(), "__copy_constexpr() should always be constant evaluated");
+  _VSTD::copy_n(__source, __n, __dest);
+  return __dest;
+}
+
+template <class _CharT>
+static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+_CharT* __move_constexpr(_CharT* __dest, const _CharT* __source, size_t __n) _NOEXCEPT
+{
+  _LIBCPP_ASSERT(__libcpp_is_constant_evaluated(), "__move_constexpr() should always be constant evaluated");
+  if (__n == 0)
+    return __dest;
+  _CharT* __allocation = new _CharT[__n];
+  _VSTD::__copy_constexpr(__allocation, __source, __n);
+  _VSTD::__copy_constexpr(__dest, static_cast<const _CharT*>(__allocation), __n);
+  delete[] __allocation;
+  return __dest;
+}
+
+template <class _CharT>
+static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+_CharT* __assign_constexpr(_CharT* __s, size_t __n, _CharT __a) _NOEXCEPT
+{
+  _LIBCPP_ASSERT(__libcpp_is_constant_evaluated(), "__assign_constexpr() should always be constant evaluated");
+  _VSTD::fill_n(__s, __n, __a);
+  return __s;
 }
 
 // char_traits<char>
@@ -213,19 +340,47 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char>
 
     static _LIBCPP_CONSTEXPR_AFTER_CXX14
     int compare(const char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT;
-    static inline size_t _LIBCPP_CONSTEXPR_AFTER_CXX14
-    length(const char_type* __s)  _NOEXCEPT {return __builtin_strlen(__s);}
+
+    static inline size_t _LIBCPP_CONSTEXPR_AFTER_CXX14 length(const char_type* __s)  _NOEXCEPT {
+      // GCC currently does not support __builtin_strlen during constant evaluation.
+      // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70816
+#ifdef _LIBCPP_COMPILER_GCC
+      if (__libcpp_is_constant_evaluated()) {
+        size_t __i = 0;
+        for (; __s[__i] != char_type('\0'); ++__i)
+            ;
+        return __i;
+      }
+#endif
+      return __builtin_strlen(__s);
+    }
+
     static _LIBCPP_CONSTEXPR_AFTER_CXX14
     const char_type* find(const char_type* __s, size_t __n, const char_type& __a) _NOEXCEPT;
-    static inline char_type* move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
-        {return __n == 0 ? __s1 : (char_type*) memmove(__s1, __s2, __n);}
-    static inline char_type* copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
+    static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type* move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
         {
-            _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
-            return __n == 0 ? __s1 : (char_type*)memcpy(__s1, __s2, __n);
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__move_constexpr(__s1, __s2, __n)
+                       : __n == 0 ? __s1 : (char_type*)_VSTD::memmove(__s1, __s2, __n);
         }
-    static inline char_type* assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT
-        {return __n == 0 ? __s : (char_type*)memset(__s, to_int_type(__a), __n);}
+    static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type* copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
+        {
+            if (!__libcpp_is_constant_evaluated()) {
+                _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+            }
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__copy_constexpr(__s1, __s2, __n)
+                       : __n == 0 ? __s1 : (char_type*)_VSTD::memcpy(__s1, __s2, __n);
+        }
+    static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type* assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT
+        {
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__assign_constexpr(__s, __n, __a)
+                       : __n == 0 ? __s : (char_type*)_VSTD::memset(__s, to_int_type(__a), __n);
+        }
 
     static inline _LIBCPP_CONSTEXPR int_type  not_eof(int_type __c) _NOEXCEPT
         {return eq_int_type(__c, eof()) ? ~eof() : __c;}
@@ -248,7 +403,7 @@ char_traits<char>::compare(const char_type* __s1, const char_type* __s2, size_t 
 #if __has_feature(cxx_constexpr_string_builtins)
     return __builtin_memcmp(__s1, __s2, __n);
 #elif _LIBCPP_STD_VER <= 14
-    return memcmp(__s1, __s2, __n);
+    return _VSTD::memcmp(__s1, __s2, __n);
 #else
     for (; __n; --__n, ++__s1, ++__s2)
     {
@@ -270,7 +425,7 @@ char_traits<char>::find(const char_type* __s, size_t __n, const char_type& __a) 
 #if __has_feature(cxx_constexpr_string_builtins)
     return __builtin_char_memchr(__s, to_int_type(__a), __n);
 #elif _LIBCPP_STD_VER <= 14
-    return (const char_type*) memchr(__s, to_int_type(__a), __n);
+    return (const char_type*) _VSTD::memchr(__s, to_int_type(__a), __n);
 #else
     for (; __n; --__n)
     {
@@ -285,6 +440,7 @@ char_traits<char>::find(const char_type* __s, size_t __n, const char_type& __a) 
 
 // char_traits<wchar_t>
 
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
 template <>
 struct _LIBCPP_TEMPLATE_VIS char_traits<wchar_t>
 {
@@ -307,16 +463,30 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<wchar_t>
     size_t length(const char_type* __s) _NOEXCEPT;
     static _LIBCPP_CONSTEXPR_AFTER_CXX14
     const char_type* find(const char_type* __s, size_t __n, const char_type& __a) _NOEXCEPT;
-    static inline char_type* move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
-        {return __n == 0 ? __s1 : (char_type*)wmemmove(__s1, __s2, __n);}
-    static inline char_type* copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
+    static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type* move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
         {
-            _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
-            return __n == 0 ? __s1 : (char_type*)wmemcpy(__s1, __s2, __n);
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__move_constexpr(__s1, __s2, __n)
+                       : __n == 0 ? __s1 : _VSTD::wmemmove(__s1, __s2, __n);
         }
-    static inline char_type* assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT
-        {return __n == 0 ? __s : (char_type*)wmemset(__s, __a, __n);}
-
+    static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type* copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
+        {
+            if (!__libcpp_is_constant_evaluated()) {
+                _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+            }
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__copy_constexpr(__s1, __s2, __n)
+                       : __n == 0 ? __s1 : _VSTD::wmemcpy(__s1, __s2, __n);
+        }
+    static inline _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type* assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT
+        {
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__assign_constexpr(__s, __n, __a)
+                       : __n == 0 ? __s : _VSTD::wmemset(__s, __a, __n);
+        }
     static inline _LIBCPP_CONSTEXPR int_type  not_eof(int_type __c) _NOEXCEPT
         {return eq_int_type(__c, eof()) ? ~eof() : __c;}
     static inline _LIBCPP_CONSTEXPR char_type to_char_type(int_type __c) _NOEXCEPT
@@ -338,7 +508,7 @@ char_traits<wchar_t>::compare(const char_type* __s1, const char_type* __s2, size
 #if __has_feature(cxx_constexpr_string_builtins)
     return __builtin_wmemcmp(__s1, __s2, __n);
 #elif _LIBCPP_STD_VER <= 14
-    return wmemcmp(__s1, __s2, __n);
+    return _VSTD::wmemcmp(__s1, __s2, __n);
 #else
     for (; __n; --__n, ++__s1, ++__s2)
     {
@@ -358,7 +528,7 @@ char_traits<wchar_t>::length(const char_type* __s) _NOEXCEPT
 #if __has_feature(cxx_constexpr_string_builtins)
     return __builtin_wcslen(__s);
 #elif _LIBCPP_STD_VER <= 14
-    return wcslen(__s);
+    return _VSTD::wcslen(__s);
 #else
     size_t __len = 0;
     for (; !eq(*__s, char_type(0)); ++__s)
@@ -376,7 +546,7 @@ char_traits<wchar_t>::find(const char_type* __s, size_t __n, const char_type& __
 #if __has_feature(cxx_constexpr_string_builtins)
     return __builtin_wmemchr(__s, __a, __n);
 #elif _LIBCPP_STD_VER <= 14
-    return wmemchr(__s, __a, __n);
+    return _VSTD::wmemchr(__s, __a, __n);
 #else
     for (; __n; --__n)
     {
@@ -387,9 +557,9 @@ char_traits<wchar_t>::find(const char_type* __s, size_t __n, const char_type& __
     return nullptr;
 #endif
 }
+#endif // _LIBCPP_HAS_NO_WIDE_CHARACTERS
 
-
-#ifndef _LIBCPP_NO_HAS_CHAR8_T
+#ifndef _LIBCPP_HAS_NO_CHAR8_T
 
 template <>
 struct _LIBCPP_TEMPLATE_VIS char_traits<char8_t>
@@ -412,21 +582,36 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char8_t>
 
     static constexpr
     size_t           length(const char_type* __s) _NOEXCEPT;
- 
+
     _LIBCPP_INLINE_VISIBILITY static constexpr
     const char_type* find(const char_type* __s, size_t __n, const char_type& __a) _NOEXCEPT;
- 
-    static char_type*       move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
-        {return __n == 0 ? __s1 : (char_type*) memmove(__s1, __s2, __n);}
- 
-    static char_type*       copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
-       {
-            _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
-            return __n == 0 ? __s1 : (char_type*)memcpy(__s1, __s2, __n);
-       }
- 
-    static char_type*       assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT
-        {return __n == 0 ? __s : (char_type*)memset(__s, to_int_type(__a), __n);}
+
+    static _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type*       move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
+        {
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__move_constexpr(__s1, __s2, __n)
+                       : __n == 0 ? __s1 : (char_type*)_VSTD::memmove(__s1, __s2, __n);
+        }
+
+    static _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type*       copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
+        {
+            if (!__libcpp_is_constant_evaluated()) {
+                _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+            }
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__copy_constexpr(__s1, __s2, __n)
+                       : __n == 0 ? __s1 : (char_type*)_VSTD::memcpy(__s1, __s2, __n);
+        }
+
+    static _LIBCPP_CONSTEXPR_AFTER_CXX17
+    char_type*       assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT
+        {
+            return __libcpp_is_constant_evaluated()
+                       ? _VSTD::__assign_constexpr(__s, __n, __a)
+                       : __n == 0 ? __s : (char_type*)_VSTD::memset(__s, to_int_type(__a), __n);
+        }
 
     static inline constexpr int_type  not_eof(int_type __c) noexcept
         {return eq_int_type(__c, eof()) ? ~eof() : __c;}
@@ -480,10 +665,10 @@ char_traits<char8_t>::find(const char_type* __s, size_t __n, const char_type& __
             return __s;
         ++__s;
     }
-    return 0;
+    return nullptr;
 }
 
-#endif // #_LIBCPP_NO_HAS_CHAR8_T
+#endif // _LIBCPP_HAS_NO_CHAR8_T
 
 #ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
 
@@ -509,11 +694,11 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char16_t>
     size_t           length(const char_type* __s) _NOEXCEPT;
     _LIBCPP_INLINE_VISIBILITY static _LIBCPP_CONSTEXPR_AFTER_CXX14
     const char_type* find(const char_type* __s, size_t __n, const char_type& __a) _NOEXCEPT;
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
     static char_type*       move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT;
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
     static char_type*       copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT;
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
     static char_type*       assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT;
 
     static inline _LIBCPP_CONSTEXPR int_type  not_eof(int_type __c) _NOEXCEPT
@@ -562,13 +747,14 @@ char_traits<char16_t>::find(const char_type* __s, size_t __n, const char_type& _
             return __s;
         ++__s;
     }
-    return 0;
+    return nullptr;
 }
 
-inline
+inline _LIBCPP_CONSTEXPR_AFTER_CXX17
 char16_t*
 char_traits<char16_t>::move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
 {
+    if (__n == 0) return __s1;
     char_type* __r = __s1;
     if (__s1 < __s2)
     {
@@ -585,18 +771,20 @@ char_traits<char16_t>::move(char_type* __s1, const char_type* __s2, size_t __n) 
     return __r;
 }
 
-inline
+inline _LIBCPP_CONSTEXPR_AFTER_CXX17
 char16_t*
 char_traits<char16_t>::copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
 {
-    _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+    if (!__libcpp_is_constant_evaluated()) {
+        _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+    }
     char_type* __r = __s1;
     for (; __n; --__n, ++__s1, ++__s2)
         assign(*__s1, *__s2);
     return __r;
 }
 
-inline
+inline _LIBCPP_CONSTEXPR_AFTER_CXX17
 char16_t*
 char_traits<char16_t>::assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT
 {
@@ -628,11 +816,11 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char32_t>
     size_t           length(const char_type* __s) _NOEXCEPT;
     _LIBCPP_INLINE_VISIBILITY static _LIBCPP_CONSTEXPR_AFTER_CXX14
     const char_type* find(const char_type* __s, size_t __n, const char_type& __a) _NOEXCEPT;
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
     static char_type*       move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT;
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
     static char_type*       copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT;
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
     static char_type*       assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT;
 
     static inline _LIBCPP_CONSTEXPR int_type  not_eof(int_type __c) _NOEXCEPT
@@ -681,13 +869,14 @@ char_traits<char32_t>::find(const char_type* __s, size_t __n, const char_type& _
             return __s;
         ++__s;
     }
-    return 0;
+    return nullptr;
 }
 
-inline
+inline _LIBCPP_CONSTEXPR_AFTER_CXX17
 char32_t*
 char_traits<char32_t>::move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
 {
+    if (__n == 0) return __s1;
     char_type* __r = __s1;
     if (__s1 < __s2)
     {
@@ -704,18 +893,20 @@ char_traits<char32_t>::move(char_type* __s1, const char_type* __s2, size_t __n) 
     return __r;
 }
 
-inline
+inline _LIBCPP_CONSTEXPR_AFTER_CXX17
 char32_t*
 char_traits<char32_t>::copy(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT
 {
-    _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+    if (!__libcpp_is_constant_evaluated()) {
+        _LIBCPP_ASSERT(__s2 < __s1 || __s2 >= __s1+__n, "char_traits::copy overlapped range");
+    }
     char_type* __r = __s1;
     for (; __n; --__n, ++__s1, ++__s2)
         assign(*__s1, *__s2);
     return __r;
 }
 
-inline
+inline _LIBCPP_CONSTEXPR_AFTER_CXX17
 char32_t*
 char_traits<char32_t>::assign(char_type* __s, size_t __n, char_type __a) _NOEXCEPT
 {
@@ -725,20 +916,20 @@ char_traits<char32_t>::assign(char_type* __s, size_t __n, char_type __a) _NOEXCE
     return __r;
 }
 
-#endif  // _LIBCPP_HAS_NO_UNICODE_CHARS
+#endif // _LIBCPP_HAS_NO_UNICODE_CHARS
 
 // helper fns for basic_string and string_view
 
 // __str_find
 template<class _CharT, class _SizeT, class _Traits, _SizeT __npos>
 inline _SizeT _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
-__str_find(const _CharT *__p, _SizeT __sz, 
+__str_find(const _CharT *__p, _SizeT __sz,
              _CharT __c, _SizeT __pos) _NOEXCEPT
 {
     if (__pos >= __sz)
         return __npos;
     const _CharT* __r = _Traits::find(__p + __pos, __sz - __pos, __c);
-    if (__r == 0)
+    if (__r == nullptr)
         return __npos;
     return static_cast<_SizeT>(__r - __p);
 }
@@ -746,7 +937,7 @@ __str_find(const _CharT *__p, _SizeT __sz,
 template <class _CharT, class _Traits>
 inline _LIBCPP_CONSTEXPR_AFTER_CXX11 const _CharT *
 __search_substring(const _CharT *__first1, const _CharT *__last1,
-                   const _CharT *__first2, const _CharT *__last2) {
+                   const _CharT *__first2, const _CharT *__last2) _NOEXCEPT {
   // Take advantage of knowing source and pattern lengths.
   // Stop short when source is smaller than pattern.
   const ptrdiff_t __len2 = __last2 - __first2;
@@ -767,7 +958,7 @@ __search_substring(const _CharT *__first1, const _CharT *__last1,
 
     // Find __f2 the first byte matching in __first1.
     __first1 = _Traits::find(__first1, __len1 - __len2 + 1, __f2);
-    if (__first1 == 0)
+    if (__first1 == nullptr)
       return __last1;
 
     // It is faster to compare from the first byte of __first1 even if we
@@ -784,7 +975,7 @@ __search_substring(const _CharT *__first1, const _CharT *__last1,
 
 template<class _CharT, class _SizeT, class _Traits, _SizeT __npos>
 inline _SizeT _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
-__str_find(const _CharT *__p, _SizeT __sz, 
+__str_find(const _CharT *__p, _SizeT __sz,
        const _CharT* __s, _SizeT __pos, _SizeT __n) _NOEXCEPT
 {
     if (__pos > __sz)
@@ -806,7 +997,7 @@ __str_find(const _CharT *__p, _SizeT __sz,
 
 template<class _CharT, class _SizeT, class _Traits, _SizeT __npos>
 inline _SizeT _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
-__str_rfind(const _CharT *__p, _SizeT __sz, 
+__str_rfind(const _CharT *__p, _SizeT __sz,
               _CharT __c, _SizeT __pos) _NOEXCEPT
 {
     if (__sz < 1)
@@ -825,7 +1016,7 @@ __str_rfind(const _CharT *__p, _SizeT __sz,
 
 template<class _CharT, class _SizeT, class _Traits, _SizeT __npos>
 inline _SizeT _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
-__str_rfind(const _CharT *__p, _SizeT __sz, 
+__str_rfind(const _CharT *__p, _SizeT __sz,
         const _CharT* __s, _SizeT __pos, _SizeT __n) _NOEXCEPT
 {
     __pos = _VSTD::min(__pos, __sz);
@@ -834,7 +1025,7 @@ __str_rfind(const _CharT *__p, _SizeT __sz,
     else
         __pos = __sz;
     const _CharT* __r = _VSTD::__find_end(
-                  __p, __p + __pos, __s, __s + __n, _Traits::eq, 
+                  __p, __p + __pos, __s, __s + __n, _Traits::eq,
                         random_access_iterator_tag(), random_access_iterator_tag());
     if (__n > 0 && __r == __p + __pos)
         return __npos;
@@ -890,7 +1081,7 @@ __str_find_first_not_of(const _CharT *__p, _SizeT __sz,
     {
         const _CharT* __pe = __p + __sz;
         for (const _CharT* __ps = __p + __pos; __ps != __pe; ++__ps)
-            if (_Traits::find(__s, __n, *__ps) == 0)
+            if (_Traits::find(__s, __n, *__ps) == nullptr)
                 return static_cast<_SizeT>(__ps - __p);
     }
     return __npos;
@@ -924,7 +1115,7 @@ __str_find_last_not_of(const _CharT *__p, _SizeT __sz,
     else
         __pos = __sz;
     for (const _CharT* __ps = __p + __pos; __ps != __p;)
-        if (_Traits::find(__s, __n, *--__ps) == 0)
+        if (_Traits::find(__s, __n, *--__ps) == nullptr)
             return static_cast<_SizeT>(__ps - __p);
     return __npos;
 }
@@ -953,21 +1144,8 @@ size_t __do_string_hash(_Ptr __p, _Ptr __e)
     return __murmur2_or_cityhash<size_t>()(__p, (__e-__p)*sizeof(value_type));
 }
 
-template <class _CharT, class _Iter, class _Traits=char_traits<_CharT> >
-struct __quoted_output_proxy
-{
-    _Iter  __first;
-    _Iter  __last;
-    _CharT  __delim;
-    _CharT  __escape;
-
-    __quoted_output_proxy(_Iter __f, _Iter __l, _CharT __d, _CharT __e)
-    : __first(__f), __last(__l), __delim(__d), __escape(__e) {}
-    //  This would be a nice place for a string_ref 
-};
-
 _LIBCPP_END_NAMESPACE_STD
 
 _LIBCPP_POP_MACROS
 
-#endif  // _LIBCPP___STRING
+#endif // _LIBCPP___STRING

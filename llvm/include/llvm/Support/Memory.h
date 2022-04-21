@@ -14,7 +14,6 @@
 #define LLVM_SUPPORT_MEMORY_H
 
 #include "llvm/Support/DataTypes.h"
-#include <string>
 #include <system_error>
 
 namespace llvm {
@@ -38,7 +37,7 @@ namespace sys {
     /// The size as it was allocated. This is always greater or equal to the
     /// size that was originally requested.
     size_t allocatedSize() const { return AllocatedSize; }
-  
+
   private:
     void *Address;    ///< Address of first byte of memory area
     size_t AllocatedSize; ///< Size, in bytes of the memory area
@@ -57,6 +56,17 @@ namespace sys {
       MF_WRITE = 0x2000000,
       MF_EXEC = 0x4000000,
       MF_RWE_MASK = 0x7000000,
+
+      /// The \p MF_HUGE_HINT flag is used to indicate that the request for
+      /// a memory block should be satisfied with large pages if possible.
+      /// This is only a hint and small pages will be used as fallback.
+      ///
+      /// The presence or absence of this flag in the returned memory block
+      /// is (at least currently) *not* a reliable indicator that the memory
+      /// block will use or will not use large pages. On some systems a request
+      /// without this flag can be backed by large pages without this flag being
+      /// set, and on some other systems a request with this flag can fallback
+      /// to small pages without this flag being cleared.
       MF_HUGE_HINT = 0x0000001
     };
 
@@ -105,7 +115,6 @@ namespace sys {
     /// memory was not allocated using the allocateMappedMemory method.
     /// \p Block describes the memory block to be protected.
     /// \p Flags specifies the new protection state to be assigned to the block.
-    /// \p ErrMsg [out] returns a string describing any error that occurred.
     ///
     /// If \p Flags is MF_WRITE, the actual behavior varies
     /// with the operating system (i.e. MF_READ | MF_WRITE on Windows) and the
@@ -139,13 +148,22 @@ namespace sys {
       return *this;
     }
     ~OwningMemoryBlock() {
-      Memory::releaseMappedMemory(M);
+      if (M.base())
+        Memory::releaseMappedMemory(M);
     }
     void *base() const { return M.base(); }
     /// The size as it was allocated. This is always greater or equal to the
     /// size that was originally requested.
     size_t allocatedSize() const { return M.allocatedSize(); }
     MemoryBlock getMemoryBlock() const { return M; }
+    std::error_code release() {
+      std::error_code EC;
+      if (M.base()) {
+        EC = Memory::releaseMappedMemory(M);
+        M = MemoryBlock();
+      }
+      return EC;
+    }
   private:
     MemoryBlock M;
   };

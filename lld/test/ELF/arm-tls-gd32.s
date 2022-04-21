@@ -1,13 +1,13 @@
 // REQUIRES: arm
 // RUN: llvm-mc %s -o %t.o -filetype=obj -triple=armv7a-linux-gnueabi
-// RUN: ld.lld --hash-style=sysv %t.o -o %t.so -shared
+// RUN: ld.lld %t.o -o %t.so -shared
 // RUN: llvm-readobj -S --dyn-relocations %t.so | FileCheck --check-prefix=SEC %s
-// RUN: llvm-objdump -d -triple=armv7a-linux-gnueabi %t.so | FileCheck %s
+// RUN: llvm-objdump -d --triple=armv7a-linux-gnueabi %t.so | FileCheck %s
 
-// Test the handling of the global-dynamic TLS model. Dynamic Loader finds
-// module index R_ARM_TLS_DTPMOD32 and the offset within the module
-// R_ARM_TLS_DTPOFF32. One of the variables is hidden which permits relaxation
-// to local dynamic
+/// Test the handling of the global-dynamic TLS model. Dynamic Loader finds
+/// module index R_ARM_TLS_DTPMOD32 and the offset within the module
+/// R_ARM_TLS_DTPOFF32. One of the variables is hidden which permits relaxation
+/// to local dynamic
 
  .text
  .syntax unified
@@ -23,17 +23,17 @@ func:
  nop
 
  .p2align        2
-// Generate R_ARM_TLS_GD32 relocations
-// Allocates a pair of GOT entries dynamically relocated by R_ARM_TLS_DTPMOD32
-// and R_ARM_TLS_DTPOFF32 respectively. The literal contains the offset of the
-// first GOT entry from the place
+/// Generate R_ARM_TLS_GD32 relocations
+/// Allocates a pair of GOT entries dynamically relocated by R_ARM_TLS_DTPMOD32
+/// and R_ARM_TLS_DTPOFF32 respectively. The literal contains the offset of the
+/// first GOT entry from the place
 .Lt0: .word   x(TLSGD) + (. - .L0 - 8)
 .Lt1: .word   y(TLSGD) + (. - .L1 - 8)
 .Lt2: .word   z(TLSGD) + (. - .L2 - 8)
 
-// __thread int x = 10
-// __thread int y;
-// __thread int z __attribute((visibility("hidden")))
+/// __thread int x = 10
+/// __thread int y;
+/// __thread int z __attribute((visibility("hidden")))
 
  .hidden z
  .globl  z
@@ -62,7 +62,7 @@ x:
 // SEC-NEXT:   SHF_TLS
 // SEC-NEXT:   SHF_WRITE
 // SEC-NEXT:  ]
-// SEC-NEXT: Address: 0x2000
+// SEC-NEXT: Address: 0x20210
 // SEC:      Size: 4
 // SEC:      Name: .tbss
 // SEC-NEXT: Type: SHT_NOBITS
@@ -71,7 +71,7 @@ x:
 // SEC-NEXT:   SHF_TLS
 // SEC-NEXT:   SHF_WRITE
 // SEC-NEXT: ]
-// SEC-NEXT: Address: 0x2004
+// SEC-NEXT: Address: 0x20214
 // SEC:      Size: 8
 
 // SEC:      Name: .got
@@ -80,26 +80,26 @@ x:
 // SEC-NEXT:   SHF_ALLOC
 // SEC-NEXT:   SHF_WRITE
 // SEC-NEXT: ]
-// SEC-NEXT: Address: 0x204C
+// SEC-NEXT: Address: 0x20264
 // SEC:      Size: 24
 
 // SEC: Dynamic Relocations {
-// SEC-NEXT: 0x205C R_ARM_TLS_DTPMOD32 -
-// SEC-NEXT: 0x204C R_ARM_TLS_DTPMOD32 x
-// SEC-NEXT: 0x2050 R_ARM_TLS_DTPOFF32 x
-// SEC-NEXT: 0x2054 R_ARM_TLS_DTPMOD32 y
-// SEC-NEXT: 0x2058 R_ARM_TLS_DTPOFF32 y
+// SEC-NEXT: 0x20274 R_ARM_TLS_DTPMOD32 -
+// SEC-NEXT: 0x20264 R_ARM_TLS_DTPMOD32 x
+// SEC-NEXT: 0x20268 R_ARM_TLS_DTPOFF32 x
+// SEC-NEXT: 0x2026C R_ARM_TLS_DTPMOD32 y
+// SEC-NEXT: 0x20270 R_ARM_TLS_DTPOFF32 y
 
 
-// CHECK-LABEL: 0000000000001000 func:
-// CHECK-NEXT:    1000:      00 f0 20 e3     nop
-// CHECK-NEXT:    1004:      00 f0 20 e3     nop
-// CHECK-NEXT:    1008:      00 f0 20 e3     nop
+// CHECK-LABEL: 000101f8 <func>:
+// CHECK-NEXT:    101f8:      00 f0 20 e3     nop
+// CHECK-NEXT:    101fc:      00 f0 20 e3     nop
+// CHECK-NEXT:    10200:      00 f0 20 e3     nop
 
-// (0x204c - 0x100c) + (0x100c - 0x1000 - 8) = 0x1044
-// CHECK:    100c:	44 10 00 00
-// (0x2054 - 0x1010) + (0x1010 - 0x1004 - 8) = 0x1048
-// CHECK-NEXT:    1010:	48 10 00 00
-// (0x205c - 0x1014) + (0x1014 - 0x1008 - 8) = 0x104c
-// CHECK-NEXT:    1014:	4c 10 00 00
+/// (0x20264 - 0x1204) + (0x10204 - 0x101f8 - 8) = 0x1f064
+// CHECK:         10204: 64 00 01 00
+/// (0x2026c - 0x10204) + (0x10204 - 0x101fc - 8) = 0x10068
+// CHECK-NEXT:    10208: 68 00 01 00
+/// (0x20274 - 0x10204) + (0x10204 - 0x10200 - 8) = 0x1006c
+// CHECK-NEXT:    1020c: 6c 00 01 00
 

@@ -1,10 +1,13 @@
 include(CMakeDependentOption)
+include(GNUInstallDirs)
+
+option(CLANG_TIDY_ENABLE_STATIC_ANALYZER
+  "Include static analyzer checks in clang-tidy" ON)
 
 add_subdirectory(clang-apply-replacements)
 add_subdirectory(clang-reorder-fields)
 add_subdirectory(modularize)
 add_subdirectory(clang-tidy)
-add_subdirectory(clang-tidy-vs)
 
 add_subdirectory(clang-change-namespace)
 add_subdirectory(clang-doc)
@@ -12,6 +15,7 @@ add_subdirectory(clang-include-fixer)
 add_subdirectory(clang-move)
 add_subdirectory(clang-query)
 add_subdirectory(pp-trace)
+add_subdirectory(pseudo)
 add_subdirectory(tool-template)
 
 # Add the common testsuite after all the tools.

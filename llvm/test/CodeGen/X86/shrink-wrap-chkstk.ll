@@ -1,5 +1,8 @@
 ; RUN: llc < %s -enable-shrink-wrap=true | FileCheck %s
 
+; TODO: add preallocated versions of tests
+; we don't yet support conditionally called preallocated calls after the setup
+
 ; chkstk cannot come before the usual prologue, since it adjusts ESP.
 ; If chkstk is used in the prologue, we also have to be careful about preserving
 ; EAX if it is used.
@@ -22,7 +25,7 @@ bb1:
   br label %bb2
 
 bb2:
-  call void @inalloca_params(<{ %struct.S }>* inalloca nonnull %argmem)
+  call void @inalloca_params(<{ %struct.S }>* inalloca(<{ %struct.S }>) nonnull %argmem)
   ret void
 }
 
@@ -36,7 +39,7 @@ bb2:
 ; CHECK: popl %ebp
 ; CHECK: retl
 
-declare void @inalloca_params(<{ %struct.S }>* inalloca)
+declare void @inalloca_params(<{ %struct.S }>* inalloca(<{ %struct.S }>))
 
 declare i32 @doSomething(i32, i32*)
 

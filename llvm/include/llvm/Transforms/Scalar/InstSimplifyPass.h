@@ -11,14 +11,12 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_UTILS_INSTSIMPLIFYPASS_H
-#define LLVM_TRANSFORMS_UTILS_INSTSIMPLIFYPASS_H
+#ifndef LLVM_TRANSFORMS_SCALAR_INSTSIMPLIFYPASS_H
+#define LLVM_TRANSFORMS_SCALAR_INSTSIMPLIFYPASS_H
 
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
-
-class FunctionPass;
 
 /// Run instruction simplification across each instruction in the function.
 ///
@@ -36,10 +34,6 @@ public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
-/// Create a legacy pass that does instruction simplification on each
-/// instruction in a function.
-FunctionPass *createInstSimplifyLegacyPass();
-
 } // end namespace llvm
 
-#endif // LLVM_TRANSFORMS_UTILS_INSTSIMPLIFYPASS_H
+#endif // LLVM_TRANSFORMS_SCALAR_INSTSIMPLIFYPASS_H

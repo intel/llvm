@@ -9,10 +9,7 @@ config("googletest_config") {
 
   # LLVM requires C++11 but gtest doesn't correctly detect the availability
   # of C++11 on MSVC, so we force it on.
-  defines = [
-    "GTEST_LANG_CXX11",
-    "GTEST_HAS_TR1_TUPLE=0",
-  ]
+  defines = [ "GTEST_LANG_CXX11" ]
   if (host_os == "win") {
     defines += [ "GTEST_OS_WINDOWS" ]
   }
@@ -23,15 +20,14 @@ config("googletest_config") {
 }
 
 static_library("gtest") {
-  deps = [
-    "//llvm/lib/Support",
-  ]
+  deps = [ "//llvm/lib/Support" ]
   include_dirs = [
     "googletest",  # For including src/gtest.cc
     "googlemock",  # For including src/gmock.cc
   ]
   public_configs = [ ":googletest_config" ]
   configs -= [ "//llvm/utils/gn/build:warn_covered_switch_default" ]
+  configs -= [ "//llvm/utils/gn/build:no_rtti" ]
   sources = [
     "googlemock/src/gmock-all.cc",
     "googletest/src/gtest-all.cc",

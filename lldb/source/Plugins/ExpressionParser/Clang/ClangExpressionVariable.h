@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ClangExpressionVariable_h_
-#define liblldb_ClangExpressionVariable_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGEXPRESSIONVARIABLE_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGEXPRESSIONVARIABLE_H
 
-#include <signal.h>
-#include <stdint.h>
-#include <string.h>
+#include <csignal>
+#include <cstdint>
+#include <cstring>
 
 #include <map>
 #include <string>
@@ -19,7 +19,6 @@
 
 #include "llvm/Support/Casting.h"
 
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/TaggedASTType.h"
@@ -28,6 +27,10 @@
 
 namespace llvm {
 class Value;
+}
+
+namespace clang {
+class NamedDecl;
 }
 
 namespace lldb_private {
@@ -74,9 +77,6 @@ public:
 
   /// Finds a variable by NamedDecl in the list.
   ///
-  /// \param[in] name
-  ///     The name of the requested variable.
-  ///
   /// \return
   ///     The variable requested, or NULL if that variable is not in the list.
   static ClangExpressionVariable *
@@ -116,21 +116,19 @@ public:
   /// The following values should not live beyond parsing
   class ParserVars {
   public:
-    ParserVars()
-        : m_parser_type(), m_named_decl(NULL), m_llvm_value(NULL),
-          m_lldb_value(), m_lldb_var(), m_lldb_sym(NULL) {}
+    ParserVars() : m_lldb_value(), m_lldb_var() {}
 
-    TypeFromParser
-        m_parser_type; ///< The type of the variable according to the parser
-    const clang::NamedDecl
-        *m_named_decl;         ///< The Decl corresponding to this variable
-    llvm::Value *m_llvm_value; ///< The IR value corresponding to this variable;
-                               ///usually a GlobalValue
+    const clang::NamedDecl *m_named_decl =
+        nullptr; ///< The Decl corresponding to this variable
+    llvm::Value *m_llvm_value =
+        nullptr; ///< The IR value corresponding to this variable;
+                 /// usually a GlobalValue
     lldb_private::Value
         m_lldb_value;            ///< The value found in LLDB for this variable
     lldb::VariableSP m_lldb_var; ///< The original variable for this variable
-    const lldb_private::Symbol *m_lldb_sym; ///< The original symbol for this
-                                            ///variable, if it was a symbol
+    const lldb_private::Symbol *m_lldb_sym =
+        nullptr; ///< The original symbol for this
+                 /// variable, if it was a symbol
   };
 
 private:
@@ -152,20 +150,20 @@ public:
     ParserVarMap::iterator i = m_parser_vars.find(parser_id);
 
     if (i == m_parser_vars.end())
-      return NULL;
+      return nullptr;
     else
       return &i->second;
   }
 
   /// The following values are valid if the variable is used by JIT code
   struct JITVars {
-    JITVars() : m_alignment(0), m_size(0), m_offset(0) {}
+    JITVars() = default;
 
-    lldb::offset_t
-        m_alignment; ///< The required alignment of the variable, in bytes
-    size_t m_size;   ///< The space required for the variable, in bytes
-    lldb::offset_t
-        m_offset; ///< The offset of the variable in the struct, in bytes
+    lldb::offset_t m_alignment =
+        0;             ///< The required alignment of the variable, in bytes
+    size_t m_size = 0; ///< The space required for the variable, in bytes
+    lldb::offset_t m_offset =
+        0; ///< The offset of the variable in the struct, in bytes
   };
 
 private:
@@ -186,7 +184,7 @@ public:
     JITVarMap::iterator i = m_jit_vars.find(parser_id);
 
     if (i == m_jit_vars.end())
-      return NULL;
+      return nullptr;
     else
       return &i->second;
   }
@@ -199,9 +197,11 @@ public:
   }
 
   /// Members
-  DISALLOW_COPY_AND_ASSIGN(ClangExpressionVariable);
+  ClangExpressionVariable(const ClangExpressionVariable &) = delete;
+  const ClangExpressionVariable &
+  operator=(const ClangExpressionVariable &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ClangExpressionVariable_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGEXPRESSIONVARIABLE_H

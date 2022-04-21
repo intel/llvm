@@ -7,7 +7,7 @@
 # RUN: yaml2obj %s -o %t
 # RUN: llvm-objcopy -R .text2 %t %t2
 # RUN: llvm-readobj --file-headers --program-headers --sections %t2 | FileCheck %s
-# RUN: od -t x1 -j 8192 %t2 | FileCheck %s --check-prefix=DATA
+# RUN: od -t x1 -j 8192 -N 4 %t2 | FileCheck %s --check-prefix=DATA
 
 !ELF
 FileHeader:
@@ -36,17 +36,18 @@ Sections:
     AddressAlign:    0x1000
     Size:            4096
 ProgramHeaders:
-  - Type: PT_LOAD
-    Flags: [ PF_X, PF_R ]
-    Sections:
-      - Section: .text
-      - Section: .text2
-      - Section: .text3
+  - Type:     PT_LOAD
+    Flags:    [ PF_X, PF_R ]
+    FirstSec: .text
+    LastSec:  .text3
+## TODO (grimar): without the following line (i.e. without an empty symbol table),
+## llvm-objcopy adds an empty .strtab section. It doesn't look correct.
+Symbols: []
 
 # Make sure that when we remove a section we overwrite it with zeros
-# DATA: 0020000 00 00 00 00
+# DATA: {{^[^[:blank:]]+}} 00 00 00 00
 
-#CHECK: SectionHeaderCount: 6
+#CHECK: SectionHeaderCount: 4
 
 # CHECK: Sections [
 # CHECK:   Section {
@@ -97,34 +98,6 @@ ProgramHeaders:
 # CHECK-NEXT:   }
 # CHECK-NEXT:   Section {
 # CHECK-NEXT:     Index: 3
-# CHECK-NEXT:     Name: .symtab
-# CHECK-NEXT:     Type: SHT_SYMTAB (0x2)
-# CHECK-NEXT:     Flags [ (0x0)
-# CHECK-NEXT:     ]
-# CHECK-NEXT:     Address: 0x0
-# CHECK-NEXT:     Offset:
-# CHECK-NEXT:     Size:
-# CHECK-NEXT:     Link: 4
-# CHECK-NEXT:     Info: 1
-# CHECK-NEXT:     AddressAlignment: 8
-# CHECK-NEXT:     EntrySize: 24
-# CHECK-NEXT:   }
-# CHECK-NEXT:   Section {
-# CHECK-NEXT:     Index: 4
-# CHECK-NEXT:     Name: .strtab
-# CHECK-NEXT:     Type: SHT_STRTAB (0x3)
-# CHECK-NEXT:     Flags [ (0x0)
-# CHECK-NEXT:     ]
-# CHECK-NEXT:     Address: 0x0
-# CHECK-NEXT:     Offset:
-# CHECK-NEXT:     Size:
-# CHECK-NEXT:     Link: 0
-# CHECK-NEXT:     Info: 0
-# CHECK-NEXT:     AddressAlignment: 1
-# CHECK-NEXT:     EntrySize: 0
-# CHECK-NEXT:   }
-# CHECK-NEXT:   Section {
-# CHECK-NEXT:     Index: 5
 # CHECK-NEXT:     Name: .shstrtab
 # CHECK-NEXT:     Type: SHT_STRTAB (0x3)
 # CHECK-NEXT:     Flags [ (0x0)

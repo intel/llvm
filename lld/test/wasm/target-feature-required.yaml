@@ -41,7 +41,7 @@ Sections:
 ...
 
 # SPECIFIED:        - Type:            CUSTOM
-# SPECIFIED-NEXT:     Name:            target_features
+# SPECIFIED:          Name:            target_features
 # SPECIFIED-NEXT:     Features:
 # SPECIFIED-NEXT:       - Prefix:          USED
 # SPECIFIED-NEXT:         Name:            bar
@@ -51,10 +51,10 @@ Sections:
 # SPECIFIED-NEXT:         Name:            foo
 # SPECIFIED-NEXT: ...
 
-# UNSPECIFIED: Target feature 'foo' is not allowed.{{$}}
+# UNSPECIFIED: Target feature 'foo' used by {{.*}}target-feature-required.yaml.tmp1.o is not allowed.{{$}}
 
 # UNSPECIFIED-NOCHECK:        - Type:            CUSTOM
-# UNSPECIFIED-NOCHECK-NEXT:     Name:            target_features
+# UNSPECIFIED-NOCHECK:          Name:            target_features
 # UNSPECIFIED-NOCHECK-NEXT:     Features:
 # UNSPECIFIED-NOCHECK-NEXT:       - Prefix:          USED
 # UNSPECIFIED-NOCHECK-NEXT:         Name:            bar
@@ -65,25 +65,25 @@ Sections:
 # UNSPECIFIED-NOCHECK-NEXT: ...
 
 # REQUIRED:        - Type:            CUSTOM
-# REQUIRED-NEXT:     Name:            target_features
+# REQUIRED:          Name:            target_features
 # REQUIRED-NEXT:     Features:
 # REQUIRED-NEXT:       - Prefix:          USED
 # REQUIRED-NEXT:         Name:            foo
 # REQUIRED-NEXT: ...
 
-# DISALLOWED: Target feature 'foo' is disallowed. Use --no-check-features to suppress.{{$}}
+# DISALLOWED: Target feature 'foo' used in {{.*}}target-feature-required.yaml.tmp1.o is disallowed by {{.*}}target-feature-required.yaml.tmp.disallowed.o. Use --no-check-features to suppress.{{$}}
 
 # DISALLOWED-NOCHECK:        - Type:            CUSTOM
-# DISALLOWED-NOCHECK-NEXT:     Name:            target_features
+# DISALLOWED-NOCHECK:          Name:            target_features
 # DISALLOWED-NOCHECK-NEXT:     Features:
 # DISALLOWED-NOCHECK-NEXT:       - Prefix:          USED
 # DISALLOWED-NOCHECK-NEXT:         Name:            foo
 # DISALLOWED-NOCHECK-NEXT: ...
 
-# NONE: Missing required target feature 'foo'. Use --no-check-features to suppress.{{$}}
+# NONE: Missing target feature 'foo' in {{.*}}target-feature-required.yaml.tmp.none.o, required by {{.*}}target-feature-required.yaml.tmp1.o. Use --no-check-features to suppress.{{$}}
 
 # NONE-NOCHECK:        - Type:            CUSTOM
-# NONE-NOCHECK-NEXT:     Name:            target_features
+# NONE-NOCHECK:          Name:            target_features
 # NONE-NOCHECK-NEXT:     Features:
 # NONE-NOCHECK-NEXT:       - Prefix:          USED
 # NONE-NOCHECK-NEXT:         Name:            foo

@@ -21,7 +21,28 @@
 namespace llvm {
   class raw_ostream;
 
+  /// Enables dumping a "pretty" stack trace when the program crashes.
+  ///
+  /// \see PrettyStackTraceEntry
   void EnablePrettyStackTrace();
+
+  /// Enables (or disables) dumping a "pretty" stack trace when the user sends
+  /// SIGINFO or SIGUSR1 to the current process.
+  ///
+  /// This is a per-thread decision so that a program can choose to print stack
+  /// traces only on a primary thread, or on all threads that use
+  /// PrettyStackTraceEntry.
+  ///
+  /// \see EnablePrettyStackTrace
+  /// \see PrettyStackTraceEntry
+  void EnablePrettyStackTraceOnSigInfoForThisThread(bool ShouldEnable = true);
+
+  /// Replaces the generic bug report message that is output upon
+  /// a crash.
+  void setBugReportMsg(const char *Msg);
+
+  /// Get the bug report message that will be output upon a crash.
+  const char *getBugReportMsg();
 
   /// PrettyStackTraceEntry - This class is used to represent a frame of the
   /// "pretty" stack trace that is dumped when a program crashes. You can define

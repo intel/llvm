@@ -9,9 +9,9 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOL_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOL_H
 
-#include "SymbolID.h"
-#include "SymbolLocation.h"
-#include "SymbolOrigin.h"
+#include "index/SymbolID.h"
+#include "index/SymbolLocation.h"
+#include "index/SymbolOrigin.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/StringSaver.h"
@@ -103,7 +103,7 @@ struct Symbol {
     /// this header. This number is only meaningful if aggregated in an index.
     unsigned References = 0;
   };
-  /// One Symbol can potentially be incuded via different headers.
+  /// One Symbol can potentially be included via different headers.
   ///   - If we haven't seen a definition, this covers all declarations.
   ///   - If we have seen a definition, this covers declarations visible from
   ///   any definition.
@@ -115,7 +115,7 @@ struct Symbol {
     /// Whether or not this symbol is meant to be used for the code completion.
     /// See also isIndexedForCodeCompletion().
     /// Note that we don't store completion information (signature, snippet,
-    /// type, inclues) if the symbol is not indexed for code completion.
+    /// type, includes) if the symbol is not indexed for code completion.
     IndexedForCodeCompletion = 1 << 0,
     /// Indicates if the symbol is deprecated.
     Deprecated = 1 << 1,
@@ -186,7 +186,8 @@ public:
   const_iterator end() const { return Symbols.end(); }
   const_iterator find(const SymbolID &SymID) const;
 
-  size_t size() const { return Symbols.size(); }
+  using size_type = size_t;
+  size_type size() const { return Symbols.size(); }
   bool empty() const { return Symbols.empty(); }
   // Estimates the total memory usage.
   size_t bytes() const {
@@ -231,6 +232,8 @@ private:
   llvm::BumpPtrAllocator Arena; // Owns Symbol data that the Symbols do not.
   std::vector<Symbol> Symbols;  // Sorted by SymbolID to allow lookup.
 };
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const SymbolSlab &Slab);
 
 } // namespace clangd
 } // namespace clang

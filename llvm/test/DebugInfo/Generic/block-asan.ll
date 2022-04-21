@@ -1,4 +1,5 @@
-; RUN: opt -S -asan %s | FileCheck %s
+; RUN: opt -S -asan -enable-new-pm=0 %s | FileCheck %s
+; RUN: opt -S -passes=asan-pipeline %s | FileCheck %s
 
 ; The IR of this testcase is generated from the following C code:
 ; void bar (int);
@@ -49,9 +50,9 @@ declare void @bar(i32) #2
 
 declare void @_Block_object_dispose(i8*, i32)
 
-attributes #0 = { nounwind ssp uwtable sanitize_address "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind ssp uwtable sanitize_address "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #3 = { nounwind }
 
 !llvm.dbg.cu = !{!0}
@@ -70,7 +71,7 @@ attributes #3 = { nounwind }
 !10 = !{i32 1, !"PIC Level", i32 2}
 !11 = !{!"clang version 3.6.0 (trunk 223120) (llvm/trunk 223119)"}
 !12 = !DILocalVariable(name: "x", line: 4, scope: !4, file: !5, type: !13)
-!13 = !DICompositeType(tag: DW_TAG_structure_type, size: 224, flags: DIFlagBlockByrefStruct, file: !1, scope: !5, elements: !14)
+!13 = !DICompositeType(tag: DW_TAG_structure_type, size: 224, file: !1, scope: !5, elements: !14)
 !14 = !{!15, !17, !18, !20, !21}
 !15 = !DIDerivedType(tag: DW_TAG_member, name: "__isa", size: 64, align: 64, file: !1, scope: !5, baseType: !16)
 !16 = !DIDerivedType(tag: DW_TAG_pointer_type, size: 64, align: 64, baseType: null)

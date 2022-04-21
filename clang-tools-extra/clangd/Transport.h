@@ -18,6 +18,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_TRANSPORT_H_
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_TRANSPORT_H_
 
+#include "Feature.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
@@ -55,7 +56,7 @@ public:
   };
   // Called by Clangd to receive messages from the client.
   // The transport should in turn invoke the handler to process messages.
-  // If handler returns false, the transport should immedately exit the loop.
+  // If handler returns false, the transport should immediately exit the loop.
   // (This is used to implement the `exit` notification).
   // Otherwise, it returns an error when the transport becomes unusable.
   virtual llvm::Error loop(MessageHandler &) = 0;

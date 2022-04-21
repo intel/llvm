@@ -1,4 +1,4 @@
-; RUN: opt -deadargelim -S < %s | FileCheck %s
+; RUN: opt -passes=deadargelim -S < %s | FileCheck %s
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 %struct.Channel = type { i32, i32 }
@@ -63,6 +63,7 @@ if.end3:                                          ; preds = %if.end
 
 cleanup:                                          ; preds = %if.end3, %if.then2, %if.then
   %retval.0 = phi i1 [ false, %if.then2 ], [ true, %if.end3 ], [ false, %if.then ]
+; CHECK: ret void, !dbg
   ret i1 %retval.0, !dbg !56
 }
 

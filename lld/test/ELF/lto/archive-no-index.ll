@@ -1,6 +1,5 @@
 ; REQUIRES: x86
-; Tests that we accept an archive file without symbol table
-; if all the member files are bitcode files.
+; Tests that we accept an archive file without symbol table.
 
 ; RUN: llvm-as -o %t1.o %s
 ; RUN: llvm-as -o %t2.o %S/Inputs/archive.ll
@@ -12,7 +11,7 @@
 ; RUN: ld.lld -o %t -emain %t1.o %t1.a
 ; RUN: ld.lld -o %t -emain %t1.o %t2.a
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 declare void @f()
@@ -25,8 +24,7 @@ define i32 @main() {
 ; RUN: echo 'f:' | llvm-mc -triple=x86_64-pc-linux -filetype=obj - -o %t3.o
 ; RUN: rm -f %t3.a
 ; RUN: llvm-ar crS %t3.a %t3.o
-; RUN: not ld.lld -o /dev/null -emain %t1.o %t3.a 2>&1 | FileCheck -check-prefix=ERR1 %s
-; ERR1: error: undefined symbol: f
+; RUN: not ld.lld -o %t -emain %t1.o %t3.a 2>&1 | FileCheck --check-prefix=ERR2 %s
 
 ; RUN: rm -f %t4.a
 ; RUN: llvm-ar cr %t4.a

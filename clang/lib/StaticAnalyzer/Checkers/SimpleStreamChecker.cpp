@@ -17,6 +17,7 @@
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallDescription.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include <utility>
@@ -119,7 +120,7 @@ void SimpleStreamChecker::checkPostCall(const CallEvent &Call,
   if (!Call.isGlobalCFunction())
     return;
 
-  if (!Call.isCalled(OpenFn))
+  if (!OpenFn.matches(Call))
     return;
 
   // Get the symbolic value corresponding to the file handle.
@@ -138,7 +139,7 @@ void SimpleStreamChecker::checkPreCall(const CallEvent &Call,
   if (!Call.isGlobalCFunction())
     return;
 
-  if (!Call.isCalled(CloseFn))
+  if (!CloseFn.matches(Call))
     return;
 
   // Get the symbolic value corresponding to the file handle.
@@ -206,8 +207,8 @@ void SimpleStreamChecker::reportDoubleClose(SymbolRef FileDescSym,
     return;
 
   // Generate the report.
-  auto R = llvm::make_unique<BugReport>(*DoubleCloseBugType,
-      "Closing a previously closed file stream", ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(
+      *DoubleCloseBugType, "Closing a previously closed file stream", ErrNode);
   R->addRange(Call.getSourceRange());
   R->markInteresting(FileDescSym);
   C.emitReport(std::move(R));
@@ -219,8 +220,9 @@ void SimpleStreamChecker::reportLeaks(ArrayRef<SymbolRef> LeakedStreams,
   // Attach bug reports to the leak node.
   // TODO: Identify the leaked file descriptor.
   for (SymbolRef LeakedStream : LeakedStreams) {
-    auto R = llvm::make_unique<BugReport>(*LeakBugType,
-        "Opened file is never closed; potential resource leak", ErrNode);
+    auto R = std::make_unique<PathSensitiveBugReport>(
+        *LeakBugType, "Opened file is never closed; potential resource leak",
+        ErrNode);
     R->markInteresting(LeakedStream);
     C.emitReport(std::move(R));
   }
@@ -270,6 +272,6 @@ void ento::registerSimpleStreamChecker(CheckerManager &mgr) {
 }
 
 // This checker should be enabled regardless of how language options are set.
-bool ento::shouldRegisterSimpleStreamChecker(const LangOptions &LO) {
+bool ento::shouldRegisterSimpleStreamChecker(const CheckerManager &mgr) {
   return true;
 }

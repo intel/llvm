@@ -7,11 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 // <utility>
-// XFAIL: c++98, c++03
+// XFAIL: c++03
 
 // #include <initializer_list>
 
 #include <utility>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {
@@ -20,4 +22,3 @@ int main(int, char**)
 
   return 0;
 }
-

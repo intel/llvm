@@ -1,6 +1,4 @@
-; REQUIRES: object-emission
-
-; RUN: %llc_dwarf -O2 -filetype=obj < %s | llvm-dwarfdump -v -debug-info - | FileCheck %s
+; RUN: %llc_dwarf -O2 -filetype=obj < %s | llvm-dwarfdump -debug-info - | FileCheck %s
 
 ; This is a test case that's as reduced as I can get it, though I haven't fully
 ; understood the mechanisms by which this bug occurs, so perhaps there's further
@@ -37,16 +35,16 @@
 ; }
 
 ; CHECK: DW_TAG_structure_type
-; CHECK-NEXT: DW_AT_name {{.*}} "C"
+; CHECK-NEXT: DW_AT_name ("C")
 ; CHECK: [[M_FN3_DECL:.*]]:  DW_TAG_subprogram
 ; CHECK-NOT: {{DW_TAG|NULL}}
-; CHECK: DW_AT_name {{.*}} "m_fn3"
+; CHECK: DW_AT_name ("m_fn3")
 
-; CHECK: DW_AT_specification {{.*}} {[[M_FN3_DECL]]}
+; CHECK: DW_AT_specification ([[M_FN3_DECL]]
 ; CHECK-NOT: DW_TAG
 ; CHECK:   DW_TAG_formal_parameter
 ; CHECK-NOT: DW_TAG
-; CHECK:     DW_AT_name {{.*}} "this"
+; CHECK:     DW_AT_name ("this")
 
 %struct.C = type { i32, %struct.B }
 %struct.B = type { i32 }
@@ -327,9 +325,9 @@ declare void @__asan_unregister_globals(i64, i64)
 
 declare void @__sanitizer_cov_module_init(i64)
 
-attributes #0 = { noreturn sanitize_address "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { sanitize_address "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noreturn sanitize_address "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { sanitize_address "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #3 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

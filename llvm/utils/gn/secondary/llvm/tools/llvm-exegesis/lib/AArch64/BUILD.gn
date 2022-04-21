@@ -15,8 +15,6 @@ static_library("AArch64") {
     "//llvm/lib/Target/AArch64/MCTargetDesc",
     "//llvm/lib/Target/AArch64/Utils",
   ]
-  sources = [
-    "Target.cpp",
-  ]
+  sources = [ "Target.cpp" ]
   include_dirs = [ "//llvm/lib/Target/AArch64" ]
 }

@@ -1,0 +1,328 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.rev.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPV-BACK
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+
+; CHECK-SPV-BACK: ExtInstImport [[Set:[0-9]+]] "OpenCL.std"
+; CHECK-SPV-BACK: TypeVoid [[VoidTy:[0-9]+]]
+
+; CHECK-LABEL: spir_kernel void @test
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_ocl_vstore_halffiPDh(float {{.*}}, i32 0, half* {{.*}})
+
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half
+
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z11vstore_halffjPDh(float {{.*}}, i32 0, half* {{.*}})
+
+; CHECK-LABEL: spir_kernel void @testRTE
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 0)
+
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 0
+
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtefjPDh(float {{.*}}, i32 0, half* {{.*}})
+
+; CHECK-LABEL: spir_kernel void @testRTZ
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 1)
+
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 1
+
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtzfjPDh(float {{.*}}, i32 0, half* {{.*}})
+
+; CHECK-LABEL: spir_kernel void @testRTP
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 2)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 2)
+
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 2
+
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtpfjPDh(float {{.*}}, i32 0, half* {{.*}})
+
+; CHECK-LABEL: spir_kernel void @testRTN
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS1Dhi(float {{.*}}, i32 0, half addrspace(1)* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPU3AS3Dhi(float {{.*}}, i32 0, half addrspace(3)* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 3)
+; CHECK-SPV-IR: call spir_func void @_Z25__spirv_ocl_vstore_half_rfiPDhi(float {{.*}}, i32 0, half* {{.*}}, i32 3)
+
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+; CHECK-SPV-BACK: ExtInst [[VoidTy]] {{.*}} [[Set]] vstore_half_r {{.*}} {{.*}} 3
+
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPU3AS1Dh(float {{.*}}, i32 0, half addrspace(1)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPU3AS3Dh(float {{.*}}, i32 0, half addrspace(3)* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPDh(float {{.*}}, i32 0, half* {{.*}})
+; CHECK-CL20: call spir_func void @_Z15vstore_half_rtnfjPDh(float {{.*}}, i32 0, half* {{.*}})
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Float16Buffer
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %7 "test"
+               OpEntryPoint Kernel %29 "testRTE"
+               OpEntryPoint Kernel %45 "testRTZ"
+               OpEntryPoint Kernel %61 "testRTP"
+               OpEntryPoint Kernel %77 "testRTN"
+         %93 = OpString "kernel_arg_type.test.half*,half*,"
+         %94 = OpString "kernel_arg_type.testRTE.half*,half*,"
+         %95 = OpString "kernel_arg_type.testRTZ.half*,half*,"
+         %96 = OpString "kernel_arg_type.testRTP.half*,half*,"
+         %97 = OpString "kernel_arg_type.testRTN.half*,half*,"
+               OpSource OpenCL_C 200000
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+       %void = OpTypeVoid
+       %half = OpTypeFloat 16
+%_ptr_CrossWorkgroup_half = OpTypePointer CrossWorkgroup %half
+%_ptr_Workgroup_half = OpTypePointer Workgroup %half
+          %6 = OpTypeFunction %void %_ptr_CrossWorkgroup_half %_ptr_Workgroup_half
+      %float = OpTypeFloat 32
+%_ptr_Function_half = OpTypePointer Function %half
+    %float_0 = OpConstant %float 0
+         %24 = OpUndef %_ptr_Function_half
+          %7 = OpFunction %void None %6
+         %pg = OpFunctionParameter %_ptr_CrossWorkgroup_half
+         %pl = OpFunctionParameter %_ptr_Workgroup_half
+      %entry = OpLabel
+         %15 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %pg
+         %16 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %pg
+         %17 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %pg
+         %18 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %pg
+         %19 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %pl
+         %20 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %pl
+         %21 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %pl
+         %22 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %pl
+         %25 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %24
+         %26 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %24
+         %27 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %24
+         %28 = OpExtInst %void %1 vstore_half %float_0 %uint_0 %24
+               OpReturn
+               OpFunctionEnd
+         %29 = OpFunction %void None %6
+       %pg_0 = OpFunctionParameter %_ptr_CrossWorkgroup_half
+       %pl_0 = OpFunctionParameter %_ptr_Workgroup_half
+    %entry_0 = OpLabel
+         %33 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_0 RTE
+         %34 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_0 RTE
+         %35 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_0 RTE
+         %36 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_0 RTE
+         %37 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_0 RTE
+         %38 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_0 RTE
+         %39 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_0 RTE
+         %40 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_0 RTE
+         %41 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTE
+         %42 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTE
+         %43 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTE
+         %44 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTE
+               OpReturn
+               OpFunctionEnd
+         %45 = OpFunction %void None %6
+       %pg_1 = OpFunctionParameter %_ptr_CrossWorkgroup_half
+       %pl_1 = OpFunctionParameter %_ptr_Workgroup_half
+    %entry_1 = OpLabel
+         %49 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_1 RTZ
+         %50 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_1 RTZ
+         %51 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_1 RTZ
+         %52 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_1 RTZ
+         %53 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_1 RTZ
+         %54 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_1 RTZ
+         %55 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_1 RTZ
+         %56 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_1 RTZ
+         %57 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTZ
+         %58 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTZ
+         %59 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTZ
+         %60 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTZ
+               OpReturn
+               OpFunctionEnd
+         %61 = OpFunction %void None %6
+       %pg_2 = OpFunctionParameter %_ptr_CrossWorkgroup_half
+       %pl_2 = OpFunctionParameter %_ptr_Workgroup_half
+    %entry_2 = OpLabel
+         %65 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_2 RTP
+         %66 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_2 RTP
+         %67 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_2 RTP
+         %68 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_2 RTP
+         %69 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_2 RTP
+         %70 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_2 RTP
+         %71 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_2 RTP
+         %72 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_2 RTP
+         %73 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTP
+         %74 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTP
+         %75 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTP
+         %76 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTP
+               OpReturn
+               OpFunctionEnd
+         %77 = OpFunction %void None %6
+       %pg_3 = OpFunctionParameter %_ptr_CrossWorkgroup_half
+       %pl_3 = OpFunctionParameter %_ptr_Workgroup_half
+    %entry_3 = OpLabel
+         %81 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_3 RTN
+         %82 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_3 RTN
+         %83 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_3 RTN
+         %84 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pg_3 RTN
+         %85 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_3 RTN
+         %86 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_3 RTN
+         %87 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_3 RTN
+         %88 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %pl_3 RTN
+         %89 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTN
+         %90 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTN
+         %91 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTN
+         %92 = OpExtInst %void %1 vstore_half_r %float_0 %uint_0 %24 RTN
+               OpReturn
+               OpFunctionEnd

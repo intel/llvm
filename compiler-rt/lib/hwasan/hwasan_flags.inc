@@ -1,4 +1,4 @@
-//===-- hwasan_flags.inc ------------------------------------------*- C++ -*-===//
+//===-- hwasan_flags.inc ----------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -33,36 +33,10 @@ HWASAN_FLAG(bool, disable_allocator_tagging, false, "")
 HWASAN_FLAG(bool, random_tags, true, "")
 
 HWASAN_FLAG(
-    int, max_malloc_fill_size, 0x1000,  // By default, fill only the first 4K.
+    int, max_malloc_fill_size, 0,
     "HWASan allocator flag. max_malloc_fill_size is the maximal amount of "
     "bytes that will be filled with malloc_fill_byte on malloc.")
 
-// Rules for malloc alignment on aarch64:
-//   * If the size is 16-aligned, then malloc should return 16-aligned memory.
-//   * Otherwise, malloc should return 8-alignment memory.
-// So,
-//   * If the size is 16-aligned, we don't need to do anything.
-//   * Otherwise we don't have to obey 16-alignment, just the 8-alignment.
-//   * We may want to break the 8-alignment rule to catch more buffer overflows
-//     but this will break valid code in some rare cases, like this:
-//     struct Foo {
-//       // accessed via atomic instructions that require 8-alignment.
-//       std::atomic<int64_t> atomic_stuff;
-//       ...
-//       char vla[1];  // the actual size of vla could be anything.
-//     }
-// Which means that the safe values for malloc_align_right are 0, 8, 9,
-// and the values 1 and 2 may require changes in otherwise valid code.
-
-HWASAN_FLAG(
-    int, malloc_align_right, 0,  // off by default
-    "HWASan allocator flag. "
-    "0 (default): allocations are always aligned left to 16-byte boundary; "
-    "1: allocations are sometimes aligned right to 1-byte boundary (risky); "
-    "2: allocations are always aligned right to 1-byte boundary (risky); "
-    "8: allocations are sometimes aligned right to 8-byte boundary; "
-    "9: allocations are always aligned right to 8-byte boundary."
-  )
 HWASAN_FLAG(bool, free_checks_tail_magic, 1,
     "If set, free() will check the magic values "
     "to the right of the allocated object "
@@ -98,3 +72,12 @@ HWASAN_FLAG(uptr, malloc_bisect_right, 0,
 HWASAN_FLAG(bool, malloc_bisect_dump, false,
             "Print all allocations within [malloc_bisect_left, "
             "malloc_bisect_right] range ")
+
+
+// Exit if we fail to enable the AArch64 kernel ABI relaxation which allows
+// tagged pointers in syscalls.  This is the default, but being able to disable
+// that behaviour is useful for running the testsuite on more platforms (the
+// testsuite can run since we manually ensure any pointer arguments to syscalls
+// are untagged before the call.
+HWASAN_FLAG(bool, fail_without_syscall_abi, true,
+            "Exit if fail to request relaxed syscall ABI.")

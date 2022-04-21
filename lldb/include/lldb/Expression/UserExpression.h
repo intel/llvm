@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_UserExpression_h_
-#define liblldb_UserExpression_h_
+#ifndef LLDB_EXPRESSION_USEREXPRESSION_H
+#define LLDB_EXPRESSION_USEREXPRESSION_H
 
 #include <memory>
 #include <string>
@@ -33,22 +33,19 @@ namespace lldb_private {
 /// implementations of UserExpression - which will be vended through the
 /// appropriate TypeSystem.
 class UserExpression : public Expression {
+  /// LLVM RTTI support.
+  static char ID;
+
 public:
-  /// LLVM-style RTTI support.
-  static bool classof(const Expression *E) {
-    return E->getKind() == eKindUserExpression;
-  }
-  
+  bool isA(const void *ClassID) const override { return ClassID == &ID; }
+  static bool classof(const Expression *obj) { return obj->isA(&ID); }
+
   enum { kDefaultTimeout = 500000u };
 
   /// Constructor
   ///
   /// \param[in] expr
   ///     The expression to parse.
-  ///
-  /// \param[in] expr_prefix
-  ///     If non-nullptr, a C string containing translation-unit level
-  ///     definitions to be included when the expression is parsed.
   ///
   /// \param[in] language
   ///     If not eLanguageTypeUnknown, a language to use when parsing
@@ -61,8 +58,7 @@ public:
   UserExpression(ExecutionContextScope &exe_scope, llvm::StringRef expr,
                  llvm::StringRef prefix, lldb::LanguageType language,
                  ResultType desired_type,
-                 const EvaluateExpressionOptions &options,
-                 ExpressionKind kind);
+                 const EvaluateExpressionOptions &options);
 
   /// Destructor
   ~UserExpression() override;
@@ -166,8 +162,14 @@ public:
   ///     A pointer to direct at the persistent variable in which the
   ///     expression's result is stored.
   ///
-  /// \param[in] function_stack_pointer
-  ///     A pointer to the base of the function's stack frame.  This
+  /// \param[in] function_stack_bottom
+  ///     A pointer to the bottom of the function's stack frame.  This
+  ///     is used to determine whether the expression result resides in
+  ///     memory that will still be valid, or whether it needs to be
+  ///     treated as homeless for the purpose of future expressions.
+  ///
+  /// \param[in] function_stack_top
+  ///     A pointer to the top of the function's stack frame.  This
   ///     is used to determine whether the expression result resides in
   ///     memory that will still be valid, or whether it needs to be
   ///     treated as homeless for the purpose of future expressions.
@@ -192,7 +194,7 @@ public:
 
   /// Return the language that should be used when parsing.  To use the
   /// default, return eLanguageTypeUnknown.
-  lldb::LanguageType Language() override { return m_language; }
+  lldb::LanguageType Language() const override { return m_language; }
 
   /// Return the desired result type of the function, or eResultTypeAny if
   /// indifferent.
@@ -210,8 +212,6 @@ public:
   GetResultAfterDematerialization(ExecutionContextScope *exe_scope) {
     return lldb::ExpressionVariableSP();
   }
-
-  virtual lldb::ModuleSP GetJITModule() { return lldb::ModuleSP(); }
 
   /// Evaluate one expression in the scratch context of the target passed in
   /// the exe_ctx and return its result.
@@ -242,9 +242,6 @@ public:
   ///     If non-nullptr, the fixed expression is copied into the provided
   ///     string.
   ///
-  /// \param[out] jit_module_sp_ptr
-  ///     If non-nullptr, used to persist the generated IR module.
-  ///
   /// \param[in] ctx_obj
   ///     If specified, then the expression will be evaluated in the context of
   ///     this object. It means that the context object's address will be
@@ -263,17 +260,14 @@ public:
            llvm::StringRef expr_cstr, llvm::StringRef expr_prefix,
            lldb::ValueObjectSP &result_valobj_sp, Status &error,
            std::string *fixed_expression = nullptr,
-           lldb::ModuleSP *jit_module_sp_ptr = nullptr,
            ValueObject *ctx_obj = nullptr);
 
   static const Status::ValueType kNoResult =
       0x1001; ///< ValueObject::GetError() returns this if there is no result
               /// from the expression.
 
-  const char *GetFixedText() {
-    if (m_fixed_text.empty())
-      return nullptr;
-    return m_fixed_text.c_str();
+  llvm::StringRef GetFixedText() {
+    return m_fixed_text;
   }
 
 protected:
@@ -312,4 +306,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_UserExpression_h_
+#endif // LLDB_EXPRESSION_USEREXPRESSION_H

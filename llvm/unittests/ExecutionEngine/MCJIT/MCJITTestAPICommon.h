@@ -19,6 +19,8 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/PassRegistry.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/TargetSelect.h"
 
@@ -27,7 +29,7 @@
 // inherits from MCJITTestBase. See MCJITTest.cpp for examples.
 #define SKIP_UNSUPPORTED_PLATFORM \
   do \
-    if (!ArchSupportsMCJIT() || !OSSupportsMCJIT()) \
+    if (!ArchSupportsMCJIT() || !OSSupportsMCJIT() || !HostCanBeTargeted()) \
       return; \
   while(0)
 
@@ -50,6 +52,11 @@ protected:
     HostTriple += "-elf";
 #endif // _WIN32
     HostTriple = Triple::normalize(HostTriple);
+  }
+
+  bool HostCanBeTargeted() {
+    std::string Error;
+    return TargetRegistry::lookupTarget(HostTriple, Error) != nullptr;
   }
 
   /// Returns true if the host architecture is known to support MCJIT

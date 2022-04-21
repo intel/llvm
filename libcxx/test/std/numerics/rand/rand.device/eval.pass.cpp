@@ -6,13 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// See bugs.llvm.org/PR20183
-//
-// XFAIL: with_system_cxx_lib=macosx10.11
-// XFAIL: with_system_cxx_lib=macosx10.10
-// XFAIL: with_system_cxx_lib=macosx10.9
-// XFAIL: with_system_cxx_lib=macosx10.8
-// XFAIL: with_system_cxx_lib=macosx10.7
+// UNSUPPORTED: libcpp-has-no-random-device
 
 // <random>
 
@@ -34,15 +28,16 @@ int main(int, char**)
         ((void)e); // Prevent unused warning
     }
 
-#ifndef TEST_HAS_NO_EXCEPTIONS
-    try
+    // When using the `/dev/urandom` implementation, make sure that we throw
+    // an exception when we hit EOF while reading the custom-provided file.
+#if !defined(TEST_HAS_NO_EXCEPTIONS) && defined(_LIBCPP_USING_DEV_RANDOM)
     {
         std::random_device r("/dev/null");
-        (void)r();
-        LIBCPP_ASSERT(false);
-    }
-    catch (const std::system_error&)
-    {
+        try {
+            (void)r();
+            LIBCPP_ASSERT(false);
+        } catch (const std::system_error&) {
+        }
     }
 #endif
 

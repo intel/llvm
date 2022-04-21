@@ -20,8 +20,8 @@
 using namespace llvm;
 
 CFGHolder::CFGHolder(StringRef ModuleName, StringRef FunctionName)
-    : Context(llvm::make_unique<LLVMContext>()),
-      M(llvm::make_unique<Module>(ModuleName, *Context)) {
+    : Context(std::make_unique<LLVMContext>()),
+      M(std::make_unique<Module>(ModuleName, *Context)) {
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(*Context), {}, false);
   F = Function::Create(FTy, Function::ExternalLinkage, FunctionName, M.get());
 }
@@ -267,10 +267,11 @@ TEST(CFGBuilder, Rebuild) {
   EXPECT_TRUE(isa<SwitchInst>(B.getOrAddBlock("d")->getTerminator()));
 }
 
-static_assert(is_trivially_copyable<succ_iterator>::value,
+static_assert(std::is_trivially_copyable<succ_iterator>::value,
               "trivially copyable");
-static_assert(is_trivially_copyable<succ_const_iterator>::value,
+static_assert(std::is_trivially_copyable<const_succ_iterator>::value,
               "trivially copyable");
-static_assert(is_trivially_copyable<succ_range>::value, "trivially copyable");
-static_assert(is_trivially_copyable<succ_const_range>::value,
+static_assert(std::is_trivially_copyable<succ_range>::value,
+              "trivially copyable");
+static_assert(std::is_trivially_copyable<const_succ_range>::value,
               "trivially copyable");

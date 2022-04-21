@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_REPL_h
-#define lldb_REPL_h
+#ifndef LLDB_EXPRESSION_REPL_H
+#define LLDB_EXPRESSION_REPL_H
 
 #include <string>
 
@@ -32,7 +32,7 @@ public:
   /// Get a REPL with an existing target (or, failing that, a debugger to use),
   /// and (optional) extra arguments for the compiler.
   ///
-  /// \param[out] error
+  /// \param[out] Status
   ///     If this language is supported but the REPL couldn't be created, this
   ///     error is populated with the reason.
   ///
@@ -103,10 +103,8 @@ public:
   void IOHandlerInputComplete(IOHandler &io_handler,
                               std::string &line) override;
 
-  int IOHandlerComplete(IOHandler &io_handler, const char *current_line,
-                        const char *cursor, const char *last_char,
-                        int skip_first_n_matches, int max_matches,
-                        StringList &matches, StringList &descriptions) override;
+  void IOHandlerComplete(IOHandler &io_handler,
+                         CompletionRequest &request) override;
 
 protected:
   static int CalculateActualIndentation(const StringList &lines);
@@ -132,8 +130,8 @@ protected:
                                 lldb::ValueObjectSP &valobj_sp,
                                 ExpressionVariable *var = nullptr) = 0;
 
-  virtual int CompleteCode(const std::string &current_code,
-                           StringList &matches) = 0;
+  virtual void CompleteCode(const std::string &current_code,
+                            CompletionRequest &request) = 0;
 
   OptionGroupFormat m_format_options = OptionGroupFormat(lldb::eFormatDefault);
   OptionGroupValueObjectDisplay m_varobj_options;
@@ -160,4 +158,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // lldb_REPL_h
+#endif // LLDB_EXPRESSION_REPL_H

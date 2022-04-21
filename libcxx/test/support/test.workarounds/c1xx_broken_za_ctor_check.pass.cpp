@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
-// Verify TEST_WORKAROUND_C1XX_BROKEN_ZA_CTOR_CHECK.
+// Verify TEST_WORKAROUND_MSVC_BROKEN_ZA_CTOR_CHECK.
 
 #include <type_traits>
 
+#include "test_macros.h"
 #include "test_workarounds.h"
 
 struct X {
@@ -32,7 +33,7 @@ auto test(int) -> decltype(PushFront(std::declval<T>()), std::true_type{});
 auto test(long) -> std::false_type;
 
 int main(int, char**) {
-#if defined(TEST_WORKAROUND_C1XX_BROKEN_ZA_CTOR_CHECK)
+#ifdef TEST_WORKAROUND_MSVC_BROKEN_ZA_CTOR_CHECK
     static_assert(!decltype(test(0))::value, "");
 #else
     static_assert(decltype(test(0))::value, "");

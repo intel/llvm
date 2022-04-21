@@ -6,11 +6,11 @@
 // RUN: %clang_cc1 -fcuda-is-device -triple nvptx64-nvidia-cuda \
 // RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=DEVICE,BOTH
 
-// BOTH-LABEL: define float @logf(float
+// BOTH-LABEL: define{{.*}} float @logf(float
 
 // logf() should be calling itself recursively as we don't have any standard
 // library on device side.
-// DEVICE: call float @logf(float
+// DEVICE: call contract float @logf(float
 extern "C" __attribute__((device)) float logf(float __x) { return logf(__x); }
 
 // NOTE: this case is to illustrate the expected differences in behavior between
@@ -18,5 +18,5 @@ extern "C" __attribute__((device)) float logf(float __x) { return logf(__x); }
 // library.
 //
 // Host is assumed to have standard library, so logf() calls LLVM intrinsic.
-// HOST: call float @llvm.log.f32(float
+// HOST: call contract float @llvm.log.f32(float
 extern "C" float logf(float __x) { return logf(__x); }

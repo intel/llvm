@@ -1,4 +1,4 @@
-; RUN: opt -mtriple=amdgcn-amd-amdhsa -basicaa -load-store-vectorizer -S -o - %s | FileCheck %s
+; RUN: opt -mtriple=amdgcn-amd-amdhsa -basic-aa -load-store-vectorizer -S -o - %s | FileCheck %s
 
 target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
 
@@ -74,7 +74,7 @@ entry:
 
 ; CHECK-LABEL: @merge_store_ptr64_i64(
 ; CHECK: [[ELT0:%[^ ]+]] = ptrtoint i8 addrspace(1)* %ptr0 to i64
-; CHECK: insertelement <2 x i64> undef, i64 [[ELT0]], i32 0
+; CHECK: insertelement <2 x i64> poison, i64 [[ELT0]], i32 0
 ; CHECK: store <2 x i64>
 define amdgpu_kernel void @merge_store_ptr64_i64(i64 addrspace(1)* nocapture %a, i8 addrspace(1)* %ptr0, i64 %val1) #0 {
 entry:
@@ -135,7 +135,7 @@ entry:
 
 ; CHECK-LABEL: @merge_store_ptr32_i32(
 ; CHECK: [[ELT0:%[^ ]+]] = ptrtoint i8 addrspace(3)* %ptr0 to i32
-; CHECK: insertelement <2 x i32> undef, i32 [[ELT0]], i32 0
+; CHECK: insertelement <2 x i32> poison, i32 [[ELT0]], i32 0
 ; CHECK: store <2 x i32>
 define amdgpu_kernel void @merge_store_ptr32_i32(i32 addrspace(3)* nocapture %a, i8 addrspace(3)* %ptr0, i32 %val1) #0 {
 entry:
@@ -275,7 +275,7 @@ entry:
 
 ; CHECK-LABEL: @merge_store_ptr64_f64(
 ; CHECK: [[ELT0_INT:%[^ ]+]] = ptrtoint i8 addrspace(1)* %ptr0 to i64
-; CHECK: insertelement <2 x i64> undef, i64 [[ELT0_INT]], i32 0
+; CHECK: insertelement <2 x i64> poison, i64 [[ELT0_INT]], i32 0
 ; CHECK: [[ELT1_INT:%[^ ]+]] = bitcast double %val1 to i64
 ; CHECK: insertelement <2 x i64> %{{[^ ]+}}, i64 [[ELT1_INT]], i32 1
 ; CHECK: store <2 x i64>
@@ -292,7 +292,7 @@ entry:
 
 ; CHECK-LABEL: @merge_store_f64_ptr64(
 ; CHECK: [[ELT0_INT:%[^ ]+]] = bitcast double %val0 to i64
-; CHECK: insertelement <2 x i64> undef, i64 [[ELT0_INT]], i32 0
+; CHECK: insertelement <2 x i64> poison, i64 [[ELT0_INT]], i32 0
 ; CHECK: [[ELT1_INT:%[^ ]+]] = ptrtoint i8 addrspace(1)* %ptr1 to i64
 ; CHECK: insertelement <2 x i64> %{{[^ ]+}}, i64 [[ELT1_INT]], i32 1
 ; CHECK: store <2 x i64>

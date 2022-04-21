@@ -8,7 +8,5 @@ static_library("MCJIT") {
     "//llvm/lib/Support",
     "//llvm/lib/Target",
   ]
-  sources = [
-    "MCJIT.cpp",
-  ]
+  sources = [ "MCJIT.cpp" ]
 }

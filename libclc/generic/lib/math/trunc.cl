@@ -1,10 +1,9 @@
+
 #include <clc/clc.h>
+#include <spirv/spirv.h>
 
-// Map the llvm intrinsic to an OpenCL function.
-#define __CLC_FUNCTION __clc_trunc
-#define __CLC_INTRINSIC "llvm.trunc"
-#include "math/unary_intrin.inc"
+#include <clcmacro.h>
 
-#undef __CLC_FUNCTION
+#define __CLC_BUILTIN __spirv_ocl_trunc
 #define __CLC_FUNCTION trunc
-#include "unary_builtin.inc"
+#include <math/unary_builtin.inc>

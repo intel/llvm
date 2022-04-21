@@ -39,7 +39,7 @@
 ---
 # CHECK-LABEL: name: test1
 name:            test1
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 liveins:
   - { reg: '$rax' }
@@ -55,13 +55,13 @@ body:             |
     $ax = MOV16rm killed $rax, 1, $noreg, 0, $noreg
     ; CHECK: $eax = MOVZX32rm16 killed $rax
 
-    RETQ $ax
+    RET64 $ax
 
 ...
 ---
 # CHECK-LABEL: name: test2
 name:            test2
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 liveins:
   - { reg: '$rax' }
@@ -76,13 +76,13 @@ body:             |
   bb.1:
     liveins: $rcx
 
-    RETQ $cl
+    RET64 $cl
 
 ...
 ---
 # CHECK-LABEL: name: test3
 name:            test3
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 liveins:
   - { reg: '$rdi' }
@@ -102,21 +102,21 @@ body:             |
   bb.2.if.then:
     liveins: $rdi
 
-    $ax = MOV16rm killed $rdi, 1, $noreg, 0, $noreg, implicit-def $eax :: (load 2 from %ir.p)
-    ; CHECK: $eax = MOVZX32rm16 killed $rdi, 1, $noreg, 0, $noreg, implicit-def $eax :: (load 2 from %ir.p)
+    $ax = MOV16rm killed $rdi, 1, $noreg, 0, $noreg, implicit-def $eax :: (load (s16) from %ir.p)
+    ; CHECK: $eax = MOVZX32rm16 killed $rdi, 1, $noreg, 0, $noreg, implicit-def $eax :: (load (s16) from %ir.p)
     $ax = KILL $ax, implicit killed $eax
-    RETQ $ax
+    RET64 $ax
 
   bb.1:
     $eax = XOR32rr undef $eax, undef $eax, implicit-def dead $eflags
     $ax = KILL $ax, implicit killed $eax
-    RETQ $ax
+    RET64 $ax
 
 ...
 ---
 # CHECK-LABEL: name: test4
 name:            test4
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 liveins:
   - { reg: '$r9d' }
@@ -130,13 +130,13 @@ body:             |
     ; CHECK: $r9b = MOV8rr undef $r10b, implicit-def $r9d, implicit killed $r9d, implicit-def $eflags
 
     $ax = OR16rr undef $ax, $r9w, implicit-def $eflags
-    RETQ $ax
+    RET64 $ax
 
 ...
 ---
 # CHECK-LABEL: name: test5
 name:            test5
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 liveins:
   - { reg: '$ch', reg: '$bl' }
@@ -147,6 +147,6 @@ body:             |
     $cl = MOV8rr $bl, implicit-def $cx, implicit killed $ch, implicit-def $eflags
     ; CHECK: $cl = MOV8rr $bl, implicit-def $cx, implicit killed $ch, implicit-def $eflags
 
-    RETQ $cx
+    RET64 $cx
 
 ...

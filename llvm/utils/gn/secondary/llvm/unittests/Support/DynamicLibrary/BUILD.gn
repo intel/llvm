@@ -11,9 +11,7 @@ template("dynlib_add_module") {
     # This assumes that unittest() puts tests in target_out_dir.
     output_dir = target_out_dir
 
-    sources = [
-      "PipSqueak.cpp",
-    ]
+    sources = [ "PipSqueak.cpp" ]
 
     if (host_os != "mac" && host_os != "win") {
       # The GN build currently doesn't globally pass -fPIC, but that's

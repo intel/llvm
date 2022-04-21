@@ -45,6 +45,7 @@ class TextSubstitution<string Text> {
   // diagnostics
   string Component = "";
   string CategoryName = "";
+  bit Deferrable = 0;
 }
 
 // Diagnostic Categories.  These can be applied to groups or individual
@@ -83,6 +84,8 @@ class Diagnostic<string text, DiagClass DC, Severity defaultmapping> {
   bit            AccessControl = 0;
   bit            WarningNoWerror = 0;
   bit            ShowInSystemHeader = 0;
+  bit            ShowInSystemMacro = 1;
+  bit            Deferrable = 0;
   Severity       DefaultSeverity = defaultmapping;
   DiagGroup      Group;
   string         CategoryName = "";
@@ -104,6 +107,22 @@ class ShowInSystemHeader {
 
 class SuppressInSystemHeader {
   bit ShowInSystemHeader = 0;
+}
+
+class ShowInSystemMacro {
+  bit ShowInSystemMacro = 1;
+}
+
+class SuppressInSystemMacro {
+  bit ShowInSystemMacro = 0;
+}
+
+class Deferrable {
+  bit Deferrable = 1;
+}
+
+class NonDeferrable {
+  bit Deferrable = 0;
 }
 
 // FIXME: ExtWarn and Extension should also be SFINAEFailure by default.
@@ -149,4 +168,3 @@ include "DiagnosticParseKinds.td"
 include "DiagnosticRefactoringKinds.td"
 include "DiagnosticSemaKinds.td"
 include "DiagnosticSerializationKinds.td"
-

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <string>
 
@@ -16,9 +16,8 @@
 
 #include "test_macros.h"
 
-int main(int, char**)
-{
-    {
+bool test() {
+  {
     typedef std::string S;
     const char *s = "abcde";
 
@@ -58,7 +57,16 @@ int main(int, char**)
     assert (!sNot.ends_with("bcde"));
     assert (!sNot.ends_with("abcde"));
     assert ( sNot.ends_with("def"));
-    }
+  }
+
+  return true;
+}
+
+int main(int, char**) {
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
+#endif
 
   return 0;
 }

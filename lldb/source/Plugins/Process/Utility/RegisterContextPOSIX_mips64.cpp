@@ -1,4 +1,4 @@
-//===-- RegisterContextPOSIX_mips64.cpp -------------------------*- C++ -*-===//
+//===-- RegisterContextPOSIX_mips64.cpp -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cerrno>
+#include <cstdint>
 #include <cstring>
-#include <errno.h>
-#include <stdint.h>
 
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -22,8 +22,6 @@
 
 #include "RegisterContextPOSIX_mips64.h"
 #include "RegisterContextFreeBSD_mips64.h"
-#include "RegisterContextLinux_mips64.h"
-#include "RegisterContextLinux_mips.h"
 
 using namespace lldb_private;
 using namespace lldb;
@@ -60,7 +58,7 @@ RegisterContextPOSIX_mips64::RegisterContextPOSIX_mips64(
                                m_registers_count[msa_registers_count]));
 }
 
-RegisterContextPOSIX_mips64::~RegisterContextPOSIX_mips64() {}
+RegisterContextPOSIX_mips64::~RegisterContextPOSIX_mips64() = default;
 
 void RegisterContextPOSIX_mips64::Invalidate() {}
 
@@ -96,23 +94,12 @@ RegisterContextPOSIX_mips64::GetRegisterInfoAtIndex(size_t reg) {
   if (reg < m_num_registers)
     return &GetRegisterInfo()[reg];
   else
-    return NULL;
+    return nullptr;
 }
 
 size_t RegisterContextPOSIX_mips64::GetRegisterSetCount() {
   ArchSpec target_arch = m_register_info_up->GetTargetArchitecture();
   switch (target_arch.GetTriple().getOS()) {
-  case llvm::Triple::Linux: {
-    if ((target_arch.GetMachine() == llvm::Triple::mipsel) ||
-         (target_arch.GetMachine() == llvm::Triple::mips)) {
-      const auto *context = static_cast<const RegisterContextLinux_mips *>(
-          m_register_info_up.get());
-      return context->GetRegisterSetCount();
-    }
-    const auto *context = static_cast<const RegisterContextLinux_mips64 *>(
-        m_register_info_up.get());
-    return context->GetRegisterSetCount();
-  }
   default: {
     const auto *context = static_cast<const RegisterContextFreeBSD_mips64 *>(
         m_register_info_up.get());
@@ -125,17 +112,6 @@ size_t RegisterContextPOSIX_mips64::GetRegisterSetCount() {
 const RegisterSet *RegisterContextPOSIX_mips64::GetRegisterSet(size_t set) {
   ArchSpec target_arch = m_register_info_up->GetTargetArchitecture();
   switch (target_arch.GetTriple().getOS()) {
-  case llvm::Triple::Linux: {
-    if ((target_arch.GetMachine() == llvm::Triple::mipsel) ||
-         (target_arch.GetMachine() == llvm::Triple::mips)) {
-      const auto *context = static_cast<const RegisterContextLinux_mips *>(
-          m_register_info_up.get());
-      return context->GetRegisterSet(set);
-    }
-    const auto *context = static_cast<const RegisterContextLinux_mips64 *>(
-        m_register_info_up.get());
-    return context->GetRegisterSet(set);
-  }
   default: {
     const auto *context = static_cast<const RegisterContextFreeBSD_mips64 *>(
         m_register_info_up.get());
@@ -147,17 +123,6 @@ const RegisterSet *RegisterContextPOSIX_mips64::GetRegisterSet(size_t set) {
 const char *RegisterContextPOSIX_mips64::GetRegisterName(unsigned reg) {
   assert(reg < m_num_registers && "Invalid register offset.");
   return GetRegisterInfo()[reg].name;
-}
-
-lldb::ByteOrder RegisterContextPOSIX_mips64::GetByteOrder() {
-  // Get the target process whose privileged thread was used for the register
-  // read.
-  lldb::ByteOrder byte_order = eByteOrderInvalid;
-  Process *process = CalculateProcess().get();
-
-  if (process)
-    byte_order = process->GetByteOrder();
-  return byte_order;
 }
 
 bool RegisterContextPOSIX_mips64::IsRegisterSetAvailable(size_t set_index) {

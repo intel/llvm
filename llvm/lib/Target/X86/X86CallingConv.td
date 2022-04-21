@@ -23,6 +23,13 @@ class CCIfNotSubtarget<string F, CCAction A>
                        "(State.getMachineFunction().getSubtarget()).", F),
            A>;
 
+/// CCIfIsVarArgOnWin - Match if isVarArg on Windows 32bits.
+class CCIfIsVarArgOnWin<CCAction A>
+    : CCIf<"State.isVarArg() && "
+           "State.getMachineFunction().getSubtarget().getTargetTriple()."
+           "isWindowsMSVCEnvironment()",
+           A>;
+
 // Register classes for RegCall
 class RC_X86_RegCall {
   list<Register> GPR_8 = [];
@@ -147,7 +154,8 @@ def CC_#NAME : CallingConv<[
       CCAssignToStack<32, 32>>,
 
     // 512-bit vectors get 64-byte stack slots that are 64-byte aligned.
-    CCIfType<[v16i32, v8i64, v16f32, v8f64], CCAssignToStack<64, 64>>
+    CCIfType<[v64i8, v32i16, v16i32, v8i64, v16f32, v8f64],
+      CCAssignToStack<64, 64>>
 ]>;
 
 def RetCC_#NAME : CallingConv<[
@@ -232,19 +240,19 @@ def RetCC_X86Common : CallingConv<[
   // Vector types are returned in XMM0 and XMM1, when they fit.  XMM2 and XMM3
   // can only be used by ABI non-compliant code. If the target doesn't have XMM
   // registers, it won't have vector types.
-  CCIfType<[v16i8, v8i16, v4i32, v2i64, v4f32, v2f64],
+  CCIfType<[v16i8, v8i16, v4i32, v2i64, v8f16, v4f32, v2f64],
             CCAssignToReg<[XMM0,XMM1,XMM2,XMM3]>>,
 
   // 256-bit vectors are returned in YMM0 and XMM1, when they fit. YMM2 and YMM3
   // can only be used by ABI non-compliant code. This vector type is only
   // supported while using the AVX target feature.
-  CCIfType<[v32i8, v16i16, v8i32, v4i64, v8f32, v4f64],
+  CCIfType<[v32i8, v16i16, v8i32, v4i64, v16f16, v8f32, v4f64],
             CCAssignToReg<[YMM0,YMM1,YMM2,YMM3]>>,
 
   // 512-bit vectors are returned in ZMM0 and ZMM1, when they fit. ZMM2 and ZMM3
   // can only be used by ABI non-compliant code. This vector type is only
   // supported while using the AVX-512 target feature.
-  CCIfType<[v64i8, v32i16, v16i32, v8i64, v16f32, v8f64],
+  CCIfType<[v64i8, v32i16, v16i32, v8i64, v32f16, v16f32, v8f64],
             CCAssignToReg<[ZMM0,ZMM1,ZMM2,ZMM3]>>,
 
   // MMX vector types are always returned in MM0. If the target doesn't have
@@ -265,7 +273,11 @@ def RetCC_X86_32_C : CallingConv<[
   // conv.
   CCIfInReg<CCIfSubtarget<"hasSSE2()",
     CCIfType<[f32, f64], CCAssignToReg<[XMM0,XMM1,XMM2]>>>>,
-  CCIfType<[f32,f64], CCAssignToReg<[FP0, FP1]>>,
+  CCIfSubtarget<"hasX87()",
+    CCIfType<[f32, f64], CCAssignToReg<[FP0, FP1]>>>,
+  CCIfNotSubtarget<"hasX87()",
+    CCIfType<[f32], CCAssignToReg<[EAX, EDX, ECX]>>>,
+  CCIfType<[f16], CCAssignToReg<[XMM0,XMM1,XMM2]>>,
   CCDelegateTo<RetCC_X86Common>
 ]>;
 
@@ -328,12 +340,16 @@ def RetCC_X86_32_VectorCall : CallingConv<[
 // X86-64 C return-value convention.
 def RetCC_X86_64_C : CallingConv<[
   // The X86-64 calling convention always returns FP values in XMM0.
+  CCIfType<[f16], CCAssignToReg<[XMM0, XMM1]>>,
   CCIfType<[f32], CCAssignToReg<[XMM0, XMM1]>>,
   CCIfType<[f64], CCAssignToReg<[XMM0, XMM1]>>,
   CCIfType<[f128], CCAssignToReg<[XMM0, XMM1]>>,
 
   // MMX vector types are always returned in XMM0.
   CCIfType<[x86mmx], CCAssignToReg<[XMM0, XMM1]>>,
+
+  // Pointers are always returned in full 64-bit registers.
+  CCIfPtr<CCCustom<"CC_X86_64_Pointer">>,
 
   CCIfSwiftError<CCIfType<[i64], CCAssignToReg<[R12]>>>,
 
@@ -344,6 +360,10 @@ def RetCC_X86_64_C : CallingConv<[
 def RetCC_X86_Win64_C : CallingConv<[
   // The X86-Win64 calling convention always returns __m64 values in RAX.
   CCIfType<[x86mmx], CCBitConvertToType<i64>>,
+
+  // GCC returns FP values in RAX on Win64.
+  CCIfType<[f32], CCIfNotSubtarget<"hasSSE1()", CCBitConvertToType<i32>>>,
+  CCIfType<[f64], CCIfNotSubtarget<"hasSSE1()", CCBitConvertToType<i64>>>,
 
   // Otherwise, everything is the same as 'normal' X86-64 C CC.
   CCDelegateTo<RetCC_X86_64_C>
@@ -432,6 +452,8 @@ defm X86_SysV64_RegCall :
 def RetCC_X86_32 : CallingConv<[
   // If FastCC, use RetCC_X86_32_Fast.
   CCIfCC<"CallingConv::Fast", CCDelegateTo<RetCC_X86_32_Fast>>,
+  CCIfCC<"CallingConv::Tail", CCDelegateTo<RetCC_X86_32_Fast>>,
+  // CFGuard_Check never returns a value so does not need a RetCC.
   // If HiPE, use RetCC_X86_32_HiPE.
   CCIfCC<"CallingConv::HiPE", CCDelegateTo<RetCC_X86_32_HiPE>>,
   CCIfCC<"CallingConv::X86_VectorCall", CCDelegateTo<RetCC_X86_32_VectorCall>>,
@@ -452,6 +474,7 @@ def RetCC_X86_64 : CallingConv<[
 
   // Handle Swift calls.
   CCIfCC<"CallingConv::Swift", CCDelegateTo<RetCC_X86_64_Swift>>,
+  CCIfCC<"CallingConv::SwiftTail", CCDelegateTo<RetCC_X86_64_Swift>>,
 
   // Handle explicit CC selection
   CCIfCC<"CallingConv::Win64", CCDelegateTo<RetCC_X86_Win64_C>>,
@@ -507,9 +530,18 @@ def CC_X86_64_C : CallingConv<[
   // A SwiftError is passed in R12.
   CCIfSwiftError<CCIfType<[i64], CCAssignToReg<[R12]>>>,
 
-  // For Swift Calling Convention, pass sret in %rax.
+  // Pass SwiftAsync in an otherwise callee saved register so that calls to
+  // normal functions don't need to save it somewhere.
+  CCIfSwiftAsync<CCIfType<[i64], CCAssignToReg<[R14]>>>,
+
+  // For Swift Calling Conventions, pass sret in %rax.
   CCIfCC<"CallingConv::Swift",
     CCIfSRet<CCIfType<[i64], CCAssignToReg<[RAX]>>>>,
+  CCIfCC<"CallingConv::SwiftTail",
+    CCIfSRet<CCIfType<[i64], CCAssignToReg<[RAX]>>>>,
+
+  // Pointers are always passed in full 64-bit registers.
+  CCIfPtr<CCCustom<"CC_X86_64_Pointer">>,
 
   // The first 6 integer arguments are passed in integer registers.
   CCIfType<[i32], CCAssignToReg<[EDI, ESI, EDX, ECX, R8D, R9D]>>,
@@ -532,7 +564,7 @@ def CC_X86_64_C : CallingConv<[
   CCIfType<[v64i1], CCPromoteToType<v64i8>>,
 
   // The first 8 FP/Vector arguments are passed in XMM registers.
-  CCIfType<[f32, f64, f128, v16i8, v8i16, v4i32, v2i64, v4f32, v2f64],
+  CCIfType<[f16, f32, f64, f128, v16i8, v8i16, v4i32, v2i64, v8f16, v4f32, v2f64],
             CCIfSubtarget<"hasSSE1()",
             CCAssignToReg<[XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7]>>>,
 
@@ -541,33 +573,33 @@ def CC_X86_64_C : CallingConv<[
   // FIXME: This isn't precisely correct; the x86-64 ABI document says that
   // fixed arguments to vararg functions are supposed to be passed in
   // registers.  Actually modeling that would be a lot of work, though.
-  CCIfNotVarArg<CCIfType<[v32i8, v16i16, v8i32, v4i64, v8f32, v4f64],
+  CCIfNotVarArg<CCIfType<[v32i8, v16i16, v8i32, v4i64, v16f16, v8f32, v4f64],
                           CCIfSubtarget<"hasAVX()",
                           CCAssignToReg<[YMM0, YMM1, YMM2, YMM3,
                                          YMM4, YMM5, YMM6, YMM7]>>>>,
 
   // The first 8 512-bit vector arguments are passed in ZMM registers.
-  CCIfNotVarArg<CCIfType<[v64i8, v32i16, v16i32, v8i64, v16f32, v8f64],
+  CCIfNotVarArg<CCIfType<[v64i8, v32i16, v16i32, v8i64, v32f16, v16f32, v8f64],
             CCIfSubtarget<"hasAVX512()",
             CCAssignToReg<[ZMM0, ZMM1, ZMM2, ZMM3, ZMM4, ZMM5, ZMM6, ZMM7]>>>>,
 
   // Integer/FP values get stored in stack slots that are 8 bytes in size and
   // 8-byte aligned if there are no more registers to hold them.
-  CCIfType<[i32, i64, f32, f64], CCAssignToStack<8, 8>>,
+  CCIfType<[i32, i64, f16, f32, f64], CCAssignToStack<8, 8>>,
 
   // Long doubles get stack slots whose size and alignment depends on the
   // subtarget.
   CCIfType<[f80, f128], CCAssignToStack<0, 0>>,
 
   // Vectors get 16-byte stack slots that are 16-byte aligned.
-  CCIfType<[v16i8, v8i16, v4i32, v2i64, v4f32, v2f64], CCAssignToStack<16, 16>>,
+  CCIfType<[v16i8, v8i16, v4i32, v2i64, v8f16, v4f32, v2f64], CCAssignToStack<16, 16>>,
 
   // 256-bit vectors get 32-byte stack slots that are 32-byte aligned.
-  CCIfType<[v32i8, v16i16, v8i32, v4i64, v8f32, v4f64],
+  CCIfType<[v32i8, v16i16, v8i32, v4i64, v16f16, v8f32, v4f64],
            CCAssignToStack<32, 32>>,
 
   // 512-bit vectors get 64-byte stack slots that are 64-byte aligned.
-  CCIfType<[v16i32, v8i64, v16f32, v8f64],
+  CCIfType<[v64i8, v32i16, v16i32, v8i64, v32f16, v16f32, v8f64],
            CCAssignToStack<64, 64>>
 ]>;
 
@@ -604,21 +636,40 @@ def CC_X86_Win64_C : CallingConv<[
   // A SwiftError is passed in R12.
   CCIfSwiftError<CCIfType<[i64], CCAssignToReg<[R12]>>>,
 
-  // 128 bit vectors are passed by pointer
-  CCIfType<[v16i8, v8i16, v4i32, v2i64, v4f32, v2f64], CCPassIndirect<i64>>,
+  // Pass SwiftSelf in a callee saved register.
+  CCIfSwiftSelf<CCIfType<[i64], CCAssignToReg<[R13]>>>,
 
+  // Pass SwiftAsync in an otherwise callee saved register so that calls to
+  // normal functions don't need to save it somewhere.
+  CCIfSwiftAsync<CCIfType<[i64], CCAssignToReg<[R14]>>>,
+
+  // The 'CFGuardTarget' parameter, if any, is passed in RAX.
+  CCIfCFGuardTarget<CCAssignToReg<[RAX]>>,
+
+  // 128 bit vectors are passed by pointer
+  CCIfType<[v16i8, v8i16, v4i32, v2i64, v8f16, v4f32, v2f64], CCPassIndirect<i64>>,
 
   // 256 bit vectors are passed by pointer
-  CCIfType<[v32i8, v16i16, v8i32, v4i64, v8f32, v4f64], CCPassIndirect<i64>>,
+  CCIfType<[v32i8, v16i16, v8i32, v4i64, v16f16, v8f32, v4f64], CCPassIndirect<i64>>,
 
   // 512 bit vectors are passed by pointer
-  CCIfType<[v16i32, v16f32, v8f64, v8i64], CCPassIndirect<i64>>,
+  CCIfType<[v64i8, v32i16, v16i32, v32f16, v16f32, v8f64, v8i64], CCPassIndirect<i64>>,
 
   // Long doubles are passed by pointer
   CCIfType<[f80], CCPassIndirect<i64>>,
 
   // The first 4 MMX vector arguments are passed in GPRs.
   CCIfType<[x86mmx], CCBitConvertToType<i64>>,
+
+  // If SSE was disabled, pass FP values smaller than 64-bits as integers in
+  // GPRs or on the stack.
+  CCIfType<[f32], CCIfNotSubtarget<"hasSSE1()", CCBitConvertToType<i32>>>,
+  CCIfType<[f64], CCIfNotSubtarget<"hasSSE1()", CCBitConvertToType<i64>>>,
+
+  // The first 4 FP/Vector arguments are passed in XMM registers.
+  CCIfType<[f16, f32, f64],
+           CCAssignToRegWithShadow<[XMM0, XMM1, XMM2, XMM3],
+                                   [RCX , RDX , R8  , R9  ]>>,
 
   // The first 4 integer arguments are passed in integer registers.
   CCIfType<[i8 ], CCAssignToRegWithShadow<[CL  , DL  , R8B , R9B ],
@@ -637,14 +688,9 @@ def CC_X86_Win64_C : CallingConv<[
   CCIfType<[i64], CCAssignToRegWithShadow<[RCX , RDX , R8  , R9  ],
                                           [XMM0, XMM1, XMM2, XMM3]>>,
 
-  // The first 4 FP/Vector arguments are passed in XMM registers.
-  CCIfType<[f32, f64, v16i8, v8i16, v4i32, v2i64, v4f32, v2f64],
-           CCAssignToRegWithShadow<[XMM0, XMM1, XMM2, XMM3],
-                                   [RCX , RDX , R8  , R9  ]>>,
-
   // Integer/FP values get stored in stack slots that are 8 bytes in size and
   // 8-byte aligned if there are no more registers to hold them.
-  CCIfType<[i8, i16, i32, i64, f32, f64], CCAssignToStack<8, 8>>
+  CCIfType<[i8, i16, i32, i64, f16, f32, f64], CCAssignToStack<8, 8>>
 ]>;
 
 def CC_X86_Win64_VectorCall : CallingConv<[
@@ -723,33 +769,51 @@ def CC_X86_64_AnyReg : CallingConv<[
 /// values are spilled on the stack.
 def CC_X86_32_Vector_Common : CallingConv<[
   // Other SSE vectors get 16-byte stack slots that are 16-byte aligned.
-  CCIfType<[v16i8, v8i16, v4i32, v2i64, v4f32, v2f64], CCAssignToStack<16, 16>>,
+  CCIfType<[v16i8, v8i16, v4i32, v2i64, v8f16, v4f32, v2f64],
+           CCAssignToStack<16, 16>>,
 
   // 256-bit AVX vectors get 32-byte stack slots that are 32-byte aligned.
-  CCIfType<[v32i8, v16i16, v8i32, v4i64, v8f32, v4f64],
+  CCIfType<[v32i8, v16i16, v8i32, v4i64, v16f16, v8f32, v4f64],
            CCAssignToStack<32, 32>>,
 
   // 512-bit AVX 512-bit vectors get 64-byte stack slots that are 64-byte aligned.
-  CCIfType<[v64i8, v32i16, v16i32, v8i64, v16f32, v8f64],
+  CCIfType<[v64i8, v32i16, v16i32, v8i64, v32f16, v16f32, v8f64],
            CCAssignToStack<64, 64>>
+]>;
+
+/// CC_X86_Win32_Vector - In X86 Win32 calling conventions, extra vector
+/// values are spilled on the stack.
+def CC_X86_Win32_Vector : CallingConv<[
+  // Other SSE vectors get 16-byte stack slots that are 4-byte aligned.
+  CCIfType<[v16i8, v8i16, v4i32, v2i64, v8f16, v4f32, v2f64],
+           CCAssignToStack<16, 4>>,
+
+  // 256-bit AVX vectors get 32-byte stack slots that are 4-byte aligned.
+  CCIfType<[v32i8, v16i16, v8i32, v4i64, v16f16, v8f32, v4f64],
+           CCAssignToStack<32, 4>>,
+
+  // 512-bit AVX 512-bit vectors get 64-byte stack slots that are 4-byte aligned.
+  CCIfType<[v64i8, v32i16, v16i32, v8i64, v32f16, v16f32, v8f64],
+           CCAssignToStack<64, 4>>
 ]>;
 
 // CC_X86_32_Vector_Standard - The first 3 vector arguments are passed in
 // vector registers
 def CC_X86_32_Vector_Standard : CallingConv<[
   // SSE vector arguments are passed in XMM registers.
-  CCIfNotVarArg<CCIfType<[v16i8, v8i16, v4i32, v2i64, v4f32, v2f64],
+  CCIfNotVarArg<CCIfType<[v16i8, v8i16, v4i32, v2i64, v8f16, v4f32, v2f64],
                 CCAssignToReg<[XMM0, XMM1, XMM2]>>>,
 
   // AVX 256-bit vector arguments are passed in YMM registers.
-  CCIfNotVarArg<CCIfType<[v32i8, v16i16, v8i32, v4i64, v8f32, v4f64],
+  CCIfNotVarArg<CCIfType<[v32i8, v16i16, v8i32, v4i64, v16f16, v8f32, v4f64],
                 CCIfSubtarget<"hasAVX()",
                 CCAssignToReg<[YMM0, YMM1, YMM2]>>>>,
 
   // AVX 512-bit vector arguments are passed in ZMM registers.
-  CCIfNotVarArg<CCIfType<[v64i8, v32i16, v16i32, v8i64, v16f32, v8f64],
+  CCIfNotVarArg<CCIfType<[v64i8, v32i16, v16i32, v8i64, v32f16, v16f32, v8f64],
                 CCAssignToReg<[ZMM0, ZMM1, ZMM2]>>>,
 
+  CCIfIsVarArgOnWin<CCDelegateTo<CC_X86_Win32_Vector>>,
   CCDelegateTo<CC_X86_32_Vector_Common>
 ]>;
 
@@ -757,16 +821,16 @@ def CC_X86_32_Vector_Standard : CallingConv<[
 // vector registers.
 def CC_X86_32_Vector_Darwin : CallingConv<[
   // SSE vector arguments are passed in XMM registers.
-  CCIfNotVarArg<CCIfType<[v16i8, v8i16, v4i32, v2i64, v4f32, v2f64],
+  CCIfNotVarArg<CCIfType<[v16i8, v8i16, v4i32, v2i64, v8f16, v4f32, v2f64],
                 CCAssignToReg<[XMM0, XMM1, XMM2, XMM3]>>>,
 
   // AVX 256-bit vector arguments are passed in YMM registers.
-  CCIfNotVarArg<CCIfType<[v32i8, v16i16, v8i32, v4i64, v8f32, v4f64],
+  CCIfNotVarArg<CCIfType<[v32i8, v16i16, v8i32, v4i64, v16f16, v8f32, v4f64],
                 CCIfSubtarget<"hasAVX()",
                 CCAssignToReg<[YMM0, YMM1, YMM2, YMM3]>>>>,
 
   // AVX 512-bit vector arguments are passed in ZMM registers.
-  CCIfNotVarArg<CCIfType<[v64i8, v32i16, v16i32, v8i64, v16f32, v8f64],
+  CCIfNotVarArg<CCIfType<[v64i8, v32i16, v16i32, v8i64, v32f16, v16f32, v8f64],
                 CCAssignToReg<[ZMM0, ZMM1, ZMM2, ZMM3]>>>,
 
   CCDelegateTo<CC_X86_32_Vector_Common>
@@ -775,8 +839,9 @@ def CC_X86_32_Vector_Darwin : CallingConv<[
 /// CC_X86_32_Common - In all X86-32 calling conventions, extra integers and FP
 /// values are spilled on the stack.
 def CC_X86_32_Common : CallingConv<[
-  // Handles byval parameters.
+  // Handles byval/preallocated parameters.
   CCIfByVal<CCPassByVal<4, 4>>,
+  CCIfPreallocated<CCPassByVal<4, 4>>,
 
   // The first 3 float or double arguments, if marked 'inreg' and if the call
   // is not a vararg call and if SSE2 is available, are passed in SSE registers.
@@ -784,10 +849,14 @@ def CC_X86_32_Common : CallingConv<[
                 CCIfSubtarget<"hasSSE2()",
                 CCAssignToReg<[XMM0,XMM1,XMM2]>>>>>,
 
+  CCIfNotVarArg<CCIfInReg<CCIfType<[f16], CCAssignToReg<[XMM0,XMM1,XMM2]>>>>,
+
   // The first 3 __m64 vector arguments are passed in mmx registers if the
   // call is not a vararg call.
   CCIfNotVarArg<CCIfType<[x86mmx],
                 CCAssignToReg<[MM0, MM1, MM2]>>>,
+
+  CCIfType<[f16], CCAssignToStack<4, 4>>,
 
   // Integer/Float values get stored in stack slots that are 4 bytes in
   // size and 4-byte aligned.
@@ -796,8 +865,8 @@ def CC_X86_32_Common : CallingConv<[
   // Doubles get 8-byte slots that are 4-byte aligned.
   CCIfType<[f64], CCAssignToStack<8, 4>>,
 
-  // Long doubles get slots whose size depends on the subtarget.
-  CCIfType<[f80], CCAssignToStack<0, 4>>,
+  // Long doubles get slots whose size and alignment depends on the subtarget.
+  CCIfType<[f80], CCAssignToStack<0, 0>>,
 
   // Boolean vectors of AVX-512 are passed in SIMD registers.
   // The call from AVX to AVX-512 function should work,
@@ -826,6 +895,10 @@ def CC_X86_32_C : CallingConv<[
 
   // The 'nest' parameter, if any, is passed in ECX.
   CCIfNest<CCAssignToReg<[ECX]>>,
+
+  // On swifttailcc pass swiftself in ECX.
+  CCIfCC<"CallingConv::SwiftTail",
+         CCIfSwiftSelf<CCIfType<[i32], CCAssignToReg<[ECX]>>>>,
 
   // The first 3 integer arguments, if marked 'inreg' and if the call is not
   // a vararg call, are passed in integer registers.
@@ -934,6 +1007,12 @@ def CC_X86_32_FastCC : CallingConv<[
   CCDelegateTo<CC_X86_32_Common>
 ]>;
 
+def CC_X86_Win32_CFGuard_Check : CallingConv<[
+  // The CFGuard check call takes exactly one integer argument
+  // (i.e. the target function address), which is passed in ECX.
+  CCIfType<[i32], CCAssignToReg<[ECX]>>
+]>;
+
 def CC_X86_32_GHC : CallingConv<[
   // Promote i8/i16 arguments to i32.
   CCIfType<[i8, i16], CCPromoteToType<i32>>,
@@ -998,7 +1077,9 @@ def CC_X86_32 : CallingConv<[
   CCIfCC<"CallingConv::X86_FastCall", CCDelegateTo<CC_X86_32_FastCall>>,
   CCIfCC<"CallingConv::X86_VectorCall", CCDelegateTo<CC_X86_Win32_VectorCall>>,
   CCIfCC<"CallingConv::X86_ThisCall", CCDelegateTo<CC_X86_32_ThisCall>>,
+  CCIfCC<"CallingConv::CFGuard_Check", CCDelegateTo<CC_X86_Win32_CFGuard_Check>>,
   CCIfCC<"CallingConv::Fast", CCDelegateTo<CC_X86_32_FastCC>>,
+  CCIfCC<"CallingConv::Tail", CCDelegateTo<CC_X86_32_FastCC>>,
   CCIfCC<"CallingConv::GHC", CCDelegateTo<CC_X86_32_GHC>>,
   CCIfCC<"CallingConv::HiPE", CCDelegateTo<CC_X86_32_HiPE>>,
   CCIfCC<"CallingConv::X86_RegCall", CCDelegateTo<CC_X86_32_RegCall>>,
@@ -1048,6 +1129,7 @@ def CSR_32 : CalleeSavedRegs<(add ESI, EDI, EBX, EBP)>;
 def CSR_64 : CalleeSavedRegs<(add RBX, R12, R13, R14, R15, RBP)>;
 
 def CSR_64_SwiftError : CalleeSavedRegs<(sub CSR_64, R12)>;
+def CSR_64_SwiftTail : CalleeSavedRegs<(sub CSR_64, R13, R14)>;
 
 def CSR_32EHRet : CalleeSavedRegs<(add EAX, EDX, CSR_32)>;
 def CSR_64EHRet : CalleeSavedRegs<(add RAX, RDX, CSR_64)>;
@@ -1058,6 +1140,7 @@ def CSR_Win64 : CalleeSavedRegs<(add CSR_Win64_NoSSE,
                                      (sequence "XMM%u", 6, 15))>;
 
 def CSR_Win64_SwiftError : CalleeSavedRegs<(sub CSR_Win64, R12)>;
+def CSR_Win64_SwiftTail : CalleeSavedRegs<(sub CSR_Win64, R13, R14)>;
 
 // The function used by Darwin to obtain the address of a thread-local variable
 // uses rdi to pass a single parameter and rax for the return value. All other
@@ -1073,7 +1156,7 @@ def CSR_64_CXX_TLS_Darwin_ViaCopy : CalleeSavedRegs<(sub CSR_64_TLS_Darwin, RBP)
 
 // All GPRs - except r11
 def CSR_64_RT_MostRegs : CalleeSavedRegs<(add CSR_64, RAX, RCX, RDX, RSI, RDI,
-                                              R8, R9, R10, RSP)>;
+                                              R8, R9, R10)>;
 
 // All registers - except r11
 def CSR_64_RT_AllRegs     : CalleeSavedRegs<(add CSR_64_RT_MostRegs,
@@ -1123,7 +1206,7 @@ def CSR_64_Intel_OCL_BI       : CalleeSavedRegs<(add CSR_64,
 def CSR_64_Intel_OCL_BI_AVX    : CalleeSavedRegs<(add CSR_64,
                                                   (sequence "YMM%u", 8, 15))>;
 
-def CSR_64_Intel_OCL_BI_AVX512 : CalleeSavedRegs<(add RBX, RDI, RSI, R14, R15,
+def CSR_64_Intel_OCL_BI_AVX512 : CalleeSavedRegs<(add RBX, RSI, R14, R15,
                                                   (sequence "ZMM%u", 16, 31),
                                                   K4, K5, K6, K7)>;
 
@@ -1131,15 +1214,16 @@ def CSR_64_Intel_OCL_BI_AVX512 : CalleeSavedRegs<(add RBX, RDI, RSI, R14, R15,
 def CSR_64_HHVM : CalleeSavedRegs<(add R12)>;
 
 // Register calling convention preserves few GPR and XMM8-15
-def CSR_32_RegCall_NoSSE : CalleeSavedRegs<(add ESI, EDI, EBX, EBP, ESP)>;
+def CSR_32_RegCall_NoSSE : CalleeSavedRegs<(add ESI, EDI, EBX, EBP)>;
 def CSR_32_RegCall       : CalleeSavedRegs<(add CSR_32_RegCall_NoSSE,
-                                           (sequence "XMM%u", 4, 7))>;                                            
-def CSR_Win64_RegCall_NoSSE : CalleeSavedRegs<(add RBX, RBP, RSP,
+                                           (sequence "XMM%u", 4, 7))>;
+def CSR_Win32_CFGuard_Check_NoSSE : CalleeSavedRegs<(add CSR_32_RegCall_NoSSE, ECX)>;
+def CSR_Win32_CFGuard_Check       : CalleeSavedRegs<(add CSR_32_RegCall, ECX)>;
+def CSR_Win64_RegCall_NoSSE : CalleeSavedRegs<(add RBX, RBP,
                                               (sequence "R%u", 10, 15))>;
 def CSR_Win64_RegCall       : CalleeSavedRegs<(add CSR_Win64_RegCall_NoSSE,                                  
                                               (sequence "XMM%u", 8, 15))>;
-def CSR_SysV64_RegCall_NoSSE : CalleeSavedRegs<(add RBX, RBP, RSP,
+def CSR_SysV64_RegCall_NoSSE : CalleeSavedRegs<(add RBX, RBP,
                                                (sequence "R%u", 12, 15))>;
 def CSR_SysV64_RegCall       : CalleeSavedRegs<(add CSR_SysV64_RegCall_NoSSE,               
                                                (sequence "XMM%u", 8, 15))>;
-                                               

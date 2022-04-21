@@ -1,9 +1,9 @@
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 -mattr=+code-object-v3 -filetype=obj -o - < %s | llvm-readelf --notes | FileCheck --check-prefix=CHECK --check-prefix=GFX700 --check-prefix=NOTES %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx802 -mattr=+code-object-v3 -filetype=obj -o - < %s | llvm-readelf --notes | FileCheck --check-prefix=CHECK --check-prefix=GFX802 --check-prefix=NOTES %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=+code-object-v3 -filetype=obj -o - < %s | llvm-readelf --notes | FileCheck --check-prefix=CHECK --check-prefix=GFX900 --check-prefix=NOTES %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 -mattr=+code-object-v3 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx802 -mattr=+code-object-v3 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=+code-object-v3 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 --amdhsa-code-object-version=3 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx802 --amdhsa-code-object-version=3 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 --amdhsa-code-object-version=3 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 --amdhsa-code-object-version=3 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx802 --amdhsa-code-object-version=3 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 --amdhsa-code-object-version=3 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
 
 %struct.A = type { i8, float }
 %opencl.image1d_t = type opaque
@@ -24,26 +24,23 @@
 ; CHECK-NEXT:         .size:           1
 ; CHECK-NEXT:         .type_name:      char
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NOT:          .value_kind:     hidden_default_queue
 ; CHECK-NOT:          .value_kind:     hidden_completion_action
+; CHECK-NOT:          .value_kind:     hidden_hostcall_buffer
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK:              .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -59,32 +56,108 @@ define amdgpu_kernel void @test_char(i8 %a) #0
 ; CHECK:        - .args:
 ; CHECK-NEXT:       - .name:           a
 ; CHECK-NEXT:         .offset:         0
-; CHECK-NEXT:         .size:           4
-; CHECK-NEXT:         .type_name:      ushort2
+; CHECK-NEXT:         .size:           1
+; CHECK-NEXT:         .type_name:      char
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     u16
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         32
+; CHECK-NEXT:         .size:           8
+; CHECK-NOT:          .value_kind:     hidden_default_queue
+; CHECK-NOT:          .value_kind:     hidden_completion_action
+; CHECK-NOT:          .value_kind:     hidden_hostcall_buffer
+; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
+; CHECK:              .value_kind:     hidden_multigrid_sync_arg
+; CHECK:          .language:       OpenCL C
+; CHECK-NEXT:     .language_version:
+; CHECK-NEXT:       - 2
+; CHECK-NEXT:       - 0
+; CHECK:          .name:           test_char_byref_constant
+; CHECK:          .symbol:         test_char_byref_constant.kd
+define amdgpu_kernel void @test_char_byref_constant(i8 addrspace(4)* byref(i8) %a) #0
+    !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !9
+    !kernel_arg_base_type !9 !kernel_arg_type_qual !4 {
+  ret void
+}
+
+; CHECK:        - .args:
+; CHECK-NEXT:       - .offset:         0
+; CHECK-NEXT:         .size:           1
+; CHECK-NEXT:         .type_name:      char
+; CHECK-NEXT:         .value_kind:     by_value
+; CHECK-NEXT:       - .name:           a
+; CHECK-NEXT:         .offset:         512
+; CHECK-NEXT:         .size:           1
+; CHECK-NEXT:         .type_name:      char
+; CHECK-NEXT:         .value_kind:     by_value
+; CHECK-NEXT:       - .offset:         520
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
+; CHECK-NEXT:       - .offset:         528
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
+; CHECK-NEXT:       - .offset:         536
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         544
+; CHECK-NEXT:         .size:           8
+; CHECK-NOT:          .value_kind:     hidden_default_queue
+; CHECK-NOT:          .value_kind:     hidden_completion_action
+; CHECK-NOT:          .value_kind:     hidden_hostcall_buffer
+; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
+; CHECK:              .value_kind:     hidden_multigrid_sync_arg
+; CHECK:          .language:       OpenCL C
+; CHECK-NEXT:     .language_version:
+; CHECK-NEXT:       - 2
+; CHECK-NEXT:       - 0
+; CHECK:          .name:           test_char_byref_constant_align512
+; CHECK:          .symbol:         test_char_byref_constant_align512.kd
+define amdgpu_kernel void @test_char_byref_constant_align512(i8, i8 addrspace(4)* byref(i8) align(512) %a) #0
+    !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !111
+    !kernel_arg_base_type !9 !kernel_arg_type_qual !4 {
+  ret void
+}
+
+; CHECK:        - .args:
+; CHECK-NEXT:       - .name:           a
+; CHECK-NEXT:         .offset:         0
+; CHECK-NEXT:         .size:           4
+; CHECK-NEXT:         .type_name:      ushort2
+; CHECK-NEXT:         .value_kind:     by_value
+; CHECK-NEXT:       - .offset:         8
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
+; CHECK-NEXT:       - .offset:         16
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
+; CHECK-NEXT:       - .offset:         24
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_none
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -103,24 +176,31 @@ define amdgpu_kernel void @test_ushort2(<2 x i16> %a) #0
 ; CHECK-NEXT:         .size:           16
 ; CHECK-NEXT:         .type_name:      int3
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -139,24 +219,31 @@ define amdgpu_kernel void @test_int3(<3 x i32> %a) #0
 ; CHECK-NEXT:         .size:           32
 ; CHECK-NEXT:         .type_name:      ulong4
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     u64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         56
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         80
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -175,24 +262,31 @@ define amdgpu_kernel void @test_ulong4(<4 x i64> %a) #0
 ; CHECK-NEXT:         .size:           16
 ; CHECK-NEXT:         .type_name:      half8
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     f16
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -211,24 +305,31 @@ define amdgpu_kernel void @test_half8(<8 x half> %a) #0
 ; CHECK-NEXT:         .size:           64
 ; CHECK-NEXT:         .type_name:      float16
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     f32
 ; CHECK-NEXT:       - .offset:         64
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         72
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         80
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         88
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         96
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         104
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         112
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -247,24 +348,31 @@ define amdgpu_kernel void @test_float16(<16 x float> %a) #0
 ; CHECK-NEXT:         .size:           128
 ; CHECK-NEXT:         .type_name:      double16
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     f64
 ; CHECK-NEXT:       - .offset:         128
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         136
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         144
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         152
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         160
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         168
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         176
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -284,24 +392,31 @@ define amdgpu_kernel void @test_double16(<16 x double> %a) #0
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'int  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -321,24 +436,31 @@ define amdgpu_kernel void @test_pointer(i32 addrspace(1)* %a) #0
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      image2d_t
 ; CHECK-NEXT:         .value_kind:     image
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -357,24 +479,31 @@ define amdgpu_kernel void @test_image(%opencl.image2d_t addrspace(1)* %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      sampler_t
 ; CHECK-NEXT:         .value_kind:     sampler
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -394,24 +523,31 @@ define amdgpu_kernel void @test_sampler(i32 %a) #0
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      queue_t
 ; CHECK-NEXT:         .value_kind:     queue
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -425,37 +561,172 @@ define amdgpu_kernel void @test_queue(%opencl.queue_t addrspace(1)* %a) #0
 }
 
 ; CHECK:        - .args:
-; CHECK-NEXT:       - .address_space:  private
 ; CHECK-NEXT:         .name:           a
 ; CHECK-NEXT:         .offset:         0
-; CHECK-NEXT:         .size:           4
+; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      struct A
-; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     struct
+; CHECK-NEXT:         .value_kind:     by_value
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
 ; CHECK-NEXT:       - 0
 ; CHECK:          .name:           test_struct
 ; CHECK:          .symbol:         test_struct.kd
-define amdgpu_kernel void @test_struct(%struct.A addrspace(5)* byval %a) #0
+define amdgpu_kernel void @test_struct(%struct.A %a) #0
+    !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !20
+    !kernel_arg_base_type !20 !kernel_arg_type_qual !4 {
+  ret void
+}
+
+; CHECK:        - .args:
+; CHECK-NEXT:         .name:           a
+; CHECK-NEXT:         .offset:         0
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .type_name:      struct A
+; CHECK-NEXT:         .value_kind:     by_value
+; CHECK-NEXT:       - .offset:         8
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
+; CHECK-NEXT:       - .offset:         16
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
+; CHECK-NEXT:       - .offset:         24
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         32
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
+; CHECK:          .language:       OpenCL C
+; CHECK-NEXT:     .language_version:
+; CHECK-NEXT:       - 2
+; CHECK-NEXT:       - 0
+; CHECK:          .name:           test_struct_byref_constant
+; CHECK:          .symbol:         test_struct_byref_constant.kd
+define amdgpu_kernel void @test_struct_byref_constant(%struct.A addrspace(4)* byref(%struct.A) %a) #0
+    !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !20
+    !kernel_arg_base_type !20 !kernel_arg_type_qual !4 {
+  ret void
+}
+
+; CHECK:        - .args:
+; CHECK-NEXT:         .name:           a
+; CHECK-NEXT:         .offset:         0
+; CHECK-NEXT:         .size:           32
+; CHECK-NEXT:         .type_name:      struct A
+; CHECK-NEXT:         .value_kind:     by_value
+; CHECK-NEXT:       - .offset:         32
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
+; CHECK-NEXT:       - .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
+; CHECK-NEXT:       - .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         80
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
+; CHECK:          .language:       OpenCL C
+; CHECK-NEXT:     .language_version:
+; CHECK-NEXT:       - 2
+; CHECK-NEXT:       - 0
+; CHECK:          .name:           test_array
+; CHECK:          .symbol:         test_array.kd
+define amdgpu_kernel void @test_array([32 x i8] %a) #0
+    !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !20
+    !kernel_arg_base_type !20 !kernel_arg_type_qual !4 {
+  ret void
+}
+
+; CHECK:        - .args:
+; CHECK-NEXT:         .name:           a
+; CHECK-NEXT:         .offset:         0
+; CHECK-NEXT:         .size:           32
+; CHECK-NEXT:         .type_name:      struct A
+; CHECK-NEXT:         .value_kind:     by_value
+; CHECK-NEXT:       - .offset:         32
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
+; CHECK-NEXT:       - .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
+; CHECK-NEXT:       - .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         80
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
+; CHECK:          .language:       OpenCL C
+; CHECK-NEXT:     .language_version:
+; CHECK-NEXT:       - 2
+; CHECK-NEXT:       - 0
+; CHECK:          .name:           test_array_byref_constant
+; CHECK:          .symbol:         test_array_byref_constant.kd
+define amdgpu_kernel void @test_array_byref_constant([32 x i8] addrspace(4)* byref([32 x i8]) %a) #0
     !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !20
     !kernel_arg_base_type !20 !kernel_arg_type_qual !4 {
   ret void
@@ -467,24 +738,31 @@ define amdgpu_kernel void @test_struct(%struct.A addrspace(5)* byval %a) #0
 ; CHECK-NEXT:         .size:           16
 ; CHECK-NEXT:         .type_name:      i128
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -503,36 +781,41 @@ define amdgpu_kernel void @test_i128(i128 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .name:           b
 ; CHECK-NEXT:         .offset:         4
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      short2
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i16
 ; CHECK-NEXT:       - .name:           c
 ; CHECK-NEXT:         .offset:         8
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      char3
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -552,14 +835,12 @@ define amdgpu_kernel void @test_multi_arg(i32 %a, <2 x i16> %b, <3 x i8> %c) #0
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'int  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .address_space:  constant
 ; CHECK-NEXT:         .name:           c
 ; CHECK-NEXT:         .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'int  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           l
 ; CHECK-NEXT:         .offset:         16
@@ -567,24 +848,31 @@ define amdgpu_kernel void @test_multi_arg(i32 %a, <2 x i16> %b, <3 x i8> %c) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'int  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -593,7 +881,7 @@ define amdgpu_kernel void @test_multi_arg(i32 %a, <2 x i16> %b, <3 x i8> %c) #0
 ; CHECK:          .symbol:         test_addr_space.kd
 define amdgpu_kernel void @test_addr_space(i32 addrspace(1)* %g,
                                            i32 addrspace(4)* %c,
-                                           i32 addrspace(3)* %l) #0
+                                           i32 addrspace(3)* align 4 %l) #0
     !kernel_arg_addr_space !50 !kernel_arg_access_qual !23 !kernel_arg_type !51
     !kernel_arg_base_type !51 !kernel_arg_type_qual !25 {
   ret void
@@ -607,7 +895,6 @@ define amdgpu_kernel void @test_addr_space(i32 addrspace(1)* %g,
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'int  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .is_const:       true
 ; CHECK-NEXT:         .is_restrict:    true
@@ -616,7 +903,6 @@ define amdgpu_kernel void @test_addr_space(i32 addrspace(1)* %g,
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'int  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .is_pipe:        true
 ; CHECK-NEXT:         .name:           c
@@ -624,24 +910,31 @@ define amdgpu_kernel void @test_addr_space(i32 addrspace(1)* %g,
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'int  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     pipe
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -664,7 +957,6 @@ define amdgpu_kernel void @test_type_qual(i32 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      image1d_t
 ; CHECK-NEXT:         .value_kind:     image
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .access:         write_only
 ; CHECK-NEXT:         .address_space:  global
 ; CHECK-NEXT:         .name:           wo
@@ -672,7 +964,6 @@ define amdgpu_kernel void @test_type_qual(i32 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      image2d_t
 ; CHECK-NEXT:         .value_kind:     image
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .access:         read_write
 ; CHECK-NEXT:         .address_space:  global
 ; CHECK-NEXT:         .name:           rw
@@ -680,24 +971,31 @@ define amdgpu_kernel void @test_type_qual(i32 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      image3d_t
 ; CHECK-NEXT:         .value_kind:     image
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -718,24 +1016,31 @@ define amdgpu_kernel void @test_access_qual(%opencl.image1d_t addrspace(1)* %ro,
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -755,24 +1060,31 @@ define amdgpu_kernel void @test_vec_type_hint_half(i32 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -792,24 +1104,31 @@ define amdgpu_kernel void @test_vec_type_hint_float(i32 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -829,24 +1148,31 @@ define amdgpu_kernel void @test_vec_type_hint_double(i32 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -866,24 +1192,31 @@ define amdgpu_kernel void @test_vec_type_hint_char(i32 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -903,24 +1236,31 @@ define amdgpu_kernel void @test_vec_type_hint_short(i32 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -940,24 +1280,31 @@ define amdgpu_kernel void @test_vec_type_hint_long(i32 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -977,24 +1324,31 @@ define amdgpu_kernel void @test_vec_type_hint_unknown(i32 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -1019,24 +1373,31 @@ define amdgpu_kernel void @test_reqd_wgs_vec_type_hint(i32 %a) #0
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      int
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -1062,24 +1423,31 @@ define amdgpu_kernel void @test_wgs_hint_vec_type_hint(i32 %a) #0
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'int  addrspace(5)* addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -1093,37 +1461,43 @@ define amdgpu_kernel void @test_arg_ptr_to_ptr(i32 addrspace(5)* addrspace(1)* %
 }
 
 ; CHECK:        - .args:
-; CHECK-NEXT:       - .address_space:  private
 ; CHECK-NEXT:         .name:           a
 ; CHECK-NEXT:         .offset:         0
-; CHECK-NEXT:         .size:           4
+; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      struct B
-; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     struct
+; CHECK-NEXT:         .value_kind:     by_value
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
 ; CHECK-NEXT:       - 0
 ; CHECK:          .name:           test_arg_struct_contains_ptr
 ; CHECK:          .symbol:         test_arg_struct_contains_ptr.kd
-define amdgpu_kernel void @test_arg_struct_contains_ptr(%struct.B addrspace(5)* byval %a) #0
+define amdgpu_kernel void @test_arg_struct_contains_ptr(%struct.B %a) #0
     !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !82
     !kernel_arg_base_type !82 !kernel_arg_type_qual !4 {
  ret void
@@ -1135,24 +1509,31 @@ define amdgpu_kernel void @test_arg_struct_contains_ptr(%struct.B addrspace(5)* 
 ; CHECK-NEXT:         .size:           16
 ; CHECK-NEXT:         .type_name:      'global int addrspace(5)* __attribute__((ext_vector_type(2)))'
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -1172,24 +1553,31 @@ define amdgpu_kernel void @test_arg_vector_of_ptr(<2 x i32 addrspace(1)*> %a) #0
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      clk_event_t
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -1210,7 +1598,6 @@ define amdgpu_kernel void @test_arg_unknown_builtin_type(
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'long  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           b
 ; CHECK-NEXT:         .offset:         8
@@ -1218,7 +1605,6 @@ define amdgpu_kernel void @test_arg_unknown_builtin_type(
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           c
 ; CHECK-NEXT:         .offset:         12
@@ -1226,7 +1612,6 @@ define amdgpu_kernel void @test_arg_unknown_builtin_type(
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char2  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           d
 ; CHECK-NEXT:         .offset:         16
@@ -1234,7 +1619,6 @@ define amdgpu_kernel void @test_arg_unknown_builtin_type(
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char3  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           e
 ; CHECK-NEXT:         .offset:         20
@@ -1242,7 +1626,6 @@ define amdgpu_kernel void @test_arg_unknown_builtin_type(
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char4  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           f
 ; CHECK-NEXT:         .offset:         24
@@ -1250,7 +1633,6 @@ define amdgpu_kernel void @test_arg_unknown_builtin_type(
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char8  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           g
 ; CHECK-NEXT:         .offset:         28
@@ -1258,31 +1640,37 @@ define amdgpu_kernel void @test_arg_unknown_builtin_type(
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char16  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           h
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .pointee_align:  1
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         56
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         64
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         80
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         88
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -1291,11 +1679,11 @@ define amdgpu_kernel void @test_arg_unknown_builtin_type(
 ; CHECK:          .symbol:         test_pointee_align.kd
 define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
                                               i8 addrspace(3)* %b,
-                                              <2 x i8> addrspace(3)* %c,
-                                              <3 x i8> addrspace(3)* %d,
-                                              <4 x i8> addrspace(3)* %e,
-                                              <8 x i8> addrspace(3)* %f,
-                                              <16 x i8> addrspace(3)* %g,
+                                              <2 x i8> addrspace(3)* align 2 %c,
+                                              <3 x i8> addrspace(3)* align 4 %d,
+                                              <4 x i8> addrspace(3)* align 4 %e,
+                                              <8 x i8> addrspace(3)* align 8 %f,
+                                              <16 x i8> addrspace(3)* align 16 %g,
                                               {} addrspace(3)* %h) #0
     !kernel_arg_addr_space !91 !kernel_arg_access_qual !92 !kernel_arg_type !93
     !kernel_arg_base_type !93 !kernel_arg_type_qual !94 {
@@ -1309,7 +1697,6 @@ define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .type_name:      'long  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           b
 ; CHECK-NEXT:         .offset:         8
@@ -1317,7 +1704,6 @@ define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           c
 ; CHECK-NEXT:         .offset:         12
@@ -1325,7 +1711,6 @@ define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char2  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           d
 ; CHECK-NEXT:         .offset:         16
@@ -1333,7 +1718,6 @@ define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char3  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           e
 ; CHECK-NEXT:         .offset:         20
@@ -1341,7 +1725,6 @@ define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char4  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           f
 ; CHECK-NEXT:         .offset:         24
@@ -1349,7 +1732,6 @@ define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char8  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           g
 ; CHECK-NEXT:         .offset:         28
@@ -1357,31 +1739,37 @@ define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .type_name:      'char16  addrspace(5)*'
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  local
 ; CHECK-NEXT:         .name:           h
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .pointee_align:  16
 ; CHECK-NEXT:         .size:           4
 ; CHECK-NEXT:         .value_kind:     dynamic_shared_pointer
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         56
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         64
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         80
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         88
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -1406,24 +1794,31 @@ define amdgpu_kernel void @test_pointee_align_attribute(i64 addrspace(1)* align 
 ; CHECK-NEXT:         .size:           25
 ; CHECK-NEXT:         .type_name:      __block_literal
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     struct
 ; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         56
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         64
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         72
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         80
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .device_enqueue_symbol: __test_block_invoke_kernel_runtime_handle
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
@@ -1444,34 +1839,31 @@ define amdgpu_kernel void @__test_block_invoke_kernel(
 ; CHECK-NEXT:         .size:           1
 ; CHECK-NEXT:         .type_name:      char
 ; CHECK-NEXT:         .value_kind:     by_value
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .offset:         8
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_x
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         16
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_y
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:         .value_type:     i64
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         32
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_printf_buffer
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_default_queue
-; CHECK-NEXT:         .value_type:     i8
 ; CHECK-NEXT:       - .address_space:  global
 ; CHECK-NEXT:         .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_completion_action
-; CHECK-NEXT:         .value_type:     i8
+; CHECK-NEXT:       - .address_space:  global
+; CHECK-NEXT:         .offset:         56
+; CHECK-NEXT:         .size:           8
+; CHECK-NEXT:         .value_kind:     hidden_multigrid_sync_arg
 ; CHECK:          .language:       OpenCL C
 ; CHECK-NEXT:     .language_version:
 ; CHECK-NEXT:       - 2
@@ -1489,7 +1881,6 @@ define amdgpu_kernel void @test_enqueue_kernel_caller(i8 %a) #2
 ; CHECK-NEXT:         .offset:         0
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     global_buffer
-; CHECK-NEXT:         .value_type:     i32
 ; CHECK:          .name:           unknown_addrspace_kernarg
 ; CHECK:          .symbol:         unknown_addrspace_kernarg.kd
 define amdgpu_kernel void @unknown_addrspace_kernarg(i32 addrspace(12345)* %ptr) #0 {
@@ -1503,9 +1894,9 @@ define amdgpu_kernel void @unknown_addrspace_kernarg(i32 addrspace(12345)* %ptr)
 ; CHECK-NEXT: - 1
 ; CHECK-NEXT: - 0
 
-attributes #0 = { "amdgpu-implicitarg-num-bytes"="48" }
-attributes #1 = { "amdgpu-implicitarg-num-bytes"="48" "runtime-handle"="__test_block_invoke_kernel_runtime_handle" }
-attributes #2 = { "amdgpu-implicitarg-num-bytes"="48" "calls-enqueue-kernel" }
+attributes #0 = { optnone noinline "amdgpu-implicitarg-num-bytes"="56" }
+attributes #1 = { optnone noinline "amdgpu-implicitarg-num-bytes"="56" "runtime-handle"="__test_block_invoke_kernel_runtime_handle" }
+attributes #2 = { optnone noinline "amdgpu-implicitarg-num-bytes"="56" "calls-enqueue-kernel" }
 
 !llvm.printf.fmts = !{!100, !101}
 
@@ -1561,5 +1952,6 @@ attributes #2 = { "amdgpu-implicitarg-num-bytes"="48" "calls-enqueue-kernel" }
 !100 = !{!"1:1:4:%d\5Cn"}
 !101 = !{!"2:1:8:%g\5Cn"}
 !110 = !{!"__block_literal"}
+!111 = !{!"char", !"char"}
 
 ; PARSER: AMDGPU HSA Metadata Parser Test: PASS

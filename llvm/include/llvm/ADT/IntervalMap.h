@@ -5,30 +5,31 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file implements a coalescing interval map for small objects.
-//
-// KeyT objects are mapped to ValT objects. Intervals of keys that map to the
-// same value are represented in a compressed form.
-//
-// Iterators provide ordered access to the compressed intervals rather than the
-// individual keys, and insert and erase operations use key intervals as well.
-//
-// Like SmallVector, IntervalMap will store the first N intervals in the map
-// object itself without any allocations. When space is exhausted it switches to
-// a B+-tree representation with very small overhead for small key and value
-// objects.
-//
-// A Traits class specifies how keys are compared. It also allows IntervalMap to
-// work with both closed and half-open intervals.
-//
-// Keys and values are not stored next to each other in a std::pair, so we don't
-// provide such a value_type. Dereferencing iterators only returns the mapped
-// value. The interval bounds are accessible through the start() and stop()
-// iterator methods.
-//
-// IntervalMap is optimized for small key and value objects, 4 or 8 bytes each
-// is the optimal size. For large objects use std::map instead.
+///
+/// \file
+/// This file implements a coalescing interval map for small objects.
+///
+/// KeyT objects are mapped to ValT objects. Intervals of keys that map to the
+/// same value are represented in a compressed form.
+///
+/// Iterators provide ordered access to the compressed intervals rather than the
+/// individual keys, and insert and erase operations use key intervals as well.
+///
+/// Like SmallVector, IntervalMap will store the first N intervals in the map
+/// object itself without any allocations. When space is exhausted it switches
+/// to a B+-tree representation with very small overhead for small key and
+/// value objects.
+///
+/// A Traits class specifies how keys are compared. It also allows IntervalMap
+/// to work with both closed and half-open intervals.
+///
+/// Keys and values are not stored next to each other in a std::pair, so we
+/// don't provide such a value_type. Dereferencing iterators only returns the
+/// mapped value. The interval bounds are accessible through the start() and
+/// stop() iterator methods.
+///
+/// IntervalMap is optimized for small key and value objects, 4 or 8 bytes
+/// each is the optimal size. For large objects use std::map instead.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -63,9 +64,14 @@
 // };
 //
 // template <typename KeyT, typename ValT, unsigned N, typename Traits>
-// class IntervalMap::const_iterator :
-//   public std::iterator<std::bidirectional_iterator_tag, ValT> {
+// class IntervalMap::const_iterator {
 // public:
+//   using iterator_category = std::bidirectional_iterator_tag;
+//   using value_type = ValT;
+//   using difference_type = std::ptrdiff_t;
+//   using pointer = value_type *;
+//   using reference = value_type &;
+//
 //   bool operator==(const const_iterator &) const;
 //   bool operator!=(const const_iterator &) const;
 //   bool valid() const;
@@ -100,13 +106,10 @@
 
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/bit.h"
-#include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/RecyclingAllocator.h"
 #include <algorithm>
 #include <cassert>
-#include <cstdint>
 #include <iterator>
 #include <new>
 #include <utility>
@@ -491,7 +494,7 @@ class NodeRef {
   struct CacheAlignedPointerTraits {
     static inline void *getAsVoidPointer(void *P) { return P; }
     static inline void *getFromVoidPointer(void *P) { return P; }
-    enum { NumLowBitsAvailable = Log2CacheLine };
+    static constexpr int NumLowBitsAvailable = Log2CacheLine;
   };
   PointerIntPair<void*, Log2CacheLine, unsigned, CacheAlignedPointerTraits> pip;
 
@@ -823,7 +826,7 @@ public:
   }
 
   /// reset - Reset cached information about node(Level) from subtree(Level -1).
-  /// @param Level 1..height. THe node to update after parent node changed.
+  /// @param Level 1..height. The node to update after parent node changed.
   void reset(unsigned Level) {
     path[Level] = Entry(subtree(Level - 1), offset(Level));
   }
@@ -884,7 +887,7 @@ public:
   }
 
   /// getLeftSibling - Get the left sibling node at Level, or a null NodeRef.
-  /// @param Level Get the sinbling to node(Level).
+  /// @param Level Get the sibling to node(Level).
   /// @return Left sibling, or NodeRef().
   NodeRef getRightSibling(unsigned Level) const;
 
@@ -963,8 +966,10 @@ public:
 
 private:
   // The root data is either a RootLeaf or a RootBranchData instance.
-  LLVM_ALIGNAS(RootLeaf) LLVM_ALIGNAS(RootBranchData)
-  AlignedCharArrayUnion<RootLeaf, RootBranchData> data;
+  union {
+    RootLeaf leaf;
+    RootBranchData branchData;
+  };
 
   // Tree height.
   // 0: Leaves in root.
@@ -978,28 +983,22 @@ private:
   // Allocator used for creating external nodes.
   Allocator &allocator;
 
-  /// Represent data as a node type without breaking aliasing rules.
-  template <typename T>
-  T &dataAs() const {
-    return *bit_cast<T *>(const_cast<char *>(data.buffer));
-  }
-
   const RootLeaf &rootLeaf() const {
     assert(!branched() && "Cannot acces leaf data in branched root");
-    return dataAs<RootLeaf>();
+    return leaf;
   }
   RootLeaf &rootLeaf() {
     assert(!branched() && "Cannot acces leaf data in branched root");
-    return dataAs<RootLeaf>();
+    return leaf;
   }
 
-  RootBranchData &rootBranchData() const {
+  const RootBranchData &rootBranchData() const {
     assert(branched() && "Cannot access branch data in non-branched root");
-    return dataAs<RootBranchData>();
+    return branchData;
   }
   RootBranchData &rootBranchData() {
     assert(branched() && "Cannot access branch data in non-branched root");
-    return dataAs<RootBranchData>();
+    return branchData;
   }
 
   const RootBranch &rootBranch() const { return rootBranchData().node; }
@@ -1040,8 +1039,6 @@ private:
 
 public:
   explicit IntervalMap(Allocator &a) : height(0), rootSize(0), allocator(a) {
-    assert((uintptr_t(data.buffer) & (alignof(RootLeaf) - 1)) == 0 &&
-           "Insufficient alignment");
     new(&rootLeaf()) RootLeaf();
   }
 
@@ -1136,7 +1133,7 @@ public:
 
   /// overlaps(a, b) - Return true if the intervals in this map overlap with the
   /// interval [a;b].
-  bool overlaps(KeyT a, KeyT b) {
+  bool overlaps(KeyT a, KeyT b) const {
     assert(Traits::nonEmpty(a, b));
     const_iterator I = find(a);
     if (!I.valid())
@@ -1293,12 +1290,17 @@ clear() {
 //===----------------------------------------------------------------------===//
 
 template <typename KeyT, typename ValT, unsigned N, typename Traits>
-class IntervalMap<KeyT, ValT, N, Traits>::const_iterator :
-  public std::iterator<std::bidirectional_iterator_tag, ValT> {
-
-protected:
+class IntervalMap<KeyT, ValT, N, Traits>::const_iterator {
   friend class IntervalMap;
 
+public:
+  using iterator_category = std::bidirectional_iterator_tag;
+  using value_type = ValT;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
+protected:
   // The map referred to.
   IntervalMap *map = nullptr;
 
@@ -1396,7 +1398,7 @@ public:
     setRoot(map->rootSize);
   }
 
-  /// preincrement - move to the next interval.
+  /// preincrement - Move to the next interval.
   const_iterator &operator++() {
     assert(valid() && "Cannot increment end()");
     if (++path.leafOffset() == path.leafSize() && branched())
@@ -1404,14 +1406,14 @@ public:
     return *this;
   }
 
-  /// postincrement - Dont do that!
+  /// postincrement - Don't do that!
   const_iterator operator++(int) {
     const_iterator tmp = *this;
     operator++();
     return tmp;
   }
 
-  /// predecrement - move to the previous interval.
+  /// predecrement - Move to the previous interval.
   const_iterator &operator--() {
     if (path.leafOffset() && (valid() || !branched()))
       --path.leafOffset();
@@ -1420,7 +1422,7 @@ public:
     return *this;
   }
 
-  /// postdecrement - Dont do that!
+  /// postdecrement - Don't do that!
   const_iterator operator--(int) {
     const_iterator tmp = *this;
     operator--();

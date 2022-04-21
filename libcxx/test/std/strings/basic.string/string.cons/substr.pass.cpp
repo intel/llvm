@@ -16,11 +16,6 @@
 //              size_type pos,
 //              const Allocator& a = Allocator());
 
-// When back-deploying to macosx10.7, the RTTI for exception classes
-// incorrectly provided by libc++.dylib is mixed with the one in
-// libc++abi.dylib and exceptions are not caught properly.
-// XFAIL: with_system_cxx_lib=macosx10.7
-
 #include <string>
 #include <stdexcept>
 #include <algorithm>
@@ -33,7 +28,7 @@
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S str, unsigned pos)
 {
     typedef typename S::traits_type T;
@@ -50,7 +45,7 @@ test(S str, unsigned pos)
         assert(s2.capacity() >= s2.size());
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {
@@ -66,7 +61,7 @@ test(S str, unsigned pos)
 }
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S str, unsigned pos, unsigned n)
 {
     typedef typename S::traits_type T;
@@ -82,7 +77,7 @@ test(S str, unsigned pos, unsigned n)
         assert(s2.capacity() >= s2.size());
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {
@@ -98,7 +93,7 @@ test(S str, unsigned pos, unsigned n)
 }
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S str, unsigned pos, unsigned n, const typename S::allocator_type& a)
 {
     typedef typename S::traits_type T;
@@ -114,7 +109,7 @@ test(S str, unsigned pos, unsigned n, const typename S::allocator_type& a)
         assert(s2.capacity() >= s2.size());
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {
@@ -129,11 +124,10 @@ test(S str, unsigned pos, unsigned n, const typename S::allocator_type& a)
 #endif
 }
 
-#if TEST_STD_VER >= 11
-#ifndef TEST_HAS_NO_EXCEPTIONS
-void test2583()
-{   // LWG #2583
-    typedef std::basic_string<char, std::char_traits<char>, test_allocator<char> > StringA;
+void test_lwg2583()
+{
+#if TEST_STD_VER >= 11 && !defined(TEST_HAS_NO_EXCEPTIONS)
+    typedef std::basic_string<char, std::char_traits<char>, test_allocator<char>> StringA;
     std::vector<StringA, std::scoped_allocator_adaptor<test_allocator<StringA>>> vs;
     StringA s{"1234"};
     vs.emplace_back(s, 2);
@@ -141,13 +135,11 @@ void test2583()
     try { vs.emplace_back(s, 5); }
     catch (const std::out_of_range&) { return; }
     assert(false);
+#endif
 }
-#endif
-#endif
 
-int main(int, char**)
-{
-    {
+bool test() {
+  {
     typedef test_allocator<char> A;
     typedef std::basic_string<char, std::char_traits<char>, A> S;
 
@@ -184,9 +176,9 @@ int main(int, char**)
     test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A(7)), 50, 1, A(8));
     test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A(7)), 50, 10, A(8));
     test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A(7)), 50, 100, A(8));
-    }
+  }
 #if TEST_STD_VER >= 11
-    {
+  {
     typedef min_allocator<char> A;
     typedef std::basic_string<char, std::char_traits<char>, A> S;
 
@@ -223,12 +215,19 @@ int main(int, char**)
     test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A()), 50, 1, A());
     test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A()), 50, 10, A());
     test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A()), 50, 100, A());
-    }
+  }
+#endif
 
-#ifndef TEST_HAS_NO_EXCEPTIONS
-    test2583();
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
 #endif
-#endif
+  test_lwg2583();
 
   return 0;
 }

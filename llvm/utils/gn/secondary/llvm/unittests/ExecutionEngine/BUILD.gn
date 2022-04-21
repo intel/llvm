@@ -10,7 +10,5 @@ unittest("ExecutionEngineTests") {
     "//llvm/lib/MC",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "ExecutionEngineTest.cpp",
-  ]
+  sources = [ "ExecutionEngineTest.cpp" ]
 }

@@ -51,7 +51,7 @@ static MCOperand GetSymbolRef(const MachineOperand &MO, const MCSymbol *Symbol,
     RelocationType = MCSymbolRefExpr::VK_None;
     break;
   case HexagonII::MO_PCREL:
-    RelocationType = MCSymbolRefExpr::VK_Hexagon_PCREL;
+    RelocationType = MCSymbolRefExpr::VK_PCREL;
     break;
   case HexagonII::MO_GOT:
     RelocationType = MCSymbolRefExpr::VK_GOT;
@@ -104,13 +104,25 @@ void llvm::HexagonLowerToMC(const MCInstrInfo &MCII, const MachineInstr *MI,
     HexagonMCInstrInfo::setOuterLoop(MCB);
     return;
   }
-  MCInst *MCI = new (AP.OutContext) MCInst;
+  if (MI->getOpcode() == Hexagon::PATCHABLE_FUNCTION_ENTER) {
+    AP.EmitSled(*MI, HexagonAsmPrinter::SledKind::FUNCTION_ENTER);
+    return;
+  }
+  if (MI->getOpcode() == Hexagon::PATCHABLE_FUNCTION_EXIT) {
+    AP.EmitSled(*MI, HexagonAsmPrinter::SledKind::FUNCTION_EXIT);
+    return;
+  }
+  if (MI->getOpcode() == Hexagon::PATCHABLE_TAIL_CALL) {
+    AP.EmitSled(*MI, HexagonAsmPrinter::SledKind::TAIL_CALL);
+    return;
+  }
+
+  MCInst *MCI = AP.OutContext.createMCInst();
   MCI->setOpcode(MI->getOpcode());
   assert(MCI->getOpcode() == static_cast<unsigned>(MI->getOpcode()) &&
          "MCI opcode should have been set on construction");
 
-  for (unsigned i = 0, e = MI->getNumOperands(); i < e; i++) {
-    const MachineOperand &MO = MI->getOperand(i);
+  for (const MachineOperand &MO : MI->operands()) {
     MCOperand MCO;
     bool MustExtend = MO.getTargetFlags() & HexagonII::HMOTF_ConstExtended;
 

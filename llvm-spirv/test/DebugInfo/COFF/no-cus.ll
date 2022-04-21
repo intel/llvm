@@ -3,7 +3,7 @@
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple < %t.ll -filetype=obj -o %t.o
-; RUN: llvm-objdump -section-headers %t.o | FileCheck %s
+; RUN: llvm-objdump --section-headers %t.o | FileCheck %s
 
 ; Don't emit debug info in this scenario and don't crash.
 

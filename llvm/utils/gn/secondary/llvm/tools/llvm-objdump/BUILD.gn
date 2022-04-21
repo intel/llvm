@@ -1,28 +1,46 @@
 import("//llvm/tools/binutils_symlinks.gni")
+import("//llvm/tools/cctools_symlinks.gni")
+import("//llvm/utils/TableGen/tablegen.gni")
 import("//llvm/utils/gn/build/symlink_or_copy.gni")
 
+tablegen("ObjdumpOpts") {
+  visibility = [ ":llvm-objdump" ]
+  args = [ "-gen-opt-parser-defs" ]
+}
+
+tablegen("OtoolOpts") {
+  visibility = [ ":llvm-objdump" ]
+  args = [ "-gen-opt-parser-defs" ]
+}
+
+symlinks = [ "llvm-otool" ]
 if (llvm_install_binutils_symlinks) {
-  symlink_or_copy("objdump") {
-    deps = [
-      ":llvm-objdump",
-    ]
+  symlinks += [ "objdump" ]
+}
+if (llvm_install_cctools_symlinks) {
+  symlinks += [ "otool" ]
+}
+
+foreach(target, symlinks) {
+  symlink_or_copy(target) {
+    deps = [ ":llvm-objdump" ]
     source = "llvm-objdump"
-    output = "$root_out_dir/bin/objdump"
+    output = "$root_out_dir/bin/$target"
   }
 }
 
 # //:llvm-objdump depends on this symlink target, see comment in //BUILD.gn.
 group("symlinks") {
-  deps = [
-    ":llvm-objdump",
-  ]
-  if (llvm_install_binutils_symlinks) {
-    deps += [ ":objdump" ]
+  deps = [ ":llvm-objdump" ]
+  foreach(target, symlinks) {
+    deps += [ ":$target" ]
   }
 }
 
 executable("llvm-objdump") {
   deps = [
+    ":ObjdumpOpts",
+    ":OtoolOpts",
     "//llvm/include/llvm/Config:config",
     "//llvm/lib/CodeGen",
     "//llvm/lib/DebugInfo/DWARF",
@@ -32,6 +50,7 @@ executable("llvm-objdump") {
     "//llvm/lib/MC",
     "//llvm/lib/MC/MCDisassembler",
     "//llvm/lib/Object",
+    "//llvm/lib/Option",
     "//llvm/lib/Support",
     "//llvm/lib/Target:AllTargetsDescs",
     "//llvm/lib/Target:AllTargetsDisassemblers",
@@ -42,7 +61,9 @@ executable("llvm-objdump") {
     "COFFDump.cpp",
     "ELFDump.cpp",
     "MachODump.cpp",
+    "SourcePrinter.cpp",
     "WasmDump.cpp",
+    "XCOFFDump.cpp",
     "llvm-objdump.cpp",
   ]
 }

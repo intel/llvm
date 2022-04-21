@@ -64,7 +64,7 @@ void initThread(bool MinimalInit) {
   setCurrentTSD(&TSDs[Index % NumberOfTSDs]);
 }
 
-ScudoTSD *getTSDAndLockSlow(ScudoTSD *TSD) {
+ScudoTSD *getTSDAndLockSlow(ScudoTSD *TSD) SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   if (NumberOfTSDs > 1) {
     // Use the Precedence of the current TSD as our random seed. Since we are in
     // the slow path, it means that tryLock failed, and as a result it's very
@@ -83,9 +83,7 @@ ScudoTSD *getTSDAndLockSlow(ScudoTSD *TSD) {
       }
       const uptr Precedence = TSDs[Index].getPrecedence();
       // A 0 precedence here means another thread just locked this TSD.
-      if (UNLIKELY(Precedence == 0))
-        continue;
-      if (Precedence < LowestPrecedence) {
+      if (Precedence && Precedence < LowestPrecedence) {
         CandidateTSD = &TSDs[Index];
         LowestPrecedence = Precedence;
       }

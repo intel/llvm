@@ -1,4 +1,4 @@
-//===-- AdbClient.cpp -------------------------------------------*- C++ -*-===//
+//===-- AdbClient.cpp -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,7 +24,7 @@
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timeout.h"
 
-#include <limits.h>
+#include <climits>
 
 #include <algorithm>
 #include <cstdlib>
@@ -42,28 +42,26 @@ using namespace lldb_private;
 using namespace lldb_private::platform_android;
 using namespace std::chrono;
 
-namespace {
+static const seconds kReadTimeout(20);
+static const char *kOKAY = "OKAY";
+static const char *kFAIL = "FAIL";
+static const char *kDATA = "DATA";
+static const char *kDONE = "DONE";
 
-const seconds kReadTimeout(20);
-const char *kOKAY = "OKAY";
-const char *kFAIL = "FAIL";
-const char *kDATA = "DATA";
-const char *kDONE = "DONE";
+static const char *kSEND = "SEND";
+static const char *kRECV = "RECV";
+static const char *kSTAT = "STAT";
 
-const char *kSEND = "SEND";
-const char *kRECV = "RECV";
-const char *kSTAT = "STAT";
-
-const size_t kSyncPacketLen = 8;
+static const size_t kSyncPacketLen = 8;
 // Maximum size of a filesync DATA packet.
-const size_t kMaxPushData = 2 * 1024;
+static const size_t kMaxPushData = 2 * 1024;
 // Default mode for pushed files.
-const uint32_t kDefaultMode = 0100770; // S_IFREG | S_IRWXU | S_IRWXG
+static const uint32_t kDefaultMode = 0100770; // S_IFREG | S_IRWXU | S_IRWXG
 
-const char *kSocketNamespaceAbstract = "localabstract";
-const char *kSocketNamespaceFileSystem = "localfilesystem";
+static const char *kSocketNamespaceAbstract = "localabstract";
+static const char *kSocketNamespaceFileSystem = "localfilesystem";
 
-Status ReadAllBytes(Connection &conn, void *buffer, size_t size) {
+static Status ReadAllBytes(Connection &conn, void *buffer, size_t size) {
 
   Status error;
   ConnectionStatus status;
@@ -90,15 +88,9 @@ Status ReadAllBytes(Connection &conn, void *buffer, size_t size) {
   return error;
 }
 
-} // namespace
-
 Status AdbClient::CreateByDeviceID(const std::string &device_id,
                                    AdbClient &adb) {
-  DeviceIDList connect_devices;
-  auto error = adb.GetDevices(connect_devices);
-  if (error.Fail())
-    return error;
-
+  Status error;
   std::string android_serial;
   if (!device_id.empty())
     android_serial = device_id;
@@ -106,27 +98,27 @@ Status AdbClient::CreateByDeviceID(const std::string &device_id,
     android_serial = env_serial;
 
   if (android_serial.empty()) {
-    if (connect_devices.size() != 1)
+    DeviceIDList connected_devices;
+    error = adb.GetDevices(connected_devices);
+    if (error.Fail())
+      return error;
+
+    if (connected_devices.size() != 1)
       return Status("Expected a single connected device, got instead %zu - try "
                     "setting 'ANDROID_SERIAL'",
-                    connect_devices.size());
-    adb.SetDeviceID(connect_devices.front());
+                    connected_devices.size());
+    adb.SetDeviceID(connected_devices.front());
   } else {
-    auto find_it = std::find(connect_devices.begin(), connect_devices.end(),
-                             android_serial);
-    if (find_it == connect_devices.end())
-      return Status("Device \"%s\" not found", android_serial.c_str());
-
-    adb.SetDeviceID(*find_it);
+    adb.SetDeviceID(android_serial);
   }
   return error;
 }
 
-AdbClient::AdbClient() {}
+AdbClient::AdbClient() = default;
 
 AdbClient::AdbClient(const std::string &device_id) : m_device_id(device_id) {}
 
-AdbClient::~AdbClient() {}
+AdbClient::~AdbClient() = default;
 
 void AdbClient::SetDeviceID(const std::string &device_id) {
   m_device_id = device_id;
@@ -136,8 +128,13 @@ const std::string &AdbClient::GetDeviceID() const { return m_device_id; }
 
 Status AdbClient::Connect() {
   Status error;
-  m_conn.reset(new ConnectionFileDescriptor);
-  m_conn->Connect("connect://localhost:5037", &error);
+  m_conn = std::make_unique<ConnectionFileDescriptor>();
+  std::string port = "5037";
+  if (const char *env_port = std::getenv("ANDROID_ADB_SERVER_PORT")) {
+    port = env_port;
+  }
+  std::string uri = "connect://127.0.0.1:" + port;
+  m_conn->Connect(uri.c_str(), &error);
 
   return error;
 }
@@ -160,8 +157,8 @@ Status AdbClient::GetDevices(DeviceIDList &device_list) {
   llvm::SmallVector<llvm::StringRef, 4> devices;
   response.split(devices, "\n", -1, false);
 
-  for (const auto device : devices)
-    device_list.push_back(device.split('\t').first);
+  for (const auto &device : devices)
+    device_list.push_back(std::string(device.split('\t').first));
 
   // Force disconnect since ADB closes connection after host:devices response
   // is sent.
@@ -360,7 +357,7 @@ Status AdbClient::internalShell(const char *command, milliseconds timeout,
 
   StreamString adb_command;
   adb_command.Printf("shell:%s", command);
-  error = SendMessage(adb_command.GetString(), false);
+  error = SendMessage(std::string(adb_command.GetString()), false);
   if (error.Fail())
     return error;
 
@@ -405,7 +402,7 @@ Status AdbClient::ShellToFile(const char *command, milliseconds timeout,
 
   const auto output_filename = output_file_spec.GetPath();
   std::error_code EC;
-  llvm::raw_fd_ostream dst(output_filename, EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream dst(output_filename, EC, llvm::sys::fs::OF_None);
   if (EC)
     return Status("Unable to open local file %s", output_filename.c_str());
 
@@ -432,7 +429,7 @@ Status AdbClient::SyncService::internalPullFile(const FileSpec &remote_file,
   llvm::FileRemover local_file_remover(local_file_path);
 
   std::error_code EC;
-  llvm::raw_fd_ostream dst(local_file_path, EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream dst(local_file_path, EC, llvm::sys::fs::OF_None);
   if (EC)
     return Status("Unable to open local file %s", local_file_path.c_str());
 
@@ -582,19 +579,18 @@ AdbClient::SyncService::executeCommand(const std::function<Status()> &cmd) {
   return error;
 }
 
-AdbClient::SyncService::~SyncService() {}
+AdbClient::SyncService::~SyncService() = default;
 
 Status AdbClient::SyncService::SendSyncRequest(const char *request_id,
                                                const uint32_t data_len,
                                                const void *data) {
-  const DataBufferSP data_sp(new DataBufferHeap(kSyncPacketLen, 0));
-  DataEncoder encoder(data_sp, eByteOrderLittle, sizeof(void *));
-  auto offset = encoder.PutData(0, request_id, strlen(request_id));
-  encoder.PutU32(offset, data_len);
-
+  DataEncoder encoder(eByteOrderLittle, sizeof(void *));
+  encoder.AppendData(llvm::StringRef(request_id));
+  encoder.AppendU32(data_len);
+  llvm::ArrayRef<uint8_t> bytes = encoder.GetData();
   Status error;
   ConnectionStatus status;
-  m_conn->Write(data_sp->GetBytes(), kSyncPacketLen, status, &error);
+  m_conn->Write(bytes.data(), kSyncPacketLen, status, &error);
   if (error.Fail())
     return error;
 

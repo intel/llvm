@@ -1,5 +1,4 @@
-//===-- RegisterContextHistory.cpp ---------------------------------*- C++
-//-*-===//
+//===-- RegisterContextHistory.cpp ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -50,8 +49,8 @@ RegisterContextHistory::RegisterContextHistory(Thread &thread,
   m_pc_reg_info.byte_size = address_byte_size;
   m_pc_reg_info.encoding = eEncodingUint;
   m_pc_reg_info.format = eFormatPointer;
-  m_pc_reg_info.invalidate_regs = NULL;
-  m_pc_reg_info.value_regs = NULL;
+  m_pc_reg_info.invalidate_regs = nullptr;
+  m_pc_reg_info.value_regs = nullptr;
   m_pc_reg_info.kinds[eRegisterKindEHFrame] = LLDB_INVALID_REGNUM;
   m_pc_reg_info.kinds[eRegisterKindDWARF] = LLDB_INVALID_REGNUM;
   m_pc_reg_info.kinds[eRegisterKindGeneric] = LLDB_REGNUM_GENERIC_PC;
@@ -72,7 +71,7 @@ size_t RegisterContextHistory::GetRegisterCount() { return 1; }
 const lldb_private::RegisterInfo *
 RegisterContextHistory::GetRegisterInfoAtIndex(size_t reg) {
   if (reg)
-    return NULL;
+    return nullptr;
   return &m_pc_reg_info;
 }
 
@@ -81,7 +80,7 @@ size_t RegisterContextHistory::GetRegisterSetCount() { return 1; }
 const lldb_private::RegisterSet *
 RegisterContextHistory::GetRegisterSet(size_t reg_set) {
   if (reg_set)
-    return NULL;
+    return nullptr;
   return &m_reg_set0;
 }
 

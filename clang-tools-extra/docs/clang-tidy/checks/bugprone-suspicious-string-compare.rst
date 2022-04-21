@@ -14,7 +14,7 @@ Checks for calls with implicit comparator and proposed to explicitly add it.
     if (!strcmp(...))      // Won't warn
     if (strcmp(...) != 0)  // Won't warn
 
-Checks that compare function results (i,e, ``strcmp``) are compared to valid
+Checks that compare function results (i.e., ``strcmp``) are compared to valid
 constant. The resulting value is
 
 .. code::
@@ -42,11 +42,11 @@ Options
 
 .. option:: WarnOnImplicitComparison
 
-   When non-zero, the check will warn on implicit comparison. `1` by default.
+   When `true`, the check will warn on implicit comparison. `true` by default.
 
 .. option:: WarnOnLogicalNotComparison
 
-   When non-zero, the check will warn on logical not comparison. `0` by default.
+   When `true`, the check will warn on logical not comparison. `false` by default.
 
 .. option:: StringCompareLikeFunctions
 

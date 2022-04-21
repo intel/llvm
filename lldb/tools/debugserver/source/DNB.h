@@ -10,14 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __DNB_h__
-#define __DNB_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_DNB_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_DNB_H
 
 #include "DNBDefs.h"
 #include "JSONGenerator.h"
-#include "MacOSX/DarwinLog/DarwinLogEvent.h"
 #include "MacOSX/Genealogy.h"
 #include "MacOSX/ThreadInfo.h"
+#include "RNBContext.h"
+#include <Availability.h>
+#include <mach/machine.h>
 #include <mach/thread_info.h>
 #include <string>
 
@@ -25,6 +27,10 @@
 
 #ifndef CPU_TYPE_ARM64
 #define CPU_TYPE_ARM64 ((cpu_type_t)12 | 0x01000000)
+#endif
+
+#ifndef CPU_TYPE_ARM64_32
+#define CPU_TYPE_ARM64_32 ((cpu_type_t)12 | 0x02000000)
 #endif
 
 typedef bool (*DNBShouldCancelCallback)(void *);
@@ -36,24 +42,27 @@ nub_bool_t DNBSetArchitecture(const char *arch);
 
 // Process control
 nub_process_t DNBProcessLaunch(
-    const char *path, char const *argv[], const char *envp[],
+    RNBContext *ctx, const char *path, char const *argv[], const char *envp[],
     const char *working_directory, // NULL => don't change, non-NULL => set
                                    // working directory for inferior to this
     const char *stdin_path, const char *stdout_path, const char *stderr_path,
-    bool no_stdio, nub_launch_flavor_t launch_flavor, int disable_aslr,
-    const char *event_data, char *err_str, size_t err_len);
+    bool no_stdio, int disable_aslr, const char *event_data, char *err_str,
+    size_t err_len);
 
 nub_process_t DNBProcessGetPIDByName(const char *name);
 nub_process_t DNBProcessAttach(nub_process_t pid, struct timespec *timeout,
-                               char *err_str, size_t err_len);
+                               bool unmask_signals, char *err_str,
+                               size_t err_len);
 nub_process_t DNBProcessAttachByName(const char *name, struct timespec *timeout,
-                                     char *err_str, size_t err_len);
-nub_process_t
-DNBProcessAttachWait(const char *wait_name, nub_launch_flavor_t launch_flavor,
-                     bool ignore_existing, struct timespec *timeout,
-                     useconds_t interval, char *err_str, size_t err_len,
-                     DNBShouldCancelCallback should_cancel = NULL,
-                     void *callback_data = NULL);
+                                     bool unmask_signals, char *err_str,
+                                     size_t err_len);
+nub_process_t DNBProcessAttachWait(RNBContext *ctx, const char *wait_name,
+                                   bool ignore_existing,
+                                   struct timespec *timeout,
+                                   useconds_t interval, char *err_str,
+                                   size_t err_len,
+                                   DNBShouldCancelCallback should_cancel = NULL,
+                                   void *callback_data = NULL);
 // Resume a process with exact instructions on what to do with each thread:
 // - If no thread actions are supplied (actions is NULL or num_actions is zero),
 //   then all threads are continued.
@@ -98,7 +107,6 @@ nub_bool_t
 DNBProcessSetEnableAsyncProfiling(nub_process_t pid, nub_bool_t enable,
                                   uint64_t interval_usec,
                                   DNBProfileDataScanType scan_type) DNB_EXPORT;
-DarwinLogEventVector DNBProcessGetAvailableDarwinLogEvents(nub_process_t pid);
 
 // Process status
 nub_bool_t DNBProcessIsAlive(nub_process_t pid) DNB_EXPORT;
@@ -122,12 +130,12 @@ nub_bool_t DNBProcessSharedLibrariesUpdated(nub_process_t pid) DNB_EXPORT;
 nub_size_t
 DNBProcessGetSharedLibraryInfo(nub_process_t pid, nub_bool_t only_changed,
                                DNBExecutableImageInfo **image_infos) DNB_EXPORT;
-const char *DNBGetDeploymentInfo(nub_process_t pid,
-                                 const struct load_command& lc,
+const char *DNBGetDeploymentInfo(nub_process_t pid, bool is_executable,
+                                 const struct load_command &lc,
                                  uint64_t load_command_address,
-                                 uint32_t& major_version,
-                                 uint32_t& minor_version,
-                                 uint32_t& patch_version);
+                                 uint32_t &major_version,
+                                 uint32_t &minor_version,
+                                 uint32_t &patch_version);
 nub_bool_t DNBProcessSetNameToAddressCallback(nub_process_t pid,
                                               DNBCallbackNameToAddress callback,
                                               void *baton) DNB_EXPORT;
@@ -144,6 +152,7 @@ nub_size_t DNBProcessGetAvailableProfileData(nub_process_t pid, char *buf,
                                              nub_size_t buf_size) DNB_EXPORT;
 nub_size_t DNBProcessGetStopCount(nub_process_t pid) DNB_EXPORT;
 uint32_t DNBProcessGetCPUType(nub_process_t pid) DNB_EXPORT;
+size_t DNBGetAllInfos(std::vector<struct kinfo_proc> &proc_infos);
 
 // Process executable and arguments
 const char *DNBProcessGetExecutablePath(nub_process_t pid);
@@ -226,5 +235,10 @@ const char *DNBStateAsString(nub_state_t state);
 nub_bool_t DNBResolveExecutablePath(const char *path, char *resolved_path,
                                     size_t resolved_path_size);
 bool DNBGetOSVersionNumbers(uint64_t *major, uint64_t *minor, uint64_t *patch);
+/// \return the iOSSupportVersion of the host OS.
+std::string DNBGetMacCatalystVersionString();
 
+/// \return true if debugserver is running in translation
+/// (is an x86_64 process on arm64)
+bool DNBDebugserverIsTranslated();
 #endif

@@ -19,12 +19,16 @@ The redzones, the quarantine, and, to a less extent, the shadow, are the
 sources of AddressSanitizer's memory overhead.
 See the `AddressSanitizer paper`_ for details.
 
-AArch64 has the `Address Tagging`_ (or top-byte-ignore, TBI), a hardware feature that allows
-software to use 8 most significant bits of a 64-bit pointer as
+AArch64 has `Address Tagging`_ (or top-byte-ignore, TBI), a hardware feature that allows
+software to use the 8 most significant bits of a 64-bit pointer as
 a tag. HWASAN uses `Address Tagging`_
 to implement a memory safety tool, similar to :doc:`AddressSanitizer`,
 but with smaller memory overhead and slightly different (mostly better)
 accuracy guarantees.
+
+Intel's `Linear Address Masking`_ (LAM) also provides address tagging for
+x86_64, though it is not widely available in hardware yet.  For x86_64, HWASAN
+has a limited implementation using page aliasing instead.
 
 Algorithm
 =========
@@ -38,32 +42,88 @@ Algorithm
 
 For a more detailed discussion of this approach see https://arxiv.org/pdf/1802.09517.pdf
 
+Short granules
+--------------
+
+A short granule is a granule of size between 1 and `TG-1` bytes. The size
+of a short granule is stored at the location in shadow memory where the
+granule's tag is normally stored, while the granule's actual tag is stored
+in the last byte of the granule. This means that in order to verify that a
+pointer tag matches a memory tag, HWASAN must check for two possibilities:
+
+* the pointer tag is equal to the memory tag in shadow memory, or
+* the shadow memory tag is actually a short granule size, the value being loaded
+  is in bounds of the granule and the pointer tag is equal to the last byte of
+  the granule.
+
+Pointer tags between 1 to `TG-1` are possible and are as likely as any other
+tag. This means that these tags in memory have two interpretations: the full
+tag interpretation (where the pointer tag is between 1 and `TG-1` and the
+last byte of the granule is ordinary data) and the short tag interpretation
+(where the pointer tag is stored in the granule).
+
+When HWASAN detects an error near a memory tag between 1 and `TG-1`, it
+will show both the memory tag and the last byte of the granule. Currently,
+it is up to the user to disambiguate the two possibilities.
+
 Instrumentation
 ===============
 
 Memory Accesses
 ---------------
-All memory accesses are prefixed with an inline instruction sequence that
-verifies the tags. Currently, the following sequence is used:
+In the majority of cases, memory accesses are prefixed with a call to
+an outlined instruction sequence that verifies the tags. The code size
+and performance overhead of the call is reduced by using a custom calling
+convention that
 
+* preserves most registers, and
+* is specialized to the register containing the address, and the type and
+  size of the memory access.
+
+Currently, the following sequence is used:
 
 .. code-block:: none
 
   // int foo(int *a) { return *a; }
-  // clang -O2 --target=aarch64-linux -fsanitize=hwaddress -c load.c
+  // clang -O2 --target=aarch64-linux-android30 -fsanitize=hwaddress -S -o - load.c
+  [...]
   foo:
-       0:	08 00 00 90 	adrp	x8, 0 <__hwasan_shadow>
-       4:	08 01 40 f9 	ldr	x8, [x8]          // shadow base (to be resolved by the loader)
-       8:	09 dc 44 d3 	ubfx	x9, x0, #4, #52 // shadow offset
-       c:	28 69 68 38 	ldrb	w8, [x9, x8]    // load shadow tag
-      10:	09 fc 78 d3 	lsr	x9, x0, #56       // extract address tag
-      14:	3f 01 08 6b 	cmp	w9, w8            // compare tags
-      18:	61 00 00 54 	b.ne	24              // jump on mismatch
-      1c:	00 00 40 b9 	ldr	w0, [x0]          // original load
-      20:	c0 03 5f d6 	ret
-      24:	40 20 21 d4 	brk	#0x902            // trap
+        stp     x30, x20, [sp, #-16]!
+        adrp    x20, :got:__hwasan_shadow               // load shadow address from GOT into x20
+        ldr     x20, [x20, :got_lo12:__hwasan_shadow]
+        bl      __hwasan_check_x0_2_short_v2            // call outlined tag check
+                                                        // (arguments: x0 = address, x20 = shadow base;
+                                                        // "2" encodes the access type and size)
+        ldr     w0, [x0]                                // inline load
+        ldp     x30, x20, [sp], #16
+        ret
 
-Alternatively, memory accesses are prefixed with a function call.
+  [...]
+  __hwasan_check_x0_2_short_v2:
+        sbfx    x16, x0, #4, #52                        // shadow offset
+        ldrb    w16, [x20, x16]                         // load shadow tag
+        cmp     x16, x0, lsr #56                        // extract address tag, compare with shadow tag
+        b.ne    .Ltmp0                                  // jump to short tag handler on mismatch
+  .Ltmp1:
+        ret
+  .Ltmp0:
+        cmp     w16, #15                                // is this a short tag?
+        b.hi    .Ltmp2                                  // if not, error
+        and     x17, x0, #0xf                           // find the address's position in the short granule
+        add     x17, x17, #3                            // adjust to the position of the last byte loaded
+        cmp     w16, w17                                // check that position is in bounds
+        b.ls    .Ltmp2                                  // if not, error
+        orr     x16, x0, #0xf                           // compute address of last byte of granule
+        ldrb    w16, [x16]                              // load tag from it
+        cmp     x16, x0, lsr #56                        // compare with pointer tag
+        b.eq    .Ltmp1                                  // if matches, continue
+  .Ltmp2:
+        stp     x0, x1, [sp, #-256]!                    // save original x0, x1 on stack (they will be overwritten)
+        stp     x29, x30, [sp, #232]                    // create frame record
+        mov     x1, #2                                  // set x1 to a constant indicating the type of failure
+        adrp    x16, :got:__hwasan_tag_mismatch_v2      // call runtime function to save remaining registers and report error
+        ldr     x16, [x16, :got_lo12:__hwasan_tag_mismatch_v2] // (load address from GOT to avoid potential register clobbers in delay load handler)
+        br      x16
 
 Heap
 ----
@@ -91,7 +151,67 @@ but could be optional.
 Globals
 -------
 
-TODO: details.
+Most globals in HWASAN instrumented code are tagged. This is accomplished
+using the following mechanisms:
+
+  * The address of each global has a static tag associated with it. The first
+    defined global in a translation unit has a pseudorandom tag associated
+    with it, based on the hash of the file path. Subsequent global tags are
+    incremental from the previously-assigned tag.
+
+  * The global's tag is added to its symbol address in the object file's symbol
+    table. This causes the global's address to be tagged when its address is
+    taken.
+
+  * When the address of a global is taken directly (i.e. not via the GOT), a special
+    instruction sequence needs to be used to add the tag to the address,
+    because the tag would otherwise take the address outside of the small code
+    model (4GB on AArch64). No changes are required when the address is taken
+    via the GOT because the address stored in the GOT will contain the tag.
+
+  * An associated ``hwasan_globals`` section is emitted for each tagged global,
+    which indicates the address of the global, its size and its tag.  These
+    sections are concatenated by the linker into a single ``hwasan_globals``
+    section that is enumerated by the runtime (via an ELF note) when a binary
+    is loaded and the memory is tagged accordingly.
+
+A complete example is given below:
+
+.. code-block:: none
+
+  // int x = 1; int *f() { return &x; }
+  // clang -O2 --target=aarch64-linux-android30 -fsanitize=hwaddress -S -o - global.c
+
+  [...]
+  f:
+        adrp    x0, :pg_hi21_nc:x            // set bits 12-63 to upper bits of untagged address
+        movk    x0, #:prel_g3:x+0x100000000  // set bits 48-63 to tag
+        add     x0, x0, :lo12:x              // set bits 0-11 to lower bits of address
+        ret
+
+  [...]
+        .data
+  .Lx.hwasan:
+        .word   1
+
+        .globl  x
+        .set x, .Lx.hwasan+0x2d00000000000000
+
+  [...]
+        .section        .note.hwasan.globals,"aG",@note,hwasan.module_ctor,comdat
+  .Lhwasan.note:
+        .word   8                            // namesz
+        .word   8                            // descsz
+        .word   3                            // NT_LLVM_HWASAN_GLOBALS
+        .asciz  "LLVM\000\000\000"
+        .word   __start_hwasan_globals-.Lhwasan.note
+        .word   __stop_hwasan_globals-.Lhwasan.note
+
+  [...]
+        .section        hwasan_globals,"ao",@progbits,.Lx.hwasan,unique,2
+  .Lx.hwasan.descriptor:
+        .word   .Lx.hwasan-.Lx.hwasan.descriptor
+        .word   0x2d000004                   // tag = 0x2d, size = 4
 
 Error reporting
 ---------------
@@ -150,7 +270,15 @@ before every load and store by compiler instrumentation, but this variant
 will have limited deployability since not all of the code is
 typically instrumented.
 
-The HWASAN's approach is not applicable to 32-bit architectures.
+On x86_64, HWASAN utilizes page aliasing to place tags in userspace address
+bits.  Currently only heap tagging is supported.  The page aliases rely on
+shared memory, which will cause heap memory to be shared between processes if
+the application calls ``fork()``.  Therefore x86_64 is really only safe for
+applications that do not fork.
+
+HWASAN does not currently support 32-bit architectures since they do not
+support `Address Tagging`_ and the address space is too constrained to easily
+implement page aliasing.
 
 
 Related Work
@@ -168,4 +296,4 @@ Related Work
 .. _SPARC ADI: https://lazytyped.blogspot.com/2017/09/getting-started-with-adi.html
 .. _AddressSanitizer paper: https://www.usenix.org/system/files/conference/atc12/atc12-final39.pdf
 .. _Address Tagging: http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.den0024a/ch12s05s01.html
-
+.. _Linear Address Masking: https://software.intel.com/content/www/us/en/develop/download/intel-architecture-instruction-set-extensions-programming-reference.html

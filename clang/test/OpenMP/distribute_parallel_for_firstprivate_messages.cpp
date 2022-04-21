@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 void foo() {
 }
@@ -8,9 +8,17 @@ void foo() {
 bool foobool(int argc) {
   return argc;
 }
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp distribute parallel for firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
+
 extern int omp_default_mem_alloc;
 
-struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
+struct S1; // expected-note 2 {{declared here}} expected-note 3 {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;
@@ -67,7 +75,7 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   C g(5);
-  int i;
+  int i, k;
   int &j = i;
 #pragma omp target
 #pragma omp teams
@@ -111,7 +119,7 @@ int foomain(int argc, char **argv) {
     ++k;
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(a, b) // expected-error {{firstprivate variable with incomplete type 'S1'}} expected-warning {{Non-trivial type 'const S2' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for firstprivate(a, b) // expected-error {{firstprivate variable with incomplete type 'S1'}} expected-warning {{Type 'const S2' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target
@@ -121,12 +129,12 @@ int foomain(int argc, char **argv) {
     ++k;
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{calling a private constructor of class 'S5'}} expected-warning {{Non-trivial type 'S4' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for firstprivate(e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{calling a private constructor of class 'S5'}} expected-warning {{Type 'S4' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(h) // expected-error {{threadprivate or thread local variable cannot be firstprivate}}
+#pragma omp distribute parallel for firstprivate(k, h) // expected-error {{threadprivate or thread local variable cannot be firstprivate}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
@@ -162,14 +170,14 @@ int foomain(int argc, char **argv) {
 #pragma omp parallel private(i)
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(i) // expected-note {{defined as firstprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp distribute parallel for' directive may not be firstprivate, predetermined as private}}
+#pragma omp distribute parallel for firstprivate(i) // expected-note 2 {{defined as firstprivate}}
+  for (i = 0; i < argc; ++i) // expected-error 2 {{loop iteration variable in the associated loop of 'omp distribute parallel for' directive may not be firstprivate, predetermined as private}}
     foo();
 #pragma omp parallel reduction(+ : i)
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(i) // expected-note {{defined as firstprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp distribute parallel for' directive may not be firstprivate, predetermined as private}}
+#pragma omp distribute parallel for firstprivate(i) // expected-note 2 {{defined as firstprivate}}
+  for (i = 0; i < argc; ++i) // expected-error 2 {{loop iteration variable in the associated loop of 'omp distribute parallel for' directive may not be firstprivate, predetermined as private}}
     foo();
   return 0;
 }
@@ -189,7 +197,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S3 m;
   S6 n(2);
-  int i;
+  int i, k;
   int &j = i;
 #pragma omp target
 #pragma omp teams
@@ -233,7 +241,7 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(a, b, c, d, f) // expected-error {{firstprivate variable with incomplete type 'S1'}} expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Non-trivial type 'const S2' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'const S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for firstprivate(a, b, c, d, f) // expected-error {{firstprivate variable with incomplete type 'S1'}} expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Type 'const S2' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'const S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp target
@@ -248,12 +256,12 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(ba) // expected-warning {{Non-trivial type 'const S2 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for firstprivate(ba) // expected-warning {{Type 'const S2[5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(ca) // expected-warning {{Non-trivial type 'const S3 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for firstprivate(ca) // expected-warning {{Type 'const S3[5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp target
@@ -284,17 +292,17 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{calling a private constructor of class 'S5'}} expected-warning {{Non-trivial type 'S4' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for firstprivate(e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{calling a private constructor of class 'S5'}} expected-warning {{Type 'S4' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(m) // expected-warning {{Non-trivial type 'S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for firstprivate(m) // expected-warning {{Type 'S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(h, B::x) // expected-error 2 {{threadprivate or thread local variable cannot be firstprivate}}
+#pragma omp distribute parallel for firstprivate(k, h, B::x) // expected-error 2 {{threadprivate or thread local variable cannot be firstprivate}}
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp target
@@ -321,13 +329,13 @@ int main(int argc, char **argv) {
 // expected-error@+3 {{lastprivate variable cannot be firstprivate}} expected-note@+3 {{defined as lastprivate}}
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for lastprivate(g) firstprivate(g) // expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for lastprivate(g) firstprivate(g) // expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (i = 0; i < argc; ++i)
     foo();
 // expected-error@+3 {{lastprivate variable cannot be firstprivate}} expected-note@+3 {{defined as lastprivate}}
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for lastprivate(n) firstprivate(n) // expected-error {{calling a private constructor of class 'S6'}} expected-warning {{Non-trivial type 'S6' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for lastprivate(n) firstprivate(n) // expected-error {{calling a private constructor of class 'S6'}} expected-warning {{Type 'S6' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel

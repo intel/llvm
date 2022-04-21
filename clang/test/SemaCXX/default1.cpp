@@ -31,7 +31,7 @@ struct Y { // expected-note 2{{candidate constructor (the implicit copy construc
 // expected-note@-2 2 {{candidate constructor (the implicit move constructor) not viable}}
 #endif
 
-  explicit Y(int);
+  explicit Y(int); // expected-note 2{{explicit constructor is not a candidate}}
 };
 
 void k(Y y = 17); // expected-error{{no viable conversion}} \
@@ -78,3 +78,29 @@ void PR20769(int = 2);
 
 void PR20769_b(int = 1);
 void PR20769_b() { void PR20769_b(int = 2); }
+
+#if __cplusplus >= 201103L
+template<typename T> constexpr int f1() { return 0; }
+// This is OK, but in order to see that we must instantiate f<int>, despite it
+// being in an unused default argument.
+void g1(char c = {f1<int>()}) {} // expected-warning {{braces around scalar}}
+
+// This is formally ill-formed, but we choose to not trigger instantiation here
+// (at least, not until g2 is actually called in a way that uses the default
+// argument).
+template<typename T> int f2() { return T::error; }
+void g2(int c = f2<int>()) {}
+
+// FIXME: Provide a note pointing at the first use of the default argument?
+template<typename T> int f3() { return T::error; } // expected-error {{no members}}
+void g3(int c = f3<int>()) {} // expected-note {{in instantiation of}}
+void use_g3() { g3(); }
+
+namespace PR47682 {
+  inline namespace A {
+    void f(int = 0);
+  }
+}
+void PR47682::f(int) {}
+void PR47682_test() { PR47682::f(); }
+#endif

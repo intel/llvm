@@ -32,11 +32,19 @@
 #include "Views/SchedulerStatistics.h"
 #include "Views/SummaryView.h"
 #include "Views/TimelineView.h"
+#include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/MCTargetOptionsCommandFlags.h"
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/MCA/CodeEmitter.h"
 #include "llvm/MCA/Context.h"
+#include "llvm/MCA/CustomBehaviour.h"
+#include "llvm/MCA/InstrBuilder.h"
 #include "llvm/MCA/Pipeline.h"
 #include "llvm/MCA/Stages/EntryStage.h"
 #include "llvm/MCA/Stages/InstructionTables.h"
@@ -49,12 +57,13 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
 
 using namespace llvm;
+
+static mc::RegisterMCTargetOptionsFlags MOF;
 
 static cl::OptionCategory ToolOptions("Tool Options");
 static cl::OptionCategory ViewOptions("View Options");
@@ -68,8 +77,9 @@ static cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"),
                                            cl::value_desc("filename"));
 
 static cl::opt<std::string>
-    ArchName("march", cl::desc("Target architecture. "
-                               "See -version for available targets"),
+    ArchName("march",
+             cl::desc("Target architecture. "
+                      "See -version for available targets"),
              cl::cat(ToolOptions));
 
 static cl::opt<std::string>
@@ -82,10 +92,22 @@ static cl::opt<std::string>
          cl::desc("Target a specific cpu type (-mcpu=help for details)"),
          cl::value_desc("cpu-name"), cl::cat(ToolOptions), cl::init("native"));
 
+static cl::opt<std::string> MATTR("mattr",
+                                  cl::desc("Additional target features."),
+                                  cl::cat(ToolOptions));
+
+static cl::opt<bool> PrintJson("json",
+                               cl::desc("Print the output in json format"),
+                               cl::cat(ToolOptions), cl::init(false));
+
 static cl::opt<int>
     OutputAsmVariant("output-asm-variant",
                      cl::desc("Syntax variant to use for output printing"),
                      cl::cat(ToolOptions), cl::init(-1));
+
+static cl::opt<bool>
+    PrintImmHex("print-imm-hex", cl::cat(ToolOptions), cl::init(false),
+                cl::desc("Prefer hex format when printing immediate values"));
 
 static cl::opt<unsigned> Iterations("iterations",
                                     cl::desc("Number of iterations to run"),
@@ -149,11 +171,11 @@ static cl::opt<unsigned> TimelineMaxIterations(
     cl::desc("Maximum number of iterations to print in timeline view"),
     cl::cat(ViewOptions), cl::init(0));
 
-static cl::opt<unsigned> TimelineMaxCycles(
-    "timeline-max-cycles",
-    cl::desc(
-        "Maximum number of cycles in the timeline view. Defaults to 80 cycles"),
-    cl::cat(ViewOptions), cl::init(80));
+static cl::opt<unsigned>
+    TimelineMaxCycles("timeline-max-cycles",
+                      cl::desc("Maximum number of cycles in the timeline view, "
+                               "or 0 for unlimited. Defaults to 80 cycles"),
+                      cl::cat(ViewOptions), cl::init(80));
 
 static cl::opt<bool>
     AssumeNoAlias("noalias",
@@ -192,6 +214,22 @@ static cl::opt<bool> EnableBottleneckAnalysis(
     cl::desc("Enable bottleneck analysis (disabled by default)"),
     cl::cat(ViewOptions), cl::init(false));
 
+static cl::opt<bool> ShowEncoding(
+    "show-encoding",
+    cl::desc("Print encoding information in the instruction info view"),
+    cl::cat(ViewOptions), cl::init(false));
+
+static cl::opt<bool> ShowBarriers(
+    "show-barriers",
+    cl::desc("Print memory barrier information in the instruction info view"),
+    cl::cat(ViewOptions), cl::init(false));
+
+static cl::opt<bool> DisableCustomBehaviour(
+    "disable-cb",
+    cl::desc(
+        "Disable custom behaviour (use the default class which does nothing)."),
+    cl::cat(ViewOptions), cl::init(false));
+
 namespace {
 
 const Target *getTarget(const char *ProgName) {
@@ -208,6 +246,9 @@ const Target *getTarget(const char *ProgName) {
     return nullptr;
   }
 
+  // Update TripleName with the updated triple from the target lookup.
+  TripleName = TheTriple.str();
+
   // Return the found target.
   return TheTarget;
 }
@@ -216,8 +257,8 @@ ErrorOr<std::unique_ptr<ToolOutputFile>> getOutputStream() {
   if (OutputFilename == "")
     OutputFilename = "-";
   std::error_code EC;
-  auto Out =
-      llvm::make_unique<ToolOutputFile>(OutputFilename, EC, sys::fs::F_None);
+  auto Out = std::make_unique<ToolOutputFile>(OutputFilename, EC,
+                                              sys::fs::OF_TextWithCRLF);
   if (!EC)
     return std::move(Out);
   return EC;
@@ -229,13 +270,15 @@ static void processOptionImpl(cl::opt<bool> &O, const cl::opt<bool> &Default) {
     O = Default.getValue();
 }
 
-static void processViewOptions() {
+static void processViewOptions(bool IsOutOfOrder) {
   if (!EnableAllViews.getNumOccurrences() &&
       !EnableAllStats.getNumOccurrences())
     return;
 
   if (EnableAllViews.getNumOccurrences()) {
     processOptionImpl(PrintSummaryView, EnableAllViews);
+    if (IsOutOfOrder)
+      processOptionImpl(EnableBottleneckAnalysis, EnableAllViews);
     processOptionImpl(PrintResourcePressureView, EnableAllViews);
     processOptionImpl(PrintTimelineView, EnableAllViews);
     processOptionImpl(PrintInstructionInfoView, EnableAllViews);
@@ -248,7 +291,8 @@ static void processViewOptions() {
   processOptionImpl(PrintRegisterFileStats, Default);
   processOptionImpl(PrintDispatchStats, Default);
   processOptionImpl(PrintSchedulerStats, Default);
-  processOptionImpl(PrintRetireStats, Default);
+  if (IsOutOfOrder)
+    processOptionImpl(PrintRetireStats, Default);
 }
 
 // Returns true on success.
@@ -269,6 +313,7 @@ int main(int argc, char **argv) {
   InitializeAllTargetInfos();
   InitializeAllTargetMCs();
   InitializeAllAsmParsers();
+  InitializeAllTargetMCAs();
 
   // Enable printing of available targets when flag --version is specified.
   cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
@@ -298,44 +343,14 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Apply overrides to llvm-mca specific options.
-  processViewOptions();
-
-  SourceMgr SrcMgr;
-
-  // Tell SrcMgr about this buffer, which is what the parser will pick up.
-  SrcMgr.AddNewSourceBuffer(std::move(*BufferPtr), SMLoc());
-
-  std::unique_ptr<MCRegisterInfo> MRI(TheTarget->createMCRegInfo(TripleName));
-  assert(MRI && "Unable to create target register info!");
-
-  std::unique_ptr<MCAsmInfo> MAI(TheTarget->createMCAsmInfo(*MRI, TripleName));
-  assert(MAI && "Unable to create target asm info!");
-
-  MCObjectFileInfo MOFI;
-  MCContext Ctx(MAI.get(), MRI.get(), &MOFI, &SrcMgr);
-  MOFI.InitMCObjectFileInfo(TheTriple, /* PIC= */ false, Ctx);
-
-  std::unique_ptr<buffer_ostream> BOS;
-
-  std::unique_ptr<MCInstrInfo> MCII(TheTarget->createMCInstrInfo());
-
-  std::unique_ptr<MCInstrAnalysis> MCIA(
-      TheTarget->createMCInstrAnalysis(MCII.get()));
-
-  if (!MCPU.compare("native"))
-    MCPU = llvm::sys::getHostCPUName();
+  if (MCPU == "native")
+    MCPU = std::string(llvm::sys::getHostCPUName());
 
   std::unique_ptr<MCSubtargetInfo> STI(
-      TheTarget->createMCSubtargetInfo(TripleName, MCPU, /* FeaturesStr */ ""));
+      TheTarget->createMCSubtargetInfo(TripleName, MCPU, MATTR));
+  assert(STI && "Unable to create subtarget info!");
   if (!STI->isCPUStringValid(MCPU))
     return 1;
-
-  if (!PrintInstructionTables && !STI->getSchedModel().isOutOfOrder()) {
-    WithColor::error() << "please specify an out-of-order cpu. '" << MCPU
-                       << "' is an in-order cpu.\n";
-    return 1;
-  }
 
   if (!STI->getSchedModel().hasInstrSchedModel()) {
     WithColor::error()
@@ -350,9 +365,58 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // Apply overrides to llvm-mca specific options.
+  bool IsOutOfOrder = STI->getSchedModel().isOutOfOrder();
+  processViewOptions(IsOutOfOrder);
+
+  std::unique_ptr<MCRegisterInfo> MRI(TheTarget->createMCRegInfo(TripleName));
+  assert(MRI && "Unable to create target register info!");
+
+  MCTargetOptions MCOptions = mc::InitMCTargetOptionsFromFlags();
+  std::unique_ptr<MCAsmInfo> MAI(
+      TheTarget->createMCAsmInfo(*MRI, TripleName, MCOptions));
+  assert(MAI && "Unable to create target asm info!");
+
+  SourceMgr SrcMgr;
+
+  // Tell SrcMgr about this buffer, which is what the parser will pick up.
+  SrcMgr.AddNewSourceBuffer(std::move(*BufferPtr), SMLoc());
+
+  MCContext Ctx(TheTriple, MAI.get(), MRI.get(), STI.get(), &SrcMgr);
+  std::unique_ptr<MCObjectFileInfo> MOFI(
+      TheTarget->createMCObjectFileInfo(Ctx, /*PIC=*/false));
+  Ctx.setObjectFileInfo(MOFI.get());
+
+  std::unique_ptr<buffer_ostream> BOS;
+
+  std::unique_ptr<MCInstrInfo> MCII(TheTarget->createMCInstrInfo());
+  assert(MCII && "Unable to create instruction info!");
+
+  std::unique_ptr<MCInstrAnalysis> MCIA(
+      TheTarget->createMCInstrAnalysis(MCII.get()));
+
+  // Need to initialize an MCInstPrinter as it is
+  // required for initializing the MCTargetStreamer
+  // which needs to happen within the CRG.parseCodeRegions() call below.
+  // Without an MCTargetStreamer, certain assembly directives can trigger a
+  // segfault. (For example, the .cv_fpo_proc directive on x86 will segfault if
+  // we don't initialize the MCTargetStreamer.)
+  unsigned IPtempOutputAsmVariant =
+      OutputAsmVariant == -1 ? 0 : OutputAsmVariant;
+  std::unique_ptr<MCInstPrinter> IPtemp(TheTarget->createMCInstPrinter(
+      Triple(TripleName), IPtempOutputAsmVariant, *MAI, *MCII, *MRI));
+  if (!IPtemp) {
+    WithColor::error()
+        << "unable to create instruction printer for target triple '"
+        << TheTriple.normalize() << "' with assembly variant "
+        << IPtempOutputAsmVariant << ".\n";
+    return 1;
+  }
+
   // Parse the input and create CodeRegions that llvm-mca can analyze.
   mca::AsmCodeRegionGenerator CRG(*TheTarget, SrcMgr, Ctx, *MAI, *STI, *MCII);
-  Expected<const mca::CodeRegions &> RegionsOrErr = CRG.parseCodeRegions();
+  Expected<const mca::CodeRegions &> RegionsOrErr =
+      CRG.parseCodeRegions(std::move(IPtemp));
   if (!RegionsOrErr) {
     if (auto Err =
             handleErrors(RegionsOrErr.takeError(), [](const StringError &E) {
@@ -394,9 +458,27 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // Set the display preference for hex vs. decimal immediates.
+  IP->setPrintImmHex(PrintImmHex);
+
   std::unique_ptr<ToolOutputFile> TOF = std::move(*OF);
 
   const MCSchedModel &SM = STI->getSchedModel();
+
+  std::unique_ptr<mca::InstrPostProcess> IPP;
+  if (!DisableCustomBehaviour) {
+    // TODO: It may be a good idea to separate CB and IPP so that they can
+    // be used independently of each other. What I mean by this is to add
+    // an extra command-line arg --disable-ipp so that CB and IPP can be
+    // toggled without needing to toggle both of them together.
+    IPP = std::unique_ptr<mca::InstrPostProcess>(
+        TheTarget->createInstrPostProcess(*STI, *MCII));
+  }
+  if (!IPP) {
+    // If the target doesn't have its own IPP implemented (or the -disable-cb
+    // flag is set) then we use the base class (which does nothing).
+    IPP = std::make_unique<mca::InstrPostProcess>(*STI, *MCII);
+  }
 
   // Create an instruction builder.
   mca::InstrBuilder IB(*STI, *MCII, *MRI, MCIA.get());
@@ -411,24 +493,29 @@ int main(int argc, char **argv) {
   // Number each region in the sequence.
   unsigned RegionIdx = 0;
 
+  std::unique_ptr<MCCodeEmitter> MCE(
+      TheTarget->createMCCodeEmitter(*MCII, Ctx));
+  assert(MCE && "Unable to create code emitter!");
+
+  std::unique_ptr<MCAsmBackend> MAB(TheTarget->createMCAsmBackend(
+      *STI, *MRI, mc::InitMCTargetOptionsFromFlags()));
+  assert(MAB && "Unable to create asm backend!");
+
+  json::Object JSONOutput;
   for (const std::unique_ptr<mca::CodeRegion> &Region : Regions) {
     // Skip empty code regions.
     if (Region->empty())
       continue;
 
-    // Don't print the header of this region if it is the default region, and
-    // it doesn't have an end location.
-    if (Region->startLoc().isValid() || Region->endLoc().isValid()) {
-      TOF->os() << "\n[" << RegionIdx++ << "] Code Region";
-      StringRef Desc = Region->getDescription();
-      if (!Desc.empty())
-        TOF->os() << " - " << Desc;
-      TOF->os() << "\n\n";
-    }
+    IB.clear();
 
     // Lower the MCInst sequence into an mca::Instruction sequence.
     ArrayRef<MCInst> Insts = Region->getInstructions();
-    std::vector<std::unique_ptr<mca::Instruction>> LoweredSequence;
+    mca::CodeEmitter CE(*STI, *MAB, *MCE, Insts);
+
+    IPP->resetState();
+
+    SmallVector<std::unique_ptr<mca::Instruction>> LoweredSequence;
     for (const MCInst &MCI : Insts) {
       Expected<std::unique_ptr<mca::Instruction>> Inst =
           IB.createInstruction(MCI);
@@ -439,16 +526,18 @@ int main(int argc, char **argv) {
                   std::string InstructionStr;
                   raw_string_ostream SS(InstructionStr);
                   WithColor::error() << IE.Message << '\n';
-                  IP->printInst(&IE.Inst, SS, "", *STI);
+                  IP->printInst(&IE.Inst, 0, "", *STI, SS);
                   SS.flush();
-                  WithColor::note() << "instruction: " << InstructionStr
-                                    << '\n';
+                  WithColor::note()
+                      << "instruction: " << InstructionStr << '\n';
                 })) {
           // Default case.
           WithColor::error() << toString(std::move(NewE));
         }
         return 1;
       }
+
+      IPP->postProcessInstruction(Inst.get(), MCI);
 
       LoweredSequence.emplace_back(std::move(Inst.get()));
     }
@@ -457,73 +546,157 @@ int main(int argc, char **argv) {
 
     if (PrintInstructionTables) {
       //  Create a pipeline, stages, and a printer.
-      auto P = llvm::make_unique<mca::Pipeline>();
-      P->appendStage(llvm::make_unique<mca::EntryStage>(S));
-      P->appendStage(llvm::make_unique<mca::InstructionTables>(SM));
-      mca::PipelinePrinter Printer(*P);
+      auto P = std::make_unique<mca::Pipeline>();
+      P->appendStage(std::make_unique<mca::EntryStage>(S));
+      P->appendStage(std::make_unique<mca::InstructionTables>(SM));
+
+      mca::PipelinePrinter Printer(*P, *Region, RegionIdx, *STI, PO);
+      if (PrintJson) {
+        Printer.addView(
+            std::make_unique<mca::InstructionView>(*STI, *IP, Insts));
+      }
 
       // Create the views for this pipeline, execute, and emit a report.
       if (PrintInstructionInfoView) {
-        Printer.addView(llvm::make_unique<mca::InstructionInfoView>(
-            *STI, *MCII, Insts, *IP));
+        Printer.addView(std::make_unique<mca::InstructionInfoView>(
+            *STI, *MCII, CE, ShowEncoding, Insts, *IP, LoweredSequence,
+            ShowBarriers));
       }
       Printer.addView(
-          llvm::make_unique<mca::ResourcePressureView>(*STI, *IP, Insts));
+          std::make_unique<mca::ResourcePressureView>(*STI, *IP, Insts));
 
       if (!runPipeline(*P))
         return 1;
 
-      Printer.printReport(TOF->os());
+      if (PrintJson) {
+        Printer.printReport(JSONOutput);
+      } else {
+        Printer.printReport(TOF->os());
+      }
+
+      ++RegionIdx;
       continue;
     }
 
+    // Create the CustomBehaviour object for enforcing Target Specific
+    // behaviours and dependencies that aren't expressed well enough
+    // in the tablegen. CB cannot depend on the list of MCInst or
+    // the source code (but it can depend on the list of
+    // mca::Instruction or any objects that can be reconstructed
+    // from the target information).
+    std::unique_ptr<mca::CustomBehaviour> CB;
+    if (!DisableCustomBehaviour)
+      CB = std::unique_ptr<mca::CustomBehaviour>(
+          TheTarget->createCustomBehaviour(*STI, S, *MCII));
+    if (!CB)
+      // If the target doesn't have its own CB implemented (or the -disable-cb
+      // flag is set) then we use the base class (which does nothing).
+      CB = std::make_unique<mca::CustomBehaviour>(*STI, S, *MCII);
+
     // Create a basic pipeline simulating an out-of-order backend.
-    auto P = MCA.createDefaultPipeline(PO, IB, S);
-    mca::PipelinePrinter Printer(*P);
+    auto P = MCA.createDefaultPipeline(PO, S, *CB);
+
+    mca::PipelinePrinter Printer(*P, *Region, RegionIdx, *STI, PO);
+
+    // Targets can define their own custom Views that exist within their
+    // /lib/Target/ directory so that the View can utilize their CustomBehaviour
+    // or other backend symbols / functionality that are not already exposed
+    // through one of the MC-layer classes. These Views will be initialized
+    // using the CustomBehaviour::getViews() variants.
+    // If a target makes a custom View that does not depend on their target
+    // CB or their backend, they should put the View within
+    // /tools/llvm-mca/Views/ instead.
+    if (!DisableCustomBehaviour) {
+      std::vector<std::unique_ptr<mca::View>> CBViews =
+          CB->getStartViews(*IP, Insts);
+      for (auto &CBView : CBViews)
+        Printer.addView(std::move(CBView));
+    }
+
+    // When we output JSON, we add a view that contains the instructions
+    // and CPU resource information.
+    if (PrintJson) {
+      auto IV = std::make_unique<mca::InstructionView>(*STI, *IP, Insts);
+      Printer.addView(std::move(IV));
+    }
 
     if (PrintSummaryView)
-      Printer.addView(llvm::make_unique<mca::SummaryView>(
-          SM, Insts, DispatchWidth));
+      Printer.addView(
+          std::make_unique<mca::SummaryView>(SM, Insts, DispatchWidth));
 
-    if (EnableBottleneckAnalysis)
-      Printer.addView(llvm::make_unique<mca::BottleneckAnalysis>(SM));
+    if (EnableBottleneckAnalysis) {
+      if (!IsOutOfOrder) {
+        WithColor::warning()
+            << "bottleneck analysis is not supported for in-order CPU '" << MCPU
+            << "'.\n";
+      }
+      Printer.addView(std::make_unique<mca::BottleneckAnalysis>(
+          *STI, *IP, Insts, S.getNumIterations()));
+    }
 
     if (PrintInstructionInfoView)
-      Printer.addView(
-          llvm::make_unique<mca::InstructionInfoView>(*STI, *MCII, Insts, *IP));
+      Printer.addView(std::make_unique<mca::InstructionInfoView>(
+          *STI, *MCII, CE, ShowEncoding, Insts, *IP, LoweredSequence,
+          ShowBarriers));
+
+    // Fetch custom Views that are to be placed after the InstructionInfoView.
+    // Refer to the comment paired with the CB->getStartViews(*IP, Insts); line
+    // for more info.
+    if (!DisableCustomBehaviour) {
+      std::vector<std::unique_ptr<mca::View>> CBViews =
+          CB->getPostInstrInfoViews(*IP, Insts);
+      for (auto &CBView : CBViews)
+        Printer.addView(std::move(CBView));
+    }
 
     if (PrintDispatchStats)
-      Printer.addView(llvm::make_unique<mca::DispatchStatistics>());
+      Printer.addView(std::make_unique<mca::DispatchStatistics>());
 
     if (PrintSchedulerStats)
-      Printer.addView(llvm::make_unique<mca::SchedulerStatistics>(*STI));
+      Printer.addView(std::make_unique<mca::SchedulerStatistics>(*STI));
 
     if (PrintRetireStats)
-      Printer.addView(llvm::make_unique<mca::RetireControlUnitStatistics>(SM));
+      Printer.addView(std::make_unique<mca::RetireControlUnitStatistics>(SM));
 
     if (PrintRegisterFileStats)
-      Printer.addView(llvm::make_unique<mca::RegisterFileStatistics>(*STI));
+      Printer.addView(std::make_unique<mca::RegisterFileStatistics>(*STI));
 
     if (PrintResourcePressureView)
       Printer.addView(
-          llvm::make_unique<mca::ResourcePressureView>(*STI, *IP, Insts));
+          std::make_unique<mca::ResourcePressureView>(*STI, *IP, Insts));
 
     if (PrintTimelineView) {
       unsigned TimelineIterations =
           TimelineMaxIterations ? TimelineMaxIterations : 10;
-      Printer.addView(llvm::make_unique<mca::TimelineView>(
+      Printer.addView(std::make_unique<mca::TimelineView>(
           *STI, *IP, Insts, std::min(TimelineIterations, S.getNumIterations()),
           TimelineMaxCycles));
+    }
+
+    // Fetch custom Views that are to be placed after all other Views.
+    // Refer to the comment paired with the CB->getStartViews(*IP, Insts); line
+    // for more info.
+    if (!DisableCustomBehaviour) {
+      std::vector<std::unique_ptr<mca::View>> CBViews =
+          CB->getEndViews(*IP, Insts);
+      for (auto &CBView : CBViews)
+        Printer.addView(std::move(CBView));
     }
 
     if (!runPipeline(*P))
       return 1;
 
-    Printer.printReport(TOF->os());
+    if (PrintJson) {
+      Printer.printReport(JSONOutput);
+    } else {
+      Printer.printReport(TOF->os());
+    }
 
-    // Clear the InstrBuilder internal state in preparation for another round.
-    IB.clear();
+    ++RegionIdx;
   }
+
+  if (PrintJson)
+    TOF->os() << formatv("{0:2}", json::Value(std::move(JSONOutput))) << "\n";
 
   TOF->keep();
   return 0;

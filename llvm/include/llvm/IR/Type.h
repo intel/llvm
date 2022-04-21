@@ -14,25 +14,25 @@
 #ifndef LLVM_IR_TYPE_H
 #define LLVM_IR_TYPE_H
 
-#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/TypeSize.h"
 #include <cassert>
 #include <cstdint>
 #include <iterator>
 
 namespace llvm {
 
-template<class GraphType> struct GraphTraits;
 class IntegerType;
+struct fltSemantics;
 class LLVMContext;
 class PointerType;
 class raw_ostream;
 class StringRef;
+template <typename PtrType> class SmallPtrSetImpl;
 
 /// The instances of the Type class are immutable: once they are created,
 /// they are never changed.  Also note that only one instance of a particular
@@ -52,27 +52,29 @@ public:
   /// Also update LLVMTypeKind and LLVMGetTypeKind () in the C binding.
   ///
   enum TypeID {
-    // PrimitiveTypes - make sure LastPrimitiveTyID stays up to date.
-    VoidTyID = 0,    ///<  0: type with no size
-    HalfTyID,        ///<  1: 16-bit floating point type
-    FloatTyID,       ///<  2: 32-bit floating point type
-    DoubleTyID,      ///<  3: 64-bit floating point type
-    X86_FP80TyID,    ///<  4: 80-bit floating point type (X87)
-    FP128TyID,       ///<  5: 128-bit floating point type (112-bit mantissa)
-    PPC_FP128TyID,   ///<  6: 128-bit floating point type (two 64-bits, PowerPC)
-    LabelTyID,       ///<  7: Labels
-    MetadataTyID,    ///<  8: Metadata
-    X86_MMXTyID,     ///<  9: MMX vectors (64 bits, X86 specific)
-    TokenTyID,       ///< 10: Tokens
+    // PrimitiveTypes
+    HalfTyID = 0,  ///< 16-bit floating point type
+    BFloatTyID,    ///< 16-bit floating point type (7-bit significand)
+    FloatTyID,     ///< 32-bit floating point type
+    DoubleTyID,    ///< 64-bit floating point type
+    X86_FP80TyID,  ///< 80-bit floating point type (X87)
+    FP128TyID,     ///< 128-bit floating point type (112-bit significand)
+    PPC_FP128TyID, ///< 128-bit floating point type (two 64-bits, PowerPC)
+    VoidTyID,      ///< type with no size
+    LabelTyID,     ///< Labels
+    MetadataTyID,  ///< Metadata
+    X86_MMXTyID,   ///< MMX vectors (64 bits, X86 specific)
+    X86_AMXTyID,   ///< AMX vectors (8192 bits, X86 specific)
+    TokenTyID,     ///< Tokens
 
     // Derived types... see DerivedTypes.h file.
-    // Make sure FirstDerivedTyID stays up to date!
-    IntegerTyID,     ///< 11: Arbitrary bit width integers
-    FunctionTyID,    ///< 12: Functions
-    StructTyID,      ///< 13: Structures
-    ArrayTyID,       ///< 14: Arrays
-    PointerTyID,     ///< 15: Pointers
-    VectorTyID       ///< 16: SIMD 'packed' format, or other vector type
+    IntegerTyID,       ///< Arbitrary bit width integers
+    FunctionTyID,      ///< Functions
+    PointerTyID,       ///< Pointers
+    StructTyID,        ///< Structures
+    ArrayTyID,         ///< Arrays
+    FixedVectorTyID,   ///< Fixed width SIMD vector type
+    ScalableVectorTyID ///< Scalable SIMD vector type
   };
 
 private:
@@ -109,10 +111,6 @@ protected:
   /// Float).
   Type * const *ContainedTys = nullptr;
 
-  static bool isSequentialType(TypeID TyID) {
-    return TyID == ArrayTyID || TyID == VectorTyID;
-  }
-
 public:
   /// Print the current type.
   /// Omit the type details if \p NoDetails == true.
@@ -142,6 +140,9 @@ public:
   /// Return true if this is 'half', a 16-bit IEEE fp type.
   bool isHalfTy() const { return getTypeID() == HalfTyID; }
 
+  /// Return true if this is 'bfloat', a 16-bit bfloat type.
+  bool isBFloatTy() const { return getTypeID() == BFloatTyID; }
+
   /// Return true if this is 'float', a 32-bit IEEE fp type.
   bool isFloatTy() const { return getTypeID() == FloatTyID; }
 
@@ -159,26 +160,19 @@ public:
 
   /// Return true if this is one of the six floating-point types
   bool isFloatingPointTy() const {
-    return getTypeID() == HalfTyID || getTypeID() == FloatTyID ||
-           getTypeID() == DoubleTyID ||
+    return getTypeID() == HalfTyID || getTypeID() == BFloatTyID ||
+           getTypeID() == FloatTyID || getTypeID() == DoubleTyID ||
            getTypeID() == X86_FP80TyID || getTypeID() == FP128TyID ||
            getTypeID() == PPC_FP128TyID;
   }
 
-  const fltSemantics &getFltSemantics() const {
-    switch (getTypeID()) {
-    case HalfTyID: return APFloat::IEEEhalf();
-    case FloatTyID: return APFloat::IEEEsingle();
-    case DoubleTyID: return APFloat::IEEEdouble();
-    case X86_FP80TyID: return APFloat::x87DoubleExtended();
-    case FP128TyID: return APFloat::IEEEquad();
-    case PPC_FP128TyID: return APFloat::PPCDoubleDouble();
-    default: llvm_unreachable("Invalid floating type");
-    }
-  }
+  const fltSemantics &getFltSemantics() const;
 
   /// Return true if this is X86 MMX.
   bool isX86_MMXTy() const { return getTypeID() == X86_MMXTyID; }
+
+  /// Return true if this is X86 AMX.
+  bool isX86_AMXTy() const { return getTypeID() == X86_AMXTyID; }
 
   /// Return true if this is a FP type or a vector of FP.
   bool isFPOrFPVectorTy() const { return getScalarType()->isFloatingPointTy(); }
@@ -222,11 +216,16 @@ public:
   /// True if this is an instance of PointerType.
   bool isPointerTy() const { return getTypeID() == PointerTyID; }
 
+  /// True if this is an instance of an opaque PointerType.
+  bool isOpaquePointerTy() const;
+
   /// Return true if this is a pointer type or a vector of pointer types.
   bool isPtrOrPtrVectorTy() const { return getScalarType()->isPointerTy(); }
 
   /// True if this is an instance of VectorType.
-  bool isVectorTy() const { return getTypeID() == VectorTyID; }
+  inline bool isVectorTy() const {
+    return getTypeID() == ScalableVectorTyID || getTypeID() == FixedVectorTyID;
+  }
 
   /// Return true if this type could be converted with a lossless BitCast to
   /// type 'Ty'. For example, i8* to i32*. BitCasts are valid for types of the
@@ -248,7 +247,7 @@ public:
   /// includes all first-class types except struct and array types.
   bool isSingleValueType() const {
     return isFloatingPointTy() || isX86_MMXTy() || isIntegerTy() ||
-           isPointerTy() || isVectorTy();
+           isPointerTy() || isVectorTy() || isX86_AMXTy();
   }
 
   /// Return true if the type is an aggregate type. This means it is valid as
@@ -264,13 +263,12 @@ public:
   bool isSized(SmallPtrSetImpl<Type*> *Visited = nullptr) const {
     // If it's a primitive, it is always sized.
     if (getTypeID() == IntegerTyID || isFloatingPointTy() ||
-        getTypeID() == PointerTyID ||
-        getTypeID() == X86_MMXTyID)
+        getTypeID() == PointerTyID || getTypeID() == X86_MMXTyID ||
+        getTypeID() == X86_AMXTyID)
       return true;
     // If it is not something that can have a size (e.g. a function or label),
     // it doesn't have a size.
-    if (getTypeID() != StructTyID && getTypeID() != ArrayTyID &&
-        getTypeID() != VectorTyID)
+    if (getTypeID() != StructTyID && getTypeID() != ArrayTyID && !isVectorTy())
       return false;
     // Otherwise we have to try harder to decide.
     return isSizedDerivedType(Visited);
@@ -281,12 +279,15 @@ public:
   /// This will return zero if the type does not have a size or is not a
   /// primitive type.
   ///
+  /// If this is a scalable vector type, the scalable property will be set and
+  /// the runtime size will be a positive integer multiple of the base size.
+  ///
   /// Note that this may not reflect the size of memory allocated for an
   /// instance of the type or the number of bytes that are written when an
   /// instance of the type is stored to memory. The DataLayout class provides
   /// additional query functions to provide this information.
   ///
-  unsigned getPrimitiveSizeInBits() const LLVM_READONLY;
+  TypeSize getPrimitiveSizeInBits() const LLVM_READONLY;
 
   /// If this is a vector type, return the getPrimitiveSizeInBits value for the
   /// element type. Otherwise return the getPrimitiveSizeInBits value for this
@@ -298,12 +299,16 @@ public:
   /// ppc long double), this method returns -1.
   int getFPMantissaWidth() const;
 
+  /// Return whether the type is IEEE compatible, as defined by the eponymous
+  /// method in APFloat.
+  bool isIEEE() const;
+
   /// If this is a vector type, return the element type, otherwise return
   /// 'this'.
-  Type *getScalarType() const {
+  inline Type *getScalarType() const {
     if (isVectorTy())
-      return getVectorElementType();
-    return const_cast<Type*>(this);
+      return getContainedType(0);
+    return const_cast<Type *>(this);
   }
 
   //===--------------------------------------------------------------------===//
@@ -339,8 +344,8 @@ public:
 
   //===--------------------------------------------------------------------===//
   // Helper methods corresponding to subclass methods.  This forces a cast to
-  // the specified subclass and calls its accessor.  "getVectorNumElements" (for
-  // example) is shorthand for cast<VectorType>(Ty)->getNumElements().  This is
+  // the specified subclass and calls its accessor.  "getArrayNumElements" (for
+  // example) is shorthand for cast<ArrayType>(Ty)->getNumElements().  This is
   // only intended to cover the core methods that are frequently used, helper
   // methods should not be added here.
 
@@ -354,11 +359,6 @@ public:
   inline unsigned getStructNumElements() const;
   inline Type *getStructElementType(unsigned N) const;
 
-  inline Type *getSequentialElementType() const {
-    assert(isSequentialType(getTypeID()) && "Not a sequential type!");
-    return ContainedTys[0];
-  }
-
   inline uint64_t getArrayNumElements() const;
 
   Type *getArrayElementType() const {
@@ -366,16 +366,34 @@ public:
     return ContainedTys[0];
   }
 
-  inline unsigned getVectorNumElements() const;
-  Type *getVectorElementType() const {
-    assert(getTypeID() == VectorTyID);
+  /// This method is deprecated without replacement. Pointer element types are
+  /// not available with opaque pointers.
+  Type *getPointerElementType() const {
+    return getNonOpaquePointerElementType();
+  }
+
+  /// Only use this method in code that is not reachable with opaque pointers,
+  /// or part of deprecated methods that will be removed as part of the opaque
+  /// pointers transition.
+  Type *getNonOpaquePointerElementType() const {
+    assert(getTypeID() == PointerTyID);
+    assert(NumContainedTys &&
+           "Attempting to get element type of opaque pointer");
     return ContainedTys[0];
   }
 
-  Type *getPointerElementType() const {
-    assert(getTypeID() == PointerTyID);
-    return ContainedTys[0];
-  }
+  /// Given vector type, change the element type,
+  /// whilst keeping the old number of elements.
+  /// For non-vectors simply returns \p EltTy.
+  inline Type *getWithNewType(Type *EltTy) const;
+
+  /// Given an integer or vector type, change the lane bitwidth to NewBitwidth,
+  /// whilst keeping the old number of lanes.
+  inline Type *getWithNewBitWidth(unsigned NewBitWidth) const;
+
+  /// Given scalar/vector integer type, returns a type with elements twice as
+  /// wide as in the original type. For vectors, preserves element count.
+  inline Type *getExtendedType() const;
 
   /// Get the address space of this pointer or pointer vector type.
   inline unsigned getPointerAddressSpace() const;
@@ -394,6 +412,7 @@ public:
   static Type *getVoidTy(LLVMContext &C);
   static Type *getLabelTy(LLVMContext &C);
   static Type *getHalfTy(LLVMContext &C);
+  static Type *getBFloatTy(LLVMContext &C);
   static Type *getFloatTy(LLVMContext &C);
   static Type *getDoubleTy(LLVMContext &C);
   static Type *getMetadataTy(LLVMContext &C);
@@ -401,6 +420,7 @@ public:
   static Type *getFP128Ty(LLVMContext &C);
   static Type *getPPC_FP128Ty(LLVMContext &C);
   static Type *getX86_MMXTy(LLVMContext &C);
+  static Type *getX86_AMXTy(LLVMContext &C);
   static Type *getTokenTy(LLVMContext &C);
   static IntegerType *getIntNTy(LLVMContext &C, unsigned N);
   static IntegerType *getInt1Ty(LLVMContext &C);
@@ -423,18 +443,21 @@ public:
     }
     llvm_unreachable("Unsupported type in Type::getScalarTy");
   }
+  static Type *getFloatingPointTy(LLVMContext &C, const fltSemantics &S);
 
   //===--------------------------------------------------------------------===//
   // Convenience methods for getting pointer types with one of the above builtin
   // types as pointee.
   //
   static PointerType *getHalfPtrTy(LLVMContext &C, unsigned AS = 0);
+  static PointerType *getBFloatPtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getFloatPtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getDoublePtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getX86_FP80PtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getFP128PtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getPPC_FP128PtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getX86_MMXPtrTy(LLVMContext &C, unsigned AS = 0);
+  static PointerType *getX86_AMXPtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getIntNPtrTy(LLVMContext &C, unsigned N, unsigned AS = 0);
   static PointerType *getInt1PtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getInt8PtrTy(LLVMContext &C, unsigned AS = 0);
@@ -444,6 +467,7 @@ public:
 
   /// Return a pointer to the current type. This is equivalent to
   /// PointerType::get(Foo, AddrSpace).
+  /// TODO: Remove this after opaque pointer transition is complete.
   PointerType *getPointerTo(unsigned AddrSpace = 0) const;
 
 private:

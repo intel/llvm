@@ -1,7 +1,5 @@
-; RUN: not llc -march=bpfel < %s 2>&1 | FileCheck %s
-; RUN: not llc -march=bpfeb < %s 2>&1 | FileCheck %s
-; RUN: not llc -march=bpfel -mattr=+alu32 < %s 2>&1 | FileCheck %s
-; RUN: not llc -march=bpfeb -mattr=+alu32 < %s 2>&1 | FileCheck %s
+; RUN: not --crash llc -march=bpfel < %s 2>&1 | FileCheck %s
+; RUN: not --crash llc -march=bpfeb < %s 2>&1 | FileCheck %s
 
 ; This file is generated with the source command and source
 ; $ clang -target bpf -O2 -g -S -emit-llvm t.c
@@ -32,7 +30,7 @@ entry:
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 
 !llvm.dbg.cu = !{!0}

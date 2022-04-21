@@ -1,4 +1,4 @@
-//===-- BreakpadRecords.cpp ----------------------------------- -*- C++ -*-===//
+//===-- BreakpadRecords.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,7 +16,21 @@ using namespace lldb_private;
 using namespace lldb_private::breakpad;
 
 namespace {
-enum class Token { Unknown, Module, Info, CodeID, File, Func, Public, Stack, CFI, Init };
+enum class Token {
+  Unknown,
+  Module,
+  Info,
+  CodeID,
+  File,
+  Func,
+  Inline,
+  InlineOrigin,
+  Public,
+  Stack,
+  CFI,
+  Init,
+  Win,
+};
 }
 
 template<typename T>
@@ -29,10 +43,13 @@ template <> Token stringTo<Token>(llvm::StringRef Str) {
       .Case("CODE_ID", Token::CodeID)
       .Case("FILE", Token::File)
       .Case("FUNC", Token::Func)
+      .Case("INLINE", Token::Inline)
+      .Case("INLINE_ORIGIN", Token::InlineOrigin)
       .Case("PUBLIC", Token::Public)
       .Case("STACK", Token::Stack)
       .Case("CFI", Token::CFI)
       .Case("INIT", Token::Init)
+      .Case("WIN", Token::Win)
       .Default(Token::Unknown);
 }
 
@@ -51,7 +68,7 @@ llvm::Triple::ArchType stringTo<llvm::Triple::ArchType>(llvm::StringRef Str) {
   using llvm::Triple;
   return llvm::StringSwitch<Triple::ArchType>(Str)
       .Case("arm", Triple::arm)
-      .Case("arm64", Triple::aarch64)
+      .Cases("arm64", "arm64e", Triple::aarch64)
       .Case("mips", Triple::mips)
       .Case("ppc", Triple::ppc)
       .Case("ppc64", Triple::ppc64)
@@ -59,7 +76,7 @@ llvm::Triple::ArchType stringTo<llvm::Triple::ArchType>(llvm::StringRef Str) {
       .Case("sparc", Triple::sparc)
       .Case("sparcv9", Triple::sparcv9)
       .Case("x86", Triple::x86)
-      .Case("x86_64", Triple::x86_64)
+      .Cases("x86_64", "x86_64h", Triple::x86_64)
       .Default(Triple::UnknownArch);
 }
 
@@ -127,20 +144,25 @@ llvm::Optional<Record::Kind> Record::classify(llvm::StringRef Line) {
     switch (Tok) {
     case Token::CFI:
       return Record::StackCFI;
+    case Token::Win:
+      return Record::StackWin;
     default:
       return llvm::None;
     }
-
+  case Token::Inline:
+    return Record::Inline;
+  case Token::InlineOrigin:
+    return Record::InlineOrigin;
   case Token::Unknown:
     // Optimistically assume that any unrecognised token means this is a line
     // record, those don't have a special keyword and start directly with a
-    // hex number. CODE_ID should never be at the start of a line, but if it
-    // is, it can be treated the same way as a garbled line record.
+    // hex number.
     return Record::Line;
 
   case Token::CodeID:
   case Token::CFI:
   case Token::Init:
+  case Token::Win:
     // These should never appear at the start of a valid record.
     return llvm::None;
   }
@@ -190,7 +212,7 @@ llvm::Optional<InfoRecord> InfoRecord::parse(llvm::StringRef Line) {
   // use this as the UUID. Otherwise, we should revert back to the module ID.
   UUID ID;
   if (Line.trim().empty()) {
-    if (Str.empty() || ID.SetFromStringRef(Str, Str.size() / 2) != Str.size())
+    if (Str.empty() || !ID.SetFromStringRef(Str))
       return llvm::None;
   }
   return InfoRecord(std::move(ID));
@@ -201,9 +223,11 @@ llvm::raw_ostream &breakpad::operator<<(llvm::raw_ostream &OS,
   return OS << "INFO CODE_ID " << R.ID.GetAsString();
 }
 
-llvm::Optional<FileRecord> FileRecord::parse(llvm::StringRef Line) {
-  // FILE number name
-  if (consume<Token>(Line) != Token::File)
+template <typename T>
+static llvm::Optional<T> parseNumberName(llvm::StringRef Line,
+                                         Token TokenType) {
+  // TOKEN number name
+  if (consume<Token>(Line) != TokenType)
     return llvm::None;
 
   llvm::StringRef Str;
@@ -216,12 +240,28 @@ llvm::Optional<FileRecord> FileRecord::parse(llvm::StringRef Line) {
   if (Name.empty())
     return llvm::None;
 
-  return FileRecord(Number, Name);
+  return T(Number, Name);
+}
+
+llvm::Optional<FileRecord> FileRecord::parse(llvm::StringRef Line) {
+  // FILE number name
+  return parseNumberName<FileRecord>(Line, Token::File);
 }
 
 llvm::raw_ostream &breakpad::operator<<(llvm::raw_ostream &OS,
                                         const FileRecord &R) {
   return OS << "FILE " << R.Number << " " << R.Name;
+}
+
+llvm::Optional<InlineOriginRecord>
+InlineOriginRecord::parse(llvm::StringRef Line) {
+  // INLINE_ORIGIN number name
+  return parseNumberName<InlineOriginRecord>(Line, Token::InlineOrigin);
+}
+
+llvm::raw_ostream &breakpad::operator<<(llvm::raw_ostream &OS,
+                                        const InlineOriginRecord &R) {
+  return OS << "INLINE_ORIGIN " << R.Number << " " << R.Name;
 }
 
 static bool parsePublicOrFunc(llvm::StringRef Line, bool &Multiple,
@@ -282,6 +322,58 @@ llvm::raw_ostream &breakpad::operator<<(llvm::raw_ostream &OS,
   return OS << llvm::formatv("FUNC {0}{1:x-} {2:x-} {3:x-} {4}",
                              R.Multiple ? "m " : "", R.Address, R.Size,
                              R.ParamSize, R.Name);
+}
+
+llvm::Optional<InlineRecord> InlineRecord::parse(llvm::StringRef Line) {
+  // INLINE inline_nest_level call_site_line call_site_file_num origin_num
+  // [address size]+
+  if (consume<Token>(Line) != Token::Inline)
+    return llvm::None;
+
+  llvm::SmallVector<llvm::StringRef> Tokens;
+  SplitString(Line, Tokens, " ");
+  if (Tokens.size() < 6 || Tokens.size() % 2 == 1)
+    return llvm::None;
+
+  size_t InlineNestLevel;
+  uint32_t CallSiteLineNum;
+  size_t CallSiteFileNum;
+  size_t OriginNum;
+  if (!(to_integer(Tokens[0], InlineNestLevel) &&
+        to_integer(Tokens[1], CallSiteLineNum) &&
+        to_integer(Tokens[2], CallSiteFileNum) &&
+        to_integer(Tokens[3], OriginNum)))
+    return llvm::None;
+
+  InlineRecord Record = InlineRecord(InlineNestLevel, CallSiteLineNum,
+                                     CallSiteFileNum, OriginNum);
+  for (size_t i = 4; i < Tokens.size(); i += 2) {
+    lldb::addr_t Address;
+    if (!to_integer(Tokens[i], Address, 16))
+      return llvm::None;
+    lldb::addr_t Size;
+    if (!to_integer(Tokens[i + 1].trim(), Size, 16))
+      return llvm::None;
+    Record.Ranges.emplace_back(Address, Size);
+  }
+  return Record;
+}
+
+bool breakpad::operator==(const InlineRecord &L, const InlineRecord &R) {
+  return L.InlineNestLevel == R.InlineNestLevel &&
+         L.CallSiteLineNum == R.CallSiteLineNum &&
+         L.CallSiteFileNum == R.CallSiteFileNum && L.OriginNum == R.OriginNum &&
+         L.Ranges == R.Ranges;
+}
+
+llvm::raw_ostream &breakpad::operator<<(llvm::raw_ostream &OS,
+                                        const InlineRecord &R) {
+  OS << llvm::formatv("INLINE {0} {1} {2} {3}", R.InlineNestLevel,
+                      R.CallSiteLineNum, R.CallSiteFileNum, R.OriginNum);
+  for (const auto &range : R.Ranges) {
+    OS << llvm::formatv(" {0:x-} {1:x-}", range.first, range.second);
+  }
+  return OS;
 }
 
 llvm::Optional<LineRecord> LineRecord::parse(llvm::StringRef Line) {
@@ -390,6 +482,81 @@ llvm::raw_ostream &breakpad::operator<<(llvm::raw_ostream &OS,
   return OS << " " << R.UnwindRules;
 }
 
+llvm::Optional<StackWinRecord> StackWinRecord::parse(llvm::StringRef Line) {
+  // STACK WIN type rva code_size prologue_size epilogue_size parameter_size
+  //     saved_register_size local_size max_stack_size has_program_string
+  //     program_string_OR_allocates_base_pointer
+
+  if (consume<Token>(Line) != Token::Stack)
+    return llvm::None;
+  if (consume<Token>(Line) != Token::Win)
+    return llvm::None;
+
+  llvm::StringRef Str;
+  uint8_t Type;
+  std::tie(Str, Line) = getToken(Line);
+  // Right now we only support the "FrameData" frame type.
+  if (!to_integer(Str, Type) || FrameType(Type) != FrameType::FrameData)
+    return llvm::None;
+
+  lldb::addr_t RVA;
+  std::tie(Str, Line) = getToken(Line);
+  if (!to_integer(Str, RVA, 16))
+    return llvm::None;
+
+  lldb::addr_t CodeSize;
+  std::tie(Str, Line) = getToken(Line);
+  if (!to_integer(Str, CodeSize, 16))
+    return llvm::None;
+
+  // Skip fields which we aren't using right now.
+  std::tie(Str, Line) = getToken(Line); // prologue_size
+  std::tie(Str, Line) = getToken(Line); // epilogue_size
+
+  lldb::addr_t ParameterSize;
+  std::tie(Str, Line) = getToken(Line);
+  if (!to_integer(Str, ParameterSize, 16))
+    return llvm::None;
+
+  lldb::addr_t SavedRegisterSize;
+  std::tie(Str, Line) = getToken(Line);
+  if (!to_integer(Str, SavedRegisterSize, 16))
+    return llvm::None;
+
+  lldb::addr_t LocalSize;
+  std::tie(Str, Line) = getToken(Line);
+  if (!to_integer(Str, LocalSize, 16))
+    return llvm::None;
+
+  std::tie(Str, Line) = getToken(Line); // max_stack_size
+
+  uint8_t HasProgramString;
+  std::tie(Str, Line) = getToken(Line);
+  if (!to_integer(Str, HasProgramString))
+    return llvm::None;
+  // FrameData records should always have a program string.
+  if (!HasProgramString)
+    return llvm::None;
+
+  return StackWinRecord(RVA, CodeSize, ParameterSize, SavedRegisterSize,
+                        LocalSize, Line.trim());
+}
+
+bool breakpad::operator==(const StackWinRecord &L, const StackWinRecord &R) {
+  return L.RVA == R.RVA && L.CodeSize == R.CodeSize &&
+         L.ParameterSize == R.ParameterSize &&
+         L.SavedRegisterSize == R.SavedRegisterSize &&
+         L.LocalSize == R.LocalSize && L.ProgramString == R.ProgramString;
+}
+
+llvm::raw_ostream &breakpad::operator<<(llvm::raw_ostream &OS,
+                                        const StackWinRecord &R) {
+  return OS << llvm::formatv(
+             "STACK WIN 4 {0:x-} {1:x-} ? ? {2} {3} {4} ? 1 {5}", R.RVA,
+             R.CodeSize, R.ParameterSize, R.SavedRegisterSize, R.LocalSize,
+             R.ProgramString);
+}
+
 llvm::StringRef breakpad::toString(Record::Kind K) {
   switch (K) {
   case Record::Module:
@@ -400,12 +567,18 @@ llvm::StringRef breakpad::toString(Record::Kind K) {
     return "FILE";
   case Record::Func:
     return "FUNC";
+  case Record::Inline:
+    return "INLINE";
+  case Record::InlineOrigin:
+    return "INLINE_ORIGIN";
   case Record::Line:
     return "LINE";
   case Record::Public:
     return "PUBLIC";
   case Record::StackCFI:
     return "STACK CFI";
+  case Record::StackWin:
+    return "STACK WIN";
   }
   llvm_unreachable("Unknown record kind!");
 }

@@ -1,4 +1,4 @@
-//===------------------------- dynamic_cast5.cpp --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,12 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
-#include "support/timer.hpp"
+#include "support/timer.h"
 
 // This test explicitly tests dynamic cast with types that have inaccessible
 // bases.
 #if defined(__clang__)
-#pragma clang diagnostic ignored "-Winaccessible-base"
+#   pragma clang diagnostic ignored "-Winaccessible-base"
+#elif defined(__GNUC__)
+#   pragma GCC diagnostic ignored "-Winaccessible-base"
 #endif
 
 namespace t1
@@ -1305,7 +1307,7 @@ void test()
 }  // t9
 
 
-int main()
+int main(int, char**)
 {
     timer t;
     t1::test();
@@ -1317,4 +1319,6 @@ int main()
     t7::test();
     t8::test();
     t9::test();
+
+    return 0;
 }

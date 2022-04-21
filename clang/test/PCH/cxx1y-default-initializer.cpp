@@ -3,6 +3,10 @@
 // RUN: %clang_cc1 -pedantic -std=c++1y -include-pch %t.1 -emit-pch -o %t.2 %s
 // RUN: %clang_cc1 -pedantic -std=c++1y -include-pch %t.2 -verify %s
 
+// RUN: %clang_cc1 -pedantic -std=c++1y -emit-pch -fpch-instantiate-templates -o %t.1 %s
+// RUN: %clang_cc1 -pedantic -std=c++1y -include-pch %t.1 -emit-pch -fpch-instantiate-templates -o %t.2 %s
+// RUN: %clang_cc1 -pedantic -std=c++1y -include-pch %t.2 -verify %s
+
 #ifndef HEADER_1
 #define HEADER_1
 
@@ -37,8 +41,8 @@ C<int> ci;
 
 static_assert(A{}.z == 3, "");
 static_assert(A{1}.z == 4, "");
-static_assert(A{.y = 5}.z == 5, ""); // expected-warning {{C99}}
-static_assert(A{3, .y = 1}.z == 4, ""); // expected-warning {{C99}}
+static_assert(A{.y = 5}.z == 5, ""); // expected-warning {{C++20}}
+static_assert(A{3, .y = 1}.z == 4, ""); // expected-warning {{C99}} expected-note {{here}}
 static_assert(make<int>().z == 3, "");
 static_assert(make<int>(12).z == 15, "");
 static_assert(C<int>().c == 0, "");

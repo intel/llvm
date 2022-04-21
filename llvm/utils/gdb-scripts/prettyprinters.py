@@ -1,7 +1,9 @@
 from __future__ import print_function
+import struct
 import sys
 
 import gdb.printing
+import gdb.types
 
 class Iterator:
   def __iter__(self):
@@ -14,9 +16,6 @@ class Iterator:
   def children(self):
     return self
 
-def escape_bytes(val, l):
-  return '"' + val.string(encoding='Latin-1', length=l).encode('unicode_escape').decode() + '"'
-
 class SmallStringPrinter:
   """Print an llvm::SmallString object."""
 
@@ -24,8 +23,12 @@ class SmallStringPrinter:
     self.val = val
 
   def to_string(self):
-    begin = self.val['BeginX']
-    return escape_bytes(begin.cast(gdb.lookup_type('char').pointer()), self.val['Size'])
+    data = self.val['BeginX'].cast(gdb.lookup_type('char').pointer())
+    length = self.val['Size']
+    return data.lazy_string(length=length)
+
+  def display_hint (self):
+    return 'string'
 
 class StringRefPrinter:
   """Print an llvm::StringRef object."""
@@ -34,7 +37,12 @@ class StringRefPrinter:
     self.val = val
 
   def to_string(self):
-    return escape_bytes(self.val['Data'], self.val['Length'])
+    data = self.val['Data']
+    length = self.val['Length']
+    return data.lazy_string(length=length)
+
+  def display_hint(self):
+    return 'string'
 
 class SmallVectorPrinter(Iterator):
   """Print an llvm::SmallVector object."""
@@ -129,8 +137,7 @@ class OptionalPrinter(Iterator):
     self.val = None
     if not val['Storage']['hasVal']:
       raise StopIteration
-    return ('value', val['Storage']['storage']['buffer'].address.cast(
-        val.type.template_argument(0).pointer()).dereference())
+    return ('value', val['Storage']['value'])
 
   def to_string(self):
     return 'llvm::Optional{}'.format('' if self.val['Storage']['hasVal'] else ' is not initialized')
@@ -200,6 +207,46 @@ class DenseMapPrinter:
   def display_hint(self):
     return 'map'
 
+class StringMapPrinter:
+  "Print a StringMap"
+
+  def __init__(self, val):
+    self.val = val
+
+  def children(self):
+    it = self.val['TheTable']
+    end = (it + self.val['NumBuckets'])
+    value_ty = self.val.type.template_argument(0)
+    entry_base_ty = gdb.lookup_type('llvm::StringMapEntryBase')
+    tombstone = gdb.parse_and_eval('llvm::StringMapImpl::TombstoneIntVal');
+
+    while it != end:
+      it_deref = it.dereference()
+      if it_deref == 0 or it_deref == tombstone:
+        it = it + 1
+        continue
+
+      entry_ptr = it_deref.cast(entry_base_ty.pointer())
+      entry = entry_ptr.dereference()
+
+      str_len = entry['keyLength']
+      value_ptr = (entry_ptr + 1).cast(value_ty.pointer())
+      str_data = (entry_ptr + 1).cast(gdb.lookup_type('uintptr_t')) + max(value_ty.sizeof, entry_base_ty.alignof)
+      str_data = str_data.cast(gdb.lookup_type('char').const().pointer())
+      string_ref = gdb.Value(struct.pack('PN', int(str_data), int(str_len)), gdb.lookup_type('llvm::StringRef'))
+      yield 'key', string_ref
+
+      value = value_ptr.dereference()
+      yield 'value', value
+
+      it = it + 1
+
+  def to_string(self):
+    return 'llvm::StringMap with %d elements' % (self.val['NumItems'])
+
+  def display_hint(self):
+    return 'map'
+
 class TwinePrinter:
   "Print a Twine"
 
@@ -224,7 +271,7 @@ class TwinePrinter:
       # register the LazyString type, so we can't check
       # "type(s) == gdb.LazyString".
       if 'LazyString' in type(s).__name__:
-        s = s.value().address.string()
+        s = s.value().string()
 
     else:
       print(('No pretty printer for {} found. The resulting Twine ' +
@@ -257,15 +304,11 @@ class TwinePrinter:
       val = child['stdString'].dereference()
       return self.string_from_pretty_printer_lookup(val)
 
-    if self.is_twine_kind(kind, 'StringRefKind'):
-      val = child['stringRef'].dereference()
-      pp = StringRefPrinter(val)
-      return pp.to_string()
-
-    if self.is_twine_kind(kind, 'SmallStringKind'):
-      val = child['smallString'].dereference()
-      pp = SmallStringPrinter(val)
-      return pp.to_string()
+    if self.is_twine_kind(kind, 'PtrAndLengthKind'):
+      val = child['ptrAndLength']
+      data = val['ptr']
+      length = val['length']
+      return data.string(length=length)
 
     if self.is_twine_kind(kind, 'CharKind'):
       return chr(child['character'])
@@ -300,11 +343,9 @@ class TwinePrinter:
   def string_from_twine_object(self, twine):
     '''Return the string representation of the Twine object twine.'''
 
-    lhs_str = ''
-    rhs_str = ''
-
     lhs = twine['LHS']
     rhs = twine['RHS']
+
     lhs_kind = str(twine['LHSKind'])
     rhs_kind = str(twine['RHSKind'])
 
@@ -316,13 +357,140 @@ class TwinePrinter:
   def to_string(self):
     return self.string_from_twine_object(self._val)
 
+  def display_hint(self):
+    return 'string'
+
+def get_pointer_int_pair(val):
+  """Get tuple from llvm::PointerIntPair."""
+  info_name = val.type.template_argument(4).strip_typedefs().name
+  # Note: this throws a gdb.error if the info type is not used (by means of a
+  # call to getPointer() or similar) in the current translation unit.
+  enum_type = gdb.lookup_type(info_name + '::MaskAndShiftConstants')
+  enum_dict = gdb.types.make_enum_dict(enum_type)
+  ptr_mask = enum_dict[info_name + '::PointerBitMask']
+  int_shift = enum_dict[info_name + '::IntShift']
+  int_mask = enum_dict[info_name + '::IntMask']
+  pair_union = val['Value']
+  pointer = (pair_union & ptr_mask)
+  value = ((pair_union >> int_shift) & int_mask)
+  return (pointer, value)
+
+class PointerIntPairPrinter:
+  """Print a PointerIntPair."""
+
+  def __init__(self, pointer, value):
+    self.pointer = pointer
+    self.value = value
+
+  def children(self):
+    yield ('pointer', self.pointer)
+    yield ('value', self.value)
+
+def make_pointer_int_pair_printer(val):
+  """Factory for an llvm::PointerIntPair printer."""
+  try:
+    pointer, value = get_pointer_int_pair(val)
+  except gdb.error:
+    return None  # If PointerIntPair cannot be analyzed, print as raw value.
+  pointer_type = val.type.template_argument(0)
+  value_type = val.type.template_argument(2)
+  return PointerIntPairPrinter(pointer.cast(pointer_type),
+                               value.cast(value_type))
+
+class PointerUnionPrinter:
+  """Print a PointerUnion."""
+
+  def __init__(self, pointer):
+    self.pointer = pointer
+
+  def children(self):
+    yield ('pointer', self.pointer)
+
+  def to_string(self):
+    return "Containing %s" % self.pointer.type
+
+def make_pointer_union_printer(val):
+  """Factory for an llvm::PointerUnion printer."""
+  try:
+    pointer, value = get_pointer_int_pair(val['Val'])
+  except gdb.error:
+    return None  # If PointerIntPair cannot be analyzed, print as raw value.
+  pointer_type = val.type.template_argument(int(value))
+  return PointerUnionPrinter(pointer.cast(pointer_type))
+
+class IlistNodePrinter:
+  """Print an llvm::ilist_node object."""
+
+  def __init__(self, val):
+    impl_type = val.type.fields()[0].type
+    base_type = impl_type.fields()[0].type
+    derived_type = val.type.template_argument(0)
+
+    def get_prev_and_sentinel(base):
+      # One of Prev and PrevAndSentinel exists. Depending on #defines used to
+      # compile LLVM, the base_type's template argument is either true of false.
+      if base_type.template_argument(0):
+        return get_pointer_int_pair(base['PrevAndSentinel'])
+      return base['Prev'], None
+
+    # Casts a base_type pointer to the appropriate derived type.
+    def cast_pointer(pointer):
+      sentinel = get_prev_and_sentinel(pointer.dereference())[1]
+      pointer = pointer.cast(impl_type.pointer())
+      if sentinel:
+          return pointer
+      return pointer.cast(derived_type.pointer())
+
+    # Repeated cast becaue val.type's base_type is ambiguous when using tags.
+    base = val.cast(impl_type).cast(base_type)
+    (prev, sentinel) = get_prev_and_sentinel(base)
+    prev = prev.cast(base_type.pointer())
+    self.prev = cast_pointer(prev)
+    self.next = cast_pointer(val['Next'])
+    self.sentinel = sentinel
+
+  def children(self):
+    if self.sentinel:
+      yield 'sentinel', 'yes'
+    yield 'prev', self.prev
+    yield 'next', self.next
+
+class IlistPrinter:
+  """Print an llvm::simple_ilist or llvm::iplist object."""
+
+  def __init__(self, val):
+    self.node_type = val.type.template_argument(0)
+    sentinel = val['Sentinel']
+    # First field is common base type of sentinel and ilist_node.
+    base_type = sentinel.type.fields()[0].type
+    self.sentinel = sentinel.address.cast(base_type.pointer())
+
+  def _pointers(self):
+    pointer = self.sentinel
+    while True:
+      pointer = pointer['Next'].cast(pointer.type)
+      if pointer == self.sentinel:
+        return
+      yield pointer.cast(self.node_type.pointer())
+
+  def children(self):
+    for k, v in enumerate(self._pointers()):
+      yield ('[%d]' % k, v.dereference())
+
+
 pp = gdb.printing.RegexpCollectionPrettyPrinter("LLVMSupport")
 pp.add_printer('llvm::SmallString', '^llvm::SmallString<.*>$', SmallStringPrinter)
 pp.add_printer('llvm::StringRef', '^llvm::StringRef$', StringRefPrinter)
 pp.add_printer('llvm::SmallVectorImpl', '^llvm::SmallVector(Impl)?<.*>$', SmallVectorPrinter)
-pp.add_printer('llvm::ArrayRef', '^llvm::(Const)?ArrayRef<.*>$', ArrayRefPrinter)
+pp.add_printer('llvm::ArrayRef', '^llvm::(Mutable)?ArrayRef<.*>$', ArrayRefPrinter)
 pp.add_printer('llvm::Expected', '^llvm::Expected<.*>$', ExpectedPrinter)
 pp.add_printer('llvm::Optional', '^llvm::Optional<.*>$', OptionalPrinter)
 pp.add_printer('llvm::DenseMap', '^llvm::DenseMap<.*>$', DenseMapPrinter)
+pp.add_printer('llvm::StringMap', '^llvm::StringMap<.*>$', StringMapPrinter)
 pp.add_printer('llvm::Twine', '^llvm::Twine$', TwinePrinter)
+pp.add_printer('llvm::PointerIntPair', '^llvm::PointerIntPair<.*>$', make_pointer_int_pair_printer)
+pp.add_printer('llvm::PointerUnion', '^llvm::PointerUnion<.*>$', make_pointer_union_printer)
+pp.add_printer('llvm::ilist_node', '^llvm::ilist_node<.*>$', IlistNodePrinter)
+pp.add_printer('llvm::iplist', '^llvm::iplist<.*>$', IlistPrinter)
+pp.add_printer('llvm::simple_ilist', '^llvm::simple_ilist<.*>$', IlistPrinter)
 gdb.printing.register_pretty_printer(gdb.current_objfile(), pp)

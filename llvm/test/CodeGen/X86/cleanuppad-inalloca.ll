@@ -25,7 +25,7 @@ entry:
           to label %invoke.cont unwind label %ehcleanup
 
 invoke.cont:                                      ; preds = %entry
-  call void @takes_two(<{ %struct.A, %struct.A }>* inalloca nonnull %argmem)
+  call void @takes_two(<{ %struct.A, %struct.A }>* inalloca(<{ %struct.A, %struct.A }>) nonnull %argmem)
   ret void
 
 ehcleanup:                                        ; preds = %entry
@@ -57,7 +57,7 @@ ehcleanup:                                        ; preds = %entry
 ; CHECK: addl $8, %esp
 ; CHECK: retl
 
-declare void @takes_two(<{ %struct.A, %struct.A }>* inalloca) #0
+declare void @takes_two(<{ %struct.A, %struct.A }>* inalloca(<{ %struct.A, %struct.A }>)) #0
 
 declare x86_thiscallcc %struct.A* @"\01??0A@@QAE@XZ"(%struct.A* returned) #0
 
@@ -65,4 +65,4 @@ declare i32 @__CxxFrameHandler3(...)
 
 declare x86_thiscallcc void @"\01??1A@@QAE@XZ"(%struct.A*) #0
 
-attributes #0 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

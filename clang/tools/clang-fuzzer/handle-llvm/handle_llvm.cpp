@@ -19,7 +19,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/CodeGen/CommandFlags.inc"
+#include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/ExecutionEngine/JITEventListener.h"
@@ -29,24 +29,26 @@
 #include "llvm/ExecutionEngine/RTDyldMemoryManager.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/IRPrintingPasses.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LegacyPassNameParser.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/PassRegistry.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
+
+static codegen::RegisterCodeGenFlags CGF;
 
 // Define a type for the functions that are compiled and executed
 typedef void (*LLVMFunc)(int*, int*, int*, int);
@@ -100,15 +102,23 @@ static std::string OptLLVM(const std::string &IR, CodeGenOpt::Level OLvl) {
     ErrorAndExit("Could not parse IR");
 
   Triple ModuleTriple(M->getTargetTriple());
-  const TargetOptions Options = InitTargetOptionsFromCodeGenFlags();
+  const TargetOptions Options =
+      codegen::InitTargetOptionsFromCodeGenFlags(ModuleTriple);
   std::string E;
-  const Target *TheTarget = TargetRegistry::lookupTarget(MArch, ModuleTriple, E);
-  TargetMachine *Machine =
-      TheTarget->createTargetMachine(M->getTargetTriple(), getCPUStr(),
-                                     getFeaturesStr(), Options, getRelocModel(),
-                                     getCodeModel(), OLvl);
-  std::unique_ptr<TargetMachine> TM(Machine);
-  setFunctionAttributes(getCPUStr(), getFeaturesStr(), *M);
+  const Target *TheTarget =
+      TargetRegistry::lookupTarget(codegen::getMArch(), ModuleTriple, E);
+  if (!TheTarget)
+    ErrorAndExit(E);
+
+  std::unique_ptr<TargetMachine> TM(TheTarget->createTargetMachine(
+      M->getTargetTriple(), codegen::getCPUStr(), codegen::getFeaturesStr(),
+      Options, codegen::getExplicitRelocModel(),
+      codegen::getExplicitCodeModel(), OLvl));
+  if (!TM)
+    ErrorAndExit("Could not create target machine");
+
+  codegen::setFunctionAttributes(codegen::getCPUStr(),
+                                 codegen::getFeaturesStr(), *M);
 
   legacy::PassManager Passes;
   
@@ -129,7 +139,7 @@ static std::string OptLLVM(const std::string &IR, CodeGenOpt::Level OLvl) {
 
   Passes.run(*M);
 
-  return OS.str();
+  return outString;
 }
 
 // Takes a function and runs it on a set of inputs
@@ -153,16 +163,18 @@ static void CreateAndRunJITFunc(const std::string &IR, CodeGenOpt::Level OLvl) {
     ErrorAndExit("Function not found in module");
 
   std::string ErrorMsg;
+  Triple ModuleTriple(M->getTargetTriple());
+
   EngineBuilder builder(std::move(M));
-  builder.setMArch(MArch);
-  builder.setMCPU(getCPUStr());
-  builder.setMAttrs(getFeatureList());
+  builder.setMArch(codegen::getMArch());
+  builder.setMCPU(codegen::getCPUStr());
+  builder.setMAttrs(codegen::getFeatureList());
   builder.setErrorStr(&ErrorMsg);
   builder.setEngineKind(EngineKind::JIT);
-  builder.setUseOrcMCJITReplacement(false);
-  builder.setMCJITMemoryManager(make_unique<SectionMemoryManager>());
+  builder.setMCJITMemoryManager(std::make_unique<SectionMemoryManager>());
   builder.setOptLevel(OLvl);
-  builder.setTargetOptions(InitTargetOptionsFromCodeGenFlags());
+  builder.setTargetOptions(
+      codegen::InitTargetOptionsFromCodeGenFlags(ModuleTriple));
 
   std::unique_ptr<ExecutionEngine> EE(builder.create());
   if (!EE)
@@ -215,6 +227,4 @@ void clang_fuzzer::HandleLLVM(const std::string &IR,
 
   if (memcmp(OptArrays, UnoptArrays, kTotalSize))
     ErrorAndExit("!!!BUG!!!");
-
-  return;
 }

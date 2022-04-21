@@ -12,11 +12,38 @@
 # components of libomptarget. These are the dependencies we have:
 #
 # libelf : required by some targets to handle the ELF files at runtime.
-# libffi : required to launch target kernels given function and argument 
+# libffi : required to launch target kernels given function and argument
 #          pointers.
 # CUDA : required to control offloading to NVIDIA GPUs.
+# VEOS : required to control offloading to NEC Aurora.
 
 include (FindPackageHandleStandardArgs)
+
+################################################################################
+# Looking for LLVM...
+################################################################################
+
+if (OPENMP_STANDALONE_BUILD)
+  # Complete LLVM package is required for building libomptarget
+  # in an out-of-tree mode.
+  find_package(LLVM REQUIRED)
+  message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+  message(STATUS "Using LLVM in: ${LLVM_DIR}")
+  list(APPEND LIBOMPTARGET_LLVM_INCLUDE_DIRS ${LLVM_INCLUDE_DIRS})
+  list(APPEND CMAKE_MODULE_PATH ${LLVM_CMAKE_DIR})
+  include(AddLLVM)
+else()
+  # Note that OPENMP_STANDALONE_BUILD is FALSE, when
+  # openmp is built with -DLLVM_ENABLE_RUNTIMES="openmp" vs
+  # -DLLVM_ENABLE_PROJECTS="openmp", but openmp build
+  # is actually done as a standalone project build with many
+  # LLVM CMake variables propagated to it.
+  list(APPEND LIBOMPTARGET_LLVM_INCLUDE_DIRS
+    ${LLVM_MAIN_INCLUDE_DIR} ${LLVM_BINARY_DIR}/include
+    )
+  message(STATUS
+    "Using LLVM include directories: ${LIBOMPTARGET_LLVM_INCLUDE_DIRS}")
+endif()
 
 ################################################################################
 # Looking for libelf...
@@ -46,18 +73,18 @@ find_library (
     /sw/lib
     ENV LIBRARY_PATH
     ENV LD_LIBRARY_PATH)
-    
+
 set(LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIRS ${LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIR})
 find_package_handle_standard_args(
-  LIBOMPTARGET_DEP_LIBELF 
+  LIBOMPTARGET_DEP_LIBELF
   DEFAULT_MSG
   LIBOMPTARGET_DEP_LIBELF_LIBRARIES
   LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIRS)
 
 mark_as_advanced(
-  LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIRS 
+  LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIRS
   LIBOMPTARGET_DEP_LIBELF_LIBRARIES)
-  
+
 ################################################################################
 # Looking for libffi...
 ################################################################################
@@ -99,15 +126,15 @@ endif()
 
 set(LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIRS ${LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIR})
 find_package_handle_standard_args(
-  LIBOMPTARGET_DEP_LIBFFI 
+  LIBOMPTARGET_DEP_LIBFFI
   DEFAULT_MSG
   LIBOMPTARGET_DEP_LIBFFI_LIBRARIES
   LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIRS)
 
 mark_as_advanced(
-  LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIRS 
+  LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIRS
   LIBOMPTARGET_DEP_LIBFFI_LIBRARIES)
-  
+
 ################################################################################
 # Looking for CUDA...
 ################################################################################
@@ -116,11 +143,23 @@ if (CUDA_TOOLKIT_ROOT_DIR)
 endif()
 find_package(CUDA QUIET)
 
+# Try to get the highest Nvidia GPU architecture the system supports
+if (CUDA_FOUND)
+  cuda_select_nvcc_arch_flags(CUDA_ARCH_FLAGS)
+  string(REGEX MATCH "sm_([0-9]+)" CUDA_ARCH_MATCH_OUTPUT ${CUDA_ARCH_FLAGS})
+  if (NOT DEFINED CUDA_ARCH_MATCH_OUTPUT OR "${CMAKE_MATCH_1}" LESS 35)
+    libomptarget_warning_say("Setting Nvidia GPU architecture support for OpenMP target runtime library to sm_35 by default")
+    set(LIBOMPTARGET_DEP_CUDA_ARCH "35")
+  else()
+    set(LIBOMPTARGET_DEP_CUDA_ARCH "${CMAKE_MATCH_1}")
+  endif()
+endif()
+
 set(LIBOMPTARGET_DEP_CUDA_FOUND ${CUDA_FOUND})
 set(LIBOMPTARGET_DEP_CUDA_INCLUDE_DIRS ${CUDA_INCLUDE_DIRS})
 
 mark_as_advanced(
-  LIBOMPTARGET_DEP_CUDA_FOUND 
+  LIBOMPTARGET_DEP_CUDA_FOUND
   LIBOMPTARGET_DEP_CUDA_INCLUDE_DIRS)
 
 ################################################################################
@@ -136,17 +175,8 @@ find_library (
 
 # There is a libcuda.so in lib64/stubs that can be used for linking.
 if (NOT LIBOMPTARGET_DEP_CUDA_DRIVER_LIBRARIES AND CUDA_FOUND)
-  # Since CMake 3.3 FindCUDA.cmake defaults to using static libraries. In this
-  # case CUDA_LIBRARIES contains additional linker arguments which breaks
-  # get_filename_component below. Fortunately, since that change the module
-  # exports CUDA_cudart_static_LIBRARY which points to a single file in the
-  # right directory.
-  set(cuda_library ${CUDA_LIBRARIES})
-  if (DEFINED CUDA_cudart_static_LIBRARY)
-    set(cuda_library ${CUDA_cudart_static_LIBRARY})
-  endif()
-  get_filename_component(CUDA_LIBDIR ${cuda_library} DIRECTORY)
-  find_library (
+  get_filename_component(CUDA_LIBDIR "${CUDA_cudart_static_LIBRARY}" DIRECTORY)
+  find_library(
       LIBOMPTARGET_DEP_CUDA_DRIVER_LIBRARIES
     NAMES
       cuda
@@ -162,6 +192,61 @@ find_package_handle_standard_args(
 mark_as_advanced(LIBOMPTARGET_DEP_CUDA_DRIVER_LIBRARIES)
 
 ################################################################################
+# Looking for VEO...
+################################################################################
+
+find_path (
+  LIBOMPTARGET_DEP_VEO_INCLUDE_DIR
+  NAMES
+    ve_offload.h
+  PATHS
+    /usr/include
+    /usr/local/include
+    /opt/local/include
+    /sw/include
+    /opt/nec/ve/veos/include
+    ENV CPATH
+  PATH_SUFFIXES
+    libveo)
+
+find_library (
+  LIBOMPTARGET_DEP_VEO_LIBRARIES
+  NAMES
+    veo
+  PATHS
+    /usr/lib
+    /usr/local/lib
+    /opt/local/lib
+    /sw/lib
+    /opt/nec/ve/veos/lib64
+    ENV LIBRARY_PATH
+    ENV LD_LIBRARY_PATH)
+
+find_library(
+  LIBOMPTARGET_DEP_VEOSINFO_LIBRARIES
+  NAMES
+    veosinfo
+  PATHS
+    /usr/lib
+    /usr/local/lib
+    /opt/local/lib
+    /sw/lib
+    /opt/nec/ve/veos/lib64
+    ENV LIBRARY_PATH
+    ENV LD_LIBRARY_PATH)
+
+set(LIBOMPTARGET_DEP_VEO_INCLUDE_DIRS ${LIBOMPTARGET_DEP_VEO_INCLUDE_DIR})
+find_package_handle_standard_args(
+  LIBOMPTARGET_DEP_VEO
+  DEFAULT_MSG
+  LIBOMPTARGET_DEP_VEO_LIBRARIES
+  LIBOMPTARGET_DEP_VEOSINFO_LIBRARIES
+  LIBOMPTARGET_DEP_VEO_INCLUDE_DIRS)
+
+mark_as_advanced(
+  LIBOMPTARGET_DEP_VEO_FOUND
+  LIBOMPTARGET_DEP_VEO_INCLUDE_DIRS)
+
 # Looking for CUDA libdevice subdirectory
 #
 # Special case for Debian/Ubuntu to have nvidia-cuda-toolkit work
@@ -190,3 +275,5 @@ if (NOT LIBOMPTARGET_CUDA_TOOLKIT_ROOT_DIR_PRESET AND
     endif()
   endif()
 endif()
+
+set(OPENMP_PTHREAD_LIB ${LLVM_PTHREAD_LIB})

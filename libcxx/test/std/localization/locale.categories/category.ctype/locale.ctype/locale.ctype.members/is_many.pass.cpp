@@ -12,12 +12,16 @@
 
 // const charT* do_is(const charT* low, const charT* high, mask* vec) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <string>
 #include <vector>
 #include <cassert>
 
 #include <stdio.h>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

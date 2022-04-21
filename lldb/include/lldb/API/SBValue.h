@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBValue_h_
-#define LLDB_SBValue_h_
+#ifndef LLDB_API_SBVALUE_H
+#define LLDB_API_SBVALUE_H
 
 #include "lldb/API/SBData.h"
 #include "lldb/API/SBDefines.h"
@@ -74,8 +74,6 @@ public:
                          lldb::SBTypeSummaryOptions &options);
 
   const char *GetObjectDescription();
-
-  const char *GetTypeValidatorResult();
 
   lldb::SBValue GetDynamicValue(lldb::DynamicValueType use_dynamic);
 
@@ -247,6 +245,12 @@ public:
   lldb::SBData GetData();
 
   bool SetData(lldb::SBData &data, lldb::SBError &error);
+
+  /// Creates a copy of the SBValue with a new name and setting the current
+  /// SBValue as its parent. It should be used when we want to change the
+  /// name of a SBValue without modifying the actual SBValue itself
+  /// (e.g. sythetic child provider).
+  lldb::SBValue Clone(const char *new_name);
 
   lldb::SBDeclaration GetDeclaration();
 
@@ -432,4 +436,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBValue_h_
+#endif // LLDB_API_SBVALUE_H

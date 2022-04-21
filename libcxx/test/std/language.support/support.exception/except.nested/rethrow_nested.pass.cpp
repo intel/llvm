@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // <exception>
 
 // class nested_exception;
@@ -16,6 +16,8 @@
 #include <exception>
 #include <cstdlib>
 #include <cassert>
+
+#include "test_macros.h"
 
 class A
 {

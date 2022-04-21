@@ -1,5 +1,5 @@
 ; RUN: opt -verify-loop-info -irce-print-changed-loops -irce -S < %s 2>&1 | FileCheck %s
-; RUN: opt -verify-loop-info -irce-print-changed-loops -passes='require<branch-prob>,loop(irce)' -S < %s 2>&1 | FileCheck %s
+; RUN: opt -verify-loop-info -irce-print-changed-loops -passes='require<branch-prob>,irce' -S < %s 2>&1 | FileCheck %s
 
 ; CHECK: irce: in function test_01: constrained Loop at depth 1 containing: %loop<header><exiting>,%in.bounds<latch><exiting>
 ; CHECK: irce: in function test_02: constrained Loop at depth 1 containing: %loop<header><exiting>,%in.bounds<latch><exiting>
@@ -254,7 +254,7 @@ define void @test_05(i32* %arr, i32* %a_len_ptr) {
 ; CHECK:      @test_05(
 ; CHECK:      entry:
 ; CHECK-NEXT:   %len = load i32, i32* %a_len_ptr
-; CHECK-NEXT:   %exit.preloop.at = add i32 %len, -1
+; CHECK-NEXT:   %exit.preloop.at = add nsw i32 %len, -1
 ; CHECK-NEXT:   [[COND1:%[^ ]+]] = icmp sgt i32 100, %exit.preloop.at
 ; CHECK-NEXT:   br i1 [[COND1]], label %loop.preloop.preheader, label %preloop.pseudo.exit
 ; CHECK:      loop.preloop.preheader:
@@ -320,7 +320,7 @@ define void @test_06(i32* %arr, i32* %a_len_ptr) {
 ; CHECK:      @test_06(
 ; CHECK:      entry:
 ; CHECK-NEXT:   %len = load i32, i32* %a_len_ptr
-; CHECK-NEXT:   %exit.preloop.at = add i32 %len, -1
+; CHECK-NEXT:   %exit.preloop.at = add nsw i32 %len, -1
 ; CHECK-NEXT:   [[COND1:%[^ ]+]] = icmp ugt i32 2147483640, %exit.preloop.at
 ; CHECK-NEXT:   br i1 [[COND1]], label %loop.preloop.preheader, label %preloop.pseudo.exit
 ; CHECK:      loop.preloop.preheader:
@@ -415,7 +415,7 @@ define void @test_08(i32* %arr, i32* %a_len_ptr) {
 ; CHECK:      @test_08(
 ; CHECK:      entry:
 ; CHECK-NEXT:   %len = load i32, i32* %a_len_ptr
-; CHECK-NEXT:   %exit.preloop.at = add i32 %len, -1
+; CHECK-NEXT:   %exit.preloop.at = add nsw i32 %len, -1
 ; CHECK-NEXT:   [[COND1:%[^ ]+]] = icmp ugt i32 2147483647, %exit.preloop.at
 ; CHECK-NEXT:   br i1 [[COND1]], label %loop.preloop.preheader, label %preloop.pseudo.exit
 ; CHECK:      loop.preloop.preheader:

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // <optional>
 
 // constexpr optional(nullopt_t) noexcept;
@@ -15,7 +15,9 @@
 #include <type_traits>
 #include <cassert>
 
-#include "archetypes.hpp"
+#include "archetypes.h"
+
+#include "test_macros.h"
 
 using std::optional;
 using std::nullopt_t;

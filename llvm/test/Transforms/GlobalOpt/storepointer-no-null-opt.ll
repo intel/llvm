@@ -1,4 +1,4 @@
-; RUN: opt < %s -globalopt -S | FileCheck %s
+; RUN: opt < %s -passes=globalopt -S | FileCheck %s
 
 @G = internal global void ()* null              ; <void ()**> [#uses=2]
 ; CHECK: global
@@ -24,4 +24,4 @@ define void @doit() #0 {
         ret void
 }
 
-attributes #0 = { "null-pointer-is-valid"="true" }
+attributes #0 = { null_pointer_is_valid }

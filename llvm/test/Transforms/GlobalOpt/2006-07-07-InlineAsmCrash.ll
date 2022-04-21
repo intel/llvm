@@ -1,4 +1,4 @@
-; RUN: opt < %s -globalopt -disable-output
+; RUN: opt < %s -passes=globalopt -disable-output
 ; PR820
 target datalayout = "e-p:32:32"
 target triple = "i686-pc-linux-gnu"
@@ -67,7 +67,7 @@ entry:
 	ret void
 }
 
-define void @_ZNSt3mapIPKc15FlagDescriptionIiE9StringCmpSaISt4pairIKS1_S3_EEE3endEv(%"struct.std::_Rb_tree_const_iterator<std::basic_string<char, std::char_traits<char>, std::allocator<char> > >"* sret  %agg.result) {
+define void @_ZNSt3mapIPKc15FlagDescriptionIiE9StringCmpSaISt4pairIKS1_S3_EEE3endEv(%"struct.std::_Rb_tree_const_iterator<std::basic_string<char, std::char_traits<char>, std::allocator<char> > >"* sret(%"struct.std::_Rb_tree_const_iterator<std::basic_string<char, std::char_traits<char>, std::allocator<char> > >")  %agg.result) {
 entry:
 	unreachable
 }

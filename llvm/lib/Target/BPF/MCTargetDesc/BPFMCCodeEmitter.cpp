@@ -13,6 +13,7 @@
 #include "MCTargetDesc/BPFMCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -72,15 +73,13 @@ private:
 } // end anonymous namespace
 
 MCCodeEmitter *llvm::createBPFMCCodeEmitter(const MCInstrInfo &MCII,
-                                            const MCRegisterInfo &MRI,
                                             MCContext &Ctx) {
-  return new BPFMCCodeEmitter(MCII, MRI, true);
+  return new BPFMCCodeEmitter(MCII, *Ctx.getRegisterInfo(), true);
 }
 
 MCCodeEmitter *llvm::createBPFbeMCCodeEmitter(const MCInstrInfo &MCII,
-                                              const MCRegisterInfo &MRI,
                                               MCContext &Ctx) {
-  return new BPFMCCodeEmitter(MCII, MRI, false);
+  return new BPFMCCodeEmitter(MCII, *Ctx.getRegisterInfo(), false);
 }
 
 unsigned BPFMCCodeEmitter::getMachineOpValue(const MCInst &MI,
@@ -158,12 +157,18 @@ void BPFMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
 uint64_t BPFMCCodeEmitter::getMemoryOpValue(const MCInst &MI, unsigned Op,
                                             SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
+  // For CMPXCHG instructions, output is implicitly in R0/W0,
+  // so memory operand starts from operand 0.
+  int MemOpStartIndex = 1, Opcode = MI.getOpcode();
+  if (Opcode == BPF::CMPXCHGW32 || Opcode == BPF::CMPXCHGD)
+    MemOpStartIndex = 0;
+
   uint64_t Encoding;
-  const MCOperand Op1 = MI.getOperand(1);
+  const MCOperand Op1 = MI.getOperand(MemOpStartIndex);
   assert(Op1.isReg() && "First operand is not register.");
   Encoding = MRI.getEncodingValue(Op1.getReg());
   Encoding <<= 16;
-  MCOperand Op2 = MI.getOperand(2);
+  MCOperand Op2 = MI.getOperand(MemOpStartIndex + 1);
   assert(Op2.isImm() && "Second operand is not immediate.");
   Encoding |= Op2.getImm() & 0xffff;
   return Encoding;

@@ -1,8 +1,8 @@
-; RUN: opt < %s -instcombine -S -mtriple x86_64-unknown-linux-gnu | FileCheck %s --check-prefixes=CHECK,LINUX,ISC99
-; RUN: opt < %s -instcombine -S -mtriple x86_64-pc-win32          | FileCheck %s --check-prefixes=CHECK,ISC99
-; RUN: opt < %s -instcombine -S -mtriple x86_64-pc-windows-msvc16 | FileCheck %s --check-prefixes=CHECK,MS64,ISC89
-; RUN: opt < %s -instcombine -S -mtriple i386-pc-windows-msvc     | FileCheck %s --check-prefixes=CHECK,ISC99
-; RUN: opt < %s -instcombine -S -mtriple i686-pc-windows-msvc17   | FileCheck %s --check-prefixes=CHECK,MS32,ISC89
+; RUN: opt < %s -passes=instcombine -S -mtriple x86_64-unknown-linux-gnu | FileCheck %s --check-prefixes=CHECK,LINUX,ISC99
+; RUN: opt < %s -passes=instcombine -S -mtriple x86_64-pc-win32          | FileCheck %s --check-prefixes=CHECK,ISC99
+; RUN: opt < %s -passes=instcombine -S -mtriple x86_64-pc-windows-msvc16 | FileCheck %s --check-prefixes=CHECK,MS64,ISC89
+; RUN: opt < %s -passes=instcombine -S -mtriple i386-pc-windows-msvc     | FileCheck %s --check-prefixes=CHECK,ISC99
+; RUN: opt < %s -passes=instcombine -S -mtriple i686-pc-windows-msvc17   | FileCheck %s --check-prefixes=CHECK,MS32,ISC89
 
 ; Check for and against shrinkage when using the
 ; unsafe-fp-math function attribute on a math lib
@@ -513,7 +513,7 @@ define double @tanh_test2(float %f) {
 ; flags are propagated for shrunken *binary* double FP calls.
 define float @max1(float %a, float %b) {
 ; CHECK-LABEL: @max1(
-; ISC99-NEXT:    [[FMAXF:%.*]] = call arcp float @fmaxf(float [[A:%.*]], float [[B:%.*]])
+; ISC99-NEXT:    [[FMAXF:%.*]] = call nsz arcp float @llvm.maxnum.f32(float [[A:%.*]], float [[B:%.*]])
 ; ISC99-NEXT:    ret float [[FMAXF]]
 ; ISC89:         [[FMAXF:%.*]] = call arcp double @fmax(double [[A:%.*]], double [[B:%.*]])
 ;
@@ -524,16 +524,19 @@ define float @max1(float %a, float %b) {
   ret float %f
 }
 
-; A function can have a name that matches a common libcall,
-; but with the wrong type(s). Let it be.
+; This is treated as libm 'fmin' - LLVM types do not necessarily
+; correspond to 'C' types, so this is not required to be "fminl".
 
 define float @fake_fmin(float %a, float %b) {
 ; CHECK-LABEL: @fake_fmin(
-; CHECK-NEXT:    [[C:%.*]] = fpext float [[A:%.*]] to fp128
-; CHECK-NEXT:    [[D:%.*]] = fpext float [[B:%.*]] to fp128
-; CHECK-NEXT:    [[E:%.*]] = call fp128 @fmin(fp128 [[C]], fp128 [[D]])
-; CHECK-NEXT:    [[F:%.*]] = fptrunc fp128 [[E]] to float
-; CHECK-NEXT:    ret float [[F]]
+; ISC99-NEXT:    [[MIN:%.*]] = call nsz float @llvm.minnum.f32(float %a, float %b)
+; ISC99-NEXT:    ret float [[MIN]]
+
+; ISC89-NEXT:    [[C:%.*]] = fpext float [[A:%.*]] to fp128
+; ISC89-NEXT:    [[D:%.*]] = fpext float [[B:%.*]] to fp128
+; ISC89-NEXT:    [[E:%.*]] = call fp128 @fmin(fp128 [[C]], fp128 [[D]])
+; ISC89-NEXT:    [[F:%.*]] = fptrunc fp128 [[E]] to float
+; ISC89-NEXT:    ret float [[F]]
 ;
   %c = fpext float %a to fp128
   %d = fpext float %b to fp128
@@ -542,7 +545,7 @@ define float @fake_fmin(float %a, float %b) {
   ret float %f
 }
 
-declare fp128 @fmin(fp128, fp128) ; This is not the 'fmin' you're looking for.
+declare fp128 @fmin(fp128, fp128)
 
 declare double @fmax(double, double)
 

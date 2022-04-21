@@ -10,9 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTVector.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/SourceManager.h"
 #include "gtest/gtest.h"
 
 using namespace clang;
@@ -27,7 +29,7 @@ protected:
       : FileMgr(FileMgrOpts), DiagID(new DiagnosticIDs()),
         Diags(DiagID, new DiagnosticOptions, new IgnoringDiagConsumer()),
         SourceMgr(Diags, FileMgr), Idents(LangOpts, nullptr),
-        Ctxt(LangOpts, SourceMgr, Idents, Sels, Builtins) {}
+        Ctxt(LangOpts, SourceMgr, Idents, Sels, Builtins, TU_Complete) {}
 
   FileSystemOptions FileMgrOpts;
   FileManager FileMgr;

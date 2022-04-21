@@ -6,7 +6,5 @@ static_library("LineEditor") {
     "//llvm/utils/gn/build/libs/edit",
   ]
 
-  sources = [
-    "LineEditor.cpp",
-  ]
+  sources = [ "LineEditor.cpp" ]
 }

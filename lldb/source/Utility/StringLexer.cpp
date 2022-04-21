@@ -1,4 +1,4 @@
-//===--------------------- StringLexer.cpp -----------------------*- C++-*-===//
+//===-- StringLexer.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,11 +9,12 @@
 #include "lldb/Utility/StringLexer.h"
 
 #include <algorithm>
-#include <assert.h>
+#include <cassert>
+#include <utility>
 
-using namespace lldb_utility;
+using namespace lldb_private;
 
-StringLexer::StringLexer(std::string s) : m_data(s), m_position(0) {}
+StringLexer::StringLexer(std::string s) : m_data(std::move(s)), m_position(0) {}
 
 StringLexer::Character StringLexer::Peek() { return m_data[m_position]; }
 

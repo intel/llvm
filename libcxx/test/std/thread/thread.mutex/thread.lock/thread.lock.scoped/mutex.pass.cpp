@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <mutex>
 
@@ -130,7 +130,7 @@ int main(int, char**)
     }
 #endif
 
-#ifdef __cpp_deduction_guides
+#if TEST_STD_VER >= 17
     {
     TestMutex m1, m2, m3;
         {

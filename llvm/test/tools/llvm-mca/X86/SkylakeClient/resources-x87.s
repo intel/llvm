@@ -216,8 +216,8 @@ fyl2xp1
 # CHECK-NEXT:  1      3     1.00                  U     faddp	%st, %st(2)
 # CHECK-NEXT:  3      13    2.00    *             U     fiadds	(%ecx)
 # CHECK-NEXT:  3      13    2.00    *             U     fiaddl	(%ecx)
-# CHECK-NEXT:  1      100   0.25                  U     fbld	(%ecx)
-# CHECK-NEXT:  2      1     1.00                  U     fbstp	(%eax)
+# CHECK-NEXT:  1      100   0.25    *             U     fbld	(%ecx)
+# CHECK-NEXT:  2      1     1.00           *      U     fbstp	(%eax)
 # CHECK-NEXT:  1      1     1.00                  U     fchs
 # CHECK-NEXT:  4      4     1.00                  U     fnclex
 # CHECK-NEXT:  1      3     1.00                  U     fcmovb	%st(1), %st
@@ -230,12 +230,12 @@ fyl2xp1
 # CHECK-NEXT:  1      3     1.00                  U     fcmovu	%st(1), %st
 # CHECK-NEXT:  1      1     1.00                  U     fcom	%st(1)
 # CHECK-NEXT:  1      1     1.00                  U     fcom	%st(3)
-# CHECK-NEXT:  2      8     1.00                  U     fcoms	(%ecx)
-# CHECK-NEXT:  2      8     1.00                  U     fcoml	(%eax)
+# CHECK-NEXT:  2      8     1.00    *             U     fcoms	(%ecx)
+# CHECK-NEXT:  2      8     1.00    *             U     fcoml	(%eax)
 # CHECK-NEXT:  1      1     1.00                  U     fcomp	%st(1)
 # CHECK-NEXT:  1      1     1.00                  U     fcomp	%st(3)
-# CHECK-NEXT:  2      8     1.00                  U     fcomps	(%ecx)
-# CHECK-NEXT:  2      8     1.00                  U     fcompl	(%eax)
+# CHECK-NEXT:  2      8     1.00    *             U     fcomps	(%ecx)
+# CHECK-NEXT:  2      8     1.00    *             U     fcompl	(%eax)
 # CHECK-NEXT:  1      100   0.25                  U     fcompp
 # CHECK-NEXT:  1      2     1.00                  U     fcomi	%st(3), %st
 # CHECK-NEXT:  1      2     1.00                  U     fcompi	%st(3), %st
@@ -258,10 +258,10 @@ fyl2xp1
 # CHECK-NEXT:  3      30    1.00    *             U     fidivrs	(%ecx)
 # CHECK-NEXT:  3      30    1.00    *             U     fidivrl	(%eax)
 # CHECK-NEXT:  1      100   0.25                  U     ffree	%st(0)
-# CHECK-NEXT:  3      11    2.00                  U     ficoms	(%ecx)
-# CHECK-NEXT:  3      11    2.00                  U     ficoml	(%eax)
-# CHECK-NEXT:  3      11    2.00                  U     ficomps	(%ecx)
-# CHECK-NEXT:  3      11    2.00                  U     ficompl	(%eax)
+# CHECK-NEXT:  3      11    2.00    *             U     ficoms	(%ecx)
+# CHECK-NEXT:  3      11    2.00    *             U     ficoml	(%eax)
+# CHECK-NEXT:  3      11    2.00    *             U     ficomps	(%ecx)
+# CHECK-NEXT:  3      11    2.00    *             U     ficompl	(%eax)
 # CHECK-NEXT:  2      10    1.00    *             U     filds	(%edx)
 # CHECK-NEXT:  2      10    1.00    *             U     fildl	(%ecx)
 # CHECK-NEXT:  2      10    1.00    *             U     fildll	(%eax)
@@ -280,7 +280,7 @@ fyl2xp1
 # CHECK-NEXT:  1      7     0.50    *             U     fldl	(%ecx)
 # CHECK-NEXT:  1      7     0.50    *             U     fldt	(%eax)
 # CHECK-NEXT:  3      7     1.00    *             U     fldcw	(%eax)
-# CHECK-NEXT:  64     62    14.00                 U     fldenv	(%eax)
+# CHECK-NEXT:  64     62    14.00   *             U     fldenv	(%eax)
 # CHECK-NEXT:  2      1     1.00                  U     fld1
 # CHECK-NEXT:  2      1     1.00                  U     fldl2e
 # CHECK-NEXT:  2      1     1.00                  U     fldl2t
@@ -302,8 +302,8 @@ fyl2xp1
 # CHECK-NEXT:  1      100   0.25                  U     fprem1
 # CHECK-NEXT:  1      100   0.25                  U     fptan
 # CHECK-NEXT:  1      100   0.25                  U     frndint
-# CHECK-NEXT:  1      100   0.25                  U     frstor	(%eax)
-# CHECK-NEXT:  1      100   0.25                  U     fnsave	(%eax)
+# CHECK-NEXT:  1      100   0.25    *             U     frstor	(%eax)
+# CHECK-NEXT:  1      100   0.25           *      U     fnsave	(%eax)
 # CHECK-NEXT:  1      100   0.25                  U     fscale
 # CHECK-NEXT:  1      100   0.25                  U     fsin
 # CHECK-NEXT:  1      100   0.25                  U     fsincos
@@ -316,11 +316,11 @@ fyl2xp1
 # CHECK-NEXT:  2      1     1.00           *      U     fstpl	(%ecx)
 # CHECK-NEXT:  2      1     1.00           *      U     fstpt	(%eax)
 # CHECK-NEXT:  3      2     1.00           *      U     fnstcw	(%eax)
-# CHECK-NEXT:  100    106   19.50                 U     fnstenv	(%eax)
-# CHECK-NEXT:  3      3     1.00                  U     fnstsw	(%eax)
-# CHECK-NEXT:  1      100   0.25                  U     frstor	(%eax)
+# CHECK-NEXT:  100    106   19.50          *      U     fnstenv	(%eax)
+# CHECK-NEXT:  3      3     1.00           *      U     fnstsw	(%eax)
+# CHECK-NEXT:  1      100   0.25    *             U     frstor	(%eax)
 # CHECK-NEXT:  2      2     0.50                  U     wait
-# CHECK-NEXT:  1      100   0.25                  U     fnsave	(%eax)
+# CHECK-NEXT:  1      100   0.25           *      U     fnsave	(%eax)
 # CHECK-NEXT:  1      3     1.00                  U     fsub	%st, %st(1)
 # CHECK-NEXT:  1      3     1.00                  U     fsub	%st(2), %st
 # CHECK-NEXT:  2      10    1.00    *             U     fsubs	(%ecx)
@@ -346,7 +346,7 @@ fyl2xp1
 # CHECK-NEXT:  1      2     1.00                  U     fucomi	%st(3), %st
 # CHECK-NEXT:  1      2     1.00                  U     fucompi	%st(3), %st
 # CHECK-NEXT:  2      2     0.50                  U     wait
-# CHECK-NEXT:  1      100   0.25                  U     fxam
+# CHECK-NEXT:  1      2     1.00                  U     fxam
 # CHECK-NEXT:  15     17    4.00                  U     fxch	%st(1)
 # CHECK-NEXT:  15     17    4.00                  U     fxch	%st(3)
 # CHECK-NEXT:  90     63    16.50   *      *      U     fxrstor	(%eax)
@@ -369,7 +369,7 @@ fyl2xp1
 
 # CHECK:      Resource pressure per iteration:
 # CHECK-NEXT: [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
-# CHECK-NEXT:  -     7.00   126.75 52.25  49.00  49.00  27.00  149.75 69.25  9.00
+# CHECK-NEXT:  -     7.00   127.50 52.00  49.00  49.00  27.00  149.50 69.00  9.00
 
 # CHECK:      Resource pressure by instruction:
 # CHECK-NEXT: [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
@@ -513,7 +513,7 @@ fyl2xp1
 # CHECK-NEXT:  -      -     1.00    -      -      -      -      -      -      -     fucomi	%st(3), %st
 # CHECK-NEXT:  -      -     1.00    -      -      -      -      -      -      -     fucompi	%st(3), %st
 # CHECK-NEXT:  -      -     0.50   0.50    -      -      -     0.50   0.50    -     wait
-# CHECK-NEXT:  -      -     0.25   0.25    -      -      -     0.25   0.25    -     fxam
+# CHECK-NEXT:  -      -     1.00    -      -      -      -      -      -      -     fxam
 # CHECK-NEXT:  -      -     4.00   2.00    -      -      -     4.00   5.00    -     fxch	%st(1)
 # CHECK-NEXT:  -      -     4.00   2.00    -      -      -     4.00   5.00    -     fxch	%st(3)
 # CHECK-NEXT:  -      -     17.25  12.25  16.50  16.50   -     12.75  14.75   -     fxrstor	(%eax)

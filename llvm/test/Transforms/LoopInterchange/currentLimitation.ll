@@ -1,6 +1,11 @@
-; RUN: opt < %s -basicaa -loop-interchange -pass-remarks-missed='loop-interchange' \
+; RUN: opt < %s -basic-aa -loop-interchange -pass-remarks-missed='loop-interchange' \
 ; RUN:   -pass-remarks-output=%t -verify-loop-info -verify-dom-info -S | FileCheck -check-prefix=IR %s
 ; RUN: FileCheck --input-file=%t %s
+
+; RUN: opt < %s -basic-aa -loop-interchange -pass-remarks-missed='loop-interchange' \
+; RUN:   -da-disable-delinearization-checks -pass-remarks-output=%t             \
+; RUN:   -verify-loop-info -verify-dom-info -S | FileCheck -check-prefix=IR %s
+; RUN: FileCheck --check-prefix=DELIN --input-file=%t %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -10,19 +15,17 @@ target triple = "x86_64-unknown-linux-gnu"
 @C = common global [100 x [100 x i64]] zeroinitializer
  
 ;;--------------------------------------Test case 01------------------------------------
-;; [FIXME] This loop though valid is currently not interchanged due to the limitation that we cannot split the inner loop latch due to multiple use of inner induction
-;; variable.(used to increment the loop counter and to access A[j+1][i+1]
+;; This loop can be interchanged with -da-disable-delinearization-checks, otherwise it cannot
+;; be interchanged due to dependence.
 ;;  for(int i=0;i<N-1;i++)
 ;;    for(int j=1;j<N-1;j++)
 ;;      A[j+1][i+1] = A[j+1][i+1] + k;
 
-; FIXME: Currently fails because of DA changes.
-; IR-LABEL: @interchange_01
-; IR-NOT: split
-
 ; CHECK:      Name:            Dependence
 ; CHECK-NEXT: Function:        interchange_01
 
+; DELIN:      Name:            Interchanged
+; DELIN-NEXT: Function:        interchange_01
 define void @interchange_01(i32 %k, i32 %N) {
  entry:
    %sub = add nsw i32 %N, -1

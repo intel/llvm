@@ -88,12 +88,13 @@ class RuntimeDyldELF : public RuntimeDyldImpl {
 
   void setMipsABI(const ObjectFile &Obj) override;
 
-  Error findPPC64TOCSection(const ELFObjectFileBase &Obj,
+  Error findPPC64TOCSection(const object::ELFObjectFileBase &Obj,
                             ObjSectionToIDMap &LocalSections,
                             RelocationValueRef &Rel);
-  Error findOPDEntrySection(const ELFObjectFileBase &Obj,
+  Error findOPDEntrySection(const object::ELFObjectFileBase &Obj,
                             ObjSectionToIDMap &LocalSections,
                             RelocationValueRef &Rel);
+
 protected:
   size_t getGOTEntrySize() override;
 
@@ -159,6 +160,18 @@ private:
 
   bool relocationNeedsGot(const RelocationRef &R) const override;
   bool relocationNeedsStub(const RelocationRef &R) const override;
+
+  // Process a GOTTPOFF TLS relocation for x86-64
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void processX86_64GOTTPOFFRelocation(unsigned SectionID, uint64_t Offset,
+                                       RelocationValueRef Value,
+                                       int64_t Addend);
+  // Process a TLSLD/TLSGD relocation for x86-64
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void processX86_64TLSRelocation(unsigned SectionID, uint64_t Offset,
+                                  uint64_t RelType, RelocationValueRef Value,
+                                  int64_t Addend,
+                                  const RelocationRef &GetAddrRelocation);
 
 public:
   RuntimeDyldELF(RuntimeDyld::MemoryManager &MemMgr,

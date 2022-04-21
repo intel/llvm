@@ -38,15 +38,6 @@ FTIHasNonVoidParameters(const DeclaratorChunk::FunctionTypeInfo &FTI) {
   return FTI.NumParams && !FTIHasSingleVoidParameter(FTI);
 }
 
-// This requires the variable to be non-dependent and the initializer
-// to not be value dependent.
-inline bool IsVariableAConstantExpression(VarDecl *Var, ASTContext &Context) {
-  const VarDecl *DefVD = nullptr;
-  return !isa<ParmVarDecl>(Var) &&
-    Var->isUsableInConstantExpressions(Context) &&
-    Var->getAnyInitializer(DefVD) && DefVD->checkInitIsICE();
-}
-
 // Helper function to check whether D's attributes match current CUDA mode.
 // Decls with mismatched attributes and related diagnostics may have to be
 // ignored during this CUDA compilation pass.
@@ -57,36 +48,6 @@ inline bool DeclAttrsMatchCUDAMode(const LangOptions &LangOpts, Decl *D) {
                           D->hasAttr<CUDASharedAttr>() ||
                           D->hasAttr<CUDAGlobalAttr>();
   return isDeviceSideDecl == LangOpts.CUDAIsDevice;
-}
-
-// Directly mark a variable odr-used. Given a choice, prefer to use
-// MarkVariableReferenced since it does additional checks and then
-// calls MarkVarDeclODRUsed.
-// If the variable must be captured:
-//  - if FunctionScopeIndexToStopAt is null, capture it in the CurContext
-//  - else capture it in the DeclContext that maps to the
-//    *FunctionScopeIndexToStopAt on the FunctionScopeInfo stack.
-inline void MarkVarDeclODRUsed(VarDecl *Var,
-    SourceLocation Loc, Sema &SemaRef,
-    const unsigned *const FunctionScopeIndexToStopAt) {
-  // Keep track of used but undefined variables.
-  // FIXME: We shouldn't suppress this warning for static data members.
-  if (Var->hasDefinition(SemaRef.Context) == VarDecl::DeclarationOnly &&
-      (!Var->isExternallyVisible() || Var->isInline() ||
-       SemaRef.isExternalWithNoLinkageType(Var)) &&
-      !(Var->isStaticDataMember() && Var->hasInit())) {
-    SourceLocation &old = SemaRef.UndefinedButUsed[Var->getCanonicalDecl()];
-    if (old.isInvalid())
-      old = Loc;
-  }
-  QualType CaptureType, DeclRefType;
-  SemaRef.tryCaptureVariable(Var, Loc, Sema::TryCapture_Implicit,
-    /*EllipsisLoc*/ SourceLocation(),
-    /*BuildAndDiagnose*/ true,
-    CaptureType, DeclRefType,
-    FunctionScopeIndexToStopAt);
-
-  Var->markUsed(SemaRef.Context);
 }
 
 /// Return a DLL attribute from the declaration.
@@ -136,7 +97,7 @@ public:
                          bool EnteringContext)
       : Typo(TypoName.getName().getAsIdentifierInfo()), CurrentTCIndex(0),
         SavedTCIndex(0), SemaRef(SemaRef), S(S),
-        SS(SS ? llvm::make_unique<CXXScopeSpec>(*SS) : nullptr),
+        SS(SS ? std::make_unique<CXXScopeSpec>(*SS) : nullptr),
         CorrectionValidator(std::move(CCC)), MemberContext(MemberContext),
         Result(SemaRef, TypoName, LookupKind),
         Namespaces(SemaRef.Context, SemaRef.CurContext, SS),
@@ -206,6 +167,11 @@ public:
     CurrentTCIndex = Current;
     return TC;
   }
+
+  /// In the case of deeply invalid expressions, `getNextCorrection()` will
+  /// never be called since the transform never makes progress. If we don't
+  /// detect this we risk trying to correct typos forever.
+  bool hasMadeAnyCorrectionProgress() const { return CurrentTCIndex != 0; }
 
   /// Reset the consumer's position in the stream of viable corrections
   /// (i.e. getNextCorrection() will return each of the previously returned

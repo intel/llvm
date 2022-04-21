@@ -1,4 +1,4 @@
-//===-- ThreadMinidump.cpp --------------------------------------*- C++ -*-===//
+//===-- ThreadMinidump.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -38,7 +38,7 @@ ThreadMinidump::ThreadMinidump(Process &process, const minidump::Thread &td,
     : Thread(process, td.ThreadId), m_thread_reg_ctx_sp(),
       m_gpregset_data(gpregset_data) {}
 
-ThreadMinidump::~ThreadMinidump() {}
+ThreadMinidump::~ThreadMinidump() = default;
 
 void ThreadMinidump::RefreshStateAfterStop() {}
 

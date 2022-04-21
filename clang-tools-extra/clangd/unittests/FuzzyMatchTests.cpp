@@ -8,7 +8,6 @@
 
 #include "FuzzyMatch.h"
 
-#include "llvm/ADT/StringExtras.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -296,7 +295,7 @@ std::string segment(llvm::StringRef Text) {
 }
 
 // this is a no-op hack so clang-format will vertically align our testcases.
-llvm::StringRef returns(llvm::StringRef Text) { return Text; }
+std::string returns(llvm::StringRef Text) { return std::string(Text); }
 
 TEST(FuzzyMatch, Segmentation) {
   EXPECT_THAT(segment("std::basic_string"), //

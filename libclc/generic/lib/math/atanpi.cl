@@ -23,7 +23,7 @@
 #include <clc/clc.h>
 
 #include "math.h"
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float atanpi(float x) {
     const float pi = 3.1415926535897932f;

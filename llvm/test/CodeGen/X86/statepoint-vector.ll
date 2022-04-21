@@ -11,15 +11,15 @@ define <2 x i8 addrspace(1)*> @test(<2 x i8 addrspace(1)*> %obj) gc "statepoint-
 ; CHECK-NEXT:    subq $24, %rsp
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    movaps %xmm0, (%rsp)
-; CHECK-NEXT:    callq do_safepoint
+; CHECK-NEXT:    callq do_safepoint@PLT
 ; CHECK-NEXT:  .Ltmp0:
 ; CHECK-NEXT:    movaps (%rsp), %xmm0
 ; CHECK-NEXT:    addq $24, %rsp
 ; CHECK-NEXT:    .cfi_def_cfa_offset 8
 ; CHECK-NEXT:    retq
 entry:
-  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* @do_safepoint, i32 0, i32 0, i32 0, i32 0, <2 x i8 addrspace(1)*> %obj)
-  %obj.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 7, i32 7) ; (%obj, %obj)
+  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* elementtype(void ()) @do_safepoint, i32 0, i32 0, i32 0, i32 0) ["gc-live" (<2 x i8 addrspace(1)*> %obj)]
+  %obj.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 0, i32 0) ; (%obj, %obj)
   ret <2 x i8 addrspace(1)*> %obj.relocated
 }
 
@@ -32,18 +32,18 @@ define <2 x i8 addrspace(1)*> @test2(<2 x i8 addrspace(1)*> %obj, i64 %offset) g
 ; CHECK-NEXT:    movq %rdi, %xmm1
 ; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[0,1,0,1]
 ; CHECK-NEXT:    paddq %xmm0, %xmm1
-; CHECK-NEXT:    movdqa %xmm0, {{[0-9]+}}(%rsp)
-; CHECK-NEXT:    movdqa %xmm1, (%rsp)
-; CHECK-NEXT:    callq do_safepoint
+; CHECK-NEXT:    movdqa %xmm0, (%rsp)
+; CHECK-NEXT:    movdqa %xmm1, {{[0-9]+}}(%rsp)
+; CHECK-NEXT:    callq do_safepoint@PLT
 ; CHECK-NEXT:  .Ltmp1:
-; CHECK-NEXT:    movaps (%rsp), %xmm0
+; CHECK-NEXT:    movaps {{[0-9]+}}(%rsp), %xmm0
 ; CHECK-NEXT:    addq $40, %rsp
 ; CHECK-NEXT:    .cfi_def_cfa_offset 8
 ; CHECK-NEXT:    retq
 entry:
   %derived = getelementptr i8, <2 x i8 addrspace(1)*> %obj, i64 %offset
-  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* @do_safepoint, i32 0, i32 0, i32 0, i32 0, <2 x i8 addrspace(1)*> %obj, <2 x i8 addrspace(1)*> %derived)
-  %derived.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 7, i32 8) ; (%obj, %derived)
+  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* elementtype(void ()) @do_safepoint, i32 0, i32 0, i32 0, i32 0) ["gc-live" (<2 x i8 addrspace(1)*> %obj, <2 x i8 addrspace(1)*> %derived)]
+  %derived.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 0, i32 1) ; (%obj, %derived)
   ret <2 x i8 addrspace(1)*> %derived.relocated
 }
 
@@ -63,7 +63,7 @@ define <2 x i64 addrspace(1)*> @test3(i1 %cnd, <2 x i64 addrspace(1)*>* %ptr) gc
 ; CHECK-NEXT:    movaps (%rsi), %xmm0
 ; CHECK-NEXT:    movaps %xmm0, (%rsp)
 ; CHECK-NEXT:    movaps %xmm0, {{[0-9]+}}(%rsp)
-; CHECK-NEXT:    callq do_safepoint
+; CHECK-NEXT:    callq do_safepoint@PLT
 ; CHECK-NEXT:  .Ltmp2:
 ; CHECK-NEXT:    movaps (%rsp), %xmm0
 ; CHECK-NEXT:    addq $40, %rsp
@@ -83,10 +83,10 @@ untaken:                                          ; preds = %entry
 merge:                                            ; preds = %untaken, %taken
   %obj.base = phi <2 x i64 addrspace(1)*> [ %obja, %taken ], [ %objb, %untaken ]
   %obj = phi <2 x i64 addrspace(1)*> [ %obja, %taken ], [ %objb, %untaken ]
-  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* @do_safepoint, i32 0, i32 0, i32 0, i32 0, <2 x i64 addrspace(1)*> %obj, <2 x i64 addrspace(1)*> %obj.base)
-  %obj.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 8, i32 7) ; (%obj.base, %obj)
+  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* elementtype(void ()) @do_safepoint, i32 0, i32 0, i32 0, i32 0) ["gc-live" (<2 x i64 addrspace(1)*> %obj, <2 x i64 addrspace(1)*> %obj.base)]
+  %obj.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 1, i32 0) ; (%obj.base, %obj)
   %obj.relocated.casted = bitcast <2 x i8 addrspace(1)*> %obj.relocated to <2 x i64 addrspace(1)*>
-  %obj.base.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 8, i32 8) ; (%obj.base, %obj.base)
+  %obj.base.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 1, i32 1) ; (%obj.base, %obj.base)
   %obj.base.relocated.casted = bitcast <2 x i8 addrspace(1)*> %obj.base.relocated to <2 x i64 addrspace(1)*>
   ret <2 x i64 addrspace(1)*> %obj.relocated.casted
 }
@@ -100,33 +100,38 @@ define <2 x i8 addrspace(1)*> @test4() gc "statepoint-example" {
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    movaps %xmm0, (%rsp)
-; CHECK-NEXT:    callq do_safepoint
+; CHECK-NEXT:    callq do_safepoint@PLT
 ; CHECK-NEXT:  .Ltmp3:
 ; CHECK-NEXT:    movaps (%rsp), %xmm0
 ; CHECK-NEXT:    addq $24, %rsp
 ; CHECK-NEXT:    .cfi_def_cfa_offset 8
 ; CHECK-NEXT:    retq
 entry:
-  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* @do_safepoint, i32 0, i32 0, i32 0, i32 0, <2 x i8 addrspace(1)*> zeroinitializer)
-  %obj.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 7, i32 7) ; (%obj, %obj)
+  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* elementtype(void ()) @do_safepoint, i32 0, i32 0, i32 0, i32 0) ["gc-live" (<2 x i8 addrspace(1)*> zeroinitializer)]
+  %obj.relocated = call coldcc <2 x i8 addrspace(1)*> @llvm.experimental.gc.relocate.v2p1i8(token %safepoint_token, i32 0, i32 0)
   ret <2 x i8 addrspace(1)*> %obj.relocated
 }
 
-; Check that we can lower a constant typed as i128 correctly.  Note that the
-; actual value is representable in 64 bits.  We don't have a representation
-; of larger than 64 bit constant in the StackMap format.
+; Check that we can lower a constant typed as i128 correctly.  We don't have
+; a representation of larger than 64 bit constant in the StackMap format. At
+; the moment, this simply means spilling them, but there's a potential
+; optimization for values representable as sext(Con64).
 define void @test5() gc "statepoint-example" {
 ; CHECK-LABEL: test5:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    pushq %rax
-; CHECK-NEXT:    .cfi_def_cfa_offset 16
-; CHECK-NEXT:    callq do_safepoint
+; CHECK-NEXT:    subq $40, %rsp
+; CHECK-NEXT:    .cfi_def_cfa_offset 48
+; CHECK-NEXT:    xorps %xmm0, %xmm0
+; CHECK-NEXT:    movups %xmm0, {{[0-9]+}}(%rsp)
+; CHECK-NEXT:    movq $-1, {{[0-9]+}}(%rsp)
+; CHECK-NEXT:    movq $-1, {{[0-9]+}}(%rsp)
+; CHECK-NEXT:    callq do_safepoint@PLT
 ; CHECK-NEXT:  .Ltmp4:
-; CHECK-NEXT:    popq %rax
+; CHECK-NEXT:    addq $40, %rsp
 ; CHECK-NEXT:    .cfi_def_cfa_offset 8
 ; CHECK-NEXT:    retq
 entry:
-  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* @do_safepoint, i32 0, i32 0, i32 0, i32 1, i128 0)
+  %safepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* elementtype(void ()) @do_safepoint, i32 0, i32 0, i32 0, i32 0) ["deopt" (i128 0, i128 -1)]
   ret void
 }
 
@@ -158,13 +163,13 @@ entry:
 ; CHECK: .short 16
 ; CHECK: .short	7
 ; CHECK: .short	0
-; CHECK: .long	16
+; CHECK: .long	0
 ; CHECK: .byte	3
 ; CHECK: .byte	0
 ; CHECK: .short 16
 ; CHECK: .short	7
 ; CHECK: .short	0
-; CHECK: .long	0
+; CHECK: .long	16
 
 ; CHECK: .Ltmp2-test3
 ; Check for the four spill slots

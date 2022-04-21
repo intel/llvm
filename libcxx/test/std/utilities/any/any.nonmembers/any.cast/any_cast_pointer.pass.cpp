@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: dylib-has-no-bad_any_cast && !libcpp-no-exceptions
+// Throwing bad_any_cast is supported starting in macosx10.13
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}} && !no-exceptions
 
 // <any>
 
@@ -25,61 +26,58 @@
 #include "test_macros.h"
 #include "any_helpers.h"
 
-using std::any;
-using std::any_cast;
-
 // Test that the operators are properly noexcept.
 void test_cast_is_noexcept() {
-    any a;
-    ASSERT_NOEXCEPT(any_cast<int>(&a));
+    std::any a;
+    ASSERT_NOEXCEPT(std::any_cast<int>(&a));
 
-    any const& ca = a;
-    ASSERT_NOEXCEPT(any_cast<int>(&ca));
+    const std::any& ca = a;
+    ASSERT_NOEXCEPT(std::any_cast<int>(&ca));
 }
 
 // Test that the return type of any_cast is correct.
 void test_cast_return_type() {
-    any a;
-    ASSERT_SAME_TYPE(decltype(any_cast<int>(&a)),       int*);
-    ASSERT_SAME_TYPE(decltype(any_cast<int const>(&a)), int const*);
+    std::any a;
+    ASSERT_SAME_TYPE(decltype(std::any_cast<int>(&a)),       int*);
+    ASSERT_SAME_TYPE(decltype(std::any_cast<int const>(&a)), int const*);
 
-    any const& ca = a;
-    ASSERT_SAME_TYPE(decltype(any_cast<int>(&ca)),       int const*);
-    ASSERT_SAME_TYPE(decltype(any_cast<int const>(&ca)), int const*);
+    const std::any& ca = a;
+    ASSERT_SAME_TYPE(decltype(std::any_cast<int>(&ca)),       int const*);
+    ASSERT_SAME_TYPE(decltype(std::any_cast<int const>(&ca)), int const*);
 }
 
 // Test that any_cast handles null pointers.
 void test_cast_nullptr() {
-    any* a = nullptr;
-    assert(nullptr == any_cast<int>(a));
-    assert(nullptr == any_cast<int const>(a));
+    std::any *a = nullptr;
+    assert(nullptr == std::any_cast<int>(a));
+    assert(nullptr == std::any_cast<int const>(a));
 
-    any const* ca = nullptr;
-    assert(nullptr == any_cast<int>(ca));
-    assert(nullptr == any_cast<int const>(ca));
+    const std::any *ca = nullptr;
+    assert(nullptr == std::any_cast<int>(ca));
+    assert(nullptr == std::any_cast<int const>(ca));
 }
 
 // Test casting an empty object.
 void test_cast_empty() {
     {
-        any a;
-        assert(nullptr == any_cast<int>(&a));
-        assert(nullptr == any_cast<int const>(&a));
+        std::any a;
+        assert(nullptr == std::any_cast<int>(&a));
+        assert(nullptr == std::any_cast<int const>(&a));
 
-        any const& ca = a;
-        assert(nullptr == any_cast<int>(&ca));
-        assert(nullptr == any_cast<int const>(&ca));
+        const std::any& ca = a;
+        assert(nullptr == std::any_cast<int>(&ca));
+        assert(nullptr == std::any_cast<int const>(&ca));
     }
     // Create as non-empty, then make empty and run test.
     {
-        any a(42);
+        std::any a(42);
         a.reset();
-        assert(nullptr == any_cast<int>(&a));
-        assert(nullptr == any_cast<int const>(&a));
+        assert(nullptr == std::any_cast<int>(&a));
+        assert(nullptr == std::any_cast<int const>(&a));
 
-        any const& ca = a;
-        assert(nullptr == any_cast<int>(&ca));
-        assert(nullptr == any_cast<int const>(&ca));
+        const std::any& ca = a;
+        assert(nullptr == std::any_cast<int>(&ca));
+        assert(nullptr == std::any_cast<int const>(&ca));
     }
 }
 
@@ -88,24 +86,24 @@ void test_cast() {
     assert(Type::count == 0);
     Type::reset();
     {
-        any a((Type(42)));
-        any const& ca = a;
+        std::any a = Type(42);
+        const std::any& ca = a;
         assert(Type::count == 1);
         assert(Type::copied == 0);
         assert(Type::moved == 1);
 
         // Try a cast to a bad type.
         // NOTE: Type cannot be an int.
-        assert(any_cast<int>(&a) == nullptr);
-        assert(any_cast<int const>(&a) == nullptr);
-        assert(any_cast<int const volatile>(&a) == nullptr);
+        assert(std::any_cast<int>(&a) == nullptr);
+        assert(std::any_cast<int const>(&a) == nullptr);
+        assert(std::any_cast<int const volatile>(&a) == nullptr);
 
         // Try a cast to the right type, but as a pointer.
-        assert(any_cast<Type*>(&a) == nullptr);
-        assert(any_cast<Type const*>(&a) == nullptr);
+        assert(std::any_cast<Type*>(&a) == nullptr);
+        assert(std::any_cast<Type const*>(&a) == nullptr);
 
         // Check getting a unqualified type from a non-const any.
-        Type* v = any_cast<Type>(&a);
+        Type* v = std::any_cast<Type>(&a);
         assert(v != nullptr);
         assert(v->value == 42);
 
@@ -113,19 +111,19 @@ void test_cast() {
         v->value = 999;
 
         // Check getting a const qualified type from a non-const any.
-        Type const* cv = any_cast<Type const>(&a);
+        Type const* cv = std::any_cast<Type const>(&a);
         assert(cv != nullptr);
         assert(cv == v);
         assert(cv->value == 999);
 
         // Check getting a unqualified type from a const any.
-        cv = any_cast<Type>(&ca);
+        cv = std::any_cast<Type>(&ca);
         assert(cv != nullptr);
         assert(cv == v);
         assert(cv->value == 999);
 
         // Check getting a const-qualified type from a const any.
-        cv = any_cast<Type const>(&ca);
+        cv = std::any_cast<Type const>(&ca);
         assert(cv != nullptr);
         assert(cv == v);
         assert(cv->value == 999);
@@ -152,8 +150,8 @@ void test_cast_non_copyable_type()
 void test_cast_array() {
     int arr[3];
     std::any a(arr);
-    assert(a.type() == typeid(int*)); // contained value is decayed
-//  We can't get an array out
+    RTTI_ASSERT(a.type() == typeid(int*)); // contained value is decayed
+    // We can't get an array out
     int (*p)[3] = std::any_cast<int[3]>(&a);
     assert(p == nullptr);
 }

@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
 
 ; Since this intrinsic is exposed as a constant after isel, use it to
 ; defeat the DAG's compare with constant canonicalizations.
@@ -589,13 +589,13 @@ endif:
 
 ; GCN-LABEL: {{^}}br_scc_eq_i64_simm16:
 ; VI-DAG: s_movk_i32 s[[K_LO:[0-9]+]], 0x4d2
-; VI-DAG: s_mov_b32 s[[K_HI:[0-9]+]], 0
-; VI: s_cmp_eq_u64 s{{\[[0-9]+:[0-9]+\]}}, s{{\[}}[[K_LO]]:[[K_HI]]{{\]}}
+; VI-DAG: s_mov_b32 s[[K_HI:[0-9]+]], 1
+; VI: s_cmp_eq_u64 s{{\[[0-9]+:[0-9]+\]}}, s[[[K_LO]]:[[K_HI]]]
 
 ; SI: v_cmp_eq_u64_e32
 define amdgpu_kernel void @br_scc_eq_i64_simm16(i64 %cond, i32 addrspace(1)* %out) #0 {
 entry:
-  %cmp0 = icmp eq i64 %cond, 1234
+  %cmp0 = icmp eq i64 %cond, 4294968530
   br i1 %cmp0, label %endif, label %if
 
 if:
@@ -627,13 +627,13 @@ endif:
 
 ; GCN-LABEL: {{^}}br_scc_ne_i64_simm16:
 ; VI-DAG: s_movk_i32 s[[K_LO:[0-9]+]], 0x4d2
-; VI-DAG: s_mov_b32 s[[K_HI:[0-9]+]], 0
-; VI: s_cmp_lg_u64 s{{\[[0-9]+:[0-9]+\]}}, s{{\[}}[[K_LO]]:[[K_HI]]{{\]}}
+; VI-DAG: s_mov_b32 s[[K_HI:[0-9]+]], 1
+; VI: s_cmp_lg_u64 s{{\[[0-9]+:[0-9]+\]}}, s[[[K_LO]]:[[K_HI]]]
 
 ; SI: v_cmp_ne_u64_e32
 define amdgpu_kernel void @br_scc_ne_i64_simm16(i64 %cond, i32 addrspace(1)* %out) #0 {
 entry:
-  %cmp0 = icmp ne i64 %cond, 1234
+  %cmp0 = icmp ne i64 %cond, 4294968530
   br i1 %cmp0, label %endif, label %if
 
 if:

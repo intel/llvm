@@ -1,4 +1,4 @@
-//===-- ObjectFileBreakpad.cpp -------------------------------- -*- C++ -*-===//
+//===-- ObjectFileBreakpad.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,6 +15,8 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::breakpad;
+
+LLDB_PLUGIN_DEFINE(ObjectFileBreakpad)
 
 namespace {
 struct Header {
@@ -42,6 +44,8 @@ llvm::Optional<Header> Header::parse(llvm::StringRef text) {
   return Header{ArchSpec(triple), std::move(uuid)};
 }
 
+char ObjectFileBreakpad::ID;
+
 void ObjectFileBreakpad::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                 GetPluginDescriptionStatic(), CreateInstance,
@@ -50,11 +54,6 @@ void ObjectFileBreakpad::Initialize() {
 
 void ObjectFileBreakpad::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-ConstString ObjectFileBreakpad::GetPluginNameStatic() {
-  static ConstString g_name("breakpad");
-  return g_name;
 }
 
 ObjectFile *ObjectFileBreakpad::CreateInstance(
@@ -117,15 +116,16 @@ bool ObjectFileBreakpad::ParseHeader() {
   return true;
 }
 
-Symtab *ObjectFileBreakpad::GetSymtab() {
-  // TODO
-  return nullptr;
+void ObjectFileBreakpad::ParseSymtab(Symtab &symtab) {
+  // Nothing to do for breakpad files, all information is parsed as debug info
+  // which means "lldb_private::Function" objects are used, or symbols are added
+  // by the SymbolFileBreakpad::AddSymbols(...) function in the symbol file.
 }
 
 void ObjectFileBreakpad::CreateSections(SectionList &unified_section_list) {
   if (m_sections_up)
     return;
-  m_sections_up = llvm::make_unique<SectionList>();
+  m_sections_up = std::make_unique<SectionList>();
 
   llvm::Optional<Record::Kind> current_section;
   offset_t section_start;
@@ -149,9 +149,9 @@ void ObjectFileBreakpad::CreateSections(SectionList &unified_section_list) {
     std::tie(line, text) = text.split('\n');
 
     llvm::Optional<Record::Kind> next_section = Record::classify(line);
-    if (next_section == Record::Line) {
-      // Line records logically belong to the preceding Func record, so we put
-      // them in the same section.
+    if (next_section == Record::Line || next_section == Record::Inline) {
+      // Line/Inline records logically belong to the preceding Func record, so
+      // we put them in the same section.
       next_section = Record::Func;
     }
     if (next_section == current_section)

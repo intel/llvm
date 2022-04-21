@@ -1,9 +1,5 @@
-; RUN: opt %loadPolly -analyze -polly-scops < %s \
-; RUN: -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll \
-; RUN:     | FileCheck %s --check-prefix=SCOP
-; RUN: opt %loadPolly -analyze -polly-codegen-ppcg -polly-acc-dump-kernel-ir \
-; RUN: -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll \
-; RUN:     < %s | FileCheck %s --check-prefix=KERNEL-IR
+; RUN: opt %loadPolly -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll -polly-print-scops -disable-output < %s | FileCheck %s --check-prefix=SCOP
+; RUN: opt %loadPolly -polly-codegen-ppcg -polly-acc-dump-kernel-ir -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll -disable-output < %s | FileCheck %s --check-prefix=KERNEL-IR
 ; RUN: opt %loadPolly -S -polly-codegen-ppcg  < %s \
 ; RUN: -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll \
 ; RUN:     | FileCheck %s --check-prefix=HOST-IR
@@ -65,7 +61,7 @@ for.body:                                         ; preds = %for.body.lr.ph, %fo
   %expf = tail call float @expf(float %A.arr.i.val)
   %cosf = tail call float @cosf(float %expf)
   %logf = tail call float @logf(float %cosf)
-  %powi = tail call float @llvm.powi.f32(float %logf, i32 2)
+  %powi = tail call float @llvm.powi.f32.i32(float %logf, i32 2)
   %exp = tail call float @llvm.exp.f32(float %powi)
   %B.arr.i = getelementptr inbounds float, float* %B, i64 %indvars.iv
   store float %exp, float* %B.arr.i, align 4
@@ -86,7 +82,7 @@ for.end:                                          ; preds = %for.cond.for.end_cr
 declare float @expf(float) #0
 declare float @cosf(float) #0
 declare float @logf(float) #0
-declare float @llvm.powi.f32(float, i32) #0
+declare float @llvm.powi.f32.i32(float, i32) #0
 declare float @llvm.exp.f32(float) #0
 
 attributes #0 = { nounwind readnone }

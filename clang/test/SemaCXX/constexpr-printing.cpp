@@ -11,7 +11,6 @@ struct S {
 
 constexpr int extract(const S &s) { return s.n; } // expected-note {{read of object outside its lifetime is not allowed in a constant expression}}
 
-constexpr S s1; // ok
 void f() {
   constexpr S s1; // expected-error {{constant expression}} expected-note {{in call to 'S()'}}
   constexpr S s2(10);
@@ -41,11 +40,7 @@ expected-error {{constant expression}} \
 expected-note {{in call to 'test_printing(12, 3.976200e+01, 3+4i, 1.290000e+01+3.600000e+00i, &u2.T::arr[4], u2.another.arr[2], {5, 1, 2, 3}, {{{}}, {{}}, &u1.T::arr[2]})'}}
 
 struct V {
-  // FIXME: when we can generate these as constexpr constructors, remove the
-  // explicit definitions.
-  constexpr V() : arr{[255] = 42} {}
-  constexpr V(const V &v) : arr{[255] = 42} {}
-  int arr[256];
+  int arr[256] = {[255] = 42}; // expected-warning {{C99}}
 };
 constexpr V v;
 constexpr int get(const int *p) { return *p; } // expected-note {{read of dereferenced one-past-the-end pointer}}

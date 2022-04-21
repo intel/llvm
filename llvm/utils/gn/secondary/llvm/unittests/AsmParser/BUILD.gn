@@ -6,7 +6,5 @@ unittest("AsmParserTests") {
     "//llvm/lib/IR",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "AsmParserTest.cpp",
-  ]
+  sources = [ "AsmParserTest.cpp" ]
 }

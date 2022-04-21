@@ -9,6 +9,7 @@
 #include "QueryParser.h"
 #include "Query.h"
 #include "QuerySession.h"
+#include "clang/Tooling/NodeIntrospection.h"
 #include "llvm/LineEditor/LineEditor.h"
 #include "gtest/gtest.h"
 
@@ -59,6 +60,8 @@ TEST_F(QueryParserTest, Quit) {
 }
 
 TEST_F(QueryParserTest, Set) {
+
+  bool HasIntrospection = tooling::NodeIntrospection::hasIntrospectionSupport();
   QueryRef Q = parse("set");
   ASSERT_TRUE(isa<InvalidQuery>(Q));
   EXPECT_EQ("expected variable name", cast<InvalidQuery>(Q)->ErrStr);
@@ -69,8 +72,13 @@ TEST_F(QueryParserTest, Set) {
 
   Q = parse("set output");
   ASSERT_TRUE(isa<InvalidQuery>(Q));
-  EXPECT_EQ("expected 'diag', 'print', 'detailed-ast' or 'dump', got ''",
-            cast<InvalidQuery>(Q)->ErrStr);
+  if (HasIntrospection)
+    EXPECT_EQ(
+        "expected 'diag', 'print', 'detailed-ast', 'srcloc' or 'dump', got ''",
+        cast<InvalidQuery>(Q)->ErrStr);
+  else
+    EXPECT_EQ("expected 'diag', 'print', 'detailed-ast' or 'dump', got ''",
+              cast<InvalidQuery>(Q)->ErrStr);
 
   Q = parse("set bind-root true foo");
   ASSERT_TRUE(isa<InvalidQuery>(Q));
@@ -78,8 +86,13 @@ TEST_F(QueryParserTest, Set) {
 
   Q = parse("set output foo");
   ASSERT_TRUE(isa<InvalidQuery>(Q));
-  EXPECT_EQ("expected 'diag', 'print', 'detailed-ast' or 'dump', got 'foo'",
-            cast<InvalidQuery>(Q)->ErrStr);
+  if (HasIntrospection)
+    EXPECT_EQ("expected 'diag', 'print', 'detailed-ast', 'srcloc' or 'dump', "
+              "got 'foo'",
+              cast<InvalidQuery>(Q)->ErrStr);
+  else
+    EXPECT_EQ("expected 'diag', 'print', 'detailed-ast' or 'dump', got 'foo'",
+              cast<InvalidQuery>(Q)->ErrStr);
 
   Q = parse("set output dump");
   ASSERT_TRUE(isa<SetExclusiveOutputQuery >(Q));
@@ -110,6 +123,16 @@ TEST_F(QueryParserTest, Set) {
   ASSERT_TRUE(isa<SetQuery<bool> >(Q));
   EXPECT_EQ(&QuerySession::BindRoot, cast<SetQuery<bool> >(Q)->Var);
   EXPECT_EQ(true, cast<SetQuery<bool> >(Q)->Value);
+
+  Q = parse("set traversal AsIs");
+  ASSERT_TRUE(isa<SetQuery<TraversalKind>>(Q));
+  EXPECT_EQ(&QuerySession::TK, cast<SetQuery<TraversalKind>>(Q)->Var);
+  EXPECT_EQ(TK_AsIs, cast<SetQuery<TraversalKind>>(Q)->Value);
+
+  Q = parse("set traversal NotATraversal");
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("expected traversal kind, got 'NotATraversal'",
+            cast<InvalidQuery>(Q)->ErrStr);
 }
 
 TEST_F(QueryParserTest, Match) {
@@ -197,13 +220,20 @@ TEST_F(QueryParserTest, Complete) {
   EXPECT_EQ("utput ", Comps[0].TypedText);
   EXPECT_EQ("output", Comps[0].DisplayText);
 
+  Comps = QueryParser::complete("set t", 5, QS);
+  ASSERT_EQ(1u, Comps.size());
+  EXPECT_EQ("raversal ", Comps[0].TypedText);
+  EXPECT_EQ("traversal", Comps[0].DisplayText);
+
   Comps = QueryParser::complete("enable ", 7, QS);
   ASSERT_EQ(1u, Comps.size());
   EXPECT_EQ("output ", Comps[0].TypedText);
   EXPECT_EQ("output", Comps[0].DisplayText);
 
+  bool HasIntrospection = tooling::NodeIntrospection::hasIntrospectionSupport();
+
   Comps = QueryParser::complete("enable output ", 14, QS);
-  ASSERT_EQ(4u, Comps.size());
+  ASSERT_EQ(HasIntrospection ? 5u : 4u, Comps.size());
 
   EXPECT_EQ("diag ", Comps[0].TypedText);
   EXPECT_EQ("diag", Comps[0].DisplayText);
@@ -211,8 +241,20 @@ TEST_F(QueryParserTest, Complete) {
   EXPECT_EQ("print", Comps[1].DisplayText);
   EXPECT_EQ("detailed-ast ", Comps[2].TypedText);
   EXPECT_EQ("detailed-ast", Comps[2].DisplayText);
-  EXPECT_EQ("dump ", Comps[3].TypedText);
-  EXPECT_EQ("dump", Comps[3].DisplayText);
+  if (HasIntrospection) {
+    EXPECT_EQ("srcloc ", Comps[3].TypedText);
+    EXPECT_EQ("srcloc", Comps[3].DisplayText);
+  }
+  EXPECT_EQ("dump ", Comps[HasIntrospection ? 4 : 3].TypedText);
+  EXPECT_EQ("dump", Comps[HasIntrospection ? 4 : 3].DisplayText);
+
+  Comps = QueryParser::complete("set traversal ", 14, QS);
+  ASSERT_EQ(2u, Comps.size());
+
+  EXPECT_EQ("AsIs ", Comps[0].TypedText);
+  EXPECT_EQ("AsIs", Comps[0].DisplayText);
+  EXPECT_EQ("IgnoreUnlessSpelledInSource ", Comps[1].TypedText);
+  EXPECT_EQ("IgnoreUnlessSpelledInSource", Comps[1].DisplayText);
 
   Comps = QueryParser::complete("match while", 11, QS);
   ASSERT_EQ(1u, Comps.size());
@@ -229,4 +271,154 @@ TEST_F(QueryParserTest, Complete) {
   ASSERT_EQ(1u, Comps.size());
   EXPECT_EQ("et ", Comps[0].TypedText);
   EXPECT_EQ("let", Comps[0].DisplayText);
+}
+
+TEST_F(QueryParserTest, Multiline) {
+
+  // Single string with multiple commands
+  QueryRef Q = parse(R"matcher(
+set bind-root false
+set output dump
+    )matcher");
+
+  ASSERT_TRUE(isa<SetQuery<bool>>(Q));
+
+  Q = parse(Q->RemainingContent);
+  ASSERT_TRUE(isa<SetExclusiveOutputQuery>(Q));
+
+  // Missing newline
+  Q = parse(R"matcher(
+set bind-root false set output dump
+    )matcher");
+
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("unexpected extra input: ' set output dump\n    '",
+            cast<InvalidQuery>(Q)->ErrStr);
+
+  // Commands which do their own parsing
+  Q = parse(R"matcher(
+let fn functionDecl(hasName("foo"))
+match callExpr(callee(functionDecl()))
+    )matcher");
+
+  ASSERT_TRUE(isa<LetQuery>(Q));
+
+  Q = parse(Q->RemainingContent);
+  ASSERT_TRUE(isa<MatchQuery>(Q));
+
+  // Multi-line matcher
+  Q = parse(R"matcher(
+match callExpr(callee(
+    functionDecl().bind("fn")
+    ))
+
+    )matcher");
+
+  ASSERT_TRUE(isa<MatchQuery>(Q));
+
+  // Comment locations
+  Q = parse(R"matcher(
+#nospacecomment
+# Leading comment
+match callExpr ( # Trailing comment
+            # Comment alone on line
+
+            callee(
+            functionDecl(
+            ).bind(
+            "fn"
+            )
+            )) # Comment trailing close
+# Comment after match
+    )matcher");
+
+  ASSERT_TRUE(isa<MatchQuery>(Q));
+
+  // \r\n
+  Q = parse("set bind-root false\r\nset output dump");
+
+  ASSERT_TRUE(isa<SetQuery<bool>>(Q));
+
+  Q = parse(Q->RemainingContent);
+  ASSERT_TRUE(isa<SetExclusiveOutputQuery>(Q));
+
+  // Leading and trailing space in lines
+  Q = parse("  set bind-root false  \r\n  set output dump  ");
+
+  ASSERT_TRUE(isa<SetQuery<bool>>(Q));
+
+  Q = parse(Q->RemainingContent);
+  ASSERT_TRUE(isa<SetExclusiveOutputQuery>(Q));
+
+  // Incomplete commands
+  Q = parse("set\nbind-root false");
+
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("expected variable name", cast<InvalidQuery>(Q)->ErrStr);
+
+  Q = parse("set bind-root\nfalse");
+
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("expected 'true' or 'false', got ''",
+            cast<InvalidQuery>(Q)->ErrStr);
+
+  Q = parse(R"matcher(
+match callExpr
+(
+)
+    )matcher");
+
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("1:9: Error parsing matcher. Found token <NewLine> "
+            "while looking for '('.",
+            cast<InvalidQuery>(Q)->ErrStr);
+
+  Q = parse("let someMatcher\nm parmVarDecl()");
+
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("1:1: Invalid token <NewLine> found when looking for a value.",
+            cast<InvalidQuery>(Q)->ErrStr);
+
+  Q = parse("\nm parmVarDecl()\nlet someMatcher\nm parmVarDecl()");
+
+  ASSERT_TRUE(isa<MatchQuery>(Q));
+  Q = parse(Q->RemainingContent);
+
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("1:1: Invalid token <NewLine> found when looking for a value.",
+            cast<InvalidQuery>(Q)->ErrStr);
+
+  Q = parse("\nlet someMatcher\n");
+
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("1:1: Invalid token <NewLine> found when looking for a value.",
+            cast<InvalidQuery>(Q)->ErrStr);
+
+  Q = parse("\nm parmVarDecl()\nlet someMatcher\n");
+
+  ASSERT_TRUE(isa<MatchQuery>(Q));
+  Q = parse(Q->RemainingContent);
+
+  ASSERT_TRUE(isa<InvalidQuery>(Q));
+  EXPECT_EQ("1:1: Invalid token <NewLine> found when looking for a value.",
+            cast<InvalidQuery>(Q)->ErrStr);
+
+  Q = parse(R"matcher(
+
+let Construct parmVarDecl()
+
+m parmVarDecl(
+    Construct
+)
+)matcher");
+
+  ASSERT_TRUE(isa<LetQuery>(Q));
+  {
+    llvm::raw_null_ostream NullOutStream;
+    dyn_cast<LetQuery>(Q)->run(NullOutStream, QS);
+  }
+
+  Q = parse(Q->RemainingContent);
+
+  ASSERT_TRUE(isa<MatchQuery>(Q));
 }

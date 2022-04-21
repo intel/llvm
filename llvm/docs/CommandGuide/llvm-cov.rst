@@ -1,6 +1,8 @@
 llvm-cov - emit coverage information
 ====================================
 
+.. program:: llvm-cov
+
 SYNOPSIS
 --------
 
@@ -50,9 +52,7 @@ To use :program:`llvm-cov gcov`, you must first build an instrumented version
 of your application that collects coverage data as it runs. Compile with the
 ``-fprofile-arcs`` and ``-ftest-coverage`` options to add the
 instrumentation. (Alternatively, you can use the ``--coverage`` option, which
-includes both of those other options.) You should compile with debugging
-information (``-g``) and without optimization (``-O0``); otherwise, the
-coverage data cannot be accurately mapped back to the source code.
+includes both of those other options.)
 
 At the time you compile the instrumented code, a ``.gcno`` data file will be
 generated for each object file. These ``.gcno`` files contain half of the
@@ -103,6 +103,10 @@ OPTIONS
 
  Display branch counts instead of probabilities (requires -b).
 
+.. option:: -m, --demangled-names
+
+ Demangle function names.
+
 .. option:: -f, --function-summaries
 
  Show a summary of coverage for each function instead of just one summary for
@@ -141,6 +145,19 @@ OPTIONS
  the --long-file-names option, this applies to both the main file name and the
  included file name.
 
+.. option:: -r
+
+ Only dump files with relative paths or absolute paths with the prefix specified
+ by ``-s``.
+
+.. option:: -s=<string>
+
+ Source prefix to elide.
+
+.. option:: -t, --stdout
+
+ Print to stdout instead of producing ``.gcov`` files.
+
 .. option:: -u, --unconditional-branches
 
  Include unconditional branches in the output for the --branch-probabilities
@@ -161,7 +178,6 @@ EXIT STATUS
 :program:`llvm-cov gcov` returns 1 if it cannot read input files.  Otherwise,
 it exits with zero.
 
-
 .. program:: llvm-cov show
 
 .. _llvm-cov-show:
@@ -181,6 +197,9 @@ The :program:`llvm-cov show` command shows line by line coverage of the
 binaries *BIN*,...  using the profile data *PROFILE*. It can optionally be
 filtered to only show the coverage for the files listed in *SOURCES*.
 
+*BIN* may be an executable, object file, dynamic library, or archive (thin or
+otherwise).
+
 To use :program:`llvm-cov show`, you need a program that is compiled with
 instrumentation to emit profile and coverage data. To build such a program with
 ``clang`` use the ``-fprofile-instr-generate`` and ``-fcoverage-mapping``
@@ -197,6 +216,11 @@ tool.
 
 OPTIONS
 ^^^^^^^
+
+.. option:: -show-branches=<VIEW>
+
+ Show coverage for branch conditions in terms of either count or percentage.
+ The supported views are: "count", "percent".
 
 .. option:: -show-line-counts
 
@@ -241,11 +265,18 @@ OPTIONS
 
  Show code coverage only for functions with the given name.
 
+.. option:: -name-allowlist=<FILE>
+
+ Show code coverage only for functions listed in the given file. Each line in
+ the file should start with `allowlist_fun:`, immediately followed by the name
+ of the function to accept. This name can be a wildcard expression.
+
 .. option:: -name-whitelist=<FILE>
 
  Show code coverage only for functions listed in the given file. Each line in
  the file should start with `whitelist_fun:`, immediately followed by the name
- of the function to accept. This name can be a wildcard expression.
+ of the function to accept. This name can be a wildcard expression. This option
+ will be deprecated for `-name-allowlist=<FILE>` in future releases.
 
 .. option:: -name-regex=<PATTERN>
 
@@ -286,6 +317,12 @@ OPTIONS
  specified). When N=0, llvm-cov auto-detects an appropriate number of threads to
  use. This is the default.
 
+.. option:: -compilation-dir=<dir>
+
+ Directory used as a base for relative coverage mapping paths. Only applicable
+ when binaries have been compiled with one of `-fcoverage-prefix-map`
+ `-fcoverage-compilation-dir`, or `-ffile-compilation-dir`.
+
 .. option:: -line-coverage-gt=<N>
 
  Show code coverage only for functions with line coverage greater than the
@@ -312,6 +349,13 @@ OPTIONS
  to generate the coverage data on one machine, and then use llvm-cov on a
  different machine where you have the same files on a different path.
 
+.. option:: -coverage-watermark=<high>,<low>
+
+ Set high and low watermarks for coverage in html format output. This allows you
+ to set the high and low watermark of coverage as desired, green when
+ coverage >= high, red when coverage < low, and yellow otherwise. Both high and
+ low should be between 0-100 and high > low.
+
 .. program:: llvm-cov report
 
 .. _llvm-cov-report:
@@ -330,6 +374,9 @@ DESCRIPTION
 The :program:`llvm-cov report` command displays a summary of the coverage of
 the binaries *BIN*,... using the profile data *PROFILE*. It can optionally be
 filtered to only show the coverage for the files listed in *SOURCES*.
+
+*BIN* may be an executable, object file, dynamic library, or archive (thin or
+otherwise).
 
 If no source files are provided, a summary line is printed for each file in the
 coverage data. If any files are provided, summaries can be shown for each
@@ -352,6 +399,14 @@ OPTIONS
  universal binary or to use an architecture that does not match a
  non-universal binary.
 
+.. option:: -show-region-summary
+
+ Show statistics for all regions. Defaults to true.
+
+.. option:: -show-branch-summary
+
+ Show statistics for all branch conditions. Defaults to true.
+
 .. option:: -show-functions
 
  Show coverage summaries for each function. Defaults to false.
@@ -363,6 +418,12 @@ OPTIONS
 .. option:: -ignore-filename-regex=<PATTERN>
 
  Skip source code files with file paths that match the given regular expression.
+
+.. option:: -compilation-dir=<dir>
+
+ Directory used as a base for relative coverage mapping paths. Only applicable
+ when binaries have been compiled with one of `-fcoverage-prefix-map`
+ `-fcoverage-compilation-dir`, or `-ffile-compilation-dir`.
 
 .. program:: llvm-cov export
 
@@ -383,9 +444,9 @@ The :program:`llvm-cov export` command exports coverage data of the binaries
 *BIN*,... using the profile data *PROFILE* in either JSON or lcov trace file
 format.
 
-When exporting JSON, the regions, functions, expansions, and summaries of the
-coverage data will be exported. When exporting an lcov trace file, the
-line-based coverage and summaries will be exported.
+When exporting JSON, the regions, functions, branches, expansions, and
+summaries of the coverage data will be exported. When exporting an lcov trace
+file, the line-based coverage, branch coverage, and summaries will be exported.
 
 The exported data can optionally be filtered to only export the coverage
 for the files listed in *SOURCES*.
@@ -432,3 +493,9 @@ OPTIONS
 
  Use N threads to export coverage data. When N=0, llvm-cov auto-detects an
  appropriate number of threads to use. This is the default.
+
+.. option:: -compilation-dir=<dir>
+
+ Directory used as a base for relative coverage mapping paths. Only applicable
+ when binaries have been compiled with one of `-fcoverage-prefix-map`
+ `-fcoverage-compilation-dir`, or `-ffile-compilation-dir`.

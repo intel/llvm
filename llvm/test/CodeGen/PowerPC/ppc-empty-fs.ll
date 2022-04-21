@@ -8,7 +8,7 @@ target triple = "powerpc64-unknown-linux-gnu"
 %struct.fab = type { float, float }
 
 ; Function Attrs: nounwind
-define void @func_fab(%struct.fab* noalias sret %agg.result, i64 %x.coerce) #0 {
+define void @func_fab(%struct.fab* noalias sret(%struct.fab) %agg.result, i64 %x.coerce) #0 {
 entry:
   %x = alloca %struct.fab, align 8
   %0 = bitcast %struct.fab* %x to i64*
@@ -24,7 +24,7 @@ entry:
 ; Function Attrs: nounwind
 declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture readonly, i64, i1) #1
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "target-features"="" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "target-features"="" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind }
 
 !llvm.ident = !{!0}

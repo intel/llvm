@@ -15,6 +15,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct B
 {
     static int count;
@@ -32,7 +34,7 @@ struct A
     static int count;
 
     A() {++count;}
-    A(const A&) {++count;}
+    A(const A& other) : B(other) {++count;}
     ~A() {--count;}
 };
 
@@ -60,6 +62,18 @@ int main(int, char**)
         assert(p.get() == ptr);
     }
     assert(A::count == 0);
+
+#if TEST_STD_VER > 14
+    {
+        std::shared_ptr<const A[]> p;
+        A* ptr = new A[8];
+        p.reset(ptr);
+        assert(A::count == 8);
+        assert(p.use_count() == 1);
+        assert(p.get() == ptr);
+    }
+    assert(A::count == 0);
+#endif
 
   return 0;
 }

@@ -5,29 +5,30 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#ifndef liblldb_Host_FileCache_h
-#define liblldb_Host_FileCache_h
+#ifndef LLDB_HOST_FILECACHE_H
+#define LLDB_HOST_FILECACHE_H
 
+#include <cstdint>
 #include <map>
-#include <stdint.h>
 
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-types.h"
 
+#include "lldb/Host/File.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Status.h"
 
 namespace lldb_private {
 class FileCache {
 private:
-  FileCache() {}
+  FileCache() = default;
 
-  typedef std::map<lldb::user_id_t, lldb::FileSP> FDToFileMap;
+  typedef std::map<lldb::user_id_t, lldb::FileUP> FDToFileMap;
 
 public:
   static FileCache &GetInstance();
 
-  lldb::user_id_t OpenFile(const FileSpec &file_spec, uint32_t flags,
+  lldb::user_id_t OpenFile(const FileSpec &file_spec, File::OpenOptions flags,
                            uint32_t mode, Status &error);
   bool CloseFile(lldb::user_id_t fd, Status &error);
 

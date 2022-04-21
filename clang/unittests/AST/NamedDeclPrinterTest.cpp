@@ -15,10 +15,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ASTPrint.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
 
 using namespace clang;
@@ -30,11 +34,12 @@ namespace {
 class PrintMatch : public MatchFinder::MatchCallback {
   SmallString<1024> Printed;
   unsigned NumFoundDecls;
-  bool SuppressUnwrittenScope;
+  std::function<void(llvm::raw_ostream &OS, const NamedDecl *)> Printer;
 
 public:
-  explicit PrintMatch(bool suppressUnwrittenScope)
-    : NumFoundDecls(0), SuppressUnwrittenScope(suppressUnwrittenScope) {}
+  explicit PrintMatch(
+      std::function<void(llvm::raw_ostream &OS, const NamedDecl *)> Printer)
+      : NumFoundDecls(0), Printer(std::move(Printer)) {}
 
   void run(const MatchFinder::MatchResult &Result) override {
     const NamedDecl *ND = Result.Nodes.getNodeAs<NamedDecl>("id");
@@ -45,9 +50,7 @@ public:
       return;
 
     llvm::raw_svector_ostream Out(Printed);
-    PrintingPolicy Policy = Result.Context->getPrintingPolicy();
-    Policy.SuppressUnwrittenScope = SuppressUnwrittenScope;
-    ND->printQualifiedName(Out, Policy);
+    Printer(Out, ND);
   }
 
   StringRef getPrinted() const {
@@ -59,72 +62,72 @@ public:
   }
 };
 
+::testing::AssertionResult PrintedDeclMatches(
+    StringRef Code, const std::vector<std::string> &Args,
+    const DeclarationMatcher &NodeMatch, StringRef ExpectedPrinted,
+    StringRef FileName,
+    std::function<void(llvm::raw_ostream &, const NamedDecl *)> Print) {
+  return PrintedNodeMatches<NamedDecl>(
+      Code, Args, NodeMatch, ExpectedPrinted, FileName,
+      [Print](llvm::raw_ostream &Out, const ASTContext *Context,
+              const NamedDecl *ND,
+              PrintingPolicyAdjuster PolicyAdjuster) { Print(Out, ND); });
+}
+
 ::testing::AssertionResult
 PrintedNamedDeclMatches(StringRef Code, const std::vector<std::string> &Args,
                         bool SuppressUnwrittenScope,
                         const DeclarationMatcher &NodeMatch,
                         StringRef ExpectedPrinted, StringRef FileName) {
-  PrintMatch Printer(SuppressUnwrittenScope);
-  MatchFinder Finder;
-  Finder.addMatcher(NodeMatch, &Printer);
-  std::unique_ptr<FrontendActionFactory> Factory =
-      newFrontendActionFactory(&Finder);
-
-  if (!runToolOnCodeWithArgs(Factory->create(), Code, Args, FileName))
-    return testing::AssertionFailure()
-        << "Parsing error in \"" << Code.str() << "\"";
-
-  if (Printer.getNumFoundDecls() == 0)
-    return testing::AssertionFailure()
-        << "Matcher didn't find any named declarations";
-
-  if (Printer.getNumFoundDecls() > 1)
-    return testing::AssertionFailure()
-        << "Matcher should match only one named declaration "
-           "(found " << Printer.getNumFoundDecls() << ")";
-
-  if (Printer.getPrinted() != ExpectedPrinted)
-    return ::testing::AssertionFailure()
-        << "Expected \"" << ExpectedPrinted.str() << "\", "
-           "got \"" << Printer.getPrinted().str() << "\"";
-
-  return ::testing::AssertionSuccess();
+  return PrintedDeclMatches(Code, Args, NodeMatch, ExpectedPrinted, FileName,
+                            [=](llvm::raw_ostream &Out, const NamedDecl *ND) {
+                              auto Policy =
+                                  ND->getASTContext().getPrintingPolicy();
+                              Policy.SuppressUnwrittenScope =
+                                  SuppressUnwrittenScope;
+                              ND->printQualifiedName(Out, Policy);
+                            });
 }
 
 ::testing::AssertionResult
 PrintedNamedDeclCXX98Matches(StringRef Code, StringRef DeclName,
                              StringRef ExpectedPrinted) {
   std::vector<std::string> Args(1, "-std=c++98");
-  return PrintedNamedDeclMatches(Code,
-                                 Args,
+  return PrintedNamedDeclMatches(Code, Args,
                                  /*SuppressUnwrittenScope*/ false,
                                  namedDecl(hasName(DeclName)).bind("id"),
-                                 ExpectedPrinted,
-                                 "input.cc");
+                                 ExpectedPrinted, "input.cc");
 }
 
 ::testing::AssertionResult
 PrintedWrittenNamedDeclCXX11Matches(StringRef Code, StringRef DeclName,
                                     StringRef ExpectedPrinted) {
   std::vector<std::string> Args(1, "-std=c++11");
-  return PrintedNamedDeclMatches(Code,
-                                 Args,
+  return PrintedNamedDeclMatches(Code, Args,
                                  /*SuppressUnwrittenScope*/ true,
                                  namedDecl(hasName(DeclName)).bind("id"),
-                                 ExpectedPrinted,
-                                 "input.cc");
+                                 ExpectedPrinted, "input.cc");
 }
 
 ::testing::AssertionResult
 PrintedWrittenPropertyDeclObjCMatches(StringRef Code, StringRef DeclName,
                                    StringRef ExpectedPrinted) {
   std::vector<std::string> Args{"-std=c++11", "-xobjective-c++"};
-  return PrintedNamedDeclMatches(Code,
-                                 Args,
+  return PrintedNamedDeclMatches(Code, Args,
                                  /*SuppressUnwrittenScope*/ true,
                                  objcPropertyDecl(hasName(DeclName)).bind("id"),
-                                 ExpectedPrinted,
-                                 "input.m");
+                                 ExpectedPrinted, "input.m");
+}
+
+::testing::AssertionResult
+PrintedNestedNameSpecifierMatches(StringRef Code, StringRef DeclName,
+                                  StringRef ExpectedPrinted) {
+  std::vector<std::string> Args{"-std=c++11"};
+  return PrintedDeclMatches(Code, Args, namedDecl(hasName(DeclName)).bind("id"),
+                            ExpectedPrinted, "input.cc",
+                            [](llvm::raw_ostream &Out, const NamedDecl *D) {
+                              D->printNestedNameSpecifier(Out);
+                            });
 }
 
 } // unnamed namespace
@@ -208,6 +211,27 @@ R"(
     "Obj::property"));
 }
 
+TEST(NamedDeclPrinter, TestInstanceObjCClassExtension) {
+  const char *Code =
+R"(
+@interface ObjC
+@end
+@interface ObjC () {
+  char data; // legal with non-fragile ABI.
+}
+@end
+)";
+
+  std::vector<std::string> Args{
+      "-std=c++11", "-xobjective-c++",
+      "-fobjc-runtime=macosx" /*force to use non-fragile ABI*/};
+  ASSERT_TRUE(PrintedNamedDeclMatches(Code, Args,
+                                      /*SuppressUnwrittenScope*/ true,
+                                      namedDecl(hasName("data")).bind("id"),
+                                      // not "::data"
+                                      "ObjC::data", "input.mm"));
+}
+
 TEST(NamedDeclPrinter, TestObjCClassExtensionWithGetter) {
   const char *Code =
 R"(
@@ -222,4 +246,22 @@ R"(
     Code,
     "property",
     "Obj::property"));
+}
+
+TEST(NamedDeclPrinter, NestedNameSpecifierSimple) {
+  const char *Code =
+      R"(
+  namespace foo { namespace bar { void func(); }  }
+)";
+  ASSERT_TRUE(PrintedNestedNameSpecifierMatches(Code, "func", "foo::bar::"));
+}
+
+TEST(NamedDeclPrinter, NestedNameSpecifierTemplateArgs) {
+  const char *Code =
+      R"(
+        template <class T> struct vector;
+        template <> struct vector<int> { int method(); };
+)";
+  ASSERT_TRUE(
+      PrintedNestedNameSpecifierMatches(Code, "method", "vector<int>::"));
 }

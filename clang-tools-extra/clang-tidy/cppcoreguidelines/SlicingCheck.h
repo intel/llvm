@@ -9,7 +9,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_SLICING_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_SLICING_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 namespace clang {
 namespace tidy {
@@ -32,7 +32,7 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
-  void DiagnoseSlicedOverriddenMethods(const Expr &call,
+  void diagnoseSlicedOverriddenMethods(const Expr &Call,
                                        const CXXRecordDecl &DerivedDecl,
                                        const CXXRecordDecl &BaseDecl);
 };

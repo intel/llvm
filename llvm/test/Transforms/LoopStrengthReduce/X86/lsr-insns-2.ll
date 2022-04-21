@@ -1,6 +1,6 @@
-; RUN: opt < %s -loop-reduce -mtriple=x86_64 -S | FileCheck %s -check-prefix=BOTH -check-prefix=INSN
-; RUN: opt < %s -loop-reduce -mtriple=x86_64 -lsr-insns-cost=false -S | FileCheck %s -check-prefix=BOTH -check-prefix=REGS
-; RUN: llc < %s -O2 -march=x86-64 -lsr-insns-cost -asm-verbose=0 | FileCheck %s
+; RUN: opt < %s -loop-reduce -mtriple=x86_64-- -S | FileCheck %s -check-prefix=BOTH -check-prefix=INSN
+; RUN: opt < %s -loop-reduce -mtriple=x86_64-- -lsr-insns-cost=false -S | FileCheck %s -check-prefix=BOTH -check-prefix=REGS
+; RUN: llc < %s -O2 -mtriple=x86_64-- -lsr-insns-cost -asm-verbose=0 | FileCheck %s
 
 ; OPT checks that LSR prefers less instructions to less registers.
 ; For x86 LSR should prefer complicated address to new lsr induction
@@ -10,9 +10,9 @@
 ; INSN:   getelementptr i32, i32* %x, i64 %indvars.iv
 ; INSN:   getelementptr i32, i32* %y, i64 %indvars.iv
 ; INSN:   getelementptr i32, i32* %q, i64 %indvars.iv
-; REGS    %lsr.iv4 = phi
-; REGS    %lsr.iv2 = phi
-; REGS    %lsr.iv1 = phi
+; REGS:   %lsr.iv4 = phi
+; REGS:   %lsr.iv2 = phi
+; REGS:   %lsr.iv1 = phi
 ; REGS:   getelementptr i32, i32* %lsr.iv1, i64 1
 ; REGS:   getelementptr i32, i32* %lsr.iv2, i64 1
 ; REGS:   getelementptr i32, i32* %lsr.iv4, i64 1

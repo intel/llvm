@@ -9,8 +9,8 @@
 #include "ConcatNestedNamespacesCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Lex/Lexer.h"
 #include <algorithm>
-#include <iterator>
 
 namespace clang {
 namespace tidy {
@@ -63,9 +63,6 @@ ConcatNestedNamespacesCheck::concatNamespaces() {
 
 void ConcatNestedNamespacesCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus17)
-    return;
-
   Finder->addMatcher(ast_matchers::namespaceDecl().bind("namespace"), this);
 }
 
@@ -83,9 +80,6 @@ void ConcatNestedNamespacesCheck::check(
   const SourceManager &Sources = *Result.SourceManager;
 
   if (!locationsInSameFile(Sources, ND.getBeginLoc(), ND.getRBraceLoc()))
-    return;
-
-  if (!Sources.isInMainFile(ND.getBeginLoc()))
     return;
 
   if (anonymousOrInlineNamespace(ND))

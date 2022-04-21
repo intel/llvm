@@ -159,10 +159,8 @@ getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
   const MipsSubtarget &Subtarget = MF.getSubtarget<MipsSubtarget>();
 
-  using RegIter = TargetRegisterClass::const_iterator;
-
-  for (unsigned I = 0; I < array_lengthof(ReservedGPR32); ++I)
-    Reserved.set(ReservedGPR32[I]);
+  for (MCPhysReg R : ReservedGPR32)
+    Reserved.set(R);
 
   // Reserve registers for the NaCl sandbox.
   if (Subtarget.isTargetNaCl()) {
@@ -171,8 +169,8 @@ getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(Mips::T8);   // Reserved for thread pointer.
   }
 
-  for (unsigned I = 0; I < array_lengthof(ReservedGPR64); ++I)
-    Reserved.set(ReservedGPR64[I]);
+  for (MCPhysReg R : ReservedGPR64)
+    Reserved.set(R);
 
   // For mno-abicalls, GP is a program invariant!
   if (!Subtarget.isABICalls()) {
@@ -182,14 +180,12 @@ getReservedRegs(const MachineFunction &MF) const {
 
   if (Subtarget.isFP64bit()) {
     // Reserve all registers in AFGR64.
-    for (RegIter Reg = Mips::AFGR64RegClass.begin(),
-         EReg = Mips::AFGR64RegClass.end(); Reg != EReg; ++Reg)
-      Reserved.set(*Reg);
+    for (MCPhysReg Reg : Mips::AFGR64RegClass)
+      Reserved.set(Reg);
   } else {
     // Reserve all registers in FGR64.
-    for (RegIter Reg = Mips::FGR64RegClass.begin(),
-         EReg = Mips::FGR64RegClass.end(); Reg != EReg; ++Reg)
-      Reserved.set(*Reg);
+    for (MCPhysReg Reg : Mips::FGR64RegClass)
+      Reserved.set(Reg);
   }
   // Reserve FP if this function should have a dedicated frame pointer register.
   if (Subtarget.getFrameLowering()->hasFP(MF)) {
@@ -202,8 +198,7 @@ getReservedRegs(const MachineFunction &MF) const {
       // Reserve the base register if we need to both realign the stack and
       // allocate variable-sized objects at runtime. This should test the
       // same conditions as MipsFrameLowering::hasBP().
-      if (needsStackRealignment(MF) &&
-          MF.getFrameInfo().hasVarSizedObjects()) {
+      if (hasStackRealignment(MF) && MF.getFrameInfo().hasVarSizedObjects()) {
         Reserved.set(Mips::S7);
         Reserved.set(Mips::S7_64);
       }
@@ -221,14 +216,8 @@ getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(Mips::DSPOutFlag);
 
   // Reserve MSA control registers.
-  Reserved.set(Mips::MSAIR);
-  Reserved.set(Mips::MSACSR);
-  Reserved.set(Mips::MSAAccess);
-  Reserved.set(Mips::MSASave);
-  Reserved.set(Mips::MSAModify);
-  Reserved.set(Mips::MSARequest);
-  Reserved.set(Mips::MSAMap);
-  Reserved.set(Mips::MSAUnmap);
+  for (MCPhysReg Reg : Mips::MSACtrlRegClass)
+    Reserved.set(Reg);
 
   // Reserve RA if in mips16 mode.
   if (Subtarget.inMips16Mode()) {
@@ -255,11 +244,6 @@ MipsRegisterInfo::requiresRegisterScavenging(const MachineFunction &MF) const {
   return true;
 }
 
-bool
-MipsRegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) const {
-  return true;
-}
-
 // FrameIndex represent objects inside a abstract stack.
 // We must replace FrameIndex with an stack/frame pointer
 // direct reference.
@@ -281,13 +265,13 @@ eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                     << "spOffset   : " << spOffset << "\n"
                     << "stackSize  : " << stackSize << "\n"
                     << "alignment  : "
-                    << MF.getFrameInfo().getObjectAlignment(FrameIndex)
+                    << DebugStr(MF.getFrameInfo().getObjectAlign(FrameIndex))
                     << "\n");
 
   eliminateFI(MI, FIOperandNum, FrameIndex, stackSize, spOffset);
 }
 
-unsigned MipsRegisterInfo::
+Register MipsRegisterInfo::
 getFrameRegister(const MachineFunction &MF) const {
   const MipsSubtarget &Subtarget = MF.getSubtarget<MipsSubtarget>();
   const TargetFrameLowering *TFI = Subtarget.getFrameLowering();

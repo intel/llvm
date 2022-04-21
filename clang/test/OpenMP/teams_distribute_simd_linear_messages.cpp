@@ -1,8 +1,16 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
+void xxx(int argc) {
+  int i, step; // expected-note {{initialize the variable 'step' to silence this warning}}
+#pragma omp target
+#pragma omp teams distribute simd linear(i : step) // expected-warning {{variable 'step' is uninitialized when used here}}
+  for (i = 0; i < 10; ++i)
+    ;
+}
+
 namespace X {
   int x;
 };
@@ -97,7 +105,7 @@ template<int LEN> int test_warn() {
   return ind2;
 }
 
-struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
+struct S1; // expected-note 2 {{declared here}} expected-note 3 {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;
@@ -251,7 +259,7 @@ int main(int argc, char **argv) {
 
 
 #pragma omp target
-#pragma omp teams distribute simd linear (a, b) // expected-error {{linear variable with incomplete type 'S1'}} expected-error {{argument of a linear clause should be of integral or pointer type, not 'S2'}}
+#pragma omp teams distribute simd linear (a, b) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-error {{linear variable with incomplete type 'S1'}} expected-error {{argument of a linear clause should be of integral or pointer type, not 'S2'}}
   for (int k = 0; k < argc; ++k) ++k;
 
 #pragma omp target

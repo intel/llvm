@@ -29,34 +29,34 @@ define dso_local i32 @foo(i8 signext) local_unnamed_addr #0 !dbg !7 {
 ; CHECK-NEXT:        .long   64
 ; CHECK-NEXT:        .long   64
 ; CHECK-NEXT:        .long   59
-; CHECK-NEXT:        .long   44                      # BTF_KIND_INT(id = 1)
+; CHECK-NEXT:        .long   1                       # BTF_KIND_INT(id = 1)
 ; CHECK-NEXT:        .long   16777216                # 0x1000000
 ; CHECK-NEXT:        .long   1
 ; CHECK-NEXT:        .long   16777224                # 0x1000008
 ; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 2)
 ; CHECK-NEXT:        .long   218103809               # 0xd000001
 ; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   49
+; CHECK-NEXT:        .long   6
 ; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   51                      # BTF_KIND_INT(id = 3)
+; CHECK-NEXT:        .long   8                       # BTF_KIND_INT(id = 3)
 ; CHECK-NEXT:        .long   16777216                # 0x1000000
 ; CHECK-NEXT:        .long   4
 ; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .long   55                      # BTF_KIND_FUNC(id = 4)
-; CHECK-NEXT:        .long   201326592               # 0xc000000
+; CHECK-NEXT:        .long   12                      # BTF_KIND_FUNC(id = 4)
+; CHECK-NEXT:        .long   201326593               # 0xc000001
 ; CHECK-NEXT:        .long   2
 ; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  ".text"                 # string offset=1
+; CHECK-NEXT:        .ascii  "char"                  # string offset=1
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "/home/yhs/work/tests/llvm/bug/test.c" # string offset=7
+; CHECK-NEXT:        .byte   97                      # string offset=6
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "char"                  # string offset=44
+; CHECK-NEXT:        .ascii  "int"                   # string offset=8
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   97                      # string offset=49
+; CHECK-NEXT:        .ascii  "foo"                   # string offset=12
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=51
+; CHECK-NEXT:        .ascii  ".text"                 # string offset=16
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "foo"                   # string offset=55
+; CHECK-NEXT:        .ascii  "/home/yhs/work/tests/llvm/bug/test.c" # string offset=22
 ; CHECK-NEXT:        .byte   0
 
 ; Function Attrs: nounwind readnone speculatable
@@ -71,7 +71,7 @@ declare void @llvm.lifetime.end.p0i8(i64, i8* nocapture) #2
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 attributes #2 = { argmemonly nounwind }
 

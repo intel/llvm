@@ -15,7 +15,9 @@
 #include <string>
 #include <cassert>
 
-int main(int, char**)
+#include "test_macros.h"
+
+TEST_CONSTEXPR_CXX20 bool test()
 {
     char s1[] = {1, 2, 3};
     char s2[3] = {0};
@@ -25,6 +27,17 @@ int main(int, char**)
     assert(s2[2] == char(3));
     assert(std::char_traits<char>::copy(NULL, s1, 0) == NULL);
     assert(std::char_traits<char>::copy(s1, NULL, 0) == s1);
+
+  return true;
+}
+
+int main(int, char**)
+{
+    test();
+
+#if TEST_STD_VER > 17
+    static_assert(test());
+#endif
 
   return 0;
 }

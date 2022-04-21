@@ -1,4 +1,4 @@
-//===-- EmulateInstructionPPC64.cpp ------------------------------*- C++-*-===//
+//===-- EmulateInstructionPPC64.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,14 +8,14 @@
 
 #include "EmulateInstructionPPC64.h"
 
-#include <stdlib.h>
+#include <cstdlib>
 
+#include "Plugins/Process/Utility/lldb-ppc64le-register-enums.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Symbol/UnwindPlan.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/ConstString.h"
-
-#include "Plugins/Process/Utility/lldb-ppc64le-register-enums.h"
+#include "lldb/Utility/LLDBLog.h"
 
 #define DECLARE_REGISTER_INFOS_PPC64LE_STRUCT
 #include "Plugins/Process/Utility/RegisterInfos_ppc64le.h"
@@ -24,6 +24,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionPPC64, InstructionPPC64)
 
 EmulateInstructionPPC64::EmulateInstructionPPC64(const ArchSpec &arch)
     : EmulateInstruction(arch) {}
@@ -37,17 +39,7 @@ void EmulateInstructionPPC64::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-ConstString EmulateInstructionPPC64::GetPluginNameStatic() {
-  ConstString g_plugin_name("lldb.emulate-instruction.ppc64");
-  return g_plugin_name;
-}
-
-ConstString EmulateInstructionPPC64::GetPluginName() {
-  static ConstString g_plugin_name("EmulateInstructionPPC64");
-  return g_plugin_name;
-}
-
-const char *EmulateInstructionPPC64::GetPluginDescriptionStatic() {
+llvm::StringRef EmulateInstructionPPC64::GetPluginDescriptionStatic() {
   return "Emulate instructions for the PPC64 architecture.";
 }
 
@@ -135,6 +127,7 @@ bool EmulateInstructionPPC64::CreateFunctionEntryUnwind(
   unwind_plan.SetSourceName("EmulateInstructionPPC64");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolNo);
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolYes);
+  unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetReturnAddressRegister(gpr_lr_ppc64le);
   return true;
 }
@@ -195,7 +188,7 @@ bool EmulateInstructionPPC64::EvaluateInstruction(uint32_t evaluate_options) {
     if (!success)
       return false;
 
-    if (auto_advance_pc && (new_pc_value == orig_pc_value)) {
+    if (new_pc_value == orig_pc_value) {
       EmulateInstruction::Context context;
       context.type = eContextAdvancePC;
       context.SetNoArgs();
@@ -217,7 +210,7 @@ bool EmulateInstructionPPC64::EmulateMFSPR(uint32_t opcode) {
   if (rt != gpr_r0_ppc64le || spr != SPR_LR)
     return false;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_UNWIND));
+  Log *log = GetLog(LLDBLog::Unwind);
   LLDB_LOG(log, "EmulateMFSPR: {0:X+8}: mfspr r0, lr", m_addr);
 
   bool success;
@@ -244,7 +237,7 @@ bool EmulateInstructionPPC64::EmulateLD(uint32_t opcode) {
   if (ra != gpr_r1_ppc64le || rt != gpr_r1_ppc64le || ids != 0)
     return false;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_UNWIND));
+  Log *log = GetLog(LLDBLog::Unwind);
   LLDB_LOG(log, "EmulateLD: {0:X+8}: ld r{1}, {2}(r{3})", m_addr, rt, ids, ra);
 
   RegisterInfo r1_info;
@@ -281,7 +274,7 @@ bool EmulateInstructionPPC64::EmulateSTD(uint32_t opcode) {
     return false;
 
   int32_t ids = llvm::SignExtend32<16>(ds << 2);
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_UNWIND));
+  Log *log = GetLog(LLDBLog::Unwind);
   LLDB_LOG(log, "EmulateSTD: {0:X+8}: std{1} r{2}, {3}(r{4})", m_addr,
            u ? "u" : "", rs, ids, ra);
 
@@ -338,7 +331,7 @@ bool EmulateInstructionPPC64::EmulateOR(uint32_t opcode) {
       (ra != gpr_r30_ppc64le && ra != gpr_r31_ppc64le) || rb != gpr_r1_ppc64le)
     return false;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_UNWIND));
+  Log *log = GetLog(LLDBLog::Unwind);
   LLDB_LOG(log, "EmulateOR: {0:X+8}: mr r{1}, r{2}", m_addr, ra, rb);
 
   // set context
@@ -373,7 +366,7 @@ bool EmulateInstructionPPC64::EmulateADDI(uint32_t opcode) {
     return false;
 
   int32_t si_val = llvm::SignExtend32<16>(si);
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_UNWIND));
+  Log *log = GetLog(LLDBLog::Unwind);
   LLDB_LOG(log, "EmulateADDI: {0:X+8}: addi r1, r1, {1}", m_addr, si_val);
 
   // set context

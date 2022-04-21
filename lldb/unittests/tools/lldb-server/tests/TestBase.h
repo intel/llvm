@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SERVER_TESTS_TESTBASE_H
-#define LLDB_SERVER_TESTS_TESTBASE_H
+#ifndef LLDB_UNITTESTS_TOOLS_LLDB_SERVER_TESTS_TESTBASE_H
+#define LLDB_UNITTESTS_TOOLS_LLDB_SERVER_TESTS_TESTBASE_H
 
 #include "TestClient.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Host/Socket.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
@@ -23,12 +24,19 @@ public:
   static void SetUpTestCase() {
     lldb_private::FileSystem::Initialize();
     lldb_private::HostInfo::Initialize();
+    ASSERT_THAT_ERROR(lldb_private::Socket::Initialize(), llvm::Succeeded());
+  }
+
+  static void TearDownTestCase() {
+    lldb_private::Socket::Terminate();
+    lldb_private::HostInfo::Terminate();
+    lldb_private::FileSystem::Terminate();
   }
 
   static std::string getInferiorPath(llvm::StringRef Name) {
     llvm::SmallString<64> Path(LLDB_TEST_INFERIOR_PATH);
     llvm::sys::path::append(Path, Name + LLDB_TEST_INFERIOR_SUFFIX);
-    return Path.str();
+    return std::string(Path.str());
   }
 
   static std::string getLogFileName();
@@ -48,4 +56,4 @@ protected:
 
 } // namespace llgs_tests
 
-#endif // LLDB_SERVER_TESTS_TESTBASE_H
+#endif // LLDB_UNITTESTS_TOOLS_LLDB_SERVER_TESTS_TESTBASE_H

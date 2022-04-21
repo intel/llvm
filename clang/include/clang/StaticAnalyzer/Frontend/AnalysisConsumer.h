@@ -21,14 +21,10 @@
 
 namespace clang {
 
-class Preprocessor;
-class DiagnosticsEngine;
-class CodeInjector;
 class CompilerInstance;
 
 namespace ento {
 class PathDiagnosticConsumer;
-class CheckerManager;
 class CheckerRegistry;
 
 class AnalysisASTConsumer : public ASTConsumer {
@@ -55,7 +51,7 @@ public:
 std::unique_ptr<AnalysisASTConsumer>
 CreateAnalysisConsumer(CompilerInstance &CI);
 
-} // end GR namespace
+} // namespace ento
 
 } // end clang namespace
 

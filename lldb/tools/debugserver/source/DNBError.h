@@ -10,12 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __DNBError_h__
-#define __DNBError_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBERROR_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBERROR_H
 
-#include <errno.h>
+#include <cerrno>
+#include <cstdio>
 #include <mach/mach.h>
-#include <stdio.h>
 #include <string>
 
 class DNBError {
@@ -94,4 +94,4 @@ protected:
   mutable std::string m_str;
 };
 
-#endif // #ifndef __DNBError_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBERROR_H

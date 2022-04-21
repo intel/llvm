@@ -1,5 +1,6 @@
 set(LLVM_LINK_COMPONENTS
-  support
+  FrontendOpenMP
+  Support
   )
 
 include_directories(
@@ -11,14 +12,17 @@ add_extra_unittest(ClangQueryTests
   QueryParserTest.cpp
   )
 
-target_link_libraries(ClangQueryTests
+clang_target_link_libraries(ClangQueryTests
   PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
   clangDynamicASTMatchers
   clangFrontend
-  clangQuery
   clangSerialization
   clangTooling
+  )
+target_link_libraries(ClangQueryTests
+  PRIVATE
+  clangQuery
   )

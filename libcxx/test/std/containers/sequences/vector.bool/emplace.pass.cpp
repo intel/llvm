@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 // <vector>
 //  vector<bool>
 
@@ -14,6 +14,7 @@
 
 #include <vector>
 #include <cassert>
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)

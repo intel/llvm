@@ -38,7 +38,7 @@ void g(int count) {
 }
 
 // rdar://8403108
-// CHECK-LABEL: define void @f_8403108
+// CHECK-LABEL: define{{.*}} void @f_8403108
 void f_8403108(unsigned x) {
   // CHECK: call i8* @llvm.stacksave()
   char s1[x];
@@ -55,22 +55,22 @@ void f_8403108(unsigned x) {
 // pr7827
 void function(short width, int data[][width]) {} // expected-note {{passing argument to parameter 'data' here}}
 
-void test() {
+void test(void) {
      int bork[4][13];
-     // CHECK: call void @function(i16 signext 1, i32* null)
+     // CHECK: call void @function(i16 noundef signext 1, i32* noundef null)
      function(1, 0);
-     // CHECK: call void @function(i16 signext 1, i32* inttoptr
+     // CHECK: call void @function(i16 noundef signext 1, i32* noundef inttoptr
      function(1, 0xbadbeef); // expected-warning {{incompatible integer to pointer conversion passing}}
-     // CHECK: call void @function(i16 signext 1, i32* {{.*}})
+     // CHECK: call void @function(i16 noundef  signext 1, i32* noundef {{.*}})
      function(1, bork);
 }
 
 void function1(short width, int data[][width][width]) {}
-void test1() {
+void test1(void) {
      int bork[4][13][15];
-     // CHECK: call void @function1(i16 signext 1, i32* {{.*}})
+     // CHECK: call void @function1(i16 noundef signext 1, i32* noundef {{.*}})
      function1(1, bork);
-     // CHECK: call void @function(i16 signext 1, i32* {{.*}}) 
+     // CHECK: call void @function(i16 noundef signext 1, i32* noundef {{.*}}) 
      function(1, bork[2]);
 }
 
@@ -87,7 +87,7 @@ int test2(int n)
 }
 
 // http://llvm.org/PR8567
-// CHECK-LABEL: define double @test_PR8567
+// CHECK-LABEL: define{{.*}} double @test_PR8567
 double test_PR8567(int n, double (*p)[n][5]) {
   // CHECK:      [[NV:%.*]] = alloca i32, align 4
   // CHECK-NEXT: [[PV:%.*]] = alloca [5 x double]*, align 4
@@ -105,7 +105,7 @@ double test_PR8567(int n, double (*p)[n][5]) {
 }
 
 int test4(unsigned n, char (*p)[n][n+1][6]) {
-  // CHECK-LABEL:    define i32 @test4(
+  // CHECK-LABEL:    define{{.*}} i32 @test4(
   // CHECK:      [[N:%.*]] = alloca i32, align 4
   // CHECK-NEXT: [[P:%.*]] = alloca [6 x i8]*, align 4
   // CHECK-NEXT: [[P2:%.*]] = alloca [6 x i8]*, align 4
@@ -147,7 +147,7 @@ int test4(unsigned n, char (*p)[n][n+1][6]) {
 // rdar://11485774
 void test5(void)
 {
-  // CHECK-LABEL: define void @test5(
+  // CHECK-LABEL: define{{.*}} void @test5(
   int a[5], i = 0;
   // CHECK: [[A:%.*]] = alloca [5 x i32], align 4
   // CHECK-NEXT: [[I:%.*]] = alloca i32, align 4
@@ -170,7 +170,7 @@ void test5(void)
 
 void test6(void)
 {
-  // CHECK-LABEL: define void @test6(
+  // CHECK-LABEL: define{{.*}} void @test6(
   int n = 20, **a, i=0;
   // CHECK: [[N:%.*]] = alloca i32, align 4
   // CHECK-NEXT: [[A:%.*]] = alloca i32**, align 4
@@ -193,16 +193,32 @@ void test6(void)
 
 // Follow gcc's behavior for VLAs in parameter lists.  PR9559.
 void test7(int a[b(0)]) {
-  // CHECK-LABEL: define void @test7(
-  // CHECK: call i32 @b(i8* null)
+  // CHECK-LABEL: define{{.*}} void @test7(
+  // CHECK: call i32 @b(i8* noundef null)
 }
 
 // Make sure we emit dereferenceable or nonnull when the static keyword is
 // provided.
 void test8(int a[static 3]) { }
-// CHECK: define void @test8(i32* dereferenceable(12) %a)
+// CHECK: define{{.*}} void @test8(i32* noundef align 4 dereferenceable(12) %a)
 
 void test9(int n, int a[static n]) { }
-// NULL-INVALID: define void @test9(i32 %n, i32* nonnull %a)
-// NULL-VALID: define void @test9(i32 %n, i32* %a)
+// NULL-INVALID: define{{.*}} void @test9(i32 noundef %n, i32* noundef nonnull align 4 %a)
+// NULL-VALID: define{{.*}} void @test9(i32 noundef %n, i32* noundef align 4 %a)
 
+// Make sure a zero-sized static array extent is still required to be nonnull.
+void test10(int a[static 0]) {}
+// NULL-INVALID: define{{.*}} void @test10(i32* noundef nonnull align 4 %a)
+// NULL-VALID: define{{.*}} void @test10(i32* noundef align 4 %a)
+
+const int constant = 32;
+// CHECK: define {{.*}}pr44406(
+int pr44406(void) {
+  int n = 0;
+  // Do not fold this VLA to an array of constant bound; that would miscompile
+  // this testcase.
+  char c[1][(constant - constant) + 3];
+  // CHECK: store i32 1,
+  sizeof(c[n = 1]);
+  return n;
+}

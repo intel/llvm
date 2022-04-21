@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <experimental/functional>
 //
 //  has to include <functional>
 
 #include <experimental/functional>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

@@ -1,4 +1,4 @@
-//===-- OperatingSystemPython.cpp --------------------------------*- C++-*-===//
+//===-- OperatingSystemPython.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_DISABLE_PYTHON
+#include "lldb/Host/Config.h"
+
+#if LLDB_ENABLE_PYTHON
 
 #include "OperatingSystemPython.h"
 
-#include "Plugins/Process/Utility/DynamicRegisterInfo.h"
 #include "Plugins/Process/Utility/RegisterContextDummy.h"
 #include "Plugins/Process/Utility/RegisterContextMemory.h"
 #include "Plugins/Process/Utility/ThreadMemory.h"
@@ -28,6 +29,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadList.h"
 #include "lldb/Utility/DataBufferHeap.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StructuredData.h"
@@ -36,6 +38,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(OperatingSystemPython)
 
 void OperatingSystemPython::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
@@ -59,15 +63,10 @@ OperatingSystem *OperatingSystemPython::CreateInstance(Process *process,
     if (os_up.get() && os_up->IsValid())
       return os_up.release();
   }
-  return NULL;
+  return nullptr;
 }
 
-ConstString OperatingSystemPython::GetPluginNameStatic() {
-  static ConstString g_name("python");
-  return g_name;
-}
-
-const char *OperatingSystemPython::GetPluginDescriptionStatic() {
+llvm::StringRef OperatingSystemPython::GetPluginDescriptionStatic() {
   return "Operating system plug-in that gathers OS information from a python "
          "class that implements the necessary OperatingSystem functionality.";
 }
@@ -75,7 +74,7 @@ const char *OperatingSystemPython::GetPluginDescriptionStatic() {
 OperatingSystemPython::OperatingSystemPython(lldb_private::Process *process,
                                              const FileSpec &python_module_path)
     : OperatingSystem(process), m_thread_list_valobj_sp(), m_register_info_up(),
-      m_interpreter(NULL), m_python_object_sp() {
+      m_interpreter(nullptr), m_python_object_sp() {
   if (!process)
     return;
   TargetSP target_sp = process->CalculateTarget();
@@ -87,14 +86,13 @@ OperatingSystemPython::OperatingSystemPython(lldb_private::Process *process,
     std::string os_plugin_class_name(
         python_module_path.GetFilename().AsCString(""));
     if (!os_plugin_class_name.empty()) {
-      const bool init_session = false;
-      const bool allow_reload = true;
+      LoadScriptOptions options;
       char python_module_path_cstr[PATH_MAX];
       python_module_path.GetPath(python_module_path_cstr,
                                  sizeof(python_module_path_cstr));
       Status error;
-      if (m_interpreter->LoadScriptingModule(
-              python_module_path_cstr, allow_reload, init_session, error)) {
+      if (m_interpreter->LoadScriptingModule(python_module_path_cstr, options,
+                                             error)) {
         // Strip the ".py" extension if there is one
         size_t py_extension_pos = os_plugin_class_name.rfind(".py");
         if (py_extension_pos != std::string::npos)
@@ -112,38 +110,31 @@ OperatingSystemPython::OperatingSystemPython(lldb_private::Process *process,
   }
 }
 
-OperatingSystemPython::~OperatingSystemPython() {}
+OperatingSystemPython::~OperatingSystemPython() = default;
 
 DynamicRegisterInfo *OperatingSystemPython::GetDynamicRegisterInfo() {
-  if (m_register_info_up == NULL) {
+  if (m_register_info_up == nullptr) {
     if (!m_interpreter || !m_python_object_sp)
-      return NULL;
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
+      return nullptr;
+    Log *log = GetLog(LLDBLog::OS);
 
-    if (log)
-      log->Printf("OperatingSystemPython::GetDynamicRegisterInfo() fetching "
-                  "thread register definitions from python for pid %" PRIu64,
-                  m_process->GetID());
+    LLDB_LOGF(log,
+              "OperatingSystemPython::GetDynamicRegisterInfo() fetching "
+              "thread register definitions from python for pid %" PRIu64,
+              m_process->GetID());
 
     StructuredData::DictionarySP dictionary =
         m_interpreter->OSPlugin_RegisterInfo(m_python_object_sp);
     if (!dictionary)
-      return NULL;
+      return nullptr;
 
-    m_register_info_up.reset(new DynamicRegisterInfo(
-        *dictionary, m_process->GetTarget().GetArchitecture()));
+    m_register_info_up = std::make_unique<DynamicRegisterInfo>(
+        *dictionary, m_process->GetTarget().GetArchitecture());
     assert(m_register_info_up->GetNumRegisters() > 0);
     assert(m_register_info_up->GetNumRegisterSets() > 0);
   }
   return m_register_info_up.get();
 }
-
-// PluginInterface protocol
-ConstString OperatingSystemPython::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t OperatingSystemPython::GetPluginVersion() { return 1; }
 
 bool OperatingSystemPython::UpdateThreadList(ThreadList &old_thread_list,
                                              ThreadList &core_thread_list,
@@ -151,7 +142,7 @@ bool OperatingSystemPython::UpdateThreadList(ThreadList &old_thread_list,
   if (!m_interpreter || !m_python_object_sp)
     return false;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
+  Log *log = GetLog(LLDBLog::OS);
 
   // First thing we have to do is to try to get the API lock, and the
   // interpreter lock. We're going to change the thread content of the process,
@@ -166,15 +157,15 @@ bool OperatingSystemPython::UpdateThreadList(ThreadList &old_thread_list,
   Target &target = m_process->GetTarget();
   std::unique_lock<std::recursive_mutex> api_lock(target.GetAPIMutex(),
                                                   std::defer_lock);
-  api_lock.try_lock();
+  (void)api_lock.try_lock(); // See above.
   auto interpreter_lock = m_interpreter->AcquireInterpreterLock();
 
-  if (log)
-    log->Printf("OperatingSystemPython::UpdateThreadList() fetching thread "
-                "data from python for pid %" PRIu64,
-                m_process->GetID());
+  LLDB_LOGF(log,
+            "OperatingSystemPython::UpdateThreadList() fetching thread "
+            "data from python for pid %" PRIu64,
+            m_process->GetID());
 
-  // The threads that are in "new_thread_list" upon entry are the threads from
+  // The threads that are in "core_thread_list" upon entry are the threads from
   // the lldb_private::Process subclass, no memory threads will be in this
   // list.
   StructuredData::ArraySP threads_list =
@@ -190,7 +181,7 @@ bool OperatingSystemPython::UpdateThreadList(ThreadList &old_thread_list,
     if (log) {
       StreamString strm;
       threads_list->Dump(strm);
-      log->Printf("threads_list = %s", strm.GetData());
+      LLDB_LOGF(log, "threads_list = %s", strm.GetData());
     }
 
     const uint32_t num_threads = threads_list->GetSize();
@@ -198,9 +189,9 @@ bool OperatingSystemPython::UpdateThreadList(ThreadList &old_thread_list,
       StructuredData::ObjectSP thread_dict_obj =
           threads_list->GetItemAtIndex(i);
       if (auto thread_dict = thread_dict_obj->GetAsDictionary()) {
-        ThreadSP thread_sp(
-            CreateThreadFromThreadInfo(*thread_dict, core_thread_list,
-                                       old_thread_list, core_used_map, NULL));
+        ThreadSP thread_sp(CreateThreadFromThreadInfo(
+            *thread_dict, core_thread_list, old_thread_list, core_used_map,
+            nullptr));
         if (thread_sp)
           new_thread_list.AddThread(thread_sp);
       }
@@ -308,35 +299,35 @@ OperatingSystemPython::CreateRegisterContextForThread(Thread *thread,
   Target &target = m_process->GetTarget();
   std::unique_lock<std::recursive_mutex> api_lock(target.GetAPIMutex(),
                                                   std::defer_lock);
-  api_lock.try_lock();
+  (void)api_lock.try_lock(); // See above.
   auto interpreter_lock = m_interpreter->AcquireInterpreterLock();
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
 
   if (reg_data_addr != LLDB_INVALID_ADDRESS) {
     // The registers data is in contiguous memory, just create the register
     // context using the address provided
-    if (log)
-      log->Printf("OperatingSystemPython::CreateRegisterContextForThread (tid "
-                  "= 0x%" PRIx64 ", 0x%" PRIx64 ", reg_data_addr = 0x%" PRIx64
-                  ") creating memory register context",
-                  thread->GetID(), thread->GetProtocolID(), reg_data_addr);
+    LLDB_LOGF(log,
+              "OperatingSystemPython::CreateRegisterContextForThread (tid "
+              "= 0x%" PRIx64 ", 0x%" PRIx64 ", reg_data_addr = 0x%" PRIx64
+              ") creating memory register context",
+              thread->GetID(), thread->GetProtocolID(), reg_data_addr);
     reg_ctx_sp = std::make_shared<RegisterContextMemory>(
         *thread, 0, *GetDynamicRegisterInfo(), reg_data_addr);
   } else {
     // No register data address is provided, query the python plug-in to let it
     // make up the data as it sees fit
-    if (log)
-      log->Printf("OperatingSystemPython::CreateRegisterContextForThread (tid "
-                  "= 0x%" PRIx64 ", 0x%" PRIx64
-                  ") fetching register data from python",
-                  thread->GetID(), thread->GetProtocolID());
+    LLDB_LOGF(log,
+              "OperatingSystemPython::CreateRegisterContextForThread (tid "
+              "= 0x%" PRIx64 ", 0x%" PRIx64
+              ") fetching register data from python",
+              thread->GetID(), thread->GetProtocolID());
 
     StructuredData::StringSP reg_context_data =
         m_interpreter->OSPlugin_RegisterContextData(m_python_object_sp,
                                                     thread->GetID());
     if (reg_context_data) {
-      std::string value = reg_context_data->GetValue();
+      std::string value = std::string(reg_context_data->GetValue());
       DataBufferSP data_sp(new DataBufferHeap(value.c_str(), value.length()));
       if (data_sp->GetByteSize()) {
         RegisterContextMemory *reg_ctx_memory = new RegisterContextMemory(
@@ -351,10 +342,10 @@ OperatingSystemPython::CreateRegisterContextForThread(Thread *thread,
   // if we still have no register data, fallback on a dummy context to avoid
   // crashing
   if (!reg_ctx_sp) {
-    if (log)
-      log->Printf("OperatingSystemPython::CreateRegisterContextForThread (tid "
-                  "= 0x%" PRIx64 ") forcing a dummy register context",
-                  thread->GetID());
+    LLDB_LOGF(log,
+              "OperatingSystemPython::CreateRegisterContextForThread (tid "
+              "= 0x%" PRIx64 ") forcing a dummy register context",
+              thread->GetID());
     reg_ctx_sp = std::make_shared<RegisterContextDummy>(
         *thread, 0, target.GetArchitecture().GetAddressByteSize());
   }
@@ -373,12 +364,12 @@ OperatingSystemPython::CreateThreadStopReason(lldb_private::Thread *thread) {
 
 lldb::ThreadSP OperatingSystemPython::CreateThread(lldb::tid_t tid,
                                                    addr_t context) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
 
-  if (log)
-    log->Printf("OperatingSystemPython::CreateThread (tid = 0x%" PRIx64
-                ", context = 0x%" PRIx64 ") fetching register data from python",
-                tid, context);
+  LLDB_LOGF(log,
+            "OperatingSystemPython::CreateThread (tid = 0x%" PRIx64
+            ", context = 0x%" PRIx64 ") fetching register data from python",
+            tid, context);
 
   if (m_interpreter && m_python_object_sp) {
     // First thing we have to do is to try to get the API lock, and the
@@ -395,7 +386,7 @@ lldb::ThreadSP OperatingSystemPython::CreateThread(lldb::tid_t tid,
     Target &target = m_process->GetTarget();
     std::unique_lock<std::recursive_mutex> api_lock(target.GetAPIMutex(),
                                                     std::defer_lock);
-    api_lock.try_lock();
+    (void)api_lock.try_lock(); // See above.
     auto interpreter_lock = m_interpreter->AcquireInterpreterLock();
 
     StructuredData::DictionarySP thread_info_dict =
@@ -416,4 +407,4 @@ lldb::ThreadSP OperatingSystemPython::CreateThread(lldb::tid_t tid,
   return ThreadSP();
 }
 
-#endif // #ifndef LLDB_DISABLE_PYTHON
+#endif // #if LLDB_ENABLE_PYTHON

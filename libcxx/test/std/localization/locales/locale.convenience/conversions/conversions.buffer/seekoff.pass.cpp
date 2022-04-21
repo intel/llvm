@@ -17,10 +17,14 @@
 
 // This test is not entirely portable
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <codecvt>
 #include <fstream>
 #include <cassert>
+
+#include "test_macros.h"
 
 class test_codecvt
     : public std::codecvt<wchar_t, char, std::mbstate_t>

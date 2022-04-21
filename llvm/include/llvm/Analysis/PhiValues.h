@@ -21,15 +21,13 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
 
-class Use;
 class Value;
 class PHINode;
 class Function;
@@ -41,7 +39,7 @@ class Function;
 /// it is queried.
 class PhiValues {
 public:
-  using ValueSet = SmallPtrSet<Value *, 4>;
+  using ValueSet = SmallSetVector<Value *, 4>;
 
   /// Construct an empty PhiValues.
   PhiValues(const Function &F) : F(F) {}
@@ -71,8 +69,7 @@ public:
                   FunctionAnalysisManager::Invalidator &);
 
 private:
-  using PhiSet = SmallPtrSet<const PHINode *, 4>;
-  using ConstValueSet = SmallPtrSet<const Value *, 4>;
+  using ConstValueSet = SmallSetVector<const Value *, 4>;
 
   /// The next depth number to be used by processPhi.
   unsigned int NextDepthNumber = 1;
@@ -108,7 +105,7 @@ private:
 
   /// Process a phi so that its entries in the depth and reachable maps are
   /// fully populated.
-  void processPhi(const PHINode *PN, SmallVector<const PHINode *, 8> &Stack);
+  void processPhi(const PHINode *PN, SmallVectorImpl<const PHINode *> &Stack);
 };
 
 /// The analysis pass which yields a PhiValues

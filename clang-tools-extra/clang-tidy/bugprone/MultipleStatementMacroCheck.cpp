@@ -20,7 +20,7 @@ namespace {
 
 AST_MATCHER(Expr, isInMacro) { return Node.getBeginLoc().isMacroID(); }
 
-/// \brief Find the next statement after `S`.
+/// Find the next statement after `S`.
 const Stmt *nextStmt(const MatchFinder::MatchResult &Result, const Stmt *S) {
   auto Parents = Result.Context->getParents(*S);
   if (Parents.empty())
@@ -39,7 +39,7 @@ const Stmt *nextStmt(const MatchFinder::MatchResult &Result, const Stmt *S) {
 
 using ExpansionRanges = std::vector<SourceRange>;
 
-/// \bried Get all the macro expansion ranges related to `Loc`.
+/// \brief Get all the macro expansion ranges related to `Loc`.
 ///
 /// The result is ordered from most inner to most outer.
 ExpansionRanges getExpansionRanges(SourceLocation Loc,

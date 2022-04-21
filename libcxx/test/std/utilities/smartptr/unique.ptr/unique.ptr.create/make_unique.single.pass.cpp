@@ -6,10 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 #include <memory>
 #include <string>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

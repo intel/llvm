@@ -33,21 +33,35 @@ const Builtin::Info WebAssemblyTargetInfo::BuiltinInfo[] = {
 static constexpr llvm::StringLiteral ValidCPUNames[] = {
     {"mvp"}, {"bleeding-edge"}, {"generic"}};
 
+StringRef WebAssemblyTargetInfo::getABI() const { return ABI; }
+
+bool WebAssemblyTargetInfo::setABI(const std::string &Name) {
+  if (Name != "mvp" && Name != "experimental-mv")
+    return false;
+
+  ABI = Name;
+  return true;
+}
+
 bool WebAssemblyTargetInfo::hasFeature(StringRef Feature) const {
   return llvm::StringSwitch<bool>(Feature)
       .Case("simd128", SIMDLevel >= SIMD128)
-      .Case("unimplemented-simd128", SIMDLevel >= UnimplementedSIMD128)
+      .Case("relaxed-simd", SIMDLevel >= RelaxedSIMD)
       .Case("nontrapping-fptoint", HasNontrappingFPToInt)
       .Case("sign-ext", HasSignExt)
       .Case("exception-handling", HasExceptionHandling)
       .Case("bulk-memory", HasBulkMemory)
       .Case("atomics", HasAtomics)
       .Case("mutable-globals", HasMutableGlobals)
+      .Case("multivalue", HasMultivalue)
+      .Case("tail-call", HasTailCall)
+      .Case("reference-types", HasReferenceTypes)
+      .Case("extended-const", HasExtendedConst)
       .Default(false);
 }
 
 bool WebAssemblyTargetInfo::isValidCPUName(StringRef Name) const {
-  return llvm::find(ValidCPUNames, Name) != std::end(ValidCPUNames);
+  return llvm::is_contained(ValidCPUNames, Name);
 }
 
 void WebAssemblyTargetInfo::fillValidCPUList(
@@ -60,8 +74,8 @@ void WebAssemblyTargetInfo::getTargetDefines(const LangOptions &Opts,
   defineCPUMacros(Builder, "wasm", /*Tuning=*/false);
   if (SIMDLevel >= SIMD128)
     Builder.defineMacro("__wasm_simd128__");
-  if (SIMDLevel >= UnimplementedSIMD128)
-    Builder.defineMacro("__wasm_unimplemented_simd128__");
+  if (SIMDLevel >= RelaxedSIMD)
+    Builder.defineMacro("__wasm_relaxed_simd__");
   if (HasNontrappingFPToInt)
     Builder.defineMacro("__wasm_nontrapping_fptoint__");
   if (HasSignExt)
@@ -74,20 +88,52 @@ void WebAssemblyTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__wasm_atomics__");
   if (HasMutableGlobals)
     Builder.defineMacro("__wasm_mutable_globals__");
+  if (HasMultivalue)
+    Builder.defineMacro("__wasm_multivalue__");
+  if (HasTailCall)
+    Builder.defineMacro("__wasm_tail_call__");
+  if (HasReferenceTypes)
+    Builder.defineMacro("__wasm_reference_types__");
+  if (HasExtendedConst)
+    Builder.defineMacro("__wasm_extended_const__");
 }
 
 void WebAssemblyTargetInfo::setSIMDLevel(llvm::StringMap<bool> &Features,
-                                         SIMDEnum Level) {
+                                         SIMDEnum Level, bool Enabled) {
+  if (Enabled) {
+    switch (Level) {
+    case RelaxedSIMD:
+      Features["relaxed-simd"] = true;
+      LLVM_FALLTHROUGH;
+    case SIMD128:
+      Features["simd128"] = true;
+      LLVM_FALLTHROUGH;
+    case NoSIMD:
+      break;
+    }
+    return;
+  }
+
   switch (Level) {
-  case UnimplementedSIMD128:
-    Features["unimplemented-simd128"] = true;
-    LLVM_FALLTHROUGH;
-  case SIMD128:
-    Features["simd128"] = true;
-    LLVM_FALLTHROUGH;
   case NoSIMD:
+  case SIMD128:
+    Features["simd128"] = false;
+    LLVM_FALLTHROUGH;
+  case RelaxedSIMD:
+    Features["relaxed-simd"] = false;
     break;
   }
+}
+
+void WebAssemblyTargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
+                                              StringRef Name,
+                                              bool Enabled) const {
+  if (Name == "simd128")
+    setSIMDLevel(Features, SIMD128, Enabled);
+  else if (Name == "relaxed-simd")
+    setSIMDLevel(Features, RelaxedSIMD, Enabled);
+  else
+    Features[Name] = Enabled;
 }
 
 bool WebAssemblyTargetInfo::initFeatureMap(
@@ -96,26 +142,12 @@ bool WebAssemblyTargetInfo::initFeatureMap(
   if (CPU == "bleeding-edge") {
     Features["nontrapping-fptoint"] = true;
     Features["sign-ext"] = true;
-    Features["atomics"] = true;
-    Features["mutable-globals"] = true;
-    setSIMDLevel(Features, SIMD128);
-  }
-  // Other targets do not consider user-configured features here, but while we
-  // are actively developing new features it is useful to let user-configured
-  // features control availability of builtins
-  setSIMDLevel(Features, SIMDLevel);
-  if (HasNontrappingFPToInt)
-    Features["nontrapping-fptoint"] = true;
-  if (HasSignExt)
-    Features["sign-ext"] = true;
-  if (HasExceptionHandling)
-    Features["exception-handling"] = true;
-  if (HasBulkMemory)
     Features["bulk-memory"] = true;
-  if (HasAtomics)
     Features["atomics"] = true;
-  if (HasMutableGlobals)
     Features["mutable-globals"] = true;
+    Features["tail-call"] = true;
+    setSIMDLevel(Features, SIMD128, true);
+  }
 
   return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
 }
@@ -131,12 +163,12 @@ bool WebAssemblyTargetInfo::handleTargetFeatures(
       SIMDLevel = std::min(SIMDLevel, SIMDEnum(SIMD128 - 1));
       continue;
     }
-    if (Feature == "+unimplemented-simd128") {
-      SIMDLevel = std::max(SIMDLevel, SIMDEnum(UnimplementedSIMD128));
+    if (Feature == "+relaxed-simd") {
+      SIMDLevel = std::max(SIMDLevel, RelaxedSIMD);
       continue;
     }
-    if (Feature == "-unimplemented-simd128") {
-      SIMDLevel = std::min(SIMDLevel, SIMDEnum(UnimplementedSIMD128 - 1));
+    if (Feature == "-relaxed-simd") {
+      SIMDLevel = std::min(SIMDLevel, SIMDEnum(RelaxedSIMD - 1));
       continue;
     }
     if (Feature == "+nontrapping-fptoint") {
@@ -187,6 +219,38 @@ bool WebAssemblyTargetInfo::handleTargetFeatures(
       HasMutableGlobals = false;
       continue;
     }
+    if (Feature == "+multivalue") {
+      HasMultivalue = true;
+      continue;
+    }
+    if (Feature == "-multivalue") {
+      HasMultivalue = false;
+      continue;
+    }
+    if (Feature == "+tail-call") {
+      HasTailCall = true;
+      continue;
+    }
+    if (Feature == "-tail-call") {
+      HasTailCall = false;
+      continue;
+    }
+    if (Feature == "+reference-types") {
+      HasReferenceTypes = true;
+      continue;
+    }
+    if (Feature == "-reference-types") {
+      HasReferenceTypes = false;
+      continue;
+    }
+    if (Feature == "+extended-const") {
+      HasExtendedConst = true;
+      continue;
+    }
+    if (Feature == "-extended-const") {
+      HasExtendedConst = false;
+      continue;
+    }
 
     Diags.Report(diag::err_opt_not_valid_with_opt)
         << Feature << "-target-feature";
@@ -198,6 +262,19 @@ bool WebAssemblyTargetInfo::handleTargetFeatures(
 ArrayRef<Builtin::Info> WebAssemblyTargetInfo::getTargetBuiltins() const {
   return llvm::makeArrayRef(BuiltinInfo, clang::WebAssembly::LastTSBuiltin -
                                              Builtin::FirstTSBuiltin);
+}
+
+void WebAssemblyTargetInfo::adjust(DiagnosticsEngine &Diags,
+                                   LangOptions &Opts) {
+  TargetInfo::adjust(Diags, Opts);
+  // Turn off POSIXThreads and ThreadModel so that we don't predefine _REENTRANT
+  // or __STDCPP_THREADS__ if we will eventually end up stripping atomics
+  // because they are unsupported.
+  if (!HasAtomics || !HasBulkMemory) {
+    Opts.POSIXThreads = false;
+    Opts.setThreadModel(LangOptions::ThreadModelKind::Single);
+    Opts.ThreadsafeStatics = false;
+  }
 }
 
 void WebAssembly32TargetInfo::getTargetDefines(const LangOptions &Opts,

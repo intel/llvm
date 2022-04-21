@@ -13,7 +13,6 @@
 #include "string_utils.h"
 
 #include <stddef.h>
-#include <stdlib.h>
 
 namespace scudo {
 
@@ -30,7 +29,7 @@ public:
   void printFlagDescriptions();
 
 private:
-  static const u32 MaxFlags = 12;
+  static const u32 MaxFlags = 20;
   struct Flag {
     const char *Name;
     const char *Desc;

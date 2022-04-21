@@ -11,7 +11,7 @@ define i32 @aext_fptosi(float %a) nounwind {
 ; RV64IF-LABEL: aext_fptosi:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fcvt.l.s a0, ft0, rtz
+; RV64IF-NEXT:    fcvt.w.s a0, ft0, rtz
 ; RV64IF-NEXT:    ret
   %1 = fptosi float %a to i32
   ret i32 %1
@@ -21,7 +21,7 @@ define signext i32 @sext_fptosi(float %a) nounwind {
 ; RV64IF-LABEL: sext_fptosi:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fcvt.l.s a0, ft0, rtz
+; RV64IF-NEXT:    fcvt.w.s a0, ft0, rtz
 ; RV64IF-NEXT:    ret
   %1 = fptosi float %a to i32
   ret i32 %1
@@ -31,7 +31,7 @@ define zeroext i32 @zext_fptosi(float %a) nounwind {
 ; RV64IF-LABEL: zext_fptosi:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fcvt.l.s a0, ft0, rtz
+; RV64IF-NEXT:    fcvt.w.s a0, ft0, rtz
 ; RV64IF-NEXT:    slli a0, a0, 32
 ; RV64IF-NEXT:    srli a0, a0, 32
 ; RV64IF-NEXT:    ret
@@ -43,7 +43,7 @@ define i32 @aext_fptoui(float %a) nounwind {
 ; RV64IF-LABEL: aext_fptoui:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fcvt.lu.s a0, ft0, rtz
+; RV64IF-NEXT:    fcvt.wu.s a0, ft0, rtz
 ; RV64IF-NEXT:    ret
   %1 = fptoui float %a to i32
   ret i32 %1
@@ -113,9 +113,9 @@ define zeroext i32 @bcvt_f32_to_zext_i32(float %a, float %b) nounwind {
 define float @bcvt_i64_to_f32_via_i32(i64 %a, i64 %b) nounwind {
 ; RV64IF-LABEL: bcvt_i64_to_f32_via_i32:
 ; RV64IF:       # %bb.0:
-; RV64IF-NEXT:    fmv.w.x ft0, a1
-; RV64IF-NEXT:    fmv.w.x ft1, a0
-; RV64IF-NEXT:    fadd.s ft0, ft1, ft0
+; RV64IF-NEXT:    fmv.w.x ft0, a0
+; RV64IF-NEXT:    fmv.w.x ft1, a1
+; RV64IF-NEXT:    fadd.s ft0, ft0, ft1
 ; RV64IF-NEXT:    fmv.x.w a0, ft0
 ; RV64IF-NEXT:    ret
   %1 = trunc i64 %a to i32
@@ -169,7 +169,7 @@ define float @sitofp_aext_i32_to_f32(i32 %a) nounwind {
 define float @sitofp_sext_i32_to_f32(i32 signext %a) nounwind {
 ; RV64IF-LABEL: sitofp_sext_i32_to_f32:
 ; RV64IF:       # %bb.0:
-; RV64IF-NEXT:    fcvt.s.l ft0, a0
+; RV64IF-NEXT:    fcvt.s.w ft0, a0
 ; RV64IF-NEXT:    fmv.x.w a0, ft0
 ; RV64IF-NEXT:    ret
   %1 = sitofp i32 %a to float

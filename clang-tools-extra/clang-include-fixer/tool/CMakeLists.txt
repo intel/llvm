@@ -4,25 +4,25 @@ add_clang_tool(clang-include-fixer
   ClangIncludeFixer.cpp
   )
 
-target_link_libraries(clang-include-fixer
+clang_target_link_libraries(clang-include-fixer
   PRIVATE
   clangBasic
   clangFormat
   clangFrontend
-  clangIncludeFixer
   clangRewrite
   clangSerialization
   clangTooling
   clangToolingCore
+  )
+target_link_libraries(clang-include-fixer
+  PRIVATE
+  clangIncludeFixer
   findAllSymbols
   )
 
-install(TARGETS clang-include-fixer
-  RUNTIME DESTINATION bin)
-
 install(PROGRAMS clang-include-fixer.el
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-include-fixer)
 install(PROGRAMS clang-include-fixer.py
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-include-fixer)

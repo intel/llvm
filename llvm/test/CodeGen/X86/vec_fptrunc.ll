@@ -99,9 +99,8 @@ define void @fptrunc_frommem8(<8 x double>* %in, <8 x float>* %out) {
 ; X32-AVX-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; X32-AVX-NEXT:    vcvtpd2psy (%ecx), %xmm0
 ; X32-AVX-NEXT:    vcvtpd2psy 32(%ecx), %xmm1
-; X32-AVX-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
-; X32-AVX-NEXT:    vmovups %ymm0, (%eax)
-; X32-AVX-NEXT:    vzeroupper
+; X32-AVX-NEXT:    vmovupd %xmm1, 16(%eax)
+; X32-AVX-NEXT:    vmovupd %xmm0, (%eax)
 ; X32-AVX-NEXT:    retl
 ;
 ; X64-SSE-LABEL: fptrunc_frommem8:
@@ -120,9 +119,8 @@ define void @fptrunc_frommem8(<8 x double>* %in, <8 x float>* %out) {
 ; X64-AVX:       # %bb.0: # %entry
 ; X64-AVX-NEXT:    vcvtpd2psy (%rdi), %xmm0
 ; X64-AVX-NEXT:    vcvtpd2psy 32(%rdi), %xmm1
-; X64-AVX-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
-; X64-AVX-NEXT:    vmovups %ymm0, (%rsi)
-; X64-AVX-NEXT:    vzeroupper
+; X64-AVX-NEXT:    vmovupd %xmm1, 16(%rsi)
+; X64-AVX-NEXT:    vmovupd %xmm0, (%rsi)
 ; X64-AVX-NEXT:    retq
 entry:
   %0 = load <8 x double>, <8 x double>* %in
@@ -188,26 +186,26 @@ define <4 x float> @fptrunc_fromreg2_zext(<2 x double> %arg) {
 define <4 x float> @fptrunc_fromconst() {
 ; X32-SSE-LABEL: fptrunc_fromconst:
 ; X32-SSE:       # %bb.0: # %entry
-; X32-SSE-NEXT:    cvtpd2ps {{\.LCPI.*}}, %xmm1
-; X32-SSE-NEXT:    cvtpd2ps {{\.LCPI.*}}, %xmm0
+; X32-SSE-NEXT:    cvtpd2ps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm1
+; X32-SSE-NEXT:    cvtpd2ps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0
 ; X32-SSE-NEXT:    unpcklpd {{.*#+}} xmm0 = xmm0[0],xmm1[0]
 ; X32-SSE-NEXT:    retl
 ;
 ; X32-AVX-LABEL: fptrunc_fromconst:
 ; X32-AVX:       # %bb.0: # %entry
-; X32-AVX-NEXT:    vcvtpd2psy {{\.LCPI.*}}, %xmm0
+; X32-AVX-NEXT:    vcvtpd2psy {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0
 ; X32-AVX-NEXT:    retl
 ;
 ; X64-SSE-LABEL: fptrunc_fromconst:
 ; X64-SSE:       # %bb.0: # %entry
-; X64-SSE-NEXT:    cvtpd2ps {{.*}}(%rip), %xmm1
-; X64-SSE-NEXT:    cvtpd2ps {{.*}}(%rip), %xmm0
+; X64-SSE-NEXT:    cvtpd2ps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; X64-SSE-NEXT:    cvtpd2ps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; X64-SSE-NEXT:    unpcklpd {{.*#+}} xmm0 = xmm0[0],xmm1[0]
 ; X64-SSE-NEXT:    retq
 ;
 ; X64-AVX-LABEL: fptrunc_fromconst:
 ; X64-AVX:       # %bb.0: # %entry
-; X64-AVX-NEXT:    vcvtpd2psy {{.*}}(%rip), %xmm0
+; X64-AVX-NEXT:    vcvtpd2psy {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; X64-AVX-NEXT:    retq
 entry:
   %0  = insertelement <4 x double> undef, double 1.0, i32 0

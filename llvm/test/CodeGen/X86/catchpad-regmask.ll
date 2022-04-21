@@ -75,7 +75,7 @@ unreachable:                                      ; preds = %entry
 ; CHECK: popq %rbp
 ; CHECK: retq
 
-; CHECK: "?catch$2@?0?global_array@4HA":
+; CHECK: "?catch${{[0-9]+}}@?0?global_array@4HA":
 ; CHECK: pushq   %rbp
 ; CHECK: movslq  {{.*}}, %[[idx:[^ ]*]]
 ; CHECK: leaq    array(%rip), %[[base:[^ ]*]]
@@ -122,7 +122,7 @@ unreachable:                                      ; preds = %entry
 ; CHECK: popq %rbp
 ; CHECK: retq
 
-; CHECK: "?catch$2@?0?access_imported@4HA":
+; CHECK: "?catch${{[0-9]+}}@?0?access_imported@4HA":
 ; CHECK: pushq   %rbp
 ; CHECK: movq    __imp_imported(%rip), %[[base:[^ ]*]]
 ; CHECK: movl    $222, (%[[base]])
@@ -130,7 +130,7 @@ unreachable:                                      ; preds = %entry
 ; CHECK: retq                            # CATCHRET
 
 
-attributes #0 = { uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { noreturn }
 
 !llvm.module.flags = !{!0}

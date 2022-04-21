@@ -15,6 +15,7 @@
 #include <cassert>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)
@@ -64,6 +65,13 @@ int main(int, char**)
             assert(v[j] == 0);
     }
 #if TEST_STD_VER >= 11
+    {
+        std::vector<bool, explicit_allocator<bool>> v(10);
+        std::vector<bool, explicit_allocator<bool>>::iterator i
+            = v.insert(v.cbegin() + 10, 5, 1);
+        assert(v.size() == 15);
+        assert(i == v.begin() + 10);
+    }
     {
         std::vector<bool, min_allocator<bool>> v(100);
         std::vector<bool, min_allocator<bool>>::iterator i = v.insert(v.cbegin() + 10, 5, 1);

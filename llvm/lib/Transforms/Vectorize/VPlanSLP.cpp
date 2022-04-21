@@ -15,16 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "VPlan.h"
-#include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/PostOrderIterator.h"
+#include "VPlanValue.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/Twine.h"
-#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/VectorUtils.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CFG.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
@@ -32,13 +26,10 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include <algorithm>
 #include <cassert>
-#include <iterator>
-#include <string>
-#include <vector>
+#include <utility>
 
 using namespace llvm;
 
@@ -122,9 +113,11 @@ bool VPlanSlp::areVectorizable(ArrayRef<VPValue *> Operands) const {
     unsigned LoadsSeen = 0;
     VPBasicBlock *Parent = cast<VPInstruction>(Operands[0])->getParent();
     for (auto &I : *Parent) {
-      auto *VPI = cast<VPInstruction>(&I);
+      auto *VPI = dyn_cast<VPInstruction>(&I);
+      if (!VPI)
+        break;
       if (VPI->getOpcode() == Instruction::Load &&
-          std::find(Operands.begin(), Operands.end(), VPI) != Operands.end())
+          llvm::is_contained(Operands, VPI))
         LoadsSeen++;
 
       if (LoadsSeen == Operands.size())
@@ -161,7 +154,8 @@ static SmallVector<VPValue *, 4> getOperands(ArrayRef<VPValue *> Values,
                                              unsigned OperandIndex) {
   SmallVector<VPValue *, 4> Operands;
   for (VPValue *V : Values) {
-    auto *U = cast<VPUser>(V);
+    // Currently we only support VPInstructions.
+    auto *U = cast<VPInstruction>(V);
     Operands.push_back(U->getOperand(OperandIndex));
   }
   return Operands;
@@ -222,18 +216,20 @@ static bool areConsecutiveOrMatch(VPInstruction *A, VPInstruction *B,
 /// Traverses and compares operands of V1 and V2 to MaxLevel.
 static unsigned getLAScore(VPValue *V1, VPValue *V2, unsigned MaxLevel,
                            VPInterleavedAccessInfo &IAI) {
-  if (!isa<VPInstruction>(V1) || !isa<VPInstruction>(V2))
+  auto *I1 = dyn_cast<VPInstruction>(V1);
+  auto *I2 = dyn_cast<VPInstruction>(V2);
+  // Currently we only support VPInstructions.
+  if (!I1 || !I2)
     return 0;
 
   if (MaxLevel == 0)
-    return (unsigned)areConsecutiveOrMatch(cast<VPInstruction>(V1),
-                                           cast<VPInstruction>(V2), IAI);
+    return (unsigned)areConsecutiveOrMatch(I1, I2, IAI);
 
   unsigned Score = 0;
-  for (unsigned I = 0, EV1 = cast<VPUser>(V1)->getNumOperands(); I < EV1; ++I)
-    for (unsigned J = 0, EV2 = cast<VPUser>(V2)->getNumOperands(); J < EV2; ++J)
-      Score += getLAScore(cast<VPUser>(V1)->getOperand(I),
-                          cast<VPUser>(V2)->getOperand(J), MaxLevel - 1, IAI);
+  for (unsigned I = 0, EV1 = I1->getNumOperands(); I < EV1; ++I)
+    for (unsigned J = 0, EV2 = I2->getNumOperands(); J < EV2; ++J)
+      Score +=
+          getLAScore(I1->getOperand(I), I2->getOperand(J), MaxLevel - 1, IAI);
   return Score;
 }
 
@@ -344,15 +340,20 @@ SmallVector<VPlanSlp::MultiNodeOpTy, 4> VPlanSlp::reorderMultiNodeOps() {
   return FinalOrder;
 }
 
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void VPlanSlp::dumpBundle(ArrayRef<VPValue *> Values) {
   dbgs() << " Ops: ";
-  for (auto Op : Values)
-    if (auto *Instr = cast_or_null<VPInstruction>(Op)->getUnderlyingInstr())
-      dbgs() << *Instr << " | ";
-    else
-      dbgs() << " nullptr | ";
+  for (auto Op : Values) {
+    if (auto *VPInstr = cast_or_null<VPInstruction>(Op))
+      if (auto *Instr = VPInstr->getUnderlyingInstr()) {
+        dbgs() << *Instr << " | ";
+        continue;
+      }
+    dbgs() << " nullptr | ";
+  }
   dbgs() << "\n";
 }
+#endif
 
 VPInstruction *VPlanSlp::buildGraph(ArrayRef<VPValue *> Values) {
   assert(!Values.empty() && "Need some operands!");
@@ -457,11 +458,12 @@ VPInstruction *VPlanSlp::buildGraph(ArrayRef<VPValue *> Values) {
     return markFailed();
 
   assert(CombinedOperands.size() > 0 && "Need more some operands");
-  auto *VPI = new VPInstruction(Opcode, CombinedOperands);
-  VPI->setUnderlyingInstr(cast<VPInstruction>(Values[0])->getUnderlyingInstr());
+  auto *Inst = cast<VPInstruction>(Values[0])->getUnderlyingInstr();
+  auto *VPI = new VPInstruction(Opcode, CombinedOperands, Inst->getDebugLoc());
+  VPI->setUnderlyingInstr(Inst);
 
-  LLVM_DEBUG(dbgs() << "Create VPInstruction "; VPI->print(dbgs());
-             cast<VPInstruction>(Values[0])->print(dbgs()); dbgs() << "\n");
+  LLVM_DEBUG(dbgs() << "Create VPInstruction " << *VPI << " "
+                    << *cast<VPInstruction>(Values[0]) << "\n");
   addCombined(Values, VPI);
   return VPI;
 }

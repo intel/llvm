@@ -1,4 +1,4 @@
-//===-- SymbolsTest.cpp -----------------------------------------*- C++ -*-===//
+//===-- SymbolsTest.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,25 +8,20 @@
 
 #include "gtest/gtest.h"
 
+#include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Target/Target.h"
+#include "lldb/Utility/Reproducer.h"
 
 using namespace lldb_private;
 
 namespace {
 class SymbolsTest : public ::testing::Test {
 public:
-  void SetUp() override {
-    FileSystem::Initialize();
-    HostInfo::Initialize();
-  }
-  void TearDown() override {
-    HostInfo::Terminate();
-    FileSystem::Terminate();
-  }
+  SubsystemRAII<repro::Reproducer, FileSystem, HostInfo> subsystems;
 };
 } // namespace
 

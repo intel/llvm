@@ -258,7 +258,8 @@ namespace test5 {
   struct A { A(int); virtual ~A() = 0; }; // expected-note {{pure virtual method}}
   const A &a = 0; // expected-error {{abstract class}}
   void f(const A &a = 0); // expected-error {{abstract class}}
-  void g() { f(0); } // expected-error {{abstract class}}
+  void g(const A &a);
+  void h() { g(0); } // expected-error {{abstract class}}
 }
 
 // PR9247: Crash on invalid in clang::Sema::ActOnFinishCXXMemberSpecification
@@ -278,7 +279,7 @@ namespace pr12658 {
       virtual void f() = 0; // expected-note {{unimplemented pure virtual method 'f' in 'C'}}
   };
 
-  void foo( C& c ) {}
+  void foo(const C& c ) {}
 
   void bar( void ) {
     foo(C(99)); // expected-error {{allocating an object of abstract class type 'pr12658::C'}}
@@ -311,3 +312,42 @@ namespace pr16659 {
     RedundantInit() : A(0) {} // expected-warning {{initializer for virtual base class 'pr16659::A' of abstract class 'RedundantInit' will never be used}}
   };
 }
+
+struct inline_var { // expected-note {{until the closing '}'}}
+  static inline inline_var v = 0; // expected-error {{incomplete type}} expected-warning {{extension}}
+  virtual void f() = 0;
+};
+
+struct var_template {
+  template<typename T>
+  static var_template v; // expected-error {{abstract class}} expected-warning {{extension}}
+  virtual void f() = 0; // expected-note {{unimplemented}}
+};
+
+struct var_template_def { // expected-note {{until the closing '}'}}
+  template<typename T>
+  static inline var_template_def v = {}; // expected-error {{incomplete type}} expected-warning 2{{extension}}
+  virtual void f() = 0;
+};
+
+struct friend_fn {
+  friend void g(friend_fn); // expected-error {{abstract class}}
+  virtual void f() = 0; // expected-note {{unimplemented}}
+};
+
+struct friend_fn_def {
+  friend void g(friend_fn_def) {} // expected-error {{abstract class}}
+  virtual void f() = 0; // expected-note {{unimplemented}}
+};
+
+struct friend_template {
+  template<typename T>
+  friend void g(friend_template); // expected-error {{abstract class}}
+  virtual void f() = 0; // expected-note {{unimplemented}}
+};
+
+struct friend_template_def {
+  template<typename T>
+  friend void g(friend_template_def) {} // expected-error {{abstract class}}
+  virtual void f() = 0; // expected-note {{unimplemented}}
+};

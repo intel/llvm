@@ -1,5 +1,7 @@
 ; RUN: llc -mtriple=aarch64-windows -filetype=obj -o - %s | \
-; RUN: llvm-readobj --codeview - | FileCheck %s
+; RUN: llvm-readobj --codeview - | FileCheck %s --check-prefixes=CHECK,CHECK-STDOUT
+; RUN: llc -mtriple=aarch64-windows -filetype=obj -o %t.o %s
+; RUN: llvm-readobj --codeview %t.o | FileCheck %s --check-prefixes=CHECK,CHECK-FILE
 
 ; ModuleID = 'a.c'
 source_filename = "a.c"
@@ -14,7 +16,7 @@ entry:
   ret i32 1, !dbg !11
 }
 
-attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}
@@ -66,10 +68,17 @@ attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-ma
 ; CHECK:   Magic: 0x4
 ; CHECK:   Subsection [
 ; CHECK:     SubSectionType: Symbols (0xF1)
+; CHECK:     ObjNameSym {
+; CHECK:       Kind: S_OBJNAME (0x1101)
+; CHECK:       Signature: 0x0
+; CHECK-STDOUT: ObjectName: {{$}}
+; CHECK-FILE:   ObjectName: {{.*}}.o
+; CHECK:     }
 ; CHECK:     Compile3Sym {
 ; CHECK:       Kind: S_COMPILE3 (0x113C)
 ; CHECK:       Language: C (0x0)
-; CHECK:       Flags [ (0x0)
+; CHECK:       Flags [ (0x4000
+; CHECK:        HotPatch (0x4000)
 ; CHECK:       ]
 ; CHECK:     }
 ; CHECK:   ]

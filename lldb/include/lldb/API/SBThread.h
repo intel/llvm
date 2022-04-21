@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBThread_h_
-#define LLDB_SBThread_h_
+#ifndef LLDB_API_SBTHREAD_H
+#define LLDB_API_SBTHREAD_H
 
 #include "lldb/API/SBDefines.h"
 
-#include <stdio.h>
+#include <cstdio>
 
 namespace lldb {
 
@@ -66,6 +66,9 @@ public:
   /// eStopReasonSignal        1     unix signal number
   /// eStopReasonException     N     exception data
   /// eStopReasonExec          0
+  /// eStopReasonFork          1     pid of the child process
+  /// eStopReasonVFork         1     pid of the child process
+  /// eStopReasonVForkDone     0
   /// eStopReasonPlanComplete  0
   uint64_t GetStopReasonDataAtIndex(uint32_t idx);
 
@@ -120,6 +123,10 @@ public:
   SBError StepUsingScriptedThreadPlan(const char *script_class_name);
 
   SBError StepUsingScriptedThreadPlan(const char *script_class_name,
+                                      bool resume_immediately);
+
+  SBError StepUsingScriptedThreadPlan(const char *script_class_name,
+                                      lldb::SBStructuredData &args_data,
                                       bool resume_immediately);
 
   SBError JumpToLine(lldb::SBFileSpec &file_spec, uint32_t line);
@@ -201,6 +208,8 @@ public:
 
   bool SafeToCallFunctions();
 
+  SBValue GetSiginfo();
+
 private:
   friend class SBBreakpoint;
   friend class SBBreakpointLocation;
@@ -213,6 +222,7 @@ private:
   friend class lldb_private::QueueImpl;
   friend class SBQueueItem;
   friend class SBThreadPlan;
+  friend class SBTrace;
 
   void SetThread(const lldb::ThreadSP &lldb_object_sp);
 
@@ -228,4 +238,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBThread_h_
+#endif // LLDB_API_SBTHREAD_H

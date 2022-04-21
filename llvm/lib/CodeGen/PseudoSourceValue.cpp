@@ -11,11 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/PseudoSourceValue.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
@@ -29,8 +26,7 @@ PseudoSourceValue::PseudoSourceValue(unsigned Kind, const TargetInstrInfo &TII)
   AddressSpace = TII.getAddressSpaceForPseudoSourceKind(Kind);
 }
 
-
-PseudoSourceValue::~PseudoSourceValue() {}
+PseudoSourceValue::~PseudoSourceValue() = default;
 
 void PseudoSourceValue::printCustom(raw_ostream &O) const {
   if (Kind < TargetCustom)
@@ -129,7 +125,7 @@ const PseudoSourceValue *
 PseudoSourceValueManager::getFixedStack(int FI) {
   std::unique_ptr<FixedStackPseudoSourceValue> &V = FSValues[FI];
   if (!V)
-    V = llvm::make_unique<FixedStackPseudoSourceValue>(FI, TII);
+    V = std::make_unique<FixedStackPseudoSourceValue>(FI, TII);
   return V.get();
 }
 
@@ -138,7 +134,7 @@ PseudoSourceValueManager::getGlobalValueCallEntry(const GlobalValue *GV) {
   std::unique_ptr<const GlobalValuePseudoSourceValue> &E =
       GlobalCallEntries[GV];
   if (!E)
-    E = llvm::make_unique<GlobalValuePseudoSourceValue>(GV, TII);
+    E = std::make_unique<GlobalValuePseudoSourceValue>(GV, TII);
   return E.get();
 }
 
@@ -147,6 +143,6 @@ PseudoSourceValueManager::getExternalSymbolCallEntry(const char *ES) {
   std::unique_ptr<const ExternalSymbolPseudoSourceValue> &E =
       ExternalCallEntries[ES];
   if (!E)
-    E = llvm::make_unique<ExternalSymbolPseudoSourceValue>(ES, TII);
+    E = std::make_unique<ExternalSymbolPseudoSourceValue>(ES, TII);
   return E.get();
 }

@@ -44,9 +44,8 @@ static std::unique_ptr<Module> parseIR(LLVMContext &C, const char *IR) {
 }
 
 // This tests that IVDescriptors can obtain the induction binary operator for
-// integer induction variables. And hasUnsafeAlgebra() and
-// getUnsafeAlgebraInst() correctly return the expected behavior, i.e. no unsafe
-// algebra.
+// integer induction variables. And getExactFPMathInst() correctly return the
+// expected behavior, i.e. no FMF algebra.
 TEST(IVDescriptorsTest, LoopWithSingleLatch) {
   // Parse the module.
   LLVMContext Context;
@@ -94,7 +93,113 @@ for.end:
         } while (!Inst_inc);
         assert(Inst_inc->getName() == "inc");
         EXPECT_EQ(IndDesc.getInductionBinOp(), Inst_inc);
-        EXPECT_FALSE(IndDesc.hasUnsafeAlgebra());
-        EXPECT_EQ(IndDesc.getUnsafeAlgebraInst(), nullptr);
+        EXPECT_EQ(IndDesc.getExactFPMathInst(), nullptr);
+      });
+}
+
+TEST(IVDescriptorsTest, LoopWithScalableTypes) {
+  // Parse the module.
+  LLVMContext Context;
+
+  std::unique_ptr<Module> M =
+      parseIR(Context,
+              R"(define void @foo(<vscale x 4 x float>* %ptr) {
+entry:
+  br label %for.body
+
+for.body:
+  %lsr.iv1 = phi <vscale x 4 x float>* [ %0, %for.body ], [ %ptr, %entry ]
+  %j.0117 = phi i64 [ %inc, %for.body ], [ 0, %entry ]
+  %lsr.iv12 = bitcast <vscale x 4 x float>* %lsr.iv1 to i8*
+  %inc = add nuw nsw i64 %j.0117, 1
+  %uglygep = getelementptr i8, i8* %lsr.iv12, i64 4
+  %0 = bitcast i8* %uglygep to <vscale x 4 x float>*
+  %cmp = icmp ne i64 %inc, 1024
+  br i1 %cmp, label %for.body, label %end
+
+end:
+  ret void
+})");
+
+  runWithLoopInfoAndSE(
+      *M, "foo", [&](Function &F, LoopInfo &LI, ScalarEvolution &SE) {
+        Function::iterator FI = F.begin();
+        // First basic block is entry - skip it.
+        BasicBlock *Header = &*(++FI);
+        assert(Header->getName() == "for.body");
+        Loop *L = LI.getLoopFor(Header);
+        EXPECT_NE(L, nullptr);
+        PHINode *Inst_iv = dyn_cast<PHINode>(&Header->front());
+        assert(Inst_iv->getName() == "lsr.iv1");
+        InductionDescriptor IndDesc;
+        bool IsInductionPHI =
+            InductionDescriptor::isInductionPHI(Inst_iv, L, &SE, IndDesc);
+        EXPECT_FALSE(IsInductionPHI);
+      });
+}
+
+// Depending on how SCEV deals with ptrtoint cast, the step of a phi could be
+// a pointer, and InductionDescriptor used to fail with an assertion.
+// So just check that it doesn't assert.
+TEST(IVDescriptorsTest, LoopWithPtrToInt) {
+  // Parse the module.
+  LLVMContext Context;
+
+  std::unique_ptr<Module> M = parseIR(Context, R"(
+      target datalayout = "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64"
+      target triple = "thumbv6m-arm-none-eabi"
+
+      declare void @widget()
+      declare void @wobble(i32)
+
+      define void @barney(i8* %arg, i8* %arg18, i32 %arg19) {
+      bb:
+        %tmp = ptrtoint i8* %arg to i32
+        %tmp20 = ptrtoint i8* %arg18 to i32
+        %tmp21 = or i32 %tmp20, %tmp
+        %tmp22 = and i32 %tmp21, 3
+        %tmp23 = icmp eq i32 %tmp22, 0
+        br i1 %tmp23, label %bb24, label %bb25
+
+      bb24:
+        tail call void @widget()
+        br label %bb34
+
+      bb25:
+        %tmp26 = sub i32 %tmp, %tmp20
+        %tmp27 = icmp ult i32 %tmp26, %arg19
+        br i1 %tmp27, label %bb28, label %bb34
+
+      bb28:
+        br label %bb29
+
+      bb29:
+        %tmp30 = phi i32 [ %tmp31, %bb29 ], [ %arg19, %bb28 ]
+        tail call void @wobble(i32 %tmp26)
+        %tmp31 = sub i32 %tmp30, %tmp26
+        %tmp32 = icmp ugt i32 %tmp31, %tmp26
+        br i1 %tmp32, label %bb29, label %bb33
+
+      bb33:
+        br label %bb34
+
+      bb34:
+        ret void
+      })");
+
+  runWithLoopInfoAndSE(
+      *M, "barney", [&](Function &F, LoopInfo &LI, ScalarEvolution &SE) {
+        Function::iterator FI = F.begin();
+        // First basic block is entry - skip it.
+        BasicBlock *Header = &*(++(++(++(++FI))));
+        assert(Header->getName() == "bb29");
+        Loop *L = LI.getLoopFor(Header);
+        EXPECT_NE(L, nullptr);
+        PHINode *Inst_i = dyn_cast<PHINode>(&Header->front());
+        assert(Inst_i->getName() == "tmp30");
+        InductionDescriptor IndDesc;
+        bool IsInductionPHI =
+            InductionDescriptor::isInductionPHI(Inst_i, L, &SE, IndDesc);
+        EXPECT_TRUE(IsInductionPHI);
       });
 }

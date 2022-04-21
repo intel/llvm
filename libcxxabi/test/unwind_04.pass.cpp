@@ -1,4 +1,4 @@
-//===------------------------- unwind_04.cpp ------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcxxabi-no-exceptions
-// REQUIRES: c++98 || c++03 || c++11 || c++14
+// UNSUPPORTED: no-exceptions
+// REQUIRES: c++03 || c++11 || c++14
 
 #include <exception>
 #include <stdlib.h>
@@ -15,6 +15,7 @@
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wunreachable-code"
+#pragma GCC diagnostic ignored "-Wdeprecated" // dynamic exception specifications are deprecated
 #endif
 
 struct A
@@ -80,7 +81,7 @@ void u_handler()
     throw 'a';
 }
 
-int main()
+int main(int, char**)
 {
     std::set_unexpected(u_handler);
     try
@@ -111,4 +112,6 @@ int main()
     assert(A::count == 0);
     assert(B::count == 0);
     assert(C::count == 0);
+
+    return 0;
 }

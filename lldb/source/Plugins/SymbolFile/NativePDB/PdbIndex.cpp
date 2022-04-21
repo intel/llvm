@@ -1,4 +1,4 @@
-//===-- PdbIndex.cpp --------------------------------------------*- C++ -*-===//
+//===-- PdbIndex.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,7 +39,7 @@ PdbIndex::PdbIndex() : m_cus(*this), m_va_to_modi(m_allocator) {}
   }
 
 llvm::Expected<std::unique_ptr<PdbIndex>>
-PdbIndex::create(std::unique_ptr<llvm::pdb::PDBFile> file) {
+PdbIndex::create(llvm::pdb::PDBFile *file) {
   lldbassert(file);
 
   std::unique_ptr<PdbIndex> result(new PdbIndex());
@@ -53,7 +53,7 @@ PdbIndex::create(std::unique_ptr<llvm::pdb::PDBFile> file) {
 
   result->m_tpi->buildHashMap();
 
-  result->m_file = std::move(file);
+  result->m_file = file;
 
   return std::move(result);
 }

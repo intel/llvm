@@ -169,9 +169,15 @@ void test_char(char c, signed char s, unsigned char u, uint8_t n) {
 
   NSLog(@"%@", 'abcd'); // expected-warning{{format specifies type 'id' but the argument has type 'int'}}
   // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:13}:"%d"
+
+  NSLog(@"%hhd", 'a'); // expected-warning{{format specifies type 'char' but the argument has type 'int'}}
+  // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:15}:"%d"
+
+  NSLog(@"%hhu", 'a'); // expected-warning{{format specifies type 'unsigned char' but the argument has type 'int'}}
+  // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:15}:"%d"
 }
 
-void multichar_constants_false_negative() {
+void multichar_constants_false_negative(void) {
   // The value of a multi-character constant is implementation-defined, but
   // almost certainly shouldn't be printed with %c. However, the current
   // type-checker expects %c to correspond to an integer argument, because
@@ -182,7 +188,7 @@ void multichar_constants_false_negative() {
 }
 
 
-void test_percent_C() {
+void test_percent_C(void) {
   const unsigned short data = 'a';
   NSLog(@"%C", data);  // no-warning
 
@@ -205,9 +211,7 @@ void test_percent_C() {
   // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:13}:"%f"
   // CHECK-NOT: fix-it:"{{.*}}":{[[@LINE-2]]:16-[[@LINE-2]]:16}:"(unichar)"
 
-  NSLog(@"%C", (char)0x260300); // expected-warning{{format specifies type 'unichar' (aka 'unsigned short') but the argument has type 'char'}}
-  // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:13}:"%c"
-  // CHECK-NOT: fix-it:"{{.*}}":{[[@LINE-2]]:16-[[@LINE-2]]:22}:"(unichar)"
+  NSLog(@"%C", (char)0x260300);
 
   NSLog(@"%C", 'a'); // expected-warning{{format specifies type 'unichar' (aka 'unsigned short') but the argument has type 'char'}}
   // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:13}:"%c"
@@ -229,7 +233,7 @@ void testSignedness(long i, unsigned long u) {
   // CHECK: fix-it:"{{.*}}":{[[@LINE-2]]:11-[[@LINE-2]]:14}:"%+ld"
 }
 
-void testSizeTypes() {
+void testSizeTypes(void) {
   printf("%zu", 0.f); // expected-warning-re{{format specifies type 'size_t' (aka '{{.+}}') but the argument has type 'float'}}
   // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:14}:"%f"
 
@@ -237,8 +241,13 @@ void testSizeTypes() {
   // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:14}:"%f"
   
   short x;
+#if !defined(__ANDROID__) && !defined(__Fuchsia__)
   printf("%zn", &x); // expected-warning-re{{format specifies type 'ssize_t *' (aka '{{.+}}') but the argument has type 'short *'}}
-  // PrintfSpecifier::fixType doesn't handle %n, so a fix-it is not emitted, 
+#else
+  printf("%zn", &x); // expected-warning-re{{format specifies type 'ssize_t *' (aka '{{.+}}') but the argument has type 'short *'}}
+  // expected-warning@-1 {{'%n' specifier not supported on this platform}}
+#endif // !defined(__ANDROID__) && !defined(__Fuchsia__)
+  // PrintfSpecifier::fixType doesn't handle %n, so a fix-it is not emitted,
   // see the comment in PrintfSpecifier::fixType in PrintfFormatString.cpp.
 }
 
@@ -251,7 +260,7 @@ typedef __PTRDIFF_TYPE__ ptrdiff_t;
                       short : (unsigned short)0,                               \
                       signed char : (unsigned char)0))
 
-void testPtrDiffTypes() {
+void testPtrDiffTypes(void) {
   __UNSIGNED_PTRDIFF_TYPE__ p1 = 0;
   printf("%tu", p1);  // No warning.
 
@@ -265,15 +274,24 @@ void testPtrDiffTypes() {
   // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:11-[[@LINE-1]]:14}:"%f"
 
   ptrdiff_t p3 = 0;
+#if !defined(__ANDROID__) && !defined(__Fuchsia__)
   printf("%tn", &p3); // No warning.
+#else
+  printf("%tn", &p3); // expected-warning{{'%n' specifier not supported on this platform}}
+#endif // !defined(__ANDROID__) && !defined(__Fuchsia__)
 
   short x;
+#if !defined(__ANDROID__) && !defined(__Fuchsia__)
   printf("%tn", &x); // expected-warning-re{{format specifies type 'ptrdiff_t *' (aka '{{.+}}') but the argument has type 'short *'}}
   // PrintfSpecifier::fixType doesn't handle %n, so a fix-it is not emitted,
   // see the comment in PrintfSpecifier::fixType in PrintfFormatString.cpp.
+#else
+  printf("%tn", &x); // expected-warning-re{{format specifies type 'ptrdiff_t *' (aka '{{.+}}') but the argument has type 'short *'}}
+  // expected-warning@-1 {{'%n' specifier not supported on this platform}}
+#endif // !defined(__ANDROID__) && !defined(__Fuchsia__)
 }
 
-void testEnum() {
+void testEnum(void) {
   typedef enum {
     ImplicitA = 1,
     ImplicitB = 2

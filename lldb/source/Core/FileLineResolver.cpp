@@ -1,4 +1,4 @@
-//===-- FileLineResolver.cpp ------------------------------------*- C++ -*-===//
+//===-- FileLineResolver.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,15 +29,15 @@ FileLineResolver::FileLineResolver(const FileSpec &file_spec, uint32_t line_no,
     : Searcher(), m_file_spec(file_spec), m_line_number(line_no),
       m_inlines(check_inlines) {}
 
-FileLineResolver::~FileLineResolver() {}
+FileLineResolver::~FileLineResolver() = default;
 
 Searcher::CallbackReturn
 FileLineResolver::SearchCallback(SearchFilter &filter, SymbolContext &context,
-                                 Address *addr, bool containing) {
+                                 Address *addr) {
   CompileUnit *cu = context.comp_unit;
 
-  if (m_inlines ||
-      m_file_spec.Compare(*cu, m_file_spec, (bool)m_file_spec.GetDirectory())) {
+  if (m_inlines || m_file_spec.Compare(cu->GetPrimaryFile(), m_file_spec,
+                                       (bool)m_file_spec.GetDirectory())) {
     uint32_t start_file_idx = 0;
     uint32_t file_idx =
         cu->GetSupportFiles().FindFileIndex(start_file_idx, m_file_spec, false);

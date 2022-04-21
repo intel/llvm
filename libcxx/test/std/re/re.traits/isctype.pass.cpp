@@ -6,14 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+// XFAIL: LIBCXX-AIX-FIXME
+
 // <regex>
 
 // template <class charT> struct regex_traits;
 
 // bool isctype(charT c, char_class_type f) const;
-
-// TODO(EricWF): This test takes 40+ minutes to build with Clang 3.8 under ASAN or MSAN.
-// UNSUPPORTED: asan, msan
 
 
 #include <regex>
@@ -151,6 +150,8 @@ int main(int, char**)
         assert(!t.isctype('-', t.lookup_classname(s.begin(), s.end())));
         assert(!t.isctype('@', t.lookup_classname(s.begin(), s.end())));
     }
+
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::regex_traits<wchar_t> t;
 
@@ -280,6 +281,7 @@ int main(int, char**)
         assert(!t.isctype(L'-', t.lookup_classname(s.begin(), s.end())));
         assert(!t.isctype(L'@', t.lookup_classname(s.begin(), s.end())));
     }
+#endif // TEST_HAS_NO_WIDE_CHARACTERS
 
   return 0;
 }

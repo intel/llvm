@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: dylib-has-no-bad_any_cast && !libcpp-no-exceptions
+// Throwing bad_any_cast is supported starting in macosx10.13
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}} && !no-exceptions
 
 // <any>
 
@@ -25,11 +26,8 @@
 #include <cassert>
 
 #include "any_helpers.h"
-#include "count_new.hpp"
+#include "count_new.h"
 #include "test_macros.h"
-
-using std::any;
-using std::any_cast;
 
 template <class Type>
 void test_copy_value_throws()
@@ -37,12 +35,12 @@ void test_copy_value_throws()
 #if !defined(TEST_HAS_NO_EXCEPTIONS)
     assert(Type::count == 0);
     {
-        Type const t(42);
+        const Type t(42);
         assert(Type::count == 1);
         try {
-            any const a2(t);
+            std::any a2 = t;
             assert(false);
-        } catch (my_any_exception const &) {
+        } catch (const my_any_exception&) {
             // do nothing
         } catch (...) {
             assert(false);
@@ -62,9 +60,9 @@ void test_move_value_throws()
         throws_on_move v;
         assert(throws_on_move::count == 1);
         try {
-            any const a(std::move(v));
+            std::any a = std::move(v);
             assert(false);
-        } catch (my_any_exception const &) {
+        } catch (const my_any_exception&) {
             // do nothing
         } catch (...) {
             assert(false);
@@ -85,7 +83,7 @@ void test_copy_move_value() {
         Type t(42);
         assert(Type::count == 1);
 
-        any a(t);
+        std::any a = t;
 
         assert(Type::count == 2);
         assert(Type::copied == 1);
@@ -98,7 +96,7 @@ void test_copy_move_value() {
         Type t(42);
         assert(Type::count == 1);
 
-        any a(std::move(t));
+        std::any a = std::move(t);
 
         assert(Type::count == 2);
         assert(Type::copied == 0);

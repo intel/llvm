@@ -1,5 +1,7 @@
 #include <clc/clc.h>
-#include "../clcmacro.h"
+#include <spirv/spirv.h>
+
+#include <clcmacro.h>
 
 /*
  *log(x) = log2(x) * (1/log2(e))
@@ -7,7 +9,7 @@
 
 _CLC_OVERLOAD _CLC_DEF float log(float x)
 {
-    return log2(x) * (1.0f / M_LOG2E_F);
+    return __spirv_ocl_log(x);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, log, float);
@@ -18,7 +20,7 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, log, float);
 
 _CLC_OVERLOAD _CLC_DEF double log(double x)
 {
-    return log2(x) * (1.0 / M_LOG2E);
+    return __spirv_ocl_log(x);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, log, double);

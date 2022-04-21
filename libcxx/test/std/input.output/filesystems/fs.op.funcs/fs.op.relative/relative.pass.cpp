@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,16 +14,16 @@
 // path proximate(const path& p, const path& base = current_path())
 // path proximate(const path& p, const path& base, error_code& ec);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <string>
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "count_new.hpp"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 
 TEST_SUITE(filesystem_proximate_path_test_suite)
@@ -31,87 +31,109 @@ TEST_SUITE(filesystem_proximate_path_test_suite)
 TEST_CASE(test_signature_0) {
   fs::path p("");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(fs::current_path()));
+  TEST_CHECK(output == fs::path::string_type(fs::current_path()));
 }
 
 TEST_CASE(test_signature_1) {
   fs::path p(".");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(fs::current_path()));
+  TEST_CHECK(output == fs::path::string_type(fs::current_path()));
 }
 
 TEST_CASE(test_signature_2) {
-  fs::path p(StaticEnv::File);
+  static_test_env static_env;
+  fs::path p(static_env.File);
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::File));
+  TEST_CHECK(output == fs::path::string_type(static_env.File));
 }
 
 TEST_CASE(test_signature_3) {
-  fs::path p(StaticEnv::Dir);
+  static_test_env static_env;
+  fs::path p(static_env.Dir);
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir));
 }
 
 TEST_CASE(test_signature_4) {
-  fs::path p(StaticEnv::SymlinkToDir);
+  static_test_env static_env;
+  fs::path p(static_env.SymlinkToDir);
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir));
 }
 
 TEST_CASE(test_signature_5) {
-  fs::path p(StaticEnv::SymlinkToDir / "dir2/.");
+  static_test_env static_env;
+  fs::path p(static_env.SymlinkToDir / "dir2/.");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir / "dir2"));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir / "dir2"));
 }
 
 TEST_CASE(test_signature_6) {
+  static_test_env static_env;
   // FIXME? If the trailing separator occurs in a part of the path that exists,
-  // it is ommitted. Otherwise it is added to the end of the result.
-  fs::path p(StaticEnv::SymlinkToDir / "dir2/./");
+  // it is omitted. Otherwise it is added to the end of the result.
+  fs::path p(static_env.SymlinkToDir / "dir2/./");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir / "dir2"));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir / "dir2"));
 }
 
 TEST_CASE(test_signature_7) {
-  fs::path p(StaticEnv::SymlinkToDir / "dir2/DNE/./");
+  static_test_env static_env;
+  fs::path p(static_env.SymlinkToDir / "dir2/DNE/./");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir / "dir2/DNE/"));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir / "dir2/DNE/"));
 }
 
 TEST_CASE(test_signature_8) {
-  fs::path p(StaticEnv::SymlinkToDir / "dir2");
+  static_test_env static_env;
+  fs::path p(static_env.SymlinkToDir / "dir2");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir2));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir2));
 }
 
 TEST_CASE(test_signature_9) {
-  fs::path p(StaticEnv::SymlinkToDir / "dir2/../dir2/DNE/..");
+  static_test_env static_env;
+  fs::path p(static_env.SymlinkToDir / "dir2/../dir2/DNE/..");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir2 / ""));
+  // weakly_canonical has a quirk - if the path is considered to exist,
+  // it's returned without a trailing slash, otherwise it's returned with
+  // one (see a note in fs.op.weakly_canonical/weakly_canonical.pass.cpp).
+  // On Windows, a path like existent/nonexistentsubdir/.. is considered
+  // to exist, on posix it's considered to not exist. Therefore, the
+  // result here differs in the trailing slash.
+#ifdef _WIN32
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir2));
+#else
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir2 / ""));
+#endif
 }
 
 TEST_CASE(test_signature_10) {
-  fs::path p(StaticEnv::SymlinkToDir / "dir2/dir3/../DNE/DNE2");
+  static_test_env static_env;
+  fs::path p(static_env.SymlinkToDir / "dir2/dir3/../DNE/DNE2");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir2 / "DNE/DNE2"));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir2 / "DNE/DNE2"));
 }
 
 TEST_CASE(test_signature_11) {
-  fs::path p(StaticEnv::Dir / "../dir1");
+  static_test_env static_env;
+  fs::path p(static_env.Dir / "../dir1");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir));
 }
 
 TEST_CASE(test_signature_12) {
-  fs::path p(StaticEnv::Dir / "./.");
+  static_test_env static_env;
+  fs::path p(static_env.Dir / "./.");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir));
 }
 
 TEST_CASE(test_signature_13) {
-  fs::path p(StaticEnv::Dir / "DNE/../foo");
+  static_test_env static_env;
+  fs::path p(static_env.Dir / "DNE/../foo");
   const fs::path output = fs::weakly_canonical(p);
-  TEST_CHECK(output == std::string(StaticEnv::Dir / "foo"));
+  TEST_CHECK(output == fs::path::string_type(static_env.Dir / "foo"));
 }
 
 TEST_SUITE_END()

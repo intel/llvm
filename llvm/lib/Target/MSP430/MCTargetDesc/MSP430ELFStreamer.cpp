@@ -12,13 +12,16 @@
 
 #include "MSP430MCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFStreamer.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/Support/MSP430Attributes.h"
 
 using namespace llvm;
+using namespace llvm::MSP430Attrs;
 
 namespace llvm {
 
@@ -43,26 +46,25 @@ MSP430TargetELFStreamer::MSP430TargetELFStreamer(MCStreamer &S,
   Streamer.SwitchSection(AttributeSection);
 
   // Format version.
-  Streamer.EmitIntValue(0x41, 1);
+  Streamer.emitInt8(0x41);
   // Subsection length.
-  Streamer.EmitIntValue(22, 4);
+  Streamer.emitInt32(22);
   // Vendor name string, zero-terminated.
-  Streamer.EmitBytes("mspabi");
-  Streamer.EmitIntValue(0, 1);
+  Streamer.emitBytes("mspabi");
+  Streamer.emitInt8(0);
 
   // Attribute vector scope tag. 1 stands for the entire file.
-  Streamer.EmitIntValue(1, 1);
+  Streamer.emitInt8(1);
   // Attribute vector length.
-  Streamer.EmitIntValue(11, 4);
-  // OFBA_MSPABI_Tag_ISA(4) = 1, MSP430
-  Streamer.EmitIntValue(4, 1);
-  Streamer.EmitIntValue(1, 1);
-  // OFBA_MSPABI_Tag_Code_Model(6) = 1, Small
-  Streamer.EmitIntValue(6, 1);
-  Streamer.EmitIntValue(1, 1);
-  // OFBA_MSPABI_Tag_Data_Model(8) = 1, Small
-  Streamer.EmitIntValue(8, 1);
-  Streamer.EmitIntValue(1, 1);
+  Streamer.emitInt32(11);
+
+  Streamer.emitInt8(TagISA);
+  Streamer.emitInt8(STI.hasFeature(MSP430::FeatureX) ? ISAMSP430X : ISAMSP430);
+  Streamer.emitInt8(TagCodeModel);
+  Streamer.emitInt8(CMSmall);
+  Streamer.emitInt8(TagDataModel);
+  Streamer.emitInt8(DMSmall);
+  // Don't emit TagEnumSize, for full GCC compatibility.
 }
 
 MCELFStreamer &MSP430TargetELFStreamer::getStreamer() {

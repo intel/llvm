@@ -11,7 +11,5 @@ executable("clangd-indexer") {
     "//llvm/lib/Support",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "IndexerMain.cpp",
-  ]
+  sources = [ "IndexerMain.cpp" ]
 }

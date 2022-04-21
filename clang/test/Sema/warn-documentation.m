@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsyntax-only -fblocks -Wno-objc-root-class -Wdocumentation -Wdocumentation-pedantic -verify %s
+// RUN: %clang_cc1 -xobjective-c++ -fsyntax-only -fblocks -Wno-objc-root-class -Wdocumentation -Wdocumentation-pedantic -verify %s
 
 @class NSString;
 
@@ -175,7 +176,7 @@ struct S;
 
 // expected-warning@+1 {{unknown command tag name}}
 /// \t bbb IS_DOXYGEN_END
-int FooBar();
+int FooBar(void);
 
 // rdar://13836387
 /** \brief Module handling the incoming notifications from the system.
@@ -247,6 +248,7 @@ struct HasFields {
   int (^blockPointerFields)(int i);
 };
 
+// expected-warning@+5 {{parameter 'p' not found in the function declaration}}
 // expected-warning@+5 {{'\returns' command used in a comment that is attached to a function returning void}}
 /**
  * functionPointerVariable
@@ -254,7 +256,7 @@ struct HasFields {
  * \param p not here.
  * \returns integer.
  */
-void (^_Nullable blockPointerVariableThatLeadsNowhere)();
+void (^_Nullable blockPointerVariableThatLeadsNowhere)(void);
 
 @interface CheckFunctionBlockPointerVars {
   /**
@@ -296,7 +298,7 @@ void (^_Nullable blockPointerVariableThatLeadsNowhere)();
  * \returns Nothing, but can allow this as this pattern is used to document the
  * value that the property getter returns.
  */
-@property void (^blockReturnsNothing)();
+@property void (^blockReturnsNothing)(void);
 
 @end
 
@@ -310,3 +312,18 @@ void (^_Nullable blockPointerVariableThatLeadsNowhere)();
  * now should work too.
  */
 typedef void (^VariadicBlockType)(int a, ...);
+
+// PR42844 - Assertion failures when using typedefed block pointers
+typedef void(^VoidBlockType)(void);
+typedef VoidBlockType VoidBlockTypeCall(void);
+VoidBlockTypeCall *d; ///< \return none
+// expected-warning@-1 {{'\return' command used in a comment that is not attached to a function or method declaration}}
+VoidBlockTypeCall ^e; ///< \return none
+// expected-warning@-1 {{'\return' command used in a comment that is not attached to a function or method declaration}}
+
+#ifdef __cplusplus
+@interface HasAnonNamespace @end
+@implementation HasAnonNamespace
+namespace {}
+@end
+#endif

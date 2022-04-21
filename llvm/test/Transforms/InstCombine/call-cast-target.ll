@@ -1,4 +1,4 @@
-; RUN: opt < %s -instcombine -S | FileCheck %s
+; RUN: opt < %s -passes=instcombine -S | FileCheck %s
 
 target datalayout = "e-p:32:32"
 target triple = "i686-pc-linux-gnu"
@@ -73,7 +73,7 @@ entry:
   ret i32 %call
 }
 
-declare i1 @fn5({ i32, i32 }* byval align 4 %r)
+declare i1 @fn5({ i32, i32 }* byval({ i32, i32 }) align 4 %r)
 
 define i1 @test5() {
 ; CHECK-LABEL: @test5

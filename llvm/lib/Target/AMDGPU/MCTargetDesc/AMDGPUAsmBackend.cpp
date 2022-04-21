@@ -9,16 +9,17 @@
 
 #include "MCTargetDesc/AMDGPUFixupKinds.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "llvm/ADT/StringRef.h"
+#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
-#include "llvm/MC/MCValue.h"
-#include "llvm/Support/TargetRegistry.h"
-#include "Utils/AMDGPUBaseInfo.h"
+#include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/EndianStream.h"
+#include "llvm/Support/TargetParser.h"
 
 using namespace llvm;
 using namespace llvm::AMDGPU;
@@ -37,25 +38,52 @@ public:
                   const MCSubtargetInfo *STI) const override;
   bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
                             const MCRelaxableFragment *DF,
-                            const MCAsmLayout &Layout) const override {
-    return false;
-  }
-  void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
-                        MCInst &Res) const override {
-    llvm_unreachable("Not implemented");
-  }
+                            const MCAsmLayout &Layout) const override;
+
+  void relaxInstruction(MCInst &Inst,
+                        const MCSubtargetInfo &STI) const override;
+
   bool mayNeedRelaxation(const MCInst &Inst,
-                         const MCSubtargetInfo &STI) const override {
-    return false;
-  }
+                         const MCSubtargetInfo &STI) const override;
 
   unsigned getMinimumNopSize() const override;
-  bool writeNopData(raw_ostream &OS, uint64_t Count) const override;
+  bool writeNopData(raw_ostream &OS, uint64_t Count,
+                    const MCSubtargetInfo *STI) const override;
 
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
 };
 
 } //End anonymous namespace
+
+void AMDGPUAsmBackend::relaxInstruction(MCInst &Inst,
+                                        const MCSubtargetInfo &STI) const {
+  MCInst Res;
+  unsigned RelaxedOpcode = AMDGPU::getSOPPWithRelaxation(Inst.getOpcode());
+  Res.setOpcode(RelaxedOpcode);
+  Res.addOperand(Inst.getOperand(0));
+  Inst = std::move(Res);
+}
+
+bool AMDGPUAsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
+                                            uint64_t Value,
+                                            const MCRelaxableFragment *DF,
+                                            const MCAsmLayout &Layout) const {
+  // if the branch target has an offset of x3f this needs to be relaxed to
+  // add a s_nop 0 immediately after branch to effectively increment offset
+  // for hardware workaround in gfx1010
+  return (((int64_t(Value)/4)-1) == 0x3f);
+}
+
+bool AMDGPUAsmBackend::mayNeedRelaxation(const MCInst &Inst,
+                       const MCSubtargetInfo &STI) const {
+  if (!STI.getFeatureBits()[AMDGPU::FeatureOffset3fBug])
+    return false;
+
+  if (AMDGPU::getSOPPWithRelaxation(Inst.getOpcode()) >= 0)
+    return true;
+
+  return false;
+}
 
 static unsigned getFixupKindNumBytes(unsigned Kind) {
   switch (Kind) {
@@ -83,7 +111,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
                                  MCContext *Ctx) {
   int64_t SignedValue = static_cast<int64_t>(Value);
 
-  switch (static_cast<unsigned>(Fixup.getKind())) {
+  switch (Fixup.getTargetKind()) {
   case AMDGPU::fixup_si_sopp_br: {
     int64_t BrImm = (SignedValue - 4) / 4;
 
@@ -145,7 +173,8 @@ unsigned AMDGPUAsmBackend::getMinimumNopSize() const {
   return 4;
 }
 
-bool AMDGPUAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
+bool AMDGPUAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
+                                    const MCSubtargetInfo *STI) const {
   // If the count is not 4-byte aligned, we must be writing data into the text
   // section (otherwise we have unaligned instructions, and thus have far
   // bigger problems), so just write zeros instead.
@@ -209,7 +238,6 @@ MCAsmBackend *llvm::createAMDGPUAsmBackend(const Target &T,
                                            const MCSubtargetInfo &STI,
                                            const MCRegisterInfo &MRI,
                                            const MCTargetOptions &Options) {
-  // Use 64-bit ELF for amdgcn
   return new ELFAMDGPUAsmBackend(T, STI.getTargetTriple(),
-                                 IsaInfo::hasCodeObjectV3(&STI) ? 1 : 0);
+                                 getHsaAbiVersion(&STI).getValueOr(0));
 }

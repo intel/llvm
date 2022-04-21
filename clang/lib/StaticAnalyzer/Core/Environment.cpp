@@ -15,9 +15,11 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtObjC.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
+#include "clang/Basic/JsonSupport.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SValBuilder.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
@@ -84,6 +86,12 @@ SVal Environment::lookupExpr(const EnvironmentEntry &E) const {
 SVal Environment::getSVal(const EnvironmentEntry &Entry,
                           SValBuilder& svalBuilder) const {
   const Stmt *S = Entry.getStmt();
+  assert(!isa<ObjCForCollectionStmt>(S) &&
+         "Use ExprEngine::hasMoreIteration()!");
+  assert((isa<Expr, ReturnStmt>(S)) &&
+         "Environment can only argue about Exprs, since only they express "
+         "a value! Any non-expression statement stored in Environment is a "
+         "result of a hack!");
   const LocationContext *LCtx = Entry.getLocationContext();
 
   switch (S->getStmtClass()) {
@@ -107,6 +115,8 @@ SVal Environment::getSVal(const EnvironmentEntry &Entry,
   case Stmt::ObjCStringLiteralClass:
   case Stmt::StringLiteralClass:
   case Stmt::TypeTraitExprClass:
+  case Stmt::SizeOfPackExprClass:
+  case Stmt::PredefinedExprClass:
     // Known constants; defer to SValBuilder.
     return svalBuilder.getConstantVal(cast<Expr>(S)).getValue();
 
@@ -181,12 +191,15 @@ EnvironmentManager::removeDeadBindings(Environment Env,
              F.getTreeFactory());
 
   // Iterate over the block-expr bindings.
-  for (Environment::iterator I = Env.begin(), E = Env.end();
-       I != E; ++I) {
+  for (Environment::iterator I = Env.begin(), End = Env.end(); I != End; ++I) {
     const EnvironmentEntry &BlkExpr = I.getKey();
     const SVal &X = I.getData();
 
-    if (SymReaper.isLive(BlkExpr.getStmt(), BlkExpr.getLocationContext())) {
+    const Expr *E = dyn_cast<Expr>(BlkExpr.getStmt());
+    if (!E)
+      continue;
+
+    if (SymReaper.isLive(E, BlkExpr.getLocationContext())) {
       // Copy the binding to the new map.
       EBMapRef = EBMapRef.add(BlkExpr, X);
 
@@ -199,43 +212,86 @@ EnvironmentManager::removeDeadBindings(Environment Env,
   return NewEnv;
 }
 
-void Environment::print(raw_ostream &Out, const char *NL,
-                        const char *Sep,
-                        const ASTContext &Context,
-                        const LocationContext *WithLC) const {
-  if (ExprBindings.isEmpty())
-    return;
+void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
+                            const LocationContext *LCtx, const char *NL,
+                            unsigned int Space, bool IsDot) const {
+  Indent(Out, Space, IsDot) << "\"environment\": ";
 
-  if (!WithLC) {
+  if (ExprBindings.isEmpty()) {
+    Out << "null," << NL;
+    return;
+  }
+
+  ++Space;
+  if (!LCtx) {
     // Find the freshest location context.
     llvm::SmallPtrSet<const LocationContext *, 16> FoundContexts;
-    for (auto I : *this) {
+    for (const auto &I : *this) {
       const LocationContext *LC = I.first.getLocationContext();
       if (FoundContexts.count(LC) == 0) {
         // This context is fresher than all other contexts so far.
-        WithLC = LC;
+        LCtx = LC;
         for (const LocationContext *LCI = LC; LCI; LCI = LCI->getParent())
           FoundContexts.insert(LCI);
       }
     }
   }
 
-  assert(WithLC);
+  assert(LCtx);
 
-  PrintingPolicy PP = Context.getPrintingPolicy();
+  Out << "{ \"pointer\": \"" << (const void *)LCtx->getStackFrame()
+      << "\", \"items\": [" << NL;
+  PrintingPolicy PP = Ctx.getPrintingPolicy();
 
-  Out << NL << "Expressions by stack frame:" << NL;
-  WithLC->dumpStack(Out, "", NL, Sep, [&](const LocationContext *LC) {
-    for (auto I : ExprBindings) {
-      if (I.first.getLocationContext() != LC)
+  LCtx->printJson(Out, NL, Space, IsDot, [&](const LocationContext *LC) {
+    // LCtx items begin
+    bool HasItem = false;
+    unsigned int InnerSpace = Space + 1;
+
+    // Store the last ExprBinding which we will print.
+    BindingsTy::iterator LastI = ExprBindings.end();
+    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
+         ++I) {
+      if (I->first.getLocationContext() != LC)
         continue;
 
-      const Stmt *S = I.first.getStmt();
+      if (!HasItem) {
+        HasItem = true;
+        Out << '[' << NL;
+      }
+
+      const Stmt *S = I->first.getStmt();
+      (void)S;
       assert(S != nullptr && "Expected non-null Stmt");
 
-      Out << "(LC" << LC->getID() << ", S" << S->getID(Context) << ") ";
-      S->printPretty(Out, /*Helper=*/nullptr, PP);
-      Out << " : " << I.second << NL;
+      LastI = I;
     }
+
+    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
+         ++I) {
+      if (I->first.getLocationContext() != LC)
+        continue;
+
+      const Stmt *S = I->first.getStmt();
+      Indent(Out, InnerSpace, IsDot)
+          << "{ \"stmt_id\": " << S->getID(Ctx) << ", \"pretty\": ";
+      S->printJson(Out, nullptr, PP, /*AddQuotes=*/true);
+
+      Out << ", \"value\": ";
+      I->second.printJson(Out, /*AddQuotes=*/true);
+
+      Out << " }";
+
+      if (I != LastI)
+        Out << ',';
+      Out << NL;
+    }
+
+    if (HasItem)
+      Indent(Out, --InnerSpace, IsDot) << ']';
+    else
+      Out << "null ";
   });
+
+  Indent(Out, --Space, IsDot) << "]}," << NL;
 }

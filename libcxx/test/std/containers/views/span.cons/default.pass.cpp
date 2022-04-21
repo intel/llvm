@@ -1,12 +1,11 @@
-// -*- C++ -*-
-//===------------------------------ span ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+//===----------------------------------------------------------------------===//
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
@@ -15,6 +14,7 @@
 #include <span>
 #include <cassert>
 #include <string>
+#include <type_traits>
 
 #include "test_macros.h"
 
@@ -79,5 +79,9 @@ int main(int, char**)
 
     checkCV();
 
-  return 0;
+    static_assert( std::is_default_constructible_v<std::span<int, std::dynamic_extent>>, "");
+    static_assert( std::is_default_constructible_v<std::span<int, 0>>, "");
+    static_assert(!std::is_default_constructible_v<std::span<int, 2>>, "");
+
+    return 0;
 }

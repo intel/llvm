@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <unordered_map>
 
@@ -15,6 +15,7 @@
 // insert_return_type insert(node_type&&);
 
 #include <unordered_map>
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class Container>

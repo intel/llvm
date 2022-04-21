@@ -9,294 +9,57 @@
 #include "Symbols.h"
 #include "Config.h"
 #include "InputChunks.h"
-#include "InputEvent.h"
+#include "InputElement.h"
 #include "InputFiles.h"
-#include "InputGlobal.h"
 #include "OutputSections.h"
 #include "OutputSegment.h"
 #include "lld/Common/ErrorHandler.h"
+#include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
 
 #define DEBUG_TYPE "lld"
 
 using namespace llvm;
+using namespace llvm::object;
 using namespace llvm::wasm;
-using namespace lld;
 using namespace lld::wasm;
 
-DefinedFunction *WasmSym::CallCtors;
-DefinedFunction *WasmSym::ApplyRelocs;
-DefinedData *WasmSym::DsoHandle;
-DefinedData *WasmSym::DataEnd;
-DefinedData *WasmSym::HeapBase;
-GlobalSymbol *WasmSym::StackPointer;
-UndefinedGlobal *WasmSym::TableBase;
-UndefinedGlobal *WasmSym::MemoryBase;
-
-WasmSymbolType Symbol::getWasmType() const {
-  if (isa<FunctionSymbol>(this))
-    return WASM_SYMBOL_TYPE_FUNCTION;
-  if (isa<DataSymbol>(this))
-    return WASM_SYMBOL_TYPE_DATA;
-  if (isa<GlobalSymbol>(this))
-    return WASM_SYMBOL_TYPE_GLOBAL;
-  if (isa<EventSymbol>(this))
-    return WASM_SYMBOL_TYPE_EVENT;
-  if (isa<SectionSymbol>(this) || isa<OutputSectionSymbol>(this))
-    return WASM_SYMBOL_TYPE_SECTION;
-  llvm_unreachable("invalid symbol kind");
+namespace lld {
+std::string toString(const wasm::Symbol &sym) {
+  return maybeDemangleSymbol(sym.getName());
 }
 
-const WasmSignature *Symbol::getSignature() const {
-  if (auto* F = dyn_cast<FunctionSymbol>(this))
-    return F->Signature;
-  if (auto *L = dyn_cast<LazySymbol>(this))
-    return L->Signature;
-  return nullptr;
+std::string maybeDemangleSymbol(StringRef name) {
+  // WebAssembly requires caller and callee signatures to match, so we mangle
+  // `main` in the case where we need to pass it arguments.
+  if (name == "__main_argc_argv")
+    return "main";
+
+  return demangle(name, config->demangle);
 }
 
-InputChunk *Symbol::getChunk() const {
-  if (auto *F = dyn_cast<DefinedFunction>(this))
-    return F->Function;
-  if (auto *D = dyn_cast<DefinedData>(this))
-    return D->Segment;
-  return nullptr;
-}
-
-bool Symbol::isLive() const {
-  if (auto *G = dyn_cast<DefinedGlobal>(this))
-    return G->Global->Live;
-  if (auto *E = dyn_cast<DefinedEvent>(this))
-    return E->Event->Live;
-  if (InputChunk *C = getChunk())
-    return C->Live;
-  return Referenced;
-}
-
-void Symbol::markLive() {
-  if (auto *G = dyn_cast<DefinedGlobal>(this))
-    G->Global->Live = true;
-  if (auto *E = dyn_cast<DefinedEvent>(this))
-    E->Event->Live = true;
-  if (InputChunk *C = getChunk())
-    C->Live = true;
-  Referenced = true;
-}
-
-uint32_t Symbol::getOutputSymbolIndex() const {
-  assert(OutputSymbolIndex != INVALID_INDEX);
-  return OutputSymbolIndex;
-}
-
-void Symbol::setOutputSymbolIndex(uint32_t Index) {
-  LLVM_DEBUG(dbgs() << "setOutputSymbolIndex " << Name << " -> " << Index
-                    << "\n");
-  assert(OutputSymbolIndex == INVALID_INDEX);
-  OutputSymbolIndex = Index;
-}
-
-void Symbol::setGOTIndex(uint32_t Index) {
-  LLVM_DEBUG(dbgs() << "setGOTIndex " << Name << " -> " << Index << "\n");
-  assert(GOTIndex == INVALID_INDEX);
-  // Any symbol that is assigned a GOT entry must be exported othewise the
-  // dynamic linker won't be able create the entry that contains it.
-  ForceExport = true;
-  GOTIndex = Index;
-}
-
-bool Symbol::isWeak() const {
-  return (Flags & WASM_SYMBOL_BINDING_MASK) == WASM_SYMBOL_BINDING_WEAK;
-}
-
-bool Symbol::isLocal() const {
-  return (Flags & WASM_SYMBOL_BINDING_MASK) == WASM_SYMBOL_BINDING_LOCAL;
-}
-
-bool Symbol::isHidden() const {
-  return (Flags & WASM_SYMBOL_VISIBILITY_MASK) == WASM_SYMBOL_VISIBILITY_HIDDEN;
-}
-
-void Symbol::setHidden(bool IsHidden) {
-  LLVM_DEBUG(dbgs() << "setHidden: " << Name << " -> " << IsHidden << "\n");
-  Flags &= ~WASM_SYMBOL_VISIBILITY_MASK;
-  if (IsHidden)
-    Flags |= WASM_SYMBOL_VISIBILITY_HIDDEN;
-  else
-    Flags |= WASM_SYMBOL_VISIBILITY_DEFAULT;
-}
-
-bool Symbol::isExported() const {
-  if (!isDefined() || isLocal())
-    return false;
-
-  if (ForceExport || Config->ExportAll)
-    return true;
-
-  if (Config->ExportDynamic && !isHidden())
-    return true;
-
-  return Flags & WASM_SYMBOL_EXPORTED;
-}
-
-uint32_t FunctionSymbol::getFunctionIndex() const {
-  if (auto *F = dyn_cast<DefinedFunction>(this))
-    return F->Function->getFunctionIndex();
-  assert(FunctionIndex != INVALID_INDEX);
-  return FunctionIndex;
-}
-
-void FunctionSymbol::setFunctionIndex(uint32_t Index) {
-  LLVM_DEBUG(dbgs() << "setFunctionIndex " << Name << " -> " << Index << "\n");
-  assert(FunctionIndex == INVALID_INDEX);
-  FunctionIndex = Index;
-}
-
-bool FunctionSymbol::hasFunctionIndex() const {
-  if (auto *F = dyn_cast<DefinedFunction>(this))
-    return F->Function->hasFunctionIndex();
-  return FunctionIndex != INVALID_INDEX;
-}
-
-uint32_t FunctionSymbol::getTableIndex() const {
-  if (auto *F = dyn_cast<DefinedFunction>(this))
-    return F->Function->getTableIndex();
-  assert(TableIndex != INVALID_INDEX);
-  return TableIndex;
-}
-
-bool FunctionSymbol::hasTableIndex() const {
-  if (auto *F = dyn_cast<DefinedFunction>(this))
-    return F->Function->hasTableIndex();
-  return TableIndex != INVALID_INDEX;
-}
-
-void FunctionSymbol::setTableIndex(uint32_t Index) {
-  // For imports, we set the table index here on the Symbol; for defined
-  // functions we set the index on the InputFunction so that we don't export
-  // the same thing twice (keeps the table size down).
-  if (auto *F = dyn_cast<DefinedFunction>(this)) {
-    F->Function->setTableIndex(Index);
-    return;
-  }
-  LLVM_DEBUG(dbgs() << "setTableIndex " << Name << " -> " << Index << "\n");
-  assert(TableIndex == INVALID_INDEX);
-  TableIndex = Index;
-}
-
-DefinedFunction::DefinedFunction(StringRef Name, uint32_t Flags, InputFile *F,
-                                 InputFunction *Function)
-    : FunctionSymbol(Name, DefinedFunctionKind, Flags, F,
-                     Function ? &Function->Signature : nullptr),
-      Function(Function) {}
-
-uint32_t DefinedData::getVirtualAddress() const {
-  LLVM_DEBUG(dbgs() << "getVirtualAddress: " << getName() << "\n");
-  if (Segment)
-    return Segment->OutputSeg->StartVA + Segment->OutputSegmentOffset + Offset;
-  return Offset;
-}
-
-void DefinedData::setVirtualAddress(uint32_t Value) {
-  LLVM_DEBUG(dbgs() << "setVirtualAddress " << Name << " -> " << Value << "\n");
-  assert(!Segment);
-  Offset = Value;
-}
-
-uint32_t DefinedData::getOutputSegmentOffset() const {
-  LLVM_DEBUG(dbgs() << "getOutputSegmentOffset: " << getName() << "\n");
-  return Segment->OutputSegmentOffset + Offset;
-}
-
-uint32_t DefinedData::getOutputSegmentIndex() const {
-  LLVM_DEBUG(dbgs() << "getOutputSegmentIndex: " << getName() << "\n");
-  return Segment->OutputSeg->Index;
-}
-
-uint32_t GlobalSymbol::getGlobalIndex() const {
-  if (auto *F = dyn_cast<DefinedGlobal>(this))
-    return F->Global->getGlobalIndex();
-  assert(GlobalIndex != INVALID_INDEX);
-  return GlobalIndex;
-}
-
-void GlobalSymbol::setGlobalIndex(uint32_t Index) {
-  LLVM_DEBUG(dbgs() << "setGlobalIndex " << Name << " -> " << Index << "\n");
-  assert(GlobalIndex == INVALID_INDEX);
-  GlobalIndex = Index;
-}
-
-bool GlobalSymbol::hasGlobalIndex() const {
-  if (auto *F = dyn_cast<DefinedGlobal>(this))
-    return F->Global->hasGlobalIndex();
-  return GlobalIndex != INVALID_INDEX;
-}
-
-DefinedGlobal::DefinedGlobal(StringRef Name, uint32_t Flags, InputFile *File,
-                             InputGlobal *Global)
-    : GlobalSymbol(Name, DefinedGlobalKind, Flags, File,
-                   Global ? &Global->getType() : nullptr),
-      Global(Global) {}
-
-uint32_t EventSymbol::getEventIndex() const {
-  if (auto *F = dyn_cast<DefinedEvent>(this))
-    return F->Event->getEventIndex();
-  assert(EventIndex != INVALID_INDEX);
-  return EventIndex;
-}
-
-void EventSymbol::setEventIndex(uint32_t Index) {
-  LLVM_DEBUG(dbgs() << "setEventIndex " << Name << " -> " << Index << "\n");
-  assert(EventIndex == INVALID_INDEX);
-  EventIndex = Index;
-}
-
-bool EventSymbol::hasEventIndex() const {
-  if (auto *F = dyn_cast<DefinedEvent>(this))
-    return F->Event->hasEventIndex();
-  return EventIndex != INVALID_INDEX;
-}
-
-DefinedEvent::DefinedEvent(StringRef Name, uint32_t Flags, InputFile *File,
-                           InputEvent *Event)
-    : EventSymbol(Name, DefinedEventKind, Flags, File,
-                  Event ? &Event->getType() : nullptr,
-                  Event ? &Event->Signature : nullptr),
-      Event(Event) {}
-
-const OutputSectionSymbol *SectionSymbol::getOutputSectionSymbol() const {
-  assert(Section->OutputSec && Section->OutputSec->SectionSym);
-  return Section->OutputSec->SectionSym;
-}
-
-void LazySymbol::fetch() { cast<ArchiveFile>(File)->addMember(&ArchiveSymbol); }
-
-std::string lld::toString(const wasm::Symbol &Sym) {
-  return lld::maybeDemangleSymbol(Sym.getName());
-}
-
-std::string lld::maybeDemangleSymbol(StringRef Name) {
-  if (Config->Demangle)
-    if (Optional<std::string> S = demangleItanium(Name))
-      return *S;
-  return Name;
-}
-
-std::string lld::toString(wasm::Symbol::Kind Kind) {
-  switch (Kind) {
+std::string toString(wasm::Symbol::Kind kind) {
+  switch (kind) {
   case wasm::Symbol::DefinedFunctionKind:
     return "DefinedFunction";
   case wasm::Symbol::DefinedDataKind:
     return "DefinedData";
   case wasm::Symbol::DefinedGlobalKind:
     return "DefinedGlobal";
-  case wasm::Symbol::DefinedEventKind:
-    return "DefinedEvent";
+  case wasm::Symbol::DefinedTableKind:
+    return "DefinedTable";
+  case wasm::Symbol::DefinedTagKind:
+    return "DefinedTag";
   case wasm::Symbol::UndefinedFunctionKind:
     return "UndefinedFunction";
   case wasm::Symbol::UndefinedDataKind:
     return "UndefinedData";
   case wasm::Symbol::UndefinedGlobalKind:
     return "UndefinedGlobal";
+  case wasm::Symbol::UndefinedTableKind:
+    return "UndefinedTable";
+  case wasm::Symbol::UndefinedTagKind:
+    return "UndefinedTag";
   case wasm::Symbol::LazyKind:
     return "LazyKind";
   case wasm::Symbol::SectionKind:
@@ -307,18 +70,389 @@ std::string lld::toString(wasm::Symbol::Kind Kind) {
   llvm_unreachable("invalid symbol kind");
 }
 
-// Print out a log message for --trace-symbol.
-void lld::wasm::printTraceSymbol(Symbol *Sym) {
-  std::string S;
-  if (Sym->isUndefined())
-    S = ": reference to ";
-  else if (Sym->isLazy())
-    S = ": lazy definition of ";
-  else
-    S = ": definition of ";
+namespace wasm {
+DefinedFunction *WasmSym::callCtors;
+DefinedFunction *WasmSym::callDtors;
+DefinedFunction *WasmSym::initMemory;
+DefinedFunction *WasmSym::applyDataRelocs;
+DefinedFunction *WasmSym::applyGlobalRelocs;
+DefinedFunction *WasmSym::applyGlobalTLSRelocs;
+DefinedFunction *WasmSym::initTLS;
+DefinedFunction *WasmSym::startFunction;
+DefinedData *WasmSym::dsoHandle;
+DefinedData *WasmSym::dataEnd;
+DefinedData *WasmSym::globalBase;
+DefinedData *WasmSym::heapBase;
+DefinedData *WasmSym::initMemoryFlag;
+GlobalSymbol *WasmSym::stackPointer;
+GlobalSymbol *WasmSym::tlsBase;
+GlobalSymbol *WasmSym::tlsSize;
+GlobalSymbol *WasmSym::tlsAlign;
+UndefinedGlobal *WasmSym::tableBase;
+DefinedData *WasmSym::definedTableBase;
+UndefinedGlobal *WasmSym::tableBase32;
+DefinedData *WasmSym::definedTableBase32;
+UndefinedGlobal *WasmSym::memoryBase;
+DefinedData *WasmSym::definedMemoryBase;
+TableSymbol *WasmSym::indirectFunctionTable;
 
-  message(toString(Sym->getFile()) + S + Sym->getName());
+WasmSymbolType Symbol::getWasmType() const {
+  if (isa<FunctionSymbol>(this))
+    return WASM_SYMBOL_TYPE_FUNCTION;
+  if (isa<DataSymbol>(this))
+    return WASM_SYMBOL_TYPE_DATA;
+  if (isa<GlobalSymbol>(this))
+    return WASM_SYMBOL_TYPE_GLOBAL;
+  if (isa<TagSymbol>(this))
+    return WASM_SYMBOL_TYPE_TAG;
+  if (isa<TableSymbol>(this))
+    return WASM_SYMBOL_TYPE_TABLE;
+  if (isa<SectionSymbol>(this) || isa<OutputSectionSymbol>(this))
+    return WASM_SYMBOL_TYPE_SECTION;
+  llvm_unreachable("invalid symbol kind");
 }
 
-const char *lld::wasm::DefaultModule = "env";
-const char *lld::wasm::FunctionTableName = "__indirect_function_table";
+const WasmSignature *Symbol::getSignature() const {
+  if (auto* f = dyn_cast<FunctionSymbol>(this))
+    return f->signature;
+  if (auto *t = dyn_cast<TagSymbol>(this))
+    return t->signature;
+  if (auto *l = dyn_cast<LazySymbol>(this))
+    return l->signature;
+  return nullptr;
+}
+
+InputChunk *Symbol::getChunk() const {
+  if (auto *f = dyn_cast<DefinedFunction>(this))
+    return f->function;
+  if (auto *f = dyn_cast<UndefinedFunction>(this))
+    if (f->stubFunction)
+      return f->stubFunction->function;
+  if (auto *d = dyn_cast<DefinedData>(this))
+    return d->segment;
+  return nullptr;
+}
+
+bool Symbol::isDiscarded() const {
+  if (InputChunk *c = getChunk())
+    return c->discarded;
+  return false;
+}
+
+bool Symbol::isLive() const {
+  if (auto *g = dyn_cast<DefinedGlobal>(this))
+    return g->global->live;
+  if (auto *t = dyn_cast<DefinedTag>(this))
+    return t->tag->live;
+  if (auto *t = dyn_cast<DefinedTable>(this))
+    return t->table->live;
+  if (InputChunk *c = getChunk())
+    return c->live;
+  return referenced;
+}
+
+void Symbol::markLive() {
+  assert(!isDiscarded());
+  referenced = true;
+  if (file != nullptr && isDefined())
+    file->markLive();
+  if (auto *g = dyn_cast<DefinedGlobal>(this))
+    g->global->live = true;
+  if (auto *t = dyn_cast<DefinedTag>(this))
+    t->tag->live = true;
+  if (auto *t = dyn_cast<DefinedTable>(this))
+    t->table->live = true;
+  if (InputChunk *c = getChunk()) {
+    // Usually, a whole chunk is marked as live or dead, but in mergeable
+    // (splittable) sections, each piece of data has independent liveness bit.
+    // So we explicitly tell it which offset is in use.
+    if (auto *d = dyn_cast<DefinedData>(this)) {
+      if (auto *ms = dyn_cast<MergeInputChunk>(c)) {
+        ms->getSectionPiece(d->value)->live = true;
+      }
+    }
+    c->live = true;
+  }
+}
+
+uint32_t Symbol::getOutputSymbolIndex() const {
+  assert(outputSymbolIndex != INVALID_INDEX);
+  return outputSymbolIndex;
+}
+
+void Symbol::setOutputSymbolIndex(uint32_t index) {
+  LLVM_DEBUG(dbgs() << "setOutputSymbolIndex " << name << " -> " << index
+                    << "\n");
+  assert(outputSymbolIndex == INVALID_INDEX);
+  outputSymbolIndex = index;
+}
+
+void Symbol::setGOTIndex(uint32_t index) {
+  LLVM_DEBUG(dbgs() << "setGOTIndex " << name << " -> " << index << "\n");
+  assert(gotIndex == INVALID_INDEX);
+  gotIndex = index;
+}
+
+bool Symbol::isWeak() const {
+  return (flags & WASM_SYMBOL_BINDING_MASK) == WASM_SYMBOL_BINDING_WEAK;
+}
+
+bool Symbol::isLocal() const {
+  return (flags & WASM_SYMBOL_BINDING_MASK) == WASM_SYMBOL_BINDING_LOCAL;
+}
+
+bool Symbol::isHidden() const {
+  return (flags & WASM_SYMBOL_VISIBILITY_MASK) == WASM_SYMBOL_VISIBILITY_HIDDEN;
+}
+
+bool Symbol::isTLS() const { return flags & WASM_SYMBOL_TLS; }
+
+void Symbol::setHidden(bool isHidden) {
+  LLVM_DEBUG(dbgs() << "setHidden: " << name << " -> " << isHidden << "\n");
+  flags &= ~WASM_SYMBOL_VISIBILITY_MASK;
+  if (isHidden)
+    flags |= WASM_SYMBOL_VISIBILITY_HIDDEN;
+  else
+    flags |= WASM_SYMBOL_VISIBILITY_DEFAULT;
+}
+
+bool Symbol::isExported() const {
+  // Shared libraries must export all weakly defined symbols
+  // in case they contain the version that will be chosen by
+  // the dynamic linker.
+  if (config->shared && isLive() && isDefined() && isWeak())
+    return true;
+
+  if (!isDefined() || isLocal())
+    return false;
+
+  if (config->exportAll || (config->exportDynamic && !isHidden()))
+    return true;
+
+  return isExportedExplicit();
+}
+
+bool Symbol::isExportedExplicit() const {
+  return forceExport || flags & WASM_SYMBOL_EXPORTED;
+}
+
+bool Symbol::isNoStrip() const {
+  return flags & WASM_SYMBOL_NO_STRIP;
+}
+
+uint32_t FunctionSymbol::getFunctionIndex() const {
+  if (const auto *u = dyn_cast<UndefinedFunction>(this))
+    if (u->stubFunction)
+      return u->stubFunction->getFunctionIndex();
+  if (functionIndex != INVALID_INDEX)
+    return functionIndex;
+  auto *f = cast<DefinedFunction>(this);
+  return f->function->getFunctionIndex();
+}
+
+void FunctionSymbol::setFunctionIndex(uint32_t index) {
+  LLVM_DEBUG(dbgs() << "setFunctionIndex " << name << " -> " << index << "\n");
+  assert(functionIndex == INVALID_INDEX);
+  functionIndex = index;
+}
+
+bool FunctionSymbol::hasFunctionIndex() const {
+  if (auto *f = dyn_cast<DefinedFunction>(this))
+    return f->function->hasFunctionIndex();
+  return functionIndex != INVALID_INDEX;
+}
+
+uint32_t FunctionSymbol::getTableIndex() const {
+  if (auto *f = dyn_cast<DefinedFunction>(this))
+    return f->function->getTableIndex();
+  assert(tableIndex != INVALID_INDEX);
+  return tableIndex;
+}
+
+bool FunctionSymbol::hasTableIndex() const {
+  if (auto *f = dyn_cast<DefinedFunction>(this))
+    return f->function->hasTableIndex();
+  return tableIndex != INVALID_INDEX;
+}
+
+void FunctionSymbol::setTableIndex(uint32_t index) {
+  // For imports, we set the table index here on the Symbol; for defined
+  // functions we set the index on the InputFunction so that we don't export
+  // the same thing twice (keeps the table size down).
+  if (auto *f = dyn_cast<DefinedFunction>(this)) {
+    f->function->setTableIndex(index);
+    return;
+  }
+  LLVM_DEBUG(dbgs() << "setTableIndex " << name << " -> " << index << "\n");
+  assert(tableIndex == INVALID_INDEX);
+  tableIndex = index;
+}
+
+DefinedFunction::DefinedFunction(StringRef name, uint32_t flags, InputFile *f,
+                                 InputFunction *function)
+    : FunctionSymbol(name, DefinedFunctionKind, flags, f,
+                     function ? &function->signature : nullptr),
+      function(function) {}
+
+uint32_t DefinedFunction::getExportedFunctionIndex() const {
+  return function->getFunctionIndex();
+}
+
+uint64_t DefinedData::getVA() const {
+  LLVM_DEBUG(dbgs() << "getVA: " << getName() << "\n");
+  // In the shared memory case, TLS symbols are relative to the start of the TLS
+  // output segment (__tls_base).  When building without shared memory, TLS
+  // symbols absolute, just like non-TLS.
+  if (isTLS() && config->sharedMemory)
+    return getOutputSegmentOffset() + value;
+  if (segment)
+    return segment->getVA(value);
+  return value;
+}
+
+void DefinedData::setVA(uint64_t value_) {
+  LLVM_DEBUG(dbgs() << "setVA " << name << " -> " << value_ << "\n");
+  assert(!segment);
+  value = value_;
+}
+
+uint64_t DefinedData::getOutputSegmentOffset() const {
+  LLVM_DEBUG(dbgs() << "getOutputSegmentOffset: " << getName() << "\n");
+  return segment->getChunkOffset(value);
+}
+
+uint64_t DefinedData::getOutputSegmentIndex() const {
+  LLVM_DEBUG(dbgs() << "getOutputSegmentIndex: " << getName() << "\n");
+  return segment->outputSeg->index;
+}
+
+uint32_t GlobalSymbol::getGlobalIndex() const {
+  if (auto *f = dyn_cast<DefinedGlobal>(this))
+    return f->global->getAssignedIndex();
+  assert(globalIndex != INVALID_INDEX);
+  return globalIndex;
+}
+
+void GlobalSymbol::setGlobalIndex(uint32_t index) {
+  LLVM_DEBUG(dbgs() << "setGlobalIndex " << name << " -> " << index << "\n");
+  assert(globalIndex == INVALID_INDEX);
+  globalIndex = index;
+}
+
+bool GlobalSymbol::hasGlobalIndex() const {
+  if (auto *f = dyn_cast<DefinedGlobal>(this))
+    return f->global->hasAssignedIndex();
+  return globalIndex != INVALID_INDEX;
+}
+
+DefinedGlobal::DefinedGlobal(StringRef name, uint32_t flags, InputFile *file,
+                             InputGlobal *global)
+    : GlobalSymbol(name, DefinedGlobalKind, flags, file,
+                   global ? &global->getType() : nullptr),
+      global(global) {}
+
+uint32_t TagSymbol::getTagIndex() const {
+  if (auto *f = dyn_cast<DefinedTag>(this))
+    return f->tag->getAssignedIndex();
+  assert(tagIndex != INVALID_INDEX);
+  return tagIndex;
+}
+
+void TagSymbol::setTagIndex(uint32_t index) {
+  LLVM_DEBUG(dbgs() << "setTagIndex " << name << " -> " << index << "\n");
+  assert(tagIndex == INVALID_INDEX);
+  tagIndex = index;
+}
+
+bool TagSymbol::hasTagIndex() const {
+  if (auto *f = dyn_cast<DefinedTag>(this))
+    return f->tag->hasAssignedIndex();
+  return tagIndex != INVALID_INDEX;
+}
+
+DefinedTag::DefinedTag(StringRef name, uint32_t flags, InputFile *file,
+                       InputTag *tag)
+    : TagSymbol(name, DefinedTagKind, flags, file,
+                tag ? &tag->signature : nullptr),
+      tag(tag) {}
+
+void TableSymbol::setLimits(const WasmLimits &limits) {
+  if (auto *t = dyn_cast<DefinedTable>(this))
+    t->table->setLimits(limits);
+  auto *newType = make<WasmTableType>(*tableType);
+  newType->Limits = limits;
+  tableType = newType;
+}
+
+uint32_t TableSymbol::getTableNumber() const {
+  if (const auto *t = dyn_cast<DefinedTable>(this))
+    return t->table->getAssignedIndex();
+  assert(tableNumber != INVALID_INDEX);
+  return tableNumber;
+}
+
+void TableSymbol::setTableNumber(uint32_t number) {
+  if (const auto *t = dyn_cast<DefinedTable>(this))
+    return t->table->assignIndex(number);
+  LLVM_DEBUG(dbgs() << "setTableNumber " << name << " -> " << number << "\n");
+  assert(tableNumber == INVALID_INDEX);
+  tableNumber = number;
+}
+
+bool TableSymbol::hasTableNumber() const {
+  if (const auto *t = dyn_cast<DefinedTable>(this))
+    return t->table->hasAssignedIndex();
+  return tableNumber != INVALID_INDEX;
+}
+
+DefinedTable::DefinedTable(StringRef name, uint32_t flags, InputFile *file,
+                           InputTable *table)
+    : TableSymbol(name, DefinedTableKind, flags, file,
+                  table ? &table->getType() : nullptr),
+      table(table) {}
+
+const OutputSectionSymbol *SectionSymbol::getOutputSectionSymbol() const {
+  assert(section->outputSec && section->outputSec->sectionSym);
+  return section->outputSec->sectionSym;
+}
+
+void LazySymbol::fetch() { cast<ArchiveFile>(file)->addMember(&archiveSymbol); }
+
+void LazySymbol::setWeak() {
+  flags |= (flags & ~WASM_SYMBOL_BINDING_MASK) | WASM_SYMBOL_BINDING_WEAK;
+}
+
+MemoryBufferRef LazySymbol::getMemberBuffer() {
+  Archive::Child c =
+      CHECK(archiveSymbol.getMember(),
+            "could not get the member for symbol " + toString(*this));
+
+  return CHECK(c.getMemoryBufferRef(),
+               "could not get the buffer for the member defining symbol " +
+                   toString(*this));
+}
+
+void printTraceSymbolUndefined(StringRef name, const InputFile* file) {
+  message(toString(file) + ": reference to " + name);
+}
+
+// Print out a log message for --trace-symbol.
+void printTraceSymbol(Symbol *sym) {
+  // Undefined symbols are traced via printTraceSymbolUndefined
+  if (sym->isUndefined())
+    return;
+
+  std::string s;
+  if (sym->isLazy())
+    s = ": lazy definition of ";
+  else
+    s = ": definition of ";
+
+  message(toString(sym->getFile()) + s + sym->getName());
+}
+
+const char *defaultModule = "env";
+const char *functionTableName = "__indirect_function_table";
+
+} // namespace wasm
+} // namespace lld

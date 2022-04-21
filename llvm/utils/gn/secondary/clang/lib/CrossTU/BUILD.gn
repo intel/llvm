@@ -8,7 +8,5 @@ static_library("CrossTU") {
     "//clang/lib/Index",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "CrossTranslationUnit.cpp",
-  ]
+  sources = [ "CrossTranslationUnit.cpp" ]
 }

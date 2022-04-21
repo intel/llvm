@@ -1,16 +1,31 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import glob, os, pipes, sys, subprocess
 
 
-if not "SANITIZER_IOSSIM_TEST_DEVICE_IDENTIFIER" in os.environ:
+device_id = os.environ.get('SANITIZER_IOSSIM_TEST_DEVICE_IDENTIFIER')
+iossim_run_verbose = os.environ.get('SANITIZER_IOSSIM_RUN_VERBOSE')
+wait_for_debug = os.environ.get('SANITIZER_IOSSIM_RUN_WAIT_FOR_DEBUGGER')
+
+if not device_id:
   raise EnvironmentError("Specify SANITIZER_IOSSIM_TEST_DEVICE_IDENTIFIER to select which simulator to use.")
 
-device_id = os.environ["SANITIZER_IOSSIM_TEST_DEVICE_IDENTIFIER"]
-
-for e in ["ASAN_OPTIONS", "TSAN_OPTIONS", "UBSAN_OPTIONS", "APPLE_ASAN_INIT_FOR_DLOPEN", "ASAN_ACTIVATION_OPTIONS"]:
+for e in [
+  "ASAN_OPTIONS",
+  "TSAN_OPTIONS",
+  "UBSAN_OPTIONS",
+  "LSAN_OPTIONS",
+  "APPLE_ASAN_INIT_FOR_DLOPEN",
+  "ASAN_ACTIVATION_OPTIONS",
+  "MallocNanoZone",
+]:
   if e in os.environ:
     os.environ["SIMCTL_CHILD_" + e] = os.environ[e]
+
+find_atos_cmd = 'xcrun -sdk iphonesimulator -f atos'
+atos_path = subprocess.run(find_atos_cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True).stdout.decode().strip()
+for san in ['ASAN', 'TSAN', 'UBSAN', 'LSAN']:
+  os.environ[f'SIMCTL_CHILD_{san}_SYMBOLIZER_PATH'] = atos_path
 
 prog = sys.argv[1]
 exit_code = None
@@ -28,9 +43,25 @@ if prog == 'rm':
   rm_cmd_line = ["/bin/rm"] + rm_args
   rm_cmd_line_str = ' '.join(rm_cmd_line)
   # We use `shell=True` so that any wildcard globs get expanded by the shell.
+
+  if iossim_run_verbose:
+    print("RUNNING: \t{}".format(rm_cmd_line_str), flush=True)
+
   exitcode = subprocess.call(rm_cmd_line_str, shell=True)
+
 else:
-  exitcode = subprocess.call(["xcrun", "simctl", "spawn", device_id] + sys.argv[1:])
+  cmd = ["xcrun", "simctl", "spawn", "--standalone"]
+
+  if wait_for_debug:
+    cmd.append("--wait-for-debugger")
+
+  cmd.append(device_id)
+  cmd += sys.argv[1:]
+
+  if iossim_run_verbose:
+    print("RUNNING: \t{}".format(" ".join(cmd)), flush=True)
+
+  exitcode = subprocess.call(cmd)
 if exitcode > 125:
   exitcode = 126
 sys.exit(exitcode)

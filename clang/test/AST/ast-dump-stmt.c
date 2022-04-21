@@ -1,4 +1,12 @@
-// RUN: %clang_cc1 -std=gnu11 -ast-dump %s | FileCheck -strict-whitespace %s
+// Test without serialization:
+// RUN: %clang_cc1 -std=gnu11 -ast-dump %s \
+// RUN: | FileCheck -strict-whitespace %s
+//
+// Test with serialization:
+// RUN: %clang_cc1 -std=gnu11 -emit-pch -o %t %s
+// RUN: %clang_cc1 -x c -std=gnu11 -include-pch %t -ast-dump-all /dev/null \
+// RUN: | sed -e "s/ <undeserialized declarations>//" -e "s/ imported//" \
+// RUN: | FileCheck -strict-whitespace %s
 
 int TestLocation = 0;
 // CHECK:      VarDecl{{.*}}TestLocation
@@ -11,7 +19,7 @@ int TestIndent = 1 + (1);
 // CHECK-NEXT: {{^}}|   `-ParenExpr{{.*0[^()]*$}}
 // CHECK-NEXT: {{^}}|     `-IntegerLiteral{{.*0[^()]*$}}
 
-void TestDeclStmt() {
+void TestDeclStmt(void) {
   int x = 0;
   int y, z;
 }
@@ -372,4 +380,14 @@ void TestMiscStmts(void) {
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:13> 'int' 10
   // CHECK-NEXT: ImplicitCastExpr
   // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:17> 'int' lvalue Var 0x{{[^ ]*}} 'a' 'int'
+  ({int a = 10; a;;; });
+  // CHECK-NEXT: StmtExpr 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:23> 'int'
+  // CHECK-NEXT: CompoundStmt
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT: VarDecl 0x{{[^ ]*}} <col:5, col:13> col:9 used a 'int' cinit
+  // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:13> 'int' 10
+  // CHECK-NEXT: ImplicitCastExpr
+  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:17> 'int' lvalue Var 0x{{[^ ]*}} 'a' 'int'
+  // CHECK-NEXT: NullStmt
+  // CHECK-NEXT: NullStmt
 }

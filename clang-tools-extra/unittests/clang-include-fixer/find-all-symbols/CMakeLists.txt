@@ -1,5 +1,6 @@
 set(LLVM_LINK_COMPONENTS
-  support
+  FrontendOpenMP
+  Support
   )
 
 get_filename_component(INCLUDE_FIXER_SOURCE_DIR
@@ -12,7 +13,7 @@ add_extra_unittest(FindAllSymbolsTests
   FindAllSymbolsTests.cpp
   )
 
-target_link_libraries(FindAllSymbolsTests
+clang_target_link_libraries(FindAllSymbolsTests
   PRIVATE
   clangAST
   clangASTMatchers
@@ -21,5 +22,8 @@ target_link_libraries(FindAllSymbolsTests
   clangLex
   clangSerialization
   clangTooling
+  )
+target_link_libraries(FindAllSymbolsTests
+  PRIVATE
   findAllSymbols
   )

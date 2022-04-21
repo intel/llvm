@@ -9,7 +9,5 @@ unittest("ClangApplyReplacementsTests") {
     "//clang/lib/Tooling/Refactoring",
   ]
   include_dirs = [ "//clang-tools-extra/clang-apply-replacements/include" ]
-  sources = [
-    "ApplyReplacementsTest.cpp",
-  ]
+  sources = [ "ApplyReplacementsTest.cpp" ]
 }

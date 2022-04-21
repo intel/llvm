@@ -4,6 +4,7 @@ unittest("UtilsTests") {
   deps = [
     "//llvm/lib/Analysis",
     "//llvm/lib/AsmParser",
+    "//llvm/lib/Bitcode/Writer",
     "//llvm/lib/IR",
     "//llvm/lib/Support",
     "//llvm/lib/Transforms/Utils",
@@ -11,13 +12,22 @@ unittest("UtilsTests") {
   sources = [
     "ASanStackFrameLayoutTest.cpp",
     "BasicBlockUtilsTest.cpp",
+    "CallPromotionUtilsTest.cpp",
     "CloningTest.cpp",
     "CodeExtractorTest.cpp",
+    "CodeMoverUtilsTest.cpp",
+    "DebugifyTest.cpp",
     "FunctionComparatorTest.cpp",
     "IntegerDivisionTest.cpp",
     "LocalTest.cpp",
+    "LoopRotationUtilsTest.cpp",
+    "LoopUtilsTest.cpp",
+    "ModuleUtilsTest.cpp",
     "SSAUpdaterBulkTest.cpp",
+    "ScalarEvolutionExpanderTest.cpp",
+    "SizeOptsTest.cpp",
     "UnrollLoopTest.cpp",
+    "VFABIUtils.cpp",
     "ValueMapperTest.cpp",
   ]
 }

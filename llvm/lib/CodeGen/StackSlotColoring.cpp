@@ -28,8 +28,8 @@
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -73,9 +73,9 @@ namespace {
     SmallVector<SmallVector<MachineMemOperand *, 8>, 16> SSRefs;
 
     // OrigAlignments - Alignments of stack objects before coloring.
-    SmallVector<unsigned, 16> OrigAlignments;
+    SmallVector<Align, 16> OrigAlignments;
 
-    // OrigSizes - Sizess of stack objects before coloring.
+    // OrigSizes - Sizes of stack objects before coloring.
     SmallVector<unsigned, 16> OrigSizes;
 
     // AllColors - If index is set, it's a spill slot, i.e. color.
@@ -144,7 +144,7 @@ namespace {
 // their weight.
 struct IntervalSorter {
   bool operator()(LiveInterval* LHS, LiveInterval* RHS) const {
-    return LHS->weight > RHS->weight;
+    return LHS->weight() > RHS->weight();
   }
 };
 
@@ -156,14 +156,9 @@ void StackSlotColoring::ScanForSpillSlotRefs(MachineFunction &MF) {
   SSRefs.resize(MFI->getObjectIndexEnd());
 
   // FIXME: Need the equivalent of MachineRegisterInfo for frameindex operands.
-  for (MachineFunction::iterator MBBI = MF.begin(), E = MF.end();
-       MBBI != E; ++MBBI) {
-    MachineBasicBlock *MBB = &*MBBI;
-    for (MachineBasicBlock::iterator MII = MBB->begin(), EE = MBB->end();
-         MII != EE; ++MII) {
-      MachineInstr &MI = *MII;
-      for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-        MachineOperand &MO = MI.getOperand(i);
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : MBB) {
+      for (const MachineOperand &MO : MI.operands()) {
         if (!MO.isFI())
           continue;
         int FI = MO.getIndex();
@@ -172,8 +167,9 @@ void StackSlotColoring::ScanForSpillSlotRefs(MachineFunction &MF) {
         if (!LS->hasInterval(FI))
           continue;
         LiveInterval &li = LS->getInterval(FI);
-        if (!MI.isDebugValue())
-          li.weight += LiveIntervals::getSpillWeight(false, true, MBFI, MI);
+        if (!MI.isDebugInstr())
+          li.incrementWeight(
+              LiveIntervals::getSpillWeight(false, true, MBFI, MI));
       }
       for (MachineInstr::mmo_iterator MMOI = MI.memoperands_begin(),
                                       EE = MI.memoperands_end();
@@ -221,12 +217,12 @@ void StackSlotColoring::InitializeSlots() {
   for (auto *I : Intervals) {
     LiveInterval &li = I->second;
     LLVM_DEBUG(li.dump());
-    int FI = TargetRegisterInfo::stackSlot2Index(li.reg);
+    int FI = Register::stackSlot2Index(li.reg());
     if (MFI->isDeadObjectIndex(FI))
       continue;
 
     SSIntervals.push_back(&li);
-    OrigAlignments[FI] = MFI->getObjectAlignment(FI);
+    OrigAlignments[FI] = MFI->getObjectAlign(FI);
     OrigSizes[FI]      = MFI->getObjectSize(FI);
 
     auto StackID = MFI->getStackID(FI);
@@ -268,7 +264,7 @@ StackSlotColoring::OverlapWithAssignments(LiveInterval *li, int Color) const {
 int StackSlotColoring::ColorSlot(LiveInterval *li) {
   int Color = -1;
   bool Share = false;
-  int FI = TargetRegisterInfo::stackSlot2Index(li->reg);
+  int FI = Register::stackSlot2Index(li->reg());
   uint8_t StackID = MFI->getStackID(FI);
 
   if (!DisableSharing) {
@@ -308,9 +304,9 @@ int StackSlotColoring::ColorSlot(LiveInterval *li) {
   // Change size and alignment of the allocated slot. If there are multiple
   // objects sharing the same slot, then make sure the size and alignment
   // are large enough for all.
-  unsigned Align = OrigAlignments[FI];
-  if (!Share || Align > MFI->getObjectAlignment(Color))
-    MFI->setObjectAlignment(Color, Align);
+  Align Alignment = OrigAlignments[FI];
+  if (!Share || Alignment > MFI->getObjectAlign(Color))
+    MFI->setObjectAlignment(Color, Alignment);
   int64_t Size = OrigSizes[FI];
   if (!Share || Size > MFI->getObjectSize(Color))
     MFI->setObjectSize(Color, Size);
@@ -328,30 +324,28 @@ bool StackSlotColoring::ColorSlots(MachineFunction &MF) {
 
   LLVM_DEBUG(dbgs() << "Color spill slot intervals:\n");
   bool Changed = false;
-  for (unsigned i = 0, e = SSIntervals.size(); i != e; ++i) {
-    LiveInterval *li = SSIntervals[i];
-    int SS = TargetRegisterInfo::stackSlot2Index(li->reg);
+  for (LiveInterval *li : SSIntervals) {
+    int SS = Register::stackSlot2Index(li->reg());
     int NewSS = ColorSlot(li);
     assert(NewSS >= 0 && "Stack coloring failed?");
     SlotMapping[SS] = NewSS;
     RevMap[NewSS].push_back(SS);
-    SlotWeights[NewSS] += li->weight;
+    SlotWeights[NewSS] += li->weight();
     UsedColors.set(NewSS);
     Changed |= (SS != NewSS);
   }
 
   LLVM_DEBUG(dbgs() << "\nSpill slots after coloring:\n");
-  for (unsigned i = 0, e = SSIntervals.size(); i != e; ++i) {
-    LiveInterval *li = SSIntervals[i];
-    int SS = TargetRegisterInfo::stackSlot2Index(li->reg);
-    li->weight = SlotWeights[SS];
+  for (LiveInterval *li : SSIntervals) {
+    int SS = Register::stackSlot2Index(li->reg());
+    li->setWeight(SlotWeights[SS]);
   }
   // Sort them by new weight.
   llvm::stable_sort(SSIntervals, IntervalSorter());
 
 #ifndef NDEBUG
-  for (unsigned i = 0, e = SSIntervals.size(); i != e; ++i)
-    LLVM_DEBUG(SSIntervals[i]->dump());
+  for (LiveInterval *li : SSIntervals)
+    LLVM_DEBUG(li->dump());
   LLVM_DEBUG(dbgs() << '\n');
 #endif
 
@@ -396,8 +390,7 @@ void StackSlotColoring::RewriteInstruction(MachineInstr &MI,
                                            SmallVectorImpl<int> &SlotMapping,
                                            MachineFunction &MF) {
   // Update the operands.
-  for (unsigned i = 0, ee = MI.getNumOperands(); i != ee; ++i) {
-    MachineOperand &MO = MI.getOperand(i);
+  for (MachineOperand &MO : MI.operands()) {
     if (!MO.isFI())
       continue;
     int OldFI = MO.getIndex();
@@ -472,9 +465,8 @@ bool StackSlotColoring::RemoveDeadStores(MachineBasicBlock* MBB) {
     ++I;
   }
 
-  for (SmallVectorImpl<MachineInstr *>::iterator I = toErase.begin(),
-       E = toErase.end(); I != E; ++I)
-    (*I)->eraseFromParent();
+  for (MachineInstr *MI : toErase)
+    MI->eraseFromParent();
 
   return changed;
 }

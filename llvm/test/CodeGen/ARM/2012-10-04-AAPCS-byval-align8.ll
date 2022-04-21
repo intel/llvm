@@ -10,8 +10,7 @@ declare void @llvm.va_end(i8*) nounwind
 ; CHECK-LABEL: test_byval_8_bytes_alignment:
 define void @test_byval_8_bytes_alignment(i32 %i, ...) {
 entry:
-; CHECK: sub       sp, sp, #12
-; CHECK: sub       sp, sp, #4
+; CHECK: sub       sp, sp, #16
 ; CHECK: add       r0, sp, #4
 ; CHECK: stmib     sp, {r1, r2, r3}
   %g = alloca i8*
@@ -30,11 +29,11 @@ entry:
 ; CHECK: movw [[BASE:r[0-9]+]], :lower16:static_val
 ; CHECK: movt [[BASE]], :upper16:static_val
 ; ldm is not formed when the coalescer failed to coalesce everything.
-; CHECK: ldrd    r2, [[TMP:r[0-9]+]], {{\[}}[[BASE]]{{\]}}
+; CHECK: ldrd    r2, [[TMP:r[0-9]+]], [[[BASE]]]
 ; CHECK: movw r0, #555
 define i32 @main() {
 entry:
-  call void (i32, ...) @test_byval_8_bytes_alignment(i32 555, %struct_t* byval @static_val)
+  call void (i32, ...) @test_byval_8_bytes_alignment(i32 555, %struct_t* byval(%struct_t) @static_val)
   ret i32 0
 }
 
@@ -45,7 +44,7 @@ declare void @f(double);
 ; CHECK-DAG:   str     r3, [sp, #12]
 ; CHECK-DAG:   str     r2, [sp, #8]
 ; CHECK-NOT:   str     r1
-define void @test_byval_8_bytes_alignment_fixed_arg(i32 %n1, %struct_t* byval %val) nounwind {
+define void @test_byval_8_bytes_alignment_fixed_arg(i32 %n1, %struct_t* byval(%struct_t) %val) nounwind {
 entry:
   %a = getelementptr inbounds %struct_t, %struct_t* %val, i32 0, i32 0
   %0 = load double, double* %a
@@ -57,10 +56,10 @@ entry:
 ; CHECK: movw [[BASE:r[0-9]+]], :lower16:static_val
 ; CHECK: movt [[BASE]], :upper16:static_val
 ; ldm is not formed when the coalescer failed to coalesce everything.
-; CHECK: ldrd     r2, [[TMP:r[0-9]+]], {{\[}}[[BASE]]{{\]}}
+; CHECK: ldrd     r2, [[TMP:r[0-9]+]], [[[BASE]]]
 ; CHECK: movw r0, #555
 define i32 @main_fixed_arg() {
 entry:
-  call void (i32, %struct_t*) @test_byval_8_bytes_alignment_fixed_arg(i32 555, %struct_t* byval @static_val)
+  call void (i32, %struct_t*) @test_byval_8_bytes_alignment_fixed_arg(i32 555, %struct_t* byval(%struct_t) @static_val)
   ret i32 0
 }

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <tuple>
 
@@ -15,6 +15,8 @@
 #include <tuple>
 #include <utility>
 #include <array>
+
+#include "test_macros.h"
 
 template <class Tuple, int Expect>
 void test()

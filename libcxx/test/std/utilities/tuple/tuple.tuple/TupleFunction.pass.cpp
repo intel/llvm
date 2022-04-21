@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // This is for bugs 18853 and 19118
 
 #include <tuple>
 #include <functional>
+
+#include "test_macros.h"
 
 struct X
 {

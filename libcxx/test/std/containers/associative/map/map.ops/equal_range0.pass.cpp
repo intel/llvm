@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// XFAIL: c++98, c++03, c++11
+// XFAIL: c++03, c++11
 
 // <map>
 
 // class map
 
-//       iterator find(const key_type& k);
-// const_iterator find(const key_type& k) const;
+// pair<iterator,iterator>             equal_range(const key_type& k);
+// pair<const_iterator,const_iterator> equal_range(const key_type& k) const;
 //
 //   The member function templates find, count, lower_bound, upper_bound, and
 // equal_range shall not participate in overload resolution unless the
@@ -23,6 +23,7 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "is_transparent.h"
 
 int main(int, char**)

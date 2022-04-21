@@ -8,14 +8,14 @@
 
 #include "llvm/DebugInfo/PDB/Native/NativeExeSymbol.h"
 
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/DebugInfo/CodeView/CodeView.h"
+#include "llvm/DebugInfo/PDB/IPDBEnumChildren.h"
 #include "llvm/DebugInfo/PDB/Native/DbiStream.h"
 #include "llvm/DebugInfo/PDB/Native/InfoStream.h"
-#include "llvm/DebugInfo/PDB/Native/NativeCompilandSymbol.h"
 #include "llvm/DebugInfo/PDB/Native/NativeEnumModules.h"
+#include "llvm/DebugInfo/PDB/Native/NativeSession.h"
 #include "llvm/DebugInfo/PDB/Native/PDBFile.h"
 #include "llvm/DebugInfo/PDB/Native/SymbolCache.h"
-#include "llvm/DebugInfo/PDB/PDBSymbolCompiland.h"
 
 using namespace llvm;
 using namespace llvm::pdb;
@@ -73,7 +73,7 @@ uint32_t NativeExeSymbol::getAge() const {
 }
 
 std::string NativeExeSymbol::getSymbolsFileName() const {
-  return Session.getPDBFile().getFilePath();
+  return std::string(Session.getPDBFile().getFilePath());
 }
 
 codeview::GUID NativeExeSymbol::getGuid() const {

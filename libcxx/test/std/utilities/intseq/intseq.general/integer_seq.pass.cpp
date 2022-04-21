@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 // <utility>
 
 // class make_integer_sequence
@@ -15,6 +15,8 @@
 #include <utility>
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 template <typename AtContainer, typename T, T... I>
 auto extract ( const AtContainer &t, const std::integer_sequence<T, I...> )

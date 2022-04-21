@@ -26,24 +26,21 @@ AST_MATCHER(VarDecl, isGlobalStatic) {
 
 void StaticallyConstructedObjectsCheck::registerMatchers(MatchFinder *Finder) {
   // Constructing global, non-trivial objects with static storage is
-  // disallowed, unless the object is statically initialized with a constexpr 
+  // disallowed, unless the object is statically initialized with a constexpr
   // constructor or has no explicit constructor.
-
-  // Constexpr requires C++11 or later.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
-  Finder->addMatcher(varDecl(
-                         // Match global, statically stored objects...
-                         isGlobalStatic(),
-                         // ... that have C++ constructors...
-                         hasDescendant(cxxConstructExpr(unless(allOf(
-                             // ... unless it is constexpr ...
-                             hasDeclaration(cxxConstructorDecl(isConstexpr())),
-                             // ... and is statically initialized.
-                             isConstantInitializer())))))
-                         .bind("decl"),
-                     this);
+  Finder->addMatcher(
+      traverse(TK_AsIs,
+               varDecl(
+                   // Match global, statically stored objects...
+                   isGlobalStatic(),
+                   // ... that have C++ constructors...
+                   hasDescendant(cxxConstructExpr(unless(allOf(
+                       // ... unless it is constexpr ...
+                       hasDeclaration(cxxConstructorDecl(isConstexpr())),
+                       // ... and is statically initialized.
+                       isConstantInitializer())))))
+                   .bind("decl")),
+      this);
 }
 
 void StaticallyConstructedObjectsCheck::check(

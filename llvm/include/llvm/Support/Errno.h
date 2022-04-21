@@ -15,7 +15,6 @@
 
 #include <cerrno>
 #include <string>
-#include <type_traits>
 
 namespace llvm {
 namespace sys {
@@ -30,8 +29,8 @@ std::string StrError();
 std::string StrError(int errnum);
 
 template <typename FailT, typename Fun, typename... Args>
-inline auto RetryAfterSignal(const FailT &Fail, const Fun &F,
-                             const Args &... As) -> decltype(F(As...)) {
+inline decltype(auto) RetryAfterSignal(const FailT &Fail, const Fun &F,
+                                       const Args &... As) {
   decltype(F(As...)) Res;
   do {
     errno = 0;
@@ -43,4 +42,4 @@ inline auto RetryAfterSignal(const FailT &Fail, const Fun &F,
 }  // namespace sys
 }  // namespace llvm
 
-#endif  // LLVM_SYSTEM_ERRNO_H
+#endif // LLVM_SUPPORT_ERRNO_H

@@ -6,11 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+// UNSUPPORTED: libcpp-has-no-localization
 
 // <experimental/regex>
 
 #include <experimental/regex>
+
+#include "test_macros.h"
 
 #ifndef _LIBCPP_VERSION
 #error header must provide _LIBCPP_VERSION

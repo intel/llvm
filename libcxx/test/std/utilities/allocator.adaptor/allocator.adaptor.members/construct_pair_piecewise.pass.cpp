@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <scoped_allocator>
 
@@ -23,8 +23,10 @@
 #include <tuple>
 #include <cassert>
 #include <cstdlib>
-#include "uses_alloc_types.hpp"
-#include "controlled_allocators.hpp"
+#include "uses_alloc_types.h"
+#include "controlled_allocators.h"
+
+#include "test_macros.h"
 
 
 void test_no_inner_alloc()

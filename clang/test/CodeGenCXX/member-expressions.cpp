@@ -29,7 +29,7 @@ A *g();
 void f(A *a) {
   A::E e1 = a->Foo;
   
-  // CHECK: call %struct.A* @_Z1gv()
+  // CHECK: call noundef %struct.A* @_Z1gv()
   A::E e2 = g()->Foo;
   // CHECK: call void @_ZN1AC1Ev(
   // CHECK: call void @_ZN1AD1Ev(
@@ -58,7 +58,7 @@ namespace test4 {
 
   extern C *c_ptr;
 
-  // CHECK-LABEL: define i32 @_ZN5test44testEv()
+  // CHECK-LABEL: define{{.*}} i32 @_ZN5test44testEv()
   int test() {
     // CHECK: load {{.*}} @_ZN5test45c_ptrE
     // CHECK-NEXT: bitcast

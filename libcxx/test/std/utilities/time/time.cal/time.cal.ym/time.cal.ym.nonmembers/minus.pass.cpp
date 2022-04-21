@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month;
@@ -27,8 +27,6 @@
 
 #include "test_macros.h"
 
-#include <iostream>
-
 int main(int, char**)
 {
     using year       = std::chrono::year;
@@ -41,7 +39,7 @@ int main(int, char**)
     ASSERT_NOEXCEPT(                      std::declval<year_month>() - std::declval<years>());
     ASSERT_SAME_TYPE(year_month, decltype(std::declval<year_month>() - std::declval<years>()));
 
-//  static_assert(testConstexprYears (year_month{year{1}, month{1}}), "");
+    // static_assert(testConstexprYears (year_month{year{1}, month{1}}), "");
 
     year_month ym{year{1234}, std::chrono::January};
     for (int i = 0; i <= 10; ++i)
@@ -56,7 +54,7 @@ int main(int, char**)
     ASSERT_NOEXCEPT(                      std::declval<year_month>() - std::declval<months>());
     ASSERT_SAME_TYPE(year_month, decltype(std::declval<year_month>() - std::declval<months>()));
 
-//  static_assert(testConstexprMonths(year_month{year{1}, month{1}}), "");
+    // static_assert(testConstexprMonths(year_month{year{1}, month{1}}), "");
 
     year_month ym{year{1234}, std::chrono::November};
     for (int i = 0; i <= 10; ++i)  // TODO test wrap-around
@@ -71,21 +69,20 @@ int main(int, char**)
     ASSERT_NOEXCEPT(                  std::declval<year_month>() - std::declval<year_month>());
     ASSERT_SAME_TYPE(months, decltype(std::declval<year_month>() - std::declval<year_month>()));
 
-//  static_assert(testConstexprMonths(year_month{year{1}, month{1}}), "");
+    // static_assert(testConstexprMonths(year_month{year{1}, month{1}}), "");
 
-//  Same year
+    //  Same year
     year y{2345};
     for (int i = 1; i <= 12; ++i)
         for (int j = 1; j <= 12; ++j)
     {
         months diff = year_month{y, month(i)} - year_month{y, month(j)};
-        std::cout << "i: " << i << " j: " << j << " -> " << diff.count() << std::endl;
         assert(diff.count() == i - j);
     }
 
-//  TODO: different year
+    // TODO: different year
 
     }
 
-  return 0;
+    return 0;
 }

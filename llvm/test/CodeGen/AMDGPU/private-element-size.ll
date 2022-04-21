@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa -mattr=-promote-alloca,+max-private-element-size-16 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefix=ELT16 -check-prefix=HSA -check-prefix=HSA-ELT16 -check-prefix=ALL -check-prefix=HSA_ELTGE8 %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa -mattr=-promote-alloca,+max-private-element-size-8 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefix=ELT8 -check-prefix=HSA -check-prefix=HSA-ELT8 -check-prefix=ALL -check-prefix=HSA-ELTGE8 %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa -mattr=-promote-alloca,+max-private-element-size-4 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefix=ELT4 -check-prefix=HSA -check-prefix=HSA-ELT4 -check-prefix=ALL %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa --amdhsa-code-object-version=2 -mattr=-promote-alloca,+max-private-element-size-16 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap --check-prefixes=HSA-ELT16,ALL %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa --amdhsa-code-object-version=2 -mattr=-promote-alloca,+max-private-element-size-8 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap --check-prefixes=HSA-ELT8,ALL,HSA-ELTGE8 %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-unknown-amdhsa --amdhsa-code-object-version=2 -mattr=-promote-alloca,+max-private-element-size-4 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap --check-prefixes=HSA-ELT4,ALL %s
 
 
 ; ALL-LABEL: {{^}}private_elt_size_v4i32:
@@ -10,32 +10,32 @@
 ; HSA-ELT4: private_element_size = 1
 
 
-; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:16
-; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:32
-; HSA-ELT16-DAG: buffer_load_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
+; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:16
+; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:32
+; HSA-ELT16-DAG: buffer_load_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen{{$}}
 
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:24{{$}}
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:16
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:32
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:40
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:24{{$}}
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:16
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:32
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:40
 
-; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen
-; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen
+; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen
+; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen
 
 
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:16{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:20{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:24{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:28{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:32{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:36{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:40{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:44{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:16{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:20{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:24{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:28{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:32{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:36{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:40{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:44{{$}}
 
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:4{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:8{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:12{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:4{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:8{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:12{{$}}
 define amdgpu_kernel void @private_elt_size_v4i32(<4 x i32> addrspace(1)* %out, i32 addrspace(1)* %index.array) #0 {
 entry:
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -59,53 +59,53 @@ entry:
 ; HSA-ELT8: private_element_size = 2
 ; HSA-ELT4: private_element_size = 1
 
-; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:32
-; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:48
-; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:64
-; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:80
+; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:32
+; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:48
+; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:64
+; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:80
 
-; HSA-ELT16-DAG: buffer_load_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
-; HSA-ELT16-DAG: buffer_load_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
-
-
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:32
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:40
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:48
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:56
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:88
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:80
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:72
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:64
-
-; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen
-; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen
+; HSA-ELT16-DAG: buffer_load_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen{{$}}
+; HSA-ELT16-DAG: buffer_load_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen{{$}}
 
 
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:32{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:36{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:40{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:44{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:48{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:52{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:56{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:60{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:64{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:68{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:72{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:76{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:80{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:84{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:88{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:92{{$}}
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:32
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:40
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:48
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:56
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:88
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:80
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:72
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:64
 
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:4{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:8{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:12{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:16{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:20{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:24{{$}}
-; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:28{{$}}
+; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen
+; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen
+
+
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:32{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:36{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:40{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:44{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:48{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:52{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:56{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:60{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:64{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:68{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:72{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:76{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:80{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:84{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:88{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:92{{$}}
+
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:4{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:8{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:12{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:16{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:20{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:24{{$}}
+; HSA-ELT4-DAG: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:28{{$}}
 define amdgpu_kernel void @private_elt_size_v8i32(<8 x i32> addrspace(1)* %out, i32 addrspace(1)* %index.array) #0 {
 entry:
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -113,7 +113,7 @@ entry:
   %gep.index = getelementptr inbounds i32, i32 addrspace(1)* %index.array, i64 %idxprom
   %index.load = load i32, i32 addrspace(1)* %gep.index
   %index = and i32 %index.load, 2
-  %alloca = alloca [2 x <8 x i32>], align 16, addrspace(5)
+  %alloca = alloca [2 x <8 x i32>], align 32, addrspace(5)
   %gep0 = getelementptr inbounds [2 x <8 x i32>], [2 x <8 x i32>] addrspace(5)* %alloca, i32 0, i32 0
   %gep1 = getelementptr inbounds [2 x <8 x i32>], [2 x <8 x i32>] addrspace(5)* %alloca, i32 0, i32 1
   store <8 x i32> zeroinitializer, <8 x i32> addrspace(5)* %gep0
@@ -130,19 +130,20 @@ entry:
 ; HSA-ELT8: private_element_size = 2
 ; HSA-ELT4: private_element_size = 1
 
-; HSA-ELTGE8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, {{off|v[0-9]}}, s[0:3], s9 offset:1
-; HSA-ELTGE8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, {{off|v[0-9]}}, s[0:3], s9 offset:2
+; HSA-ELTGE8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, {{off|v[0-9]}}, s[0:3], 0 offset:1
+; HSA-ELTGE8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, {{off|v[0-9]}}, s[0:3], 0 offset:2
+; HSA-ELTGE8-DAG: buffer_load_dwordx2 [[VAL:v\[[0-9]+:[0-9]+\]]], v{{[0-9]+}}, s[0:3], 0 offen
+; HSA-ELTGE8: flat_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, [[VAL]]
 
-; HSA-ELTGE8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen
 
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:16{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:20{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:24{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:28{{$}}
 
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:16{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:20{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:24{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:28{{$}}
-
-; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
-; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:4{{$}}
+; HSA-ELT4-DAG: buffer_load_dword v[[HI:[0-9]+]], v{{[0-9]+}}, s[0:3], 0 offen offset:4{{$}}
+; HSA-ELT4-DAG: buffer_load_dword v[[LO:[0-9]+]], v{{[0-9]+}}, s[0:3], 0 offen{{$}}
+; HSA-ELT4: flat_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v[[[LO]]:[[HI]]]
 define amdgpu_kernel void @private_elt_size_i64(i64 addrspace(1)* %out, i32 addrspace(1)* %index.array) #0 {
 entry:
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -166,19 +167,20 @@ entry:
 ; HSA-ELT8: private_element_size = 2
 ; HSA-ELT4: private_element_size = 1
 
-; HSA-ELTGE8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:16
-; HSA-ELTGE8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:24
+; HSA-ELTGE8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:16
+; HSA-ELTGE8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:24
+; HSA-ELTGE8-DAG: buffer_load_dwordx2 [[VAL:v\[[0-9]+:[0-9]+\]]], v{{[0-9]+}}, s[0:3], 0 offen
+; HSA-ELTGE8: flat_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, [[VAL]]
 
-; HSA-ELTGE8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen
 
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:16{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:20{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:24{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:28{{$}}
 
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:16{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:20{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:24{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:28{{$}}
-
-; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
-; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:4{{$}}
+; HSA-ELT4-DAG: buffer_load_dword v[[HI:[0-9]+]], v{{[0-9]+}}, s[0:3], 0 offen offset:4{{$}}
+; HSA-ELT4-DAG: buffer_load_dword v[[LO:[0-9]+]], v{{[0-9]+}}, s[0:3], 0 offen{{$}}
+; HSA-ELT4: flat_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v[[[LO]]:[[HI]]]
 define amdgpu_kernel void @private_elt_size_f64(double addrspace(1)* %out, i32 addrspace(1)* %index.array) #0 {
 entry:
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -202,32 +204,32 @@ entry:
 ; HSA-ELT8: private_element_size = 2
 ; HSA-ELT4: private_element_size = 1
 
-; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:16
-; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:32
-; HSA-ELT16-DAG: buffer_load_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
+; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:16
+; HSA-ELT16-DAG: buffer_store_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:32
+; HSA-ELT16-DAG: buffer_load_dwordx4 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen{{$}}
 
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:16{{$}}
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:24
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:40
-; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], s9 offset:32
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:16{{$}}
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:24
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:40
+; HSA-ELT8-DAG: buffer_store_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, off, s[0:3], 0 offset:32
 
-; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen
-; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], s9 offen
+; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen
+; HSA-ELT8: buffer_load_dwordx2 {{v\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}, s[0:3], 0 offen
 
 
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:16{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:20{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:24{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:28{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:32{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:36{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:40{{$}}
-; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], s9 offset:44{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:16{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:20{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:24{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:28{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:32{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:36{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:40{{$}}
+; HSA-ELT4-DAG: buffer_store_dword {{v[0-9]+}}, off, s[0:3], 0 offset:44{{$}}
 
-; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen{{$}}
-; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:4{{$}}
-; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:8{{$}}
-; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], s9 offen offset:12{{$}}
+; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:12{{$}}
+; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:8{{$}}
+; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen offset:4{{$}}
+; HSA-ELT4: buffer_load_dword {{v[0-9]+}}, v{{[0-9]+}}, s[0:3], 0 offen{{$}}
 define amdgpu_kernel void @private_elt_size_v2i64(<2 x i64> addrspace(1)* %out, i32 addrspace(1)* %index.array) #0 {
 entry:
   %tid = call i32 @llvm.amdgcn.workitem.id.x()

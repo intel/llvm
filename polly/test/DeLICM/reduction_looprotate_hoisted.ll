@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-invariant-load-hoisting -polly-flatten-schedule -polly-delicm-overapproximate-writes=true -polly-delicm-compute-known=true -polly-delicm -analyze < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-invariant-load-hoisting -polly-flatten-schedule -polly-delicm-overapproximate-writes=true -polly-delicm-compute-known=true -polly-print-delicm -disable-output < %s | FileCheck %s
 ;
 ;    void func(int *A, int* StartPtr) {
 ;      for (int j = 0; j < 2; j += 1) { /* outer */
@@ -70,7 +70,7 @@ return:
 ; CHECK-NEXT:     Stmt_reduction_preheader
 ; CHECK-NEXT:             MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 1]
 ; CHECK-NEXT:                 [Start] -> { Stmt_reduction_preheader[i0] -> MemRef_phi__phi[] };
-; CHECK-NEXT:            new: [Start] -> { Stmt_reduction_preheader[i0] -> MemRef_A[i0] : Start >= 2147483648 or Start <= 2147483646 };
+; CHECK-NEXT:            new: [Start] -> { Stmt_reduction_preheader[i0] -> MemRef_A[i0] };
 ; CHECK-NEXT:     Stmt_reduction_for
 ; CHECK-NEXT:             ReadAccess :=    [Reduction Type: NONE] [Scalar: 1]
 ; CHECK-NEXT:                 [Start] -> { Stmt_reduction_for[i0, i1] -> MemRef_phi__phi[] };

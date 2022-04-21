@@ -1,0 +1,38 @@
+119734787 65536 393230 15 0 
+2 Capability Addresses 
+2 Capability Kernel 
+2 Capability Int8 
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2 
+5 EntryPoint 6 7 "test"
+13 String 12 "kernel_arg_type.test.char4*,char4*,char4*,"
+3 Source 3 102000 
+4 Name 8 "src1"
+4 Name 9 "src2"
+3 Name 10 "dst"
+4 Name 11 "entry"
+4 Decorate 13 FuncParamAttr 5 
+2 DecorationGroup 13 
+5 GroupDecorate 13 8 9 10 
+4 TypeInt 3 8 0 
+2 TypeVoid 2 
+4 TypeVector 4 3 4 
+4 TypePointer 5 5 4 
+6 TypeFunction 6 2 5 5 5 
+
+
+5 Function 2 7 4 6 
+3 FunctionParameter 5 8 
+3 FunctionParameter 5 9 
+3 FunctionParameter 5 10 
+
+2 Label 11 
+1 Return 
+
+1 FunctionEnd 
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: define spir_kernel void @test(<4 x i8> addrspace(1)* nocapture %src1, <4 x i8> addrspace(1)* nocapture %src2, <4 x i8> addrspace(1)* nocapture %dst) {{.*}}

@@ -7,8 +7,8 @@
 
 #include "benchmark/benchmark.h"
 
-#include "ContainerBenchmarks.hpp"
-#include "GenerateInput.hpp"
+#include "ContainerBenchmarks.h"
+#include "GenerateInput.h"
 #include "test_macros.h"
 
 using namespace ContainerBenchmarks;
@@ -148,7 +148,7 @@ BENCHMARK_CAPTURE(BM_Hash,
 // ---------------------------------------------------------------------------//
 
 
-// Sorted Assending // 
+// Sorted Ascending //
 BENCHMARK_CAPTURE(BM_InsertValue,
     unordered_set_uint32,
     std::unordered_set<uint32_t>{},
@@ -159,7 +159,7 @@ BENCHMARK_CAPTURE(BM_InsertValue,
     std::unordered_set<uint32_t>{},
     getSortedIntegerInputs<uint32_t>)->Arg(TestNumInputs);
 
-// Top Bytes // 
+// Top Bytes //
 BENCHMARK_CAPTURE(BM_InsertValue,
     unordered_set_top_bits_uint32,
     std::unordered_set<uint32_t>{},

@@ -45,8 +45,7 @@ ProgramStateRef getWidenedLoopState(ProgramStateRef PrevState,
                                     const LocationContext *LCtx,
                                     unsigned BlockCount, const Stmt *LoopStmt) {
 
-  assert(isa<ForStmt>(LoopStmt) || isa<WhileStmt>(LoopStmt) ||
-         isa<DoStmt>(LoopStmt));
+  assert((isa<ForStmt, WhileStmt, DoStmt>(LoopStmt)));
 
   // Invalidate values in the current state.
   // TODO Make this more conservative by only invalidating values that might
@@ -67,8 +66,10 @@ ProgramStateRef getWidenedLoopState(ProgramStateRef PrevState,
   }
 
   // References should not be invalidated.
-  auto Matches = match(findAll(stmt(hasDescendant(varDecl(hasType(referenceType())).bind(MatchRef)))),
-                       *LCtx->getDecl()->getBody(), ASTCtx);
+  auto Matches = match(
+      findAll(stmt(hasDescendant(
+          varDecl(hasType(hasCanonicalType(referenceType()))).bind(MatchRef)))),
+      *LCtx->getDecl()->getBody(), ASTCtx);
   for (BoundNodes Match : Matches) {
     const VarDecl *VD = Match.getNodeAs<VarDecl>(MatchRef);
     assert(VD);

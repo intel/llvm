@@ -12,9 +12,13 @@
 
 // size_t converted() const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <codecvt>
 #include <cassert>
+
+#include "test_macros.h"
 
 template <class CharT, size_t = sizeof(CharT)>
 struct TestHelper;

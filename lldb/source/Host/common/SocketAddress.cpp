@@ -1,4 +1,4 @@
-//===-- SocketAddress.cpp ---------------------------------------*- C++ -*-===//
+//===-- SocketAddress.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,15 +17,15 @@
 #endif
 
 #include "lldb/Host/SocketAddress.h"
-#include <stddef.h>
-#include <stdio.h>
+#include <cstddef>
+#include <cstdio>
 
 #if !defined(_WIN32)
 #include <arpa/inet.h>
 #endif
 
-#include <assert.h>
-#include <string.h>
+#include <cassert>
+#include <cstring>
 
 #include "lldb/Host/PosixApi.h"
 
@@ -93,7 +93,7 @@ SocketAddress::SocketAddress(const struct addrinfo *addr_info) {
 }
 
 // Destructor
-SocketAddress::~SocketAddress() {}
+SocketAddress::~SocketAddress() = default;
 
 void SocketAddress::Clear() {
   memset(&m_socket_addr, 0, sizeof(m_socket_addr));
@@ -174,12 +174,6 @@ bool SocketAddress::SetPort(uint16_t port) {
 }
 
 // SocketAddress assignment operator
-const SocketAddress &SocketAddress::operator=(const SocketAddress &rhs) {
-  if (this != &rhs)
-    m_socket_addr = rhs.m_socket_addr;
-  return *this;
-}
-
 const SocketAddress &SocketAddress::
 operator=(const struct addrinfo *addr_info) {
   Clear();
@@ -236,11 +230,11 @@ SocketAddress::GetAddressInfo(const char *hostname, const char *servname,
   hints.ai_protocol = ai_protocol;
   hints.ai_flags = ai_flags;
 
-  struct addrinfo *service_info_list = NULL;
+  struct addrinfo *service_info_list = nullptr;
   int err = ::getaddrinfo(hostname, servname, &hints, &service_info_list);
   if (err == 0 && service_info_list) {
-    for (struct addrinfo *service_ptr = service_info_list; service_ptr != NULL;
-         service_ptr = service_ptr->ai_next) {
+    for (struct addrinfo *service_ptr = service_info_list;
+         service_ptr != nullptr; service_ptr = service_ptr->ai_next) {
       addr_list.emplace_back(SocketAddress(service_ptr));
     }
   }

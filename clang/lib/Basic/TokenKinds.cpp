@@ -45,3 +45,32 @@ const char *tok::getKeywordSpelling(TokenKind Kind) {
   }
   return nullptr;
 }
+
+const char *tok::getPPKeywordSpelling(tok::PPKeywordKind Kind) {
+  switch (Kind) {
+#define PPKEYWORD(x) case tok::pp_##x: return #x;
+#include "clang/Basic/TokenKinds.def"
+  default: break;
+  }
+  return nullptr;
+}
+
+bool tok::isAnnotation(TokenKind Kind) {
+  switch (Kind) {
+#define ANNOTATION(X) case annot_ ## X: return true;
+#include "clang/Basic/TokenKinds.def"
+  default:
+    break;
+  }
+  return false;
+}
+
+bool tok::isPragmaAnnotation(TokenKind Kind) {
+  switch (Kind) {
+#define PRAGMA_ANNOTATION(X) case annot_ ## X: return true;
+#include "clang/Basic/TokenKinds.def"
+  default:
+    break;
+  }
+  return false;
+}

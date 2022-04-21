@@ -17,9 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#ifdef HAVE_VCS_VERSION_INC
 #include "VCSVersion.inc"
-#endif
 
 namespace clang {
 
@@ -28,46 +26,19 @@ std::string getClangRepositoryPath() {
   return CLANG_REPOSITORY_STRING;
 #else
 #ifdef CLANG_REPOSITORY
-  StringRef URL(CLANG_REPOSITORY);
+  return CLANG_REPOSITORY;
 #else
-  StringRef URL("");
+  return "";
 #endif
-
-  // If the CLANG_REPOSITORY is empty, try to use the SVN keyword. This helps us
-  // pick up a tag in an SVN export, for example.
-  StringRef SVNRepository("$URL$");
-  if (URL.empty()) {
-    URL = SVNRepository.slice(SVNRepository.find(':'),
-                              SVNRepository.find("/lib/Basic"));
-  }
-
-  // Strip off version from a build from an integration branch.
-  URL = URL.slice(0, URL.find("/src/tools/clang"));
-
-  // Trim path prefix off, assuming path came from standard cfe path.
-  size_t Start = URL.find("cfe/");
-  if (Start != StringRef::npos)
-    URL = URL.substr(Start + 4);
-
-  return URL;
 #endif
 }
 
 std::string getLLVMRepositoryPath() {
 #ifdef LLVM_REPOSITORY
-  StringRef URL(LLVM_REPOSITORY);
+  return LLVM_REPOSITORY;
 #else
-  StringRef URL("");
+  return "";
 #endif
-
-  // Trim path prefix off, assuming path came from standard llvm path.
-  // Leave "llvm/" prefix to distinguish the following llvm revision from the
-  // clang revision.
-  size_t Start = URL.find("llvm/");
-  if (Start != StringRef::npos)
-    URL = URL.substr(Start);
-
-  return URL;
 }
 
 std::string getClangRevision() {
@@ -111,7 +82,7 @@ std::string getClangFullRepositoryVersion() {
       OS << LLVMRepo << ' ';
     OS << LLVMRev << ')';
   }
-  return OS.str();
+  return buf;
 }
 
 std::string getClangFullVersion() {
@@ -124,15 +95,14 @@ std::string getClangToolFullVersion(StringRef ToolName) {
 #ifdef CLANG_VENDOR
   OS << CLANG_VENDOR;
 #endif
-  OS << ToolName << " version " CLANG_VERSION_STRING " "
-     << getClangFullRepositoryVersion();
+  OS << ToolName << " version " CLANG_VERSION_STRING;
 
-  // If vendor supplied, include the base LLVM version as well.
-#ifdef CLANG_VENDOR
-  OS << " (based on " << BACKEND_PACKAGE_STRING << ")";
-#endif
+  std::string repo = getClangFullRepositoryVersion();
+  if (!repo.empty()) {
+    OS << " " << repo;
+  }
 
-  return OS.str();
+  return buf;
 }
 
 std::string getClangFullCPPVersion() {
@@ -143,8 +113,23 @@ std::string getClangFullCPPVersion() {
 #ifdef CLANG_VENDOR
   OS << CLANG_VENDOR;
 #endif
-  OS << "Clang " CLANG_VERSION_STRING " " << getClangFullRepositoryVersion();
-  return OS.str();
+  OS << "Clang " CLANG_VERSION_STRING;
+
+  std::string repo = getClangFullRepositoryVersion();
+  if (!repo.empty()) {
+    OS << " " << repo;
+  }
+
+  return buf;
 }
 
+llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
+getSYCLVersionMacros(const LangOptions &LangOpts) {
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017)
+    return {{"CL_SYCL_LANGUAGE_VERSION", "121"},
+            {"SYCL_LANGUAGE_VERSION", "201707"}};
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
+    return {{"SYCL_LANGUAGE_VERSION", "202001"}};
+  llvm_unreachable("SYCL standard should be set");
+}
 } // end namespace clang

@@ -19,9 +19,9 @@
 # CHECK-NEXT:   }
 # CHECK-NEXT:   ProgramHeader {
 # CHECK-NEXT:     Type: PT_LOAD
-# CHECK-NEXT:     Offset: 0x4000
-# CHECK-NEXT:     VirtualAddress: 0x204000
-# CHECK-NEXT:     PhysicalAddress: 0x204000
+# CHECK-NEXT:     Offset: 0x158
+# CHECK-NEXT:     VirtualAddress: 0x204158
+# CHECK-NEXT:     PhysicalAddress: 0x204158
 # CHECK-NEXT:     FileSize: 1
 # CHECK-NEXT:     MemSize: 1
 # CHECK-NEXT:     Flags [
@@ -32,9 +32,9 @@
 # CHECK-NEXT:   }
 # CHECK-NEXT:   ProgramHeader {
 # CHECK-NEXT:     Type: PT_LOAD
-# CHECK-NEXT:     Offset: 0x8000
-# CHECK-NEXT:     VirtualAddress: 0x208000
-# CHECK-NEXT:     PhysicalAddress: 0x208000
+# CHECK-NEXT:     Offset: 0x159
+# CHECK-NEXT:     VirtualAddress: 0x208159
+# CHECK-NEXT:     PhysicalAddress: 0x208159
 # CHECK-NEXT:     FileSize: 8
 # CHECK-NEXT:     MemSize: 8
 # CHECK-NEXT:     Flags [
@@ -46,15 +46,15 @@
 
 # RUN: echo "SECTIONS { symbol = CONSTANT(MAXPAGESIZE); }" > %t.script
 # RUN: ld.lld -z max-page-size=0x4000 -o %t1 --script %t.script %t
-# RUN: llvm-objdump -t %t1 | FileCheck -check-prefix CHECK-SCRIPT %s
+# RUN: llvm-readelf -s %t1 | FileCheck -check-prefix CHECK-SCRIPT %s
 
-# CHECK-SCRIPT: 0000000000004000 *ABS* 00000000 symbol
+# CHECK-SCRIPT: 0000000000004000 0 NOTYPE GLOBAL DEFAULT ABS symbol
 
-# RUN: not ld.lld -z max-page-size=0x1001 -o %t1 --script %t.script %t 2>&1 \
+# RUN: not ld.lld -z max-page-size=0x1001 -o /dev/null --script %t.script %t 2>&1 \
 # RUN:  | FileCheck -check-prefix=ERR1 %s
 # ERR1: max-page-size: value isn't a power of 2
 
-# RUN: not ld.lld -z max-page-size=-0x1000 -o %t1 --script %t.script %t 2>&1 \
+# RUN: not ld.lld -z max-page-size=-0x1000 -o /dev/null --script %t.script %t 2>&1 \
 # RUN:  | FileCheck -check-prefix=ERR2 %s
 # ERR2: invalid max-page-size: -0x1000
 

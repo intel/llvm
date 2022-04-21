@@ -1,7 +1,11 @@
 import("//clang/runtimes.gni")
+import("//libcxx/config.gni")
 import("//llvm/utils/gn/build/symlink_or_copy.gni")
 
 declare_args() {
+  # Whether to support libc++ opt-in debug mode via _LIBCPP_DEBUG.
+  libcxx_enable_debug_mode = true
+
   # Build libc++ with definitions for operator new/delete.
   libcxx_enable_new_delete_definitions = true
 
@@ -34,10 +38,7 @@ declare_args() {
 }
 
 config("cxx_config") {
-  include_dirs = [
-    "//libcxxabi/include",
-    "//libcxx/include",
-  ]
+  include_dirs = [ "//libcxxabi/include" ]
   cflags = [
     "-Wall",
     "-Wextra",
@@ -50,13 +51,14 @@ config("cxx_config") {
     "-Wno-user-defined-literals",
     "-Wno-covered-switch-default",
   ]
-  cflags_cc = [ "-nostdinc++" ]
-  if (target_os == "win") {
-    cflags_cc += [ "/std:c++11" ]
-  } else {
-    cflags_cc += [ "-std=c++11" ]
-  }
-  defines = [ "_LIBCPP_BUILDING_LIBRARY" ]
+  cflags_cc = [
+    "-std=c++20",
+    "-nostdinc++",
+  ]
+  defines = [
+    "_LIBCPP_BUILDING_LIBRARY",
+    "_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER",
+  ]
   if (target_os == "win") {
     cflags += [ "/Zl" ]
     defines += [
@@ -100,7 +102,6 @@ config("cxx_config") {
     } else {
       cflags_cc += [ "-fno-exceptions" ]
     }
-    defines += [ "_LIBCPP_NO_EXCEPTIONS" ]
   }
   if (!libcxx_enable_rtti) {
     if (current_os == "win") {
@@ -108,56 +109,79 @@ config("cxx_config") {
     } else {
       cflags_cc += [ "-fno-rtti" ]
     }
-    defines += [ "_LIBCPP_NO_RTTI" ]
   }
 }
 
 cxx_sources = [
   "algorithm.cpp",
-  "string.cpp",
-  "ios.cpp",
-  "condition_variable.cpp",
-  "hash.cpp",
-  "random.cpp",
-  "new.cpp",
-  "functional.cpp",
-  "exception.cpp",
-  "support/runtime/exception_msvc.ipp",
-  "support/runtime/exception_libcxxabi.ipp",
-  "support/runtime/exception_glibcxx.ipp",
-  "support/runtime/new_handler_fallback.ipp",
-  "support/runtime/exception_libcxxrt.ipp",
-  "support/runtime/exception_pointer_unimplemented.ipp",
-  "support/runtime/exception_pointer_cxxabi.ipp",
-  "support/runtime/exception_pointer_msvc.ipp",
-  "support/runtime/exception_fallback.ipp",
-  "support/runtime/exception_pointer_glibcxx.ipp",
-  "variant.cpp",
-  "shared_mutex.cpp",
-  "optional.cpp",
-  "strstream.cpp",
-  "include/apple_availability.h",
-  "include/refstring.h",
-  "include/config_elast.h",
-  "include/atomic_support.h",
-  "future.cpp",
-  "system_error.cpp",
-  "bind.cpp",
-  "iostream.cpp",
-  "stdexcept.cpp",
-  "valarray.cpp",
-  "chrono.cpp",
-  "typeinfo.cpp",
-  "locale.cpp",
-  "debug.cpp",
-  "charconv.cpp",
-  "utility.cpp",
-  "regex.cpp",
-  "mutex.cpp",
   "any.cpp",
-  "thread.cpp",
-  "vector.cpp",
+  "assert.cpp",
+  "atomic.cpp",
+  "barrier.cpp",
+  "bind.cpp",
+  "charconv.cpp",
+  "chrono.cpp",
+  "condition_variable.cpp",
+  "condition_variable_destructor.cpp",
+  "exception.cpp",
+  "format.cpp",
+  "functional.cpp",
+  "future.cpp",
+  "hash.cpp",
+  "include/apple_availability.h",
+  "include/atomic_support.h",
+  "include/config_elast.h",
+  "include/refstring.h",
+  "include/ryu/common.h",
+  "include/ryu/d2fixed.h",
+  "include/ryu/d2fixed_full_table.h",
+  "include/ryu/d2s.h",
+  "include/ryu/d2s_full_table.h",
+  "include/ryu/d2s_intrinsics.h",
+  "include/ryu/digit_table.h",
+  "include/ryu/f2s.h",
+  "include/ryu/ryu.h",
+  "include/sso_allocator.h",
+  "include/to_chars_floating_point.h",
+  "ios.cpp",
+  "ios.instantiations.cpp",
+  "iostream.cpp",
+  "legacy_pointer_safety.cpp",
+  "locale.cpp",
   "memory.cpp",
+  "mutex.cpp",
+  "mutex_destructor.cpp",
+  "new.cpp",
+  "optional.cpp",
+  "random.cpp",
+  "random_shuffle.cpp",
+  "regex.cpp",
+  "ryu/d2fixed.cpp",
+  "ryu/d2s.cpp",
+  "ryu/f2s.cpp",
+  "shared_mutex.cpp",
+  "stdexcept.cpp",
+  "string.cpp",
+  "strstream.cpp",
+  "support/runtime/exception_fallback.ipp",
+  "support/runtime/exception_glibcxx.ipp",
+  "support/runtime/exception_libcxxabi.ipp",
+  "support/runtime/exception_libcxxrt.ipp",
+  "support/runtime/exception_msvc.ipp",
+  "support/runtime/exception_pointer_cxxabi.ipp",
+  "support/runtime/exception_pointer_glibcxx.ipp",
+  "support/runtime/exception_pointer_msvc.ipp",
+  "support/runtime/exception_pointer_unimplemented.ipp",
+  "support/runtime/new_handler_fallback.ipp",
+  "support/runtime/stdexcept_default.ipp",
+  "support/runtime/stdexcept_vcruntime.ipp",
+  "system_error.cpp",
+  "thread.cpp",
+  "typeinfo.cpp",
+  "utility.cpp",
+  "valarray.cpp",
+  "variant.cpp",
+  "vector.cpp",
 ]
 if (target_os == "win") {
   cxx_sources += [
@@ -167,10 +191,19 @@ if (target_os == "win") {
   ]
 }
 if (target_os == "solaris") {
+  cxx_sources += [ "support/solaris/xlocale.cpp" ]
+}
+if (target_os == "zos") {
   cxx_sources += [
-    # This comment prevents `gn format` from putting the file on the same line
-    # as `sources +=`, for sync_source_lists_from_cmake.py.
-    "support/solaris/xlocale.cpp",
+    "support/ibm/mbsnrtowcs.cpp",
+    "support/ibm/wcsnrtombs.cpp",
+    "support/ibm/xlocale_zos.cpp",
+  ]
+}
+if (libcxx_enable_debug_mode) {
+  cxx_sources += [
+    "debug.cpp",
+    "legacy_debug_handler.cpp",
   ]
 }
 if (libcxx_enable_filesystem) {
@@ -178,13 +211,10 @@ if (libcxx_enable_filesystem) {
     "filesystem/directory_iterator.cpp",
     "filesystem/filesystem_common.h",
     "filesystem/operations.cpp",
+    "filesystem/posix_compat.h",
   ]
   if (libcxx_use_compiler_rt) {
-    cxx_sources += [
-      # This comment prevents `gn format` from putting the file on the same line
-      # as `sources +=`, for sync_source_lists_from_cmake.py.
-      "filesystem/int128_builtins.cpp",
-    ]
+    cxx_sources += [ "filesystem/int128_builtins.cpp" ]
   }
 }
 
@@ -204,8 +234,10 @@ if (libcxx_enable_shared) {
       ]
     }
     sources = cxx_sources
+    include_dirs = [ "." ]
     deps = [
       "//compiler-rt/lib/builtins",
+      "//libcxx/include",
       "//libcxxabi/src:cxxabi_shared",
       "//libunwind/src:unwind_shared",
     ]
@@ -217,30 +249,24 @@ if (libcxx_enable_shared) {
   }
 
   symlink_or_copy("cxx_symlink") {
-    deps = [
-      ":cxx_shared",
-    ]
+    deps = [ ":cxx_shared" ]
     source = "libc++.so.0"
     output = "$runtimes_dir/libc++.so"
   }
 
   if (libcxx_enable_abi_linker_script) {
     action("cxx_linker_script") {
-      script = "//libcxx/utils/gen_link_script.py"
-      outputs = [
-        "$runtimes_dir/libc++.so",
-      ]
+      script = "//llvm/utils/gn/secondary/libcxx/utils/gen_link_script.py"
+      outputs = [ "$runtimes_dir/libc++.so" ]
       args = [
         "--input",
-        "$runtimes_dir/libc++.so.0",
+        rebase_path("$runtimes_dir/libc++.so.0", root_build_dir),
         "--output",
-        "$runtimes_dir/libc++.so",
+        rebase_path("$runtimes_dir/libc++.so", root_build_dir),
         "c++abi",
         "unwind",
       ]
-      deps = [
-        ":cxx_symlink",
-      ]
+      deps = [ ":cxx_symlink" ]
     }
   }
 }
@@ -252,6 +278,7 @@ if (libcxx_enable_static) {
     complete_static_lib = true
     configs -= [ "//llvm/utils/gn/build:thin_archive" ]
     sources = cxx_sources
+    include_dirs = [ "." ]
     if (libcxx_hermetic_static_library) {
       cflags = [ "-fvisibility=hidden" ]
       if (libcxx_enable_new_delete_definitions) {
@@ -261,6 +288,7 @@ if (libcxx_enable_static) {
     }
     deps = [
       "//compiler-rt/lib/builtins",
+      "//libcxx/include",
       "//libcxxabi/src:cxxabi_static",
       "//libunwind/src:unwind_static",
     ]
@@ -276,10 +304,8 @@ if (libcxx_enable_experimental) {
   static_library("cxx_experimental") {
     output_dir = runtimes_dir
     output_name = "c++experimental"
-    cflags_cc = [ "-std=c++14" ]
-    sources = [
-      "experimental/memory_resource.cpp",
-    ]
+    sources = [ "experimental/memory_resource.cpp" ]
+    deps = [ "//libcxx/include" ]
     configs += [ ":cxx_config" ]
     configs -= [
       "//llvm/utils/gn/build:no_exceptions",

@@ -141,23 +141,8 @@ public:
   _SPIRV_DCL_ENCDEC
   void validate() const override {
     SPIRVValue::validate();
+    validateFunctionControlMask(FCtrlMask);
     assert(FuncType && "Invalid func type");
-  }
-
-  bool shouldFPContractBeDisabled() const {
-    // We could find some instructions in LLVM IR which look exactly like an
-    // unfused fmuladd. So, we assume that FP_CONTRACT was disabled only if
-    // there are something that looks like uncointracted fmul + fadd, but there
-    // no calls to @llvm.fmuladd.*
-    return FoundUncontractedFMulAdd && !FoundContractedFMulAdd;
-  }
-
-  void setUncontractedFMulAddFound(bool Value = true) {
-    FoundUncontractedFMulAdd = Value;
-  }
-
-  void setContractedFMulAddFound(bool Value = true) {
-    FoundContractedFMulAdd = Value;
   }
 
 private:
@@ -173,7 +158,7 @@ private:
     for (size_t I = 0, E = getFunctionType()->getNumParameters(); I != E; ++I)
       addArgument(I, FirstArgId + I);
   }
-  void decodeBB(SPIRVDecoder &);
+  bool decodeBB(SPIRVDecoder &);
 
   SPIRVTypeFunction *FuncType; // Function type
   SPIRVWord FCtrlMask;         // Function control mask
@@ -182,12 +167,36 @@ private:
   std::vector<const SPIRVValue *> Variables;
   typedef std::vector<SPIRVBasicBlock *> SPIRVLBasicBlockVector;
   SPIRVLBasicBlockVector BBVec;
-
-  bool FoundUncontractedFMulAdd = false;
-  bool FoundContractedFMulAdd = false;
 };
 
 typedef SPIRVEntryOpCodeOnly<OpFunctionEnd> SPIRVFunctionEnd;
+
+class SPIRVConstantFunctionPointerINTEL : public SPIRVValue {
+  const static Op OC = OpConstantFunctionPointerINTEL;
+  const static SPIRVWord FixedWordCount = 4;
+
+public:
+  SPIRVConstantFunctionPointerINTEL(SPIRVId TheId, SPIRVType *TheType,
+                                    SPIRVFunction *TheFunction, SPIRVModule *M)
+      : SPIRVValue(M, FixedWordCount, OC, TheType, TheId),
+        TheFunction(TheFunction->getId()) {
+    validate();
+  }
+  SPIRVConstantFunctionPointerINTEL()
+      : SPIRVValue(OC), TheFunction(SPIRVID_INVALID) {}
+  SPIRVFunction *getFunction() const { return get<SPIRVFunction>(TheFunction); }
+  _SPIRV_DEF_ENCDEC3(Type, Id, TheFunction)
+  void validate() const override { SPIRVValue::validate(); }
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_function_pointers;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityFunctionPointersINTEL);
+  }
+
+protected:
+  SPIRVId TheFunction;
+};
 
 } // namespace SPIRV
 

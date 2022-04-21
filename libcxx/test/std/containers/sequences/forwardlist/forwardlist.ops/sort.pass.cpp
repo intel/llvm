@@ -17,6 +17,7 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 std::mt19937 randomness;
@@ -32,7 +33,7 @@ void test(int N)
     std::shuffle(v.begin(), v.end(), randomness);
     C c(v.begin(), v.end());
     c.sort();
-    assert(distance(c.begin(), c.end()) == N);
+    assert(std::distance(c.begin(), c.end()) == N);
     typename C::const_iterator j = c.begin();
     for (int i = 0; i < N; ++i, ++j)
         assert(*j == i);
@@ -62,7 +63,7 @@ void test_stable(int N)
 
     C c(v.begin(), v.end());
     c.sort();
-    assert(distance(c.begin(), c.end()) == N);
+    assert(std::distance(c.begin(), c.end()) == N);
 
 //  Are we sorted?
     typename C::const_iterator j = c.begin();

@@ -1,8 +1,9 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 %s -Wuninitialized
 
 typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_null_allocator;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
 extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
 extern const omp_allocator_handle_t omp_const_mem_alloc;
@@ -55,7 +56,7 @@ public:
   S5(int v) : a(v) {}
   S5 &operator=(S5 &s) {
 #pragma omp target parallel for private(a) private(this->a) private(s.a) // expected-error {{expected variable name or data member of current class}}
-    for (int k = 0; k < s.a; ++k) // expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
+    for (int k = 0; k < s.a; ++k) // expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
       ++s.a;
     return *this;
   }
@@ -106,7 +107,7 @@ template <class I, class C>
 int foomain(I argc, C **argv) {
   I e(4);
   I g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target parallel for private // expected-error {{expected '(' after 'private'}}
   for (int k = 0; k < argc; ++k)
@@ -132,13 +133,13 @@ int foomain(I argc, C **argv) {
 #pragma omp target parallel for private(S1) // expected-error {{'S1' does not refer to a value}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp target parallel for private(a, b) // expected-error {{private variable with incomplete type 'S1'}}
+#pragma omp target parallel for private(a, b, z) // expected-error {{private variable with incomplete type 'S1'}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target parallel for private(argv[1]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp target parallel for private(e, g) allocate(omp_thread_mem_alloc: e) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target parallel for' directive}}
+#pragma omp target parallel for private(e, g) allocate(omp_thread_mem_alloc: e) uses_allocators(omp_thread_mem_alloc) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target parallel for' directive}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target parallel for private(h) // expected-error {{threadprivate or thread local variable cannot be private}}
@@ -178,7 +179,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S6<float> s6(0.0) , s6_0(1.0);
   S7<S6<float> > s7(0.0) , s7_0(1.0);
-  int i;
+  int i ,z;
   int &j = i;
 #pragma omp target parallel for private // expected-error {{expected '(' after 'private'}}
   for (int k = 0; k < argc; ++k)
@@ -198,7 +199,7 @@ int main(int argc, char **argv) {
 #pragma omp target parallel for private(argc > 0 ? argv[1] : argv[2]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp target parallel for private(argc)
+#pragma omp target parallel for private(argc, z)
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target parallel for private(S1) // expected-error {{'S1' does not refer to a value}}
@@ -237,7 +238,7 @@ int main(int argc, char **argv) {
     m = k + 2;
 
   s6 = s6_0; // expected-note {{in instantiation of member function 'S6<float>::operator=' requested here}}
-  s7 = s7_0; // expected-note {{in instantiation of member function 'S7<S6<float> >::operator=' requested here}}
+  s7 = s7_0; // expected-note {{in instantiation of member function 'S7<S6<float>>::operator=' requested here}}
   return foomain(argc, argv); // expected-note {{in instantiation of function template specialization 'foomain<int, char>' requested here}}
 }
 

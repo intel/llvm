@@ -13,26 +13,11 @@
 /// initiated by CF_ALU instructions.
 //===----------------------------------------------------------------------===//
 
-#include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "MCTargetDesc/R600MCTargetDesc.h"
+#include "R600.h"
 #include "R600Defines.h"
-#include "R600InstrInfo.h"
-#include "R600RegisterInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFunction.h"
+#include "R600Subtarget.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineOperand.h"
-#include "llvm/Pass.h"
-#include "llvm/Support/ErrorHandling.h"
-#include <cassert>
-#include <cstdint>
-#include <utility>
-#include <vector>
 
 using namespace llvm;
 
@@ -317,9 +302,7 @@ public:
     const R600Subtarget &ST = MF.getSubtarget<R600Subtarget>();
     TII = ST.getInstrInfo();
 
-    for (MachineFunction::iterator BB = MF.begin(), BB_E = MF.end();
-                                                    BB != BB_E; ++BB) {
-      MachineBasicBlock &MBB = *BB;
+    for (MachineBasicBlock &MBB : MF) {
       MachineBasicBlock::iterator I = MBB.begin();
       if (I != MBB.end() && I->getOpcode() == R600::CF_ALU)
         continue; // BB was already parsed
@@ -345,9 +328,9 @@ char R600EmitClauseMarkers::ID = 0;
 } // end anonymous namespace
 
 INITIALIZE_PASS_BEGIN(R600EmitClauseMarkers, "emitclausemarkers",
-                      "R600 Emit Clause Markters", false, false)
+                      "R600 Emit Clause Markers", false, false)
 INITIALIZE_PASS_END(R600EmitClauseMarkers, "emitclausemarkers",
-                      "R600 Emit Clause Markters", false, false)
+                    "R600 Emit Clause Markers", false, false)
 
 FunctionPass *llvm::createR600EmitClauseMarkers() {
   return new R600EmitClauseMarkers();

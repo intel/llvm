@@ -1,4 +1,4 @@
-//===-- ProcessWindows.cpp --------------------------------------*- C++ -*-===//
+//===-- ProcessWindows.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,11 +12,13 @@
 #include "lldb/Host/windows/windows.h"
 #include <psapi.h>
 
+#include "lldb/Breakpoint/Watchpoint.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Host/FileSystem.h"
+#include "lldb/Host/HostInfo.h"
 #include "lldb/Host/HostNativeProcessBase.h"
 #include "lldb/Host/HostProcess.h"
 #include "lldb/Host/windows/HostThreadWindows.h"
@@ -42,6 +44,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(ProcessWindows, ProcessWindowsCommon)
 
 namespace {
 std::string GetProcessExecutableName(HANDLE process_handle) {
@@ -70,69 +74,40 @@ std::string GetProcessExecutableName(DWORD pid) {
   }
   return file_name;
 }
-
-DWORD ConvertLldbToWinApiProtect(uint32_t protect) {
-  // We also can process a read / write permissions here, but if the debugger
-  // will make later a write into the allocated memory, it will fail. To get
-  // around it is possible inside DoWriteMemory to remember memory permissions,
-  // allow write, write and restore permissions, but for now we process only
-  // the executable permission.
-  //
-  // TODO: Process permissions other than executable
-  if (protect & ePermissionsExecutable)
-    return PAGE_EXECUTE_READWRITE;
-
-  return PAGE_READWRITE;
-}
-
 } // anonymous namespace
 
 namespace lldb_private {
 
-// We store a pointer to this class in the ProcessWindows, so that we don't
-// expose Windows-specific types and implementation details from a public
-// header file.
-class ProcessWindowsData {
-public:
-  ProcessWindowsData(bool stop_at_entry) : m_stop_at_entry(stop_at_entry) {
-    m_initial_stop_event = ::CreateEvent(nullptr, TRUE, FALSE, nullptr);
-  }
-
-  ~ProcessWindowsData() { ::CloseHandle(m_initial_stop_event); }
-
-  Status m_launch_error;
-  DebuggerThreadSP m_debugger;
-  StopInfoSP m_pending_stop_info;
-  HANDLE m_initial_stop_event = nullptr;
-  bool m_initial_stop_received = false;
-  bool m_stop_at_entry;
-  std::map<lldb::tid_t, HostThread> m_new_threads;
-  std::set<lldb::tid_t> m_exited_threads;
-};
-
 ProcessSP ProcessWindows::CreateInstance(lldb::TargetSP target_sp,
                                          lldb::ListenerSP listener_sp,
-                                         const FileSpec *) {
+                                         const FileSpec *,
+                                         bool can_connect) {
   return ProcessSP(new ProcessWindows(target_sp, listener_sp));
 }
 
-void ProcessWindows::Initialize() {
-  static llvm::once_flag g_once_flag;
+static bool ShouldUseLLDBServer() {
+  llvm::StringRef use_lldb_server = ::getenv("LLDB_USE_LLDB_SERVER");
+  return use_lldb_server.equals_insensitive("on") ||
+         use_lldb_server.equals_insensitive("yes") ||
+         use_lldb_server.equals_insensitive("1") ||
+         use_lldb_server.equals_insensitive("true");
+}
 
-  llvm::call_once(g_once_flag, []() {
-    PluginManager::RegisterPlugin(GetPluginNameStatic(),
-                                  GetPluginDescriptionStatic(), CreateInstance);
-  });
+void ProcessWindows::Initialize() {
+  if (!ShouldUseLLDBServer()) {
+    static llvm::once_flag g_once_flag;
+
+    llvm::call_once(g_once_flag, []() {
+      PluginManager::RegisterPlugin(GetPluginNameStatic(),
+                                    GetPluginDescriptionStatic(),
+                                    CreateInstance);
+    });
+  }
 }
 
 void ProcessWindows::Terminate() {}
 
-lldb_private::ConstString ProcessWindows::GetPluginNameStatic() {
-  static ConstString g_name("windows");
-  return g_name;
-}
-
-const char *ProcessWindows::GetPluginDescriptionStatic() {
+llvm::StringRef ProcessWindows::GetPluginDescriptionStatic() {
   return "Process plugin for Windows";
 }
 
@@ -140,7 +115,10 @@ const char *ProcessWindows::GetPluginDescriptionStatic() {
 
 ProcessWindows::ProcessWindows(lldb::TargetSP target_sp,
                                lldb::ListenerSP listener_sp)
-    : lldb_private::Process(target_sp, listener_sp) {}
+    : lldb_private::Process(target_sp, listener_sp),
+      m_watchpoint_ids(
+          RegisterContextWindows::GetNumHardwareBreakpointSlots(),
+          LLDB_INVALID_BREAK_ID) {}
 
 ProcessWindows::~ProcessWindows() {}
 
@@ -160,16 +138,11 @@ size_t ProcessWindows::PutSTDIN(const char *buf, size_t buf_size,
   return 0;
 }
 
-// ProcessInterface protocol.
-
-lldb_private::ConstString ProcessWindows::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t ProcessWindows::GetPluginVersion() { return 1; }
-
 Status ProcessWindows::EnableBreakpointSite(BreakpointSite *bp_site) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_BREAKPOINTS);
+  if (bp_site->HardwareRequired())
+    return Status("Hardware breakpoints are not supported.");
+
+  Log *log = GetLog(WindowsLog::Breakpoints);
   LLDB_LOG(log, "bp_site = {0:x}, id={1}, addr={2:x}", bp_site,
            bp_site->GetID(), bp_site->GetLoadAddress());
 
@@ -180,7 +153,7 @@ Status ProcessWindows::EnableBreakpointSite(BreakpointSite *bp_site) {
 }
 
 Status ProcessWindows::DisableBreakpointSite(BreakpointSite *bp_site) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_BREAKPOINTS);
+  Log *log = GetLog(WindowsLog::Breakpoints);
   LLDB_LOG(log, "bp_site = {0:x}, id={1}, addr={2:x}", bp_site,
            bp_site->GetID(), bp_site->GetLoadAddress());
 
@@ -192,164 +165,46 @@ Status ProcessWindows::DisableBreakpointSite(BreakpointSite *bp_site) {
 }
 
 Status ProcessWindows::DoDetach(bool keep_stopped) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
-  DebuggerThreadSP debugger_thread;
-  StateType private_state;
-  {
-    // Acquire the lock only long enough to get the DebuggerThread.
-    // StopDebugging() will trigger a call back into ProcessWindows which will
-    // also acquire the lock.  Thus we have to release the lock before calling
-    // StopDebugging().
-    llvm::sys::ScopedLock lock(m_mutex);
-
-    private_state = GetPrivateState();
-
-    if (!m_session_data) {
-      LLDB_LOG(log, "state = {0}, but there is no active session.",
-               private_state);
-      return Status();
-    }
-
-    debugger_thread = m_session_data->m_debugger;
-  }
-
   Status error;
+  Log *log = GetLog(WindowsLog::Process);
+  StateType private_state = GetPrivateState();
   if (private_state != eStateExited && private_state != eStateDetached) {
-    LLDB_LOG(log, "detaching from process {0} while state = {1}.",
-             debugger_thread->GetProcess().GetNativeProcess().GetSystemHandle(),
-             private_state);
-    error = debugger_thread->StopDebugging(false);
-    if (error.Success()) {
+    error = DetachProcess();
+    if (error.Success())
       SetPrivateState(eStateDetached);
-    }
-
-    // By the time StopDebugging returns, there is no more debugger thread, so
-    // we can be assured that no other thread will race for the session data.
-    m_session_data.reset();
+    else
+      LLDB_LOG(log, "Detaching process error: {0}", error);
   } else {
-    LLDB_LOG(
-        log,
-        "error: process {0} in state = {1}, but cannot destroy in this state.",
-        debugger_thread->GetProcess().GetNativeProcess().GetSystemHandle(),
-        private_state);
+    error.SetErrorStringWithFormatv("error: process {0} in state = {1}, but "
+                                    "cannot detach it in this state.",
+                                    GetID(), private_state);
+    LLDB_LOG(log, "error: {0}", error);
   }
-
   return error;
 }
 
 Status ProcessWindows::DoLaunch(Module *exe_module,
                                 ProcessLaunchInfo &launch_info) {
-  // Even though m_session_data is accessed here, it is before a debugger
-  // thread has been kicked off.  So there's no race conditions, and it
-  // shouldn't be necessary to acquire the mutex.
-
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
-  Status result;
-
-  FileSpec working_dir = launch_info.GetWorkingDirectory();
-  namespace fs = llvm::sys::fs;
-  if (working_dir) {
-    FileSystem::Instance().Resolve(working_dir);
-    if (!FileSystem::Instance().IsDirectory(working_dir)) {
-      result.SetErrorStringWithFormat("No such file or directory: %s",
-                                      working_dir.GetCString());
-      return result;
-    }
-  }
-
-  if (!launch_info.GetFlags().Test(eLaunchFlagDebug)) {
-    StreamString stream;
-    stream.Printf("ProcessWindows unable to launch '%s'.  ProcessWindows can "
-                  "only be used for debug launches.",
-                  launch_info.GetExecutableFile().GetPath().c_str());
-    std::string message = stream.GetString();
-    result.SetErrorString(message.c_str());
-
-    LLDB_LOG(log, "error: {0}", message);
-    return result;
-  }
-
-  bool stop_at_entry = launch_info.GetFlags().Test(eLaunchFlagStopAtEntry);
-  m_session_data.reset(new ProcessWindowsData(stop_at_entry));
-
+  Status error;
   DebugDelegateSP delegate(new LocalDebugDelegate(shared_from_this()));
-  m_session_data->m_debugger.reset(new DebuggerThread(delegate));
-  DebuggerThreadSP debugger = m_session_data->m_debugger;
-
-  // Kick off the DebugLaunch asynchronously and wait for it to complete.
-  result = debugger->DebugLaunch(launch_info);
-  if (result.Fail()) {
-    LLDB_LOG(log, "failed launching '{0}'. {1}",
-             launch_info.GetExecutableFile().GetPath(), result);
-    return result;
-  }
-
-  HostProcess process;
-  Status error = WaitForDebuggerConnection(debugger, process);
-  if (error.Fail()) {
-    LLDB_LOG(log, "failed launching '{0}'. {1}",
-             launch_info.GetExecutableFile().GetPath(), error);
-    return error;
-  }
-
-  LLDB_LOG(log, "successfully launched '{0}'",
-           launch_info.GetExecutableFile().GetPath());
-
-  // We've hit the initial stop.  If eLaunchFlagsStopAtEntry was specified, the
-  // private state should already be set to eStateStopped as a result of
-  // hitting the initial breakpoint.  If it was not set, the breakpoint should
-  // have already been resumed from and the private state should already be
-  // eStateRunning.
-  launch_info.SetProcessID(process.GetProcessId());
-  SetID(process.GetProcessId());
-
-  return result;
+  error = LaunchProcess(launch_info, delegate);
+  if (error.Success())
+    SetID(launch_info.GetProcessID());
+  return error;
 }
 
 Status
 ProcessWindows::DoAttachToProcessWithID(lldb::pid_t pid,
                                         const ProcessAttachInfo &attach_info) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
-  m_session_data.reset(
-      new ProcessWindowsData(!attach_info.GetContinueOnceAttached()));
-
   DebugDelegateSP delegate(new LocalDebugDelegate(shared_from_this()));
-  DebuggerThreadSP debugger(new DebuggerThread(delegate));
-
-  m_session_data->m_debugger = debugger;
-
-  DWORD process_id = static_cast<DWORD>(pid);
-  Status error = debugger->DebugAttach(process_id, attach_info);
-  if (error.Fail()) {
-    LLDB_LOG(
-        log,
-        "encountered an error occurred initiating the asynchronous attach. {0}",
-        error);
-    return error;
-  }
-
-  HostProcess process;
-  error = WaitForDebuggerConnection(debugger, process);
-  if (error.Fail()) {
-    LLDB_LOG(log,
-             "encountered an error waiting for the debugger to connect. {0}",
-             error);
-    return error;
-  }
-
-  LLDB_LOG(log, "successfully attached to process with pid={0}", process_id);
-
-  // We've hit the initial stop.  If eLaunchFlagsStopAtEntry was specified, the
-  // private state should already be set to eStateStopped as a result of
-  // hitting the initial breakpoint.  If it was not set, the breakpoint should
-  // have already been resumed from and the private state should already be
-  // eStateRunning.
-  SetID(process.GetProcessId());
+  Status error = AttachProcess(pid, attach_info, delegate);
+  if (error.Success())
+    SetID(GetDebuggedProcessId());
   return error;
 }
 
 Status ProcessWindows::DoResume() {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
+  Log *log = GetLog(WindowsLog::Process);
   llvm::sys::ScopedLock lock(m_mutex);
   Status error;
 
@@ -358,16 +213,6 @@ Status ProcessWindows::DoResume() {
     LLDB_LOG(log, "process {0} is in state {1}.  Resuming...",
              m_session_data->m_debugger->GetProcess().GetProcessId(),
              GetPrivateState());
-
-    ExceptionRecordSP active_exception =
-        m_session_data->m_debugger->GetActiveException().lock();
-    if (active_exception) {
-      // Resume the process and continue processing debug events.  Mask the
-      // exception so that from the process's view, there is no indication that
-      // anything happened.
-      m_session_data->m_debugger->ContinueAsyncException(
-          ExceptionResult::MaskException);
-    }
 
     LLDB_LOG(log, "resuming {0} threads.", m_thread_list.GetSize());
 
@@ -387,9 +232,18 @@ Status ProcessWindows::DoResume() {
 
     if (failed) {
       error.SetErrorString("ProcessWindows::DoResume failed");
-      return error;
     } else {
       SetPrivateState(eStateRunning);
+    }
+
+    ExceptionRecordSP active_exception =
+        m_session_data->m_debugger->GetActiveException().lock();
+    if (active_exception) {
+      // Resume the process and continue processing debug events.  Mask the
+      // exception so that from the process's view, there is no indication that
+      // anything happened.
+      m_session_data->m_debugger->ContinueAsyncException(
+          ExceptionResult::MaskException);
     }
   } else {
     LLDB_LOG(log, "error: process {0} is in state {1}.  Returning...",
@@ -400,63 +254,16 @@ Status ProcessWindows::DoResume() {
 }
 
 Status ProcessWindows::DoDestroy() {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
-  DebuggerThreadSP debugger_thread;
-  StateType private_state;
-  {
-    // Acquire this lock inside an inner scope, only long enough to get the
-    // DebuggerThread. StopDebugging() will trigger a call back into
-    // ProcessWindows which will acquire the lock again, so we need to not
-    // deadlock.
-    llvm::sys::ScopedLock lock(m_mutex);
-
-    private_state = GetPrivateState();
-
-    if (!m_session_data) {
-      LLDB_LOG(log, "warning: state = {0}, but there is no active session.",
-               private_state);
-      return Status();
-    }
-
-    debugger_thread = m_session_data->m_debugger;
-  }
-
-  Status error;
-  if (private_state != eStateExited && private_state != eStateDetached) {
-    LLDB_LOG(log, "Shutting down process {0} while state = {1}.",
-             debugger_thread->GetProcess().GetNativeProcess().GetSystemHandle(),
-             private_state);
-    error = debugger_thread->StopDebugging(true);
-
-    // By the time StopDebugging returns, there is no more debugger thread, so
-    // we can be assured that no other thread will race for the session data.
-    m_session_data.reset();
-  } else {
-    LLDB_LOG(log, "cannot destroy process {0} while state = {1}",
-             debugger_thread->GetProcess().GetNativeProcess().GetSystemHandle(),
-             private_state);
-  }
-
-  return error;
+  StateType private_state = GetPrivateState();
+  return DestroyProcess(private_state);
 }
 
 Status ProcessWindows::DoHalt(bool &caused_stop) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
-  Status error;
   StateType state = GetPrivateState();
-  if (state == eStateStopped)
-    caused_stop = false;
-  else {
-    llvm::sys::ScopedLock lock(m_mutex);
-    caused_stop = ::DebugBreakProcess(m_session_data->m_debugger->GetProcess()
-                                          .GetNativeProcess()
-                                          .GetSystemHandle());
-    if (!caused_stop) {
-      error.SetError(::GetLastError(), eErrorTypeWin32);
-      LLDB_LOG(log, "DebugBreakProcess failed with error {0}", error);
-    }
-  }
-  return error;
+  if (state != eStateStopped)
+    return HaltProcess(caused_stop);
+  caused_stop = false;
+  return Status();
 }
 
 void ProcessWindows::DidLaunch() {
@@ -543,7 +350,7 @@ DumpAdditionalExceptionInformation(llvm::raw_ostream &stream,
 }
 
 void ProcessWindows::RefreshStateAfterStop() {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_EXCEPTION);
+  Log *log = GetLog(WindowsLog::Exception);
   llvm::sys::ScopedLock lock(m_mutex);
 
   if (!m_session_data) {
@@ -575,7 +382,7 @@ void ProcessWindows::RefreshStateAfterStop() {
     RegisterContextSP register_context = stop_thread->GetRegisterContext();
     const uint64_t pc = register_context->GetPC();
     BreakpointSiteSP site(GetBreakpointSiteList().FindByAddress(pc));
-    if (site && site->ValidForThisThread(stop_thread.get())) {
+    if (site && site->ValidForThisThread(*stop_thread)) {
       LLDB_LOG(log,
                "Single-stepped onto a breakpoint in process {0} at "
                "address {1:x} with breakpoint site {2}",
@@ -584,19 +391,64 @@ void ProcessWindows::RefreshStateAfterStop() {
       stop_info = StopInfo::CreateStopReasonWithBreakpointSiteID(*stop_thread,
                                                                  site->GetID());
       stop_thread->SetStopInfo(stop_info);
-    } else {
-      LLDB_LOG(log, "single stepping thread {0}", stop_thread->GetID());
-      stop_info = StopInfo::CreateStopReasonToTrace(*stop_thread);
-      stop_thread->SetStopInfo(stop_info);
+
+      return;
     }
+
+    auto *reg_ctx = static_cast<RegisterContextWindows *>(
+        stop_thread->GetRegisterContext().get());
+    uint32_t slot_id = reg_ctx->GetTriggeredHardwareBreakpointSlotId();
+    if (slot_id != LLDB_INVALID_INDEX32) {
+      int id = m_watchpoint_ids[slot_id];
+      LLDB_LOG(log,
+               "Single-stepped onto a watchpoint in process {0} at address "
+               "{1:x} with watchpoint {2}",
+               m_session_data->m_debugger->GetProcess().GetProcessId(), pc, id);
+
+      if (lldb::WatchpointSP wp_sp =
+              GetTarget().GetWatchpointList().FindByID(id))
+        wp_sp->SetHardwareIndex(slot_id);
+
+      stop_info = StopInfo::CreateStopReasonWithWatchpointID(
+          *stop_thread, id, m_watchpoints[id].address);
+      stop_thread->SetStopInfo(stop_info);
+
+      return;
+    }
+
+    LLDB_LOG(log, "single stepping thread {0}", stop_thread->GetID());
+    stop_info = StopInfo::CreateStopReasonToTrace(*stop_thread);
+    stop_thread->SetStopInfo(stop_info);
+
     return;
   }
 
   case EXCEPTION_BREAKPOINT: {
     RegisterContextSP register_context = stop_thread->GetRegisterContext();
 
-    // The current EIP is AFTER the BP opcode, which is one byte.
-    uint64_t pc = register_context->GetPC() - 1;
+    int breakpoint_size = 1;
+    switch (GetTarget().GetArchitecture().GetMachine()) {
+    case llvm::Triple::aarch64:
+      breakpoint_size = 4;
+      break;
+
+    case llvm::Triple::arm:
+    case llvm::Triple::thumb:
+      breakpoint_size = 2;
+      break;
+
+    case llvm::Triple::x86:
+    case llvm::Triple::x86_64:
+      breakpoint_size = 1;
+      break;
+
+    default:
+      LLDB_LOG(log, "Unknown breakpoint size for architecture");
+      break;
+    }
+
+    // The current PC is AFTER the BP opcode, on all architectures.
+    uint64_t pc = register_context->GetPC() - breakpoint_size;
 
     BreakpointSiteSP site(GetBreakpointSiteList().FindByAddress(pc));
     if (site) {
@@ -606,7 +458,7 @@ void ProcessWindows::RefreshStateAfterStop() {
                m_session_data->m_debugger->GetProcess().GetProcessId(), pc,
                site->GetID());
 
-      if (site->ValidForThisThread(stop_thread.get())) {
+      if (site->ValidForThisThread(*stop_thread)) {
         LLDB_LOG(log,
                  "Breakpoint site {0} is valid for this thread ({1:x}), "
                  "creating stop info.",
@@ -667,9 +519,9 @@ bool ProcessWindows::CanDebug(lldb::TargetSP target_sp,
   return true;
 }
 
-bool ProcessWindows::UpdateThreadList(ThreadList &old_thread_list,
-                                      ThreadList &new_thread_list) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_THREAD);
+bool ProcessWindows::DoUpdateThreadList(ThreadList &old_thread_list,
+                                        ThreadList &new_thread_list) {
+  Log *log = GetLog(WindowsLog::Thread);
   // Add all the threads that were previously running and for which we did not
   // detect a thread exited event.
   int new_size = 0;
@@ -696,9 +548,7 @@ bool ProcessWindows::UpdateThreadList(ThreadList &old_thread_list,
   // Also add all the threads that are new since the last time we broke into
   // the debugger.
   for (const auto &thread_info : m_session_data->m_new_threads) {
-    ThreadSP thread(new TargetThreadWindows(*this, thread_info.second));
-    thread->SetID(thread_info.first);
-    new_thread_list.AddThread(thread);
+    new_thread_list.AddThread(thread_info.second);
     ++new_size;
     ++new_threads;
     LLDB_LOGV(log, "Thread {0} is new since last update.", thread_info.first);
@@ -727,200 +577,38 @@ bool ProcessWindows::IsAlive() {
   }
 }
 
+ArchSpec ProcessWindows::GetSystemArchitecture() {
+  return HostInfo::GetArchitecture();
+}
+
 size_t ProcessWindows::DoReadMemory(lldb::addr_t vm_addr, void *buf,
                                     size_t size, Status &error) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_MEMORY);
-  llvm::sys::ScopedLock lock(m_mutex);
-
-  if (!m_session_data)
-    return 0;
-
-  LLDB_LOG(log, "attempting to read {0} bytes from address {1:x}", size,
-           vm_addr);
-
-  HostProcess process = m_session_data->m_debugger->GetProcess();
-  void *addr = reinterpret_cast<void *>(vm_addr);
-  SIZE_T bytes_read = 0;
-  if (!ReadProcessMemory(process.GetNativeProcess().GetSystemHandle(), addr,
-                         buf, size, &bytes_read)) {
-    // Reading from the process can fail for a number of reasons - set the
-    // error code and make sure that the number of bytes read is set back to 0
-    // because in some scenarios the value of bytes_read returned from the API
-    // is garbage.
-    error.SetError(GetLastError(), eErrorTypeWin32);
-    LLDB_LOG(log, "reading failed with error: {0}", error);
-    bytes_read = 0;
-  }
+  size_t bytes_read = 0;
+  error = ProcessDebugger::ReadMemory(vm_addr, buf, size, bytes_read);
   return bytes_read;
 }
 
 size_t ProcessWindows::DoWriteMemory(lldb::addr_t vm_addr, const void *buf,
                                      size_t size, Status &error) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_MEMORY);
-  llvm::sys::ScopedLock lock(m_mutex);
-  LLDB_LOG(log, "attempting to write {0} bytes into address {1:x}", size,
-           vm_addr);
-
-  if (!m_session_data) {
-    LLDB_LOG(log, "cannot write, there is no active debugger connection.");
-    return 0;
-  }
-
-  HostProcess process = m_session_data->m_debugger->GetProcess();
-  void *addr = reinterpret_cast<void *>(vm_addr);
-  SIZE_T bytes_written = 0;
-  lldb::process_t handle = process.GetNativeProcess().GetSystemHandle();
-  if (WriteProcessMemory(handle, addr, buf, size, &bytes_written))
-    FlushInstructionCache(handle, addr, bytes_written);
-  else {
-    error.SetError(GetLastError(), eErrorTypeWin32);
-    LLDB_LOG(log, "writing failed with error: {0}", error);
-  }
+  size_t bytes_written = 0;
+  error = ProcessDebugger::WriteMemory(vm_addr, buf, size, bytes_written);
   return bytes_written;
 }
 
 lldb::addr_t ProcessWindows::DoAllocateMemory(size_t size, uint32_t permissions,
                                               Status &error) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_MEMORY);
-  llvm::sys::ScopedLock lock(m_mutex);
-  LLDB_LOG(log, "attempting to allocate {0} bytes with permissions {1}", size,
-           permissions);
-
-  if (!m_session_data) {
-    LLDB_LOG(log, "cannot allocate, there is no active debugger connection.");
-    error.SetErrorString(
-        "cannot allocate, there is no active debugger connection");
-    return LLDB_INVALID_ADDRESS;
-  }
-
-  HostProcess process = m_session_data->m_debugger->GetProcess();
-  lldb::process_t handle = process.GetNativeProcess().GetSystemHandle();
-  auto protect = ConvertLldbToWinApiProtect(permissions);
-  auto result = VirtualAllocEx(handle, nullptr, size, MEM_COMMIT, protect);
-  if (!result) {
-    error.SetError(GetLastError(), eErrorTypeWin32);
-    LLDB_LOG(log, "allocating failed with error: {0}", error);
-    return LLDB_INVALID_ADDRESS;
-  }
-
-  return reinterpret_cast<addr_t>(result);
+  lldb::addr_t vm_addr = LLDB_INVALID_ADDRESS;
+  error = ProcessDebugger::AllocateMemory(size, permissions, vm_addr);
+  return vm_addr;
 }
 
 Status ProcessWindows::DoDeallocateMemory(lldb::addr_t ptr) {
-  Status result;
-
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_MEMORY);
-  llvm::sys::ScopedLock lock(m_mutex);
-  LLDB_LOG(log, "attempting to deallocate bytes at address {0}", ptr);
-
-  if (!m_session_data) {
-    LLDB_LOG(log, "cannot deallocate, there is no active debugger connection.");
-    result.SetErrorString(
-        "cannot deallocate, there is no active debugger connection");
-    return result;
-  }
-
-  HostProcess process = m_session_data->m_debugger->GetProcess();
-  lldb::process_t handle = process.GetNativeProcess().GetSystemHandle();
-  if (!VirtualFreeEx(handle, reinterpret_cast<LPVOID>(ptr), 0, MEM_RELEASE)) {
-    result.SetError(GetLastError(), eErrorTypeWin32);
-    LLDB_LOG(log, "deallocating failed with error: {0}", result);
-    return result;
-  }
-
-  return result;
+  return ProcessDebugger::DeallocateMemory(ptr);
 }
 
-Status ProcessWindows::GetMemoryRegionInfo(lldb::addr_t vm_addr,
-                                           MemoryRegionInfo &info) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_MEMORY);
-  Status error;
-  llvm::sys::ScopedLock lock(m_mutex);
-  info.Clear();
-
-  if (!m_session_data) {
-    error.SetErrorString(
-        "GetMemoryRegionInfo called with no debugging session.");
-    LLDB_LOG(log, "error: {0}", error);
-    return error;
-  }
-  HostProcess process = m_session_data->m_debugger->GetProcess();
-  lldb::process_t handle = process.GetNativeProcess().GetSystemHandle();
-  if (handle == nullptr || handle == LLDB_INVALID_PROCESS) {
-    error.SetErrorString(
-        "GetMemoryRegionInfo called with an invalid target process.");
-    LLDB_LOG(log, "error: {0}", error);
-    return error;
-  }
-
-  LLDB_LOG(log, "getting info for address {0:x}", vm_addr);
-
-  void *addr = reinterpret_cast<void *>(vm_addr);
-  MEMORY_BASIC_INFORMATION mem_info = {};
-  SIZE_T result = ::VirtualQueryEx(handle, addr, &mem_info, sizeof(mem_info));
-  if (result == 0) {
-    if (::GetLastError() == ERROR_INVALID_PARAMETER) {
-      // ERROR_INVALID_PARAMETER is returned if VirtualQueryEx is called with
-      // an address past the highest accessible address. We should return a
-      // range from the vm_addr to LLDB_INVALID_ADDRESS
-      info.GetRange().SetRangeBase(vm_addr);
-      info.GetRange().SetRangeEnd(LLDB_INVALID_ADDRESS);
-      info.SetReadable(MemoryRegionInfo::eNo);
-      info.SetExecutable(MemoryRegionInfo::eNo);
-      info.SetWritable(MemoryRegionInfo::eNo);
-      info.SetMapped(MemoryRegionInfo::eNo);
-      return error;
-    } else {
-      error.SetError(::GetLastError(), eErrorTypeWin32);
-      LLDB_LOG(log,
-               "VirtualQueryEx returned error {0} while getting memory "
-               "region info for address {1:x}",
-               error, vm_addr);
-      return error;
-    }
-  }
-
-  // Protect bits are only valid for MEM_COMMIT regions.
-  if (mem_info.State == MEM_COMMIT) {
-    const bool readable = IsPageReadable(mem_info.Protect);
-    const bool executable = IsPageExecutable(mem_info.Protect);
-    const bool writable = IsPageWritable(mem_info.Protect);
-    info.SetReadable(readable ? MemoryRegionInfo::eYes : MemoryRegionInfo::eNo);
-    info.SetExecutable(executable ? MemoryRegionInfo::eYes
-                                  : MemoryRegionInfo::eNo);
-    info.SetWritable(writable ? MemoryRegionInfo::eYes : MemoryRegionInfo::eNo);
-  } else {
-    info.SetReadable(MemoryRegionInfo::eNo);
-    info.SetExecutable(MemoryRegionInfo::eNo);
-    info.SetWritable(MemoryRegionInfo::eNo);
-  }
-
-  // AllocationBase is defined for MEM_COMMIT and MEM_RESERVE but not MEM_FREE.
-  if (mem_info.State != MEM_FREE) {
-    info.GetRange().SetRangeBase(
-        reinterpret_cast<addr_t>(mem_info.AllocationBase));
-    info.GetRange().SetRangeEnd(reinterpret_cast<addr_t>(mem_info.BaseAddress) +
-                                mem_info.RegionSize);
-    info.SetMapped(MemoryRegionInfo::eYes);
-  } else {
-    // In the unmapped case we need to return the distance to the next block of
-    // memory. VirtualQueryEx nearly does that except that it gives the
-    // distance from the start of the page containing vm_addr.
-    SYSTEM_INFO data;
-    GetSystemInfo(&data);
-    DWORD page_offset = vm_addr % data.dwPageSize;
-    info.GetRange().SetRangeBase(vm_addr);
-    info.GetRange().SetByteSize(mem_info.RegionSize - page_offset);
-    info.SetMapped(MemoryRegionInfo::eNo);
-  }
-
-  error.SetError(::GetLastError(), eErrorTypeWin32);
-  LLDB_LOGV(log,
-            "Memory region info for address {0}: readable={1}, "
-            "executable={2}, writable={3}",
-            vm_addr, info.GetReadable(), info.GetExecutable(),
-            info.GetWritable());
-  return error;
+Status ProcessWindows::DoGetMemoryRegionInfo(lldb::addr_t vm_addr,
+                                             MemoryRegionInfo &info) {
+  return ProcessDebugger::GetMemoryRegionInfo(vm_addr, info);
 }
 
 lldb::addr_t ProcessWindows::GetImageInfoAddress() {
@@ -936,13 +624,13 @@ lldb::addr_t ProcessWindows::GetImageInfoAddress() {
 DynamicLoaderWindowsDYLD *ProcessWindows::GetDynamicLoader() {
   if (m_dyld_up.get() == NULL)
     m_dyld_up.reset(DynamicLoader::FindPlugin(
-        this, DynamicLoaderWindowsDYLD::GetPluginNameStatic().GetCString()));
+        this, DynamicLoaderWindowsDYLD::GetPluginNameStatic()));
   return static_cast<DynamicLoaderWindowsDYLD *>(m_dyld_up.get());
 }
 
 void ProcessWindows::OnExitProcess(uint32_t exit_code) {
   // No need to acquire the lock since m_session_data isn't accessed.
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
+  Log *log = GetLog(WindowsLog::Process);
   LLDB_LOG(log, "Process {0} exited with code {1}", GetID(), exit_code);
 
   TargetSP target = CalculateTarget();
@@ -956,18 +644,12 @@ void ProcessWindows::OnExitProcess(uint32_t exit_code) {
   SetProcessExitStatus(GetID(), true, 0, exit_code);
   SetPrivateState(eStateExited);
 
-  // If the process exits before any initial stop then notify the debugger 
-  // of the error otherwise WaitForDebuggerConnection() will be blocked.
-  // An example of this issue is when a process fails to load a dependent DLL. 
-  if (m_session_data && !m_session_data->m_initial_stop_received) {
-    Status error(exit_code, eErrorTypeWin32);
-    OnDebuggerError(error, 0);
-  }
+  ProcessDebugger::OnExitProcess(exit_code);
 }
 
 void ProcessWindows::OnDebuggerConnected(lldb::addr_t image_base) {
   DebuggerThreadSP debugger = m_session_data->m_debugger;
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
+  Log *log = GetLog(WindowsLog::Process);
   LLDB_LOG(log, "Debugger connected to process {0}.  Image base = {1:x}",
            debugger->GetProcess().GetProcessId(), image_base);
 
@@ -984,8 +666,8 @@ void ProcessWindows::OnDebuggerConnected(lldb::addr_t image_base) {
     FileSystem::Instance().Resolve(executable_file);
     ModuleSpec module_spec(executable_file);
     Status error;
-    module = GetTarget().GetOrCreateModule(module_spec, 
-                                           true /* notify */, &error);
+    module =
+        GetTarget().GetOrCreateModule(module_spec, true /* notify */, &error);
     if (!module) {
       return;
     }
@@ -1001,16 +683,21 @@ void ProcessWindows::OnDebuggerConnected(lldb::addr_t image_base) {
   // returned from DoLaunch() / DoAttach() yet so the target may not have set
   // the process instance to `this` yet.
   llvm::sys::ScopedLock lock(m_mutex);
-  const HostThreadWindows &wmain_thread =
-      debugger->GetMainThread().GetNativeThread();
-  m_session_data->m_new_threads[wmain_thread.GetThreadId()] =
-      debugger->GetMainThread();
+
+  const HostThread &host_main_thread = debugger->GetMainThread();
+  ThreadSP main_thread =
+      std::make_shared<TargetThreadWindows>(*this, host_main_thread);
+
+  tid_t id = host_main_thread.GetNativeThread().GetThreadId();
+  main_thread->SetID(id);
+
+  m_session_data->m_new_threads[id] = main_thread;
 }
 
 ExceptionResult
 ProcessWindows::OnDebugException(bool first_chance,
                                  const ExceptionRecord &record) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_EXCEPTION);
+  Log *log = GetLog(WindowsLog::Exception);
   llvm::sys::ScopedLock lock(m_mutex);
 
   // FIXME: Without this check, occasionally when running the test suite there
@@ -1076,8 +763,22 @@ ProcessWindows::OnDebugException(bool first_chance,
 
 void ProcessWindows::OnCreateThread(const HostThread &new_thread) {
   llvm::sys::ScopedLock lock(m_mutex);
-  const HostThreadWindows &wnew_thread = new_thread.GetNativeThread();
-  m_session_data->m_new_threads[wnew_thread.GetThreadId()] = new_thread;
+
+  ThreadSP thread = std::make_shared<TargetThreadWindows>(*this, new_thread);
+
+  const HostNativeThread &native_new_thread = new_thread.GetNativeThread();
+  tid_t id = native_new_thread.GetThreadId();
+  thread->SetID(id);
+
+  m_session_data->m_new_threads[id] = thread;
+
+  for (const std::map<int, WatchpointInfo>::value_type &p : m_watchpoints) {
+    auto *reg_ctx = static_cast<RegisterContextWindows *>(
+        thread->GetRegisterContext().get());
+    reg_ctx->AddHardwareBreakpoint(p.second.slot_id, p.second.address,
+                                   p.second.size, p.second.read,
+                                   p.second.write);
+  }
 }
 
 void ProcessWindows::OnExitThread(lldb::tid_t thread_id, uint32_t exit_code) {
@@ -1113,7 +814,7 @@ void ProcessWindows::OnDebugString(const std::string &string) {}
 
 void ProcessWindows::OnDebuggerError(const Status &error, uint32_t type) {
   llvm::sys::ScopedLock lock(m_mutex);
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
+  Log *log = GetLog(WindowsLog::Process);
 
   if (m_session_data->m_initial_stop_received) {
     // This happened while debugging.  Do we shutdown the debugging session,
@@ -1136,40 +837,105 @@ void ProcessWindows::OnDebuggerError(const Status &error, uint32_t type) {
   }
 }
 
-Status ProcessWindows::WaitForDebuggerConnection(DebuggerThreadSP debugger,
-                                                 HostProcess &process) {
-  Status result;
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS |
-                                            WINDOWS_LOG_BREAKPOINTS);
-  LLDB_LOG(log, "Waiting for loader breakpoint.");
-
-  // Block this function until we receive the initial stop from the process.
-  if (::WaitForSingleObject(m_session_data->m_initial_stop_event, INFINITE) ==
-      WAIT_OBJECT_0) {
-    LLDB_LOG(log, "hit loader breakpoint, returning.");
-
-    process = debugger->GetProcess();
-    return m_session_data->m_launch_error;
-  } else
-    return Status(::GetLastError(), eErrorTypeWin32);
+Status ProcessWindows::GetWatchpointSupportInfo(uint32_t &num) {
+  num = RegisterContextWindows::GetNumHardwareBreakpointSlots();
+  return {};
 }
 
-// The Windows page protection bits are NOT independent masks that can be
-// bitwise-ORed together.  For example, PAGE_EXECUTE_READ is not (PAGE_EXECUTE
-// | PAGE_READ).  To test for an access type, it's necessary to test for any of
-// the bits that provide that access type.
-bool ProcessWindows::IsPageReadable(uint32_t protect) {
-  return (protect & PAGE_NOACCESS) == 0;
+Status ProcessWindows::GetWatchpointSupportInfo(uint32_t &num, bool &after) {
+  num = RegisterContextWindows::GetNumHardwareBreakpointSlots();
+  after = RegisterContextWindows::DoHardwareBreakpointsTriggerAfter();
+  return {};
 }
 
-bool ProcessWindows::IsPageWritable(uint32_t protect) {
-  return (protect & (PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY |
-                     PAGE_READWRITE | PAGE_WRITECOPY)) != 0;
+Status ProcessWindows::EnableWatchpoint(Watchpoint *wp, bool notify) {
+  Status error;
+
+  if (wp->IsEnabled()) {
+    wp->SetEnabled(true, notify);
+    return error;
+  }
+
+  WatchpointInfo info;
+  for (info.slot_id = 0;
+       info.slot_id < RegisterContextWindows::GetNumHardwareBreakpointSlots();
+       info.slot_id++)
+    if (m_watchpoint_ids[info.slot_id] == LLDB_INVALID_BREAK_ID)
+      break;
+  if (info.slot_id == RegisterContextWindows::GetNumHardwareBreakpointSlots()) {
+    error.SetErrorStringWithFormat("Can't find free slot for watchpoint %i",
+                                   wp->GetID());
+    return error;
+  }
+  info.address = wp->GetLoadAddress();
+  info.size = wp->GetByteSize();
+  info.read = wp->WatchpointRead();
+  info.write = wp->WatchpointWrite();
+
+  for (unsigned i = 0U; i < m_thread_list.GetSize(); i++) {
+    Thread *thread = m_thread_list.GetThreadAtIndex(i).get();
+    auto *reg_ctx = static_cast<RegisterContextWindows *>(
+        thread->GetRegisterContext().get());
+    if (!reg_ctx->AddHardwareBreakpoint(info.slot_id, info.address, info.size,
+                                        info.read, info.write)) {
+      error.SetErrorStringWithFormat(
+          "Can't enable watchpoint %i on thread 0x%llx", wp->GetID(),
+          thread->GetID());
+      break;
+    }
+  }
+  if (error.Fail()) {
+    for (unsigned i = 0U; i < m_thread_list.GetSize(); i++) {
+      Thread *thread = m_thread_list.GetThreadAtIndex(i).get();
+      auto *reg_ctx = static_cast<RegisterContextWindows *>(
+          thread->GetRegisterContext().get());
+      reg_ctx->RemoveHardwareBreakpoint(info.slot_id);
+    }
+    return error;
+  }
+
+  m_watchpoints[wp->GetID()] = info;
+  m_watchpoint_ids[info.slot_id] = wp->GetID();
+
+  wp->SetEnabled(true, notify);
+
+  return error;
 }
 
-bool ProcessWindows::IsPageExecutable(uint32_t protect) {
-  return (protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE |
-                     PAGE_EXECUTE_WRITECOPY)) != 0;
-}
+Status ProcessWindows::DisableWatchpoint(Watchpoint *wp, bool notify) {
+  Status error;
 
+  if (!wp->IsEnabled()) {
+    wp->SetEnabled(false, notify);
+    return error;
+  }
+
+  auto it = m_watchpoints.find(wp->GetID());
+  if (it == m_watchpoints.end()) {
+    error.SetErrorStringWithFormat("Info about watchpoint %i is not found",
+                                   wp->GetID());
+    return error;
+  }
+
+  for (unsigned i = 0U; i < m_thread_list.GetSize(); i++) {
+    Thread *thread = m_thread_list.GetThreadAtIndex(i).get();
+    auto *reg_ctx = static_cast<RegisterContextWindows *>(
+        thread->GetRegisterContext().get());
+    if (!reg_ctx->RemoveHardwareBreakpoint(it->second.slot_id)) {
+      error.SetErrorStringWithFormat(
+          "Can't disable watchpoint %i on thread 0x%llx", wp->GetID(),
+          thread->GetID());
+      break;
+    }
+  }
+  if (error.Fail())
+    return error;
+
+  m_watchpoint_ids[it->second.slot_id] = LLDB_INVALID_BREAK_ID;
+  m_watchpoints.erase(it);
+
+  wp->SetEnabled(false, notify);
+
+  return error;
+}
 } // namespace lldb_private

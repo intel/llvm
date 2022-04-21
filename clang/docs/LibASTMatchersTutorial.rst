@@ -8,7 +8,7 @@ explicitly aimed at people who are new to Clang, so all you should need
 is a working knowledge of C++ and the command line.
 
 In order to work on the compiler, you need some basic knowledge of the
-abstract syntax tree (AST). To this end, the reader is incouraged to
+abstract syntax tree (AST). To this end, the reader is encouraged to
 skim the :doc:`Introduction to the Clang
 AST <IntroductionToTheClangAST>`
 
@@ -50,7 +50,7 @@ Okay. Now we'll build Clang!
 
       cd ~/clang-llvm
       mkdir build && cd build
-      cmake -G Ninja ../llvm -DLLVM_ENABLE_PROJECTS=clang -DLLVM_BUILD_TESTS=ON  # Enable tests; default is off.
+      cmake -G Ninja ../llvm -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_BUILD_TESTS=ON  # Enable tests; default is off.
       ninja
       ninja check       # Test LLVM only.
       ninja clang-test  # Test Clang only.
@@ -85,14 +85,14 @@ going on.
 
 First, we'll need to create a new directory for our tool and tell CMake
 that it exists. As this is not going to be a core clang tool, it will
-live in the ``tools/extra`` repository.
+live in the ``clang-tools-extra`` repository.
 
 .. code-block:: console
 
-      cd ~/clang-llvm/llvm/tools/clang
-      mkdir tools/extra/loop-convert
-      echo 'add_subdirectory(loop-convert)' >> tools/extra/CMakeLists.txt
-      vim tools/extra/loop-convert/CMakeLists.txt
+      cd ~/clang-llvm
+      mkdir clang-tools-extra/loop-convert
+      echo 'add_subdirectory(loop-convert)' >> clang-tools-extra/CMakeLists.txt
+      vim clang-tools-extra/loop-convert/CMakeLists.txt
 
 CMakeLists.txt should have the following contents:
 
@@ -105,14 +105,17 @@ CMakeLists.txt should have the following contents:
         )
       target_link_libraries(loop-convert
         PRIVATE
-        clangTooling
-        clangBasic
+        clangAST
         clangASTMatchers
+        clangBasic
+        clangFrontend
+        clangSerialization
+        clangTooling
         )
 
 With that done, Ninja will be able to compile our tool. Let's give it
 something to compile! Put the following into
-``tools/extra/loop-convert/LoopConvert.cpp``. A detailed explanation of
+``clang-tools-extra/loop-convert/LoopConvert.cpp``. A detailed explanation of
 why the different parts are needed can be found in the `LibTooling
 documentation <LibTooling.html>`_.
 
@@ -141,7 +144,13 @@ documentation <LibTooling.html>`_.
       static cl::extrahelp MoreHelp("\nMore help text...\n");
 
       int main(int argc, const char **argv) {
-        CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);
+        auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
+        if (!ExpectedParser) {
+          // Fail gracefully for unsupported options.
+          llvm::errs() << ExpectedParser.takeError();
+          return 1;
+        }
+        CommonOptionsParser& OptionsParser = ExpectedParser.get();
         ClangTool Tool(OptionsParser.getCompilations(),
                        OptionsParser.getSourcePathList());
         return Tool.run(newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
@@ -282,7 +291,13 @@ And change ``main()`` to:
 .. code-block:: c++
 
       int main(int argc, const char **argv) {
-        CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);
+        auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
+        if (!ExpectedParser) {
+          // Fail gracefully for unsupported options.
+          llvm::errs() << ExpectedParser.takeError();
+          return 1;
+        }
+        CommonOptionsParser& OptionsParser = ExpectedParser.get();
         ClangTool Tool(OptionsParser.getCompilations(),
                        OptionsParser.getSourcePathList());
 

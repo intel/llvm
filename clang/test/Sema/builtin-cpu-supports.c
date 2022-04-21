@@ -5,7 +5,7 @@ extern void a(const char *);
 
 extern const char *str;
 
-int main() {
+int main(void) {
 #ifdef __x86_64__
   if (__builtin_cpu_supports("ss")) // expected-error {{invalid cpu feature string}}
     a("sse4.2");
@@ -15,6 +15,11 @@ int main() {
 
   if (__builtin_cpu_is("int")) // expected-error {{invalid cpu name for builtin}}
     a("intel");
+
+  (void)__builtin_cpu_is("x86-64");    // expected-error {{invalid cpu name for builtin}}
+  (void)__builtin_cpu_is("x86-64-v2"); // expected-error {{invalid cpu name for builtin}}
+  (void)__builtin_cpu_is("x86-64-v3"); // expected-error {{invalid cpu name for builtin}}
+  (void)__builtin_cpu_is("x86-64-v4"); // expected-error {{invalid cpu name for builtin}}
 #else
   if (__builtin_cpu_supports("vsx")) // expected-error {{use of unknown builtin}}
     a("vsx");

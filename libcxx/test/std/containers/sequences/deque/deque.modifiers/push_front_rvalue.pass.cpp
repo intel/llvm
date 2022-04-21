@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <deque>
 
@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "min_allocator.h"
 
@@ -50,11 +51,11 @@ test(C& c1, int x)
     std::size_t c1_osize = c1.size();
     c1.push_front(MoveOnly(x));
     assert(c1.size() == c1_osize + 1);
-    assert(static_cast<std::size_t>(distance(c1.begin(), c1.end())) == c1.size());
+    assert(static_cast<std::size_t>(std::distance(c1.begin(), c1.end())) == c1.size());
     I i = c1.begin();
     assert(*i == MoveOnly(x));
     ++i;
-    for (int j = 0; static_cast<std::size_t>(j) < c1_osize; ++j, ++i)
+    for (int j = 0; static_cast<std::size_t>(j) < c1_osize; ++j, (void) ++i)
         assert(*i == MoveOnly(j));
 }
 

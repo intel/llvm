@@ -1,12 +1,12 @@
 // RUN: %clang_cc1 -fblocks -fsyntax-only -fobjc-arc -x objective-c %s.result
 // RUN: cat %s > %t
-// RUN: %clang_cc1 -arcmt-modify -triple x86_64-apple-macosx10.6 -x objective-c %t
+// RUN: %clang_cc1 -arcmt-action=modify -triple x86_64-apple-macosx10.6 -x objective-c %t
 // RUN: diff %t %s.result
 // RUN: rm %t
 
 typedef int BOOL;
 
-id IhaveSideEffect();
+id IhaveSideEffect(void);
 
 @protocol NSObject
 - (BOOL)isEqual:(id)object;

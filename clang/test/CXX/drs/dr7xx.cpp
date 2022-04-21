@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -std=c++98 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -std=c++11 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -std=c++2a %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++98 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++11 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++2a %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 
 namespace dr705 { // dr705: yes
   namespace N {
@@ -15,6 +15,42 @@ namespace dr705 { // dr705: yes
     f(s);      // ok
     (f)(s);    // expected-error {{use of undeclared}}
   }
+}
+
+namespace dr712 { // dr712: partial
+  void use(int);
+  void f() {
+    const int a = 0; // expected-note 5{{here}}
+    struct X {
+      void g(bool cond) {
+        use(a);
+        use((a));
+        use(cond ? a : a);
+        use((cond, a)); // expected-warning 2{{left operand of comma operator has no effect}} FIXME: should only warn once
+
+        (void)a; // FIXME: expected-error {{declared in enclosing}}
+        (void)(a); // FIXME: expected-error {{declared in enclosing}}
+        (void)(cond ? a : a); // FIXME: expected-error 2{{declared in enclosing}}
+        (void)(cond, a); // FIXME: expected-error {{declared in enclosing}} expected-warning {{left operand of comma operator has no effect}}
+      }
+    };
+  }
+
+#if __cplusplus >= 201103L
+  void g() {
+    struct A { int n; };
+    constexpr A a = {0}; // expected-note 2{{here}}
+    struct X {
+      void g(bool cond) {
+        use(a.n);
+        use(a.*&A::n);
+
+        (void)a.n; // FIXME: expected-error {{declared in enclosing}}
+        (void)(a.*&A::n); // FIXME: expected-error {{declared in enclosing}}
+      }
+    };
+  }
+#endif
 }
 
 namespace dr727 { // dr727: partial

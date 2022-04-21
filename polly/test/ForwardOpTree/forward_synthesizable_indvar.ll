@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-optree -analyze < %s | FileCheck %s -match-full-lines
+; RUN: opt %loadPolly -polly-print-optree -disable-output < %s | FileCheck %s -match-full-lines
 ;
 ; Test support for (synthesizable) inducation variables.
 ;
@@ -57,6 +57,6 @@ return:
 ; CHECK-NEXT:                 [n] -> { Stmt_bodyB[i0] -> MemRef_A[0] };
 ; CHECK-NEXT:             Instructions {
 ; CHECK-NEXT:                   %val = sitofp i32 %j to double
-; CHECK-NEXT:                   store double %val, double* %A
+; CHECK-NEXT:                   store double %val, double* %A, align 8
 ; CHECK-NEXT:             }
 ; CHECK-NEXT: }

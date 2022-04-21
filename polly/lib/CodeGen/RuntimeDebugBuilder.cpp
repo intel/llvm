@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polly/CodeGen/RuntimeDebugBuilder.h"
-#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/Module.h"
 #include <string>
 #include <vector>
@@ -132,9 +132,8 @@ prepareValuesForPrinting(PollyIRBuilder &Builder, ArrayRef<Value *> Values) {
         assert(Ty->getIntegerBitWidth() &&
                "Integer types larger 64 bit not supported");
     } else if (isa<PointerType>(Ty)) {
-      if (Ty->getPointerElementType() == Builder.getInt8Ty() &&
-          Ty->getPointerAddressSpace() == 4) {
-        Val = Builder.CreateGEP(Val, Builder.getInt64(0));
+      if (Ty == Builder.getInt8PtrTy(4)) {
+        Val = Builder.CreateGEP(Builder.getInt8Ty(), Val, Builder.getInt64(0));
       } else {
         Val = Builder.CreatePtrToInt(Val, Builder.getInt64Ty());
       }
@@ -188,11 +187,12 @@ void RuntimeDebugBuilder::createGPUPrinterT(PollyIRBuilder &Builder,
   Value *Data = new AllocaInst(
       T, DL.getAllocaAddrSpace(), "polly.vprint.buffer",
       &Builder.GetInsertBlock()->getParent()->getEntryBlock().front());
-  auto *DataPtr = Builder.CreateGEP(Data, {Zero, Zero});
+  auto *DataPtr = Builder.CreateGEP(T, Data, {Zero, Zero});
 
   int Offset = 0;
   for (auto Val : ToPrint) {
-    auto Ptr = Builder.CreateGEP(DataPtr, Builder.getInt64(Offset));
+    auto Ptr = Builder.CreateGEP(Builder.getInt32Ty(), DataPtr,
+                                 Builder.getInt64(Offset));
     Type *Ty = Val->getType();
 
     if (Ty->isFloatingPointTy()) {
@@ -206,10 +206,10 @@ void RuntimeDebugBuilder::createGPUPrinterT(PollyIRBuilder &Builder,
                "Integer types larger 64 bit not supported");
         // fallthrough
       }
-    } else if (auto PtTy = dyn_cast<PointerType>(Ty)) {
-      if (PtTy->getAddressSpace() == 4) {
+    } else if (isa<PointerType>(Ty)) {
+      if (Ty == Builder.getInt8PtrTy(4)) {
         // Pointers in constant address space are printed as strings
-        Val = Builder.CreateGEP(Val, Builder.getInt64(0));
+        Val = Builder.CreateGEP(Builder.getInt8Ty(), Val, Builder.getInt64(0));
         auto F = RuntimeDebugBuilder::getAddressSpaceCast(Builder, 4, 0);
         Val = Builder.CreateCall(F, Val);
       } else {
@@ -221,7 +221,7 @@ void RuntimeDebugBuilder::createGPUPrinterT(PollyIRBuilder &Builder,
 
     Ty = Val->getType();
     Ptr = Builder.CreatePointerBitCastOrAddrSpaceCast(Ptr, Ty->getPointerTo(5));
-    Builder.CreateAlignedStore(Val, Ptr, 4);
+    Builder.CreateAlignedStore(Val, Ptr, Align(4));
 
     if (Ty->isFloatingPointTy())
       str += "%f";

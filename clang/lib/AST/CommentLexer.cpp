@@ -94,31 +94,12 @@ void Lexer::skipLineStartingDecorations() {
   if (BufferPtr == CommentEnd)
     return;
 
-  switch (*BufferPtr) {
-  case ' ':
-  case '\t':
-  case '\f':
-  case '\v': {
-    const char *NewBufferPtr = BufferPtr;
-    NewBufferPtr++;
-    if (NewBufferPtr == CommentEnd)
+  const char *NewBufferPtr = BufferPtr;
+  while (isHorizontalWhitespace(*NewBufferPtr))
+    if (++NewBufferPtr == CommentEnd)
       return;
-
-    char C = *NewBufferPtr;
-    while (isHorizontalWhitespace(C)) {
-      NewBufferPtr++;
-      if (NewBufferPtr == CommentEnd)
-        return;
-      C = *NewBufferPtr;
-    }
-    if (C == '*')
-      BufferPtr = NewBufferPtr + 1;
-    break;
-  }
-  case '*':
-    BufferPtr++;
-    break;
-  }
+  if (*NewBufferPtr == '*')
+    BufferPtr = NewBufferPtr + 1;
 }
 
 namespace {
@@ -289,6 +270,29 @@ void Lexer::formTokenWithChars(Token &Result, const char *TokEnd,
   BufferPtr = TokEnd;
 }
 
+const char *Lexer::skipTextToken() {
+  const char *TokenPtr = BufferPtr;
+  assert(TokenPtr < CommentEnd);
+  StringRef TokStartSymbols = ParseCommands ? "\n\r\\@\"&<" : "\n\r";
+
+again:
+  size_t End =
+      StringRef(TokenPtr, CommentEnd - TokenPtr).find_first_of(TokStartSymbols);
+  if (End == StringRef::npos)
+    return CommentEnd;
+
+  // Doxygen doesn't recognize any commands in a one-line double quotation.
+  // If we don't find an ending quotation mark, we pretend it never began.
+  if (*(TokenPtr + End) == '\"') {
+    TokenPtr += End + 1;
+    End = StringRef(TokenPtr, CommentEnd - TokenPtr).find_first_of("\n\r\"");
+    if (End != StringRef::npos && *(TokenPtr + End) == '\"')
+      TokenPtr += End + 1;
+    goto again;
+  }
+  return TokenPtr + End;
+}
+
 void Lexer::lexCommentText(Token &T) {
   assert(CommentState == LCS_InsideBCPLComment ||
          CommentState == LCS_InsideCComment);
@@ -309,17 +313,8 @@ void Lexer::lexCommentText(Token &T) {
             skipLineStartingDecorations();
           return;
 
-      default: {
-          StringRef TokStartSymbols = ParseCommands ? "\n\r\\@&<" : "\n\r";
-          size_t End = StringRef(TokenPtr, CommentEnd - TokenPtr)
-                           .find_first_of(TokStartSymbols);
-          if (End != StringRef::npos)
-            TokenPtr += End;
-          else
-            TokenPtr = CommentEnd;
-          formTextToken(T, TokenPtr);
-          return;
-      }
+      default:
+        return formTextToken(T, skipTextToken());
     }
   };
 
@@ -392,10 +387,11 @@ void Lexer::lexCommentText(Token &T) {
       unsigned Length = TokenPtr - (BufferPtr + 1);
 
       // Hardcoded support for lexing LaTeX formula commands
-      // \f$ \f[ \f] \f{ \f} as a single command.
+      // \f$ \f( \f) \f[ \f] \f{ \f} as a single command.
       if (Length == 1 && TokenPtr[-1] == 'f' && TokenPtr != CommentEnd) {
         C = *TokenPtr;
-        if (C == '$' || C == '[' || C == ']' || C == '{' || C == '}') {
+        if (C == '$' || C == '(' || C == ')' || C == '[' || C == ']' ||
+            C == '{' || C == '}') {
           TokenPtr++;
           Length++;
         }
@@ -740,12 +736,11 @@ void Lexer::lexHTMLEndTag(Token &T) {
 
 Lexer::Lexer(llvm::BumpPtrAllocator &Allocator, DiagnosticsEngine &Diags,
              const CommandTraits &Traits, SourceLocation FileLoc,
-             const char *BufferStart, const char *BufferEnd,
-             bool ParseCommands)
+             const char *BufferStart, const char *BufferEnd, bool ParseCommands)
     : Allocator(Allocator), Diags(Diags), Traits(Traits),
-      BufferStart(BufferStart), BufferEnd(BufferEnd), FileLoc(FileLoc),
-      BufferPtr(BufferStart), CommentState(LCS_BeforeComment), State(LS_Normal),
-      ParseCommands(ParseCommands) {}
+      BufferStart(BufferStart), BufferEnd(BufferEnd), BufferPtr(BufferStart),
+      FileLoc(FileLoc), ParseCommands(ParseCommands),
+      CommentState(LCS_BeforeComment), State(LS_Normal) {}
 
 void Lexer::lex(Token &T) {
 again:
@@ -850,17 +845,14 @@ again:
 }
 
 StringRef Lexer::getSpelling(const Token &Tok,
-                             const SourceManager &SourceMgr,
-                             bool *Invalid) const {
+                             const SourceManager &SourceMgr) const {
   SourceLocation Loc = Tok.getLocation();
   std::pair<FileID, unsigned> LocInfo = SourceMgr.getDecomposedLoc(Loc);
 
   bool InvalidTemp = false;
   StringRef File = SourceMgr.getBufferData(LocInfo.first, &InvalidTemp);
-  if (InvalidTemp) {
-    *Invalid = true;
+  if (InvalidTemp)
     return StringRef();
-  }
 
   const char *Begin = File.data() + LocInfo.second;
   return StringRef(Begin, Tok.getLength());

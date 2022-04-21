@@ -15,9 +15,7 @@
 
 #include "test_macros.h"
 
-#if defined(TEST_COMPILER_C1XX)
-#pragma warning(disable: 6294) // Ill-defined for-loop:  initial condition does not satisfy test.  Loop body not executed.
-#endif
+TEST_MSVC_DIAGNOSTIC_IGNORED(6294) // Ill-defined for-loop:  initial condition does not satisfy test.  Loop body not executed.
 
 template <std::size_t N>
 void test_val_ctor()
@@ -25,10 +23,10 @@ void test_val_ctor()
     {
         TEST_CONSTEXPR std::bitset<N> v(0xAAAAAAAAAAAAAAAAULL);
         assert(v.size() == N);
-        std::size_t M = std::min<std::size_t>(N, 64);
+        std::size_t M = std::min<std::size_t>(v.size(), 64);
         for (std::size_t i = 0; i < M; ++i)
             assert(v[i] == ((i & 1) != 0));
-        for (std::size_t i = M; i < N; ++i)
+        for (std::size_t i = M; i < v.size(); ++i)
             assert(v[i] == false);
     }
 #if TEST_STD_VER >= 11

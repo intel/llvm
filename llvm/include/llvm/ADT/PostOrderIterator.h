@@ -5,11 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file builds on the ADT/GraphTraits.h file to build a generic graph
-// post order iterator.  This should work over any graph type that has a
-// GraphTraits specialization.
-//
+///
+/// \file
+/// This file builds on the ADT/GraphTraits.h file to build a generic graph
+/// post order iterator.  This should work over any graph type that has a
+/// GraphTraits specialization.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_POSTORDERITERATOR_H
@@ -18,6 +19,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include <iterator>
 #include <set>
@@ -89,19 +91,23 @@ public:
 };
 
 template <class GraphT,
-          class SetType =
-              SmallPtrSet<typename GraphTraits<GraphT>::NodeRef, 8>,
+          class SetType = SmallPtrSet<typename GraphTraits<GraphT>::NodeRef, 8>,
           bool ExtStorage = false, class GT = GraphTraits<GraphT>>
-class po_iterator
-    : public std::iterator<std::forward_iterator_tag, typename GT::NodeRef>,
-      public po_iterator_storage<SetType, ExtStorage> {
-  using super = std::iterator<std::forward_iterator_tag, typename GT::NodeRef>;
+class po_iterator : public po_iterator_storage<SetType, ExtStorage> {
+public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = typename GT::NodeRef;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
+private:
   using NodeRef = typename GT::NodeRef;
   using ChildItTy = typename GT::ChildIteratorType;
 
   // VisitStack - Used to maintain the ordering.  Top = current block
   // First element is basic block pointer, second is the 'next child' to visit
-  std::vector<std::pair<NodeRef, ChildItTy>> VisitStack;
+  SmallVector<std::pair<NodeRef, ChildItTy>, 8> VisitStack;
 
   po_iterator(NodeRef BB) {
     this->insertEdge(Optional<NodeRef>(), BB);
@@ -134,18 +140,16 @@ class po_iterator
   }
 
 public:
-  using pointer = typename super::pointer;
-
   // Provide static "constructors"...
-  static po_iterator begin(GraphT G) {
+  static po_iterator begin(const GraphT &G) {
     return po_iterator(GT::getEntryNode(G));
   }
-  static po_iterator end(GraphT G) { return po_iterator(); }
+  static po_iterator end(const GraphT &G) { return po_iterator(); }
 
-  static po_iterator begin(GraphT G, SetType &S) {
+  static po_iterator begin(const GraphT &G, SetType &S) {
     return po_iterator(GT::getEntryNode(G), S);
   }
-  static po_iterator end(GraphT G, SetType &S) { return po_iterator(S); }
+  static po_iterator end(const GraphT &G, SetType &S) { return po_iterator(S); }
 
   bool operator==(const po_iterator &x) const {
     return VisitStack == x.VisitStack;
@@ -289,15 +293,15 @@ class ReversePostOrderTraversal {
 
   std::vector<NodeRef> Blocks; // Block list in normal PO order
 
-  void Initialize(NodeRef BB) {
-    std::copy(po_begin(BB), po_end(BB), std::back_inserter(Blocks));
+  void Initialize(const GraphT &G) {
+    std::copy(po_begin(G), po_end(G), std::back_inserter(Blocks));
   }
 
 public:
   using rpo_iterator = typename std::vector<NodeRef>::reverse_iterator;
   using const_rpo_iterator = typename std::vector<NodeRef>::const_reverse_iterator;
 
-  ReversePostOrderTraversal(GraphT G) { Initialize(GT::getEntryNode(G)); }
+  ReversePostOrderTraversal(const GraphT &G) { Initialize(G); }
 
   // Because we want a reverse post order, use reverse iterators from the vector
   rpo_iterator begin() { return Blocks.rbegin(); }

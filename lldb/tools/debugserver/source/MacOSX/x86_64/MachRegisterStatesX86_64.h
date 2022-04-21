@@ -11,10 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __MachRegisterStatesX86_64_h__
-#define __MachRegisterStatesX86_64_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_X86_64_MACHREGISTERSTATESX86_64_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_X86_64_MACHREGISTERSTATESX86_64_H
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #define __x86_64_THREAD_STATE 4
 #define __x86_64_FLOAT_STATE 5

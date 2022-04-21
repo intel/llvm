@@ -6,22 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <tuple>
 
 // template <class... Types> class tuple;
 
 // template <class Alloc>
-//   tuple(allocator_arg_t, const Alloc& a);
-
-// NOTE: this constructor does not currently support tags derived from
-// allocator_arg_t because libc++ has to deduce the parameter as a template
-// argument. See PR27684 (https://bugs.llvm.org/show_bug.cgi?id=27684)
+//   explicit(see-below) tuple(allocator_arg_t, const Alloc& a);
 
 #include <tuple>
 #include <cassert>
 
+#include "test_macros.h"
 #include "DefaultOnly.h"
 #include "allocators.h"
 #include "../alloc_first.h"
@@ -92,6 +89,14 @@ int main(int, char**)
         assert(std::get<1>(t) == alloc_first());
         assert(!alloc_last::allocator_constructed);
         assert(std::get<2>(t) == alloc_last());
+    }
+    {
+        // Test that we can use a tag derived from allocator_arg_t
+        struct DerivedFromAllocatorArgT : std::allocator_arg_t { };
+        DerivedFromAllocatorArgT derived;
+        std::tuple<> t1(derived, A1<int>());
+        std::tuple<int> t2(derived, A1<int>());
+        std::tuple<int, int> t3(derived, A1<int>());
     }
     {
         // Test that the uses-allocator default constructor does not evaluate

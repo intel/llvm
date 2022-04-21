@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGINS_SYMBOLFILENATIVEPDB_PDBINDEX_H
-#define LLDB_PLUGINS_SYMBOLFILENATIVEPDB_PDBINDEX_H
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBINDEX_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBINDEX_H
 
 #include "lldb/lldb-types.h"
 #include "llvm/ADT/IntervalMap.h"
@@ -24,7 +24,6 @@
 namespace llvm {
 namespace pdb {
 class DbiStream;
-class TpiStream;
 class TpiStream;
 class InfoStream;
 class PublicsStream;
@@ -48,7 +47,7 @@ struct SegmentOffset;
 class PdbIndex {
 
   /// The underlying PDB file.
-  std::unique_ptr<llvm::pdb::PDBFile> m_file;
+  llvm::pdb::PDBFile *m_file = nullptr;
 
   /// The DBI stream.  This contains general high level information about the
   /// features present in the PDB file, compile units (such as the information
@@ -110,8 +109,7 @@ class PdbIndex {
   void BuildAddrToSymbolMap(CompilandIndexItem &cci);
 
 public:
-  static llvm::Expected<std::unique_ptr<PdbIndex>>
-      create(std::unique_ptr<llvm::pdb::PDBFile>);
+  static llvm::Expected<std::unique_ptr<PdbIndex>> create(llvm::pdb::PDBFile *);
 
   void SetLoadAddress(lldb::addr_t addr) { m_load_address = addr; }
   lldb::addr_t GetLoadAddress() const { return m_load_address; }

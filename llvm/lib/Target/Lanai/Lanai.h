@@ -14,19 +14,11 @@
 #ifndef LLVM_LIB_TARGET_LANAI_LANAI_H
 #define LLVM_LIB_TARGET_LANAI_LANAI_H
 
-#include "LanaiAluCode.h"
-#include "LanaiCondCode.h"
-#include "MCTargetDesc/LanaiBaseInfo.h"
-#include "MCTargetDesc/LanaiMCTargetDesc.h"
-#include "llvm/CodeGen/ISDOpcodes.h"
-#include "llvm/Target/TargetMachine.h"
+#include "llvm/Pass.h"
 
 namespace llvm {
 class FunctionPass;
 class LanaiTargetMachine;
-class MachineFunctionPass;
-class TargetMachine;
-class formatted_raw_ostream;
 
 // createLanaiISelDag - This pass converts a legalized DAG into a
 // Lanai-specific DAG, ready for instruction scheduling.

@@ -39,7 +39,6 @@ entry:
 
   %wptr = bitcast i64* %ptr to i16*
   %wptr1 = getelementptr inbounds i16, i16* %wptr, i64 1
-  %wptr2 = getelementptr inbounds i16, i16* %wptr, i64 2
   %wptr3 = getelementptr inbounds i16, i16* %wptr, i64 3
 
   ;; We should be able to merge these two stores with the i64 one above
@@ -165,7 +164,7 @@ define void @foo(%union.U* nocapture %u) {
 ;
 entry:
   %i = getelementptr inbounds %union.U, %union.U* %u, i64 0, i32 0
-  store i64 0, i64* %i, align 8, !dbg !22, !tbaa !26, !noalias !30, !nontemporal !29
+  store i64 0, i64* %i, align 8, !dbg !22, !tbaa !26, !noalias !32, !nontemporal !29
   %s = bitcast %union.U* %u to i16*
   store i16 42, i16* %s, align 8
   ret void
@@ -190,16 +189,16 @@ define void @PR34074(i32* %x, i64* %y) {
 
 define void @PR36129(i32* %P, i32* %Q) {
 ; CHECK-LABEL: @PR36129(
-; CHECK-NEXT:    store i32 1, i32* [[P:%.*]]
+; CHECK-NEXT:    store i32 1, i32* [[P:%.*]], align 4
 ; CHECK-NEXT:    [[P2:%.*]] = bitcast i32* [[P]] to i8*
-; CHECK-NEXT:    store i32 2, i32* [[Q:%.*]]
-; CHECK-NEXT:    store i8 3, i8* [[P2]]
+; CHECK-NEXT:    store i32 2, i32* [[Q:%.*]], align 4
+; CHECK-NEXT:    store i8 3, i8* [[P2]], align 1
 ; CHECK-NEXT:    ret void
 ;
-  store i32 1, i32* %P
+  store i32 1, i32* %P, align 4
   %P2 = bitcast i32* %P to i8*
-  store i32 2, i32* %Q
-  store i8 3, i8* %P2
+  store i32 2, i32* %Q, align 4
+  store i8 3, i8* %P2, align 1
   ret void
 }
 
@@ -232,6 +231,4 @@ define void @PR36129(i32* %P, i32* %Q) {
 ; Domains and scopes which might alias
 !30 = !{!30}
 !31 = !{!31, !30}
-
-!32 = !{!32}
-!33 = !{!33, !32}
+!32 = !{!31}

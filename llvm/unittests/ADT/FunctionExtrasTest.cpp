@@ -10,6 +10,7 @@
 #include "gtest/gtest.h"
 
 #include <memory>
+#include <type_traits>
 
 using namespace llvm;
 
@@ -223,5 +224,90 @@ TEST(UniqueFunctionTest, CountForwardingMoves) {
   Unmovable X;
   UnmovableF(X);
 }
+
+TEST(UniqueFunctionTest, Const) {
+  // Can assign from const lambda.
+  unique_function<int(int) const> Plus2 = [X(std::make_unique<int>(2))](int Y) {
+    return *X + Y;
+  };
+  EXPECT_EQ(5, Plus2(3));
+
+  // Can call through a const ref.
+  const auto &Plus2Ref = Plus2;
+  EXPECT_EQ(5, Plus2Ref(3));
+
+  // Can move-construct and assign.
+  unique_function<int(int) const> Plus2A = std::move(Plus2);
+  EXPECT_EQ(5, Plus2A(3));
+  unique_function<int(int) const> Plus2B;
+  Plus2B = std::move(Plus2A);
+  EXPECT_EQ(5, Plus2B(3));
+
+  // Can convert to non-const function type, but not back.
+  unique_function<int(int)> Plus2C = std::move(Plus2B);
+  EXPECT_EQ(5, Plus2C(3));
+
+  // Overloaded call operator correctly resolved.
+  struct ChooseCorrectOverload {
+    StringRef operator()() { return "non-const"; }
+    StringRef operator()() const { return "const"; }
+  };
+  unique_function<StringRef()> ChooseMutable = ChooseCorrectOverload();
+  ChooseCorrectOverload A;
+  EXPECT_EQ("non-const", ChooseMutable());
+  EXPECT_EQ("non-const", A());
+  unique_function<StringRef() const> ChooseConst = ChooseCorrectOverload();
+  const ChooseCorrectOverload &X = A;
+  EXPECT_EQ("const", ChooseConst());
+  EXPECT_EQ("const", X());
+}
+
+// Test that overloads on unique_functions are resolved as expected.
+std::string returns(StringRef) { return "not a function"; }
+std::string returns(unique_function<double()> F) { return "number"; }
+std::string returns(unique_function<StringRef()> F) { return "string"; }
+
+TEST(UniqueFunctionTest, SFINAE) {
+  EXPECT_EQ("not a function", returns("boo!"));
+  EXPECT_EQ("number", returns([] { return 42; }));
+  EXPECT_EQ("string", returns([] { return "hello"; }));
+}
+
+// A forward declared type, and a templated type.
+class Incomplete;
+template <typename T> class Templated { T A; };
+
+// Check that we can define unique_function that have references to
+// incomplete types, even if those types are templated over an
+// incomplete type.
+TEST(UniqueFunctionTest, IncompleteTypes) {
+  unique_function<void(Templated<Incomplete> &&)>
+      IncompleteArgumentRValueReference;
+  unique_function<void(Templated<Incomplete> &)>
+      IncompleteArgumentLValueReference;
+  unique_function<void(Templated<Incomplete> *)> IncompleteArgumentPointer;
+  unique_function<Templated<Incomplete> &()> IncompleteResultLValueReference;
+  unique_function<Templated<Incomplete> && ()> IncompleteResultRValueReference2;
+  unique_function<Templated<Incomplete> *()> IncompleteResultPointer;
+}
+
+// Incomplete function returning an incomplete type
+Incomplete incompleteFunction();
+const Incomplete incompleteFunctionConst();
+
+// Check that we can assign a callable to a unique_function when the
+// callable return value is incomplete.
+TEST(UniqueFunctionTest, IncompleteCallableType) {
+  unique_function<Incomplete()> IncompleteReturnInCallable{incompleteFunction};
+  unique_function<const Incomplete()> IncompleteReturnInCallableConst{
+      incompleteFunctionConst};
+  unique_function<const Incomplete()> IncompleteReturnInCallableConstConversion{
+      incompleteFunction};
+}
+
+// Define the incomplete function
+class Incomplete {};
+Incomplete incompleteFunction() { return {}; }
+const Incomplete incompleteFunctionConst() { return {}; }
 
 } // anonymous namespace

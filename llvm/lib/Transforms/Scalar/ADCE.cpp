@@ -19,6 +19,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -34,13 +35,13 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Casting.h"
@@ -48,6 +49,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <cstddef>
 #include <utility>
@@ -135,7 +137,7 @@ class AggressiveDeadCodeElimination {
   SmallPtrSet<const Metadata *, 32> AliveScopes;
 
   /// Set of blocks with not known to have live terminators.
-  SmallPtrSet<BasicBlock *, 16> BlocksWithDeadTerminators;
+  SmallSetVector<BasicBlock *, 16> BlocksWithDeadTerminators;
 
   /// The set of blocks which we have determined whose control
   /// dependence sources must be live and which have not had
@@ -180,7 +182,7 @@ class AggressiveDeadCodeElimination {
 
   /// Identify connected sections of the control flow graph which have
   /// dead terminators and rewrite the control flow graph to remove them.
-  void updateDeadRegions();
+  bool updateDeadRegions();
 
   /// Set the BlockInfo::PostOrder field based on a post-order
   /// numbering of the reverse control flow graph.
@@ -389,7 +391,7 @@ void AggressiveDeadCodeElimination::markLive(Instruction *I) {
   // Mark the containing block live
   auto &BBInfo = *Info.Block;
   if (BBInfo.Terminator == I) {
-    BlocksWithDeadTerminators.erase(BBInfo.BB);
+    BlocksWithDeadTerminators.remove(BBInfo.BB);
     // For live terminators, mark destination blocks
     // live to preserve this control flow edges.
     if (!BBInfo.UnconditionalBranch)
@@ -478,10 +480,14 @@ void AggressiveDeadCodeElimination::markLiveBranchesFromControlDependences() {
   // which currently have dead terminators that are control
   // dependence sources of a block which is in NewLiveBlocks.
 
+  const SmallPtrSet<BasicBlock *, 16> BWDT{
+      BlocksWithDeadTerminators.begin(),
+      BlocksWithDeadTerminators.end()
+  };
   SmallVector<BasicBlock *, 32> IDFBlocks;
   ReverseIDFCalculator IDFs(PDT);
   IDFs.setDefiningBlocks(NewLiveBlocks);
-  IDFs.setLiveInBlocks(BlocksWithDeadTerminators);
+  IDFs.setLiveInBlocks(BWDT);
   IDFs.calculate(IDFBlocks);
   NewLiveBlocks.clear();
 
@@ -499,7 +505,7 @@ void AggressiveDeadCodeElimination::markLiveBranchesFromControlDependences() {
 //===----------------------------------------------------------------------===//
 bool AggressiveDeadCodeElimination::removeDeadInstructions() {
   // Updates control and dataflow around dead blocks
-  updateDeadRegions();
+  bool RegionsUpdated = updateDeadRegions();
 
   LLVM_DEBUG({
     for (Instruction &I : instructions(F)) {
@@ -515,10 +521,14 @@ bool AggressiveDeadCodeElimination::removeDeadInstructions() {
         // If intrinsic is pointing at a live SSA value, there may be an
         // earlier optimization bug: if we know the location of the variable,
         // why isn't the scope of the location alive?
-        if (Value *V = DII->getVariableLocation())
-          if (Instruction *II = dyn_cast<Instruction>(V))
-            if (isLive(II))
+        for (Value *V : DII->location_ops()) {
+          if (Instruction *II = dyn_cast<Instruction>(V)) {
+            if (isLive(II)) {
               dbgs() << "Dropping debug info for " << *DII << "\n";
+              break;
+            }
+          }
+        }
       }
     }
   });
@@ -527,7 +537,7 @@ bool AggressiveDeadCodeElimination::removeDeadInstructions() {
   // that have no side effects and do not influence the control flow or return
   // value of the function, and may therefore be deleted safely.
   // NOTE: We reuse the Worklist vector here for memory efficiency.
-  for (Instruction &I : instructions(F)) {
+  for (Instruction &I : llvm::reverse(instructions(F))) {
     // Check if the instruction is alive.
     if (isLive(&I))
       continue;
@@ -542,19 +552,22 @@ bool AggressiveDeadCodeElimination::removeDeadInstructions() {
 
     // Prepare to delete.
     Worklist.push_back(&I);
-    I.dropAllReferences();
+    salvageDebugInfo(I);
   }
+
+  for (Instruction *&I : Worklist)
+    I->dropAllReferences();
 
   for (Instruction *&I : Worklist) {
     ++NumRemoved;
     I->eraseFromParent();
   }
 
-  return !Worklist.empty();
+  return !Worklist.empty() || RegionsUpdated;
 }
 
 // A dead region is the set of dead blocks with a common live post-dominator.
-void AggressiveDeadCodeElimination::updateDeadRegions() {
+bool AggressiveDeadCodeElimination::updateDeadRegions() {
   LLVM_DEBUG({
     dbgs() << "final dead terminator blocks: " << '\n';
     for (auto *BB : BlocksWithDeadTerminators)
@@ -564,6 +577,8 @@ void AggressiveDeadCodeElimination::updateDeadRegions() {
 
   // Don't compute the post ordering unless we needed it.
   bool HavePostOrder = false;
+  bool Changed = false;
+  SmallVector<DominatorTree::UpdateType, 10> DeletedEdges;
 
   for (auto *BB : BlocksWithDeadTerminators) {
     auto &Info = BlockInfo[BB];
@@ -602,7 +617,6 @@ void AggressiveDeadCodeElimination::updateDeadRegions() {
     makeUnconditional(BB, PreferredSucc->BB);
 
     // Inform the dominators about the deleted CFG edges.
-    SmallVector<DominatorTree::UpdateType, 4> DeletedEdges;
     for (auto *Succ : RemovedSuccessors) {
       // It might have happened that the same successor appeared multiple times
       // and the CFG edge wasn't really removed.
@@ -614,11 +628,15 @@ void AggressiveDeadCodeElimination::updateDeadRegions() {
       }
     }
 
+    NumBranchesRemoved += 1;
+    Changed = true;
+  }
+
+  if (!DeletedEdges.empty())
     DomTreeUpdater(DT, &PDT, DomTreeUpdater::UpdateStrategy::Eager)
         .applyUpdates(DeletedEdges);
 
-    NumBranchesRemoved += 1;
-  }
+  return Changed;
 }
 
 // reverse top-sort order
@@ -633,7 +651,7 @@ void AggressiveDeadCodeElimination::computeReversePostOrder() {
   SmallPtrSet<BasicBlock*, 16> Visited;
   unsigned PostOrder = 0;
   for (auto &BB : F) {
-    if (succ_begin(&BB) != succ_end(&BB))
+    if (!succ_empty(&BB))
       continue;
     for (BasicBlock *Block : inverse_post_order_ext(&BB,Visited))
       BlockInfo[Block].PostOrder = PostOrder++;
@@ -679,10 +697,13 @@ PreservedAnalyses ADCEPass::run(Function &F, FunctionAnalysisManager &FAM) {
     return PreservedAnalyses::all();
 
   PreservedAnalyses PA;
-  PA.preserveSet<CFGAnalyses>();
-  PA.preserve<GlobalsAA>();
-  PA.preserve<DominatorTreeAnalysis>();
-  PA.preserve<PostDominatorTreeAnalysis>();
+  // TODO: We could track if we have actually done CFG changes.
+  if (!RemoveControlFlowFlag)
+    PA.preserveSet<CFGAnalyses>();
+  else {
+    PA.preserve<DominatorTreeAnalysis>();
+    PA.preserve<PostDominatorTreeAnalysis>();
+  }
   return PA;
 }
 

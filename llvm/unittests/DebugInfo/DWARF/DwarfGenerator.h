@@ -149,18 +149,21 @@ public:
 class CompileUnit {
   Generator &DG;
   BasicDIEUnit DU;
+  uint64_t Length; /// The length in bytes of all of the DIEs in this unit.
+  const uint16_t Version; /// The Dwarf version number for this unit.
+  const uint8_t AddrSize; /// The size in bytes of an address for this unit.
 
 public:
   CompileUnit(Generator &D, uint16_t V, uint8_t A)
-      : DG(D), DU(V, A, dwarf::DW_TAG_compile_unit) {}
+      : DG(D), DU(dwarf::DW_TAG_compile_unit), Version(V), AddrSize(A) {}
   DIE getUnitDIE();
   Generator &getGenerator() { return DG; }
   uint64_t getOffset() const { return DU.getDebugSectionOffset(); }
-  uint64_t getLength() const { return DU.getLength(); }
-  uint16_t getVersion() const { return DU.getDwarfVersion(); }
-  uint16_t getAddressSize() const { return DU.getAddressSize(); }
+  uint64_t getLength() const { return Length; }
+  uint16_t getVersion() const { return Version; }
+  uint16_t getAddressSize() const { return AddrSize; }
   void setOffset(uint64_t Offset) { DU.setDebugSectionOffset(Offset); }
-  void setLength(uint64_t Length) { DU.setLength(Length); }
+  void setLength(uint64_t L) { Length = L; }
 };
 
 /// A DWARF line unit-like class used to generate DWARF line units.
@@ -171,8 +174,8 @@ public:
   enum ValueLength { Byte = 1, Half = 2, Long = 4, Quad = 8, ULEB, SLEB };
 
   struct ValueAndLength {
-    uint64_t Value;
-    ValueLength Length;
+    uint64_t Value = 0;
+    ValueLength Length = Byte;
   };
 
   LineTable(uint16_t Version, dwarf::DwarfFormat Format, uint8_t AddrSize,
@@ -213,6 +216,9 @@ private:
 
   void writeProloguePayload(const DWARFDebugLine::Prologue &Prologue,
                             AsmPrinter &Asm) const;
+
+  // Calculate the number of bytes the Contents will take up.
+  size_t getContentsSize() const;
 
   llvm::Optional<DWARFDebugLine::Prologue> Prologue;
   std::vector<ValueAndLength> CustomPrologue;

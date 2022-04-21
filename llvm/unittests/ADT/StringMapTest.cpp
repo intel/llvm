@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/DataTypes.h"
 #include "gtest/gtest.h"
@@ -76,6 +76,16 @@ const char* StringMapTest::testKeyFirst = testKey;
 size_t StringMapTest::testKeyLength = sizeof(testKey) - 1;
 const std::string StringMapTest::testKeyStr(testKey);
 
+struct CountCopyAndMove {
+  CountCopyAndMove() = default;
+  CountCopyAndMove(const CountCopyAndMove &) { copy = 1; }
+  CountCopyAndMove(CountCopyAndMove &&) { move = 1; }
+  void operator=(const CountCopyAndMove &) { ++copy; }
+  void operator=(CountCopyAndMove &&) { ++move; }
+  int copy = 0;
+  int move = 0;
+};
+
 // Empty map tests.
 TEST_F(StringMapTest, EmptyMapTest) {
   assertEmptyMap();
@@ -100,6 +110,13 @@ TEST_F(StringMapTest, ConstEmptyMapTest) {
   EXPECT_TRUE(constTestMap.find(StringRef(testKeyFirst, testKeyLength)) ==
               constTestMap.end());
   EXPECT_TRUE(constTestMap.find(testKeyStr) == constTestMap.end());
+}
+
+// initializer_list ctor test; also implicitly tests initializer_list and
+// iterator overloads of insert().
+TEST_F(StringMapTest, InitializerListCtor) {
+  testMap = StringMap<uint32_t>({{"key", 1}});
+  assertSingleItemMap();
 }
 
 // A map with a single entry.
@@ -215,12 +232,13 @@ TEST_F(StringMapTest, IterationTest) {
 
 // Test StringMapEntry::Create() method.
 TEST_F(StringMapTest, StringMapEntryTest) {
-  StringMap<uint32_t>::value_type* entry =
+  MallocAllocator Allocator;
+  StringMap<uint32_t>::value_type *entry =
       StringMap<uint32_t>::value_type::Create(
-          StringRef(testKeyFirst, testKeyLength), 1u);
+          StringRef(testKeyFirst, testKeyLength), Allocator, 1u);
   EXPECT_STREQ(testKey, entry->first().data());
   EXPECT_EQ(1u, entry->second);
-  free(entry);
+  entry->Destroy(Allocator);
 }
 
 // Test insert() method.
@@ -270,7 +288,42 @@ TEST_F(StringMapTest, InsertRehashingPairTest) {
   EXPECT_EQ(42u, It->second);
 }
 
-TEST_F(StringMapTest, IterMapKeys) {
+TEST_F(StringMapTest, InsertOrAssignTest) {
+  struct A : CountCopyAndMove {
+    A(int v) : v(v) {}
+    int v;
+  };
+  StringMap<A> t(0);
+
+  auto try1 = t.insert_or_assign("A", A(1));
+  EXPECT_TRUE(try1.second);
+  EXPECT_EQ(1, try1.first->second.v);
+  EXPECT_EQ(1, try1.first->second.move);
+
+  auto try2 = t.insert_or_assign("A", A(2));
+  EXPECT_FALSE(try2.second);
+  EXPECT_EQ(2, try2.first->second.v);
+  EXPECT_EQ(2, try1.first->second.move);
+
+  EXPECT_EQ(try1.first, try2.first);
+  EXPECT_EQ(0, try1.first->second.copy);
+}
+
+TEST_F(StringMapTest, IterMapKeysVector) {
+  StringMap<int> Map;
+  Map["A"] = 1;
+  Map["B"] = 2;
+  Map["C"] = 3;
+  Map["D"] = 3;
+
+  std::vector<StringRef> Keys{Map.keys().begin(), Map.keys().end()};
+  llvm::sort(Keys);
+
+  std::vector<StringRef> Expected{{"A", "B", "C", "D"}};
+  EXPECT_EQ(Expected, Keys);
+}
+
+TEST_F(StringMapTest, IterMapKeysSmallVector) {
   StringMap<int> Map;
   Map["A"] = 1;
   Map["B"] = 2;
@@ -278,20 +331,6 @@ TEST_F(StringMapTest, IterMapKeys) {
   Map["D"] = 3;
 
   auto Keys = to_vector<4>(Map.keys());
-  llvm::sort(Keys);
-
-  SmallVector<StringRef, 4> Expected = {"A", "B", "C", "D"};
-  EXPECT_EQ(Expected, Keys);
-}
-
-TEST_F(StringMapTest, IterSetKeys) {
-  StringSet<> Set;
-  Set.insert("A");
-  Set.insert("B");
-  Set.insert("C");
-  Set.insert("D");
-
-  auto Keys = to_vector<4>(Set.keys());
   llvm::sort(Keys);
 
   SmallVector<StringRef, 4> Expected = {"A", "B", "C", "D"};
@@ -337,14 +376,15 @@ TEST_F(StringMapTest, MoveOnly) {
   StringMap<MoveOnly> t;
   t.insert(std::make_pair("Test", MoveOnly(42)));
   StringRef Key = "Test";
-  StringMapEntry<MoveOnly>::Create(Key, MoveOnly(42))
-      ->Destroy();
+  StringMapEntry<MoveOnly>::Create(Key, t.getAllocator(), MoveOnly(42))
+      ->Destroy(t.getAllocator());
 }
 
 TEST_F(StringMapTest, CtorArg) {
   StringRef Key = "Test";
-  StringMapEntry<MoveOnly>::Create(Key, Immovable())
-      ->Destroy();
+  MallocAllocator Allocator;
+  StringMapEntry<MoveOnly>::Create(Key, Allocator, Immovable())
+      ->Destroy(Allocator);
 }
 
 TEST_F(StringMapTest, MoveConstruct) {
@@ -367,6 +407,70 @@ TEST_F(StringMapTest, MoveAssignment) {
   ASSERT_EQ(B.size(), 0u);
   ASSERT_EQ(A["y"], 117);
   ASSERT_EQ(B.count("x"), 0u);
+}
+
+TEST_F(StringMapTest, EqualEmpty) {
+  StringMap<int> A;
+  StringMap<int> B;
+  ASSERT_TRUE(A == B);
+  ASSERT_FALSE(A != B);
+  ASSERT_TRUE(A == A); // self check
+}
+
+TEST_F(StringMapTest, EqualWithValues) {
+  StringMap<int> A;
+  A["A"] = 1;
+  A["B"] = 2;
+  A["C"] = 3;
+  A["D"] = 3;
+
+  StringMap<int> B;
+  B["A"] = 1;
+  B["B"] = 2;
+  B["C"] = 3;
+  B["D"] = 3;
+
+  ASSERT_TRUE(A == B);
+  ASSERT_TRUE(B == A);
+  ASSERT_FALSE(A != B);
+  ASSERT_FALSE(B != A);
+  ASSERT_TRUE(A == A); // self check
+}
+
+TEST_F(StringMapTest, NotEqualMissingKeys) {
+  StringMap<int> A;
+  A["A"] = 1;
+  A["B"] = 2;
+
+  StringMap<int> B;
+  B["A"] = 1;
+  B["B"] = 2;
+  B["C"] = 3;
+  B["D"] = 3;
+
+  ASSERT_FALSE(A == B);
+  ASSERT_FALSE(B == A);
+  ASSERT_TRUE(A != B);
+  ASSERT_TRUE(B != A);
+}
+
+TEST_F(StringMapTest, NotEqualWithDifferentValues) {
+  StringMap<int> A;
+  A["A"] = 1;
+  A["B"] = 2;
+  A["C"] = 100;
+  A["D"] = 3;
+
+  StringMap<int> B;
+  B["A"] = 1;
+  B["B"] = 2;
+  B["C"] = 3;
+  B["D"] = 3;
+
+  ASSERT_FALSE(A == B);
+  ASSERT_FALSE(B == A);
+  ASSERT_TRUE(A != B);
+  ASSERT_TRUE(B != A);
 }
 
 struct Countable {

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDBVSCODE_EXCEPTIONBREAKPOINT_H_
-#define LLDBVSCODE_EXCEPTIONBREAKPOINT_H_
+#ifndef LLDB_TOOLS_LLDB_VSCODE_EXCEPTIONBREAKPOINT_H
+#define LLDB_TOOLS_LLDB_VSCODE_EXCEPTIONBREAKPOINT_H
 
 #include <string>
 
@@ -21,12 +21,9 @@ struct ExceptionBreakpoint {
   lldb::LanguageType language;
   bool default_value;
   lldb::SBBreakpoint bp;
-  ExceptionBreakpoint(std::string f, std::string l, lldb::LanguageType lang) :
-    filter(std::move(f)),
-    label(std::move(l)),
-    language(lang),
-    default_value(false),
-    bp() {}
+  ExceptionBreakpoint(std::string f, std::string l, lldb::LanguageType lang)
+      : filter(std::move(f)), label(std::move(l)), language(lang),
+        default_value(false), bp() {}
 
   void SetBreakpoint();
   void ClearBreakpoint();

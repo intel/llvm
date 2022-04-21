@@ -8,8 +8,6 @@
 //
 // UNSUPPORTED: libcpp-has-no-threads
 
-// FLAKY_TEST.
-
 // <mutex>
 
 // template <class Mutex> class lock_guard;
@@ -20,43 +18,31 @@
 //     -> lock_guard<_Mutex>;  // C++17
 
 #include <mutex>
-#include <thread>
 #include <cstdlib>
 #include <cassert>
 
+#include "make_test_thread.h"
 #include "test_macros.h"
 
 std::mutex m;
 
-typedef std::chrono::system_clock Clock;
-typedef Clock::time_point time_point;
-typedef Clock::duration duration;
-typedef std::chrono::milliseconds ms;
-typedef std::chrono::nanoseconds ns;
-
-void f()
-{
-    time_point t0 = Clock::now();
-    time_point t1;
-    {
-    std::lock_guard<std::mutex> lg(m);
-    t1 = Clock::now();
-    }
-    ns d = t1 - t0 - ms(250);
-    assert(d < ms(200));  // within 200ms
+void do_try_lock() {
+  assert(m.try_lock() == false);
 }
 
-int main(int, char**)
-{
-    m.lock();
-    std::thread t(f);
-    std::this_thread::sleep_for(ms(250));
-    m.unlock();
+int main(int, char**) {
+  {
+    std::lock_guard<std::mutex> lg(m);
+    std::thread t = support::make_test_thread(do_try_lock);
     t.join();
+  }
 
-#ifdef __cpp_deduction_guides
-    std::lock_guard lg(m);
-    static_assert((std::is_same<decltype(lg), std::lock_guard<decltype(m)>>::value), "" );
+  m.lock();
+  m.unlock();
+
+#if TEST_STD_VER >= 17
+  std::lock_guard lg(m);
+  static_assert((std::is_same<decltype(lg), std::lock_guard<decltype(m)>>::value), "" );
 #endif
 
   return 0;

@@ -13,20 +13,20 @@ define void @pr32610(i32 %a0, i32 %a1) #0 {
 ; CHECK-NEXT:    pushl %ebp
 ; CHECK-NEXT:    movl %esp, %ebp
 ; CHECK-NEXT:    pushl %esi
-; CHECK-NEXT:    movl 8(%ebp), %ecx
-; CHECK-NEXT:    movl L_b$non_lazy_ptr, %edx
-; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    cmpl (%edx), %ecx
-; CHECK-NEXT:    sete %al
+; CHECK-NEXT:    movl 8(%ebp), %edx
+; CHECK-NEXT:    movl L_b$non_lazy_ptr, %eax
+; CHECK-NEXT:    xorl %ecx, %ecx
+; CHECK-NEXT:    cmpl (%eax), %edx
+; CHECK-NEXT:    sete %cl
 ; CHECK-NEXT:    xorl %esi, %esi
 ; CHECK-NEXT:    incl %esi
 ; CHECK-NEXT:    cmpl $0, 12(%ebp)
-; CHECK-NEXT:    cmovel %esi, %eax
-; CHECK-NEXT:    cmpl (%edx), %ecx
-; CHECK-NEXT:    cmovnel %esi, %eax
-; CHECK-NEXT:    movl L_c$non_lazy_ptr, %ecx
-; CHECK-NEXT:    movl %eax, (%ecx)
-; CHECK-NEXT:    movl (%edx), %eax
+; CHECK-NEXT:    cmovel %esi, %ecx
+; CHECK-NEXT:    cmpl (%eax), %edx
+; CHECK-NEXT:    cmovnel %esi, %ecx
+; CHECK-NEXT:    movl L_c$non_lazy_ptr, %edx
+; CHECK-NEXT:    movl %ecx, (%edx)
+; CHECK-NEXT:    movl (%eax), %eax
 ; CHECK-NEXT:    testl %eax, %eax
 ; CHECK-NEXT:    movl $2, %ecx
 ; CHECK-NEXT:    cmovnel %eax, %ecx
@@ -50,7 +50,7 @@ entry:
   ret void
 }
 
-attributes #0 = { norecurse nounwind optsize ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="penryn" "target-features"="+cx16,+fxsr,+mmx,+sse,+sse2,+sse3,+sse4.1,+ssse3,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind optsize ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="penryn" "target-features"="+cx16,+fxsr,+mmx,+sse,+sse2,+sse3,+sse4.1,+ssse3,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.ident = !{!0}
 

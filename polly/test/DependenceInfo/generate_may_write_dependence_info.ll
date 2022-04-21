@@ -1,4 +1,4 @@
-; RUN: opt -S %loadPolly -polly-dependences -analyze < %s | FileCheck %s -check-prefix=VALUE
+; RUN: opt -S %loadPolly -polly-print-dependences -disable-output < %s | FileCheck %s -check-prefix=VALUE
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 
 ;                     for (int i = 0; i < N; i++) {
@@ -56,11 +56,11 @@ for.end:                                          ; preds = %for.cond
   ret void
 }
 ; VALUE: RAW dependences:
-; VALUE-NEXT:   { Stmt_A_must_write_20[i0] -> Stmt_B_write_from_A[i0] : 0 <= i0 <= 2999; Stmt_compute_i_square__TO__B_write_from_A[i0] -> Stmt_B_write_from_A[i0] : 0 <= i0 <= 2999 }
+; VALUE-NEXT:   { Stmt_compute_i_square__TO__B_write_from_A[i0] -> Stmt_B_write_from_A[i0] : 0 <= i0 <= 2999; Stmt_A_must_write_20[i0] -> Stmt_B_write_from_A[i0] : 0 <= i0 <= 2999 }
 ; VALUE-NEXT: WAR dependences:
 ; VALUE-NEXT:   { Stmt_B_write_from_A[i0] -> Stmt_A_must_write_42[i0] : 0 <= i0 <= 2999 }
 ; VALUE-NEXT: WAW dependences:
-; VALUE-NEXT:   { Stmt_compute_i_square__TO__B_write_from_A[i0] -> Stmt_A_must_write_42[i0] : 0 <= i0 <= 2999; Stmt_A_must_write_20[i0] -> Stmt_A_must_write_42[i0] : 0 <= i0 <= 2999; Stmt_A_must_write_20[i0] -> Stmt_compute_i_square__TO__B_write_from_A[i0] : 0 <= i0 <= 2999 }
+; VALUE-NEXT:   { Stmt_A_must_write_20[i0] -> Stmt_compute_i_square__TO__B_write_from_A[i0] : 0 <= i0 <= 2999; Stmt_compute_i_square__TO__B_write_from_A[i0] -> Stmt_A_must_write_42[i0] : 0 <= i0 <= 2999; Stmt_A_must_write_20[i0] -> Stmt_A_must_write_42[i0] : 0 <= i0 <= 2999 }
 ; VALUE-NEXT: Reduction dependences:
 ; VALUE-NEXT:   {  }
 ; VALUE-NEXT: Transitive closure of reduction dependences:

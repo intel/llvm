@@ -101,10 +101,10 @@ ParsedSourceLocation offsetToPosition(llvm::StringRef Code, size_t Offset) {
 
 CompletionContext runCompletion(StringRef Code, size_t Offset) {
   CompletionContext ResultCtx;
-  auto Action = llvm::make_unique<CodeCompleteAction>(
-      offsetToPosition(Code, Offset), ResultCtx);
-  clang::tooling::runToolOnCodeWithArgs(Action.release(), Code, {"-std=c++11"},
-                                        TestCCName);
+  clang::tooling::runToolOnCodeWithArgs(
+      std::make_unique<CodeCompleteAction>(offsetToPosition(Code, Offset),
+                                           ResultCtx),
+      Code, {"-std=c++11"}, TestCCName);
   return ResultCtx;
 }
 
@@ -454,5 +454,43 @@ TEST(PreferredTypeTest, FunctionArguments) {
     }
   )cpp";
   EXPECT_THAT(collectPreferredTypes(Code), Each("volatile double *"));
+
+  Code = R"cpp(
+    namespace ns {
+      struct vector {
+      };
+    }
+    void accepts_vector(ns::vector);
+
+    void test() {
+      accepts_vector(^::^ns::^vector());
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("ns::vector"));
+
+  Code = R"cpp(
+    template <class T>
+    struct vector { using self = vector; };
+
+    void accepts_vector(vector<int>);
+    int foo(int);
+
+    void test() {
+      accepts_vector(^::^vector<decltype(foo(1))>::^self);
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("vector<int>"));
 }
+
+TEST(PreferredTypeTest, NoCrashOnInvalidTypes) {
+  StringRef Code = R"cpp(
+    auto x = decltype(&1)(^);
+    auto y = new decltype(&1)(^);
+    // GNU decimal type extension is not supported in clang.
+    auto z = new _Decimal128(^);
+    void foo() { (void)(foo)(^); }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("NULL TYPE"));
+}
+
 } // namespace

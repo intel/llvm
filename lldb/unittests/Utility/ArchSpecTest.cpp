@@ -1,4 +1,4 @@
-//===-- ArchSpecTest.cpp ----------------------------------------*- C++ -*-===//
+//===-- ArchSpecTest.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,8 +9,9 @@
 #include "gtest/gtest.h"
 
 #include "lldb/Utility/ArchSpec.h"
-#include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/BinaryFormat/MachO.h"
+#include "llvm/Support/YAMLParser.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -157,8 +158,13 @@ TEST(ArchSpecTest, MergeFrom) {
     ArchSpec A("aarch64");
     ArchSpec B("aarch64--linux-android");
 
+    ArchSpec C("arm64_32");
+    ArchSpec D("arm64_32--watchos");
+
     EXPECT_TRUE(A.IsValid());
     EXPECT_TRUE(B.IsValid());
+    EXPECT_TRUE(C.IsValid());
+    EXPECT_TRUE(D.IsValid());
 
     EXPECT_EQ(llvm::Triple::ArchType::aarch64, B.GetTriple().getArch());
     EXPECT_EQ(llvm::Triple::VendorType::UnknownVendor,
@@ -174,6 +180,17 @@ TEST(ArchSpecTest, MergeFrom) {
     EXPECT_EQ(llvm::Triple::OSType::Linux, A.GetTriple().getOS());
     EXPECT_EQ(llvm::Triple::EnvironmentType::Android,
               A.GetTriple().getEnvironment());
+
+    EXPECT_EQ(llvm::Triple::ArchType::aarch64_32, D.GetTriple().getArch());
+    EXPECT_EQ(llvm::Triple::VendorType::UnknownVendor,
+              D.GetTriple().getVendor());
+    EXPECT_EQ(llvm::Triple::OSType::WatchOS, D.GetTriple().getOS());
+
+    C.MergeFrom(D);
+    EXPECT_EQ(llvm::Triple::ArchType::aarch64_32, C.GetTriple().getArch());
+    EXPECT_EQ(llvm::Triple::VendorType::UnknownVendor,
+              C.GetTriple().getVendor());
+    EXPECT_EQ(llvm::Triple::OSType::WatchOS, C.GetTriple().getOS());
   }
   {
     ArchSpec A, B;
@@ -184,20 +201,55 @@ TEST(ArchSpecTest, MergeFrom) {
 
     EXPECT_TRUE(A.IsValid());
     EXPECT_TRUE(B.IsValid());
-    
+
     EXPECT_EQ(llvm::Triple::ArchType::arm, B.GetTriple().getArch());
     EXPECT_EQ(llvm::Triple::VendorType::UnknownVendor,
               B.GetTriple().getVendor());
     EXPECT_EQ(llvm::Triple::OSType::Linux, B.GetTriple().getOS());
     EXPECT_EQ(llvm::Triple::EnvironmentType::UnknownEnvironment,
               B.GetTriple().getEnvironment());
-    
+
     A.MergeFrom(B);
     EXPECT_EQ(llvm::Triple::ArchType::arm, A.GetTriple().getArch());
     EXPECT_EQ(llvm::Triple::VendorType::UnknownVendor,
               A.GetTriple().getVendor());
     EXPECT_EQ(llvm::Triple::OSType::Linux, A.GetTriple().getOS());
     EXPECT_EQ(llvm::Triple::EnvironmentType::UnknownEnvironment,
+              A.GetTriple().getEnvironment());
+  }
+  {
+    ArchSpec A("arm--linux-eabihf");
+    ArchSpec B("armv8l--linux-gnueabihf");
+
+    EXPECT_TRUE(A.IsValid());
+    EXPECT_TRUE(B.IsValid());
+
+    EXPECT_EQ(llvm::Triple::ArchType::arm, A.GetTriple().getArch());
+    EXPECT_EQ(llvm::Triple::ArchType::arm, B.GetTriple().getArch());
+
+    EXPECT_EQ(ArchSpec::eCore_arm_generic, A.GetCore());
+    EXPECT_EQ(ArchSpec::eCore_arm_armv8l, B.GetCore());
+
+    EXPECT_EQ(llvm::Triple::VendorType::UnknownVendor,
+              A.GetTriple().getVendor());
+    EXPECT_EQ(llvm::Triple::VendorType::UnknownVendor,
+              B.GetTriple().getVendor());
+
+    EXPECT_EQ(llvm::Triple::OSType::Linux, A.GetTriple().getOS());
+    EXPECT_EQ(llvm::Triple::OSType::Linux, B.GetTriple().getOS());
+
+    EXPECT_EQ(llvm::Triple::EnvironmentType::EABIHF,
+              A.GetTriple().getEnvironment());
+    EXPECT_EQ(llvm::Triple::EnvironmentType::GNUEABIHF,
+              B.GetTriple().getEnvironment());
+
+    A.MergeFrom(B);
+    EXPECT_EQ(llvm::Triple::ArchType::arm, A.GetTriple().getArch());
+    EXPECT_EQ(ArchSpec::eCore_arm_armv8l, A.GetCore());
+    EXPECT_EQ(llvm::Triple::VendorType::UnknownVendor,
+              A.GetTriple().getVendor());
+    EXPECT_EQ(llvm::Triple::OSType::Linux, A.GetTriple().getOS());
+    EXPECT_EQ(llvm::Triple::EnvironmentType::EABIHF,
               A.GetTriple().getEnvironment());
   }
 }
@@ -229,7 +281,7 @@ TEST(ArchSpecTest, Compatibility) {
     ASSERT_TRUE(A.IsCompatibleMatch(B));
   }
   {
-    // The version information is auxiliary to support availablity but
+    // The version information is auxiliary to support availability but
     // doesn't affect compatibility.
     ArchSpec A("x86_64-apple-macosx10.11");
     ArchSpec B("x86_64-apple-macosx10.12");
@@ -253,6 +305,33 @@ TEST(ArchSpecTest, Compatibility) {
     ArchSpec B("x86_64-apple-ios-simulator");
     ASSERT_FALSE(A.IsExactMatch(B));
     ASSERT_FALSE(A.IsCompatibleMatch(B));
+    ASSERT_FALSE(B.IsExactMatch(A));
+    ASSERT_FALSE(B.IsCompatibleMatch(A));
+  }
+  {
+    ArchSpec A("x86_64-apple-ios");
+    ArchSpec B("x86_64-apple-ios-simulator");
+    ASSERT_FALSE(A.IsExactMatch(B));
+    ASSERT_FALSE(A.IsCompatibleMatch(B));
+    ASSERT_FALSE(B.IsExactMatch(A));
+    ASSERT_FALSE(B.IsCompatibleMatch(A));
+  }
+  {
+    // FIXME: This is surprisingly not equivalent to "x86_64-*-*".
+    ArchSpec A("x86_64");
+    ArchSpec B("x86_64-apple-ios-simulator");
+    ASSERT_FALSE(A.IsExactMatch(B));
+    ASSERT_TRUE(A.IsCompatibleMatch(B));
+    ASSERT_FALSE(B.IsExactMatch(A));
+    ASSERT_TRUE(B.IsCompatibleMatch(A));
+  }
+  {
+    ArchSpec A("arm64-apple-ios");
+    ArchSpec B("arm64-apple-ios-simulator");
+    ASSERT_FALSE(A.IsExactMatch(B));
+    ASSERT_FALSE(A.IsCompatibleMatch(B));
+    ASSERT_FALSE(B.IsCompatibleMatch(A));
+    ASSERT_FALSE(B.IsCompatibleMatch(A));
   }
   {
     ArchSpec A("arm64-*-*");
@@ -275,6 +354,40 @@ TEST(ArchSpecTest, Compatibility) {
     // FIXME: The exact match also looks unintuitive.
     ASSERT_TRUE(A.IsExactMatch(B));
     ASSERT_TRUE(A.IsCompatibleMatch(B));
+  }
+  {
+    ArchSpec A("x86_64");
+    ArchSpec B("x86_64-apple-ios12.0.0-macabi");
+    // FIXME: The exact match also looks unintuitive.
+    ASSERT_TRUE(A.IsExactMatch(B));
+    ASSERT_TRUE(A.IsCompatibleMatch(B));
+  }
+  {
+    ArchSpec A("x86_64-apple-ios12.0.0");
+    ArchSpec B("x86_64-apple-ios12.0.0-macabi");
+    ASSERT_FALSE(A.IsExactMatch(B));
+    ASSERT_FALSE(A.IsCompatibleMatch(B));
+  }
+  {
+    ArchSpec A("x86_64-apple-macosx10.14.2");
+    ArchSpec B("x86_64-apple-ios12.0.0-macabi");
+    ASSERT_FALSE(A.IsExactMatch(B));
+    ASSERT_TRUE(A.IsCompatibleMatch(B));
+  }
+  {
+    ArchSpec A("x86_64-apple-macosx10.14.2");
+    ArchSpec B("x86_64-apple-ios12.0.0-macabi");
+    // ios-macabi wins.
+    A.MergeFrom(B);
+    ASSERT_TRUE(A.IsExactMatch(B));
+  }
+  {
+    ArchSpec A("x86_64-apple-macosx10.14.2");
+    ArchSpec B("x86_64-apple-ios12.0.0-macabi");
+    ArchSpec C(B);
+    // ios-macabi wins.
+    B.MergeFrom(A);
+    ASSERT_TRUE(B.IsExactMatch(C));
   }
 }
 
@@ -354,4 +467,24 @@ TEST(ArchSpecTest, TripleComponentsWereSpecified) {
     ASSERT_TRUE(D.TripleOSWasSpecified());
     ASSERT_TRUE(D.TripleEnvironmentWasSpecified());
   }
+}
+
+TEST(ArchSpecTest, YAML) {
+  std::string buffer;
+  llvm::raw_string_ostream os(buffer);
+
+  // Serialize.
+  llvm::yaml::Output yout(os);
+  std::vector<ArchSpec> archs = {ArchSpec("x86_64-pc-linux"),
+                                 ArchSpec("x86_64-apple-macosx10.12"),
+                                 ArchSpec("i686-pc-windows")};
+  yout << archs;
+  os.flush();
+
+  // Deserialize.
+  std::vector<ArchSpec> deserialized;
+  llvm::yaml::Input yin(buffer);
+  yin >> deserialized;
+
+  EXPECT_EQ(archs, deserialized);
 }

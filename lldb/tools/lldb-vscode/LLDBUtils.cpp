@@ -55,6 +55,10 @@ bool ThreadHasStopReason(lldb::SBThread &thread) {
   case lldb::eStopReasonSignal:
   case lldb::eStopReasonException:
   case lldb::eStopReasonExec:
+  case lldb::eStopReasonProcessorTrace:
+  case lldb::eStopReasonFork:
+  case lldb::eStopReasonVFork:
+  case lldb::eStopReasonVForkDone:
     return true;
   case lldb::eStopReasonThreadExiting:
   case lldb::eStopReasonInvalid:
@@ -77,21 +81,6 @@ uint32_t GetLLDBFrameID(uint64_t dap_frame_id) {
 int64_t MakeVSCodeFrameID(lldb::SBFrame &frame) {
   return (int64_t)(frame.GetThread().GetIndexID() << THREAD_INDEX_SHIFT |
                    frame.GetFrameID());
-}
-
-static uint32_t constexpr BREAKPOINT_ID_SHIFT = 22;
-
-uint32_t GetLLDBBreakpointID(uint64_t dap_breakpoint_id) {
-  return dap_breakpoint_id >> BREAKPOINT_ID_SHIFT;
-}
-
-uint32_t GetLLDBBreakpointLocationID(uint64_t dap_breakpoint_id) {
-  return dap_breakpoint_id & ((1u << BREAKPOINT_ID_SHIFT) - 1);
-}
-
-int64_t MakeVSCodeBreakpointID(lldb::SBBreakpointLocation &bp_loc) {
-  return (int64_t)(bp_loc.GetBreakpoint().GetID() << BREAKPOINT_ID_SHIFT |
-                   bp_loc.GetID());
 }
 
 } // namespace lldb_vscode

@@ -12,9 +12,13 @@
 
 // const char* name() const;
 
+// UNSUPPORTED: no-rtti
+
 #include <typeindex>
 #include <string>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

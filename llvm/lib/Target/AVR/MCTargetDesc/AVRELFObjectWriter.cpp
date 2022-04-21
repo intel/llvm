@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/AVRFixupKinds.h"
+#include "MCTargetDesc/AVRMCExpr.h"
 #include "MCTargetDesc/AVRMCTargetDesc.h"
 
 #include "llvm/MC/MCAssembler.h"
@@ -24,23 +25,20 @@ class AVRELFObjectWriter : public MCELFObjectTargetWriter {
 public:
   AVRELFObjectWriter(uint8_t OSABI);
 
-  virtual ~AVRELFObjectWriter() {}
+  virtual ~AVRELFObjectWriter() = default;
 
-  unsigned getRelocType(MCContext &Ctx,
-                        const MCValue &Target,
-                        const MCFixup &Fixup,
-                        bool IsPCRel) const override;
+  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
+                        const MCFixup &Fixup, bool IsPCRel) const override;
 };
 
 AVRELFObjectWriter::AVRELFObjectWriter(uint8_t OSABI)
     : MCELFObjectTargetWriter(false, OSABI, ELF::EM_AVR, true) {}
 
-unsigned AVRELFObjectWriter::getRelocType(MCContext &Ctx,
-                                          const MCValue &Target,
+unsigned AVRELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
                                           const MCFixup &Fixup,
                                           bool IsPCRel) const {
   MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
-  switch ((unsigned) Fixup.getKind()) {
+  switch ((unsigned)Fixup.getKind()) {
   case FK_Data_1:
     switch (Modifier) {
     default:
@@ -72,6 +70,7 @@ unsigned AVRELFObjectWriter::getRelocType(MCContext &Ctx,
     case MCSymbolRefExpr::VK_None:
       return ELF::R_AVR_16;
     case MCSymbolRefExpr::VK_AVR_NONE:
+    case MCSymbolRefExpr::VK_AVR_PM:
       return ELF::R_AVR_16_PM;
     case MCSymbolRefExpr::VK_AVR_DIFF16:
       return ELF::R_AVR_DIFF16;
@@ -152,8 +151,7 @@ unsigned AVRELFObjectWriter::getRelocType(MCContext &Ctx,
 }
 
 std::unique_ptr<MCObjectTargetWriter> createAVRELFObjectWriter(uint8_t OSABI) {
-  return make_unique<AVRELFObjectWriter>(OSABI);
+  return std::make_unique<AVRELFObjectWriter>(OSABI);
 }
 
 } // end of namespace llvm
-

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,18 +14,20 @@
 
 // const string_type& native() const noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "filesystem_test_helper.hpp"
+#include "filesystem_test_helper.h"
 
 
 int main(int, char**)
 {
   using namespace fs;
   const char* const value = "hello world";
+  std::string value_str(value);
+  fs::path::string_type pathstr_value(value_str.begin(), value_str.end());
   { // Check signature
     path p(value);
     ASSERT_SAME_TYPE(path::string_type const&, decltype(p.native()));
@@ -33,7 +35,7 @@ int main(int, char**)
   }
   { // native() is tested elsewhere
     path p(value);
-    assert(p.native() == value);
+    assert(p.native() == pathstr_value);
   }
 
   return 0;

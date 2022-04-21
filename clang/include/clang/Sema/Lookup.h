@@ -319,7 +319,7 @@ public:
   }
 
   LookupResultKind getResultKind() const {
-    assert(sanity());
+    assert(checkDebugAssumptions());
     return ResultKind;
   }
 
@@ -348,7 +348,7 @@ public:
   /// program.
   static bool isVisible(Sema &SemaRef, NamedDecl *D) {
     // If this declaration is not hidden, it's visible.
-    if (!D->isHidden())
+    if (D->isUnconditionallyVisible())
       return true;
 
     // During template instantiation, we can refer to hidden declarations, if
@@ -706,10 +706,9 @@ private:
   void addDeclsFromBasePaths(const CXXBasePaths &P);
   void configure();
 
-  // Sanity checks.
-  bool sanity() const;
+  bool checkDebugAssumptions() const;
 
-  bool sanityCheckUnresolved() const {
+  bool checkUnresolved() const {
     for (iterator I = begin(), E = end(); I != E; ++I)
       if (isa<UnresolvedUsingValueDecl>((*I)->getUnderlyingDecl()))
         return true;

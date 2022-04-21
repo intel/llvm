@@ -1,8 +1,14 @@
-// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -o - %s -Wuninitialized
 // RUN: not %clang_cc1 -fopenmp -std=c++11 -fopenmp-targets=aaa-bbb-ccc-ddd -o - %s 2>&1 | FileCheck %s
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -o - %s -Wuninitialized
 // CHECK: error: OpenMP target is invalid: 'aaa-bbb-ccc-ddd'
+
+void xxx(int argc) {
+  int x; // expected-note {{initialize the variable 'x' to silence this warning}}
+#pragma omp target parallel
+  argc = x; // expected-warning {{variable 'x' is uninitialized when used here}}
+}
 
 void foo() {
 }
@@ -69,6 +75,20 @@ int main(int argc, char **argv) {
 
   #pragma omp target parallel copyin(pvt) // expected-error {{unexpected OpenMP clause 'copyin' in directive '#pragma omp target parallel'}}
   foo();
+
+  #pragma omp target parallel
+  {
+#pragma omp cancel // expected-error {{one of 'for', 'parallel', 'sections' or 'taskgroup' is expected}}
+#pragma omp cancellation point // expected-error {{one of 'for', 'parallel', 'sections' or 'taskgroup' is expected}}
+#pragma omp cancel for // expected-error {{region cannot be closely nested inside 'target parallel' region}}
+#pragma omp cancellation point for // expected-error {{region cannot be closely nested inside 'target parallel' region}}
+#pragma omp cancel sections // expected-error {{region cannot be closely nested inside 'target parallel' region}}
+#pragma omp cancellation point sections // expected-error {{region cannot be closely nested inside 'target parallel' region}}
+#pragma omp cancel taskgroup // expected-error {{region cannot be closely nested inside 'target parallel' region}}
+#pragma omp cancellation point taskgroup // expected-error {{region cannot be closely nested inside 'target parallel' region}}
+#pragma omp cancel parallel
+#pragma omp cancellation point parallel
+  }
 
   return 0;
 }

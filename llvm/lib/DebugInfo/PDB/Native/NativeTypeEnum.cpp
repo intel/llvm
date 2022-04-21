@@ -9,16 +9,15 @@
 #include "llvm/DebugInfo/PDB/Native/NativeTypeEnum.h"
 
 #include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
+#include "llvm/DebugInfo/CodeView/LazyRandomTypeCollection.h"
 #include "llvm/DebugInfo/CodeView/TypeRecord.h"
-#include "llvm/DebugInfo/PDB/Native/NativeEnumTypes.h"
+#include "llvm/DebugInfo/PDB/Native/NativeSession.h"
 #include "llvm/DebugInfo/PDB/Native/NativeSymbolEnumerator.h"
 #include "llvm/DebugInfo/PDB/Native/NativeTypeBuiltin.h"
 #include "llvm/DebugInfo/PDB/Native/PDBFile.h"
 #include "llvm/DebugInfo/PDB/Native/SymbolCache.h"
 #include "llvm/DebugInfo/PDB/Native/TpiStream.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeBuiltin.h"
-
-#include "llvm/Support/FormatVariadic.h"
 
 #include <cassert>
 
@@ -123,7 +122,7 @@ NativeTypeEnum::NativeTypeEnum(NativeSession &Session, SymIndexId Id,
     : NativeRawSymbol(Session, PDB_SymType::Enum, Id),
       UnmodifiedType(&UnmodifiedType), Modifiers(std::move(Modifier)) {}
 
-NativeTypeEnum::~NativeTypeEnum() {}
+NativeTypeEnum::~NativeTypeEnum() = default;
 
 void NativeTypeEnum::dump(raw_ostream &OS, int Indent,
                           PdbSymbolIdField ShowIdFields,
@@ -163,14 +162,14 @@ void NativeTypeEnum::dump(raw_ostream &OS, int Indent,
 std::unique_ptr<IPDBEnumSymbols>
 NativeTypeEnum::findChildren(PDB_SymType Type) const {
   if (Type != PDB_SymType::Data)
-    return llvm::make_unique<NullEnumerator<PDBSymbol>>();
+    return std::make_unique<NullEnumerator<PDBSymbol>>();
 
   const NativeTypeEnum *ClassParent = nullptr;
   if (!Modifiers)
     ClassParent = this;
   else
     ClassParent = UnmodifiedType;
-  return llvm::make_unique<NativeEnumEnumEnumerators>(Session, *ClassParent);
+  return std::make_unique<NativeEnumEnumEnumerators>(Session, *ClassParent);
 }
 
 PDB_SymType NativeTypeEnum::getSymTag() const { return PDB_SymType::Enum; }
@@ -206,6 +205,8 @@ PDB_BuiltinType NativeTypeEnum::getBuiltinType() const {
     return PDB_BuiltinType::Char16;
   case SimpleTypeKind::Character32:
     return PDB_BuiltinType::Char32;
+  case SimpleTypeKind::Character8:
+    return PDB_BuiltinType::Char8;
   case SimpleTypeKind::Int128:
   case SimpleTypeKind::Int128Oct:
   case SimpleTypeKind::Int16:
@@ -305,7 +306,7 @@ std::string NativeTypeEnum::getName() const {
   if (UnmodifiedType)
     return UnmodifiedType->getName();
 
-  return Record->getName();
+  return std::string(Record->getName());
 }
 
 bool NativeTypeEnum::isNested() const {

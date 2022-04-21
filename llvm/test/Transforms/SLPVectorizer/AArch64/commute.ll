@@ -8,13 +8,12 @@ target triple = "aarch64--linux-gnu"
 define void @test1(%structA* nocapture readonly %J, i32 %xmin, i32 %ymin) {
 ; CHECK-LABEL: @test1(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = insertelement <2 x i32> undef, i32 [[XMIN:%.*]], i32 0
+; CHECK-NEXT:    [[TMP0:%.*]] = insertelement <2 x i32> poison, i32 [[XMIN:%.*]], i32 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <2 x i32> [[TMP0]], i32 [[YMIN:%.*]], i32 1
 ; CHECK-NEXT:    br label [[FOR_BODY3_LR_PH:%.*]]
 ; CHECK:       for.body3.lr.ph:
 ; CHECK-NEXT:    [[TMP2:%.*]] = sitofp <2 x i32> [[TMP1]] to <2 x float>
 ; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds [[STRUCTA:%.*]], %structA* [[J:%.*]], i64 0, i32 0, i64 0
-; CHECK-NEXT:    [[ARRAYIDX9:%.*]] = getelementptr inbounds [[STRUCTA]], %structA* [[J]], i64 0, i32 0, i64 1
 ; CHECK-NEXT:    [[TMP3:%.*]] = bitcast float* [[ARRAYIDX4]] to <2 x float>*
 ; CHECK-NEXT:    [[TMP4:%.*]] = load <2 x float>, <2 x float>* [[TMP3]], align 4
 ; CHECK-NEXT:    [[TMP5:%.*]] = fsub fast <2 x float> [[TMP2]], [[TMP4]]
@@ -53,13 +52,12 @@ for.end27:
 define void @test2(%structA* nocapture readonly %J, i32 %xmin, i32 %ymin) {
 ; CHECK-LABEL: @test2(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = insertelement <2 x i32> undef, i32 [[XMIN:%.*]], i32 0
+; CHECK-NEXT:    [[TMP0:%.*]] = insertelement <2 x i32> poison, i32 [[XMIN:%.*]], i32 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <2 x i32> [[TMP0]], i32 [[YMIN:%.*]], i32 1
 ; CHECK-NEXT:    br label [[FOR_BODY3_LR_PH:%.*]]
 ; CHECK:       for.body3.lr.ph:
 ; CHECK-NEXT:    [[TMP2:%.*]] = sitofp <2 x i32> [[TMP1]] to <2 x float>
 ; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds [[STRUCTA:%.*]], %structA* [[J:%.*]], i64 0, i32 0, i64 0
-; CHECK-NEXT:    [[ARRAYIDX9:%.*]] = getelementptr inbounds [[STRUCTA]], %structA* [[J]], i64 0, i32 0, i64 1
 ; CHECK-NEXT:    [[TMP3:%.*]] = bitcast float* [[ARRAYIDX4]] to <2 x float>*
 ; CHECK-NEXT:    [[TMP4:%.*]] = load <2 x float>, <2 x float>* [[TMP3]], align 4
 ; CHECK-NEXT:    [[TMP5:%.*]] = fsub fast <2 x float> [[TMP2]], [[TMP4]]

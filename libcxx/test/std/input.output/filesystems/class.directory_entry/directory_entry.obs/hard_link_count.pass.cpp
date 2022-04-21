@@ -6,7 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// The string reported on errors changed, which makes those tests fail when run
+// against already-released libc++'s.
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.15
 
 // <filesystem>
 
@@ -15,12 +19,14 @@
 // uintmax_t hard_link_count() const;
 // uintmax_t hard_link_count(error_code const&) const noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
-#include "filesystem_test_helper.hpp"
-#include "rapid-cxx-test.hpp"
+#include "filesystem_test_helper.h"
+#include "rapid-cxx-test.h"
+
+#include "test_macros.h"
 
 TEST_SUITE(directory_entry_obs_testsuite)
 
@@ -82,13 +88,10 @@ TEST_CASE(not_regular_file) {
   scoped_test_env env;
   const path dir = env.create_dir("dir");
   const path dir2 = env.create_dir("dir/dir2");
-  const path fifo = env.create_fifo("dir/fifo");
-  const path sym_to_fifo = env.create_symlink("dir/fifo", "dir/sym");
 
   const perms old_perms = status(dir).permissions();
 
-  for (auto p : {dir2, fifo, sym_to_fifo}) {
-    permissions(dir, old_perms);
+  auto test_path = [=](const path &p) {
     std::error_code dummy_ec = GetTestEC();
     directory_entry ent(p, dummy_ec);
     TEST_CHECK(!dummy_ec);
@@ -101,12 +104,21 @@ TEST_CASE(not_regular_file) {
     TEST_CHECK(ent.hard_link_count(ec) == expect);
     TEST_CHECK(!ec);
     TEST_CHECK_NO_THROW(ent.hard_link_count());
-  }
+    permissions(dir, old_perms);
+  };
+  test_path(dir2);
+#ifndef _WIN32
+  const path fifo = env.create_fifo("dir/fifo");
+  const path sym_to_fifo = env.create_symlink("dir/fifo", "dir/sym");
+  test_path(fifo);
+  test_path(sym_to_fifo);
+#endif
 }
 
 TEST_CASE(error_reporting) {
   using namespace fs;
 
+  static_test_env static_env;
   scoped_test_env env;
 
   const path dir = env.create_dir("dir");
@@ -115,23 +127,25 @@ TEST_CASE(error_reporting) {
   const path sym_out_of_dir = env.create_symlink("dir/file", "sym");
   const path sym_in_dir = env.create_symlink("file2", "dir/sym2");
 
+#ifndef TEST_WIN_NO_FILESYSTEM_PERMS_NONE
   const perms old_perms = status(dir).permissions();
+#endif
 
   // test a file which doesn't exist
   {
     directory_entry ent;
 
     std::error_code ec = GetTestEC();
-    ent.assign(StaticEnv::DNE, ec);
+    ent.assign(static_env.DNE, ec);
     TEST_CHECK(ec);
-    TEST_REQUIRE(ent.path() == StaticEnv::DNE);
+    TEST_REQUIRE(ent.path() == static_env.DNE);
     TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
     ec = GetTestEC();
     TEST_CHECK(ent.hard_link_count(ec) == uintmax_t(-1));
     TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
-    ExceptionChecker Checker(StaticEnv::DNE,
+    ExceptionChecker Checker(static_env.DNE,
                              std::errc::no_such_file_or_directory,
                              "directory_entry::hard_link_count");
     TEST_CHECK_THROW_RESULT(filesystem_error, Checker, ent.hard_link_count());
@@ -141,24 +155,27 @@ TEST_CASE(error_reporting) {
     directory_entry ent;
 
     std::error_code ec = GetTestEC();
-    uintmax_t expect_bad = hard_link_count(StaticEnv::BadSymlink, ec);
+    uintmax_t expect_bad = hard_link_count(static_env.BadSymlink, ec);
     TEST_CHECK(expect_bad == uintmax_t(-1));
     TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
     ec = GetTestEC();
-    ent.assign(StaticEnv::BadSymlink, ec);
-    TEST_REQUIRE(ent.path() == StaticEnv::BadSymlink);
+    ent.assign(static_env.BadSymlink, ec);
+    TEST_REQUIRE(ent.path() == static_env.BadSymlink);
     TEST_CHECK(!ec);
 
     ec = GetTestEC();
     TEST_CHECK(ent.hard_link_count(ec) == expect_bad);
     TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
-    ExceptionChecker Checker(StaticEnv::BadSymlink,
+    ExceptionChecker Checker(static_env.BadSymlink,
                              std::errc::no_such_file_or_directory,
                              "directory_entry::hard_link_count");
     TEST_CHECK_THROW_RESULT(filesystem_error, Checker, ent.hard_link_count());
   }
+  // Windows doesn't support setting perms::none to trigger failures
+  // reading directories.
+#ifndef TEST_WIN_NO_FILESYSTEM_PERMS_NONE
   // test a file w/o appropriate permissions.
   {
     directory_entry ent;
@@ -236,6 +253,7 @@ TEST_CASE(error_reporting) {
     TEST_CHECK(!ec);
     TEST_CHECK_NO_THROW(ent.hard_link_count());
   }
+#endif
 }
 
 TEST_SUITE_END()

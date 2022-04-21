@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_day;
@@ -41,7 +41,7 @@ void RunTheExample()
 
     static_assert(year_month_day{local_days{year{2017}/January/0}}  == year{2016}/December/31);
     static_assert(year_month_day{local_days{year{2017}/January/31}} == year{2017}/January/31);
-    static_assert(year_month_day{local_days{year{2017}/January/32}} == year{2017}/February/1);  
+    static_assert(year_month_day{local_days{year{2017}/January/32}} == year{2017}/February/1);
 }
 
 int main(int, char**)
@@ -72,8 +72,8 @@ int main(int, char**)
     static_assert( year_month_day{sd} == ymd, ""); // and back
     }
 
-//  There's one more leap day between 1/1/40 and 1/1/70
-//  when compared to 1/1/70 -> 1/1/2000
+    // There's one more leap day between 1/1/40 and 1/1/70
+    // when compared to 1/1/70 -> 1/1/2000
     {
     constexpr year_month_day ymd{year{1940}, month{1}, day{2}};
     constexpr local_days sd{ymd};
