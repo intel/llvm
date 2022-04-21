@@ -81,12 +81,11 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 // flat_read does flat-address gather
-template <typename Ty, int N, int NumBlk = 0>
+template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
 __ESIMD_INTRIN
     __ESIMD_DNS::vector_type_t<Ty,
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
     __esimd_svm_gather(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                       int ElemsPerAddr = NumBlk,
                        __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
 #ifdef __SYCL_DEVICE_ONLY__
         ;
@@ -95,18 +94,18 @@ __ESIMD_INTRIN
   auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
   __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
       V = 0;
-  ElemsPerAddr = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
+  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
   if (sizeof(Ty) == 2)
-    ElemsPerAddr = ElemsPerAddr / 2;
+    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
       if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           V[I * NumBlkDecoded + J] = *(Addr + J);
       } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           V[J * N + I] = *(Addr + J);
       }
     }
@@ -116,30 +115,30 @@ __ESIMD_INTRIN
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_write does flat-address scatter
-template <typename Ty, int N, int NumBlk = 0>
+template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
 __ESIMD_INTRIN void __esimd_svm_scatter(
     __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty,
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
         vals,
-    int ElemsPerAddr = NumBlk, __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
+    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
   auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
-  ElemsPerAddr = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
+  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
   if (sizeof(Ty) == 2)
-    ElemsPerAddr = ElemsPerAddr / 2;
+    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
       if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           *(Addr + J) = vals[I * NumBlkDecoded + J];
       } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           *(Addr + J) = vals[J * N + I];
       }
     }

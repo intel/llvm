@@ -799,32 +799,63 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
 
   bool isSimd = loop.simd_modifier();
 
-  if (schedule == omp::ClauseScheduleKind::Static) {
+  // The orderedVal refers to the value obtained from the ordered[(n)] clause.
+  //   orderedVal == -1: No ordered[(n)] clause specified.
+  //   orderedVal == 0: The ordered clause specified without a parameter.
+  //   orderedVal > 0: The ordered clause specified with a parameter (n).
+  // TODO: Handle doacross loop init when orderedVal is greater than 0.
+  int64_t orderedVal =
+      loop.ordered_val().hasValue() ? loop.ordered_val().getValue() : -1;
+  if (schedule == omp::ClauseScheduleKind::Static && orderedVal != 0) {
     ompBuilder->applyWorkshareLoop(ompLoc.DL, loopInfo, allocaIP,
                                    !loop.nowait(),
                                    llvm::omp::OMP_SCHEDULE_Static, chunk);
   } else {
     llvm::omp::OMPScheduleType schedType;
     switch (schedule) {
+    case omp::ClauseScheduleKind::Static:
+      if (loop.schedule_chunk_var())
+        schedType = llvm::omp::OMPScheduleType::OrderedStaticChunked;
+      else
+        schedType = llvm::omp::OMPScheduleType::OrderedStatic;
+      break;
     case omp::ClauseScheduleKind::Dynamic:
-      schedType = llvm::omp::OMPScheduleType::DynamicChunked;
+      if (orderedVal == 0)
+        schedType = llvm::omp::OMPScheduleType::OrderedDynamicChunked;
+      else
+        schedType = llvm::omp::OMPScheduleType::DynamicChunked;
       break;
     case omp::ClauseScheduleKind::Guided:
-      if (isSimd)
-        schedType = llvm::omp::OMPScheduleType::GuidedSimd;
-      else
-        schedType = llvm::omp::OMPScheduleType::GuidedChunked;
+      if (orderedVal == 0) {
+        schedType = llvm::omp::OMPScheduleType::OrderedGuidedChunked;
+      } else {
+        if (isSimd)
+          schedType = llvm::omp::OMPScheduleType::GuidedSimd;
+        else
+          schedType = llvm::omp::OMPScheduleType::GuidedChunked;
+      }
       break;
     case omp::ClauseScheduleKind::Auto:
-      schedType = llvm::omp::OMPScheduleType::Auto;
+      if (orderedVal == 0)
+        schedType = llvm::omp::OMPScheduleType::OrderedAuto;
+      else
+        schedType = llvm::omp::OMPScheduleType::Auto;
       break;
     case omp::ClauseScheduleKind::Runtime:
-      if (isSimd)
-        schedType = llvm::omp::OMPScheduleType::RuntimeSimd;
-      else
-        schedType = llvm::omp::OMPScheduleType::Runtime;
+      if (orderedVal == 0) {
+        schedType = llvm::omp::OMPScheduleType::OrderedRuntime;
+      } else {
+        if (isSimd)
+          schedType = llvm::omp::OMPScheduleType::RuntimeSimd;
+        else
+          schedType = llvm::omp::OMPScheduleType::Runtime;
+      }
       break;
     default:
+      if (orderedVal == 0) {
+        schedType = llvm::omp::OMPScheduleType::OrderedStatic;
+        break;
+      }
       llvm_unreachable("Unknown schedule value");
       break;
     }
@@ -841,9 +872,23 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
         // Nothing to do here.
         break;
       }
+    } else {
+      // OpenMP 5.1, 2.11.4 Worksharing-Loop Construct, Description.
+      // If the static schedule kind is specified or if the ordered clause is
+      // specified, and if the nonmonotonic modifier is not specified, the
+      // effect is as if the monotonic modifier is specified. Otherwise, unless
+      // the monotonic modifier is specified, the effect is as if the
+      // nonmonotonic modifier is specified.
+      // The monotonic is used by default in openmp runtime library, so no need
+      // to set it.
+      if (!(schedType == llvm::omp::OMPScheduleType::OrderedStatic ||
+            schedType == llvm::omp::OMPScheduleType::OrderedStaticChunked))
+        schedType |= llvm::omp::OMPScheduleType::ModifierNonmonotonic;
     }
+
     ompBuilder->applyDynamicWorkshareLoop(ompLoc.DL, loopInfo, allocaIP,
-                                          schedType, !loop.nowait(), chunk);
+                                          schedType, !loop.nowait(), chunk,
+                                          /*ordered*/ orderedVal == 0);
   }
 
   // Continue building IR after the loop. Note that the LoopInfo returned by
@@ -874,11 +919,14 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
     llvm::OpenMPIRBuilder::AtomicReductionGenTy atomicGen = nullptr;
     if (owningAtomicReductionGens[i])
       atomicGen = owningAtomicReductionGens[i];
+    auto reductionType =
+        loop.reduction_vars()[i].getType().cast<LLVM::LLVMPointerType>();
     llvm::Value *variable =
         moduleTranslation.lookupValue(loop.reduction_vars()[i]);
-    reductionInfos.push_back({variable->getType()->getPointerElementType(),
-                              variable, privateReductionVariables[i],
-                              owningReductionGens[i], atomicGen});
+    reductionInfos.push_back(
+        {moduleTranslation.convertType(reductionType.getElementType()),
+         variable, privateReductionVariables[i], owningReductionGens[i],
+         atomicGen});
   }
 
   // The call to createReductions below expects the block to have a
@@ -1219,14 +1267,13 @@ convertOmpAtomicCapture(omp::AtomicCaptureOp atomicCaptureOp,
   };
   // Handle ambiguous alloca, if any.
   auto allocaIP = findAllocaInsertPoint(builder, moduleTranslation);
-  llvm::UnreachableInst *unreachableInst;
   if (allocaIP.getPoint() == ompLoc.IP.getPoint()) {
     // Same point => split basic block and make them unambigous.
-    unreachableInst = builder.CreateUnreachable();
+    llvm::UnreachableInst *unreachableInst = builder.CreateUnreachable();
     builder.SetInsertPoint(builder.GetInsertBlock()->splitBasicBlock(
         unreachableInst, "alloca_split"));
     ompLoc.IP = builder.saveIP();
-    unreachableInst->removeFromParent();
+    unreachableInst->eraseFromParent();
   }
   builder.restoreIP(ompBuilder->createAtomicCapture(
       ompLoc, findAllocaInsertPoint(builder, moduleTranslation), llvmAtomicX,

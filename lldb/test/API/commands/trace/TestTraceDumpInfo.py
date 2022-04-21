@@ -40,4 +40,7 @@ class TestTraceDumpInfo(TraceIntelPTTestCaseBase):
 thread #1: tid = 3842849
   Raw trace size: 4 KiB
   Total number of instructions: 21
-  Total approximate memory usage: 5.38 KiB'''])
+  Total approximate memory usage: 0.98 KiB
+  Average memory usage per instruction: 48.00 bytes
+
+  Number of TSC decoding errors: 0'''])

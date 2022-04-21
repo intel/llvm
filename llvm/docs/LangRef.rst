@@ -1767,6 +1767,9 @@ example:
     This function attribute indicates that the function does not call itself
     either directly or indirectly down any possible call path. This produces
     undefined behavior at runtime if the function ever does recurse.
+
+.. _langref_willreturn:
+
 ``willreturn``
     This function attribute indicates that a call of this function will
     either exhibit undefined behavior or comes back and continues execution
@@ -2122,7 +2125,7 @@ example:
 
 ``"tls-load-hoist"``
     This attribute indicates that the function will try to reduce redundant
-    tls address caculation by hoisting tls variable.
+    tls address calculation by hoisting tls variable.
 
 ``uwtable[(sync|async)]``
     This attribute indicates that the ABI being targeted requires that
@@ -2144,6 +2147,9 @@ example:
     the function. The instrumentation checks that the return address for the
     function has not changed between the function prolog and epilog. It is
     currently x86_64-specific.
+
+.. _langref_mustprogress:
+
 ``mustprogress``
     This attribute indicates that the function is required to return, unwind,
     or interact with the environment in an observable way e.g. via a volatile
@@ -6868,6 +6874,8 @@ It is also possible to have nested parallel loops:
    !3 = distinct !{} ; access group for instructions in the inner loop (which are implicitly contained in outer loop as well)
    !4 = distinct !{} ; access group for instructions in the outer, but not the inner loop
 
+.. _langref_llvm_loop_mustprogress:
+
 '``llvm.loop.mustprogress``' Metadata
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -11118,6 +11126,8 @@ The '``icmp``' instruction takes three operands. The first operand is
 the condition code indicating the kind of comparison to perform. It is
 not a value, just a keyword. The possible condition codes are:
 
+.. _icmp_md_cc:
+
 #. ``eq``: equal
 #. ``ne``: not equal
 #. ``ugt``: unsigned greater than
@@ -11139,6 +11149,8 @@ Semantics:
 The '``icmp``' compares ``op1`` and ``op2`` according to the condition
 code given as ``cond``. The comparison performed always yields either an
 :ref:`i1 <t_integer>` or vector of ``i1`` result, as follows:
+
+.. _icmp_md_cc_sem:
 
 #. ``eq``: yields ``true`` if the operands are equal, ``false``
    otherwise. No sign interpretation is necessary or performed.
@@ -20164,6 +20176,332 @@ Examples:
 
      call void @llvm.masked.scatter.v8i8.v8p0i8(<8 x i8> %val, <8 x i8*> %ptrs, i32 1, <8 x i1> %mask)
 
+
+.. _int_vp_trunc:
+
+'``llvm.vp.trunc.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i16>  @llvm.vp.trunc.v16i16.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i16>  @llvm.vp.trunc.nxv4i16.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.trunc``' intrinsic truncates its first operand to the return
+type. The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.trunc``' intrinsic takes a value to cast as its first operand.
+The return type is the type to cast the value to. Both types must be vector of
+:ref:`integer <t_integer>` type. The bit size of the value must be larger than
+the bit size of the return type. The second operand is the vector mask. The
+return type, the value to cast, and the vector mask have the same number of
+elements.  The third operand is the explicit vector length of the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.trunc``' intrinsic truncates the high order bits in value and
+converts the remaining bits to return type. Since the source size must be larger
+than the destination size, '``llvm.vp.trunc``' cannot be a *no-op cast*. It will
+always truncate bits. The conversion is performed on lane positions below the
+explicit vector length and where the vector mask is true.  Masked-off lanes are
+undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i16> @llvm.vp.trunc.v4i16.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = trunc <4 x i32> %a to <4 x i16>
+      %also.r = select <4 x i1> %mask, <4 x i16> %t, <4 x i16> undef
+
+
+.. _int_vp_zext:
+
+'``llvm.vp.zext.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.zext.v16i32.v16i16 (<16 x i16> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.zext.nxv4i32.nxv4i16 (<vscale x 4 x i16> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.zext``' intrinsic zero extends its first operand to the return
+type. The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.zext``' intrinsic takes a value to cast as its first operand.
+The return type is the type to cast the value to. Both types must be vectors of
+:ref:`integer <t_integer>` type. The bit size of the value must be smaller than
+the bit size of the return type. The second operand is the vector mask. The
+return type, the value to cast, and the vector mask have the same number of
+elements.  The third operand is the explicit vector length of the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.zext``' intrinsic fill the high order bits of the value with zero
+bits until it reaches the size of the return type. When zero extending from i1,
+the result will always be either 0 or 1. The conversion is performed on lane
+positions below the explicit vector length and where the vector mask is true.
+Masked-off lanes are undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.zext.v4i32.v4i16(<4 x i16> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = zext <4 x i16> %a to <4 x i32>
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> undef
+
+
+.. _int_vp_sext:
+
+'``llvm.vp.sext.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.sext.v16i32.v16i16 (<16 x i16> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.sext.nxv4i32.nxv4i16 (<vscale x 4 x i16> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.sext``' intrinsic sign extends its first operand to the return
+type. The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.sext``' intrinsic takes a value to cast as its first operand.
+The return type is the type to cast the value to. Both types must be vectors of
+:ref:`integer <t_integer>` type. The bit size of the value must be smaller than
+the bit size of the return type. The second operand is the vector mask. The
+return type, the value to cast, and the vector mask have the same number of
+elements.  The third operand is the explicit vector length of the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.sext``' intrinsic performs a sign extension by copying the sign
+bit (highest order bit) of the value until it reaches the size of the return
+type. When zero extending from i1, the result will always be either -1 or 0.
+The conversion is performed on lane positions below the explicit vector length
+and where the vector mask is true. Masked-off lanes are undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.sext.v4i32.v4i16(<4 x i16> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = sext <4 x i16> %a to <4 x i32>
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> undef
+
+
+.. _int_vp_fptrunc:
+
+'``llvm.vp.fptrunc.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.fptrunc.v16f32.v16f64 (<16 x double> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.trunc.nxv4f32.nxv4f64 (<vscale x 4 x double> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.fptrunc``' intrinsic truncates its first operand to the return
+type. The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.fptrunc``' intrinsic takes a value to cast as its first operand.
+The return type is the type to cast the value to. Both types must be vector of
+:ref:`floating-point <t_floating>` type. The bit size of the value must be
+larger than the bit size of the return type. This implies that
+'``llvm.vp.fptrunc``' cannot be used to make a *no-op cast*. The second operand
+is the vector mask. The return type, the value to cast, and the vector mask have
+the same number of elements.  The third operand is the explicit vector length of
+the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fptrunc``' intrinsic casts a ``value`` from a larger
+:ref:`floating-point <t_floating>` type to a smaller :ref:`floating-point
+<t_floating>` type.
+This instruction is assumed to execute in the default :ref:`floating-point
+environment <floatenv>`. The conversion is performed on lane positions below the
+explicit vector length and where the vector mask is true.  Masked-off lanes are
+undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.fptrunc.v4f32.v4f64(<4 x double> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = fptrunc <4 x double> %a to <4 x float>
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
+
+.. _int_vp_fpext:
+
+'``llvm.vp.fpext.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x double>  @llvm.vp.fpext.v16f64.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x double>  @llvm.vp.fpext.nxv4f64.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.fpext``' intrinsic extends its first operand to the return
+type. The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.fpext``' intrinsic takes a value to cast as its first operand.
+The return type is the type to cast the value to. Both types must be vector of
+:ref:`floating-point <t_floating>` type. The bit size of the value must be
+smaller than the bit size of the return type. This implies that
+'``llvm.vp.fpext``' cannot be used to make a *no-op cast*. The second operand
+is the vector mask. The return type, the value to cast, and the vector mask have
+the same number of elements.  The third operand is the explicit vector length of
+the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fpext``' intrinsic extends the ``value`` from a smaller
+:ref:`floating-point <t_floating>` type to a larger :ref:`floating-point
+<t_floating>` type. The '``llvm.vp.fpext``' cannot be used to make a
+*no-op cast* because it always changes bits. Use ``bitcast`` to make a 
+*no-op cast* for a floating-point cast.
+The conversion is performed on lane positions below the explicit vector length
+and where the vector mask is true.  Masked-off lanes are undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x double> @llvm.vp.fpext.v4f64.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = fpext <4 x float> %a to <4 x double>
+      %also.r = select <4 x i1> %mask, <4 x double> %t, <4 x double> undef
+
+
+.. _int_vp_fptoui:
+
+'``llvm.vp.fptoui.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.fptoui.v16i32.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.fptoui.nxv4i32.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.fptoui.v256i64.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.fptoui``' intrinsic converts the :ref:`floating-point
+<t_floating>` operand to the unsigned integer return type.
+The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.fptoui``' intrinsic takes a value to cast as its first operand.
+The value to cast must be a vector of :ref:`floating-point <t_floating>` type.
+The return type is the type to cast the value to. The return type must be
+vector of :ref:`integer <t_integer>` type.  The second operand is the vector
+mask. The return type, the value to cast, and the vector mask have the same
+number of elements.  The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fptoui``' intrinsic converts its :ref:`floating-point
+<t_floating>` operand into the nearest (rounding towards zero) unsigned integer
+value where the lane position is below the explicit vector length and the
+vector mask is true.  Masked-off lanes are undefined. On enabled lanes where
+conversion takes place and the value cannot fit in the return type, the result
+on that lane is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.fptoui.v4i32.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = fptoui <4 x float> %a to <4 x i32>
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> undef
+
+
 .. _int_vp_fptosi:
 
 '``llvm.vp.fptosi.*``' Intrinsics
@@ -20217,7 +20555,64 @@ Examples:
       ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
 
       %t = fptosi <4 x float> %a to <4 x i32>
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> undef
+
+
+.. _int_vp_uitofp:
+
+'``llvm.vp.uitofp.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.uitofp.v16f32.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.uitofp.nxv4f32.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.uitofp.v256f64.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.uitofp``' intrinsic converts its unsigned integer operand to the
+:ref:`floating-point <t_floating>` return type.  The operation has a mask and
+an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.uitofp``' intrinsic takes a value to cast as its first operand.
+The value to cast must be vector of :ref:`integer <t_integer>` type.  The
+return type is the type to cast the value to.  The return type must be a vector
+of :ref:`floating-point <t_floating>` type.  The second operand is the vector
+mask. The return type, the value to cast, and the vector mask have the same
+number of elements.  The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.uitofp``' intrinsic interprets its first operand as an unsigned
+integer quantity and converts it to the corresponding floating-point value. If
+the value cannot be exactly represented, it is rounded using the default
+rounding mode.  The conversion is performed on lane positions below the
+explicit vector length and where the vector mask is true.  Masked-off lanes are
+undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.uitofp.v4f32.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = uitofp <4 x i32> %a to <4 x float>
       %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
 
 .. _int_vp_sitofp:
 
@@ -20273,6 +20668,234 @@ Examples:
 
       %t = sitofp <4 x i32> %a to <4 x float>
       %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
+
+.. _int_vp_ptrtoint:
+
+'``llvm.vp.ptrtoint.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i8>  @llvm.vp.ptrtoint.v16i8.v16p0i32 (<16 x i32*> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i8>  @llvm.vp.ptrtoint.nxv4i8.nxv4p0i32 (<vscale x 4 x i32*> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.ptrtoint.v16i64.v16p0i32 (<256 x i32*> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.ptrtoint``' intrinsic converts its pointer to the integer return
+type.  The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.ptrtoint``' intrinsic takes a value to cast as its first operand
+, which must be a vector of pointers, and a type to cast it to return type,
+which must be a vector of :ref:`integer <t_integer>` type.
+The second operand is the vector mask. The return type, the value to cast, and
+the vector mask have the same number of elements.
+The third operand is the explicit vector length of the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.ptrtoint``' intrinsic converts value to return type by
+interpreting the pointer value as an integer and either truncating or zero
+extending that value to the size of the integer type.
+If ``value`` is smaller than return type, then a zero extension is done. If
+``value`` is larger than return type, then a truncation is done. If they are
+the same size, then nothing is done (*no-op cast*) other than a type
+change.
+The conversion is performed on lane positions below the explicit vector length
+and where the vector mask is true.  Masked-off lanes are undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i8> @llvm.vp.ptrtoint.v4i8.v4p0i32(<4 x i32*> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = ptrtoint <4 x i32*> %a to <4 x i8>
+      %also.r = select <4 x i1> %mask, <4 x i8> %t, <4 x i8> undef
+
+
+.. _int_vp_inttoptr:
+
+'``llvm.vp.inttoptr.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32*>  @llvm.vp.inttoptr.v16p0i32.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32*>  @llvm.vp.inttoptr.nxv4p0i32.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i32*>  @llvm.vp.inttoptr.v256p0i32.v256i32 (<256 x i32> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.inttoptr``' intrinsic converts its integer value to the point
+return type. The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.inttoptr``' intrinsic takes a value to cast as its first operand
+, which must be a vector of :ref:`integer <t_integer>` type, and a type to cast
+it to return type, which must be a vector of pointers type.
+The second operand is the vector mask. The return type, the value to cast, and
+the vector mask have the same number of elements.
+The third operand is the explicit vector length of the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.inttoptr``' intrinsic converts ``value`` to return type by
+applying either a zero extension or a truncation depending on the size of the
+integer ``value``. If ``value`` is larger than the size of a pointer, then a
+truncation is done. If ``value`` is smaller than the size of a pointer, then a
+zero extension is done. If they are the same size, nothing is done (*no-op cast*).
+The conversion is performed on lane positions below the explicit vector length
+and where the vector mask is true.  Masked-off lanes are undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32*> @llvm.vp.inttoptr.v4p0i32.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = inttoptr <4 x i32> %a to <4 x i32*>
+      %also.r = select <4 x i1> %mask, <4 x i32*> %t, <4 x i32*> undef
+
+
+.. _int_vp_fcmp:
+
+'``llvm.vp.fcmp.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i1> @llvm.vp.fcmp.v16f32(<16 x float> <left_op>, <16 x float> <right_op>, metadata <condition code>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i1> @llvm.vp.fcmp.nxv4f32(<vscale x 4 x float> <left_op>, <vscale x 4 x float> <right_op>, metadata <condition code>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i1> @llvm.vp.fcmp.v256f64(<256 x double> <left_op>, <256 x double> <right_op>, metadata <condition code>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.fcmp``' intrinsic returns a vector of boolean values based on
+the comparison of its operands. The operation has a mask and an explicit vector
+length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.fcmp``' intrinsic takes the two values to compare as its first
+and second operands. These two values must be vectors of :ref:`floating-point
+<t_floating>` types.
+The return type is the result of the comparison. The return type must be a
+vector of :ref:`i1 <t_integer>` type. The fourth operand is the vector mask.
+The return type, the values to compare, and the vector mask have the same
+number of elements. The third operand is the condition code indicating the kind
+of comparison to perform. It must be a metadata string with :ref:`one of the
+supported floating-point condition code values <fcmp_md_cc>`. The fifth operand
+is the explicit vector length of the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fcmp``' compares its first two operands according to the
+condition code given as the third operand. The operands are compared element by
+element on each enabled lane, where the the semantics of the comparison are
+defined :ref:`according to the condition code <fcmp_md_cc_sem>`. Masked-off
+lanes are undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i1> @llvm.vp.fcmp.v4f32(<4 x float> %a, <4 x float> %b, metadata !"oeq", <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = fcmp oeq <4 x float> %a, %b
+      %also.r = select <4 x i1> %mask, <4 x i1> %t, <4 x i1> undef
+
+
+.. _int_vp_icmp:
+
+'``llvm.vp.icmp.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <32 x i1> @llvm.vp.icmp.v32i32(<32 x i32> <left_op>, <32 x i32> <right_op>, metadata <condition code>, <32 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 2 x i1> @llvm.vp.icmp.nxv2i32(<vscale x 2 x i32> <left_op>, <vscale x 2 x i32> <right_op>, metadata <condition code>, <vscale x 2 x i1> <mask>, i32 <vector_length>)
+      declare <128 x i1> @llvm.vp.icmp.v128i8(<128 x i8> <left_op>, <128 x i8> <right_op>, metadata <condition code>, <128 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.icmp``' intrinsic returns a vector of boolean values based on
+the comparison of its operands. The operation has a mask and an explicit vector
+length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.icmp``' intrinsic takes the two values to compare as its first
+and second operands. These two values must be vectors of :ref:`integer
+<t_integer>` types.
+The return type is the result of the comparison. The return type must be a
+vector of :ref:`i1 <t_integer>` type. The fourth operand is the vector mask.
+The return type, the values to compare, and the vector mask have the same
+number of elements. The third operand is the condition code indicating the kind
+of comparison to perform. It must be a metadata string with :ref:`one of the
+supported integer condition code values <icmp_md_cc>`. The fifth operand is the
+explicit vector length of the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.icmp``' compares its first two operands according to the
+condition code given as the third operand. The operands are compared element by
+element on each enabled lane, where the the semantics of the comparison are
+defined :ref:`according to the condition code <icmp_md_cc_sem>`. Masked-off
+lanes are undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i1> @llvm.vp.icmp.v4i32(<4 x i32> %a, <4 x i32> %b, metadata !"ne", <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = icmp ne <4 x i32> %a, %b
+      %also.r = select <4 x i1> %mask, <4 x i1> %t, <4 x i1> undef
 
 
 .. _int_mload_mstore:
@@ -21415,6 +22038,8 @@ of floating-point values. Both arguments must have identical types.
 The third argument is the condition code indicating the kind of comparison
 to perform. It must be a metadata string with one of the following values:
 
+.. _fcmp_md_cc:
+
 - "``oeq``": ordered and equal
 - "``ogt``": ordered and greater than
 - "``oge``": ordered and greater than or equal
@@ -21442,6 +22067,8 @@ Semantics:
 as the third argument. If the operands are vectors, then the
 vectors are compared element by element. Each comparison performed
 always yields an :ref:`i1 <t_integer>` result, as follows:
+
+.. _fcmp_md_cc_sem:
 
 - "``oeq``": yields ``true`` if both operands are not a NAN and ``op1``
   is equal to ``op2``.
