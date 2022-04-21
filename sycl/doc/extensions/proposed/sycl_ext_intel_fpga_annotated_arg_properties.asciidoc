@@ -71,7 +71,7 @@ Some examples of the syntax are shown below.
 .Example 1
 [source,c++]
 ----
-annotated_arg<MyType, properties<register_map> ptr_a;
+annotated_arg<MyType, properties<register_map>> ptr_a;
 ----
 
 .Example 2
