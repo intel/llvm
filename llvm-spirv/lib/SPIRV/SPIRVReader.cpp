@@ -3389,9 +3389,10 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         if (!AnnotStr.empty()) {
           auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
 
-          auto GEP = Builder.CreateConstInBoundsGEP2_32(AllocatedTy, AL, 0, I);
+          auto *GEP = cast<GetElementPtrInst>(
+              Builder.CreateConstInBoundsGEP2_32(AllocatedTy, AL, 0, I));
 
-          Type *IntTy = GEP->getType()->getPointerElementType()->isIntegerTy()
+          Type *IntTy = GEP->getResultElementType()->isIntegerTy()
                             ? GEP->getType()
                             : Int8PtrTyPrivate;
 
