@@ -2390,8 +2390,6 @@ pi_result hip_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
 
 pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
 
-                 int         a;
-  std::cout << "In piEvetsWait" << std::endl;
   try {
     assert(num_events != 0);
     assert(event_list);

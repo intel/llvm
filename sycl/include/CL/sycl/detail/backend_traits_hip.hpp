@@ -30,107 +30,107 @@ typedef struct ihipModule_t *HIPmodule;
 typedef void *HIPdeviceptr;
 
 __SYCL_INLINE_NAMESPACE(cl) {
-  namespace sycl {
-  namespace detail {
+namespace sycl {
+namespace detail {
 
-  // TODO the interops for context, device, event, platform and program
-  // may be removed after removing the deprecated 'get_native()' methods
-  // from the corresponding classes. The interop<backend, queue> specialization
-  // is also used in the get_queue() method of the deprecated class
-  // interop_handler and also can be removed after API cleanup.
-  template <> struct interop<backend::ext_oneapi_hip, context> {
-    using type = HIPcontext;
-  };
+// TODO the interops for context, device, event, platform and program
+// may be removed after removing the deprecated 'get_native()' methods
+// from the corresponding classes. The interop<backend, queue> specialization
+// is also used in the get_queue() method of the deprecated class
+// interop_handler and also can be removed after API cleanup.
+template <> struct interop<backend::ext_oneapi_hip, context> {
+  using type = HIPcontext;
+};
 
-  template <> struct interop<backend::ext_oneapi_hip, device> {
-    using type = HIPdevice;
-  };
+template <> struct interop<backend::ext_oneapi_hip, device> {
+  using type = HIPdevice;
+};
 
-  template <> struct interop<backend::ext_oneapi_hip, event> {
-    using type = HIPevent;
-  };
+template <> struct interop<backend::ext_oneapi_hip, event> {
+  using type = HIPevent;
+};
 
-  template <> struct interop<backend::ext_oneapi_hip, queue> {
-    using type = HIPstream;
-  };
-
-#ifdef __SYCL_INTERNAL_API
-  template <> struct interop<backend::ext_oneapi_hip, program> {
-    using type = HIPmodule;
-  };
-#endif
-
-  // TODO the interops for accessor is used in the already deprecated class
-  // interop_handler and can be removed after API cleanup.
-  template <typename DataT, int Dimensions, access::mode AccessMode>
-  struct interop<backend::ext_oneapi_hip,
-                 accessor<DataT, Dimensions, AccessMode, access::target::device,
-                          access::placeholder::false_t>> {
-    using type = HIPdeviceptr;
-  };
-
-  template <typename DataT, int Dimensions, access::mode AccessMode>
-  struct interop<
-      backend::ext_oneapi_hip,
-      accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
-               access::placeholder::false_t>> {
-    using type = HIPdeviceptr;
-  };
-
-  template <typename DataT, int Dimensions, typename AllocatorT>
-  struct BackendInput<backend::ext_oneapi_hip,
-                      buffer<DataT, Dimensions, AllocatorT>> {
-    using type = HIPdeviceptr;
-  };
-
-  template <typename DataT, int Dimensions, typename AllocatorT>
-  struct BackendReturn<backend::ext_oneapi_hip,
-                       buffer<DataT, Dimensions, AllocatorT>> {
-    using type = HIPdeviceptr;
-  };
-
-  template <> struct BackendInput<backend::ext_oneapi_hip, context> {
-    using type = HIPcontext;
-  };
-
-  template <> struct BackendReturn<backend::ext_oneapi_hip, context> {
-    using type = HIPcontext;
-  };
-
-  template <> struct BackendInput<backend::ext_oneapi_hip, device> {
-    using type = HIPdevice;
-  };
-
-  template <> struct BackendReturn<backend::ext_oneapi_hip, device> {
-    using type = HIPdevice;
-  };
-
-  template <> struct BackendInput<backend::ext_oneapi_hip, event> {
-    using type = HIPevent;
-  };
-
-  template <> struct BackendReturn<backend::ext_oneapi_hip, event> {
-    using type = HIPevent;
-  };
-
-  template <> struct BackendInput<backend::ext_oneapi_hip, queue> {
-    using type = HIPstream;
-  };
-
-  template <> struct BackendReturn<backend::ext_oneapi_hip, queue> {
-    using type = HIPstream;
-  };
+template <> struct interop<backend::ext_oneapi_hip, queue> {
+  using type = HIPstream;
+};
 
 #ifdef __SYCL_INTERNAL_API
-  template <> struct BackendInput<backend::ext_oneapi_hip, program> {
-    using type = HIPmodule;
-  };
-
-  template <> struct BackendReturn<backend::ext_oneapi_hip, program> {
-    using type = HIPmodule;
-  };
+template <> struct interop<backend::ext_oneapi_hip, program> {
+  using type = HIPmodule;
+};
 #endif
 
-  } // namespace detail
-  } // namespace sycl
+// TODO the interops for accessor is used in the already deprecated class
+// interop_handler and can be removed after API cleanup.
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct interop<backend::ext_oneapi_hip,
+               accessor<DataT, Dimensions, AccessMode, access::target::device,
+                        access::placeholder::false_t>> {
+  using type = HIPdeviceptr;
+};
+
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct interop<
+    backend::ext_oneapi_hip,
+    accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
+             access::placeholder::false_t>> {
+  using type = HIPdeviceptr;
+};
+
+template <typename DataT, int Dimensions, typename AllocatorT>
+struct BackendInput<backend::ext_oneapi_hip,
+                    buffer<DataT, Dimensions, AllocatorT>> {
+  using type = HIPdeviceptr;
+};
+
+template <typename DataT, int Dimensions, typename AllocatorT>
+struct BackendReturn<backend::ext_oneapi_hip,
+                     buffer<DataT, Dimensions, AllocatorT>> {
+  using type = HIPdeviceptr;
+};
+
+template <> struct BackendInput<backend::ext_oneapi_hip, context> {
+  using type = HIPcontext;
+};
+
+template <> struct BackendReturn<backend::ext_oneapi_hip, context> {
+  using type = HIPcontext;
+};
+
+template <> struct BackendInput<backend::ext_oneapi_hip, device> {
+  using type = HIPdevice;
+};
+
+template <> struct BackendReturn<backend::ext_oneapi_hip, device> {
+  using type = HIPdevice;
+};
+
+template <> struct BackendInput<backend::ext_oneapi_hip, event> {
+  using type = HIPevent;
+};
+
+template <> struct BackendReturn<backend::ext_oneapi_hip, event> {
+  using type = HIPevent;
+};
+
+template <> struct BackendInput<backend::ext_oneapi_hip, queue> {
+  using type = HIPstream;
+};
+
+template <> struct BackendReturn<backend::ext_oneapi_hip, queue> {
+  using type = HIPstream;
+};
+
+#ifdef __SYCL_INTERNAL_API
+template <> struct BackendInput<backend::ext_oneapi_hip, program> {
+  using type = HIPmodule;
+};
+
+template <> struct BackendReturn<backend::ext_oneapi_hip, program> {
+  using type = HIPmodule;
+};
+#endif
+
+} // namespace detail
+} // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
