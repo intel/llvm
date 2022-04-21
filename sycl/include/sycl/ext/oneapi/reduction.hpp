@@ -165,7 +165,7 @@ public:
     combine(Partial);
   }
 
-  T &getElement(size_t E) { return MValue; }
+  T &getElement(size_t) { return MValue; }
   T MValue;
 
 private:
