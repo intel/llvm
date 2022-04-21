@@ -1,7 +1,9 @@
 // REQUIRES: xptifw, opencl
 // RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %BE_RUN_PLACEHOLDER %t.out | FileCheck %s 2>&1
+// RUN: %clangxx -fsycl -O2 %s -o %t.opt.out
+// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %BE_RUN_PLACEHOLDER %t.opt.out | FileCheck %s --check-prefix=CHECK-OPT
+// RUN: %clangxx -fsycl -fno-sycl-dead-args-optimization %s -o %t.noopt.out
+// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %BE_RUN_PLACEHOLDER %t.noopt.out | FileCheck %s --check-prefix=CHECK-NOOPT
 
 #ifdef XPTI_COLLECTOR
 
@@ -27,7 +29,8 @@ int main() {
 
     auto sumR = reduction(sumBuf, cgh, plus<>());
     // Reduction kernel is used
-    // CHECK:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 5 ]]:3|{1024, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 5
+    // CHECK-OPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 5 ]]:3|{1024, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 5
+    // CHECK-NOOPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:3|{1024, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 13
     cgh.parallel_for<class test1>(
         range<1>{1024}, sumR,
         [=](id<1> idx, auto &sum) { sum += inputValues[idx]; });
@@ -42,7 +45,8 @@ int main() {
     myQueue.submit([&](handler &cgh) {
       auto in = in_buf.template get_access<access::mode::read>(cgh);
       auto out = out_buf.template get_access<access::mode::read_write>(cgh);
-      // CHECK:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 3 ]]:5|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 2
+      // CHECK-OPT:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 3 ]]:5|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 2
+      // CHECK-NOOPT:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 4 ]]:5|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 8
       cgh.parallel_for<class test2>(
           nd_range<3>({128, 4, 2}, {32, 2, 1}, {16, 1, 0}), [=](nd_item<3> it) {
             auto sg = it.get_sub_group();
