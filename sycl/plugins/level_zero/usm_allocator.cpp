@@ -748,6 +748,9 @@ auto Bucket::getAvailSlab(bool &FromPool) -> decltype(AvailableSlabs.begin()) {
       // Now it is no longer in the pool, so update count.
       --chunkedSlabsInPool;
       decrementPool(FromPool);
+    } else {
+      // Allocation from existing slab is treated as from pool for statistics.
+      FromPool = true;
     }
   }
 
