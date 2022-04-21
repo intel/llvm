@@ -18,7 +18,7 @@ Example
 
 .. code-block:: c++
 
-  // ``for`` directive can not have ``default`` clause, no diagnostics.
+  // ``for`` directive cannot have ``default`` clause, no diagnostics.
   void n0(const int a) {
   #pragma omp for
     for (int b = 0; b < a; b++)
@@ -49,5 +49,14 @@ Example
   #pragma omp parallel default(shared)
     ;
     // WARNING: OpenMP directive ``parallel`` specifies ``default(shared)``
+    //          clause. Consider using ``default(none)`` clause instead.
+  }
+
+  // ``parallel`` directive can have ``default`` clause, and said clause is
+  // specified, but with ``firstprivate`` kind, which is not ``none``, diagnose.
+  void p0_3() {
+  #pragma omp parallel default(firstprivate)
+    ;
+    // WARNING: OpenMP directive ``parallel`` specifies ``default(firstprivate)``
     //          clause. Consider using ``default(none)`` clause instead.
   }

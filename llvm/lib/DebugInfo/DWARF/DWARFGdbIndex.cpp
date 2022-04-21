@@ -9,10 +9,10 @@
 #include "llvm/DebugInfo/DWARF/DWARFGdbIndex.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <cinttypes>
 #include <cstdint>
@@ -71,8 +71,8 @@ void DWARFGdbIndex::dumpSymbolTable(raw_ostream &OS) const {
     StringRef Name = ConstantPoolStrings.substr(
         ConstantPoolOffset - StringPoolOffset + E.NameOffset);
 
-    auto CuVector = std::find_if(
-        ConstantPoolVectors.begin(), ConstantPoolVectors.end(),
+    auto CuVector = llvm::find_if(
+        ConstantPoolVectors,
         [&](const std::pair<uint32_t, SmallVector<uint32_t, 0>> &V) {
           return V.first == E.VecOffset;
         });
@@ -112,7 +112,7 @@ void DWARFGdbIndex::dump(raw_ostream &OS) {
 }
 
 bool DWARFGdbIndex::parseImpl(DataExtractor Data) {
-  uint32_t Offset = 0;
+  uint64_t Offset = 0;
 
   // Only version 7 is supported at this moment.
   Version = Data.getU32(&Offset);
@@ -120,7 +120,7 @@ bool DWARFGdbIndex::parseImpl(DataExtractor Data) {
     return false;
 
   CuListOffset = Data.getU32(&Offset);
-  uint32_t CuTypesOffset = Data.getU32(&Offset);
+  TuListOffset = Data.getU32(&Offset);
   AddressAreaOffset = Data.getU32(&Offset);
   SymbolTableOffset = Data.getU32(&Offset);
   ConstantPoolOffset = Data.getU32(&Offset);
@@ -128,7 +128,7 @@ bool DWARFGdbIndex::parseImpl(DataExtractor Data) {
   if (Offset != CuListOffset)
     return false;
 
-  uint32_t CuListSize = (CuTypesOffset - CuListOffset) / 16;
+  uint32_t CuListSize = (TuListOffset - CuListOffset) / 16;
   CuList.reserve(CuListSize);
   for (uint32_t i = 0; i < CuListSize; ++i) {
     uint64_t CuOffset = Data.getU64(&Offset);
@@ -138,7 +138,7 @@ bool DWARFGdbIndex::parseImpl(DataExtractor Data) {
 
   // CU Types are no longer needed as DWARF skeleton type units never made it
   // into the standard.
-  uint32_t TuListSize = (AddressAreaOffset - CuTypesOffset) / 24;
+  uint32_t TuListSize = (AddressAreaOffset - TuListOffset) / 24;
   TuList.resize(TuListSize);
   for (uint32_t I = 0; I < TuListSize; ++I) {
     uint64_t CuOffset = Data.getU64(&Offset);

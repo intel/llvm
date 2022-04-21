@@ -16,7 +16,7 @@ becomes
 
   extern int X;
 
-Such redundant declarations can be removed without changing program behaviour.
+Such redundant declarations can be removed without changing program behavior.
 They can for instance be unintentional left overs from previous refactorings
 when code has been moved around. Having redundant declarations could in worst
 case mean that there are typos in the code that cause bugs.
@@ -33,5 +33,5 @@ Options
 
 .. option:: IgnoreMacros
 
-   If set to non-zero, the check will not give warnings inside macros. Default
-   is `1`.
+   If set to `true`, the check will not give warnings inside macros. Default
+   is `true`.

@@ -7,11 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // <queue>
-// UNSUPPORTED: c++98, c++03, c++11, c++14
-// UNSUPPORTED: clang-5, apple-clang-9
-// UNSUPPORTED: libcpp-no-deduction-guides
-// Clang 5 will generate bad implicit deduction guides
-//  Specifically, for the copy constructor.
+// UNSUPPORTED: c++03, c++11, c++14
 
 // template<class Container>
 //   queue(Container) -> queue<typename Container::value_type, Container>;
@@ -20,13 +16,14 @@
 //   queue(Container, Allocator) -> queue<typename Container::value_type, Container>;
 
 
+#include <array>
 #include <queue>
 #include <list>
 #include <iterator>
 #include <cassert>
 #include <cstddef>
-#include <climits> // INT_MAX
 
+#include "deduction_guides_sfinae_checks.h"
 #include "test_macros.h"
 #include "test_iterators.h"
 #include "test_allocator.h"
@@ -72,21 +69,107 @@ int main(int, char**)
     }
 
     {
-//  This one is odd - you can pass an allocator in to use, but the allocator
-//  has to match the type of the one used by the underlying container
-    typedef short T;
-    typedef test_allocator<T> A;
-    typedef std::deque<T, A> C;
+        typedef short T;
+        typedef test_allocator<T> Alloc;
+        typedef std::list<T, Alloc> Cont;
+        typedef test_allocator<int> ConvertibleToAlloc;
+        static_assert(std::uses_allocator_v<Cont, ConvertibleToAlloc> &&
+                      !std::is_same_v<typename Cont::allocator_type, ConvertibleToAlloc>);
 
-    C c{0,1,2,3};
-    std::queue<T, C> source(c);
-    std::queue que(source, A(2)); // queue(queue &, allocator)
-    static_assert(std::is_same_v<decltype(que)::value_type, T>, "");
-    static_assert(std::is_same_v<decltype(que)::container_type, C>, "");
-    assert(que.size() == 4);
-    assert(que.back() == 3);
+        {
+        Cont cont;
+        std::queue que(cont, Alloc(2));
+        static_assert(std::is_same_v<decltype(que), std::queue<T, Cont>>);
+        }
+
+        {
+        Cont cont;
+        std::queue que(cont, ConvertibleToAlloc(2));
+        static_assert(std::is_same_v<decltype(que), std::queue<T, Cont>>);
+        }
+
+        {
+        Cont cont;
+        std::queue que(std::move(cont), Alloc(2));
+        static_assert(std::is_same_v<decltype(que), std::queue<T, Cont>>);
+        }
+
+        {
+        Cont cont;
+        std::queue que(std::move(cont), ConvertibleToAlloc(2));
+        static_assert(std::is_same_v<decltype(que), std::queue<T, Cont>>);
+        }
     }
 
+    {
+        typedef short T;
+        typedef test_allocator<T> Alloc;
+        typedef std::list<T, Alloc> Cont;
+        typedef test_allocator<int> ConvertibleToAlloc;
+        static_assert(std::uses_allocator_v<Cont, ConvertibleToAlloc> &&
+                      !std::is_same_v<typename Cont::allocator_type, ConvertibleToAlloc>);
 
-  return 0;
+        {
+        std::queue<T, Cont> source;
+        std::queue que(source, Alloc(2));
+        static_assert(std::is_same_v<decltype(que), std::queue<T, Cont>>);
+        }
+
+        {
+        std::queue<T, Cont> source;
+        std::queue que(source, ConvertibleToAlloc(2));
+        static_assert(std::is_same_v<decltype(que), std::queue<T, Cont>>);
+        }
+
+        {
+        std::queue<T, Cont> source;
+        std::queue que(std::move(source), Alloc(2));
+        static_assert(std::is_same_v<decltype(que), std::queue<T, Cont>>);
+        }
+
+        {
+        std::queue<T, Cont> source;
+        std::queue que(std::move(source), ConvertibleToAlloc(2));
+        static_assert(std::is_same_v<decltype(que), std::queue<T, Cont>>);
+        }
+    }
+
+    // Deduction guides should be SFINAE'd away when given:
+    // - a "bad" allocator (that is, a type not qualifying as an allocator);
+    // - an allocator instead of a container;
+    // - an allocator and a container that uses a different allocator.
+    {
+        using Cont = std::list<int>;
+        using Alloc = std::allocator<int>;
+        using DiffAlloc = test_allocator<int>;
+        using Iter = int*;
+
+        struct NotIter{};
+        struct NotAlloc {};
+
+        static_assert(SFINAEs_away<std::queue, Alloc, NotAlloc>);
+        static_assert(SFINAEs_away<std::queue, Cont, NotAlloc>);
+        static_assert(SFINAEs_away<std::queue, Cont, DiffAlloc>);
+        static_assert(SFINAEs_away<std::queue, Iter, NotIter>);
+#if TEST_STD_VER > 20
+        static_assert(SFINAEs_away<std::queue, Iter, NotIter, Alloc>);
+        static_assert(SFINAEs_away<std::queue, Iter, Iter, NotAlloc>);
+#endif
+    }
+#if TEST_STD_VER > 20
+    {
+        typedef short T;
+        typedef test_allocator<T> Alloc;
+        std::list<T> a;
+        {
+        std::queue q(a.begin(), a.end());
+        static_assert(std::is_same_v<decltype(q), std::queue<T>>);
+        }
+        {
+        std::queue q(a.begin(), a.end(), Alloc());
+        static_assert(std::is_same_v<decltype(q), std::queue<T, std::deque<T, Alloc>>>);
+        }
+    }
+#endif
+    return 0;
 }

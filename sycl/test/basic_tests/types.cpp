@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -6,82 +6,112 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include <CL/sycl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <cassert>
-#include <iostream>
+
+#include <cfloat>
+#include <cstdint>
 #include <type_traits>
 
 using namespace std;
+namespace s = cl::sycl;
 
-using cl_schar = cl_char;
-using cl_schar4 = cl_char4;
+template <typename T, int N> inline void checkVectorSizeAndAlignment() {
+  using VectorT = s::vec<T, N>;
+  constexpr auto RealLength = (N != 3 ? N : 4);
+  static_assert(sizeof(VectorT) == (sizeof(T) * RealLength), "");
+  static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
+}
 
-#define CHECK_TYPE(type)                                                       \
-  static_assert(sizeof(cl_##type) == sizeof(cl::sycl::cl_##type), "Wrong "     \
-                                                                  "size")
+template <typename T> inline void checkVectorsWithN() {
+  checkVectorSizeAndAlignment<T, 1>();
+  checkVectorSizeAndAlignment<T, 2>();
+  checkVectorSizeAndAlignment<T, 3>();
+  checkVectorSizeAndAlignment<T, 4>();
+  checkVectorSizeAndAlignment<T, 8>();
+  checkVectorSizeAndAlignment<T, 16>();
+}
 
-#define CHECK_SIZE(T, S) static_assert(sizeof(T) == S, "Wrong size of type");
+inline void checkVectors() {
+  checkVectorsWithN<s::half>();
+  checkVectorsWithN<float>();
+  checkVectorsWithN<double>();
+  checkVectorsWithN<char>();
+  checkVectorsWithN<signed char>();
+  checkVectorsWithN<unsigned char>();
+  checkVectorsWithN<signed short>();
+  checkVectorsWithN<unsigned short>();
+  checkVectorsWithN<signed int>();
+  checkVectorsWithN<unsigned int>();
+  checkVectorsWithN<signed long>();
+  checkVectorsWithN<unsigned long>();
+  checkVectorsWithN<signed long long>();
+  checkVectorsWithN<unsigned long long>();
+  checkVectorsWithN<::cl_char>();
+  checkVectorsWithN<::cl_uchar>();
+  checkVectorsWithN<::cl_short>();
+  checkVectorsWithN<::cl_ushort>();
+  checkVectorsWithN<::cl_int>();
+  checkVectorsWithN<::cl_uint>();
+  checkVectorsWithN<::cl_long>();
+  checkVectorsWithN<::cl_ulong>();
+  checkVectorsWithN<::cl_half>();
+  checkVectorsWithN<::cl_float>();
+  checkVectorsWithN<::cl_double>();
+}
 
-#define CHECK_SIZE_TYPE_I(T, S)                                                \
-  CHECK_SIZE(T, S)                                                             \
-  static_assert(std::is_signed<T>::value, "Expected signed type");
+template <typename T, int ExpectedSize>
+inline void checkSizeForSignedIntegral() {
+  static_assert(is_integral<T>::value, "");
+  static_assert(is_signed<T>::value, "");
+  static_assert(sizeof(T) == ExpectedSize, "");
+}
 
-#define CHECK_SIZE_TYPE_UI(T, S)                                               \
-  CHECK_SIZE(T, S)                                                             \
-  static_assert(std::is_unsigned<T>::value, "Expected unsigned type");
+template <typename T, int ExpectedSize>
+inline void checkSizeForUnsignedIntegral() {
+  static_assert(is_integral<T>::value, "");
+  static_assert(is_unsigned<T>::value, "");
+  static_assert(sizeof(T) == ExpectedSize, "");
+}
 
-#define CHECK_SIZE_TYPE_F(T, S)                                                \
-  CHECK_SIZE(T, S)                                                             \
-  static_assert(std::numeric_limits<T>::is_iec559,                             \
-                "Expected type conformed to the IEEE 754");
+template <typename T, int ExpectedSize>
+inline void checkSizeForFloatingPoint() {
+  static_assert(is_floating_point<T>::value, "");
+  static_assert(numeric_limits<T>::is_iec559, "");
+  static_assert(sizeof(T) == ExpectedSize, "");
+}
+
+template <> inline void checkSizeForFloatingPoint<s::half, sizeof(int16_t)>() {
+  // TODO is_floating_point does not support sycl half now.
+  // static_assert(is_floating_point<T>::is_iec559, "");
+  // TODO numeric_limits does not support sycl half now.
+  // static_assert(numeric_limits<T>::is_iec559, "");
+  static_assert(sizeof(s::half) == sizeof(int16_t), "");
+}
 
 int main() {
-  CHECK_TYPE(bool);
-  CHECK_TYPE(char);
-  CHECK_TYPE(schar);
-  CHECK_TYPE(uchar);
-  CHECK_TYPE(short);
-  CHECK_TYPE(ushort);
-  CHECK_TYPE(half);
-  CHECK_TYPE(int);
-  CHECK_TYPE(uint);
-  CHECK_TYPE(long);
-  CHECK_TYPE(ulong);
-  CHECK_TYPE(float);
-  CHECK_TYPE(double);
-  CHECK_TYPE(bool);
-  CHECK_TYPE(char2);
-  CHECK_TYPE(uchar3);
-  CHECK_TYPE(short4);
-  CHECK_TYPE(ushort8);
-  CHECK_TYPE(half16);
-  CHECK_TYPE(int2);
-  CHECK_TYPE(uint3);
-  CHECK_TYPE(long4);
-  CHECK_TYPE(schar4);
-  CHECK_TYPE(ulong8);
-  CHECK_TYPE(float16);
-  CHECK_TYPE(double2);
+  // Test for creating constexpr expressions
+  constexpr sycl::specialization_id<sycl::vec<sycl::half, 2>> id(1.0);
+  constexpr sycl::marray<sycl::half, 2> MH(3);
+  // Check the size and alignment of the SYCL vectors.
+  checkVectors();
 
-  // Table 4.93: Scalar data type aliases supported by SYCL
-  CHECK_SIZE_TYPE_UI(cl::sycl::byte, 1);
+  // Table 4.93: Additional scalar data types supported by SYCL.
+  static_assert(sizeof(s::byte) == sizeof(int8_t), "");
 
-  CHECK_SIZE_TYPE_I(cl::sycl::cl_char, 1);
-  CHECK_SIZE_TYPE_I(cl::sycl::cl_short, 2);
-  CHECK_SIZE_TYPE_I(cl::sycl::cl_int, 4);
-  CHECK_SIZE_TYPE_I(cl::sycl::cl_long, 8);
+  // Table 4.94: Scalar data type aliases supported by SYCL
+  static_assert(is_same<s::cl_bool, decltype(0 != 1)>::value, "");
+  checkSizeForSignedIntegral<s::cl_char, sizeof(int8_t)>();
+  checkSizeForUnsignedIntegral<s::cl_uchar, sizeof(uint8_t)>();
+  checkSizeForSignedIntegral<s::cl_short, sizeof(int16_t)>();
+  checkSizeForUnsignedIntegral<s::cl_ushort, sizeof(uint16_t)>();
+  checkSizeForSignedIntegral<s::cl_int, sizeof(int32_t)>();
+  checkSizeForUnsignedIntegral<s::cl_uint, sizeof(uint32_t)>();
+  checkSizeForSignedIntegral<s::cl_long, sizeof(int64_t)>();
+  checkSizeForUnsignedIntegral<s::cl_ulong, sizeof(uint64_t)>();
+  checkSizeForFloatingPoint<s::cl_half, sizeof(int16_t)>();
+  checkSizeForFloatingPoint<s::cl_float, sizeof(int32_t)>();
+  checkSizeForFloatingPoint<s::cl_double, sizeof(int64_t)>();
 
-  CHECK_SIZE_TYPE_UI(cl::sycl::cl_uchar, 1);
-  CHECK_SIZE_TYPE_UI(cl::sycl::cl_ushort, 2);
-  CHECK_SIZE_TYPE_UI(cl::sycl::cl_uint, 4);
-  CHECK_SIZE_TYPE_UI(cl::sycl::cl_ulong, 8);
-
-  CHECK_SIZE_TYPE_F(cl::sycl::cl_float, 4);
-  CHECK_SIZE_TYPE_F(cl::sycl::cl_double, 8);
-  // CHECK_SIZE_TYPE_F(cl::sycl::cl_half, 2);
-
-  using value_type = decltype(std::declval<cl::sycl::item<1>>()[0]);
-  static_assert(!std::is_reference<value_type>::value,
-                "Expected a non-reference type");
+  return 0;
 }

@@ -1,5 +1,4 @@
-; RUN: opt < %s -sample-profile -sample-profile-file=%S/Inputs/discriminator.prof | opt -analyze -branch-prob | FileCheck %s
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/discriminator.prof | opt -analyze -branch-prob | FileCheck %s
+; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/discriminator.prof | opt -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
 
 ; Original code
 ;
@@ -23,7 +22,7 @@
 ; but the then branch (line 3.1) is only executed 5 times.
 
 define i32 @foo(i32 %i) #0 !dbg !4 {
-; CHECK: Printing analysis 'Branch Probability Analysis' for function 'foo':
+; CHECK: Printing analysis {{.*}} for function 'foo':
 entry:
   %i.addr = alloca i32, align 4
   %x = alloca i32, align 4
@@ -62,6 +61,7 @@ while.end:                                        ; preds = %while.cond
   ret i32 %4, !dbg !21
 }
 
+attributes #0 = {"use-sample-profile"}
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!7, !8}

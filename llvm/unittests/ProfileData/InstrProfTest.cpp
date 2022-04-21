@@ -12,6 +12,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/ProfileData/InstrProfReader.h"
 #include "llvm/ProfileData/InstrProfWriter.h"
+#include "llvm/ProfileData/MemProf.h"
+#include "llvm/ProfileData/MemProfData.inc"
 #include "llvm/Support/Compression.h"
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
@@ -39,7 +41,7 @@ struct InstrProfTest : ::testing::Test {
   InstrProfWriter Writer;
   std::unique_ptr<IndexedInstrProfReader> Reader;
 
-  void SetUp() { Writer.setOutputSparse(false); }
+  void SetUp() override { Writer.setOutputSparse(false); }
 
   void readProfile(std::unique_ptr<MemoryBuffer> Profile,
                    std::unique_ptr<MemoryBuffer> Remapping = nullptr) {
@@ -51,12 +53,12 @@ struct InstrProfTest : ::testing::Test {
 };
 
 struct SparseInstrProfTest : public InstrProfTest {
-  void SetUp() { Writer.setOutputSparse(true); }
+  void SetUp() override { Writer.setOutputSparse(true); }
 };
 
 struct MaybeSparseInstrProfTest : public InstrProfTest,
                                   public ::testing::WithParamInterface<bool> {
-  void SetUp() { Writer.setOutputSparse(GetParam()); }
+  void SetUp() override { Writer.setOutputSparse(GetParam()); }
 };
 
 TEST_P(MaybeSparseInstrProfTest, write_and_read_empty_profile) {
@@ -158,7 +160,7 @@ TEST_F(InstrProfTest, get_profile_summary) {
     ASSERT_EQ(2305843009213693952U, IPS.getMaxCount());
     ASSERT_EQ(10U, IPS.getNumCounts());
     ASSERT_EQ(4539628424389557499U, IPS.getTotalCount());
-    std::vector<ProfileSummaryEntry> &Details = IPS.getDetailedSummary();
+    const std::vector<ProfileSummaryEntry> &Details = IPS.getDetailedSummary();
     uint32_t Cutoff = 800000;
     auto Predicate = [&Cutoff](const ProfileSummaryEntry &PE) {
       return PE.Cutoff == Cutoff;
@@ -219,6 +221,84 @@ TEST_F(InstrProfTest, test_writer_merge) {
   ASSERT_EQ(2U, R->Counts.size());
   ASSERT_EQ(0U, R->Counts[0]);
   ASSERT_EQ(0U, R->Counts[1]);
+}
+
+using ::llvm::memprof::MemInfoBlock;
+using ::llvm::memprof::MemProfRecord;
+MemProfRecord
+makeRecord(std::initializer_list<std::initializer_list<MemProfRecord::Frame>>
+               AllocFrames,
+           std::initializer_list<std::initializer_list<MemProfRecord::Frame>>
+               CallSiteFrames,
+           const MemInfoBlock &Block = MemInfoBlock()) {
+  llvm::memprof::MemProfRecord MR;
+  for (const auto &Frames : AllocFrames)
+    MR.AllocSites.emplace_back(Frames, Block);
+  for (const auto &Frames : CallSiteFrames)
+    MR.CallSites.push_back(Frames);
+  return MR;
+}
+
+TEST_F(InstrProfTest, test_memprof) {
+  ASSERT_THAT_ERROR(Writer.mergeProfileKind(InstrProfKind::MemProf),
+                    Succeeded());
+
+  const MemProfRecord MR = makeRecord(
+      /*AllocFrames=*/
+      {
+          {{0x123, 1, 2, false}, {0x345, 3, 4, true}},
+          {{0x125, 5, 6, false}, {0x567, 7, 8, true}},
+      },
+      /*CallSiteFrames=*/{
+          {{0x124, 5, 6, false}, {0x789, 8, 9, true}},
+      });
+  Writer.addRecord(/*Id=*/0x9999, MR, Err);
+
+  auto Profile = Writer.writeBuffer();
+  readProfile(std::move(Profile));
+
+  auto RecordsOr = Reader->getMemProfRecord(0x9999);
+  ASSERT_THAT_ERROR(RecordsOr.takeError(), Succeeded());
+  const auto Records = RecordsOr.get();
+  ASSERT_EQ(Records.size(), 1U);
+  EXPECT_EQ(Records[0], MR);
+}
+
+TEST_F(InstrProfTest, test_memprof_merge) {
+  Writer.addRecord({"func1", 0x1234, {42}}, Err);
+
+  InstrProfWriter Writer2;
+  ASSERT_THAT_ERROR(Writer2.mergeProfileKind(InstrProfKind::MemProf),
+                    Succeeded());
+
+  const MemProfRecord MR = makeRecord(
+      /*AllocFrames=*/
+      {
+          {{0x123, 1, 2, false}, {0x345, 3, 4, true}},
+          {{0x125, 5, 6, false}, {0x567, 7, 8, true}},
+      },
+      /*CallSiteFrames=*/{
+          {{0x124, 5, 6, false}, {0x789, 8, 9, true}},
+      });
+  Writer2.addRecord(/*Id=*/0x9999, MR, Err);
+
+  ASSERT_THAT_ERROR(Writer.mergeProfileKind(Writer2.getProfileKind()),
+                    Succeeded());
+  Writer.mergeRecordsFromWriter(std::move(Writer2), Err);
+
+  auto Profile = Writer.writeBuffer();
+  readProfile(std::move(Profile));
+
+  Expected<InstrProfRecord> R = Reader->getInstrProfRecord("func1", 0x1234);
+  EXPECT_THAT_ERROR(R.takeError(), Succeeded());
+  ASSERT_EQ(1U, R->Counts.size());
+  ASSERT_EQ(42U, R->Counts[0]);
+
+  auto RecordsOr = Reader->getMemProfRecord(0x9999);
+  ASSERT_THAT_ERROR(RecordsOr.takeError(), Succeeded());
+  const auto Records = RecordsOr.get();
+  ASSERT_EQ(Records.size(), 1U);
+  EXPECT_EQ(Records[0], MR);
 }
 
 static const char callee1[] = "callee1";
@@ -889,7 +969,7 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_bogus_symtab_empty_func_name) {
 // Testing symtab creator interface used by value profile transformer.
 TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_module_test) {
   LLVMContext Ctx;
-  std::unique_ptr<Module> M = llvm::make_unique<Module>("MyModule.cpp", Ctx);
+  std::unique_ptr<Module> M = std::make_unique<Module>("MyModule.cpp", Ctx);
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(Ctx),
                                         /*isVarArg=*/false);
   Function::Create(FTy, Function::ExternalLinkage, "Gfoo", M.get());
@@ -1041,7 +1121,28 @@ TEST_F(SparseInstrProfTest, preserve_no_records) {
   ASSERT_TRUE(I == E);
 }
 
-INSTANTIATE_TEST_CASE_P(MaybeSparse, MaybeSparseInstrProfTest,
-                        ::testing::Bool(),);
+INSTANTIATE_TEST_SUITE_P(MaybeSparse, MaybeSparseInstrProfTest,
+                         ::testing::Bool());
+
+#if defined(_LP64) && defined(EXPENSIVE_CHECKS)
+TEST(ProfileReaderTest, ReadsLargeFiles) {
+  const size_t LargeSize = 1ULL << 32; // 4GB
+
+  auto RawProfile = WritableMemoryBuffer::getNewUninitMemBuffer(LargeSize);
+  if (!RawProfile)
+    return;
+  auto RawProfileReaderOrErr = InstrProfReader::create(std::move(RawProfile));
+  ASSERT_TRUE(InstrProfError::take(RawProfileReaderOrErr.takeError()) ==
+              instrprof_error::unrecognized_format);
+
+  auto IndexedProfile = WritableMemoryBuffer::getNewUninitMemBuffer(LargeSize);
+  if (!IndexedProfile)
+    return;
+  auto IndexedReaderOrErr =
+      IndexedInstrProfReader::create(std::move(IndexedProfile), nullptr);
+  ASSERT_TRUE(InstrProfError::take(IndexedReaderOrErr.takeError()) ==
+              instrprof_error::bad_magic);
+}
+#endif
 
 } // end anonymous namespace

@@ -1,38 +1,35 @@
-; RUN: opt -argpromotion -verify -dse -S %s -o - | FileCheck %s
+; RUN: opt -passes=argpromotion -S %s -o - | FileCheck %s
 
 ; Fix for PR33641. ArgumentPromotion removed the argument to bar but left the call to
 ; dbg.value which still used the removed argument.
 
-%p_t = type i16*
-%fun_t = type void (%p_t)*
+; The %p argument should be removed, and the use of it in dbg.value should be
+; changed to undef.
 
+%fun_t = type void (i16*)*
 define void @foo() {
-  %tmp = alloca %fun_t
-  store %fun_t @bar, %fun_t* %tmp
+  %a = alloca i16
+  call void @bar(i16* %a)
   ret void
 }
 
-define internal void @bar(%p_t %p)  {
-  call void @llvm.dbg.value(metadata %p_t %p, metadata !4, metadata !5), !dbg !6
+define internal void @bar(i16* %p) {
+; CHECK-LABEL: define {{.*}}void @bar()
+; CHECK-NEXT:    call void @llvm.dbg.value(metadata i16* undef, metadata !3, metadata !DIExpression()), !dbg !5
+  call void @llvm.dbg.value(metadata i16* %p, metadata !3, metadata !DIExpression()), !dbg !5
   ret void
 }
 
-declare void @llvm.dbg.value(metadata, metadata, metadata)
+declare void @llvm.dbg.value(metadata, metadata, metadata) #0
+
+attributes #0 = { nofree nosync nounwind readnone speculatable willreturn }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!2}
 
-!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1)
+!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, isOptimized: false, runtimeVersion: 0, emissionKind: NoDebug)
 !1 = !DIFile(filename: "test.c", directory: "")
 !2 = !{i32 2, !"Debug Info Version", i32 3}
-!3 = distinct !DISubprogram(name: "bar", unit: !0)
-!4 = !DILocalVariable(name: "p", scope: !3)
-!5 = !DIExpression()
-!6 = !DILocation(line: 1, column: 1, scope: !3)
-
-; The %p argument should be removed, and the use of it in dbg.value should be
-; changed to undef.
-; CHECK:      define internal void @bar() {
-; CHECK-NEXT:   call void @llvm.dbg.value(metadata i16* undef
-; CHECK-NEXT:   ret void
-; CHECK-NEXT: }
+!3 = !DILocalVariable(name: "p", scope: !4)
+!4 = distinct !DISubprogram(name: "bar", scope: null, spFlags: DISPFlagDefinition, unit: !0)
+!5 = !DILocation(line: 1, column: 1, scope: !4)

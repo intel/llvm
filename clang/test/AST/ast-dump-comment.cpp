@@ -1,4 +1,12 @@
-// RUN: %clang_cc1 -Wdocumentation -ast-dump -ast-dump-filter Test %s | FileCheck -strict-whitespace %s
+// Without serialization:
+// RUN: %clang_cc1 -Wdocumentation -ast-dump -ast-dump-filter Test %s \
+// RUN: | FileCheck -strict-whitespace %s
+//
+// With serialization:
+// RUN: %clang_cc1 -Wdocumentation -emit-pch -o %t %s
+// RUN: %clang_cc1 -x c++ -Wdocumentation -include-pch %t -ast-dump-all -ast-dump-filter Test /dev/null \
+// RUN: | sed -e "s/ <undeserialized declarations>//" -e "s/ imported//" \
+// RUN: | FileCheck --strict-whitespace %s
 
 /// Aaa
 int TestLocation;
@@ -47,6 +55,11 @@ int Test_InlineCommandComment;
 // CHECK:      VarDecl{{.*}}Test_InlineCommandComment
 // CHECK:        InlineCommandComment{{.*}} Name="c" RenderMonospaced Arg[0]="Aaa"
 
+/// \anchor Aaa
+int Test_InlineCommandCommentAnchor;
+// CHECK:      VarDecl{{.*}}Test_InlineCommandComment
+// CHECK:        InlineCommandComment{{.*}} Name="anchor" RenderAnchor Arg[0]="Aaa"
+
 /// <a>Aaa</a>
 /// <br/>
 int Test_HTMLTagComment;
@@ -63,10 +76,22 @@ int Test_HTMLTagComment;
 /// \verbatim
 /// Aaa
 /// \endverbatim
+/// \f$ a \f$
+/// \f( b \f)
+/// \f[ c \f]
+/// \f{env}{ c \f}
 int Test_VerbatimBlockComment;
 // CHECK:      VarDecl{{.*}}Test_VerbatimBlockComment
 // CHECK:        VerbatimBlockComment{{.*}} Name="verbatim" CloseName="endverbatim"
 // CHECK-NEXT:     VerbatimBlockLineComment{{.*}} Text=" Aaa"
+// CHECK:        VerbatimBlockComment{{.*}} Name="f$" CloseName="f$"
+// CHECK-NEXT:     VerbatimBlockLineComment{{.*}} Text=" a "
+// CHECK:        VerbatimBlockComment{{.*}} Name="f(" CloseName="f)"
+// CHECK-NEXT:     VerbatimBlockLineComment{{.*}} Text=" b "
+// CHECK:        VerbatimBlockComment{{.*}} Name="f[" CloseName="f]"
+// CHECK-NEXT:     VerbatimBlockLineComment{{.*}} Text=" c "
+// CHECK:        VerbatimBlockComment{{.*}} Name="f{" CloseName="f}"
+// CHECK-NEXT:     VerbatimBlockLineComment{{.*}} Text="env}{ c "
 
 /// \param ... More arguments
 template<typename T>

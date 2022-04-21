@@ -67,7 +67,7 @@ class FI816_ins_base<bits<3> _func, string asmstr,
 class FI816_ins<bits<3> _func, string asmstr,
                 InstrItinClass itin>:
   FI816_ins_base<_func, asmstr, "\t$imm  # 16 bit inst", itin>;
- 
+
 class FI816_SP_ins<bits<3> _func, string asmstr,
                    InstrItinClass itin>:
   FI816_ins_base<_func, asmstr, "\t$$sp, $imm # 16 bit inst", itin>;
@@ -90,7 +90,7 @@ class FRI16_TCP_ins<bits<5> _op, string asmstr,
                     InstrItinClass itin>:
   FRI16<_op, (outs CPU16Regs:$rx), (ins pcrel16:$imm, i32imm:$size),
             !strconcat(asmstr, "\t$rx, $imm\t# 16 bit inst"), [], itin>;
-            
+
 class FRI16R_ins_base<bits<5> op, string asmstr, string asmstr2,
                      InstrItinClass itin>:
   FRI16<op, (outs), (ins CPU16Regs:$rx, simm16:$imm),
@@ -304,14 +304,14 @@ class FI8_MOV32R16_ins<string asmstr, InstrItinClass itin>:
 //
 // MULT
 //
-class FMULT16_ins<string asmstr, InstrItinClass itin> :
+class FMULT16_ins<string asmstr> :
   MipsPseudo16<(outs), (ins CPU16Regs:$rx, CPU16Regs:$ry),
                !strconcat(asmstr, "\t$rx, $ry"), []>;
 
 //
 // MULT-LO
 //
-class FMULT16_LO_ins<string asmstr, InstrItinClass itin> :
+class FMULT16_LO_ins<string asmstr> :
   MipsPseudo16<(outs CPU16Regs:$rz), (ins CPU16Regs:$rx, CPU16Regs:$ry),
                !strconcat(asmstr, "\t$rx, $ry\n\tmflo\t$rz"), []> {
   let isCodeGenOnly=1;
@@ -483,13 +483,11 @@ class SelT<string op1, string op2>:
 //
 // 32 bit constant
 //
-def Constant32:
-  MipsPseudo16<(outs), (ins simm32:$imm), "\t.word $imm", []>;
+def Constant32 : MipsPseudo16<(outs), (ins simm32:$imm), "\t.word $imm", []>;
 
-def LwConstant32:
+def LwConstant32 :
   MipsPseudo16<(outs CPU16Regs:$rx), (ins simm32:$imm, simm32:$constid),
-    "lw\t$rx, 1f\n\tb\t2f\n\t.align\t2\n1: \t.word\t$imm\n2:", []>;
-
+               "lw\t$rx, 1f\n\tb\t2f\n\t.align\t2\n1: \t.word\t$imm\n2:", []>;
 
 //
 // Some general instruction class info
@@ -897,13 +895,13 @@ def Mflo16: FRR16_M_ins<0b10010, "mflo", IIM16Alu> {
 //
 // Pseudo Instruction for mult
 //
-def MultRxRy16:  FMULT16_ins<"mult",  IIM16Alu> {
+def MultRxRy16:  FMULT16_ins<"mult"> {
   let isCommutable = 1;
   let hasSideEffects = 0;
   let Defs = [HI0, LO0];
 }
 
-def MultuRxRy16: FMULT16_ins<"multu", IIM16Alu> {
+def MultuRxRy16: FMULT16_ins<"multu"> {
   let isCommutable = 1;
   let hasSideEffects = 0;
   let Defs = [HI0, LO0];
@@ -914,7 +912,7 @@ def MultuRxRy16: FMULT16_ins<"multu", IIM16Alu> {
 // Purpose: Multiply Word
 // To multiply 32-bit signed integers.
 //
-def MultRxRyRz16: FMULT16_LO_ins<"mult", IIM16Alu> {
+def MultRxRyRz16: FMULT16_LO_ins<"mult"> {
   let isCommutable = 1;
   let hasSideEffects = 0;
   let Defs = [HI0, LO0];
@@ -925,7 +923,7 @@ def MultRxRyRz16: FMULT16_LO_ins<"mult", IIM16Alu> {
 // Purpose: Multiply Unsigned Word
 // To multiply 32-bit unsigned integers.
 //
-def MultuRxRyRz16: FMULT16_LO_ins<"multu", IIM16Alu> {
+def MultuRxRyRz16: FMULT16_LO_ins<"multu"> {
   let isCommutable = 1;
   let hasSideEffects = 0;
   let Defs = [HI0, LO0];
@@ -985,7 +983,7 @@ def RestoreX16:
 // To set up a stack frame on entry to a subroutine,
 // saving return address and static registers, and adjusting stack
 //
-def Save16: 
+def Save16:
   FI8_SVRS16<0b1, (outs), (ins variable_ops),
              "", [], II_SAVE >, MayStore {
   let isCodeGenOnly = 1;
@@ -1644,7 +1642,7 @@ def : Mips16Pat<(select (i32 (setle CPU16Regs:$a, CPU16Regs:$b)),
                  CPU16Regs:$b, CPU16Regs:$a)>;
 
 //
-// unnsigned
+// unsigned
 // x = (a <= b)? x : y
 //
 // if  (b < a) x = y
@@ -1885,7 +1883,7 @@ def : Mips16Pat<(sext_inreg CPU16Regs:$val, i8),
 def : Mips16Pat<(sext_inreg CPU16Regs:$val, i16),
                 (SehRx16 CPU16Regs:$val)>;
 
-def GotPrologue16:   
+def GotPrologue16:
   MipsPseudo16<
     (outs CPU16Regs:$rh, CPU16Regs:$rl),
     (ins simm16:$immHi, simm16:$immLo),

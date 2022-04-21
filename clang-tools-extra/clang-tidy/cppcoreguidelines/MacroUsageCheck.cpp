@@ -9,30 +9,31 @@
 #include "MacroUsageCheck.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Regex.h"
 #include <algorithm>
 #include <cctype>
+#include <functional>
 
 namespace clang {
 namespace tidy {
 namespace cppcoreguidelines {
 
-namespace {
-
-bool isCapsOnly(StringRef Name) {
-  return std::all_of(Name.begin(), Name.end(), [](const char c) {
-    if (std::isupper(c) || std::isdigit(c) || c == '_')
-      return true;
-    return false;
+static bool isCapsOnly(StringRef Name) {
+  return llvm::all_of(Name, [](const char C) {
+    return std::isupper(C) || std::isdigit(C) || C == '_';
   });
 }
+
+namespace {
 
 class MacroUsageCallbacks : public PPCallbacks {
 public:
   MacroUsageCallbacks(MacroUsageCheck *Check, const SourceManager &SM,
-                      StringRef RegExp, bool CapsOnly, bool IgnoreCommandLine)
-      : Check(Check), SM(SM), RegExp(RegExp), CheckCapsOnly(CapsOnly),
+                      StringRef RegExpStr, bool CapsOnly,
+                      bool IgnoreCommandLine)
+      : Check(Check), SM(SM), RegExp(RegExpStr), CheckCapsOnly(CapsOnly),
         IgnoreCommandLineMacros(IgnoreCommandLine) {}
   void MacroDefined(const Token &MacroNameTok,
                     const MacroDirective *MD) override {
@@ -46,7 +47,9 @@ public:
       return;
 
     StringRef MacroName = MacroNameTok.getIdentifierInfo()->getName();
-    if (!CheckCapsOnly && !llvm::Regex(RegExp).match(MacroName))
+    if (MacroName == "__GCC_HAVE_DWARF2_CFI_ASM")
+      return;
+    if (!CheckCapsOnly && !RegExp.match(MacroName))
       Check->warnMacro(MD, MacroName);
 
     if (CheckCapsOnly && !isCapsOnly(MacroName))
@@ -56,7 +59,7 @@ public:
 private:
   MacroUsageCheck *Check;
   const SourceManager &SM;
-  StringRef RegExp;
+  const llvm::Regex RegExp;
   bool CheckCapsOnly;
   bool IgnoreCommandLineMacros;
 };
@@ -71,29 +74,29 @@ void MacroUsageCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 void MacroUsageCheck::registerPPCallbacks(const SourceManager &SM,
                                           Preprocessor *PP,
                                           Preprocessor *ModuleExpanderPP) {
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
-  PP->addPPCallbacks(llvm::make_unique<MacroUsageCallbacks>(
+  PP->addPPCallbacks(std::make_unique<MacroUsageCallbacks>(
       this, SM, AllowedRegexp, CheckCapsOnly, IgnoreCommandLineMacros));
 }
 
 void MacroUsageCheck::warnMacro(const MacroDirective *MD, StringRef MacroName) {
-  StringRef Message =
-      "macro '%0' used to declare a constant; consider using a 'constexpr' "
-      "constant";
+  const MacroInfo *Info = MD->getMacroInfo();
+  StringRef Message;
 
-  /// A variadic macro is function-like at the same time. Therefore variadic
-  /// macros are checked first and will be excluded for the function-like
-  /// diagnostic.
-  if (MD->getMacroInfo()->isVariadic())
+  if (llvm::all_of(Info->tokens(), std::mem_fn(&Token::isLiteral)))
+    Message = "macro '%0' used to declare a constant; consider using a "
+              "'constexpr' constant";
+  // A variadic macro is function-like at the same time. Therefore variadic
+  // macros are checked first and will be excluded for the function-like
+  // diagnostic.
+  else if (Info->isVariadic())
     Message = "variadic macro '%0' used; consider using a 'constexpr' "
               "variadic template function";
-  else if (MD->getMacroInfo()->isFunctionLike())
+  else if (Info->isFunctionLike())
     Message = "function-like macro '%0' used; consider a 'constexpr' template "
               "function";
 
-  diag(MD->getLocation(), Message) << MacroName;
+  if (!Message.empty())
+    diag(MD->getLocation(), Message) << MacroName;
 }
 
 void MacroUsageCheck::warnNaming(const MacroDirective *MD,

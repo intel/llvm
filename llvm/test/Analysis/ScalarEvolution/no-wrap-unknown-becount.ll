@@ -1,4 +1,4 @@
-; RUN: opt -analyze -scalar-evolution < %s | FileCheck %s
+; RUN: opt -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 declare void @llvm.experimental.guard(i1, ...)
 declare void @llvm.assume(i1)

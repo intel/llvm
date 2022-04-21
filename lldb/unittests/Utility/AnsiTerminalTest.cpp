@@ -1,4 +1,4 @@
-//===-- AnsiTerminalTest.cpp ------------------------------------*- C++ -*-===//
+//===-- AnsiTerminalTest.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 
 #include "lldb/Utility/AnsiTerminal.h"
 
-using namespace lldb_utility;
+using namespace lldb_private;
 
 TEST(AnsiTerminal, Empty) { EXPECT_EQ("", ansi::FormatAnsiTerminalCodes("")); }
 

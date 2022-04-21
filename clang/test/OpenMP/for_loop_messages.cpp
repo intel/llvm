@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -fsyntax-only -fopenmp -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp4 %s -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp5 %s -Wuninitialized
 
-// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -fopenmp-version=45 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp4 %s -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp5 %s -Wuninitialized
 
 class S {
   int a;
@@ -113,32 +115,32 @@ int test_iteration_spaces() {
     c[ii] = a[ii];
 
 #pragma omp parallel
-// expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
 #pragma omp for
   for (int i = 0; i; i++)
     c[i] = a[i];
 
 #pragma omp parallel
-// expected-error@+3 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+// omp4-error@+3 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+3 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
 // expected-error@+2 {{increment clause of OpenMP for loop must perform simple addition or subtraction on loop variable 'i'}}
 #pragma omp for
   for (int i = 0; jj < kk; ii++)
     c[i] = a[i];
 
 #pragma omp parallel
-// expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
 #pragma omp for
   for (int i = 0; !!i; i++)
     c[i] = a[i];
 
-// Ok
 #pragma omp parallel
+// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
 #pragma omp for
   for (int i = 0; i != 1; i++)
     c[i] = a[i];
 
 #pragma omp parallel
-// expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
 #pragma omp for
   for (int i = 0;; i++)
     c[i] = a[i];
@@ -368,7 +370,7 @@ int test_iteration_spaces() {
   }
 
 #pragma omp parallel
-// expected-error@+2 {{statement after '#pragma omp for' must be a for loop}}
+// omp4-error@+2 {{statement after '#pragma omp for' must be a for loop}}
 #pragma omp for
   for (auto &item : a) {
     item = item + 1;
@@ -533,17 +535,17 @@ int test_with_random_access_iterator() {
   for (begin = end; begin < end; ++begin)
     ++begin;
 #pragma omp parallel
-// expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
 #pragma omp for
   for (GoodIter I = begin; I - I; ++I)
     ++I;
 #pragma omp parallel
-// expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
 #pragma omp for
   for (GoodIter I = begin; begin < end; ++I)
     ++I;
 #pragma omp parallel
-// expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
 #pragma omp for
   for (GoodIter I = begin; !I; ++I)
     ++I;
@@ -626,12 +628,20 @@ template <typename IT, int ST>
 class TC {
   int ii, iii, kk;
 public:
+  enum { myconstant = 42 };
+  int ub();
   int dotest_lt(IT begin, IT end) {
 #pragma omp parallel
 // expected-error@+3 3 {{the loop initializer expression depends on the current loop control variable}}
 // expected-error@+2 6 {{the loop condition expression depends on the current loop control variable}}
 #pragma omp for
   for (ii = ii * 10 + 25; ii < ii / ii - 23; ii += 1)
+    ;
+
+// Check that member function calls and enum constants in the condition is
+// handled.
+#pragma omp for
+  for (ii = 0; ii < ub() + this->myconstant; ii += 1) // expected-no-error
     ;
 
 #pragma omp parallel
@@ -643,10 +653,10 @@ public:
         ;
 
 #pragma omp parallel
-// expected-error@+6 2 {{expected loop invariant expression or '<invariant1> * ii + <invariant2>' kind of expression}}
-// expected-error@+5 {{expected loop invariant expression or '<invariant1> * TC::ii + <invariant2>' kind of expression}}
-// expected-error@+5 2 {{expected loop invariant expression or '<invariant1> * ii + <invariant2>' kind of expression}}
-// expected-error@+4 {{expected loop invariant expression or '<invariant1> * TC::ii + <invariant2>' kind of expression}}
+// expected-error@+6 {{expected loop invariant expression or '<invariant1> * TC::ii + <invariant2>' kind of expression}}
+// expected-error@+6 {{expected loop invariant expression or '<invariant1> * TC::ii + <invariant2>' kind of expression}}
+// expected-error@+4 2 {{expected loop invariant expression or '<invariant1> * ii + <invariant2>' kind of expression}}
+// expected-error@+4 2 {{expected loop invariant expression or '<invariant1> * ii + <invariant2>' kind of expression}}
 #pragma omp for collapse(3)
     for (ii = 10 + 25; ii < 1000; ii += 1)
       for (iii = ii * 10 + 25; iii < ii / ii - 23; iii += 1)
@@ -821,4 +831,14 @@ void test_nowait() {
 #pragma omp for nowait nowait // expected-error {{directive '#pragma omp for' cannot contain more than one 'nowait' clause}}
   for (int i = 0; i < 16; ++i)
     ;
+}
+
+void test_static_data_member() {
+#pragma omp parallel
+#pragma omp for
+  for (int i = 0; i < 16; ++i) {
+    class X {
+      static int x; // expected-error {{static data member 'x' not allowed in local class 'X'}}
+    };
+  }
 }

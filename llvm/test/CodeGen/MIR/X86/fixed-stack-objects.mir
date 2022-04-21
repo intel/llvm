@@ -11,7 +11,7 @@
     ret i32 %c
   }
 
-  attributes #0 = { "no-frame-pointer-elim"="false" }
+  attributes #0 = { "frame-pointer"="none" }
 
 ...
 ---
@@ -20,7 +20,7 @@ frameInfo:
   stackSize:       4
   maxAlignment:    4
 # CHECK: fixedStack:
-# CHECK-NEXT: - { id: 0, type: default, offset: 0, size: 4, alignment: 4, stack-id: 0
+# CHECK-NEXT: - { id: 0, type: default, offset: 0, size: 4, alignment: 4, stack-id: default
 # CHECK-NEXT: isImmutable: true,
 fixedStack:
   - { id: 0, offset: 0, size: 4, alignment: 4, isImmutable: true, isAliased: false }
@@ -30,5 +30,5 @@ body: |
   bb.0.entry:
     $eax = MOV32rm $esp, 1, _, 8, _
     MOV32mr $esp, 1, _, 0, _, $eax
-    RETL $eax
+    RET32 $eax
 ...

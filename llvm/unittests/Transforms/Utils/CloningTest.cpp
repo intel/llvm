@@ -9,7 +9,10 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DIBuilder.h"
@@ -22,6 +25,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -174,7 +178,8 @@ TEST_F(CloneInstruction, Attributes) {
   ValueToValueMapTy VMap;
   VMap[A] = UndefValue::get(A->getType());
 
-  CloneFunctionInto(F2, F1, VMap, false, Returns);
+  CloneFunctionInto(F2, F1, VMap, CloneFunctionChangeType::LocalChangesOnly,
+                    Returns);
   EXPECT_FALSE(F2->arg_begin()->hasNoCaptureAttr());
 
   delete F1;
@@ -197,7 +202,8 @@ TEST_F(CloneInstruction, CallingConvention) {
   ValueToValueMapTy VMap;
   VMap[&*F1->arg_begin()] = &*F2->arg_begin();
 
-  CloneFunctionInto(F2, F1, VMap, false, Returns);
+  CloneFunctionInto(F2, F1, VMap, CloneFunctionChangeType::LocalChangesOnly,
+                    Returns);
   EXPECT_EQ(CallingConv::Cold, F2->getCallingConv());
 
   delete F1;
@@ -355,6 +361,91 @@ TEST_F(CloneInstruction, DuplicateInstructionsToSplitBlocksEq2) {
   delete F;
 }
 
+static void runWithLoopInfoAndDominatorTree(
+    Module &M, StringRef FuncName,
+    function_ref<void(Function &F, LoopInfo &LI, DominatorTree &DT)> Test) {
+  auto *F = M.getFunction(FuncName);
+  ASSERT_NE(F, nullptr) << "Could not find " << FuncName;
+
+  DominatorTree DT(*F);
+  LoopInfo LI(DT);
+
+  Test(*F, LI, DT);
+}
+
+static std::unique_ptr<Module> parseIR(LLVMContext &C, const char *IR) {
+  SMDiagnostic Err;
+  std::unique_ptr<Module> Mod = parseAssemblyString(IR, Err, C);
+  if (!Mod)
+    Err.print("CloneLoop", errs());
+  return Mod;
+}
+
+TEST(CloneLoop, CloneLoopNest) {
+  // Parse the module.
+  LLVMContext Context;
+
+  std::unique_ptr<Module> M = parseIR(
+    Context,
+    R"(define void @foo(i32* %A, i32 %ub) {
+entry:
+  %guardcmp = icmp slt i32 0, %ub
+  br i1 %guardcmp, label %for.outer.preheader, label %for.end
+for.outer.preheader:
+  br label %for.outer
+for.outer:
+  %j = phi i32 [ 0, %for.outer.preheader ], [ %inc.outer, %for.outer.latch ]
+  br i1 %guardcmp, label %for.inner.preheader, label %for.outer.latch
+for.inner.preheader:
+  br label %for.inner
+for.inner:
+  %i = phi i32 [ 0, %for.inner.preheader ], [ %inc, %for.inner ]
+  %idxprom = sext i32 %i to i64
+  %arrayidx = getelementptr inbounds i32, i32* %A, i64 %idxprom
+  store i32 %i, i32* %arrayidx, align 4
+  %inc = add nsw i32 %i, 1
+  %cmp = icmp slt i32 %inc, %ub
+  br i1 %cmp, label %for.inner, label %for.inner.exit
+for.inner.exit:
+  br label %for.outer.latch
+for.outer.latch:
+  %inc.outer = add nsw i32 %j, 1
+  %cmp.outer = icmp slt i32 %inc.outer, %ub
+  br i1 %cmp.outer, label %for.outer, label %for.outer.exit
+for.outer.exit:
+  br label %for.end
+for.end:
+  ret void
+})"
+    );
+
+  runWithLoopInfoAndDominatorTree(
+      *M, "foo", [&](Function &F, LoopInfo &LI, DominatorTree &DT) {
+        Function::iterator FI = F.begin();
+        // First basic block is entry - skip it.
+        BasicBlock *Preheader = &*(++FI);
+        BasicBlock *Header = &*(++FI);
+        assert(Header->getName() == "for.outer");
+        Loop *L = LI.getLoopFor(Header);
+        EXPECT_NE(L, nullptr);
+        EXPECT_EQ(Header, L->getHeader());
+        EXPECT_EQ(Preheader, L->getLoopPreheader());
+
+        ValueToValueMapTy VMap;
+        SmallVector<BasicBlock *, 4> ClonedLoopBlocks;
+        Loop *NewLoop = cloneLoopWithPreheader(Preheader, Preheader, L, VMap,
+                                               "", &LI, &DT, ClonedLoopBlocks);
+        EXPECT_NE(NewLoop, nullptr);
+        EXPECT_EQ(NewLoop->getSubLoops().size(), 1u);
+        Loop::block_iterator BI = NewLoop->block_begin();
+        EXPECT_TRUE((*BI)->getName().startswith("for.outer"));
+        EXPECT_TRUE((*(++BI))->getName().startswith("for.inner.preheader"));
+        EXPECT_TRUE((*(++BI))->getName().startswith("for.inner"));
+        EXPECT_TRUE((*(++BI))->getName().startswith("for.inner.exit"));
+        EXPECT_TRUE((*(++BI))->getName().startswith("for.outer.latch"));
+      });
+}
+
 class CloneFunc : public ::testing::Test {
 protected:
   void SetUp() override {
@@ -398,13 +489,15 @@ protected:
     // Function body
     BasicBlock* Entry = BasicBlock::Create(C, "", OldFunc);
     IBuilder.SetInsertPoint(Entry);
-    DebugLoc Loc = DebugLoc::get(3, 2, Subprogram);
+    DebugLoc Loc = DILocation::get(Subprogram->getContext(), 3, 2, Subprogram);
     IBuilder.SetCurrentDebugLocation(Loc);
     AllocaInst* Alloca = IBuilder.CreateAlloca(IntegerType::getInt32Ty(C));
-    IBuilder.SetCurrentDebugLocation(DebugLoc::get(4, 2, Subprogram));
+    IBuilder.SetCurrentDebugLocation(
+        DILocation::get(Subprogram->getContext(), 4, 2, Subprogram));
     Value* AllocaContent = IBuilder.getInt32(1);
     Instruction* Store = IBuilder.CreateStore(AllocaContent, Alloca);
-    IBuilder.SetCurrentDebugLocation(DebugLoc::get(5, 2, Subprogram));
+    IBuilder.SetCurrentDebugLocation(
+        DILocation::get(Subprogram->getContext(), 5, 2, Subprogram));
 
     // Create a local variable around the alloca
     auto *IntType = DBuilder.createBasicType("int", 32, dwarf::DW_ATE_signed);
@@ -427,8 +520,9 @@ protected:
         DBuilder.createAutoVariable(InlinedSP, "inlined", File, 5, StructType, true);
     auto *Scope = DBuilder.createLexicalBlock(
         DBuilder.createLexicalBlockFile(InlinedSP, File), File, 1, 1);
-    auto InlinedDL =
-        DebugLoc::get(9, 4, Scope, DebugLoc::get(5, 2, Subprogram));
+    auto InlinedDL = DILocation::get(
+        Subprogram->getContext(), 9, 4, Scope,
+        DILocation::get(Subprogram->getContext(), 5, 2, Subprogram));
     IBuilder.SetCurrentDebugLocation(InlinedDL);
     DBuilder.insertDeclare(Alloca, InlinedVar, E, InlinedDL, Store);
     IBuilder.CreateStore(IBuilder.getInt32(2), Alloca);
@@ -565,6 +659,197 @@ TEST_F(CloneFunc, DebugIntrinsics) {
   }
 }
 
+static int GetDICompileUnitCount(const Module& M) {
+  if (const auto* LLVM_DBG_CU = M.getNamedMetadata("llvm.dbg.cu")) {
+    return LLVM_DBG_CU->getNumOperands();
+  }
+  return 0;
+}
+
+static bool haveCompileUnitsInCommon(const Module &LHS, const Module &RHS) {
+  const NamedMDNode *LHSCUs = LHS.getNamedMetadata("llvm.dbg.cu");
+  if (!LHSCUs)
+    return false;
+
+  const NamedMDNode *RHSCUs = RHS.getNamedMetadata("llvm.dbg.cu");
+  if (!RHSCUs)
+    return false;
+
+  SmallPtrSet<const MDNode *, 8> Found;
+  for (int I = 0, E = LHSCUs->getNumOperands(); I != E; ++I)
+    if (const MDNode *N = LHSCUs->getOperand(I))
+      Found.insert(N);
+
+  for (int I = 0, E = RHSCUs->getNumOperands(); I != E; ++I)
+    if (const MDNode *N = RHSCUs->getOperand(I))
+      if (Found.count(N))
+        return true;
+
+  return false;
+}
+
+TEST(CloneFunction, CloneEmptyFunction) {
+  StringRef ImplAssembly = R"(
+    define void @foo() {
+      ret void
+    }
+    declare void @bar()
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  EXPECT_TRUE(ImplModule != nullptr);
+  auto *ImplFunction = ImplModule->getFunction("foo");
+  EXPECT_TRUE(ImplFunction != nullptr);
+  auto *DeclFunction = ImplModule->getFunction("bar");
+  EXPECT_TRUE(DeclFunction != nullptr);
+
+  ValueToValueMapTy VMap;
+  SmallVector<ReturnInst *, 8> Returns;
+  ClonedCodeInfo CCI;
+  CloneFunctionInto(ImplFunction, DeclFunction, VMap,
+                    CloneFunctionChangeType::GlobalChanges, Returns, "", &CCI);
+
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+  EXPECT_FALSE(CCI.ContainsCalls);
+  EXPECT_FALSE(CCI.ContainsDynamicAllocas);
+}
+
+TEST(CloneFunction, CloneFunctionWithInalloca) {
+  StringRef ImplAssembly = R"(
+    declare void @a(i32* inalloca(i32))
+    define void @foo() {
+      %a = alloca inalloca i32
+      call void @a(i32* inalloca(i32) %a)
+      ret void
+    }
+    declare void @bar()
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  EXPECT_TRUE(ImplModule != nullptr);
+  auto *ImplFunction = ImplModule->getFunction("foo");
+  EXPECT_TRUE(ImplFunction != nullptr);
+  auto *DeclFunction = ImplModule->getFunction("bar");
+  EXPECT_TRUE(DeclFunction != nullptr);
+
+  ValueToValueMapTy VMap;
+  SmallVector<ReturnInst *, 8> Returns;
+  ClonedCodeInfo CCI;
+  CloneFunctionInto(DeclFunction, ImplFunction, VMap,
+                    CloneFunctionChangeType::GlobalChanges, Returns, "", &CCI);
+
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+  EXPECT_TRUE(CCI.ContainsCalls);
+  EXPECT_TRUE(CCI.ContainsDynamicAllocas);
+}
+
+TEST(CloneFunction, CloneFunctionWithSubprograms) {
+  // Tests that the debug info is duplicated correctly when a DISubprogram
+  // happens to be one of the operands of the DISubprogram that is being cloned.
+  // In general, operands of "test" that are distinct should be duplicated,
+  // but in this case "my_operator" should not be duplicated. If it is
+  // duplicated, the metadata in the llvm.dbg.declare could end up with
+  // different duplicates.
+  StringRef ImplAssembly = R"(
+    declare void @llvm.dbg.declare(metadata, metadata, metadata)
+
+    define void @test() !dbg !5 {
+      call void @llvm.dbg.declare(metadata i8* undef, metadata !4, metadata !DIExpression()), !dbg !6
+      ret void
+    }
+
+    declare void @cloned()
+
+    !llvm.dbg.cu = !{!0}
+    !llvm.module.flags = !{!2}
+    !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1)
+    !1 = !DIFile(filename: "test.cpp",  directory: "")
+    !2 = !{i32 1, !"Debug Info Version", i32 3}
+    !3 = distinct !DISubprogram(name: "my_operator", scope: !1, unit: !0, retainedNodes: !{!4})
+    !4 = !DILocalVariable(name: "awaitables", scope: !3)
+    !5 = distinct !DISubprogram(name: "test", scope: !3, unit: !0)
+    !6 = !DILocation(line: 55, column: 15, scope: !3, inlinedAt: !7)
+    !7 = distinct !DILocation(line: 73, column: 14, scope: !5)
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  EXPECT_TRUE(ImplModule != nullptr);
+  auto *OldFunc = ImplModule->getFunction("test");
+  EXPECT_TRUE(OldFunc != nullptr);
+  auto *NewFunc = ImplModule->getFunction("cloned");
+  EXPECT_TRUE(NewFunc != nullptr);
+
+  ValueToValueMapTy VMap;
+  SmallVector<ReturnInst *, 8> Returns;
+  ClonedCodeInfo CCI;
+  CloneFunctionInto(NewFunc, OldFunc, VMap,
+                    CloneFunctionChangeType::GlobalChanges, Returns, "", &CCI);
+
+  // This fails if the scopes in the llvm.dbg.declare variable and location
+  // aren't the same.
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+}
+
+TEST(CloneFunction, CloneFunctionToDifferentModule) {
+  StringRef ImplAssembly = R"(
+    define void @foo() {
+      ret void, !dbg !5
+    }
+
+    !llvm.module.flags = !{!0}
+    !llvm.dbg.cu = !{!2, !6}
+    !0 = !{i32 1, !"Debug Info Version", i32 3}
+    !1 = distinct !DISubprogram(unit: !2)
+    !2 = distinct !DICompileUnit(language: DW_LANG_C99, file: !3)
+    !3 = !DIFile(filename: "foo.c", directory: "/tmp")
+    !4 = distinct !DISubprogram(unit: !2)
+    !5 = !DILocation(line: 4, scope: !1)
+    !6 = distinct !DICompileUnit(language: DW_LANG_C99, file: !3)
+  )";
+  StringRef DeclAssembly = R"(
+    declare void @foo()
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  EXPECT_TRUE(ImplModule != nullptr);
+  // DICompileUnits: !2, !6. Only !2 is reachable from @foo().
+  EXPECT_TRUE(GetDICompileUnitCount(*ImplModule) == 2);
+  auto* ImplFunction = ImplModule->getFunction("foo");
+  EXPECT_TRUE(ImplFunction != nullptr);
+
+  auto DeclModule = parseAssemblyString(DeclAssembly, Error, Context);
+  EXPECT_TRUE(DeclModule != nullptr);
+  // No DICompileUnits defined here.
+  EXPECT_TRUE(GetDICompileUnitCount(*DeclModule) == 0);
+  auto* DeclFunction = DeclModule->getFunction("foo");
+  EXPECT_TRUE(DeclFunction != nullptr);
+
+  ValueToValueMapTy VMap;
+  VMap[ImplFunction] = DeclFunction;
+  // No args to map
+  SmallVector<ReturnInst*, 8> Returns;
+  CloneFunctionInto(DeclFunction, ImplFunction, VMap,
+                    CloneFunctionChangeType::DifferentModule, Returns);
+
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+  EXPECT_FALSE(verifyModule(*DeclModule, &errs()));
+  // DICompileUnit !2 shall be cloned into DeclModule.
+  EXPECT_TRUE(GetDICompileUnitCount(*DeclModule) == 1);
+  EXPECT_FALSE(haveCompileUnitsInCommon(*ImplModule, *DeclModule));
+}
+
 class CloneModule : public ::testing::Test {
 protected:
   void SetUp() override {
@@ -584,6 +869,16 @@ protected:
         ConstantInt::get(Type::getInt32Ty(C), 1), "gv");
     GV->addMetadata(LLVMContext::MD_type, *MDNode::get(C, {}));
     GV->setComdat(CD);
+
+    {
+      // Add an empty compile unit first that isn't otherwise referenced, to
+      // confirm that compile units get cloned in the correct order.
+      DIBuilder EmptyBuilder(*OldM);
+      auto *File = EmptyBuilder.createFile("empty.c", "/file/dir/");
+      (void)EmptyBuilder.createCompileUnit(dwarf::DW_LANG_C99, File,
+                                           "EmptyUnit", false, "", 0);
+      EmptyBuilder.finalize();
+    }
 
     DIBuilder DBuilder(*OldM);
     IRBuilder<> IBuilder(C);
@@ -621,11 +916,15 @@ protected:
 
     DBuilder.createGlobalVariableExpression(
         Subprogram, "unattached", "unattached", File, 1,
-        DBuilder.createNullPtrType(), false, Expr);
+        DBuilder.createNullPtrType(), false, true, Expr);
 
     auto *Entry = BasicBlock::Create(C, "", F);
     IBuilder.SetInsertPoint(Entry);
     IBuilder.CreateRetVoid();
+
+    auto *G =
+        Function::Create(FuncType, GlobalValue::ExternalLinkage, "g", OldM);
+    G->addMetadata(LLVMContext::MD_type, *MDNode::get(C, {}));
 
     // Finalize the debug info
     DBuilder.finalize();
@@ -639,7 +938,11 @@ protected:
 };
 
 TEST_F(CloneModule, Verify) {
-  EXPECT_FALSE(verifyModule(*NewM));
+  // Confirm the old module is (still) valid.
+  EXPECT_FALSE(verifyModule(*OldM, &errs()));
+
+  // Check the new module.
+  EXPECT_FALSE(verifyModule(*NewM, &errs()));
 }
 
 TEST_F(CloneModule, OldModuleUnchanged) {
@@ -655,6 +958,11 @@ TEST_F(CloneModule, Subprogram) {
   EXPECT_EQ(SP->getName(), "f");
   EXPECT_EQ(SP->getFile()->getFilename(), "filename.c");
   EXPECT_EQ(SP->getLine(), (unsigned)4);
+}
+
+TEST_F(CloneModule, FunctionDeclarationMetadata) {
+  Function *NewF = NewM->getFunction("g");
+  EXPECT_NE(nullptr, NewF->getMetadata(LLVMContext::MD_type));
 }
 
 TEST_F(CloneModule, GlobalMetadata) {
@@ -689,10 +997,19 @@ TEST_F(CloneModule, CompileUnit) {
   // Find DICompileUnit listed in llvm.dbg.cu
   auto *NMD = NewM->getNamedMetadata("llvm.dbg.cu");
   EXPECT_TRUE(NMD != nullptr);
-  EXPECT_EQ(NMD->getNumOperands(), 1U);
+  EXPECT_EQ(NMD->getNumOperands(), 2U);
+  EXPECT_FALSE(haveCompileUnitsInCommon(*OldM, *NewM));
 
-  DICompileUnit *CU = dyn_cast<llvm::DICompileUnit>(NMD->getOperand(0));
+  // Check that the empty CU is first, even though it's not referenced except
+  // from named metadata.
+  DICompileUnit *EmptyCU = dyn_cast<llvm::DICompileUnit>(NMD->getOperand(0));
+  EXPECT_TRUE(EmptyCU != nullptr);
+  EXPECT_EQ("EmptyUnit", EmptyCU->getProducer());
+
+  // Get the interesting CU.
+  DICompileUnit *CU = dyn_cast<llvm::DICompileUnit>(NMD->getOperand(1));
   EXPECT_TRUE(CU != nullptr);
+  EXPECT_EQ("CloneModule", CU->getProducer());
 
   // Assert this CU is consistent with the cloned function debug info
   DISubprogram *SP = NewM->getFunction("f")->getSubprogram();

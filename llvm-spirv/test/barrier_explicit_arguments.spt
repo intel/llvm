@@ -1,0 +1,70 @@
+119734787 65536 393230 10 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+4 Name 5 "test"
+3 Name 6 "val"
+4 Name 7 "entry"
+6 Decorate 5 LinkageAttributes "test" Export
+4 TypeInt 3 32 0
+4 Constant 3 8 2
+2 TypeVoid 2
+4 Constant 3 9 3
+4 TypeFunction 4 2 3
+
+5 Function 2 5 0 4
+3 FunctionParameter 3 6
+
+2 Label 7
+4 ControlBarrier 8 8 6
+4 ControlBarrier 9 9 6
+1 Return
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK,CHECK-20
+; RUN: llvm-spirv -r --spirv-target-env=CL1.2 %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK,CHECK-12
+
+; CHECK: define spir_func void @test(i32 %val)
+; CHECK: %call = call spir_func i32 @__translate_spirv_memory_fence(i32 %val)
+; CHECK-12: call spir_func void @_Z7barrierj(i32 %call)
+; There is no support for sub-groups in OpenCL 1.2, so sub-group barrier is
+; equal to regular barrier in there
+; CHECK-12: call spir_func void @_Z7barrierj(i32 %call1)
+; CHECK-20: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 %call
+; CHECK-20: call spir_func void @_Z17sub_group_barrierj12memory_scope(i32 %call
+; CHECK: define private spir_func i32 @__translate_spirv_memory_fence(i32 %key)
+; CHECK: entry:
+; CHECK:   %key.masked = and i32 2816, %key
+; CHECK:   switch i32 %key.masked, label %default [
+; CHECK:     i32 256, label %case.256
+; CHECK:     i32 512, label %case.512
+; CHECK:     i32 768, label %case.768
+; CHECK:     i32 2048, label %case.2048
+; CHECK:     i32 2304, label %case.2304
+; CHECK:     i32 2560, label %case.2560
+; CHECK:     i32 2816, label %case.2816
+; CHECK:   ]
+; CHECK: default:
+; CHECK:   unreachable
+; CHECK: case.256:
+; CHECK:   ret i32 1
+; CHECK: case.512:
+; CHECK:   ret i32 2
+; CHECK: case.768:
+; CHECK:   ret i32 3
+; CHECK: case.2048:
+; CHECK:   ret i32 4
+; CHECK: case.2304:
+; CHECK:   ret i32 5
+; CHECK: case.2560:
+; CHECK:   ret i32 6
+; CHECK: case.2816:
+; CHECK:   ret i32 7
+; CHECK: }

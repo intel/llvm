@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-optree -analyze < %s | FileCheck %s -match-full-lines
+; RUN: opt %loadPolly -polly-print-optree -disable-output < %s | FileCheck %s -match-full-lines
 ;
 ; Rematerialize a load.
 ; The non-analyzable store to C[0] is unrelated and can be ignored.
@@ -59,6 +59,6 @@ return:
 ; CHECK-NEXT:         MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 0]
 ; CHECK-NEXT:             [n] -> { Stmt_bodyB[i0] -> MemRef_A[i0] };
 ; CHECK-NEXT:         Instructions {
-; CHECK-NEXT:               %val = load double, double* %B_idx
-; CHECK-NEXT:               store double %val, double* %A_idx
+; CHECK-NEXT:               %val = load double, double* %B_idx, align 8
+; CHECK-NEXT:               store double %val, double* %A_idx, align 8
 ; CHECK-NEXT:         }

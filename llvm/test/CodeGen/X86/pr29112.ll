@@ -10,55 +10,51 @@ define <4 x float> @bar(<4 x float>* %a1p, <4 x float>* %a2p, <4 x float> %a3, <
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    subq $72, %rsp
 ; CHECK-NEXT:    .cfi_def_cfa_offset 80
-; CHECK-NEXT:    vmovaps %xmm1, %xmm8
-; CHECK-NEXT:    vextractf128 $1, %ymm3, %xmm1
-; CHECK-NEXT:    vextractf128 $1, %ymm2, %xmm5
-; CHECK-NEXT:    vunpcklps {{.*#+}} xmm10 = xmm5[0],xmm1[0],xmm5[1],xmm1[1]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm0 = xmm10[0,1],xmm2[1],xmm10[3]
-; CHECK-NEXT:    vblendps {{.*#+}} xmm9 = xmm5[0],xmm1[1],xmm5[2,3]
-; CHECK-NEXT:    vmovshdup {{.*#+}} xmm6 = xmm5[1,1,3,3]
-; CHECK-NEXT:    vunpcklps {{.*#+}} xmm6 = xmm6[0],xmm1[0],xmm6[1],xmm1[1]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm11 = xmm6[0,1],xmm2[1],xmm6[3]
-; CHECK-NEXT:    vextractf32x4 $3, %zmm3, %xmm7
-; CHECK-NEXT:    vunpcklps {{.*#+}} xmm4 = xmm5[0],xmm7[0],xmm5[1],xmm7[1]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm4 = xmm4[0,1],xmm2[1],xmm4[3]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm4 = xmm4[0,1,2],xmm3[1]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm6 = xmm11[0,1,2],xmm3[1]
-; CHECK-NEXT:    vaddps %xmm4, %xmm6, %xmm12
-; CHECK-NEXT:    vpermilpd {{.*#+}} xmm4 = xmm1[1,0]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm7 = xmm5[0],xmm7[2],zero,zero
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm7 = xmm7[0,1],xmm2[1],xmm7[3]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm13 = xmm7[0,1,2],xmm4[0]
-; CHECK-NEXT:    vpermilps {{.*#+}} xmm4 = xmm2[3,1,2,3]
-; CHECK-NEXT:    vunpcklps {{.*#+}} xmm4 = xmm4[0],xmm1[0],xmm4[1],xmm1[1]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm7 = xmm5[0],xmm1[2],zero,zero
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm1 = xmm0[0,1,2],xmm3[1]
-; CHECK-NEXT:    vmovaps %xmm1, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm5 = xmm9[0,1],xmm2[1],xmm9[3]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm6 = xmm5[0,1,2],xmm3[1]
+; CHECK-NEXT:    vmovaps %xmm1, %xmm9
+; CHECK-NEXT:    vmovaps {{.*#+}} xmm14 = [4,22,1,17]
+; CHECK-NEXT:    vpermi2ps %zmm3, %zmm2, %zmm14
+; CHECK-NEXT:    vmovaps {{.*#+}} xmm10 = [4,30,1,22]
+; CHECK-NEXT:    vpermi2ps %zmm3, %zmm2, %zmm10
+; CHECK-NEXT:    vmovaps {{.*#+}} xmm8 = [4,28,1,29]
+; CHECK-NEXT:    vpermi2ps %zmm3, %zmm2, %zmm8
+; CHECK-NEXT:    vmovaps {{.*#+}} xmm7 = <5,20,u,u>
+; CHECK-NEXT:    vpermi2ps %zmm3, %zmm2, %zmm7
+; CHECK-NEXT:    vmovaps {{.*#+}} xmm4 = [4,21,1,7]
+; CHECK-NEXT:    vpermi2ps %zmm3, %zmm2, %zmm4
+; CHECK-NEXT:    vextractf128 $1, %ymm3, %xmm5
+; CHECK-NEXT:    vextractf128 $1, %ymm2, %xmm6
+; CHECK-NEXT:    vunpcklps {{.*#+}} xmm11 = xmm6[0],xmm5[0],xmm6[1],xmm5[1]
+; CHECK-NEXT:    vinsertps {{.*#+}} xmm1 = xmm11[0,1],xmm2[1],xmm11[3]
+; CHECK-NEXT:    vinsertps {{.*#+}} xmm13 = xmm1[0,1,2],xmm3[1]
+; CHECK-NEXT:    vinsertps {{.*#+}} xmm6 = xmm4[0,1,2],xmm3[1]
 ; CHECK-NEXT:    vmovaps %xmm6, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm5 = xmm4[0,1],xmm2[1],xmm4[3]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm9 = xmm7[0,1],xmm2[1],xmm7[3]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm2 = xmm10[0,1],xmm2[3],xmm10[3]
 ; CHECK-NEXT:    vextractf32x4 $2, %zmm3, %xmm4
-; CHECK-NEXT:    vblendps {{.*#+}} xmm4 = xmm0[0,1,2],xmm4[3]
+; CHECK-NEXT:    vblendps {{.*#+}} xmm4 = xmm1[0,1,2],xmm4[3]
+; CHECK-NEXT:    vpermilps {{.*#+}} xmm0 = xmm2[3,3,3,3]
+; CHECK-NEXT:    vunpcklps {{.*#+}} xmm5 = xmm0[0],xmm5[0],xmm0[1],xmm5[1]
+; CHECK-NEXT:    vshufps {{.*#+}} xmm5 = xmm5[0,1],xmm2[1,3]
 ; CHECK-NEXT:    vinsertps {{.*#+}} xmm5 = xmm5[0,1,2],xmm3[1]
-; CHECK-NEXT:    vblendps {{.*#+}} xmm7 = xmm11[0,1,2],xmm3[3]
-; CHECK-NEXT:    vblendps {{.*#+}} xmm10 = xmm0[0,1,2],xmm3[3]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm0 = xmm9[0,1,2],xmm3[1]
-; CHECK-NEXT:    vpermilpd {{.*#+}} xmm3 = xmm3[1,0]
-; CHECK-NEXT:    vinsertps {{.*#+}} xmm2 = xmm2[0,1,2],xmm3[0]
-; CHECK-NEXT:    vaddps %xmm0, %xmm2, %xmm2
-; CHECK-NEXT:    vaddps %xmm10, %xmm0, %xmm0
-; CHECK-NEXT:    vaddps %xmm13, %xmm1, %xmm9
-; CHECK-NEXT:    vaddps %xmm12, %xmm0, %xmm0
-; CHECK-NEXT:    vaddps %xmm1, %xmm1, %xmm3
-; CHECK-NEXT:    vaddps %xmm0, %xmm1, %xmm0
+; CHECK-NEXT:    vinsertps {{.*#+}} xmm0 = xmm7[0,1],xmm2[1],xmm7[3]
+; CHECK-NEXT:    vblendps {{.*#+}} xmm7 = xmm0[0,1,2],xmm3[3]
+; CHECK-NEXT:    vblendps {{.*#+}} xmm12 = xmm1[0,1,2],xmm3[3]
+; CHECK-NEXT:    vinsertps {{.*#+}} xmm1 = xmm8[0,1,2],xmm3[1]
+; CHECK-NEXT:    vinsertps {{.*#+}} xmm0 = xmm0[0,1,2],xmm3[1]
+; CHECK-NEXT:    vaddps %xmm1, %xmm0, %xmm8
+; CHECK-NEXT:    vshufps {{.*#+}} xmm2 = xmm11[0,1],xmm2[3,3]
+; CHECK-NEXT:    vinsertps {{.*#+}} xmm2 = xmm2[0,1,2],xmm3[2]
+; CHECK-NEXT:    vaddps %xmm2, %xmm14, %xmm2
+; CHECK-NEXT:    vmovaps %xmm13, %xmm1
+; CHECK-NEXT:    vmovaps %xmm13, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
+; CHECK-NEXT:    vaddps %xmm10, %xmm13, %xmm10
+; CHECK-NEXT:    vaddps %xmm13, %xmm13, %xmm3
+; CHECK-NEXT:    vaddps %xmm12, %xmm14, %xmm0
+; CHECK-NEXT:    vaddps %xmm0, %xmm8, %xmm0
+; CHECK-NEXT:    vaddps %xmm0, %xmm13, %xmm0
 ; CHECK-NEXT:    vmovaps %xmm3, {{[0-9]+}}(%rsp)
-; CHECK-NEXT:    vmovaps %xmm9, (%rsp)
-; CHECK-NEXT:    vmovaps %xmm8, %xmm3
+; CHECK-NEXT:    vmovaps %xmm10, (%rsp)
+; CHECK-NEXT:    vmovaps %xmm9, %xmm3
 ; CHECK-NEXT:    vzeroupper
-; CHECK-NEXT:    callq foo
+; CHECK-NEXT:    callq foo@PLT
 ; CHECK-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm1 # 16-byte Reload
 ; CHECK-NEXT:    vaddps {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm1 # 16-byte Folded Reload
 ; CHECK-NEXT:    vaddps %xmm0, %xmm1, %xmm0
@@ -66,7 +62,6 @@ define <4 x float> @bar(<4 x float>* %a1p, <4 x float>* %a2p, <4 x float> %a3, <
 ; CHECK-NEXT:    .cfi_def_cfa_offset 8
 ; CHECK-NEXT:    retq
   %a1 = shufflevector <16 x float>%c1, <16 x float>%c2, <4 x i32> <i32 4, i32 20, i32 1, i32 17>
-
   %a2 = shufflevector <16 x float>%c1, <16 x float>%c2, <4 x i32> <i32 4, i32 21, i32 1, i32 17>
   %a5 = shufflevector <16 x float>%c1, <16 x float>%c2, <4 x i32> <i32 4, i32 20, i32 1, i32 27>
   %a6 = shufflevector <16 x float>%c1, <16 x float>%c2, <4 x i32> <i32 3, i32 20, i32 1, i32 17>

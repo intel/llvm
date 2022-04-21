@@ -1,4 +1,4 @@
-//===-- thread_inferior.cpp -------------------------------------*- C++ -*-===//
+//===-- thread_inferior.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Cause a break.
-  volatile char *p = NULL;
+  volatile char *p = nullptr;
   *p = 'a';
 
   delay.store(false);

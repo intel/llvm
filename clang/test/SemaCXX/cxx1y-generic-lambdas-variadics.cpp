@@ -2,6 +2,10 @@
 // RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -fdelayed-template-parsing %s -DDELAYED_TEMPLATE_PARSING
 // RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -fms-extensions %s -DMS_EXTENSIONS
 // RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -fdelayed-template-parsing -fms-extensions %s -DMS_EXTENSIONS -DDELAYED_TEMPLATE_PARSING
+// RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -triple i386-windows %s
+// RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -triple i386-windows -fdelayed-template-parsing %s -DDELAYED_TEMPLATE_PARSING
+// RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -triple i386-windows -fms-extensions %s -DMS_EXTENSIONS
+// RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -triple i386-windows -fdelayed-template-parsing -fms-extensions %s -DMS_EXTENSIONS -DDELAYED_TEMPLATE_PARSING
 
 namespace explicit_argument_variadics {
 
@@ -100,7 +104,9 @@ namespace variadic_expansion {
 
 namespace PR33082 {
   template<int ...I> void a() {
-    int arr[] = { [](auto ...K) { (void)I; } ... }; // expected-error {{no viable conversion}} expected-note {{candidate}}
+    int arr[] = { [](auto ...K) { (void)I; } ... };
+    // expected-error@-1   {{no viable conversion}}
+    // expected-note-re@-2 {{candidate template ignored: could not match 'auto (*)(type-parameter-0-0...){{.*}}' against 'int'}}
   }
 
   template<typename ...T> struct Pack {};
@@ -122,3 +128,16 @@ namespace PR33082 {
     b(Pack<int*, float*>(), 1, 2, 3); // expected-note {{instantiation of}}
   }
 }
+
+void pr42587() {
+  (void)[](auto... args) -> decltype(args) {}; // expected-error {{type contains unexpanded parameter pack}}
+  (void)[](auto... args, int = args) {}; // expected-error {{default argument contains unexpanded parameter pack}}
+  (void)[](auto... args, decltype(args)) {}; // expected-error {{type contains unexpanded parameter pack}}
+  (void)[](auto... args, decltype(args)...) {}; // (ok)
+  (void)[](auto... args, int = [=] { return args; }()) {}; // expected-error {{default argument contains unexpanded parameter pack}}
+  (void)([]<typename ...T> (T t) {} + ...); // expected-error {{contains unexpanded parameter pack 'T'}} expected-error {{does not contain any unexpanded}} expected-warning 0-2{{extension}}
+  (void)([]<int ...N> (int k = N) {} + ...); // expected-error {{contains unexpanded parameter pack 'N'}} expected-error {{does not contain any unexpanded}} expected-warning 0-2{{extension}}
+  (void)([]<template<typename> typename ...T> (T<int>) {} + ...); // expected-error {{contains unexpanded parameter pack 'T'}} expected-error {{does not contain any unexpanded}} expected-warning 0-3{{extension}}
+}
+
+template<typename ...T> int v = {[...x = T()] { int k = x; } ...}; // expected-error {{contains unexpanded parameter pack 'x'}} expected-error {{does not contain any unexpanded}} expected-warning 0-1{{extension}}

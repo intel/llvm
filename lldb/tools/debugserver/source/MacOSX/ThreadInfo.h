@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __ThreadInfo_h__
-#define __ThreadInfo_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_THREADINFO_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_THREADINFO_H
 
 namespace ThreadInfo {
 
@@ -20,6 +20,6 @@ public:
   std::string printable_name;
   uint32_t enum_value;
 };
-};
+}
 
-#endif // __ThreadInfo_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_THREADINFO_H

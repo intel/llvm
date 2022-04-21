@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // template<class E>
 // class initializer_list
@@ -22,6 +22,8 @@
 
 #include <initializer_list>
 #include <type_traits>
+
+#include "test_macros.h"
 
 struct A {};
 

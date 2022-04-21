@@ -12,12 +12,16 @@
 #include "internal_defs.h"
 
 // Hardware CRC32 is supported at compilation via the following:
-// - for i386 & x86_64: -msse4.2
+// - for i386 & x86_64: -mcrc32 (earlier: -msse4.2)
 // - for ARM & AArch64: -march=armv8-a+crc or -mcrc
 // An additional check must be performed at runtime as well to make sure the
 // emitted instructions are valid on the target host.
 
-#ifdef __SSE4_2__
+#if defined(__CRC32__)
+// NB: clang has <crc32intrin.h> but GCC does not
+#include <smmintrin.h>
+#define CRC32_INTRINSIC FIRST_32_SECOND_64(__builtin_ia32_crc32si, __builtin_ia32_crc32di)
+#elif defined(__SSE4_2__)
 #include <smmintrin.h>
 #define CRC32_INTRINSIC FIRST_32_SECOND_64(_mm_crc32_u32, _mm_crc32_u64)
 #endif
@@ -37,7 +41,7 @@ enum class Checksum : u8 {
 // significantly on memory accesses, as well as 1K of CRC32 table, on platforms
 // that do no support hardware CRC32. The checksum itself is 16-bit, which is at
 // odds with CRC32, but enough for our needs.
-INLINE u16 computeBSDChecksum(u16 Sum, uptr Data) {
+inline u16 computeBSDChecksum(u16 Sum, uptr Data) {
   for (u8 I = 0; I < sizeof(Data); I++) {
     Sum = static_cast<u16>((Sum >> 1) | ((Sum & 1) << 15));
     Sum = static_cast<u16>(Sum + (Data & 0xff));

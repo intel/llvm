@@ -18,17 +18,13 @@ namespace tidy {
 namespace readability {
 
 void NamedParameterCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
-  Finder->addMatcher(functionDecl(unless(isInstantiated())).bind("decl"), this);
+  Finder->addMatcher(functionDecl().bind("decl"), this);
 }
 
 void NamedParameterCheck::check(const MatchFinder::MatchResult &Result) {
   const SourceManager &SM = *Result.SourceManager;
   const auto *Function = Result.Nodes.getNodeAs<FunctionDecl>("decl");
   SmallVector<std::pair<const FunctionDecl *, unsigned>, 4> UnnamedParams;
-
-  // Ignore implicitly generated members.
-  if (Function->isImplicit())
-    return;
 
   // Ignore declarations without a definition if we're not dealing with an
   // overriden method.
@@ -62,7 +58,7 @@ void NamedParameterCheck::check(const MatchFinder::MatchResult &Result) {
       continue;
 
     // Skip gmock testing::Unused parameters.
-    if (auto Typedef = Parm->getType()->getAs<clang::TypedefType>())
+    if (const auto *Typedef = Parm->getType()->getAs<clang::TypedefType>())
       if (Typedef->getDecl()->getQualifiedNameAsString() == "testing::Unused")
         continue;
 
@@ -75,7 +71,7 @@ void NamedParameterCheck::check(const MatchFinder::MatchResult &Result) {
     const char *Begin = SM.getCharacterData(Parm->getBeginLoc());
     const char *End = SM.getCharacterData(Parm->getLocation());
     StringRef Data(Begin, End - Begin);
-    if (Data.find("/*") != StringRef::npos)
+    if (Data.contains("/*"))
       continue;
 
     UnnamedParams.push_back(std::make_pair(Function, I));

@@ -1,10 +1,13 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_variable_length_array
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc < %t.ll -O0 -mtriple x86_64-apple-darwin | FileCheck %s
 ; RUN: llc < %t.ll -O0 -mtriple x86_64-apple-darwin -filetype=obj \
 ; RUN:     | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 ; <rdar://problem/11134152>
 
 ; CHECK-LABEL: _foo:
@@ -12,7 +15,7 @@
 
 ; "[DW_FORM_exprloc] <0x2> 91 XX" means fbreg uleb(XX)
 ; DWARF-LABEL: DW_TAG_formal_parameter
-; DWARF-NEXT:              DW_AT_location [DW_FORM_exprloc]      (DW_OP_fbreg +16)
+; DWARF-NEXT:              DW_AT_location [DW_FORM_exprloc]      (DW_OP_fbreg -8)
 ; DWARF-NEXT:              DW_AT_name [DW_FORM_strp]     ( {{.*}} = "x")
 
 ; FIXME: There is no debug info to describe "a".
@@ -27,21 +30,21 @@ entry:
   %0 = load i32*, i32** %x.addr, align 8, !dbg !16
   %1 = load i32, i32* %0, align 4, !dbg !16
   %2 = zext i32 %1 to i64, !dbg !16
-  %3 = call i8* @llvm_stacksave(), !dbg !16
+  %3 = call i8* @llvm.stacksave(), !dbg !16
   store i8* %3, i8** %saved_stack, !dbg !16
   %vla = alloca i8, i64 %2, align 16, !dbg !16
   call void @llvm.dbg.declare(metadata i8* %vla, metadata !18, metadata !DIExpression()), !dbg !23
   store i32 1, i32* %cleanup.dest.slot
   %4 = load i8*, i8** %saved_stack, !dbg !24
-  call void @llvm_stackrestore(i8* %4), !dbg !24
+  call void @llvm.stackrestore(i8* %4), !dbg !24
   ret i32 0, !dbg !25
 }
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 
-declare i8* @llvm_stacksave() nounwind
+declare i8* @llvm.stacksave() nounwind
 
-declare void @llvm_stackrestore(i8*) nounwind
+declare void @llvm.stackrestore(i8*) nounwind
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!27}
@@ -69,5 +72,3 @@ declare void @llvm_stackrestore(i8*) nounwind
 !25 = !DILocation(line: 8, column: 3, scope: !17)
 !26 = !DIFile(filename: "20020104-2.c", directory: "/Volumes/Sandbox/llvm")
 !27 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

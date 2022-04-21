@@ -1,16 +1,16 @@
 ; Make sure that absolute source dir is detected correctly regardless of the platform.
-; REQUIRES: object-emission, default_triple
 
 ; On powerpc llvm-nm describes win_func as a global variable, not a function. It breaks the test.
 ; It is not essential to DWARF path handling code we're testing here.
 ; UNSUPPORTED: powerpc
+; REQUIRES: object-emission
 ; RUN: %llc_dwarf -O0 -filetype=obj -o %t < %s
 ; RUN: llvm-nm --radix=o %t | grep posix_absolute_func > %t.posix_absolute_func
 ; RUN: llvm-nm --radix=o %t | grep posix_relative_func > %t.posix_relative_func
 ; RUN: llvm-nm --radix=o %t | grep win_func > %t.win_func
-; RUN: llvm-symbolizer --functions=linkage --inlining --demangle=false --obj %t < %t.posix_absolute_func | FileCheck %s --check-prefix=POSIX_A
-; RUN: llvm-symbolizer --functions=linkage --inlining --demangle=false --obj %t < %t.posix_relative_func | FileCheck %s --check-prefix=POSIX_R
-; RUN: llvm-symbolizer --functions=linkage --inlining --demangle=false --obj %t < %t.win_func | FileCheck %s --check-prefix=WIN
+; RUN: llvm-symbolizer --functions=linkage --inlining --no-demangle --obj %t < %t.posix_absolute_func | FileCheck %s --check-prefix=POSIX_A
+; RUN: llvm-symbolizer --functions=linkage --inlining --no-demangle --obj %t < %t.posix_relative_func | FileCheck %s --check-prefix=POSIX_R
+; RUN: llvm-symbolizer --functions=linkage --inlining --no-demangle --obj %t < %t.win_func | FileCheck %s --check-prefix=WIN
 
 ;POSIX_A: posix_absolute_func
 ;POSIX_A: /absolute/posix/path{{[\/]}}posix.c
@@ -72,4 +72,3 @@ define i32 @posix_relative_func() #0 !dbg !44 {
 !47 = !DIBasicType(name: "int", size: 32, align: 32, encoding: DW_ATE_signed)
 !411 = !DILocation(line: 44, column: 2, scope: !44)
 !412 = !DIFile(filename: "c.c", directory: "/ABSOLUTE/CU/PATH")
-

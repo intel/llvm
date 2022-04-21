@@ -1,12 +1,21 @@
-// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp -ferror-limit 100 -o - %s
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify=expected,omp45 -fopenmp -fopenmp-version=45 -ferror-limit 100 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify=expected,omp50 -fopenmp -fopenmp-version=50 -ferror-limit 100 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp-simd -ferror-limit 100 -o - %s
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 -ferror-limit 100 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 -ferror-limit 100 -o - %s -Wuninitialized
 
-void foo() { }
+void foo(void) { }
+
+void xxx(int argc) {
+  int map; // expected-note {{initialize the variable 'map' to silence this warning}}
+#pragma omp target data map(map) // expected-warning {{variable 'map' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
 
 int main(int argc, char **argv) {
   int a;
-  #pragma omp target data // expected-error {{expected at least one 'map' or 'use_device_ptr' clause for '#pragma omp target data'}}
+  #pragma omp target data // omp45-error {{expected at least one 'map' or 'use_device_ptr' clause for '#pragma omp target data'}} omp50-error {{expected at least one 'map', 'use_device_ptr', or 'use_device_addr' clause for '#pragma omp target data'}}
   {}
   L1:
     foo();
@@ -28,5 +37,20 @@ int main(int argc, char **argv) {
   {
     foo();
   }
+  #pragma omp target data map(delete: a) // expected-error {{map type 'delete' is not allowed for '#pragma omp target data'}}
+  {
+    foo();
+  }
+  #pragma omp target data map(release: a) // expected-error {{map type 'release' is not allowed for '#pragma omp target data'}}
+  {
+    foo();
+  }
+
+  const int b = 5;
+  int marr[10][10], iarr[5];
+#pragma omp target data map(to: marr[10][0:2:2]) // expected-error {{expected ']'}} expected-note {{to match this '['}}
+  {}
+#pragma omp target data map(alloc: iarr[:2:b]) // expected-error {{expected ']'}} expected-note {{to match this '['}}
+  {}
   return 0;
 }

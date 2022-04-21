@@ -17,7 +17,5 @@ static_library("Disassembler") {
     "//llvm/lib/Target/ARM/Utils",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "ARMDisassembler.cpp",
-  ]
+  sources = [ "ARMDisassembler.cpp" ]
 }

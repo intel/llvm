@@ -1,4 +1,4 @@
-//===- llvm/unittest/ADT/MakeUniqueTest.cpp - make_unique unit tests ------===//
+//===- llvm/unittest/ADT/FunctionRefTest.cpp - function_ref unit tests ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -38,4 +38,25 @@ TEST(FunctionRefTest, Copy) {
   EXPECT_EQ(1, Y());
 }
 
+TEST(FunctionRefTest, BadCopy) {
+  auto A = [] { return 1; };
+  function_ref<int()> X;
+  function_ref<int()> Y = A;
+  function_ref<int()> Z = static_cast<const function_ref<int()> &&>(Y);
+  X = Z;
+  Y = nullptr;
+  ASSERT_EQ(1, X());
 }
+
+// Test that overloads on function_refs are resolved as expected.
+std::string returns(StringRef) { return "not a function"; }
+std::string returns(function_ref<double()> F) { return "number"; }
+std::string returns(function_ref<StringRef()> F) { return "string"; }
+
+TEST(FunctionRefTest, SFINAE) {
+  EXPECT_EQ("not a function", returns("boo!"));
+  EXPECT_EQ("number", returns([] { return 42; }));
+  EXPECT_EQ("string", returns([] { return "hello"; }));
+}
+
+} // namespace

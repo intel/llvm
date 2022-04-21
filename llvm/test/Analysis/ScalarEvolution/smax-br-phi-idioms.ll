@@ -1,4 +1,4 @@
-; RUN: opt -analyze -scalar-evolution < %s | FileCheck %s
+; RUN: opt -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 define i32 @f0(i32 %x, i32 %y) {
 ; CHECK-LABEL: Classifying expressions for: @f0

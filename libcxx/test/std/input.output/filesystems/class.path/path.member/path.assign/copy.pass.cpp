@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,9 +14,10 @@
 
 // path& operator=(path const&);
 
-#include "filesystem_include.hpp"
-#include <type_traits>
+#include "filesystem_include.h"
 #include <cassert>
+#include <string>
+#include <type_traits>
 
 #include "test_macros.h"
 
@@ -29,8 +30,8 @@ int main(int, char**) {
   const path p(s);
   path p2;
   path& pref = (p2 = p);
-  assert(p.native() == s);
-  assert(p2.native() == s);
+  assert(p.string() == s);
+  assert(p2.string() == s);
   assert(&pref == &p2);
 
   return 0;

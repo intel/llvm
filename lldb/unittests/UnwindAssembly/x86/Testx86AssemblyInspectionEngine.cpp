@@ -1,5 +1,4 @@
-//===-- Testx86AssemblyInspectionEngine.cpp ---------------------------*- C++
-//-*-===//
+//===-- Testx86AssemblyInspectionEngine.cpp -------------------------------===//
 
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2199,6 +2198,97 @@ TEST_F(Testx86AssemblyInspectionEngine, TestSpillRegToStackViaMOVi386) {
   EXPECT_EQ(-40, regloc.GetOffset());
 }
 
+TEST_F(Testx86AssemblyInspectionEngine, TestSpArithx86_64Augmented) {
+  UnwindPlan::Row::RegisterLocation regloc;
+  UnwindPlan::RowSP row_sp;
+  AddressRange sample_range;
+  UnwindPlan unwind_plan(eRegisterKindLLDB);
+  std::unique_ptr<x86AssemblyInspectionEngine> engine64 = Getx86_64Inspector();
+
+  uint8_t data[] = {
+      0x55,             // pushq %rbp
+      0x48, 0x89, 0xe5, // movq %rsp, %rbp
+
+      // x86AssemblyInspectionEngine::AugmentUnwindPlanFromCallSite
+      // has a bug where it can't augment a function that is just
+      // prologue+epilogue - it needs at least one other instruction
+      // in between.
+
+      0x90,                            // nop
+      0x48, 0x81, 0xec, 0x88, 0, 0, 0, // subq   $0x88, %rsp
+      0x90,                            // nop
+      0x48, 0x81, 0xc4, 0x88, 0, 0, 0, // addq   $0x88, %rsp
+
+      0x5d, // popq %rbp
+      0xc3  // retq
+  };
+
+  sample_range = AddressRange(0x1000, sizeof(data));
+
+  unwind_plan.SetSourceName("unit testing hand-created unwind plan");
+  unwind_plan.SetPlanValidAddressRange(sample_range);
+  unwind_plan.SetRegisterKind(eRegisterKindLLDB);
+
+  row_sp = std::make_shared<UnwindPlan::Row>();
+
+  // Describe offset 0
+  row_sp->SetOffset(0);
+  row_sp->GetCFAValue().SetIsRegisterPlusOffset(k_rsp, 8);
+
+  regloc.SetAtCFAPlusOffset(-8);
+  row_sp->SetRegisterInfo(k_rip, regloc);
+
+  unwind_plan.AppendRow(row_sp);
+
+  // Allocate a new Row, populate it with the existing Row contents.
+  UnwindPlan::Row *new_row = new UnwindPlan::Row;
+  *new_row = *row_sp.get();
+  row_sp.reset(new_row);
+
+  // Describe offset 1
+  row_sp->SetOffset(1);
+  row_sp->GetCFAValue().SetIsRegisterPlusOffset(k_rsp, 16);
+  regloc.SetAtCFAPlusOffset(-16);
+  row_sp->SetRegisterInfo(k_rbp, regloc);
+  unwind_plan.AppendRow(row_sp);
+
+  // Allocate a new Row, populate it with the existing Row contents.
+  new_row = new UnwindPlan::Row;
+  *new_row = *row_sp.get();
+  row_sp.reset(new_row);
+
+  // Describe offset 4
+  row_sp->SetOffset(4);
+  row_sp->GetCFAValue().SetIsRegisterPlusOffset(k_rsp, 16);
+  unwind_plan.AppendRow(row_sp);
+
+  RegisterContextSP reg_ctx_sp;
+  EXPECT_TRUE(engine64->AugmentUnwindPlanFromCallSite(
+      data, sizeof(data), sample_range, unwind_plan, reg_ctx_sp));
+
+  // Before we touch the stack pointer, we should still refer to the
+  // row from after the prologue.
+  row_sp = unwind_plan.GetRowForFunctionOffset(5);
+  EXPECT_EQ(4ull, row_sp->GetOffset());
+
+  // Check the first stack pointer update.
+  row_sp = unwind_plan.GetRowForFunctionOffset(12);
+  EXPECT_EQ(12ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_rsp);
+  EXPECT_EQ(152, row_sp->GetCFAValue().GetOffset());
+
+  // After the nop, we should still refer to the same row.
+  row_sp = unwind_plan.GetRowForFunctionOffset(13);
+  EXPECT_EQ(12ull, row_sp->GetOffset());
+
+  // Check that the second stack pointer update is reflected in the
+  // unwind plan.
+  row_sp = unwind_plan.GetRowForFunctionOffset(20);
+  EXPECT_EQ(20ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_rsp);
+  EXPECT_EQ(16, row_sp->GetCFAValue().GetOffset());
+}
+
 TEST_F(Testx86AssemblyInspectionEngine, TestSimplex86_64Augmented) {
   UnwindPlan::Row::RegisterLocation regloc;
   UnwindPlan::RowSP row_sp;
@@ -2722,4 +2812,126 @@ TEST_F(Testx86AssemblyInspectionEngine, TestReturnDetect) {
   EXPECT_TRUE(row_sp->GetRegisterInfo(k_rip, regloc));
   EXPECT_TRUE(regloc.IsAtCFAPlusOffset());
   EXPECT_EQ(-8, regloc.GetOffset());
+}
+
+
+// Test mid-function epilogues - the unwind state post-prologue
+// should be re-instated.
+
+TEST_F(Testx86AssemblyInspectionEngine, TestDisassemblyMidFunctionEpilogues) {
+  AddressRange sample_range;
+  UnwindPlan unwind_plan(eRegisterKindLLDB);
+  std::unique_ptr<x86AssemblyInspectionEngine> engine32 = Geti386Inspector();
+  std::unique_ptr<x86AssemblyInspectionEngine> engine64 = Getx86_64Inspector();
+
+  uint8_t data[] = {
+    0x55,                   // <+0>: pushq %rbp
+    0x48, 0x89, 0xe5,       // <+1>: movq %rsp, %rbp
+    0x48, 0x83, 0xec, 0x70, // <+4>: subq $0x70, %rsp
+    0x90,                   // <+8>: nop               // prologue set up
+
+    0x74, 0x7,              // <+9>: je 7 <+18>
+    0x48, 0x83, 0xc4, 0x70, // <+11>: addq $0x70, %rsp
+    0x5d,                   // <+15>: popq %rbp
+    0xff, 0xe0,             // <+16>: jmpq *%rax      // epilogue completed
+
+    0x90,                   // <+18>: nop             // prologue setup back
+
+    0x74, 0x7,              // <+19>: je 6 <+27>
+    0x48, 0x83, 0xc4, 0x70, // <+21>: addq $0x70, %rsp
+    0x5d,                   // <+25>: popq %rbp
+    0xc3,                   // <+26>: retq            // epilogue completed
+
+    0x90,                   // <+27>: nop             // prologue setup back
+
+    0x48, 0x83, 0xc4, 0x70, // <+28>: addq $0x70, %rsp
+    0x5d,                   // <+32>: popq %rbp
+    0xc3,                   // <+33>: retq            // epilogue completed
+
+  };
+
+  sample_range = AddressRange(0x1000, sizeof(data));
+
+  int wordsize = 4;
+  EXPECT_TRUE(engine32->GetNonCallSiteUnwindPlanFromAssembly(
+      data, sizeof(data), sample_range, unwind_plan));
+
+  // Check that we've unwound the stack after the first mid-function epilogue
+  // row:   CFA=esp +4 => esp=CFA+0 eip=[CFA-4]
+  UnwindPlan::RowSP row_sp = unwind_plan.GetRowForFunctionOffset(16);
+  EXPECT_EQ(16ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_esp);
+  EXPECT_TRUE(row_sp->GetCFAValue().IsRegisterPlusOffset() == true);
+  EXPECT_EQ(wordsize, row_sp->GetCFAValue().GetOffset());
+
+  // Check that we've reinstated the stack frame setup 
+  // unwind instructions after a jmpq *%eax
+  // row:   CFA=ebp +8 => esp=CFA+0 eip=[CFA-8]
+  row_sp = unwind_plan.GetRowForFunctionOffset(18);
+  EXPECT_EQ(18ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_ebp);
+  EXPECT_TRUE(row_sp->GetCFAValue().IsRegisterPlusOffset() == true);
+  EXPECT_EQ(wordsize * 2, row_sp->GetCFAValue().GetOffset());
+
+  // Check that we've reinstated the stack frame setup 
+  // unwind instructions after a mid-function retq
+  // row:   CFA=ebp +8 => esp=CFA+0 eip=[CFA-8]
+  row_sp = unwind_plan.GetRowForFunctionOffset(27);
+  EXPECT_EQ(27ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_ebp);
+  EXPECT_TRUE(row_sp->GetCFAValue().IsRegisterPlusOffset() == true);
+  EXPECT_EQ(wordsize * 2, row_sp->GetCFAValue().GetOffset());
+
+  // After last instruction in the function, verify that
+  // the stack frame has been unwound
+  // row:   CFA=esp +4 => esp=CFA+0 eip=[CFA-4]
+  row_sp = unwind_plan.GetRowForFunctionOffset(33);
+  EXPECT_EQ(33ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_esp);
+  EXPECT_TRUE(row_sp->GetCFAValue().IsRegisterPlusOffset() == true);
+  EXPECT_EQ(wordsize, row_sp->GetCFAValue().GetOffset());
+
+
+  unwind_plan.Clear();
+
+  wordsize = 8;
+  EXPECT_TRUE(engine64->GetNonCallSiteUnwindPlanFromAssembly(
+      data, sizeof(data), sample_range, unwind_plan));
+
+  // Check that we've unwound the stack after the first mid-function epilogue
+  // row:   CFA=rsp +8 => rsp=CFA+0 rip=[CFA-8]
+  row_sp = unwind_plan.GetRowForFunctionOffset(16);
+  EXPECT_EQ(16ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_rsp);
+  EXPECT_TRUE(row_sp->GetCFAValue().IsRegisterPlusOffset() == true);
+  EXPECT_EQ(wordsize, row_sp->GetCFAValue().GetOffset());
+
+  // Check that we've reinstated the stack frame setup 
+  // unwind instructions after a jmpq *%eax
+  // row:   CFA=rbp+16 => rsp=CFA+0 rip=[CFA-16]
+  row_sp = unwind_plan.GetRowForFunctionOffset(18);
+  EXPECT_EQ(18ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_rbp);
+  EXPECT_TRUE(row_sp->GetCFAValue().IsRegisterPlusOffset() == true);
+  EXPECT_EQ(wordsize * 2, row_sp->GetCFAValue().GetOffset());
+
+  // Check that we've reinstated the stack frame setup 
+  // unwind instructions after a mid-function retq
+  // row:   CFA=rbp+16 => rsp=CFA+0 rip=[CFA-16]
+  row_sp = unwind_plan.GetRowForFunctionOffset(27);
+  EXPECT_EQ(27ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_rbp);
+  EXPECT_TRUE(row_sp->GetCFAValue().IsRegisterPlusOffset() == true);
+  EXPECT_EQ(wordsize * 2, row_sp->GetCFAValue().GetOffset());
+
+  // After last instruction in the function, verify that
+  // the stack frame has been unwound
+  // row:   CFA=rsp +8 => esp=CFA+0 rip=[CFA-8]
+  row_sp = unwind_plan.GetRowForFunctionOffset(33);
+  EXPECT_EQ(33ull, row_sp->GetOffset());
+  EXPECT_TRUE(row_sp->GetCFAValue().GetRegisterNumber() == k_rsp);
+  EXPECT_TRUE(row_sp->GetCFAValue().IsRegisterPlusOffset() == true);
+  EXPECT_EQ(wordsize, row_sp->GetCFAValue().GetOffset());
+
+
 }

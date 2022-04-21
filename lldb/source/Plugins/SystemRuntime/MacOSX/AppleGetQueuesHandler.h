@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_AppleGetQueuesHandler_h_
-#define lldb_AppleGetQueuesHandler_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYSTEMRUNTIME_MACOSX_APPLEGETQUEUESHANDLER_H
+#define LLDB_SOURCE_PLUGINS_SYSTEMRUNTIME_MACOSX_APPLEGETQUEUESHANDLER_H
 
 #include <map>
 #include <mutex>
@@ -45,15 +45,14 @@ public:
   ~AppleGetQueuesHandler();
 
   struct GetQueuesReturnInfo {
-    lldb::addr_t queues_buffer_ptr;  /* the address of the queues buffer from
+    lldb::addr_t queues_buffer_ptr =
+        LLDB_INVALID_ADDRESS; /* the address of the queues buffer from
+          libBacktraceRecording */
+    lldb::addr_t queues_buffer_size = 0; /* the size of the queues buffer from
                                         libBacktraceRecording */
-    lldb::addr_t queues_buffer_size; /* the size of the queues buffer from
-                                        libBacktraceRecording */
-    uint64_t count; /* the number of queues included in the queues buffer */
+    uint64_t count = 0; /* the number of queues included in the queues buffer */
 
-    GetQueuesReturnInfo()
-        : queues_buffer_ptr(LLDB_INVALID_ADDRESS), queues_buffer_size(0),
-          count(0) {}
+    GetQueuesReturnInfo() = default;
   };
 
   /// Get the list of queues that exist (with any active or pending items) via
@@ -106,4 +105,4 @@ private:
 
 } // using namespace lldb_private
 
-#endif // lldb_AppleGetQueuesHandler_h_
+#endif // LLDB_SOURCE_PLUGINS_SYSTEMRUNTIME_MACOSX_APPLEGETQUEUESHANDLER_H

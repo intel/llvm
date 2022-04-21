@@ -2,6 +2,7 @@
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-x87 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-X87 %s
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -m80387 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=X87 %s
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-80387 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-X87 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-fp-ret-in-387 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-X87 %s
 // X87: "-target-feature" "+x87"
 // NO-X87: "-target-feature" "-x87"
 
@@ -72,8 +73,8 @@
 
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mmpx %s -### -o %t.o 2>&1 | FileCheck -check-prefix=MPX %s
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-mpx %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-MPX %s
-// MPX: "-target-feature" "+mpx"
-// NO-MPX: "-target-feature" "-mpx"
+// MPX: the flag '-mmpx' has been deprecated and will be ignored
+// NO-MPX: the flag '-mno-mpx' has been deprecated and will be ignored
 
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mshstk %s -### -o %t.o 2>&1 | FileCheck -check-prefix=CETSS %s
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-shstk %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-CETSS %s
@@ -125,6 +126,11 @@
 // VBMI2: "-target-feature" "+avx512vbmi2"
 // NO-VBMI2: "-target-feature" "-avx512vbmi2"
 
+// RUN: %clang -target i386-linux-gnu -mavx512vp2intersect %s -### -o %t.o 2>&1 | FileCheck -check-prefix=VP2INTERSECT %s
+// RUN: %clang -target i386-linux-gnu -mno-avx512vp2intersect %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-VP2INTERSECT %s
+// VP2INTERSECT: "-target-feature" "+avx512vp2intersect"
+// NO-VP2INTERSECT: "-target-feature" "-avx512vp2intersect"
+
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mrdpid %s -### -o %t.o 2>&1 | FileCheck -check-prefix=RDPID %s
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-rdpid %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-RDPID %s
 // RDPID: "-target-feature" "+rdpid"
@@ -148,6 +154,51 @@
 // SLH-NOT: retpoline
 // SLH: "-mspeculative-load-hardening"
 // NO-SLH-NOT: retpoline
+
+// RUN: %clang -target i386-linux-gnu -mlvi-cfi %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVICFI %s
+// RUN: %clang -target i386-linux-gnu -mno-lvi-cfi %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-LVICFI %s
+// LVICFI: "-target-feature" "+lvi-cfi"
+// NO-LVICFI-NOT: lvi-cfi
+
+// RUN: %clang -target i386-linux-gnu -mlvi-cfi -mspeculative-load-hardening %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVICFI-SLH %s
+// LVICFI-SLH: error: invalid argument 'mspeculative-load-hardening' not allowed with 'mlvi-cfi'
+// RUN: %clang -target i386-linux-gnu -mlvi-cfi -mretpoline %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVICFI-RETPOLINE %s
+// LVICFI-RETPOLINE: error: invalid argument 'mretpoline' not allowed with 'mlvi-cfi'
+// RUN: %clang -target i386-linux-gnu -mlvi-cfi -mretpoline-external-thunk %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVICFI-RETPOLINE-EXTERNAL-THUNK %s
+// LVICFI-RETPOLINE-EXTERNAL-THUNK: error: invalid argument 'mretpoline-external-thunk' not allowed with 'mlvi-cfi'
+
+// RUN: %clang -target i386-linux-gnu -mlvi-hardening %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVIHARDENING %s
+// RUN: %clang -target i386-linux-gnu -mno-lvi-hardening %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-LVIHARDENING %s
+// LVIHARDENING: "-target-feature" "+lvi-load-hardening" "-target-feature" "+lvi-cfi"
+// NO-LVIHARDENING-NOT: lvi
+
+// RUN: %clang -target i386-linux-gnu -mlvi-hardening -mspeculative-load-hardening %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVIHARDENING-SLH %s
+// LVIHARDENING-SLH: error: invalid argument 'mspeculative-load-hardening' not allowed with 'mlvi-hardening'
+// RUN: %clang -target i386-linux-gnu -mlvi-hardening -mretpoline %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVIHARDENING-RETPOLINE %s
+// LVIHARDENING-RETPOLINE: error: invalid argument 'mretpoline' not allowed with 'mlvi-hardening'
+// RUN: %clang -target i386-linux-gnu -mlvi-hardening -mretpoline-external-thunk %s -### -o %t.o 2>&1 | FileCheck -check-prefix=LVIHARDENING-RETPOLINE-EXTERNAL-THUNK %s
+// LVIHARDENING-RETPOLINE-EXTERNAL-THUNK: error: invalid argument 'mretpoline-external-thunk' not allowed with 'mlvi-hardening'
+
+// RUN: %clang -target i386-linux-gnu -mseses %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES %s
+// RUN: %clang -target i386-linux-gnu -mno-seses %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-SESES %s
+// SESES: "-target-feature" "+seses"
+// SESES: "-target-feature" "+lvi-cfi"
+// NO-SESES-NOT: seses
+// NO-SESES-NOT: lvi-cfi
+
+// RUN: %clang -target i386-linux-gnu -mseses -mno-lvi-cfi %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-NOLVICFI %s
+// SESES-NOLVICFI: "-target-feature" "+seses"
+// SESES-NOLVICFI-NOT: lvi-cfi
+
+// RUN: %clang -target i386-linux-gnu -mseses -mspeculative-load-hardening %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-SLH %s
+// SESES-SLH: error: invalid argument 'mspeculative-load-hardening' not allowed with 'mseses'
+// RUN: %clang -target i386-linux-gnu -mseses -mretpoline %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-RETPOLINE %s
+// SESES-RETPOLINE: error: invalid argument 'mretpoline' not allowed with 'mseses'
+// RUN: %clang -target i386-linux-gnu -mseses -mretpoline-external-thunk %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-RETPOLINE-EXTERNAL-THUNK %s
+// SESES-RETPOLINE-EXTERNAL-THUNK: error: invalid argument 'mretpoline-external-thunk' not allowed with 'mseses'
+
+// RUN: %clang -target i386-linux-gnu -mseses -mlvi-hardening %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SESES-LVIHARDENING %s
+// SESES-LVIHARDENING: error: invalid argument 'mlvi-hardening' not allowed with 'mseses'
 
 // RUN: %clang -target i386-linux-gnu -mwaitpkg %s -### -o %t.o 2>&1 | FileCheck -check-prefix=WAITPKG %s
 // RUN: %clang -target i386-linux-gnu -mno-waitpkg %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-WAITPKG %s
@@ -183,3 +234,73 @@
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-avx512bf16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AVX512BF16 %s
 // AVX512BF16: "-target-feature" "+avx512bf16"
 // NO-AVX512BF16: "-target-feature" "-avx512bf16"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -menqcmd %s -### -o %t.o 2>&1 | FileCheck --check-prefix=ENQCMD %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-enqcmd %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-ENQCMD %s
+// ENQCMD: "-target-feature" "+enqcmd"
+// NO-ENQCMD: "-target-feature" "-enqcmd"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mvzeroupper %s -### -o %t.o 2>&1 | FileCheck --check-prefix=VZEROUPPER %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-vzeroupper %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-VZEROUPPER %s
+// VZEROUPPER: "-target-feature" "+vzeroupper"
+// NO-VZEROUPPER: "-target-feature" "-vzeroupper"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mserialize %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SERIALIZE %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-serialize %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-SERIALIZE %s
+// SERIALIZE: "-target-feature" "+serialize"
+// NO-SERIALIZE: "-target-feature" "-serialize"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mtsxldtrk %s -### -o %t.o 2>&1 | FileCheck --check-prefix=TSXLDTRK %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-tsxldtrk %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-TSXLDTRK %s
+// TSXLDTRK: "-target-feature" "+tsxldtrk"
+// NO-TSXLDTRK: "-target-feature" "-tsxldtrk"
+
+// RUN: %clang -target i386-linux-gnu -mkl %s -### -o %t.o 2>&1 | FileCheck -check-prefix=KL %s
+// RUN: %clang -target i386-linux-gnu -mno-kl %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-KL %s
+// KL: "-target-feature" "+kl"
+// NO-KL: "-target-feature" "-kl"
+
+// RUN: %clang -target i386-linux-gnu -mwidekl %s -### -o %t.o 2>&1 | FileCheck -check-prefix=WIDE_KL %s
+// RUN: %clang -target i386-linux-gnu -mno-widekl %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-WIDE_KL %s
+// WIDE_KL: "-target-feature" "+widekl"
+// NO-WIDE_KL: "-target-feature" "-widekl"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mamx-tile %s -### -o %t.o 2>&1 | FileCheck --check-prefix=AMX-TILE %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-amx-tile %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-AMX-TILE %s
+// AMX-TILE: "-target-feature" "+amx-tile"
+// NO-AMX-TILE: "-target-feature" "-amx-tile"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mamx-bf16 %s -### -o %t.o 2>&1 | FileCheck --check-prefix=AMX-BF16 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-amx-bf16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AMX-BF16 %s
+// AMX-BF16: "-target-feature" "+amx-bf16"
+// NO-AMX-BF16: "-target-feature" "-amx-bf16"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mamx-int8 %s -### -o %t.o 2>&1 | FileCheck --check-prefix=AMX-INT8 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-amx-int8 %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-AMX-INT8 %s
+// AMX-INT8: "-target-feature" "+amx-int8"
+// NO-AMX-INT8: "-target-feature" "-amx-int8"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mhreset %s -### -o %t.o 2>&1 | FileCheck -check-prefix=HRESET %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-hreset %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-HRESET %s
+// HRESET: "-target-feature" "+hreset"
+// NO-HRESET: "-target-feature" "-hreset"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -muintr %s -### -o %t.o 2>&1 | FileCheck -check-prefix=UINTR %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-uintr %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-UINTR %s
+// UINTR: "-target-feature" "+uintr"
+// NO-UINTR: "-target-feature" "-uintr"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mavxvnni %s -### -o %t.o 2>&1 | FileCheck --check-prefix=AVX-VNNI %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-avxvnni %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-AVX-VNNI %s
+// AVX-VNNI: "-target-feature" "+avxvnni"
+// NO-AVX-VNNI: "-target-feature" "-avxvnni"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mavx512fp16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=AVX512FP16 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-avx512fp16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AVX512FP16 %s
+// AVX512FP16: "-target-feature" "+avx512fp16"
+// NO-AVX512FP16: "-target-feature" "-avx512fp16"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mcrc32 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=CRC32 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-crc32 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-CRC32 %s
+// CRC32: "-target-feature" "+crc32"
+// NO-CRC32: "-target-feature" "-crc32"

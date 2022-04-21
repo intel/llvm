@@ -1,4 +1,4 @@
-; RUN: opt -instcombine -S < %s | FileCheck %s
+; RUN: opt -passes=instcombine -S < %s | FileCheck %s
 
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
 target triple = "i686-unknown-linux-gnu"
@@ -47,6 +47,6 @@ ret:                                              ; preds = %sinktarget, %nonent
 ; CHECK:   %p = call i32* @use_and_return(i32* nonnull %argmem)
 ; CHECK:   store i32 13, i32* %p
 ; CHECK:   call void @llvm.stackrestore(i8* %sp)
-; CHECK:   %0 = call i32* @use_and_return(i32* %p)
+; CHECK:   %0 = call i32* @use_and_return(i32* nonnull %p)
 
 attributes #0 = { nounwind }

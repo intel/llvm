@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year;
@@ -39,8 +39,8 @@ int main(int, char**)
 
     for (int i = 0; i <= 2550; i += 7)
     {
-        year year(i);
-        assert(static_cast<int>(year) == i);
+        year yr(i);
+        assert(static_cast<int>(yr) == i);
     }
 
   return 0;

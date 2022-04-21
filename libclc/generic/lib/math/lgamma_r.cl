@@ -23,8 +23,8 @@
 
 #include <clc/clc.h>
 
-#include "../clcmacro.h"
 #include "math.h"
+#include <clcmacro.h>
 
 /*
  * ====================================================

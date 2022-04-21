@@ -136,4 +136,42 @@ TEST(ManglerTest, WindowsX64) {
             "?vectorcall");
 }
 
+TEST(ManglerTest, XCOFF) {
+  LLVMContext Ctx;
+  DataLayout DL("m:a"); // XCOFF/AIX
+  Module Mod("test", Ctx);
+  Mod.setDataLayout(DL);
+  Mangler Mang;
+  EXPECT_EQ(mangleStr("foo", Mang, DL), "foo");
+  EXPECT_EQ(mangleStr("\01foo", Mang, DL), "foo");
+  EXPECT_EQ(mangleStr("?foo", Mang, DL), "?foo");
+  EXPECT_EQ(mangleFunc("foo", llvm::GlobalValue::ExternalLinkage,
+                       llvm::CallingConv::C, Mod, Mang),
+            "foo");
+  EXPECT_EQ(mangleFunc("?foo", llvm::GlobalValue::ExternalLinkage,
+                       llvm::CallingConv::C, Mod, Mang),
+            "?foo");
+  EXPECT_EQ(mangleFunc("foo", llvm::GlobalValue::PrivateLinkage,
+                       llvm::CallingConv::C, Mod, Mang),
+            "L..foo");
+}
+
+TEST(ManglerTest, GOFF) {
+  LLVMContext Ctx;
+  DataLayout DL("m:l"); // GOFF
+  Module Mod("test", Ctx);
+  Mod.setDataLayout(DL);
+  Mangler Mang;
+
+  EXPECT_EQ(mangleStr("foo", Mang, DL), "foo");
+  EXPECT_EQ(mangleStr("\01foo", Mang, DL), "foo");
+  EXPECT_EQ(mangleStr("?foo", Mang, DL), "?foo");
+  EXPECT_EQ(mangleFunc("foo", llvm::GlobalValue::ExternalLinkage,
+                       llvm::CallingConv::C, Mod, Mang),
+            "foo");
+  EXPECT_EQ(mangleFunc("foo", llvm::GlobalValue::PrivateLinkage,
+                       llvm::CallingConv::C, Mod, Mang),
+            "@foo");
+}
+
 } // end anonymous namespace

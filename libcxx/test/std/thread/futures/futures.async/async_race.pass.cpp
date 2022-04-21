@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <future>
 
@@ -20,13 +20,15 @@
 //     async(launch policy, F&& f, Args&&... args);
 
 // This test is designed to cause and allow TSAN to detect the race condition
-// reported in PR23293: https://bugs.llvm.org/show_bug.cgi?id=23293
+// reported in PR23293: https://llvm.org/PR23293
 
 #include <future>
 #include <chrono>
 #include <thread>
 #include <memory>
 #include <cassert>
+
+#include "test_macros.h"
 
 int f_async() {
     typedef std::chrono::milliseconds ms;

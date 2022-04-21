@@ -1,11 +1,17 @@
 // RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only
 // RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -DCHECK_SAMPLER_VALUE -Wspir-compat -triple amdgcn--amdhsa
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -DCHECK_SAMPLER_VALUE -triple spir-unknown-unknown
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -DCHECK_SAMPLER_VALUE -Wspir-compat -triple spir-unknown-unknown
+// RUN: %clang_cc1 %s -cl-std=CL2.0 -verify -pedantic -fsyntax-only
+// RUN: %clang_cc1 %s -cl-std=CL2.0 -verify -pedantic -fsyntax-only -DCHECK_SAMPLER_VALUE -Wspir-compat -triple amdgcn--amdhsa
+// RUN: %clang_cc1 %s -cl-std=CL2.0 -verify -pedantic -fsyntax-only -DCHECK_SAMPLER_VALUE -Wspir-compat -triple spir-unknown-unknown
 
 #define CLK_ADDRESS_CLAMP_TO_EDGE       2
 #define CLK_NORMALIZED_COORDS_TRUE      1
 #define CLK_FILTER_NEAREST              0x10
 #define CLK_FILTER_LINEAR               0x20
+
+typedef float float4 __attribute__((ext_vector_type(4)));
+float4 read_imagef(read_only image1d_t, sampler_t, float);
 
 constant sampler_t glb_smp = CLK_ADDRESS_CLAMP_TO_EDGE | CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR;
 constant sampler_t glb_smp2; // expected-error{{variable in constant address space must be initialized}}
@@ -55,9 +61,13 @@ void kernel ker(sampler_t argsmp) {
   sampler_t sa[] = {argsmp, glb_smp}; // expected-error {{array of 'sampler_t' type is invalid in OpenCL}}
 }
 
+#if __OPENCL_C_VERSION__ == 200
+void bad(sampler_t *); // expected-error{{pointer to type 'sampler_t' is invalid in OpenCL}}
+#else
 void bad(sampler_t*); // expected-error{{pointer to type 'sampler_t' is invalid in OpenCL}}
+#endif
 
-void bar() {
+void bar(void) {
   sampler_t smp1 = CLK_ADDRESS_CLAMP_TO_EDGE | CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR;
   sampler_t smp2 = CLK_ADDRESS_CLAMP_TO_EDGE | CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEAREST;
   smp1=smp2; //expected-error{{invalid operands to binary expression ('sampler_t' and 'sampler_t')}}
@@ -67,3 +77,7 @@ void bar() {
   foo(smp1+1); //expected-error{{invalid operands to binary expression ('sampler_t' and 'int')}}
 }
 
+void smp_args(read_only image1d_t image) {
+  // Test that parentheses around sampler arguments are ignored.
+  float4 res = read_imagef(image, (glb_smp10), 0.0f);
+}

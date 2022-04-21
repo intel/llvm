@@ -10,10 +10,7 @@
 #define LLVM_DEBUGINFO_CODEVIEW_CVSYMBOLVISITOR_H
 
 #include "llvm/DebugInfo/CodeView/CVRecord.h"
-#include "llvm/DebugInfo/CodeView/CodeView.h"
-#include "llvm/DebugInfo/CodeView/SymbolRecord.h"
-#include "llvm/DebugInfo/CodeView/SymbolVisitorDelegate.h"
-#include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/Error.h"
 
 namespace llvm {
 namespace codeview {

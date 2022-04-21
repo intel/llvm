@@ -439,3 +439,36 @@ namespace ClassScopeExplicitSpecializations {
   template<> template<> constexpr int B<0>::w<int> = 7;
   template<> template<> constexpr int B<0>::w<float> = 8;
 }
+
+namespace DependentMemberExpr {
+  struct Base {
+    constexpr int setstate() { return 0; }
+  };
+  template<typename T> struct A : Base {
+    constexpr int f() { return Base::setstate(); }
+  };
+}
+
+namespace DependentTemplateName {
+  template <template <class> class Template>
+  struct TakesClassTemplate {};
+
+  template <class T>
+  TakesClassTemplate<T::template Member> getWithIdentifier();
+}
+
+namespace ClassTemplateCycle {
+  // Create a cycle: the typedef T refers to A<0, 8>, whose template argument
+  // list refers back to T.
+  template<int, int> struct A;
+  using T = A<0, sizeof(void*)>;
+  template<int N> struct A<N, sizeof(T*)> {};
+  T t;
+
+  // Create a cycle: the variable M refers to A<1, 1>, whose template argument
+  // list list refers back to M.
+  template<int, int> struct A;
+  const decltype(sizeof(A<1, 1>*)) M = 1;
+  template<int N> struct A<N, M> {};
+  A<1, 1> u;
+}

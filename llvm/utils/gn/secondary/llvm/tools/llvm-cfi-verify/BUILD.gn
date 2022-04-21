@@ -11,7 +11,5 @@ executable("llvm-cfi-verify") {
     "//llvm/lib/Target:AllTargetsDisassemblers",
     "//llvm/lib/Target:AllTargetsInfos",
   ]
-  sources = [
-    "llvm-cfi-verify.cpp",
-  ]
+  sources = [ "llvm-cfi-verify.cpp" ]
 }

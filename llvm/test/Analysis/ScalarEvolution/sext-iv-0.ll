@@ -1,4 +1,4 @@
-; RUN: opt < %s -scalar-evolution -analyze | FileCheck %s
+; RUN: opt < %s "-passes=print<scalar-evolution>" -disable-output 2>&1 | FileCheck %s
 
 ; Convert (sext {-128,+,1}) to {sext(-128),+,sext(1)}, since the
 ; trip count is within range where this is safe.

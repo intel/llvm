@@ -6,7 +6,5 @@ executable("llvm-opt-report") {
     "//llvm/lib/Remarks",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "OptReport.cpp",
-  ]
+  sources = [ "OptReport.cpp" ]
 }

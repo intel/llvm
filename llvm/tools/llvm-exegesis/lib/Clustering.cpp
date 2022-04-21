@@ -7,10 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "Clustering.h"
+#include "Error.h"
+#include "SchedClassResolution.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include <algorithm>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -59,7 +63,7 @@ bool InstructionBenchmarkClustering::areAllNeighbours(
     ArrayRef<size_t> Pts) const {
   // First, get the centroid of this group of points. This is O(N).
   SchedClassClusterCentroid G;
-  llvm::for_each(Pts, [this, &G](size_t P) {
+  for_each(Pts, [this, &G](size_t P) {
     assert(P < Points_.size());
     ArrayRef<BenchmarkMeasure> Measurements = Points_[P].Measurements;
     if (Measurements.empty()) // Error point.
@@ -73,7 +77,7 @@ bool InstructionBenchmarkClustering::areAllNeighbours(
       AnalysisClusteringEpsilonSquared_ / 4.0;
 
   // And now check that every point is a neighbour of the centroid. Also O(N).
-  return llvm::all_of(
+  return all_of(
       Pts, [this, &Centroid, AnalysisClusteringEpsilonHalvedSquared](size_t P) {
         assert(P < Points_.size());
         const auto &PMeasurements = Points_[P].Measurements;
@@ -91,7 +95,7 @@ InstructionBenchmarkClustering::InstructionBenchmarkClustering(
       AnalysisClusteringEpsilonSquared_(AnalysisClusteringEpsilonSquared),
       NoiseCluster_(ClusterId::noise()), ErrorCluster_(ClusterId::error()) {}
 
-llvm::Error InstructionBenchmarkClustering::validateAndSetup() {
+Error InstructionBenchmarkClustering::validateAndSetup() {
   ClusterIdForPoint_.resize(Points_.size());
   // Mark erroneous measurements out.
   // All points must have the same number of dimensions, in the same order.
@@ -106,15 +110,13 @@ llvm::Error InstructionBenchmarkClustering::validateAndSetup() {
     const auto *CurMeasurement = &Point.Measurements;
     if (LastMeasurement) {
       if (LastMeasurement->size() != CurMeasurement->size()) {
-        return llvm::make_error<llvm::StringError>(
-            "inconsistent measurement dimensions",
-            llvm::inconvertibleErrorCode());
+        return make_error<ClusteringError>(
+            "inconsistent measurement dimensions");
       }
       for (size_t I = 0, E = LastMeasurement->size(); I < E; ++I) {
         if (LastMeasurement->at(I).Key != CurMeasurement->at(I).Key) {
-          return llvm::make_error<llvm::StringError>(
-              "inconsistent measurement dimensions keys",
-              llvm::inconvertibleErrorCode());
+          return make_error<ClusteringError>(
+              "inconsistent measurement dimensions keys");
         }
       }
     }
@@ -123,7 +125,7 @@ llvm::Error InstructionBenchmarkClustering::validateAndSetup() {
   if (LastMeasurement) {
     NumDimensions_ = LastMeasurement->size();
   }
-  return llvm::Error::success();
+  return Error::success();
 }
 
 void InstructionBenchmarkClustering::clusterizeDbScan(const size_t MinPts) {
@@ -146,7 +148,7 @@ void InstructionBenchmarkClustering::clusterizeDbScan(const size_t MinPts) {
     CurrentCluster.PointIndices.push_back(P);
 
     // Process P's neighbors.
-    llvm::SetVector<size_t, std::deque<size_t>> ToProcess;
+    SetVector<size_t, std::deque<size_t>> ToProcess;
     ToProcess.insert(Neighbors.begin(), Neighbors.end());
     while (!ToProcess.empty()) {
       // Retrieve a point from the set.
@@ -183,46 +185,58 @@ void InstructionBenchmarkClustering::clusterizeDbScan(const size_t MinPts) {
   }
 }
 
-void InstructionBenchmarkClustering::clusterizeNaive(unsigned NumOpcodes) {
-  // Given an instruction Opcode, which are the benchmarks of this instruction?
-  std::vector<llvm::SmallVector<size_t, 1>> OpcodeToPoints;
-  OpcodeToPoints.resize(NumOpcodes);
-  size_t NumOpcodesSeen = 0;
+void InstructionBenchmarkClustering::clusterizeNaive(
+    const MCSubtargetInfo &SubtargetInfo, const MCInstrInfo &InstrInfo) {
+  // Given an instruction Opcode, which sched class id's are represented,
+  // and which are the benchmarks for each sched class?
+  std::vector<SmallMapVector<unsigned, SmallVector<size_t, 1>, 1>>
+      OpcodeToSchedClassesToPoints;
+  const unsigned NumOpcodes = InstrInfo.getNumOpcodes();
+  OpcodeToSchedClassesToPoints.resize(NumOpcodes);
+  size_t NumClusters = 0;
   for (size_t P = 0, NumPoints = Points_.size(); P < NumPoints; ++P) {
     const InstructionBenchmark &Point = Points_[P];
-    const unsigned Opcode = Point.keyInstruction().getOpcode();
+    const MCInst &MCI = Point.keyInstruction();
+    unsigned SchedClassId;
+    std::tie(SchedClassId, std::ignore) =
+        ResolvedSchedClass::resolveSchedClassId(SubtargetInfo, InstrInfo, MCI);
+    const unsigned Opcode = MCI.getOpcode();
     assert(Opcode < NumOpcodes && "NumOpcodes is incorrect (too small)");
-    llvm::SmallVectorImpl<size_t> &PointsOfOpcode = OpcodeToPoints[Opcode];
-    if (PointsOfOpcode.empty()) // If we previously have not seen any points of
-      ++NumOpcodesSeen; // this opcode, then naturally this is the new opcode.
-    PointsOfOpcode.emplace_back(P);
+    auto &Points = OpcodeToSchedClassesToPoints[Opcode][SchedClassId];
+    if (Points.empty()) // If we previously have not seen any points of
+      ++NumClusters;    // this opcode's sched class, then new cluster begins.
+    Points.emplace_back(P);
   }
-  assert(OpcodeToPoints.size() == NumOpcodes && "sanity check");
-  assert(NumOpcodesSeen <= NumOpcodes &&
+  assert(NumClusters <= NumOpcodes &&
          "can't see more opcodes than there are total opcodes");
-  assert(NumOpcodesSeen <= Points_.size() &&
+  assert(NumClusters <= Points_.size() &&
          "can't see more opcodes than there are total points");
 
-  Clusters_.reserve(NumOpcodesSeen); // One cluster per opcode.
-  for (ArrayRef<size_t> PointsOfOpcode : llvm::make_filter_range(
-           OpcodeToPoints, [](ArrayRef<size_t> PointsOfOpcode) {
-             return !PointsOfOpcode.empty(); // Ignore opcodes with no points.
-           })) {
-    // Create a new cluster.
-    Clusters_.emplace_back(ClusterId::makeValid(
-        Clusters_.size(), /*IsUnstable=*/!areAllNeighbours(PointsOfOpcode)));
-    Cluster &CurrentCluster = Clusters_.back();
-    // Mark points as belonging to the new cluster.
-    llvm::for_each(PointsOfOpcode, [this, &CurrentCluster](size_t P) {
-      ClusterIdForPoint_[P] = CurrentCluster.Id;
-    });
-    // And add all the points of this opcode to the new cluster.
-    CurrentCluster.PointIndices.reserve(PointsOfOpcode.size());
-    CurrentCluster.PointIndices.assign(PointsOfOpcode.begin(),
-                                       PointsOfOpcode.end());
-    assert(CurrentCluster.PointIndices.size() == PointsOfOpcode.size());
+  Clusters_.reserve(NumClusters); // We already know how many clusters there is.
+  for (const auto &SchedClassesOfOpcode : OpcodeToSchedClassesToPoints) {
+    if (SchedClassesOfOpcode.empty())
+      continue;
+    for (ArrayRef<size_t> PointsOfSchedClass :
+         make_second_range(SchedClassesOfOpcode)) {
+      if (PointsOfSchedClass.empty())
+        continue;
+      // Create a new cluster.
+      Clusters_.emplace_back(ClusterId::makeValid(
+          Clusters_.size(),
+          /*IsUnstable=*/!areAllNeighbours(PointsOfSchedClass)));
+      Cluster &CurrentCluster = Clusters_.back();
+      // Mark points as belonging to the new cluster.
+      for_each(PointsOfSchedClass, [this, &CurrentCluster](size_t P) {
+        ClusterIdForPoint_[P] = CurrentCluster.Id;
+      });
+      // And add all the points of this opcode's sched class to the new cluster.
+      CurrentCluster.PointIndices.reserve(PointsOfSchedClass.size());
+      CurrentCluster.PointIndices.assign(PointsOfSchedClass.begin(),
+                                         PointsOfSchedClass.end());
+      assert(CurrentCluster.PointIndices.size() == PointsOfSchedClass.size());
+    }
   }
-  assert(Clusters_.size() == NumOpcodesSeen);
+  assert(Clusters_.size() == NumClusters);
 }
 
 // Given an instruction Opcode, we can make benchmarks (measurements) of the
@@ -237,39 +251,37 @@ void InstructionBenchmarkClustering::clusterizeNaive(unsigned NumOpcodes) {
 // We shall find every opcode with benchmarks not in just one cluster, and move
 // *all* the benchmarks of said Opcode into one new unstable cluster per Opcode.
 void InstructionBenchmarkClustering::stabilize(unsigned NumOpcodes) {
-  // Given an instruction Opcode, in which clusters do benchmarks of this
-  // instruction lie? Normally, they all should be in the same cluster.
-  std::vector<llvm::SmallSet<ClusterId, 1>> OpcodeToClusterIDs;
-  OpcodeToClusterIDs.resize(NumOpcodes);
-  // The list of opcodes that have more than one cluster.
-  llvm::SetVector<size_t> UnstableOpcodes;
-  // Populate OpcodeToClusterIDs and UnstableOpcodes data structures.
+  // Given an instruction Opcode and Config, in which clusters do benchmarks of
+  // this instruction lie? Normally, they all should be in the same cluster.
+  struct OpcodeAndConfig {
+    explicit OpcodeAndConfig(const InstructionBenchmark &IB)
+        : Opcode(IB.keyInstruction().getOpcode()), Config(&IB.Key.Config) {}
+    unsigned Opcode;
+    const std::string *Config;
+
+    auto Tie() const -> auto { return std::tie(Opcode, *Config); }
+
+    bool operator<(const OpcodeAndConfig &O) const { return Tie() < O.Tie(); }
+    bool operator!=(const OpcodeAndConfig &O) const { return Tie() != O.Tie(); }
+  };
+  std::map<OpcodeAndConfig, SmallSet<ClusterId, 1>> OpcodeConfigToClusterIDs;
+  // Populate OpcodeConfigToClusterIDs and UnstableOpcodes data structures.
   assert(ClusterIdForPoint_.size() == Points_.size() && "size mismatch");
-  for (const auto &Point : zip(Points_, ClusterIdForPoint_)) {
+  for (auto Point : zip(Points_, ClusterIdForPoint_)) {
     const ClusterId &ClusterIdOfPoint = std::get<1>(Point);
     if (!ClusterIdOfPoint.isValid())
       continue; // Only process fully valid clusters.
-    const unsigned Opcode = std::get<0>(Point).keyInstruction().getOpcode();
-    assert(Opcode < NumOpcodes && "NumOpcodes is incorrect (too small)");
-    llvm::SmallSet<ClusterId, 1> &ClusterIDsOfOpcode =
-        OpcodeToClusterIDs[Opcode];
+    const OpcodeAndConfig Key(std::get<0>(Point));
+    SmallSet<ClusterId, 1> &ClusterIDsOfOpcode = OpcodeConfigToClusterIDs[Key];
     ClusterIDsOfOpcode.insert(ClusterIdOfPoint);
-    // Is there more than one ClusterID for this opcode?.
-    if (ClusterIDsOfOpcode.size() < 2)
-      continue; // If not, then at this moment this Opcode is stable.
-    // Else let's record this unstable opcode for future use.
-    UnstableOpcodes.insert(Opcode);
   }
-  assert(OpcodeToClusterIDs.size() == NumOpcodes && "sanity check");
 
-  // We know with how many [new] clusters we will end up with.
-  const auto NewTotalClusterCount = Clusters_.size() + UnstableOpcodes.size();
-  Clusters_.reserve(NewTotalClusterCount);
-  for (const size_t UnstableOpcode : UnstableOpcodes.getArrayRef()) {
-    const llvm::SmallSet<ClusterId, 1> &ClusterIDs =
-        OpcodeToClusterIDs[UnstableOpcode];
-    assert(ClusterIDs.size() > 1 &&
-           "Should only have Opcodes with more than one cluster.");
+  for (const auto &OpcodeConfigToClusterID : OpcodeConfigToClusterIDs) {
+    const SmallSet<ClusterId, 1> &ClusterIDs = OpcodeConfigToClusterID.second;
+    const OpcodeAndConfig &Key = OpcodeConfigToClusterID.first;
+    // We only care about unstable instructions.
+    if (ClusterIDs.size() < 2)
+      continue;
 
     // Create a new unstable cluster, one per Opcode.
     Clusters_.emplace_back(ClusterId::makeValidUnstable(Clusters_.size()));
@@ -290,8 +302,8 @@ void InstructionBenchmarkClustering::stabilize(unsigned NumOpcodes) {
       // and the rest of the points is for the UnstableOpcode.
       const auto it = std::stable_partition(
           OldCluster.PointIndices.begin(), OldCluster.PointIndices.end(),
-          [this, UnstableOpcode](size_t P) {
-            return Points_[P].keyInstruction().getOpcode() != UnstableOpcode;
+          [this, &Key](size_t P) {
+            return OpcodeAndConfig(Points_[P]) != Key;
           });
       assert(std::distance(it, OldCluster.PointIndices.end()) > 0 &&
              "Should have found at least one bad point");
@@ -314,14 +326,12 @@ void InstructionBenchmarkClustering::stabilize(unsigned NumOpcodes) {
            "New unstable cluster should end up with no less points than there "
            "was clusters");
   }
-  assert(Clusters_.size() == NewTotalClusterCount && "sanity check");
 }
 
-llvm::Expected<InstructionBenchmarkClustering>
-InstructionBenchmarkClustering::create(
+Expected<InstructionBenchmarkClustering> InstructionBenchmarkClustering::create(
     const std::vector<InstructionBenchmark> &Points, const ModeE Mode,
     const size_t DbscanMinPts, const double AnalysisClusteringEpsilon,
-    llvm::Optional<unsigned> NumOpcodes) {
+    const MCSubtargetInfo *SubtargetInfo, const MCInstrInfo *InstrInfo) {
   InstructionBenchmarkClustering Clustering(
       Points, AnalysisClusteringEpsilon * AnalysisClusteringEpsilon);
   if (auto Error = Clustering.validateAndSetup()) {
@@ -334,13 +344,13 @@ InstructionBenchmarkClustering::create(
   if (Mode == ModeE::Dbscan) {
     Clustering.clusterizeDbScan(DbscanMinPts);
 
-    if (NumOpcodes.hasValue())
-      Clustering.stabilize(NumOpcodes.getValue());
+    if (InstrInfo)
+      Clustering.stabilize(InstrInfo->getNumOpcodes());
   } else /*if(Mode == ModeE::Naive)*/ {
-    if (!NumOpcodes.hasValue())
-      llvm::report_fatal_error(
-          "'naive' clustering mode requires opcode count to be specified");
-    Clustering.clusterizeNaive(NumOpcodes.getValue());
+    if (!SubtargetInfo || !InstrInfo)
+      return make_error<Failure>("'naive' clustering mode requires "
+                                 "SubtargetInfo and InstrInfo to be present");
+    Clustering.clusterizeNaive(*SubtargetInfo, *InstrInfo);
   }
 
   return Clustering;
@@ -352,13 +362,13 @@ void SchedClassClusterCentroid::addPoint(ArrayRef<BenchmarkMeasure> Point) {
   assert(Representative.size() == Point.size() &&
          "All points should have identical dimensions.");
 
-  for (const auto &I : llvm::zip(Representative, Point))
+  for (auto I : zip(Representative, Point))
     std::get<0>(I).push(std::get<1>(I));
 }
 
 std::vector<BenchmarkMeasure> SchedClassClusterCentroid::getAsPoint() const {
   std::vector<BenchmarkMeasure> ClusterCenterPoint(Representative.size());
-  for (const auto &I : llvm::zip(ClusterCenterPoint, Representative))
+  for (auto I : zip(ClusterCenterPoint, Representative))
     std::get<0>(I).PerInstructionValue = std::get<1>(I).avg();
   return ClusterCenterPoint;
 }
@@ -369,7 +379,7 @@ bool SchedClassClusterCentroid::validate(
   switch (Mode) {
   case InstructionBenchmark::Latency:
     if (NumMeasurements != 1) {
-      llvm::errs()
+      errs()
           << "invalid number of measurements in latency mode: expected 1, got "
           << NumMeasurements << "\n";
       return false;
@@ -380,9 +390,9 @@ bool SchedClassClusterCentroid::validate(
     break;
   case InstructionBenchmark::InverseThroughput:
     if (NumMeasurements != 1) {
-      llvm::errs() << "invalid number of measurements in inverse throughput "
-                      "mode: expected 1, got "
-                   << NumMeasurements << "\n";
+      errs() << "invalid number of measurements in inverse throughput "
+                "mode: expected 1, got "
+             << NumMeasurements << "\n";
       return false;
     }
     break;

@@ -6,7 +6,5 @@ static_library("IRReader") {
     "//llvm/lib/IR",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "IRReader.cpp",
-  ]
+  sources = [ "IRReader.cpp" ]
 }

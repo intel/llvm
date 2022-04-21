@@ -18,6 +18,7 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 template <class CharT>
@@ -67,16 +68,17 @@ int main(int, char**)
         t2.swap(t);
     }
     {
-        test<wchar_t> t;
-        test<wchar_t> t2;
-        t2.swap(t);
-    }
-    {
         char g1, g2, g3, p1, p3;
         test<char> t;
         t.setg(&g1, &g2, &g3);
         t.setp(&p1, &p3);
         test<char> t2;
+        t2.swap(t);
+    }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
+    {
+        test<wchar_t> t;
+        test<wchar_t> t2;
         t2.swap(t);
     }
     {
@@ -87,17 +89,20 @@ int main(int, char**)
         test<wchar_t> t2;
         t2.swap(t);
     }
+#endif
     std::locale::global(std::locale(LOCALE_en_US_UTF_8));
     {
         test<char> t;
         test<char> t2;
         t2.swap(t);
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         test<wchar_t> t;
         test<wchar_t> t2;
         t2.swap(t);
     }
+#endif
 
   return 0;
 }

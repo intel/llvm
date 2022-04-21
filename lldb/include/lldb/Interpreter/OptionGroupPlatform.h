@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_OptionGroupPlatform_h_
-#define liblldb_OptionGroupPlatform_h_
+#ifndef LLDB_INTERPRETER_OPTIONGROUPPLATFORM_H
+#define LLDB_INTERPRETER_OPTIONGROUPPLATFORM_H
 
 #include "lldb/Interpreter/Options.h"
 #include "lldb/Utility/ConstString.h"
@@ -21,8 +21,7 @@ namespace lldb_private {
 class OptionGroupPlatform : public OptionGroup {
 public:
   OptionGroupPlatform(bool include_platform_option)
-      : OptionGroup(), m_platform_name(), m_sdk_sysroot(),
-        m_include_platform_option(include_platform_option) {}
+      : m_include_platform_option(include_platform_option) {}
 
   ~OptionGroupPlatform() override = default;
 
@@ -70,4 +69,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_OptionGroupPlatform_h_
+#endif // LLDB_INTERPRETER_OPTIONGROUPPLATFORM_H

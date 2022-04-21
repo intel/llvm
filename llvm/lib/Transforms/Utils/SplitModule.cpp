@@ -24,7 +24,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalObject.h"
-#include "llvm/IR/GlobalIndirectSymbol.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
@@ -65,9 +64,8 @@ static void addNonConstUser(ClusterMapType &GVtoClusterMap,
   if (const Instruction *I = dyn_cast<Instruction>(U)) {
     const GlobalValue *F = I->getParent()->getParent();
     GVtoClusterMap.unionSets(GV, F);
-  } else if (isa<GlobalIndirectSymbol>(U) || isa<Function>(U) ||
-             isa<GlobalVariable>(U)) {
-    GVtoClusterMap.unionSets(GV, cast<GlobalValue>(U));
+  } else if (const GlobalValue *GVU = dyn_cast<GlobalValue>(U)) {
+    GVtoClusterMap.unionSets(GV, GVU);
   } else {
     llvm_unreachable("Underimplemented use case");
   }
@@ -91,17 +89,23 @@ static void addAllGlobalValueUsers(ClusterMapType &GVtoClusterMap,
   }
 }
 
+static const GlobalObject *getGVPartitioningRoot(const GlobalValue *GV) {
+  const GlobalObject *GO = GV->getAliaseeObject();
+  if (const auto *GI = dyn_cast_or_null<GlobalIFunc>(GO))
+    GO = GI->getResolverFunction();
+  return GO;
+}
+
 // Find partitions for module in the way that no locals need to be
 // globalized.
 // Try to balance pack those partitions into N files since this roughly equals
 // thread balancing for the backend codegen step.
-static void findPartitions(Module *M, ClusterIDMapType &ClusterIDMap,
+static void findPartitions(Module &M, ClusterIDMapType &ClusterIDMap,
                            unsigned N) {
   // At this point module should have the proper mix of globals and locals.
   // As we attempt to partition this module, we must not change any
   // locals to globals.
-  LLVM_DEBUG(dbgs() << "Partition module with (" << M->size()
-                    << ")functions\n");
+  LLVM_DEBUG(dbgs() << "Partition module with (" << M.size() << ")functions\n");
   ClusterMapType GVtoClusterMap;
   ComdatMembersType ComdatMembers;
 
@@ -124,12 +128,11 @@ static void findPartitions(Module *M, ClusterIDMapType &ClusterIDMap,
         Member = &GV;
     }
 
-    // For aliases we should not separate them from their aliasees regardless
-    // of linkage.
-    if (auto *GIS = dyn_cast<GlobalIndirectSymbol>(&GV)) {
-      if (const GlobalObject *Base = GIS->getBaseObject())
-        GVtoClusterMap.unionSets(&GV, Base);
-    }
+    // Aliases should not be separated from their aliasees and ifuncs should
+    // not be separated from their resolvers regardless of linkage.
+    if (const GlobalObject *Root = getGVPartitioningRoot(&GV))
+      if (&GV != Root)
+        GVtoClusterMap.unionSets(&GV, Root);
 
     if (const Function *F = dyn_cast<Function>(&GV)) {
       for (const BasicBlock &BB : *F) {
@@ -144,9 +147,9 @@ static void findPartitions(Module *M, ClusterIDMapType &ClusterIDMap,
       addAllGlobalValueUsers(GVtoClusterMap, &GV, &GV);
   };
 
-  llvm::for_each(M->functions(), recordGVSet);
-  llvm::for_each(M->globals(), recordGVSet);
-  llvm::for_each(M->aliases(), recordGVSet);
+  llvm::for_each(M.functions(), recordGVSet);
+  llvm::for_each(M.globals(), recordGVSet);
+  llvm::for_each(M.aliases(), recordGVSet);
 
   // Assigned all GVs to merged clusters while balancing number of objects in
   // each.
@@ -226,9 +229,8 @@ static void externalize(GlobalValue *GV) {
 
 // Returns whether GV should be in partition (0-based) I of N.
 static bool isInPartition(const GlobalValue *GV, unsigned I, unsigned N) {
-  if (auto *GIS = dyn_cast<GlobalIndirectSymbol>(GV))
-    if (const GlobalObject *Base = GIS->getBaseObject())
-      GV = Base;
+  if (const GlobalObject *Root = getGVPartitioningRoot(GV))
+    GV = Root;
 
   StringRef Name;
   if (const Comdat *C = GV->getComdat())
@@ -247,31 +249,32 @@ static bool isInPartition(const GlobalValue *GV, unsigned I, unsigned N) {
 }
 
 void llvm::SplitModule(
-    std::unique_ptr<Module> M, unsigned N,
+    Module &M, unsigned N,
     function_ref<void(std::unique_ptr<Module> MPart)> ModuleCallback,
     bool PreserveLocals) {
   if (!PreserveLocals) {
-    for (Function &F : *M)
+    for (Function &F : M)
       externalize(&F);
-    for (GlobalVariable &GV : M->globals())
+    for (GlobalVariable &GV : M.globals())
       externalize(&GV);
-    for (GlobalAlias &GA : M->aliases())
+    for (GlobalAlias &GA : M.aliases())
       externalize(&GA);
-    for (GlobalIFunc &GIF : M->ifuncs())
+    for (GlobalIFunc &GIF : M.ifuncs())
       externalize(&GIF);
   }
 
   // This performs splitting without a need for externalization, which might not
   // always be possible.
   ClusterIDMapType ClusterIDMap;
-  findPartitions(M.get(), ClusterIDMap, N);
+  findPartitions(M, ClusterIDMap, N);
 
   // FIXME: We should be able to reuse M as the last partition instead of
-  // cloning it.
+  // cloning it. Note that the callers at the moment expect the module to
+  // be preserved, so will need some adjustments as well.
   for (unsigned I = 0; I < N; ++I) {
     ValueToValueMapTy VMap;
     std::unique_ptr<Module> MPart(
-        CloneModule(*M, VMap, [&](const GlobalValue *GV) {
+        CloneModule(M, VMap, [&](const GlobalValue *GV) {
           if (ClusterIDMap.count(GV))
             return (ClusterIDMap[GV] == I);
           else

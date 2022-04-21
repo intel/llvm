@@ -6,25 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_REGISTERUTILITIES_H
-#define LLDB_REGISTERUTILITIES_H
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_REGISTERUTILITIES_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_REGISTERUTILITIES_H
 
 #include "Plugins/ObjectFile/ELF/ObjectFileELF.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "llvm/BinaryFormat/ELF.h"
 
 namespace lldb_private {
 /// Core files PT_NOTE segment descriptor types
-
-namespace FREEBSD {
-enum {
-  NT_PRSTATUS = 1,
-  NT_FPREGSET,
-  NT_PRPSINFO,
-  NT_THRMISC = 7,
-  NT_PROCSTAT_AUXV = 16,
-  NT_PPC_VMX = 0x100
-};
-}
 
 namespace NETBSD {
 enum { NT_PROCINFO = 1, NT_AUXV = 2 };
@@ -65,6 +55,10 @@ namespace AMD64 {
 enum { NT_REGS = 33, NT_FPREGS = 35 };
 }
 
+namespace I386 {
+enum { NT_REGS = 33, NT_FPREGS = 35 };
+}
+
 } // namespace NETBSD
 
 namespace OPENBSD {
@@ -73,22 +67,6 @@ enum {
   NT_AUXV = 11,
   NT_REGS = 20,
   NT_FPREGS = 21,
-};
-}
-
-namespace LINUX {
-enum {
-  NT_PRSTATUS = 1,
-  NT_FPREGSET,
-  NT_PRPSINFO,
-  NT_TASKSTRUCT,
-  NT_PLATFORM,
-  NT_AUXV,
-  NT_FILE = 0x46494c45,
-  NT_SIGINFO = 0x53494749,
-  NT_PPC_VMX = 0x100,
-  NT_PPC_VSX = 0x102,
-  NT_PRXFPREG = 0x46e62b7f,
 };
 }
 
@@ -122,26 +100,38 @@ DataExtractor getRegset(llvm::ArrayRef<CoreNote> Notes,
                         llvm::ArrayRef<RegsetDesc> RegsetDescs);
 
 constexpr RegsetDesc FPR_Desc[] = {
-    {llvm::Triple::FreeBSD, llvm::Triple::UnknownArch, FREEBSD::NT_FPREGSET},
+    // FreeBSD/i386 core NT_FPREGSET is x87 FSAVE result but the XSAVE dump
+    // starts with FXSAVE struct, so use that instead if available.
+    {llvm::Triple::FreeBSD, llvm::Triple::x86, llvm::ELF::NT_X86_XSTATE},
+    {llvm::Triple::FreeBSD, llvm::Triple::UnknownArch, llvm::ELF::NT_FPREGSET},
     // In a i386 core file NT_FPREGSET is present, but it's not the result
     // of the FXSAVE instruction like in 64 bit files.
     // The result from FXSAVE is in NT_PRXFPREG for i386 core files
-    {llvm::Triple::Linux, llvm::Triple::x86, LINUX::NT_PRXFPREG},
-    {llvm::Triple::Linux, llvm::Triple::UnknownArch, LINUX::NT_FPREGSET},
+    {llvm::Triple::Linux, llvm::Triple::x86, llvm::ELF::NT_PRXFPREG},
+    {llvm::Triple::Linux, llvm::Triple::UnknownArch, llvm::ELF::NT_FPREGSET},
     {llvm::Triple::NetBSD, llvm::Triple::aarch64, NETBSD::AARCH64::NT_FPREGS},
+    {llvm::Triple::NetBSD, llvm::Triple::x86, NETBSD::I386::NT_FPREGS},
     {llvm::Triple::NetBSD, llvm::Triple::x86_64, NETBSD::AMD64::NT_FPREGS},
     {llvm::Triple::OpenBSD, llvm::Triple::UnknownArch, OPENBSD::NT_FPREGS},
 };
 
+constexpr RegsetDesc AARCH64_SVE_Desc[] = {
+    {llvm::Triple::Linux, llvm::Triple::aarch64, llvm::ELF::NT_ARM_SVE},
+};
+
+constexpr RegsetDesc AARCH64_PAC_Desc[] = {
+    {llvm::Triple::Linux, llvm::Triple::aarch64, llvm::ELF::NT_ARM_PAC_MASK},
+};
+
 constexpr RegsetDesc PPC_VMX_Desc[] = {
-    {llvm::Triple::FreeBSD, llvm::Triple::UnknownArch, FREEBSD::NT_PPC_VMX},
-    {llvm::Triple::Linux, llvm::Triple::UnknownArch, LINUX::NT_PPC_VMX},
+    {llvm::Triple::FreeBSD, llvm::Triple::UnknownArch, llvm::ELF::NT_PPC_VMX},
+    {llvm::Triple::Linux, llvm::Triple::UnknownArch, llvm::ELF::NT_PPC_VMX},
 };
 
 constexpr RegsetDesc PPC_VSX_Desc[] = {
-    {llvm::Triple::Linux, llvm::Triple::UnknownArch, LINUX::NT_PPC_VSX},
+    {llvm::Triple::Linux, llvm::Triple::UnknownArch, llvm::ELF::NT_PPC_VSX},
 };
 
 } // namespace lldb_private
 
-#endif // #ifndef LLDB_REGISTERUTILITIES_H
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_REGISTERUTILITIES_H

@@ -1,8 +1,11 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -split-dwarf-file=foo.dwo %t.ll -o - | FileCheck %s
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 ; Derived from:
 
 ; int main (void) {
@@ -11,7 +14,7 @@
 
 ; Check that we get a symbol off of the debug_info section when using split dwarf and pubnames.
 
-; CHECK: .LpubTypes_begin0:
+; CHECK: .LpubTypes_start0:
 ; CHECK-NEXT: .short    2                       # DWARF Version
 ; CHECK-NEXT: .long     .Lcu_begin0             # Offset of Compilation Unit Info
 
@@ -39,5 +42,3 @@ attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointe
 !9 = !{i32 2, !"Dwarf Version", i32 3}
 !10 = !DILocation(line: 2, scope: !4)
 !11 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

@@ -1,21 +1,20 @@
-// -*- C++ -*-
-//===------------------------------ span ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+//===----------------------------------------------------------------------===//
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
 // template<size_t Count>
 //  constexpr span<element_type, Count> last() const;
 //
-// constexpr span<element_type, dynamic_extent> last(index_type count) const;
+// constexpr span<element_type, dynamic_extent> last(size_type count) const;
 //
-//  Requires: 0 <= Count && Count <= size().
+//  Requires: Count <= size().
 
 
 #include <span>

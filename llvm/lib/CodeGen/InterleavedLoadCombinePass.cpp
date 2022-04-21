@@ -19,7 +19,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -31,9 +30,10 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -183,7 +183,7 @@ class Polynomial {
   APInt A;
 
 public:
-  Polynomial(Value *V) : ErrorMSBs((unsigned)-1), V(V), B(), A() {
+  Polynomial(Value *V) : ErrorMSBs((unsigned)-1), V(V) {
     IntegerType *Ty = dyn_cast<IntegerType>(V->getType());
     if (Ty) {
       ErrorMSBs = 0;
@@ -193,12 +193,12 @@ public:
   }
 
   Polynomial(const APInt &A, unsigned ErrorMSBs = 0)
-      : ErrorMSBs(ErrorMSBs), V(NULL), B(), A(A) {}
+      : ErrorMSBs(ErrorMSBs), V(nullptr), A(A) {}
 
   Polynomial(unsigned BitWidth, uint64_t A, unsigned ErrorMSBs = 0)
-      : ErrorMSBs(ErrorMSBs), V(NULL), B(), A(BitWidth, A) {}
+      : ErrorMSBs(ErrorMSBs), V(nullptr), A(BitWidth, A) {}
 
-  Polynomial() : ErrorMSBs((unsigned)-1), V(NULL), B(), A() {}
+  Polynomial() : ErrorMSBs((unsigned)-1), V(nullptr) {}
 
   /// Increment and clamp the number of undefined bits.
   void incErrorMSBs(unsigned amt) {
@@ -306,12 +306,12 @@ public:
     }
 
     // Multiplying by one is a no-op.
-    if (C.isOneValue()) {
+    if (C.isOne()) {
       return *this;
     }
 
     // Multiplying by zero removes the coefficient B and defines all bits.
-    if (C.isNullValue()) {
+    if (C.isZero()) {
       ErrorMSBs = 0;
       deleteB();
     }
@@ -462,7 +462,7 @@ public:
       return *this;
     }
 
-    if (C.isNullValue())
+    if (C.isZero())
       return *this;
 
     // Test if the result will be zero
@@ -569,7 +569,7 @@ public:
   bool isProvenEqualTo(const Polynomial &o) {
     // Subtract both polynomials and test if it is fully defined and zero.
     Polynomial r = *this - o;
-    return (r.ErrorMSBs == 0) && (!r.isFirstOrder()) && (r.A.isNullValue());
+    return (r.ErrorMSBs == 0) && (!r.isFirstOrder()) && (r.A.isZero());
   }
 
   /// Print the polynomial into a stream.
@@ -654,10 +654,10 @@ public:
   };
 
   /// Basic-block the load instructions are within
-  BasicBlock *BB;
+  BasicBlock *BB = nullptr;
 
   /// Pointer value of all participation load instructions
-  Value *PV;
+  Value *PV = nullptr;
 
   /// Participating load instructions
   std::set<LoadInst *> LIs;
@@ -666,16 +666,15 @@ public:
   std::set<Instruction *> Is;
 
   /// Final shuffle-vector instruction
-  ShuffleVectorInst *SVI;
+  ShuffleVectorInst *SVI = nullptr;
 
   /// Information of the offset for each vector element
   ElementInfo *EI;
 
   /// Vector Type
-  VectorType *const VTy;
+  FixedVectorType *const VTy;
 
-  VectorInfo(VectorType *VTy)
-      : BB(nullptr), PV(nullptr), LIs(), Is(), SVI(nullptr), VTy(VTy) {
+  VectorInfo(FixedVectorType *VTy) : VTy(VTy) {
     EI = new ElementInfo[VTy->getNumElements()];
   }
 
@@ -734,7 +733,7 @@ public:
     if (!Op)
       return false;
 
-    VectorType *VTy = dyn_cast<VectorType>(Op->getType());
+    FixedVectorType *VTy = dyn_cast<FixedVectorType>(Op->getType());
     if (!VTy)
       return false;
 
@@ -784,8 +783,8 @@ public:
   /// \returns false if no sensible information can be gathered.
   static bool computeFromSVI(ShuffleVectorInst *SVI, VectorInfo &Result,
                              const DataLayout &DL) {
-    VectorType *ArgTy = dyn_cast<VectorType>(SVI->getOperand(0)->getType());
-    assert(ArgTy && "ShuffleVector Operand is not a VectorType");
+    FixedVectorType *ArgTy =
+        cast<FixedVectorType>(SVI->getOperand(0)->getType());
 
     // Compute the left hand vector information.
     VectorInfo LHS(ArgTy);
@@ -940,8 +939,8 @@ public:
   /// \param V input value
   /// \param Result result polynomial
   static void computePolynomial(Value &V, Polynomial &Result) {
-    if (isa<BinaryOperator>(&V))
-      computePolynomialBinOp(*dyn_cast<BinaryOperator>(&V), Result);
+    if (auto *BO = dyn_cast<BinaryOperator>(&V))
+      computePolynomialBinOp(*BO, Result);
     else
       Result = Polynomial(&V);
   }
@@ -1103,10 +1102,8 @@ InterleavedLoadCombineImpl::findFirstLoad(const std::set<LoadInst *> &LIs) {
 
   // All LIs are within the same BB. Select the first for a reference.
   BasicBlock *BB = (*LIs.begin())->getParent();
-  BasicBlock::iterator FLI =
-      std::find_if(BB->begin(), BB->end(), [&LIs](Instruction &I) -> bool {
-        return is_contained(LIs, &I);
-      });
+  BasicBlock::iterator FLI = llvm::find_if(
+      *BB, [&LIs](Instruction &I) -> bool { return is_contained(LIs, &I); });
   assert(FLI != BB->end());
 
   return cast<LoadInst>(FLI);
@@ -1129,8 +1126,9 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
   std::set<Instruction *> Is;
   std::set<Instruction *> SVIs;
 
-  unsigned InterleavedCost;
-  unsigned InstructionCost = 0;
+  InstructionCost InterleavedCost;
+  InstructionCost InstructionCost = 0;
+  const TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency;
 
   // Get the interleave factor
   unsigned Factor = InterleavedLoad.size();
@@ -1158,8 +1156,7 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
   // be expected. Also sum the cost of the Instructions beeing left dead.
   for (auto &I : Is) {
     // Compute the old cost
-    InstructionCost +=
-        TTI.getInstructionCost(I, TargetTransformInfo::TCK_Latency);
+    InstructionCost += TTI.getInstructionCost(I, CostKind);
 
     // The final SVIs are allowed not to be dead, all uses will be replaced
     if (SVIs.find(I) != SVIs.end())
@@ -1167,11 +1164,15 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
 
     // If there are users outside the set to be eliminated, we abort the
     // transformation. No gain can be expected.
-    for (const auto &U : I->users()) {
+    for (auto *U : I->users()) {
       if (Is.find(dyn_cast<Instruction>(U)) == Is.end())
         return false;
     }
   }
+
+  // We need to have a valid cost in order to proceed.
+  if (!InstructionCost.isValid())
+    return false;
 
   // We know that all LoadInst are within the same BB. This guarantees that
   // either everything or nothing is loaded.
@@ -1199,15 +1200,14 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
   IRBuilder<> Builder(InsertionPoint);
   Type *ETy = InterleavedLoad.front().SVI->getType()->getElementType();
   unsigned ElementsPerSVI =
-      InterleavedLoad.front().SVI->getType()->getNumElements();
-  VectorType *ILTy = VectorType::get(ETy, Factor * ElementsPerSVI);
+      cast<FixedVectorType>(InterleavedLoad.front().SVI->getType())
+          ->getNumElements();
+  FixedVectorType *ILTy = FixedVectorType::get(ETy, Factor * ElementsPerSVI);
 
-  SmallVector<unsigned, 4> Indices;
-  for (unsigned i = 0; i < Factor; i++)
-    Indices.push_back(i);
+  auto Indices = llvm::to_vector<4>(llvm::seq<unsigned>(0, Factor));
   InterleavedCost = TTI.getInterleavedMemoryOpCost(
-      Instruction::Load, ILTy, Factor, Indices, InsertionPoint->getAlignment(),
-      InsertionPoint->getPointerAddressSpace());
+      Instruction::Load, ILTy, Factor, Indices, InsertionPoint->getAlign(),
+      InsertionPoint->getPointerAddressSpace(), CostKind);
 
   if (InterleavedCost >= InstructionCost) {
     return false;
@@ -1219,7 +1219,7 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
                                       "interleaved.wide.ptrcast");
 
   // Create the wide load and update the MemorySSA.
-  auto LI = Builder.CreateAlignedLoad(ILTy, CI, InsertionPoint->getAlignment(),
+  auto LI = Builder.CreateAlignedLoad(ILTy, CI, InsertionPoint->getAlign(),
                                       "interleaved.wide.load");
   auto MSSAU = MemorySSAUpdater(&MSSA);
   MemoryUse *MSSALoad = cast<MemoryUse>(MSSAU.createMemoryAccessBefore(
@@ -1229,13 +1229,12 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
   // Create the final SVIs and replace all uses.
   int i = 0;
   for (auto &VI : InterleavedLoad) {
-    SmallVector<uint32_t, 4> Mask;
+    SmallVector<int, 4> Mask;
     for (unsigned j = 0; j < ElementsPerSVI; j++)
       Mask.push_back(i + j * Factor);
 
     Builder.SetInsertPoint(VI.SVI);
-    auto SVI = Builder.CreateShuffleVector(LI, UndefValue::get(LI->getType()),
-                                           Mask, "interleaved.shuffle");
+    auto SVI = Builder.CreateShuffleVector(LI, Mask, "interleaved.shuffle");
     VI.SVI->replaceAllUsesWith(SVI);
     i++;
   }
@@ -1264,8 +1263,11 @@ bool InterleavedLoadCombineImpl::run() {
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
         if (auto SVI = dyn_cast<ShuffleVectorInst>(&I)) {
+          // We don't support scalable vectors in this pass.
+          if (isa<ScalableVectorType>(SVI->getType()))
+            continue;
 
-          Candidates.emplace_back(SVI->getType());
+          Candidates.emplace_back(cast<FixedVectorType>(SVI->getType()));
 
           if (!VectorInfo::computeFromSVI(SVI, Candidates.back(), DL)) {
             Candidates.pop_back();

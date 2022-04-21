@@ -1,4 +1,4 @@
-; RUN: opt < %s -analyze -scalar-evolution
+; RUN: opt < %s -passes='print<scalar-evolution>'
 ; PR4537
 
 ; ModuleID = 'b.bc'

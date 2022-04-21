@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-scops -analyze -debug -S < %s 2>&1 | FileCheck %s
+; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-print-scops -debug -disable-output < %s 2>&1 | FileCheck %s
 
 ; REQUIRES: asserts
 
@@ -12,7 +12,7 @@
 ; CHECK-NEXT: {  : false }
 ; CHECK-NEXT: Invalid Context:
 ; CHECK-NEXT: {  : false }
-; CHECK-NEXT: Arrays {
+; CHECK:      Arrays {
 ; CHECK-NEXT:     i8 MemRef_arg[*][0]; // Element size 1
 ; CHECK-NEXT: }
 ; CHECK-NEXT: Arrays (Bounds as pw_affs) {

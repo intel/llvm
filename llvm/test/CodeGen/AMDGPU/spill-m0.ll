@@ -1,49 +1,40 @@
-; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=TOVGPR -check-prefix=GCN %s
-; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -amdgpu-spill-sgpr-to-smem=0 -march=amdgcn -mcpu=tonga  -verify-machineinstrs < %s | FileCheck -check-prefix=TOVGPR -check-prefix=GCN %s
-; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=TOVMEM -check-prefix=GCN %s
-; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -amdgpu-spill-sgpr-to-smem=0 -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=TOVMEM -check-prefix=GCN %s
-; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -amdgpu-spill-sgpr-to-smem=1 -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=TOSMEM -check-prefix=GCN %s
+; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=TOVGPR -check-prefix=GCN %s
+; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -march=amdgcn -mcpu=tonga  -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=TOVGPR -check-prefix=GCN %s
+; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=TOVMEM -check-prefix=GCN %s
+; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=TOVMEM -check-prefix=GCN %s
 
 ; XXX - Why does it like to use vcc?
 
 ; GCN-LABEL: {{^}}spill_m0:
-; TOSMEM: s_mov_b32 s[[LO:[0-9]+]], SCRATCH_RSRC_DWORD0
-; TOSMEM: s_mov_b32 s[[HI:[0-9]+]], 0xe80000
 
-; GCN-DAG: s_cmp_lg_u32
+; GCN: #ASMSTART
+; GCN-NEXT: s_mov_b32 m0, 0
+; GCN-NEXT: #ASMEND
+; GCN-DAG: s_mov_b32 [[M0_COPY:s[0-9]+]], m0
 
-; TOVGPR-DAG: s_mov_b32 [[M0_COPY:s[0-9]+]], m0
-; TOVGPR: v_writelane_b32 [[SPILL_VREG:v[0-9]+]], [[M0_COPY]], 2
+; TOVGPR: v_writelane_b32 [[SPILL_VREG:v[0-9]+]], [[M0_COPY]], [[M0_LANE:[0-9]+]]
 
-; TOVMEM-DAG: s_mov_b32 [[M0_COPY:s[0-9]+]], m0
-; TOVMEM-DAG: v_mov_b32_e32 [[SPILL_VREG:v[0-9]+]], [[M0_COPY]]
-; TOVMEM: buffer_store_dword [[SPILL_VREG]], off, s{{\[[0-9]+:[0-9]+\]}}, s{{[0-9]+}} offset:12 ; 4-byte Folded Spill
+; TOVMEM: s_mov_b64 [[COPY_EXEC:s\[[0-9]+:[0-9]+\]]], exec
+; TOVMEM: s_mov_b64 exec, 1
+; TOVMEM: v_writelane_b32 [[SPILL_VREG:v[0-9]+]], [[M0_COPY]], 0
+; TOVMEM: buffer_store_dword [[SPILL_VREG]], off, s{{\[[0-9]+:[0-9]+\]}}, 0 offset:4 ; 4-byte Folded Spill
+; TOVMEM: s_mov_b64 exec, [[COPY_EXEC]]
 
-; TOSMEM-DAG: s_mov_b32 [[M0_COPY:s[0-9]+]], m0
-; TOSMEM: s_add_u32 m0, s3, 0x300{{$}}
-; TOSMEM-NOT: [[M0_COPY]]
-; TOSMEM: s_buffer_store_dword [[M0_COPY]], s{{\[}}[[LO]]:[[HI]]], m0 ; 4-byte Folded Spill
-
-; GCN: s_cbranch_scc1 [[ENDIF:BB[0-9]+_[0-9]+]]
+; GCN: s_cbranch_scc1 [[ENDIF:.LBB[0-9]+_[0-9]+]]
 
 ; GCN: [[ENDIF]]:
-; TOVGPR: v_readlane_b32 [[M0_RESTORE:s[0-9]+]], [[SPILL_VREG]], 2
+; TOVGPR: v_readlane_b32 [[M0_RESTORE:s[0-9]+]], [[SPILL_VREG]], [[M0_LANE]]
 ; TOVGPR: s_mov_b32 m0, [[M0_RESTORE]]
 
-; TOVMEM: buffer_load_dword [[RELOAD_VREG:v[0-9]+]], off, s{{\[[0-9]+:[0-9]+\]}}, s{{[0-9]+}} offset:12 ; 4-byte Folded Reload
+; TOVMEM: buffer_load_dword [[RELOAD_VREG:v[0-9]+]], off, s{{\[[0-9]+:[0-9]+\]}}, 0 offset:4 ; 4-byte Folded Reload
 ; TOVMEM: s_waitcnt vmcnt(0)
-; TOVMEM: v_readfirstlane_b32 [[M0_RESTORE:s[0-9]+]], [[RELOAD_VREG]]
+; TOVMEM: v_readlane_b32 [[M0_RESTORE:s[0-9]+]], [[RELOAD_VREG]], 0
 ; TOVMEM: s_mov_b32 m0, [[M0_RESTORE]]
-
-; TOSMEM: s_add_u32 m0, s3, 0x300{{$}}
-; TOSMEM: s_buffer_load_dword [[M0_RESTORE:s[0-9]+]], s{{\[}}[[LO]]:[[HI]]], m0 ; 4-byte Folded Reload
-; TOSMEM-NOT: [[M0_RESTORE]]
-; TOSMEM: s_mov_b32 m0, [[M0_RESTORE]]
 
 ; GCN: s_add_i32 s{{[0-9]+}}, m0, 1
 define amdgpu_kernel void @spill_m0(i32 %cond, i32 addrspace(1)* %out) #0 {
 entry:
-  %m0 = call i32 asm sideeffect "s_mov_b32 m0, 0", "={M0}"() #0
+  %m0 = call i32 asm sideeffect "s_mov_b32 m0, 0", "={m0}"() #0
   %cmp0 = icmp eq i32 %cond, 0
   br i1 %cmp0, label %if, label %endif
 
@@ -52,7 +43,7 @@ if:
   br label %endif
 
 endif:
-  %foo = call i32 asm sideeffect "s_add_i32 $0, $1, 1", "=s,{M0}"(i32 %m0) #0
+  %foo = call i32 asm sideeffect "s_add_i32 $0, $1, 1", "=s,{m0}"(i32 %m0) #0
   store i32 %foo, i32 addrspace(1)* %out
   ret void
 }
@@ -61,28 +52,6 @@ endif:
 
 ; m0 is killed, so it isn't necessary during the entry block spill to preserve it
 ; GCN-LABEL: {{^}}spill_kill_m0_lds:
-; GCN: s_mov_b32 m0, s6
-; GCN: v_interp_mov_f32
-
-; TOSMEM-NOT: s_m0
-; TOSMEM: s_add_u32 m0, s7, 0x100
-; TOSMEM-NEXT: s_buffer_store_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, m0 ; 8-byte Folded Spill
-; FIXME: RegScavenger::isRegUsed() always returns true if m0 is reserved, so we have to save and restore it
-; FIXME-TOSMEM-NOT: m0
-
-; FIXME-TOSMEM-NOT: m0
-; TOSMEM: s_add_u32 m0, s7, 0x300
-; TOSMEM: s_buffer_store_dword s{{[0-9]+}}, s{{\[[0-9]+:[0-9]+\]}}, m0 ; 4-byte Folded Spill
-; FIXME-TOSMEM-NOT: m0
-
-; TOSMEM: s_mov_b64 exec,
-; TOSMEM: s_cbranch_execz
-; TOSMEM: s_branch
-
-; TOSMEM: BB{{[0-9]+_[0-9]+}}:
-; TOSMEM: s_add_u32 m0, s7, 0x500
-; TOSMEM-NEXT: s_buffer_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, m0 ; 8-byte Folded Reload
-
 
 ; GCN-NOT: v_readlane_b32 m0
 ; GCN-NOT: s_buffer_store_dword m0
@@ -112,10 +81,11 @@ endif:                                            ; preds = %else, %if
 
 ; Force save and restore of m0 during SMEM spill
 ; GCN-LABEL: {{^}}m0_unavailable_spill:
+; GCN: s_load_dword [[REG0:s[0-9]+]], s[0:1], {{0x[0-9]+}}
 
 ; GCN: ; def m0, 1
 
-; GCN: s_mov_b32 m0, s2
+; GCN: s_mov_b32 m0, [[REG0]]
 ; GCN: v_interp_mov_f32
 
 ; GCN: ; clobber m0
@@ -138,9 +108,9 @@ endif:                                            ; preds = %else, %if
 ; GCN-NOT: s_buffer_load_dword m0
 define amdgpu_kernel void @m0_unavailable_spill(i32 %m0.arg) #0 {
 main_body:
-  %m0 = call i32 asm sideeffect "; def $0, 1", "={M0}"() #0
+  %m0 = call i32 asm sideeffect "; def $0, 1", "={m0}"() #0
   %tmp = call float @llvm.amdgcn.interp.mov(i32 2, i32 0, i32 0, i32 %m0.arg)
-  call void asm sideeffect "; clobber $0", "~{M0}"() #0
+  call void asm sideeffect "; clobber $0", "~{m0}"() #0
   %cmp = fcmp ueq float 0.000000e+00, %tmp
    br i1 %cmp, label %if, label %else
 
@@ -157,48 +127,56 @@ endif:
 }
 
 ; GCN-LABEL: {{^}}restore_m0_lds:
-; TOSMEM: s_load_dwordx2 [[REG:s\[[0-9]+:[0-9]+\]]]
-; TOSMEM: s_cmp_eq_u32
 ; FIXME: RegScavenger::isRegUsed() always returns true if m0 is reserved, so we have to save and restore it
 ; FIXME-TOSMEM-NOT: m0
-; TOSMEM: s_add_u32 m0, s3, 0x100
-; TOSMEM: s_buffer_store_dword s{{[0-9]+}}, s[88:91], m0 ; 4-byte Folded Spill
+; TOSMEM: s_add_u32 m0, s3, {{0x[0-9]+}}
+; TOSMEM: s_buffer_store_dword s1, s[88:91], m0 ; 4-byte Folded Spill
 ; FIXME-TOSMEM-NOT: m0
-; TOSMEM: s_add_u32 m0, s3, 0x200
+; TOSMEM: s_load_dwordx2 [[REG:s\[[0-9]+:[0-9]+\]]]
+; TOSMEM: s_add_u32 m0, s3, {{0x[0-9]+}}
+; TOSMEM: s_waitcnt lgkmcnt(0)
 ; TOSMEM: s_buffer_store_dwordx2 [[REG]], s[88:91], m0 ; 8-byte Folded Spill
 ; FIXME-TOSMEM-NOT: m0
+; TOSMEM: s_cmp_eq_u32
 ; TOSMEM: s_cbranch_scc1
 
 ; TOSMEM: s_mov_b32 m0, -1
 
-; TOSMEM: s_mov_b32 s0, m0
+; TOSMEM: s_mov_b32 s2, m0
 ; TOSMEM: s_add_u32 m0, s3, 0x200
 ; TOSMEM: s_buffer_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s[88:91], m0 ; 8-byte Folded Reload
-; TOSMEM: s_mov_b32 m0, s0
+; TOSMEM: s_mov_b32 m0, s2
 ; TOSMEM: s_waitcnt lgkmcnt(0)
 
 ; TOSMEM: ds_write_b64
 
 ; FIXME-TOSMEM-NOT: m0
 ; TOSMEM: s_add_u32 m0, s3, 0x100
-; TOSMEM: s_buffer_load_dword s0, s[88:91], m0 ; 4-byte Folded Reload
+; TOSMEM: s_buffer_load_dword s2, s[88:91], m0 ; 4-byte Folded Reload
 ; FIXME-TOSMEM-NOT: m0
+
+; TOSMEM: s_mov_b32 [[REG1:s[0-9]+]], m0
+; TOSMEM: s_add_u32 m0, s3, 0x100
+; TOSMEM: s_buffer_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s[88:91], m0 ; 8-byte Folded Reload
+; TOSMEM: s_mov_b32 m0, [[REG1]]
+; TOSMEM: s_mov_b32 m0, -1
+
 ; TOSMEM: s_waitcnt lgkmcnt(0)
 ; TOSMEM-NOT: m0
-; TOSMEM: s_mov_b32 m0, s0
+; TOSMEM: s_mov_b32 m0, s2
 ; TOSMEM: ; use m0
 
 ; TOSMEM: s_dcache_wb
 ; TOSMEM: s_endpgm
 define amdgpu_kernel void @restore_m0_lds(i32 %arg) {
-  %m0 = call i32 asm sideeffect "s_mov_b32 m0, 0", "={M0}"() #0
+  %m0 = call i32 asm sideeffect "s_mov_b32 m0, 0", "={m0}"() #0
   %sval = load volatile i64, i64 addrspace(4)* undef
   %cmp = icmp eq i32 %arg, 0
   br i1 %cmp, label %ret, label %bb
 
 bb:
   store volatile i64 %sval, i64 addrspace(3)* undef
-  call void asm sideeffect "; use $0", "{M0}"(i32 %m0) #0
+  call void asm sideeffect "; use $0", "{m0}"(i32 %m0) #0
   br label %ret
 
 ret:

@@ -11,8 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Remarks/Remark.h"
-#include "llvm-c/Remarks.h"
-#include "llvm/Support/CBindingWrapping.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -66,6 +65,10 @@ LLVMRemarkArgGetDebugLoc(LLVMRemarkArgRef Arg) {
   return nullptr;
 }
 
+extern "C" void LLVMRemarkEntryDispose(LLVMRemarkEntryRef Remark) {
+  delete unwrap(Remark);
+}
+
 extern "C" LLVMRemarkType LLVMRemarkEntryGetType(LLVMRemarkEntryRef Remark) {
   // Assume here that the enums can be converted both ways.
   return static_cast<LLVMRemarkType>(unwrap(Remark)->RemarkType);
@@ -108,7 +111,7 @@ LLVMRemarkEntryGetFirstArg(LLVMRemarkEntryRef Remark) {
   ArrayRef<Argument> Args = unwrap(Remark)->Args;
   // No arguments to iterate on.
   if (Args.empty())
-    return NULL;
+    return nullptr;
   return reinterpret_cast<LLVMRemarkArgRef>(
       const_cast<Argument *>(Args.begin()));
 }
@@ -116,13 +119,13 @@ LLVMRemarkEntryGetFirstArg(LLVMRemarkEntryRef Remark) {
 extern "C" LLVMRemarkArgRef
 LLVMRemarkEntryGetNextArg(LLVMRemarkArgRef ArgIt, LLVMRemarkEntryRef Remark) {
   // No more arguments to iterate on.
-  if (ArgIt == NULL)
-    return NULL;
+  if (ArgIt == nullptr)
+    return nullptr;
 
   auto It = (ArrayRef<Argument>::const_iterator)ArgIt;
   auto Next = std::next(It);
   if (Next == unwrap(Remark)->Args.end())
-    return NULL;
+    return nullptr;
 
   return reinterpret_cast<LLVMRemarkArgRef>(const_cast<Argument *>(Next));
 }

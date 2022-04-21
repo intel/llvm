@@ -2,20 +2,20 @@
 
 unsigned long li, lj, lk;
 
-// CHECK-LABEL: define void @testlongadd()
-void testlongadd() {
+// CHECK-LABEL: define{{.*}} void @testlongadd()
+void testlongadd(void) {
   // CHECK: call void @__ubsan_handle_add_overflow_minimal_abort()
   li = lj + lk;
 }
 
-// CHECK-LABEL: define void @testlongsub()
-void testlongsub() {
+// CHECK-LABEL: define{{.*}} void @testlongsub()
+void testlongsub(void) {
   // CHECK: call void @__ubsan_handle_sub_overflow_minimal_abort()
   li = lj - lk;
 }
 
-// CHECK-LABEL: define void @testlongmul()
-void testlongmul() {
+// CHECK-LABEL: define{{.*}} void @testlongmul()
+void testlongmul(void) {
   // CHECK: call void @__ubsan_handle_mul_overflow_minimal_abort()
   li = lj * lk;
 }

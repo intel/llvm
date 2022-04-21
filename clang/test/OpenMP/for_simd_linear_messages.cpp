@@ -1,8 +1,16 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
+
+void xxx(int argc) {
+  int i, lin, step; // expected-note {{initialize the variable 'lin' to silence this warning}} expected-note {{initialize the variable 'step' to silence this warning}}
+#pragma omp for simd linear(i, lin : step) // expected-warning {{variable 'lin' is uninitialized when used here}} expected-warning {{variable 'step' is uninitialized when used here}}
+  for (i = 0; i < 10; ++i)
+    ;
+}
+
 namespace X {
   int x;
 };
@@ -137,8 +145,9 @@ template<class I, class C> int foomain(I argc, C **argv) {
   #pragma omp parallel
   {
     int v = 0;
+    long z;
     int i;
-    #pragma omp for simd linear(v:i)
+    #pragma omp for simd linear(z, v:i)
     for (int k = 0; k < argc; ++k) { i = k; v += i; }
   }
   #pragma omp for simd linear(j)
@@ -188,7 +197,7 @@ int main(int argc, char **argv) {
   for (int k = 0; k < argc; ++k) ++k;
   // expected-error@+2 {{linear variable with incomplete type 'S1'}}
   // expected-error@+1 {{argument of a linear clause should be of integral or pointer type, not 'S2'}}
-  #pragma omp for simd linear (a, b) 
+  #pragma omp for simd linear(a, b)
   for (int k = 0; k < argc; ++k) ++k;
   #pragma omp for simd linear (argv[1]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k) ++k;
@@ -201,7 +210,7 @@ int main(int argc, char **argv) {
   #pragma omp parallel
   {
     int i;
-    #pragma omp for simd linear(i)
+    #pragma omp for simd linear(i : i)
     for (int k = 0; k < argc; ++k) ++k;
     #pragma omp for simd linear(i : 4)
     for (int k = 0; k < argc; ++k) { ++k; i += 4; }

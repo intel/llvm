@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===-- parallel_impl.h ---------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,9 +10,13 @@
 #ifndef _PSTL_PARALLEL_IMPL_H
 #define _PSTL_PARALLEL_IMPL_H
 
+#include "pstl_config.h"
+
 #include <atomic>
 // This header defines the minimum set of parallel routines required to support Parallel STL,
 // implemented on top of Intel(R) Threading Building Blocks (Intel(R) TBB) library
+
+_PSTL_HIDE_FROM_ABI_PUSH
 
 namespace __pstl
 {
@@ -24,17 +28,19 @@ namespace __internal
 //-----------------------------------------------------------------------
 /** Return extremum value returned by brick f[i,j) for subranges [i,j) of [first,last)
 Each f[i,j) must return a value in [i,j). */
-template <class _ExecutionPolicy, class _Index, class _Brick, class _Compare>
+template <class _BackendTag, class _ExecutionPolicy, class _Index, class _Brick, class _Compare>
 _Index
-__parallel_find(_ExecutionPolicy&& __exec, _Index __first, _Index __last, _Brick __f, _Compare __comp, bool __b_first)
+__parallel_find(_BackendTag __tag, _ExecutionPolicy&& __exec, _Index __first, _Index __last, _Brick __f,
+                _Compare __comp, bool __b_first)
 {
     typedef typename std::iterator_traits<_Index>::difference_type _DifferenceType;
     const _DifferenceType __n = __last - __first;
     _DifferenceType __initial_dist = __b_first ? __n : -1;
     std::atomic<_DifferenceType> __extremum(__initial_dist);
     // TODO: find out what is better here: parallel_for or parallel_reduce
-    __par_backend::__parallel_for(std::forward<_ExecutionPolicy>(__exec), __first, __last,
-                                  [__comp, __f, __first, &__extremum](_Index __i, _Index __j) {
+    __par_backend::__parallel_for(__tag, std::forward<_ExecutionPolicy>(__exec), __first, __last,
+                                  [__comp, __f, __first, &__extremum](_Index __i, _Index __j)
+                                  {
                                       // See "Reducing Contention Through Priority Updates", PPoPP '13, for discussion of
                                       // why using a shared variable scales fairly well in this situation.
                                       if (__comp(__i - __first, __extremum))
@@ -59,13 +65,14 @@ __parallel_find(_ExecutionPolicy&& __exec, _Index __first, _Index __last, _Brick
 // parallel_or
 //------------------------------------------------------------------------
 //! Return true if brick f[i,j) returns true for some subrange [i,j) of [first,last)
-template <class _ExecutionPolicy, class _Index, class _Brick>
+template <class _BackendTag, class _ExecutionPolicy, class _Index, class _Brick>
 bool
-__parallel_or(_ExecutionPolicy&& __exec, _Index __first, _Index __last, _Brick __f)
+__parallel_or(_BackendTag __tag, _ExecutionPolicy&& __exec, _Index __first, _Index __last, _Brick __f)
 {
     std::atomic<bool> __found(false);
-    __par_backend::__parallel_for(std::forward<_ExecutionPolicy>(__exec), __first, __last,
-                                  [__f, &__found](_Index __i, _Index __j) {
+    __par_backend::__parallel_for(__tag, std::forward<_ExecutionPolicy>(__exec), __first, __last,
+                                  [__f, &__found](_Index __i, _Index __j)
+                                  {
                                       if (!__found.load(std::memory_order_relaxed) && __f(__i, __j))
                                       {
                                           __found.store(true, std::memory_order_relaxed);
@@ -77,5 +84,7 @@ __parallel_or(_ExecutionPolicy&& __exec, _Index __first, _Index __last, _Brick _
 
 } // namespace __internal
 } // namespace __pstl
+
+_PSTL_HIDE_FROM_ABI_POP
 
 #endif /* _PSTL_PARALLEL_IMPL_H */

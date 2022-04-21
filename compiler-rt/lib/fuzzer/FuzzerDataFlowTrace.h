@@ -32,16 +32,18 @@
 #include "FuzzerIO.h"
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 
 namespace fuzzer {
 
 int CollectDataFlow(const std::string &DFTBinary, const std::string &DirPath,
-                    const Vector<SizedFile> &CorporaFiles);
+                    const std::vector<SizedFile> &CorporaFiles);
 
 class BlockCoverage {
- public:
+public:
+  // These functions guarantee no CoverageVector is longer than UINT32_MAX.
   bool AppendCoverage(std::istream &IN);
   bool AppendCoverage(const std::string &S);
 
@@ -49,7 +51,8 @@ class BlockCoverage {
 
   uint32_t GetCounter(size_t FunctionId, size_t BasicBlockId) {
     auto It = Functions.find(FunctionId);
-    if (It == Functions.end()) return 0;
+    if (It == Functions.end())
+      return 0;
     const auto &Counters = It->second;
     if (BasicBlockId < Counters.size())
       return Counters[BasicBlockId];
@@ -60,7 +63,7 @@ class BlockCoverage {
     auto It = Functions.find(FunctionId);
     if (It == Functions.end()) return 0;
     const auto &Counters = It->second;
-    return Counters.size();
+    return static_cast<uint32_t>(Counters.size());
   }
 
   uint32_t GetNumberOfCoveredBlocks(size_t FunctionId) {
@@ -74,12 +77,11 @@ class BlockCoverage {
     return Result;
   }
 
-  Vector<double> FunctionWeights(size_t NumFunctions) const;
+  std::vector<double> FunctionWeights(size_t NumFunctions) const;
   void clear() { Functions.clear(); }
 
- private:
-
-  typedef Vector<uint32_t> CoverageVector;
+private:
+  typedef std::vector<uint32_t> CoverageVector;
 
   uint32_t NumberOfCoveredBlocks(const CoverageVector &Counters) const {
     uint32_t Res = 0;
@@ -90,7 +92,8 @@ class BlockCoverage {
   }
 
   uint32_t NumberOfUncoveredBlocks(const CoverageVector &Counters) const {
-    return Counters.size() - NumberOfCoveredBlocks(Counters);
+    return static_cast<uint32_t>(Counters.size()) -
+           NumberOfCoveredBlocks(Counters);
   }
 
   uint32_t SmallestNonZeroCounter(const CoverageVector &Counters) const {
@@ -106,15 +109,17 @@ class BlockCoverage {
   // Function ID => vector of counters.
   // Each counter represents how many input files trigger the given basic block.
   std::unordered_map<size_t, CoverageVector> Functions;
+  // Functions that have DFT entry.
+  std::unordered_set<size_t> FunctionsWithDFT;
 };
 
 class DataFlowTrace {
  public:
   void ReadCoverage(const std::string &DirPath);
   bool Init(const std::string &DirPath, std::string *FocusFunction,
-            Random &Rand);
+            std::vector<SizedFile> &CorporaFiles, Random &Rand);
   void Clear() { Traces.clear(); }
-  const Vector<uint8_t> *Get(const std::string &InputSha1) const {
+  const std::vector<uint8_t> *Get(const std::string &InputSha1) const {
     auto It = Traces.find(InputSha1);
     if (It != Traces.end())
       return &It->second;
@@ -123,8 +128,9 @@ class DataFlowTrace {
 
  private:
   // Input's sha1 => DFT for the FocusFunction.
-  std::unordered_map<std::string, Vector<uint8_t> > Traces;
-  BlockCoverage Coverage;
+   std::unordered_map<std::string, std::vector<uint8_t>> Traces;
+   BlockCoverage Coverage;
+   std::unordered_set<std::string> CorporaHashes;
 };
 }  // namespace fuzzer
 

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_PATHURI_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_PATHURI_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_URI_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_URI_H
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
@@ -61,6 +61,10 @@ public:
   /// \p HintPath A related path, such as the current file or working directory,
   /// which can help disambiguate when the same file exists in many workspaces.
   static llvm::Expected<std::string> resolve(const URI &U,
+                                             llvm::StringRef HintPath = "");
+
+  /// Same as above, in addition it parses the \p FileURI using URI::parse.
+  static llvm::Expected<std::string> resolve(llvm::StringRef FileURI,
                                              llvm::StringRef HintPath = "");
 
   /// Resolves \p AbsPath into a canonical path of its URI, by converting
@@ -129,4 +133,4 @@ typedef llvm::Registry<URIScheme> URISchemeRegistry;
 } // namespace clangd
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_PATHURI_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_URI_H

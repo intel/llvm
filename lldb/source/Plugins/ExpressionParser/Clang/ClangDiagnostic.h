@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_ClangDiagnostic_h
-#define lldb_ClangDiagnostic_h
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGDIAGNOSTIC_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGDIAGNOSTIC_H
 
 #include <vector>
 
@@ -29,7 +29,7 @@ public:
     return diag->getKind() == eDiagnosticOriginClang;
   }
 
-  ClangDiagnostic(const char *message, DiagnosticSeverity severity,
+  ClangDiagnostic(llvm::StringRef message, DiagnosticSeverity severity,
                   uint32_t compiler_id)
       : Diagnostic(message, severity, eDiagnosticOriginClang, compiler_id) {}
 
@@ -42,8 +42,9 @@ public:
   }
 
   const FixItList &FixIts() const { return m_fixit_vec; }
+private:
   FixItList m_fixit_vec;
 };
 
 } // namespace lldb_private
-#endif /* lldb_ClangDiagnostic_h */
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGDIAGNOSTIC_H

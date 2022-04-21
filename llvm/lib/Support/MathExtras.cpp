@@ -15,7 +15,7 @@
 #ifdef _MSC_VER
 #include <limits>
 #else
-#include <math.h>
+#include <cmath>
 #endif
 
 namespace llvm {
@@ -28,4 +28,4 @@ namespace llvm {
   const float huge_valf = HUGE_VALF;
 #endif
 
-}
+} // namespace llvm

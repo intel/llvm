@@ -64,16 +64,15 @@ void MSP430FrameLowering::emitPrologue(MachineFunction &MF,
 
     // Save FP into the appropriate stack slot...
     BuildMI(MBB, MBBI, DL, TII.get(MSP430::PUSH16r))
-      .addReg(MSP430::FP, RegState::Kill);
+      .addReg(MSP430::R4, RegState::Kill);
 
     // Update FP with the new base value...
-    BuildMI(MBB, MBBI, DL, TII.get(MSP430::MOV16rr), MSP430::FP)
+    BuildMI(MBB, MBBI, DL, TII.get(MSP430::MOV16rr), MSP430::R4)
       .addReg(MSP430::SP);
 
     // Mark the FramePtr as live-in in every block except the entry.
-    for (MachineFunction::iterator I = std::next(MF.begin()), E = MF.end();
-         I != E; ++I)
-      I->addLiveIn(MSP430::FP);
+    for (MachineBasicBlock &MBBJ : llvm::drop_begin(MF))
+      MBBJ.addLiveIn(MSP430::R4);
 
   } else
     NumBytes = StackSize - MSP430FI->getCalleeSavedFrameSize();
@@ -132,7 +131,7 @@ void MSP430FrameLowering::emitEpilogue(MachineFunction &MF,
     NumBytes = FrameSize - CSSize;
 
     // pop FP.
-    BuildMI(MBB, MBBI, DL, TII.get(MSP430::POP16r), MSP430::FP);
+    BuildMI(MBB, MBBI, DL, TII.get(MSP430::POP16r), MSP430::R4);
   } else
     NumBytes = StackSize - CSSize;
 
@@ -154,7 +153,7 @@ void MSP430FrameLowering::emitEpilogue(MachineFunction &MF,
 
   if (MFI.hasVarSizedObjects()) {
     BuildMI(MBB, MBBI, DL,
-            TII.get(MSP430::MOV16rr), MSP430::SP).addReg(MSP430::FP);
+            TII.get(MSP430::MOV16rr), MSP430::SP).addReg(MSP430::R4);
     if (CSSize) {
       MachineInstr *MI =
         BuildMI(MBB, MBBI, DL,
@@ -176,11 +175,9 @@ void MSP430FrameLowering::emitEpilogue(MachineFunction &MF,
 }
 
 // FIXME: Can we eleminate these in favour of generic code?
-bool
-MSP430FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
-                                           MachineBasicBlock::iterator MI,
-                                        const std::vector<CalleeSavedInfo> &CSI,
-                                        const TargetRegisterInfo *TRI) const {
+bool MSP430FrameLowering::spillCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
   if (CSI.empty())
     return false;
 
@@ -192,8 +189,8 @@ MSP430FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
   MSP430MachineFunctionInfo *MFI = MF.getInfo<MSP430MachineFunctionInfo>();
   MFI->setCalleeSavedFrameSize(CSI.size() * 2);
 
-  for (unsigned i = CSI.size(); i != 0; --i) {
-    unsigned Reg = CSI[i-1].getReg();
+  for (const CalleeSavedInfo &I : llvm::reverse(CSI)) {
+    Register Reg = I.getReg();
     // Add the callee-saved register as live-in. It's killed at the spill.
     MBB.addLiveIn(Reg);
     BuildMI(MBB, MI, DL, TII.get(MSP430::PUSH16r))
@@ -202,11 +199,9 @@ MSP430FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
   return true;
 }
 
-bool
-MSP430FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
-                                                 MachineBasicBlock::iterator MI,
-                                        std::vector<CalleeSavedInfo> &CSI,
-                                        const TargetRegisterInfo *TRI) const {
+bool MSP430FrameLowering::restoreCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
   if (CSI.empty())
     return false;
 
@@ -216,8 +211,8 @@ MSP430FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
   MachineFunction &MF = *MBB.getParent();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
 
-  for (unsigned i = 0, e = CSI.size(); i != e; ++i)
-    BuildMI(MBB, MI, DL, TII.get(MSP430::POP16r), CSI[i].getReg());
+  for (const CalleeSavedInfo &I : CSI)
+    BuildMI(MBB, MI, DL, TII.get(MSP430::POP16r), I.getReg());
 
   return true;
 }
@@ -227,8 +222,6 @@ MachineBasicBlock::iterator MSP430FrameLowering::eliminateCallFramePseudoInstr(
     MachineBasicBlock::iterator I) const {
   const MSP430InstrInfo &TII =
       *static_cast<const MSP430InstrInfo *>(MF.getSubtarget().getInstrInfo());
-  unsigned StackAlign = getStackAlignment();
-
   if (!hasReservedCallFrame(MF)) {
     // If the stack pointer can be changed after prologue, turn the
     // adjcallstackup instruction into a 'sub SP, <amt>' and the
@@ -240,7 +233,7 @@ MachineBasicBlock::iterator MSP430FrameLowering::eliminateCallFramePseudoInstr(
       // We need to keep the stack aligned properly.  To do this, we round the
       // amount of space needed for the outgoing arguments up to the next
       // alignment boundary.
-      Amount = (Amount+StackAlign-1)/StackAlign*StackAlign;
+      Amount = alignTo(Amount, getStackAlign());
 
       MachineInstr *New = nullptr;
       if (Old.getOpcode() == TII.getCallFrameSetupOpcode()) {

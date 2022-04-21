@@ -129,6 +129,7 @@ __isl_give isl_schedule *isl_union_set_compute_schedule(
 	__isl_take isl_union_map *proximity);
 
 __isl_give isl_schedule *isl_schedule_empty(__isl_take isl_space *space);
+__isl_export
 __isl_give isl_schedule *isl_schedule_from_domain(
 	__isl_take isl_union_set *domain);
 __isl_give isl_schedule *isl_schedule_copy(__isl_keep isl_schedule *sched);
@@ -143,6 +144,7 @@ isl_bool isl_schedule_plain_is_equal(__isl_keep isl_schedule *schedule1,
 __isl_export
 __isl_give isl_schedule_node *isl_schedule_get_root(
 	__isl_keep isl_schedule *schedule);
+__isl_export
 __isl_give isl_union_set *isl_schedule_get_domain(
 	__isl_keep isl_schedule *schedule);
 

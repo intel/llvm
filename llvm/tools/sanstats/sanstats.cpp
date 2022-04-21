@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorOr.h"
@@ -36,7 +37,7 @@ inline uint64_t CountFromData(uint64_t Data, char SizeofPtr) {
   return Data & ((1ull << (SizeofPtr * 8 - kSanitizerStatKindBits)) - 1);
 }
 
-uint64_t ReadLE(char Size, const char *Begin, const char *End) {
+static uint64_t ReadLE(char Size, const char *Begin, const char *End) {
   uint64_t Result = 0;
   char Pos = 0;
   while (Begin < End && Pos != Size) {
@@ -47,7 +48,8 @@ uint64_t ReadLE(char Size, const char *Begin, const char *End) {
   return Result;
 }
 
-const char *ReadModule(char SizeofPtr, const char *Begin, const char *End) {
+static const char *ReadModule(char SizeofPtr, const char *Begin,
+                              const char *End) {
   const char *FilenameBegin = Begin;
   while (Begin != End && *Begin)
     ++Begin;
@@ -68,7 +70,7 @@ const char *ReadModule(char SizeofPtr, const char *Begin, const char *End) {
   SymbolizerOptions.UseSymbolTable = true;
   symbolize::LLVMSymbolizer Symbolizer(SymbolizerOptions);
 
-  while (1) {
+  while (true) {
     uint64_t Addr = ReadLE(SizeofPtr, Begin, End);
     Begin += SizeofPtr;
     uint64_t Data = ReadLE(SizeofPtr, Begin, End);
@@ -124,8 +126,8 @@ int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(argc, argv,
                               "Sanitizer Statistics Processing Tool");
 
-  ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr =
-      MemoryBuffer::getFile(ClInputFile, -1, false);
+  ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr = MemoryBuffer::getFile(
+      ClInputFile, /*IsText=*/false, /*RequiresNullTerminator=*/false);
   if (!MBOrErr) {
     errs() << argv[0] << ": " << ClInputFile << ": "
            << MBOrErr.getError().message() << '\n';

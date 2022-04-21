@@ -13,8 +13,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MCA_ENTRY_STAGE_H
-#define LLVM_MCA_ENTRY_STAGE_H
+#ifndef LLVM_MCA_STAGES_ENTRYSTAGE_H
+#define LLVM_MCA_STAGES_ENTRYSTAGE_H
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/MCA/SourceMgr.h"
@@ -36,7 +36,7 @@ class EntryStage final : public Stage {
   EntryStage &operator=(const EntryStage &Other) = delete;
 
 public:
-  EntryStage(SourceMgr &SM) : CurrentInstruction(), SM(SM), NumRetired(0) { }
+  EntryStage(SourceMgr &SM) : SM(SM), NumRetired(0) {}
 
   bool isAvailable(const InstRef &IR) const override;
   bool hasWorkToComplete() const override;
@@ -48,4 +48,4 @@ public:
 } // namespace mca
 } // namespace llvm
 
-#endif // LLVM_MCA_FETCH_STAGE_H
+#endif // LLVM_MCA_STAGES_ENTRYSTAGE_H

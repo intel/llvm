@@ -9,10 +9,13 @@
 #ifndef LLVM_TOOLS_LLVM_READOBJ_LLVM_READOBJ_H
 #define LLVM_TOOLS_LLVM_READOBJ_LLVM_READOBJ_H
 
+#include "ObjDumper.h"
+
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorOr.h"
 #include <string>
 
 namespace llvm {
@@ -21,41 +24,26 @@ namespace llvm {
   }
 
   // Various helper functions.
-  LLVM_ATTRIBUTE_NORETURN void reportError(Twine Msg);
-  void reportWarning(Twine Msg);
-  void error(std::error_code EC);
-  void error(llvm::Error EC);
-  template <typename T> T error(llvm::Expected<T> &&E) {
-    error(E.takeError());
-    return std::move(*E);
-  }
+  [[noreturn]] void reportError(Error Err, StringRef Input);
+  void reportWarning(Error Err, StringRef Input);
 
-  template <class T> T unwrapOrError(ErrorOr<T> EO) {
+  template <class T> T unwrapOrError(StringRef Input, Expected<T> EO) {
     if (EO)
       return *EO;
-    reportError(EO.getError().message());
-  }
-  template <class T> T unwrapOrError(Expected<T> EO) {
-    if (EO)
-      return *EO;
-    std::string Buf;
-    raw_string_ostream OS(Buf);
-    logAllUnhandledErrors(EO.takeError(), OS);
-    OS.flush();
-    reportError(Buf);
+    reportError(EO.takeError(), Input);
   }
 } // namespace llvm
 
 namespace opts {
-  extern llvm::cl::opt<bool> SectionRelocations;
-  extern llvm::cl::opt<bool> SectionSymbols;
-  extern llvm::cl::opt<bool> SectionData;
-  extern llvm::cl::opt<bool> ExpandRelocs;
-  extern llvm::cl::opt<bool> RawRelr;
-  extern llvm::cl::opt<bool> CodeViewSubsectionBytes;
-  extern llvm::cl::opt<bool> Demangle;
-  enum OutputStyleTy { LLVM, GNU };
-  extern llvm::cl::opt<OutputStyleTy> Output;
+extern bool SectionRelocations;
+extern bool SectionSymbols;
+extern bool SectionData;
+extern bool ExpandRelocs;
+extern bool RawRelr;
+extern bool CodeViewSubsectionBytes;
+extern bool Demangle;
+enum OutputStyleTy { LLVM, GNU, JSON, UNKNOWN };
+extern OutputStyleTy Output;
 } // namespace opts
 
 #define LLVM_READOBJ_ENUM_ENT(ns, enum) \

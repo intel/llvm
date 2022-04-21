@@ -13,12 +13,16 @@
 // result unshift(stateT& state,
 //                externT* to, externT* to_end, externT*& to_next) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 // This is pretty much just an "are you breathing" test
 
 #include <locale>
 #include <string>
 #include <vector>
 #include <cassert>
+
+#include "test_macros.h"
 
 typedef std::codecvt<wchar_t, char, std::mbstate_t> F;
 

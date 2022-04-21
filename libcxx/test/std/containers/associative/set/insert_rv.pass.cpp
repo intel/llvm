@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <set>
 
@@ -17,6 +17,7 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "min_allocator.h"
 
@@ -40,13 +41,13 @@ int main(int, char**)
 
         r = m.insert(M::value_type(3));
         assert(r.second);
-        assert(r.first == prev(m.end()));
+        assert(r.first == std::prev(m.end()));
         assert(m.size() == 3);
         assert(*r.first == 3);
 
         r = m.insert(M::value_type(3));
         assert(!r.second);
-        assert(r.first == prev(m.end()));
+        assert(r.first == std::prev(m.end()));
         assert(m.size() == 3);
         assert(*r.first == 3);
     }
@@ -68,13 +69,13 @@ int main(int, char**)
 
         r = m.insert(M::value_type(3));
         assert(r.second);
-        assert(r.first == prev(m.end()));
+        assert(r.first == std::prev(m.end()));
         assert(m.size() == 3);
         assert(*r.first == 3);
 
         r = m.insert(M::value_type(3));
         assert(!r.second);
-        assert(r.first == prev(m.end()));
+        assert(r.first == std::prev(m.end()));
         assert(m.size() == 3);
         assert(*r.first == 3);
     }

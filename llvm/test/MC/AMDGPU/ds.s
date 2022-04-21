@@ -1,11 +1,11 @@
-// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck %s --check-prefix=SI --check-prefix=SICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti  -show-encoding %s | FileCheck %s --check-prefix=SI --check-prefix=SICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire  -show-encoding %s | FileCheck %s --check-prefix=CI --check-prefix=SICI
+// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck %s --check-prefix=SICI
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti  -show-encoding %s | FileCheck %s --check-prefix=SICI
+// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire  -show-encoding %s | FileCheck %s --check-prefixes=CI,SICI
 // RUN: llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s | FileCheck %s --check-prefix=VI
 
-// RUN: not llvm-mc -arch=amdgcn -show-encoding %s 2>&1 | FileCheck %s --check-prefix=NOSI --check-prefix=NOSICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti  -show-encoding %s 2>&1 | FileCheck %s --check-prefix=NOSI --check-prefix=NOSICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire  -show-encoding %s 2>&1 | FileCheck %s --check-prefix=NOCI --check-prefix=NOSICI
+// RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck %s --check-prefixes=NOSI,NOSICI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck %s --check-prefixes=NOSI,NOSICI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire %s 2>&1 | FileCheck %s --check-prefix=NOSICI --implicit-check-not=error:
 
 //===----------------------------------------------------------------------===//
 // Checks for 16-bit Offsets
@@ -16,11 +16,11 @@ ds_add_u32 v2, v4 offset:16
 // VI:   ds_add_u32 v2, v4 offset:16 ; encoding: [0x10,0x00,0x00,0xd8,0x02,0x04,0x00,0x00]
 
 ds_add_src2_f32 v255 offset:65535
-// NOSICI: error
+// NOSICI: error: instruction not supported on this GPU
 // VI: ds_add_src2_f32 v255 offset:65535 ; encoding: [0xff,0xff,0x2a,0xd9,0xff,0x00,0x00,0x00]
 
 ds_add_src2_f32 v0 offset:4 gds
-// NOSICI: error
+// NOSICI: error: instruction not supported on this GPU
 // VI: ds_add_src2_f32 v0 offset:4 gds ; encoding: [0x04,0x00,0x2b,0xd9,0x00,0x00,0x00,0x00]
 
 //===----------------------------------------------------------------------===//
@@ -148,12 +148,12 @@ ds_max_f32 v2, v4
 // VI:   ds_max_f32 v2, v4 ; encoding: [0x00,0x00,0x26,0xd8,0x02,0x04,0x00,0x00]
 
 ds_gws_init v2 gds
-// SICI: ds_gws_init v2 gds ; encoding: [0x00,0x00,0x66,0xd8,0x00,0x02,0x00,0x00]
-// VI:   ds_gws_init v2 gds ; encoding: [0x00,0x00,0x33,0xd9,0x00,0x02,0x00,0x00]
+// SICI: ds_gws_init v2 gds ; encoding: [0x00,0x00,0x66,0xd8,0x02,0x00,0x00,0x00]
+// VI: ds_gws_init v2 gds ; encoding: [0x00,0x00,0x33,0xd9,0x02,0x00,0x00,0x00]
 
 ds_gws_init v3 offset:12345 gds
-// SICI: ds_gws_init v3 offset:12345 gds ; encoding: [0x39,0x30,0x66,0xd8,0x00,0x03,0x00,0x00]
-// VI:   ds_gws_init v3 offset:12345 gds ; encoding: [0x39,0x30,0x33,0xd9,0x00,0x03,0x00,0x00]
+// SICI: ds_gws_init v3 offset:12345 gds ; encoding: [0x39,0x30,0x66,0xd8,0x03,0x00,0x00,0x00]
+// VI: ds_gws_init v3 offset:12345 gds ; encoding: [0x39,0x30,0x33,0xd9,0x03,0x00,0x00,0x00]
 
 ds_gws_sema_v gds
 // SICI: ds_gws_sema_v gds ; encoding: [0x00,0x00,0x6a,0xd8,0x00,0x00,0x00,0x00]
@@ -164,16 +164,16 @@ ds_gws_sema_v offset:257 gds
 // VI:   ds_gws_sema_v offset:257 gds    ; encoding: [0x01,0x01,0x35,0xd9,0x00,0x00,0x00,0x00]
 
 ds_gws_sema_br v2 gds
-// SICI: ds_gws_sema_br v2 gds ; encoding: [0x00,0x00,0x6e,0xd8,0x00,0x02,0x00,0x00]
-// VI:   ds_gws_sema_br v2 gds ; encoding: [0x00,0x00,0x37,0xd9,0x00,0x02,0x00,0x00]
+// SICI: ds_gws_sema_br v2 gds ; encoding: [0x00,0x00,0x6e,0xd8,0x02,0x00,0x00,0x00]
+// VI: ds_gws_sema_br v2 gds ; encoding: [0x00,0x00,0x37,0xd9,0x02,0x00,0x00,0x00]
 
 ds_gws_sema_p gds
 // SICI: ds_gws_sema_p gds ; encoding: [0x00,0x00,0x72,0xd8,0x00,0x00,0x00,0x00]
 // VI:   ds_gws_sema_p gds ; encoding: [0x00,0x00,0x39,0xd9,0x00,0x00,0x00,0x00]
 
 ds_gws_barrier v2 gds
-// SICI: ds_gws_barrier v2 gds ; encoding: [0x00,0x00,0x76,0xd8,0x00,0x02,0x00,0x00]
-// VI:   ds_gws_barrier v2 gds ; encoding: [0x00,0x00,0x3b,0xd9,0x00,0x02,0x00,0x00]
+// SICI: ds_gws_barrier v2 gds ; encoding: [0x00,0x00,0x76,0xd8,0x02,0x00,0x00,0x00]
+// VI: ds_gws_barrier v2 gds ; encoding: [0x00,0x00,0x3b,0xd9,0x02,0x00,0x00,0x00]
 
 ds_write_b8 v2, v4
 // SICI: ds_write_b8 v2, v4 ; encoding: [0x00,0x00,0x78,0xd8,0x02,0x04,0x00,0x00]

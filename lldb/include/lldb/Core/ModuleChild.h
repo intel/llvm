@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ModuleChild_h_
-#define liblldb_ModuleChild_h_
+#ifndef LLDB_CORE_MODULECHILD_H
+#define LLDB_CORE_MODULECHILD_H
 
 #include "lldb/lldb-forward.h"
 
@@ -20,7 +20,7 @@ class ModuleChild {
 public:
   /// Construct with owning module.
   ///
-  /// \param[in] module
+  /// \param[in] module_sp
   ///     The module that owns the object that inherits from this
   ///     class.
   ModuleChild(const lldb::ModuleSP &module_sp);
@@ -46,17 +46,16 @@ public:
 
   /// Set accessor for the module pointer.
   ///
-  /// \param[in] module
+  /// \param[in] module_sp
   ///     A new module that owns the object that inherits from this
-  ///      class.
+  ///     class.
   void SetModule(const lldb::ModuleSP &module_sp);
 
 protected:
-  // Member variables
-  lldb::ModuleWP m_module_wp; ///< The Module that owns the object that inherits
-                              ///< from this class.
+  /// The Module that owns the object that inherits from this class.
+  lldb::ModuleWP m_module_wp;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ModuleChild_h_
+#endif // LLDB_CORE_MODULECHILD_H

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // <optional>
 
 // template <class U> optional<T>& operator=(U&& v);
@@ -17,7 +17,7 @@
 #include <memory>
 
 #include "test_macros.h"
-#include "archetypes.hpp"
+#include "archetypes.h"
 
 using std::optional;
 
@@ -241,6 +241,16 @@ enum MyEnum { Zero, One, Two, Three, FortyTwo = 42 };
 
 using Fn = void(*)();
 
+// https://llvm.org/PR38638
+template <class T>
+constexpr T pr38638(T v)
+{
+  std::optional<T> o;
+  o = v;
+  return *o + 2;
+}
+
+
 int main(int, char**)
 {
     test_sfinae();
@@ -268,6 +278,8 @@ int main(int, char**)
         assert(**opt == 3);
     }
     test_throws();
+
+    static_assert(pr38638(3) == 5, "");
 
   return 0;
 }

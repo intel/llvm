@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++03, c++11, c++14
+
 #include "support/pstl_test_config.h"
 
 #include <iterator>
@@ -59,8 +61,8 @@ struct test_one_policy
     Iterator data_e;
     test_one_policy(Iterator b, Iterator e) : data_b(b), data_e(e) {}
 
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                            \
-    _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN // dummy specialization by policy type, in case of broken configuration
+#if defined(_PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN) ||                                                             \
+    defined(_PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN) // dummy specialization by policy type, in case of broken configuration
     template <typename Iterator1>
     typename std::enable_if<is_same_iterator_category<Iterator1, std::random_access_iterator_tag>::value, void>::type
     operator()(pstl::execution::unsequenced_policy, Iterator1 actual_b, Iterator1 actual_e)
@@ -79,7 +81,6 @@ struct test_one_policy
     {
         using namespace std;
         using T = typename iterator_traits<Iterator1>::value_type;
-        using DifferenceType = typename iterator_traits<Iterator1>::difference_type;
 
         fill(actual_b, actual_e, T(-123));
         Iterator1 actual_return = reverse_copy(exec, data_b, data_e, actual_b);
@@ -116,11 +117,9 @@ test()
     }
 }
 
-int32_t
+int
 main()
 {
-    // clang-3.8 fails to correctly auto vectorize the loop in some cases of different types of container's elements,
-    // for example: int32_t and int8_t. This issue isn't detected for clang-3.9 and newer versions.
     test<int16_t, int8_t>();
     test<uint16_t, float32_t>();
     test<float64_t, int64_t>();

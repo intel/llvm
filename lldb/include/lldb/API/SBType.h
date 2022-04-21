@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBType_h_
-#define LLDB_SBType_h_
+#ifndef LLDB_API_SBTYPE_H
+#define LLDB_API_SBTYPE_H
 
 #include "lldb/API/SBDefines.h"
 
@@ -131,6 +131,10 @@ public:
 
   bool IsAnonymousType();
 
+  bool IsScopedEnumerationType();
+
+  bool IsAggregateType();
+
   lldb::SBType GetPointerType();
 
   lldb::SBType GetPointeeType();
@@ -150,6 +154,9 @@ public:
   lldb::SBType GetVectorElementType();
 
   lldb::SBType GetCanonicalType();
+
+  lldb::SBType GetEnumerationIntegerType();
+
   // Get the "lldb::BasicType" enumeration for a type. If a type is not a basic
   // type eBasicTypeInvalid will be returned
   lldb::BasicType GetBasicType();
@@ -184,6 +191,8 @@ public:
   uint32_t GetNumberOfMemberFunctions();
 
   lldb::SBTypeMemberFunction GetMemberFunctionAtIndex(uint32_t idx);
+
+  lldb::SBModule GetModule();
 
   const char *GetName();
 
@@ -259,4 +268,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBType_h_
+#endif // LLDB_API_SBTYPE_H

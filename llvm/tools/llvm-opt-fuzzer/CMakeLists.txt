@@ -1,5 +1,8 @@
 set(LLVM_LINK_COMPONENTS
-  ${LLVM_TARGETS_TO_BUILD}
+  AllTargetsAsmParsers
+  AllTargetsCodeGens
+  AllTargetsDescs
+  AllTargetsInfos
   Analysis
   BitReader
   BitWriter
@@ -20,6 +23,7 @@ set(LLVM_LINK_COMPONENTS
   TransformUtils
   Vectorize
   Passes
+  SYCLLowerIR
 )
 
 add_llvm_fuzzer(llvm-opt-fuzzer

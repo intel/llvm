@@ -1,4 +1,4 @@
-//===-- OptionGroupString.cpp ----------------------------------*- C++ -*-===//
+//===-- OptionGroupString.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -31,8 +31,6 @@ OptionGroupString::OptionGroupString(uint32_t usage_mask, bool required,
   m_option_definition.argument_type = argument_type;
   m_option_definition.usage_text = usage_text;
 }
-
-OptionGroupString::~OptionGroupString() {}
 
 Status OptionGroupString::SetOptionValue(uint32_t option_idx,
                                          llvm::StringRef option_arg,

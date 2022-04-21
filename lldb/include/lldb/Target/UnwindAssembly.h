@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef utility_UnwindAssembly_h_
-#define utility_UnwindAssembly_h_
+#ifndef LLDB_TARGET_UNWINDASSEMBLY_H
+#define LLDB_TARGET_UNWINDASSEMBLY_H
 
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Utility/ArchSpec.h"
@@ -19,8 +19,6 @@ class UnwindAssembly : public std::enable_shared_from_this<UnwindAssembly>,
                        public PluginInterface {
 public:
   static lldb::UnwindAssemblySP FindPlugin(const ArchSpec &arch);
-
-  ~UnwindAssembly() override;
 
   virtual bool
   GetNonCallSiteUnwindPlanFromAssembly(AddressRange &func, Thread &thread,
@@ -42,12 +40,8 @@ public:
 protected:
   UnwindAssembly(const ArchSpec &arch);
   ArchSpec m_arch;
-
-private:
-  UnwindAssembly() = delete;
-  DISALLOW_COPY_AND_ASSIGN(UnwindAssembly);
 };
 
 } // namespace lldb_private
 
-#endif // utility_UnwindAssembly_h_
+#endif // LLDB_TARGET_UNWINDASSEMBLY_H

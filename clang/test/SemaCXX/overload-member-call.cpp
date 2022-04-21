@@ -14,7 +14,7 @@ struct X {
 
   int& g(int) const; // expected-note 2 {{candidate function}}
   float& g(int); // expected-note 2 {{candidate function}}
-  static double& g(double); // expected-note 2 {{candidate function}}
+  static double& g(double);
 
   void h(int);
 
@@ -71,8 +71,8 @@ void test_X2(X2 *x2p, const X2 *cx2p) {
 namespace test1 {
   class A {
     template <class T>
-    void foo(T t, unsigned N); // expected-note {{candidate function template not viable: no known conversion from 'const char [6]' to 'unsigned int' for 2nd argument}}
-    void foo(int n, char N); // expected-note {{candidate function not viable: no known conversion from 'const char [6]' to 'char' for 2nd argument}} 
+    void foo(T t, unsigned N); // expected-note {{candidate function template not viable: no known conversion from 'const char[6]' to 'unsigned int' for 2nd argument}}
+    void foo(int n, char N); // expected-note {{candidate function not viable: no known conversion from 'const char[6]' to 'char' for 2nd argument}} 
     void foo(int n, const char *s, int t); // expected-note {{candidate function not viable: requires 3 arguments, but 2 were provided}}
     void foo(int n, const char *s, int t, ...); // expected-note {{candidate function not viable: requires at least 3 arguments, but 2 were provided}}
     void foo(int n, const char *s, int t, int u = 0); // expected-note {{candidate function not viable: requires at least 3 arguments, but 2 were provided}}
@@ -82,6 +82,9 @@ namespace test1 {
 
     void baz(A &d); // expected-note {{candidate function not viable: 1st argument ('const test1::A') would lose const qualifier}}
     void baz(int i); // expected-note {{candidate function not viable: no known conversion from 'const test1::A' to 'int' for 1st argument}} 
+
+    void ref() &&;   // expected-note {{expects an rvalue for object argument}} expected-note {{requires 0 arguments, but 1 was provided}}
+    void ref(int) &; // expected-note {{expects an lvalue for object argument}} expected-note {{requires 1 argument, but 0 were provided}}
 
     // PR 11857
     void foo(int n); // expected-note {{candidate function not viable: requires single argument 'n', but 2 arguments were provided}}
@@ -103,6 +106,9 @@ namespace test1 {
 
     a.rab(); //expected-error {{no matching member function for call to 'rab'}}
     a.zab(3, 4, 5); //expected-error {{no matching member function for call to 'zab'}}
+
+    a.ref();    // expected-error {{no matching member function for call to 'ref'}}
+    A().ref(1); // expected-error {{no matching member function for call to 'ref'}}
   }
 }
 
@@ -114,3 +120,10 @@ namespace b7398190 {
   const S *p;
   int k = p->f(); // expected-error {{no matching member function for call to 'f'}}
 }
+
+void member_call_op_template(int *p) {
+  // Ensure that we don't get confused about relative parameter / argument
+  // indexing here.
+  [](int, int, auto...){}(p, p); // expected-error {{no matching function}} expected-note {{no known conversion}}
+}
+

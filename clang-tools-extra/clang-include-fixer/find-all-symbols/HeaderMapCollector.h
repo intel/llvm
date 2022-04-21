@@ -17,7 +17,7 @@
 namespace clang {
 namespace find_all_symbols {
 
-/// \brief HeaderMappCollector collects all remapping header files. This maps
+/// HeaderMappCollector collects all remapping header files. This maps
 /// complete header names or header name regex patterns to header names.
 class HeaderMapCollector {
 public:
@@ -29,7 +29,7 @@ public:
 
   void addHeaderMapping(llvm::StringRef OrignalHeaderPath,
                         llvm::StringRef MappingHeaderPath) {
-    HeaderMappingTable[OrignalHeaderPath] = MappingHeaderPath;
+    HeaderMappingTable[OrignalHeaderPath] = std::string(MappingHeaderPath);
   };
 
   /// Check if there is a mapping from \p Header or a regex pattern that matches

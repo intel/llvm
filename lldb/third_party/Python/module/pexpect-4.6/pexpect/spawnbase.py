@@ -30,7 +30,7 @@ class SpawnBase(object):
     pid = None
     flag_eof = False
 
-    def __init__(self, timeout=30, maxread=2000, searchwindowsize=None,
+    def __init__(self, timeout=60, maxread=2000, searchwindowsize=None,
                  logfile=None, encoding=None, codec_errors='strict'):
         self.stdin = sys.stdin
         self.stdout = sys.stdout
@@ -150,7 +150,7 @@ class SpawnBase(object):
         self._buffer = self.buffer_type()
         self._buffer.write(value)
 
-    # This property is provided for backwards compatability (self.buffer used
+    # This property is provided for backwards compatibility (self.buffer used
     # to be a string/bytes object)
     buffer = property(_get_buffer, _set_buffer)
 

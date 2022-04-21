@@ -4,7 +4,5 @@ executable("llvm-cxxmap") {
     "//llvm/lib/Support",
     "//llvm/lib/Target:TargetsToBuild",
   ]
-  sources = [
-    "llvm-cxxmap.cpp",
-  ]
+  sources = [ "llvm-cxxmap.cpp" ]
 }

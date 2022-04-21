@@ -6,17 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-// <string>
+// <string_view>
 
 // size_type find_first_of(const basic_string_view& str, size_type pos = 0) const;
 
 #include <string_view>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class S>
 void
 test(const S& s, const S& str, typename S::size_type pos, typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_first_of(str, pos));
     assert(s.find_first_of(str, pos) == x);
     if (x != S::npos)
         assert(pos <= x && x < s.size());
@@ -26,6 +29,7 @@ template <class S>
 void
 test(const S& s, const S& str, typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_first_of(str));
     assert(s.find_first_of(str) == x);
     if (x != S::npos)
         assert(x < s.size());

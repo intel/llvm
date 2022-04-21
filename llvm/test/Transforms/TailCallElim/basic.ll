@@ -1,4 +1,4 @@
-; RUN: opt < %s -tailcallelim -verify-dom-info -S | FileCheck %s
+; RUN: opt < %s -passes=tailcallelim -verify-dom-info -S | FileCheck %s
 
 declare void @noarg()
 declare void @use(i32*)
@@ -12,15 +12,16 @@ define void @test0() {
 	ret void
 }
 
-; PR615. Make sure that we do not move the alloca so that it interferes with the tail call.
+; Make sure that we do not do TRE if pointer to local stack
+; escapes through function call.
 define i32 @test1() {
 ; CHECK: i32 @test1()
 ; CHECK-NEXT: alloca
 	%A = alloca i32		; <i32*> [#uses=2]
 	store i32 5, i32* %A
 	call void @use(i32* %A)
-; CHECK: tail call i32 @test1
-	%X = tail call i32 @test1()		; <i32> [#uses=1]
+; CHECK: call i32 @test1
+	%X = call i32 @test1()		; <i32> [#uses=1]
 	ret i32 %X
 }
 
@@ -46,8 +47,16 @@ endif.0:		; preds = %entry
 ; plunked it into the demo script, so maybe they care about it.
 define i32 @test3(i32 %c) {
 ; CHECK: i32 @test3
+; CHECK: tailrecurse:
+; CHECK: %ret.tr = phi i32 [ undef, %entry ], [ %current.ret.tr, %else ]
+; CHECK: %ret.known.tr = phi i1 [ false, %entry ], [ true, %else ]
+; CHECK: else:
 ; CHECK-NOT: call
-; CHECK: ret i32 0
+; CHECK: %current.ret.tr = select i1 %ret.known.tr, i32 %ret.tr, i32 0
+; CHECK-NOT: ret
+; CHECK: return:
+; CHECK: %current.ret.tr1 = select i1 %ret.known.tr, i32 %ret.tr, i32 0
+; CHECK: ret i32 %current.ret.tr1
 entry:
 	%tmp.1 = icmp eq i32 %c, 0		; <i1> [#uses=1]
 	br i1 %tmp.1, label %return, label %else
@@ -145,7 +154,7 @@ cond_false:
 }
 
 ; Don't tail call if a byval arg is captured.
-define void @test9(i32* byval %a) {
+define void @test9(i32* byval(i32) %a) {
 ; CHECK-LABEL: define void @test9(
 ; CHECK: {{^ *}}call void @use(
   call void @use(i32* %a)
@@ -155,7 +164,7 @@ define void @test9(i32* byval %a) {
 %struct.X = type { i8* }
 
 declare void @ctor(%struct.X*)
-define void @test10(%struct.X* noalias sret %agg.result, i1 zeroext %b) {
+define void @test10(%struct.X* noalias sret(%struct.X) %agg.result, i1 zeroext %b) {
 ; CHECK-LABEL: @test10
 entry:
   %x = alloca %struct.X, align 8
@@ -205,27 +214,27 @@ entry:
 ; point, and both calls below can be marked tail.
 define void @test13() {
 ; CHECK-LABEL: @test13
-; CHECK: tail call void @bar(%struct.foo* byval %f)
-; CHECK: tail call void @bar(%struct.foo* null)
+; CHECK: tail call void @bar(%struct.foo* byval(%struct.foo) %f)
+; CHECK: tail call void @bar(%struct.foo* byval(%struct.foo) null)
 entry:
   %f = alloca %struct.foo
-  call void @bar(%struct.foo* byval %f)
-  call void @bar(%struct.foo* null)
+  call void @bar(%struct.foo* byval(%struct.foo) %f)
+  call void @bar(%struct.foo* byval(%struct.foo) null)
   ret void
 }
 
 ; A call which passes a byval parameter using byval can be marked tail.
-define void @test14(%struct.foo* byval %f) {
+define void @test14(%struct.foo* byval(%struct.foo) %f) {
 ; CHECK-LABEL: @test14
 ; CHECK: tail call void @bar
 entry:
-  call void @bar(%struct.foo* byval %f)
+  call void @bar(%struct.foo* byval(%struct.foo) %f)
   ret void
 }
 
 ; If a byval parameter is copied into an alloca and passed byval the call can
 ; be marked tail.
-define void @test15(%struct.foo* byval %f) {
+define void @test15(%struct.foo* byval(%struct.foo) %f) {
 ; CHECK-LABEL: @test15
 ; CHECK: tail call void @bar
 entry:
@@ -233,9 +242,9 @@ entry:
   %0 = bitcast %struct.foo* %agg.tmp to i8*
   %1 = bitcast %struct.foo* %f to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %0, i8* %1, i64 40, i1 false)
-  call void @bar(%struct.foo* byval %agg.tmp)
+  call void @bar(%struct.foo* byval(%struct.foo) %agg.tmp)
   ret void
 }
 
-declare void @bar(%struct.foo* byval)
+declare void @bar(%struct.foo* byval(%struct.foo))
 declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i1)

@@ -122,13 +122,15 @@ error:
 static isl_bool add_vertex(struct isl_vertex_list **list,
 	__isl_keep isl_basic_set *bset, struct isl_tab *tab)
 {
-	unsigned nvar;
+	isl_size nvar;
 	struct isl_vertex_list *v = NULL;
 
 	if (isl_tab_detect_implicit_equalities(tab) < 0)
 		return isl_bool_error;
 
 	nvar = isl_basic_set_dim(bset, isl_dim_set);
+	if (nvar < 0)
+		return isl_bool_error;
 
 	v = isl_calloc_type(tab->mat->ctx, struct isl_vertex_list);
 	if (!v)
@@ -232,20 +234,20 @@ error:
 /* Is the row pointed to by "f" linearly independent of the "n" first
  * rows in "facets"?
  */
-static int is_independent(__isl_keep isl_mat *facets, int n, isl_int *f)
+static isl_bool is_independent(__isl_keep isl_mat *facets, int n, isl_int *f)
 {
-	int rank;
+	isl_size rank;
 
 	if (isl_seq_first_non_zero(f, facets->n_col) < 0)
-		return 0;
+		return isl_bool_false;
 
 	isl_seq_cpy(facets->row[n], f, facets->n_col);
 	facets->n_row = n + 1;
 	rank = isl_mat_rank(facets);
 	if (rank < 0)
-		return -1;
+		return isl_bool_error;
 
-	return rank == n + 1;
+	return isl_bool_ok(rank == n + 1);
 }
 
 /* Check whether we can select constraint "level", given the current selection
@@ -263,34 +265,32 @@ static int is_independent(__isl_keep isl_mat *facets, int n, isl_int *f)
  * deselected constraints turning into equalities, then the corresponding
  * vertices have already been generated, so the constraint cannot be selected.
  */
-static int can_select(__isl_keep isl_basic_set *bset, int level,
+static isl_bool can_select(__isl_keep isl_basic_set *bset, int level,
 	struct isl_tab *tab, __isl_keep isl_mat *facets, int selected,
 	int *selection)
 {
 	int i;
-	int indep;
+	isl_bool indep;
 	unsigned ovar;
 	struct isl_tab_undo *snap;
 
 	if (isl_tab_is_redundant(tab, level))
-		return 0;
+		return isl_bool_false;
 
 	ovar = isl_space_offset(bset->dim, isl_dim_set);
 
 	indep = is_independent(facets, selected, bset->ineq[level] + 1 + ovar);
-	if (indep < 0)
-		return -1;
-	if (!indep)
-		return 0;
+	if (indep < 0 || !indep)
+		return indep;
 
 	snap = isl_tab_snap(tab);
 	if (isl_tab_select_facet(tab, level) < 0)
-		return -1;
+		return isl_bool_error;
 
 	if (tab->empty) {
 		if (isl_tab_rollback(tab, snap) < 0)
-			return -1;
-		return 0;
+			return isl_bool_error;
+		return isl_bool_false;
 	}
 
 	for (i = 0; i < level; ++i) {
@@ -306,15 +306,15 @@ static int can_select(__isl_keep isl_basic_set *bset, int level,
 		else
 			sgn = isl_tab_sign_of_max(tab, i);
 		if (sgn < -1)
-			return -1;
+			return isl_bool_error;
 		if (sgn <= 0) {
 			if (isl_tab_rollback(tab, snap) < 0)
-				return -1;
-			return 0;
+				return isl_bool_error;
+			return isl_bool_false;
 		}
 	}
 
-	return 1;
+	return isl_bool_true;
 }
 
 /* Compute the parametric vertices and the chamber decomposition
@@ -324,12 +324,11 @@ static int can_select(__isl_keep isl_basic_set *bset, int level,
  * and map the resulting vertices back.
  */
 static __isl_give isl_vertices *lower_dim_vertices(
-	__isl_keep isl_basic_set *bset)
+	__isl_take isl_basic_set *bset)
 {
 	isl_morph *morph;
 	isl_vertices *vertices;
 
-	bset = isl_basic_set_copy(bset);
 	morph = isl_basic_set_full_compression(bset);
 	bset = isl_morph_basic_set(isl_morph_copy(morph), bset);
 
@@ -344,6 +343,37 @@ static __isl_give isl_vertices *lower_dim_vertices(
 }
 
 /* Compute the parametric vertices and the chamber decomposition
+ * of a parametric polytope "bset" that is not full-dimensional.
+ * Additionally, free both "copy" and "tab".
+ */
+static __isl_give isl_vertices *lower_dim_vertices_free(
+	__isl_take isl_basic_set *bset, __isl_take isl_basic_set *copy,
+	struct isl_tab *tab)
+{
+	isl_basic_set_free(copy);
+	isl_tab_free(tab);
+	return lower_dim_vertices(bset);
+}
+
+/* Detect implicit equality constraints in "bset" using the tableau
+ * representation "tab".
+ * Return a copy of "bset" with the implicit equality constraints
+ * made explicit, leaving the original "bset" unmodified.
+ */
+static __isl_give isl_basic_set *detect_implicit_equality_constraints(
+	__isl_keep isl_basic_set *bset, struct isl_tab *tab)
+{
+	if (isl_tab_detect_implicit_equalities(tab) < 0)
+		return NULL;
+
+	bset = isl_basic_set_copy(bset);
+	bset = isl_basic_set_cow(bset);
+	bset = isl_basic_set_update_from_tab(bset, tab);
+
+	return bset;
+}
+
+/* Compute the parametric vertices and the chamber decomposition
  * of the parametric polytope defined using the same constraints
  * as "bset".  "bset" is assumed to have no existentially quantified
  * variables.
@@ -352,9 +382,22 @@ static __isl_give isl_vertices *lower_dim_vertices(
  * We simply run through all combinations of d constraints,
  * with d the number of set variables, and check if those d constraints
  * define a vertex.  To avoid the generation of duplicate vertices,
- * which we may happen if a vertex is defined by more that d constraints,
+ * which may happen if a vertex is defined by more than d constraints,
  * we make sure we only generate the vertex for the d constraints with
  * smallest index.
+ *
+ * Only potential vertices with a full-dimensional activity domain
+ * are considered.  However, if the input has (implicit) equality
+ * constraints among the parameters, then activity domain
+ * should be considered full-dimensional if it does not satisfy
+ * any extra equality constraints beyond those of the input.
+ * The implicit equality constraints of the input are therefore first detected.
+ * If there are any, then the input is mapped to a lower dimensional space
+ * such that the check for full-dimensional activity domains
+ * can be performed with respect to a full-dimensional space.
+ * Note that it is important to leave "bset" unmodified while detecting
+ * equality constraints since the inequality constraints of "bset"
+ * are assumed to correspond to those of the tableau.
  *
  * We set up a tableau and keep track of which facets have been
  * selected.  The tableau is marked strict_redundant so that we can be
@@ -378,7 +421,8 @@ __isl_give isl_vertices *isl_basic_set_compute_vertices(
 	struct isl_tab *tab;
 	int level;
 	int init;
-	unsigned nvar;
+	isl_size n_eq;
+	isl_size nvar;
 	int *selection = NULL;
 	int selected;
 	struct isl_tab_undo **snap = NULL;
@@ -386,6 +430,8 @@ __isl_give isl_vertices *isl_basic_set_compute_vertices(
 	struct isl_vertex_list *list = NULL;
 	int n_vertices = 0;
 	isl_vertices *vertices;
+	isl_basic_set *copy;
+	isl_basic_set *test;
 
 	if (!bset)
 		return NULL;
@@ -394,37 +440,46 @@ __isl_give isl_vertices *isl_basic_set_compute_vertices(
 		return vertices_empty(bset);
 
 	if (bset->n_eq != 0)
-		return lower_dim_vertices(bset);
+		return lower_dim_vertices(isl_basic_set_copy(bset));
 
-	isl_assert(bset->ctx, isl_basic_set_dim(bset, isl_dim_div) == 0,
-		return NULL);
-
-	if (isl_basic_set_dim(bset, isl_dim_set) == 0)
-		return vertices_0D(bset);
-
-	nvar = isl_basic_set_dim(bset, isl_dim_set);
-
-	bset = isl_basic_set_copy(bset);
-	bset = isl_basic_set_set_rational(bset);
-	if (!bset)
+	if (isl_basic_set_check_no_locals(bset) < 0)
 		return NULL;
 
-	tab = isl_tab_from_basic_set(bset, 0);
+	nvar = isl_basic_set_dim(bset, isl_dim_set);
+	if (nvar < 0)
+		return NULL;
+	if (nvar == 0)
+		return vertices_0D(bset);
+
+	copy = isl_basic_set_copy(bset);
+	copy = isl_basic_set_set_rational(copy);
+	if (!copy)
+		return NULL;
+
+	tab = isl_tab_from_basic_set(copy, 0);
 	if (!tab)
 		goto error;
 	tab->strict_redundant = 1;
 
 	if (tab->empty)	{
-		vertices = vertices_empty(bset);
-		isl_basic_set_free(bset);
+		vertices = vertices_empty(copy);
+		isl_basic_set_free(copy);
 		isl_tab_free(tab);
 		return vertices;
 	}
 
-	selection = isl_alloc_array(bset->ctx, int, bset->n_ineq);
-	snap = isl_alloc_array(bset->ctx, struct isl_tab_undo *, bset->n_ineq);
-	facets = isl_mat_alloc(bset->ctx, nvar, nvar);
-	if ((bset->n_ineq && (!selection || !snap)) || !facets)
+	test = detect_implicit_equality_constraints(bset, tab);
+	n_eq = isl_basic_set_n_equality(test);
+	if (n_eq < 0)
+		test = isl_basic_set_free(test);
+	if (n_eq < 0 || n_eq > 0)
+		return lower_dim_vertices_free(test, copy, tab);
+	isl_basic_set_free(test);
+
+	selection = isl_alloc_array(copy->ctx, int, copy->n_ineq);
+	snap = isl_alloc_array(copy->ctx, struct isl_tab_undo *, copy->n_ineq);
+	facets = isl_mat_alloc(copy->ctx, nvar, nvar);
+	if ((copy->n_ineq && (!selection || !snap)) || !facets)
 		goto error;
 
 	level = 0;
@@ -432,16 +487,16 @@ __isl_give isl_vertices *isl_basic_set_compute_vertices(
 	selected = 0;
 
 	while (level >= 0) {
-		if (level >= bset->n_ineq ||
+		if (level >= copy->n_ineq ||
 		    (!init && selection[level] != SELECTED)) {
 			--level;
 			init = 0;
 			continue;
 		}
 		if (init) {
-			int ok;
+			isl_bool ok;
 			snap[level] = isl_tab_snap(tab);
-			ok = can_select(bset, level, tab, facets, selected,
+			ok = can_select(copy, level, tab, facets, selected,
 					selection);
 			if (ok < 0)
 				goto error;
@@ -458,7 +513,7 @@ __isl_give isl_vertices *isl_basic_set_compute_vertices(
 		}
 		if (selected == nvar) {
 			if (tab->n_dead == nvar) {
-				isl_bool added = add_vertex(&list, bset, tab);
+				isl_bool added = add_vertex(&list, copy, tab);
 				if (added < 0)
 					goto error;
 				if (added)
@@ -477,9 +532,9 @@ __isl_give isl_vertices *isl_basic_set_compute_vertices(
 
 	isl_tab_free(tab);
 
-	vertices = vertices_from_list(bset, n_vertices, list);
+	vertices = vertices_from_list(copy, n_vertices, list);
 
-	vertices = compute_chambers(bset, vertices);
+	vertices = compute_chambers(copy, vertices);
 
 	return vertices;
 error:
@@ -488,7 +543,7 @@ error:
 	free(selection);
 	free(snap);
 	isl_tab_free(tab);
-	isl_basic_set_free(bset);
+	isl_basic_set_free(copy);
 	return NULL;
 }
 
@@ -580,7 +635,12 @@ static isl_bool can_intersect(struct isl_tab *tab,
 	snap = isl_tab_snap(tab);
 
 	for (i = 0; i < bset->n_ineq; ++i) {
-		if (isl_tab_ineq_type(tab, bset->ineq[i]) == isl_ineq_redundant)
+		enum isl_ineq_type type;
+
+		type = isl_tab_ineq_type(tab, bset->ineq[i]);
+		if (type < 0)
+			return isl_bool_error;
+		if (type == isl_ineq_redundant)
 			continue;
 		if (isl_tab_add_ineq(tab, bset->ineq[i]) < 0)
 			return isl_bool_error;
@@ -710,7 +770,7 @@ static struct isl_facet_todo *create_todo(struct isl_tab *tab, int con)
 	todo->bset = isl_basic_set_sort_constraints(todo->bset);
 	if (!todo->bset)
 		goto error;
-	ISL_F_SET(todo->bset, ISL_BASIC_SET_NORMALIZED);
+	ISL_F_SET(todo->bset, ISL_BASIC_SET_NO_REDUNDANT);
 	todo->tab = isl_tab_dup(tab);
 	if (!todo->tab)
 		goto error;
@@ -856,6 +916,7 @@ static __isl_give isl_vertices *compute_chambers(__isl_take isl_basic_set *bset,
 {
 	int i;
 	isl_ctx *ctx;
+	isl_size n_eq;
 	isl_vec *sample = NULL;
 	struct isl_tab *tab = NULL;
 	struct isl_tab_undo *snap;
@@ -873,6 +934,12 @@ static __isl_give isl_vertices *compute_chambers(__isl_take isl_basic_set *bset,
 		goto error;
 
 	bset = isl_basic_set_params(bset);
+	n_eq = isl_basic_set_n_equality(bset);
+	if (n_eq < 0)
+		goto error;
+	if (n_eq > 0)
+		isl_die(isl_basic_set_get_ctx(bset), isl_error_internal,
+			"expecting full-dimensional input", goto error);
 
 	tab = isl_tab_from_basic_set(bset, 1);
 	if (!tab)
@@ -976,9 +1043,9 @@ isl_ctx *isl_vertex_get_ctx(__isl_keep isl_vertex *vertex)
 	return vertex ? isl_vertices_get_ctx(vertex->vertices) : NULL;
 }
 
-int isl_vertex_get_id(__isl_keep isl_vertex *vertex)
+isl_size isl_vertex_get_id(__isl_keep isl_vertex *vertex)
 {
-	return vertex ? vertex->id : -1;
+	return vertex ? vertex->id : isl_size_error;
 }
 
 /* Return the activity domain of the vertex "vertex".
@@ -1040,12 +1107,14 @@ error:
 	return NULL;
 }
 
-void isl_vertex_free(__isl_take isl_vertex *vertex)
+__isl_null isl_vertex *isl_vertex_free(__isl_take isl_vertex *vertex)
 {
 	if (!vertex)
-		return;
+		return NULL;
 	isl_vertices_free(vertex->vertices);
 	free(vertex);
+
+	return NULL;
 }
 
 isl_ctx *isl_cell_get_ctx(__isl_keep isl_cell *cell)
@@ -1088,15 +1157,17 @@ error:
 	return NULL;
 }
 
-void isl_cell_free(__isl_take isl_cell *cell)
+__isl_null isl_cell *isl_cell_free(__isl_take isl_cell *cell)
 {
 	if (!cell)
-		return;
+		return NULL;
 
 	isl_vertices_free(cell->vertices);
 	free(cell->ids);
 	isl_basic_set_free(cell->dom);
 	free(cell);
+
+	return NULL;
 }
 
 /* Create a tableau of the cone obtained by first homogenizing the given
@@ -1108,11 +1179,13 @@ static struct isl_tab *tab_for_shifted_cone(__isl_keep isl_basic_set *bset)
 	int i;
 	isl_vec *c = NULL;
 	struct isl_tab *tab;
+	isl_size total;
 
-	if (!bset)
+	total = isl_basic_set_dim(bset, isl_dim_all);
+	if (total < 0)
 		return NULL;
 	tab = isl_tab_alloc(bset->ctx, bset->n_eq + bset->n_ineq + 1,
-			    1 + isl_basic_set_total_dim(bset), 0);
+			    1 + total, 0);
 	if (!tab)
 		return NULL;
 	tab->rational = ISL_F_ISSET(bset, ISL_BASIC_SET_RATIONAL);
@@ -1122,7 +1195,7 @@ static struct isl_tab *tab_for_shifted_cone(__isl_keep isl_basic_set *bset)
 		return tab;
 	}
 
-	c = isl_vec_alloc(bset->ctx, 1 + 1 + isl_basic_set_total_dim(bset));
+	c = isl_vec_alloc(bset->ctx, 1 + 1 + total);
 	if (!c)
 		goto error;
 
@@ -1323,9 +1396,9 @@ isl_ctx *isl_vertices_get_ctx(__isl_keep isl_vertices *vertices)
 	return vertices ? vertices->bset->ctx : NULL;
 }
 
-int isl_vertices_get_n_vertices(__isl_keep isl_vertices *vertices)
+isl_size isl_vertices_get_n_vertices(__isl_keep isl_vertices *vertices)
 {
-	return vertices ? vertices->n_vertices : -1;
+	return vertices ? vertices->n_vertices : isl_size_error;
 }
 
 __isl_give isl_vertices *isl_morph_vertices(__isl_take isl_morph *morph,
@@ -1452,7 +1525,7 @@ static isl_stat triangulate(__isl_keep isl_cell *cell, __isl_keep isl_vec *v,
 	isl_stat (*fn)(__isl_take isl_cell *simplex, void *user), void *user)
 {
 	int i, j, k;
-	int d, nparam;
+	isl_size d, nparam;
 	int *ids;
 	isl_ctx *ctx;
 	isl_basic_set *vertex;
@@ -1461,6 +1534,8 @@ static isl_stat triangulate(__isl_keep isl_cell *cell, __isl_keep isl_vec *v,
 	ctx = isl_cell_get_ctx(cell);
 	d = isl_basic_set_dim(cell->vertices->bset, isl_dim_set);
 	nparam = isl_basic_set_dim(cell->vertices->bset, isl_dim_param);
+	if (d < 0 || nparam < 0)
+		return isl_stat_error;
 
 	if (n_simplex + n_other == d + 1)
 		return call_on_simplex(cell, simplex_ids, n_simplex,
@@ -1506,7 +1581,7 @@ error:
 isl_stat isl_cell_foreach_simplex(__isl_take isl_cell *cell,
 	isl_stat (*fn)(__isl_take isl_cell *simplex, void *user), void *user)
 {
-	int d, total;
+	isl_size d, total;
 	isl_stat r;
 	isl_ctx *ctx;
 	isl_vec *v = NULL;
@@ -1516,7 +1591,9 @@ isl_stat isl_cell_foreach_simplex(__isl_take isl_cell *cell,
 		return isl_stat_error;
 
 	d = isl_basic_set_dim(cell->vertices->bset, isl_dim_set);
-	total = isl_basic_set_total_dim(cell->vertices->bset);
+	total = isl_basic_set_dim(cell->vertices->bset, isl_dim_all);
+	if (d < 0 || total < 0)
+		return isl_stat_error;
 
 	if (cell->n_vertices == d + 1)
 		return fn(cell, user);

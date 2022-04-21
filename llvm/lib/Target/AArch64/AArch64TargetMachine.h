@@ -20,8 +20,6 @@
 
 namespace llvm {
 
-class AArch64RegisterBankInfo;
-
 class AArch64TargetMachine : public LLVMTargetMachine {
 protected:
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
@@ -43,10 +41,24 @@ public:
   // Pass Pipeline Configuration
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   TargetLoweringObjectFile* getObjFileLowering() const override {
     return TLOF.get();
+  }
+
+  yaml::MachineFunctionInfo *createDefaultFuncInfoYAML() const override;
+  yaml::MachineFunctionInfo *
+  convertFuncInfoToYAML(const MachineFunction &MF) const override;
+  bool parseMachineFunctionInfo(const yaml::MachineFunctionInfo &,
+                                PerFunctionMIParsingState &PFS,
+                                SMDiagnostic &Error,
+                                SMRange &SourceRange) const override;
+
+  /// Returns true if a cast between SrcAS and DestAS is a noop.
+  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
+    // Addrspacecasts are always noops.
+    return true;
   }
 
 private:

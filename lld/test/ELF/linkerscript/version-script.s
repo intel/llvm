@@ -11,13 +11,13 @@
 # RUN: llvm-readobj -V %t.so | FileCheck %s
 
 ## Check that we are able to version symbols defined in script.
-# CHECK:      Symbols [
+# CHECK:      VersionSymbols [
 # CHECK-NEXT:   Symbol {
 # CHECK-NEXT:     Version: 0
 # CHECK-NEXT:     Name:
 # CHECK-NEXT:   }
 # CHECK-NEXT:   Symbol {
-# CHECK-NEXT:     Version: 0
+# CHECK-NEXT:     Version: 1
 # CHECK-NEXT:     Name: und
 # CHECK-NEXT:   }
 # CHECK-NEXT:   Symbol {
@@ -31,14 +31,14 @@
 # CHECK-NEXT: ]
 
 # RUN: echo "bar = und; VERSION { V { global: foo; bar; local: *; }; }" > %t.script
-# RUN: not ld.lld -T %t.script -shared --no-undefined-version %t.o -o %t.so \
+# RUN: not ld.lld -T %t.script -shared --no-undefined-version %t.o -o /dev/null \
 # RUN:   2>&1 | FileCheck --check-prefix=ERR %s
 # ERR: symbol not found: und
 
 # RUN: echo "und = 0x1; VERSION { V { global: und; local: *; }; }" > %t.script
 # RUN: ld.lld -T %t.script -shared --no-undefined-version %t.o -o %t.so
 # RUN: llvm-readobj -V %t.so | FileCheck %s --check-prefix=UNDEF
-# UNDEF:      Symbols [
+# UNDEF:      VersionSymbols [
 # UNDEF-NEXT:   Symbol {
 # UNDEF-NEXT:     Version: 0
 # UNDEF-NEXT:     Name:

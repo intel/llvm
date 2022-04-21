@@ -1,6 +1,6 @@
-; RUN: opt %loadPolly -pass-remarks-analysis="polly-scops" -polly-scops \
-; RUN: -polly-invariant-load-hoisting=true \
-; RUN:     < %s 2>&1 | FileCheck %s
+; RUN: opt %loadPolly -pass-remarks-analysis="polly-scops" -polly-print-scops \
+; RUN:     -polly-invariant-load-hoisting=true \
+; RUN:     -disable-output < %s 2>&1 | FileCheck %s
 ;
 ; This test case has an SCEVSMax expression with a very high arity. The
 ; piecewise affine function we would create for it would have a huge amount of
@@ -129,7 +129,7 @@ cleanup:                                          ; preds = %for.body7.preheader
   ret i32 %retval.0
 }
 
-attributes #0 = { norecurse nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+strict-align" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+strict-align" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0, !1}
 !llvm.ident = !{!2}

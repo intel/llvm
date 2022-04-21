@@ -16,17 +16,19 @@
 
 #include <isl_list_templ.h>
 
-#undef BASE
-#define BASE basic_set
+#undef EL_BASE
+#define EL_BASE basic_set
 
 #include <isl_list_templ.c>
 
-#undef BASE
-#define BASE set
+#undef EL_BASE
+#define EL_BASE set
 
 #include <isl_list_templ.c>
+#include <isl_list_read_templ.c>
 
-#undef BASE
-#define BASE union_set
+#undef EL_BASE
+#define EL_BASE union_set
 
 #include <isl_list_templ.c>
+#include <isl_list_read_templ.c>

@@ -13,6 +13,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     static int count;
@@ -28,7 +30,7 @@ struct B
 {
     static int count;
     B() {++count;}
-    B(const B&) {++count;}
+    B(const B& other) : A(other) {++count;}
     virtual ~B() {--count;}
 };
 

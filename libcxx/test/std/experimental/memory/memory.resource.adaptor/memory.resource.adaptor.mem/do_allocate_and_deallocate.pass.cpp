@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <experimental/memory_resource>
 
@@ -15,11 +15,6 @@
 // void * do_allocate(size_t size, size_t align)
 // void   do_deallocate(void*, size_t, size_t)
 
-// When back-deploying to macosx10.7, the RTTI for exception classes
-// incorrectly provided by libc++.dylib is mixed with the one in
-// libc++abi.dylib and exceptions are not caught properly.
-// XFAIL: with_system_cxx_lib=macosx10.7
-
 #include <experimental/memory_resource>
 #include <type_traits>
 #include <memory>
@@ -27,7 +22,7 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "test_memory_resource.hpp"
+#include "test_memory_resource.h"
 
 namespace ex = std::experimental::pmr;
 
@@ -104,7 +99,7 @@ void check_alloc_max_size() {
         try {
             m1.allocate(size);
             assert(false);
-        } catch (std::exception const&) {
+        } catch (std::bad_array_new_length const&) {
         }
     }
 #endif

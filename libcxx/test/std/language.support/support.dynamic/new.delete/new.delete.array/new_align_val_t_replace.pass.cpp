@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // UNSUPPORTED: sanitizer-new-delete
 
-// NOTE: GCC doesn't provide the -faligned-allocation flag to test for
-// XFAIL: no-aligned-allocation && !gcc
+// Libcxx when built for z/OS doesn't contain the aligned allocation functions,
+// nor does the dynamic library shipped with z/OS.
+// UNSUPPORTED: target={{.+}}-zos{{.*}}
 
 // test operator new replacement
 

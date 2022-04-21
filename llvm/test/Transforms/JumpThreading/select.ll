@@ -281,12 +281,12 @@ cond.false.15.i:                                  ; preds = %cond.false.10.i
   ret i32 %j.add3
 
 ; CHECK-LABEL: @unfold3
-; CHECK: br i1 %cmp.i, label %.exit.thread2, label %cond.false.i
+; CHECK: br i1 %cmp.i, label %.exit.thread3, label %cond.false.i
 ; CHECK: br i1 %cmp4.i, label %.exit.thread, label %cond.false.6.i
-; CHECK: br i1 %cmp8.i, label %.exit.thread2, label %cond.false.10.i
+; CHECK: br i1 %cmp8.i, label %.exit.thread3, label %cond.false.10.i
 ; CHECK: br i1 %cmp13.i, label %.exit.thread, label %.exit
-; CHECK: br i1 %phitmp, label %.exit.thread, label %.exit.thread2
-; CHECK: br label %.exit.thread2
+; CHECK: br i1 %phitmp, label %.exit.thread, label %.exit.thread3
+; CHECK: br label %.exit.thread3
 }
 
 define i32 @unfold4(i32 %u, i32 %v, i32 %w, i32 %x, i32 %y, i32 %z, i32 %j) nounwind {
@@ -320,11 +320,11 @@ cond.false.15.i:                                  ; preds = %cond.false.10.i
 
 ; CHECK-LABEL: @unfold4
 ; CHECK: br i1 %cmp.i, label %.exit.thread, label %cond.false.i
-; CHECK: br i1 %cmp4.i, label %.exit.thread3, label %cond.false.6.i
+; CHECK: br i1 %cmp4.i, label %.exit.thread4, label %cond.false.6.i
 ; CHECK: br i1 %cmp8.i, label %.exit.thread, label %cond.false.10.i
-; CHECK: br i1 %cmp13.i, label %.exit.thread3, label %.exit
-; CHECK: br i1 %lnot.i18, label %.exit.thread, label %.exit.thread3
-; CHECK: br label %.exit.thread3
+; CHECK: br i1 %cmp13.i, label %.exit.thread4, label %.exit
+; CHECK: br i1 %lnot.i18, label %.exit.thread, label %.exit.thread4
+; CHECK: br label %.exit.thread4
 }
 
 define i32 @unfold5(i32 %u, i32 %v, i32 %w, i32 %x, i32 %y, i32 %z, i32 %j) nounwind {
@@ -440,4 +440,32 @@ sw.default:                                       ; preds = %if.end, %sw.bb9
 ; CHECK: switch i32 [[REG2]]
 ; CHECK: i32 2, label [[DEST1]]
 ; CHECK: i32 4, label [[DEST2]]
+}
+
+; FIXME: This is an invalid transform. If %b is false and %x is poison,
+; then the select produces poison (the result of the program is poison).
+; But with this transform, we may be branching on poison, and that is UB.
+
+define i32 @TryToUnfoldSelectInCurrBB(i1 %b, i1 %ui, i32 %s, i1 %x) {
+; CHECK-LABEL: @TryToUnfoldSelectInCurrBB(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[B:%.*]], label [[IF_END_THREAD:%.*]], label [[IF_END:%.*]]
+; CHECK:       if.end:
+; CHECK-NEXT:    br i1 [[X:%.*]], label [[TMP0:%.*]], label [[IF_END_THREAD]]
+; CHECK:       0:
+; CHECK-NEXT:    br label [[IF_END_THREAD]]
+; CHECK:       if.end.thread:
+; CHECK-NEXT:    [[TMP1:%.*]] = phi i32 [ [[S:%.*]], [[TMP0]] ], [ 42, [[IF_END]] ], [ 42, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    ret i32 [[TMP1]]
+;
+entry:
+  br i1 %b, label %if.end, label %if.else
+
+if.else:
+  br label %if.end
+
+if.end:
+  %v = phi i1 [ %x, %if.else ], [ false, %entry ]
+  %v1 = select i1 %v, i32 %s, i32 42
+  ret i32 %v1
 }

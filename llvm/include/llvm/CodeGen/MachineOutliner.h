@@ -12,13 +12,13 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MACHINEOUTLINER_H
-#define LLVM_MACHINEOUTLINER_H
+#ifndef LLVM_CODEGEN_MACHINEOUTLINER_H
+#define LLVM_CODEGEN_MACHINEOUTLINER_H
 
 #include "llvm/CodeGen/LiveRegUnits.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
-#include "llvm/CodeGen/LivePhysRegs.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
+#include <initializer_list>
 
 namespace llvm {
 namespace outliner {
@@ -37,10 +37,10 @@ enum InstrType { Legal, LegalTerminator, Illegal, Invisible };
 struct Candidate {
 private:
   /// The start index of this \p Candidate in the instruction list.
-  unsigned StartIdx;
+  unsigned StartIdx = 0;
 
   /// The number of instructions in this \p Candidate.
-  unsigned Len;
+  unsigned Len = 0;
 
   // The first instruction in this \p Candidate.
   MachineBasicBlock::iterator FirstInst;
@@ -49,40 +49,72 @@ private:
   MachineBasicBlock::iterator LastInst;
 
   // The basic block that contains this Candidate.
-  MachineBasicBlock *MBB;
+  MachineBasicBlock *MBB = nullptr;
 
   /// Cost of calling an outlined function from this point as defined by the
   /// target.
-  unsigned CallOverhead;
+  unsigned CallOverhead = 0;
+
+  /// Liveness information for this Candidate. Tracks from the end of the
+  /// block containing this Candidate to the beginning of its sequence.
+  ///
+  /// Optional. Can be used to fine-tune the cost model, or fine-tune legality
+  /// decisions.
+  LiveRegUnits FromEndOfBlockToStartOfSeq;
+
+  /// Liveness information restricted to this Candidate's instruction sequence.
+  ///
+  /// Optional. Can be used to fine-tune the cost model, or fine-tune legality
+  /// decisions.
+  LiveRegUnits InSeq;
+
+  /// True if FromEndOfBlockToStartOfSeq has been initialized.
+  bool FromEndOfBlockToStartOfSeqWasSet = false;
+
+  /// True if InSeq has been initialized.
+  bool InSeqWasSet = false;
+
+  /// Populate FromEndOfBlockToStartOfSeq with liveness information.
+  void initFromEndOfBlockToStartOfSeq(const TargetRegisterInfo &TRI) {
+    assert(MBB->getParent()->getRegInfo().tracksLiveness() &&
+           "Candidate's Machine Function must track liveness");
+    // Only initialize once.
+    if (FromEndOfBlockToStartOfSeqWasSet)
+      return;
+    FromEndOfBlockToStartOfSeqWasSet = true;
+    FromEndOfBlockToStartOfSeq.init(TRI);
+    FromEndOfBlockToStartOfSeq.addLiveOuts(*MBB);
+    // Compute liveness from the end of the block up to the beginning of the
+    // outlining candidate.
+    for (auto &MI : make_range(MBB->rbegin(),
+                               (MachineBasicBlock::reverse_iterator)front()))
+      FromEndOfBlockToStartOfSeq.stepBackward(MI);
+  }
+
+  /// Populate InSeq with liveness information.
+  void initInSeq(const TargetRegisterInfo &TRI) {
+    assert(MBB->getParent()->getRegInfo().tracksLiveness() &&
+           "Candidate's Machine Function must track liveness");
+    // Only initialize once.
+    if (InSeqWasSet)
+      return;
+    InSeqWasSet = true;
+    InSeq.init(TRI);
+    for (auto &MI : make_range(front(), std::next(back())))
+      InSeq.accumulate(MI);
+  }
 
 public:
   /// The index of this \p Candidate's \p OutlinedFunction in the list of
   /// \p OutlinedFunctions.
-  unsigned FunctionIdx;
+  unsigned FunctionIdx = 0;
 
   /// Identifier denoting the instructions to emit to call an outlined function
   /// from this point. Defined by the target.
-  unsigned CallConstructionID;
-
-  /// Contains physical register liveness information for the MBB containing
-  /// this \p Candidate.
-  ///
-  /// This is optionally used by the target to calculate more fine-grained
-  /// cost model information.
-  LiveRegUnits LRU;
-
-  /// Contains the accumulated register liveness information for the
-  /// instructions in this \p Candidate.
-  ///
-  /// This is optionally used by the target to determine which registers have
-  /// been used across the sequence.
-  LiveRegUnits UsedInSequence;
+  unsigned CallConstructionID = 0;
 
   /// Target-specific flags for this Candidate's MBB.
   unsigned Flags = 0x0;
-
-  /// True if initLRU has been called on this Candidate.
-  bool LRUWasSet = false;
 
   /// Return the number of instructions in this Candidate.
   unsigned getLength() const { return Len; }
@@ -108,6 +140,50 @@ public:
   MachineFunction *getMF() const { return MBB->getParent(); }
   MachineBasicBlock *getMBB() const { return MBB; }
 
+  /// \returns True if \p Reg is available from the end of the block to the
+  /// beginning of the sequence.
+  ///
+  /// This query considers the following range:
+  ///
+  /// in_seq_1
+  /// in_seq_2
+  /// ...
+  /// in_seq_n
+  /// not_in_seq_1
+  /// ...
+  /// <end of block>
+  bool isAvailableAcrossAndOutOfSeq(Register Reg,
+                                    const TargetRegisterInfo &TRI) {
+    if (!FromEndOfBlockToStartOfSeqWasSet)
+      initFromEndOfBlockToStartOfSeq(TRI);
+    return FromEndOfBlockToStartOfSeq.available(Reg);
+  }
+
+  /// \returns True if `isAvailableAcrossAndOutOfSeq` fails for any register
+  /// in \p Regs.
+  bool isAnyUnavailableAcrossOrOutOfSeq(std::initializer_list<Register> Regs,
+                                        const TargetRegisterInfo &TRI) {
+    if (!FromEndOfBlockToStartOfSeqWasSet)
+      initFromEndOfBlockToStartOfSeq(TRI);
+    return any_of(Regs, [&](Register Reg) {
+      return !FromEndOfBlockToStartOfSeq.available(Reg);
+    });
+  }
+
+  /// \returns True if \p Reg is available within the sequence itself.
+  ///
+  /// This query considers the following range:
+  ///
+  /// in_seq_1
+  /// in_seq_2
+  /// ...
+  /// in_seq_n
+  bool isAvailableInsideSeq(Register Reg, const TargetRegisterInfo &TRI) {
+    if (!InSeqWasSet)
+      initInSeq(TRI);
+    return InSeq.available(Reg);
+  }
+
   /// The number of instructions that would be saved by outlining every
   /// candidate of this type.
   ///
@@ -123,7 +199,7 @@ public:
             unsigned FunctionIdx, unsigned Flags)
       : StartIdx(StartIdx), Len(Len), FirstInst(FirstInst), LastInst(LastInst),
         MBB(MBB), FunctionIdx(FunctionIdx), Flags(Flags) {}
-  Candidate() {}
+  Candidate() = default;
 
   /// Used to ensure that \p Candidates are outlined in an order that
   /// preserves the start and end indices of other \p Candidates.
@@ -131,31 +207,6 @@ public:
     return getStartIdx() > RHS.getStartIdx();
   }
 
-  /// Compute the registers that are live across this Candidate.
-  /// Used by targets that need this information for cost model calculation.
-  /// If a target does not need this information, then this should not be
-  /// called.
-  void initLRU(const TargetRegisterInfo &TRI) {
-    assert(MBB->getParent()->getRegInfo().tracksLiveness() &&
-           "Candidate's Machine Function must track liveness");
-    // Only initialize once.
-    if (LRUWasSet)
-      return;
-    LRUWasSet = true;
-    LRU.init(TRI);
-    LRU.addLiveOuts(*MBB);
-
-    // Compute liveness from the end of the block up to the beginning of the
-    // outlining candidate.
-    std::for_each(MBB->rbegin(), (MachineBasicBlock::reverse_iterator)front(),
-                  [this](MachineInstr &MI) { LRU.stepBackward(MI); });
-
-    // Walk over the sequence itself and figure out which registers were used
-    // in the sequence.
-    UsedInSequence.init(TRI);
-    std::for_each(front(), std::next(back()),
-                  [this](MachineInstr &MI) { UsedInSequence.accumulate(MI); });
-  }
 };
 
 /// The information necessary to create an outlined function for some
@@ -171,13 +222,13 @@ public:
 
   /// Represents the size of a sequence in bytes. (Some instructions vary
   /// widely in size, so just counting the instructions isn't very useful.)
-  unsigned SequenceSize;
+  unsigned SequenceSize = 0;
 
   /// Target-defined overhead of constructing a frame for this function.
-  unsigned FrameOverhead;
+  unsigned FrameOverhead = 0;
 
   /// Target-defined identifier for constructing a frame for this function.
-  unsigned FrameConstructionID;
+  unsigned FrameConstructionID = 0;
 
   /// Return the number of candidates for this \p OutlinedFunction.
   unsigned getOccurrenceCount() const { return Candidates.size(); }
@@ -217,7 +268,7 @@ public:
       C.Benefit = B;
   }
 
-  OutlinedFunction() {}
+  OutlinedFunction() = default;
 };
 } // namespace outliner
 } // namespace llvm

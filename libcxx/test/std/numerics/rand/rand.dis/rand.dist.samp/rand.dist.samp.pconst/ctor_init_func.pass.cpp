@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <random>
 
@@ -18,6 +18,8 @@
 
 #include <random>
 #include <cassert>
+
+#include "test_macros.h"
 
 double f(double x)
 {

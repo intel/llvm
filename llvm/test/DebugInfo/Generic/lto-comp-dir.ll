@@ -1,5 +1,4 @@
-; REQUIRES: object-emission
-
+; XFAIL: -aix
 ; RUN: %llc_dwarf < %s -filetype=obj | llvm-dwarfdump -debug-line - | FileCheck %s
 ; RUN: %llc_dwarf < %s -filetype=asm | FileCheck --check-prefix=ASM %s
 
@@ -29,8 +28,8 @@
 ; interpretations depending on which CU lead to the table - so ensure that
 ; full paths are always emitted in this case, never comp_dir relative.
 
-; ASM: .file   1 "/tmp/dbginfo/a{{[/\\]+}}a.cpp"
-; ASM: .file   2 "/tmp/dbginfo/b{{[/\\]+}}b.cpp"
+; ASM: .file   1 "/tmp/dbginfo/a" "a.cpp"
+; ASM: .file   2 "/tmp/dbginfo/b" "b.cpp"
 
 ; Generated from the following source compiled to bitcode from within their
 ; respective directories (with debug info) and linked together with llvm-link
@@ -58,8 +57,8 @@ entry:
   ret i32 0, !dbg !21
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0, !8}
 !llvm.module.flags = !{!16, !17}

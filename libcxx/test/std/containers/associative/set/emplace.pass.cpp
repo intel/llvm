@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <set>
 
@@ -18,6 +18,7 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../Emplaceable.h"
 #include "DefaultOnly.h"
 #include "min_allocator.h"
@@ -55,12 +56,12 @@ int main(int, char**)
         assert(*m.begin() == Emplaceable());
         r = m.emplace(2, 3.5);
         assert(r.second);
-        assert(r.first == next(m.begin()));
+        assert(r.first == std::next(m.begin()));
         assert(m.size() == 2);
         assert(*r.first == Emplaceable(2, 3.5));
         r = m.emplace(2, 3.5);
         assert(!r.second);
-        assert(r.first == next(m.begin()));
+        assert(r.first == std::next(m.begin()));
         assert(m.size() == 2);
         assert(*r.first == Emplaceable(2, 3.5));
     }

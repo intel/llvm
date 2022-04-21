@@ -108,7 +108,7 @@ define float @div_select_constant_fold(i1 zeroext %arg) {
 ; CHECK-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
 ; CHECK-NEXT:    retq
   %tmp = select i1 %arg, float 5.000000e+00, float 6.000000e+00
-  %B2 = fdiv float %tmp, 1.000000e+00
+  %B2 = fdiv nnan float %tmp, 2.000000e+00
   ret float %B2
 }
 
@@ -131,7 +131,7 @@ define void @PR24141() {
 ; CHECK-NEXT:    .p2align 4, 0x90
 ; CHECK-NEXT:  .LBB8_1: # %while.body
 ; CHECK-NEXT:    # =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    callq g
+; CHECK-NEXT:    callq g@PLT
 ; CHECK-NEXT:    divsd %xmm1, %xmm0
 ; CHECK-NEXT:    jmp .LBB8_1
 entry:

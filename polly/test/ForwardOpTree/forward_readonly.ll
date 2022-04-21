@@ -1,5 +1,5 @@
-; RUN: opt %loadPolly -polly-analyze-read-only-scalars=true  -polly-optree -analyze < %s | FileCheck %s -match-full-lines -check-prefixes=STATS,MODEL
-; RUN: opt %loadPolly -polly-analyze-read-only-scalars=false -polly-optree -analyze < %s | FileCheck %s -match-full-lines -check-prefixes=STATS,NOMODEL
+; RUN: opt %loadPolly -polly-analyze-read-only-scalars=true  -polly-print-optree -disable-output < %s | FileCheck %s -match-full-lines -check-prefixes=STATS,MODEL
+; RUN: opt %loadPolly -polly-analyze-read-only-scalars=false -polly-print-optree -disable-output < %s | FileCheck %s -match-full-lines -check-prefixes=STATS,NOMODEL
 ;
 ; Move %val to %bodyB, so %bodyA can be removed (by -polly-simplify)
 ;
@@ -42,7 +42,8 @@ return:
 
 ; STATS: Statistics {
 ; STATS:     Instructions copied: 1
-; STATS:     Read-only accesses copied: 1
+; MODEL:     Read-only accesses copied: 1
+; NOMODEL:   Read-only accesses copied: 0
 ; STATS:     Operand trees forwarded: 1
 ; STATS:     Statements with forwarded operand trees: 1
 ; STATS: }
@@ -63,7 +64,7 @@ return:
 ; MODEL-NEXT:                 [n] -> { Stmt_bodyB[i0] -> MemRef_arg[] };
 ; MODEL-NEXT:             Instructions {
 ; MODEL-NEXT:                   %val = fadd double %arg, 2.100000e+01
-; MODEL-NEXT:                   store double %val, double* %A
+; MODEL-NEXT:                   store double %val, double* %A, align 8
 ; MODEL-NEXT:                 }
 ; MODEL-NEXT: }
 
@@ -79,6 +80,6 @@ return:
 ; NOMODEL-NEXT:                 [n] -> { Stmt_bodyB[i0] -> MemRef_A[0] };
 ; NOMODEL-NEXT:             Instructions {
 ; NOMODEL-NEXT:                   %val = fadd double %arg, 2.100000e+01
-; NOMODEL-NEXT:                   store double %val, double* %A
+; NOMODEL-NEXT:                   store double %val, double* %A, align 8
 ; NOMODEL-NEXT:                 }
 ; NOMODEL-NEXT: }

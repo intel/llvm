@@ -1,4 +1,4 @@
-// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readobj -S --sr --symbols | FileCheck %s
+// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readobj -S --sr --symbols - | FileCheck %s
 
 // When doing a rename, all the checks for where the relocation should go
 // should be performed with the original symbol. Only if we decide to relocate
@@ -19,7 +19,8 @@ defined3:
 // CHECK:          Index:
 // CHECK:          Name: .rela.text
 // CHECK-NEXT:     Type: SHT_RELA (0x4)
-// CHECK-NEXT:     Flags [ (0x0)
+// CHECK-NEXT:     Flags [
+// CHECK-NEXT:       SHF_INFO_LINK
 // CHECK-NEXT:     ]
 // CHECK-NEXT:     Address: 0x0
 // CHECK-NEXT:     Offset:

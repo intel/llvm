@@ -3,12 +3,11 @@ static_library("conversions") {
   configs += [ "//llvm/utils/gn/build:clang_code" ]
   deps = [
     "//clang-tools-extra/clangd",
+    "//clang-tools-extra/clangd/support",
     "//llvm/lib/Support",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "Conversion.cpp",
-  ]
+  sources = [ "Conversion.cpp" ]
 }
 
 static_library("transport") {
@@ -17,10 +16,10 @@ static_library("transport") {
   deps = [
     ":conversions",
     "//clang-tools-extra/clangd",
+    "//clang-tools-extra/clangd:features",
+    "//clang-tools-extra/clangd/support",
     "//llvm/lib/Support",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "XPCTransport.cpp",
-  ]
+  sources = [ "XPCTransport.cpp" ]
 }

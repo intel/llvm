@@ -7,16 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "lld/Common/Memory.h"
+#include "lld/Common/CommonLinkerContext.h"
 
 using namespace llvm;
 using namespace lld;
 
-BumpPtrAllocator lld::BAlloc;
-StringSaver lld::Saver{BAlloc};
-std::vector<SpecificAllocBase *> lld::SpecificAllocBase::Instances;
-
-void lld::freeArena() {
-  for (SpecificAllocBase *Alloc : SpecificAllocBase::Instances)
-    Alloc->reset();
-  BAlloc.Reset();
+SpecificAllocBase *
+lld::SpecificAllocBase::getOrCreate(void *tag, size_t size, size_t align,
+                                    SpecificAllocBase *(&creator)(void *)) {
+  auto &instances = context().instances;
+  auto &instance = instances[tag];
+  if (instance == nullptr) {
+    void *storage = context().bAlloc.Allocate(size, align);
+    instance = creator(storage);
+  }
+  return instance;
 }

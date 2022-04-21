@@ -13,30 +13,32 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(const S& s, typename S::value_type c, typename S::size_type pos,
      typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find(c, pos));
     assert(s.find(c, pos) == x);
     if (x != S::npos)
         assert(pos <= x && x + 1 <= s.size());
 }
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(const S& s, typename S::value_type c, typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find(c));
     assert(s.find(c) == x);
     if (x != S::npos)
         assert(0 <= x && x + 1 <= s.size());
 }
 
-int main(int, char**)
-{
-    {
+bool test() {
+  {
     typedef std::string S;
     test(S(""), 'c', 0, S::npos);
     test(S(""), 'c', 1, S::npos);
@@ -63,9 +65,9 @@ int main(int, char**)
     test(S("abcde"), 'c', 2);
     test(S("abcdeabcde"), 'c', 2);
     test(S("abcdeabcdeabcdeabcde"), 'c', 2);
-    }
+  }
 #if TEST_STD_VER >= 11
-    {
+  {
     typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
     test(S(""), 'c', 0, S::npos);
     test(S(""), 'c', 1, S::npos);
@@ -92,7 +94,17 @@ int main(int, char**)
     test(S("abcde"), 'c', 2);
     test(S("abcdeabcde"), 'c', 2);
     test(S("abcdeabcdeabcdeabcde"), 'c', 2);
-    }
+  }
+#endif
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
 #endif
 
   return 0;

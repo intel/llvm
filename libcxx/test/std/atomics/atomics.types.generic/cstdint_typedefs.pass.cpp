@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: libcpp-has-no-threads
 
 // <atomic>
 
@@ -38,6 +36,8 @@
 #include <atomic>
 #include <type_traits>
 #include <cstdint>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

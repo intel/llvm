@@ -13,11 +13,13 @@
 // long& iword(int idx);
 
 // This test compiles but never completes when compiled against the MSVC STL
-// UNSUPPORTED: msvc
+// UNSUPPORTED: stdlib=msvc
 
 #include <ios>
 #include <string>
 #include <cassert>
+
+#include "test_macros.h"
 
 class test
     : public std::ios

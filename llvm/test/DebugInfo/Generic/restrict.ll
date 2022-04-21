@@ -1,14 +1,12 @@
-; REQUIRES: object-emission
+; RUN: %llc_dwarf -dwarf-version=2 -O0 -filetype=obj < %s | llvm-dwarfdump -debug-info - | FileCheck --check-prefix=CHECK --check-prefix=V2 %s
+; RUN: %llc_dwarf -dwarf-version=3 -O0 -filetype=obj < %s | llvm-dwarfdump -debug-info - | FileCheck --check-prefix=CHECK --check-prefix=V3 %s
 
-; RUN: %llc_dwarf -dwarf-version=2 -O0 -filetype=obj < %s | llvm-dwarfdump -v -debug-info - | FileCheck --check-prefix=CHECK --check-prefix=V2 %s
-; RUN: %llc_dwarf -dwarf-version=3 -O0 -filetype=obj < %s | llvm-dwarfdump -v -debug-info - | FileCheck --check-prefix=CHECK --check-prefix=V3 %s
-
-; CHECK: DW_AT_name {{.*}} "dst"
-; V2: DW_AT_type {{.*}} {[[PTR:0x.*]]}
-; V3: DW_AT_type {{.*}} {[[RESTRICT:0x.*]]}
-; V3: [[RESTRICT]]: {{.*}}DW_TAG_restrict_type
-; V3-NEXT: DW_AT_type {{.*}} {[[PTR:0x.*]]}
-; CHECK: [[PTR]]: {{.*}}DW_TAG_pointer_type
+; CHECK: DW_AT_name ("dst")
+; V2: DW_AT_type ([[PTR:0x........]]
+; V3: DW_AT_type ([[RESTRICT:0x........]]
+; V3: [[RESTRICT]]: DW_TAG_restrict_type
+; V3-NEXT: DW_AT_type ([[PTR:0x........]]
+; CHECK: [[PTR]]: DW_TAG_pointer_type
 ; CHECK-NOT: DW_AT_type
 
 ; Generated with clang from:
@@ -28,7 +26,7 @@ entry:
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

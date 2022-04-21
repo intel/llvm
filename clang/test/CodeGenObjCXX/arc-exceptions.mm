@@ -11,7 +11,7 @@ void test0(void) {
   } @catch (Ety *e) {
   }
 }
-// CHECK-LABEL: define void @_Z5test0v()
+// CHECK-LABEL: define{{.*}} void @_Z5test0v()
 // CHECK:      [[E:%.*]] = alloca [[ETY:%.*]]*, align 8
 // CHECK-NEXT: invoke void @_Z12test0_helperv()
 // CHECK:      [[T0:%.*]] = call i8* @objc_begin_catch(
@@ -31,7 +31,7 @@ void test1(void) {
   } @catch (__weak Ety *e) {
   }
 }
-// CHECK-LABEL: define void @_Z5test1v()
+// CHECK-LABEL: define{{.*}} void @_Z5test1v()
 // CHECK:      [[E:%.*]] = alloca [[ETY:%.*]]*, align 8
 // CHECK-NEXT: invoke void @_Z12test1_helperv()
 // CHECK:      [[T0:%.*]] = call i8* @objc_begin_catch(
@@ -50,7 +50,7 @@ void test2(void) {
   } catch (Ety *e) {
   }
 }
-// CHECK-LABEL: define void @_Z5test2v()
+// CHECK-LABEL: define{{.*}} void @_Z5test2v()
 // CHECK:      [[E:%.*]] = alloca [[ETY:%.*]]*, align 8
 // CHECK-NEXT: invoke void @_Z12test2_helperv()
 // CHECK:      [[T0:%.*]] = call i8* @__cxa_begin_catch(
@@ -70,7 +70,7 @@ void test3(void) {
   } catch (Ety * __weak e) {
   }
 }
-// CHECK-LABEL: define void @_Z5test3v()
+// CHECK-LABEL: define{{.*}} void @_Z5test3v()
 // CHECK:      [[E:%.*]] = alloca [[ETY:%.*]]*, align 8
 // CHECK-NEXT: invoke void @_Z12test3_helperv()
 // CHECK:      [[T0:%.*]] = call i8* @__cxa_begin_catch(
@@ -93,7 +93,7 @@ namespace test4 {
   A::A() {
     throw 0;
   }
-  // CHECK-LABEL:    define void @_ZN5test41AC2Ev(
+  // CHECK-LABEL:    define{{.*}} void @_ZN5test41AC2Ev(
   // CHECK:      [[THIS:%.*]] = load [[A:%.*]]*, [[A:%.*]]** {{%.*}}
   //   Construct single.
   // CHECK-NEXT: [[SINGLE:%.*]] = getelementptr inbounds [[A]], [[A]]* [[THIS]], i32 0, i32 0
@@ -131,27 +131,27 @@ void test5(void) {
     test5_helper(3)
   };
 }
-// CHECK-LABEL: define void @_Z5test5v()
+// CHECK-LABEL: define{{.*}} void @_Z5test5v()
 // CHECK:       [[ARRAY:%.*]] = alloca [2 x [2 x i8*]], align
 // CHECK:       [[A0:%.*]] = getelementptr inbounds [2 x [2 x i8*]], [2 x [2 x i8*]]* [[ARRAY]], i64 0, i64 0
 // CHECK-NEXT:  store [2 x i8*]* [[A0]],
 // CHECK-NEXT:  [[A00:%.*]] = getelementptr inbounds [2 x i8*], [2 x i8*]* [[A0]], i64 0, i64 0
 // CHECK-NEXT:  store i8** [[A00]],
-// CHECK-NEXT:  [[T0:%.*]] = invoke i8* @_Z12test5_helperj(i32 0)
+// CHECK-NEXT:  [[T0:%.*]] = invoke noundef i8* @_Z12test5_helperj(i32 noundef 0)
 // CHECK:       store i8* [[T0]], i8** [[A00]], align
 // CHECK-NEXT:  [[A01:%.*]] = getelementptr inbounds i8*, i8** [[A00]], i64 1
 // CHECK-NEXT:  store i8** [[A01]],
-// CHECK-NEXT:  [[T0:%.*]] = invoke i8* @_Z12test5_helperj(i32 1)
+// CHECK-NEXT:  [[T0:%.*]] = invoke noundef i8* @_Z12test5_helperj(i32 noundef 1)
 // CHECK:       store i8* [[T0]], i8** [[A01]], align
 // CHECK-NEXT:  [[A1:%.*]] = getelementptr inbounds [2 x i8*], [2 x i8*]* [[A0]], i64 1
 // CHECK-NEXT:  store [2 x i8*]* [[A1]],
 // CHECK-NEXT:  [[A10:%.*]] = getelementptr inbounds [2 x i8*], [2 x i8*]* [[A1]], i64 0, i64 0
 // CHECK-NEXT:  store i8** [[A10]],
-// CHECK-NEXT:  [[T0:%.*]] = invoke i8* @_Z12test5_helperj(i32 2)
+// CHECK-NEXT:  [[T0:%.*]] = invoke noundef i8* @_Z12test5_helperj(i32 noundef 2)
 // CHECK:       store i8* [[T0]], i8** [[A10]], align
 // CHECK-NEXT:  [[A11:%.*]] = getelementptr inbounds i8*, i8** [[A10]], i64 1
 // CHECK-NEXT:  store i8** [[A11]],
-// CHECK-NEXT:  [[T0:%.*]] = invoke i8* @_Z12test5_helperj(i32 3)
+// CHECK-NEXT:  [[T0:%.*]] = invoke noundef i8* @_Z12test5_helperj(i32 noundef 3)
 // CHECK:       store i8* [[T0]], i8** [[A11]], align
 
 // CHECK: attributes [[NUW]] = { nounwind }

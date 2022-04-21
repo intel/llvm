@@ -12,10 +12,14 @@
 
 // const char* widen(const char* low, const char* high, charT* to) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <string>
 #include <vector>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

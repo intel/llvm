@@ -10,15 +10,13 @@
 #define LLVM_SUPPORT_BINARYSTREAMREADER_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/BinaryStreamArray.h"
 #include "llvm/Support/BinaryStreamRef.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/type_traits.h"
-
-#include <string>
 #include <type_traits>
 
 namespace llvm {
@@ -37,16 +35,11 @@ public:
                               llvm::support::endianness Endian);
   explicit BinaryStreamReader(StringRef Data, llvm::support::endianness Endian);
 
-  BinaryStreamReader(const BinaryStreamReader &Other)
-      : Stream(Other.Stream), Offset(Other.Offset) {}
+  BinaryStreamReader(const BinaryStreamReader &Other) = default;
 
-  BinaryStreamReader &operator=(const BinaryStreamReader &Other) {
-    Stream = Other.Stream;
-    Offset = Other.Offset;
-    return *this;
-  }
+  BinaryStreamReader &operator=(const BinaryStreamReader &Other) = default;
 
-  virtual ~BinaryStreamReader() {}
+  virtual ~BinaryStreamReader() = default;
 
   /// Read as much as possible from the underlying string at the current offset
   /// without invoking a copy, and set \p Buffer to the resulting data slice.
@@ -89,7 +82,7 @@ public:
   template <typename T> Error readEnum(T &Dest) {
     static_assert(std::is_enum<T>::value,
                   "Cannot call readEnum with non-enum value!");
-    typename std::underlying_type<T>::type N;
+    std::underlying_type_t<T> N;
     if (auto EC = readInteger(N))
       return EC;
     Dest = static_cast<T>(N);
@@ -148,14 +141,14 @@ public:
   /// returns an appropriate error code.
   Error readStreamRef(BinaryStreamRef &Ref, uint32_t Length);
 
-  /// Read \p Length bytes from the underlying stream into \p Stream.  This is
+  /// Read \p Length bytes from the underlying stream into \p Ref.  This is
   /// equivalent to calling getUnderlyingStream().slice(Offset, Length).
   /// Updates the stream's offset to point after the newly read object.  Never
   /// causes a copy.
   ///
   /// \returns a success error code if the data was successfully read, otherwise
   /// returns an appropriate error code.
-  Error readSubstream(BinarySubstreamRef &Stream, uint32_t Size);
+  Error readSubstream(BinarySubstreamRef &Ref, uint32_t Length);
 
   /// Get a pointer to an object of type T from the underlying stream, as if by
   /// memcpy, and store the result into \p Dest.  It is up to the caller to
@@ -198,7 +191,7 @@ public:
     if (auto EC = readBytes(Bytes, NumElements * sizeof(T)))
       return EC;
 
-    assert(alignmentAdjustment(Bytes.data(), alignof(T)) == 0 &&
+    assert(isAddrAligned(Align::Of<T>(), Bytes.data()) &&
            "Reading at invalid alignment!");
 
     Array = ArrayRef<T>(reinterpret_cast<const T *>(Bytes.data()), NumElements);
@@ -251,16 +244,16 @@ public:
   }
 
   bool empty() const { return bytesRemaining() == 0; }
-  void setOffset(uint32_t Off) { Offset = Off; }
-  uint32_t getOffset() const { return Offset; }
-  uint32_t getLength() const { return Stream.getLength(); }
-  uint32_t bytesRemaining() const { return getLength() - getOffset(); }
+  void setOffset(uint64_t Off) { Offset = Off; }
+  uint64_t getOffset() const { return Offset; }
+  uint64_t getLength() const { return Stream.getLength(); }
+  uint64_t bytesRemaining() const { return getLength() - getOffset(); }
 
   /// Advance the stream's offset by \p Amount bytes.
   ///
   /// \returns a success error code if at least \p Amount bytes remain in the
   /// stream, otherwise returns an appropriate error code.
-  Error skip(uint32_t Amount);
+  Error skip(uint64_t Amount);
 
   /// Examine the next byte of the underlying stream without advancing the
   /// stream's offset.  If the stream is empty the behavior is undefined.
@@ -271,11 +264,11 @@ public:
   Error padToAlignment(uint32_t Align);
 
   std::pair<BinaryStreamReader, BinaryStreamReader>
-  split(uint32_t Offset) const;
+  split(uint64_t Offset) const;
 
 private:
   BinaryStreamRef Stream;
-  uint32_t Offset = 0;
+  uint64_t Offset = 0;
 };
 } // namespace llvm
 

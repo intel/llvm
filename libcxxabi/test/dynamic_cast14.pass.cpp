@@ -1,4 +1,4 @@
-//===------------------------- dynamic_cast14.cpp -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
-#include "support/timer.hpp"
+#include "support/timer.h"
 
 namespace t1
 {
@@ -2172,10 +2172,12 @@ void test()
 
 }  // t3
 
-int main()
+int main(int, char**)
 {
     timer t;
     t1::test();
     t2::test();
     t3::test();
+
+    return 0;
 }

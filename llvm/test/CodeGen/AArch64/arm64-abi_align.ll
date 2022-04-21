@@ -1,5 +1,5 @@
-; RUN: llc -fast-isel-sink-local-values < %s -mtriple=arm64-apple-darwin -mcpu=cyclone -enable-misched=false -frame-pointer=all | FileCheck %s
-; RUN: llc -fast-isel-sink-local-values < %s -mtriple=arm64-apple-darwin -O0 -frame-pointer=all -fast-isel | FileCheck -check-prefix=FAST %s
+; RUN: llc -aarch64-load-store-renaming=true < %s -mtriple=arm64-apple-darwin -mcpu=cyclone -enable-misched=false -frame-pointer=all | FileCheck %s
+; RUN: llc -aarch64-load-store-renaming=true  < %s -mtriple=arm64-apple-darwin -O0 -frame-pointer=all -fast-isel | FileCheck -check-prefix=FAST %s
 
 ; rdar://12648441
 ; Generated from arm64-arguments.c with -O2.
@@ -290,13 +290,13 @@ entry:
 ; Space for s2 is allocated at sp
 
 ; FAST-LABEL: caller42
-; FAST: sub sp, sp, #96
-; Space for s1 is allocated at fp-24 = sp+56
-; FAST: sub x[[A:[0-9]+]], x29, #24
+; FAST: sub sp, sp, #64
+; Space for s1 is allocated at fp-24 = sp+24
+; FAST: add x[[A:[0-9]+]], sp, #24
 ; Call memcpy with size = 24 (0x18)
 ; FAST: mov {{x[0-9]+}}, #24
-; Space for s2 is allocated at sp+32
-; FAST: add x[[A:[0-9]+]], sp, #32
+; Space for s2 is allocated at sp
+; FAST: mov x[[A:[0-9]+]], sp
 ; FAST: bl _memcpy
   %tmp = alloca %struct.s42, align 4
   %tmp1 = alloca %struct.s42, align 4
@@ -339,8 +339,8 @@ entry:
 ; Call memcpy with size = 24 (0x18)
 ; FAST: mov {{x[0-9]+}}, #24
 ; FAST: bl _memcpy
-; Space for s2 is allocated at fp-48
-; FAST: sub x[[B:[0-9]+]], x29, #48
+; Space for s2 is allocated at sp+32
+; FAST: add x[[B:[0-9]+]], sp, #32
 ; Call memcpy again
 ; FAST: bl _memcpy
 ; Address of s1 is passed on stack at sp+8
@@ -392,10 +392,8 @@ entry:
 define i32 @caller43() #3 {
 entry:
 ; CHECK-LABEL: caller43
-; CHECK-DAG: str {{q[0-9]+}}, [sp, #48]
-; CHECK-DAG: str {{q[0-9]+}}, [sp, #32]
-; CHECK-DAG: str {{q[0-9]+}}, [sp, #16]
-; CHECK-DAG: str {{q[0-9]+}}, [sp]
+; CHECK-DAG: stp q1, q0, [sp, #32]
+; CHECK-DAG: stp q1, q0, [sp]
 ; CHECK: add x1, sp, #32
 ; CHECK: mov x2, sp
 ; Space for s1 is allocated at sp+32
@@ -434,10 +432,8 @@ entry:
 ; CHECK-LABEL: caller43_stack
 ; CHECK: sub sp, sp, #112
 ; CHECK: add x29, sp, #96
-; CHECK-DAG: stur {{q[0-9]+}}, [x29, #-16]
-; CHECK-DAG: stur {{q[0-9]+}}, [x29, #-32]
-; CHECK-DAG: str {{q[0-9]+}}, [sp, #48]
-; CHECK-DAG: str {{q[0-9]+}}, [sp, #32]
+; CHECK-DAG: stp q1, q0, [x29, #-32]
+; CHECK-DAG: stp q1, q0, [sp, #32]
 ; Space for s1 is allocated at x29-32 = sp+64
 ; Space for s2 is allocated at sp+32
 ; CHECK: add x[[B:[0-9]+]], sp, #32
@@ -460,11 +456,11 @@ entry:
 ; FAST: str {{x[0-9]+}}, [sp, #40]
 ; FAST: str {{x[0-9]+}}, [sp, #48]
 ; FAST: str {{x[0-9]+}}, [sp, #56]
-; FAST: str {{w[0-9]+}}, [sp]
 ; Address of s1 is passed on stack at sp+8
 ; FAST: sub x[[A:[0-9]+]], x29, #32
-; FAST: str x[[A]], [sp, #8]
 ; FAST: add x[[B:[0-9]+]], sp, #32
+; FAST: str {{w[0-9]+}}, [sp]
+; FAST: str x[[A]], [sp, #8]
 ; FAST: str x[[B]], [sp, #16]
   %tmp = alloca %struct.s43, align 16
   %tmp1 = alloca %struct.s43, align 16
@@ -516,7 +512,7 @@ entry:
 ; FAST: ldr x7, [{{x[0-9]+}}]
 ; FAST: mov x[[R0:[0-9]+]], sp
 ; FAST: mov w[[R1:[0-9]+]], #8
-; FAST: str w[[R1]], {{\[}}x[[R0]]{{\]}}
+; FAST: str w[[R1]], [x[[R0]]]
   %0 = load i64, i64* bitcast (%struct.s41* @g41 to i64*), align 16
   %call = tail call i32 @callee_i64(i32 1, i32 2, i32 3, i32 4, i32 5,
                                     i32 6, i32 7, i64 %0, i32 8) #5

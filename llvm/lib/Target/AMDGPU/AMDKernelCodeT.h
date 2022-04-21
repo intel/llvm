@@ -11,12 +11,8 @@
 #ifndef AMDKERNELCODET_H
 #define AMDKERNELCODET_H
 
-#include "llvm/MC/SubtargetFeature.h"
-
-#include <cstddef>
 #include <cstdint>
 
-#include "llvm/Support/Debug.h"
 //---------------------------------------------------------------------------//
 // AMD Kernel Code, and its dependencies                                     //
 //---------------------------------------------------------------------------//
@@ -126,8 +122,12 @@ enum amd_code_property_mask_t {
   AMD_CODE_PROPERTY_ENABLE_SGPR_GRID_WORKGROUP_COUNT_Z_WIDTH = 1,
   AMD_CODE_PROPERTY_ENABLE_SGPR_GRID_WORKGROUP_COUNT_Z = ((1 << AMD_CODE_PROPERTY_ENABLE_SGPR_GRID_WORKGROUP_COUNT_Z_WIDTH) - 1) << AMD_CODE_PROPERTY_ENABLE_SGPR_GRID_WORKGROUP_COUNT_Z_SHIFT,
 
-  AMD_CODE_PROPERTY_RESERVED1_SHIFT = 10,
-  AMD_CODE_PROPERTY_RESERVED1_WIDTH = 6,
+  AMD_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32_SHIFT = 10,
+  AMD_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32_WIDTH = 1,
+  AMD_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32 = ((1 << AMD_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32_WIDTH) - 1) << AMD_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32_SHIFT,
+
+  AMD_CODE_PROPERTY_RESERVED1_SHIFT = 11,
+  AMD_CODE_PROPERTY_RESERVED1_WIDTH = 5,
   AMD_CODE_PROPERTY_RESERVED1 = ((1 << AMD_CODE_PROPERTY_RESERVED1_WIDTH) - 1) << AMD_CODE_PROPERTY_RESERVED1_SHIFT,
 
   /// Control wave ID base counter for GDS ordered-append. Used to set
@@ -142,7 +142,7 @@ enum amd_code_property_mask_t {
   /// is provided to the finalizer when it is invoked and is recorded
   /// here. The hardware will interleave the memory requests of each
   /// lane of a wavefront by this element size to ensure each
-  /// work-item gets a distinct memory memory location. Therefore, the
+  /// work-item gets a distinct memory location. Therefore, the
   /// finalizer ensures that all load and store operations done to
   /// private memory do not exceed this size. For example, if the
   /// element size is 4 (32-bits or dword) and a 64-bit value must be
@@ -523,7 +523,7 @@ typedef struct hsa_ext_control_directives_s {
 /// the kernarg segment is constant for the duration of the kernel execution.
 ///
 
-typedef struct amd_kernel_code_s {
+struct amd_kernel_code_t {
   uint32_t amd_kernel_code_version_major;
   uint32_t amd_kernel_code_version_minor;
   uint16_t amd_machine_kind;
@@ -646,6 +646,6 @@ typedef struct amd_kernel_code_s {
   uint8_t reserved3[12];
   uint64_t runtime_loader_kernel_symbol;
   uint64_t control_directives[16];
-} amd_kernel_code_t;
+};
 
 #endif // AMDKERNELCODET_H

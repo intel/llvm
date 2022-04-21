@@ -13,7 +13,7 @@ enum B {};
 typedef int C;
 }
 
-// CHECK: VarDecl {{0x[0-9a-fA-F]+}} <line:[[@LINE+1]]:1, col:36> col:15 ImplicitConstrArray 'foo::A [2]'
+// CHECK: VarDecl {{0x[0-9a-fA-F]+}} <line:[[@LINE+1]]:1, col:36> col:15 ImplicitConstrArray 'foo::A[2]'
 static foo::A ImplicitConstrArray[2];
 
 int main() {
@@ -91,6 +91,70 @@ struct map {
 };
 
 }; // namespace std
+
+// CHECK: NamespaceDecl {{.*}} attributed_decl
+namespace attributed_decl {
+  void f() {
+    // CHECK: DeclStmt {{.*}} <line:[[@LINE+1]]:5, col:28>
+    [[maybe_unused]] int i1;
+    // CHECK: DeclStmt {{.*}} <line:[[@LINE+1]]:5, col:35>
+    __attribute__((unused)) int i2;
+    // CHECK: DeclStmt {{.*}} <line:[[@LINE+1]]:5, col:35>
+    int __attribute__((unused)) i3;
+    // CHECK: DeclStmt {{.*}} <<built-in>:{{.*}}, {{.*}}:[[@LINE+1]]:40>
+    __declspec(dllexport) extern int i4;
+    // CHECK: DeclStmt {{.*}} <line:[[@LINE+1]]:5, col:40>
+    extern int __declspec(dllexport) i5;
+  }
+}
+
+// CHECK-1Z: NamespaceDecl {{.*}} attributed_case
+namespace attributed_case {
+void f(int n) {
+  switch (n) {
+  case 0:
+    n--;
+    // CHECK: AttributedStmt {{.*}} <line:[[@LINE+2]]:5, line:[[@LINE+4]]:35>
+    // CHECK: FallThroughAttr {{.*}} <line:[[@LINE+1]]:20>
+    __attribute__((fallthrough))
+    // CHECK: FallThroughAttr {{.*}} <line:[[@LINE+1]]:22>
+      __attribute__((fallthrough));
+  case 1:
+    n++;
+    break;
+  }
+}
+} // namespace attributed_case
+
+// CHECK: NamespaceDecl {{.*}} attributed_stmt
+namespace attributed_stmt {
+  // In DO_PRAGMA and _Pragma cases, `LoopHintAttr` comes from <scratch space>
+  // file.
+
+  #define DO_PRAGMA(x) _Pragma (#x)
+
+  void f() {
+    // CHECK: AttributedStmt {{.*}} <line:[[@LINE-3]]:24, line:[[@LINE+2]]:33>
+    DO_PRAGMA (unroll(2))
+    for (int i = 0; i < 10; ++i);
+
+    // CHECK: AttributedStmt {{.*}} <line:[[@LINE+2]]:5, line:[[@LINE+3]]:33>
+    // CHECK: LoopHintAttr {{.*}} <line:[[@LINE+1]]:13, col:22>
+    #pragma unroll(2)
+    for (int i = 0; i < 10; ++i);
+
+    // CHECK: AttributedStmt {{.*}} <line:[[@LINE+2]]:5, line:[[@LINE+5]]:33>
+    // CHECK: LoopHintAttr {{.*}} <line:[[@LINE+1]]:19, col:41>
+    #pragma clang loop vectorize(enable)
+    // CHECK: LoopHintAttr {{.*}} <line:[[@LINE+1]]:19, col:42>
+    #pragma clang loop interleave(enable)
+    for (int i = 0; i < 10; ++i);
+
+    // CHECK: AttributedStmt {{.*}} <line:[[@LINE+1]]:5, line:[[@LINE+2]]:33>
+    _Pragma("unroll(2)")
+    for (int i = 0; i < 10; ++i);
+  }
+}
 
 #if __cplusplus >= 201703L
 // CHECK-1Z: FunctionDecl {{.*}} construct_with_init_list

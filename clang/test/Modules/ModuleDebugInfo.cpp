@@ -1,3 +1,4 @@
+// UNSUPPORTED: -zos, -aix
 // Test that (the same) debug info is emitted for an Objective-C++
 // module and a C++ precompiled header.
 
@@ -12,7 +13,7 @@
 
 // PCH:
 // RUN: %clang_cc1 -triple %itanium_abi_triple -x c++ -std=c++11  -debugger-tuning=lldb -emit-pch -fmodule-format=obj -I %S/Inputs -o %t.pch %S/Inputs/DebugCXX.h -mllvm -debug-only=pchcontainer &>%t-pch.ll
-// RUN: cat %t-pch.ll | FileCheck %s
+// RUN: cat %t-pch.ll | FileCheck --check-prefix=CHECK-CXX %s
 // RUN: cat %t-pch.ll | FileCheck --check-prefix=CHECK-NEG %s
 
 #ifdef MODULES
@@ -23,6 +24,7 @@
 // CHECK-MOD: distinct !DICompileUnit(language: DW_LANG_{{.*}}C_plus_plus,
 
 // CHECK: distinct !DICompileUnit(language: DW_LANG_{{.*}}C_plus_plus,
+// CHECK-CXX: distinct !DICompileUnit(language: DW_LANG_C_plus_plus_11,
 // CHECK-SAME:                    isOptimized: false,
 // CHECK-NOT:                     splitDebugFilename:
 // CHECK-SAME:                    dwoId:
@@ -50,15 +52,6 @@
 // CHECK-SAME:             )
 // CHECK: !DIEnumerator(name: "e5", value: 5, isUnsigned: true)
 
-// CHECK: !DIDerivedType(tag: DW_TAG_typedef, name: "B",
-// no mangled name here yet.
-
-// This type is anchored by a function parameter.
-// CHECK: !DICompositeType(tag: DW_TAG_class_type, name: "A<void>"
-// CHECK-SAME:             elements:
-// CHECK-SAME:             templateParams:
-// CHECK-SAME:             identifier: "_ZTSN8DebugCXX1AIJvEEE")
-
 // CHECK: !DICompositeType(tag: DW_TAG_structure_type, name: "Struct"
 // CHECK-SAME:             identifier: "_ZTSN8DebugCXX6StructE")
 
@@ -84,6 +77,12 @@
 // CHECK-SAME:             templateParams:
 // CHECK-SAME:             identifier: "_ZTSN8DebugCXX8TemplateIlNS_6traitsIlEEEE")
 
+// This type is anchored by a function parameter.
+// CHECK: !DICompositeType(tag: DW_TAG_class_type, name: "A<void>"
+// CHECK-SAME:             elements:
+// CHECK-SAME:             templateParams:
+// CHECK-SAME:             identifier: "_ZTSN8DebugCXX1AIJvEEE")
+
 // CHECK: !DIDerivedType(tag: DW_TAG_typedef, name: "FloatInstantiation"
 // no mangled name here yet.
 
@@ -91,6 +90,9 @@
 // CHECK-SAME:             name: "Template<float, DebugCXX::traits<float> >"
 // CHECK-SAME:             flags: DIFlagFwdDecl
 // CHECK-SAME:             identifier: "_ZTSN8DebugCXX8TemplateIfNS_6traitsIfEEEE")
+
+// CHECK: !DIDerivedType(tag: DW_TAG_typedef, name: "B",
+// no mangled name here yet.
 
 // CHECK: !DICompositeType(tag: DW_TAG_structure_type, name: "Virtual"
 // CHECK-SAME:             elements:
@@ -132,7 +134,7 @@
 // CHECK-SAME:           baseType: ![[BASE:.*]])
 // CHECK: ![[BASE]] = !DICompositeType(tag: DW_TAG_class_type,
 // CHECK-SAME:                         name: "Template1<void *>",
-// CHECK-SAME:                         flags: DIFlagFwdDecl,
+// CHECK-SAME:                         flags: DIFlagFwdDecl
 // CHECK-SAME:                         identifier: "_ZTS9Template1IPvE")
 
 // Explicit instantiation.
@@ -153,7 +155,7 @@
 // CHECK-SAME:           baseType: ![[SPECIALIZEDBASE:.*]])
 // CHECK: ![[SPECIALIZEDBASE]] = !DICompositeType(tag: DW_TAG_class_type,
 // CHECK-SAME:                             name: "WithSpecializedBase<float>",
-// CHECK-SAME:                             flags: DIFlagFwdDecl,
+// CHECK-SAME:                             flags: DIFlagFwdDecl
 
 // CHECK-MOD: !DIImportedEntity(tag: DW_TAG_imported_declaration, scope: ![[DEBUGCXX]],
 // CHECK-MOD-SAME:              entity: ![[DUMMY:[0-9]+]],

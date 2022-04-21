@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: libcpp-has-no-localization
+
 // <complex>
 
 // template<class T, class charT, class traits>
@@ -15,6 +17,8 @@
 #include <complex>
 #include <sstream>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

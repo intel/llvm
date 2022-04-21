@@ -28,16 +28,15 @@ bool llvm::canTrackGlobalVariableInterprocedurally(GlobalVariable *GV) {
   if (GV->isConstant() || !GV->hasLocalLinkage() ||
       !GV->hasDefinitiveInitializer())
     return false;
-  return !any_of(GV->users(), [&](User *U) {
-    if (auto *Store = dyn_cast<StoreInst>(U)) {
-      if (Store->getValueOperand() == GV || Store->isVolatile())
-        return true;
-    } else if (auto *Load = dyn_cast<LoadInst>(U)) {
-      if (Load->isVolatile())
-        return true;
-    } else {
-      return true;
-    }
+  return all_of(GV->users(), [&](User *U) {
+    // Currently all users of a global variable have to be non-volatile loads
+    // or stores of the global type, and the global cannot be stored itself.
+    if (auto *Store = dyn_cast<StoreInst>(U))
+      return Store->getValueOperand() != GV && !Store->isVolatile() &&
+             Store->getValueOperand()->getType() == GV->getValueType();
+    if (auto *Load = dyn_cast<LoadInst>(U))
+      return !Load->isVolatile() && Load->getType() == GV->getValueType();
+
     return false;
   });
 }

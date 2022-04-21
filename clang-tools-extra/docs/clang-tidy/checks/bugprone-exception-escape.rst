@@ -5,6 +5,7 @@ bugprone-exception-escape
 
 Finds functions which may throw an exception directly or indirectly, but they
 should not. The functions which should not throw exceptions are the following:
+
 * Destructors
 * Move constructors
 * Move assignment operators
@@ -30,7 +31,7 @@ Options
 
    Comma separated list containing function names which should not throw. An
    example value for this parameter can be ``WinMain`` which adds function
-   ``WinMain()`` in the Windows API to the list of the funcions which should
+   ``WinMain()`` in the Windows API to the list of the functions which should
    not throw. Default value is an empty string.
 
 .. option:: IgnoredExceptions

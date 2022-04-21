@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -fsyntax-only -std=c++11 -pedantic-errors -triple x86_64-linux-gnu %s
+// RUN: %clang_cc1 -verify -fsyntax-only -std=c++2a -pedantic-errors -triple x86_64-linux-gnu %s
 
 // Make sure we know these are legitimate commas and not typos for ';'.
 namespace Commas {
@@ -15,6 +15,49 @@ auto f() -> struct S {
 }
 auto g() -> enum E {
   return E();
+}
+
+namespace EnumBase {
+  enum E {};
+  // PR19810: The ': E' here is not an enum-base, and the ':' is not a typo for '::'.
+  E e = true ? *new enum E : E {};
+  // PR45726: This ':' is not an enum-base.
+  static_assert(_Generic(e, enum E : int{}, int: 1) == 0); // expected-error {{C11 extension}}
+  static_assert(_Generic(1, enum E : int{}, int: 1) == 1); // expected-error {{C11 extension}}
+}
+
+namespace OpaqueEnumDecl {
+  enum E : int; // ok
+
+  // PR44941
+  enum E : int n; // expected-error {{non-defining declaration of enumeration with a fixed underlying type is only permitted as a standalone declaration}}
+  typedef enum E : int T; // expected-error {{non-defining declaration of enumeration with a fixed underlying type is only permitted as a standalone declaration}}
+  typedef enum E : int T; // expected-error {{non-defining declaration of enumeration with a fixed underlying type is only permitted as a standalone declaration}}
+  namespace Inner {
+    typedef enum E : int T; // expected-error {{non-defining declaration of enumeration with a fixed underlying type is only permitted as a standalone declaration}}
+  }
+
+  // GCC incorrectly accepts this one
+  using T = enum E : int; // expected-error {{non-defining declaration of enumeration with a fixed underlying type is only permitted as a standalone declaration}}
+
+  // PR19810 comment#2
+  int x[sizeof(enum E : int)]; // expected-error {{non-defining declaration of enumeration with a fixed underlying type is only permitted as a standalone declaration}}
+
+  namespace PR24297 {
+    enum struct E a; // expected-error {{must use 'enum' not 'enum struct'}}
+    enum class F b; // expected-error {{must use 'enum' not 'enum class'}}
+    enum G : int c; // expected-error {{only permitted as a standalone declaration}}
+    enum struct H : int d; // expected-error {{only permitted as a standalone declaration}}
+    enum class I : int e; // expected-error {{only permitted as a standalone declaration}}
+    enum X x; // expected-error {{ISO C++ forbids forward reference}} expected-error {{incomplete}} expected-note {{forward declaration}}
+
+    enum struct E *pa; // expected-error {{must use 'enum' not 'enum struct'}}
+    enum class F *pb; // expected-error {{must use 'enum' not 'enum class'}}
+    enum G : int *pc; // expected-error {{only permitted as a standalone declaration}}
+    enum struct H : int *pd; // expected-error {{only permitted as a standalone declaration}}
+    enum class I : int *pe; // expected-error {{only permitted as a standalone declaration}}
+    enum Y *py; // expected-error {{ISO C++ forbids forward reference}}
+  }
 }
 
 int decltype(f())::*ptr_mem_decltype;
@@ -39,7 +82,7 @@ static_assert(something, ""); // expected-error {{undeclared identifier}}
 
 // PR9903
 struct SS {
-  typedef void d() = default; // expected-error {{function definition declared 'typedef'}} expected-error {{only special member functions may be defaulted}}
+  typedef void d() = default; // expected-error {{function definition declared 'typedef'}} expected-error {{only special member functions and comparison operators may be defaulted}}
 };
 
 using PR14855 = int S::; // expected-error {{expected ';' after alias declaration}}
@@ -108,14 +151,25 @@ namespace UsingDeclAttrs {
 }
 
 namespace DuplicateSpecifier {
-  constexpr constexpr int f(); // expected-warning {{duplicate 'constexpr' declaration specifier}}
-  constexpr int constexpr a = 0; // expected-warning {{duplicate 'constexpr' declaration specifier}}
+  constexpr constexpr int f(); // expected-error {{duplicate 'constexpr' declaration specifier}}
+  constexpr int constexpr a = 0; // expected-error {{duplicate 'constexpr' declaration specifier}}
 
   struct A {
     friend constexpr int constexpr friend f(); // expected-warning {{duplicate 'friend' declaration specifier}} \
-                                               // expected-warning {{duplicate 'constexpr' declaration specifier}}
+                                               // expected-error {{duplicate 'constexpr' declaration specifier}}
     friend struct A friend; // expected-warning {{duplicate 'friend'}} expected-error {{'friend' must appear first}}
   };
+
+  constinit constexpr int n1 = 0; // expected-error {{cannot combine with previous 'constinit'}}
+  constexpr constinit int n2 = 0; // expected-error {{cannot combine with previous 'constexpr'}}
+  constinit constinit int n3 = 0; // expected-error {{duplicate 'constinit' declaration specifier}}
+
+  consteval constexpr int f1(); // expected-error {{cannot combine with previous 'consteval'}}
+  constexpr consteval int f2(); // expected-error {{cannot combine with previous 'constexpr'}}
+  consteval consteval int f3(); // expected-error {{duplicate 'consteval' declaration specifier}}
+
+  constinit consteval int wat = 0; // expected-error {{cannot combine with previous 'constinit'}}
+  consteval constinit int huh(); // expected-error {{cannot combine with previous 'consteval'}}
 }
 
 namespace ColonColonDecltype {
@@ -144,6 +198,11 @@ namespace AliasDeclEndLocation {
   // expected-error@-1 {{expected ';' after alias declaration}}
   B something_else;
 }
+
+class PR47176 {
+  friend void f(PR47176, int = 0) noexcept(true) {}
+};
+static_assert(noexcept(f(PR47176())), "");
 
 struct Base { virtual void f() = 0; virtual void g() = 0; virtual void h() = 0; };
 struct MemberComponentOrder : Base {

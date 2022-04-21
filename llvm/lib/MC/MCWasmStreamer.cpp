@@ -11,26 +11,29 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCWasmStreamer.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCAsmBackend.h"
-#include "llvm/MC/MCAsmLayout.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCCodeEmitter.h"
-#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
-#include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCFixup.h"
+#include "llvm/MC/MCFragment.h"
 #include "llvm/MC/MCObjectStreamer.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCSectionWasm.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolWasm.h"
-#include "llvm/MC/MCValue.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
+
+namespace llvm {
+class MCContext;
+class MCStreamer;
+class MCSubtargetInfo;
+} // namespace llvm
 
 using namespace llvm;
 
@@ -49,7 +52,28 @@ void MCWasmStreamer::mergeFragment(MCDataFragment *DF, MCDataFragment *EF) {
   DF->getContents().append(EF->getContents().begin(), EF->getContents().end());
 }
 
-void MCWasmStreamer::EmitAssemblerFlag(MCAssemblerFlag Flag) {
+void MCWasmStreamer::emitLabel(MCSymbol *S, SMLoc Loc) {
+  auto *Symbol = cast<MCSymbolWasm>(S);
+  MCObjectStreamer::emitLabel(Symbol, Loc);
+
+  const MCSectionWasm &Section =
+      static_cast<const MCSectionWasm &>(*getCurrentSectionOnly());
+  if (Section.getSegmentFlags() & wasm::WASM_SEG_FLAG_TLS)
+    Symbol->setTLS();
+}
+
+void MCWasmStreamer::emitLabelAtPos(MCSymbol *S, SMLoc Loc, MCFragment *F,
+                                    uint64_t Offset) {
+  auto *Symbol = cast<MCSymbolWasm>(S);
+  MCObjectStreamer::emitLabelAtPos(Symbol, Loc, F, Offset);
+
+  const MCSectionWasm &Section =
+      static_cast<const MCSectionWasm &>(*getCurrentSectionOnly());
+  if (Section.getSegmentFlags() & wasm::WASM_SEG_FLAG_TLS)
+    Symbol->setTLS();
+}
+
+void MCWasmStreamer::emitAssemblerFlag(MCAssemblerFlag Flag) {
   // Let the target do whatever target specific stuff it needs to do.
   getAssembler().getBackend().handleAssemblerFlag(Flag);
 
@@ -57,7 +81,7 @@ void MCWasmStreamer::EmitAssemblerFlag(MCAssemblerFlag Flag) {
   llvm_unreachable("invalid assembler flag!");
 }
 
-void MCWasmStreamer::ChangeSection(MCSection *Section,
+void MCWasmStreamer::changeSection(MCSection *Section,
                                    const MCExpr *Subsection) {
   MCAssembler &Asm = getAssembler();
   auto *SectionWasm = cast<MCSectionWasm>(Section);
@@ -65,11 +89,11 @@ void MCWasmStreamer::ChangeSection(MCSection *Section,
   if (Grp)
     Asm.registerSymbol(*Grp);
 
-  this->MCObjectStreamer::ChangeSection(Section, Subsection);
+  this->MCObjectStreamer::changeSection(Section, Subsection);
   Asm.registerSymbol(*Section->getBeginSymbol());
 }
 
-void MCWasmStreamer::EmitWeakReference(MCSymbol *Alias,
+void MCWasmStreamer::emitWeakReference(MCSymbol *Alias,
                                        const MCSymbol *Symbol) {
   getAssembler().registerSymbol(*Symbol);
   const MCExpr *Value = MCSymbolRefExpr::create(
@@ -77,7 +101,7 @@ void MCWasmStreamer::EmitWeakReference(MCSymbol *Alias,
   Alias->setVariableValue(Value);
 }
 
-bool MCWasmStreamer::EmitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
+bool MCWasmStreamer::emitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
   assert(Attribute != MCSA_IndirectSymbol && "indirect symbols not supported");
 
   auto *Symbol = cast<MCSymbolWasm>(S);
@@ -117,12 +141,16 @@ bool MCWasmStreamer::EmitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
     Symbol->setType(wasm::WASM_SYMBOL_TYPE_FUNCTION);
     break;
 
+  case MCSA_ELF_TypeTLS:
+    Symbol->setTLS();
+    break;
+
   case MCSA_ELF_TypeObject:
   case MCSA_Cold:
     break;
 
   case MCSA_NoDeadStrip:
-    Symbol->setExported();
+    Symbol->setNoStrip();
     break;
 
   default:
@@ -134,7 +162,7 @@ bool MCWasmStreamer::EmitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
   return true;
 }
 
-void MCWasmStreamer::EmitCommonSymbol(MCSymbol *S, uint64_t Size,
+void MCWasmStreamer::emitCommonSymbol(MCSymbol *S, uint64_t Size,
                                       unsigned ByteAlignment) {
   llvm_unreachable("Common symbols are not yet implemented for Wasm");
 }
@@ -143,40 +171,35 @@ void MCWasmStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
   cast<MCSymbolWasm>(Symbol)->setSize(Value);
 }
 
-void MCWasmStreamer::EmitLocalCommonSymbol(MCSymbol *S, uint64_t Size,
+void MCWasmStreamer::emitLocalCommonSymbol(MCSymbol *S, uint64_t Size,
                                            unsigned ByteAlignment) {
   llvm_unreachable("Local common symbols are not yet implemented for Wasm");
 }
 
-void MCWasmStreamer::EmitValueImpl(const MCExpr *Value, unsigned Size,
-                                   SMLoc Loc) {
-  MCObjectStreamer::EmitValueImpl(Value, Size, Loc);
-}
-
-void MCWasmStreamer::EmitValueToAlignment(unsigned ByteAlignment, int64_t Value,
-                                          unsigned ValueSize,
-                                          unsigned MaxBytesToEmit) {
-  MCObjectStreamer::EmitValueToAlignment(ByteAlignment, Value, ValueSize,
-                                         MaxBytesToEmit);
-}
-
-void MCWasmStreamer::EmitIdent(StringRef IdentString) {
+void MCWasmStreamer::emitIdent(StringRef IdentString) {
   // TODO(sbc): Add the ident section once we support mergable strings
   // sections in the object format
 }
 
-void MCWasmStreamer::EmitInstToFragment(const MCInst &Inst,
+void MCWasmStreamer::emitInstToFragment(const MCInst &Inst,
                                         const MCSubtargetInfo &STI) {
-  this->MCObjectStreamer::EmitInstToFragment(Inst, STI);
+  this->MCObjectStreamer::emitInstToFragment(Inst, STI);
+  MCRelaxableFragment &F = *cast<MCRelaxableFragment>(getCurrentFragment());
+
+  for (auto &Fixup : F.getFixups())
+    fixSymbolsInTLSFixups(Fixup.getValue());
 }
 
-void MCWasmStreamer::EmitInstToData(const MCInst &Inst,
+void MCWasmStreamer::emitInstToData(const MCInst &Inst,
                                     const MCSubtargetInfo &STI) {
   MCAssembler &Assembler = getAssembler();
   SmallVector<MCFixup, 4> Fixups;
   SmallString<256> Code;
   raw_svector_ostream VecOS(Code);
   Assembler.getEmitter().encodeInstruction(Inst, VecOS, Fixups, STI);
+
+  for (auto &Fixup : Fixups)
+    fixSymbolsInTLSFixups(Fixup.getValue());
 
   // Append the encoded instruction to the current data fragment (or create a
   // new such fragment if the current fragment is not a data fragment).
@@ -191,10 +214,62 @@ void MCWasmStreamer::EmitInstToData(const MCInst &Inst,
   DF->getContents().append(Code.begin(), Code.end());
 }
 
-void MCWasmStreamer::FinishImpl() {
-  EmitFrames(nullptr);
+void MCWasmStreamer::finishImpl() {
+  emitFrames(nullptr);
 
-  this->MCObjectStreamer::FinishImpl();
+  this->MCObjectStreamer::finishImpl();
+}
+
+void MCWasmStreamer::fixSymbolsInTLSFixups(const MCExpr *expr) {
+  switch (expr->getKind()) {
+  case MCExpr::Target:
+  case MCExpr::Constant:
+    break;
+
+  case MCExpr::Binary: {
+    const MCBinaryExpr *be = cast<MCBinaryExpr>(expr);
+    fixSymbolsInTLSFixups(be->getLHS());
+    fixSymbolsInTLSFixups(be->getRHS());
+    break;
+  }
+
+  case MCExpr::SymbolRef: {
+    const MCSymbolRefExpr &symRef = *cast<MCSymbolRefExpr>(expr);
+    switch (symRef.getKind()) {
+    case MCSymbolRefExpr::VK_WASM_TLSREL:
+    case MCSymbolRefExpr::VK_WASM_GOT_TLS:
+      getAssembler().registerSymbol(symRef.getSymbol());
+      cast<MCSymbolWasm>(symRef.getSymbol()).setTLS();
+      break;
+    default:
+      break;
+    }
+    break;
+  }
+
+  case MCExpr::Unary:
+    fixSymbolsInTLSFixups(cast<MCUnaryExpr>(expr)->getSubExpr());
+    break;
+  }
+}
+
+void MCWasmStreamer::emitThumbFunc(MCSymbol *Func) {
+  llvm_unreachable("Generic Wasm doesn't support this directive");
+}
+
+void MCWasmStreamer::emitSymbolDesc(MCSymbol *Symbol, unsigned DescValue) {
+  llvm_unreachable("Wasm doesn't support this directive");
+}
+
+void MCWasmStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
+                                  uint64_t Size, unsigned ByteAlignment,
+                                  SMLoc Loc) {
+  llvm_unreachable("Wasm doesn't support this directive");
+}
+
+void MCWasmStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
+                                    uint64_t Size, unsigned ByteAlignment) {
+  llvm_unreachable("Wasm doesn't support this directive");
 }
 
 MCStreamer *llvm::createWasmStreamer(MCContext &Context,
@@ -207,23 +282,4 @@ MCStreamer *llvm::createWasmStreamer(MCContext &Context,
   if (RelaxAll)
     S->getAssembler().setRelaxAll(true);
   return S;
-}
-
-void MCWasmStreamer::EmitThumbFunc(MCSymbol *Func) {
-  llvm_unreachable("Generic Wasm doesn't support this directive");
-}
-
-void MCWasmStreamer::EmitSymbolDesc(MCSymbol *Symbol, unsigned DescValue) {
-  llvm_unreachable("Wasm doesn't support this directive");
-}
-
-void MCWasmStreamer::EmitZerofill(MCSection *Section, MCSymbol *Symbol,
-                                  uint64_t Size, unsigned ByteAlignment,
-                                  SMLoc Loc) {
-  llvm_unreachable("Wasm doesn't support this directive");
-}
-
-void MCWasmStreamer::EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                                    uint64_t Size, unsigned ByteAlignment) {
-  llvm_unreachable("Wasm doesn't support this directive");
 }

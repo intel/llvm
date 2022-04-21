@@ -60,6 +60,7 @@ static CXTypeKind GetBuiltinTypeKind(const BuiltinType *BT) {
     BTCASE(ULongAccum);
     BTCASE(Float16);
     BTCASE(Float128);
+    BTCASE(Ibm128);
     BTCASE(NullPtr);
     BTCASE(Overload);
     BTCASE(Dependent);
@@ -68,7 +69,11 @@ static CXTypeKind GetBuiltinTypeKind(const BuiltinType *BT) {
     BTCASE(ObjCSel);
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) BTCASE(Id);
 #include "clang/Basic/OpenCLImageTypes.def"
-#undef IMAGE_TYPE
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  BTCASE(Sampled##Id);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) BTCASE(Id);
 #include "clang/Basic/OpenCLExtensionTypes.def"
     BTCASE(OCLSampler);
@@ -115,6 +120,8 @@ static CXTypeKind GetTypeKind(QualType T) {
     TKCASE(Elaborated);
     TKCASE(Pipe);
     TKCASE(Attributed);
+    TKCASE(BTFTagAttributed);
+    TKCASE(Atomic);
     default:
       return CXType_Unexposed;
   }
@@ -133,6 +140,10 @@ CXType cxtype::MakeCXType(QualType T, CXTranslationUnit TU) {
         // equivalent type.
         return MakeCXType(ATT->getEquivalentType(), TU);
       }
+    }
+    if (auto *ATT = T->getAs<BTFTagAttributedType>()) {
+      if (!(TU->ParsingOptions & CXTranslationUnit_IncludeAttributedTypes))
+        return MakeCXType(ATT->getWrappedType(), TU);
     }
     // Handle paren types as the original type
     if (auto *PTT = T->getAs<ParenType>()) {
@@ -576,6 +587,7 @@ CXString clang_getTypeKindSpelling(enum CXTypeKind K) {
     TKIND(ULongAccum);
     TKIND(Float16);
     TKIND(Float128);
+    TKIND(Ibm128);
     TKIND(NullPtr);
     TKIND(Overload);
     TKIND(Dependent);
@@ -607,7 +619,14 @@ CXString clang_getTypeKindSpelling(enum CXTypeKind K) {
     TKIND(Elaborated);
     TKIND(Pipe);
     TKIND(Attributed);
+    TKIND(BTFTagAttributed);
+    TKIND(BFloat16);
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) TKIND(Id);
+#include "clang/Basic/OpenCLImageTypes.def"
+#undef IMAGE_TYPE
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) TKIND(Sampled##Id);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #undef IMAGE_TYPE
 #define EXT_OPAQUE_TYPE(ExtTYpe, Id, Ext) TKIND(Id);
@@ -616,6 +635,7 @@ CXString clang_getTypeKindSpelling(enum CXTypeKind K) {
     TKIND(OCLEvent);
     TKIND(OCLQueue);
     TKIND(OCLReserveID);
+    TKIND(Atomic);
   }
 #undef TKIND
   return cxstring::createRef(s);
@@ -661,6 +681,7 @@ CXCallingConv clang_getFunctionTypeCallingConv(CXType X) {
       TCALLINGCONV(AAPCS_VFP);
       TCALLINGCONV(IntelOclBicc);
       TCALLINGCONV(Swift);
+      TCALLINGCONV(SwiftAsync);
       TCALLINGCONV(PreserveMost);
       TCALLINGCONV(PreserveAll);
     case CC_SpirFunction: return CXCallingConv_Unexposed;
@@ -742,6 +763,8 @@ getExternalExceptionSpecificationKind(ExceptionSpecificationType EST) {
     return CXCursor_ExceptionSpecificationKind_MSAny;
   case EST_BasicNoexcept:
     return CXCursor_ExceptionSpecificationKind_BasicNoexcept;
+  case EST_NoThrow:
+    return CXCursor_ExceptionSpecificationKind_NoThrow;
   case EST_NoexceptFalse:
   case EST_NoexceptTrue:
   case EST_DependentNoexcept:
@@ -1025,7 +1048,7 @@ long long clang_Type_getOffsetOf(CXType PT, const char *S) {
   // and we would return InvalidFieldName instead of Incomplete.
   // But this erroneous results does protects again a hidden assertion failure
   // in the RecordLayoutBuilder
-  if (Res.size() != 1)
+  if (!Res.isSingleResult())
     return CXTypeLayoutError_InvalidFieldName;
   if (const FieldDecl *FD = dyn_cast<FieldDecl>(Res.front()))
     return Ctx.getFieldOffset(FD);
@@ -1042,6 +1065,9 @@ CXType clang_Type_getModifiedType(CXType CT) {
 
   if (auto *ATT = T->getAs<AttributedType>())
     return MakeCXType(ATT->getModifiedType(), GetTU(CT));
+
+  if (auto *ATT = T->getAs<BTFTagAttributedType>())
+    return MakeCXType(ATT->getWrappedType(), GetTU(CT));
 
   return MakeCXType(QualType(), GetTU(CT));
 }
@@ -1310,9 +1336,21 @@ enum CXTypeNullabilityKind clang_Type_getNullability(CXType CT) {
         return CXTypeNullability_NonNull;
       case NullabilityKind::Nullable:
         return CXTypeNullability_Nullable;
+      case NullabilityKind::NullableResult:
+        return CXTypeNullability_NullableResult;
       case NullabilityKind::Unspecified:
         return CXTypeNullability_Unspecified;
     }
   }
   return CXTypeNullability_Invalid;
+}
+
+CXType clang_Type_getValueType(CXType CT) {
+  QualType T = GetQualType(CT);
+
+  if (T.isNull() || !T->isAtomicType())
+      return MakeCXType(QualType(), GetTU(CT));
+
+  const auto *AT = T->castAs<AtomicType>();
+  return MakeCXType(AT->getValueType(), GetTU(CT));
 }

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year;
@@ -18,8 +18,6 @@
 //   [years{0}, years{11}] satisfying y + m == x.
 //   Otherwise the value returned is unspecified.
 //   [Example: January - February == years{11}. —end example]
-
-extern "C" int printf(const char *, ...);
 
 #include <chrono>
 #include <type_traits>

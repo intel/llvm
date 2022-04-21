@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++98 || c++03 || c++11 || c++14
+// REQUIRES: c++03 || c++11 || c++14
 
 // test get_unexpected
 
 #include <exception>
 #include <cassert>
 #include <cstdlib>
+
+#include "test_macros.h"
 
 void f1() {}
 void f2() {}

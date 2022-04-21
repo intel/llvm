@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
-// UNSUPPORTED: libcpp-has-no-threads, libcpp-no-exceptions
+// UNSUPPORTED: c++03
+// UNSUPPORTED: libcpp-has-no-threads, no-exceptions
 
 // <future>
 
@@ -18,6 +18,8 @@
 #include <future>
 #include <memory>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct A
 {

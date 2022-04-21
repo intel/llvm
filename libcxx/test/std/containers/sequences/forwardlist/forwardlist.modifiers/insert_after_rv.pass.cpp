@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <forward_list>
 
@@ -15,6 +15,7 @@
 #include <forward_list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "min_allocator.h"
 
@@ -29,28 +30,28 @@ int main(int, char**)
         assert(i == c.begin());
         assert(c.front() == 0);
         assert(c.front() == 0);
-        assert(distance(c.begin(), c.end()) == 1);
+        assert(std::distance(c.begin(), c.end()) == 1);
 
         i = c.insert_after(c.cbegin(), 1);
-        assert(i == next(c.begin()));
+        assert(i == std::next(c.begin()));
         assert(c.front() == 0);
-        assert(*next(c.begin()) == 1);
-        assert(distance(c.begin(), c.end()) == 2);
+        assert(*std::next(c.begin()) == 1);
+        assert(std::distance(c.begin(), c.end()) == 2);
 
-        i = c.insert_after(next(c.cbegin()), 2);
-        assert(i == next(c.begin(), 2));
+        i = c.insert_after(std::next(c.cbegin()), 2);
+        assert(i == std::next(c.begin(), 2));
         assert(c.front() == 0);
-        assert(*next(c.begin()) == 1);
-        assert(*next(c.begin(), 2) == 2);
-        assert(distance(c.begin(), c.end()) == 3);
+        assert(*std::next(c.begin()) == 1);
+        assert(*std::next(c.begin(), 2) == 2);
+        assert(std::distance(c.begin(), c.end()) == 3);
 
         i = c.insert_after(c.cbegin(), 3);
-        assert(i == next(c.begin()));
+        assert(i == std::next(c.begin()));
         assert(c.front() == 0);
-        assert(*next(c.begin(), 1) == 3);
-        assert(*next(c.begin(), 2) == 1);
-        assert(*next(c.begin(), 3) == 2);
-        assert(distance(c.begin(), c.end()) == 4);
+        assert(*std::next(c.begin(), 1) == 3);
+        assert(*std::next(c.begin(), 2) == 1);
+        assert(*std::next(c.begin(), 3) == 2);
+        assert(std::distance(c.begin(), c.end()) == 4);
     }
     {
         typedef MoveOnly T;
@@ -61,28 +62,28 @@ int main(int, char**)
         assert(i == c.begin());
         assert(c.front() == 0);
         assert(c.front() == 0);
-        assert(distance(c.begin(), c.end()) == 1);
+        assert(std::distance(c.begin(), c.end()) == 1);
 
         i = c.insert_after(c.cbegin(), 1);
-        assert(i == next(c.begin()));
+        assert(i == std::next(c.begin()));
         assert(c.front() == 0);
-        assert(*next(c.begin()) == 1);
-        assert(distance(c.begin(), c.end()) == 2);
+        assert(*std::next(c.begin()) == 1);
+        assert(std::distance(c.begin(), c.end()) == 2);
 
-        i = c.insert_after(next(c.cbegin()), 2);
-        assert(i == next(c.begin(), 2));
+        i = c.insert_after(std::next(c.cbegin()), 2);
+        assert(i == std::next(c.begin(), 2));
         assert(c.front() == 0);
-        assert(*next(c.begin()) == 1);
-        assert(*next(c.begin(), 2) == 2);
-        assert(distance(c.begin(), c.end()) == 3);
+        assert(*std::next(c.begin()) == 1);
+        assert(*std::next(c.begin(), 2) == 2);
+        assert(std::distance(c.begin(), c.end()) == 3);
 
         i = c.insert_after(c.cbegin(), 3);
-        assert(i == next(c.begin()));
+        assert(i == std::next(c.begin()));
         assert(c.front() == 0);
-        assert(*next(c.begin(), 1) == 3);
-        assert(*next(c.begin(), 2) == 1);
-        assert(*next(c.begin(), 3) == 2);
-        assert(distance(c.begin(), c.end()) == 4);
+        assert(*std::next(c.begin(), 1) == 3);
+        assert(*std::next(c.begin(), 2) == 1);
+        assert(*std::next(c.begin(), 3) == 2);
+        assert(std::distance(c.begin(), c.end()) == 4);
     }
 
   return 0;

@@ -1,4 +1,3 @@
-; RUN: opt -basicaa -print-memoryssa -verify-memoryssa -analyze < %s 2>&1 | FileCheck %s
 ; RUN: opt -aa-pipeline=basic-aa -passes='print<memoryssa>,verify<memoryssa>' -disable-output < %s 2>&1 | FileCheck %s
 ;
 ; Ensures that volatile stores/loads count as MemoryDefs
@@ -23,7 +22,7 @@ define i32 @foo() {
 }
 
 ; Ensuring we allow hoisting nonvolatile loads around volatile loads.
-; CHECK-LABEL define void @volatile_only
+; CHECK-LABEL: define void @volatile_only
 define void @volatile_only(i32* %arg1, i32* %arg2) {
   ; Trivially NoAlias/MustAlias
   %a = alloca i32
@@ -51,7 +50,7 @@ define void @volatile_only(i32* %arg1, i32* %arg2) {
 }
 
 ; Ensuring that volatile atomic operations work properly.
-; CHECK-LABEL define void @volatile_atomics
+; CHECK-LABEL: define void @volatile_atomics
 define void @volatile_atomics(i32* %arg1, i32* %arg2) {
   %a = alloca i32
   %b = alloca i32

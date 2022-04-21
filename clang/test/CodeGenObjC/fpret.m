@@ -14,24 +14,24 @@
 @end
 
 
-// CHECK-X86_32-LABEL: define void @t0()
+// CHECK-X86_32-LABEL: define{{.*}} void @t0()
 // CHECK-X86_32: call float bitcast {{.*}} @objc_msgSend_fpret to
 // CHECK-X86_32: call double bitcast {{.*}} @objc_msgSend_fpret to
 // CHECK-X86_32: call x86_fp80 bitcast {{.*}} @objc_msgSend_fpret to
 // CHECK-X86_32: }
 //
-// CHECK-X86_64-LABEL: define void @t0()
+// CHECK-X86_64-LABEL: define{{.*}} void @t0()
 // CHECK-X86_64: call float bitcast {{.*}} @objc_msgSend to
 // CHECK-X86_64: call double bitcast {{.*}} @objc_msgSend to
 // CHECK-X86_64: call x86_fp80 bitcast {{.*}} @objc_msgSend_fpret to
 // CHECK-X86_64: }
 //
-// CHECK-ARMV7-LABEL: define void @t0()
+// CHECK-ARMV7-LABEL: define{{.*}} void @t0()
 // CHECK-ARMV7: call float bitcast {{.*}} @objc_msgSend to
 // CHECK-ARMV7: call double bitcast {{.*}} @objc_msgSend to
 // CHECK-ARMV7: call double bitcast {{.*}} @objc_msgSend to
 // CHECK-ARMV7: }
-void t0() {
+void t0(void) {
   [(A*)0 floatValue];
   [(A*)0 doubleValue];
   [(A*)0 longDoubleValue];

@@ -9,14 +9,19 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/id.hpp>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+#ifdef __SYCL_INTERNAL_API
 class program;
+#endif
 class device;
 class platform;
+class kernel_id;
+enum class memory_scope;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
@@ -24,11 +29,13 @@ namespace info {
 // Information descriptors
 // A.1 Platform information descriptors
 enum class platform {
-  profile     = PI_PLATFORM_INFO_PROFILE,
-  version     = PI_PLATFORM_INFO_VERSION,
-  name        = PI_PLATFORM_INFO_NAME,
-  vendor      = PI_PLATFORM_INFO_VENDOR,
-  extensions  = PI_PLATFORM_INFO_EXTENSIONS,
+  profile = PI_PLATFORM_INFO_PROFILE,
+  version = PI_PLATFORM_INFO_VERSION,
+  name = PI_PLATFORM_INFO_NAME,
+  vendor = PI_PLATFORM_INFO_VENDOR,
+  extensions __SYCL2020_DEPRECATED(
+      "platform::extensions is deprecated, use device::get_info() with"
+      " info::device::aspects instead.") = PI_PLATFORM_INFO_EXTENSIONS,
 };
 
 // A.2 Context information desctiptors
@@ -36,6 +43,10 @@ enum class context : cl_context_info {
   reference_count = CL_CONTEXT_REFERENCE_COUNT,
   platform = CL_CONTEXT_PLATFORM,
   devices = CL_CONTEXT_DEVICES,
+  atomic_memory_order_capabilities =
+      PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+  atomic_memory_scope_capabilities =
+      PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
 };
 
 // A.3 Device information descriptors
@@ -86,8 +97,11 @@ enum class device : cl_device_info {
   global_mem_cache_line_size = CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,
   global_mem_cache_size = CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
   global_mem_size = CL_DEVICE_GLOBAL_MEM_SIZE,
-  max_constant_buffer_size = CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
-  max_constant_args = CL_DEVICE_MAX_CONSTANT_ARGS,
+  max_constant_buffer_size __SYCL2020_DEPRECATED(
+      "max_constant_buffer_size is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
+  max_constant_args __SYCL2020_DEPRECATED("max_constant_args is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_ARGS,
   local_mem_type = CL_DEVICE_LOCAL_MEM_TYPE,
   local_mem_size = CL_DEVICE_LOCAL_MEM_SIZE,
   error_correction_support = CL_DEVICE_ERROR_CORRECTION_SUPPORT,
@@ -99,7 +113,8 @@ enum class device : cl_device_info {
   is_linker_available = CL_DEVICE_LINKER_AVAILABLE,
   execution_capabilities = CL_DEVICE_EXECUTION_CAPABILITIES,
   queue_profiling = CL_DEVICE_QUEUE_PROPERTIES,
-  built_in_kernels = CL_DEVICE_BUILT_IN_KERNELS,
+  built_in_kernels __SYCL2020_DEPRECATED("use built_in_kernel_ids instead") =
+      CL_DEVICE_BUILT_IN_KERNELS,
   platform = CL_DEVICE_PLATFORM,
   name = CL_DEVICE_NAME,
   vendor = CL_DEVICE_VENDOR,
@@ -107,7 +122,9 @@ enum class device : cl_device_info {
   profile = CL_DEVICE_PROFILE,
   version = CL_DEVICE_VERSION,
   opencl_c_version = CL_DEVICE_OPENCL_C_VERSION,
-  extensions = CL_DEVICE_EXTENSIONS,
+  extensions __SYCL2020_DEPRECATED(
+      "device::extensions is deprecated, use info::device::aspects"
+      " instead.") = CL_DEVICE_EXTENSIONS,
   printf_buffer_size = CL_DEVICE_PRINTF_BUFFER_SIZE,
   preferred_interop_user_sync = CL_DEVICE_PREFERRED_INTEROP_USER_SYNC,
   parent_device = CL_DEVICE_PARENT_DEVICE,
@@ -116,11 +133,48 @@ enum class device : cl_device_info {
   partition_affinity_domains = CL_DEVICE_PARTITION_AFFINITY_DOMAIN,
   partition_type_affinity_domain = CL_DEVICE_PARTITION_TYPE,
   reference_count = CL_DEVICE_REFERENCE_COUNT,
+  il_version =
+      CL_DEVICE_IL_VERSION_KHR, // Same as CL_DEVICE_IL_VERSION for >=OpenCL 2.1
   max_num_sub_groups = CL_DEVICE_MAX_NUM_SUB_GROUPS,
   sub_group_independent_forward_progress =
       CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
   sub_group_sizes = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
-  partition_type_property
+  partition_type_property,
+  kernel_kernel_pipe_support,
+  built_in_kernel_ids,
+  backend_version = PI_DEVICE_INFO_BACKEND_VERSION,
+  // USM
+  usm_device_allocations = PI_USM_DEVICE_SUPPORT,
+  usm_host_allocations = PI_USM_HOST_SUPPORT,
+  usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
+  usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
+  usm_system_allocations = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocator __SYCL2020_DEPRECATED(
+      "use usm_system_allocations instead") = usm_system_allocations,
+
+  // intel extensions
+  ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
+  ext_intel_gpu_eu_count = PI_DEVICE_INFO_GPU_EU_COUNT,
+  ext_intel_gpu_eu_simd_width = PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
+  ext_intel_gpu_slices = PI_DEVICE_INFO_GPU_SLICES,
+  ext_intel_gpu_subslices_per_slice = PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+  ext_intel_gpu_eu_count_per_subslice =
+      PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+  ext_intel_gpu_hw_threads_per_eu = PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
+  ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
+  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
+  ext_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,
+  ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
+  atomic64 = PI_DEVICE_INFO_ATOMIC_64,
+  atomic_memory_order_capabilities =
+      PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+  ext_oneapi_max_global_work_groups =
+      PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS,
+  ext_oneapi_max_work_groups_1d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D,
+  ext_oneapi_max_work_groups_2d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D,
+  ext_oneapi_max_work_groups_3d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+  atomic_memory_scope_capabilities =
+      PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES
 };
 
 enum class device_type : pi_uint64 {
@@ -135,10 +189,10 @@ enum class device_type : pi_uint64 {
 };
 
 enum class partition_property : cl_device_partition_property {
+  no_partition = 0,
   partition_equally = CL_DEVICE_PARTITION_EQUALLY,
   partition_by_counts = CL_DEVICE_PARTITION_BY_COUNTS,
-  partition_by_affinity_domain = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-  no_partition
+  partition_by_affinity_domain = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN
 };
 
 enum class partition_affinity_domain : cl_device_affinity_domain {
@@ -171,7 +225,7 @@ enum class execution_capability : unsigned int {
   exec_native_kernel
 };
 
-// A.4 Queue information desctiptors
+// A.4 Queue information descriptors
 enum class queue : cl_command_queue_info {
   context = CL_QUEUE_CONTEXT,
   device = CL_QUEUE_DEVICE,
@@ -183,12 +237,16 @@ enum class kernel : cl_kernel_info {
   function_name = CL_KERNEL_FUNCTION_NAME,
   num_args = CL_KERNEL_NUM_ARGS,
   context = CL_KERNEL_CONTEXT,
+#ifdef __SYCL_INTERNAL_API
   program = CL_KERNEL_PROGRAM,
+#endif
   reference_count = CL_KERNEL_REFERENCE_COUNT,
   attributes = CL_KERNEL_ATTRIBUTES
 };
 
-enum class kernel_work_group : cl_kernel_work_group_info {
+enum class __SYCL2020_DEPRECATED(
+    "kernel_work_group enumeration is deprecated, use SYCL 2020 requests"
+    " instead") kernel_work_group : cl_kernel_work_group_info {
   global_work_size = CL_KERNEL_GLOBAL_WORK_SIZE,
   work_group_size = CL_KERNEL_WORK_GROUP_SIZE,
   compile_work_group_size = CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
@@ -198,19 +256,34 @@ enum class kernel_work_group : cl_kernel_work_group_info {
 };
 
 enum class kernel_sub_group : cl_kernel_sub_group_info {
-  max_sub_group_size_for_ndrange = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
-  sub_group_count_for_ndrange = CL_KERNEL_SUB_GROUP_COUNT_FOR_NDRANGE,
-  local_size_for_sub_group_count = CL_KERNEL_LOCAL_SIZE_FOR_SUB_GROUP_COUNT,
+  max_sub_group_size = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
   max_num_sub_groups = CL_KERNEL_MAX_NUM_SUB_GROUPS,
-  compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS
+  compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,
+  compile_sub_group_size = CL_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL
+};
+
+enum class kernel_device_specific : cl_kernel_work_group_info {
+  global_work_size = CL_KERNEL_GLOBAL_WORK_SIZE,
+  work_group_size = CL_KERNEL_WORK_GROUP_SIZE,
+  compile_work_group_size = CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
+  preferred_work_group_size_multiple =
+      CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+  private_mem_size = CL_KERNEL_PRIVATE_MEM_SIZE,
+  ext_codeplay_num_regs = PI_KERNEL_GROUP_INFO_NUM_REGS,
+  max_sub_group_size = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
+  max_num_sub_groups = CL_KERNEL_MAX_NUM_SUB_GROUPS,
+  compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,
+  compile_sub_group_size = CL_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL
 };
 
 // A.6 Program information desctiptors
+#ifdef __SYCL_INTERNAL_API
 enum class program : cl_program_info {
   context = CL_PROGRAM_CONTEXT,
   devices = CL_PROGRAM_DEVICES,
   reference_count = CL_PROGRAM_REFERENCE_COUNT
 };
+#endif
 
 // A.7 Event information desctiptors
 enum class event : cl_event_info {
@@ -221,7 +294,10 @@ enum class event : cl_event_info {
 enum class event_command_status : cl_int {
   submitted = CL_SUBMITTED,
   running = CL_RUNNING,
-  complete = CL_COMPLETE
+  complete = CL_COMPLETE,
+  // Since all BE values are positive, it is safe to use a negative value If you
+  // add other ext_oneapi values
+  ext_oneapi_unknown = -1
 };
 
 enum class event_profiling : cl_profiling_info {
@@ -233,153 +309,65 @@ enum class event_profiling : cl_profiling_info {
 // Provide an alias to the return type for each of the info parameters
 template <typename T, T param> class param_traits {};
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+template <typename T, T param> struct compatibility_param_traits {};
+
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <> class param_traits<param_type, param_type::param> {              \
   public:                                                                      \
     using return_type = ret_type;                                              \
   };
 
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template <> class param_traits<param_type, param_type::param> {              \
   public:                                                                      \
     using return_type = ret_type;                                              \
     using input_type = in_type;                                                \
   };
 
-PARAM_TRAITS_SPEC(device, device_type, device_type)
-PARAM_TRAITS_SPEC(device, vendor_id, cl_uint)
-PARAM_TRAITS_SPEC(device, max_compute_units, cl_uint)
-PARAM_TRAITS_SPEC(device, max_work_item_dimensions, cl_uint)
-PARAM_TRAITS_SPEC(device, max_work_item_sizes, id<3>)
-PARAM_TRAITS_SPEC(device, max_work_group_size, size_t)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_char, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_short, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_int, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_long, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_float, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_double, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_half, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_char, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_short, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_int, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_long, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_float, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_double, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_half, cl_uint)
-PARAM_TRAITS_SPEC(device, max_clock_frequency, cl_uint)
-PARAM_TRAITS_SPEC(device, address_bits, cl_uint)
-PARAM_TRAITS_SPEC(device, max_mem_alloc_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, image_support, bool)
-PARAM_TRAITS_SPEC(device, max_read_image_args, cl_uint)
-PARAM_TRAITS_SPEC(device, max_write_image_args, cl_uint)
-PARAM_TRAITS_SPEC(device, image2d_max_width, size_t)
-PARAM_TRAITS_SPEC(device, image2d_max_height, size_t)
-PARAM_TRAITS_SPEC(device, image3d_max_width, size_t)
-PARAM_TRAITS_SPEC(device, image3d_max_height, size_t)
-PARAM_TRAITS_SPEC(device, image3d_max_depth, size_t)
-PARAM_TRAITS_SPEC(device, image_max_buffer_size, size_t)
-PARAM_TRAITS_SPEC(device, image_max_array_size, size_t)
-PARAM_TRAITS_SPEC(device, max_samplers, cl_uint)
-PARAM_TRAITS_SPEC(device, max_parameter_size, size_t)
-PARAM_TRAITS_SPEC(device, mem_base_addr_align, cl_uint)
-PARAM_TRAITS_SPEC(device, half_fp_config, vector_class<info::fp_config>)
-PARAM_TRAITS_SPEC(device, single_fp_config, vector_class<info::fp_config>)
-PARAM_TRAITS_SPEC(device, double_fp_config, vector_class<info::fp_config>)
-PARAM_TRAITS_SPEC(device, global_mem_cache_type, info::global_mem_cache_type)
-PARAM_TRAITS_SPEC(device, global_mem_cache_line_size, cl_uint)
-PARAM_TRAITS_SPEC(device, global_mem_cache_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, global_mem_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, max_constant_buffer_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, max_constant_args, cl_uint)
-PARAM_TRAITS_SPEC(device, local_mem_type, info::local_mem_type)
-PARAM_TRAITS_SPEC(device, local_mem_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, error_correction_support, bool)
-PARAM_TRAITS_SPEC(device, host_unified_memory, bool)
-PARAM_TRAITS_SPEC(device, profiling_timer_resolution, size_t)
-PARAM_TRAITS_SPEC(device, is_endian_little, bool)
-PARAM_TRAITS_SPEC(device, is_available, bool)
-PARAM_TRAITS_SPEC(device, is_compiler_available, bool)
-PARAM_TRAITS_SPEC(device, is_linker_available, bool)
-PARAM_TRAITS_SPEC(device, execution_capabilities,
-                  vector_class<info::execution_capability>)
-PARAM_TRAITS_SPEC(device, queue_profiling, bool)
-PARAM_TRAITS_SPEC(device, built_in_kernels, vector_class<string_class>)
-PARAM_TRAITS_SPEC(device, platform, cl::sycl::platform)
-PARAM_TRAITS_SPEC(device, name, string_class)
-PARAM_TRAITS_SPEC(device, vendor, string_class)
-PARAM_TRAITS_SPEC(device, driver_version, string_class)
-PARAM_TRAITS_SPEC(device, profile, string_class)
-PARAM_TRAITS_SPEC(device, version, string_class)
-PARAM_TRAITS_SPEC(device, opencl_c_version, string_class)
-PARAM_TRAITS_SPEC(device, extensions, vector_class<string_class>)
-PARAM_TRAITS_SPEC(device, printf_buffer_size, size_t)
-PARAM_TRAITS_SPEC(device, preferred_interop_user_sync, bool)
-PARAM_TRAITS_SPEC(device, parent_device, cl::sycl::device)
-PARAM_TRAITS_SPEC(device, partition_max_sub_devices, cl_uint)
-PARAM_TRAITS_SPEC(device, partition_properties,
-                  vector_class<info::partition_property>)
-PARAM_TRAITS_SPEC(device, partition_affinity_domains,
-                  vector_class<info::partition_affinity_domain>)
-PARAM_TRAITS_SPEC(device, partition_type_property, info::partition_property)
-PARAM_TRAITS_SPEC(device, partition_type_affinity_domain,
-                  info::partition_affinity_domain)
-PARAM_TRAITS_SPEC(device, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(device, max_num_sub_groups, cl_uint)
-PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool)
-PARAM_TRAITS_SPEC(device, sub_group_sizes, vector_class<size_t>)
+#include <CL/sycl/info/device_traits.def>
 
-PARAM_TRAITS_SPEC(context, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(context, platform, cl::sycl::platform)
-PARAM_TRAITS_SPEC(context, devices, vector_class<cl::sycl::device>)
+#include <CL/sycl/info/context_traits.def>
 
-PARAM_TRAITS_SPEC(event, command_execution_status, event_command_status)
-PARAM_TRAITS_SPEC(event, reference_count, cl_uint)
+#include <CL/sycl/info/event_traits.def>
 
-PARAM_TRAITS_SPEC(event_profiling, command_submit, cl_ulong)
-PARAM_TRAITS_SPEC(event_profiling, command_start, cl_ulong)
-PARAM_TRAITS_SPEC(event_profiling, command_end, cl_ulong)
+#include <CL/sycl/info/event_profiling_traits.def>
 
-PARAM_TRAITS_SPEC(kernel, function_name, string_class)
-PARAM_TRAITS_SPEC(kernel, num_args, cl_uint)
-PARAM_TRAITS_SPEC(kernel, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(kernel, attributes, string_class)
-// Shilei: The following two traits are not covered in the current version of
-// CTS (SYCL-1.2.1/master)
-PARAM_TRAITS_SPEC(kernel, context, cl::sycl::context)
-PARAM_TRAITS_SPEC(kernel, program, cl::sycl::program)
+#include <CL/sycl/info/kernel_device_specific_traits.def>
+#include <CL/sycl/info/kernel_sub_group_traits.def>
+#include <CL/sycl/info/kernel_traits.def>
+#include <CL/sycl/info/kernel_work_group_traits.def>
 
-PARAM_TRAITS_SPEC(kernel_work_group, compile_work_group_size,
-                  cl::sycl::range<3>)
-PARAM_TRAITS_SPEC(kernel_work_group, global_work_size, cl::sycl::range<3>)
-PARAM_TRAITS_SPEC(kernel_work_group, preferred_work_group_size_multiple, size_t)
-PARAM_TRAITS_SPEC(kernel_work_group, private_mem_size, cl_ulong)
-PARAM_TRAITS_SPEC(kernel_work_group, work_group_size, size_t)
+#include <CL/sycl/info/platform_traits.def>
 
-PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, max_sub_group_size_for_ndrange,
-                             size_t, cl::sycl::range<3>)
-PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, sub_group_count_for_ndrange,
-                             size_t, cl::sycl::range<3>)
-PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, local_size_for_sub_group_count,
-                             cl::sycl::range<3>, size_t)
-PARAM_TRAITS_SPEC(kernel_sub_group, max_num_sub_groups, size_t)
-PARAM_TRAITS_SPEC(kernel_sub_group, compile_num_sub_groups, size_t)
+#ifdef __SYCL_INTERNAL_API
+#include <CL/sycl/info/program_traits.def>
+#endif
 
-PARAM_TRAITS_SPEC(platform, profile, string_class)
-PARAM_TRAITS_SPEC(platform, version, string_class)
-PARAM_TRAITS_SPEC(platform, name, string_class)
-PARAM_TRAITS_SPEC(platform, vendor, string_class)
-PARAM_TRAITS_SPEC(platform, extensions, vector_class<string_class>)
+#include <CL/sycl/info/queue_traits.def>
 
-PARAM_TRAITS_SPEC(program, context, cl::sycl::context)
-PARAM_TRAITS_SPEC(program, devices, vector_class<cl::sycl::device>)
-PARAM_TRAITS_SPEC(program, reference_count, cl_uint)
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
-PARAM_TRAITS_SPEC(queue, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(queue, context, cl::sycl::context)
-PARAM_TRAITS_SPEC(queue, device, cl::sycl::device)
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
+  template <>                                                                  \
+  struct compatibility_param_traits<param_type, param_type::param> {           \
+    static constexpr auto value = kernel_device_specific::param;               \
+  };
 
-#undef PARAM_TRAITS_SPEC
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
+  template <>                                                                  \
+  struct compatibility_param_traits<param_type, param_type::param> {           \
+    static constexpr auto value = kernel_device_specific::param;               \
+  };
+
+#include <CL/sycl/info/kernel_sub_group_traits.def>
+#include <CL/sycl/info/kernel_work_group_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 } // namespace info
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

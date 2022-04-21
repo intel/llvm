@@ -15,11 +15,9 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_MCTARGETDESC_AMDGPUHSAMETADATASTREAMER_H
 #define LLVM_LIB_TARGET_AMDGPU_MCTARGETDESC_AMDGPUHSAMETADATASTREAMER_H
 
-#include "AMDGPU.h"
-#include "AMDKernelCodeT.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MsgPackDocument.h"
 #include "llvm/Support/AMDGPUMetadata.h"
+#include "llvm/Support/Alignment.h"
 
 namespace llvm {
 
@@ -27,32 +25,46 @@ class AMDGPUTargetStreamer;
 class Argument;
 class DataLayout;
 class Function;
+class MachineFunction;
 class MDNode;
 class Module;
 struct SIProgramInfo;
 class Type;
+class GCNSubtarget;
 
 namespace AMDGPU {
+
+namespace IsaInfo {
+class AMDGPUTargetID;
+}
+
 namespace HSAMD {
 
 class MetadataStreamer {
 public:
-  virtual ~MetadataStreamer(){};
+  virtual ~MetadataStreamer() = default;
 
   virtual bool emitTo(AMDGPUTargetStreamer &TargetStreamer) = 0;
 
-  virtual void begin(const Module &Mod) = 0;
+  virtual void begin(const Module &Mod,
+                     const IsaInfo::AMDGPUTargetID &TargetID) = 0;
 
   virtual void end() = 0;
 
   virtual void emitKernel(const MachineFunction &MF,
                           const SIProgramInfo &ProgramInfo) = 0;
+
+protected:
+  virtual void emitVersion() = 0;
+  virtual void emitHiddenKernelArgs(const MachineFunction &MF, unsigned &Offset,
+                                    msgpack::ArrayDocNode Args) = 0;
 };
 
-class MetadataStreamerV3 final : public MetadataStreamer {
-private:
+// TODO: Rename MetadataStreamerV3 -> MetadataStreamerMsgPackV3.
+class MetadataStreamerV3 : public MetadataStreamer {
+protected:
   std::unique_ptr<msgpack::Document> HSAMetadataDoc =
-      llvm::make_unique<msgpack::Document>();
+      std::make_unique<msgpack::Document>();
 
   void dump(StringRef HSAMetadataString) const;
 
@@ -65,8 +77,6 @@ private:
   StringRef getValueKind(Type *Ty, StringRef TypeQual,
                          StringRef BaseTypeName) const;
 
-  StringRef getValueType(Type *Ty, StringRef TypeName) const;
-
   std::string getTypeName(Type *Ty, bool Signed) const;
 
   msgpack::ArrayDocNode getWorkGroupDimensions(MDNode *Node) const;
@@ -74,7 +84,7 @@ private:
   msgpack::MapDocNode getHSAKernelProps(const MachineFunction &MF,
                                         const SIProgramInfo &ProgramInfo) const;
 
-  void emitVersion();
+  void emitVersion() override;
 
   void emitPrintf(const Module &Mod);
 
@@ -82,19 +92,20 @@ private:
 
   void emitKernelAttrs(const Function &Func, msgpack::MapDocNode Kern);
 
-  void emitKernelArgs(const Function &Func, msgpack::MapDocNode Kern);
+  void emitKernelArgs(const MachineFunction &MF, msgpack::MapDocNode Kern);
 
   void emitKernelArg(const Argument &Arg, unsigned &Offset,
                      msgpack::ArrayDocNode Args);
 
-  void emitKernelArg(const DataLayout &DL, Type *Ty, StringRef ValueKind,
-                     unsigned &Offset, msgpack::ArrayDocNode Args,
-                     unsigned PointeeAlign = 0, StringRef Name = "",
-                     StringRef TypeName = "", StringRef BaseTypeName = "",
-                     StringRef AccQual = "", StringRef TypeQual = "");
+  void emitKernelArg(const DataLayout &DL, Type *Ty, Align Alignment,
+                     StringRef ValueKind, unsigned &Offset,
+                     msgpack::ArrayDocNode Args, MaybeAlign PointeeAlign = None,
+                     StringRef Name = "", StringRef TypeName = "",
+                     StringRef BaseTypeName = "", StringRef AccQual = "",
+                     StringRef TypeQual = "");
 
-  void emitHiddenKernelArgs(const Function &Func, unsigned &Offset,
-                            msgpack::ArrayDocNode Args);
+  void emitHiddenKernelArgs(const MachineFunction &MF, unsigned &Offset,
+                            msgpack::ArrayDocNode Args) override;
 
   msgpack::DocNode &getRootMetadata(StringRef Key) {
     return HSAMetadataDoc->getRoot().getMap(/*Convert=*/true)[Key];
@@ -110,7 +121,8 @@ public:
 
   bool emitTo(AMDGPUTargetStreamer &TargetStreamer) override;
 
-  void begin(const Module &Mod) override;
+  void begin(const Module &Mod,
+             const IsaInfo::AMDGPUTargetID &TargetID) override;
 
   void end() override;
 
@@ -118,6 +130,33 @@ public:
                   const SIProgramInfo &ProgramInfo) override;
 };
 
+// TODO: Rename MetadataStreamerV4 -> MetadataStreamerMsgPackV4.
+class MetadataStreamerV4 : public MetadataStreamerV3 {
+protected:
+  void emitVersion() override;
+  void emitTargetID(const IsaInfo::AMDGPUTargetID &TargetID);
+
+public:
+  MetadataStreamerV4() = default;
+  ~MetadataStreamerV4() = default;
+
+  void begin(const Module &Mod,
+             const IsaInfo::AMDGPUTargetID &TargetID) override;
+};
+
+// TODO: Rename MetadataStreamerV5 -> MetadataStreamerMsgPackV5.
+class MetadataStreamerV5 final : public MetadataStreamerV4 {
+protected:
+  void emitVersion() override;
+  void emitHiddenKernelArgs(const MachineFunction &MF, unsigned &Offset,
+                            msgpack::ArrayDocNode Args) override;
+
+public:
+  MetadataStreamerV5() = default;
+  ~MetadataStreamerV5() = default;
+};
+
+// TODO: Rename MetadataStreamerV2 -> MetadataStreamerYamlV2.
 class MetadataStreamerV2 final : public MetadataStreamer {
 private:
   Metadata HSAMetadata;
@@ -133,8 +172,6 @@ private:
   ValueKind getValueKind(Type *Ty, StringRef TypeQual,
                          StringRef BaseTypeName) const;
 
-  ValueType getValueType(Type *Ty, StringRef TypeName) const;
-
   std::string getTypeName(Type *Ty, bool Signed) const;
 
   std::vector<uint32_t> getWorkGroupDimensions(MDNode *Node) const;
@@ -146,28 +183,33 @@ private:
       const MachineFunction &MF,
       const SIProgramInfo &ProgramInfo) const;
 
-  void emitVersion();
-
   void emitPrintf(const Module &Mod);
 
   void emitKernelLanguage(const Function &Func);
 
   void emitKernelAttrs(const Function &Func);
 
-  void emitKernelArgs(const Function &Func);
+  void emitKernelArgs(const Function &Func, const GCNSubtarget &ST);
 
   void emitKernelArg(const Argument &Arg);
 
-  void emitKernelArg(const DataLayout &DL, Type *Ty, ValueKind ValueKind,
-                     unsigned PointeeAlign = 0,
+  void emitKernelArg(const DataLayout &DL, Type *Ty, Align Alignment,
+                     ValueKind ValueKind, MaybeAlign PointeeAlign = None,
                      StringRef Name = "", StringRef TypeName = "",
                      StringRef BaseTypeName = "", StringRef AccQual = "",
                      StringRef TypeQual = "");
 
-  void emitHiddenKernelArgs(const Function &Func);
+  void emitHiddenKernelArgs(const Function &Func, const GCNSubtarget &ST);
 
   const Metadata &getHSAMetadata() const {
     return HSAMetadata;
+  }
+
+protected:
+  void emitVersion() override;
+  void emitHiddenKernelArgs(const MachineFunction &MF, unsigned &Offset,
+                            msgpack::ArrayDocNode Args) override {
+    llvm_unreachable("Dummy override should not be invoked!");
   }
 
 public:
@@ -176,7 +218,8 @@ public:
 
   bool emitTo(AMDGPUTargetStreamer &TargetStreamer) override;
 
-  void begin(const Module &Mod) override;
+  void begin(const Module &Mod,
+             const IsaInfo::AMDGPUTargetID &TargetID) override;
 
   void end() override;
 

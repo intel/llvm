@@ -6,14 +6,14 @@
 // Intel inline assembly parser should rewrite to the appropriate form depending
 // on the platform.
 
-void align_test() {
+void align_test(void) {
   __asm align 8
   __asm align 16;
   __asm align 128;
   __asm ALIGN 256;
 }
 
-// DARWIN-LABEL: define void @align_test()
+// DARWIN-LABEL: define{{.*}} void @align_test()
 // DARWIN: call void asm sideeffect inteldialect
 // DARWIN-SAME: .align 3
 // DARWIN-SAME: .align 4

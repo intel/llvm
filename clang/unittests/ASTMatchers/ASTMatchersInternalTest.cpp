@@ -12,11 +12,14 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Config/config.h"
 #include "llvm/Support/Host.h"
+#include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
 
 namespace clang {
 namespace ast_matchers {
+using internal::DynTypedMatcher;
 
 #if GTEST_HAS_DEATH_TEST
 TEST(HasNameDeathTest, DiesOnEmptyName) {
@@ -33,22 +36,94 @@ TEST(HasNameDeathTest, DiesOnEmptyPattern) {
     }, "");
 }
 
-TEST(IsDerivedFromDeathTest, DiesOnEmptyBaseName) {
-  ASSERT_DEBUG_DEATH({
-    DeclarationMatcher IsDerivedFromEmpty = cxxRecordDecl(isDerivedFrom(""));
-    EXPECT_TRUE(notMatches("class X {};", IsDerivedFromEmpty));
-  }, "");
+// FIXME: Figure out why back traces aren't being generated on clang builds on
+// windows.
+#if ENABLE_BACKTRACES && (!defined(_MSC_VER) || !defined(__clang__))
+template <typename MatcherT>
+static void crashTestNodeDump(MatcherT Matcher,
+                              ArrayRef<StringRef> MatchedNodes,
+                              StringRef Code) {
+  llvm::EnablePrettyStackTrace();
+  MatchFinder Finder;
+
+  struct CrashCallback : public MatchFinder::MatchCallback {
+    void run(const MatchFinder::MatchResult &Result) override { abort(); }
+    llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+      return TK_IgnoreUnlessSpelledInSource;
+    }
+    StringRef getID() const override { return "CrashTester"; }
+  } Callback;
+  Finder.addMatcher(std::move(Matcher), &Callback);
+  if (MatchedNodes.empty()) {
+    ASSERT_DEATH(tooling::runToolOnCode(
+                     newFrontendActionFactory(&Finder)->create(), Code),
+                 testing::HasSubstr(
+                     "ASTMatcher: Processing 'CrashTester'\nNo bound nodes"));
+  } else {
+    std::vector<testing::PolymorphicMatcher<
+        testing::internal::HasSubstrMatcher<std::string>>>
+        Matchers;
+    Matchers.reserve(MatchedNodes.size());
+    for (auto Node : MatchedNodes) {
+      Matchers.push_back(testing::HasSubstr(Node.str()));
+    }
+    auto CrashMatcher = testing::AllOf(
+        testing::HasSubstr(
+            "ASTMatcher: Processing 'CrashTester'\n--- Bound Nodes Begin ---"),
+        testing::HasSubstr("--- Bound Nodes End ---"),
+        testing::AllOfArray(Matchers));
+
+    ASSERT_DEATH(tooling::runToolOnCode(
+                     newFrontendActionFactory(&Finder)->create(), Code),
+                 CrashMatcher);
+  }
 }
+TEST(MatcherCrashDeathTest, CrashOnCallbackDump) {
+  crashTestNodeDump(forStmt(), {}, "void foo() { for(;;); }");
+  crashTestNodeDump(
+      forStmt(hasLoopInit(declStmt(hasSingleDecl(
+                                       varDecl(hasType(qualType().bind("QT")),
+                                               hasType(type().bind("T")),
+                                               hasInitializer(
+                                                   integerLiteral().bind("IL")))
+                                           .bind("VD")))
+                              .bind("DS")))
+          .bind("FS"),
+      {"FS - { ForStmt : <input.cc:3:5, line:4:5> }",
+       "DS - { DeclStmt : <input.cc:3:10, col:19> }",
+       "IL - { IntegerLiteral : <input.cc:3:18> }", "QT - { QualType : int }",
+       "T - { BuiltinType : int }",
+       "VD - { VarDecl I : <input.cc:3:10, col:18> }"},
+      R"cpp(
+  void foo() {
+    for (int I = 0; I < 5; ++I) {
+    }
+  }
+  )cpp");
+  crashTestNodeDump(
+      cxxRecordDecl(hasMethod(cxxMethodDecl(hasName("operator+")).bind("Op+")))
+          .bind("Unnamed"),
+      {"Unnamed - { CXXRecordDecl (anonymous) : <input.cc:1:1, col:36> }",
+       "Op+ - { CXXMethodDecl (anonymous struct)::operator+ : <input.cc:1:10, "
+       "col:29> }"},
+      "struct { int operator+(int) const; } Unnamed;");
+  crashTestNodeDump(
+      cxxRecordDecl(hasMethod(cxxConstructorDecl(isDefaulted()).bind("Ctor")),
+                    hasMethod(cxxDestructorDecl(isDefaulted()).bind("Dtor"))),
+      {"Ctor - { CXXConstructorDecl Foo::Foo : <input.cc:1:14, col:28> }",
+       "Dtor - { CXXDestructorDecl Foo::~Foo : <input.cc:1:31, col:46> }"},
+      "struct Foo { Foo() = default; ~Foo() = default; };");
+}
+#endif // ENABLE_BACKTRACES
 #endif
 
 TEST(ConstructVariadic, MismatchedTypes_Regression) {
   EXPECT_TRUE(
-      matches("const int a = 0;",
-              internal::DynTypedMatcher::constructVariadic(
-                  internal::DynTypedMatcher::VO_AnyOf,
-                  ast_type_traits::ASTNodeKind::getFromNodeKind<QualType>(),
-                  {isConstQualified(), arrayType()})
-                  .convertTo<QualType>()));
+      matches("const int a = 0;", internal::DynTypedMatcher::constructVariadic(
+                                      internal::DynTypedMatcher::VO_AnyOf,
+                                      ASTNodeKind::getFromNodeKind<QualType>(),
+                                      {isConstQualified(), arrayType()})
+                                      .convertTo<QualType>()));
 }
 
 // For testing AST_MATCHER_P().
@@ -62,13 +137,13 @@ TEST(AstMatcherPMacro, Works) {
   DeclarationMatcher HasClassB = just(has(recordDecl(hasName("B")).bind("b")));
 
   EXPECT_TRUE(matchAndVerifyResultTrue("class A { class B {}; };",
-      HasClassB, llvm::make_unique<VerifyIdIsBoundTo<Decl>>("b")));
+      HasClassB, std::make_unique<VerifyIdIsBoundTo<Decl>>("b")));
 
   EXPECT_TRUE(matchAndVerifyResultFalse("class A { class B {}; };",
-      HasClassB, llvm::make_unique<VerifyIdIsBoundTo<Decl>>("a")));
+      HasClassB, std::make_unique<VerifyIdIsBoundTo<Decl>>("a")));
 
   EXPECT_TRUE(matchAndVerifyResultFalse("class A { class C {}; };",
-      HasClassB, llvm::make_unique<VerifyIdIsBoundTo<Decl>>("b")));
+      HasClassB, std::make_unique<VerifyIdIsBoundTo<Decl>>("b")));
 }
 
 AST_POLYMORPHIC_MATCHER_P(polymorphicHas,
@@ -76,7 +151,6 @@ AST_POLYMORPHIC_MATCHER_P(polymorphicHas,
                           internal::Matcher<Decl>, AMatcher) {
   return Finder->matchesChildOf(
       Node, AMatcher, Builder,
-      ast_type_traits::TraversalKind::TK_IgnoreImplicitCastsAndParentheses,
       ASTMatchFinder::BK_First);
 }
 
@@ -85,13 +159,13 @@ TEST(AstPolymorphicMatcherPMacro, Works) {
       polymorphicHas(recordDecl(hasName("B")).bind("b"));
 
   EXPECT_TRUE(matchAndVerifyResultTrue("class A { class B {}; };",
-      HasClassB, llvm::make_unique<VerifyIdIsBoundTo<Decl>>("b")));
+      HasClassB, std::make_unique<VerifyIdIsBoundTo<Decl>>("b")));
 
   EXPECT_TRUE(matchAndVerifyResultFalse("class A { class B {}; };",
-      HasClassB, llvm::make_unique<VerifyIdIsBoundTo<Decl>>("a")));
+      HasClassB, std::make_unique<VerifyIdIsBoundTo<Decl>>("a")));
 
   EXPECT_TRUE(matchAndVerifyResultFalse("class A { class C {}; };",
-      HasClassB, llvm::make_unique<VerifyIdIsBoundTo<Decl>>("b")));
+      HasClassB, std::make_unique<VerifyIdIsBoundTo<Decl>>("b")));
 
   StatementMatcher StatementHasClassB =
       polymorphicHas(recordDecl(hasName("B")));
@@ -179,11 +253,33 @@ TEST(Matcher, matchOverEntireASTContext) {
   EXPECT_NE(nullptr, PT);
 }
 
+TEST(DynTypedMatcherTest, TraversalKindForwardsToImpl) {
+  auto M = DynTypedMatcher(decl());
+  EXPECT_FALSE(M.getTraversalKind().hasValue());
+
+  M = DynTypedMatcher(traverse(TK_AsIs, decl()));
+  EXPECT_THAT(M.getTraversalKind(), llvm::ValueIs(TK_AsIs));
+}
+
+TEST(DynTypedMatcherTest, ConstructWithTraversalKindSetsTK) {
+  auto M = DynTypedMatcher(decl()).withTraversalKind(TK_AsIs);
+  EXPECT_THAT(M.getTraversalKind(), llvm::ValueIs(TK_AsIs));
+}
+
+TEST(DynTypedMatcherTest, ConstructWithTraversalKindOverridesNestedTK) {
+  auto M = DynTypedMatcher(decl()).withTraversalKind(TK_AsIs).withTraversalKind(
+      TK_IgnoreUnlessSpelledInSource);
+  EXPECT_THAT(M.getTraversalKind(),
+              llvm::ValueIs(TK_IgnoreUnlessSpelledInSource));
+}
+
 TEST(IsInlineMatcher, IsInline) {
   EXPECT_TRUE(matches("void g(); inline void f();",
                       functionDecl(isInline(), hasName("f"))));
   EXPECT_TRUE(matches("namespace n { inline namespace m {} }",
                       namespaceDecl(isInline(), hasName("m"))));
+  EXPECT_TRUE(matches("inline int Foo = 5;",
+                      varDecl(isInline(), hasName("Foo")), {Lang_CXX17}));
 }
 
 // FIXME: Figure out how to specify paths so the following tests pass on
@@ -198,18 +294,18 @@ TEST(Matcher, IsExpansionInMainFileMatcher) {
   M.push_back(std::make_pair("/other", "class X {};"));
   EXPECT_TRUE(matchesConditionally("#include <other>\n",
                                    recordDecl(isExpansionInMainFile()), false,
-                                   "-isystem/", M));
+                                   {"-isystem/"}, M));
 }
 
 TEST(Matcher, IsExpansionInSystemHeader) {
   FileContentMappings M;
   M.push_back(std::make_pair("/other", "class X {};"));
-  EXPECT_TRUE(matchesConditionally(
-      "#include \"other\"\n", recordDecl(isExpansionInSystemHeader()), true,
-      "-isystem/", M));
   EXPECT_TRUE(matchesConditionally("#include \"other\"\n",
                                    recordDecl(isExpansionInSystemHeader()),
-                                   false, "-I/", M));
+                                   true, {"-isystem/"}, M));
+  EXPECT_TRUE(matchesConditionally("#include \"other\"\n",
+                                   recordDecl(isExpansionInSystemHeader()),
+                                   false, {"-I/"}, M));
   EXPECT_TRUE(notMatches("class X {};",
                          recordDecl(isExpansionInSystemHeader())));
   EXPECT_TRUE(notMatches("", recordDecl(isExpansionInSystemHeader())));
@@ -224,13 +320,13 @@ TEST(Matcher, IsExpansionInFileMatching) {
       "#include <bar>\n"
       "class X {};",
       recordDecl(isExpansionInFileMatching("b.*"), hasName("B")), true,
-      "-isystem/", M));
+      {"-isystem/"}, M));
   EXPECT_TRUE(matchesConditionally(
       "#include <foo>\n"
       "#include <bar>\n"
       "class X {};",
       recordDecl(isExpansionInFileMatching("f.*"), hasName("X")), false,
-      "-isystem/", M));
+      {"-isystem/"}, M));
 }
 
 #endif // _WIN32

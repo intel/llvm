@@ -1,8 +1,11 @@
 ; RUN: llc -O0 -filetype=obj -o - %s | llvm-dwarfdump -v - | FileCheck %s
 ;
+; Bug 47129
+; XFAIL: sparc
+;
 ; CHECK: .debug_info contents:
 ; CHECK: [[LABEL_ORIGIN:0x[0-9a-zA-Z]+]]:{{ *}}DW_TAG_label
-; CHECK-NEXT: DW_AT_name [DW_FORM_strp] {{.*}}"top"
+; CHECK-NEXT: DW_AT_name {{.*}}"top"
 ; CHECK-NEXT: DW_AT_decl_file [DW_FORM_data1] {{.*}}debug-label-inline.c
 ; CHECK-NEXT: DW_AT_decl_line [DW_FORM_data1] {{.*}}8
 ; CHECK: DW_TAG_label

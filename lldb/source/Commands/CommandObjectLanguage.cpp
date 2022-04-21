@@ -1,4 +1,4 @@
-//===-- CommandObjectLanguage.cpp -------------------------------*- C++ -*-===//
+//===-- CommandObjectLanguage.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,12 +8,8 @@
 
 #include "CommandObjectLanguage.h"
 
-#include "lldb/Host/Host.h"
 
-#include "lldb/Interpreter/CommandInterpreter.h"
-#include "lldb/Interpreter/CommandReturnObject.h"
 
-#include "lldb/Target/Language.h"
 #include "lldb/Target/LanguageRuntime.h"
 
 using namespace lldb;
@@ -27,4 +23,4 @@ CommandObjectLanguage::CommandObjectLanguage(CommandInterpreter &interpreter)
   LanguageRuntime::InitializeCommands(this);
 }
 
-CommandObjectLanguage::~CommandObjectLanguage() {}
+CommandObjectLanguage::~CommandObjectLanguage() = default;

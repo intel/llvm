@@ -1,6 +1,6 @@
 # REQUIRES: x86
 
-# RUN: yaml2obj < %p/Inputs/export.yaml > %t.archive.obj
+# RUN: yaml2obj %p/Inputs/export.yaml -o %t.archive.obj
 # RUN: rm -f %t.archive.lib
 # RUN: llvm-ar rcs %t.archive.lib %t.archive.obj
 # RUN: llvm-mc -triple=x86_64-windows-msvc %s -filetype=obj -o %t.main.obj
@@ -12,6 +12,10 @@
 # RUN: llvm-readobj %t.lib | FileCheck %s -check-prefix CHECK-IMPLIB
 
 # RUN: lld-link -dll -out:%t.dll -entry:main %t.main.obj %t.archive.lib -wholearchive:%t.archive.lib -implib:%t.lib
+# RUN: llvm-readobj %t.lib | FileCheck %s -check-prefix CHECK-IMPLIB
+
+# PR43744: Test no inputs except a whole archive.
+# RUN: lld-link -dll -out:%t.dll -noentry -wholearchive:%t.archive.lib -implib:%t.lib
 # RUN: llvm-readobj %t.lib | FileCheck %s -check-prefix CHECK-IMPLIB
 
 # RUN: mkdir -p %t.dir

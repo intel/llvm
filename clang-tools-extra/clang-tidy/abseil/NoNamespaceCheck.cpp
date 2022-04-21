@@ -18,9 +18,6 @@ namespace tidy {
 namespace abseil {
 
 void NoNamespaceCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   Finder->addMatcher(
       namespaceDecl(hasName("::absl"), unless(isInAbseilFile()))
           .bind("abslNamespace"),
@@ -28,10 +25,10 @@ void NoNamespaceCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void NoNamespaceCheck::check(const MatchFinder::MatchResult &Result) {
-  const auto *abslNamespaceDecl =
+  const auto *AbslNamespaceDecl =
       Result.Nodes.getNodeAs<NamespaceDecl>("abslNamespace");
 
-  diag(abslNamespaceDecl->getLocation(),
+  diag(AbslNamespaceDecl->getLocation(),
        "namespace 'absl' is reserved for implementation of the Abseil library "
        "and should not be opened in user code");
 }

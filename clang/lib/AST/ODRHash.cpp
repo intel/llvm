@@ -71,8 +71,13 @@ void ODRHash::AddDeclarationNameImpl(DeclarationName Name) {
     AddBoolean(S.isKeywordSelector());
     AddBoolean(S.isUnarySelector());
     unsigned NumArgs = S.getNumArgs();
+    ID.AddInteger(NumArgs);
     for (unsigned i = 0; i < NumArgs; ++i) {
-      AddIdentifierInfo(S.getIdentifierInfoForSlot(i));
+      const IdentifierInfo *II = S.getIdentifierInfoForSlot(i);
+      AddBoolean(II);
+      if (II) {
+        AddIdentifierInfo(II);
+      }
     }
     break;
   }
@@ -375,6 +380,11 @@ public:
     }
     Hash.AddBoolean(D->isParameterPack());
 
+    const TypeConstraint *TC = D->getTypeConstraint();
+    Hash.AddBoolean(TC != nullptr);
+    if (TC)
+      AddStmt(TC->getImmediatelyDeclaredConstraint());
+
     Inherited::VisitTemplateTypeParmDecl(D);
   }
 
@@ -430,7 +440,7 @@ public:
 
 // Only allow a small portion of Decl's to be processed.  Remove this once
 // all Decl's can be handled.
-bool ODRHash::isWhitelistedDecl(const Decl *D, const DeclContext *Parent) {
+bool ODRHash::isDeclToBeProcessed(const Decl *D, const DeclContext *Parent) {
   if (D->isImplicit()) return false;
   if (D->getDeclContext() != Parent) return false;
 
@@ -477,7 +487,7 @@ void ODRHash::AddCXXRecordDecl(const CXXRecordDecl *Record) {
   // accurate count of Decl's.
   llvm::SmallVector<const Decl *, 16> Decls;
   for (Decl *SubDecl : Record->decls()) {
-    if (isWhitelistedDecl(SubDecl, Record)) {
+    if (isDeclToBeProcessed(SubDecl, Record)) {
       Decls.push_back(SubDecl);
       if (auto *Function = dyn_cast<FunctionDecl>(SubDecl)) {
         // Compute/Preload ODRHash into FunctionDecl.
@@ -578,7 +588,7 @@ void ODRHash::AddFunctionDecl(const FunctionDecl *Function,
   // accurate count of Decl's.
   llvm::SmallVector<const Decl *, 16> Decls;
   for (Decl *SubDecl : Function->decls()) {
-    if (isWhitelistedDecl(SubDecl, Function)) {
+    if (isDeclToBeProcessed(SubDecl, Function)) {
       Decls.push_back(SubDecl);
     }
   }
@@ -604,7 +614,7 @@ void ODRHash::AddEnumDecl(const EnumDecl *Enum) {
   // accurate count of Decl's.
   llvm::SmallVector<const Decl *, 16> Decls;
   for (Decl *SubDecl : Enum->decls()) {
-    if (isWhitelistedDecl(SubDecl, Enum)) {
+    if (isDeclToBeProcessed(SubDecl, Enum)) {
       assert(isa<EnumConstantDecl>(SubDecl) && "Unexpected Decl");
       Decls.push_back(SubDecl);
     }
@@ -696,7 +706,52 @@ public:
     ID.AddInteger(Quals.getAsOpaqueValue());
   }
 
+  // Return the RecordType if the typedef only strips away a keyword.
+  // Otherwise, return the original type.
+  static const Type *RemoveTypedef(const Type *T) {
+    const auto *TypedefT = dyn_cast<TypedefType>(T);
+    if (!TypedefT) {
+      return T;
+    }
+
+    const TypedefNameDecl *D = TypedefT->getDecl();
+    QualType UnderlyingType = D->getUnderlyingType();
+
+    if (UnderlyingType.hasLocalQualifiers()) {
+      return T;
+    }
+
+    const auto *ElaboratedT = dyn_cast<ElaboratedType>(UnderlyingType);
+    if (!ElaboratedT) {
+      return T;
+    }
+
+    if (ElaboratedT->getQualifier() != nullptr) {
+      return T;
+    }
+
+    QualType NamedType = ElaboratedT->getNamedType();
+    if (NamedType.hasLocalQualifiers()) {
+      return T;
+    }
+
+    const auto *RecordT = dyn_cast<RecordType>(NamedType);
+    if (!RecordT) {
+      return T;
+    }
+
+    const IdentifierInfo *TypedefII = TypedefT->getDecl()->getIdentifier();
+    const IdentifierInfo *RecordII = RecordT->getDecl()->getIdentifier();
+    if (!TypedefII || !RecordII ||
+        TypedefII->getName() != RecordII->getName()) {
+      return T;
+    }
+
+    return RecordT;
+  }
+
   void Visit(const Type *T) {
+    T = RemoveTypedef(T);
     ID.AddInteger(T->getTypeClass());
     Inherited::Visit(T);
   }
@@ -802,6 +857,13 @@ public:
 
   void VisitAutoType(const AutoType *T) {
     ID.AddInteger((unsigned)T->getKeyword());
+    ID.AddInteger(T->isConstrained());
+    if (T->isConstrained()) {
+      AddDecl(T->getTypeConstraintConcept());
+      ID.AddInteger(T->getNumArgs());
+      for (const auto &TA : T->getTypeConstraintArguments())
+        Hash.AddTemplateArgument(TA);
+    }
     VisitDeducedType(T);
   }
 

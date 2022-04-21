@@ -9,11 +9,13 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_MSVC_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_MSVC_H
 
+#include "AMDGPU.h"
 #include "Cuda.h"
 #include "clang/Basic/DebugInfoOptions.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
+#include "llvm/WindowsDriver/MSVCPaths.h"
 
 namespace clang {
 namespace driver {
@@ -23,9 +25,7 @@ namespace tools {
 namespace visualstudio {
 class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
 public:
-  Linker(const ToolChain &TC)
-      : Tool("visualstudio::Linker", "linker", TC, RF_Full,
-             llvm::sys::WEM_UTF16) {}
+  Linker(const ToolChain &TC) : Tool("visualstudio::Linker", "linker", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool isLinkJob() const override { return true; }
@@ -34,28 +34,12 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
-};
 
-class LLVM_LIBRARY_VISIBILITY Compiler : public Tool {
-public:
-  Compiler(const ToolChain &TC)
-      : Tool("visualstudio::Compiler", "compiler", TC, RF_Full,
-             llvm::sys::WEM_UTF16) {}
-
-  bool hasIntegratedAssembler() const override { return true; }
-  bool hasIntegratedCPP() const override { return true; }
-  bool isLinkJob() const override { return false; }
-
-  void ConstructJob(Compilation &C, const JobAction &JA,
-                    const InputInfo &Output, const InputInfoList &Inputs,
-                    const llvm::opt::ArgList &TCArgs,
-                    const char *LinkingOutput) const override;
-
-  std::unique_ptr<Command> GetCommand(Compilation &C, const JobAction &JA,
-                                      const InputInfo &Output,
-                                      const InputInfoList &Inputs,
-                                      const llvm::opt::ArgList &TCArgs,
-                                      const char *LinkingOutput) const;
+private:
+  void constructMSVCLibCommand(Compilation &C, const JobAction &JA,
+                               const InputInfo &Output,
+                               const InputInfoList &InputFiles,
+                               const llvm::opt::ArgList &Args) const;
 };
 } // end namespace visualstudio
 
@@ -75,13 +59,15 @@ public:
   bool IsIntegratedAssemblerDefault() const override;
   bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args) const override;
   bool isPICDefault() const override;
-  bool isPIEDefault() const override;
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override;
   bool isPICDefaultForced() const override;
 
-  /// Set CodeView as the default debug info format. Users can use -gcodeview
-  /// and -gdwarf to override the default.
+  /// Set CodeView as the default debug info format for non-MachO binary
+  /// formats, and to DWARF otherwise. Users can use -gcodeview and -gdwarf to
+  /// override the default.
   codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
-    return codegenoptions::DIF_CodeView;
+    return getTriple().isOSBinFormatMachO() ? codegenoptions::DIF_DWARF
+                                            : codegenoptions::DIF_CodeView;
   }
 
   /// Set the debugger tuning to "default", since we're definitely not tuning
@@ -90,26 +76,18 @@ public:
     return llvm::DebuggerKind::Default;
   }
 
-  enum class SubDirectoryType {
-    Bin,
-    Include,
-    Lib,
-  };
-  std::string getSubDirectoryPath(SubDirectoryType Type,
-                                  llvm::Triple::ArchType TargetArch) const;
-
-  // Convenience overload.
-  // Uses the current target arch.
-  std::string getSubDirectoryPath(SubDirectoryType Type) const {
-    return getSubDirectoryPath(Type, getArch());
+  unsigned GetDefaultDwarfVersion() const override {
+    return 4;
   }
 
-  enum class ToolsetLayout {
-    OlderVS,
-    VS2017OrNewer,
-    DevDivInternal,
-  };
-  bool getIsVS2017OrNewer() const { return VSLayout == ToolsetLayout::VS2017OrNewer; }
+  std::string getSubDirectoryPath(llvm::SubDirectoryType Type,
+                                  llvm::StringRef SubdirParent = "") const;
+  std::string getSubDirectoryPath(llvm::SubDirectoryType Type,
+                                  llvm::Triple::ArchType TargetArch) const;
+
+  bool getIsVS2017OrNewer() const {
+    return VSLayout == llvm::ToolsetLayout::VS2017OrNewer;
+  }
 
   void
   AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
@@ -121,9 +99,13 @@ public:
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
 
-  bool getWindowsSDKLibraryPath(std::string &path) const;
-  /// Check if Universal CRT should be used if available
-  bool getUniversalCRTLibraryPath(std::string &path) const;
+  void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                         llvm::opt::ArgStringList &CC1Args) const override;
+
+  bool getWindowsSDKLibraryPath(
+      const llvm::opt::ArgList &Args, std::string &path) const;
+  bool getUniversalCRTLibraryPath(const llvm::opt::ArgList &Args,
+                                  std::string &path) const;
   bool useUniversalCRT() const;
   VersionTuple
   computeMSVCVersion(const Driver *D,
@@ -137,6 +119,11 @@ public:
 
   bool FoundMSVCInstall() const { return !VCToolChainPath.empty(); }
 
+  void
+  addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
+                        llvm::opt::ArgStringList &CC1Args,
+                        Action::OffloadKind DeviceOffloadKind) const override;
+
 protected:
   void AddSystemIncludeWithSubfolder(const llvm::opt::ArgList &DriverArgs,
                                      llvm::opt::ArgStringList &CC1Args,
@@ -148,9 +135,11 @@ protected:
   Tool *buildLinker() const override;
   Tool *buildAssembler() const override;
 private:
+  llvm::Optional<llvm::StringRef> WinSdkDir, WinSdkVersion, WinSysRoot;
   std::string VCToolChainPath;
-  ToolsetLayout VSLayout = ToolsetLayout::OlderVS;
+  llvm::ToolsetLayout VSLayout = llvm::ToolsetLayout::OlderVS;
   CudaInstallationDetector CudaInstallation;
+  RocmInstallationDetector RocmInstallation;
 };
 
 } // end namespace toolchains

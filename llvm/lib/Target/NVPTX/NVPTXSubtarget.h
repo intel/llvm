@@ -70,6 +70,7 @@ public:
 
   bool hasAtomAddF64() const { return SmVersion >= 60; }
   bool hasAtomScope() const { return SmVersion >= 60; }
+  bool hasAtomSemantics() const { return SmVersion >= 70; }
   bool hasAtomBitwise64() const { return SmVersion >= 32; }
   bool hasAtomMinMax64() const { return SmVersion >= 32; }
   bool hasLDG() const { return SmVersion >= 32; }
@@ -83,7 +84,7 @@ public:
   unsigned getPTXVersion() const { return PTXVersion; }
 
   NVPTXSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
-  void ParseSubtargetFeatures(StringRef CPU, StringRef FS);
+  void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
 };
 
 } // End llvm namespace

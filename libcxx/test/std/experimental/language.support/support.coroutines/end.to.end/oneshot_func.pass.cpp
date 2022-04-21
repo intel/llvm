@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 #include <experimental/coroutine>
 #include <vector>
 #include <cassert>
+
+#include "test_macros.h"
 
 using namespace std::experimental;
 
@@ -23,7 +24,7 @@ template <typename R> struct func {
     R result;
     func get_return_object() { return {this}; }
     suspend_always initial_suspend() { return {}; }
-    suspend_always final_suspend() { return {}; }
+    suspend_always final_suspend() noexcept { return {}; }
     void return_value(R v) { result = v; }
     void unhandled_exception() {}
   };

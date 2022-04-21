@@ -10,12 +10,15 @@
 #define LLVM_CLANG_DRIVER_JOB_H
 
 #include "clang/Basic/LLVM.h"
+#include "clang/Driver/InputInfo.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/Option/Option.h"
+#include "llvm/Support/Program.h"
 #include <memory>
 #include <string>
 #include <utility>
@@ -36,27 +39,115 @@ struct CrashReportInfo {
       : Filename(Filename), VFSPath(VFSPath) {}
 };
 
+// Encodes the kind of response file supported for a command invocation.
+// Response files are necessary if the command line gets too large, requiring
+// the arguments to be transferred to a file.
+struct ResponseFileSupport {
+  enum ResponseFileKind {
+    // Provides full support for response files, which means we can transfer
+    // all tool input arguments to a file.
+    RF_Full,
+    // Input file names can live in a file, but flags can't. This is a special
+    // case for old versions of Apple's ld64.
+    RF_FileList,
+    // Does not support response files: all arguments must be passed via
+    // command line.
+    RF_None
+  };
+  /// The level of support for response files.
+  ResponseFileKind ResponseKind;
+
+  /// The encoding to use when writing response files on Windows. Ignored on
+  /// other host OSes.
+  ///
+  /// Windows use cases: - GCC and Binutils on mingw only accept ANSI response
+  /// files encoded with the system current code page.
+  /// - MSVC's CL.exe and LINK.exe accept UTF16 on Windows.
+  /// - Clang accepts both UTF8 and UTF16.
+  ///
+  /// FIXME: When GNU tools learn how to parse UTF16 on Windows, we should
+  /// always use UTF16 for Windows, which is the Windows official encoding for
+  /// international characters.
+  llvm::sys::WindowsEncodingMethod ResponseEncoding;
+
+  /// What prefix to use for the command-line argument when passing a response
+  /// file.
+  const char *ResponseFlag;
+
+  /// Returns a ResponseFileSupport indicating that response files are not
+  /// supported.
+  static constexpr ResponseFileSupport None() {
+    return {RF_None, llvm::sys::WEM_UTF8, nullptr};
+  }
+
+  /// Returns a ResponseFileSupport indicating that response files are
+  /// supported, using the @file syntax. On windows, the file is written in the
+  /// UTF8 encoding. On other OSes, no re-encoding occurs.
+  static constexpr ResponseFileSupport AtFileUTF8() {
+    return {RF_Full, llvm::sys::WEM_UTF8, "@"};
+  }
+
+  /// Returns a ResponseFileSupport indicating that response files are
+  /// supported, using the @file syntax. On windows, the file is written in the
+  /// current ANSI code-page encoding. On other OSes, no re-encoding occurs.
+  static constexpr ResponseFileSupport AtFileCurCP() {
+    return {RF_Full, llvm::sys::WEM_CurrentCodePage, "@"};
+  }
+
+  /// Returns a ResponseFileSupport indicating that response files are
+  /// supported, using the @file syntax. On windows, the file is written in the
+  /// UTF-16 encoding. On other OSes, no re-encoding occurs.
+  static constexpr ResponseFileSupport AtFileUTF16() {
+    return {RF_Full, llvm::sys::WEM_UTF16, "@"};
+  }
+};
+
 /// Command - An executable path/name and argument vector to
 /// execute.
 class Command {
+public:
+  using ErrorCodeDiagMapTy = llvm::DenseMap<int, std::string>;
+  using ErrorCodeExitMapTy = llvm::DenseMap<int, bool>;
+
+private:
   /// Source - The action which caused the creation of this job.
   const Action &Source;
 
   /// Tool - The tool which caused the creation of this job.
   const Tool &Creator;
 
+  /// Whether and how to generate response files if the arguments are too long.
+  ResponseFileSupport ResponseSupport;
+
   /// The executable to run.
   const char *Executable;
+
+  /// The container for custom driver-set diagnostic messages that are
+  /// produced upon particular error codes returned by the command.
+  /// In order to add such a diagnostic for an external tool, consider the
+  /// following criteria:
+  /// 1) Does the command's executable return different codes upon different
+  ///    types of errors?
+  /// 2) If the executable provides a single error code for various error types,
+  ///    is only a certain type of failure expected to occur within the driver
+  ///    flow? E.g. the driver guarantees a valid input to the tool, so any
+  ///    "invalid input" error can be ruled out
+  ErrorCodeDiagMapTy ErrorCodeDiagMap;
+
+  /// Similar to the container for the diagnostic messages, this container
+  /// is used to signify if the toolchain should error and exit right away
+  /// or if we should continue compilation.
+  ErrorCodeExitMapTy ErrorCodeExitMap;
 
   /// The list of program arguments (not including the implicit first
   /// argument, which will be the executable).
   llvm::opt::ArgStringList Arguments;
 
-  /// The list of program arguments which are inputs.
-  llvm::opt::ArgStringList InputFilenames;
+  /// The list of program inputs.
+  std::vector<InputInfo> InputInfoList;
 
-  /// Whether to print the input filenames when executing.
-  bool PrintInputFilenames = false;
+  /// The list of program arguments which are outputs. May be empty.
+  std::vector<std::string> OutputFilenames;
 
   /// Response file name, if this command is set to use one, or nullptr
   /// otherwise
@@ -73,6 +164,9 @@ class Command {
   /// See Command::setEnvironment
   std::vector<const char *> Environment;
 
+  /// Information on executable run provided by OS.
+  mutable Optional<llvm::sys::ProcessStatistics> ProcStat;
+
   /// When a response file is needed, we try to put most arguments in an
   /// exclusive file, while others remains as regular command line arguments.
   /// This functions fills a vector with the regular command line arguments,
@@ -86,9 +180,16 @@ class Command {
   void writeResponseFile(raw_ostream &OS) const;
 
 public:
-  Command(const Action &Source, const Tool &Creator, const char *Executable,
-          const llvm::opt::ArgStringList &Arguments,
-          ArrayRef<InputInfo> Inputs);
+  /// Whether to print the input filenames when executing.
+  bool PrintInputFilenames = false;
+
+  /// Whether the command will be executed in this process or not.
+  bool InProcess = false;
+
+  Command(const Action &Source, const Tool &Creator,
+          ResponseFileSupport ResponseSupport, const char *Executable,
+          const llvm::opt::ArgStringList &Arguments, ArrayRef<InputInfo> Inputs,
+          ArrayRef<InputInfo> Outputs = None);
   // FIXME: This really shouldn't be copyable, but is currently copied in some
   // error handling in Driver::generateCompilationDiagnostics.
   Command(const Command &) = default;
@@ -100,17 +201,39 @@ public:
   virtual int Execute(ArrayRef<Optional<StringRef>> Redirects,
                       std::string *ErrMsg, bool *ExecutionFailed) const;
 
+  /// Store a custom driver diagnostic message upon a particular error code
+  /// returned by the command
+  void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag);
+
+  /// Store if the compilation should exit upon a particular error code
+  /// returned by the command
+  void addExitForErrorCode(int ErrorCode, bool Exit);
+
+  /// Get the custom driver diagnostic message for a particular error code
+  /// if such was stored. Returns an empty string if no diagnostic message
+  /// was found for the given error code.
+  StringRef getDiagForErrorCode(int ErrorCode) const;
+
+  /// Will the tool exit when a particular error code is encountered. Returns
+  /// true if not set (always exit)
+  bool getWillExitForErrorCode(int ErrorCode) const;
+
   /// getSource - Return the Action which caused the creation of this job.
   const Action &getSource() const { return Source; }
 
   /// getCreator - Return the Tool which caused the creation of this job.
   const Tool &getCreator() const { return Creator; }
 
+  /// Returns the kind of response file supported by the current invocation.
+  const ResponseFileSupport &getResponseFileSupport() {
+    return ResponseSupport;
+  }
+
   /// Set to pass arguments via a response file when launching the command
   void setResponseFile(const char *FileName);
 
-  /// Set an input file list, necessary if we need to use a response file but
-  /// the tool being called only supports input files lists.
+  /// Set an input file list, necessary if you specified an RF_FileList response
+  /// file support.
   void setInputFileList(llvm::opt::ArgStringList List) {
     InputFileList = std::move(List);
   }
@@ -119,28 +242,40 @@ public:
   /// \param NewEnvironment An array of environment variables.
   /// \remark If the environment remains unset, then the environment
   ///         from the parent process will be used.
-  void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment);
+  virtual void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment);
+
+  void replaceArguments(llvm::opt::ArgStringList List) {
+    Arguments = std::move(List);
+  }
+
+  void replaceExecutable(const char *Exe) { Executable = Exe; }
 
   const char *getExecutable() const { return Executable; }
 
   const llvm::opt::ArgStringList &getArguments() const { return Arguments; }
 
-  /// Print a command argument, and optionally quote it.
-  static void printArg(llvm::raw_ostream &OS, StringRef Arg, bool Quote);
+  const std::vector<InputInfo> &getInputInfos() const { return InputInfoList; }
 
-  /// Set whether to print the input filenames when executing.
-  void setPrintInputFilenames(bool P) { PrintInputFilenames = P; }
+  const std::vector<std::string> &getOutputFilenames() const {
+    return OutputFilenames;
+  }
+
+  Optional<llvm::sys::ProcessStatistics> getProcessStatistics() const {
+    return ProcStat;
+  }
+
+protected:
+  /// Optionally print the filenames to be compiled
+  void PrintFileNames() const;
 };
 
-/// Like Command, but with a fallback which is executed in case
-/// the primary command crashes.
-class FallbackCommand : public Command {
+/// Use the CC1 tool callback when available, to avoid creating a new process
+class CC1Command : public Command {
 public:
-  FallbackCommand(const Action &Source_, const Tool &Creator_,
-                  const char *Executable_,
-                  const llvm::opt::ArgStringList &Arguments_,
-                  ArrayRef<InputInfo> Inputs,
-                  std::unique_ptr<Command> Fallback_);
+  CC1Command(const Action &Source, const Tool &Creator,
+             ResponseFileSupport ResponseSupport, const char *Executable,
+             const llvm::opt::ArgStringList &Arguments,
+             ArrayRef<InputInfo> Inputs, ArrayRef<InputInfo> Outputs = None);
 
   void Print(llvm::raw_ostream &OS, const char *Terminator, bool Quote,
              CrashReportInfo *CrashInfo = nullptr) const override;
@@ -148,17 +283,18 @@ public:
   int Execute(ArrayRef<Optional<StringRef>> Redirects, std::string *ErrMsg,
               bool *ExecutionFailed) const override;
 
-private:
-  std::unique_ptr<Command> Fallback;
+  void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) override;
 };
 
 /// Like Command, but always pretends that the wrapped command succeeded.
 class ForceSuccessCommand : public Command {
 public:
   ForceSuccessCommand(const Action &Source_, const Tool &Creator_,
+                      ResponseFileSupport ResponseSupport,
                       const char *Executable_,
                       const llvm::opt::ArgStringList &Arguments_,
-                      ArrayRef<InputInfo> Inputs);
+                      ArrayRef<InputInfo> Inputs,
+                      ArrayRef<InputInfo> Outputs = None);
 
   void Print(llvm::raw_ostream &OS, const char *Terminator, bool Quote,
              CrashReportInfo *CrashInfo = nullptr) const override;
@@ -188,6 +324,8 @@ public:
   /// Clear the job list.
   void clear();
 
+  /// Return a mutable list of Jobs for llvm-foreach wrapping.
+  list_type &getJobsForOverride() { return Jobs; }
   const list_type &getJobs() const { return Jobs; }
 
   bool empty() const { return Jobs.empty(); }

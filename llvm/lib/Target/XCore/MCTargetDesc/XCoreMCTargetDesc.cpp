@@ -20,10 +20,10 @@
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -51,15 +51,16 @@ static MCRegisterInfo *createXCoreMCRegisterInfo(const Triple &TT) {
 
 static MCSubtargetInfo *
 createXCoreMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
-  return createXCoreMCSubtargetInfoImpl(TT, CPU, FS);
+  return createXCoreMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
 
 static MCAsmInfo *createXCoreMCAsmInfo(const MCRegisterInfo &MRI,
-                                       const Triple &TT) {
+                                       const Triple &TT,
+                                       const MCTargetOptions &Options) {
   MCAsmInfo *MAI = new XCoreMCAsmInfo(TT);
 
   // Initial state of the frame pointer is SP.
-  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(nullptr, XCore::SP, 0);
+  MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(nullptr, XCore::SP, 0);
   MAI->addInitialFrameState(Inst);
 
   return MAI;
@@ -121,7 +122,7 @@ static MCTargetStreamer *createTargetAsmStreamer(MCStreamer &S,
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeXCoreTargetMC() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXCoreTargetMC() {
   // Register the MC asm info.
   RegisterMCAsmInfoFn X(getTheXCoreTarget(), createXCoreMCAsmInfo);
 

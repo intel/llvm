@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Clang_H
-#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Clang_H
+#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CLANG_H
+#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CLANG_H
 
 #include "MSVC.h"
 #include "clang/Basic/DebugInfoOptions.h"
@@ -26,6 +26,10 @@ namespace tools {
 
 /// Clang compiler tool.
 class LLVM_LIBRARY_VISIBILITY Clang : public Tool {
+  // Indicates whether this instance has integrated backend using
+  // internal LLVM infrastructure.
+  bool HasBackend;
+
 public:
   static const char *getBaseInputName(const llvm::opt::ArgList &Args,
                                       const InputInfo &Input);
@@ -73,10 +77,13 @@ private:
                           llvm::opt::ArgStringList &CmdArgs) const;
   void AddWebAssemblyTargetArgs(const llvm::opt::ArgList &Args,
                                 llvm::opt::ArgStringList &CmdArgs) const;
+  void AddVETargetArgs(const llvm::opt::ArgList &Args,
+                       llvm::opt::ArgStringList &CmdArgs) const;
 
   enum RewriteKind { RK_None, RK_Fragile, RK_NonFragile };
 
   ObjCRuntime AddObjCRuntimeArgs(const llvm::opt::ArgList &args,
+                                 const InputInfoList &inputs,
                                  llvm::opt::ArgStringList &cmdArgs,
                                  RewriteKind rewrite) const;
 
@@ -85,9 +92,10 @@ private:
                       codegenoptions::DebugInfoKind *DebugInfoKind,
                       bool *EmitCodeView) const;
 
-  visualstudio::Compiler *getCLFallback() const;
-
-  mutable std::unique_ptr<visualstudio::Compiler> CLFallback;
+  void ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
+                                const InputInfo &Output,
+                                const InputInfoList &Inputs,
+                                const llvm::opt::ArgList &TCArgs) const;
 
   mutable std::unique_ptr<llvm::raw_fd_ostream> CompilationDatabase = nullptr;
   void DumpCompilationDatabase(Compilation &C, StringRef Filename,
@@ -95,12 +103,17 @@ private:
                                const InputInfo &Output, const InputInfo &Input,
                                const llvm::opt::ArgList &Args) const;
 
+  void DumpCompilationDatabaseFragmentToDir(
+      StringRef Dir, Compilation &C, StringRef Target, const InputInfo &Output,
+      const InputInfo &Input, const llvm::opt::ArgList &Args) const;
+
 public:
-  Clang(const ToolChain &TC);
+  Clang(const ToolChain &TC, bool HasIntegratedBackend = true);
   ~Clang() override;
 
   bool hasGoodDiagnostics() const override { return true; }
   bool hasIntegratedAssembler() const override { return true; }
+  bool hasIntegratedBackend() const override { return HasBackend; }
   bool hasIntegratedCPP() const override { return true; }
   bool canEmitIR() const override { return true; }
 
@@ -114,7 +127,7 @@ public:
 class LLVM_LIBRARY_VISIBILITY ClangAs : public Tool {
 public:
   ClangAs(const ToolChain &TC)
-      : Tool("clang::as", "clang integrated assembler", TC, RF_Full) {}
+      : Tool("clang::as", "clang integrated assembler", TC) {}
   void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs) const;
   void AddX86TargetArgs(const llvm::opt::ArgList &Args,
@@ -162,6 +175,29 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// Offload deps tool.
+class LLVM_LIBRARY_VISIBILITY OffloadDeps final : public Tool {
+  void constructJob(Compilation &C, const JobAction &JA,
+                    ArrayRef<InputInfo> Outputs, ArrayRef<InputInfo> Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const;
+
+public:
+  OffloadDeps(const ToolChain &TC)
+      : Tool("offload deps", "clang-offload-deps", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+  void ConstructJobMultipleOutputs(Compilation &C, const JobAction &JA,
+                                   const InputInfoList &Outputs,
+                                   const InputInfoList &Inputs,
+                                   const llvm::opt::ArgList &TCArgs,
+                                   const char *LinkingOutput) const override;
+};
+
 /// SPIR-V translator tool.
 class LLVM_LIBRARY_VISIBILITY SPIRVTranslator final : public Tool {
 public:
@@ -174,6 +210,92 @@ public:
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
+
+/// SPIR Checking tool.
+class LLVM_LIBRARY_VISIBILITY SPIRCheck final : public Tool {
+public:
+  SPIRCheck(const ToolChain &TC)
+      : Tool("SPIR Checker", "llvm-no-spir-kernel", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// SYCL post-link device code processing tool.
+class LLVM_LIBRARY_VISIBILITY SYCLPostLink final : public Tool {
+public:
+  SYCLPostLink(const ToolChain &TC)
+      : Tool("SYCL post link", "sycl-post-link", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// File table transformation tool.
+class LLVM_LIBRARY_VISIBILITY FileTableTform final : public Tool {
+public:
+  FileTableTform(const ToolChain &TC)
+      : Tool("File table transformation", "file-table-tform", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// Append Footer tool
+class LLVM_LIBRARY_VISIBILITY AppendFooter final : public Tool {
+public:
+  AppendFooter(const ToolChain &TC)
+      : Tool("Append Footer to source", "append-file", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// SPIR-V to LLVM-IR wrapper tool
+class LLVM_LIBRARY_VISIBILITY SpirvToIrWrapper final : public Tool {
+public:
+  SpirvToIrWrapper(const ToolChain &TC)
+      : Tool("Convert SPIR-V to LLVM-IR if needed", "spirv-to-ir-wrapper", TC) {
+  }
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// Linker wrapper tool.
+class LLVM_LIBRARY_VISIBILITY LinkerWrapper final : public Tool {
+  const Tool *Linker;
+
+public:
+  LinkerWrapper(const ToolChain &TC, const Tool *Linker)
+      : Tool("Offload::Linker", "linker", TC), Linker(Linker) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 } // end namespace tools
 
 } // end namespace driver

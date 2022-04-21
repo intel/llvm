@@ -1,4 +1,4 @@
-; RUN: opt -analyze -scalar-evolution < %s | FileCheck %s
+; RUN: opt -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 ; This test set ensures that we can correctly operate with recurrencies from
 ; different loops.

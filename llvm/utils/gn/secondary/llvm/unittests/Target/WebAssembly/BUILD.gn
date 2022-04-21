@@ -12,7 +12,5 @@ unittest("WebAssemblyTests") {
     "//llvm/lib/Target/WebAssembly/TargetInfo",
   ]
   include_dirs = [ "//llvm/lib/Target/WebAssembly" ]
-  sources = [
-    "WebAssemblyExceptionInfoTest.cpp",
-  ]
+  sources = [ "WebAssemblyExceptionInfoTest.cpp" ]
 }

@@ -7,11 +7,6 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-//
-// This test uses new symbols that were not defined in the libc++ shipped on
-// darwin11 and darwin12:
-// XFAIL: availability=macosx10.7
-// XFAIL: availability=macosx10.8
 
 // <memory>
 
@@ -22,9 +17,11 @@
 // atomic_compare_exchange_strong(shared_ptr<T>* p, shared_ptr<T>* v,
 //                                shared_ptr<T> w);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <memory>
+
+#include <atomic>
 #include <cassert>
 
 #include "test_macros.h"

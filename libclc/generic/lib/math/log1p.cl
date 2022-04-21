@@ -22,9 +22,9 @@
 
 #include <clc/clc.h>
 
+#include "../../libspirv/math/tables.h"
 #include "math.h"
-#include "tables.h"
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float log1p(float x)
 {

@@ -146,7 +146,7 @@ bar b[1] = { //
     (fn(),   //
      bar())};
 
-// CHECK-LABEL: define
+// CHECK-LABEL: define{{.*}}f11
 __complex double f11() {
   __complex double f;
 // CHECK: store {{.*}} !dbg [[DBG_F11:!.*]]
@@ -158,7 +158,7 @@ __complex double f11() {
 void f12() {
   int f12_1();
   void f12_2(int = f12_1());
-// CHECK: call {{.*}}{{(signext )?}}i32 {{.*}} !dbg [[DBG_F12:!.*]]
+// CHECK: call {{.*}}{{(signext )?}}i32 noundef {{.*}} !dbg [[DBG_F12:!.*]]
 #line 1400
   f12_2();
 }
@@ -296,7 +296,7 @@ void f24() {
 // CHECK-LABEL: define
 void f25_a(int x = __builtin_LINE()) {}
 void f25() {
-  // CHECK: call void @_Z5f25_ai(i32 {{(signext )?}}2700)
+  // CHECK: call void @_Z5f25_ai(i32 noundef {{(signext )?}}2700)
 #line 2700
   f25_a();
 }
@@ -314,7 +314,7 @@ void f25() {
 // CHECK: [[DBG_F9]] = !DILocation(line: 1000,
 // CHECK: [[DBG_F10_STORE]] = !DILocation(line: 1100,
 // CHECK: [[DBG_GLBL_CTOR_B]] = !DILocation(line: 1200,
-// CHECK: [[DBG_GLBL_DTOR_B]] = !DILocation(line: 1200,
+// CHECK: [[DBG_GLBL_DTOR_B]] = !DILocation(line: 0,
 // CHECK: [[DBG_F11]] = !DILocation(line: 1300,
 // CHECK: [[DBG_F12]] = !DILocation(line: 1400,
 // CHECK: [[DBG_F13]] = !DILocation(line: 1500,

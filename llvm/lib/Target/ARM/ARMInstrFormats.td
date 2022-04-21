@@ -103,12 +103,17 @@ def AddrModeT1_4    : AddrMode<9>;
 def AddrModeT1_s    : AddrMode<10>;
 def AddrModeT2_i12  : AddrMode<11>;
 def AddrModeT2_i8   : AddrMode<12>;
-def AddrModeT2_so   : AddrMode<13>;
-def AddrModeT2_pc   : AddrMode<14>;
-def AddrModeT2_i8s4 : AddrMode<15>;
-def AddrMode_i12    : AddrMode<16>;
-def AddrMode5FP16   : AddrMode<17>;
-def AddrModeT2_ldrex : AddrMode<18>;
+def AddrModeT2_i8pos : AddrMode<13>;
+def AddrModeT2_i8neg : AddrMode<14>;
+def AddrModeT2_so   : AddrMode<15>;
+def AddrModeT2_pc   : AddrMode<16>;
+def AddrModeT2_i8s4 : AddrMode<17>;
+def AddrMode_i12    : AddrMode<18>;
+def AddrMode5FP16   : AddrMode<19>;
+def AddrModeT2_ldrex : AddrMode<20>;
+def AddrModeT2_i7s4 : AddrMode<21>;
+def AddrModeT2_i7s2 : AddrMode<22>;
+def AddrModeT2_i7   : AddrMode<23>;
 
 // Load / store index mode.
 class IndexMode<bits<2> val> {
@@ -120,14 +125,15 @@ def IndexModePost : IndexMode<2>;
 def IndexModeUpd  : IndexMode<3>;
 
 // Instruction execution domain.
-class Domain<bits<3> val> {
-  bits<3> Value = val;
+class Domain<bits<4> val> {
+  bits<4> Value = val;
 }
 def GenericDomain : Domain<0>;
 def VFPDomain     : Domain<1>; // Instructions in VFP domain only
 def NeonDomain    : Domain<2>; // Instructions in Neon domain only
 def VFPNeonDomain : Domain<3>; // Instructions in both VFP & Neon domains
 def VFPNeonA8Domain : Domain<5>; // Instructions in VFP & Neon under A8
+def MVEDomain : Domain<8>; // Instructions in MVE and ARMv8.1m
 
 //===----------------------------------------------------------------------===//
 // ARM special operands.
@@ -182,6 +188,92 @@ def s_cc_out : OptionalDefOperand<OtherVT, (ops CCR), (ops (i32 CPSR))> {
   let PrintMethod = "printSBitModifierOperand";
   let ParserMatchClass = CCOutOperand;
   let DecoderMethod = "DecodeCCOutOperand";
+}
+
+// Transform to generate the inverse of a condition code during ISel
+def inv_cond_XFORM : SDNodeXForm<imm, [{
+  ARMCC::CondCodes CC = static_cast<ARMCC::CondCodes>(N->getZExtValue());
+  return CurDAG->getTargetConstant(ARMCC::getOppositeCondition(CC), SDLoc(N),
+                                   MVT::i32);
+}]>;
+
+// VPT predicate
+
+def VPTPredNOperand : AsmOperandClass {
+  let Name = "VPTPredN";
+  let PredicateMethod = "isVPTPred";
+}
+def VPTPredROperand : AsmOperandClass {
+  let Name = "VPTPredR";
+  let PredicateMethod = "isVPTPred";
+}
+
+// Operand classes for the cluster of MC operands describing a
+// VPT-predicated MVE instruction.
+//
+// There are two of these classes. Both of them have the same first
+// two options:
+//
+// $cond (an integer) indicates the instruction's predication status:
+//   * ARMVCC::None means it's unpredicated
+//   * ARMVCC::Then means it's in a VPT block and appears with the T suffix
+//   * ARMVCC::Else means it's in a VPT block and appears with the E suffix.
+// During code generation, unpredicated and predicated instructions
+// are indicated by setting this parameter to 'None' or to 'Then'; the
+// third value 'Else' is only used for assembly and disassembly.
+//
+// $cond_reg (type VCCR) gives the input predicate register. This is
+// always either zero_reg or VPR, but needs to be modelled as an
+// explicit operand so that it can be register-allocated and spilled
+// when these operands are used in code generation).
+//
+// For 'vpred_r', there's an extra operand $inactive, which specifies
+// the vector register which will supply any lanes of the output
+// register that the predication mask prevents from being written by
+// this instruction. It's always tied to the actual output register
+// (i.e. must be allocated into the same physical reg), but again,
+// code generation will need to model it as a separate input value.
+//
+// 'vpred_n' doesn't have that extra operand: it only has $cond and
+// $cond_reg. This variant is used for any instruction that can't, or
+// doesn't want to, tie $inactive to the output register. Sometimes
+// that's because another input parameter is already tied to it (e.g.
+// instructions that both read and write their Qd register even when
+// unpredicated, either because they only partially overwrite it like
+// a narrowing integer conversion, or simply because the instruction
+// encoding doesn't have enough register fields to make the output
+// independent of all inputs). It can also be because the instruction
+// is defined to set disabled output lanes to zero rather than leaving
+// them unchanged (vector loads), or because it doesn't output a
+// vector register at all (stores, compares). In any of these
+// situations it's unnecessary to have an extra operand tied to the
+// output, and inconvenient to leave it there unused.
+
+// Base class for both kinds of vpred.
+class vpred_ops<dag extra_op, dag extra_mi> : OperandWithDefaultOps<OtherVT,
+            !con((ops (i32 0), (i32 zero_reg), (i32 zero_reg)), extra_op)> {
+  let PrintMethod = "printVPTPredicateOperand";
+  let OperandNamespace = "ARM";
+  let MIOperandInfo = !con((ops i32imm:$cond, VCCR:$cond_reg, GPRlr:$tp_reg), extra_mi);
+
+  // For convenience, we provide a string value that can be appended
+  // to the constraints string. It's empty for vpred_n, and for
+  // vpred_r it ties the $inactive operand to the output q-register
+  // (which by convention will be called $Qd).
+  string vpred_constraint;
+}
+
+def vpred_r : vpred_ops<(ops (v4i32 undef_tied_input)), (ops MQPR:$inactive)> {
+  let ParserMatchClass = VPTPredROperand;
+  let OperandType = "OPERAND_VPRED_R";
+  let DecoderMethod = "DecodeVpredROperand";
+  let vpred_constraint = ",$Qd = $vp.inactive";
+}
+
+def vpred_n : vpred_ops<(ops), (ops)> {
+  let ParserMatchClass = VPTPredNOperand;
+  let OperandType = "OPERAND_VPRED_N";
+  let vpred_constraint = "";
 }
 
 // ARM special operands for disassembly only.
@@ -284,6 +376,8 @@ class VFP3InstAlias<string Asm, dag Result, bit EmitPriority = 0>
       : InstAlias<Asm, Result, EmitPriority>, Requires<[HasVFP3]>;
 class NEONInstAlias<string Asm, dag Result, bit EmitPriority = 0>
       : InstAlias<Asm, Result, EmitPriority>, Requires<[HasNEON]>;
+class MVEInstAlias<string Asm, dag Result, bit EmitPriority = 1>
+      : InstAlias<Asm, Result, EmitPriority>, Requires<[HasMVEInt, IsThumb]>;
 
 
 class VFP2MnemonicAlias<string src, string dst> : MnemonicAlias<src, dst>,
@@ -311,9 +405,16 @@ class InstTemplate<AddrMode am, int sz, IndexMode im,
   bit isUnaryDataProc = 0;
   bit canXformTo16Bit = 0;
   // The instruction is a 16-bit flag setting Thumb instruction. Used
-  // by the parser to determine whether to require the 'S' suffix on the
-  // mnemonic (when not in an IT block) or preclude it (when in an IT block).
+  // by the parser and if-converter to determine whether to require the 'S'
+  // suffix on the mnemonic (when not in an IT block) or preclude it (when
+  // in an IT block).
   bit thumbArithFlagSetting = 0;
+
+  bits<2> VecSize = 0;
+  bit validForTailPredication = 0;
+  bit retainsPreviousHalfElement = 0;
+  bit horizontalReduction = 0;
+  bit doubleWidthResult = 0;
 
   // If this is a pseudo instruction, mark it isCodeGenOnly.
   let isCodeGenOnly = !eq(!cast<string>(f), "Pseudo");
@@ -324,8 +425,13 @@ class InstTemplate<AddrMode am, int sz, IndexMode im,
   let TSFlags{12-7} = Form;
   let TSFlags{13}    = isUnaryDataProc;
   let TSFlags{14}    = canXformTo16Bit;
-  let TSFlags{17-15} = D.Value;
-  let TSFlags{18}    = thumbArithFlagSetting;
+  let TSFlags{18-15} = D.Value;
+  let TSFlags{19}    = thumbArithFlagSetting;
+  let TSFlags{20}    = validForTailPredication;
+  let TSFlags{21}    = retainsPreviousHalfElement;
+  let TSFlags{22}    = horizontalReduction;
+  let TSFlags{23}    = doubleWidthResult;
+  let TSFlags{25-24} = VecSize;
 
   let Constraints = cstr;
   let Itinerary = itin;
@@ -369,6 +475,7 @@ class AsmPseudoInst<string asm, dag iops, dag oops = (outs)>
   let isCodeGenOnly = 0; // So we get asm matcher for it.
   let AsmString = asm;
   let isPseudo = 1;
+  let hasNoSchedulingInfo = 1;
 }
 
 class ARMAsmPseudo<string asm, dag iops, dag oops = (outs)>
@@ -381,6 +488,8 @@ class VFP2AsmPseudo<string asm, dag iops, dag oops = (outs)>
   : AsmPseudoInst<asm, iops, oops>, Requires<[HasVFP2]>;
 class NEONAsmPseudo<string asm, dag iops, dag oops = (outs)>
   : AsmPseudoInst<asm, iops, oops>, Requires<[HasNEON]>;
+class MVEAsmPseudo<string asm, dag iops, dag oops = (outs)>
+  : AsmPseudoInst<asm, iops, oops>, Requires<[HasMVEInt]>;
 
 // Pseudo instructions for the code generator.
 class PseudoInst<dag oops, dag iops, InstrItinClass itin, list<dag> pattern>
@@ -1024,6 +1133,9 @@ class Thumb2DSPPat<dag pattern, dag result> : Pat<pattern, result> {
 class Thumb2DSPMulPat<dag pattern, dag result> : Pat<pattern, result> {
   list<Predicate> Predicates = [IsThumb2, UseMulOps, HasDSP];
 }
+class FPRegs16Pat<dag pattern, dag result> : Pat<pattern, result> {
+  list<Predicate> Predicates = [HasFPRegs16];
+}
 class FP16Pat<dag pattern, dag result> : Pat<pattern, result> {
   list<Predicate> Predicates = [HasFP16];
 }
@@ -1277,14 +1389,17 @@ class ThumbXI<dag oops, dag iops, AddrMode am, int sz,
 }
 
 class T2I<dag oops, dag iops, InstrItinClass itin,
-          string opc, string asm, list<dag> pattern>
-  : Thumb2I<oops, iops, AddrModeNone, 4, itin, opc, asm, "", pattern>;
+          string opc, string asm, list<dag> pattern, AddrMode am = AddrModeNone>
+  : Thumb2I<oops, iops, am, 4, itin, opc, asm, "", pattern>;
 class T2Ii12<dag oops, dag iops, InstrItinClass itin,
              string opc, string asm, list<dag> pattern>
   : Thumb2I<oops, iops, AddrModeT2_i12, 4, itin, opc, asm, "",pattern>;
-class T2Ii8<dag oops, dag iops, InstrItinClass itin,
-            string opc, string asm, list<dag> pattern>
-  : Thumb2I<oops, iops, AddrModeT2_i8, 4, itin, opc, asm, "", pattern>;
+class T2Ii8p<dag oops, dag iops, InstrItinClass itin,
+             string opc, string asm, list<dag> pattern>
+  : Thumb2I<oops, iops, AddrModeT2_i8pos, 4, itin, opc, asm, "", pattern>;
+class T2Ii8n<dag oops, dag iops, InstrItinClass itin,
+             string opc, string asm, list<dag> pattern>
+  : Thumb2I<oops, iops, AddrModeT2_i8neg, 4, itin, opc, asm, "", pattern>;
 class T2Iso<dag oops, dag iops, InstrItinClass itin,
             string opc, string asm, list<dag> pattern>
   : Thumb2I<oops, iops, AddrModeT2_so, 4, itin, opc, asm, "", pattern>;
@@ -2194,7 +2309,7 @@ class N1ModImm<bit op23, bits<3> op21_19, bits<4> op11_8, bit op7, bit op6,
   let Inst{24}    = SIMM{7};
   let Inst{18-16} = SIMM{6-4};
   let Inst{3-0}   = SIMM{3-0};
-  let DecoderMethod = "DecodeNEONModImmInstruction";
+  let DecoderMethod = "DecodeVMOVModImmInstruction";
 }
 
 // NEON 2 vector register format.
@@ -2503,7 +2618,7 @@ class NEONFPPat<dag pattern, dag result> : Pat<pattern, result> {
 // VFP/NEON Instruction aliases for type suffices.
 // Note: When EmitPriority == 1, the alias will be used for printing
 class VFPDataTypeInstAlias<string opc, string dt, string asm, dag Result, bit EmitPriority = 0> :
-  InstAlias<!strconcat(opc, dt, "\t", asm), Result, EmitPriority>, Requires<[HasVFP2]>;
+  InstAlias<!strconcat(opc, dt, "\t", asm), Result, EmitPriority>, Requires<[HasFPRegs]>;
 
 // Note: When EmitPriority == 1, the alias will be used for printing
 multiclass VFPDTAnyInstAlias<string opc, string asm, dag Result, bit EmitPriority = 0> {
@@ -2634,6 +2749,16 @@ def complexrotateop : Operand<i32> {
 def complexrotateopodd : Operand<i32> {
   let ParserMatchClass = ComplexRotationOperand<180, 90, "Odd", "90 or 270">;
   let PrintMethod = "printComplexRotationOp<180, 90>";
+}
+
+def MveSaturateOperand : AsmOperandClass {
+  let PredicateMethod = "isMveSaturateOp";
+  let DiagnosticString = "saturate operand must be 48 or 64";
+  let Name = "MveSaturate";
+}
+def saturateop : Operand<i32> {
+  let ParserMatchClass = MveSaturateOperand;
+  let PrintMethod = "printMveSaturateOp";
 }
 
 // Data type suffix token aliases. Implements Table A7-3 in the ARM ARM.

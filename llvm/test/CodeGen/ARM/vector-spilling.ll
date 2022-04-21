@@ -22,8 +22,8 @@ entry:
   %6 = getelementptr inbounds <8 x i64>, <8 x i64>* %src, i32 3
   %7 = load <8 x i64>, <8 x i64>* %6, align 8
 
-  %8 = shufflevector <8 x i64> %1, <8 x i64> %3, <8 x i32> <i32 0, i32 8, i32 1, i32 9, i32 2, i32 10, i32 3, i32 11>
-  %9 = shufflevector <8 x i64> %1, <8 x i64> %3, <8 x i32> <i32 4, i32 12, i32 5, i32 13, i32 6, i32 14, i32 7, i32 15>
+  %8 = shufflevector <8 x i64> %1, <8 x i64> %3, <8 x i32> <i32 12, i32 4, i32 15, i32 14, i32 8, i32 13, i32 2, i32 9>
+  %9 = shufflevector <8 x i64> %1, <8 x i64> %3, <8 x i32> <i32 1, i32 0, i32 3, i32 10, i32 5, i32 11, i32 7, i32 6>
 
   tail call void(<8 x i64>, <8 x i64>, <8 x i64>, <8 x i64>, <8 x i64>, <8 x i64>) @foo(<8 x i64> %1, <8 x i64> %3, <8 x i64> %5, <8 x i64> %7, <8 x i64> %8, <8 x i64> %9)
   ret void
@@ -31,4 +31,4 @@ entry:
 
 declare void @foo(<8 x i64>, <8 x i64>, <8 x i64>, <8 x i64>, <8 x i64>, <8 x i64>)
 
-attributes #0 = { noredzone "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-frame-pointer-elim-non-leaf"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noredzone "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }

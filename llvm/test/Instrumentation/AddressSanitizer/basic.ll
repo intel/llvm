@@ -1,15 +1,13 @@
 ; Test basic address sanitizer instrumentation.
 ;
-; RUN: opt < %s -asan -asan-module -S | FileCheck --check-prefixes=CHECK,CHECK-S3 %s
-; RUN: opt < %s -asan -asan-module -asan-mapping-scale=5 -S | FileCheck --check-prefixes=CHECK,CHECK-S5 %s
 
-; We need the requires since both asan and asan-module require reading module level metadata which is done once by the asan-globals-md analysis
-; RUN: opt < %s -passes='require<asan-globals-md>,function(asan),module(asan-module)' -S | FileCheck --check-prefixes=CHECK,CHECK-S3 %s
-; RUN: opt < %s -passes='require<asan-globals-md>,function(asan),module(asan-module)' -asan-mapping-scale=5 -S | FileCheck --check-prefixes=CHECK,CHECK-S5 %s
+; RUN: opt < %s -passes='asan-pipeline' -S | FileCheck --check-prefixes=CHECK,CHECK-S3 %s
+; RUN: opt < %s -passes='asan-pipeline' -asan-mapping-scale=5 -S | FileCheck --check-prefixes=CHECK,CHECK-S5 %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 target triple = "x86_64-unknown-linux-gnu"
-; CHECK: @llvm.global_ctors = {{.*}}@asan.module_ctor
+; CHECK: @llvm.used = appending global [1 x i8*] [i8* bitcast (void ()* @asan.module_ctor to i8*)]
+; CHECK: @llvm.global_ctors = {{.*}}{ i32 1, void ()* @asan.module_ctor, i8* bitcast (void ()* @asan.module_ctor to i8*) }
 
 define i32 @test_load(i32* %a) sanitize_address {
 ; CHECK-LABEL: @test_load
@@ -162,43 +160,6 @@ entry:
 ; CHECK-NOT: __asan_report
 ; CHECK: ret i32
 
-declare void @llvm.memset.p0i8.i64(i8* nocapture, i8, i64, i1) nounwind
-declare void @llvm.memmove.p0i8.p0i8.i64(i8* nocapture, i8* nocapture readonly, i64, i1) nounwind
-declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture readonly, i64, i1) nounwind
-
-define void @memintr_test(i8* %a, i8* %b) nounwind uwtable sanitize_address {
-  entry:
-  tail call void @llvm.memset.p0i8.i64(i8* %a, i8 0, i64 100, i1 false)
-  tail call void @llvm.memmove.p0i8.p0i8.i64(i8* %a, i8* %b, i64 100, i1 false)
-  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* %b, i64 100, i1 false)
-  ret void
-}
-
-; CHECK-LABEL: memintr_test
-; CHECK: __asan_memset
-; CHECK: __asan_memmove
-; CHECK: __asan_memcpy
-; CHECK: ret void
-
-declare void @llvm.memset.element.unordered.atomic.p0i8.i64(i8* nocapture writeonly, i8, i64, i32) nounwind
-declare void @llvm.memmove.element.unordered.atomic.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i32) nounwind
-declare void @llvm.memcpy.element.unordered.atomic.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i32) nounwind
-
-define void @memintr_element_atomic_test(i8* %a, i8* %b) nounwind uwtable sanitize_address {
-  ; This is a canary test to make sure that these don't get lowered into calls that don't
-  ; have the element-atomic property. Eventually, asan will have to be enhanced to lower
-  ; these properly.
-  ; CHECK-LABEL: memintr_element_atomic_test
-  ; CHECK-NEXT: tail call void @llvm.memset.element.unordered.atomic.p0i8.i64(i8* align 1 %a, i8 0, i64 100, i32 1)
-  ; CHECK-NEXT: tail call void @llvm.memmove.element.unordered.atomic.p0i8.p0i8.i64(i8* align 1 %a, i8* align 1 %b, i64 100, i32 1)
-  ; CHECK-NEXT: tail call void @llvm.memcpy.element.unordered.atomic.p0i8.p0i8.i64(i8* align 1 %a, i8* align 1 %b, i64 100, i32 1)
-  ; CHECK-NEXT: ret void
-  tail call void @llvm.memset.element.unordered.atomic.p0i8.i64(i8* align 1 %a, i8 0, i64 100, i32 1)
-  tail call void @llvm.memmove.element.unordered.atomic.p0i8.p0i8.i64(i8* align 1 %a, i8* align 1 %b, i64 100, i32 1)
-  tail call void @llvm.memcpy.element.unordered.atomic.p0i8.p0i8.i64(i8* align 1 %a, i8* align 1 %b, i64 100, i32 1)
-  ret void
-}
-
 
 ; CHECK-LABEL: @test_swifterror
 ; CHECK-NOT: __asan_report_load
@@ -226,8 +187,12 @@ define void @test_swifterror_3() sanitize_address {
   ret void
 }
 
-; CHECK: define internal void @asan.module_ctor()
+;; ctor/dtor have the nounwind attribute. See uwtable.ll, they additionally have
+;; the uwtable attribute with the module flag "uwtable".
+; CHECK: define internal void @asan.module_ctor() #[[#ATTR:]] {{(comdat )?}}{
 ; CHECK: call void @__asan_init()
+
+; CHECK: attributes #[[#ATTR]] = { nounwind }
 
 ; PROF
 ; CHECK: ![[PROF]] = !{!"branch_weights", i32 1, i32 100000}

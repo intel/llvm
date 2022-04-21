@@ -15,6 +15,7 @@
 #ifndef LLVM_SUPPORT_AMDGPUMETADATA_H
 #define LLVM_SUPPORT_AMDGPUMETADATA_H
 
+#include "llvm/ADT/StringRef.h"
 #include <cstdint>
 #include <string>
 #include <system_error>
@@ -28,10 +29,25 @@ namespace AMDGPU {
 //===----------------------------------------------------------------------===//
 namespace HSAMD {
 
-/// HSA metadata major version.
-constexpr uint32_t VersionMajor = 1;
-/// HSA metadata minor version.
-constexpr uint32_t VersionMinor = 0;
+/// HSA metadata major version for code object V2.
+constexpr uint32_t VersionMajorV2 = 1;
+/// HSA metadata minor version for code object V2.
+constexpr uint32_t VersionMinorV2 = 0;
+
+/// HSA metadata major version for code object V3.
+constexpr uint32_t VersionMajorV3 = 1;
+/// HSA metadata minor version for code object V3.
+constexpr uint32_t VersionMinorV3 = 0;
+
+/// HSA metadata major version for code object V4.
+constexpr uint32_t VersionMajorV4 = 1;
+/// HSA metadata minor version for code object V4.
+constexpr uint32_t VersionMinorV4 = 1;
+
+/// HSA metadata major version for code object V5.
+constexpr uint32_t VersionMajorV5 = 1;
+/// HSA metadata minor version for code object V5.
+constexpr uint32_t VersionMinorV5 = 2;
 
 /// HSA metadata beginning assembler directive.
 constexpr char AssemblerDirectiveBegin[] = ".amd_amdgpu_hsa_metadata";
@@ -74,10 +90,13 @@ enum class ValueKind : uint8_t {
   HiddenPrintfBuffer     = 11,
   HiddenDefaultQueue     = 12,
   HiddenCompletionAction = 13,
+  HiddenMultiGridSyncArg = 14,
+  HiddenHostcallBuffer   = 15,
   Unknown                = 0xff
 };
 
-/// Value types.
+/// Value types. This is deprecated and only remains for compatibility parsing
+/// of old metadata.
 enum class ValueType : uint8_t {
   Struct  = 0,
   I8      = 1,
@@ -162,7 +181,7 @@ constexpr char Offset[] = "Offset";
 constexpr char Align[] = "Align";
 /// Key for Kernel::Arg::Metadata::mValueKind.
 constexpr char ValueKind[] = "ValueKind";
-/// Key for Kernel::Arg::Metadata::mValueType.
+/// Key for Kernel::Arg::Metadata::mValueType. (deprecated)
 constexpr char ValueType[] = "ValueType";
 /// Key for Kernel::Arg::Metadata::mPointeeAlign.
 constexpr char PointeeAlign[] = "PointeeAlign";
@@ -196,8 +215,6 @@ struct Metadata final {
   uint32_t mAlign = 0;
   /// Value kind. Required.
   ValueKind mValueKind = ValueKind::Unknown;
-  /// Value type. Required.
-  ValueType mValueType = ValueType::Unknown;
   /// Pointee alignment in bytes. Optional.
   uint32_t mPointeeAlign = 0;
   /// Address space qualifier. Optional.
@@ -429,7 +446,7 @@ struct Metadata final {
 };
 
 /// Converts \p String to \p HSAMetadata.
-std::error_code fromString(std::string String, Metadata &HSAMetadata);
+std::error_code fromString(StringRef String, Metadata &HSAMetadata);
 
 /// Converts \p HSAMetadata to \p String.
 std::error_code toString(Metadata HSAMetadata, std::string &String);

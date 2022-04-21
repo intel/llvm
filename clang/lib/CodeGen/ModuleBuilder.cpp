@@ -65,6 +65,13 @@ namespace {
   private:
     SmallVector<FunctionDecl *, 8> DeferredInlineMemberFuncDefs;
 
+    static llvm::StringRef ExpandModuleName(llvm::StringRef ModuleName,
+                                            const CodeGenOptions &CGO) {
+      if (ModuleName == "-" && !CGO.MainFileName.empty())
+        return CGO.MainFileName;
+      return ModuleName;
+    }
+
   public:
     CodeGeneratorImpl(DiagnosticsEngine &diags, llvm::StringRef ModuleName,
                       const HeaderSearchOptions &HSO,
@@ -73,7 +80,8 @@ namespace {
                       CoverageSourceInfo *CoverageInfo = nullptr)
         : Diags(diags), Ctx(nullptr), HeaderSearchOpts(HSO),
           PreprocessorOpts(PPO), CodeGenOpts(CGO), HandlingTopLevelDecls(0),
-          CoverageInfo(CoverageInfo), M(new llvm::Module(ModuleName, C)) {
+          CoverageInfo(CoverageInfo),
+          M(new llvm::Module(ExpandModuleName(ModuleName, CGO), C)) {
       C.setDiscardValueNames(CGO.DiscardValueNames);
     }
 
@@ -114,6 +122,10 @@ namespace {
       return D;
     }
 
+    llvm::StringRef GetMangledName(GlobalDecl GD) {
+      return Builder->getMangledName(GD);
+    }
+
     llvm::Constant *GetAddrOfGlobal(GlobalDecl global, bool isForDefinition) {
       return Builder->GetAddrOfGlobal(global, ForDefinition_t(isForDefinition));
     }
@@ -121,7 +133,7 @@ namespace {
     llvm::Module *StartModule(llvm::StringRef ModuleName,
                               llvm::LLVMContext &C) {
       assert(!M && "Replacing existing Module?");
-      M.reset(new llvm::Module(ModuleName, C));
+      M.reset(new llvm::Module(ExpandModuleName(ModuleName, CodeGenOpts), C));
       Initialize(*Ctx);
       return M.get();
     }
@@ -130,10 +142,15 @@ namespace {
       Ctx = &Context;
 
       M->setTargetTriple(Ctx->getTargetInfo().getTriple().getTriple());
-      M->setDataLayout(Ctx->getTargetInfo().getDataLayout());
+      M->setDataLayout(Ctx->getTargetInfo().getDataLayoutString());
       const auto &SDKVersion = Ctx->getTargetInfo().getSDKVersion();
       if (!SDKVersion.empty())
         M->setSDKVersion(SDKVersion);
+      if (const auto *TVT = Ctx->getTargetInfo().getDarwinTargetVariantTriple())
+        M->setDarwinTargetVariantTriple(TVT->getTriple());
+      if (auto TVSDKVersion =
+              Ctx->getTargetInfo().getDarwinTargetVariantSDKVersion())
+        M->setDarwinTargetVariantSDKVersion(*TVSDKVersion);
       Builder.reset(new CodeGen::CodeGenModule(Context, HeaderSearchOpts,
                                                PreprocessorOpts, CodeGenOpts,
                                                *M, Diags, CoverageInfo));
@@ -232,6 +249,9 @@ namespace {
           if (auto *DRD = dyn_cast<OMPDeclareReductionDecl>(Member)) {
             if (Ctx->DeclMustBeEmitted(DRD))
               Builder->EmitGlobal(DRD);
+          } else if (auto *DMD = dyn_cast<OMPDeclareMapperDecl>(Member)) {
+            if (Ctx->DeclMustBeEmitted(DMD))
+              Builder->EmitGlobal(DMD);
           }
         }
       }
@@ -279,6 +299,10 @@ namespace {
       Builder->EmitTentativeDefinition(D);
     }
 
+    void CompleteExternalDeclaration(VarDecl *D) override {
+      Builder->EmitExternalDeclaration(D);
+    }
+
     void HandleVTable(CXXRecordDecl *RD) override {
       if (Diags.hasErrorOccurred())
         return;
@@ -312,6 +336,10 @@ CGDebugInfo *CodeGenerator::getCGDebugInfo() {
 
 const Decl *CodeGenerator::GetDeclForMangledName(llvm::StringRef name) {
   return static_cast<CodeGeneratorImpl*>(this)->GetDeclForMangledName(name);
+}
+
+llvm::StringRef CodeGenerator::GetMangledName(GlobalDecl GD) {
+  return static_cast<CodeGeneratorImpl *>(this)->GetMangledName(GD);
 }
 
 llvm::Constant *CodeGenerator::GetAddrOfGlobal(GlobalDecl global,

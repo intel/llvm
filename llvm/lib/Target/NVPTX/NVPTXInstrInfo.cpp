@@ -27,12 +27,12 @@ using namespace llvm;
 // Pin the vtable to this file.
 void NVPTXInstrInfo::anchor() {}
 
-NVPTXInstrInfo::NVPTXInstrInfo() : NVPTXGenInstrInfo(), RegInfo() {}
+NVPTXInstrInfo::NVPTXInstrInfo() : RegInfo() {}
 
 void NVPTXInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator I,
-                                 const DebugLoc &DL, unsigned DestReg,
-                                 unsigned SrcReg, bool KillSrc) const {
+                                 const DebugLoc &DL, MCRegister DestReg,
+                                 MCRegister SrcReg, bool KillSrc) const {
   const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
   const TargetRegisterClass *DestRC = MRI.getRegClass(DestReg);
   const TargetRegisterClass *SrcRC = MRI.getRegClass(SrcReg);
@@ -69,7 +69,7 @@ void NVPTXInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
       .addReg(SrcReg, getKillRegState(KillSrc));
 }
 
-/// AnalyzeBranch - Analyze the branching code at the end of MBB, returning
+/// analyzeBranch - Analyze the branching code at the end of MBB, returning
 /// true if it cannot be understood (e.g. it's a switch dispatch or isn't
 /// implemented for a target).  Upon success, this returns false and returns
 /// with the following information in various cases:
@@ -195,13 +195,12 @@ unsigned NVPTXInstrInfo::insertBranch(MachineBasicBlock &MBB,
     if (Cond.empty()) // Unconditional branch
       BuildMI(&MBB, DL, get(NVPTX::GOTO)).addMBB(TBB);
     else // Conditional branch
-      BuildMI(&MBB, DL, get(NVPTX::CBranch)).addReg(Cond[0].getReg())
-          .addMBB(TBB);
+      BuildMI(&MBB, DL, get(NVPTX::CBranch)).add(Cond[0]).addMBB(TBB);
     return 1;
   }
 
   // Two-way Conditional Branch.
-  BuildMI(&MBB, DL, get(NVPTX::CBranch)).addReg(Cond[0].getReg()).addMBB(TBB);
+  BuildMI(&MBB, DL, get(NVPTX::CBranch)).add(Cond[0]).addMBB(TBB);
   BuildMI(&MBB, DL, get(NVPTX::GOTO)).addMBB(FBB);
   return 2;
 }

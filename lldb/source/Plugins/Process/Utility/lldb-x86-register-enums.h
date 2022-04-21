@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_x86_register_enums_h
-#define lldb_x86_register_enums_h
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_X86_REGISTER_ENUMS_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_X86_REGISTER_ENUMS_H
 
 namespace lldb_private {
 // LLDB register codes (e.g. RegisterKind == eRegisterKindLLDB)
@@ -106,14 +106,15 @@ enum {
   lldb_bnd1_i386,
   lldb_bnd2_i386,
   lldb_bnd3_i386,
-  k_last_mpxr = lldb_bnd3_i386,
+  k_last_mpxr_i386 = lldb_bnd3_i386,
 
   k_first_mpxc_i386,
   lldb_bndcfgu_i386 = k_first_mpxc_i386,
   lldb_bndstatus_i386,
   k_last_mpxc_i386 = lldb_bndstatus_i386,
 
-  lldb_dr0_i386,
+  k_first_dbr_i386,
+  lldb_dr0_i386 = k_first_dbr_i386,
   lldb_dr1_i386,
   lldb_dr2_i386,
   lldb_dr3_i386,
@@ -121,6 +122,7 @@ enum {
   lldb_dr5_i386,
   lldb_dr6_i386,
   lldb_dr7_i386,
+  k_last_dbr_i386 = lldb_dr7_i386,
 
   k_num_registers_i386,
   k_num_gpr_registers_i386 = k_last_gpr_i386 - k_first_gpr_i386 + 1,
@@ -131,6 +133,7 @@ enum {
                               k_num_fpr_registers_i386 +
                               k_num_avx_registers_i386 +
                               k_num_mpx_registers_i386,
+  k_num_dbr_registers_i386 = k_last_dbr_i386 - k_first_dbr_i386 + 1,
 };
 
 // Internal codes for all x86_64 registers.
@@ -225,8 +228,10 @@ enum {
   lldb_fop_x86_64,
   lldb_fiseg_x86_64,
   lldb_fioff_x86_64,
+  lldb_fip_x86_64,
   lldb_foseg_x86_64,
   lldb_fooff_x86_64,
+  lldb_fdp_x86_64,
   lldb_mxcsr_x86_64,
   lldb_mxcsrmask_x86_64,
   lldb_st0_x86_64,
@@ -294,7 +299,8 @@ enum {
   lldb_bndstatus_x86_64,
   k_last_mpxc_x86_64 = lldb_bndstatus_x86_64,
 
-  lldb_dr0_x86_64,
+  k_first_dbr_x86_64,
+  lldb_dr0_x86_64 = k_first_dbr_x86_64,
   lldb_dr1_x86_64,
   lldb_dr2_x86_64,
   lldb_dr3_x86_64,
@@ -302,6 +308,7 @@ enum {
   lldb_dr5_x86_64,
   lldb_dr6_x86_64,
   lldb_dr7_x86_64,
+  k_last_dbr_x86_64 = lldb_dr7_x86_64,
 
   k_num_registers_x86_64,
   k_num_gpr_registers_x86_64 = k_last_gpr_x86_64 - k_first_gpr_x86_64 + 1,
@@ -312,7 +319,8 @@ enum {
                                 k_num_fpr_registers_x86_64 +
                                 k_num_avx_registers_x86_64 +
                                 k_num_mpx_registers_x86_64,
+  k_num_dbr_registers_x86_64 = k_last_dbr_x86_64 - k_first_dbr_x86_64 + 1,
 };
 }
 
-#endif // #ifndef lldb_x86_register_enums_h
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_X86_REGISTER_ENUMS_H

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_PlatformAndroid_h_
-#define liblldb_PlatformAndroid_h_
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_ANDROID_PLATFORMANDROID_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_ANDROID_PLATFORMANDROID_H
 
 #include <memory>
 #include <string>
@@ -23,8 +23,6 @@ class PlatformAndroid : public platform_linux::PlatformLinux {
 public:
   PlatformAndroid(bool is_host);
 
-  ~PlatformAndroid() override;
-
   static void Initialize();
 
   static void Terminate();
@@ -32,13 +30,15 @@ public:
   // lldb_private::PluginInterface functions
   static lldb::PlatformSP CreateInstance(bool force, const ArchSpec *arch);
 
-  static ConstString GetPluginNameStatic(bool is_host);
+  static llvm::StringRef GetPluginNameStatic(bool is_host) {
+    return is_host ? Platform::GetHostPlatformName() : "remote-android";
+  }
 
-  static const char *GetPluginDescriptionStatic(bool is_host);
+  static llvm::StringRef GetPluginDescriptionStatic(bool is_host);
 
-  ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override { return 1; }
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic(IsHost());
+  }
 
   // lldb_private::Platform functions
 
@@ -76,11 +76,9 @@ private:
   std::unique_ptr<AdbClient::SyncService> m_adb_sync_svc;
   std::string m_device_id;
   uint32_t m_sdk_version;
-
-  DISALLOW_COPY_AND_ASSIGN(PlatformAndroid);
 };
 
 } // namespace platofor_android
 } // namespace lldb_private
 
-#endif // liblldb_PlatformAndroid_h_
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_ANDROID_PLATFORMANDROID_H

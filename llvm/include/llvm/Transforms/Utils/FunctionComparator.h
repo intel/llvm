@@ -16,7 +16,6 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/IR/Attributes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/ValueMap.h"
@@ -28,6 +27,7 @@
 namespace llvm {
 
 class APFloat;
+class AttributeList;
 class APInt;
 class BasicBlock;
 class Constant;
@@ -320,6 +320,7 @@ protected:
   int cmpTypes(Type *TyL, Type *TyR) const;
 
   int cmpNumbers(uint64_t L, uint64_t R) const;
+  int cmpAligns(Align L, Align R) const;
   int cmpAPInts(const APInt &L, const APInt &R) const;
   int cmpAPFloats(const APFloat &L, const APFloat &R) const;
   int cmpMem(StringRef L, StringRef R) const;
@@ -332,7 +333,7 @@ private:
   int cmpInlineAsm(const InlineAsm *L, const InlineAsm *R) const;
   int cmpAttrs(const AttributeList L, const AttributeList R) const;
   int cmpRangeMetadata(const MDNode *L, const MDNode *R) const;
-  int cmpOperandBundlesSchema(const Instruction *L, const Instruction *R) const;
+  int cmpOperandBundlesSchema(const CallBase &LCS, const CallBase &RCS) const;
 
   /// Compare two GEPs for equivalent pointer arithmetic.
   /// Parts to be compared for each comparison stage,

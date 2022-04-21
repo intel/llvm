@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <cassert>
+#include "test_macros.h"
 #include "deleter_types.h"
 
 struct B
@@ -33,7 +34,7 @@ struct A
     static int count;
 
     A() {++count;}
-    A(const A&) {++count;}
+    A(const A& other) : B(other) {++count;}
     ~A() {--count;}
 };
 
@@ -49,11 +50,13 @@ int main(int, char**)
         assert(B::count == 1);
         assert(p.use_count() == 1);
         assert(p.get() == ptr);
-        test_deleter<A>* d = std::get_deleter<test_deleter<A> >(p);
         assert(test_deleter<A>::count == 1);
         assert(test_deleter<A>::dealloc_count == 0);
+#ifndef TEST_HAS_NO_RTTI
+        test_deleter<A>* d = std::get_deleter<test_deleter<A> >(p);
         assert(d);
         assert(d->state() == 3);
+#endif
     }
     assert(A::count == 0);
     assert(test_deleter<A>::count == 0);
@@ -66,15 +69,29 @@ int main(int, char**)
         assert(B::count == 1);
         assert(p.use_count() == 1);
         assert(p.get() == ptr);
-        test_deleter<A>* d = std::get_deleter<test_deleter<A> >(p);
         assert(test_deleter<A>::count == 1);
         assert(test_deleter<A>::dealloc_count == 1);
+#ifndef TEST_HAS_NO_RTTI
+        test_deleter<A>* d = std::get_deleter<test_deleter<A> >(p);
         assert(d);
         assert(d->state() == 3);
+#endif
     }
     assert(A::count == 0);
     assert(test_deleter<A>::count == 0);
     assert(test_deleter<A>::dealloc_count == 2);
+
+#if TEST_STD_VER > 14
+    {
+        std::shared_ptr<const A[]> p;
+        A* ptr = new A[8];
+        p.reset(ptr, CDeleter<A[]>());
+        assert(A::count == 8);
+        assert(p.use_count() == 1);
+        assert(p.get() == ptr);
+    }
+    assert(A::count == 0);
+#endif
 
   return 0;
 }

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <optional>
 
@@ -15,6 +15,8 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+
+#include "test_macros.h"
 
 using std::optional;
 

@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file defines the PointerUnion class, which is a discriminated union of
-// pointer types.
-//
+///
+/// \file
+/// This file defines the PointerUnion class, which is a discriminated union of
+/// pointer types.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_POINTERUNION_H
@@ -16,75 +17,25 @@
 
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/PointerIntPair.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 
 namespace llvm {
 
-template <typename T> struct PointerUnionTypeSelectorReturn {
-  using Return = T;
-};
-
-/// Get a type based on whether two types are the same or not.
-///
-/// For:
-///
-/// \code
-///   using Ret = typename PointerUnionTypeSelector<T1, T2, EQ, NE>::Return;
-/// \endcode
-///
-/// Ret will be EQ type if T1 is same as T2 or NE type otherwise.
-template <typename T1, typename T2, typename RET_EQ, typename RET_NE>
-struct PointerUnionTypeSelector {
-  using Return = typename PointerUnionTypeSelectorReturn<RET_NE>::Return;
-};
-
-template <typename T, typename RET_EQ, typename RET_NE>
-struct PointerUnionTypeSelector<T, T, RET_EQ, RET_NE> {
-  using Return = typename PointerUnionTypeSelectorReturn<RET_EQ>::Return;
-};
-
-template <typename T1, typename T2, typename RET_EQ, typename RET_NE>
-struct PointerUnionTypeSelectorReturn<
-    PointerUnionTypeSelector<T1, T2, RET_EQ, RET_NE>> {
-  using Return =
-      typename PointerUnionTypeSelector<T1, T2, RET_EQ, RET_NE>::Return;
-};
-
 namespace pointer_union_detail {
-  constexpr int constexprMin(int a, int b) { return a < b ? a : b; }
   /// Determine the number of bits required to store integers with values < n.
   /// This is ceil(log2(n)).
   constexpr int bitsRequired(unsigned n) {
     return n > 1 ? 1 + bitsRequired((n + 1) / 2) : 0;
   }
 
-  // FIXME: In C++14, replace this with
-  //   std::min({PointerLikeTypeTraits<Ts>::NumLowBitsAvailable...})
-  template <typename T> constexpr int lowBitsAvailable() {
-    return PointerLikeTypeTraits<T>::NumLowBitsAvailable;
+  template <typename... Ts> constexpr int lowBitsAvailable() {
+    return std::min<int>({PointerLikeTypeTraits<Ts>::NumLowBitsAvailable...});
   }
-  template <typename T1, typename T2, typename... Ts>
-  constexpr int lowBitsAvailable() {
-    return constexprMin(lowBitsAvailable<T1>(), lowBitsAvailable<T2, Ts...>());
-  }
-
-  /// Find the index of a type in a list of types. TypeIndex<T, Us...>::Index
-  /// is the index of T in Us, or sizeof...(Us) if T does not appear in the
-  /// list.
-  template <typename T, typename ...Us> struct TypeIndex;
-  template <typename T, typename ...Us> struct TypeIndex<T, T, Us...> {
-    static constexpr int Index = 0;
-  };
-  template <typename T, typename U, typename... Us>
-  struct TypeIndex<T, U, Us...> {
-    static constexpr int Index = 1 + TypeIndex<T, Us...>::Index;
-  };
-  template <typename T> struct TypeIndex<T> {
-    static constexpr int Index = 0;
-  };
 
   /// Find the first type in a list of types.
   template <typename T, typename...> struct GetFirstType {
@@ -98,13 +49,6 @@ namespace pointer_union_detail {
     static inline void *getAsVoidPointer(void *P) { return P; }
     static inline void *getFromVoidPointer(void *P) { return P; }
     static constexpr int NumLowBitsAvailable = lowBitsAvailable<PTs...>();
-  };
-
-  /// Implement assigment in terms of construction.
-  template <typename Derived, typename T> struct AssignableFrom {
-    Derived &operator=(T t) {
-      return static_cast<Derived &>(*this) = Derived(t);
-    }
   };
 
   template <typename Derived, typename ValTy, int I, typename ...Types>
@@ -159,6 +103,7 @@ namespace pointer_union_detail {
 ///    P = (float*)0;
 ///    Y = P.get<float*>();   // ok.
 ///    X = P.get<int*>();     // runtime assertion failure.
+///    PointerUnion<int*, int*> Q; // compile time failure.
 template <typename... PTs>
 class PointerUnion
     : public pointer_union_detail::PointerUnionMembers<
@@ -167,11 +112,14 @@ class PointerUnion
               void *, pointer_union_detail::bitsRequired(sizeof...(PTs)), int,
               pointer_union_detail::PointerUnionUIntTraits<PTs...>>,
           0, PTs...> {
-  // The first type is special in some ways, but we don't want PointerUnion to
-  // be a 'template <typename First, typename ...Rest>' because it's much more
-  // convenient to have a name for the whole pack. So split off the first type
-  // here.
-  using First = typename pointer_union_detail::GetFirstType<PTs...>::type;
+  static_assert(TypesAreDistinct<PTs...>::value,
+                "PointerUnion alternative types cannot be repeated");
+  // The first type is special because we want to directly cast a pointer to a
+  // default-initialized union to a pointer to the first type. But we don't
+  // want PointerUnion to be a 'template <typename First, typename ...Rest>'
+  // because it's much more convenient to have a name for the whole pack. So
+  // split off the first type here.
+  using First = TypeAtIndex<0, PTs...>;
   using Base = typename PointerUnion::PointerUnionMembers;
 
 public:
@@ -182,21 +130,13 @@ public:
 
   /// Test if the pointer held in the union is null, regardless of
   /// which type it is.
-  bool isNull() const {
-    // Convert from the void* to one of the pointer types, to make sure that
-    // we recursively strip off low bits if we have a nested PointerUnion.
-    return !PointerLikeTypeTraits<First>::getFromVoidPointer(
-        this->Val.getPointer());
-  }
+  bool isNull() const { return !this->Val.getPointer(); }
 
   explicit operator bool() const { return !isNull(); }
 
   /// Test if the Union currently holds the type matching T.
-  template <typename T> int is() const {
-    constexpr int Index = pointer_union_detail::TypeIndex<T, PTs...>::Index;
-    static_assert(Index < sizeof...(PTs),
-                  "PointerUnion::is<T> given type not in the union");
-    return this->Val.getInt() == Index;
+  template <typename T> bool is() const {
+    return this->Val.getInt() == FirstIndexOfType<T, PTs...>::value;
   }
 
   /// Returns the value of the specified pointer type.
@@ -208,7 +148,7 @@ public:
   }
 
   /// Returns the current pointer if it is of the specified pointer type,
-  /// otherwises returns null.
+  /// otherwise returns null.
   template <typename T> T dyn_cast() const {
     if (is<T>())
       return get<T>();
@@ -226,7 +166,8 @@ public:
   First *getAddrOfPtr1() {
     assert(is<First>() && "Val is not the first pointer");
     assert(
-        get<First>() == this->Val.getPointer() &&
+        PointerLikeTypeTraits<First>::getAsVoidPointer(get<First>()) ==
+            this->Val.getPointer() &&
         "Can't get the address because PointerLikeTypeTraits changes the ptr");
     return const_cast<First *>(
         reinterpret_cast<const First *>(this->Val.getAddrOfPointer()));
@@ -281,16 +222,6 @@ struct PointerLikeTypeTraits<PointerUnion<PTs...>> {
   static constexpr int NumLowBitsAvailable = PointerLikeTypeTraits<decltype(
       PointerUnion<PTs...>::Val)>::NumLowBitsAvailable;
 };
-
-/// A pointer union of three pointer types. See documentation for PointerUnion
-/// for usage.
-template <typename PT1, typename PT2, typename PT3>
-using PointerUnion3 = PointerUnion<PT1, PT2, PT3>;
-
-/// A pointer union of four pointer types. See documentation for PointerUnion
-/// for usage.
-template <typename PT1, typename PT2, typename PT3, typename PT4>
-using PointerUnion4 = PointerUnion<PT1, PT2, PT3, PT4>;
 
 // Teach DenseMap how to use PointerUnions as keys.
 template <typename ...PTs> struct DenseMapInfo<PointerUnion<PTs...>> {

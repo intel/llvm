@@ -19,8 +19,8 @@ b0:
 }
 
 ; CHECK-LABEL: f2:
-; CHECK: r[[R20:[0-9]+]]:[[R21:[0-9]+]] = asl(r3:2,#17)
-; CHECK: r[[R20]]:[[R21]] |= lsr(r1:0,#47)
+; CHECK: r[[R20:[0-9]+]]:[[R21:[0-9]+]] = asl(r1:0,#17)
+; CHECK: r[[R20]]:[[R21]] |= lsr(r3:2,#47)
 define i64 @f2(i64 %a0, i64 %a1) #1 {
 b0:
   %v0 = tail call i64 @llvm.fshl.i64(i64 %a0, i64 %a1, i64 17)
@@ -28,9 +28,9 @@ b0:
 }
 
 ; CHECK-LABEL: f3:
-; CHECK: r[[R30:[0-9]+]]:[[R31:[0-9]+]] = asl(r3:2,r4)
+; CHECK: r[[R30:[0-9]+]]:[[R31:[0-9]+]] = asl(r1:0,r4)
 ; CHECK: r[[R32:[0-9]+]] = sub(#64,r4)
-; CHECK: r[[R30]]:[[R31]] |= lsr(r1:0,r[[R32]])
+; CHECK: r[[R30]]:[[R31]] |= lsr(r3:2,r[[R32]])
 define i64 @f3(i64 %a0, i64 %a1, i64 %a2) #1 {
 b0:
   %v0 = tail call i64 @llvm.fshl.i64(i64 %a0, i64 %a1, i64 %a2)
@@ -254,6 +254,22 @@ define i64 @f29(i64 %a0, i64 %a1) #1 {
 b0:
   %v0 = tail call i64 @llvm.fshr.i64(i64 %a0, i64 %a1, i64 56)
   ret i64 %v0
+}
+
+; CHECK-LABEL: f30:
+; CHECK: r[[R00:[0-9]+]] = combine(r0.l,r1.h)
+define i32 @f30(i32 %a0, i32 %a1) #1 {
+b0:
+  %v0 = tail call i32 @llvm.fshl.i32(i32 %a0, i32 %a1, i32 16)
+  ret i32 %v0
+}
+
+; CHECK-LABEL: f31:
+; CHECK: r[[R00:[0-9]+]] = combine(r0.l,r1.h)
+define i32 @f31(i32 %a0, i32 %a1) #1 {
+b0:
+  %v0 = tail call i32 @llvm.fshr.i32(i32 %a0, i32 %a1, i32 16)
+  ret i32 %v0
 }
 
 declare i32 @llvm.fshl.i32(i32, i32, i32) #0

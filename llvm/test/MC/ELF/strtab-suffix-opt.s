@@ -1,4 +1,4 @@
-// RUN: llvm-mc -filetype=obj -triple i686-pc-linux-gnu %s -o - | llvm-readobj --symbols | FileCheck %s
+// RUN: llvm-mc -filetype=obj -triple i686-pc-linux-gnu %s -o - | llvm-readobj --symbols - | FileCheck %s
 
 	.text
 	.globl	foobar
@@ -16,6 +16,6 @@ foobar:
 .Ltmp3:
 	.size	foobar, .Ltmp3-foobar
 
-// CHECK:     Name: bar (14)
-// CHECK:     Name: foo (18)
 // CHECK:     Name: foobar (11)
+// CHECK:     Name: foo (18)
+// CHECK:     Name: bar (14)

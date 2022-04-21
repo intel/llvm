@@ -34,7 +34,7 @@ public:
   CreateASTConsumer(clang::CompilerInstance &Compiler,
                     StringRef InFile) override {
     SemaSource.setFilePath(InFile);
-    return llvm::make_unique<clang::ASTConsumer>();
+    return std::make_unique<clang::ASTConsumer>();
   }
 
   void ExecuteAction() override {
@@ -104,7 +104,7 @@ bool IncludeFixerActionFactory::runInvocation(
 
   // Run the parser, gather missing includes.
   auto ScopedToolAction =
-      llvm::make_unique<Action>(SymbolIndexMgr, MinimizeIncludePaths);
+      std::make_unique<Action>(SymbolIndexMgr, MinimizeIncludePaths);
   Compiler.ExecuteAction(*ScopedToolAction);
 
   Contexts.push_back(ScopedToolAction->getIncludeFixerContext(
@@ -245,7 +245,7 @@ clang::TypoCorrection IncludeFixerSemaSource::CorrectTypo(
     // parent_path.
     // FIXME: Don't rely on source text.
     const char *End = Source.end();
-    while (isIdentifierBody(*End) || *End == ':')
+    while (isAsciiIdentifierContinue(*End) || *End == ':')
       ++End;
 
     return std::string(Source.begin(), End);
@@ -302,21 +302,20 @@ std::string IncludeFixerSemaSource::minimizeInclude(
     StringRef Include, const clang::SourceManager &SourceManager,
     clang::HeaderSearch &HeaderSearch) const {
   if (!MinimizeIncludePaths)
-    return Include;
+    return std::string(Include);
 
   // Get the FileEntry for the include.
   StringRef StrippedInclude = Include.trim("\"<>");
-  const FileEntry *Entry =
-      SourceManager.getFileManager().getFile(StrippedInclude);
+  auto Entry = SourceManager.getFileManager().getFile(StrippedInclude);
 
   // If the file doesn't exist return the path from the database.
   // FIXME: This should never happen.
   if (!Entry)
-    return Include;
+    return std::string(Include);
 
-  bool IsSystem;
+  bool IsSystem = false;
   std::string Suggestion =
-      HeaderSearch.suggestPathToFileForDiagnostics(Entry, &IsSystem);
+      HeaderSearch.suggestPathToFileForDiagnostics(*Entry, "", &IsSystem);
 
   return IsSystem ? '<' + Suggestion + '>' : '"' + Suggestion + '"';
 }
@@ -353,7 +352,8 @@ IncludeFixerSemaSource::query(StringRef Query, StringRef ScopedQualifiers,
   if (!GenerateDiagnostics && !QuerySymbolInfos.empty()) {
     if (ScopedQualifiers == QuerySymbolInfos.front().ScopedQualifiers &&
         Query == QuerySymbolInfos.front().RawIdentifier) {
-      QuerySymbolInfos.push_back({Query.str(), ScopedQualifiers, Range});
+      QuerySymbolInfos.push_back(
+          {Query.str(), std::string(ScopedQualifiers), Range});
     }
     return {};
   }
@@ -368,7 +368,8 @@ IncludeFixerSemaSource::query(StringRef Query, StringRef ScopedQualifiers,
       CI->getSourceManager().getLocForStartOfFile(
           CI->getSourceManager().getMainFileID()));
 
-  QuerySymbolInfos.push_back({Query.str(), ScopedQualifiers, Range});
+  QuerySymbolInfos.push_back(
+      {Query.str(), std::string(ScopedQualifiers), Range});
 
   // Query the symbol based on C++ name Lookup rules.
   // Firstly, lookup the identifier with scoped namespace contexts;

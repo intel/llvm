@@ -1,9 +1,9 @@
 // Test CodeGen for Security Check Overflow Builtins.
 // rdar://13421498
 
-// RUN: %clang_cc1 -triple "i686-unknown-unknown"   -emit-llvm -x c %s -o - | FileCheck %s
-// RUN: %clang_cc1 -triple "x86_64-unknown-unknown" -emit-llvm -x c %s -o - | FileCheck %s
-// RUN: %clang_cc1 -triple "x86_64-mingw32"         -emit-llvm -x c %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple "i686-unknown-unknown"   -emit-llvm -x c %s -o - | FileCheck -DLONG_TYPE=i32 -DLONG_MAX=2147483647 %s
+// RUN: %clang_cc1 -triple "x86_64-unknown-unknown" -emit-llvm -x c %s -o - | FileCheck -DLONG_TYPE=i64 -DLONG_MAX=9223372036854775807 %s
+// RUN: %clang_cc1 -triple "x86_64-mingw32"         -emit-llvm -x c %s -o - | FileCheck -DLONG_TYPE=i32 -DLONG_MAX=2147483647 %s
 
 extern unsigned UnsignedErrorCode;
 extern unsigned long UnsignedLongErrorCode;
@@ -41,6 +41,20 @@ int test_add_overflow_int_int_int(int x, int y) {
   return r;
 }
 
+int test_add_overflow_xint31_xint31_xint31(_BitInt(31) x, _BitInt(31) y) {
+  // CHECK-LABEL: define {{(dso_local )?}}i32 @test_add_overflow_xint31_xint31_xint31({{.+}})
+  // CHECK-NOT: ext
+  // CHECK: [[S:%.+]] = call { i31, i1 } @llvm.sadd.with.overflow.i31(i31 %{{.+}}, i31 %{{.+}})
+  // CHECK-DAG: [[C:%.+]] = extractvalue { i31, i1 } [[S]], 1
+  // CHECK-DAG: [[Q:%.+]] = extractvalue { i31, i1 } [[S]], 0
+  // CHECK: store i31 [[Q]], i31*
+  // CHECK: br i1 [[C]]
+  _BitInt(31) r;
+  if (__builtin_add_overflow(x, y, &r))
+    overflowed();
+  return r;
+}
+
 unsigned test_sub_overflow_uint_uint_uint(unsigned x, unsigned y) {
   // CHECK-LABEL: define {{(dso_local )?}}i32 @test_sub_overflow_uint_uint_uint
   // CHECK-NOT: ext
@@ -69,6 +83,20 @@ int test_sub_overflow_int_int_int(int x, int y) {
   return r;
 }
 
+int test_sub_overflow_xint31_xint31_xint31(_BitInt(31) x, _BitInt(31) y) {
+  // CHECK-LABEL: define {{(dso_local )?}}i32 @test_sub_overflow_xint31_xint31_xint31({{.+}})
+  // CHECK-NOT: ext
+  // CHECK: [[S:%.+]] = call { i31, i1 } @llvm.ssub.with.overflow.i31(i31 %{{.+}}, i31 %{{.+}})
+  // CHECK-DAG: [[C:%.+]] = extractvalue { i31, i1 } [[S]], 1
+  // CHECK-DAG: [[Q:%.+]] = extractvalue { i31, i1 } [[S]], 0
+  // CHECK: store i31 [[Q]], i31*
+  // CHECK: br i1 [[C]]
+  _BitInt(31) r;
+  if (__builtin_sub_overflow(x, y, &r))
+    overflowed();
+  return r;
+}
+
 unsigned test_mul_overflow_uint_uint_uint(unsigned x, unsigned y) {
   // CHECK-LABEL: define {{(dso_local )?}}i32 @test_mul_overflow_uint_uint_uint
   // CHECK-NOT: ext
@@ -83,6 +111,51 @@ unsigned test_mul_overflow_uint_uint_uint(unsigned x, unsigned y) {
   return r;
 }
 
+int test_mul_overflow_uint_uint_int(unsigned x, unsigned y) {
+  // CHECK-LABEL: define {{(dso_local )?}}i32 @test_mul_overflow_uint_uint_int
+  // CHECK: [[S:%.+]] = call { i32, i1 } @llvm.umul.with.overflow.i32(i32 %{{.+}}, i32 %{{.+}})
+  // CHECK-DAG: [[Q:%.+]] = extractvalue { i32, i1 } [[S]], 0
+  // CHECK-DAG: [[C:%.+]] = extractvalue { i32, i1 } [[S]], 1
+  // CHECK: [[C1:%.+]] = icmp ugt i32 [[Q]], 2147483647
+  // CHECK: [[C2:%.+]] = or i1 [[C]], [[C1]]
+  // CHECK: store i32 [[Q]], i32*
+  // CHECK: br i1 [[C2]]
+  int r;
+  if (__builtin_mul_overflow(x, y, &r))
+    overflowed();
+  return r;
+}
+
+int test_mul_overflow_uint_uint_int_volatile(unsigned x, unsigned y) {
+  // CHECK-LABEL: define {{(dso_local )?}}i32 @test_mul_overflow_uint_uint_int_volatile
+  // CHECK: [[S:%.+]] = call { i32, i1 } @llvm.umul.with.overflow.i32(i32 %{{.+}}, i32 %{{.+}})
+  // CHECK-DAG: [[Q:%.+]] = extractvalue { i32, i1 } [[S]], 0
+  // CHECK-DAG: [[C:%.+]] = extractvalue { i32, i1 } [[S]], 1
+  // CHECK: [[C1:%.+]] = icmp ugt i32 [[Q]], 2147483647
+  // CHECK: [[C2:%.+]] = or i1 [[C]], [[C1]]
+  // CHECK: store volatile i32 [[Q]], i32*
+  // CHECK: br i1 [[C2]]
+  volatile int r;
+  if (__builtin_mul_overflow(x, y, &r))
+    overflowed();
+  return r;
+}
+
+long test_mul_overflow_ulong_ulong_long(unsigned long x, unsigned long y) {
+  // CHECK-LABEL: @test_mul_overflow_ulong_ulong_long
+  // CHECK: [[S:%.+]] =  call { [[LONG_TYPE]], i1 } @llvm.umul.with.overflow.[[LONG_TYPE]]([[LONG_TYPE]] %{{.+}}, [[LONG_TYPE]] %{{.+}})
+  // CHECK-DAG: [[Q:%.+]] = extractvalue { [[LONG_TYPE]], i1 } [[S]], 0
+  // CHECK-DAG: [[C:%.+]] = extractvalue { [[LONG_TYPE]], i1 } [[S]], 1
+  // CHECK: [[C1:%.+]] = icmp ugt [[LONG_TYPE]] [[Q]], [[LONG_MAX]]
+  // CHECK: [[C2:%.+]] = or i1 [[C]], [[C1]]
+  // LONG64: store [[LONG_TYPE]] [[Q]], [[LONG_TYPE]]*
+  // LONG64: br i1 [[C2]]
+  long r;
+  if (__builtin_mul_overflow(x, y, &r))
+    overflowed();
+  return r;
+}
+
 int test_mul_overflow_int_int_int(int x, int y) {
   // CHECK-LABEL: define {{(dso_local )?}}i32 @test_mul_overflow_int_int_int
   // CHECK-NOT: ext
@@ -92,6 +165,48 @@ int test_mul_overflow_int_int_int(int x, int y) {
   // CHECK: store i32 [[Q]], i32*
   // CHECK: br i1 [[C]]
   int r;
+  if (__builtin_mul_overflow(x, y, &r))
+    overflowed();
+  return r;
+}
+
+int test_mul_overflow_xint31_xint31_xint31(_BitInt(31) x, _BitInt(31) y) {
+  // CHECK-LABEL: define {{(dso_local )?}}i32 @test_mul_overflow_xint31_xint31_xint31({{.+}})
+  // CHECK-NOT: ext
+  // CHECK: [[S:%.+]] = call { i31, i1 } @llvm.smul.with.overflow.i31(i31 %{{.+}}, i31 %{{.+}})
+  // CHECK-DAG: [[C:%.+]] = extractvalue { i31, i1 } [[S]], 1
+  // CHECK-DAG: [[Q:%.+]] = extractvalue { i31, i1 } [[S]], 0
+  // CHECK: store i31 [[Q]], i31*
+  // CHECK: br i1 [[C]]
+  _BitInt(31) r;
+  if (__builtin_mul_overflow(x, y, &r))
+    overflowed();
+  return r;
+}
+
+int test_mul_overflow_xint127_xint127_xint127(_BitInt(127) x, _BitInt(127) y) {
+  // CHECK-LABEL: define {{(dso_local )?}}i32 @test_mul_overflow_xint127_xint127_xint127({{.+}})
+  // CHECK-NOT: ext
+  // CHECK: [[S:%.+]] = call { i127, i1 } @llvm.smul.with.overflow.i127(i127 %{{.+}}, i127 %{{.+}})
+  // CHECK-DAG: [[C:%.+]] = extractvalue { i127, i1 } [[S]], 1
+  // CHECK-DAG: [[Q:%.+]] = extractvalue { i127, i1 } [[S]], 0
+  // CHECK: store i127 [[Q]], i127*
+  // CHECK: br i1 [[C]]
+  _BitInt(127) r;
+  if (__builtin_mul_overflow(x, y, &r))
+    overflowed();
+  return r;
+}
+
+int test_mul_overflow_xint128_xint128_xint128(_BitInt(128) x, _BitInt(128) y) {
+  // CHECK-LABEL: define {{(dso_local )?}}i32 @test_mul_overflow_xint128_xint128_xint128({{.+}})
+  // CHECK-NOT: ext
+  // CHECK: [[S:%.+]] = call { i128, i1 } @llvm.smul.with.overflow.i128(i128 %{{.+}}, i128 %{{.+}})
+  // CHECK-DAG: [[C:%.+]] = extractvalue { i128, i1 } [[S]], 1
+  // CHECK-DAG: [[Q:%.+]] = extractvalue { i128, i1 } [[S]], 0
+  // CHECK: store i128 [[Q]], i128*
+  // CHECK: br i1 [[C]]
+  _BitInt(128) r;
   if (__builtin_mul_overflow(x, y, &r))
     overflowed();
   return r;
@@ -187,7 +302,7 @@ unsigned test_uadd_overflow(unsigned x, unsigned y) {
 }
 
 unsigned long test_uaddl_overflow(unsigned long x, unsigned long y) {
-// CHECK: @test_uaddl_overflow([[UL:i32|i64]] %x
+// CHECK: @test_uaddl_overflow([[UL:i32|i64]] noundef %x
 // CHECK: %{{.+}} = call { [[UL]], i1 } @llvm.uadd.with.overflow.[[UL]]([[UL]] %{{.+}}, [[UL]] %{{.+}})
   unsigned long result;
   if (__builtin_uaddl_overflow(x, y, &result))
@@ -214,7 +329,7 @@ unsigned test_usub_overflow(unsigned x, unsigned y) {
 }
 
 unsigned long test_usubl_overflow(unsigned long x, unsigned long y) {
-// CHECK: @test_usubl_overflow([[UL:i32|i64]] %x
+// CHECK: @test_usubl_overflow([[UL:i32|i64]] noundef %x
 // CHECK: %{{.+}} = call { [[UL]], i1 } @llvm.usub.with.overflow.[[UL]]([[UL]] %{{.+}}, [[UL]] %{{.+}})
   unsigned long result;
   if (__builtin_usubl_overflow(x, y, &result))
@@ -241,7 +356,7 @@ unsigned test_umul_overflow(unsigned x, unsigned y) {
 }
 
 unsigned long test_umull_overflow(unsigned long x, unsigned long y) {
-// CHECK: @test_umull_overflow([[UL:i32|i64]] %x
+// CHECK: @test_umull_overflow([[UL:i32|i64]] noundef %x
 // CHECK: %{{.+}} = call { [[UL]], i1 } @llvm.umul.with.overflow.[[UL]]([[UL]] %{{.+}}, [[UL]] %{{.+}})
   unsigned long result;
   if (__builtin_umull_overflow(x, y, &result))
@@ -268,7 +383,7 @@ int test_sadd_overflow(int x, int y) {
 }
 
 long test_saddl_overflow(long x, long y) {
-// CHECK: @test_saddl_overflow([[UL:i32|i64]] %x
+// CHECK: @test_saddl_overflow([[UL:i32|i64]] noundef %x
 // CHECK: %{{.+}} = call { [[UL]], i1 } @llvm.sadd.with.overflow.[[UL]]([[UL]] %{{.+}}, [[UL]] %{{.+}})
   long result;
   if (__builtin_saddl_overflow(x, y, &result))
@@ -295,7 +410,7 @@ int test_ssub_overflow(int x, int y) {
 }
 
 long test_ssubl_overflow(long x, long y) {
-// CHECK: @test_ssubl_overflow([[UL:i32|i64]] %x
+// CHECK: @test_ssubl_overflow([[UL:i32|i64]] noundef %x
 // CHECK: %{{.+}} = call { [[UL]], i1 } @llvm.ssub.with.overflow.[[UL]]([[UL]] %{{.+}}, [[UL]] %{{.+}})
   long result;
   if (__builtin_ssubl_overflow(x, y, &result))
@@ -322,7 +437,7 @@ int test_smul_overflow(int x, int y) {
 }
 
 long test_smull_overflow(long x, long y) {
-// CHECK: @test_smull_overflow([[UL:i32|i64]] %x
+// CHECK: @test_smull_overflow([[UL:i32|i64]] noundef %x
 // CHECK: %{{.+}} = call { [[UL]], i1 } @llvm.smul.with.overflow.[[UL]]([[UL]] %{{.+}}, [[UL]] %{{.+}})
   long result;
   if (__builtin_smull_overflow(x, y, &result))

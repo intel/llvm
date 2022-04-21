@@ -3,8 +3,8 @@
 !
 ! RUN: llvm-mc %s -arch=sparc -show-encoding | FileCheck %s --check-prefix=ASM
 ! RUN: llvm-mc %s -arch=sparcv9 -show-encoding | FileCheck %s --check-prefix=ASM
-! RUN: llvm-mc %s -arch=sparc -filetype=obj | llvm-readobj -r | FileCheck %s --check-prefix=REL
-! RUN: llvm-mc %s -arch=sparcv9 -filetype=obj | llvm-readobj -r | FileCheck %s --check-prefix=REL
+! RUN: llvm-mc %s -arch=sparc -filetype=obj | llvm-readobj -r - | FileCheck %s --check-prefix=REL
+! RUN: llvm-mc %s -arch=sparcv9 -filetype=obj | llvm-readobj -r - | FileCheck %s --check-prefix=REL
 ! RUN: llvm-mc %s -arch=sparc -filetype=obj | llvm-objdump -r -d - | FileCheck %s --check-prefix=OBJDUMP
 ! RUN: llvm-mc %s -arch=sparcv9 -filetype=obj | llvm-objdump -r -d - | FileCheck %s --check-prefix=OBJDUMP
 
@@ -19,7 +19,7 @@
 ! REL: ]
 
 
-! OBJDUMP: foo:
+! OBJDUMP: <foo>:
 foo:
 ! Here we use two different sequences to get the address of a static TLS variable 'Local'
 ! (note - there is no intent to have valid assembler function here,

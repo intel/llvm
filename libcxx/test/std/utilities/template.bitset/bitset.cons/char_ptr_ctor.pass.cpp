@@ -18,9 +18,7 @@
 
 #include "test_macros.h"
 
-#if defined(TEST_COMPILER_C1XX)
-#pragma warning(disable: 6294) // Ill-defined for-loop:  initial condition does not satisfy test.  Loop body not executed.
-#endif
+TEST_MSVC_DIAGNOSTIC_IGNORED(6294) // Ill-defined for-loop:  initial condition does not satisfy test.  Loop body not executed.
 
 template <std::size_t N>
 void test_char_pointer_ctor()
@@ -36,12 +34,12 @@ void test_char_pointer_ctor()
     }
 
     {
-    const char str[] ="1010101010";
+    const char str[] = "1010101010";
     std::bitset<N> v(str);
-    std::size_t M = std::min<std::size_t>(N, 10);
+    std::size_t M = std::min<std::size_t>(v.size(), 10);
     for (std::size_t i = 0; i < M; ++i)
         assert(v[i] == (str[M - 1 - i] == '1'));
-    for (std::size_t i = 10; i < N; ++i)
+    for (std::size_t i = 10; i < v.size(); ++i)
         assert(v[i] == false);
     }
 }

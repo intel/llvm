@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_StructuredDataImpl_h_
-#define liblldb_StructuredDataImpl_h_
+#ifndef LLDB_CORE_STRUCTUREDDATAIMPL_H
+#define LLDB_CORE_STRUCTUREDDATAIMPL_H
 
 #include "lldb/Target/StructuredDataPlugin.h"
 #include "lldb/Utility/Event.h"
@@ -25,9 +25,12 @@ namespace lldb_private {
 
 class StructuredDataImpl {
 public:
-  StructuredDataImpl() : m_plugin_wp(), m_data_sp() {}
+  StructuredDataImpl() {}
 
   StructuredDataImpl(const StructuredDataImpl &rhs) = default;
+
+  StructuredDataImpl(StructuredData::ObjectSP obj)
+      : m_data_sp(std::move(obj)) {}
 
   StructuredDataImpl(const lldb::EventSP &event_sp)
       : m_plugin_wp(
@@ -54,7 +57,8 @@ public:
       return error;
     }
 
-    m_data_sp->Dump(stream);
+    llvm::json::OStream s(stream.AsRawOstream());
+    m_data_sp->Serialize(s);
     return error;
   }
 
@@ -67,14 +71,18 @@ public:
       return error;
     }
 
-    // Grab the plugin.
-    auto plugin_sp = lldb::StructuredDataPluginSP(m_plugin_wp);
+    // Grab the plugin
+    lldb::StructuredDataPluginSP plugin_sp = m_plugin_wp.lock();
+
+    // If there's no plugin, call underlying data's dump method:
     if (!plugin_sp) {
-      error.SetErrorString("Cannot pretty print structured data: "
-                           "plugin doesn't exist.");
+      if (!m_data_sp) {
+        error.SetErrorString("No data to describe.");
+        return error;
+      }
+      m_data_sp->Dump(stream, true);
       return error;
     }
-
     // Get the data's description.
     return plugin_sp->GetDescription(m_data_sp, stream);
   }
@@ -146,6 +154,8 @@ public:
     }
     return (::snprintf(dst, dst_len, "%s", result.data()));
   }
+
+  StructuredData::ObjectSP GetObjectSP() const { return m_data_sp; }
 
 private:
   lldb::StructuredDataPluginWP m_plugin_wp;

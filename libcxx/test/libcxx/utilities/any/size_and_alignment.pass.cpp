@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <any>
 
@@ -14,11 +14,12 @@
 
 #include <any>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
-    using std::any;
-    static_assert(sizeof(any) == sizeof(void*)*4, "");
-    static_assert(alignof(any) == alignof(void*), "");
+    static_assert(sizeof(std::any) == sizeof(void*)*4, "");
+    static_assert(alignof(std::any) == alignof(void*), "");
 
   return 0;
 }

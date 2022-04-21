@@ -5,8 +5,8 @@ template<typename ...T> struct X {};
 template<typename T, typename U> struct P {};
 
 namespace Nested {
-  template<typename ...T> int f1(X<T, T...>... a); // expected-note +{{conflicting types for parameter 'T'}}
-  template<typename ...T> int f2(P<X<T...>, T> ...a); // expected-note +{{conflicting types for parameter 'T'}}
+  template<typename ...T> int f1(X<T, T...>... a); // expected-note +{{packs of different lengths for parameter 'T'}}
+  template<typename ...T> int f2(P<X<T...>, T> ...a); // expected-note +{{packs of different lengths for parameter 'T'}}
 
   int a1 = f1(X<int, int, double>(), X<double, int, double>());
   int a2 = f1(X<int, int>());
@@ -141,7 +141,7 @@ namespace partial_full_mix {
     // expected-note@-1 {{[with U = <char, double, long>]: pack expansion contains parameter pack 'U' that has a different length (2 vs. 3) from outer parameter packs}}
 
     template<typename ...U> static tuple<U...> h(tuple<pair<T, U>..., pair<int, int>>);
-    // expected-note@-1 {{[with U = <int [2]>]: pack expansion contains parameter pack 'U' that has a different length (2 vs. 1) from outer parameter packs}}
+    // expected-note@-1 {{[with U = <int[2]>]: pack expansion contains parameter pack 'U' that has a different length (2 vs. 1) from outer parameter packs}}
   };
 
   pair<tuple<int, float>, tuple<char, double>> k1 = A<int, float>().f<char>(pair<int, char>(), pair<float, double>());

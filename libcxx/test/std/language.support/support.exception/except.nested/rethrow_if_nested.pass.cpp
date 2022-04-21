@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 
-// This test fails due to a stack overflow
-// XFAIL: LIBCXX-WINDOWS-FIXME
+// FIXME: This test fails in MSVC mode due to a stack overflow
+// XFAIL: msvc
 
 // <exception>
 

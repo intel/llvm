@@ -16,7 +16,5 @@ static_library("Disassembler") {
     "//llvm/lib/Target/BPF/MCTargetDesc",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "BPFDisassembler.cpp",
-  ]
+  sources = [ "BPFDisassembler.cpp" ]
 }

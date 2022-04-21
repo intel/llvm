@@ -58,7 +58,7 @@
 
 ; CHECK:      DW_TAG_subprogram
 ; CHECK-NEXT:   DW_AT_name {{.*}} "f2<int>"
-; CHECK-NOT: DW_
+; CHECK-NEXT:   DW_AT_inline
 ; CHECK:      DW_TAG_subprogram
 ; CHECK-NEXT:   DW_AT_low_pc [DW_FORM_addr]
 ; CHECK-NEXT:   DW_AT_high_pc
@@ -70,6 +70,9 @@
 ; CHECK-NOT: {{DW_AT|DW_TAG|NULL}}
 ; CHECK:     DW_AT_call_file
 ; CHECK-NEXT:     DW_AT_call_line {{.*}} (18)
+; CHECK-NEXT:     DW_AT_call_column {{.*}} (0x05)
+; CHECK:     DW_AT_call_file
+; CHECK-NEXT:     DW_AT_call_line {{.*}} (21)
 ; CHECK-NOT: DW_
 ; CHECK: .debug_info.dwo contents:
 
@@ -81,13 +84,14 @@ entry:
   call void @_Z2f1v(), !dbg !26
   call void @_Z2f1v(), !dbg !25
   call void @_Z2f1v(), !dbg !28
+  call void @_Z2f1v(), !dbg !29
   ret void, !dbg !29
 }
 
 declare void @_Z2f1v() #1
 
-attributes #0 = { uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!22, !23}
@@ -121,4 +125,5 @@ attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "n
 !26 = !DILocation(line: 11, column: 3, scope: !11, inlinedAt: !27)
 !27 = !DILocation(line: 18, column: 5, scope: !20)
 !28 = !DILocation(line: 12, column: 3, scope: !11, inlinedAt: !27)
-!29 = !DILocation(line: 21, column: 1, scope: !10)
+!29 = !DILocation(line: 12, column: 3, scope: !11, inlinedAt: !30)
+!30 = !DILocation(line: 21, column: 0, scope: !10)

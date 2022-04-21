@@ -6,13 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEBUGINFO_DWARFCOMPILEUNIT_H
-#define LLVM_DEBUGINFO_DWARFCOMPILEUNIT_H
+#ifndef LLVM_DEBUGINFO_DWARF_DWARFCOMPILEUNIT_H
+#define LLVM_DEBUGINFO_DWARF_DWARFCOMPILEUNIT_H
 
 #include "llvm/DebugInfo/DWARF/DWARFUnit.h"
-#include "llvm/DebugInfo/DWARF/DWARFUnitIndex.h"
 
 namespace llvm {
+
+class DWARFContext;
+class DWARFDebugAbbrev;
+class raw_ostream;
+struct DIDumpOptions;
+struct DWARFSection;
 
 class DWARFCompileUnit : public DWARFUnit {
 public:
@@ -35,4 +40,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_DEBUGINFO_DWARFCOMPILEUNIT_H
+#endif // LLVM_DEBUGINFO_DWARF_DWARFCOMPILEUNIT_H

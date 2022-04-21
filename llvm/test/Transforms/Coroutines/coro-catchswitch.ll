@@ -1,5 +1,5 @@
 ; Verifies that we can insert the spill for a PHI preceding the catchswitch
-; RUN: opt < %s -coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 target datalayout = "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32"
 target triple = "i686-pc-windows-msvc"
@@ -31,7 +31,7 @@ catch.dispatch:                                   ; preds = %if.else, %if.then
 ; CHECK: catch.dispatch:
 ; CHECK:  %val = phi i32 [ 2, %if.else ], [ 1, %if.then ]
 ; CHECK:  %[[Pad:.+]] = cleanuppad within none []
-; CHECK:  %val.spill.addr = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 4
+; CHECK:  %val.spill.addr = getelementptr inbounds %f.Frame, %f.Frame* %FramePtr, i32 0, i32 2
 ; CHECK:  store i32 %val, i32* %val.spill.addr
 ; CHECK:  cleanupret from %[[Pad]] unwind label %[[Switch:.+]]
 

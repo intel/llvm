@@ -35,7 +35,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/None.h"
@@ -45,9 +44,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/GlobalsModRef.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
@@ -59,6 +56,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ArrayRecycler.h"
@@ -71,6 +69,7 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/GVNExpression.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -157,8 +156,7 @@ public:
 
   void restrictToBlocks(SmallSetVector<BasicBlock *, 4> &Blocks) {
     for (auto II = Insts.begin(); II != Insts.end();) {
-      if (std::find(Blocks.begin(), Blocks.end(), (*II)->getParent()) ==
-          Blocks.end()) {
+      if (!llvm::is_contained(Blocks, (*II)->getParent())) {
         ActiveBlocks.remove((*II)->getParent());
         II = Insts.erase(II);
       } else {
@@ -276,8 +274,7 @@ public:
     auto VI = Values.begin();
     while (BI != Blocks.end()) {
       assert(VI != Values.end());
-      if (std::find(NewBlocks.begin(), NewBlocks.end(), *BI) ==
-          NewBlocks.end()) {
+      if (!llvm::is_contained(NewBlocks, *BI)) {
         BI = Blocks.erase(BI);
         VI = Values.erase(VI);
       } else {
@@ -349,6 +346,7 @@ using ModelledPHISet = DenseSet<ModelledPHI, DenseMapInfo<ModelledPHI>>;
 class InstructionUseExpr : public GVNExpression::BasicExpression {
   unsigned MemoryUseOrder = -1;
   bool Volatile = false;
+  ArrayRef<int> ShuffleMask;
 
 public:
   InstructionUseExpr(Instruction *I, ArrayRecycler<Value *> &R,
@@ -357,6 +355,9 @@ public:
     allocateOperands(R, A);
     setOpcode(I->getOpcode());
     setType(I->getType());
+
+    if (ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(I))
+      ShuffleMask = SVI->getShuffleMask().copy(A);
 
     for (auto &U : I->uses())
       op_push_back(U.getUser());
@@ -368,12 +369,12 @@ public:
 
   hash_code getHashValue() const override {
     return hash_combine(GVNExpression::BasicExpression::getHashValue(),
-                        MemoryUseOrder, Volatile);
+                        MemoryUseOrder, Volatile, ShuffleMask);
   }
 
   template <typename Function> hash_code getHashValue(Function MapFn) {
-    hash_code H =
-        hash_combine(getOpcode(), getType(), MemoryUseOrder, Volatile);
+    hash_code H = hash_combine(getOpcode(), getType(), MemoryUseOrder, Volatile,
+                               ShuffleMask);
     for (auto *V : operands())
       H = hash_combine(H, MapFn(V));
     return H;
@@ -441,6 +442,7 @@ public:
       break;
     case Instruction::Call:
     case Instruction::Invoke:
+    case Instruction::FNeg:
     case Instruction::Add:
     case Instruction::FAdd:
     case Instruction::Sub:
@@ -473,6 +475,7 @@ public:
     case Instruction::PtrToInt:
     case Instruction::IntToPtr:
     case Instruction::BitCast:
+    case Instruction::AddrSpaceCast:
     case Instruction::Select:
     case Instruction::ExtractElement:
     case Instruction::InsertElement:
@@ -574,7 +577,7 @@ public:
 private:
   ValueTable VN;
 
-  bool isInstructionBlacklisted(Instruction *I) {
+  bool shouldAvoidSinkingInstruction(Instruction *I) {
     // These instructions may change or break semantics if moved.
     if (isa<PHINode>(I) || I->isEHPad() || isa<AllocaInst>(I) ||
         I->getType()->isTokenTy())
@@ -666,7 +669,7 @@ Optional<SinkingInstructionCandidate> GVNSink::analyzeInstructionForSinking(
       NewInsts.push_back(I);
   }
   for (auto *I : NewInsts)
-    if (isInstructionBlacklisted(I))
+    if (shouldAvoidSinkingInstruction(I))
       return None;
 
   // If we've restricted the incoming blocks, restrict all needed PHIs also
@@ -687,10 +690,8 @@ Optional<SinkingInstructionCandidate> GVNSink::analyzeInstructionForSinking(
   ModelledPHI NewPHI(NewInsts, ActivePreds);
 
   // Does sinking this instruction render previous PHIs redundant?
-  if (NeededPHIs.find(NewPHI) != NeededPHIs.end()) {
-    NeededPHIs.erase(NewPHI);
+  if (NeededPHIs.erase(NewPHI))
     RecomputePHIContents = true;
-  }
 
   if (RecomputePHIContents) {
     // The needed PHIs have changed, so recompute the set of all needed
@@ -713,6 +714,15 @@ Optional<SinkingInstructionCandidate> GVNSink::analyzeInstructionForSinking(
   // FIXME: If any of these fail, we should partition up the candidates to
   // try and continue making progress.
   Instruction *I0 = NewInsts[0];
+
+  // If all instructions that are going to participate don't have the same
+  // number of operands, we can't do any useful PHI analysis for all operands.
+  auto hasDifferentNumOperands = [&I0](Instruction *I) {
+    return I->getNumOperands() != I0->getNumOperands();
+  };
+  if (any_of(NewInsts, hasDifferentNumOperands))
+    return None;
+
   for (unsigned OpNum = 0, E = I0->getNumOperands(); OpNum != E; ++OpNum) {
     ModelledPHI PHI(NewInsts, OpNum, ActivePreds);
     if (PHI.areAllIncomingValuesSame())
@@ -742,8 +752,7 @@ Optional<SinkingInstructionCandidate> GVNSink::analyzeInstructionForSinking(
   Cand.NumMemoryInsts = MemoryInstNum;
   Cand.NumBlocks = ActivePreds.size();
   Cand.NumPHIs = NeededPHIs.size();
-  for (auto *C : ActivePreds)
-    Cand.Blocks.push_back(C);
+  append_range(Cand.Blocks, ActivePreds);
 
   return Cand;
 }
@@ -901,10 +910,7 @@ PreservedAnalyses GVNSinkPass::run(Function &F, FunctionAnalysisManager &AM) {
   GVNSink G;
   if (!G.run(F))
     return PreservedAnalyses::all();
-
-  PreservedAnalyses PA;
-  PA.preserve<GlobalsAA>();
-  return PA;
+  return PreservedAnalyses::none();
 }
 
 char GVNSinkLegacyPass::ID = 0;

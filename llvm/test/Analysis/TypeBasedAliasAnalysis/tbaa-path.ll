@@ -1,5 +1,5 @@
-; RUN: opt < %s -tbaa -basicaa -aa-eval -evaluate-aa-metadata -print-no-aliases -print-may-aliases -disable-output 2>&1 | FileCheck %s
-; RUN: opt < %s -tbaa -basicaa -gvn -S | FileCheck %s --check-prefix=OPT
+; RUN: opt < %s -aa-pipeline=tbaa,basic-aa -passes=aa-eval -evaluate-aa-metadata -print-no-aliases -print-may-aliases -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -aa-pipeline=tbaa,basic-aa -passes=gvn -S | FileCheck %s --check-prefix=OPT
 ; Generated from clang/test/CodeGen/tbaa.cpp with "-O1 -struct-path-tbaa -disable-llvm-optzns".
 
 %struct.StructA = type { i16, i32, i16, i32 }
@@ -361,7 +361,7 @@ entry:
   ret i32 %5
 }
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-frame-pointer-elim-non-leaf"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !0 = !{!1, !1, i64 0}
 !1 = !{!"any pointer", !2}

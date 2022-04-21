@@ -21,11 +21,11 @@
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/MC/MCParser/MCAsmParserExtension.h"
+#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCSectionWasm.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolWasm.h"
-#include "llvm/Support/MachineValueType.h"
+#include "llvm/Support/Casting.h"
 
 using namespace llvm;
 
@@ -53,9 +53,19 @@ public:
     this->MCAsmParserExtension::Initialize(*Parser);
 
     addDirectiveHandler<&WasmAsmParser::parseSectionDirectiveText>(".text");
+    addDirectiveHandler<&WasmAsmParser::parseSectionDirectiveData>(".data");
     addDirectiveHandler<&WasmAsmParser::parseSectionDirective>(".section");
     addDirectiveHandler<&WasmAsmParser::parseDirectiveSize>(".size");
     addDirectiveHandler<&WasmAsmParser::parseDirectiveType>(".type");
+    addDirectiveHandler<&WasmAsmParser::ParseDirectiveIdent>(".ident");
+    addDirectiveHandler<
+      &WasmAsmParser::ParseDirectiveSymbolAttribute>(".weak");
+    addDirectiveHandler<
+      &WasmAsmParser::ParseDirectiveSymbolAttribute>(".local");
+    addDirectiveHandler<
+      &WasmAsmParser::ParseDirectiveSymbolAttribute>(".internal");
+    addDirectiveHandler<
+      &WasmAsmParser::ParseDirectiveSymbolAttribute>(".hidden");
   }
 
   bool error(const StringRef &Msg, const AsmToken &Tok) {
@@ -81,20 +91,57 @@ public:
     return false;
   }
 
-  bool parseSectionFlags(StringRef FlagStr, bool &Passive) {
-    SmallVector<StringRef, 2> Flags;
-    // If there are no flags, keep Flags empty
-    FlagStr.split(Flags, ",", -1, false);
-    for (auto &Flag : Flags) {
-      if (Flag == "passive")
+  bool parseSectionDirectiveData(StringRef, SMLoc) {
+    auto *S = getContext().getObjectFileInfo()->getDataSection();
+    getStreamer().SwitchSection(S);
+    return false;
+  }
+
+  uint32_t parseSectionFlags(StringRef FlagStr, bool &Passive, bool &Group) {
+    uint32_t flags = 0;
+    for (char C : FlagStr) {
+      switch (C) {
+      case 'p':
         Passive = true;
-      else
-        return error("Expected section flags, instead got: ", Lexer->getTok());
+        break;
+      case 'G':
+        Group = true;
+        break;
+      case 'T':
+        flags |= wasm::WASM_SEG_FLAG_TLS;
+        break;
+      case 'S':
+        flags |= wasm::WASM_SEG_FLAG_STRINGS;
+        break;
+      default:
+        return -1U;
+      }
+    }
+    return flags;
+  }
+
+  bool parseGroup(StringRef &GroupName) {
+    if (Lexer->isNot(AsmToken::Comma))
+      return TokError("expected group name");
+    Lex();
+    if (Lexer->is(AsmToken::Integer)) {
+      GroupName = getTok().getString();
+      Lex();
+    } else if (Parser->parseIdentifier(GroupName)) {
+      return TokError("invalid group name");
+    }
+    if (Lexer->is(AsmToken::Comma)) {
+      Lex();
+      StringRef Linkage;
+      if (Parser->parseIdentifier(Linkage))
+        return TokError("invalid linkage");
+      if (Linkage != "comdat")
+        return TokError("Linkage must be 'comdat'");
     }
     return false;
   }
 
-  bool parseSectionDirective(StringRef, SMLoc) {
+  bool parseSectionDirective(StringRef, SMLoc loc) {
     StringRef Name;
     if (Parser->parseIdentifier(Name))
       return TokError("expected identifier in directive");
@@ -105,53 +152,56 @@ public:
     if (Lexer->isNot(AsmToken::String))
       return error("expected string in directive, instead got: ", Lexer->getTok());
 
-    SectionKind Kind = StringSwitch<SectionKind>(Name)
-                       .StartsWith(".data", SectionKind::getData())
-                       .StartsWith(".rodata", SectionKind::getReadOnly())
-                       .StartsWith(".text", SectionKind::getText())
-                       .StartsWith(".custom_section", SectionKind::getMetadata());
-
-    MCSectionWasm* Section = getContext().getWasmSection(Name, Kind);
+    auto Kind = StringSwitch<Optional<SectionKind>>(Name)
+                    .StartsWith(".data", SectionKind::getData())
+                    .StartsWith(".tdata", SectionKind::getThreadData())
+                    .StartsWith(".tbss", SectionKind::getThreadBSS())
+                    .StartsWith(".rodata", SectionKind::getReadOnly())
+                    .StartsWith(".text", SectionKind::getText())
+                    .StartsWith(".custom_section", SectionKind::getMetadata())
+                    .StartsWith(".bss", SectionKind::getBSS())
+                    // See use of .init_array in WasmObjectWriter and
+                    // TargetLoweringObjectFileWasm
+                    .StartsWith(".init_array", SectionKind::getData())
+                    .StartsWith(".debug_", SectionKind::getMetadata())
+                    .Default(SectionKind::getData());
 
     // Update section flags if present in this .section directive
     bool Passive = false;
-    if (parseSectionFlags(getTok().getStringContents(), Passive))
-      return true;
-
-    if (Passive) {
-      if (!Section->isWasmData())
-        return Parser->Error(getTok().getLoc(),
-                             "Only data sections can be passive");
-      Section->setPassive();
-    }
+    bool Group = false;
+    uint32_t Flags =
+        parseSectionFlags(getTok().getStringContents(), Passive, Group);
+    if (Flags == -1U)
+      return TokError("unknown flag");
 
     Lex();
 
-    if (expect(AsmToken::Comma, ",") || expect(AsmToken::At, "@") ||
-        expect(AsmToken::EndOfStatement, "eol"))
+    if (expect(AsmToken::Comma, ",") || expect(AsmToken::At, "@"))
       return true;
-    struct SectionType {
-      const char *Name;
-      SectionKind Kind;
-    };
-    static SectionType SectionTypes[] = {
-        {".text", SectionKind::getText()},
-        {".rodata", SectionKind::getReadOnly()},
-        {".data", SectionKind::getData()},
-        {".custom_section", SectionKind::getMetadata()},
-        // TODO: add more types.
-    };
-    for (size_t I = 0; I < sizeof(SectionTypes) / sizeof(SectionType); I++) {
-      if (Name.startswith(SectionTypes[I].Name)) {
-        auto WS = getContext().getWasmSection(Name, SectionTypes[I].Kind);
-        getStreamer().SwitchSection(WS);
-        return false;
-      }
+
+    StringRef GroupName;
+    if (Group && parseGroup(GroupName))
+      return true;
+
+    if (expect(AsmToken::EndOfStatement, "eol"))
+      return true;
+
+    // TODO: Parse UniqueID
+    MCSectionWasm *WS = getContext().getWasmSection(
+        Name, Kind.getValue(), Flags, GroupName, MCContext::GenericSectionID);
+
+    if (WS->getSegmentFlags() != Flags)
+      Parser->Error(loc, "changed section flags for " + Name +
+                             ", expected: 0x" +
+                             utohexstr(WS->getSegmentFlags()));
+
+    if (Passive) {
+      if (!WS->isWasmData())
+        return Parser->Error(loc, "Only data sections can be passive");
+      WS->setPassive();
     }
-    // Not found, just ignore this section.
-    // For code in a text section WebAssemblyAsmParser automatically adds
-    // one section per function, so they're optional to be specified with
-    // this directive.
+
+    getStreamer().SwitchSection(WS);
     return false;
   }
 
@@ -189,14 +239,65 @@ public:
           Lexer->is(AsmToken::Identifier)))
       return error("Expected label,@type declaration, got: ", Lexer->getTok());
     auto TypeName = Lexer->getTok().getString();
-    if (TypeName == "function")
+    if (TypeName == "function") {
       WasmSym->setType(wasm::WASM_SYMBOL_TYPE_FUNCTION);
-    else if (TypeName == "global")
+      auto *Current =
+          cast<MCSectionWasm>(getStreamer().getCurrentSection().first);
+      if (Current->getGroup())
+        WasmSym->setComdat(true);
+    } else if (TypeName == "global")
       WasmSym->setType(wasm::WASM_SYMBOL_TYPE_GLOBAL);
+    else if (TypeName == "object")
+      WasmSym->setType(wasm::WASM_SYMBOL_TYPE_DATA);
     else
       return error("Unknown WASM symbol type: ", Lexer->getTok());
     Lex();
     return expect(AsmToken::EndOfStatement, "EOL");
+  }
+
+  // FIXME: Shared with ELF.
+  /// ParseDirectiveIdent
+  ///  ::= .ident string
+  bool ParseDirectiveIdent(StringRef, SMLoc) {
+    if (getLexer().isNot(AsmToken::String))
+      return TokError("unexpected token in '.ident' directive");
+    StringRef Data = getTok().getIdentifier();
+    Lex();
+    if (getLexer().isNot(AsmToken::EndOfStatement))
+      return TokError("unexpected token in '.ident' directive");
+    Lex();
+    getStreamer().emitIdent(Data);
+    return false;
+  }
+
+  // FIXME: Shared with ELF.
+  /// ParseDirectiveSymbolAttribute
+  ///  ::= { ".local", ".weak", ... } [ identifier ( , identifier )* ]
+  bool ParseDirectiveSymbolAttribute(StringRef Directive, SMLoc) {
+    MCSymbolAttr Attr = StringSwitch<MCSymbolAttr>(Directive)
+      .Case(".weak", MCSA_Weak)
+      .Case(".local", MCSA_Local)
+      .Case(".hidden", MCSA_Hidden)
+      .Case(".internal", MCSA_Internal)
+      .Case(".protected", MCSA_Protected)
+      .Default(MCSA_Invalid);
+    assert(Attr != MCSA_Invalid && "unexpected symbol attribute directive!");
+    if (getLexer().isNot(AsmToken::EndOfStatement)) {
+      while (true) {
+        StringRef Name;
+        if (getParser().parseIdentifier(Name))
+          return TokError("expected identifier in directive");
+        MCSymbol *Sym = getContext().getOrCreateSymbol(Name);
+        getStreamer().emitSymbolAttribute(Sym, Attr);
+        if (getLexer().is(AsmToken::EndOfStatement))
+          break;
+        if (getLexer().isNot(AsmToken::Comma))
+          return TokError("unexpected token in directive");
+        Lex();
+      }
+    }
+    Lex();
+    return false;
   }
 };
 

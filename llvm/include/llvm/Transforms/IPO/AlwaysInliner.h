@@ -18,6 +18,9 @@
 
 namespace llvm {
 
+class Module;
+class Pass;
+
 /// Inlines functions marked as "always_inline".
 ///
 /// Note that this does not inline call sites marked as always_inline and does
@@ -34,6 +37,7 @@ public:
       : InsertLifetime(InsertLifetime) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  static bool isRequired() { return true; }
 };
 
 /// Create a legacy pass manager instance of a pass to inline and remove

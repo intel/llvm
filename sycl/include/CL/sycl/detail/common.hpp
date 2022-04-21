@@ -8,103 +8,193 @@
 
 #pragma once
 
-// Suppress a compiler warning about undefined CL_TARGET_OPENCL_VERSION
-// Khronos ICD supports only latest OpenCL version
-#define CL_TARGET_OPENCL_VERSION 220
-#include <CL/cl.h>
-#include <CL/cl_ext.h>
-#include <CL/cl_ext_intel.h>
+#include <CL/sycl/detail/cl.h>
+#include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
+
+#include <cstdint>
 #include <string>
-#include <type_traits>
 
-// Select underlying runtime interface in compile-time (OpenCL or PI).
-// Comment the define of the FORCE_SYCL_BE_OPENCL below to switch to PI.
-// As such only one path (OpenCL today) is being regularily tested.
-//
-// TODO: we can just remove this when switch to PI completely.
-//
-#define FORCE_SYCL_BE_OPENCL
+// Default signature enables the passing of user code location information to
+// public methods as a default argument. If the end-user wants to disable the
+// code location information, they must compile the code with
+// -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
 
-#ifdef FORCE_SYCL_BE_OPENCL
-#include <CL/sycl/detail/pi_opencl.hpp>
+#if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
+#define __CODELOC_FILE_NAME __builtin_FILE()
 #else
-#include <CL/sycl/detail/pi.hpp>
+#define __CODELOC_FILE_NAME nullptr
 #endif
 
-const char *stringifyErrorCode(cl_int error);
+#if _MSC_VER > 1929 || __has_builtin(__builtin_FUNCTION)
+#define __CODELOC_FUNCTION __builtin_FUNCTION()
+#else
+#define __CODELOC_FUNCTION nullptr
+#endif
 
-#define OCL_CODE_TO_STR(code)                                                  \
-  std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
+#if _MSC_VER > 1929 || __has_builtin(__builtin_LINE)
+#define __CODELOC_LINE __builtin_LINE()
+#else
+#define __CODELOC_LINE 0
+#endif
 
-#define STRINGIFY_LINE_HELP(s) #s
-#define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
+#if _MSC_VER > 1929 || __has_builtin(__builtin_COLUMN)
+#define __CODELOC_COLUMN __builtin_COLUMN()
+#else
+#define __CODELOC_COLUMN 0
+#endif
 
-#define OCL_ERROR_REPORT                                                       \
-  "OpenCL API failed. " __FILE__                                               \
-  ":" STRINGIFY_LINE(__LINE__) ": "                                            \
-                               "OpenCL API returns: "
+// Data structure that captures the user code location information using the
+// builtin capabilities of the compiler
+struct code_location {
+  static constexpr code_location
+  current(const char *fileName = __CODELOC_FILE_NAME,
+          const char *funcName = __CODELOC_FUNCTION,
+          unsigned long lineNo = __CODELOC_LINE,
+          unsigned long columnNo = __CODELOC_COLUMN) noexcept {
+    return code_location(fileName, funcName, lineNo, columnNo);
+  }
 
-#ifndef SYCL_SUPPRESS_OCL_ERROR_REPORT
+#undef __CODELOC_FILE_NAME
+#undef __CODELOC_FUNCTION
+#undef __CODELOC_LINE
+#undef __CODELOC_COLUMN
+
+  constexpr code_location(const char *file, const char *func, int line,
+                          int col) noexcept
+      : MFileName(file), MFunctionName(func), MLineNo(line), MColumnNo(col) {}
+
+  constexpr code_location() noexcept
+      : MFileName(nullptr), MFunctionName(nullptr), MLineNo(0), MColumnNo(0) {}
+
+  constexpr unsigned long lineNumber() const noexcept { return MLineNo; }
+  constexpr unsigned long columnNumber() const noexcept { return MColumnNo; }
+  constexpr const char *fileName() const noexcept { return MFileName; }
+  constexpr const char *functionName() const noexcept { return MFunctionName; }
+
+private:
+  const char *MFileName;
+  const char *MFunctionName;
+  unsigned long MLineNo;
+  unsigned long MColumnNo;
+};
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
+
+__SYCL_EXPORT const char *stringifyErrorCode(cl_int error);
+
+static inline std::string codeToString(cl_int code) {
+  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
+                     ")");
+}
+
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
+#ifdef __SYCL_DEVICE_ONLY__
+// TODO remove this when 'assert' is supported in device code
+#define __SYCL_ASSERT(x)
+#else
+#define __SYCL_ASSERT(x) assert(x)
+#endif // #ifdef __SYCL_DEVICE_ONLY__
+
+#define __SYCL_OCL_ERROR_REPORT                                                \
+  "Native API failed. " /*__FILE__*/                                           \
+  /* TODO: replace __FILE__ to report only relative path*/                     \
+  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
+                          "Native API returns: "
+
+#ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
-#define REPORT_OCL_ERR_TO_STREAM(code)                                         \
-  if (code != CL_SUCCESS) {                                                    \
-    std::cerr << OCL_ERROR_REPORT << OCL_CODE_TO_STR(code) << std::endl;       \
+// TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
+#define __SYCL_REPORT_OCL_ERR_TO_STREAM(expr)                                  \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != CL_SUCCESS) {                                                  \
+      std::cerr << __SYCL_OCL_ERROR_REPORT                                     \
+                << cl::sycl::detail::codeToString(code) << std::endl;          \
+    }                                                                          \
   }
 #endif
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
-
-#define REPORT_OCL_ERR_TO_EXC(code, exc)                                       \
-  if (code != CL_SUCCESS) {                                                    \
-    std::string errorMessage(OCL_ERROR_REPORT + OCL_CODE_TO_STR(code));        \
-    std::cerr << errorMessage << std::endl;                                    \
-    throw exc(errorMessage.c_str(), (code));                                   \
+// SYCL 1.2.1 exceptions
+#define __SYCL_REPORT_OCL_ERR_TO_EXC(expr, exc)                                \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != CL_SUCCESS) {                                                  \
+      throw exc(__SYCL_OCL_ERROR_REPORT +                                      \
+                    cl::sycl::detail::codeToString(code),                      \
+                code);                                                         \
+    }                                                                          \
   }
-#define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
-#define REPORT_OCL_ERR_TO_EXC_BASE(code)                                       \
-  REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
+#define __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(code, exc)                          \
+  __SYCL_REPORT_OCL_ERR_TO_EXC(code, exc)
+#define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
+  __SYCL_REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
 #else
-#define REPORT_OCL_ERR_TO_EXC_BASE(code) REPORT_OCL_ERR_TO_STREAM(code)
+#define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
+  __SYCL_REPORT_OCL_ERR_TO_STREAM(code)
 #endif
+// SYCL 2020 exceptions
+#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != CL_SUCCESS) {                                                  \
+      throw sycl::exception(sycl::make_error_code(errc),                       \
+                            __SYCL_OCL_ERROR_REPORT +                          \
+                                cl::sycl::detail::codeToString(code));         \
+    }                                                                          \
+  }
+#define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
+  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(code, errc)
 
-#ifdef SYCL_SUPPRESS_OCL_ERROR_REPORT
-#define CHECK_OCL_CODE(X) (void)(X)
-#define CHECK_OCL_CODE_THROW(X, EXC) (void)(X)
-#define CHECK_OCL_CODE_NO_EXC(X) (void)(X)
+#ifdef __SYCL_SUPPRESS_OCL_ERROR_REPORT
+// SYCL 1.2.1 exceptions
+#define __SYCL_CHECK_OCL_CODE(X) (void)(X)
+#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC) (void)(X)
+#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
+// SYCL 2020 exceptions
+#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC) (void)(X)
 #else
-#define CHECK_OCL_CODE(X) REPORT_OCL_ERR_TO_EXC_BASE(X)
-#define CHECK_OCL_CODE_THROW(X, EXC) REPORT_OCL_ERR_TO_EXC_THROW(X, EXC)
-#define CHECK_OCL_CODE_NO_EXC(X) REPORT_OCL_ERR_TO_STREAM(X)
+// SYCL 1.2.1 exceptions
+#define __SYCL_CHECK_OCL_CODE(X) __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(X)
+#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC)                                    \
+  __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(X, EXC)
+#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_OCL_ERR_TO_STREAM(X)
+// SYCL 2020 exceptions
+#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
+  __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
 #endif
 
-#ifndef __has_attribute
-#define __has_attribute(x) 0
-#endif
-
-#if __has_attribute(always_inline)
-#define ALWAYS_INLINE __attribute__((always_inline))
-#else
-#define ALWAYS_INLINE
-#endif
-
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-
-// Select underlying runtime interface (RT) in compile-time (OpenCL or PI).
-// As such only one path (OpenCL today) is being regularily tested.
-//
-#ifdef FORCE_SYCL_BE_OPENCL
-using RT = cl::sycl::detail::opencl;
-#else
-using RT = cl::sycl::detail::pi;
-#endif
 
 // Helper function for extracting implementation from SYCL's interface objects.
 // Note! This function relies on the fact that all SYCL interface classes
 // contain "impl" field that points to implementation object. "impl" field
 // should be accessible from this function.
+//
+// Note that due to a bug in MSVC compilers (including MSVC2019 v19.20), it
+// may not recognize the usage of this function in friend member declarations
+// if the template parameter name there is not equal to the name used here,
+// i.e. 'Obj'. For example, using 'Obj' here and 'T' in such declaration
+// would trigger that error in MSVC:
+//   template <class T>
+//   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
 template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
   return SyclObject.impl;
 }
@@ -113,7 +203,7 @@ template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
 // must make sure the returned pointer is not captured in a field or otherwise
 // stored - i.e. must live only as on-stack value.
 template <class T>
-typename std::add_pointer<typename decltype(T::impl)::element_type>::type
+typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
 getRawSyclObjImpl(const T &SyclObject) {
   return SyclObject.impl.get();
 }
@@ -129,27 +219,23 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
 template <int N, template <int> class T> struct InitializedVal {
-  template <int Val> static T<N> &&get();
+  template <int Val> static T<N> get();
 };
 
 // Specialization for a one-dimensional type.
 template <template <int> class T> struct InitializedVal<1, T> {
-  template <int Val> static T<1> &&get() { return T<1>{Val}; }
+  template <int Val> static T<1> get() { return T<1>{Val}; }
 };
 
 // Specialization for a two-dimensional type.
 template <template <int> class T> struct InitializedVal<2, T> {
-  template <int Val> static T<2> &&get() { return T<2>{Val, Val}; }
+  template <int Val> static T<2> get() { return T<2>{Val, Val}; }
 };
 
 // Specialization for a three-dimensional type.
 template <template <int> class T> struct InitializedVal<3, T> {
-  template <int Val> static T<3> &&get() { return T<3>{Val, Val, Val}; }
+  template <int Val> static T<3> get() { return T<3>{Val, Val, Val}; }
 };
-
-// Fills the lack of enable_if_t in C++11.
-template <bool Cond, typename T = void>
-using enable_if_t = typename std::enable_if<Cond, T>::type;
 
 /// Helper class for the \c NDLoop.
 template <int NDIMS, int DIM, template <int> class LoopBoundTy, typename FuncTy,
@@ -159,9 +245,9 @@ struct NDLoopIterateImpl {
                     const LoopBoundTy<NDIMS> &Stride,
                     const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
                     LoopIndexTy<NDIMS> &Index) {
-
-    for (Index[DIM] = LowerBound[DIM]; Index[DIM] < UpperBound[DIM];
-         Index[DIM] += Stride[DIM]) {
+    constexpr size_t AdjIdx = NDIMS - 1 - DIM;
+    for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
+         Index[AdjIdx] += Stride[AdjIdx]) {
 
       NDLoopIterateImpl<NDIMS, DIM - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
           LowerBound, Stride, UpperBound, f, Index};
@@ -169,7 +255,7 @@ struct NDLoopIterateImpl {
   }
 };
 
-// spcialization for DIM=0 to terminate recursion
+// Specialization for DIM=0 to terminate recursion
 template <int NDIMS, template <int> class LoopBoundTy, typename FuncTy,
           template <int> class LoopIndexTy>
 struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
@@ -178,8 +264,9 @@ struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
                     const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
                     LoopIndexTy<NDIMS> &Index) {
 
-    for (Index[0] = LowerBound[0]; Index[0] < UpperBound[0];
-         Index[0] += Stride[0]) {
+    constexpr size_t AdjIdx = NDIMS - 1;
+    for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
+         Index[AdjIdx] += Stride[AdjIdx]) {
 
       f(Index);
     }
@@ -191,19 +278,21 @@ struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
 /// over a multi-dimensional space - it allows to avoid generating unnecessary
 /// outer loops like 'for (int z=0; z<1; z++)' in case of 1D and 2D iteration
 /// spaces or writing specializations of the algorithms for 1D, 2D and 3D cases.
+/// Loop is unrolled in a reverse directions, i.e. ID = 0 is the inner-most one.
 template <int NDIMS> struct NDLoop {
   /// Generates ND loop nest with {0,..0} .. \c UpperBound bounds with unit
   /// stride. Applies \c f at each iteration, passing current index of
   /// \c LoopIndexTy<NDIMS> type as the parameter.
   template <template <int> class LoopBoundTy, typename FuncTy,
             template <int> class LoopIndexTy = LoopBoundTy>
-  static ALWAYS_INLINE void iterate(const LoopBoundTy<NDIMS> &UpperBound,
-                                    FuncTy f) {
+  static __SYCL_ALWAYS_INLINE void iterate(const LoopBoundTy<NDIMS> &UpperBound,
+                                           FuncTy f) {
     const LoopIndexTy<NDIMS> LowerBound =
         InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
     const LoopBoundTy<NDIMS> Stride =
         InitializedVal<NDIMS, LoopBoundTy>::template get<1>();
-    LoopIndexTy<NDIMS> Index; // initialized down the call stack
+    LoopIndexTy<NDIMS> Index =
+        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
 
     NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
         LowerBound, Stride, UpperBound, f, Index};
@@ -214,16 +303,51 @@ template <int NDIMS> struct NDLoop {
   /// \c LoopIndexTy<NDIMS> type as the parameter.
   template <template <int> class LoopBoundTy, typename FuncTy,
             template <int> class LoopIndexTy = LoopBoundTy>
-  static ALWAYS_INLINE void iterate(const LoopIndexTy<NDIMS> &LowerBound,
-                                    const LoopBoundTy<NDIMS> &Stride,
-                                    const LoopBoundTy<NDIMS> &UpperBound,
-                                    FuncTy f) {
-    LoopIndexTy<NDIMS> Index; // initialized down the call stack
+  static __SYCL_ALWAYS_INLINE void iterate(const LoopIndexTy<NDIMS> &LowerBound,
+                                           const LoopBoundTy<NDIMS> &Stride,
+                                           const LoopBoundTy<NDIMS> &UpperBound,
+                                           FuncTy f) {
+    LoopIndexTy<NDIMS> Index =
+        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
     NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
         LowerBound, Stride, UpperBound, f, Index};
   }
 };
 
+constexpr size_t getNextPowerOfTwoHelper(size_t Var, size_t Offset) {
+  return Offset != 64
+             ? getNextPowerOfTwoHelper(Var | (Var >> Offset), Offset * 2)
+             : Var;
+}
+
+// Returns the smallest power of two not less than Var
+constexpr size_t getNextPowerOfTwo(size_t Var) {
+  return getNextPowerOfTwoHelper(Var - 1, 1) + 1;
+}
+
+// Returns linear index by given index and range
+template <int Dims, template <int> class T, template <int> class U>
+size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
+  size_t LinearIndex = 0;
+  for (int I = 0; I < Dims; ++I)
+    LinearIndex = LinearIndex * Range[I] + Index[I];
+  return LinearIndex;
+}
+
+// Kernel set ID, used to group kernels (represented by OSModule & kernel name
+// pairs) into disjoint sets based on the kernel distribution among device
+// images.
+using KernelSetId = size_t;
+// Kernel set ID for kernels contained within the SPIR-V file specified via
+// environment.
+constexpr KernelSetId SpvFileKSId = 0;
+constexpr KernelSetId LastKSId = SpvFileKSId;
+
+template <typename T> struct InlineVariableHelper {
+  static constexpr T value{};
+};
+
+template <typename T> constexpr T InlineVariableHelper<T>::value;
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

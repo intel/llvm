@@ -29,9 +29,14 @@ Options
 
 .. option:: IgnoreArrays
 
-   If set to non-zero, the check will not warn about array members that are not
+   If set to `true`, the check will not warn about array members that are not
    zero-initialized during construction. For performance critical code, it may
-   be important to not initialize fixed-size array members. Default is `0`.
+   be important to not initialize fixed-size array members. Default is `false`.
+
+.. option:: UseAssignment
+
+   If set to `true`, the check will provide fix-its with literal initializers
+   \( ``int i = 0;`` \) instead of curly braces \( ``int i{};`` \).
 
 This rule is part of the "Type safety" profile of the C++ Core
 Guidelines, corresponding to rule Type.6. See

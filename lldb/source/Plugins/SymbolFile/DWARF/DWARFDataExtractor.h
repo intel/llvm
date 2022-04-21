@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_DWARFDataExtractor_h_
-#define liblldb_DWARFDataExtractor_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDATAEXTRACTOR_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDATAEXTRACTOR_H
 
 #include "lldb/Core/dwarf.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
 
 namespace lldb_private {
 
@@ -28,7 +29,9 @@ public:
 
   size_t GetDWARFSizeofInitialLength() const { return 4; }
   size_t GetDWARFSizeOfOffset() const { return 4; }
+
+  llvm::DWARFDataExtractor GetAsLLVM() const;
 };
 }
 
-#endif // liblldb_DWARFDataExtractor_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDATAEXTRACTOR_H

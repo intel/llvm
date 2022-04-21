@@ -1,11 +1,11 @@
-; RUN: opt %loadPolly -polly-scops -polly-allow-nonaffine-branches \
+; RUN: opt %loadPolly -polly-allow-nonaffine-branches \
 ; RUN:     -polly-invariant-load-hoisting=true \
 ; RUN:     -polly-allow-nonaffine-loops=true \
-; RUN:     -analyze < %s | FileCheck %s --check-prefix=INNERMOST
-; RUN: opt %loadPolly -polly-scops -polly-allow-nonaffine \
+; RUN:     -polly-print-scops -disable-output < %s | FileCheck %s --check-prefix=INNERMOST
+; RUN: opt %loadPolly -polly-allow-nonaffine \
 ; RUN:     -polly-invariant-load-hoisting=true \
 ; RUN:     -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true \
-; RUN:     -analyze < %s | FileCheck %s \
+; RUN:     -polly-print-scops -disable-output < %s | FileCheck %s \
 ; RUN:     --check-prefix=ALL
 ;
 ; Negative test for INNERMOST.
@@ -33,7 +33,7 @@
 ; INNERMOST-NEXT:    [tmp6, N, p_2] -> {  :  }
 ; INNERMOST-NEXT:    Invalid Context:
 ; INNERMOST-NEXT:    [tmp6, N, p_2] -> {  : p_2 < N and (tmp6 < 0 or tmp6 > 0) }
-; INNERMOST-NEXT:    p0: %tmp6
+; INNERMOST:         p0: %tmp6
 ; INNERMOST-NEXT:    p1: %N
 ; INNERMOST-NEXT:    p2: {0,+,1}<nuw><nsw><%bb3>
 ; INNERMOST-NEXT:    Arrays {
@@ -76,7 +76,7 @@
 ; ALL-NEXT: {  :  }
 ; ALL-NEXT: Invalid Context:
 ; ALL-NEXT: {  : false }
-; ALL-NEXT: Arrays {
+; ALL:      Arrays {
 ; ALL-NEXT:     i32 MemRef_A[*]; // Element size 4
 ; ALL-NEXT: }
 ; ALL-NEXT: Arrays (Bounds as pw_affs) {

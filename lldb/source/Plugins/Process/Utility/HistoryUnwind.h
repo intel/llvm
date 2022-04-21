@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_HistoryUnwind_h_
-#define liblldb_HistoryUnwind_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_HISTORYUNWIND_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_HISTORYUNWIND_H
 
 #include <vector>
 
@@ -19,7 +19,7 @@ namespace lldb_private {
 class HistoryUnwind : public lldb_private::Unwind {
 public:
   HistoryUnwind(Thread &thread, std::vector<lldb::addr_t> pcs,
-                bool stop_id_is_valid);
+                bool pcs_are_call_addresses = false);
 
   ~HistoryUnwind() override;
 
@@ -30,14 +30,17 @@ protected:
   DoCreateRegisterContextForFrame(StackFrame *frame) override;
 
   bool DoGetFrameInfoAtIndex(uint32_t frame_idx, lldb::addr_t &cfa,
-                             lldb::addr_t &pc) override;
+                             lldb::addr_t &pc,
+                             bool &behaves_like_zeroth_frame) override;
   uint32_t DoGetFrameCount() override;
 
 private:
   std::vector<lldb::addr_t> m_pcs;
-  bool m_stop_id_is_valid;
+  /// This boolean indicates that the PCs in the non-0 frames are call
+  /// addresses and not return addresses.
+  bool m_pcs_are_call_addresses;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_HistoryUnwind_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_HISTORYUNWIND_H

@@ -27,18 +27,18 @@ namespace llvm {
     /// stream and is responsible for cleanup, memory management
     /// issues, etc.
     ///
-    static const bool TAKE_OWNERSHIP = true;
+    static constexpr bool TAKE_OWNERSHIP = true;
 
     /// REFERENCE_ONLY - Tell this stream it should not manage the
     /// held stream.
     ///
-    static const bool REFERENCE_ONLY = false;
+    static constexpr bool REFERENCE_ONLY = false;
 
   private:
     /// TheStream - The real stream we output to. We set it to be
     /// unbuffered, since we're already doing our own buffering.
     ///
-    raw_ostream *TheStream;
+    raw_ostream *TheStream = nullptr;
 
     /// OwnsStream - Are we responsible for managing the underlying
     /// stream?
@@ -51,7 +51,7 @@ namespace llvm {
 
     /// BufferArray - The actual buffer storage.
     ///
-    char *BufferArray;
+    char *BufferArray = nullptr;
 
     /// Cur - Pointer to the current output point in BufferArray.
     ///
@@ -60,7 +60,7 @@ namespace llvm {
     /// Filled - Indicate whether the buffer has been completely
     /// filled.  This helps avoid garbage output.
     ///
-    bool Filled;
+    bool Filled = false;
 
     /// Banner - A pointer to a banner to print before dumping the
     /// log.
@@ -106,9 +106,8 @@ namespace llvm {
     ///
     circular_raw_ostream(raw_ostream &Stream, const char *Header,
                          size_t BuffSize = 0, bool Owns = REFERENCE_ONLY)
-        : raw_ostream(/*unbuffered*/ true), TheStream(nullptr),
-          OwnsStream(Owns), BufferSize(BuffSize), BufferArray(nullptr),
-          Filled(false), Banner(Header) {
+        : raw_ostream(/*unbuffered*/ true), OwnsStream(Owns),
+          BufferSize(BuffSize), Banner(Header) {
       if (BufferSize != 0)
         BufferArray = new char[BufferSize];
       Cur = BufferArray;
@@ -120,6 +119,10 @@ namespace llvm {
       flushBufferWithBanner();
       releaseStream();
       delete[] BufferArray;
+    }
+
+    bool is_displayed() const override {
+      return TheStream->is_displayed();
     }
 
     /// setStream - Tell the circular_raw_ostream to output a

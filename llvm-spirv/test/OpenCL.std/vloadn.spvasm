@@ -1,0 +1,614 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+;
+; CHECK-LABEL: spir_kernel void @testChar
+;
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2iPU3AS1c
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3iPU3AS1c
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4iPU3AS1c
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8iPU3AS1c
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16iPU3AS1c
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2iPU3AS3c
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3iPU3AS3c
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4iPU3AS3c
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8iPU3AS3c
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16iPU3AS3c
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2iPU3AS2c
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3iPU3AS2c
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4iPU3AS2c
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8iPU3AS2c
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16iPU3AS2c
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z25__spirv_ocl_vloadn_Rchar2iPc
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z25__spirv_ocl_vloadn_Rchar3iPc
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z25__spirv_ocl_vloadn_Rchar4iPc
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z25__spirv_ocl_vloadn_Rchar8iPc
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z26__spirv_ocl_vloadn_Rchar16iPc
+;
+; CHECK-CL20: call spir_func <2 x i8> @_Z6vload2jPU3AS1Kc
+; CHECK-CL20: call spir_func <3 x i8> @_Z6vload3jPU3AS1Kc
+; CHECK-CL20: call spir_func <4 x i8> @_Z6vload4jPU3AS1Kc
+; CHECK-CL20: call spir_func <8 x i8> @_Z6vload8jPU3AS1Kc
+; CHECK-CL20: call spir_func <16 x i8> @_Z7vload16jPU3AS1Kc
+; CHECK-CL20: call spir_func <2 x i8> @_Z6vload2jPU3AS3Kc
+; CHECK-CL20: call spir_func <3 x i8> @_Z6vload3jPU3AS3Kc
+; CHECK-CL20: call spir_func <4 x i8> @_Z6vload4jPU3AS3Kc
+; CHECK-CL20: call spir_func <8 x i8> @_Z6vload8jPU3AS3Kc
+; CHECK-CL20: call spir_func <16 x i8> @_Z7vload16jPU3AS3Kc
+; CHECK-CL20: call spir_func <2 x i8> @_Z6vload2jPU3AS2Kc
+; CHECK-CL20: call spir_func <3 x i8> @_Z6vload3jPU3AS2Kc
+; CHECK-CL20: call spir_func <4 x i8> @_Z6vload4jPU3AS2Kc
+; CHECK-CL20: call spir_func <8 x i8> @_Z6vload8jPU3AS2Kc
+; CHECK-CL20: call spir_func <16 x i8> @_Z7vload16jPU3AS2Kc
+; CHECK-CL20: call spir_func <2 x i8> @_Z6vload2jPKc
+; CHECK-CL20: call spir_func <3 x i8> @_Z6vload3jPKc
+; CHECK-CL20: call spir_func <4 x i8> @_Z6vload4jPKc
+; CHECK-CL20: call spir_func <8 x i8> @_Z6vload8jPKc
+; CHECK-CL20: call spir_func <16 x i8> @_Z7vload16jPKc
+;
+; CHECK-LABEL: spir_kernel void @testShort
+;
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2iPU3AS1s
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3iPU3AS1s
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4iPU3AS1s
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8iPU3AS1s
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16iPU3AS1s
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2iPU3AS3s
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3iPU3AS3s
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4iPU3AS3s
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8iPU3AS3s
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16iPU3AS3s
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2iPU3AS2s
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3iPU3AS2s
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4iPU3AS2s
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8iPU3AS2s
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16iPU3AS2s
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z26__spirv_ocl_vloadn_Rshort2iPs
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z26__spirv_ocl_vloadn_Rshort3iPs
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z26__spirv_ocl_vloadn_Rshort4iPs
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z26__spirv_ocl_vloadn_Rshort8iPs
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z27__spirv_ocl_vloadn_Rshort16iPs
+;
+; CHECK-CL20: call spir_func <2 x i16> @_Z6vload2jPU3AS1Ks
+; CHECK-CL20: call spir_func <3 x i16> @_Z6vload3jPU3AS1Ks
+; CHECK-CL20: call spir_func <4 x i16> @_Z6vload4jPU3AS1Ks
+; CHECK-CL20: call spir_func <8 x i16> @_Z6vload8jPU3AS1Ks
+; CHECK-CL20: call spir_func <16 x i16> @_Z7vload16jPU3AS1Ks
+; CHECK-CL20: call spir_func <2 x i16> @_Z6vload2jPU3AS3Ks
+; CHECK-CL20: call spir_func <3 x i16> @_Z6vload3jPU3AS3Ks
+; CHECK-CL20: call spir_func <4 x i16> @_Z6vload4jPU3AS3Ks
+; CHECK-CL20: call spir_func <8 x i16> @_Z6vload8jPU3AS3Ks
+; CHECK-CL20: call spir_func <16 x i16> @_Z7vload16jPU3AS3Ks
+; CHECK-CL20: call spir_func <2 x i16> @_Z6vload2jPU3AS2Ks
+; CHECK-CL20: call spir_func <3 x i16> @_Z6vload3jPU3AS2Ks
+; CHECK-CL20: call spir_func <4 x i16> @_Z6vload4jPU3AS2Ks
+; CHECK-CL20: call spir_func <8 x i16> @_Z6vload8jPU3AS2Ks
+; CHECK-CL20: call spir_func <16 x i16> @_Z7vload16jPU3AS2Ks
+; CHECK-CL20: call spir_func <2 x i16> @_Z6vload2jPKs
+; CHECK-CL20: call spir_func <3 x i16> @_Z6vload3jPKs
+; CHECK-CL20: call spir_func <4 x i16> @_Z6vload4jPKs
+; CHECK-CL20: call spir_func <8 x i16> @_Z6vload8jPKs
+; CHECK-CL20: call spir_func <16 x i16> @_Z7vload16jPKs
+;
+; CHECK-LABEL: spir_kernel void @testInt
+;
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2iPU3AS1i
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3iPU3AS1i
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4iPU3AS1i
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8iPU3AS1i
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16iPU3AS1i
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2iPU3AS3i
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3iPU3AS3i
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4iPU3AS3i
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8iPU3AS3i
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16iPU3AS3i
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2iPU3AS2i
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3iPU3AS2i
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4iPU3AS2i
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8iPU3AS2i
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16iPU3AS2i
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z24__spirv_ocl_vloadn_Rint2iPi
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z24__spirv_ocl_vloadn_Rint3iPi
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ocl_vloadn_Rint4iPi
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z24__spirv_ocl_vloadn_Rint8iPi
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z25__spirv_ocl_vloadn_Rint16iPi
+;
+; CHECK-CL20: call spir_func <2 x i32> @_Z6vload2jPU3AS1Ki
+; CHECK-CL20: call spir_func <3 x i32> @_Z6vload3jPU3AS1Ki
+; CHECK-CL20: call spir_func <4 x i32> @_Z6vload4jPU3AS1Ki
+; CHECK-CL20: call spir_func <8 x i32> @_Z6vload8jPU3AS1Ki
+; CHECK-CL20: call spir_func <16 x i32> @_Z7vload16jPU3AS1Ki
+; CHECK-CL20: call spir_func <2 x i32> @_Z6vload2jPU3AS3Ki
+; CHECK-CL20: call spir_func <3 x i32> @_Z6vload3jPU3AS3Ki
+; CHECK-CL20: call spir_func <4 x i32> @_Z6vload4jPU3AS3Ki
+; CHECK-CL20: call spir_func <8 x i32> @_Z6vload8jPU3AS3Ki
+; CHECK-CL20: call spir_func <16 x i32> @_Z7vload16jPU3AS3Ki
+; CHECK-CL20: call spir_func <2 x i32> @_Z6vload2jPU3AS2Ki
+; CHECK-CL20: call spir_func <3 x i32> @_Z6vload3jPU3AS2Ki
+; CHECK-CL20: call spir_func <4 x i32> @_Z6vload4jPU3AS2Ki
+; CHECK-CL20: call spir_func <8 x i32> @_Z6vload8jPU3AS2Ki
+; CHECK-CL20: call spir_func <16 x i32> @_Z7vload16jPU3AS2Ki
+; CHECK-CL20: call spir_func <2 x i32> @_Z6vload2jPKi
+; CHECK-CL20: call spir_func <3 x i32> @_Z6vload3jPKi
+; CHECK-CL20: call spir_func <4 x i32> @_Z6vload4jPKi
+; CHECK-CL20: call spir_func <8 x i32> @_Z6vload8jPKi
+; CHECK-CL20: call spir_func <16 x i32> @_Z7vload16jPKi
+;
+; CHECK-LABEL: spir_kernel void @testLong
+;
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2iPU3AS1l
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3iPU3AS1l
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4iPU3AS1l
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8iPU3AS1l
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16iPU3AS1l
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2iPU3AS3l
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3iPU3AS3l
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4iPU3AS3l
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8iPU3AS3l
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16iPU3AS3l
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2iPU3AS2l
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3iPU3AS2l
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4iPU3AS2l
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8iPU3AS2l
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16iPU3AS2l
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z25__spirv_ocl_vloadn_Rlong2iPl
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z25__spirv_ocl_vloadn_Rlong3iPl
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z25__spirv_ocl_vloadn_Rlong4iPl
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z25__spirv_ocl_vloadn_Rlong8iPl
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z26__spirv_ocl_vloadn_Rlong16iPl
+;
+; CHECK-CL20: call spir_func <2 x i64> @_Z6vload2jPU3AS1Kl
+; CHECK-CL20: call spir_func <3 x i64> @_Z6vload3jPU3AS1Kl
+; CHECK-CL20: call spir_func <4 x i64> @_Z6vload4jPU3AS1Kl
+; CHECK-CL20: call spir_func <8 x i64> @_Z6vload8jPU3AS1Kl
+; CHECK-CL20: call spir_func <16 x i64> @_Z7vload16jPU3AS1Kl
+; CHECK-CL20: call spir_func <2 x i64> @_Z6vload2jPU3AS3Kl
+; CHECK-CL20: call spir_func <3 x i64> @_Z6vload3jPU3AS3Kl
+; CHECK-CL20: call spir_func <4 x i64> @_Z6vload4jPU3AS3Kl
+; CHECK-CL20: call spir_func <8 x i64> @_Z6vload8jPU3AS3Kl
+; CHECK-CL20: call spir_func <16 x i64> @_Z7vload16jPU3AS3Kl
+; CHECK-CL20: call spir_func <2 x i64> @_Z6vload2jPU3AS2Kl
+; CHECK-CL20: call spir_func <3 x i64> @_Z6vload3jPU3AS2Kl
+; CHECK-CL20: call spir_func <4 x i64> @_Z6vload4jPU3AS2Kl
+; CHECK-CL20: call spir_func <8 x i64> @_Z6vload8jPU3AS2Kl
+; CHECK-CL20: call spir_func <16 x i64> @_Z7vload16jPU3AS2Kl
+; CHECK-CL20: call spir_func <2 x i64> @_Z6vload2jPKl
+; CHECK-CL20: call spir_func <3 x i64> @_Z6vload3jPKl
+; CHECK-CL20: call spir_func <4 x i64> @_Z6vload4jPKl
+; CHECK-CL20: call spir_func <8 x i64> @_Z6vload8jPKl
+; CHECK-CL20: call spir_func <16 x i64> @_Z7vload16jPKl
+;
+; CHECK-LABEL: spir_kernel void @testHalf
+;
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16iPU3AS1Dh
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16iPU3AS3Dh
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16iPU3AS2Dh
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z25__spirv_ocl_vloadn_Rhalf2iPDh
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z25__spirv_ocl_vloadn_Rhalf3iPDh
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z25__spirv_ocl_vloadn_Rhalf4iPDh
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z25__spirv_ocl_vloadn_Rhalf8iPDh
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z26__spirv_ocl_vloadn_Rhalf16iPDh
+;
+; CHECK-CL20: call spir_func <2 x half> @_Z6vload2jPU3AS1KDh
+; CHECK-CL20: call spir_func <3 x half> @_Z6vload3jPU3AS1KDh
+; CHECK-CL20: call spir_func <4 x half> @_Z6vload4jPU3AS1KDh
+; CHECK-CL20: call spir_func <8 x half> @_Z6vload8jPU3AS1KDh
+; CHECK-CL20: call spir_func <16 x half> @_Z7vload16jPU3AS1KDh
+; CHECK-CL20: call spir_func <2 x half> @_Z6vload2jPU3AS3KDh
+; CHECK-CL20: call spir_func <3 x half> @_Z6vload3jPU3AS3KDh
+; CHECK-CL20: call spir_func <4 x half> @_Z6vload4jPU3AS3KDh
+; CHECK-CL20: call spir_func <8 x half> @_Z6vload8jPU3AS3KDh
+; CHECK-CL20: call spir_func <16 x half> @_Z7vload16jPU3AS3KDh
+; CHECK-CL20: call spir_func <2 x half> @_Z6vload2jPU3AS2KDh
+; CHECK-CL20: call spir_func <3 x half> @_Z6vload3jPU3AS2KDh
+; CHECK-CL20: call spir_func <4 x half> @_Z6vload4jPU3AS2KDh
+; CHECK-CL20: call spir_func <8 x half> @_Z6vload8jPU3AS2KDh
+; CHECK-CL20: call spir_func <16 x half> @_Z7vload16jPU3AS2KDh
+; CHECK-CL20: call spir_func <2 x half> @_Z6vload2jPKDh
+; CHECK-CL20: call spir_func <3 x half> @_Z6vload3jPKDh
+; CHECK-CL20: call spir_func <4 x half> @_Z6vload4jPKDh
+; CHECK-CL20: call spir_func <8 x half> @_Z6vload8jPKDh
+; CHECK-CL20: call spir_func <16 x half> @_Z7vload16jPKDh
+;
+; CHECK-LABEL: spir_kernel void @testFloat
+;
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2iPU3AS1f
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3iPU3AS1f
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4iPU3AS1f
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8iPU3AS1f
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16iPU3AS1f
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2iPU3AS3f
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3iPU3AS3f
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4iPU3AS3f
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8iPU3AS3f
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16iPU3AS3f
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2iPU3AS2f
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3iPU3AS2f
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4iPU3AS2f
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8iPU3AS2f
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16iPU3AS2f
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z26__spirv_ocl_vloadn_Rfloat2iPf
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z26__spirv_ocl_vloadn_Rfloat3iPf
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z26__spirv_ocl_vloadn_Rfloat4iPf
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z26__spirv_ocl_vloadn_Rfloat8iPf
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z27__spirv_ocl_vloadn_Rfloat16iPf
+;
+; CHECK-CL20: call spir_func <2 x float> @_Z6vload2jPU3AS1Kf
+; CHECK-CL20: call spir_func <3 x float> @_Z6vload3jPU3AS1Kf
+; CHECK-CL20: call spir_func <4 x float> @_Z6vload4jPU3AS1Kf
+; CHECK-CL20: call spir_func <8 x float> @_Z6vload8jPU3AS1Kf
+; CHECK-CL20: call spir_func <16 x float> @_Z7vload16jPU3AS1Kf
+; CHECK-CL20: call spir_func <2 x float> @_Z6vload2jPU3AS3Kf
+; CHECK-CL20: call spir_func <3 x float> @_Z6vload3jPU3AS3Kf
+; CHECK-CL20: call spir_func <4 x float> @_Z6vload4jPU3AS3Kf
+; CHECK-CL20: call spir_func <8 x float> @_Z6vload8jPU3AS3Kf
+; CHECK-CL20: call spir_func <16 x float> @_Z7vload16jPU3AS3Kf
+; CHECK-CL20: call spir_func <2 x float> @_Z6vload2jPU3AS2Kf
+; CHECK-CL20: call spir_func <3 x float> @_Z6vload3jPU3AS2Kf
+; CHECK-CL20: call spir_func <4 x float> @_Z6vload4jPU3AS2Kf
+; CHECK-CL20: call spir_func <8 x float> @_Z6vload8jPU3AS2Kf
+; CHECK-CL20: call spir_func <16 x float> @_Z7vload16jPU3AS2Kf
+; CHECK-CL20: call spir_func <2 x float> @_Z6vload2jPKf
+; CHECK-CL20: call spir_func <3 x float> @_Z6vload3jPKf
+; CHECK-CL20: call spir_func <4 x float> @_Z6vload4jPKf
+; CHECK-CL20: call spir_func <8 x float> @_Z6vload8jPKf
+; CHECK-CL20: call spir_func <16 x float> @_Z7vload16jPKf
+;
+; CHECK-LABEL: spir_kernel void @testDouble
+;
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2iPU3AS1d
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3iPU3AS1d
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4iPU3AS1d
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8iPU3AS1d
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16iPU3AS1d
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2iPU3AS3d
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3iPU3AS3d
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4iPU3AS3d
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8iPU3AS3d
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16iPU3AS3d
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2iPU3AS2d
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3iPU3AS2d
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4iPU3AS2d
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8iPU3AS2d
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16iPU3AS2d
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z27__spirv_ocl_vloadn_Rdouble2iPd
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z27__spirv_ocl_vloadn_Rdouble3iPd
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z27__spirv_ocl_vloadn_Rdouble4iPd
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z27__spirv_ocl_vloadn_Rdouble8iPd
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z28__spirv_ocl_vloadn_Rdouble16iPd
+;
+; CHECK-CL20: call spir_func <2 x double> @_Z6vload2jPU3AS1Kd
+; CHECK-CL20: call spir_func <3 x double> @_Z6vload3jPU3AS1Kd
+; CHECK-CL20: call spir_func <4 x double> @_Z6vload4jPU3AS1Kd
+; CHECK-CL20: call spir_func <8 x double> @_Z6vload8jPU3AS1Kd
+; CHECK-CL20: call spir_func <16 x double> @_Z7vload16jPU3AS1Kd
+; CHECK-CL20: call spir_func <2 x double> @_Z6vload2jPU3AS3Kd
+; CHECK-CL20: call spir_func <3 x double> @_Z6vload3jPU3AS3Kd
+; CHECK-CL20: call spir_func <4 x double> @_Z6vload4jPU3AS3Kd
+; CHECK-CL20: call spir_func <8 x double> @_Z6vload8jPU3AS3Kd
+; CHECK-CL20: call spir_func <16 x double> @_Z7vload16jPU3AS3Kd
+; CHECK-CL20: call spir_func <2 x double> @_Z6vload2jPU3AS2Kd
+; CHECK-CL20: call spir_func <3 x double> @_Z6vload3jPU3AS2Kd
+; CHECK-CL20: call spir_func <4 x double> @_Z6vload4jPU3AS2Kd
+; CHECK-CL20: call spir_func <8 x double> @_Z6vload8jPU3AS2Kd
+; CHECK-CL20: call spir_func <16 x double> @_Z7vload16jPU3AS2Kd
+; CHECK-CL20: call spir_func <2 x double> @_Z6vload2jPKd
+; CHECK-CL20: call spir_func <3 x double> @_Z6vload3jPKd
+; CHECK-CL20: call spir_func <4 x double> @_Z6vload4jPKd
+; CHECK-CL20: call spir_func <8 x double> @_Z6vload8jPKd
+; CHECK-CL20: call spir_func <16 x double> @_Z7vload16jPKd
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Vector16
+               OpCapability Float16Buffer
+               OpCapability Float64
+               OpCapability Int64
+               OpCapability Int16
+               OpCapability Int8
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %7 "testChar"
+               OpEntryPoint Kernel %46 "testShort"
+               OpEntryPoint Kernel %82 "testInt"
+               OpEntryPoint Kernel %119 "testLong"
+               OpEntryPoint Kernel %156 "testHalf"
+               OpEntryPoint Kernel %193 "testFloat"
+               OpEntryPoint Kernel %230 "testDouble"
+        %263 = OpString "kernel_arg_type.testChar.char*,char*,"
+        %264 = OpString "kernel_arg_type.testShort.short*,short*,"
+        %265 = OpString "kernel_arg_type.testInt.int*,int*,"
+        %266 = OpString "kernel_arg_type.testLong.long*,long*,"
+        %267 = OpString "kernel_arg_type.testHalf.half*,half*,"
+        %268 = OpString "kernel_arg_type.testFloat.float*,float*,"
+        %269 = OpString "kernel_arg_type.testDouble.double*,double*,"
+               OpSource OpenCL_C 200000
+      %uchar = OpTypeInt 8 0
+       %uint = OpTypeInt 32 0
+     %ushort = OpTypeInt 16 0
+      %ulong = OpTypeInt 64 0
+     %uint_0 = OpConstant %uint 0
+       %void = OpTypeVoid
+%_ptr_CrossWorkgroup_uchar = OpTypePointer CrossWorkgroup %uchar
+%_ptr_Workgroup_uchar = OpTypePointer Workgroup %uchar
+          %6 = OpTypeFunction %void %_ptr_CrossWorkgroup_uchar %_ptr_Workgroup_uchar
+    %v2uchar = OpTypeVector %uchar 2
+    %v3uchar = OpTypeVector %uchar 3
+    %v4uchar = OpTypeVector %uchar 4
+    %v8uchar = OpTypeVector %uchar 8
+   %v16uchar = OpTypeVector %uchar 16
+%_ptr_UniformConstant_uchar = OpTypePointer UniformConstant %uchar
+%_ptr_Function_uchar = OpTypePointer Function %uchar
+%_ptr_CrossWorkgroup_ushort = OpTypePointer CrossWorkgroup %ushort
+%_ptr_Workgroup_ushort = OpTypePointer Workgroup %ushort
+         %45 = OpTypeFunction %void %_ptr_CrossWorkgroup_ushort %_ptr_Workgroup_ushort
+   %v2ushort = OpTypeVector %ushort 2
+   %v3ushort = OpTypeVector %ushort 3
+   %v4ushort = OpTypeVector %ushort 4
+   %v8ushort = OpTypeVector %ushort 8
+  %v16ushort = OpTypeVector %ushort 16
+%_ptr_UniformConstant_ushort = OpTypePointer UniformConstant %ushort
+%_ptr_Function_ushort = OpTypePointer Function %ushort
+%_ptr_CrossWorkgroup_uint = OpTypePointer CrossWorkgroup %uint
+%_ptr_Workgroup_uint = OpTypePointer Workgroup %uint
+         %81 = OpTypeFunction %void %_ptr_CrossWorkgroup_uint %_ptr_Workgroup_uint
+     %v2uint = OpTypeVector %uint 2
+     %v3uint = OpTypeVector %uint 3
+     %v4uint = OpTypeVector %uint 4
+     %v8uint = OpTypeVector %uint 8
+    %v16uint = OpTypeVector %uint 16
+%_ptr_UniformConstant_uint = OpTypePointer UniformConstant %uint
+%_ptr_Function_uint = OpTypePointer Function %uint
+%_ptr_CrossWorkgroup_ulong = OpTypePointer CrossWorkgroup %ulong
+%_ptr_Workgroup_ulong = OpTypePointer Workgroup %ulong
+        %118 = OpTypeFunction %void %_ptr_CrossWorkgroup_ulong %_ptr_Workgroup_ulong
+    %v2ulong = OpTypeVector %ulong 2
+    %v3ulong = OpTypeVector %ulong 3
+    %v4ulong = OpTypeVector %ulong 4
+    %v8ulong = OpTypeVector %ulong 8
+   %v16ulong = OpTypeVector %ulong 16
+%_ptr_UniformConstant_ulong = OpTypePointer UniformConstant %ulong
+%_ptr_Function_ulong = OpTypePointer Function %ulong
+       %half = OpTypeFloat 16
+%_ptr_CrossWorkgroup_half = OpTypePointer CrossWorkgroup %half
+%_ptr_Workgroup_half = OpTypePointer Workgroup %half
+        %155 = OpTypeFunction %void %_ptr_CrossWorkgroup_half %_ptr_Workgroup_half
+     %v2half = OpTypeVector %half 2
+     %v3half = OpTypeVector %half 3
+     %v4half = OpTypeVector %half 4
+     %v8half = OpTypeVector %half 8
+    %v16half = OpTypeVector %half 16
+%_ptr_UniformConstant_half = OpTypePointer UniformConstant %half
+%_ptr_Function_half = OpTypePointer Function %half
+      %float = OpTypeFloat 32
+%_ptr_CrossWorkgroup_float = OpTypePointer CrossWorkgroup %float
+%_ptr_Workgroup_float = OpTypePointer Workgroup %float
+        %192 = OpTypeFunction %void %_ptr_CrossWorkgroup_float %_ptr_Workgroup_float
+    %v2float = OpTypeVector %float 2
+    %v3float = OpTypeVector %float 3
+    %v4float = OpTypeVector %float 4
+    %v8float = OpTypeVector %float 8
+   %v16float = OpTypeVector %float 16
+%_ptr_UniformConstant_float = OpTypePointer UniformConstant %float
+%_ptr_Function_float = OpTypePointer Function %float
+     %double = OpTypeFloat 64
+%_ptr_CrossWorkgroup_double = OpTypePointer CrossWorkgroup %double
+%_ptr_Workgroup_double = OpTypePointer Workgroup %double
+        %229 = OpTypeFunction %void %_ptr_CrossWorkgroup_double %_ptr_Workgroup_double
+   %v2double = OpTypeVector %double 2
+   %v3double = OpTypeVector %double 3
+   %v4double = OpTypeVector %double 4
+   %v8double = OpTypeVector %double 8
+  %v16double = OpTypeVector %double 16
+%_ptr_UniformConstant_double = OpTypePointer UniformConstant %double
+%_ptr_Function_double = OpTypePointer Function %double
+         %29 = OpUndef %_ptr_UniformConstant_uchar
+         %36 = OpUndef %_ptr_Function_uchar
+         %66 = OpUndef %_ptr_UniformConstant_ushort
+         %73 = OpUndef %_ptr_Function_ushort
+        %102 = OpUndef %_ptr_UniformConstant_uint
+        %109 = OpUndef %_ptr_Function_uint
+        %139 = OpUndef %_ptr_UniformConstant_ulong
+        %146 = OpUndef %_ptr_Function_ulong
+        %176 = OpUndef %_ptr_UniformConstant_half
+        %183 = OpUndef %_ptr_Function_half
+        %213 = OpUndef %_ptr_UniformConstant_float
+        %220 = OpUndef %_ptr_Function_float
+        %250 = OpUndef %_ptr_UniformConstant_double
+        %257 = OpUndef %_ptr_Function_double
+          %7 = OpFunction %void None %6
+         %pg = OpFunctionParameter %_ptr_CrossWorkgroup_uchar
+         %pl = OpFunctionParameter %_ptr_Workgroup_uchar
+      %entry = OpLabel
+       %call = OpExtInst %v2uchar %1 vloadn %uint_0 %pg 2
+      %call1 = OpExtInst %v3uchar %1 vloadn %uint_0 %pg 3
+      %call2 = OpExtInst %v4uchar %1 vloadn %uint_0 %pg 4
+      %call3 = OpExtInst %v8uchar %1 vloadn %uint_0 %pg 8
+      %call4 = OpExtInst %v16uchar %1 vloadn %uint_0 %pg 16
+      %call5 = OpExtInst %v2uchar %1 vloadn %uint_0 %pl 2
+      %call6 = OpExtInst %v3uchar %1 vloadn %uint_0 %pl 3
+      %call7 = OpExtInst %v4uchar %1 vloadn %uint_0 %pl 4
+      %call8 = OpExtInst %v8uchar %1 vloadn %uint_0 %pl 8
+      %call9 = OpExtInst %v16uchar %1 vloadn %uint_0 %pl 16
+     %call10 = OpExtInst %v2uchar %1 vloadn %uint_0 %29 2
+     %call11 = OpExtInst %v3uchar %1 vloadn %uint_0 %29 3
+     %call12 = OpExtInst %v4uchar %1 vloadn %uint_0 %29 4
+     %call13 = OpExtInst %v8uchar %1 vloadn %uint_0 %29 8
+     %call14 = OpExtInst %v16uchar %1 vloadn %uint_0 %29 16
+     %call15 = OpExtInst %v2uchar %1 vloadn %uint_0 %36 2
+     %call16 = OpExtInst %v3uchar %1 vloadn %uint_0 %36 3
+     %call17 = OpExtInst %v4uchar %1 vloadn %uint_0 %36 4
+     %call18 = OpExtInst %v8uchar %1 vloadn %uint_0 %36 8
+     %call19 = OpExtInst %v16uchar %1 vloadn %uint_0 %36 16
+               OpReturn
+               OpFunctionEnd
+         %46 = OpFunction %void None %45
+       %pg_0 = OpFunctionParameter %_ptr_CrossWorkgroup_ushort
+       %pl_0 = OpFunctionParameter %_ptr_Workgroup_ushort
+    %entry_0 = OpLabel
+     %call_0 = OpExtInst %v2ushort %1 vloadn %uint_0 %pg_0 2
+    %call1_0 = OpExtInst %v3ushort %1 vloadn %uint_0 %pg_0 3
+    %call2_0 = OpExtInst %v4ushort %1 vloadn %uint_0 %pg_0 4
+    %call3_0 = OpExtInst %v8ushort %1 vloadn %uint_0 %pg_0 8
+    %call4_0 = OpExtInst %v16ushort %1 vloadn %uint_0 %pg_0 16
+    %call5_0 = OpExtInst %v2ushort %1 vloadn %uint_0 %pl_0 2
+    %call6_0 = OpExtInst %v3ushort %1 vloadn %uint_0 %pl_0 3
+    %call7_0 = OpExtInst %v4ushort %1 vloadn %uint_0 %pl_0 4
+    %call8_0 = OpExtInst %v8ushort %1 vloadn %uint_0 %pl_0 8
+    %call9_0 = OpExtInst %v16ushort %1 vloadn %uint_0 %pl_0 16
+   %call10_0 = OpExtInst %v2ushort %1 vloadn %uint_0 %66 2
+   %call11_0 = OpExtInst %v3ushort %1 vloadn %uint_0 %66 3
+   %call12_0 = OpExtInst %v4ushort %1 vloadn %uint_0 %66 4
+   %call13_0 = OpExtInst %v8ushort %1 vloadn %uint_0 %66 8
+   %call14_0 = OpExtInst %v16ushort %1 vloadn %uint_0 %66 16
+   %call15_0 = OpExtInst %v2ushort %1 vloadn %uint_0 %73 2
+   %call16_0 = OpExtInst %v3ushort %1 vloadn %uint_0 %73 3
+   %call17_0 = OpExtInst %v4ushort %1 vloadn %uint_0 %73 4
+   %call18_0 = OpExtInst %v8ushort %1 vloadn %uint_0 %73 8
+   %call19_0 = OpExtInst %v16ushort %1 vloadn %uint_0 %73 16
+               OpReturn
+               OpFunctionEnd
+         %82 = OpFunction %void None %81
+       %pg_1 = OpFunctionParameter %_ptr_CrossWorkgroup_uint
+       %pl_1 = OpFunctionParameter %_ptr_Workgroup_uint
+    %entry_1 = OpLabel
+     %call_1 = OpExtInst %v2uint %1 vloadn %uint_0 %pg_1 2
+    %call1_1 = OpExtInst %v3uint %1 vloadn %uint_0 %pg_1 3
+    %call2_1 = OpExtInst %v4uint %1 vloadn %uint_0 %pg_1 4
+    %call3_1 = OpExtInst %v8uint %1 vloadn %uint_0 %pg_1 8
+    %call4_1 = OpExtInst %v16uint %1 vloadn %uint_0 %pg_1 16
+    %call5_1 = OpExtInst %v2uint %1 vloadn %uint_0 %pl_1 2
+    %call6_1 = OpExtInst %v3uint %1 vloadn %uint_0 %pl_1 3
+    %call7_1 = OpExtInst %v4uint %1 vloadn %uint_0 %pl_1 4
+    %call8_1 = OpExtInst %v8uint %1 vloadn %uint_0 %pl_1 8
+    %call9_1 = OpExtInst %v16uint %1 vloadn %uint_0 %pl_1 16
+   %call10_1 = OpExtInst %v2uint %1 vloadn %uint_0 %102 2
+   %call11_1 = OpExtInst %v3uint %1 vloadn %uint_0 %102 3
+   %call12_1 = OpExtInst %v4uint %1 vloadn %uint_0 %102 4
+   %call13_1 = OpExtInst %v8uint %1 vloadn %uint_0 %102 8
+   %call14_1 = OpExtInst %v16uint %1 vloadn %uint_0 %102 16
+   %call15_1 = OpExtInst %v2uint %1 vloadn %uint_0 %109 2
+   %call16_1 = OpExtInst %v3uint %1 vloadn %uint_0 %109 3
+   %call17_1 = OpExtInst %v4uint %1 vloadn %uint_0 %109 4
+   %call18_1 = OpExtInst %v8uint %1 vloadn %uint_0 %109 8
+   %call19_1 = OpExtInst %v16uint %1 vloadn %uint_0 %109 16
+               OpReturn
+               OpFunctionEnd
+        %119 = OpFunction %void None %118
+       %pg_2 = OpFunctionParameter %_ptr_CrossWorkgroup_ulong
+       %pl_2 = OpFunctionParameter %_ptr_Workgroup_ulong
+    %entry_2 = OpLabel
+     %call_2 = OpExtInst %v2ulong %1 vloadn %uint_0 %pg_2 2
+    %call1_2 = OpExtInst %v3ulong %1 vloadn %uint_0 %pg_2 3
+    %call2_2 = OpExtInst %v4ulong %1 vloadn %uint_0 %pg_2 4
+    %call3_2 = OpExtInst %v8ulong %1 vloadn %uint_0 %pg_2 8
+    %call4_2 = OpExtInst %v16ulong %1 vloadn %uint_0 %pg_2 16
+    %call5_2 = OpExtInst %v2ulong %1 vloadn %uint_0 %pl_2 2
+    %call6_2 = OpExtInst %v3ulong %1 vloadn %uint_0 %pl_2 3
+    %call7_2 = OpExtInst %v4ulong %1 vloadn %uint_0 %pl_2 4
+    %call8_2 = OpExtInst %v8ulong %1 vloadn %uint_0 %pl_2 8
+    %call9_2 = OpExtInst %v16ulong %1 vloadn %uint_0 %pl_2 16
+   %call10_2 = OpExtInst %v2ulong %1 vloadn %uint_0 %139 2
+   %call11_2 = OpExtInst %v3ulong %1 vloadn %uint_0 %139 3
+   %call12_2 = OpExtInst %v4ulong %1 vloadn %uint_0 %139 4
+   %call13_2 = OpExtInst %v8ulong %1 vloadn %uint_0 %139 8
+   %call14_2 = OpExtInst %v16ulong %1 vloadn %uint_0 %139 16
+   %call15_2 = OpExtInst %v2ulong %1 vloadn %uint_0 %146 2
+   %call16_2 = OpExtInst %v3ulong %1 vloadn %uint_0 %146 3
+   %call17_2 = OpExtInst %v4ulong %1 vloadn %uint_0 %146 4
+   %call18_2 = OpExtInst %v8ulong %1 vloadn %uint_0 %146 8
+   %call19_2 = OpExtInst %v16ulong %1 vloadn %uint_0 %146 16
+               OpReturn
+               OpFunctionEnd
+        %156 = OpFunction %void None %155
+       %pg_3 = OpFunctionParameter %_ptr_CrossWorkgroup_half
+       %pl_3 = OpFunctionParameter %_ptr_Workgroup_half
+    %entry_3 = OpLabel
+     %call_3 = OpExtInst %v2half %1 vloadn %uint_0 %pg_3 2
+    %call1_3 = OpExtInst %v3half %1 vloadn %uint_0 %pg_3 3
+    %call2_3 = OpExtInst %v4half %1 vloadn %uint_0 %pg_3 4
+    %call3_3 = OpExtInst %v8half %1 vloadn %uint_0 %pg_3 8
+    %call4_3 = OpExtInst %v16half %1 vloadn %uint_0 %pg_3 16
+    %call5_3 = OpExtInst %v2half %1 vloadn %uint_0 %pl_3 2
+    %call6_3 = OpExtInst %v3half %1 vloadn %uint_0 %pl_3 3
+    %call7_3 = OpExtInst %v4half %1 vloadn %uint_0 %pl_3 4
+    %call8_3 = OpExtInst %v8half %1 vloadn %uint_0 %pl_3 8
+    %call9_3 = OpExtInst %v16half %1 vloadn %uint_0 %pl_3 16
+   %call10_3 = OpExtInst %v2half %1 vloadn %uint_0 %176 2
+   %call11_3 = OpExtInst %v3half %1 vloadn %uint_0 %176 3
+   %call12_3 = OpExtInst %v4half %1 vloadn %uint_0 %176 4
+   %call13_3 = OpExtInst %v8half %1 vloadn %uint_0 %176 8
+   %call14_3 = OpExtInst %v16half %1 vloadn %uint_0 %176 16
+   %call15_3 = OpExtInst %v2half %1 vloadn %uint_0 %183 2
+   %call16_3 = OpExtInst %v3half %1 vloadn %uint_0 %183 3
+   %call17_3 = OpExtInst %v4half %1 vloadn %uint_0 %183 4
+   %call18_3 = OpExtInst %v8half %1 vloadn %uint_0 %183 8
+   %call19_3 = OpExtInst %v16half %1 vloadn %uint_0 %183 16
+               OpReturn
+               OpFunctionEnd
+        %193 = OpFunction %void None %192
+       %pg_4 = OpFunctionParameter %_ptr_CrossWorkgroup_float
+       %pl_4 = OpFunctionParameter %_ptr_Workgroup_float
+    %entry_4 = OpLabel
+     %call_4 = OpExtInst %v2float %1 vloadn %uint_0 %pg_4 2
+    %call1_4 = OpExtInst %v3float %1 vloadn %uint_0 %pg_4 3
+    %call2_4 = OpExtInst %v4float %1 vloadn %uint_0 %pg_4 4
+    %call3_4 = OpExtInst %v8float %1 vloadn %uint_0 %pg_4 8
+    %call4_4 = OpExtInst %v16float %1 vloadn %uint_0 %pg_4 16
+    %call5_4 = OpExtInst %v2float %1 vloadn %uint_0 %pl_4 2
+    %call6_4 = OpExtInst %v3float %1 vloadn %uint_0 %pl_4 3
+    %call7_4 = OpExtInst %v4float %1 vloadn %uint_0 %pl_4 4
+    %call8_4 = OpExtInst %v8float %1 vloadn %uint_0 %pl_4 8
+    %call9_4 = OpExtInst %v16float %1 vloadn %uint_0 %pl_4 16
+   %call10_4 = OpExtInst %v2float %1 vloadn %uint_0 %213 2
+   %call11_4 = OpExtInst %v3float %1 vloadn %uint_0 %213 3
+   %call12_4 = OpExtInst %v4float %1 vloadn %uint_0 %213 4
+   %call13_4 = OpExtInst %v8float %1 vloadn %uint_0 %213 8
+   %call14_4 = OpExtInst %v16float %1 vloadn %uint_0 %213 16
+   %call15_4 = OpExtInst %v2float %1 vloadn %uint_0 %220 2
+   %call16_4 = OpExtInst %v3float %1 vloadn %uint_0 %220 3
+   %call17_4 = OpExtInst %v4float %1 vloadn %uint_0 %220 4
+   %call18_4 = OpExtInst %v8float %1 vloadn %uint_0 %220 8
+   %call19_4 = OpExtInst %v16float %1 vloadn %uint_0 %220 16
+               OpReturn
+               OpFunctionEnd
+        %230 = OpFunction %void None %229
+       %pg_5 = OpFunctionParameter %_ptr_CrossWorkgroup_double
+       %pl_5 = OpFunctionParameter %_ptr_Workgroup_double
+    %entry_5 = OpLabel
+     %call_5 = OpExtInst %v2double %1 vloadn %uint_0 %pg_5 2
+    %call1_5 = OpExtInst %v3double %1 vloadn %uint_0 %pg_5 3
+    %call2_5 = OpExtInst %v4double %1 vloadn %uint_0 %pg_5 4
+    %call3_5 = OpExtInst %v8double %1 vloadn %uint_0 %pg_5 8
+    %call4_5 = OpExtInst %v16double %1 vloadn %uint_0 %pg_5 16
+    %call5_5 = OpExtInst %v2double %1 vloadn %uint_0 %pl_5 2
+    %call6_5 = OpExtInst %v3double %1 vloadn %uint_0 %pl_5 3
+    %call7_5 = OpExtInst %v4double %1 vloadn %uint_0 %pl_5 4
+    %call8_5 = OpExtInst %v8double %1 vloadn %uint_0 %pl_5 8
+    %call9_5 = OpExtInst %v16double %1 vloadn %uint_0 %pl_5 16
+   %call10_5 = OpExtInst %v2double %1 vloadn %uint_0 %250 2
+   %call11_5 = OpExtInst %v3double %1 vloadn %uint_0 %250 3
+   %call12_5 = OpExtInst %v4double %1 vloadn %uint_0 %250 4
+   %call13_5 = OpExtInst %v8double %1 vloadn %uint_0 %250 8
+   %call14_5 = OpExtInst %v16double %1 vloadn %uint_0 %250 16
+   %call15_5 = OpExtInst %v2double %1 vloadn %uint_0 %257 2
+   %call16_5 = OpExtInst %v3double %1 vloadn %uint_0 %257 3
+   %call17_5 = OpExtInst %v4double %1 vloadn %uint_0 %257 4
+   %call18_5 = OpExtInst %v8double %1 vloadn %uint_0 %257 8
+   %call19_5 = OpExtInst %v16double %1 vloadn %uint_0 %257 16
+               OpReturn
+               OpFunctionEnd

@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBDebugger_h_
-#define LLDB_SBDebugger_h_
+#ifndef LLDB_API_SBDEBUGGER_H
+#define LLDB_API_SBDEBUGGER_H
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBPlatform.h"
@@ -33,6 +33,12 @@ public:
 
 class LLDB_API SBDebugger {
 public:
+  FLAGS_ANONYMOUS_ENUM(){
+      eBroadcastBitProgress = (1 << 0),
+      eBroadcastBitWarning = (1 << 1),
+      eBroadcastBitError = (1 << 2),
+  };
+
   SBDebugger();
 
   SBDebugger(const lldb::SBDebugger &rhs);
@@ -40,6 +46,45 @@ public:
   SBDebugger(const lldb::DebuggerSP &debugger_sp);
 
   ~SBDebugger();
+
+  static const char *GetBroadcasterClass();
+
+  lldb::SBBroadcaster GetBroadcaster();
+
+  /// Get progress data from a SBEvent whose type is eBroadcastBitProgress.
+  ///
+  /// \param [in] event
+  ///   The event to extract the progress information from.
+  ///
+  /// \param [out] progress_id
+  ///   The unique integer identifier for the progress to report.
+  ///
+  /// \param [out] completed
+  ///   The amount of work completed. If \a completed is zero, then this event
+  ///   is a progress started event. If \a completed is equal to \a total, then
+  ///   this event is a progress end event. Otherwise completed indicates the
+  ///   current progress update.
+  ///
+  /// \param [out] total
+  ///   The total amount of work units that need to be completed. If this value
+  ///   is UINT64_MAX, then an indeterminate progress indicator should be
+  ///   displayed.
+  ///
+  /// \param [out] is_debugger_specific
+  ///   Set to true if this progress is specific to this debugger only. Many
+  ///   progress events are not specific to a debugger instance, like any
+  ///   progress events for loading information in modules since LLDB has a
+  ///   global module cache that all debuggers use.
+  ///
+  /// \return The message for the progress. If the returned value is NULL, then
+  ///   \a event was not a eBroadcastBitProgress event.
+  static const char *GetProgressFromEvent(const lldb::SBEvent &event,
+                                          uint64_t &progress_id,
+                                          uint64_t &completed, uint64_t &total,
+                                          bool &is_debugger_specific);
+
+  static lldb::SBStructuredData
+  GetDiagnosticFromEvent(const lldb::SBEvent &event);
 
   lldb::SBDebugger &operator=(const lldb::SBDebugger &rhs);
 
@@ -88,6 +133,26 @@ public:
 
   FILE *GetErrorFileHandle();
 
+  SBError SetInputString(const char *data);
+
+  SBError SetInputFile(SBFile file);
+
+  SBError SetOutputFile(SBFile file);
+
+  SBError SetErrorFile(SBFile file);
+
+  SBError SetInputFile(FileSP file);
+
+  SBError SetOutputFile(FileSP file);
+
+  SBError SetErrorFile(FileSP file);
+
+  SBFile GetInputFile();
+
+  SBFile GetOutputFile();
+
+  SBFile GetErrorFile();
+
   void SaveInputTerminalState();
 
   void RestoreInputTerminalState();
@@ -99,7 +164,14 @@ public:
   lldb::SBListener GetListener();
 
   void HandleProcessEvent(const lldb::SBProcess &process,
-                          const lldb::SBEvent &event, FILE *out, FILE *err);
+                          const lldb::SBEvent &event, FILE *out,
+                          FILE *err); // DEPRECATED
+
+  void HandleProcessEvent(const lldb::SBProcess &process,
+                          const lldb::SBEvent &event, SBFile out, SBFile err);
+
+  void HandleProcessEvent(const lldb::SBProcess &process,
+                          const lldb::SBEvent &event, FileSP out, FileSP err);
 
   lldb::SBTarget CreateTarget(const char *filename, const char *target_triple,
                               const char *platform_name,
@@ -174,11 +246,17 @@ public:
 
   bool GetUseColor() const;
 
+  bool SetUseSourceCache(bool use_source_cache);
+
+  bool GetUseSourceCache() const;
+
   static bool GetDefaultArchitecture(char *arch_name, size_t arch_name_len);
 
   static bool SetDefaultArchitecture(const char *arch_name);
 
   lldb::ScriptLanguage GetScriptingLanguage(const char *script_language_name);
+
+  SBStructuredData GetScriptInterpreterInfo(ScriptLanguage);
 
   static const char *GetVersionString();
 
@@ -235,6 +313,10 @@ public:
 
   void SetScriptLanguage(lldb::ScriptLanguage script_lang);
 
+  lldb::LanguageType GetREPLLanguage() const;
+
+  void SetREPLLanguage(lldb::LanguageType repl_lang);
+
   bool GetCloseInputOnEOF() const;
 
   void SetCloseInputOnEOF(bool b);
@@ -261,12 +343,49 @@ public:
 
   SBTypeSynthetic GetSyntheticForType(SBTypeNameSpecifier);
 
+  /// Run the command interpreter.
+  ///
+  /// \param[in] auto_handle_events
+  ///     If true, automatically handle resulting events. This takes precedence
+  ///     and overrides the corresponding option in
+  ///     SBCommandInterpreterRunOptions.
+  ///
+  /// \param[in] spawn_thread
+  ///     If true, start a new thread for IO handling. This takes precedence
+  ///     and overrides the corresponding option in
+  ///     SBCommandInterpreterRunOptions.
   void RunCommandInterpreter(bool auto_handle_events, bool spawn_thread);
 
+  /// Run the command interpreter.
+  ///
+  /// \param[in] auto_handle_events
+  ///     If true, automatically handle resulting events. This takes precedence
+  ///     and overrides the corresponding option in
+  ///     SBCommandInterpreterRunOptions.
+  ///
+  /// \param[in] spawn_thread
+  ///     If true, start a new thread for IO handling. This takes precedence
+  ///     and overrides the corresponding option in
+  ///     SBCommandInterpreterRunOptions.
+  ///
+  /// \param[in] options
+  ///     Parameter collection of type SBCommandInterpreterRunOptions.
+  ///
+  /// \param[out] num_errors
+  ///     The number of errors.
+  ///
+  /// \param[out] quit_requested
+  ///     Whether a quit was requested.
+  ///
+  /// \param[out] stopped_for_crash
+  ///     Whether the interpreter stopped for a crash.
   void RunCommandInterpreter(bool auto_handle_events, bool spawn_thread,
                              SBCommandInterpreterRunOptions &options,
                              int &num_errors, bool &quit_requested,
                              bool &stopped_for_crash);
+
+  SBCommandInterpreterRunResult
+  RunCommandInterpreter(const SBCommandInterpreterRunOptions &options);
 
   SBError RunREPL(lldb::LanguageType language, const char *repl_options);
 
@@ -294,4 +413,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBDebugger_h_
+#endif // LLDB_API_SBDEBUGGER_H

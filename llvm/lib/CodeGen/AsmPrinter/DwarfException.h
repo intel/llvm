@@ -26,9 +26,9 @@ protected:
   DwarfCFIExceptionBase(AsmPrinter *A);
 
   /// Per-function flag to indicate if frame CFI info should be emitted.
-  bool shouldEmitCFI;
+  bool shouldEmitCFI = false;
   /// Per-module flag to indicate if .cfi_section has beeen emitted.
-  bool hasEmittedCFISections;
+  bool hasEmittedCFISections = false;
 
   void markFunctionEnd() override;
   void endFragment() override;
@@ -36,16 +36,13 @@ protected:
 
 class LLVM_LIBRARY_VISIBILITY DwarfCFIException : public DwarfCFIExceptionBase {
   /// Per-function flag to indicate if .cfi_personality should be emitted.
-  bool shouldEmitPersonality;
+  bool shouldEmitPersonality = false;
 
   /// Per-function flag to indicate if .cfi_personality must be emitted.
-  bool forceEmitPersonality;
+  bool forceEmitPersonality = false;
 
   /// Per-function flag to indicate if .cfi_lsda should be emitted.
-  bool shouldEmitLSDA;
-
-  /// Per-function flag to indicate if frame moves info should be emitted.
-  bool shouldEmitMoves;
+  bool shouldEmitLSDA = false;
 
 public:
   //===--------------------------------------------------------------------===//
@@ -66,6 +63,9 @@ public:
 
   void beginFragment(const MachineBasicBlock *MBB,
                      ExceptionSymbolProvider ESP) override;
+
+  void beginBasicBlock(const MachineBasicBlock &MBB) override;
+  void endBasicBlock(const MachineBasicBlock &MBB) override;
 };
 
 class LLVM_LIBRARY_VISIBILITY ARMException : public DwarfCFIExceptionBase {
@@ -88,6 +88,22 @@ public:
 
   /// Gather and emit post-function exception information.
   void endFunction(const MachineFunction *) override;
+};
+
+class LLVM_LIBRARY_VISIBILITY AIXException : public DwarfCFIExceptionBase {
+  /// This is AIX's compat unwind section, which unwinder would use
+  /// to find the location of LSDA area and personality rountine.
+  void emitExceptionInfoTable(const MCSymbol *LSDA, const MCSymbol *PerSym);
+
+public:
+  AIXException(AsmPrinter *A);
+
+  void markFunctionEnd() override;
+
+  void endModule() override {}
+  void beginFunction(const MachineFunction *MF) override {}
+
+  void endFunction(const MachineFunction *MF) override;
 };
 } // End of namespace llvm
 

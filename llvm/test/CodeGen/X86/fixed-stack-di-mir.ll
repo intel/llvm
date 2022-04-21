@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=x86_64-apple-unknown -stop-before=expand-isel-pseudos %s -o - -simplify-mir | FileCheck %s
+; RUN: llc -mtriple=x86_64-apple-unknown -stop-before=finalize-isel %s -o - -simplify-mir | FileCheck %s
 ; The byval argument of the function will be allocated a fixed stack slot. Test
 ; that we serialize the fixed slot correctly.
 
@@ -7,7 +7,7 @@ target triple = "x86_64-apple-unknown"
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #0
 
-define hidden void @foo(i32* byval %dstRect) {
+define hidden void @foo(i32* byval(i32) %dstRect) {
 ; CHECK-LABEL: name: foo
 entry:
   call void @llvm.dbg.declare(metadata i32* %dstRect, metadata !3, metadata !DIExpression()), !dbg !5

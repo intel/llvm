@@ -1,4 +1,4 @@
-//===-- RegisterContextThreadMemory.cpp -------------------------*- C++ -*-===//
+//===-- RegisterContextThreadMemory.cpp -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,7 +22,7 @@ RegisterContextThreadMemory::RegisterContextThreadMemory(
     : RegisterContext(thread, 0), m_thread_wp(thread.shared_from_this()),
       m_reg_ctx_sp(), m_register_data_addr(register_data_addr), m_stop_id(0) {}
 
-RegisterContextThreadMemory::~RegisterContextThreadMemory() {}
+RegisterContextThreadMemory::~RegisterContextThreadMemory() = default;
 
 void RegisterContextThreadMemory::UpdateRegisterContext() {
   ThreadSP thread_sp(m_thread_wp.lock());
@@ -73,7 +73,7 @@ RegisterContextThreadMemory::GetRegisterInfoAtIndex(size_t reg) {
   UpdateRegisterContext();
   if (m_reg_ctx_sp)
     return m_reg_ctx_sp->GetRegisterInfoAtIndex(reg);
-  return NULL;
+  return nullptr;
 }
 
 size_t RegisterContextThreadMemory::GetRegisterSetCount() {
@@ -87,7 +87,7 @@ const RegisterSet *RegisterContextThreadMemory::GetRegisterSet(size_t reg_set) {
   UpdateRegisterContext();
   if (m_reg_ctx_sp)
     return m_reg_ctx_sp->GetRegisterSet(reg_set);
-  return NULL;
+  return nullptr;
 }
 
 bool RegisterContextThreadMemory::ReadRegister(const RegisterInfo *reg_info,

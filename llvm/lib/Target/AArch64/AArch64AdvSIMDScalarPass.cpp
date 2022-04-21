@@ -105,14 +105,14 @@ static bool isGPR64(unsigned Reg, unsigned SubReg,
                     const MachineRegisterInfo *MRI) {
   if (SubReg)
     return false;
-  if (TargetRegisterInfo::isVirtualRegister(Reg))
+  if (Register::isVirtualRegister(Reg))
     return MRI->getRegClass(Reg)->hasSuperClassEq(&AArch64::GPR64RegClass);
   return AArch64::GPR64RegClass.contains(Reg);
 }
 
 static bool isFPR64(unsigned Reg, unsigned SubReg,
                     const MachineRegisterInfo *MRI) {
-  if (TargetRegisterInfo::isVirtualRegister(Reg))
+  if (Register::isVirtualRegister(Reg))
     return (MRI->getRegClass(Reg)->hasSuperClassEq(&AArch64::FPR64RegClass) &&
             SubReg == 0) ||
            (MRI->getRegClass(Reg)->hasSuperClassEq(&AArch64::FPR128RegClass) &&
@@ -123,7 +123,7 @@ static bool isFPR64(unsigned Reg, unsigned SubReg,
 }
 
 // getSrcFromCopy - Get the original source register for a GPR64 <--> FPR64
-// copy instruction. Return zero_reg if the instruction is not a copy.
+// copy instruction. Return nullptr if the instruction is not a copy.
 static MachineOperand *getSrcFromCopy(MachineInstr *MI,
                                       const MachineRegisterInfo *MRI,
                                       unsigned &SubReg) {
@@ -201,8 +201,8 @@ bool AArch64AdvSIMDScalar::isProfitableToTransform(
   unsigned NumNewCopies = 3;
   unsigned NumRemovableCopies = 0;
 
-  unsigned OrigSrc0 = MI.getOperand(1).getReg();
-  unsigned OrigSrc1 = MI.getOperand(2).getReg();
+  Register OrigSrc0 = MI.getOperand(1).getReg();
+  Register OrigSrc1 = MI.getOperand(2).getReg();
   unsigned SubReg0;
   unsigned SubReg1;
   if (!MRI->def_empty(OrigSrc0)) {
@@ -236,7 +236,7 @@ bool AArch64AdvSIMDScalar::isProfitableToTransform(
   // any of the uses is a transformable instruction, it's likely the tranforms
   // will chain, enabling us to save a copy there, too. This is an aggressive
   // heuristic that approximates the graph based cost analysis described above.
-  unsigned Dst = MI.getOperand(0).getReg();
+  Register Dst = MI.getOperand(0).getReg();
   bool AllUsesAreCopies = true;
   for (MachineRegisterInfo::use_instr_nodbg_iterator
            Use = MRI->use_instr_nodbg_begin(Dst),
@@ -293,8 +293,8 @@ void AArch64AdvSIMDScalar::transformInstruction(MachineInstr &MI) {
   assert(OldOpc != NewOpc && "transform an instruction to itself?!");
 
   // Check if we need a copy for the source registers.
-  unsigned OrigSrc0 = MI.getOperand(1).getReg();
-  unsigned OrigSrc1 = MI.getOperand(2).getReg();
+  Register OrigSrc0 = MI.getOperand(1).getReg();
+  Register OrigSrc1 = MI.getOperand(2).getReg();
   unsigned Src0 = 0, SubReg0;
   unsigned Src1 = 0, SubReg1;
   bool KillSrc0 = false, KillSrc1 = false;
@@ -354,7 +354,7 @@ void AArch64AdvSIMDScalar::transformInstruction(MachineInstr &MI) {
   // Create a vreg for the destination.
   // FIXME: No need to do this if the ultimate user expects an FPR64.
   // Check for that and avoid the copy if possible.
-  unsigned Dst = MRI->createVirtualRegister(&AArch64::FPR64RegClass);
+  Register Dst = MRI->createVirtualRegister(&AArch64::FPR64RegClass);
 
   // For now, all of the new instructions have the same simple three-register
   // form, so no need to special case based on what instruction we're
@@ -377,8 +377,7 @@ void AArch64AdvSIMDScalar::transformInstruction(MachineInstr &MI) {
 // processMachineBasicBlock - Main optimzation loop.
 bool AArch64AdvSIMDScalar::processMachineBasicBlock(MachineBasicBlock *MBB) {
   bool Changed = false;
-  for (MachineBasicBlock::iterator I = MBB->begin(), E = MBB->end(); I != E;) {
-    MachineInstr &MI = *I++;
+  for (MachineInstr &MI : llvm::make_early_inc_range(*MBB)) {
     if (isProfitableToTransform(MI)) {
       transformInstruction(MI);
       Changed = true;
@@ -399,8 +398,8 @@ bool AArch64AdvSIMDScalar::runOnMachineFunction(MachineFunction &mf) {
   TII = mf.getSubtarget().getInstrInfo();
 
   // Just check things on a one-block-at-a-time basis.
-  for (MachineFunction::iterator I = mf.begin(), E = mf.end(); I != E; ++I)
-    if (processMachineBasicBlock(&*I))
+  for (MachineBasicBlock &MBB : mf)
+    if (processMachineBasicBlock(&MBB))
       Changed = true;
   return Changed;
 }

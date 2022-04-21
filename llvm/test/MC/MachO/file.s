@@ -1,4 +1,4 @@
-// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -S --section-data | FileCheck %s
+// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -S --section-data - | FileCheck %s
 
 // This number-less file directive is ignored on MachO.
         .file "bar/baz.s"
@@ -16,7 +16,7 @@
 // CHECK-NEXT:    Alignment: 0
 // CHECK-NEXT:    RelocationOffset: 0x0
 // CHECK-NEXT:    RelocationCount: 0
-// CHECK-NEXT:    Type: 0x0
+// CHECK-NEXT:    Type: Regular (0x0)
 // CHECK-NEXT:    Attributes [ (0x20000)
 // CHECK-NEXT:      Debug (0x20000)
 // CHECK-NEXT:    ]

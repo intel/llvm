@@ -451,6 +451,16 @@ public:
                           MachineFunction &MF,
                           unsigned Intrinsic) const override;
 
+  /// getFunctionParamOptimizedAlign - since function arguments are passed via
+  /// .param space, we may want to increase their alignment in a way that
+  /// ensures that we can effectively vectorize their loads & stores. We can
+  /// increase alignment only if the function has internal or has private
+  /// linkage as for other linkage types callers may already rely on default
+  /// alignment. To allow using 128-bit vectorized loads/stores, this function
+  /// ensures that alignment is 16 or greater.
+  Align getFunctionParamOptimizedAlign(const Function *F, Type *ArgTy,
+                                       const DataLayout &DL) const;
+
   /// isLegalAddressingMode - Return true if the addressing mode represented
   /// by AM is legal for this target, for a load/store of the specified type
   /// Used to guide target specific optimizations, like loop strength
@@ -491,8 +501,8 @@ public:
 
   std::string getPrototype(const DataLayout &DL, Type *, const ArgListTy &,
                            const SmallVectorImpl<ISD::OutputArg> &,
-                           unsigned retAlignment,
-                           ImmutableCallSite CS) const;
+                           MaybeAlign retAlignment, const CallBase &CB,
+                           unsigned UniqueCallSite) const;
 
   SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -538,7 +548,10 @@ public:
   bool allowFMA(MachineFunction &MF, CodeGenOpt::Level OptLevel) const;
   bool allowUnsafeFPMath(MachineFunction &MF) const;
 
-  bool isFMAFasterThanFMulAndFAdd(EVT) const override { return true; }
+  bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                  EVT) const override {
+    return true;
+  }
 
   bool enableAggressiveFMAFusion(EVT VT) const override { return true; }
 
@@ -576,8 +589,8 @@ private:
                           SelectionDAG &DAG) const override;
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
-  unsigned getArgumentAlignment(SDValue Callee, ImmutableCallSite CS, Type *Ty,
-                                unsigned Idx, const DataLayout &DL) const;
+  Align getArgumentAlignment(SDValue Callee, const CallBase *CB, Type *Ty,
+                             unsigned Idx, const DataLayout &DL) const;
 };
 } // namespace llvm
 

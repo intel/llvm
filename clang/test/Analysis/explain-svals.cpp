@@ -1,4 +1,8 @@
-// RUN: %clang_analyze_cc1 -triple i386-apple-darwin10 -analyzer-checker=core.builtin,debug.ExprInspection,unix.cstring -verify %s
+// RUN: %clang_analyze_cc1 -triple i386-apple-darwin10 -verify %s \
+// RUN:   -analyzer-checker=core.builtin \
+// RUN:   -analyzer-checker=debug.ExprInspection \
+// RUN:   -analyzer-checker=unix.cstring \
+// RUN:   -analyzer-config display-checker-name=false
 
 typedef unsigned long size_t;
 
@@ -15,6 +19,7 @@ struct S {
 
 void clang_analyzer_explain(int);
 void clang_analyzer_explain(void *);
+void clang_analyzer_explain(const int *);
 void clang_analyzer_explain(S);
 
 size_t clang_analyzer_getExtent(void *);
@@ -49,7 +54,7 @@ void test_2(char *ptr, int ext) {
   int *x = new int[ext];
   clang_analyzer_explain(x); // expected-warning-re{{{{^pointer to element of type 'int' with index 0 of heap segment that starts at symbol of type 'int \*' conjured at statement 'new int \[ext\]'$}}}}
   // Sic! What gets computed is the extent of the element-region.
-  clang_analyzer_explain(clang_analyzer_getExtent(x)); // expected-warning-re{{{{^signed 32-bit integer '4'$}}}}
+  clang_analyzer_explain(clang_analyzer_getExtent(x)); // expected-warning-re{{{{^\(argument 'ext'\) \* 4$}}}}
   delete[] x;
 }
 
@@ -76,7 +81,7 @@ void test_4(int x, int y) {
   clang_analyzer_explain(&stat); // expected-warning-re{{{{^pointer to static local variable 'stat'$}}}}
   clang_analyzer_explain(stat_glob); // expected-warning-re{{{{^initial value of global variable 'stat_glob'$}}}}
   clang_analyzer_explain(&stat_glob); // expected-warning-re{{{{^pointer to global variable 'stat_glob'$}}}}
-  clang_analyzer_explain((int[]){1, 2, 3}); // expected-warning-re{{{{^pointer to element of type 'int' with index 0 of temporary object constructed at statement '\(int \[3\]\)\{1, 2, 3\}'$}}}}
+  clang_analyzer_explain((int[]){1, 2, 3}); // expected-warning-re{{{{^pointer to element of type 'int' with index 0 of temporary object constructed at statement '\(int\[3\]\)\{1, 2, 3\}'$}}}}
 }
 
 namespace {
@@ -93,6 +98,33 @@ public:
 } // end of anonymous namespace
 
 void test_6() {
-  clang_analyzer_explain(conjure_S()); // expected-warning-re{{{{^lazily frozen compound value of temporary object constructed at statement 'conjure_S\(\)'$}}}}
+  clang_analyzer_explain(conjure_S()); // expected-warning-re{{{{^lazily frozen compound value of 1st parameter of function 'clang_analyzer_explain\(\)'$}}}}
   clang_analyzer_explain(conjure_S().z); // expected-warning-re{{{{^value derived from \(symbol of type 'int' conjured at statement 'conjure_S\(\)'\) for field 'z' of temporary object constructed at statement 'conjure_S\(\)'$}}}}
+}
+
+class C_top_level {
+public:
+  C_top_level(int param) {
+    clang_analyzer_explain(&param); // expected-warning-re{{{{^pointer to parameter 'param'$}}}}
+  }
+};
+
+class C_non_top_level {
+public:
+  C_non_top_level(int param) {
+    clang_analyzer_explain(&param); // expected-warning-re{{{{^pointer to parameter 'param'$}}}}
+  }
+};
+
+void test_7(int n) {
+  C_non_top_level c(n);
+
+  auto lambda_top_level = [n](int param) {
+    clang_analyzer_explain(&param); // expected-warning-re{{{{^pointer to parameter 'param'$}}}}
+  };
+  auto lambda_non_top_level = [n](int param) {
+    clang_analyzer_explain(&param); // expected-warning-re{{{{^pointer to parameter 'param'$}}}}
+  };
+
+  lambda_non_top_level(n);
 }

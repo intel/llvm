@@ -41,6 +41,8 @@
 #ifndef SPIRV_H
 #define SPIRV_H
 
+#include "LLVMSPIRVOpts.h"
+
 #include <iostream>
 #include <string>
 
@@ -48,28 +50,33 @@ namespace llvm {
 // Pass initialization functions need to be declared before inclusion of
 // PassSupport.h.
 class PassRegistry;
-void initializeLLVMToSPIRVPass(PassRegistry &);
-void initializeOCL20To12Pass(PassRegistry &);
-void initializeOCL20ToSPIRVPass(PassRegistry &);
-void initializeOCL21ToSPIRVPass(PassRegistry &);
-void initializeOCLTypeToSPIRVPass(PassRegistry &);
-void initializeSPIRVLowerBoolPass(PassRegistry &);
-void initializeSPIRVLowerConstExprPass(PassRegistry &);
-void initializeSPIRVLowerSPIRBlocksPass(PassRegistry &);
-void initializeSPIRVLowerOCLBlocksPass(PassRegistry &);
-void initializeSPIRVLowerMemmovePass(PassRegistry &);
-void initializeSPIRVRegularizeLLVMPass(PassRegistry &);
-void initializeSPIRVToOCL20Pass(PassRegistry &);
-void initializePreprocessMetadataPass(PassRegistry &);
+void initializeLLVMToSPIRVLegacyPass(PassRegistry &);
+void initializeOCLToSPIRVLegacyPass(PassRegistry &);
+void initializeOCLTypeToSPIRVLegacyPass(PassRegistry &);
+void initializeSPIRVLowerBoolLegacyPass(PassRegistry &);
+void initializeSPIRVLowerConstExprLegacyPass(PassRegistry &);
+void initializeSPIRVLowerSPIRBlocksLegacyPass(PassRegistry &);
+void initializeSPIRVLowerOCLBlocksLegacyPass(PassRegistry &);
+void initializeSPIRVLowerMemmoveLegacyPass(PassRegistry &);
+void initializeSPIRVLowerSaddWithOverflowLegacyPass(PassRegistry &);
+void initializeSPIRVRegularizeLLVMLegacyPass(PassRegistry &);
+void initializeSPIRVToOCL12LegacyPass(PassRegistry &);
+void initializeSPIRVToOCL20LegacyPass(PassRegistry &);
+void initializePreprocessMetadataLegacyPass(PassRegistry &);
+void initializeSPIRVLowerBitCastToNonStandardTypeLegacyPass(PassRegistry &);
+
+class ModulePass;
+class FunctionPass;
 } // namespace llvm
 
 #include "llvm/IR/Module.h"
 
 namespace SPIRV {
+
 class SPIRVModule;
 
 /// \brief Check if a string contains SPIR-V binary.
-bool isSpirvBinary(std::string &Img);
+bool isSpirvBinary(const std::string &Img);
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
 /// \brief Convert SPIR-V between binary and internal textual formats.
@@ -94,6 +101,12 @@ bool isSpirvText(std::string &Img);
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              std::string &ErrMsg);
 
+/// \brief Load SPIR-V from istream as a SPIRVModule.
+/// \returns null on failure.
+std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
+                                             const SPIRV::TranslatorOpts &Opts,
+                                             std::string &ErrMsg);
+
 } // End namespace SPIRV
 
 namespace llvm {
@@ -107,67 +120,107 @@ bool writeSpirv(Module *M, std::ostream &OS, std::string &ErrMsg);
 bool readSpirv(LLVMContext &C, std::istream &IS, Module *&M,
                std::string &ErrMsg);
 
+/// \brief Translate LLVM module to SPIR-V and write to ostream.
+/// \returns true if succeeds.
+bool writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts, std::ostream &OS,
+                std::string &ErrMsg);
+
+/// \brief Load SPIR-V from istream and translate to LLVM module.
+/// \returns true if succeeds.
+bool readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
+               std::istream &IS, Module *&M, std::string &ErrMsg);
+
+/// \brief Partially load SPIR-V from the stream and decode only instructions
+/// needed to get information about specialization constants.
+/// \returns true if succeeds.
+using SpecConstInfoTy = std::pair<uint32_t, uint32_t>;
+bool getSpecConstInfo(std::istream &IS,
+                      std::vector<SpecConstInfoTy> &SpecConstInfo);
+
 /// \brief Convert a SPIRVModule into LLVM IR.
 /// \returns null on failure.
 std::unique_ptr<Module>
 convertSpirvToLLVM(LLVMContext &C, SPIRV::SPIRVModule &BM, std::string &ErrMsg);
 
+/// \brief Convert a SPIRVModule into LLVM IR using specified options
+/// \returns null on failure.
+std::unique_ptr<Module> convertSpirvToLLVM(LLVMContext &C,
+                                           SPIRV::SPIRVModule &BM,
+                                           const SPIRV::TranslatorOpts &Opts,
+                                           std::string &ErrMsg);
+
 /// \brief Regularize LLVM module by removing entities not representable by
 /// SPIRV.
 bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg);
+
+bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
+                            const SPIRV::TranslatorOpts &Opts);
 
 /// \brief Mangle OpenCL builtin function function name.
 void mangleOpenClBuiltin(const std::string &UnmangledName,
                          ArrayRef<Type *> ArgTypes, std::string &MangledName);
 
 /// Create a pass for translating LLVM to SPIR-V.
-ModulePass *createLLVMToSPIRV(SPIRV::SPIRVModule *);
+ModulePass *createLLVMToSPIRVLegacy(SPIRV::SPIRVModule *);
 
-/// Create a pass for translating OCL 2.0 builtin functions to equivalent
-/// OCL 1.2 builtin functions.
-ModulePass *createOCL20To12();
-
-/// Create a pass for translating OCL 2.0 builtin functions to SPIR-V builtin
+/// Create a pass for translating OCL C builtin functions to SPIR-V builtin
 /// functions.
-ModulePass *createOCL20ToSPIRV();
-
-/// Create a pass for translating OCL 2.1 builtin functions to SPIR-V builtin
-/// functions.
-ModulePass *createOCL21ToSPIRV();
+ModulePass *createOCLToSPIRVLegacy();
 
 /// Create a pass for adapting OCL types for SPIRV.
-ModulePass *createOCLTypeToSPIRV();
+ModulePass *createOCLTypeToSPIRVLegacy();
 
 /// Create a pass for lowering cast instructions of i1 type.
-ModulePass *createSPIRVLowerBool();
+ModulePass *createSPIRVLowerBoolLegacy();
 
 /// Create a pass for lowering constant expressions to instructions.
-ModulePass *createSPIRVLowerConstExpr();
+ModulePass *createSPIRVLowerConstExprLegacy();
 
 /// Create a pass for lowering SPIR 2.0 blocks to functions calls.
-ModulePass *createSPIRVLowerSPIRBlocks();
+ModulePass *createSPIRVLowerSPIRBlocksLegacy();
 
 /// Create a pass for removing function pointers related to OCL 2.0 blocks
-ModulePass *createSPIRVLowerOCLBlocks();
+ModulePass *createSPIRVLowerOCLBlocksLegacy();
 
 /// Create a pass for lowering llvm.memmove to llvm.memcpys with a temporary
 /// variable.
-ModulePass *createSPIRVLowerMemmove();
+ModulePass *createSPIRVLowerMemmoveLegacy();
+
+/// Create a pass for lowering llvm.sadd.with.overflow
+ModulePass *createSPIRVLowerSaddWithOverflowLegacy();
 
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
-ModulePass *createSPIRVRegularizeLLVM();
+ModulePass *createSPIRVRegularizeLLVMLegacy();
+
+/// Create a pass for translating SPIR-V Instructions to desired
+/// representation in LLVM IR (OpenCL built-ins, SPIR-V Friendly IR, etc.)
+ModulePass *createSPIRVBIsLoweringPass(Module &, SPIRV::BIsRepresentation);
+
+/// Create a pass for translating SPIR-V builtin functions to OCL 1.2 builtin
+/// functions.
+ModulePass *createSPIRVToOCL12Legacy();
 
 /// Create a pass for translating SPIR-V builtin functions to OCL 2.0 builtin
 /// functions.
-ModulePass *createSPIRVToOCL20();
+ModulePass *createSPIRVToOCL20Legacy();
 
 /// Create a pass for translating SPIR 1.2/2.0 metadata to SPIR-V friendly
 /// metadata.
-ModulePass *createPreprocessMetadata();
+ModulePass *createPreprocessMetadataLegacy();
 
 /// Create and return a pass that writes the module to the specified
 /// ostream.
 ModulePass *createSPIRVWriterPass(std::ostream &Str);
+
+/// Create and return a pass that writes the module to the specified
+/// ostream.
+ModulePass *createSPIRVWriterPass(std::ostream &Str,
+                                  const SPIRV::TranslatorOpts &Opts);
+
+/// Create a pass for removing bitcast instructions to non-standard SPIR-V
+/// types
+FunctionPass *createSPIRVLowerBitCastToNonStandardTypeLegacy(
+    const SPIRV::TranslatorOpts &Opts);
 
 } // namespace llvm
 

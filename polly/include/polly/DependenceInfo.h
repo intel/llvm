@@ -26,8 +26,6 @@
 #include "isl/ctx.h"
 #include "isl/isl-noexceptions.h"
 
-using namespace llvm;
-
 namespace polly {
 
 /// The accumulated dependence information for a SCoP.
@@ -125,6 +123,10 @@ struct Dependences {
   /// @return True if the new schedule is valid, false if it reverses
   ///         dependences.
   bool isValidSchedule(Scop &S, const StatementToIslMapTy &NewSchedules) const;
+
+  /// Return true of the schedule @p NewSched is a schedule for @S that does not
+  /// violate any dependences.
+  bool isValidSchedule(Scop &S, isl::schedule NewSched) const;
 
   /// Print the stored dependence information.
   void print(llvm::raw_ostream &OS) const;
@@ -260,6 +262,9 @@ private:
   std::unique_ptr<Dependences> D[Dependences::NumAnalysisLevels];
 };
 
+llvm::Pass *createDependenceInfoPass();
+llvm::Pass *createDependenceInfoPrinterLegacyPass(llvm::raw_ostream &OS);
+
 /// Construct a new DependenceInfoWrapper pass.
 class DependenceInfoWrapperPass : public FunctionPass {
 public:
@@ -299,11 +304,19 @@ private:
   /// Scop to Dependence map for the current function.
   ScopToDepsMapTy ScopToDepsMap;
 };
+
+llvm::Pass *createDependenceInfoWrapperPassPass();
+llvm::Pass *
+createDependenceInfoPrinterLegacyFunctionPass(llvm::raw_ostream &OS);
+
 } // namespace polly
 
 namespace llvm {
 void initializeDependenceInfoPass(llvm::PassRegistry &);
+void initializeDependenceInfoPrinterLegacyPassPass(llvm::PassRegistry &);
 void initializeDependenceInfoWrapperPassPass(llvm::PassRegistry &);
+void initializeDependenceInfoPrinterLegacyFunctionPassPass(
+    llvm::PassRegistry &);
 } // namespace llvm
 
 #endif

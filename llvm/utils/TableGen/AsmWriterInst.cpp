@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AsmWriterInst.h"
+#include "CodeGenInstruction.h"
 #include "CodeGenTarget.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/TableGen/Error.h"
@@ -18,12 +19,7 @@
 
 using namespace llvm;
 
-static bool isIdentChar(char C) {
-  return (C >= 'a' && C <= 'z') ||
-  (C >= 'A' && C <= 'Z') ||
-  (C >= '0' && C <= '9') ||
-  C == '_';
-}
+static bool isIdentChar(char C) { return isAlnum(C) || C == '_'; }
 
 std::string AsmWriterOperand::getCode(bool PassSubtarget) const {
   if (OperandType == isLiteralTextOperand) {
@@ -36,6 +32,8 @@ std::string AsmWriterOperand::getCode(bool PassSubtarget) const {
     return Str;
 
   std::string Result = Str + "(MI";
+  if (PCRel)
+    Result += ", Address";
   if (MIOpNo != ~0U)
     Result += ", " + utostr(MIOpNo);
   if (PassSubtarget)
@@ -150,8 +148,7 @@ AsmWriterInst::AsmWriterInst(const CodeGenInstruction &CGI, unsigned CGIIndex,
           std::string::size_type ModifierStart = VarEnd;
           while (VarEnd < AsmString.size() && isIdentChar(AsmString[VarEnd]))
             ++VarEnd;
-          Modifier = std::string(AsmString.begin()+ModifierStart,
-                                 AsmString.begin()+VarEnd);
+          Modifier = AsmString.substr(ModifierStart, VarEnd - ModifierStart);
           if (Modifier.empty())
             PrintFatalError(CGI.TheDef->getLoc(),
                             "Bad operand modifier name in '" +
@@ -179,7 +176,9 @@ AsmWriterInst::AsmWriterInst(const CodeGenInstruction &CGI, unsigned CGIIndex,
         CGIOperandList::OperandInfo OpInfo = CGI.Operands[OpNo];
 
         unsigned MIOp = OpInfo.MIOperandNo;
-        Operands.emplace_back(OpInfo.PrinterMethodName, MIOp, Modifier);
+        Operands.emplace_back(OpInfo.PrinterMethodName, MIOp, Modifier,
+                              AsmWriterOperand::isMachineInstrOperand,
+                              OpInfo.OperandType == "MCOI::OPERAND_PCREL");
       }
       LastEmitted = VarEnd;
     }

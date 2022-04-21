@@ -1,6 +1,6 @@
 # RUN: yaml2obj %s -o %t
 # RUN: llvm-objcopy -O binary %t %t2
-# RUN: od -t x1 %t2 | FileCheck %s
+# RUN: od -t x1 %t2 | FileCheck %s --ignore-case
 
 !ELF
 FileHeader:
@@ -22,19 +22,17 @@ Sections:
     AddressAlign:    0x0000000000000008
     Content:         "3232"
 ProgramHeaders:
-  - Type: PT_LOAD
-    Flags: [ PF_X, PF_R ]
-    VAddr: 0x1000
-    PAddr: 0x1000
-    Align: 0x1000
-    Sections:
-      - Section: .text
-  - Type: PT_LOAD
-    Flags: [ PF_R, PF_W ]
-    VAddr: 0x1008
-    PAddr: 0x1008
-    Align: 0x1000
-    Sections:
-      - Section: .data
+  - Type:     PT_LOAD
+    Flags:    [ PF_X, PF_R ]
+    VAddr:    0x1000
+    Align:    0x1000
+    FirstSec: .text
+    LastSec:  .text
+  - Type:     PT_LOAD
+    Flags:    [ PF_R, PF_W ]
+    VAddr:    0x1008
+    Align:    0x1000
+    FirstSec: .data
+    LastSec:  .data
 
 # CHECK: 0000000 c3 c3 c3 c3 00 00 00 00 32 32

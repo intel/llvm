@@ -263,7 +263,7 @@ for.body.116.preheader:                           ; preds = %for.cond.112.prehea
   %8 = sub i64 0, %int_part_ptr.02534
   %scevgep5 = getelementptr i8, i8* %call109, i64 %8
   %scevgep56 = ptrtoint i8* %scevgep5 to i64
-  call void @llvm.ppc.mtctr.i64(i64 %scevgep56)
+  call void @llvm.set.loop.iterations.i64(i64 %scevgep56)
   br label %for.body.116
 
 for.cond.cleanup:                                 ; preds = %if.end.138, %if.end.105
@@ -298,7 +298,7 @@ for.body.116:                                     ; preds = %for.body.116, %for.
   %conv134 = trunc i32 %add133 to i8
   %scevgep = getelementptr i8, i8* inttoptr (i64 -1 to i8*), i64 %call109.pn2
   store i8 %conv134, i8* %scevgep, align 1, !tbaa !10
-  %12 = call i1 @llvm.ppc.is.decremented.ctr.nonzero()
+  %12 = call i1 @llvm.loop.decrement(i64 1)
   br i1 %12, label %for.body.116, label %for.cond.cleanup.115
 
 if.then.136:                                      ; preds = %for.cond.cleanup.115
@@ -323,13 +323,13 @@ cleanup.148:                                      ; preds = %for.cond.cleanup, %
 declare i8* @memcpy(i8*, i8* nocapture readonly, i64) #1
 
 ; Function Attrs: nounwind
-declare void @llvm.ppc.mtctr.i64(i64) #0
+declare void @llvm.set.loop.iterations.i64(i64) #0
 
 ; Function Attrs: nounwind
-declare i1 @llvm.ppc.is.decremented.ctr.nonzero() #0
+declare i1 @llvm.loop.decrement(i64) #0
 
 attributes #0 = { nounwind }
-attributes #1 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #2 = { nounwind }
 attributes #3 = { nounwind }
 

@@ -38,30 +38,26 @@
 #define DEBUG_TYPE "spvbool"
 
 #include "SPIRVInternal.h"
+#include "libSPIRV/SPIRVDebug.h"
+
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Verifier.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
-cl::opt<bool> SPIRVLowerBoolValidate(
-    "spvbool-validate",
-    cl::desc("Validate module after lowering boolean instructions for SPIR-V"));
 
-class SPIRVLowerBool : public ModulePass, public InstVisitor<SPIRVLowerBool> {
+class SPIRVLowerBoolBase : public InstVisitor<SPIRVLowerBoolBase> {
 public:
-  SPIRVLowerBool() : ModulePass(ID), Context(nullptr) {
-    initializeSPIRVLowerBoolPass(*PassRegistry::getPassRegistry());
-  }
+  SPIRVLowerBoolBase() : Context(nullptr) {}
+  virtual ~SPIRVLowerBoolBase() {}
   void replace(Instruction *I, Instruction *NewI) {
     NewI->takeName(I);
+    NewI->setDebugLoc(I->getDebugLoc());
     I->replaceAllUsesWith(NewI);
     I->dropAllReferences();
     I->eraseFromParent();
@@ -76,59 +72,84 @@ public:
   virtual void visitTruncInst(TruncInst &I) {
     if (isBoolType(I.getType())) {
       auto Op = I.getOperand(0);
+      auto And = BinaryOperator::CreateAnd(
+          Op, getScalarOrVectorConstantInt(Op->getType(), 1, false), "", &I);
+      And->setDebugLoc(I.getDebugLoc());
       auto Zero = getScalarOrVectorConstantInt(Op->getType(), 0, false);
-      auto Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, Op, Zero);
+      auto Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, And, Zero);
       replace(&I, Cmp);
     }
   }
-  virtual void visitZExtInst(ZExtInst &I) {
+  void handleExtInstructions(Instruction &I) {
     auto Op = I.getOperand(0);
     if (isBoolType(Op->getType())) {
+      auto Opcode = I.getOpcode();
       auto Ty = I.getType();
+      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
+      auto One = getScalarOrVectorConstantInt(
+          Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
+      assert(Zero && One && "Couldn't create constant int");
+      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
+      replace(&I, Sel);
+    }
+  }
+  void handleCastInstructions(Instruction &I) {
+    auto Op = I.getOperand(0);
+    auto *OpTy = Op->getType();
+    if (isBoolType(OpTy)) {
+      Type *Ty = Type::getInt32Ty(*Context);
+      if (auto VT = dyn_cast<FixedVectorType>(OpTy))
+        Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
       auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
       auto One = getScalarOrVectorConstantInt(Ty, 1, false);
       assert(Zero && One && "Couldn't create constant int");
       auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      replace(&I, Sel);
+      Sel->setDebugLoc(I.getDebugLoc());
+      I.setOperand(0, Sel);
     }
   }
-  virtual void visitSExtInst(SExtInst &I) {
-    auto Op = I.getOperand(0);
-    if (isBoolType(Op->getType())) {
-      auto Ty = I.getType();
-      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-      auto One = getScalarOrVectorConstantInt(Ty, ~0, false);
-      assert(Zero && One && "Couldn't create constant int");
-      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      replace(&I, Sel);
-    }
-  }
-  bool runOnModule(Module &M) override {
+  virtual void visitZExtInst(ZExtInst &I) { handleExtInstructions(I); }
+  virtual void visitSExtInst(SExtInst &I) { handleExtInstructions(I); }
+  virtual void visitUIToFPInst(UIToFPInst &I) { handleCastInstructions(I); }
+  virtual void visitSIToFPInst(SIToFPInst &I) { handleCastInstructions(I); }
+  bool runLowerBool(Module &M) {
     Context = &M.getContext();
     visit(M);
 
-    if (SPIRVLowerBoolValidate) {
-      LLVM_DEBUG(dbgs() << "After SPIRVLowerBool:\n" << M);
-      std::string Err;
-      raw_string_ostream ErrorOS(Err);
-      if (verifyModule(M, &ErrorOS)) {
-        Err = std::string("Fails to verify module: ") + Err;
-        report_fatal_error(Err.c_str(), false);
-      }
-    }
+    verifyRegularizationPass(M, "SPIRVLowerBool");
     return true;
   }
-
-  static char ID;
 
 private:
   LLVMContext *Context;
 };
 
-char SPIRVLowerBool::ID = 0;
+class SPIRVLowerBoolPass : public llvm::PassInfoMixin<SPIRVLowerBoolPass>,
+                           public SPIRVLowerBoolBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runLowerBool(M) ? llvm::PreservedAnalyses::none()
+                           : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVLowerBoolLegacy : public ModulePass, public SPIRVLowerBoolBase {
+public:
+  SPIRVLowerBoolLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerBoolLegacyPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnModule(Module &M) override { return runLowerBool(M); }
+
+  static char ID;
+};
+
+char SPIRVLowerBoolLegacy::ID = 0;
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVLowerBool, "spvbool",
+INITIALIZE_PASS(SPIRVLowerBoolLegacy, "spvbool",
                 "Lower instructions with bool operands", false, false)
 
-ModulePass *llvm::createSPIRVLowerBool() { return new SPIRVLowerBool(); }
+ModulePass *llvm::createSPIRVLowerBoolLegacy() {
+  return new SPIRVLowerBoolLegacy();
+}

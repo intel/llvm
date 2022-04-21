@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_GDBRemoteCommunicationServerLLGS_h_
-#define liblldb_GDBRemoteCommunicationServerLLGS_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATIONSERVERLLGS_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATIONSERVERLLGS_H
 
 #include <mutex>
 #include <unordered_map>
@@ -59,6 +59,17 @@ public:
   ///     attach operation.
   Status AttachToProcess(lldb::pid_t pid);
 
+  /// Wait to attach to a process with a given name.
+  ///
+  /// This method supports waiting for the next instance of a process
+  /// with a given name and attaching llgs to that via the configured
+  /// Platform.
+  ///
+  /// \return
+  ///     An Status object indicating the success or failure of the
+  ///     attach operation.
+  Status AttachWaitProcess(llvm::StringRef process_name, bool include_existing);
+
   // NativeProcessProtocol::NativeDelegate overrides
   void InitializeDelegate(NativeProcessProtocol *process) override;
 
@@ -67,7 +78,11 @@ public:
 
   void DidExec(NativeProcessProtocol *process) override;
 
-  Status InitializeConnection(std::unique_ptr<Connection> &&connection);
+  void
+  NewSubprocess(NativeProcessProtocol *parent_process,
+                std::unique_ptr<NativeProcessProtocol> child_process) override;
+
+  Status InitializeConnection(std::unique_ptr<Connection> connection);
 
 protected:
   MainLoop &m_mainloop;
@@ -75,18 +90,24 @@ protected:
   const NativeProcessProtocol::Factory &m_process_factory;
   lldb::tid_t m_current_tid = LLDB_INVALID_THREAD_ID;
   lldb::tid_t m_continue_tid = LLDB_INVALID_THREAD_ID;
+  NativeProcessProtocol *m_current_process;
+  NativeProcessProtocol *m_continue_process;
   std::recursive_mutex m_debugged_process_mutex;
-  std::unique_ptr<NativeProcessProtocol> m_debugged_process_up;
+  std::unordered_map<lldb::pid_t, std::unique_ptr<NativeProcessProtocol>>
+      m_debugged_processes;
 
   Communication m_stdio_communication;
   MainLoop::ReadHandleUP m_stdio_handle_up;
 
   lldb::StateType m_inferior_prev_state = lldb::StateType::eStateInvalid;
-  std::unique_ptr<llvm::MemoryBuffer> m_active_auxv_buffer_up;
+  llvm::StringMap<std::unique_ptr<llvm::MemoryBuffer>> m_xfer_buffer_map;
   std::mutex m_saved_registers_mutex;
   std::unordered_map<uint32_t, lldb::DataBufferSP> m_saved_registers_map;
   uint32_t m_next_saved_registers_id = 1;
-  bool m_handshake_completed = false;
+  bool m_thread_suffix_supported = false;
+  bool m_list_threads_in_stop_reply = false;
+
+  NativeProcessProtocol::Extension m_extensions_supported = {};
 
   PacketResult SendONotification(const char *buffer, uint32_t len);
 
@@ -107,6 +128,10 @@ protected:
   PacketResult Handle_QSetWorkingDir(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_qGetWorkingDir(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_QThreadSuffixSupported(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_QListThreadsInStopReply(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_C(StringExtractorGDBRemote &packet);
 
@@ -138,6 +163,8 @@ protected:
   PacketResult Handle_memory_read(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_M(StringExtractorGDBRemote &packet);
+  PacketResult Handle__M(StringExtractorGDBRemote &packet);
+  PacketResult Handle__m(StringExtractorGDBRemote &packet);
 
   PacketResult
   Handle_qMemoryRegionInfoSupported(StringExtractorGDBRemote &packet);
@@ -150,21 +177,31 @@ protected:
 
   PacketResult Handle_s(StringExtractorGDBRemote &packet);
 
-  PacketResult Handle_qXfer_auxv_read(StringExtractorGDBRemote &packet);
+  PacketResult Handle_qXfer(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_QSaveRegisterState(StringExtractorGDBRemote &packet);
 
-  PacketResult Handle_jTraceStart(StringExtractorGDBRemote &packet);
+  PacketResult Handle_jLLDBTraceSupported(StringExtractorGDBRemote &packet);
 
-  PacketResult Handle_jTraceRead(StringExtractorGDBRemote &packet);
+  PacketResult Handle_jLLDBTraceStart(StringExtractorGDBRemote &packet);
 
-  PacketResult Handle_jTraceStop(StringExtractorGDBRemote &packet);
+  PacketResult Handle_jLLDBTraceStop(StringExtractorGDBRemote &packet);
 
-  PacketResult Handle_jTraceConfigRead(StringExtractorGDBRemote &packet);
+  PacketResult Handle_jLLDBTraceGetState(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_jLLDBTraceGetBinaryData(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_QRestoreRegisterState(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_vAttach(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_vAttachWait(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_qVAttachOrWaitSupported(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_vAttachOrWait(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_vRun(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_D(StringExtractorGDBRemote &packet);
 
@@ -177,6 +214,14 @@ protected:
   PacketResult Handle_qFileLoadAddress(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_QPassSignals(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_qSaveCore(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_g(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_qMemTags(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_QMemTags(StringExtractorGDBRemote &packet);
 
   void SetCurrentThreadID(lldb::tid_t tid);
 
@@ -191,7 +236,17 @@ protected:
   FileSpec FindModuleFile(const std::string &module_path,
                           const ArchSpec &arch) override;
 
+  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  ReadXferObject(llvm::StringRef object, llvm::StringRef annex);
+
+  static std::string XMLEncodeAttributeValue(llvm::StringRef value);
+
+  virtual std::vector<std::string> HandleFeatures(
+      const llvm::ArrayRef<llvm::StringRef> client_features) override;
+
 private:
+  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> BuildTargetXml();
+
   void HandleInferiorState_Exited(NativeProcessProtocol *process);
 
   void HandleInferiorState_Stopped(NativeProcessProtocol *process);
@@ -214,11 +269,28 @@ private:
 
   void StopSTDIOForwarding();
 
+  // Read thread-id from packet.  If the thread-id is correct, returns it.
+  // Otherwise, returns the error.
+  //
+  // If allow_all is true, then the pid/tid value of -1 ('all') will be allowed.
+  // In any case, the function assumes that exactly one inferior is being
+  // debugged and rejects pid values that do no match that inferior.
+  llvm::Expected<lldb::tid_t> ReadTid(StringExtractorGDBRemote &packet,
+                                      bool allow_all, lldb::pid_t default_pid);
+
+  // Call SetEnabledExtensions() with appropriate flags on the process.
+  void SetEnabledExtensions(NativeProcessProtocol &process);
+
   // For GDBRemoteCommunicationServerLLGS only
-  DISALLOW_COPY_AND_ASSIGN(GDBRemoteCommunicationServerLLGS);
+  GDBRemoteCommunicationServerLLGS(const GDBRemoteCommunicationServerLLGS &) =
+      delete;
+  const GDBRemoteCommunicationServerLLGS &
+  operator=(const GDBRemoteCommunicationServerLLGS &) = delete;
 };
+
+std::string LLGSArgToURL(llvm::StringRef url_arg, bool reverse_connect);
 
 } // namespace process_gdb_remote
 } // namespace lldb_private
 
-#endif // liblldb_GDBRemoteCommunicationServerLLGS_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATIONSERVERLLGS_H

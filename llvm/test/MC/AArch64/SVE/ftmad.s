@@ -3,7 +3,7 @@
 // RUN: not llvm-mc -triple=aarch64 -show-encoding < %s 2>&1 \
 // RUN:        | FileCheck %s --check-prefix=CHECK-ERROR
 // RUN: llvm-mc -triple=aarch64 -filetype=obj -mattr=+sve < %s \
-// RUN:        | llvm-objdump -d -mattr=+sve - | FileCheck %s --check-prefix=CHECK-INST
+// RUN:        | llvm-objdump -d --mattr=+sve - | FileCheck %s --check-prefix=CHECK-INST
 // RUN: llvm-mc -triple=aarch64 -filetype=obj -mattr=+sve < %s \
 // RUN:        | llvm-objdump -d - | FileCheck %s --check-prefix=CHECK-UNKNOWN
 
@@ -32,7 +32,7 @@ ftmad z0.d, z0.d, z31.d, #7
 movprfx z0, z7
 // CHECK-INST: movprfx	z0, z7
 // CHECK-ENCODING: [0xe0,0xbc,0x20,0x04]
-// CHECK-ERROR: instruction requires: sve
+// CHECK-ERROR: instruction requires: sve or sme
 // CHECK-UNKNOWN: e0 bc 20 04 <unknown>
 
 ftmad z0.d, z0.d, z31.d, #7

@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===-- glue_execution_defs.h ---------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,13 +13,14 @@
 #include <type_traits>
 
 #include "execution_defs.h"
+#include "pstl_config.h"
 
 namespace std
 {
 // Type trait
 using __pstl::execution::is_execution_policy;
-#if _PSTL_CPP14_VARIABLE_TEMPLATES_PRESENT
-#    if __INTEL_COMPILER
+#if defined(_PSTL_CPP14_VARIABLE_TEMPLATES_PRESENT)
+#    if defined(__INTEL_COMPILER)
 template <class T>
 constexpr bool is_execution_policy_v = is_execution_policy<T>::value;
 #    else

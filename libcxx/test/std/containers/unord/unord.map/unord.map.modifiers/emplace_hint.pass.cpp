@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <unordered_map>
 
@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../../Emplaceable.h"
 #include "min_allocator.h"
 

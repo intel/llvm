@@ -1,4 +1,4 @@
-// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -r --expand-relocs | FileCheck %s
+// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -r --expand-relocs - | FileCheck %s
 
         .data
         .long undef
@@ -37,7 +37,7 @@ L0:
         .text
 _f0:
 L1:
-        jmp	0xbabecafe
+        jmp	0x7abecafe
         jmp L0
         jmp L1
         ret

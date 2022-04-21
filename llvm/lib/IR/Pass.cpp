@@ -14,8 +14,6 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/IR/Attributes.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
@@ -24,11 +22,14 @@
 #include "llvm/IR/OptBisect.h"
 #include "llvm/PassInfo.h"
 #include "llvm/PassRegistry.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
+
+#ifdef EXPENSIVE_CHECKS
+#include "llvm/IR/StructuralHash.h"
+#endif
 
 using namespace llvm;
 
@@ -65,7 +66,7 @@ bool ModulePass::skipModule(Module &M) const {
 }
 
 bool Pass::mustPreserveAnalysisID(char &AID) const {
-  return Resolver->getAnalysisIfAvailable(&AID, true) != nullptr;
+  return Resolver->getAnalysisIfAvailable(&AID) != nullptr;
 }
 
 // dumpPassStructure - Implement the -debug-pass=Structure option
@@ -136,6 +137,12 @@ LLVM_DUMP_METHOD void Pass::dump() const {
 }
 #endif
 
+#ifdef EXPENSIVE_CHECKS
+uint64_t Pass::structuralHash(Module &M) const { return StructuralHash(M); }
+
+uint64_t Pass::structuralHash(Function &F) const { return StructuralHash(F); }
+#endif
+
 //===----------------------------------------------------------------------===//
 // ImmutablePass Implementation
 //
@@ -174,51 +181,6 @@ bool FunctionPass::skipFunction(const Function &F) const {
     return true;
   }
   return false;
-}
-
-//===----------------------------------------------------------------------===//
-// BasicBlockPass Implementation
-//
-
-Pass *BasicBlockPass::createPrinterPass(raw_ostream &OS,
-                                        const std::string &Banner) const {
-  return createPrintBasicBlockPass(OS, Banner);
-}
-
-bool BasicBlockPass::doInitialization(Function &) {
-  // By default, don't do anything.
-  return false;
-}
-
-bool BasicBlockPass::doFinalization(Function &) {
-  // By default, don't do anything.
-  return false;
-}
-
-static std::string getDescription(const BasicBlock &BB) {
-  return "basic block (" + BB.getName().str() + ") in function (" +
-         BB.getParent()->getName().str() + ")";
-}
-
-bool BasicBlockPass::skipBasicBlock(const BasicBlock &BB) const {
-  const Function *F = BB.getParent();
-  if (!F)
-    return false;
-  OptPassGate &Gate = F->getContext().getOptPassGate();
-  if (Gate.isEnabled() && !Gate.shouldRunPass(this, getDescription(BB)))
-    return true;
-  if (F->hasOptNone()) {
-    // Report this only once per function.
-    if (&BB == &F->getEntryBlock())
-      LLVM_DEBUG(dbgs() << "Skipping pass '" << getPassName()
-                        << "' on function " << F->getName() << "\n");
-    return true;
-  }
-  return false;
-}
-
-PassManagerType BasicBlockPass::getPotentialPassManagerType() const {
-  return PMT_BasicBlockPassManager;
 }
 
 const PassInfo *Pass::lookupPassInfo(const void *TI) {
@@ -307,22 +269,23 @@ void AnalysisUsage::setPreservesCFG() {
 AnalysisUsage &AnalysisUsage::addPreserved(StringRef Arg) {
   const PassInfo *PI = Pass::lookupPassInfo(Arg);
   // If the pass exists, preserve it. Otherwise silently do nothing.
-  if (PI) Preserved.push_back(PI->getTypeInfo());
+  if (PI)
+    pushUnique(Preserved, PI->getTypeInfo());
   return *this;
 }
 
 AnalysisUsage &AnalysisUsage::addRequiredID(const void *ID) {
-  Required.push_back(ID);
+  pushUnique(Required, ID);
   return *this;
 }
 
 AnalysisUsage &AnalysisUsage::addRequiredID(char &ID) {
-  Required.push_back(&ID);
+  pushUnique(Required, &ID);
   return *this;
 }
 
 AnalysisUsage &AnalysisUsage::addRequiredTransitiveID(char &ID) {
-  Required.push_back(&ID);
-  RequiredTransitive.push_back(&ID);
+  pushUnique(Required, &ID);
+  pushUnique(RequiredTransitive, &ID);
   return *this;
 }

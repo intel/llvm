@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -debug-info-kind=limited -std=c++11 -S -emit-llvm %s -o - | FileCheck -allow-deprecated-dag-overlap %s
+// RUN: %clang_cc1 -debug-info-kind=limited -gno-column-info -std=c++11 -S -emit-llvm %s -o - | FileCheck -allow-deprecated-dag-overlap %s
 // PR19864
 extern int v[2];
 int a = 0, b = 0;
@@ -57,11 +57,11 @@ int main() {
   // CHECK-DAG: [[SLDBG1]] = !DILocation(line: 100, scope: !{{.*}})
   // CHECK-DAG: [[ELDBG1]] = !DILocation(line: 104, scope: !{{.*}})
 
-  // CHECK-DAG: [[L2]] = distinct !{[[L2]], [[SLDBG2:![0-9]*]], [[ELDBG2:![0-9]*]]}
+  // CHECK-DAG: [[L2]] = distinct !{[[L2]], [[SLDBG2:![0-9]*]], [[ELDBG2:![0-9]*]], [[MP:![0-9]+]]}
   // CHECK-DAG: [[SLDBG2]] = !DILocation(line: 200, scope: !{{.*}})
   // CHECK-DAG: [[ELDBG2]] = !DILocation(line: 204, scope: !{{.*}})
 
-  // CHECK-DAG: [[L3]] = distinct !{[[L3]], [[SLDBG3:![0-9]*]], [[ELDBG3:![0-9]*]]}
+  // CHECK-DAG: [[L3]] = distinct !{[[L3]], [[SLDBG3:![0-9]*]], [[ELDBG3:![0-9]*]], [[MP]]}
   // CHECK-DAG: [[SLDBG3]] = !DILocation(line: 300, scope: !{{.*}})
   // CHECK-DAG: [[ELDBG3]] = !DILocation(line: 304, scope: !{{.*}})
 

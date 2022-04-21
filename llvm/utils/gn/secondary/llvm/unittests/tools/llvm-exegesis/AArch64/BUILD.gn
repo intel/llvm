@@ -19,7 +19,5 @@ unittest("LLVMExegesisAArch64Tests") {
     "//llvm/lib/Target/AArch64",
     "//llvm/tools/llvm-exegesis/lib",
   ]
-  sources = [
-    "TargetTest.cpp",
-  ]
+  sources = [ "TargetTest.cpp" ]
 }

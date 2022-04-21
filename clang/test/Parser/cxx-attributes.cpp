@@ -22,3 +22,26 @@ namespace PR17666 {
 }
 
 __attribute((typename)) int x; // expected-warning {{unknown attribute 'typename' ignored}}
+
+void fn() {
+  void (*__attribute__((attr)) fn_ptr)() = &fn; // expected-warning{{unknown attribute 'attr' ignored}}
+  void (*__attribute__((attrA)) *__attribute__((attrB)) fn_ptr_ptr)() = &fn_ptr; // expected-warning{{unknown attribute 'attrA' ignored}} expected-warning{{unknown attribute 'attrB' ignored}}
+
+  void (&__attribute__((attr)) fn_lref)() = fn; // expected-warning{{unknown attribute 'attr' ignored}}
+  void (&&__attribute__((attr)) fn_rref)() = fn; // expected-warning{{unknown attribute 'attr' ignored}}
+
+  int i[5];
+  int (*__attribute__((attr(i[1]))) pi);  // expected-warning{{unknown attribute 'attr' ignored}}
+  pi = &i[0];
+}
+
+[[deprecated([""])]] int WrongArgs; // expected-error {{expected variable name or 'this' in lambda capture list}}
+[[,,,,,]] int Commas1; // ok
+[[,, maybe_unused]] int Commas2; // ok
+[[maybe_unused,,,]] int Commas3; // ok
+[[,,maybe_unused,]] int Commas4; // ok
+[[foo bar]] int NoComma; // expected-error {{expected ','}} \
+                         // expected-warning {{unknown attribute 'foo' ignored}}
+// expected-error@+2 2 {{expected ']'}}
+// expected-error@+1 {{expected external declaration}}
+[[foo

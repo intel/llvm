@@ -14,15 +14,14 @@
 #define LLVM_ANALYSIS_GLOBALSMODREF_H
 
 #include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/Analysis/CallGraph.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Pass.h"
 #include <list>
 
 namespace llvm {
+class CallGraph;
+class Function;
 
 /// An alias analysis result set for globals.
 ///
@@ -34,10 +33,13 @@ class GlobalsAAResult : public AAResultBase<GlobalsAAResult> {
   class FunctionInfo;
 
   const DataLayout &DL;
-  const TargetLibraryInfo &TLI;
+  std::function<const TargetLibraryInfo &(Function &F)> GetTLI;
 
   /// The globals that do not have their addresses taken.
   SmallPtrSet<const GlobalValue *, 8> NonAddressTakenGlobals;
+
+  /// Are there functions with local linkage that may modify globals.
+  bool UnknownFunctionsWithLocalLinkage = false;
 
   /// IndirectGlobals - The memory pointed to by this global is known to be
   /// 'owned' by the global.
@@ -72,14 +74,23 @@ class GlobalsAAResult : public AAResultBase<GlobalsAAResult> {
   /// could perform to the memory utilization here if this becomes a problem.
   std::list<DeletionCallbackHandle> Handles;
 
-  explicit GlobalsAAResult(const DataLayout &DL, const TargetLibraryInfo &TLI);
+  explicit GlobalsAAResult(
+      const DataLayout &DL,
+      std::function<const TargetLibraryInfo &(Function &F)> GetTLI);
+
+  friend struct RecomputeGlobalsAAPass;
 
 public:
   GlobalsAAResult(GlobalsAAResult &&Arg);
   ~GlobalsAAResult();
 
-  static GlobalsAAResult analyzeModule(Module &M, const TargetLibraryInfo &TLI,
-                                       CallGraph &CG);
+  bool invalidate(Module &M, const PreservedAnalyses &PA,
+                  ModuleAnalysisManager::Invalidator &);
+
+  static GlobalsAAResult
+  analyzeModule(Module &M,
+                std::function<const TargetLibraryInfo &(Function &F)> GetTLI,
+                CallGraph &CG);
 
   //------------------------------------------------
   // Implement the AliasAnalysis API
@@ -127,6 +138,10 @@ public:
   typedef GlobalsAAResult Result;
 
   GlobalsAAResult run(Module &M, ModuleAnalysisManager &AM);
+};
+
+struct RecomputeGlobalsAAPass : PassInfoMixin<RecomputeGlobalsAAPass> {
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 /// Legacy wrapper pass to provide the GlobalsAAResult object.

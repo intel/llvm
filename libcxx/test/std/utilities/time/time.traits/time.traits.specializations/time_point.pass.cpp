@@ -15,6 +15,10 @@
 // };
 
 #include <chrono>
+#include <ratio>
+#include <type_traits>
+
+#include "test_macros.h"
 
 template <class D1, class D2, class De>
 void

@@ -55,6 +55,9 @@ SANITIZER("hwaddress", HWAddress)
 // Kernel Hardware-assisted AddressSanitizer (KHWASan)
 SANITIZER("kernel-hwaddress", KernelHWAddress)
 
+// A variant of AddressSanitizer using AArch64 MTE extension.
+SANITIZER("memtag", MemTag)
+
 // MemorySanitizer
 SANITIZER("memory", Memory)
 
@@ -104,6 +107,7 @@ SANITIZER("vptr", Vptr)
 
 // IntegerSanitizer
 SANITIZER("unsigned-integer-overflow", UnsignedIntegerOverflow)
+SANITIZER("unsigned-shift-base", UnsignedShiftBase)
 
 // DataFlowSanitizer
 SANITIZER("dataflow", DataFlow)
@@ -130,7 +134,7 @@ SANITIZER("shadow-call-stack", ShadowCallStack)
 // ABI or address space layout implications, and only catch undefined behavior.
 SANITIZER_GROUP("undefined", Undefined,
                 Alignment | Bool | Builtin | ArrayBounds | Enum |
-                    FloatCastOverflow | FloatDivideByZero |
+                    FloatCastOverflow |
                     IntegerDivideByZero | NonnullAttribute | Null | ObjectSize |
                     PointerOverflow | Return | ReturnsNonnullAttribute | Shift |
                     SignedIntegerOverflow | Unreachable | VLABound | Function |
@@ -153,6 +157,8 @@ SANITIZER_GROUP("implicit-integer-arithmetic-value-change",
                 ImplicitIntegerArithmeticValueChange,
                 ImplicitIntegerSignChange | ImplicitSignedIntegerTruncation)
 
+SANITIZER("objc-cast", ObjCCast)
+
 // FIXME:
 //SANITIZER_GROUP("implicit-integer-conversion", ImplicitIntegerConversion,
 //                ImplicitIntegerArithmeticValueChange |
@@ -166,7 +172,8 @@ SANITIZER_GROUP("implicit-conversion", ImplicitConversion,
 
 SANITIZER_GROUP("integer", Integer,
                 ImplicitConversion | IntegerDivideByZero | Shift |
-                    SignedIntegerOverflow | UnsignedIntegerOverflow)
+                    SignedIntegerOverflow | UnsignedIntegerOverflow |
+                    UnsignedShiftBase)
 
 SANITIZER("local-bounds", LocalBounds)
 SANITIZER_GROUP("bounds", Bounds, ArrayBounds | LocalBounds)

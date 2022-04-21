@@ -1,8 +1,10 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
+#pragma omp requires dynamic_allocators
 typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_null_allocator;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
 extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
 extern const omp_allocator_handle_t omp_const_mem_alloc;
@@ -19,11 +21,18 @@ bool foobool(int argc) {
   return argc;
 }
 
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp target teams distribute firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
+
 struct S1; // expected-note {{declared here}} expected-note{{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;
-  
+
 public:
   S2() : a(0) {}
   S2(const S2 &s2) : a(s2.a) {}
@@ -73,7 +82,7 @@ int main(int argc, char **argv) {
   S4 e(4);
   S5 g(5);
   S6 p;
-  int i;
+  int i, z;
   int &j = i;
 
 #pragma omp target teams distribute firstprivate // expected-error {{expected '(' after 'firstprivate'}}
@@ -110,10 +119,10 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 
 #pragma omp target
-#pragma omp teams distribute firstprivate(ca) // expected-error {{no matching constructor for initialization of 'S3'}}
+#pragma omp teams distribute firstprivate(ca) // expected-error {{no matching constructor for initialization of 'S3'}} expected-warning {{Type 'const S3[5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (i = 0; i < argc; ++i) foo();
 
-#pragma omp target teams distribute firstprivate(da)
+#pragma omp target teams distribute firstprivate(da, z)
   for (i = 0; i < argc; ++i) foo();
 
 #pragma omp target teams distribute firstprivate(S2::S2s)

@@ -104,16 +104,16 @@ With real data:::
 
   ---
   - Callback: FileChanged
-    Loc: "c:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-include.cpp:1:1"
+    Loc: "c:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-include.cpp:1:1"
     Reason: EnterFile
     FileType: C_User
     PrevFID: (invalid)
     (etc.)
   - Callback: FileChanged
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-include.cpp:5:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-include.cpp:5:1"
     Reason: ExitFile
     FileType: C_User
-    PrevFID: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/Input/Level1B.h"
+    PrevFID: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/Input/Level1B.h"
   - Callback: EndOfMainFile
   ...
 
@@ -123,7 +123,7 @@ name as the argument in the corresponding PPCallbacks callback function.
 Callback Details
 ----------------
 
-The following sections describe the pupose and output format for each callback.
+The following sections describe the purpose and output format for each callback.
 
 Click on the callback name in the section heading to see the Doxygen
 documentation for the callback.
@@ -161,7 +161,7 @@ of a file.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Reason           (EnterFile|ExitFile|SystemHeaderPragma|RenameFile)   PPCallbacks::FileChangeReason  Reason for change.
@@ -172,7 +172,7 @@ PrevFID          ((file)|(invalid))                                   FileID    
 Example:::
 
   - Callback: FileChanged
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-include.cpp:1:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-include.cpp:1:1"
     Reason: EnterFile
     FileType: C_User
     PrevFID: (invalid)
@@ -186,7 +186,7 @@ guard optimization.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ========================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ========================================================
 ParentFile       ("(file)" or (null))                                 const FileEntry                The file that #included the skipped file.
 FilenameTok      (token)                                              const Token                    The token in ParentFile that indicates the skipped file.
@@ -208,7 +208,7 @@ FileNotFound is called when an inclusion directive results in a file-not-found e
 Argument descriptions:
 
 ==============   ==================================================   ============================== =====================================================================================================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== =====================================================================================================================================
 FileName         "(file)"                                             StringRef                      The name of the file being included, as written in the source code.
 RecoveryPath     (path)                                               SmallVectorImpl<char>          If this client indicates that it can recover from this missing file, the client should set this as an additional header search patch.
@@ -228,7 +228,7 @@ InclusionDirective is called when an inclusion directive of any kind (#include</
 Argument descriptions:
 
 ==============   ==================================================   ============================== ============================================================================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ============================================================================================================
 HashLoc          "(file):(line):(col)"                                SourceLocation                 The location of the '#' that starts the inclusion directive.
 IncludeTok       (token)                                              const Token                    The token that indicates the kind of inclusion directive, e.g., 'include' or 'import'.
@@ -248,8 +248,8 @@ Example:::
     FileName: "Input/Level1B.h"
     IsAngled: false
     FilenameRange: "Input/Level1B.h"
-    File: "D:/Clang/llvmnewmod/tools/clang/tools/extra/test/pp-trace/Input/Level1B.h"
-    SearchPath: "D:/Clang/llvmnewmod/tools/clang/tools/extra/test/pp-trace"
+    File: "D:/Clang/llvmnewmod/clang-tools-extra/test/pp-trace/Input/Level1B.h"
+    SearchPath: "D:/Clang/llvmnewmod/clang-tools-extra/test/pp-trace"
     RelativePath: "Input/Level1B.h"
     Imported: (null)
 
@@ -261,7 +261,7 @@ moduleImport is called when there was an explicit module-import syntax.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ===========================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ===========================================================
 ImportLoc        "(file):(line):(col)"                                SourceLocation                 The location of import directive token.
 Path             "(path)"                                             ModuleIdPath                   The identifiers (and their locations) of the module "path".
@@ -271,8 +271,8 @@ Imported         ((module name)|(null))                               const Modu
 Example:::
 
   - Callback: moduleImport
-    ImportLoc: "d:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-modules.cpp:4:2"
-    Path: [{Name: Level1B, Loc: "d:/Clang/llvmnewmod/tools/clang/tools/extra/test/pp-trace/pp-trace-modules.cpp:4:9"}, {Name: Level2B, Loc: "d:/Clang/llvmnewmod/tools/clang/tools/extra/test/pp-trace/pp-trace-modules.cpp:4:17"}]
+    ImportLoc: "d:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-modules.cpp:4:2"
+    Path: [{Name: Level1B, Loc: "d:/Clang/llvmnewmod/clang-tools-extra/test/pp-trace/pp-trace-modules.cpp:4:9"}, {Name: Level2B, Loc: "d:/Clang/llvmnewmod/clang-tools-extra/test/pp-trace/pp-trace-modules.cpp:4:17"}]
     Imported: Level2B
 
 `EndOfMainFile <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#a63e170d069e99bc1c9c7ea0f3bed8bcc>`_ Callback
@@ -283,7 +283,7 @@ EndOfMainFile is called when the end of the main file is reached.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ======================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ======================
 (no arguments)
 ==============   ==================================================   ============================== ======================
@@ -300,7 +300,7 @@ Ident is called when a #ident or #sccs directive is read.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 str              (name)                                               const std::string              The text of the directive.
@@ -309,7 +309,7 @@ str              (name)                                               const std:
 Example:::
 
   - Callback: Ident
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-ident.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-ident.cpp:3:1"
     str: "$Id$"
 
 `PragmaDirective <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#a0a2d7a72c62184b3cbde31fb62c6f2f7>`_ Callback
@@ -320,7 +320,7 @@ PragmaDirective is called when start reading any pragma directive.
 Argument descriptions:
 
 ==============   ==================================================   ============================== =================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== =================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Introducer       (PIK_HashPragma|PIK__Pragma|PIK___pragma)            PragmaIntroducerKind           The type of the pragma directive.
@@ -329,7 +329,7 @@ Introducer       (PIK_HashPragma|PIK__Pragma|PIK___pragma)            PragmaIntr
 Example:::
 
   - Callback: PragmaDirective
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     Introducer: PIK_HashPragma
 
 `PragmaComment <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#ace0d940fc2c12ab76441466aab58dc37>`_ Callback
@@ -340,7 +340,7 @@ PragmaComment is called when a #pragma comment directive is read.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Kind             ((name)|(null))                                      const IdentifierInfo           The comment kind symbol.
@@ -350,7 +350,7 @@ Str              (message directive)                                  const std:
 Example:::
 
   - Callback: PragmaComment
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     Kind: library
     Str: kernel32.lib
 
@@ -362,7 +362,7 @@ PragmaDetectMismatch is called when a #pragma detect_mismatch directive is read.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Name             "(name)"                                             const std::string              The name.
@@ -372,7 +372,7 @@ Value            (string)                                             const std:
 Example:::
 
   - Callback: PragmaDetectMismatch
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     Name: name
     Value: value
 
@@ -384,7 +384,7 @@ PragmaDebug is called when a #pragma clang __debug directive is read.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 DebugType        (string)                                             StringRef                      Indicates type of debug message.
@@ -393,7 +393,7 @@ DebugType        (string)                                             StringRef 
 Example:::
 
   - Callback: PragmaDebug
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     DebugType: warning
 
 `PragmaMessage <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#abb42935d9a9fd8e2c4f51cfdc4ea2ae1>`_ Callback
@@ -404,7 +404,7 @@ PragmaMessage is called when a #pragma message directive is read.
 Argument descriptions:
 
 ==============   ==================================================   ============================== =======================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== =======================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Namespace        (name)                                               StringRef                      The namespace of the message directive.
@@ -415,7 +415,7 @@ Str              (string)                                             StringRef 
 Example:::
 
   - Callback: PragmaMessage
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     Namespace: "GCC"
     Kind: PMK_Message
     Str: The message text.
@@ -423,12 +423,12 @@ Example:::
 `PragmaDiagnosticPush <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#a0f3ff19762baa38fe6c5c58022d32979>`_ Callback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-PragmaDiagnosticPush is called when a #pragma gcc dianostic push directive is read.
+PragmaDiagnosticPush is called when a #pragma gcc diagnostic push directive is read.
 
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Namespace        (name)                                               StringRef                      Namespace name.
@@ -437,18 +437,18 @@ Namespace        (name)                                               StringRef 
 Example:::
 
   - Callback: PragmaDiagnosticPush
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     Namespace: "GCC"
 
 `PragmaDiagnosticPop <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#ac94d789873122221fba8d76f6c5ea45e>`_ Callback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-PragmaDiagnosticPop is called when a #pragma gcc dianostic pop directive is read.
+PragmaDiagnosticPop is called when a #pragma gcc diagnostic pop directive is read.
 
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Namespace        (name)                                               StringRef                      Namespace name.
@@ -457,18 +457,18 @@ Namespace        (name)                                               StringRef 
 Example:::
 
   - Callback: PragmaDiagnosticPop
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     Namespace: "GCC"
 
 `PragmaDiagnostic <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#afe7938f38a83cb7b4b25a13edfdd7bdd>`_ Callback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-PragmaDiagnostic is called when a #pragma gcc dianostic directive is read.
+PragmaDiagnostic is called when a #pragma gcc diagnostic directive is read.
 
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Namespace        (name)                                               StringRef                      Namespace name.
@@ -479,7 +479,7 @@ Str              (string)                                             StringRef 
 Example:::
 
   - Callback: PragmaDiagnostic
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     Namespace: "GCC"
     mapping: MAP_WARNING
     Str: WarningName
@@ -492,7 +492,7 @@ PragmaOpenCLExtension is called when OpenCL extension is either disabled or enab
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==========================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==========================
 NameLoc          "(file):(line):(col)"                                SourceLocation                 The location of the name.
 Name             (name)                                               const IdentifierInfo           Name symbol.
@@ -503,9 +503,9 @@ State            (1|0)                                                unsigned  
 Example:::
 
   - Callback: PragmaOpenCLExtension
-    NameLoc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:10"
+    NameLoc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:10"
     Name: Name
-    StateLoc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:18"
+    StateLoc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:18"
     State: 1
 
 `PragmaWarning <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#aa17169d25fa1cf0a6992fc944d1d8730>`_ Callback
@@ -516,7 +516,7 @@ PragmaWarning is called when a #pragma warning directive is read.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 WarningSpec      (string)                                             StringRef                      The warning specifier.
@@ -526,7 +526,7 @@ Ids              [(number)[, ...]]                                    ArrayRef<i
 Example:::
 
   - Callback: PragmaWarning
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     WarningSpec: disable
     Ids: 1,2,3
 
@@ -538,7 +538,7 @@ PragmaWarningPush is called when a #pragma warning(push) directive is read.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 Level            (number)                                             int                            Warning level.
@@ -547,7 +547,7 @@ Level            (number)                                             int       
 Example:::
 
   - Callback: PragmaWarningPush
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
     Level: 1
 
 `PragmaWarningPop <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#ac98d502af8811b8a6e7342d7cd2b3b95>`_ Callback
@@ -558,7 +558,7 @@ PragmaWarningPop is called when a #pragma warning(pop) directive is read.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 ==============   ==================================================   ============================== ==============================
@@ -566,7 +566,7 @@ Loc              "(file):(line):(col)"                                SourceLoca
 Example:::
 
   - Callback: PragmaWarningPop
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-pragma.cpp:3:1"
 
 `MacroExpands <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#a9bc725209d3a071ea649144ab996d515>`_ Callback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -576,7 +576,7 @@ MacroExpands is called when ::HandleMacroExpandedIdentifier when a macro invocat
 Argument descriptions:
 
 ==============   ==================================================   ============================== ======================================================================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ======================================================================================================
 MacroNameTok     (token)                                              const Token                    The macro name token.
 MacroDirective   (MD_Define|MD_Undefine|MD_Visibility)                const MacroDirective           The kind of macro directive from the MacroDirective structure.
@@ -600,7 +600,7 @@ MacroDefined is called when a macro definition is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================================================
 MacroNameTok     (token)                                              const Token                    The macro name token.
 MacroDirective   (MD_Define|MD_Undefine|MD_Visibility)                const MacroDirective           The kind of macro directive from the MacroDirective structure.
@@ -620,7 +620,7 @@ MacroUndefined is called when a macro #undef is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================================================
 MacroNameTok     (token)                                              const Token                    The macro name token.
 MacroDirective   (MD_Define|MD_Undefine|MD_Visibility)                const MacroDirective           The kind of macro directive from the MacroDirective structure.
@@ -640,7 +640,7 @@ Defined is called when the 'defined' operator is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================================================
 MacroNameTok     (token)                                              const Token                    The macro name token.
 MacroDirective   (MD_Define|MD_Undefine|MD_Visibility)                const MacroDirective           The kind of macro directive from the MacroDirective structure.
@@ -652,7 +652,7 @@ Example:::
   - Callback: Defined
     MacroNameTok: MACRO
     MacroDirective: (null)
-    Range: ["D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:8:5", "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:8:19"]
+    Range: ["D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:8:5", "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:8:19"]
 
 `SourceRangeSkipped <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#abdb4ebe11610f079ac33515965794b46>`_ Callback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -662,7 +662,7 @@ SourceRangeSkipped is called when a source range is skipped.
 Argument descriptions:
 
 ==============   ==================================================   ============================== =========================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== =========================
 Range            ["(file):(line):(col)", "(file):(line):(col)"]       SourceRange                    The source range skipped.
 ==============   ==================================================   ============================== =========================
@@ -670,7 +670,7 @@ Range            ["(file):(line):(col)", "(file):(line):(col)"]       SourceRang
 Example:::
 
   - Callback: SourceRangeSkipped
-    Range: [":/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:8:2", ":/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:9:2"]
+    Range: [":/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:8:2", ":/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:9:2"]
 
 `If <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#a645edcb0d6becbc6f256f02fd1287778>`_ Callback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -680,7 +680,7 @@ If is called when an #if is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ===================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ===================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 ConditionRange   ["(file):(line):(col)", "(file):(line):(col)"]       SourceRange                    The source range for the condition.
@@ -690,8 +690,8 @@ ConditionValue   (true|false)                                         bool      
 Example:::
 
   - Callback: If
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:8:2"
-    ConditionRange: ["D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:8:4", "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:9:1"]
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:8:2"
+    ConditionRange: ["D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:8:4", "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:9:1"]
     ConditionValue: false
 
 `Elif <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#a180c9e106a28d60a6112e16b1bb8302a>`_ Callback
@@ -702,7 +702,7 @@ Elif is called when an #elif is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ===================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ===================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 ConditionRange   ["(file):(line):(col)", "(file):(line):(col)"]       SourceRange                    The source range for the condition.
@@ -713,10 +713,10 @@ IfLoc            "(file):(line):(col)"                                SourceLoca
 Example:::
 
   - Callback: Elif
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:10:2"
-    ConditionRange: ["D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:10:4", "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:11:1"]
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:10:2"
+    ConditionRange: ["D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:10:4", "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:11:1"]
     ConditionValue: false
-    IfLoc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:8:2"
+    IfLoc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:8:2"
 
 `Ifdef <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#a0ce79575dda307784fd51a6dd4eec33d>`_ Callback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -726,7 +726,7 @@ Ifdef is called when an #ifdef is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 MacroNameTok     (token)                                              const Token                    The macro name token.
@@ -736,7 +736,7 @@ MacroDirective   (MD_Define|MD_Undefine|MD_Visibility)                const Macr
 Example:::
 
   - Callback: Ifdef
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-conditional.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-conditional.cpp:3:1"
     MacroNameTok: MACRO
     MacroDirective: MD_Define
 
@@ -748,7 +748,7 @@ Ifndef is called when an #ifndef is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ==============================================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ==============================================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the directive.
 MacroNameTok     (token)                                              const Token                    The macro name token.
@@ -758,7 +758,7 @@ MacroDirective   (MD_Define|MD_Undefine|MD_Visibility)                const Macr
 Example:::
 
   - Callback: Ifndef
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-conditional.cpp:3:1"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-conditional.cpp:3:1"
     MacroNameTok: MACRO
     MacroDirective: MD_Define
 
@@ -770,7 +770,7 @@ Else is called when an #else is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ===================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ===================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the else directive.
 IfLoc            "(file):(line):(col)"                                SourceLocation                 The location of the if directive.
@@ -779,8 +779,8 @@ IfLoc            "(file):(line):(col)"                                SourceLoca
 Example:::
 
   - Callback: Else
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:10:2"
-    IfLoc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:8:2"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:10:2"
+    IfLoc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:8:2"
 
 `Endif <https://clang.llvm.org/doxygen/classclang_1_1PPCallbacks.html#afc62ca1401125f516d58b1629a2093ce>`_ Callback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -790,7 +790,7 @@ Endif is called when an #endif is seen.
 Argument descriptions:
 
 ==============   ==================================================   ============================== ====================================
-Argument Name    Argument Value Syntax                                Clang C++ Type                 Description           
+Argument Name    Argument Value Syntax                                Clang C++ Type                 Description
 ==============   ==================================================   ============================== ====================================
 Loc              "(file):(line):(col)"                                SourceLocation                 The location of the endif directive.
 IfLoc            "(file):(line):(col)"                                SourceLocation                 The location of the if directive.
@@ -799,8 +799,8 @@ IfLoc            "(file):(line):(col)"                                SourceLoca
 Example:::
 
   - Callback: Endif
-    Loc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:10:2"
-    IfLoc: "D:/Clang/llvm/tools/clang/tools/extra/test/pp-trace/pp-trace-macro.cpp:8:2"
+    Loc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:10:2"
+    IfLoc: "D:/Clang/llvm/clang-tools-extra/test/pp-trace/pp-trace-macro.cpp:8:2"
 
 Building pp-trace
 =================
@@ -822,4 +822,3 @@ To build from source:
 .. _Getting Started with the LLVM System: https://llvm.org/docs/GettingStarted.html
 .. _Building LLVM with CMake: https://llvm.org/docs/CMake.html
 .. _Clang Tools Documentation: https://clang.llvm.org/docs/ClangTools.html
-

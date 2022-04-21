@@ -9,11 +9,13 @@
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Serialization/ASTReader.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/Bitcode/BitstreamWriter.h"
+#include "llvm/Bitstream/BitstreamWriter.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdio>
 using namespace clang;
 using namespace clang::serialization;
+
+char TestModuleFileExtension::ID = 0;
 
 TestModuleFileExtension::Writer::~Writer() { }
 
@@ -48,7 +50,12 @@ TestModuleFileExtension::Reader::Reader(ModuleFileExtension *Ext,
   // Read the extension block.
   SmallVector<uint64_t, 4> Record;
   while (true) {
-    llvm::BitstreamEntry Entry = Stream.advanceSkippingSubblocks();
+    llvm::Expected<llvm::BitstreamEntry> MaybeEntry =
+        Stream.advanceSkippingSubblocks();
+    if (!MaybeEntry)
+      (void)MaybeEntry.takeError();
+    llvm::BitstreamEntry Entry = MaybeEntry.get();
+
     switch (Entry.Kind) {
     case llvm::BitstreamEntry::SubBlock:
     case llvm::BitstreamEntry::EndBlock:
@@ -61,8 +68,12 @@ TestModuleFileExtension::Reader::Reader(ModuleFileExtension *Ext,
 
     Record.clear();
     StringRef Blob;
-    unsigned RecCode = Stream.readRecord(Entry.ID, Record, &Blob);
-    switch (RecCode) {
+    Expected<unsigned> MaybeRecCode =
+        Stream.readRecord(Entry.ID, Record, &Blob);
+    if (!MaybeRecCode)
+      fprintf(stderr, "Failed reading rec code: %s\n",
+              toString(MaybeRecCode.takeError()).c_str());
+    switch (MaybeRecCode.get()) {
     case FIRST_EXTENSION_RECORD_ID: {
       StringRef Message = Blob.substr(0, Record[0]);
       fprintf(stderr, "Read extension block message: %s\n",
@@ -82,16 +93,14 @@ TestModuleFileExtension::getExtensionMetadata() const {
   return { BlockName, MajorVersion, MinorVersion, UserInfo };
 }
 
-llvm::hash_code TestModuleFileExtension::hashExtension(
-                  llvm::hash_code Code) const {
+void TestModuleFileExtension::hashExtension(
+    ExtensionHashBuilder &HBuilder) const {
   if (Hashed) {
-    Code = llvm::hash_combine(Code, BlockName);
-    Code = llvm::hash_combine(Code, MajorVersion);
-    Code = llvm::hash_combine(Code, MinorVersion);
-    Code = llvm::hash_combine(Code, UserInfo);
+    HBuilder.add(BlockName);
+    HBuilder.add(MajorVersion);
+    HBuilder.add(MinorVersion);
+    HBuilder.add(UserInfo);
   }
-
-  return Code;
 }
 
 std::unique_ptr<ModuleFileExtensionWriter>
@@ -117,4 +126,12 @@ TestModuleFileExtension::createExtensionReader(
 
   return std::unique_ptr<ModuleFileExtensionReader>(
                                                     new TestModuleFileExtension::Reader(this, Stream));
+}
+
+std::string TestModuleFileExtension::str() const {
+  std::string Buffer;
+  llvm::raw_string_ostream OS(Buffer);
+  OS << BlockName << ":" << MajorVersion << ":" << MinorVersion << ":" << Hashed
+     << ":" << UserInfo;
+  return Buffer;
 }

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,12 +14,12 @@
 // void create_directory_symlink(const path& existing_symlink, const path& new_symlink,
 //                   error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -50,7 +50,7 @@ TEST_CASE(create_directory_symlink_basic)
 {
     scoped_test_env env;
     const path dir = env.create_dir("dir");
-    const path dir_sym = env.create_symlink(dir, "dir_sym");
+    const path dir_sym = env.create_directory_symlink(dir, "dir_sym");
 
     const path dest = env.make_env_path("dest1");
     std::error_code ec;

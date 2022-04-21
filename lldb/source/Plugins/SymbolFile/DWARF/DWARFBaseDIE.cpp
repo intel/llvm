@@ -1,4 +1,4 @@
-//===-- DWARFBaseDIE.cpp ---------------------------------------*- C++ -*-===//
+//===-- DWARFBaseDIE.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,24 +14,23 @@
 
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/ObjectFile.h"
+#include "lldb/Utility/Log.h"
 
 using namespace lldb_private;
 
-DIERef DWARFBaseDIE::GetDIERef() const {
+llvm::Optional<DIERef> DWARFBaseDIE::GetDIERef() const {
   if (!IsValid())
-    return DIERef();
+    return llvm::None;
 
-  dw_offset_t cu_offset = m_cu->GetOffset();
-  if (m_cu->GetBaseObjOffset() != DW_INVALID_OFFSET)
-    cu_offset = m_cu->GetBaseObjOffset();
-  return DIERef(m_cu->GetDebugSection(), cu_offset, m_die->GetOffset());
+  return DIERef(m_cu->GetSymbolFileDWARF().GetDwoNum(), m_cu->GetDebugSection(),
+                m_die->GetOffset());
 }
 
 dw_tag_t DWARFBaseDIE::Tag() const {
   if (m_die)
     return m_die->Tag();
   else
-    return 0;
+    return llvm::dwarf::DW_TAG_null;
 }
 
 const char *DWARFBaseDIE::GetTagAsCString() const {
@@ -75,26 +74,12 @@ const char *DWARFBaseDIE::GetName() const {
     return nullptr;
 }
 
-lldb::LanguageType DWARFBaseDIE::GetLanguage() const {
-  if (IsValid())
-    return m_cu->GetLanguageType();
-  else
-    return lldb::eLanguageTypeUnknown;
-}
-
 lldb::ModuleSP DWARFBaseDIE::GetModule() const {
   SymbolFileDWARF *dwarf = GetDWARF();
   if (dwarf)
     return dwarf->GetObjectFile()->GetModule();
   else
     return lldb::ModuleSP();
-}
-
-lldb_private::CompileUnit *DWARFBaseDIE::GetLLDBCompileUnit() const {
-  if (IsValid())
-    return GetDWARF()->GetCompUnitForDWARFCompUnit(GetCU());
-  else
-    return nullptr;
 }
 
 dw_offset_t DWARFBaseDIE::GetOffset() const {
@@ -106,22 +91,7 @@ dw_offset_t DWARFBaseDIE::GetOffset() const {
 
 SymbolFileDWARF *DWARFBaseDIE::GetDWARF() const {
   if (m_cu)
-    return m_cu->GetSymbolFileDWARF();
-  else
-    return nullptr;
-}
-
-lldb_private::TypeSystem *DWARFBaseDIE::GetTypeSystem() const {
-  if (m_cu)
-    return m_cu->GetTypeSystem();
-  else
-    return nullptr;
-}
-
-DWARFASTParser *DWARFBaseDIE::GetDWARFParser() const {
-  lldb_private::TypeSystem *type_system = GetTypeSystem();
-  if (type_system)
-    return type_system->GetDWARFParser();
+    return &m_cu->GetSymbolFileDWARF();
   else
     return nullptr;
 }
@@ -135,13 +105,10 @@ bool DWARFBaseDIE::Supports_DW_AT_APPLE_objc_complete_type() const {
 }
 
 size_t DWARFBaseDIE::GetAttributes(DWARFAttributes &attributes,
-                               uint32_t depth) const {
-  if (IsValid()) {
-    return m_die->GetAttributes(m_cu, m_cu->GetFixedFormSizes(), attributes,
-                                depth);
-  }
-  if (depth == 0)
-    attributes.Clear();
+                                   Recurse recurse) const {
+  if (IsValid())
+    return m_die->GetAttributes(m_cu, attributes, recurse);
+  attributes.Clear();
   return 0;
 }
 

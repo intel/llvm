@@ -164,7 +164,7 @@ entry:
   store i32 %x, i32* %x.addr, align 4
   %tmp = load i32, i32* %x.addr, align 4
   %conv = sext i32 %tmp to i64
-  %expval = call i64 @llvm.expect.i64(i64 %conv, i64 1)
+  %expval = call i64 @llvm.expect.i64(i64 %conv, i64 2)
 ; CHECK: !prof !2
 ; CHECK-NOT: @llvm.expect
   switch i64 %expval, label %sw.epilog [
@@ -287,5 +287,5 @@ declare i1 @llvm.expect.i1(i1, i1) nounwind readnone
 
 ; CHECK: !0 = !{!"branch_weights", i32 2000, i32 1}
 ; CHECK: !1 = !{!"branch_weights", i32 1, i32 2000}
-; CHECK: !2 = !{!"branch_weights", i32 1, i32 2000, i32 1}
+; CHECK: !2 = !{!"branch_weights", i32 1, i32 1, i32 2000}
 ; CHECK: !3 = !{!"branch_weights", i32 2000, i32 1, i32 1}

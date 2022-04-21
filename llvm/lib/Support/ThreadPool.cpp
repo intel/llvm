@@ -13,25 +13,31 @@
 #include "llvm/Support/ThreadPool.h"
 
 #include "llvm/Config/llvm-config.h"
+
+#if LLVM_ENABLE_THREADS
 #include "llvm/Support/Threading.h"
+#else
 #include "llvm/Support/raw_ostream.h"
+#endif
 
 using namespace llvm;
 
 #if LLVM_ENABLE_THREADS
 
-// Default to hardware_concurrency
-ThreadPool::ThreadPool() : ThreadPool(hardware_concurrency()) {}
+ThreadPool::ThreadPool(ThreadPoolStrategy S)
+    : Strategy(S), MaxThreadCount(S.compute_thread_count()) {}
 
-ThreadPool::ThreadPool(unsigned ThreadCount)
-    : ActiveThreads(0), EnableFlag(true) {
-  // Create ThreadCount threads that will loop forever, wait on QueueCondition
-  // for tasks to be queued or the Pool to be destroyed.
-  Threads.reserve(ThreadCount);
-  for (unsigned ThreadID = 0; ThreadID < ThreadCount; ++ThreadID) {
-    Threads.emplace_back([&] {
+void ThreadPool::grow(int requested) {
+  std::unique_lock<std::mutex> LockGuard(ThreadsLock);
+  if (Threads.size() >= MaxThreadCount)
+    return; // Already hit the max thread pool size.
+  int newThreadCount = std::min<int>(requested, MaxThreadCount);
+  while (static_cast<int>(Threads.size()) < newThreadCount) {
+    int ThreadID = Threads.size();
+    Threads.emplace_back([this, ThreadID] {
+      Strategy.apply_thread_strategy(ThreadID);
       while (true) {
-        PackagedTaskTy Task;
+        std::function<void()> Task;
         {
           std::unique_lock<std::mutex> LockGuard(QueueLock);
           // Wait for tasks to be pushed in the queue
@@ -45,24 +51,24 @@ ThreadPool::ThreadPool(unsigned ThreadCount)
           // We first need to signal that we are active before popping the queue
           // in order for wait() to properly detect that even if the queue is
           // empty, there is still a task in flight.
-          {
-            std::unique_lock<std::mutex> LockGuard(CompletionLock);
-            ++ActiveThreads;
-          }
+          ++ActiveThreads;
           Task = std::move(Tasks.front());
           Tasks.pop();
         }
         // Run the task we just grabbed
         Task();
 
+        bool Notify;
         {
           // Adjust `ActiveThreads`, in case someone waits on ThreadPool::wait()
-          std::unique_lock<std::mutex> LockGuard(CompletionLock);
+          std::lock_guard<std::mutex> LockGuard(QueueLock);
           --ActiveThreads;
+          Notify = workCompletedUnlocked();
         }
-
-        // Notify task completion, in case someone waits on ThreadPool::wait()
-        CompletionCondition.notify_all();
+        // Notify task completion if this is the last active thread, in case
+        // someone waits on ThreadPool::wait().
+        if (Notify)
+          CompletionCondition.notify_all();
       }
     });
   }
@@ -70,29 +76,17 @@ ThreadPool::ThreadPool(unsigned ThreadCount)
 
 void ThreadPool::wait() {
   // Wait for all threads to complete and the queue to be empty
-  std::unique_lock<std::mutex> LockGuard(CompletionLock);
-  // The order of the checks for ActiveThreads and Tasks.empty() matters because
-  // any active threads might be modifying the Tasks queue, and this would be a
-  // race.
-  CompletionCondition.wait(LockGuard,
-                           [&] { return !ActiveThreads && Tasks.empty(); });
+  std::unique_lock<std::mutex> LockGuard(QueueLock);
+  CompletionCondition.wait(LockGuard, [&] { return workCompletedUnlocked(); });
 }
 
-std::shared_future<void> ThreadPool::asyncImpl(TaskTy Task) {
-  /// Wrap the Task in a packaged_task to return a future object.
-  PackagedTaskTy PackagedTask(std::move(Task));
-  auto Future = PackagedTask.get_future();
-  {
-    // Lock the queue and push the new task
-    std::unique_lock<std::mutex> LockGuard(QueueLock);
-
-    // Don't allow enqueueing after disabling the pool
-    assert(EnableFlag && "Queuing a thread during ThreadPool destruction");
-
-    Tasks.push(std::move(PackagedTask));
-  }
-  QueueCondition.notify_one();
-  return Future.share();
+bool ThreadPool::isWorkerThread() const {
+  std::unique_lock<std::mutex> LockGuard(ThreadsLock);
+  llvm::thread::id CurrentThreadId = llvm::this_thread::get_id();
+  for (const llvm::thread &Thread : Threads)
+    if (CurrentThreadId == Thread.get_id())
+      return true;
+  return false;
 }
 
 // The destructor joins all threads, waiting for completion.
@@ -102,18 +96,17 @@ ThreadPool::~ThreadPool() {
     EnableFlag = false;
   }
   QueueCondition.notify_all();
+  std::unique_lock<std::mutex> LockGuard(ThreadsLock);
   for (auto &Worker : Threads)
     Worker.join();
 }
 
 #else // LLVM_ENABLE_THREADS Disabled
 
-ThreadPool::ThreadPool() : ThreadPool(0) {}
-
 // No threads are launched, issue a warning if ThreadCount is not 0
-ThreadPool::ThreadPool(unsigned ThreadCount)
-    : ActiveThreads(0) {
-  if (ThreadCount) {
+ThreadPool::ThreadPool(ThreadPoolStrategy S) : MaxThreadCount(1) {
+  int ThreadCount = S.compute_thread_count();
+  if (ThreadCount != 1) {
     errs() << "Warning: request a ThreadPool with " << ThreadCount
            << " threads, but LLVM_ENABLE_THREADS has been turned off\n";
   }
@@ -128,18 +121,10 @@ void ThreadPool::wait() {
   }
 }
 
-std::shared_future<void> ThreadPool::asyncImpl(TaskTy Task) {
-  // Get a Future with launch::deferred execution using std::async
-  auto Future = std::async(std::launch::deferred, std::move(Task)).share();
-  // Wrap the future so that both ThreadPool::wait() can operate and the
-  // returned future can be sync'ed on.
-  PackagedTaskTy PackagedTask([Future]() { Future.get(); });
-  Tasks.push(std::move(PackagedTask));
-  return Future;
+bool ThreadPool::isWorkerThread() const {
+  report_fatal_error("LLVM compiled without multithreading");
 }
 
-ThreadPool::~ThreadPool() {
-  wait();
-}
+ThreadPool::~ThreadPool() { wait(); }
 
 #endif

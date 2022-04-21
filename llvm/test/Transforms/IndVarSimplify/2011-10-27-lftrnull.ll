@@ -34,8 +34,7 @@ define void @test() nounwind {
 ; CHECK-NEXT:    br label [[IF_END_I126]]
 ; CHECK:       if.end.i126:
 ; CHECK-NEXT:    [[INCDEC_PTR_I]] = getelementptr inbounds i8, i8* [[DESTYPIXELPTR_010_I]], i32 1
-; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp ne i8* [[INCDEC_PTR_I]], null
-; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_BODY21_I]], label [[FOR_END_I129_LOOPEXIT:%.*]]
+; CHECK-NEXT:    br i1 true, label [[FOR_BODY21_I]], label [[FOR_END_I129_LOOPEXIT:%.*]]
 ; CHECK:       for.end.i129.loopexit:
 ; CHECK-NEXT:    br label [[FOR_END_I129]]
 ; CHECK:       for.end.i129:

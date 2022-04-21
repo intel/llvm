@@ -19,11 +19,9 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_DEX_TOKEN_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_DEX_TOKEN_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_DEX_TOKEN_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_DEX_TOKEN_H
 
-#include "index/Index.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/raw_ostream.h"
 #include <string>
 #include <vector>
@@ -37,7 +35,8 @@ namespace dex {
 ///
 /// Tokens can be used to perform more sophisticated search queries by
 /// constructing complex iterator trees.
-struct Token {
+class Token {
+public:
   /// Kind specifies Token type which defines semantics for the internal
   /// representation. Each Kind has different representation stored in Data
   /// field.
@@ -76,10 +75,6 @@ struct Token {
     return TokenKind == Other.TokenKind && Data == Other.Data;
   }
 
-  /// Representation which is unique among Token with the same Kind.
-  std::string Data;
-  Kind TokenKind;
-
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Token &T) {
     switch (T.TokenKind) {
     case Kind::Trigram:
@@ -102,6 +97,10 @@ struct Token {
   }
 
 private:
+  /// Representation which is unique among Token with the same Kind.
+  std::string Data;
+  Kind TokenKind;
+
   friend llvm::hash_code hash_value(const Token &Token) {
     return llvm::hash_combine(static_cast<int>(Token.TokenKind), Token.Data);
   }
@@ -135,4 +134,4 @@ template <> struct DenseMapInfo<clang::clangd::dex::Token> {
 
 } // namespace llvm
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_DEX_TOKEN_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_DEX_TOKEN_H

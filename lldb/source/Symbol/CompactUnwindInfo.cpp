@@ -1,4 +1,4 @@
-//===-- CompactUnwindInfo.cpp -----------------------------------*- C++ -*-===//
+//===-- CompactUnwindInfo.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,6 +15,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/DataBufferHeap.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
@@ -167,7 +168,7 @@ CompactUnwindInfo::CompactUnwindInfo(ObjectFile &objfile, SectionSP &section_sp)
 
 // destructor
 
-CompactUnwindInfo::~CompactUnwindInfo() {}
+CompactUnwindInfo::~CompactUnwindInfo() = default;
 
 bool CompactUnwindInfo::GetUnwindPlan(Target &target, Address addr,
                                       UnwindPlan &unwind_plan) {
@@ -182,16 +183,16 @@ bool CompactUnwindInfo::GetUnwindPlan(Target &target, Address addr,
 
     if (ArchSpec arch = m_objfile.GetArchitecture()) {
 
-      Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_UNWIND));
+      Log *log = GetLog(LLDBLog::Unwind);
       if (log && log->GetVerbose()) {
         StreamString strm;
         addr.Dump(
-            &strm, NULL,
+            &strm, nullptr,
             Address::DumpStyle::DumpStyleResolvedDescriptionNoFunctionArguments,
             Address::DumpStyle::DumpStyleFileAddress,
             arch.GetAddressByteSize());
-        log->Printf("Got compact unwind encoding 0x%x for function %s",
-                    function_info.encoding, strm.GetData());
+        LLDB_LOGF(log, "Got compact unwind encoding 0x%x for function %s",
+                  function_info.encoding, strm.GetData());
       }
 
       if (function_info.valid_range_offset_start != 0 &&
@@ -213,7 +214,8 @@ bool CompactUnwindInfo::GetUnwindPlan(Target &target, Address addr,
         return CreateUnwindPlan_x86_64(target, function_info, unwind_plan,
                                        addr);
       }
-      if (arch.GetTriple().getArch() == llvm::Triple::aarch64) {
+      if (arch.GetTriple().getArch() == llvm::Triple::aarch64 ||
+          arch.GetTriple().getArch() == llvm::Triple::aarch64_32) {
         return CreateUnwindPlan_arm64(target, function_info, unwind_plan, addr);
       }
       if (arch.GetTriple().getArch() == llvm::Triple::x86) {
@@ -250,7 +252,7 @@ void CompactUnwindInfo::ScanIndex(const ProcessSP &process_sp) {
     return;
   }
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_UNWIND));
+  Log *log = GetLog(LLDBLog::Unwind);
   if (log)
     m_objfile.GetModule()->LogMessage(
         log, "Reading compact unwind first-level indexes");
@@ -737,6 +739,7 @@ bool CompactUnwindInfo::CreateUnwindPlan_x86_64(Target &target,
   unwind_plan.SetSourceName("compact unwind info");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolYes);
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolNo);
+  unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetRegisterKind(eRegisterKindEHFrame);
 
   unwind_plan.SetLSDAAddress(function_info.lsda_address);
@@ -1008,6 +1011,7 @@ bool CompactUnwindInfo::CreateUnwindPlan_i386(Target &target,
   unwind_plan.SetSourceName("compact unwind info");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolYes);
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolNo);
+  unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetRegisterKind(eRegisterKindEHFrame);
 
   unwind_plan.SetLSDAAddress(function_info.lsda_address);
@@ -1304,6 +1308,7 @@ bool CompactUnwindInfo::CreateUnwindPlan_arm64(Target &target,
   unwind_plan.SetSourceName("compact unwind info");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolYes);
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolNo);
+  unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetRegisterKind(eRegisterKindEHFrame);
 
   unwind_plan.SetLSDAAddress(function_info.lsda_address);
@@ -1437,6 +1442,7 @@ bool CompactUnwindInfo::CreateUnwindPlan_armv7(Target &target,
   unwind_plan.SetSourceName("compact unwind info");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolYes);
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolNo);
+  unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetRegisterKind(eRegisterKindEHFrame);
 
   unwind_plan.SetLSDAAddress(function_info.lsda_address);

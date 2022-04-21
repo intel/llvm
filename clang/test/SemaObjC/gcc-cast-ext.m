@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -fms-extensions -Wno-objc-root-class %s
+// RUN: %clang_cc1 -verify -Wno-pointer-to-int-cast -Wno-objc-root-class %s
 @class NSInvocation, NSMethodSignature, NSCoder, NSString, NSEnumerator;
 typedef struct _NSRange { } NSRange;
 
@@ -11,7 +11,7 @@ typedef struct _NSRange { } NSRange;
 
 // GCC allows pointer expressions in integer constant expressions.
 struct {
-  char control[((int)(char *)2)];
+  char control[((int)(char *)2)]; // expected-warning {{extension}}
 } xx;
 
 @implementation PBXDocBookmark // expected-warning {{method definition for 'autorelease' not found}}\

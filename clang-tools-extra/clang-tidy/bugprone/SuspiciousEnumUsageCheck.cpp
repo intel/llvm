@@ -110,45 +110,42 @@ static bool isPossiblyBitMask(const EnumDecl *EnumDec) {
 SuspiciousEnumUsageCheck::SuspiciousEnumUsageCheck(StringRef Name,
                                                    ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      StrictMode(Options.getLocalOrGlobal("StrictMode", 0)) {}
+      StrictMode(Options.getLocalOrGlobal("StrictMode", false)) {}
 
 void SuspiciousEnumUsageCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "StrictMode", StrictMode);
 }
 
 void SuspiciousEnumUsageCheck::registerMatchers(MatchFinder *Finder) {
-  const auto enumExpr = [](StringRef RefName, StringRef DeclName) {
-    return expr(ignoringImpCasts(expr().bind(RefName)),
-                ignoringImpCasts(hasType(enumDecl().bind(DeclName))));
+  const auto EnumExpr = [](StringRef RefName, StringRef DeclName) {
+    return expr(hasType(enumDecl().bind(DeclName))).bind(RefName);
   };
 
   Finder->addMatcher(
-      binaryOperator(hasOperatorName("|"), hasLHS(enumExpr("", "enumDecl")),
-                     hasRHS(expr(enumExpr("", "otherEnumDecl"),
-                                 ignoringImpCasts(hasType(enumDecl(
-                                     unless(equalsBoundNode("enumDecl"))))))))
+      binaryOperator(
+          hasOperatorName("|"), hasLHS(hasType(enumDecl().bind("enumDecl"))),
+          hasRHS(hasType(enumDecl(unless(equalsBoundNode("enumDecl")))
+                             .bind("otherEnumDecl"))))
           .bind("diffEnumOp"),
       this);
 
   Finder->addMatcher(
-      binaryOperator(anyOf(hasOperatorName("+"), hasOperatorName("|")),
-                     hasLHS(enumExpr("lhsExpr", "enumDecl")),
-                     hasRHS(expr(enumExpr("rhsExpr", ""),
-                                 ignoringImpCasts(hasType(
-                                     enumDecl(equalsBoundNode("enumDecl"))))))),
+      binaryOperator(hasAnyOperatorName("+", "|"),
+                     hasLHS(EnumExpr("lhsExpr", "enumDecl")),
+                     hasRHS(expr(hasType(enumDecl(equalsBoundNode("enumDecl"))))
+                                .bind("rhsExpr"))),
       this);
 
   Finder->addMatcher(
-      binaryOperator(anyOf(hasOperatorName("+"), hasOperatorName("|")),
-                     hasEitherOperand(
-                         expr(hasType(isInteger()), unless(enumExpr("", "")))),
-                     hasEitherOperand(enumExpr("enumExpr", "enumDecl"))),
+      binaryOperator(
+          hasAnyOperatorName("+", "|"),
+          hasOperands(expr(hasType(isInteger()), unless(hasType(enumDecl()))),
+                      EnumExpr("enumExpr", "enumDecl"))),
       this);
 
-  Finder->addMatcher(
-      binaryOperator(anyOf(hasOperatorName("|="), hasOperatorName("+=")),
-                     hasRHS(enumExpr("enumExpr", "enumDecl"))),
-      this);
+  Finder->addMatcher(binaryOperator(hasAnyOperatorName("|=", "+="),
+                                    hasRHS(EnumExpr("enumExpr", "enumDecl"))),
+                     this);
 }
 
 void SuspiciousEnumUsageCheck::checkSuspiciousBitmaskUsage(
@@ -157,7 +154,7 @@ void SuspiciousEnumUsageCheck::checkSuspiciousBitmaskUsage(
   const auto *EnumConst =
       EnumExpr ? dyn_cast<EnumConstantDecl>(EnumExpr->getDecl()) : nullptr;
 
-  // Report the parameter if neccessary.
+  // Report the parameter if necessary.
   if (!EnumConst) {
     diag(EnumDec->getInnerLocStart(), BitmaskVarErrorMessage)
         << countNonPowOfTwoLiteralNum(EnumDec);

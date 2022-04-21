@@ -1,4 +1,4 @@
-# RUN: yaml2obj < %s > %t.obj
+# RUN: yaml2obj %s -o %t.obj
 # RUN: lld-link /debug:dwarf /out:%t.exe /entry:main %t.obj %p/Inputs/std64.lib
 # RUN: llvm-readobj --symbols %t.exe | FileCheck %s
 # RUN: lld-link /debug:dwarf /opt:noref /out:%t.exe /entry:main %t.obj %p/Inputs/std64.lib
@@ -10,33 +10,6 @@
 # RUN: llvm-readobj --symbols %t.exe | FileCheck -check-prefix=NO %s
 
 # CHECK:      Symbols [
-# CHECK-NEXT:   Symbol {
-# CHECK-NEXT:     Name: .text
-# CHECK-NEXT:     Value: 0
-# CHECK-NEXT:     Section: .text (1)
-# CHECK-NEXT:     BaseType: Null (0x0)
-# CHECK-NEXT:     ComplexType: Null (0x0)
-# CHECK-NEXT:     StorageClass: Static (0x3)
-# CHECK-NEXT:     AuxSymbolCount: 0
-# CHECK-NEXT:   }
-# CHECK-NEXT:   Symbol {
-# CHECK-NEXT:     Name: .text2
-# CHECK-NEXT:     Value: 0
-# CHECK-NEXT:     Section: .text (1)
-# CHECK-NEXT:     BaseType: Null (0x0)
-# CHECK-NEXT:     ComplexType: Null (0x0)
-# CHECK-NEXT:     StorageClass: Static (0x3)
-# CHECK-NEXT:     AuxSymbolCount: 0
-# CHECK-NEXT:   }
-# CHECK-NEXT:   Symbol {
-# CHECK-NEXT:     Name: .data
-# CHECK-NEXT:     Value: 0
-# CHECK-NEXT:     Section: .data (3)
-# CHECK-NEXT:     BaseType: Null (0x0)
-# CHECK-NEXT:     ComplexType: Null (0x0)
-# CHECK-NEXT:     StorageClass: Static (0x3)
-# CHECK-NEXT:     AuxSymbolCount: 0
-# CHECK-NEXT:   }
 # CHECK-NEXT:   Symbol {
 # CHECK-NEXT:     Name: MessageBoxA
 # CHECK-NEXT:     Value: 80
@@ -235,4 +208,10 @@ symbols:
     SimpleType:      IMAGE_SYM_TYPE_NULL
     ComplexType:     IMAGE_SYM_DTYPE_NULL
     StorageClass:    IMAGE_SYM_CLASS_EXTERNAL
+  - Name:            .Ltemp_symbol
+    Value:           1
+    SectionNumber:   1
+    SimpleType:      IMAGE_SYM_TYPE_NULL
+    ComplexType:     IMAGE_SYM_DTYPE_NULL
+    StorageClass:    IMAGE_SYM_CLASS_LABEL
 ...

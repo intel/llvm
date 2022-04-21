@@ -13,6 +13,7 @@
 // It includes the basic definitions for the test cases below.
 //===----------------------------------------------------------------------===//
 #define NULL 0
+#define nil ((id)0)
 typedef unsigned int __darwin_natural_t;
 typedef unsigned long uintptr_t;
 typedef unsigned int uint32_t;
@@ -21,14 +22,14 @@ typedef unsigned int UInt32;
 typedef signed long CFIndex;
 typedef CFIndex CFByteOrder;
 typedef struct {
-    CFIndex location;
-    CFIndex length;
+  CFIndex location;
+  CFIndex length;
 } CFRange;
 static __inline__ __attribute__((always_inline)) CFRange CFRangeMake(CFIndex loc, CFIndex len) {
-    CFRange range;
-    range.location = loc;
-    range.length = len;
-    return range;
+  CFRange range;
+  range.location = loc;
+  range.length = len;
+  return range;
 }
 typedef const void * CFTypeRef;
 typedef const struct __CFString * CFStringRef;
@@ -91,6 +92,7 @@ typedef struct _NSZone NSZone;
 - (BOOL)isEqual:(id)object;
 - (id)retain;
 - (oneway void)release;
+- (Class)class;
 - (id)autorelease;
 - (id)init;
 @end  @protocol NSCopying  - (id)copyWithZone:(NSZone *)zone;
@@ -100,6 +102,7 @@ typedef struct _NSZone NSZone;
 @interface NSObject <NSObject> {}
 + (id)allocWithZone:(NSZone *)zone;
 + (id)alloc;
++ (Class)class;
 - (void)dealloc;
 @end
 @interface NSObject (NSCoderMethods)
@@ -152,14 +155,14 @@ typedef io_object_t io_iterator_t;
 typedef io_object_t io_service_t;
 typedef struct IONotificationPort * IONotificationPortRef;
 typedef void (*IOServiceMatchingCallback)(  void * refcon,  io_iterator_t iterator );
-io_service_t IOServiceGetMatchingService(  mach_port_t masterPort,  CFDictionaryRef matching );
-kern_return_t IOServiceGetMatchingServices(  mach_port_t masterPort,  CFDictionaryRef matching,  io_iterator_t * existing );
-kern_return_t IOServiceAddNotification(  mach_port_t masterPort,  const io_name_t notificationType,  CFDictionaryRef matching,  mach_port_t wakePort,  uintptr_t reference,  io_iterator_t * notification ) __attribute__((deprecated));
+io_service_t IOServiceGetMatchingService(  mach_port_t mainPort,  CFDictionaryRef matching );
+kern_return_t IOServiceGetMatchingServices(  mach_port_t mainPort,  CFDictionaryRef matching,  io_iterator_t * existing );
+kern_return_t IOServiceAddNotification(  mach_port_t mainPort,  const io_name_t notificationType,  CFDictionaryRef matching,  mach_port_t wakePort,  uintptr_t reference,  io_iterator_t * notification ) __attribute__((deprecated));
 kern_return_t IOServiceAddMatchingNotification(  IONotificationPortRef notifyPort,  const io_name_t notificationType,  CFDictionaryRef matching,         IOServiceMatchingCallback callback,         void * refCon,  io_iterator_t * notification );
 CFMutableDictionaryRef IOServiceMatching(  const char * name );
 CFMutableDictionaryRef IOServiceNameMatching(  const char * name );
-CFMutableDictionaryRef IOBSDNameMatching(  mach_port_t masterPort,  uint32_t options,  const char * bsdName );
-CFMutableDictionaryRef IOOpenFirmwarePathMatching(  mach_port_t masterPort,  uint32_t options,  const char * path );
+CFMutableDictionaryRef IOBSDNameMatching(  mach_port_t mainPort,  uint32_t options,  const char * bsdName );
+CFMutableDictionaryRef IOOpenFirmwarePathMatching(  mach_port_t mainPort,  uint32_t options,  const char * path );
 CFMutableDictionaryRef IORegistryEntryIDMatching(  uint64_t entryID );
 typedef struct __DASession * DASessionRef;
 extern DASessionRef DASessionCreate( CFAllocatorRef allocator );
@@ -283,14 +286,14 @@ void bar(id x) {
   [x release];
 }
 
-void test() {
+void test(void) {
   NSString *s = [[NSString alloc] init]; // expected-warning {{Potential leak}}
   foo(s);
   foo(s);
   bar(s);
 }
 
-void test_neg() {
+void test_neg(void) {
   NSString *s = [[NSString alloc] init]; // no-warning  
   foo(s);
   foo(s);
@@ -393,11 +396,11 @@ CFStringRef test_return_ratained_CF(char *bytes) {
 }
 
 // On return (intraprocedural), assume NSObjects are not leaked.
-id test_return_retained_NS() {
+id test_return_retained_NS(void) {
   return [[NSString alloc] init]; // no-warning
 }
 
-void test_test_return_retained() {
+void test_test_return_retained(void) {
   id x = test_return_retained_NS(); // expected-warning {{leak}}
   [x retain];
   [x release];
@@ -434,14 +437,14 @@ void test_test_return_inline_2(char *bytes) {
 extern CFStringRef getString(void);
 CFStringRef testCovariantReturnType(void) __attribute__((cf_returns_retained));
 
-void usetestCovariantReturnType() {
+void usetestCovariantReturnType(void) {
   CFStringRef S = ((void*)0);
   S = testCovariantReturnType();
   if (S)
     CFRelease(S);
 } 
 
-CFStringRef testCovariantReturnType() {
+CFStringRef testCovariantReturnType(void) {
   CFStringRef Str = ((void*)0);
   Str = getString();
   if (Str) {
@@ -480,4 +483,34 @@ id returnInputParam(id x) {
   [x release];
   [self test_inline_tiny_when_reanalyzing];
 }
+@end
+
+// Original problem: rdar://problem/50739539
+@interface MyClassThatLeaksDuringInit : NSObject
+
++ (MyClassThatLeaksDuringInit *)getAnInstance1;
++ (MyClassThatLeaksDuringInit *)getAnInstance2;
+
+@end
+
+@implementation MyClassThatLeaksDuringInit
+
++ (MyClassThatLeaksDuringInit *)getAnInstance1 {
+  return [[[MyClassThatLeaksDuringInit alloc] init] autorelease]; // expected-warning{{leak}}
+}
+
++ (MyClassThatLeaksDuringInit *)getAnInstance2 {
+  return [[[[self class] alloc] init] autorelease]; // expected-warning{{leak}}
+}
+
+- (instancetype)init {
+  if (1) {
+    return nil;
+  }
+
+  if (nil != (self = [super init])) {
+  }
+  return self;
+}
+
 @end

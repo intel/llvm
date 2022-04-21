@@ -123,24 +123,38 @@
 @ CHECK: instruction requires: full half-float
 
   vrintz.f16 s3, s24
+  vrintz.f16.f16 s3, s24
+@ CHECK: instruction requires: full half-float
 @ CHECK: instruction requires: full half-float
 
   vrintr.f16 s0, s9
+  vrintr.f16.f16 s0, s9
+@ CHECK: instruction requires: full half-float
 @ CHECK: instruction requires: full half-float
 
   vrintx.f16 s10, s14
+  vrintx.f16.f16 s10, s14
+@ CHECK: instruction requires: full half-float
 @ CHECK: instruction requires: full half-float
 
   vrinta.f16 s12, s1
+  vrinta.f16.f16 s12, s1
+@ CHECK: instruction requires: full half-float
 @ CHECK: instruction requires: full half-float
 
   vrintn.f16 s12, s1
+  vrintn.f16.f16 s12, s1
+@ CHECK: instruction requires: full half-float
 @ CHECK: instruction requires: full half-float
 
   vrintp.f16 s12, s1
+  vrintp.f16.f16 s12, s1
+@ CHECK: instruction requires: full half-float
 @ CHECK: instruction requires: full half-float
 
   vrintm.f16 s12, s1
+  vrintm.f16.f16 s12, s1
+@ CHECK: instruction requires: full half-float
 @ CHECK: instruction requires: full half-float
 
   vfma.f16 s2, s7, s4
@@ -165,25 +179,25 @@
   vldr.16 s2, [pc, #510]
   vldr.16 s3, [pc, #-510]
   vldr.16 s4, [r4, #-18]
-@ CHECK: instruction requires: full half-float
-@ CHECK: instruction requires: full half-float
-@ CHECK: instruction requires: full half-float
-@ CHECK: instruction requires: full half-float
+@ CHECK: instruction requires: 16-bit fp registers
+@ CHECK: instruction requires: 16-bit fp registers
+@ CHECK: instruction requires: 16-bit fp registers
+@ CHECK: instruction requires: 16-bit fp registers
 
 
   vstr.16 s1, [pc, #6]
   vstr.16 s2, [pc, #510]
   vstr.16 s3, [pc, #-510]
   vstr.16 s4, [r4, #-18]
-@ CHECK: instruction requires: full half-float
-@ CHECK: instruction requires: full half-float
-@ CHECK: instruction requires: full half-float
-@ CHECK: instruction requires: full half-float
+@ CHECK: instruction requires: 16-bit fp registers
+@ CHECK: instruction requires: 16-bit fp registers
+@ CHECK: instruction requires: 16-bit fp registers
+@ CHECK: instruction requires: 16-bit fp registers
 
   vmov.f16 s0, #1.0
 @ CHECK: instruction requires: full half-float
 
   vmov.f16 s1, r2
   vmov.f16 r3, s4
-@ CHECK: instruction requires: full half-float
-@ CHECK: instruction requires: full half-float
+@ CHECK: instruction requires: 16-bit fp registers
+@ CHECK: instruction requires: 16-bit fp registers

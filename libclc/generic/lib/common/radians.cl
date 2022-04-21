@@ -21,12 +21,12 @@
  */
 
 #include <clc/clc.h>
+#include <spirv/spirv.h>
 
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float radians(float degrees) {
-  // pi/180 = ~0.01745329251994329577 or 0x1.1df46a2529d39p-6 or 0x1.1df46ap-6F
-  return 0x1.1df46ap-6F * degrees;
+  return __spirv_ocl_radians(degrees);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, radians, float);
@@ -36,8 +36,7 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, radians, float);
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 _CLC_OVERLOAD _CLC_DEF double radians(double degrees) {
-  // pi/180 = ~0.01745329251994329577 or 0x1.1df46a2529d39p-6 or 0x1.1df46ap-6F
-  return 0x1.1df46a2529d39p-6 * degrees;
+  return __spirv_ocl_radians(degrees);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, radians, double);

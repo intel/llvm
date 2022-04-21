@@ -1,9 +1,8 @@
-; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -mattr=+unimplemented-simd128 | FileCheck %s
+; RUN: llc < %s -asm-verbose=false -verify-machineinstrs -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -mattr=+simd128 | FileCheck %s
 
-; Test that operations that are supported by MVP but not SIMD are
-; properly unrolled.
+; Test that operations that are not supported by SIMD are properly
+; unrolled.
 
-target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 ; ==============================================================================
@@ -11,7 +10,7 @@ target triple = "wasm32-unknown-unknown"
 ; ==============================================================================
 
 ; CHECK-LABEL: ctlz_v16i8:
-; CHECK: i32.clz
+; CHECK: i8x16.popcnt
 declare <16 x i8> @llvm.ctlz.v16i8(<16 x i8>, i1)
 define <16 x i8> @ctlz_v16i8(<16 x i8> %x) {
   %v = call <16 x i8> @llvm.ctlz.v16i8(<16 x i8> %x, i1 false)
@@ -19,14 +18,14 @@ define <16 x i8> @ctlz_v16i8(<16 x i8> %x) {
 }
 
 ; CHECK-LABEL: ctlz_v16i8_undef:
-; CHECK: i32.clz
+; CHECK: i8x16.popcnt
 define <16 x i8> @ctlz_v16i8_undef(<16 x i8> %x) {
   %v = call <16 x i8> @llvm.ctlz.v16i8(<16 x i8> %x, i1 true)
   ret <16 x i8> %v
 }
 
 ; CHECK-LABEL: cttz_v16i8:
-; CHECK: i32.ctz
+; CHECK: i8x16.popcnt
 declare <16 x i8> @llvm.cttz.v16i8(<16 x i8>, i1)
 define <16 x i8> @cttz_v16i8(<16 x i8> %x) {
   %v = call <16 x i8> @llvm.cttz.v16i8(<16 x i8> %x, i1 false)
@@ -34,18 +33,9 @@ define <16 x i8> @cttz_v16i8(<16 x i8> %x) {
 }
 
 ; CHECK-LABEL: cttz_v16i8_undef:
-; CHECK: i32.ctz
+; CHECK: i8x16.popcnt
 define <16 x i8> @cttz_v16i8_undef(<16 x i8> %x) {
   %v = call <16 x i8> @llvm.cttz.v16i8(<16 x i8> %x, i1 true)
-  ret <16 x i8> %v
-}
-
-; CHECK-LABEL: ctpop_v16i8:
-; Note: expansion does not use i32.popcnt
-; CHECK: v128.and
-declare <16 x i8> @llvm.ctpop.v16i8(<16 x i8>)
-define <16 x i8> @ctpop_v16i8(<16 x i8> %x) {
-  %v = call <16 x i8> @llvm.ctpop.v16i8(<16 x i8> %x)
   ret <16 x i8> %v
 }
 
@@ -130,8 +120,7 @@ define <8 x i16> @cttz_v8i16_undef(<8 x i16> %x) {
 }
 
 ; CHECK-LABEL: ctpop_v8i16:
-; Note: expansion does not use i32.popcnt
-; CHECK: v128.and
+; CHECK: i32.popcnt
 declare <8 x i16> @llvm.ctpop.v8i16(<8 x i16>)
 define <8 x i16> @ctpop_v8i16(<8 x i16> %x) {
   %v = call <8 x i16> @llvm.ctpop.v8i16(<8 x i16> %x)
@@ -219,8 +208,7 @@ define <4 x i32> @cttz_v4i32_undef(<4 x i32> %x) {
 }
 
 ; CHECK-LABEL: ctpop_v4i32:
-; Note: expansion does not use i32.popcnt
-; CHECK: v128.and
+; CHECK: i32.popcnt
 declare <4 x i32> @llvm.ctpop.v4i32(<4 x i32>)
 define <4 x i32> @ctpop_v4i32(<4 x i32> %x) {
   %v = call <4 x i32> @llvm.ctpop.v4i32(<4 x i32> %x)
@@ -365,38 +353,6 @@ define <2 x i64> @rotr_v2i64(<2 x i64> %x, <2 x i64> %y) {
 ; 4 x f32
 ; ==============================================================================
 
-; CHECK-LABEL: ceil_v4f32:
-; CHECK: f32.ceil
-declare <4 x float> @llvm.ceil.v4f32(<4 x float>)
-define <4 x float> @ceil_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.ceil.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: floor_v4f32:
-; CHECK: f32.floor
-declare <4 x float> @llvm.floor.v4f32(<4 x float>)
-define <4 x float> @floor_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.floor.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: trunc_v4f32:
-; CHECK: f32.trunc
-declare <4 x float> @llvm.trunc.v4f32(<4 x float>)
-define <4 x float> @trunc_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.trunc.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: nearbyint_v4f32:
-; CHECK: f32.nearest
-declare <4 x float> @llvm.nearbyint.v4f32(<4 x float>)
-define <4 x float> @nearbyint_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.nearbyint.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
 ; CHECK-LABEL: copysign_v4f32:
 ; CHECK: f32.copysign
 declare <4 x float> @llvm.copysign.v4f32(<4 x float>, <4 x float>)
@@ -405,46 +361,190 @@ define <4 x float> @copysign_v4f32(<4 x float> %x, <4 x float> %y) {
   ret <4 x float> %v
 }
 
+; CHECK-LABEL: sin_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, sinf
+declare <4 x float> @llvm.sin.v4f32(<4 x float>)
+define <4 x float> @sin_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.sin.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: cos_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, cosf
+declare <4 x float> @llvm.cos.v4f32(<4 x float>)
+define <4 x float> @cos_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.cos.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: powi_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, __powisf2
+declare <4 x float> @llvm.powi.v4f32.i32(<4 x float>, i32)
+define <4 x float> @powi_v4f32(<4 x float> %x, i32 %y) {
+  %v = call <4 x float> @llvm.powi.v4f32.i32(<4 x float> %x, i32 %y)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: pow_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, powf
+declare <4 x float> @llvm.pow.v4f32(<4 x float>, <4 x float>)
+define <4 x float> @pow_v4f32(<4 x float> %x, <4 x float> %y) {
+  %v = call <4 x float> @llvm.pow.v4f32(<4 x float> %x, <4 x float> %y)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: log_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, logf
+declare <4 x float> @llvm.log.v4f32(<4 x float>)
+define <4 x float> @log_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.log.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: log2_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, log2f
+declare <4 x float> @llvm.log2.v4f32(<4 x float>)
+define <4 x float> @log2_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.log2.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: log10_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, log10f
+declare <4 x float> @llvm.log10.v4f32(<4 x float>)
+define <4 x float> @log10_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.log10.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: exp_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, expf
+declare <4 x float> @llvm.exp.v4f32(<4 x float>)
+define <4 x float> @exp_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.exp.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: exp2_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, exp2f
+declare <4 x float> @llvm.exp2.v4f32(<4 x float>)
+define <4 x float> @exp2_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.exp2.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: rint_v4f32:
+; CHECK: f32.nearest
+declare <4 x float> @llvm.rint.v4f32(<4 x float>)
+define <4 x float> @rint_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.rint.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: round_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, roundf
+declare <4 x float> @llvm.round.v4f32(<4 x float>)
+define <4 x float> @round_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.round.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
 ; ==============================================================================
 ; 2 x f64
 ; ==============================================================================
-
-; CHECK-LABEL: ceil_v2f64:
-; CHECK: f64.ceil
-declare <2 x double> @llvm.ceil.v2f64(<2 x double>)
-define <2 x double> @ceil_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.ceil.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: floor_v2f64:
-; CHECK: f64.floor
-declare <2 x double> @llvm.floor.v2f64(<2 x double>)
-define <2 x double> @floor_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.floor.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: trunc_v2f64:
-; CHECK: f64.trunc
-declare <2 x double> @llvm.trunc.v2f64(<2 x double>)
-define <2 x double> @trunc_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.trunc.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: nearbyint_v2f64:
-; CHECK: f64.nearest
-declare <2 x double> @llvm.nearbyint.v2f64(<2 x double>)
-define <2 x double> @nearbyint_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.nearbyint.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
 
 ; CHECK-LABEL: copysign_v2f64:
 ; CHECK: f64.copysign
 declare <2 x double> @llvm.copysign.v2f64(<2 x double>, <2 x double>)
 define <2 x double> @copysign_v2f64(<2 x double> %x, <2 x double> %y) {
   %v = call <2 x double> @llvm.copysign.v2f64(<2 x double> %x, <2 x double> %y)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: sin_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, sin
+declare <2 x double> @llvm.sin.v2f64(<2 x double>)
+define <2 x double> @sin_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.sin.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: cos_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, cos
+declare <2 x double> @llvm.cos.v2f64(<2 x double>)
+define <2 x double> @cos_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.cos.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: powi_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, __powidf2
+declare <2 x double> @llvm.powi.v2f64.i32(<2 x double>, i32)
+define <2 x double> @powi_v2f64(<2 x double> %x, i32 %y) {
+  %v = call <2 x double> @llvm.powi.v2f64.i32(<2 x double> %x, i32 %y)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: pow_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, pow
+declare <2 x double> @llvm.pow.v2f64(<2 x double>, <2 x double>)
+define <2 x double> @pow_v2f64(<2 x double> %x, <2 x double> %y) {
+  %v = call <2 x double> @llvm.pow.v2f64(<2 x double> %x, <2 x double> %y)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: log_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, log
+declare <2 x double> @llvm.log.v2f64(<2 x double>)
+define <2 x double> @log_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.log.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: log2_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, log2
+declare <2 x double> @llvm.log2.v2f64(<2 x double>)
+define <2 x double> @log2_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.log2.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: log10_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, log10
+declare <2 x double> @llvm.log10.v2f64(<2 x double>)
+define <2 x double> @log10_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.log10.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: exp_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, exp
+declare <2 x double> @llvm.exp.v2f64(<2 x double>)
+define <2 x double> @exp_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.exp.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: exp2_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, exp2
+declare <2 x double> @llvm.exp2.v2f64(<2 x double>)
+define <2 x double> @exp2_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.exp2.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: rint_v2f64:
+; CHECK: f64.nearest
+declare <2 x double> @llvm.rint.v2f64(<2 x double>)
+define <2 x double> @rint_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.rint.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: round_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, round
+declare <2 x double> @llvm.round.v2f64(<2 x double>)
+define <2 x double> @round_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.round.v2f64(<2 x double> %x)
   ret <2 x double> %v
 }

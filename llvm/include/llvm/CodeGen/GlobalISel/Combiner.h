@@ -1,21 +1,20 @@
-//== ----- llvm/CodeGen/GlobalISel/Combiner.h --------------------- == //
+//== ----- llvm/CodeGen/GlobalISel/Combiner.h -------------------*- C++ -*-== //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+/// \file
 /// This contains common code to drive combines. Combiner Passes will need to
 /// setup a CombinerInfo and call combineMachineFunction.
-//
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CODEGEN_GLOBALISEL_COMBINER_H
 #define LLVM_CODEGEN_GLOBALISEL_COMBINER_H
 
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 
 namespace llvm {
 class MachineRegisterInfo;
@@ -43,4 +42,4 @@ protected:
 
 } // End namespace llvm.
 
-#endif // LLVM_CODEGEN_GLOBALISEL_GICOMBINER_H
+#endif // LLVM_CODEGEN_GLOBALISEL_COMBINER_H

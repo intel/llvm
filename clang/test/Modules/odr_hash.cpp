@@ -311,6 +311,20 @@ S9 s9;
 #endif
 
 #if defined(FIRST)
+struct S9b {
+  mutable int x : 2;
+};
+#elif defined(SECOND)
+struct S9b {
+  int x : 2;
+};
+#else
+S9b s9b;
+// expected-error@second.h:* {{'Field::S9b' has different definitions in different modules; first difference is definition in module 'SecondModule' found non-mutable field 'x'}}
+// expected-note@first.h:* {{but in 'FirstModule' found mutable field 'x'}}
+#endif
+
+#if defined(FIRST)
 struct S10 {
   unsigned x = 5;
 };
@@ -372,7 +386,9 @@ S13 s13;
   unsigned c : 1 + 2; \
   s d;                \
   double e = 1.0;     \
-  long f[5];
+  long f[5];          \
+  mutable int g;      \
+  mutable int h : 5;
 
 #if defined(FIRST) || defined(SECOND)
 typedef short s;
@@ -609,8 +625,8 @@ struct S14 {
 };
 #else
 S14 s14;
-// expected-error@second.h:* {{'Method::S14' has different definitions in different modules; first difference is definition in module 'SecondModule' found method 'A' with 1st parameter of type 'int *' decayed from 'int [3]'}}
-// expected-note@first.h:* {{but in 'FirstModule' found method 'A' with 1st parameter of type 'int *' decayed from 'int [2]'}}
+// expected-error@second.h:* {{'Method::S14' has different definitions in different modules; first difference is definition in module 'SecondModule' found method 'A' with 1st parameter of type 'int *' decayed from 'int[3]'}}
+// expected-note@first.h:* {{but in 'FirstModule' found method 'A' with 1st parameter of type 'int *' decayed from 'int[2]'}}
 #endif
 
 #if defined(FIRST)
@@ -2380,6 +2396,93 @@ struct S6 {};
 using TemplateParameters::S6;
 // expected-error@second.h:* {{'TemplateParameters::S6' has different definitions in different modules; first difference is definition in module 'SecondModule' found unnamed template parameter}}
 // expected-note@first.h:* {{but in 'FirstModule' found template parameter 'A'}}
+#endif
+
+#if defined(FIRST)
+template <int A = 7>
+struct S7 {};
+#elif defined(SECOND)
+template <int A = 8>
+struct S7 {};
+#else
+using TemplateParameters::S7;
+// expected-error@second.h:* {{'TemplateParameters::S7' has different definitions in different modules; first difference is definition in module 'SecondModule' found template parameter with default argument}}
+// expected-note@first.h:* {{but in 'FirstModule' found template parameter with different default argument}}
+#endif
+
+#if defined(FIRST)
+template <int* A = nullptr>
+struct S8 {};
+#elif defined(SECOND)
+inline int S8_default_arg = 0x12345;
+template <int* A = &S8_default_arg>
+struct S8 {};
+#else
+using TemplateParameters::S8;
+// expected-error@second.h:* {{'TemplateParameters::S8' has different definitions in different modules; first difference is definition in module 'SecondModule' found template parameter with default argument}}
+// expected-note@first.h:* {{but in 'FirstModule' found template parameter with different default argument}}
+#endif
+
+#if defined(FIRST)
+template <int A = 43>
+struct S9 {};
+#elif defined(SECOND)
+template <int A = 43>
+struct S9 {};
+#else
+using TemplateParameters::S9;
+#endif
+
+#if defined(FIRST)
+template <class A = double>
+struct S10 {};
+#elif defined(SECOND)
+template <class A = double>
+struct S10 {};
+#else
+using TemplateParameters::S10;
+#endif
+
+#if defined(FIRST)
+template <template<int> class A = S9>
+struct S11 {};
+#elif defined(SECOND)
+template <template<int> class A = S9>
+struct S11 {};
+#else
+using TemplateParameters::S11;
+#endif
+
+// FIXME: It looks like we didn't implement ODR check for template variables.
+// S12, S13 and S14 show this.
+#if defined(FIRST)
+template <int A = 43>
+int S12 {};
+#elif defined(SECOND)
+template <int A = 44>
+int S12 {};
+#else
+using TemplateParameters::S12;
+#endif
+
+#if defined(FIRST)
+template <class A = double>
+int S13 {};
+#elif defined(SECOND)
+template <class A = int>
+int S13 {};
+#else
+using TemplateParameters::S13;
+#endif
+
+#if defined(FIRST)
+template <class A>
+int S14 {};
+#elif defined(SECOND)
+template <class B>
+int S14 {};
+#else
+using TemplateParameters::S14;
 #endif
 
 #define DECLS
@@ -4269,6 +4372,8 @@ template<typename G>
 G* S<G>::Foo(const G* asdf, int*) {}
 #else
 S<X> s;
+// expected-error@first.h:* {{'ParameterTest::S::Foo' has different definitions in different modules; definition in module 'FirstModule' first difference is 1st parameter with name 'aaaa'}}
+// expected-note@second.h:* {{but in 'SecondModule' found 1st parameter with name 'asdf'}}
 #endif
 }  // ParameterTest
 
@@ -4517,8 +4622,8 @@ int F9(int[1]) { return 0; }
 int F9(int[2]) { return 0; }
 #else
 int I9 = F9(nullptr);
-// expected-error@second.h:* {{'FunctionDecl::F9' has different definitions in different modules; definition in module 'SecondModule' first difference is 1st parameter with type 'int *' decayed from 'int [2]'}}
-// expected-note@first.h:* {{but in 'FirstModule' found 1st parameter with type 'int *' decayed from 'int [1]'}}
+// expected-error@second.h:* {{'FunctionDecl::F9' has different definitions in different modules; definition in module 'SecondModule' first difference is 1st parameter with type 'int *' decayed from 'int[2]'}}
+// expected-note@first.h:* {{but in 'FirstModule' found 1st parameter with type 'int *' decayed from 'int[1]'}}
 #endif
 
 #if defined(FIRST)
@@ -4621,8 +4726,69 @@ struct S2 {
 #else
 S2 s2;
 #endif
-
 }
+
+namespace TypedefStruct {
+#if defined(FIRST)
+struct T1;
+class S1 {
+  T1* t;
+};
+#elif defined(SECOND)
+typedef struct T1 {} T1;
+class S1 {
+  T1* t;
+};
+#else
+S1 s1;
+#endif
+
+#if defined(FIRST)
+struct T2;
+class S2 {
+  const T2* t = nullptr;
+};
+#elif defined(SECOND)
+typedef struct T2 {} T2;
+class S2 {
+  const T2* t = nullptr;
+};
+#else
+S2 s2;
+#endif
+
+#if defined(FIRST)
+struct T3;
+class S3 {
+  T3* const t = nullptr;
+};
+#elif defined(SECOND)
+typedef struct T3 {} T3;
+class S3 {
+  T3* const t = nullptr;
+};
+#else
+S3 s3;
+#endif
+
+#if defined(FIRST)
+namespace NS4 {
+struct T4;
+} // namespace NS4
+class S4 {
+  NS4::T4* t = 0;
+};
+#elif defined(SECOND)
+namespace NS4 {
+typedef struct T4 {} T4;
+} // namespace NS4
+class S4 {
+  NS4::T4* t = 0;
+};
+#else
+S4 s4;
+#endif
+} // namespace TypedefStruct
 
 // Keep macros contained to one file.
 #ifdef FIRST

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjectContainerBSDArchive_h_
-#define liblldb_ObjectContainerBSDArchive_h_
+#ifndef LLDB_SOURCE_PLUGINS_OBJECTCONTAINER_BSD_ARCHIVE_OBJECTCONTAINERBSDARCHIVE_H
+#define LLDB_SOURCE_PLUGINS_OBJECTCONTAINER_BSD_ARCHIVE_OBJECTCONTAINERBSDARCHIVE_H
 
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Symbol/ObjectContainer.h"
@@ -36,9 +36,11 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "bsd-archive"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic() {
+    return "BSD Archive object container reader.";
+  }
 
   static lldb_private::ObjectContainer *
   CreateInstance(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
@@ -68,9 +70,7 @@ public:
   lldb::ObjectFileSP GetObjectFile(const lldb_private::FileSpec *file) override;
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
 protected:
   struct Object {
@@ -80,20 +80,29 @@ protected:
 
     lldb::offset_t Extract(const lldb_private::DataExtractor &data,
                            lldb::offset_t offset);
+    /// Object name in the archive.
+    lldb_private::ConstString ar_name;
 
-    lldb_private::ConstString ar_name; // name
-    uint32_t ar_date;                  // modification time
-    uint16_t ar_uid;                   // user id
-    uint16_t ar_gid;                   // group id
-    uint16_t ar_mode;                  // octal file permissions
-    uint32_t ar_size;                  // size in bytes
-    lldb::offset_t ar_file_offset; // file offset in bytes from the beginning of
-                                   // the file of the object data
-    lldb::offset_t ar_file_size;   // length of the object data
+    /// Object modification time in the archive.
+    uint32_t modification_time = 0;
 
-    typedef std::vector<Object> collection;
-    typedef collection::iterator iterator;
-    typedef collection::const_iterator const_iterator;
+    /// Object user id in the archive.
+    uint16_t uid = 0;
+
+    /// Object group id in the archive.
+    uint16_t gid = 0;
+
+    /// Object octal file permissions in the archive.
+    uint16_t mode = 0;
+
+    /// Object size in bytes in the archive.
+    uint32_t size = 0;
+
+    /// File offset in bytes from the beginning of the file of the object data.
+    lldb::offset_t file_offset = 0;
+
+    /// Length of the object data.
+    lldb::offset_t file_size = 0;
   };
 
   class Archive {
@@ -125,7 +134,7 @@ protected:
     const Object *GetObjectAtIndex(size_t idx) {
       if (idx < m_objects.size())
         return &m_objects[idx];
-      return NULL;
+      return nullptr;
     }
 
     size_t ParseObjects();
@@ -135,7 +144,9 @@ protected:
 
     lldb::offset_t GetFileOffset() const { return m_file_offset; }
 
-    const llvm::sys::TimePoint<> &GetModificationTime() { return m_time; }
+    const llvm::sys::TimePoint<> &GetModificationTime() {
+      return m_modification_time;
+    }
 
     const lldb_private::ArchSpec &GetArchitecture() const { return m_arch; }
 
@@ -149,9 +160,9 @@ protected:
     typedef lldb_private::UniqueCStringMap<uint32_t> ObjectNameToIndexMap;
     // Member Variables
     lldb_private::ArchSpec m_arch;
-    llvm::sys::TimePoint<> m_time;
+    llvm::sys::TimePoint<> m_modification_time;
     lldb::offset_t m_file_offset;
-    Object::collection m_objects;
+    std::vector<Object> m_objects;
     ObjectNameToIndexMap m_object_name_to_index_map;
     lldb_private::DataExtractor m_data; ///< The data for this object container
                                         ///so we don't lose data if the .a files
@@ -163,4 +174,4 @@ protected:
   Archive::shared_ptr m_archive_sp;
 };
 
-#endif // liblldb_ObjectContainerBSDArchive_h_
+#endif // LLDB_SOURCE_PLUGINS_OBJECTCONTAINER_BSD_ARCHIVE_OBJECTCONTAINERBSDARCHIVE_H

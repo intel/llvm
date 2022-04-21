@@ -10,7 +10,7 @@
 
 // template <class Facet> const Facet& use_facet(const locale& loc);
 
-// REQUIRES: libcpp-no-exceptions
+// REQUIRES: no-exceptions
 
 // Make sure we abort() when we pass a facet not associated to the locale to
 // use_facet() and exceptions are disabled.
@@ -18,6 +18,8 @@
 #include <csignal>
 #include <cstdlib>
 #include <locale>
+
+#include "test_macros.h"
 
 
 struct my_facet : public std::locale::facet {

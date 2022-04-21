@@ -6,20 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // bool equivalent(path const& lhs, path const& rhs);
 // bool equivalent(path const& lhs, path const& rhs, std::error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -35,18 +35,19 @@ TEST_CASE(signature_test) {
 }
 
 TEST_CASE(equivalent_test) {
+  static_test_env static_env;
   struct TestCase {
     path lhs;
     path rhs;
     bool expect;
   };
   const TestCase testCases[] = {
-      {StaticEnv::Dir, StaticEnv::Dir, true},
-      {StaticEnv::File, StaticEnv::Dir, false},
-      {StaticEnv::Dir, StaticEnv::SymlinkToDir, true},
-      {StaticEnv::Dir, StaticEnv::SymlinkToFile, false},
-      {StaticEnv::File, StaticEnv::File, true},
-      {StaticEnv::File, StaticEnv::SymlinkToFile, true},
+      {static_env.Dir, static_env.Dir, true},
+      {static_env.File, static_env.Dir, false},
+      {static_env.Dir, static_env.SymlinkToDir, true},
+      {static_env.Dir, static_env.SymlinkToFile, false},
+      {static_env.File, static_env.File, true},
+      {static_env.File, static_env.SymlinkToFile, true},
   };
   for (auto& TC : testCases) {
     std::error_code ec;
@@ -56,8 +57,9 @@ TEST_CASE(equivalent_test) {
 }
 
 TEST_CASE(equivalent_reports_error_if_input_dne) {
-  const path E = StaticEnv::File;
-  const path DNE = StaticEnv::DNE;
+  static_test_env static_env;
+  const path E = static_env.File;
+  const path DNE = static_env.DNE;
   { // Test that an error is reported when either of the paths don't exist
     std::error_code ec = GetTestEC();
     TEST_CHECK(equivalent(E, DNE, ec) == false);
@@ -95,6 +97,7 @@ TEST_CASE(equivalent_hardlink_succeeds) {
   TEST_CHECK(equivalent(hl1, hl2));
 }
 
+#ifndef _WIN32
 TEST_CASE(equivalent_is_other_succeeds) {
   scoped_test_env env;
   path const file = env.create_file("file", 42);
@@ -107,5 +110,6 @@ TEST_CASE(equivalent_is_other_succeeds) {
   TEST_CHECK(!equivalent(fifo1, fifo2));
   TEST_CHECK(equivalent(fifo1, fifo1));
 }
+#endif
 
 TEST_SUITE_END()

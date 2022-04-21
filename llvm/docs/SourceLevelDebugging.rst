@@ -86,11 +86,12 @@ information provides the following guarantees:
 
 * LLVM debug information **always provides information to accurately read
   the source-level state of the program**, regardless of which LLVM
-  optimizations have been run, and without any modification to the
-  optimizations themselves.  However, some optimizations may impact the
-  ability to modify the current state of the program with a debugger, such
-  as setting program variables, or calling functions that have been
-  deleted.
+  optimizations have been run. :doc:`HowToUpdateDebugInfo` specifies how debug
+  info should be updated in various kinds of code transformations to avoid
+  breaking this guarantee, and how to preserve as much useful debug info as
+  possible.  Note that some optimizations may impact the ability to modify the
+  current state of the program with a debugger, such as setting program
+  variables, or calling functions that have been deleted.
 
 * As desired, LLVM optimizations can be upgraded to be aware of debugging
   information, allowing them to update the debugging information as they
@@ -306,7 +307,7 @@ Compiled to LLVM, this function would be represented like this:
   ; Function Attrs: nounwind readnone
   declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-  attributes #0 = { nounwind ssp uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { nounwind ssp uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
   attributes #1 = { nounwind readnone }
 
   !llvm.dbg.cu = !{!0}
@@ -317,7 +318,7 @@ Compiled to LLVM, this function would be represented like this:
   !1 = !DIFile(filename: "/dev/stdin", directory: "/Users/dexonsmith/data/llvm/debug-info")
   !2 = !{}
   !3 = !{!4}
-  !4 = distinct !DISubprogram(name: "foo", scope: !1, file: !1, line: 1, type: !5, isLocal: false, isDefinition: true, scopeLine: 1, isOptimized: false, variables: !2)
+  !4 = distinct !DISubprogram(name: "foo", scope: !1, file: !1, line: 1, type: !5, isLocal: false, isDefinition: true, scopeLine: 1, isOptimized: false, retainedNodes: !2)
   !5 = !DISubroutineType(types: !6)
   !6 = !{null}
   !7 = !{i32 2, !"Dwarf Version", i32 2}
@@ -360,7 +361,7 @@ scope information for the variable ``X``.
   !14 = !DILocation(line: 2, column: 9, scope: !4)
   !4 = distinct !DISubprogram(name: "foo", scope: !1, file: !1, line: 1, type: !5,
                               isLocal: false, isDefinition: true, scopeLine: 1,
-                              isOptimized: false, variables: !2)
+                              isOptimized: false, retainedNodes: !2)
 
 Here ``!14`` is metadata providing `location information
 <LangRef.html#dilocation>`_.  In this example, scope is encoded by ``!4``, a
@@ -402,7 +403,7 @@ values through compilation, when objects are promoted to SSA values an
 ``llvm.dbg.value`` intrinsic is created for each assignment, recording the
 variable's new location. Compared with the ``llvm.dbg.declare`` intrinsic:
 
-* A dbg.value terminates the effect of any preceeding dbg.values for (any
+* A dbg.value terminates the effect of any preceding dbg.values for (any
   overlapping fragments of) the specified variable.
 * The dbg.value's position in the IR defines where in the instruction stream
   the variable's value changes.
@@ -426,7 +427,7 @@ and let the debugger present ``optimized out`` to the developer. Withholding
 these potentially stale variable values from the developer diminishes the
 amount of available debug information, but increases the reliability of the
 remaining information.
- 
+
 To illustrate some potential issues, consider the following example:
 
 .. code-block:: llvm
@@ -471,7 +472,7 @@ perhaps, be optimized into the following code:
   }
 
 What ``llvm.dbg.value`` intrinsics should be placed to represent the original variable
-locations in this code? Unfortunately the the second, third and fourth
+locations in this code? Unfortunately the second, third and fourth
 dbg.values for ``!1`` in the source function have had their operands
 (%tval, %fval, %merge) optimized out. Assuming we cannot recover them, we
 might consider this placement of dbg.values:
@@ -531,6 +532,7 @@ within the LLVM IR. By the end of CodeGen, this becomes a mapping from each
 variable to their machine locations over ranges of instructions.
 From IR to object emission, the major transformations which affect variable
 location fidelity are:
+
 1. Instruction Selection
 2. Register allocation
 3. Block layout
@@ -538,6 +540,14 @@ location fidelity are:
 each of which are discussed below. In addition, instruction scheduling can
 significantly change the ordering of the program, and occurs in a number of
 different passes.
+
+Some variable locations are not transformed during CodeGen. Stack locations
+specified by ``llvm.dbg.declare`` are valid and unchanging for the entire
+duration of the function, and are recorded in a simple MachineFunction table.
+Location changes in the prologue and epilogue of a function are also ignored:
+frame setup and destruction may take several instructions, require a
+disproportionate amount of debugging information in the output binary to
+describe, and should be stepped over by debuggers anyway.
 
 Variable locations in Instruction Selection and MIR
 ---------------------------------------------------
@@ -566,23 +576,41 @@ the equivalent location is used.
 
 After MIR locations are assigned to each variable, machine pseudo-instructions
 corresponding to each ``llvm.dbg.value`` and ``llvm.dbg.addr`` intrinsic are
-inserted. These ``DBG_VALUE`` instructions appear thus:
+inserted. There are two forms of this type of instruction.
+
+The first form, ``DBG_VALUE``, appears thus:
 
 .. code-block:: text
 
   DBG_VALUE %1, $noreg, !123, !DIExpression()
 
-And have the following operands:
- * The first operand can record the variable location as a register, an
-   immediate, or the base address register if the original debug intrinsic
-   referred to memory. ``$noreg`` indicates the variable location is undefined,
-   equivalent to an ``undef`` dbg.value operand.
+And has the following operands:
+ * The first operand can record the variable location as a register,
+   a frame index, an immediate, or the base address register if the original
+   debug intrinsic referred to memory. ``$noreg`` indicates the variable
+   location is undefined, equivalent to an ``undef`` dbg.value operand.
  * The type of the second operand indicates whether the variable location is
    directly referred to by the DBG_VALUE, or whether it is indirect. The
    ``$noreg`` register signifies the former, an immediate operand (0) the
    latter.
  * Operand 3 is the Variable field of the original debug intrinsic.
  * Operand 4 is the Expression field of the original debug intrinsic.
+
+The second form, ``DBG_VALUE_LIST``, appears thus:
+
+.. code-block:: text
+
+  DBG_VALUE_LIST !123, !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus), %1, %2
+
+And has the following operands:
+ * The first operand is the Variable field of the original debug intrinsic.
+ * The second operand is the Expression field of the original debug intrinsic.
+ * Any number of operands, from the 3rd onwards, record a sequence of variable
+   location operands, which may take any of the same values as the first
+   operand of the ``DBG_VALUE`` instruction above. These variable location
+   operands are inserted into the final DWARF Expression in positions indicated
+   by the DW_OP_LLVM_arg operator in the `DIExpression
+   <LangRef.html#diexpression>`.
 
 The position at which the DBG_VALUEs are inserted should correspond to the
 positions of their matching ``llvm.dbg.value`` intrinsics in the IR block.  As
@@ -705,7 +733,7 @@ Imagine that the SUB32rr were moved forward to give us the following MIR:
 
 In this circumstance LLVM would leave the MIR as shown above. Were we to move
 the DBG_VALUE of virtual register %7 upwards with the SUB32rr, we would re-order
-assignments and introduce a new state of the program. Wheras with the solution
+assignments and introduce a new state of the program. Whereas with the solution
 above, the debugger will see one fewer combination of variable values, because
 ``!3`` and ``!5`` will change value at the same time. This is preferred over
 misrepresenting the original program.
@@ -738,11 +766,13 @@ To avoid debug instructions interfering with the register allocator, the
 LiveDebugVariables pass extracts variable locations from a MIR function and
 deletes the corresponding DBG_VALUE instructions. Some localized copy
 propagation is performed within blocks. After register allocation, the
-VirtRegRewriter pass re-inserts DBG_VALUE instructions in their orignal
+VirtRegRewriter pass re-inserts DBG_VALUE instructions in their original
 positions, translating virtual register references into their physical
 machine locations. To avoid encoding incorrect variable locations, in this
 pass any DBG_VALUE of a virtual register that is not live, is replaced by
-the undefined location.
+the undefined location. The LiveDebugVariables may insert redundant DBG_VALUEs
+because of virtual register rewriting. These will be subsequently removed by
+the RemoveRedundantDebugValues pass.
 
 LiveDebugValues expansion of variable locations
 -----------------------------------------------
@@ -758,7 +788,7 @@ corresponding to a source-level assignment where the variable may change value,
 it asserts the location of a variable in a block, and loses effect outside the
 block. Propagating variable locations through copies and spills is
 straightforwards: determining the variable location in every basic block
-requries the consideraton of control flow. Consider the following IR, which
+requires the consideration of control flow. Consider the following IR, which
 presents several difficulties:
 
 .. code-block:: text
@@ -767,7 +797,7 @@ presents several difficulties:
   entry:
     br i1 %cond, label %truebr, label %falsebr
 
-  bb1: 
+  bb1:
     %value = phi i32 [ %value1, %truebr ], [ %value2, %falsebr ]
     br label %exit, !dbg !26
 
@@ -783,7 +813,7 @@ presents several difficulties:
     %value = add i32 %input, 2
     br label %bb1
 
-  exit: 
+  exit:
     ret i32 %value, !dbg !30
   }
 
@@ -831,25 +861,25 @@ of variable ``!23`` should not flow "down" into the ``%exit`` block.
 C/C++ front-end specific debug information
 ==========================================
 
-The C and C++ front-ends represent information about the program in a format
-that is effectively identical to `DWARF 3.0
-<http://www.eagercon.com/dwarf/dwarf3std.htm>`_ in terms of information
-content.  This allows code generators to trivially support native debuggers by
-generating standard dwarf information, and contains enough information for
-non-dwarf targets to translate it as needed.
+The C and C++ front-ends represent information about the program in a
+format that is effectively identical to `DWARF <http://www.dwarfstd.org/>`_
+in terms of information content.  This allows code generators to
+trivially support native debuggers by generating standard dwarf
+information, and contains enough information for non-dwarf targets to
+translate it as needed.
 
 This section describes the forms used to represent C and C++ programs.  Other
 languages could pattern themselves after this (which itself is tuned to
-representing programs in the same way that DWARF 3 does), or they could choose
+representing programs in the same way that DWARF does), or they could choose
 to provide completely different forms if they don't fit into the DWARF model.
 As support for debugging information gets added to the various LLVM
 source-language front-ends, the information used should be documented here.
 
-The following sections provide examples of a few C/C++ constructs and the debug
-information that would best describe those constructs.  The canonical
-references are the ``DIDescriptor`` classes defined in
-``include/llvm/IR/DebugInfo.h`` and the implementations of the helper functions
-in ``lib/IR/DIBuilder.cpp``.
+The following sections provide examples of a few C/C++ constructs and
+the debug information that would best describe those constructs.  The
+canonical references are the ``DINode`` classes defined in
+``include/llvm/IR/DebugInfoMetadata.h`` and the implementations of the
+helper functions in ``lib/IR/DIBuilder.cpp``.
 
 C/C++ source file information
 -----------------------------
@@ -971,7 +1001,7 @@ a C/C++ front-end would generate the following descriptors:
   !4 = !DISubprogram(name: "main", scope: !1, file: !1, line: 1, type: !5,
                      isLocal: false, isDefinition: true, scopeLine: 1,
                      flags: DIFlagPrototyped, isOptimized: false,
-                     variables: !2)
+                     retainedNodes: !2)
 
   ;;
   ;; Define the subprogram itself.
@@ -979,6 +1009,39 @@ a C/C++ front-end would generate the following descriptors:
   define i32 @main(i32 %argc, i8** %argv) !dbg !4 {
   ...
   }
+
+C++ specific debug information
+==============================
+
+C++ special member functions information
+----------------------------------------
+
+DWARF v5 introduces attributes defined to enhance debugging information of C++ programs. LLVM can generate (or omit) these appropriate DWARF attributes. In C++ a special member function Ctors, Dtors, Copy/Move Ctors, assignment operators can be declared with C++11 keyword deleted. This is represented in LLVM using spFlags value DISPFlagDeleted.
+
+Given a class declaration with copy constructor declared as deleted:
+
+.. code-block:: c
+
+  class foo {
+   public:
+     foo(const foo&) = deleted;
+  };
+
+A C++ frontend would generate following:
+
+.. code-block:: text
+
+  !17 = !DISubprogram(name: "foo", scope: !11, file: !1, line: 5, type: !18, scopeLine: 5, flags: DIFlagPublic | DIFlagPrototyped, spFlags: DISPFlagDeleted)
+
+and this will produce an additional DWARF attribute as:
+
+.. code-block:: text
+
+  DW_TAG_subprogram [7] *
+    DW_AT_name [DW_FORM_strx1]    (indexed (00000006) string = "foo")
+    DW_AT_decl_line [DW_FORM_data1]       (5)
+    ...
+    DW_AT_deleted [DW_FORM_flag_present]  (true)
 
 Fortran specific debug information
 ==================================
@@ -1005,11 +1068,42 @@ and this will materialize an additional DWARF attribute as:
 
 .. code-block:: text
 
-  DW_TAG_subprogram [3]  
+  DW_TAG_subprogram [3]
      DW_AT_low_pc [DW_FORM_addr]     (0x0000000000000010 ".text")
      DW_AT_high_pc [DW_FORM_data4]   (0x00000001)
      ...
      DW_AT_elemental [DW_FORM_flag_present]  (true)
+
+There are a few DWARF tags defined to represent Fortran specific constructs i.e DW_TAG_string_type for representing Fortran character(n). In LLVM this is represented as DIStringType.
+
+.. code-block:: fortran
+
+  character(len=*), intent(in) :: string
+
+a Fortran front-end would generate the following descriptors:
+
+.. code-block:: text
+
+  !DILocalVariable(name: "string", arg: 1, scope: !10, file: !3, line: 4, type: !15)
+  !DIStringType(name: "character(*)!2", stringLength: !16, stringLengthExpression: !DIExpression(), size: 32)
+  
+A fortran deferred-length character can also contain the information of raw storage of the characters in addition to the length of the string. This information is encoded in the  stringLocationExpression field. Based on this information, DW_AT_data_location attribute is emitted in a DW_TAG_string_type debug info. 
+
+  !DIStringType(name: "character(*)!2", stringLengthExpression: !DIExpression(), stringLocationExpression: !DIExpression(DW_OP_push_object_address, DW_OP_deref), size: 32)
+
+and this will materialize in DWARF tags as:
+
+.. code-block:: text
+
+   DW_TAG_string_type
+                DW_AT_name      ("character(*)!2")
+                DW_AT_string_length     (0x00000064)
+   0x00000064:    DW_TAG_variable
+                  DW_AT_location      (DW_OP_fbreg +16)
+                  DW_AT_type  (0x00000083 "integer*8")
+                  DW_AT_data_location (DW_OP_push_object_address, DW_OP_deref)
+                  ...
+                  DW_AT_artificial    (true)
 
 Debugging information format
 ============================
@@ -1112,7 +1206,7 @@ directly.
 
 Also, it is common practice in ObjC to have different property declarations in
 the @interface and @implementation - e.g. to provide a read-only property in
-the interface,and a read-write interface in the implementation.  In that case,
+the interface, and a read-write interface in the implementation.  In that case,
 the compiler should emit whichever property declaration will be in force in the
 current translation unit.
 
@@ -1792,6 +1886,7 @@ tag is one of:
 * DW_TAG_subrange_type
 * DW_TAG_base_type
 * DW_TAG_const_type
+* DW_TAG_immutable_type
 * DW_TAG_file_type
 * DW_TAG_namelist
 * DW_TAG_packed_type
@@ -1951,180 +2046,3 @@ Improving LLVM's CodeView support is a process of finding interesting type
 records, constructing a C++ test case that makes MSVC emit those records,
 dumping the records, understanding them, and then generating equivalent records
 in LLVM's backend.
-
-Testing Debug Info Preservation in Optimizations
-================================================
-
-The following paragraphs are an introduction to the debugify utility
-and examples of how to use it in regression tests to check debug info
-preservation after optimizations.
-
-The ``debugify`` utility
-------------------------
-
-The ``debugify`` synthetic debug info testing utility consists of two
-main parts. The ``debugify`` pass and the ``check-debugify`` one. They are
-meant to be used with ``opt`` for development purposes.
-
-The first applies synthetic debug information to every instruction of the module,
-while the latter checks that this DI is still available after an optimization
-has occurred, reporting any errors/warnings while doing so.
-
-The instructions are assigned sequentially increasing line locations,
-and are immediately used by debug value intrinsics when possible.
-
-For example, here is a module before:
-
-.. code-block:: llvm
-
-   define void @f(i32* %x) {
-   entry:
-     %x.addr = alloca i32*, align 8
-     store i32* %x, i32** %x.addr, align 8
-     %0 = load i32*, i32** %x.addr, align 8
-     store i32 10, i32* %0, align 4
-     ret void
-   }
-
-and after running ``opt -debugify``  on it we get:
-
-.. code-block:: text
-
-   define void @f(i32* %x) !dbg !6 {
-   entry:
-     %x.addr = alloca i32*, align 8, !dbg !12
-     call void @llvm.dbg.value(metadata i32** %x.addr, metadata !9, metadata !DIExpression()), !dbg !12
-     store i32* %x, i32** %x.addr, align 8, !dbg !13
-     %0 = load i32*, i32** %x.addr, align 8, !dbg !14
-     call void @llvm.dbg.value(metadata i32* %0, metadata !11, metadata !DIExpression()), !dbg !14
-     store i32 10, i32* %0, align 4, !dbg !15
-     ret void, !dbg !16
-   }
-
-   !llvm.dbg.cu = !{!0}
-   !llvm.debugify = !{!3, !4}
-   !llvm.module.flags = !{!5}
-
-   !0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "debugify", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2)
-   !1 = !DIFile(filename: "debugify-sample.ll", directory: "/")
-   !2 = !{}
-   !3 = !{i32 5}
-   !4 = !{i32 2}
-   !5 = !{i32 2, !"Debug Info Version", i32 3}
-   !6 = distinct !DISubprogram(name: "f", linkageName: "f", scope: null, file: !1, line: 1, type: !7, isLocal: false, isDefinition: true, scopeLine: 1, isOptimized: true, unit: !0, retainedNodes: !8)
-   !7 = !DISubroutineType(types: !2)
-   !8 = !{!9, !11}
-   !9 = !DILocalVariable(name: "1", scope: !6, file: !1, line: 1, type: !10)
-   !10 = !DIBasicType(name: "ty64", size: 64, encoding: DW_ATE_unsigned)
-   !11 = !DILocalVariable(name: "2", scope: !6, file: !1, line: 3, type: !10)
-   !12 = !DILocation(line: 1, column: 1, scope: !6)
-   !13 = !DILocation(line: 2, column: 1, scope: !6)
-   !14 = !DILocation(line: 3, column: 1, scope: !6)
-   !15 = !DILocation(line: 4, column: 1, scope: !6)
-   !16 = !DILocation(line: 5, column: 1, scope: !6)
-
-The following is an example of the -check-debugify output:
-
-.. code-block:: none
-
-   $ opt -enable-debugify -loop-vectorize llvm/test/Transforms/LoopVectorize/i8-induction.ll -disable-output
-   ERROR: Instruction with empty DebugLoc in function f --  %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
-
-Errors/warnings can range from instructions with empty debug location to an
-instruction having a type that's incompatible with the source variable it describes,
-all the way to missing lines and missing debug value intrinsics.
-
-Fixing errors
-^^^^^^^^^^^^^
-
-Each of the errors above has a relevant API available to fix it.
-
-* In the case of missing debug location, ``Instruction::setDebugLoc`` or possibly
-  ``IRBuilder::setCurrentDebugLocation`` when using a Builder and the new location
-  should be reused.
-
-* When a debug value has incompatible type ``llvm::replaceAllDbgUsesWith`` can be used.
-  After a RAUW call an incompatible type error can occur because RAUW does not handle
-  widening and narrowing of variables while ``llvm::replaceAllDbgUsesWith`` does. It is
-  also capable of changing the DWARF expression used by the debugger to describe the variable.
-  It also prevents use-before-def by salvaging or deleting invalid debug values.
-
-* When a debug value is missing ``llvm::salvageDebugInfo`` can be used when no replacement
-  exists, or ``llvm::replaceAllDbgUsesWith`` when a replacement exists.
-
-Using ``debugify``
-------------------
-
-In order for ``check-debugify`` to work, the DI must be coming from
-``debugify``. Thus, modules with existing DI will be skipped.
-
-The most straightforward way to use ``debugify`` is as follows::
-
-  $ opt -debugify -pass-to-test -check-debugify sample.ll
-
-This will inject synthetic DI to ``sample.ll`` run the ``pass-to-test``
-and then check for missing DI.
-
-Some other ways to run debugify are avaliable:
-
-.. code-block:: bash
-
-   # Same as the above example.
-   $ opt -enable-debugify -pass-to-test sample.ll
-
-   # Suppresses verbose debugify output.
-   $ opt -enable-debugify -debugify-quiet -pass-to-test sample.ll
-
-   # Prepend -debugify before and append -check-debugify -strip after
-   # each pass on the pipeline (similar to -verify-each).
-   $ opt -debugify-each -O2 sample.ll
-
-``debugify`` can also be used to test a backend, e.g:
-
-.. code-block:: bash
-
-   $ opt -debugify < sample.ll | llc -o -
-
-``debugify`` in regression tests
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The ``-debugify`` pass is especially helpful when it comes to testing that
-a given pass preserves DI while transforming the module. For this to work,
-the ``-debugify`` output must be stable enough to use in regression tests.
-Changes to this pass are not allowed to break existing tests.
-
-It allows us to test for DI loss in the same tests we check that the
-transformation is actually doing what it should.
-
-Here is an example from ``test/Transforms/InstCombine/cast-mul-select.ll``:
-
-.. code-block:: llvm
-
-   ; RUN: opt < %s -debugify -instcombine -S | FileCheck %s --check-prefix=DEBUGINFO
-
-   define i32 @mul(i32 %x, i32 %y) {
-   ; DBGINFO-LABEL: @mul(
-   ; DBGINFO-NEXT:    [[C:%.*]] = mul i32 {{.*}}
-   ; DBGINFO-NEXT:    call void @llvm.dbg.value(metadata i32 [[C]]
-   ; DBGINFO-NEXT:    [[D:%.*]] = and i32 {{.*}}
-   ; DBGINFO-NEXT:    call void @llvm.dbg.value(metadata i32 [[D]]
-
-     %A = trunc i32 %x to i8
-     %B = trunc i32 %y to i8
-     %C = mul i8 %A, %B
-     %D = zext i8 %C to i32
-     ret i32 %D
-   }
-
-Here we test that the two ``dbg.value`` instrinsics are preserved and
-are correctly pointing to the ``[[C]]`` and ``[[D]]`` variables.
-
-.. note::
-
-   Note, that when writing this kind of regression tests, it is important
-   to make them as robust as possible. That's why we should try to avoid
-   hardcoding line/variable numbers in check lines. If for example you test
-   for a ``DILocation`` to have a specific line number, and someone later adds
-   an instruction before the one we check the test will fail. In the cases this
-   can't be avoided (say, if a test wouldn't be precise enough), moving the
-   test to its own file is preferred.

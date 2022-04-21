@@ -193,12 +193,12 @@ TEST(CastingTest, dyn_cast_or_null) {
   EXPECT_NE(F5, null_foo);
 }
 
-std::unique_ptr<derived> newd() { return llvm::make_unique<derived>(); }
-std::unique_ptr<base> newb() { return llvm::make_unique<derived>(); }
+std::unique_ptr<derived> newd() { return std::make_unique<derived>(); }
+std::unique_ptr<base> newb() { return std::make_unique<derived>(); }
 
 TEST(CastingTest, unique_dyn_cast) {
   derived *OrigD = nullptr;
-  auto D = llvm::make_unique<derived>();
+  auto D = std::make_unique<derived>();
   OrigD = D.get();
 
   // Converting from D to itself is valid, it should return a new unique_ptr
@@ -283,7 +283,7 @@ TEST(CastingTest, UpcastIsInferred) {
   Derived D;
   EXPECT_TRUE(isa<Base>(D));
   Base *BP = dyn_cast<Base>(&D);
-  EXPECT_TRUE(BP != nullptr);
+  EXPECT_NE(BP, nullptr);
 }
 
 
@@ -379,31 +379,31 @@ TEST(CastingTest, smart_isa) {
 }
 
 TEST(CastingTest, smart_cast) {
-  EXPECT_TRUE(cast<pointer_wrappers::Derived>(MD) == &D);
-  EXPECT_TRUE(cast<pointer_wrappers::Derived>(CD) == &D);
+  EXPECT_EQ(cast<pointer_wrappers::Derived>(MD), &D);
+  EXPECT_EQ(cast<pointer_wrappers::Derived>(CD), &D);
 }
 
 TEST(CastingTest, smart_cast_or_null) {
-  EXPECT_TRUE(cast_or_null<pointer_wrappers::Derived>(MN) == nullptr);
-  EXPECT_TRUE(cast_or_null<pointer_wrappers::Derived>(CN) == nullptr);
-  EXPECT_TRUE(cast_or_null<pointer_wrappers::Derived>(MD) == &D);
-  EXPECT_TRUE(cast_or_null<pointer_wrappers::Derived>(CD) == &D);
+  EXPECT_EQ(cast_or_null<pointer_wrappers::Derived>(MN), nullptr);
+  EXPECT_EQ(cast_or_null<pointer_wrappers::Derived>(CN), nullptr);
+  EXPECT_EQ(cast_or_null<pointer_wrappers::Derived>(MD), &D);
+  EXPECT_EQ(cast_or_null<pointer_wrappers::Derived>(CD), &D);
 }
 
 TEST(CastingTest, smart_dyn_cast) {
-  EXPECT_TRUE(dyn_cast<pointer_wrappers::Derived>(MB) == nullptr);
-  EXPECT_TRUE(dyn_cast<pointer_wrappers::Derived>(CB) == nullptr);
-  EXPECT_TRUE(dyn_cast<pointer_wrappers::Derived>(MD) == &D);
-  EXPECT_TRUE(dyn_cast<pointer_wrappers::Derived>(CD) == &D);
+  EXPECT_EQ(dyn_cast<pointer_wrappers::Derived>(MB), nullptr);
+  EXPECT_EQ(dyn_cast<pointer_wrappers::Derived>(CB), nullptr);
+  EXPECT_EQ(dyn_cast<pointer_wrappers::Derived>(MD), &D);
+  EXPECT_EQ(dyn_cast<pointer_wrappers::Derived>(CD), &D);
 }
 
 TEST(CastingTest, smart_dyn_cast_or_null) {
-  EXPECT_TRUE(dyn_cast_or_null<pointer_wrappers::Derived>(MN) == nullptr);
-  EXPECT_TRUE(dyn_cast_or_null<pointer_wrappers::Derived>(CN) == nullptr);
-  EXPECT_TRUE(dyn_cast_or_null<pointer_wrappers::Derived>(MB) == nullptr);
-  EXPECT_TRUE(dyn_cast_or_null<pointer_wrappers::Derived>(CB) == nullptr);
-  EXPECT_TRUE(dyn_cast_or_null<pointer_wrappers::Derived>(MD) == &D);
-  EXPECT_TRUE(dyn_cast_or_null<pointer_wrappers::Derived>(CD) == &D);
+  EXPECT_EQ(dyn_cast_or_null<pointer_wrappers::Derived>(MN), nullptr);
+  EXPECT_EQ(dyn_cast_or_null<pointer_wrappers::Derived>(CN), nullptr);
+  EXPECT_EQ(dyn_cast_or_null<pointer_wrappers::Derived>(MB), nullptr);
+  EXPECT_EQ(dyn_cast_or_null<pointer_wrappers::Derived>(CB), nullptr);
+  EXPECT_EQ(dyn_cast_or_null<pointer_wrappers::Derived>(MD), &D);
+  EXPECT_EQ(dyn_cast_or_null<pointer_wrappers::Derived>(CD), &D);
 }
 
 } // end namespace pointer_wrappers

@@ -11,12 +11,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Sema/SemaInternal.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
+#include "clang/AST/StmtOpenMP.h"
+#include "clang/Basic/SourceLocation.h"
+#include "clang/Sema/SemaInternal.h"
 #include "llvm/ADT/BitVector.h"
 using namespace clang;
 
@@ -28,6 +30,10 @@ namespace {
 ///    int a[n];
 ///  L:
 ///
+/// We also detect jumps out of protected scopes when it's not possible to do
+/// cleanups properly. Indirect jumps and ASM jumps can't do cleanups because
+/// the target is unknown. Return statements with \c [[clang::musttail]] cannot
+/// handle any cleanups due to the nature of a tail call.
 class JumpScopeChecker {
   Sema &S;
 
@@ -65,25 +71,31 @@ class JumpScopeChecker {
   llvm::DenseMap<Stmt*, unsigned> LabelAndGotoScopes;
   SmallVector<Stmt*, 16> Jumps;
 
-  SmallVector<IndirectGotoStmt*, 4> IndirectJumps;
+  SmallVector<Stmt*, 4> IndirectJumps;
+  SmallVector<Stmt*, 4> AsmJumps;
+  SmallVector<AttributedStmt *, 4> MustTailStmts;
   SmallVector<LabelDecl*, 4> IndirectJumpTargets;
+  SmallVector<LabelDecl*, 4> AsmJumpTargets;
 public:
   JumpScopeChecker(Stmt *Body, Sema &S);
 private:
   void BuildScopeInformation(Decl *D, unsigned &ParentScope);
   void BuildScopeInformation(VarDecl *D, const BlockDecl *BDecl,
                              unsigned &ParentScope);
+  void BuildScopeInformation(CompoundLiteralExpr *CLE, unsigned &ParentScope);
   void BuildScopeInformation(Stmt *S, unsigned &origParentScope);
 
   void VerifyJumps();
-  void VerifyIndirectJumps();
+  void VerifyIndirectOrAsmJumps(bool IsAsmGoto);
+  void VerifyMustTailStmts();
   void NoteJumpIntoScopes(ArrayRef<unsigned> ToScopes);
-  void DiagnoseIndirectJump(IndirectGotoStmt *IG, unsigned IGScope,
-                            LabelDecl *Target, unsigned TargetScope);
+  void DiagnoseIndirectOrAsmJump(Stmt *IG, unsigned IGScope, LabelDecl *Target,
+                                 unsigned TargetScope);
   void CheckJump(Stmt *From, Stmt *To, SourceLocation DiagLoc,
                  unsigned JumpDiag, unsigned JumpDiagWarning,
                  unsigned JumpDiagCXX98Compat);
   void CheckGotoStmt(GotoStmt *GS);
+  const Attr *GetMustTailAttr(AttributedStmt *AS);
 
   unsigned GetDeepestCommonScope(unsigned A, unsigned B);
 };
@@ -103,7 +115,9 @@ JumpScopeChecker::JumpScopeChecker(Stmt *Body, Sema &s)
 
   // Check that all jumps we saw are kosher.
   VerifyJumps();
-  VerifyIndirectJumps();
+  VerifyIndirectOrAsmJumps(false);
+  VerifyIndirectOrAsmJumps(true);
+  VerifyMustTailStmts();
 }
 
 /// GetDeepestCommonScope - Finds the innermost scope enclosing the
@@ -273,6 +287,16 @@ void JumpScopeChecker::BuildScopeInformation(VarDecl *D,
   }
 }
 
+/// Build scope information for compound literals of C struct types that are
+/// non-trivial to destruct.
+void JumpScopeChecker::BuildScopeInformation(CompoundLiteralExpr *CLE,
+                                             unsigned &ParentScope) {
+  unsigned InDiag = diag::note_enters_compound_literal_scope;
+  unsigned OutDiag = diag::note_exits_compound_literal_scope;
+  Scopes.push_back(GotoScope(ParentScope, InDiag, OutDiag, CLE->getExprLoc()));
+  ParentScope = Scopes.size() - 1;
+}
+
 /// BuildScopeInformation - The statements from CI to CE are known to form a
 /// coherent VLA scope with a specified parent node.  Walk through the
 /// statements, adding any labels or gotos to LabelAndGotoScopes and recursively
@@ -316,7 +340,7 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
     }
 
     LabelAndGotoScopes[S] = ParentScope;
-    IndirectJumps.push_back(cast<IndirectGotoStmt>(S));
+    IndirectJumps.push_back(S);
     break;
 
   case Stmt::SwitchStmtClass:
@@ -339,13 +363,29 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
     Jumps.push_back(S);
     break;
 
+  case Stmt::GCCAsmStmtClass:
+    if (auto *GS = dyn_cast<GCCAsmStmt>(S))
+      if (GS->isAsmGoto()) {
+        // Remember both what scope a goto is in as well as the fact that we
+        // have it.  This makes the second scan not have to walk the AST again.
+        LabelAndGotoScopes[S] = ParentScope;
+        AsmJumps.push_back(GS);
+        for (auto *E : GS->labels())
+          AsmJumpTargets.push_back(E->getLabel());
+      }
+    break;
+
   case Stmt::IfStmtClass: {
     IfStmt *IS = cast<IfStmt>(S);
-    if (!(IS->isConstexpr() || IS->isObjCAvailabilityCheck()))
+    if (!(IS->isConstexpr() || IS->isConsteval() ||
+          IS->isObjCAvailabilityCheck()))
       break;
 
-    unsigned Diag = IS->isConstexpr() ? diag::note_protected_by_constexpr_if
-                                      : diag::note_protected_by_if_available;
+    unsigned Diag = diag::note_protected_by_if_available;
+    if (IS->isConstexpr())
+      Diag = diag::note_protected_by_constexpr_if;
+    else if (IS->isConsteval())
+      Diag = diag::note_protected_by_consteval_if;
 
     if (VarDecl *Var = IS->getConditionVariable())
       BuildScopeInformation(Var, ParentScope);
@@ -353,7 +393,9 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
     // Cannot jump into the middle of the condition.
     unsigned NewParentScope = Scopes.size();
     Scopes.push_back(GotoScope(ParentScope, Diag, 0, IS->getBeginLoc()));
-    BuildScopeInformation(IS->getCond(), NewParentScope);
+
+    if (!IS->isConsteval())
+      BuildScopeInformation(IS->getCond(), NewParentScope);
 
     // Jumps into either arm of an 'if constexpr' are not allowed.
     NewParentScope = Scopes.size();
@@ -451,8 +493,7 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
     }
 
     // Jump from the catch to the finally or try is not valid.
-    for (unsigned I = 0, N = AT->getNumCatchStmts(); I != N; ++I) {
-      ObjCAtCatchStmt *AC = AT->getCatchStmt(I);
+    for (ObjCAtCatchStmt *AC : AT->catch_stmts()) {
       unsigned NewParentScope = Scopes.size();
       Scopes.push_back(GotoScope(ParentScope,
                                  diag::note_protected_by_objc_catch,
@@ -514,11 +555,15 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
     // implementable but a lot of work which we haven't felt up to doing.
     ExprWithCleanups *EWC = cast<ExprWithCleanups>(S);
     for (unsigned i = 0, e = EWC->getNumObjects(); i != e; ++i) {
-      const BlockDecl *BDecl = EWC->getObject(i);
-      for (const auto &CI : BDecl->captures()) {
-        VarDecl *variable = CI.getVariable();
-        BuildScopeInformation(variable, BDecl, origParentScope);
-      }
+      if (auto *BDecl = EWC->getObject(i).dyn_cast<BlockDecl *>())
+        for (const auto &CI : BDecl->captures()) {
+          VarDecl *variable = CI.getVariable();
+          BuildScopeInformation(variable, BDecl, origParentScope);
+        }
+      else if (auto *CLE = EWC->getObject(i).dyn_cast<CompoundLiteralExpr *>())
+        BuildScopeInformation(CLE, origParentScope);
+      else
+        llvm_unreachable("unexpected cleanup object type");
     }
     break;
   }
@@ -531,8 +576,8 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
       SmallVector<const Expr *, 4> CommaLHS;
       SmallVector<SubobjectAdjustment, 4> Adjustments;
       const Expr *ExtendedObject =
-          MTE->GetTemporaryExpr()->skipRValueSubobjectAdjustments(
-              CommaLHS, Adjustments);
+          MTE->getSubExpr()->skipRValueSubobjectAdjustments(CommaLHS,
+                                                            Adjustments);
       if (ExtendedObject->getType().isDestructedType()) {
         Scopes.push_back(GotoScope(ParentScope, 0,
                                    diag::note_exits_temporary_dtor,
@@ -549,7 +594,27 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
     LabelAndGotoScopes[S] = ParentScope;
     break;
 
+  case Stmt::AttributedStmtClass: {
+    AttributedStmt *AS = cast<AttributedStmt>(S);
+    if (GetMustTailAttr(AS)) {
+      LabelAndGotoScopes[AS] = ParentScope;
+      MustTailStmts.push_back(AS);
+    }
+    break;
+  }
+
   default:
+    if (auto *ED = dyn_cast<OMPExecutableDirective>(S)) {
+      if (!ED->isStandaloneDirective()) {
+        unsigned NewParentScope = Scopes.size();
+        Scopes.emplace_back(ParentScope,
+                            diag::note_omp_protected_structured_block,
+                            diag::note_omp_exits_structured_block,
+                            ED->getStructuredBlock()->getBeginLoc());
+        BuildScopeInformation(ED->getStructuredBlock(), NewParentScope);
+        return;
+      }
+    }
     break;
   }
 
@@ -629,14 +694,13 @@ void JumpScopeChecker::VerifyJumps() {
   }
 }
 
-/// VerifyIndirectJumps - Verify whether any possible indirect jump
-/// might cross a protection boundary.  Unlike direct jumps, indirect
-/// jumps count cleanups as protection boundaries:  since there's no
-/// way to know where the jump is going, we can't implicitly run the
-/// right cleanups the way we can with direct jumps.
-///
-/// Thus, an indirect jump is "trivial" if it bypasses no
-/// initializations and no teardowns.  More formally, an indirect jump
+/// VerifyIndirectOrAsmJumps - Verify whether any possible indirect goto or
+/// asm goto jump might cross a protection boundary.  Unlike direct jumps,
+/// indirect or asm goto jumps count cleanups as protection boundaries:
+/// since there's no way to know where the jump is going, we can't implicitly
+/// run the right cleanups the way we can with direct jumps.
+/// Thus, an indirect/asm jump is "trivial" if it bypasses no
+/// initializations and no teardowns.  More formally, an indirect/asm jump
 /// from A to B is trivial if the path out from A to DCA(A,B) is
 /// trivial and the path in from DCA(A,B) to B is trivial, where
 /// DCA(A,B) is the deepest common ancestor of A and B.
@@ -648,36 +712,41 @@ void JumpScopeChecker::VerifyJumps() {
 /// Under these definitions, this function checks that the indirect
 /// jump between A and B is trivial for every indirect goto statement A
 /// and every label B whose address was taken in the function.
-void JumpScopeChecker::VerifyIndirectJumps() {
-  if (IndirectJumps.empty()) return;
-
+void JumpScopeChecker::VerifyIndirectOrAsmJumps(bool IsAsmGoto) {
+  SmallVector<Stmt*, 4> GotoJumps = IsAsmGoto ? AsmJumps : IndirectJumps;
+  if (GotoJumps.empty())
+    return;
+  SmallVector<LabelDecl *, 4> JumpTargets =
+      IsAsmGoto ? AsmJumpTargets : IndirectJumpTargets;
   // If there aren't any address-of-label expressions in this function,
   // complain about the first indirect goto.
-  if (IndirectJumpTargets.empty()) {
-    S.Diag(IndirectJumps[0]->getGotoLoc(),
+  if (JumpTargets.empty()) {
+    assert(!IsAsmGoto &&"only indirect goto can get here");
+    S.Diag(GotoJumps[0]->getBeginLoc(),
            diag::err_indirect_goto_without_addrlabel);
     return;
   }
-
   // Collect a single representative of every scope containing an
-  // indirect goto.  For most code bases, this substantially cuts
+  // indirect or asm goto.  For most code bases, this substantially cuts
   // down on the number of jump sites we'll have to consider later.
-  typedef std::pair<unsigned, IndirectGotoStmt*> JumpScope;
+  typedef std::pair<unsigned, Stmt*> JumpScope;
   SmallVector<JumpScope, 32> JumpScopes;
   {
-    llvm::DenseMap<unsigned, IndirectGotoStmt*> JumpScopesMap;
-    for (SmallVectorImpl<IndirectGotoStmt*>::iterator
-           I = IndirectJumps.begin(), E = IndirectJumps.end(); I != E; ++I) {
-      IndirectGotoStmt *IG = *I;
+    llvm::DenseMap<unsigned, Stmt*> JumpScopesMap;
+    for (SmallVectorImpl<Stmt *>::iterator I = GotoJumps.begin(),
+                                           E = GotoJumps.end();
+         I != E; ++I) {
+      Stmt *IG = *I;
       if (CHECK_PERMISSIVE(!LabelAndGotoScopes.count(IG)))
         continue;
       unsigned IGScope = LabelAndGotoScopes[IG];
-      IndirectGotoStmt *&Entry = JumpScopesMap[IGScope];
+      Stmt *&Entry = JumpScopesMap[IGScope];
       if (!Entry) Entry = IG;
     }
     JumpScopes.reserve(JumpScopesMap.size());
-    for (llvm::DenseMap<unsigned, IndirectGotoStmt*>::iterator
-           I = JumpScopesMap.begin(), E = JumpScopesMap.end(); I != E; ++I)
+    for (llvm::DenseMap<unsigned, Stmt *>::iterator I = JumpScopesMap.begin(),
+                                                    E = JumpScopesMap.end();
+         I != E; ++I)
       JumpScopes.push_back(*I);
   }
 
@@ -685,8 +754,8 @@ void JumpScopeChecker::VerifyIndirectJumps() {
   // label whose address was taken somewhere in the function.
   // For most code bases, there will be only one such scope.
   llvm::DenseMap<unsigned, LabelDecl*> TargetScopes;
-  for (SmallVectorImpl<LabelDecl*>::iterator
-         I = IndirectJumpTargets.begin(), E = IndirectJumpTargets.end();
+  for (SmallVectorImpl<LabelDecl *>::iterator I = JumpTargets.begin(),
+                                              E = JumpTargets.end();
        I != E; ++I) {
     LabelDecl *TheLabel = *I;
     if (CHECK_PERMISSIVE(!LabelAndGotoScopes.count(TheLabel->getStmt())))
@@ -763,7 +832,7 @@ void JumpScopeChecker::VerifyIndirectJumps() {
       // Only diagnose if we didn't find something.
       if (IsReachable) continue;
 
-      DiagnoseIndirectJump(I->second, I->first, TargetLabel, TargetScope);
+      DiagnoseIndirectOrAsmJump(I->second, I->first, TargetLabel, TargetScope);
     }
   }
 }
@@ -784,12 +853,15 @@ static bool IsCXX98CompatWarning(Sema &S, unsigned InDiagNote) {
 }
 
 /// Produce primary diagnostic for an indirect jump statement.
-static void DiagnoseIndirectJumpStmt(Sema &S, IndirectGotoStmt *Jump,
-                                     LabelDecl *Target, bool &Diagnosed) {
+static void DiagnoseIndirectOrAsmJumpStmt(Sema &S, Stmt *Jump,
+                                          LabelDecl *Target, bool &Diagnosed) {
   if (Diagnosed)
     return;
-  S.Diag(Jump->getGotoLoc(), diag::err_indirect_goto_in_protected_scope);
-  S.Diag(Target->getStmt()->getIdentLoc(), diag::note_indirect_goto_target);
+  bool IsAsmGoto = isa<GCCAsmStmt>(Jump);
+  S.Diag(Jump->getBeginLoc(), diag::err_indirect_goto_in_protected_scope)
+      << IsAsmGoto;
+  S.Diag(Target->getStmt()->getIdentLoc(), diag::note_indirect_goto_target)
+      << IsAsmGoto;
   Diagnosed = true;
 }
 
@@ -803,10 +875,9 @@ void JumpScopeChecker::NoteJumpIntoScopes(ArrayRef<unsigned> ToScopes) {
 }
 
 /// Diagnose an indirect jump which is known to cross scopes.
-void JumpScopeChecker::DiagnoseIndirectJump(IndirectGotoStmt *Jump,
-                                            unsigned JumpScope,
-                                            LabelDecl *Target,
-                                            unsigned TargetScope) {
+void JumpScopeChecker::DiagnoseIndirectOrAsmJump(Stmt *Jump, unsigned JumpScope,
+                                                 LabelDecl *Target,
+                                                 unsigned TargetScope) {
   if (CHECK_PERMISSIVE(JumpScope == TargetScope))
     return;
 
@@ -816,7 +887,7 @@ void JumpScopeChecker::DiagnoseIndirectJump(IndirectGotoStmt *Jump,
   // Walk out the scope chain until we reach the common ancestor.
   for (unsigned I = JumpScope; I != Common; I = Scopes[I].ParentScope)
     if (Scopes[I].OutDiag) {
-      DiagnoseIndirectJumpStmt(S, Jump, Target, Diagnosed);
+      DiagnoseIndirectOrAsmJumpStmt(S, Jump, Target, Diagnosed);
       S.Diag(Scopes[I].Loc, Scopes[I].OutDiag);
     }
 
@@ -827,15 +898,18 @@ void JumpScopeChecker::DiagnoseIndirectJump(IndirectGotoStmt *Jump,
     if (IsCXX98CompatWarning(S, Scopes[I].InDiag))
       ToScopesCXX98Compat.push_back(I);
     else if (Scopes[I].InDiag) {
-      DiagnoseIndirectJumpStmt(S, Jump, Target, Diagnosed);
+      DiagnoseIndirectOrAsmJumpStmt(S, Jump, Target, Diagnosed);
       S.Diag(Scopes[I].Loc, Scopes[I].InDiag);
     }
 
   // Diagnose this jump if it would be ill-formed in C++98.
   if (!Diagnosed && !ToScopesCXX98Compat.empty()) {
-    S.Diag(Jump->getGotoLoc(),
-           diag::warn_cxx98_compat_indirect_goto_in_protected_scope);
-    S.Diag(Target->getStmt()->getIdentLoc(), diag::note_indirect_goto_target);
+    bool IsAsmGoto = isa<GCCAsmStmt>(Jump);
+    S.Diag(Jump->getBeginLoc(),
+           diag::warn_cxx98_compat_indirect_goto_in_protected_scope)
+        << IsAsmGoto;
+    S.Diag(Target->getStmt()->getIdentLoc(), diag::note_indirect_goto_target)
+        << IsAsmGoto;
     NoteJumpIntoScopes(ToScopesCXX98Compat);
   }
 }
@@ -865,6 +939,11 @@ void JumpScopeChecker::CheckJump(Stmt *From, Stmt *To, SourceLocation DiagLoc,
         S.Diag(From->getBeginLoc(), diag::warn_jump_out_of_seh_finally);
         break;
       }
+      if (Scopes[I].InDiag == diag::note_omp_protected_structured_block) {
+        S.Diag(From->getBeginLoc(), diag::err_goto_into_protected_scope);
+        S.Diag(To->getBeginLoc(), diag::note_omp_exits_structured_block);
+        break;
+      }
     }
   }
 
@@ -891,6 +970,9 @@ void JumpScopeChecker::CheckJump(Stmt *From, Stmt *To, SourceLocation DiagLoc,
   if (!ToScopesWarning.empty()) {
     S.Diag(DiagLoc, JumpDiagWarning);
     NoteJumpIntoScopes(ToScopesWarning);
+    assert(isa<LabelStmt>(To));
+    LabelStmt *Label = cast<LabelStmt>(To);
+    Label->setSideEntry(true);
   }
 
   // Handle errors.
@@ -913,6 +995,24 @@ void JumpScopeChecker::CheckGotoStmt(GotoStmt *GS) {
     S.Diag(GS->getLabel()->getLocation(), diag::note_goto_ms_asm_label)
         << GS->getLabel()->getIdentifier();
   }
+}
+
+void JumpScopeChecker::VerifyMustTailStmts() {
+  for (AttributedStmt *AS : MustTailStmts) {
+    for (unsigned I = LabelAndGotoScopes[AS]; I; I = Scopes[I].ParentScope) {
+      if (Scopes[I].OutDiag) {
+        S.Diag(AS->getBeginLoc(), diag::err_musttail_scope);
+        S.Diag(Scopes[I].Loc, Scopes[I].OutDiag);
+      }
+    }
+  }
+}
+
+const Attr *JumpScopeChecker::GetMustTailAttr(AttributedStmt *AS) {
+  ArrayRef<const Attr *> Attrs = AS->getAttrs();
+  const auto *Iter =
+      llvm::find_if(Attrs, [](const Attr *A) { return isa<MustTailAttr>(A); });
+  return Iter != Attrs.end() ? *Iter : nullptr;
 }
 
 void Sema::DiagnoseInvalidJumps(Stmt *Body) {

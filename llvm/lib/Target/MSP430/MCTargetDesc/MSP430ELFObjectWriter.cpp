@@ -9,7 +9,6 @@
 #include "MCTargetDesc/MSP430FixupKinds.h"
 #include "MCTargetDesc/MSP430MCTargetDesc.h"
 
-#include "MCTargetDesc/MSP430MCTargetDesc.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCObjectWriter.h"
@@ -25,13 +24,13 @@ public:
     : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MSP430,
                               /*HasRelocationAddend*/ true) {}
 
-  ~MSP430ELFObjectWriter() override {}
+  ~MSP430ELFObjectWriter() override = default;
 
 protected:
   unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
                         const MCFixup &Fixup, bool IsPCRel) const override {
     // Translate fixup kind to ELF relocation type.
-    switch ((unsigned)Fixup.getKind()) {
+    switch (Fixup.getTargetKind()) {
     case FK_Data_1:                   return ELF::R_MSP430_8;
     case FK_Data_2:                   return ELF::R_MSP430_16_BYTE;
     case FK_Data_4:                   return ELF::R_MSP430_32;
@@ -54,5 +53,5 @@ protected:
 
 std::unique_ptr<MCObjectTargetWriter>
 llvm::createMSP430ELFObjectWriter(uint8_t OSABI) {
-  return llvm::make_unique<MSP430ELFObjectWriter>(OSABI);
+  return std::make_unique<MSP430ELFObjectWriter>(OSABI);
 }

@@ -15,12 +15,15 @@
 
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Driver/OptionUtils.h"
+#include "clang/Frontend/DependencyOutputOptions.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Option/OptSpecifier.h"
+#include "llvm/Support/FileCollector.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <cstdint>
 #include <memory>
@@ -29,40 +32,18 @@
 #include <utility>
 #include <vector>
 
-namespace llvm {
-
-class Triple;
-
-namespace opt {
-
-class ArgList;
-
-} // namespace opt
-
-} // namespace llvm
-
 namespace clang {
 
 class ASTReader;
 class CompilerInstance;
 class CompilerInvocation;
-class DependencyOutputOptions;
 class DiagnosticsEngine;
 class ExternalSemaSource;
 class FrontendOptions;
-class HeaderSearch;
-class HeaderSearchOptions;
-class LangOptions;
 class PCHContainerReader;
 class Preprocessor;
 class PreprocessorOptions;
 class PreprocessorOutputOptions;
-
-/// Apply the header search options to get given HeaderSearch object.
-void ApplyHeaderSearchOptions(HeaderSearch &HS,
-                              const HeaderSearchOptions &HSOpts,
-                              const LangOptions &Lang,
-                              const llvm::Triple &triple);
 
 /// InitializePreprocessor - Initialize the preprocessor getting it and the
 /// environment ready to process a single file.
@@ -77,8 +58,7 @@ void DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
 /// An interface for collecting the dependencies of a compilation. Users should
 /// use \c attachToPreprocessor and \c attachToASTReader to get all of the
 /// dependencies.
-/// FIXME: Migrate DependencyFileGen and DependencyGraphGen to use this
-/// interface.
+/// FIXME: Migrate DependencyGraphGen to use this interface.
 class DependencyCollector {
 public:
   virtual ~DependencyCollector();
@@ -95,36 +75,60 @@ public:
                              bool IsSystem, bool IsModuleFile, bool IsMissing);
 
   /// Called when the end of the main file is reached.
-  virtual void finishedMainFile() {}
+  virtual void finishedMainFile(DiagnosticsEngine &Diags) {}
 
   /// Return true if system files should be passed to sawDependency().
   virtual bool needSystemDependencies() { return false; }
 
-  // implementation detail
   /// Add a dependency \p Filename if it has not been seen before and
   /// sawDependency() returns true.
-  void maybeAddDependency(StringRef Filename, bool FromModule, bool IsSystem,
-                          bool IsModuleFile, bool IsMissing);
+  virtual void maybeAddDependency(StringRef Filename, bool FromModule,
+                                  bool IsSystem, bool IsModuleFile,
+                                  bool IsMissing);
+
+protected:
+  /// Return true if the filename was added to the list of dependencies, false
+  /// otherwise.
+  bool addDependency(StringRef Filename);
 
 private:
   llvm::StringSet<> Seen;
   std::vector<std::string> Dependencies;
 };
 
-/// Builds a depdenency file when attached to a Preprocessor (for includes) and
+/// Builds a dependency file when attached to a Preprocessor (for includes) and
 /// ASTReader (for module imports), and writes it out at the end of processing
 /// a source file.  Users should attach to the ast reader whenever a module is
 /// loaded.
-class DependencyFileGenerator {
-  void *Impl; // Opaque implementation
-
-  DependencyFileGenerator(void *Impl);
-
+class DependencyFileGenerator : public DependencyCollector {
 public:
-  static DependencyFileGenerator *CreateAndAttachToPreprocessor(
-    Preprocessor &PP, const DependencyOutputOptions &Opts);
+  DependencyFileGenerator(const DependencyOutputOptions &Opts);
 
-  void AttachToASTReader(ASTReader &R);
+  void attachToPreprocessor(Preprocessor &PP) override;
+
+  void finishedMainFile(DiagnosticsEngine &Diags) override;
+
+  bool needSystemDependencies() final override { return IncludeSystemHeaders; }
+
+  bool sawDependency(StringRef Filename, bool FromModule, bool IsSystem,
+                     bool IsModuleFile, bool IsMissing) final override;
+
+protected:
+  void outputDependencyFile(llvm::raw_ostream &OS);
+
+private:
+  void outputDependencyFile(DiagnosticsEngine &Diags);
+
+  std::string OutputFile;
+  std::string DependencyFilter;
+  std::vector<std::string> Targets;
+  bool IncludeSystemHeaders;
+  bool PhonyTarget;
+  bool AddMissingHeaderDeps;
+  bool SeenMissingHeader;
+  bool IncludeModuleFiles;
+  DependencyOutputFormat OutputFormat;
+  unsigned InputFileIndex;
 };
 
 /// Collects the dependencies for imported modules into a directory.  Users
@@ -134,9 +138,8 @@ class ModuleDependencyCollector : public DependencyCollector {
   bool HasErrors = false;
   llvm::StringSet<> Seen;
   llvm::vfs::YAMLVFSWriter VFSWriter;
-  llvm::StringMap<std::string> SymLinkMap;
+  llvm::FileCollector::PathCanonicalizer Canonicalizer;
 
-  bool getRealPath(StringRef SrcPath, SmallVectorImpl<char> &Result);
   std::error_code copyToRoot(StringRef Src, StringRef Dst = {});
 
 public:
@@ -191,42 +194,24 @@ createChainedIncludesSource(CompilerInstance &CI,
 /// createInvocationFromCommandLine - Construct a compiler invocation object for
 /// a command line argument vector.
 ///
-/// \return A CompilerInvocation, or 0 if none was built for the given
+/// \param ShouldRecoverOnErrors - whether we should attempt to return a
+/// non-null (and possibly incorrect) CompilerInvocation if any errors were
+/// encountered. When this flag is false, always return null on errors.
+///
+/// \param CC1Args - if non-null, will be populated with the args to cc1
+/// expanded from \p Args. May be set even if nullptr is returned.
+///
+/// \return A CompilerInvocation, or nullptr if none was built for the given
 /// argument vector.
 std::unique_ptr<CompilerInvocation> createInvocationFromCommandLine(
     ArrayRef<const char *> Args,
     IntrusiveRefCntPtr<DiagnosticsEngine> Diags =
         IntrusiveRefCntPtr<DiagnosticsEngine>(),
-    IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = nullptr);
-
-/// Return the value of the last argument as an integer, or a default. If Diags
-/// is non-null, emits an error if the argument is given, but non-integral.
-int getLastArgIntValue(const llvm::opt::ArgList &Args,
-                       llvm::opt::OptSpecifier Id, int Default,
-                       DiagnosticsEngine *Diags = nullptr);
-
-inline int getLastArgIntValue(const llvm::opt::ArgList &Args,
-                              llvm::opt::OptSpecifier Id, int Default,
-                              DiagnosticsEngine &Diags) {
-  return getLastArgIntValue(Args, Id, Default, &Diags);
-}
-
-uint64_t getLastArgUInt64Value(const llvm::opt::ArgList &Args,
-                               llvm::opt::OptSpecifier Id, uint64_t Default,
-                               DiagnosticsEngine *Diags = nullptr);
-
-inline uint64_t getLastArgUInt64Value(const llvm::opt::ArgList &Args,
-                                      llvm::opt::OptSpecifier Id,
-                                      uint64_t Default,
-                                      DiagnosticsEngine &Diags) {
-  return getLastArgUInt64Value(Args, Id, Default, &Diags);
-}
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = nullptr,
+    bool ShouldRecoverOnErrors = false,
+    std::vector<std::string> *CC1Args = nullptr);
 
 // Frontend timing utils
-
-/// If the user specifies the -ftime-report argument on an Clang command line
-/// then the value of this boolean will be true, otherwise false.
-extern bool FrontendTimesIsEnabled;
 
 } // namespace clang
 

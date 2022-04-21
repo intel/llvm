@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
 void foo() {
@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
     si = k + 1;
 
   s6 = s6_0; // expected-note {{in instantiation of member function 'S6<float>::operator=' requested here}}
-  s7 = s7_0; // expected-note {{in instantiation of member function 'S7<S6<float> >::operator=' requested here}}
+  s7 = s7_0; // expected-note {{in instantiation of member function 'S7<S6<float>>::operator=' requested here}}
   return foomain(argc, argv); // expected-note {{in instantiation of function template specialization 'foomain<int, char>' requested here}}
 }
 

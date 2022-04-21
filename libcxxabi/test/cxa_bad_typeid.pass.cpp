@@ -1,4 +1,4 @@
-//===----------------------- cxa_bad_typeid.pass.cpp ------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===------------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <cxxabi.h>
 #include <cassert>
@@ -14,7 +14,8 @@
 #include <exception>
 #include <typeinfo>
 #include <string>
-#include <iostream>
+
+#include "test_macros.h"
 
 class Base {
   virtual void foo() {};
@@ -26,21 +27,21 @@ std::string test_bad_typeid(Derived *p) {
     return typeid(*p).name();
 }
 
-void my_terminate() { std::cout << "A" << std::endl; exit(0); }
+void my_terminate() { exit(0); }
 
 int main ()
 {
     // swap-out the terminate handler
-    void (*default_handler)() = std::get_terminate(); 
+    void (*default_handler)() = std::get_terminate();
     std::set_terminate(my_terminate);
 
-#ifndef LIBCXXABI_HAS_NO_EXCEPTIONS
+#ifndef TEST_HAS_NO_EXCEPTIONS
     try {
 #endif
         test_bad_typeid(nullptr);
         assert(false);
-#ifndef LIBCXXABI_HAS_NO_EXCEPTIONS
-    } catch (std::bad_typeid) {
+#ifndef TEST_HAS_NO_EXCEPTIONS
+    } catch (std::bad_typeid const&) {
         // success
         return 0;
     } catch (...) {

@@ -6,11 +6,11 @@
 ; with exec.
 
 ; GCN-LABEL: {{^}}needs_and:
-; GCN: s_xor_b64 [[REG1:[^ ,]*]], {{[^ ,]*, -1$}}
-; GCN: s_and_b64 [[REG2:[^ ,]*]], exec, [[REG1]]
-; GCN: s_or_b64 [[REG3:[^ ,]*]], [[REG2]],
-; GCN: s_andn2_b64 exec, exec, [[REG3]]
 
+; GCN: s_or_b64 exec, exec, [[REG1:[^ ,]*]]
+; GCN: s_andn2_b64 exec, exec, [[REG2:[^ ,]*]]
+; GCN: s_or_b64 [[REG2:[^ ,]*]], [[REG1:[^ ,]*]], [[REG2:[^ ,]*]]
+; GCN: s_or_b64 exec, exec, [[REG2:[^ ,]*]]
 define void @needs_and(i32 %arg) {
 entry:
   br label %loop
@@ -22,7 +22,7 @@ loop:
   br i1 %tmp27, label %then, label %endif
 
 then:                                             ; preds = %bb
-  call void @llvm.amdgcn.buffer.store.f32(float undef, <4 x i32> undef, i32 0, i32 undef, i1 false, i1 false) #1
+  call void @llvm.amdgcn.raw.buffer.store.f32(float undef, <4 x i32> undef, i32 0, i32 undef, i32 0)
   br label %endif
 
 endif:                                             ; preds = %bb28, %bb
@@ -49,7 +49,7 @@ loop:
   %tmp23phi = phi i32 [ %tmp23, %loop ], [ 0, %entry ]
   %tmp23 = add nuw i32 %tmp23phi, 1
   %tmp27 = icmp ult i32 %arg, %tmp23
-  call void @llvm.amdgcn.buffer.store.f32(float undef, <4 x i32> undef, i32 0, i32 undef, i1 false, i1 false) #1
+  call void @llvm.amdgcn.raw.buffer.store.f32(float undef, <4 x i32> undef, i32 0, i32 undef, i32 0)
   br i1 %tmp27, label %loop, label %loopexit
 
 loopexit:
@@ -61,9 +61,9 @@ loopexit:
 
 ; GCN-LABEL: {{^}}break_cond_is_arg:
 ; GCN: s_xor_b64 [[REG1:[^ ,]*]], {{[^ ,]*, -1$}}
+; GCN: s_andn2_b64 exec, exec, [[REG3:[^ ,]*]]
 ; GCN: s_and_b64 [[REG2:[^ ,]*]], exec, [[REG1]]
-; GCN: s_or_b64 [[REG3:[^ ,]*]], [[REG2]],
-; GCN: s_andn2_b64 exec, exec, [[REG3]]
+; GCN: s_or_b64 [[REG3]], [[REG2]],
 
 define void @break_cond_is_arg(i32 %arg, i1 %breakcond) {
 entry:
@@ -76,7 +76,7 @@ loop:
   br i1 %tmp27, label %then, label %endif
 
 then:                                             ; preds = %bb
-  call void @llvm.amdgcn.buffer.store.f32(float undef, <4 x i32> undef, i32 0, i32 undef, i1 false, i1 false) #1
+  call void @llvm.amdgcn.raw.buffer.store.f32(float undef, <4 x i32> undef, i32 0, i32 undef, i32 0)
   br label %endif
 
 endif:                                             ; preds = %bb28, %bb
@@ -86,8 +86,6 @@ loopexit:
   ret void
 }
 
+declare void @llvm.amdgcn.raw.buffer.store.f32(float, <4 x i32>, i32, i32, i32 immarg) #0
 
-declare void @llvm.amdgcn.buffer.store.f32(float, <4 x i32>, i32, i32, i1, i1) #3
-
-attributes #3 = { nounwind writeonly }
-
+attributes #0 = { nounwind writeonly }

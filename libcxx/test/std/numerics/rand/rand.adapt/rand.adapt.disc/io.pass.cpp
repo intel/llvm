@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: libcpp-has-no-localization
+
 // <random>
 
 // template<class Engine, size_t p, size_t r>
@@ -26,6 +28,8 @@
 #include <random>
 #include <sstream>
 #include <cassert>
+
+#include "test_macros.h"
 
 void
 test1()

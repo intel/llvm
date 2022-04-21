@@ -64,7 +64,7 @@ void zoo1backwards() {
 
 typedef __INTPTR_TYPE__ intptr_t;
 void zoo1multiply() {
-  char **p = 0; // FIXME-should-be-note:{{'p' initialized to a null pointer value}}
+  char **p = 0; // expected-note{{'p' initialized to a null pointer value}}
   delete *((char **)((intptr_t)p * 2)); // expected-warning{{Dereference of null pointer}}
                    // expected-note@-1{{Dereference of null pointer}}
 }
@@ -128,18 +128,10 @@ void shouldNotCrash() {
   decltype(nullptr) p; // expected-note{{'p' declared without an initial value}}
   if (getSymbol()) // expected-note   {{Assuming the condition is false}}
                    // expected-note@-1{{Taking false branch}}
-                   // expected-note@-2{{Assuming the condition is false}}
-                   // expected-note@-3{{Taking false branch}}
-                   // expected-note@-4{{Assuming the condition is true}}
-                   // expected-note@-5{{Taking true branch}}
-    invokeF(p); // expected-warning{{1st function call argument is an uninitialized value}}
-                // expected-note@-1{{1st function call argument is an uninitialized value}}
-  if (getSymbol()) // expected-note   {{Assuming the condition is false}}
-                   // expected-note@-1{{Taking false branch}}
                    // expected-note@-2{{Assuming the condition is true}}
                    // expected-note@-3{{Taking true branch}}
-    invokeF(nullptr); // expected-note   {{Calling 'invokeF'}}
-                      // expected-note@-1{{Passing null pointer value via 1st parameter 'x'}}
+    invokeF(p);    // expected-note   {{Calling 'invokeF'}}
+                   // expected-note@-1{{Passing null pointer value via 1st parameter 'x'}}
   if (getSymbol()) {  // expected-note  {{Assuming the condition is true}}
                       // expected-note@-1{{Taking true branch}}
     X *xx = Type().x; // expected-note   {{Null pointer value stored to field 'x'}}

@@ -1,12 +1,12 @@
-; RUN: opt %loadPolly -polly-opt-isl -polly-pattern-matching-based-opts=true \
+; RUN: opt %loadPolly -polly-pattern-matching-based-opts=true \
 ; RUN: -polly-target-throughput-vector-fma=1 \
 ; RUN: -polly-target-latency-vector-fma=8 \
 ; RUN: -polly-target-1st-cache-level-associativity=8 \
 ; RUN: -polly-target-2nd-cache-level-associativity=8 \
 ; RUN: -polly-target-1st-cache-level-size=32768 \
-; RUN: -polly-target-2nd-cache-level-size=262144 -polly-ast \
+; RUN: -polly-target-2nd-cache-level-size=262144 \
 ; RUN: -polly-target-vector-register-bitwidth=256 \
-; RUN:  -analyze < %s | FileCheck %s
+; RUN: -polly-opt-isl -polly-print-ast -disable-output < %s | FileCheck %s
 ;
 ;    /* C := alpha*A*B + beta*C */
 ;    /* _PB_NK % Kc != 0 */
@@ -18,6 +18,7 @@
 ;	     C[i][j] += alpha * A[i][k] * B[k][j];
 ;        }
 ;
+; CHECK-LABEL: Printing analysis 'Polly - Generate an AST from the SCoP (isl)' for region: 'bb8 => bb32' in function 'kernel_gemm':
 ; CHECK:    {
 ; CHECK-NEXT:      // 1st level tiling - Tiles
 ; CHECK-NEXT:      for (int c0 = 0; c0 <= 32; c0 += 1)
@@ -27,16 +28,15 @@
 ; CHECK-NEXT:            for (int c3 = 0; c3 <= 31; c3 += 1)
 ; CHECK-NEXT:              Stmt_bb9(32 * c0 + c2, 32 * c1 + c3);
 ; CHECK-NEXT:        }
-; CHECK-NEXT:      // Inter iteration alias-free
 ; CHECK-NEXT:      // 1st level tiling - Tiles
 ; CHECK-NEXT:      for (int c1 = 0; c1 <= 3; c1 += 1) {
 ; CHECK-NEXT:        for (int c3 = 0; c3 <= 1055; c3 += 1)
 ; CHECK-NEXT:          for (int c4 = 256 * c1; c4 <= min(1022, 256 * c1 + 255); c4 += 1)
 ; CHECK-NEXT:            CopyStmt_0(0, c3, c4);
 ; CHECK-NEXT:        for (int c2 = 0; c2 <= 10; c2 += 1) {
-; CHECK-NEXT:          for (int c3 = 96 * c2; c3 <= 96 * c2 + 95; c3 += 1)
-; CHECK-NEXT:            for (int c5 = 256 * c1; c5 <= min(1022, 256 * c1 + 255); c5 += 1)
-; CHECK-NEXT:              CopyStmt_1(c3, 0, c5);
+; CHECK-NEXT:          for (int c6 = 96 * c2; c6 <= 96 * c2 + 95; c6 += 1)
+; CHECK-NEXT:            for (int c7 = 256 * c1; c7 <= min(1022, 256 * c1 + 255); c7 += 1)
+; CHECK-NEXT:              CopyStmt_1(0, c1, c2, c6, c7);
 ; CHECK-NEXT:          // 1st level tiling - Points
 ; CHECK-NEXT:          // Register tiling - Tiles
 ; CHECK-NEXT:          for (int c3 = 0; c3 <= 131; c3 += 1)

@@ -1,4 +1,4 @@
-//===-- StopInfo.cpp --------------------------------------------*- C++ -*-===//
+//===-- StopInfo.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,6 +21,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlan.h"
 #include "lldb/Target/UnixSignals.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
@@ -125,7 +126,7 @@ public:
       BreakpointSiteSP bp_site_sp(
           process_sp->GetBreakpointSiteList().FindByID(m_value));
       if (bp_site_sp)
-        return bp_site_sp->ValidForThisThread(&thread);
+        return bp_site_sp->ValidForThisThread(thread);
     }
     return false;
   }
@@ -145,12 +146,12 @@ public:
           bp_site_sp->BumpHitCounts();
           m_should_stop = bp_site_sp->ShouldStop(&context);
         } else {
-          Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+          Log *log = GetLog(LLDBLog::Process);
 
-          if (log)
-            log->Printf(
-                "Process::%s could not find breakpoint site id: %" PRId64 "...",
-                __FUNCTION__, m_value);
+          LLDB_LOGF(log,
+                    "Process::%s could not find breakpoint site id: %" PRId64
+                    "...",
+                    __FUNCTION__, m_value);
 
           m_should_stop = true;
         }
@@ -206,7 +207,7 @@ public:
 
           strm.Printf("breakpoint ");
           bp_site_sp->GetDescription(&strm, eDescriptionLevelBrief);
-          m_description = strm.GetString();
+          m_description = std::string(strm.GetString());
         } else {
           StreamString strm;
           if (m_break_id != LLDB_INVALID_BREAK_ID) {
@@ -239,7 +240,7 @@ public:
                         " which has been deleted - was at 0x%" PRIx64,
                         m_value, m_address);
 
-          m_description = strm.GetString();
+          m_description = std::string(strm.GetString());
         }
       }
     }
@@ -264,13 +265,12 @@ protected:
     ThreadSP thread_sp(m_thread_wp.lock());
 
     if (thread_sp) {
-      Log *log = lldb_private::GetLogIfAnyCategoriesSet(
-          LIBLLDB_LOG_BREAKPOINTS | LIBLLDB_LOG_STEP);
+      Log *log = GetLog(LLDBLog::Breakpoints | LLDBLog::Step);
 
       if (!thread_sp->IsValid()) {
         // This shouldn't ever happen, but just in case, don't do more harm.
         if (log) {
-          log->Printf("PerformAction got called with an invalid thread.");
+          LLDB_LOGF(log, "PerformAction got called with an invalid thread.");
         }
         m_should_stop = true;
         m_should_stop_is_valid = true;
@@ -304,6 +304,20 @@ protected:
           // And in this case we will end up not stopping even if another
           // location said we should stop. But that's better than not running
           // all the callbacks.
+
+          // There's one other complication here.  We may have run an async
+          // breakpoint callback that said we should stop.  We only want to
+          // override that if another breakpoint action says we shouldn't
+          // stop.  If nobody else has an opinion, then we should stop if the
+          // async callback says we should.  An example of this is the async
+          // shared library load notification breakpoint and the setting
+          // stop-on-sharedlibrary-events.
+          // We'll keep the async value in async_should_stop, and track whether
+          // anyone said we should NOT stop in actually_said_continue.
+          bool async_should_stop = false;
+          if (m_should_stop_is_valid)
+            async_should_stop = m_should_stop;
+          bool actually_said_continue = false;
 
           m_should_stop = false;
 
@@ -339,10 +353,9 @@ protected:
               return;
             }
 
-            if (log)
-              log->Printf("StopInfoBreakpoint::PerformAction - Hit a "
-                          "breakpoint while running an expression,"
-                          " not running commands to avoid recursion.");
+            LLDB_LOGF(log, "StopInfoBreakpoint::PerformAction - Hit a "
+                           "breakpoint while running an expression,"
+                           " not running commands to avoid recursion.");
             bool ignoring_breakpoints =
                 process->GetIgnoreBreakpointsInExpressions();
             if (ignoring_breakpoints) {
@@ -359,13 +372,14 @@ protected:
             } else {
               m_should_stop = true;
             }
-            if (log)
-              log->Printf("StopInfoBreakpoint::PerformAction - in expression, "
-                          "continuing: %s.",
-                          m_should_stop ? "true" : "false");
-            process->GetTarget().GetDebugger().GetAsyncOutputStream()->Printf(
-                "Warning: hit breakpoint while running function, skipping "
-                "commands and conditions to prevent recursion.\n");
+            LLDB_LOGF(log,
+                      "StopInfoBreakpoint::PerformAction - in expression, "
+                      "continuing: %s.",
+                      m_should_stop ? "true" : "false");
+            Debugger::ReportWarning(
+                "hit breakpoint while running function, skipping commands and "
+                "conditions to prevent recursion",
+                process->GetTarget().GetDebugger().GetID());
             return;
           }
 
@@ -400,18 +414,19 @@ protected:
             // The breakpoint site may have many locations associated with it,
             // not all of them valid for this thread.  Skip the ones that
             // aren't:
-            if (!bp_loc_sp->ValidForThisThread(thread_sp.get())) {
+            if (!bp_loc_sp->ValidForThisThread(*thread_sp)) {
               if (log) {
-                log->Printf("Breakpoint %s hit on thread 0x%llx but it was not "
-                            "for this thread, continuing.",
-                            loc_desc.GetData(), static_cast<unsigned long long>(
-                                             thread_sp->GetID()));
+                LLDB_LOGF(log,
+                          "Breakpoint %s hit on thread 0x%llx but it was not "
+                          "for this thread, continuing.",
+                          loc_desc.GetData(),
+                          static_cast<unsigned long long>(thread_sp->GetID()));
               }
               continue;
             }
 
             internal_breakpoint = bp_loc_sp->GetBreakpoint().IsInternal();
-            
+
             // First run the precondition, but since the precondition is per
             // breakpoint, only run it once per breakpoint.
             std::pair<std::unordered_set<break_id_t>::iterator, bool> result =
@@ -422,9 +437,10 @@ protected:
 
             bool precondition_result =
                 bp_loc_sp->GetBreakpoint().EvaluatePrecondition(context);
-            if (!precondition_result)
+            if (!precondition_result) {
+              actually_said_continue = true;
               continue;
-
+            }
             // Next run the condition for the breakpoint.  If that says we
             // should stop, then we'll run the callback for the breakpoint.  If
             // the callback says we shouldn't stop that will win.
@@ -435,39 +451,45 @@ protected:
                   bp_loc_sp->ConditionSaysStop(exe_ctx, condition_error);
 
               if (!condition_error.Success()) {
-                Debugger &debugger = exe_ctx.GetTargetRef().GetDebugger();
-                StreamSP error_sp = debugger.GetAsyncErrorStream();
-                error_sp->Printf("Stopped due to an error evaluating condition "
-                                 "of breakpoint ");
-                bp_loc_sp->GetDescription(error_sp.get(),
-                                          eDescriptionLevelBrief);
-                error_sp->Printf(": \"%s\"", bp_loc_sp->GetConditionText());
-                error_sp->EOL();
                 const char *err_str =
-                    condition_error.AsCString("<Unknown Error>");
-                if (log)
-                  log->Printf("Error evaluating condition: \"%s\"\n", err_str);
+                    condition_error.AsCString("<unknown error>");
+                LLDB_LOGF(log, "Error evaluating condition: \"%s\"\n", err_str);
 
-                error_sp->PutCString(err_str);
-                error_sp->EOL();
-                error_sp->Flush();
+                StreamString strm;
+                strm << "stopped due to an error evaluating condition of "
+                        "breakpoint ";
+                bp_loc_sp->GetDescription(&strm, eDescriptionLevelBrief);
+                strm << ": \"" << bp_loc_sp->GetConditionText() << "\"\n";
+                strm << err_str;
+
+                Debugger::ReportError(
+                    strm.GetString().str(),
+                    exe_ctx.GetTargetRef().GetDebugger().GetID());
               } else {
-                if (log) {
-                  log->Printf("Condition evaluated for breakpoint %s on thread "
-                              "0x%llx conditon_says_stop: %i.",
-                              loc_desc.GetData(), 
-                              static_cast<unsigned long long>(
-                                               thread_sp->GetID()),
-                              condition_says_stop);
-                }
+                LLDB_LOGF(log,
+                          "Condition evaluated for breakpoint %s on thread "
+                          "0x%llx condition_says_stop: %i.",
+                          loc_desc.GetData(),
+                          static_cast<unsigned long long>(thread_sp->GetID()),
+                          condition_says_stop);
                 if (!condition_says_stop) {
                   // We don't want to increment the hit count of breakpoints if
                   // the condition fails. We've already bumped it by the time
                   // we get here, so undo the bump:
                   bp_loc_sp->UndoBumpHitCount();
+                  actually_said_continue = true;
                   continue;
                 }
               }
+            }
+
+            // We've done all the checks whose failure means "we consider lldb
+            // not to have hit the breakpoint".  Now we're going to check for
+            // conditions that might continue after hitting.  Start with the
+            // ignore count:
+            if (!bp_loc_sp->IgnoreCountShouldStop()) {
+              actually_said_continue = true;
+              continue;
             }
 
             // Check the auto-continue bit on the location, do this before the
@@ -479,9 +501,9 @@ protected:
             bool auto_continue_says_stop = true;
             if (bp_loc_sp->IsAutoContinue())
             {
-              if (log)
-                log->Printf("Continuing breakpoint %s as AutoContinue was set.",
-                            loc_desc.GetData());
+              LLDB_LOGF(log,
+                        "Continuing breakpoint %s as AutoContinue was set.",
+                        loc_desc.GetData());
               // We want this stop reported, so you will know we auto-continued
               // but only for external breakpoints:
               if (!internal_breakpoint)
@@ -497,17 +519,23 @@ protected:
             // When we figure out how to nest breakpoint hits then this will
             // change.
 
-            Debugger &debugger = thread_sp->CalculateTarget()->GetDebugger();
-            bool old_async = debugger.GetAsyncExecution();
-            debugger.SetAsyncExecution(true);
+            // Don't run async callbacks in PerformAction.  They have already
+            // been taken into account with async_should_stop.
+            if (!bp_loc_sp->IsCallbackSynchronous()) {
+              Debugger &debugger = thread_sp->CalculateTarget()->GetDebugger();
+              bool old_async = debugger.GetAsyncExecution();
+              debugger.SetAsyncExecution(true);
 
-            callback_says_stop = bp_loc_sp->InvokeCallback(&context);
+              callback_says_stop = bp_loc_sp->InvokeCallback(&context);
 
-            debugger.SetAsyncExecution(old_async);
+              debugger.SetAsyncExecution(old_async);
 
-            if (callback_says_stop && auto_continue_says_stop)
-              m_should_stop = true;
-                  
+              if (callback_says_stop && auto_continue_says_stop)
+                m_should_stop = true;
+              else
+                actually_said_continue = true;
+            }
+
             // If we are going to stop for this breakpoint, then remove the
             // breakpoint.
             if (callback_says_stop && bp_loc_sp &&
@@ -520,8 +548,14 @@ protected:
             // here.
             if (HasTargetRunSinceMe()) {
               m_should_stop = false;
+              actually_said_continue = true;
               break;
             }
+          }
+          // At this point if nobody actually told us to continue, we should
+          // give the async breakpoint callback a chance to weigh in:
+          if (!actually_said_continue && !m_should_stop) {
+            m_should_stop = async_should_stop;
           }
         }
         // We've figured out what this stop wants to do, so mark it as valid so
@@ -530,13 +564,12 @@ protected:
       } else {
         m_should_stop = true;
         m_should_stop_is_valid = true;
-        Log *log_process(
-            lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+        Log *log_process(GetLog(LLDBLog::Process));
 
-        if (log_process)
-          log_process->Printf(
-              "Process::%s could not find breakpoint site id: %" PRId64 "...",
-              __FUNCTION__, m_value);
+        LLDB_LOGF(log_process,
+                  "Process::%s could not find breakpoint site id: %" PRId64
+                  "...",
+                  __FUNCTION__, m_value);
       }
 
       if ((!m_should_stop || internal_breakpoint) &&
@@ -545,16 +578,16 @@ protected:
         // Override should_stop decision when we have completed step plan
         // additionally to the breakpoint
         m_should_stop = true;
-        
-        // Here we clean the preset stop info so the next GetStopInfo call will
-        // find the appropriate stop info, which should be the stop info
-        // related to the completed plan
-        thread_sp->ResetStopInfo();
+
+        // We know we're stopping for a completed plan and we don't want to
+        // show the breakpoint stop, so compute the public stop info immediately
+        // here.
+        thread_sp->CalculatePublicStopInfo();
       }
 
-      if (log)
-        log->Printf("Process::%s returning from action with m_should_stop: %d.",
-                    __FUNCTION__, m_should_stop);
+      LLDB_LOGF(log,
+                "Process::%s returning from action with m_should_stop: %d.",
+                __FUNCTION__, m_should_stop);
     }
   }
 
@@ -581,7 +614,7 @@ public:
   // performing watchpoint actions.
   class WatchpointSentry {
   public:
-    WatchpointSentry(ProcessSP p_sp, WatchpointSP w_sp) : process_sp(p_sp), 
+    WatchpointSentry(ProcessSP p_sp, WatchpointSP w_sp) : process_sp(p_sp),
                      watchpoint_sp(w_sp) {
       if (process_sp && watchpoint_sp) {
         const bool notify = false;
@@ -590,7 +623,7 @@ public:
         process_sp->AddPreResumeAction(SentryPreResumeAction, this);
       }
     }
-    
+
     void DoReenable() {
       if (process_sp && watchpoint_sp) {
         bool was_disabled = watchpoint_sp->IsDisabledDuringEphemeralMode();
@@ -603,13 +636,13 @@ public:
         }
       }
     }
-    
+
     ~WatchpointSentry() {
         DoReenable();
         if (process_sp)
             process_sp->ClearPreResumeAction(SentryPreResumeAction, this);
     }
-    
+
     static bool SentryPreResumeAction(void *sentry_void) {
         WatchpointSentry *sentry = (WatchpointSentry *) sentry_void;
         sentry->DoReenable();
@@ -623,8 +656,7 @@ public:
 
   StopInfoWatchpoint(Thread &thread, break_id_t watch_id,
                      lldb::addr_t watch_hit_addr)
-      : StopInfo(thread, watch_id), m_should_stop(false),
-        m_should_stop_is_valid(false), m_watch_hit_addr(watch_hit_addr) {}
+      : StopInfo(thread, watch_id), m_watch_hit_addr(watch_hit_addr) {}
 
   ~StopInfoWatchpoint() override = default;
 
@@ -634,7 +666,7 @@ public:
     if (m_description.empty()) {
       StreamString strm;
       strm.Printf("watchpoint %" PRIi64, m_value);
-      m_description = strm.GetString();
+      m_description = std::string(strm.GetString());
     }
     return m_description.c_str();
   }
@@ -662,13 +694,12 @@ protected:
         StoppointCallbackContext context(event_ptr, exe_ctx, true);
         m_should_stop = wp_sp->ShouldStop(&context);
       } else {
-        Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+        Log *log = GetLog(LLDBLog::Process);
 
-        if (log)
-          log->Printf(
-              "Process::%s could not find watchpoint location id: %" PRId64
-              "...",
-              __FUNCTION__, GetValue());
+        LLDB_LOGF(log,
+                  "Process::%s could not find watchpoint location id: %" PRId64
+                  "...",
+                  __FUNCTION__, GetValue());
 
         m_should_stop = true;
       }
@@ -686,19 +717,19 @@ protected:
   }
 
   void PerformAction(Event *event_ptr) override {
-    Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_WATCHPOINTS);
+    Log *log = GetLog(LLDBLog::Watchpoints);
     // We're going to calculate if we should stop or not in some way during the
     // course of this code.  Also by default we're going to stop, so set that
     // here.
     m_should_stop = true;
-    
+
 
     ThreadSP thread_sp(m_thread_wp.lock());
     if (thread_sp) {
 
       WatchpointSP wp_sp(
           thread_sp->CalculateTarget()->GetWatchpointList().FindByID(
-              GetValue()));      
+              GetValue()));
       if (wp_sp) {
         ExecutionContext exe_ctx(thread_sp->GetStackFrameAtIndex(0));
         ProcessSP process_sp = exe_ctx.GetProcessSP();
@@ -731,7 +762,7 @@ protected:
                         true,  // stop_other_threads
                         new_plan_status));
                 if (new_plan_sp && new_plan_status.Success()) {
-                  new_plan_sp->SetIsMasterPlan(true);
+                  new_plan_sp->SetIsControllingPlan(true);
                   new_plan_sp->SetOkayToDiscard(false);
                   new_plan_sp->SetPrivate(true);
                 }
@@ -817,33 +848,29 @@ protected:
                   m_should_stop = false;
                 } else
                   m_should_stop = true;
-                if (log)
-                  log->Printf(
-                      "Condition successfully evaluated, result is %s.\n",
-                      m_should_stop ? "true" : "false");
+                LLDB_LOGF(log,
+                          "Condition successfully evaluated, result is %s.\n",
+                          m_should_stop ? "true" : "false");
               } else {
                 m_should_stop = true;
-                if (log)
-                  log->Printf(
-                      "Failed to get an integer result from the expression.");
+                LLDB_LOGF(
+                    log,
+                    "Failed to get an integer result from the expression.");
               }
             }
           } else {
-            StreamSP error_sp = debugger.GetAsyncErrorStream();
-            error_sp->Printf(
-                "Stopped due to an error evaluating condition of watchpoint ");
-            wp_sp->GetDescription(error_sp.get(), eDescriptionLevelBrief);
-            error_sp->Printf(": \"%s\"", wp_sp->GetConditionText());
-            error_sp->EOL();
-            const char *err_str = error.AsCString("<Unknown Error>");
-            if (log)
-              log->Printf("Error evaluating condition: \"%s\"\n", err_str);
+            const char *err_str = error.AsCString("<unknown error>");
+            LLDB_LOGF(log, "Error evaluating condition: \"%s\"\n", err_str);
 
-            error_sp->PutCString(err_str);
-            error_sp->EOL();
-            error_sp->Flush();
-            // If the condition fails to be parsed or run, we should stop.
-            m_should_stop = true;
+            StreamString strm;
+            strm << "stopped due to an error evaluating condition of "
+                    "watchpoint ";
+            wp_sp->GetDescription(&strm, eDescriptionLevelBrief);
+            strm << ": \"" << wp_sp->GetConditionText() << "\"\n";
+            strm << err_str;
+
+            Debugger::ReportError(strm.GetString().str(),
+                                  exe_ctx.GetTargetRef().GetDebugger().GetID());
           }
         }
 
@@ -858,12 +885,12 @@ protected:
 
           bool old_async = debugger.GetAsyncExecution();
           debugger.SetAsyncExecution(true);
-          
+
           StoppointCallbackContext context(event_ptr, exe_ctx, false);
           bool stop_requested = wp_sp->InvokeCallback(&context);
-          
+
           debugger.SetAsyncExecution(old_async);
-          
+
           // Also make sure that the callback hasn't continued the target. If
           // it did, when we'll set m_should_stop to false and get out of here.
           if (HasTargetRunSinceMe())
@@ -886,25 +913,23 @@ protected:
         }
 
       } else {
-        Log *log_process(
-            lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+        Log *log_process(GetLog(LLDBLog::Process));
 
-        if (log_process)
-          log_process->Printf(
-              "Process::%s could not find watchpoint id: %" PRId64 "...",
-              __FUNCTION__, m_value);
+        LLDB_LOGF(log_process,
+                  "Process::%s could not find watchpoint id: %" PRId64 "...",
+                  __FUNCTION__, m_value);
       }
-      if (log)
-        log->Printf("Process::%s returning from action with m_should_stop: %d.",
-                    __FUNCTION__, m_should_stop);
+      LLDB_LOGF(log,
+                "Process::%s returning from action with m_should_stop: %d.",
+                __FUNCTION__, m_should_stop);
 
       m_should_stop_is_valid = true;
     }
   }
 
 private:
-  bool m_should_stop;
-  bool m_should_stop_is_valid;
+  bool m_should_stop = false;
+  bool m_should_stop_is_valid = false;
   lldb::addr_t m_watch_hit_addr;
 };
 
@@ -976,7 +1001,7 @@ public:
           strm.Printf("signal %s", signal_name);
         else
           strm.Printf("signal %" PRIi64, m_value);
-        m_description = strm.GetString();
+        m_description = std::string(strm.GetString());
       }
     }
     return m_description.c_str();
@@ -1023,6 +1048,30 @@ public:
   }
 };
 
+// StopInfoProcessorTrace
+
+class StopInfoProcessorTrace : public StopInfo {
+public:
+  StopInfoProcessorTrace(Thread &thread, const char *description)
+      : StopInfo(thread, LLDB_INVALID_UID) {
+    if (description)
+      SetDescription(description);
+  }
+
+  ~StopInfoProcessorTrace() override = default;
+
+  StopReason GetStopReason() const override {
+    return eStopReasonProcessorTrace;
+  }
+
+  const char *GetDescription() override {
+    if (m_description.empty())
+      return "processor trace event";
+    else
+      return m_description.c_str();
+  }
+};
+
 // StopInfoThreadPlan
 
 class StopInfoThreadPlan : public StopInfo {
@@ -1041,7 +1090,7 @@ public:
     if (m_description.empty()) {
       StreamString strm;
       m_plan_sp->GetDescription(&strm, eDescriptionLevelBrief);
-      m_description = strm.GetString();
+      m_description = std::string(strm.GetString());
     }
     return m_description.c_str();
   }
@@ -1070,8 +1119,7 @@ private:
 
 class StopInfoExec : public StopInfo {
 public:
-  StopInfoExec(Thread &thread)
-      : StopInfo(thread, LLDB_INVALID_UID), m_performed_action(false) {}
+  StopInfoExec(Thread &thread) : StopInfo(thread, LLDB_INVALID_UID) {}
 
   ~StopInfoExec() override = default;
 
@@ -1097,7 +1145,103 @@ protected:
       thread_sp->GetProcess()->DidExec();
   }
 
-  bool m_performed_action;
+  bool m_performed_action = false;
+};
+
+// StopInfoFork
+
+class StopInfoFork : public StopInfo {
+public:
+  StopInfoFork(Thread &thread, lldb::pid_t child_pid, lldb::tid_t child_tid)
+      : StopInfo(thread, child_pid), m_child_pid(child_pid),
+        m_child_tid(child_tid) {}
+
+  ~StopInfoFork() override = default;
+
+  bool ShouldStop(Event *event_ptr) override { return false; }
+
+  StopReason GetStopReason() const override { return eStopReasonFork; }
+
+  const char *GetDescription() override { return "fork"; }
+
+protected:
+  void PerformAction(Event *event_ptr) override {
+    // Only perform the action once
+    if (m_performed_action)
+      return;
+    m_performed_action = true;
+    ThreadSP thread_sp(m_thread_wp.lock());
+    if (thread_sp)
+      thread_sp->GetProcess()->DidFork(m_child_pid, m_child_tid);
+  }
+
+  bool m_performed_action = false;
+
+private:
+  lldb::pid_t m_child_pid;
+  lldb::tid_t m_child_tid;
+};
+
+// StopInfoVFork
+
+class StopInfoVFork : public StopInfo {
+public:
+  StopInfoVFork(Thread &thread, lldb::pid_t child_pid, lldb::tid_t child_tid)
+      : StopInfo(thread, child_pid), m_child_pid(child_pid),
+        m_child_tid(child_tid) {}
+
+  ~StopInfoVFork() override = default;
+
+  bool ShouldStop(Event *event_ptr) override { return false; }
+
+  StopReason GetStopReason() const override { return eStopReasonVFork; }
+
+  const char *GetDescription() override { return "vfork"; }
+
+protected:
+  void PerformAction(Event *event_ptr) override {
+    // Only perform the action once
+    if (m_performed_action)
+      return;
+    m_performed_action = true;
+    ThreadSP thread_sp(m_thread_wp.lock());
+    if (thread_sp)
+      thread_sp->GetProcess()->DidVFork(m_child_pid, m_child_tid);
+  }
+
+  bool m_performed_action = false;
+
+private:
+  lldb::pid_t m_child_pid;
+  lldb::tid_t m_child_tid;
+};
+
+// StopInfoVForkDone
+
+class StopInfoVForkDone : public StopInfo {
+public:
+  StopInfoVForkDone(Thread &thread) : StopInfo(thread, 0) {}
+
+  ~StopInfoVForkDone() override = default;
+
+  bool ShouldStop(Event *event_ptr) override { return false; }
+
+  StopReason GetStopReason() const override { return eStopReasonVForkDone; }
+
+  const char *GetDescription() override { return "vforkdone"; }
+
+protected:
+  void PerformAction(Event *event_ptr) override {
+    // Only perform the action once
+    if (m_performed_action)
+      return;
+    m_performed_action = true;
+    ThreadSP thread_sp(m_thread_wp.lock());
+    if (thread_sp)
+      thread_sp->GetProcess()->DidVForkDone();
+  }
+
+  bool m_performed_action = false;
 };
 
 } // namespace lldb_private
@@ -1121,6 +1265,7 @@ StopInfo::CreateStopReasonWithWatchpointID(Thread &thread, break_id_t watch_id,
 
 StopInfoSP StopInfo::CreateStopReasonWithSignal(Thread &thread, int signo,
                                                 const char *description) {
+  thread.GetProcess()->GetUnixSignals()->IncrementSignalHitCount(signo);
   return StopInfoSP(new StopInfoUnixSignal(thread, signo, description));
 }
 
@@ -1140,8 +1285,30 @@ StopInfoSP StopInfo::CreateStopReasonWithException(Thread &thread,
   return StopInfoSP(new StopInfoException(thread, description));
 }
 
+StopInfoSP StopInfo::CreateStopReasonProcessorTrace(Thread &thread,
+                                                    const char *description) {
+  return StopInfoSP(new StopInfoProcessorTrace(thread, description));
+}
+
 StopInfoSP StopInfo::CreateStopReasonWithExec(Thread &thread) {
   return StopInfoSP(new StopInfoExec(thread));
+}
+
+StopInfoSP StopInfo::CreateStopReasonFork(Thread &thread,
+                                          lldb::pid_t child_pid,
+                                          lldb::tid_t child_tid) {
+  return StopInfoSP(new StopInfoFork(thread, child_pid, child_tid));
+}
+
+
+StopInfoSP StopInfo::CreateStopReasonVFork(Thread &thread,
+                                           lldb::pid_t child_pid,
+                                           lldb::tid_t child_tid) {
+  return StopInfoSP(new StopInfoVFork(thread, child_pid, child_tid));
+}
+
+StopInfoSP StopInfo::CreateStopReasonVForkDone(Thread &thread) {
+  return StopInfoSP(new StopInfoVForkDone(thread));
 }
 
 ValueObjectSP StopInfo::GetReturnValueObject(StopInfoSP &stop_info_sp) {
@@ -1196,7 +1363,7 @@ StopInfo::GetCrashingDereference(StopInfoSP &stop_info_sp,
 
   address_loc += (sizeof(address_string) - 1);
 
-  uint64_t address = strtoull(address_loc, 0, 0);
+  uint64_t address = strtoull(address_loc, nullptr, 0);
   if (crashing_address) {
     *crashing_address = address;
   }

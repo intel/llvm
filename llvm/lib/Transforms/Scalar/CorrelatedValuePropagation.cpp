@@ -19,10 +19,10 @@
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
@@ -37,11 +37,10 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
@@ -51,6 +50,11 @@ using namespace llvm;
 
 #define DEBUG_TYPE "correlated-value-propagation"
 
+static cl::opt<bool> CanonicalizeICmpPredicatesToUnsigned(
+    "canonicalize-icmp-predicates-to-unsigned", cl::init(true), cl::Hidden,
+    cl::desc("Enables canonicalization of signed relational predicates to "
+             "unsigned (e.g. sgt => ugt)"));
+
 STATISTIC(NumPhis,      "Number of phis propagated");
 STATISTIC(NumPhiCommon, "Number of phis deleted via common incoming value");
 STATISTIC(NumSelects,   "Number of selects propagated");
@@ -58,13 +62,38 @@ STATISTIC(NumMemAccess, "Number of memory access targets propagated");
 STATISTIC(NumCmps,      "Number of comparisons propagated");
 STATISTIC(NumReturns,   "Number of return values propagated");
 STATISTIC(NumDeadCases, "Number of switch cases removed");
+STATISTIC(NumSDivSRemsNarrowed,
+          "Number of sdivs/srems whose width was decreased");
 STATISTIC(NumSDivs,     "Number of sdiv converted to udiv");
-STATISTIC(NumUDivs,     "Number of udivs whose width was decreased");
-STATISTIC(NumAShrs,     "Number of ashr converted to lshr");
+STATISTIC(NumUDivURemsNarrowed,
+          "Number of udivs/urems whose width was decreased");
+STATISTIC(NumAShrsConverted, "Number of ashr converted to lshr");
+STATISTIC(NumAShrsRemoved, "Number of ashr removed");
 STATISTIC(NumSRems,     "Number of srem converted to urem");
+STATISTIC(NumSExt,      "Number of sext converted to zext");
+STATISTIC(NumSICmps,    "Number of signed icmp preds simplified to unsigned");
+STATISTIC(NumAnd,       "Number of ands removed");
+STATISTIC(NumNW,        "Number of no-wrap deductions");
+STATISTIC(NumNSW,       "Number of no-signed-wrap deductions");
+STATISTIC(NumNUW,       "Number of no-unsigned-wrap deductions");
+STATISTIC(NumAddNW,     "Number of no-wrap deductions for add");
+STATISTIC(NumAddNSW,    "Number of no-signed-wrap deductions for add");
+STATISTIC(NumAddNUW,    "Number of no-unsigned-wrap deductions for add");
+STATISTIC(NumSubNW,     "Number of no-wrap deductions for sub");
+STATISTIC(NumSubNSW,    "Number of no-signed-wrap deductions for sub");
+STATISTIC(NumSubNUW,    "Number of no-unsigned-wrap deductions for sub");
+STATISTIC(NumMulNW,     "Number of no-wrap deductions for mul");
+STATISTIC(NumMulNSW,    "Number of no-signed-wrap deductions for mul");
+STATISTIC(NumMulNUW,    "Number of no-unsigned-wrap deductions for mul");
+STATISTIC(NumShlNW,     "Number of no-wrap deductions for shl");
+STATISTIC(NumShlNSW,    "Number of no-signed-wrap deductions for shl");
+STATISTIC(NumShlNUW,    "Number of no-unsigned-wrap deductions for shl");
+STATISTIC(NumAbs,       "Number of llvm.abs intrinsics removed");
 STATISTIC(NumOverflows, "Number of overflow checks removed");
-
-static cl::opt<bool> DontAddNoWrapFlags("cvp-dont-add-nowrap-flags", cl::init(true));
+STATISTIC(NumSaturating,
+    "Number of saturating arithmetics converted to normal arithmetics");
+STATISTIC(NumNonNull, "Number of function pointer arguments marked non-null");
+STATISTIC(NumMinMax, "Number of llvm.[us]{min,max} intrinsics removed");
 
 namespace {
 
@@ -83,6 +112,7 @@ namespace {
       AU.addRequired<LazyValueInfoWrapperPass>();
       AU.addPreserved<GlobalsAAWrapperPass>();
       AU.addPreserved<DominatorTreeWrapperPass>();
+      AU.addPreserved<LazyValueInfoWrapperPass>();
     }
   };
 
@@ -104,19 +134,15 @@ Pass *llvm::createCorrelatedValuePropagationPass() {
 
 static bool processSelect(SelectInst *S, LazyValueInfo *LVI) {
   if (S->getType()->isVectorTy()) return false;
-  if (isa<Constant>(S->getOperand(0))) return false;
+  if (isa<Constant>(S->getCondition())) return false;
 
-  Constant *C = LVI->getConstant(S->getCondition(), S->getParent(), S);
+  Constant *C = LVI->getConstant(S->getCondition(), S);
   if (!C) return false;
 
   ConstantInt *CI = dyn_cast<ConstantInt>(C);
   if (!CI) return false;
 
-  Value *ReplaceWith = S->getTrueValue();
-  Value *Other = S->getFalseValue();
-  if (!CI->isOne()) std::swap(ReplaceWith, Other);
-  if (ReplaceWith == S) ReplaceWith = UndefValue::get(S->getType());
-
+  Value *ReplaceWith = CI->isOne() ? S->getTrueValue() : S->getFalseValue();
   S->replaceAllUsesWith(ReplaceWith);
   S->eraseFromParent();
 
@@ -173,12 +199,65 @@ static bool simplifyCommonValuePhi(PHINode *P, LazyValueInfo *LVI,
       return false;
   }
 
+  // LVI only guarantees that the value matches a certain constant if the value
+  // is not poison. Make sure we don't replace a well-defined value with poison.
+  // This is usually satisfied due to a prior branch on the value.
+  if (!isGuaranteedNotToBePoison(CommonValue, nullptr, P, DT))
+    return false;
+
   // All constant incoming values map to the same variable along the incoming
   // edges of the phi. The phi is unnecessary.
   P->replaceAllUsesWith(CommonValue);
   P->eraseFromParent();
   ++NumPhiCommon;
   return true;
+}
+
+static Value *getValueOnEdge(LazyValueInfo *LVI, Value *Incoming,
+                             BasicBlock *From, BasicBlock *To,
+                             Instruction *CxtI) {
+  if (Constant *C = LVI->getConstantOnEdge(Incoming, From, To, CxtI))
+    return C;
+
+  // Look if the incoming value is a select with a scalar condition for which
+  // LVI can tells us the value. In that case replace the incoming value with
+  // the appropriate value of the select. This often allows us to remove the
+  // select later.
+  auto *SI = dyn_cast<SelectInst>(Incoming);
+  if (!SI)
+    return nullptr;
+
+  // Once LVI learns to handle vector types, we could also add support
+  // for vector type constants that are not all zeroes or all ones.
+  Value *Condition = SI->getCondition();
+  if (!Condition->getType()->isVectorTy()) {
+    if (Constant *C = LVI->getConstantOnEdge(Condition, From, To, CxtI)) {
+      if (C->isOneValue())
+        return SI->getTrueValue();
+      if (C->isZeroValue())
+        return SI->getFalseValue();
+    }
+  }
+
+  // Look if the select has a constant but LVI tells us that the incoming
+  // value can never be that constant. In that case replace the incoming
+  // value with the other value of the select. This often allows us to
+  // remove the select later.
+
+  // The "false" case
+  if (auto *C = dyn_cast<Constant>(SI->getFalseValue()))
+    if (LVI->getPredicateOnEdge(ICmpInst::ICMP_EQ, SI, C, From, To, CxtI) ==
+        LazyValueInfo::False)
+      return SI->getTrueValue();
+
+  // The "true" case,
+  // similar to the select "false" case, but try the select "true" value
+  if (auto *C = dyn_cast<Constant>(SI->getTrueValue()))
+    if (LVI->getPredicateOnEdge(ICmpInst::ICMP_EQ, SI, C, From, To, CxtI) ==
+        LazyValueInfo::False)
+      return SI->getFalseValue();
+
+  return nullptr;
 }
 
 static bool processPHI(PHINode *P, LazyValueInfo *LVI, DominatorTree *DT,
@@ -190,50 +269,11 @@ static bool processPHI(PHINode *P, LazyValueInfo *LVI, DominatorTree *DT,
     Value *Incoming = P->getIncomingValue(i);
     if (isa<Constant>(Incoming)) continue;
 
-    Value *V = LVI->getConstantOnEdge(Incoming, P->getIncomingBlock(i), BB, P);
-
-    // Look if the incoming value is a select with a scalar condition for which
-    // LVI can tells us the value. In that case replace the incoming value with
-    // the appropriate value of the select. This often allows us to remove the
-    // select later.
-    if (!V) {
-      SelectInst *SI = dyn_cast<SelectInst>(Incoming);
-      if (!SI) continue;
-
-      Value *Condition = SI->getCondition();
-      if (!Condition->getType()->isVectorTy()) {
-        if (Constant *C = LVI->getConstantOnEdge(
-                Condition, P->getIncomingBlock(i), BB, P)) {
-          if (C->isOneValue()) {
-            V = SI->getTrueValue();
-          } else if (C->isZeroValue()) {
-            V = SI->getFalseValue();
-          }
-          // Once LVI learns to handle vector types, we could also add support
-          // for vector type constants that are not all zeroes or all ones.
-        }
-      }
-
-      // Look if the select has a constant but LVI tells us that the incoming
-      // value can never be that constant. In that case replace the incoming
-      // value with the other value of the select. This often allows us to
-      // remove the select later.
-      if (!V) {
-        Constant *C = dyn_cast<Constant>(SI->getFalseValue());
-        if (!C) continue;
-
-        if (LVI->getPredicateOnEdge(ICmpInst::ICMP_EQ, SI, C,
-              P->getIncomingBlock(i), BB, P) !=
-            LazyValueInfo::False)
-          continue;
-        V = SI->getTrueValue();
-      }
-
-      LLVM_DEBUG(dbgs() << "CVP: Threading PHI over " << *SI << '\n');
+    Value *V = getValueOnEdge(LVI, Incoming, P->getIncomingBlock(i), BB, P);
+    if (V) {
+      P->setIncomingValue(i, V);
+      Changed = true;
     }
-
-    P->setIncomingValue(i, V);
-    Changed = true;
   }
 
   if (Value *V = SimplifyInstruction(P, SQ)) {
@@ -260,7 +300,7 @@ static bool processMemAccess(Instruction *I, LazyValueInfo *LVI) {
 
   if (isa<Constant>(Pointer)) return false;
 
-  Constant *C = LVI->getConstant(Pointer, I->getParent(), I);
+  Constant *C = LVI->getConstant(Pointer, I);
   if (!C) return false;
 
   ++NumMemAccess;
@@ -268,27 +308,45 @@ static bool processMemAccess(Instruction *I, LazyValueInfo *LVI) {
   return true;
 }
 
+static bool processICmp(ICmpInst *Cmp, LazyValueInfo *LVI) {
+  if (!CanonicalizeICmpPredicatesToUnsigned)
+    return false;
+
+  // Only for signed relational comparisons of scalar integers.
+  if (Cmp->getType()->isVectorTy() ||
+      !Cmp->getOperand(0)->getType()->isIntegerTy())
+    return false;
+
+  if (!Cmp->isSigned())
+    return false;
+
+  ICmpInst::Predicate UnsignedPred =
+      ConstantRange::getEquivalentPredWithFlippedSignedness(
+          Cmp->getPredicate(), LVI->getConstantRange(Cmp->getOperand(0), Cmp),
+          LVI->getConstantRange(Cmp->getOperand(1), Cmp));
+
+  if (UnsignedPred == ICmpInst::Predicate::BAD_ICMP_PREDICATE)
+    return false;
+
+  ++NumSICmps;
+  Cmp->setPredicate(UnsignedPred);
+
+  return true;
+}
+
 /// See if LazyValueInfo's ability to exploit edge conditions or range
 /// information is sufficient to prove this comparison. Even for local
 /// conditions, this can sometimes prove conditions instcombine can't by
 /// exploiting range information.
-static bool processCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
+static bool constantFoldCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
   Value *Op0 = Cmp->getOperand(0);
   auto *C = dyn_cast<Constant>(Cmp->getOperand(1));
   if (!C)
     return false;
 
-  // As a policy choice, we choose not to waste compile time on anything where
-  // the comparison is testing local values.  While LVI can sometimes reason
-  // about such cases, it's not its primary purpose.  We do make sure to do
-  // the block local query for uses from terminator instructions, but that's
-  // handled in the code for each terminator.
-  auto *I = dyn_cast<Instruction>(Op0);
-  if (I && I->getParent() == Cmp->getParent())
-    return false;
-
   LazyValueInfo::Tristate Result =
-      LVI->getPredicateAt(Cmp->getPredicate(), Op0, C, Cmp);
+      LVI->getPredicateAt(Cmp->getPredicate(), Op0, C, Cmp,
+                          /*UseBlockValue=*/true);
   if (Result == LazyValueInfo::Unknown)
     return false;
 
@@ -299,6 +357,17 @@ static bool processCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
   return true;
 }
 
+static bool processCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
+  if (constantFoldCmp(Cmp, LVI))
+    return true;
+
+  if (auto *ICmp = dyn_cast<ICmpInst>(Cmp))
+    if (processICmp(ICmp, LVI))
+      return true;
+
+  return false;
+}
+
 /// Simplify a switch instruction by removing cases which can never fire. If the
 /// uselessness of a case could be determined locally then constant propagation
 /// would already have figured it out. Instead, walk the predecessors and
@@ -306,20 +375,11 @@ static bool processCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
 /// that cannot fire no matter what the incoming edge can safely be removed. If
 /// a case fires on every incoming edge then the entire switch can be removed
 /// and replaced with a branch to the case destination.
-static bool processSwitch(SwitchInst *SI, LazyValueInfo *LVI,
+static bool processSwitch(SwitchInst *I, LazyValueInfo *LVI,
                           DominatorTree *DT) {
   DomTreeUpdater DTU(*DT, DomTreeUpdater::UpdateStrategy::Lazy);
-  Value *Cond = SI->getCondition();
-  BasicBlock *BB = SI->getParent();
-
-  // If the condition was defined in same block as the switch then LazyValueInfo
-  // currently won't say anything useful about it, though in theory it could.
-  if (isa<Instruction>(Cond) && cast<Instruction>(Cond)->getParent() == BB)
-    return false;
-
-  // If the switch is unreachable then trying to improve it is a waste of time.
-  pred_iterator PB = pred_begin(BB), PE = pred_end(BB);
-  if (PB == PE) return false;
+  Value *Cond = I->getCondition();
+  BasicBlock *BB = I->getParent();
 
   // Analyse each switch case in turn.
   bool Changed = false;
@@ -327,67 +387,46 @@ static bool processSwitch(SwitchInst *SI, LazyValueInfo *LVI,
   for (auto *Succ : successors(BB))
     SuccessorsCount[Succ]++;
 
-  for (auto CI = SI->case_begin(), CE = SI->case_end(); CI != CE;) {
-    ConstantInt *Case = CI->getCaseValue();
+  { // Scope for SwitchInstProfUpdateWrapper. It must not live during
+    // ConstantFoldTerminator() as the underlying SwitchInst can be changed.
+    SwitchInstProfUpdateWrapper SI(*I);
 
-    // Check to see if the switch condition is equal to/not equal to the case
-    // value on every incoming edge, equal/not equal being the same each time.
-    LazyValueInfo::Tristate State = LazyValueInfo::Unknown;
-    for (pred_iterator PI = PB; PI != PE; ++PI) {
-      // Is the switch condition equal to the case value?
-      LazyValueInfo::Tristate Value = LVI->getPredicateOnEdge(CmpInst::ICMP_EQ,
-                                                              Cond, Case, *PI,
-                                                              BB, SI);
-      // Give up on this case if nothing is known.
-      if (Value == LazyValueInfo::Unknown) {
-        State = LazyValueInfo::Unknown;
-        break;
-      }
+    for (auto CI = SI->case_begin(), CE = SI->case_end(); CI != CE;) {
+      ConstantInt *Case = CI->getCaseValue();
+      LazyValueInfo::Tristate State =
+          LVI->getPredicateAt(CmpInst::ICMP_EQ, Cond, Case, I,
+                              /* UseBlockValue */ true);
 
-      // If this was the first edge to be visited, record that all other edges
-      // need to give the same result.
-      if (PI == PB) {
-        State = Value;
+      if (State == LazyValueInfo::False) {
+        // This case never fires - remove it.
+        BasicBlock *Succ = CI->getCaseSuccessor();
+        Succ->removePredecessor(BB);
+        CI = SI.removeCase(CI);
+        CE = SI->case_end();
+
+        // The condition can be modified by removePredecessor's PHI simplification
+        // logic.
+        Cond = SI->getCondition();
+
+        ++NumDeadCases;
+        Changed = true;
+        if (--SuccessorsCount[Succ] == 0)
+          DTU.applyUpdatesPermissive({{DominatorTree::Delete, BB, Succ}});
         continue;
       }
-
-      // If this case is known to fire for some edges and known not to fire for
-      // others then there is nothing we can do - give up.
-      if (Value != State) {
-        State = LazyValueInfo::Unknown;
+      if (State == LazyValueInfo::True) {
+        // This case always fires.  Arrange for the switch to be turned into an
+        // unconditional branch by replacing the switch condition with the case
+        // value.
+        SI->setCondition(Case);
+        NumDeadCases += SI->getNumCases();
+        Changed = true;
         break;
       }
+
+      // Increment the case iterator since we didn't delete it.
+      ++CI;
     }
-
-    if (State == LazyValueInfo::False) {
-      // This case never fires - remove it.
-      BasicBlock *Succ = CI->getCaseSuccessor();
-      Succ->removePredecessor(BB);
-      CI = SI->removeCase(CI);
-      CE = SI->case_end();
-
-      // The condition can be modified by removePredecessor's PHI simplification
-      // logic.
-      Cond = SI->getCondition();
-
-      ++NumDeadCases;
-      Changed = true;
-      if (--SuccessorsCount[Succ] == 0)
-        DTU.applyUpdatesPermissive({{DominatorTree::Delete, BB, Succ}});
-      continue;
-    }
-    if (State == LazyValueInfo::True) {
-      // This case always fires.  Arrange for the switch to be turned into an
-      // unconditional branch by replacing the switch condition with the case
-      // value.
-      SI->setCondition(Case);
-      NumDeadCases += SI->getNumCases();
-      Changed = true;
-      break;
-    }
-
-    // Increment the case iterator since we didn't delete it.
-    ++CI;
   }
 
   if (Changed)
@@ -398,50 +437,208 @@ static bool processSwitch(SwitchInst *SI, LazyValueInfo *LVI,
   return Changed;
 }
 
-// See if we can prove that the given overflow intrinsic will not overflow.
-static bool willNotOverflow(WithOverflowInst *WO, LazyValueInfo *LVI) {
-  Value *RHS = WO->getRHS();
-  ConstantRange RRange = LVI->getConstantRange(RHS, WO->getParent(), WO);
+// See if we can prove that the given binary op intrinsic will not overflow.
+static bool willNotOverflow(BinaryOpIntrinsic *BO, LazyValueInfo *LVI) {
+  ConstantRange LRange = LVI->getConstantRange(BO->getLHS(), BO);
+  ConstantRange RRange = LVI->getConstantRange(BO->getRHS(), BO);
   ConstantRange NWRegion = ConstantRange::makeGuaranteedNoWrapRegion(
-      WO->getBinaryOp(), RRange, WO->getNoWrapKind());
-  // As an optimization, do not compute LRange if we do not need it.
-  if (NWRegion.isEmptySet())
-    return false;
-  Value *LHS = WO->getLHS();
-  ConstantRange LRange = LVI->getConstantRange(LHS, WO->getParent(), WO);
+      BO->getBinaryOp(), RRange, BO->getNoWrapKind());
   return NWRegion.contains(LRange);
 }
 
-static void processOverflowIntrinsic(WithOverflowInst *WO) {
-  IRBuilder<> B(WO);
-  Value *NewOp = B.CreateBinOp(
-      WO->getBinaryOp(), WO->getLHS(), WO->getRHS(), WO->getName());
-  // Constant-holing could have happened.
-  if (auto *Inst = dyn_cast<Instruction>(NewOp)) {
-    if (WO->isSigned())
-      Inst->setHasNoSignedWrap();
-    else
-      Inst->setHasNoUnsignedWrap();
+static void setDeducedOverflowingFlags(Value *V, Instruction::BinaryOps Opcode,
+                                       bool NewNSW, bool NewNUW) {
+  Statistic *OpcNW, *OpcNSW, *OpcNUW;
+  switch (Opcode) {
+  case Instruction::Add:
+    OpcNW = &NumAddNW;
+    OpcNSW = &NumAddNSW;
+    OpcNUW = &NumAddNUW;
+    break;
+  case Instruction::Sub:
+    OpcNW = &NumSubNW;
+    OpcNSW = &NumSubNSW;
+    OpcNUW = &NumSubNUW;
+    break;
+  case Instruction::Mul:
+    OpcNW = &NumMulNW;
+    OpcNSW = &NumMulNSW;
+    OpcNUW = &NumMulNUW;
+    break;
+  case Instruction::Shl:
+    OpcNW = &NumShlNW;
+    OpcNSW = &NumShlNSW;
+    OpcNUW = &NumShlNUW;
+    break;
+  default:
+    llvm_unreachable("Will not be called with other binops");
   }
 
-  Value *NewI = B.CreateInsertValue(UndefValue::get(WO->getType()), NewOp, 0);
-  NewI = B.CreateInsertValue(NewI, ConstantInt::getFalse(WO->getContext()), 1);
+  auto *Inst = dyn_cast<Instruction>(V);
+  if (NewNSW) {
+    ++NumNW;
+    ++*OpcNW;
+    ++NumNSW;
+    ++*OpcNSW;
+    if (Inst)
+      Inst->setHasNoSignedWrap();
+  }
+  if (NewNUW) {
+    ++NumNW;
+    ++*OpcNW;
+    ++NumNUW;
+    ++*OpcNUW;
+    if (Inst)
+      Inst->setHasNoUnsignedWrap();
+  }
+}
+
+static bool processBinOp(BinaryOperator *BinOp, LazyValueInfo *LVI);
+
+// See if @llvm.abs argument is alays positive/negative, and simplify.
+// Notably, INT_MIN can belong to either range, regardless of the NSW,
+// because it is negation-invariant.
+static bool processAbsIntrinsic(IntrinsicInst *II, LazyValueInfo *LVI) {
+  Value *X = II->getArgOperand(0);
+  bool IsIntMinPoison = cast<ConstantInt>(II->getArgOperand(1))->isOne();
+
+  Type *Ty = X->getType();
+  Constant *IntMin =
+      ConstantInt::get(Ty, APInt::getSignedMinValue(Ty->getScalarSizeInBits()));
+  LazyValueInfo::Tristate Result;
+
+  // Is X in [0, IntMin]?  NOTE: INT_MIN is fine!
+  Result = LVI->getPredicateAt(CmpInst::Predicate::ICMP_ULE, X, IntMin, II,
+                               /*UseBlockValue=*/true);
+  if (Result == LazyValueInfo::True) {
+    ++NumAbs;
+    II->replaceAllUsesWith(X);
+    II->eraseFromParent();
+    return true;
+  }
+
+  // Is X in [IntMin, 0]?  NOTE: INT_MIN is fine!
+  Constant *Zero = ConstantInt::getNullValue(Ty);
+  Result = LVI->getPredicateAt(CmpInst::Predicate::ICMP_SLE, X, Zero, II,
+                               /*UseBlockValue=*/true);
+  assert(Result != LazyValueInfo::False && "Should have been handled already.");
+
+  if (Result == LazyValueInfo::Unknown) {
+    // Argument's range crosses zero.
+    bool Changed = false;
+    if (!IsIntMinPoison) {
+      // Can we at least tell that the argument is never INT_MIN?
+      Result = LVI->getPredicateAt(CmpInst::Predicate::ICMP_NE, X, IntMin, II,
+                                   /*UseBlockValue=*/true);
+      if (Result == LazyValueInfo::True) {
+        ++NumNSW;
+        ++NumSubNSW;
+        II->setArgOperand(1, ConstantInt::getTrue(II->getContext()));
+        Changed = true;
+      }
+    }
+    return Changed;
+  }
+
+  IRBuilder<> B(II);
+  Value *NegX = B.CreateNeg(X, II->getName(), /*HasNUW=*/false,
+                            /*HasNSW=*/IsIntMinPoison);
+  ++NumAbs;
+  II->replaceAllUsesWith(NegX);
+  II->eraseFromParent();
+
+  // See if we can infer some no-wrap flags.
+  if (auto *BO = dyn_cast<BinaryOperator>(NegX))
+    processBinOp(BO, LVI);
+
+  return true;
+}
+
+// See if this min/max intrinsic always picks it's one specific operand.
+static bool processMinMaxIntrinsic(MinMaxIntrinsic *MM, LazyValueInfo *LVI) {
+  CmpInst::Predicate Pred = CmpInst::getNonStrictPredicate(MM->getPredicate());
+  LazyValueInfo::Tristate Result = LVI->getPredicateAt(
+      Pred, MM->getLHS(), MM->getRHS(), MM, /*UseBlockValue=*/true);
+  if (Result == LazyValueInfo::Unknown)
+    return false;
+
+  ++NumMinMax;
+  MM->replaceAllUsesWith(MM->getOperand(!Result));
+  MM->eraseFromParent();
+  return true;
+}
+
+// Rewrite this with.overflow intrinsic as non-overflowing.
+static bool processOverflowIntrinsic(WithOverflowInst *WO, LazyValueInfo *LVI) {
+  IRBuilder<> B(WO);
+  Instruction::BinaryOps Opcode = WO->getBinaryOp();
+  bool NSW = WO->isSigned();
+  bool NUW = !WO->isSigned();
+
+  Value *NewOp =
+      B.CreateBinOp(Opcode, WO->getLHS(), WO->getRHS(), WO->getName());
+  setDeducedOverflowingFlags(NewOp, Opcode, NSW, NUW);
+
+  StructType *ST = cast<StructType>(WO->getType());
+  Constant *Struct = ConstantStruct::get(ST,
+      { UndefValue::get(ST->getElementType(0)),
+        ConstantInt::getFalse(ST->getElementType(1)) });
+  Value *NewI = B.CreateInsertValue(Struct, NewOp, 0);
   WO->replaceAllUsesWith(NewI);
   WO->eraseFromParent();
   ++NumOverflows;
+
+  // See if we can infer the other no-wrap too.
+  if (auto *BO = dyn_cast<BinaryOperator>(NewOp))
+    processBinOp(BO, LVI);
+
+  return true;
+}
+
+static bool processSaturatingInst(SaturatingInst *SI, LazyValueInfo *LVI) {
+  Instruction::BinaryOps Opcode = SI->getBinaryOp();
+  bool NSW = SI->isSigned();
+  bool NUW = !SI->isSigned();
+  BinaryOperator *BinOp = BinaryOperator::Create(
+      Opcode, SI->getLHS(), SI->getRHS(), SI->getName(), SI);
+  BinOp->setDebugLoc(SI->getDebugLoc());
+  setDeducedOverflowingFlags(BinOp, Opcode, NSW, NUW);
+
+  SI->replaceAllUsesWith(BinOp);
+  SI->eraseFromParent();
+  ++NumSaturating;
+
+  // See if we can infer the other no-wrap too.
+  if (auto *BO = dyn_cast<BinaryOperator>(BinOp))
+    processBinOp(BO, LVI);
+
+  return true;
 }
 
 /// Infer nonnull attributes for the arguments at the specified callsite.
-static bool processCallSite(CallSite CS, LazyValueInfo *LVI) {
-  SmallVector<unsigned, 4> ArgNos;
-  unsigned ArgNo = 0;
+static bool processCallSite(CallBase &CB, LazyValueInfo *LVI) {
 
-  if (auto *WO = dyn_cast<WithOverflowInst>(CS.getInstruction())) {
-    if (willNotOverflow(WO, LVI)) {
-      processOverflowIntrinsic(WO);
-      return true;
+  if (CB.getIntrinsicID() == Intrinsic::abs) {
+    return processAbsIntrinsic(&cast<IntrinsicInst>(CB), LVI);
+  }
+
+  if (auto *MM = dyn_cast<MinMaxIntrinsic>(&CB)) {
+    return processMinMaxIntrinsic(MM, LVI);
+  }
+
+  if (auto *WO = dyn_cast<WithOverflowInst>(&CB)) {
+    if (WO->getLHS()->getType()->isIntegerTy() && willNotOverflow(WO, LVI)) {
+      return processOverflowIntrinsic(WO, LVI);
     }
   }
+
+  if (auto *SI = dyn_cast<SaturatingInst>(&CB)) {
+    if (SI->getType()->isIntegerTy() && willNotOverflow(SI, LVI)) {
+      return processSaturatingInst(SI, LVI);
+    }
+  }
+
+  bool Changed = false;
 
   // Deopt bundle operands are intended to capture state with minimal
   // perturbance of the code otherwise.  If we can find a constant value for
@@ -449,59 +646,128 @@ static bool processCallSite(CallSite CS, LazyValueInfo *LVI) {
   // desireable since it may allow further optimization of that value (e.g. via
   // single use rules in instcombine).  Since deopt uses tend to,
   // idiomatically, appear along rare conditional paths, it's reasonable likely
-  // we may have a conditional fact with which LVI can fold.   
-  if (auto DeoptBundle = CS.getOperandBundle(LLVMContext::OB_deopt)) {
-    bool Progress = false;
+  // we may have a conditional fact with which LVI can fold.
+  if (auto DeoptBundle = CB.getOperandBundle(LLVMContext::OB_deopt)) {
     for (const Use &ConstU : DeoptBundle->Inputs) {
       Use &U = const_cast<Use&>(ConstU);
       Value *V = U.get();
       if (V->getType()->isVectorTy()) continue;
       if (isa<Constant>(V)) continue;
 
-      Constant *C = LVI->getConstant(V, CS.getParent(), CS.getInstruction());
+      Constant *C = LVI->getConstant(V, &CB);
       if (!C) continue;
       U.set(C);
-      Progress = true;
+      Changed = true;
     }
-    if (Progress)
-      return true;
   }
 
-  for (Value *V : CS.args()) {
+  SmallVector<unsigned, 4> ArgNos;
+  unsigned ArgNo = 0;
+
+  for (Value *V : CB.args()) {
     PointerType *Type = dyn_cast<PointerType>(V->getType());
     // Try to mark pointer typed parameters as non-null.  We skip the
     // relatively expensive analysis for constants which are obviously either
     // null or non-null to start with.
-    if (Type && !CS.paramHasAttr(ArgNo, Attribute::NonNull) &&
+    if (Type && !CB.paramHasAttr(ArgNo, Attribute::NonNull) &&
         !isa<Constant>(V) &&
         LVI->getPredicateAt(ICmpInst::ICMP_EQ, V,
-                            ConstantPointerNull::get(Type),
-                            CS.getInstruction()) == LazyValueInfo::False)
+                            ConstantPointerNull::get(Type), &CB,
+                            /*UseBlockValue=*/false) == LazyValueInfo::False)
       ArgNos.push_back(ArgNo);
     ArgNo++;
   }
 
-  assert(ArgNo == CS.arg_size() && "sanity check");
+  assert(ArgNo == CB.arg_size() && "Call arguments not processed correctly.");
 
   if (ArgNos.empty())
-    return false;
+    return Changed;
 
-  AttributeList AS = CS.getAttributes();
-  LLVMContext &Ctx = CS.getInstruction()->getContext();
+  NumNonNull += ArgNos.size();
+  AttributeList AS = CB.getAttributes();
+  LLVMContext &Ctx = CB.getContext();
   AS = AS.addParamAttribute(Ctx, ArgNos,
                             Attribute::get(Ctx, Attribute::NonNull));
-  CS.setAttributes(AS);
+  CB.setAttributes(AS);
 
   return true;
 }
 
-static bool hasPositiveOperands(BinaryOperator *SDI, LazyValueInfo *LVI) {
-  Constant *Zero = ConstantInt::get(SDI->getType(), 0);
-  for (Value *O : SDI->operands()) {
-    auto Result = LVI->getPredicateAt(ICmpInst::ICMP_SGE, O, Zero, SDI);
-    if (Result != LazyValueInfo::True)
-      return false;
+static bool isNonNegative(Value *V, LazyValueInfo *LVI, Instruction *CxtI) {
+  Constant *Zero = ConstantInt::get(V->getType(), 0);
+  auto Result = LVI->getPredicateAt(ICmpInst::ICMP_SGE, V, Zero, CxtI,
+                                    /*UseBlockValue=*/true);
+  return Result == LazyValueInfo::True;
+}
+
+static bool isNonPositive(Value *V, LazyValueInfo *LVI, Instruction *CxtI) {
+  Constant *Zero = ConstantInt::get(V->getType(), 0);
+  auto Result = LVI->getPredicateAt(ICmpInst::ICMP_SLE, V, Zero, CxtI,
+                                    /*UseBlockValue=*/true);
+  return Result == LazyValueInfo::True;
+}
+
+enum class Domain { NonNegative, NonPositive, Unknown };
+
+Domain getDomain(Value *V, LazyValueInfo *LVI, Instruction *CxtI) {
+  if (isNonNegative(V, LVI, CxtI))
+    return Domain::NonNegative;
+  if (isNonPositive(V, LVI, CxtI))
+    return Domain::NonPositive;
+  return Domain::Unknown;
+}
+
+/// Try to shrink a sdiv/srem's width down to the smallest power of two that's
+/// sufficient to contain its operands.
+static bool narrowSDivOrSRem(BinaryOperator *Instr, LazyValueInfo *LVI) {
+  assert(Instr->getOpcode() == Instruction::SDiv ||
+         Instr->getOpcode() == Instruction::SRem);
+  if (Instr->getType()->isVectorTy())
+    return false;
+
+  // Find the smallest power of two bitwidth that's sufficient to hold Instr's
+  // operands.
+  unsigned OrigWidth = Instr->getType()->getIntegerBitWidth();
+
+  // What is the smallest bit width that can accomodate the entire value ranges
+  // of both of the operands?
+  std::array<Optional<ConstantRange>, 2> CRs;
+  unsigned MinSignedBits = 0;
+  for (auto I : zip(Instr->operands(), CRs)) {
+    std::get<1>(I) = LVI->getConstantRange(std::get<0>(I), Instr);
+    MinSignedBits = std::max(std::get<1>(I)->getMinSignedBits(), MinSignedBits);
   }
+
+  // sdiv/srem is UB if divisor is -1 and divident is INT_MIN, so unless we can
+  // prove that such a combination is impossible, we need to bump the bitwidth.
+  if (CRs[1]->contains(APInt::getAllOnes(OrigWidth)) &&
+      CRs[0]->contains(
+          APInt::getSignedMinValue(MinSignedBits).sextOrSelf(OrigWidth)))
+    ++MinSignedBits;
+
+  // Don't shrink below 8 bits wide.
+  unsigned NewWidth = std::max<unsigned>(PowerOf2Ceil(MinSignedBits), 8);
+
+  // NewWidth might be greater than OrigWidth if OrigWidth is not a power of
+  // two.
+  if (NewWidth >= OrigWidth)
+    return false;
+
+  ++NumSDivSRemsNarrowed;
+  IRBuilder<> B{Instr};
+  auto *TruncTy = Type::getIntNTy(Instr->getContext(), NewWidth);
+  auto *LHS = B.CreateTruncOrBitCast(Instr->getOperand(0), TruncTy,
+                                     Instr->getName() + ".lhs.trunc");
+  auto *RHS = B.CreateTruncOrBitCast(Instr->getOperand(1), TruncTy,
+                                     Instr->getName() + ".rhs.trunc");
+  auto *BO = B.CreateBinOp(Instr->getOpcode(), LHS, RHS, Instr->getName());
+  auto *Sext = B.CreateSExt(BO, Instr->getType(), Instr->getName() + ".sext");
+  if (auto *BinOp = dyn_cast<BinaryOperator>(BO))
+    if (BinOp->getOpcode() == Instruction::SDiv)
+      BinOp->setIsExact(Instr->isExact());
+
+  Instr->replaceAllUsesWith(Sext);
+  Instr->eraseFromParent();
   return true;
 }
 
@@ -515,21 +781,23 @@ static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
 
   // Find the smallest power of two bitwidth that's sufficient to hold Instr's
   // operands.
-  auto OrigWidth = Instr->getType()->getIntegerBitWidth();
-  ConstantRange OperandRange(OrigWidth, /*isFullset=*/false);
+
+  // What is the smallest bit width that can accomodate the entire value ranges
+  // of both of the operands?
+  unsigned MaxActiveBits = 0;
   for (Value *Operand : Instr->operands()) {
-    OperandRange = OperandRange.unionWith(
-        LVI->getConstantRange(Operand, Instr->getParent()));
+    ConstantRange CR = LVI->getConstantRange(Operand, Instr);
+    MaxActiveBits = std::max(CR.getActiveBits(), MaxActiveBits);
   }
   // Don't shrink below 8 bits wide.
-  unsigned NewWidth = std::max<unsigned>(
-      PowerOf2Ceil(OperandRange.getUnsignedMax().getActiveBits()), 8);
+  unsigned NewWidth = std::max<unsigned>(PowerOf2Ceil(MaxActiveBits), 8);
+
   // NewWidth might be greater than OrigWidth if OrigWidth is not a power of
   // two.
-  if (NewWidth >= OrigWidth)
+  if (NewWidth >= Instr->getType()->getIntegerBitWidth())
     return false;
 
-  ++NumUDivs;
+  ++NumUDivURemsNarrowed;
   IRBuilder<> B{Instr};
   auto *TruncTy = Type::getIntNTy(Instr->getContext(), NewWidth);
   auto *LHS = B.CreateTruncOrBitCast(Instr->getOperand(0), TruncTy,
@@ -548,55 +816,150 @@ static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
 }
 
 static bool processSRem(BinaryOperator *SDI, LazyValueInfo *LVI) {
-  if (SDI->getType()->isVectorTy() || !hasPositiveOperands(SDI, LVI))
+  assert(SDI->getOpcode() == Instruction::SRem);
+  if (SDI->getType()->isVectorTy())
     return false;
 
+  struct Operand {
+    Value *V;
+    Domain D;
+  };
+  std::array<Operand, 2> Ops;
+
+  for (const auto I : zip(Ops, SDI->operands())) {
+    Operand &Op = std::get<0>(I);
+    Op.V = std::get<1>(I);
+    Op.D = getDomain(Op.V, LVI, SDI);
+    if (Op.D == Domain::Unknown)
+      return false;
+  }
+
+  // We know domains of both of the operands!
   ++NumSRems;
-  auto *BO = BinaryOperator::CreateURem(SDI->getOperand(0), SDI->getOperand(1),
-                                        SDI->getName(), SDI);
-  BO->setDebugLoc(SDI->getDebugLoc());
-  SDI->replaceAllUsesWith(BO);
+
+  // We need operands to be non-negative, so negate each one that isn't.
+  for (Operand &Op : Ops) {
+    if (Op.D == Domain::NonNegative)
+      continue;
+    auto *BO =
+        BinaryOperator::CreateNeg(Op.V, Op.V->getName() + ".nonneg", SDI);
+    BO->setDebugLoc(SDI->getDebugLoc());
+    Op.V = BO;
+  }
+
+  auto *URem =
+      BinaryOperator::CreateURem(Ops[0].V, Ops[1].V, SDI->getName(), SDI);
+  URem->setDebugLoc(SDI->getDebugLoc());
+
+  Value *Res = URem;
+
+  // If the divident was non-positive, we need to negate the result.
+  if (Ops[0].D == Domain::NonPositive)
+    Res = BinaryOperator::CreateNeg(Res, Res->getName() + ".neg", SDI);
+
+  SDI->replaceAllUsesWith(Res);
   SDI->eraseFromParent();
 
-  // Try to process our new urem.
-  processUDivOrURem(BO, LVI);
+  // Try to simplify our new urem.
+  processUDivOrURem(URem, LVI);
 
   return true;
 }
 
 /// See if LazyValueInfo's ability to exploit edge conditions or range
-/// information is sufficient to prove the both operands of this SDiv are
-/// positive.  If this is the case, replace the SDiv with a UDiv. Even for local
+/// information is sufficient to prove the signs of both operands of this SDiv.
+/// If this is the case, replace the SDiv with a UDiv. Even for local
 /// conditions, this can sometimes prove conditions instcombine can't by
 /// exploiting range information.
 static bool processSDiv(BinaryOperator *SDI, LazyValueInfo *LVI) {
-  if (SDI->getType()->isVectorTy() || !hasPositiveOperands(SDI, LVI))
+  assert(SDI->getOpcode() == Instruction::SDiv);
+  if (SDI->getType()->isVectorTy())
     return false;
 
+  struct Operand {
+    Value *V;
+    Domain D;
+  };
+  std::array<Operand, 2> Ops;
+
+  for (const auto I : zip(Ops, SDI->operands())) {
+    Operand &Op = std::get<0>(I);
+    Op.V = std::get<1>(I);
+    Op.D = getDomain(Op.V, LVI, SDI);
+    if (Op.D == Domain::Unknown)
+      return false;
+  }
+
+  // We know domains of both of the operands!
   ++NumSDivs;
-  auto *BO = BinaryOperator::CreateUDiv(SDI->getOperand(0), SDI->getOperand(1),
-                                        SDI->getName(), SDI);
-  BO->setDebugLoc(SDI->getDebugLoc());
-  BO->setIsExact(SDI->isExact());
-  SDI->replaceAllUsesWith(BO);
+
+  // We need operands to be non-negative, so negate each one that isn't.
+  for (Operand &Op : Ops) {
+    if (Op.D == Domain::NonNegative)
+      continue;
+    auto *BO =
+        BinaryOperator::CreateNeg(Op.V, Op.V->getName() + ".nonneg", SDI);
+    BO->setDebugLoc(SDI->getDebugLoc());
+    Op.V = BO;
+  }
+
+  auto *UDiv =
+      BinaryOperator::CreateUDiv(Ops[0].V, Ops[1].V, SDI->getName(), SDI);
+  UDiv->setDebugLoc(SDI->getDebugLoc());
+  UDiv->setIsExact(SDI->isExact());
+
+  Value *Res = UDiv;
+
+  // If the operands had two different domains, we need to negate the result.
+  if (Ops[0].D != Ops[1].D)
+    Res = BinaryOperator::CreateNeg(Res, Res->getName() + ".neg", SDI);
+
+  SDI->replaceAllUsesWith(Res);
   SDI->eraseFromParent();
 
   // Try to simplify our new udiv.
-  processUDivOrURem(BO, LVI);
+  processUDivOrURem(UDiv, LVI);
 
   return true;
+}
+
+static bool processSDivOrSRem(BinaryOperator *Instr, LazyValueInfo *LVI) {
+  assert(Instr->getOpcode() == Instruction::SDiv ||
+         Instr->getOpcode() == Instruction::SRem);
+  if (Instr->getType()->isVectorTy())
+    return false;
+
+  if (Instr->getOpcode() == Instruction::SDiv)
+    if (processSDiv(Instr, LVI))
+      return true;
+
+  if (Instr->getOpcode() == Instruction::SRem)
+    if (processSRem(Instr, LVI))
+      return true;
+
+  return narrowSDivOrSRem(Instr, LVI);
 }
 
 static bool processAShr(BinaryOperator *SDI, LazyValueInfo *LVI) {
   if (SDI->getType()->isVectorTy())
     return false;
 
-  Constant *Zero = ConstantInt::get(SDI->getType(), 0);
-  if (LVI->getPredicateAt(ICmpInst::ICMP_SGE, SDI->getOperand(0), Zero, SDI) !=
-      LazyValueInfo::True)
+  ConstantRange LRange = LVI->getConstantRange(SDI->getOperand(0), SDI);
+  unsigned OrigWidth = SDI->getType()->getIntegerBitWidth();
+  ConstantRange NegOneOrZero =
+      ConstantRange(APInt(OrigWidth, (uint64_t)-1, true), APInt(OrigWidth, 1));
+  if (NegOneOrZero.contains(LRange)) {
+    // ashr of -1 or 0 never changes the value, so drop the whole instruction
+    ++NumAShrsRemoved;
+    SDI->replaceAllUsesWith(SDI->getOperand(0));
+    SDI->eraseFromParent();
+    return true;
+  }
+
+  if (!isNonNegative(SDI->getOperand(0), LVI, SDI))
     return false;
 
-  ++NumAShrs;
+  ++NumAShrsConverted;
   auto *BO = BinaryOperator::CreateLShr(SDI->getOperand(0), SDI->getOperand(1),
                                         SDI->getName(), SDI);
   BO->setDebugLoc(SDI->getDebugLoc());
@@ -607,11 +970,27 @@ static bool processAShr(BinaryOperator *SDI, LazyValueInfo *LVI) {
   return true;
 }
 
+static bool processSExt(SExtInst *SDI, LazyValueInfo *LVI) {
+  if (SDI->getType()->isVectorTy())
+    return false;
+
+  Value *Base = SDI->getOperand(0);
+
+  if (!isNonNegative(Base, LVI, SDI))
+    return false;
+
+  ++NumSExt;
+  auto *ZExt =
+      CastInst::CreateZExtOrBitCast(Base, SDI->getType(), SDI->getName(), SDI);
+  ZExt->setDebugLoc(SDI->getDebugLoc());
+  SDI->replaceAllUsesWith(ZExt);
+  SDI->eraseFromParent();
+
+  return true;
+}
+
 static bool processBinOp(BinaryOperator *BinOp, LazyValueInfo *LVI) {
   using OBO = OverflowingBinaryOperator;
-
-  if (DontAddNoWrapFlags)
-    return false;
 
   if (BinOp->getType()->isVectorTy())
     return false;
@@ -621,48 +1000,60 @@ static bool processBinOp(BinaryOperator *BinOp, LazyValueInfo *LVI) {
   if (NSW && NUW)
     return false;
 
-  BasicBlock *BB = BinOp->getParent();
-
+  Instruction::BinaryOps Opcode = BinOp->getOpcode();
   Value *LHS = BinOp->getOperand(0);
   Value *RHS = BinOp->getOperand(1);
 
-  ConstantRange RRange = LVI->getConstantRange(RHS, BB, BinOp);
-
-  // Initialize LRange only if we need it. If we know that guaranteed no wrap
-  // range for the given RHS range is empty don't spend time calculating the
-  // range for the LHS.
-  Optional<ConstantRange> LRange;
-  auto LazyLRange = [&] () {
-      if (!LRange)
-        LRange = LVI->getConstantRange(LHS, BB, BinOp);
-      return LRange.getValue();
-  };
+  ConstantRange LRange = LVI->getConstantRange(LHS, BinOp);
+  ConstantRange RRange = LVI->getConstantRange(RHS, BinOp);
 
   bool Changed = false;
+  bool NewNUW = false, NewNSW = false;
   if (!NUW) {
     ConstantRange NUWRange = ConstantRange::makeGuaranteedNoWrapRegion(
-        BinOp->getOpcode(), RRange, OBO::NoUnsignedWrap);
-    if (!NUWRange.isEmptySet()) {
-      bool NewNUW = NUWRange.contains(LazyLRange());
-      BinOp->setHasNoUnsignedWrap(NewNUW);
-      Changed |= NewNUW;
-    }
+        Opcode, RRange, OBO::NoUnsignedWrap);
+    NewNUW = NUWRange.contains(LRange);
+    Changed |= NewNUW;
   }
   if (!NSW) {
     ConstantRange NSWRange = ConstantRange::makeGuaranteedNoWrapRegion(
-        BinOp->getOpcode(), RRange, OBO::NoSignedWrap);
-    if (!NSWRange.isEmptySet()) {
-      bool NewNSW = NSWRange.contains(LazyLRange());
-      BinOp->setHasNoSignedWrap(NewNSW);
-      Changed |= NewNSW;
-    }
+        Opcode, RRange, OBO::NoSignedWrap);
+    NewNSW = NSWRange.contains(LRange);
+    Changed |= NewNSW;
   }
+
+  setDeducedOverflowingFlags(BinOp, Opcode, NewNSW, NewNUW);
 
   return Changed;
 }
 
+static bool processAnd(BinaryOperator *BinOp, LazyValueInfo *LVI) {
+  if (BinOp->getType()->isVectorTy())
+    return false;
+
+  // Pattern match (and lhs, C) where C includes a superset of bits which might
+  // be set in lhs.  This is a common truncation idiom created by instcombine.
+  Value *LHS = BinOp->getOperand(0);
+  ConstantInt *RHS = dyn_cast<ConstantInt>(BinOp->getOperand(1));
+  if (!RHS || !RHS->getValue().isMask())
+    return false;
+
+  // We can only replace the AND with LHS based on range info if the range does
+  // not include undef.
+  ConstantRange LRange =
+      LVI->getConstantRange(LHS, BinOp, /*UndefAllowed=*/false);
+  if (!LRange.getUnsignedMax().ule(RHS->getValue()))
+    return false;
+
+  BinOp->replaceAllUsesWith(LHS);
+  BinOp->eraseFromParent();
+  NumAnd++;
+  return true;
+}
+
+
 static Constant *getConstantAt(Value *V, Instruction *At, LazyValueInfo *LVI) {
-  if (Constant *C = LVI->getConstant(V, At->getParent(), At))
+  if (Constant *C = LVI->getConstant(V, At))
     return C;
 
   // TODO: The following really should be sunk inside LVI's core algorithm, or
@@ -674,8 +1065,8 @@ static Constant *getConstantAt(Value *V, Instruction *At, LazyValueInfo *LVI) {
   Constant *Op1 = dyn_cast<Constant>(C->getOperand(1));
   if (!Op1) return nullptr;
 
-  LazyValueInfo::Tristate Result =
-    LVI->getPredicateAt(C->getPredicate(), Op0, Op1, At);
+  LazyValueInfo::Tristate Result = LVI->getPredicateAt(
+      C->getPredicate(), Op0, Op1, At, /*UseBlockValue=*/false);
   if (Result == LazyValueInfo::Unknown)
     return nullptr;
 
@@ -694,43 +1085,48 @@ static bool runImpl(Function &F, LazyValueInfo *LVI, DominatorTree *DT,
   // blocks.
   for (BasicBlock *BB : depth_first(&F.getEntryBlock())) {
     bool BBChanged = false;
-    for (BasicBlock::iterator BI = BB->begin(), BE = BB->end(); BI != BE;) {
-      Instruction *II = &*BI++;
-      switch (II->getOpcode()) {
+    for (Instruction &II : llvm::make_early_inc_range(*BB)) {
+      switch (II.getOpcode()) {
       case Instruction::Select:
-        BBChanged |= processSelect(cast<SelectInst>(II), LVI);
+        BBChanged |= processSelect(cast<SelectInst>(&II), LVI);
         break;
       case Instruction::PHI:
-        BBChanged |= processPHI(cast<PHINode>(II), LVI, DT, SQ);
+        BBChanged |= processPHI(cast<PHINode>(&II), LVI, DT, SQ);
         break;
       case Instruction::ICmp:
       case Instruction::FCmp:
-        BBChanged |= processCmp(cast<CmpInst>(II), LVI);
+        BBChanged |= processCmp(cast<CmpInst>(&II), LVI);
         break;
       case Instruction::Load:
       case Instruction::Store:
-        BBChanged |= processMemAccess(II, LVI);
+        BBChanged |= processMemAccess(&II, LVI);
         break;
       case Instruction::Call:
       case Instruction::Invoke:
-        BBChanged |= processCallSite(CallSite(II), LVI);
+        BBChanged |= processCallSite(cast<CallBase>(II), LVI);
         break;
       case Instruction::SRem:
-        BBChanged |= processSRem(cast<BinaryOperator>(II), LVI);
-        break;
       case Instruction::SDiv:
-        BBChanged |= processSDiv(cast<BinaryOperator>(II), LVI);
+        BBChanged |= processSDivOrSRem(cast<BinaryOperator>(&II), LVI);
         break;
       case Instruction::UDiv:
       case Instruction::URem:
-        BBChanged |= processUDivOrURem(cast<BinaryOperator>(II), LVI);
+        BBChanged |= processUDivOrURem(cast<BinaryOperator>(&II), LVI);
         break;
       case Instruction::AShr:
-        BBChanged |= processAShr(cast<BinaryOperator>(II), LVI);
+        BBChanged |= processAShr(cast<BinaryOperator>(&II), LVI);
+        break;
+      case Instruction::SExt:
+        BBChanged |= processSExt(cast<SExtInst>(&II), LVI);
         break;
       case Instruction::Add:
       case Instruction::Sub:
-        BBChanged |= processBinOp(cast<BinaryOperator>(II), LVI);
+      case Instruction::Mul:
+      case Instruction::Shl:
+        BBChanged |= processBinOp(cast<BinaryOperator>(&II), LVI);
+        break;
+      case Instruction::And:
+        BBChanged |= processAnd(cast<BinaryOperator>(&II), LVI);
         break;
       }
     }
@@ -779,10 +1175,18 @@ CorrelatedValuePropagationPass::run(Function &F, FunctionAnalysisManager &AM) {
 
   bool Changed = runImpl(F, LVI, DT, getBestSimplifyQuery(AM, F));
 
-  if (!Changed)
-    return PreservedAnalyses::all();
   PreservedAnalyses PA;
-  PA.preserve<GlobalsAA>();
-  PA.preserve<DominatorTreeAnalysis>();
+  if (!Changed) {
+    PA = PreservedAnalyses::all();
+  } else {
+    PA.preserve<DominatorTreeAnalysis>();
+    PA.preserve<LazyValueAnalysis>();
+  }
+
+  // Keeping LVI alive is expensive, both because it uses a lot of memory, and
+  // because invalidating values in LVI is expensive. While CVP does preserve
+  // LVI, we know that passes after JumpThreading+CVP will not need the result
+  // of this analysis, so we forcefully discard it early.
+  PA.abandon<LazyValueAnalysis>();
   return PA;
 }

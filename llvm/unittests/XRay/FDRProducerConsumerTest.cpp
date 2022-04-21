@@ -34,43 +34,43 @@ using ::testing::SizeIs;
 template <class RecordType> std::unique_ptr<Record> MakeRecord();
 
 template <> std::unique_ptr<Record> MakeRecord<NewBufferRecord>() {
-  return make_unique<NewBufferRecord>(1);
+  return std::make_unique<NewBufferRecord>(1);
 }
 
 template <> std::unique_ptr<Record> MakeRecord<NewCPUIDRecord>() {
-  return make_unique<NewCPUIDRecord>(1, 2);
+  return std::make_unique<NewCPUIDRecord>(1, 2);
 }
 
 template <> std::unique_ptr<Record> MakeRecord<TSCWrapRecord>() {
-  return make_unique<TSCWrapRecord>(1);
+  return std::make_unique<TSCWrapRecord>(1);
 }
 
 template <> std::unique_ptr<Record> MakeRecord<WallclockRecord>() {
-  return make_unique<WallclockRecord>(1, 2);
+  return std::make_unique<WallclockRecord>(1, 2);
 }
 
 template <> std::unique_ptr<Record> MakeRecord<CustomEventRecord>() {
-  return make_unique<CustomEventRecord>(4, 1, 2, "data");
+  return std::make_unique<CustomEventRecord>(4, 1, 2, "data");
 }
 
 template <> std::unique_ptr<Record> MakeRecord<CallArgRecord>() {
-  return make_unique<CallArgRecord>(1);
+  return std::make_unique<CallArgRecord>(1);
 }
 
 template <> std::unique_ptr<Record> MakeRecord<PIDRecord>() {
-  return make_unique<PIDRecord>(1);
+  return std::make_unique<PIDRecord>(1);
 }
 
 template <> std::unique_ptr<Record> MakeRecord<FunctionRecord>() {
-  return make_unique<FunctionRecord>(RecordTypes::ENTER, 1, 2);
+  return std::make_unique<FunctionRecord>(RecordTypes::ENTER, 1, 2);
 }
 
 template <> std::unique_ptr<Record> MakeRecord<CustomEventRecordV5>() {
-  return make_unique<CustomEventRecordV5>(4, 1, "data");
+  return std::make_unique<CustomEventRecordV5>(4, 1, "data");
 }
 
 template <> std::unique_ptr<Record> MakeRecord<TypedEventRecord>() {
-  return make_unique<TypedEventRecord>(4, 1, 2, "data");
+  return std::make_unique<TypedEventRecord>(4, 1, 2, "data");
 }
 
 template <class T> class RoundTripTest : public ::testing::Test {
@@ -82,7 +82,7 @@ public:
     H.NonstopTSC = true;
     H.CycleFrequency = 3e9;
 
-    Writer = make_unique<FDRTraceWriter>(OS, H);
+    Writer = std::make_unique<FDRTraceWriter>(OS, H);
     Rec = MakeRecord<T>();
   }
 
@@ -94,7 +94,7 @@ protected:
   std::unique_ptr<Record> Rec;
 };
 
-TYPED_TEST_CASE_P(RoundTripTest);
+TYPED_TEST_SUITE_P(RoundTripTest);
 
 template <class T> class RoundTripTestV5 : public ::testing::Test {
 public:
@@ -105,7 +105,7 @@ public:
     H.NonstopTSC = true;
     H.CycleFrequency = 3e9;
 
-    Writer = make_unique<FDRTraceWriter>(OS, H);
+    Writer = std::make_unique<FDRTraceWriter>(OS, H);
     Rec = MakeRecord<T>();
   }
 
@@ -117,7 +117,7 @@ protected:
   std::unique_ptr<Record> Rec;
 };
 
-TYPED_TEST_CASE_P(RoundTripTestV5);
+TYPED_TEST_SUITE_P(RoundTripTestV5);
 
 // This test ensures that the writing and reading implementations are in sync --
 // that given write(read(write(R))) == R.
@@ -131,7 +131,7 @@ TYPED_TEST_P(RoundTripTest, RoundTripsSingleValue) {
   this->OS.flush();
 
   DataExtractor DE(this->Data, sys::IsLittleEndianHost, 8);
-  uint32_t OffsetPtr = 0;
+  uint64_t OffsetPtr = 0;
   auto HeaderOrErr = readBinaryFormatHeader(DE, OffsetPtr);
   if (!HeaderOrErr)
     FAIL() << HeaderOrErr.takeError();
@@ -160,7 +160,7 @@ TYPED_TEST_P(RoundTripTest, RoundTripsSingleValue) {
   EXPECT_THAT(Records[1]->getRecordType(), Eq(R->getRecordType()));
 }
 
-REGISTER_TYPED_TEST_CASE_P(RoundTripTest, RoundTripsSingleValue);
+REGISTER_TYPED_TEST_SUITE_P(RoundTripTest, RoundTripsSingleValue);
 
 // We duplicate the above case for the V5 version using different types and
 // encodings.
@@ -172,7 +172,7 @@ TYPED_TEST_P(RoundTripTestV5, RoundTripsSingleValue) {
   this->OS.flush();
 
   DataExtractor DE(this->Data, sys::IsLittleEndianHost, 8);
-  uint32_t OffsetPtr = 0;
+  uint64_t OffsetPtr = 0;
   auto HeaderOrErr = readBinaryFormatHeader(DE, OffsetPtr);
   if (!HeaderOrErr)
     FAIL() << HeaderOrErr.takeError();
@@ -201,21 +201,21 @@ TYPED_TEST_P(RoundTripTestV5, RoundTripsSingleValue) {
   EXPECT_THAT(Records[1]->getRecordType(), Eq(R->getRecordType()));
 }
 
-REGISTER_TYPED_TEST_CASE_P(RoundTripTestV5, RoundTripsSingleValue);
+REGISTER_TYPED_TEST_SUITE_P(RoundTripTestV5, RoundTripsSingleValue);
 
 // These are the record types we support for v4 and below.
 using RecordTypes =
     ::testing::Types<NewBufferRecord, NewCPUIDRecord, TSCWrapRecord,
                      WallclockRecord, CustomEventRecord, CallArgRecord,
                      PIDRecord, FunctionRecord>;
-INSTANTIATE_TYPED_TEST_CASE_P(Records, RoundTripTest, RecordTypes);
+INSTANTIATE_TYPED_TEST_SUITE_P(Records, RoundTripTest, RecordTypes, );
 
 // For V5, we have two new types we're supporting.
 using RecordTypesV5 =
     ::testing::Types<NewBufferRecord, NewCPUIDRecord, TSCWrapRecord,
                      WallclockRecord, CustomEventRecordV5, TypedEventRecord,
                      CallArgRecord, PIDRecord, FunctionRecord>;
-INSTANTIATE_TYPED_TEST_CASE_P(Records, RoundTripTestV5, RecordTypesV5);
+INSTANTIATE_TYPED_TEST_SUITE_P(Records, RoundTripTestV5, RecordTypesV5, );
 
 } // namespace
 } // namespace xray

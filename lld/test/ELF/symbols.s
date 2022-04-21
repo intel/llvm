@@ -58,7 +58,7 @@ internal:
 // CHECK-NEXT:   SHF_ALLOC
 // CHECK-NEXT:   SHF_EXECINSTR
 // CHECK-NEXT: ]
-// CHECK-NEXT: Address: 0x201000
+// CHECK-NEXT: Address: 0x201160
 
 // CHECK:      Name: .bss
 // CHECK-NEXT: Type: SHT_NOBITS
@@ -66,7 +66,7 @@ internal:
 // CHECK-NEXT:   SHF_ALLOC
 // CHECK-NEXT:   SHF_WRITE
 // CHECK-NEXT: ]
-// CHECK-NEXT: Address: 0x202000
+// CHECK-NEXT: Address: 0x202164
 // CHECK-NEXT: Offset:
 // CHECK-NEXT: Size: 4
 
@@ -104,7 +104,7 @@ internal:
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: _start
-// CHECK-NEXT:     Value: 0x201000
+// CHECK-NEXT:     Value: 0x201160
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Global (0x1)
 // CHECK-NEXT:     Type: Function
@@ -112,13 +112,13 @@ internal:
 // CHECK-NEXT:     Section: .text
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: abs
-// CHECK-NEXT:     Value: 0x123
+// CHECK-NEXT:     Name: foo
+// CHECK-NEXT:     Value: 0x201160
 // CHECK-NEXT:     Size: 0
-// CHECK-NEXT:     Binding: Global
-// CHECK-NEXT:     Type: None
+// CHECK-NEXT:     Binding: Weak (0x2)
+// CHECK-NEXT:     Type: Object
 // CHECK-NEXT:     Other: 0
-// CHECK-NEXT:     Section: Absolute
+// CHECK-NEXT:     Section: .text
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: bar
@@ -128,35 +128,6 @@ internal:
 // CHECK-NEXT:     Type: Object (0x1)
 // CHECK-NEXT:     Other: 0
 // CHECK-NEXT:     Section: Undefined (0x0)
-// CHECK-NEXT:   }
-// CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: common
-// CHECK-NEXT:     Value: 0x202000
-// CHECK-NEXT:     Size: 4
-// CHECK-NEXT:     Binding: Global
-// CHECK-NEXT:     Type: Object
-// CHECK-NEXT:     Other: 0
-// CHECK-NEXT:     Section: .bss
-// CHECK-NEXT:   }
-// CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: foo
-// CHECK-NEXT:     Value: 0x201000
-// CHECK-NEXT:     Size: 0
-// CHECK-NEXT:     Binding: Weak (0x2)
-// CHECK-NEXT:     Type: Object
-// CHECK-NEXT:     Other: 0
-// CHECK-NEXT:     Section: .text
-// CHECK-NEXT:   }
-// CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: protected
-// CHECK-NEXT:     Value: 0x200160
-// CHECK-NEXT:     Size: 0
-// CHECK-NEXT:     Binding: Global
-// CHECK-NEXT:     Type: None
-// CHECK-NEXT:     Other [ (0x3)
-// CHECK-NEXT:       STV_PROTECTED
-// CHECK-NEXT:     ]
-// CHECK-NEXT:     Section: foobar
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: zed
@@ -183,6 +154,35 @@ internal:
 // CHECK-NEXT:     Binding: Global
 // CHECK-NEXT:     Type: None
 // CHECK-NEXT:     Other: 0
+// CHECK-NEXT:     Section: foobar
+// CHECK-NEXT:   }
+// CHECK-NEXT:   Symbol {
+// CHECK-NEXT:     Name: abs
+// CHECK-NEXT:     Value: 0x123
+// CHECK-NEXT:     Size: 0
+// CHECK-NEXT:     Binding: Global
+// CHECK-NEXT:     Type: None
+// CHECK-NEXT:     Other: 0
+// CHECK-NEXT:     Section: Absolute
+// CHECK-NEXT:   }
+// CHECK-NEXT:   Symbol {
+// CHECK-NEXT:     Name: common
+// CHECK-NEXT:     Value: 0x202164
+// CHECK-NEXT:     Size: 4
+// CHECK-NEXT:     Binding: Global
+// CHECK-NEXT:     Type: Object
+// CHECK-NEXT:     Other: 0
+// CHECK-NEXT:     Section: .bss
+// CHECK-NEXT:   }
+// CHECK-NEXT:   Symbol {
+// CHECK-NEXT:     Name: protected
+// CHECK-NEXT:     Value: 0x200160
+// CHECK-NEXT:     Size: 0
+// CHECK-NEXT:     Binding: Global
+// CHECK-NEXT:     Type: None
+// CHECK-NEXT:     Other [ (0x3)
+// CHECK-NEXT:       STV_PROTECTED
+// CHECK-NEXT:     ]
 // CHECK-NEXT:     Section: foobar
 // CHECK-NEXT:   }
 // CHECK-NEXT: ]

@@ -254,7 +254,7 @@ struct AllocatedCXCodeCompleteResults : public CXCodeCompleteResults {
   SmallVector<StoredDiagnostic, 8> Diagnostics;
 
   /// Allocated API-exposed wrappters for Diagnostics.
-  SmallVector<CXStoredDiagnostic *, 8> DiagnosticsWrappers;
+  SmallVector<std::unique_ptr<CXStoredDiagnostic>, 8> DiagnosticsWrappers;
 
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts;
   
@@ -371,7 +371,6 @@ AllocatedCXCodeCompleteResults::AllocatedCXCodeCompleteResults(
 }
   
 AllocatedCXCodeCompleteResults::~AllocatedCXCodeCompleteResults() {
-  llvm::DeleteContainerPointers(DiagnosticsWrappers);
   delete [] Results;
 
   for (unsigned I = 0, N = TemporaryBuffers.size(); I != N; ++I)
@@ -542,6 +541,7 @@ static unsigned long long getContextsForContextKind(
     case CodeCompletionContext::CCC_MacroName:
     case CodeCompletionContext::CCC_PreprocessorExpression:
     case CodeCompletionContext::CCC_PreprocessorDirective:
+    case CodeCompletionContext::CCC_Attribute:
     case CodeCompletionContext::CCC_TypeQualifiers: {
       //Only Clang results should be accepted, so we'll set all of the other
       //context bits to 0 (i.e. the empty set)
@@ -656,14 +656,15 @@ namespace {
     void ProcessOverloadCandidates(Sema &S, unsigned CurrentArg,
                                    OverloadCandidate *Candidates,
                                    unsigned NumCandidates,
-                                   SourceLocation OpenParLoc) override {
+                                   SourceLocation OpenParLoc,
+                                   bool Braced) override {
       StoredResults.reserve(StoredResults.size() + NumCandidates);
       for (unsigned I = 0; I != NumCandidates; ++I) {
-        CodeCompletionString *StoredCompletion
-          = Candidates[I].CreateSignatureString(CurrentArg, S, getAllocator(),
+        CodeCompletionString *StoredCompletion =
+            Candidates[I].CreateSignatureString(CurrentArg, S, getAllocator(),
                                                 getCodeCompletionTUInfo(),
-                                                includeBriefComments());
-        
+                                                includeBriefComments(), Braced);
+
         CXCompletionResult R;
         R.CursorKind = CXCursor_OverloadCandidate;
         R.CompletionString = StoredCompletion;
@@ -803,8 +804,8 @@ clang_codeCompleteAt_Impl(CXTranslationUnit TU, const char *complete_filename,
           os << arg << ".pth";
         }
         pchName.push_back('\0');
-        struct stat stat_results;
-        if (stat(pchName.str().c_str(), &stat_results) == 0)
+        llvm::sys::fs::file_status stat_results;
+        if (!llvm::sys::fs::status(pchName, stat_results))
           usesPCH = true;
         continue;
       }
@@ -914,10 +915,12 @@ clang_codeCompleteGetDiagnostic(CXCodeCompleteResults *ResultsIn,
   if (!Results || Index >= Results->Diagnostics.size())
     return nullptr;
 
-  CXStoredDiagnostic *Diag = Results->DiagnosticsWrappers[Index];
+  CXStoredDiagnostic *Diag = Results->DiagnosticsWrappers[Index].get();
   if (!Diag)
-    Results->DiagnosticsWrappers[Index] = Diag =
-        new CXStoredDiagnostic(Results->Diagnostics[Index], Results->LangOpts);
+    Diag = (Results->DiagnosticsWrappers[Index] =
+                std::make_unique<CXStoredDiagnostic>(
+                    Results->Diagnostics[Index], Results->LangOpts))
+               .get();
   return Diag;
 }
 
@@ -1025,7 +1028,7 @@ namespace {
       if (XText.empty() || YText.empty())
         return !XText.empty();
             
-      int result = XText.compare_lower(YText);
+      int result = XText.compare_insensitive(YText);
       if (result < 0)
         return true;
       if (result > 0)

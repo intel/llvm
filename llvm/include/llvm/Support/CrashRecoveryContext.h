@@ -9,7 +9,7 @@
 #ifndef LLVM_SUPPORT_CRASHRECOVERYCONTEXT_H
 #define LLVM_SUPPORT_CRASHRECOVERYCONTEXT_H
 
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 
 namespace llvm {
 class CrashRecoveryContextCleanup;
@@ -44,11 +44,11 @@ class CrashRecoveryContextCleanup;
 /// executed in any case, whether crash occurs or not. These actions may be used
 /// to reclaim resources in the case of crash.
 class CrashRecoveryContext {
-  void *Impl;
-  CrashRecoveryContextCleanup *head;
+  void *Impl = nullptr;
+  CrashRecoveryContextCleanup *head = nullptr;
 
 public:
-  CrashRecoveryContext() : Impl(nullptr), head(nullptr) {}
+  CrashRecoveryContext();
   ~CrashRecoveryContext();
 
   /// Register cleanup handler, which is used when the recovery context is
@@ -87,7 +87,7 @@ public:
   /// a protected context which is run in another thread (optionally with a
   /// requested stack size).
   ///
-  /// See RunSafely() and llvm_execute_on_thread().
+  /// See RunSafely().
   ///
   /// On Darwin, if PRIO_DARWIN_BG is set on the calling thread, it will be
   /// propagated to the new thread as well.
@@ -99,7 +99,19 @@ public:
 
   /// Explicitly trigger a crash recovery in the current process, and
   /// return failure from RunSafely(). This function does not return.
-  void HandleCrash();
+  [[noreturn]] void HandleExit(int RetCode);
+
+  /// Throw again a signal or an exception, after it was catched once by a
+  /// CrashRecoveryContext.
+  static bool throwIfCrash(int RetCode);
+
+  /// In case of a crash, this is the crash identifier.
+  int RetCode = 0;
+
+  /// Selects whether handling of failures should be done in the same way as
+  /// for regular crashes. When this is active, a crash would print the
+  /// callstack, clean-up any temporary files and create a coredump/minidump.
+  bool DumpStackAndCleanupOnFailure = false;
 };
 
 /// Abstract base class of cleanup handlers.
@@ -111,12 +123,12 @@ public:
 /// a crash recovery context.
 class CrashRecoveryContextCleanup {
 protected:
-  CrashRecoveryContext *context;
+  CrashRecoveryContext *context = nullptr;
   CrashRecoveryContextCleanup(CrashRecoveryContext *context)
-      : context(context), cleanupFired(false) {}
+      : context(context) {}
 
 public:
-  bool cleanupFired;
+  bool cleanupFired = false;
 
   virtual ~CrashRecoveryContextCleanup();
   virtual void recoverResources() = 0;
@@ -127,7 +139,7 @@ public:
 
 private:
   friend class CrashRecoveryContext;
-  CrashRecoveryContextCleanup *prev, *next;
+  CrashRecoveryContextCleanup *prev = nullptr, *next = nullptr;
 };
 
 /// Base class of cleanup handler that controls recovery of resources of the
@@ -172,7 +184,7 @@ public:
       : CrashRecoveryContextCleanupBase<
             CrashRecoveryContextDestructorCleanup<T>, T>(context, resource) {}
 
-  virtual void recoverResources() {
+  void recoverResources() override {
     this->resource->~T();
   }
 };

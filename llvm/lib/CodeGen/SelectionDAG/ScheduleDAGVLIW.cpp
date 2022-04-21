@@ -19,19 +19,15 @@
 
 #include "ScheduleDAGSDNodes.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/CodeGen/LatencyPriorityQueue.h"
 #include "llvm/CodeGen/ResourcePriorityQueue.h"
 #include "llvm/CodeGen/ScheduleHazardRecognizer.h"
 #include "llvm/CodeGen/SchedulerRegistry.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <climits>
 using namespace llvm;
 
 #define DEBUG_TYPE "pre-RA-sched"
@@ -63,14 +59,13 @@ private:
   /// HazardRec - The hazard recognizer to use.
   ScheduleHazardRecognizer *HazardRec;
 
-  /// AA - AliasAnalysis for making memory reference queries.
-  AliasAnalysis *AA;
+  /// AA - AAResults for making memory reference queries.
+  AAResults *AA;
 
 public:
-  ScheduleDAGVLIW(MachineFunction &mf,
-                  AliasAnalysis *aa,
+  ScheduleDAGVLIW(MachineFunction &mf, AAResults *aa,
                   SchedulingPriorityQueue *availqueue)
-    : ScheduleDAGSDNodes(mf), AvailableQueue(availqueue), AA(aa) {
+      : ScheduleDAGSDNodes(mf), AvailableQueue(availqueue), AA(aa) {
     const TargetSubtargetInfo &STI = mf.getSubtarget();
     HazardRec = STI.getInstrInfo()->CreateTargetHazardRecognizer(&STI, this);
   }
@@ -137,12 +132,11 @@ void ScheduleDAGVLIW::releaseSucc(SUnit *SU, const SDep &D) {
 
 void ScheduleDAGVLIW::releaseSuccessors(SUnit *SU) {
   // Top down: release successors.
-  for (SUnit::succ_iterator I = SU->Succs.begin(), E = SU->Succs.end();
-       I != E; ++I) {
-    assert(!I->isAssignedRegDep() &&
+  for (SDep &Succ : SU->Succs) {
+    assert(!Succ.isAssignedRegDep() &&
            "The list-td scheduler doesn't yet support physreg dependencies!");
 
-    releaseSucc(SU, *I);
+    releaseSucc(SU, Succ);
   }
 }
 
@@ -171,11 +165,11 @@ void ScheduleDAGVLIW::listScheduleTopDown() {
   releaseSuccessors(&EntrySU);
 
   // All leaves to AvailableQueue.
-  for (unsigned i = 0, e = SUnits.size(); i != e; ++i) {
+  for (SUnit &SU : SUnits) {
     // It is available if it has no predecessors.
-    if (SUnits[i].Preds.empty()) {
-      AvailableQueue->push(&SUnits[i]);
-      SUnits[i].isAvailable = true;
+    if (SU.Preds.empty()) {
+      AvailableQueue->push(&SU);
+      SU.isAvailable = true;
     }
   }
 

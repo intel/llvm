@@ -1,4 +1,4 @@
-//===-- Watchpoint.cpp ------------------------------------------*- C++ -*-===//
+//===-- Watchpoint.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,10 +13,12 @@
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectMemory.h"
 #include "lldb/Expression/UserExpression.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/ThreadSpec.h"
+#include "lldb/Utility/LLDBLog.h"
+#include "lldb/Utility/Log.h"
 #include "lldb/Utility/Stream.h"
 
 using namespace lldb;
@@ -24,20 +26,26 @@ using namespace lldb_private;
 
 Watchpoint::Watchpoint(Target &target, lldb::addr_t addr, uint32_t size,
                        const CompilerType *type, bool hardware)
-    : StoppointLocation(0, addr, size, hardware), m_target(target),
+    : StoppointSite(0, addr, size, hardware), m_target(target),
       m_enabled(false), m_is_hardware(hardware), m_is_watch_variable(false),
       m_is_ephemeral(false), m_disabled_count(0), m_watch_read(0),
       m_watch_write(0), m_watch_was_read(0), m_watch_was_written(0),
-      m_ignore_count(0), m_false_alarms(0), m_decl_str(), m_watch_spec_str(),
-      m_type(), m_error(), m_options(), m_being_created(true) {
+      m_ignore_count(0), m_false_alarms(0), m_being_created(true) {
+
   if (type && type->IsValid())
     m_type = *type;
   else {
     // If we don't have a known type, then we force it to unsigned int of the
     // right size.
-    ClangASTContext *ast_context = target.GetScratchClangASTContext();
-    m_type = ast_context->GetBuiltinTypeForEncodingAndBitSize(eEncodingUint,
-                                                              8 * size);
+    auto type_system_or_err =
+        target.GetScratchTypeSystemForLanguage(eLanguageTypeC);
+    if (auto err = type_system_or_err.takeError()) {
+      LLDB_LOG_ERROR(GetLog(LLDBLog::Watchpoints), std::move(err),
+                     "Failed to set type.");
+    } else {
+      m_type = type_system_or_err->GetBuiltinTypeForEncodingAndBitSize(
+          eEncodingUint, 8 * size);
+    }
   }
 
   // Set the initial value of the watched variable:
@@ -84,9 +92,10 @@ void Watchpoint::SetWatchSpec(const std::string &str) {
   m_watch_spec_str = str;
 }
 
-// Override default impl of StoppointLocation::IsHardware() since m_is_hardware
-// member field is more accurate.
-bool Watchpoint::IsHardware() const { return m_is_hardware; }
+bool Watchpoint::IsHardware() const {
+  lldbassert(m_is_hardware || !HardwareRequired());
+  return m_is_hardware;
+}
 
 bool Watchpoint::IsWatchVariable() const { return m_is_watch_variable; }
 
@@ -114,12 +123,12 @@ bool Watchpoint::CaptureWatchedValue(const ExecutionContext &exe_ctx) {
 void Watchpoint::IncrementFalseAlarmsAndReviseHitCount() {
   ++m_false_alarms;
   if (m_false_alarms) {
-    if (m_hit_count >= m_false_alarms) {
-      m_hit_count -= m_false_alarms;
+    if (m_hit_counter.GetValue() >= m_false_alarms) {
+      m_hit_counter.Decrement(m_false_alarms);
       m_false_alarms = 0;
     } else {
-      m_false_alarms -= m_hit_count;
-      m_hit_count = 0;
+      m_false_alarms -= m_hit_counter.GetValue();
+      m_hit_counter.Reset();
     }
   }
 }
@@ -128,7 +137,7 @@ void Watchpoint::IncrementFalseAlarmsAndReviseHitCount() {
 // should continue.
 
 bool Watchpoint::ShouldStop(StoppointCallbackContext *context) {
-  IncrementHitCount();
+  m_hit_counter.Increment();
 
   return IsEnabled();
 }
@@ -320,8 +329,7 @@ void Watchpoint::SendWatchpointChangedEvent(WatchpointEventData *data) {
 
 Watchpoint::WatchpointEventData::WatchpointEventData(
     WatchpointEventType sub_type, const WatchpointSP &new_watchpoint_sp)
-    : EventData(), m_watchpoint_event(sub_type),
-      m_new_watchpoint_sp(new_watchpoint_sp) {}
+    : m_watchpoint_event(sub_type), m_new_watchpoint_sp(new_watchpoint_sp) {}
 
 Watchpoint::WatchpointEventData::~WatchpointEventData() = default;
 

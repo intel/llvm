@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_FunctionCaller_h_
-#define liblldb_FunctionCaller_h_
+#ifndef LLDB_EXPRESSION_FUNCTIONCALLER_H
+#define LLDB_EXPRESSION_FUNCTIONCALLER_H
 
 #include <list>
 #include <memory>
@@ -54,22 +54,20 @@ namespace lldb_private {
 /// Any of the methods that take arg_addr_ptr can be passed nullptr, and the
 /// argument space will be managed for you.
 class FunctionCaller : public Expression {
+  // LLVM RTTI support
+  static char ID;
+
 public:
-  /// LLVM-style RTTI support.
-  static bool classof(const Expression *E) {
-    return E->getKind() == eKindFunctionCaller;
-  }
-  
+  bool isA(const void *ClassID) const override { return ClassID == &ID; }
+  static bool classof(const Expression *obj) { return obj->isA(&ID); }
+
   /// Constructor
   ///
   /// \param[in] exe_scope
   ///     An execution context scope that gets us at least a target and
   ///     process.
   ///
-  /// \param[in] ast_context
-  ///     The AST context to evaluate argument types in.
-  ///
-  /// \param[in] return_qualtype
+  /// \param[in] return_type
   ///     An opaque Clang QualType for the function result.  Should be
   ///     defined in ast_context.
   ///
@@ -223,20 +221,11 @@ public:
   ///     The execution context to insert the function and its arguments
   ///     into.
   ///
-  /// \param[in] func_addr
-  ///     The address of the function in the target process.
-  ///
   /// \param[in] args_addr
   ///     The address of the argument struct.
   ///
   /// \param[in] diagnostic_manager
   ///     The diagnostic manager to report errors to.
-  ///
-  /// \param[in] stop_others
-  ///     True if other threads should pause during execution.
-  ///
-  /// \param[in] unwind_on_error
-  ///     True if the thread plan may simply be discarded if an error occurs.
   ///
   /// \return
   ///     A ThreadPlan shared pointer for executing the function.
@@ -347,4 +336,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_FunctionCaller_h_
+#endif // LLDB_EXPRESSION_FUNCTIONCALLER_H

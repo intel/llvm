@@ -204,7 +204,7 @@ name:            test8
 tracksRegLiveness: true
 body:             |
   bb.0:
-    liveins: $x0, $x1
+    liveins: $x0, $x1, $x2
 
     $x1 = COPY $x0
     CBNZX $x1, %bb.2
@@ -241,7 +241,7 @@ body:             |
     CBNZX $x0, %bb.2
 
   bb.1:
-    liveins: $x0, $x2
+    liveins: $x0
 
     $x0 = COPY $xzr
     B %bb.3
@@ -536,13 +536,13 @@ body:             |
   bb.2:
     RET_ReallyLR
 ...
-# Eliminate redundant MOVi32imm -1 in bb.1
+# Don't eliminate redundant MOVi32imm -1 in bb.1: the upper bits are nonzero.
 # Note: 64-bit compare/32-bit move imm
 # Kill marker should be removed from compare.
 # CHECK-LABEL: name: test21
-# CHECK: ADDSXri $x0, 1, 0, implicit-def $nzcv
+# CHECK: ADDSXri killed $x0, 1, 0, implicit-def $nzcv
 # CHECK: bb.1:
-# CHECK-NOT: MOVi32imm
+# CHECK: MOVi32imm
 name:            test21
 tracksRegLiveness: true
 body:             |

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ThreadPlanStepOut_h_
-#define liblldb_ThreadPlanStepOut_h_
+#ifndef LLDB_TARGET_THREADPLANSTEPOUT_H
+#define LLDB_TARGET_THREADPLANSTEPOUT_H
 
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlan.h"
@@ -18,8 +18,8 @@ namespace lldb_private {
 class ThreadPlanStepOut : public ThreadPlan, public ThreadPlanShouldStopHere {
 public:
   ThreadPlanStepOut(Thread &thread, SymbolContext *addr_context,
-                    bool first_insn, bool stop_others, Vote stop_vote,
-                    Vote run_vote, uint32_t frame_idx,
+                    bool first_insn, bool stop_others, Vote report_stop_vote,
+                    Vote report_run_vote, uint32_t frame_idx,
                     LazyBool step_out_avoids_code_without_debug_info,
                     bool continue_to_next_branch = false,
                     bool gather_return_value = true);
@@ -72,11 +72,13 @@ private:
   std::vector<lldb::StackFrameSP> m_stepped_past_frames;
   lldb::ValueObjectSP m_return_valobj_sp;
   bool m_calculate_return_value;
+  StreamString m_constructor_errors;
 
   friend lldb::ThreadPlanSP Thread::QueueThreadPlanForStepOut(
       bool abort_other_plans, SymbolContext *addr_context, bool first_insn,
-      bool stop_others, Vote stop_vote, Vote run_vote, uint32_t frame_idx,
-      Status &status, LazyBool step_out_avoids_code_without_debug_info);
+      bool stop_others, Vote report_stop_vote, Vote report_run_vote,
+      uint32_t frame_idx, Status &status,
+      LazyBool step_out_avoids_code_without_debug_info);
 
   void SetupAvoidNoDebug(LazyBool step_out_avoids_code_without_debug_info);
   // Need an appropriate marker for the current stack so we can tell step out
@@ -84,9 +86,10 @@ private:
 
   void CalculateReturnValue();
 
-  DISALLOW_COPY_AND_ASSIGN(ThreadPlanStepOut);
+  ThreadPlanStepOut(const ThreadPlanStepOut &) = delete;
+  const ThreadPlanStepOut &operator=(const ThreadPlanStepOut &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ThreadPlanStepOut_h_
+#endif // LLDB_TARGET_THREADPLANSTEPOUT_H

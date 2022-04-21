@@ -1,4 +1,4 @@
-//===-- XML.cpp -------------------------------------------------*- C++ -*-===//
+//===-- XML.cpp -----------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <stdlib.h> /* atof */
-
-#include "lldb/Host/StringConvert.h"
+#include "lldb/Host/Config.h"
 #include "lldb/Host/XML.h"
 
 using namespace lldb;
@@ -16,12 +14,12 @@ using namespace lldb_private;
 
 #pragma mark-- XMLDocument
 
-XMLDocument::XMLDocument() : m_document(nullptr) {}
+XMLDocument::XMLDocument() = default;
 
 XMLDocument::~XMLDocument() { Clear(); }
 
 void XMLDocument::Clear() {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (m_document) {
     xmlDocPtr doc = m_document;
     m_document = nullptr;
@@ -42,7 +40,7 @@ void XMLDocument::ErrorCallback(void *ctx, const char *format, ...) {
 }
 
 bool XMLDocument::ParseFile(const char *path) {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   Clear();
   xmlSetGenericErrorFunc((void *)this, XMLDocument::ErrorCallback);
   m_document = xmlParseFile(path);
@@ -53,7 +51,7 @@ bool XMLDocument::ParseFile(const char *path) {
 
 bool XMLDocument::ParseMemory(const char *xml, size_t xml_length,
                               const char *url) {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   Clear();
   xmlSetGenericErrorFunc((void *)this, XMLDocument::ErrorCallback);
   m_document = xmlReadMemory(xml, (int)xml_length, url, nullptr, 0);
@@ -63,7 +61,7 @@ bool XMLDocument::ParseMemory(const char *xml, size_t xml_length,
 }
 
 XMLNode XMLDocument::GetRootElement(const char *required_name) {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (IsValid()) {
     XMLNode root_node(xmlDocGetRootElement(m_document));
     if (required_name) {
@@ -81,7 +79,7 @@ XMLNode XMLDocument::GetRootElement(const char *required_name) {
 llvm::StringRef XMLDocument::GetErrors() const { return m_errors.GetString(); }
 
 bool XMLDocument::XMLEnabled() {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   return true;
 #else
   return false;
@@ -90,16 +88,16 @@ bool XMLDocument::XMLEnabled() {
 
 #pragma mark-- XMLNode
 
-XMLNode::XMLNode() : m_node(nullptr) {}
+XMLNode::XMLNode() = default;
 
 XMLNode::XMLNode(XMLNodeImpl node) : m_node(node) {}
 
-XMLNode::~XMLNode() {}
+XMLNode::~XMLNode() = default;
 
 void XMLNode::Clear() { m_node = nullptr; }
 
 XMLNode XMLNode::GetParent() const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (IsValid())
     return XMLNode(m_node->parent);
   else
@@ -110,7 +108,7 @@ XMLNode XMLNode::GetParent() const {
 }
 
 XMLNode XMLNode::GetSibling() const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (IsValid())
     return XMLNode(m_node->next);
   else
@@ -121,7 +119,7 @@ XMLNode XMLNode::GetSibling() const {
 }
 
 XMLNode XMLNode::GetChild() const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
   if (IsValid())
     return XMLNode(m_node->children);
@@ -132,45 +130,42 @@ XMLNode XMLNode::GetChild() const {
 #endif
 }
 
-llvm::StringRef XMLNode::GetAttributeValue(const char *name,
-                                           const char *fail_value) const {
-  const char *attr_value = NULL;
-#if defined(LIBXML2_DEFINED)
-
-  if (IsValid())
-    attr_value = (const char *)xmlGetProp(m_node, (const xmlChar *)name);
-  else
-    attr_value = fail_value;
+std::string XMLNode::GetAttributeValue(const char *name,
+                                       const char *fail_value) const {
+  std::string attr_value;
+#if LLDB_ENABLE_LIBXML2
+  if (IsValid()) {
+    xmlChar *value = xmlGetProp(m_node, (const xmlChar *)name);
+    if (value) {
+      attr_value = (const char *)value;
+      xmlFree(value);
+    }
+  } else {
+    if (fail_value)
+      attr_value = fail_value;
+  }
 #else
-  attr_value = fail_value;
+  if (fail_value)
+    attr_value = fail_value;
 #endif
-  if (attr_value)
-    return llvm::StringRef(attr_value);
-  else
-    return llvm::StringRef();
+  return attr_value;
 }
 
 bool XMLNode::GetAttributeValueAsUnsigned(const char *name, uint64_t &value,
                                           uint64_t fail_value, int base) const {
-#if defined(LIBXML2_DEFINED)
-  llvm::StringRef str_value = GetAttributeValue(name, "");
-#else
-  llvm::StringRef str_value;
-#endif
-  bool success = false;
-  value = StringConvert::ToUInt64(str_value.data(), fail_value, base, &success);
-  return success;
+  value = fail_value;
+  return llvm::to_integer(GetAttributeValue(name, ""), value, base);
 }
 
 void XMLNode::ForEachChildNode(NodeCallback const &callback) const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (IsValid())
     GetChild().ForEachSiblingNode(callback);
 #endif
 }
 
 void XMLNode::ForEachChildElement(NodeCallback const &callback) const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   XMLNode child = GetChild();
   if (child)
     child.ForEachSiblingElement(callback);
@@ -179,7 +174,7 @@ void XMLNode::ForEachChildElement(NodeCallback const &callback) const {
 
 void XMLNode::ForEachChildElementWithName(const char *name,
                                           NodeCallback const &callback) const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   XMLNode child = GetChild();
   if (child)
     child.ForEachSiblingElementWithName(name, callback);
@@ -187,7 +182,7 @@ void XMLNode::ForEachChildElementWithName(const char *name,
 }
 
 void XMLNode::ForEachAttribute(AttributeCallback const &callback) const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
   if (IsValid()) {
     for (xmlAttrPtr attr = m_node->properties; attr != nullptr;
@@ -210,7 +205,7 @@ void XMLNode::ForEachAttribute(AttributeCallback const &callback) const {
 }
 
 void XMLNode::ForEachSiblingNode(NodeCallback const &callback) const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
   if (IsValid()) {
     // iterate through all siblings
@@ -223,7 +218,7 @@ void XMLNode::ForEachSiblingNode(NodeCallback const &callback) const {
 }
 
 void XMLNode::ForEachSiblingElement(NodeCallback const &callback) const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
   if (IsValid()) {
     // iterate through all siblings
@@ -241,7 +236,7 @@ void XMLNode::ForEachSiblingElement(NodeCallback const &callback) const {
 
 void XMLNode::ForEachSiblingElementWithName(
     const char *name, NodeCallback const &callback) const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
   if (IsValid()) {
     // iterate through all siblings
@@ -269,7 +264,7 @@ void XMLNode::ForEachSiblingElementWithName(
 }
 
 llvm::StringRef XMLNode::GetName() const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (IsValid()) {
     if (m_node->name)
       return llvm::StringRef((const char *)m_node->name);
@@ -280,7 +275,7 @@ llvm::StringRef XMLNode::GetName() const {
 
 bool XMLNode::GetElementText(std::string &text) const {
   text.clear();
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (IsValid()) {
     bool success = false;
     if (m_node->type == XML_ELEMENT_NODE) {
@@ -301,37 +296,21 @@ bool XMLNode::GetElementText(std::string &text) const {
 
 bool XMLNode::GetElementTextAsUnsigned(uint64_t &value, uint64_t fail_value,
                                        int base) const {
-  bool success = false;
-#if defined(LIBXML2_DEFINED)
-  if (IsValid()) {
-    std::string text;
-    if (GetElementText(text))
-      value = StringConvert::ToUInt64(text.c_str(), fail_value, base, &success);
-  }
-#endif
-  if (!success)
-    value = fail_value;
-  return success;
+  std::string text;
+
+  value = fail_value;
+  return GetElementText(text) && llvm::to_integer(text, value, base);
 }
 
 bool XMLNode::GetElementTextAsFloat(double &value, double fail_value) const {
-  bool success = false;
-#if defined(LIBXML2_DEFINED)
-  if (IsValid()) {
-    std::string text;
-    if (GetElementText(text)) {
-      value = atof(text.c_str());
-      success = true;
-    }
-  }
-#endif
-  if (!success)
-    value = fail_value;
-  return success;
+  std::string text;
+
+  value = fail_value;
+  return GetElementText(text) && llvm::to_float(text, value);
 }
 
 bool XMLNode::NameIs(const char *name) const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
   if (IsValid()) {
     // In case we are looking for a nullptr name or an exact pointer match
@@ -347,7 +326,7 @@ bool XMLNode::NameIs(const char *name) const {
 XMLNode XMLNode::FindFirstChildElementWithName(const char *name) const {
   XMLNode result_node;
 
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   ForEachChildElementWithName(
       name, [&result_node](const XMLNode &node) -> bool {
         result_node = node;
@@ -362,7 +341,7 @@ XMLNode XMLNode::FindFirstChildElementWithName(const char *name) const {
 bool XMLNode::IsValid() const { return m_node != nullptr; }
 
 bool XMLNode::IsElement() const {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (IsValid())
     return m_node->type == XML_ELEMENT_NODE;
 #endif
@@ -370,7 +349,7 @@ bool XMLNode::IsElement() const {
 }
 
 XMLNode XMLNode::GetElementForPath(const NamePath &path) {
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
   if (IsValid()) {
     if (path.empty())
@@ -397,7 +376,7 @@ ApplePropertyList::ApplePropertyList(const char *path)
   ParseFile(path);
 }
 
-ApplePropertyList::~ApplePropertyList() {}
+ApplePropertyList::~ApplePropertyList() = default;
 
 llvm::StringRef ApplePropertyList::GetErrors() const {
   return m_xml_doc.GetErrors();
@@ -430,7 +409,7 @@ bool ApplePropertyList::GetValueAsString(const char *key,
 
 XMLNode ApplePropertyList::GetValueNode(const char *key) const {
   XMLNode value_node;
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
   if (IsValid()) {
     m_dict_node.ForEachChildElementWithName(
@@ -454,7 +433,7 @@ XMLNode ApplePropertyList::GetValueNode(const char *key) const {
 bool ApplePropertyList::ExtractStringFromValueNode(const XMLNode &node,
                                                    std::string &value) {
   value.clear();
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (node.IsValid()) {
     llvm::StringRef element_name = node.GetName();
     if (element_name == "true" || element_name == "false") {
@@ -470,11 +449,9 @@ bool ApplePropertyList::ExtractStringFromValueNode(const XMLNode &node,
   return false;
 }
 
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
 
-namespace {
-
-StructuredData::ObjectSP CreatePlistValue(XMLNode node) {
+static StructuredData::ObjectSP CreatePlistValue(XMLNode node) {
   llvm::StringRef element_name = node.GetName();
   if (element_name == "array") {
     std::shared_ptr<StructuredData::Array> array_sp(
@@ -527,12 +504,11 @@ StructuredData::ObjectSP CreatePlistValue(XMLNode node) {
   }
   return StructuredData::ObjectSP(new StructuredData::Null());
 }
-}
 #endif
 
 StructuredData::ObjectSP ApplePropertyList::GetStructuredData() {
   StructuredData::ObjectSP root_sp;
-#if defined(LIBXML2_DEFINED)
+#if LLDB_ENABLE_LIBXML2
   if (IsValid()) {
     return CreatePlistValue(m_dict_node);
   }

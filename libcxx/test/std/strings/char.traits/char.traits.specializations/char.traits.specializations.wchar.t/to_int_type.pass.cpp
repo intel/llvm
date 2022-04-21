@@ -12,8 +12,12 @@
 
 // static constexpr int_type to_int_type(char_type c);
 
+// UNSUPPORTED: libcpp-has-no-wide-characters
+
 #include <string>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

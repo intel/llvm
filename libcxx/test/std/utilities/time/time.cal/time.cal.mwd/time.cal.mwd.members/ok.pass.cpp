@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class month_weekday;
@@ -44,9 +44,9 @@ int main(int, char**)
             assert(mwd.ok() == (j >= 1 && j <= 5));
         }
 
-//  If the month is not ok, all the weekday_indexed are bad
+    //  If the month is not ok, all the weekday_indexed are bad
     for (unsigned i = 1; i <= 10; ++i)
         assert(!(month_weekday{month{13}, weekday_indexed{Sunday, i}}.ok()));
 
-  return 0;
+    return 0;
 }

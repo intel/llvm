@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <memory>
 
@@ -18,6 +18,7 @@
 #include <scoped_allocator>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "allocators.h"
 #include "min_allocator.h"
 

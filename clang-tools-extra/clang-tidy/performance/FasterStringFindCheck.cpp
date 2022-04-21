@@ -21,21 +21,21 @@ namespace performance {
 
 namespace {
 
-llvm::Optional<std::string> MakeCharacterLiteral(const StringLiteral *Literal) {
+llvm::Optional<std::string> makeCharacterLiteral(const StringLiteral *Literal) {
   std::string Result;
   {
     llvm::raw_string_ostream OS(Result);
     Literal->outputString(OS);
   }
   // Now replace the " with '.
-  auto pos = Result.find_first_of('"');
-  if (pos == Result.npos)
+  auto Pos = Result.find_first_of('"');
+  if (Pos == Result.npos)
     return llvm::None;
-  Result[pos] = '\'';
-  pos = Result.find_last_of('"');
-  if (pos == Result.npos)
+  Result[Pos] = '\'';
+  Pos = Result.find_last_of('"');
+  if (Pos == Result.npos)
     return llvm::None;
-  Result[pos] = '\'';
+  Result[Pos] = '\'';
   return Result;
 }
 
@@ -51,7 +51,8 @@ FasterStringFindCheck::FasterStringFindCheck(StringRef Name,
                                              ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       StringLikeClasses(utils::options::parseStringList(
-          Options.get("StringLikeClasses", "std::basic_string"))) {}
+          Options.get("StringLikeClasses",
+                      "::std::basic_string;::std::basic_string_view"))) {}
 
 void FasterStringFindCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "StringLikeClasses",
@@ -59,9 +60,6 @@ void FasterStringFindCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void FasterStringFindCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   const auto SingleChar =
       expr(ignoringParenCasts(stringLiteral(hasSize(1)).bind("literal")));
   const auto StringFindFunctions =
@@ -85,7 +83,7 @@ void FasterStringFindCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Literal = Result.Nodes.getNodeAs<StringLiteral>("literal");
   const auto *FindFunc = Result.Nodes.getNodeAs<FunctionDecl>("func");
 
-  auto Replacement = MakeCharacterLiteral(Literal);
+  auto Replacement = makeCharacterLiteral(Literal);
   if (!Replacement)
     return;
 

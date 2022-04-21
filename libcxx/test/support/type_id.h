@@ -8,14 +8,10 @@
 #ifndef SUPPORT_TYPE_ID_H
 #define SUPPORT_TYPE_ID_H
 
-#include <functional>
-#include <typeinfo>
 #include <string>
-#include <cstdio>
 #include <cassert>
 
 #include "test_macros.h"
-#include "demangle.h"
 
 #if TEST_STD_VER < 11
 #error This header requires C++11 or greater
@@ -30,12 +26,7 @@ struct TypeID {
   {return LHS.m_id != RHS.m_id; }
 
   std::string name() const {
-    return demangle(m_id);
-  }
-
-  void dump() const {
-    std::string s = name();
-    std::printf("TypeID: %s\n", s.c_str());
+    return m_id;
   }
 
 private:
@@ -51,7 +42,11 @@ private:
 // makeTypeID - Return the TypeID for the specified type 'T'.
 template <class T>
 inline TypeID const& makeTypeIDImp() {
-  static const TypeID id(typeid(T).name());
+#ifdef _MSC_VER
+  static const TypeID id(__FUNCSIG__);
+#else
+  static const TypeID id(__PRETTY_FUNCTION__);
+#endif // _MSC_VER
   return id;
 }
 
@@ -71,22 +66,6 @@ struct ArgumentListID {};
 template <class ...Args>
 inline  TypeID const& makeArgumentID() {
   return makeTypeIDImp<ArgumentListID<Args...>>();
-}
-
-
-// COMPARE_TYPEID(...) is a utility macro for generating diagnostics when
-// two typeid's are expected to be equal
-#define COMPARE_TYPEID(LHS, RHS) CompareTypeIDVerbose(#LHS, LHS, #RHS, RHS)
-
-inline bool CompareTypeIDVerbose(const char* LHSString, TypeID const* LHS,
-                                 const char* RHSString, TypeID const* RHS) {
-  if (*LHS == *RHS)
-    return true;
-  std::printf("TypeID's not equal:\n");
-  std::printf("%s: %s\n----------\n%s: %s\n",
-              LHSString, LHS->name().c_str(),
-              RHSString, RHS->name().c_str());
-  return false;
 }
 
 #endif // SUPPORT_TYPE_ID_H

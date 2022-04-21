@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_X86_DISASSEMBLER_X86DISASSEMBLERDECODERCOMMON_H
-#define LLVM_LIB_TARGET_X86_DISASSEMBLER_X86DISASSEMBLERDECODERCOMMON_H
+#ifndef LLVM_SUPPORT_X86DISASSEMBLERDECODERCOMMON_H
+#define LLVM_SUPPORT_X86DISASSEMBLERDECODERCOMMON_H
 
 #include "llvm/Support/DataTypes.h"
 
@@ -31,6 +31,8 @@ namespace X86Disassembler {
 #define XOP9_MAP_SYM      x86DisassemblerXOP9Opcodes
 #define XOPA_MAP_SYM      x86DisassemblerXOPAOpcodes
 #define THREEDNOW_MAP_SYM x86Disassembler3DNowOpcodes
+#define MAP5_SYM          x86DisassemblerMap5Opcodes
+#define MAP6_SYM          x86DisassemblerMap6Opcodes
 
 #define INSTRUCTIONS_STR  "x86DisassemblerInstrSpecifiers"
 #define CONTEXTS_STR      "x86DisassemblerContexts"
@@ -42,33 +44,29 @@ namespace X86Disassembler {
 #define XOP9_MAP_STR      "x86DisassemblerXOP9Opcodes"
 #define XOPA_MAP_STR      "x86DisassemblerXOPAOpcodes"
 #define THREEDNOW_MAP_STR "x86Disassembler3DNowOpcodes"
+#define MAP5_STR          "x86DisassemblerMap5Opcodes"
+#define MAP6_STR          "x86DisassemblerMap6Opcodes"
 
 // Attributes of an instruction that must be known before the opcode can be
 // processed correctly.  Most of these indicate the presence of particular
 // prefixes, but ATTR_64BIT is simply an attribute of the decoding context.
-#define ATTRIBUTE_BITS                  \
-  ENUM_ENTRY(ATTR_NONE,   0x00)         \
-  ENUM_ENTRY(ATTR_64BIT,  (0x1 << 0))   \
-  ENUM_ENTRY(ATTR_XS,     (0x1 << 1))   \
-  ENUM_ENTRY(ATTR_XD,     (0x1 << 2))   \
-  ENUM_ENTRY(ATTR_REXW,   (0x1 << 3))   \
-  ENUM_ENTRY(ATTR_OPSIZE, (0x1 << 4))   \
-  ENUM_ENTRY(ATTR_ADSIZE, (0x1 << 5))   \
-  ENUM_ENTRY(ATTR_VEX,    (0x1 << 6))   \
-  ENUM_ENTRY(ATTR_VEXL,   (0x1 << 7))   \
-  ENUM_ENTRY(ATTR_EVEX,   (0x1 << 8))   \
-  ENUM_ENTRY(ATTR_EVEXL,  (0x1 << 9))   \
-  ENUM_ENTRY(ATTR_EVEXL2, (0x1 << 10))  \
-  ENUM_ENTRY(ATTR_EVEXK,  (0x1 << 11))  \
-  ENUM_ENTRY(ATTR_EVEXKZ, (0x1 << 12))  \
-  ENUM_ENTRY(ATTR_EVEXB,  (0x1 << 13))
-
-#define ENUM_ENTRY(n, v) n = v,
 enum attributeBits {
-  ATTRIBUTE_BITS
-  ATTR_max
+  ATTR_NONE   = 0x00,
+  ATTR_64BIT  = 0x1 << 0,
+  ATTR_XS     = 0x1 << 1,
+  ATTR_XD     = 0x1 << 2,
+  ATTR_REXW   = 0x1 << 3,
+  ATTR_OPSIZE = 0x1 << 4,
+  ATTR_ADSIZE = 0x1 << 5,
+  ATTR_VEX    = 0x1 << 6,
+  ATTR_VEXL   = 0x1 << 7,
+  ATTR_EVEX   = 0x1 << 8,
+  ATTR_EVEXL2 = 0x1 << 9,
+  ATTR_EVEXK  = 0x1 << 10,
+  ATTR_EVEXKZ = 0x1 << 11,
+  ATTR_EVEXB  = 0x1 << 12,
+  ATTR_max    = 0x1 << 13,
 };
-#undef ENUM_ENTRY
 
 // Combinations of the above attributes that are relevant to instruction
 // decode. Although other combinations are possible, they can be reduced to
@@ -122,6 +120,8 @@ enum attributeBits {
   ENUM_ENTRY(IC_VEX_XS,             2,  "requires VEX and the XS prefix")      \
   ENUM_ENTRY(IC_VEX_XD,             2,  "requires VEX and the XD prefix")      \
   ENUM_ENTRY(IC_VEX_OPSIZE,         2,  "requires VEX and the OpSize prefix")  \
+  ENUM_ENTRY(IC_64BIT_VEX_OPSIZE,        4, "requires 64-bit mode and VEX")         \
+  ENUM_ENTRY(IC_64BIT_VEX_OPSIZE_ADSIZE, 5, "requires 64-bit mode, VEX, and AdSize")\
   ENUM_ENTRY(IC_VEX_W,              3,  "requires VEX and the W prefix")       \
   ENUM_ENTRY(IC_VEX_W_XS,           4,  "requires VEX, W, and XS prefix")      \
   ENUM_ENTRY(IC_VEX_W_XD,           4,  "requires VEX, W, and XD prefix")      \
@@ -296,7 +296,9 @@ enum OpcodeType {
   XOP8_MAP      = 4,
   XOP9_MAP      = 5,
   XOPA_MAP      = 6,
-  THREEDNOW_MAP = 7
+  THREEDNOW_MAP = 7,
+  MAP5          = 8,
+  MAP6          = 9
 };
 
 // The following structs are used for the hierarchical decode table.  After
@@ -367,6 +369,7 @@ enum ModRMDecisionType {
   ENUM_ENTRY(ENCODING_RM_CD16,"R/M operand with CDisp scaling of 16")          \
   ENUM_ENTRY(ENCODING_RM_CD32,"R/M operand with CDisp scaling of 32")          \
   ENUM_ENTRY(ENCODING_RM_CD64,"R/M operand with CDisp scaling of 64")          \
+  ENUM_ENTRY(ENCODING_SIB,      "Force SIB operand in ModR/M byte.")           \
   ENUM_ENTRY(ENCODING_VSIB,     "VSIB operand in ModR/M byte.")                \
   ENUM_ENTRY(ENCODING_VSIB_CD2, "VSIB operand with CDisp scaling of 2")        \
   ENUM_ENTRY(ENCODING_VSIB_CD4, "VSIB operand with CDisp scaling of 4")        \
@@ -380,7 +383,7 @@ enum ModRMDecisionType {
   ENUM_ENTRY(ENCODING_IW,     "2-byte")                                        \
   ENUM_ENTRY(ENCODING_ID,     "4-byte")                                        \
   ENUM_ENTRY(ENCODING_IO,     "8-byte")                                        \
-  ENUM_ENTRY(ENCODING_RB,     "(AL..DIL, R8L..R15L) Register code added to "   \
+  ENUM_ENTRY(ENCODING_RB,     "(AL..DIL, R8B..R15B) Register code added to "   \
                               "the opcode byte")                               \
   ENUM_ENTRY(ENCODING_RW,     "(AX..DI, R8W..R15W)")                           \
   ENUM_ENTRY(ENCODING_RD,     "(EAX..EDI, R8D..R15D)")                         \
@@ -417,6 +420,7 @@ enum OperandEncoding {
   ENUM_ENTRY(TYPE_IMM,        "immediate operand")                             \
   ENUM_ENTRY(TYPE_UIMM8,      "1-byte unsigned immediate operand")             \
   ENUM_ENTRY(TYPE_M,          "Memory operand")                                \
+  ENUM_ENTRY(TYPE_MSIB,       "Memory operand force sib encoding")             \
   ENUM_ENTRY(TYPE_MVSIBX,     "Memory operand using XMM index")                \
   ENUM_ENTRY(TYPE_MVSIBY,     "Memory operand using YMM index")                \
   ENUM_ENTRY(TYPE_MVSIBZ,     "Memory operand using ZMM index")                \
@@ -429,6 +433,8 @@ enum OperandEncoding {
   ENUM_ENTRY(TYPE_YMM,        "32-byte")                                       \
   ENUM_ENTRY(TYPE_ZMM,        "64-byte")                                       \
   ENUM_ENTRY(TYPE_VK,         "mask register")                                 \
+  ENUM_ENTRY(TYPE_VK_PAIR,    "mask register pair")                            \
+  ENUM_ENTRY(TYPE_TMM,        "tile")                                          \
   ENUM_ENTRY(TYPE_SEGMENTREG, "Segment register operand")                      \
   ENUM_ENTRY(TYPE_DEBUGREG,   "Debug register operand")                        \
   ENUM_ENTRY(TYPE_CONTROLREG, "Control register operand")                      \

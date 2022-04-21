@@ -13,6 +13,7 @@
 #ifndef POLLY_SCEV_AFFINATOR_H
 #define POLLY_SCEV_AFFINATOR_H
 
+#include "polly/Support/ScopHelper.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "isl/isl-noexceptions.h"
 
@@ -36,10 +37,12 @@ public:
   /// @param BB The block in which @p E is executed.
   ///
   /// @returns The isl representation of the SCEV @p E in @p Domain.
-  PWACtx getPwAff(const llvm::SCEV *E, llvm::BasicBlock *BB = nullptr);
+  PWACtx getPwAff(const llvm::SCEV *E, llvm::BasicBlock *BB = nullptr,
+                  RecordedAssumptionsTy *RecordedAssumptions = nullptr);
 
   /// Take the assumption that @p PWAC is non-negative.
-  void takeNonNegativeAssumption(PWACtx &PWAC);
+  void takeNonNegativeAssumption(
+      PWACtx &PWAC, RecordedAssumptionsTy *RecordedAssumptions = nullptr);
 
   /// Interpret the PWA in @p PWAC as an unsigned value.
   void interpretAsUnsigned(PWACtx &PWAC, unsigned Width);
@@ -63,6 +66,7 @@ private:
   llvm::ScalarEvolution &SE;
   llvm::LoopInfo &LI;
   llvm::BasicBlock *BB;
+  RecordedAssumptionsTy *RecordedAssumptions = nullptr;
 
   /// Target data for element size computing.
   const llvm::DataLayout &TD;
@@ -95,6 +99,7 @@ private:
 
   PWACtx visit(const llvm::SCEV *E);
   PWACtx visitConstant(const llvm::SCEVConstant *E);
+  PWACtx visitPtrToIntExpr(const llvm::SCEVPtrToIntExpr *E);
   PWACtx visitTruncateExpr(const llvm::SCEVTruncateExpr *E);
   PWACtx visitZeroExtendExpr(const llvm::SCEVZeroExtendExpr *E);
   PWACtx visitSignExtendExpr(const llvm::SCEVSignExtendExpr *E);
@@ -106,6 +111,7 @@ private:
   PWACtx visitSMinExpr(const llvm::SCEVSMinExpr *E);
   PWACtx visitUMaxExpr(const llvm::SCEVUMaxExpr *E);
   PWACtx visitUMinExpr(const llvm::SCEVUMinExpr *E);
+  PWACtx visitSequentialUMinExpr(const llvm::SCEVSequentialUMinExpr *E);
   PWACtx visitUnknown(const llvm::SCEVUnknown *E);
   PWACtx visitSDivInstruction(llvm::Instruction *SDiv);
   PWACtx visitSRemInstruction(llvm::Instruction *SRem);

@@ -6,21 +6,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_lldb_private_interfaces_h_
-#define liblldb_lldb_private_interfaces_h_
+#ifndef LLDB_LLDB_PRIVATE_INTERFACES_H
+#define LLDB_LLDB_PRIVATE_INTERFACES_H
 
 #if defined(__cplusplus)
 
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-forward.h"
-#include "lldb/lldb-types.h"
-
 #include "lldb/lldb-private-enumerations.h"
-
+#include "lldb/lldb-types.h"
+#include <memory>
 #include <set>
 
+namespace llvm {
+namespace json {
+class Object;
+class Value;
+}
+} // namespace llvm
+
 namespace lldb_private {
-typedef lldb::ABISP (*ABICreateInstance)(lldb::ProcessSP process_sp, const ArchSpec &arch);
+typedef lldb::ABISP (*ABICreateInstance)(lldb::ProcessSP process_sp,
+                                         const ArchSpec &arch);
+typedef std::unique_ptr<Architecture> (*ArchitectureCreateInstance)(
+    const ArchSpec &arch);
 typedef Disassembler *(*DisassemblerCreateInstance)(const ArchSpec &arch,
                                                     const char *flavor);
 typedef DynamicLoader *(*DynamicLoaderCreateInstance)(Process *process,
@@ -45,7 +54,9 @@ typedef ObjectFile *(*ObjectFileCreateMemoryInstance)(
     const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
     const lldb::ProcessSP &process_sp, lldb::addr_t offset);
 typedef bool (*ObjectFileSaveCore)(const lldb::ProcessSP &process_sp,
-                                   const FileSpec &outfile, Status &error);
+                                   const FileSpec &outfile,
+                                   lldb::SaveCoreStyle &core_style,
+                                   Status &error);
 typedef EmulateInstruction *(*EmulateInstructionCreateInstance)(
     const ArchSpec &arch, InstructionType inst_type);
 typedef OperatingSystem *(*OperatingSystemCreateInstance)(Process *process,
@@ -55,6 +66,9 @@ typedef LanguageRuntime *(*LanguageRuntimeCreateInstance)(
     Process *process, lldb::LanguageType language);
 typedef lldb::CommandObjectSP (*LanguageRuntimeGetCommandObject)(
     CommandInterpreter &interpreter);
+typedef lldb::BreakpointPreconditionSP (
+    *LanguageRuntimeGetExceptionPrecondition)(lldb::LanguageType language,
+                                              bool throw_bp);
 typedef lldb::StructuredDataPluginSP (*StructuredDataPluginCreateInstance)(
     Process &process);
 typedef Status (*StructuredDataFilterLaunchInfo)(ProcessLaunchInfo &launch_info,
@@ -64,10 +78,10 @@ typedef lldb::PlatformSP (*PlatformCreateInstance)(bool force,
                                                    const ArchSpec *arch);
 typedef lldb::ProcessSP (*ProcessCreateInstance)(
     lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
-    const FileSpec *crash_file_path);
+    const FileSpec *crash_file_path, bool can_connect);
 typedef lldb::ScriptInterpreterSP (*ScriptInterpreterCreateInstance)(
     Debugger &debugger);
-typedef SymbolFile *(*SymbolFileCreateInstance)(ObjectFile *obj_file);
+typedef SymbolFile *(*SymbolFileCreateInstance)(lldb::ObjectFileSP objfile_sp);
 typedef SymbolVendor *(*SymbolVendorCreateInstance)(
     const lldb::ModuleSP &module_sp,
     lldb_private::Stream
@@ -79,8 +93,6 @@ typedef bool (*BreakpointHitCallback)(void *baton,
 typedef bool (*WatchpointHitCallback)(void *baton,
                                       StoppointCallbackContext *context,
                                       lldb::user_id_t watch_id);
-typedef void (*OptionValueChangedCallback)(void *baton,
-                                           OptionValue *option_value);
 typedef bool (*ThreadPlanShouldStopHereCallback)(
     ThreadPlan *current_plan, Flags &flags, lldb::FrameComparison operation,
     Status &status, void *baton);
@@ -99,16 +111,21 @@ typedef lldb::REPLSP (*REPLCreateInstance)(Status &error,
                                            lldb::LanguageType language,
                                            Debugger *debugger, Target *target,
                                            const char *repl_options);
-typedef void (*TypeSystemEnumerateSupportedLanguages)(
-    std::set<lldb::LanguageType> &languages_for_types,
-    std::set<lldb::LanguageType> &languages_for_expressions);
-typedef void (*REPLEnumerateSupportedLanguages)(
-    std::set<lldb::LanguageType> &languages);
 typedef int (*ComparisonFunction)(const void *, const void *);
 typedef void (*DebuggerInitializeCallback)(Debugger &debugger);
-
+/// Trace
+/// \{
+typedef llvm::Expected<lldb::TraceSP> (*TraceCreateInstanceForSessionFile)(
+    const llvm::json::Value &trace_session_file,
+    llvm::StringRef session_file_dir, lldb_private::Debugger &debugger);
+typedef llvm::Expected<lldb::TraceSP> (*TraceCreateInstanceForLiveProcess)(
+    Process &process);
+typedef llvm::Expected<lldb::TraceExporterUP> (*TraceExporterCreateInstance)();
+typedef lldb::CommandObjectSP (*ThreadTraceExportCommandCreator)(
+    CommandInterpreter &interpreter);
+/// \}
 } // namespace lldb_private
 
 #endif // #if defined(__cplusplus)
 
-#endif // liblldb_lldb_private_interfaces_h_
+#endif // LLDB_LLDB_PRIVATE_INTERFACES_H

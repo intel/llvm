@@ -31,9 +31,9 @@
 # DBG_VALUE for variables "x", "y" and "z" are extended into %bb.9 from its
 # predecessors %bb.0, %bb.2 and %bb.8.
 # CHECK:      bb.9.for.end:
-# CHECK-DAG:  DBG_VALUE $edi, $noreg, ![[X_VAR]], !DIExpression(), debug-location !{{[0-9]+}}
-# CHECK-DAG:  DBG_VALUE $esi, $noreg, ![[Y_VAR]], !DIExpression(), debug-location !{{[0-9]+}}
-# CHECK-DAG:  DBG_VALUE $edx, $noreg, ![[Z_VAR]], !DIExpression(), debug-location !{{[0-9]+}}
+# CHECK-DAG:  DBG_VALUE $edi, $noreg, ![[X_VAR]], !DIExpression()
+# CHECK-DAG:  DBG_VALUE $esi, $noreg, ![[Y_VAR]], !DIExpression()
+# CHECK-DAG:  DBG_VALUE $edx, $noreg, ![[Z_VAR]], !DIExpression()
 # CHECK:      RET
 
 --- |
@@ -159,7 +159,7 @@
 ...
 ---
 name:            add
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 tracksRegLiveness: true
 liveins:         
@@ -267,7 +267,7 @@ body:             |
     $ecx = IMUL32rr killed $ecx, killed $edi, implicit-def dead $eflags, debug-location !36
     DBG_VALUE 0, 0, !13, !17, debug-location !25
     $eax = MOV32rr killed $ecx, debug-location !50
-    RETQ $eax, debug-location !50
+    RET64 $eax, debug-location !50
   
   bb.6.if.then.4:
     liveins: $ecx, $esi
@@ -278,7 +278,7 @@ body:             |
     $ecx = IMUL32rr killed $ecx, killed $esi, implicit-def dead $eflags, debug-location !40
     DBG_VALUE 0, 0, !13, !17, debug-location !25
     $eax = MOV32rr killed $ecx, debug-location !50
-    RETQ $eax, debug-location !50
+    RET64 $eax, debug-location !50
   
   bb.8.if.then.8:
     successors: %bb.9.for.end(0)
@@ -294,6 +294,6 @@ body:             |
   
     DBG_VALUE 0, 0, !13, !17, debug-location !25
     $eax = MOV32rr killed $ecx, debug-location !50
-    RETQ $eax, debug-location !50
+    RET64 $eax, debug-location !50
 
 ...

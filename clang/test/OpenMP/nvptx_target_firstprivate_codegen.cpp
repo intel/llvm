@@ -13,11 +13,11 @@ struct TT {
   ty Y;
 };
 
-// TCHECK-DAG:  [[TT:%.+]] = type { i64, i8 }
 // TCHECK-DAG:  [[TTII:%.+]] = type { i32, i32 }
+// TCHECK-DAG:  [[TTIC:%.+]] = type { i8, i8 }
+// TCHECK-DAG:  [[TT:%.+]] = type { i64, i8 }
 // TCHECK-DAG:  [[S1:%.+]] = type { double }
 
-// TCHECK: @__omp_offloading_firstprivate__{{.+}}_e_l27 = internal addrspace(4) global [[TTII]] zeroinitializer
 int foo(int n, double *ptr) {
   int a = 0;
   short aa = 0;
@@ -33,12 +33,10 @@ int foo(int n, double *ptr) {
     b[a] += e.X;
   }
 
-  // TCHECK:  define {{.*}}void @__omp_offloading_{{.+}}([10 x float] addrspace(1)* noalias [[B_IN:%.+]], i{{[0-9]+}} [[A_IN:%.+]], [[TTII]]* noalias [[E_IN:%.+]])
-  // TCHECK-NOT: alloca [[TTII]],
+  // TCHECK:  define {{.*}}void @__omp_offloading_{{.+}}([10 x float] addrspace(1)* noalias noundef [[B_IN:%.+]], i{{[0-9]+}} noundef [[A_IN:%.+]], [[TTII]]* noalias noundef [[E_IN:%.+]])
   // TCHECK:  [[A_ADDR:%.+]] = alloca i{{[0-9]+}},
   // TCHECK-NOT: alloca [[TTII]],
-  // TCHECK-NOT: alloca i{{[0-9]+}},
-  // TCHECK-64:  call void @llvm.dbg.declare(metadata [10 x float] addrspace(1)** %{{.+}}, metadata !{{[0-9]+}}, metadata !DIExpression())
+  // TCHECK: alloca i{{[0-9]+}},
   // TCHECK:  store i{{[0-9]+}} [[A_IN]], i{{[0-9]+}}* [[A_ADDR]],
   // TCHECK:  ret void
 
@@ -97,12 +95,12 @@ int foo(int n, double *ptr) {
     ptr[0]++;
   }
 
-  // TCHECK:  define weak void @__omp_offloading_{{.+}}(double* [[PTR_IN:%.+]])
+  // TCHECK:  define weak_odr void @__omp_offloading_{{.+}}(double* noundef [[PTR_IN:%.+]])
   // TCHECK:  [[PTR_ADDR:%.+]] = alloca double*,
   // TCHECK-NOT: alloca double*,
   // TCHECK:  store double* [[PTR_IN]], double** [[PTR_ADDR]],
   // TCHECK:  [[PTR_IN_REF:%.+]] = load double*, double** [[PTR_ADDR]],
-  // TCHECK-NOT:  store double* [[PTR_IN_REF]], double** [[PTR_PRIV]],
+  // TCHECK-NOT:  store double* [[PTR_IN_REF]], double** {{%.+}},
 
   return a;
 }
@@ -134,6 +132,12 @@ static int fstatic(int n) {
   }
 
   return a;
+}
+
+template <typename tx>
+void fconst(const tx t) {
+#pragma omp target firstprivate(t)
+  { }
 }
 
 // TCHECK: define {{.*}}void @__omp_offloading_{{.+}}(i{{[0-9]+}}{{.*}} [[A_IN:%.+]], i{{[0-9]+}}{{.*}} [[A3_IN:%.+]], [10 x i{{[0-9]+}}]*{{.+}} [[B_IN:%.+]])
@@ -175,7 +179,7 @@ struct S1 {
     return (int)b;
   }
 
-  // TCHECK: define internal void @__omp_offloading_{{.+}}([[S1]]* [[TH:%.+]], i{{[0-9]+}} [[B_IN:%.+]])
+  // TCHECK: define internal void @__omp_offloading_{{.+}}([[S1]]* noundef [[TH:%.+]], i{{[0-9]+}} noundef [[B_IN:%.+]])
   // TCHECK:  [[TH_ADDR:%.+]] = alloca [[S1]]*,
   // TCHECK:  [[B_ADDR:%.+]] = alloca i{{[0-9]+}},
   // TCHECK-NOT: alloca i{{[0-9]+}},
@@ -199,12 +203,15 @@ int bar(int n, double *ptr) {
   a += fstatic(n);
   a += ftemplate<int>(n);
 
+  fconst(TT<int, int>{0, 0});
+  fconst(TT<char, char>{0, 0});
+
   return a;
 }
 
 // template
 
-// TCHECK: define internal void @__omp_offloading_{{.+}}(i{{[0-9]+}} [[A_IN:%.+]], [10 x i{{[0-9]+}}]*{{.+}} [[B_IN:%.+]])
+// TCHECK: define internal void @__omp_offloading_{{.+}}(i{{[0-9]+}} noundef [[A_IN:%.+]], [10 x i{{[0-9]+}}]*{{.+}} noundef [[B_IN:%.+]])
 // TCHECK:  [[A_ADDR:%.+]] = alloca i{{[0-9]+}},
 // TCHECK:  [[B_ADDR:%.+]] = alloca [10 x i{{[0-9]+}}]*,
 // TCHECK-NOT: alloca i{{[0-9]+}},
@@ -225,9 +232,3 @@ int bar(int n, double *ptr) {
 // TCHECK: ret void
 
 #endif
-
-// TCHECK-DAG: distinct !DISubprogram(linkageName: "__omp_offloading_{{.+}}_worker",
-// TCHECK-DAG: distinct !DISubprogram(linkageName: "__omp_offloading_{{.+}}_worker",
-// TCHECK-DAG: distinct !DISubprogram(linkageName: "__omp_offloading_{{.+}}_worker",
-// TCHECK-DAG: distinct !DISubprogram(linkageName: "__omp_offloading_{{.+}}_worker",
-// TCHECK-DAG: distinct !DISubprogram(linkageName: "__omp_offloading_{{.+}}_worker",

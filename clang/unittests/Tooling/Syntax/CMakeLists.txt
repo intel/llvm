@@ -1,20 +1,30 @@
 set(LLVM_LINK_COMPONENTS
-  ${LLVM_TARGETS_TO_BUILD}
   Support
   )
 
 add_clang_unittest(SyntaxTests
+  TreeTestBase.cpp
+  BuildTreeTest.cpp
+  MutationsTest.cpp
+  SynthesisTest.cpp
+  TreeTest.cpp
   TokensTest.cpp
 )
 
-target_link_libraries(SyntaxTests
+clang_target_link_libraries(SyntaxTests
   PRIVATE
   clangAST
   clangBasic
   clangFrontend
   clangLex
   clangSerialization
+  clangTesting
   clangTooling
+  clangToolingCore
   clangToolingSyntax
-  LLVMTestingSupport
   )
+
+target_link_libraries(SyntaxTests
+  PRIVATE
+  LLVMTestingSupport
+)

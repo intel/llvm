@@ -13,7 +13,7 @@
 
   declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-  attributes #0 = { nounwind "no-frame-pointer-elim"="false" }
+  attributes #0 = { nounwind "frame-pointer"="none" }
   attributes #1 = { nounwind readnone }
 
   !llvm.dbg.cu = !{!0}
@@ -53,5 +53,5 @@ body: |
     DBG_VALUE _, 0, !12, ! _
     MOV32mr %stack.0.x.addr, 1, _, 0, _, %0
     $eax = COPY %0
-    RETQ $eax
+    RET64 $eax
 ...

@@ -10,7 +10,6 @@
 #define LLVM_MC_MCASSEMBLER_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator.h"
@@ -18,20 +17,34 @@
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCDwarf.h"
-#include "llvm/MC/MCFixup.h"
-#include "llvm/MC/MCFragment.h"
 #include "llvm/MC/MCLinkerOptimizationHint.h"
 #include "llvm/MC/MCSymbol.h"
+#include "llvm/Support/SMLoc.h"
 #include "llvm/Support/VersionTuple.h"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace llvm {
 
+class MCBoundaryAlignFragment;
+class MCCVDefRangeFragment;
+class MCCVInlineLineTableFragment;
+class MCDwarfCallFrameFragment;
+class MCDwarfLineAddrFragment;
+class MCEncodedFragment;
+class MCFixup;
+class MCLEBFragment;
+class MCPseudoProbeAddrFragment;
+class MCRelaxableFragment;
+class MCSymbolRefExpr;
+class raw_ostream;
 class MCAsmBackend;
 class MCAsmLayout;
 class MCContext;
@@ -119,7 +132,7 @@ private:
   std::vector<std::vector<std::string>> LinkerOptions;
 
   /// List of declared file names
-  std::vector<std::string> FileNames;
+  std::vector<std::pair<std::string, size_t>> FileNames;
 
   MCDwarfLineTableParams LTParams;
 
@@ -153,6 +166,7 @@ private:
   MCLOHContainer LOHContainer;
 
   VersionInfoType VersionInfo;
+  VersionInfoType DarwinTargetVariantVersionInfo;
 
   /// Evaluate a fixup to a relocatable expression and the value which should be
   /// placed into the fixup.
@@ -190,18 +204,19 @@ private:
   /// if any offsets were adjusted.
   bool layoutSectionOnce(MCAsmLayout &Layout, MCSection &Sec);
 
+  /// Perform relaxation on a single fragment - returns true if the fragment
+  /// changes as a result of relaxation.
+  bool relaxFragment(MCAsmLayout &Layout, MCFragment &F);
   bool relaxInstruction(MCAsmLayout &Layout, MCRelaxableFragment &IF);
-
-  bool relaxPaddingFragment(MCAsmLayout &Layout, MCPaddingFragment &PF);
-
   bool relaxLEB(MCAsmLayout &Layout, MCLEBFragment &IF);
-
+  bool relaxBoundaryAlign(MCAsmLayout &Layout, MCBoundaryAlignFragment &BF);
   bool relaxDwarfLineAddr(MCAsmLayout &Layout, MCDwarfLineAddrFragment &DF);
   bool relaxDwarfCallFrameFragment(MCAsmLayout &Layout,
                                    MCDwarfCallFrameFragment &DF);
   bool relaxCVInlineLineTable(MCAsmLayout &Layout,
                               MCCVInlineLineTableFragment &DF);
   bool relaxCVDefRange(MCAsmLayout &Layout, MCCVDefRangeFragment &DF);
+  bool relaxPseudoProbeAddr(MCAsmLayout &Layout, MCPseudoProbeAddrFragment &DF);
 
   /// finishLayout - Finalize a layout, including fragment lowering.
   void finishLayout(MCAsmLayout &Layout);
@@ -210,7 +225,14 @@ private:
   handleFixup(const MCAsmLayout &Layout, MCFragment &F, const MCFixup &Fixup);
 
 public:
-  std::vector<std::pair<StringRef, const MCSymbol *>> Symvers;
+  struct Symver {
+    SMLoc Loc;
+    const MCSymbol *Sym;
+    StringRef Name;
+    // True if .symver *, *@@@* or .symver *, *, remove.
+    bool KeepOriginalSym;
+  };
+  std::vector<Symver> Symvers;
 
   /// Construct a new assembler instance.
   //
@@ -275,6 +297,21 @@ public:
     VersionInfo.Minor = Minor;
     VersionInfo.Update = Update;
     VersionInfo.SDKVersion = SDKVersion;
+  }
+
+  const VersionInfoType &getDarwinTargetVariantVersionInfo() const {
+    return DarwinTargetVariantVersionInfo;
+  }
+  void setDarwinTargetVariantBuildVersion(MachO::PlatformType Platform,
+                                          unsigned Major, unsigned Minor,
+                                          unsigned Update,
+                                          VersionTuple SDKVersion) {
+    DarwinTargetVariantVersionInfo.EmitBuildVersion = true;
+    DarwinTargetVariantVersionInfo.TypeOrPlatform.Platform = Platform;
+    DarwinTargetVariantVersionInfo.Major = Major;
+    DarwinTargetVariantVersionInfo.Minor = Minor;
+    DarwinTargetVariantVersionInfo.Update = Update;
+    DarwinTargetVariantVersionInfo.SDKVersion = SDKVersion;
   }
 
   /// Reuse an assembler instance
@@ -439,11 +476,12 @@ public:
 
   void registerSymbol(const MCSymbol &Symbol, bool *Created = nullptr);
 
-  ArrayRef<std::string> getFileNames() { return FileNames; }
+  MutableArrayRef<std::pair<std::string, size_t>> getFileNames() {
+    return FileNames;
+  }
 
   void addFileName(StringRef FileName) {
-    if (!is_contained(FileNames, FileName))
-      FileNames.push_back(FileName);
+    FileNames.emplace_back(std::string(FileName), Symbols.size());
   }
 
   /// Write the necessary bundle padding to \p OS.

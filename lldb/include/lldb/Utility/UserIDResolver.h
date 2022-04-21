@@ -10,6 +10,7 @@
 #define LLDB_UTILITY_USERIDRESOLVER_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include <mutex>
 
@@ -53,4 +54,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // #ifndef LLDB_HOST_USERIDRESOLVER_H
+#endif // LLDB_UTILITY_USERIDRESOLVER_H

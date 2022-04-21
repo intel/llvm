@@ -31,7 +31,7 @@ namespace {
 class SparcDAGToDAGISel : public SelectionDAGISel {
   /// Subtarget - Keep a pointer to the Sparc Subtarget around so that we can
   /// make the right decision when generating code for different targets.
-  const SparcSubtarget *Subtarget;
+  const SparcSubtarget *Subtarget = nullptr;
 public:
   explicit SparcDAGToDAGISel(SparcTargetMachine &tm) : SelectionDAGISel(tm) {}
 
@@ -66,7 +66,7 @@ private:
 }  // end anonymous namespace
 
 SDNode* SparcDAGToDAGISel::getGlobalBaseReg() {
-  unsigned GlobalBaseReg = Subtarget->getInstrInfo()->getGlobalBaseReg(MF);
+  Register GlobalBaseReg = Subtarget->getInstrInfo()->getGlobalBaseReg(MF);
   return CurDAG->getRegister(GlobalBaseReg,
                              TLI->getPointerTy(CurDAG->getDataLayout()))
       .getNode();
@@ -168,8 +168,7 @@ bool SparcDAGToDAGISel::tryInlineAsm(SDNode *N){
   // placement.
 
   SDLoc dl(N);
-  SDValue Glue = N->getGluedNode() ? N->getOperand(NumOps-1)
-                                   : SDValue(nullptr,0);
+  SDValue Glue = N->getGluedNode() ? N->getOperand(NumOps - 1) : SDValue();
 
   SmallVector<bool, 8> OpChanged;
   // Glue node will be appended late.
@@ -221,8 +220,8 @@ bool SparcDAGToDAGISel::tryInlineAsm(SDNode *N){
     assert((i+2 < NumOps) && "Invalid number of operands in inline asm");
     SDValue V0 = N->getOperand(i+1);
     SDValue V1 = N->getOperand(i+2);
-    unsigned Reg0 = cast<RegisterSDNode>(V0)->getReg();
-    unsigned Reg1 = cast<RegisterSDNode>(V1)->getReg();
+    Register Reg0 = cast<RegisterSDNode>(V0)->getReg();
+    Register Reg1 = cast<RegisterSDNode>(V1)->getReg();
     SDValue PairedReg;
     MachineRegisterInfo &MRI = MF->getRegInfo();
 
@@ -231,7 +230,7 @@ bool SparcDAGToDAGISel::tryInlineAsm(SDNode *N){
       // Replace the two GPRs with 1 GPRPair and copy values from GPRPair to
       // the original GPRs.
 
-      unsigned GPVR = MRI.createVirtualRegister(&SP::IntPairRegClass);
+      Register GPVR = MRI.createVirtualRegister(&SP::IntPairRegClass);
       PairedReg = CurDAG->getRegister(GPVR, MVT::v2i32);
       SDValue Chain = SDValue(N,0);
 
@@ -278,7 +277,7 @@ bool SparcDAGToDAGISel::tryInlineAsm(SDNode *N){
 
       // Copy REG_SEQ into a GPRPair-typed VR and replace the original two
       // i32 VRs of inline asm with it.
-      unsigned GPVR = MRI.createVirtualRegister(&SP::IntPairRegClass);
+      Register GPVR = MRI.createVirtualRegister(&SP::IntPairRegClass);
       PairedReg = CurDAG->getRegister(GPVR, MVT::v2i32);
       Chain = CurDAG->getCopyToReg(T1, dl, GPVR, Pair, T1.getValue(1));
 
@@ -380,7 +379,6 @@ SparcDAGToDAGISel::SelectInlineAsmMemoryOperand(const SDValue &Op,
   SDValue Op0, Op1;
   switch (ConstraintID) {
   default: return true;
-  case InlineAsm::Constraint_i:
   case InlineAsm::Constraint_o:
   case InlineAsm::Constraint_m: // memory
    if (!SelectADDRrr(Op, Op0, Op1))

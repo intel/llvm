@@ -1,4 +1,4 @@
-//===------------------------- unwind_06.cpp ------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcxxabi-no-exceptions
+// UNSUPPORTED: no-exceptions
 
 #include <exception>
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+
+// Suppress diagnostics about deprecated volatile operations
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic ignored "-Wvolatile"
+#endif
 
 // Compile with -Os to get compiler uses float registers to hold float variables
 
@@ -24,7 +29,7 @@ volatile int counter;
 double try1(bool v) {
   double a = get(0);
   double b = get(1);
-  for (counter = 100; counter; --counter)
+  for (counter = 100; counter; counter = counter - 1)
     a += get(1) + b;
   if (v) throw 10;
   return get(0)+a+b;
@@ -34,7 +39,7 @@ double try2(bool v) {
   double a = get(0);
   double b = get(1);
   double c = get(2);
-  for (counter = 100; counter; --counter)
+  for (counter = 100; counter; counter = counter - 1)
     a += get(1) + b + c;
   if (v) throw 10;
   return get(0)+a+b+c;
@@ -45,7 +50,7 @@ double try3(bool v) {
   double b = get(1);
   double c = get(2);
   double d = get(3);
-  for (counter = 100; counter; --counter)
+  for (counter = 100; counter; counter = counter - 1)
     a += get(1) + b + c + d;
   if (v) throw 10;
   return get(0)+a+b+c+d;
@@ -57,7 +62,7 @@ double try4(bool v) {
   double c = get(0);
   double d = get(0);
   double e = get(0);
-  for (counter = 100; counter; --counter)
+  for (counter = 100; counter; counter = counter - 1)
     a += get(1) + b+c+d+e;
   if (v) throw 10;
   return get(0)+a+b+c+d+e;
@@ -70,7 +75,7 @@ double try5(bool v) {
   double d = get(0);
   double e = get(0);
   double f = get(0);
-  for (counter = 100; counter; --counter)
+  for (counter = 100; counter; counter = counter - 1)
     a += get(1) + b+c+d+e+f;
   if (v) throw 10;
   return get(0)+a+b+c+d+e+f;
@@ -84,7 +89,7 @@ double try6(bool v) {
   double e = get(0);
   double f = get(0);
   double g = get(0);
-  for (counter = 100; counter; --counter)
+  for (counter = 100; counter; counter = counter - 1)
     a += get(1) + b+c+d+e+f+g;
   if (v) throw 10;
   return get(0)+a+b+c+d+e+f+g;
@@ -99,7 +104,7 @@ double try7(bool v) {
   double f = get(0);
   double g = get(0);
   double h = get(0);
-  for (counter = 100; counter; --counter)
+  for (counter = 100; counter; counter = counter - 1)
     a += get(1) + b+c+d+e+f+g+h;
   if (v) throw 10;
   return get(0)+a+b+c+d+e+f+g+h;
@@ -115,7 +120,7 @@ double try8(bool v) {
   double g = get(0);
   double h = get(0);
   double i = get(0);
-  for (counter = 100; counter; --counter)
+  for (counter = 100; counter; counter = counter - 1)
     a += get(1) + b+c+d+e+f+g+h+i;
   if (v) throw 10;
   return get(0)+a+b+c+d+e+f+g+h+i;
@@ -136,23 +141,9 @@ double foo()
   double g = get(7);
   double h = get(8);
   try {
-    try1(true);    
+    try1(true);
   }
-  catch (int e) {
-  }
-  assert(a == get(1));
-  assert(b == get(2));
-  assert(c == get(3));
-  assert(d == get(4));
-  assert(e == get(5));
-  assert(f == get(6));
-  assert(g == get(7));
-  assert(h == get(8));
-  
-  try {
-    try2(true);    
-  }
-  catch (int e) {
+  catch (int) {
   }
   assert(a == get(1));
   assert(b == get(2));
@@ -162,11 +153,11 @@ double foo()
   assert(f == get(6));
   assert(g == get(7));
   assert(h == get(8));
-  
+
   try {
-    try3(true);    
+    try2(true);
   }
-  catch (int e) {
+  catch (int) {
   }
   assert(a == get(1));
   assert(b == get(2));
@@ -176,11 +167,11 @@ double foo()
   assert(f == get(6));
   assert(g == get(7));
   assert(h == get(8));
-  
+
   try {
-    try4(true);    
+    try3(true);
   }
-  catch (int e) {
+  catch (int) {
   }
   assert(a == get(1));
   assert(b == get(2));
@@ -190,11 +181,11 @@ double foo()
   assert(f == get(6));
   assert(g == get(7));
   assert(h == get(8));
-  
+
   try {
-    try5(true);    
+    try4(true);
   }
-  catch (int e) {
+  catch (int) {
   }
   assert(a == get(1));
   assert(b == get(2));
@@ -204,11 +195,11 @@ double foo()
   assert(f == get(6));
   assert(g == get(7));
   assert(h == get(8));
-  
+
   try {
-    try6(true);    
+    try5(true);
   }
-  catch (int e) {
+  catch (int) {
   }
   assert(a == get(1));
   assert(b == get(2));
@@ -218,11 +209,11 @@ double foo()
   assert(f == get(6));
   assert(g == get(7));
   assert(h == get(8));
-  
+
   try {
-    try7(true);    
+    try6(true);
   }
-  catch (int e) {
+  catch (int) {
   }
   assert(a == get(1));
   assert(b == get(2));
@@ -232,11 +223,25 @@ double foo()
   assert(f == get(6));
   assert(g == get(7));
   assert(h == get(8));
-  
+
   try {
-    try8(true);    
+    try7(true);
   }
-  catch (int e) {
+  catch (int) {
+  }
+  assert(a == get(1));
+  assert(b == get(2));
+  assert(c == get(3));
+  assert(d == get(4));
+  assert(e == get(5));
+  assert(f == get(6));
+  assert(g == get(7));
+  assert(h == get(8));
+
+  try {
+    try8(true);
+  }
+  catch (int) {
   }
   assert(a == get(1));
   assert(b == get(2));
@@ -252,7 +257,7 @@ double foo()
 
 
 
-int main()
-{
+int main(int, char**) {
   foo();
+  return 0;
 }

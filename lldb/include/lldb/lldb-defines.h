@@ -6,22 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_lldb_defines_h_
-#define LLDB_lldb_defines_h_
+#ifndef LLDB_LLDB_DEFINES_H
+#define LLDB_LLDB_DEFINES_H
 
 #include "lldb/lldb-types.h"
-
-#if defined(_WIN32)
-#if defined(EXPORT_LIBLLDB)
-#define LLDB_API __declspec(dllexport)
-#elif defined(IMPORT_LIBLLDB)
-#define LLDB_API __declspec(dllimport)
-#else
-#define LLDB_API
-#endif
-#else // defined (_WIN32)
-#define LLDB_API
-#endif
 
 #if !defined(INT32_MAX)
 #define INT32_MAX 2147483647
@@ -82,6 +70,7 @@
 #define LLDB_REGNUM_GENERIC_ARG8                                               \
   12 // The register that would contain pointer size or less argument 8 (if any)
 /// Invalid value definitions
+#define LLDB_INVALID_STOP_ID 0
 #define LLDB_INVALID_ADDRESS UINT64_MAX
 #define LLDB_INVALID_INDEX32 UINT32_MAX
 #define LLDB_INVALID_IVAR_OFFSET UINT32_MAX
@@ -95,6 +84,7 @@
 #define LLDB_INVALID_SIGNAL_NUMBER INT32_MAX
 #define LLDB_INVALID_OFFSET UINT64_MAX // Must match max of lldb::offset_t
 #define LLDB_INVALID_LINE_NUMBER UINT32_MAX
+#define LLDB_INVALID_COLUMN_NUMBER 0
 #define LLDB_INVALID_QUEUE_ID 0
 
 /// CPU Type definitions
@@ -119,6 +109,7 @@
 #define LLDB_OPT_SET_9 (1U << 8)
 #define LLDB_OPT_SET_10 (1U << 9)
 #define LLDB_OPT_SET_11 (1U << 10)
+#define LLDB_OPT_SET_12 (1U << 11)
 #define LLDB_OPT_SET_FROM_TO(A, B)                                             \
   (((1U << (B)) - 1) ^ (((1U << (A)) - 1) >> 1))
 
@@ -133,15 +124,4 @@
 
 #define UNUSED_IF_ASSERT_DISABLED(x) ((void)(x))
 
-#if defined(__cplusplus)
-
-/// \def DISALLOW_COPY_AND_ASSIGN(TypeName)
-///     Macro definition for easily disallowing copy constructor and
-///     assignment operators in C++ classes.
-#define DISALLOW_COPY_AND_ASSIGN(TypeName)                                     \
-  TypeName(const TypeName &) = delete;                                         \
-  const TypeName &operator=(const TypeName &) = delete
-
-#endif // #if defined(__cplusplus)
-
-#endif // LLDB_lldb_defines_h_
+#endif // LLDB_LLDB_DEFINES_H

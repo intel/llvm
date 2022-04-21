@@ -19,6 +19,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstddef>
@@ -29,23 +30,35 @@ using namespace clang;
 using namespace ento;
 using namespace llvm;
 
-std::vector<StringRef>
-AnalyzerOptions::getRegisteredCheckers(bool IncludeExperimental /* = false */) {
-  static const StringRef StaticAnalyzerChecks[] = {
-#define GET_CHECKERS
-#define CHECKER(FULLNAME, CLASS, HELPTEXT, DOC_URI, IS_HIDDEN)                 \
-  FULLNAME,
-#include "clang/StaticAnalyzer/Checkers/Checkers.inc"
-#undef CHECKER
-#undef GET_CHECKERS
-  };
-  std::vector<StringRef> Result;
-  for (StringRef CheckName : StaticAnalyzerChecks) {
-    if (!CheckName.startswith("debug.") &&
-        (IncludeExperimental || !CheckName.startswith("alpha.")))
-      Result.push_back(CheckName);
+void AnalyzerOptions::printFormattedEntry(
+    llvm::raw_ostream &Out,
+    std::pair<StringRef, StringRef> EntryDescPair,
+    size_t InitialPad, size_t EntryWidth, size_t MinLineWidth) {
+
+  llvm::formatted_raw_ostream FOut(Out);
+
+  const size_t PadForDesc = InitialPad + EntryWidth;
+
+  FOut.PadToColumn(InitialPad) << EntryDescPair.first;
+  // If the buffer's length is greater than PadForDesc, print a newline.
+  if (FOut.getColumn() > PadForDesc)
+    FOut << '\n';
+
+  FOut.PadToColumn(PadForDesc);
+
+  if (MinLineWidth == 0) {
+    FOut << EntryDescPair.second;
+    return;
   }
-  return Result;
+
+  for (char C : EntryDescPair.second) {
+    if (FOut.getColumn() > MinLineWidth && C == ' ') {
+      FOut << '\n';
+      FOut.PadToColumn(PadForDesc);
+      continue;
+    }
+    FOut << C;
+  }
 }
 
 ExplorationStrategyKind

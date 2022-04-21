@@ -8,12 +8,14 @@
 
 // <iomanip>
 
-// T6 setw(int n);
+// <unspecified> setw(int n);
 
 #include <iomanip>
 #include <istream>
 #include <ostream>
 #include <cassert>
+
+#include "test_macros.h"
 
 template <class CharT>
 struct testbuf
@@ -36,6 +38,7 @@ int main(int, char**)
         os << std::setw(10);
         assert(os.width() == 10);
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         testbuf<wchar_t> sb;
         std::wistream is(&sb);
@@ -48,6 +51,7 @@ int main(int, char**)
         os << std::setw(10);
         assert(os.width() == 10);
     }
+#endif
 
   return 0;
 }

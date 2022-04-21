@@ -1,4 +1,4 @@
-//===-- MSVCUndecoratedNameParser.cpp ---------------------------*- C++ -*-===//
+//===-- MSVCUndecoratedNameParser.cpp -------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -72,7 +72,7 @@ MSVCUndecoratedNameParser::MSVCUndecoratedNameParser(llvm::StringRef name) {
 }
 
 bool MSVCUndecoratedNameParser::IsMSVCUndecoratedName(llvm::StringRef name) {
-  return name.find('`') != llvm::StringRef::npos;
+  return name.contains('`');
 }
 
 bool MSVCUndecoratedNameParser::ExtractContextAndIdentifier(

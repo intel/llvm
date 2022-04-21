@@ -1,6 +1,7 @@
 set(SANITIZER_COMMON_LIT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(SANITIZER_COMMON_TEST_DEPS ${SANITIZER_COMMON_LIT_TEST_DEPS})
+
 set(SANITIZER_COMMON_TESTSUITES)
 
 # FIXME(dliew): We should switch to COMPILER_RT_SANITIZERS_TO_BUILD instead of
@@ -57,6 +58,12 @@ foreach(tool ${SUPPORTED_TOOLS})
   if(APPLE)
     darwin_filter_host_archs(${tool_toupper}_SUPPORTED_ARCH TEST_ARCH)
   endif()
+  if(${tool} STREQUAL "asan")
+    list(REMOVE_ITEM TEST_ARCH sparc sparcv9)
+  endif()
+  if(OS_NAME MATCHES "SunOS" AND ${tool} STREQUAL "asan")
+    list(REMOVE_ITEM TEST_ARCH x86_64)
+  endif()
 
   # TODO(dliew): We should iterate over the different
   # Apple platforms, not just macOS.
@@ -65,10 +72,22 @@ foreach(tool ${SUPPORTED_TOOLS})
     set(SANITIZER_COMMON_TEST_TARGET_ARCH ${arch})
     get_test_cc_for_arch(${arch} SANITIZER_COMMON_TEST_TARGET_CC SANITIZER_COMMON_TEST_TARGET_CFLAGS)
     set(CONFIG_NAME ${tool}-${arch}-${OS_NAME})
+
+    # ARM on Linux might use the slow unwinder as default and the unwind table is
+    # required to get a complete stacktrace.
+    if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux" AND NOT ANDROID)
+      list(APPEND SANITIZER_COMMON_TEST_TARGET_CFLAGS -funwind-tables)
+      if(CMAKE_SYSROOT)
+        list(APPEND SANITIZER_COMMON_TEST_TARGET_CFLAGS "--sysroot=${CMAKE_SYSROOT}")
+      endif()
+      string(REPLACE ";" " " SANITIZER_COMMON_TEST_TARGET_CFLAGS
+                             "${SANITIZER_COMMON_TEST_TARGET_CFLAGS}")
+    endif()
+
     configure_lit_site_cfg(
-      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-      ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg)
-    # FIXME(dliew): LSan i386 on Darwin is completly broken right now.
+      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+      ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py)
+    # FIXME(dliew): LSan i386 on Darwin is completely broken right now.
     # so don't run the tests by default.
     if (NOT (CMAKE_SYSTEM_NAME MATCHES "Darwin" AND
              ${tool} STREQUAL "lsan" AND
@@ -82,8 +101,8 @@ endforeach()
 # Unit tests.
 if(COMPILER_RT_INCLUDE_TESTS)
   configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.in
-    ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg)
+    ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg.py)
   # FIXME: support unit test in the android test runner
   if (NOT ANDROID)
     list(APPEND SANITIZER_COMMON_TESTSUITES ${CMAKE_CURRENT_BINARY_DIR}/Unit)

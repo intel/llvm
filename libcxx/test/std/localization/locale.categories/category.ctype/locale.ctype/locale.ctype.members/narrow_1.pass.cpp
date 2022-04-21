@@ -12,8 +12,12 @@
 
 // char narrow(charT c, char dfault) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

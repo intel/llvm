@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Plugins_Process_Windows_DynamicLoaderWindowsDYLD_h_
-#define liblldb_Plugins_Process_Windows_DynamicLoaderWindowsDYLD_h_
+#ifndef LLDB_SOURCE_PLUGINS_DYNAMICLOADER_WINDOWS_DYLD_DYNAMICLOADERWINDOWSDYLD_H
+#define LLDB_SOURCE_PLUGINS_DYNAMICLOADER_WINDOWS_DYLD_DYNAMICLOADERWINDOWSDYLD_H
 
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/lldb-forward.h"
@@ -24,8 +24,8 @@ public:
 
   static void Initialize();
   static void Terminate();
-  static ConstString GetPluginNameStatic();
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "windows-dyld"; }
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static DynamicLoader *CreateInstance(Process *process, bool force);
 
@@ -39,8 +39,7 @@ public:
   lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
                                                   bool stop) override;
 
-  ConstString GetPluginName() override;
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
 protected:
   lldb::addr_t GetLoadAddress(lldb::ModuleSP executable);
@@ -51,4 +50,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_Plugins_Process_Windows_DynamicLoaderWindowsDYLD_h_
+#endif // LLDB_SOURCE_PLUGINS_DYNAMICLOADER_WINDOWS_DYLD_DYNAMICLOADERWINDOWSDYLD_H

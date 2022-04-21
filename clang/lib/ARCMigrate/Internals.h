@@ -9,13 +9,15 @@
 #ifndef LLVM_CLANG_LIB_ARCMIGRATE_INTERNALS_H
 #define LLVM_CLANG_LIB_ARCMIGRATE_INTERNALS_H
 
-#include "clang/ARCMigrate/ARCMT.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Frontend/MigratorOptions.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
 #include <list>
 
 namespace clang {
+  class ASTContext;
   class Sema;
   class Stmt;
 
@@ -152,13 +154,11 @@ public:
   std::vector<SourceLocation> &ARCMTMacroLocs;
   Optional<bool> EnableCFBridgeFns;
 
-  MigrationPass(ASTContext &Ctx, LangOptions::GCMode OrigGCMode,
-                Sema &sema, TransformActions &TA,
-                const CapturedDiagList &capturedDiags,
+  MigrationPass(ASTContext &Ctx, LangOptions::GCMode OrigGCMode, Sema &sema,
+                TransformActions &TA, const CapturedDiagList &capturedDiags,
                 std::vector<SourceLocation> &ARCMTMacroLocs)
-    : Ctx(Ctx), OrigGCMode(OrigGCMode), MigOptions(),
-      SemaRef(sema), TA(TA), CapturedDiags(capturedDiags),
-      ARCMTMacroLocs(ARCMTMacroLocs) { }
+      : Ctx(Ctx), OrigGCMode(OrigGCMode), SemaRef(sema), TA(TA),
+        CapturedDiags(capturedDiags), ARCMTMacroLocs(ARCMTMacroLocs) {}
 
   const CapturedDiagList &getDiags() const { return CapturedDiags; }
 

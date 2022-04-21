@@ -11,10 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "FormatStringParsing.h"
 #include "clang/AST/FormatString.h"
 #include "clang/AST/OSLog.h"
-#include "FormatStringParsing.h"
 #include "clang/Basic/TargetInfo.h"
+#include "llvm/Support/Regex.h"
 
 using clang::analyze_format_string::ArgType;
 using clang::analyze_format_string::FormatStringHandler;
@@ -427,7 +428,7 @@ bool clang::analyze_format_string::ParsePrintfString(FormatStringHandler &H,
       continue;
     // We have a format specifier.  Pass it to the callback.
     if (!H.HandlePrintfSpecifier(FSR.getValue(), FSR.getStart(),
-                                 I - FSR.getStart()))
+                                 I - FSR.getStart(), Target))
       return true;
   }
   assert(I == E && "Format string not exhausted");
@@ -458,6 +459,23 @@ bool clang::analyze_format_string::ParseFormatStringHasSArg(const char *I,
     const analyze_printf::PrintfSpecifier &FS = FSR.getValue();
     // Return true if this a %s format specifier.
     if (FS.getConversionSpecifier().getKind() == ConversionSpecifier::Kind::sArg)
+      return true;
+  }
+  return false;
+}
+
+bool clang::analyze_format_string::parseFormatStringHasFormattingSpecifiers(
+    const char *Begin, const char *End, const LangOptions &LO,
+    const TargetInfo &Target) {
+  unsigned ArgIndex = 0;
+  // Keep looking for a formatting specifier until we have exhausted the string.
+  FormatStringHandler H;
+  while (Begin != End) {
+    const PrintfSpecifierResult &FSR =
+        ParsePrintfSpecifier(H, Begin, End, ArgIndex, LO, Target, false, false);
+    if (FSR.shouldStop())
+      break;
+    if (FSR.hasValue())
       return true;
   }
   return false;
@@ -693,8 +711,8 @@ bool PrintfSpecifier::fixType(QualType QT, const LangOptions &LangOpt,
     CS.setKind(ConversionSpecifier::sArg);
 
     // Disable irrelevant flags
-    HasAlternativeForm = 0;
-    HasLeadingZeroes = 0;
+    HasAlternativeForm = false;
+    HasLeadingZeroes = false;
 
     // Set the long length modifier for wide characters
     if (QT->getPointeeType()->isWideCharType())
@@ -734,8 +752,10 @@ bool PrintfSpecifier::fixType(QualType QT, const LangOptions &LangOpt,
   case BuiltinType::UInt128:
   case BuiltinType::Int128:
   case BuiltinType::Half:
+  case BuiltinType::BFloat16:
   case BuiltinType::Float16:
   case BuiltinType::Float128:
+  case BuiltinType::Ibm128:
   case BuiltinType::ShortAccum:
   case BuiltinType::Accum:
   case BuiltinType::LongAccum:
@@ -766,9 +786,22 @@ bool PrintfSpecifier::fixType(QualType QT, const LangOptions &LangOpt,
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   case BuiltinType::Id:
 #include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   case BuiltinType::Id:
 #include "clang/Basic/OpenCLExtensionTypes.def"
+#define SVE_TYPE(Name, Id, SingletonId) \
+  case BuiltinType::Id:
+#include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
+  case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
+#define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/RISCVVTypes.def"
 #define SIGNED_TYPE(Id, SingletonId)
 #define UNSIGNED_TYPE(Id, SingletonId)
 #define FLOATING_TYPE(Id, SingletonId)
@@ -850,9 +883,9 @@ bool PrintfSpecifier::fixType(QualType QT, const LangOptions &LangOpt,
     CS.setKind(ConversionSpecifier::cArg);
     LM.setKind(LengthModifier::None);
     Precision.setHowSpecified(OptionalAmount::NotSpecified);
-    HasAlternativeForm = 0;
-    HasLeadingZeroes = 0;
-    HasPlusPrefix = 0;
+    HasAlternativeForm = false;
+    HasLeadingZeroes = false;
+    HasPlusPrefix = false;
   }
   // Test for Floating type first as LongDouble can pass isUnsignedIntegerType
   else if (QT->isRealFloatingType()) {
@@ -860,12 +893,12 @@ bool PrintfSpecifier::fixType(QualType QT, const LangOptions &LangOpt,
   }
   else if (QT->isSignedIntegerType()) {
     CS.setKind(ConversionSpecifier::dArg);
-    HasAlternativeForm = 0;
+    HasAlternativeForm = false;
   }
   else if (QT->isUnsignedIntegerType()) {
     CS.setKind(ConversionSpecifier::uArg);
-    HasAlternativeForm = 0;
-    HasPlusPrefix = 0;
+    HasAlternativeForm = false;
+    HasPlusPrefix = false;
   } else {
     llvm_unreachable("Unexpected type");
   }

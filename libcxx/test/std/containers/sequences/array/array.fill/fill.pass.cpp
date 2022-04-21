@@ -13,11 +13,9 @@
 #include <array>
 #include <cassert>
 
-// std::array is explicitly allowed to be initialized with A a = { init-list };.
-// Disable the missing braces warning for this reason.
-#include "disable_missing_braces_warning.h"
+#include "test_macros.h"
 
-int main(int, char**)
+TEST_CONSTEXPR_CXX20 bool tests()
 {
     {
         typedef double T;
@@ -29,6 +27,7 @@ int main(int, char**)
         assert(c[1] == 5.5);
         assert(c[2] == 5.5);
     }
+
     {
         typedef double T;
         typedef std::array<T, 0> C;
@@ -36,6 +35,14 @@ int main(int, char**)
         c.fill(5.5);
         assert(c.size() == 0);
     }
+    return true;
+}
 
-  return 0;
+int main(int, char**)
+{
+    tests();
+#if TEST_STD_VER >= 20
+    static_assert(tests(), "");
+#endif
+    return 0;
 }

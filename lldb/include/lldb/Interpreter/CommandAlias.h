@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CommandAlias_h_
-#define liblldb_CommandAlias_h_
+#ifndef LLDB_INTERPRETER_COMMANDALIAS_H
+#define LLDB_INTERPRETER_COMMANDALIAS_H
 
 #include <memory>
 
@@ -36,11 +36,11 @@ public:
 
   bool WantsCompletion() override;
 
-  int HandleCompletion(CompletionRequest &request) override;
+  void HandleCompletion(CompletionRequest &request) override;
 
-  int HandleArgumentCompletion(
-      CompletionRequest &request,
-      OptionElementVector &opt_element_vector) override;
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override;
 
   Options *GetOptions() override;
 
@@ -81,4 +81,4 @@ private:
 };
 } // namespace lldb_private
 
-#endif // liblldb_CommandAlias_h_
+#endif // LLDB_INTERPRETER_COMMANDALIAS_H

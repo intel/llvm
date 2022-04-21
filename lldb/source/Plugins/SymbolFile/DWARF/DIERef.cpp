@@ -1,4 +1,4 @@
-//===-- DIERef.cpp ----------------------------------------------*- C++ -*-===//
+//===-- DIERef.cpp --------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,22 +7,49 @@
 //===----------------------------------------------------------------------===//
 
 #include "DIERef.h"
-#include "DWARFUnit.h"
-#include "DWARFDebugInfo.h"
-#include "DWARFFormValue.h"
-#include "SymbolFileDWARF.h"
-#include "SymbolFileDWARFDebugMap.h"
+#include "lldb/Utility/DataEncoder.h"
+#include "lldb/Utility/DataExtractor.h"
+#include "llvm/Support/Format.h"
 
-DIERef::DIERef(const DWARFFormValue &form_value) {
-  if (form_value.IsValid()) {
-    DWARFDIE die = form_value.Reference();
-    die_offset = die.GetOffset();
-    if (die) {
-      section = die.GetCU()->GetDebugSection();
-      if (die.GetCU()->GetBaseObjOffset() != DW_INVALID_OFFSET)
-        cu_offset = die.GetCU()->GetBaseObjOffset();
-      else
-        cu_offset = die.GetCU()->GetOffset();
-    }
-  }
+using namespace lldb;
+using namespace lldb_private;
+
+void llvm::format_provider<DIERef>::format(const DIERef &ref, raw_ostream &OS,
+                                           StringRef Style) {
+  if (ref.dwo_num())
+    OS << format_hex_no_prefix(*ref.dwo_num(), 8) << "/";
+  OS << (ref.section() == DIERef::DebugInfo ? "INFO" : "TYPE");
+  OS << "/" << format_hex_no_prefix(ref.die_offset(), 8);
+}
+
+constexpr uint32_t k_dwo_num_mask = 0x3FFFFFFF;
+constexpr uint32_t k_dwo_num_valid_bitmask = (1u << 30);
+constexpr uint32_t k_section_bitmask = (1u << 31);
+
+llvm::Optional<DIERef> DIERef::Decode(const DataExtractor &data,
+                                      lldb::offset_t *offset_ptr) {
+  const uint32_t bitfield_storage = data.GetU32(offset_ptr);
+  uint32_t dwo_num = bitfield_storage & k_dwo_num_mask;
+  bool dwo_num_valid = (bitfield_storage & (k_dwo_num_valid_bitmask)) != 0;
+  Section section = (Section)((bitfield_storage & (k_section_bitmask)) != 0);
+  // DIE offsets can't be zero and if we fail to decode something from data,
+  // it will return 0
+  dw_offset_t die_offset = data.GetU32(offset_ptr);
+  if (die_offset == 0)
+    return llvm::None;
+  if (dwo_num_valid)
+    return DIERef(dwo_num, section, die_offset);
+  else
+    return DIERef(llvm::None, section, die_offset);
+}
+
+void DIERef::Encode(DataEncoder &encoder) const {
+  uint32_t bitfield_storage = m_dwo_num;
+  if (m_dwo_num_valid)
+    bitfield_storage |= k_dwo_num_valid_bitmask;
+  if (m_section)
+    bitfield_storage |= k_section_bitmask;
+  encoder.AppendU32(bitfield_storage);
+  static_assert(sizeof(m_die_offset) == 4, "m_die_offset must be 4 bytes");
+  encoder.AppendU32(m_die_offset);
 }

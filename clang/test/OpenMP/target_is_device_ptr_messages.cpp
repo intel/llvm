@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -std=c++11 -verify -fopenmp -ferror-limit 200 %s
+// RUN: %clang_cc1 -std=c++11 -verify=expected,omp45 -fopenmp -fopenmp-version=45 -ferror-limit 200 %s -Wuninitialized
+// RUN: %clang_cc1 -std=c++11 -verify=expected,omp50 -fopenmp -ferror-limit 200 %s -Wuninitialized
 
-// RUN: %clang_cc1 -std=c++11 -verify -fopenmp-simd -ferror-limit 200 %s
+// RUN: %clang_cc1 -std=c++11 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 -ferror-limit 200 %s -Wuninitialized
+// RUN: %clang_cc1 -std=c++11 -verify=expected,omp50 -fopenmp-simd -ferror-limit 200 %s -Wuninitialized
 struct ST {
   int *a;
 };
@@ -40,7 +42,7 @@ struct SA {
 #pragma omp target is_device_ptr(aa) // OK
     {}
 #pragma omp target is_device_ptr(raa) // OK
-    {}    
+    {}
 #pragma omp target is_device_ptr(e) // expected-error{{expected pointer, array, reference to pointer, or reference to array in 'is_device_ptr clause'}}
     {}
 #pragma omp target is_device_ptr(g) // OK

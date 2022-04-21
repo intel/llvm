@@ -1,7 +1,10 @@
 ; RUN: opt -mtriple armv7-linux-gnueabihf -loop-vectorize -S %s -debug-only=loop-vectorize -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=LINUX
 ; RUN: opt -mtriple armv8-linux-gnu -loop-vectorize -S %s -debug-only=loop-vectorize -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=LINUX
+; RUN: opt -mtriple armv8.1.m-none-eabi -mattr=+mve.fp -loop-vectorize -S %s -debug-only=loop-vectorize -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=MVE
 ; RUN: opt -mtriple armv7-unknwon-darwin -loop-vectorize -S %s -debug-only=loop-vectorize -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=DARWIN
 ; REQUIRES: asserts
+
+target datalayout = "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64"
 
 ; Testing the ability of the loop vectorizer to tell when SIMD is safe or not
 ; regarding IEEE 754 standard.
@@ -11,7 +14,7 @@
 ; are allowed, even without -ffast-math.
 
 ; Integer loops are always vectorizeable
-; CHECK: Checking a loop in "sumi"
+; CHECK: Checking a loop in 'sumi'
 ; CHECK: We can vectorize this loop!
 define void @sumi(i32* noalias nocapture readonly %A, i32* noalias nocapture readonly %B, i32* noalias nocapture %C, i32 %N) {
 entry:
@@ -42,9 +45,11 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Floating-point loops need fast-math to be vectorizeable
-; LINUX: Checking a loop in "sumf"
+; LINUX: Checking a loop in 'sumf'
 ; LINUX: Potentially unsafe FP op prevents vectorization
-; DARWIN: Checking a loop in "sumf"
+; MVE: Checking a loop in 'sumf'
+; MVE: We can vectorize this loop!
+; DARWIN: Checking a loop in 'sumf'
 ; DARWIN: We can vectorize this loop!
 define void @sumf(float* noalias nocapture readonly %A, float* noalias nocapture readonly %B, float* noalias nocapture %C, i32 %N) {
 entry:
@@ -75,7 +80,7 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Integer loops are always vectorizeable
-; CHECK: Checking a loop in "redi"
+; CHECK: Checking a loop in 'redi'
 ; CHECK: We can vectorize this loop!
 define i32 @redi(i32* noalias nocapture readonly %a, i32* noalias nocapture readonly %b, i32 %N) {
 entry:
@@ -108,9 +113,11 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Floating-point loops need fast-math to be vectorizeable
-; LINUX: Checking a loop in "redf"
+; LINUX: Checking a loop in 'redf'
 ; LINUX: Potentially unsafe FP op prevents vectorization
-; DARWIN: Checking a loop in "redf"
+; MVE: Checking a loop in 'redf'
+; MVE: We can vectorize this loop!
+; DARWIN: Checking a loop in 'redf'
 ; DARWIN: We can vectorize this loop!
 define float @redf(float* noalias nocapture readonly %a, float* noalias nocapture readonly %b, i32 %N) {
 entry:
@@ -143,9 +150,9 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Make sure calls that turn into builtins are also covered
-; LINUX: Checking a loop in "fabs"
+; LINUX: Checking a loop in 'fabs'
 ; LINUX: Potentially unsafe FP op prevents vectorization
-; DARWIN: Checking a loop in "fabs"
+; DARWIN: Checking a loop in 'fabs'
 ; DARWIN: We can vectorize this loop!
 define void @fabs(float* noalias nocapture readonly %A, float* noalias nocapture readonly %B, float* noalias nocapture %C, i32 %N) {
 entry:
@@ -171,7 +178,7 @@ for.end:                                          ; preds = %for.body, %entry
 }
 
 ; Integer loops are always vectorizeable
-; CHECK: Checking a loop in "sumi_fast"
+; CHECK: Checking a loop in 'sumi_fast'
 ; CHECK: We can vectorize this loop!
 define void @sumi_fast(i32* noalias nocapture readonly %A, i32* noalias nocapture readonly %B, i32* noalias nocapture %C, i32 %N) {
 entry:
@@ -202,7 +209,7 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Floating-point loops can be vectorizeable with fast-math
-; CHECK: Checking a loop in "sumf_fast"
+; CHECK: Checking a loop in 'sumf_fast'
 ; CHECK: We can vectorize this loop!
 define void @sumf_fast(float* noalias nocapture readonly %A, float* noalias nocapture readonly %B, float* noalias nocapture %C, i32 %N) {
 entry:
@@ -233,7 +240,7 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Integer loops are always vectorizeable
-; CHECK: Checking a loop in "redi_fast"
+; CHECK: Checking a loop in 'redi_fast'
 ; CHECK: We can vectorize this loop!
 define i32 @redi_fast(i32* noalias nocapture readonly %a, i32* noalias nocapture readonly %b, i32 %N) {
 entry:
@@ -266,7 +273,7 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Floating-point loops can be vectorizeable with fast-math
-; CHECK: Checking a loop in "redf_fast"
+; CHECK: Checking a loop in 'redf_fast'
 ; CHECK: We can vectorize this loop!
 define float @redf_fast(float* noalias nocapture readonly %a, float* noalias nocapture readonly %b, i32 %N) {
 entry:
@@ -299,7 +306,7 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Make sure calls that turn into builtins are also covered
-; CHECK: Checking a loop in "fabs_fast"
+; CHECK: Checking a loop in 'fabs_fast'
 ; CHECK: We can vectorize this loop!
 define void @fabs_fast(float* noalias nocapture readonly %A, float* noalias nocapture readonly %B, float* noalias nocapture %C, i32 %N) {
 entry:
@@ -326,5 +333,5 @@ for.end:                                          ; preds = %for.body, %entry
 
 declare float @fabsf(float)
 
-attributes #1 = { nounwind readnone "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a8" "target-features"="+dsp,+neon,+vfp3" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind readnone "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a8" "target-features"="+dsp,+neon,+vfp3" "unsafe-fp-math"="true" "use-soft-float"="false" }
+attributes #1 = { nounwind readnone "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a8" "target-features"="+dsp,+neon,+vfp3" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { nounwind readnone "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a8" "target-features"="+dsp,+neon,+vfp3" "unsafe-fp-math"="true" "use-soft-float"="false" }

@@ -11,11 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/GCMetadata.h"
-#include "llvm/CodeGen/GCStrategy.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
@@ -24,9 +22,8 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/InitializePasses.h"
+#include "llvm/MC/MCContext.h"
 
 using namespace llvm;
 
@@ -56,7 +53,6 @@ public:
 /// GCMetadata record for each function.
 class GCMachineCodeAnalysis : public MachineFunctionPass {
   GCFunctionInfo *FI;
-  MachineModuleInfo *MMI;
   const TargetInstrInfo *TII;
 
   void FindSafePoints(MachineFunction &MF);
@@ -86,6 +82,7 @@ INITIALIZE_PASS_END(LowerIntrinsics, "gc-lowering", "GC Lowering", false, false)
 FunctionPass *llvm::createGCLoweringPass() { return new LowerIntrinsics(); }
 
 char LowerIntrinsics::ID = 0;
+char &llvm::GCLoweringID = LowerIntrinsics::ID;
 
 LowerIntrinsics::LowerIntrinsics() : FunctionPass(ID) {
   initializeLowerIntrinsicsPass(*PassRegistry::getPassRegistry());
@@ -105,9 +102,9 @@ void LowerIntrinsics::getAnalysisUsage(AnalysisUsage &AU) const {
 bool LowerIntrinsics::doInitialization(Module &M) {
   GCModuleInfo *MI = getAnalysisIfAvailable<GCModuleInfo>();
   assert(MI && "LowerIntrinsics didn't require GCModuleInfo!?");
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && I->hasGC())
-      MI->getFunctionInfo(*I); // Instantiate the GC strategy.
+  for (Function &F : M)
+    if (!F.isDeclaration() && F.hasGC())
+      MI->getFunctionInfo(F); // Instantiate the GC strategy.
 
   return false;
 }
@@ -159,10 +156,9 @@ static bool InsertRootInitializers(Function &F, ArrayRef<AllocaInst *> Roots) {
 
   for (AllocaInst *Root : Roots)
     if (!InitedRoots.count(Root)) {
-      StoreInst *SI = new StoreInst(
+      new StoreInst(
           ConstantPointerNull::get(cast<PointerType>(Root->getAllocatedType())),
-          Root);
-      SI->insertAfter(Root);
+          Root, Root->getNextNode());
       MadeChange = true;
     }
 
@@ -188,14 +184,14 @@ bool LowerIntrinsics::runOnFunction(Function &F) {
 /// need to be able to ensure each root has been initialized by the point the
 /// first safepoint is reached.  This really should have been done by the
 /// frontend, but the old API made this non-obvious, so we do a potentially
-/// redundant store just in case.  
+/// redundant store just in case.
 bool LowerIntrinsics::DoLowering(Function &F, GCStrategy &S) {
   SmallVector<AllocaInst *, 32> Roots;
 
   bool MadeChange = false;
-  for (BasicBlock &BB : F) 
-    for (BasicBlock::iterator II = BB.begin(), E = BB.end(); II != E;) {
-      IntrinsicInst *CI = dyn_cast<IntrinsicInst>(II++);
+  for (BasicBlock &BB : F)
+    for (Instruction &I : llvm::make_early_inc_range(BB)) {
+      IntrinsicInst *CI = dyn_cast<IntrinsicInst>(&I);
       if (!CI)
         continue;
 
@@ -249,7 +245,6 @@ GCMachineCodeAnalysis::GCMachineCodeAnalysis() : MachineFunctionPass(ID) {}
 void GCMachineCodeAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   MachineFunctionPass::getAnalysisUsage(AU);
   AU.setPreservesAll();
-  AU.addRequired<MachineModuleInfo>();
   AU.addRequired<GCModuleInfo>();
 }
 
@@ -273,16 +268,15 @@ void GCMachineCodeAnalysis::VisitCallPoint(MachineBasicBlock::iterator CI) {
 
 void GCMachineCodeAnalysis::FindSafePoints(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF)
-    for (MachineBasicBlock::iterator MI = MBB.begin(), ME = MBB.end();
-         MI != ME; ++MI)
-      if (MI->isCall()) {
+    for (MachineInstr &MI : MBB)
+      if (MI.isCall()) {
         // Do not treat tail or sibling call sites as safe points.  This is
         // legal since any arguments passed to the callee which live in the
         // remnants of the callers frame will be owned and updated by the
         // callee if required.
-        if (MI->isTerminator())
+        if (MI.isTerminator())
           continue;
-        VisitCallPoint(MI);
+        VisitCallPoint(&MI);
       }
 }
 
@@ -296,9 +290,12 @@ void GCMachineCodeAnalysis::FindStackOffsets(MachineFunction &MF) {
     if (MF.getFrameInfo().isDeadObjectIndex(RI->Num)) {
       RI = FI->removeStackRoot(RI);
     } else {
-      unsigned FrameReg; // FIXME: surely GCRoot ought to store the
+      Register FrameReg; // FIXME: surely GCRoot ought to store the
                          // register that the offset is from?
-      RI->StackOffset = TFI->getFrameIndexReference(MF, RI->Num, FrameReg);
+      auto FrameOffset = TFI->getFrameIndexReference(MF, RI->Num, FrameReg);
+      assert(!FrameOffset.getScalable() &&
+             "Frame offsets with a scalable component are not supported");
+      RI->StackOffset = FrameOffset.getFixed();
       ++RI;
     }
   }
@@ -310,15 +307,14 @@ bool GCMachineCodeAnalysis::runOnMachineFunction(MachineFunction &MF) {
     return false;
 
   FI = &getAnalysis<GCModuleInfo>().getFunctionInfo(MF.getFunction());
-  MMI = &getAnalysis<MachineModuleInfo>();
   TII = MF.getSubtarget().getInstrInfo();
 
   // Find the size of the stack frame.  There may be no correct static frame
   // size, we use UINT64_MAX to represent this.
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
-  const bool DynamicFrameSize = MFI.hasVarSizedObjects() ||
-    RegInfo->needsStackRealignment(MF);
+  const bool DynamicFrameSize =
+      MFI.hasVarSizedObjects() || RegInfo->hasStackRealignment(MF);
   FI->setFrameSize(DynamicFrameSize ? UINT64_MAX : MFI.getStackSize());
 
   // Find all safe points.

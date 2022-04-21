@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // <deque>
 
 // void push_back(const value_type& x);
 
 #include <deque>
+#include "test_macros.h"
 #include "test_allocator.h"
 #include <cassert>
 
@@ -85,11 +86,12 @@ int main(int, char**)
     }
 
     {
+    test_allocator_statistics alloc_stats;
     typedef std::deque<CMyClass, test_allocator<CMyClass> > C;
-    C vec;
-    C vec2(vec);
+    C vec((test_allocator<CMyClass>(&alloc_stats)));
+    C vec2(vec, test_allocator<CMyClass>(&alloc_stats));
 
-    C::allocator_type::throw_after = 1;
+    alloc_stats.throw_after = 1;
     try {
         vec.push_back(instance);
         assert(false);

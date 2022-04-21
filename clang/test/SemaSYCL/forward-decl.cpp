@@ -1,30 +1,27 @@
-// RUN: %clang_cc1 -x c++ -DNOVIRTUAL -fsycl-is-device -std=c++11 -fsyntax-only -verify -pedantic %s
-// RUN: %clang_cc1 -x c++ -DVIRTUAL -fsycl-is-device -std=c++11 -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only -verify -pedantic %s
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  kernelFunc();
-}
+// expected-no-diagnostics
+
+#include "sycl.hpp"
+
+sycl::queue deviceQueue;
 
 int main() {
-#ifdef NOVIRTUAL
-  kernel_single_task<class kernel_function_1>([]() {
-      // expected-no-diagnostics
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_function>([]() {
       class Foo *F;
-  });
-#elif VIRTUAL
-  kernel_single_task<class kernel_function_2>([]() {
-      // expected-error@+2{{No class with a vtable can be used in a SYCL kernel or any code included in the kernel}}
-      // expected-note@+1{{used here}}
       class Boo {
       public:
         virtual int getBoo() { return 42; }
       };
+    });
   });
 
-  kernel_single_task<class kernel_function_3>([]() {
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_function_2>([]() {
       class Boo *B;
+    });
   });
-#endif // VIRTUAL
+
   return 0;
 }

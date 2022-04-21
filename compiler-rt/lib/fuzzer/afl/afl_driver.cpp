@@ -43,6 +43,7 @@ If 1, close stdout at startup. If 2 close stderr; if 3 close both.
 */
 #include <assert.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,31 +60,21 @@ If 1, close stdout at startup. If 2 close stderr; if 3 close both.
 #define LIBFUZZER_APPLE 0
 #define LIBFUZZER_NETBSD 0
 #define LIBFUZZER_FREEBSD 0
-#define LIBFUZZER_OPENBSD 0
 #elif __APPLE__
 #define LIBFUZZER_LINUX 0
 #define LIBFUZZER_APPLE 1
 #define LIBFUZZER_NETBSD 0
 #define LIBFUZZER_FREEBSD 0
-#define LIBFUZZER_OPENBSD 0
 #elif __NetBSD__
 #define LIBFUZZER_LINUX 0
 #define LIBFUZZER_APPLE 0
 #define LIBFUZZER_NETBSD 1
 #define LIBFUZZER_FREEBSD 0
-#define LIBFUZZER_OPENBSD 0
 #elif __FreeBSD__
 #define LIBFUZZER_LINUX 0
 #define LIBFUZZER_APPLE 0
 #define LIBFUZZER_NETBSD 0
 #define LIBFUZZER_FREEBSD 1
-#define LIBFUZZER_OPENBSD 0
-#elif __OpenBSD__
-#define LIBFUZZER_LINUX 0
-#define LIBFUZZER_APPLE 0
-#define LIBFUZZER_NETBSD 0
-#define LIBFUZZER_FREEBSD 0
-#define LIBFUZZER_OPENBSD 1
 #else
 #error "Support for your platform has not been implemented"
 #endif
@@ -110,7 +101,7 @@ static uint8_t AflInputBuf[kMaxAflInputSize];
 
 // Use this optionally defined function to output sanitizer messages even if
 // user asks to close stderr.
-__attribute__((weak)) extern "C" void __sanitizer_set_report_fd(void *);
+extern "C" __attribute__((weak)) void __sanitizer_set_report_fd(void *);
 
 // Keep track of where stderr content is being written to, so that
 // dup_and_close_stderr can use the correct one.

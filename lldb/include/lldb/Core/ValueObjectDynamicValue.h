@@ -6,36 +6,35 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObjectDynamicValue_h_
-#define liblldb_ValueObjectDynamicValue_h_
+#ifndef LLDB_CORE_VALUEOBJECTDYNAMICVALUE_H
+#define LLDB_CORE_VALUEOBJECTDYNAMICVALUE_H
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Utility/ConstString.h"
-#include "lldb/Utility/SharingPtr.h"
 #include "lldb/lldb-defines.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private-enumerations.h"
 
-#include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class DataExtractor;
 class Declaration;
 class Status;
 
-// A ValueObject that represents memory at a given address, viewed as some
-// set lldb type.
+/// A ValueObject that represents memory at a given address, viewed as some
+/// set lldb type.
 class ValueObjectDynamicValue : public ValueObject {
 public:
-  ~ValueObjectDynamicValue() override;
+  ~ValueObjectDynamicValue() = default;
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   ConstString GetTypeName() override;
 
@@ -68,14 +67,6 @@ public:
   }
 
   lldb::ValueObjectSP GetStaticValue() override { return m_parent->GetSP(); }
-
-  void SetOwningSP(lldb::ValueObjectSP &owning_sp) {
-    if (m_owning_valobj_sp == owning_sp)
-      return;
-
-    assert(m_owning_valobj_sp.get() == nullptr);
-    m_owning_valobj_sp = owning_sp;
-  }
 
   bool SetValueFromCString(const char *value_str, Status &error) override;
 
@@ -118,7 +109,6 @@ protected:
 
   Address m_address; ///< The variable that this value object is based upon
   TypeAndOrName m_dynamic_type_info; // We can have a type_sp or just a name
-  lldb::ValueObjectSP m_owning_valobj_sp;
   lldb::DynamicValueType m_use_dynamic;
   TypeImpl m_type_impl;
 
@@ -128,9 +118,11 @@ private:
   ValueObjectDynamicValue(ValueObject &parent,
                           lldb::DynamicValueType use_dynamic);
 
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectDynamicValue);
+  ValueObjectDynamicValue(const ValueObjectDynamicValue &) = delete;
+  const ValueObjectDynamicValue &
+  operator=(const ValueObjectDynamicValue &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObjectDynamicValue_h_
+#endif // LLDB_CORE_VALUEOBJECTDYNAMICVALUE_H

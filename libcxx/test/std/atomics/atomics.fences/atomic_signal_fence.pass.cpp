@@ -5,14 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: libcpp-has-no-threads
 
 // <atomic>
 
 // void atomic_signal_fence(memory_order m);
 
 #include <atomic>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

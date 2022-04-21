@@ -13,23 +13,20 @@
 
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUPALMETADATA_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUPALMETADATA_H
-
-#include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MsgPackDocument.h"
-#include <map>
 
 namespace llvm {
 
-class AMDGPUTargetStreamer;
-class formatted_raw_ostream;
-class MCStreamer;
+class MachineFunction;
 class Module;
+class StringRef;
 
 class AMDGPUPALMetadata {
   unsigned BlobType = 0;
   msgpack::Document MsgPackDoc;
   msgpack::DocNode Registers;
   msgpack::DocNode HwStages;
+  msgpack::DocNode ShaderFunctions;
 
 public:
   // Read the amdgpu.pal.metadata supplied by the frontend, ready for
@@ -72,6 +69,10 @@ public:
   // the shader stage to determine the number of vgprs to allocate.
   void setNumUsedVgprs(unsigned CC, unsigned Val);
 
+  // Set the number of used agprs in the metadata. This is an optional advisory
+  // record for logging etc;
+  void setNumUsedAgprs(unsigned CC, unsigned Val);
+
   // Set the number of used sgprs in the metadata. This is an optional advisory
   // record for logging etc; wave dispatch actually uses the rsrc1 register for
   // the shader stage to determine the number of sgprs to allocate.
@@ -79,6 +80,28 @@ public:
 
   // Set the scratch size in the metadata.
   void setScratchSize(unsigned CC, unsigned Val);
+
+  // Set the stack frame size of a function in the metadata.
+  void setFunctionScratchSize(const MachineFunction &MF, unsigned Val);
+
+  // Set the amount of LDS used in bytes in the metadata. This is an optional
+  // advisory record for logging etc; wave dispatch actually uses the rsrc1
+  // register for the shader stage to determine the amount of LDS to allocate.
+  void setFunctionLdsSize(const MachineFunction &MF, unsigned Val);
+
+  // Set the number of used vgprs in the metadata. This is an optional advisory
+  // record for logging etc; wave dispatch actually uses the rsrc1 register for
+  // the shader stage to determine the number of vgprs to allocate.
+  void setFunctionNumUsedVgprs(const MachineFunction &MF, unsigned Val);
+
+  // Set the number of used sgprs in the metadata. This is an optional advisory
+  // record for logging etc; wave dispatch actually uses the rsrc1 register for
+  // the shader stage to determine the number of sgprs to allocate.
+  void setFunctionNumUsedSgprs(const MachineFunction &MF, unsigned Val);
+
+  // Set the hardware register bit in PAL metadata to enable wave32 on the
+  // shader of the given calling convention.
+  void setWave32(unsigned CC);
 
   // Emit the accumulated PAL metadata as asm directives.
   // This is called from AMDGPUTargetAsmStreamer::Finish().
@@ -91,7 +114,7 @@ public:
   const char *getVendor() const;
 
   // Get .note record type of metadata blob to be emitted:
-  // ELF::NT_AMD_AMDGPU_PAL_METADATA (legacy key=val format), or
+  // ELF::NT_AMD_PAL_METADATA (legacy key=val format), or
   // ELF::NT_AMDGPU_METADATA (MsgPack format), or
   // 0 (no PAL metadata).
   unsigned getType() const;
@@ -106,6 +129,9 @@ public:
   // Set legacy PAL metadata format.
   void setLegacy();
 
+  // Erase all PAL metadata.
+  void reset();
+
 private:
   // Return whether the blob type is legacy PAL metadata.
   bool isLegacy() const;
@@ -115,6 +141,15 @@ private:
 
   // Get (create if necessary) the registers map.
   msgpack::MapDocNode getRegisters();
+
+  // Reference (create if necessary) the node for the shader functions map.
+  msgpack::DocNode &refShaderFunctions();
+
+  // Get (create if necessary) the shader functions map.
+  msgpack::MapDocNode getShaderFunctions();
+
+  // Get (create if necessary) a function in the shader functions map.
+  msgpack::MapDocNode getShaderFunction(StringRef Name);
 
   // Get (create if necessary) the .hardware_stages entry for the given calling
   // convention.

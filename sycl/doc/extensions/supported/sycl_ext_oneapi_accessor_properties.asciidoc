@@ -1,0 +1,498 @@
+= SYCL_ONEAPI_accessor_properties
+
+== Introduction
+This extension introduces a variant of property_list, accessor_property_list, that accepts compile-time-constant properties, 
+adds accessor constructors that take this new property list and modifies accessor to be templated on its accessor_property_list.  
+The goal of these changes is to enable information about properties to propagate to the device compiler and thereby enable additional optimization of kernel code. 
+This extension introduces two new compile-time-constant accessor properties that make use of this mechanism: no_alias and no_offset.  
+
+== Contributors
+Joe Garvey, Intel +
+Roland Schulz, Intel +
+Ilya Burylov, Intel +
+Michael Kinsner, Intel +
+John Pennycook, Intel +
+Jessica Davies, Intel
+
+== Notice
+Copyright (c) 2019-2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft - *DO NOT SHIP*
+
+== Version
+
+Built On: {docdate} +
+Revision: 3
+
+== Dependencies
+
+This extension is written against the SYCL 2020 pre-provisional specification.  
+
+== Overview
+
+The accessor class is a key vehicle through which compile-time-constant information about a kernel argument can be passed to a SYCL device compiler.  
+This class already has many template parameters and, if left unchecked, that number will continue to grow as vendors add template parameters through their own extensions.
+The accessor constructors already take a property_list argument through which a user can pass additional optimization hints or directives that seems intended to resolve this scalability problem,
+but the properties passed do not affect the type of the property_list or of the accessor and thus they can't be reliably determined at compile time.  
+This extension resolves this difficiency by introducing a mechanism for annotating additional compile-time-constant information on accessors through a list of properties.  
+The goals of this extension are:
+
+. Enable compile-time-constant properties to be applied to an accessor
+. Preserve the brevity of accessor construction that was introduced in SYCL 2020
+. Achieve both of these in a scalable way that allows vendors to easily add their own new properties
+
+To these ends, this extension introduces accessor_property_list, a list of properties that is templated on the types of its properties.  
+It adds accessor constructors that take an accessor_property_list instead of a property_list and it templates accessor on the type of its accessor_property_list.
+It introduces a new property-querying struct to determine if a particular property is compile-time constant.
+And it requires that accessors and accessor_property_lists are implicitly convertible to other accessors and accessor_property_lists with the same compile-time-constant properties.  
+
+Adding a new compile-time-constant property consists of adding a class for it, ensuring that the appropriate property functions, including the new is_compile_time_property struct, are specialized for the new property and adding a global variable that is an instance of the property.    
+
+This extension introduces two compile-time-constant properties: no_offset and no_alias. 
+no_offset indicates that the corresponding accessor will never contain an offset.  
+no_alias indicates that all modifications to the memory locations accessed (directly or indirectly) by this accessor, that occur during kernel execution, will be done through this accessor (directly or indirectly) and no other accessor or USM pointer in the kernel.
+
+=== Examples
+Due to type deduction, users should rarely need to specify the template parameters of accessor_property_list or accessor directly.  
+For example, declaring a read/write accessor for buffer B and handler h will remain:
+
+```c++
+accessor A1(B, h); // A default empty property_list is used
+```
+
+An accessor that has the the no_alias property can be created as follows:
+
+```c++
+accessor A2(B, h, accessor_property_list{no_alias});
+```
+
+Here are some examples of legal and illegal conversions:
+
+```c++
+accessor A2(B, h, accessor_property_list{no_alias});
+accessor A3(B, h, accessor_property_list{no_alias, no_init});
+accessor A4(B, h, accessor_property_list{no_alias, no_offset});
+accessor A5(B, h, accessor_property_list{no_offset, no_alias});
+A2 = A3; // Legal because no_init is a runtime property and A2 and A3 otherwise have the same properties
+A3 = A2; // Legal for the same reasons as the previous line
+A2 = A4; // Illegal as A2 doesn't have the compile-time-constant property no_offset
+A5 = A4; // Legal as the order of properties doesn't matter
+```
+
+Writing a function that takes an accessor does not requiring specifying the details of the accessor_property_list parameter but it is possible
+to restrict accessors to only those with specific compile-time properties:
+
+```c++
+template<typename ... accessor_args>
+void my_func3(accessor<accessor_args...> a);
+
+template<typename ... accessor_args>
+std::enable_if_t<accessor<accessor_args...>::has_property<property::no_alias>()> my_func4(accessor<accessor_args...> a);
+...
+my_func3(accessor{b, h, accessor_property_list{no_alias}}); // Legal.  my_func3 accepts any properties
+my_func4(accessor{b, h, accessor_property_list{no_alias}}); // Legal.  my_func4 requires no_alias
+my_func4(accessor{b, h, accessor_property_list{no_offset}}); // Illegal.  my_func4 requires no_alias
+my_func4(accessor{b, h, accessor_property_list{no_offset, no_alias}}); // Legal.  Other properties can also be specified.  
+```
+
+== Modifications to the SYCL 2020 Pre-Provisional Specification
+
+=== Section 4.5.5 Properties
+
+Add the following new paragraphs:
+
+Accessor also has constructors that, instead of a property_list, accept an accessor_property_list as an argument.  
+An accessor_property_list can contain any property that a property_list can contain as well as compile-time-constant properties.
+accessor_property_list is a class template so its properties can influence its type.  
+Similarly, accessor is templated on an accessor_property_list or property_list and thus its properties can influence its type.  
+
+Like a run time property, a compile-time-constant property is represented by a class.  
+Unlike runtime properties, an instance of a compile time property is not necessarily an object of that class but rather is an object of an unspecified class.
+While run time properties can define convenience global variables to faciliate property_list construction, 
+a compile-time-constant property must define such a (possibly templated) global variable and its use is the only defined way to construct a property_list containing that property.  
+An object of the unspecified property instance class is returned by the get_property function for compile-time-constant properties 
+and constexpr equality and inequality operators are defined so that the result of get_property can be compared with the global object.  
+This allows template parameters of the property instance class to fulfill the same role as arguments for run time properties.
+In the same way that two different run time properties of the same type cannot be applied to the same object, two compile-time-constant properties of the same type cannot be applied to the same object even if their underyling property instance classes are different types.  
+
+NOTE: That last sentence isn't actually explicitly stated in the core spec but it is assumed by the properties interface.  
+
+=== Section 4.5.5.1 Properties interface
+
+Replace the second paragraph with:
+
+A synopsis of the common properties interface, the SYCL property_list class, the SYCL accessor_property_list class template and the SYCL property classes is provided below. 
+The member functions of the common properties interface are listed in Table 4.6. 
+The constructors of the SYCL property_list class are listed in Table 4.7.  
+Free functions in the ext::oneapi::property namespace are listed in Table 4.7a.  
+The constructors of the accessor_property_list class are listed in Table 4.7b.  
+Two accessor_property_lists which were created from the same set of compile-time-constant properties must either have an identical type or be convertible regardless of their runtime properties.  
+Accessor property lists with no compile-time-constant properties must be convertible to property_lists and vice versa.  
+
+In the code listing replace the section describing the common interface of the runtime classes with the following: 
+
+```c++
+class T {
+    ...
+    
+    // Enabled only when propertyT is a run time property
+    template<typename propertyT>
+    bool has_property() const;
+    
+    // Enabled only when propertyT is a compile time property
+    template<typename propertyT>
+    static constexpr bool has_property();
+    
+    // Enabled only when propertyT is a run time property
+    template<typename propertyT>
+    propertyT get_property() const;
+    
+    // Enabled only when propertyT is a compile time property
+    // The return type is an unspecified internal class used to represent instances of propertyT 
+    template<typename propertyT>
+    static constexpr /*unspecified*/ get_property();
+    ...
+};
+```
+
+Add a new conversion operator to the property_list class as follows:
+
+```c++
+class property_list {
+    public:
+        template<typename... propertyTN>
+        property_list(propertyTN... props);
+        
+        // Available only when propertyTN contains no compile-time-constant properties
+        template<typename... propertyTN>
+        operator ext::oneapi::accessor_property_list<propertyTN...>() const;
+};
+```
+
+At the end of the listing add the new property utility struct, equality and inequality operators for compile-time-constant properties and the accessor_property_list class template as follows:
+
+```c++
+namespace ext {
+namespace oneapi {
+
+// New struct for querying whether a class represents a compile-time-constant property
+template<typename propertyT>
+struct is_compile_time_property;
+
+// Available only when T1 and T2 are instantiations of the same property instance class template
+template<typename T1, typename T2>
+constexpr bool operator==(const T1 &lhs, const T2 &rhs);
+
+// Available only when T1 and T2 are instantiations of the same property instance class template
+template<typename T1, typename T2>
+constexpr bool operator!=(const T1 &lhs, const T2 &rhs);
+
+template<typename...properties>
+class accessor_property_list {
+    public:
+        template<typename ... propertyTs>
+        accessor_property_list(propertyTs... props);
+    
+        // Available only when properties... contains no compile-time-constant properties
+        operator property_list() const;
+};
+} // namespace oneapi
+} // namespace ext
+```
+
+NOTE: Implementations will need either a conversion function or a deduction guide to satisfy the requirement that accessor_property_lists which were created from the same set of compile-time-constant properties must either have an identical type or be convertible.
+
+Add a row to Table 4.5: Traits for properties as follows:
+
+--
+[options="header"]
+|====
+| Member function | Description
+a|
+```c++
+template<typename propertyT>
+struct is_compile_time_property;
+``` | An explicit specialization of is_compile_time_property that inherits from std::true_type must be provided for each compile-time constant property, where propertyT is the class defining the property.
+All other specializations of is_compile_time_property must inherit from std::false_type.
+|====
+--
+
+Replace Table 4.6: Common member functions of the SYCL property interface with the following:
+
+--
+[options="header"]
+|====
+| Member function | Description
+a|
+```c++
+template<typename propertyT>
+bool has_property() const;
+``` | Returns true if T was constructed with the property specified by propertyT.  Returns false if it was not.  
+Available only if propertyT is not a compile-time-constant property.  
+a|
+```c++
+template<typename propertyT>
+static constexpr bool has_property();
+``` | Returns true if T was constructed with the property specified by propertyT.  Returns false if it was not.  
+Available only if propertyT is a compile-time-constant property.  
+a|
+```c++
+template<typename propertyT>
+propertyT get_property() const;
+``` | Returns a copy of the property of type propertyT that T was constructed with. 
+Must throw an exception with the errc::invalid_object_error error code if T was not constructed with the propertyT property.
+Available only if propertyT is not a compile-time-constant property.
+a|
+```c++
+template<typename propertyT>
+static constexpr /* unspecified */ get_property();
+``` | Returns a newly created instance of the class used to represent instances of property propertyT with the same template parameters as the instance used to construct T.  
+Must produce a compile error if T was not constructed with the propertyT property.
+Available only if propertyT is a compile-time-constant property.
+|===
+--
+
+Add a new table, Table 4.7a: Free functions in the ext::oneapi::property namespace as follows:
+
+--
+[options="header"]
+|====
+| Function | Description
+a|
+```c++
+template<typename T1, typename T2>
+constexpr bool operator==(const T1 &lhs, const T2 &rhs);
+``` | Returns true if T1 and T2 are the same type, false otherwise.  Available only when T1 and T2 are instantiations of the same compile-time-constant property instance class template.  
+a|
+```c++
+template<typename T1, typename T2>
+constexpr bool operator!=(const T1 &lhs, const T2 &rhs);
+``` | Returns false if T1 and T2 are the same type, true otherwise.  Available only when T1 and T2 are instantiations of the same compile-time-constant property instance class template.  
+|===
+--
+
+Add a new table, Table 4.7b: Constructors of the accessor_property_list class as follows:
+
+--
+[options="header"]
+|====
+| Constructor | Description
+a|
+```c++
+template<typename ... propertyTs>
+accessor_property_list(propertyTs... props);
+``` | Available only when each type in propertyTs represent an instance of a property.  
+Construct an accessor_property_list with zero or more properties.  This constructor can accept both runtime and compile-time-constant properties. 
+|===
+--
+
+=== Section 4.7.6 Accessors
+
+Introduce a new template parameter to the accessor class template at the end of the list:
+
+* An accessor_property_list class template to encode the compile-time-constant properties that this accessor was constructed with.   
+If two accessor specializations differ only in their property_listT template parameters and those property_listT types are implicitly convertible then the accessor specializations must be implicitly convertible.  
+
+=== Section 4.7.6.6 Accessor declaration
+
+Modify the accessor declaration to add an additional template parameter as follows:
+
+```c++
+namespace sycl {
+template <typename dataT,
+    int dimensions = 1,
+    access_mode accessmode =
+        (std::is_const_v<dataT> ? access_mode::read
+                                : access_mode::read_write),
+    target accessTarget = target::global_buffer,
+    access::placeholder isPlaceholder = access::placeholder::false_t, // Deprecated in SYCL 2020
+    typename property_listT = accessor_property_list<>
+>
+class accessor;
+...
+```
+
+=== Section 4.7.6.8 Implicit accessor conversions
+
+At the end of this section, add the following:
+
+Any accessor types that are identical except for their non-compile-time-constant properties must either be the same type or be implicitly convertible to one another.
+
+=== Section 4.7.6.9.1 Device buffer accessor interface
+Modify the code listing to introduce an additional template parameter:
+
+```c++
+namespace sycl {
+template <typename dataT,
+          int dimensions,
+          access::mode accessmode,
+          access::target accessTarget,
+          access::placeholder isPlaceholder,
+          typename property_listT = accessor_property_list<>>
+class accessor {
+...
+```
+
+Modify the code listing to add variants of all the accessor constructors that take a property_list 
+that instead take an accessor_property_list:
+
+```c++
+  /* All constructors are only available when std::is_convertible<accessor_property_list<properties...>, property_listT>::value == true */
+  
+  /* Available only when: (dimensions == 0) */
+  template <typename AllocatorT, typename... properties>>
+  accessor(buffer<dataT, 1, AllocatorT> &bufferRef, 
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions == 0) */
+  template <typename AllocatorT, typename... properties>
+  accessor(buffer<dataT, 1, AllocatorT> &bufferRef,
+           handler &commandGroupHandlerRef, const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename TagT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef, TagT tag,
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           handler &commandGroupHandlerRef, const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename TagT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           handler &commandGroupHandlerRef, TagT tag,
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           range<dimensions> accessRange, const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename TagT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           range<dimensions> accessRange, TagT tag,
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           range<dimensions> accessRange, id<dimensions> accessOffset,
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename TagT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           range<dimensions> accessRange, id<dimensions> accessOffset,
+           TagT tag, const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           handler &commandGroupHandlerRef, range<dimensions> accessRange,
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename TagT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           handler &commandGroupHandlerRef, range<dimensions> accessRange,
+           TagT tag, const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           handler &commandGroupHandlerRef, range<dimensions> accessRange,
+           id<dimensions> accessOffset, const ext::oneapi::accessor_property_list<properties...> &propList = {});
+
+  /* Available only when: (dimensions > 0) */
+  template <typename AllocatorT, typename TagT, typename... properties>
+  accessor(buffer<dataT, dimensions, AllocatorT> &bufferRef,
+           handler &commandGroupHandlerRef, range<dimensions> accessRange,
+           id<dimensions> accessOffset, TagT tag,
+           const ext::oneapi::accessor_property_list<properties...> &propList = {});
+```
+
+Apply the same additions to the accessor constructors in Table 4.48: Constructors of the accessor class template buffer specialization.  
+
+NOTE: Oddly enough, due to the rules in section 4.7.6.3 about deduction guides this extension doesn't need to explicitly list the new deduction guides that it may require.  
+Readers may find that confusing given that deduction guides are explicitly listed for other classes, but that's how the spec is written.  
+The deduction guides will need to ensure that property_listT is inferred to be ext::oneapi::accessor_property_list<properties...>.
+
+Also add to the listing a conversion function:
+
+```c++
+/* Available only when new_property_listT is convertible to property_listT */
+template<typename new_property_listT>
+operator accessor<dataT, dimensions, accessmode, accessTarget, isPlaceholder, new_property_listT> () const;
+```
+
+And add a new row to Table 4.49: Member functions of the accessor class template buffer specialization for this new function:
+
+--
+[options="header"]
+|====
+| Member function | Description
+a|
+```c++
+template<typename new_property_listT>
+operator accessor<dataT, dimensions, accessmode, accessTarget, isPlaceholder, new_property_listT> () const;
+``` | Available only when property_listT is convertible to new_property_listT.  Converts this accessor to an accessor with a different accessor_property_list.  
+|====
+--
+
+=== Section 4.7.6.9.2 Device buffer accessor properties
+
+Add two new compile-time-constant properties to the listing:
+
+```c++
+namespace ext {
+namespace oneapi {
+namespace property {
+    struct no_offset {
+        struct /* unspecified no_offset property instance class */ {};
+    };
+    struct no_alias {
+        struct /* unspecified no_alias property instance class */ {};
+    };
+} // namespace property
+
+inline constexpr /* unspecified no_offset property instance class */ no_offset;
+inline constexpr /* unspecified no_alias property instance class */ no_alias;
+} // namespace oneapi
+} // namespace ext
+```
+
+Rewrite Table 4.50: Properties supported by the SYCL accessor class as follows, introducing two new rows and a new column to indicate if a property is compile-time constant:
+
+--
+[options="header"]
+|====
+| Property | Description | Compile-time Constant
+| sycl::property::no_init | The no_init property notifies the SYCL runtime that previous contents of a buffer can be discarded. Replaces deprecated discard_write and discard_read_write access modes. | No
+| ext::oneapi::property::no_offset | The no_offset property notifies the SYCL device compiler that the accessor will never contain an offset.  This may enable the compiler to make assumptions about the alignment of the accessor that it couldn't make otherwise. | Yes
+| ext::oneapi::property::no_alias | The no_alias property notifies the SYCL device compiler that all modifications to the memory locations accessed (directly or indirectly) by this accessor, that occur during kernel execution, will be done through this accessor (directly or indirectly) and no other accessor or USM pointer in the kernel.  This is an unchecked assertion by the programmer and results in undefined behaviour if it is violated.  | Yes
+|====
+--
+
+NOTE: The constructors for no_offset and no_alias are unspecified as users must use the no_offset and no_alias global variables.  
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-06-18|Joe Garvey|Initial public draft
+|2|2020-09-08|Joe Garvey|Rewrote as a vendor extension in the ONEAPI namespace.
+|3|2021-01-28|Jessica Davies|Modify semantics of no_alias
+|======================================== 

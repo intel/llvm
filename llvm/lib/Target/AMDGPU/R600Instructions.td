@@ -74,8 +74,6 @@ def FRAMEri : Operand<iPTR> {
   let MIOperandInfo = (ops R600_Reg32:$ptr, i32imm:$index);
 }
 
-def ADDRParam : ComplexPattern<i32, 2, "SelectADDRParam", [], []>;
-def ADDRDWord : ComplexPattern<i32, 1, "SelectADDRDWord", [], []>;
 def ADDRVTX_READ : ComplexPattern<i32, 2, "SelectADDRVTX_READ", [], []>;
 def ADDRGA_CONST_OFFSET : ComplexPattern<i32, 1, "SelectGlobalValueConstantOffset", [], []>;
 def ADDRGA_VAR_OFFSET : ComplexPattern<i32, 2, "SelectGlobalValueVariableOffset", [], []>;
@@ -212,16 +210,6 @@ class R600_3OP <bits<5> inst, string opName, list<dag> pattern,
   let Inst{63-32} = Word1;
 }
 
-class R600_REDUCTION <bits<11> inst, dag ins, string asm, list<dag> pattern,
-                      InstrItinClass itin = VecALU> :
-  InstR600 <(outs R600_Reg32:$dst),
-          ins,
-          asm,
-          pattern,
-          itin>;
-
-
-
 } // End mayLoad = 1, mayStore = 0, hasSideEffects = 0
 
 class EG_CF_RAT <bits <8> cfinst, bits <6> ratinst, bits<4> ratid, bits<4> mask,
@@ -295,6 +283,49 @@ class VTX_READ <string name, dag outs, list<dag> pattern>
   let VTXInst = 1;
 }
 
+// Legacy.
+def atomic_cmp_swap_global_noret : PatFrag<
+  (ops node:$ptr, node:$cmp, node:$value),
+  (atomic_cmp_swap node:$ptr, node:$cmp, node:$value),
+  [{return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS && (SDValue(N, 0).use_empty());}]>;
+
+def atomic_cmp_swap_global_ret : PatFrag<
+  (ops node:$ptr, node:$cmp, node:$value),
+  (atomic_cmp_swap node:$ptr, node:$cmp, node:$value),
+  [{return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS && (!SDValue(N, 0).use_empty());}]>;
+
+def mskor_global : PatFrag<(ops node:$val, node:$ptr),
+                            (AMDGPUstore_mskor node:$val, node:$ptr), [{
+  return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;
+}]>;
+
+// FIXME: These are deprecated
+class AZExtLoadBase <SDPatternOperator ld_node>: PatFrag<(ops node:$ptr),
+                                              (ld_node node:$ptr), [{
+  LoadSDNode *L = cast<LoadSDNode>(N);
+  return L->getExtensionType() == ISD::ZEXTLOAD ||
+         L->getExtensionType() == ISD::EXTLOAD;
+}]>;
+
+def az_extload : AZExtLoadBase <unindexedload>;
+
+def az_extloadi8 : PatFrag<(ops node:$ptr), (az_extload node:$ptr), [{
+  return cast<LoadSDNode>(N)->getMemoryVT() == MVT::i8;
+}]>;
+
+def az_extloadi16 : PatFrag<(ops node:$ptr), (az_extload node:$ptr), [{
+  return cast<LoadSDNode>(N)->getMemoryVT() == MVT::i16;
+}]>;
+
+def az_extloadi32 : PatFrag<(ops node:$ptr), (az_extload node:$ptr), [{
+  return cast<LoadSDNode>(N)->getMemoryVT() == MVT::i32;
+}]>;
+
+let AddressSpaces = LoadAddress_local.AddrSpaces in {
+def az_extloadi8_local : PatFrag<(ops node:$ptr), (az_extloadi8 node:$ptr)>;
+def az_extloadi16_local : PatFrag<(ops node:$ptr), (az_extloadi16 node:$ptr)>;
+}
+
 class LoadParamFrag <PatFrag load_type> : PatFrag <
   (ops node:$ptr), (load_type node:$ptr),
   [{ return isConstantLoad(cast<LoadSDNode>(N), 0) ||
@@ -310,8 +341,8 @@ class LoadVtxId1 <PatFrag load> : PatFrag <
   const MemSDNode *LD = cast<MemSDNode>(N);
   return LD->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS ||
          (LD->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS &&
-           !isa<GlobalValue>(GetUnderlyingObject(
-           LD->getMemOperand()->getValue(), CurDAG->getDataLayout())));
+           !isa<GlobalValue>(getUnderlyingObject(
+           LD->getMemOperand()->getValue())));
 }]>;
 
 def vtx_id1_az_extloadi8 : LoadVtxId1 <az_extloadi8>;
@@ -322,8 +353,8 @@ class LoadVtxId2 <PatFrag load> : PatFrag <
   (ops node:$ptr), (load node:$ptr), [{
   const MemSDNode *LD = cast<MemSDNode>(N);
   return LD->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS &&
-         isa<GlobalValue>(GetUnderlyingObject(
-         LD->getMemOperand()->getValue(), CurDAG->getDataLayout()));
+         isa<GlobalValue>(getUnderlyingObject(
+         LD->getMemOperand()->getValue()));
 }]>;
 
 def vtx_id2_az_extloadi8 : LoadVtxId2 <az_extloadi8>;
@@ -772,7 +803,7 @@ def DUMMY_CHAIN : R600WrapperInst <
 
 let isPseudo = 1, isCodeGenOnly = 1, usesCustomInserter = 1 in {
 
-class MOV_IMM <ValueType vt, Operand immType> : R600WrapperInst <
+class MOV_IMM <Operand immType> : R600WrapperInst <
   (outs R600_Reg32:$dst),
   (ins immType:$imm),
   "",
@@ -783,20 +814,20 @@ class MOV_IMM <ValueType vt, Operand immType> : R600WrapperInst <
 
 } // end let isPseudo = 1, isCodeGenOnly = 1, usesCustomInserter = 1
 
-def MOV_IMM_I32 : MOV_IMM<i32, i32imm>;
+def MOV_IMM_I32 : MOV_IMM<i32imm>;
 def : R600Pat <
   (imm:$val),
   (MOV_IMM_I32 imm:$val)
 >;
 
-def MOV_IMM_GLOBAL_ADDR : MOV_IMM<iPTR, i32imm>;
+def MOV_IMM_GLOBAL_ADDR : MOV_IMM<i32imm>;
 def : R600Pat <
   (AMDGPUconstdata_ptr tglobaladdr:$addr),
   (MOV_IMM_GLOBAL_ADDR tglobaladdr:$addr)
 >;
 
 
-def MOV_IMM_F32 : MOV_IMM<f32, f32imm>;
+def MOV_IMM_F32 : MOV_IMM<f32imm>;
 def : R600Pat <
   (fpimm:$val),
   (MOV_IMM_F32  fpimm:$val)
@@ -963,7 +994,7 @@ class MULADD_Common <bits<5> inst> : R600_3OP <
 
 class MULADD_IEEE_Common <bits<5> inst> : R600_3OP <
   inst, "MULADD_IEEE",
-  [(set f32:$dst, (fmad f32:$src0, f32:$src1, f32:$src2))]
+  [(set f32:$dst, (any_fmad f32:$src0, f32:$src1, f32:$src2))]
 >;
 
 class FMA_Common <bits<5> inst> : R600_3OP <
@@ -1190,6 +1221,11 @@ def : R600Pat<
 def : RcpPat<recip_ieee, f32>;
 }
 
+class SqrtPat<Instruction RsqInst, Instruction RecipInst> : R600Pat <
+  (fsqrt f32:$src),
+  (RecipInst (RsqInst $src))
+>;
+
 //===----------------------------------------------------------------------===//
 // R600 / R700 Instructions
 //===----------------------------------------------------------------------===//
@@ -1229,8 +1265,7 @@ let Predicates = [isR600] in {
   defm DIV_r600 : DIV_Common<RECIP_IEEE_r600>;
   def : POW_Common <LOG_IEEE_r600, EXP_IEEE_r600, MUL>;
 
-  def : R600Pat<(fsqrt f32:$src), (MUL $src, (RECIPSQRT_CLAMPED_r600 $src))>;
-  def : RsqPat<RECIPSQRT_IEEE_r600, f32>;
+  def : SqrtPat<RECIPSQRT_IEEE_r600, RECIP_IEEE_r600>;
 
   def R600_ExportSwz : ExportSwzInst {
     let Word1{20-17} = 0; // BURST_COUNT
@@ -1310,7 +1345,7 @@ let Predicates = [isR600] in {
 
 
 //===----------------------------------------------------------------------===//
-// Regist loads and stores - for indirect addressing
+// Register loads and stores - for indirect addressing
 //===----------------------------------------------------------------------===//
 
 let Namespace = "R600" in {

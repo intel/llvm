@@ -48,14 +48,14 @@
   ; Function Attrs: nounwind
   declare void @llvm.stackprotector(i8*, i8**) #2
 
-  attributes #0 = { noinline optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
-  attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { noinline optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
   attributes #2 = { nounwind }
 
 ...
 ---
 name:            '?func@@YAHHHHH@Z'
-alignment:       2
+alignment:       4
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -91,55 +91,55 @@ frameInfo:
 fixedStack:
 stack:
   - { id: 0, name: c.addr, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -4, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 1, name: b.addr, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -8, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 2, name: idx.addr, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -12, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 3, name: n.addr, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -16, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 4, name: a, type: default, offset: 0, size: 8, alignment: 8,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -24, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 5, name: '', type: variable-sized, offset: 0,
-      alignment: 1, stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      alignment: 1, stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -24, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 6, name: '', type: spill-slot, offset: 0, size: 8, alignment: 8,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
 constants:
 body:             |
   bb.0.entry:
     liveins: $w0, $w1, $w2, $w3
 
-    STRWui killed renamable $w3, %stack.0.c.addr, 0 :: (store 4 into %ir.c.addr)
-    STRWui killed renamable $w2, %stack.1.b.addr, 0 :: (store 4 into %ir.b.addr)
-    STRWui killed renamable $w1, %stack.2.idx.addr, 0 :: (store 4 into %ir.idx.addr)
-    STRWui killed renamable $w0, %stack.3.n.addr, 0 :: (store 4 into %ir.n.addr)
-    renamable $x8 = LDRSWui %stack.3.n.addr, 0 :: (dereferenceable load 4 from %ir.n.addr)
+    STRWui killed renamable $w3, %stack.0.c.addr, 0 :: (store (s32) into %ir.c.addr)
+    STRWui killed renamable $w2, %stack.1.b.addr, 0 :: (store (s32) into %ir.b.addr)
+    STRWui killed renamable $w1, %stack.2.idx.addr, 0 :: (store (s32) into %ir.idx.addr)
+    STRWui killed renamable $w0, %stack.3.n.addr, 0 :: (store (s32) into %ir.n.addr)
+    renamable $x8 = LDRSWui %stack.3.n.addr, 0 :: (dereferenceable load (s32) from %ir.n.addr)
     ADJCALLSTACKDOWN 0, 0, implicit-def dead $sp, implicit $sp
     renamable $x8 = nuw ADDXri killed renamable $x8, 15, 0
     renamable $x8 = UBFMXri killed renamable $x8, 4, 63
     $x15 = COPY renamable $x8
-    STRXui killed $x8, %stack.6, 0 :: (store 8 into %stack.6)
+    STRXui killed $x8, %stack.6, 0 :: (store (s64) into %stack.6)
     BL &__chkstk, csr_aarch64_stackprobe_windows, implicit-def dead $lr, implicit $sp, implicit killed $x15
     renamable $x8 = COPY $sp
-    $x15 = LDRXui %stack.6, 0 :: (load 8 from %stack.6)
+    $x15 = LDRXui %stack.6, 0 :: (load (s64) from %stack.6)
     renamable $x8 = SUBSXrs killed renamable $x8, killed renamable $x15, 4, implicit-def dead $nzcv
     $sp = COPY renamable $x8
     ADJCALLSTACKUP 0, 0, implicit-def dead $sp, implicit $sp
-    STRXui killed renamable $x8, %stack.4.a, 0 :: (store 8 into %ir.a)
-    renamable $x0 = LDRXui %stack.4.a, 0 :: (dereferenceable load 8 from %ir.a)
+    STRXui killed renamable $x8, %stack.4.a, 0 :: (store (s64) into %ir.a)
+    renamable $x0 = LDRXui %stack.4.a, 0 :: (dereferenceable load (s64) from %ir.a)
     ADJCALLSTACKDOWN 0, 0, implicit-def dead $sp, implicit $sp
     BL @"?init@@YAXPEAH@Z", csr_aarch64_aapcs, implicit-def dead $lr, implicit $sp, implicit killed $x0, implicit-def $sp
     ADJCALLSTACKUP 0, 0, implicit-def dead $sp, implicit $sp

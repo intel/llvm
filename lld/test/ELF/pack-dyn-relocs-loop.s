@@ -1,7 +1,7 @@
 // REQUIRES: arm, aarch64
 
 // RUN: llvm-mc -filetype=obj -triple=aarch64-none-linux-android %s -o %t.o
-// RUN: ld.lld -shared %t.o -o %t.so --pack-dyn-relocs=android -z norelro
+// RUN: ld.lld -shared %t.o -o %t.so --pack-dyn-relocs=android -z norelro -z separate-code
 // RUN: llvm-readobj -S %t.so | FileCheck %s
 
 // This test is making sure the Android packed relocation support doesn't
@@ -46,7 +46,7 @@
 // CHECK-NEXT:    ]
 // CHECK-NEXT:    Address: 0x10004
 // CHECK-NEXT:    Offset: 0x10004
-// CHECK-NEXT:    Size: 12
+// CHECK-NEXT:    Size: 24
 
 
 .data
@@ -54,9 +54,9 @@
 
 .section foo,"aw"
 foof:
-.long foof
-.long bar-53
-.long bar
+.quad foof
+.quad bar-53
+.quad bar
 
 .section x,"a"
 .zero 65036

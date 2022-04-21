@@ -9,13 +9,13 @@
 #ifndef LLVM_DEBUGINFO_CODEVIEW_TYPEINDEXDISCOVERY_H
 #define LLVM_DEBUGINFO_CODEVIEW_TYPEINDEXDISCOVERY_H
 
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/DebugInfo/CodeView/SymbolRecord.h"
-#include "llvm/DebugInfo/CodeView/TypeRecord.h"
-#include "llvm/Support/Error.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/DebugInfo/CodeView/CVRecord.h"
 
 namespace llvm {
+template <typename T> class SmallVectorImpl;
 namespace codeview {
+class TypeIndex;
 enum class TiRefKind { TypeRef, IndexRef };
 struct TiReference {
   TiRefKind Kind;

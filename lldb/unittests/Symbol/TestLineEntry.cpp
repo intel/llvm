@@ -1,10 +1,8 @@
-//===-- TestLineEntry.cpp ------------------------------*- C++ -*-===//
+//===-- TestLineEntry.cpp -------------------------------------------------===//
 //
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,15 +12,15 @@
 #include "Plugins/ObjectFile/Mach-O/ObjectFileMachO.h"
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserClang.h"
 #include "Plugins/SymbolFile/DWARF/SymbolFileDWARF.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "TestingSupport/TestUtilities.h"
-#include "lldb/Symbol/ClangASTContext.h"
 
 #include "lldb/Core/Module.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/SymbolContext.h"
-#include "lldb/Utility/StreamString.h"
 
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Program.h"
@@ -32,98 +30,96 @@ using namespace lldb_private;
 using namespace lldb;
 
 class LineEntryTest : public testing::Test {
-public:
-  void SetUp() override {
-    FileSystem::Initialize();
-    HostInfo::Initialize();
-    ObjectFileMachO::Initialize();
-    SymbolFileDWARF::Initialize();
-    ClangASTContext::Initialize();
-  }
+  SubsystemRAII<FileSystem, HostInfo, ObjectFileMachO, SymbolFileDWARF,
+                TypeSystemClang>
+      subsystem;
 
-  void TearDown() override {
-    ClangASTContext::Terminate();
-    SymbolFileDWARF::Terminate();
-    ObjectFileMachO::Terminate();
-    HostInfo::Terminate();
-    FileSystem::Terminate();
-  }
+public:
+  void SetUp() override;
 
 protected:
-  llvm::Expected<ModuleSP> GetModule();
-  llvm::Expected<LineEntry> GetLineEntryForLine(uint32_t line);
+  llvm::Expected<SymbolContextList>
+  GetLineEntriesForLine(uint32_t line, llvm::Optional<uint16_t> column);
+  llvm::Optional<TestFile> m_file;
   ModuleSP m_module_sp;
 };
 
-llvm::Expected<ModuleSP> LineEntryTest::GetModule() {
-  if (m_module_sp)
-    return m_module_sp;
-
-  llvm::SmallString<128> obj;
-  if (auto ec = llvm::sys::fs::createTemporaryFile("source-%%%%%%", "obj", obj))
-    return llvm::errorCodeToError(ec);
-  llvm::FileRemover obj_remover(obj);
-  if (auto error = ReadYAMLObjectFile("inlined-functions.yaml", obj))
-    return llvm::Error(std::move(error));
-
-  m_module_sp = std::make_shared<Module>(ModuleSpec(FileSpec(obj)));
-  // Preload because the temporary file will be gone once we exit this function.
-  m_module_sp->PreloadSymbols();
-  return m_module_sp;
+void LineEntryTest::SetUp() {
+  auto ExpectedFile = TestFile::fromYamlFile("inlined-functions.yaml");
+  ASSERT_THAT_EXPECTED(ExpectedFile, llvm::Succeeded());
+  m_file.emplace(std::move(*ExpectedFile));
+  m_module_sp = std::make_shared<Module>(m_file->moduleSpec());
 }
 
-llvm::Expected<LineEntry> LineEntryTest::GetLineEntryForLine(uint32_t line) {
-  auto expected_module_so = GetModule();
-
-  if (!expected_module_so)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Not able to get module for test object.");
-
-  auto module = expected_module_so->get();
-  bool check_inlines = true;
-  bool exact = true;
+  // TODO: Handle SourceLocationSpec column information
+llvm::Expected<SymbolContextList> LineEntryTest::GetLineEntriesForLine(
+    uint32_t line, llvm::Optional<uint16_t> column = llvm::None) {
   SymbolContextList sc_comp_units;
   SymbolContextList sc_line_entries;
   FileSpec file_spec("inlined-functions.cpp");
-  module->ResolveSymbolContextsForFileSpec(file_spec, line, check_inlines,
-                                           lldb::eSymbolContextCompUnit,
-                                           sc_comp_units);
+  m_module_sp->ResolveSymbolContextsForFileSpec(
+      file_spec, line, /*check_inlines=*/true, lldb::eSymbolContextCompUnit,
+      sc_comp_units);
   if (sc_comp_units.GetSize() == 0)
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No comp unit found on the test object.");
+
+  SourceLocationSpec location_spec(file_spec, line, column,
+                                   /*check_inlines=*/true,
+                                   /*exact_match=*/true);
+
   sc_comp_units[0].comp_unit->ResolveSymbolContext(
-      file_spec, line, check_inlines, exact, eSymbolContextLineEntry,
-      sc_line_entries);
+      location_spec, eSymbolContextLineEntry, sc_line_entries);
   if (sc_line_entries.GetSize() == 0)
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No line entry found on the test object.");
-  return sc_line_entries[0].line_entry;
+  return sc_line_entries;
+}
+
+// This tests if we can get all line entries that match the passed line, if
+// no column is specified.
+TEST_F(LineEntryTest, GetAllExactLineMatchesWithoutColumn) {
+  auto sc_line_entries = GetLineEntriesForLine(12);
+  ASSERT_THAT_EXPECTED(sc_line_entries, llvm::Succeeded());
+  ASSERT_EQ(sc_line_entries->NumLineEntriesWithLine(12), 6u);
+}
+
+// This tests if we can get exact line and column matches.
+TEST_F(LineEntryTest, GetAllExactLineColumnMatches) {
+  auto sc_line_entries = GetLineEntriesForLine(12, 39);
+  ASSERT_THAT_EXPECTED(sc_line_entries, llvm::Succeeded());
+  ASSERT_EQ(sc_line_entries->NumLineEntriesWithLine(12), 1u);
+  auto line_entry = sc_line_entries.get()[0].line_entry;
+  ASSERT_EQ(line_entry.column, 39);
 }
 
 TEST_F(LineEntryTest, GetSameLineContiguousAddressRangeNoInlines) {
-  auto line_entry = GetLineEntryForLine(18);
-  ASSERT_THAT_EXPECTED(line_entry, llvm::Succeeded());
+  auto sc_line_entries = GetLineEntriesForLine(18);
+  ASSERT_THAT_EXPECTED(sc_line_entries, llvm::Succeeded());
+  auto line_entry = sc_line_entries.get()[0].line_entry;
   bool include_inlined_functions = false;
   auto range =
-      line_entry->GetSameLineContiguousAddressRange(include_inlined_functions);
+      line_entry.GetSameLineContiguousAddressRange(include_inlined_functions);
   ASSERT_EQ(range.GetByteSize(), (uint64_t)0x24);
 }
 
 TEST_F(LineEntryTest, GetSameLineContiguousAddressRangeOneInline) {
-  auto line_entry = GetLineEntryForLine(18);
-  ASSERT_THAT_EXPECTED(line_entry, llvm::Succeeded());
+  auto sc_line_entries = GetLineEntriesForLine(18);
+  ASSERT_THAT_EXPECTED(sc_line_entries, llvm::Succeeded());
+  auto line_entry = sc_line_entries.get()[0].line_entry;
   bool include_inlined_functions = true;
   auto range =
-      line_entry->GetSameLineContiguousAddressRange(include_inlined_functions);
+      line_entry.GetSameLineContiguousAddressRange(include_inlined_functions);
   ASSERT_EQ(range.GetByteSize(), (uint64_t)0x49);
 }
 
 TEST_F(LineEntryTest, GetSameLineContiguousAddressRangeNestedInline) {
-  auto line_entry = GetLineEntryForLine(12);
-  ASSERT_THAT_EXPECTED(line_entry, llvm::Succeeded());
+  auto sc_line_entries = GetLineEntriesForLine(12);
+  ASSERT_THAT_EXPECTED(sc_line_entries, llvm::Succeeded());
+  auto line_entry = sc_line_entries.get()[0].line_entry;
   bool include_inlined_functions = true;
   auto range =
-      line_entry->GetSameLineContiguousAddressRange(include_inlined_functions);
+      line_entry.GetSameLineContiguousAddressRange(include_inlined_functions);
   ASSERT_EQ(range.GetByteSize(), (uint64_t)0x33);
 }
 

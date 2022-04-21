@@ -10,10 +10,12 @@
 
 // template <class StateT> class fpos
 
-// Subraction with offset
+// Subtraction with offset
 
 #include <ios>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

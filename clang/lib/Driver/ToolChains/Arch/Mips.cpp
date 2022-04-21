@@ -149,7 +149,8 @@ StringRef mips::getGnuCompatibleMipsABIName(StringRef ABI) {
 
 // Select the MIPS float ABI as determined by -msoft-float, -mhard-float,
 // and -mfloat-abi=.
-mips::FloatABI mips::getMipsFloatABI(const Driver &D, const ArgList &Args) {
+mips::FloatABI mips::getMipsFloatABI(const Driver &D, const ArgList &Args,
+                                     const llvm::Triple &Triple) {
   mips::FloatABI ABI = mips::FloatABI::Invalid;
   if (Arg *A =
           Args.getLastArg(options::OPT_msoft_float, options::OPT_mhard_float,
@@ -172,10 +173,15 @@ mips::FloatABI mips::getMipsFloatABI(const Driver &D, const ArgList &Args) {
 
   // If unspecified, choose the default based on the platform.
   if (ABI == mips::FloatABI::Invalid) {
-    // Assume "hard", because it's a default value used by gcc.
-    // When we start to recognize specific target MIPS processors,
-    // we will be able to select the default more correctly.
-    ABI = mips::FloatABI::Hard;
+    if (Triple.isOSFreeBSD()) {
+      // For FreeBSD, assume "soft" on all flavors of MIPS.
+      ABI = mips::FloatABI::Soft;
+    } else {
+      // Assume "hard", because it's a default value used by gcc.
+      // When we start to recognize specific target MIPS processors,
+      // we will be able to select the default more correctly.
+      ABI = mips::FloatABI::Hard;
+    }
   }
 
   assert(ABI != mips::FloatABI::Invalid && "must select an ABI");
@@ -246,7 +252,6 @@ void mips::getMIPSTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   if (IsN64 && NonPIC && (!ABICallsArg || UseAbiCalls)) {
     D.Diag(diag::warn_drv_unsupported_pic_with_mabicalls)
         << LastPICArg->getAsString(Args) << (!ABICallsArg ? 0 : 1);
-    NonPIC = false;
   }
 
   if (ABICallsArg && !UseAbiCalls && IsPIC) {
@@ -268,7 +273,14 @@ void mips::getMIPSTargetFeatures(const Driver &D, const llvm::Triple &Triple,
       D.Diag(diag::warn_drv_unsupported_longcalls) << (ABICallsArg ? 0 : 1);
   }
 
-  mips::FloatABI FloatABI = mips::getMipsFloatABI(D, Args);
+  if (Arg *A = Args.getLastArg(options::OPT_mxgot, options::OPT_mno_xgot)) {
+    if (A->getOption().matches(options::OPT_mxgot))
+      Features.push_back("+xgot");
+    else
+      Features.push_back("-xgot");
+  }
+
+  mips::FloatABI FloatABI = mips::getMipsFloatABI(D, Args, Triple);
   if (FloatABI == mips::FloatABI::Soft) {
     // FIXME: Note, this is a hack. We need to pass the selected float
     // mode to the MipsTargetInfoBase to define appropriate macros there.
@@ -429,7 +441,8 @@ bool mips::isUCLibc(const ArgList &Args) {
   return A && A->getOption().matches(options::OPT_muclibc);
 }
 
-bool mips::isNaN2008(const ArgList &Args, const llvm::Triple &Triple) {
+bool mips::isNaN2008(const Driver &D, const ArgList &Args,
+                     const llvm::Triple &Triple) {
   if (Arg *NaNArg = Args.getLastArg(options::OPT_mnan_EQ))
     return llvm::StringSwitch<bool>(NaNArg->getValue())
         .Case("2008", true)
@@ -437,11 +450,9 @@ bool mips::isNaN2008(const ArgList &Args, const llvm::Triple &Triple) {
         .Default(false);
 
   // NaN2008 is the default for MIPS32r6/MIPS64r6.
-  return llvm::StringSwitch<bool>(getCPUName(Args, Triple))
+  return llvm::StringSwitch<bool>(getCPUName(D, Args, Triple))
       .Cases("mips32r6", "mips64r6", true)
       .Default(false);
-
-  return false;
 }
 
 bool mips::isFP64ADefault(const llvm::Triple &Triple, StringRef CPUName) {

@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===----------------------- initializer_list -----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,11 +42,12 @@ template<class E> const E* end(initializer_list<E> il) noexcept; // constexpr in
 
 */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
 #include <cstddef>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 namespace std  // purposefully not versioned
@@ -82,7 +83,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     _LIBCPP_CONSTEXPR_AFTER_CXX11
     size_t    size()  const _NOEXCEPT {return __size_;}
-    
+
     _LIBCPP_INLINE_VISIBILITY
     _LIBCPP_CONSTEXPR_AFTER_CXX11
     const _Ep* begin() const _NOEXCEPT {return __begin_;}
@@ -110,8 +111,8 @@ end(initializer_list<_Ep> __il) _NOEXCEPT
     return __il.end();
 }
 
-#endif  // !defined(_LIBCPP_CXX03_LANG)
+#endif // !defined(_LIBCPP_CXX03_LANG)
 
-}  // std
+} // namespace std
 
-#endif  // _LIBCPP_INITIALIZER_LIST
+#endif // _LIBCPP_INITIALIZER_LIST

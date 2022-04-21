@@ -1,4 +1,15 @@
-// RUN: %clang_cc1 -triple x86_64-pc-linux -fdouble-square-bracket-attributes -Wno-deprecated-declarations -ast-dump -ast-dump-filter Test %s | FileCheck --strict-whitespace %s
+// Test without serialization:
+// RUN: %clang_cc1 -triple x86_64-pc-linux -fdouble-square-bracket-attributes \
+// RUN: -Wno-deprecated-declarations -ast-dump -ast-dump-filter Test %s \
+// RUN: | FileCheck --strict-whitespace %s
+//
+// Test with serialization:
+// RUN: %clang_cc1 -triple x86_64-pc-linux -fdouble-square-bracket-attributes \
+// RUN: -Wno-deprecated-declarations -emit-pch -o %t %s
+// RUN: %clang_cc1 -x c -triple x86_64-pc-linux -fdouble-square-bracket-attributes \
+// RUN: -Wno-deprecated-declarations -include-pch %t -ast-dump-all -ast-dump-filter Test /dev/null \
+// RUN: | sed -e "s/ <undeserialized declarations>//" -e "s/ imported//" \
+// RUN: | FileCheck --strict-whitespace %s
 
 int Test1 [[deprecated]];
 // CHECK:      VarDecl{{.*}}Test1
@@ -23,8 +34,9 @@ struct [[deprecated]] Test4 {
 // CHECK-NEXT:   FieldDecl{{.*}}Test6
 // CHECK-NEXT:     DeprecatedAttr 0x{{[^ ]*}} <col:5, col:25> "Frobble" ""
 // CHECK-NEXT:   FieldDecl{{.*}}Test7
-// CHECK-NEXT:     Constant{{.*}}'int'
-// CHECK-NEXT:       IntegerLiteral{{.*}}'int' 12
+// CHECK-NEXT:     ConstantExpr{{.*}}'int'
+// CHECK-NEXT:       value: Int 12
+// CHECK-NEXT:         IntegerLiteral{{.*}}'int' 12
 // CHECK-NEXT:     DeprecatedAttr 0x{{[^ ]*}} <col:15> "" ""
 
 struct [[deprecated]] Test8;
@@ -40,8 +52,3 @@ struct [[deprecated]] Test8;
 void Test11 [[deprecated]](void);
 // CHECK:      FunctionDecl{{.*}}Test11
 // CHECK-NEXT:   DeprecatedAttr 0x{{[^ ]*}} <col:15> "" ""
-
-void Test12(void) [[deprecated]] {}
-// CHECK:      FunctionDecl{{.*}}Test12
-// CHECK-NEXT:   CompoundStmt
-// CHECK-NEXT:   DeprecatedAttr 0x{{[^ ]*}} <col:21> "" ""

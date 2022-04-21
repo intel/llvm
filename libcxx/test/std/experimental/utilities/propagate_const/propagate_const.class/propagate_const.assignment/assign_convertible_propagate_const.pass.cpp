@@ -6,13 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <propagate_const>
 
 // template <class U> constexpr propagate_const& operator=(U&& u); // won't bind to propagate_const
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <type_traits>
 
@@ -21,6 +22,6 @@ using std::experimental::propagate_const;
 typedef propagate_const<X> PX;
 typedef propagate_const<CopyConstructibleFromX> PY;
 
-int main(int, char**) { static_assert(!std::is_assignable<PY, const PX &>::value, ""); 
+int main(int, char**) { static_assert(!std::is_assignable<PY, const PX &>::value, "");
   return 0;
 }

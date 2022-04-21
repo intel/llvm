@@ -1,4 +1,4 @@
-//===-- GDBRemoteCommunicationServerCommon.cpp ------------------*- C++ -*-===//
+//===-- GDBRemoteCommunicationServerCommon.cpp ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,7 @@
 
 #include "GDBRemoteCommunicationServerCommon.h"
 
-#include <errno.h>
+#include <cerrno>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -29,12 +29,14 @@
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/Platform.h"
 #include "lldb/Utility/Endian.h"
-#include "lldb/Utility/JSON.h"
+#include "lldb/Utility/GDBRemote.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/StreamGDBRemote.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StructuredData.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Support/JSON.h"
 
 #include "ProcessGDBRemoteLog.h"
 #include "lldb/Utility/StringExtractorGDBRemote.h"
@@ -43,11 +45,10 @@
 #include "lldb/Host/android/HostInfoAndroid.h"
 #endif
 
-#include "llvm/ADT/StringSwitch.h"
 
 using namespace lldb;
-using namespace lldb_private;
 using namespace lldb_private::process_gdb_remote;
+using namespace lldb_private;
 
 #ifdef __ANDROID__
 const static uint32_t g_default_packet_timeout_sec = 20; // seconds
@@ -60,8 +61,7 @@ GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(
     const char *comm_name, const char *listener_name)
     : GDBRemoteCommunicationServer(comm_name, listener_name),
       m_process_launch_info(), m_process_launch_error(), m_proc_infos(),
-      m_proc_infos_index(0), m_thread_suffix_supported(false),
-      m_list_threads_in_stop_reply(false) {
+      m_proc_infos_index(0) {
   RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_A,
                                 &GDBRemoteCommunicationServerCommon::Handle_A);
   RegisterMemberFunctionHandler(
@@ -85,9 +85,6 @@ GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(
   RegisterMemberFunctionHandler(
       StringExtractorGDBRemote::eServerPacketType_qLaunchSuccess,
       &GDBRemoteCommunicationServerCommon::Handle_qLaunchSuccess);
-  RegisterMemberFunctionHandler(
-      StringExtractorGDBRemote::eServerPacketType_QListThreadsInStopReply,
-      &GDBRemoteCommunicationServerCommon::Handle_QListThreadsInStopReply);
   RegisterMemberFunctionHandler(
       StringExtractorGDBRemote::eServerPacketType_qEcho,
       &GDBRemoteCommunicationServerCommon::Handle_qEcho);
@@ -134,9 +131,6 @@ GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(
       StringExtractorGDBRemote::eServerPacketType_qSupported,
       &GDBRemoteCommunicationServerCommon::Handle_qSupported);
   RegisterMemberFunctionHandler(
-      StringExtractorGDBRemote::eServerPacketType_QThreadSuffixSupported,
-      &GDBRemoteCommunicationServerCommon::Handle_QThreadSuffixSupported);
-  RegisterMemberFunctionHandler(
       StringExtractorGDBRemote::eServerPacketType_qUserName,
       &GDBRemoteCommunicationServerCommon::Handle_qUserName);
   RegisterMemberFunctionHandler(
@@ -164,6 +158,9 @@ GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(
       StringExtractorGDBRemote::eServerPacketType_vFile_size,
       &GDBRemoteCommunicationServerCommon::Handle_vFile_Size);
   RegisterMemberFunctionHandler(
+      StringExtractorGDBRemote::eServerPacketType_vFile_fstat,
+      &GDBRemoteCommunicationServerCommon::Handle_vFile_FStat);
+  RegisterMemberFunctionHandler(
       StringExtractorGDBRemote::eServerPacketType_vFile_stat,
       &GDBRemoteCommunicationServerCommon::Handle_vFile_Stat);
   RegisterMemberFunctionHandler(
@@ -175,7 +172,8 @@ GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(
 }
 
 // Destructor
-GDBRemoteCommunicationServerCommon::~GDBRemoteCommunicationServerCommon() {}
+GDBRemoteCommunicationServerCommon::~GDBRemoteCommunicationServerCommon() =
+    default;
 
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qHostInfo(
@@ -231,6 +229,7 @@ GDBRemoteCommunicationServerCommon::Handle_qHostInfo(
 
 #else
   if (host_arch.GetMachine() == llvm::Triple::aarch64 ||
+      host_arch.GetMachine() == llvm::Triple::aarch64_32 ||
       host_arch.GetMachine() == llvm::Triple::aarch64_be ||
       host_arch.GetMachine() == llvm::Triple::arm ||
       host_arch.GetMachine() == llvm::Triple::armeb || host_arch.IsMIPS())
@@ -260,18 +259,27 @@ GDBRemoteCommunicationServerCommon::Handle_qHostInfo(
     response.PutChar(';');
   }
 
-  std::string s;
-  if (HostInfo::GetOSBuildString(s)) {
-    response.PutCString("os_build:");
-    response.PutStringAsRawHex8(s);
+#if defined(__APPLE__)
+  llvm::VersionTuple maccatalyst_version = HostInfo::GetMacCatalystVersion();
+  if (!maccatalyst_version.empty()) {
+    response.Format("maccatalyst_version:{0}",
+                    maccatalyst_version.getAsString());
     response.PutChar(';');
   }
-  if (HostInfo::GetOSKernelDescription(s)) {
+#endif
+
+  if (llvm::Optional<std::string> s = HostInfo::GetOSBuildString()) {
+    response.PutCString("os_build:");
+    response.PutStringAsRawHex8(*s);
+    response.PutChar(';');
+  }
+  if (llvm::Optional<std::string> s = HostInfo::GetOSKernelDescription()) {
     response.PutCString("os_kernel:");
-    response.PutStringAsRawHex8(s);
+    response.PutStringAsRawHex8(*s);
     response.PutChar(';');
   }
 
+  std::string s;
 #if defined(__APPLE__)
 
 #if defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
@@ -324,7 +332,7 @@ GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qfProcessInfo(
     StringExtractorGDBRemote &packet) {
   m_proc_infos_index = 0;
-  m_proc_infos.Clear();
+  m_proc_infos.clear();
 
   ProcessInstanceInfoMatch match_info;
   packet.SetFilePos(::strlen("qfProcessInfo"));
@@ -406,10 +414,9 @@ GDBRemoteCommunicationServerCommon::Handle_qfProcessInfo(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qsProcessInfo(
     StringExtractorGDBRemote &packet) {
-  if (m_proc_infos_index < m_proc_infos.GetSize()) {
+  if (m_proc_infos_index < m_proc_infos.size()) {
     StreamString response;
-    CreateProcessInfoResponse(
-        m_proc_infos.GetProcessInfoAtIndex(m_proc_infos_index), response);
+    CreateProcessInfoResponse(m_proc_infos[m_proc_infos_index], response);
     ++m_proc_infos_index;
     return SendPacketNoLock(response.GetString());
   }
@@ -419,10 +426,9 @@ GDBRemoteCommunicationServerCommon::Handle_qsProcessInfo(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qUserName(
     StringExtractorGDBRemote &packet) {
-#if !defined(LLDB_DISABLE_POSIX)
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
-  if (log)
-    log->Printf("GDBRemoteCommunicationServerCommon::%s begin", __FUNCTION__);
+#if LLDB_ENABLE_POSIX
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log, "GDBRemoteCommunicationServerCommon::%s begin", __FUNCTION__);
 
   // Packet format: "qUserName:%i" where %i is the uid
   packet.SetFilePos(::strlen("qUserName:"));
@@ -435,8 +441,7 @@ GDBRemoteCommunicationServerCommon::Handle_qUserName(
       return SendPacketNoLock(response.GetString());
     }
   }
-  if (log)
-    log->Printf("GDBRemoteCommunicationServerCommon::%s end", __FUNCTION__);
+  LLDB_LOGF(log, "GDBRemoteCommunicationServerCommon::%s end", __FUNCTION__);
 #endif
   return SendErrorResponse(5);
 }
@@ -444,7 +449,7 @@ GDBRemoteCommunicationServerCommon::Handle_qUserName(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qGroupName(
     StringExtractorGDBRemote &packet) {
-#if !defined(LLDB_DISABLE_POSIX)
+#if LLDB_ENABLE_POSIX
   // Packet format: "qGroupName:%i" where %i is the gid
   packet.SetFilePos(::strlen("qGroupName:"));
   uint32_t gid = packet.GetU32(UINT32_MAX);
@@ -500,21 +505,29 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_Open(
   packet.GetHexByteStringTerminatedBy(path, ',');
   if (!path.empty()) {
     if (packet.GetChar() == ',') {
-      uint32_t flags = packet.GetHexMaxU32(false, 0);
+      auto flags = File::OpenOptions(packet.GetHexMaxU32(false, 0));
       if (packet.GetChar() == ',') {
         mode_t mode = packet.GetHexMaxU32(false, 0600);
         FileSpec path_spec(path);
         FileSystem::Instance().Resolve(path_spec);
-        File file;
         // Do not close fd.
-        Status error =
-            FileSystem::Instance().Open(file, path_spec, flags, mode, false);
-        const int save_errno = error.GetError();
+        auto file = FileSystem::Instance().Open(path_spec, flags, mode, false);
+
         StreamString response;
         response.PutChar('F');
-        response.Printf("%i", file.GetDescriptor());
-        if (save_errno)
-          response.Printf(",%i", save_errno);
+
+        int descriptor = File::kInvalidDescriptor;
+        if (file) {
+          descriptor = file.get()->GetDescriptor();
+          response.Printf("%x", descriptor);
+        } else {
+          response.PutCString("-1");
+          std::error_code code = errorToErrorCode(file.takeError());
+          if (code.category() == std::system_category()) {
+            response.Printf(",%x", code.value());
+          }
+        }
+
         return SendPacketNoLock(response.GetString());
       }
     }
@@ -522,15 +535,26 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_Open(
   return SendErrorResponse(18);
 }
 
+static GDBErrno system_errno_to_gdb(int err) {
+  switch (err) {
+#define HANDLE_ERRNO(name, value)                                              \
+  case name:                                                                   \
+    return GDB_##name;
+#include "Plugins/Process/gdb-remote/GDBRemoteErrno.def"
+  default:
+    return GDB_EUNKNOWN;
+  }
+}
+
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_vFile_Close(
     StringExtractorGDBRemote &packet) {
   packet.SetFilePos(::strlen("vFile:close:"));
-  int fd = packet.GetS32(-1);
+  int fd = packet.GetS32(-1, 16);
   int err = -1;
   int save_errno = 0;
   if (fd >= 0) {
-    File file(fd, true);
+    NativeFile file(fd, File::OpenOptions(0), true);
     Status error = file.Close();
     err = 0;
     save_errno = error.GetError();
@@ -539,9 +563,9 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_Close(
   }
   StreamString response;
   response.PutChar('F');
-  response.Printf("%i", err);
+  response.Printf("%x", err);
   if (save_errno)
-    response.Printf(",%i", save_errno);
+    response.Printf(",%x", system_errno_to_gdb(save_errno));
   return SendPacketNoLock(response.GetString());
 }
 
@@ -550,28 +574,29 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_pRead(
     StringExtractorGDBRemote &packet) {
   StreamGDBRemote response;
   packet.SetFilePos(::strlen("vFile:pread:"));
-  int fd = packet.GetS32(-1);
+  int fd = packet.GetS32(-1, 16);
   if (packet.GetChar() == ',') {
-    size_t count = packet.GetU64(UINT64_MAX);
+    size_t count = packet.GetHexMaxU64(false, SIZE_MAX);
     if (packet.GetChar() == ',') {
-      off_t offset = packet.GetU64(UINT32_MAX);
-      if (count == UINT64_MAX) {
-        response.Printf("F-1:%i", EINVAL);
+      off_t offset = packet.GetHexMaxU32(false, UINT32_MAX);
+      if (count == SIZE_MAX) {
+        response.Printf("F-1:%x", EINVAL);
         return SendPacketNoLock(response.GetString());
       }
 
       std::string buffer(count, 0);
-      File file(fd, false);
+      NativeFile file(fd, File::eOpenOptionReadOnly, false);
       Status error = file.Read(static_cast<void *>(&buffer[0]), count, offset);
-      const ssize_t bytes_read = error.Success() ? count : -1;
       const int save_errno = error.GetError();
       response.PutChar('F');
-      response.Printf("%zi", bytes_read);
-      if (save_errno)
-        response.Printf(",%i", save_errno);
-      else {
+      if (error.Success()) {
+        response.Printf("%zx", count);
         response.PutChar(';');
-        response.PutEscapedBytes(&buffer[0], bytes_read);
+        response.PutEscapedBytes(&buffer[0], count);
+      } else {
+        response.PutCString("-1");
+        if (save_errno)
+          response.Printf(",%x", system_errno_to_gdb(save_errno));
       }
       return SendPacketNoLock(response.GetString());
     }
@@ -587,23 +612,26 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_pWrite(
   StreamGDBRemote response;
   response.PutChar('F');
 
-  int fd = packet.GetU32(UINT32_MAX);
+  int fd = packet.GetS32(-1, 16);
   if (packet.GetChar() == ',') {
-    off_t offset = packet.GetU64(UINT32_MAX);
+    off_t offset = packet.GetHexMaxU32(false, UINT32_MAX);
     if (packet.GetChar() == ',') {
       std::string buffer;
       if (packet.GetEscapedBinaryData(buffer)) {
-        File file(fd, false);
+        NativeFile file(fd, File::eOpenOptionWriteOnly, false);
         size_t count = buffer.size();
         Status error =
             file.Write(static_cast<const void *>(&buffer[0]), count, offset);
-        const ssize_t bytes_written = error.Success() ? count : -1;
         const int save_errno = error.GetError();
-        response.Printf("%zi", bytes_written);
-        if (save_errno)
-          response.Printf(",%i", save_errno);
+        if (error.Success())
+          response.Printf("%zx", count);
+        else {
+          response.PutCString("-1");
+          if (save_errno)
+            response.Printf(",%x", system_errno_to_gdb(save_errno));
+        }
       } else {
-        response.Printf("-1,%i", EINVAL);
+        response.Printf("-1,%x", EINVAL);
       }
       return SendPacketNoLock(response.GetString());
     }
@@ -645,9 +673,10 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_Mode(
     std::error_code ec;
     const uint32_t mode = FileSystem::Instance().GetPermissions(file_spec, ec);
     StreamString response;
-    response.Printf("F%u", mode);
-    if (mode == 0 || ec)
-      response.Printf(",%i", (int)Status(ec).GetError());
+    if (mode != llvm::sys::fs::perms_not_known)
+      response.Printf("F%x", mode);
+    else
+      response.Printf("F-1,%x", (int)Status(ec).GetError());
     return SendPacketNoLock(response.GetString());
   }
   return SendErrorResponse(23);
@@ -687,7 +716,7 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_symlink(
   Status error = FileSystem::Instance().Symlink(src_spec, FileSpec(dst));
 
   StreamString response;
-  response.Printf("F%u,%u", error.GetError(), error.GetError());
+  response.Printf("F%x,%x", error.GetError(), error.GetError());
   return SendPacketNoLock(response.GetString());
 }
 
@@ -699,7 +728,7 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_unlink(
   packet.GetHexByteString(path);
   Status error(llvm::sys::fs::remove(path));
   StreamString response;
-  response.Printf("F%u,%u", error.GetError(), error.GetError());
+  response.Printf("F%x,%x", error.GetError(), error.GetError());
   return SendPacketNoLock(response.GetString());
 }
 
@@ -739,6 +768,54 @@ GDBRemoteCommunicationServerCommon::Handle_qPlatform_shell(
     }
   }
   return SendErrorResponse(24);
+}
+
+template <typename T, typename U>
+static void fill_clamp(T &dest, U src, typename T::value_type fallback) {
+  static_assert(std::is_unsigned<typename T::value_type>::value,
+                "Destination type must be unsigned.");
+  using UU = typename std::make_unsigned<U>::type;
+  constexpr auto T_max = std::numeric_limits<typename T::value_type>::max();
+  dest = src >= 0 && static_cast<UU>(src) <= T_max ? src : fallback;
+}
+
+GDBRemoteCommunication::PacketResult
+GDBRemoteCommunicationServerCommon::Handle_vFile_FStat(
+    StringExtractorGDBRemote &packet) {
+  StreamGDBRemote response;
+  packet.SetFilePos(::strlen("vFile:fstat:"));
+  int fd = packet.GetS32(-1, 16);
+
+  struct stat file_stats;
+  if (::fstat(fd, &file_stats) == -1) {
+    const int save_errno = errno;
+    response.Printf("F-1,%x", system_errno_to_gdb(save_errno));
+    return SendPacketNoLock(response.GetString());
+  }
+
+  GDBRemoteFStatData data;
+  fill_clamp(data.gdb_st_dev, file_stats.st_dev, 0);
+  fill_clamp(data.gdb_st_ino, file_stats.st_ino, 0);
+  data.gdb_st_mode = file_stats.st_mode;
+  fill_clamp(data.gdb_st_nlink, file_stats.st_nlink, UINT32_MAX);
+  fill_clamp(data.gdb_st_uid, file_stats.st_uid, 0);
+  fill_clamp(data.gdb_st_gid, file_stats.st_gid, 0);
+  fill_clamp(data.gdb_st_rdev, file_stats.st_rdev, 0);
+  data.gdb_st_size = file_stats.st_size;
+#if !defined(_WIN32)
+  data.gdb_st_blksize = file_stats.st_blksize;
+  data.gdb_st_blocks = file_stats.st_blocks;
+#else
+  data.gdb_st_blksize = 0;
+  data.gdb_st_blocks = 0;
+#endif
+  fill_clamp(data.gdb_st_atime, file_stats.st_atime, 0);
+  fill_clamp(data.gdb_st_mtime, file_stats.st_mtime, 0);
+  fill_clamp(data.gdb_st_ctime, file_stats.st_ctime, 0);
+
+  response.Printf("F%zx;", sizeof(data));
+  response.PutEscapedBytes(&data, sizeof(data));
+  return SendPacketNoLock(response.GetString());
 }
 
 GDBRemoteCommunication::PacketResult
@@ -781,7 +858,7 @@ GDBRemoteCommunicationServerCommon::Handle_qPlatform_mkdir(
     Status error(llvm::sys::fs::create_directory(path, mode));
 
     StreamGDBRemote response;
-    response.Printf("F%u", error.GetError());
+    response.Printf("F%x", error.GetError());
 
     return SendPacketNoLock(response.GetString());
   }
@@ -801,7 +878,7 @@ GDBRemoteCommunicationServerCommon::Handle_qPlatform_chmod(
     Status error(llvm::sys::fs::setPermissions(path, perms));
 
     StreamGDBRemote response;
-    response.Printf("F%u", error.GetError());
+    response.Printf("F%x", error.GetError());
 
     return SendPacketNoLock(response.GetString());
   }
@@ -811,37 +888,10 @@ GDBRemoteCommunicationServerCommon::Handle_qPlatform_chmod(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qSupported(
     StringExtractorGDBRemote &packet) {
-  StreamGDBRemote response;
-
-  // Features common to lldb-platform and llgs.
-  uint32_t max_packet_size = 128 * 1024; // 128KBytes is a reasonable max packet
-                                         // size--debugger can always use less
-  response.Printf("PacketSize=%x", max_packet_size);
-
-  response.PutCString(";QStartNoAckMode+");
-  response.PutCString(";QThreadSuffixSupported+");
-  response.PutCString(";QListThreadsInStopReply+");
-  response.PutCString(";qEcho+");
-#if defined(__linux__) || defined(__NetBSD__)
-  response.PutCString(";QPassSignals+");
-  response.PutCString(";qXfer:auxv:read+");
-#endif
-
-  return SendPacketNoLock(response.GetString());
-}
-
-GDBRemoteCommunication::PacketResult
-GDBRemoteCommunicationServerCommon::Handle_QThreadSuffixSupported(
-    StringExtractorGDBRemote &packet) {
-  m_thread_suffix_supported = true;
-  return SendOKResponse();
-}
-
-GDBRemoteCommunication::PacketResult
-GDBRemoteCommunicationServerCommon::Handle_QListThreadsInStopReply(
-    StringExtractorGDBRemote &packet) {
-  m_list_threads_in_stop_reply = true;
-  return SendOKResponse();
+  // Parse client-indicated features.
+  llvm::SmallVector<llvm::StringRef, 4> client_features;
+  packet.GetStringRef().split(client_features, ';');
+  return SendPacketNoLock(llvm::join(HandleFeatures(client_features), ";"));
 }
 
 GDBRemoteCommunication::PacketResult
@@ -971,7 +1021,7 @@ GDBRemoteCommunicationServerCommon::Handle_A(StringExtractorGDBRemote &packet) {
   // encoded argument value list, but we will stay true to the documented
   // version of the 'A' packet here...
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   int actual_arg_index = 0;
 
   packet.SetFilePos(1); // Skip the 'A'
@@ -1016,9 +1066,8 @@ GDBRemoteCommunicationServerCommon::Handle_A(StringExtractorGDBRemote &packet) {
                   m_process_launch_info.GetExecutableFile().SetFile(
                       arg, FileSpec::Style::native);
                 m_process_launch_info.GetArguments().AppendArgument(arg);
-                if (log)
-                  log->Printf("LLGSPacketHandler::%s added arg %d: \"%s\"",
-                              __FUNCTION__, actual_arg_index, arg.c_str());
+                LLDB_LOGF(log, "LLGSPacketHandler::%s added arg %d: \"%s\"",
+                          __FUNCTION__, actual_arg_index, arg.c_str());
                 ++actual_arg_index;
               }
             }
@@ -1104,6 +1153,8 @@ GDBRemoteCommunicationServerCommon::Handle_qModuleInfo(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_jModulesInfo(
     StringExtractorGDBRemote &packet) {
+  namespace json = llvm::json;
+
   packet.SetFilePos(::strlen("jModulesInfo:"));
 
   StructuredData::ObjectSP object_sp = StructuredData::ParseJSON(packet.Peek());
@@ -1114,7 +1165,7 @@ GDBRemoteCommunicationServerCommon::Handle_jModulesInfo(
   if (!packet_array)
     return SendErrorResponse(2);
 
-  JSONArray::SP response_array_sp = std::make_shared<JSONArray>();
+  json::Array response_array;
   for (size_t i = 0; i < packet_array->GetSize(); ++i) {
     StructuredData::Dictionary *query =
         packet_array->GetItemAtIndex(i)->GetAsDictionary();
@@ -1132,27 +1183,22 @@ GDBRemoteCommunicationServerCommon::Handle_jModulesInfo(
     const auto file_offset = matched_module_spec.GetObjectOffset();
     const auto file_size = matched_module_spec.GetObjectSize();
     const auto uuid_str = matched_module_spec.GetUUID().GetAsString("");
-
     if (uuid_str.empty())
       continue;
+    const auto triple_str =
+        matched_module_spec.GetArchitecture().GetTriple().getTriple();
+    const auto file_path = matched_module_spec.GetFileSpec().GetPath();
 
-    JSONObject::SP response = std::make_shared<JSONObject>();
-    response_array_sp->AppendObject(response);
-    response->SetObject("uuid", std::make_shared<JSONString>(uuid_str));
-    response->SetObject(
-        "triple",
-        std::make_shared<JSONString>(
-            matched_module_spec.GetArchitecture().GetTriple().getTriple()));
-    response->SetObject("file_path",
-                        std::make_shared<JSONString>(
-                            matched_module_spec.GetFileSpec().GetPath()));
-    response->SetObject("file_offset",
-                        std::make_shared<JSONNumber>(file_offset));
-    response->SetObject("file_size", std::make_shared<JSONNumber>(file_size));
+    json::Object response{{"uuid", uuid_str},
+                          {"triple", triple_str},
+                          {"file_path", file_path},
+                          {"file_offset", static_cast<int64_t>(file_offset)},
+                          {"file_size", static_cast<int64_t>(file_size)}};
+    response_array.push_back(std::move(response));
   }
 
   StreamString response;
-  response_array_sp->Write(response);
+  response.AsRawOstream() << std::move(response_array);
   StreamGDBRemote escaped_response;
   escaped_response.PutEscapedBytes(response.GetString().data(),
                                    response.GetSize());
@@ -1168,6 +1214,15 @@ void GDBRemoteCommunicationServerCommon::CreateProcessInfoResponse(
       proc_info.GetEffectiveUserID(), proc_info.GetEffectiveGroupID());
   response.PutCString("name:");
   response.PutStringAsRawHex8(proc_info.GetExecutableFile().GetCString());
+
+  response.PutChar(';');
+  response.PutCString("args:");
+  response.PutStringAsRawHex8(proc_info.GetArg0());
+  for (auto &arg : proc_info.GetArguments()) {
+    response.PutChar('-');
+    response.PutStringAsRawHex8(arg.ref());
+  }
+
   response.PutChar(';');
   const ArchSpec &proc_arch = proc_info.GetArchitecture();
   if (proc_arch.IsValid()) {
@@ -1201,7 +1256,7 @@ void GDBRemoteCommunicationServerCommon::
     if (cpu_subtype != 0)
       response.Printf("cpusubtype:%" PRIx32 ";", cpu_subtype);
 
-    const std::string vendor = proc_triple.getVendorName();
+    const std::string vendor = proc_triple.getVendorName().str();
     if (!vendor.empty())
       response.Printf("vendor:%s;", vendor.c_str());
 #else
@@ -1210,13 +1265,14 @@ void GDBRemoteCommunicationServerCommon::
     response.PutStringAsRawHex8(proc_triple.getTriple());
     response.PutChar(';');
 #endif
-    std::string ostype = proc_triple.getOSName();
+    std::string ostype = std::string(proc_triple.getOSName());
     // Adjust so ostype reports ios for Apple/ARM and Apple/ARM64.
     if (proc_triple.getVendor() == llvm::Triple::Apple) {
       switch (proc_triple.getArch()) {
       case llvm::Triple::arm:
       case llvm::Triple::thumb:
       case llvm::Triple::aarch64:
+      case llvm::Triple::aarch64_32:
         ostype = "ios";
         break;
       default:
@@ -1282,4 +1338,18 @@ GDBRemoteCommunicationServerCommon::GetModuleInfo(llvm::StringRef module_path,
     return ModuleSpec();
 
   return matched_module_spec;
+}
+
+std::vector<std::string> GDBRemoteCommunicationServerCommon::HandleFeatures(
+    const llvm::ArrayRef<llvm::StringRef> client_features) {
+  // 128KBytes is a reasonable max packet size--debugger can always use less.
+  constexpr uint32_t max_packet_size = 128 * 1024;
+
+  // Features common to platform server and llgs.
+  return {
+      llvm::formatv("PacketSize={0}", max_packet_size),
+      "QStartNoAckMode+",
+      "qEcho+",
+      "native-signals+",
+  };
 }

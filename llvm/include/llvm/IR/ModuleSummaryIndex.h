@@ -22,13 +22,14 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/ScaledNumber.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -42,6 +43,8 @@
 #include <vector>
 
 namespace llvm {
+
+template <class GraphType> struct GraphTraits;
 
 namespace yaml {
 
@@ -119,7 +122,7 @@ class GlobalValueSummary;
 
 using GlobalValueSummaryList = std::vector<std::unique_ptr<GlobalValueSummary>>;
 
-struct GlobalValueSummaryInfo {
+struct alignas(8) GlobalValueSummaryInfo {
   union NameOrGV {
     NameOrGV(bool HaveGVs) {
       if (HaveGVs)
@@ -162,7 +165,8 @@ using GlobalValueSummaryMapTy =
 /// Struct that holds a reference to a particular GUID in a global value
 /// summary.
 struct ValueInfo {
-  PointerIntPair<const GlobalValueSummaryMapTy::value_type *, 2, int>
+  enum Flags { HaveGV = 1, ReadOnly = 2, WriteOnly = 4 };
+  PointerIntPair<const GlobalValueSummaryMapTy::value_type *, 3, int>
       RefAndFlags;
 
   ValueInfo() = default;
@@ -171,7 +175,7 @@ struct ValueInfo {
     RefAndFlags.setInt(HaveGVs);
   }
 
-  operator bool() const { return getRef(); }
+  explicit operator bool() const { return getRef(); }
 
   GlobalValue::GUID getGUID() const { return getRef()->first; }
   const GlobalValue *getValue() const {
@@ -188,15 +192,46 @@ struct ValueInfo {
                      : getRef()->second.U.Name;
   }
 
-  bool haveGVs() const { return RefAndFlags.getInt() & 0x1; }
-  bool isReadOnly() const { return RefAndFlags.getInt() & 0x2; }
-  void setReadOnly() { RefAndFlags.setInt(RefAndFlags.getInt() | 0x2); }
+  bool haveGVs() const { return RefAndFlags.getInt() & HaveGV; }
+  bool isReadOnly() const {
+    assert(isValidAccessSpecifier());
+    return RefAndFlags.getInt() & ReadOnly;
+  }
+  bool isWriteOnly() const {
+    assert(isValidAccessSpecifier());
+    return RefAndFlags.getInt() & WriteOnly;
+  }
+  unsigned getAccessSpecifier() const {
+    assert(isValidAccessSpecifier());
+    return RefAndFlags.getInt() & (ReadOnly | WriteOnly);
+  }
+  bool isValidAccessSpecifier() const {
+    unsigned BadAccessMask = ReadOnly | WriteOnly;
+    return (RefAndFlags.getInt() & BadAccessMask) != BadAccessMask;
+  }
+  void setReadOnly() {
+    // We expect ro/wo attribute to set only once during
+    // ValueInfo lifetime.
+    assert(getAccessSpecifier() == 0);
+    RefAndFlags.setInt(RefAndFlags.getInt() | ReadOnly);
+  }
+  void setWriteOnly() {
+    assert(getAccessSpecifier() == 0);
+    RefAndFlags.setInt(RefAndFlags.getInt() | WriteOnly);
+  }
 
   const GlobalValueSummaryMapTy::value_type *getRef() const {
     return RefAndFlags.getPointer();
   }
 
-  bool isDSOLocal() const;
+  /// Returns the most constraining visibility among summaries. The
+  /// visibilities, ordered from least to most constraining, are: default,
+  /// protected and hidden.
+  GlobalValue::VisibilityTypes getELFVisibility() const;
+
+  /// Checks if all summaries are DSO local (have the flag set). When DSOLocal
+  /// propagation has been done, set the parameter to enable fast check.
+  bool isDSOLocal(bool WithDSOLocalPropagation = false) const;
 
   /// Checks if all copies are eligible for auto-hiding (have flag set).
   bool canAutoHide() const;
@@ -267,6 +302,9 @@ public:
     /// types based on global summary-based analysis.
     unsigned Linkage : 4;
 
+    /// Indicates the visibility.
+    unsigned Visibility : 2;
+
     /// Indicate if the global value cannot be imported (e.g. it cannot
     /// be renamed or references something that can't be renamed).
     unsigned NotEligibleToImport : 1;
@@ -295,10 +333,12 @@ public:
 
     /// Convenience Constructors
     explicit GVFlags(GlobalValue::LinkageTypes Linkage,
+                     GlobalValue::VisibilityTypes Visibility,
                      bool NotEligibleToImport, bool Live, bool IsLocal,
                      bool CanAutoHide)
-        : Linkage(Linkage), NotEligibleToImport(NotEligibleToImport),
-          Live(Live), DSOLocal(IsLocal), CanAutoHide(CanAutoHide) {}
+        : Linkage(Linkage), Visibility(Visibility),
+          NotEligibleToImport(NotEligibleToImport), Live(Live),
+          DSOLocal(IsLocal), CanAutoHide(CanAutoHide) {}
   };
 
 private:
@@ -382,6 +422,13 @@ public:
   void setCanAutoHide(bool CanAutoHide) { Flags.CanAutoHide = CanAutoHide; }
 
   bool canAutoHide() const { return Flags.CanAutoHide; }
+
+  GlobalValue::VisibilityTypes getVisibility() const {
+    return (GlobalValue::VisibilityTypes)Flags.Visibility;
+  }
+  void setVisibility(GlobalValue::VisibilityTypes Vis) {
+    Flags.Visibility = (unsigned)Vis;
+  }
 
   /// Flag that this global value cannot be imported.
   void setNotEligibleToImport() { Flags.NotEligibleToImport = true; }
@@ -522,6 +569,96 @@ public:
 
     // Indicate if the global value cannot be inlined.
     unsigned NoInline : 1;
+    // Indicate if function should be always inlined.
+    unsigned AlwaysInline : 1;
+    // Indicate if function never raises an exception. Can be modified during
+    // thinlink function attribute propagation
+    unsigned NoUnwind : 1;
+    // Indicate if function contains instructions that mayThrow
+    unsigned MayThrow : 1;
+
+    // If there are calls to unknown targets (e.g. indirect)
+    unsigned HasUnknownCall : 1;
+
+    // Indicate if a function must be an unreachable function.
+    //
+    // This bit is sufficient but not necessary;
+    // if this bit is on, the function must be regarded as unreachable;
+    // if this bit is off, the function might be reachable or unreachable.
+    unsigned MustBeUnreachable : 1;
+
+    FFlags &operator&=(const FFlags &RHS) {
+      this->ReadNone &= RHS.ReadNone;
+      this->ReadOnly &= RHS.ReadOnly;
+      this->NoRecurse &= RHS.NoRecurse;
+      this->ReturnDoesNotAlias &= RHS.ReturnDoesNotAlias;
+      this->NoInline &= RHS.NoInline;
+      this->AlwaysInline &= RHS.AlwaysInline;
+      this->NoUnwind &= RHS.NoUnwind;
+      this->MayThrow &= RHS.MayThrow;
+      this->HasUnknownCall &= RHS.HasUnknownCall;
+      this->MustBeUnreachable &= RHS.MustBeUnreachable;
+      return *this;
+    }
+
+    bool anyFlagSet() {
+      return this->ReadNone | this->ReadOnly | this->NoRecurse |
+             this->ReturnDoesNotAlias | this->NoInline | this->AlwaysInline |
+             this->NoUnwind | this->MayThrow | this->HasUnknownCall |
+             this->MustBeUnreachable;
+    }
+
+    operator std::string() {
+      std::string Output;
+      raw_string_ostream OS(Output);
+      OS << "funcFlags: (";
+      OS << "readNone: " << this->ReadNone;
+      OS << ", readOnly: " << this->ReadOnly;
+      OS << ", noRecurse: " << this->NoRecurse;
+      OS << ", returnDoesNotAlias: " << this->ReturnDoesNotAlias;
+      OS << ", noInline: " << this->NoInline;
+      OS << ", alwaysInline: " << this->AlwaysInline;
+      OS << ", noUnwind: " << this->NoUnwind;
+      OS << ", mayThrow: " << this->MayThrow;
+      OS << ", hasUnknownCall: " << this->HasUnknownCall;
+      OS << ", mustBeUnreachable: " << this->MustBeUnreachable;
+      OS << ")";
+      return OS.str();
+    }
+  };
+
+  /// Describes the uses of a parameter by the function.
+  struct ParamAccess {
+    static constexpr uint32_t RangeWidth = 64;
+
+    /// Describes the use of a value in a call instruction, specifying the
+    /// call's target, the value's parameter number, and the possible range of
+    /// offsets from the beginning of the value that are passed.
+    struct Call {
+      uint64_t ParamNo = 0;
+      ValueInfo Callee;
+      ConstantRange Offsets{/*BitWidth=*/RangeWidth, /*isFullSet=*/true};
+
+      Call() = default;
+      Call(uint64_t ParamNo, ValueInfo Callee, const ConstantRange &Offsets)
+          : ParamNo(ParamNo), Callee(Callee), Offsets(Offsets) {}
+    };
+
+    uint64_t ParamNo = 0;
+    /// The range contains byte offsets from the parameter pointer which
+    /// accessed by the function. In the per-module summary, it only includes
+    /// accesses made by the function instructions. In the combined summary, it
+    /// also includes accesses by nested function calls.
+    ConstantRange Use{/*BitWidth=*/RangeWidth, /*isFullSet=*/true};
+    /// In the per-module summary, it summarizes the byte offset applied to each
+    /// pointer parameter before passing to each corresponding callee.
+    /// In the combined summary, it's empty and information is propagated by
+    /// inter-procedural analysis and applied to the Use field.
+    std::vector<Call> Calls;
+
+    ParamAccess() = default;
+    ParamAccess(uint64_t ParamNo, const ConstantRange &Use)
+        : ParamNo(ParamNo), Use(Use) {}
   };
 
   /// Create an empty FunctionSummary (with specified call edges).
@@ -531,15 +668,17 @@ public:
     return FunctionSummary(
         FunctionSummary::GVFlags(
             GlobalValue::LinkageTypes::AvailableExternallyLinkage,
+            GlobalValue::DefaultVisibility,
             /*NotEligibleToImport=*/true, /*Live=*/true, /*IsLocal=*/false,
             /*CanAutoHide=*/false),
-        /*InsCount=*/0, FunctionSummary::FFlags{}, /*EntryCount=*/0,
+        /*NumInsts=*/0, FunctionSummary::FFlags{}, /*EntryCount=*/0,
         std::vector<ValueInfo>(), std::move(Edges),
         std::vector<GlobalValue::GUID>(),
         std::vector<FunctionSummary::VFuncId>(),
         std::vector<FunctionSummary::VFuncId>(),
         std::vector<FunctionSummary::ConstVCall>(),
-        std::vector<FunctionSummary::ConstVCall>());
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ParamAccess>());
   }
 
   /// A dummy node to reference external functions that aren't in the index
@@ -563,6 +702,10 @@ private:
 
   std::unique_ptr<TypeIdInfo> TIdInfo;
 
+  /// Uses for every parameter to this function.
+  using ParamAccessesTy = std::vector<ParamAccess>;
+  std::unique_ptr<ParamAccessesTy> ParamAccesses;
+
 public:
   FunctionSummary(GVFlags Flags, unsigned NumInsts, FFlags FunFlags,
                   uint64_t EntryCount, std::vector<ValueInfo> Refs,
@@ -571,21 +714,24 @@ public:
                   std::vector<VFuncId> TypeTestAssumeVCalls,
                   std::vector<VFuncId> TypeCheckedLoadVCalls,
                   std::vector<ConstVCall> TypeTestAssumeConstVCalls,
-                  std::vector<ConstVCall> TypeCheckedLoadConstVCalls)
+                  std::vector<ConstVCall> TypeCheckedLoadConstVCalls,
+                  std::vector<ParamAccess> Params)
       : GlobalValueSummary(FunctionKind, Flags, std::move(Refs)),
         InstCount(NumInsts), FunFlags(FunFlags), EntryCount(EntryCount),
         CallGraphEdgeList(std::move(CGEdges)) {
     if (!TypeTests.empty() || !TypeTestAssumeVCalls.empty() ||
         !TypeCheckedLoadVCalls.empty() || !TypeTestAssumeConstVCalls.empty() ||
         !TypeCheckedLoadConstVCalls.empty())
-      TIdInfo = llvm::make_unique<TypeIdInfo>(TypeIdInfo{
-          std::move(TypeTests), std::move(TypeTestAssumeVCalls),
-          std::move(TypeCheckedLoadVCalls),
-          std::move(TypeTestAssumeConstVCalls),
-          std::move(TypeCheckedLoadConstVCalls)});
+      TIdInfo = std::make_unique<TypeIdInfo>(
+          TypeIdInfo{std::move(TypeTests), std::move(TypeTestAssumeVCalls),
+                     std::move(TypeCheckedLoadVCalls),
+                     std::move(TypeTestAssumeConstVCalls),
+                     std::move(TypeCheckedLoadConstVCalls)});
+    if (!Params.empty())
+      ParamAccesses = std::make_unique<ParamAccessesTy>(std::move(Params));
   }
-  // Gets the number of immutable refs in RefEdgeList
-  unsigned immutableRefCount() const;
+  // Gets the number of readonly and writeonly refs in RefEdgeList
+  std::pair<unsigned, unsigned> specialRefCounts() const;
 
   /// Check if this is a function summary.
   static bool classof(const GlobalValueSummary *GVS) {
@@ -594,6 +740,10 @@ public:
 
   /// Get function summary flags.
   FFlags fflags() const { return FunFlags; }
+
+  void setNoRecurse() { FunFlags.NoRecurse = true; }
+
+  void setNoUnwind() { FunFlags.NoUnwind = true; }
 
   /// Get the instruction count recorded for this function.
   unsigned instCount() const { return InstCount; }
@@ -606,6 +756,10 @@ public:
 
   /// Return the list of <CalleeValueInfo, CalleeInfo> pairs.
   ArrayRef<EdgeTy> calls() const { return CallGraphEdgeList; }
+
+  std::vector<EdgeTy> &mutableCalls() { return CallGraphEdgeList; }
+
+  void addCall(EdgeTy E) { CallGraphEdgeList.push_back(E); }
 
   /// Returns the list of type identifiers used by this function in
   /// llvm.type.test intrinsics other than by an llvm.assume intrinsic,
@@ -651,11 +805,28 @@ public:
     return {};
   }
 
+  /// Returns the list of known uses of pointer parameters.
+  ArrayRef<ParamAccess> paramAccesses() const {
+    if (ParamAccesses)
+      return *ParamAccesses;
+    return {};
+  }
+
+  /// Sets the list of known uses of pointer parameters.
+  void setParamAccesses(std::vector<ParamAccess> NewParams) {
+    if (NewParams.empty())
+      ParamAccesses.reset();
+    else if (ParamAccesses)
+      *ParamAccesses = std::move(NewParams);
+    else
+      ParamAccesses = std::make_unique<ParamAccessesTy>(std::move(NewParams));
+  }
+
   /// Add a type test to the summary. This is used by WholeProgramDevirt if we
   /// were unable to devirtualize a checked call.
   void addTypeTest(GlobalValue::GUID Guid) {
     if (!TIdInfo)
-      TIdInfo = llvm::make_unique<TypeIdInfo>();
+      TIdInfo = std::make_unique<TypeIdInfo>();
     TIdInfo->TypeTests.push_back(Guid);
   }
 
@@ -698,18 +869,62 @@ template <> struct DenseMapInfo<FunctionSummary::ConstVCall> {
   }
 };
 
+/// The ValueInfo and offset for a function within a vtable definition
+/// initializer array.
+struct VirtFuncOffset {
+  VirtFuncOffset(ValueInfo VI, uint64_t Offset)
+      : FuncVI(VI), VTableOffset(Offset) {}
+
+  ValueInfo FuncVI;
+  uint64_t VTableOffset;
+};
+/// List of functions referenced by a particular vtable definition.
+using VTableFuncList = std::vector<VirtFuncOffset>;
+
 /// Global variable summary information to aid decisions and
 /// implementation of importing.
 ///
-/// Global variable summary has extra flag, telling if it is
-/// modified during the program run or not. This affects ThinLTO
-/// internalization
+/// Global variable summary has two extra flag, telling if it is
+/// readonly or writeonly. Both readonly and writeonly variables
+/// can be optimized in the backed: readonly variables can be
+/// const-folded, while writeonly vars can be completely eliminated
+/// together with corresponding stores. We let both things happen
+/// by means of internalizing such variables after ThinLTO import.
 class GlobalVarSummary : public GlobalValueSummary {
+private:
+  /// For vtable definitions this holds the list of functions and
+  /// their corresponding offsets within the initializer array.
+  std::unique_ptr<VTableFuncList> VTableFuncs;
+
 public:
   struct GVarFlags {
-    GVarFlags(bool ReadOnly = false) : ReadOnly(ReadOnly) {}
+    GVarFlags(bool ReadOnly, bool WriteOnly, bool Constant,
+              GlobalObject::VCallVisibility Vis)
+        : MaybeReadOnly(ReadOnly), MaybeWriteOnly(WriteOnly),
+          Constant(Constant), VCallVisibility(Vis) {}
 
-    unsigned ReadOnly : 1;
+    // If true indicates that this global variable might be accessed
+    // purely by non-volatile load instructions. This in turn means
+    // it can be internalized in source and destination modules during
+    // thin LTO import because it neither modified nor its address
+    // is taken.
+    unsigned MaybeReadOnly : 1;
+    // If true indicates that variable is possibly only written to, so
+    // its value isn't loaded and its address isn't taken anywhere.
+    // False, when 'Constant' attribute is set.
+    unsigned MaybeWriteOnly : 1;
+    // Indicates that value is a compile-time constant. Global variable
+    // can be 'Constant' while not being 'ReadOnly' on several occasions:
+    // - it is volatile, (e.g mapped device address)
+    // - its address is taken, meaning that unlike 'ReadOnly' vars we can't
+    //   internalize it.
+    // Constant variables are always imported thus giving compiler an
+    // opportunity to make some extra optimizations. Readonly constants
+    // are also internalized.
+    unsigned Constant : 1;
+    // Set from metadata on vtable definitions during the module summary
+    // analysis.
+    unsigned VCallVisibility : 2;
   } VarFlags;
 
   GlobalVarSummary(GVFlags Flags, GVarFlags VarFlags,
@@ -723,8 +938,28 @@ public:
   }
 
   GVarFlags varflags() const { return VarFlags; }
-  void setReadOnly(bool RO) { VarFlags.ReadOnly = RO; }
-  bool isReadOnly() const { return VarFlags.ReadOnly; }
+  void setReadOnly(bool RO) { VarFlags.MaybeReadOnly = RO; }
+  void setWriteOnly(bool WO) { VarFlags.MaybeWriteOnly = WO; }
+  bool maybeReadOnly() const { return VarFlags.MaybeReadOnly; }
+  bool maybeWriteOnly() const { return VarFlags.MaybeWriteOnly; }
+  bool isConstant() const { return VarFlags.Constant; }
+  void setVCallVisibility(GlobalObject::VCallVisibility Vis) {
+    VarFlags.VCallVisibility = Vis;
+  }
+  GlobalObject::VCallVisibility getVCallVisibility() const {
+    return (GlobalObject::VCallVisibility)VarFlags.VCallVisibility;
+  }
+
+  void setVTableFuncs(VTableFuncList Funcs) {
+    assert(!VTableFuncs);
+    VTableFuncs = std::make_unique<VTableFuncList>(std::move(Funcs));
+  }
+
+  ArrayRef<VirtFuncOffset> vTableFuncs() const {
+    if (VTableFuncs)
+      return *VTableFuncs;
+    return {};
+  }
 };
 
 struct TypeTestResolution {
@@ -739,7 +974,8 @@ struct TypeTestResolution {
     Single,    ///< Single element (last example in "Short Inline Bit Vectors")
     AllOnes,   ///< All-ones bit vector ("Eliminating Bit Vector Checks for
                ///  All-Ones Bit Vectors")
-  } TheKind = Unsat;
+    Unknown,   ///< Unknown (analysis not performed, don't lower)
+  } TheKind = Unknown;
 
   /// Range of size-1 expressed as a bit width. For example, if the size is in
   /// range [1,256], this number will be 8. This helps generate the most compact
@@ -823,6 +1059,29 @@ using GVSummaryMapTy = DenseMap<GlobalValue::GUID, GlobalValueSummary *>;
 using TypeIdSummaryMapTy =
     std::multimap<GlobalValue::GUID, std::pair<std::string, TypeIdSummary>>;
 
+/// The following data structures summarize type metadata information.
+/// For type metadata overview see https://llvm.org/docs/TypeMetadata.html.
+/// Each type metadata includes both the type identifier and the offset of
+/// the address point of the type (the address held by objects of that type
+/// which may not be the beginning of the virtual table). Vtable definitions
+/// are decorated with type metadata for the types they are compatible with.
+///
+/// Holds information about vtable definitions decorated with type metadata:
+/// the vtable definition value and its address point offset in a type
+/// identifier metadata it is decorated (compatible) with.
+struct TypeIdOffsetVtableInfo {
+  TypeIdOffsetVtableInfo(uint64_t Offset, ValueInfo VI)
+      : AddressPointOffset(Offset), VTableVI(VI) {}
+
+  uint64_t AddressPointOffset;
+  ValueInfo VTableVI;
+};
+/// List of vtable definitions decorated by a particular type identifier,
+/// and their corresponding offsets in that type identifier's metadata.
+/// Note that each type identifier may be compatible with multiple vtables, due
+/// to inheritance, which is why this is a vector.
+using TypeIdCompatibleVtableInfo = std::vector<TypeIdOffsetVtableInfo>;
+
 /// Class to hold module path string table and global value map,
 /// and encapsulate methods for operating on them.
 class ModuleSummaryIndex {
@@ -835,8 +1094,15 @@ private:
   ModulePathStringTableTy ModulePathStringTable;
 
   /// Mapping from type identifier GUIDs to type identifier and its summary
-  /// information.
+  /// information. Produced by thin link.
   TypeIdSummaryMapTy TypeIdMap;
+
+  /// Mapping from type identifier to information about vtables decorated
+  /// with that type identifier's metadata. Produced by per module summary
+  /// analysis and consumed by thin link. For more information, see description
+  /// above where TypeIdCompatibleVtableInfo is defined.
+  std::map<std::string, TypeIdCompatibleVtableInfo, std::less<>>
+      TypeIdCompatibleVtableMap;
 
   /// Mapping from original ID to GUID. If original ID can map to multiple
   /// GUIDs, it will be mapped to 0.
@@ -846,6 +1112,15 @@ private:
   /// GVFlags::Live==false are really dead. Otherwise, all values must be
   /// considered live.
   bool WithGlobalValueDeadStripping = false;
+
+  /// Indicates that summary-based attribute propagation has run and
+  /// GVarFlags::MaybeReadonly / GVarFlags::MaybeWriteonly are really
+  /// read/write only.
+  bool WithAttributePropagation = false;
+
+  /// Indicates that summary-based DSOLocal propagation has run and the flag in
+  /// every summary of a GV is synchronized.
+  bool WithDSOLocalPropagation = false;
 
   /// Indicates that summary-based synthetic entry count propagation has run
   bool HasSyntheticEntryCounts = false;
@@ -870,6 +1145,9 @@ private:
   // some were not. Set when the combined index is created during the thin link.
   bool PartiallySplitLTOUnits = false;
 
+  /// True if some of the FunctionSummary contains a ParamAccess.
+  bool HasParamAccess = false;
+
   std::set<std::string> CfiFunctionDefs;
   std::set<std::string> CfiFunctionDecls;
 
@@ -877,6 +1155,10 @@ private:
   // don't have the string owned elsewhere (e.g. the Strtab on a module).
   StringSaver Saver;
   BumpPtrAllocator Alloc;
+
+  // The total number of basic blocks in the module in the per-module summary or
+  // the total number of basic blocks in the LTO unit in the combined index.
+  uint64_t BlockCount;
 
   // YAML I/O support.
   friend yaml::MappingTraits<ModuleSummaryIndex>;
@@ -890,10 +1172,29 @@ private:
 public:
   // See HaveGVs variable comment.
   ModuleSummaryIndex(bool HaveGVs, bool EnableSplitLTOUnit = false)
-      : HaveGVs(HaveGVs), EnableSplitLTOUnit(EnableSplitLTOUnit), Saver(Alloc) {
+      : HaveGVs(HaveGVs), EnableSplitLTOUnit(EnableSplitLTOUnit), Saver(Alloc),
+        BlockCount(0) {}
+
+  // Current version for the module summary in bitcode files.
+  // The BitcodeSummaryVersion should be bumped whenever we introduce changes
+  // in the way some record are interpreted, like flags for instance.
+  // Note that incrementing this may require changes in both BitcodeReader.cpp
+  // and BitcodeWriter.cpp.
+  static constexpr uint64_t BitcodeSummaryVersion = 9;
+
+  // Regular LTO module name for ASM writer
+  static constexpr const char *getRegularLTOModuleName() {
+    return "[Regular LTO]";
   }
 
   bool haveGVs() const { return HaveGVs; }
+
+  uint64_t getFlags() const;
+  void setFlags(uint64_t Flags);
+
+  uint64_t getBlockCount() const { return BlockCount; }
+  void addBlockCount(uint64_t C) { BlockCount += C; }
+  void setBlockCount(uint64_t C) { BlockCount = C; }
 
   gvsummary_iterator begin() { return GlobalValueMap.begin(); }
   const_gvsummary_iterator begin() const { return GlobalValueMap.begin(); }
@@ -971,6 +1272,21 @@ public:
     WithGlobalValueDeadStripping = true;
   }
 
+  bool withAttributePropagation() const { return WithAttributePropagation; }
+  void setWithAttributePropagation() {
+    WithAttributePropagation = true;
+  }
+
+  bool withDSOLocalPropagation() const { return WithDSOLocalPropagation; }
+  void setWithDSOLocalPropagation() { WithDSOLocalPropagation = true; }
+
+  bool isReadOnly(const GlobalVarSummary *GVS) const {
+    return WithAttributePropagation && GVS->maybeReadOnly();
+  }
+  bool isWriteOnly(const GlobalVarSummary *GVS) const {
+    return WithAttributePropagation && GVS->maybeWriteOnly();
+  }
+
   bool hasSyntheticEntryCounts() const { return HasSyntheticEntryCounts; }
   void setHasSyntheticEntryCounts() { HasSyntheticEntryCounts = true; }
 
@@ -986,6 +1302,8 @@ public:
 
   bool partiallySplitLTOUnits() const { return PartiallySplitLTOUnits; }
   void setPartiallySplitLTOUnits() { PartiallySplitLTOUnits = true; }
+
+  bool hasParamAccess() const { return HasParamAccess; }
 
   bool isGlobalValueLive(const GlobalValueSummary *GVS) const {
     return !WithGlobalValueDeadStripping || GVS->isLive();
@@ -1058,6 +1376,8 @@ public:
   /// Add a global value summary for the given ValueInfo.
   void addGlobalValueSummary(ValueInfo VI,
                              std::unique_ptr<GlobalValueSummary> Summary) {
+    if (const FunctionSummary *FS = dyn_cast<FunctionSummary>(Summary.get()))
+      HasParamAccess |= !FS->paramAccesses().empty();
     addOriginalName(VI.getGUID(), Summary->getOriginalName());
     // Here we have a notionally const VI, but the value it points to is owned
     // by the non-const *this.
@@ -1143,13 +1463,15 @@ public:
     NewName += ".llvm.";
     NewName += utostr((uint64_t(ModHash[0]) << 32) |
                       ModHash[1]); // Take the first 64 bits
-    return NewName.str();
+    return std::string(NewName.str());
   }
 
   /// Helper to obtain the unpromoted name for a global value (or the original
-  /// name if not promoted).
+  /// name if not promoted). Split off the rightmost ".llvm.${hash}" suffix,
+  /// because it is possible in certain clients (not clang at the moment) for
+  /// two rounds of ThinLTO optimization and therefore promotion to occur.
   static StringRef getOriginalNameBeforePromote(StringRef Name) {
-    std::pair<StringRef, StringRef> Pair = Name.split(".llvm.");
+    std::pair<StringRef, StringRef> Pair = Name.rsplit(".llvm.");
     return Pair.first;
   }
 
@@ -1187,7 +1509,7 @@ public:
       if (It->second.first == TypeId)
         return It->second.second;
     auto It = TypeIdMap.insert(
-        {GlobalValue::getGUID(TypeId), {TypeId, TypeIdSummary()}});
+        {GlobalValue::getGUID(TypeId), {std::string(TypeId), TypeIdSummary()}});
     return It->second.second;
   }
 
@@ -1199,6 +1521,34 @@ public:
       if (It->second.first == TypeId)
         return &It->second.second;
     return nullptr;
+  }
+
+  TypeIdSummary *getTypeIdSummary(StringRef TypeId) {
+    return const_cast<TypeIdSummary *>(
+        static_cast<const ModuleSummaryIndex *>(this)->getTypeIdSummary(
+            TypeId));
+  }
+
+  const auto &typeIdCompatibleVtableMap() const {
+    return TypeIdCompatibleVtableMap;
+  }
+
+  /// Return an existing or new TypeIdCompatibleVtableMap entry for \p TypeId.
+  /// This accessor can mutate the map and therefore should not be used in
+  /// the ThinLTO backends.
+  TypeIdCompatibleVtableInfo &
+  getOrInsertTypeIdCompatibleVtableSummary(StringRef TypeId) {
+    return TypeIdCompatibleVtableMap[std::string(TypeId)];
+  }
+
+  /// For the given \p TypeId, this returns the TypeIdCompatibleVtableMap
+  /// entry if present in the summary map. This may be used when importing.
+  Optional<TypeIdCompatibleVtableInfo>
+  getTypeIdCompatibleVtableSummary(StringRef TypeId) const {
+    auto I = TypeIdCompatibleVtableMap.find(TypeId);
+    if (I == TypeIdCompatibleVtableMap.end())
+      return None;
+    return I->second;
   }
 
   /// Collect for the given module the list of functions it defines
@@ -1226,13 +1576,18 @@ public:
   void dump() const;
 
   /// Export summary to dot file for GraphViz.
-  void exportToDot(raw_ostream& OS) const;
+  void
+  exportToDot(raw_ostream &OS,
+              const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) const;
 
   /// Print out strongly connected components for debugging.
   void dumpSCCs(raw_ostream &OS);
 
-  /// Analyze index and detect unmodified globals
-  void propagateConstants(const DenseSet<GlobalValue::GUID> &PreservedSymbols);
+  /// Do the access attribute and DSOLocal propagation in combined index.
+  void propagateAttributes(const DenseSet<GlobalValue::GUID> &PreservedSymbols);
+
+  /// Checks if we can import global variable from another module.
+  bool canImportGlobalVar(GlobalValueSummary *S, bool AnalyzeRefs) const;
 };
 
 /// GraphTraits definition to build SCC for the index
@@ -1296,7 +1651,7 @@ template <>
 struct GraphTraits<ModuleSummaryIndex *> : public GraphTraits<ValueInfo> {
   static NodeRef getEntryNode(ModuleSummaryIndex *I) {
     std::unique_ptr<GlobalValueSummary> Root =
-        make_unique<FunctionSummary>(I->calculateCallGraphRoot());
+        std::make_unique<FunctionSummary>(I->calculateCallGraphRoot());
     GlobalValueSummaryInfo G(I->haveGVs());
     G.SummaryList.push_back(std::move(Root));
     static auto P =
@@ -1304,15 +1659,6 @@ struct GraphTraits<ModuleSummaryIndex *> : public GraphTraits<ValueInfo> {
     return ValueInfo(I->haveGVs(), &P);
   }
 };
-
-static inline bool canImportGlobalVar(GlobalValueSummary *S) {
-  assert(isa<GlobalVarSummary>(S->getBaseObject()));
-
-  // We don't import GV with references, because it can result
-  // in promotion of local variables in the source module.
-  return !GlobalValue::isInterposableLinkage(S->linkage()) &&
-         !S->notEligibleToImport() && S->refs().empty();
-}
 } // end namespace llvm
 
 #endif // LLVM_IR_MODULESUMMARYINDEX_H

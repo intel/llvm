@@ -6,13 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <any>
 
 // Check that the size and alignment of any are what we expect.
 
 #include <any>
+#include "test_macros.h"
 #include "any_helpers.h"
 
 constexpr std::size_t BufferSize = (sizeof(void*) * 3);
@@ -56,7 +57,6 @@ struct alignas(DoubleBufferAlignment) OverSizeAndAlignedType {
 
 int main(int, char**)
 {
-    using std::any;
     using std::__any_imp::_IsSmallObject;
     static_assert(_IsSmallObject<small>::value, "");
     static_assert(_IsSmallObject<void*>::value, "");

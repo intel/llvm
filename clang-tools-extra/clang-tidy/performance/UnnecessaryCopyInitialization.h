@@ -10,6 +10,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_PERFORMANCE_UNNECESSARY_COPY_INITIALIZATION_H
 
 #include "../ClangTidyCheck.h"
+#include "clang/AST/Decl.h"
 
 namespace clang {
 namespace tidy {
@@ -26,18 +27,23 @@ namespace performance {
 class UnnecessaryCopyInitialization : public ClangTidyCheck {
 public:
   UnnecessaryCopyInitialization(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override{
+    return LangOpts.CPlusPlus;
+  }
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
 
 private:
   void handleCopyFromMethodReturn(const VarDecl &Var, const Stmt &BlockStmt,
-                                  bool IssueFix, const VarDecl *ObjectArg,
+                                  const DeclStmt &Stmt, bool IssueFix,
+                                  const VarDecl *ObjectArg,
                                   ASTContext &Context);
   void handleCopyFromLocalVar(const VarDecl &NewVar, const VarDecl &OldVar,
-                              const Stmt &BlockStmt, bool IssueFix,
-                              ASTContext &Context);
+                              const Stmt &BlockStmt, const DeclStmt &Stmt,
+                              bool IssueFix, ASTContext &Context);
   const std::vector<std::string> AllowedTypes;
+  const std::vector<std::string> ExcludedContainerTypes;
 };
 
 } // namespace performance

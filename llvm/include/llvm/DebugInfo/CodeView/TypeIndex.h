@@ -13,11 +13,11 @@
 #include "llvm/Support/Endian.h"
 #include <cassert>
 #include <cinttypes>
-#include <functional>
 
 namespace llvm {
 
 class ScopedPrinter;
+class StringRef;
 
 namespace codeview {
 
@@ -35,6 +35,7 @@ enum class SimpleTypeKind : uint32_t {
   WideCharacter = 0x0071,     // wide char
   Character16 = 0x007a,       // char16_t
   Character32 = 0x007b,       // char32_t
+  Character8 = 0x007c,        // char8_t
 
   SByte = 0x0068,       // 8 bit signed int
   Byte = 0x0069,        // 8 bit unsigned int
@@ -116,11 +117,20 @@ public:
 
   uint32_t toArrayIndex() const {
     assert(!isSimple());
-    return getIndex() - FirstNonSimpleIndex;
+    return (getIndex() & ~DecoratedItemIdMask) - FirstNonSimpleIndex;
   }
 
   static TypeIndex fromArrayIndex(uint32_t Index) {
     return TypeIndex(Index + FirstNonSimpleIndex);
+  }
+
+  static TypeIndex fromDecoratedArrayIndex(bool IsItem, uint32_t Index) {
+    return TypeIndex((Index + FirstNonSimpleIndex) |
+                     (IsItem ? DecoratedItemIdMask : 0));
+  }
+
+  TypeIndex removeDecoration() {
+    return TypeIndex(Index & ~DecoratedItemIdMask);
   }
 
   SimpleTypeKind getSimpleKind() const {

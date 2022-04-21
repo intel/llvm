@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Internals.h"
+#include "clang/ARCMigrate/ARCMT.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Basic/DiagnosticCategories.h"
 #include "clang/Frontend/ASTUnit.h"
@@ -64,7 +65,7 @@ bool CapturedDiagList::hasDiagnostic(ArrayRef<unsigned> IDs,
   while (I != List.end()) {
     FullSourceLoc diagLoc = I->getLocation();
     if ((IDs.empty() || // empty means any diagnostic in the range.
-         llvm::find(IDs, I->getID()) != IDs.end()) &&
+         llvm::is_contained(IDs, I->getID())) &&
         !diagLoc.isBeforeInTranslationUnitThan(range.getBegin()) &&
         (diagLoc == range.getEnd() ||
          diagLoc.isBeforeInTranslationUnitThan(range.getEnd()))) {
@@ -139,7 +140,7 @@ public:
     }
 
     // Non-ARC warnings are ignored.
-    Diags.setLastDiagnosticIgnored();
+    Diags.setLastDiagnosticIgnored(true);
   }
 };
 
@@ -161,9 +162,7 @@ static bool HasARCRuntime(CompilerInvocation &origCI) {
     return triple.getOSMajorVersion() >= 11;
 
   if (triple.getOS() == llvm::Triple::MacOSX) {
-    unsigned Major, Minor, Micro;
-    triple.getOSVersion(Major, Minor, Micro);
-    return Major > 10 || (Major == 10 && Minor >= 7);
+    return triple.getOSVersion() >= VersionTuple(10, 7);
   }
 
   return false;
@@ -189,7 +188,7 @@ createInvocationForMigration(CompilerInvocation &origCI,
       PPOpts.Includes.insert(PPOpts.Includes.begin(), OriginalFile);
     PPOpts.ImplicitPCHInclude.clear();
   }
-  std::string define = getARCMTMacroName();
+  std::string define = std::string(getARCMTMacroName());
   define += '=';
   CInvok->getPreprocessorOpts().addMacroDef(define);
   CInvok->getLangOpts()->ObjCAutoRefCount = true;
@@ -296,7 +295,7 @@ bool arcmt::checkForManualIssues(
     for (CapturedDiagList::iterator
            I = capturedDiags.begin(), E = capturedDiags.end(); I != E; ++I)
       arcDiags.push_back(*I);
-    writeARCDiagsToPlist(plistOut, arcDiags,
+    writeARCDiagsToPlist(std::string(plistOut), arcDiags,
                          Ctx.getSourceManager(), Ctx.getLangOpts());
   }
 
@@ -415,9 +414,11 @@ bool arcmt::getFileRemappings(std::vector<std::pair<std::string,std::string> > &
   if (err)
     return true;
 
-  PreprocessorOptions PPOpts;
-  remapper.applyMappings(PPOpts);
-  remap = PPOpts.RemappedFiles;
+  remapper.forEachMapping(
+      [&](StringRef From, StringRef To) {
+        remap.push_back(std::make_pair(From.str(), To.str()));
+      },
+      [](StringRef, const llvm::MemoryBufferRef &) {});
 
   return false;
 }
@@ -453,8 +454,8 @@ public:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override {
     CI.getPreprocessor().addPPCallbacks(
-               llvm::make_unique<ARCMTMacroTrackerPPCallbacks>(ARCMTMacroLocs));
-    return llvm::make_unique<ASTConsumer>();
+               std::make_unique<ARCMTMacroTrackerPPCallbacks>(ARCMTMacroLocs));
+    return std::make_unique<ASTConsumer>();
   }
 };
 
@@ -514,7 +515,7 @@ MigrationProcess::MigrationProcess(
     IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
       new DiagnosticsEngine(DiagID, &CI.getDiagnosticOpts(),
                             DiagClient, /*ShouldOwnClient=*/false));
-    Remapper.initFromDisk(outputDir, *Diags, /*ignoreIfFilesChanges=*/true);
+    Remapper.initFromDisk(outputDir, *Diags, /*ignoreIfFilesChanged=*/true);
   }
 }
 
@@ -598,7 +599,7 @@ bool MigrationProcess::applyTransform(TransformFn trans,
     RewriteBuffer &buf = I->second;
     const FileEntry *file = Ctx.getSourceManager().getFileEntryForID(FID);
     assert(file);
-    std::string newFname = file->getName();
+    std::string newFname = std::string(file->getName());
     newFname += "-trans";
     SmallString<512> newText;
     llvm::raw_svector_ostream vecOS(newText);

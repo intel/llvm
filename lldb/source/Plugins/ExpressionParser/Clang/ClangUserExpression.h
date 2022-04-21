@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ClangUserExpression_h_
-#define liblldb_ClangUserExpression_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGUSEREXPRESSION_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGUSEREXPRESSION_H
 
 #include <vector>
 
@@ -15,11 +15,11 @@
 #include "ASTStructExtractor.h"
 #include "ClangExpressionDeclMap.h"
 #include "ClangExpressionHelper.h"
+#include "ClangExpressionSourceCode.h"
 #include "ClangExpressionVariable.h"
 #include "IRForTarget.h"
 
 #include "lldb/Core/Address.h"
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Expression/LLVMUserExpression.h"
 #include "lldb/Expression/Materializer.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -27,6 +27,8 @@
 #include "lldb/lldb-private.h"
 
 namespace lldb_private {
+
+class ClangExpressionParser;
 
 /// \class ClangUserExpression ClangUserExpression.h
 /// "lldb/Expression/ClangUserExpression.h" Encapsulates a single expression
@@ -37,11 +39,14 @@ namespace lldb_private {
 /// the objects needed to parse and interpret or JIT an expression.  It uses
 /// the Clang parser to produce LLVM IR from the expression.
 class ClangUserExpression : public LLVMUserExpression {
+  // LLVM RTTI support
+  static char ID;
+
 public:
-  /// LLVM-style RTTI support.
-  static bool classof(const Expression *E) {
-    return E->getKind() == eKindClangUserExpression;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || LLVMUserExpression::isA(ClassID);
   }
+  static bool classof(const Expression *obj) { return obj->isA(&ID); }
 
   enum { kDefaultTimeout = 500000u };
 
@@ -92,7 +97,7 @@ public:
   /// \param[in] expr
   ///     The expression to parse.
   ///
-  /// \param[in] expr_prefix
+  /// \param[in] prefix
   ///     If non-NULL, a C string containing translation-unit level
   ///     definitions to be included when the expression is parsed.
   ///
@@ -104,6 +109,9 @@ public:
   /// \param[in] desired_type
   ///     If not eResultTypeAny, the type to use for the expression
   ///     result.
+  ///
+  /// \param[in] options
+  ///     Additional options for the expression.
   ///
   /// \param[in] ctx_obj
   ///     The object (if any) in which context the expression
@@ -162,11 +170,22 @@ public:
   lldb::ExpressionVariableSP
   GetResultAfterDematerialization(ExecutionContextScope *exe_scope) override;
 
-  bool DidImportCxxModules() const { return m_imported_cpp_modules; }
+  /// Returns true iff this expression is using any imported C++ modules.
+  bool DidImportCxxModules() const { return !m_imported_cpp_modules.empty(); }
 
 private:
   /// Populate m_in_cplusplus_method and m_in_objectivec_method based on the
   /// environment.
+
+  /// Contains the actual parsing implementation.
+  /// The parameter have the same meaning as in ClangUserExpression::Parse.
+  /// \see ClangUserExpression::Parse
+  bool TryParse(DiagnosticManager &diagnostic_manager,
+                ExecutionContextScope *exe_scope, ExecutionContext &exe_ctx,
+                lldb_private::ExecutionPolicy execution_policy, bool keep_result_in_memory,
+                bool generate_debug_info);
+
+  void SetupCppModuleImports(ExecutionContext &exe_ctx);
 
   void ScanContext(ExecutionContext &exe_ctx,
                    lldb_private::Status &err) override;
@@ -175,11 +194,12 @@ private:
                     lldb::addr_t struct_address,
                     DiagnosticManager &diagnostic_manager) override;
 
-  std::vector<std::string> GetModulesToImport(ExecutionContext &exe_ctx);
-  void UpdateLanguageForExpr(DiagnosticManager &diagnostic_manager,
-                             ExecutionContext &exe_ctx,
-                             std::vector<std::string> modules_to_import,
-                             bool for_completion);
+  void CreateSourceCode(DiagnosticManager &diagnostic_manager,
+                        ExecutionContext &exe_ctx,
+                        std::vector<std::string> modules_to_import,
+                        bool for_completion);
+  /// Defines how the current expression should be wrapped.
+  ClangExpressionSourceCode::WrapKind GetWrapKind() const;
   bool SetupPersistentState(DiagnosticManager &diagnostic_manager,
                                    ExecutionContext &exe_ctx);
   bool PrepareForParsing(DiagnosticManager &diagnostic_manager,
@@ -202,25 +222,47 @@ private:
     lldb::TargetSP m_target_sp;
   };
 
-  /// The language type of the current expression.
-  lldb::LanguageType m_expr_lang = lldb::eLanguageTypeUnknown;
   /// The include directories that should be used when parsing the expression.
-  std::vector<ConstString> m_include_directories;
+  std::vector<std::string> m_include_directories;
 
   /// The absolute character position in the transformed source code where the
   /// user code (as typed by the user) starts. If the variable is empty, then we
   /// were not able to calculate this position.
   llvm::Optional<size_t> m_user_expression_start_pos;
   ResultDelegate m_result_delegate;
+  ClangPersistentVariables *m_clang_state;
+  std::unique_ptr<ClangExpressionSourceCode> m_source_code;
+  /// The parser instance we used to parse the expression.
+  std::unique_ptr<ClangExpressionParser> m_parser;
+  /// File name used for the expression.
+  std::string m_filename;
 
   /// The object (if any) in which context the expression is evaluated.
   /// See the comment to `UserExpression::Evaluate` for details.
   ValueObject *m_ctx_obj;
 
-  /// True iff this expression explicitly imported C++ modules.
-  bool m_imported_cpp_modules = false;
+  /// A list of module names that should be imported when parsing.
+  /// \see CppModuleConfiguration::GetImportedModules
+  std::vector<std::string> m_imported_cpp_modules;
+
+  /// True if the expression parser should enforce the presence of a valid class
+  /// pointer in order to generate the expression as a method.
+  bool m_enforce_valid_object = true;
+  /// True if the expression is compiled as a C++ member function (true if it
+  /// was parsed when exe_ctx was in a C++ method).
+  bool m_in_cplusplus_method = false;
+  /// True if the expression is compiled as an Objective-C method (true if it
+  /// was parsed when exe_ctx was in an Objective-C method).
+  bool m_in_objectivec_method = false;
+  /// True if the expression is compiled as a static (or class) method
+  /// (currently true if it was parsed when exe_ctx was in an Objective-C class
+  /// method).
+  bool m_in_static_method = false;
+  /// True if "this" or "self" must be looked up and passed in.  False if the
+  /// expression doesn't really use them and they can be NULL.
+  bool m_needs_object_ptr = false;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ClangUserExpression_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGUSEREXPRESSION_H

@@ -1,4 +1,4 @@
-//===-- ProcessMessage.cpp --------------------------------------*- C++ -*-===//
+//===-- ProcessMessage.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,12 +15,7 @@ const char *ProcessMessage::PrintCrashReason() const {
 }
 
 const char *ProcessMessage::PrintKind(Kind kind) {
-#ifdef LLDB_CONFIGURATION_BUILDANDINTEGRATION
-  // Just return the code in ascii for integration builds.
-  chcar str[8];
-  sprintf(str, "%d", reason);
-#else
-  const char *str = NULL;
+  const char *str = nullptr;
 
   switch (kind) {
   case eInvalidMessage:
@@ -60,8 +55,6 @@ const char *ProcessMessage::PrintKind(Kind kind) {
     str = "eExecMessage";
     break;
   }
-#endif
-
   return str;
 }
 

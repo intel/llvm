@@ -6,22 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_PlatformRemoteAppleTV_h_
-#define liblldb_PlatformRemoteAppleTV_h_
-
-#include <string>
-
-#include "lldb/Utility/FileSpec.h"
-
-#include "llvm/Support/FileSystem.h"
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEAPPLETV_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEAPPLETV_H
 
 #include "PlatformRemoteDarwinDevice.h"
+#include "lldb/Utility/FileSpec.h"
+#include "lldb/lldb-forward.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/FileSystem.h"
+
+#include <string>
+#include <vector>
+
+namespace lldb_private {
+class ArchSpec;
 
 class PlatformRemoteAppleTV : public PlatformRemoteDarwinDevice {
 public:
   PlatformRemoteAppleTV();
-
-  ~PlatformRemoteAppleTV() override = default;
 
   // Class Functions
   static lldb::PlatformSP CreateInstance(bool force,
@@ -31,34 +33,25 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "remote-tvos"; }
 
-  static const char *GetDescriptionStatic();
+  static llvm::StringRef GetDescriptionStatic();
 
   // lldb_private::PluginInterface functions
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
-  }
-
-  uint32_t GetPluginVersion() override { return 1; }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   // lldb_private::Platform functions
 
-  const char *GetDescription() override { return GetDescriptionStatic(); }
+  llvm::StringRef GetDescription() override { return GetDescriptionStatic(); }
 
-  bool GetSupportedArchitectureAtIndex(uint32_t idx,
-                                       lldb_private::ArchSpec &arch) override;
+  std::vector<lldb_private::ArchSpec> GetSupportedArchitectures(
+      const lldb_private::ArchSpec &process_host_arch) override;
 
 protected:
-
-  // lldb_private::PlatformRemoteDarwinDevice functions
-
-  void GetDeviceSupportDirectoryNames (std::vector<std::string> &dirnames) override;
-
-  std::string GetPlatformName () override;
-
-private:
-  DISALLOW_COPY_AND_ASSIGN(PlatformRemoteAppleTV);
+  llvm::StringRef GetDeviceSupportDirectoryName() override;
+  llvm::StringRef GetPlatformName() override;
 };
 
-#endif // liblldb_PlatformRemoteAppleTV_h_
+} // namespace lldb_private
+
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEAPPLETV_H

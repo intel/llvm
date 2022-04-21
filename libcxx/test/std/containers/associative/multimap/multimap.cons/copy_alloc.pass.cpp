@@ -15,6 +15,7 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
@@ -35,7 +36,7 @@ int main(int, char**)
         V(3, 1.5),
         V(3, 2),
     };
-    typedef test_compare<std::less<int> > C;
+    typedef test_less<int> C;
     typedef test_allocator<V> A;
     std::multimap<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A(7));
     std::multimap<int, double, C, A> m(mo, A(3));
@@ -61,7 +62,7 @@ int main(int, char**)
         V(3, 1.5),
         V(3, 2),
     };
-    typedef test_compare<std::less<int> > C;
+    typedef test_less<int> C;
     typedef min_allocator<V> A;
     std::multimap<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A());
     std::multimap<int, double, C, A> m(mo, A());
@@ -86,7 +87,7 @@ int main(int, char**)
         V(3, 1.5),
         V(3, 2),
     };
-    typedef test_compare<std::less<int> > C;
+    typedef test_less<int> C;
     typedef explicit_allocator<V> A;
     std::multimap<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A{});
     std::multimap<int, double, C, A> m(mo, A{});

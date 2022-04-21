@@ -1,12 +1,12 @@
 # REQUIRES: x86
 # RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %s -o %t.o
-# RUN: ld.lld --gdb-index %t.o -o %t
+# RUN: ld.lld --gdb-index %t.o -o %t 2>&1 | count 0
 # RUN: llvm-dwarfdump -gdb-index %t | FileCheck %s
 
-# CuIndexAndAttrs of _start:
-#   Attributes << 24 | CuIndex = 48 << 24 | 0 = 0x30000000
-# CuIndexAndAttrs of foo:
-#   Attributes << 24 | CuIndex = 48 << 24 | 1 = 0x30000001
+# cuIndexAndAttrs of _start:
+#   attributes << 24 | cuIndex = 48 << 24 | 0 = 0x30000000
+# cuIndexAndAttrs of foo:
+#   attributes << 24 | cuIndex = 48 << 24 | 1 = 0x30000001
 # CHECK:      Symbol table
 # CHECK-DAG:      String name: _start, CU vector index: 0
 # CHECK-DAG:      String name: foo, CU vector index: 1
@@ -40,7 +40,7 @@ foo:
 	.long	.Lcu_end0 - .Lcu_begin0 - 4
 	.short	4              # DWARF version number
 	.long	0              # Offset Into Abbrev. Section
-	.byte	4              # Address Size
+	.byte	8              # Address Size
 .Ldie0:
 	.byte	1              # Abbrev [1] DW_TAG_compile_unit
 	.byte	2              # Abbrev [2] DW_TAG_subprogram
@@ -52,7 +52,7 @@ foo:
 	.long	.Lcu_end1 - .Lcu_begin1 - 4
 	.short	4              # DWARF version number
 	.long	0              # Offset Into Abbrev. Section
-	.byte	4              # Address Size
+	.byte	8              # Address Size
 .Ldie1:
 	.byte	1              # Abbrev [1] DW_TAG_compile_unit
 	.byte	2              # Abbrev [2] DW_TAG_subprogram
@@ -63,7 +63,7 @@ foo:
 # Swap sets to test the case where pubnames are in a
 # different order than the CUs they refer to.
 .section .debug_gnu_pubnames,"",@progbits
-	# CuIndex: 1
+	# cuIndex: 1
 	.long	.LpubNames_end1 - .LpubNames_begin1
 .LpubNames_begin1:
 	.short	2              # Version
@@ -75,7 +75,7 @@ foo:
 	.long	0
 .LpubNames_end1:
 
-	# CuIndex: 0
+	# cuIndex: 0
 	.long	.LpubNames_end0 - .LpubNames_begin0
 .LpubNames_begin0:
 	.short	2              # Version

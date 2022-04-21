@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,12 +14,12 @@
 // void create_symlink(const path& existing_symlink, const path& new_symlink,
 //                   error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -52,7 +52,7 @@ TEST_CASE(create_symlink_basic)
     const path file = env.create_file("file", 42);
     const path file_sym = env.create_symlink(file, "file_sym");
     const path dir = env.create_dir("dir");
-    const path dir_sym = env.create_symlink(dir, "dir_sym");
+    const path dir_sym = env.create_directory_symlink(dir, "dir_sym");
     {
         const path dest = env.make_env_path("dest1");
         std::error_code ec;
@@ -64,11 +64,31 @@ TEST_CASE(create_symlink_basic)
     {
         const path dest = env.make_env_path("dest2");
         std::error_code ec;
-        fs::create_symlink(dir_sym, dest, ec);
+        fs::create_directory_symlink(dir_sym, dest, ec);
         TEST_REQUIRE(!ec);
         TEST_CHECK(is_symlink(dest));
         TEST_CHECK(equivalent(dest, dir));
     }
+}
+
+TEST_CASE(create_symlink_dest_cleanup)
+{
+    scoped_test_env env;
+    const path dir = env.create_dir("dir");
+    const path file = env.create_file("file", 42);
+    const path sym = dir / "link";
+    // The target path has to be normalized to backslashes before creating
+    // the link on windows, otherwise the link isn't dereferencable.
+    const path sym_target = "../file";
+    path sym_target_normalized = sym_target;
+    sym_target_normalized.make_preferred();
+    std::error_code ec;
+    fs::create_symlink(sym_target, sym, ec);
+    TEST_REQUIRE(!ec);
+    TEST_CHECK(equivalent(sym, file, ec));
+    const path ret = fs::read_symlink(sym, ec);
+    TEST_CHECK(!ec);
+    TEST_CHECK(ret.native() == sym_target_normalized.native());
 }
 
 

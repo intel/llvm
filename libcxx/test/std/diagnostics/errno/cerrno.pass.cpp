@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,6 +9,8 @@
 // test <cerrno>
 
 #include <cerrno>
+
+#include "test_macros.h"
 
 #ifndef E2BIG
 #error E2BIG not defined

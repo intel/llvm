@@ -26,7 +26,8 @@ using namespace llvm;
 #define DEBUG_TYPE "regalloc"
 
 // Merge a LiveInterval's segments. Guarantee no overlaps.
-void LiveIntervalUnion::unify(LiveInterval &VirtReg, const LiveRange &Range) {
+void LiveIntervalUnion::unify(const LiveInterval &VirtReg,
+                              const LiveRange &Range) {
   if (Range.empty())
     return;
   ++Tag;
@@ -53,7 +54,8 @@ void LiveIntervalUnion::unify(LiveInterval &VirtReg, const LiveRange &Range) {
 }
 
 // Remove a live virtual register's segments from this union.
-void LiveIntervalUnion::extract(LiveInterval &VirtReg, const LiveRange &Range) {
+void LiveIntervalUnion::extract(const LiveInterval &VirtReg,
+                                const LiveRange &Range) {
   if (Range.empty())
     return;
   ++Tag;
@@ -85,8 +87,8 @@ LiveIntervalUnion::print(raw_ostream &OS, const TargetRegisterInfo *TRI) const {
     return;
   }
   for (LiveSegments::const_iterator SI = Segments.begin(); SI.valid(); ++SI) {
-    OS << " [" << SI.start() << ' ' << SI.stop() << "):"
-       << printReg(SI.value()->reg, TRI);
+    OS << " [" << SI.start() << ' ' << SI.stop()
+       << "):" << printReg(SI.value()->reg(), TRI);
   }
   OS << '\n';
 }
@@ -95,13 +97,24 @@ LiveIntervalUnion::print(raw_ostream &OS, const TargetRegisterInfo *TRI) const {
 // Verify the live intervals in this union and add them to the visited set.
 void LiveIntervalUnion::verify(LiveVirtRegBitSet& VisitedVRegs) {
   for (SegmentIter SI = Segments.begin(); SI.valid(); ++SI)
-    VisitedVRegs.set(SI.value()->reg);
+    VisitedVRegs.set(SI.value()->reg());
 }
 #endif //!NDEBUG
 
+const LiveInterval *LiveIntervalUnion::getOneVReg() const {
+  if (empty())
+    return nullptr;
+  for (LiveSegments::const_iterator SI = Segments.begin(); SI.valid(); ++SI) {
+    // return the first valid live interval
+    return SI.value();
+  }
+  return nullptr;
+}
+
 // Scan the vector of interfering virtual registers in this union. Assume it's
 // quite small.
-bool LiveIntervalUnion::Query::isSeenInterference(LiveInterval *VirtReg) const {
+bool LiveIntervalUnion::Query::isSeenInterference(
+    const LiveInterval *VirtReg) const {
   return is_contained(InterferingVRegs, VirtReg);
 }
 
@@ -114,8 +127,8 @@ bool LiveIntervalUnion::Query::isSeenInterference(LiveInterval *VirtReg) const {
 // 2. SeenAllInterferences == true: InterferingVRegs complete, iterators unused.
 // 3. Iterators left at the last seen intersection.
 //
-unsigned LiveIntervalUnion::Query::
-collectInterferingVRegs(unsigned MaxInterferingRegs) {
+unsigned
+LiveIntervalUnion::Query::collectInterferingVRegs(unsigned MaxInterferingRegs) {
   // Fast path return if we already have the desired information.
   if (SeenAllInterferences || InterferingVRegs.size() >= MaxInterferingRegs)
     return InterferingVRegs.size();
@@ -137,14 +150,14 @@ collectInterferingVRegs(unsigned MaxInterferingRegs) {
   }
 
   LiveRange::const_iterator LREnd = LR->end();
-  LiveInterval *RecentReg = nullptr;
+  const LiveInterval *RecentReg = nullptr;
   while (LiveUnionI.valid()) {
     assert(LRI != LREnd && "Reached end of LR");
 
     // Check for overlapping interference.
     while (LRI->start < LiveUnionI.stop() && LRI->end > LiveUnionI.start()) {
       // This is an overlap, record the interfering register.
-      LiveInterval *VReg = LiveUnionI.value();
+      const LiveInterval *VReg = LiveUnionI.value();
       if (VReg != RecentReg && !isSeenInterference(VReg)) {
         RecentReg = VReg;
         InterferingVRegs.push_back(VReg);

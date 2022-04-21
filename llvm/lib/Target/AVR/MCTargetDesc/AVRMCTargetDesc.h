@@ -27,16 +27,12 @@ class MCObjectTargetWriter;
 class MCRegisterInfo;
 class MCSubtargetInfo;
 class MCTargetOptions;
-class StringRef;
 class Target;
-class Triple;
-class raw_pwrite_stream;
 
 MCInstrInfo *createAVRMCInstrInfo();
 
 /// Creates a machine code emitter for AVR.
 MCCodeEmitter *createAVRMCCodeEmitter(const MCInstrInfo &MCII,
-                                      const MCRegisterInfo &MRI,
                                       MCContext &Ctx);
 
 /// Creates an assembly backend for AVR.

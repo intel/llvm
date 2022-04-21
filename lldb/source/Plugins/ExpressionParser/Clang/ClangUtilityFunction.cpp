@@ -1,4 +1,4 @@
-//===-- ClangUtilityFunction.cpp ---------------------------------*- C++-*-===//
+//===-- ClangUtilityFunction.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,11 +10,10 @@
 #include "ClangExpressionDeclMap.h"
 #include "ClangExpressionParser.h"
 #include "ClangExpressionSourceCode.h"
+#include "ClangPersistentVariables.h"
 
-#include <stdio.h>
-#if HAVE_SYS_TYPES_H
+#include <cstdio>
 #include <sys/types.h>
-#endif
 
 
 #include "lldb/Core/Module.h"
@@ -29,22 +28,40 @@
 
 using namespace lldb_private;
 
-/// Constructor
-///
-/// \param[in] text
-///     The text of the function.  Must be a full translation unit.
-///
-/// \param[in] name
-///     The name of the function, as used in the text.
+char ClangUtilityFunction::ID;
+
 ClangUtilityFunction::ClangUtilityFunction(ExecutionContextScope &exe_scope,
-                                           const char *text, const char *name)
-    : UtilityFunction(exe_scope, text, name, eKindClangUtilityFunction) {
-  m_function_text.assign(ClangExpressionSourceCode::g_expression_prefix);
-  if (text && text[0])
-    m_function_text.append(text);
+                                           std::string text, std::string name,
+                                           bool enable_debugging)
+    : UtilityFunction(
+          exe_scope,
+          std::string(ClangExpressionSourceCode::g_expression_prefix) + text +
+              std::string(ClangExpressionSourceCode::g_expression_suffix),
+          std::move(name), enable_debugging) {
+  // Write the source code to a file so that LLDB's source manager can display
+  // it when debugging the code.
+  if (enable_debugging) {
+    int temp_fd = -1;
+    llvm::SmallString<128> result_path;
+    llvm::sys::fs::createTemporaryFile("lldb", "expr", temp_fd, result_path);
+    if (temp_fd != -1) {
+      lldb_private::NativeFile file(temp_fd, File::eOpenOptionWriteOnly, true);
+      text = "#line 1 \"" + std::string(result_path) + "\"\n" + text;
+      size_t bytes_written = text.size();
+      file.Write(text.c_str(), bytes_written);
+      if (bytes_written == text.size()) {
+        // If we successfully wrote the source to a temporary file, replace the
+        // function text with the next text containing the line directive.
+        m_function_text =
+            std::string(ClangExpressionSourceCode::g_expression_prefix) + text +
+            std::string(ClangExpressionSourceCode::g_expression_suffix);
+      }
+      file.Close();
+    }
+  }
 }
 
-ClangUtilityFunction::~ClangUtilityFunction() {}
+ClangUtilityFunction::~ClangUtilityFunction() = default;
 
 /// Install the utility function into a process
 ///
@@ -90,7 +107,7 @@ bool ClangUtilityFunction::Install(DiagnosticManager &diagnostic_manager,
 
   ResetDeclMap(exe_ctx, keep_result_in_memory);
 
-  if (!DeclMap()->WillParse(exe_ctx, NULL)) {
+  if (!DeclMap()->WillParse(exe_ctx, nullptr)) {
     diagnostic_manager.PutString(
         eDiagnosticSeverityError,
         "current process state is unsuitable for expression parsing");
@@ -155,7 +172,14 @@ bool ClangUtilityFunction::Install(DiagnosticManager &diagnostic_manager,
 
 void ClangUtilityFunction::ClangUtilityFunctionHelper::ResetDeclMap(
     ExecutionContext &exe_ctx, bool keep_result_in_memory) {
-  m_expr_decl_map_up.reset(
-      new ClangExpressionDeclMap(keep_result_in_memory, nullptr, exe_ctx,
-                                 nullptr));
+  std::shared_ptr<ClangASTImporter> ast_importer;
+  auto *state = exe_ctx.GetTargetSP()->GetPersistentExpressionStateForLanguage(
+      lldb::eLanguageTypeC);
+  if (state) {
+    auto *persistent_vars = llvm::cast<ClangPersistentVariables>(state);
+    ast_importer = persistent_vars->GetClangASTImporter();
+  }
+  m_expr_decl_map_up = std::make_unique<ClangExpressionDeclMap>(
+      keep_result_in_memory, nullptr, exe_ctx.GetTargetSP(), ast_importer,
+      nullptr);
 }

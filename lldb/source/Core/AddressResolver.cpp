@@ -1,4 +1,4 @@
-//===-- AddressResolver.cpp -------------------------------------*- C++ -*-===//
+//===-- AddressResolver.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,9 +17,9 @@ class ModuleList;
 using namespace lldb_private;
 
 // AddressResolver:
-AddressResolver::AddressResolver() {}
+AddressResolver::AddressResolver() = default;
 
-AddressResolver::~AddressResolver() {}
+AddressResolver::~AddressResolver() = default;
 
 void AddressResolver::ResolveAddressInModules(SearchFilter &filter,
                                               ModuleList &modules) {

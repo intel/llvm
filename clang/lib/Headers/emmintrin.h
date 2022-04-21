@@ -10,6 +10,10 @@
 #ifndef __EMMINTRIN_H
 #define __EMMINTRIN_H
 
+#if !defined(__i386__) && !defined(__x86_64__)
+#error "This header is only meant to be used on x86 and x64 architecture"
+#endif
+
 #include <xmmintrin.h>
 
 typedef double __m128d __attribute__((__vector_size__(16), __aligned__(16)));
@@ -1578,7 +1582,7 @@ _mm_cvtsd_f64(__m128d __a)
 static __inline__ __m128d __DEFAULT_FN_ATTRS
 _mm_load_pd(double const *__dp)
 {
-  return *(__m128d*)__dp;
+  return *(const __m128d*)__dp;
 }
 
 /// Loads a double-precision floating-point value from a specified memory
@@ -1599,7 +1603,7 @@ _mm_load1_pd(double const *__dp)
   struct __mm_load1_pd_struct {
     double __u;
   } __attribute__((__packed__, __may_alias__));
-  double __u = ((struct __mm_load1_pd_struct*)__dp)->__u;
+  double __u = ((const struct __mm_load1_pd_struct*)__dp)->__u;
   return __extension__ (__m128d){ __u, __u };
 }
 
@@ -1622,7 +1626,7 @@ _mm_load1_pd(double const *__dp)
 static __inline__ __m128d __DEFAULT_FN_ATTRS
 _mm_loadr_pd(double const *__dp)
 {
-  __m128d __u = *(__m128d*)__dp;
+  __m128d __u = *(const __m128d*)__dp;
   return __builtin_shufflevector((__v2df)__u, (__v2df)__u, 1, 0);
 }
 
@@ -1643,7 +1647,7 @@ _mm_loadu_pd(double const *__dp)
   struct __loadu_pd {
     __m128d_u __v;
   } __attribute__((__packed__, __may_alias__));
-  return ((struct __loadu_pd*)__dp)->__v;
+  return ((const struct __loadu_pd*)__dp)->__v;
 }
 
 /// Loads a 64-bit integer value to the low element of a 128-bit integer
@@ -1663,7 +1667,7 @@ _mm_loadu_si64(void const *__a)
   struct __loadu_si64 {
     long long __v;
   } __attribute__((__packed__, __may_alias__));
-  long long __u = ((struct __loadu_si64*)__a)->__v;
+  long long __u = ((const struct __loadu_si64*)__a)->__v;
   return __extension__ (__m128i)(__v2di){__u, 0LL};
 }
 
@@ -1684,7 +1688,7 @@ _mm_loadu_si32(void const *__a)
   struct __loadu_si32 {
     int __v;
   } __attribute__((__packed__, __may_alias__));
-  int __u = ((struct __loadu_si32*)__a)->__v;
+  int __u = ((const struct __loadu_si32*)__a)->__v;
   return __extension__ (__m128i)(__v4si){__u, 0, 0, 0};
 }
 
@@ -1705,7 +1709,7 @@ _mm_loadu_si16(void const *__a)
   struct __loadu_si16 {
     short __v;
   } __attribute__((__packed__, __may_alias__));
-  short __u = ((struct __loadu_si16*)__a)->__v;
+  short __u = ((const struct __loadu_si16*)__a)->__v;
   return __extension__ (__m128i)(__v8hi){__u, 0, 0, 0, 0, 0, 0, 0};
 }
 
@@ -1726,7 +1730,7 @@ _mm_load_sd(double const *__dp)
   struct __mm_load_sd_struct {
     double __u;
   } __attribute__((__packed__, __may_alias__));
-  double __u = ((struct __mm_load_sd_struct*)__dp)->__u;
+  double __u = ((const struct __mm_load_sd_struct*)__dp)->__u;
   return __extension__ (__m128d){ __u, 0 };
 }
 
@@ -1753,7 +1757,7 @@ _mm_loadh_pd(__m128d __a, double const *__dp)
   struct __mm_loadh_pd_struct {
     double __u;
   } __attribute__((__packed__, __may_alias__));
-  double __u = ((struct __mm_loadh_pd_struct*)__dp)->__u;
+  double __u = ((const struct __mm_loadh_pd_struct*)__dp)->__u;
   return __extension__ (__m128d){ __a[0], __u };
 }
 
@@ -1780,7 +1784,7 @@ _mm_loadl_pd(__m128d __a, double const *__dp)
   struct __mm_loadl_pd_struct {
     double __u;
   } __attribute__((__packed__, __may_alias__));
-  double __u = ((struct __mm_loadl_pd_struct*)__dp)->__u;
+  double __u = ((const struct __mm_loadl_pd_struct*)__dp)->__u;
   return __extension__ (__m128d){ __u, __a[1] };
 }
 
@@ -2221,7 +2225,7 @@ _mm_add_epi64(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_adds_epi8(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_paddsb128((__v16qi)__a, (__v16qi)__b);
+  return (__m128i)__builtin_elementwise_add_sat((__v16qs)__a, (__v16qs)__b);
 }
 
 /// Adds, with saturation, the corresponding elements of two 128-bit
@@ -2243,7 +2247,7 @@ _mm_adds_epi8(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_adds_epi16(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_paddsw128((__v8hi)__a, (__v8hi)__b);
+  return (__m128i)__builtin_elementwise_add_sat((__v8hi)__a, (__v8hi)__b);
 }
 
 /// Adds, with saturation, the corresponding elements of two 128-bit
@@ -2264,7 +2268,7 @@ _mm_adds_epi16(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_adds_epu8(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_paddusb128((__v16qi)__a, (__v16qi)__b);
+  return (__m128i)__builtin_elementwise_add_sat((__v16qu)__a, (__v16qu)__b);
 }
 
 /// Adds, with saturation, the corresponding elements of two 128-bit
@@ -2285,10 +2289,10 @@ _mm_adds_epu8(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_adds_epu16(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_paddusw128((__v8hi)__a, (__v8hi)__b);
+  return (__m128i)__builtin_elementwise_add_sat((__v8hu)__a, (__v8hu)__b);
 }
 
-/// Computes the rounded avarages of corresponding elements of two
+/// Computes the rounded averages of corresponding elements of two
 ///    128-bit unsigned [16 x i8] vectors, saving each result in the
 ///    corresponding element of a 128-bit result vector of [16 x i8].
 ///
@@ -2308,7 +2312,7 @@ _mm_avg_epu8(__m128i __a, __m128i __b)
   return (__m128i)__builtin_ia32_pavgb128((__v16qi)__a, (__v16qi)__b);
 }
 
-/// Computes the rounded avarages of corresponding elements of two
+/// Computes the rounded averages of corresponding elements of two
 ///    128-bit unsigned [8 x i16] vectors, saving each result in the
 ///    corresponding element of a 128-bit result vector of [8 x i16].
 ///
@@ -2371,7 +2375,7 @@ _mm_madd_epi16(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_max_epi16(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_pmaxsw128((__v8hi)__a, (__v8hi)__b);
+  return (__m128i)__builtin_elementwise_max((__v8hi)__a, (__v8hi)__b);
 }
 
 /// Compares corresponding elements of two 128-bit unsigned [16 x i8]
@@ -2391,7 +2395,7 @@ _mm_max_epi16(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_max_epu8(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_pmaxub128((__v16qi)__a, (__v16qi)__b);
+  return (__m128i)__builtin_elementwise_max((__v16qu)__a, (__v16qu)__b);
 }
 
 /// Compares corresponding elements of two 128-bit signed [8 x i16]
@@ -2411,7 +2415,7 @@ _mm_max_epu8(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_min_epi16(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_pminsw128((__v8hi)__a, (__v8hi)__b);
+  return (__m128i)__builtin_elementwise_min((__v8hi)__a, (__v8hi)__b);
 }
 
 /// Compares corresponding elements of two 128-bit unsigned [16 x i8]
@@ -2431,7 +2435,7 @@ _mm_min_epi16(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_min_epu8(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_pminub128((__v16qi)__a, (__v16qi)__b);
+  return (__m128i)__builtin_elementwise_min((__v16qu)__a, (__v16qu)__b);
 }
 
 /// Multiplies the corresponding elements of two signed [8 x i16]
@@ -2663,7 +2667,7 @@ _mm_sub_epi64(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_subs_epi8(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_psubsb128((__v16qi)__a, (__v16qi)__b);
+  return (__m128i)__builtin_elementwise_sub_sat((__v16qs)__a, (__v16qs)__b);
 }
 
 /// Subtracts corresponding 16-bit signed integer values in the input and
@@ -2684,7 +2688,7 @@ _mm_subs_epi8(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_subs_epi16(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_psubsw128((__v8hi)__a, (__v8hi)__b);
+  return (__m128i)__builtin_elementwise_sub_sat((__v8hi)__a, (__v8hi)__b);
 }
 
 /// Subtracts corresponding 8-bit unsigned integer values in the input
@@ -2704,7 +2708,7 @@ _mm_subs_epi16(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_subs_epu8(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_psubusb128((__v16qi)__a, (__v16qi)__b);
+  return (__m128i)__builtin_elementwise_sub_sat((__v16qu)__a, (__v16qu)__b);
 }
 
 /// Subtracts corresponding 16-bit unsigned integer values in the input
@@ -2724,7 +2728,7 @@ _mm_subs_epu8(__m128i __a, __m128i __b)
 static __inline__ __m128i __DEFAULT_FN_ATTRS
 _mm_subs_epu16(__m128i __a, __m128i __b)
 {
-  return (__m128i)__builtin_ia32_psubusw128((__v8hi)__a, (__v8hi)__b);
+  return (__m128i)__builtin_elementwise_sub_sat((__v8hu)__a, (__v8hu)__b);
 }
 
 /// Performs a bitwise AND of two 128-bit integer vectors.
@@ -2818,10 +2822,10 @@ _mm_xor_si128(__m128i __a, __m128i __b)
 ///    \a a.
 /// \returns A 128-bit integer vector containing the left-shifted value.
 #define _mm_slli_si128(a, imm) \
-  (__m128i)__builtin_ia32_pslldqi128_byteshift((__v2di)(__m128i)(a), (int)(imm))
+  ((__m128i)__builtin_ia32_pslldqi128_byteshift((__v2di)(__m128i)(a), (int)(imm)))
 
 #define _mm_bslli_si128(a, imm) \
-  (__m128i)__builtin_ia32_pslldqi128_byteshift((__v2di)(__m128i)(a), (int)(imm))
+  ((__m128i)__builtin_ia32_pslldqi128_byteshift((__v2di)(__m128i)(a), (int)(imm)))
 
 /// Left-shifts each 16-bit value in the 128-bit integer vector operand
 ///    by the specified number of bits. Low-order bits are cleared.
@@ -3035,10 +3039,10 @@ _mm_sra_epi32(__m128i __a, __m128i __count)
 ///    \a a.
 /// \returns A 128-bit integer vector containing the right-shifted value.
 #define _mm_srli_si128(a, imm) \
-  (__m128i)__builtin_ia32_psrldqi128_byteshift((__v2di)(__m128i)(a), (int)(imm))
+  ((__m128i)__builtin_ia32_psrldqi128_byteshift((__v2di)(__m128i)(a), (int)(imm)))
 
 #define _mm_bsrli_si128(a, imm) \
-  (__m128i)__builtin_ia32_psrldqi128_byteshift((__v2di)(__m128i)(a), (int)(imm))
+  ((__m128i)__builtin_ia32_psrldqi128_byteshift((__v2di)(__m128i)(a), (int)(imm)))
 
 /// Right-shifts each of 16-bit values in the 128-bit integer vector
 ///    operand by the specified number of bits. High-order bits are cleared.
@@ -3550,7 +3554,7 @@ _mm_loadu_si128(__m128i_u const *__p)
   struct __loadu_si128 {
     __m128i_u __v;
   } __attribute__((__packed__, __may_alias__));
-  return ((struct __loadu_si128*)__p)->__v;
+  return ((const struct __loadu_si128*)__p)->__v;
 }
 
 /// Returns a vector of [2 x i64] where the lower element is taken from
@@ -3571,7 +3575,7 @@ _mm_loadl_epi64(__m128i_u const *__p)
   struct __mm_loadl_epi64_struct {
     long long __u;
   } __attribute__((__packed__, __may_alias__));
-  return __extension__ (__m128i) { ((struct __mm_loadl_epi64_struct*)__p)->__u, 0};
+  return __extension__ (__m128i) { ((const struct __mm_loadl_epi64_struct*)__p)->__u, 0};
 }
 
 /// Generates a 128-bit vector of [4 x i32] with unspecified content.
@@ -4025,11 +4029,11 @@ _mm_storeu_si128(__m128i_u *__p, __m128i __b)
 ///
 /// \param __p
 ///    A pointer to a 64-bit memory location. The address of the memory
-///    location does not have to be algned.
+///    location does not have to be aligned.
 /// \param __b
 ///    A 128-bit integer vector containing the value to be stored.
 static __inline__ void __DEFAULT_FN_ATTRS
-_mm_storeu_si64(void const *__p, __m128i __b)
+_mm_storeu_si64(void *__p, __m128i __b)
 {
   struct __storeu_si64 {
     long long __v;
@@ -4050,7 +4054,7 @@ _mm_storeu_si64(void const *__p, __m128i __b)
 /// \param __b
 ///    A 128-bit integer vector containing the value to be stored.
 static __inline__ void __DEFAULT_FN_ATTRS
-_mm_storeu_si32(void const *__p, __m128i __b)
+_mm_storeu_si32(void *__p, __m128i __b)
 {
   struct __storeu_si32 {
     int __v;
@@ -4071,7 +4075,7 @@ _mm_storeu_si32(void const *__p, __m128i __b)
 /// \param __b
 ///    A 128-bit integer vector containing the value to be stored.
 static __inline__ void __DEFAULT_FN_ATTRS
-_mm_storeu_si16(void const *__p, __m128i __b)
+_mm_storeu_si16(void *__p, __m128i __b)
 {
   struct __storeu_si16 {
     short __v;
@@ -4356,8 +4360,8 @@ _mm_packus_epi16(__m128i __a, __m128i __b)
 /// \returns An integer, whose lower 16 bits are selected from the 128-bit
 ///    integer vector parameter and the remaining bits are assigned zeros.
 #define _mm_extract_epi16(a, imm) \
-  (int)(unsigned short)__builtin_ia32_vec_ext_v8hi((__v8hi)(__m128i)(a), \
-                                                   (int)(imm))
+  ((int)(unsigned short)__builtin_ia32_vec_ext_v8hi((__v8hi)(__m128i)(a), \
+                                                    (int)(imm)))
 
 /// Constructs a 128-bit integer vector by first making a copy of the
 ///    128-bit integer vector parameter, and then inserting the lower 16 bits
@@ -4380,8 +4384,8 @@ _mm_packus_epi16(__m128i __a, __m128i __b)
 ///    lower 16 bits of \a __b are written.
 /// \returns A 128-bit integer vector containing the constructed values.
 #define _mm_insert_epi16(a, b, imm) \
-  (__m128i)__builtin_ia32_vec_set_v8hi((__v8hi)(__m128i)(a), (int)(b), \
-                                       (int)(imm))
+  ((__m128i)__builtin_ia32_vec_set_v8hi((__v8hi)(__m128i)(a), (int)(b), \
+                                        (int)(imm)))
 
 /// Copies the values of the most significant bits from each 8-bit
 ///    element in a 128-bit integer vector of [16 x i8] to create a 16-bit mask
@@ -4430,7 +4434,7 @@ _mm_movemask_epi8(__m128i __a)
 ///    11: assign values from bits [127:96] of \a a.
 /// \returns A 128-bit integer vector containing the shuffled values.
 #define _mm_shuffle_epi32(a, imm) \
-  (__m128i)__builtin_ia32_pshufd((__v4si)(__m128i)(a), (int)(imm))
+  ((__m128i)__builtin_ia32_pshufd((__v4si)(__m128i)(a), (int)(imm)))
 
 /// Constructs a 128-bit integer vector by shuffling four lower 16-bit
 ///    elements of a 128-bit integer vector of [8 x i16], using the immediate
@@ -4460,7 +4464,7 @@ _mm_movemask_epi8(__m128i __a)
 ///    11: assign values from bits [63:48] of \a a. \n
 /// \returns A 128-bit integer vector containing the shuffled values.
 #define _mm_shufflelo_epi16(a, imm) \
-  (__m128i)__builtin_ia32_pshuflw((__v8hi)(__m128i)(a), (int)(imm))
+  ((__m128i)__builtin_ia32_pshuflw((__v8hi)(__m128i)(a), (int)(imm)))
 
 /// Constructs a 128-bit integer vector by shuffling four upper 16-bit
 ///    elements of a 128-bit integer vector of [8 x i16], using the immediate
@@ -4490,7 +4494,7 @@ _mm_movemask_epi8(__m128i __a)
 ///    11: assign values from bits [127:112] of \a a. \n
 /// \returns A 128-bit integer vector containing the shuffled values.
 #define _mm_shufflehi_epi16(a, imm) \
-  (__m128i)__builtin_ia32_pshufhw((__v8hi)(__m128i)(a), (int)(imm))
+  ((__m128i)__builtin_ia32_pshufhw((__v8hi)(__m128i)(a), (int)(imm)))
 
 /// Unpacks the high-order (index 8-15) values from two 128-bit vectors
 ///    of [16 x i8] and interleaves them into a 128-bit vector of [16 x i8].
@@ -4844,8 +4848,8 @@ _mm_movemask_pd(__m128d __a)
 ///    Bit[1] = 1: upper element of \a b copied to upper element of result. \n
 /// \returns A 128-bit vector of [2 x double] containing the shuffled values.
 #define _mm_shuffle_pd(a, b, i) \
-  (__m128d)__builtin_ia32_shufpd((__v2df)(__m128d)(a), (__v2df)(__m128d)(b), \
-                                 (int)(i))
+  ((__m128d)__builtin_ia32_shufpd((__v2df)(__m128d)(a), (__v2df)(__m128d)(b), \
+                                  (int)(i)))
 
 /// Casts a 128-bit floating-point vector of [2 x double] into a 128-bit
 ///    floating-point vector of [4 x float].
@@ -4970,10 +4974,10 @@ void _mm_pause(void);
 
 #define _MM_SHUFFLE2(x, y) (((x) << 1) | (y))
 
-#define _MM_DENORMALS_ZERO_ON   (0x0040)
-#define _MM_DENORMALS_ZERO_OFF  (0x0000)
+#define _MM_DENORMALS_ZERO_ON   (0x0040U)
+#define _MM_DENORMALS_ZERO_OFF  (0x0000U)
 
-#define _MM_DENORMALS_ZERO_MASK (0x0040)
+#define _MM_DENORMALS_ZERO_MASK (0x0040U)
 
 #define _MM_GET_DENORMALS_ZERO_MODE() (_mm_getcsr() & _MM_DENORMALS_ZERO_MASK)
 #define _MM_SET_DENORMALS_ZERO_MODE(x) (_mm_setcsr((_mm_getcsr() & ~_MM_DENORMALS_ZERO_MASK) | (x)))

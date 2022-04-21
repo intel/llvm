@@ -1,6 +1,6 @@
 ; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9 %s
-; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI,VI %s
-; RUN: llc -march=amdgcn -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI,CI %s
+; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefix=GCN %s
 
 ; GCN-LABEL: {{^}}v_mad_mixhi_f16_f16lo_f16lo_f16lo_undeflo:
 ; GFX9: s_waitcnt
@@ -120,8 +120,8 @@ define <2 x half> @v_mad_mixhi_f16_f16lo_f16lo_f16lo_undeflo_clamp_postcvt(half 
 ; GCN: s_waitcnt
 ; GFX9-NEXT: v_mad_mixlo_f16 v3, v0, v1, v2 op_sel_hi:[1,1,1]{{$}}
 ; GFX9-NEXT: global_store_short v{{\[[0-9]+:[0-9]+\]}}, v3
-; GFX9-NEXT: v_mad_mixhi_f16 v0, v0, v1, v2 op_sel_hi:[1,1,1] clamp{{$}}
 ; GFX9-NEXT: s_waitcnt vmcnt(0)
+; GFX9-NEXT: v_mad_mixhi_f16 v0, v0, v1, v2 op_sel_hi:[1,1,1] clamp{{$}}
 ; GFX9-NEXT: s_setpc_b64
 define <2 x half> @v_mad_mixhi_f16_f16lo_f16lo_f16lo_undeflo_clamp_postcvt_multi_use(half %src0, half %src1, half %src2) #0 {
   %src0.ext = fpext half %src0 to float
@@ -143,5 +143,5 @@ declare float @llvm.maxnum.f32(float, float) #1
 declare float @llvm.fmuladd.f32(float, float, float) #1
 declare <2 x float> @llvm.fmuladd.v2f32(<2 x float>, <2 x float>, <2 x float>) #1
 
-attributes #0 = { nounwind }
+attributes #0 = { nounwind "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
 attributes #1 = { nounwind readnone speculatable }

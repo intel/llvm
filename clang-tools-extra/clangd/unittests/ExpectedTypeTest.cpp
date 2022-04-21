@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangdUnit.h"
 #include "ExpectedTypes.h"
+#include "ParsedAST.h"
 #include "TestTU.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -31,18 +32,16 @@ protected:
     AST = TestTU::withCode(Code).build();
   }
 
-  const ValueDecl *decl(llvm::StringRef Name) {
-    return &cast<ValueDecl>(findDecl(*AST, Name));
-  }
+  const NamedDecl *decl(llvm::StringRef Name) { return &findDecl(*AST, Name); }
 
   QualType typeOf(llvm::StringRef Name) {
-    return decl(Name)->getType().getCanonicalType();
+    return cast<ValueDecl>(decl(Name))->getType().getCanonicalType();
   }
 
   /// An overload for convenience.
-  llvm::Optional<OpaqueType> fromCompletionResult(const ValueDecl *D) {
+  llvm::Optional<OpaqueType> fromCompletionResult(const NamedDecl *D) {
     return OpaqueType::fromCompletionResult(
-        ASTCtx(), CodeCompletionResult(D, CCP_Declaration));
+        astCtx(), CodeCompletionResult(D, CCP_Declaration));
   }
 
   /// A set of DeclNames whose type match each other computed by
@@ -50,7 +49,7 @@ protected:
   using EquivClass = std::set<std::string>;
 
   Matcher<std::map<std::string, EquivClass>>
-  ClassesAre(llvm::ArrayRef<EquivClass> Classes) {
+  classesAre(llvm::ArrayRef<EquivClass> Classes) {
     using MapEntry = std::map<std::string, EquivClass>::value_type;
 
     std::vector<Matcher<MapEntry>> Elements;
@@ -66,13 +65,13 @@ protected:
   buildEquivClasses(llvm::ArrayRef<llvm::StringRef> DeclNames) {
     std::map<std::string, EquivClass> Classes;
     for (llvm::StringRef Name : DeclNames) {
-      auto Type = OpaqueType::fromType(ASTCtx(), typeOf(Name));
-      Classes[Type->raw()].insert(Name);
+      auto Type = OpaqueType::fromType(astCtx(), typeOf(Name));
+      Classes[std::string(Type->raw())].insert(std::string(Name));
     }
     return Classes;
   }
 
-  ASTContext &ASTCtx() { return AST->getASTContext(); }
+  ASTContext &astCtx() { return AST->getASTContext(); }
 
 private:
   // Set after calling build().
@@ -102,7 +101,7 @@ TEST_F(ExpectedTypeConversionTest, BasicTypes) {
 
   EXPECT_THAT(buildEquivClasses({"b", "i", "ui", "ll", "f", "d", "iptr", "bptr",
                                  "user_type"}),
-              ClassesAre({{"b"},
+              classesAre({{"b"},
                           {"i", "ui", "ll"},
                           {"f", "d"},
                           {"iptr"},
@@ -141,11 +140,34 @@ TEST_F(ExpectedTypeConversionTest, FunctionReturns) {
      int* int_ptr;
   )cpp");
 
-  OpaqueType IntTy = *OpaqueType::fromType(ASTCtx(), typeOf("int_"));
+  OpaqueType IntTy = *OpaqueType::fromType(astCtx(), typeOf("int_"));
   EXPECT_EQ(fromCompletionResult(decl("returns_int")), IntTy);
 
-  OpaqueType IntPtrTy = *OpaqueType::fromType(ASTCtx(), typeOf("int_ptr"));
+  OpaqueType IntPtrTy = *OpaqueType::fromType(astCtx(), typeOf("int_ptr"));
   EXPECT_EQ(fromCompletionResult(decl("returns_ptr")), IntPtrTy);
+}
+
+TEST_F(ExpectedTypeConversionTest, Templates) {
+  build(R"cpp(
+template <class T>
+int* returns_not_dependent();
+template <class T>
+T* returns_dependent();
+
+template <class T>
+int* var_not_dependent = nullptr;
+template <class T>
+T* var_dependent = nullptr;
+
+int* int_ptr_;
+  )cpp");
+
+  auto IntPtrTy = *OpaqueType::fromType(astCtx(), typeOf("int_ptr_"));
+  EXPECT_EQ(fromCompletionResult(decl("returns_not_dependent")), IntPtrTy);
+  EXPECT_EQ(fromCompletionResult(decl("returns_dependent")), llvm::None);
+
+  EXPECT_EQ(fromCompletionResult(decl("var_not_dependent")), IntPtrTy);
+  EXPECT_EQ(fromCompletionResult(decl("var_dependent")), llvm::None);
 }
 
 } // namespace

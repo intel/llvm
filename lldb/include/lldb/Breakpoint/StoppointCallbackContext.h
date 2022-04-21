@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_StoppointCallbackContext_h_
-#define liblldb_StoppointCallbackContext_h_
+#ifndef LLDB_BREAKPOINT_STOPPOINTCALLBACKCONTEXT_H
+#define LLDB_BREAKPOINT_STOPPOINTCALLBACKCONTEXT_H
 
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/lldb-private.h"
@@ -37,15 +37,16 @@ public:
   void Clear();
 
   // Member variables
-  Event *event; // This is the event, the callback can modify this to indicate
-                // the meaning of the breakpoint hit
+  Event *event = nullptr; // This is the event, the callback can modify this to
+                          // indicate the meaning of the breakpoint hit
   ExecutionContextRef
       exe_ctx_ref;     // This tells us where we have stopped, what thread.
-  bool is_synchronous; // Is the callback being executed synchronously with the
-                       // breakpoint,
-                       // or asynchronously as the event is retrieved?
+  bool is_synchronous =
+      false; // Is the callback being executed synchronously with the
+             // breakpoint,
+             // or asynchronously as the event is retrieved?
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_StoppointCallbackContext_h_
+#endif // LLDB_BREAKPOINT_STOPPOINTCALLBACKCONTEXT_H

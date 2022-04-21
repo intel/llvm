@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -verify -Wno-objc-root-class %s
-// RUN: not %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -Wno-objc-root-class -fdiagnostics-parseable-fixits %s 2>&1
+// RUN: %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -verify -Wno-pointer-to-int-cast -Wno-objc-root-class %s
+// RUN: not %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -Wno-pointer-to-int-cast -Wno-objc-root-class -fdiagnostics-parseable-fixits %s 2>&1
 
 typedef unsigned long NSUInteger;
 typedef const void * CFTypeRef;
@@ -92,7 +92,7 @@ void test1(A *a) {
 
 @end
 
-void rdar8861761() {
+void rdar8861761(void) {
   B *o1 = [[B alloc] initWithInt:0];
   B *o2 = [B alloc];
   [o2 initWithInt:0]; // expected-warning {{expression result unused}}
@@ -105,7 +105,7 @@ void rdar8861761() {
 - (void)foo:(void (^)(unsigned captureCount, I * const capturedStrings[captureCount]))block;
 @end
 
-void test5() {
+void test5(void) {
   extern void test5_helper(__autoreleasing id *);
   id x;
 
@@ -114,7 +114,8 @@ void test5() {
 
   __autoreleasing id *a = &x; // expected-error {{initializing '__autoreleasing id *' with an expression of type '__strong id *' changes retain/release properties of pointer}}
 
-  a = &x; // expected-error {{assigning '__strong id *' to '__autoreleasing id *' changes retain/release properties of pointer}}
+  __autoreleasing id *aa;
+  aa = &x; // expected-error {{assigning '__strong id *' to '__autoreleasing id *' changes retain/release properties of pointer}}
 
   extern void test5_helper2(id const *);
   test5_helper2(&x);
@@ -295,6 +296,7 @@ void test11(id op, void *vp) {
   b = (vp == nil);
   b = (nil == vp);
 
+  // FIXME: Shouldn't these be consistent?
   b = (vp == op); // expected-error {{implicit conversion of Objective-C pointer type 'id' to C pointer type 'void *' requires a bridged cast}} expected-note {{use __bridge}} expected-note {{use CFBridgingRetain call}}
   b = (op == vp);
 }
@@ -338,7 +340,7 @@ void test12(id collection) {
 
 // rdar://problem/9172151
 @class Test14A, Test14B;
-void test14() {
+void test14(void) {
   extern void test14_consume(id *);
   extern int test14_cond(void);
   extern float test14_nowriteback(id __autoreleasing const *); // expected-note{{passing argument to parameter here}}
@@ -374,7 +376,7 @@ void test14() {
   test14_nowriteback(wip); // expected-error{{passing '__weak id *' to parameter of type '__autoreleasing id const *' changes retain/release properties of pointer}}
 }
 
-void test15() {
+void test15(void) {
   __block __autoreleasing id x; // expected-error {{__block variables cannot have __autoreleasing ownership}}
 }
 
@@ -462,7 +464,7 @@ _Bool fn(id obj) {
 }
 
 // Check casting w/ ownership qualifiers.
-void test21() {
+void test21(void) {
   __strong id *sip;
   (void)(__weak id *)sip; // expected-error{{casting '__strong id *' to type '__weak id *' changes retain/release properties of pointer}}
   (void)(__weak const id *)sip; // expected-error{{casting '__strong id *' to type '__weak id const *' changes retain/release properties of pointer}}
@@ -604,7 +606,7 @@ typedef struct Bark Bark;
 // rdar://9411838
 @protocol PTest31 @end
 
-int Test31() {
+int Test31(void) {
     Class cls;
     id ids;
     id<PTest31> pids;
@@ -696,7 +698,7 @@ void test37(Test37 *c) {
 @interface Test38
 @property int value;
 @end
-void test38() {
+void test38(void) {
   extern Test38 *test38_helper(void);
   switch (test38_helper().value) {
   case 0:
@@ -789,13 +791,13 @@ void test(NSArray *x) {
 
 void foo(NSArray *array) {
   for (NSString *string in array) {
-    for (string in @[@"blah", @"more blah", string]) { // expected-error {{selector element of type 'NSString *const __strong' cannot be a constant l-value}}
+    for (string in @[@"blah", @"more blah", string]) { // expected-error {{selector element of type 'NSString *const __strong' cannot be a constant lvalue}}
     }
   }
 }
 
 // rdar://16627903
-extern void abort();
+extern void abort(void);
 #define TKAssertEqual(a, b) do{\
     __typeof(a) a_res = (a);\
     __typeof(b) b_res = (b);\
@@ -804,7 +806,7 @@ extern void abort();
     }\
 }while(0)
 
-int garf() {
+int garf(void) {
   id object;
   TKAssertEqual(object, nil);
   TKAssertEqual(object, (id)nil);
@@ -836,4 +838,16 @@ void block_capture_autoreleasing(A * __autoreleasing *a,
     (void)*k; // expected-warning {{block captures an autoreleasing out-parameter, which may result in use-after-free bugs}}
     (void)*l;
   }();
+}
+
+void test_vla_fold_keeps_strong(void) {
+  const unsigned bounds = 1;
+
+  static id array[bounds]; // expected-warning {{variable length array folded to constant array as an extension}}
+  typedef __typeof__(array) array_type;
+  typedef id __strong array_type[1];
+
+  static id weak_array[bounds] __weak; // expected-warning {{variable length array folded to constant array as an extension}}
+  typedef __typeof__(weak_array) weak_array_type;
+  typedef id __weak weak_array_type[1];
 }

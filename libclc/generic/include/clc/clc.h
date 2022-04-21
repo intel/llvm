@@ -12,20 +12,22 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
 
+#define __CLC_NO_SCHAR
+
 /* Function Attributes */
-#include <clc/clcfunc.h>
+#include <func.h>
 
 /* 6.1 Supported Data Types */
-#include <clc/clctypes.h>
+#include <types.h>
 
 /* 6.2.3 Explicit Conversions */
 #include <clc/convert.h>
 
 /* 6.2.4.2 Reinterpreting Types Using as_type() and as_typen() */
-#include <clc/as_type.h>
+#include <as_type.h>
 
 /* 6.9 Preprocessor Directives and Macros */
-#include <clc/clcmacros.h>
+#include <macros.h>
 
 /* 6.11.1 Work-Item Functions */
 #include <clc/workitem/get_global_size.h>

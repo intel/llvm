@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file defines generic set operations that may be used on set's of
-// different types, and different element types.
-//
+///
+/// \file
+/// This file defines generic set operations that may be used on set's of
+/// different types, and different element types.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_SETOPERATIONS_H
@@ -63,6 +64,18 @@ void set_subtract(S1Ty &S1, const S2Ty &S2) {
   for (typename S2Ty::const_iterator SI = S2.begin(), SE = S2.end();
        SI != SE; ++SI)
     S1.erase(*SI);
+}
+
+/// set_is_subset(A, B) - Return true iff A in B
+///
+template <class S1Ty, class S2Ty>
+bool set_is_subset(const S1Ty &S1, const S2Ty &S2) {
+  if (S1.size() > S2.size())
+    return false;
+  for (const auto It : S1)
+    if (!S2.count(It))
+      return false;
+  return true;
 }
 
 } // End llvm namespace

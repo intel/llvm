@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
-// UNSUPPORTED: libcxxabi-no-threads, libcxxabi-no-exceptions
+// UNSUPPORTED: c++03
+// UNSUPPORTED: libcxxabi-no-threads
+// UNSUPPORTED: no-exceptions
 
 #define TESTING_CXA_GUARD
 #include "../src/cxa_guard_impl.h"
@@ -18,6 +19,9 @@
 #include <cassert>
 #include <memory>
 #include <vector>
+
+#include "make_test_thread.h"
+#include "test_macros.h"
 
 
 using namespace __cxxabiv1;
@@ -33,7 +37,7 @@ constexpr int TestSamples = 50;
 
 
 void BusyWait() {
-    std::this_thread::yield();
+  std::this_thread::yield();
 }
 
 void YieldAfterBarrier() {
@@ -87,13 +91,13 @@ InitResult check_guard(GuardType *g, Init init) {
   if (std::__libcpp_atomic_load(first_byte, std::_AO_Acquire) == 0) {
     Impl impl(g);
     if (impl.cxa_guard_acquire() == INIT_IS_PENDING) {
-#ifndef LIBCXXABI_HAS_NO_EXCEPTIONS
+#ifndef TEST_HAS_NO_EXCEPTIONS
       try {
 #endif
         init();
         impl.cxa_guard_release();
         return PERFORMED;
-#ifndef LIBCXXABI_HAS_NO_EXCEPTIONS
+#ifndef TEST_HAS_NO_EXCEPTIONS
       } catch (...) {
         impl.cxa_guard_abort();
         return ABORTED;
@@ -322,7 +326,7 @@ void test_impl() {
   }
 
 void test_all_impls() {
-  using MutexImpl = SelectImplementation<Implementation::GlobalLock>::type;
+  using MutexImpl = SelectImplementation<Implementation::GlobalMutex>::type;
 
   // Attempt to test the Futex based implementation if it's supported on the
   // target platform.
@@ -346,21 +350,21 @@ void test_futex_syscall() {
   int lock1 = 0;
   int lock2 = 0;
   int lock3 = 0;
-  std::thread waiter1([&]() {
+  std::thread waiter1 = support::make_test_thread([&]() {
     int expect = 0;
     PlatformFutexWait(&lock1, expect);
     assert(lock1 == 1);
   });
-  std::thread waiter2([&]() {
+  std::thread waiter2 = support::make_test_thread([&]() {
     int expect = 0;
     PlatformFutexWait(&lock2, expect);
     assert(lock2 == 2);
   });
-  std::thread waiter3([&]() {
+  std::thread waiter3 = support::make_test_thread([&]() {
     int expect = 42; // not the value
     PlatformFutexWait(&lock3, expect); // doesn't block
   });
-  std::thread waker([&]() {
+  std::thread waker = support::make_test_thread([&]() {
     lock1 = 1;
     PlatformFutexWake(&lock1);
     lock2 = 2;
@@ -372,9 +376,11 @@ void test_futex_syscall() {
   waker.join();
 }
 
-int main() {
+int main(int, char**) {
   // Test each multi-threaded implementation with real threads.
   test_all_impls();
   // Test the basic sanity of the futex syscall wrappers.
   test_futex_syscall();
+
+  return 0;
 }

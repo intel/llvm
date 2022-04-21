@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -arcmt-check -verify -triple x86_64-apple-darwin10 -fblocks -Werror %s
+// RUN: %clang_cc1 -arcmt-action=check -verify -triple x86_64-apple-darwin10 -fblocks -Werror %s
 
 #if __has_feature(objc_arc)
 #define NS_AUTOMATED_REFCOUNT_UNAVAILABLE __attribute__((unavailable("not available in automatic reference counting mode")))
@@ -124,7 +124,7 @@ struct S {
 - (id)initWithInt: (int) i;
 @end
 
-void rdar8861761() {
+void rdar8861761(void) {
   B *o1 = [[B alloc] initWithInt:0];
   B *o2 = [B alloc];
   [o2 initWithInt:0];

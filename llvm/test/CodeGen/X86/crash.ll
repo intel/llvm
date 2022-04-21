@@ -1,7 +1,7 @@
 ; REQUIRES: asserts
 ; RUN: llc -mtriple=i686-- -no-integrated-as < %s -verify-machineinstrs -precompute-phys-liveness
 ; RUN: llc -mtriple=x86_64-- -no-integrated-as < %s -verify-machineinstrs -precompute-phys-liveness
- 
+
 ; PR6497
 
 ; Chain and flag folding issues.
@@ -276,7 +276,7 @@ bb27:                                             ; preds = %bb7
   br label %bb29
 
 bb28:                                             ; preds = %bb7
-  call void @_ZNSt6vectorIN4llvm11MachineMoveESaIS1_EE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S3_EERKS1_(%t10* %tmp2, %t21* byval align 4 undef, %t13* undef)
+  call void @_ZNSt6vectorIN4llvm11MachineMoveESaIS1_EE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S3_EERKS1_(%t10* %tmp2, %t21* byval(%t21) align 4 undef, %t13* undef)
   br label %bb29
 
 bb29:                                             ; preds = %bb28, %bb27
@@ -300,7 +300,7 @@ bb35:                                             ; preds = %bb34
   br label %bb37
 
 bb36:                                             ; preds = %bb34
-  call void @_ZNSt6vectorIN4llvm11MachineMoveESaIS1_EE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S3_EERKS1_(%t10* %tmp2, %t21* byval align 4 undef, %t13* undef)
+  call void @_ZNSt6vectorIN4llvm11MachineMoveESaIS1_EE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S3_EERKS1_(%t10* %tmp2, %t21* byval(%t21) align 4 undef, %t13* undef)
   br label %bb37
 
 bb37:                                             ; preds = %bb36, %bb35, %bb31
@@ -312,7 +312,7 @@ bb37:                                             ; preds = %bb36, %bb35, %bb31
 
 declare %t14* @_ZN4llvm9MCContext16CreateTempSymbolEv(%t2*)
 
-declare void @_ZNSt6vectorIN4llvm11MachineMoveESaIS1_EE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S3_EERKS1_(%t10*, %t21* byval align 4, %t13*)
+declare void @_ZNSt6vectorIN4llvm11MachineMoveESaIS1_EE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S3_EERKS1_(%t10*, %t21* byval(%t21) align 4, %t13*)
 
 declare void @llvm.lifetime.start.p0i8(i64, i8* nocapture) nounwind
 
@@ -384,12 +384,12 @@ entry:
   br i1 %tobool, label %if.then, label %if.end
 
 if.then:
-  %t1 = tail call i32 asm sideeffect "bar", "=r,=*m,~{dirflag},~{fpsr},~{flags}"(i32* @__force_order) nounwind
+  %t1 = tail call i32 asm sideeffect "bar", "=r,=*m,~{dirflag},~{fpsr},~{flags}"(i32* elementtype(i32) @__force_order) nounwind
   br label %if.end
 
 if.end:
   %t6 = inttoptr i32 %t0 to i64*
-  %t11 = tail call i64 asm sideeffect "foo", "=*m,=A,{bx},{cx},1,~{memory},~{dirflag},~{fpsr},~{flags}"(i64* %t6, i32 0, i32 0, i64 0) nounwind
+  %t11 = tail call i64 asm sideeffect "foo", "=*m,=A,{bx},{cx},1,~{memory},~{dirflag},~{fpsr},~{flags}"(i64* elementtype(i64) %t6, i32 0, i32 0, i64 0) nounwind
   ret void
 }
 

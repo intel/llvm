@@ -4,12 +4,14 @@ add_lldb_library(lldbPluginSymbolFilePDB PLUGIN
   SymbolFilePDB.cpp
 
   LINK_LIBS
-    clangAST
-    clangLex
     lldbCore
+    lldbPluginSymbolFileNativePDB
     lldbSymbol
     lldbUtility
-  lldbPluginSymbolFileNativePDB
+    lldbPluginTypeSystemClang
+  CLANG_LIBS
+    clangAST
+    clangLex
   LINK_COMPONENTS
     DebugInfoPDB
     Support

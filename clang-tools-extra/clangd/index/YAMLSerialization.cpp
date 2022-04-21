@@ -12,18 +12,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Index.h"
-#include "Serialization.h"
-#include "SymbolLocation.h"
-#include "SymbolOrigin.h"
-#include "Trace.h"
-#include "dex/Dex.h"
+#include "Headers.h"
+#include "index/Ref.h"
+#include "index/Relation.h"
+#include "index/Serialization.h"
+#include "index/Symbol.h"
+#include "index/SymbolLocation.h"
+#include "index/SymbolOrigin.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/Errc.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
@@ -35,10 +34,13 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(clang::clangd::Ref)
 namespace {
 using RefBundle =
     std::pair<clang::clangd::SymbolID, std::vector<clang::clangd::Ref>>;
-// This is a pale imitation of std::variant<Symbol, RefBundle>
+// This is a pale imitation of std::variant<Symbol, RefBundle, Relation>
 struct VariantEntry {
   llvm::Optional<clang::clangd::Symbol> Symbol;
   llvm::Optional<RefBundle> Refs;
+  llvm::Optional<clang::clangd::Relation> Relation;
+  llvm::Optional<clang::clangd::IncludeGraphNode> Source;
+  llvm::Optional<clang::tooling::CompileCommand> Cmd;
 };
 // A class helps YAML to serialize the 32-bit encoded position (Line&Column),
 // as YAMLIO can't directly map bitfields.
@@ -47,19 +49,27 @@ struct YPosition {
   uint32_t Column;
 };
 
+// avoid ODR violation of specialization for non-owned CompileCommand
+struct CompileCommandYAML : clang::tooling::CompileCommand {};
+
 } // namespace
 namespace llvm {
 namespace yaml {
 
+using clang::clangd::FileDigest;
+using clang::clangd::IncludeGraph;
+using clang::clangd::IncludeGraphNode;
 using clang::clangd::Ref;
 using clang::clangd::RefKind;
+using clang::clangd::Relation;
+using clang::clangd::RelationKind;
 using clang::clangd::Symbol;
 using clang::clangd::SymbolID;
 using clang::clangd::SymbolLocation;
-using clang::clangd::SymbolOrigin;
 using clang::index::SymbolInfo;
 using clang::index::SymbolKind;
 using clang::index::SymbolLanguage;
+using clang::tooling::CompileCommand;
 
 // Helper to (de)serialize the SymbolID. We serialize it as a hex string.
 struct NormalizedSymbolID {
@@ -92,17 +102,6 @@ struct NormalizedSymbolFlag {
   }
 
   uint8_t Flag = 0;
-};
-
-struct NormalizedSymbolOrigin {
-  NormalizedSymbolOrigin(IO &) {}
-  NormalizedSymbolOrigin(IO &, SymbolOrigin O) {
-    Origin = static_cast<uint8_t>(O);
-  }
-
-  SymbolOrigin denormalize(IO &) { return static_cast<SymbolOrigin>(Origin); }
-
-  uint8_t Origin = 0;
 };
 
 template <> struct MappingTraits<YPosition> {
@@ -159,19 +158,19 @@ template <> struct MappingTraits<SymbolLocation> {
 };
 
 template <> struct MappingTraits<SymbolInfo> {
-  static void mapping(IO &io, SymbolInfo &SymInfo) {
+  static void mapping(IO &IO, SymbolInfo &SymInfo) {
     // FIXME: expose other fields?
-    io.mapRequired("Kind", SymInfo.Kind);
-    io.mapRequired("Lang", SymInfo.Lang);
+    IO.mapRequired("Kind", SymInfo.Kind);
+    IO.mapRequired("Lang", SymInfo.Lang);
   }
 };
 
 template <>
 struct MappingTraits<clang::clangd::Symbol::IncludeHeaderWithReferences> {
-  static void mapping(IO &io,
+  static void mapping(IO &IO,
                       clang::clangd::Symbol::IncludeHeaderWithReferences &Inc) {
-    io.mapRequired("Header", Inc.IncludeHeader);
-    io.mapRequired("References", Inc.References);
+    IO.mapRequired("Header", Inc.IncludeHeader);
+    IO.mapRequired("References", Inc.References);
   }
 };
 
@@ -180,8 +179,6 @@ template <> struct MappingTraits<Symbol> {
     MappingNormalization<NormalizedSymbolID, SymbolID> NSymbolID(IO, Sym.ID);
     MappingNormalization<NormalizedSymbolFlag, Symbol::SymbolFlag> NSymbolFlag(
         IO, Sym.Flags);
-    MappingNormalization<NormalizedSymbolOrigin, SymbolOrigin> NSymbolOrigin(
-        IO, Sym.Origin);
     IO.mapRequired("ID", NSymbolID->HexString);
     IO.mapRequired("Name", Sym.Name);
     IO.mapRequired("Scope", Sym.Scope);
@@ -190,7 +187,6 @@ template <> struct MappingTraits<Symbol> {
                    SymbolLocation());
     IO.mapOptional("Definition", Sym.Definition, SymbolLocation());
     IO.mapOptional("References", Sym.References, 0u);
-    IO.mapOptional("Origin", NSymbolOrigin->Origin);
     IO.mapOptional("Flags", NSymbolFlag->Flag);
     IO.mapOptional("Signature", Sym.Signature);
     IO.mapOptional("TemplateSpecializationArgs",
@@ -275,6 +271,87 @@ template <> struct MappingTraits<Ref> {
   }
 };
 
+struct NormalizedSymbolRole {
+  NormalizedSymbolRole(IO &) {}
+  NormalizedSymbolRole(IO &IO, RelationKind R) {
+    Kind = static_cast<uint8_t>(R);
+  }
+
+  RelationKind denormalize(IO &IO) { return static_cast<RelationKind>(Kind); }
+
+  uint8_t Kind = 0;
+};
+
+template <> struct MappingTraits<SymbolID> {
+  static void mapping(IO &IO, SymbolID &ID) {
+    MappingNormalization<NormalizedSymbolID, SymbolID> NSymbolID(IO, ID);
+    IO.mapRequired("ID", NSymbolID->HexString);
+  }
+};
+
+template <> struct MappingTraits<Relation> {
+  static void mapping(IO &IO, Relation &Relation) {
+    MappingNormalization<NormalizedSymbolRole, RelationKind> NRole(
+        IO, Relation.Predicate);
+    IO.mapRequired("Subject", Relation.Subject);
+    IO.mapRequired("Predicate", NRole->Kind);
+    IO.mapRequired("Object", Relation.Object);
+  }
+};
+
+struct NormalizedSourceFlag {
+  NormalizedSourceFlag(IO &) {}
+  NormalizedSourceFlag(IO &, IncludeGraphNode::SourceFlag O) {
+    Flag = static_cast<uint8_t>(O);
+  }
+
+  IncludeGraphNode::SourceFlag denormalize(IO &) {
+    return static_cast<IncludeGraphNode::SourceFlag>(Flag);
+  }
+
+  uint8_t Flag = 0;
+};
+
+struct NormalizedFileDigest {
+  NormalizedFileDigest(IO &) {}
+  NormalizedFileDigest(IO &, const FileDigest &Digest) {
+    HexString = llvm::toHex(Digest);
+  }
+
+  FileDigest denormalize(IO &I) {
+    FileDigest Digest;
+    if (HexString.size() == Digest.size() * 2 &&
+        llvm::all_of(HexString, llvm::isHexDigit)) {
+      memcpy(Digest.data(), llvm::fromHex(HexString).data(), Digest.size());
+    } else {
+      I.setError(std::string("Bad hex file digest: ") + HexString);
+    }
+    return Digest;
+  }
+
+  std::string HexString;
+};
+
+template <> struct MappingTraits<IncludeGraphNode> {
+  static void mapping(IO &IO, IncludeGraphNode &Node) {
+    IO.mapRequired("URI", Node.URI);
+    MappingNormalization<NormalizedSourceFlag, IncludeGraphNode::SourceFlag>
+        NSourceFlag(IO, Node.Flags);
+    IO.mapRequired("Flags", NSourceFlag->Flag);
+    MappingNormalization<NormalizedFileDigest, FileDigest> NDigest(IO,
+                                                                   Node.Digest);
+    IO.mapRequired("Digest", NDigest->HexString);
+    IO.mapRequired("DirectIncludes", Node.DirectIncludes);
+  }
+};
+
+template <> struct MappingTraits<CompileCommandYAML> {
+  static void mapping(IO &IO, CompileCommandYAML &Cmd) {
+    IO.mapRequired("Directory", Cmd.Directory);
+    IO.mapRequired("CommandLine", Cmd.CommandLine);
+  }
+};
+
 template <> struct MappingTraits<VariantEntry> {
   static void mapping(IO &IO, VariantEntry &Variant) {
     if (IO.mapTag("!Symbol", Variant.Symbol.hasValue())) {
@@ -285,6 +362,19 @@ template <> struct MappingTraits<VariantEntry> {
       if (!IO.outputting())
         Variant.Refs.emplace();
       MappingTraits<RefBundle>::mapping(IO, *Variant.Refs);
+    } else if (IO.mapTag("!Relations", Variant.Relation.hasValue())) {
+      if (!IO.outputting())
+        Variant.Relation.emplace();
+      MappingTraits<Relation>::mapping(IO, *Variant.Relation);
+    } else if (IO.mapTag("!Source", Variant.Source.hasValue())) {
+      if (!IO.outputting())
+        Variant.Source.emplace();
+      MappingTraits<IncludeGraphNode>::mapping(IO, *Variant.Source);
+    } else if (IO.mapTag("!Cmd", Variant.Cmd.hasValue())) {
+      if (!IO.outputting())
+        Variant.Cmd.emplace();
+      MappingTraits<CompileCommandYAML>::mapping(
+          IO, static_cast<CompileCommandYAML &>(*Variant.Cmd));
     }
   }
 };
@@ -308,15 +398,37 @@ void writeYAML(const IndexFileOut &O, llvm::raw_ostream &OS) {
       Entry.Refs = Sym;
       Yout << Entry;
     }
+  if (O.Relations)
+    for (auto &R : *O.Relations) {
+      VariantEntry Entry;
+      Entry.Relation = R;
+      Yout << Entry;
+    }
+  if (O.Sources) {
+    for (const auto &Source : *O.Sources) {
+      VariantEntry Entry;
+      Entry.Source = Source.getValue();
+      Yout << Entry;
+    }
+  }
+  if (O.Cmd) {
+    VariantEntry Entry;
+    Entry.Cmd = *O.Cmd;
+    Yout << Entry;
+  }
 }
 
-llvm::Expected<IndexFileIn> readYAML(llvm::StringRef Data) {
+llvm::Expected<IndexFileIn> readYAML(llvm::StringRef Data,
+                                     SymbolOrigin Origin) {
   SymbolSlab::Builder Symbols;
   RefSlab::Builder Refs;
+  RelationSlab::Builder Relations;
   llvm::BumpPtrAllocator
       Arena; // store the underlying data of Position::FileURI.
   llvm::UniqueStringSaver Strings(Arena);
   llvm::yaml::Input Yin(Data, &Strings);
+  IncludeGraph Sources;
+  llvm::Optional<tooling::CompileCommand> Cmd;
   while (Yin.setCurrentDocument()) {
     llvm::yaml::EmptyContext Ctx;
     VariantEntry Variant;
@@ -324,17 +436,36 @@ llvm::Expected<IndexFileIn> readYAML(llvm::StringRef Data) {
     if (Yin.error())
       return llvm::errorCodeToError(Yin.error());
 
-    if (Variant.Symbol)
+    if (Variant.Symbol) {
+      Variant.Symbol->Origin = Origin;
       Symbols.insert(*Variant.Symbol);
+    }
     if (Variant.Refs)
       for (const auto &Ref : Variant.Refs->second)
         Refs.insert(Variant.Refs->first, Ref);
+    if (Variant.Relation)
+      Relations.insert(*Variant.Relation);
+    if (Variant.Source) {
+      auto &IGN = Variant.Source.getValue();
+      auto Entry = Sources.try_emplace(IGN.URI).first;
+      Entry->getValue() = std::move(IGN);
+      // Fixup refs to refer to map keys which will live on
+      Entry->getValue().URI = Entry->getKey();
+      for (auto &Include : Entry->getValue().DirectIncludes)
+        Include = Sources.try_emplace(Include).first->getKey();
+    }
+    if (Variant.Cmd)
+      Cmd = *Variant.Cmd;
     Yin.nextDocument();
   }
 
   IndexFileIn Result;
   Result.Symbols.emplace(std::move(Symbols).build());
   Result.Refs.emplace(std::move(Refs).build());
+  Result.Relations.emplace(std::move(Relations).build());
+  if (Sources.size())
+    Result.Sources = std::move(Sources);
+  Result.Cmd = std::move(Cmd);
   return std::move(Result);
 }
 
@@ -356,6 +487,28 @@ std::string toYAML(const std::pair<SymbolID, llvm::ArrayRef<Ref>> &Data) {
     llvm::raw_string_ostream OS(Buf);
     llvm::yaml::Output Yout(OS);
     Yout << Refs;
+  }
+  return Buf;
+}
+
+std::string toYAML(const Relation &R) {
+  std::string Buf;
+  {
+    llvm::raw_string_ostream OS(Buf);
+    llvm::yaml::Output Yout(OS);
+    Relation Rel = R; // copy: Yout<< requires mutability.
+    Yout << Rel;
+  }
+  return Buf;
+}
+
+std::string toYAML(const Ref &R) {
+  std::string Buf;
+  {
+    llvm::raw_string_ostream OS(Buf);
+    llvm::yaml::Output Yout(OS);
+    Ref Reference = R; // copy: Yout<< requires mutability.
+    Yout << Reference;
   }
   return Buf;
 }

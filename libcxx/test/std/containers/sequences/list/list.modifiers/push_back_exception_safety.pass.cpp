@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // <list>
 
 // void push_back(const value_type& x);
 
 #include <list>
 #include <cassert>
+
+#include "test_macros.h"
 
 // Flag that makes the copy constructor for CMyClass throw an exception
 static bool gCopyConstructorShouldThow = false;

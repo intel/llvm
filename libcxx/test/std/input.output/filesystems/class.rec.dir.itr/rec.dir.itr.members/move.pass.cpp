@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,14 +14,14 @@
 
 // recursive_directory_iterator(recursive_directory_iterator&&) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -45,7 +45,8 @@ TEST_CASE(test_move_end_iterator)
 
 TEST_CASE(test_move_valid_iterator)
 {
-    const path testDir = StaticEnv::Dir;
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
     const recursive_directory_iterator endIt{};
 
     // build 'it' up with "interesting" non-default state so we can test

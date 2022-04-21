@@ -1,7 +1,7 @@
 #include "test.h"
 
 extern "C" {
-typedef unsigned long jptr;  // NOLINT
+typedef unsigned long jptr;
 void __tsan_java_preinit(const char *libjvm_path);
 void __tsan_java_init(jptr heap_begin, jptr heap_size);
 int  __tsan_java_fini();
@@ -22,6 +22,8 @@ int  __tsan_java_release_store(jptr addr);
 
 void __tsan_read1_pc(jptr addr, jptr pc);
 void __tsan_write1_pc(jptr addr, jptr pc);
+void __tsan_func_entry(jptr pc);
+void __tsan_func_exit();
 }
 
 const jptr kExternalPCBit = 1ULL << 60;

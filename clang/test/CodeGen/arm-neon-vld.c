@@ -5,11 +5,13 @@
 // RUN:     -target-feature +fp16 -S -disable-O0-optnone -emit-llvm -o - %s | \
 // RUN:     opt -S -mem2reg | FileCheck -check-prefixes=CHECK,CHECK-A32 %s
 
+// REQUIRES: aarch64-registered-target || arm-registered-target
+
 #include <arm_neon.h>
 
 // CHECK-LABEL: @test_vld1_f16_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float16x4x2_t, align 8
-// CHECK-A32: %struct.float16x4x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float16x4x2_t* noalias sret(%struct.float16x4x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float16x4x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float16x4x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast half* %a to i8*
@@ -29,7 +31,7 @@ float16x4x2_t test_vld1_f16_x2(float16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_f16_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float16x4x3_t, align 8
-// CHECK-A32: %struct.float16x4x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float16x4x3_t* noalias sret(%struct.float16x4x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float16x4x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float16x4x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast half* %a to i8*
@@ -49,7 +51,7 @@ float16x4x3_t test_vld1_f16_x3(float16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_f16_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float16x4x4_t, align 8
-// CHECK-A32: %struct.float16x4x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float16x4x4_t* noalias sret(%struct.float16x4x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float16x4x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float16x4x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast half* %a to i8*
@@ -69,7 +71,7 @@ float16x4x4_t test_vld1_f16_x4(float16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_f32_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float32x2x2_t, align 8
-// CHECK-A32: %struct.float32x2x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float32x2x2_t* noalias sret(%struct.float32x2x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float32x2x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float32x2x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast float* %a to i8*
@@ -89,7 +91,7 @@ float32x2x2_t test_vld1_f32_x2(float32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_f32_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float32x2x3_t, align 8
-// CHECK-A32: %struct.float32x2x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float32x2x3_t* noalias sret(%struct.float32x2x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float32x2x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float32x2x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast float* %a to i8*
@@ -108,7 +110,7 @@ float32x2x3_t test_vld1_f32_x3(float32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_f32_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float32x2x4_t, align 8
-// CHECK-A32: %struct.float32x2x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float32x2x4_t* noalias sret(%struct.float32x2x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float32x2x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float32x2x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast float* %a to i8*
@@ -128,7 +130,7 @@ float32x2x4_t test_vld1_f32_x4(float32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_p16_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly16x4x2_t, align 8
-// CHECK-A32: %struct.poly16x4x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly16x4x2_t* noalias sret(%struct.poly16x4x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly16x4x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly16x4x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -148,7 +150,7 @@ poly16x4x2_t test_vld1_p16_x2(poly16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_p16_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly16x4x3_t, align 8
-// CHECK-A32: %struct.poly16x4x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly16x4x3_t* noalias sret(%struct.poly16x4x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly16x4x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly16x4x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -168,7 +170,7 @@ poly16x4x3_t test_vld1_p16_x3(poly16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_p16_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly16x4x4_t, align 8
-// CHECK-A32: %struct.poly16x4x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly16x4x4_t* noalias sret(%struct.poly16x4x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly16x4x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly16x4x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -188,7 +190,7 @@ poly16x4x4_t test_vld1_p16_x4(poly16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_p8_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly8x8x2_t, align 8
-// CHECK-A32: %struct.poly8x8x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly8x8x2_t* noalias sret(%struct.poly8x8x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly8x8x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly8x8x2_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x2|arm.neon.vld1x2}}.v8i8.p0i8(i8* %a)
@@ -206,7 +208,7 @@ poly8x8x2_t test_vld1_p8_x2(poly8_t const *a) {
 
 // CHECK-LABEL: @test_vld1_p8_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly8x8x3_t, align 8
-// CHECK-A32: %struct.poly8x8x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly8x8x3_t* noalias sret(%struct.poly8x8x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly8x8x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly8x8x3_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x3|arm.neon.vld1x3}}.v8i8.p0i8(i8* %a)
@@ -224,7 +226,7 @@ poly8x8x3_t test_vld1_p8_x3(poly8_t const *a) {
 
 // CHECK-LABEL: @test_vld1_p8_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly8x8x4_t, align 8
-// CHECK-A32: %struct.poly8x8x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly8x8x4_t* noalias sret(%struct.poly8x8x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly8x8x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly8x8x4_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8>, <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x4|arm.neon.vld1x4}}.v8i8.p0i8(i8* %a)
@@ -242,7 +244,7 @@ poly8x8x4_t test_vld1_p8_x4(poly8_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s16_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int16x4x2_t, align 8
-// CHECK-A32: %struct.int16x4x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int16x4x2_t* noalias sret(%struct.int16x4x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int16x4x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int16x4x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -262,7 +264,7 @@ int16x4x2_t test_vld1_s16_x2(int16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s16_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int16x4x3_t, align 8
-// CHECK-A32: %struct.int16x4x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int16x4x3_t* noalias sret(%struct.int16x4x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int16x4x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int16x4x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -282,7 +284,7 @@ int16x4x3_t test_vld1_s16_x3(int16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s16_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int16x4x4_t, align 8
-// CHECK-A32: %struct.int16x4x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int16x4x4_t* noalias sret(%struct.int16x4x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int16x4x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int16x4x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -302,7 +304,7 @@ int16x4x4_t test_vld1_s16_x4(int16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s32_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int32x2x2_t, align 8
-// CHECK-A32: %struct.int32x2x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int32x2x2_t* noalias sret(%struct.int32x2x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int32x2x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int32x2x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -322,7 +324,7 @@ int32x2x2_t test_vld1_s32_x2(int32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s32_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int32x2x3_t, align 8
-// CHECK-A32: %struct.int32x2x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int32x2x3_t* noalias sret(%struct.int32x2x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int32x2x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int32x2x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -342,7 +344,7 @@ int32x2x3_t test_vld1_s32_x3(int32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s32_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int32x2x4_t, align 8
-// CHECK-A32: %struct.int32x2x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int32x2x4_t* noalias sret(%struct.int32x2x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int32x2x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int32x2x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -362,7 +364,7 @@ int32x2x4_t test_vld1_s32_x4(int32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s64_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int64x1x2_t, align 8
-// CHECK-A32: %struct.int64x1x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int64x1x2_t* noalias sret(%struct.int64x1x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int64x1x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int64x1x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -382,7 +384,7 @@ int64x1x2_t test_vld1_s64_x2(int64_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s64_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int64x1x3_t, align 8
-// CHECK-A32: %struct.int64x1x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int64x1x3_t* noalias sret(%struct.int64x1x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int64x1x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int64x1x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -402,7 +404,7 @@ int64x1x3_t test_vld1_s64_x3(int64_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s64_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int64x1x4_t, align 8
-// CHECK-A32: %struct.int64x1x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int64x1x4_t* noalias sret(%struct.int64x1x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int64x1x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int64x1x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -422,7 +424,7 @@ int64x1x4_t test_vld1_s64_x4(int64_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s8_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int8x8x2_t, align 8
-// CHECK-A32: %struct.int8x8x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int8x8x2_t* noalias sret(%struct.int8x8x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int8x8x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int8x8x2_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x2|arm.neon.vld1x2}}.v8i8.p0i8(i8* %a)
@@ -440,7 +442,7 @@ int8x8x2_t test_vld1_s8_x2(int8_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s8_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int8x8x3_t, align 8
-// CHECK-A32: %struct.int8x8x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int8x8x3_t* noalias sret(%struct.int8x8x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int8x8x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int8x8x3_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x3|arm.neon.vld1x3}}.v8i8.p0i8(i8* %a)
@@ -458,7 +460,7 @@ int8x8x3_t test_vld1_s8_x3(int8_t const *a) {
 
 // CHECK-LABEL: @test_vld1_s8_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int8x8x4_t, align 8
-// CHECK-A32: %struct.int8x8x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int8x8x4_t* noalias sret(%struct.int8x8x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int8x8x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int8x8x4_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8>, <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x4|arm.neon.vld1x4}}.v8i8.p0i8(i8* %a)
@@ -476,7 +478,7 @@ int8x8x4_t test_vld1_s8_x4(int8_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u16_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint16x4x2_t, align 8
-// CHECK-A32: %struct.uint16x4x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint16x4x2_t* noalias sret(%struct.uint16x4x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint16x4x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint16x4x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -496,7 +498,7 @@ uint16x4x2_t test_vld1_u16_x2(uint16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u16_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint16x4x3_t, align 8
-// CHECK-A32: %struct.uint16x4x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint16x4x3_t* noalias sret(%struct.uint16x4x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint16x4x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint16x4x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -516,7 +518,7 @@ uint16x4x3_t test_vld1_u16_x3(uint16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u16_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint16x4x4_t, align 8
-// CHECK-A32: %struct.uint16x4x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint16x4x4_t* noalias sret(%struct.uint16x4x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint16x4x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint16x4x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -536,7 +538,7 @@ uint16x4x4_t test_vld1_u16_x4(uint16_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u32_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint32x2x2_t, align 8
-// CHECK-A32: %struct.uint32x2x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint32x2x2_t* noalias sret(%struct.uint32x2x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint32x2x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint32x2x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -556,7 +558,7 @@ uint32x2x2_t test_vld1_u32_x2(uint32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u32_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint32x2x3_t, align 8
-// CHECK-A32: %struct.uint32x2x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint32x2x3_t* noalias sret(%struct.uint32x2x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint32x2x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint32x2x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -576,7 +578,7 @@ uint32x2x3_t test_vld1_u32_x3(uint32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u32_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint32x2x4_t, align 8
-// CHECK-A32: %struct.uint32x2x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint32x2x4_t* noalias sret(%struct.uint32x2x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint32x2x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint32x2x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -596,7 +598,7 @@ uint32x2x4_t test_vld1_u32_x4(uint32_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u64_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint64x1x2_t, align 8
-// CHECK-A32: %struct.uint64x1x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint64x1x2_t* noalias sret(%struct.uint64x1x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint64x1x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint64x1x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -616,7 +618,7 @@ uint64x1x2_t test_vld1_u64_x2(uint64_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u64_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint64x1x3_t, align 8
-// CHECK-A32: %struct.uint64x1x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint64x1x3_t* noalias sret(%struct.uint64x1x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint64x1x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint64x1x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -636,7 +638,7 @@ uint64x1x3_t test_vld1_u64_x3(uint64_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u64_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint64x1x4_t, align 8
-// CHECK-A32: %struct.uint64x1x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint64x1x4_t* noalias sret(%struct.uint64x1x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint64x1x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint64x1x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -656,7 +658,7 @@ uint64x1x4_t test_vld1_u64_x4(uint64_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u8_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint8x8x2_t, align 8
-// CHECK-A32: %struct.uint8x8x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint8x8x2_t* noalias sret(%struct.uint8x8x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint8x8x2_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint8x8x2_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x2|arm.neon.vld1x2}}.v8i8.p0i8(i8* %a)
@@ -674,7 +676,7 @@ uint8x8x2_t test_vld1_u8_x2(uint8_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u8_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint8x8x3_t, align 8
-// CHECK-A32: %struct.uint8x8x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint8x8x3_t* noalias sret(%struct.uint8x8x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint8x8x3_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint8x8x3_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x3|arm.neon.vld1x3}}.v8i8.p0i8(i8* %a)
@@ -692,7 +694,7 @@ uint8x8x3_t test_vld1_u8_x3(uint8_t const *a) {
 
 // CHECK-LABEL: @test_vld1_u8_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint8x8x4_t, align 8
-// CHECK-A32: %struct.uint8x8x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint8x8x4_t* noalias sret(%struct.uint8x8x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint8x8x4_t, align 8
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint8x8x4_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <8 x i8>, <8 x i8>, <8 x i8>, <8 x i8> } @llvm.{{aarch64.neon.ld1x4|arm.neon.vld1x4}}.v8i8.p0i8(i8* %a)
@@ -710,7 +712,7 @@ uint8x8x4_t test_vld1_u8_x4(uint8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_f16_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float16x8x2_t, align 16
-// CHECK-A32: %struct.float16x8x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float16x8x2_t* noalias sret(%struct.float16x8x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float16x8x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float16x8x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast half* %a to i8*
@@ -730,7 +732,7 @@ float16x8x2_t test_vld1q_f16_x2(float16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_f16_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float16x8x3_t, align 16
-// CHECK-A32: %struct.float16x8x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float16x8x3_t* noalias sret(%struct.float16x8x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float16x8x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float16x8x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast half* %a to i8*
@@ -750,7 +752,7 @@ float16x8x3_t test_vld1q_f16_x3(float16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_f16_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float16x8x4_t, align 16
-// CHECK-A32: %struct.float16x8x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float16x8x4_t* noalias sret(%struct.float16x8x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float16x8x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float16x8x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast half* %a to i8*
@@ -770,7 +772,7 @@ float16x8x4_t test_vld1q_f16_x4(float16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_f32_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float32x4x2_t, align 16
-// CHECK-A32: %struct.float32x4x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float32x4x2_t* noalias sret(%struct.float32x4x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float32x4x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float32x4x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast float* %a to i8*
@@ -790,7 +792,7 @@ float32x4x2_t test_vld1q_f32_x2(float32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_f32_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float32x4x3_t, align 16
-// CHECK-A32: %struct.float32x4x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float32x4x3_t* noalias sret(%struct.float32x4x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float32x4x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float32x4x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast float* %a to i8*
@@ -810,7 +812,7 @@ float32x4x3_t test_vld1q_f32_x3(float32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_f32_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.float32x4x4_t, align 16
-// CHECK-A32: %struct.float32x4x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.float32x4x4_t* noalias sret(%struct.float32x4x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.float32x4x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.float32x4x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast float* %a to i8*
@@ -830,7 +832,7 @@ float32x4x4_t test_vld1q_f32_x4(float32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_p16_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly16x8x2_t, align 16
-// CHECK-A32: %struct.poly16x8x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly16x8x2_t* noalias sret(%struct.poly16x8x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly16x8x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly16x8x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -850,7 +852,7 @@ poly16x8x2_t test_vld1q_p16_x2(poly16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_p16_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly16x8x3_t, align 16
-// CHECK-A32: %struct.poly16x8x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly16x8x3_t* noalias sret(%struct.poly16x8x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly16x8x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly16x8x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -870,7 +872,7 @@ poly16x8x3_t test_vld1q_p16_x3(poly16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_p16_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly16x8x4_t, align 16
-// CHECK-A32: %struct.poly16x8x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly16x8x4_t* noalias sret(%struct.poly16x8x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly16x8x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly16x8x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -890,7 +892,7 @@ poly16x8x4_t test_vld1q_p16_x4(poly16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_p8_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly8x16x2_t, align 16
-// CHECK-A32: %struct.poly8x16x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly8x16x2_t* noalias sret(%struct.poly8x16x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly8x16x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly8x16x2_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x2|arm.neon.vld1x2}}.v16i8.p0i8(i8* %a)
@@ -908,7 +910,7 @@ poly8x16x2_t test_vld1q_p8_x2(poly8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_p8_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly8x16x3_t, align 16
-// CHECK-A32: %struct.poly8x16x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly8x16x3_t* noalias sret(%struct.poly8x16x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly8x16x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly8x16x3_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x3|arm.neon.vld1x3}}.v16i8.p0i8(i8* %a)
@@ -926,7 +928,7 @@ poly8x16x3_t test_vld1q_p8_x3(poly8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_p8_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.poly8x16x4_t, align 16
-// CHECK-A32: %struct.poly8x16x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.poly8x16x4_t* noalias sret(%struct.poly8x16x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.poly8x16x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.poly8x16x4_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8>, <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x4|arm.neon.vld1x4}}.v16i8.p0i8(i8* %a)
@@ -944,7 +946,7 @@ poly8x16x4_t test_vld1q_p8_x4(poly8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s16_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int16x8x2_t, align 16
-// CHECK-A32: %struct.int16x8x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int16x8x2_t* noalias sret(%struct.int16x8x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int16x8x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int16x8x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -964,7 +966,7 @@ int16x8x2_t test_vld1q_s16_x2(int16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s16_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int16x8x3_t, align 16
-// CHECK-A32: %struct.int16x8x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int16x8x3_t* noalias sret(%struct.int16x8x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int16x8x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int16x8x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -984,7 +986,7 @@ int16x8x3_t test_vld1q_s16_x3(int16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s16_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int16x8x4_t, align 16
-// CHECK-A32: %struct.int16x8x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int16x8x4_t* noalias sret(%struct.int16x8x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int16x8x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int16x8x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -1004,7 +1006,7 @@ int16x8x4_t test_vld1q_s16_x4(int16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s32_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int32x4x2_t, align 16
-// CHECK-A32: %struct.int32x4x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int32x4x2_t* noalias sret(%struct.int32x4x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int32x4x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int32x4x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -1024,7 +1026,7 @@ int32x4x2_t test_vld1q_s32_x2(int32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s32_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int32x4x3_t, align 16
-// CHECK-A32: %struct.int32x4x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int32x4x3_t* noalias sret(%struct.int32x4x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int32x4x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int32x4x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -1044,7 +1046,7 @@ int32x4x3_t test_vld1q_s32_x3(int32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s32_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int32x4x4_t, align 16
-// CHECK-A32: %struct.int32x4x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int32x4x4_t* noalias sret(%struct.int32x4x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int32x4x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int32x4x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -1064,7 +1066,7 @@ int32x4x4_t test_vld1q_s32_x4(int32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s64_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int64x2x2_t, align 16
-// CHECK-A32: %struct.int64x2x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int64x2x2_t* noalias sret(%struct.int64x2x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int64x2x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int64x2x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -1084,7 +1086,7 @@ int64x2x2_t test_vld1q_s64_x2(int64_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s64_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int64x2x3_t, align 16
-// CHECK-A32: %struct.int64x2x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int64x2x3_t* noalias sret(%struct.int64x2x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int64x2x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int64x2x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -1104,7 +1106,7 @@ int64x2x3_t test_vld1q_s64_x3(int64_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s64_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int64x2x4_t, align 16
-// CHECK-A32: %struct.int64x2x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int64x2x4_t* noalias sret(%struct.int64x2x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int64x2x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int64x2x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -1124,7 +1126,7 @@ int64x2x4_t test_vld1q_s64_x4(int64_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s8_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int8x16x2_t, align 16
-// CHECK-A32: %struct.int8x16x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int8x16x2_t* noalias sret(%struct.int8x16x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int8x16x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int8x16x2_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x2|arm.neon.vld1x2}}.v16i8.p0i8(i8* %a)
@@ -1142,7 +1144,7 @@ int8x16x2_t test_vld1q_s8_x2(int8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s8_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int8x16x3_t, align 16
-// CHECK-A32: %struct.int8x16x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int8x16x3_t* noalias sret(%struct.int8x16x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int8x16x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int8x16x3_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x3|arm.neon.vld1x3}}.v16i8.p0i8(i8* %a)
@@ -1160,7 +1162,7 @@ int8x16x3_t test_vld1q_s8_x3(int8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_s8_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.int8x16x4_t, align 16
-// CHECK-A32: %struct.int8x16x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.int8x16x4_t* noalias sret(%struct.int8x16x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.int8x16x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.int8x16x4_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8>, <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x4|arm.neon.vld1x4}}.v16i8.p0i8(i8* %a)
@@ -1178,7 +1180,7 @@ int8x16x4_t test_vld1q_s8_x4(int8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u16_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint16x8x2_t, align 16
-// CHECK-A32: %struct.uint16x8x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint16x8x2_t* noalias sret(%struct.uint16x8x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint16x8x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint16x8x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -1198,7 +1200,7 @@ uint16x8x2_t test_vld1q_u16_x2(uint16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u16_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint16x8x3_t, align 16
-// CHECK-A32: %struct.uint16x8x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint16x8x3_t* noalias sret(%struct.uint16x8x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint16x8x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint16x8x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -1218,7 +1220,7 @@ uint16x8x3_t test_vld1q_u16_x3(uint16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u16_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint16x8x4_t, align 16
-// CHECK-A32: %struct.uint16x8x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint16x8x4_t* noalias sret(%struct.uint16x8x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint16x8x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint16x8x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i16* %a to i8*
@@ -1238,7 +1240,7 @@ uint16x8x4_t test_vld1q_u16_x4(uint16_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u32_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint32x4x2_t, align 16
-// CHECK-A32: %struct.uint32x4x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint32x4x2_t* noalias sret(%struct.uint32x4x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint32x4x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint32x4x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -1258,7 +1260,7 @@ uint32x4x2_t test_vld1q_u32_x2(uint32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u32_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint32x4x3_t, align 16
-// CHECK-A32: %struct.uint32x4x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint32x4x3_t* noalias sret(%struct.uint32x4x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint32x4x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint32x4x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -1278,7 +1280,7 @@ uint32x4x3_t test_vld1q_u32_x3(uint32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u32_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint32x4x4_t, align 16
-// CHECK-A32: %struct.uint32x4x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint32x4x4_t* noalias sret(%struct.uint32x4x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint32x4x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint32x4x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i32* %a to i8*
@@ -1298,7 +1300,7 @@ uint32x4x4_t test_vld1q_u32_x4(uint32_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u64_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint64x2x2_t, align 16
-// CHECK-A32: %struct.uint64x2x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint64x2x2_t* noalias sret(%struct.uint64x2x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint64x2x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint64x2x2_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -1318,7 +1320,7 @@ uint64x2x2_t test_vld1q_u64_x2(uint64_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u64_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint64x2x3_t, align 16
-// CHECK-A32: %struct.uint64x2x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint64x2x3_t* noalias sret(%struct.uint64x2x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint64x2x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint64x2x3_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -1338,7 +1340,7 @@ uint64x2x3_t test_vld1q_u64_x3(uint64_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u64_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint64x2x4_t, align 16
-// CHECK-A32: %struct.uint64x2x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint64x2x4_t* noalias sret(%struct.uint64x2x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint64x2x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint64x2x4_t* [[__RET]] to i8*
 // CHECK: [[TMP1:%.*]] = bitcast i64* %a to i8*
@@ -1358,7 +1360,7 @@ uint64x2x4_t test_vld1q_u64_x4(uint64_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u8_x2(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint8x16x2_t, align 16
-// CHECK-A32: %struct.uint8x16x2_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint8x16x2_t* noalias sret(%struct.uint8x16x2_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint8x16x2_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint8x16x2_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x2|arm.neon.vld1x2}}.v16i8.p0i8(i8* %a)
@@ -1376,7 +1378,7 @@ uint8x16x2_t test_vld1q_u8_x2(uint8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u8_x3(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint8x16x3_t, align 16
-// CHECK-A32: %struct.uint8x16x3_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint8x16x3_t* noalias sret(%struct.uint8x16x3_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint8x16x3_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint8x16x3_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x3|arm.neon.vld1x3}}.v16i8.p0i8(i8* %a)
@@ -1394,7 +1396,7 @@ uint8x16x3_t test_vld1q_u8_x3(uint8_t const *a) {
 
 // CHECK-LABEL: @test_vld1q_u8_x4(
 // CHECK-A64: [[RETVAL:%.*]] = alloca %struct.uint8x16x4_t, align 16
-// CHECK-A32: %struct.uint8x16x4_t* noalias sret [[RETVAL:%.*]],
+// CHECK-A32: %struct.uint8x16x4_t* noalias sret(%struct.uint8x16x4_t) align 8 [[RETVAL:%.*]],
 // CHECK: [[__RET:%.*]] = alloca %struct.uint8x16x4_t, align {{16|8}}
 // CHECK: [[TMP0:%.*]] = bitcast %struct.uint8x16x4_t* [[__RET]] to i8*
 // CHECK: [[VLD1XN:%.*]] = call { <16 x i8>, <16 x i8>, <16 x i8>, <16 x i8> } @llvm.{{aarch64.neon.ld1x4|arm.neon.vld1x4}}.v16i8.p0i8(i8* %a)

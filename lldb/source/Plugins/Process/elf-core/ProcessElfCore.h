@@ -13,13 +13,13 @@
 //     space.
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ProcessElfCore_h_
-#define liblldb_ProcessElfCore_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_PROCESSELFCORE_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_PROCESSELFCORE_H
 
 #include <list>
 #include <vector>
 
-#include "lldb/Target/Process.h"
+#include "lldb/Target/PostMortemProcess.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
 
@@ -28,20 +28,21 @@
 
 struct ThreadData;
 
-class ProcessElfCore : public lldb_private::Process {
+class ProcessElfCore : public lldb_private::PostMortemProcess {
 public:
   // Constructors and Destructors
   static lldb::ProcessSP
   CreateInstance(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
-                 const lldb_private::FileSpec *crash_file_path);
+                 const lldb_private::FileSpec *crash_file_path,
+                 bool can_connect);
 
   static void Initialize();
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "elf-core"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   // Constructors and Destructors
   ProcessElfCore(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
@@ -59,9 +60,7 @@ public:
   lldb_private::DynamicLoader *GetDynamicLoader() override;
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   // Process Control
   lldb_private::Status DoDestroy() override;
@@ -70,9 +69,8 @@ public:
 
   lldb_private::Status WillResume() override {
     lldb_private::Status error;
-    error.SetErrorStringWithFormat(
-        "error: %s does not support resuming processes",
-        GetPluginName().GetCString());
+    error.SetErrorStringWithFormatv(
+        "error: {0} does not support resuming processes", GetPluginName());
     return error;
   }
 
@@ -88,24 +86,24 @@ public:
   size_t DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
                       lldb_private::Status &error) override;
 
-  lldb_private::Status
-  GetMemoryRegionInfo(lldb::addr_t load_addr,
-                      lldb_private::MemoryRegionInfo &region_info) override;
-
   lldb::addr_t GetImageInfoAddress() override;
 
   lldb_private::ArchSpec GetArchitecture();
 
   // Returns AUXV structure found in the core file
-  const lldb::DataBufferSP GetAuxvData() override;
+  lldb_private::DataExtractor GetAuxvData() override;
 
   bool GetProcessInfo(lldb_private::ProcessInstanceInfo &info) override;
 
 protected:
   void Clear();
 
-  bool UpdateThreadList(lldb_private::ThreadList &old_thread_list,
-                        lldb_private::ThreadList &new_thread_list) override;
+  bool DoUpdateThreadList(lldb_private::ThreadList &old_thread_list,
+                          lldb_private::ThreadList &new_thread_list) override;
+
+  lldb_private::Status
+  DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                        lldb_private::MemoryRegionInfo &region_info) override;
 
 private:
   struct NT_FILE_Entry {
@@ -125,7 +123,6 @@ private:
   lldb::ModuleSP m_core_module_sp;
   lldb_private::FileSpec m_core_file;
   std::string m_dyld_plugin_name;
-  DISALLOW_COPY_AND_ASSIGN(ProcessElfCore);
 
   // True if m_thread_contexts contains valid entries
   bool m_thread_data_valid = false;
@@ -148,7 +145,7 @@ private:
   // Parse thread(s) data structures(prstatus, prpsinfo) from given NOTE segment
   llvm::Error ParseThreadContextsFromNoteSegment(
       const elf::ELFProgramHeader &segment_header,
-      lldb_private::DataExtractor segment_data);
+      const lldb_private::DataExtractor &segment_data);
 
   // Returns number of thread contexts stored in the core file
   uint32_t GetNumThreadContexts();
@@ -165,4 +162,4 @@ private:
   llvm::Error parseLinuxNotes(llvm::ArrayRef<lldb_private::CoreNote> notes);
 };
 
-#endif // liblldb_ProcessElfCore_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_PROCESSELFCORE_H

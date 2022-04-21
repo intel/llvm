@@ -31,7 +31,7 @@ namespace InstantiationDependent {
   static_assert(b<char> == 1, ""); // expected-note {{in instantiation of}} expected-error {{not an integral constant}}
 
   template<typename T> void f() {
-    static_assert(a<sizeof(sizeof(f(T())))> == 0, ""); // expected-error {{static_assert failed}}
+    static_assert(a<sizeof(sizeof(f(T())))> == 0, ""); // expected-error {{static_assert failed due to requirement 'a<sizeof (sizeof (f(type-parameter-0-0())))> == 0'}}
   }
 }
 
@@ -39,4 +39,11 @@ namespace PR24483 {
   template<typename> struct A;
   template<typename... T> A<T...> models;
   template<> struct B models<>; // expected-error {{incomplete type 'struct B'}} expected-note {{forward declaration}}
+}
+
+namespace InvalidInsertPos {
+  template<typename T, int N> T v;
+  template<int N> decltype(v<int, N-1>) v<int, N>;
+  template<> int v<int, 0>;
+  int k = v<int, 500>;
 }

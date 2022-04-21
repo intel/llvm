@@ -1,5 +1,5 @@
-; RUN: llc < %s | FileCheck %s
-; RUN: llc -filetype=obj < %s | llvm-dwarfdump -debug-loc - | FileCheck %s --check-prefix=DWARF
+; RUN: llc < %s -experimental-debug-variable-locations=true | FileCheck %s
+; RUN: llc -filetype=obj < %s -experimental-debug-variable-locations=true | llvm-dwarfdump -debug-loc - | FileCheck %s --check-prefix=DWARF
 
 ; Compile the following with -O1:
 
@@ -16,8 +16,8 @@
 ; CHECK-LABEL: bitpiece_spill:                         # @bitpiece_spill
 ; CHECK:               callq   g
 ; CHECK:               movl    %eax, [[offs:[0-9]+]](%rsp)          # 4-byte Spill
-; CHECK:               #DEBUG_VALUE: bitpiece_spill:o <- [DW_OP_LLVM_fragment 32 32] 0
 ; CHECK:               #DEBUG_VALUE: bitpiece_spill:o <- [DW_OP_plus_uconst [[offs]], DW_OP_LLVM_fragment 0 32] [$rsp+0]
+; CHECK:               #DEBUG_VALUE: bitpiece_spill:o <- [DW_OP_LLVM_fragment 32 32] 0
 ; CHECK:               #APP
 ; CHECK:               #NO_APP
 ; CHECK:               movl    [[offs]](%rsp), %eax          # 4-byte Reload
@@ -53,9 +53,9 @@ declare i32 @g() local_unnamed_addr #2
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #3 = { nounwind }
 
 !llvm.dbg.cu = !{!0}

@@ -8,9 +8,10 @@
 
 #include "llvm/DebugInfo/CodeView/TypeTableCollection.h"
 
-#include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
+#include "llvm/DebugInfo/CodeView/CodeView.h"
 #include "llvm/DebugInfo/CodeView/RecordName.h"
-#include "llvm/Support/BinaryStreamReader.h"
+#include "llvm/DebugInfo/CodeView/TypeIndex.h"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 using namespace llvm::codeview;
@@ -58,3 +59,8 @@ bool TypeTableCollection::contains(TypeIndex Index) {
 uint32_t TypeTableCollection::size() { return Records.size(); }
 
 uint32_t TypeTableCollection::capacity() { return Records.size(); }
+
+bool TypeTableCollection::replaceType(TypeIndex &Index, CVType Data,
+                                      bool Stabilize) {
+  llvm_unreachable("Method cannot be called");
+}

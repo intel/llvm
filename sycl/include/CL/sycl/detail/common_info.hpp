@@ -7,15 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-vector_class<string_class> split_string(const string_class &str,
-                                        char delimeter);
+std::vector<std::string> __SYCL_EXPORT split_string(const std::string &str,
+                                                    char delimeter);
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

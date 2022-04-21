@@ -25,14 +25,12 @@ include "llvm/Target/Target.td"
 def FeatureSIMD128 : SubtargetFeature<"simd128", "SIMDLevel", "SIMD128",
                                       "Enable 128-bit SIMD">;
 
-def FeatureUnimplementedSIMD128 :
-      SubtargetFeature<"unimplemented-simd128",
-                       "SIMDLevel", "UnimplementedSIMD128",
-                       "Enable 128-bit SIMD not yet implemented in engines",
-                       [FeatureSIMD128]>;
+def FeatureRelaxedSIMD : SubtargetFeature<"relaxed-simd", "SIMDLevel", "RelaxedSIMD",
+                                      "Enable relaxed-simd instructions">;
 
 def FeatureAtomics : SubtargetFeature<"atomics", "HasAtomics", "true",
                                       "Enable Atomics">;
+
 def FeatureNontrappingFPToInt :
       SubtargetFeature<"nontrapping-fptoint",
                        "HasNontrappingFPToInt", "true",
@@ -43,6 +41,11 @@ def FeatureSignExt :
                        "HasSignExt", "true",
                        "Enable sign extension operators">;
 
+def FeatureTailCall :
+      SubtargetFeature<"tail-call",
+                       "HasTailCall", "true",
+                       "Enable tail call instructions">;
+
 def FeatureExceptionHandling :
       SubtargetFeature<"exception-handling", "HasExceptionHandling", "true",
                        "Enable Wasm exception handling">;
@@ -51,9 +54,22 @@ def FeatureBulkMemory :
       SubtargetFeature<"bulk-memory", "HasBulkMemory", "true",
                        "Enable bulk memory operations">;
 
+def FeatureMultivalue :
+      SubtargetFeature<"multivalue",
+                       "HasMultivalue", "true",
+                       "Enable multivalue blocks, instructions, and functions">;
+
 def FeatureMutableGlobals :
       SubtargetFeature<"mutable-globals", "HasMutableGlobals", "true",
                        "Enable mutable globals">;
+
+def FeatureReferenceTypes :
+      SubtargetFeature<"reference-types", "HasReferenceTypes", "true",
+                       "Enable reference types">;
+
+def FeatureExtendedConst :
+      SubtargetFeature<"extended-const", "HasExtendedConst", "true",
+                       "Enable extended const expressions">;
 
 //===----------------------------------------------------------------------===//
 // Architectures.
@@ -87,7 +103,8 @@ def : ProcessorModel<"generic", NoSchedModel, []>;
 def : ProcessorModel<"bleeding-edge", NoSchedModel,
                       [FeatureSIMD128, FeatureAtomics,
                        FeatureNontrappingFPToInt, FeatureSignExt,
-                       FeatureMutableGlobals]>;
+                       FeatureMutableGlobals, FeatureBulkMemory,
+                       FeatureTailCall]>;
 
 //===----------------------------------------------------------------------===//
 // Target Declaration

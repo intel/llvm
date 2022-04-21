@@ -10,76 +10,79 @@
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/Orc/CompileUtils.h"
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
-#include "llvm/ExecutionEngine/Orc/LambdaResolver.h"
-#include "llvm/ExecutionEngine/Orc/Legacy.h"
-#include "llvm/ExecutionEngine/Orc/NullResolver.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "gtest/gtest.h"
+#include <string>
 
 using namespace llvm;
 using namespace llvm::orc;
 
 namespace {
 
-class RTDyldObjectLinkingLayerExecutionTest : public testing::Test,
-                                               public OrcExecutionTest {};
-
-// Adds an object with a debug section to RuntimeDyld and then returns whether
-// the debug section was passed to the memory manager.
+// Returns whether a non-alloc section was passed to the memory manager.
 static bool testSetProcessAllSections(std::unique_ptr<MemoryBuffer> Obj,
                                       bool ProcessAllSections) {
   class MemoryManagerWrapper : public SectionMemoryManager {
   public:
-    MemoryManagerWrapper(bool &DebugSeen) : DebugSeen(DebugSeen) {}
+    MemoryManagerWrapper(bool &NonAllocSeen) : NonAllocSeen(NonAllocSeen) {}
     uint8_t *allocateDataSection(uintptr_t Size, unsigned Alignment,
                                  unsigned SectionID, StringRef SectionName,
                                  bool IsReadOnly) override {
-      if (SectionName == ".debug_str")
-        DebugSeen = true;
+      // We check for ".note.GNU-stack" here because it is currently the only
+      // non-alloc section seen in the module. If this changes in future any
+      // other non-alloc section would do here.
+      if (SectionName == ".note.GNU-stack")
+        NonAllocSeen = true;
       return SectionMemoryManager::allocateDataSection(
           Size, Alignment, SectionID, SectionName, IsReadOnly);
     }
 
   private:
-    bool &DebugSeen;
+    bool &NonAllocSeen;
   };
 
-  bool DebugSectionSeen = false;
+  bool NonAllocSectionSeen = false;
 
-  ExecutionSession ES;
-  auto &JD = ES.createJITDylib("main");
+  ExecutionSession ES(std::make_unique<UnsupportedExecutorProcessControl>());
+  auto &JD = ES.createBareJITDylib("main");
   auto Foo = ES.intern("foo");
 
-  RTDyldObjectLinkingLayer ObjLayer(ES, [&DebugSectionSeen]() {
-    return llvm::make_unique<MemoryManagerWrapper>(DebugSectionSeen);
+  RTDyldObjectLinkingLayer ObjLayer(ES, [&NonAllocSectionSeen]() {
+    return std::make_unique<MemoryManagerWrapper>(NonAllocSectionSeen);
   });
 
   auto OnResolveDoNothing = [](Expected<SymbolMap> R) {
     cantFail(std::move(R));
   };
 
-  auto OnReadyDoNothing = [](Error Err) { cantFail(std::move(Err)); };
-
   ObjLayer.setProcessAllSections(ProcessAllSections);
-  cantFail(ObjLayer.add(JD, std::move(Obj), ES.allocateVModule()));
-  ES.lookup(JITDylibSearchList({{&JD, false}}), {Foo}, OnResolveDoNothing,
-            OnReadyDoNothing, NoDependenciesToRegister);
-  return DebugSectionSeen;
+  cantFail(ObjLayer.add(JD, std::move(Obj)));
+  ES.lookup(LookupKind::Static, makeJITDylibSearchOrder(&JD),
+            SymbolLookupSet(Foo), SymbolState::Resolved, OnResolveDoNothing,
+            NoDependenciesToRegister);
+
+  if (auto Err = ES.endSession())
+    ES.reportError(std::move(Err));
+
+  return NonAllocSectionSeen;
 }
 
 TEST(RTDyldObjectLinkingLayerTest, TestSetProcessAllSections) {
   LLVMContext Context;
-  auto M = llvm::make_unique<Module>("", Context);
+  auto M = std::make_unique<Module>("", Context);
   M->setTargetTriple("x86_64-unknown-linux-gnu");
-  Type *Int32Ty = IntegerType::get(Context, 32);
-  GlobalVariable *GV =
-      new GlobalVariable(*M, Int32Ty, false, GlobalValue::ExternalLinkage,
-                         ConstantInt::get(Int32Ty, 42), "foo");
 
-  GV->setSection(".debug_str");
+  // These values are only here to ensure that the module is non-empty.
+  // They are no longer relevant to the test.
+  Constant *StrConstant = ConstantDataArray::getString(Context, "forty-two");
+  auto *GV =
+      new GlobalVariable(*M, StrConstant->getType(), true,
+                         GlobalValue::ExternalLinkage, StrConstant, "foo");
+  GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+  GV->setAlignment(Align(1));
 
   // Initialize the native target in case this is the first unit test
   // to try to build a TM.
@@ -89,13 +92,13 @@ TEST(RTDyldObjectLinkingLayerTest, TestSetProcessAllSections) {
   if (!TM)
     return;
 
-  auto Obj = SimpleCompiler(*TM)(*M);
+  auto Obj = cantFail(SimpleCompiler(*TM)(*M));
 
   EXPECT_FALSE(testSetProcessAllSections(
       MemoryBuffer::getMemBufferCopy(Obj->getBuffer()), false))
-      << "Debug section seen despite ProcessAllSections being false";
+      << "Non-alloc section seen despite ProcessAllSections being false";
   EXPECT_TRUE(testSetProcessAllSections(std::move(Obj), true))
-      << "Expected to see debug section when ProcessAllSections is true";
+      << "Expected to see non-alloc section when ProcessAllSections is true";
 }
 
 TEST(RTDyldObjectLinkingLayerTest, TestOverrideObjectFlags) {
@@ -115,7 +118,7 @@ TEST(RTDyldObjectLinkingLayerTest, TestOverrideObjectFlags) {
   public:
     FunkySimpleCompiler(TargetMachine &TM) : SimpleCompiler(TM) {}
 
-    CompileResult operator()(Module &M) {
+    Expected<CompileResult> operator()(Module &M) override {
       auto *Foo = M.getFunction("foo");
       assert(Foo && "Expected function Foo not found");
       Foo->setVisibility(GlobalValue::HiddenVisibility);
@@ -124,7 +127,7 @@ TEST(RTDyldObjectLinkingLayerTest, TestOverrideObjectFlags) {
   };
 
   // Create a module with two void() functions: foo and bar.
-  ThreadSafeContext TSCtx(llvm::make_unique<LLVMContext>());
+  ThreadSafeContext TSCtx(std::make_unique<LLVMContext>());
   ThreadSafeModule M;
   {
     ModuleBuilder MB(*TSCtx.getContext(), TM->getTargetTriple().str(), "dummy");
@@ -150,20 +153,25 @@ TEST(RTDyldObjectLinkingLayerTest, TestOverrideObjectFlags) {
   }
 
   // Create a simple stack and set the override flags option.
-  ExecutionSession ES;
-  auto &JD = ES.createJITDylib("main");
+  ExecutionSession ES{std::make_unique<UnsupportedExecutorProcessControl>()};
+  auto &JD = ES.createBareJITDylib("main");
   auto Foo = ES.intern("foo");
   RTDyldObjectLinkingLayer ObjLayer(
-      ES, []() { return llvm::make_unique<SectionMemoryManager>(); });
-  IRCompileLayer CompileLayer(ES, ObjLayer, FunkySimpleCompiler(*TM));
+      ES, []() { return std::make_unique<SectionMemoryManager>(); });
+  IRCompileLayer CompileLayer(ES, ObjLayer,
+                              std::make_unique<FunkySimpleCompiler>(*TM));
 
   ObjLayer.setOverrideObjectFlagsWithResponsibilityFlags(true);
 
-  cantFail(CompileLayer.add(JD, std::move(M), ES.allocateVModule()));
-  ES.lookup(JITDylibSearchList({{&JD, false}}), {Foo},
-            [](Expected<SymbolMap> R) { cantFail(std::move(R)); },
-            [](Error Err) { cantFail(std::move(Err)); },
-            NoDependenciesToRegister);
+  cantFail(CompileLayer.add(JD, std::move(M)));
+  ES.lookup(
+      LookupKind::Static, makeJITDylibSearchOrder(&JD), SymbolLookupSet(Foo),
+      SymbolState::Resolved,
+      [](Expected<SymbolMap> R) { cantFail(std::move(R)); },
+      NoDependenciesToRegister);
+
+  if (auto Err = ES.endSession())
+    ES.reportError(std::move(Err));
 }
 
 TEST(RTDyldObjectLinkingLayerTest, TestAutoClaimResponsibilityForSymbols) {
@@ -183,7 +191,7 @@ TEST(RTDyldObjectLinkingLayerTest, TestAutoClaimResponsibilityForSymbols) {
   public:
     FunkySimpleCompiler(TargetMachine &TM) : SimpleCompiler(TM) {}
 
-    CompileResult operator()(Module &M) {
+    Expected<CompileResult> operator()(Module &M) override {
       Function *BarImpl = Function::Create(
           FunctionType::get(Type::getVoidTy(M.getContext()), {}, false),
           GlobalValue::ExternalLinkage, "bar", &M);
@@ -197,7 +205,7 @@ TEST(RTDyldObjectLinkingLayerTest, TestAutoClaimResponsibilityForSymbols) {
   };
 
   // Create a module with two void() functions: foo and bar.
-  ThreadSafeContext TSCtx(llvm::make_unique<LLVMContext>());
+  ThreadSafeContext TSCtx(std::make_unique<LLVMContext>());
   ThreadSafeModule M;
   {
     ModuleBuilder MB(*TSCtx.getContext(), TM->getTargetTriple().str(), "dummy");
@@ -215,20 +223,25 @@ TEST(RTDyldObjectLinkingLayerTest, TestAutoClaimResponsibilityForSymbols) {
   }
 
   // Create a simple stack and set the override flags option.
-  ExecutionSession ES;
-  auto &JD = ES.createJITDylib("main");
+  ExecutionSession ES{std::make_unique<UnsupportedExecutorProcessControl>()};
+  auto &JD = ES.createBareJITDylib("main");
   auto Foo = ES.intern("foo");
   RTDyldObjectLinkingLayer ObjLayer(
-      ES, []() { return llvm::make_unique<SectionMemoryManager>(); });
-  IRCompileLayer CompileLayer(ES, ObjLayer, FunkySimpleCompiler(*TM));
+      ES, []() { return std::make_unique<SectionMemoryManager>(); });
+  IRCompileLayer CompileLayer(ES, ObjLayer,
+                              std::make_unique<FunkySimpleCompiler>(*TM));
 
   ObjLayer.setAutoClaimResponsibilityForObjectSymbols(true);
 
-  cantFail(CompileLayer.add(JD, std::move(M), ES.allocateVModule()));
-  ES.lookup(JITDylibSearchList({{&JD, false}}), {Foo},
-            [](Expected<SymbolMap> R) { cantFail(std::move(R)); },
-            [](Error Err) { cantFail(std::move(Err)); },
-            NoDependenciesToRegister);
+  cantFail(CompileLayer.add(JD, std::move(M)));
+  ES.lookup(
+      LookupKind::Static, makeJITDylibSearchOrder(&JD), SymbolLookupSet(Foo),
+      SymbolState::Resolved,
+      [](Expected<SymbolMap> R) { cantFail(std::move(R)); },
+      NoDependenciesToRegister);
+
+  if (auto Err = ES.endSession())
+    ES.reportError(std::move(Err));
 }
 
 } // end anonymous namespace

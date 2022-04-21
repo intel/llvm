@@ -5,12 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year;
 
-// constexpr bool is_is_leap() const noexcept;
+// constexpr bool is_leap() const noexcept;
 //  y_ % 4 == 0 && (y_ % 100 != 0 || y_ % 400 == 0)
 //
 

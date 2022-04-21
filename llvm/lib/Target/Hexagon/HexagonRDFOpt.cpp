@@ -11,9 +11,6 @@
 #include "MCTargetDesc/HexagonBaseInfo.h"
 #include "RDFCopy.h"
 #include "RDFDeadCode.h"
-#include "RDFGraph.h"
-#include "RDFLiveness.h"
-#include "RDFRegisters.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -24,6 +21,10 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RDFGraph.h"
+#include "llvm/CodeGen/RDFLiveness.h"
+#include "llvm/CodeGen/RDFRegisters.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
@@ -200,7 +201,7 @@ void HexagonDCE::removeOperand(NodeAddr<InstrNode*> IA, unsigned OpNum) {
   for (NodeAddr<RefNode*> RA : Refs)
     OpMap.insert(std::make_pair(RA.Id, getOpNum(RA.Addr->getOp())));
 
-  MI->RemoveOperand(OpNum);
+  MI->removeOperand(OpNum);
 
   for (NodeAddr<RefNode*> RA : Refs) {
     unsigned N = OpMap[RA.Id];

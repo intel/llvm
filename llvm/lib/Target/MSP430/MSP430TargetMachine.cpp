@@ -18,10 +18,10 @@
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/MC/MCAsmInfo.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 using namespace llvm;
 
-extern "C" void LLVMInitializeMSP430Target() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMSP430Target() {
   // Register the target.
   RegisterTargetMachine<MSP430TargetMachine> X(getTheMSP430Target());
 }
@@ -46,12 +46,12 @@ MSP430TargetMachine::MSP430TargetMachine(const Target &T, const Triple &TT,
     : LLVMTargetMachine(T, computeDataLayout(TT, CPU, Options), TT, CPU, FS,
                         Options, getEffectiveRelocModel(RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
-      TLOF(make_unique<TargetLoweringObjectFileELF>()),
-      Subtarget(TT, CPU, FS, *this) {
+      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
+      Subtarget(TT, std::string(CPU), std::string(FS), *this) {
   initAsmInfo();
 }
 
-MSP430TargetMachine::~MSP430TargetMachine() {}
+MSP430TargetMachine::~MSP430TargetMachine() = default;
 
 namespace {
 /// MSP430 Code Generator Pass Configuration Options.
@@ -81,5 +81,5 @@ bool MSP430PassConfig::addInstSelector() {
 
 void MSP430PassConfig::addPreEmitPass() {
   // Must run branch selection immediately preceding the asm printer.
-  addPass(createMSP430BranchSelectionPass(), false);
+  addPass(createMSP430BranchSelectionPass());
 }

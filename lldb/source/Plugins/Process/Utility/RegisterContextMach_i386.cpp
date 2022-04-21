@@ -1,4 +1,4 @@
-//===-- RegisterContextMach_i386.cpp ----------------------------*- C++ -*-===//
+//===-- RegisterContextMach_i386.cpp --------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,7 +19,7 @@ RegisterContextMach_i386::RegisterContextMach_i386(Thread &thread,
                                                    uint32_t concrete_frame_idx)
     : RegisterContextDarwin_i386(thread, concrete_frame_idx) {}
 
-RegisterContextMach_i386::~RegisterContextMach_i386() {}
+RegisterContextMach_i386::~RegisterContextMach_i386() = default;
 
 int RegisterContextMach_i386::DoReadGPR(lldb::tid_t tid, int flavor, GPR &gpr) {
   mach_msg_type_number_t count = GPRWordCount;

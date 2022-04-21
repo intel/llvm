@@ -1252,7 +1252,7 @@ using T = condition<(is_const())>;
 void foo(const T &t) {
   T &t2 = t;
 }
-// CHECK-ELIDE-NOTREE: binding value of type 'const condition<...>' to reference to type 'condition<...>' drops 'const' qualifier
+// CHECK-ELIDE-NOTREE: binding reference of type 'condition<...>' to value of type 'const condition<...>' drops 'const' qualifier
 }
 
 namespace BoolArgumentBitExtended {
@@ -1486,6 +1486,32 @@ void run(A_reg<float> reg, A_ptr<float> ptr, A_ref<float> ref) {
 // CHECK-ELIDE-NOTREE: error: no matching function for call to 'take_ref'
 // CHECK-ELIDE-NOTREE: note: candidate function not viable: no known conversion from 'const A<float>' to 'const A<int>' for 1st argument
 }
+}
+
+namespace SubstTemplateTypeParmType {
+template <typename T>
+class Array {};
+
+template <class T>
+class S {};
+
+template <class T>
+Array<T> Make();
+
+void Call() {
+  Array<S<int>> v = Make<const S<int>>();
+}
+}
+
+// CHECK-ELIDE-NOTREE: no viable conversion from 'Array<const S<...>>' to 'Array<S<...>>'
+// CHECK-NOELIDE-NOTREE: no viable conversion from 'Array<const S<int>>' to 'Array<S<int>>'
+// CHECK-ELIDE-TREE: no viable conversion
+// CHECK-ELIDE-TREE:   Array<
+// CHECK-ELIDE-TREE:     [const != (no qualifiers)] S<...>>
+// CHECK-NOELIDE-TREE: no viable conversion
+// CHECK-NOELIDE-TREE:   Array<
+// CHECK-NOELIDE-TREE:     [const != (no qualifiers)] S<
+// CHECK-NOELIDE-TREE:       int>>
 }
 
 // CHECK-ELIDE-NOTREE: {{[0-9]*}} errors generated.

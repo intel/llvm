@@ -1,10 +1,10 @@
 # RUN: llvm-mc %s -filetype obj -triple x86_64-apple-darwin -o - \
-# RUN:   | llvm-dwarfdump -lookup=0xffffffff - | \
+# RUN:   | not llvm-dwarfdump -lookup=0xffffffff - | \
 # RUN: FileCheck %s --check-prefix=EMPTY --allow-empty
 # EMPTY: {{^$}}
 
 # RUN: llvm-mc %s -filetype obj -triple x86_64-apple-darwin -o - \
-# RUN:   | llvm-dwarfdump -lookup=0xffffffffffffffff - | \
+# RUN:   | not llvm-dwarfdump -lookup=0xffffffffffffffff - | \
 # RUN: FileCheck %s --check-prefix=EMPTY --allow-empty
 # EMPTY: {{^$}}
 
@@ -20,7 +20,7 @@
 # RUN:   | llvm-dwarfdump -lookup=0x14 - | \
 # RUN: FileCheck %s -check-prefixes=CHECK,C
 
-# CHECK: Compile Unit: length = 0x00000060 version = 0x0004 abbr_offset = 0x0000 addr_size = 0x08 (next unit at 0x00000064)
+# CHECK: Compile Unit: length = 0x00000060, format = DWARF32, version = 0x0004, abbr_offset = 0x0000, addr_size = 0x08 (next unit at 0x00000064)
 
 # CHECK: DW_TAG_compile_unit
 # CHECK:   DW_AT_name        ("foo.c")
@@ -37,9 +37,9 @@
 # LEX:       DW_AT_low_pc  (0x0000000000000004)
 # LEX:       DW_AT_high_pc (0x0000000000000014)
 
-# A: Line info: file 'foo.c', line 3, column 9, start line 1
-# B: Line info: file 'foo.c', line 4, column 6, start line 1
-# C: Line info: file 'foo.c', line 6, column 1, start line 1
+# A: Line info: file 'foo.c', line 3, column 9, start file 'foo.c', start line 1
+# B: Line info: file 'foo.c', line 4, column 6, start file 'foo.c', start line 1
+# C: Line info: file 'foo.c', line 6, column 1, start file 'foo.c', start line 1
 
 	.section	__TEXT,__text,regular,pure_instructions
 	.macosx_version_min 10, 13

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,14 +14,14 @@
 
 // int depth() const
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -29,9 +29,10 @@ TEST_SUITE(recursive_directory_iterator_depth_tests)
 
 TEST_CASE(test_depth)
 {
-    const path testDir = StaticEnv::Dir;
-    const path DirDepth1 = StaticEnv::Dir2;
-    const path DirDepth2 = StaticEnv::Dir3;
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
+    const path DirDepth1 = static_env.Dir2;
+    const path DirDepth2 = static_env.Dir3;
     const recursive_directory_iterator endIt{};
 
     std::error_code ec;

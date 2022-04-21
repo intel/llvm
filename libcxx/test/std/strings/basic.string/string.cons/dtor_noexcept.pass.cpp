@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <string>
 
@@ -30,7 +30,9 @@ struct throwing_alloc
 // Test that it's possible to take the address of basic_string's destructors
 // by creating globals which will register their destructors with cxa_atexit.
 std::string s;
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
 std::wstring ws;
+#endif
 
 int main(int, char**)
 {

@@ -1,12 +1,11 @@
-// -*- C++ -*-
-//===------------------------------ span ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+//===----------------------------------------------------------------------===//
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
@@ -30,7 +29,6 @@ constexpr bool testConstexprSpan(Span sp)
     return std::addressof(sp.back()) == sp.data() + sp.size() - 1;
 }
 
-
 template <typename Span>
 void testRuntimeSpan(Span sp)
 {
@@ -38,6 +36,12 @@ void testRuntimeSpan(Span sp)
     assert(std::addressof(sp.back()) == sp.data() + sp.size() - 1);
 }
 
+template <typename Span>
+void testEmptySpan(Span sp)
+{
+    if (!sp.empty())
+        [[maybe_unused]] auto res = sp.back();
+}
 
 struct A{};
 constexpr int iArr1[] = { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9};
@@ -70,6 +74,9 @@ int main(int, char**)
     std::string s;
     testRuntimeSpan(std::span<std::string>   (&s, 1));
     testRuntimeSpan(std::span<std::string, 1>(&s, 1));
+
+    std::span<int, 0> sp;
+    testEmptySpan(sp);
 
     return 0;
 }

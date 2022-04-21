@@ -15,20 +15,17 @@
 #ifndef LLVM_CODEGEN_INTRINSICLOWERING_H
 #define LLVM_CODEGEN_INTRINSICLOWERING_H
 
-#include "llvm/IR/Intrinsics.h"
-
 namespace llvm {
 class CallInst;
-class Module;
 class DataLayout;
 
 class IntrinsicLowering {
   const DataLayout &DL;
 
-  bool Warned;
+  bool Warned = false;
 
 public:
-  explicit IntrinsicLowering(const DataLayout &DL) : DL(DL), Warned(false) {}
+  explicit IntrinsicLowering(const DataLayout &DL) : DL(DL) {}
 
   /// Replace a call to the specified intrinsic function.
   /// If an intrinsic function must be implemented by the code generator

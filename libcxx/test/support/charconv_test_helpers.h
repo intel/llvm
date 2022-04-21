@@ -12,6 +12,7 @@
 #include <charconv>
 #include <cassert>
 #include <limits>
+#include <numeric>
 #include <string.h>
 #include <stdlib.h>
 
@@ -105,8 +106,13 @@ struct to_chars_test_base
         using std::to_chars;
         std::to_chars_result r;
 
+        // Poison the buffer for testing whether a successful std::to_chars
+        // doesn't modify data beyond r.ptr.
+        std::iota(buf, buf + sizeof(buf), char(1));
         r = to_chars(buf, buf + sizeof(buf), v, args...);
         assert(r.ec == std::errc{});
+        for (size_t i = r.ptr - buf; i < sizeof(buf); ++i)
+            assert(buf[i] == static_cast<char>(i + 1));
         *r.ptr = '\0';
 
         auto a = fromchars(buf, r.ptr, args...);
@@ -174,6 +180,9 @@ struct roundtrip_test_base
 
             r2 = from_chars(buf, r.ptr, x, args...);
 
+            TEST_DIAGNOSTIC_PUSH
+            TEST_MSVC_DIAGNOSTIC_IGNORED(4127) // conditional expression is constant
+
             if (std::is_signed<T>::value && v < 0 && std::is_unsigned<X>::value)
             {
                 assert(x == 0xc);
@@ -186,6 +195,8 @@ struct roundtrip_test_base
                 assert(r2.ptr == r.ptr);
                 assert(r2.ec == std::errc::result_out_of_range);
             }
+
+            TEST_DIAGNOSTIC_POP
         }
     }
 
@@ -229,4 +240,4 @@ run(type_list<Ts...>)
     (void)ls;
 }
 
-#endif  // SUPPORT_CHARCONV_TEST_HELPERS_H
+#endif // SUPPORT_CHARCONV_TEST_HELPERS_H

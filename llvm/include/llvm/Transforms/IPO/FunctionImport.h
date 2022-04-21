@@ -98,15 +98,17 @@ public:
   using ImportMapTy = StringMap<FunctionsToImportTy>;
 
   /// The set contains an entry for every global value the module exports.
-  using ExportSetTy = std::unordered_set<GlobalValue::GUID>;
+  using ExportSetTy = DenseSet<ValueInfo>;
 
   /// A function of this type is used to load modules referenced by the index.
   using ModuleLoaderTy =
       std::function<Expected<std::unique_ptr<Module>>(StringRef Identifier)>;
 
   /// Create a Function Importer.
-  FunctionImporter(const ModuleSummaryIndex &Index, ModuleLoaderTy ModuleLoader)
-      : Index(Index), ModuleLoader(std::move(ModuleLoader)) {}
+  FunctionImporter(const ModuleSummaryIndex &Index, ModuleLoaderTy ModuleLoader,
+                   bool ClearDSOLocalOnDeclarations)
+      : Index(Index), ModuleLoader(std::move(ModuleLoader)),
+        ClearDSOLocalOnDeclarations(ClearDSOLocalOnDeclarations) {}
 
   /// Import functions in Module \p M based on the supplied import list.
   Expected<bool> importFunctions(Module &M, const ImportMapTy &ImportList);
@@ -117,6 +119,10 @@ private:
 
   /// Factory function to load a Module for a given identifier
   ModuleLoaderTy ModuleLoader;
+
+  /// See the comment of ClearDSOLocalOnDeclarations in
+  /// Utils/FunctionImportUtils.h.
+  bool ClearDSOLocalOnDeclarations;
 };
 
 /// The function importing pass
@@ -161,16 +167,24 @@ void ComputeCrossModuleImportForModuleFromIndex(
     FunctionImporter::ImportMapTy &ImportList);
 
 /// PrevailingType enum used as a return type of callback passed
-/// to computeDeadSymbols. Yes and No values used when status explicitly
-/// set by symbols resolution, otherwise status is Unknown.
+/// to computeDeadSymbolsAndUpdateIndirectCalls. Yes and No values used when
+/// status explicitly set by symbols resolution, otherwise status is Unknown.
 enum class PrevailingType { Yes, No, Unknown };
+
+/// Update call edges for indirect calls to local functions added from
+/// SamplePGO when needed. Normally this is done during
+/// computeDeadSymbolsAndUpdateIndirectCalls, but can be called standalone
+/// when that is not called (e.g. during testing).
+void updateIndirectCalls(ModuleSummaryIndex &Index);
 
 /// Compute all the symbols that are "dead": i.e these that can't be reached
 /// in the graph from any of the given symbols listed in
 /// \p GUIDPreservedSymbols. Non-prevailing symbols are symbols without a
 /// prevailing copy anywhere in IR and are normally dead, \p isPrevailing
 /// predicate returns status of symbol.
-void computeDeadSymbols(
+/// Also update call edges for indirect calls to local functions added from
+/// SamplePGO when needed.
+void computeDeadSymbolsAndUpdateIndirectCalls(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols,
     function_ref<PrevailingType(GlobalValue::GUID)> isPrevailing);
@@ -208,10 +222,15 @@ std::error_code EmitImportsFiles(
     StringRef ModulePath, StringRef OutputFilename,
     const std::map<std::string, GVSummaryMapTy> &ModuleToSummariesForIndex);
 
-/// Resolve prevailing symbol linkages in \p TheModule based on the information
-/// recorded in the summaries during global summary-based analysis.
-void thinLTOResolvePrevailingInModule(Module &TheModule,
-                                      const GVSummaryMapTy &DefinedGlobals);
+/// Based on the information recorded in the summaries during global
+/// summary-based analysis:
+/// 1. Resolve prevailing symbol linkages and constrain visibility (CanAutoHide
+///    and consider visibility from other definitions for ELF) in \p TheModule
+/// 2. (optional) Apply propagated function attributes to \p TheModule if
+///    PropagateAttrs is true
+void thinLTOFinalizeInModule(Module &TheModule,
+                             const GVSummaryMapTy &DefinedGlobals,
+                             bool PropagateAttrs);
 
 /// Internalize \p TheModule based on the information recorded in the summaries
 /// during global summary-based analysis.

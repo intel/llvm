@@ -1,4 +1,4 @@
-//===-- BreakpadRecordsTest.cpp ---------------------------------*- C++ -*-===//
+//===-- BreakpadRecordsTest.cpp -------------------------------------------===//
 //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -18,8 +18,11 @@ TEST(Record, classify) {
   EXPECT_EQ(Record::Info, Record::classify("INFO"));
   EXPECT_EQ(Record::File, Record::classify("FILE"));
   EXPECT_EQ(Record::Func, Record::classify("FUNC"));
+  EXPECT_EQ(Record::Inline, Record::classify("INLINE"));
+  EXPECT_EQ(Record::InlineOrigin, Record::classify("INLINE_ORIGIN"));
   EXPECT_EQ(Record::Public, Record::classify("PUBLIC"));
   EXPECT_EQ(Record::StackCFI, Record::classify("STACK CFI"));
+  EXPECT_EQ(Record::StackWin, Record::classify("STACK WIN"));
 
   // Any obviously incorrect lines will be classified as such.
   EXPECT_EQ(llvm::None, Record::classify("STACK"));
@@ -75,6 +78,27 @@ TEST(FuncRecord, parse) {
   EXPECT_EQ(llvm::None, FuncRecord::parse("FUNC"));
 }
 
+TEST(InlineOriginRecord, parse) {
+  EXPECT_EQ(InlineOriginRecord(47, "foo"),
+            InlineOriginRecord::parse("INLINE_ORIGIN 47 foo"));
+  EXPECT_EQ(llvm::None, InlineOriginRecord::parse("INLINE_ORIGIN 47"));
+  EXPECT_EQ(llvm::None, InlineOriginRecord::parse("INLINE_ORIGIN"));
+  EXPECT_EQ(llvm::None, InlineOriginRecord::parse(""));
+}
+
+TEST(InlineRecord, parse) {
+  InlineRecord record1 = InlineRecord(0, 1, 2, 3);
+  record1.Ranges.emplace_back(4, 5);
+  EXPECT_EQ(record1, InlineRecord::parse("INLINE 0 1 2 3 4 5"));
+  record1.Ranges.emplace_back(6, 7);
+  EXPECT_EQ(record1, InlineRecord::parse("INLINE 0 1 2 3 4 5 6 7"));
+  EXPECT_EQ(llvm::None, InlineRecord::parse("INLINE 0 1 2 3"));
+  EXPECT_EQ(llvm::None, InlineRecord::parse("INLINE 0 1 2 3 4 5 6"));
+  EXPECT_EQ(llvm::None, InlineRecord::parse("INLNIE 0"));
+  EXPECT_EQ(llvm::None, InlineRecord::parse(""));
+  EXPECT_EQ(llvm::None, InlineRecord::parse("FUNC"));
+}
+
 TEST(LineRecord, parse) {
   EXPECT_EQ(LineRecord(0x47, 0x74, 47, 74), LineRecord::parse("47 74 47 74"));
   EXPECT_EQ(llvm::None, LineRecord::parse("47 74 47"));
@@ -116,6 +140,37 @@ TEST(StackCFIRecord, parse) {
   EXPECT_EQ(llvm::None, StackCFIRecord::parse("STACK CFI INIT"));
   EXPECT_EQ(llvm::None, StackCFIRecord::parse("STACK CFI"));
   EXPECT_EQ(llvm::None, StackCFIRecord::parse("STACK"));
+  EXPECT_EQ(llvm::None, StackCFIRecord::parse("FILE 47 foo"));
+  EXPECT_EQ(llvm::None, StackCFIRecord::parse("42 47"));
+}
+
+TEST(StackWinRecord, parse) {
+  EXPECT_EQ(
+      StackWinRecord(0x47, 0x8, 3, 4, 5, llvm::StringRef("$eip $esp ^ =")),
+      StackWinRecord::parse("STACK WIN 4 47 8 1 2 3 4 5 6 1 $eip $esp ^ ="));
+
+  EXPECT_EQ(llvm::None, StackWinRecord::parse(
+                            "STACK WIN 0 47 8 1 0 0 0 0 0 1 $eip $esp ^ ="));
+  EXPECT_EQ(llvm::None,
+            StackWinRecord::parse("STACK WIN 4 47 8 1 0 0 0 0 0 0 1"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse(
+                            "STACK WIN 3 47 8 1 0 0 0 0 0 1 $eip $esp ^ ="));
+  EXPECT_EQ(llvm::None,
+            StackWinRecord::parse("STACK WIN 3 47 8 1 0 0 0 0 0 0 1"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse(
+                            "STACK WIN 4 47 8 1 0 0 0 0 1 $eip $esp ^ ="));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4 47 8 1 0 0 0 0 0"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4 47 8 1 0 0 0 0"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4 47 8 1 0 0 0"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4 47 8 1 0 0"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4 47 8 1 0"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4 47 8 1"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4 47 8"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4 47"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN 4"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK WIN"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse("STACK"));
+  EXPECT_EQ(llvm::None, StackWinRecord::parse(""));
   EXPECT_EQ(llvm::None, StackCFIRecord::parse("FILE 47 foo"));
   EXPECT_EQ(llvm::None, StackCFIRecord::parse("42 47"));
 }

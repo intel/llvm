@@ -1,0 +1,248 @@
+SPV_INTEL_variable_length_array
+===============================
+
+:capability_token                 : pass:normal[5817]
+:OpVariableLengthArrayINTEL_token : pass:normal[5818]
+:OpSaveMemoryINTEL_token          : pass:normal[5819]
+:OpRestoreMemoryINTEL_token       : pass:normal[5820]
+
+== Name Strings
+
+SPV_INTEL_variable_length_array
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+- Alexey Sotkin, Intel +
+- Ben Ashbaugh, Intel +
+- Vyacheslav Zakharin, Intel +
+- Michael Kinsner, Intel +
+
+== Notice
+
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | A
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.2 Revision 1.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension allows to allocate local arrays whose number of elements is
+unknown at compile time. This is useful for implementing high-level language
+features like C99 variable length arrays.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+----
+OpExtension "SPV_INTEL_variable_length_array"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+----
+VariableLengthArrayINTEL
+----
+
+== New Instructions
+
+Instructions added under the *VariableLengthArrayINTEL* capability:
+
+----
+OpVariableLengthArrayINTEL
+OpSaveMemoryINTEL
+OpRestoreMemoryINTEL
+----
+
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+|====
+|VariableLengthArrayINTEL   | {capability_token}
+|OpVariableLengthArrayINTEL | {OpVariableLengthArrayINTEL_token}
+|OpSaveMemoryINTEL          | {OpSaveMemoryINTEL_token}
+|OpRestoreMemoryINTEL       | {OpRestoreMemoryINTEL_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.2
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+[cols="1,10,4,4",options="header"]
+|====
+2+^| Capability ^| Implicitly Declares ^| Enabled by Extension
+
+| {capability_token}
+| *VariableLengthArrayINTEL*
+|
+| *SPV_INTEL_variable_length_array*
+
+|====
+
+=== Instructions
+
+Modify Section 3.36.8. Memory Instructions, adding to the end of the list of
+instructions:
+
+[cols="1,1,3*3",width="100%"]
+|=====
+4+|[[OpVariableLengthArrayINTEL]]*OpVariableLengthArrayINTEL* +
+ +
+Allocate a runtime-sized array in memory, resulting in a pointer to it, which
+can be used with *OpLoad* and *OpStore*. The memory is allocated in Function
+storage class and is uninitialized. Loading from uninitialized memory will
+return indeterminate values. Size of memory to be allocated computed as the
+size of 'Type' operand of the 'Result Type' multiplied by the 'Length'.
+ +
+
+Behavior is undefined if this instruction is used in non-uniform control flow.
+ +
+
+'Result Type' must be *OpTypePointer* with *Function* storage class.
+Its 'Type' operand is the type of array elements. The type of array elements
+must be a concrete type.
+ +
+
+'Length' is the number of elements in the array. It must have a scalar integer
+type. 'Length' is treated as unsigned, and if its value is 0, no memory will be
+allocated. If there is insufficient memory space for the allocation the behavior
+is undefined.
+ +
+1+|Capability: +
+*VariableLengthArrayINTEL*
+| 4 | {OpVariableLengthArrayINTEL_token}
+| '<id>' 'Result Type'
+| '<id>' 'Result'
+| '<id>' 'Length'
+|=====
+
+
+[cols="1,1,2*3",width="100%"]
+|=====
+3+|[[OpSaveMemoryINTEL]]*OpSaveMemoryINTEL* +
+ +
+Save the current state of the *Function* storage class memory. Returns a
+pointer that should be passed to
+<<OpRestoreMemoryINTEL,*OpRestoreMemoryINTEL*>>.
+ +
+
+Behavior is undefined if this instruction is used in non-uniform control flow.
+ +
+
+'Result Type' must be *OpTypePointer* with *Function* storage class.
+ +
+1+|Capability: +
+*VariableLengthArrayINTEL*
+| 3 | {OpSaveMemoryINTEL_token}
+| '<id>' 'Result Type'
+| '<id>' 'Result'
+|=====
+
+
+[cols="1,1,1*3",width="100%"]
+|=====
+2+|[[OpRestoreMemoryINTEL]]*OpRestoreMemoryINTEL* +
+ +
+Restore the *Function* storage class memory to the state it was in when the
+<<OpSaveMemoryINTEL,*OpSaveMemoryINTEL*>> was executed. Effectivelly, this
+instruction deallocates the memory allocated by
+<<VariableLengthArrayINTEL,*VariableLengthArrayINTEL*>>.
+ +
+
+Behavior is undefined if this instruction is used in non-uniform control flow.
+ +
+
+'Ptr' is a pointer value returned by <<OpSaveMemoryINTEL,*OpSaveMemoryINTEL*>>.
+It must be an *OpTypePointer* with *Function* storage class.
+
+1+|Capability: +
+*VariableLengthArrayINTEL*
+| 2 | {OpRestoreMemoryINTEL_token} | '<id>' 'Ptr'
+|=====
+
+
+== Validation Rules
+
+ - In control flow graph every
+<<VariableLengthArrayINTEL,*VariableLengthArrayINTEL*>> must be dominated by at
+least one <<OpSaveMemoryINTEL,*OpSaveMemoryINTEL*>>.
+
+ - In control flow graph every
+<<VariableLengthArrayINTEL,*VariableLengthArrayINTEL*>> must be postdominated by
+at least one <<OpRestoreMemoryINTEL,*OpRestoreMemoryINTEL*>>.
+
+== Issues
+
+. Can <<OpVariableLengthArrayINTEL,*OpVariableLengthArrayINTEL*>> be used
+without <<OpSaveMemoryINTEL,*OpSaveMemoryINTEL*>> and
+<<OpRestoreMemoryINTEL,*OpRestoreMemoryINTEL*>>?
++
+--
+*RESOLVED*: It will result in undefined behavior.
+--
+
+. Should we mention that the memory should be automatically deallocated when
+the control flow reaches the end of the (Function?) scope?
++
+--
+*RESOLVED*: The automatic memory deallocation should not be documented. A valid
+SPIR-V module should manage memory using
+<<OpSaveMemoryINTEL,*OpSaveMemoryINTEL*>> and
+<<OpRestoreMemoryINTEL,*OpRestoreMemoryINTEL*>>.
+--
+
+. Should we restrict usage of the instructions declared in this extension to
+uniform(convergent) control flow only?
++
+--
+*RESOLVED*: Behavior is undefined if these instructions are used in non-uniform
+control flow.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2020-08-31|Alexey Sotkin|*Initial revision*
+|========================================

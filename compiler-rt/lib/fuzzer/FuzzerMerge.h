@@ -13,7 +13,7 @@
 //   The process should tolerate the crashes, OOMs, leaks, etc.
 //
 // Algorithm:
-//   The outter process collects the set of files and writes their names
+//   The outer process collects the set of files and writes their names
 //   into a temporary "control" file, then repeatedly launches the inner
 //   process until all inputs are processed.
 //   The outer process does not actually execute the target code.
@@ -22,13 +22,14 @@
 //   and b) the last processed input. Then it starts processing the inputs one
 //   by one. Before processing every input it writes one line to control file:
 //   STARTED INPUT_ID INPUT_SIZE
-//   After processing an input it write another line:
-//   DONE INPUT_ID Feature1 Feature2 Feature3 ...
+//   After processing an input it writes the following lines:
+//   FT INPUT_ID Feature1 Feature2 Feature3 ...
+//   COV INPUT_ID Coverage1 Coverage2 Coverage3 ...
 //   If a crash happens while processing an input the last line in the control
 //   file will be "STARTED INPUT_ID" and so the next process will know
 //   where to resume.
 //
-//   Once all inputs are processed by the innner process(es) the outer process
+//   Once all inputs are processed by the inner process(es) the outer process
 //   reads the control files and does the merge based entirely on the contents
 //   of control file.
 //   It uses a single pass greedy algorithm choosing first the smallest inputs
@@ -40,6 +41,7 @@
 #define LLVM_FUZZER_MERGE_H
 
 #include "FuzzerDefs.h"
+#include "FuzzerIO.h"
 
 #include <istream>
 #include <ostream>
@@ -51,11 +53,11 @@ namespace fuzzer {
 struct MergeFileInfo {
   std::string Name;
   size_t Size = 0;
-  Vector<uint32_t> Features, Cov;
+  std::vector<uint32_t> Features, Cov;
 };
 
 struct Merger {
-  Vector<MergeFileInfo> Files;
+  std::vector<MergeFileInfo> Files;
   size_t NumFilesInFirstCorpus = 0;
   size_t FirstNotProcessedFile = 0;
   std::string LastFailure;
@@ -63,23 +65,28 @@ struct Merger {
   bool Parse(std::istream &IS, bool ParseCoverage);
   bool Parse(const std::string &Str, bool ParseCoverage);
   void ParseOrExit(std::istream &IS, bool ParseCoverage);
-  size_t Merge(const Set<uint32_t> &InitialFeatures, Set<uint32_t> *NewFeatures,
-               const Set<uint32_t> &InitialCov, Set<uint32_t> *NewCov,
-               Vector<std::string> *NewFiles);
+  size_t Merge(const std::set<uint32_t> &InitialFeatures,
+               std::set<uint32_t> *NewFeatures,
+               const std::set<uint32_t> &InitialCov, std::set<uint32_t> *NewCov,
+               std::vector<std::string> *NewFiles);
+  size_t SetCoverMerge(const std::set<uint32_t> &InitialFeatures,
+                       std::set<uint32_t> *NewFeatures,
+                       const std::set<uint32_t> &InitialCov,
+                       std::set<uint32_t> *NewCov,
+                       std::vector<std::string> *NewFiles);
   size_t ApproximateMemoryConsumption() const;
-  Set<uint32_t> AllFeatures() const;
+  std::set<uint32_t> AllFeatures() const;
 };
 
-void CrashResistantMerge(const Vector<std::string> &Args,
-                         const Vector<SizedFile> &OldCorpus,
-                         const Vector<SizedFile> &NewCorpus,
-                         Vector<std::string> *NewFiles,
-                         const Set<uint32_t> &InitialFeatures,
-                         Set<uint32_t> *NewFeatures,
-                         const Set<uint32_t> &InitialCov,
-                         Set<uint32_t> *NewCov,
-                         const std::string &CFPath,
-                         bool Verbose);
+void CrashResistantMerge(const std::vector<std::string> &Args,
+                         const std::vector<SizedFile> &OldCorpus,
+                         const std::vector<SizedFile> &NewCorpus,
+                         std::vector<std::string> *NewFiles,
+                         const std::set<uint32_t> &InitialFeatures,
+                         std::set<uint32_t> *NewFeatures,
+                         const std::set<uint32_t> &InitialCov,
+                         std::set<uint32_t> *NewCov, const std::string &CFPath,
+                         bool Verbose, bool IsSetCoverMerge);
 
 }  // namespace fuzzer
 

@@ -25,11 +25,11 @@ id _FooClassReference[20];
 - (char *)customString { return cString ; }
 @end
 
-int main () {
+int main (void) {
   Foo *string = @"bla";
   return 0;
 }
 
-// CHECK-FRAGILE: @_FooClassReference = common global
+// CHECK-FRAGILE: @_FooClassReference ={{.*}} global
 // CHECK-NONFRAGILE: @"OBJC_CLASS_$_Object" = external global
-// CHECK-NONFRAGILE: "OBJC_CLASS_$_Foo" = global
+// CHECK-NONFRAGILE: "OBJC_CLASS_$_Foo" ={{.*}} global

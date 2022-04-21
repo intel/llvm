@@ -12,10 +12,14 @@
 
 // const charT* narrow(const charT* low, const charT*, char dfault, char* to) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <string>
 #include <vector>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

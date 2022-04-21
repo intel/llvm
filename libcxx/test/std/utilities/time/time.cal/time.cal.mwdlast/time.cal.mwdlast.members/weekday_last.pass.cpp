@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class month_weekday_last;
@@ -38,7 +38,7 @@ int main(int, char**)
     for (unsigned i = 1; i <= 50; ++i)
     {
         month_weekday_last mdl(January, weekday_last{weekday{i}});
-        assert( static_cast<unsigned>(mdl.weekday_last().weekday()) == i);
+        assert( mdl.weekday_last().weekday().c_encoding() == (i == 7 ? 0 : i));
     }
 
   return 0;

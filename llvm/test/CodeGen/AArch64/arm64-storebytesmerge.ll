@@ -11,7 +11,7 @@
 ; CHECK: stp     xzr, xzr, [x8] 
 ; CHECK: bl f
 
-@q = external unnamed_addr global i16*, align 8
+@q = external dso_local unnamed_addr global i16*, align 8
 
 ; Function Attrs: nounwind
 define void @test() local_unnamed_addr #0 {
@@ -41,6 +41,6 @@ for.end705.i:                                     ; preds = %for.body453.i
 
 declare void @f() local_unnamed_addr #1
 
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="true" "no-jump-tables"="false" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a57" "target-features"="+crc,+crypto,+fp-armv8,+neon" "unsafe-fp-math"="true" "use-soft-float"="false" }
-attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a57" "target-features"="+crc,+crypto,+fp-armv8,+neon" "unsafe-fp-math"="true" "use-soft-float"="false" }
+attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="true" "no-jump-tables"="false" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a57" "target-features"="+crc,+crypto,+fp-armv8,+neon" "unsafe-fp-math"="true" "use-soft-float"="false" }
+attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a57" "target-features"="+crc,+crypto,+fp-armv8,+neon" "unsafe-fp-math"="true" "use-soft-float"="false" }
 attributes #2 = { nounwind }

@@ -38,68 +38,62 @@
 #define DEBUG_TYPE "spvmemmove"
 
 #include "SPIRVInternal.h"
+#include "libSPIRV/SPIRVDebug.h"
+
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Verifier.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
-cl::opt<bool> SPIRVLowerMemmoveValidate(
-    "spvmemmove-validate",
-    cl::desc("Validate module after lowering llvm.memmove instructions into "
-             "llvm.memcpy"));
 
-class SPIRVLowerMemmove : public ModulePass,
-                          public InstVisitor<SPIRVLowerMemmove> {
+class SPIRVLowerMemmoveBase {
 public:
-  SPIRVLowerMemmove() : ModulePass(ID), Context(nullptr) {
-    initializeSPIRVLowerMemmovePass(*PassRegistry::getPassRegistry());
-  }
-  virtual void visitMemMoveInst(MemMoveInst &I) {
+  SPIRVLowerMemmoveBase() : Context(nullptr) {}
+
+  void LowerMemMoveInst(MemMoveInst &I) {
+    // There is no direct equivalent of @llvm.memmove in SPIR-V and the closest
+    // instructions are 'OpCopyMemory' and 'OpCopyMemorySized'.
+    //
+    // 'OpCopyMemory' does not accept amount of bytes to copy and infers that
+    // from type which is being copied; also it only allows to copy value of a
+    // particular type to pointer pointing to the same type.
+    //
+    // 'OpCopyMemorySized' is closer to @llvm.memmove, because it actually
+    // copies bytes, but unlike memove it is not explicitly specified whether it
+    // supports overlapping source and destination. Therefore, we replace
+    // memmove with two 'OpCopyMemorySized' instructions: the first one copies
+    // bytes from source to a temporary location, the second one copies bytes
+    // from that temporary location to the destination.
     IRBuilder<> Builder(I.getParent());
     Builder.SetInsertPoint(&I);
-    auto *Dest = I.getRawDest();
-    auto *Src = I.getRawSource();
-    auto *SrcTy = Src->getType();
-    if (!isa<ConstantInt>(I.getLength()))
-      // ToDo: for non-constant length, could use a loop to copy a
-      // fixed length chunk at a time. For now simply fail
-      report_fatal_error("llvm.memmove of non-constant length not supported",
-                         false);
-    auto *Length = cast<ConstantInt>(I.getLength());
-    if (isa<BitCastInst>(Src))
-      // The source could be bit-cast from another type,
-      // need the original type for the allocation of the temporary variable
-      SrcTy = cast<BitCastInst>(Src)->getOperand(0)->getType();
-    auto Align = I.getSourceAlignment();
-    auto Volatile = I.isVolatile();
-    Value *NumElements = nullptr;
-    uint64_t ElementsCount = 1;
-    if (SrcTy->isArrayTy()) {
-      NumElements = Builder.getInt32(SrcTy->getArrayNumElements());
-      ElementsCount = SrcTy->getArrayNumElements();
-    }
-    if (Mod->getDataLayout().getTypeSizeInBits(SrcTy->getPointerElementType()) *
-            ElementsCount !=
-        Length->getZExtValue() * 8)
-      report_fatal_error("Size of the memcpy should match the allocated memory",
-                         false);
 
-    auto *Alloca =
-        Builder.CreateAlloca(SrcTy->getPointerElementType(), NumElements);
-    Alloca->setAlignment(Align);
+    auto *Length = cast<ConstantInt>(I.getLength());
+    auto *AllocaTy = ArrayType::get(IntegerType::getInt8Ty(*Context),
+                                    Length->getZExtValue());
+    MaybeAlign SrcAlign = I.getSourceAlign();
+
+    auto *Alloca = Builder.CreateAlloca(AllocaTy);
+    if (SrcAlign.hasValue())
+      Alloca->setAlignment(SrcAlign.getValue());
+
+    // FIXME: Do we need to pass the size of alloca here? From LangRef:
+    // > The first argument is a constant integer representing the size of the
+    // > object, or -1 if it is variable sized.
+    //
+    // https://llvm.org/docs/LangRef.html#llvm-lifetime-start-intrinsic
     Builder.CreateLifetimeStart(Alloca);
-    Builder.CreateMemCpy(Alloca, Align, Src, Align, Length, Volatile);
-    auto *SecondCpy = Builder.CreateMemCpy(Dest, I.getDestAlignment(), Alloca,
-                                           Align, Length, Volatile);
+    Builder.CreateMemCpy(Alloca, SrcAlign, I.getRawSource(), SrcAlign, Length,
+                         I.isVolatile());
+
+    auto *SecondCpy =
+        Builder.CreateMemCpy(I.getRawDest(), I.getDestAlign(), Alloca, SrcAlign,
+                             Length, I.isVolatile());
     Builder.CreateLifetimeEnd(Alloca);
 
     SecondCpy->takeName(&I);
@@ -107,34 +101,69 @@ public:
     I.dropAllReferences();
     I.eraseFromParent();
   }
-  bool runOnModule(Module &M) override {
-    Context = &M.getContext();
-    Mod = &M;
-    visit(M);
 
-    if (SPIRVLowerMemmoveValidate) {
-      LLVM_DEBUG(dbgs() << "After SPIRVLowerMemmove:\n" << M);
-      std::string Err;
-      raw_string_ostream ErrorOS(Err);
-      if (verifyModule(M, &ErrorOS)) {
-        Err = std::string("Fails to verify module: ") + Err;
-        report_fatal_error(Err.c_str(), false);
+  bool expandMemMoveIntrinsicUses(Function &F) {
+    bool Changed = false;
+
+    for (User *U : make_early_inc_range(F.users())) {
+      MemMoveInst *Inst = cast<MemMoveInst>(U);
+      if (!isa<ConstantInt>(Inst->getLength())) {
+        expandMemMoveAsLoop(Inst);
+        Inst->eraseFromParent();
+      } else {
+        LowerMemMoveInst(*Inst);
       }
+      Changed = true;
     }
-    return true;
+    return Changed;
   }
+  bool runLowerMemmove(Module &M) {
+    Context = &M.getContext();
+    bool Changed = false;
 
-  static char ID;
+    for (Function &F : M) {
+      if (!F.isDeclaration())
+        continue;
+
+      if (F.getIntrinsicID() == Intrinsic::memmove)
+        Changed |= expandMemMoveIntrinsicUses(F);
+    }
+
+    verifyRegularizationPass(M, "SPIRVLowerMemmove");
+    return Changed;
+  }
 
 private:
   LLVMContext *Context;
-  Module *Mod;
 };
 
-char SPIRVLowerMemmove::ID = 0;
+class SPIRVLowerMemmovePass : public llvm::PassInfoMixin<SPIRVLowerMemmovePass>,
+                              public SPIRVLowerMemmoveBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runLowerMemmove(M) ? llvm::PreservedAnalyses::none()
+                              : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVLowerMemmoveLegacy : public ModulePass,
+                                public SPIRVLowerMemmoveBase {
+public:
+  SPIRVLowerMemmoveLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerMemmoveLegacyPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnModule(Module &M) override { return runLowerMemmove(M); }
+
+  static char ID;
+};
+
+char SPIRVLowerMemmoveLegacy::ID = 0;
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVLowerMemmove, "spvmemmove",
+INITIALIZE_PASS(SPIRVLowerMemmoveLegacy, "spvmemmove",
                 "Lower llvm.memmove into llvm.memcpy", false, false)
 
-ModulePass *llvm::createSPIRVLowerMemmove() { return new SPIRVLowerMemmove(); }
+ModulePass *llvm::createSPIRVLowerMemmoveLegacy() {
+  return new SPIRVLowerMemmoveLegacy();
+}

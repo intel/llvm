@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_Driver_h_
-#define lldb_Driver_h_
+#ifndef LLDB_TOOLS_DRIVER_DRIVER_H
+#define LLDB_TOOLS_DRIVER_DRIVER_H
 
 #include "Platform.h"
 
@@ -79,6 +79,7 @@ public:
     bool m_source_quietly = false;
     bool m_print_version = false;
     bool m_print_python_path = false;
+    bool m_print_script_interpreter_info = false;
     bool m_wait_for = false;
     bool m_repl = false;
     bool m_batch = false;
@@ -99,4 +100,4 @@ private:
   OptionData m_option_data;
 };
 
-#endif // lldb_Driver_h_
+#endif // LLDB_TOOLS_DRIVER_DRIVER_H

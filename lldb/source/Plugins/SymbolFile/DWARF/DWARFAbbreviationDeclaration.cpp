@@ -1,4 +1,4 @@
-//===-- DWARFAbbreviationDeclaration.cpp ------------------------*- C++ -*-===//
+//===-- DWARFAbbreviationDeclaration.cpp ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,14 +16,13 @@
 #include "DWARFFormValue.h"
 
 using namespace lldb_private;
+using namespace lldb_private::dwarf;
 
-DWARFAbbreviationDeclaration::DWARFAbbreviationDeclaration()
-    : m_code(InvalidCode), m_tag(0), m_has_children(0), m_attributes() {}
+DWARFAbbreviationDeclaration::DWARFAbbreviationDeclaration() : m_attributes() {}
 
 DWARFAbbreviationDeclaration::DWARFAbbreviationDeclaration(dw_tag_t tag,
                                                            uint8_t has_children)
-    : m_code(InvalidCode), m_tag(tag), m_has_children(has_children),
-      m_attributes() {}
+    : m_tag(tag), m_has_children(has_children), m_attributes() {}
 
 llvm::Expected<DWARFEnumState>
 DWARFAbbreviationDeclaration::extract(const DWARFDataExtractor &data,
@@ -33,7 +32,7 @@ DWARFAbbreviationDeclaration::extract(const DWARFDataExtractor &data,
     return DWARFEnumState::Complete;
 
   m_attributes.clear();
-  m_tag = data.GetULEB128(offset_ptr);
+  m_tag = static_cast<dw_tag_t>(data.GetULEB128(offset_ptr));
   if (m_tag == DW_TAG_null)
     return llvm::make_error<llvm::object::GenericBinaryError>(
         "abbrev decl requires non-null tag.");
@@ -57,7 +56,7 @@ DWARFAbbreviationDeclaration::extract(const DWARFDataExtractor &data,
     DWARFFormValue::ValueType val;
 
     if (form == DW_FORM_implicit_const)
-      val.value.sval = data.GetULEB128(offset_ptr);
+      val.value.sval = data.GetSLEB128(offset_ptr);
 
     m_attributes.push_back(DWARFAttribute(attr, form, val));
   }
@@ -68,7 +67,7 @@ DWARFAbbreviationDeclaration::extract(const DWARFDataExtractor &data,
 }
 
 bool DWARFAbbreviationDeclaration::IsValid() {
-  return m_code != 0 && m_tag != 0;
+  return m_code != 0 && m_tag != llvm::dwarf::DW_TAG_null;
 }
 
 uint32_t
@@ -80,10 +79,4 @@ DWARFAbbreviationDeclaration::FindAttributeIndex(dw_attr_t attr) const {
       return i;
   }
   return DW_INVALID_INDEX;
-}
-
-bool DWARFAbbreviationDeclaration::
-operator==(const DWARFAbbreviationDeclaration &rhs) const {
-  return Tag() == rhs.Tag() && HasChildren() == rhs.HasChildren() &&
-         m_attributes == rhs.m_attributes;
 }

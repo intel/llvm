@@ -37,7 +37,7 @@ entry:
 ; CHECK-LABEL: simple_seh
 ; CHECK: add     x29, sp, #16
 ; CHECK: mov     x0, #-2
-; CHECK: stur    x0, [x29, #-16]
+; CHECK: stur    x0, [x29, #16]
 ; CHECK: .set .Lsimple_seh$frame_escape_0, -8
 ; CHECK: ldur    w0, [x29, #-8]
 ; CHECK: bl      foo
@@ -67,7 +67,7 @@ entry:
 ; CHECK: movz    x8, #:abs_g1_s:.Lsimple_seh$frame_escape_0
 ; CHECK: movk    x8, #:abs_g0_nc:.Lsimple_seh$frame_escape_0
 ; CHECK: strb    w0, [sp, #15]
-; CHECK: ldr     w0, [x1, x8]
+; CHECK: ldr     w8, [x1, x8]
 ; CHECK: bl      foo
 
   %frame_pointer.addr = alloca i8*, align 8
@@ -86,14 +86,14 @@ entry:
 define void @stack_realign() #0 personality i8* bitcast (i32 (...)* @__C_specific_handler to i8*) {
 entry:
 ; CHECK-LABEL: stack_realign
-; CHECK: add     x29, sp, #16
-; CHECK: sub     x9, sp, #64
+; CHECK: add     x29, sp, #8
+; CHECK: sub     x9, sp, #16
 ; CHECK: and     sp, x9, #0xffffffffffffffe0
 ; CHECK: mov     x19, sp
 ; CHECK: mov     x0, #-2
-; CHECK: stur    x0, [x19, #16]
-; CHECK: .set .Lstack_realign$frame_escape_0, 32
-; CHECK: ldr     w0, [x19, #32]
+; CHECK: stur    x0, [x29, #24]
+; CHECK: .set .Lstack_realign$frame_escape_0, 0
+; CHECK: ldr     w0, [x19]
 ; CHECK: bl      foo
 
   %o = alloca %struct.S, align 32
@@ -121,7 +121,7 @@ entry:
 ; CHECK: movz    x8, #:abs_g1_s:.Lstack_realign$frame_escape_0
 ; CHECK: movk    x8, #:abs_g0_nc:.Lstack_realign$frame_escape_0
 ; CHECK: strb    w0, [sp, #15]
-; CHECK: ldr     w0, [x1, x8]
+; CHECK: ldr     w8, [x1, x8]
 ; CHECK: bl      foo
 
   %frame_pointer.addr = alloca i8*, align 8
@@ -142,7 +142,7 @@ entry:
 ; CHECK-LABEL: vla_present
 ; CHECK: add     x29, sp, #32
 ; CHECK: mov     x1, #-2
-; CHECK: stur    x1, [x29, #-32]
+; CHECK: stur    x1, [x29, #16]
 ; CHECK: .set .Lvla_present$frame_escape_0, -4
 ; CHECK: stur    w0, [x29, #-4]
 ; CHECK: ldur    w8, [x29, #-4]
@@ -187,7 +187,7 @@ entry:
 ; CHECK: movz    x8, #:abs_g1_s:.Lvla_present$frame_escape_0
 ; CHECK: movk    x8, #:abs_g0_nc:.Lvla_present$frame_escape_0
 ; CHECK: strb    w0, [sp, #15]
-; CHECK: ldr     w0, [x1, x8]
+; CHECK: ldr     w8, [x1, x8]
 ; CHECK: bl      foo
 
   %frame_pointer.addr = alloca i8*, align 8
@@ -205,18 +205,18 @@ entry:
 define void @vla_and_realign(i32 %n) #0 personality i8* bitcast (i32 (...)* @__C_specific_handler to i8*) {
 entry:
 ; CHECK-LABEL: vla_and_realign
-; CHECK: add     x29, sp, #16
-; CHECK: sub     x9, sp, #64
+; CHECK: add     x29, sp, #8
+; CHECK: sub     x9, sp, #48
 ; CHECK: and     sp, x9, #0xffffffffffffffe0
 ; CHECK: mov     x19, sp
 ; CHECK: mov     x1, #-2
-; CHECK: stur    x1, [x19]
+; CHECK: stur    x1, [x29, #24]
 ; CHECK: .set .Lvla_and_realign$frame_escape_0, 32
-; CHECK: stur    w0, [x29, #-4]
-; CHECK: ldur    w8, [x29, #-4]
+; CHECK: str     w0, [x29, #36]
+; CHECK: ldr     w8, [x29, #36]
 ; CHECK: mov     x9, sp
-; CHECK: str     x9, [x19, #24]
-; CHECK: str     x8, [x19, #16]
+; CHECK: str     x9, [x29, #16]
+; CHECK: str     x8, [x19, #24]
 ; CHECK: ldr     w0, [x19, #32]
 ; CHECK: bl      foo
 
@@ -257,7 +257,7 @@ entry:
 ; CHECK: movz    x8, #:abs_g1_s:.Lvla_and_realign$frame_escape_0
 ; CHECK: movk    x8, #:abs_g0_nc:.Lvla_and_realign$frame_escape_0
 ; CHECK: strb    w0, [sp, #15]
-; CHECK: ldr     w0, [x1, x8]
+; CHECK: ldr     w8, [x1, x8]
 ; CHECK: bl      foo
 
   %frame_pointer.addr = alloca i8*, align 8

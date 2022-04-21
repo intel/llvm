@@ -1,8 +1,11 @@
 // Tests use-after-return detection and reporting.
-// RUN: %clang_hwasan -O0 -fno-discard-value-names %s -o %t && not %run %t 2>&1 | FileCheck %s
-// RUN: %clang_hwasan -O0 -fno-discard-value-names %s -o %t && not %env_hwasan_opts=symbolize=0 %run %t 2>&1 | FileCheck %s --check-prefix=NOSYM
+// RUN: %clang_hwasan -g %s -o %t && not %run %t 2>&1 | FileCheck %s
+// RUN: %clang_hwasan -g %s -o %t && not %env_hwasan_opts=symbolize=0 %run %t 2>&1 | FileCheck %s --check-prefix=NOSYM
 
 // REQUIRES: stable-runtime
+
+// Stack histories currently are not recorded on x86.
+// XFAIL: x86_64
 
 void USE(void *x) { // pretend_to_do_something(void *x)
   __asm__ __volatile__("" : : "r" (x) : "memory");
@@ -27,20 +30,18 @@ int main() {
   return *p;
   // CHECK: READ of size 1 at
   // CHECK: #0 {{.*}} in main{{.*}}stack-uar.c:[[@LINE-2]]
+  // CHECK: Cause: stack tag-mismatch
   // CHECK: is located in stack of thread
-  // CHECK: Previously allocated frames:
-  // CHECK: Unrelated3
-  // CHECK: 16 CCC
-  // CHECK: Unrelated2
-  // CHECK: 12 BB
-  // CHECK: Unrelated1
-  // CHECK: 8 A
-  // CHECK: buggy
-  // CHECK: 4096 zzz
+  // CHECK: Potentially referenced stack objects:
+  // CHECK-NEXT: zzz in buggy {{.*}}stack-uar.c:[[@LINE-20]]
+  // CHECK-NEXT: Memory tags around the buggy address
 
   // NOSYM: Previously allocated frames:
-  // NOSYM-NEXT: sp: 0x{{.*}} #0 0x{{.*}} ({{.*}}/stack-uar.c.tmp+0x{{.*}}){{$}}
-  // NOSYM-NEXT: 16 CCC;
+  // NOSYM-NEXT: record_addr:0x{{.*}} record:0x{{.*}} ({{.*}}/stack-uar.c.tmp+0x{{.*}}){{$}}
+  // NOSYM-NEXT: record_addr:0x{{.*}} record:0x{{.*}} ({{.*}}/stack-uar.c.tmp+0x{{.*}}){{$}}
+  // NOSYM-NEXT: record_addr:0x{{.*}} record:0x{{.*}} ({{.*}}/stack-uar.c.tmp+0x{{.*}}){{$}}
+  // NOSYM-NEXT: record_addr:0x{{.*}} record:0x{{.*}} ({{.*}}/stack-uar.c.tmp+0x{{.*}}){{$}}
+  // NOSYM-NEXT: Memory tags around the buggy address
 
   // CHECK: SUMMARY: HWAddressSanitizer: tag-mismatch {{.*}} in main
 }

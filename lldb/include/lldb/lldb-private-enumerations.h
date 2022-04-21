@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_lldb_private_enumerations_h_
-#define LLDB_lldb_private_enumerations_h_
+#ifndef LLDB_LLDB_PRIVATE_ENUMERATIONS_H
+#define LLDB_LLDB_PRIVATE_ENUMERATIONS_H
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FormatProviders.h"
@@ -148,18 +148,6 @@ enum ExecutionPolicy {
   eExecutionPolicyTopLevel // used for top-level code
 };
 
-// Ways that the FormatManager picks a particular format for a type
-enum FormatterChoiceCriterion {
-  eFormatterChoiceCriterionDirectChoice = 0x00000000,
-  eFormatterChoiceCriterionStrippedPointerReference = 0x00000001,
-  eFormatterChoiceCriterionNavigatedTypedefs = 0x00000002,
-  eFormatterChoiceCriterionRegularExpressionSummary = 0x00000004,
-  eFormatterChoiceCriterionRegularExpressionFilter = 0x00000004,
-  eFormatterChoiceCriterionLanguagePlugin = 0x00000008,
-  eFormatterChoiceCriterionStrippedBitField = 0x00000010,
-  eFormatterChoiceCriterionWentToStaticValue = 0x00000020
-};
-
 // Synchronicity behavior of scripted commands
 enum ScriptedCommandSynchronicity {
   eScriptedCommandSynchronicitySynchronous,
@@ -184,6 +172,12 @@ enum MemoryModuleLoadLevel {
   eMemoryModuleLoadLevelComplete, // Load sections and all symbols
 };
 
+// Behavior on fork/vfork
+enum FollowForkMode {
+  eFollowParent, // Follow parent process
+  eFollowChild,  // Follow child process
+};
+
 // Result enums for when reading multiple lines from IOHandlers
 enum class LineStatus {
   Success, // The line that was just edited if good and should be added to the
@@ -198,18 +192,24 @@ enum class LineStatus {
 enum class TypeValidatorResult : bool { Success = true, Failure = false };
 
 // Enumerations that can be used to specify scopes types when looking up types.
-enum class CompilerContextKind {
+enum class CompilerContextKind : uint16_t {
   Invalid = 0,
-  TranslationUnit,
-  Module,
-  Namespace,
-  Class,
-  Structure,
-  Union,
-  Function,
-  Variable,
-  Enumeration,
-  Typedef
+  TranslationUnit = 1,
+  Module = 1 << 1,
+  Namespace = 1 << 2,
+  Class = 1 << 3,
+  Struct = 1 << 4,
+  Union = 1 << 5,
+  Function = 1 << 6,
+  Variable = 1 << 7,
+  Enum = 1 << 8,
+  Typedef = 1 << 9,
+
+  Any = 1 << 15,
+  /// Match 0..n nested modules.
+  AnyModule = Any | Module,
+  /// Match any type.
+  AnyType = Any | Class | Struct | Union | Enum | Typedef
 };
 
 // Enumerations that can be used to specify the kind of metric we're looking at
@@ -261,4 +261,4 @@ template <> struct format_provider<lldb_private::Vote> {
 };
 }
 
-#endif // LLDB_lldb_private_enumerations_h_
+#endif // LLDB_LLDB_PRIVATE_ENUMERATIONS_H

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <experimental/simd>
 //
@@ -16,6 +16,8 @@
 
 #include <experimental/simd>
 #include <cstdint>
+
+#include "test_macros.h"
 
 namespace ex = std::experimental::parallelism_v2;
 

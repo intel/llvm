@@ -30,10 +30,10 @@ AST_MATCHER(Type, sugaredNullptrType) {
   return false;
 }
 
-/// \brief Create a matcher that finds implicit casts as well as the head of a
+/// Create a matcher that finds implicit casts as well as the head of a
 /// sequence of zero or more nested explicit casts that have an implicit cast
 /// to null within.
-/// Finding sequences of explict casts is necessary so that an entire sequence
+/// Finding sequences of explicit casts is necessary so that an entire sequence
 /// can be replaced instead of just the inner-most implicit cast.
 StatementMatcher makeCastSequenceMatcher() {
   StatementMatcher ImplicitCastToNull = implicitCastExpr(
@@ -41,10 +41,28 @@ StatementMatcher makeCastSequenceMatcher() {
       unless(hasImplicitDestinationType(qualType(substTemplateTypeParmType()))),
       unless(hasSourceExpression(hasType(sugaredNullptrType()))));
 
-  return castExpr(anyOf(ImplicitCastToNull,
-                        explicitCastExpr(hasDescendant(ImplicitCastToNull))),
-                  unless(hasAncestor(explicitCastExpr())))
-      .bind(CastSequence);
+  auto IsOrHasDescendant = [](auto InnerMatcher) {
+    return anyOf(InnerMatcher, hasDescendant(InnerMatcher));
+  };
+
+  return traverse(
+      TK_AsIs,
+      anyOf(castExpr(anyOf(ImplicitCastToNull,
+                           explicitCastExpr(hasDescendant(ImplicitCastToNull))),
+                     unless(hasAncestor(explicitCastExpr())),
+                     unless(hasAncestor(cxxRewrittenBinaryOperator())))
+                .bind(CastSequence),
+            cxxRewrittenBinaryOperator(
+                // Match rewritten operators, but verify (in the check method)
+                // that if an implicit cast is found, it is not from another
+                // nested rewritten operator.
+                expr().bind("matchBinopOperands"),
+                hasEitherOperand(IsOrHasDescendant(
+                    implicitCastExpr(
+                        ImplicitCastToNull,
+                        hasAncestor(cxxRewrittenBinaryOperator().bind(
+                            "checkBinopOperands")))
+                        .bind(CastSequence))))));
 }
 
 bool isReplaceableRange(SourceLocation StartLoc, SourceLocation EndLoc,
@@ -52,7 +70,7 @@ bool isReplaceableRange(SourceLocation StartLoc, SourceLocation EndLoc,
   return SM.isWrittenInSameFile(StartLoc, EndLoc);
 }
 
-/// \brief Replaces the provided range with the text "nullptr", but only if
+/// Replaces the provided range with the text "nullptr", but only if
 /// the start and end location are both in main file.
 /// Returns true if and only if a replacement was made.
 void replaceWithNullptr(ClangTidyCheck &Check, SourceManager &SM,
@@ -67,7 +85,7 @@ void replaceWithNullptr(ClangTidyCheck &Check, SourceManager &SM,
       Range, NeedsSpace ? " nullptr" : "nullptr");
 }
 
-/// \brief Returns the name of the outermost macro.
+/// Returns the name of the outermost macro.
 ///
 /// Given
 /// \code
@@ -87,7 +105,7 @@ StringRef getOutermostMacroName(SourceLocation Loc, const SourceManager &SM,
   return Lexer::getImmediateMacroName(OutermostMacroLoc, SM, LO);
 }
 
-/// \brief RecursiveASTVisitor for ensuring all nodes rooted at a given AST
+/// RecursiveASTVisitor for ensuring all nodes rooted at a given AST
 /// subtree that have file-level source locations corresponding to a macro
 /// argument have implicit NullTo(Member)Pointer nodes as ancestors.
 class MacroArgUsageVisitor : public RecursiveASTVisitor<MacroArgUsageVisitor> {
@@ -157,7 +175,7 @@ private:
   bool InvalidFound;
 };
 
-/// \brief Looks for implicit casts as well as sequences of 0 or more explicit
+/// Looks for implicit casts as well as sequences of 0 or more explicit
 /// casts with an implicit null-to-pointer cast within.
 ///
 /// The matcher this visitor is used with will find a single implicit cast or a
@@ -171,9 +189,9 @@ private:
 class CastSequenceVisitor : public RecursiveASTVisitor<CastSequenceVisitor> {
 public:
   CastSequenceVisitor(ASTContext &Context, ArrayRef<StringRef> NullMacros,
-                      ClangTidyCheck &check)
+                      ClangTidyCheck &Check)
       : SM(Context.getSourceManager()), Context(Context),
-        NullMacros(NullMacros), Check(check), FirstSubExpr(nullptr),
+        NullMacros(NullMacros), Check(Check), FirstSubExpr(nullptr),
         PruneSubtree(false) {}
 
   bool TraverseStmt(Stmt *S) {
@@ -242,10 +260,8 @@ public:
           getOutermostMacroName(StartLoc, SM, Context.getLangOpts());
 
       // Check to see if the user wants to replace the macro being expanded.
-      if (std::find(NullMacros.begin(), NullMacros.end(), OutermostMacroName) ==
-          NullMacros.end()) {
+      if (!llvm::is_contained(NullMacros, OutermostMacroName))
         return skipSubTree();
-      }
 
       StartLoc = SM.getFileLoc(StartLoc);
       EndLoc = SM.getFileLoc(EndLoc);
@@ -265,7 +281,7 @@ private:
     return true;
   }
 
-  /// \brief Tests that all expansions of a macro arg, one of which expands to
+  /// Tests that all expansions of a macro arg, one of which expands to
   /// result in \p CE, yield NullTo(Member)Pointer casts.
   bool allArgUsesValid(const CastExpr *CE) {
     SourceLocation CastLoc = CE->getBeginLoc();
@@ -277,10 +293,9 @@ private:
       return false;
 
     // Step 2: Find the first ancestor that doesn't expand from this macro.
-    ast_type_traits::DynTypedNode ContainingAncestor;
-    if (!findContainingAncestor(
-            ast_type_traits::DynTypedNode::create<Stmt>(*CE), MacroLoc,
-            ContainingAncestor))
+    DynTypedNode ContainingAncestor;
+    if (!findContainingAncestor(DynTypedNode::create<Stmt>(*CE), MacroLoc,
+                                ContainingAncestor))
       return false;
 
     // Step 3:
@@ -299,7 +314,7 @@ private:
     return !ArgUsageVisitor.foundInvalid();
   }
 
-  /// \brief Given the SourceLocation for a macro arg expansion, finds the
+  /// Given the SourceLocation for a macro arg expansion, finds the
   /// non-macro SourceLocation of the macro the arg was passed to and the
   /// non-macro SourceLocation of the argument in the arg list to that macro.
   /// These results are returned via \c MacroLoc and \c ArgLoc respectively.
@@ -309,7 +324,7 @@ private:
   /// SourceLocation pointing within the definition of another macro.
   bool getMacroAndArgLocations(SourceLocation Loc, SourceLocation &ArgLoc,
                                SourceLocation &MacroLoc) {
-    assert(Loc.isMacroID() && "Only reasonble to call this on macros");
+    assert(Loc.isMacroID() && "Only reasonable to call this on macros");
 
     ArgLoc = Loc;
 
@@ -327,8 +342,7 @@ private:
 
         StringRef Name =
             Lexer::getImmediateMacroName(OldArgLoc, SM, Context.getLangOpts());
-        return std::find(NullMacros.begin(), NullMacros.end(), Name) !=
-               NullMacros.end();
+        return llvm::is_contained(NullMacros, Name);
       }
 
       MacroLoc = SM.getExpansionRange(ArgLoc).getBegin();
@@ -350,7 +364,7 @@ private:
     llvm_unreachable("getMacroAndArgLocations");
   }
 
-  /// \brief Tests if TestMacroLoc is found while recursively unravelling
+  /// Tests if TestMacroLoc is found while recursively unravelling
   /// expansions starting at TestLoc. TestMacroLoc.isFileID() must be true.
   /// Implementation is very similar to getMacroAndArgLocations() except in this
   /// case, it's not assumed that TestLoc is expanded from a macro argument.
@@ -403,14 +417,13 @@ private:
     llvm_unreachable("expandsFrom");
   }
 
-  /// \brief Given a starting point \c Start in the AST, find an ancestor that
+  /// Given a starting point \c Start in the AST, find an ancestor that
   /// doesn't expand from the macro called at file location \c MacroLoc.
   ///
   /// \pre MacroLoc.isFileID()
   /// \returns true if such an ancestor was found, false otherwise.
-  bool findContainingAncestor(ast_type_traits::DynTypedNode Start,
-                              SourceLocation MacroLoc,
-                              ast_type_traits::DynTypedNode &Result) {
+  bool findContainingAncestor(DynTypedNode Start, SourceLocation MacroLoc,
+                              DynTypedNode &Result) {
     // Below we're only following the first parent back up the AST. This should
     // be fine since for the statements we care about there should only be one
     // parent, except for the case specified below.
@@ -432,7 +445,7 @@ private:
         }
       }
 
-      const ast_type_traits::DynTypedNode &Parent = Parents[0];
+      const DynTypedNode &Parent = Parents[0];
 
       SourceLocation Loc;
       if (const auto *D = Parent.get<Decl>())
@@ -476,16 +489,17 @@ void UseNullptrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void UseNullptrCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matcher for C++. Because this checker is used for
-  // modernization, it is reasonable to run it on any C++ standard with the
-  // assumption the user is trying to modernize their codebase.
-  if (getLangOpts().CPlusPlus)
-    Finder->addMatcher(makeCastSequenceMatcher(), this);
+  Finder->addMatcher(makeCastSequenceMatcher(), this);
 }
 
 void UseNullptrCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *NullCast = Result.Nodes.getNodeAs<CastExpr>(CastSequence);
   assert(NullCast && "Bad Callback. No node provided");
+
+  if (Result.Nodes.getNodeAs<CXXRewrittenBinaryOperator>(
+          "matchBinopOperands") !=
+      Result.Nodes.getNodeAs<CXXRewrittenBinaryOperator>("checkBinopOperands"))
+    return;
 
   // Given an implicit null-ptr cast or an explicit cast with an implicit
   // null-to-pointer cast within use CastSequenceVisitor to identify sequences

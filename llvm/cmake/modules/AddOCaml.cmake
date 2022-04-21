@@ -66,21 +66,25 @@ function(add_ocaml_library name)
     list(APPEND ocaml_flags "-custom")
   endif()
 
-  explicit_map_components_to_libraries(llvm_libs ${ARG_LLVM})
-  foreach( llvm_lib ${llvm_libs} )
-    list(APPEND ocaml_flags "-l${llvm_lib}" )
-  endforeach()
+  if(LLVM_LINK_LLVM_DYLIB)
+    list(APPEND ocaml_flags "-lLLVM")
+  else()
+    explicit_map_components_to_libraries(llvm_libs ${ARG_LLVM})
+    foreach( llvm_lib ${llvm_libs} )
+      list(APPEND ocaml_flags "-l${llvm_lib}" )
+    endforeach()
 
-  get_property(system_libs TARGET LLVMSupport PROPERTY LLVM_SYSTEM_LIBS)
-  foreach(system_lib ${system_libs})
-    if (system_lib MATCHES "^-")
-      # If it's an option, pass it without changes.
-      list(APPEND ocaml_flags "${system_lib}" )
-    else()
-      # Otherwise assume it's a library name we need to link with.
-      list(APPEND ocaml_flags "-l${system_lib}" )
-    endif()
-  endforeach()
+    get_property(system_libs TARGET LLVMSupport PROPERTY LLVM_SYSTEM_LIBS)
+    foreach(system_lib ${system_libs})
+      if (system_lib MATCHES "^-")
+        # If it's an option, pass it without changes.
+        list(APPEND ocaml_flags "${system_lib}" )
+      else()
+        # Otherwise assume it's a library name we need to link with.
+        list(APPEND ocaml_flags "-l${system_lib}" )
+      endif()
+    endforeach()
+  endif()
 
   string(REPLACE ";" " " ARG_CFLAGS "${ARG_CFLAGS}")
   set(c_flags "${ARG_CFLAGS} ${LLVM_DEFINITIONS}")
@@ -99,6 +103,9 @@ function(add_ocaml_library name)
     list(APPEND ocaml_inputs "${bin}/${ocaml_file}.mli" "${bin}/${ocaml_file}.ml")
 
     list(APPEND ocaml_outputs "${bin}/${ocaml_file}.cmi" "${bin}/${ocaml_file}.cmo")
+
+        list(APPEND ocaml_outputs "${bin}/${ocaml_file}.cmti" "${bin}/${ocaml_file}.cmt")
+
     if( HAVE_OCAMLOPT )
       list(APPEND ocaml_outputs
            "${bin}/${ocaml_file}.cmx"
@@ -148,7 +155,8 @@ function(add_ocaml_library name)
 
   add_custom_command(
     OUTPUT ${ocaml_outputs}
-    COMMAND "${OCAMLFIND}" "ocamlmklib" "-o" "${name}" ${ocaml_flags} ${ocaml_params}
+    COMMAND "${OCAMLFIND}" "ocamlmklib" "-ocamlcflags" "-bin-annot"
+      "-o" "${name}" ${ocaml_flags} ${ocaml_params}
     DEPENDS ${ocaml_inputs} ${c_outputs}
     COMMENT "Building OCaml library ${name}"
     VERBATIM)

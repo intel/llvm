@@ -18,7 +18,7 @@ void print(int n, int a, int b, int c, int d) {
 }
 
 void test(int n) {
-  // CHECK: define void {{.*test.*}}(i32 [[n:%.+]]) #
+  // CHECK: define{{.*}} void {{.*test.*}}(i32 noundef [[n:%.+]]) #
   // CHECK: [[n_addr:%.+]] = alloca
   // CHECK-NEXT: [[saved_stack:%.+]] = alloca
   // CHECK-NEXT: [[vla_expr:%.+]] = alloca i64, align 8
@@ -53,7 +53,7 @@ void test(int n) {
 
   // CHECK: [[arrayctor_loop]]
   // CHECK-NEXT: [[arrayctor_cur:%.+]] = phi [[struct_S]]* [ [[vla]], %[[new_ctorloop]] ], [ [[arrayctor_next:%.+]], %[[arrayctor_loop]] ]
-  // CHECK-NEXT: call void [[ctor:@.+]]([[struct_S]]* [[arrayctor_cur]])
+  // CHECK-NEXT: call void [[ctor:@.+]]([[struct_S]]* {{[^,]*}} [[arrayctor_cur]])
   // CHECK-NEXT: [[arrayctor_next]] = getelementptr inbounds [[struct_S]], [[struct_S]]* [[arrayctor_cur]], i64 1
   // CHECK-NEXT: [[arrayctor_done:%.+]] = icmp eq [[struct_S]]* [[arrayctor_next]], [[arrayctor_end]]
   // CHECK-NEXT: br i1 [[arrayctor_done]], label %[[arrayctor_cont]], label %[[arrayctor_loop]]
@@ -79,7 +79,7 @@ void test(int n) {
   //  CHECK-NEXT: [[t13:%.+]] = load i32, i32* [[sizeof_array_t_0_0]]
   //  CHECK-NEXT: [[t14:%.+]] = load i32, i32* [[sizeof_array_t_0]]
   //  CHECK-NEXT: [[t15:%.+]] = load i32, i32* [[sizeof_array_t]]
-  //  CHECK-NEXT: invoke void @{{.*print.*}}(i32 [[t11]], i32 [[t12]], i32 [[t13]], i32 [[t14]], i32 [[t15]])
+  //  CHECK-NEXT: invoke void @{{.*print.*}}(i32 noundef [[t11]], i32 noundef [[t12]], i32 noundef [[t13]], i32 noundef [[t14]], i32 noundef [[t15]])
   //  CHECK-NEXT: to label %[[invoke_cont:.+]] unwind label %[[lpad:.+]]
 
   //  CHECK: [[invoke_cont]]
@@ -91,7 +91,7 @@ void test(int n) {
   //  CHECK: [[arraydestroy_body]]
   //  CHECK-NEXT: [[arraydestroy_elementPast:%.+]] = phi [[struct_S]]* [ [[t17]], %[[invoke_cont]] ], [ [[arraydestroy_element:%.+]], %[[arraydestroy_body]] ]
   //  CHECK-NEXT: [[arraydestroy_element]] = getelementptr inbounds [[struct_S]], [[struct_S]]* [[arraydestroy_elementPast]]
-  //  CHECK-NEXT: call void @[[dtor:.+]]([[struct_S]]* [[arraydestroy_element]])
+  //  CHECK-NEXT: call void @[[dtor:.+]]([[struct_S]]* {{[^,]*}} [[arraydestroy_element]])
   //  CHECK-NEXT: [[arraydestroy_done:%.+]] = icmp eq [[struct_S]]* [[arraydestroy_element]], [[vla]]
   //  CHECK-NEXT: br i1 [[arraydestroy_done]], label %[[arraydestroy_done2]], label %[[arraydestroy_body]]
 
@@ -114,7 +114,7 @@ void test(int n) {
   //  CHECK: [[arraydestroy_body4]]
   //  CHECK: [[arraydestroy_elementPast5:%.+]] = phi [[struct_S]]* [ [[t23]], %[[lpad]] ], [ [[arraydestroy_element6:.+]], %[[arraydestroy_body4]] ]
   //  CHECK-NEXT: [[arraydestroy_element6]] = getelementptr inbounds [[struct_S]], [[struct_S]]* [[arraydestroy_elementPast5]], i64 -1
-  //  CHECK-NEXT: call void @[[dtor]]([[struct_S]]* [[arraydestroy_element6]])
+  //  CHECK-NEXT: call void @[[dtor]]([[struct_S]]* {{[^,]*}} [[arraydestroy_element6]])
   //  CHECK-NEXT: [[arraydestroy_done7:%.+]] = icmp eq [[struct_S]]* [[arraydestroy_element6]], [[vla]]
   //  CHECK-NEXT: br i1 [[arraydestroy_done7]], label %[[arraydestroy_done8]], label %[[arraydestroy_body4]]
 

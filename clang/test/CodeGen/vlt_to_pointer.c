@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 %s -emit-llvm -o - | FileCheck %s
 
 int c[1][3*2];
-// CHECK: @{{.+}} = {{.*}} global [1 x [6 x {{i[0-9]+}}]] zeroinitializer
+// CHECK: @{{.+}} ={{.*}}global [1 x [6 x {{i[0-9]+}}]] zeroinitializer
 
 // CHECK-LABEL: @f
 int f(int * const m, int (**v)[*m * 2])
@@ -17,7 +17,7 @@ int test(int n, int (*(*fn)(void))[n]) {
 }
 
 // CHECK-LABEL: @main
-int main()
+int main(void)
 {
     int m = 3;
     int (*d)[3*2] = c;

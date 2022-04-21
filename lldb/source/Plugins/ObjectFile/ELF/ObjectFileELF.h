@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjectFileELF_h_
-#define liblldb_ObjectFileELF_h_
+#ifndef LLDB_SOURCE_PLUGINS_OBJECTFILE_ELF_OBJECTFILEELF_H
+#define LLDB_SOURCE_PLUGINS_OBJECTFILE_ELF_OBJECTFILEELF_H
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <vector>
 
@@ -22,13 +22,13 @@
 #include "ELFHeader.h"
 
 struct ELFNote {
-  elf::elf_word n_namesz;
-  elf::elf_word n_descsz;
-  elf::elf_word n_type;
+  elf::elf_word n_namesz = 0;
+  elf::elf_word n_descsz = 0;
+  elf::elf_word n_type = 0;
 
   std::string n_name;
 
-  ELFNote() : n_namesz(0), n_descsz(0), n_type(0) {}
+  ELFNote() = default;
 
   /// Parse an ELFNote entry from the given DataExtractor starting at position
   /// \p offset.
@@ -56,16 +56,16 @@ struct ELFNote {
 /// the ObjectFile protocol.
 class ObjectFileELF : public lldb_private::ObjectFile {
 public:
-  ~ObjectFileELF() override;
-
   // Static Functions
   static void Initialize();
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "elf"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic() {
+    return "ELF object file reader.";
+  }
 
   static lldb_private::ObjectFile *
   CreateInstance(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
@@ -87,9 +87,14 @@ public:
                               lldb::addr_t length);
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
-  uint32_t GetPluginVersion() override;
+  // LLVM RTTI support
+  static char ID;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ObjectFile::isA(ClassID);
+  }
+  static bool classof(const ObjectFile *obj) { return obj->isA(&ID); }
 
   // ObjectFile Protocol.
   bool ParseHeader() override;
@@ -105,7 +110,7 @@ public:
 
   lldb_private::AddressClass GetAddressClass(lldb::addr_t file_addr) override;
 
-  lldb_private::Symtab *GetSymtab() override;
+  void ParseSymtab(lldb_private::Symtab &symtab) override;
 
   bool IsStripped() override;
 
@@ -117,7 +122,9 @@ public:
 
   lldb_private::UUID GetUUID() override;
 
-  lldb_private::FileSpecList GetDebugSymbolFilePaths() override;
+  /// Return the contents of the .gnu_debuglink section, if the object file
+  /// contains it.
+  llvm::Optional<lldb_private::FileSpec> GetDebugLink();
 
   uint32_t GetDependentModules(lldb_private::FileSpecList &files) override;
 
@@ -190,7 +197,7 @@ private:
 
   /// ELF .gnu_debuglink file and crc data if available.
   std::string m_gnu_debuglink_file;
-  uint32_t m_gnu_debuglink_crc;
+  uint32_t m_gnu_debuglink_crc = 0;
 
   /// Collection of program headers.
   ProgramHeaderColl m_program_headers;
@@ -200,6 +207,10 @@ private:
 
   /// Collection of symbols from the dynamic table.
   DynamicSymbolColl m_dynamic_symbols;
+
+  /// Object file parsed from .gnu_debugdata section (\sa
+  /// GetGnuDebugDataObjectFile())
+  std::shared_ptr<ObjectFileELF> m_gnu_debug_data_object_file;
 
   /// List of file specifications corresponding to the modules (shared
   /// libraries) on which this object file depends.
@@ -267,8 +278,9 @@ private:
   /// number of dynamic symbols parsed.
   size_t ParseDynamicSymbols();
 
-  /// Populates m_symtab_up will all non-dynamic linker symbols.  This method
-  /// will parse the symbols only once.  Returns the number of symbols parsed.
+  /// Populates the symbol table with all non-dynamic linker symbols.  This
+  /// method will parse the symbols only once.  Returns the number of symbols
+  /// parsed.
   unsigned ParseSymbolTable(lldb_private::Symtab *symbol_table,
                             lldb::user_id_t start_id,
                             lldb_private::Section *symtab);
@@ -316,9 +328,6 @@ private:
   /// name can be found (note that section indices are always 1 based, and so
   /// section index 0 is never valid).
   lldb::user_id_t GetSectionIndexByName(const char *name);
-
-  // Returns the ID of the first section that has the given type.
-  lldb::user_id_t GetSectionIndexByType(unsigned type);
 
   /// Returns the section header with the given id or NULL.
   const ELFSectionHeaderInfo *GetSectionHeaderByIndex(lldb::user_id_t id);
@@ -376,6 +385,14 @@ private:
                               lldb_private::UUID &uuid);
 
   bool AnySegmentHasPhysicalAddress();
+
+  /// Takes the .gnu_debugdata and returns the decompressed object file that is
+  /// stored within that section.
+  ///
+  /// \returns either the decompressed object file stored within the
+  /// .gnu_debugdata section or \c nullptr if an error occured or if there's no
+  /// section with that name.
+  std::shared_ptr<ObjectFileELF> GetGnuDebugDataObjectFile();
 };
 
-#endif // liblldb_ObjectFileELF_h_
+#endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_ELF_OBJECTFILEELF_H

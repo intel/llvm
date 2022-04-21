@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_EmulateInstruction_h_
-#define lldb_EmulateInstruction_h_
+#ifndef LLDB_CORE_EMULATEINSTRUCTION_H
+#define LLDB_CORE_EMULATEINSTRUCTION_H
 
 #include <string>
 
@@ -21,8 +21,8 @@
 #include "lldb/lldb-private-types.h"
 #include "lldb/lldb-types.h"
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class OptionValueDictionary;
@@ -182,8 +182,8 @@ public:
   } InfoType;
 
   struct Context {
-    ContextType type;
-    enum InfoType info_type;
+    ContextType type = eContextInvalid;
+    enum InfoType info_type = eInfoTypeNoArgs;
     union {
       struct RegisterPlusOffset {
         RegisterInfo reg;      // base register
@@ -237,7 +237,7 @@ public:
       uint32_t isa;
     } info;
 
-    Context() : type(eContextInvalid), info_type(eInfoTypeNoArgs) {}
+    Context() = default;
 
     void SetRegisterPlusOffset(RegisterInfo base_reg, int64_t signed_offset) {
       info_type = eInfoTypeRegisterPlusOffset;
@@ -499,9 +499,10 @@ protected:
 
 private:
   // For EmulateInstruction only
-  DISALLOW_COPY_AND_ASSIGN(EmulateInstruction);
+  EmulateInstruction(const EmulateInstruction &) = delete;
+  const EmulateInstruction &operator=(const EmulateInstruction &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // lldb_EmulateInstruction_h_
+#endif // LLDB_CORE_EMULATEINSTRUCTION_H

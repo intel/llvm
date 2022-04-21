@@ -27,6 +27,40 @@ define <2 x i32> @sqshl2s(<2 x i32>* %A, <2 x i32>* %B) nounwind {
         ret <2 x i32> %tmp3
 }
 
+define <1 x i64> @sqshl1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: sqshl1d:
+;CHECK: sqshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp2 = load <1 x i64>, <1 x i64>* %B
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.sqshl.v1i64(<1 x i64> %tmp1, <1 x i64> %tmp2)
+        ret <1 x i64> %tmp3
+}
+
+define <1 x i64> @sqshl1d_constant(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: sqshl1d_constant:
+;CHECK: sqshl {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.sqshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @sqshl_scalar(i64* %A, i64* %B) nounwind {
+;CHECK-LABEL: sqshl_scalar:
+;CHECK: sqshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load i64, i64* %A
+        %tmp2 = load i64, i64* %B
+        %tmp3 = call i64 @llvm.aarch64.neon.sqshl.i64(i64 %tmp1, i64 %tmp2)
+        ret i64 %tmp3
+}
+
+define i64 @sqshl_scalar_constant(i64* %A) nounwind {
+;CHECK-LABEL: sqshl_scalar_constant:
+;CHECK: sqshl {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.sqshl.i64(i64 %tmp1, i64 1)
+        ret i64 %tmp3
+}
+
 define <8 x i8> @uqshl8b(<8 x i8>* %A, <8 x i8>* %B) nounwind {
 ;CHECK-LABEL: uqshl8b:
 ;CHECK: uqshl.8b
@@ -126,15 +160,52 @@ define <2 x i64> @uqshl2d(<2 x i64>* %A, <2 x i64>* %B) nounwind {
         ret <2 x i64> %tmp3
 }
 
+define <1 x i64> @uqshl1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: uqshl1d:
+;CHECK: uqshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp2 = load <1 x i64>, <1 x i64>* %B
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.uqshl.v1i64(<1 x i64> %tmp1, <1 x i64> %tmp2)
+        ret <1 x i64> %tmp3
+}
+
+define <1 x i64> @uqshl1d_constant(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: uqshl1d_constant:
+;CHECK: uqshl {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.uqshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @uqshl_scalar(i64* %A, i64* %B) nounwind {
+;CHECK-LABEL: uqshl_scalar:
+;CHECK: uqshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load i64, i64* %A
+        %tmp2 = load i64, i64* %B
+        %tmp3 = call i64 @llvm.aarch64.neon.uqshl.i64(i64 %tmp1, i64 %tmp2)
+        ret i64 %tmp3
+}
+
+define i64 @uqshl_scalar_constant(i64* %A) nounwind {
+;CHECK-LABEL: uqshl_scalar_constant:
+;CHECK: uqshl {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.uqshl.i64(i64 %tmp1, i64 1)
+        ret i64 %tmp3
+}
+
 declare <8 x i8>  @llvm.aarch64.neon.sqshl.v8i8(<8 x i8>, <8 x i8>) nounwind readnone
 declare <4 x i16> @llvm.aarch64.neon.sqshl.v4i16(<4 x i16>, <4 x i16>) nounwind readnone
 declare <2 x i32> @llvm.aarch64.neon.sqshl.v2i32(<2 x i32>, <2 x i32>) nounwind readnone
 declare <1 x i64> @llvm.aarch64.neon.sqshl.v1i64(<1 x i64>, <1 x i64>) nounwind readnone
+declare i64 @llvm.aarch64.neon.sqshl.i64(i64, i64) nounwind readnone
+
 
 declare <8 x i8>  @llvm.aarch64.neon.uqshl.v8i8(<8 x i8>, <8 x i8>) nounwind readnone
 declare <4 x i16> @llvm.aarch64.neon.uqshl.v4i16(<4 x i16>, <4 x i16>) nounwind readnone
 declare <2 x i32> @llvm.aarch64.neon.uqshl.v2i32(<2 x i32>, <2 x i32>) nounwind readnone
 declare <1 x i64> @llvm.aarch64.neon.uqshl.v1i64(<1 x i64>, <1 x i64>) nounwind readnone
+declare i64 @llvm.aarch64.neon.uqshl.i64(i64, i64) nounwind readnone
 
 declare <16 x i8> @llvm.aarch64.neon.sqshl.v16i8(<16 x i8>, <16 x i8>) nounwind readnone
 declare <8 x i16> @llvm.aarch64.neon.sqshl.v8i16(<8 x i16>, <8 x i16>) nounwind readnone
@@ -173,6 +244,44 @@ define <2 x i32> @srshl2s(<2 x i32>* %A, <2 x i32>* %B) nounwind {
         ret <2 x i32> %tmp3
 }
 
+define <1 x i64> @srshl1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: srshl1d:
+;CHECK: srshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp2 = load <1 x i64>, <1 x i64>* %B
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.srshl.v1i64(<1 x i64> %tmp1, <1 x i64> %tmp2)
+        ret <1 x i64> %tmp3
+}
+
+define <1 x i64> @srshl1d_constant(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: srshl1d_constant:
+;CHECK: mov w[[GCONST:[0-9]+]], #1
+;CHECK: fmov d[[DCONST:[0-9]+]], x[[GCONST]]
+;CHECK: srshl {{d[0-9]+}}, {{d[0-9]+}}, d[[DCONST]]
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.srshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @srshl_scalar(i64* %A, i64* %B) nounwind {
+;CHECK-LABEL: srshl_scalar:
+;CHECK: srshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load i64, i64* %A
+        %tmp2 = load i64, i64* %B
+        %tmp3 = call i64 @llvm.aarch64.neon.srshl.i64(i64 %tmp1, i64 %tmp2)
+        ret i64 %tmp3
+}
+
+define i64 @srshl_scalar_constant(i64* %A) nounwind {
+;CHECK-LABEL: srshl_scalar_constant:
+;CHECK: mov w[[GCONST:[0-9]+]], #1
+;CHECK: fmov d[[DCONST:[0-9]+]], x[[GCONST]]
+;CHECK: srshl {{d[0-9]+}}, {{d[0-9]+}}, d[[DCONST]]
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.srshl.i64(i64 %tmp1, i64 1)
+        ret i64 %tmp3
+}
+
 define <8 x i8> @urshl8b(<8 x i8>* %A, <8 x i8>* %B) nounwind {
 ;CHECK-LABEL: urshl8b:
 ;CHECK: urshl.8b
@@ -198,6 +307,44 @@ define <2 x i32> @urshl2s(<2 x i32>* %A, <2 x i32>* %B) nounwind {
         %tmp2 = load <2 x i32>, <2 x i32>* %B
         %tmp3 = call <2 x i32> @llvm.aarch64.neon.urshl.v2i32(<2 x i32> %tmp1, <2 x i32> %tmp2)
         ret <2 x i32> %tmp3
+}
+
+define <1 x i64> @urshl1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: urshl1d:
+;CHECK: urshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp2 = load <1 x i64>, <1 x i64>* %B
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.urshl.v1i64(<1 x i64> %tmp1, <1 x i64> %tmp2)
+        ret <1 x i64> %tmp3
+}
+
+define <1 x i64> @urshl1d_constant(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: urshl1d_constant:
+;CHECK: mov w[[GCONST:[0-9]+]], #1
+;CHECK: fmov d[[DCONST:[0-9]+]], x[[GCONST]]
+;CHECK: urshl {{d[0-9]+}}, {{d[0-9]+}}, d[[DCONST]]
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.urshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @urshl_scalar(i64* %A, i64* %B) nounwind {
+;CHECK-LABEL: urshl_scalar:
+;CHECK: urshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load i64, i64* %A
+        %tmp2 = load i64, i64* %B
+        %tmp3 = call i64 @llvm.aarch64.neon.urshl.i64(i64 %tmp1, i64 %tmp2)
+        ret i64 %tmp3
+}
+
+define i64 @urshl_scalar_constant(i64* %A) nounwind {
+;CHECK-LABEL: urshl_scalar_constant:
+;CHECK: mov w[[GCONST:[0-9]+]], #1
+;CHECK: fmov d[[DCONST:[0-9]+]], x[[GCONST]]
+;CHECK: urshl {{d[0-9]+}}, {{d[0-9]+}}, d[[DCONST]]
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.urshl.i64(i64 %tmp1, i64 1)
+        ret i64 %tmp3
 }
 
 define <16 x i8> @srshl16b(<16 x i8>* %A, <16 x i8>* %B) nounwind {
@@ -276,11 +423,13 @@ declare <8 x i8>  @llvm.aarch64.neon.srshl.v8i8(<8 x i8>, <8 x i8>) nounwind rea
 declare <4 x i16> @llvm.aarch64.neon.srshl.v4i16(<4 x i16>, <4 x i16>) nounwind readnone
 declare <2 x i32> @llvm.aarch64.neon.srshl.v2i32(<2 x i32>, <2 x i32>) nounwind readnone
 declare <1 x i64> @llvm.aarch64.neon.srshl.v1i64(<1 x i64>, <1 x i64>) nounwind readnone
+declare i64 @llvm.aarch64.neon.srshl.i64(i64, i64) nounwind readnone
 
 declare <8 x i8>  @llvm.aarch64.neon.urshl.v8i8(<8 x i8>, <8 x i8>) nounwind readnone
 declare <4 x i16> @llvm.aarch64.neon.urshl.v4i16(<4 x i16>, <4 x i16>) nounwind readnone
 declare <2 x i32> @llvm.aarch64.neon.urshl.v2i32(<2 x i32>, <2 x i32>) nounwind readnone
 declare <1 x i64> @llvm.aarch64.neon.urshl.v1i64(<1 x i64>, <1 x i64>) nounwind readnone
+declare i64 @llvm.aarch64.neon.urshl.i64(i64, i64) nounwind readnone
 
 declare <16 x i8> @llvm.aarch64.neon.srshl.v16i8(<16 x i8>, <16 x i8>) nounwind readnone
 declare <8 x i16> @llvm.aarch64.neon.srshl.v8i16(<8 x i16>, <8 x i16>) nounwind readnone
@@ -382,6 +531,44 @@ define <2 x i64> @sqrshl2d(<2 x i64>* %A, <2 x i64>* %B) nounwind {
         ret <2 x i64> %tmp3
 }
 
+define <1 x i64> @sqrshl1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: sqrshl1d:
+;CHECK: sqrshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp2 = load <1 x i64>, <1 x i64>* %B
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.sqrshl.v1i64(<1 x i64> %tmp1, <1 x i64> %tmp2)
+        ret <1 x i64> %tmp3
+}
+
+define <1 x i64> @sqrshl1d_constant(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: sqrshl1d_constant:
+;CHECK: mov w[[GCONST:[0-9]+]], #1
+;CHECK: fmov d[[DCONST:[0-9]+]], x[[GCONST]]
+;CHECK: sqrshl {{d[0-9]+}}, {{d[0-9]+}}, d[[DCONST]]
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.sqrshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @sqrshl_scalar(i64* %A, i64* %B) nounwind {
+;CHECK-LABEL: sqrshl_scalar:
+;CHECK: sqrshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load i64, i64* %A
+        %tmp2 = load i64, i64* %B
+        %tmp3 = call i64 @llvm.aarch64.neon.sqrshl.i64(i64 %tmp1, i64 %tmp2)
+        ret i64 %tmp3
+}
+
+define i64 @sqrshl_scalar_constant(i64* %A) nounwind {
+;CHECK-LABEL: sqrshl_scalar_constant:
+;CHECK: mov w[[GCONST:[0-9]+]], #1
+;CHECK: fmov d[[DCONST:[0-9]+]], x[[GCONST]]
+;CHECK: sqrshl {{d[0-9]+}}, {{d[0-9]+}}, d[[DCONST]]
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.sqrshl.i64(i64 %tmp1, i64 1)
+        ret i64 %tmp3
+}
+
 define <16 x i8> @uqrshl16b(<16 x i8>* %A, <16 x i8>* %B) nounwind {
 ;CHECK-LABEL: uqrshl16b:
 ;CHECK: uqrshl.16b
@@ -418,15 +605,55 @@ define <2 x i64> @uqrshl2d(<2 x i64>* %A, <2 x i64>* %B) nounwind {
         ret <2 x i64> %tmp3
 }
 
+define <1 x i64> @uqrshl1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: uqrshl1d:
+;CHECK: uqrshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp2 = load <1 x i64>, <1 x i64>* %B
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.uqrshl.v1i64(<1 x i64> %tmp1, <1 x i64> %tmp2)
+        ret <1 x i64> %tmp3
+}
+
+define <1 x i64> @uqrshl1d_constant(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: uqrshl1d_constant:
+;CHECK: mov w[[GCONST:[0-9]+]], #1
+;CHECK: fmov d[[DCONST:[0-9]+]], x[[GCONST]]
+;CHECK: uqrshl {{d[0-9]+}}, {{d[0-9]+}}, d[[DCONST]]
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.uqrshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @uqrshl_scalar(i64* %A, i64* %B) nounwind {
+;CHECK-LABEL: uqrshl_scalar:
+;CHECK: uqrshl {{d[0-9]+}}, {{d[0-9]+}}, {{d[0-9]+}}
+        %tmp1 = load i64, i64* %A
+        %tmp2 = load i64, i64* %B
+        %tmp3 = call i64 @llvm.aarch64.neon.uqrshl.i64(i64 %tmp1, i64 %tmp2)
+        ret i64 %tmp3
+}
+
+define i64 @uqrshl_scalar_constant(i64* %A) nounwind {
+;CHECK-LABEL: uqrshl_scalar_constant:
+;CHECK: mov w[[GCONST:[0-9]+]], #1
+;CHECK: fmov d[[DCONST:[0-9]+]], x[[GCONST]]
+;CHECK: uqrshl {{d[0-9]+}}, {{d[0-9]+}}, d[[DCONST]]
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.uqrshl.i64(i64 %tmp1, i64 1)
+        ret i64 %tmp3
+}
+
 declare <8 x i8>  @llvm.aarch64.neon.sqrshl.v8i8(<8 x i8>, <8 x i8>) nounwind readnone
 declare <4 x i16> @llvm.aarch64.neon.sqrshl.v4i16(<4 x i16>, <4 x i16>) nounwind readnone
 declare <2 x i32> @llvm.aarch64.neon.sqrshl.v2i32(<2 x i32>, <2 x i32>) nounwind readnone
 declare <1 x i64> @llvm.aarch64.neon.sqrshl.v1i64(<1 x i64>, <1 x i64>) nounwind readnone
+declare i64 @llvm.aarch64.neon.sqrshl.i64(i64, i64) nounwind readnone
 
 declare <8 x i8>  @llvm.aarch64.neon.uqrshl.v8i8(<8 x i8>, <8 x i8>) nounwind readnone
 declare <4 x i16> @llvm.aarch64.neon.uqrshl.v4i16(<4 x i16>, <4 x i16>) nounwind readnone
 declare <2 x i32> @llvm.aarch64.neon.uqrshl.v2i32(<2 x i32>, <2 x i32>) nounwind readnone
 declare <1 x i64> @llvm.aarch64.neon.uqrshl.v1i64(<1 x i64>, <1 x i64>) nounwind readnone
+declare i64 @llvm.aarch64.neon.uqrshl.i64(i64, i64) nounwind readnone
 
 declare <16 x i8> @llvm.aarch64.neon.sqrshl.v16i8(<16 x i8>, <16 x i8>) nounwind readnone
 declare <8 x i16> @llvm.aarch64.neon.sqrshl.v8i16(<8 x i16>, <8 x i16>) nounwind readnone
@@ -494,6 +721,22 @@ define <2 x i64> @urshr2d(<2 x i64>* %A) nounwind {
         ret <2 x i64> %tmp3
 }
 
+define <1 x i64> @urshr1d(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: urshr1d:
+;CHECK: urshr {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.urshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 -1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @urshr_scalar(i64* %A) nounwind {
+;CHECK-LABEL: urshr_scalar:
+;CHECK: urshr {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.urshl.i64(i64 %tmp1, i64 -1)
+        ret i64 %tmp3
+}
+
 define <8 x i8> @srshr8b(<8 x i8>* %A) nounwind {
 ;CHECK-LABEL: srshr8b:
 ;CHECK: srshr.8b
@@ -548,6 +791,22 @@ define <2 x i64> @srshr2d(<2 x i64>* %A) nounwind {
         %tmp1 = load <2 x i64>, <2 x i64>* %A
         %tmp3 = call <2 x i64> @llvm.aarch64.neon.srshl.v2i64(<2 x i64> %tmp1, <2 x i64> <i64 -1, i64 -1>)
         ret <2 x i64> %tmp3
+}
+
+define <1 x i64> @srshr1d(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: srshr1d:
+;CHECK: srshr {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.srshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 -1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @srshr_scalar(i64* %A) nounwind {
+;CHECK-LABEL: srshr_scalar:
+;CHECK: srshr {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.srshl.i64(i64 %tmp1, i64 -1)
+        ret i64 %tmp3
 }
 
 define <8 x i8> @sqshlu8b(<8 x i8>* %A) nounwind {
@@ -606,10 +865,27 @@ define <2 x i64> @sqshlu2d(<2 x i64>* %A) nounwind {
         ret <2 x i64> %tmp3
 }
 
+define <1 x i64> @sqshlu1d_constant(<1 x i64>* %A) nounwind {
+;CHECK-LABEL: sqshlu1d_constant:
+;CHECK: sqshlu {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.sqshlu.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 1>)
+        ret <1 x i64> %tmp3
+}
+
+define i64 @sqshlu_scalar_constant(i64* %A) nounwind {
+;CHECK-LABEL: sqshlu_scalar_constant:
+;CHECK: sqshlu {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.sqshlu.i64(i64 %tmp1, i64 1)
+        ret i64 %tmp3
+}
+
 declare <8 x i8>  @llvm.aarch64.neon.sqshlu.v8i8(<8 x i8>, <8 x i8>) nounwind readnone
 declare <4 x i16> @llvm.aarch64.neon.sqshlu.v4i16(<4 x i16>, <4 x i16>) nounwind readnone
 declare <2 x i32> @llvm.aarch64.neon.sqshlu.v2i32(<2 x i32>, <2 x i32>) nounwind readnone
 declare <1 x i64> @llvm.aarch64.neon.sqshlu.v1i64(<1 x i64>, <1 x i64>) nounwind readnone
+declare i64 @llvm.aarch64.neon.sqshlu.i64(i64, i64) nounwind readnone
 
 declare <16 x i8> @llvm.aarch64.neon.sqshlu.v16i8(<16 x i8>, <16 x i8>) nounwind readnone
 declare <8 x i16> @llvm.aarch64.neon.sqshlu.v8i16(<8 x i16>, <8 x i16>) nounwind readnone
@@ -1192,6 +1468,111 @@ define <2 x i64> @ushll2_2d(<4 x i32>* %A) nounwind {
         ret <2 x i64> %tmp3
 }
 
+declare <16 x i8> @llvm.aarch64.neon.ushl.v16i8(<16 x i8>, <16 x i8>)
+declare <8 x i16> @llvm.aarch64.neon.ushl.v8i16(<8 x i16>, <8 x i16>)
+declare <4 x i32> @llvm.aarch64.neon.ushl.v4i32(<4 x i32>, <4 x i32>)
+declare <2 x i64> @llvm.aarch64.neon.ushl.v2i64(<2 x i64>, <2 x i64>)
+declare <1 x i64> @llvm.aarch64.neon.ushl.v1i64(<1 x i64>, <1 x i64>)
+declare i64 @llvm.aarch64.neon.ushl.i64(i64, i64)
+
+define <8 x i16> @neon.ushll8h_constant_shift(<8 x i8>* %A) nounwind {
+;CHECK-LABEL: neon.ushll8h_constant_shift
+;CHECK: ushll.8h v0, {{v[0-9]+}}, #1
+  %tmp1 = load <8 x i8>, <8 x i8>* %A
+  %tmp2 = zext <8 x i8> %tmp1 to <8 x i16>
+  %tmp3 = call <8 x i16> @llvm.aarch64.neon.ushl.v8i16(<8 x i16> %tmp2, <8 x i16> <i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1>)
+  ret <8 x i16> %tmp3
+}
+
+define <8 x i16> @neon.ushl8h_no_constant_shift(<8 x i8>* %A) nounwind {
+;CHECK-LABEL: neon.ushl8h_no_constant_shift
+;CHECK: ushl.8h v0, v0, v0
+  %tmp1 = load <8 x i8>, <8 x i8>* %A
+  %tmp2 = zext <8 x i8> %tmp1 to <8 x i16>
+  %tmp3 = call <8 x i16> @llvm.aarch64.neon.ushl.v8i16(<8 x i16> %tmp2, <8 x i16> %tmp2)
+  ret <8 x i16> %tmp3
+}
+
+define <4 x i32> @neon.ushl8h_constant_shift_extend_not_2x(<4 x i8>* %A) nounwind {
+; CHECK-LABEL: neon.ushl8h_constant_shift_extend_not_2x:
+; CHECK: // %bb.0:
+; CHECK-NEXT: ldr s0, [x0]
+; CHECK-NEXT: ushll.8h v0, v0, #0
+; CHECK-NEXT: ushll.4s v0, v0, #1
+; CHECK-NEXT: ret
+  %tmp1 = load <4 x i8>, <4 x i8>* %A
+  %tmp2 = zext <4 x i8> %tmp1 to <4 x i32>
+  %tmp3 = call <4 x i32> @llvm.aarch64.neon.ushl.v4i32(<4 x i32> %tmp2, <4 x i32> <i32 1, i32 1, i32 1, i32 1>)
+  ret <4 x i32> %tmp3
+}
+
+define <8 x i16> @neon.ushl8_noext_constant_shift(<8 x i16>* %A) nounwind {
+; CHECK-LABEL: neon.ushl8_noext_constant_shift
+; CHECK:      ldr       q0, [x0]
+; CHECK-NEXT: shl.8h   v0, v0, #1
+; CHECK-NEXT: ret
+  %tmp1 = load <8 x i16>, <8 x i16>* %A
+  %tmp3 = call <8 x i16> @llvm.aarch64.neon.ushl.v8i16(<8 x i16> %tmp1, <8 x i16> <i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1>)
+  ret <8 x i16> %tmp3
+}
+
+define <4 x i32> @neon.ushll4s_constant_shift(<4 x i16>* %A) nounwind {
+;CHECK-LABEL: neon.ushll4s_constant_shift
+;CHECK: ushll.4s v0, {{v[0-9]+}}, #1
+  %tmp1 = load <4 x i16>, <4 x i16>* %A
+  %tmp2 = zext <4 x i16> %tmp1 to <4 x i32>
+  %tmp3 = call <4 x i32> @llvm.aarch64.neon.ushl.v4i32(<4 x i32> %tmp2, <4 x i32> <i32 1, i32 1, i32 1, i32 1>)
+  ret <4 x i32> %tmp3
+}
+
+; FIXME: unnecessary ushll.4s v0, v0, #0?
+define <4 x i32> @neon.ushll4s_neg_constant_shift(<4 x i16>* %A) nounwind {
+; CHECK-LABEL: neon.ushll4s_neg_constant_shift
+; CHECK: movi.2d v1, #0xffffffffffffffff
+; CHECK: ushll.4s v0, v0, #0
+; CHECK: ushl.4s v0, v0, v1
+  %tmp1 = load <4 x i16>, <4 x i16>* %A
+  %tmp2 = zext <4 x i16> %tmp1 to <4 x i32>
+  %tmp3 = call <4 x i32> @llvm.aarch64.neon.ushl.v4i32(<4 x i32> %tmp2, <4 x i32> <i32 -1, i32 -1, i32 -1, i32 -1>)
+  ret <4 x i32> %tmp3
+}
+
+; FIXME: should be constant folded.
+define <4 x i32> @neon.ushll4s_constant_fold() nounwind {
+; CHECK-LABEL: neon.ushll4s_constant_fold
+; CHECK: shl.4s v0, v0, #1
+;
+  %tmp3 = call <4 x i32> @llvm.aarch64.neon.ushl.v4i32(<4 x i32> <i32 0, i32 1, i32 2, i32 3>, <4 x i32> <i32 1, i32 1, i32 1, i32 1>)
+  ret <4 x i32> %tmp3
+}
+
+define <2 x i64> @neon.ushll2d_constant_shift(<2 x i32>* %A) nounwind {
+;CHECK-LABEL: neon.ushll2d_constant_shift
+;CHECK: ushll.2d v0, {{v[0-9]+}}, #1
+  %tmp1 = load <2 x i32>, <2 x i32>* %A
+  %tmp2 = zext <2 x i32> %tmp1 to <2 x i64>
+  %tmp3 = call <2 x i64> @llvm.aarch64.neon.ushl.v2i64(<2 x i64> %tmp2, <2 x i64> <i64 1, i64 1>)
+  ret <2 x i64> %tmp3
+}
+
+define <1 x i64> @neon.ushl_vscalar_constant_shift(<1 x i32>* %A) nounwind {
+;CHECK-LABEL: neon.ushl_vscalar_constant_shift
+;CHECK: shl {{d[0-9]+}}, {{d[0-9]+}}, #1
+  %tmp1 = load <1 x i32>, <1 x i32>* %A
+  %tmp2 = zext <1 x i32> %tmp1 to <1 x i64>
+  %tmp3 = call <1 x i64> @llvm.aarch64.neon.ushl.v1i64(<1 x i64> %tmp2, <1 x i64> <i64 1>)
+  ret <1 x i64> %tmp3
+}
+
+define i64 @neon.ushl_scalar_constant_shift(i32* %A) nounwind {
+;CHECK-LABEL: neon.ushl_scalar_constant_shift
+;CHECK: shl {{d[0-9]+}}, {{d[0-9]+}}, #1
+  %tmp1 = load i32, i32* %A
+  %tmp2 = zext i32 %tmp1 to i64
+  %tmp3 = call i64 @llvm.aarch64.neon.ushl.i64(i64 %tmp2, i64 1)
+  ret i64 %tmp3
+}
+
 define <8 x i16> @sshll8h(<8 x i8>* %A) nounwind {
 ;CHECK-LABEL: sshll8h:
 ;CHECK: sshll.8h v0, {{v[0-9]+}}, #1
@@ -1201,21 +1582,144 @@ define <8 x i16> @sshll8h(<8 x i8>* %A) nounwind {
         ret <8 x i16> %tmp3
 }
 
-define <4 x i32> @sshll4s(<4 x i16>* %A) nounwind {
-;CHECK-LABEL: sshll4s:
-;CHECK: sshll.4s v0, {{v[0-9]+}}, #1
-        %tmp1 = load <4 x i16>, <4 x i16>* %A
-        %tmp2 = sext <4 x i16> %tmp1 to <4 x i32>
-        %tmp3 = shl <4 x i32> %tmp2, <i32 1, i32 1, i32 1, i32 1>
-        ret <4 x i32> %tmp3
-}
-
 define <2 x i64> @sshll2d(<2 x i32>* %A) nounwind {
 ;CHECK-LABEL: sshll2d:
 ;CHECK: sshll.2d v0, {{v[0-9]+}}, #1
         %tmp1 = load <2 x i32>, <2 x i32>* %A
         %tmp2 = sext <2 x i32> %tmp1 to <2 x i64>
         %tmp3 = shl <2 x i64> %tmp2, <i64 1, i64 1>
+        ret <2 x i64> %tmp3
+}
+
+declare <16 x i8> @llvm.aarch64.neon.sshl.v16i8(<16 x i8>, <16 x i8>)
+declare <8 x i16> @llvm.aarch64.neon.sshl.v8i16(<8 x i16>, <8 x i16>)
+declare <4 x i32> @llvm.aarch64.neon.sshl.v4i32(<4 x i32>, <4 x i32>)
+declare <2 x i64> @llvm.aarch64.neon.sshl.v2i64(<2 x i64>, <2 x i64>)
+declare <1 x i64> @llvm.aarch64.neon.sshl.v1i64(<1 x i64>, <1 x i64>)
+declare i64 @llvm.aarch64.neon.sshl.i64(i64, i64)
+
+define <16 x i8> @neon.sshl16b_constant_shift(<16 x i8>* %A) nounwind {
+;CHECK-LABEL: neon.sshl16b_constant_shift
+;CHECK: shl.16b {{v[0-9]+}}, {{v[0-9]+}}, #1
+        %tmp1 = load <16 x i8>, <16 x i8>* %A
+        %tmp2 = call <16 x i8> @llvm.aarch64.neon.sshl.v16i8(<16 x i8> %tmp1, <16 x i8> <i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1>)
+        ret <16 x i8> %tmp2
+}
+
+define <16 x i8> @neon.sshl16b_non_splat_constant_shift(<16 x i8>* %A) nounwind {
+;CHECK-LABEL: neon.sshl16b_non_splat_constant_shift
+;CHECK: sshl.16b {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
+        %tmp1 = load <16 x i8>, <16 x i8>* %A
+        %tmp2 = call <16 x i8> @llvm.aarch64.neon.sshl.v16i8(<16 x i8> %tmp1, <16 x i8> <i8 6, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1>)
+        ret <16 x i8> %tmp2
+}
+
+define <16 x i8> @neon.sshl16b_neg_constant_shift(<16 x i8>* %A) nounwind {
+;CHECK-LABEL: neon.sshl16b_neg_constant_shift
+;CHECK: sshl.16b {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
+        %tmp1 = load <16 x i8>, <16 x i8>* %A
+        %tmp2 = call <16 x i8> @llvm.aarch64.neon.sshl.v16i8(<16 x i8> %tmp1, <16 x i8> <i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2, i8 -2>)
+        ret <16 x i8> %tmp2
+}
+
+define <8 x i16> @neon.sshll8h_constant_shift(<8 x i8>* %A) nounwind {
+;CHECK-LABEL: neon.sshll8h_constant_shift
+;CHECK: sshll.8h v0, {{v[0-9]+}}, #1
+        %tmp1 = load <8 x i8>, <8 x i8>* %A
+        %tmp2 = sext <8 x i8> %tmp1 to <8 x i16>
+        %tmp3 = call <8 x i16> @llvm.aarch64.neon.sshl.v8i16(<8 x i16> %tmp2, <8 x i16> <i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1>)
+        ret <8 x i16> %tmp3
+}
+
+define <4 x i32> @neon.sshl4s_wrong_ext_constant_shift(<4 x i8>* %A) nounwind {
+; CHECK-LABEL: neon.sshl4s_wrong_ext_constant_shift:
+; CHECK: // %bb.0:
+; CHECK-NEXT: ldr s0, [x0]
+; CHECK-NEXT: sshll.8h v0, v0, #0
+; CHECK-NEXT: sshll.4s v0, v0, #1
+; CHECK-NEXT: ret
+        %tmp1 = load <4 x i8>, <4 x i8>* %A
+        %tmp2 = sext <4 x i8> %tmp1 to <4 x i32>
+        %tmp3 = call <4 x i32> @llvm.aarch64.neon.sshl.v4i32(<4 x i32> %tmp2, <4 x i32> <i32 1, i32 1, i32 1, i32 1>)
+        ret <4 x i32> %tmp3
+}
+
+define <4 x i32> @neon.sshll4s_constant_shift(<4 x i16>* %A) nounwind {
+;CHECK-LABEL: neon.sshll4s_constant_shift
+;CHECK: sshll.4s v0, {{v[0-9]+}}, #1
+        %tmp1 = load <4 x i16>, <4 x i16>* %A
+        %tmp2 = sext <4 x i16> %tmp1 to <4 x i32>
+        %tmp3 = call <4 x i32> @llvm.aarch64.neon.sshl.v4i32(<4 x i32> %tmp2, <4 x i32> <i32 1, i32 1, i32 1, i32 1>)
+        ret <4 x i32> %tmp3
+}
+
+define <4 x i32> @neon.sshll4s_neg_constant_shift(<4 x i16>* %A) nounwind {
+;CHECK-LABEL: neon.sshll4s_neg_constant_shift
+;CHECK: movi.2d v1, #0xffffffffffffffff
+;CHECK: sshll.4s v0, v0, #0
+;CHECK: sshl.4s v0, v0, v1
+        %tmp1 = load <4 x i16>, <4 x i16>* %A
+        %tmp2 = sext <4 x i16> %tmp1 to <4 x i32>
+        %tmp3 = call <4 x i32> @llvm.aarch64.neon.sshl.v4i32(<4 x i32> %tmp2, <4 x i32> <i32 -1, i32 -1, i32 -1, i32 -1>)
+        ret <4 x i32> %tmp3
+}
+
+; FIXME: should be constant folded.
+define <4 x i32> @neon.sshl4s_constant_fold() nounwind {
+;CHECK-LABEL: neon.sshl4s_constant_fold
+;CHECK: shl.4s {{v[0-9]+}}, {{v[0-9]+}}, #2
+        %tmp3 = call <4 x i32> @llvm.aarch64.neon.sshl.v4i32(<4 x i32> <i32 0, i32 1, i32 2, i32 3>, <4 x i32> <i32 2, i32 2, i32 2, i32 2>)
+        ret <4 x i32> %tmp3
+}
+
+define <4 x i32> @neon.sshl4s_no_fold(<4 x i32>* %A) nounwind {
+;CHECK-LABEL: neon.sshl4s_no_fold
+;CHECK: shl.4s {{v[0-9]+}}, {{v[0-9]+}}, #1
+        %tmp1 = load <4 x i32>, <4 x i32>* %A
+        %tmp3 = call <4 x i32> @llvm.aarch64.neon.sshl.v4i32(<4 x i32> %tmp1, <4 x i32> <i32 1, i32 1, i32 1, i32 1>)
+        ret <4 x i32> %tmp3
+}
+
+define <2 x i64> @neon.sshll2d_constant_shift(<2 x i32>* %A) nounwind {
+;CHECK-LABEL: neon.sshll2d_constant_shift
+;CHECK: sshll.2d v0, {{v[0-9]+}}, #1
+        %tmp1 = load <2 x i32>, <2 x i32>* %A
+        %tmp2 = sext <2 x i32> %tmp1 to <2 x i64>
+        %tmp3 = call <2 x i64> @llvm.aarch64.neon.sshl.v2i64(<2 x i64> %tmp2, <2 x i64> <i64 1, i64 1>)
+        ret <2 x i64> %tmp3
+}
+
+define <1 x i64> @neon.sshll_vscalar_constant_shift(<1 x i32>* %A) nounwind {
+;CHECK-LABEL: neon.sshll_vscalar_constant_shift
+;CHECK: shl {{d[0-9]+}}, {{d[0-9]+}}, #1
+  %tmp1 = load <1 x i32>, <1 x i32>* %A
+  %tmp2 = zext <1 x i32> %tmp1 to <1 x i64>
+  %tmp3 = call <1 x i64> @llvm.aarch64.neon.sshl.v1i64(<1 x i64> %tmp2, <1 x i64> <i64 1>)
+  ret <1 x i64> %tmp3
+}
+
+define i64 @neon.sshll_scalar_constant_shift(i32* %A) nounwind {
+;CHECK-LABEL: neon.sshll_scalar_constant_shift
+;CHECK: shl {{d[0-9]+}}, {{d[0-9]+}}, #1
+  %tmp1 = load i32, i32* %A
+  %tmp2 = zext i32 %tmp1 to i64
+  %tmp3 = call i64 @llvm.aarch64.neon.sshl.i64(i64 %tmp2, i64 1)
+  ret i64 %tmp3
+}
+
+; FIXME: should be constant folded.
+define <2 x i64> @neon.sshl2d_constant_fold() nounwind {
+;CHECK-LABEL: neon.sshl2d_constant_fold
+;CHECK: shl.2d {{v[0-9]+}}, {{v[0-9]+}}, #1
+        %tmp3 = call <2 x i64> @llvm.aarch64.neon.sshl.v2i64(<2 x i64> <i64 99, i64 1000>, <2 x i64> <i64 1, i64 1>)
+        ret <2 x i64> %tmp3
+}
+
+define <2 x i64> @neon.sshl2d_no_fold(<2 x i64>* %A) nounwind {
+;CHECK-LABEL: neon.sshl2d_no_fold
+;CHECK: shl.2d {{v[0-9]+}}, {{v[0-9]+}}, #2
+        %tmp2 = load <2 x i64>, <2 x i64>* %A
+        %tmp3 = call <2 x i64> @llvm.aarch64.neon.sshl.v2i64(<2 x i64> %tmp2, <2 x i64> <i64 2, i64 2>)
         ret <2 x i64> %tmp3
 }
 
@@ -1440,6 +1944,26 @@ define <2 x i64> @ursra2d(<2 x i64>* %A, <2 x i64>* %B) nounwind {
          ret <2 x i64> %tmp5
 }
 
+define <1 x i64> @ursra1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: ursra1d:
+;CHECK: ursra {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.urshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 -1>)
+        %tmp4 = load <1 x i64>, <1 x i64>* %B
+        %tmp5 = add <1 x i64> %tmp3, %tmp4
+        ret <1 x i64> %tmp5
+}
+
+define i64 @ursra_scalar(i64* %A, i64* %B) nounwind {
+;CHECK-LABEL: ursra_scalar:
+;CHECK: ursra {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.urshl.i64(i64 %tmp1, i64 -1)
+        %tmp4 = load i64, i64* %B
+        %tmp5 = add i64 %tmp3, %tmp4
+        ret i64 %tmp5
+}
+
 define <8 x i8> @srsra8b(<8 x i8>* %A, <8 x i8>* %B) nounwind {
 ;CHECK-LABEL: srsra8b:
 ;CHECK: srsra.8b v0, {{v[0-9]+}}, #1
@@ -1510,6 +2034,26 @@ define <2 x i64> @srsra2d(<2 x i64>* %A, <2 x i64>* %B) nounwind {
          ret <2 x i64> %tmp5
 }
 
+define <1 x i64> @srsra1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: srsra1d:
+;CHECK: srsra {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = call <1 x i64> @llvm.aarch64.neon.srshl.v1i64(<1 x i64> %tmp1, <1 x i64> <i64 -1>)
+        %tmp4 = load <1 x i64>, <1 x i64>* %B
+        %tmp5 = add <1 x i64> %tmp3, %tmp4
+        ret <1 x i64> %tmp5
+}
+
+define i64 @srsra_scalar(i64* %A, i64* %B) nounwind {
+;CHECK-LABEL: srsra_scalar:
+;CHECK: srsra {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load i64, i64* %A
+        %tmp3 = call i64 @llvm.aarch64.neon.srshl.i64(i64 %tmp1, i64 -1)
+        %tmp4 = load i64, i64* %B
+        %tmp5 = add i64 %tmp3, %tmp4
+        ret i64 %tmp5
+}
+
 define <8 x i8> @usra8b(<8 x i8>* %A, <8 x i8>* %B) nounwind {
 ;CHECK-LABEL: usra8b:
 ;CHECK: usra.8b v0, {{v[0-9]+}}, #1
@@ -1578,6 +2122,16 @@ define <2 x i64> @usra2d(<2 x i64>* %A, <2 x i64>* %B) nounwind {
         %tmp4 = load <2 x i64>, <2 x i64>* %B
         %tmp5 = add <2 x i64> %tmp3, %tmp4
          ret <2 x i64> %tmp5
+}
+
+define <1 x i64> @usra1d(<1 x i64>* %A, <1 x i64>* %B) nounwind {
+;CHECK-LABEL: usra1d:
+;CHECK: usra {{d[0-9]+}}, {{d[0-9]+}}, #1
+        %tmp1 = load <1 x i64>, <1 x i64>* %A
+        %tmp3 = lshr <1 x i64> %tmp1, <i64 1>
+        %tmp4 = load <1 x i64>, <1 x i64>* %B
+        %tmp5 = add <1 x i64> %tmp3, %tmp4
+         ret <1 x i64> %tmp5
 }
 
 define <8 x i8> @ssra8b(<8 x i8>* %A, <8 x i8>* %B) nounwind {

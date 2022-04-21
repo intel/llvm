@@ -30,7 +30,7 @@ static jmp_buf JmpBuf;
 
 namespace {
 
-void MyFatalErrorHandler(void *user_data, const std::string& reason,
+void MyFatalErrorHandler(void *user_data, const char *reason,
                          bool gen_crash_diag) {
   // Don't bother printing reason, just return to the test function,
   // since a fatal error represents a successful parse (i.e. it correctly
@@ -70,6 +70,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   if (!M.get())
     return 0;
 
-  verifyModule(*M.get());
+  if (verifyModule(*M.get(), &errs()))
+    report_fatal_error("Broken module");
   return 0;
 }

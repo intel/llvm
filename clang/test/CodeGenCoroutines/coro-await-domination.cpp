@@ -1,13 +1,13 @@
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fcoroutines-ts -std=c++14 -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -std=c++20 -emit-llvm %s -o - | FileCheck %s
 #include "Inputs/coroutine.h"
 
-using namespace std::experimental;
+using namespace std;
 
 struct coro {
   struct promise_type {
     coro get_return_object();
     suspend_never initial_suspend();
-    suspend_never final_suspend();
+    suspend_never final_suspend() noexcept;
     void return_void();
     static void unhandled_exception();
   };
@@ -35,4 +35,3 @@ extern "C" coro f(int) {
   x = co_await A{};
   consume(x);
 }
-

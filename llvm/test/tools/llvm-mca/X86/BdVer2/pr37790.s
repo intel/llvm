@@ -6,12 +6,12 @@ stmxcsr (%rsp)
 
 # CHECK:      Iterations:        2
 # CHECK-NEXT: Instructions:      4
-# CHECK-NEXT: Total Cycles:      205
+# CHECK-NEXT: Total Cycles:      103
 # CHECK-NEXT: Total uOps:        6
 
 # CHECK:      Dispatch Width:    4
-# CHECK-NEXT: uOps Per Cycle:    0.03
-# CHECK-NEXT: IPC:               0.02
+# CHECK-NEXT: uOps Per Cycle:    0.06
+# CHECK-NEXT: IPC:               0.04
 # CHECK-NEXT: Block RThroughput: 18.0
 
 # CHECK:      Instruction Info:
@@ -24,14 +24,16 @@ stmxcsr (%rsp)
 
 # CHECK:      [1]    [2]    [3]    [4]    [5]    [6]    Instructions:
 # CHECK-NEXT:  1      100   0.50    *      *      U     int3
-# CHECK-NEXT:  2      1     18.00   *      *      U     stmxcsr	(%rsp)
+# CHECK-NEXT:  2      1     18.00          *      U     stmxcsr	(%rsp)
 
 # CHECK:      Timeline view:
 # CHECK-NEXT:                     0123456789          0123456789          0123456789          0123456789          0123456789
-# CHECK-NEXT: Index     0123456789          0123456789          0123456789          0123456789          0123456789          0123
+# CHECK-NEXT: Index     0123456789          0123456789          0123456789          0123456789          0123456789          012
 
-# CHECK:      [0,0]     DeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeER.   int3
-# CHECK-NEXT: [0,1]     D====================================================================================================eER   stmxcsr	(%rsp)
+# CHECK:      [0,0]     DeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeER   int3
+# CHECK-NEXT: [0,1]     DeE---------------------------------------------------------------------------------------------------R   stmxcsr	(%rsp)
+# CHECK-NEXT: [1,0]     DeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeER   int3
+# CHECK-NEXT: [1,1]     .D=================eE---------------------------------------------------------------------------------R   stmxcsr	(%rsp)
 
 # CHECK:      Average Wait times (based on the timeline view):
 # CHECK-NEXT: [0]: Executions
@@ -41,4 +43,5 @@ stmxcsr (%rsp)
 
 # CHECK:            [0]    [1]    [2]    [3]
 # CHECK-NEXT: 0.     2     1.0    0.5    0.0       int3
-# CHECK-NEXT: 1.     2     100.5  0.0    0.0       stmxcsr	(%rsp)
+# CHECK-NEXT: 1.     2     9.5    9.0    90.0      stmxcsr	(%rsp)
+# CHECK-NEXT:        2     5.3    4.8    45.0      <total>

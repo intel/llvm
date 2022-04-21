@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the function verifier interface, that can be used for some
-// sanity checking of input to the system, and for checking that transformations
-// haven't done something bad.
+// This file defines the function verifier interface, that can be used for
+// validation checking of input to the system, and for checking that
+// transformations haven't done something bad.
 //
 // Note that this does not provide full 'java style' security and verifications,
 // instead it just tries to ensure that code is well formed.
@@ -116,6 +116,7 @@ public:
 
   Result run(Module &M, ModuleAnalysisManager &);
   Result run(Function &F, FunctionAnalysisManager &);
+  static bool isRequired() { return true; }
 };
 
 /// Check a module for errors, but report debug info errors separately.
@@ -141,6 +142,7 @@ public:
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  static bool isRequired() { return true; }
 };
 
 } // end namespace llvm

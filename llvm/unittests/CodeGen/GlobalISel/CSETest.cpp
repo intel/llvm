@@ -7,11 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "GISelMITest.h"
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
+#include "gtest/gtest.h"
 
 namespace {
 
-TEST_F(GISelMITest, TestCSE) {
+TEST_F(AArch64GISelMITest, TestCSE) {
+  setUp();
   if (!TM)
     return;
 
@@ -21,13 +24,13 @@ TEST_F(GISelMITest, TestCSE) {
   auto MIBInput1 = B.buildInstr(TargetOpcode::G_TRUNC, {s16}, {Copies[1]});
   auto MIBAdd = B.buildInstr(TargetOpcode::G_ADD, {s16}, {MIBInput, MIBInput});
   GISelCSEInfo CSEInfo;
-  CSEInfo.setCSEConfig(make_unique<CSEConfigFull>());
+  CSEInfo.setCSEConfig(std::make_unique<CSEConfigFull>());
   CSEInfo.analyze(*MF);
   B.setCSEInfo(&CSEInfo);
   CSEMIRBuilder CSEB(B.getState());
 
-  CSEB.setInsertPt(*EntryMBB, EntryMBB->begin());
-  unsigned AddReg = MRI->createGenericVirtualRegister(s16);
+  CSEB.setInsertPt(B.getMBB(), B.getInsertPt());
+  Register AddReg = MRI->createGenericVirtualRegister(s16);
   auto MIBAddCopy =
       CSEB.buildInstr(TargetOpcode::G_ADD, {AddReg}, {MIBInput, MIBInput});
   EXPECT_EQ(MIBAddCopy->getOpcode(), TargetOpcode::COPY);
@@ -57,23 +60,57 @@ TEST_F(GISelMITest, TestCSE) {
 
   // Make sure buildConstant with a vector type doesn't crash, and the elements
   // CSE.
-  auto Splat0 = CSEB.buildConstant(LLT::vector(2, s32), 0);
+  auto Splat0 = CSEB.buildConstant(LLT::fixed_vector(2, s32), 0);
   EXPECT_EQ(TargetOpcode::G_BUILD_VECTOR, Splat0->getOpcode());
-  EXPECT_EQ(Splat0->getOperand(1).getReg(), Splat0->getOperand(2).getReg());
-  EXPECT_EQ(&*MIBCst, MRI->getVRegDef(Splat0->getOperand(1).getReg()));
+  EXPECT_EQ(Splat0.getReg(1), Splat0.getReg(2));
+  EXPECT_EQ(&*MIBCst, MRI->getVRegDef(Splat0.getReg(1)));
 
-  auto FSplat = CSEB.buildFConstant(LLT::vector(2, s32), 1.0);
+  auto FSplat = CSEB.buildFConstant(LLT::fixed_vector(2, s32), 1.0);
   EXPECT_EQ(TargetOpcode::G_BUILD_VECTOR, FSplat->getOpcode());
-  EXPECT_EQ(FSplat->getOperand(1).getReg(), FSplat->getOperand(2).getReg());
-  EXPECT_EQ(&*MIBFP0, MRI->getVRegDef(FSplat->getOperand(1).getReg()));
+  EXPECT_EQ(FSplat.getReg(1), FSplat.getReg(2));
+  EXPECT_EQ(&*MIBFP0, MRI->getVRegDef(FSplat.getReg(1)));
 
   // Check G_UNMERGE_VALUES
   auto MIBUnmerge = CSEB.buildUnmerge({s32, s32}, Copies[0]);
   auto MIBUnmerge2 = CSEB.buildUnmerge({s32, s32}, Copies[0]);
   EXPECT_TRUE(&*MIBUnmerge == &*MIBUnmerge2);
+
+  // Check G_IMPLICIT_DEF
+  auto Undef0 = CSEB.buildUndef(s32);
+  auto Undef1 = CSEB.buildUndef(s32);
+  EXPECT_EQ(&*Undef0, &*Undef1);
+
+  // If the observer is installed to the MF, CSE can also
+  // track new instructions built without the CSEBuilder and
+  // the newly built instructions are available for CSEing next
+  // time a build call is made through the CSEMIRBuilder.
+  // Additionally, the CSE implementation lazily hashes instructions
+  // (every build call) to give chance for the instruction to be fully
+  // built (say using .addUse().addDef().. so on).
+  GISelObserverWrapper WrapperObserver(&CSEInfo);
+  RAIIMFObsDelInstaller Installer(*MF, WrapperObserver);
+  MachineIRBuilder RegularBuilder(*MF);
+  RegularBuilder.setInsertPt(*EntryMBB, EntryMBB->begin());
+  auto NonCSEFMul = RegularBuilder.buildInstr(TargetOpcode::G_AND)
+                        .addDef(MRI->createGenericVirtualRegister(s32))
+                        .addUse(Copies[0])
+                        .addUse(Copies[1]);
+  auto CSEFMul =
+      CSEB.buildInstr(TargetOpcode::G_AND, {s32}, {Copies[0], Copies[1]});
+  EXPECT_EQ(&*CSEFMul, &*NonCSEFMul);
+
+  auto ExtractMIB = CSEB.buildInstr(TargetOpcode::G_EXTRACT, {s16},
+                                    {Copies[0], static_cast<uint64_t>(0)});
+  auto ExtractMIB1 = CSEB.buildInstr(TargetOpcode::G_EXTRACT, {s16},
+                                     {Copies[0], static_cast<uint64_t>(0)});
+  auto ExtractMIB2 = CSEB.buildInstr(TargetOpcode::G_EXTRACT, {s16},
+                                     {Copies[0], static_cast<uint64_t>(1)});
+  EXPECT_EQ(&*ExtractMIB, &*ExtractMIB1);
+  EXPECT_NE(&*ExtractMIB, &*ExtractMIB2);
 }
 
-TEST_F(GISelMITest, TestCSEConstantConfig) {
+TEST_F(AArch64GISelMITest, TestCSEConstantConfig) {
+  setUp();
   if (!TM)
     return;
 
@@ -82,7 +119,7 @@ TEST_F(GISelMITest, TestCSEConstantConfig) {
   auto MIBAdd = B.buildInstr(TargetOpcode::G_ADD, {s16}, {MIBInput, MIBInput});
   auto MIBZero = B.buildConstant(s16, 0);
   GISelCSEInfo CSEInfo;
-  CSEInfo.setCSEConfig(make_unique<CSEConfigConstantOnly>());
+  CSEInfo.setCSEConfig(std::make_unique<CSEConfigConstantOnly>());
   CSEInfo.analyze(*MF);
   B.setCSEInfo(&CSEInfo);
   CSEMIRBuilder CSEB(B.getState());
@@ -95,5 +132,78 @@ TEST_F(GISelMITest, TestCSEConstantConfig) {
   // We should CSE constant.
   auto MIBZeroTmp = CSEB.buildConstant(s16, 0);
   EXPECT_TRUE(&*MIBZero == &*MIBZeroTmp);
+
+  // Check G_IMPLICIT_DEF
+  auto Undef0 = CSEB.buildUndef(s16);
+  auto Undef1 = CSEB.buildUndef(s16);
+  EXPECT_EQ(&*Undef0, &*Undef1);
 }
+
+TEST_F(AArch64GISelMITest, TestCSEImmediateNextCSE) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT s32{LLT::scalar(32)};
+  // We want to check that when the CSE hit is on the next instruction, i.e. at
+  // the current insert pt, that the insertion point is moved ahead of the
+  // instruction.
+
+  GISelCSEInfo CSEInfo;
+  CSEInfo.setCSEConfig(std::make_unique<CSEConfigConstantOnly>());
+  CSEInfo.analyze(*MF);
+  B.setCSEInfo(&CSEInfo);
+  CSEMIRBuilder CSEB(B.getState());
+  CSEB.buildConstant(s32, 0);
+  auto MIBCst2 = CSEB.buildConstant(s32, 2);
+
+  // Move the insert point before the second constant.
+  CSEB.setInsertPt(CSEB.getMBB(), --CSEB.getInsertPt());
+  auto MIBCst3 = CSEB.buildConstant(s32, 2);
+  EXPECT_TRUE(&*MIBCst2 == &*MIBCst3);
+  EXPECT_TRUE(CSEB.getInsertPt() == CSEB.getMBB().end());
+}
+
+TEST_F(AArch64GISelMITest, TestConstantFoldCTL) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT s32 = LLT::scalar(32);
+
+  GISelCSEInfo CSEInfo;
+  CSEInfo.setCSEConfig(std::make_unique<CSEConfigConstantOnly>());
+  CSEInfo.analyze(*MF);
+  B.setCSEInfo(&CSEInfo);
+  CSEMIRBuilder CSEB(B.getState());
+  auto Cst8 = CSEB.buildConstant(s32, 8);
+  auto *CtlzDef = &*CSEB.buildCTLZ(s32, Cst8);
+  EXPECT_TRUE(CtlzDef->getOpcode() == TargetOpcode::G_CONSTANT);
+  EXPECT_TRUE(CtlzDef->getOperand(1).getCImm()->getZExtValue() == 28);
+
+  // Test vector.
+  auto Cst16 = CSEB.buildConstant(s32, 16);
+  auto Cst32 = CSEB.buildConstant(s32, 32);
+  auto Cst64 = CSEB.buildConstant(s32, 64);
+  LLT VecTy = LLT::fixed_vector(4, s32);
+  auto BV = CSEB.buildBuildVector(VecTy, {Cst8.getReg(0), Cst16.getReg(0),
+                                          Cst32.getReg(0), Cst64.getReg(0)});
+  CSEB.buildCTLZ(VecTy, BV);
+
+  auto CheckStr = R"(
+  ; CHECK: [[CST8:%[0-9]+]]:_(s32) = G_CONSTANT i32 8
+  ; CHECK: [[CST28:%[0-9]+]]:_(s32) = G_CONSTANT i32 28
+  ; CHECK: [[CST16:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
+  ; CHECK: [[CST32:%[0-9]+]]:_(s32) = G_CONSTANT i32 32
+  ; CHECK: [[CST64:%[0-9]+]]:_(s32) = G_CONSTANT i32 64
+  ; CHECK: [[BV1:%[0-9]+]]:_(<4 x s32>) = G_BUILD_VECTOR [[CST8]]:_(s32), [[CST16]]:_(s32), [[CST32]]:_(s32), [[CST64]]:_(s32)
+  ; CHECK: [[CST27:%[0-9]+]]:_(s32) = G_CONSTANT i32 27
+  ; CHECK: [[CST26:%[0-9]+]]:_(s32) = G_CONSTANT i32 26
+  ; CHECK: [[CST25:%[0-9]+]]:_(s32) = G_CONSTANT i32 25
+  ; CHECK: [[BV2:%[0-9]+]]:_(<4 x s32>) = G_BUILD_VECTOR [[CST28]]:_(s32), [[CST27]]:_(s32), [[CST26]]:_(s32), [[CST25]]:_(s32)
+  )";
+
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
 } // namespace

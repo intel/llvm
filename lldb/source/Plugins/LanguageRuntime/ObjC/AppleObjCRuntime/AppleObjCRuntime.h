@@ -6,16 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_AppleObjCRuntime_h_
-#define liblldb_AppleObjCRuntime_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCRUNTIME_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCRUNTIME_H
 
 #include "llvm/ADT/Optional.h"
 
 #include "AppleObjCTrampolineHandler.h"
 #include "AppleThreadPlanStepThroughObjCTrampoline.h"
 #include "lldb/Target/LanguageRuntime.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/lldb-private.h"
+
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 
 namespace lldb_private {
 
@@ -28,14 +29,18 @@ public:
   // because
   // you can't make an instance of this generic runtime.
 
-  static bool classof(const ObjCLanguageRuntime *runtime) {
-    switch (runtime->GetRuntimeVersion()) {
-    case ObjCRuntimeVersions::eAppleObjC_V1:
-    case ObjCRuntimeVersions::eAppleObjC_V2:
-      return true;
-    default:
-      return false;
-    }
+  static char ID;
+
+  static void Initialize();
+
+  static void Terminate();
+
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ObjCLanguageRuntime::isA(ClassID);
+  }
+
+  static bool classof(const LanguageRuntime *runtime) {
+    return runtime->isA(&ID);
   }
 
   // These are generic runtime functions:
@@ -83,7 +88,7 @@ public:
   bool ExceptionBreakpointsExplainStop(lldb::StopInfoSP stop_reason) override;
 
   lldb::SearchFilterSP CreateExceptionSearchFilter() override;
-  
+
   static std::tuple<FileSpec, ConstString> GetExceptionThrowLocation();
 
   lldb::ValueObjectSP GetExceptionObjectForThread(
@@ -96,7 +101,7 @@ public:
 
   virtual void GetValuesForGlobalCFBooleans(lldb::addr_t &cf_true,
                                             lldb::addr_t &cf_false);
-                                            
+
   virtual bool IsTaggedPointer (lldb::addr_t addr) { return false; }
 
 protected:
@@ -127,4 +132,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_AppleObjCRuntime_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCRUNTIME_H

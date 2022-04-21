@@ -1,4 +1,4 @@
-// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readobj -S --sr --sd | FileCheck %s
+// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readobj -S --sr --sd - | FileCheck %s
 
 // test that this produces a correctly encoded cfi_advance_loc2
 
@@ -36,6 +36,7 @@ f:
 // CHECK:          Name: .rela.eh_frame
 // CHECK-NEXT:     Type: SHT_RELA
 // CHECK-NEXT:     Flags [
+// CHECK-NEXT:       SHF_INFO_LINK
 // CHECK-NEXT:     ]
 // CHECK-NEXT:     Address: 0x0
 // CHECK-NEXT:     Offset:

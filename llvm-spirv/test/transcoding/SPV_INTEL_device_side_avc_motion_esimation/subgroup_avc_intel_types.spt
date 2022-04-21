@@ -1,0 +1,127 @@
+119734787 65536 393230 53 0 
+2 Capability Addresses 
+2 Capability Linkage 
+2 Capability Kernel 
+2 Capability Groups 
+2 Capability SubgroupAvcMotionEstimationINTEL 
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2 
+3 Source 3 102000 
+3 Name 4 "foo"
+4 Name 5 "entry"
+5 Name 8 "payload_mce"
+5 Name 11 "payload_ime"
+5 Name 14 "payload_ref"
+5 Name 17 "payload_sic"
+5 Name 20 "result_mce"
+5 Name 23 "result_ime"
+5 Name 26 "result_ref"
+5 Name 29 "result_sic"
+5 Name 32 "sstreamout"
+5 Name 35 "dstreamout"
+5 Name 38 "sstreamin"
+5 Name 41 "dstreamin"
+4 Decorate 52 Alignment 4 
+2 DecorationGroup 52 
+5 Decorate 4 LinkageAttributes "foo" Export 
+14 GroupDecorate 52 8 11 14 17 20 23 26 29 32 35 38 41 
+2 TypeVoid 2 
+3 TypeFunction 3 2 
+2 TypeAvcMcePayloadINTEL 6 
+4 TypePointer 7 7 6 
+2 TypeAvcImePayloadINTEL 9 
+4 TypePointer 10 7 9 
+2 TypeAvcRefPayloadINTEL 12 
+4 TypePointer 13 7 12 
+2 TypeAvcSicPayloadINTEL 15 
+4 TypePointer 16 7 15 
+2 TypeAvcMceResultINTEL 18 
+4 TypePointer 19 7 18 
+2 TypeAvcImeResultINTEL 21 
+4 TypePointer 22 7 21 
+2 TypeAvcRefResultINTEL 24 
+4 TypePointer 25 7 24 
+2 TypeAvcSicResultINTEL 27 
+4 TypePointer 28 7 27 
+2 TypeAvcImeResultSingleReferenceStreamoutINTEL 30 
+4 TypePointer 31 7 30 
+2 TypeAvcImeResultDualReferenceStreamoutINTEL 33 
+4 TypePointer 34 7 33 
+2 TypeAvcImeSingleReferenceStreaminINTEL 36 
+4 TypePointer 37 7 36 
+2 TypeAvcImeDualReferenceStreaminINTEL 39 
+4 TypePointer 40 7 39 
+3 ConstantNull 9 42 
+3 ConstantNull 12 43 
+3 ConstantNull 15 44 
+3 ConstantNull 21 45 
+3 ConstantNull 24 46 
+3 ConstantNull 27 47 
+3 ConstantNull 30 48 
+3 ConstantNull 33 49 
+3 ConstantNull 36 50 
+3 ConstantNull 39 51 
+
+
+5 Function 2 4 2 3 
+
+2 Label 5 
+4 Variable 7 8 7 
+4 Variable 10 11 7 
+4 Variable 13 14 7 
+4 Variable 16 17 7 
+4 Variable 19 20 7 
+4 Variable 22 23 7 
+4 Variable 25 26 7 
+4 Variable 28 29 7 
+4 Variable 31 32 7 
+4 Variable 34 35 7 
+4 Variable 37 38 7 
+4 Variable 40 41 7 
+5 Store 11 42 2 4 
+5 Store 14 43 2 4 
+5 Store 17 44 2 4 
+5 Store 23 45 2 4 
+5 Store 26 46 2 4 
+5 Store 29 47 2 4 
+5 Store 32 48 2 4 
+5 Store 35 49 2 4 
+5 Store 38 50 2 4 
+5 Store 41 51 2 4 
+1 Return 
+
+1 FunctionEnd 
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM-SPIRV
+
+; CHECK-LLVM: %opencl.intel_sub_group_avc_mce_payload_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_payload_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_ref_payload_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_sic_payload_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_mce_result_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_result_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_ref_result_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_sic_result_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_result_single_reference_streamout_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_result_dual_reference_streamout_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_single_reference_streamin_t = type opaque
+; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_dual_reference_streamin_t = type opaque
+
+; CHECK-LLVM-SPIRV: %spirv.AvcMcePayloadINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImePayloadINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcRefPayloadINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcSicPayloadINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcMceResultINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeResultINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcRefResultINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcSicResultINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeResultSingleReferenceStreamoutINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeResultDualReferenceStreamoutINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeSingleReferenceStreaminINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeDualReferenceStreaminINTEL = type opaque
+
+; CHECK-COMMON: define spir_func void @foo()

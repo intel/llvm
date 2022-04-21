@@ -50,6 +50,7 @@ struct IncludeStyle {
 
   /// Dependent on the value, multiple ``#include`` blocks can be sorted
   /// as one and divided based on category.
+  /// \version 7
   IncludeBlocksStyle IncludeBlocks;
 
   /// See documentation of ``IncludeCategories``.
@@ -58,8 +59,13 @@ struct IncludeStyle {
     std::string Regex;
     /// The priority to assign to this category.
     int Priority;
+    /// The custom priority to sort before grouping.
+    int SortPriority;
+    /// If the regular expression is case sensitive.
+    bool RegexIsCaseSensitive;
     bool operator==(const IncludeCategory &Other) const {
-      return Regex == Other.Regex && Priority == Other.Priority;
+      return Regex == Other.Regex && Priority == Other.Priority &&
+             RegexIsCaseSensitive == Other.RegexIsCaseSensitive;
     }
   };
 
@@ -83,18 +89,32 @@ struct IncludeStyle {
   /// can also assign negative priorities if you have certain headers that
   /// always need to be first.
   ///
+  /// There is a third and optional field ``SortPriority`` which can used while
+  /// ``IncludeBlocks = IBS_Regroup`` to define the priority in which
+  /// ``#includes`` should be ordered. The value of ``Priority`` defines the
+  /// order of ``#include blocks`` and also allows the grouping of ``#includes``
+  /// of different priority. ``SortPriority`` is set to the value of
+  /// ``Priority`` as default if it is not assigned.
+  ///
+  /// Each regular expression can be marked as case sensitive with the field
+  /// ``CaseSensitive``, per default it is not.
+  ///
   /// To configure this in the .clang-format file, use:
   /// \code{.yaml}
   ///   IncludeCategories:
   ///     - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
   ///       Priority:        2
-  ///     - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
+  ///       SortPriority:    2
+  ///       CaseSensitive:   true
+  ///     - Regex:           '^((<|")(gtest|gmock|isl|json)/)'
   ///       Priority:        3
   ///     - Regex:           '<[[:alnum:].]+>'
   ///       Priority:        4
   ///     - Regex:           '.*'
   ///       Priority:        1
+  ///       SortPriority:    0
   /// \endcode
+  /// \version 7
   std::vector<IncludeCategory> IncludeCategories;
 
   /// Specify a regular expression of suffixes that are allowed in the
@@ -108,7 +128,29 @@ struct IncludeStyle {
   ///
   /// For example, if configured to "(_test)?$", then a header a.h would be seen
   /// as the "main" include in both a.cc and a_test.cc.
+  /// \version 7
   std::string IncludeIsMainRegex;
+
+  /// Specify a regular expression for files being formatted
+  /// that are allowed to be considered "main" in the
+  /// file-to-main-include mapping.
+  ///
+  /// By default, clang-format considers files as "main" only when they end
+  /// with: ``.c``, ``.cc``, ``.cpp``, ``.c++``, ``.cxx``, ``.m`` or ``.mm``
+  /// extensions.
+  /// For these files a guessing of "main" include takes place
+  /// (to assign category 0, see above). This config option allows for
+  /// additional suffixes and extensions for files to be considered as "main".
+  ///
+  /// For example, if this option is configured to ``(Impl\.hpp)$``,
+  /// then a file ``ClassImpl.hpp`` is considered "main" (in addition to
+  /// ``Class.c``, ``Class.cc``, ``Class.cpp`` and so on) and "main
+  /// include file" logic will be executed (with *IncludeIsMainRegex* setting
+  /// also being respected in later phase). Without this option set,
+  /// ``ClassImpl.hpp`` would not have the main include file put on top
+  /// before any other include.
+  /// \version 7
+  std::string IncludeIsMainSourceRegex;
 };
 
 } // namespace tooling

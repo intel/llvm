@@ -20,7 +20,7 @@
 // map.
 //
 // Modularize takes as input either one or more module maps (by default,
-// "module.modulemap") or one or more text files contatining lists of headers
+// "module.modulemap") or one or more text files containing lists of headers
 // to check.
 //
 // In the case of a module map, the module map must be well-formed in
@@ -184,7 +184,7 @@
 //      headerlist.txt
 //
 // Note that if the headers in the header list have partial paths, sub-modules
-// will be created for the subdirectires involved, assuming that the
+// will be created for the subdirectories involved, assuming that the
 // subdirectories contain headers to be grouped into a module, but still with
 // individual modules for the headers in the subdirectory.
 //
@@ -233,6 +233,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Driver/Options.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/CompilationDatabase.h"
@@ -246,7 +247,6 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include <algorithm>
-#include <fstream>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -336,14 +336,13 @@ std::string CommandLine;
 
 // Helper function for finding the input file in an arguments list.
 static std::string findInputFile(const CommandLineArguments &CLArgs) {
-  std::unique_ptr<OptTable> Opts(createDriverOptTable());
   const unsigned IncludedFlagsBitmask = options::CC1Option;
   unsigned MissingArgIndex, MissingArgCount;
   SmallVector<const char *, 256> Argv;
   for (auto I = CLArgs.begin(), E = CLArgs.end(); I != E; ++I)
     Argv.push_back(I->c_str());
-  InputArgList Args = Opts->ParseArgs(Argv, MissingArgIndex, MissingArgCount,
-                                      IncludedFlagsBitmask);
+  InputArgList Args = getDriverOptTable().ParseArgs(
+      Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
   std::vector<std::string> Inputs = Args.getAllArgValues(OPT_INPUT);
   return ModularizeUtilities::getCanonicalPath(Inputs.back());
 }
@@ -369,7 +368,7 @@ getModularizeArgumentsAdjuster(DependencyMap &Dependencies) {
     // Ignore warnings.  (Insert after "clang_tool" at beginning.)
     NewArgs.insert(NewArgs.begin() + 1, "-w");
     // Since we are compiling .h files, assume C++ unless given a -x option.
-    if (std::find(NewArgs.begin(), NewArgs.end(), "-x") == NewArgs.end()) {
+    if (!llvm::is_contained(NewArgs, "-x")) {
       NewArgs.insert(NewArgs.begin() + 2, "-x");
       NewArgs.insert(NewArgs.begin() + 3, "c++");
     }
@@ -509,7 +508,7 @@ public:
              HEnd = CurHeaderContents.end();
          H != HEnd; ++H) {
       // Sort contents.
-      std::sort(H->second.begin(), H->second.end());
+      llvm::sort(H->second);
 
       // Check whether we've seen this header before.
       DenseMap<const FileEntry *, HeaderContents>::iterator KnownH =
@@ -703,7 +702,7 @@ public:
 protected:
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return llvm::make_unique<CollectEntitiesConsumer>(
+    return std::make_unique<CollectEntitiesConsumer>(
         Entities, PPTracker, CI.getPreprocessor(), InFile, HadErrors);
   }
 
@@ -721,8 +720,9 @@ public:
       : Entities(Entities), PPTracker(preprocessorTracker),
         HadErrors(HadErrors) {}
 
-  CollectEntitiesAction *create() override {
-    return new CollectEntitiesAction(Entities, PPTracker, HadErrors);
+  std::unique_ptr<FrontendAction> create() override {
+    return std::make_unique<CollectEntitiesAction>(Entities, PPTracker,
+                                                   HadErrors);
   }
 
 private:
@@ -793,7 +793,7 @@ public:
 protected:
   std::unique_ptr<clang::ASTConsumer>
     CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return llvm::make_unique<CompileCheckConsumer>();
+    return std::make_unique<CompileCheckConsumer>();
   }
 };
 
@@ -801,8 +801,8 @@ class CompileCheckFrontendActionFactory : public FrontendActionFactory {
 public:
   CompileCheckFrontendActionFactory() {}
 
-  CompileCheckAction *create() override {
-    return new CompileCheckAction();
+  std::unique_ptr<FrontendAction> create() override {
+    return std::make_unique<CompileCheckAction>();
   }
 };
 
@@ -812,7 +812,7 @@ int main(int Argc, const char **Argv) {
   Argv0 = Argv[0];
 
   // Save program arguments for use in module.modulemap comment.
-  CommandLine = sys::path::stem(sys::path::filename(Argv0));
+  CommandLine = std::string(sys::path::stem(sys::path::filename(Argv0)));
   for (int ArgIndex = 1; ArgIndex < Argc; ArgIndex++) {
     CommandLine.append(" ");
     CommandLine.append(Argv[ArgIndex]);
@@ -886,6 +886,7 @@ int main(int Argc, const char **Argv) {
       CompileCheckTool.appendArgumentsAdjuster(
         getModularizeArgumentsAdjuster(ModUtil->Dependencies));
       int CompileCheckFileErrors = 0;
+      // FIXME: use newFrontendActionFactory.
       CompileCheckFrontendActionFactory CompileCheckFactory;
       CompileCheckFileErrors |= CompileCheckTool.run(&CompileCheckFactory);
       if (CompileCheckFileErrors != 0) {
@@ -946,7 +947,7 @@ int main(int Argc, const char **Argv) {
       for (LocationArray::iterator FE = DI->end(); FI != FE; ++FI) {
         errs() << "    " << FI->File->getName() << ":" << FI->Line << ":"
                << FI->Column << "\n";
-        ModUtil->addUniqueProblemFile(FI->File->getName());
+        ModUtil->addUniqueProblemFile(std::string(FI->File->getName()));
       }
       HadErrors = 1;
     }
@@ -976,7 +977,7 @@ int main(int Argc, const char **Argv) {
     }
 
     HadErrors = 1;
-    ModUtil->addUniqueProblemFile(H->first->getName());
+    ModUtil->addUniqueProblemFile(std::string(H->first->getName()));
     errs() << "error: header '" << H->first->getName()
            << "' has different contents depending on how it was included.\n";
     for (unsigned I = 0, N = H->second.size(); I != N; ++I) {

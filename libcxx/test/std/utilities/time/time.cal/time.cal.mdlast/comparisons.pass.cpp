@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class month_day_last;
@@ -35,10 +35,10 @@ int main(int, char**)
     static_assert( testComparisons6Values<month_day_last>(month{1}, month{1}), "");
     static_assert( testComparisons6Values<month_day_last>(month{1}, month{2}), "");
 
-//  same day, different months
-    for (unsigned i = 1; i < 12; ++i)
-        for (unsigned j = 1; j < 12; ++j)
-            assert((testComparisons6Values<month_day_last>(month{i}, month{j})));
+    // same day, different months
+    for (unsigned i = 1; i <= 12; ++i)
+        for (unsigned j = 1; j <= 12; ++j)
+            assert(testComparisons6Values<month_day_last>(month{i}, month{j}));
 
-  return 0;
+    return 0;
 }

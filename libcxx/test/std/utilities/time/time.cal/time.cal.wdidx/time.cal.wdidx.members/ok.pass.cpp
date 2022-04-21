@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class weekday_indexed;
@@ -43,8 +43,8 @@ int main(int, char**)
         assert(!wdi.ok());
     }
 
-//  Not a valid weekday
+    //  Not a valid weekday
     assert(!(weekday_indexed(weekday{9U}, 1).ok()));
 
-  return 0;
+    return 0;
 }

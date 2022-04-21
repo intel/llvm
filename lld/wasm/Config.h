@@ -17,60 +17,89 @@
 namespace lld {
 namespace wasm {
 
+// For --unresolved-symbols.
+enum class UnresolvedPolicy { ReportError, Warn, Ignore, ImportDynamic };
+
 // This struct contains the global configuration for the linker.
 // Most fields are direct mapping from the command line options
 // and such fields have the same name as the corresponding options.
 // Most fields are initialized by the driver.
 struct Configuration {
-  bool AllowUndefined;
-  bool CheckFeatures;
-  bool CompressRelocations;
-  bool Demangle;
-  bool DisableVerify;
-  bool ExportAll;
-  bool ExportDynamic;
-  bool ExportTable;
-  bool GcSections;
-  bool ImportMemory;
-  bool SharedMemory;
-  bool ImportTable;
-  bool MergeDataSegments;
-  bool Pie;
-  bool PrintGcSections;
-  bool Relocatable;
-  bool SaveTemps;
-  bool Shared;
-  bool StripAll;
-  bool StripDebug;
-  bool StackFirst;
-  bool Trace;
-  uint32_t GlobalBase;
-  uint32_t InitialMemory;
-  uint32_t MaxMemory;
-  uint32_t ZStackSize;
-  unsigned LTOPartitions;
-  unsigned LTOO;
-  unsigned Optimize;
-  unsigned ThinLTOJobs;
+  bool bsymbolic;
+  bool checkFeatures;
+  bool compressRelocations;
+  bool demangle;
+  bool disableVerify;
+  bool experimentalPic;
+  bool emitRelocs;
+  bool exportAll;
+  bool exportDynamic;
+  bool exportTable;
+  bool extendedConst;
+  bool growableTable;
+  bool gcSections;
+  bool importMemory;
+  bool sharedMemory;
+  bool importTable;
+  bool importUndefined;
+  llvm::Optional<bool> is64;
+  bool mergeDataSegments;
+  bool pie;
+  bool printGcSections;
+  bool relocatable;
+  bool saveTemps;
+  bool shared;
+  bool stripAll;
+  bool stripDebug;
+  bool stackFirst;
+  bool trace;
+  uint64_t globalBase;
+  uint64_t initialMemory;
+  uint64_t maxMemory;
+  uint64_t zStackSize;
+  unsigned ltoPartitions;
+  unsigned ltoo;
+  unsigned optimize;
+  llvm::StringRef thinLTOJobs;
+  bool ltoNewPassManager;
+  bool ltoDebugPassManager;
+  UnresolvedPolicy unresolvedSymbols;
 
-  llvm::StringRef Entry;
-  llvm::StringRef OutputFile;
-  llvm::StringRef ThinLTOCacheDir;
+  llvm::StringRef entry;
+  llvm::StringRef mapFile;
+  llvm::StringRef outputFile;
+  llvm::StringRef thinLTOCacheDir;
 
-  llvm::StringSet<> AllowUndefinedSymbols;
-  std::vector<llvm::StringRef> SearchPaths;
-  llvm::CachePruningPolicy ThinLTOCachePolicy;
-  llvm::Optional<std::vector<std::string>> Features;
+  llvm::StringSet<> allowUndefinedSymbols;
+  llvm::StringSet<> exportedSymbols;
+  std::vector<llvm::StringRef> requiredExports;
+  std::vector<llvm::StringRef> searchPaths;
+  llvm::CachePruningPolicy thinLTOCachePolicy;
+  llvm::Optional<std::vector<std::string>> features;
 
   // The following config options do not directly correspond to any
-  // particualr command line options.
+  // particular command line options.
 
   // True if we are creating position-independent code.
-  bool Pic;
+  bool isPic;
+
+  // True if we have an MVP input that uses __indirect_function_table and which
+  // requires it to be allocated to table number 0.
+  bool legacyFunctionTable = false;
+
+  // The table offset at which to place function addresses.  We reserve zero
+  // for the null function pointer.  This gets set to 1 for executables and 0
+  // for shared libraries (since they always added to a dynamic offset at
+  // runtime).
+  uint32_t tableBase = 0;
+
+  // Will be set to true if bss data segments should be emitted. In most cases
+  // this is not necessary.
+  bool emitBssSegments = false;
 };
 
 // The only instance of Configuration struct.
-extern Configuration *Config;
+extern Configuration *config;
 
 } // namespace wasm
 } // namespace lld

@@ -38,12 +38,14 @@ void getMIPSTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                            const llvm::opt::ArgList &Args,
                            std::vector<StringRef> &Features);
 StringRef getGnuCompatibleMipsABIName(StringRef ABI);
-mips::FloatABI getMipsFloatABI(const Driver &D, const llvm::opt::ArgList &Args);
+mips::FloatABI getMipsFloatABI(const Driver &D, const llvm::opt::ArgList &Args,
+                               const llvm::Triple &Triple);
 std::string getMipsABILibSuffix(const llvm::opt::ArgList &Args,
                                 const llvm::Triple &Triple);
 bool hasMipsAbiArg(const llvm::opt::ArgList &Args, const char *Value);
 bool isUCLibc(const llvm::opt::ArgList &Args);
-bool isNaN2008(const llvm::opt::ArgList &Args, const llvm::Triple &Triple);
+bool isNaN2008(const Driver &D, const llvm::opt::ArgList &Args,
+               const llvm::Triple &Triple);
 bool isFP64ADefault(const llvm::Triple &Triple, StringRef CPUName);
 bool isFPXXDefault(const llvm::Triple &Triple, StringRef CPUName,
                    StringRef ABIName, mips::FloatABI FloatABI);

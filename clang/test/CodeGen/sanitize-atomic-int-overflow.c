@@ -2,8 +2,8 @@
 
 _Atomic(unsigned) atomic;
 
-// CHECK-LABEL: define void @cmpd_assign
-void cmpd_assign() {
+// CHECK-LABEL: define{{.*}} void @cmpd_assign
+void cmpd_assign(void) {
   // CHECK: br label %[[LOOP_START:.*]]
 
   // CHECK: [[LOOP_START]]:
@@ -17,8 +17,8 @@ void cmpd_assign() {
   atomic += 1;
 }
 
-// CHECK-LABEL: define void @inc
-void inc() {
+// CHECK-LABEL: define{{.*}} void @inc
+void inc(void) {
   // CHECK: br label %[[LOOP_START:.*]]
 
   // CHECK: [[LOOP_START]]:

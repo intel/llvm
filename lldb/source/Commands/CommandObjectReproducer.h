@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CommandObjectReproducer_h_
-#define liblldb_CommandObjectReproducer_h_
+#ifndef LLDB_SOURCE_COMMANDS_COMMANDOBJECTREPRODUCER_H
+#define LLDB_SOURCE_COMMANDS_COMMANDOBJECTREPRODUCER_H
 
 #include "lldb/Interpreter/CommandObjectMultiword.h"
-#include "lldb/Interpreter/Options.h"
 
 namespace lldb_private {
 
@@ -25,4 +24,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // liblldb_CommandObjectReproducer_h_
+#endif // LLDB_SOURCE_COMMANDS_COMMANDOBJECTREPRODUCER_H

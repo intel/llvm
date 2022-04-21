@@ -1,4 +1,4 @@
-//===-- PlatformAndroid.cpp -------------------------------------*- C++ -*-===//
+//===-- PlatformAndroid.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,7 @@
 #include "lldb/Core/Section.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Host/HostInfo.h"
-#include "lldb/Host/StringConvert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Scalar.h"
 #include "lldb/Utility/UriParser.h"
@@ -25,6 +25,8 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::platform_android;
 using namespace std::chrono;
+
+LLDB_PLUGIN_DEFINE(PlatformAndroid)
 
 static uint32_t g_initialize_count = 0;
 static const unsigned int g_android_default_cache_size =
@@ -57,7 +59,7 @@ void PlatformAndroid::Terminate() {
 }
 
 PlatformSP PlatformAndroid::CreateInstance(bool force, const ArchSpec *arch) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   if (log) {
     const char *arch_name;
     if (arch && arch->GetArchitectureName())
@@ -68,8 +70,8 @@ PlatformSP PlatformAndroid::CreateInstance(bool force, const ArchSpec *arch) {
     const char *triple_cstr =
         arch ? arch->GetTriple().getTriple().c_str() : "<null>";
 
-    log->Printf("PlatformAndroid::%s(force=%s, arch={%s,%s})", __FUNCTION__,
-                force ? "true" : "false", arch_name, triple_cstr);
+    LLDB_LOGF(log, "PlatformAndroid::%s(force=%s, arch={%s,%s})", __FUNCTION__,
+              force ? "true" : "false", arch_name, triple_cstr);
   }
 
   bool create = force;
@@ -113,16 +115,14 @@ PlatformSP PlatformAndroid::CreateInstance(bool force, const ArchSpec *arch) {
   }
 
   if (create) {
-    if (log)
-      log->Printf("PlatformAndroid::%s() creating remote-android platform",
-                  __FUNCTION__);
+    LLDB_LOGF(log, "PlatformAndroid::%s() creating remote-android platform",
+              __FUNCTION__);
     return PlatformSP(new PlatformAndroid(false));
   }
 
-  if (log)
-    log->Printf(
-        "PlatformAndroid::%s() aborting creation of remote-android platform",
-        __FUNCTION__);
+  LLDB_LOGF(
+      log, "PlatformAndroid::%s() aborting creation of remote-android platform",
+      __FUNCTION__);
 
   return PlatformSP();
 }
@@ -130,49 +130,29 @@ PlatformSP PlatformAndroid::CreateInstance(bool force, const ArchSpec *arch) {
 PlatformAndroid::PlatformAndroid(bool is_host)
     : PlatformLinux(is_host), m_sdk_version(0) {}
 
-PlatformAndroid::~PlatformAndroid() {}
-
-ConstString PlatformAndroid::GetPluginNameStatic(bool is_host) {
-  if (is_host) {
-    static ConstString g_host_name(Platform::GetHostPlatformName());
-    return g_host_name;
-  } else {
-    static ConstString g_remote_name("remote-android");
-    return g_remote_name;
-  }
-}
-
-const char *PlatformAndroid::GetPluginDescriptionStatic(bool is_host) {
+llvm::StringRef PlatformAndroid::GetPluginDescriptionStatic(bool is_host) {
   if (is_host)
     return "Local Android user platform plug-in.";
-  else
-    return "Remote Android user platform plug-in.";
-}
-
-ConstString PlatformAndroid::GetPluginName() {
-  return GetPluginNameStatic(IsHost());
+  return "Remote Android user platform plug-in.";
 }
 
 Status PlatformAndroid::ConnectRemote(Args &args) {
   m_device_id.clear();
 
-  if (IsHost()) {
-    return Status("can't connect to the host platform '%s', always connected",
-                  GetPluginName().GetCString());
-  }
+  if (IsHost())
+    return Status("can't connect to the host platform, always connected");
 
   if (!m_remote_platform_sp)
     m_remote_platform_sp = PlatformSP(new PlatformAndroidRemoteGDBServer());
 
-  int port;
-  llvm::StringRef scheme, host, path;
   const char *url = args.GetArgumentAtIndex(0);
   if (!url)
     return Status("URL is null.");
-  if (!UriParser::Parse(url, scheme, host, port, path))
+  llvm::Optional<URI> parsed_url = URI::Parse(url);
+  if (!parsed_url)
     return Status("Invalid URL: %s", url);
-  if (host != "localhost")
-    m_device_id = host;
+  if (parsed_url->hostname != "localhost")
+    m_device_id = parsed_url->hostname.str();
 
   auto error = PlatformLinux::ConnectRemote(args);
   if (error.Success()) {
@@ -211,10 +191,9 @@ Status PlatformAndroid::GetFile(const FileSpec &source,
 
   auto source_file = source_spec.GetCString(false);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
-  if (log)
-    log->Printf("Got mode == 0 on '%s': try to get file via 'shell cat'",
-                source_file);
+  Log *log = GetLog(LLDBLog::Platform);
+  LLDB_LOGF(log, "Got mode == 0 on '%s': try to get file via 'shell cat'",
+            source_file);
 
   if (strchr(source_file, '\'') != nullptr)
     return Status("Doesn't support single-quotes in filenames");
@@ -287,14 +266,14 @@ uint32_t PlatformAndroid::GetSdkVersion() {
   version_string = llvm::StringRef(version_string).trim().str();
 
   if (error.Fail() || version_string.empty()) {
-    Log *log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM);
-    if (log)
-      log->Printf("Get SDK version failed. (error: %s, output: %s)",
-                  error.AsCString(), version_string.c_str());
+    Log *log = GetLog(LLDBLog::Platform);
+    LLDB_LOGF(log, "Get SDK version failed. (error: %s, output: %s)",
+              error.AsCString(), version_string.c_str());
     return 0;
   }
 
-  m_sdk_version = StringConvert::ToUInt32(version_string.c_str());
+  // FIXME: improve error handling
+  llvm::to_integer(version_string, m_sdk_version);
   return m_sdk_version;
 }
 
@@ -335,9 +314,9 @@ Status PlatformAndroid::DownloadSymbolFile(const lldb::ModuleSP &module_sp,
     command.Printf("rm -rf %s", s->c_str());
     Status error = adb.Shell(command.GetData(), seconds(5), nullptr);
 
-    Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+    Log *log = GetLog(LLDBLog::Platform);
     if (log && error.Fail())
-      log->Printf("Failed to remove temp directory: %s", error.AsCString());
+      LLDB_LOGF(log, "Failed to remove temp directory: %s", error.AsCString());
   });
 
   FileSpec symfile_platform_filespec(tmpdir);
@@ -368,9 +347,9 @@ PlatformAndroid::GetLibdlFunctionDeclarations(lldb_private::Process *process) {
   const char *dl_open_name = nullptr;
   Target &target = process->GetTarget();
   for (auto name: dl_open_names) {
-    if (target.GetImages().FindFunctionSymbols(ConstString(name),
-                                               eFunctionNameTypeFull,
-                                               matching_symbols)) {
+    target.GetImages().FindFunctionSymbols(
+        ConstString(name), eFunctionNameTypeFull, matching_symbols);
+    if (matching_symbols.GetSize()) {
        dl_open_name = name;
        break;
     }

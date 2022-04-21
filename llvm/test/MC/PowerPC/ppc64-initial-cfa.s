@@ -1,11 +1,11 @@
 # RUN: llvm-mc -triple=powerpc64-unknown-linux-gnu -filetype=obj %s | \
-# RUN: llvm-readobj -S --sr --sd | FileCheck %s -check-prefix=STATIC -check-prefix=STATIC-BE
+# RUN: llvm-readobj -S --sr --sd - | FileCheck %s -check-prefix=STATIC -check-prefix=STATIC-BE
 # RUN: llvm-mc -triple=powerpc64-unknown-linux-gnu -filetype=obj %s | \
-# RUN: llvm-readobj -S --sr --sd | FileCheck %s -check-prefix=PIC -check-prefix=PIC-BE
+# RUN: llvm-readobj -S --sr --sd - | FileCheck %s -check-prefix=PIC -check-prefix=PIC-BE
 # RUN: llvm-mc -triple=powerpc64le-unknown-linux-gnu -filetype=obj %s | \
-# RUN: llvm-readobj -S --sr --sd | FileCheck %s -check-prefix=STATIC -check-prefix=STATIC-LE
+# RUN: llvm-readobj -S --sr --sd - | FileCheck %s -check-prefix=STATIC -check-prefix=STATIC-LE
 # RUN: llvm-mc -triple=powerpc64le-unknown-linux-gnu -filetype=obj %s | \
-# RUN: llvm-readobj -S --sr --sd | FileCheck %s -check-prefix=PIC -check-prefix=PIC-LE
+# RUN: llvm-readobj -S --sr --sd - | FileCheck %s -check-prefix=PIC -check-prefix=PIC-LE
 
 _proc:
         .cfi_startproc
@@ -40,7 +40,8 @@ _proc:
 # STATIC:      Section {
 # STATIC:        Name: .rela.eh_frame
 # STATIC-NEXT:   Type: SHT_RELA
-# STATIC-NEXT:   Flags [ (0x0)
+# STATIC-NEXT:   Flags [
+# STATIC-NEXT:     SHF_INFO_LINK
 # STATIC-NEXT:   ]
 # STATIC-NEXT:   Address:
 # STATIC-NEXT:   Offset:
@@ -81,7 +82,8 @@ _proc:
 # PIC:      Section {
 # PIC:        Name: .rela.eh_frame
 # PIC-NEXT:   Type: SHT_RELA
-# PIC-NEXT:   Flags [ (0x0)
+# PIC-NEXT:   Flags [
+# PIC-NEXT:     SHF_INFO_LINK
 # PIC-NEXT:   ]
 # PIC-NEXT:   Address:
 # PIC-NEXT:   Offset:

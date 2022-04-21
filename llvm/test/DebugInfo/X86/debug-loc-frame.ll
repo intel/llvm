@@ -1,10 +1,9 @@
-; REQUIRES: object-emission
 
 ; Check that when variables are allocated on the stack we generate debug locations
 ; for the stack location directly instead of generating a register+offset indirection.
 
 ; RUN: llc -O2 -filetype=obj -disable-post-ra -mtriple=x86_64-unknown-linux-gnu < %s \
-; RUN: | llvm-dwarfdump -v - | FileCheck %s
+; RUN: | llvm-dwarfdump - | FileCheck %s
 ;
 ; int data = 17;
 ; int sum  = 0;
@@ -26,7 +25,7 @@
 ; CHECK:      DW_TAG_subprogram
 ; CHECK-NOT:  NULL
 ; CHECK:      DW_TAG_variable
-; CHECK:      DW_AT_location [DW_FORM_sec_offset] ({{.*}}
+; CHECK:      DW_AT_location ({{.*}}
 ; CHECK-NEXT:   [{{0x.*}}, {{0x.*}}): DW_OP_reg0 RAX
 ;
 ; Note: This is a location, so we don't want an extra DW_OP_deref at the end.
@@ -36,17 +35,17 @@
 ;     ... [rsp+4] DW_OP_deref
 ;
 ; CHECK-NEXT:   [{{0x.*}}, {{0x.*}}): DW_OP_breg7 RSP+4)
-; CHECK-NEXT: DW_AT_name {{.*}}"val"
+; CHECK-NEXT: DW_AT_name ("val")
 
 ; ModuleID = 'frame.c'
 source_filename = "frame.c"
 
-@data = global i32 17, align 4, !dbg !0
-@sum = local_unnamed_addr global i32 0, align 4, !dbg !6
-@zero = local_unnamed_addr global i32 0, align 4, !dbg !9
-@ptr = common local_unnamed_addr global i32* null, align 8, !dbg !11
+@data = dso_local global i32 17, align 4, !dbg !0
+@sum = dso_local local_unnamed_addr global i32 0, align 4, !dbg !6
+@zero = dso_local local_unnamed_addr global i32 0, align 4, !dbg !9
+@ptr = common dso_local local_unnamed_addr global i32* null, align 8, !dbg !11
 
-define i32 @main() local_unnamed_addr !dbg !17 {
+define dso_local i32 @main() local_unnamed_addr !dbg !17 {
 entry:
   %val = alloca i32, align 4
   %0 = bitcast i32* %val to i8*, !dbg !22

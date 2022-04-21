@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 // <functional>
 
 // bit_not
@@ -15,12 +17,16 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     typedef std::bit_not<int> F;
     const F f = F();
+#if TEST_STD_VER <= 17
     static_assert((std::is_same<F::argument_type, int>::value), "" );
     static_assert((std::is_same<F::result_type, int>::value), "" );
+#endif
     assert((f(0xEA95) & 0xFFFF ) == 0x156A);
     assert((f(0x58D3) & 0xFFFF ) == 0xA72C);
     assert((f(0)      & 0xFFFF ) == 0xFFFF);

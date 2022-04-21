@@ -13,8 +13,7 @@
 ; CHECK: addic 29, 0, 20
 ; Save CR through R12 using R29 as the stack pointer (aligned base pointer).
 ; CHECK: mfcr 12
-; CHECK: stw 28, -24(29)
-; CHECK: stw 12, -28(29)
+; CHECK: stw 12, -24(29)
 
 target datalayout = "E-m:e-p:32:32-i64:64-n32"
 target triple = "powerpc-unknown-freebsd"
@@ -55,4 +54,4 @@ b15:                                              ; preds = %b12, %b10, %b4
   ret i64 %v18
 }
 
-attributes #0 = { norecurse readnone sspstrong "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "stack-protector-buffer-size"="8" "target-cpu"="ppc" }
+attributes #0 = { norecurse readnone sspstrong "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "stack-protector-buffer-size"="8" "target-cpu"="ppc" }

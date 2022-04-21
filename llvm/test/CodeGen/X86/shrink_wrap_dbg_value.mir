@@ -94,7 +94,7 @@
 ...
 ---
 name:            '@shrink_wrap_basic@16'
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -124,9 +124,9 @@ frameInfo:
   savePoint:       ''
   restorePoint:    ''
 fixedStack:      
-  - { id: 0, type: default, offset: 4, size: 4, alignment: 4, stack-id: 0, 
+  - { id: 0, type: default, offset: 4, size: 4, alignment: 4, stack-id: default,
       isImmutable: true, isAliased: false, callee-saved-register: '', callee-saved-restored: true }
-  - { id: 1, type: default, offset: 0, size: 4, alignment: 4, stack-id: 0, 
+  - { id: 1, type: default, offset: 0, size: 4, alignment: 4, stack-id: default,
       isImmutable: false, isAliased: false, callee-saved-register: '', 
       callee-saved-restored: true }
 stack:           
@@ -148,9 +148,9 @@ body:             |
   bb.1.for.cond.preheader:
     successors: %bb.2(0x80000000)
   
-    $esi = MOV32rm %fixed-stack.0, 1, $noreg, 0, $noreg :: (load 4 from %fixed-stack.0)
+    $esi = MOV32rm %fixed-stack.0, 1, $noreg, 0, $noreg :: (load (s32) from %fixed-stack.0)
     DBG_VALUE $esi, $noreg, !13, !DIExpression(), debug-location !19
-    $edi = MOV32rm %fixed-stack.1, 1, $noreg, 0, $noreg :: (load 4 from %fixed-stack.1)
+    $edi = MOV32rm %fixed-stack.1, 1, $noreg, 0, $noreg :: (load (s32) from %fixed-stack.1)
     DBG_VALUE $edi, $noreg, !14, !DIExpression(), debug-location !20
     $edi = DEC32r killed $edi, implicit-def dead $eflags, debug-location !30
     $ebx = LEA32r %fixed-stack.1, 1, $noreg, 0, $noreg

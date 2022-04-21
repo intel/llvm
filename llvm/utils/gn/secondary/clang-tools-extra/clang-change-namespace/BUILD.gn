@@ -13,7 +13,5 @@ static_library("clang-change-namespace") {
     "//clang/lib/Tooling/Core",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "ChangeNamespace.cpp",
-  ]
+  sources = [ "ChangeNamespace.cpp" ]
 }

@@ -58,7 +58,7 @@ void getObjectsTest(NSMutableArray<NSString *> *array) {
 
 void printMe(NSString *name) { }
 
-// CHECK-LABEL: define void @blockTest
+// CHECK-LABEL: define{{.*}} void @blockTest
 void blockTest(NSMutableArray<void (^)(void)> *array, NSString *name) {
   // CHECK-NOT: ret void
   // CHECK: call i8* @llvm.objc.retainBlock
@@ -105,7 +105,7 @@ void blockTest(NSMutableArray<void (^)(void)> *array, NSString *name) {
 // CHECK: %[[V4:.*]] = load %[[TY]]*, %[[TY]]** %[[D]]
 // CHECK: store %[[TY]]* %[[V4]], %[[TY]]** %[[TEMP]]
 // CHECK: %[[V7:.*]] = bitcast %[[TY]]** %[[TEMP]] to i8**
-// CHECK: call void bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to void (i8*, i8*, i8**)*)(i8* %{{.*}}, i8* %{{.*}}, i8** %[[V7]])
+// CHECK: call void bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to void (i8*, i8*, i8**)*)(i8* noundef %{{.*}}, i8* noundef %{{.*}}, i8** noundef %[[V7]])
 
 @interface P0<ObjectType> : NSObject
 - (void)m0:(ObjectType *)first;

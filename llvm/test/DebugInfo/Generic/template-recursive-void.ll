@@ -1,5 +1,3 @@
-; REQUIRES: object-emission
-
 ; RUN: %llc_dwarf -O0 -filetype=obj < %s > %t
 ; RUN: llvm-dwarfdump -v %t | FileCheck %s
 
@@ -16,7 +14,7 @@
 ; CHECK: DW_TAG_template_type_parameter [{{.*}}]
 ; CHECK-NEXT: DW_AT_name{{.*}}"T"
 ; CHECK-NOT: DW_AT_type
-; CHECK: NULL
+; CHECK: {{DW_TAG|NULL}}
 
 source_filename = "test/DebugInfo/Generic/template-recursive-void.ll"
 

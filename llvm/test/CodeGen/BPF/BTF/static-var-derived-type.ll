@@ -46,12 +46,12 @@ define dso_local i64 @foo() local_unnamed_addr #0 !dbg !27 {
 ; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 1)
 ; CHECK-NEXT:        .long   218103808               # 0xd000000
 ; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   45                      # BTF_KIND_INT(id = 2)
+; CHECK-NEXT:        .long   1                       # BTF_KIND_INT(id = 2)
 ; CHECK-NEXT:        .long   16777216                # 0x1000000
 ; CHECK-NEXT:        .long   8
 ; CHECK-NEXT:        .long   16777280                # 0x1000040
-; CHECK-NEXT:        .long   54                      # BTF_KIND_FUNC(id = 3)
-; CHECK-NEXT:        .long   201326592               # 0xc000000
+; CHECK-NEXT:        .long   10                      # BTF_KIND_FUNC(id = 3)
+; CHECK-NEXT:        .long   201326593               # 0xc000001
 ; CHECK-NEXT:        .long   1
 ; CHECK-NEXT:        .long   0                       # BTF_KIND_VOLATILE(id = 4)
 ; CHECK-NEXT:        .long   150994944               # 0x9000000
@@ -116,13 +116,13 @@ define dso_local i64 @foo() local_unnamed_addr #0 !dbg !27 {
 ; CHECK-NEXT:        .long   v4
 ; CHECK-NEXT:        .long   8
 ; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  ".text"                 # string offset=1
+; CHECK-NEXT:        .ascii  "long int"              # string offset=1
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "/home/yhs/work/tests/llvm/bugs/test.c" # string offset=7
+; CHECK-NEXT:        .ascii  "foo"                   # string offset=10
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "long int"              # string offset=45
+; CHECK-NEXT:        .ascii  ".text"                 # string offset=14
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "foo"                   # string offset=54
+; CHECK-NEXT:        .ascii  "/home/yhs/work/tests/llvm/bugs/test.c" # string offset=20
 ; CHECK-NEXT:        .byte   0
 ; CHECK-NEXT:        .ascii  "int"                   # string offset=58
 ; CHECK-NEXT:        .byte   0
@@ -141,7 +141,7 @@ define dso_local i64 @foo() local_unnamed_addr #0 !dbg !27 {
 ; CHECK-NEXT:        .ascii  ".rodata"               # string offset=87
 ; CHECK-NEXT:        .byte   0
 
-attributes #0 = { norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!23, !24, !25}

@@ -4,14 +4,12 @@
 ; xscvdpsxds should NOT be emitted, since it saturates the result down to i64.
 ; We can't use friz here because it may return -0.0 where the original code doesn't.
 
-define float @f_i128_f(float %v) {
+define float @f_i128_f(float %v) nounwind {
 ; CHECK-LABEL: f_i128_f:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr 0
 ; CHECK-NEXT:    std 0, 16(1)
 ; CHECK-NEXT:    stdu 1, -32(1)
-; CHECK-NEXT:    .cfi_def_cfa_offset 32
-; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl __fixsfti
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    bl __floattisf
@@ -31,8 +29,7 @@ entry:
 define float @f_i128_fi_nsz(float %v) #0 {
 ; CHECK-LABEL: f_i128_fi_nsz:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    friz 0, 1
-; CHECK-NEXT:    fmr 1, 0
+; CHECK-NEXT:    xsrdpiz 1, 1
 ; CHECK-NEXT:    blr
 entry:
   %a = fptosi float %v to i128

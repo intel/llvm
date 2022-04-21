@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03
 
 // <thread>
 
@@ -16,35 +15,18 @@
 // thread& operator=(thread&& t);
 
 #include <thread>
-#include <exception>
-#include <cstdlib>
 #include <cassert>
+#include <cstdlib>
+#include <exception>
+#include <utility>
 
-class G
+#include "make_test_thread.h"
+#include "test_macros.h"
+
+struct G
 {
-    int alive_;
-public:
-    static int n_alive;
-    static bool op_run;
-
-    G() : alive_(1) {++n_alive;}
-    G(const G& g) : alive_(g.alive_) {++n_alive;}
-    ~G() {alive_ = 0; --n_alive;}
-
-
-
-    void operator()(int i, double j)
-    {
-        assert(alive_ == 1);
-        assert(n_alive >= 1);
-        assert(i == 5);
-        assert(j == 5.5);
-        op_run = true;
-    }
+    void operator()() { }
 };
-
-int G::n_alive = 0;
-bool G::op_run = false;
 
 void f1()
 {
@@ -56,11 +38,11 @@ int main(int, char**)
     std::set_terminate(f1);
     {
         G g;
-        std::thread t0(g, 5, 5.5);
+        std::thread t0 = support::make_test_thread(g);
         std::thread t1;
         t0 = std::move(t1);
         assert(false);
     }
 
-  return 0;
+    return 0;
 }

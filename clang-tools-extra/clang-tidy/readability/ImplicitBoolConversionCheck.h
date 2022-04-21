@@ -15,15 +15,17 @@ namespace clang {
 namespace tidy {
 namespace readability {
 
-/// \brief Checks for use of implicit bool conversions in expressions.
+/// Checks for use of implicit bool conversions in expressions.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/readability-implicit-bool-conversion.html
 class ImplicitBoolConversionCheck : public ClangTidyCheck {
 public:
   ImplicitBoolConversionCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.Bool;
+  }
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
-
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 

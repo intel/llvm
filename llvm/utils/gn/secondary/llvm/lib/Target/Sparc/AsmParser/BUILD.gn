@@ -16,7 +16,5 @@ static_library("AsmParser") {
     "//llvm/lib/Target/Sparc/MCTargetDesc",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "SparcAsmParser.cpp",
-  ]
+  sources = [ "SparcAsmParser.cpp" ]
 }

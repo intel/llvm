@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wuninitialized
 
 
-struct S1; // expected-note 2 {{declared here}}
+struct S1; // expected-note 2 {{declared here}} // expected-note 2 {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;
@@ -54,7 +54,7 @@ T tmain(T argc, S **argv) {
   const int da[5] = { 0 };
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;
   int acc = 0;
   int n = 1000;
@@ -103,7 +103,7 @@ T tmain(T argc, S **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared (argc)
+#pragma omp distribute parallel for simd shared (argc, z)
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -117,7 +117,7 @@ T tmain(T argc, S **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared (a, b, c, d, f) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Non-trivial type 'const S2' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'const S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for simd shared (a, b, c, d, f) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Type 'const S2' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'const S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -131,14 +131,14 @@ T tmain(T argc, S **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(ba) // expected-warning {{Non-trivial type 'const S2 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for simd shared(ba) // expected-warning {{Type 'const S2[5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(ca) // expected-warning {{Non-trivial type 'const S3 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for simd shared(ca) // expected-warning {{Type 'const S3[5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -152,7 +152,7 @@ T tmain(T argc, S **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(e, g) // expected-warning {{Non-trivial type 'S4' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for simd shared(e, g) // expected-warning {{Type 'S4' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -228,7 +228,7 @@ int main(int argc, char **argv) {
   const int da[5] = { 0 };
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;
   int acc = 0;
   int n = argc;
@@ -277,7 +277,7 @@ int main(int argc, char **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared (argc)
+#pragma omp distribute parallel for simd shared (argc, z)
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -291,7 +291,7 @@ int main(int argc, char **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared (a, b, c, d, f) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Non-trivial type 'const S2' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'const S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for simd shared (a, b, c, d, f) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Type 'const S2' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'const S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -305,14 +305,14 @@ int main(int argc, char **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(ba) // expected-warning {{Non-trivial type 'const S2 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for simd shared(ba) // expected-warning {{Type 'const S2[5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(ca) // expected-warning {{Non-trivial type 'const S3 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for simd shared(ca) // expected-warning {{Type 'const S3[5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -326,7 +326,7 @@ int main(int argc, char **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(e, g) // expected-warning {{Non-trivial type 'S4' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for simd shared(e, g) // expected-warning {{Type 'S4' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }

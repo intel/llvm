@@ -177,7 +177,7 @@ define i1 @usubo_ult_cmp_dominates_i64(i64 %x, i64 %y, i64* %p, i1 %cond) nounwi
 ; CHECK-NEXT:    xorl %edi, %edi
 ; CHECK-NEXT:    cmpq %rsi, %rbx
 ; CHECK-NEXT:    setb %dil
-; CHECK-NEXT:    callq call
+; CHECK-NEXT:    callq call@PLT
 ; CHECK-NEXT:    subq %r15, %rbx
 ; CHECK-NEXT:    jae .LBB9_2
 ; CHECK-NEXT:  # %bb.4: # %end
@@ -241,4 +241,20 @@ true:
 
 exit:
   ret void
+}
+
+define i32 @PR42571(i32 %x, i32 %y) {
+; CHECK-LABEL: PR42571:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $edi killed $edi def $rdi
+; CHECK-NEXT:    leal -1(%rdi), %eax
+; CHECK-NEXT:    andl %edi, %eax
+; CHECK-NEXT:    cmpl $1, %edi
+; CHECK-NEXT:    cmovbl %esi, %eax
+; CHECK-NEXT:    retq
+  %tobool = icmp eq i32 %x, 0
+  %sub = add nsw i32 %x, -1
+  %and = and i32 %sub, %x
+  %cond = select i1 %tobool, i32 %y, i32 %and
+  ret i32 %cond
 }

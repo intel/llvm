@@ -8,23 +8,30 @@
 
 #pragma once
 
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/item.hpp>
+#include <CL/sycl/range.hpp>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace detail {
 class Builder;
 }
 
+/// Identifies an instance of a group::parallel_for_work_item function object
+/// executing at each point in a local range passed to a parallel_for_work_item
+/// call or to the corresponding parallel_for_work_group call.
+///
+/// \ingroup sycl_api
 template <int dimensions> class h_item {
 public:
   h_item() = delete;
 
-  h_item(const h_item<dimensions> &hi) = default;
+  h_item(const h_item &hi) = default;
 
-  h_item<dimensions> &operator=(const h_item<dimensions> &hi) = default;
+  h_item &operator=(const h_item &hi) = default;
 
   /* -- public interface members -- */
   item<dimensions, false> get_global() const { return globalItem; }
@@ -93,14 +100,12 @@ public:
     return get_physical_local().get_id(dimension);
   }
 
-  bool operator==(const h_item<dimensions> &rhs) const {
+  bool operator==(const h_item &rhs) const {
     return (rhs.localItem == localItem) && (rhs.globalItem == globalItem) &&
            (rhs.logicalLocalItem == logicalLocalItem);
   }
 
-  bool operator!=(const h_item<dimensions> &rhs) const {
-    return !((*this) == rhs);
-  }
+  bool operator!=(const h_item &rhs) const { return !((*this) == rhs); }
 
 protected:
   friend class detail::Builder;
@@ -108,14 +113,16 @@ protected:
   h_item(const item<dimensions, false> &GL, const item<dimensions, false> &L,
          const range<dimensions> &flexLocalRange)
       : globalItem(GL), localItem(L),
-        logicalLocalItem(flexLocalRange, L.get_id()) {}
+        logicalLocalItem(detail::Builder::createItem<dimensions, false>(
+            flexLocalRange, L.get_id())) {}
 
   h_item(const item<dimensions, false> &GL, const item<dimensions, false> &L)
       : globalItem(GL), localItem(L),
-        logicalLocalItem(localItem.get_range(), localItem.get_id()) {}
+        logicalLocalItem(detail::Builder::createItem<dimensions, false>(
+            localItem.get_range(), localItem.get_id())) {}
 
   void setLogicalLocalID(const id<dimensions> &ID) {
-    logicalLocalItem.setID(ID);
+    detail::Builder::updateItemIndex(logicalLocalItem, ID);
   }
 
 private:
@@ -128,4 +135,4 @@ private:
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

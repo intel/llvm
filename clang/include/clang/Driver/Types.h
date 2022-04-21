@@ -11,16 +11,18 @@
 
 #include "clang/Driver/Phases.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Option/ArgList.h"
 
 namespace llvm {
 class StringRef;
 }
 namespace clang {
 namespace driver {
+class Driver;
 namespace types {
   enum ID {
     TY_INVALID,
-#define TYPE(NAME, ID, PP_TYPE, TEMP_SUFFIX, FLAGS) TY_##ID,
+#define TYPE(NAME, ID, PP_TYPE, TEMP_SUFFIX, ...) TY_##ID,
 #include "clang/Driver/Types.def"
 #undef TYPE
     TY_LAST
@@ -43,9 +45,6 @@ namespace types {
   /// temp file of this type, or null if unspecified.
   const char *getTypeTempSuffix(ID Id, bool CLMode = false);
 
-  /// onlyAssembleType - Should this type only be assembled.
-  bool onlyAssembleType(ID Id);
-
   /// onlyPrecompileType - Should this type only be precompiled.
   bool onlyPrecompileType(ID Id);
 
@@ -67,6 +66,14 @@ namespace types {
   /// isAcceptedByClang - Can clang handle this input type.
   bool isAcceptedByClang(ID Id);
 
+  /// isDerivedFromC - Is the input derived from C.
+  ///
+  /// That is, does the lexer follow the rules of
+  /// TokenConcatenation::AvoidConcat. If this is the case, the preprocessor may
+  /// add and remove whitespace between tokens. Used to determine whether the
+  /// input can be processed by -fminimize-whitespace.
+  bool isDerivedFromC(ID Id);
+
   /// isCXX - Is this a "C++" input (C++ and Obj-C++ sources and headers).
   bool isCXX(ID Id);
 
@@ -79,8 +86,20 @@ namespace types {
   /// isHIP - Is this a HIP input.
   bool isHIP(ID Id);
 
+  /// isFPGA - Is this FPGA input.
+  bool isFPGA(ID Id);
+
+  /// isArchive - Is this an archive input.
+  bool isArchive(ID Id);
+
   /// isObjC - Is this an "ObjC" input (Obj-C and Obj-C++ sources and headers).
   bool isObjC(ID Id);
+
+  /// isOpenCL - Is this an "OpenCL" input.
+  bool isOpenCL(ID Id);
+
+  /// isFortran - Is this a Fortran input.
+  bool isFortran(ID Id);
 
   /// isSrcFile - Is this a source file, i.e. something that still has to be
   /// preprocessed. The logic behind this is the same that decides if the first
@@ -96,10 +115,12 @@ namespace types {
   ID lookupTypeForTypeSpecifier(const char *Name);
 
   /// getCompilationPhases - Get the list of compilation phases ('Phases') to be
-  /// done for type 'Id'.
-  void getCompilationPhases(
-    ID Id,
-    llvm::SmallVectorImpl<phases::ID> &Phases);
+  /// done for type 'Id' up until including LastPhase.
+  llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases>
+  getCompilationPhases(ID Id, phases::ID LastPhase = phases::IfsMerge);
+  llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases>
+  getCompilationPhases(const clang::driver::Driver &Driver,
+                       llvm::opt::DerivedArgList &DAL, ID Id);
 
   /// lookupCXXTypeForCType - Lookup CXX input type that corresponds to given
   /// C type (used for clang++ emulation of g++ behaviour)

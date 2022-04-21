@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: diagnose-if-support
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // Libc++ only provides a defined primary template for std::hash in C++14 and
 // newer.
@@ -52,7 +52,7 @@ int main(int, char**) {
   // FIXME: It would be great to suppress the below diagnostic all together.
   //        but for now it's sufficient that it appears last. However there is
   //        currently no way to test the order diagnostics are issued.
-  // expected-error@memory:* {{call to implicitly-deleted default constructor of '__compressed_pair_elem}}
+  // expected-error@*:* {{call to implicitly-deleted default constructor of 'std::}}
   }
   {
     using Set = std::unordered_set<int, BadHashNoCopy>;

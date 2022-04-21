@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // <optional>
 
 // template <class T> constexpr bool operator>=(const optional<T>& x, nullopt_t) noexcept;
 // template <class T> constexpr bool operator>=(nullopt_t, const optional<T>& x) noexcept;
 
 #include <optional>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ExpressionParser_h_
-#define liblldb_ExpressionParser_h_
+#ifndef LLDB_EXPRESSION_EXPRESSIONPARSER_H
+#define LLDB_EXPRESSION_EXPRESSIONPARSER_H
 
 #include "lldb/Utility/CompletionRequest.h"
 #include "lldb/Utility/Status.h"
@@ -29,7 +29,7 @@ public:
   ///
   /// Initializes class variables.
   ///
-  /// \param[in] exe_scope,
+  /// \param[in] exe_scope
   ///     If non-NULL, an execution context scope that can help to
   ///     correctly create an expression with a valid process for
   ///     optional tuning Objective-C runtime support. Can be NULL.
@@ -41,7 +41,7 @@ public:
       : m_expr(expr), m_generate_debug_info(generate_debug_info) {}
 
   /// Destructor
-  virtual ~ExpressionParser(){};
+  virtual ~ExpressionParser() = default;
 
   /// Attempts to find possible command line completions for the given
   /// expression.
@@ -75,17 +75,6 @@ public:
   ///     false otherwise.
   virtual bool Complete(CompletionRequest &request, unsigned line, unsigned pos,
                         unsigned typed_pos) = 0;
-
-  /// Parse a single expression and convert it to IR using Clang.  Don't wrap
-  /// the expression in anything at all.
-  ///
-  /// \param[in] diagnostic_manager
-  ///     The diagnostic manager in which to store the errors and warnings.
-  ///
-  /// \return
-  ///     The number of errors encountered during parsing.  0 means
-  ///     success.
-  virtual unsigned Parse(DiagnosticManager &diagnostic_manager) = 0;
 
   /// Try to use the FixIts in the diagnostic_manager to rewrite the
   /// expression.  If successful, the rewritten expression is stored in the
@@ -144,4 +133,4 @@ protected:
 };
 }
 
-#endif // liblldb_ExpressionParser_h_
+#endif // LLDB_EXPRESSION_EXPRESSIONPARSER_H

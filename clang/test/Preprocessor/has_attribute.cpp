@@ -1,98 +1,127 @@
-// RUN: %clang_cc1 -triple i386-unknown-unknown -fms-compatibility -std=c++11 -E %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple i386-unknown-unknown -fms-compatibility -std=c++11 -E -P %s -o - | FileCheck %s --check-prefixes=CHECK,ITANIUM --implicit-check-not=:
+// RUN: %clang_cc1 -triple i386-windows -fms-compatibility -std=c++11 -E -P %s -o - | FileCheck %s --check-prefixes=CHECK,WINDOWS --implicit-check-not=:
 
-// CHECK: has_cxx11_carries_dep
-#if __has_cpp_attribute(carries_dependency)
-  int has_cxx11_carries_dep();
-#endif
+#define CXX11(x) x: __has_cpp_attribute(x)
 
-// CHECK: has_clang_fallthrough_1
-#if __has_cpp_attribute(clang::fallthrough)
-  int has_clang_fallthrough_1();
-#endif
+// CHECK: clang::fallthrough: 201603L
+CXX11(clang::fallthrough)
 
-// CHECK: does_not_have_selectany
-#if !__has_cpp_attribute(selectany)
-  int does_not_have_selectany();
-#endif
+// CHECK: selectany: 0
+CXX11(selectany)
 
 // The attribute name can be bracketed with double underscores.
-// CHECK: has_clang_fallthrough_2
-#if __has_cpp_attribute(clang::__fallthrough__)
-  int has_clang_fallthrough_2();
-#endif
+// CHECK: clang::__fallthrough__: 201603L
+CXX11(clang::__fallthrough__)
 
 // The scope cannot be bracketed with double underscores unless it is
 // for gnu or clang.
-// CHECK: does_not_have___gsl___suppress
-#if !__has_cpp_attribute(__gsl__::suppress)
-  int does_not_have___gsl___suppress();
-#endif
+// CHECK: __gsl__::suppress: 0
+CXX11(__gsl__::suppress)
 
-// We do somewhat support the __clang__ vendor namespace, but it is a
-// predefined macro and thus we encourage users to use _Clang instead.
-// Because of this, we do not support __has_cpp_attribute for that
-// vendor namespace.
-// CHECK: does_not_have___clang___fallthrough
-#if !__has_cpp_attribute(__clang__::fallthrough)
-  int does_not_have___clang___fallthrough();
-#endif
+// CHECK: _Clang::fallthrough: 201603L
+CXX11(_Clang::fallthrough)
 
-// CHECK: does_have_Clang_fallthrough
-#if __has_cpp_attribute(_Clang::fallthrough)
-  int does_have_Clang_fallthrough();
-#endif
+// CHECK: __nodiscard__: 201907L
+CXX11(__nodiscard__)
 
-// CHECK: has_gnu_const
-#if __has_cpp_attribute(__gnu__::__const__)
-  int has_gnu_const();
-#endif
+// CHECK: __gnu__::__const__: 1
+CXX11(__gnu__::__const__)
 
 // Test that C++11, target-specific attributes behave properly.
 
-// CHECK: does_not_have_mips16
-#if !__has_cpp_attribute(gnu::mips16)
-  int does_not_have_mips16();
-#endif
+// CHECK: gnu::mips16: 0
+CXX11(gnu::mips16)
 
-// Test that the version numbers of attributes listed in SD-6 are supported
-// correctly.
+// Test for standard attributes as listed in C++2a [cpp.cond] paragraph 6.
 
-// CHECK: has_cxx11_carries_dep_vers
-#if __has_cpp_attribute(carries_dependency) == 200809
-  int has_cxx11_carries_dep_vers();
-#endif
+CXX11(assert)
+CXX11(carries_dependency)
+CXX11(deprecated)
+CXX11(ensures)
+CXX11(expects)
+CXX11(fallthrough)
+CXX11(likely)
+CXX11(maybe_unused)
+CXX11(no_unique_address)
+CXX11(nodiscard)
+CXX11(noreturn)
+CXX11(unlikely)
+// FIXME(201806L) CHECK: assert: 0
+// CHECK: carries_dependency: 200809L
+// CHECK: deprecated: 201309L
+// FIXME(201806L) CHECK: ensures: 0
+// FIXME(201806L) CHECK: expects: 0
+// CHECK: fallthrough: 201603L
+// CHECK: likely: 201803L
+// CHECK: maybe_unused: 201603L
+// ITANIUM: no_unique_address: 201803L
+// WINDOWS: no_unique_address: 0
+// CHECK: nodiscard: 201907L
+// CHECK: noreturn: 200809L
+// CHECK: unlikely: 201803L
 
-// CHECK: has_cxx11_noreturn_vers
-#if __has_cpp_attribute(noreturn) == 200809
-  int has_cxx11_noreturn_vers();
-#endif
+namespace PR48462 {
+// Test that macro expansion of the builtin argument works.
+#define C clang
+#define F fallthrough
+#define CF clang::fallthrough
 
-// CHECK: has_cxx14_deprecated_vers
-#if __has_cpp_attribute(deprecated) == 201309
-  int has_cxx14_deprecated_vers();
+#if __has_cpp_attribute(F)
+int has_fallthrough;
 #endif
+// CHECK: int has_fallthrough;
 
-// CHECK: has_cxx1z_nodiscard
-#if __has_cpp_attribute(nodiscard) == 201603
-  int has_cxx1z_nodiscard();
+#if __has_cpp_attribute(C::F)
+int has_clang_falthrough_1;
 #endif
+// CHECK: int has_clang_falthrough_1;
 
-// CHECK: has_cxx1z_fallthrough
-#if __has_cpp_attribute(fallthrough) == 201603
-  int has_cxx1z_fallthrough();
+#if __has_cpp_attribute(clang::F)
+int has_clang_falthrough_2;
 #endif
+// CHECK: int has_clang_falthrough_2;
 
-// CHECK: has_declspec_uuid
-#if __has_declspec_attribute(uuid)
-  int has_declspec_uuid();
+#if __has_cpp_attribute(C::fallthrough)
+int has_clang_falthrough_3;
 #endif
+// CHECK: int has_clang_falthrough_3;
 
-// CHECK: has_declspec_uuid2
-#if __has_declspec_attribute(__uuid__)
-  int has_declspec_uuid2();
+#if __has_cpp_attribute(CF)
+int has_clang_falthrough_4;
 #endif
+// CHECK: int has_clang_falthrough_4;
 
-// CHECK: does_not_have_declspec_fallthrough
-#if !__has_declspec_attribute(fallthrough)
-  int does_not_have_declspec_fallthrough();
+#define FUNCLIKE1(x) clang::x
+#if __has_cpp_attribute(FUNCLIKE1(fallthrough))
+int funclike_1;
 #endif
+// CHECK: int funclike_1;
+
+#define FUNCLIKE2(x) _Clang::x
+#if __has_cpp_attribute(FUNCLIKE2(fallthrough))
+int funclike_2;
+#endif
+// CHECK: int funclike_2;
+}
+
+// Test for Microsoft __declspec attributes
+
+#define DECLSPEC(x) x: __has_declspec_attribute(x)
+
+// CHECK: uuid: 1
+// CHECK: __uuid__: 1
+DECLSPEC(uuid)
+DECLSPEC(__uuid__)
+
+// CHECK: fallthrough: 0
+DECLSPEC(fallthrough)
+
+namespace PR48462 {
+// Test that macro expansion of the builtin argument works.
+#define U uuid
+
+#if __has_declspec_attribute(U)
+int has_uuid;
+#endif
+// CHECK: int has_uuid;
+}

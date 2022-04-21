@@ -1,7 +1,6 @@
 ; RUN: llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-keep-registers -relocation-model=pic -fast-isel=1 | FileCheck %s
 ; RUN: llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-keep-registers -relocation-model=pic -fast-isel=0 | FileCheck %s
-target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
-target triple = "wasm32-unknown-unknown"
+target triple = "wasm32-unknown-emscripten"
 
 declare i32 @foo()
 declare i32 @bar()
@@ -20,7 +19,7 @@ define void @call_indirect_func() {
 ; CHECK-NEXT: i32.const $push[[L1:[0-9]+]]=, indirect_func@MBREL{{$}}
 ; CHECK-NEXT: i32.add $push[[L2:[0-9]+]]=, $pop[[L0]], $pop[[L1]]{{$}}
 ; CHECK-NEXT: i32.load $push[[L3:[0-9]+]]=, 0($pop[[L2]]){{$}}
-; CHECK-NEXT: i32.call_indirect $push[[L4:[0-9]+]]=, $pop[[L3]]{{$}}
+; CHECK-NEXT: call_indirect $push[[L4:[0-9]+]]=, $pop[[L3]]{{$}}
   %1 = load i32 ()*, i32 ()** @indirect_func, align 4
   %call = call i32 %1()
   ret void
@@ -29,7 +28,7 @@ define void @call_indirect_func() {
 define void @call_direct() {
 ; CHECK-LABEL: call_direct:
 ; CHECK: .functype call_direct () -> ()
-; CHECK-NEXT: i32.call $push0=, foo{{$}}
+; CHECK-NEXT: call $push0=, foo{{$}}
 ; CHECK-NEXT: drop $pop0{{$}}
 ; CHECK-NEXT: return{{$}}
   %call = call i32 @foo()
@@ -39,7 +38,7 @@ define void @call_direct() {
 define void @call_alias_func() {
 ; CHECK-LABEL: call_alias_func:
 ; CHECK: .functype call_alias_func () -> ()
-; CHECK-NEXT: i32.call $push0=, alias_func
+; CHECK-NEXT: call $push0=, alias_func
 ; CHECK-NEXT: drop $pop0{{$}}
 ; CHECK-NEXT: return{{$}}
   %call = call i32 @alias_func()

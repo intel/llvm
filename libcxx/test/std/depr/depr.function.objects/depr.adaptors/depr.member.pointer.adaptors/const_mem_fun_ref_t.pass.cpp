@@ -7,15 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 // <functional>
-// REQUIRES: c++98 || c++03 || c++11 || c++14
 
 // const_mem_fun_ref_t
 
-#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
+// REQUIRES: c++03 || c++11 || c++14
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <functional>
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct A
 {

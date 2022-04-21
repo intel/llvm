@@ -23,7 +23,6 @@
 namespace llvm {
 
 class ARMTargetLowering;
-class MachineFunction;
 class MachineInstrBuilder;
 class MachineIRBuilder;
 class Value;
@@ -33,28 +32,20 @@ public:
   ARMCallLowering(const ARMTargetLowering &TLI);
 
   bool lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val,
-                   ArrayRef<unsigned> VRegs) const override;
+                   ArrayRef<Register> VRegs,
+                   FunctionLoweringInfo &FLI) const override;
 
   bool lowerFormalArguments(MachineIRBuilder &MIRBuilder, const Function &F,
-                            ArrayRef<unsigned> VRegs) const override;
+                            ArrayRef<ArrayRef<Register>> VRegs,
+                            FunctionLoweringInfo &FLI) const override;
 
-  bool lowerCall(MachineIRBuilder &MIRBuilder, CallingConv::ID CallConv,
-                 const MachineOperand &Callee, const ArgInfo &OrigRet,
-                 ArrayRef<ArgInfo> OrigArgs) const override;
+  bool lowerCall(MachineIRBuilder &MIRBuilder,
+                 CallLoweringInfo &Info) const override;
 
 private:
   bool lowerReturnVal(MachineIRBuilder &MIRBuilder, const Value *Val,
-                      ArrayRef<unsigned> VRegs,
+                      ArrayRef<Register> VRegs,
                       MachineInstrBuilder &Ret) const;
-
-  using SplitArgTy = std::function<void(unsigned Reg, uint64_t Offset)>;
-
-  /// Split an argument into one or more arguments that the CC lowering can cope
-  /// with (e.g. replace pointers with integers).
-  void splitToValueTypes(const ArgInfo &OrigArg,
-                         SmallVectorImpl<ArgInfo> &SplitArgs,
-                         MachineFunction &MF,
-                         const SplitArgTy &PerformArgSplit) const;
 };
 
 } // end namespace llvm

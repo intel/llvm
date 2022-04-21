@@ -6,7 +6,5 @@ unittest("LinkerTests") {
     "//llvm/lib/IR",
     "//llvm/lib/Linker",
   ]
-  sources = [
-    "LinkModulesTest.cpp",
-  ]
+  sources = [ "LinkModulesTest.cpp" ]
 }

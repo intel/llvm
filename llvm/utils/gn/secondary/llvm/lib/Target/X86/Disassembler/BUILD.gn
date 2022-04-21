@@ -16,8 +16,5 @@ static_library("Disassembler") {
     "//llvm/lib/Target/X86/TargetInfo",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "X86Disassembler.cpp",
-    "X86DisassemblerDecoder.cpp",
-  ]
+  sources = [ "X86Disassembler.cpp" ]
 }

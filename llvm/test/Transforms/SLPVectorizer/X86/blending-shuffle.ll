@@ -3,13 +3,9 @@
 
 define <2 x i8> @g(<2 x i8> %x, <2 x i8> %y) {
 ; CHECK-LABEL: @g(
-; CHECK-NEXT:    [[X0:%.*]] = extractelement <2 x i8> [[X:%.*]], i32 0
-; CHECK-NEXT:    [[Y1:%.*]] = extractelement <2 x i8> [[Y:%.*]], i32 1
-; CHECK-NEXT:    [[X0X0:%.*]] = mul i8 [[X0]], [[X0]]
-; CHECK-NEXT:    [[Y1Y1:%.*]] = mul i8 [[Y1]], [[Y1]]
-; CHECK-NEXT:    [[INS1:%.*]] = insertelement <2 x i8> undef, i8 [[X0X0]], i32 0
-; CHECK-NEXT:    [[INS2:%.*]] = insertelement <2 x i8> [[INS1]], i8 [[Y1Y1]], i32 1
-; CHECK-NEXT:    ret <2 x i8> [[INS2]]
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <2 x i8> [[X:%.*]], <2 x i8> [[Y:%.*]], <2 x i32> <i32 0, i32 3>
+; CHECK-NEXT:    [[TMP2:%.*]] = mul <2 x i8> [[TMP1]], [[TMP1]]
+; CHECK-NEXT:    ret <2 x i8> [[TMP2]]
 ;
   %x0 = extractelement <2 x i8> %x, i32 0
   %y1 = extractelement <2 x i8> %y, i32 1
@@ -66,11 +62,7 @@ define i8 @i(<4 x i8> %x, <4 x i8> %y) {
 ; CHECK-LABEL: @i(
 ; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i8> [[X:%.*]], <4 x i8> [[Y:%.*]], <4 x i32> <i32 0, i32 3, i32 5, i32 6>
 ; CHECK-NEXT:    [[TMP2:%.*]] = mul <4 x i8> [[TMP1]], [[TMP1]]
-; CHECK-NEXT:    [[RDX_SHUF:%.*]] = shufflevector <4 x i8> [[TMP2]], <4 x i8> undef, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
-; CHECK-NEXT:    [[BIN_RDX:%.*]] = add <4 x i8> [[TMP2]], [[RDX_SHUF]]
-; CHECK-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <4 x i8> [[BIN_RDX]], <4 x i8> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[BIN_RDX2:%.*]] = add <4 x i8> [[BIN_RDX]], [[RDX_SHUF1]]
-; CHECK-NEXT:    [[TMP3:%.*]] = extractelement <4 x i8> [[BIN_RDX2]], i32 0
+; CHECK-NEXT:    [[TMP3:%.*]] = call i8 @llvm.vector.reduce.add.v4i8(<4 x i8> [[TMP2]])
 ; CHECK-NEXT:    ret i8 [[TMP3]]
 ;
   %x0 = extractelement <4 x i8> %x, i32 0
@@ -89,10 +81,10 @@ define i8 @i(<4 x i8> %x, <4 x i8> %y) {
 
 define i8 @j(<4 x i8> %x, <4 x i8> %y) {
 ; CHECK-LABEL: @j(
-; CHECK-NEXT:    [[X0:%.*]] = extractelement <4 x i8> [[X:%.*]], i32 0
-; CHECK-NEXT:    [[X3:%.*]] = extractelement <4 x i8> [[X]], i32 3
-; CHECK-NEXT:    [[Y1:%.*]] = extractelement <4 x i8> [[Y:%.*]], i32 1
-; CHECK-NEXT:    [[Y2:%.*]] = extractelement <4 x i8> [[Y]], i32 2
+; CHECK-NEXT:    [[X0:%.*]] = extractelement <4 x i8> [[X:%.*]], i64 0
+; CHECK-NEXT:    [[X3:%.*]] = extractelement <4 x i8> [[X]], i64 3
+; CHECK-NEXT:    [[Y1:%.*]] = extractelement <4 x i8> [[Y:%.*]], i64 1
+; CHECK-NEXT:    [[Y2:%.*]] = extractelement <4 x i8> [[Y]], i64 2
 ; CHECK-NEXT:    [[X0X0:%.*]] = mul i8 [[X0]], [[X0]]
 ; CHECK-NEXT:    [[X3X3:%.*]] = mul i8 [[X3]], [[X3]]
 ; CHECK-NEXT:    [[Y1Y1:%.*]] = mul i8 [[Y1]], [[Y1]]
@@ -118,10 +110,10 @@ define i8 @j(<4 x i8> %x, <4 x i8> %y) {
 
 define i8 @k(<4 x i8> %x) {
 ; CHECK-LABEL: @k(
-; CHECK-NEXT:    [[X0:%.*]] = extractelement <4 x i8> [[X:%.*]], i32 0
-; CHECK-NEXT:    [[X3:%.*]] = extractelement <4 x i8> [[X]], i32 3
-; CHECK-NEXT:    [[X1:%.*]] = extractelement <4 x i8> [[X]], i32 1
-; CHECK-NEXT:    [[X2:%.*]] = extractelement <4 x i8> [[X]], i32 2
+; CHECK-NEXT:    [[X0:%.*]] = extractelement <4 x i8> [[X:%.*]], i64 0
+; CHECK-NEXT:    [[X3:%.*]] = extractelement <4 x i8> [[X]], i64 3
+; CHECK-NEXT:    [[X1:%.*]] = extractelement <4 x i8> [[X]], i64 1
+; CHECK-NEXT:    [[X2:%.*]] = extractelement <4 x i8> [[X]], i64 2
 ; CHECK-NEXT:    [[X0X0:%.*]] = mul i8 [[X0]], [[X0]]
 ; CHECK-NEXT:    [[X3X3:%.*]] = mul i8 [[X3]], [[X3]]
 ; CHECK-NEXT:    [[X1X1:%.*]] = mul i8 [[X1]], [[X1]]
@@ -147,12 +139,12 @@ define i8 @k(<4 x i8> %x) {
 
 define i8 @k_bb(<4 x i8> %x) {
 ; CHECK-LABEL: @k_bb(
-; CHECK-NEXT:    [[X0:%.*]] = extractelement <4 x i8> [[X:%.*]], i32 0
 ; CHECK-NEXT:    br label [[BB1:%.*]]
 ; CHECK:       bb1:
-; CHECK-NEXT:    [[X3:%.*]] = extractelement <4 x i8> [[X]], i32 3
-; CHECK-NEXT:    [[X1:%.*]] = extractelement <4 x i8> [[X]], i32 1
-; CHECK-NEXT:    [[X2:%.*]] = extractelement <4 x i8> [[X]], i32 2
+; CHECK-NEXT:    [[X0:%.*]] = extractelement <4 x i8> [[X:%.*]], i64 0
+; CHECK-NEXT:    [[X3:%.*]] = extractelement <4 x i8> [[X]], i64 3
+; CHECK-NEXT:    [[X1:%.*]] = extractelement <4 x i8> [[X]], i64 1
+; CHECK-NEXT:    [[X2:%.*]] = extractelement <4 x i8> [[X]], i64 2
 ; CHECK-NEXT:    [[X0X0:%.*]] = mul i8 [[X0]], [[X0]]
 ; CHECK-NEXT:    [[X3X3:%.*]] = mul i8 [[X3]], [[X3]]
 ; CHECK-NEXT:    [[X1X1:%.*]] = mul i8 [[X1]], [[X1]]

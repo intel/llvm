@@ -13,14 +13,46 @@ void test(int *List, int Length) {
     List[i] = i * 2;
     i++;
   }
+  i = 0;
+
+// CHECK: #pragma clang loop vectorize_width(4, scalable)
+
+#pragma clang loop vectorize_width(4, scalable)
+// CHECK-NEXT: while (i < Length)
+  while (i < Length) {
+    List[i] = i * 2;
+    i++;
+  }
+  i = 0;
+
+// CHECK: #pragma clang loop vectorize_width(fixed)
+
+#pragma clang loop vectorize_width(fixed)
+// CHECK-NEXT: while (i < Length)
+  while (i < Length) {
+    List[i] = i * 2;
+    i++;
+  }
+  i = 0;
+
+// CHECK: #pragma clang loop vectorize_width(scalable)
+
+#pragma clang loop vectorize_width(scalable)
+// CHECK-NEXT: while (i < Length)
+  while (i < Length) {
+    List[i] = i * 2;
+    i++;
+  }
 
 // CHECK: #pragma clang loop distribute(disable)
 // CHECK-NEXT: #pragma clang loop vectorize(enable)
 // CHECK-NEXT: #pragma clang loop interleave(disable)
+// CHECK-NEXT: #pragma clang loop vectorize_predicate(disable)
 
 #pragma clang loop distribute(disable)
 #pragma clang loop vectorize(enable)
 #pragma clang loop interleave(disable)
+#pragma clang loop vectorize_predicate(disable)
 // CHECK-NEXT: while (i - 1 < Length)
   while (i - 1 < Length) {
     List[i] = i * 2;
@@ -30,10 +62,12 @@ void test(int *List, int Length) {
 // CHECK: #pragma clang loop distribute(enable)
 // CHECK-NEXT: #pragma clang loop vectorize(disable)
 // CHECK-NEXT: #pragma clang loop interleave(enable)
+// CHECK-NEXT: #pragma clang loop vectorize_predicate(enable)
 
 #pragma clang loop distribute(enable)
 #pragma clang loop vectorize(disable)
 #pragma clang loop interleave(enable)
+#pragma clang loop vectorize_predicate(enable)
 // CHECK-NEXT: while (i - 2 < Length)
   while (i - 2 < Length) {
     List[i] = i * 2;

@@ -19,9 +19,6 @@
 #define DEBUG_TYPE "jitlink"
 
 namespace llvm {
-
-class MemoryBufferRef;
-
 namespace jitlink {
 
 /// Base class for a JIT linker.
@@ -32,85 +29,69 @@ namespace jitlink {
 /// remaining linker work) to allow them to be performed asynchronously.
 class JITLinkerBase {
 public:
-  JITLinkerBase(std::unique_ptr<JITLinkContext> Ctx, PassConfiguration Passes)
-      : Ctx(std::move(Ctx)), Passes(std::move(Passes)) {
+  JITLinkerBase(std::unique_ptr<JITLinkContext> Ctx,
+                std::unique_ptr<LinkGraph> G, PassConfiguration Passes)
+      : Ctx(std::move(Ctx)), G(std::move(G)), Passes(std::move(Passes)) {
     assert(this->Ctx && "Ctx can not be null");
+    assert(this->G && "G can not be null");
   }
 
   virtual ~JITLinkerBase();
 
 protected:
-  struct SegmentLayout {
-    using SectionAtomsList = std::vector<DefinedAtom *>;
-    struct SectionLayout {
-      SectionLayout(Section &S) : S(&S) {}
+  using InFlightAlloc = JITLinkMemoryManager::InFlightAlloc;
+  using AllocResult = Expected<std::unique_ptr<InFlightAlloc>>;
+  using FinalizeResult = Expected<JITLinkMemoryManager::FinalizedAlloc>;
 
-      Section *S;
-      SectionAtomsList Atoms;
-    };
-
-    using SectionLayoutList = std::vector<SectionLayout>;
-
-    SectionLayoutList ContentSections;
-    SectionLayoutList ZeroFillSections;
-  };
-
-  using SegmentLayoutMap = DenseMap<unsigned, SegmentLayout>;
+  // Returns the PassConfiguration for this instance. This can be used by
+  // JITLinkerBase implementations to add late passes that reference their
+  // own data structures (e.g. for ELF implementations to locate / construct
+  // a GOT start symbol prior to fixup).
+  PassConfiguration &getPassConfig() { return Passes; }
 
   // Phase 1:
-  //   1.1: Build atom graph
-  //   1.2: Run pre-prune passes
+  //   1.1: Run pre-prune passes
   //   1.2: Prune graph
   //   1.3: Run post-prune passes
-  //   1.4: Sort atoms into segments
-  //   1.5: Allocate segment memory
-  //   1.6: Identify externals and make an async call to resolve function
+  //   1.4: Allocate memory.
   void linkPhase1(std::unique_ptr<JITLinkerBase> Self);
 
   // Phase 2:
-  //   2.1: Apply resolution results
-  //   2.2: Fix up atom contents
-  //   2.3: Call OnResolved callback
-  //   2.3: Make an async call to transfer and finalize memory.
-  void linkPhase2(std::unique_ptr<JITLinkerBase> Self,
-                  Expected<AsyncLookupResult> LookupResult);
+  //   2.2: Run post-allocation passes
+  //   2.3: Notify context of final assigned symbol addresses
+  //   2.4: Identify external symbols and make an async call to resolve
+  void linkPhase2(std::unique_ptr<JITLinkerBase> Self, AllocResult AR);
 
   // Phase 3:
-  //   3.1: Call OnFinalized callback, handing off allocation.
-  void linkPhase3(std::unique_ptr<JITLinkerBase> Self, Error Err);
+  //   3.1: Apply resolution results
+  //   3.2: Run pre-fixup passes
+  //   3.3: Fix up block contents
+  //   3.4: Run post-fixup passes
+  //   3.5: Make an async call to transfer and finalize memory.
+  void linkPhase3(std::unique_ptr<JITLinkerBase> Self,
+                  Expected<AsyncLookupResult> LookupResult);
 
-  // Build a graph from the given object buffer.
-  // To be implemented by the client.
-  virtual Expected<std::unique_ptr<AtomGraph>>
-  buildGraph(MemoryBufferRef ObjBuffer) = 0;
-
-  // For debug dumping of the atom graph.
-  virtual StringRef getEdgeKindName(Edge::Kind K) const = 0;
+  // Phase 4:
+  //   4.1: Call OnFinalized callback, handing off allocation.
+  void linkPhase4(std::unique_ptr<JITLinkerBase> Self, FinalizeResult FR);
 
 private:
   // Run all passes in the given pass list, bailing out immediately if any pass
   // returns an error.
-  Error runPasses(AtomGraphPassList &Passes, AtomGraph &G);
+  Error runPasses(LinkGraphPassList &Passes);
 
-  // Copy atom contents and apply relocations.
+  // Copy block contents and apply relocations.
   // Implemented in JITLinker.
-  virtual Error
-  copyAndFixUpAllAtoms(const SegmentLayoutMap &Layout,
-                       JITLinkMemoryManager::Allocation &Alloc) const = 0;
+  virtual Error fixUpBlocks(LinkGraph &G) const = 0;
 
-  void layOutAtoms();
-  Error allocateSegments(const SegmentLayoutMap &Layout);
-  DenseSet<StringRef> getExternalSymbolNames() const;
+  JITLinkContext::LookupMap getExternalSymbolNames() const;
   void applyLookupResult(AsyncLookupResult LR);
-  void deallocateAndBailOut(Error Err);
-
-  void dumpGraph(raw_ostream &OS);
+  void abandonAllocAndBailOut(std::unique_ptr<JITLinkerBase> Self, Error Err);
 
   std::unique_ptr<JITLinkContext> Ctx;
+  std::unique_ptr<LinkGraph> G;
   PassConfiguration Passes;
-  std::unique_ptr<AtomGraph> G;
-  SegmentLayoutMap Layout;
-  std::unique_ptr<JITLinkMemoryManager::Allocation> Alloc;
+  std::unique_ptr<InFlightAlloc> Alloc;
 };
 
 template <typename LinkerImpl> class JITLinker : public JITLinkerBase {
@@ -121,7 +102,7 @@ public:
   /// Link should be called with the constructor arguments for LinkerImpl, which
   /// will be forwarded to the constructor.
   template <typename... ArgTs> static void link(ArgTs &&... Args) {
-    auto L = llvm::make_unique<LinkerImpl>(std::forward<ArgTs>(Args)...);
+    auto L = std::make_unique<LinkerImpl>(std::forward<ArgTs>(Args)...);
 
     // Ownership of the linker is passed into the linker's doLink function to
     // allow it to be passed on to async continuations.
@@ -139,118 +120,42 @@ private:
     return static_cast<const LinkerImpl &>(*this);
   }
 
-  Error
-  copyAndFixUpAllAtoms(const SegmentLayoutMap &Layout,
-                       JITLinkMemoryManager::Allocation &Alloc) const override {
-    LLVM_DEBUG(dbgs() << "Copying and fixing up atoms:\n");
-    for (auto &KV : Layout) {
-      auto &Prot = KV.first;
-      auto &SegLayout = KV.second;
+  Error fixUpBlocks(LinkGraph &G) const override {
+    LLVM_DEBUG(dbgs() << "Fixing up blocks:\n");
 
-      auto SegMem = Alloc.getWorkingMemory(
-          static_cast<sys::Memory::ProtectionFlags>(Prot));
-      char *LastAtomEnd = SegMem.data();
-      char *AtomDataPtr = LastAtomEnd;
+    for (auto *B : G.blocks()) {
+      LLVM_DEBUG(dbgs() << "  " << *B << ":\n");
 
-      LLVM_DEBUG({
-        dbgs() << "  Processing segment "
-               << static_cast<sys::Memory::ProtectionFlags>(Prot) << " [ "
-               << (const void *)SegMem.data() << " .. "
-               << (const void *)((char *)SegMem.data() + SegMem.size())
-               << " ]\n    Processing content sections:\n";
-      });
+      // Copy Block data and apply fixups.
+      LLVM_DEBUG(dbgs() << "    Applying fixups.\n");
+      assert((!B->isZeroFill() || B->edges_size() == 0) &&
+             "Edges in zero-fill block?");
+      for (auto &E : B->edges()) {
 
-      for (auto &SI : SegLayout.ContentSections) {
-        LLVM_DEBUG(dbgs() << "    " << SI.S->getName() << ":\n");
+        // Skip non-relocation edges.
+        if (!E.isRelocation())
+          continue;
 
-        AtomDataPtr += alignmentAdjustment(AtomDataPtr, SI.S->getAlignment());
-
-        LLVM_DEBUG({
-          dbgs() << "      Bumped atom pointer to " << (const void *)AtomDataPtr
-                 << " to meet section alignment "
-                 << " of " << SI.S->getAlignment() << "\n";
-        });
-
-        for (auto *DA : SI.Atoms) {
-
-          // Align.
-          AtomDataPtr += alignmentAdjustment(AtomDataPtr, DA->getAlignment());
-          LLVM_DEBUG({
-            dbgs() << "      Bumped atom pointer to "
-                   << (const void *)AtomDataPtr << " to meet alignment of "
-                   << DA->getAlignment() << "\n";
-          });
-
-          // Zero pad up to alignment.
-          LLVM_DEBUG({
-            if (LastAtomEnd != AtomDataPtr)
-              dbgs() << "      Zero padding from " << (const void *)LastAtomEnd
-                     << " to " << (const void *)AtomDataPtr << "\n";
-          });
-          while (LastAtomEnd != AtomDataPtr)
-            *LastAtomEnd++ = 0;
-
-          // Copy initial atom content.
-          LLVM_DEBUG({
-            dbgs() << "      Copying atom " << *DA << " content, "
-                   << DA->getContent().size() << " bytes, from "
-                   << (const void *)DA->getContent().data() << " to "
-                   << (const void *)AtomDataPtr << "\n";
-          });
-          memcpy(AtomDataPtr, DA->getContent().data(), DA->getContent().size());
-
-          // Copy atom data and apply fixups.
-          LLVM_DEBUG(dbgs() << "      Applying fixups.\n");
-          for (auto &E : DA->edges()) {
-
-            // Skip non-relocation edges.
-            if (!E.isRelocation())
-              continue;
-
-            // Dispatch to LinkerImpl for fixup.
-            if (auto Err = impl().applyFixup(*DA, E, AtomDataPtr))
-              return Err;
-          }
-
-          // Point the atom's content to the fixed up buffer.
-          DA->setContent(StringRef(AtomDataPtr, DA->getContent().size()));
-
-          // Update atom end pointer.
-          LastAtomEnd = AtomDataPtr + DA->getContent().size();
-          AtomDataPtr = LastAtomEnd;
-        }
+        // Dispatch to LinkerImpl for fixup.
+        if (auto Err = impl().applyFixup(G, *B, E))
+          return Err;
       }
-
-      // Zero pad the rest of the segment.
-      LLVM_DEBUG({
-        dbgs() << "    Zero padding end of segment from "
-               << (const void *)LastAtomEnd << " to "
-               << (const void *)((char *)SegMem.data() + SegMem.size()) << "\n";
-      });
-      while (LastAtomEnd != SegMem.data() + SegMem.size())
-        *LastAtomEnd++ = 0;
     }
 
     return Error::success();
   }
 };
 
-/// Dead strips and replaces discarded definitions with external atoms.
+/// Removes dead symbols/blocks/addressables.
 ///
-/// Finds the set of nodes reachable from any node initially marked live
-/// (nodes marked should-discard are treated as not live, even if they are
-/// reachable). All nodes not marked as live at the end of this process,
-/// are deleted. Nodes that are live, but marked should-discard are replaced
-/// with external atoms and all edges to them are re-written.
-void prune(AtomGraph &G);
-
-Error addEHFrame(AtomGraph &G, Section &EHFrameSection,
-                 StringRef EHFrameContent, JITTargetAddress EHFrameAddress,
-                 Edge::Kind FDEToCIERelocKind, Edge::Kind FDEToTargetRelocKind);
+/// Finds the set of symbols and addressables reachable from any symbol
+/// initially marked live. All symbols/addressables not marked live at the end
+/// of this process are removed.
+void prune(LinkGraph &G);
 
 } // end namespace jitlink
 } // end namespace llvm
 
 #undef DEBUG_TYPE // "jitlink"
 
-#endif // LLVM_EXECUTIONENGINE_JITLINK_JITLINKGENERIC_H
+#endif // LIB_EXECUTIONENGINE_JITLINK_JITLINKGENERIC_H

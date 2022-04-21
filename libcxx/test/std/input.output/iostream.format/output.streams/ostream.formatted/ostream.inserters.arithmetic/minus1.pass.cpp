@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: with_system_cxx_lib=macosx10.12
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.12
 
 // <ostream>
 
@@ -28,6 +28,8 @@
 #include <cctype>
 #include <cstdint>
 #include <cassert>
+
+#include "test_macros.h"
 
 template <typename T>
 void test_octal(const char *expected)

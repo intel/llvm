@@ -10,8 +10,8 @@
 // source-location information.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_CLANG_SEMA_LOCINFOTYPE_H
-#define LLVM_CLANG_SEMA_LOCINFOTYPE_H
+#ifndef LLVM_CLANG_AST_LOCINFOTYPE_H
+#define LLVM_CLANG_AST_LOCINFOTYPE_H
 
 #include "clang/AST/Type.h"
 
@@ -35,10 +35,7 @@ class LocInfoType : public Type {
   TypeSourceInfo *DeclInfo;
 
   LocInfoType(QualType ty, TypeSourceInfo *TInfo)
-      : Type((TypeClass)LocInfo, ty, ty->isDependentType(),
-             ty->isInstantiationDependentType(), ty->isVariablyModifiedType(),
-             ty->containsUnexpandedParameterPack()),
-        DeclInfo(TInfo) {
+      : Type((TypeClass)LocInfo, ty, ty->getDependence()), DeclInfo(TInfo) {
     assert(getTypeClass() == (TypeClass)LocInfo && "LocInfo didn't fit in TC?");
   }
   friend class Sema;
@@ -57,4 +54,4 @@ public:
 
 } // end namespace clang
 
-#endif // LLVM_CLANG_SEMA_LOCINFOTYPE_H
+#endif // LLVM_CLANG_AST_LOCINFOTYPE_H

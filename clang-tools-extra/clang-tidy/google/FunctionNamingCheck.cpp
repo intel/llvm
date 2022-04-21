@@ -60,8 +60,8 @@ FixItHint generateFixItHint(const FunctionDecl *Decl) {
   size_t Index = 0;
   bool AtWordBoundary = true;
   while (Index < NewName.size()) {
-    char ch = NewName[Index];
-    if (isalnum(ch)) {
+    char Ch = NewName[Index];
+    if (isalnum(Ch)) {
       // Capitalize the first letter after every word boundary.
       if (AtWordBoundary) {
         NewName[Index] = toupper(NewName[Index]);
@@ -89,10 +89,6 @@ FixItHint generateFixItHint(const FunctionDecl *Decl) {
 } // namespace
 
 void FunctionNamingCheck::registerMatchers(MatchFinder *Finder) {
-  // This check should only be applied to Objective-C sources.
-  if (!getLangOpts().ObjC)
-    return;
-
   // Enforce Objective-C function naming conventions on all functions except:
   // • Functions defined in system headers.
   // • C++ member functions.

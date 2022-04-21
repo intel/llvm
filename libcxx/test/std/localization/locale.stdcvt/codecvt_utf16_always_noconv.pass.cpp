@@ -21,14 +21,18 @@
 #include <codecvt>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         typedef std::codecvt_utf16<wchar_t> C;
         C c;
         bool r = c.always_noconv();
         assert(r == false);
     }
+#endif
     {
         typedef std::codecvt_utf16<char16_t> C;
         C c;

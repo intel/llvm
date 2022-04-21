@@ -1,0 +1,125 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv -spec-const-info %t.spv | FileCheck %s --check-prefix=CHECK-INFO
+; CHECK-INFO: Number of scalar specialization constants in the module = 6
+; CHECK-INFO: Spec const id = 3, size in bytes = 4
+; CHECK-INFO: Spec const id = 6, size in bytes = 4
+; CHECK-INFO: Spec const id = 10, size in bytes = 4
+; CHECK-INFO: Spec const id = 11, size in bytes = 4
+; CHECK-INFO: Spec const id = 4, size in bytes = 4
+; CHECK-INFO: Spec const id = 7, size in bytes = 4
+
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis -o %t.default.ll
+; RUN: FileCheck < %t.default.ll  %s --check-prefixes=CHECK-COMMON,CHECK-DEFAULT
+; RUN: llvm-spirv -r -spec-const "3:i32:42 4:f32:2.71 6:i32:43 7:f32:3.14 10:i32:44 11:i32:55" -o - %t.spv | llvm-dis -o %t.spec.ll
+; RUN: FileCheck < %t.spec.ll %s --check-prefixes=CHECK-COMMON,CHECK-SPEC
+
+
+; CHECK-COMMON: %struct._ZTS3POD.POD = type { [2 x %struct._ZTS1A.A], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" }
+; CHECK-COMMON: %struct._ZTS1A.A = type { i32, float }
+; CHECK-COMMON: %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" = type { <2 x i32> }
+  
+; CHECK-DEFAULT: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 1, float 0.000000e+00 }, %struct._ZTS1A.A { i32 35, float 0.000000e+00 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 45, i32 55> }     }, %struct._ZTS3POD.POD addrspace(4)* %[[#]]
+
+; CHECK-SPEC: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 42, float 0x4005AE1480000000 }, %struct._ZTS1A.A { i32 43, float 0x40091EB860000000 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 44, i32 55> } }, %struct._ZTS3POD.POD addrspace(4)* %3
+
+; SPIR-V
+; Version: 1.1
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 57
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Int64
+               OpCapability GenericPointer
+               OpCapability Int8
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %21 "_ZTS4Test"
+               OpSource OpenCL_CPP 100000
+               OpName %struct__ZTS3POD_POD "struct._ZTS3POD.POD"
+               OpName %struct__ZTS1A_A "struct._ZTS1A.A"
+               OpName %class__ZTSN2cl4sycl3vecIiLi2EEE_cl__sycl__vec "class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"
+               OpName %class__ZTSN2cl4sycl5rangeILi1EEE_cl__sycl__range "class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"
+               OpName %class__ZTSN2cl4sycl6detail5arrayILi1EEE_cl__sycl__detail__array "class._ZTSN2cl4sycl6detail5arrayILi1EEE.cl::sycl::detail::array"
+               OpName %class__ZTSN2cl4sycl2idILi1EEE_cl__sycl__id "class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"
+               OpName %_arg_ "_arg_"
+               OpName %_arg_1 "_arg_1"
+               OpName %_arg_2 "_arg_2"
+               OpName %_arg_3 "_arg_3"
+               OpName %entry "entry"
+               OpName %ref_tmp_i "ref.tmp.i"
+               OpName %add_ptr_i "add.ptr.i"
+               OpDecorate %40 SpecId 3
+               OpDecorate %41 SpecId 4
+               OpDecorate %43 SpecId 6
+               OpDecorate %44 SpecId 7
+               OpDecorate %47 SpecId 10
+               OpDecorate %48 SpecId 11
+               OpDecorate %_arg_1 FuncParamAttr ByVal
+               OpDecorate %_arg_2 FuncParamAttr ByVal
+               OpDecorate %_arg_3 FuncParamAttr ByVal
+               OpDecorate %ref_tmp_i Alignment 8
+       %uint = OpTypeInt 32 0
+      %ulong = OpTypeInt 64 0
+      %uchar = OpTypeInt 8 0
+    %ulong_2 = OpConstant %ulong 2
+    %ulong_1 = OpConstant %ulong 1
+    %ulong_0 = OpConstant %ulong 0
+     %uint_0 = OpConstant %uint 0
+         %40 = OpSpecConstant %uint 1
+         %43 = OpSpecConstant %uint 35
+         %47 = OpSpecConstant %uint 45
+         %48 = OpSpecConstant %uint 55
+   %ulong_24 = OpConstant %ulong 24
+       %void = OpTypeVoid
+      %float = OpTypeFloat 32
+%struct__ZTS1A_A = OpTypeStruct %uint %float
+%_arr_struct__ZTS1A_A_ulong_2 = OpTypeArray %struct__ZTS1A_A %ulong_2
+     %v2uint = OpTypeVector %uint 2
+%class__ZTSN2cl4sycl3vecIiLi2EEE_cl__sycl__vec = OpTypeStruct %v2uint
+%struct__ZTS3POD_POD = OpTypeStruct %_arr_struct__ZTS1A_A_ulong_2 %class__ZTSN2cl4sycl3vecIiLi2EEE_cl__sycl__vec
+%_ptr_CrossWorkgroup_struct__ZTS3POD_POD = OpTypePointer CrossWorkgroup %struct__ZTS3POD_POD
+%_arr_ulong_ulong_1 = OpTypeArray %ulong %ulong_1
+%class__ZTSN2cl4sycl6detail5arrayILi1EEE_cl__sycl__detail__array = OpTypeStruct %_arr_ulong_ulong_1
+%class__ZTSN2cl4sycl5rangeILi1EEE_cl__sycl__range = OpTypeStruct %class__ZTSN2cl4sycl6detail5arrayILi1EEE_cl__sycl__detail__array
+%_ptr_Function_class__ZTSN2cl4sycl5rangeILi1EEE_cl__sycl__range = OpTypePointer Function %class__ZTSN2cl4sycl5rangeILi1EEE_cl__sycl__range
+%class__ZTSN2cl4sycl2idILi1EEE_cl__sycl__id = OpTypeStruct %class__ZTSN2cl4sycl6detail5arrayILi1EEE_cl__sycl__detail__array
+%_ptr_Function_class__ZTSN2cl4sycl2idILi1EEE_cl__sycl__id = OpTypePointer Function %class__ZTSN2cl4sycl2idILi1EEE_cl__sycl__id
+         %20 = OpTypeFunction %void %_ptr_CrossWorkgroup_struct__ZTS3POD_POD %_ptr_Function_class__ZTSN2cl4sycl5rangeILi1EEE_cl__sycl__range %_ptr_Function_class__ZTSN2cl4sycl5rangeILi1EEE_cl__sycl__range %_ptr_Function_class__ZTSN2cl4sycl2idILi1EEE_cl__sycl__id
+%_ptr_Function_struct__ZTS3POD_POD = OpTypePointer Function %struct__ZTS3POD_POD
+%_ptr_Function_ulong = OpTypePointer Function %ulong
+%_ptr_Function_uchar = OpTypePointer Function %uchar
+%_ptr_Generic_struct__ZTS3POD_POD = OpTypePointer Generic %struct__ZTS3POD_POD
+%_ptr_CrossWorkgroup_uchar = OpTypePointer CrossWorkgroup %uchar
+%_ptr_Generic_uchar = OpTypePointer Generic %uchar
+         %41 = OpSpecConstant %float 0
+         %42 = OpSpecConstantComposite %struct__ZTS1A_A %40 %41
+         %44 = OpSpecConstant %float 0
+         %45 = OpSpecConstantComposite %struct__ZTS1A_A %43 %44
+         %46 = OpSpecConstantComposite %_arr_struct__ZTS1A_A_ulong_2 %42 %45
+         %49 = OpSpecConstantComposite %v2uint %47 %48
+         %50 = OpSpecConstantComposite %class__ZTSN2cl4sycl3vecIiLi2EEE_cl__sycl__vec %49
+         %51 = OpSpecConstantComposite %struct__ZTS3POD_POD %46 %50
+         %21 = OpFunction %void None %20
+      %_arg_ = OpFunctionParameter %_ptr_CrossWorkgroup_struct__ZTS3POD_POD
+     %_arg_1 = OpFunctionParameter %_ptr_Function_class__ZTSN2cl4sycl5rangeILi1EEE_cl__sycl__range
+     %_arg_2 = OpFunctionParameter %_ptr_Function_class__ZTSN2cl4sycl5rangeILi1EEE_cl__sycl__range
+     %_arg_3 = OpFunctionParameter %_ptr_Function_class__ZTSN2cl4sycl2idILi1EEE_cl__sycl__id
+      %entry = OpLabel
+  %ref_tmp_i = OpVariable %_ptr_Function_struct__ZTS3POD_POD Function
+         %32 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %_arg_3 %ulong_0 %uint_0 %uint_0 %ulong_0
+         %33 = OpLoad %ulong %32 Aligned 8
+  %add_ptr_i = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_struct__ZTS3POD_POD %_arg_ %33
+         %37 = OpBitcast %_ptr_Function_uchar %ref_tmp_i
+               OpLifetimeStart %37 24
+         %39 = OpPtrCastToGeneric %_ptr_Generic_struct__ZTS3POD_POD %ref_tmp_i
+               OpStore %39 %51 Aligned 8
+         %53 = OpBitcast %_ptr_CrossWorkgroup_uchar %add_ptr_i
+         %55 = OpPtrCastToGeneric %_ptr_Generic_uchar %53
+               OpCopyMemorySized %55 %37 %ulong_24 Aligned 8
+               OpLifetimeStop %37 24
+               OpReturn
+               OpFunctionEnd

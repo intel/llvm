@@ -10,7 +10,9 @@
 
 #include "llvm/DebugInfo/PDB/ConcreteSymbolEnumerator.h"
 #include "llvm/DebugInfo/PDB/IPDBEnumChildren.h"
+#include "llvm/DebugInfo/PDB/IPDBLineNumber.h"
 #include "llvm/DebugInfo/PDB/IPDBSession.h"
+#include "llvm/DebugInfo/PDB/Native/NativeTypeFunctionSig.h"
 #include "llvm/DebugInfo/PDB/PDBSymDumper.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolData.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeFunctionSig.h"
@@ -79,7 +81,7 @@ private:
 
 std::unique_ptr<IPDBEnumChildren<PDBSymbolData>>
 PDBSymbolFunc::getArguments() const {
-  return llvm::make_unique<FunctionArgEnumerator>(Session, *this);
+  return std::make_unique<FunctionArgEnumerator>(Session, *this);
 }
 
 void PDBSymbolFunc::dump(PDBSymDumper &Dumper) const { Dumper.dump(*this); }

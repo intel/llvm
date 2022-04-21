@@ -7,11 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "ClangTidyProfiling.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 #include <system_error>
 #include <utility>
@@ -66,7 +64,7 @@ void ClangTidyProfiling::storeProfileData() {
   }
 
   std::error_code EC;
-  llvm::raw_fd_ostream OS(Storage->StoreFilename, EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream OS(Storage->StoreFilename, EC, llvm::sys::fs::OF_None);
   if (EC) {
     llvm::errs() << "Error opening output file '" << Storage->StoreFilename
                  << "': " << EC.message() << "\n";

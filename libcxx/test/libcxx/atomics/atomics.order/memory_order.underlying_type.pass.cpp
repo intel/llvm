@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-has-no-threads
-
 // This test ensures that std::memory_order has the same size under all
 // standard versions to make sure we're not breaking the ABI. This is
 // relevant because std::memory_order is a scoped enumeration in C++20,
@@ -17,6 +15,8 @@
 
 #include <atomic>
 #include <type_traits>
+
+#include "test_macros.h"
 
 
 enum cpp17_memory_order {

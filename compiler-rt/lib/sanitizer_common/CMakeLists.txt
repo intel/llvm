@@ -2,88 +2,94 @@
 # These components are shared between AddressSanitizer and ThreadSanitizer.
 
 set(SANITIZER_SOURCES_NOTERMINATION
-  sanitizer_allocator.cc
-  sanitizer_common.cc
-  sanitizer_deadlock_detector1.cc
-  sanitizer_deadlock_detector2.cc
-  sanitizer_errno.cc
-  sanitizer_file.cc
-  sanitizer_flags.cc
-  sanitizer_flag_parser.cc
-  sanitizer_fuchsia.cc
-  sanitizer_libc.cc
-  sanitizer_libignore.cc
-  sanitizer_linux.cc
-  sanitizer_linux_s390.cc
-  sanitizer_mac.cc
-  sanitizer_netbsd.cc
-  sanitizer_openbsd.cc
-  sanitizer_persistent_allocator.cc
-  sanitizer_platform_limits_freebsd.cc
-  sanitizer_platform_limits_linux.cc
-  sanitizer_platform_limits_netbsd.cc
-  sanitizer_platform_limits_openbsd.cc
-  sanitizer_platform_limits_posix.cc
-  sanitizer_platform_limits_solaris.cc
-  sanitizer_posix.cc
-  sanitizer_printf.cc
-  sanitizer_procmaps_common.cc
-  sanitizer_procmaps_bsd.cc
-  sanitizer_procmaps_linux.cc
-  sanitizer_procmaps_mac.cc
-  sanitizer_procmaps_solaris.cc
-  sanitizer_rtems.cc
-  sanitizer_solaris.cc
-  sanitizer_stoptheworld_mac.cc
-  sanitizer_suppressions.cc
-  sanitizer_tls_get_addr.cc
-  sanitizer_thread_registry.cc
-  sanitizer_type_traits.cc
-  sanitizer_win.cc
+  sanitizer_allocator.cpp
+  sanitizer_common.cpp
+  sanitizer_deadlock_detector1.cpp
+  sanitizer_deadlock_detector2.cpp
+  sanitizer_errno.cpp
+  sanitizer_file.cpp
+  sanitizer_flags.cpp
+  sanitizer_flag_parser.cpp
+  sanitizer_fuchsia.cpp
+  sanitizer_libc.cpp
+  sanitizer_libignore.cpp
+  sanitizer_linux.cpp
+  sanitizer_linux_s390.cpp
+  sanitizer_mac.cpp
+  sanitizer_mutex.cpp
+  sanitizer_netbsd.cpp
+  sanitizer_platform_limits_freebsd.cpp
+  sanitizer_platform_limits_linux.cpp
+  sanitizer_platform_limits_netbsd.cpp
+  sanitizer_platform_limits_posix.cpp
+  sanitizer_platform_limits_solaris.cpp
+  sanitizer_posix.cpp
+  sanitizer_printf.cpp
+  sanitizer_procmaps_common.cpp
+  sanitizer_procmaps_bsd.cpp
+  sanitizer_procmaps_fuchsia.cpp
+  sanitizer_procmaps_linux.cpp
+  sanitizer_procmaps_mac.cpp
+  sanitizer_procmaps_solaris.cpp
+  sanitizer_solaris.cpp
+  sanitizer_stoptheworld_fuchsia.cpp
+  sanitizer_stoptheworld_mac.cpp
+  sanitizer_stoptheworld_win.cpp
+  sanitizer_suppressions.cpp
+  sanitizer_tls_get_addr.cpp
+  sanitizer_thread_registry.cpp
+  sanitizer_type_traits.cpp
+  sanitizer_win.cpp
   )
 
 set(SANITIZER_SOURCES
-  ${SANITIZER_SOURCES_NOTERMINATION} sanitizer_termination.cc)
+  ${SANITIZER_SOURCES_NOTERMINATION}
+  sanitizer_termination.cpp
+  )
 
 # Libc functions stubs. These sources should be linked instead of
 # SANITIZER_LIBCDEP_SOURCES when sanitizer_common library must not depend on
 # libc.
 set(SANITIZER_NOLIBC_SOURCES
-  sanitizer_common_nolibc.cc)
+  sanitizer_common_nolibc.cpp
+  )
 
 set(SANITIZER_LIBCDEP_SOURCES
-  sanitizer_common_libcdep.cc
-  sanitizer_allocator_checks.cc
-  sanitizer_linux_libcdep.cc
-  sanitizer_mac_libcdep.cc
-  sanitizer_posix_libcdep.cc
-  sanitizer_stoptheworld_linux_libcdep.cc
+  sanitizer_common_libcdep.cpp
+  sanitizer_allocator_checks.cpp
+  sanitizer_linux_libcdep.cpp
+  sanitizer_mac_libcdep.cpp
+  sanitizer_posix_libcdep.cpp
+  sanitizer_stoptheworld_linux_libcdep.cpp
+  sanitizer_stoptheworld_netbsd_libcdep.cpp
   )
 
 set(SANITIZER_COVERAGE_SOURCES
-  sancov_flags.cc
-  sanitizer_coverage_fuchsia.cc
-  sanitizer_coverage_libcdep_new.cc
-  sanitizer_coverage_win_sections.cc
+  sancov_flags.cpp
+  sanitizer_coverage_fuchsia.cpp
+  sanitizer_coverage_libcdep_new.cpp
+  sanitizer_coverage_win_sections.cpp
   )
 
 set(SANITIZER_SYMBOLIZER_SOURCES
-  sanitizer_allocator_report.cc
-  sanitizer_stackdepot.cc
-  sanitizer_stacktrace.cc
-  sanitizer_stacktrace_libcdep.cc
-  sanitizer_stacktrace_printer.cc
-  sanitizer_stacktrace_sparc.cc
-  sanitizer_symbolizer.cc
-  sanitizer_symbolizer_libbacktrace.cc
-  sanitizer_symbolizer_libcdep.cc
-  sanitizer_symbolizer_mac.cc
-  sanitizer_symbolizer_markup.cc
-  sanitizer_symbolizer_posix_libcdep.cc
-  sanitizer_symbolizer_report.cc
-  sanitizer_symbolizer_win.cc
-  sanitizer_unwind_linux_libcdep.cc
-  sanitizer_unwind_win.cc
+  sanitizer_allocator_report.cpp
+  sanitizer_chained_origin_depot.cpp
+  sanitizer_stack_store.cpp
+  sanitizer_stackdepot.cpp
+  sanitizer_stacktrace.cpp
+  sanitizer_stacktrace_libcdep.cpp
+  sanitizer_stacktrace_printer.cpp
+  sanitizer_stacktrace_sparc.cpp
+  sanitizer_symbolizer.cpp
+  sanitizer_symbolizer_libbacktrace.cpp
+  sanitizer_symbolizer_libcdep.cpp
+  sanitizer_symbolizer_mac.cpp
+  sanitizer_symbolizer_markup.cpp
+  sanitizer_symbolizer_posix_libcdep.cpp
+  sanitizer_symbolizer_report.cpp
+  sanitizer_symbolizer_win.cpp
+  sanitizer_unwind_linux_libcdep.cpp
+  sanitizer_unwind_win.cpp
   )
 
 # Explicitly list all sanitizer_common headers. Not all of these are
@@ -94,9 +100,9 @@ set(SANITIZER_IMPL_HEADERS
   sancov_flags.inc
   sanitizer_addrhashmap.h
   sanitizer_allocator.h
-  sanitizer_allocator_bytemap.h
   sanitizer_allocator_checks.h
   sanitizer_allocator_combined.h
+  sanitizer_allocator_dlsym.h
   sanitizer_allocator_interface.h
   sanitizer_allocator_internal.h
   sanitizer_allocator_local_cache.h
@@ -115,6 +121,7 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_atomic_msvc.h
   sanitizer_bitvector.h
   sanitizer_bvgraph.h
+  sanitizer_chained_origin_depot.h
   sanitizer_common.h
   sanitizer_common_interceptors.inc
   sanitizer_common_interceptors_format.inc
@@ -126,12 +133,15 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_dbghelp.h
   sanitizer_deadlock_detector.h
   sanitizer_deadlock_detector_interface.h
+  sanitizer_dense_map.h
+  sanitizer_dense_map_info.h
   sanitizer_errno.h
   sanitizer_errno_codes.h
   sanitizer_file.h
   sanitizer_flag_parser.h
   sanitizer_flags.h
   sanitizer_flags.inc
+  sanitizer_flat_map.h
   sanitizer_freebsd.h
   sanitizer_fuchsia.h
   sanitizer_getauxval.h
@@ -139,30 +149,31 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_interceptors_ioctl_netbsd.inc
   sanitizer_interface_internal.h
   sanitizer_internal_defs.h
+  sanitizer_leb128.h
   sanitizer_lfstack.h
   sanitizer_libc.h
   sanitizer_libignore.h
   sanitizer_linux.h
   sanitizer_list.h
   sanitizer_local_address_space_view.h
+  sanitizer_lzw.h
   sanitizer_mac.h
   sanitizer_malloc_mac.inc
   sanitizer_mutex.h
-  sanitizer_persistent_allocator.h
   sanitizer_placement_new.h
   sanitizer_platform.h
   sanitizer_platform_interceptors.h
   sanitizer_platform_limits_netbsd.h
-  sanitizer_platform_limits_openbsd.h
   sanitizer_platform_limits_posix.h
   sanitizer_platform_limits_solaris.h
   sanitizer_posix.h
   sanitizer_procmaps.h
+  sanitizer_ptrauth.h
   sanitizer_quarantine.h
   sanitizer_report_decorator.h
   sanitizer_ring_buffer.h
-  sanitizer_rtems.h
   sanitizer_signal_interceptors.inc
+  sanitizer_stack_store.h
   sanitizer_stackdepot.h
   sanitizer_stackdepotbase.h
   sanitizer_stacktrace.h
@@ -174,13 +185,14 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_symbolizer_internal.h
   sanitizer_symbolizer_libbacktrace.h
   sanitizer_symbolizer_mac.h
-  sanitizer_symbolizer_rtems.h
   sanitizer_syscall_generic.inc
   sanitizer_syscall_linux_aarch64.inc
   sanitizer_syscall_linux_arm.inc
   sanitizer_syscall_linux_x86_64.inc
+  sanitizer_syscall_linux_riscv64.inc
   sanitizer_syscalls_netbsd.inc
   sanitizer_thread_registry.h
+  sanitizer_thread_safety.h
   sanitizer_tls_get_addr.h
   sanitizer_vector.h
   sanitizer_win.h
@@ -195,6 +207,10 @@ set(SANITIZER_COMMON_DEFINITIONS
   HAVE_RPC_XDR_H=${HAVE_RPC_XDR_H})
 
 set(SANITIZER_CFLAGS ${SANITIZER_COMMON_CFLAGS})
+
+# Too many existing bugs, needs cleanup.
+append_list_if(COMPILER_RT_HAS_WNO_FORMAT -Wno-format SANITIZER_CFLAGS)
+
 append_rtti_flag(OFF SANITIZER_CFLAGS)
 
 append_list_if(SANITIZER_LIMIT_FRAME_SIZE -Wframe-larger-than=570
@@ -273,63 +289,35 @@ add_compiler_rt_object_libraries(RTSanitizerCommonSymbolizerNoHooks
   CFLAGS ${SANITIZER_NO_WEAK_HOOKS_CFLAGS}
   DEFS ${SANITIZER_COMMON_DEFINITIONS})
 
-if(OS_NAME MATCHES "SunOS")
-  # Solaris ld doesn't support the non-standard GNU ld extension of adding
-  # __start_SECNAME and __stop_SECNAME labels to sections whose names are
-  # valid C identifiers.  Instead we add our own definitions for the
-  # __sancov_guards section.
-  add_compiler_rt_object_libraries(SancovBegin
-    ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sancov_begin.S
-    CFLAGS ${SANITIZER_CFLAGS}
-    DEFS ${SANITIZER_COMMON_DEFINITIONS})
-
-  add_compiler_rt_runtime(clang_rt.sancov_begin
-    STATIC
-    ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    OBJECT_LIBS SancovBegin
-    CFLAGS ${SANITIZER_CFLAGS}
-    DEFS ${SANITIZER_COMMON_DEFINITIONS})
-
-  add_compiler_rt_object_libraries(SancovEnd
-    ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sancov_end.S
-    CFLAGS ${SANITIZER_CFLAGS}
-    DEFS ${SANITIZER_COMMON_DEFINITIONS})
-
-  add_compiler_rt_runtime(clang_rt.sancov_end
-    STATIC
-    ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    OBJECT_LIBS SancovEnd
-    CFLAGS ${SANITIZER_CFLAGS}
-    DEFS ${SANITIZER_COMMON_DEFINITIONS})
-endif()
-
 if(WIN32)
   add_compiler_rt_object_libraries(SanitizerCommonWeakInterception
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_win_weak_interception.cc
+    SOURCES
+      sanitizer_win_weak_interception.cpp
     CFLAGS ${SANITIZER_CFLAGS} -DSANITIZER_DYNAMIC
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
   add_compiler_rt_object_libraries(SancovWeakInterception
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_coverage_win_weak_interception.cc
+    SOURCES
+      sanitizer_coverage_win_weak_interception.cpp
     CFLAGS ${SANITIZER_CFLAGS} -DSANITIZER_DYNAMIC
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
 
   add_compiler_rt_object_libraries(SanitizerCommonDllThunk
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_win_dll_thunk.cc
+    SOURCES
+      sanitizer_win_dll_thunk.cpp
     CFLAGS ${SANITIZER_CFLAGS} -DSANITIZER_DLL_THUNK
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
   add_compiler_rt_object_libraries(SancovDllThunk
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_coverage_win_dll_thunk.cc
-            sanitizer_coverage_win_sections.cc
+    SOURCES
+      sanitizer_coverage_win_dll_thunk.cpp
+      sanitizer_coverage_win_sections.cpp
     CFLAGS ${SANITIZER_CFLAGS} -DSANITIZER_DLL_THUNK
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
 
@@ -342,14 +330,16 @@ if(WIN32)
   add_compiler_rt_object_libraries(SanitizerCommonDynamicRuntimeThunk
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_win_dynamic_runtime_thunk.cc
+    SOURCES
+      sanitizer_win_dynamic_runtime_thunk.cpp
     CFLAGS ${SANITIZER_CFLAGS} ${DYNAMIC_RUNTIME_THUNK_CFLAGS}
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
   add_compiler_rt_object_libraries(SancovDynamicRuntimeThunk
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_coverage_win_dynamic_runtime_thunk.cc
-            sanitizer_coverage_win_sections.cc
+    SOURCES
+      sanitizer_coverage_win_dynamic_runtime_thunk.cpp
+      sanitizer_coverage_win_sections.cpp
     CFLAGS ${SANITIZER_CFLAGS} ${DYNAMIC_RUNTIME_THUNK_CFLAGS}
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
 endif()

@@ -7,17 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/FuzzMutate/FuzzerCLI.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/IR/Verifier.h"
 
 using namespace llvm;
 
@@ -36,7 +36,7 @@ void llvm::parseFuzzerCLOpts(int ArgC, char *ArgV[]) {
 }
 
 void llvm::handleExecNameEncodedBEOpts(StringRef ExecName) {
-  std::vector<std::string> Args{ExecName};
+  std::vector<std::string> Args{std::string(ExecName)};
 
   auto NameAndArgs = ExecName.split("--");
   if (NameAndArgs.second.empty())
@@ -73,7 +73,7 @@ void llvm::handleExecNameEncodedBEOpts(StringRef ExecName) {
 
 void llvm::handleExecNameEncodedOptimizerOpts(StringRef ExecName) {
   // TODO: Refactor parts common with the 'handleExecNameEncodedBEOpts'
-  std::vector<std::string> Args{ExecName};
+  std::vector<std::string> Args{std::string(ExecName)};
 
   auto NameAndArgs = ExecName.split("--");
   if (NameAndArgs.second.empty())
@@ -87,7 +87,7 @@ void llvm::handleExecNameEncodedOptimizerOpts(StringRef ExecName) {
     } else if (Opt == "earlycse") {
       Args.push_back("-passes=early-cse");
     } else if (Opt == "simplifycfg") {
-      Args.push_back("-passes=simplify-cfg");
+      Args.push_back("-passes=simplifycfg");
     } else if (Opt == "gvn") {
       Args.push_back("-passes=gvn");
     } else if (Opt == "sccp") {
@@ -100,7 +100,7 @@ void llvm::handleExecNameEncodedOptimizerOpts(StringRef ExecName) {
     } else if (Opt == "loop_rotate") {
       Args.push_back("-passes=loop(rotate)");
     } else if (Opt == "loop_unswitch") {
-      Args.push_back("-passes=loop(unswitch)");
+      Args.push_back("-passes=loop(simple-loop-unswitch)");
     } else if (Opt == "loop_unroll") {
       Args.push_back("-passes=unroll");
     } else if (Opt == "loop_vectorize") {
@@ -110,7 +110,7 @@ void llvm::handleExecNameEncodedOptimizerOpts(StringRef ExecName) {
     } else if (Opt == "indvars") {
       Args.push_back("-passes=indvars");
     } else if (Opt == "strength_reduce") {
-      Args.push_back("-passes=strength-reduce");
+      Args.push_back("-passes=loop-reduce");
     } else if (Opt == "irce") {
       Args.push_back("-passes=irce");
 
@@ -152,7 +152,7 @@ int llvm::runFuzzerOnInputs(int ArgC, char *ArgV[], FuzzerTestFun TestOne,
       continue;
     }
 
-    auto BufOrErr = MemoryBuffer::getFile(Arg, /*FileSize-*/ -1,
+    auto BufOrErr = MemoryBuffer::getFile(Arg, /*IsText=*/false,
                                           /*RequiresNullTerminator=*/false);
     if (std::error_code EC = BufOrErr.getError()) {
       errs() << "Error reading file: " << Arg << ": " << EC.message() << "\n";
@@ -171,7 +171,7 @@ std::unique_ptr<Module> llvm::parseModule(
 
   if (Size <= 1)
     // We get bogus data given an empty corpus - just create a new module.
-    return llvm::make_unique<Module>("M", Context);
+    return std::make_unique<Module>("M", Context);
 
   auto Buffer = MemoryBuffer::getMemBuffer(
       StringRef(reinterpret_cast<const char *>(Data), Size), "Fuzzer input",

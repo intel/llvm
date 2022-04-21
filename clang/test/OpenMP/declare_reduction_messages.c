@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wuninitialized
 
 int temp; // expected-note 6 {{'temp' declared here}}
 
@@ -45,11 +45,13 @@ struct S {
   int s;
 };
 #pragma omp declare reduction(+: struct S: omp_out.s += omp_in.s) // initializer(omp_priv = { .s = 0 })
+#pragma omp declare reduction(&: struct S: omp_out.s += omp_in.s) initializer(omp_priv = { .s = 0 })
+#pragma omp declare reduction(|: struct S: omp_out.s += omp_in.s) initializer(omp_priv = { 0 })
 
 int fun(int arg) {
-  struct S s;// expected-note {{'s' defined here}}
+  struct S s;
   s.s = 0;
-#pragma omp parallel for reduction(+ : s) // expected-error {{list item of type 'struct S' is not valid for specified reduction operation: unable to provide default initialization value}}
+#pragma omp parallel for reduction(+ : s)
   for (arg = 0; arg < 10; ++arg)
     s.s += arg;
 #pragma omp declare reduction(red : int : omp_out++)

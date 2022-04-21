@@ -7,10 +7,6 @@ include(CreateClangdXPCFramework)
 add_subdirectory(framework)
 add_subdirectory(test-client)
 
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/../
-)
-
 set(LLVM_LINK_COMPONENTS
   Support
   )
@@ -20,10 +16,10 @@ set(LLVM_OPTIONAL_SOURCES Conversion.cpp XPCTransport.cpp)
 
 add_clang_library(clangdXpcJsonConversions
   Conversion.cpp
-  LINK_LIBS clangDaemon
+  LINK_LIBS clangDaemon clangdSupport
   )
 
 add_clang_library(clangdXpcTransport
   XPCTransport.cpp
-  LINK_LIBS clangDaemon clangdXpcJsonConversions
+  LINK_LIBS clangDaemon clangdSupport clangdXpcJsonConversions
   )

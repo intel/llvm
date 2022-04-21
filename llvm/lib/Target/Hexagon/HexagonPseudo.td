@@ -112,7 +112,7 @@ let isExtendable = 1, isExtentSigned = 1, opExtentBits = 9, opExtentAlign = 2,
     opExtendable = 0, hasSideEffects = 0 in
 class LOOP_iBase<string mnemonic, InstHexagon rootInst>
          : InstHexagon <(outs), (ins b30_2Imm:$offset, u10_0Imm:$src2),
-           #mnemonic#"($offset,#$src2)",
+           mnemonic#"($offset,#$src2)",
            [], "", rootInst.Itinerary, rootInst.Type>, OpcodeHexagon {
     bits<9> offset;
     bits<10> src2;
@@ -132,7 +132,7 @@ let isExtendable = 1, isExtentSigned = 1, opExtentBits = 9, opExtentAlign = 2,
     opExtendable = 0, hasSideEffects = 0 in
 class LOOP_rBase<string mnemonic, InstHexagon rootInst>
          : InstHexagon<(outs), (ins b30_2Imm:$offset, IntRegs:$src2),
-           #mnemonic#"($offset,$src2)",
+           mnemonic#"($offset,$src2)",
            [], "", rootInst.Itinerary, rootInst.Type>, OpcodeHexagon {
     bits<9> offset;
     bits<5> src2;
@@ -182,6 +182,28 @@ let isCodeGenOnly = 1, isCall = 1, hasSideEffects = 1,
     Defs = [PC, R31, R6, R7, P0] in
 def PS_call_stk : T_Call<"">;
 
+// This pseudo instruction is used to replace int_hexagon_instrprof_custom intrinsic
+// with a call to custom handler passed as the first argument to the intrinsic.
+
+// Pleae Note:
+// 1) The call to the custom handler is being treated as a special one as the
+//    callee is responsible for saving and restoring all the registers it needs
+//    to modify. This includes caller saved registers as well as r0-r5 argument
+//    registers. This is done to reduce the impact of instrumentation on the
+//    code being instrumented/profiled.
+// 2) R14, R15 and R28 are reserved for PLT handling and therefore are
+//    part of the def list.
+// 3) R0 is used to pass the unique id associated with an instrumentation site
+//    to the handler.
+// 4) All the other registers (R29, R30, R31, PC) get modified by the call
+//    instruction.
+
+// TODO: It may be a good idea to add a separate pseudo instruction for
+// static relocation which doesn't need to reserve r14, r15 and r28.
+
+let hasSideEffects = 1, isCall = 1, Defs = [R0, R14, R15, R28, R29, R30, R31, PC] in
+def PS_call_instrprof_custom :  Pseudo<(outs), (ins s32_0Imm:$dst, u32_0Imm:$Ii), "">;
+
 // Call, no return.
 let isCall = 1, hasSideEffects = 1, cofMax1 = 1, isCodeGenOnly = 1 in
 def PS_callr_nr: InstHexagon<(outs), (ins IntRegs:$Rs),
@@ -198,7 +220,7 @@ def PS_callr_nr: InstHexagon<(outs), (ins IntRegs:$Rs),
 let isCall = 1, hasSideEffects = 1,
     isExtended = 0, isExtendable = 1, opExtendable = 0, isCodeGenOnly = 1,
     BaseOpcode = "PS_call_nr", isExtentSigned = 1, opExtentAlign = 2 in
-class Call_nr<bits<5> nbits, bit isPred, bit isFalse, dag iops,
+class Call_nr<bits<5> nbits, bit isFalse, dag iops,
               InstrItinClass itin>
   : Pseudo<(outs), iops, "">, PredRel {
     bits<2> Pu;
@@ -210,7 +232,7 @@ class Call_nr<bits<5> nbits, bit isPred, bit isFalse, dag iops,
     let Itinerary = itin;
 }
 
-def PS_call_nr : Call_nr<24, 0, 0, (ins s32_0Imm:$Ii), J2_call.Itinerary>;
+def PS_call_nr : Call_nr<24, 0, (ins s32_0Imm:$Ii), J2_call.Itinerary>;
 //def PS_call_nrt: Call_nr<17, 1, 0, (ins PredRegs:$Pu, s32_0Imm:$dst),
 //                         J2_callt.Itinerary>;
 //def PS_call_nrf: Call_nr<17, 1, 1, (ins PredRegs:$Pu, s32_0Imm:$dst),
@@ -267,7 +289,7 @@ let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1,
 class CondStr<string CReg, bit True, bit New> {
   string S = "if (" # !if(True,"","!") # CReg # !if(New,".new","") # ") ";
 }
-class JumpOpcStr<string Mnemonic, bit New, bit Taken> {
+class JumpOpcStr<string Mnemonic, bit Taken> {
   string S = Mnemonic # !if(Taken, ":t", ":nt");
 }
 let isBranch = 1, isIndirectBranch = 1, Defs = [PC], isPredicated = 1,
@@ -275,7 +297,7 @@ let isBranch = 1, isIndirectBranch = 1, Defs = [PC], isPredicated = 1,
 class T_JMPr_c <bit PredNot, bit isPredNew, bit isTak, InstHexagon rootInst>
   :  InstHexagon<(outs), (ins PredRegs:$src, IntRegs:$dst),
                  CondStr<"$src", !if(PredNot,0,1), isPredNew>.S #
-                 JumpOpcStr<"jumpr", isPredNew, isTak>.S # " $dst",
+                 JumpOpcStr<"jumpr", isTak>.S # " $dst",
                  [], "", rootInst.Itinerary, rootInst.Type>, OpcodeHexagon {
 
     let isTaken = isTak;
@@ -408,15 +430,17 @@ let isCall = 1, Uses = [R29, R31], isAsmParserOnly = 1 in {
 // Vector store pseudos
 let Predicates = [HasV60,UseHVX], isPseudo = 1, isCodeGenOnly = 1,
     mayStore = 1, accessSize = HVXVectorAccess, hasSideEffects = 0 in
-class STrivv_template<RegisterClass RC, InstHexagon rootInst>
+class STriv_template<RegisterClass RC, InstHexagon rootInst>
   : InstHexagon<(outs), (ins IntRegs:$addr, s32_0Imm:$off, RC:$src),
     "", [], "", rootInst.Itinerary, rootInst.Type>;
 
-def PS_vstorerw_ai: STrivv_template<HvxWR, V6_vS32b_ai>,
+def PS_vstorerv_ai: STriv_template<HvxVR, V6_vS32b_ai>,
       Requires<[HasV60,UseHVX]>;
-def PS_vstorerw_nt_ai: STrivv_template<HvxWR, V6_vS32b_nt_ai>,
+def PS_vstorerv_nt_ai: STriv_template<HvxVR, V6_vS32b_nt_ai>,
       Requires<[HasV60,UseHVX]>;
-def PS_vstorerwu_ai: STrivv_template<HvxWR, V6_vS32Ub_ai>,
+def PS_vstorerw_ai: STriv_template<HvxWR, V6_vS32b_ai>,
+      Requires<[HasV60,UseHVX]>;
+def PS_vstorerw_nt_ai: STriv_template<HvxWR, V6_vS32b_nt_ai>,
       Requires<[HasV60,UseHVX]>;
 
 let isPseudo = 1, isCodeGenOnly = 1, mayStore = 1, hasSideEffects = 0 in
@@ -427,15 +451,17 @@ def PS_vstorerq_ai: Pseudo<(outs),
 // Vector load pseudos
 let Predicates = [HasV60, UseHVX], isPseudo = 1, isCodeGenOnly = 1,
     mayLoad = 1, accessSize = HVXVectorAccess, hasSideEffects = 0 in
-class LDrivv_template<RegisterClass RC, InstHexagon rootInst>
+class LDriv_template<RegisterClass RC, InstHexagon rootInst>
   : InstHexagon<(outs RC:$dst), (ins IntRegs:$addr, s32_0Imm:$off),
     "", [], "", rootInst.Itinerary, rootInst.Type>;
 
-def PS_vloadrw_ai: LDrivv_template<HvxWR, V6_vL32b_ai>,
+def PS_vloadrv_ai: LDriv_template<HvxVR, V6_vL32b_ai>,
       Requires<[HasV60,UseHVX]>;
-def PS_vloadrw_nt_ai: LDrivv_template<HvxWR, V6_vL32b_nt_ai>,
+def PS_vloadrv_nt_ai: LDriv_template<HvxVR, V6_vL32b_nt_ai>,
       Requires<[HasV60,UseHVX]>;
-def PS_vloadrwu_ai: LDrivv_template<HvxWR, V6_vL32Ub_ai>,
+def PS_vloadrw_ai: LDriv_template<HvxWR, V6_vL32b_ai>,
+      Requires<[HasV60,UseHVX]>;
+def PS_vloadrw_nt_ai: LDriv_template<HvxWR, V6_vL32b_nt_ai>,
       Requires<[HasV60,UseHVX]>;
 
 let isPseudo = 1, isCodeGenOnly = 1, mayLoad = 1, hasSideEffects = 0 in
@@ -486,7 +512,7 @@ def TFRI64_V4 : InstHexagon<(outs DoubleRegs:$dst),
     A2_combineii.Itinerary, TypeALU32_2op>, OpcodeHexagon;
 
 // Hexagon doesn't have a vector multiply with C semantics.
-// Instead, generate a pseudo instruction that gets expaneded into two
+// Instead, generate a pseudo instruction that gets expanded into two
 // scalar MPYI instructions.
 // This is expanded by ExpandPostRAPseudos.
 let isPseudo = 1 in
@@ -523,13 +549,15 @@ multiclass NewCircularLoad<RegisterClass RC, MemAccessSize MS> {
 
 let isCodeGenOnly = 1, isPseudo = 1, Defs = [CS], Uses = [CS],
     addrMode = PostInc, accessSize = MS, hasSideEffects = 0 in {
+  // Use timing class of L2_loadrb_pci.
   def NAME#_pci : LDInst<(outs RC:$Rd32, IntRegs:$Rx32),
        (ins IntRegs:$Rx32in, s4_0Imm:$Ii, ModRegs:$Mu2, IntRegs:$Cs),
-       ".error \"should not emit\" ", [], "$Rx32 = $Rx32in", tc_e93a3d71>;
+       ".error \"should not emit\" ", [], "$Rx32 = $Rx32in", tc_5ceb2f9e>;
 
+  // Use timing class of L2_loadrb_pcr.
   def NAME#_pcr : LDInst<(outs RC:$Rd32, IntRegs:$Rx32),
        (ins IntRegs:$Rx32in, ModRegs:$Mu2, IntRegs:$Cs),
-       ".error \"should not emit\" ", [], "$Rx32 = $Rx32in", tc_44d3da28>;
+       ".error \"should not emit\" ", [], "$Rx32 = $Rx32in", tc_075c8dd8>;
 }
 }
 
@@ -544,13 +572,15 @@ multiclass NewCircularStore<RegisterClass RC, MemAccessSize MS> {
 
 let isCodeGenOnly = 1, isPseudo = 1, Defs = [CS], Uses = [CS],
     addrMode = PostInc, accessSize = MS, hasSideEffects = 0 in {
+  // Use timing class of S2_storerb_pci.
   def NAME#_pci : STInst<(outs IntRegs:$Rx32),
        (ins IntRegs:$Rx32in, s4_0Imm:$Ii, ModRegs:$Mu2, RC:$Rt32, IntRegs:$Cs),
-       ".error \"should not emit\" ", [], "$Rx32 = $Rx32in", tc_e86aa961>;
+       ".error \"should not emit\" ", [], "$Rx32 = $Rx32in", tc_b4dc7630>;
 
+  // Use timing class of S2_storerb_pcr.
   def NAME#_pcr : STInst<(outs IntRegs:$Rx32),
        (ins IntRegs:$Rx32in, ModRegs:$Mu2, RC:$Rt32, IntRegs:$Cs),
-       ".error \"should not emit\" ", [], "$Rx32 = $Rx32in", tc_da97ee82>;
+       ".error \"should not emit\" ", [], "$Rx32 = $Rx32in", tc_a2b365d2>;
 }
 }
 
@@ -564,3 +594,14 @@ defm PS_storerd : NewCircularStore<DoubleRegs, WordAccess>;
 // __builtin_trap.
 let hasSideEffects = 1, isPseudo = 1, isCodeGenOnly = 1, isSolo = 1 in
 def PS_crash: InstHexagon<(outs), (ins), "", [], "", PSEUDO, TypePSEUDO>;
+
+// This is actual trap1 instruction from before v65. It's here since it is
+// no longer included in DepInstrInfo.td.
+def PS_trap1 : HInst<(outs), (ins u8_0Imm:$Ii), "trap1(#$Ii)", tc_53c851ab,
+                     TypeJ>, Enc_a51a9a, Requires<[HasPreV65]> {
+  let Inst{1-0} = 0b00;
+  let Inst{7-5} = 0b000;
+  let Inst{13-13} = 0b0;
+  let Inst{31-16} = 0b0101010010000000;
+}
+

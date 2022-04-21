@@ -82,6 +82,9 @@ class TargetInfo;
 /// \brief Enumerates the available scopes for skipping function bodies.
 enum class SkipFunctionBodiesScope { None, Preamble, PreambleAndMainFile };
 
+/// \brief Enumerates the available kinds for capturing diagnostics.
+enum class CaptureDiagsKind { None, All, AllWithoutNonErrorsFromIncludes };
+
 /// Utility class for loading a ASTContext from an AST file.
 class ASTUnit {
 public:
@@ -144,7 +147,7 @@ private:
   bool OnlyLocalDecls = false;
 
   /// Whether to capture any diagnostics produced.
-  bool CaptureDiagnostics = false;
+  CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::None;
 
   /// Track whether the main file was loaded from an AST or not.
   bool MainFileIsAST;
@@ -169,7 +172,7 @@ private:
 
   /// Sorted (by file offset) vector of pairs of file offset/Decl.
   using LocDeclsTy = SmallVector<std::pair<unsigned, Decl *>, 64>;
-  using FileDeclsTy = llvm::DenseMap<FileID, LocDeclsTy *>;
+  using FileDeclsTy = llvm::DenseMap<FileID, std::unique_ptr<LocDeclsTy>>;
 
   /// Map from FileID to the file-level declarations that it contains.
   /// The files and decls are only local (and non-preamble) ones.
@@ -250,7 +253,7 @@ private:
   bool UserFilesAreVolatile : 1;
 
   static void ConfigureDiags(IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
-                             ASTUnit &AST, bool CaptureDiagnostics);
+                             ASTUnit &AST, CaptureDiagsKind CaptureDiagnostics);
 
   void TranslateStoredDiagnostics(FileManager &FileMgr,
                                   SourceManager &SrcMan,
@@ -312,7 +315,7 @@ public:
 
   CodeCompletionTUInfo &getCodeCompletionTUInfo() {
     if (!CCTUInfo)
-      CCTUInfo = llvm::make_unique<CodeCompletionTUInfo>(
+      CCTUInfo = std::make_unique<CodeCompletionTUInfo>(
           std::make_shared<GlobalCodeCompletionAllocator>());
     return *CCTUInfo;
   }
@@ -387,7 +390,7 @@ private:
   /// just about any usage.
   /// Becomes a noop in release mode; only useful for debug mode checking.
   class ConcurrencyState {
-    void *Mutex; // a llvm::sys::MutexImpl in debug;
+    void *Mutex; // a std::recursive_mutex in debug;
 
   public:
     ConcurrencyState();
@@ -661,8 +664,8 @@ public:
   /// Create a ASTUnit. Gets ownership of the passed CompilerInvocation.
   static std::unique_ptr<ASTUnit>
   create(std::shared_ptr<CompilerInvocation> CI,
-         IntrusiveRefCntPtr<DiagnosticsEngine> Diags, bool CaptureDiagnostics,
-         bool UserFilesAreVolatile);
+         IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
+         CaptureDiagsKind CaptureDiagnostics, bool UserFilesAreVolatile);
 
   enum WhatToLoad {
     /// Load options and the preprocessor state.
@@ -685,13 +688,15 @@ public:
   /// lifetime is expected to extend past that of the returned ASTUnit.
   ///
   /// \returns - The initialized ASTUnit or null if the AST failed to load.
-  static std::unique_ptr<ASTUnit> LoadFromASTFile(
-      const std::string &Filename, const PCHContainerReader &PCHContainerRdr,
-      WhatToLoad ToLoad, IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
-      const FileSystemOptions &FileSystemOpts, bool UseDebugInfo = false,
-      bool OnlyLocalDecls = false, ArrayRef<RemappedFile> RemappedFiles = None,
-      bool CaptureDiagnostics = false, bool AllowPCHWithCompilerErrors = false,
-      bool UserFilesAreVolatile = false);
+  static std::unique_ptr<ASTUnit>
+  LoadFromASTFile(const std::string &Filename,
+                  const PCHContainerReader &PCHContainerRdr, WhatToLoad ToLoad,
+                  IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
+                  const FileSystemOptions &FileSystemOpts,
+                  bool UseDebugInfo = false, bool OnlyLocalDecls = false,
+                  CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::None,
+                  bool AllowASTWithCompilerErrors = false,
+                  bool UserFilesAreVolatile = false);
 
 private:
   /// Helper function for \c LoadFromCompilerInvocation() and
@@ -748,10 +753,10 @@ public:
       IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
       FrontendAction *Action = nullptr, ASTUnit *Unit = nullptr,
       bool Persistent = true, StringRef ResourceFilesPath = StringRef(),
-      bool OnlyLocalDecls = false, bool CaptureDiagnostics = false,
+      bool OnlyLocalDecls = false,
+      CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::None,
       unsigned PrecompilePreambleAfterNParses = 0,
       bool CacheCodeCompletionResults = false,
-      bool IncludeBriefCommentsInCodeCompletion = false,
       bool UserFilesAreVolatile = false,
       std::unique_ptr<ASTUnit> *ErrAST = nullptr);
 
@@ -773,7 +778,8 @@ public:
       std::shared_ptr<CompilerInvocation> CI,
       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
       IntrusiveRefCntPtr<DiagnosticsEngine> Diags, FileManager *FileMgr,
-      bool OnlyLocalDecls = false, bool CaptureDiagnostics = false,
+      bool OnlyLocalDecls = false,
+      CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::None,
       unsigned PrecompilePreambleAfterNParses = 0,
       TranslationUnitKind TUKind = TU_Complete,
       bool CacheCodeCompletionResults = false,
@@ -813,7 +819,8 @@ public:
       const char **ArgBegin, const char **ArgEnd,
       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
       IntrusiveRefCntPtr<DiagnosticsEngine> Diags, StringRef ResourceFilesPath,
-      bool OnlyLocalDecls = false, bool CaptureDiagnostics = false,
+      bool OnlyLocalDecls = false,
+      CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::None,
       ArrayRef<RemappedFile> RemappedFiles = None,
       bool RemappedFilesKeepOriginalName = true,
       unsigned PrecompilePreambleAfterNParses = 0,
@@ -825,6 +832,7 @@ public:
           SkipFunctionBodiesScope::None,
       bool SingleFileParse = false, bool UserFilesAreVolatile = false,
       bool ForSerialization = false,
+      bool RetainExcludedConditionalBlocks = false,
       llvm::Optional<StringRef> ModuleFormat = llvm::None,
       std::unique_ptr<ASTUnit> *ErrAST = nullptr,
       IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = nullptr);

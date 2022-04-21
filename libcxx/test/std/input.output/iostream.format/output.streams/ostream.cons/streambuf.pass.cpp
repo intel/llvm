@@ -16,6 +16,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct testbuf
     : public std::basic_streambuf<CharT>
@@ -37,6 +39,7 @@ int main(int, char**)
         assert(os.precision() == 6);
         assert(os.getloc().name() == "C");
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         testbuf<wchar_t> sb;
         std::basic_ostream<wchar_t> os(&sb);
@@ -49,6 +52,7 @@ int main(int, char**)
         assert(os.precision() == 6);
         assert(os.getloc().name() == "C");
     }
+#endif
 
   return 0;
 }

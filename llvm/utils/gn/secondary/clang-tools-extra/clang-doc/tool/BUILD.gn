@@ -10,7 +10,5 @@ executable("clang-doc") {
     "//clang/lib/Tooling/Core",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "ClangDocMain.cpp",
-  ]
+  sources = [ "ClangDocMain.cpp" ]
 }

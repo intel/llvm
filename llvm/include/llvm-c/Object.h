@@ -19,12 +19,11 @@
 #ifndef LLVM_C_OBJECT_H
 #define LLVM_C_OBJECT_H
 
+#include "llvm-c/ExternC.h"
 #include "llvm-c/Types.h"
 #include "llvm/Config/llvm-config.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LLVM_C_EXTERN_C_BEGIN
 
 /**
  * @defgroup LLVMCObject Object file reading and writing
@@ -101,6 +100,22 @@ LLVMMemoryBufferRef LLVMBinaryCopyMemoryBuffer(LLVMBinaryRef BR);
  * @see llvm::object::Binary::getType
  */
 LLVMBinaryType LLVMBinaryGetType(LLVMBinaryRef BR);
+
+/*
+ * For a Mach-O universal binary file, retrieves the object file corresponding
+ * to the given architecture if it is present as a slice.
+ *
+ * If NULL is returned, the \p ErrorMessage parameter is populated with the
+ * error's description.  It is then the caller's responsibility to free this
+ * message by calling \c LLVMDisposeMessage.
+ *
+ * It is the responsiblity of the caller to free the returned object file by
+ * calling \c LLVMDisposeBinary.
+ */
+LLVMBinaryRef LLVMMachOUniversalBinaryCopyObjectForArch(LLVMBinaryRef BR,
+                                                        const char *Arch,
+                                                        size_t ArchLen,
+                                                        char **ErrorMessage);
 
 /**
  * Retrieve a copy of the section iterator for this object file.
@@ -210,8 +225,6 @@ LLVMBool LLVMIsSymbolIteratorAtEnd(LLVMObjectFileRef ObjectFile,
  * @}
  */
 
-#ifdef __cplusplus
-}
-#endif /* defined(__cplusplus) */
+LLVM_C_EXTERN_C_END
 
 #endif

@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "JITLinkGeneric.h"
-#include "EHFrameSupportImpl.h"
 
 #include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -21,48 +20,86 @@
 namespace llvm {
 namespace jitlink {
 
-JITLinkerBase::~JITLinkerBase() {}
+JITLinkerBase::~JITLinkerBase() = default;
 
 void JITLinkerBase::linkPhase1(std::unique_ptr<JITLinkerBase> Self) {
 
-  // Build the atom graph.
-  if (auto GraphOrErr = buildGraph(Ctx->getObjectBuffer()))
-    G = std::move(*GraphOrErr);
-  else
-    return Ctx->notifyFailed(GraphOrErr.takeError());
-  assert(G && "Graph should have been created by buildGraph above");
+  LLVM_DEBUG({
+    dbgs() << "Starting link phase 1 for graph " << G->getName() << "\n";
+  });
 
   // Prune and optimize the graph.
-  if (auto Err = runPasses(Passes.PrePrunePasses, *G))
+  if (auto Err = runPasses(Passes.PrePrunePasses))
     return Ctx->notifyFailed(std::move(Err));
 
   LLVM_DEBUG({
-    dbgs() << "Atom graph \"" << G->getName() << "\" pre-pruning:\n";
-    dumpGraph(dbgs());
+    dbgs() << "Link graph \"" << G->getName() << "\" pre-pruning:\n";
+    G->dump(dbgs());
   });
 
   prune(*G);
 
   LLVM_DEBUG({
-    dbgs() << "Atom graph \"" << G->getName() << "\" post-pruning:\n";
-    dumpGraph(dbgs());
+    dbgs() << "Link graph \"" << G->getName() << "\" post-pruning:\n";
+    G->dump(dbgs());
   });
 
   // Run post-pruning passes.
-  if (auto Err = runPasses(Passes.PostPrunePasses, *G))
+  if (auto Err = runPasses(Passes.PostPrunePasses))
     return Ctx->notifyFailed(std::move(Err));
 
-  // Sort atoms into segments.
-  layOutAtoms();
+  Ctx->getMemoryManager().allocate(
+      Ctx->getJITLinkDylib(), *G,
+      [S = std::move(Self)](AllocResult AR) mutable {
+        auto *TmpSelf = S.get();
+        TmpSelf->linkPhase2(std::move(S), std::move(AR));
+      });
+}
 
-  // Allocate memory for segments.
-  if (auto Err = allocateSegments(Layout))
+void JITLinkerBase::linkPhase2(std::unique_ptr<JITLinkerBase> Self,
+                               AllocResult AR) {
+
+  if (AR)
+    Alloc = std::move(*AR);
+  else
+    return Ctx->notifyFailed(AR.takeError());
+
+  LLVM_DEBUG({
+    dbgs() << "Link graph \"" << G->getName()
+           << "\" before post-allocation passes:\n";
+    G->dump(dbgs());
+  });
+
+  // Run post-allocation passes.
+  if (auto Err = runPasses(Passes.PostAllocationPasses))
     return Ctx->notifyFailed(std::move(Err));
 
-  // Notify client that the defined atoms have been assigned addresses.
-  Ctx->notifyResolved(*G);
+  // Notify client that the defined symbols have been assigned addresses.
+  LLVM_DEBUG(dbgs() << "Resolving symbols defined in " << G->getName() << "\n");
+
+  if (auto Err = Ctx->notifyResolved(*G))
+    return Ctx->notifyFailed(std::move(Err));
 
   auto ExternalSymbols = getExternalSymbolNames();
+
+  // If there are no external symbols then proceed immediately with phase 3.
+  if (ExternalSymbols.empty()) {
+    LLVM_DEBUG({
+      dbgs() << "No external symbols for " << G->getName()
+             << ". Proceeding immediately with link phase 3.\n";
+    });
+    // FIXME: Once callee expressions are defined to be sequenced before
+    //        argument expressions (c++17) we can simplify this. See below.
+    auto &TmpSelf = *Self;
+    TmpSelf.linkPhase3(std::move(Self), AsyncLookupResult());
+    return;
+  }
+
+  // Otherwise look up the externals.
+  LLVM_DEBUG({
+    dbgs() << "Issuing lookup for external symbols for " << G->getName()
+           << " (may trigger materialization/linking of other graphs)...\n";
+  });
 
   // We're about to hand off ownership of ourself to the continuation. Grab a
   // pointer to the context so that we can call it to initiate the lookup.
@@ -72,408 +109,204 @@ void JITLinkerBase::linkPhase1(std::unique_ptr<JITLinkerBase> Self) {
   //
   // Ctx->lookup(std::move(UnresolvedExternals),
   //             [Self=std::move(Self)](Expected<AsyncLookupResult> Result) {
-  //               Self->linkPhase2(std::move(Self), std::move(Result));
+  //               Self->linkPhase3(std::move(Self), std::move(Result));
   //             });
-  //
-  // FIXME: Use move capture once we have c++14.
-  auto *TmpCtx = Ctx.get();
-  auto *UnownedSelf = Self.release();
-  auto Phase2Continuation =
-      [UnownedSelf](Expected<AsyncLookupResult> LookupResult) {
-        std::unique_ptr<JITLinkerBase> Self(UnownedSelf);
-        UnownedSelf->linkPhase2(std::move(Self), std::move(LookupResult));
-      };
-  TmpCtx->lookup(std::move(ExternalSymbols), std::move(Phase2Continuation));
+  Ctx->lookup(std::move(ExternalSymbols),
+              createLookupContinuation(
+                  [S = std::move(Self)](
+                      Expected<AsyncLookupResult> LookupResult) mutable {
+                    auto &TmpSelf = *S;
+                    TmpSelf.linkPhase3(std::move(S), std::move(LookupResult));
+                  }));
 }
 
-void JITLinkerBase::linkPhase2(std::unique_ptr<JITLinkerBase> Self,
+void JITLinkerBase::linkPhase3(std::unique_ptr<JITLinkerBase> Self,
                                Expected<AsyncLookupResult> LR) {
+
+  LLVM_DEBUG({
+    dbgs() << "Starting link phase 3 for graph " << G->getName() << "\n";
+  });
+
   // If the lookup failed, bail out.
   if (!LR)
-    return deallocateAndBailOut(LR.takeError());
+    return abandonAllocAndBailOut(std::move(Self), LR.takeError());
 
-  // Assign addresses to external atoms.
+  // Assign addresses to external addressables.
   applyLookupResult(*LR);
 
   LLVM_DEBUG({
-    dbgs() << "Atom graph \"" << G->getName() << "\" before copy-and-fixup:\n";
-    dumpGraph(dbgs());
+    dbgs() << "Link graph \"" << G->getName()
+           << "\" before pre-fixup passes:\n";
+    G->dump(dbgs());
   });
 
-  // Copy atom content to working memory and fix up.
-  if (auto Err = copyAndFixUpAllAtoms(Layout, *Alloc))
-    return deallocateAndBailOut(std::move(Err));
+  if (auto Err = runPasses(Passes.PreFixupPasses))
+    return abandonAllocAndBailOut(std::move(Self), std::move(Err));
 
   LLVM_DEBUG({
-    dbgs() << "Atom graph \"" << G->getName() << "\" after copy-and-fixup:\n";
-    dumpGraph(dbgs());
+    dbgs() << "Link graph \"" << G->getName() << "\" before copy-and-fixup:\n";
+    G->dump(dbgs());
   });
 
-  if (auto Err = runPasses(Passes.PostFixupPasses, *G))
-    return deallocateAndBailOut(std::move(Err));
+  // Fix up block content.
+  if (auto Err = fixUpBlocks(*G))
+    return abandonAllocAndBailOut(std::move(Self), std::move(Err));
 
-  // FIXME: Use move capture once we have c++14.
-  auto *UnownedSelf = Self.release();
-  auto Phase3Continuation = [UnownedSelf](Error Err) {
-    std::unique_ptr<JITLinkerBase> Self(UnownedSelf);
-    UnownedSelf->linkPhase3(std::move(Self), std::move(Err));
-  };
+  LLVM_DEBUG({
+    dbgs() << "Link graph \"" << G->getName() << "\" after copy-and-fixup:\n";
+    G->dump(dbgs());
+  });
 
-  Alloc->finalizeAsync(std::move(Phase3Continuation));
+  if (auto Err = runPasses(Passes.PostFixupPasses))
+    return abandonAllocAndBailOut(std::move(Self), std::move(Err));
+
+  Alloc->finalize([S = std::move(Self)](FinalizeResult FR) mutable {
+    auto *TmpSelf = S.get();
+    TmpSelf->linkPhase4(std::move(S), std::move(FR));
+  });
 }
 
-void JITLinkerBase::linkPhase3(std::unique_ptr<JITLinkerBase> Self, Error Err) {
-  if (Err)
-    return deallocateAndBailOut(std::move(Err));
-  Ctx->notifyFinalized(std::move(Alloc));
+void JITLinkerBase::linkPhase4(std::unique_ptr<JITLinkerBase> Self,
+                               FinalizeResult FR) {
+
+  LLVM_DEBUG({
+    dbgs() << "Starting link phase 4 for graph " << G->getName() << "\n";
+  });
+
+  if (!FR)
+    return Ctx->notifyFailed(FR.takeError());
+
+  Ctx->notifyFinalized(std::move(*FR));
+
+  LLVM_DEBUG({ dbgs() << "Link of graph " << G->getName() << " complete\n"; });
 }
 
-Error JITLinkerBase::runPasses(AtomGraphPassList &Passes, AtomGraph &G) {
+Error JITLinkerBase::runPasses(LinkGraphPassList &Passes) {
   for (auto &P : Passes)
-    if (auto Err = P(G))
+    if (auto Err = P(*G))
       return Err;
   return Error::success();
 }
 
-void JITLinkerBase::layOutAtoms() {
-  // Group sections by protections, and whether or not they're zero-fill.
-  for (auto &S : G->sections()) {
-
-    // Skip empty sections.
-    if (S.atoms_empty())
-      continue;
-
-    auto &SL = Layout[S.getProtectionFlags()];
-    if (S.isZeroFill())
-      SL.ZeroFillSections.push_back(SegmentLayout::SectionLayout(S));
-    else
-      SL.ContentSections.push_back(SegmentLayout::SectionLayout(S));
-  }
-
-  // Sort sections within the layout by ordinal.
-  {
-    auto CompareByOrdinal = [](const SegmentLayout::SectionLayout &LHS,
-                               const SegmentLayout::SectionLayout &RHS) {
-      return LHS.S->getSectionOrdinal() < RHS.S->getSectionOrdinal();
-    };
-    for (auto &KV : Layout) {
-      auto &SL = KV.second;
-      std::sort(SL.ContentSections.begin(), SL.ContentSections.end(),
-                CompareByOrdinal);
-      std::sort(SL.ZeroFillSections.begin(), SL.ZeroFillSections.end(),
-                CompareByOrdinal);
-    }
-  }
-
-  // Add atoms to the sections.
-  for (auto &KV : Layout) {
-    auto &SL = KV.second;
-    for (auto *SIList : {&SL.ContentSections, &SL.ZeroFillSections}) {
-      for (auto &SI : *SIList) {
-        // First build the set of layout-heads (i.e. "heads" of layout-next
-        // chains) by copying the section atoms, then eliminating any that
-        // appear as layout-next targets.
-        DenseSet<DefinedAtom *> LayoutHeads;
-        for (auto *DA : SI.S->atoms())
-          LayoutHeads.insert(DA);
-
-        for (auto *DA : SI.S->atoms())
-          if (DA->hasLayoutNext())
-            LayoutHeads.erase(&DA->getLayoutNext());
-
-        // Next, sort the layout heads by address order.
-        std::vector<DefinedAtom *> OrderedLayoutHeads;
-        OrderedLayoutHeads.reserve(LayoutHeads.size());
-        for (auto *DA : LayoutHeads)
-          OrderedLayoutHeads.push_back(DA);
-
-        // Now sort the list of layout heads by address.
-        std::sort(OrderedLayoutHeads.begin(), OrderedLayoutHeads.end(),
-                  [](const DefinedAtom *LHS, const DefinedAtom *RHS) {
-                    return LHS->getAddress() < RHS->getAddress();
-                  });
-
-        // Now populate the SI.Atoms field by appending each of the chains.
-        for (auto *DA : OrderedLayoutHeads) {
-          SI.Atoms.push_back(DA);
-          while (DA->hasLayoutNext()) {
-            auto &Next = DA->getLayoutNext();
-            SI.Atoms.push_back(&Next);
-            DA = &Next;
-          }
-        }
-      }
-    }
-  }
-
-  LLVM_DEBUG({
-    dbgs() << "Segment ordering:\n";
-    for (auto &KV : Layout) {
-      dbgs() << "  Segment "
-             << static_cast<sys::Memory::ProtectionFlags>(KV.first) << ":\n";
-      auto &SL = KV.second;
-      for (auto &SIEntry :
-           {std::make_pair(&SL.ContentSections, "content sections"),
-            std::make_pair(&SL.ZeroFillSections, "zero-fill sections")}) {
-        auto &SIList = *SIEntry.first;
-        dbgs() << "    " << SIEntry.second << ":\n";
-        for (auto &SI : SIList) {
-          dbgs() << "      " << SI.S->getName() << ":\n";
-          for (auto *DA : SI.Atoms)
-            dbgs() << "        " << *DA << "\n";
-        }
-      }
-    }
-  });
-}
-
-Error JITLinkerBase::allocateSegments(const SegmentLayoutMap &Layout) {
-
-  // Compute segment sizes and allocate memory.
-  LLVM_DEBUG(dbgs() << "JIT linker requesting: { ");
-  JITLinkMemoryManager::SegmentsRequestMap Segments;
-  for (auto &KV : Layout) {
-    auto &Prot = KV.first;
-    auto &SegLayout = KV.second;
-
-    // Calculate segment content size.
-    size_t SegContentSize = 0;
-    for (auto &SI : SegLayout.ContentSections) {
-      assert(!SI.S->atoms_empty() && "Sections in layout must not be empty");
-      assert(!SI.Atoms.empty() && "Section layouts must not be empty");
-
-      // Bump to section alignment before processing atoms.
-      SegContentSize = alignTo(SegContentSize, SI.S->getAlignment());
-
-      for (auto *DA : SI.Atoms) {
-        SegContentSize = alignTo(SegContentSize, DA->getAlignment());
-        SegContentSize += DA->getSize();
-      }
-    }
-
-    // Get segment content alignment.
-    unsigned SegContentAlign = 1;
-    if (!SegLayout.ContentSections.empty()) {
-      auto &FirstContentSection = SegLayout.ContentSections.front();
-      SegContentAlign =
-          std::max(FirstContentSection.S->getAlignment(),
-                   FirstContentSection.Atoms.front()->getAlignment());
-    }
-
-    // Calculate segment zero-fill size.
-    uint64_t SegZeroFillSize = 0;
-    for (auto &SI : SegLayout.ZeroFillSections) {
-      assert(!SI.S->atoms_empty() && "Sections in layout must not be empty");
-      assert(!SI.Atoms.empty() && "Section layouts must not be empty");
-
-      // Bump to section alignment before processing atoms.
-      SegZeroFillSize = alignTo(SegZeroFillSize, SI.S->getAlignment());
-
-      for (auto *DA : SI.Atoms) {
-        SegZeroFillSize = alignTo(SegZeroFillSize, DA->getAlignment());
-        SegZeroFillSize += DA->getSize();
-      }
-    }
-
-    // Calculate segment zero-fill alignment.
-    uint32_t SegZeroFillAlign = 1;
-
-    if (!SegLayout.ZeroFillSections.empty()) {
-      auto &FirstZeroFillSection = SegLayout.ZeroFillSections.front();
-      SegZeroFillAlign =
-          std::max(FirstZeroFillSection.S->getAlignment(),
-                   FirstZeroFillSection.Atoms.front()->getAlignment());
-    }
-
-    if (SegContentSize == 0)
-      SegContentAlign = SegZeroFillAlign;
-
-    if (SegContentAlign % SegZeroFillAlign != 0)
-      return make_error<JITLinkError>("First content atom alignment does not "
-                                      "accommodate first zero-fill atom "
-                                      "alignment");
-
-    Segments[Prot] = {SegContentSize, SegContentAlign, SegZeroFillSize,
-                      SegZeroFillAlign};
-
-    LLVM_DEBUG({
-      dbgs() << (&KV == &*Layout.begin() ? "" : "; ")
-             << static_cast<sys::Memory::ProtectionFlags>(Prot) << ": "
-             << SegContentSize << " content bytes (alignment "
-             << SegContentAlign << ") + " << SegZeroFillSize
-             << " zero-fill bytes (alignment " << SegZeroFillAlign << ")";
-    });
-  }
-  LLVM_DEBUG(dbgs() << " }\n");
-
-  if (auto AllocOrErr = Ctx->getMemoryManager().allocate(Segments))
-    Alloc = std::move(*AllocOrErr);
-  else
-    return AllocOrErr.takeError();
-
-  LLVM_DEBUG({
-    dbgs() << "JIT linker got working memory:\n";
-    for (auto &KV : Layout) {
-      auto Prot = static_cast<sys::Memory::ProtectionFlags>(KV.first);
-      dbgs() << "  " << Prot << ": "
-             << (const void *)Alloc->getWorkingMemory(Prot).data() << "\n";
-    }
-  });
-
-  // Update atom target addresses.
-  for (auto &KV : Layout) {
-    auto &Prot = KV.first;
-    auto &SL = KV.second;
-
-    JITTargetAddress AtomTargetAddr =
-        Alloc->getTargetMemory(static_cast<sys::Memory::ProtectionFlags>(Prot));
-
-    for (auto *SIList : {&SL.ContentSections, &SL.ZeroFillSections})
-      for (auto &SI : *SIList) {
-        AtomTargetAddr = alignTo(AtomTargetAddr, SI.S->getAlignment());
-        for (auto *DA : SI.Atoms) {
-          AtomTargetAddr = alignTo(AtomTargetAddr, DA->getAlignment());
-          DA->setAddress(AtomTargetAddr);
-          AtomTargetAddr += DA->getSize();
-        }
-      }
-  }
-
-  return Error::success();
-}
-
-DenseSet<StringRef> JITLinkerBase::getExternalSymbolNames() const {
-  // Identify unresolved external atoms.
-  DenseSet<StringRef> UnresolvedExternals;
-  for (auto *DA : G->external_atoms()) {
-    assert(DA->getAddress() == 0 &&
+JITLinkContext::LookupMap JITLinkerBase::getExternalSymbolNames() const {
+  // Identify unresolved external symbols.
+  JITLinkContext::LookupMap UnresolvedExternals;
+  for (auto *Sym : G->external_symbols()) {
+    assert(!Sym->getAddress() &&
            "External has already been assigned an address");
-    assert(DA->getName() != StringRef() && DA->getName() != "" &&
+    assert(Sym->getName() != StringRef() && Sym->getName() != "" &&
            "Externals must be named");
-    UnresolvedExternals.insert(DA->getName());
+    SymbolLookupFlags LookupFlags =
+        Sym->getLinkage() == Linkage::Weak
+            ? SymbolLookupFlags::WeaklyReferencedSymbol
+            : SymbolLookupFlags::RequiredSymbol;
+    UnresolvedExternals[Sym->getName()] = LookupFlags;
   }
   return UnresolvedExternals;
 }
 
 void JITLinkerBase::applyLookupResult(AsyncLookupResult Result) {
-  for (auto &KV : Result) {
-    Atom &A = G->getAtomByName(KV.first);
-    assert(A.getAddress() == 0 && "Atom already resolved");
-    A.setAddress(KV.second.getAddress());
+  for (auto *Sym : G->external_symbols()) {
+    assert(Sym->getOffset() == 0 &&
+           "External symbol is not at the start of its addressable block");
+    assert(!Sym->getAddress() && "Symbol already resolved");
+    assert(!Sym->isDefined() && "Symbol being resolved is already defined");
+    auto ResultI = Result.find(Sym->getName());
+    if (ResultI != Result.end())
+      Sym->getAddressable().setAddress(
+          orc::ExecutorAddr(ResultI->second.getAddress()));
+    else
+      assert(Sym->getLinkage() == Linkage::Weak &&
+             "Failed to resolve non-weak reference");
   }
 
   LLVM_DEBUG({
     dbgs() << "Externals after applying lookup result:\n";
-    for (auto *A : G->external_atoms())
-      dbgs() << "  " << A->getName() << ": "
-             << formatv("{0:x16}", A->getAddress()) << "\n";
+    for (auto *Sym : G->external_symbols())
+      dbgs() << "  " << Sym->getName() << ": "
+             << formatv("{0:x16}", Sym->getAddress().getValue()) << "\n";
   });
-  assert(llvm::all_of(G->external_atoms(),
-                      [](Atom *A) { return A->getAddress() != 0; }) &&
-         "All atoms should have been resolved by this point");
 }
 
-void JITLinkerBase::deallocateAndBailOut(Error Err) {
+void JITLinkerBase::abandonAllocAndBailOut(std::unique_ptr<JITLinkerBase> Self,
+                                           Error Err) {
   assert(Err && "Should not be bailing out on success value");
-  assert(Alloc && "can not call deallocateAndBailOut before allocation");
-  Ctx->notifyFailed(joinErrors(std::move(Err), Alloc->deallocate()));
+  assert(Alloc && "can not call abandonAllocAndBailOut before allocation");
+  Alloc->abandon([S = std::move(Self), E1 = std::move(Err)](Error E2) mutable {
+    S->Ctx->notifyFailed(joinErrors(std::move(E1), std::move(E2)));
+  });
 }
 
-void JITLinkerBase::dumpGraph(raw_ostream &OS) {
-  assert(G && "Graph is not set yet");
-  G->dump(dbgs(), [this](Edge::Kind K) { return getEdgeKindName(K); });
-}
+void prune(LinkGraph &G) {
+  std::vector<Symbol *> Worklist;
+  DenseSet<Block *> VisitedBlocks;
 
-void prune(AtomGraph &G) {
-  std::vector<DefinedAtom *> Worklist;
-  DenseMap<DefinedAtom *, std::vector<Edge *>> EdgesToUpdate;
+  // Build the initial worklist from all symbols initially live.
+  for (auto *Sym : G.defined_symbols())
+    if (Sym->isLive())
+      Worklist.push_back(Sym);
 
-  // Build the initial worklist from all atoms initially live.
-  for (auto *DA : G.defined_atoms()) {
-    if (!DA->isLive() || DA->shouldDiscard())
-      continue;
-
-    for (auto &E : DA->edges()) {
-      if (!E.getTarget().isDefined())
-        continue;
-
-      auto &EDT = static_cast<DefinedAtom &>(E.getTarget());
-
-      if (EDT.shouldDiscard())
-        EdgesToUpdate[&EDT].push_back(&E);
-      else if (E.isKeepAlive() && !EDT.isLive())
-        Worklist.push_back(&EDT);
-    }
-  }
-
-  // Propagate live flags to all atoms reachable from the initial live set.
+  // Propagate live flags to all symbols reachable from the initial live set.
   while (!Worklist.empty()) {
-    DefinedAtom &NextLive = *Worklist.back();
+    auto *Sym = Worklist.back();
     Worklist.pop_back();
 
-    assert(!NextLive.shouldDiscard() &&
-           "should-discard nodes should never make it into the worklist");
+    auto &B = Sym->getBlock();
 
-    // If this atom has already been marked as live, or is marked to be
-    // discarded, then skip it.
-    if (NextLive.isLive())
+    // Skip addressables that we've visited before.
+    if (VisitedBlocks.count(&B))
       continue;
 
-    // Otherwise set it as live and add any non-live atoms that it points to
-    // to the worklist.
-    NextLive.setLive(true);
+    VisitedBlocks.insert(&B);
 
-    for (auto &E : NextLive.edges()) {
-      if (!E.getTarget().isDefined())
-        continue;
+    for (auto &E : Sym->getBlock().edges()) {
+      // If the edge target is a defined symbol that is being newly marked live
+      // then add it to the worklist.
+      if (E.getTarget().isDefined() && !E.getTarget().isLive())
+        Worklist.push_back(&E.getTarget());
 
-      auto &EDT = static_cast<DefinedAtom &>(E.getTarget());
-
-      if (EDT.shouldDiscard())
-        EdgesToUpdate[&EDT].push_back(&E);
-      else if (E.isKeepAlive() && !EDT.isLive())
-        Worklist.push_back(&EDT);
+      // Mark the target live.
+      E.getTarget().setLive(true);
     }
   }
 
-  // Collect atoms to remove, then remove them from the graph.
-  std::vector<DefinedAtom *> AtomsToRemove;
-  for (auto *DA : G.defined_atoms())
-    if (DA->shouldDiscard() || !DA->isLive())
-      AtomsToRemove.push_back(DA);
-
-  LLVM_DEBUG(dbgs() << "Pruning atoms:\n");
-  for (auto *DA : AtomsToRemove) {
-    LLVM_DEBUG(dbgs() << "  " << *DA << "... ");
-
-    // Check whether we need to replace this atom with an external atom.
-    //
-    // We replace if all of the following hold:
-    //   (1) The atom is marked should-discard,
-    //   (2) it has live edges (i.e. edges from live atoms) pointing to it.
-    //
-    // Otherwise we simply delete the atom.
-
-    G.removeDefinedAtom(*DA);
-
-    auto EdgesToUpdateItr = EdgesToUpdate.find(DA);
-    if (EdgesToUpdateItr != EdgesToUpdate.end()) {
-      auto &ExternalReplacement = G.addExternalAtom(DA->getName());
-      for (auto *EdgeToUpdate : EdgesToUpdateItr->second)
-        EdgeToUpdate->setTarget(ExternalReplacement);
-      LLVM_DEBUG(dbgs() << "replaced with " << ExternalReplacement << "\n");
-    } else
-      LLVM_DEBUG(dbgs() << "deleted\n");
+  // Collect all defined symbols to remove, then remove them.
+  {
+    LLVM_DEBUG(dbgs() << "Dead-stripping defined symbols:\n");
+    std::vector<Symbol *> SymbolsToRemove;
+    for (auto *Sym : G.defined_symbols())
+      if (!Sym->isLive())
+        SymbolsToRemove.push_back(Sym);
+    for (auto *Sym : SymbolsToRemove) {
+      LLVM_DEBUG(dbgs() << "  " << *Sym << "...\n");
+      G.removeDefinedSymbol(*Sym);
+    }
   }
 
-  // Finally, discard any absolute symbols that were marked should-discard.
+  // Delete any unused blocks.
   {
-    std::vector<Atom *> AbsoluteAtomsToRemove;
-    for (auto *A : G.absolute_atoms())
-      if (A->shouldDiscard() || A->isLive())
-        AbsoluteAtomsToRemove.push_back(A);
-    for (auto *A : AbsoluteAtomsToRemove)
-      G.removeAbsoluteAtom(*A);
+    LLVM_DEBUG(dbgs() << "Dead-stripping blocks:\n");
+    std::vector<Block *> BlocksToRemove;
+    for (auto *B : G.blocks())
+      if (!VisitedBlocks.count(B))
+        BlocksToRemove.push_back(B);
+    for (auto *B : BlocksToRemove) {
+      LLVM_DEBUG(dbgs() << "  " << *B << "...\n");
+      G.removeBlock(*B);
+    }
+  }
+
+  // Collect all external symbols to remove, then remove them.
+  {
+    LLVM_DEBUG(dbgs() << "Removing unused external symbols:\n");
+    std::vector<Symbol *> SymbolsToRemove;
+    for (auto *Sym : G.external_symbols())
+      if (!Sym->isLive())
+        SymbolsToRemove.push_back(Sym);
+    for (auto *Sym : SymbolsToRemove) {
+      LLVM_DEBUG(dbgs() << "  " << *Sym << "...\n");
+      G.removeExternalSymbol(*Sym);
+    }
   }
 }
 

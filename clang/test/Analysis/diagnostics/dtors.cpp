@@ -1,4 +1,4 @@
-// RUN: %clang_analyze_cc1 -w -analyzer-checker=core,cplusplus -analyzer-output=text -verify %s
+// RUN: %clang_analyze_cc1 -std=c++14 -w -analyzer-checker=core,cplusplus -analyzer-output=text -verify %s
 
 namespace no_crash_on_delete_dtor {
 // We were crashing when producing diagnostics for this code, but not for the
@@ -16,10 +16,11 @@ struct smart_ptr {
   S *s;
   smart_ptr(S *);
   S *get() {
-    return (x || 0) ? nullptr : s; // expected-note{{Left side of '||' is false}}
-                                   // expected-note@-1{{'?' condition is false}}
-                                   // expected-warning@-2{{Use of memory after it is freed}}
-                                   // expected-note@-3{{Use of memory after it is freed}}
+    return (x || 0) ? nullptr : s; // expected-note{{Field 'x' is 0}}
+                                   // expected-note@-1{{Left side of '||' is false}}
+                                   // expected-note@-2{{'?' condition is false}}
+                                   // expected-warning@-3{{Use of memory after it is freed}}
+                                   // expected-note@-4{{Use of memory after it is freed}}
   }
 };
 

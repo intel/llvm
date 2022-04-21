@@ -1,4 +1,4 @@
-# RUN: not llvm-mc %s -triple=riscv64 2>&1 | FileCheck %s
+# RUN: not llvm-mc %s -triple=riscv32 2>&1 | FileCheck %s
 # RUN: not llvm-mc %s -triple=riscv64 2>&1 | FileCheck %s
 
 lla x1, 1234 # CHECK: :[[@LINE]]:9: error: operand must be a bare symbol name
@@ -27,3 +27,5 @@ sw a2, %lo(a_symbol)(a4), a3 # CHECK: :[[@LINE]]:27: error: invalid operand for 
 
 # Too few operands must be rejected
 sw a2, a_symbol # CHECK: :[[@LINE]]:1: error: too few operands for instruction
+
+la a1, foo+foo # CHECK: :[[@LINE]]:8: error: operand must be a bare symbol name

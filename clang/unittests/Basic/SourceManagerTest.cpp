@@ -20,7 +20,9 @@
 #include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/Process.h"
 #include "gtest/gtest.h"
+#include <cstddef>
 
 using namespace clang;
 
@@ -200,6 +202,69 @@ TEST_F(SourceManagerTest, locationPrintTest) {
             "</mainFile.cpp:1:1, /test-header.h:1:1>");
 }
 
+TEST_F(SourceManagerTest, getInvalidBOM) {
+  ASSERT_EQ(SrcMgr::ContentCache::getInvalidBOM(""), nullptr);
+  ASSERT_EQ(SrcMgr::ContentCache::getInvalidBOM("\x00\x00\x00"), nullptr);
+  ASSERT_EQ(SrcMgr::ContentCache::getInvalidBOM("\xFF\xFF\xFF"), nullptr);
+  ASSERT_EQ(SrcMgr::ContentCache::getInvalidBOM("#include <iostream>"),
+            nullptr);
+
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                "\xFE\xFF#include <iostream>")),
+            "UTF-16 (BE)");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                "\xFF\xFE#include <iostream>")),
+            "UTF-16 (LE)");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                "\x2B\x2F\x76#include <iostream>")),
+            "UTF-7");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                "\xF7\x64\x4C#include <iostream>")),
+            "UTF-1");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                "\xDD\x73\x66\x73#include <iostream>")),
+            "UTF-EBCDIC");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                "\x0E\xFE\xFF#include <iostream>")),
+            "SCSU");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                "\xFB\xEE\x28#include <iostream>")),
+            "BOCU-1");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                "\x84\x31\x95\x33#include <iostream>")),
+            "GB-18030");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                llvm::StringLiteral::withInnerNUL(
+                    "\x00\x00\xFE\xFF#include <iostream>"))),
+            "UTF-32 (BE)");
+  ASSERT_EQ(StringRef(SrcMgr::ContentCache::getInvalidBOM(
+                llvm::StringLiteral::withInnerNUL(
+                    "\xFF\xFE\x00\x00#include <iostream>"))),
+            "UTF-32 (LE)");
+}
+
+// Regression test - there was an out of bound access for buffers not terminated by zero.
+TEST_F(SourceManagerTest, getLineNumber) {
+  const unsigned pageSize = llvm::sys::Process::getPageSizeEstimate();
+  std::unique_ptr<char[]> source(new char[pageSize]);
+  for(unsigned i = 0; i < pageSize; ++i) {
+    source[i] = 'a';
+  }
+
+  std::unique_ptr<llvm::MemoryBuffer> Buf =
+      llvm::MemoryBuffer::getMemBuffer(
+        llvm::MemoryBufferRef(
+          llvm::StringRef(source.get(), 3), "whatever"
+        ),
+        false
+      );
+
+  FileID mainFileID = SourceMgr.createFileID(std::move(Buf));
+  SourceMgr.setMainFileID(mainFileID);
+
+  ASSERT_NO_FATAL_FAILURE(SourceMgr.getLineNumber(mainFileID, 1, nullptr));
+}
+
 #if defined(LLVM_ON_UNIX)
 
 TEST_F(SourceManagerTest, getMacroArgExpandedLocation) {
@@ -229,10 +294,16 @@ TEST_F(SourceManagerTest, getMacroArgExpandedLocation) {
   TrivialModuleLoader ModLoader;
   HeaderSearch HeaderInfo(std::make_shared<HeaderSearchOptions>(), SourceMgr,
                           Diags, LangOpts, &*Target);
+
   Preprocessor PP(std::make_shared<PreprocessorOptions>(), Diags, LangOpts,
                   SourceMgr, HeaderInfo, ModLoader,
                   /*IILookup =*/nullptr,
                   /*OwnsHeaderSearch =*/false);
+  // Ensure we can get expanded locations in presence of implicit includes.
+  // These are different than normal includes since predefines buffer doesn't
+  // have a valid insertion location.
+  PP.setPredefines("#include \"/implicit-header.h\"");
+  FileMgr.getVirtualFile("/implicit-header.h", 0, 0);
   PP.Initialize(*Target);
   PP.EnterMainSourceFile();
 
@@ -282,7 +353,7 @@ struct MacroAction {
   unsigned MAKind : 3;
 
   MacroAction(SourceLocation Loc, StringRef Name, unsigned K)
-    : Loc(Loc), Name(Name), MAKind(K) { }
+      : Loc(Loc), Name(std::string(Name)), MAKind(K) {}
 
   bool isExpansion() const { return MAKind == kExpansion; }
   bool isDefinition() const { return MAKind & kDefinition; }
@@ -354,7 +425,7 @@ TEST_F(SourceManagerTest, isBeforeInTranslationUnitWithMacroInInclude) {
   PP.Initialize(*Target);
 
   std::vector<MacroAction> Macros;
-  PP.addPPCallbacks(llvm::make_unique<MacroTracker>(Macros));
+  PP.addPPCallbacks(std::make_unique<MacroTracker>(Macros));
 
   PP.EnterMainSourceFile();
 
@@ -418,6 +489,29 @@ TEST_F(SourceManagerTest, isBeforeInTranslationUnitWithMacroInInclude) {
   // The INC2 expansion in #include M(INC2) comes before the second
   // MACRO_IN_INCLUDE definition of the included file.
   EXPECT_TRUE(SourceMgr.isBeforeInTranslationUnit(Macros[10].Loc, Macros[11].Loc));
+}
+
+TEST_F(SourceManagerTest, isMainFile) {
+  const char *Source = "int x;";
+
+  std::unique_ptr<llvm::MemoryBuffer> Buf =
+      llvm::MemoryBuffer::getMemBuffer(Source);
+  const FileEntry *SourceFile =
+      FileMgr.getVirtualFile("mainFile.cpp", Buf->getBufferSize(), 0);
+  SourceMgr.overrideFileContents(SourceFile, std::move(Buf));
+
+  std::unique_ptr<llvm::MemoryBuffer> Buf2 =
+      llvm::MemoryBuffer::getMemBuffer(Source);
+  const FileEntry *SecondFile =
+      FileMgr.getVirtualFile("file2.cpp", Buf2->getBufferSize(), 0);
+  SourceMgr.overrideFileContents(SecondFile, std::move(Buf2));
+
+  FileID MainFileID = SourceMgr.getOrCreateFileID(SourceFile, SrcMgr::C_User);
+  SourceMgr.setMainFileID(MainFileID);
+
+  EXPECT_TRUE(SourceMgr.isMainFile(*SourceFile));
+  EXPECT_TRUE(SourceMgr.isMainFile(*SourceFile));
+  EXPECT_FALSE(SourceMgr.isMainFile(*SecondFile));
 }
 
 #endif

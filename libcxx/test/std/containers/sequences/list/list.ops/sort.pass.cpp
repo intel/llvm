@@ -10,11 +10,13 @@
 
 // void sort();
 
+#include <algorithm>
 #include <list>
 #include <random>
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 std::mt19937 randomness;
@@ -43,7 +45,7 @@ void test_stable(int N)
 
     C c(v.begin(), v.end());
     c.sort();
-    assert(distance(c.begin(), c.end()) == N);
+    assert(std::distance(c.begin(), c.end()) == N);
 
 //  Are we sorted?
     typename C::const_iterator j = c.begin();

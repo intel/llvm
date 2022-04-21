@@ -41,7 +41,7 @@ let FunctionMapper = "AArch64_AM::getMemExtendType" in {
 
 // Check for scaling in the register offset addressing mode.
 let FunctionMapper = "AArch64_AM::getMemDoShift" in
-def CheckMemScaled                      : CheckImmOperandSimple<3>;
+def CheckMemScaled                      : CheckImmOperandSimple<4>;
 
 // Check the shifting type in arithmetic and logic instructions.
 let FunctionMapper = "AArch64_AM::getShiftType" in {
@@ -59,76 +59,17 @@ foreach I = {0-3, 8} in {
 }
 
 // Generic predicates.
-
-// Identify whether an instruction is the 64-bit NEON form based on its result.
-def CheckDForm             : CheckAll<[CheckIsRegOperand<0>,
-                                       CheckAny<[CheckRegOperand<0, D0>,
-                                                 CheckRegOperand<0, D1>,
-                                                 CheckRegOperand<0, D2>,
-                                                 CheckRegOperand<0, D3>,
-                                                 CheckRegOperand<0, D4>,
-                                                 CheckRegOperand<0, D5>,
-                                                 CheckRegOperand<0, D6>,
-                                                 CheckRegOperand<0, D7>,
-                                                 CheckRegOperand<0, D8>,
-                                                 CheckRegOperand<0, D9>,
-                                                 CheckRegOperand<0, D10>,
-                                                 CheckRegOperand<0, D11>,
-                                                 CheckRegOperand<0, D12>,
-                                                 CheckRegOperand<0, D13>,
-                                                 CheckRegOperand<0, D14>,
-                                                 CheckRegOperand<0, D15>,
-                                                 CheckRegOperand<0, D16>,
-                                                 CheckRegOperand<0, D17>,
-                                                 CheckRegOperand<0, D18>,
-                                                 CheckRegOperand<0, D19>,
-                                                 CheckRegOperand<0, D20>,
-                                                 CheckRegOperand<0, D21>,
-                                                 CheckRegOperand<0, D22>,
-                                                 CheckRegOperand<0, D23>,
-                                                 CheckRegOperand<0, D24>,
-                                                 CheckRegOperand<0, D25>,
-                                                 CheckRegOperand<0, D26>,
-                                                 CheckRegOperand<0, D27>,
-                                                 CheckRegOperand<0, D28>,
-                                                 CheckRegOperand<0, D29>,
-                                                 CheckRegOperand<0, D30>,
-                                                 CheckRegOperand<0, D31>]>]>;
+// Identify whether an instruction is NEON or floating point
+def CheckFpOrNEON : CheckFunctionPredicateWithTII<
+  "AArch64_MC::isFpOrNEON",
+  "AArch64InstrInfo::isFpOrNEON"
+>;
 
 // Identify whether an instruction is the 128-bit NEON form based on its result.
-def CheckQForm             : CheckAll<[CheckIsRegOperand<0>,
-                                       CheckAny<[CheckRegOperand<0, Q0>,
-                                                 CheckRegOperand<0, Q1>,
-                                                 CheckRegOperand<0, Q2>,
-                                                 CheckRegOperand<0, Q3>,
-                                                 CheckRegOperand<0, Q4>,
-                                                 CheckRegOperand<0, Q5>,
-                                                 CheckRegOperand<0, Q6>,
-                                                 CheckRegOperand<0, Q7>,
-                                                 CheckRegOperand<0, Q8>,
-                                                 CheckRegOperand<0, Q9>,
-                                                 CheckRegOperand<0, Q10>,
-                                                 CheckRegOperand<0, Q11>,
-                                                 CheckRegOperand<0, Q12>,
-                                                 CheckRegOperand<0, Q13>,
-                                                 CheckRegOperand<0, Q14>,
-                                                 CheckRegOperand<0, Q15>,
-                                                 CheckRegOperand<0, Q16>,
-                                                 CheckRegOperand<0, Q17>,
-                                                 CheckRegOperand<0, Q18>,
-                                                 CheckRegOperand<0, Q19>,
-                                                 CheckRegOperand<0, Q20>,
-                                                 CheckRegOperand<0, Q21>,
-                                                 CheckRegOperand<0, Q22>,
-                                                 CheckRegOperand<0, Q23>,
-                                                 CheckRegOperand<0, Q24>,
-                                                 CheckRegOperand<0, Q25>,
-                                                 CheckRegOperand<0, Q26>,
-                                                 CheckRegOperand<0, Q27>,
-                                                 CheckRegOperand<0, Q28>,
-                                                 CheckRegOperand<0, Q29>,
-                                                 CheckRegOperand<0, Q30>,
-                                                 CheckRegOperand<0, Q31>]>]>;
+def CheckQForm : CheckFunctionPredicateWithTII<
+  "AArch64_MC::isQForm",
+  "AArch64InstrInfo::isQForm"
+>;
 
 // Identify arithmetic instructions with extend.
 def IsArithExtOp           : CheckOpcode<[ADDWrx, ADDXrx, ADDSWrx, ADDSXrx,
@@ -249,9 +190,10 @@ def IsLoadRegOffsetOp      : CheckOpcode<[PRFMroW, PRFMroX,
                                           LDRBroW, LDRBroX,
                                           LDRHroW, LDRHroX,
                                           LDRSroW, LDRSroX,
-                                          LDRDroW, LDRDroX]>;
+                                          LDRDroW, LDRDroX,
+                                          LDRQroW, LDRQroX]>;
 
-// Identify whether an instruction is a load
+// Identify whether an instruction is a store
 // using the register offset addressing mode.
 def IsStoreRegOffsetOp     : CheckOpcode<[STRBBroW, STRBBroX,
                                           STRHHroW, STRHHroX,
@@ -260,7 +202,8 @@ def IsStoreRegOffsetOp     : CheckOpcode<[STRBBroW, STRBBroX,
                                           STRBroW, STRBroX,
                                           STRHroW, STRHroX,
                                           STRSroW, STRSroX,
-                                          STRDroW, STRDroX]>;
+                                          STRDroW, STRDroX,
+                                          STRQroW, STRQroX]>;
 
 // Identify whether an instruction is a load or
 // store using the register offset addressing mode.

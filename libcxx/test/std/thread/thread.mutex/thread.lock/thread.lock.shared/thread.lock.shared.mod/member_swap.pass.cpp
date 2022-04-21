@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <shared_mutex>
 
@@ -17,6 +17,8 @@
 
 #include <shared_mutex>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct mutex
 {

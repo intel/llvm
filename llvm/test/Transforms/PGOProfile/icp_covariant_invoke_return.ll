@@ -1,6 +1,6 @@
 ; RUN: opt < %s -pgo-icall-prom -S | FileCheck %s --check-prefix=ICALL-PROM
 ; RUN: opt < %s -passes=pgo-icall-prom -S | FileCheck %s --check-prefix=ICALL-PROM
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 %struct.D = type { %struct.B }
 %struct.B = type { i32 (...)** }
@@ -10,7 +10,9 @@ target triple = "x86_64-unknown-linux-gnu"
 @_ZTIi = external constant i8*
 declare i8* @_Znwm(i64)
 declare void @_ZN1DC2Ev(%struct.D*)
-declare %struct.Derived* @_ZN1D4funcEv(%struct.D*)
+define %struct.Derived* @_ZN1D4funcEv(%struct.D*) {
+  ret %struct.Derived* null
+}
 declare void @_ZN1DD0Ev(%struct.D*)
 declare void @_ZdlPv(i8*)
 declare i32 @__gxx_personality_v0(...)

@@ -1,23 +1,17 @@
-; RUN: llc -O0 -mtriple=amdgcn-mesa-mesa3d -mcpu=bonaire < %s | FileCheck -check-prefixes=CHECK,CIVI %s
-; RUN: llc -O0 -mtriple=amdgcn-mesa-mesa3d -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck -check-prefixes=CHECK,CIVI %s
-; RUN: llc -O0 -mtriple=amdgcn-amd-amdhsa -mcpu=fiji -mattr=-flat-for-global < %s | FileCheck -check-prefixes=CHECK,HSA %s
-; RUN: llc -O0 -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=-flat-for-global < %s | FileCheck -check-prefixes=CHECK,HSA,GFX9 %s
-
-; Disable optimizations in case there are optimizations added that
-; specialize away generic pointer accesses.
-
-
-; These testcases might become useless when there are optimizations to
-; remove generic pointers.
+; RUN: llc -mtriple=amdgcn-mesa-mesa3d -mcpu=bonaire < %s | FileCheck -check-prefixes=CHECK,CIVI %s
+; RUN: llc -mtriple=amdgcn-mesa-mesa3d -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck -check-prefixes=CHECK,CIVI %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=fiji -mattr=-flat-for-global < %s | FileCheck -check-prefixes=CHECK,CIVI,CIVI-HSA %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=-flat-for-global < %s | FileCheck -check-prefixes=CHECK,GFX9 %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=-flat-for-global < %s | FileCheck -check-prefixes=CHECK,GFX10 %s
 
 ; CHECK-LABEL: {{^}}store_flat_i32:
-; CHECK-DAG: s_load_dwordx2 s{{\[}}[[LO_SREG:[0-9]+]]:[[HI_SREG:[0-9]+]]],
+; CHECK-DAG: s_load_dwordx2 s[[[LO_SREG:[0-9]+]]:[[HI_SREG:[0-9]+]]],
 ; CHECK-DAG: s_load_dword s[[SDATA:[0-9]+]],
 ; CHECK: s_waitcnt lgkmcnt(0)
 ; CHECK-DAG: v_mov_b32_e32 v[[DATA:[0-9]+]], s[[SDATA]]
 ; CHECK-DAG: v_mov_b32_e32 v[[LO_VREG:[0-9]+]], s[[LO_SREG]]
 ; CHECK-DAG: v_mov_b32_e32 v[[HI_VREG:[0-9]+]], s[[HI_SREG]]
-; CHECK: flat_store_dword v{{\[}}[[LO_VREG]]:[[HI_VREG]]{{\]}}, v[[DATA]]
+; CHECK: flat_store_dword v[[[LO_VREG]]:[[HI_VREG]]], v[[DATA]]
 define amdgpu_kernel void @store_flat_i32(i32 addrspace(1)* %gptr, i32 %x) #0 {
   %fptr = addrspacecast i32 addrspace(1)* %gptr to i32*
   store volatile i32 %x, i32* %fptr, align 4
@@ -152,8 +146,10 @@ define amdgpu_kernel void @flat_scratch_unaligned_store() {
 }
 
 ; CHECK-LABEL: flat_scratch_multidword_load:
-; HSA: flat_load_dword
-; HSA: flat_load_dword
+; CIVI-HSA: flat_load_dword v
+; CIVI-HSA: flat_load_dword v
+; GFX9:  flat_load_dwordx2
+; GFX10: flat_load_dwordx2
 ; FIXME: These tests are broken for os = mesa3d, becasue it doesn't initialize flat_scr
 define amdgpu_kernel void @flat_scratch_multidword_load() {
   %scratch = alloca <2 x i32>, addrspace(5)
@@ -163,8 +159,10 @@ define amdgpu_kernel void @flat_scratch_multidword_load() {
 }
 
 ; CHECK-LABEL: flat_scratch_multidword_store:
-; HSA: flat_store_dword
-; HSA: flat_store_dword
+; CIVI-HSA: flat_store_dword v
+; CIVI-HSA: flat_store_dword v
+; GFX9:  flat_store_dwordx2
+; GFX10: flat_store_dwordx2
 ; FIXME: These tests are broken for os = mesa3d, becasue it doesn't initialize flat_scr
 define amdgpu_kernel void @flat_scratch_multidword_store() {
   %scratch = alloca <2 x i32>, addrspace(5)
@@ -191,7 +189,11 @@ define amdgpu_kernel void @store_flat_i8_max_offset_p1(i8* %fptr, i8 %x) #0 {
 }
 
 ; CHECK-LABEL: {{^}}store_flat_i8_neg_offset:
-; CHECK: flat_store_byte v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}{{$}}
+; CIVI: flat_store_byte v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}{{$}}
+
+; GFX9: v_add_co_u32_e64 v{{[0-9]+}}, vcc, -2, s
+; GFX9: v_addc_co_u32_e32 v{{[0-9]+}}, vcc, -1,
+; GFX9: flat_store_byte v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+}}{{$}}
 define amdgpu_kernel void @store_flat_i8_neg_offset(i8* %fptr, i8 %x) #0 {
   %fptr.offset = getelementptr inbounds i8, i8* %fptr, i64 -2
   store volatile i8 %x, i8* %fptr.offset
@@ -199,8 +201,9 @@ define amdgpu_kernel void @store_flat_i8_neg_offset(i8* %fptr, i8 %x) #0 {
 }
 
 ; CHECK-LABEL: {{^}}load_flat_i8_max_offset:
-; CIVI: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}{{$}}
-; GFX9: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} offset:4095{{$}}
+; CIVI: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GFX9: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} offset:4095 glc{{$}}
+; GFX10: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} glc dlc{{$}}
 define amdgpu_kernel void @load_flat_i8_max_offset(i8* %fptr) #0 {
   %fptr.offset = getelementptr inbounds i8, i8* %fptr, i64 4095
   %val = load volatile i8, i8* %fptr.offset
@@ -208,7 +211,9 @@ define amdgpu_kernel void @load_flat_i8_max_offset(i8* %fptr) #0 {
 }
 
 ; CHECK-LABEL: {{^}}load_flat_i8_max_offset_p1:
-; CHECK: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}{{$}}
+; CIVI: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GFX9: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+; GFX10: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} glc dlc{{$}}
 define amdgpu_kernel void @load_flat_i8_max_offset_p1(i8* %fptr) #0 {
   %fptr.offset = getelementptr inbounds i8, i8* %fptr, i64 4096
   %val = load volatile i8, i8* %fptr.offset
@@ -216,7 +221,11 @@ define amdgpu_kernel void @load_flat_i8_max_offset_p1(i8* %fptr) #0 {
 }
 
 ; CHECK-LABEL: {{^}}load_flat_i8_neg_offset:
-; CHECK: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}{{$}}
+; CIVI: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
+
+; GFX9: v_add_co_u32_e64 v{{[0-9]+}}, vcc, -2, s
+; GFX9: v_addc_co_u32_e32 v{{[0-9]+}}, vcc, -1,
+; GFX9: flat_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}} glc{{$}}
 define amdgpu_kernel void @load_flat_i8_neg_offset(i8* %fptr) #0 {
   %fptr.offset = getelementptr inbounds i8, i8* %fptr, i64 -2
   %val = load volatile i8, i8* %fptr.offset

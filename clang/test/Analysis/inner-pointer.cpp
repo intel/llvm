@@ -1,4 +1,5 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=cplusplus.InnerPointer \
+// RUN: %clang_analyze_cc1 -std=c++14 -analyzer-checker=cplusplus.InnerPointer \
+// RUN:   -Wno-dangling -Wno-dangling-field -Wno-return-stack-address \
 // RUN:   %s -analyzer-output=text -verify
 
 #include "Inputs/system-header-simulator-cxx.h"
@@ -15,6 +16,11 @@ void func_value(T a);
 
 string my_string = "default";
 void default_arg(int a = 42, string &b = my_string);
+
+template <class T>
+T *addressof(T &arg);
+
+char *data(std::string &c);
 
 } // end namespace std
 
@@ -38,9 +44,9 @@ void deref_after_scope_char(bool cond) {
   std::string s;
   const char *c2 = s.c_str();
   if (cond) {
-    // expected-note@-1 {{Assuming 'cond' is not equal to 0}}
+    // expected-note@-1 {{Assuming 'cond' is true}}
     // expected-note@-2 {{Taking true branch}}
-    // expected-note@-3 {{Assuming 'cond' is 0}}
+    // expected-note@-3 {{Assuming 'cond' is false}}
     // expected-note@-4 {{Taking false branch}}
     consume(c); // expected-warning {{Inner pointer of container used after re/deallocation}}
     // expected-note@-1 {{Inner pointer of container used after re/deallocation}}
@@ -73,9 +79,9 @@ void deref_after_scope_wchar_t(bool cond) {
   std::wstring s;
   const wchar_t *c2 = s.c_str();
   if (cond) {
-    // expected-note@-1 {{Assuming 'cond' is not equal to 0}}
+    // expected-note@-1 {{Assuming 'cond' is true}}
     // expected-note@-2 {{Taking true branch}}
-    // expected-note@-3 {{Assuming 'cond' is 0}}
+    // expected-note@-3 {{Assuming 'cond' is false}}
     // expected-note@-4 {{Taking false branch}}
     consume(c); // expected-warning {{Inner pointer of container used after re/deallocation}}
     // expected-note@-1 {{Inner pointer of container used after re/deallocation}}
@@ -122,9 +128,9 @@ void multiple_symbols(bool cond) {
   std::string s2;
   const char *c2 = s2.c_str();
   if (cond) {
-    // expected-note@-1 {{Assuming 'cond' is not equal to 0}}
+    // expected-note@-1 {{Assuming 'cond' is true}}
     // expected-note@-2 {{Taking true branch}}
-    // expected-note@-3 {{Assuming 'cond' is 0}}
+    // expected-note@-3 {{Assuming 'cond' is false}}
     // expected-note@-4 {{Taking false branch}}
     consume(c1); // expected-warning {{Inner pointer of container used after re/deallocation}}
     // expected-note@-1 {{Inner pointer of container used after re/deallocation}}
@@ -272,6 +278,15 @@ void deref_after_swap() {
   // expected-note@-1 {{Inner pointer of container used after re/deallocation}}
 }
 
+void deref_after_std_data() {
+  const char *c;
+  std::string s;
+  c = std::data(s); // expected-note {{Pointer to inner buffer of 'std::string' obtained here}}
+  s.push_back('c'); // expected-note {{Inner buffer of 'std::string' reallocated by call to 'push_back'}}
+  consume(c);       // expected-warning {{Inner pointer of container used after re/deallocation}}
+  // expected-note@-1 {{Inner pointer of container used after re/deallocation}}
+}
+
 struct S {
   std::string s;
   const char *name() {
@@ -360,8 +375,24 @@ void func_default_arg() {
   // expected-note@-1 {{Inner pointer of container used after re/deallocation}}
 }
 
+void func_addressof() {
+  const char *c;
+  std::string s;
+  c = s.c_str();
+  addressof(s);
+  consume(c); // no-warning
+}
+
+void func_std_data() {
+  const char *c;
+  std::string s;
+  c = std::data(s);
+  consume(c); // no-warning
+}
+
 struct T {
   std::string to_string() { return s; }
+
 private:
   std::string s;
 };

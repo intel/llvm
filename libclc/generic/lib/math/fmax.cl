@@ -1,14 +1,15 @@
 #include <clc/clc.h>
+#include <spirv/spirv.h>
 
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
-_CLC_DEFINE_BINARY_BUILTIN(float, fmax, __builtin_fmaxf, float, float);
+_CLC_DEFINE_BINARY_BUILTIN(float, fmax, __spirv_ocl_fmax, float, float);
 
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(double, fmax, __builtin_fmax, double, double);
+_CLC_DEFINE_BINARY_BUILTIN(double, fmax, __spirv_ocl_fmax, double, double);
 
 #endif
 
@@ -18,11 +19,7 @@ _CLC_DEFINE_BINARY_BUILTIN(double, fmax, __builtin_fmax, double, double);
 
 _CLC_DEF _CLC_OVERLOAD half fmax(half x, half y)
 {
-   if (isnan(x))
-      return y;
-   if (isnan(y))
-      return x;
-   return (x < y) ? y : x;
+   return __spirv_ocl_fmax(x, y);
 }
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, fmax, half, half)
 

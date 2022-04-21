@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // path read_symlink(const path& p);
 // path read_symlink(const path& p, error_code& ec);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -41,7 +41,7 @@ TEST_CASE(test_error_reporting)
     {
 #ifndef TEST_HAS_NO_EXCEPTIONS
         try {
-            fs::read_symlink(f);
+            (void)fs::read_symlink(f);
             return false;
         } catch (filesystem_error const& err) {
             return err.path1() == f
@@ -85,7 +85,7 @@ TEST_CASE(basic_symlink_test)
     } testCases[] = {
         {env.create_symlink(dne, "dne_link"), dne},
         {env.create_symlink(file, "file_link"), file},
-        {env.create_symlink(dir, "dir_link"), dir},
+        {env.create_directory_symlink(dir, "dir_link"), dir},
         {nested_link, link}
     };
     for (auto& TC : testCases) {

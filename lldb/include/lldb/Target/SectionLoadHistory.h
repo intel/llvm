@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_SectionLoadHistory_h_
-#define liblldb_SectionLoadHistory_h_
+#ifndef LLDB_TARGET_SECTIONLOADHISTORY_H
+#define LLDB_TARGET_SECTIONLOADHISTORY_H
 
 #include <map>
 #include <mutex>
@@ -24,7 +24,7 @@ public:
     eStopIDNow = UINT32_MAX
   };
   // Constructors and Destructors
-  SectionLoadHistory() : m_stop_id_to_section_load_list(), m_mutex() {}
+  SectionLoadHistory() {}
 
   ~SectionLoadHistory() {
     // Call clear since this takes a lock and clears the section load list in
@@ -75,9 +75,10 @@ protected:
   mutable std::recursive_mutex m_mutex;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(SectionLoadHistory);
+  SectionLoadHistory(const SectionLoadHistory &) = delete;
+  const SectionLoadHistory &operator=(const SectionLoadHistory &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_SectionLoadHistory_h_
+#endif // LLDB_TARGET_SECTIONLOADHISTORY_H

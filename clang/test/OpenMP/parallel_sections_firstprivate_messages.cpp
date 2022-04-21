@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
 void foo() {
@@ -8,6 +8,15 @@ void foo() {
 
 bool foobool(int argc) {
   return argc;
+}
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp parallel sections firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  {
+    for (int i = 0; i < 10; ++i)
+      ;
+  }
 }
 
 struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
@@ -67,7 +76,7 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   C g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp parallel sections firstprivate // expected-error {{expected '(' after 'firstprivate'}}
   {
@@ -101,7 +110,7 @@ int foomain(int argc, char **argv) {
   {
     foo();
   }
-#pragma omp parallel sections firstprivate(a, b) // expected-error {{firstprivate variable with incomplete type 'S1'}}
+#pragma omp parallel sections firstprivate(z, a, b) // expected-error {{firstprivate variable with incomplete type 'S1'}}
   {
     foo();
   }
@@ -173,7 +182,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S3 m;
   S6 n(2);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp parallel sections firstprivate // expected-error {{expected '(' after 'firstprivate'}}
   {
@@ -199,7 +208,7 @@ int main(int argc, char **argv) {
   {
     foo();
   }
-#pragma omp parallel sections firstprivate(argc)
+#pragma omp parallel sections firstprivate(argc, z)
   {
     foo();
   }

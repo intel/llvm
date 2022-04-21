@@ -5,11 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This test uses new symbols that were not defined in the libc++ shipped on
-// darwin11 and darwin12:
-// XFAIL: availability=macosx10.7
-// XFAIL: availability=macosx10.8
 
 // <locale>
 
@@ -18,6 +13,8 @@
 #include <locale>
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 template <class T>
 void test(const T &) {}

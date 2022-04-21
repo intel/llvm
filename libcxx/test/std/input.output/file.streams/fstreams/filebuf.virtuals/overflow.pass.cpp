@@ -17,6 +17,7 @@
 #include <fstream>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 template <class CharT>
@@ -77,6 +78,8 @@ int main(int, char**)
         assert(f.sgetc() == 'a');
     }
     std::remove("overflow.dat");
+
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         test_buf<wchar_t> f;
         assert(f.open("overflow.dat", std::ios_base::out) != 0);
@@ -140,6 +143,7 @@ int main(int, char**)
         assert(f.sbumpc() == -1);
     }
     std::remove("overflow.dat");
+#endif // TEST_HAS_NO_WIDE_CHARACTERS
 
   return 0;
 }

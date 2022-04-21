@@ -9,40 +9,30 @@
 // test libc++'s implementation of align_val_t, and the relevant new/delete
 // overloads in all dialects when -faligned-allocation is present.
 
-// Libc++ defers to the underlying MSVC library to provide the new/delete
-// definitions, which does not yet provide aligned allocation
-// XFAIL: LIBCXX-WINDOWS-FIXME
+// XFAIL: LIBCXX-AIX-FIXME
 
 // The dylibs shipped before macosx10.13 do not contain the aligned allocation
 // functions, so trying to force using those with -faligned-allocation results
 // in a link error.
-// XFAIL: with_system_cxx_lib=macosx10.12
-// XFAIL: with_system_cxx_lib=macosx10.11
-// XFAIL: with_system_cxx_lib=macosx10.10
-// XFAIL: with_system_cxx_lib=macosx10.9
-// XFAIL: with_system_cxx_lib=macosx10.8
-// XFAIL: with_system_cxx_lib=macosx10.7
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}}
 
-// The test will fail on deployment targets that do not support sized deallocation.
-// XFAIL: availability=macosx10.11
-// XFAIL: availability=macosx10.10
-// XFAIL: availability=macosx10.9
-// XFAIL: availability=macosx10.8
-// XFAIL: availability=macosx10.7
+// Libcxx when built for z/OS doesn't contain the aligned allocation functions,
+// nor does the dynamic library shipped with z/OS.
+// UNSUPPORTED: target={{.+}}-zos{{.*}}
 
 // XFAIL: sanitizer-new-delete, ubsan
 
 // GCC doesn't support the aligned-allocation flags.
 // XFAIL: gcc
 
-// RUN: %build -faligned-allocation -fsized-deallocation
-// RUN: %run
-// RUN: %build -faligned-allocation -fno-sized-deallocation -DNO_SIZE
-// RUN: %run
-// RUN: %build -fno-aligned-allocation -fsized-deallocation -DNO_ALIGN
-// RUN: %run
-// RUN: %build -fno-aligned-allocation -fno-sized-deallocation -DNO_ALIGN -DNO_SIZE
-// RUN: %run
+// RUN: %{build} -faligned-allocation -fsized-deallocation
+// RUN: %{run}
+// RUN: %{build} -faligned-allocation -fno-sized-deallocation -DNO_SIZE
+// RUN: %{run}
+// RUN: %{build} -fno-aligned-allocation -fsized-deallocation -DNO_ALIGN
+// RUN: %{run}
+// RUN: %{build} -fno-aligned-allocation -fno-sized-deallocation -DNO_ALIGN -DNO_SIZE
+// RUN: %{run}
 
 #include <new>
 #include <typeinfo>
@@ -121,14 +111,14 @@ void operator delete(void* p, size_t n)TEST_NOEXCEPT {
 
 #ifndef NO_ALIGN
 void operator delete(void* p, std::align_val_t a)TEST_NOEXCEPT {
-  ::free(p);
+  std::__libcpp_aligned_free(p);
   stats.aligned_called++;
   stats.last_align = static_cast<int>(a);
   stats.last_size = -1;
 }
 
 void operator delete(void* p, size_t n, std::align_val_t a)TEST_NOEXCEPT {
-  ::free(p);
+  std::__libcpp_aligned_free(p);
   stats.aligned_sized_called++;
   stats.last_align = static_cast<int>(a);
   stats.last_size = n;
@@ -137,7 +127,11 @@ void operator delete(void* p, size_t n, std::align_val_t a)TEST_NOEXCEPT {
 
 void test_libcpp_dealloc() {
   void* p = nullptr;
+#ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
+  size_t over_align_val = __STDCPP_DEFAULT_NEW_ALIGNMENT__ * 2;
+#else
   size_t over_align_val = TEST_ALIGNOF(std::max_align_t) * 2;
+#endif
   size_t under_align_val = TEST_ALIGNOF(int);
   size_t with_size_val = 2;
 

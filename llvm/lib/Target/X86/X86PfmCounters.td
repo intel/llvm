@@ -81,14 +81,14 @@ def HaswellPfmCounters : ProcPfmCounters {
   let CycleCounter = UnhaltedCoreCyclesPfmCounter;
   let UopsCounter = UopsIssuedPfmCounter;
   let IssueCounters = [
-    PfmIssueCounter<"HWPort0", "uops_dispatched_port:port_0">,
-    PfmIssueCounter<"HWPort1", "uops_dispatched_port:port_1">,
-    PfmIssueCounter<"HWPort2", "uops_dispatched_port:port_2">,
-    PfmIssueCounter<"HWPort3", "uops_dispatched_port:port_3">,
-    PfmIssueCounter<"HWPort4", "uops_dispatched_port:port_4">,
-    PfmIssueCounter<"HWPort5", "uops_dispatched_port:port_5">,
-    PfmIssueCounter<"HWPort6", "uops_dispatched_port:port_6">,
-    PfmIssueCounter<"HWPort7", "uops_dispatched_port:port_7">
+    PfmIssueCounter<"HWPort0", "uops_executed_port:port_0">,
+    PfmIssueCounter<"HWPort1", "uops_executed_port:port_1">,
+    PfmIssueCounter<"HWPort2", "uops_executed_port:port_2">,
+    PfmIssueCounter<"HWPort3", "uops_executed_port:port_3">,
+    PfmIssueCounter<"HWPort4", "uops_executed_port:port_4">,
+    PfmIssueCounter<"HWPort5", "uops_executed_port:port_5">,
+    PfmIssueCounter<"HWPort6", "uops_executed_port:port_6">,
+    PfmIssueCounter<"HWPort7", "uops_executed_port:port_7">
   ];
 }
 def : PfmCountersBinding<"haswell", HaswellPfmCounters>;
@@ -142,8 +142,24 @@ def SkylakeServerPfmCounters : ProcPfmCounters {
 def : PfmCountersBinding<"skylake-avx512", SkylakeServerPfmCounters>;
 def : PfmCountersBinding<"cascadelake", SkylakeServerPfmCounters>;
 def : PfmCountersBinding<"cannonlake", SkylakeServerPfmCounters>;
-def : PfmCountersBinding<"icelake-client", SkylakeServerPfmCounters>;
-def : PfmCountersBinding<"icelake-server", SkylakeServerPfmCounters>;
+
+def IceLakePfmCounters : ProcPfmCounters {
+  let CycleCounter = UnhaltedCoreCyclesPfmCounter;
+  let UopsCounter = UopsIssuedPfmCounter;
+  let IssueCounters = [
+    PfmIssueCounter<"ICXPort0",  "uops_dispatched_port:port_0">,
+    PfmIssueCounter<"ICXPort1",  "uops_dispatched_port:port_1">,
+    PfmIssueCounter<"ICXPort23", "uops_dispatched_port:port_2_3">,
+    PfmIssueCounter<"ICXPort49", "uops_dispatched_port:port_4_9">,
+    PfmIssueCounter<"ICXPort5",  "uops_dispatched_port:port_5">,
+    PfmIssueCounter<"ICXPort6",  "uops_dispatched_port:port_6">,
+    PfmIssueCounter<"ICXPort78", "uops_dispatched_port:port_7_8">
+  ];
+}
+def : PfmCountersBinding<"icelake-client", IceLakePfmCounters>;
+def : PfmCountersBinding<"icelake-server", IceLakePfmCounters>;
+def : PfmCountersBinding<"rocketlake", IceLakePfmCounters>;
+def : PfmCountersBinding<"tigerlake", IceLakePfmCounters>;
 
 // AMD X86 Counters.
 // Set basic counters for AMD cpus that we know libpfm4 supports.
@@ -223,3 +239,26 @@ def ZnVer1PfmCounters : ProcPfmCounters {
   ];
 }
 def : PfmCountersBinding<"znver1", ZnVer1PfmCounters>;
+
+def ZnVer2PfmCounters : ProcPfmCounters {
+  let CycleCounter = PfmCounter<"cycles_not_in_halt">;
+  let UopsCounter = PfmCounter<"retired_uops">;
+  let IssueCounters = [
+    PfmIssueCounter<"Zn2AGU", "ls_dispatch:ld_dispatch + ls_dispatch:store_dispatch">,
+    PfmIssueCounter<"Zn2Divider", "div_op_count">
+  ];
+}
+def : PfmCountersBinding<"znver2", ZnVer2PfmCounters>;
+
+def ZnVer3PfmCounters : ProcPfmCounters {
+  let CycleCounter = PfmCounter<"cycles_not_in_halt">;
+  let UopsCounter = PfmCounter<"retired_ops">;
+  let IssueCounters = [
+    PfmIssueCounter<"Zn3Int", "ops_type_dispatched_from_decoder:int_disp_retire_mode">,
+    PfmIssueCounter<"Zn3FPU", "ops_type_dispatched_from_decoder:fp_disp_retire_mode">,
+    PfmIssueCounter<"Zn3Load", "ls_dispatch:ld_dispatch">,
+    PfmIssueCounter<"Zn3Store", "ls_dispatch:store_dispatch">,
+    PfmIssueCounter<"Zn3Divider", "div_op_count">
+  ];
+}
+def : PfmCountersBinding<"znver3", ZnVer3PfmCounters>;

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // type_traits
 
@@ -13,6 +13,8 @@
 // T is an array type of unknown bound ([dcl.array])
 
 #include <type_traits>
+
+#include "test_macros.h"
 
 template <class T, bool B>
 void test_array_imp()
@@ -61,7 +63,7 @@ int main(int, char**)
     test_array<Abstract,       false>();
     test_array<Enum,           false>();
     test_array<FunctionPtr,    false>();
-    
+
 //  Array types
     test_array<array,             false>();
     test_array<incomplete_array,  true>();

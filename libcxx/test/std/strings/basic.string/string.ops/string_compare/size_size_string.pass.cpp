@@ -10,11 +10,6 @@
 
 // int compare(size_type pos1, size_type n1, const basic_string& str) const;
 
-// When back-deploying to macosx10.7, the RTTI for exception classes
-// incorrectly provided by libc++.dylib is mixed with the one in
-// libc++abi.dylib and exceptions are not caught properly.
-// XFAIL: with_system_cxx_lib=macosx10.7
-
 #include <string>
 #include <stdexcept>
 #include <cassert>
@@ -365,28 +360,37 @@ void test2()
     test(S("abcdefghijklmnopqrst"), 21, 0, S("abcdefghijklmnopqrst"), 0);
 }
 
-int main(int, char**)
-{
-    {
+bool test() {
+  {
     typedef std::string S;
     test0<S>();
     test1<S>();
     test2<S>();
-    }
+  }
 #if TEST_STD_VER >= 11
-    {
+  {
     typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
     test0<S>();
     test1<S>();
     test2<S>();
-    }
+  }
 #endif
 
 #if TEST_STD_VER > 3
-    {   // LWG 2946
+  { // LWG 2946
     std::string s = " !";
     assert(s.compare(0, 1, {"abc", 1}) < 0);
-    }
+  }
+#endif
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
 #endif
 
   return 0;

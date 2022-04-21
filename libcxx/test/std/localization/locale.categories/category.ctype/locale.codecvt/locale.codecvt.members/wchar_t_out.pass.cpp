@@ -14,12 +14,16 @@
 //            const internT* from, const internT* from_end, const internT*& from_next,
 //            externT* to, externT* to_end, externT*& to_next) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <string>
 #include <vector>
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+
+#include "test_macros.h"
 
 typedef std::codecvt<wchar_t, char, std::mbstate_t> F;
 

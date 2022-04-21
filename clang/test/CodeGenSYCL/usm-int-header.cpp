@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -std=c++11 -I %S/Inputs -fsycl-is-device -ast-dump %s | FileCheck %s
-// RUN: %clang -I %S/Inputs --sycl -Xclang -fsycl-int-header=%t.h %s -c -o kernel.spv
+// RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=INT-HEADER
 
 // INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 0 },
@@ -13,11 +13,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
@@ -32,3 +31,6 @@ int main() {
 }
 
 // CHECK: FunctionDecl {{.*}}usm_test 'void (__global int *, __global float *)'
+
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc

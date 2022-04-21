@@ -7,11 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/force_device.hpp>
+
+#include <algorithm>
 #include <cstdlib>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -21,22 +23,28 @@ bool match_types(const info::device_type &l, const info::device_type &r) {
 
 info::device_type get_forced_type() {
   if (const char *val = std::getenv("SYCL_DEVICE_TYPE")) {
-    if (string_class(val) == "CPU") {
+    std::string type(val);
+    std::transform(type.begin(), type.end(), type.begin(), ::tolower);
+
+    if (type == "cpu") {
       return info::device_type::cpu;
     }
-    if (string_class(val) == "GPU") {
+    if (type == "gpu") {
       return info::device_type::gpu;
     }
-    if (string_class(val) == "ACC") {
+    if (type == "acc") {
       return info::device_type::accelerator;
     }
-    if (string_class(val) == "HOST") {
+    if (type == "host") {
       return info::device_type::host;
     }
+    throw cl::sycl::runtime_error("SYCL_DEVICE_TYPE is not recognized.  Must "
+                                  "be GPU, CPU, ACC or HOST.",
+                                  PI_INVALID_VALUE);
   }
   return info::device_type::all;
 }
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

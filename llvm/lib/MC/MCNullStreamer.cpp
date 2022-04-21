@@ -7,9 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSymbol.h"
+#include "llvm/Support/SMLoc.h"
+namespace llvm {
+class MCContext;
+class MCExpr;
+class MCSection;
+class MCSymbol;
+} // namespace llvm
 
 using namespace llvm;
 
@@ -23,23 +29,26 @@ namespace {
     /// @{
 
     bool hasRawTextSupport() const override { return true; }
-    void EmitRawTextImpl(StringRef String) override {}
+    void emitRawTextImpl(StringRef String) override {}
 
-    bool EmitSymbolAttribute(MCSymbol *Symbol,
+    bool emitSymbolAttribute(MCSymbol *Symbol,
                              MCSymbolAttr Attribute) override {
       return true;
     }
 
-    void EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
+    void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                           unsigned ByteAlignment) override {}
-    void EmitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
+    void emitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
                       uint64_t Size = 0, unsigned ByteAlignment = 0,
                       SMLoc Loc = SMLoc()) override {}
-    void EmitGPRel32Value(const MCExpr *Value) override {}
+    void emitGPRel32Value(const MCExpr *Value) override {}
     void BeginCOFFSymbolDef(const MCSymbol *Symbol) override {}
     void EmitCOFFSymbolStorageClass(int StorageClass) override {}
     void EmitCOFFSymbolType(int Type) override {}
     void EndCOFFSymbolDef() override {}
+    void
+    emitXCOFFSymbolLinkageWithVisibility(MCSymbol *Symbol, MCSymbolAttr Linkage,
+                                         MCSymbolAttr Visibility) override {}
   };
 
 }

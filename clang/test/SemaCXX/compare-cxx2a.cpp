@@ -3,17 +3,26 @@
 
 // RUN: %clang_cc1 -triple x86_64-apple-darwin -fcxx-exceptions -fsyntax-only -pedantic -verify -Wsign-compare -std=c++2a %s
 
+// RUN: %clang_cc1 -triple x86_64-apple-darwin -fcxx-exceptions -std=c++2a -x c++ %S/Inputs/std-compare.h -emit-pch -o %t.pch
+// RUN: %clang_cc1 -triple x86_64-apple-darwin -fcxx-exceptions -fsyntax-only -pedantic -verify -Wsign-compare -std=c++2a %s -include-pch %t.pch
+
 #include "Inputs/std-compare.h"
 
 #define ASSERT_TYPE(...) static_assert(__is_same(__VA_ARGS__))
 #define ASSERT_EXPR_TYPE(Expr, Expect) static_assert(__is_same(decltype(Expr), Expect));
 
+struct S {
+  static int x[5];
+};
+
 void self_compare() {
   int a;
   int *b = nullptr;
+  S s;
 
   (void)(a <=> a); // expected-warning {{self-comparison always evaluates to 'std::strong_ordering::equal'}}
   (void)(b <=> b); // expected-warning {{self-comparison always evaluates to 'std::strong_ordering::equal'}}
+  (void)(s.x[a] <=> S::x[a]); // expected-warning {{self-comparison always evaluates to 'std::strong_ordering::equal'}}
 }
 
 void test0(long a, unsigned long b) {
@@ -203,46 +212,22 @@ struct Class {};
 struct ClassB : Class {};
 struct Class2 {};
 using FnTy = void(int);
-using FnTy2 = long(int);
 using MemFnTy = void (Class::*)() const;
-using MemFnTyB = void (ClassB::*)() const;
-using MemFnTy2 = void (Class::*)();
-using MemFnTy3 = void (Class2::*)() const;
 using MemDataTy = long(Class::*);
 
 void test_nullptr(int *x, FnTy *fp, MemFnTy memp, MemDataTy memdp) {
-  auto r1 = (nullptr <=> nullptr);
-  ASSERT_EXPR_TYPE(r1, std::strong_equality);
-
-  auto r2 = (nullptr <=> x);
-  ASSERT_EXPR_TYPE(r2, std::strong_equality);
-
-  auto r3 = (fp <=> nullptr);
-  ASSERT_EXPR_TYPE(r3, std::strong_equality);
-
-  auto r4 = (0 <=> fp);
-  ASSERT_EXPR_TYPE(r4, std::strong_equality);
-
-  auto r5 = (nullptr <=> memp);
-  ASSERT_EXPR_TYPE(r5, std::strong_equality);
-
-  auto r6 = (0 <=> memdp);
-  ASSERT_EXPR_TYPE(r6, std::strong_equality);
-
-  auto r7 = (0 <=> nullptr);
-  ASSERT_EXPR_TYPE(r7, std::strong_equality);
+  auto r1 = (nullptr <=> nullptr); // expected-error {{invalid operands}}
+  auto r2 = (nullptr <=> x); // expected-error {{invalid operands}}
+  auto r3 = (fp <=> nullptr); // expected-error {{invalid operands}}
+  auto r4 = (0 <=> fp); // expected-error {{ordered comparison between pointer and zero}}
+  auto r5 = (nullptr <=> memp); // expected-error {{invalid operands}}
+  auto r6 = (0 <=> memdp); // expected-error {{invalid operands}}
+  auto r7 = (0 <=> nullptr); // expected-error {{invalid operands}}
 }
 
-void test_compatible_pointer(FnTy *f1, FnTy2 *f2, MemFnTy mf1, MemFnTyB mfb,
-                             MemFnTy2 mf2, MemFnTy3 mf3) {
-  (void)(f1 <=> f2); // expected-error {{distinct pointer types}}
-
-  auto r1 = (mf1 <=> mfb); // OK
-  ASSERT_EXPR_TYPE(r1, std::strong_equality);
-  ASSERT_EXPR_TYPE((mf1 <=> mfb), std::strong_equality);
-
-  (void)(mf1 <=> mf2); // expected-error {{distinct pointer types}}
-  (void)(mf3 <=> mf1); // expected-error {{distinct pointer types}}
+void test_memptr(MemFnTy mf, MemDataTy md) {
+  (void)(mf <=> mf); // expected-error {{invalid operands}} expected-warning {{self-comparison}}
+  (void)(md <=> md); // expected-error {{invalid operands}} expected-warning {{self-comparison}}
 }
 
 // Test that variable narrowing is deferred for value dependent expressions
@@ -292,11 +277,11 @@ void test_enum_enum_compare_no_builtin() {
 
 template <int>
 struct Tag {};
-// expected-note@+1 {{candidate}}
-Tag<0> operator<=>(EnumA, EnumA) {
+Tag<0> operator<=>(EnumA, EnumA) { // expected-note {{not viable}}
   return {};
 }
-Tag<1> operator<=>(EnumA, EnumB) {
+// expected-note@+1 {{while rewriting comparison as call to 'operator<=>' declared here}}
+Tag<1> operator<=>(EnumA, EnumB) { // expected-note {{not viable}}
   return {};
 }
 
@@ -305,7 +290,7 @@ void test_enum_ovl_provided() {
   ASSERT_EXPR_TYPE(r1, Tag<0>);
   auto r2 = (EnumA::A <=> EnumB::B);
   ASSERT_EXPR_TYPE(r2, Tag<1>);
-  (void)(EnumB::B <=> EnumA::A); // expected-error {{invalid operands to binary expression ('EnumCompareTests::EnumB' and 'EnumCompareTests::EnumA')}}
+  (void)(EnumB::B <=> EnumA::A); // expected-error {{invalid operands to binary expression ('int' and 'Tag<1>')}}
 }
 
 void enum_float_test() {
@@ -355,13 +340,18 @@ void test_user_conv() {
   }
 }
 
+struct X {
+  constexpr const Conv<int, -1> operator<=>(X) { return {}; }
+};
+static_assert(X() < X());
+
 } // namespace TestUserDefinedConvSeq
 
 void test_array_conv() {
   int arr[5];
   int *ap = arr + 2;
   int arr2[3];
-  (void)(arr <=> arr); // expected-error {{invalid operands to binary expression ('int [5]' and 'int [5]')}}
+  (void)(arr <=> arr); // expected-error {{invalid operands to binary expression ('int[5]' and 'int[5]')}}
   (void)(+arr <=> arr);
 }
 
@@ -387,8 +377,7 @@ void test_mixed_float_int(float f, double d, long double ld) {
 namespace NullptrTest {
 using nullptr_t = decltype(nullptr);
 void foo(nullptr_t x, nullptr_t y) {
-  auto r = x <=> y;
-  ASSERT_EXPR_TYPE(r, std::strong_equality);
+  auto r = x <=> y; // expected-error {{invalid operands}}
 }
 } // namespace NullptrTest
 
@@ -398,26 +387,77 @@ enum class StrongE {};
 enum WeakE { E_One,
              E_Two };
 
-void test_diag(_Complex int ci, _Complex float cf, _Complex double cd, int i, float f, StrongE E1, WeakE E2, int *p) {
-  (void)(ci <=> (_Complex int &)ci);
-  (void)(ci <=> cf);
-  (void)(ci <=> i);
-  (void)(ci <=> f);
-  (void)(cf <=> i);
-  (void)(cf <=> f);
+void test_diag(_Complex int ci, _Complex float cf, _Complex double cd, int i, float f, StrongE E1, WeakE E2, int *p) {  // expected-warning 3 {{'_Complex' is a C99 extension}}
+  (void)(ci <=> (_Complex int &)ci); // expected-warning {{'_Complex' is a C99 extension}} expected-error {{invalid operands}}
+  (void)(ci <=> cf); // expected-error {{invalid operands}}
+  (void)(ci <=> i); // expected-error {{invalid operands}}
+  (void)(ci <=> f); // expected-error {{invalid operands}}
+  (void)(cf <=> i); // expected-error {{invalid operands}}
+  (void)(cf <=> f); // expected-error {{invalid operands}}
   (void)(ci <=> p); // expected-error {{invalid operands}}
   (void)(ci <=> E1); // expected-error {{invalid operands}}
   (void)(E2 <=> cf); // expected-error {{invalid operands}}
 }
 
-void test_int(_Complex int x, _Complex int y) {
-  auto r = x <=> y;
-  ASSERT_EXPR_TYPE(r, std::strong_equality);
+void test_int(_Complex int x, _Complex int y) { // expected-warning 2 {{'_Complex' is a C99 extension}}
+  auto r = x <=> y; // expected-error {{invalid operands}}
 }
 
-void test_double(_Complex double x, _Complex double y) {
-  auto r = x <=> y;
-  ASSERT_EXPR_TYPE(r, std::weak_equality);
+void test_double(_Complex double x, _Complex double y) { // expected-warning 2 {{'_Complex' is a C99 extension}}
+  auto r = x <=> y; // expected-error {{invalid operands}}
 }
 
 } // namespace ComplexTest
+
+namespace Vector {
+  typedef __attribute__((ext_vector_type(4))) int V;
+  void f(V v1, V v2) {
+    // This would logically result in a vector of std::strong_ordering, but we
+    // don't support vectors of class type. We could model this as a vector of
+    // int (-1 / 0 / 1), but that doesn't extend to floating-point types (how
+    // to represent 'unordered')? For now, just reject.
+    (void)(v1 <=> v2); // expected-error {{three-way comparison between vectors is not supported}}
+  }
+}
+
+namespace PR44992 {
+  extern "C++" struct s {
+    friend auto operator<=>(s const &, s const &) = default;
+  };
+}
+
+namespace PR52537 {
+  template<typename T> struct X {};
+  template<typename T> bool operator==(const X<T> &, int) { return T::error; } // expected-error 2{{no members}}
+  template<typename T> int operator<=>(const X<T> &, int) { return T::error; } // expected-error 2{{no members}}
+
+  const X<int[1]> x1;
+  template<typename T> bool f1() { return x1 != 0; } // expected-note {{instantiation of}}
+  void g1() { f1<int>(); } // expected-note {{instantiation of}}
+
+  const X<int[2]> x2;
+  template<typename T> bool f2() { return 0 == x2; } // expected-note {{instantiation of}}
+  void g2() { f2<int>(); } // expected-note {{instantiation of}}
+
+  const X<int[3]> x3;
+  template<typename T> bool f3() { return x3 < 0; } // expected-note {{instantiation of}}
+  void g3() { f3<int>(); } // expected-note {{instantiation of}}
+
+  const X<int[4]> x4;
+  template<typename T> bool f4() { return 0 >= x4; } // expected-note {{instantiation of}}
+  void g4() { f4<int>(); } // expected-note {{instantiation of}}
+
+  template<typename T> struct Y {};
+  template<typename T> struct Z { Z(int) { T::error; } using nondeduced = Z; }; // expected-error 2{{no members}}
+  template<typename T> Z<T> operator<=>(const Y<T>&, int);
+  template<typename T> bool operator<(const Z<T>&, const typename Z<T>::nondeduced&);
+  template<typename T> bool operator<(const typename Z<T>::nondeduced&, const Z<T>&);
+
+  const Y<int[5]> y5;
+  template<typename T> bool f5() { return y5 < 0; } // expected-note {{instantiation of}}
+  void g5() { f5<int>(); } // expected-note {{instantiation of}}
+
+  const Y<int[6]> y6;
+  template<typename T> bool f6() { return 0 < y6; } // expected-note {{instantiation of}}
+  void g6() { f6<int>(); } // expected-note {{instantiation of}}
+}

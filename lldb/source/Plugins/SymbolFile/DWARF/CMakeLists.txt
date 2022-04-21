@@ -1,3 +1,11 @@
+lldb_tablegen(SymbolFileDWARFProperties.inc -gen-lldb-property-defs
+  SOURCE SymbolFileDWARFProperties.td
+  TARGET LLDBPluginSymbolFileDWARFPropertiesGen)
+
+lldb_tablegen(SymbolFileDWARFPropertiesEnum.inc -gen-lldb-property-enum-defs
+  SOURCE SymbolFileDWARFProperties.td
+  TARGET LLDBPluginSymbolFileDWARFPropertiesEnumGen)
+
 add_lldb_library(lldbPluginSymbolFileDWARF PLUGIN
   AppleDWARFIndex.cpp
   DebugNamesDWARFIndex.cpp
@@ -14,7 +22,6 @@ add_lldb_library(lldbPluginSymbolFileDWARF PLUGIN
   DWARFDebugArangeSet.cpp
   DWARFDebugInfo.cpp
   DWARFDebugInfoEntry.cpp
-  DWARFDebugLine.cpp
   DWARFDebugMacro.cpp
   DWARFDebugRanges.cpp
   DWARFDeclContext.cpp
@@ -30,14 +37,10 @@ add_lldb_library(lldbPluginSymbolFileDWARF PLUGIN
   NameToDIE.cpp
   SymbolFileDWARF.cpp
   SymbolFileDWARFDwo.cpp
-  SymbolFileDWARFDwoDwp.cpp
-  SymbolFileDWARFDwp.cpp
   SymbolFileDWARFDebugMap.cpp
   UniqueDWARFASTType.cpp
 
   LINK_LIBS
-    clangAST
-    clangBasic
     lldbCore
     lldbExpression
     lldbHost
@@ -48,7 +51,15 @@ add_lldb_library(lldbPluginSymbolFileDWARF PLUGIN
     lldbPluginObjCLanguage
     lldbPluginCPlusPlusLanguage
     lldbPluginExpressionParserClang
+    lldbPluginTypeSystemClang
+  CLANG_LIBS
+    clangAST
+    clangBasic
   LINK_COMPONENTS
     DebugInfoDWARF
     Support
   )
+
+add_dependencies(lldbPluginSymbolFileDWARF
+  LLDBPluginSymbolFileDWARFPropertiesGen
+  LLDBPluginSymbolFileDWARFPropertiesEnumGen)

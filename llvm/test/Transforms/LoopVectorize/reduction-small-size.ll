@@ -8,8 +8,8 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 ; CHECK-NEXT:    [[VEC_PHI:%.*]] = phi <4 x i32> [ zeroinitializer, %vector.ph ], [ [[TMP17:%.*]], %[[LATCH]] ]
 ; CHECK:       [[LATCH]]:
 ; CHECK:         [[TMP13:%.*]] = and <4 x i32> [[VEC_PHI]], <i32 255, i32 255, i32 255, i32 255>
-; CHECK-NEXT:    [[TMP14:%.*]] = add nuw nsw <4 x i32> [[TMP13]], {{.*}}
-; CHECK-NEXT:    [[INDEX_NEXT]] = add i32 [[INDEX]], 4
+; CHECK-NEXT:    [[TMP14:%.*]] = add <4 x i32> [[TMP13]], {{.*}}
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i32 [[INDEX]], 4
 ; CHECK:         [[TMP16:%.*]] = trunc <4 x i32> [[TMP14]] to <4 x i8>
 ; CHECK-NEXT:    [[TMP17]] = zext <4 x i8> [[TMP16]] to <4 x i32>
 ; CHECK-NEXT:    br i1 {{.*}}, label %middle.block, label %vector.body
@@ -49,7 +49,7 @@ for.end:
 ; CHECK-NEXT:    [[VEC_PHI:%.*]] = phi <4 x i32> [ [[TMP3]], %vector.ph ], [ [[TMP9:%.*]], %vector.body ]
 ; CHECK:         [[TMP5:%.*]] = and <4 x i32> [[VEC_PHI]], <i32 1, i32 1, i32 1, i32 1>
 ; CHECK-NEXT:    [[TMP6:%.*]] = add <4 x i32> [[TMP5]], <i32 -1, i32 -1, i32 -1, i32 -1>
-; CHECK-NEXT:    [[INDEX_NEXT]] = add i32 [[INDEX]], 4
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i32 [[INDEX]], 4
 ; CHECK:         [[TMP8:%.*]] = trunc <4 x i32> [[TMP6]] to <4 x i1>
 ; CHECK-NEXT:    [[TMP9]] = sext <4 x i1> [[TMP8]] to <4 x i32>
 ; CHECK-NEXT:    br i1 {{.*}}, label %middle.block, label %vector.body
@@ -70,4 +70,46 @@ for.body:
 for.end:
   %tmp1 = phi i32 [ %r.next, %for.body ]
   ret i32 %tmp1
+}
+
+define i32 @pr51794_signed_negative(i16 %iv.start, i32 %xor.start) {
+; CHECK-LABEL: define {{.*}} @pr51794_signed_negative(
+; CHECK-NOT: vector.body:
+;
+entry:
+  br label %loop
+
+loop:
+  %xor.red = phi i32 [ %xor.start, %entry ], [ %xor, %loop ]
+  %iv = phi i16 [ %iv.start, %entry ], [ %iv.next, %loop ]
+  %iv.next = add i16 %iv, -1
+  %and = and i32 %xor.red, 1
+  %xor = xor i32 %and, -1
+  %tobool.not = icmp eq i16 %iv.next, 0
+  br i1 %tobool.not, label %exit, label %loop
+
+exit:
+  %xor.lcssa = phi i32 [ %xor, %loop ]
+  ret i32 %xor.lcssa
+}
+
+define i32 @pr52485_signed_negative(i32 %xor.start) {
+; CHECK-LABEL: define {{.*}} @pr52485_signed_negative(
+; CHECK-NOT: vector.body:
+;
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i32 [ -23, %entry ], [ %iv.next, %loop ]
+  %xor.red = phi i32 [ %xor.start, %entry ], [ %xor, %loop ]
+  %and = and i32 %xor.red, 255
+  %xor = xor i32 %and, -9
+  %iv.next = add nuw nsw i32 %iv, 2
+  %cmp.not = icmp eq i32 %iv.next, -15
+  br i1 %cmp.not, label %exit, label %loop
+
+exit:
+  %xor.lcssa = phi i32 [ %xor, %loop ]
+  ret i32 %xor.lcssa
 }

@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Host_Common_IOObject_h_
-#define liblldb_Host_Common_IOObject_h_
+#ifndef LLDB_UTILITY_IOOBJECT_H
+#define LLDB_UTILITY_IOOBJECT_H
 
-#include <stdarg.h>
-#include <stdio.h>
+#include <cstdarg>
+#include <cstdio>
 #include <sys/types.h>
 
 #include "lldb/lldb-private.h"
@@ -29,8 +29,7 @@ public:
   typedef int WaitableHandle;
   static const WaitableHandle kInvalidHandleValue;
 
-  IOObject(FDType type, bool should_close)
-      : m_fd_type(type), m_should_close_fd(should_close) {}
+  IOObject(FDType type) : m_fd_type(type) {}
   virtual ~IOObject();
 
   virtual Status Read(void *buf, size_t &num_bytes) = 0;
@@ -44,11 +43,10 @@ public:
 
 protected:
   FDType m_fd_type;
-  bool m_should_close_fd; // True if this class should close the file descriptor
-                          // when it goes away.
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(IOObject);
+  IOObject(const IOObject &) = delete;
+  const IOObject &operator=(const IOObject &) = delete;
 };
 } // namespace lldb_private
 

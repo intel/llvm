@@ -19,6 +19,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     {
@@ -38,6 +40,7 @@ int main(int, char**)
         ss0 << i << ' ' << 123;
         assert(ss0.str() == "456 123");
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wstringstream ss0(L" 123 456 ");
         std::wstringstream ss;
@@ -55,6 +58,7 @@ int main(int, char**)
         ss0 << i << ' ' << 123;
         assert(ss0.str() == L"456 123");
     }
+#endif
 
   return 0;
 }

@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// REQUIRES: c++03 || c++11 || c++14 || c++17
+
 // <functional>
 
 // reference_wrapper
@@ -14,6 +16,8 @@
 
 #include <functional>
 #include <type_traits>
+
+#include "test_macros.h"
 
 class functor1
     : public std::unary_function<int, char>

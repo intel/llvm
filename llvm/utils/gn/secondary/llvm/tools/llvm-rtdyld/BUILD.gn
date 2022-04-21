@@ -8,7 +8,5 @@ executable("llvm-rtdyld") {
     "//llvm/lib/Support",
     "//llvm/lib/Target:TargetsToBuild",
   ]
-  sources = [
-    "llvm-rtdyld.cpp",
-  ]
+  sources = [ "llvm-rtdyld.cpp" ]
 }

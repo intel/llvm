@@ -1,4 +1,4 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=debug.DumpCallGraph %s -fblocks 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -analyzer-checker=debug.DumpCallGraph %s -fblocks -std=c++14 2>&1 | FileCheck %s
 
 int get5() {
   return 5;
@@ -68,8 +68,44 @@ void templUser() {
 }
 }
 
+namespace Lambdas {
+  void Callee(){}
+
+  void f1() {
+    [](int i) {
+      Callee();
+    }(1);
+    [](auto i) {
+      Callee();
+    }(1);
+  }
+}
+
+namespace CallDecl {
+  void SomeDecl();
+  void SomeOtherDecl();
+  void SomeDef() {}
+
+  void Caller() {
+    SomeDecl();
+    SomeOtherDecl();
+  }
+
+  void SomeOtherDecl() {
+    SomeDef();
+  }
+}
+
 // CHECK:--- Call graph Dump ---
-// CHECK-NEXT: {{Function: < root > calls: get5 add test_add mmm foo aaa < > bbb ddd ccc eee fff do_nothing test_single_call SomeNS::templ SomeNS::templ SomeNS::templUser $}}
+// CHECK-NEXT: {{Function: < root > calls: get5 add test_add mmm foo aaa < > bbb ddd ccc eee fff do_nothing test_single_call SomeNS::templ SomeNS::templ SomeNS::templUser Lambdas::Callee Lambdas::f1 Lambdas::f1\(\)::\(anonymous class\)::operator\(\) Lambdas::f1\(\)::\(anonymous class\)::operator\(\) CallDecl::SomeDef CallDecl::Caller CallDecl::SomeDecl CallDecl::SomeOtherDecl $}}
+// CHECK-NEXT: {{Function: CallDecl::Caller calls: CallDecl::SomeDecl CallDecl::SomeOtherDecl $}}
+// CHECK-NEXT: {{Function: CallDecl::SomeOtherDecl calls: CallDecl::SomeDef $}}
+// CHECK-NEXT: {{Function: CallDecl::SomeDecl calls: $}}
+// CHECK-NEXT: {{Function: CallDecl::SomeDef calls: $}}
+// CHECK-NEXT: {{Function: Lambdas::f1 calls: Lambdas::f1\(\)::\(anonymous class\)::operator\(\) Lambdas::f1\(\)::\(anonymous class\)::operator\(\) $}}
+// CHECK-NEXT: {{Function: Lambdas::f1\(\)::\(anonymous class\)::operator\(\) calls: Lambdas::Callee $}}
+// CHECK-NEXT: {{Function: Lambdas::f1\(\)::\(anonymous class\)::operator\(\) calls: Lambdas::Callee $}}
+// CHECK-NEXT: {{Function: Lambdas::Callee calls: $}}
 // CHECK-NEXT: {{Function: SomeNS::templUser calls: SomeNS::templ SomeNS::templ $}}
 // CHECK-NEXT: {{Function: SomeNS::templ calls: eee $}}
 // CHECK-NEXT: {{Function: SomeNS::templ calls: ccc $}}

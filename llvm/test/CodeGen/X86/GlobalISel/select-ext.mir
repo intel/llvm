@@ -48,7 +48,7 @@
 ---
 name:            test_zext_i1toi8
 # ALL-LABEL: name:  test_zext_i1toi8
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # X32:      registers:
@@ -84,7 +84,7 @@ body:             |
 ---
 name:            test_zext_i1toi16
 # ALL-LABEL: name:  test_zext_i1toi16
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # X32:      registers:
@@ -123,7 +123,7 @@ body:             |
 ---
 name:            test_zext_i1
 # ALL-LABEL: name:  test_zext_i1
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # X32:      registers:
@@ -162,7 +162,7 @@ body:             |
 ---
 name:            test_zext_i8
 # ALL-LABEL: name:  test_zext_i8
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # ALL:      registers:
@@ -188,7 +188,7 @@ body:             |
 ---
 name:            test_zext_i16
 # ALL-LABEL: name:  test_zext_i16
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # ALL:      registers:
@@ -214,7 +214,7 @@ body:             |
 ---
 name:            test_sext_i8
 # ALL-LABEL: name:  test_sext_i8
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # ALL:      registers:
@@ -240,7 +240,7 @@ body:             |
 ---
 name:            test_sext_i16
 # ALL-LABEL: name:  test_sext_i16
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # ALL:      registers:
@@ -266,7 +266,7 @@ body:             |
 ---
 name:            test_anyext_i1toi8
 # ALL-LABEL: name:  test_anyext_i1toi8
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # X32:      registers:
@@ -300,7 +300,7 @@ body:             |
 ---
 name:            test_anyext_i1toi16
 # ALL-LABEL: name:  test_anyext_i1toi16
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # X32:      registers:
@@ -335,7 +335,7 @@ body:             |
 ---
 name:            test_anyext_i1toi32
 # ALL-LABEL: name:  test_anyext_i1toi32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # X32:      registers:
@@ -370,12 +370,12 @@ body:             |
 ---
 name:            test_anyext_i8toi16
 # ALL-LABEL: name:  test_anyext_i8toi16
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # X32:      registers:
-# X32-NEXT:   - { id: 0, class: gr32_abcd, preferred-register: '' }
-# X32-NEXT:   - { id: 1, class: gr8, preferred-register: '' }
+# X32-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# X32-NEXT:   - { id: 1, class: gr8_abcd_l, preferred-register: '' }
 # X32-NEXT:   - { id: 2, class: gr16, preferred-register: '' }
 #
 # X64:      registers:
@@ -386,10 +386,15 @@ registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
   - { id: 2, class: gpr }
-# X32:          %0:gr32_abcd = COPY $edi
-# X64:          %0:gr32 = COPY $edi
-# ALL-NEXT:     %1:gr8 = COPY %0.sub_8bit
-# ALL-NEXT:     %2:gr16 = SUBREG_TO_REG 0, %1, %subreg.sub_8bit
+# X32:          %0:gr32 = COPY $edi
+# X32-NEXT:    %4:gr32_abcd = COPY %0
+# X32-NEXT:     %1:gr8_abcd_l = COPY %4.sub_8bit
+
+# X64:               %0:gr32 = COPY $edi
+# X64-NEXT:     %1:gr8 = COPY %0.sub_8bit
+
+# ALL-NEXT:     %3:gr32 = MOVZX32rr8 %1
+# ALL-NEXT:     %2:gr16 = COPY %3.sub_16bit
 # ALL-NEXT:     $ax = COPY %2
 # ALL-NEXT:     RET 0, implicit $ax
 body:             |
@@ -405,12 +410,12 @@ body:             |
 ---
 name:            test_anyext_i8toi32
 # ALL-LABEL: name:  test_anyext_i8toi32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # X32:      registers:
-# X32-NEXT:   - { id: 0, class: gr32_abcd, preferred-register: '' }
-# X32-NEXT:   - { id: 1, class: gr8, preferred-register: '' }
+# X32-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# X32-NEXT:   - { id: 1, class: gr8_abcd_l, preferred-register: '' }
 # X32-NEXT:   - { id: 2, class: gr32, preferred-register: '' }
 #
 # X64:      registers:
@@ -421,9 +426,13 @@ registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
   - { id: 2, class: gpr }
-# X32:          %0:gr32_abcd = COPY $edi
+# X32:          %0:gr32 = COPY $edi
+# X32-NEXT: %3:gr32_abcd = COPY %0
+# X32-NEXT: %1:gr8_abcd_l = COPY %3.sub_8bit
+
 # X64:          %0:gr32 = COPY $edi
-# ALL-NEXT:     %1:gr8 = COPY %0.sub_8bit
+# X64-NEXT: %1:gr8 = COPY %0.sub_8bit
+
 # ALL-NEXT:     %2:gr32 = MOVZX32rr8 %1
 # ALL-NEXT:     $eax = COPY %2
 # ALL-NEXT:     RET 0, implicit $eax
@@ -440,20 +449,22 @@ body:             |
 ---
 name:            test_anyext_i16toi32
 # ALL-LABEL: name:  test_anyext_i16toi32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 # ALL:      registers:
 # ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
 # ALL-NEXT:   - { id: 1, class: gr16, preferred-register: '' }
-# ALL-NEXT:   - { id: 2, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: low32_addr_access_rbp, preferred-register: '' }
+# ALL-NEXT:   - { id: 3, class: low32_addr_access_rbp, preferred-register: '' }
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
   - { id: 2, class: gpr }
 # ALL:          %0:gr32 = COPY $edi
 # ALL-NEXT:     %1:gr16 = COPY %0.sub_16bit
-# ALL-NEXT:     %2:gr32 = SUBREG_TO_REG 0, %1, %subreg.sub_16bit
+# ALL-NEXT:     %3:low32_addr_access_rbp = IMPLICIT_DEF
+# ALL-NEXT:     %2:low32_addr_access_rbp = INSERT_SUBREG %3, %1, %subreg.sub_16bit
 # ALL-NEXT:     $eax = COPY %2
 # ALL-NEXT:     RET 0, implicit $eax
 body:             |

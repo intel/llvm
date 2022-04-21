@@ -11,11 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "LanaiInstPrinter.h"
-#include "Lanai.h"
 #include "LanaiMCExpr.h"
+#include "LanaiAluCode.h"
+#include "LanaiCondCode.h"
+#include "MCTargetDesc/LanaiMCTargetDesc.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
@@ -134,17 +137,18 @@ bool LanaiInstPrinter::printAlias(const MCInst *MI, raw_ostream &OS) {
   }
 }
 
-void LanaiInstPrinter::printInst(const MCInst *MI, raw_ostream &OS,
+void LanaiInstPrinter::printInst(const MCInst *MI, uint64_t Address,
                                  StringRef Annotation,
-                                 const MCSubtargetInfo & /*STI*/) {
-  if (!printAlias(MI, OS) && !printAliasInstr(MI, OS))
-    printInstruction(MI, OS);
+                                 const MCSubtargetInfo & /*STI*/,
+                                 raw_ostream &OS) {
+  if (!printAlias(MI, OS) && !printAliasInstr(MI, Address, OS))
+    printInstruction(MI, Address, OS);
   printAnnotation(OS, Annotation);
 }
 
 void LanaiInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
                                     raw_ostream &OS, const char *Modifier) {
-  assert((Modifier == 0 || Modifier[0] == 0) && "No modifiers supported");
+  assert((Modifier == nullptr || Modifier[0] == 0) && "No modifiers supported");
   const MCOperand &Op = MI->getOperand(OpNo);
   if (Op.isReg())
     OS << "%" << getRegisterName(Op.getReg());

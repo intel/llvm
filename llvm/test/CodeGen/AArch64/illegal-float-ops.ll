@@ -1,5 +1,5 @@
 ; RUN: llc -mtriple=aarch64-none-linux-gnu -verify-machineinstrs -o - %s | FileCheck %s
-; RUN: llc -mtriple=aarch64-linux-android -verify-machineinstrs -o - %s | FileCheck --check-prefix=ANDROID-AARCH64 %s
+; RUN: llc -mtriple=aarch64-linux-android -verify-machineinstrs -o - %s | FileCheck %s
 
 @varfloat = global float 0.0
 @vardouble = global double 0.0
@@ -181,22 +181,22 @@ define void @test_pow(float %float, double %double, fp128 %fp128) {
   ret void
 }
 
-declare float @llvm.powi.f32(float, i32)
-declare double @llvm.powi.f64(double, i32)
-declare fp128 @llvm.powi.f128(fp128, i32)
+declare float @llvm.powi.f32.i32(float, i32)
+declare double @llvm.powi.f64.i32(double, i32)
+declare fp128 @llvm.powi.f128.i32(fp128, i32)
 
 define void @test_powi(float %float, double %double, i32 %exponent, fp128 %fp128) {
 ; CHECK-LABEL: test_powi:
 
-   %powifloat = call float @llvm.powi.f32(float %float, i32 %exponent)
+   %powifloat = call float @llvm.powi.f32.i32(float %float, i32 %exponent)
    store float %powifloat, float* @varfloat
 ; CHECK: bl __powisf2
 
-   %powidouble = call double @llvm.powi.f64(double %double, i32 %exponent)
+   %powidouble = call double @llvm.powi.f64.i32(double %double, i32 %exponent)
    store double %powidouble, double* @vardouble
 ; CHECK: bl __powidf2
 
-   %powifp128 = call fp128 @llvm.powi.f128(fp128 %fp128, i32 %exponent)
+   %powifp128 = call fp128 @llvm.powi.f128.i32(fp128 %fp128, i32 %exponent)
    store fp128 %powifp128, fp128* @varfp128
 ; CHECK: bl __powitf2
   ret void
@@ -247,11 +247,59 @@ define void @test_fmuladd(fp128 %fp128) {
   ret void
 }
 
+define i32 @test_fptosi32(fp128 %a) {
+; CHECK-LABEL: test_fptosi32:
+; CHECK: bl __fixtfsi
+  %conv.i = fptosi fp128 %a to i32
+  %b = add nsw i32 %conv.i, 48
+  ret i32 %b
+}
+
+define i64 @test_fptosi64(fp128 %a) {
+; CHECK-LABEL: test_fptosi64:
+; CHECK: bl __fixtfdi
+  %conv.i = fptosi fp128 %a to i64
+  %b = add nsw i64 %conv.i, 48
+  ret i64 %b
+}
+
+define i128 @test_fptosi128(fp128 %a) {
+; CHECK-LABEL: test_fptosi128:
+; CHECK: bl __fixtfti
+  %conv.i = fptosi fp128 %a to i128
+  %b = add nsw i128 %conv.i, 48
+  ret i128 %b
+}
+
+define i32 @test_fptoui32(fp128 %a) {
+; CHECK-LABEL: test_fptoui32:
+; CHECK: bl __fixunstfsi
+  %conv.i = fptoui fp128 %a to i32
+  %b = add nsw i32 %conv.i, 48
+  ret i32 %b
+}
+
+define i64 @test_fptoui64(fp128 %a) {
+; CHECK-LABEL: test_fptoui64:
+; CHECK: bl __fixunstfdi
+  %conv.i = fptoui fp128 %a to i64
+  %b = add nsw i64 %conv.i, 48
+  ret i64 %b
+}
+
+define i128 @test_fptoui128(fp128 %a) {
+; CHECK-LABEL: test_fptoui128:
+; CHECK: bl __fixunstfti
+  %conv.i = fptoui fp128 %a to i128
+  %b = add nsw i128 %conv.i, 48
+  ret i128 %b
+}
+
 define void @test_exp_finite(double %double) #0 {
   %expdouble = call double @llvm.exp.f64(double %double)
   store double %expdouble, double* @vardouble
   ; ANDROID-AARCH64-NOT: bl __exp_finite
-  ; CHECK: bl __exp_finite
+  ; CHECK: bl exp
 
   ret void
 }
@@ -259,8 +307,8 @@ define void @test_exp_finite(double %double) #0 {
 define void @test_exp2_finite(double %double) #0 {
   %expdouble = call double @llvm.exp2.f64(double %double)
   store double %expdouble, double* @vardouble
-  ; ANDROID-AARCH64-NOT: bl __exp2_finite
-  ; CHECK: bl __exp2_finite
+  ; CHECK-NOT: bl __exp2_finite
+  ; CHECK: bl exp2
 
   ret void
 }
@@ -268,32 +316,32 @@ define void @test_exp2_finite(double %double) #0 {
 define void @test_log_finite(double %double) #0 {
   %logdouble = call double @llvm.log.f64(double %double)
   store double %logdouble, double* @vardouble
-  ; ANDROID-AARCH64-NOT: bl __log_finite
-  ; CHECK: bl __log_finite
+  ; CHECK-NOT: bl __log_finite
+  ; CHECK: bl log
   ret void
 }
 
 define void @test_log2_finite(double %double) #0 {
   %log2double = call double @llvm.log2.f64(double %double)
   store double %log2double, double* @vardouble
-  ; ANDROID-AARCH64-NOT: bl __log2_finite
-  ; CHECK: bl __log2_finite
+  ; CHECK-NOT: bl __log2_finite
+  ; CHECK: bl log2
   ret void
 }
 
 define void @test_log10_finite(double %double) #0 {
   %log10double = call double @llvm.log10.f64(double %double)
   store double %log10double, double* @vardouble
-  ; ANDROID-AARCH64-NOT: bl __log10_finite
-  ; CHECK: bl __log10_finite
+  ; CHECK-NOT: bl __log10_finite
+  ; CHECK: bl log10
   ret void
 }
 
 define void @test_pow_finite(double %double) #0 {
   %powdouble = call double @llvm.pow.f64(double %double, double %double)
   store double %powdouble, double* @vardouble
-  ; ANDROID-AARCH64-NOT: bl __pow_finite
-  ; CHECK: bl __pow_finite
+  ; CHECK-NOT: bl __pow_finite
+  ; CHECK: bl pow
   ret void
 }
 

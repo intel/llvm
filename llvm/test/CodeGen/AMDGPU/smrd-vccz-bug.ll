@@ -1,14 +1,14 @@
 ; RUN: llc -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VCCZ-BUG %s
 ; RUN: llc -march=amdgcn -mcpu=bonaire -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VCCZ-BUG %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=NOVCCZ-BUG %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 ; GCN-FUNC: {{^}}vccz_workaround:
-; GCN: s_load_dword s{{[0-9]+}}, s[{{[0-9]+:[0-9]+}}], 0x0
-; GCN: v_cmp_neq_f32_e64 {{[^,]*}}, s{{[0-9]+}}, 0{{$}}
+; GCN: s_load_dword [[REG:s[0-9]+]], s[{{[0-9]+:[0-9]+}}],
+; GCN: v_cmp_neq_f32_e64 {{[^,]*}}, [[REG]], 0{{$}}
 ; VCCZ-BUG: s_waitcnt lgkmcnt(0)
 ; VCCZ-BUG: s_mov_b64 vcc, vcc
-; NOVCCZ-BUG-NOT: s_mov_b64 vcc, vcc
-; GCN: s_cbranch_vccnz [[EXIT:[0-9A-Za-z_]+]]
+; GCN-NOT: s_mov_b64 vcc, vcc
+; GCN: s_cbranch_vccnz [[EXIT:.L[0-9A-Za-z_]+]]
 ; GCN: buffer_store_dword
 ; GCN: [[EXIT]]:
 ; GCN: s_endpgm
@@ -28,7 +28,9 @@ endif:
 
 ; GCN-FUNC: {{^}}vccz_noworkaround:
 ; GCN: v_cmp_neq_f32_e32 vcc, 0, v{{[0-9]+}}
-; GCN: s_cbranch_vccnz [[EXIT:[0-9A-Za-z_]+]]
+; GCN-NOT: s_waitcnt lgkmcnt(0)
+; GCN-NOT: s_mov_b64 vcc, vcc
+; GCN: s_cbranch_vccnz [[EXIT:.L[0-9A-Za-z_]+]]
 ; GCN: buffer_store_dword
 ; GCN: [[EXIT]]:
 ; GCN: s_endpgm

@@ -34,17 +34,21 @@ protected:
     return format(Code, 0, Code.size(), Style);
   }
 
-  static void verifyFormat(llvm::StringRef Code, const FormatStyle &Style) {
+  static void _verifyFormat(const char *File, int Line, llvm::StringRef Code,
+                            const FormatStyle &Style) {
+    ::testing::ScopedTrace t(File, Line, ::testing::Message() << Code.str());
     EXPECT_EQ(Code.str(), format(Code, Style)) << "Expected code is not stable";
     EXPECT_EQ(Code.str(), format(test::messUp(Code), Style));
   }
 
-  static void verifyFormat(llvm::StringRef Code) {
+  static void _verifyFormat(const char *File, int Line, llvm::StringRef Code) {
     FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
     Style.ColumnLimit = 60; // To make writing tests easier.
-    verifyFormat(Code, Style);
+    _verifyFormat(File, Line, Code, Style);
   }
 };
+
+#define verifyFormat(...) _verifyFormat(__FILE__, __LINE__, __VA_ARGS__)
 
 TEST_F(FormatTestTextProto, KeepsTopLevelEntriesFittingALine) {
   verifyFormat("field_a: OK field_b: OK field_c: OK field_d: OK field_e: OK");
@@ -199,7 +203,7 @@ TEST_F(FormatTestTextProto, SupportsAngleBracketMessageFields) {
                "field_c: {}");
 
   verifyFormat("field_a < field_b: 1 >,\n"
-               "msg_fid: < fiel_b: 123 >,\n" 
+               "msg_fid: < fiel_b: 123 >,\n"
                "field_c <>");
 
   verifyFormat("field_a < field_b: 1 >\n"
@@ -380,25 +384,46 @@ TEST_F(FormatTestTextProto, KeepsCommentsIndentedInList) {
                "cccccccccccccccccccccccc: 3849");
 }
 
-TEST_F(FormatTestTextProto, UnderstandsHashHashComments) {
+TEST_F(FormatTestTextProto, UnderstandsHashComments) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
   Style.ColumnLimit = 60; // To make writing tests easier.
   EXPECT_EQ("aaa: 100\n"
-            "##this is a double-hash comment.\n"
+            "## this is a double-hash comment.\n"
             "bb: 100\n"
             "## another double-hash comment.\n"
             "### a triple-hash comment\n"
             "cc: 200\n"
+            "### another triple-hash comment\n"
             "#### a quadriple-hash comment\n"
-            "dd: 100\n",
+            "dd: 100\n"
+            "#### another quadriple-hash comment\n",
             format("aaa: 100\n"
                    "##this is a double-hash comment.\n"
                    "bb: 100\n"
                    "## another double-hash comment.\n"
-                   "### a triple-hash comment\n"
+                   "###a triple-hash comment\n"
                    "cc: 200\n"
-                   "#### a quadriple-hash comment\n"
-                   "dd: 100\n",
+                   "### another triple-hash comment\n"
+                   "####a quadriple-hash comment\n"
+                   "dd: 100\n"
+                   "#### another quadriple-hash comment\n",
+                   Style));
+
+  // Ensure we support a common pattern for naming sections.
+  EXPECT_EQ("##############\n"
+            "# section name\n"
+            "##############",
+            format("##############\n"
+                   "# section name\n"
+                   "##############",
+                   Style));
+
+  EXPECT_EQ("///////////////\n"
+            "// section name\n"
+            "///////////////",
+            format("///////////////\n"
+                   "// section name\n"
+                   "///////////////",
                    Style));
 }
 
@@ -450,14 +475,16 @@ TEST_F(FormatTestTextProto, FormatsExtensions) {
                " bbbbbbbbbbbbbb] { key: value }");
   // These go over the column limit intentionally, since the alternative
   // [aa..a\n] is worse.
-  verifyFormat("[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] {\n"
-               "  key: value\n"
-               "}");
-  verifyFormat("[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] {\n"
-               "  [type.type] {\n"
-               "    keyyyyyyyyyyyyyy: valuuuuuuuuuuuuuuuuuuuuuuuuue\n"
-               "  }\n"
-               "}");
+  verifyFormat(
+      "[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] {\n"
+      "  key: value\n"
+      "}");
+  verifyFormat(
+      "[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] {\n"
+      "  [type.type] {\n"
+      "    keyyyyyyyyyyyyyy: valuuuuuuuuuuuuuuuuuuuuuuuuue\n"
+      "  }\n"
+      "}");
   verifyFormat("[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/\n"
                " bbbbbbb] {\n"
                "  [type.type] {\n"
@@ -517,8 +544,7 @@ TEST_F(FormatTestTextProto, FormatsRepeatedListInitializers) {
                "    'long'\n"
                "  ]\n"
                "}\n"
-               "key: value"
-               );
+               "key: value");
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
   Style.ColumnLimit = 60; // To make writing tests easier.
   Style.Cpp11BracedListStyle = true;
@@ -555,7 +581,8 @@ TEST_F(FormatTestTextProto, PutsMultipleEntriesInExtensionsOnNewlines) {
                "    key: value\n"
                "    key: value\n"
                "  }\n"
-               "}", Style);
+               "}",
+               Style);
 }
 
 TEST_F(FormatTestTextProto, BreaksAfterBraceFollowedByClosingBraceOnNextLine) {
@@ -734,5 +761,5 @@ TEST_F(FormatTestTextProto, KeepsAmpersandsNextToKeys) {
                "}");
 }
 
-} // end namespace tooling
+} // namespace format
 } // end namespace clang

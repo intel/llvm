@@ -4,6 +4,7 @@
  * Copyright 2012-2013 Ecole Normale Superieure
  * Copyright 2014      INRIA Rocquencourt
  * Copyright 2016      INRIA Paris
+ * Copyright 2020      Cerebras Systems
  *
  * Use of this software is governed by the MIT license
  *
@@ -16,6 +17,7 @@
  * B.P. 105 - 78153 Le Chesnay, France
  * and Centre de Recherche Inria de Paris, 2 rue Simone Iff - Voie DQ12,
  * CS 42112, 75589 Paris Cedex 12, France
+ * and Cerebras Systems, 175 S San Antonio Rd, Los Altos, CA, USA
  */
 
 #include <isl_ctx_private.h>
@@ -66,13 +68,17 @@ static int *eq_status_in(__isl_keep isl_basic_map *bmap_i,
 	struct isl_tab *tab_j)
 {
 	int k, l;
-	int *eq = isl_calloc_array(bmap_i->ctx, int, 2 * bmap_i->n_eq);
-	unsigned dim;
+	int *eq;
+	isl_size dim;
 
+	dim = isl_basic_map_dim(bmap_i, isl_dim_all);
+	if (dim < 0)
+		return NULL;
+
+	eq = isl_calloc_array(bmap_i->ctx, int, 2 * bmap_i->n_eq);
 	if (!eq)
 		return NULL;
 
-	dim = isl_basic_map_total_dim(bmap_i);
 	for (k = 0; k < bmap_i->n_eq; ++k) {
 		for (l = 0; l < 2; ++l) {
 			isl_seq_neg(bmap_i->eq[k], bmap_i->eq[k], 1+dim);
@@ -173,6 +179,8 @@ static int all(int *con, unsigned len, int status)
  * "bmap" is the basic map itself (or NULL if "removed" is set)
  * "tab" is the corresponding tableau (or NULL if "removed" is set)
  * "hull_hash" identifies the affine space in which "bmap" lives.
+ * "modified" is set if this basic map may not be identical
+ * to any of the basic maps in the input.
  * "removed" is set if this basic map has been removed from the map
  * "simplify" is set if this basic map may have some unknown integer
  * divisions that were not present in the input basic maps.  The basic
@@ -190,6 +198,7 @@ struct isl_coalesce_info {
 	isl_basic_map *bmap;
 	struct isl_tab *tab;
 	uint32_t hull_hash;
+	int modified;
 	int removed;
 	int simplify;
 	int *eq;
@@ -202,7 +211,7 @@ struct isl_coalesce_info {
  */
 static int any_eq(struct isl_coalesce_info *info, int status)
 {
-	unsigned n_eq;
+	isl_size n_eq;
 
 	n_eq = isl_basic_map_n_equality(info->bmap);
 	return any(info->eq, 2 * n_eq, status);
@@ -214,7 +223,7 @@ static int any_eq(struct isl_coalesce_info *info, int status)
  */
 static int any_ineq(struct isl_coalesce_info *info, int status)
 {
-	unsigned n_ineq;
+	isl_size n_ineq;
 
 	n_ineq = isl_basic_map_n_inequality(info->bmap);
 	return any(info->ineq, n_ineq, status);
@@ -229,7 +238,7 @@ static int any_ineq(struct isl_coalesce_info *info, int status)
  */
 static int find_eq(struct isl_coalesce_info *info, int status)
 {
-	unsigned n_eq;
+	isl_size n_eq;
 
 	n_eq = isl_basic_map_n_equality(info->bmap);
 	return find(info->eq, 2 * n_eq, status);
@@ -242,7 +251,7 @@ static int find_eq(struct isl_coalesce_info *info, int status)
  */
 static int find_ineq(struct isl_coalesce_info *info, int status)
 {
-	unsigned n_ineq;
+	isl_size n_ineq;
 
 	n_ineq = isl_basic_map_n_inequality(info->bmap);
 	return find(info->ineq, n_ineq, status);
@@ -254,7 +263,7 @@ static int find_ineq(struct isl_coalesce_info *info, int status)
  */
 static int count_eq(struct isl_coalesce_info *info, int status)
 {
-	unsigned n_eq;
+	isl_size n_eq;
 
 	n_eq = isl_basic_map_n_equality(info->bmap);
 	return count(info->eq, 2 * n_eq, status);
@@ -266,7 +275,7 @@ static int count_eq(struct isl_coalesce_info *info, int status)
  */
 static int count_ineq(struct isl_coalesce_info *info, int status)
 {
-	unsigned n_ineq;
+	isl_size n_ineq;
 
 	n_ineq = isl_basic_map_n_inequality(info->bmap);
 	return count(info->ineq, n_ineq, status);
@@ -309,11 +318,13 @@ static int all_valid_or_cut(struct isl_coalesce_info *info)
 static int coalesce_info_set_hull_hash(struct isl_coalesce_info *info)
 {
 	isl_basic_map *hull;
-	unsigned n_div;
+	isl_size n_div;
 
 	hull = isl_basic_map_copy(info->bmap);
 	hull = isl_basic_map_plain_affine_hull(hull);
 	n_div = isl_basic_map_dim(hull, isl_dim_div);
+	if (n_div < 0)
+		hull = isl_basic_map_free(hull);
 	hull = isl_basic_map_drop_constraints_involving_dims(hull,
 							isl_dim_div, 0, n_div);
 	info->hull_hash = isl_basic_map_get_hash(hull);
@@ -340,15 +351,22 @@ static void clear_coalesce_info(int n, struct isl_coalesce_info *info)
 	free(info);
 }
 
+/* Clear the memory associated to "info".
+ */
+static void clear(struct isl_coalesce_info *info)
+{
+	info->bmap = isl_basic_map_free(info->bmap);
+	isl_tab_free(info->tab);
+	info->tab = NULL;
+}
+
 /* Drop the basic map represented by "info".
  * That is, clear the memory associated to the entry and
  * mark it as having been removed.
  */
 static void drop(struct isl_coalesce_info *info)
 {
-	info->bmap = isl_basic_map_free(info->bmap);
-	isl_tab_free(info->tab);
-	info->tab = NULL;
+	clear(info);
 	info->removed = 1;
 }
 
@@ -480,10 +498,15 @@ static int number_of_constraints_increases(int i, int j,
  * replaced if the total number of constraints does not increase.
  * While the number of integer divisions in the two basic maps
  * is assumed to be the same, the actual definitions may be different.
- * We only copy the definition from one of the basic map if it is
+ * We only copy the definition from one of the basic maps if it is
  * the same as that of the other basic map.  Otherwise, we mark
  * the integer division as unknown and simplify the basic map
  * in an attempt to recover the integer division definition.
+ * If any extra constraints get introduced, then these may
+ * involve integer divisions with a unit coefficient.
+ * Eliminate those that do not appear with any other coefficient
+ * in other constraints, to ensure they get eliminated completely,
+ * improving the chances of further coalescing.
  */
 static enum isl_change fuse(int i, int j, struct isl_coalesce_info *info,
 	__isl_keep isl_mat *extra, int detect_equalities, int check_number)
@@ -491,11 +514,13 @@ static enum isl_change fuse(int i, int j, struct isl_coalesce_info *info,
 	int k, l;
 	struct isl_basic_map *fused = NULL;
 	struct isl_tab *fused_tab = NULL;
-	unsigned total = isl_basic_map_total_dim(info[i].bmap);
+	isl_size total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
 	unsigned extra_rows = extra ? extra->n_row : 0;
 	unsigned n_eq, n_ineq;
 	int simplify = 0;
 
+	if (total < 0)
+		return isl_change_error;
 	if (j < i)
 		return fuse(j, i, info, extra, detect_equalities, check_number);
 
@@ -538,6 +563,8 @@ static enum isl_change fuse(int i, int j, struct isl_coalesce_info *info,
 	if (simplify || info[j].simplify) {
 		fused = isl_basic_map_simplify(fused);
 		info[i].simplify = 0;
+	} else if (extra_rows > 0) {
+		fused = isl_basic_map_eliminate_pure_unit_divs(fused);
 	}
 	fused = isl_basic_map_finalize(fused);
 
@@ -552,10 +579,10 @@ static enum isl_change fuse(int i, int j, struct isl_coalesce_info *info,
 		return isl_change_none;
 	}
 
-	isl_basic_map_free(info[i].bmap);
+	clear(&info[i]);
 	info[i].bmap = fused;
-	isl_tab_free(info[i].tab);
 	info[i].tab = fused_tab;
+	info[i].modified = 1;
 	drop(&info[j]);
 
 	return isl_change_fuse;
@@ -644,10 +671,12 @@ static enum isl_change check_facets(int i, int j,
 static isl_bool contains(struct isl_coalesce_info *info, struct isl_tab *tab)
 {
 	int k;
-	unsigned dim;
+	isl_size dim;
 	isl_basic_map *bmap = info->bmap;
 
-	dim = isl_basic_map_total_dim(bmap);
+	dim = isl_basic_map_dim(bmap, isl_dim_all);
+	if (dim < 0)
+		return isl_bool_error;
 	for (k = 0; k < bmap->n_eq; ++k) {
 		int stat;
 		isl_seq_neg(bmap->eq[k], bmap->eq[k], 1 + dim);
@@ -677,10 +706,13 @@ static isl_bool contains(struct isl_coalesce_info *info, struct isl_tab *tab)
 	return isl_bool_true;
 }
 
-/* Basic map "i" has an inequality (say "k") that is adjacent
+/* Basic map "i" has an inequality "k" that is adjacent
  * to some inequality of basic map "j".  All the other inequalities
  * are valid for "j".
- * Check if basic map "j" forms an extension of basic map "i".
+ * If not NULL, then "extra" contains extra wrapping constraints that are valid
+ * for both "i" and "j".
+ * Check if basic map "j" forms an extension of basic map "i",
+ * taking into account the extra constraints, if any.
  *
  * Note that this function is only called if some of the equalities or
  * inequalities of basic map "j" do cut basic map "i".  The function is
@@ -688,7 +720,8 @@ static isl_bool contains(struct isl_coalesce_info *info, struct isl_tab *tab)
  * the additional checks performed by this function are overkill.
  *
  * In particular, we replace constraint k, say f >= 0, by constraint
- * f <= -1, add the inequalities of "j" that are valid for "i"
+ * f <= -1, add the inequalities of "j" that are valid for "i",
+ * as well as the "extra" constraints, if any,
  * and check if the result is a subset of basic map "j".
  * To improve the chances of the subset relation being detected,
  * any variable that only attains a single integer value
@@ -696,7 +729,8 @@ static isl_bool contains(struct isl_coalesce_info *info, struct isl_tab *tab)
  * If the result is a subset, then we know that this result is exactly equal
  * to basic map "j" since all its constraints are valid for basic map "j".
  * By combining the valid constraints of "i" (all equalities and all
- * inequalities except "k") and the valid constraints of "j" we therefore
+ * inequalities except "k"), the valid constraints of "j" and
+ * the "extra" constraints, if any, we therefore
  * obtain a basic map that is equal to their union.
  * In this case, there is no need to perform a rollback of the tableau
  * since it is going to be destroyed in fuse().
@@ -716,29 +750,37 @@ static isl_bool contains(struct isl_coalesce_info *info, struct isl_tab *tab)
  *	|  || \			|     \
  *	|  ||  |		|      |
  *	|__||_/			|_____/
+ *
+ *
+ *	_______			 _______
+ *     |       | __		|       \__
+ *     |       ||__|	=>	|        __|
+ *     |_______|		|_______/
  */
-static enum isl_change is_adj_ineq_extension(int i, int j,
-	struct isl_coalesce_info *info)
+static enum isl_change is_adj_ineq_extension_with_wraps(int i, int j, int k,
+	struct isl_coalesce_info *info, __isl_keep isl_mat *extra)
 {
-	int k;
 	struct isl_tab_undo *snap;
-	unsigned n_eq = info[i].bmap->n_eq;
-	unsigned total = isl_basic_map_total_dim(info[i].bmap);
+	isl_size n_eq_i, n_ineq_j, n_extra;
+	isl_size total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
 	isl_stat r;
 	isl_bool super;
 
-	if (isl_tab_extend_cons(info[i].tab, 1 + info[j].bmap->n_ineq) < 0)
+	if (total < 0)
 		return isl_change_error;
 
-	k = find_ineq(&info[i], STATUS_ADJ_INEQ);
-	if (k < 0)
-		isl_die(isl_basic_map_get_ctx(info[i].bmap), isl_error_internal,
-			"info[i].ineq should have exactly one STATUS_ADJ_INEQ",
-			return isl_change_error);
+	n_eq_i = isl_basic_map_n_equality(info[i].bmap);
+	n_ineq_j = isl_basic_map_n_inequality(info[j].bmap);
+	n_extra = isl_mat_rows(extra);
+	if (n_eq_i < 0 || n_ineq_j < 0 || n_extra < 0)
+		return isl_change_error;
+
+	if (isl_tab_extend_cons(info[i].tab, 1 + n_ineq_j + n_extra) < 0)
+		return isl_change_error;
 
 	snap = isl_tab_snap(info[i].tab);
 
-	if (isl_tab_unrestrict(info[i].tab, n_eq + k) < 0)
+	if (isl_tab_unrestrict(info[i].tab, n_eq_i + k) < 0)
 		return isl_change_error;
 
 	isl_seq_neg(info[i].bmap->ineq[k], info[i].bmap->ineq[k], 1 + total);
@@ -749,10 +791,14 @@ static enum isl_change is_adj_ineq_extension(int i, int j,
 	if (r < 0)
 		return isl_change_error;
 
-	for (k = 0; k < info[j].bmap->n_ineq; ++k) {
+	for (k = 0; k < n_ineq_j; ++k) {
 		if (info[j].ineq[k] != STATUS_VALID)
 			continue;
 		if (isl_tab_add_ineq(info[i].tab, info[j].bmap->ineq[k]) < 0)
+			return isl_change_error;
+	}
+	for (k = 0; k < n_extra; ++k) {
+		if (isl_tab_add_ineq(info[i].tab, extra->row[k]) < 0)
 			return isl_change_error;
 	}
 	if (isl_tab_detect_constants(info[i].tab) < 0)
@@ -762,69 +808,10 @@ static enum isl_change is_adj_ineq_extension(int i, int j,
 	if (super < 0)
 		return isl_change_error;
 	if (super)
-		return fuse(i, j, info, NULL, 0, 0);
+		return fuse(i, j, info, extra, 0, 0);
 
 	if (isl_tab_rollback(info[i].tab, snap) < 0)
 		return isl_change_error;
-
-	return isl_change_none;
-}
-
-
-/* Both basic maps have at least one inequality with and adjacent
- * (but opposite) inequality in the other basic map.
- * Check that there are no cut constraints and that there is only
- * a single pair of adjacent inequalities.
- * If so, we can replace the pair by a single basic map described
- * by all but the pair of adjacent inequalities.
- * Any additional points introduced lie strictly between the two
- * adjacent hyperplanes and can therefore be integral.
- *
- *        ____			  _____
- *       /    ||\		 /     \
- *      /     || \		/       \
- *      \     ||  \	=>	\        \
- *       \    ||  /		 \       /
- *        \___||_/		  \_____/
- *
- * The test for a single pair of adjancent inequalities is important
- * for avoiding the combination of two basic maps like the following
- *
- *       /|
- *      / |
- *     /__|
- *         _____
- *         |   |
- *         |   |
- *         |___|
- *
- * If there are some cut constraints on one side, then we may
- * still be able to fuse the two basic maps, but we need to perform
- * some additional checks in is_adj_ineq_extension.
- */
-static enum isl_change check_adj_ineq(int i, int j,
-	struct isl_coalesce_info *info)
-{
-	int count_i, count_j;
-	int cut_i, cut_j;
-
-	count_i = count_ineq(&info[i], STATUS_ADJ_INEQ);
-	count_j = count_ineq(&info[j], STATUS_ADJ_INEQ);
-
-	if (count_i != 1 && count_j != 1)
-		return isl_change_none;
-
-	cut_i = any_eq(&info[i], STATUS_CUT) || any_ineq(&info[i], STATUS_CUT);
-	cut_j = any_eq(&info[j], STATUS_CUT) || any_ineq(&info[j], STATUS_CUT);
-
-	if (!cut_i && !cut_j && count_i == 1 && count_j == 1)
-		return fuse(i, j, info, NULL, 0, 0);
-
-	if (count_i == 1 && !cut_i)
-		return is_adj_ineq_extension(i, j, info);
-
-	if (count_j == 1 && !cut_j)
-		return is_adj_ineq_extension(j, i, info);
 
 	return isl_change_none;
 }
@@ -982,7 +969,7 @@ static __isl_give isl_vec *try_tightening(struct isl_coalesce_info *info,
 static isl_stat tighten_on_relaxed_facet(struct isl_coalesce_info *info,
 	int n, int *relaxed, int l)
 {
-	unsigned total;
+	isl_size total;
 	isl_ctx *ctx;
 	isl_vec *v = NULL;
 	isl_mat *T;
@@ -992,7 +979,9 @@ static isl_stat tighten_on_relaxed_facet(struct isl_coalesce_info *info,
 
 	k = relaxed[l];
 	ctx = isl_basic_map_get_ctx(info->bmap);
-	total = isl_basic_map_total_dim(info->bmap);
+	total = isl_basic_map_dim(info->bmap, isl_dim_all);
+	if (total < 0)
+		return isl_stat_error;
 	isl_int_add_ui(info->bmap->ineq[k][0], info->bmap->ineq[k][0], 1);
 	T = isl_mat_sub_alloc6(ctx, info->bmap->ineq, k, 1, 0, 1 + total);
 	T = isl_mat_variable_compression(T, NULL);
@@ -1057,12 +1046,12 @@ static enum isl_change extend(int i, int j, int n, int *relax,
 	struct isl_coalesce_info *info)
 {
 	int l;
-	unsigned total;
+	isl_size total;
 
 	info[i].bmap = isl_basic_map_cow(info[i].bmap);
-	if (!info[i].bmap)
+	total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
+	if (total < 0)
 		return isl_change_error;
-	total = isl_basic_map_total_dim(info[i].bmap);
 	for (l = 0; l < info[i].bmap->n_div; ++l)
 		if (!isl_seq_eq(info[i].bmap->div[l],
 				info[j].bmap->div[l], 1 + 1 + total)) {
@@ -1072,8 +1061,10 @@ static enum isl_change extend(int i, int j, int n, int *relax,
 	for (l = 0; l < n; ++l)
 		isl_int_add_ui(info[i].bmap->ineq[relax[l]][0],
 				info[i].bmap->ineq[relax[l]][0], 1);
+	ISL_F_CLR(info[i].bmap, ISL_BASIC_MAP_NO_REDUNDANT);
 	ISL_F_SET(info[i].bmap, ISL_BASIC_MAP_FINAL);
 	drop(&info[j]);
+	info[i].modified = 1;
 	if (j < i)
 		exchange(&info[i], &info[j]);
 	return isl_change_fuse;
@@ -1172,11 +1163,13 @@ static enum isl_change is_relaxed_extension(int i, int j, int n, int *relax,
 /* Data structure that keeps track of the wrapping constraints
  * and of information to bound the coefficients of those constraints.
  *
+ * "failed" is set if wrapping has failed.
  * bound is set if we want to apply a bound on the coefficients
  * mat contains the wrapping constraints
  * max is the bound on the coefficients (if bound is set)
  */
 struct isl_wraps {
+	int failed;
 	int bound;
 	isl_mat *mat;
 	isl_int max;
@@ -1191,8 +1184,10 @@ static isl_stat wraps_update_max(struct isl_wraps *wraps,
 {
 	int k;
 	isl_int max_k;
-	unsigned total = isl_basic_map_total_dim(info->bmap);
+	isl_size total = isl_basic_map_dim(info->bmap, isl_dim_all);
 
+	if (total < 0)
+		return isl_stat_error;
 	isl_int_init(max_k);
 
 	for (k = 0; k < info->bmap->n_eq; ++k) {
@@ -1229,10 +1224,12 @@ static isl_stat wraps_init(struct isl_wraps *wraps, __isl_take isl_mat *mat,
 {
 	isl_ctx *ctx;
 
+	wraps->failed = 0;
 	wraps->bound = 0;
 	wraps->mat = mat;
 	if (!mat)
 		return isl_stat_error;
+	wraps->mat->n_row = 0;
 	ctx = isl_mat_get_ctx(mat);
 	wraps->bound = isl_options_get_coalesce_bounded_wrapping(ctx);
 	if (!wraps->bound)
@@ -1254,6 +1251,14 @@ static void wraps_free(struct isl_wraps *wraps)
 	isl_mat_free(wraps->mat);
 	if (wraps->bound)
 		isl_int_clear(wraps->max);
+}
+
+/* Mark the wrapping as failed.
+ */
+static isl_stat wraps_mark_failed(struct isl_wraps *wraps)
+{
+	wraps->failed = 1;
+	return isl_stat_ok;
 }
 
 /* Is the wrapping constraint in row "row" allowed?
@@ -1300,39 +1305,58 @@ static int add_wrap(struct isl_wraps *wraps, int w, isl_int *bound,
 	return 1;
 }
 
-/* For each constraint in info->bmap that is not redundant (as determined
- * by info->tab) and that is not a valid constraint for the other basic map,
- * wrap the constraint around "bound" such that it includes the whole
- * set "set" and append the resulting constraint to "wraps".
+/* This function has two modes of operations.
+ *
+ * If "add_valid" is set, then all the constraints of info->bmap
+ * (except the opposite of "bound") are valid for the other basic map.
+ * In this case, attempts are made to wrap some of these valid constraints
+ * to more tightly fit around "set".  Only successful wrappings are recorded
+ * and failed wrappings are ignored.
+ *
+ * If "add_valid" is not set, then some of the constraints of info->bmap
+ * are not valid for the other basic map, and only those are considered
+ * for wrapping.  In this case all attempted wrappings need to succeed.
+ * Otherwise "wraps" is marked as failed.
  * Note that the constraints that are valid for the other basic map
  * will be added to the combined basic map by default, so there is
  * no need to wrap them.
  * The caller wrap_in_facets even relies on this function not wrapping
  * any constraints that are already valid.
+ *
+ * Only consider constraints that are not redundant (as determined
+ * by info->tab) and that are valid or invalid depending on "add_valid".
+ * Wrap each constraint around "bound" such that it includes the whole
+ * set "set" and append the resulting constraint to "wraps".
  * "wraps" is assumed to have been pre-allocated to the appropriate size.
  * wraps->n_row is the number of actual wrapped constraints that have
  * been added.
  * If any of the wrapping problems results in a constraint that is
  * identical to "bound", then this means that "set" is unbounded in such
- * way that no wrapping is possible.  If this happens then wraps->n_row
- * is reset to zero.
+ * a way that no wrapping is possible.
  * Similarly, if we want to bound the coefficients of the wrapping
  * constraints and a newly added wrapping constraint does not
- * satisfy the bound, then wraps->n_row is also reset to zero.
+ * satisfy the bound, then the wrapping is considered to have failed.
+ * Note though that "wraps" is only marked failed if "add_valid" is not set.
  */
-static isl_stat add_wraps(struct isl_wraps *wraps,
-	struct isl_coalesce_info *info, isl_int *bound, __isl_keep isl_set *set)
+static isl_stat add_selected_wraps(struct isl_wraps *wraps,
+	struct isl_coalesce_info *info, isl_int *bound, __isl_keep isl_set *set,
+	int add_valid)
 {
 	int l, m;
 	int w;
 	int added;
 	isl_basic_map *bmap = info->bmap;
-	unsigned len = 1 + isl_basic_map_total_dim(bmap);
+	isl_size total = isl_basic_map_dim(bmap, isl_dim_all);
+	unsigned len = 1 + total;
+
+	if (total < 0)
+		return isl_stat_error;
 
 	w = wraps->mat->n_row;
 
 	for (l = 0; l < bmap->n_ineq; ++l) {
-		if (info->ineq[l] == STATUS_VALID ||
+		int is_valid = info->ineq[l] == STATUS_VALID;
+		if ((!add_valid && is_valid) ||
 		    info->ineq[l] == STATUS_REDUNDANT)
 			continue;
 		if (isl_seq_is_neg(bound, bmap->ineq[l], len))
@@ -1345,9 +1369,10 @@ static isl_stat add_wraps(struct isl_wraps *wraps,
 		added = add_wrap(wraps, w, bound, bmap->ineq[l], len, set, 0);
 		if (added < 0)
 			return isl_stat_error;
-		if (!added)
+		if (!added && !is_valid)
 			goto unbounded;
-		++w;
+		if (added)
+			++w;
 	}
 	for (l = 0; l < bmap->n_eq; ++l) {
 		if (isl_seq_is_neg(bound, bmap->eq[l], len))
@@ -1371,31 +1396,61 @@ static isl_stat add_wraps(struct isl_wraps *wraps,
 	wraps->mat->n_row = w;
 	return isl_stat_ok;
 unbounded:
-	wraps->mat->n_row = 0;
-	return isl_stat_ok;
+	return wraps_mark_failed(wraps);
+}
+
+/* For each constraint in info->bmap that is not redundant (as determined
+ * by info->tab) and that is not a valid constraint for the other basic map,
+ * wrap the constraint around "bound" such that it includes the whole
+ * set "set" and append the resulting constraint to "wraps".
+ * Note that the constraints that are valid for the other basic map
+ * will be added to the combined basic map by default, so there is
+ * no need to wrap them.
+ * The caller wrap_in_facets even relies on this function not wrapping
+ * any constraints that are already valid.
+ * "wraps" is assumed to have been pre-allocated to the appropriate size.
+ * wraps->n_row is the number of actual wrapped constraints that have
+ * been added.
+ * If any of the wrapping problems results in a constraint that is
+ * identical to "bound", then this means that "set" is unbounded in such
+ * a way that no wrapping is possible.  If this happens then "wraps"
+ * is marked as failed.
+ * Similarly, if we want to bound the coefficients of the wrapping
+ * constraints and a newly added wrapping constraint does not
+ * satisfy the bound, then "wraps" is also marked as failed.
+ */
+static isl_stat add_wraps(struct isl_wraps *wraps,
+	struct isl_coalesce_info *info, isl_int *bound, __isl_keep isl_set *set)
+{
+	return add_selected_wraps(wraps, info, bound, set, 0);
 }
 
 /* Check if the constraints in "wraps" from "first" until the last
- * are all valid for the basic set represented by "tab".
- * If not, wraps->n_row is set to zero.
+ * are all valid for the basic set represented by "tab",
+ * dropping the invalid constraints if "keep" is set and
+ * marking the wrapping as failed if "keep" is not set and
+ * any constraint turns out to be invalid.
  */
-static int check_wraps(__isl_keep isl_mat *wraps, int first,
-	struct isl_tab *tab)
+static isl_stat check_wraps(struct isl_wraps *wraps, int first,
+	struct isl_tab *tab, int keep)
 {
 	int i;
 
-	for (i = first; i < wraps->n_row; ++i) {
+	for (i = wraps->mat->n_row - 1; i >= first; --i) {
 		enum isl_ineq_type type;
-		type = isl_tab_ineq_type(tab, wraps->row[i]);
+		type = isl_tab_ineq_type(tab, wraps->mat->row[i]);
 		if (type == isl_ineq_error)
-			return -1;
+			return isl_stat_error;
 		if (type == isl_ineq_redundant)
 			continue;
-		wraps->n_row = 0;
-		return 0;
+		if (!keep)
+			return wraps_mark_failed(wraps);
+		wraps->mat = isl_mat_drop_rows(wraps->mat, i, 1);
+		if (!wraps->mat)
+			return isl_stat_error;
 	}
 
-	return 0;
+	return isl_stat_ok;
 }
 
 /* Return a set that corresponds to the non-redundant constraints
@@ -1426,21 +1481,71 @@ static __isl_give isl_set *set_from_updated_bmap(__isl_keep isl_basic_map *bmap,
 	return isl_set_from_basic_set(bset);
 }
 
-/* Wrap the constraints of info->bmap that bound the facet defined
+/* Does "info" have any cut constraints that are redundant?
+ */
+static isl_bool has_redundant_cuts(struct isl_coalesce_info *info)
+{
+	int l;
+	isl_size n_eq, n_ineq;
+
+	n_eq = isl_basic_map_n_equality(info->bmap);
+	n_ineq = isl_basic_map_n_inequality(info->bmap);
+	if (n_eq < 0 || n_ineq < 0)
+		return isl_bool_error;
+	for (l = 0; l < n_ineq; ++l) {
+		int red;
+
+		if (info->ineq[l] != STATUS_CUT)
+			continue;
+		red = isl_tab_is_redundant(info->tab, n_eq + l);
+		if (red < 0)
+			return isl_bool_error;
+		if (red)
+			return isl_bool_true;
+	}
+
+	return isl_bool_false;
+}
+
+/* Wrap some constraints of info->bmap that bound the facet defined
  * by inequality "k" around (the opposite of) this inequality to
  * include "set".  "bound" may be used to store the negated inequality.
+ *
+ * If "add_valid" is set, then all ridges are already valid and
+ * the purpose is to wrap "set" more tightly.  In this case,
+ * wrapping doesn't fail, although it is possible that no constraint
+ * gets wrapped.
+ *
+ * If "add_valid" is not set, then some of the ridges are cut constraints
+ * and only those are wrapped around "set".
+ *
  * Since the wrapped constraints are not guaranteed to contain the whole
  * of info->bmap, we check them in check_wraps.
  * If any of the wrapped constraints turn out to be invalid, then
- * check_wraps will reset wrap->n_row to zero.
+ * check_wraps will mark "wraps" as failed if "add_valid" is not set.
+ * If "add_valid" is set, then the offending constraints are
+ * simply removed.
+ *
+ * If the facet turns out to be empty, then no wrapping can be performed.
+ * This is considered a failure, unless "add_valid" is set.
+ *
+ * If any of the cut constraints of info->bmap turn out
+ * to be redundant with respect to other constraints
+ * then these will neither be wrapped nor added directly to the result.
+ * The result may therefore not be correct.
+ * Skip wrapping and mark "wraps" as failed in this case.
  */
-static isl_stat add_wraps_around_facet(struct isl_wraps *wraps,
+static isl_stat add_selected_wraps_around_facet(struct isl_wraps *wraps,
 	struct isl_coalesce_info *info, int k, isl_int *bound,
-	__isl_keep isl_set *set)
+	__isl_keep isl_set *set, int add_valid)
 {
+	isl_bool nowrap;
 	struct isl_tab_undo *snap;
 	int n;
-	unsigned total = isl_basic_map_total_dim(info->bmap);
+	isl_size total = isl_basic_map_dim(info->bmap, isl_dim_all);
+
+	if (total < 0)
+		return isl_stat_error;
 
 	snap = isl_tab_snap(info->tab);
 
@@ -1448,19 +1553,183 @@ static isl_stat add_wraps_around_facet(struct isl_wraps *wraps,
 		return isl_stat_error;
 	if (isl_tab_detect_redundant(info->tab) < 0)
 		return isl_stat_error;
-
-	isl_seq_neg(bound, info->bmap->ineq[k], 1 + total);
+	if (info->tab->empty) {
+		if (!add_valid)
+			return wraps_mark_failed(wraps);
+		return isl_stat_ok;
+	}
+	nowrap = has_redundant_cuts(info);
+	if (nowrap < 0)
+		return isl_stat_error;
 
 	n = wraps->mat->n_row;
-	if (add_wraps(wraps, info, bound, set) < 0)
-		return isl_stat_error;
+	if (!nowrap) {
+		isl_seq_neg(bound, info->bmap->ineq[k], 1 + total);
+
+		if (add_selected_wraps(wraps, info, bound, set, add_valid) < 0)
+			return isl_stat_error;
+	}
 
 	if (isl_tab_rollback(info->tab, snap) < 0)
 		return isl_stat_error;
-	if (check_wraps(wraps->mat, n, info->tab) < 0)
+	if (nowrap)
+		return wraps_mark_failed(wraps);
+	if (check_wraps(wraps, n, info->tab, add_valid) < 0)
 		return isl_stat_error;
 
 	return isl_stat_ok;
+}
+
+/* Wrap the constraints of info->bmap that bound the facet defined
+ * by inequality "k" around (the opposite of) this inequality to
+ * include "set".  "bound" may be used to store the negated inequality.
+ * If any of the wrapped constraints turn out to be invalid for info->bmap
+ * itself, then mark "wraps" as failed.
+ */
+static isl_stat add_wraps_around_facet(struct isl_wraps *wraps,
+	struct isl_coalesce_info *info, int k, isl_int *bound,
+	__isl_keep isl_set *set)
+{
+	return add_selected_wraps_around_facet(wraps, info, k, bound, set, 0);
+}
+
+/* Wrap the (valid) constraints of info->bmap that bound the facet defined
+ * by inequality "k" around (the opposite of) this inequality to
+ * include "set" more tightly.
+ * "bound" may be used to store the negated inequality.
+ * Remove any wrapping constraints that turn out to be invalid
+ * for info->bmap itself.
+ */
+static isl_stat add_valid_wraps_around_facet(struct isl_wraps *wraps,
+	struct isl_coalesce_info *info, int k, isl_int *bound,
+	__isl_keep isl_set *set)
+{
+	return add_selected_wraps_around_facet(wraps, info, k, bound, set, 1);
+}
+
+/* Basic map "i" has an inequality (say "k") that is adjacent
+ * to some inequality of basic map "j".  All the other inequalities
+ * are valid for "j".
+ * Check if basic map "j" forms an extension of basic map "i".
+ *
+ * Note that this function is only called if some of the equalities or
+ * inequalities of basic map "j" do cut basic map "i".  The function is
+ * correct even if there are no such cut constraints, but in that case
+ * the additional checks performed by this function are overkill.
+ *
+ * First try and wrap the ridges of "k" around "j".
+ * Note that those ridges are already valid for "j",
+ * but the wrapped versions may wrap "j" more tightly,
+ * increasing the chances of "j" being detected as an extension of "i"
+ */
+static enum isl_change is_adj_ineq_extension(int i, int j,
+	struct isl_coalesce_info *info)
+{
+	int k;
+	enum isl_change change;
+	isl_size total;
+	isl_size n_eq_i, n_ineq_i;
+	struct isl_wraps wraps;
+	isl_ctx *ctx;
+	isl_mat *mat;
+	isl_vec *bound;
+	isl_set *set_j;
+	isl_stat r;
+
+	k = find_ineq(&info[i], STATUS_ADJ_INEQ);
+	if (k < 0)
+		isl_die(isl_basic_map_get_ctx(info[i].bmap), isl_error_internal,
+			"info[i].ineq should have exactly one STATUS_ADJ_INEQ",
+			return isl_change_error);
+
+	total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
+	n_eq_i = isl_basic_map_n_equality(info[i].bmap);
+	n_ineq_i = isl_basic_map_n_inequality(info[i].bmap);
+	if (total < 0 || n_eq_i < 0 || n_ineq_i < 0)
+		return isl_change_error;
+
+	set_j = set_from_updated_bmap(info[j].bmap, info[j].tab);
+	ctx = isl_basic_map_get_ctx(info[i].bmap);
+	bound = isl_vec_alloc(ctx, 1 + total);
+	mat = isl_mat_alloc(ctx, 2 * n_eq_i + n_ineq_i, 1 + total);
+	if (wraps_init(&wraps, mat, info, i, j) < 0)
+		goto error;
+	if (!bound || !set_j)
+		goto error;
+	r = add_valid_wraps_around_facet(&wraps, &info[i], k, bound->el, set_j);
+	if (r < 0)
+		goto error;
+
+	change = is_adj_ineq_extension_with_wraps(i, j, k, info, wraps.mat);
+
+	wraps_free(&wraps);
+	isl_vec_free(bound);
+	isl_set_free(set_j);
+
+	return change;
+error:
+	wraps_free(&wraps);
+	isl_vec_free(bound);
+	isl_set_free(set_j);
+	return isl_change_error;
+}
+
+/* Both basic maps have at least one inequality with and adjacent
+ * (but opposite) inequality in the other basic map.
+ * Check that there are no cut constraints and that there is only
+ * a single pair of adjacent inequalities.
+ * If so, we can replace the pair by a single basic map described
+ * by all but the pair of adjacent inequalities.
+ * Any additional points introduced lie strictly between the two
+ * adjacent hyperplanes and can therefore be integral.
+ *
+ *        ____			  _____
+ *       /    ||\		 /     \
+ *      /     || \		/       \
+ *      \     ||  \	=>	\        \
+ *       \    ||  /		 \       /
+ *        \___||_/		  \_____/
+ *
+ * The test for a single pair of adjacent inequalities is important
+ * for avoiding the combination of two basic maps like the following
+ *
+ *       /|
+ *      / |
+ *     /__|
+ *         _____
+ *         |   |
+ *         |   |
+ *         |___|
+ *
+ * If there are some cut constraints on one side, then we may
+ * still be able to fuse the two basic maps, but we need to perform
+ * some additional checks in is_adj_ineq_extension.
+ */
+static enum isl_change check_adj_ineq(int i, int j,
+	struct isl_coalesce_info *info)
+{
+	int count_i, count_j;
+	int cut_i, cut_j;
+
+	count_i = count_ineq(&info[i], STATUS_ADJ_INEQ);
+	count_j = count_ineq(&info[j], STATUS_ADJ_INEQ);
+
+	if (count_i != 1 && count_j != 1)
+		return isl_change_none;
+
+	cut_i = any_eq(&info[i], STATUS_CUT) || any_ineq(&info[i], STATUS_CUT);
+	cut_j = any_eq(&info[j], STATUS_CUT) || any_ineq(&info[j], STATUS_CUT);
+
+	if (!cut_i && !cut_j && count_i == 1 && count_j == 1)
+		return fuse(i, j, info, NULL, 0, 0);
+
+	if (count_i == 1 && !cut_i)
+		return is_adj_ineq_extension(i, j, info);
+
+	if (count_j == 1 && !cut_j)
+		return is_adj_ineq_extension(j, i, info);
+
+	return isl_change_none;
 }
 
 /* Given a basic set i with a constraint k that is adjacent to
@@ -1494,8 +1763,10 @@ static enum isl_change can_wrap_in_facet(int i, int j, int k,
 	struct isl_set *set_i = NULL;
 	struct isl_set *set_j = NULL;
 	struct isl_vec *bound = NULL;
-	unsigned total = isl_basic_map_total_dim(info[i].bmap);
+	isl_size total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
 
+	if (total < 0)
+		return isl_change_error;
 	set_i = set_from_updated_bmap(info[i].bmap, info[i].tab);
 	set_j = set_from_updated_bmap(info[j].bmap, info[j].tab);
 	ctx = isl_basic_map_get_ctx(info[i].bmap);
@@ -1517,14 +1788,14 @@ static enum isl_change can_wrap_in_facet(int i, int j, int k,
 
 	if (add_wraps(&wraps, &info[j], bound->el, set_i) < 0)
 		goto error;
-	if (!wraps.mat->n_row)
+	if (wraps.failed)
 		goto unbounded;
 
 	if (wrap_facet) {
 		if (add_wraps_around_facet(&wraps, &info[i], k,
 					    bound->el, set_j) < 0)
 			goto error;
-		if (!wraps.mat->n_row)
+		if (wraps.failed)
 			goto unbounded;
 	}
 
@@ -1611,14 +1882,14 @@ static enum isl_change try_wrap_in_facets(int i, int j,
 	__isl_keep isl_set *set_i)
 {
 	int k, l, w;
-	unsigned total;
+	isl_size total;
 	struct isl_tab_undo *snap;
 
-	total = isl_basic_map_total_dim(info[i].bmap);
+	total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
+	if (total < 0)
+		return isl_change_error;
 
 	snap = isl_tab_snap(info[j].tab);
-
-	wraps->mat->n_row = 0;
 
 	for (k = 0; k < info[i].bmap->n_eq; ++k) {
 		for (l = 0; l < 2; ++l) {
@@ -1634,7 +1905,7 @@ static enum isl_change try_wrap_in_facets(int i, int j,
 			if (wrap_in_facet(wraps, w, &info[j], set_i, snap) < 0)
 				return isl_change_error;
 
-			if (!wraps->mat->n_row)
+			if (wraps->failed)
 				return isl_change_none;
 		}
 	}
@@ -1648,7 +1919,7 @@ static enum isl_change try_wrap_in_facets(int i, int j,
 		if (wrap_in_facet(wraps, w, &info[j], set_i, snap) < 0)
 			return isl_change_error;
 
-		if (!wraps->mat->n_row)
+		if (wraps->failed)
 			return isl_change_none;
 	}
 
@@ -1674,9 +1945,11 @@ static enum isl_change wrap_in_facets(int i, int j, int n,
 	isl_ctx *ctx;
 	isl_mat *mat;
 	isl_set *set_i = NULL;
-	unsigned total = isl_basic_map_total_dim(info[i].bmap);
+	isl_size total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
 	int max_wrap;
 
+	if (total < 0)
+		return isl_change_error;
 	if (isl_tab_extend_cons(info[j].tab, 1) < 0)
 		return isl_change_error;
 
@@ -1781,7 +2054,7 @@ static enum isl_change can_wrap_in_set(int i, int j,
 {
 	int k, l;
 	int n;
-	unsigned total;
+	isl_size total;
 
 	if (ISL_F_ISSET(info[i].bmap, ISL_BASIC_MAP_RATIONAL) ||
 	    ISL_F_ISSET(info[j].bmap, ISL_BASIC_MAP_RATIONAL))
@@ -1791,7 +2064,9 @@ static enum isl_change can_wrap_in_set(int i, int j,
 	if (n == 0)
 		return isl_change_none;
 
-	total = isl_basic_map_total_dim(info[i].bmap);
+	total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
+	if (total < 0)
+		return isl_change_error;
 	for (k = 0; k < info[i].bmap->n_eq; ++k) {
 		for (l = 0; l < 2; ++l) {
 			enum isl_ineq_type type;
@@ -2028,8 +2303,10 @@ static enum isl_change check_eq_adj_eq(int i, int j,
 	struct isl_set *set_i = NULL;
 	struct isl_set *set_j = NULL;
 	struct isl_vec *bound = NULL;
-	unsigned total = isl_basic_map_total_dim(info[i].bmap);
+	isl_size total = isl_basic_map_dim(info[i].bmap, isl_dim_all);
 
+	if (total < 0)
+		return isl_change_error;
 	if (count_eq(&info[i], STATUS_ADJ_EQ) != 1)
 		detect_equalities = 1;
 
@@ -2058,7 +2335,7 @@ static enum isl_change check_eq_adj_eq(int i, int j,
 
 	if (add_wraps(&wraps, &info[j], bound->el, set_i) < 0)
 		goto error;
-	if (!wraps.mat->n_row)
+	if (wraps.failed)
 		goto unbounded;
 
 	isl_int_sub_ui(bound->el[0], bound->el[0], 1);
@@ -2069,7 +2346,7 @@ static enum isl_change check_eq_adj_eq(int i, int j,
 
 	if (add_wraps(&wraps, &info[i], bound->el, set_j) < 0)
 		goto error;
-	if (!wraps.mat->n_row)
+	if (wraps.failed)
 		goto unbounded;
 
 	change = fuse(i, j, info, wraps.mat, detect_equalities, 0);
@@ -2372,14 +2649,17 @@ static enum isl_change coalesce_local_pair(int i, int j,
 static isl_stat shift_div(struct isl_coalesce_info *info, int div,
 	isl_int shift)
 {
-	unsigned total;
+	isl_size total, n_div;
 
 	info->bmap = isl_basic_map_shift_div(info->bmap, div, 0, shift);
 	if (!info->bmap)
 		return isl_stat_error;
 
 	total = isl_basic_map_dim(info->bmap, isl_dim_all);
-	total -= isl_basic_map_dim(info->bmap, isl_dim_div);
+	n_div = isl_basic_map_dim(info->bmap, isl_dim_div);
+	if (total < 0 || n_div < 0)
+		return isl_stat_error;
+	total -= n_div;
 	if (isl_tab_shift_var(info->tab, total + div, shift) < 0)
 		return isl_stat_error;
 
@@ -2466,9 +2746,12 @@ static isl_stat normalize_stride_div(struct isl_coalesce_info *info, int div)
 static isl_stat harmonize_stride_divs(struct isl_coalesce_info *info1,
 	struct isl_coalesce_info *info2)
 {
-	int i, n;
+	int i;
+	isl_size n;
 
 	n = isl_basic_map_dim(info1->bmap, isl_dim_div);
+	if (n < 0)
+		return isl_stat_error;
 	for (i = 0; i < n; ++i) {
 		isl_bool known, harmonize;
 
@@ -2577,10 +2860,12 @@ static isl_stat harmonize_divs_with_hulls(struct isl_coalesce_info *info1,
 	__isl_keep isl_basic_set *eq2)
 {
 	int i;
-	int total;
+	isl_size total;
 	isl_local_space *ls1, *ls2;
 
-	total = isl_basic_map_total_dim(info1->bmap);
+	total = isl_basic_map_dim(info1->bmap, isl_dim_all);
+	if (total < 0)
+		return isl_stat_error;
 	ls1 = isl_local_space_wrap(isl_basic_map_get_local_space(info1->bmap));
 	ls2 = isl_local_space_wrap(isl_basic_map_get_local_space(info2->bmap));
 	for (i = 0; i < info1->bmap->n_div; ++i) {
@@ -2684,7 +2969,7 @@ static isl_bool same_divs(__isl_keep isl_basic_map *bmap1,
 {
 	int i;
 	isl_bool known;
-	int total;
+	isl_size total;
 
 	if (!bmap1 || !bmap2)
 		return isl_bool_error;
@@ -2701,7 +2986,9 @@ static isl_bool same_divs(__isl_keep isl_basic_map *bmap1,
 	if (known < 0 || !known)
 		return known;
 
-	total = isl_basic_map_total_dim(bmap1);
+	total = isl_basic_map_dim(bmap1, isl_dim_all);
+	if (total < 0)
+		return isl_bool_error;
 	for (i = 0; i < bmap1->n_div; ++i)
 		if (!isl_seq_eq(bmap1->div[i], bmap2->div[i], 2 + total))
 			return isl_bool_false;
@@ -2784,9 +3071,8 @@ static isl_stat fix_constant_divs(struct isl_coalesce_info *info,
 		if (!expanded[i].cst) {
 			info->bmap = isl_basic_map_extend_constraints(
 						info->bmap, 0, 2);
-			if (isl_basic_map_add_div_constraints(info->bmap,
-						expanded[i].pos - o_div) < 0)
-				break;
+			info->bmap = isl_basic_map_add_div_constraints(
+					info->bmap, expanded[i].pos - o_div);
 		} else {
 			isl_int_set_si(ineq->el[1 + expanded[i].pos], -1);
 			isl_int_set(ineq->el[0], expanded[i].val);
@@ -2891,7 +3177,8 @@ static isl_stat tab_insert_divs(struct isl_coalesce_info *info,
 		if (isl_tab_rollback(info->tab, snap) < 0)
 			return isl_stat_error;
 		info->bmap = isl_basic_map_cow(info->bmap);
-		if (isl_basic_map_free_inequality(info->bmap, 2 * n) < 0)
+		info->bmap = isl_basic_map_free_inequality(info->bmap, 2 * n);
+		if (info->bmap < 0)
 			return isl_stat_error;
 
 		return fix_constant_divs(info, n, expanded);
@@ -2929,11 +3216,14 @@ static isl_stat expand_tab(struct isl_coalesce_info *info, int *exp,
 	struct isl_expanded *expanded;
 	int i, j, k, n;
 	int extra_var;
-	unsigned total, pos, n_div;
+	isl_size total, n_div;
+	unsigned pos;
 	isl_stat r;
 
 	total = isl_basic_map_dim(bmap, isl_dim_all);
 	n_div = isl_basic_map_dim(bmap, isl_dim_div);
+	if (total < 0 || n_div < 0)
+		return isl_stat_error;
 	pos = total - n_div;
 	extra_var = total - info->tab->n_var;
 	n = n_div - extra_var;
@@ -3251,7 +3541,7 @@ static enum isl_change coalesce_subset_with_equalities(int i, int j,
 	return change;
 }
 
-/* Check if the union of and the basic maps represented by info[i] and info[j]
+/* Check if the union of the basic maps represented by info[i] and info[j]
  * can be represented by a single basic map, by aligning or equating
  * their integer divisions.
  * If so, replace the pair by the single basic map and return
@@ -3297,11 +3587,13 @@ static enum isl_change coalesce_divs(int i, int j,
 static isl_bool has_nested_div(__isl_keep isl_basic_map *bmap)
 {
 	int i;
-	unsigned total;
-	unsigned n_div;
+	isl_size total;
+	isl_size n_div;
 
 	total = isl_basic_map_dim(bmap, isl_dim_all);
 	n_div = isl_basic_map_dim(bmap, isl_dim_div);
+	if (total < 0 || n_div < 0)
+		return isl_bool_error;
 	total -= n_div;
 
 	for (i = 0; i < n_div; ++i)
@@ -3322,12 +3614,14 @@ static isl_bool has_nested_div(__isl_keep isl_basic_map *bmap)
  * If no such list can be constructed, then the number of elements
  * in the returned list is smaller than the number of integer divisions
  * in "bmap_i".
+ * The integer division of "bmap_i" and "bmap_j" are assumed to be known and
+ * not contain any nested divs.
  */
 static __isl_give isl_aff_list *set_up_substitutions(
 	__isl_keep isl_basic_map *bmap_i, __isl_keep isl_basic_map *bmap_j,
 	__isl_take isl_basic_map *hull)
 {
-	unsigned n_div_i, n_div_j, total;
+	isl_size n_div_i, n_div_j, total;
 	isl_ctx *ctx;
 	isl_local_space *ls;
 	isl_basic_set *wrap_hull;
@@ -3335,14 +3629,14 @@ static __isl_give isl_aff_list *set_up_substitutions(
 	isl_aff_list *list;
 	int i, j;
 
-	if (!hull)
+	n_div_i = isl_basic_map_dim(bmap_i, isl_dim_div);
+	n_div_j = isl_basic_map_dim(bmap_j, isl_dim_div);
+	total = isl_basic_map_dim(bmap_i, isl_dim_all);
+	if (!hull || n_div_i < 0 || n_div_j < 0 || total < 0)
 		return NULL;
 
 	ctx = isl_basic_map_get_ctx(hull);
-
-	n_div_i = isl_basic_map_dim(bmap_i, isl_dim_div);
-	n_div_j = isl_basic_map_dim(bmap_j, isl_dim_div);
-	total = isl_basic_map_total_dim(bmap_i) - n_div_i;
+	total -= n_div_i;
 
 	ls = isl_basic_map_get_local_space(bmap_i);
 	ls = isl_local_space_wrap(ls);
@@ -3354,6 +3648,7 @@ static __isl_give isl_aff_list *set_up_substitutions(
 	j = 0;
 	for (i = 0; i < n_div_i; ++i) {
 		isl_aff *aff;
+		isl_size n_div;
 
 		if (j < n_div_j &&
 		    isl_basic_map_equal_div_expr_part(bmap_i, i, bmap_j, j,
@@ -3369,9 +3664,10 @@ static __isl_give isl_aff_list *set_up_substitutions(
 		aff = isl_aff_substitute_equalities(aff,
 						isl_basic_set_copy(wrap_hull));
 		aff = isl_aff_floor(aff);
-		if (!aff)
+		n_div = isl_aff_dim(aff, isl_dim_div);
+		if (n_div < 0)
 			goto error;
-		if (isl_aff_dim(aff, isl_dim_div) != 0) {
+		if (n_div != 0) {
 			isl_aff_free(aff);
 			break;
 		}
@@ -3411,16 +3707,14 @@ error:
 static isl_stat add_sub_vars(struct isl_coalesce_info *info,
 	__isl_keep isl_aff_list *list, int dim, int extra_var)
 {
-	int i, j, n, d;
-	isl_space *space;
+	int i, j, d;
+	isl_size n;
 
-	space = isl_basic_map_get_space(info->bmap);
 	info->bmap = isl_basic_map_cow(info->bmap);
-	info->bmap = isl_basic_map_extend_space(info->bmap, space,
-						extra_var, 0, 0);
-	if (!info->bmap)
-		return isl_stat_error;
+	info->bmap = isl_basic_map_extend(info->bmap, extra_var, 0, 0);
 	n = isl_aff_list_n_aff(list);
+	if (!info->bmap || n < 0)
+		return isl_stat_error;
 	for (i = 0; i < n; ++i) {
 		int is_nan;
 		isl_aff *aff;
@@ -3439,10 +3733,11 @@ static isl_stat add_sub_vars(struct isl_coalesce_info *info,
 		if (d < 0)
 			return isl_stat_error;
 		info->bmap = isl_basic_map_mark_div_unknown(info->bmap, d);
+		for (j = d; j > i; --j)
+			info->bmap = isl_basic_map_swap_div(info->bmap,
+							    j - 1, j);
 		if (!info->bmap)
 			return isl_stat_error;
-		for (j = d; j > i; --j)
-			isl_basic_map_swap_div(info->bmap, j - 1, j);
 	}
 
 	return isl_stat_ok;
@@ -3456,20 +3751,23 @@ static isl_stat add_sub_vars(struct isl_coalesce_info *info,
  * This function assumes that a sufficient number of rows and
  * elements in the constraint array are available in the tableau.
  */
-static int add_sub_equalities(struct isl_tab *tab,
+static isl_stat add_sub_equalities(struct isl_tab *tab,
 	__isl_keep isl_aff_list *list, int dim)
 {
-	int i, n;
+	int i;
+	isl_size n;
 	isl_ctx *ctx;
 	isl_vec *sub;
 	isl_aff *aff;
 
 	n = isl_aff_list_n_aff(list);
+	if (n < 0)
+		return isl_stat_error;
 
 	ctx = isl_tab_get_ctx(tab);
 	sub = isl_vec_alloc(ctx, 1 + dim + n);
 	if (!sub)
-		return -1;
+		return isl_stat_error;
 	isl_seq_clr(sub->el + 1 + dim, n);
 
 	for (i = 0; i < n; ++i) {
@@ -3489,11 +3787,11 @@ static int add_sub_equalities(struct isl_tab *tab,
 	}
 
 	isl_vec_free(sub);
-	return 0;
+	return isl_stat_ok;
 error:
 	isl_aff_free(aff);
 	isl_vec_free(sub);
-	return -1;
+	return isl_stat_error;
 }
 
 /* Add variables to info->tab and info->bmap corresponding to the elements
@@ -3504,24 +3802,24 @@ error:
  * When this function returns, the total number of variables in info->tab
  * is equal to "dim" plus the number of elements in "list".
  */
-static int add_subs(struct isl_coalesce_info *info,
+static isl_stat add_subs(struct isl_coalesce_info *info,
 	__isl_keep isl_aff_list *list, int dim)
 {
 	int extra_var;
-	int n;
-
-	if (!list)
-		return -1;
+	isl_size n;
 
 	n = isl_aff_list_n_aff(list);
+	if (n < 0)
+		return isl_stat_error;
+
 	extra_var = n - (info->tab->n_var - dim);
 
 	if (isl_tab_extend_vars(info->tab, extra_var) < 0)
-		return -1;
+		return isl_stat_error;
 	if (isl_tab_extend_cons(info->tab, 2 * extra_var) < 0)
-		return -1;
+		return isl_stat_error;
 	if (add_sub_vars(info, list, dim, extra_var) < 0)
-		return -1;
+		return isl_stat_error;
 
 	return add_sub_equalities(info->tab, list, dim);
 }
@@ -3544,14 +3842,17 @@ static enum isl_change coalesce_with_subs(int i, int j,
 {
 	isl_basic_map *bmap_j;
 	struct isl_tab_undo *snap;
-	unsigned dim;
+	isl_size dim, n_div;
 	enum isl_change change;
 
 	bmap_j = isl_basic_map_copy(info[j].bmap);
 	snap = isl_tab_snap(info[j].tab);
 
 	dim = isl_basic_map_dim(bmap_j, isl_dim_all);
-	dim -= isl_basic_map_dim(bmap_j, isl_dim_div);
+	n_div = isl_basic_map_dim(bmap_j, isl_dim_div);
+	if (dim < 0 || n_div < 0)
+		goto error;
+	dim -= n_div;
 	if (add_subs(&info[j], list, dim) < 0)
 		goto error;
 
@@ -3583,20 +3884,22 @@ error:
  * extra equalities to a purely affine expression.
  * If these tests succeed, then we try to coalesce the two basic maps
  * by introducing extra dimensions in "j" corresponding to
- * the extra integer divsisions "i" fixed to the corresponding
+ * the extra integer divisions "i" fixed to the corresponding
  * purely affine expression.
  */
 static enum isl_change check_coalesce_into_eq(int i, int j,
 	struct isl_coalesce_info *info)
 {
-	unsigned n_div_i, n_div_j;
+	isl_size n_div_i, n_div_j, n;
 	isl_basic_map *hull_i, *hull_j;
-	int equal, empty;
+	isl_bool equal, empty;
 	isl_aff_list *list;
 	enum isl_change change;
 
 	n_div_i = isl_basic_map_dim(info[i].bmap, isl_dim_div);
 	n_div_j = isl_basic_map_dim(info[j].bmap, isl_dim_div);
+	if (n_div_i < 0 || n_div_j < 0)
+		return isl_change_error;
 	if (n_div_i <= n_div_j)
 		return isl_change_none;
 	if (info[j].bmap->n_eq == 0)
@@ -3622,7 +3925,10 @@ static enum isl_change check_coalesce_into_eq(int i, int j,
 	list = set_up_substitutions(info[i].bmap, info[j].bmap, hull_j);
 	if (!list)
 		return isl_change_error;
-	if (isl_aff_list_n_aff(list) < n_div_i)
+	n = isl_aff_list_n_aff(list);
+	if (n < 0)
+		change = isl_change_error;
+	else if (n < n_div_i)
 		change = isl_change_none;
 	else
 		change = coalesce_with_subs(i, j, info, list);
@@ -3813,6 +4119,10 @@ static int coalesce(isl_ctx *ctx, int n, struct isl_coalesce_info *info)
  * isl_basic_map_gauss, we need to do it now.
  * Also call isl_basic_map_simplify if we may have lost the definition
  * of one or more integer divisions.
+ * If a basic map is still equal to the one from which the corresponding "info"
+ * entry was created, then redundant constraint and
+ * implicit equality constraint detection have been performed
+ * on the corresponding tableau and the basic map can be marked as such.
  */
 static __isl_give isl_map *update_basic_maps(__isl_take isl_map *map,
 	int n, struct isl_coalesce_info *info)
@@ -3839,8 +4149,10 @@ static __isl_give isl_map *update_basic_maps(__isl_take isl_map *map,
 		info[i].bmap = isl_basic_map_finalize(info[i].bmap);
 		if (!info[i].bmap)
 			return isl_map_free(map);
-		ISL_F_SET(info[i].bmap, ISL_BASIC_MAP_NO_IMPLICIT);
-		ISL_F_SET(info[i].bmap, ISL_BASIC_MAP_NO_REDUNDANT);
+		if (!info[i].modified) {
+			ISL_F_SET(info[i].bmap, ISL_BASIC_MAP_NO_IMPLICIT);
+			ISL_F_SET(info[i].bmap, ISL_BASIC_MAP_NO_REDUNDANT);
+		}
 		isl_basic_map_free(map->p[i]);
 		map->p[i] = info[i].bmap;
 		info[i].bmap = NULL;
@@ -3855,16 +4167,22 @@ static __isl_give isl_map *update_basic_maps(__isl_take isl_map *map,
  *
  * We factor out any (hidden) common factor from the constraint
  * coefficients to improve the detection of adjacent constraints.
+ * Note that this function does not call isl_basic_map_gauss,
+ * but it does make sure that only a single copy of the basic map
+ * is affected.  This means that isl_basic_map_gauss may have
+ * to be called at the end of the computation (in update_basic_maps)
+ * on this single copy to ensure that
+ * the basic maps are not left in an unexpected state.
  *
  * Since we are constructing the tableaus of the basic maps anyway,
  * we exploit them to detect implicit equalities and redundant constraints.
  * This also helps the coalescing as it can ignore the redundant constraints.
  * In order to avoid confusion, we make all implicit equalities explicit
- * in the basic maps.  We don't call isl_basic_map_gauss, though,
- * as that may affect the number of constraints.
- * This means that we have to call isl_basic_map_gauss at the end
- * of the computation (in update_basic_maps) to ensure that
- * the basic maps are not left in an unexpected state.
+ * in the basic maps.  If the basic map only has a single reference
+ * (this happens in particular if it was modified by
+ * isl_basic_map_reduce_coefficients), then isl_basic_map_gauss
+ * does not get called on the result.  The call to
+ * isl_basic_map_gauss in update_basic_maps resolves this as well.
  * For each basic map, we also compute the hash of the apparent affine hull
  * for use in coalesce.
  */
@@ -3938,7 +4256,7 @@ error:
  * can be represented by a single basic set.
  * If so, replace the pair by the single basic set and start over.
  */
-struct isl_set *isl_set_coalesce(struct isl_set *set)
+__isl_give isl_set *isl_set_coalesce(__isl_take isl_set *set)
 {
 	return set_from_map(isl_map_coalesce(set_to_map(set)));
 }

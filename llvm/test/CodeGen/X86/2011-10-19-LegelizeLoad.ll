@@ -6,31 +6,33 @@ target triple = "x86_64-unknown-linux-gnu"
 
 %union.anon = type { <2 x i8> }
 
-@i = global <2 x i8> <i8 150, i8 100>, align 8
-@j = global <2 x i8> <i8 10, i8 13>, align 8
-@res = common global %union.anon zeroinitializer, align 8
+@i = dso_local global <2 x i8> <i8 150, i8 100>, align 8
+@j = dso_local global <2 x i8> <i8 10, i8 13>, align 8
+@res = common dso_local global %union.anon zeroinitializer, align 8
 
 ; Make sure we load the constants i and j starting offset zero.
 ; Also make sure that we sign-extend it.
 ; Based on /gcc-4_2-testsuite/src/gcc.c-torture/execute/pr23135.c
 
-define i32 @main() nounwind uwtable {
+define dso_local i32 @main() nounwind uwtable {
 ; CHECK-LABEL: main:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    pmovsxbq {{.*}}(%rip), %xmm0
-; CHECK-NEXT:    pmovsxbq {{.*}}(%rip), %xmm1
-; CHECK-NEXT:    pextrq $1, %xmm1, %rax
-; CHECK-NEXT:    pextrq $1, %xmm0, %rcx
-; CHECK-NEXT:    cqto
-; CHECK-NEXT:    idivq %rcx
-; CHECK-NEXT:    movq %rax, %xmm2
-; CHECK-NEXT:    movq %xmm1, %rax
-; CHECK-NEXT:    movq %xmm0, %rcx
-; CHECK-NEXT:    cqto
-; CHECK-NEXT:    idivq %rcx
-; CHECK-NEXT:    movq %rax, %xmm0
-; CHECK-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0],xmm2[0],xmm0[1],xmm2[1],xmm0[2],xmm2[2],xmm0[3],xmm2[3],xmm0[4],xmm2[4],xmm0[5],xmm2[5],xmm0[6],xmm2[6],xmm0[7],xmm2[7]
-; CHECK-NEXT:    pextrw $0, %xmm0, {{.*}}(%rip)
+; CHECK-NEXT:    movq i(%rip), %rsi
+; CHECK-NEXT:    movq j(%rip), %rax
+; CHECK-NEXT:    movq %rsi, %rdx
+; CHECK-NEXT:    shrq $8, %rdx
+; CHECK-NEXT:    movsbl %al, %ecx
+; CHECK-NEXT:    shrq $8, %rax
+; CHECK-NEXT:    cbtw
+; CHECK-NEXT:    idivb %dl
+; CHECK-NEXT:    movl %eax, %edx
+; CHECK-NEXT:    movl %ecx, %eax
+; CHECK-NEXT:    idivb %sil
+; CHECK-NEXT:    movzbl %dl, %ecx
+; CHECK-NEXT:    movzbl %al, %eax
+; CHECK-NEXT:    movd %eax, %xmm0
+; CHECK-NEXT:    pinsrb $1, %ecx, %xmm0
+; CHECK-NEXT:    pextrw $0, %xmm0, res(%rip)
 ; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    retq
 entry:

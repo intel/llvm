@@ -30,7 +30,7 @@
 ...
 ---
 name:            fn1
-alignment:       2
+alignment:       4
 exposesReturnsTwice: false
 tracksRegLiveness: true
 registers:
@@ -114,7 +114,7 @@ body:             |
     %24 = CNTLZD killed %20
     %25 = CMPLDI %15, 0
     BCC 76, %25, %bb.2.loop
-    ; CHECK: SUBFC8o %3, %1, implicit-def $carry, implicit-def $cr0
+    ; CHECK: SUBFC8_rec %3, %1, implicit-def $carry, implicit-def $cr0
     ; CHECK: COPY killed $cr0
     ; CHECK: BCC
 

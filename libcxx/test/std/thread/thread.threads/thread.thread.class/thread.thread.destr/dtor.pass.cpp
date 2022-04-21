@@ -20,6 +20,9 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "make_test_thread.h"
+#include "test_macros.h"
+
 class G
 {
     int alive_;
@@ -55,7 +58,7 @@ int main(int, char**)
         assert(!G::op_run);
         G g;
         {
-          std::thread t(g);
+          std::thread t = support::make_test_thread(g);
           std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }
     }

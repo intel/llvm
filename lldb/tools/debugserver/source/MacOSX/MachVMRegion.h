@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __MachVMRegion_h__
-#define __MachVMRegion_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHVMREGION_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHVMREGION_H
 
 #include "DNBDefs.h"
 #include "DNBError.h"
@@ -40,6 +40,7 @@ public:
                       vm_prot_t prot);
   bool RestoreProtections();
   bool GetRegionForAddress(nub_addr_t addr);
+  std::vector<std::string> GetMemoryTypes() const;
 
   uint32_t GetDNBPermissions() const;
 
@@ -69,4 +70,4 @@ protected:
       m_protection_size; // The size of memory that had its protections changed
 };
 
-#endif // #ifndef __MachVMRegion_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHVMREGION_H

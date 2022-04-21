@@ -12,12 +12,14 @@
 
 // template <class U1, class U2> tuple(pair<U1, U2>&& u);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <tuple>
 #include <utility>
 #include <memory>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct B
 {
@@ -44,6 +46,15 @@ int main(int, char**)
         assert(std::get<0>(t1) == 2);
         assert(std::get<1>(t1)->id_ == 3);
     }
+
+#if TEST_STD_VER > 11
+    {
+        using pair_t = std::pair<int, char>;
+        constexpr std::tuple<long, long> t(pair_t(0, 'a'));
+        static_assert(std::get<0>(t) == 0, "");
+        static_assert(std::get<1>(t) == 'a', "");
+    }
+#endif
 
   return 0;
 }

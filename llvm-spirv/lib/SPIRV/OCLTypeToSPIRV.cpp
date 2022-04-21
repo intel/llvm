@@ -32,7 +32,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements adaptation of OCL types for SPIRV.
+// This file implements adaptation of OCL types for SPIR-V.
 //
 // It first maps kernel arguments of OCL opaque types to SPIR-V type, then
 // propagates the mapping to the uses of the kernel arguments.
@@ -45,7 +45,6 @@
 #include "SPIRVInternal.h"
 
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Debug.h"
 
 #include <iterator>
@@ -57,18 +56,29 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-char OCLTypeToSPIRV::ID = 0;
+char OCLTypeToSPIRVLegacy::ID = 0;
 
-OCLTypeToSPIRV::OCLTypeToSPIRV()
-    : ModulePass(ID), M(nullptr), Ctx(nullptr), CLVer(0) {
-  initializeOCLTypeToSPIRVPass(*PassRegistry::getPassRegistry());
+OCLTypeToSPIRVLegacy::OCLTypeToSPIRVLegacy() : ModulePass(ID) {
+  initializeOCLTypeToSPIRVLegacyPass(*PassRegistry::getPassRegistry());
 }
 
-void OCLTypeToSPIRV::getAnalysisUsage(AnalysisUsage &AU) const {
+void OCLTypeToSPIRVLegacy::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-bool OCLTypeToSPIRV::runOnModule(Module &Module) {
+bool OCLTypeToSPIRVLegacy::runOnModule(Module &M) {
+  return runOCLTypeToSPIRV(M);
+}
+
+OCLTypeToSPIRVBase OCLTypeToSPIRVPass::run(llvm::Module &M,
+                                           llvm::ModuleAnalysisManager &MAM) {
+  runOCLTypeToSPIRV(M);
+  return *this;
+}
+
+OCLTypeToSPIRVBase::OCLTypeToSPIRVBase() : M(nullptr), Ctx(nullptr) {}
+
+bool OCLTypeToSPIRVBase::runOCLTypeToSPIRV(Module &Module) {
   LLVM_DEBUG(dbgs() << "Enter OCLTypeToSPIRV:\n");
   M = &Module;
   Ctx = &M->getContext();
@@ -94,14 +104,14 @@ bool OCLTypeToSPIRV::runOnModule(Module &Module) {
   return false;
 }
 
-void OCLTypeToSPIRV::addAdaptedType(Value *V, Type *T) {
+void OCLTypeToSPIRVBase::addAdaptedType(Value *V, Type *T) {
   LLVM_DEBUG(dbgs() << "[add adapted type] ";
              V->printAsOperand(dbgs(), true, M);
              dbgs() << " => " << *T << '\n');
   AdaptedTy[V] = T;
 }
 
-void OCLTypeToSPIRV::addWork(Function *F) {
+void OCLTypeToSPIRVBase::addWork(Function *F) {
   LLVM_DEBUG(dbgs() << "[add work] "; F->printAsOperand(dbgs(), true, M);
              dbgs() << '\n');
   WorkSet.insert(F);
@@ -109,7 +119,7 @@ void OCLTypeToSPIRV::addWork(Function *F) {
 
 /// Find index of \param V as argument of function call \param CI.
 static unsigned getArgIndex(CallInst *CI, Value *V) {
-  for (unsigned AI = 0, AE = CI->getNumArgOperands(); AI != AE; ++AI) {
+  for (unsigned AI = 0, AE = CI->arg_size(); AI != AE; ++AI) {
     if (CI->getArgOperand(AI) == V)
       return AI;
   }
@@ -137,7 +147,7 @@ static Argument *getArg(Function *F, unsigned I) {
 
 /// Create a new function type if \param F has arguments in AdaptedTy, and
 /// propagates the adapted arguments to functions called by \param F.
-void OCLTypeToSPIRV::adaptFunction(Function *F) {
+void OCLTypeToSPIRVBase::adaptFunction(Function *F) {
   LLVM_DEBUG(dbgs() << "\n[work on function] ";
              F->printAsOperand(dbgs(), true, M); dbgs() << '\n');
   assert(AdaptedTy.count(F) == 0);
@@ -174,7 +184,7 @@ void OCLTypeToSPIRV::adaptFunction(Function *F) {
 
 // Handle functions with sampler arguments that don't get called by
 // a kernel function.
-void OCLTypeToSPIRV::adaptArgumentsBySamplerUse(Module &M) {
+void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
   SmallPtrSet<Function *, 5> Processed;
 
   std::function<void(Function *, unsigned)> TraceArg = [&](Function *F,
@@ -208,8 +218,8 @@ void OCLTypeToSPIRV::adaptArgumentsBySamplerUse(Module &M) {
     if (!F.empty()) // not decl
       continue;
     auto MangledName = F.getName();
-    std::string DemangledName;
-    if (!oclIsBuiltin(MangledName, &DemangledName, false))
+    StringRef DemangledName;
+    if (!oclIsBuiltin(MangledName, DemangledName, false))
       continue;
     if (DemangledName.find(kSPIRVName::SampledImage) == std::string::npos)
       continue;
@@ -218,7 +228,7 @@ void OCLTypeToSPIRV::adaptArgumentsBySamplerUse(Module &M) {
   }
 }
 
-void OCLTypeToSPIRV::adaptFunctionArguments(Function *F) {
+void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
   auto TypeMD = F->getMetadata(SPIR_MD_KERNEL_ARG_BASE_TYPE);
   if (TypeMD)
     return;
@@ -234,7 +244,7 @@ void OCLTypeToSPIRV::adaptFunctionArguments(Function *F) {
         continue;
       if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
         auto Ty = STName.str();
-        auto AccStr = getAccessQualifier(Ty);
+        auto AccStr = getAccessQualifierFullName(Ty);
         addAdaptedType(&*Arg, getOrCreateOpaquePtrType(
                                   M, mapOCLTypeNameToSPIRV(Ty, AccStr)));
         Changed = true;
@@ -248,7 +258,7 @@ void OCLTypeToSPIRV::adaptFunctionArguments(Function *F) {
 /// Go through all kernel functions, get access qualifier for image and pipe
 /// types and use them to map the function arguments to the SPIR-V type.
 /// ToDo: Map other OpenCL opaque types to SPIR-V types.
-void OCLTypeToSPIRV::adaptArgumentsByMetadata(Function *F) {
+void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
   auto TypeMD = F->getMetadata(SPIR_MD_KERNEL_ARG_BASE_TYPE);
   if (!TypeMD)
     return;
@@ -285,7 +295,7 @@ void OCLTypeToSPIRV::adaptArgumentsByMetadata(Function *F) {
 // OCL sampler type is represented as i32 in LLVM, however in SPIRV it is
 // represented as OpTypeSampler. Also LLVM uses the same pipe type to
 // represent pipe types with different underlying data types, however
-// in SPIRV they are different types. OCL image and pipie types do not
+// in SPIRV they are different types. OCL image and pipe types do not
 // encode access qualifier, which is part of SPIRV types for image and pipe.
 //
 // The function types in LLVM need to be regularized before translating
@@ -307,7 +317,7 @@ void OCLTypeToSPIRV::adaptArgumentsByMetadata(Function *F) {
 // opencl data type x and access qualifier y, and use opencl.image_x.y to
 // represent image_x type with access qualifier y.
 //
-Type *OCLTypeToSPIRV::getAdaptedType(Value *V) {
+Type *OCLTypeToSPIRVBase::getAdaptedType(Value *V) {
   auto Loc = AdaptedTy.find(V);
   if (Loc != AdaptedTy.end())
     return Loc->second;
@@ -319,7 +329,9 @@ Type *OCLTypeToSPIRV::getAdaptedType(Value *V) {
 
 } // namespace SPIRV
 
-INITIALIZE_PASS(OCLTypeToSPIRV, "cltytospv", "Adapt OCL types for SPIR-V",
+INITIALIZE_PASS(OCLTypeToSPIRVLegacy, "cltytospv", "Adapt OCL types for SPIR-V",
                 false, true)
 
-ModulePass *llvm::createOCLTypeToSPIRV() { return new OCLTypeToSPIRV(); }
+ModulePass *llvm::createOCLTypeToSPIRVLegacy() {
+  return new OCLTypeToSPIRVLegacy();
+}

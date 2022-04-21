@@ -1,31 +1,20 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-
-//===--------------- truncdfhf2_test.c - Test __truncdfhf2 ----------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __truncdfhf2 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_truncdfhf2
 
 #include <stdio.h>
 
 #include "fp_test.h"
 
-uint16_t __truncdfhf2(double a);
+TYPE_FP16 __truncdfhf2(double a);
 
 int test__truncdfhf2(double a, uint16_t expected)
 {
-    uint16_t x = __truncdfhf2(a);
+    TYPE_FP16 x = __truncdfhf2(a);
     int ret = compareResultH(x, expected);
 
     if (ret){
-        printf("error in test__truncdfhf2(%f) = %#.4x, "
-               "expected %#.4x\n", a, x, fromRep16(expected));
+        printf("error in test__truncdfhf2(%lf) = %#.4x, "
+               "expected %#.4x\n", a, toRep16(x), expected);
     }
     return ret;
 }

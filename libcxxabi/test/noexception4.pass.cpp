@@ -1,4 +1,4 @@
-//===----------------------- noexception4.pass.cpp ------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: libcxxabi-no-exceptions
+// REQUIRES: no-exceptions
 
 #include <cxxabi.h>
 #include <exception>

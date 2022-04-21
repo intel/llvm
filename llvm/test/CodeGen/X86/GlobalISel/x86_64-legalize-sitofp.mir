@@ -63,7 +63,7 @@
     ret double %conv
   }
 
-  attributes #0 = { norecurse nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { norecurse nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
   !llvm.module.flags = !{!0}
   !llvm.ident = !{!1}
@@ -74,7 +74,7 @@
 ...
 ---
 name:            int8_to_float
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -88,12 +88,10 @@ body:             |
     ; CHECK-LABEL: name: int8_to_float
     ; CHECK: liveins: $edi
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $edi
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
-    ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
-    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[TRUNC]](s8)
-    ; CHECK: [[TRUNC1:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[TRUNC1]](s8)
+    ; CHECK: [[C:%[0-9]+]]:_(s8) = G_CONSTANT i8 24
+    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY]], [[C]](s8)
+    ; CHECK: [[COPY1:%[0-9]+]]:_(s8) = COPY [[C]](s8)
+    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[COPY1]](s8)
     ; CHECK: [[SITOFP:%[0-9]+]]:_(s32) = G_SITOFP [[ASHR]](s32)
     ; CHECK: [[ANYEXT:%[0-9]+]]:_(s128) = G_ANYEXT [[SITOFP]](s32)
     ; CHECK: $xmm0 = COPY [[ANYEXT]](s128)
@@ -108,7 +106,7 @@ body:             |
 ...
 ---
 name:            int16_to_float
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -122,12 +120,10 @@ body:             |
     ; CHECK-LABEL: name: int16_to_float
     ; CHECK: liveins: $edi
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $edi
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
-    ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
-    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[TRUNC]](s8)
-    ; CHECK: [[TRUNC1:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[TRUNC1]](s8)
+    ; CHECK: [[C:%[0-9]+]]:_(s8) = G_CONSTANT i8 16
+    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY]], [[C]](s8)
+    ; CHECK: [[COPY1:%[0-9]+]]:_(s8) = COPY [[C]](s8)
+    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[COPY1]](s8)
     ; CHECK: [[SITOFP:%[0-9]+]]:_(s32) = G_SITOFP [[ASHR]](s32)
     ; CHECK: [[ANYEXT:%[0-9]+]]:_(s128) = G_ANYEXT [[SITOFP]](s32)
     ; CHECK: $xmm0 = COPY [[ANYEXT]](s128)
@@ -142,7 +138,7 @@ body:             |
 ...
 ---
 name:            int32_to_float
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -168,7 +164,7 @@ body:             |
 ...
 ---
 name:            int64_to_float
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -194,7 +190,7 @@ body:             |
 ...
 ---
 name:            int8_to_double
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -208,12 +204,10 @@ body:             |
     ; CHECK-LABEL: name: int8_to_double
     ; CHECK: liveins: $edi
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $edi
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
-    ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
-    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[TRUNC]](s8)
-    ; CHECK: [[TRUNC1:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[TRUNC1]](s8)
+    ; CHECK: [[C:%[0-9]+]]:_(s8) = G_CONSTANT i8 24
+    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY]], [[C]](s8)
+    ; CHECK: [[COPY1:%[0-9]+]]:_(s8) = COPY [[C]](s8)
+    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[COPY1]](s8)
     ; CHECK: [[SITOFP:%[0-9]+]]:_(s64) = G_SITOFP [[ASHR]](s32)
     ; CHECK: [[ANYEXT:%[0-9]+]]:_(s128) = G_ANYEXT [[SITOFP]](s64)
     ; CHECK: $xmm0 = COPY [[ANYEXT]](s128)
@@ -228,7 +222,7 @@ body:             |
 ...
 ---
 name:            int16_to_double
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -242,12 +236,10 @@ body:             |
     ; CHECK-LABEL: name: int16_to_double
     ; CHECK: liveins: $edi
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $edi
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
-    ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
-    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[TRUNC]](s8)
-    ; CHECK: [[TRUNC1:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[TRUNC1]](s8)
+    ; CHECK: [[C:%[0-9]+]]:_(s8) = G_CONSTANT i8 16
+    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY]], [[C]](s8)
+    ; CHECK: [[COPY1:%[0-9]+]]:_(s8) = COPY [[C]](s8)
+    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[COPY1]](s8)
     ; CHECK: [[SITOFP:%[0-9]+]]:_(s64) = G_SITOFP [[ASHR]](s32)
     ; CHECK: [[ANYEXT:%[0-9]+]]:_(s128) = G_ANYEXT [[SITOFP]](s64)
     ; CHECK: $xmm0 = COPY [[ANYEXT]](s128)
@@ -262,7 +254,7 @@ body:             |
 ...
 ---
 name:            int32_to_double
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -288,7 +280,7 @@ body:             |
 ...
 ---
 name:            int64_to_double
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }

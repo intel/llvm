@@ -7,21 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/DebugInfo/PDB/Native/NamedStreamMap.h"
+#include "llvm/ADT/SparseBitVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/DebugInfo/PDB/Native/Hash.h"
 #include "llvm/DebugInfo/PDB/Native/HashTable.h"
 #include "llvm/DebugInfo/PDB/Native/RawError.h"
 #include "llvm/Support/BinaryStreamReader.h"
-#include "llvm/Support/BinaryStreamRef.h"
 #include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
-#include <tuple>
 
 using namespace llvm;
 using namespace llvm::pdb;
@@ -46,8 +44,7 @@ uint32_t NamedStreamMapTraits::lookupKeyToStorageKey(StringRef S) {
   return NS->appendStringData(S);
 }
 
-NamedStreamMap::NamedStreamMap()
-    : HashTraits(*this), OffsetIndexMap(1, HashTraits) {}
+NamedStreamMap::NamedStreamMap() : HashTraits(*this), OffsetIndexMap(1) {}
 
 Error NamedStreamMap::load(BinaryStreamReader &Stream) {
   uint32_t StringBufferSize;
@@ -99,7 +96,7 @@ uint32_t NamedStreamMap::hashString(uint32_t Offset) const {
 }
 
 bool NamedStreamMap::get(StringRef Stream, uint32_t &StreamNo) const {
-  auto Iter = OffsetIndexMap.find_as(Stream);
+  auto Iter = OffsetIndexMap.find_as(Stream, HashTraits);
   if (Iter == OffsetIndexMap.end())
     return false;
   StreamNo = (*Iter).second;
@@ -117,11 +114,11 @@ StringMap<uint32_t> NamedStreamMap::entries() const {
 
 uint32_t NamedStreamMap::appendStringData(StringRef S) {
   uint32_t Offset = NamesBuffer.size();
-  NamesBuffer.insert(NamesBuffer.end(), S.begin(), S.end());
+  llvm::append_range(NamesBuffer, S);
   NamesBuffer.push_back('\0');
   return Offset;
 }
 
 void NamedStreamMap::set(StringRef Stream, uint32_t StreamNo) {
-  OffsetIndexMap.set_as(Stream, support::ulittle32_t(StreamNo));
+  OffsetIndexMap.set_as(Stream, support::ulittle32_t(StreamNo), HashTraits);
 }

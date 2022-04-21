@@ -1,3 +1,4 @@
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=arm64_32-apple-ios7.0 < /dev/null | FileCheck %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=thumbv7k-apple-watchos2.0 < /dev/null | FileCheck %s
 
 // Check that the chosen types for things like size_t, ptrdiff_t etc are as
@@ -27,7 +28,6 @@
 // CHECK: #define __FLT_DENORM_MIN__ 1.40129846e-45F
 // CHECK: #define __FLT_DIG__ 6
 // CHECK: #define __FLT_EPSILON__ 1.19209290e-7F
-// CHECK: #define __FLT_EVAL_METHOD__ 0
 // CHECK: #define __FLT_HAS_DENORM__ 1
 // CHECK: #define __FLT_HAS_INFINITY__ 1
 // CHECK: #define __FLT_HAS_QUIET_NAN__ 1

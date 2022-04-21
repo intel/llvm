@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Section_h_
-#define liblldb_Section_h_
+#ifndef LLDB_CORE_SECTION_H
+#define LLDB_CORE_SECTION_H
 
 #include "lldb/Core/ModuleChild.h"
 #include "lldb/Utility/ConstString.h"
@@ -21,15 +21,14 @@
 #include <memory>
 #include <vector>
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class Address;
 class DataExtractor;
 class ObjectFile;
 class Section;
-class Stream;
 class Target;
 
 class SectionList {
@@ -38,9 +37,13 @@ public:
   typedef collection::iterator iterator;
   typedef collection::const_iterator const_iterator;
 
-  SectionList();
+  const_iterator begin() const { return m_sections.begin(); }
+  const_iterator end() const { return m_sections.end(); }
+  const_iterator begin() { return m_sections.begin(); }
+  const_iterator end() { return m_sections.end(); }
 
-  ~SectionList();
+  /// Create an empty list.
+  SectionList() = default;
 
   SectionList &operator=(const SectionList &rhs);
 
@@ -52,7 +55,8 @@ public:
 
   bool ContainsSection(lldb::user_id_t sect_id) const;
 
-  void Dump(Stream *s, Target *target, bool show_header, uint32_t depth) const;
+  void Dump(llvm::raw_ostream &s, unsigned indent, Target *target,
+            bool show_header, uint32_t depth) const;
 
   lldb::SectionSP FindSectionByName(ConstString section_dstr) const;
 
@@ -84,6 +88,12 @@ public:
   size_t Slide(lldb::addr_t slide_amount, bool slide_children);
 
   void Clear() { m_sections.clear(); }
+
+  /// Get the debug information size from all sections that contain debug
+  /// information. Symbol tables are not considered part of the debug
+  /// information for this call, just known sections that contain debug
+  /// information.
+  uint64_t GetDebugInfoSize() const;
 
 protected:
   collection m_sections;
@@ -123,9 +133,10 @@ public:
 
   const SectionList &GetChildren() const { return m_children; }
 
-  void Dump(Stream *s, Target *target, uint32_t depth) const;
+  void Dump(llvm::raw_ostream &s, unsigned indent, Target *target,
+            uint32_t depth) const;
 
-  void DumpName(Stream *s) const;
+  void DumpName(llvm::raw_ostream &s) const;
 
   lldb::addr_t GetLoadBaseAddress(Target *target) const;
 
@@ -231,6 +242,13 @@ public:
 
   void SetIsRelocated(bool b) { m_relocated = b; }
 
+  /// Returns true if this section contains debug information. Symbol tables
+  /// are not considered debug information since some symbols might contain
+  /// debug information (STABS, COFF) but not all symbols do, so to keep this
+  /// fast and simple only sections that contains only debug information should
+  /// return true.
+  bool ContainsOnlyDebugInfo() const;
+
 protected:
   ObjectFile *m_obj_file;   // The object file that data for this section should
                             // be read from
@@ -263,9 +281,10 @@ protected:
                                // This is specified as
                                // as a multiple number of a host bytes
 private:
-  DISALLOW_COPY_AND_ASSIGN(Section);
+  Section(const Section &) = delete;
+  const Section &operator=(const Section &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Section_h_
+#endif // LLDB_CORE_SECTION_H

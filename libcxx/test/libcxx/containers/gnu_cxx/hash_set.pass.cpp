@@ -6,27 +6,33 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Prevent emission of the deprecated warning.
-#ifdef __clang__
-#pragma clang diagnostic ignored "-W#warnings"
-#endif
-// Poison the std:: names we might use inside __gnu_cxx to ensure they're
-// properly qualified.
-struct allocator;
-struct pair;
-struct equal_to;
-struct unique_ptr;
-#include <ext/hash_set>
+// UNSUPPORTED: modules-build
 
-namespace __gnu_cxx {
-template class hash_set<int>;
+// Prevent <ext/hash_set> from generating deprecated warnings for this test.
+#if defined(__DEPRECATED)
+#   undef __DEPRECATED
+#endif
+
+#include <ext/hash_set>
+#include <cassert>
+
+#include "test_macros.h"
+#include "count_new.h"
+
+void test_default_does_not_allocate() {
+  DisableAllocationGuard g;
+  ((void)g);
+  {
+    __gnu_cxx::hash_set<int> h;
+    assert(h.bucket_count() == 0);
+  }
+  {
+    __gnu_cxx::hash_multiset<int> h;
+    assert(h.bucket_count() == 0);
+  }
 }
 
 int main(int, char**) {
-  typedef __gnu_cxx::hash_set<int> Set;
-  Set s;
-  Set s2(s);
-  ((void)s2);
-
+  test_default_does_not_allocate();
   return 0;
 }

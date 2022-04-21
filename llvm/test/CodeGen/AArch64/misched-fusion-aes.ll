@@ -2,10 +2,19 @@
 ; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=generic -mattr=+crypto | FileCheck %s
 ; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a53 | FileCheck %s
 ; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a57 | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a65 | FileCheck %s
 ; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a72 | FileCheck %s
 ; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a73 | FileCheck %s
-; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=exynos-m1  | FileCheck %s
-; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=exynos-m2  | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a76 | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a77 | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a78 | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-a78c| FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=cortex-x1  | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=neoverse-e1 | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=neoverse-n1 | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=neoverse-n2 | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=neoverse-v1 | FileCheck %s
+; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=neoverse-512tvb | FileCheck %s
 ; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=exynos-m3  | FileCheck %s
 ; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=exynos-m4  | FileCheck %s
 ; RUN: llc %s -o - -mtriple=aarch64-unknown -mcpu=exynos-m5  | FileCheck %s
@@ -81,7 +90,7 @@ define void @aesea(<16 x i8>* %a0, <16 x i8>* %b0, <16 x i8>* %c0, <16 x i8> %d,
 
 ; CHECK-LABEL: aesea:
 ; CHECK: aese [[VA:v[0-7].16b]], {{v[0-7].16b}}
-; CHECK-NEXT: aesmc [[VA]], [[VA]]
+; CHECK: aesmc [[VA]], [[VA]]
 ; CHECK: aese [[VB:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECK-NEXT: aesmc [[VB]], [[VB]]
 ; CHECK: aese [[VC:v[0-7].16b]], {{v[0-7].16b}}
@@ -165,7 +174,7 @@ define void @aesda(<16 x i8>* %a0, <16 x i8>* %b0, <16 x i8>* %c0, <16 x i8> %d,
 
 ; CHECK-LABEL: aesda:
 ; CHECK: aesd [[VA:v[0-7].16b]], {{v[0-7].16b}}
-; CHECK-NEXT: aesimc [[VA]], [[VA]]
+; CHECK: aesimc [[VA]], [[VA]]
 ; CHECK: aesd [[VB:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECK-NEXT: aesimc [[VB]], [[VB]]
 ; CHECK: aesd [[VC:v[0-7].16b]], {{v[0-7].16b}}

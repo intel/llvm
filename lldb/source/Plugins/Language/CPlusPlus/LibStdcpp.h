@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_LibStdCpp_h_
-#define liblldb_LibStdCpp_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_LIBSTDCPP_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_LIBSTDCPP_H
 
 #include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/TypeSummary.h"
@@ -42,6 +42,14 @@ LibStdcppTupleSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                        lldb::ValueObjectSP);
 
 SyntheticChildrenFrontEnd *
+LibStdcppBitsetSyntheticFrontEndCreator(CXXSyntheticChildren *,
+                                        lldb::ValueObjectSP);
+
+SyntheticChildrenFrontEnd *
+LibStdcppOptionalSyntheticFrontEndCreator(CXXSyntheticChildren *,
+                                          lldb::ValueObjectSP);
+
+SyntheticChildrenFrontEnd *
 LibStdcppVectorIteratorSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                                 lldb::ValueObjectSP);
 
@@ -56,4 +64,4 @@ LibStdcppUniquePtrSyntheticFrontEndCreator(CXXSyntheticChildren *,
 } // namespace formatters
 } // namespace lldb_private
 
-#endif // liblldb_LibStdCpp_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_LIBSTDCPP_H

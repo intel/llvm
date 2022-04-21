@@ -1,8 +1,8 @@
 // REQUIRES: arm
 // RUN: llvm-mc -filetype=obj -triple=thumbv7-windows %s -o %t.obj
 // RUN: lld-link -entry:main -subsystem:console %t.obj -out:%t.exe -verbose 2>&1 | FileCheck -check-prefix=VERBOSE %s
-// RUN: llvm-objdump -d %t.exe -start-address=0x403000 -stop-address=0x403008 | FileCheck -check-prefix=FUNC01 %s
-// RUN: llvm-objdump -d %t.exe -start-address=0x404ffa -stop-address=0x405012 | FileCheck -check-prefix=FUNC01-THUNKS %s
+// RUN: llvm-objdump -d %t.exe --start-address=0x403000 --stop-address=0x403008 | FileCheck --check-prefix=FUNC01 %s
+// RUN: llvm-objdump -d %t.exe --start-address=0x404ffa --stop-address=0x405012 | FileCheck --check-prefix=FUNC01-THUNKS %s
 
 // VERBOSE: Added {{.*}} thunks with margin 204800 in 2 passes
 
@@ -51,8 +51,8 @@ far_func\i:
 .endr
     bx lr
 
-// FUNC01: 403000:       41 f0 fc 87     bne.w   #8184 <.text+0x3ffc>
-// FUNC01: 403004:       41 f0 ff 87     bne.w   #8190 <.text+0x4006>
+// FUNC01: 403000:       41 f0 fc 87     bne.w   0x404ffc <.text+0x3ffc>
+// FUNC01: 403004:       41 f0 ff 87     bne.w   0x405006 <.text+0x4006>
 
 // Check that we only have two thunks here, even if we created the first
 // thunk twice (once in the first pass, then thrown away and recreated

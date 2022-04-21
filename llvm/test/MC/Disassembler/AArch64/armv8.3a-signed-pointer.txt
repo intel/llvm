@@ -1,4 +1,15 @@
-# RUN: llvm-mc -triple aarch64-none-linux-gnu -mattr=+v8.3a --disassemble < %s | FileCheck %s
+# RUN: llvm-mc -triple aarch64-none-linux-gnu -mattr=+v8.3a --disassemble < %s 2>&1 | FileCheck %s
+# RUN: llvm-mc -triple aarch64-none-linux-gnu -mattr=+v8r --disassemble < %s 2>&1 | FileCheck %s
+# RUN: llvm-mc -triple aarch64-none-linux-gnu -mattr=+pauth --disassemble < %s 2>&1 | FileCheck %s
+
+# CHECK: warning: potentially undefined instruction encoding
+# CHECK-NEXT: [0x00,0x0c,0x20,0xf8]
+# CHECK: warning: potentially undefined instruction encoding
+# CHECK-NEXT: [0x00,0x0c,0xa0,0xf8]
+# CHECK: ldraa x0, [x0, #0]!
+# CHECK: ldrab x0, [x0, #0]!
+[0x00,0x0c,0x20,0xf8]
+[0x00,0x0c,0xa0,0xf8]
 
 # CHECK: paciasp
 # CHECK: autiasp
@@ -83,14 +94,6 @@
 # CHECK: retab
 # CHECK: eretaa
 # CHECK: eretab
-# CHECK: ldraa x0, [x1, #4088]
-# CHECK: ldraa x0, [x1, #-4096]
-# CHECK: ldrab x0, [x1, #4088]
-# CHECK: ldrab x0, [x1, #-4096]
-# CHECK: ldraa x0, [x1, #4088]!
-# CHECK: ldraa x0, [x1, #-4096]!
-# CHECK: ldrab x0, [x1, #4088]!
-# CHECK: ldrab x0, [x1, #-4096]!
 [0x1f,0x08,0x1f,0xd6]
 [0x1f,0x0c,0x1f,0xd6]
 [0x1f,0x08,0x3f,0xd6]
@@ -99,6 +102,15 @@
 [0xff,0x0f,0x5f,0xd6]
 [0xff,0x0b,0x9f,0xd6]
 [0xff,0x0f,0x9f,0xd6]
+
+# CHECK: ldraa x0, [x1, #4088]
+# CHECK: ldraa x0, [x1, #-4096]
+# CHECK: ldrab x0, [x1, #4088]
+# CHECK: ldrab x0, [x1, #-4096]
+# CHECK: ldraa x0, [x1, #4088]!
+# CHECK: ldraa x0, [x1, #-4096]!
+# CHECK: ldrab x0, [x1, #4088]!
+# CHECK: ldrab x0, [x1, #-4096]!
 [0x20,0xf4,0x3f,0xf8]
 [0x20,0x04,0x60,0xf8]
 [0x20,0xf4,0xbf,0xf8]
@@ -112,3 +124,8 @@
 # CHECK: ldrab x0, [x1]
 [0x20,0x04,0x20,0xf8]
 [0x20,0x04,0xa0,0xf8]
+
+# CHECK: ldraa x0, [x1, #0]!
+# CHECK: ldrab x0, [x1, #0]!
+[0x20,0x0c,0x20,0xf8]
+[0x20,0x0c,0xa0,0xf8]

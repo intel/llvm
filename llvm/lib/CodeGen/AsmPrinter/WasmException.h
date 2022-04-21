@@ -15,9 +15,12 @@
 #define LLVM_LIB_CODEGEN_ASMPRINTER_WASMEXCEPTION_H
 
 #include "EHStreamer.h"
-#include "llvm/CodeGen/AsmPrinter.h"
 
 namespace llvm {
+class AsmPrinter;
+class MachineFunction;
+struct LandingPadInfo;
+template <typename T> class SmallVectorImpl;
 
 class LLVM_LIBRARY_VISIBILITY WasmException : public EHStreamer {
 public:
@@ -32,6 +35,7 @@ protected:
   // Compute the call site table for wasm EH.
   void computeCallSiteTable(
       SmallVectorImpl<CallSiteEntry> &CallSites,
+      SmallVectorImpl<CallSiteRange> &CallSiteRanges,
       const SmallVectorImpl<const LandingPadInfo *> &LandingPads,
       const SmallVectorImpl<unsigned> &FirstActions) override;
 };

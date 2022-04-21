@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 // <system_error>
 
 // class error_category
@@ -17,6 +17,8 @@
 #include <type_traits>
 #include <string>
 #include <cassert>
+
+#include "test_macros.h"
 
 class test1
     : public std::error_category

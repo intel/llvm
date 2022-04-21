@@ -1,5 +1,5 @@
 ; RUN: llc < %s | FileCheck %s --check-prefix=ASM
-; RUN: llc < %s -filetype=obj | llvm-readobj --codeview | FileCheck %s --check-prefix=CODEVIEW
+; RUN: llc < %s -filetype=obj | llvm-readobj --codeview - | FileCheck %s --check-prefix=CODEVIEW
 
 ; This test checks that for 32-bit x86 we use VFRAME and
 ; S_DEFRANGE_FRAMEPOINTER_REL with the right offsets. The test has two function
@@ -65,7 +65,9 @@
 ; CODEVIEW-NEXT:   Subsection [
 ; CODEVIEW-NEXT:     SubSectionType: Symbols (0xF1)
 ; CODEVIEW-NEXT:     SubSectionSize:
-; CODEVIEW-NEXT:     Compile3Sym {
+; CODEVIEW-NEXT:     ObjNameSym {
+; CODEVIEW-NEXT:       Kind: S_OBJNAME (0x1101)
+; CODEVIEW:          Compile3Sym {
 ; CODEVIEW-NEXT:       Kind: S_COMPILE3 (0x113C)
 ; CODEVIEW:          }
 ; CODEVIEW:        ]
@@ -224,10 +226,10 @@ declare dso_local void @"?g@@YAXAAH00@Z"(i32* dereferenceable(4), i32* dereferen
 ; Function Attrs: argmemonly nounwind
 declare void @llvm.lifetime.end.p0i8(i64, i8* nocapture) #1
 
-attributes #0 = { norecurse optsize "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse optsize "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }
 attributes #2 = { nounwind readnone speculatable }
-attributes #3 = { optsize "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #3 = { optsize "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #4 = { nounwind }
 attributes #5 = { optsize }
 

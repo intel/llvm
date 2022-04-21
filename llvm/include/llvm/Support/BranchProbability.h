@@ -16,7 +16,6 @@
 #include "llvm/Support/DataTypes.h"
 #include <algorithm>
 #include <cassert>
-#include <climits>
 #include <numeric>
 
 namespace llvm {
@@ -32,8 +31,8 @@ class BranchProbability {
   uint32_t N;
 
   // Denominator, which is a constant value.
-  static const uint32_t D = 1u << 31;
-  static const uint32_t UnknownN = UINT32_MAX;
+  static constexpr uint32_t D = 1u << 31;
+  static constexpr uint32_t UnknownN = UINT32_MAX;
 
   // Construct a BranchProbability with only numerator assuming the denominator
   // is 1<<31. For internal use only.
@@ -118,6 +117,13 @@ public:
     return *this;
   }
 
+  BranchProbability &operator/=(BranchProbability RHS) {
+    assert(N != UnknownN && RHS.N != UnknownN &&
+           "Unknown probability cannot participate in arithmetics.");
+    N = (static_cast<uint64_t>(N) * D + RHS.N / 2) / RHS.N;
+    return *this;
+  }
+
   BranchProbability &operator/=(uint32_t RHS) {
     assert(N != UnknownN &&
            "Unknown probability cannot participate in arithmetics.");
@@ -147,6 +153,12 @@ public:
   BranchProbability operator*(uint32_t RHS) const {
     BranchProbability Prob(*this);
     Prob *= RHS;
+    return Prob;
+  }
+
+  BranchProbability operator/(BranchProbability RHS) const {
+    BranchProbability Prob(*this);
+    Prob /= RHS;
     return Prob;
   }
 

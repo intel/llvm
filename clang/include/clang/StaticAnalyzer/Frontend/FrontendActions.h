@@ -16,7 +16,6 @@
 namespace clang {
 
 class Stmt;
-class AnalyzerOptions;
 
 namespace ento {
 
@@ -51,19 +50,7 @@ private:
   llvm::StringMap<Stmt *> &Bodies;
 };
 
-void printCheckerHelp(raw_ostream &OS,
-                      ArrayRef<std::string> plugins,
-                      AnalyzerOptions &opts,
-                      DiagnosticsEngine &diags,
-                      const LangOptions &LangOpts);
-void printEnabledCheckerList(raw_ostream &OS, ArrayRef<std::string> plugins,
-                             AnalyzerOptions &opts,
-                             DiagnosticsEngine &diags,
-                             const LangOptions &LangOpts);
-void printAnalyzerConfigList(raw_ostream &OS);
-
-} // end GR namespace
-
+} // namespace ento
 } // end namespace clang
 
 #endif

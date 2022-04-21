@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBSourceManager_h_
-#define LLDB_SBSourceManager_h_
+#ifndef LLDB_API_SBSOURCEMANAGER_H
+#define LLDB_API_SBSOURCEMANAGER_H
 
 #include "lldb/API/SBDefines.h"
 
-#include <stdio.h>
+#include <cstdio>
 
 namespace lldb {
 
@@ -44,4 +44,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBSourceManager_h_
+#endif // LLDB_API_SBSOURCEMANAGER_H

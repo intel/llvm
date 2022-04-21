@@ -1,5 +1,5 @@
 @ RUN: llvm-mc %s -triple=armv7-unknown-linux-gnueabi -filetype=obj -o - \
-@ RUN:   | llvm-readobj -S --sd --sr -r --symbols | FileCheck %s
+@ RUN:   | llvm-readobj -S --sd --sr -r --symbols - | FileCheck %s
 
 @ Check whether the section is switched back or not.
 
@@ -60,9 +60,9 @@ func2:
 @ The first word of each entry should be relocated to .text section.
 @-------------------------------------------------------------------------------
 @ CHECK:     Relocations [
-@ CHECK:       0x0 R_ARM_PREL31 .text 0x0
-@ CHECK:       0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0 0x0
-@ CHECK:       0x8 R_ARM_PREL31 .text 0x0
+@ CHECK:       0x0 R_ARM_PREL31 .text
+@ CHECK:       0x0 R_ARM_NONE __aeabi_unwind_cpp_pr0
+@ CHECK:       0x8 R_ARM_PREL31 .text
 @ CHECK:     ]
 
 

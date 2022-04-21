@@ -103,7 +103,7 @@ class Compilation {
   std::map<TCArgsKey, llvm::opt::DerivedArgList *> TCArgs;
 
   /// Temporary files which should be removed on exit.
-  llvm::opt::ArgStringList TempFiles;
+  TempFileList TempFiles;
 
   /// Result files which should be removed on failure.
   ArgStringMap ResultFiles;
@@ -114,6 +114,11 @@ class Compilation {
 
   /// Optional redirection for stdin, stdout, stderr.
   std::vector<Optional<StringRef>> Redirects;
+
+  /// Callback called after compilation job has been finished.
+  /// Arguments of the callback are the compilation job as an instance of
+  /// class Command and the exit status of the corresponding child process.
+  std::function<void(const Command &, int)> PostCallback;
 
   /// Whether we're compiling for diagnostic purposes.
   bool ForDiagnostics = false;
@@ -138,6 +143,8 @@ public:
     return ActiveOffloadMask & Kind;
   }
 
+  unsigned getActiveOffloadKinds() const { return ActiveOffloadMask; }
+
   /// Iterator that visits device toolchains of a given kind.
   using const_offload_toolchains_iterator =
       const std::multimap<Action::OffloadKind,
@@ -148,6 +155,11 @@ public:
 
   template <Action::OffloadKind Kind>
   const_offload_toolchains_range getOffloadToolChains() const {
+    return OrderedOffloadingToolchains.equal_range(Kind);
+  }
+
+  const_offload_toolchains_range
+  getOffloadToolChains(Action::OffloadKind Kind) const {
     return OrderedOffloadingToolchains.equal_range(Kind);
   }
 
@@ -204,12 +216,20 @@ public:
 
   void addCommand(std::unique_ptr<Command> C) { Jobs.addJob(std::move(C)); }
 
-  const llvm::opt::ArgStringList &getTempFiles() const { return TempFiles; }
+  const TempFileList &getTempFiles() const { return TempFiles; }
 
   const ArgStringMap &getResultFiles() const { return ResultFiles; }
 
   const ArgStringMap &getFailureResultFiles() const {
     return FailureResultFiles;
+  }
+
+  /// Installs a handler that is executed when a compilation job is finished.
+  /// The arguments of the callback specify the compilation job as an instance
+  /// of class Command and the exit status of the child process executed that
+  /// job.
+  void setPostCallback(const std::function<void(const Command &, int)> &CB) {
+    PostCallback = CB;
   }
 
   /// Returns the sysroot path.
@@ -227,10 +247,13 @@ public:
   getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
                       Action::OffloadKind DeviceOffloadKind);
 
-  /// addTempFile - Add a file to remove on exit, and returns its
-  /// argument.
-  const char *addTempFile(const char *Name) {
-    TempFiles.push_back(Name);
+  /// addTempFile - Add a file to remove on exit, and returns its argument.
+  /// \param Name - Name of file to be added as a temporary file
+  /// \param Type - If specified, the type of file.  Currently the only
+  /// different type of file is of type TY_Tempfilelist
+  const char *addTempFile(const char *Name,
+                          types::ID Type = types::TY_Nothing) {
+    TempFiles.push_back(std::make_pair(Name, Type));
     return Name;
   }
 
@@ -258,7 +281,7 @@ public:
   ///
   /// \param IssueErrors - Report failures as errors.
   /// \return Whether all files were removed successfully.
-  bool CleanupFileList(const llvm::opt::ArgStringList &Files,
+  bool CleanupFileList(const TempFileList &Files,
                        bool IssueErrors = false) const;
 
   /// CleanupFileMap - Remove the files in the given map.
@@ -296,6 +319,10 @@ public:
 
   /// Return whether an error during the parsing of the input args.
   bool containsError() const { return ContainsError; }
+
+  /// Force driver to fail before toolchain is created. This is necessary when
+  /// error happens in action builder.
+  void setContainsError() { ContainsError = true; }
 
   /// Redirect - Redirect output of this compilation. Can only be done once.
   ///

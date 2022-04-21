@@ -1,4 +1,5 @@
 ; RUN: llc < %s -filetype=obj | llvm-readobj - --codeview | FileCheck %s
+; RUN: llc < %s | llvm-mc -filetype=obj --triple=x86_64-windows | llvm-readobj - --codeview | FileCheck %s
 
 ; This test checks that types which are used in expressions, but for which
 ; there are no variables, known as retained types, get emitted.
@@ -12,19 +13,19 @@
 ; $ clang /tmp/a.cc -S -emit-llvm -g -gcodeview -target x86_64-windows-msvc -o t.ll
 
 ; CHECK:       Struct (0x{{[0-9A-F]+}}) {
-; CHEC-NEXT:     TypeLeafKind: LF_STRUCTURE (0x1505)
-; CHEC-NEXT:     MemberCount: 0
-; CHEC-NEXT:     Properties [ (0x280)
-; CHEC-NEXT:       ForwardReference (0x80)
-; CHEC-NEXT:       HasUniqueName (0x200)
-; CHEC-NEXT:     ]
-; CHEC-NEXT:     FieldList: 0x0
-; CHEC-NEXT:     DerivedFrom: 0x0
-; CHEC-NEXT:     VShape: 0x0
-; CHEC-NEXT:     SizeOf: 0
-; CHEC-NEXT:     Name: S
-; CHEC-NEXT:     LinkageName: .?AUS@@
-; CHEC-NEXT:   }
+; CHECK-NEXT:     TypeLeafKind: LF_STRUCTURE (0x1505)
+; CHECK-NEXT:     MemberCount: 0
+; CHECK-NEXT:     Properties [ (0x280)
+; CHECK-NEXT:       ForwardReference (0x80)
+; CHECK-NEXT:       HasUniqueName (0x200)
+; CHECK-NEXT:     ]
+; CHECK-NEXT:     FieldList: 0x0
+; CHECK-NEXT:     DerivedFrom: 0x0
+; CHECK-NEXT:     VShape: 0x0
+; CHECK-NEXT:     SizeOf: 0
+; CHECK-NEXT:     Name: S
+; CHECK-NEXT:     LinkageName: .?AUS@@
+; CHECK-NEXT:   }
 
 ; CHECK:        Struct (0x{{[0-9A-F]+}}) {
 ; CHECK-NEXT:     TypeLeafKind: LF_STRUCTURE (0x1505)
@@ -63,7 +64,7 @@ entry:
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

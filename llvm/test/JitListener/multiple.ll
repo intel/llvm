@@ -26,15 +26,15 @@
 ; 21: }
 ;
 
-; CHECK: Method load [1]: bar, Size = {{[0-9]+}}
-; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[5,6,7,9]}}
-; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[5,6,7,9]}}
-; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[5,6,7,9]}}
-; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[5,6,7,9]}}
+; CHECK: Method load [1]: foo, Size = {{[0-9]+}}
+; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[1,2]}}
+; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[1,2]}}
 
-; CHECK: Method load [2]: foo, Size = {{[0-9]+}}
-; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[1,2]}}
-; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[1,2]}}
+; CHECK: Method load [2]: bar, Size = {{[0-9]+}}
+; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[5,6,7,9]}}
+; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[5,6,7,9]}}
+; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[5,6,7,9]}}
+; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[5,6,7,9]}}
 
 ; CHECK: Method load [3]: fubar, Size = {{[0-9]+}}
 ; CHECK:   Line info @ {{[0-9]+}}: multiple.c, line {{[12,13,15,17,19]}}
@@ -118,7 +118,7 @@ return:                                           ; preds = %sw.default, %sw.bb1
   ret i32 %1, !dbg !39
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

@@ -1,4 +1,4 @@
-//===-- CommandAlias.cpp -----------------------------------------*- C++-*-===//
+//===-- CommandAlias.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -30,7 +30,9 @@ static bool ProcessAliasOptionsArgs(lldb::CommandObjectSP &cmd_obj_sp,
 
   Args args(options_args);
   std::string options_string(options_args);
-  CommandReturnObject result;
+  // TODO: Find a way to propagate errors in this CommandReturnObject up the
+  // stack.
+  CommandReturnObject result(false);
   // Check to see if the command being aliased can take any command options.
   Options *options = cmd_obj_sp->GetOptions();
   if (options) {
@@ -45,7 +47,6 @@ static bool ProcessAliasOptionsArgs(lldb::CommandObjectSP &cmd_obj_sp,
     if (!args_or) {
       result.AppendError(toString(args_or.takeError()));
       result.AppendError("Unable to create requested alias.\n");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
     args = std::move(*args_or);
@@ -62,8 +63,9 @@ static bool ProcessAliasOptionsArgs(lldb::CommandObjectSP &cmd_obj_sp,
       option_arg_vector->emplace_back("<argument>", -1, options_string);
     else {
       for (auto &entry : args.entries()) {
-        if (!entry.ref.empty())
-          option_arg_vector->emplace_back("<argument>", -1, entry.ref);
+        if (!entry.ref().empty())
+          option_arg_vector->emplace_back(std::string("<argument>"), -1,
+                                          std::string(entry.ref()));
       }
     }
   }
@@ -77,7 +79,7 @@ CommandAlias::CommandAlias(CommandInterpreter &interpreter,
                            llvm::StringRef help, llvm::StringRef syntax,
                            uint32_t flags)
     : CommandObject(interpreter, name, help, syntax, flags),
-      m_underlying_command_sp(), m_option_string(options_args),
+      m_option_string(std::string(options_args)),
       m_option_args_sp(new OptionArgVector),
       m_is_dashdash_alias(eLazyBoolCalculate), m_did_set_help(false),
       m_did_set_help_long(false) {
@@ -113,18 +115,16 @@ bool CommandAlias::WantsCompletion() {
   return false;
 }
 
-int CommandAlias::HandleCompletion(CompletionRequest &request) {
+void CommandAlias::HandleCompletion(CompletionRequest &request) {
   if (IsValid())
-    return m_underlying_command_sp->HandleCompletion(request);
-  return -1;
+    m_underlying_command_sp->HandleCompletion(request);
 }
 
-int CommandAlias::HandleArgumentCompletion(
+void CommandAlias::HandleArgumentCompletion(
     CompletionRequest &request, OptionElementVector &opt_element_vector) {
   if (IsValid())
-    return m_underlying_command_sp->HandleArgumentCompletion(
-        request, opt_element_vector);
-  return -1;
+    m_underlying_command_sp->HandleArgumentCompletion(request,
+                                                      opt_element_vector);
 }
 
 Options *CommandAlias::GetOptions() {

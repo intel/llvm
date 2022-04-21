@@ -1,4 +1,4 @@
-//===------------------- uncaught_exceptions.pass.cpp ---------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcxxabi-no-exceptions
+// UNSUPPORTED: no-exceptions
 
 // This tests that libc++abi still provides __cxa_uncaught_exception() for
 // ABI compatibility, even though the Standard doesn't require it to.

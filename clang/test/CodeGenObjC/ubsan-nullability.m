@@ -1,6 +1,6 @@
 // REQUIRES: asserts
-// RUN: %clang_cc1 -x objective-c -emit-llvm -triple x86_64-apple-macosx10.10.0 -fblocks -fobjc-arc -fsanitize=nullability-arg,nullability-assign,nullability-return -w %s -o - | FileCheck %s
-// RUN: %clang_cc1 -x objective-c++ -emit-llvm -triple x86_64-apple-macosx10.10.0 -fblocks -fobjc-arc -fsanitize=nullability-arg,nullability-assign,nullability-return -w %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -x objective-c -emit-llvm -triple x86_64-apple-macosx10.10.0 -fblocks -fobjc-arc -fsanitize=nullability-arg,nullability-assign,nullability-return -w %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -x objective-c++ -emit-llvm -triple x86_64-apple-macosx10.10.0 -fblocks -fobjc-arc -fsanitize=nullability-arg,nullability-assign,nullability-return -w %s -o - | FileCheck %s
 
 // CHECK: [[NONNULL_RV_LOC1:@.*]] = private unnamed_addr global {{.*}} i32 100, i32 6
 // CHECK: [[NONNULL_ARG_LOC:@.*]] = private unnamed_addr global {{.*}} i32 204, i32 15 {{.*}} i32 190, i32 23
@@ -16,7 +16,7 @@
 #define INULL ((int *)NULL)
 #define INNULL ((int *_Nonnull)NULL)
 
-// CHECK-LABEL: define i32* @{{.*}}nonnull_retval1
+// CHECK-LABEL: define{{.*}} i32* @{{.*}}nonnull_retval1
 #line 100
 int *_Nonnull nonnull_retval1(int *p) {
   // CHECK: [[ICMP:%.*]] = icmp ne i32* {{.*}}, null, !nosanitize
@@ -29,7 +29,7 @@ int *_Nonnull nonnull_retval1(int *p) {
 #line 190
 void nonnull_arg(int *_Nonnull p) {}
 
-// CHECK-LABEL: define void @{{.*}}call_func_with_nonnull_arg
+// CHECK-LABEL: define{{.*}} void @{{.*}}call_func_with_nonnull_arg
 #line 200
 void call_func_with_nonnull_arg(int *_Nonnull p) {
   // CHECK: [[ICMP:%.*]] = icmp ne i32* {{.*}}, null, !nosanitize
@@ -38,7 +38,7 @@ void call_func_with_nonnull_arg(int *_Nonnull p) {
   nonnull_arg(p);
 }
 
-// CHECK-LABEL: define void @{{.*}}nonnull_assign1
+// CHECK-LABEL: define{{.*}} void @{{.*}}nonnull_assign1
 #line 300
 void nonnull_assign1(int *p) {
   // CHECK: [[ICMP:%.*]] = icmp ne i32* {{.*}}, null, !nosanitize
@@ -48,7 +48,7 @@ void nonnull_assign1(int *p) {
   local = p;
 }
 
-// CHECK-LABEL: define void @{{.*}}nonnull_assign2
+// CHECK-LABEL: define{{.*}} void @{{.*}}nonnull_assign2
 #line 400
 void nonnull_assign2(int *p) {
   // CHECK: [[ICMP:%.*]] = icmp ne i32* %{{.*}}, null, !nosanitize
@@ -62,7 +62,7 @@ struct S1 {
   int *_Nonnull mptr;
 };
 
-// CHECK-LABEL: define void @{{.*}}nonnull_assign3
+// CHECK-LABEL: define{{.*}} void @{{.*}}nonnull_assign3
 #line 500
 void nonnull_assign3(int *p) {
   // CHECK: [[ICMP:%.*]] = icmp ne i32* %{{.*}}, null, !nosanitize
@@ -73,7 +73,7 @@ void nonnull_assign3(int *p) {
   s.mptr = p;
 }
 
-// CHECK-LABEL: define void @{{.*}}nonnull_init1
+// CHECK-LABEL: define{{.*}} void @{{.*}}nonnull_init1
 #line 600
 void nonnull_init1(int *p) {
   // CHECK: [[ICMP:%.*]] = icmp ne i32* %{{.*}}, null, !nosanitize
@@ -82,7 +82,7 @@ void nonnull_init1(int *p) {
   int *_Nonnull local = p;
 }
 
-// CHECK-LABEL: define void @{{.*}}nonnull_init2
+// CHECK-LABEL: define{{.*}} void @{{.*}}nonnull_init2
 #line 700
 void nonnull_init2(int *p) {
   // CHECK: [[ICMP:%.*]] = icmp ne i32* %{{.*}}, null, !nosanitize
@@ -94,7 +94,7 @@ void nonnull_init2(int *p) {
   int *_Nonnull arr[] = {p, p};
 }
 
-// CHECK-LABEL: define i32* @{{.*}}nonnull_retval2
+// CHECK-LABEL: define{{.*}} i32* @{{.*}}nonnull_retval2
 #line 800
 int *_Nonnull nonnull_retval2(int *_Nonnull arg1,  //< Test this.
                               int *_Nonnull arg2,  //< Test this.
@@ -160,7 +160,7 @@ int *_Nonnull nonnull_retval2(int *_Nonnull arg1,  //< Test this.
 }
 @end
 
-// CHECK-LABEL: define void @{{.*}}call_A
+// CHECK-LABEL: define{{.*}} void @{{.*}}call_A
 void call_A(A *a, int *p) {
   // CHECK: [[ICMP:%.*]] = icmp ne i32* [[P1:%.*]], null, !nosanitize
   // CHECK-NEXT: br i1 [[ICMP]], {{.*}}, !nosanitize
@@ -186,7 +186,7 @@ void dont_crash(int *_Nonnull p, ...) {}
 #pragma clang assume_nonnull begin
 
 /// Create a "NSObject * _Nonnull" instance.
-NSObject *get_nonnull_error() {
+NSObject *get_nonnull_error(void) {
   // Use nil for convenience. The actual object doesn't matter.
   return (NSObject *)NULL;
 }
@@ -194,7 +194,7 @@ NSObject *get_nonnull_error() {
 NSObject *_Nullable no_null_return_value_diagnostic(int flag) {
 // CHECK-LABEL: define internal {{.*}}no_null_return_value_diagnostic{{i?}}_block_invoke
 // CHECK-NOT: @__ubsan_handle_nullability_return
-  NSObject *_Nullable (^foo)() = ^() {
+  NSObject *_Nullable (^foo)(void) = ^(void) {
     if (flag) {
       // Clang should not infer a nonnull return value for this block when this
       // call is present.
@@ -208,7 +208,7 @@ NSObject *_Nullable no_null_return_value_diagnostic(int flag) {
 
 #pragma clang assume_nonnull end
 
-int main() {
+int main(void) {
   nonnull_retval1(INULL);
   nonnull_retval2(INNULL, INNULL, INULL, (int *_Nullable)NULL, 0, 0, 0, 0);
   call_func_with_nonnull_arg(INNULL);

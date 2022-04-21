@@ -1,11 +1,5 @@
-; RUN: opt %loadPolly -basicaa -polly-scops \
-; RUN:     -polly-allow-nonaffine -polly-allow-nonaffine-branches \
-; RUN:     -polly-allow-nonaffine-loops=true -analyze < %s | FileCheck %s \
-; RUN:     -check-prefix=SCALAR
-; RUN: opt %loadPolly -basicaa -polly-scops -polly-allow-nonaffine \
-; RUN:     -polly-process-unprofitable=false \
-; RUN:     -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true \
-; RUN:     -analyze < %s | FileCheck %s -check-prefix=PROFIT
+; RUN: opt %loadPolly -basic-aa -polly-allow-nonaffine -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true                                   -polly-print-scops -disable-output < %s | FileCheck %s -check-prefix=SCALAR
+; RUN: opt %loadPolly -basic-aa -polly-allow-nonaffine -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true -polly-process-unprofitable=false -polly-print-scops -disable-output < %s | FileCheck %s -check-prefix=PROFIT
 ;
 ; SCALAR:      Function: f
 ; SCALAR-NEXT: Region: %bb1---%bb13
@@ -18,7 +12,7 @@
 ; SCALAR-NEXT: {  :  }
 ; SCALAR-NEXT: Invalid Context:
 ; SCALAR-NEXT: {  : false }
-; SCALAR-NEXT: Arrays {
+; SCALAR:      Arrays {
 ; SCALAR-NEXT:     i32 MemRef_C[*]; // Element size 4
 ; SCALAR-NEXT:     i32 MemRef_A[*]; // Element size 4
 ; SCALAR-NEXT: }

@@ -21,11 +21,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/Attr.h"
 #include "clang/Analysis/AnyCall.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallDescription.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 
@@ -158,7 +160,7 @@ static bool isInMIGCall(CheckerContext &C) {
   if (Optional<AnyCall> AC = AnyCall::forDecl(D)) {
     // Even though there's a Sema warning when the return type of an annotated
     // function is not a kern_return_t, this warning isn't an error, so we need
-    // an extra sanity check here.
+    // an extra check here.
     // FIXME: AnyCall doesn't support blocks yet, so they remain unchecked
     // for now.
     if (!AC->getReturnType(C.getASTContext())
@@ -179,7 +181,7 @@ static bool isInMIGCall(CheckerContext &C) {
 }
 
 void MIGChecker::checkPostCall(const CallEvent &Call, CheckerContext &C) const {
-  if (Call.isCalled(OsRefRetain)) {
+  if (OsRefRetain.matches(Call)) {
     // If the code is doing reference counting over the parameter,
     // it opens up an opportunity for safely calling a destructor function.
     // TODO: We should still check for over-releases.
@@ -197,7 +199,7 @@ void MIGChecker::checkPostCall(const CallEvent &Call, CheckerContext &C) const {
 
   auto I = llvm::find_if(Deallocators,
                          [&](const std::pair<CallDescription, unsigned> &Item) {
-                           return Call.isCalled(Item.first);
+                           return Item.first.matches(Call);
                          });
   if (I == Deallocators.end())
     return;
@@ -209,15 +211,16 @@ void MIGChecker::checkPostCall(const CallEvent &Call, CheckerContext &C) const {
   if (!PVD || State->contains<RefCountedParameters>(PVD))
     return;
 
-  const NoteTag *T = C.getNoteTag([this, PVD](BugReport &BR) -> std::string {
-    if (&BR.getBugType() != &BT)
-      return "";
-    SmallString<64> Str;
-    llvm::raw_svector_ostream OS(Str);
-    OS << "Value passed through parameter '" << PVD->getName()
-       << "\' is deallocated";
-    return OS.str();
-  });
+  const NoteTag *T =
+    C.getNoteTag([this, PVD](PathSensitiveBugReport &BR) -> std::string {
+        if (&BR.getBugType() != &BT)
+          return "";
+        SmallString<64> Str;
+        llvm::raw_svector_ostream OS(Str);
+        OS << "Value passed through parameter '" << PVD->getName()
+           << "\' is deallocated";
+        return std::string(OS.str());
+      });
   C.addTransition(State->set<ReleasedParameter>(true), T);
 }
 
@@ -274,7 +277,7 @@ void MIGChecker::checkReturnAux(const ReturnStmt *RS, CheckerContext &C) const {
   if (!N)
     return;
 
-  auto R = llvm::make_unique<BugReport>(
+  auto R = std::make_unique<PathSensitiveBugReport>(
       BT,
       "MIG callback fails with error after deallocating argument value. "
       "This is a use-after-free vulnerability because the caller will try to "
@@ -282,7 +285,9 @@ void MIGChecker::checkReturnAux(const ReturnStmt *RS, CheckerContext &C) const {
       N);
 
   R->addRange(RS->getSourceRange());
-  bugreporter::trackExpressionValue(N, RS->getRetValue(), *R, false);
+  bugreporter::trackExpressionValue(
+      N, RS->getRetValue(), *R,
+      {bugreporter::TrackingKind::Thorough, /*EnableNullFPSuppression=*/false});
   C.emitReport(std::move(R));
 }
 
@@ -290,6 +295,6 @@ void ento::registerMIGChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<MIGChecker>();
 }
 
-bool ento::shouldRegisterMIGChecker(const LangOptions &LO) {
+bool ento::shouldRegisterMIGChecker(const CheckerManager &mgr) {
   return true;
 }

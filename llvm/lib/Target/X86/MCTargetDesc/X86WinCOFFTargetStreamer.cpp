@@ -14,6 +14,7 @@
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/FormattedStream.h"
 
 using namespace llvm;
@@ -159,7 +160,7 @@ bool X86WinCOFFTargetStreamer::checkInFPOPrologue(SMLoc L) {
 
 MCSymbol *X86WinCOFFTargetStreamer::emitFPOLabel() {
   MCSymbol *Label = getContext().createTempSymbol("cfi", true);
-  getStreamer().EmitLabel(Label);
+  getStreamer().emitLabel(Label);
   return Label;
 }
 
@@ -170,7 +171,7 @@ bool X86WinCOFFTargetStreamer::emitFPOProc(const MCSymbol *ProcSym,
         L, "opening new .cv_fpo_proc before closing previous frame");
     return true;
   }
-  CurFPOData = llvm::make_unique<FPOData>();
+  CurFPOData = std::make_unique<FPOData>();
   CurFPOData->Function = ProcSym;
   CurFPOData->Begin = emitFPOLabel();
   CurFPOData->ParamsSize = ParamsSize;
@@ -236,7 +237,7 @@ bool X86WinCOFFTargetStreamer::emitFPOStackAlloc(unsigned StackAlloc, SMLoc L) {
 bool X86WinCOFFTargetStreamer::emitFPOStackAlign(unsigned Align, SMLoc L) {
   if (checkInFPOPrologue(L))
     return true;
-  if (!llvm::any_of(CurFPOData->Instructions, [](const FPOInstruction &Inst) {
+  if (llvm::none_of(CurFPOData->Instructions, [](const FPOInstruction &Inst) {
         return Inst.Op == FPOInstruction::SetFrame;
       })) {
     getContext().reportError(
@@ -372,13 +373,13 @@ void FPOStateMachine::emitFrameDataRecord(MCStreamer &OS, MCSymbol *Label) {
 
   OS.emitAbsoluteSymbolDiff(Label, FPO->Begin, 4); // RvaStart
   OS.emitAbsoluteSymbolDiff(FPO->End, Label, 4);   // CodeSize
-  OS.EmitIntValue(LocalSize, 4);
-  OS.EmitIntValue(FPO->ParamsSize, 4);
-  OS.EmitIntValue(MaxStackSize, 4);
-  OS.EmitIntValue(FrameFuncStrTabOff, 4); // FrameFunc
+  OS.emitInt32(LocalSize);
+  OS.emitInt32(FPO->ParamsSize);
+  OS.emitInt32(MaxStackSize);
+  OS.emitInt32(FrameFuncStrTabOff); // FrameFunc
   OS.emitAbsoluteSymbolDiff(FPO->PrologueEnd, Label, 2);
-  OS.EmitIntValue(SavedRegSize, 2);
-  OS.EmitIntValue(CurFlags, 4);
+  OS.emitInt16(SavedRegSize);
+  OS.emitInt32(CurFlags);
 }
 
 /// Compute and emit the real CodeView FrameData subsection.
@@ -398,12 +399,12 @@ bool X86WinCOFFTargetStreamer::emitFPOData(const MCSymbol *ProcSym, SMLoc L) {
   MCSymbol *FrameBegin = Ctx.createTempSymbol(),
            *FrameEnd = Ctx.createTempSymbol();
 
-  OS.EmitIntValue(unsigned(DebugSubsectionKind::FrameData), 4);
+  OS.emitInt32(unsigned(DebugSubsectionKind::FrameData));
   OS.emitAbsoluteSymbolDiff(FrameEnd, FrameBegin, 4);
-  OS.EmitLabel(FrameBegin);
+  OS.emitLabel(FrameBegin);
 
   // Start with the RVA of the function in question.
-  OS.EmitValue(MCSymbolRefExpr::create(FPO->Function,
+  OS.emitValue(MCSymbolRefExpr::create(FPO->Function,
                                        MCSymbolRefExpr::VK_COFF_IMGREL32, Ctx),
                4);
 
@@ -437,8 +438,8 @@ bool X86WinCOFFTargetStreamer::emitFPOData(const MCSymbol *ProcSym, SMLoc L) {
     FSM.emitFrameDataRecord(OS, Inst.Label);
   }
 
-  OS.EmitValueToAlignment(4, 0);
-  OS.EmitLabel(FrameEnd);
+  OS.emitValueToAlignment(4, 0);
+  OS.emitLabel(FrameEnd);
   return false;
 }
 

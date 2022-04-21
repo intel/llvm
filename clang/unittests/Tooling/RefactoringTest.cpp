@@ -528,12 +528,12 @@ TEST_F(ReplacementTest, MultipleFilesReplaceAndFormat) {
 
   // Scrambled the order of replacements.
   std::map<std::string, Replacements> FileToReplaces;
-  FileToReplaces[File1] = toReplacements(
+  FileToReplaces[std::string(File1)] = toReplacements(
       {tooling::Replacement(Context.Sources, Context.getLocation(ID1, 1, 1), 6,
                             "auto "),
        tooling::Replacement(Context.Sources, Context.getLocation(ID1, 3, 10), 1,
                             "12345678901")});
-  FileToReplaces[File2] = toReplacements(
+  FileToReplaces[std::string(File2)] = toReplacements(
       {tooling::Replacement(Context.Sources, Context.getLocation(ID2, 1, 12), 0,
                             "4567890123"),
        tooling::Replacement(Context.Sources, Context.getLocation(ID2, 2, 9), 1,
@@ -608,14 +608,16 @@ public:
     llvm::raw_fd_ostream OutStream(FD, true);
     OutStream << Content;
     OutStream.close();
-    const FileEntry *File = Context.Files.getFile(Path);
-    assert(File != nullptr);
+    auto File = Context.Files.getOptionalFileRef(Path);
+    assert(File);
 
     StringRef Found =
-        TemporaryFiles.insert(std::make_pair(Name, Path.str())).first->second;
+        TemporaryFiles.insert(std::make_pair(Name, std::string(Path.str())))
+            .first->second;
     assert(Found == Path);
     (void)Found;
-    return Context.Sources.createFileID(File, SourceLocation(), SrcMgr::C_User);
+    return Context.Sources.createFileID(*File, SourceLocation(),
+                                        SrcMgr::C_User);
   }
 
   std::string getFileContentFromDisk(llvm::StringRef Name) {
@@ -627,7 +629,7 @@ public:
     // FIXME: Figure out whether there is a way to get the SourceManger to
     // reopen the file.
     auto FileBuffer = Context.Files.getBufferForFile(Path);
-    return (*FileBuffer)->getBuffer();
+    return std::string((*FileBuffer)->getBuffer());
   }
 
   llvm::StringMap<std::string> TemporaryFiles;
@@ -649,7 +651,7 @@ template <typename T>
 class TestVisitor : public clang::RecursiveASTVisitor<T> {
 public:
   bool runOver(StringRef Code) {
-    return runToolOnCode(new TestAction(this), Code);
+    return runToolOnCode(std::make_unique<TestAction>(this), Code);
   }
 
 protected:
@@ -679,7 +681,7 @@ private:
       Visitor->SM = &compiler.getSourceManager();
       Visitor->Context = &compiler.getASTContext();
       /// TestConsumer will be deleted by the framework calling us.
-      return llvm::make_unique<FindConsumer>(Visitor);
+      return std::make_unique<FindConsumer>(Visitor);
     }
 
   private:
@@ -1029,22 +1031,21 @@ TEST_F(MergeReplacementsTest, OverlappingRanges) {
       toReplacements({{"", 0, 3, "cc"}, {"", 3, 3, "dd"}}));
 }
 
+static constexpr bool usesWindowsPaths() {
+  return is_style_windows(llvm::sys::path::Style::native);
+}
+
 TEST(DeduplicateByFileTest, PathsWithDots) {
   std::map<std::string, Replacements> FileToReplaces;
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> VFS(
       new llvm::vfs::InMemoryFileSystem());
   FileManager FileMgr(FileSystemOptions(), VFS);
-#if !defined(_WIN32)
-  StringRef Path1 = "a/b/.././c.h";
-  StringRef Path2 = "a/c.h";
-#else
-  StringRef Path1 = "a\\b\\..\\.\\c.h";
-  StringRef Path2 = "a\\c.h";
-#endif
+  StringRef Path1 = usesWindowsPaths() ? "a\\b\\..\\.\\c.h" : "a/b/.././c.h";
+  StringRef Path2 = usesWindowsPaths() ? "a\\c.h" : "a/c.h";
   EXPECT_TRUE(VFS->addFile(Path1, 0, llvm::MemoryBuffer::getMemBuffer("")));
   EXPECT_TRUE(VFS->addFile(Path2, 0, llvm::MemoryBuffer::getMemBuffer("")));
-  FileToReplaces[Path1] = Replacements();
-  FileToReplaces[Path2] = Replacements();
+  FileToReplaces[std::string(Path1)] = Replacements();
+  FileToReplaces[std::string(Path2)] = Replacements();
   FileToReplaces = groupReplacementsByFile(FileMgr, FileToReplaces);
   EXPECT_EQ(1u, FileToReplaces.size());
   EXPECT_EQ(Path1, FileToReplaces.begin()->first);
@@ -1055,17 +1056,12 @@ TEST(DeduplicateByFileTest, PathWithDotSlash) {
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> VFS(
       new llvm::vfs::InMemoryFileSystem());
   FileManager FileMgr(FileSystemOptions(), VFS);
-#if !defined(_WIN32)
-  StringRef Path1 = "./a/b/c.h";
-  StringRef Path2 = "a/b/c.h";
-#else
-  StringRef Path1 = ".\\a\\b\\c.h";
-  StringRef Path2 = "a\\b\\c.h";
-#endif
+  StringRef Path1 = usesWindowsPaths() ? ".\\a\\b\\c.h" : "./a/b/c.h";
+  StringRef Path2 = usesWindowsPaths() ? "a\\b\\c.h" : "a/b/c.h";
   EXPECT_TRUE(VFS->addFile(Path1, 0, llvm::MemoryBuffer::getMemBuffer("")));
   EXPECT_TRUE(VFS->addFile(Path2, 0, llvm::MemoryBuffer::getMemBuffer("")));
-  FileToReplaces[Path1] = Replacements();
-  FileToReplaces[Path2] = Replacements();
+  FileToReplaces[std::string(Path1)] = Replacements();
+  FileToReplaces[std::string(Path2)] = Replacements();
   FileToReplaces = groupReplacementsByFile(FileMgr, FileToReplaces);
   EXPECT_EQ(1u, FileToReplaces.size());
   EXPECT_EQ(Path1, FileToReplaces.begin()->first);
@@ -1076,15 +1072,10 @@ TEST(DeduplicateByFileTest, NonExistingFilePath) {
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> VFS(
       new llvm::vfs::InMemoryFileSystem());
   FileManager FileMgr(FileSystemOptions(), VFS);
-#if !defined(_WIN32)
-  StringRef Path1 = "./a/b/c.h";
-  StringRef Path2 = "a/b/c.h";
-#else
-  StringRef Path1 = ".\\a\\b\\c.h";
-  StringRef Path2 = "a\\b\\c.h";
-#endif
-  FileToReplaces[Path1] = Replacements();
-  FileToReplaces[Path2] = Replacements();
+  StringRef Path1 = usesWindowsPaths() ? ".\\a\\b\\c.h" : "./a/b/c.h";
+  StringRef Path2 = usesWindowsPaths() ? "a\\b\\c.h" : "a/b/c.h";
+  FileToReplaces[std::string(Path1)] = Replacements();
+  FileToReplaces[std::string(Path2)] = Replacements();
   FileToReplaces = groupReplacementsByFile(FileMgr, FileToReplaces);
   EXPECT_TRUE(FileToReplaces.empty());
 }
@@ -1122,11 +1113,11 @@ TEST_F(AtomicChangeTest, AtomicChangeToYAML) {
                "Key:             'input.cpp:20'\n"
                "FilePath:        input.cpp\n"
                "Error:           ''\n"
-               "InsertedHeaders: \n" // Extra whitespace here!
+               "InsertedHeaders:\n"
                "  - a.h\n"
-               "RemovedHeaders:  \n" // Extra whitespace here!
+               "RemovedHeaders:\n"
                "  - b.h\n"
-               "Replacements:    \n" // Extra whitespace here!
+               "Replacements:\n"
                "  - FilePath:        input.cpp\n"
                "    Offset:          20\n"
                "    Length:          0\n"
@@ -1144,11 +1135,11 @@ TEST_F(AtomicChangeTest, YAMLToAtomicChange) {
                             "Key:             'input.cpp:20'\n"
                             "FilePath:        input.cpp\n"
                             "Error:           'ok'\n"
-                            "InsertedHeaders: \n" // Extra whitespace here!
+                            "InsertedHeaders:\n"
                             "  - a.h\n"
-                            "RemovedHeaders:  \n" // Extra whitespace here!
+                            "RemovedHeaders:\n"
                             "  - b.h\n"
-                            "Replacements:    \n" // Extra whitespace here!
+                            "Replacements:\n"
                             "  - FilePath:        input.cpp\n"
                             "    Offset:          20\n"
                             "    Length:          0\n"
@@ -1294,6 +1285,18 @@ TEST_F(AtomicChangeTest, InsertAfterWithInvalidLocation) {
       Replacement(Context.Sources, SourceLocation(), 0, "b")));
 }
 
+TEST_F(AtomicChangeTest, Metadata) {
+  AtomicChange Change(Context.Sources, DefaultLoc, 17);
+  const llvm::Any &Metadata = Change.getMetadata();
+  ASSERT_TRUE(llvm::any_isa<int>(Metadata));
+  EXPECT_EQ(llvm::any_cast<int>(Metadata), 17);
+}
+
+TEST_F(AtomicChangeTest, NoMetadata) {
+  AtomicChange Change(Context.Sources, DefaultLoc);
+  EXPECT_FALSE(Change.getMetadata().hasValue());
+}
+
 class ApplyAtomicChangesTest : public ::testing::Test {
 protected:
   ApplyAtomicChangesTest() : FilePath("file.cc") {
@@ -1305,7 +1308,7 @@ protected:
   ~ApplyAtomicChangesTest() override {}
 
   void setInput(llvm::StringRef Input) {
-    Code = Input;
+    Code = std::string(Input);
     FID = Context.createInMemoryFile(FilePath, Code);
   }
 

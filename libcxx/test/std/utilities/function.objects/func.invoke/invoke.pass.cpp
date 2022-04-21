@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <functional>
+
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 // template<class F, class... Args>
 // invoke_result_t<F, Args...> invoke(F&& f, Args&&... args) // C++17
@@ -42,6 +45,8 @@
 #include <type_traits>
 #include <utility> // for std::move
 #include <cassert>
+
+#include "test_macros.h"
 
 struct NonCopyable {
     NonCopyable() {}

@@ -3,7 +3,7 @@
 //
 // Check that we set the attribute on each function.
 
-int test1() {
+int test1(void) {
   return 42;
 }
 // SLH: @{{.*}}test1{{.*}}[[SLH:#[0-9]+]]
@@ -12,4 +12,4 @@ int test1() {
 
 // NOSLH: @{{.*}}test1{{.*}}[[NOSLH:#[0-9]+]]
 
-// NOSLH-NOT: attributes [[SLH]] = { {{.*}}speculative_load_hardening{{.*}} }
+// NOSLH-NOT: attributes [[NOSLH]] = { {{.*}}speculative_load_hardening{{.*}} }

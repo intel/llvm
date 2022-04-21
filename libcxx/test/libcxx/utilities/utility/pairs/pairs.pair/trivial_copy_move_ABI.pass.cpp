@@ -6,20 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// The test fails due to the missing is_trivially_constructible intrinsic.
-// XFAIL: gcc-4.9
-
 // <utility>
 
 // template <class T1, class T2> struct pair
 
 // Test that we properly provide the trivial copy operations by default.
 
-// FreeBSD provides the old ABI. This test checks the new ABI so we need
-// to manually turn it on.
-#if defined(__FreeBSD__)
-#define _LIBCPP_ABI_UNSTABLE
-#endif
+// FreeBSD still provides the old ABI for std::pair.
+// XFAIL: freebsd
 
 #include <utility>
 #include <type_traits>
@@ -28,10 +22,6 @@
 #include <cassert>
 
 #include "test_macros.h"
-
-#if defined(_LIBCPP_DEPRECATED_ABI_DISABLE_PAIR_TRIVIAL_COPY_CTOR)
-#error Non-trivial ctor ABI macro defined
-#endif
 
 template <class T>
 struct HasTrivialABI : std::integral_constant<bool,

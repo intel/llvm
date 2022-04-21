@@ -1,5 +1,5 @@
-# RUN: llc -mtriple=i386-linux-gnu                       -run-pass=regbankselect %s -o - | FileCheck %s --check-prefix=CHECK --check-prefix=FAST
-# RUN: llc -mtriple=i386-linux-gnu -regbankselect-greedy -run-pass=regbankselect %s -o - | FileCheck %s --check-prefix=CHECK --check-prefix=GREEDY
+# RUN: llc -mtriple=i386-linux-gnu                       -run-pass=regbankselect %s -o - | FileCheck %s
+# RUN: llc -mtriple=i386-linux-gnu -regbankselect-greedy -run-pass=regbankselect %s -o - | FileCheck %s
 
 --- |
   define void @test_uadde_i32() {
@@ -10,7 +10,7 @@
 ---
 name:            test_uadde_i32
 # CHECK-LABEL: name:  test_uadde_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: false
 # CHECK:      registers:

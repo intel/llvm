@@ -1,4 +1,4 @@
-//===-- JITLoaderGDB.cpp ----------------------------------------*- C++ -*-===//
+//===-- JITLoaderGDB.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-
-#include "llvm/Support/MathExtras.h"
-
+#include "JITLoaderGDB.h"
+#include "Plugins/ObjectFile/Mach-O/ObjectFileMachO.h"
 #include "lldb/Breakpoint/Breakpoint.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -24,15 +23,17 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
-
-#include "JITLoaderGDB.h"
+#include "llvm/Support/MathExtras.h"
 
 #include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(JITLoaderGDB)
 
 // Debug Interface Structures
 enum jit_actions_t { JIT_NOACTION = 0, JIT_REGISTER_FN, JIT_UNREGISTER_FN };
@@ -59,45 +60,55 @@ enum EnableJITLoaderGDB {
   eEnableJITLoaderGDBOff,
 };
 
-static constexpr OptionEnumValueElement g_enable_jit_loader_gdb_enumerators[] = {
-    {eEnableJITLoaderGDBDefault, "default", "Enable JIT compilation interface "
-     "for all platforms except macOS"},
-    {eEnableJITLoaderGDBOn, "on", "Enable JIT compilation interface"},
-    {eEnableJITLoaderGDBOff, "off", "Disable JIT compilation interface"}
- };
+static constexpr OptionEnumValueElement g_enable_jit_loader_gdb_enumerators[] =
+    {
+        {
+            eEnableJITLoaderGDBDefault,
+            "default",
+            "Enable JIT compilation interface for all platforms except macOS",
+        },
+        {
+            eEnableJITLoaderGDBOn,
+            "on",
+            "Enable JIT compilation interface",
+        },
+        {
+            eEnableJITLoaderGDBOff,
+            "off",
+            "Disable JIT compilation interface",
+        },
+};
 
-static constexpr PropertyDefinition g_properties[] = {
-    {"enable", OptionValue::eTypeEnum, true,
-     eEnableJITLoaderGDBDefault, nullptr,
-     OptionEnumValues(g_enable_jit_loader_gdb_enumerators),
-     "Enable GDB's JIT compilation interface (default: enabled on "
-     "all platforms except macOS)"}};
+#define LLDB_PROPERTIES_jitloadergdb
+#include "JITLoaderGDBProperties.inc"
 
-enum { ePropertyEnable, ePropertyEnableJITBreakpoint };
+enum {
+#define LLDB_PROPERTIES_jitloadergdb
+#include "JITLoaderGDBPropertiesEnum.inc"
+  ePropertyEnableJITBreakpoint
+};
 
 class PluginProperties : public Properties {
 public:
   static ConstString GetSettingName() {
-    return JITLoaderGDB::GetPluginNameStatic();
+    return ConstString(JITLoaderGDB::GetPluginNameStatic());
   }
 
   PluginProperties() {
     m_collection_sp = std::make_shared<OptionValueProperties>(GetSettingName());
-    m_collection_sp->Initialize(g_properties);
+    m_collection_sp->Initialize(g_jitloadergdb_properties);
   }
 
   EnableJITLoaderGDB GetEnable() const {
     return (EnableJITLoaderGDB)m_collection_sp->GetPropertyAtIndexAsEnumeration(
         nullptr, ePropertyEnable,
-        g_properties[ePropertyEnable].default_uint_value);
+        g_jitloadergdb_properties[ePropertyEnable].default_uint_value);
   }
 };
 
-typedef std::shared_ptr<PluginProperties> JITLoaderGDBPropertiesSP;
-
-static const JITLoaderGDBPropertiesSP &GetGlobalPluginProperties() {
-  static const auto g_settings_sp(std::make_shared<PluginProperties>());
-  return g_settings_sp;
+static PluginProperties &GetGlobalPluginProperties() {
+  static PluginProperties g_settings;
+  return g_settings;
 }
 
 template <typename ptr_t>
@@ -122,9 +133,9 @@ bool ReadJITEntry(const addr_t from_addr, Process *process,
   DataExtractor extractor(data.GetBytes(), data.GetByteSize(),
                           process->GetByteOrder(), sizeof(ptr_t));
   lldb::offset_t offset = 0;
-  entry->next_entry = extractor.GetPointer(&offset);
-  entry->prev_entry = extractor.GetPointer(&offset);
-  entry->symfile_addr = extractor.GetPointer(&offset);
+  entry->next_entry = extractor.GetAddress(&offset);
+  entry->prev_entry = extractor.GetAddress(&offset);
+  entry->symfile_addr = extractor.GetAddress(&offset);
   offset = llvm::alignTo(offset, uint64_align_bytes);
   entry->symfile_size = extractor.GetU64(&offset);
 
@@ -148,7 +159,7 @@ void JITLoaderGDB::DebuggerInitialize(Debugger &debugger) {
           debugger, PluginProperties::GetSettingName())) {
     const bool is_global_setting = true;
     PluginManager::CreateSettingForJITLoaderPlugin(
-        debugger, GetGlobalPluginProperties()->GetValueProperties(),
+        debugger, GetGlobalPluginProperties().GetValueProperties(),
         ConstString("Properties for the JIT LoaderGDB plug-in."),
         is_global_setting);
   }
@@ -176,9 +187,9 @@ void JITLoaderGDB::SetJITBreakpoint(lldb_private::ModuleList &module_list) {
   if (DidSetJITBreakpoint())
     return;
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_JIT_LOADER));
-  if (log)
-    log->Printf("JITLoaderGDB::%s looking for JIT register hook", __FUNCTION__);
+  Log *log = GetLog(LLDBLog::JITLoader);
+  LLDB_LOGF(log, "JITLoaderGDB::%s looking for JIT register hook",
+            __FUNCTION__);
 
   addr_t jit_addr = GetSymbolAddress(
       module_list, ConstString("__jit_debug_register_code"), eSymbolTypeAny);
@@ -188,14 +199,12 @@ void JITLoaderGDB::SetJITBreakpoint(lldb_private::ModuleList &module_list) {
   m_jit_descriptor_addr = GetSymbolAddress(
       module_list, ConstString("__jit_debug_descriptor"), eSymbolTypeData);
   if (m_jit_descriptor_addr == LLDB_INVALID_ADDRESS) {
-    if (log)
-      log->Printf("JITLoaderGDB::%s failed to find JIT descriptor address",
-                  __FUNCTION__);
+    LLDB_LOGF(log, "JITLoaderGDB::%s failed to find JIT descriptor address",
+              __FUNCTION__);
     return;
   }
 
-  if (log)
-    log->Printf("JITLoaderGDB::%s setting JIT breakpoint", __FUNCTION__);
+  LLDB_LOGF(log, "JITLoaderGDB::%s setting JIT breakpoint", __FUNCTION__);
 
   Breakpoint *bp =
       m_process->GetTarget().CreateBreakpoint(jit_addr, true, false).get();
@@ -210,9 +219,8 @@ bool JITLoaderGDB::JITDebugBreakpointHit(void *baton,
                                          StoppointCallbackContext *context,
                                          user_id_t break_id,
                                          user_id_t break_loc_id) {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_JIT_LOADER));
-  if (log)
-    log->Printf("JITLoaderGDB::%s hit JIT breakpoint", __FUNCTION__);
+  Log *log = GetLog(LLDBLog::JITLoader);
+  LLDB_LOGF(log, "JITLoaderGDB::%s hit JIT breakpoint", __FUNCTION__);
   JITLoaderGDB *instance = static_cast<JITLoaderGDB *>(baton);
   return instance->ReadJITDescriptor(false);
 }
@@ -275,19 +283,18 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
   if (m_jit_descriptor_addr == LLDB_INVALID_ADDRESS)
     return false;
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_JIT_LOADER));
+  Log *log = GetLog(LLDBLog::JITLoader);
   Target &target = m_process->GetTarget();
   ModuleList &module_list = target.GetImages();
 
   jit_descriptor<ptr_t> jit_desc;
   const size_t jit_desc_size = sizeof(jit_desc);
   Status error;
-  size_t bytes_read = m_process->DoReadMemory(m_jit_descriptor_addr, &jit_desc,
-                                              jit_desc_size, error);
+  size_t bytes_read = m_process->ReadMemory(m_jit_descriptor_addr, &jit_desc,
+                                            jit_desc_size, error);
   if (bytes_read != jit_desc_size || !error.Success()) {
-    if (log)
-      log->Printf("JITLoaderGDB::%s failed to read JIT descriptor",
-                  __FUNCTION__);
+    LLDB_LOGF(log, "JITLoaderGDB::%s failed to read JIT descriptor",
+              __FUNCTION__);
     return false;
   }
 
@@ -301,9 +308,8 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
   while (jit_relevant_entry != 0) {
     jit_code_entry<ptr_t> jit_entry;
     if (!ReadJITEntry(jit_relevant_entry, m_process, &jit_entry)) {
-      if (log)
-        log->Printf("JITLoaderGDB::%s failed to read JIT entry at 0x%" PRIx64,
-                    __FUNCTION__, jit_relevant_entry);
+      LLDB_LOGF(log, "JITLoaderGDB::%s failed to read JIT entry at 0x%" PRIx64,
+                __FUNCTION__, jit_relevant_entry);
       return false;
     }
 
@@ -312,10 +318,10 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
     ModuleSP module_sp;
 
     if (jit_action == JIT_REGISTER_FN) {
-      if (log)
-        log->Printf("JITLoaderGDB::%s registering JIT entry at 0x%" PRIx64
-                    " (%" PRIu64 " bytes)",
-                    __FUNCTION__, symbolfile_addr, (uint64_t)symbolfile_size);
+      LLDB_LOGF(log,
+                "JITLoaderGDB::%s registering JIT entry at 0x%" PRIx64
+                " (%" PRIu64 " bytes)",
+                __FUNCTION__, symbolfile_addr, (uint64_t)symbolfile_size);
 
       char jit_name[64];
       snprintf(jit_name, 64, "JIT(0x%" PRIx64 ")", symbolfile_addr);
@@ -331,20 +337,16 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
         module_sp->GetObjectFile()->GetSymtab();
 
         m_jit_objects.insert(std::make_pair(symbolfile_addr, module_sp));
-        if (module_sp->GetObjectFile()->GetPluginName() ==
-            ConstString("mach-o")) {
-          ObjectFile *image_object_file = module_sp->GetObjectFile();
-          if (image_object_file) {
-            const SectionList *section_list =
-                image_object_file->GetSectionList();
-            if (section_list) {
-              uint64_t vmaddrheuristic = 0;
-              uint64_t lower = (uint64_t)-1;
-              uint64_t upper = 0;
-              updateSectionLoadAddress(*section_list, target, symbolfile_addr,
-                                       symbolfile_size, vmaddrheuristic, lower,
-                                       upper);
-            }
+        if (auto image_object_file =
+                llvm::dyn_cast<ObjectFileMachO>(module_sp->GetObjectFile())) {
+          const SectionList *section_list = image_object_file->GetSectionList();
+          if (section_list) {
+            uint64_t vmaddrheuristic = 0;
+            uint64_t lower = (uint64_t)-1;
+            uint64_t upper = 0;
+            updateSectionLoadAddress(*section_list, target, symbolfile_addr,
+                                     symbolfile_size, vmaddrheuristic, lower,
+                                     upper);
           }
         } else {
           bool changed = false;
@@ -357,15 +359,14 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
         module_list.Append(module_sp);
         target.ModulesDidLoad(module_list);
       } else {
-        if (log)
-          log->Printf("JITLoaderGDB::%s failed to load module for "
-                      "JIT entry at 0x%" PRIx64,
-                      __FUNCTION__, symbolfile_addr);
+        LLDB_LOGF(log,
+                  "JITLoaderGDB::%s failed to load module for "
+                  "JIT entry at 0x%" PRIx64,
+                  __FUNCTION__, symbolfile_addr);
       }
     } else if (jit_action == JIT_UNREGISTER_FN) {
-      if (log)
-        log->Printf("JITLoaderGDB::%s unregistering JIT entry at 0x%" PRIx64,
-                    __FUNCTION__, symbolfile_addr);
+      LLDB_LOGF(log, "JITLoaderGDB::%s unregistering JIT entry at 0x%" PRIx64,
+                __FUNCTION__, symbolfile_addr);
 
       JITObjectMap::iterator it = m_jit_objects.find(symbolfile_addr);
       if (it != m_jit_objects.end()) {
@@ -402,15 +403,10 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
 }
 
 // PluginInterface protocol
-lldb_private::ConstString JITLoaderGDB::GetPluginNameStatic() {
-  static ConstString g_name("gdb");
-  return g_name;
-}
-
 JITLoaderSP JITLoaderGDB::CreateInstance(Process *process, bool force) {
   JITLoaderSP jit_loader_sp;
   bool enable;
-  switch (GetGlobalPluginProperties()->GetEnable()) {
+  switch (GetGlobalPluginProperties().GetEnable()) {
     case EnableJITLoaderGDB::eEnableJITLoaderGDBOn:
       enable = true;
       break;
@@ -427,16 +423,10 @@ JITLoaderSP JITLoaderGDB::CreateInstance(Process *process, bool force) {
   return jit_loader_sp;
 }
 
-const char *JITLoaderGDB::GetPluginDescriptionStatic() {
+llvm::StringRef JITLoaderGDB::GetPluginDescriptionStatic() {
   return "JIT loader plug-in that watches for JIT events using the GDB "
          "interface.";
 }
-
-lldb_private::ConstString JITLoaderGDB::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t JITLoaderGDB::GetPluginVersion() { return 1; }
 
 void JITLoaderGDB::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
@@ -458,8 +448,8 @@ addr_t JITLoaderGDB::GetSymbolAddress(ModuleList &module_list,
   SymbolContextList target_symbols;
   Target &target = m_process->GetTarget();
 
-  if (!module_list.FindSymbolsWithNameAndType(name, symbol_type,
-                                              target_symbols))
+  module_list.FindSymbolsWithNameAndType(name, symbol_type, target_symbols);
+  if (target_symbols.IsEmpty())
     return LLDB_INVALID_ADDRESS;
 
   SymbolContext sym_ctx;

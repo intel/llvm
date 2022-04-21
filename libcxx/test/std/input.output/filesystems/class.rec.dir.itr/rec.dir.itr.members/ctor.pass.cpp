@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -19,14 +19,14 @@
 // recursive_directory_iterator(const path& p, directory_options options, error_code& ec);
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -60,11 +60,12 @@ TEST_CASE(test_constructor_signatures)
 
 TEST_CASE(test_construction_from_bad_path)
 {
+    static_test_env static_env;
     std::error_code ec;
     directory_options opts = directory_options::none;
     const RDI endIt;
 
-    const path testPaths[] = { StaticEnv::DNE, StaticEnv::BadSymlink };
+    const path testPaths[] = { static_env.DNE, static_env.BadSymlink };
     for (path const& testPath : testPaths)
     {
         {
@@ -87,6 +88,14 @@ TEST_CASE(test_construction_from_bad_path)
 TEST_CASE(access_denied_test_case)
 {
     using namespace fs;
+#ifdef _WIN32
+    // Windows doesn't support setting perms::none to trigger failures
+    // reading directories; test using a special inaccessible directory
+    // instead.
+    const path testDir = GetWindowsInaccessibleDir();
+    if (testDir.empty())
+        TEST_UNSUPPORTED();
+#else
     scoped_test_env env;
     path const testDir = env.make_env_path("dir1");
     path const testFile = testDir / "testFile";
@@ -101,6 +110,7 @@ TEST_CASE(access_denied_test_case)
 
     // Change the permissions so we can no longer iterate
     permissions(testDir, perms::none);
+#endif
 
     // Check that the construction fails when skip_permissions_denied is
     // not given.
@@ -124,12 +134,22 @@ TEST_CASE(access_denied_test_case)
 TEST_CASE(access_denied_to_file_test_case)
 {
     using namespace fs;
+#ifdef _WIN32
+    // Windows doesn't support setting perms::none to trigger failures
+    // reading directories; test using a special inaccessible directory
+    // instead.
+    const path testDir = GetWindowsInaccessibleDir();
+    if (testDir.empty())
+        TEST_UNSUPPORTED();
+    path const testFile = testDir / "inaccessible_file";
+#else
     scoped_test_env env;
     path const testFile = env.make_env_path("file1");
     env.create_file(testFile, 42);
 
     // Change the permissions so we can no longer iterate
     permissions(testFile, perms::none);
+#endif
 
     // Check that the construction fails when skip_permissions_denied is
     // not given.
@@ -170,9 +190,10 @@ TEST_CASE(test_open_on_empty_directory_equals_end)
 
 TEST_CASE(test_open_on_directory_succeeds)
 {
-    const path testDir = StaticEnv::Dir;
-    std::set<path> dir_contents(std::begin(StaticEnv::DirIterationList),
-                                std::end(  StaticEnv::DirIterationList));
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
+    std::set<path> dir_contents(static_env.DirIterationList.begin(),
+                                static_env.DirIterationList.end());
     const RDI endIt{};
 
     {
@@ -191,7 +212,8 @@ TEST_CASE(test_open_on_directory_succeeds)
 
 TEST_CASE(test_open_on_file_fails)
 {
-    const path testFile = StaticEnv::File;
+    static_test_env static_env;
+    const path testFile = static_env.File;
     const RDI endIt{};
     {
         std::error_code ec;
@@ -206,8 +228,9 @@ TEST_CASE(test_open_on_file_fails)
 
 TEST_CASE(test_options_post_conditions)
 {
-    const path goodDir = StaticEnv::Dir;
-    const path badDir = StaticEnv::DNE;
+    static_test_env static_env;
+    const path goodDir = static_env.Dir;
+    const path badDir = static_env.DNE;
 
     {
         std::error_code ec;

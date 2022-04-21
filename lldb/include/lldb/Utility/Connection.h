@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Connection_h_
-#define liblldb_Connection_h_
+#ifndef LLDB_UTILITY_CONNECTION_H
+#define LLDB_UTILITY_CONNECTION_H
 
 #include "lldb/lldb-defines.h"
 #include "lldb/lldb-enumerations.h"
@@ -18,7 +18,7 @@
 #include <ratio>
 #include <string>
 
-#include <stddef.h>
+#include <cstddef>
 
 namespace lldb_private {
 class Status;
@@ -125,7 +125,7 @@ public:
   /// Subclasses must override this function.
   ///
   /// \param[in] dst
-  ///     A desination buffer that must be at least \a dst_len bytes
+  ///     A destination buffer that must be at least \a dst_len bytes
   ///     long.
   ///
   /// \param[in] dst_len
@@ -171,13 +171,14 @@ public:
   ///
   /// \return
   ///     The underlying IOObject used for reading.
-  virtual lldb::IOObjectSP GetReadObject() { return lldb::IOObjectSP(); }
+  virtual lldb::IOObjectSP GetReadObject() { return lldb::IOObjectSP(); };
 
 private:
   // For Connection only
-  DISALLOW_COPY_AND_ASSIGN(Connection);
+  Connection(const Connection &) = delete;
+  const Connection &operator=(const Connection &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Connection_h_
+#endif // LLDB_UTILITY_CONNECTION_H

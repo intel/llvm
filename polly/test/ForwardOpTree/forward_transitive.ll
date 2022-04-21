@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-optree -analyze < %s | FileCheck %s -match-full-lines
+; RUN: opt %loadPolly -polly-print-optree -disable-output < %s | FileCheck %s -match-full-lines
 ;
 ; Move %v and %val to %bodyB, so %bodyA can be removed (by -polly-simplify)
 ;
@@ -72,6 +72,6 @@ return:
 ; CHECK-NEXT:             Instructions {
 ; CHECK-NEXT:                   %val1 = fadd double 1.250000e+01, 1.250000e+01
 ; CHECK-NEXT:                   %val2 = fadd double %val1, 2.100000e+01
-; CHECK-NEXT:                   store double %val2, double* %A
+; CHECK-NEXT:                   store double %val2, double* %A, align 8
 ; CHECK-NEXT:             }
 ; CHECK-NEXT: }

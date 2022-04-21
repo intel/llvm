@@ -2119,9 +2119,9 @@
    <key>description</key><string>Potential leak of an object stored into &apos;value&apos;</string>
    <key>category</key><string>Memory (Core Foundation/Objective-C/OSObject)</string>
    <key>type</key><string>Leak</string>
-   <key>check_name</key><string>osx.cocoa.RetainCountBase</string>
+   <key>check_name</key><string>osx.cocoa.RetainCount</string>
    <!-- This hash is experimental and going to change! -->
-   <key>issue_hash_content_of_line_in_context</key><string>b2b15a95787e594ff79f02c600e9d357</string>
+   <key>issue_hash_content_of_line_in_context</key><string>29a10ca4af622b6146ca082e49d919d6</string>
   <key>issue_context_kind</key><string>function</string>
   <key>issue_context</key><string>rdar8331641</string>
   <key>issue_hash_function_offset</key><string>2</string>
@@ -2368,7 +2368,7 @@
     </dict>
    </array>
    <key>description</key><string>Value stored to &apos;x&apos; is never read</string>
-   <key>category</key><string>Dead store</string>
+   <key>category</key><string>Unused code</string>
    <key>type</key><string>Dead increment</string>
    <key>check_name</key><string>deadcode.DeadStores</string>
    <!-- This hash is experimental and going to change! -->
@@ -2710,6 +2710,34 @@
       </array>
     </dict>
     <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>146</integer>
+      <key>col</key><integer>8</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>146</integer>
+         <key>col</key><integer>8</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>146</integer>
+         <key>col</key><integer>8</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;i&apos; is not equal to 1</string>
+     <key>message</key>
+     <string>&apos;i&apos; is not equal to 1</string>
+    </dict>
+    <dict>
      <key>kind</key><string>control</string>
      <key>edges</key>
       <array>
@@ -2884,6 +2912,68 @@
           <dict>
            <key>line</key><integer>146</integer>
            <key>col</key><integer>5</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>146</integer>
+           <key>col</key><integer>8</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>146</integer>
+           <key>col</key><integer>8</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>146</integer>
+      <key>col</key><integer>8</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>146</integer>
+         <key>col</key><integer>8</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>146</integer>
+         <key>col</key><integer>8</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;i&apos; is equal to 1</string>
+     <key>message</key>
+     <string>&apos;i&apos; is equal to 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>146</integer>
+           <key>col</key><integer>8</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>146</integer>
+           <key>col</key><integer>8</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -3808,6 +3898,68 @@
         <key>end</key>
          <array>
           <dict>
+           <key>line</key><integer>178</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>178</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>178</integer>
+      <key>col</key><integer>9</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>178</integer>
+         <key>col</key><integer>9</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>178</integer>
+         <key>col</key><integer>9</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;i&apos; is equal to 0</string>
+     <key>message</key>
+     <string>&apos;i&apos; is equal to 0</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>178</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>178</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
            <key>line</key><integer>179</integer>
            <key>col</key><integer>7</integer>
            <key>file</key><integer>0</integer>
@@ -4002,6 +4154,68 @@
         <key>end</key>
          <array>
           <dict>
+           <key>line</key><integer>178</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>178</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>178</integer>
+      <key>col</key><integer>9</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>178</integer>
+         <key>col</key><integer>9</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>178</integer>
+         <key>col</key><integer>9</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;i&apos; is not equal to 0</string>
+     <key>message</key>
+     <string>&apos;i&apos; is not equal to 0</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>178</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>178</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
            <key>line</key><integer>181</integer>
            <key>col</key><integer>5</integer>
            <key>file</key><integer>0</integer>
@@ -4030,6 +4244,68 @@
           <dict>
            <key>line</key><integer>181</integer>
            <key>col</key><integer>6</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>181</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>181</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>181</integer>
+      <key>col</key><integer>9</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>181</integer>
+         <key>col</key><integer>9</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>181</integer>
+         <key>col</key><integer>9</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;i&apos; is equal to 1</string>
+     <key>message</key>
+     <string>&apos;i&apos; is equal to 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>181</integer>
+           <key>col</key><integer>9</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>181</integer>
+           <key>col</key><integer>9</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -7807,6 +8083,34 @@
       </array>
     </dict>
     <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>267</integer>
+      <key>col</key><integer>19</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>267</integer>
+         <key>col</key><integer>19</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>267</integer>
+         <key>col</key><integer>22</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;coin&apos; is 0</string>
+     <key>message</key>
+     <string>&apos;coin&apos; is 0</string>
+    </dict>
+    <dict>
      <key>kind</key><string>control</string>
      <key>edges</key>
       <array>
@@ -7815,12 +8119,12 @@
          <array>
           <dict>
            <key>line</key><integer>267</integer>
-           <key>col</key><integer>18</integer>
+           <key>col</key><integer>19</integer>
            <key>file</key><integer>0</integer>
           </dict>
           <dict>
            <key>line</key><integer>267</integer>
-           <key>col</key><integer>18</integer>
+           <key>col</key><integer>22</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -8659,6 +8963,34 @@
       </array>
     </dict>
     <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>285</integer>
+      <key>col</key><integer>12</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>285</integer>
+         <key>col</key><integer>12</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>285</integer>
+         <key>col</key><integer>12</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;z&apos; is 0</string>
+     <key>message</key>
+     <string>&apos;z&apos; is 0</string>
+    </dict>
+    <dict>
      <key>kind</key><string>control</string>
      <key>edges</key>
       <array>
@@ -8994,6 +9326,68 @@
           <dict>
            <key>line</key><integer>294</integer>
            <key>col</key><integer>4</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>294</integer>
+           <key>col</key><integer>7</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>294</integer>
+           <key>col</key><integer>7</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>294</integer>
+      <key>col</key><integer>7</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>294</integer>
+         <key>col</key><integer>7</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>294</integer>
+         <key>col</key><integer>7</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;y&apos; is null</string>
+     <key>message</key>
+     <string>&apos;y&apos; is null</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>294</integer>
+           <key>col</key><integer>7</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>294</integer>
+           <key>col</key><integer>7</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -10459,12 +10853,12 @@
      </array>
      <key>depth</key><integer>0</integer>
      <key>extended_message</key>
-     <string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter</string>
+     <string>Null pointer passed to 1st parameter expecting &apos;nonnull&apos;</string>
      <key>message</key>
-     <string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter</string>
+     <string>Null pointer passed to 1st parameter expecting &apos;nonnull&apos;</string>
     </dict>
    </array>
-   <key>description</key><string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter</string>
+   <key>description</key><string>Null pointer passed to 1st parameter expecting &apos;nonnull&apos;</string>
    <key>category</key><string>API</string>
    <key>type</key><string>Argument with &apos;nonnull&apos; attribute passed null</string>
    <key>check_name</key><string>core.NonNullParamChecker</string>
@@ -11015,7 +11409,7 @@
     </dict>
    </array>
    <key>description</key><string>Value stored to &apos;foo&apos; during its initialization is never read</string>
-   <key>category</key><string>Dead store</string>
+   <key>category</key><string>Unused code</string>
    <key>type</key><string>Dead initialization</string>
    <key>check_name</key><string>deadcode.DeadStores</string>
    <!-- This hash is experimental and going to change! -->
@@ -11218,9 +11612,9 @@
    <key>description</key><string>Potential leak of an object stored into &apos;foo&apos;</string>
    <key>category</key><string>Memory (Core Foundation/Objective-C/OSObject)</string>
    <key>type</key><string>Leak</string>
-   <key>check_name</key><string>osx.cocoa.RetainCountBase</string>
+   <key>check_name</key><string>osx.cocoa.RetainCount</string>
    <!-- This hash is experimental and going to change! -->
-   <key>issue_hash_content_of_line_in_context</key><string>ef342aeb2f2719117ddd4ef1b72f5ba7</string>
+   <key>issue_hash_content_of_line_in_context</key><string>f533db5cbb9c20d171f9f92105789dc4</string>
   <key>issue_context_kind</key><string>Objective-C method</string>
   <key>issue_context</key><string>test2</string>
   <key>issue_hash_function_offset</key><string>2</string>
@@ -11588,6 +11982,68 @@
         <key>end</key>
          <array>
           <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>457</integer>
+      <key>col</key><integer>10</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>10</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>14</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;first&apos; is 1</string>
+     <key>message</key>
+     <string>&apos;first&apos; is 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
            <key>line</key><integer>459</integer>
            <key>col</key><integer>5</integer>
            <key>file</key><integer>0</integer>
@@ -11781,6 +12237,68 @@
           <dict>
            <key>line</key><integer>457</integer>
            <key>col</key><integer>6</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>457</integer>
+      <key>col</key><integer>10</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>10</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>14</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;first&apos; is 0</string>
+     <key>message</key>
+     <string>&apos;first&apos; is 0</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -12046,6 +12564,68 @@
           <dict>
            <key>line</key><integer>457</integer>
            <key>col</key><integer>6</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>457</integer>
+      <key>col</key><integer>10</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>10</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>14</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;first&apos; is 1</string>
+     <key>message</key>
+     <string>&apos;first&apos; is 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -12541,6 +13121,68 @@
           <dict>
            <key>line</key><integer>457</integer>
            <key>col</key><integer>6</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>457</integer>
+      <key>col</key><integer>10</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>10</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>14</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;first&apos; is 1</string>
+     <key>message</key>
+     <string>&apos;first&apos; is 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -13103,6 +13745,68 @@
           <dict>
            <key>line</key><integer>457</integer>
            <key>col</key><integer>6</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>457</integer>
+      <key>col</key><integer>10</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>10</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>14</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;first&apos; is 1</string>
+     <key>message</key>
+     <string>&apos;first&apos; is 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -14584,6 +15288,68 @@
           <dict>
            <key>line</key><integer>457</integer>
            <key>col</key><integer>6</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>457</integer>
+      <key>col</key><integer>10</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>10</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>14</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;first&apos; is 1</string>
+     <key>message</key>
+     <string>&apos;first&apos; is 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -16192,6 +16958,68 @@
           <dict>
            <key>line</key><integer>457</integer>
            <key>col</key><integer>6</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>457</integer>
+      <key>col</key><integer>10</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>10</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>14</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;first&apos; is 1</string>
+     <key>message</key>
+     <string>&apos;first&apos; is 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -18025,6 +18853,68 @@
           <dict>
            <key>line</key><integer>457</integer>
            <key>col</key><integer>6</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>457</integer>
+      <key>col</key><integer>10</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>10</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>457</integer>
+         <key>col</key><integer>14</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>extended_message</key>
+     <string>&apos;first&apos; is 1</string>
+     <key>message</key>
+     <string>&apos;first&apos; is 1</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>10</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>457</integer>
+           <key>col</key><integer>14</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>
@@ -20938,6 +21828,35 @@
       </array>
     </dict>
     <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>566</integer>
+      <key>col</key><integer>3</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>566</integer>
+         <key>col</key><integer>3</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>566</integer>
+         <key>col</key><integer>11</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>&apos;garply&apos; initialized here</string>
+     <key>message</key>
+     <string>&apos;garply&apos; initialized here</string>
+    </dict>
+    <dict>
      <key>kind</key><string>control</string>
      <key>edges</key>
       <array>
@@ -21056,17 +21975,17 @@
      </dict>
      <key>depth</key><integer>0</integer>
      <key>extended_message</key>
-     <string>Object leaked: object allocated and stored into &apos;foo&apos; is not referenced later in this execution path and has a retain count of +1</string>
+     <string>Object leaked: object allocated and stored into &apos;garply&apos; is not referenced later in this execution path and has a retain count of +1</string>
      <key>message</key>
-     <string>Object leaked: object allocated and stored into &apos;foo&apos; is not referenced later in this execution path and has a retain count of +1</string>
+     <string>Object leaked: object allocated and stored into &apos;garply&apos; is not referenced later in this execution path and has a retain count of +1</string>
     </dict>
    </array>
-   <key>description</key><string>Potential leak of an object stored into &apos;foo&apos;</string>
+   <key>description</key><string>Potential leak of an object stored into &apos;garply&apos;</string>
    <key>category</key><string>Memory (Core Foundation/Objective-C/OSObject)</string>
    <key>type</key><string>Leak</string>
-   <key>check_name</key><string>osx.cocoa.RetainCountBase</string>
+   <key>check_name</key><string>osx.cocoa.RetainCount</string>
    <!-- This hash is experimental and going to change! -->
-   <key>issue_hash_content_of_line_in_context</key><string>f81f51dd154d0a11cab412a1cd1cd095</string>
+   <key>issue_hash_content_of_line_in_context</key><string>5616a7601faa1a8c2ac56fa1b595b172</string>
   <key>issue_context_kind</key><string>function</string>
   <key>issue_context</key><string>longLines</string>
   <key>issue_hash_function_offset</key><string>1</string>
@@ -21334,6 +22253,87 @@
           <dict>
            <key>line</key><integer>587</integer>
            <key>col</key><integer>8</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>587</integer>
+           <key>col</key><integer>11</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>587</integer>
+           <key>col</key><integer>11</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>587</integer>
+           <key>col</key><integer>11</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>587</integer>
+           <key>col</key><integer>11</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+        <key>end</key>
+         <array>
+          <dict>
+           <key>line</key><integer>587</integer>
+           <key>col</key><integer>11</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>587</integer>
+           <key>col</key><integer>11</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+         </array>
+       </dict>
+      </array>
+    </dict>
+    <dict>
+     <key>kind</key><string>pop-up</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>587</integer>
+      <key>col</key><integer>11</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>extended_message</key>
+     <string>Field &apos;b&apos; is equal to 2</string>
+     <key>message</key>
+     <string>Field &apos;b&apos; is equal to 2</string>
+    </dict>
+    <dict>
+     <key>kind</key><string>control</string>
+     <key>edges</key>
+      <array>
+       <dict>
+        <key>start</key>
+         <array>
+          <dict>
+           <key>line</key><integer>587</integer>
+           <key>col</key><integer>11</integer>
+           <key>file</key><integer>0</integer>
+          </dict>
+          <dict>
+           <key>line</key><integer>587</integer>
+           <key>col</key><integer>11</integer>
            <key>file</key><integer>0</integer>
           </dict>
          </array>

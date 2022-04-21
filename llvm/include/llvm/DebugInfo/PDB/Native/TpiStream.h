@@ -6,28 +6,29 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEBUGINFO_PDB_RAW_PDBTPISTREAM_H
-#define LLVM_DEBUGINFO_PDB_RAW_PDBTPISTREAM_H
+#ifndef LLVM_DEBUGINFO_PDB_NATIVE_TPISTREAM_H
+#define LLVM_DEBUGINFO_PDB_NATIVE_TPISTREAM_H
 
-#include "llvm/DebugInfo/CodeView/TypeRecord.h"
+#include "llvm/DebugInfo/CodeView/CVRecord.h"
 #include "llvm/DebugInfo/PDB/Native/HashTable.h"
 #include "llvm/DebugInfo/PDB/Native/RawConstants.h"
-#include "llvm/DebugInfo/PDB/Native/RawTypes.h"
-#include "llvm/DebugInfo/PDB/PDBTypes.h"
 #include "llvm/Support/BinaryStreamArray.h"
 #include "llvm/Support/BinaryStreamRef.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include "llvm/Support/Error.h"
 
 namespace llvm {
+class BinaryStream;
 namespace codeview {
+class TypeIndex;
+struct TypeIndexOffset;
 class LazyRandomTypeCollection;
 }
 namespace msf {
 class MappedBlockStream;
 }
 namespace pdb {
+struct TpiStreamHeader;
 class PDBFile;
 
 class TpiStream {

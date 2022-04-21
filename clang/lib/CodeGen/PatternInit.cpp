@@ -8,6 +8,7 @@
 
 #include "PatternInit.h"
 #include "CodeGenModule.h"
+#include "clang/Basic/TargetInfo.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Type.h"
 
@@ -17,12 +18,13 @@ llvm::Constant *clang::CodeGen::initializationPatternFor(CodeGenModule &CGM,
   // repeated byte-pattern which makes it easier to synthesize. We use it for
   // pointers as well as integers so that aggregates are likely to be
   // initialized with this repeated value.
-  constexpr uint64_t LargeValue = 0xAAAAAAAAAAAAAAAAull;
   // For 32-bit platforms it's a bit trickier because, across systems, only the
-  // zero page can reasonably be expected to be unmapped, and even then we need
-  // a very low address. We use a smaller value, and that value sadly doesn't
-  // have a repeated byte-pattern. We don't use it for integers.
-  constexpr uint32_t SmallValue = 0x000000AA;
+  // zero page can reasonably be expected to be unmapped. We use max 0xFFFFFFFF
+  // assuming that memory access will overlap into zero page.
+  const uint64_t IntValue =
+      CGM.getContext().getTargetInfo().getMaxPointerWidth() < 64
+          ? 0xFFFFFFFFFFFFFFFFull
+          : 0xAAAAAAAAAAAAAAAAull;
   // Floating-point values are initialized as NaNs because they propagate. Using
   // a repeated byte pattern means that it will be easier to initialize
   // all-floating-point aggregates and arrays with memset. Further, aggregates
@@ -32,38 +34,26 @@ llvm::Constant *clang::CodeGen::initializationPatternFor(CodeGenModule &CGM,
   constexpr bool NegativeNaN = true;
   constexpr uint64_t NaNPayload = 0xFFFFFFFFFFFFFFFFull;
   if (Ty->isIntOrIntVectorTy()) {
-    unsigned BitWidth = cast<llvm::IntegerType>(
-                            Ty->isVectorTy() ? Ty->getVectorElementType() : Ty)
-                            ->getBitWidth();
+    unsigned BitWidth =
+        cast<llvm::IntegerType>(Ty->getScalarType())->getBitWidth();
     if (BitWidth <= 64)
-      return llvm::ConstantInt::get(Ty, LargeValue);
+      return llvm::ConstantInt::get(Ty, IntValue);
     return llvm::ConstantInt::get(
-        Ty, llvm::APInt::getSplat(BitWidth, llvm::APInt(64, LargeValue)));
+        Ty, llvm::APInt::getSplat(BitWidth, llvm::APInt(64, IntValue)));
   }
   if (Ty->isPtrOrPtrVectorTy()) {
-    auto *PtrTy = cast<llvm::PointerType>(
-        Ty->isVectorTy() ? Ty->getVectorElementType() : Ty);
+    auto *PtrTy = cast<llvm::PointerType>(Ty->getScalarType());
     unsigned PtrWidth = CGM.getContext().getTargetInfo().getPointerWidth(
         PtrTy->getAddressSpace());
-    llvm::Type *IntTy = llvm::IntegerType::get(CGM.getLLVMContext(), PtrWidth);
-    uint64_t IntValue;
-    switch (PtrWidth) {
-    default:
+    if (PtrWidth > 64)
       llvm_unreachable("pattern initialization of unsupported pointer width");
-    case 64:
-      IntValue = LargeValue;
-      break;
-    case 32:
-      IntValue = SmallValue;
-      break;
-    }
+    llvm::Type *IntTy = llvm::IntegerType::get(CGM.getLLVMContext(), PtrWidth);
     auto *Int = llvm::ConstantInt::get(IntTy, IntValue);
     return llvm::ConstantExpr::getIntToPtr(Int, PtrTy);
   }
   if (Ty->isFPOrFPVectorTy()) {
     unsigned BitWidth = llvm::APFloat::semanticsSizeInBits(
-        (Ty->isVectorTy() ? Ty->getVectorElementType() : Ty)
-            ->getFltSemantics());
+        Ty->getScalarType()->getFltSemantics());
     llvm::APInt Payload(64, NaNPayload);
     if (BitWidth >= 64)
       Payload = llvm::APInt::getSplat(BitWidth, Payload);

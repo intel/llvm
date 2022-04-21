@@ -1,0 +1,78 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.rev.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPV-BACK
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+
+; CHECK-LABEL: spir_kernel void @test
+
+; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(i8 addrspace(2)* {{.*}})
+; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(i8 addrspace(2)* {{.*}}, i32 1)
+
+; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(i8 addrspace(2)*)
+; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(i8 addrspace(2)*, i32)
+
+; CHECK-CL20: call spir_func i32 (i8 addrspace(2)*, ...) @printf(i8 addrspace(2)* {{.*}})
+; CHECK-CL20: call spir_func i32 (i8 addrspace(2)*, ...) @printf(i8 addrspace(2)* {{.*}}, i32 1) 
+
+; CHECK-CL20: declare spir_func i32 @printf(i8 addrspace(2)*, ...)
+
+; CHECK-SPV-BACK: ExtInstImport [[Set:[0-9]+]] "OpenCL.std"
+; CHECK-SPV-BACK: TypeInt [[Int8:[0-9]+]] 8
+; CHECK-SPV-BACK: TypeInt [[Int32:[0-9]+]] 32
+; CHECK-SPV-BACK: Constant [[Int32]] [[One:[0-9]+]] 1{{[[:space:]]}}
+; CHECK-SPV-BACK: TypePointer [[Int8PtrTy:[0-9]+]] 0 [[Int8]]{{[[:space:]]}}
+; CHECK-SPV-BACK: InBoundsPtrAccessChain [[Int8PtrTy]] [[Int8Ptr:[0-9]+]]
+; CHECK-SPV-BACK: ExtInst [[Int32]] {{[0-9]+}} [[Set]] printf [[Int8Ptr]]
+; CHECK-SPV-BACK: InBoundsPtrAccessChain [[Int8PtrTy]] [[Int8Ptr2:[0-9]+]]
+; CHECK-SPV-BACK: ExtInst [[Int32]] {{[0-9]+}} [[Set]] printf [[Int8Ptr2]] [[One]]
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Int8
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %26 "test"
+         %35 = OpString "kernel_arg_type.test."
+               OpSource OpenCL_C 200000
+               OpDecorate %_str Constant
+               OpDecorate %_str_1 Constant
+               OpDecorate %_str Alignment 1
+               OpDecorate %_str_1 Alignment 1
+      %uchar = OpTypeInt 8 0
+       %uint = OpTypeInt 32 0
+   %uchar_84 = OpConstant %uchar 84
+  %uchar_101 = OpConstant %uchar 101
+  %uchar_115 = OpConstant %uchar 115
+  %uchar_116 = OpConstant %uchar 116
+   %uchar_10 = OpConstant %uchar 10
+    %uchar_0 = OpConstant %uchar 0
+     %uint_6 = OpConstant %uint 6
+   %uchar_58 = OpConstant %uchar 58
+   %uchar_32 = OpConstant %uchar 32
+   %uchar_37 = OpConstant %uchar 37
+  %uchar_100 = OpConstant %uchar 100
+    %uint_10 = OpConstant %uint 10
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+%_arr_uchar_uint_6 = OpTypeArray %uchar %uint_6
+%_ptr_UniformConstant__arr_uchar_uint_6 = OpTypePointer UniformConstant %_arr_uchar_uint_6
+%_arr_uchar_uint_10 = OpTypeArray %uchar %uint_10
+%_ptr_UniformConstant__arr_uchar_uint_10 = OpTypePointer UniformConstant %_arr_uchar_uint_10
+       %void = OpTypeVoid
+         %25 = OpTypeFunction %void
+%_ptr_UniformConstant_uchar = OpTypePointer UniformConstant %uchar
+         %12 = OpConstantComposite %_arr_uchar_uint_6 %uchar_84 %uchar_101 %uchar_115 %uchar_116 %uchar_10 %uchar_0
+       %_str = OpVariable %_ptr_UniformConstant__arr_uchar_uint_6 UniformConstant %12
+         %21 = OpConstantComposite %_arr_uchar_uint_10 %uchar_84 %uchar_101 %uchar_115 %uchar_116 %uchar_58 %uchar_32 %uchar_37 %uchar_100 %uchar_10 %uchar_0
+     %_str_1 = OpVariable %_ptr_UniformConstant__arr_uchar_uint_10 UniformConstant %21
+         %26 = OpFunction %void None %25
+      %entry = OpLabel
+         %30 = OpInBoundsPtrAccessChain %_ptr_UniformConstant_uchar %_str %uint_0 %uint_0
+       %call = OpExtInst %uint %1 printf %30
+         %32 = OpInBoundsPtrAccessChain %_ptr_UniformConstant_uchar %_str_1 %uint_0 %uint_0
+      %call1 = OpExtInst %uint %1 printf %32 %uint_1
+               OpReturn
+               OpFunctionEnd

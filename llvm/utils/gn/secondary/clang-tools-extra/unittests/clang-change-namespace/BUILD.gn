@@ -21,7 +21,5 @@ unittest("ClangChangeNamespaceTests") {
     # We'd like clang/unittests/Tooling/RewriterTestContext.h in the test.
     "//clang",
   ]
-  sources = [
-    "ChangeNamespaceTests.cpp",
-  ]
+  sources = [ "ChangeNamespaceTests.cpp" ]
 }

@@ -15,6 +15,8 @@
 #include <valarray>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     {
@@ -23,11 +25,6 @@ int main(int, char**)
         const unsigned N1 = sizeof(a1)/sizeof(a1[0]);
         std::valarray<T> v1(a1, N1);
         assert(v1.min() == -3.0);
-    }
-    {
-        typedef double T;
-        std::valarray<T> v1;
-        v1.min();
     }
     {
         typedef double T;

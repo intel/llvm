@@ -6,17 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 #include "Annotations.h"
-#include "ClangdUnit.h"
-#include "Compiler.h"
-#include "Matchers.h"
-#include "SyncAPI.h"
-#include "TestFS.h"
+#include "ParsedAST.h"
 #include "TestTU.h"
 #include "XRefs.h"
-#include "index/FileIndex.h"
-#include "index/SymbolCollector.h"
-#include "clang/Index/IndexingAction.h"
-#include "llvm/Support/Path.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -24,12 +16,12 @@ namespace clang {
 namespace clangd {
 namespace {
 
-using ::testing::ElementsAreArray;
+using ::testing::UnorderedElementsAreArray;
 
-auto CreateExpectedSymbolDetails = [](const std::string &name,
-                                      const std::string &container,
+auto CreateExpectedSymbolDetails = [](const std::string &Name,
+                                      const std::string &Container,
                                       const std::string &USR) {
-  return SymbolDetails{name, container, USR, SymbolID(USR)};
+  return SymbolDetails{Name, Container, USR, SymbolID(USR)};
 };
 
 TEST(SymbolInfoTests, All) {
@@ -138,12 +130,15 @@ TEST(SymbolInfoTests, All) {
                                            "c:TestTU.cpp@38@F@bar#I#@aaa")}},
           {
               R"cpp( // Lambda capture
-          int ii;
-          auto lam = [ii]() {
-            return i^i;
-          };
+          void foo() {
+            int ii;
+            auto lam = [ii]() {
+              return i^i;
+            };
+          }
         )cpp",
-              {CreateExpectedSymbolDetails("ii", "", "c:@ii")}},
+              {CreateExpectedSymbolDetails("ii", "foo",
+                                           "c:TestTU.cpp@54@F@foo#@ii")}},
           {
               R"cpp( // Macro reference
           #define MACRO 5\nint i = MAC^RO;
@@ -196,7 +191,7 @@ TEST(SymbolInfoTests, All) {
         )cpp",
               {CreateExpectedSymbolDetails("foo", "", "c:@S@foo")}},
           {
-              R"cpp( // Type Reference - template argumen
+              R"cpp( // Type Reference - template argument
           struct foo {};
           template<class T> struct bar {};
           void baz() {
@@ -305,7 +300,7 @@ TEST(SymbolInfoTests, All) {
               {CreateExpectedSymbolDetails("bar", "foo",
                                            "c:TestTU.cpp@50@F@foo#I#@bar")}},
           {
-              R"cpp( // Type inferrence with auto keyword
+              R"cpp( // Type inference with auto keyword
           struct foo {};
           foo getfoo() { return foo{}; }
           void f() {
@@ -329,7 +324,7 @@ TEST(SymbolInfoTests, All) {
     auto AST = TestTU::withCode(TestInput.code()).build();
 
     EXPECT_THAT(getSymbolInfo(AST, TestInput.point()),
-                ElementsAreArray(T.second))
+                UnorderedElementsAreArray(T.second))
         << T.first;
   }
 }

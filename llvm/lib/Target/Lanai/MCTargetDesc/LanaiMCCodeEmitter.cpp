@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Lanai.h"
+#include "LanaiAluCode.h"
 #include "MCTargetDesc/LanaiBaseInfo.h"
 #include "MCTargetDesc/LanaiFixupKinds.h"
 #include "MCTargetDesc/LanaiMCExpr.h"
@@ -304,7 +304,6 @@ unsigned LanaiMCCodeEmitter::getBranchTargetOpValue(
 
 llvm::MCCodeEmitter *
 llvm::createLanaiMCCodeEmitter(const MCInstrInfo &InstrInfo,
-                               const MCRegisterInfo & /*MRI*/,
                                MCContext &context) {
   return new LanaiMCCodeEmitter(InstrInfo, context);
 }

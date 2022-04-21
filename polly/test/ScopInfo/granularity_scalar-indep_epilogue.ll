@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-stmt-granularity=scalar-indep -polly-print-instructions -polly-scops -analyze < %s | FileCheck %s -match-full-lines
+; RUN: opt %loadPolly -polly-stmt-granularity=scalar-indep -polly-print-instructions -polly-print-scops -disable-output < %s | FileCheck %s -match-full-lines
 ;
 ; Split a block into two independent statements that share no scalar.
 ; This case has an independent statement just for PHI writes.
@@ -53,8 +53,8 @@ return:
 ; CHECK-NEXT:         MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 0]
 ; CHECK-NEXT:             [n] -> { Stmt_bodyA[i0] -> MemRef_A[0] };
 ; CHECK-NEXT:         Instructions {
-; CHECK-NEXT:             %valA = load double, double* %A
-; CHECK-NEXT:             store double %valA, double* %A
+; CHECK-NEXT:             %valA = load double, double* %A, align 8
+; CHECK-NEXT:             store double %valA, double* %A, align 8
 ; CHECK-NEXT:         }
 ; CHECK-NEXT:     Stmt_bodyA_last
 ; CHECK-NEXT:         Domain :=

@@ -14,10 +14,12 @@
 // template <class T>
 // using unwrap_reference_t = typename unwrap_reference<T>::type;
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 #include <functional>
 #include <type_traits>
+
+#include "test_macros.h"
 
 
 template <typename T, typename Expected>

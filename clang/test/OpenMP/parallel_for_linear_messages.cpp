@@ -1,8 +1,16 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
+
+void xxx(int argc) {
+  int i, lin, step; // expected-note {{initialize the variable 'lin' to silence this warning}} expected-note {{initialize the variable 'step' to silence this warning}}
+#pragma omp parallel for linear(lin : step) // expected-warning {{variable 'lin' is uninitialized when used here}} expected-warning {{variable 'step' is uninitialized when used here}}
+  for (i = 0; i < 10; ++i)
+    ;
+}
+
 namespace X {
 int x;
 };
@@ -120,7 +128,7 @@ template <class I, class C>
 int foomain(I argc, C **argv) {
   I e(4);
   I g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp parallel for linear // expected-error {{expected '(' after 'linear'}}
   for (int k = 0; k < argc; ++k)
@@ -140,7 +148,7 @@ int foomain(I argc, C **argv) {
 #pragma omp parallel for linear(argc > 0 ? argv[1] : argv[2]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp parallel for linear(argc : 5)
+#pragma omp parallel for linear(argc, z : 5)
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel for linear(S1) // expected-error {{'S1' does not refer to a value}}
@@ -205,7 +213,7 @@ int main(int argc, char **argv) {
 
   S4 e(4); // expected-note {{'e' defined here}}
   S5 g(5); // expected-note {{'g' defined here}}
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp parallel for linear // expected-error {{expected '(' after 'linear'}}
   for (int k = 0; k < argc; ++k)
@@ -225,7 +233,7 @@ int main(int argc, char **argv) {
 #pragma omp parallel for linear(argc > 0 ? argv[1] : argv[2]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp parallel for linear(argc)
+#pragma omp parallel for linear(argc, z)
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel for linear(S1) // expected-error {{'S1' does not refer to a value}}

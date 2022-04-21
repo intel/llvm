@@ -21,8 +21,8 @@
  */
 uint64_t __llvm_profile_get_size_for_buffer_internal(
     const __llvm_profile_data *DataBegin, const __llvm_profile_data *DataEnd,
-    const uint64_t *CountersBegin, const uint64_t *CountersEnd,
-    const char *NamesBegin, const char *NamesEnd);
+    const char *CountersBegin, const char *CountersEnd, const char *NamesBegin,
+    const char *NamesEnd);
 
 /*!
  * \brief Write instrumentation data to the given buffer, given explicit
@@ -35,17 +35,24 @@ uint64_t __llvm_profile_get_size_for_buffer_internal(
  */
 int __llvm_profile_write_buffer_internal(
     char *Buffer, const __llvm_profile_data *DataBegin,
-    const __llvm_profile_data *DataEnd, const uint64_t *CountersBegin,
-    const uint64_t *CountersEnd, const char *NamesBegin, const char *NamesEnd);
+    const __llvm_profile_data *DataEnd, const char *CountersBegin,
+    const char *CountersEnd, const char *NamesBegin, const char *NamesEnd);
 
 /*!
  * The data structure describing the data to be written by the
  * low level writer callback function.
+ *
+ * If \ref ProfDataIOVec.Data is null, and \ref ProfDataIOVec.UseZeroPadding is
+ * 0, the write is skipped (the writer simply advances ElmSize*NumElm bytes).
+ *
+ * If \ref ProfDataIOVec.Data is null, and \ref ProfDataIOVec.UseZeroPadding is
+ * nonzero, ElmSize*NumElm zero bytes are written.
  */
 typedef struct ProfDataIOVec {
   const void *Data;
   size_t ElmSize;
   size_t NumElm;
+  int UseZeroPadding;
 } ProfDataIOVec;
 
 struct ProfDataWriter;
@@ -138,15 +145,14 @@ typedef struct VPDataReaderType {
                                         uint32_t N);
 } VPDataReaderType;
 
-/* Write profile data to destinitation. If SkipNameDataWrite is set to 1,
-   the name data is already in destintation, we just skip over it. */
+/* Write profile data to destination. If SkipNameDataWrite is set to 1,
+   the name data is already in destination, we just skip over it. */
 int lprofWriteData(ProfDataWriter *Writer, VPDataReaderType *VPDataReader,
                    int SkipNameDataWrite);
 int lprofWriteDataImpl(ProfDataWriter *Writer,
                        const __llvm_profile_data *DataBegin,
                        const __llvm_profile_data *DataEnd,
-                       const uint64_t *CountersBegin,
-                       const uint64_t *CountersEnd,
+                       const char *CountersBegin, const char *CountersEnd,
                        VPDataReaderType *VPDataReader, const char *NamesBegin,
                        const char *NamesEnd, int SkipNameDataWrite);
 
@@ -174,8 +180,8 @@ uint64_t lprofGetLoadModuleSignature();
  * Return non zero value if the profile data has already been
  * dumped to the file.
  */
-unsigned lprofProfileDumped();
-void lprofSetProfileDumped();
+unsigned lprofProfileDumped(void);
+void lprofSetProfileDumped(unsigned);
 
 COMPILER_RT_VISIBILITY extern void (*FreeHook)(void *);
 COMPILER_RT_VISIBILITY extern uint8_t *DynamicBufferIOBuffer;
@@ -185,5 +191,11 @@ COMPILER_RT_VISIBILITY extern uint32_t VPMaxNumValsPerSite;
 COMPILER_RT_VISIBILITY extern ValueProfNode *CurrentVNode;
 COMPILER_RT_VISIBILITY extern ValueProfNode *EndVNode;
 extern void (*VPMergeHook)(struct ValueProfData *, __llvm_profile_data *);
+
+/*
+ * Write binary ids into profiles if writer is given.
+ * Return -1 if an error occurs, otherwise, return total size of binary ids.
+ */
+int __llvm_write_binary_ids(ProfDataWriter *Writer);
 
 #endif

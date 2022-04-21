@@ -1,8 +1,8 @@
 // REQUIRES: arm
 // RUN: llvm-mc -filetype=obj --arm-add-build-attributes -triple=armv7a-none-linux-gnueabi %s -o %t
 // RUN: ld.lld %t -o %t2
-// RUN: llvm-objdump -d -triple=armv7a-none-linux-gnueabi %t2 | FileCheck %s
-// RUN: llvm-objdump -s -triple=armv7a-none-linux-gnueabi %t2 | FileCheck -check-prefix=CHECK-EXIDX %s
+// RUN: llvm-objdump -d --triple=armv7a-none-linux-gnueabi --no-show-raw-insn %t2 | FileCheck %s
+// RUN: llvm-objdump -s --triple=armv7a-none-linux-gnueabi %t2 | FileCheck --check-prefix=CHECK-EXIDX %s
 // RUN: llvm-readobj --program-headers --sections %t2 | FileCheck -check-prefix=CHECK-PT %s
 
 // Test that inline unwinding table entries and references to .ARM.extab
@@ -54,27 +54,27 @@ _start:
 
 // CHECK: Disassembly of section .text:
 // CHECK-EMPTY:
-// CHECK-NEXT: _start:
-// CHECK-NEXT:    11000:       01 00 00 eb     bl      #4 <func1>
-// CHECK-NEXT:    11004:       01 00 00 eb     bl      #4 <func2>
-// CHECK-NEXT:    11008:       1e ff 2f e1     bx      lr
-// CHECK:      func1:
-// CHECK-NEXT:    1100c:       1e ff 2f e1     bx      lr
-// CHECK:      func2:
-// CHECK-NEXT:    11010:       1e ff 2f e1     bx      lr
-// CHECK:      __gxx_personality_v0:
-// CHECK-NEXT:    11014:       1e ff 2f e1     bx      lr
-// CHECK:      __aeabi_unwind_cpp_pr0:
-// CHECK-NEXT:    11018:       1e ff 2f e1     bx      lr
+// CHECK-NEXT: <_start>:
+// CHECK-NEXT:    20108:       bl      0x20114 <func1>
+// CHECK-NEXT:                 bl      0x20118 <func2>
+// CHECK-NEXT:                 bx      lr
+// CHECK:      <func1>:
+// CHECK-NEXT:    20114:       bx      lr
+// CHECK:      <func2>:
+// CHECK-NEXT:    20118:       bx      lr
+// CHECK:      <__gxx_personality_v0>:
+// CHECK-NEXT:    2011c:       bx      lr
+// CHECK:      <__aeabi_unwind_cpp_pr0>:
+// CHECK-NEXT:    20120:       bx      lr
 
-// 100d4 + f2c = 11000 = main (linker generated cantunwind)
-// 100dc + f30 = 1100c = func1 (inline unwinding data)
-// CHECK-EXIDX:      100d4 2c0f0000 01000000 300f0000 08849780
-// 100e4 + f2c = 11010 = func2 (100e8 + 14 = 100fc = .ARM.extab entry)
-// 100ec + f28 = 11014 = __gcc_personality_v0 (linker generated cantunwind)
-// CHECK-EXIDX-NEXT: 100e4 2c0f0000 14000000 280f0000 01000000
-// 100f4 + f28 = 1101c = sentinel
-// CHECK-EXIDX-NEXT: 100f4 280f0000 01000000
+/// 100d4 + 0x10034 = 0x20108 = main (linker generated cantunwind)
+/// 100dc + 0x10038 = 0x20114 = func1 (inline unwinding data)
+// CHECK-EXIDX:      100d4 34000100 01000000 38000100 08849780
+/// 100e4 + 0x10034 = 0x20118 = func2 (100e8 + 14 = 100fc = .ARM.extab entry)
+/// 100ec + 0x10030 = 0x2011c = __gxx_personality_v0 (linker generated cantunwind)
+// CHECK-EXIDX-NEXT: 100e4 34000100 14000000 30000100 01000000
+/// 100f4 + 0x10030 = 1101c = sentinel
+// CHECK-EXIDX-NEXT: 100f4 30000100 01000000
 
 // CHECK-PT:          Name: .ARM.exidx
 // CHECK-PT-NEXT:     Type: SHT_ARM_EXIDX (0x70000001)

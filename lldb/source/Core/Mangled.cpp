@@ -1,4 +1,4 @@
-//===-- Mangled.cpp ---------------------------------------------*- C++ -*-===//
+//===-- Mangled.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,24 +8,16 @@
 
 #include "lldb/Core/Mangled.h"
 
-#if defined(_WIN32)
-#include "lldb/Host/windows/windows.h"
-
-#include <dbghelp.h>
-#pragma comment(lib, "dbghelp.lib")
-#endif
-
+#include "lldb/Core/DataFileCache.h"
 #include "lldb/Core/RichManglingContext.h"
+#include "lldb/Target/Language.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/DataEncoder.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Logging.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
-#include "lldb/Utility/Timer.h"
 #include "lldb/lldb-enumerations.h"
-
-#include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
-#include "Plugins/Language/ObjC/ObjCLanguage.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Demangle/Demangle.h"
@@ -35,109 +27,37 @@
 #include <string>
 #include <utility>
 
-#include <stdlib.h>
-#include <string.h>
+#include <cstdlib>
+#include <cstring>
 using namespace lldb_private;
 
-#if defined(_MSC_VER)
-static DWORD safeUndecorateName(const char *Mangled, char *Demangled,
-                                DWORD DemangledLength) {
-  static std::mutex M;
-  std::lock_guard<std::mutex> Lock(M);
-  return ::UnDecorateSymbolName(
-      Mangled, Demangled, DemangledLength,
-      UNDNAME_NO_ACCESS_SPECIFIERS |       // Strip public, private, protected
-                                           // keywords
-          UNDNAME_NO_ALLOCATION_LANGUAGE | // Strip __thiscall, __stdcall,
-                                           // etc keywords
-          UNDNAME_NO_THROW_SIGNATURES |    // Strip throw() specifications
-          UNDNAME_NO_MEMBER_TYPE |         // Strip virtual, static, etc
-                                           // specifiers
-          UNDNAME_NO_MS_KEYWORDS           // Strip all MS extension keywords
-      );
-}
-#endif
-
-static inline Mangled::ManglingScheme cstring_mangling_scheme(const char *s) {
-  if (s) {
-    if (s[0] == '?')
-      return Mangled::eManglingSchemeMSVC;
-    if (s[0] == '_' && s[1] == 'Z')
-      return Mangled::eManglingSchemeItanium;
-  }
-  return Mangled::eManglingSchemeNone;
-}
-
-static inline bool cstring_is_mangled(const char *s) {
-  return cstring_mangling_scheme(s) != Mangled::eManglingSchemeNone;
-}
-
-static ConstString 
-get_demangled_name_without_arguments(ConstString mangled,
-                                     ConstString demangled) {
-  // This pair is <mangled name, demangled name without function arguments>
-  static std::pair<ConstString, ConstString>
-      g_most_recent_mangled_to_name_sans_args;
-
-  // Need to have the mangled & demangled names we're currently examining as
-  // statics so we can return a const ref to them at the end of the func if we
-  // don't have anything better.
-  static ConstString g_last_mangled;
-  static ConstString g_last_demangled;
-
-  if (mangled && g_most_recent_mangled_to_name_sans_args.first == mangled) {
-    return g_most_recent_mangled_to_name_sans_args.second;
-  }
-
-  g_last_demangled = demangled;
-  g_last_mangled = mangled;
-
-  const char *mangled_name_cstr = mangled.GetCString();
-
-  if (demangled && mangled_name_cstr && mangled_name_cstr[0]) {
-    if (mangled_name_cstr[0] == '_' && mangled_name_cstr[1] == 'Z' &&
-        (mangled_name_cstr[2] != 'T' && // avoid virtual table, VTT structure,
-                                        // typeinfo structure, and typeinfo
-                                        // mangled_name
-         mangled_name_cstr[2] != 'G' && // avoid guard variables
-         mangled_name_cstr[2] != 'Z')) // named local entities (if we eventually
-                                       // handle eSymbolTypeData, we will want
-                                       // this back)
-    {
-      CPlusPlusLanguage::MethodName cxx_method(demangled);
-      if (!cxx_method.GetBasename().empty()) {
-        std::string shortname;
-        if (!cxx_method.GetContext().empty())
-          shortname = cxx_method.GetContext().str() + "::";
-        shortname += cxx_method.GetBasename().str();
-        ConstString result(shortname.c_str());
-        g_most_recent_mangled_to_name_sans_args.first = mangled;
-        g_most_recent_mangled_to_name_sans_args.second = result;
-        return g_most_recent_mangled_to_name_sans_args.second;
-      }
-    }
-  }
-
-  if (demangled)
-    return g_last_demangled;
-  return g_last_mangled;
+static inline bool cstring_is_mangled(llvm::StringRef s) {
+  return Mangled::GetManglingScheme(s) != Mangled::eManglingSchemeNone;
 }
 
 #pragma mark Mangled
-// Default constructor
-Mangled::Mangled() : m_mangled(), m_demangled() {}
 
-// Constructor with an optional string and a boolean indicating if it is the
-// mangled version.
-Mangled::Mangled(ConstString s, bool mangled)
-    : m_mangled(), m_demangled() {
-  if (s)
-    SetValue(s, mangled);
-}
+Mangled::ManglingScheme Mangled::GetManglingScheme(llvm::StringRef const name) {
+  if (name.empty())
+    return Mangled::eManglingSchemeNone;
 
-Mangled::Mangled(llvm::StringRef name, bool is_mangled) {
-  if (!name.empty())
-    SetValue(ConstString(name), is_mangled);
+  if (name.startswith("?"))
+    return Mangled::eManglingSchemeMSVC;
+
+  if (name.startswith("_R"))
+    return Mangled::eManglingSchemeRustV0;
+
+  if (name.startswith("_D"))
+    return Mangled::eManglingSchemeD;
+
+  if (name.startswith("_Z"))
+    return Mangled::eManglingSchemeItanium;
+
+  // ___Z is a clang extension of block invocations
+  if (name.startswith("___Z"))
+    return Mangled::eManglingSchemeItanium;
+
+  return Mangled::eManglingSchemeNone;
 }
 
 Mangled::Mangled(ConstString s) : m_mangled(), m_demangled() {
@@ -150,26 +70,13 @@ Mangled::Mangled(llvm::StringRef name) {
     SetValue(ConstString(name));
 }
 
-// Destructor
-Mangled::~Mangled() {}
-
-// Convert to pointer operator. This allows code to check any Mangled objects
+// Convert to bool operator. This allows code to check any Mangled objects
 // to see if they contain anything valid using code such as:
 //
 //  Mangled mangled(...);
 //  if (mangled)
 //  { ...
-Mangled::operator void *() const {
-  return (m_mangled) ? const_cast<Mangled *>(this) : NULL;
-}
-
-// Logical NOT operator. This allows code to check any Mangled objects to see
-// if they are invalid using code such as:
-//
-//  Mangled mangled(...);
-//  if (!file_spec)
-//  { ...
-bool Mangled::operator!() const { return !m_mangled; }
+Mangled::operator bool() const { return m_mangled || m_demangled; }
 
 // Clear the mangled and demangled values.
 void Mangled::Clear() {
@@ -179,9 +86,8 @@ void Mangled::Clear() {
 
 // Compare the string values.
 int Mangled::Compare(const Mangled &a, const Mangled &b) {
-  return ConstString::Compare(
-      a.GetName(lldb::eLanguageTypeUnknown, ePreferMangled),
-      b.GetName(lldb::eLanguageTypeUnknown, ePreferMangled));
+  return ConstString::Compare(a.GetName(ePreferMangled),
+                              b.GetName(ePreferMangled));
 }
 
 // Set the string value in this objects. If "mangled" is true, then the mangled
@@ -203,7 +109,7 @@ void Mangled::SetValue(ConstString s, bool mangled) {
 
 void Mangled::SetValue(ConstString name) {
   if (name) {
-    if (cstring_is_mangled(name.GetCString())) {
+    if (cstring_is_mangled(name.GetStringRef())) {
       m_demangled.Clear();
       m_mangled = name;
     } else {
@@ -218,28 +124,20 @@ void Mangled::SetValue(ConstString name) {
 
 // Local helpers for different demangling implementations.
 static char *GetMSVCDemangledStr(const char *M) {
-#if defined(_MSC_VER)
-  const size_t demangled_length = 2048;
-  char *demangled_cstr = static_cast<char *>(::malloc(demangled_length));
-  ::ZeroMemory(demangled_cstr, demangled_length);
-  DWORD result = safeUndecorateName(M, demangled_cstr, demangled_length);
+  char *demangled_cstr = llvm::microsoftDemangle(
+      M, nullptr, nullptr, nullptr, nullptr,
+      llvm::MSDemangleFlags(
+          llvm::MSDF_NoAccessSpecifier | llvm::MSDF_NoCallingConvention |
+          llvm::MSDF_NoMemberType | llvm::MSDF_NoVariableType));
 
-  if (Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DEMANGLE)) {
+  if (Log *log = GetLog(LLDBLog::Demangle)) {
     if (demangled_cstr && demangled_cstr[0])
-      log->Printf("demangled msvc: %s -> \"%s\"", M, demangled_cstr);
+      LLDB_LOGF(log, "demangled msvc: %s -> \"%s\"", M, demangled_cstr);
     else
-      log->Printf("demangled msvc: %s -> error: 0x%lu", M, result);
+      LLDB_LOGF(log, "demangled msvc: %s -> error", M);
   }
 
-  if (result != 0) {
-    return demangled_cstr;
-  } else {
-    ::free(demangled_cstr);
-    return nullptr;
-  }
-#else
-  return nullptr;
-#endif
+  return demangled_cstr;
 }
 
 static char *GetItaniumDemangledStr(const char *M) {
@@ -259,11 +157,37 @@ static char *GetItaniumDemangledStr(const char *M) {
            "Expected demangled_size to return length including trailing null");
   }
 
-  if (Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DEMANGLE)) {
+  if (Log *log = GetLog(LLDBLog::Demangle)) {
     if (demangled_cstr)
-      log->Printf("demangled itanium: %s -> \"%s\"", M, demangled_cstr);
+      LLDB_LOGF(log, "demangled itanium: %s -> \"%s\"", M, demangled_cstr);
     else
-      log->Printf("demangled itanium: %s -> error: failed to demangle", M);
+      LLDB_LOGF(log, "demangled itanium: %s -> error: failed to demangle", M);
+  }
+
+  return demangled_cstr;
+}
+
+static char *GetRustV0DemangledStr(const char *M) {
+  char *demangled_cstr = llvm::rustDemangle(M, nullptr, nullptr, nullptr);
+
+  if (Log *log = GetLog(LLDBLog::Demangle)) {
+    if (demangled_cstr && demangled_cstr[0])
+      LLDB_LOG(log, "demangled rustv0: {0} -> \"{1}\"", M, demangled_cstr);
+    else
+      LLDB_LOG(log, "demangled rustv0: {0} -> error: failed to demangle", M);
+  }
+
+  return demangled_cstr;
+}
+
+static char *GetDLangDemangledStr(const char *M) {
+  char *demangled_cstr = llvm::dlangDemangle(M);
+
+  if (Log *log = GetLog(LLDBLog::Demangle)) {
+    if (demangled_cstr && demangled_cstr[0])
+      LLDB_LOG(log, "demangled dlang: {0} -> \"{1}\"", M, demangled_cstr);
+    else
+      LLDB_LOG(log, "demangled dlang: {0} -> error: failed to demangle", M);
   }
 
   return demangled_cstr;
@@ -271,20 +195,14 @@ static char *GetItaniumDemangledStr(const char *M) {
 
 // Explicit demangling for scheduled requests during batch processing. This
 // makes use of ItaniumPartialDemangler's rich demangle info
-bool Mangled::DemangleWithRichManglingInfo(
-    RichManglingContext &context, SkipMangledNameFn *skip_mangled_name) {
-  // We need to generate and cache the demangled name.
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat,
-                     "Mangled::DemangleWithRichNameIndexInfo (m_mangled = %s)",
-                     m_mangled.GetCString());
-
+bool Mangled::GetRichManglingInfo(RichManglingContext &context,
+                                  SkipMangledNameFn *skip_mangled_name) {
   // Others are not meant to arrive here. ObjC names or C's main() for example
   // have their names stored in m_demangled, while m_mangled is empty.
   assert(m_mangled);
 
   // Check whether or not we are interested in this name at all.
-  ManglingScheme scheme = cstring_mangling_scheme(m_mangled.GetCString());
+  ManglingScheme scheme = GetManglingScheme(m_mangled.GetStringRef());
   if (skip_mangled_name && skip_mangled_name(m_mangled.GetStringRef(), scheme))
     return false;
 
@@ -296,25 +214,16 @@ bool Mangled::DemangleWithRichManglingInfo(
   case eManglingSchemeItanium:
     // We want the rich mangling info here, so we don't care whether or not
     // there is a demangled string in the pool already.
-    if (context.FromItaniumName(m_mangled)) {
-      // If we got an info, we have a name. Copy to string pool and connect the
-      // counterparts to accelerate later access in GetDemangledName().
-      context.ParseFullName();
-      m_demangled.SetStringWithMangledCounterpart(context.GetBufferRef(),
-                                                  m_mangled);
-      return true;
-    } else {
-      m_demangled.SetCString("");
-      return false;
-    }
+    return context.FromItaniumName(m_mangled);
 
   case eManglingSchemeMSVC: {
     // We have no rich mangling for MSVC-mangled names yet, so first try to
     // demangle it if necessary.
     if (!m_demangled && !m_mangled.GetMangledCounterpart(m_demangled)) {
       if (char *d = GetMSVCDemangledStr(m_mangled.GetCString())) {
-        // If we got an info, we have a name. Copy to string pool and connect
-        // the counterparts to accelerate later access in GetDemangledName().
+        // Without the rich mangling info we have to demangle the full name.
+        // Copy it to string pool and connect the counterparts to accelerate
+        // later access in GetDemangledName().
         m_demangled.SetStringWithMangledCounterpart(llvm::StringRef(d),
                                                     m_mangled);
         ::free(d);
@@ -332,6 +241,11 @@ bool Mangled::DemangleWithRichManglingInfo(
       return context.FromCxxMethodName(m_demangled);
     }
   }
+
+  case eManglingSchemeRustV0:
+  case eManglingSchemeD:
+    // Rich demangling scheme is not supported
+    return false;
   }
   llvm_unreachable("Fully covered switch above!");
 }
@@ -340,19 +254,14 @@ bool Mangled::DemangleWithRichManglingInfo(
 // class will need to use this accessor if it wishes to decode the demangled
 // name. The result is cached and will be kept until a new string value is
 // supplied to this object, or until the end of the object's lifetime.
-ConstString 
-Mangled::GetDemangledName(lldb::LanguageType language) const {
+ConstString Mangled::GetDemangledName() const {
   // Check to make sure we have a valid mangled name and that we haven't
   // already decoded our mangled name.
   if (m_mangled && m_demangled.IsNull()) {
-    // We need to generate and cache the demangled name.
-    static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-    Timer scoped_timer(func_cat, "Mangled::GetDemangledName (m_mangled = %s)",
-                       m_mangled.GetCString());
-
     // Don't bother running anything that isn't mangled
     const char *mangled_name = m_mangled.GetCString();
-    ManglingScheme mangling_scheme{cstring_mangling_scheme(mangled_name)};
+    ManglingScheme mangling_scheme =
+        GetManglingScheme(m_mangled.GetStringRef());
     if (mangling_scheme != eManglingSchemeNone &&
         !m_mangled.GetMangledCounterpart(m_demangled)) {
       // We didn't already mangle this name, demangle it and if all goes well
@@ -366,6 +275,12 @@ Mangled::GetDemangledName(lldb::LanguageType language) const {
         demangled_name = GetItaniumDemangledStr(mangled_name);
         break;
       }
+      case eManglingSchemeRustV0:
+        demangled_name = GetRustV0DemangledStr(mangled_name);
+        break;
+      case eManglingSchemeD:
+        demangled_name = GetDLangDemangledStr(mangled_name);
+        break;
       case eManglingSchemeNone:
         llvm_unreachable("eManglingSchemeNone was handled already");
       }
@@ -385,34 +300,33 @@ Mangled::GetDemangledName(lldb::LanguageType language) const {
   return m_demangled;
 }
 
-ConstString
-Mangled::GetDisplayDemangledName(lldb::LanguageType language) const {
-  return GetDemangledName(language);
+ConstString Mangled::GetDisplayDemangledName() const {
+  return GetDemangledName();
 }
 
-bool Mangled::NameMatches(const RegularExpression &regex,
-                          lldb::LanguageType language) const {
-  if (m_mangled && regex.Execute(m_mangled.AsCString()))
+bool Mangled::NameMatches(const RegularExpression &regex) const {
+  if (m_mangled && regex.Execute(m_mangled.GetStringRef()))
     return true;
 
-  ConstString demangled = GetDemangledName(language);
-  return demangled && regex.Execute(demangled.AsCString());
+  ConstString demangled = GetDemangledName();
+  return demangled && regex.Execute(demangled.GetStringRef());
 }
 
 // Get the demangled name if there is one, else return the mangled name.
-ConstString Mangled::GetName(lldb::LanguageType language,
-                             Mangled::NamePreference preference) const {
+ConstString Mangled::GetName(Mangled::NamePreference preference) const {
   if (preference == ePreferMangled && m_mangled)
     return m_mangled;
 
-  ConstString demangled = GetDemangledName(language);
+  // Call the accessor to make sure we get a demangled name in case it hasn't
+  // been demangled yet...
+  ConstString demangled = GetDemangledName();
 
   if (preference == ePreferDemangledWithoutArguments) {
-    return get_demangled_name_without_arguments(m_mangled, demangled);
+    if (Language *lang = Language::FindPlugin(GuessLanguage())) {
+      return lang->GetDemangledFunctionNameWithoutArguments(*this);
+    }
   }
   if (preference == ePreferDemangled) {
-    // Call the accessor to make sure we get a demangled name in case it hasn't
-    // been demangled yet...
     if (demangled)
       return demangled;
     return m_mangled;
@@ -456,23 +370,16 @@ size_t Mangled::MemorySize() const {
 // of mangling names from a given language, likewise the compilation units
 // within those targets.
 lldb::LanguageType Mangled::GuessLanguage() const {
-  ConstString mangled = GetMangledName();
-  if (mangled) {
-    const char *mangled_name = mangled.GetCString();
-    if (CPlusPlusLanguage::IsCPPMangledName(mangled_name))
-      return lldb::eLanguageTypeC_plus_plus;
-    else if (ObjCLanguage::IsPossibleObjCMethodName(mangled_name))
-      return lldb::eLanguageTypeObjC;
-  } else {
-    // ObjC names aren't really mangled, so they won't necessarily be in the
-    // mangled name slot.
-    ConstString demangled_name = GetDemangledName(lldb::eLanguageTypeUnknown);
-    if (demangled_name 
-        && ObjCLanguage::IsPossibleObjCMethodName(demangled_name.GetCString()))
-      return lldb::eLanguageTypeObjC;
-  
-  }
-  return lldb::eLanguageTypeUnknown;
+  lldb::LanguageType result = lldb::eLanguageTypeUnknown;
+  // Ask each language plugin to check if the mangled name belongs to it.
+  Language::ForEach([this, &result](Language *l) {
+    if (l->SymbolNameFitsToLanguage(*this)) {
+      result = l->GetLanguageType();
+      return false;
+    }
+    return true;
+  });
+  return result;
 }
 
 // Dump OBJ to the supplied stream S.
@@ -480,11 +387,118 @@ Stream &operator<<(Stream &s, const Mangled &obj) {
   if (obj.GetMangledName())
     s << "mangled = '" << obj.GetMangledName() << "'";
 
-  ConstString demangled =
-      obj.GetDemangledName(lldb::eLanguageTypeUnknown);
+  ConstString demangled = obj.GetDemangledName();
   if (demangled)
     s << ", demangled = '" << demangled << '\'';
   else
     s << ", demangled = <error>";
   return s;
+}
+
+// When encoding Mangled objects we can get away with encoding as little
+// information as is required. The enumeration below helps us to efficiently
+// encode Mangled objects.
+enum MangledEncoding {
+  /// If the Mangled object has neither a mangled name or demangled name we can
+  /// encode the object with one zero byte using the Empty enumeration.
+  Empty = 0u,
+  /// If the Mangled object has only a demangled name and no mangled named, we
+  /// can encode only the demangled name.
+  DemangledOnly = 1u,
+  /// If the mangle name can calculate the demangled name (it is the
+  /// mangled/demangled counterpart), then we only need to encode the mangled
+  /// name as the demangled name can be recomputed.
+  MangledOnly = 2u,
+  /// If we have a Mangled object with two different names that are not related
+  /// then we need to save both strings. This can happen if we have a name that
+  /// isn't a true mangled name, but we want to be able to lookup a symbol by
+  /// name and type in the symbol table. We do this for Objective C symbols like
+  /// "OBJC_CLASS_$_NSValue" where the mangled named will be set to
+  /// "OBJC_CLASS_$_NSValue" and the demangled name will be manually set to
+  /// "NSValue". If we tried to demangled the name "OBJC_CLASS_$_NSValue" it
+  /// would fail, but in these cases we want these unrelated names to be
+  /// preserved.
+  MangledAndDemangled = 3u
+};
+
+bool Mangled::Decode(const DataExtractor &data, lldb::offset_t *offset_ptr,
+                     const StringTableReader &strtab) {
+  m_mangled.Clear();
+  m_demangled.Clear();
+  MangledEncoding encoding = (MangledEncoding)data.GetU8(offset_ptr);
+  switch (encoding) {
+    case Empty:
+      return true;
+
+    case DemangledOnly:
+      m_demangled.SetString(strtab.Get(data.GetU32(offset_ptr)));
+      return true;
+
+    case MangledOnly:
+      m_mangled.SetString(strtab.Get(data.GetU32(offset_ptr)));
+      return true;
+
+    case MangledAndDemangled:
+      m_mangled.SetString(strtab.Get(data.GetU32(offset_ptr)));
+      m_demangled.SetString(strtab.Get(data.GetU32(offset_ptr)));
+      return true;
+  }
+  return false;
+}
+/// The encoding format for the Mangled object is as follows:
+///
+/// uint8_t encoding;
+/// char str1[]; (only if DemangledOnly, MangledOnly)
+/// char str2[]; (only if MangledAndDemangled)
+///
+/// The strings are stored as NULL terminated UTF8 strings and str1 and str2
+/// are only saved if we need them based on the encoding.
+///
+/// Some mangled names have a mangled name that can be demangled by the built
+/// in demanglers. These kinds of mangled objects know when the mangled and
+/// demangled names are the counterparts for each other. This is done because
+/// demangling is very expensive and avoiding demangling the same name twice
+/// saves us a lot of compute time. For these kinds of names we only need to
+/// save the mangled name and have the encoding set to "MangledOnly".
+///
+/// If a mangled obejct has only a demangled name, then we save only that string
+/// and have the encoding set to "DemangledOnly".
+///
+/// Some mangled objects have both mangled and demangled names, but the
+/// demangled name can not be computed from the mangled name. This is often used
+/// for runtime named, like Objective C runtime V2 and V3 names. Both these
+/// names must be saved and the encoding is set to "MangledAndDemangled".
+///
+/// For a Mangled object with no names, we only need to set the encoding to
+/// "Empty" and not store any string values.
+void Mangled::Encode(DataEncoder &file, ConstStringTable &strtab) const {
+  MangledEncoding encoding = Empty;
+  if (m_mangled) {
+    encoding = MangledOnly;
+    if (m_demangled) {
+      // We have both mangled and demangled names. If the demangled name is the
+      // counterpart of the mangled name, then we only need to save the mangled
+      // named. If they are different, we need to save both.
+      ConstString s;
+      if (!(m_mangled.GetMangledCounterpart(s) && s == m_demangled))
+        encoding = MangledAndDemangled;
+    }
+  } else if (m_demangled) {
+    encoding = DemangledOnly;
+  }
+  file.AppendU8(encoding);
+  switch (encoding) {
+    case Empty:
+      break;
+    case DemangledOnly:
+      file.AppendU32(strtab.Add(m_demangled));
+      break;
+    case MangledOnly:
+      file.AppendU32(strtab.Add(m_mangled));
+      break;
+    case MangledAndDemangled:
+      file.AppendU32(strtab.Add(m_mangled));
+      file.AppendU32(strtab.Add(m_demangled));
+      break;
+  }
 }

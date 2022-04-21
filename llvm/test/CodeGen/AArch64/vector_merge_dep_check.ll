@@ -12,19 +12,19 @@ target triple = "aarch64--linux-android"
 
 ; Function Attrs: noinline norecurse nounwind ssp uwtable
 define void @fn(<2 x i64>* %argA, <2 x i64>* %argB, i64* %a) #0 align 2 {
-  %_p_vec_full = load <2 x i64>, <2 x i64>* %argA, align 4, !alias.scope !1, !noalias !3
+  %_p_vec_full = load <2 x i64>, <2 x i64>* %argA, align 4, !alias.scope !9, !noalias !3
   %x = extractelement <2 x i64> %_p_vec_full, i32 1
-  store i64 %x, i64* %a, align 8, !alias.scope !4, !noalias !9
-  %_p_vec_full155 = load <2 x i64>, <2 x i64>* %argB, align 4, !alias.scope !1, !noalias !3
+  store i64 %x, i64* %a, align 8, !alias.scope !3, !noalias !9
+  %_p_vec_full155 = load <2 x i64>, <2 x i64>* %argB, align 4, !alias.scope !9, !noalias !3
   %y = extractelement <2 x i64> %_p_vec_full155, i32 0
   %scevgep41 = getelementptr i64, i64* %a, i64 -1
-  store i64 %y, i64* %scevgep41, align 8, !alias.scope !4, !noalias !9
+  store i64 %y, i64* %scevgep41, align 8, !alias.scope !3, !noalias !9
   ret void
 }
 
 ; CHECK: ret
 
-attributes #0 = { noinline norecurse nounwind ssp uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "polly-optimized" "stack-protector-buffer-size"="8" "target-features"="+crc,+crypto,+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline norecurse nounwind ssp uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "polly-optimized" "stack-protector-buffer-size"="8" "target-features"="+crc,+crypto,+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.ident = !{!0}
 

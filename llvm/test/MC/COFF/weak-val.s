@@ -19,11 +19,11 @@ b:
 // CHECK-NEXT:   AuxSymbolCount: 1
 // CHECK-NEXT:   AuxWeakExternal {
 // CHECK-NEXT:     Linked: .weak.b.default (8)
-// CHECK-NEXT:     Search: Library (0x2)
+// CHECK-NEXT:     Search: Alias (0x3)
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
 // CHECK-NEXT: Symbol {
-// CHECK-NEXT:   Name: .weak.b.default
+// CHECK-NEXT:   Name: .weak.b.default{{$}}
 // CHECK-NEXT:   Value: 4
 // CHECK-NEXT:   Section: .data (2)
 // CHECK-NEXT:   BaseType: Null (0x0)

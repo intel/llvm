@@ -4,9 +4,6 @@ set(UBSAN_TEST_ARCH ${UBSAN_SUPPORTED_ARCH})
 if(APPLE)
   darwin_filter_host_archs(UBSAN_SUPPORTED_ARCH UBSAN_TEST_ARCH)
 endif()
-if(OS_NAME MATCHES "SunOS")
-  list(REMOVE_ITEM UBSAN_TEST_ARCH x86_64)
-endif()
 
 set(UBSAN_TESTSUITES)
 set(UBSAN_TEST_DEPS ${SANITIZER_COMMON_LIT_TEST_DEPS})
@@ -18,8 +15,8 @@ foreach(arch ${UBSAN_TEST_ARCH})
   get_test_cc_for_arch(${arch} UBSAN_TEST_TARGET_CC UBSAN_TEST_TARGET_CFLAGS)
   set(CONFIG_NAME ${arch})
   configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-    ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg)
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py)
   list(APPEND UBSAN_TESTSUITES ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME})
 endforeach()
 

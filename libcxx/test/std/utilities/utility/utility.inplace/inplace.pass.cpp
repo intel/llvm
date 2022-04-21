@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <utility>
 
@@ -34,7 +34,6 @@
 #include <memory>
 
 #include "test_macros.h"
-#include "type_id.h"
 
 template <class Tp, class Up>
 constexpr bool check_tag(Up) {

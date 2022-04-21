@@ -14,6 +14,8 @@
 
 #include <memory>
 
+#include "test_macros.h"
+
 struct A {
   std::unique_ptr<A> ptr_;
 
@@ -21,6 +23,6 @@ struct A {
   void reset() { ptr_.reset(); }
 };
 
-int main(int, char**) { (new A)->reset(); 
+int main(int, char**) { (new A)->reset();
   return 0;
 }

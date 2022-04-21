@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_NativeRegisterContext_h_
-#define liblldb_NativeRegisterContext_h_
+#ifndef LLDB_HOST_COMMON_NATIVEREGISTERCONTEXT_H
+#define LLDB_HOST_COMMON_NATIVEREGISTERCONTEXT_H
 
 #include "lldb/Host/common/NativeWatchpointList.h"
 #include "lldb/lldb-private.h"
@@ -15,6 +15,8 @@
 namespace lldb_private {
 
 class NativeThreadProtocol;
+
+enum class ExpeditedRegs { Minimal, Full };
 
 class NativeRegisterContext
     : public std::enable_shared_from_this<NativeRegisterContext> {
@@ -75,6 +77,8 @@ public:
 
   virtual bool ClearHardwareWatchpoint(uint32_t hw_index);
 
+  virtual Status ClearWatchpointHit(uint32_t hw_index);
+
   virtual Status ClearAllHardwareWatchpoints();
 
   virtual Status IsWatchpointHit(uint32_t wp_index, bool &is_hit);
@@ -113,6 +117,11 @@ public:
   virtual lldb::tid_t GetThreadID() const;
 
   virtual NativeThreadProtocol &GetThread() { return m_thread; }
+
+  virtual std::vector<uint32_t>
+  GetExpeditedRegisters(ExpeditedRegs expType) const;
+
+  virtual bool RegisterOffsetIsDynamic() const { return false; }
 
   const RegisterInfo *GetRegisterInfoByName(llvm::StringRef reg_name,
                                             uint32_t start_idx = 0);
@@ -170,9 +179,11 @@ protected:
 
 private:
   // For RegisterContext only
-  DISALLOW_COPY_AND_ASSIGN(NativeRegisterContext);
+  NativeRegisterContext(const NativeRegisterContext &) = delete;
+  const NativeRegisterContext &
+  operator=(const NativeRegisterContext &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_NativeRegisterContext_h_
+#endif // LLDB_HOST_COMMON_NATIVEREGISTERCONTEXT_H

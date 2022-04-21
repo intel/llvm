@@ -5,14 +5,14 @@
 void clang_analyzer_denote(int x, const char *str);
 void clang_analyzer_express(int x);
 
-// Invalid declarations to test sanity checks.
+// Invalid declarations to test basic correctness checks.
 void clang_analyzer_denote();
 void clang_analyzer_denote(int x);
 void clang_analyzer_express();
 
 void foo(int x, unsigned y) {
   clang_analyzer_denote(); // expected-warning{{clang_analyzer_denote() requires a symbol and a string literal}}
-  clang_analyzer_express(); // expected-warning{{clang_analyzer_express() requires a symbol}}
+  clang_analyzer_express(); // expected-warning{{Missing argument}}
 
   clang_analyzer_denote(x); // expected-warning{{clang_analyzer_denote() requires a symbol and a string literal}}
   clang_analyzer_express(x); // expected-warning{{Unable to express}}

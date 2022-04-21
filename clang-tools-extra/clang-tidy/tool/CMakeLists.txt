@@ -2,52 +2,68 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsAsmParsers
   AllTargetsDescs
   AllTargetsInfos
+  FrontendOpenMP
   support
   )
 
-add_clang_tool(clang-tidy
+# Needed by LLVM's CMake checks because this file defines multiple targets.
+set(LLVM_OPTIONAL_SOURCES ClangTidyMain.cpp ClangTidyToolMain.cpp)
+
+add_clang_library(clangTidyMain
   ClangTidyMain.cpp
+
+  LINK_LIBS
+  clangTidy
+  ${ALL_CLANG_TIDY_CHECKS}
+
+  DEPENDS
+  omp_gen
   )
-add_dependencies(clang-tidy
-  clang-resource-headers
-  )
-target_link_libraries(clang-tidy
+
+clang_target_link_libraries(clangTidyMain
   PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
-  clangTidy
-  clangTidyAndroidModule
-  clangTidyAbseilModule
-  clangTidyBoostModule
-  clangTidyBugproneModule
-  clangTidyCERTModule
-  clangTidyCppCoreGuidelinesModule
-  clangTidyFuchsiaModule
-  clangTidyGoogleModule
-  clangTidyHICPPModule
-  clangTidyLLVMModule
-  clangTidyMiscModule
-  clangTidyModernizeModule
-  clangTidyObjCModule
-  clangTidyOpenMPModule
-  clangTidyPerformanceModule
-  clangTidyPortabilityModule
-  clangTidyReadabilityModule
-  clangTidyZirconModule
   clangTooling
   clangToolingCore
   )
 
-if(CLANG_ENABLE_STATIC_ANALYZER)
-  target_link_libraries(clang-tidy PRIVATE
-    clangTidyMPIModule
+# Support plugins.
+if(CLANG_PLUGIN_SUPPORT)
+  set(support_plugins SUPPORT_PLUGINS)
+endif()
+
+add_clang_tool(clang-tidy
+  ClangTidyToolMain.cpp
+
+  DEPENDS
+  clang-resource-headers
+  ${support_plugins}
   )
+clang_target_link_libraries(clang-tidy
+  PRIVATE
+  clangAST
+  clangASTMatchers
+  clangBasic
+  clangTooling
+  clangToolingCore
+  )
+target_link_libraries(clang-tidy
+  PRIVATE
+  clangTidy
+  clangTidyMain
+  ${ALL_CLANG_TIDY_CHECKS}
+  )
+
+if(CLANG_PLUGIN_SUPPORT)
+  export_executable_symbols_for_plugins(clang-tidy)
 endif()
 
 install(PROGRAMS clang-tidy-diff.py
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-tidy)
 install(PROGRAMS run-clang-tidy.py
-  DESTINATION share/clang
-  COMPONENT clang-tidy)
+  DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  COMPONENT clang-tidy
+  RENAME run-clang-tidy)

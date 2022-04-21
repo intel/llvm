@@ -6,12 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_UNITTESTS_UTILITY_HELPERS_TESTUTILITIES_H
-#define LLDB_UNITTESTS_UTILITY_HELPERS_TESTUTILITIES_H
+#ifndef LLDB_UNITTESTS_TESTINGSUPPORT_TESTUTILITIES_H
+#define LLDB_UNITTESTS_TESTINGSUPPORT_TESTUTILITIES_H
 
+#include "lldb/Core/ModuleSpec.h"
+#include "lldb/Utility/DataBuffer.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileUtilities.h"
 #include <string>
 
 #define ASSERT_NO_ERROR(x)                                                     \
@@ -27,8 +30,27 @@
 
 namespace lldb_private {
 std::string GetInputFilePath(const llvm::Twine &name);
-llvm::Error ReadYAMLObjectFile(const llvm::Twine &yaml_name,
-                               llvm::SmallString<128> &obj);
+
+class TestFile {
+public:
+  static llvm::Expected<TestFile> fromYaml(llvm::StringRef Yaml);
+  static llvm::Expected<TestFile> fromYamlFile(const llvm::Twine &Name);
+
+  ModuleSpec moduleSpec() {
+    return ModuleSpec(FileSpec(), UUID(), dataBuffer());
+  }
+
+private:
+  TestFile(std::string &&Buffer) : Buffer(std::move(Buffer)) {}
+
+  lldb::DataBufferSP dataBuffer() {
+    auto *Data = reinterpret_cast<const uint8_t *>(Buffer.data());
+    return std::make_shared<DataBufferUnowned>(const_cast<uint8_t *>(Data),
+                                               Buffer.size());
+  }
+
+  std::string Buffer;
+};
 }
 
 #endif

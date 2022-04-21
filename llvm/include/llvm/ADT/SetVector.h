@@ -5,15 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file implements a set that has insertion order iteration
-// characteristics. This is useful for keeping a set of things that need to be
-// visited later but in a deterministic order (insertion order). The interface
-// is purposefully minimal.
-//
-// This file defines SetVector and SmallSetVector, which performs no allocations
-// if the SetVector has less than a certain number of elements.
-//
+///
+/// \file
+/// This file implements a set that has insertion order iteration
+/// characteristics. This is useful for keeping a set of things that need to be
+/// visited later but in a deterministic order (insertion order). The interface
+/// is purposefully minimal.
+///
+/// This file defines SetVector and SmallSetVector, which performs no
+/// allocations if the SetVector has less than a certain number of elements.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_SETVECTOR_H
@@ -23,7 +24,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
-#include <algorithm>
 #include <cassert>
 #include <iterator>
 #include <vector>
@@ -174,7 +174,7 @@ public:
     set_.erase(V);
 
     // FIXME: No need to use the non-const iterator when built with
-    // std:vector.erase(const_iterator) as defined in C++11. This is for
+    // std::vector.erase(const_iterator) as defined in C++11. This is for
     // compatibility with non-standard libstdc++ up to 4.8 (fixed in 4.9).
     auto NI = vector_.begin();
     std::advance(NI, std::distance<iterator>(NI, I));
@@ -203,6 +203,11 @@ public:
       return false;
     vector_.erase(I, vector_.end());
     return true;
+  }
+
+  /// Check if the SetVector contains the given key.
+  bool contains(const key_type &key) const {
+    return set_.find(key) != set_.end();
   }
 
   /// Count the number of elements of a given key in the SetVector.
@@ -263,6 +268,11 @@ public:
       remove(*SI);
   }
 
+  void swap(SetVector<T, Vector, Set> &RHS) {
+    set_.swap(RHS.set_);
+    vector_.swap(RHS.vector_);
+  }
+
 private:
   /// A wrapper predicate designed for use with std::remove_if.
   ///
@@ -307,5 +317,23 @@ public:
 };
 
 } // end namespace llvm
+
+namespace std {
+
+/// Implement std::swap in terms of SetVector swap.
+template<typename T, typename V, typename S>
+inline void
+swap(llvm::SetVector<T, V, S> &LHS, llvm::SetVector<T, V, S> &RHS) {
+  LHS.swap(RHS);
+}
+
+/// Implement std::swap in terms of SmallSetVector swap.
+template<typename T, unsigned N>
+inline void
+swap(llvm::SmallSetVector<T, N> &LHS, llvm::SmallSetVector<T, N> &RHS) {
+  LHS.swap(RHS);
+}
+
+} // end namespace std
 
 #endif // LLVM_ADT_SETVECTOR_H

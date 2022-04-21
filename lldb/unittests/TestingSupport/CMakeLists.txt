@@ -1,14 +1,15 @@
-set(EXCLUDE_FROM_ALL ON)
+set_property(DIRECTORY PROPERTY EXCLUDE_FROM_ALL ON)
 add_lldb_library(lldbUtilityHelpers
   MockTildeExpressionResolver.cpp
   TestUtilities.cpp
 
   LINK_LIBS
     lldbUtility
+    llvm_gtest
 
   LINK_COMPONENTS
     Support
+    ObjectYAML
   )
 
-add_dependencies(lldbUtilityHelpers yaml2obj)
-add_definitions(-DYAML2OBJ="$<TARGET_FILE:yaml2obj>")
+add_subdirectory(Symbol)

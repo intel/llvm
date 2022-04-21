@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -20,14 +20,14 @@
 // * A character array, which points to a NTCTS after array-to-pointer decay.
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
 #include "test_iterators.h"
 #include "min_allocator.h"
-#include "constexpr_char_traits.hpp"
+#include "constexpr_char_traits.h"
 
 using fs::__is_pathable;
 
@@ -63,8 +63,8 @@ struct MakeTestType {
   using const_cstr_type = const CharT*;
   using array_type = CharT[25];
   using const_array_type = const CharT[25];
-  using iter_type = input_iterator<CharT*>;
-  using bad_iter_type = input_iterator<signed char*>;
+  using iter_type = cpp17_input_iterator<CharT*>;
+  using bad_iter_type = cpp17_input_iterator<signed char*>;
 
   template <class TestT>
   static void AssertPathable() {
@@ -97,7 +97,9 @@ struct MakeTestType {
 
 int main(int, char**) {
   MakeTestType<char>::Test();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   MakeTestType<wchar_t>::Test();
+#endif
   MakeTestType<char16_t>::Test();
   MakeTestType<char32_t>::Test();
 

@@ -17,7 +17,7 @@ namespace llvm {
 
 class NVPTXTargetObjectFile : public TargetLoweringObjectFile {
 public:
-  NVPTXTargetObjectFile() : TargetLoweringObjectFile() {}
+  NVPTXTargetObjectFile() = default;
 
   ~NVPTXTargetObjectFile() override;
 
@@ -27,7 +27,7 @@ public:
 
   MCSection *getSectionForConstant(const DataLayout &DL, SectionKind Kind,
                                    const Constant *C,
-                                   unsigned &Align) const override {
+                                   Align &Alignment) const override {
     return ReadOnlySection;
   }
 

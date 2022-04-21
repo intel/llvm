@@ -1,17 +1,31 @@
 ; RUN: opt < %s -passes='thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-file=%S/Inputs/function_metadata.prof -S | FileCheck %s
 ; RUN: opt < %s -passes='thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-file=%S/Inputs/function_metadata.compact.afdo -S | FileCheck %s
+; RUN: opt < %s -passes='pseudo-probe,thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-file=%S/Inputs/pseudo-probe-func-metadata.prof -sample-profile-use-profi=0 -S | FileCheck %s
+
+;; Validate that with replay in effect, we import call sites even if they are below the threshold
+;; Baseline import decisions
+; RUN: opt < %s -passes='thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-summary-hot-count=2000 -profile-file=%S/Inputs/function_metadata.prof -S | FileCheck -check-prefix=THRESHOLD %s
+;; With replay decisions
+; RUN: opt < %s -passes='thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-summary-hot-count=2000 -profile-file=%S/Inputs/function_metadata.prof -S -sample-profile-inline-replay-scope=Function -sample-profile-inline-replay=%S/Inputs/function_metadata_replay.txt | FileCheck -check-prefix=THRESHOLD-REPLAY %s
+
 
 ; Tests whether the functions in the inline stack are added to the
 ; function_entry_count metadata.
 
 declare void @foo()
 
-define void @foo_available() !dbg !11 {
+declare void @bar()
+
+declare !dbg !13 void @bar_dbg()
+
+define void @bar_available() #0 !dbg !14 {
   ret void
 }
 
 ; CHECK: define void @test({{.*}} !prof ![[ENTRY_TEST:[0-9]+]]
-define void @test(void ()*) !dbg !7 {
+; THRESHOLD: define void @test({{.*}} !prof ![[ENTRY_THRESHOLD:[0-9]+]]
+; THRESHOLD-REPLAY: define void @test({{.*}} !prof ![[ENTRY_REPLAY_TEST:[0-9]+]]
+define void @test(void ()*) #0 !dbg !7 {
   %2 = alloca void ()*
   store void ()* %0, void ()** %2
   %3 = load void ()*, void ()** %2
@@ -22,7 +36,9 @@ define void @test(void ()*) !dbg !7 {
 }
 
 ; CHECK: define void @test_liveness({{.*}} !prof ![[ENTRY_TEST_LIVENESS:[0-9]+]]
-define void @test_liveness() !dbg !12 {
+; THRESHOLD: define void @test_liveness({{.*}} !prof ![[ENTRY_THRESHOLD:[0-9]+]]
+; THRESHOLD-REPLAY: define void @test_liveness({{.*}} !prof ![[ENTRY_REPLAY_TEST_LIVENESS:[0-9]+]]
+define void @test_liveness() #0 !dbg !12 {
   call void @foo(), !dbg !20
   ret void
 }
@@ -33,10 +49,19 @@ define void @test_liveness() !dbg !12 {
 ; metadata.
 ; CHECK: ![[ENTRY_TEST]] = !{!"function_entry_count", i64 1, i64 2494702099028631698, i64 6699318081062747564, i64 7682762345278052905,  i64 -7908226060800700466, i64 -2012135647395072713}
 
-; Check GUIDs for both foo and foo_available are included in the metadata to
+; Check GUIDs for foo, bar and bar_dbg are included in the metadata to
 ; make sure the liveness analysis can capture the dependency from test_liveness
-; to foo_available.
-; CHECK: ![[ENTRY_TEST_LIVENESS]] = !{!"function_entry_count", i64 1, i64 4005816710939881937, i64 6699318081062747564}
+; to bar. bar_available should not be included as it's within the same module.
+; CHECK: ![[ENTRY_TEST_LIVENESS]] = !{!"function_entry_count", i64 1, i64 6699318081062747564, i64 -2012135647395072713, i64 -1522495160813492905}
+
+; With high threshold, nothing should be imported
+; THRESHOLD: ![[ENTRY_THRESHOLD]] = !{!"function_entry_count", i64 1}
+
+; With high threshold and replay, sites that are in the replay (foo, and transitively bar and bar_dbg in function test_liveness) should be imported
+; THRESHOLD-REPLAY: ![[ENTRY_REPLAY_TEST]] = !{!"function_entry_count", i64 1}
+; THRESHOLD-REPLAY: ![[ENTRY_REPLAY_TEST_LIVENESS]] = !{!"function_entry_count", i64 1, i64 6699318081062747564, i64 -2012135647395072713, i64 -1522495160813492905}
+
+attributes #0 = {"use-sample-profile"}
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!8, !9}
@@ -50,8 +75,9 @@ define void @test_liveness() !dbg !12 {
 !8 = !{i32 2, !"Dwarf Version", i32 4}
 !9 = !{i32 1, !"Debug Info Version", i32 3}
 !10 = !{!"clang version 3.5 "}
-!11 = distinct !DISubprogram(name: "foo_available", line: 7, isLocal: false, isDefinition: true, virtualIndex: 6, flags: DIFlagPrototyped, isOptimized: false, unit: !0, scopeLine: 7, file: !1, scope: !1, type: !6, retainedNodes: !2)
 !12 = distinct !DISubprogram(name: "test_liveness", line: 7, isLocal: false, isDefinition: true, virtualIndex: 6, flags: DIFlagPrototyped, isOptimized: false, unit: !0, scopeLine: 7, file: !1, scope: !1, type: !6, retainedNodes: !2)
+!13 = !DISubprogram(name: "bar_dbg", scope: !1, file: !1, flags: DIFlagPrototyped, spFlags: DISPFlagOptimized)
+!14 = distinct !DISubprogram(name: "bar_available", line: 7, isLocal: false, isDefinition: true, virtualIndex: 6, flags: DIFlagPrototyped, isOptimized: false, unit: !0, scopeLine: 7, file: !1, scope: !1, type: !6, retainedNodes: !2)
 !15 = !DILexicalBlockFile(discriminator: 1, file: !1, scope: !7)
 !17 = distinct !DILexicalBlock(line: 10, column: 0, file: !1, scope: !7)
 !18 = !DILocation(line: 10, scope: !17)

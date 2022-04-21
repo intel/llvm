@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBSymbol_h_
-#define LLDB_SBSymbol_h_
+#ifndef LLDB_API_SBSYMBOL_H
+#define LLDB_API_SBSYMBOL_H
 
 #include "lldb/API/SBAddress.h"
 #include "lldb/API/SBDefines.h"
@@ -78,9 +78,9 @@ private:
 
   void SetSymbol(lldb_private::Symbol *lldb_object_ptr);
 
-  lldb_private::Symbol *m_opaque_ptr;
+  lldb_private::Symbol *m_opaque_ptr = nullptr;
 };
 
 } // namespace lldb
 
-#endif // LLDB_SBSymbol_h_
+#endif // LLDB_API_SBSYMBOL_H

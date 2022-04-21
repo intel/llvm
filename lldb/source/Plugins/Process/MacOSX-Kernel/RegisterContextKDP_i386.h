@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_RegisterContextKDP_i386_h_
-#define liblldb_RegisterContextKDP_i386_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_MACOSX_KERNEL_REGISTERCONTEXTKDP_I386_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_MACOSX_KERNEL_REGISTERCONTEXTKDP_I386_H
 
 #include "Plugins/Process/Utility/RegisterContextDarwin_i386.h"
 
@@ -20,19 +20,19 @@ public:
   virtual ~RegisterContextKDP_i386();
 
 protected:
-  virtual int DoReadGPR(lldb::tid_t tid, int flavor, GPR &gpr);
+  int DoReadGPR(lldb::tid_t tid, int flavor, GPR &gpr) override;
 
-  int DoReadFPU(lldb::tid_t tid, int flavor, FPU &fpu);
+  int DoReadFPU(lldb::tid_t tid, int flavor, FPU &fpu) override;
 
-  int DoReadEXC(lldb::tid_t tid, int flavor, EXC &exc);
+  int DoReadEXC(lldb::tid_t tid, int flavor, EXC &exc) override;
 
-  int DoWriteGPR(lldb::tid_t tid, int flavor, const GPR &gpr);
+  int DoWriteGPR(lldb::tid_t tid, int flavor, const GPR &gpr) override;
 
-  int DoWriteFPU(lldb::tid_t tid, int flavor, const FPU &fpu);
+  int DoWriteFPU(lldb::tid_t tid, int flavor, const FPU &fpu) override;
 
-  int DoWriteEXC(lldb::tid_t tid, int flavor, const EXC &exc);
+  int DoWriteEXC(lldb::tid_t tid, int flavor, const EXC &exc) override;
 
   ThreadKDP &m_kdp_thread;
 };
 
-#endif // liblldb_RegisterContextKDP_i386_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_MACOSX_KERNEL_REGISTERCONTEXTKDP_I386_H

@@ -12,8 +12,12 @@
 
 // explicit ctype(size_t refs = 0);
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <cassert>
+
+#include "test_macros.h"
 
 template <class C>
 class my_facet

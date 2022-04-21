@@ -1,94 +1,97 @@
 # Contributing
 
 ## License
-Intel Project for LLVM* technology is licensed under the terms of the
-Apache-2.0 with LLVM-exception license (
-[LICENSE.txt](https://github.com/intel/llvm/blob/intel/llvm/LICENSE.TXT))
-to ensure our ability to contribute this project to the LLVM project
-under the same license.
 
-By contributing to this project, you agree to the Apache-2.0 with
-LLVM-exception license and copyright terms there in and release your
-contribution under these terms.
+Intel Project for LLVM\* technology is licensed under the terms of the Apache
+License v2.0 with LLVM Exceptions license ([LICENSE.txt](llvm/LICENSE.TXT)) to
+ensure our ability to contribute this project to the LLVM project under the
+same license.
 
-## Sign your work
-Please use the sign-off line at the end of your contribution. Your
-signature certifies that you wrote the contribution or otherwise have
-the right to pass it on as an open-source contribution, and that you
-agree to provide your contribution under the terms of the licenses
-noted above. The rules are pretty simple: if you can certify the
-below (from [developercertificate.org](http://developercertificate.org)):
-
-```
-Developer Certificate of Origin
-Version 1.1
-
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
-660 York Street, Suite 102,
-San Francisco, CA 94110 USA
-
-Everyone is permitted to copy and distribute verbatim copies of this
-license document, but changing it is not allowed.
-
-Developer's Certificate of Origin 1.1
-
-By making a contribution to this project, I certify that:
-
-(a) The contribution was created in whole or in part by me and I
-    have the right to submit it under the open source license
-    indicated in the file; or
-
-(b) The contribution is based upon previous work that, to the best
-    of my knowledge, is covered under an appropriate open source
-    license and I have the right under that license to submit that
-    work with modifications, whether created in whole or in part
-    by me, under the same open source license (unless I am
-    permitted to submit under a different license), as indicated
-    in the file; or
-
-(c) The contribution was provided directly to me by some other
-    person who certified (a), (b) or (c) and I have not modified
-    it.
-
-(d) I understand and agree that this project and the contribution
-    are public and that a record of the contribution (including all
-    personal information I submit with it, including my sign-off) is
-    maintained indefinitely and may be redistributed consistent with
-    this project or the open source license(s) involved.
-```
-
-Then you just add a line to every git commit message:
-
-    Signed-off-by: Joe Smith <joe.smith@email.com>
-
-Use your real name (sorry, no pseudonyms or anonymous contributions.)
-
-If you set your `user.name` and `user.email` git configs, you can sign your commit automatically with `git commit -s`.
+By contributing to this project, you agree to the Apache License v2.0 with LLVM
+Exceptions and copyright terms there in and release your contribution under
+these terms.
 
 ## Contribution process
 
 ### Development
 
- - Create a personal fork of the project on GitHub.
- - Use **sycl** branch as baseline for your changes.
- - Prepare your patch (follow [LLVM coding standards](https://llvm.org/docs/CodingStandards.html)).
- - Build the project and run all tests (see [GetStartedWithSYCLCompiler.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedWithSYCLCompiler.md))
+For any changes not related to Intel Project for LLVM\* technology, but rather
+to LLVM in general, it is strongly encouraged that you submit the patch to
+https://llvm.org/ directly.  See
+[LLVM contribution guidelines](https://llvm.org/docs/Contributing.html) for
+more information.
+
+Every change should be accompanied with corresponding test modification (adding
+new test(s), extending, removing or modifying existing test(s)).
+
+To contribute:
+
+- Create a personal fork of the project on GitHub
+- Prepare your patch
+  - follow [LLVM coding standards](https://llvm.org/docs/CodingStandards.html)
+  - [clang-format](https://clang.llvm.org/docs/ClangFormat.html) and
+    [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) tools can be
+    integrated into your workflow to ensure formatting and stylistic
+    compliance of your changes. To avoid code formatting misalignment with
+    GitHub Actions check we recommend using 10 version of clang-format tool
+    (default version on Ubuntu 20.04).
+  - use
+
+    ```bash
+    ./clang/tools/clang-format/git-clang-format `git merge-base origin/sycl HEAD`
+    ```
+
+    to check the format of your current changes. `origin/sycl` branch is an
+    example here
+    - `-f` to also correct unstaged changes
+    - `--diff` to only print the diff without applying
+
+#### Project-specific contribution guidelines
+
+- [Contribute to DPC++](/../sycl/sycl/doc/developer/ContributeToDPCPP.md)
+
+### Pull request
+
+- When creating your commit messages, please make sure to follow
+  [LLVM developer policies](
+  https://llvm.org/docs/DeveloperPolicy.html#commit-messages) on the subject.
+  - [The seven rules of a great Git commit message](https://cbea.ms/git-commit)
+    are recommended read and follow.
+- To a reasonable extent, title tags can be used to signify the component
+  changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
+- Create a pull request (PR) for your changes following
+  [Creating a pull request instructions](https://help.github.com/articles/creating-a-pull-request/).
+  - Make sure PR has a good description explaining all of the changes made,
+    represented by commits in the PR.
+  - When PR is merged all commits are squashed and PR description is used as
+    the merged commit message.
+  - Consider splitting the large set of changes on small independent PRs that
+    can be reviewed, tested and merged independently.
+- For changes which require modification in tests outside of the current repository
+  the commit message should contain the link to corresponding test PR.
+  For example: intel/llvm-test-suite#88 or KhronosGroup/SYCL-CTS#65. (see
+  [Autolinked references and URLs](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls)
+  for more details). The same message should be present both in commit
+  message and in PR description.
 
 ### Review and acceptance testing
 
- - Create a pull request for your changes following [Creating a pull request instructions](https://help.github.com/articles/creating-a-pull-request/).
- - When the pull request is created signed-off check is done.
-     - **check_pr** - verifies that the signed-off mark is added to each commit message.
- - Once the pull request is approved by an Intel representative, build and functional testing are started.
-     - **sycl-ubu-x64-pr** - runs all LIT tests on machine with OpenCL runtimes for CPU and GPU.
- - Approval is lost once the PR branch is updated. New approval and checks rerun are required.
- - Once approval is received and all checks pass, the pull request is ready to be merged.
+- CI will run several build and functional testing checks as soon as the PR is
+approved by an Intel representative.
+  - A new approval is needed if the PR was updated (e.g. during code review).
+- Once the PR is approved and all checks have passed, the pull request is
+ready for merge.
 
 ### Merge
 
-Merge of pull request is done only by project maintainers. There are three options:
- - [Rebase and merge] The preferable choice for PRs containing a single commit.
- - [Squash and merge] Used when there are multiple commits in the PR. 
-   Squashing is done to shorten history and make sure that the project is buildable on any commit.
- - [Create a merge commit] Used for pull down PRs to avoid duplication of
-   LLVM commits.
+Project gatekeepers (@intel/llvm-gatekeepers) merge pull requests using [Squash
+and merge] and using PR description as the commit message, replacing all
+individual comments made per commit. Authors of the change must ensure PR
+description is up to date at the merge stage, as sometimes comments addressed
+during code reviews can invalidate original PR description. Feel free to ping
+@intel/llvm-gatekeepers if your PR is green and can be merged.
+
+Pulldown from LLVM upstream is done through merge commits to preserve hashes of
+the original commits pulled from the LLVM community repository.
+
+<sub>\*Other names and brands may be claimed as the property of others.</sub>

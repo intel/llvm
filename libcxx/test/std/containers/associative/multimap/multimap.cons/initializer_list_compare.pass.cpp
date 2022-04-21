@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <map>
 
@@ -16,13 +16,14 @@
 
 #include <map>
 #include <cassert>
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "min_allocator.h"
 
 int main(int, char**)
 {
     {
-    typedef test_compare<std::less<int> > Cmp;
+    typedef test_less<int> Cmp;
     typedef std::multimap<int, double, Cmp> C;
     typedef C::value_type V;
     C m(
@@ -40,7 +41,7 @@ int main(int, char**)
            Cmp(4)
         );
     assert(m.size() == 9);
-    assert(distance(m.begin(), m.end()) == 9);
+    assert(std::distance(m.begin(), m.end()) == 9);
     C::const_iterator i = m.cbegin();
     assert(*i == V(1, 1));
     assert(*++i == V(1, 1.5));
@@ -54,7 +55,7 @@ int main(int, char**)
     assert(m.key_comp() == Cmp(4));
     }
     {
-    typedef test_compare<std::less<int> > Cmp;
+    typedef test_less<int> Cmp;
     typedef std::multimap<int, double, Cmp, min_allocator<std::pair<const int, double>>> C;
     typedef C::value_type V;
     C m(
@@ -72,7 +73,7 @@ int main(int, char**)
            Cmp(4)
         );
     assert(m.size() == 9);
-    assert(distance(m.begin(), m.end()) == 9);
+    assert(std::distance(m.begin(), m.end()) == 9);
     C::const_iterator i = m.cbegin();
     assert(*i == V(1, 1));
     assert(*++i == V(1, 1.5));

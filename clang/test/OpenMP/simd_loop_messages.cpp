@@ -1,11 +1,19 @@
-// RUN: %clang_cc1 -fsyntax-only -fopenmp -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify %s
-
-// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp4,expectedw %s -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -fopenmp-version=45 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp4,expectedw %s -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp5,expectedw %s -fopenmp-version=50 -DOMP50 -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp5,expectedw %s -fopenmp-version=50 -DOMP50 -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp4 %s -Wuninitialized -Wno-openmp-loop-form
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp4 %s -Wuninitialized -Wno-openmp
 
 static int sii;
 // expected-note@+1 {{defined as threadprivate or thread local}}
 #pragma omp threadprivate(sii)
 static int globalii;
+
+struct S {
+  // expected-note@+1 {{static data member is predetermined as shared}}
+  static int ssi;
+};
 
 int test_iteration_spaces() {
   const int N = 100;
@@ -13,6 +21,16 @@ int test_iteration_spaces() {
   int ii, jj, kk;
   float fii;
   double dii;
+#pragma omp simd linear(S::ssi)
+  for (S::ssi = 0; S::ssi < 10; ++S::ssi)
+    ;
+// expected-error@+1 {{shared variable cannot be private}}
+#pragma omp simd private(S::ssi)
+  for (S::ssi = 0; S::ssi < 10; ++S::ssi)
+    ;
+#pragma omp simd // no messages expected
+  for (S::ssi = 0; S::ssi < 10; ++S::ssi)
+    ;
   #pragma omp simd
   for (int i = 0; i < 10; i+=1) {
     c[i] = a[i] + b[i];
@@ -83,28 +101,28 @@ int test_iteration_spaces() {
   for (((ii)) = 0;ii < 10; ++ii)
     c[ii] = a[ii];
 
-  // expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+  // omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
   #pragma omp simd
   for (int i = 0; i; i++)
     c[i] = a[i];
 
-  // expected-error@+3 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+  // omp4-error@+3 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+3 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
   // expected-error@+2 {{increment clause of OpenMP for loop must perform simple addition or subtraction on loop variable 'i'}}
   #pragma omp simd
   for (int i = 0; jj < kk; ii++)
     c[i] = a[i];
 
-  // expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+  // omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
   #pragma omp simd
   for (int i = 0; !!i; i++)
     c[i] = a[i];
 
-  // Ok
+	// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
   #pragma omp simd
   for (int i = 0; i != 1; i++)
     c[i] = a[i];
 
-  // expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+  // omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
   #pragma omp simd
   for (int i = 0; ; i++)
     c[i] = a[i];
@@ -230,9 +248,19 @@ int test_iteration_spaces() {
   for (ii = 0; (ii < 10); (ii-=0))
     c[ii] = a[ii];
 
-  // expected-note@+2  {{defined as private}}
-  // expected-error@+2 {{loop iteration variable in the associated loop of 'omp simd' directive may not be private, predetermined as linear}}
+#ifndef OMP50
+  // expected-note@+3  {{defined as private}}
+  // expected-error@+3 {{loop iteration variable in the associated loop of 'omp simd' directive may not be private, predetermined as linear}}
+#endif // OMP50
   #pragma omp simd private(ii)
+  for (ii = 0; ii < 10; ii++)
+    c[ii] = a[ii];
+
+#ifndef OMP50
+  // expected-note@+3  {{defined as lastprivate}}
+  // expected-error@+3 {{loop iteration variable in the associated loop of 'omp simd' directive may not be lastprivate, predetermined as linear}}
+#endif // OMP50
+  #pragma omp simd lastprivate(ii)
   for (ii = 0; ii < 10; ii++)
     c[ii] = a[ii];
 
@@ -274,7 +302,7 @@ int test_iteration_spaces() {
       c[globalii] += a[globalii] + ii;
   }
 
-  // expected-error@+2 {{statement after '#pragma omp simd' must be a for loop}}
+  // omp4-error@+2 {{statement after '#pragma omp simd' must be a for loop}}
   #pragma omp simd
   for (auto &item : a) {
     item = item + 1;
@@ -292,7 +320,7 @@ int test_iteration_spaces() {
   for (int (*p)[4] = lb; p < lb + 8; ++p) {
   }
 
-  // expected-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
+  // expectedw-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
   #pragma omp simd
   for (int a{0}; a<10; ++a) {
   }
@@ -373,19 +401,19 @@ int test_with_random_access_iterator() {
   #pragma omp simd
   for (GoodIter I = begin; I >= end; --I)
     ++I;
-  // expected-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
+  // expectedw-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
   #pragma omp simd
   for (GoodIter I(begin); I < end; ++I)
     ++I;
-  // expected-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
+  // expectedw-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
   #pragma omp simd
   for (GoodIter I(nullptr); I < end; ++I)
     ++I;
-  // expected-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
+  // expectedw-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
   #pragma omp simd
   for (GoodIter I(0); I < end; ++I)
     ++I;
-  // expected-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
+  // expectedw-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
   #pragma omp simd
   for (GoodIter I(1,2); I < end; ++I)
     ++I;
@@ -402,15 +430,15 @@ int test_with_random_access_iterator() {
   #pragma omp simd
   for (begin = end; begin < end; ++begin)
     ++begin;
-  // expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+  // omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
   #pragma omp simd
   for (GoodIter I = begin; I - I; ++I)
     ++I;
-  // expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+  // omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
   #pragma omp simd
   for (GoodIter I = begin; begin < end; ++I)
     ++I;
-  // expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+  // omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
   #pragma omp simd
   for (GoodIter I = begin; !I; ++I)
     ++I;
@@ -440,7 +468,7 @@ int test_with_random_access_iterator() {
     ++I;
 
   // Initializer is constructor without params.
-  // expected-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
+  // expectedw-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
   #pragma omp simd
   for (Iter0 I; I < end0; ++I)
     ++I;
@@ -460,7 +488,7 @@ int test_with_random_access_iterator() {
   // Initializer is constructor with all default params.
   // expected-error@+4 {{invalid operands to binary expression ('Iter1' and 'float')}}
   // expected-error@+3 {{could not calculate number of iterations calling 'operator-' with upper and lower loop bounds}}
-  // expected-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
+  // expectedw-warning@+2 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
   #pragma omp simd
   for (Iter1 I; I < end1; ++I) {
   }

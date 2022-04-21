@@ -1,6 +1,9 @@
 // RUN: %clang_cc1 -fdelayed-template-parsing -std=c++14 -emit-pch %s -o %t.pch -verify
 // RUN: %clang_cc1 -fdelayed-template-parsing -std=c++14 -include-pch %t.pch %s -verify
 
+// RUN: %clang_cc1 -fdelayed-template-parsing -std=c++14 -emit-pch -fpch-instantiate-templates %s -o %t.pch -verify
+// RUN: %clang_cc1 -fdelayed-template-parsing -std=c++14 -include-pch %t.pch %s -verify
+
 #ifndef HEADER_INCLUDED
 
 #define HEADER_INCLUDED
@@ -20,8 +23,8 @@ class ArrayBuffer {
   char data() {
     visit([](auto buffer) -> char { // expected-note {{in instantiation}}
       buffer->data();
-    }); // expected-warning {{control reaches end of non-void lambda}}
-  } // expected-warning {{control reaches end of non-void function}}
+    }); // expected-warning {{non-void lambda does not return a value}}
+  } // expected-warning {{non-void function does not return a value}}
 };
 
 #else

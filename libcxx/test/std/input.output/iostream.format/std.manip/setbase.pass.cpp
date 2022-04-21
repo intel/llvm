@@ -15,6 +15,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct testbuf
     : public std::basic_streambuf<CharT>
@@ -48,6 +50,7 @@ int main(int, char**)
         os << std::setbase(15);
         assert((os.flags() & std::ios_base::basefield) == 0);
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         testbuf<wchar_t> sb;
         std::wistream is(&sb);
@@ -72,6 +75,7 @@ int main(int, char**)
         os << std::setbase(15);
         assert((os.flags() & std::ios_base::basefield) == 0);
     }
+#endif // TEST_HAS_NO_WIDE_CHARACTERS
 
   return 0;
 }

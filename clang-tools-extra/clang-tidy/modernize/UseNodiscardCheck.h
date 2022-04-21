@@ -15,7 +15,7 @@ namespace clang {
 namespace tidy {
 namespace modernize {
 
-/// \brief Add ``[[nodiscard]]`` to non-void const-member functions with no
+/// Add ``[[nodiscard]]`` to non-void const-member functions with no
 /// arguments or pass-by-value or pass by const-reference arguments.
 /// \code
 ///    bool empty() const;
@@ -34,6 +34,7 @@ namespace modernize {
 class UseNodiscardCheck : public ClangTidyCheck {
 public:
   UseNodiscardCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;

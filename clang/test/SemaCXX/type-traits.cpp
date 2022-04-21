@@ -12,6 +12,8 @@ typedef NonPOD NonPODArMB[10][2];
 
 // PODs
 enum Enum { EV };
+enum SignedEnum : signed int { };
+enum UnsignedEnum : unsigned int { };
 struct POD { Enum e; int i; float f; NonPOD* p; };
 struct Empty {};
 struct IncompleteStruct;
@@ -56,14 +58,14 @@ struct HasInheritedCons : HasDefaultCons { using HasDefaultCons::HasDefaultCons;
 struct HasNoInheritedCons : HasCons {};
 struct HasCopyAssign { HasCopyAssign operator =(const HasCopyAssign&); };
 struct HasMoveAssign { HasMoveAssign operator =(const HasMoveAssign&&); };
-struct HasNoThrowMoveAssign { 
+struct HasNoThrowMoveAssign {
   HasNoThrowMoveAssign& operator=(
     const HasNoThrowMoveAssign&&) throw(); };
-struct HasNoExceptNoThrowMoveAssign { 
+struct HasNoExceptNoThrowMoveAssign {
   HasNoExceptNoThrowMoveAssign& operator=(
-    const HasNoExceptNoThrowMoveAssign&&) noexcept; 
+    const HasNoExceptNoThrowMoveAssign&&) noexcept;
 };
-struct HasThrowMoveAssign { 
+struct HasThrowMoveAssign {
   HasThrowMoveAssign& operator=(const HasThrowMoveAssign&&)
 #if __cplusplus <= 201402L
   throw(POD);
@@ -73,7 +75,7 @@ struct HasThrowMoveAssign {
 };
 
 
-struct HasNoExceptFalseMoveAssign { 
+struct HasNoExceptFalseMoveAssign {
   HasNoExceptFalseMoveAssign& operator=(
     const HasNoExceptFalseMoveAssign&&) noexcept(false); };
 struct HasMoveCtor { HasMoveCtor(const HasMoveCtor&&); };
@@ -82,17 +84,17 @@ struct HasMemberMoveAssign { HasMoveAssign member; };
 struct HasStaticMemberMoveCtor { static HasMoveCtor member; };
 struct HasStaticMemberMoveAssign { static HasMoveAssign member; };
 struct HasMemberThrowMoveAssign { HasThrowMoveAssign member; };
-struct HasMemberNoExceptFalseMoveAssign { 
+struct HasMemberNoExceptFalseMoveAssign {
   HasNoExceptFalseMoveAssign member; };
 struct HasMemberNoThrowMoveAssign { HasNoThrowMoveAssign member; };
-struct HasMemberNoExceptNoThrowMoveAssign { 
+struct HasMemberNoExceptNoThrowMoveAssign {
   HasNoExceptNoThrowMoveAssign member; };
 
-struct HasDefaultTrivialCopyAssign { 
+struct HasDefaultTrivialCopyAssign {
   HasDefaultTrivialCopyAssign &operator=(
-    const HasDefaultTrivialCopyAssign&) = default; 
+    const HasDefaultTrivialCopyAssign&) = default;
 };
-struct TrivialMoveButNotCopy { 
+struct TrivialMoveButNotCopy {
   TrivialMoveButNotCopy &operator=(TrivialMoveButNotCopy&&) = default;
   TrivialMoveButNotCopy &operator=(const TrivialMoveButNotCopy&);
 };
@@ -361,7 +363,7 @@ void is_enum()
 struct FinalClass final {
 };
 
-template<typename T> 
+template<typename T>
 struct PotentiallyFinal { };
 
 template<typename T>
@@ -801,6 +803,7 @@ void is_fundamental()
   int t23[T(__is_fundamental(unsigned long))];
   int t24[T(__is_fundamental(void))];
   int t25[T(__is_fundamental(cvoid))];
+  int t26[T(__is_fundamental(decltype(nullptr)))];
 
   int t30[F(__is_fundamental(Union))];
   int t31[F(__is_fundamental(UnionAr))];
@@ -1419,12 +1422,12 @@ void is_signed()
   int t04[T(__is_signed(short))];
   int t05[T(__is_signed(signed char))];
   int t06[T(__is_signed(wchar_t))];
+  int t07[T(__is_signed(float))];
+  int t08[T(__is_signed(double))];
+  int t09[T(__is_signed(long double))];
 
-  int t10[F(__is_signed(bool))];
-  int t11[F(__is_signed(cvoid))];
-  int t12[F(__is_signed(float))];
-  int t13[F(__is_signed(double))];
-  int t14[F(__is_signed(long double))];
+  int t13[F(__is_signed(bool))];
+  int t14[F(__is_signed(cvoid))];
   int t15[F(__is_signed(unsigned char))];
   int t16[F(__is_signed(unsigned int))];
   int t17[F(__is_signed(unsigned long long))];
@@ -1434,9 +1437,11 @@ void is_signed()
   int t21[F(__is_signed(ClassType))];
   int t22[F(__is_signed(Derives))];
   int t23[F(__is_signed(Enum))];
-  int t24[F(__is_signed(IntArNB))];
-  int t25[F(__is_signed(Union))];
-  int t26[F(__is_signed(UnionAr))];
+  int t24[F(__is_signed(SignedEnum))];
+  int t25[F(__is_signed(IntArNB))];
+  int t26[F(__is_signed(Union))];
+  int t27[F(__is_signed(UnionAr))];
+  int t28[F(__is_signed(UnsignedEnum))];
 }
 
 void is_unsigned()
@@ -1447,7 +1452,6 @@ void is_unsigned()
   int t04[T(__is_unsigned(unsigned int))];
   int t05[T(__is_unsigned(unsigned long))];
   int t06[T(__is_unsigned(unsigned long long))];
-  int t07[T(__is_unsigned(Enum))];
 
   int t10[F(__is_unsigned(void))];
   int t11[F(__is_unsigned(cvoid))];
@@ -1465,6 +1469,9 @@ void is_unsigned()
   int t24[F(__is_unsigned(Derives))];
   int t25[F(__is_unsigned(ClassType))];
   int t26[F(__is_unsigned(IntArNB))];
+  int t27[F(__is_unsigned(Enum))];
+  int t28[F(__is_unsigned(UnsignedEnum))];
+  int t29[F(__is_unsigned(SignedEnum))];
 }
 
 typedef Int& IntRef;
@@ -1957,6 +1964,10 @@ void is_same()
   int t10[F(__is_same(Base, const Base))];
   int t11[F(__is_same(Base, Base&))];
   int t12[F(__is_same(Base, Derived))];
+
+  // __is_same_as is a GCC compatibility synonym for __is_same.
+  int t20[T(__is_same_as(int, int))];
+  int t21[F(__is_same_as(int, float))];
 }
 
 struct IntWrapper
@@ -2005,7 +2016,7 @@ class PrivateCopy {
 };
 
 template<typename T>
-struct X0 { 
+struct X0 {
   template<typename U> X0(const X0<U>&);
 };
 
@@ -2766,7 +2777,7 @@ struct CanBeUniqueIfNoPadding : NotUniqueBecauseTailPadding {
   char b[7];
 };
 
-static_assert(!has_unique_object_representations<NotUniqueBecauseTailPadding>::value, 
+static_assert(!has_unique_object_representations<NotUniqueBecauseTailPadding>::value,
               "non trivial");
 // Can be unique on Itanium, since the is child class' data is 'folded' into the
 // parent's tail padding.
@@ -2782,3 +2793,64 @@ namespace ErrorType {
   };
   bool b = __has_unique_object_representations(T);
 };
+
+namespace PR46209 {
+  // Foo has both a trivial assignment operator and a non-trivial one.
+  struct Foo {
+    Foo &operator=(const Foo &) & { return *this; }
+    Foo &operator=(const Foo &) && = default;
+  };
+
+  // Bar's copy assignment calls Foo's non-trivial assignment.
+  struct Bar {
+    Foo foo;
+  };
+
+  static_assert(!__is_trivially_assignable(Foo &, const Foo &), "");
+  static_assert(!__is_trivially_assignable(Bar &, const Bar &), "");
+
+  // Foo2 has both a trivial assignment operator and a non-trivial one.
+  struct Foo2 {
+    Foo2 &operator=(const Foo2 &) & = default;
+    Foo2 &operator=(const Foo2 &) && { return *this; }
+  };
+
+  // Bar2's copy assignment calls Foo2's trivial assignment.
+  struct Bar2 {
+    Foo2 foo;
+  };
+
+  static_assert(__is_trivially_assignable(Foo2 &, const Foo2 &), "");
+  static_assert(__is_trivially_assignable(Bar2 &, const Bar2 &), "");
+}
+
+namespace ConstClass {
+  struct A {
+    A &operator=(const A&) = default;
+  };
+  struct B {
+    const A a;
+  };
+  static_assert(!__is_trivially_assignable(B&, const B&), "");
+}
+
+namespace type_trait_expr_numargs_overflow {
+// Make sure that TypeTraitExpr can store 16 bits worth of arguments.
+#define T4(X) X,X,X,X
+#define T16(X) T4(X),T4(X),T4(X),T4(X)
+#define T64(X) T16(X),T16(X),T16(X),T16(X)
+#define T256(X) T64(X),T64(X),T64(X),T64(X)
+#define T1024(X) T256(X),T256(X),T256(X),T256(X)
+#define T4096(X) T1024(X),T1024(X),T1024(X),T1024(X)
+#define T16384(X) T4096(X),T4096(X),T4096(X),T4096(X)
+#define T32768(X) T16384(X),T16384(X)
+void test() { (void) __is_constructible(int, T32768(int)); }
+#undef T4
+#undef T16
+#undef T64
+#undef T256
+#undef T1024
+#undef T4096
+#undef T16384
+#undef T32768
+} // namespace type_trait_expr_numargs_overflow

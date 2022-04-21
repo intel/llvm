@@ -1,0 +1,208 @@
+# This workflow is intended to check that in-tree build of the translator is
+# healthy and all tests pass. It is used in pre-commits and nightly builds.
+#
+# Documentation for GitHub Actions:
+# [workflow-syntax]: https://docs.github.com/en/free-pro-team@latest/actions/reference/workflow-syntax-for-github-actions
+# [context-and-expression-syntax]: https://docs.github.com/en/free-pro-team@latest/actions/reference/context-and-expression-syntax-for-github-actions
+name: In-tree build & tests
+
+on:
+  push:
+    branches:
+      - master
+      - llvm_release_*
+    paths-ignore: # no need to check build for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
+  pull_request:
+    branches:
+      - master
+      - llvm_release_*
+    paths-ignore: # no need to check build for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
+  schedule:
+    # Ideally, we might want to simplify our regular nightly build as we
+    # probably don't need every configuration to be built every day: most of
+    # them are only necessary in pre-commits to avoid breakages
+    - cron: 0 0 * * *
+
+env:
+  LLVM_VERSION: 15
+
+jobs:
+  build_and_test_linux:
+    name: Linux
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+        shared_libs: [NoSharedLibs]
+        include:
+          - build_type: Release
+            shared_libs: EnableSharedLibs
+      fail-fast: false
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Install dependencies
+        run: |
+          curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
+          curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
+          echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a /etc/apt/sources.list
+          sudo apt-get update
+          sudo apt-get -yq --no-install-suggests --no-install-recommends install \
+            clang-${{ env.LLVM_VERSION }} \
+            spirv-tools
+          # Linux systems in GitHub Actions already have older versions of clang
+          # pre-installed. Make sure to override these with the relevant version.
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
+      - name: Checkout LLVM sources
+        uses: actions/checkout@v2
+        with:
+          repository: llvm/llvm-project
+          ref: main
+          path: llvm-project
+      - name:  Checkout the translator sources
+        uses: actions/checkout@v2
+        with:
+          path: llvm-project/llvm/projects/SPIRV-LLVM-Translator
+      - name:  Get tag for SPIR-V Headers
+        id: spirv-headers-tag
+        run: |
+          echo "spirv_headers_tag=$(cat llvm-project/llvm/projects/SPIRV-LLVM-Translator/spirv-headers-tag.conf)" >> $GITHUB_ENV
+      - name:  Checkout SPIR-V Headers
+        uses: actions/checkout@v2
+        with:
+          repository: KhronosGroup/SPIRV-Headers
+          ref: ${{ env.spirv_headers_tag }}
+          path: llvm-project/llvm/projects/SPIRV-Headers
+      - name: Configure
+        run: |
+          mkdir build && cd build
+          # ON/OFF specifically weren't used as a values for shared_libs matrix
+          # field to improve usability of PR page: instead of (Release, ON) a
+          # job will be displayed as (Release, EnableSharedLibs)
+          SHARED_LIBS=OFF
+          if [[ "${{ matrix.shared_libs }}" == "EnableSharedLibs" ]]; then
+            SHARED_LIBS=ON
+          fi
+          cmake ${{ github.workspace }}/llvm-project/llvm \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
+            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DSPIRV_SKIP_CLANG_BUILD=ON \
+            -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
+            -DLLVM_LIT_ARGS="-sv --no-progress-bar" \
+            -G "Unix Makefiles"
+      - name: Build
+        run: |
+          cd build
+          make llvm-spirv -j2
+      - name: Build tests & test
+        run: |
+          cd build
+          make check-llvm-spirv -j2
+
+  build_windows:
+    name: Windows
+    strategy:
+      matrix:
+        build_type: [Release]
+      fail-fast: false
+    runs-on: windows-latest
+    steps:
+      - name: Checkout LLVM sources
+        uses: actions/checkout@v2
+        with:
+          repository: llvm/llvm-project
+          ref: main
+          path: llvm-project
+      - name:  Checkout the translator sources
+        uses: actions/checkout@v2
+        with:
+          path: llvm-project\\llvm\\projects\\SPIRV-LLVM-Translator
+      - name:  Get tag for SPIR-V Headers
+        id: spirv-headers-tag
+        run: |
+          echo "spirv_headers_tag=$(type llvm-project\\llvm\\projects\\SPIRV-LLVM-Translator\\spirv-headers-tag.conf)" >> $GITHUB_ENV
+      - name:  Checkout SPIR-V Headers
+        uses: actions/checkout@v2
+        with:
+          repository: KhronosGroup/SPIRV-Headers
+          ref: ${{ env.spirv_headers_tag }}
+          path: llvm-project\\llvm\\projects\\SPIRV-Headers
+      - name: Configure
+        shell: bash
+        run: |
+          mkdir build && cd build
+          cmake ..\\llvm-project\\llvm \
+            -Thost=x64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DSPIRV_SKIP_CLANG_BUILD=ON \
+            -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
+            -DLLVM_LIT_ARGS="-sv --no-progress-bar"
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config ${{ matrix.build_type }} --target llvm-spirv -j2
+          # FIXME: Testing is disabled at the moment as it requires clang to be present
+          #       - name: Build tests & test
+          #         shell: bash
+          #         run: |
+          #           cd build
+          #           cmake --build . --config Release --target check-llvm-spirv -j2
+
+  build_and_test_macosx:
+    name: macOS
+    strategy:
+      matrix:
+        build_type: [Release]
+      fail-fast: false
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout LLVM sources
+        uses: actions/checkout@v2
+        with:
+          repository: llvm/llvm-project
+          ref: main
+          path: llvm-project
+      - name:  Checkout the translator sources
+        uses: actions/checkout@v2
+        with:
+          path: llvm-project/llvm/projects/SPIRV-LLVM-Translator
+      - name:  Get tag for SPIR-V Headers
+        id: spirv-headers-tag
+        run: |
+          echo "spirv_headers_tag=$(cat llvm-project/llvm/projects/SPIRV-LLVM-Translator/spirv-headers-tag.conf)" >> $GITHUB_ENV
+      - name:  Checkout SPIR-V Headers
+        uses: actions/checkout@v2
+        with:
+          repository: KhronosGroup/SPIRV-Headers
+          ref: ${{ env.spirv_headers_tag }}
+          path: llvm-project/llvm/projects/SPIRV-Headers
+      - name: Configure
+        run: |
+          mkdir build && cd build
+          cmake ${{ github.workspace }}/llvm-project/llvm \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DSPIRV_SKIP_CLANG_BUILD=ON \
+            -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
+            -DLLVM_LIT_ARGS="-sv --no-progress-bar" \
+            -G "Unix Makefiles"
+      - name: Build
+        run: |
+          cd build
+          make llvm-spirv -j2
+          # FIXME: Testing is disabled at the moment as it requires clang to be present
+          # - name: Build tests & test
+          #   run: |
+          #     cd build
+          #     make check-llvm-spirv -j2

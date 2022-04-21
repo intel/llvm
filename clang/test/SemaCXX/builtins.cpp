@@ -4,7 +4,11 @@ typedef const struct __CFString * CFStringRef;
 #define CFSTR __builtin___CFStringMakeConstantString
 
 void f() {
+#if !defined(__MVS__) && !defined(_AIX)
+  // Builtin function __builtin___CFStringMakeConstantString is currently
+  // unsupported on z/OS and AIX.
   (void)CFStringRef(CFSTR("Hello"));
+#endif
 }
 
 void a() { __builtin_va_list x, y; ::__builtin_va_copy(x, y); }
@@ -14,8 +18,7 @@ template<int (*Compare)(const char *s1, const char *s2)>
 int equal(const char *s1, const char *s2) {
   return Compare(s1, s2) == 0;
 }
-// FIXME: Our error recovery here sucks
-template int equal<&__builtin_strcmp>(const char*, const char*); // expected-error {{builtin functions must be directly called}} expected-error {{expected unqualified-id}} expected-error {{expected ')'}} expected-note {{to match this '('}}
+template int equal<&__builtin_strcmp>(const char*, const char*); // expected-error {{builtin functions must be directly called}}
 
 // PR13195
 void f2() {
@@ -39,6 +42,13 @@ namespace addressof {
 
   S *ptmp = __builtin_addressof(S{}); // expected-error {{taking the address of a temporary}}
 }
+
+namespace function_start {
+void a(void) {}
+int n;
+void *p = __builtin_function_start(n);               // expected-error {{argument must be a function}}
+static_assert(__builtin_function_start(a) == a, ""); // expected-error {{static_assert expression is not an integral constant expression}}
+} // namespace function_start
 
 void no_ms_builtins() {
   __assume(1); // expected-error {{use of undeclared}}
@@ -114,7 +124,7 @@ static_assert(&const_int == const_ptr, "");
 static_assert(const_ptr != test_constexpr_launder(&const_int2), "");
 
 void test_non_constexpr() {
-  constexpr int i = 42;                            // expected-note {{declared here}}
+  constexpr int i = 42;                            // expected-note {{address of non-static constexpr variable 'i' may differ on each invocation}}
   constexpr const int *ip = __builtin_launder(&i); // expected-error {{constexpr variable 'ip' must be initialized by a constant expression}}
   // expected-note@-1 {{pointer to 'i' is not a constant expression}}
 }
@@ -145,3 +155,12 @@ void test_noexcept(int *i) {
 }
 #undef TEST_TYPE
 } // end namespace test_launder
+
+template<typename T> void test_builtin_complex(T v, double d) {
+  (void)__builtin_complex(v, d); // expected-error {{different types}} expected-error {{not a real floating}}
+  (void)__builtin_complex(d, v); // expected-error {{different types}} expected-error {{not a real floating}}
+  (void)__builtin_complex(v, v); // expected-error {{not a real floating}}
+}
+template void test_builtin_complex(double, double);
+template void test_builtin_complex(float, double); // expected-note {{instantiation of}}
+template void test_builtin_complex(int, double); // expected-note {{instantiation of}}

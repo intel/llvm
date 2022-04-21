@@ -245,6 +245,12 @@ public:
     return getLastArg(Ids...) != nullptr;
   }
 
+  /// Return true if the arg list contains multiple arguments matching \p Id.
+  bool hasMultipleArgs(OptSpecifier Id) const {
+    auto Args = filtered(Id);
+    return (Args.begin() != Args.end()) && (++Args.begin()) != Args.end();
+  }
+
   /// Return the last argument matching \p Id, or null.
   template<typename ...OptSpecifiers>
   Arg *getLastArg(OptSpecifiers ...Ids) const {
@@ -292,19 +298,21 @@ public:
   /// true if the option is present, false if the negation is present, and
   /// \p Default if neither option is given. If both the option and its
   /// negation are present, the last one wins.
-  bool hasFlag(OptSpecifier Pos, OptSpecifier Neg, bool Default=true) const;
+  bool hasFlag(OptSpecifier Pos, OptSpecifier Neg, bool Default) const;
 
   /// hasFlag - Given an option \p Pos, an alias \p PosAlias and its negative
   /// form \p Neg, return true if the option or its alias is present, false if
   /// the negation is present, and \p Default if none of the options are
   /// given. If multiple options are present, the last one wins.
   bool hasFlag(OptSpecifier Pos, OptSpecifier PosAlias, OptSpecifier Neg,
-               bool Default = true) const;
+               bool Default) const;
 
-  /// AddLastArg - Render only the last argument match \p Id0, if present.
-  void AddLastArg(ArgStringList &Output, OptSpecifier Id0) const;
-  void AddLastArg(ArgStringList &Output, OptSpecifier Id0,
-                  OptSpecifier Id1) const;
+  /// Render only the last argument match \p Id0, if present.
+  template<typename ...OptSpecifiers>
+  void AddLastArg(ArgStringList &Output, OptSpecifiers ...Ids) const {
+    if (Arg *A = getLastArg(Ids...)) // Calls claim() on all Ids's Args.
+      A->render(*this, Output);
+  }
 
   /// AddAllArgsExcept - Render all arguments matching any of the given ids
   /// and not matching any of the excluded ids.
@@ -339,7 +347,6 @@ public:
   /// ClaimAllArgs - Claim all arguments.
   ///
   void ClaimAllArgs() const;
-
   /// @}
   /// @name Arg Synthesis
   /// @{
@@ -408,6 +415,10 @@ public:
 
   const char *getArgString(unsigned Index) const override {
     return ArgStrings[Index];
+  }
+
+  void replaceArgString(unsigned Index, const Twine &S) {
+    ArgStrings[Index] = MakeArgString(S);
   }
 
   unsigned getNumInputArgStrings() const override {

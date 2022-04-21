@@ -9,7 +9,7 @@
 ; GCN: v_cndmask_b32
 ; GCN: v_cndmask_b32
 ; GCN: v_cndmask_b32_e32 [[RES:v[0-9]+]], 4.0,
-; GCN: store_dword v[{{[0-9:]+}}], [[RES]]
+; GCN: store_dword v{{.+}}, [[RES]]
 
 ; OPT:  %gep = getelementptr inbounds <4 x float>, <4 x float> addrspace(5)* %alloca, i32 0, i32 %sel2
 ; OPT:  store <4 x float> <float 1.000000e+00, float 2.000000e+00, float 3.000000e+00, float 4.000000e+00>, <4 x float> addrspace(5)* %alloca, align 4
@@ -44,7 +44,7 @@ entry:
 ; GCN:     v_mov_b32_e32 v{{[0-9]+}}, [[ONE]]
 ; GCN:     v_mov_b32_e32 v{{[0-9]+}}, [[ONE]]
 ; GCN:     v_mov_b32_e32 v{{[0-9]+}}, [[ONE]]
-; GCN:     store_dwordx4 v[{{[0-9:]+}}],
+; GCN:     store_dwordx4 v{{.+}},
 
 ; OPT: %gep = getelementptr inbounds <4 x float>, <4 x float> addrspace(5)* %alloca, i32 0, i32 %sel2
 ; OPT: %0 = load <4 x float>, <4 x float> addrspace(5)* %alloca
@@ -75,7 +75,7 @@ entry:
 ; GCN-NOT: buffer_
 ; GCN-DAG: s_mov_b32 s[[SH:[0-9]+]], 0x44004200
 ; GCN-DAG: s_mov_b32 s[[SL:[0-9]+]], 0x40003c00
-; GCN:     v_lshrrev_b64 v[{{[0-9:]+}}], v{{[0-9]+}}, s{{\[}}[[SL]]:[[SH]]]
+; GCN:     v_lshrrev_b64 v[{{[0-9:]+}}], v{{[0-9]+}}, s[[[SL]]:[[SH]]]
 
 ; OPT: %gep = getelementptr inbounds <4 x half>, <4 x half> addrspace(5)* %alloca, i32 0, i32 %sel2
 ; OPT: store <4 x half> <half 0xH3C00, half 0xH4000, half 0xH4200, half 0xH4400>, <4 x half> addrspace(5)* %alloca, align 2
@@ -103,8 +103,7 @@ entry:
 ; OPT-LABEL: define amdgpu_kernel void @half4_alloca_load4
 
 ; GCN-NOT: buffer_
-; GCN-DAG: s_mov_b32 s[[SH:[0-9]+]], 0
-; GCN-DAG: s_mov_b32 s[[SL:[0-9]+]], 0xffff
+; GCN:     s_mov_b64 s[{{[0-9:]+}}], 0xffff
 
 ; OPT: %gep = getelementptr inbounds <4 x half>, <4 x half> addrspace(5)* %alloca, i32 0, i32 %sel2
 ; OPT: %0 = load <4 x half>, <4 x half> addrspace(5)* %alloca
@@ -135,7 +134,7 @@ entry:
 ; GCN-NOT: buffer_
 ; GCN-DAG: s_mov_b32 s[[SH:[0-9]+]], 0x40003
 ; GCN-DAG: s_mov_b32 s[[SL:[0-9]+]], 0x20001
-; GCN:     v_lshrrev_b64 v[{{[0-9:]+}}], v{{[0-9]+}}, s{{\[}}[[SL]]:[[SH]]]
+; GCN:     v_lshrrev_b64 v[{{[0-9:]+}}], v{{[0-9]+}}, s[[[SL]]:[[SH]]]
 
 ; OPT: %gep = getelementptr inbounds <4 x i16>, <4 x i16> addrspace(5)* %alloca, i32 0, i32 %sel2
 ; OPT: store <4 x i16> <i16 1, i16 2, i16 3, i16 4>, <4 x i16> addrspace(5)* %alloca, align 2
@@ -163,8 +162,7 @@ entry:
 ; OPT-LABEL: define amdgpu_kernel void @short4_alloca_load4
 
 ; GCN-NOT: buffer_
-; GCN-DAG: s_mov_b32 s[[SH:[0-9]+]], 0
-; GCN-DAG: s_mov_b32 s[[SL:[0-9]+]], 0xffff
+; GCN:     s_mov_b64 s[{{[0-9:]+}}], 0xffff
 
 ; OPT: %gep = getelementptr inbounds <4 x i16>, <4 x i16> addrspace(5)* %alloca, i32 0, i32 %sel2
 ; OPT: %0 = load <4 x i16>, <4 x i16> addrspace(5)* %alloca
@@ -187,6 +185,24 @@ entry:
   %load = load <4 x i16>, <4 x i16> addrspace(5)* %alloca, align 2
   store <4 x i16> %load, <4 x i16> addrspace(1)* %out, align 2
   ret void
+}
+
+; GCN-LABEL: {{^}}ptr_alloca_bitcast:
+; OPT-LABEL: define i64 @ptr_alloca_bitcast
+
+; GCN-NOT: buffer_
+; GCN: v_mov_b32_e32 v1, 0
+
+; OPT: %private_iptr = alloca <2 x i32>, align 8, addrspace(5)
+; OPT: %cast = bitcast <2 x i32> addrspace(5)* %private_iptr to i64 addrspace(5)*
+; OPT: %tmp1 = load i64, i64 addrspace(5)* %cast, align 8
+
+define i64 @ptr_alloca_bitcast() {
+entry:
+  %private_iptr = alloca <2 x i32>, align 8, addrspace(5)
+  %cast = bitcast <2 x i32> addrspace(5)* %private_iptr to i64 addrspace(5)*
+  %tmp1 = load i64, i64 addrspace(5)* %cast, align 8
+  ret i64 %tmp1
 }
 
 declare i32 @llvm.amdgcn.workitem.id.x()

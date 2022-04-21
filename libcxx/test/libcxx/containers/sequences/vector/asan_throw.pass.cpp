@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // Test asan vector annotations with a class that throws in a CTOR.
 
 #include <vector>
@@ -50,6 +50,7 @@ public:
             throw 0;
         }
     }
+    ThrowOnCopy& operator=(ThrowOnCopy const&) = default;
 
     bool should_throw;
 };

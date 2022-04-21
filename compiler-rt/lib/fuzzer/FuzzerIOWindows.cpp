@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // IO functions implementation for Windows.
 //===----------------------------------------------------------------------===//
-#include "FuzzerDefs.h"
+#include "FuzzerPlatform.h"
 #if LIBFUZZER_WINDOWS
 
 #include "FuzzerExtFunctions.h"
@@ -76,6 +76,18 @@ static bool IsDir(DWORD FileAttrs) {
   return FileAttrs & FILE_ATTRIBUTE_DIRECTORY;
 }
 
+bool IsDirectory(const std::string &Path) {
+  DWORD Att = GetFileAttributesA(Path.c_str());
+
+  if (Att == INVALID_FILE_ATTRIBUTES) {
+    Printf("GetFileAttributesA() failed for \"%s\" (Error code: %lu).\n",
+           Path.c_str(), GetLastError());
+    return false;
+  }
+
+  return IsDir(Att);
+}
+
 std::string Basename(const std::string &Path) {
   size_t Pos = Path.find_last_of("/\\");
   if (Pos == std::string::npos) return Path;
@@ -99,7 +111,7 @@ size_t FileSize(const std::string &Path) {
 }
 
 void ListFilesInDirRecursive(const std::string &Dir, long *Epoch,
-                             Vector<std::string> *V, bool TopDir) {
+                             std::vector<std::string> *V, bool TopDir) {
   auto E = GetEpoch(Dir);
   if (Epoch)
     if (E && *Epoch >= E) return;
@@ -146,7 +158,6 @@ void ListFilesInDirRecursive(const std::string &Dir, long *Epoch,
   if (Epoch && TopDir)
     *Epoch = E;
 }
-
 
 void IterateDirRecursive(const std::string &Dir,
                          void (*DirPreCallback)(const std::string &Dir),
@@ -223,19 +234,11 @@ void RenameFile(const std::string &OldPath, const std::string &NewPath) {
   rename(OldPath.c_str(), NewPath.c_str());
 }
 
-void DiscardOutput(int Fd) {
-  FILE* Temp = fopen("nul", "w");
-  if (!Temp)
-    return;
-  _dup2(_fileno(Temp), Fd);
-  fclose(Temp);
-}
-
 intptr_t GetHandleFromFd(int fd) {
   return _get_osfhandle(fd);
 }
 
-static bool IsSeparator(char C) {
+bool IsSeparator(char C) {
   return C == '\\' || C == '/';
 }
 
@@ -293,9 +296,8 @@ static size_t ParseServerAndShare(const std::string &FileName,
   return Pos - Offset;
 }
 
-// Parse the given Ref string from the position Offset, to exactly match the given
-// string Patt.
-// Returns number of characters considered if successful.
+// Parse the given Ref string from the position Offset, to exactly match the
+// given string Patt. Returns number of characters considered if successful.
 static size_t ParseCustomString(const std::string &Ref, size_t Offset,
                                 const char *Patt) {
   size_t Len = strlen(Patt);

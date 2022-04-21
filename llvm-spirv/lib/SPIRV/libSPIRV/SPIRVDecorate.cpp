@@ -43,8 +43,8 @@
 #include "SPIRVValue.h"
 
 namespace SPIRV {
-template <class T, class B>
-spv_ostream &operator<<(spv_ostream &O, const std::multiset<T *, B> &V) {
+template <class T>
+spv_ostream &operator<<(spv_ostream &O, const std::vector<T *> &V) {
   for (auto &I : V)
     O << *I;
   return O;
@@ -71,6 +71,16 @@ SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC, SPIRVWord WC,
   updateModuleVersion();
 }
 
+SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC, SPIRVWord WC,
+                                           Decoration TheDec,
+                                           SPIRVEntry *TheTarget, SPIRVWord V1,
+                                           SPIRVWord V2)
+    : SPIRVDecorateGeneric(OC, WC, TheDec, TheTarget, V1) {
+  Literals.push_back(V2);
+  validate();
+  updateModuleVersion();
+}
+
 SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC)
     : SPIRVAnnotationGeneric(OC), Dec(DecorationRelaxedPrecision),
       Owner(nullptr) {}
@@ -82,20 +92,33 @@ SPIRVWord SPIRVDecorateGeneric::getLiteral(size_t I) const {
   return Literals[I];
 }
 
+std::vector<SPIRVWord> SPIRVDecorateGeneric::getVecLiteral() const {
+  return Literals;
+}
+
 size_t SPIRVDecorateGeneric::getLiteralCount() const { return Literals.size(); }
 
 void SPIRVDecorate::encode(spv_ostream &O) const {
   SPIRVEncoder Encoder = getEncoder(O);
   Encoder << Target << Dec;
-  switch (Dec) {
+  switch (static_cast<size_t>(Dec)) {
   case DecorationLinkageAttributes:
     SPIRVDecorateLinkageAttr::encodeLiterals(Encoder, Literals);
     break;
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::encodeLiterals(Encoder, Literals);
     break;
+  case DecorationMergeINTEL:
+    SPIRVDecorateMergeINTELAttr::encodeLiterals(Encoder, Literals);
+    break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
+    break;
+  case internal::DecorationFuncParamDescINTEL:
+    SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
+    break;
+  case spv::internal::DecorationHostAccessINTEL:
+    SPIRVDecorateHostAccessINTEL::encodeLiterals(Encoder, Literals);
     break;
   default:
     Encoder << Literals;
@@ -110,15 +133,24 @@ void SPIRVDecorate::setWordCount(SPIRVWord Count) {
 void SPIRVDecorate::decode(std::istream &I) {
   SPIRVDecoder Decoder = getDecoder(I);
   Decoder >> Target >> Dec;
-  switch (Dec) {
+  switch (static_cast<size_t>(Dec)) {
   case DecorationLinkageAttributes:
     SPIRVDecorateLinkageAttr::decodeLiterals(Decoder, Literals);
     break;
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::decodeLiterals(Decoder, Literals);
     break;
+  case DecorationMergeINTEL:
+    SPIRVDecorateMergeINTELAttr::decodeLiterals(Decoder, Literals);
+    break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
+    break;
+  case internal::DecorationFuncParamDescINTEL:
+    SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
+    break;
+  case spv::internal::DecorationHostAccessINTEL:
+    SPIRVDecorateHostAccessINTEL::decodeLiterals(Decoder, Literals);
     break;
   default:
     Decoder >> Literals;
@@ -126,15 +158,37 @@ void SPIRVDecorate::decode(std::istream &I) {
   getOrCreateTarget()->addDecorate(this);
 }
 
+void SPIRVDecorateId::encode(spv_ostream &O) const {
+  SPIRVEncoder Encoder = getEncoder(O);
+  Encoder << Target << Dec << Literals;
+}
+
+void SPIRVDecorateId::setWordCount(SPIRVWord Count) {
+  WordCount = Count;
+  Literals.resize(WordCount - FixedWC);
+}
+
+void SPIRVDecorateId::decode(std::istream &I) {
+  SPIRVDecoder Decoder = getDecoder(I);
+  Decoder >> Target >> Dec >> Literals;
+  getOrCreateTarget()->addDecorate(this);
+}
+
 void SPIRVMemberDecorate::encode(spv_ostream &O) const {
   SPIRVEncoder Encoder = getEncoder(O);
   Encoder << Target << MemberNumber << Dec;
-  switch (Dec) {
+  switch (static_cast<size_t>(Dec)) {
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::encodeLiterals(Encoder, Literals);
     break;
+  case DecorationMergeINTEL:
+    SPIRVDecorateMergeINTELAttr::encodeLiterals(Encoder, Literals);
+    break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
+    break;
+  case internal::DecorationFuncParamDescINTEL:
+    SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
     break;
   default:
     Encoder << Literals;
@@ -149,12 +203,18 @@ void SPIRVMemberDecorate::setWordCount(SPIRVWord Count) {
 void SPIRVMemberDecorate::decode(std::istream &I) {
   SPIRVDecoder Decoder = getDecoder(I);
   Decoder >> Target >> MemberNumber >> Dec;
-  switch (Dec) {
+  switch (static_cast<size_t>(Dec)) {
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::decodeLiterals(Decoder, Literals);
     break;
+  case DecorationMergeINTEL:
+    SPIRVDecorateMergeINTELAttr::decodeLiterals(Decoder, Literals);
+    break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
+    break;
+  case internal::DecorationFuncParamDescINTEL:
+    SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
     break;
   default:
     Decoder >> Literals;
@@ -201,58 +261,5 @@ void SPIRVGroupMemberDecorate::decorateTargets() {
       Target->addMemberDecorate(static_cast<SPIRVMemberDecorate *>(Dec));
     }
   }
-}
-
-bool SPIRVDecorateGeneric::Comparator::
-operator()(const SPIRVDecorateGeneric *A, const SPIRVDecorateGeneric *B) const {
-  auto Action = [=]() {
-    if (A->getOpCode() < B->getOpCode())
-      return true;
-    if (A->getOpCode() > B->getOpCode())
-      return false;
-    if (A->getDecorateKind() < B->getDecorateKind())
-      return true;
-    if (A->getDecorateKind() > B->getDecorateKind())
-      return false;
-    if (A->getLiteralCount() < B->getLiteralCount())
-      return true;
-    if (A->getLiteralCount() > B->getLiteralCount())
-      return false;
-    for (size_t I = 0, E = A->getLiteralCount(); I != E; ++I) {
-      auto EA = A->getLiteral(I);
-      auto EB = B->getLiteral(I);
-      if (EA < EB)
-        return true;
-      if (EA > EB)
-        return false;
-    }
-    return false;
-  };
-  auto Res = Action();
-  return Res;
-}
-
-bool operator==(const SPIRVDecorateGeneric &A, const SPIRVDecorateGeneric &B) {
-  if (A.getTargetId() != B.getTargetId())
-    return false;
-  if (A.getOpCode() != B.getOpCode())
-    return false;
-  if (B.isMemberDecorate()) {
-    auto &MDA = static_cast<SPIRVMemberDecorate const &>(A);
-    auto &MDB = static_cast<SPIRVMemberDecorate const &>(B);
-    if (MDA.getMemberNumber() != MDB.getMemberNumber())
-      return false;
-  }
-  if (A.getDecorateKind() != B.getDecorateKind())
-    return false;
-  if (A.getLiteralCount() != B.getLiteralCount())
-    return false;
-  for (size_t I = 0, E = A.getLiteralCount(); I != E; ++I) {
-    auto EA = A.getLiteral(I);
-    auto EB = B.getLiteral(I);
-    if (EA != EB)
-      return false;
-  }
-  return true;
 }
 } // namespace SPIRV

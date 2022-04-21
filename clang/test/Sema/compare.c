@@ -220,7 +220,7 @@ int pointers(int *a) {
 int function_pointers(int (*a)(int), int (*b)(int), void (*c)(int)) {
   return a > b; // expected-warning {{ordered comparison of function pointers}}
   return function_pointers > function_pointers; // expected-warning {{self-comparison always evaluates to false}} expected-warning{{ordered comparison of function pointers}}
-  return a > c; // expected-warning {{comparison of distinct pointer types}}
+  return a > c;                                 // expected-warning {{comparison of distinct pointer types}} expected-warning {{ordered comparison of function pointers}}
   return a == (void *) 0;
   return a == (void *) 1; // expected-warning {{equality comparison between function pointer and void pointer}}
 }
@@ -262,7 +262,7 @@ int test2(int i32) {
 }
 
 // PR5887
-void test3() {
+void test3(void) {
   unsigned short x, y;
   unsigned int z;
   if ((x > y ? x : y) > z)
@@ -271,7 +271,7 @@ void test3() {
 
 // PR5961
 extern char *ptr4;
-void test4() {
+void test4(void) {
   long value;
   if (value < (unsigned long) &ptr4) // expected-warning {{comparison of integers of different signs}}
     return;
@@ -283,6 +283,20 @@ int test5(unsigned int x) {
     && (0 > x)   // expected-warning {{comparison of 0 > unsigned expression is always false}}
     && (x >= 0)  // expected-warning {{comparison of unsigned expression >= 0 is always true}}
     && (0 <= x); // expected-warning {{comparison of 0 <= unsigned expression is always true}}
+}
+
+struct bitfield {
+  int a : 3;
+  unsigned b : 3;
+  long c : 40;
+  unsigned long d : 40;
+};
+
+void test5a(struct bitfield a) {
+  if (a.a < 0) {}
+  if (a.b < 0) {} // expected-warning {{comparison of unsigned expression < 0 is always false}}
+  if (a.c < 0) {}
+  if (a.d < 0) {} // expected-warning {{comparison of unsigned expression < 0 is always false}}
 }
 
 int test6(unsigned i, unsigned power) {
@@ -306,7 +320,7 @@ int rdar8414119_bar(unsigned x) {
 #undef ZERO
 #undef CHECK
 
-int rdar8511238() {
+int rdar8511238(void) {
   enum A { A_foo, A_bar };
   enum A a;
 

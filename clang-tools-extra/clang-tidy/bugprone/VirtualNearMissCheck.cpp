@@ -40,11 +40,11 @@ static bool checkOverridingFunctionReturnType(const ASTContext *Context,
                                               const CXXMethodDecl *BaseMD,
                                               const CXXMethodDecl *DerivedMD) {
   QualType BaseReturnTy = BaseMD->getType()
-                              ->getAs<FunctionType>()
+                              ->castAs<FunctionType>()
                               ->getReturnType()
                               .getCanonicalType();
   QualType DerivedReturnTy = DerivedMD->getType()
-                                 ->getAs<FunctionType>()
+                                 ->castAs<FunctionType>()
                                  ->getReturnType()
                                  .getCanonicalType();
 
@@ -215,9 +215,6 @@ bool VirtualNearMissCheck::isOverriddenByDerivedClass(
 }
 
 void VirtualNearMissCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   Finder->addMatcher(
       cxxMethodDecl(
           unless(anyOf(isOverride(), isImplicit(), cxxConstructorDecl(),

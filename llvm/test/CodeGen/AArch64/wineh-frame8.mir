@@ -29,12 +29,12 @@
     ret i32 %add
   }
 
-  attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 ...
 ---
 name:            '?func@@YAHH@Z'
-alignment:       2
+alignment:       4
 exposesReturnsTwice: false
 legalized:       true
 regBankSelected: true
@@ -65,11 +65,11 @@ frameInfo:
 fixedStack:
 stack:
   - { id: 0, name: a.addr, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -4, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 1, name: b, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -8, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
 constants:
@@ -78,10 +78,10 @@ body:             |
     liveins: $w0
 
     renamable $w8 = MOVi32imm 2
-    STRWui killed renamable $w0, %stack.0.a.addr, 0 :: (store 4 into %ir.a.addr)
-    STRWui killed renamable $w8, %stack.1.b, 0 :: (store 4 into %ir.b)
-    renamable $w8 = LDRWui %stack.1.b, 0 :: (load 4 from %ir.b)
-    renamable $w0 = LDRWui %stack.0.a.addr, 0 :: (load 4 from %ir.a.addr)
+    STRWui killed renamable $w0, %stack.0.a.addr, 0 :: (store (s32) into %ir.a.addr)
+    STRWui killed renamable $w8, %stack.1.b, 0 :: (store (s32) into %ir.b)
+    renamable $w8 = LDRWui %stack.1.b, 0 :: (load (s32) from %ir.b)
+    renamable $w0 = LDRWui %stack.0.a.addr, 0 :: (load (s32) from %ir.a.addr)
     renamable $w0 = nsw ADDWrr killed renamable $w8, killed renamable $w0
     RET_ReallyLR implicit killed $w0
 

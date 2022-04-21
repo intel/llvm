@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -fsyntax-only -fopenmp -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp4 %s -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=50 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp5 %s -Wuninitialized
 
-// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -fopenmp-version=45 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp4 %s -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -fopenmp-version=50 -x c++ -std=c++11 -fexceptions -fcxx-exceptions -verify=expected,omp5 %s -Wuninitialized
 
 class S {
   int a;
@@ -109,32 +111,32 @@ int test_iteration_spaces() {
 
 #pragma omp target
 #pragma omp teams distribute simd
-// expected-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+// omp4-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
   for (int i = 0; i; i++)
     c[i] = a[i];
 
 #pragma omp target
 #pragma omp teams distribute simd
-// expected-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+// omp4-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+2 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
 // expected-error@+1 {{increment clause of OpenMP for loop must perform simple addition or subtraction on loop variable 'i'}}
   for (int i = 0; jj < kk; ii++)
     c[i] = a[i];
 
 #pragma omp target
 #pragma omp teams distribute simd
-// expected-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+// omp4-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
   for (int i = 0; !!i; i++)
     c[i] = a[i];
 
 #pragma omp target
 #pragma omp teams distribute simd
-// Ok
+// omp4-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
   for (int i = 0; i != 1; i++)
     c[i] = a[i];
 
 #pragma omp target
 #pragma omp teams distribute simd
-// expected-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}}
+// omp4-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'i'}} omp5-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'i'}}
   for (int i = 0;; i++)
     c[i] = a[i];
 
@@ -288,14 +290,14 @@ int test_iteration_spaces() {
     c[ii] = a[ii];
 
 #pragma omp target
-#pragma omp teams distribute simd private(ii) // expected-note {{defined as private}}
-// expected-error@+1 {{loop iteration variable in the associated loop of 'omp teams distribute simd' directive may not be private, predetermined as linear}}
+#pragma omp teams distribute simd private(ii) // omp4-note {{defined as private}}
+// omp4-error@+1 {{loop iteration variable in the associated loop of 'omp teams distribute simd' directive may not be private, predetermined as linear}}
   for (ii = 0; ii < 10; ii++)
     c[ii] = a[ii];
 
 #pragma omp target
-#pragma omp teams distribute simd lastprivate(ii) // expected-note {{defined as lastprivate}}
-// expected-error@+1 {{loop iteration variable in the associated loop of 'omp teams distribute simd' directive may not be lastprivate, predetermined as linear}}
+#pragma omp teams distribute simd lastprivate(ii) // omp4-note {{defined as lastprivate}}
+// omp4-error@+1 {{loop iteration variable in the associated loop of 'omp teams distribute simd' directive may not be lastprivate, predetermined as linear}}
   for (ii = 0; ii < 10; ii++)
     c[ii] = a[ii];
 
@@ -315,7 +317,7 @@ int test_iteration_spaces() {
 
 #pragma omp target
 #pragma omp teams distribute simd
-// expected-error@+1 {{statement after '#pragma omp teams distribute simd' must be a for loop}}
+// omp4-error@+1 {{statement after '#pragma omp teams distribute simd' must be a for loop}}
   for (auto &item : a) {
     item = item + 1;
   }
@@ -414,7 +416,7 @@ int test_with_random_access_iterator() {
   Iter0 begin0, end0;
 #pragma omp target
 #pragma omp teams distribute simd
-  for (GoodIter I = begin; I < end; ++I) // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (GoodIter I = begin; I < end; ++I) // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
@@ -423,31 +425,31 @@ int test_with_random_access_iterator() {
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
-  for (GoodIter I = begin; I >= end; --I) // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (GoodIter I = begin; I >= end; --I) // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
 // expected-warning@+1 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
-  for (GoodIter I(begin); I < end; ++I) // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (GoodIter I(begin); I < end; ++I) // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
 // expected-warning@+1 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
-  for (GoodIter I(nullptr); I < end; ++I) // expected-warning {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (GoodIter I(nullptr); I < end; ++I) // expected-warning {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
 // expected-warning@+1 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
-  for (GoodIter I(0); I < end; ++I) // expected-warning {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (GoodIter I(0); I < end; ++I) // expected-warning {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
 // expected-warning@+1 {{initialization clause of OpenMP for loop is not in canonical form ('var = init' or 'T var = init')}}
-  for (GoodIter I(1, 2); I < end; ++I) // expected-warning {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (GoodIter I(1, 2); I < end; ++I) // expected-warning {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
-  for (begin = GoodIter(0); begin < end; ++begin) // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (begin = GoodIter(0); begin < end; ++begin) // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++begin;
 #pragma omp target
 #pragma omp teams distribute simd
@@ -462,21 +464,21 @@ int test_with_random_access_iterator() {
     ++begin;
 #pragma omp target
 #pragma omp teams distribute simd
-  for (begin = end; begin < end; ++begin) // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (begin = end; begin < end; ++begin) // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++begin;
 #pragma omp target
 #pragma omp teams distribute simd
-// expected-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+// omp4-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
   for (GoodIter I = begin; I - I; ++I)
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
-// expected-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+// omp4-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
   for (GoodIter I = begin; begin < end; ++I)
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
-// expected-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}}
+// omp4-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', or '>=') of loop variable 'I'}} omp5-error@+1 {{condition of OpenMP for loop must be a relational comparison ('<', '<=', '>', '>=', or '!=') of loop variable 'I'}}
   for (GoodIter I = begin; !I; ++I)
     ++I;
 #pragma omp target
@@ -487,7 +489,7 @@ int test_with_random_access_iterator() {
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
-  for (GoodIter I = begin; I >= end; I = I - 1) // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (GoodIter I = begin; I >= end; I = I - 1) // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++I;
 #pragma omp target
 #pragma omp teams distribute simd
@@ -549,19 +551,19 @@ public:
 #pragma omp teams distribute simd
 // expected-note@+2 {{loop step is expected to be positive due to this condition}}
 // expected-error@+1 {{increment expression must cause 'I' to increase on each iteration of OpenMP for loop}}
-    for (IT I = begin; I < end; I = I + ST) { // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+    for (IT I = begin; I < end; I = I + ST) { // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
       ++I;
     }
 #pragma omp target
 #pragma omp teams distribute simd
 // expected-note@+2 {{loop step is expected to be positive due to this condition}}
 // expected-error@+1 {{increment expression must cause 'I' to increase on each iteration of OpenMP for loop}}
-    for (IT I = begin; I <= end; I += ST) { // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+    for (IT I = begin; I <= end; I += ST) { // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
       ++I;
     }
 #pragma omp target
 #pragma omp teams distribute simd
-    for (IT I = begin; I < end; ++I) { // expected-warning 4 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+    for (IT I = begin; I < end; ++I) { // expected-warning 4 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
       ++I;
     }
   }
@@ -597,7 +599,7 @@ int dotest_gt(IT begin, IT end) {
 
 #pragma omp target
 #pragma omp teams distribute simd
-  for (IT I = begin; I < end; I += TC<int, ST>::step()) { // expected-warning 2 {{Non-trivial type 'GoodIter' is mapped, only trivial types are guaranteed to be mapped correctly}}
+  for (IT I = begin; I < end; I += TC<int, ST>::step()) { // expected-warning 2 {{Type 'GoodIter' is not trivially copyable and not guaranteed to be mapped correctly}}
     ++I;
   }
 }
@@ -697,7 +699,7 @@ void test_loop_firstprivate_lastprivate() {
   S s(4);
 // expected-error@+2 {{lastprivate variable cannot be firstprivate}} expected-note@+2 {{defined as lastprivate}}
 #pragma omp target
-#pragma omp teams distribute simd lastprivate(s) firstprivate(s) // expected-error {{calling a private constructor of class 'S'}} expected-warning {{Non-trivial type 'S' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp teams distribute simd lastprivate(s) firstprivate(s) // expected-error {{calling a private constructor of class 'S'}} expected-warning {{Type 'S' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 16; ++i)
     ;
 }

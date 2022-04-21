@@ -1,11 +1,14 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
-; RUN: llc -mtriple=%triple -stop-before=expand-isel-pseudos -pre-RA-sched=linearize < %t.ll | FileCheck %s
+; RUN: llc -mtriple=%triple -stop-before=finalize-isel -pre-RA-sched=linearize < %t.ll -experimental-debug-variable-locations=false | FileCheck %s
 
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck --check-prefix CHECK-SPIRV %s
-; CHECK-SPIRV: ExtInstImport [[Set:[0-9]+]] "SPIRV.debug"
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+; CHECK-SPIRV: ExtInstImport [[Set:[0-9]+]] "OpenCL.DebugInfo.100"
 ; CHECK-SPIRV: TypeVoid [[Void:[0-9]+]]
 ; CHECK-SPIRV: ExtInst [[Void]] {{[0-9]+}} [[Set]] DebugValue
 
@@ -78,5 +81,3 @@ attributes #1 = { nounwind readnone speculatable }
 !20 = !DILocation(line: 3, scope: !6)
 !21 = !DILocation(line: 4, scope: !22)
 !22 = !DILexicalBlockFile(scope: !13, file: !1, discriminator: 3)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

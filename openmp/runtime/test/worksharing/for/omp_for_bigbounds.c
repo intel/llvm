@@ -2,12 +2,17 @@
 // RUN: %libomp-compile -DMY_SCHEDULE=dynamic && %libomp-run
 // RUN: %libomp-compile -DMY_SCHEDULE=guided && %libomp-run
 
-// Only works with Intel Compiler since at least version 15.0
-// XFAIL: gcc, clang
+// Only works with Intel Compiler since at least version 15.0 and clang since
+// version 11.
+
+// XFAIL: gcc, clang-3, clang-4, clang-5, clang-6, clang-7, clang-8, clang-9, clang-10
+
+// icc 21 seems to have an issue with the loop boundaries and runs very long
+// UNSUPPORTED: icc-21
 
 /*
  * Test that large bounds are handled properly and calculations of
- * loop iterations don't accidently overflow
+ * loop iterations don't accidentally overflow
  */
 #include <stdio.h>
 #include <omp.h>
@@ -15,8 +20,8 @@
 #include <limits.h>
 #include "omp_testsuite.h"
 
-#define INCR 50000000
-#define MY_MAX 2000000000
+#define INCR      50000000
+#define MY_MAX  2000000000
 #define MY_MIN -2000000000
 #ifndef MY_SCHEDULE
 # define MY_SCHEDULE static
@@ -31,14 +36,12 @@ int test_omp_for_bigbounds()
   #pragma omp parallel
   {
     int i;
-    #pragma omp for schedule(MY_SCHEDULE)
+    #pragma omp for schedule(MY_SCHEDULE) reduction(+:a)
     for (i = INT_MIN; i < MY_MAX; i+=INCR) {
-        #pragma omp atomic
         a++;
     }
-    #pragma omp for schedule(MY_SCHEDULE)
+    #pragma omp for schedule(MY_SCHEDULE) reduction(+:b)
     for (i = INT_MAX; i >= MY_MIN; i-=INCR) {
-        #pragma omp atomic
         b++;
     }
   }

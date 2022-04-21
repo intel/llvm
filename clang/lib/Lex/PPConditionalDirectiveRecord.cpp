@@ -25,9 +25,8 @@ bool PPConditionalDirectiveRecord::rangeIntersectsConditionalDirective(
   if (Range.isInvalid())
     return false;
 
-  CondDirectiveLocsTy::const_iterator
-    low = std::lower_bound(CondDirectiveLocs.begin(), CondDirectiveLocs.end(),
-                           Range.getBegin(), CondDirectiveLoc::Comp(SourceMgr));
+  CondDirectiveLocsTy::const_iterator low = llvm::lower_bound(
+      CondDirectiveLocs, Range.getBegin(), CondDirectiveLoc::Comp(SourceMgr));
   if (low == CondDirectiveLocs.end())
     return false;
 
@@ -55,9 +54,8 @@ SourceLocation PPConditionalDirectiveRecord::findConditionalDirectiveRegionLoc(
                                           Loc))
     return CondDirectiveStack.back();
 
-  CondDirectiveLocsTy::const_iterator
-    low = std::lower_bound(CondDirectiveLocs.begin(), CondDirectiveLocs.end(),
-                           Loc, CondDirectiveLoc::Comp(SourceMgr));
+  CondDirectiveLocsTy::const_iterator low = llvm::lower_bound(
+      CondDirectiveLocs, Loc, CondDirectiveLoc::Comp(SourceMgr));
   assert(low != CondDirectiveLocs.end());
   return low->getRegionLoc();
 }
@@ -99,6 +97,28 @@ void PPConditionalDirectiveRecord::Elif(SourceLocation Loc,
                                         SourceRange ConditionRange,
                                         ConditionValueKind ConditionValue,
                                         SourceLocation IfLoc) {
+  addCondDirectiveLoc(CondDirectiveLoc(Loc, CondDirectiveStack.back()));
+  CondDirectiveStack.back() = Loc;
+}
+
+void PPConditionalDirectiveRecord::Elifdef(SourceLocation Loc, const Token &,
+                                           const MacroDefinition &) {
+  addCondDirectiveLoc(CondDirectiveLoc(Loc, CondDirectiveStack.back()));
+  CondDirectiveStack.back() = Loc;
+}
+void PPConditionalDirectiveRecord::Elifdef(SourceLocation Loc, SourceRange,
+                                           SourceLocation) {
+  addCondDirectiveLoc(CondDirectiveLoc(Loc, CondDirectiveStack.back()));
+  CondDirectiveStack.back() = Loc;
+}
+
+void PPConditionalDirectiveRecord::Elifndef(SourceLocation Loc, const Token &,
+                                            const MacroDefinition &) {
+  addCondDirectiveLoc(CondDirectiveLoc(Loc, CondDirectiveStack.back()));
+  CondDirectiveStack.back() = Loc;
+}
+void PPConditionalDirectiveRecord::Elifndef(SourceLocation Loc, SourceRange,
+                                            SourceLocation) {
   addCondDirectiveLoc(CondDirectiveLoc(Loc, CondDirectiveStack.back()));
   CondDirectiveStack.back() = Loc;
 }

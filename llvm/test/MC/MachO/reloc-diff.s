@@ -1,4 +1,4 @@
-// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -r | FileCheck %s
+// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -r - | FileCheck %s
 
 _local_def:
         .globl _external_def
@@ -21,10 +21,6 @@ Ltemp:
 // CHECK-NEXT:     0x10 0 2 n/a GENERIC_RELOC_LOCAL_SECTDIFF 1 0x0
 // CHECK-NEXT:     0x0 0 2 n/a GENERIC_RELOC_PAIR 1 0x0
 // CHECK-NEXT:     0x8 0 2 n/a GENERIC_RELOC_LOCAL_SECTDIFF 1 0x0
-// CHECK-NEXT:     0x0 0 2 n/a GENERIC_RELOC_PAIR 1 0x0
-// CHECK-NEXT:     0x4 0 2 n/a GENERIC_RELOC_LOCAL_SECTDIFF 1 0x0
-// CHECK-NEXT:     0x0 0 2 n/a GENERIC_RELOC_PAIR 1 0x0
-// CHECK-NEXT:     0x0 0 2 n/a GENERIC_RELOC_SECTDIFF 1 0x0
 // CHECK-NEXT:     0x0 0 2 n/a GENERIC_RELOC_PAIR 1 0x0
 // CHECK-NEXT:   }
 // CHECK-NEXT: ]

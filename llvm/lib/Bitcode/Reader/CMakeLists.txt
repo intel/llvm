@@ -1,7 +1,7 @@
-add_llvm_library(LLVMBitReader
+add_llvm_component_library(LLVMBitReader
+  BitcodeAnalyzer.cpp
   BitReader.cpp
   BitcodeReader.cpp
-  BitstreamReader.cpp
   MetadataLoader.cpp
   ValueList.cpp
 
@@ -10,4 +10,9 @@ add_llvm_library(LLVMBitReader
 
   DEPENDS
   intrinsics_gen
+
+  LINK_COMPONENTS
+  BitstreamReader
+  Core
+  Support
   )

@@ -1,17 +1,26 @@
 // RUN: %clang_cc1 -std=c++14 -fsyntax-only -verify %s
 
-template<typename T> class A;
+template<typename T> class A {};
 
 extern "C++" {
-  template<typename T> class B;
+  template<typename T> class B {};
+  template<typename T> class A<T *>;
+  template<> class A<int[1]>;
+  template class A<int[2]>;
+  template<typename T> class B<T *>;
+  template<> class B<int[1]>;
+  template class B<int[2]>;
 }
 
 namespace N {
   template<typename T> class C;
 }
 
-extern "C" { // expected-note {{extern "C" language linkage specification begins here}}
+extern "C" { // expected-note 3 {{extern "C" language linkage specification begins here}}
   template<typename T> class D; // expected-error{{templates must have C++ linkage}}
+  template<typename T> class A<T **>; // expected-error{{templates must have C++ linkage}}
+  template<> class A<int[3]>; // expected-error{{templates must have C++ linkage}}
+  template class A<int[4]>; // OK (surprisingly) FIXME: Should we warn on this?
 }
 
 extern "C" { // expected-note 2 {{extern "C" language linkage specification begins here}}
@@ -157,4 +166,18 @@ namespace abstract_dependent_class {
     virtual A<T> *clone() = 0; // expected-note {{pure virtual}}
   };
   template<typename T> A<T> *A<T>::clone() { return new A<T>; } // expected-error {{abstract class type 'A<T>'}}
+}
+
+namespace qualified_out_of_line {
+  struct rbnode {};
+  template<typename T, typename U> struct pair {};
+  template<typename K, typename V> struct rbtree {
+    using base = rbnode;
+    pair<base, base> f();
+  };
+  template<typename K, typename V>
+  pair<typename rbtree<K, V>::base, typename rbtree<K, V>::base>
+  rbtree<K, V>::f() {
+    return {};
+  }
 }

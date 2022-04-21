@@ -13,11 +13,9 @@
 #ifndef LLVM_SUPPORT_FILEOUTPUTBUFFER_H
 #define LLVM_SUPPORT_FILEOUTPUTBUFFER_H
 
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/FileSystem.h"
 
 namespace llvm {
 /// FileOutputBuffer - This interface provides simple way to create an in-memory
@@ -30,8 +28,12 @@ namespace llvm {
 class FileOutputBuffer {
 public:
   enum {
-    /// set the 'x' bit on the resulting file
+    /// Set the 'x' bit on the resulting file.
     F_executable = 1,
+
+    /// Don't use mmap and instead write an in-memory buffer to a file when this
+    /// buffer is closed.
+    F_no_mmap = 2,
   };
 
   /// Factory method to create an OutputBuffer object which manages a read/write
@@ -68,7 +70,7 @@ public:
   /// If this object was previously committed, the destructor just deletes
   /// this object.  If this object was not committed, the destructor
   /// deallocates the buffer and the target file is never written.
-  virtual ~FileOutputBuffer() {}
+  virtual ~FileOutputBuffer() = default;
 
   /// This removes the temporary file (unless it already was committed)
   /// but keeps the memory mapping alive.

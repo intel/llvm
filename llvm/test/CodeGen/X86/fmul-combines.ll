@@ -76,41 +76,41 @@ define <4 x float> @constant_fold_fmul_v4f32_undef(<4 x float> %x) {
   ret <4 x float> %y
 }
 
-define <4 x float> @fmul0_v4f32(<4 x float> %x) #0 {
-; CHECK-LABEL: fmul0_v4f32:
+define <4 x float> @fmul0_v4f32_nsz_nnan(<4 x float> %x) {
+; CHECK-LABEL: fmul0_v4f32_nsz_nnan:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul <4 x float> %x, <float 0.0, float 0.0, float 0.0, float 0.0>
+  %y = fmul nnan nsz <4 x float> %x, <float 0.0, float 0.0, float 0.0, float 0.0>
   ret <4 x float> %y
 }
 
-define <4 x float> @fmul0_v4f32_undef(<4 x float> %x) #0 {
+define <4 x float> @fmul0_v4f32_undef(<4 x float> %x) {
 ; CHECK-LABEL: fmul0_v4f32_undef:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul <4 x float> %x, <float undef, float 0.0, float undef, float 0.0>
+  %y = fmul nnan nsz <4 x float> %x, <float undef, float 0.0, float undef, float 0.0>
   ret <4 x float> %y
 }
 
-define <4 x float> @fmul_c2_c4_v4f32(<4 x float> %x) #0 {
+define <4 x float> @fmul_c2_c4_v4f32(<4 x float> %x) {
 ; CHECK-LABEL: fmul_c2_c4_v4f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul <4 x float> %x, <float 2.0, float 2.0, float 2.0, float 2.0>
-  %z = fmul <4 x float> %y, <float 4.0, float 4.0, float 4.0, float 4.0>
+  %y = fmul fast <4 x float> %x, <float 2.0, float 2.0, float 2.0, float 2.0>
+  %z = fmul fast <4 x float> %y, <float 4.0, float 4.0, float 4.0, float 4.0>
   ret <4 x float> %z
 }
 
-define <4 x float> @fmul_c3_c4_v4f32(<4 x float> %x) #0 {
+define <4 x float> @fmul_c3_c4_v4f32(<4 x float> %x) {
 ; CHECK-LABEL: fmul_c3_c4_v4f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul <4 x float> %x, <float 3.0, float 3.0, float 3.0, float 3.0>
-  %z = fmul <4 x float> %y, <float 4.0, float 4.0, float 4.0, float 4.0>
+  %y = fmul fast <4 x float> %x, <float 3.0, float 3.0, float 3.0, float 3.0>
+  %z = fmul fast <4 x float> %y, <float 4.0, float 4.0, float 4.0, float 4.0>
   ret <4 x float> %z
 }
 
@@ -120,24 +120,24 @@ define <4 x float> @fmul_c3_c4_v4f32(<4 x float> %x) #0 {
 ; CHECK: float 32
 
 ; We should be able to pre-multiply the two constant vectors.
-define <4 x float> @fmul_v4f32_two_consts_no_splat(<4 x float> %x) #0 {
+define <4 x float> @fmul_v4f32_two_consts_no_splat(<4 x float> %x) {
 ; CHECK-LABEL: fmul_v4f32_two_consts_no_splat:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul <4 x float> %x, <float 1.0, float 2.0, float 3.0, float 4.0>
-  %z = fmul <4 x float> %y, <float 5.0, float 6.0, float 7.0, float 8.0>
+  %y = fmul fast <4 x float> %x, <float 1.0, float 2.0, float 3.0, float 4.0>
+  %z = fmul fast <4 x float> %y, <float 5.0, float 6.0, float 7.0, float 8.0>
   ret <4 x float> %z
 }
 
 ; Same as above, but reverse operands to make sure non-canonical form is also handled.
-define <4 x float> @fmul_v4f32_two_consts_no_splat_non_canonical(<4 x float> %x) #0 {
+define <4 x float> @fmul_v4f32_two_consts_no_splat_non_canonical(<4 x float> %x) {
 ; CHECK-LABEL: fmul_v4f32_two_consts_no_splat_non_canonical:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul <4 x float> <float 1.0, float 2.0, float 3.0, float 4.0>, %x
-  %z = fmul <4 x float> <float 5.0, float 6.0, float 7.0, float 8.0>, %y
+  %y = fmul fast <4 x float> <float 1.0, float 2.0, float 3.0, float 4.0>, %x
+  %z = fmul fast <4 x float> <float 5.0, float 6.0, float 7.0, float 8.0>, %y
   ret <4 x float> %z
 }
 
@@ -146,7 +146,7 @@ define <4 x float> @fmul_v4f32_two_consts_no_splat_non_canonical(<4 x float> %x)
 define <4 x float> @fmul_v4f32_two_consts_no_splat_reassoc(<4 x float> %x) {
 ; CHECK-LABEL: fmul_v4f32_two_consts_no_splat_reassoc:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
   %y = fmul <4 x float> %x, <float 1.0, float 2.0, float 3.0, float 4.0>
   %z = fmul reassoc <4 x float> %y, <float 5.0, float 6.0, float 7.0, float 8.0>
@@ -158,7 +158,7 @@ define <4 x float> @fmul_v4f32_two_consts_no_splat_reassoc(<4 x float> %x) {
 define <4 x float> @fmul_v4f32_two_consts_no_splat_reassoc_2(<4 x float> %x) {
 ; CHECK-LABEL: fmul_v4f32_two_consts_no_splat_reassoc_2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
   %y = fadd <4 x float> %x, %x
   %z = fmul reassoc <4 x float> %y, <float 5.0, float 6.0, float 7.0, float 8.0>
@@ -172,14 +172,14 @@ define <4 x float> @fmul_v4f32_two_consts_no_splat_reassoc_2(<4 x float> %x) {
 
 ; More than one use of a constant multiply should not inhibit the optimization.
 ; Instead of a chain of 2 dependent mults, this test will have 2 independent mults.
-define <4 x float> @fmul_v4f32_two_consts_no_splat_multiple_use(<4 x float> %x) #0 {
+define <4 x float> @fmul_v4f32_two_consts_no_splat_multiple_use(<4 x float> %x) {
 ; CHECK-LABEL: fmul_v4f32_two_consts_no_splat_multiple_use:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul <4 x float> %x, <float 1.0, float 2.0, float 3.0, float 4.0>
-  %z = fmul <4 x float> %y, <float 5.0, float 6.0, float 7.0, float 8.0>
-  %a = fadd <4 x float> %y, %z
+  %y = fmul fast <4 x float> %x, <float 1.0, float 2.0, float 3.0, float 4.0>
+  %z = fmul fast <4 x float> %y, <float 5.0, float 6.0, float 7.0, float 8.0>
+  %a = fadd fast <4 x float> %y, %z
   ret <4 x float> %a
 }
 
@@ -191,10 +191,10 @@ define <4 x float> @fmul_v4f32_two_consts_no_splat_multiple_use(<4 x float> %x) 
 ; CHECK: float 24
 ; CHECK: float 24
 
-define <4 x float> @PR22698_splats(<4 x float> %a) #0 {
+define <4 x float> @PR22698_splats(<4 x float> %a) {
 ; CHECK-LABEL: PR22698_splats:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
   %mul1 = fmul fast <4 x float> <float 2.0, float 2.0, float 2.0, float 2.0>, <float 3.0, float 3.0, float 3.0, float 3.0>
   %mul2 = fmul fast <4 x float> <float 4.0, float 4.0, float 4.0, float 4.0>, %mul1
@@ -209,10 +209,10 @@ define <4 x float> @PR22698_splats(<4 x float> %a) #0 {
 ; CHECK: float 231
 ; CHECK: float 384
 
-define <4 x float> @PR22698_no_splats(<4 x float> %a) #0 {
+define <4 x float> @PR22698_no_splats(<4 x float> %a) {
 ; CHECK-LABEL: PR22698_no_splats:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
   %mul1 = fmul fast <4 x float> <float 1.0, float 2.0, float 3.0, float 4.0>, <float 5.0, float 6.0, float 7.0, float 8.0>
   %mul2 = fmul fast <4 x float> <float 9.0, float 10.0, float 11.0, float 12.0>, %mul1
@@ -220,23 +220,23 @@ define <4 x float> @PR22698_no_splats(<4 x float> %a) #0 {
   ret <4 x float> %mul3
 }
 
-define float @fmul_c2_c4_f32(float %x) #0 {
+define float @fmul_c2_c4_f32(float %x) {
 ; CHECK-LABEL: fmul_c2_c4_f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulss {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul float %x, 2.0
-  %z = fmul float %y, 4.0
+  %y = fmul fast float %x, 2.0
+  %z = fmul fast float %y, 4.0
   ret float %z
 }
 
-define float @fmul_c3_c4_f32(float %x) #0 {
+define float @fmul_c3_c4_f32(float %x) {
 ; CHECK-LABEL: fmul_c3_c4_f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    mulss {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    mulss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
-  %y = fmul float %x, 3.0
-  %z = fmul float %y, 4.0
+  %y = fmul fast float %x, 3.0
+  %z = fmul fast float %y, 4.0
   ret float %z
 }
 
@@ -262,4 +262,21 @@ define <4 x float> @fmul_fneg_fneg_v4f32(<4 x float> %x, <4 x float> %y) {
   ret <4 x float> %mul
 }
 
-attributes #0 = { "less-precise-fpmad"="true" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "unsafe-fp-math"="true" }
+; PR47517 - this could crash if we create 'fmul x, 0.0' nodes
+; that do not constant fold in a particular order.
+
+define float @getNegatedExpression_crash(float* %p) {
+; CHECK-LABEL: getNegatedExpression_crash:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl $0, (%rdi)
+; CHECK-NEXT:    xorps %xmm0, %xmm0
+; CHECK-NEXT:    retq
+  store float 0.0, float* %p, align 1
+  %real = load float, float* %p, align 1
+  %r2 = fmul fast float %real, %real
+  %t1 = fmul fast float %real, 42.0
+  %t2 = fmul fast float %real, %t1
+  %mul_ac56 = fmul fast float %t2, %t1
+  %mul_ac72 = fmul fast float %r2, %mul_ac56
+  ret float %mul_ac72
+}

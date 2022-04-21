@@ -9,7 +9,7 @@ typedef long HEXAGON_Vect2048 __attribute__((__vector_size__(256)))
   __attribute__((aligned(256)));
 
 // CHECK-LABEL: @test1
-// CHECK: call <32 x i32> @llvm.hexagon.V6.vaddcarrysat.128B(<32 x i32> %{{[0-9]+}}, <32 x i32> %{{[0-9]+}}, <1024 x i1> %{{[0-9]+}})
+// CHECK: call <32 x i32> @llvm.hexagon.V6.vaddcarrysat.128B(<32 x i32> %{{[0-9]+}}, <32 x i32> %{{[0-9]+}}, <128 x i1> %{{[0-9]+}})
 HEXAGON_Vect1024 test1(void *in, void *out) {
   HEXAGON_Vect1024 v1, v2;
   HEXAGON_Vect1024 *p;
@@ -20,7 +20,7 @@ HEXAGON_Vect1024 test1(void *in, void *out) {
   v2 = *p++;
   q1 = *p++;
 
-  return __builtin_HEXAGON_V6_vaddcarrysat_128B(v1, v2, q1);
+  return __builtin_HEXAGON_V6_vaddcarrysat_128B(v1, v2, __builtin_HEXAGON_V6_vandvrt_128B(q1, -1));
 }
 
 // CHECK-LABEL: @test26

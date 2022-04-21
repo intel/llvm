@@ -13,7 +13,7 @@ void some_func() {
   statvfs64(&st);
 // Check that even if there is a structure with redefined name before the
 // pragma, subsequent function name redefined properly. PR5172, Comment 11.
-// CHECK:  call i32 @statvfs(%struct.statvfs64* %st)
+// CHECK:  call i32 @statvfs(%struct.statvfs64* noundef %st)
 }
 
 // This is a case when redefenition is deferred *and* we have a local of the
@@ -25,12 +25,12 @@ int f() {
 }
 extern "C" {
   int foo() { return 1; }
-// CHECK: define i32 @bar()
+// CHECK: define{{.*}} i32 @bar()
 }
 
 // Check that #pragma redefine_extname applies to C code only, and shouldn't be
 // applied to C++.
 #pragma redefine_extname foo_cpp bar_cpp
 extern int foo_cpp() { return 1; }
-// CHECK-NOT: define i32 @bar_cpp()
+// CHECK-NOT: define{{.*}} i32 @bar_cpp()
 

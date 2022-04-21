@@ -9,45 +9,62 @@
 #ifndef LLD_ELF_DRIVER_H
 #define LLD_ELF_DRIVER_H
 
-#include "SymbolTable.h"
+#include "LTO.h"
 #include "lld/Common/LLVM.h"
-#include "lld/Common/Reproduce.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/Option/ArgList.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace lld {
 namespace elf {
+class InputFile;
+class Symbol;
 
-extern class LinkerDriver *Driver;
+extern std::unique_ptr<class LinkerDriver> driver;
 
 class LinkerDriver {
 public:
-  void main(ArrayRef<const char *> Args);
-  void addFile(StringRef Path, bool WithLOption);
-  void addLibrary(StringRef Name);
+  void linkerMain(ArrayRef<const char *> args);
+  void addFile(StringRef path, bool withLOption);
+  void addLibrary(StringRef name);
 
 private:
-  void createFiles(llvm::opt::InputArgList &Args);
+  void createFiles(llvm::opt::InputArgList &args);
   void inferMachineType();
-  template <class ELFT> void link(llvm::opt::InputArgList &Args);
+  void link(llvm::opt::InputArgList &args);
+  template <class ELFT> void compileBitcodeFiles(bool skipLinkedOutput);
+  void writeArchiveStats() const;
+  void writeWhyExtract() const;
+  void reportBackrefs() const;
 
   // True if we are in --whole-archive and --no-whole-archive.
-  bool InWholeArchive = false;
+  bool inWholeArchive = false;
 
   // True if we are in --start-lib and --end-lib.
-  bool InLib = false;
+  bool inLib = false;
 
-  std::vector<InputFile *> Files;
+  // For LTO.
+  std::unique_ptr<BitcodeCompiler> lto;
+
+  std::vector<InputFile *> files;
+  SmallVector<std::pair<StringRef, unsigned>, 0> archiveFiles;
+
+public:
+  // A tuple of (reference, extractedFile, sym). Used by --why-extract=.
+  SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>, 0>
+      whyExtract;
+  // A mapping from a symbol to an InputFile referencing it backward. Used by
+  // --warn-backrefs.
+  llvm::DenseMap<const Symbol *,
+                 std::pair<const InputFile *, const InputFile *>>
+      backwardReferences;
 };
 
 // Parses command line options.
 class ELFOptTable : public llvm::opt::OptTable {
 public:
   ELFOptTable();
-  llvm::opt::InputArgList parse(ArrayRef<const char *> Argv);
+  llvm::opt::InputArgList parse(ArrayRef<const char *> argv);
 };
 
 // Create enum with OPT_xxx values for each option in Options.td
@@ -59,12 +76,12 @@ enum {
 };
 
 void printHelp();
-std::string createResponseFile(const llvm::opt::InputArgList &Args);
+std::string createResponseFile(const llvm::opt::InputArgList &args);
 
-llvm::Optional<std::string> findFromSearchPaths(StringRef Path);
-llvm::Optional<std::string> searchScript(StringRef Path);
-llvm::Optional<std::string> searchLibraryBaseName(StringRef Path);
-llvm::Optional<std::string> searchLibrary(StringRef Path);
+llvm::Optional<std::string> findFromSearchPaths(StringRef path);
+llvm::Optional<std::string> searchScript(StringRef path);
+llvm::Optional<std::string> searchLibraryBaseName(StringRef path);
+llvm::Optional<std::string> searchLibrary(StringRef path);
 
 } // namespace elf
 } // namespace lld

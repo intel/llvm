@@ -1,4 +1,4 @@
-//===-- OptionGroupBoolean.cpp ----------------------------------*- C++ -*-===//
+//===-- OptionGroupBoolean.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -32,8 +32,6 @@ OptionGroupBoolean::OptionGroupBoolean(uint32_t usage_mask, bool required,
   m_option_definition.argument_type = eArgTypeBoolean;
   m_option_definition.usage_text = usage_text;
 }
-
-OptionGroupBoolean::~OptionGroupBoolean() {}
 
 Status OptionGroupBoolean::SetOptionValue(uint32_t option_idx,
                                           llvm::StringRef option_value,

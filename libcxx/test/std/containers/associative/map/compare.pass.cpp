@@ -12,12 +12,14 @@
 //           class Allocator = allocator<pair<const Key, T>>>
 // class map
 
-// https://bugs.llvm.org/show_bug.cgi?id=16538
-// https://bugs.llvm.org/show_bug.cgi?id=16549
+// https://llvm.org/PR16538
+// https://llvm.org/PR16549
 
 #include <map>
 #include <utility>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct Key {
   template <typename T> Key(const T&) {}

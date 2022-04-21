@@ -10,11 +10,13 @@
 
 // template <class... Types> class tuple;
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // This is not a portable test
 
 #include <tuple>
+
+#include "test_macros.h"
 
 struct A {};
 

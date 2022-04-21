@@ -13,14 +13,16 @@
 #ifndef LLVM_UTILS_TABLEGEN_CODEGENINSTRUCTION_H
 #define LLVM_UTILS_TABLEGEN_CODEGENINSTRUCTION_H
 
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MachineValueType.h"
-#include "llvm/Support/SMLoc.h"
+#include <cassert>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace llvm {
+class SMLoc;
 template <typename T> class ArrayRef;
   class Record;
   class DagInit;
@@ -29,10 +31,11 @@ template <typename T> class ArrayRef;
   class CGIOperandList {
   public:
     class ConstraintInfo {
-      enum { None, EarlyClobber, Tied } Kind;
-      unsigned OtherTiedOperand;
+      enum { None, EarlyClobber, Tied } Kind = None;
+      unsigned OtherTiedOperand = 0;
+
     public:
-      ConstraintInfo() : Kind(None) {}
+      ConstraintInfo() = default;
 
       static ConstraintInfo getEarlyClobber() {
         ConstraintInfo I;
@@ -104,7 +107,7 @@ template <typename T> class ArrayRef;
       /// DoNotEncode - Bools are set to true in this vector for each operand in
       /// the DisableEncoding list.  These should not be emitted by the code
       /// emitter.
-      std::vector<bool> DoNotEncode;
+      BitVector DoNotEncode;
 
       /// MIOperandInfo - Default MI operand type. Note an operand may be made
       /// up of multiple MI operands.
@@ -180,7 +183,7 @@ template <typename T> class ArrayRef;
     /// where $foo is a whole operand and $foo.bar refers to a suboperand.
     /// This aborts if the name is invalid.  If AllowWholeOp is true, references
     /// to operands with suboperands are allowed, otherwise not.
-    std::pair<unsigned,unsigned> ParseOperandName(const std::string &Op,
+    std::pair<unsigned,unsigned> ParseOperandName(StringRef Op,
                                                   bool AllowWholeOp = true);
 
     /// getFlattenedOperandNumber - Flatten a operand/suboperand pair into a
@@ -209,7 +212,7 @@ template <typename T> class ArrayRef;
       return false;
     }
 
-    void ProcessDisableEncoding(std::string Value);
+    void ProcessDisableEncoding(StringRef Value);
   };
 
 
@@ -231,6 +234,7 @@ template <typename T> class ArrayRef;
     std::vector<Record*> ImplicitDefs, ImplicitUses;
 
     // Various boolean values we track for the instruction.
+    bool isPreISelOpcode : 1;
     bool isReturn : 1;
     bool isEHScopeReturn : 1;
     bool isBranch : 1;
@@ -249,6 +253,7 @@ template <typename T> class ArrayRef;
     bool mayLoad_Unset : 1;
     bool mayStore : 1;
     bool mayStore_Unset : 1;
+    bool mayRaiseFPException : 1;
     bool isPredicable : 1;
     bool isConvertibleToThreeAddress : 1;
     bool isCommutable : 1;
@@ -266,6 +271,7 @@ template <typename T> class ArrayRef;
     bool hasExtraDefRegAllocReq : 1;
     bool isCodeGenOnly : 1;
     bool isPseudo : 1;
+    bool isMeta : 1;
     bool isRegSequence : 1;
     bool isExtractSubreg : 1;
     bool isInsertSubreg : 1;
@@ -275,6 +281,7 @@ template <typename T> class ArrayRef;
     bool hasChain : 1;
     bool hasChain_Inferred : 1;
     bool variadicOpsAreDefs : 1;
+    bool isAuthenticated : 1;
 
     std::string DeprecatedReason;
     bool HasComplexDeprecationPredicate;
@@ -306,7 +313,17 @@ template <typename T> class ArrayRef;
     // This can be used on intructions that use typeN or ptypeN to identify
     // operands that should be considered as pointers even though SelectionDAG
     // didn't make a distinction between integer and pointers.
-    bool isOperandAPointer(unsigned i) const;
+    bool isOperandAPointer(unsigned i) const {
+      return isOperandImpl(i, "IsPointer");
+    }
+
+    /// Check if the operand is required to be an immediate.
+    bool isOperandImmArg(unsigned i) const {
+      return isOperandImpl(i, "IsImmediate");
+    }
+
+  private:
+    bool isOperandImpl(unsigned i, StringRef PropertyName) const;
   };
 
 
@@ -330,9 +347,9 @@ template <typename T> class ArrayRef;
     struct ResultOperand {
     private:
       std::string Name;
-      Record *R;
+      Record *R = nullptr;
+      int64_t Imm = 0;
 
-      int64_t Imm;
     public:
       enum {
         K_Record,

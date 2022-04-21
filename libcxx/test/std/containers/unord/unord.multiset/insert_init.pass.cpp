@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <unordered_set>
 
@@ -19,6 +19,7 @@
 #include <unordered_set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 #include "min_allocator.h"
 

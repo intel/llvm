@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, libcxxabi-no-exceptions
+// UNSUPPORTED: c++03
+// UNSUPPORTED: no-exceptions
 
 #include <exception>
 #include <stdlib.h>
@@ -29,7 +30,9 @@ void f1() noexcept
     assert(false);
 }
 
-int main()
+int main(int, char**)
 {
     f1();
+
+    return 0;
 }

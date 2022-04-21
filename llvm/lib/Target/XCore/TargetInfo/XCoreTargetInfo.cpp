@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TargetInfo/XCoreTargetInfo.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 using namespace llvm;
 
 Target &llvm::getTheXCoreTarget() {
@@ -15,7 +15,7 @@ Target &llvm::getTheXCoreTarget() {
   return TheXCoreTarget;
 }
 
-extern "C" void LLVMInitializeXCoreTargetInfo() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXCoreTargetInfo() {
   RegisterTarget<Triple::xcore> X(getTheXCoreTarget(), "xcore", "XCore",
                                   "XCore");
 }

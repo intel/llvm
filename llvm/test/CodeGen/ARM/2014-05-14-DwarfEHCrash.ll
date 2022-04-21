@@ -1,7 +1,7 @@
 ; Assertion `Encoding == DW_EH_PE_absptr && "Can handle absptr encoding only"' failed.
 ; Broken in r208166, fixed in 208715.
 
-; RUN: llc -mtriple=arm-linux-androideabi -o - -filetype=asm -relocation-model=pic %s
+; RUN: llc -mtriple=arm-linux-androideabi -o - -filetype=asm -relocation-model=pic -simplifycfg-require-and-preserve-domtree=1 %s
 
 target datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-n32-S64"
 target triple = "armv4t--linux-androideabi"
@@ -45,6 +45,6 @@ declare i8* @__cxa_begin_catch(i8*)
 
 declare void @__cxa_end_catch()
 
-attributes #0 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="true" }
+attributes #0 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="true" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind }

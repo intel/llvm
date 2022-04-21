@@ -14,8 +14,8 @@
 // array of load addresses for solibs loaded and unloaded.  The SPI will tell us
 // about both dyld and the executable, in addition to all of the usual solibs.
 
-#ifndef liblldb_DynamicLoaderMacOS_h_
-#define liblldb_DynamicLoaderMacOS_h_
+#ifndef LLDB_SOURCE_PLUGINS_DYNAMICLOADER_MACOSX_DYLD_DYNAMICLOADERMACOS_H
+#define LLDB_SOURCE_PLUGINS_DYNAMICLOADER_MACOSX_DYLD_DYNAMICLOADERMACOS_H
 
 #include <mutex>
 #include <vector>
@@ -39,9 +39,9 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "macos-dyld"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static lldb_private::DynamicLoader *
   CreateInstance(lldb_private::Process *process, bool force);
@@ -60,9 +60,7 @@ public:
       lldb_private::LazyBool &private_shared_cache) override;
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
 protected:
   void PutToLog(lldb_private::Log *log) const;
@@ -103,9 +101,6 @@ protected:
                                             // exec's when talking to
                                             // debugservers that don't support
                                             // the "reason:exec" annotation.
-
-private:
-  DISALLOW_COPY_AND_ASSIGN(DynamicLoaderMacOS);
 };
 
-#endif // liblldb_DynamicLoaderMacOS_h_
+#endif // LLDB_SOURCE_PLUGINS_DYNAMICLOADER_MACOSX_DYLD_DYNAMICLOADERMACOS_H

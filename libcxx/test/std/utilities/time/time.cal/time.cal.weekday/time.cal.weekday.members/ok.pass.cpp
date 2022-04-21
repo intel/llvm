@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class weekday;
@@ -28,11 +28,12 @@ int main(int, char**)
 
     static_assert( weekday{0}.ok(), "");
     static_assert( weekday{1}.ok(), "");
-    static_assert(!weekday{7}.ok(), "");
+    static_assert( weekday{7}.ok(), "");  // 7 is transmogrified into 0 in the ctor
+    static_assert(!weekday{8}.ok(), "");
 
-    for (unsigned i = 0; i <= 6; ++i)
+    for (unsigned i = 0; i <= 7; ++i)
         assert(weekday{i}.ok());
-    for (unsigned i = 7; i <= 255; ++i)
+    for (unsigned i = 8; i <= 255; ++i)
         assert(!weekday{i}.ok());
 
   return 0;

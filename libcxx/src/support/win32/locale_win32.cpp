@@ -1,5 +1,4 @@
-// -*- C++ -*-
-//===-------------------- support/win32/locale_win32.cpp ------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -32,11 +31,13 @@ decltype(MB_CUR_MAX) MB_CUR_MAX_L( locale_t __l )
 #endif
 }
 
-
-lconv *localeconv_l( locale_t loc )
+lconv *localeconv_l( locale_t &loc )
 {
     __libcpp_locale_guard __current(loc);
-    return localeconv();
+    lconv *lc = localeconv();
+    if (!lc)
+        return lc;
+    return loc.__store_lconv(lc);
 }
 size_t mbrlen_l( const char *__restrict s, size_t n,
                  mbstate_t *__restrict ps, locale_t loc )
@@ -96,7 +97,10 @@ int snprintf_l(char *ret, size_t n, locale_t loc, const char *format, ...)
         ret, n, format, loc, ap);
 #else
     __libcpp_locale_guard __current(loc);
+    _LIBCPP_DIAGNOSTIC_PUSH
+    _LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wformat-nonliteral")
     int result = vsnprintf( ret, n, format, ap );
+    _LIBCPP_DIAGNOSTIC_POP
 #endif
     va_end(ap);
     return result;
@@ -125,5 +129,13 @@ float strtof_l(const char* nptr, char** endptr, locale_t loc) {
 long double strtold_l(const char* nptr, char** endptr, locale_t loc) {
   __libcpp_locale_guard __current(loc);
   return strtold(nptr, endptr);
+}
+#endif
+
+#if defined(__MINGW32__) && __MSVCRT_VERSION__ < 0x0800
+size_t strftime_l(char *ret, size_t n, const char *format, const struct tm *tm,
+                  locale_t loc) {
+  __libcpp_locale_guard __current(loc);
+  return strftime(ret, n, format, tm);
 }
 #endif

@@ -1,4 +1,4 @@
-//===--------------------------- cxxabi.h ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,7 @@
 
 /*
  * This header provides the interface to the C++ ABI as defined at:
- *       http://www.codesourcery.com/cxx-abi/
+ *       https://itanium-cxx-abi.github.io/cxx-abi/
  */
 
 #include <stddef.h>
@@ -19,8 +19,9 @@
 
 #include <__cxxabi_config.h>
 
-#define _LIBCPPABI_VERSION 1002
+#define _LIBCPPABI_VERSION 15000
 #define _LIBCXXABI_NORETURN  __attribute__((noreturn))
+#define _LIBCXXABI_ALWAYS_COLD __attribute__((cold))
 
 #ifdef __cplusplus
 
@@ -78,13 +79,13 @@ extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_NORETURN void __cxa_deleted_virtual(void);
 
 // 3.3.2 One-time Construction API
 #if defined(_LIBCXXABI_GUARD_ABI_ARM)
-extern _LIBCXXABI_FUNC_VIS int __cxa_guard_acquire(uint32_t *);
-extern _LIBCXXABI_FUNC_VIS void __cxa_guard_release(uint32_t *);
-extern _LIBCXXABI_FUNC_VIS void __cxa_guard_abort(uint32_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD int __cxa_guard_acquire(uint32_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD void __cxa_guard_release(uint32_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD void __cxa_guard_abort(uint32_t *);
 #else
-extern _LIBCXXABI_FUNC_VIS int __cxa_guard_acquire(uint64_t *);
-extern _LIBCXXABI_FUNC_VIS void __cxa_guard_release(uint64_t *);
-extern _LIBCXXABI_FUNC_VIS void __cxa_guard_abort(uint64_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD int __cxa_guard_acquire(uint64_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD void __cxa_guard_release(uint64_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD void __cxa_guard_abort(uint64_t *);
 #endif
 
 // 3.3.3 Array Construction and Destruction API
@@ -136,9 +137,9 @@ __cxa_vec_cctor(void *dest_array, void *src_array, size_t element_count,
                 void (*destructor)(void *));
 
 // 3.3.5.3 Runtime API
-extern _LIBCXXABI_FUNC_VIS int __cxa_atexit(void (*f)(void *), void *p,
-                                            void *d);
-extern _LIBCXXABI_FUNC_VIS int __cxa_finalize(void *);
+// These functions are part of the C++ ABI, but they are not defined in libc++abi:
+//    int __cxa_atexit(void (*)(void *), void *, void *);
+//    void __cxa_finalize(void *);
 
 // 3.4 Demangler API
 extern _LIBCXXABI_FUNC_VIS char *__cxa_demangle(const char *mangled_name,

@@ -1,41 +1,47 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
 
-// This test checks that compiler generates correct kernel wrapper arguments for
+// This test checks that the compiler generates correct kernel wrapper arguments for
 // different accessors targets.
 
-#include <sycl.hpp>
+#include "sycl.hpp"
 
-using namespace cl::sycl;
-
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
-  kernelFunc();
-}
+sycl::queue q;
 
 int main() {
-
-  accessor<int, 1, access::mode::read_write,
-           access::target::local>
+  // Access work-group local memory with read and write access.
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::local>
       local_acc;
-  accessor<int, 1, access::mode::read_write,
-           access::target::global_buffer>
+  // Access buffer via global memory with read and write access.
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::global_buffer>
       global_acc;
-  accessor<int, 1, access::mode::read_write,
-           access::target::constant_buffer>
+  // Access buffer via constant memory with read and write access.
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::constant_buffer>
       constant_acc;
-  kernel<class use_local>(
-      [=]() {
-        local_acc.use();
-      });
-  kernel<class use_global>(
-      [=]() {
-        global_acc.use();
-      });
-  kernel<class use_constant>(
-      [=]() {
-        constant_acc.use();
-      });
+
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_local>(
+        [=] {
+          local_acc.use();
+        });
+  });
+
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_global>(
+        [=] {
+          global_acc.use();
+        });
+  });
+
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_constant>(
+        [=] {
+          constant_acc.use();
+        });
+  });
 }
-// CHECK: {{.*}}use_local 'void (__local int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
-// CHECK: {{.*}}use_global 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
-// CHECK: {{.*}}use_constant 'void (__constant int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK: {{.*}}use_local{{.*}} 'void (__local int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: {{.*}}use_global{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: {{.*}}use_constant{{.*}} 'void (__constant int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'

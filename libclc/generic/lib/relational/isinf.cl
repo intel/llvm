@@ -1,7 +1,8 @@
 #include <clc/clc.h>
+#include <spirv/spirv.h>
 #include "relational.h"
 
-_CLC_DEFINE_RELATIONAL_UNARY(int, isinf, __builtin_isinf, float)
+_CLC_DEFINE_RELATIONAL_UNARY(int, isinf, __spirv_IsInf, float)
 
 #ifdef cl_khr_fp64
 
@@ -10,7 +11,7 @@ _CLC_DEFINE_RELATIONAL_UNARY(int, isinf, __builtin_isinf, float)
 // The scalar version of isinf(double) returns an int, but the vector versions
 // return long.
 _CLC_DEF _CLC_OVERLOAD int isinf(double x) {
-  return __builtin_isinf(x);
+  return __spirv_IsInf(x);
 }
 
 _CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(long, isinf, double)
@@ -23,7 +24,7 @@ _CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(long, isinf, double)
 // The scalar version of isinf(half) returns an int, but the vector versions
 // return short.
 _CLC_DEF _CLC_OVERLOAD int isinf(half x) {
-  return __builtin_isinf(x);
+  return __spirv_IsInf(x);
 }
 
 _CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(short, isinf, half)

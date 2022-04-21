@@ -24,7 +24,7 @@ namespace test0 {
   // in a reference with an assumed alignment of 4.
   // CHECK-LABEL: @_ZN5test01aERNS_1BE
   void a(B &b) {
-    // CHECK: [[CALL:%.*]] = call i32 @_Z10int_sourcev()
+    // CHECK: [[CALL:%.*]] = call noundef i32 @_Z10int_sourcev()
     // CHECK: [[B_P:%.*]] = load [[B:%.*]]*, [[B]]**
     // CHECK: [[FIELD_P:%.*]] = bitcast [[B]]* [[B_P]] to i8*
     // CHECK: [[TRUNC:%.*]] = trunc i32 [[CALL]] to i8
@@ -41,7 +41,7 @@ namespace test0 {
     // CHECK: [[T0:%.*]] = shl i8 [[VALUE]], 6
     // CHECK: [[T1:%.*]] = ashr i8 [[T0]], 6
     // CHECK: [[T2:%.*]] = sext i8 [[T1]] to i32
-    // CHECK: call void @_Z8int_sinki(i32 [[T2]])
+    // CHECK: call void @_Z8int_sinki(i32 noundef [[T2]])
     int_sink(b.onebit);
   }
 
@@ -49,7 +49,7 @@ namespace test0 {
   // in a reference/pointer with an assumed alignment of 2.
   // CHECK-LABEL: @_ZN5test01bERNS_1CE
   void b(C &c) {
-    // CHECK: [[CALL:%.*]] = call i32 @_Z10int_sourcev()
+    // CHECK: [[CALL:%.*]] = call noundef i32 @_Z10int_sourcev()
     // CHECK: [[C_P:%.*]] = load [[C:%.*]]*, [[C]]**
     // CHECK: [[T0:%.*]] = bitcast [[C]]* [[C_P]] to i8*
     // CHECK: [[T1:%.*]] = getelementptr inbounds i8, i8* [[T0]], i64 8
@@ -75,13 +75,13 @@ namespace test0 {
     // CHECK: [[T0:%.*]] = shl i8 [[VALUE]], 6
     // CHECK: [[T1:%.*]] = ashr i8 [[T0]], 6
     // CHECK: [[T2:%.*]] = sext i8 [[T1]] to i32
-    // CHECK: call void @_Z8int_sinki(i32 [[T2]])
+    // CHECK: call void @_Z8int_sinki(i32 noundef [[T2]])
     int_sink(c.onebit);
   }
 
   // CHECK-LABEL: @_ZN5test01cEPNS_1CE
   void c(C *c) {
-    // CHECK: [[CALL:%.*]] = call i32 @_Z10int_sourcev()
+    // CHECK: [[CALL:%.*]] = call noundef i32 @_Z10int_sourcev()
     // CHECK: [[C_P:%.*]] = load [[C]]*, [[C]]**
     // CHECK: [[T0:%.*]] = bitcast [[C]]* [[C_P]] to i8*
     // CHECK: [[T1:%.*]] = getelementptr inbounds i8, i8* [[T0]], i64 8
@@ -107,7 +107,7 @@ namespace test0 {
     // CHECK: [[T0:%.*]] = shl i8 [[VALUE]], 6
     // CHECK: [[T1:%.*]] = ashr i8 [[T0]], 6
     // CHECK: [[T2:%.*]] = sext i8 [[T1]] to i32
-    // CHECK: call void @_Z8int_sinki(i32 [[T2]])
+    // CHECK: call void @_Z8int_sinki(i32 noundef [[T2]])
     int_sink(c->onebit);
   }
 
@@ -119,7 +119,7 @@ namespace test0 {
     // CHECK-NOCOMPAT: [[C_P:%.*]] = alloca [[C:%.*]], align 4
     C c;
 
-    // CHECK: [[CALL:%.*]] = call i32 @_Z10int_sourcev()
+    // CHECK: [[CALL:%.*]] = call noundef i32 @_Z10int_sourcev()
     // CHECK: [[T0:%.*]] = bitcast [[C]]* [[C_P]] to i8*
     // CHECK: [[T1:%.*]] = getelementptr inbounds i8, i8* [[T0]], i64 8
     // CHECK: [[B_P:%.*]] = bitcast i8* [[T1]] to [[B]]*
@@ -143,7 +143,7 @@ namespace test0 {
     // CHECK: [[T0:%.*]] = shl i8 [[VALUE]], 6
     // CHECK: [[T1:%.*]] = ashr i8 [[T0]], 6
     // CHECK: [[T2:%.*]] = sext i8 [[T1]] to i32
-    // CHECK: call void @_Z8int_sinki(i32 [[T2]])
+    // CHECK: call void @_Z8int_sinki(i32 noundef [[T2]])
     int_sink(c.onebit);
   }
 
@@ -154,7 +154,7 @@ namespace test0 {
     // CHECK: [[C_P:%.*]] = alloca [[C:%.*]], align 16
     __attribute__((aligned(16))) C c;
 
-    // CHECK: [[CALL:%.*]] = call i32 @_Z10int_sourcev()
+    // CHECK: [[CALL:%.*]] = call noundef i32 @_Z10int_sourcev()
     // CHECK: [[T0:%.*]] = bitcast [[C]]* [[C_P]] to i8*
     // CHECK: [[T1:%.*]] = getelementptr inbounds i8, i8* [[T0]], i64 8
     // CHECK: [[B_P:%.*]] = bitcast i8* [[T1]] to [[B]]*
@@ -175,7 +175,7 @@ namespace test0 {
     // CHECK: [[T0:%.*]] = shl i8 [[VALUE]], 6
     // CHECK: [[T1:%.*]] = ashr i8 [[T0]], 6
     // CHECK: [[T2:%.*]] = sext i8 [[T1]] to i32
-    // CHECK: call void @_Z8int_sinki(i32 [[T2]])
+    // CHECK: call void @_Z8int_sinki(i32 noundef [[T2]])
     int_sink(c.onebit);
   }
 }
@@ -308,4 +308,20 @@ namespace test1 {
     D d;
     AlignedArray result = d.bArray;
   }
+
+  // CHECK-LABEL: @_ZN5test11hEPA_NS_1BE
+  void h(B (*b)[]) {
+    // CHECK: [[RESULT:%.*]] = alloca [[ARRAY]], align 64
+    // CHECK: [[B_P:%.*]] = load [0 x [[B]]]*, [0 x [[B]]]**
+    // CHECK: [[ELEMENT_P:%.*]] = getelementptr inbounds [0 x [[B]]], [0 x [[B]]]* [[B_P]], i64 0
+    // CHECK: [[ARRAY_P:%.*]] = getelementptr inbounds [[B]], [[B]]* [[ELEMENT_P]], i32 0, i32 2
+    // CHECK: [[T0:%.*]] = bitcast [[ARRAY]]* [[RESULT]] to i8*
+    // CHECK: [[T1:%.*]] = bitcast [[ARRAY]]* [[ARRAY_P]] to i8*
+    // CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 64 [[T0]], i8* align 16 [[T1]], i64 16, i1 false)
+    AlignedArray result = (*b)->bArray;
+  }
 }
+
+// CHECK-LABEL: @_Z22incomplete_array_derefPA_i
+// CHECK: load i32, i32* {{%.*}}, align 4
+int incomplete_array_deref(int (*p)[]) { return (*p)[2]; }

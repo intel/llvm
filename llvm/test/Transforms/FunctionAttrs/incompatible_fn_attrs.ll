@@ -1,4 +1,4 @@
-; RUN: opt -S -o - -functionattrs %s | FileCheck %s
+; RUN: opt -S -o - -function-attrs %s | FileCheck %s
 ; RUN: opt -S -o - -passes=function-attrs %s | FileCheck %s
 
 ; Verify we remove argmemonly/inaccessiblememonly/inaccessiblemem_or_argmemonly
@@ -28,5 +28,5 @@ entry:
 attributes #0 = { argmemonly }
 attributes #1 = { inaccessiblememonly }
 attributes #2 = { inaccessiblemem_or_argmemonly }
-; CHECK: attributes #0 = { norecurse nounwind readnone }
+; CHECK: attributes #0 = { mustprogress nofree norecurse nosync nounwind readnone willreturn }
 ; CHECK-NOT: attributes

@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// FILE_DEPENDENCIES: underflow.dat
+
 // <locale>
 
 // wbuffer_convert<Codecvt, Elem, Tr>
@@ -14,10 +16,14 @@
 
 // This test is not entirely portable
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <codecvt>
 #include <fstream>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct test_buf
     : public std::wbuffer_convert<std::codecvt_utf8<wchar_t> >

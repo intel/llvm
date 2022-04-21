@@ -18,7 +18,9 @@
 namespace llvm {
 namespace mca {
 
-bool EntryStage::hasWorkToComplete() const { return CurrentInstruction; }
+bool EntryStage::hasWorkToComplete() const {
+  return static_cast<bool>(CurrentInstruction);
+}
 
 bool EntryStage::isAvailable(const InstRef & /* unused */) const {
   if (CurrentInstruction)
@@ -31,7 +33,7 @@ void EntryStage::getNextInstruction() {
   if (!SM.hasNext())
     return;
   SourceRef SR = SM.peekNext();
-  std::unique_ptr<Instruction> Inst = llvm::make_unique<Instruction>(SR.second);
+  std::unique_ptr<Instruction> Inst = std::make_unique<Instruction>(SR.second);
   CurrentInstruction = InstRef(SR.first, Inst.get());
   Instructions.emplace_back(std::move(Inst));
   SM.updateNext();

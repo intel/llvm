@@ -2,10 +2,10 @@
 
 int a __attribute__((nodebug));
 
-void b(int p __attribute__((nodebug))) { // expected-warning {{'nodebug' attribute only applies to functions, function pointers, Objective-C methods, and variables}}
+void b(int p __attribute__((nodebug))) { // expected-warning {{'nodebug' attribute only applies to typedefs, functions, function pointers, Objective-C methods, and variables}}
   int b __attribute__((nodebug));
 }
 
-void t1() __attribute__((nodebug));
+void t1(void) __attribute__((nodebug));
 
-void t2() __attribute__((nodebug(2))); // expected-error {{'nodebug' attribute takes no arguments}}
+void t2(void) __attribute__((nodebug(2))); // expected-error {{'nodebug' attribute takes no arguments}}

@@ -10,20 +10,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "AMDGPU.h"
 #include "AMDGPULibFunc.h"
-#include <llvm/ADT/SmallString.h>
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/ADT/StringSwitch.h>
-#include "llvm/IR/Attributes.h"
+#include "AMDGPU.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueSymbolTable.h"
-#include <llvm/Support/raw_ostream.h>
-#include <string>
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
+
+static cl::opt<bool> EnableOCLManglingMismatchWA(
+    "amdgpu-enable-ocl-mangling-mismatch-workaround", cl::init(true),
+    cl::ReallyHidden,
+    cl::desc("Enable the workaround for OCL name mangling mismatch."));
 
 namespace {
 
@@ -55,7 +59,7 @@ enum EManglingParam {
 };
 
 struct ManglingRule {
-   StringRef const Name;
+   const char *Name;
    unsigned char Lead[2];
    unsigned char Param[5];
 
@@ -69,7 +73,7 @@ struct ManglingRule {
 
 // Information about library functions with unmangled names.
 class UnmangledFuncInfo {
-  StringRef const Name;
+  const char *Name;
   unsigned NumArgs;
 
   // Table for all lib functions with unmangled names.
@@ -82,7 +86,7 @@ class UnmangledFuncInfo {
 
 public:
   using ID = AMDGPULibFunc::EFuncId;
-  UnmangledFuncInfo(StringRef _Name, unsigned _NumArgs)
+  constexpr UnmangledFuncInfo(const char *_Name, unsigned _NumArgs)
       : Name(_Name), NumArgs(_NumArgs) {}
   // Get index to Table by function name.
   static bool lookup(StringRef Name, ID &Id);
@@ -133,8 +137,8 @@ unsigned ManglingRule::getNumArgs() const {
 //    E_ANY - use prev lead type, E_CONSTPTR_ANY - make const pointer out of
 //    prev lead type, etc. see ParamIterator::getNextParam() for details.
 
-static const ManglingRule manglingRules[] = {
-{ StringRef(), {0}, {0} },
+static constexpr ManglingRule manglingRules[] = {
+{ "", {0}, {0} },
 { "abs"                             , {1},   {E_ANY}},
 { "abs_diff"                        , {1},   {E_ANY,E_COPY}},
 { "acos"                            , {1},   {E_ANY}},
@@ -348,7 +352,7 @@ const unsigned UnmangledFuncInfo::TableSize =
 static AMDGPULibFunc::Param getRetType(AMDGPULibFunc::EFuncId id,
                                        const AMDGPULibFunc::Param (&Leads)[2]) {
   AMDGPULibFunc::Param Res = Leads[0];
-  // TBD - This switch may require to be extended for other intriniscs
+  // TBD - This switch may require to be extended for other intrinsics
   switch (id) {
   case AMDGPULibFunc::EI_SINCOS:
     Res.PtrKind = AMDGPULibFunc::BYVALUE;
@@ -451,7 +455,8 @@ AMDGPULibFunc::Param ParamIterator::getNextParam() {
       break;
     }
 
-    default: llvm_unreachable("Unhandeled param rule");
+    default:
+      llvm_unreachable("Unhandled param rule");
     }
   }
   ++Index;
@@ -478,8 +483,6 @@ static bool eatTerm(StringRef& mangledName, const char (&str)[N]) {
   }
   return false;
 }
-
-static inline bool isDigit(char c) { return c >= '0' && c <= '9'; }
 
 static int eatNumber(StringRef& s) {
   size_t const savedSize = s.size();
@@ -605,7 +608,7 @@ bool ItaniumParamParser::parseItaniumParam(StringRef& param,
 
   // parse type
   char const TC = param.front();
-  if (::isDigit(TC)) {
+  if (isDigit(TC)) {
     res.ArgType = StringSwitch<AMDGPULibFunc::EType>
       (eatLengthPrefixedName(param))
       .Case("ocl_image1darray" , AMDGPULibFunc::IMG1DA)
@@ -682,9 +685,9 @@ bool AMDGPULibFunc::parse(StringRef FuncName, AMDGPULibFunc &F) {
   }
 
   if (eatTerm(FuncName, "_Z"))
-    F.Impl = make_unique<AMDGPUMangledLibFunc>();
+    F.Impl = std::make_unique<AMDGPUMangledLibFunc>();
   else
-    F.Impl = make_unique<AMDGPUUnmangledLibFunc>();
+    F.Impl = std::make_unique<AMDGPUUnmangledLibFunc>();
   if (F.Impl->parseFuncName(FuncName))
     return true;
 
@@ -745,7 +748,8 @@ static const char *getItaniumTypeName(AMDGPULibFunc::EType T) {
   case AMDGPULibFunc::IMG3D:   return "11ocl_image3d";
   case AMDGPULibFunc::SAMPLER: return "11ocl_sampler";
   case AMDGPULibFunc::EVENT:   return "9ocl_event";
-  default: llvm_unreachable("Unhandeled param type");
+  default:
+    llvm_unreachable("Unhandled param type");
   }
   return nullptr;
 }
@@ -759,7 +763,7 @@ namespace {
 // substitution candidates from the grammar, but are explicitly excluded:
 // 1. <builtin-type> other than vendor extended types ..."
 
-// For the purpose of functions the following productions make sence for the
+// For the purpose of functions the following productions make sense for the
 // substitution:
 //  <type> ::= <builtin-type>
 //    ::= <class-enum-type>
@@ -772,11 +776,11 @@ namespace {
 // using <class-enum-type> production rule they're not used for substitution
 // because clang consider them as builtin types.
 //
-// DvNN_ type is GCC extension for vectors and is a subject for the substitution.
-
+// DvNN_ type is GCC extension for vectors and is a subject for the
+// substitution.
 
 class ItaniumMangler {
-  SmallVector<AMDGPULibFunc::Param, 10> Str; // list of accumulated substituions
+  SmallVector<AMDGPULibFunc::Param, 10> Str; // list of accumulated substitutions
   bool  UseAddrSpace;
 
   int findSubst(const AMDGPULibFunc::Param& P) const {
@@ -830,7 +834,8 @@ public:
       unsigned AS = UseAddrSpace
                         ? AMDGPULibFuncBase::getAddrSpaceFromEPtrKind(p.PtrKind)
                         : 0;
-      if (AS != 0) os << "U3AS" << AS;
+      if (EnableOCLManglingMismatchWA || AS != 0)
+        os << "U3AS" << AS;
       Ptr = p;
       p.PtrKind = 0;
     }
@@ -863,7 +868,7 @@ std::string AMDGPUMangledLibFunc::mangleNameItanium() const {
   Param P;
   while ((P = I.getNextParam()).ArgType != 0)
     Mangler(S, P);
-  return S.str();
+  return std::string(S.str());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -899,11 +904,11 @@ static Type* getIntrinsicParamType(
   case AMDGPULibFunc::EVENT:
     T = StructType::create(C,"ocl_event")->getPointerTo(); break;
   default:
-    llvm_unreachable("Unhandeled param type");
+    llvm_unreachable("Unhandled param type");
     return nullptr;
   }
   if (P.VectorSize > 1)
-    T = VectorType::get(T, P.VectorSize);
+    T = FixedVectorType::get(T, P.VectorSize);
   if (P.PtrKind != AMDGPULibFunc::BYVALUE)
     T = useAddrSpace ? T->getPointerTo((P.PtrKind & AMDGPULibFunc::ADDR_SPACE)
                                        - 1)
@@ -936,7 +941,7 @@ std::string AMDGPUMangledLibFunc::getName() const {
   SmallString<128> Buf;
   raw_svector_ostream OS(Buf);
   writeName(OS);
-  return OS.str();
+  return std::string(OS.str());
 }
 
 Function *AMDGPULibFunc::getFunction(Module *M, const AMDGPULibFunc &fInfo) {
@@ -987,10 +992,8 @@ FunctionCallee AMDGPULibFunc::getOrInsertFunction(Module *M,
   } else {
     AttributeList Attr;
     LLVMContext &Ctx = M->getContext();
-    Attr = Attr.addAttribute(Ctx, AttributeList::FunctionIndex,
-                             Attribute::ReadOnly);
-    Attr = Attr.addAttribute(Ctx, AttributeList::FunctionIndex,
-                             Attribute::NoUnwind);
+    Attr = Attr.addFnAttribute(Ctx, Attribute::ReadOnly);
+    Attr = Attr.addFnAttribute(Ctx, Attribute::NoUnwind);
     C = M->getOrInsertFunction(FuncName, FuncTy, Attr);
   }
 

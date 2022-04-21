@@ -12,8 +12,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_BASIC_ALIGNED_ALLOCATION_H
-#define LLVM_CLANG_BASIC_ALIGNED_ALLOCATION_H
+#ifndef LLVM_CLANG_BASIC_ALIGNEDALLOCATION_H
+#define LLVM_CLANG_BASIC_ALIGNEDALLOCATION_H
 
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -33,6 +33,8 @@ inline llvm::VersionTuple alignedAllocMinVersion(llvm::Triple::OSType OS) {
     return llvm::VersionTuple(11U);
   case llvm::Triple::WatchOS: // Earliest supporting version is 4.0.0.
     return llvm::VersionTuple(4U);
+  case llvm::Triple::ZOS:
+    return llvm::VersionTuple(); // All z/OS versions have no support.
   }
 
   llvm_unreachable("Unexpected OS");
@@ -40,4 +42,4 @@ inline llvm::VersionTuple alignedAllocMinVersion(llvm::Triple::OSType OS) {
 
 } // end namespace clang
 
-#endif // LLVM_CLANG_BASIC_ALIGNED_ALLOCATION_H
+#endif // LLVM_CLANG_BASIC_ALIGNEDALLOCATION_H

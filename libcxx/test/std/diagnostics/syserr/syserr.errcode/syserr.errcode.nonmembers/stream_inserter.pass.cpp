@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: libcpp-has-no-localization
+
 // <system_error>
 
 // class error_code
@@ -17,6 +19,8 @@
 #include <system_error>
 #include <sstream>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

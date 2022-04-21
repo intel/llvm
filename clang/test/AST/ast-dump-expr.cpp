@@ -1,4 +1,13 @@
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -Wno-unused-value -fcxx-exceptions -std=gnu++17 -ast-dump %s | FileCheck -strict-whitespace %s
+// Test without serialization:
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -Wno-unused-value -fcxx-exceptions -std=gnu++17 -ast-dump %s \
+// RUN: | FileCheck --strict-whitespace %s
+//
+// Test with serialization:
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -Wno-unused-value -fcxx-exceptions -std=gnu++17 -emit-pch -o %t %s
+// RUN: %clang_cc1 -x c++ -triple x86_64-unknown-unknown -Wno-unused-value -fcxx-exceptions -std=gnu++17 \
+// RUN: -include-pch %t -ast-dump-all /dev/null \
+// RUN: | sed -e "s/ <undeserialized declarations>//" -e "s/ imported//" \
+// RUN: | FileCheck --strict-whitespace %s
 
 namespace std {
 using size_t = decltype(sizeof(0));
@@ -138,7 +147,7 @@ void UnaryExpressions(int *p) {
   // CHECK: CXXNewExpr 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:18> 'int *' array Function 0x{{[^ ]*}} 'operator new[]' 'void *(unsigned long)'
   // CHECK-NEXT: ImplicitCastExpr
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:11> 'int' 2
-  // CHECK-NEXT: InitListExpr 0x{{[^ ]*}} <col:13, col:18> 'int [2]'
+  // CHECK-NEXT: InitListExpr 0x{{[^ ]*}} <col:13, col:18> 'int[2]'
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:14> 'int' 1
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:17> 'int' 2
 
@@ -252,10 +261,11 @@ void PrimaryExpressions(Ts... a) {
       // CHECK-NEXT: CopyAssignment
       // CHECK-NEXT: MoveAssignment
       // CHECK-NEXT: Destructor
-      // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:8> col:8 implicit 'V *'
       // CHECK-NEXT: CXXMethodDecl
       // CHECK-NEXT: CompoundStmt
-      // CHECK-NEXT: CXXThisExpr 0x{{[^ ]*}} <col:8> 'V *' implicit this
+      // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:8> col:8 implicit 'V *'
+      // CHECK-NEXT: ParenListExpr
+      // CHECK-NEXT: CXXThisExpr 0x{{[^ ]*}} <col:8> 'V *' this
 
       [*this]{};
       // CHECK: LambdaExpr 0x{{[^ ]*}} <line:[[@LINE-1]]:7, col:15>
@@ -267,12 +277,12 @@ void PrimaryExpressions(Ts... a) {
       // CHECK-NEXT: CopyAssignment
       // CHECK-NEXT: MoveAssignment
       // CHECK-NEXT: Destructor
-      // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:8> col:8 implicit 'V'
       // CHECK-NEXT: CXXMethodDecl
       // CHECK-NEXT: CompoundStmt
+      // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:8> col:8 implicit 'V'
       // CHECK-NEXT: ParenListExpr 0x{{[^ ]*}} <col:8> 'NULL TYPE'
       // CHECK-NEXT: UnaryOperator 0x{{[^ ]*}} <col:8> '<dependent type>' prefix '*' cannot overflow
-      // CHECK-NEXT: CXXThisExpr 0x{{[^ ]*}} <col:8> 'V *' implicit this
+      // CHECK-NEXT: CXXThisExpr 0x{{[^ ]*}} <col:8> 'V *' this
     }
   };
 
@@ -322,11 +332,11 @@ void PrimaryExpressions(Ts... a) {
   // CHECK-NEXT: CopyAssignment
   // CHECK-NEXT: MoveAssignment
   // CHECK-NEXT: Destructor
-  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:4> col:4 implicit 'Ts...'
   // CHECK-NEXT: CXXMethodDecl 0x{{[^ ]*}} <col:8, col:10> col:3 operator() 'auto () const -> auto' inline
   // CHECK-NEXT: CompoundStmt
+  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:4> col:4 implicit 'Ts...'
   // CHECK-NEXT: ParenListExpr 0x{{[^ ]*}} <col:4> 'NULL TYPE'
-  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'Ts...' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
+  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'Ts' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
   // CHECK-NEXT: CompoundStmt 0x{{[^ ]*}} <col:9, col:10>
 
   [=]{};
@@ -403,8 +413,6 @@ void PrimaryExpressions(Ts... a) {
   // CHECK-NEXT: CopyAssignment
   // CHECK-NEXT: MoveAssignment
   // CHECK-NEXT: Destructor
-  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:4> col:4 implicit 'int'
-  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:8> col:8 implicit 'int &'
   // CHECK-NEXT: CXXMethodDecl 0x{{[^ ]*}} <col:9, col:26> col:3 operator() 'auto () const -> auto' inline
   // CHECK-NEXT: CompoundStmt
   // CHECK-NEXT: ReturnStmt 0x{{[^ ]*}} <col:12, col:23>
@@ -413,6 +421,8 @@ void PrimaryExpressions(Ts... a) {
   // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:19> 'const int' lvalue Var 0x{{[^ ]*}} 'b' 'int'
   // CHECK-NEXT: ImplicitCastExpr
   // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:23> 'int' lvalue Var 0x{{[^ ]*}} 'c' 'int'
+  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:4> col:4 implicit 'int'
+  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:8> col:8 implicit 'int &'
   // CHECK-NEXT: ImplicitCastExpr
   // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'int' lvalue Var 0x{{[^ ]*}} 'b' 'int'
   // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:8> 'int' lvalue Var 0x{{[^ ]*}} 'c' 'int'
@@ -434,12 +444,12 @@ void PrimaryExpressions(Ts... a) {
   // CHECK-NEXT: CopyAssignment
   // CHECK-NEXT: MoveAssignment
   // CHECK-NEXT: Destructor
-  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:4> col:4 implicit 'Ts...'
-  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:10> col:10 implicit 'int':'int'
   // CHECK-NEXT: CXXMethodDecl 0x{{[^ ]*}} <col:16, col:18> col:3 operator() 'auto () const -> auto' inline
   // CHECK-NEXT: CompoundStmt
+  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:4> col:4 implicit 'Ts...'
+  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <col:10> col:10 implicit 'int':'int'
   // CHECK-NEXT: ParenListExpr 0x{{[^ ]*}} <col:4> 'NULL TYPE'
-  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'Ts...' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
+  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'Ts' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:14> 'int' 12
   // CHECK-NEXT: CompoundStmt 0x{{[^ ]*}} <col:17, col:18>
 
@@ -513,17 +523,20 @@ void PrimaryExpressions(Ts... a) {
 
   (a + ...);
   // CHECK: CXXFoldExpr 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:11> '<dependent type>'
-  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'Ts...' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
+  // CHECK-NEXT: <<<NULL>>>
+  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'Ts' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
   // CHECK-NEXT: <<<NULL>>>
 
   (... + a);
   // CHECK: CXXFoldExpr 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:11> '<dependent type>'
   // CHECK-NEXT: <<<NULL>>>
-  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:10> 'Ts...' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
+  // CHECK-NEXT: <<<NULL>>>
+  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:10> 'Ts' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
 
   (a + ... + b);
   // CHECK: CXXFoldExpr 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:15> '<dependent type>'
-  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'Ts...' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
+  // CHECK-NEXT: <<<NULL>>>
+  // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:4> 'Ts' lvalue ParmVar 0x{{[^ ]*}} 'a' 'Ts...'
   // CHECK-NEXT: DeclRefExpr 0x{{[^ ]*}} <col:14> 'int' lvalue Var 0x{{[^ ]*}} 'b' 'int'
 }
 

@@ -7,10 +7,10 @@
 
 // Tests for signed integer overflow stuff.
 // rdar://7432000 rdar://7221421
-void test1() {
-  // DEFAULT-LABEL: define void @test1
-  // WRAPV-LABEL: define void @test1
-  // TRAPV-LABEL: define void @test1
+void test1(void) {
+  // DEFAULT-LABEL: define{{.*}} void @test1
+  // WRAPV-LABEL: define{{.*}} void @test1
+  // TRAPV-LABEL: define{{.*}} void @test1
   extern volatile int f11G, a, b;
   
   // DEFAULT: add nsw i32
@@ -99,8 +99,8 @@ void test1() {
 
   // PR24256: don't instrument __builtin_frame_address.
   __builtin_frame_address(0 + 0);
-  // DEFAULT:  call i8* @llvm.frameaddress(i32 0)
-  // WRAPV:    call i8* @llvm.frameaddress(i32 0)
-  // TRAPV:    call i8* @llvm.frameaddress(i32 0)
-  // CATCH_UB: call i8* @llvm.frameaddress(i32 0)
+  // DEFAULT:  call i8* @llvm.frameaddress.p0i8(i32 0)
+  // WRAPV:    call i8* @llvm.frameaddress.p0i8(i32 0)
+  // TRAPV:    call i8* @llvm.frameaddress.p0i8(i32 0)
+  // CATCH_UB: call i8* @llvm.frameaddress.p0i8(i32 0)
 }

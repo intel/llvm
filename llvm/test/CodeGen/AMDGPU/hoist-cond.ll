@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -march=amdgcn -verify-machineinstrs -disable-block-placement < %s | FileCheck %s
 
 ; Check that invariant compare is hoisted out of the loop.
 ; At the same time condition shall not be serialized into a VGPR and deserialized later
@@ -8,8 +8,8 @@
 ; CHECK: BB0_1:
 ; CHECK-NOT: v_cmp
 ; CHECK_NOT: v_cndmask
-; CHECK: s_and_saveexec_b64 s[{{[[0-9]+:[0-9]+}}], [[COND]]
-; CHECK: BB0_2:
+; CHECK: s_and_saveexec_b64 s[{{[0-9]+:[0-9]+}}], [[COND]]
+; CHECK: ; %bb.2:
 
 define amdgpu_kernel void @hoist_cond(float addrspace(1)* nocapture %arg, float addrspace(1)* noalias nocapture readonly %arg1, i32 %arg3, i32 %arg4) {
 bb:

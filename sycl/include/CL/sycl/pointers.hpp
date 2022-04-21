@@ -10,14 +10,26 @@
 #include <CL/sycl/access/access.hpp>
 
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 template <typename ElementType, access::address_space Space> class multi_ptr;
 // Template specialization aliases for different pointer address spaces
 
 template <typename ElementType>
+using generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space>;
+
+template <typename ElementType>
 using global_ptr = multi_ptr<ElementType, access::address_space::global_space>;
+
+template <typename ElementType>
+using device_ptr =
+    multi_ptr<ElementType, access::address_space::global_device_space>;
+
+template <typename ElementType>
+using host_ptr =
+    multi_ptr<ElementType, access::address_space::global_host_space>;
 
 template <typename ElementType>
 using local_ptr = multi_ptr<ElementType, access::address_space::local_space>;
@@ -31,4 +43,4 @@ using private_ptr =
     multi_ptr<ElementType, access::address_space::private_space>;
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

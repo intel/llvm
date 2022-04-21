@@ -1,5 +1,5 @@
 @ RUN: llvm-mc %s -triple=armv7-unknown-linux-gnueabi -filetype=obj -o - \
-@ RUN:   | llvm-readobj -S --sd --sr | FileCheck %s
+@ RUN:   | llvm-readobj -S --sd --sr - | FileCheck %s
 
 @ Check the compact pr1 model
 
@@ -68,7 +68,7 @@ func1:
 @ will keep __aeabi_unwind_cpp_pr1.
 @-------------------------------------------------------------------------------
 @ CHECK:     Relocations [
-@ CHECK:       0x0 R_ARM_NONE __aeabi_unwind_cpp_pr1 0x0
-@ CHECK:       0x0 R_ARM_PREL31 .TEST1 0x0
-@ CHECK:       0x4 R_ARM_PREL31 .ARM.extab.TEST1 0x0
+@ CHECK:       0x0 R_ARM_NONE __aeabi_unwind_cpp_pr1
+@ CHECK:       0x0 R_ARM_PREL31 .TEST1
+@ CHECK:       0x4 R_ARM_PREL31 .ARM.extab.TEST1
 @ CHECK:     ]

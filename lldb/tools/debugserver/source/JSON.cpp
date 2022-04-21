@@ -9,15 +9,13 @@
 #include "JSON.h"
 
 // C includes
-#include <assert.h>
-#include <limits.h>
+#include <cassert>
+#include <climits>
 
 // C++ includes
-#include "lldb/Host/StringConvert.h"
+#include "StringConvert.h"
 #include <iomanip>
 #include <sstream>
-
-using namespace lldb_private;
 
 std::string JSONString::json_string_quote_metachars(const std::string &s) {
   if (s.find('"') == std::string::npos)
@@ -271,7 +269,7 @@ JSONParser::Token JSONParser::GetToken(std::string &value) {
     break;
 
   case '"': {
-    while (1) {
+    while (true) {
       bool was_escaped = false;
       int escaped_ch = GetEscapedChar(was_escaped);
       if (escaped_ch == -1) {
@@ -483,7 +481,7 @@ JSONValue::SP JSONParser::ParseJSONObject() {
 
   std::string value;
   std::string key;
-  while (1) {
+  while (true) {
     JSONParser::Token token = GetToken(value);
 
     if (token == JSONParser::Token::String) {
@@ -515,14 +513,17 @@ JSONValue::SP JSONParser::ParseJSONArray() {
 
   std::string value;
   std::string key;
-  while (1) {
-    JSONValue::SP value_sp = ParseJSONValue();
+  while (true) {
+    JSONParser::Token token = GetToken(value);
+    if (token == JSONParser::Token::ArrayEnd)
+      return JSONValue::SP(array_up.release());
+    JSONValue::SP value_sp = ParseJSONValue(value, token);
     if (value_sp)
       array_up->AppendObject(value_sp);
     else
       break;
 
-    JSONParser::Token token = GetToken(value);
+    token = GetToken(value);
     if (token == JSONParser::Token::Comma) {
       continue;
     } else if (token == JSONParser::Token::ArrayEnd) {
@@ -537,6 +538,11 @@ JSONValue::SP JSONParser::ParseJSONArray() {
 JSONValue::SP JSONParser::ParseJSONValue() {
   std::string value;
   const JSONParser::Token token = GetToken(value);
+  return ParseJSONValue(value, token);
+}
+
+JSONValue::SP JSONParser::ParseJSONValue(const std::string &value,
+                                         const Token &token) {
   switch (token) {
   case JSONParser::Token::ObjectStart:
     return ParseJSONObject();

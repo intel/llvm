@@ -14,17 +14,18 @@
 #ifndef LLVM_CLANG_LEX_MODULEMAP_H
 #define LLVM_CLANG_LEX_MODULEMAP_H
 
+#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PointerIntPair.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/ADT/Twine.h"
 #include <ctime>
@@ -99,6 +100,10 @@ class ModuleMap {
 
   /// The top-level modules that are known.
   llvm::StringMap<Module *> Modules;
+
+  /// Module loading cache that includes submodules, indexed by IdentifierInfo.
+  /// nullptr is stored for modules that are known to fail to load.
+  llvm::DenseMap<const IdentifierInfo *, Module *> CachedModuleLoads;
 
   /// Shadow modules created while building this module map.
   llvm::SmallVector<Module*, 2> ShadowModules;
@@ -323,10 +328,9 @@ private:
   /// \param NeedsFramework If M is not a framework but a missing header would
   ///        be found in case M was, set it to true. False otherwise.
   /// \return The resolved file, if any.
-  const FileEntry *findHeader(Module *M,
-                              const Module::UnresolvedHeaderDirective &Header,
-                              SmallVectorImpl<char> &RelativePathName,
-                              bool &NeedsFramework);
+  Optional<FileEntryRef>
+  findHeader(Module *M, const Module::UnresolvedHeaderDirective &Header,
+             SmallVectorImpl<char> &RelativePathName, bool &NeedsFramework);
 
   /// Resolve the given header directive.
   ///
@@ -408,13 +412,17 @@ public:
 
   /// Is this a compiler builtin header?
   static bool isBuiltinHeader(StringRef FileName);
+  bool isBuiltinHeader(const FileEntry *File);
 
   /// Add a module map callback.
   void addModuleMapCallbacks(std::unique_ptr<ModuleMapCallbacks> Callback) {
     Callbacks.push_back(std::move(Callback));
   }
 
-  /// Retrieve the module that owns the given header file, if any.
+  /// Retrieve the module that owns the given header file, if any. Note that
+  /// this does not implicitly load module maps, except for builtin headers,
+  /// and does not consult the external source. (Those checks are the
+  /// responsibility of \ref HeaderSearch.)
   ///
   /// \param File The header file that is likely to be included.
   ///
@@ -428,13 +436,19 @@ public:
   KnownHeader findModuleForHeader(const FileEntry *File,
                                   bool AllowTextual = false);
 
-  /// Retrieve all the modules that contain the given header file. This
-  /// may not include umbrella modules, nor information from external sources,
-  /// if they have not yet been inferred / loaded.
+  /// Retrieve all the modules that contain the given header file. Note that
+  /// this does not implicitly load module maps, except for builtin headers,
+  /// and does not consult the external source. (Those checks are the
+  /// responsibility of \ref HeaderSearch.)
   ///
   /// Typically, \ref findModuleForHeader should be used instead, as it picks
   /// the preferred module for the header.
-  ArrayRef<KnownHeader> findAllModulesForHeader(const FileEntry *File) const;
+  ArrayRef<KnownHeader> findAllModulesForHeader(const FileEntry *File);
+
+  /// Like \ref findAllModulesForHeader, but do not attempt to infer module
+  /// ownership from umbrella headers if we've not already done so.
+  ArrayRef<KnownHeader>
+  findResolvedModulesForHeader(const FileEntry *File) const;
 
   /// Resolve all lazy header directives for the specified file.
   ///
@@ -442,8 +456,11 @@ public:
   /// is effectively internal, but is exposed so HeaderSearch can call it.
   void resolveHeaderDirectives(const FileEntry *File) const;
 
-  /// Resolve all lazy header directives for the specified module.
-  void resolveHeaderDirectives(Module *Mod) const;
+  /// Resolve lazy header directives for the specified module. If File is
+  /// provided, only headers with same size and modtime are resolved. If File
+  /// is not set, all headers are resolved.
+  void resolveHeaderDirectives(Module *Mod,
+                               llvm::Optional<const FileEntry *> File) const;
 
   /// Reports errors if a module must not include a specific file.
   ///
@@ -524,8 +541,11 @@ public:
   ///
   /// We model the global module fragment as a submodule of the module
   /// interface unit. Unfortunately, we can't create the module interface
-  /// unit's Module until later, because we don't know what it will be called.
-  Module *createGlobalModuleFragmentForModuleUnit(SourceLocation Loc);
+  /// unit's Module until later, because we don't know what it will be called
+  /// usually. See C++20 [module.unit]/7.2 for the case we could know its
+  /// parent.
+  Module *createGlobalModuleFragmentForModuleUnit(SourceLocation Loc,
+                                                  Module *Parent = nullptr);
 
   /// Create a global module fragment for a C++ module interface unit.
   Module *createPrivateModuleFragmentForInterfaceUnit(Module *Parent,
@@ -543,6 +563,10 @@ public:
 
   /// Create a header module from the specified list of headers.
   Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
+
+  /// Create a C++20 header unit.
+  Module *createHeaderUnit(SourceLocation Loc, StringRef Name,
+                           Module::Header H);
 
   /// Infer the contents of a framework module map from the given
   /// framework directory.
@@ -565,6 +589,12 @@ public:
     assert(!ExistingModule->Parent && "expected top-level module");
     assert(ModuleScopeIDs.count(ExistingModule) && "unknown module");
     return ModuleScopeIDs[ExistingModule] < CurrentModuleScopeID;
+  }
+
+  /// Check whether a framework module can be inferred in the given directory.
+  bool canInferFrameworkModule(const DirectoryEntry *Dir) const {
+    auto It = InferredDirectories.find(Dir);
+    return It != InferredDirectories.end() && It->getSecond().InferModules;
   }
 
   /// Retrieve the module map file containing the definition of the given
@@ -600,9 +630,7 @@ public:
     return &I->second;
   }
 
-  void addAdditionalModuleMapFile(const Module *M, const FileEntry *ModuleMap) {
-    AdditionalModMaps[M].insert(ModuleMap);
-  }
+  void addAdditionalModuleMapFile(const Module *M, const FileEntry *ModuleMap);
 
   /// Resolve all of the unresolved exports in the given module.
   ///
@@ -637,12 +665,14 @@ public:
   /// Sets the umbrella header of the given module to the given
   /// header.
   void setUmbrellaHeader(Module *Mod, const FileEntry *UmbrellaHeader,
-                         Twine NameAsWritten);
+                         const Twine &NameAsWritten,
+                         const Twine &PathRelativeToRootModuleDirectory);
 
   /// Sets the umbrella directory of the given module to the given
   /// directory.
   void setUmbrellaDir(Module *Mod, const DirectoryEntry *UmbrellaDir,
-                      Twine NameAsWritten);
+                      const Twine &NameAsWritten,
+                      const Twine &PathRelativeToRootModuleDirectory);
 
   /// Adds this header to the given module.
   /// \param Role The role of the header wrt the module.
@@ -684,6 +714,22 @@ public:
 
   module_iterator module_begin() const { return Modules.begin(); }
   module_iterator module_end()   const { return Modules.end(); }
+  llvm::iterator_range<module_iterator> modules() const {
+    return {module_begin(), module_end()};
+  }
+
+  /// Cache a module load.  M might be nullptr.
+  void cacheModuleLoad(const IdentifierInfo &II, Module *M) {
+    CachedModuleLoads[&II] = M;
+  }
+
+  /// Return a cached module load.
+  llvm::Optional<Module *> getCachedModuleLoad(const IdentifierInfo &II) {
+    auto I = CachedModuleLoads.find(&II);
+    if (I == CachedModuleLoads.end())
+      return None;
+    return I->second;
+  }
 };
 
 } // namespace clang

@@ -13,9 +13,9 @@
 #include "llvm/DebugInfo/CodeView/RecordSerialization.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/DebugInfo/CodeView/CVRecord.h"
 #include "llvm/DebugInfo/CodeView/CodeViewError.h"
 #include "llvm/DebugInfo/CodeView/SymbolRecord.h"
-#include "llvm/DebugInfo/CodeView/TypeRecord.h"
 #include "llvm/Support/BinaryByteStream.h"
 
 using namespace llvm;
@@ -34,7 +34,7 @@ StringRef llvm::codeview::getBytesAsCString(ArrayRef<uint8_t> LeafData) {
 }
 
 Error llvm::codeview::consume(BinaryStreamReader &Reader, APSInt &Num) {
-  // Used to avoid overload ambiguity on APInt construtor.
+  // Used to avoid overload ambiguity on APInt constructor.
   bool FalseVal = false;
   uint16_t Short;
   if (auto EC = Reader.readInteger(Short))

@@ -151,11 +151,15 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
   bool HaveLexer = S.getPreprocessor().getCurrentLexer();
 
   if (HaveLexer) {
-    llvm::TimeTraceScope TimeScope("Frontend", StringRef(""));
+    llvm::TimeTraceScope TimeScope("Frontend");
     P.Initialize();
     Parser::DeclGroupPtrTy ADecl;
-    for (bool AtEOF = P.ParseFirstTopLevelDecl(ADecl); !AtEOF;
-         AtEOF = P.ParseTopLevelDecl(ADecl)) {
+    Sema::ModuleImportState ImportState;
+    EnterExpressionEvaluationContext PotentiallyEvaluated(
+        S, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+
+    for (bool AtEOF = P.ParseFirstTopLevelDecl(ADecl, ImportState); !AtEOF;
+         AtEOF = P.ParseTopLevelDecl(ADecl, ImportState)) {
       // If we got a null return and something *was* parsed, ignore it.  This
       // is due to a top-level semicolon, an action override, or a parse error
       // skipping something.
@@ -169,7 +173,7 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
     Consumer->HandleTopLevelDecl(DeclGroupRef(D));
 
   if (S.getLangOpts().SYCLIsDevice) {
-    for (Decl *D : S.SyclKernels()) {
+    for (Decl *D : S.syclDeviceDecls()) {
       Consumer->HandleTopLevelDecl(DeclGroupRef(D));
     }
   }

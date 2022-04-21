@@ -19,10 +19,11 @@ namespace tidy {
 namespace readability {
 
 void MisplacedArrayIndexCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(arraySubscriptExpr(hasLHS(hasType(isInteger())),
-                                        hasRHS(hasType(isAnyPointer())))
-                         .bind("expr"),
-                     this);
+  Finder->addMatcher(
+      traverse(TK_AsIs, arraySubscriptExpr(hasLHS(hasType(isInteger())),
+                                           hasRHS(hasType(isAnyPointer())))
+                            .bind("expr")),
+      this);
 }
 
 void MisplacedArrayIndexCheck::check(const MatchFinder::MatchResult &Result) {

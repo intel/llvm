@@ -18,10 +18,16 @@ namespace google {
 /// Checks that all single-argument constructors are explicit.
 ///
 /// See https://google.github.io/styleguide/cppguide.html#Explicit_Constructors
+///
+/// For the user-facing documentation see:
+/// http://clang.llvm.org/extra/clang-tidy/checks/google-explicit-constructor.html
 class ExplicitConstructorCheck : public ClangTidyCheck {
 public:
   ExplicitConstructorCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };

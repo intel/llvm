@@ -90,8 +90,13 @@ public:
   SDValue LowerSRL_PARTS(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
 
-  unsigned getRegisterByName(const char *RegName, EVT VT,
-                             SelectionDAG &DAG) const override;
+  bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
+                      bool IsVarArg,
+                      const SmallVectorImpl<ISD::OutputArg> &Outs,
+                      LLVMContext &Context) const override;
+
+  Register getRegisterByName(const char *RegName, LLT VT,
+                             const MachineFunction &MF) const override;
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;

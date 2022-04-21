@@ -13,11 +13,12 @@
 
 // This tests a conforming extension
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "test_allocator.h"
 
@@ -26,6 +27,7 @@ struct some_alloc
 {
     typedef T value_type;
     some_alloc(const some_alloc&);
+    void allocate(size_t);
 };
 
 int main(int, char**)

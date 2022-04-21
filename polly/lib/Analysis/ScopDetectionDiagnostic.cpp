@@ -45,17 +45,14 @@ using namespace llvm;
 #define DEBUG_TYPE "polly-detect"
 
 #define SCOP_STAT(NAME, DESC)                                                  \
-  {                                                                            \
-    "polly-detect", "NAME", "Number of rejected regions: " DESC, {0}, {        \
-      false                                                                    \
-    }                                                                          \
-  }
+  { "polly-detect", "NAME", "Number of rejected regions: " DESC }
 
-Statistic RejectStatistics[] = {
+static Statistic RejectStatistics[] = {
     SCOP_STAT(CFG, ""),
     SCOP_STAT(InvalidTerminator, "Unsupported terminator instruction"),
-    SCOP_STAT(UnreachableInExit, "Unreachable in exit block"),
     SCOP_STAT(IrreducibleRegion, "Irreducible loops"),
+    SCOP_STAT(UnreachableInExit, "Unreachable in exit block"),
+    SCOP_STAT(IndirectPredecessor, "Branch from indirect terminator"),
     SCOP_STAT(LastCFG, ""),
     SCOP_STAT(AffFunc, ""),
     SCOP_STAT(UndefCond, "Undefined branch condition"),
@@ -229,7 +226,7 @@ std::string ReportUnreachableInExit::getRemarkName() const {
 const Value *ReportUnreachableInExit::getRemarkBB() const { return BB; }
 
 std::string ReportUnreachableInExit::getMessage() const {
-  std::string BBName = BB->getName();
+  std::string BBName = BB->getName().str();
   return "Unreachable in exit block" + BBName;
 }
 
@@ -241,6 +238,37 @@ std::string ReportUnreachableInExit::getEndUserMessage() const {
 
 bool ReportUnreachableInExit::classof(const RejectReason *RR) {
   return RR->getKind() == RejectReasonKind::UnreachableInExit;
+}
+
+//===----------------------------------------------------------------------===//
+// IndirectPredecessor.
+
+std::string ReportIndirectPredecessor::getRemarkName() const {
+  return "IndirectPredecessor";
+}
+
+const Value *ReportIndirectPredecessor::getRemarkBB() const {
+  if (Inst)
+    return Inst->getParent();
+  return nullptr;
+}
+
+std::string ReportIndirectPredecessor::getMessage() const {
+  if (Inst)
+    return "Branch from indirect terminator: " + *Inst;
+  return getEndUserMessage();
+}
+
+const DebugLoc &ReportIndirectPredecessor::getDebugLoc() const {
+  return DbgLoc;
+}
+
+std::string ReportIndirectPredecessor::getEndUserMessage() const {
+  return "Branch from indirect terminator.";
+}
+
+bool ReportIndirectPredecessor::classof(const RejectReason *RR) {
+  return RR->getKind() == RejectReasonKind::IndirectPredecessor;
 }
 
 //===----------------------------------------------------------------------===//
@@ -415,7 +443,7 @@ bool ReportDifferentArrayElementSize::classof(const RejectReason *RR) {
 
 std::string ReportDifferentArrayElementSize::getEndUserMessage() const {
   StringRef BaseName = BaseValue->getName();
-  std::string Name = BaseName.empty() ? "UNKNOWN" : BaseName;
+  std::string Name = BaseName.empty() ? "UNKNOWN" : BaseName.str();
   return "The array \"" + Name +
          "\" is accessed through elements that differ "
          "in size";
@@ -442,7 +470,7 @@ bool ReportNonAffineAccess::classof(const RejectReason *RR) {
 
 std::string ReportNonAffineAccess::getEndUserMessage() const {
   StringRef BaseName = BaseValue->getName();
-  std::string Name = BaseName.empty() ? "UNKNOWN" : BaseName;
+  std::string Name = BaseName.empty() ? "UNKNOWN" : BaseName.str();
   return "The array subscript of \"" + Name + "\" is not affine";
 }
 

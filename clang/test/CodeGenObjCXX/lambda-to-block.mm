@@ -15,7 +15,7 @@
 // CHECK: @[[BLOCK_DESC2:.*]] = internal constant { i64, i64, i8*, i8*, i8*, i8* } { i64 0, i64 33, i8* bitcast (void (i8*, i8*)* @[[COPY_HELPER2:.*__copy_helper_block_.*]] to i8*), i8* bitcast (void (i8*)* @__destroy_helper_block{{.*}} to i8*), {{.*}}}, align 8
 // CHECK: @[[BLOCK_DESC3:.*]] = internal constant { i64, i64, i8*, i8*, i8*, i8* } { i64 0, i64 33, i8* bitcast (void (i8*, i8*)* @[[COPY_HELPER3:.*__copy_helper_block_.*]] to i8*), i8* bitcast (void (i8*)* @__destroy_helper_block{{.*}} to i8*), {{.*}}}, align 8
 
-// CHECK: define void @_Z9hasLambda8Copyable(
+// CHECK: define{{.*}} void @_Z9hasLambda8Copyable(
 // CHECK: %[[BLOCK:.*]] = alloca <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, %[[CLASS_ANON]] }>, align 8
 // CHECK: %[[BLOCK1:.*]] = alloca <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, %[[CLASS_ANON_0]] }>, align 8
 // CHECK: %[[BLOCK_DESCRIPTOR:.*]] = getelementptr inbounds <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, %[[CLASS_ANON]] }>, <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, %[[CLASS_ANON]] }>* %[[BLOCK]], i32 0, i32 4
@@ -39,19 +39,19 @@ void hasLambda(Copyable x) {
 // CHECK: call void @"_ZZ9hasLambda8CopyableEN3$_0C1ERKS0_"
 // CHECK: define internal void @[[COPY_HELPER1]]
 
-// CHECK: define void @_Z17testHelperMerging8Copyable(
-// CHECK: %[[CALL:.*]] = call void ()* @[[CONV_FUNC0:.*]](%[[CLASS_ANON_1]]*
-// CHECK: call void @_Z10takesBlockU13block_pointerFvvE(void ()* %[[CALL]])
-// CHECK: %[[CALL1:.*]] = call void ()* @[[CONV_FUNC0]](%[[CLASS_ANON_1]]*
-// CHECK: call void @_Z10takesBlockU13block_pointerFvvE(void ()* %[[CALL1]])
-// CHECK: %[[CALL2:.*]] = call void ()* @[[CONV_FUNC1:.*]](%[[CLASS_ANON_2]]*
-// CHECK: call void @_Z10takesBlockU13block_pointerFvvE(void ()* %[[CALL2]])
+// CHECK: define{{.*}} void @_Z17testHelperMerging8Copyable(
+// CHECK: %[[CALL:.*]] = call noundef void ()* @[[CONV_FUNC0:.*]](%[[CLASS_ANON_1]]*
+// CHECK: call void @_Z10takesBlockU13block_pointerFvvE(void ()* noundef %[[CALL]])
+// CHECK: %[[CALL1:.*]] = call noundef void ()* @[[CONV_FUNC0]](%[[CLASS_ANON_1]]*
+// CHECK: call void @_Z10takesBlockU13block_pointerFvvE(void ()* noundef %[[CALL1]])
+// CHECK: %[[CALL2:.*]] = call noundef void ()* @[[CONV_FUNC1:.*]](%[[CLASS_ANON_2]]*
+// CHECK: call void @_Z10takesBlockU13block_pointerFvvE(void ()* noundef %[[CALL2]])
 
-// CHECK: define internal void ()* @[[CONV_FUNC0]](
+// CHECK: define internal noundef void ()* @[[CONV_FUNC0]](
 // CHECK: %[[BLOCK_DESCRIPTOR:.*]] = getelementptr inbounds <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, %[[CLASS_ANON_1]] }>, <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, %[[CLASS_ANON_1]] }>* %{{.*}}, i32 0, i32 4
 // CHECK: store %[[STRUCT_BLOCK_DESCRIPTOR]]* bitcast ({ i64, i64, i8*, i8*, i8*, i8* }* @[[BLOCK_DESC2]] to %[[STRUCT_BLOCK_DESCRIPTOR]]*), %[[STRUCT_BLOCK_DESCRIPTOR]]** %[[BLOCK_DESCRIPTOR]], align 8
 
-// CHECK: define internal void ()* @[[CONV_FUNC1]](
+// CHECK: define internal noundef void ()* @[[CONV_FUNC1]](
 // CHECK: %[[BLOCK_DESCRIPTOR:.*]] = getelementptr inbounds <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, %[[CLASS_ANON_2]] }>, <{ i8*, i32, i32, i8*, %[[STRUCT_BLOCK_DESCRIPTOR]]*, %[[CLASS_ANON_2]] }>* %{{.*}}, i32 0, i32 4
 // CHECK: store %[[STRUCT_BLOCK_DESCRIPTOR]]* bitcast ({ i64, i64, i8*, i8*, i8*, i8* }* @[[BLOCK_DESC3]] to %[[STRUCT_BLOCK_DESCRIPTOR]]*), %[[STRUCT_BLOCK_DESCRIPTOR]]** %[[BLOCK_DESCRIPTOR]], align 8
 

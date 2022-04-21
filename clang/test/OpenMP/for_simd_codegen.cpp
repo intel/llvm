@@ -1,23 +1,35 @@
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm -fexceptions -fcxx-exceptions -o - < %s | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t < %s
-// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify -emit-llvm -o - < %s | FileCheck %s
-// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm -o - < %s | FileCheck %s --check-prefix=TERM_DEBUG
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-unknown -emit-llvm -fexceptions -fcxx-exceptions -o - < %s | FileCheck %s --check-prefix=CHECK --check-prefix=OMP45
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t < %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify -emit-llvm -o - < %s | FileCheck %s --check-prefix=CHECK --check-prefix=OMP45
+// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp -fopenmp-version=45 -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm -o - < %s | FileCheck %s --check-prefix=TERM_DEBUG
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm -fexceptions -fcxx-exceptions -o - < %s -DOMP5 | FileCheck %s --check-prefix=CHECK --check-prefix=OMP50
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t < %s -DOMP5
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify -emit-llvm -o - -DOMP5 < %s | FileCheck %s --check-prefix=CHECK --check-prefix=OMP50
+// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm -o - < %s -DOMP5 | FileCheck %s --check-prefix=TERM_DEBUG
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -emit-llvm -fexceptions -fcxx-exceptions -o - < %s | FileCheck --check-prefix SIMD-ONLY0 %s
-// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t < %s
-// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify -emit-llvm -o - < %s | FileCheck --check-prefix SIMD-ONLY0 %s
-// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp-simd -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm -o - < %s | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=45 -x c++ -triple x86_64-unknown-unknown -emit-llvm -fexceptions -fcxx-exceptions -o - < %s | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t < %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify -emit-llvm -o - < %s | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp-simd -fopenmp-version=45 -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm -o - < %s | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -emit-llvm -fexceptions -fcxx-exceptions -o - < %s -DOMP5 | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t < %s -DOMP5
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify -DOMP5 -emit-llvm -o - < %s | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp-simd -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm -o - < %s -DOMP5 | FileCheck --check-prefix SIMD-ONLY0 %s
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
 // expected-no-diagnostics
 #ifndef HEADER
 #define HEADER
 
-long long get_val() { return 0; }
+long long get_val() { extern void mayThrow(); mayThrow(); return 0; }
 double *g_ptr;
 
-// CHECK-LABEL: define {{.*void}} @{{.*}}simple{{.*}}(float* {{.+}}, float* {{.+}}, float* {{.+}}, float* {{.+}})
+// CHECK-LABEL: define {{.*void}} @{{.*}}simple{{.*}}(float* noundef {{.+}}, float* noundef {{.+}}, float* noundef {{.+}}, float* noundef {{.+}})
 void simple(float *a, float *b, float *c, float *d) {
+#ifdef OMP5
+  #pragma omp for simd if (true)
+#else
   #pragma omp for simd
+#endif
 // CHECK: call void @__kmpc_for_static_init_4(%struct.ident_t* {{[^,]+}}, i32 %{{[^,]+}}, i32 34, i32* %{{[^,]+}}, i32* [[LB:%[^,]+]], i32* [[UB:%[^,]+]], i32* [[STRIDE:%[^,]+]], i32 1, i32 1)
 // CHECK: [[UB_VAL:%.+]] = load i32, i32* [[UB]],
 // CHECK: [[CMP:%.+]] = icmp sgt i32 [[UB_VAL]], 5
@@ -103,9 +115,8 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK: [[SIMPLE_LOOP2_END]]:
 //
 // Update linear vars after loop, as the loop was operating on a private version.
-// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[LIN0]]
-// CHECK-NEXT: [[LIN_ADD2:%.+]] = add nsw i64 [[LIN0_2]], 27
-// CHECK-NEXT: store i64 [[LIN_ADD2]], i64* [[K_VAR]]
+// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[K_PRIVATIZED]]
+// CHECK-NEXT: store i64 [[LIN0_2]], i64* [[K_VAR]]
 // CHECK: call void @__kmpc_barrier(%struct.ident_t* {{.+}}, i32 %{{.+}})
 
   int lin = 12;
@@ -153,6 +164,7 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK: [[LINSTART:.+]] = load i32, i32* [[LIN_START]]
 // CHECK: [[LINSTEP:.+]] = load i64, i64* [[LIN_STEP]]
 // CHECK-NOT: store i32 {{.+}}, i32* [[LIN_VAR]],
+// CHECK: store i32 {{.+}}, i32* [[LIN_PRIV:%[^,]+]],
 // CHECK: [[GLINSTART:.+]] = load double*, double** [[GLIN_START]]
 // CHECK-NEXT: [[IV3_1:%.+]] = load i64, i64* [[OMP_IV3]]
 // CHECK-NEXT: [[MUL:%.+]] = mul i64 [[IV3_1]], 1
@@ -172,11 +184,10 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK: call void @__kmpc_for_static_fini(%struct.ident_t* {{.+}}, i32 %{{.+}})
 //
 // Linear start and step are used to calculate final value of the linear variables.
-// CHECK: [[LINSTART:.+]] = load i32, i32* [[LIN_START]]
-// CHECK: [[LINSTEP:.+]] = load i64, i64* [[LIN_STEP]]
-// CHECK: store i32 {{.+}}, i32* [[LIN_VAR]],
-// CHECK: [[GLINSTART:.+]] = load double*, double** [[GLIN_START]]
-// CHECK: store double* {{.*}}[[GLIN_VAR]]
+// CHECK: [[LIN:%.+]] = load i32, i32* [[LIN_PRIV]],
+// CHECK-NEXT: store i32 [[LIN]], i32* [[LIN_VAR]],
+// CHECK: [[GLIN:%.+]] = load double*, double** [[G_PTR_CUR]],
+// CHECK-NEXT: store double* [[GLIN]], double** [[GLIN_VAR]],
 // CHECK: call void @__kmpc_barrier(%struct.ident_t* {{.+}}, i32 %{{.+}})
 
   #pragma omp for simd
@@ -316,7 +327,15 @@ void simple(float *a, float *b, float *c, float *d) {
   // CHECK: store i32 -1, i32* [[R:%[^,]+]],
   R = -1;
 // CHECK: store i32 1, i32* [[R_PRIV:%[^,]+]],
+// OMP50: [[A_VAL:%.+]] = load i32, i32* %
+// OMP50: [[COND:%.+]] = icmp ne i32 [[A_VAL]], 0
+// OMP50: br i1 [[COND]], label {{%?}}[[THEN:[^,]+]], label {{%?}}[[ELSE:[^,]+]]
+// OMP50: [[THEN]]:
+#ifdef OMP5
+  #pragma omp for simd reduction(*:R) if (simd:A) nontemporal(R)
+#else
   #pragma omp for simd reduction(*:R)
+#endif
 // CHECK: call void @__kmpc_for_static_init_8(%struct.ident_t* {{[^,]+}}, i32 %{{[^,]+}}, i32 34, i32* %{{[^,]+}}, i64* [[LB:%[^,]+]], i64* [[UB:%[^,]+]], i64* [[STRIDE:%[^,]+]], i64 1, i64 1)
 // CHECK: [[UB_VAL:%.+]] = load i64, i64* [[UB]],
 // CHECK: [[CMP:%.+]] = icmp sgt i64 [[UB_VAL]], 6
@@ -346,13 +365,54 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK-NEXT: [[LC_IT_2:%.+]] = add nsw i64 -10, [[LC_IT_1]]
 // CHECK-NEXT: store i64 [[LC_IT_2]], i64* [[LC:%[^,]+]],
 // CHECK-NEXT: [[LC_VAL:%.+]] = load i64, i64* [[LC]]
-// CHECK: store i32 %{{.+}}, i32* [[R_PRIV]],
+// OMP45: store i32 %{{.+}}, i32* [[R_PRIV]],
+// OMP50: store i32 %{{.+}}, i32* [[R_PRIV]],{{.*}}!nontemporal
     R *= i;
 // CHECK: [[IV8_2:%.+]] = load i64, i64* [[OMP_IV8]]
 // CHECK-NEXT: [[ADD8_2:%.+]] = add nsw i64 [[IV8_2]], 1
 // CHECK-NEXT: store i64 [[ADD8_2]], i64* [[OMP_IV8]]
+// CHECK-NEXT: br label {{%?}}[[SIMD_LOOP8_COND]], {{.*}}!llvm.loop ![[SIMD_LOOP:.+]]
   }
 // CHECK: [[SIMPLE_LOOP8_END]]:
+// OMP50:  br label {{%?}}[[IF_EXIT:[^,]+]]
+// OMP50:  [[ELSE]]:
+// OMP50: call void @__kmpc_for_static_init_8(%struct.ident_t* {{[^,]+}}, i32 %{{[^,]+}}, i32 34, i32* %{{[^,]+}}, i64* [[LB:%[^,]+]], i64* [[UB:%[^,]+]], i64* [[STRIDE:%[^,]+]], i64 1, i64 1)
+// OMP50: [[UB_VAL:%.+]] = load i64, i64* [[UB]],
+// OMP50: [[CMP:%.+]] = icmp sgt i64 [[UB_VAL]], 6
+// OMP50: br i1 [[CMP]], label %[[TRUE:.+]], label %[[FALSE:[^,]+]]
+// OMP50: [[TRUE]]:
+// OMP50: br label %[[SWITCH:[^,]+]]
+// OMP50: [[FALSE]]:
+// OMP50: [[UB_VAL:%.+]] = load i64, i64* [[UB]],
+// OMP50: br label %[[SWITCH]]
+// OMP50: [[SWITCH]]:
+// OMP50: [[UP:%.+]] = phi i64 [ 6, %[[TRUE]] ], [ [[UB_VAL]], %[[FALSE]] ]
+// OMP50: store i64 [[UP]], i64* [[UB]],
+// OMP50: [[LB_VAL:%.+]] = load i64, i64* [[LB]],
+// OMP50: store i64 [[LB_VAL]], i64* [[OMP_IV8:%[^,]+]],
+
+// OMP50: br label %[[SIMD_LOOP8_COND:[^,]+]]
+// OMP50: [[SIMD_LOOP8_COND]]:
+// OMP50-NEXT: [[IV8:%.+]] = load i64, i64* [[OMP_IV8]]
+// OMP50-NEXT: [[UB_VAL:%.+]] = load i64, i64* [[UB]]
+// OMP50-NEXT: [[CMP8:%.+]] = icmp sle i64 [[IV8]], [[UB_VAL]]
+// OMP50-NEXT: br i1 [[CMP8]], label %[[SIMPLE_LOOP8_BODY:.+]], label %[[SIMPLE_LOOP8_END:[^,]+]]
+// OMP50: [[SIMPLE_LOOP8_BODY]]:
+// Start of body: calculate i from IV:
+// OMP50: [[IV8_0:%.+]] = load i64, i64* [[OMP_IV8]]
+// OMP50-NEXT: [[LC_IT_1:%.+]] = mul nsw i64 [[IV8_0]], 3
+// OMP50-NEXT: [[LC_IT_2:%.+]] = add nsw i64 -10, [[LC_IT_1]]
+// OMP50-NEXT: store i64 [[LC_IT_2]], i64* [[LC:%[^,]+]],
+// OMP50-NEXT: [[LC_VAL:%.+]] = load i64, i64* [[LC]]
+// OMP50: store i32 %{{.+}}, i32* [[R_PRIV]],
+// OMP50: [[IV8_2:%.+]] = load i64, i64* [[OMP_IV8]]
+// OMP50-NEXT: [[ADD8_2:%.+]] = add nsw i64 [[IV8_2]], 1
+// OMP50-NEXT: store i64 [[ADD8_2]], i64* [[OMP_IV8]]
+// OMP50-NEXT: br label {{%?}}[[SIMD_LOOP8_COND]], {{.*}}!llvm.loop ![[NOSIMD_LOOP:.+]]
+// OMP50: [[SIMPLE_LOOP8_END]]:
+// OMP50:  br label {{%?}}[[IF_EXIT]]
+// OMP50:  [[IF_EXIT]]:
+
 // CHECK: call void @__kmpc_for_static_fini(%struct.ident_t* {{.+}}, i32 %{{.+}})
 // CHECK: call i32 @__kmpc_reduce(
 // CHECK: [[R_PRIV_VAL:%.+]] = load i32, i32* [[R_PRIV]],
@@ -377,7 +437,7 @@ int templ1(T a, T *z) {
 }
 
 // Instatiation templ1<float,2>
-// CHECK-LABEL: define {{.*i32}} @{{.*}}templ1{{.*}}(float {{.+}}, float* {{.+}})
+// CHECK-LABEL: define {{.*i32}} @{{.*}}templ1{{.*}}(float noundef {{.+}}, float* noundef {{.+}})
 // CHECK: call void @__kmpc_for_static_init_8(%struct.ident_t* {{[^,]+}}, i32 %{{[^,]+}}, i32 45, i32* %{{[^,]+}}, i64* [[LB:%[^,]+]], i64* [[UB:%[^,]+]], i64* [[STRIDE:%[^,]+]], i64 1, i64 2)
 // CHECK: [[UB_VAL:%.+]] = load i64, i64* [[UB]],
 // CHECK: [[CMP:%.+]] = icmp sgt i64 [[UB_VAL]], 15
@@ -724,15 +784,15 @@ void widened(float *a, float *b, float *c, float *d) {
 }
 
 // TERM_DEBUG-LABEL: bar
-int bar() {return 0;};
+int bar() { extern void mayThrow(); mayThrow(); return 0; };
 
 // TERM_DEBUG-LABEL: parallel_simd
 void parallel_simd(float *a) {
 #pragma omp parallel
 #pragma omp for simd
   // TERM_DEBUG-NOT: __kmpc_global_thread_num
-  // TERM_DEBUG:     invoke i32 {{.*}}bar{{.*}}()
-  // TERM_DEBUG:     unwind label %[[TERM_LPAD:.+]],
+  // TERM_DEBUG:     invoke noundef i32 {{.*}}bar{{.*}}()
+  // TERM_DEBUG:     unwind label %[[TERM_LPAD:[a-zA-Z0-9\.]+]],
   // TERM_DEBUG-NOT: __kmpc_global_thread_num
   // TERM_DEBUG:     [[TERM_LPAD]]
   // TERM_DEBUG:     call void @__clang_call_terminate
@@ -742,4 +802,10 @@ void parallel_simd(float *a) {
 }
 // TERM_DEBUG: !{{[0-9]+}} = !DILocation(line: [[@LINE-11]],
 // TERM_DEBUG-NOT: line: 0,
+// OMP45-NOT: !"llvm.loop.vectorize.enable", i1 false
+// CHECK-DAG: ![[SIMD_LOOP]] = distinct !{![[SIMD_LOOP]], {{.*}}![[VECT_LOOP:[^,]+]]}
+// CHECK-DAG: ![[VECT_LOOP]] = !{!"llvm.loop.vectorize.enable", i1 true}
+// OMP45-NOT: !"llvm.loop.vectorize.enable", i1 false
+// OMP50-DAG: ![[NOSIMD_LOOP]] = distinct !{![[NOSIMD_LOOP]], {{.*}}![[NOVECT_LOOP:[^,]+]]}
+// OMP50-DAG: ![[NOVECT_LOOP]] = !{!"llvm.loop.vectorize.enable", i1 false}
 #endif // HEADER

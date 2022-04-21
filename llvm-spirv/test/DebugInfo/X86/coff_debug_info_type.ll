@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=i686-pc-mingw32 -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
@@ -15,6 +15,9 @@
 ; WIN32:    .section .debug$S,"dr"
 
 ; RUN: llc -mtriple=i686-pc-win32 -filetype=null -O0 < %t.ll
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 
 ; generated from:
 ; clang -g -S -emit-llvm test.c -o test.ll
@@ -46,5 +49,3 @@ attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"=
 !9 = !{i32 2, !"Dwarf Version", i32 3}
 !10 = !DILocation(line: 3, scope: !4)
 !11 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

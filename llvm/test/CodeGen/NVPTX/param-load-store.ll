@@ -1,5 +1,5 @@
 ; Verifies correctness of load/store of parameters and return values.
-; RUN: llc < %s -march=nvptx64 -mcpu=sm_35 -O0 -verify-machineinstrs | FileCheck -allow-deprecated-dag-overlap %s
+; RUN: llc < %s -march=nvptx64 -mcpu=sm_35 -O0 -verify-machineinstrs -use-ipsccp-nvptx-O0=false | FileCheck -allow-deprecated-dag-overlap %s
 
 %s_i1 = type { i1 }
 %s_i8 = type { i8 }
@@ -66,20 +66,20 @@ define signext i1 @test_i1s(i1 signext %a) {
 }
 
 ; Make sure that i1 loads are vectorized as i8 loads, respecting each element alignment.
-; CHECK: .func  (.param .align 4 .b8 func_retval0[4])
+; CHECK: .func  (.param .align 1 .b8 func_retval0[1])
 ; CHECK-LABEL: test_v3i1(
-; CHECK-NEXT: .param .align 4 .b8 test_v3i1_param_0[4]
+; CHECK-NEXT: .param .align 1 .b8 test_v3i1_param_0[1]
 ; CHECK-DAG:  ld.param.u8     [[E2:%rs[0-9]+]], [test_v3i1_param_0+2];
-; CHECK-DAG:  ld.param.v2.u8  {[[E0:%rs[0-9]+]], [[E1:%rs[0-9]+]]}, [test_v3i1_param_0]
-; CHECK:      .param .align 4 .b8 param0[4];
-; CHECK-DAG:  st.param.v2.b8  [param0+0], {[[E0]], [[E1]]};
+; CHECK-DAG:  ld.param.u8     [[E0:%rs[0-9]+]], [test_v3i1_param_0]
+; CHECK:      .param .align 1 .b8 param0[1];
+; CHECK-DAG:  st.param.b8     [param0+0], [[E0]];
 ; CHECK-DAG:  st.param.b8     [param0+2], [[E2]];
-; CHECK:      .param .align 4 .b8 retval0[4];
+; CHECK:      .param .align 1 .b8 retval0[1];
 ; CHECK:      call.uni (retval0),
 ; CHECK-NEXT: test_v3i1,
-; CHECK-DAG:  ld.param.v2.b8  {[[RE0:%rs[0-9]+]], [[RE1:%rs[0-9]+]]}, [retval0+0];
+; CHECK-DAG:  ld.param.b8     [[RE0:%rs[0-9]+]], [retval0+0];
 ; CHECK-DAG:  ld.param.b8     [[RE2:%rs[0-9]+]], [retval0+2];
-; CHECK-DAG:  st.param.v2.b8  [func_retval0+0], {[[RE0]], [[RE1]]}
+; CHECK-DAG:  st.param.b8     [func_retval0+0], [[RE0]]
 ; CHECK-DAG:  st.param.b8     [func_retval0+2], [[RE2]];
 ; CHECK-NEXT: ret;
 define <3 x i1> @test_v3i1(<3 x i1> %a) {
@@ -87,37 +87,43 @@ define <3 x i1> @test_v3i1(<3 x i1> %a) {
        ret <3 x i1> %r;
 }
 
-; CHECK: .func  (.param .align 4 .b8 func_retval0[4])
+; CHECK: .func  (.param .align 1 .b8 func_retval0[1])
 ; CHECK-LABEL: test_v4i1(
-; CHECK-NEXT: .param .align 4 .b8 test_v4i1_param_0[4]
-; CHECK:      ld.param.v4.u8 {[[E0:%rs[0-9]+]], [[E1:%rs[0-9]+]], [[E2:%rs[0-9]+]], [[E3:%rs[0-9]+]]}, [test_v4i1_param_0]
-; CHECK:      .param .align 4 .b8 param0[4];
-; CHECK:      st.param.v4.b8  [param0+0], {[[E0]], [[E1]], [[E2]], [[E3]]};
-; CHECK:      .param .align 4 .b8 retval0[4];
+; CHECK-NEXT: .param .align 1 .b8 test_v4i1_param_0[1]
+; CHECK:      ld.param.u8 [[E0:%rs[0-9]+]], [test_v4i1_param_0]
+; CHECK:      .param .align 1 .b8 param0[1];
+; CHECK:      st.param.b8  [param0+0], [[E0]];
+; CHECK:      .param .align 1 .b8 retval0[1];
 ; CHECK:      call.uni (retval0),
 ; CHECK:      test_v4i1,
-; CHECK:      ld.param.v4.b8  {[[RE0:%rs[0-9]+]], [[RE1:%rs[0-9]+]], [[RE2:%rs[0-9]+]], [[RE3:%rs[0-9]+]]}, [retval0+0];
-; CHECK:      st.param.v4.b8 [func_retval0+0], {[[RE0]], [[RE1]], [[RE2]], [[RE3]]};
+; CHECK:      ld.param.b8  [[RE0:%rs[0-9]+]], [retval0+0];
+; CHECK:      ld.param.b8  [[RE1:%rs[0-9]+]], [retval0+1];
+; CHECK:      ld.param.b8  [[RE2:%rs[0-9]+]], [retval0+2];
+; CHECK:      ld.param.b8  [[RE3:%rs[0-9]+]], [retval0+3];
+; CHECK:      st.param.b8  [func_retval0+0], [[RE0]];
+; CHECK:      st.param.b8  [func_retval0+1], [[RE1]];
+; CHECK:      st.param.b8  [func_retval0+2], [[RE2]];
+; CHECK:      st.param.b8  [func_retval0+3], [[RE3]];
 ; CHECK-NEXT: ret;
 define <4 x i1> @test_v4i1(<4 x i1> %a) {
        %r = tail call <4 x i1> @test_v4i1(<4 x i1> %a);
        ret <4 x i1> %r;
 }
 
-; CHECK: .func  (.param .align 8 .b8 func_retval0[8])
+; CHECK: .func  (.param .align 1 .b8 func_retval0[1])
 ; CHECK-LABEL: test_v5i1(
-; CHECK-NEXT: .param .align 8 .b8 test_v5i1_param_0[8]
+; CHECK-NEXT: .param .align 1 .b8 test_v5i1_param_0[1]
 ; CHECK-DAG:  ld.param.u8     [[E4:%rs[0-9]+]], [test_v5i1_param_0+4];
-; CHECK-DAG:  ld.param.v4.u8  {[[E0:%rs[0-9]+]], [[E1:%rs[0-9]+]], [[E2:%rs[0-9]+]], [[E3:%rs[0-9]+]]}, [test_v5i1_param_0]
-; CHECK:      .param .align 8 .b8 param0[8];
-; CHECK-DAG:  st.param.v4.b8  [param0+0], {[[E0]], [[E1]], [[E2]], [[E3]]};
+; CHECK-DAG:  ld.param.u8     [[E0:%rs[0-9]+]], [test_v5i1_param_0]
+; CHECK:      .param .align 1 .b8 param0[1];
+; CHECK-DAG:  st.param.b8     [param0+0], [[E0]];
 ; CHECK-DAG:  st.param.b8     [param0+4], [[E4]];
-; CHECK:      .param .align 8 .b8 retval0[8];
+; CHECK:      .param .align 1 .b8 retval0[1];
 ; CHECK:      call.uni (retval0),
 ; CHECK-NEXT: test_v5i1,
-; CHECK-DAG:  ld.param.v4.b8  {[[RE0:%rs[0-9]+]], [[RE1:%rs[0-9]+]], [[RE2:%rs[0-9]+]], [[RE3:%rs[0-9]+]]}, [retval0+0];
+; CHECK-DAG:  ld.param.b8  [[RE0:%rs[0-9]+]], [retval0+0];
 ; CHECK-DAG:  ld.param.b8     [[RE4:%rs[0-9]+]], [retval0+4];
-; CHECK-DAG:  st.param.v4.b8  [func_retval0+0], {[[RE0]], [[RE1]], [[RE2]], [[RE3]]}
+; CHECK-DAG:  st.param.b8  [func_retval0+0], [[RE0]]
 ; CHECK-DAG:  st.param.b8     [func_retval0+4], [[RE4]];
 ; CHECK-NEXT: ret;
 define <5 x i1> @test_v5i1(<5 x i1> %a) {
@@ -210,7 +216,7 @@ define <4 x i8> @test_v4i8(<4 x i8> %a) {
 ; CHECK-LABEL: test_v5i8(
 ; CHECK-NEXT: .param .align 8 .b8 test_v5i8_param_0[8]
 ; CHECK-DAG:  ld.param.u8     [[E4:%rs[0-9]+]], [test_v5i8_param_0+4];
-; CHECK-DAG   ld.param.v4.u8  {[[E0:%rs[0-9]+]], [[E1:%rs[0-9]+]], [[E2:%rs[0-9]+]], [[E3:%rs[0-9]+]]}, [test_v5i8_param_0]
+; CHECK-DAG:  ld.param.v4.u8  {[[E0:%rs[0-9]+]], [[E1:%rs[0-9]+]], [[E2:%rs[0-9]+]], [[E3:%rs[0-9]+]]}, [test_v5i8_param_0]
 ; CHECK:      .param .align 8 .b8 param0[8];
 ; CHECK-DAG:  st.param.v4.b8  [param0+0], {[[E0]], [[E1]], [[E2]], [[E3]]};
 ; CHECK-DAG:  st.param.b8     [param0+4], [[E4]];
@@ -307,7 +313,7 @@ define <4 x i16> @test_v4i16(<4 x i16> %a) {
 ; CHECK-LABEL: test_v5i16(
 ; CHECK-NEXT: .param .align 16 .b8 test_v5i16_param_0[16]
 ; CHECK-DAG:  ld.param.u16    [[E4:%rs[0-9]+]], [test_v5i16_param_0+8];
-; CHECK-DAG   ld.param.v4.u16 {[[E0:%rs[0-9]+]], [[E1:%rs[0-9]+]], [[E2:%rs[0-9]+]], [[E3:%rs[0-9]+]]}, [test_v5i16_param_0]
+; CHECK-DAG:  ld.param.v4.u16 {[[E0:%rs[0-9]+]], [[E1:%rs[0-9]+]], [[E2:%rs[0-9]+]], [[E3:%rs[0-9]+]]}, [test_v5i16_param_0]
 ; CHECK:      .param .align 16 .b8 param0[16];
 ; CHECK-DAG:  st.param.v4.b16 [param0+0], {[[E0]], [[E1]], [[E2]], [[E3]]};
 ; CHECK-DAG:  st.param.b16    [param0+8], [[E4]];
@@ -526,7 +532,7 @@ define <4 x i32> @test_v4i32(<4 x i32> %a) {
 ; CHECK-LABEL: test_v5i32(
 ; CHECK-NEXT: .param .align 32 .b8 test_v5i32_param_0[32]
 ; CHECK-DAG:  ld.param.u32     [[E4:%r[0-9]+]], [test_v5i32_param_0+16];
-; CHECK-DAG   ld.param.v4.u32  {[[E0:%r[0-9]+]], [[E1:%r[0-9]+]], [[E2:%r[0-9]+]], [[E3:%r[0-9]+]]}, [test_v5i32_param_0]
+; CHECK-DAG:  ld.param.v4.u32  {[[E0:%r[0-9]+]], [[E1:%r[0-9]+]], [[E2:%r[0-9]+]], [[E3:%r[0-9]+]]}, [test_v5i32_param_0]
 ; CHECK:      .param .align 32 .b8 param0[32];
 ; CHECK-DAG:  st.param.v4.b32  [param0+0], {[[E0]], [[E1]], [[E2]], [[E3]]};
 ; CHECK-DAG:  st.param.b32     [param0+16], [[E4]];

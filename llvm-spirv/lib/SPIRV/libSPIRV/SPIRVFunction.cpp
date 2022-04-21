@@ -111,7 +111,8 @@ void SPIRVFunction::decode(std::istream &I) {
       break;
     }
     case OpLabel: {
-      decodeBB(Decoder);
+      if (!decodeBB(Decoder))
+        return;
       break;
     }
     default:
@@ -122,7 +123,7 @@ void SPIRVFunction::decode(std::istream &I) {
 
 /// Decode basic block and contained instructions.
 /// Do it here instead of in BB:decode to avoid back track in input stream.
-void SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
+bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
   SPIRVBasicBlock *BB = static_cast<SPIRVBasicBlock *>(Decoder.getEntry());
   assert(BB);
   addBasicBlock(BB);
@@ -135,19 +136,36 @@ void SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
       break;
     }
 
-    if (Decoder.OpCode == OpLine) {
-      Module->add(Decoder.getEntry());
+    if (Decoder.OpCode == OpNoLine || Decoder.OpCode == OpNop) {
       continue;
     }
 
-    auto *Inst = static_cast<SPIRVInstruction *>(Decoder.getEntry());
+    SPIRVEntry *Entry = Decoder.getEntry();
+
+    if (Decoder.OpCode == OpLine) {
+      Module->add(Entry);
+      continue;
+    }
+
+    if (!Module->getErrorLog().checkError(Entry->isImplemented(),
+                                          SPIRVEC_UnimplementedOpCode,
+                                          std::to_string(Entry->getOpCode()))) {
+      // Bail out if the opcode is not implemented.
+      Module->setInvalid();
+      return false;
+    }
+
+    auto *Inst = static_cast<SPIRVInstruction *>(Entry);
     assert(Inst);
     if (Inst->getOpCode() == OpUndef) {
       Module->add(Inst);
     } else {
-      if (Inst->isExtInst(SPIRVEIS_Debug, SPIRVDebug::Scope)) {
+      if (Inst->isExtInst(SPIRVEIS_Debug, SPIRVDebug::Scope) ||
+          Inst->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100, SPIRVDebug::Scope)) {
         DebugScope = Inst;
-      } else if (Inst->isExtInst(SPIRVEIS_Debug, SPIRVDebug::NoScope)) {
+      } else if (Inst->isExtInst(SPIRVEIS_Debug, SPIRVDebug::NoScope) ||
+                 Inst->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100,
+                                 SPIRVDebug::NoScope)) {
         DebugScope = nullptr;
       } else {
         Inst->setDebugScope(DebugScope);
@@ -156,6 +174,7 @@ void SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
     }
   }
   Decoder.setScope(this);
+  return true;
 }
 
 void SPIRVFunction::foreachReturnValueAttr(

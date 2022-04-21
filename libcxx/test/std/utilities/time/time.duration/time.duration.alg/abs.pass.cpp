@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <chrono>
 
@@ -16,8 +16,11 @@
 //   constexpr duration<Rep, Period> abs(duration<Rep, Period> d)
 
 #include <chrono>
-#include <type_traits>
 #include <cassert>
+#include <ratio>
+#include <type_traits>
+
+#include "test_macros.h"
 
 template <class Duration>
 void
@@ -45,6 +48,12 @@ int main(int, char**)
     static_assert(h1.count() == 3, "");
     constexpr std::chrono::hours h2 = std::chrono::abs(std::chrono::hours(3));
     static_assert(h2.count() == 3, "");
+    }
+
+    {
+//  Make sure it works for durations that are not LCD'ed - example from LWG3091
+    constexpr auto d = std::chrono::abs(std::chrono::duration<int, std::ratio<60, 100>>{2});
+    static_assert(d.count() == 2, "");
     }
 
   return 0;

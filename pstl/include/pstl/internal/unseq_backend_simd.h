@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===-- unseq_backend_simd.h ----------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,10 +12,14 @@
 
 #include <type_traits>
 
+#include "pstl_config.h"
 #include "utils.h"
 
 // This header defines the minimum set of vector routines required
 // to support parallel STL.
+
+_PSTL_HIDE_FROM_ABI_PUSH
+
 namespace __pstl
 {
 namespace __unseq_backend
@@ -61,7 +65,7 @@ template <class _Index, class _DifferenceType, class _Pred>
 bool
 __simd_or(_Index __first, _DifferenceType __n, _Pred __pred) noexcept
 {
-#if _PSTL_EARLYEXIT_PRESENT
+#if defined(_PSTL_EARLYEXIT_PRESENT)
     _DifferenceType __i;
     _PSTL_PRAGMA_VECTOR_UNALIGNED
     _PSTL_PRAGMA_SIMD_EARLYEXIT
@@ -101,7 +105,7 @@ template <class _Index, class _DifferenceType, class _Compare>
 _Index
 __simd_first(_Index __first, _DifferenceType __begin, _DifferenceType __end, _Compare __comp) noexcept
 {
-#if _PSTL_EARLYEXIT_PRESENT
+#if defined(_PSTL_EARLYEXIT_PRESENT)
     _DifferenceType __i = __begin;
     _PSTL_PRAGMA_VECTOR_UNALIGNED // Do not generate peel loop part
         _PSTL_PRAGMA_SIMD_EARLYEXIT for (; __i < __end; ++__i)
@@ -161,7 +165,7 @@ template <class _Index1, class _DifferenceType, class _Index2, class _Pred>
 std::pair<_Index1, _Index2>
 __simd_first(_Index1 __first1, _DifferenceType __n, _Index2 __first2, _Pred __pred) noexcept
 {
-#if _PSTL_EARLYEXIT_PRESENT
+#if defined(_PSTL_EARLYEXIT_PRESENT)
     _DifferenceType __i = 0;
     _PSTL_PRAGMA_VECTOR_UNALIGNED
     _PSTL_PRAGMA_SIMD_EARLYEXIT
@@ -189,14 +193,14 @@ __simd_first(_Index1 __first1, _DifferenceType __n, _Index2 __first2, _Pred __pr
         }
         if (__found)
         {
-            _DifferenceType __i;
+            _DifferenceType __i2;
             // This will vectorize
-            for (__i = 0; __i < __block_size; ++__i)
+            for (__i2 = 0; __i2 < __block_size; ++__i2)
             {
-                if (__lane[__i])
+                if (__lane[__i2])
                     break;
             }
-            return std::make_pair(__first1 + __i, __first2 + __i);
+            return std::make_pair(__first1 + __i2, __first2 + __i2);
         }
         __first1 += __block_size;
         __first2 += __block_size;
@@ -383,7 +387,7 @@ __simd_adjacent_find(_Index __first, _Index __last, _BinaryPredicate __pred, boo
     typedef typename std::iterator_traits<_Index>::difference_type _DifferenceType;
     _DifferenceType __i = 0;
 
-#if _PSTL_EARLYEXIT_PRESENT
+#if defined(_PSTL_EARLYEXIT_PRESENT)
     //Some compiler versions fail to compile the following loop when iterators are used. Indices are used instead
     const _DifferenceType __n = __last - __first - 1;
     _PSTL_PRAGMA_VECTOR_UNALIGNED
@@ -486,15 +490,15 @@ __simd_transform_reduce(_Size __n, _Tp __init, _BinaryOperation __binary_op, _Un
             __lane[__j] = __binary_op(__lane[__j], __f(last_iteration + __j));
         }
         // combiner
-        for (_Size __i = 0; __i < __block_size; ++__i)
+        for (_Size __j = 0; __j < __block_size; ++__j)
         {
-            __init = __binary_op(__init, __lane[__i]);
+            __init = __binary_op(__init, __lane[__j]);
         }
         // destroyer
         _PSTL_PRAGMA_SIMD
-        for (_Size __i = 0; __i < __block_size; ++__i)
+        for (_Size __j = 0; __j < __block_size; ++__j)
         {
-            __lane[__i].~_Tp();
+            __lane[__j].~_Tp();
         }
     }
     else
@@ -852,5 +856,7 @@ __simd_remove_if(_RandomAccessIterator __first, _DifferenceType __n, _UnaryPredi
 }
 } // namespace __unseq_backend
 } // namespace __pstl
+
+_PSTL_HIDE_FROM_ABI_POP
 
 #endif /* _PSTL_UNSEQ_BACKEND_SIMD_H */

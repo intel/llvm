@@ -1,4 +1,4 @@
-; RUN: opt -analyze -scalar-evolution < %s | FileCheck %s
+; RUN: opt -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 ; ScalarEvolution should be able to use nsw information to prove that
 ; this loop has a finite trip count.

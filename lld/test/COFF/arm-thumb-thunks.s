@@ -1,9 +1,9 @@
 // REQUIRES: arm
 // RUN: llvm-mc -filetype=obj -triple=thumbv7-windows %s -o %t.obj
 // RUN: lld-link -entry:main -subsystem:console %t.obj -out:%t.exe -verbose 2>&1 | FileCheck -check-prefix=VERBOSE %s
-// RUN: llvm-objdump -d %t.exe -start-address=0x401000 -stop-address=0x401022 | FileCheck -check-prefix=MAIN %s
-// RUN: llvm-objdump -d %t.exe -start-address=0x501022 -stop-address=0x501032 | FileCheck -check-prefix=FUNC1 %s
-// RUN: llvm-objdump -d %t.exe -start-address=0x601032 | FileCheck -check-prefix=FUNC2 %s
+// RUN: llvm-objdump -d %t.exe --start-address=0x401000 --stop-address=0x401022 | FileCheck --check-prefix=MAIN %s
+// RUN: llvm-objdump -d %t.exe --start-address=0x501022 --stop-address=0x501032 | FileCheck --check-prefix=FUNC1 %s
+// RUN: llvm-objdump -d %t.exe --start-address=0x601032 | FileCheck --check-prefix=FUNC2 %s
 
 // VERBOSE: Added 3 thunks with margin {{.*}} in 1 passes
 
@@ -48,9 +48,9 @@ func2:
 "??_C@string2":
     .asciz "bar"
 
-// MAIN:    401000:       40 f0 05 80     bne.w   #10 <.text+0xe>
-// MAIN:    401004:       40 f0 08 80     bne.w   #16 <.text+0x18>
-// MAIN:    401008:       40 f0 01 80     bne.w   #2 <.text+0xe>
+// MAIN:    401000:       40 f0 05 80     bne.w   0x40100e <.text+0xe>
+// MAIN:    401004:       40 f0 08 80     bne.w   0x401018 <.text+0x18>
+// MAIN:    401008:       40 f0 01 80     bne.w   0x40100e <.text+0xe>
 // MAIN:    40100c:       70 47           bx      lr
 // func1 thunk
 // MAIN:    40100e:       40 f2 08 0c     movw    r12, #8
@@ -61,7 +61,7 @@ func2:
 // MAIN:    40101c:       c0 f2 20 0c     movt    r12, #32
 // MAIN:    401020:       e7 44           add     pc,  r12
 
-// FUNC1:   501022:       40 f0 01 80     bne.w   #2 <.text+0x100028>
+// FUNC1:   501022:       40 f0 01 80     bne.w   0x501028 <.text+0x100028>
 // FUNC1:   501026:       70 47           bx      lr
 // func2 thunk
 // FUNC1:   501028:       4f f6 fe 7c     movw    r12, #65534

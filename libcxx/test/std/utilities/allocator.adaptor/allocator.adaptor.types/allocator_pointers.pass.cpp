@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <scoped_allocator>
 #include <memory>
 #include <cassert>
 
 // #include <memory>
+
+#include "test_macros.h"
 //
 // template <class Alloc>
 // struct allocator_traits

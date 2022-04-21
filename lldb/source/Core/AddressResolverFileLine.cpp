@@ -1,4 +1,4 @@
-//===-- AddressResolverFileLine.cpp -----------------------------*- C++ -*-===//
+//===-- AddressResolverFileLine.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,41 +14,38 @@
 #include "lldb/Symbol/LineEntry.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Logging.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-types.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 #include <vector>
 
 using namespace lldb;
 using namespace lldb_private;
 
 // AddressResolverFileLine:
-AddressResolverFileLine::AddressResolverFileLine(const FileSpec &file_spec,
-                                                 uint32_t line_no,
-                                                 bool check_inlines)
-    : AddressResolver(), m_file_spec(file_spec), m_line_number(line_no),
-      m_inlines(check_inlines) {}
+AddressResolverFileLine::AddressResolverFileLine(
+    SourceLocationSpec location_spec)
+    : AddressResolver(), m_src_location_spec(location_spec) {}
 
-AddressResolverFileLine::~AddressResolverFileLine() {}
+AddressResolverFileLine::~AddressResolverFileLine() = default;
 
 Searcher::CallbackReturn
 AddressResolverFileLine::SearchCallback(SearchFilter &filter,
-                                        SymbolContext &context, Address *addr,
-                                        bool containing) {
+                                        SymbolContext &context, Address *addr) {
   SymbolContextList sc_list;
-  uint32_t sc_list_size;
   CompileUnit *cu = context.comp_unit;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Breakpoints);
 
-  sc_list_size =
-      cu->ResolveSymbolContext(m_file_spec, m_line_number, m_inlines, false,
-                               eSymbolContextEverything, sc_list);
+  // TODO: Handle SourceLocationSpec column information
+  cu->ResolveSymbolContext(m_src_location_spec, eSymbolContextEverything,
+                           sc_list);
+  uint32_t sc_list_size = sc_list.GetSize();
   for (uint32_t i = 0; i < sc_list_size; i++) {
     SymbolContext sc;
     if (sc_list.GetContextAtIndex(i, sc)) {
@@ -57,18 +54,14 @@ AddressResolverFileLine::SearchCallback(SearchFilter &filter,
       if (line_start.IsValid()) {
         AddressRange new_range(line_start, byte_size);
         m_address_ranges.push_back(new_range);
-        if (log) {
-          StreamString s;
-          // new_bp_loc->GetDescription (&s, lldb::eDescriptionLevelVerbose);
-          // log->Printf ("Added address: %s\n", s.GetData());
-        }
       } else {
-        if (log)
-          log->Printf(
-              "error: Unable to resolve address at file address 0x%" PRIx64
-              " for %s:%d\n",
-              line_start.GetFileAddress(),
-              m_file_spec.GetFilename().AsCString("<Unknown>"), m_line_number);
+        LLDB_LOGF(log,
+                  "error: Unable to resolve address at file address 0x%" PRIx64
+                  " for %s:%d\n",
+                  line_start.GetFileAddress(),
+                  m_src_location_spec.GetFileSpec().GetFilename().AsCString(
+                      "<Unknown>"),
+                  m_src_location_spec.GetLine().getValueOr(0));
       }
     }
   }
@@ -80,6 +73,8 @@ lldb::SearchDepth AddressResolverFileLine::GetDepth() {
 }
 
 void AddressResolverFileLine::GetDescription(Stream *s) {
-  s->Printf("File and line address - file: \"%s\" line: %u",
-            m_file_spec.GetFilename().AsCString("<Unknown>"), m_line_number);
+  s->Printf(
+      "File and line address - file: \"%s\" line: %u",
+      m_src_location_spec.GetFileSpec().GetFilename().AsCString("<Unknown>"),
+      m_src_location_spec.GetLine().getValueOr(0));
 }

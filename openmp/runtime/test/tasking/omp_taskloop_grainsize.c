@@ -1,6 +1,5 @@
 // RUN: %libomp-compile-and-run
 // RUN: %libomp-compile && env KMP_TASKLOOP_MIN_TASKS=1 %libomp-run
-// REQUIRES: openmp-4.5
 
 // These compilers don't support the taskloop construct
 // UNSUPPORTED: gcc-4, gcc-5, icc-16
@@ -9,7 +8,7 @@
 
 /*
  * Test for taskloop
- * Method: caculate how many times the iteration space is dispatched
+ * Method: calculate how many times the iteration space is dispatched
  *     and judge if each dispatch has the requested grainsize
  * It is possible for two adjacent chunks are executed by the same thread
  */

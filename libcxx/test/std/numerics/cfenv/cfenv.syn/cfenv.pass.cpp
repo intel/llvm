@@ -5,13 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: newlib
 
 // <cfenv>
 
 #include <cfenv>
 #include <type_traits>
+
+#include "test_macros.h"
 
 #ifndef FE_DIVBYZERO
 #error FE_DIVBYZERO not defined

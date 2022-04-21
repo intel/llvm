@@ -21,23 +21,35 @@
 namespace llvm {
 namespace jitlink {
 
-/// Registers all FDEs in the given eh-frame section with the current process.
-Error registerEHFrameSection(const void *EHFrameSectionAddr);
+/// Supports registration/deregistration of EH-frames in a target process.
+class EHFrameRegistrar {
+public:
+  virtual ~EHFrameRegistrar();
+  virtual Error registerEHFrames(orc::ExecutorAddrRange EHFrameSection) = 0;
+  virtual Error deregisterEHFrames(orc::ExecutorAddrRange EHFrameSection) = 0;
+};
 
-/// Deregisters all FDEs in the given eh-frame section with the current process.
-Error deregisterEHFrameSection(const void *EHFrameSectionAddr);
+/// Registers / Deregisters EH-frames in the current process.
+class InProcessEHFrameRegistrar final : public EHFrameRegistrar {
+public:
+  Error registerEHFrames(orc::ExecutorAddrRange EHFrameSection) override;
 
-using StoreFrameAddressFunction = std::function<void(JITTargetAddress)>;
+  Error deregisterEHFrames(orc::ExecutorAddrRange EHFrameSection) override;
+};
 
-/// Creates a pass that records the address of the EH frame section. If no
-/// eh-frame section is found, it will set EHFrameAddr to zero.
+using StoreFrameRangeFunction = std::function<void(
+    orc::ExecutorAddr EHFrameSectionAddr, size_t EHFrameSectionSize)>;
+
+/// Creates a pass that records the address and size of the EH frame section.
+/// If no eh-frame section is found then the address and size will both be given
+/// as zero.
 ///
 /// Authors of JITLinkContexts can use this function to register a post-fixup
-/// pass that records the address of the eh-frame section. This address can
+/// pass that records the range of the eh-frame section. This range can
 /// be used after finalization to register and deregister the frame.
-AtomGraphPassFunction
+LinkGraphPassFunction
 createEHFrameRecorderPass(const Triple &TT,
-                          StoreFrameAddressFunction StoreFrameAddress);
+                          StoreFrameRangeFunction StoreFrameRange);
 
 } // end namespace jitlink
 } // end namespace llvm

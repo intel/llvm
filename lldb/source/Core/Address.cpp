@@ -1,4 +1,4 @@
-//===-- Address.cpp ---------------------------------------------*- C++ -*-===//
+//===-- Address.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Core/Address.h"
+#include "lldb/Core/Declaration.h"
 #include "lldb/Core/DumpDataExtractor.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Symbol/Block.h"
-#include "lldb/Symbol/Declaration.h"
 #include "lldb/Symbol/LineEntry.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/Symbol.h"
@@ -22,6 +22,7 @@
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Symbol/VariableList.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/ExecutionContextScope.h"
 #include "lldb/Target/Process.h"
@@ -43,9 +44,9 @@
 #include <memory>
 #include <vector>
 
-#include <assert.h>
-#include <inttypes.h>
-#include <string.h>
+#include <cassert>
+#include <cinttypes>
+#include <cstring>
 
 namespace lldb_private {
 class CompileUnit;
@@ -65,9 +66,9 @@ static size_t ReadBytes(ExecutionContextScope *exe_scope,
   TargetSP target_sp(exe_scope->CalculateTarget());
   if (target_sp) {
     Status error;
-    bool prefer_file_cache = false;
-    return target_sp->ReadMemory(address, prefer_file_cache, dst, dst_len,
-                                 error);
+    bool force_live_memory = true;
+    return target_sp->ReadMemory(address, dst, dst_len, error,
+                                 force_live_memory);
   }
   return 0;
 }
@@ -161,7 +162,7 @@ static bool ReadAddress(ExecutionContextScope *exe_scope,
 static bool DumpUInt(ExecutionContextScope *exe_scope, const Address &address,
                      uint32_t byte_size, Stream *strm) {
   if (exe_scope == nullptr || byte_size == 0)
-    return 0;
+    return false;
   std::vector<uint8_t> buf(byte_size, 0);
 
   if (ReadBytes(exe_scope, address, &buf[0], buf.size()) == buf.size()) {
@@ -232,7 +233,7 @@ static size_t ReadCStringFromMemory(ExecutionContextScope *exe_scope,
 Address::Address(lldb::addr_t abs_addr) : m_section_wp(), m_offset(abs_addr) {}
 
 Address::Address(addr_t address, const SectionList *section_list)
-    : m_section_wp(), m_offset(LLDB_INVALID_ADDRESS) {
+    : m_section_wp() {
   ResolveAddressUsingFileSections(address, section_list);
 }
 
@@ -259,6 +260,24 @@ bool Address::ResolveAddressUsingFileSections(addr_t file_addr,
   }
   m_offset = file_addr;
   return false; // Failed to resolve this address to a section offset value
+}
+
+/// if "addr_range_ptr" is not NULL, then fill in with the address range of the function.
+bool Address::ResolveFunctionScope(SymbolContext &sym_ctx,
+                                   AddressRange *addr_range_ptr) {
+  constexpr SymbolContextItem resolve_scope =
+    eSymbolContextFunction | eSymbolContextSymbol;
+
+  if (!(CalculateSymbolContext(&sym_ctx, resolve_scope) & resolve_scope)) {
+    if (addr_range_ptr)
+      addr_range_ptr->Clear();
+   return false;
+  }
+
+  if (!addr_range_ptr)
+    return true;
+
+  return sym_ctx.GetAddressRange(resolve_scope, 0, false, *addr_range_ptr);
 }
 
 ModuleSP Address::GetModule() const {
@@ -371,8 +390,22 @@ bool Address::SetOpcodeLoadAddress(lldb::addr_t load_addr, Target *target,
   return false;
 }
 
+bool Address::GetDescription(Stream &s, Target &target,
+                             DescriptionLevel level) const {
+  assert(level == eDescriptionLevelBrief &&
+         "Non-brief descriptions not implemented");
+  LineEntry line_entry;
+  if (CalculateSymbolContextLineEntry(line_entry)) {
+    s.Printf(" (%s:%u:%u)", line_entry.file.GetFilename().GetCString(),
+             line_entry.line, line_entry.column);
+    return true;
+  }
+  return false;
+}
+
 bool Address::Dump(Stream *s, ExecutionContextScope *exe_scope, DumpStyle style,
-                   DumpStyle fallback_style, uint32_t addr_size) const {
+                   DumpStyle fallback_style, uint32_t addr_size,
+                   bool all_ranges) const {
   // If the section was nullptr, only load address is going to work unless we
   // are trying to deref a pointer
   SectionSP section_sp(GetSection());
@@ -397,16 +430,16 @@ bool Address::Dump(Stream *s, ExecutionContextScope *exe_scope, DumpStyle style,
 
   case DumpStyleSectionNameOffset:
     if (section_sp) {
-      section_sp->DumpName(s);
+      section_sp->DumpName(s->AsRawOstream());
       s->Printf(" + %" PRIu64, m_offset);
     } else {
-      s->Address(m_offset, addr_size);
+      DumpAddress(s->AsRawOstream(), m_offset, addr_size);
     }
     break;
 
   case DumpStyleSectionPointerOffset:
     s->Printf("(Section *)%p + ", static_cast<void *>(section_sp.get()));
-    s->Address(m_offset, addr_size);
+    DumpAddress(s->AsRawOstream(), m_offset, addr_size);
     break;
 
   case DumpStyleModuleWithFileAddress:
@@ -426,7 +459,7 @@ bool Address::Dump(Stream *s, ExecutionContextScope *exe_scope, DumpStyle style,
         return Dump(s, exe_scope, fallback_style, DumpStyleInvalid, addr_size);
       return false;
     }
-    s->Address(file_addr, addr_size);
+    DumpAddress(s->AsRawOstream(), file_addr, addr_size);
     if (style == DumpStyleModuleWithFileAddress && section_sp)
       s->PutChar(']');
   } break;
@@ -454,7 +487,7 @@ bool Address::Dump(Stream *s, ExecutionContextScope *exe_scope, DumpStyle style,
         return Dump(s, exe_scope, fallback_style, DumpStyleInvalid, addr_size);
       return false;
     }
-    s->Address(load_addr, addr_size);
+    DumpAddress(s->AsRawOstream(), load_addr, addr_size);
   } break;
 
   case DumpStyleResolvedDescription:
@@ -475,23 +508,19 @@ bool Address::Dump(Stream *s, ExecutionContextScope *exe_scope, DumpStyle style,
         switch (sect_type) {
         case eSectionTypeData:
           if (module_sp) {
-            SymbolVendor *sym_vendor = module_sp->GetSymbolVendor();
-            if (sym_vendor) {
-              Symtab *symtab = sym_vendor->GetSymtab();
-              if (symtab) {
-                const addr_t file_Addr = GetFileAddress();
-                Symbol *symbol =
-                    symtab->FindSymbolContainingFileAddress(file_Addr);
-                if (symbol) {
-                  const char *symbol_name = symbol->GetName().AsCString();
-                  if (symbol_name) {
-                    s->PutCString(symbol_name);
-                    addr_t delta =
-                        file_Addr - symbol->GetAddressRef().GetFileAddress();
-                    if (delta)
-                      s->Printf(" + %" PRIu64, delta);
-                    showed_info = true;
-                  }
+            if (Symtab *symtab = module_sp->GetSymtab()) {
+              const addr_t file_Addr = GetFileAddress();
+              Symbol *symbol =
+                  symtab->FindSymbolContainingFileAddress(file_Addr);
+              if (symbol) {
+                const char *symbol_name = symbol->GetName().AsCString();
+                if (symbol_name) {
+                  s->PutCString(symbol_name);
+                  addr_t delta =
+                      file_Addr - symbol->GetAddressRef().GetFileAddress();
+                  if (delta)
+                    s->Printf(" + %" PRIu64, delta);
+                  showed_info = true;
                 }
               }
             }
@@ -693,29 +722,42 @@ bool Address::Dump(Stream *s, ExecutionContextScope *exe_scope, DumpStyle style,
           bool get_parent_variables = true;
           bool stop_if_block_is_inlined_function = false;
           VariableList variable_list;
-          sc.block->AppendVariables(can_create, get_parent_variables,
-                                    stop_if_block_is_inlined_function,
-                                    [](Variable *) { return true; },
-                                    &variable_list);
-
-          const size_t num_variables = variable_list.GetSize();
-          for (size_t var_idx = 0; var_idx < num_variables; ++var_idx) {
-            Variable *var = variable_list.GetVariableAtIndex(var_idx).get();
-            if (var && var->LocationIsValidForAddress(*this)) {
-              s->Indent();
-              s->Printf("   Variable: id = {0x%8.8" PRIx64 "}, name = \"%s\"",
-                        var->GetID(), var->GetName().GetCString());
-              Type *type = var->GetType();
-              if (type)
-                s->Printf(", type = \"%s\"", type->GetName().GetCString());
-              else
-                s->PutCString(", type = <unknown>");
-              s->PutCString(", location = ");
-              var->DumpLocationForAddress(s, *this);
-              s->PutCString(", decl = ");
-              var->GetDeclaration().DumpStopContext(s, false);
-              s->EOL();
-            }
+          addr_t file_addr = GetFileAddress();
+          sc.block->AppendVariables(
+              can_create, get_parent_variables,
+              stop_if_block_is_inlined_function,
+              [&](Variable *var) {
+                return var && var->LocationIsValidForAddress(*this);
+              },
+              &variable_list);
+          ABISP abi =
+              ABI::FindPlugin(ProcessSP(), module_sp->GetArchitecture());
+          for (const VariableSP &var_sp : variable_list) {
+            s->Indent();
+            s->Printf("   Variable: id = {0x%8.8" PRIx64 "}, name = \"%s\"",
+                      var_sp->GetID(), var_sp->GetName().GetCString());
+            Type *type = var_sp->GetType();
+            if (type)
+              s->Printf(", type = \"%s\"", type->GetName().GetCString());
+            else
+              s->PutCString(", type = <unknown>");
+            s->PutCString(", valid ranges = ");
+            if (var_sp->GetScopeRange().IsEmpty())
+              s->PutCString("<block>");
+            else if (all_ranges) {
+              for (auto range : var_sp->GetScopeRange())
+                DumpAddressRange(s->AsRawOstream(), range.GetRangeBase(),
+                                 range.GetRangeEnd(), addr_size);
+            } else if (auto *range =
+                           var_sp->GetScopeRange().FindEntryThatContains(
+                               file_addr))
+              DumpAddressRange(s->AsRawOstream(), range->GetRangeBase(),
+                               range->GetRangeEnd(), addr_size);
+            s->PutCString(", location = ");
+            var_sp->DumpLocations(s, all_ranges ? LLDB_INVALID_ADDRESS : *this);
+            s->PutCString(", decl = ");
+            var_sp->GetDeclaration().DumpStopContext(s, false);
+            s->EOL();
           }
         }
       }
@@ -742,7 +784,8 @@ bool Address::Dump(Stream *s, ExecutionContextScope *exe_scope, DumpStyle style,
             if (dereferenced_addr.Dump(&strm, exe_scope,
                                        DumpStyleResolvedDescription,
                                        DumpStyleInvalid, addr_size)) {
-              s->Address(dereferenced_load_addr, addr_size, " -> ", " ");
+              DumpAddress(s->AsRawOstream(), dereferenced_load_addr, addr_size,
+                          " -> ", " ");
               s->Write(strm.GetString().data(), strm.GetSize());
               return true;
             }
@@ -985,10 +1028,9 @@ AddressClass Address::GetAddressClass() const {
   if (module_sp) {
     ObjectFile *obj_file = module_sp->GetObjectFile();
     if (obj_file) {
-      // Give the symbol vendor a chance to add to the unified section list
-      // and to symtab from symbol file
-      if (SymbolVendor *vendor = module_sp->GetSymbolVendor())
-        vendor->GetSymtab();
+      // Give the symbol file a chance to add to the unified section list
+      // and to the symtab.
+      module_sp->GetSymtab();
       return obj_file->GetAddressClass(GetFileAddress());
     }
   }

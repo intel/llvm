@@ -22,8 +22,8 @@ $comdat.exactmatch = comdat exactmatch
 ; CHECK: $comdat.exactmatch = comdat exactmatch
 $comdat.largest = comdat largest
 ; CHECK: $comdat.largest = comdat largest
-$comdat.noduplicates = comdat noduplicates
-; CHECK: $comdat.noduplicates = comdat noduplicates
+$comdat.noduplicates = comdat nodeduplicate
+; CHECK: $comdat.noduplicates = comdat nodeduplicate
 $comdat.samesize = comdat samesize
 ; CHECK: $comdat.samesize = comdat samesize
 
@@ -434,12 +434,12 @@ declare void @f.param.signext(i8 signext)
 ; CHECK: declare void @f.param.signext(i8 signext)
 declare void @f.param.inreg(i8 inreg)
 ; CHECK: declare void @f.param.inreg(i8 inreg)
-declare void @f.param.byval({ i8, i8 }* byval)
-; CHECK: declare void @f.param.byval({ i8, i8 }* byval)
+declare void @f.param.byval({ i8, i8 }* byval({ i8, i8 }))
+; CHECK: declare void @f.param.byval({ i8, i8 }* byval({ i8, i8 }))
 declare void @f.param.inalloca(i8* inalloca)
-; CHECK: declare void @f.param.inalloca(i8* inalloca)
-declare void @f.param.sret(i8* sret)
-; CHECK: declare void @f.param.sret(i8* sret)
+; CHECK: declare void @f.param.inalloca(i8* inalloca(i8))
+declare void @f.param.sret(i8* sret(i8))
+; CHECK: declare void @f.param.sret(i8* sret(i8))
 declare void @f.param.noalias(i8* noalias)
 ; CHECK: declare void @f.param.noalias(i8* noalias)
 declare void @f.param.nocapture(i8* nocapture)
@@ -1170,7 +1170,7 @@ exit:
   ; CHECK: select <2 x i1> <i1 true, i1 false>, <2 x i8> <i8 2, i8 3>, <2 x i8> <i8 3, i8 2>
 
   call void @f.nobuiltin() builtin
-  ; CHECK: call void @f.nobuiltin() #40
+  ; CHECK: call void @f.nobuiltin() #41
 
   call fastcc noalias i32* @f.noalias() noinline
   ; CHECK: call fastcc noalias i32* @f.noalias() #12
@@ -1182,7 +1182,7 @@ exit:
 
 define void @instructions.call_musttail(i8* inalloca %val) {
   musttail call void @f.param.inalloca(i8* inalloca %val)
-  ; CHECK: musttail call void @f.param.inalloca(i8* inalloca %val)
+  ; CHECK: musttail call void @f.param.inalloca(i8* inalloca(i8) %val)
 
   ret void
 }
@@ -1302,7 +1302,7 @@ define void @intrinsics.codegen() {
   call i8* @llvm.returnaddress(i32 1)
   ; CHECK: call i8* @llvm.returnaddress(i32 1)
   call i8* @llvm.frameaddress(i32 1)
-  ; CHECK: call i8* @llvm.frameaddress(i32 1)
+  ; CHECK: call i8* @llvm.frameaddress.p0i8(i32 1)
 
   call i32 @llvm.read_register.i32(metadata !10)
   ; CHECK: call i32 @llvm.read_register.i32(metadata !10)
@@ -1319,7 +1319,7 @@ define void @intrinsics.codegen() {
   ; CHECK: call void @llvm.stackrestore(i8* %stack)
 
   call void @llvm.prefetch(i8* %stack, i32 0, i32 3, i32 0)
-  ; CHECK: call void @llvm.prefetch(i8* %stack, i32 0, i32 3, i32 0)
+  ; CHECK: call void @llvm.prefetch.p0i8(i8* %stack, i32 0, i32 3, i32 0)
 
   call void @llvm.pcmarker(i32 1)
   ; CHECK: call void @llvm.pcmarker(i32 1)
@@ -1552,12 +1552,13 @@ normal:
 ; CHECK: attributes #32 = { norecurse }
 ; CHECK: attributes #33 = { inaccessiblememonly }
 ; CHECK: attributes #34 = { inaccessiblemem_or_argmemonly }
-; CHECK: attributes #35 = { nounwind readnone }
-; CHECK: attributes #36 = { argmemonly nounwind readonly }
-; CHECK: attributes #37 = { argmemonly nounwind }
-; CHECK: attributes #38 = { nounwind readonly }
-; CHECK: attributes #39 = { inaccessiblemem_or_argmemonly nounwind }
-; CHECK: attributes #40 = { builtin }
+; CHECK: attributes #35 = { nocallback nofree nosync nounwind readnone willreturn }
+; CHECK: attributes #36 = { nocallback nofree nosync nounwind willreturn }
+; CHECK: attributes #37 = { argmemonly nounwind readonly }
+; CHECK: attributes #38 = { argmemonly nounwind }
+; CHECK: attributes #39 = { nounwind readonly }
+; CHECK: attributes #40 = { inaccessiblemem_or_argmemonly nocallback nofree nosync nounwind willreturn }
+; CHECK: attributes #41 = { builtin }
 
 ;; Metadata
 

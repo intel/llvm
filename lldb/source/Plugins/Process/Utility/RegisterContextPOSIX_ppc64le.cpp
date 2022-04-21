@@ -1,4 +1,4 @@
-//===-- RegisterContextPOSIX_ppc64le.cpp -------------------------*- C++-*-===//
+//===-- RegisterContextPOSIX_ppc64le.cpp ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cerrno>
+#include <cstdint>
 #include <cstring>
-#include <errno.h>
-#include <stdint.h>
 
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -151,7 +151,7 @@ RegisterContextPOSIX_ppc64le::GetRegisterInfoAtIndex(size_t reg) {
   if (reg < k_num_registers_ppc64le)
     return &GetRegisterInfo()[reg];
   else
-    return NULL;
+    return nullptr;
 }
 
 size_t RegisterContextPOSIX_ppc64le::GetRegisterSetCount() {
@@ -168,7 +168,7 @@ const RegisterSet *RegisterContextPOSIX_ppc64le::GetRegisterSet(size_t set) {
   if (IsRegisterSetAvailable(set))
     return &g_reg_sets_ppc64le[set];
   else
-    return NULL;
+    return nullptr;
 }
 
 const char *RegisterContextPOSIX_ppc64le::GetRegisterName(unsigned reg) {
@@ -176,36 +176,8 @@ const char *RegisterContextPOSIX_ppc64le::GetRegisterName(unsigned reg) {
   return GetRegisterInfo()[reg].name;
 }
 
-lldb::ByteOrder RegisterContextPOSIX_ppc64le::GetByteOrder() {
-  // Get the target process whose privileged thread was used for the register
-  // read.
-  lldb::ByteOrder byte_order = eByteOrderInvalid;
-  Process *process = CalculateProcess().get();
-
-  if (process)
-    byte_order = process->GetByteOrder();
-  return byte_order;
-}
-
 bool RegisterContextPOSIX_ppc64le::IsRegisterSetAvailable(size_t set_index) {
   size_t num_sets = k_num_register_sets;
 
   return (set_index < num_sets);
-}
-
-// Used when parsing DWARF and EH frame information and any other object file
-// sections that contain register numbers in them.
-uint32_t RegisterContextPOSIX_ppc64le::ConvertRegisterKindToRegisterNumber(
-    lldb::RegisterKind kind, uint32_t num) {
-  const uint32_t num_regs = GetRegisterCount();
-
-  assert(kind < kNumRegisterKinds);
-  for (uint32_t reg_idx = 0; reg_idx < num_regs; ++reg_idx) {
-    const RegisterInfo *reg_info = GetRegisterInfoAtIndex(reg_idx);
-
-    if (reg_info->kinds[kind] == num)
-      return reg_idx;
-  }
-
-  return LLDB_INVALID_REGNUM;
 }

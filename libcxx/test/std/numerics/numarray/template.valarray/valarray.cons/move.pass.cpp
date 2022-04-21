@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <valarray>
 
@@ -18,6 +18,8 @@
 #include <utility>
 #include <cassert>
 #include <cstddef>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

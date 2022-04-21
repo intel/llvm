@@ -163,7 +163,7 @@ namespace objects {
     // (for the second phase, no constructor is viable)
     G g1{1, 2, 3}; // expected-error {{no matching constructor}}
     (void) new G{1, 2, 3}; // expected-error {{no matching constructor}}
-    (void) G{1, 2, 3} // expected-error {{no matching constructor}}
+    (void) G{1, 2, 3}; // expected-error {{no matching constructor}}
 
     // valid (T deduced to <>).
     G g2({1, 2, 3});
@@ -266,7 +266,7 @@ namespace PR12120 {
   struct A { explicit A(int); A(float); }; // expected-note {{declared here}}
   A a = { 0 }; // expected-error {{constructor is explicit}}
 
-  struct B { explicit B(short); B(long); }; // expected-note 4{{candidate}}
+  struct B { explicit B(short); B(long); }; // expected-note 2{{candidate}}
   B b = { 0 }; // expected-error {{ambiguous}}
 
   struct C { explicit C(short); C(long); }; // expected-note 2{{candidate}}
@@ -406,6 +406,6 @@ namespace PR11410 {
     0, 1
   }; // expected-error {{ambiguous}} expected-note {{in implicit initialization of array element 2}}
   C c2[3] = {
-    [0] = 1, [2] = 3
+    [0] = 1, [2] = 3 // expected-warning {{C99}}
   }; // expected-error {{ambiguous}} expected-note {{in implicit initialization of array element 1}}
 }

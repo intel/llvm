@@ -1,4 +1,4 @@
-// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -r -S --sd | FileCheck %s
+// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -S -r --sd - | FileCheck %s
         .file   2 "foo"
         .file   1 "bar"
         .loc    2 64 0
@@ -14,7 +14,7 @@
 // CHECK:     Alignment: 0
 // CHECK:     RelocationOffset: 0x12C
 // CHECK:     RelocationCount: 1
-// CHECK:     Type: 0x0
+// CHECK:     Type: Regular (0x0)
 // CHECK:     Attributes [ (0x20000)
 // CHECK:       Debug (0x20000)
 // CHECK:     ]

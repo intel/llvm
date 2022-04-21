@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-mapping -Wuninitialized
 
 void foo() {
 }
@@ -8,8 +8,7 @@ void foo() {
 bool foobool(int argc) {
   return argc;
 }
-
-struct S1; // expected-note {{declared here}}
+struct S1; // expected-note {{declared here}}  // expected-note {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;
@@ -59,7 +58,7 @@ int main(int argc, char **argv) {
   const int da[5] = { 0 };
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;
   #pragma omp target
   #pragma omp teams shared // expected-error {{expected '(' after 'shared'}}
@@ -101,7 +100,7 @@ int main(int argc, char **argv) {
   #pragma omp teams shared(da)
   foo();
   #pragma omp target
-  #pragma omp teams shared(e, g)
+  #pragma omp teams shared(e, g, z)
   foo();
   #pragma omp target
   #pragma omp teams shared(h, B::x) // expected-error 2 {{threadprivate or thread local variable cannot be shared}}

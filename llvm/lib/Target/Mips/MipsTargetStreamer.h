@@ -19,7 +19,7 @@
 
 namespace llvm {
 
-struct MipsABIFlagsSection;
+class formatted_raw_ostream;
 
 class MipsTargetStreamer : public MCTargetStreamer {
 public:
@@ -84,13 +84,17 @@ public:
   virtual void emitDirectiveSetDsp();
   virtual void emitDirectiveSetDspr2();
   virtual void emitDirectiveSetNoDsp();
+  virtual void emitDirectiveSetMips3D();
+  virtual void emitDirectiveSetNoMips3D();
   virtual void emitDirectiveSetPop();
   virtual void emitDirectiveSetPush();
   virtual void emitDirectiveSetSoftFloat();
   virtual void emitDirectiveSetHardFloat();
 
   // PIC support
+  virtual void emitDirectiveCpAdd(unsigned RegNo);
   virtual void emitDirectiveCpLoad(unsigned RegNo);
+  virtual void emitDirectiveCpLocal(unsigned RegNo);
   virtual bool emitDirectiveCpRestore(int Offset,
                                       function_ref<unsigned()> GetATReg,
                                       SMLoc IDLoc, const MCSubtargetInfo *STI);
@@ -129,6 +133,8 @@ public:
                SMLoc IDLoc, const MCSubtargetInfo *STI);
   void emitRRR(unsigned Opcode, unsigned Reg0, unsigned Reg1, unsigned Reg2,
                SMLoc IDLoc, const MCSubtargetInfo *STI);
+  void emitRRRX(unsigned Opcode, unsigned Reg0, unsigned Reg1, unsigned Reg2,
+                MCOperand Op3, SMLoc IDLoc, const MCSubtargetInfo *STI);
   void emitRRI(unsigned Opcode, unsigned Reg0, unsigned Reg1, int16_t Imm,
                SMLoc IDLoc, const MCSubtargetInfo *STI);
   void emitRRIII(unsigned Opcode, unsigned Reg0, unsigned Reg1, int16_t Imm0,
@@ -153,16 +159,8 @@ public:
                               unsigned BaseReg, int64_t Offset,
                               function_ref<unsigned()> GetATReg, SMLoc IDLoc,
                               const MCSubtargetInfo *STI);
-  void emitStoreWithSymOffset(unsigned Opcode, unsigned SrcReg,
-                              unsigned BaseReg, MCOperand &HiOperand,
-                              MCOperand &LoOperand, unsigned ATReg, SMLoc IDLoc,
-                              const MCSubtargetInfo *STI);
   void emitLoadWithImmOffset(unsigned Opcode, unsigned DstReg, unsigned BaseReg,
                              int64_t Offset, unsigned TmpReg, SMLoc IDLoc,
-                             const MCSubtargetInfo *STI);
-  void emitLoadWithSymOffset(unsigned Opcode, unsigned DstReg, unsigned BaseReg,
-                             MCOperand &HiOperand, MCOperand &LoOperand,
-                             unsigned ATReg, SMLoc IDLoc,
                              const MCSubtargetInfo *STI);
   void emitGPRestore(int Offset, SMLoc IDLoc, const MCSubtargetInfo *STI);
 
@@ -199,6 +197,7 @@ protected:
   bool FrameInfoSet;
   int FrameOffset;
   unsigned FrameReg;
+  unsigned GPReg;
   unsigned ReturnReg;
 
 private:
@@ -267,13 +266,17 @@ public:
   void emitDirectiveSetDsp() override;
   void emitDirectiveSetDspr2() override;
   void emitDirectiveSetNoDsp() override;
+  void emitDirectiveSetMips3D() override;
+  void emitDirectiveSetNoMips3D() override;
   void emitDirectiveSetPop() override;
   void emitDirectiveSetPush() override;
   void emitDirectiveSetSoftFloat() override;
   void emitDirectiveSetHardFloat() override;
 
   // PIC support
+  void emitDirectiveCpAdd(unsigned RegNo) override;
   void emitDirectiveCpLoad(unsigned RegNo) override;
+  void emitDirectiveCpLocal(unsigned RegNo) override;
 
   /// Emit a .cprestore directive.  If the offset is out of range then it will
   /// be synthesized using the assembler temporary.
@@ -344,7 +347,9 @@ public:
   void emitFMask(unsigned FPUBitmask, int FPUTopSavedRegOff) override;
 
   // PIC support
+  void emitDirectiveCpAdd(unsigned RegNo) override;
   void emitDirectiveCpLoad(unsigned RegNo) override;
+  void emitDirectiveCpLocal(unsigned RegNo) override;
   bool emitDirectiveCpRestore(int Offset, function_ref<unsigned()> GetATReg,
                               SMLoc IDLoc, const MCSubtargetInfo *STI) override;
   void emitDirectiveCpsetup(unsigned RegNo, int RegOrOffset,

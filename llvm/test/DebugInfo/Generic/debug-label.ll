@@ -2,30 +2,30 @@
 ;
 ; CHECK: .debug_info contents:
 ; CHECK: DW_TAG_label
-; CHECK-NEXT: DW_AT_name [DW_FORM_strp] {{.*}}"top"
+; CHECK-NEXT: DW_AT_name {{.*}}"top"
 ; CHECK-NEXT: DW_AT_decl_file [DW_FORM_data1] {{.*}}debug-label.c
 ; CHECK-NEXT: DW_AT_decl_line [DW_FORM_data1] {{.*}}4
 ; CHECK-NEXT: DW_AT_low_pc [DW_FORM_addr] {{.*}}{{0x[0-9a-f]+}}
 ; CHECK: DW_TAG_label
-; CHECK-NEXT: DW_AT_name [DW_FORM_strp] {{.*}}"done"
+; CHECK-NEXT: DW_AT_name {{.*}}"done"
 ; CHECK-NEXT: DW_AT_decl_file [DW_FORM_data1] {{.*}}debug-label.c
 ; CHECK-NEXT: DW_AT_decl_line [DW_FORM_data1] {{.*}}7
 ; CHECK-NEXT: DW_AT_low_pc [DW_FORM_addr] {{.*}}{{0x[0-9a-f]+}}
-; CHECK-NOT: DW_AT_name [DW_FORM_strp] {{.*}}"top"
+; CHECK-NOT: DW_AT_name {{.*}}"top"
 ;
 ; RUN: llc -O0 -o - %s | FileCheck %s -check-prefix=ASM
 ;
 ; ASM: [[TOP_LOW_PC:[.0-9a-zA-Z]+]]:{{[[:space:]].*}}DEBUG_LABEL: foo:top
 ; ASM: [[DONE_LOW_PC:[.0-9a-zA-Z]+]]:{{[[:space:]].*}}DEBUG_LABEL: foo:done
-; ASM-LABEL: debug_info
+; ASM-LABEL: {{debug_info|dwinfo}}
 ; ASM: DW_TAG_label
 ; ASM-NEXT: DW_AT_name
-; ASM-NEXT: 1 {{.*}} DW_AT_decl_file
+; ASM: 1 {{.*}} DW_AT_decl_file
 ; ASM-NEXT: 4 {{.*}} DW_AT_decl_line
 ; ASM-NEXT: [[TOP_LOW_PC]]{{.*}} DW_AT_low_pc
 ; ASM: DW_TAG_label
 ; ASM-NEXT: DW_AT_name
-; ASM-NEXT: 1 {{.*}} DW_AT_decl_file
+; ASM: 1 {{.*}} DW_AT_decl_file
 ; ASM-NEXT: 7 {{.*}} DW_AT_decl_line
 ; ASM-NEXT: [[DONE_LOW_PC]]{{.*}} DW_AT_low_pc
 
@@ -70,6 +70,7 @@ declare void @llvm.dbg.label(metadata)
 !9 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
 !10 = !DILabel(scope: !6, name: "top", file: !1, line: 4)
 !11 = !DILocation(line: 4, column: 1, scope: !6)
-!12 = !DILabel(scope: !6, name: "done", file: !1, line: 7)
+!12 = !DILabel(scope: !15, name: "done", file: !1, line: 7)
 !13 = !DILocation(line: 7, column: 1, scope: !6)
 !14 = !DILocation(line: 8, column: 3, scope: !6)
+!15 = !DILexicalBlockFile(discriminator: 2, file: !1, scope: !6)

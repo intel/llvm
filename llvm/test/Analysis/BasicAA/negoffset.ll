@@ -1,9 +1,10 @@
-; RUN: opt < %s -basicaa -aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -aa-pipeline=basic-aa -passes=aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
 target triple = "i386-unknown-linux-gnu"
 
 declare i32* @random.i32(i32* %ptr)
+declare i8* @random.i8(i32* %ptr)
 
 ; CHECK-LABEL: Function: arr:
 ; CHECK-DAG: MayAlias: i32* %alloca, i32* %p0
@@ -13,6 +14,9 @@ define void @arr() {
   %random = call i32* @random.i32(i32* %alloca)
   %p0 = getelementptr inbounds i32, i32* %random, i32 0
   %p1 = getelementptr inbounds i32, i32* %random, i32 1
+  load i32, i32* %alloca
+  load i32, i32* %p0
+  load i32, i32* %p1
   ret void
 }
 
@@ -23,6 +27,9 @@ define void @arg(i32* %arg) {
   %random = call i32* @random.i32(i32* %arg)
   %p0 = getelementptr inbounds i32, i32* %random, i32 0
   %p1 = getelementptr inbounds i32, i32* %random, i32 1
+  load i32, i32* %arg
+  load i32, i32* %p0
+  load i32, i32* %p1
   ret void
 }
 
@@ -34,6 +41,9 @@ define void @global() {
   %random = call i32* @random.i32(i32* @gv)
   %p0 = getelementptr inbounds i32, i32* %random, i32 0
   %p1 = getelementptr inbounds i32, i32* %random, i32 1
+  load i32, i32* @gv
+  load i32, i32* %p0
+  load i32, i32* %p1
   ret void
 }
 
@@ -51,6 +61,10 @@ define void @struct() {
   %f1 = getelementptr inbounds %struct, %struct* %alloca, i32 0, i32 1
   %p0 = getelementptr inbounds i32, i32* %random, i32 0
   %p1 = getelementptr inbounds i32, i32* %random, i32 1
+  load i32, i32* %f0
+  load i32, i32* %f1
+  load i32, i32* %p0
+  load i32, i32* %p1
   ret void
 }
 
@@ -75,6 +89,12 @@ define void @complex1(i32 %i) {
   %r2.1 = getelementptr inbounds %complex, %complex* %random, i32 0, i32 2, i32 1
   %r2.i = getelementptr inbounds %complex, %complex* %random, i32 0, i32 2, i32 %i
   %r2.1i = getelementptr inbounds i32, i32* %r2.1, i32 %i
+  load i32, i32* %a2.0
+  load i32, i32* %a1
+  load i32, i32* %r2.0
+  load i32, i32* %r2.1
+  load i32, i32* %r2.i
+  load i32, i32* %r2.1i
   ret void
 }
 
@@ -93,6 +113,11 @@ define void @complex2(i32 %i, i32 %j) {
   %p120 = getelementptr inbounds %outer, %outer* %random, i32 1, i32 2, i32 2, i32 0
   %pi20 = getelementptr inbounds %outer, %outer* %random, i32 %i, i32 2, i32 2, i32 0
   %pij1 = getelementptr inbounds %outer, %outer* %random, i32 %i, i32 2, i32 %j, i32 1
+  load i32, i32* %alloca
+  load i32, i32* %a3
+  load i32, i32* %p120
+  load i32, i32* %pi20
+  load i32, i32* %pij1
   ret void
 }
 
@@ -117,3 +142,52 @@ entry:
   %2 = load i32, i32* %1
   ret i32 %2
 }
+
+; CHECK-LABEL: Function: one_size_unknown:
+; CHECK: NoModRef:  Ptr: i8* %p.minus1	<->  call void @llvm.memset.p0i8.i32(i8* %p, i8 0, i32 %size, i1 false)
+define void @one_size_unknown(i8* %p, i32 %size) {
+  %p.minus1 = getelementptr inbounds i8, i8* %p, i32 -1
+  call void @llvm.memset.p0i8.i32(i8* %p, i8 0, i32 %size, i1 false)
+  load i8, i8* %p.minus1
+  ret void
+}
+
+
+; If part of the addressing is done with non-inbounds GEPs, we can't use
+; properties implied by the last gep w/the whole offset. In this case,
+; %random = %alloc - 4 bytes is well defined, and results in %step == %alloca,
+; leaving %p as an entirely inbounds gep pointing inside %alloca
+; CHECK-LABEL: Function: all_inbounds:
+; CHECK: MayAlias: i32* %alloca, i8* %p0
+; CHECK: MayAlias:  i32* %alloca, i8* %p1
+define void @all_inbounds() {
+  %alloca = alloca i32, i32 4
+  %random = call i8* @random.i8(i32* %alloca)
+  %p0 = getelementptr inbounds i8, i8* %random, i8 0
+  %step = getelementptr i8, i8* %random, i8 4
+  %p1 = getelementptr inbounds i8, i8* %step, i8 2
+  load i32, i32* %alloca
+  load i8, i8* %p0
+  load i8, i8* %p1
+  ret void
+}
+
+
+; For all values of %x, %p0 and %p1 can't alias because %random would
+; have to be out of bounds (and thus a contradiction) for them to be equal.
+; CHECK-LABEL: Function: common_factor:
+; CHECK: NoAlias:  i32* %p0, i32* %p1
+define void @common_factor(i32 %x) {
+  %alloca = alloca i32, i32 4
+  %random = call i8* @random.i8(i32* %alloca)
+  %p0 = getelementptr inbounds i32, i32* %alloca, i32 %x
+  %step = getelementptr inbounds i8, i8* %random, i8 4
+  %step.bitcast = bitcast i8* %step to i32*
+  %p1 = getelementptr inbounds i32, i32* %step.bitcast, i32 %x
+  load i32, i32* %p0
+  load i32, i32* %p1
+  ret void
+}
+
+
+declare void @llvm.memset.p0i8.i32(i8*, i8, i32, i1)

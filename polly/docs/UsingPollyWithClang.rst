@@ -8,7 +8,7 @@ optimize C/C++ code during compilation.
 
 .. warning::
 
-  Warning: clang/LLVM/Polly need to be in sync (compiled from the same SVN
+  Warning: clang/LLVM/Polly need to be in sync (compiled from the same
   revision).
 
 Make Polly available from Clang
@@ -21,7 +21,8 @@ Optimizing with Polly
 =====================
 
 Optimizing with Polly is as easy as adding -O3 -mllvm -polly to your compiler
-flags (Polly is only available at -O3).
+flags (Polly is not available unless optimizations are enabled, such as
+-O1,-O2,-O3; Optimizing for size with -Os or -Oz is not recommended).
 
 .. code-block:: console
 

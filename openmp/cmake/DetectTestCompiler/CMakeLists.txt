@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.13.4)
 project(DetectTestCompiler C CXX)
 
 include(CheckCCompilerFlag)
@@ -9,6 +9,8 @@ function(write_compiler_information lang)
   set(information "${information}\\;${CMAKE_${lang}_COMPILER_ID}")
   set(information "${information}\\;${CMAKE_${lang}_COMPILER_VERSION}")
   set(information "${information}\\;${${lang}_FLAGS}")
+  set(information "${information}\\;${${lang}_HAS_TSAN_FLAG}")
+  set(information "${information}\\;${${lang}_HAS_OMIT_FRAME_POINTER}")
   file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${lang}CompilerInformation.txt ${information})
 endfunction(write_compiler_information)
 
@@ -38,6 +40,13 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
   add_experimental_isel_flag(C)
   add_experimental_isel_flag(CXX)
 endif()
+
+check_c_compiler_flag("-fno-omit-frame-pointer" C_HAS_OMIT_FRAME_POINTER)
+check_cxx_compiler_flag("-fno-omit-frame-pointer" CXX_HAS_OMIT_FRAME_POINTER)
+
+SET(CMAKE_REQUIRED_FLAGS "-fsanitize=thread")
+check_c_compiler_flag("" C_HAS_TSAN_FLAG)
+check_cxx_compiler_flag("" CXX_HAS_TSAN_FLAG)
 
 write_compiler_information(C)
 write_compiler_information(CXX)

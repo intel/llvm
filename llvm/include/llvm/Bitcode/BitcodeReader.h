@@ -15,12 +15,11 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Bitcode/BitCodes.h"
-#include "llvm/IR/ModuleSummaryIndex.h"
+#include "llvm/Bitstream/BitCodes.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/MemoryBufferRef.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -30,6 +29,11 @@ namespace llvm {
 
 class LLVMContext;
 class Module;
+class MemoryBuffer;
+class ModuleSummaryIndex;
+
+typedef llvm::function_ref<Optional<std::string>(StringRef)>
+    DataLayoutCallbackTy;
 
   // These functions are for converting Expected/Error values to
   // ErrorOr/std::error_code for compatibility with legacy clients. FIXME:
@@ -77,10 +81,10 @@ class Module;
     friend Expected<BitcodeFileContents>
     getBitcodeFileContents(MemoryBufferRef Buffer);
 
-    Expected<std::unique_ptr<Module>> getModuleImpl(LLVMContext &Context,
-                                                    bool MaterializeAll,
-                                                    bool ShouldLazyLoadMetadata,
-                                                    bool IsImporting);
+    Expected<std::unique_ptr<Module>>
+    getModuleImpl(LLVMContext &Context, bool MaterializeAll,
+                  bool ShouldLazyLoadMetadata, bool IsImporting,
+                  DataLayoutCallbackTy DataLayoutCallback);
 
   public:
     StringRef getBuffer() const {
@@ -100,7 +104,9 @@ class Module;
                                                     bool IsImporting);
 
     /// Read the entire bitcode module and return it.
-    Expected<std::unique_ptr<Module>> parseModule(LLVMContext &Context);
+    Expected<std::unique_ptr<Module>> parseModule(
+        LLVMContext &Context, DataLayoutCallbackTy DataLayoutCallback =
+                                  [](StringRef) { return None; });
 
     /// Returns information about the module to be used for LTO: whether to
     /// compile with ThinLTO, and whether it has a summary.
@@ -163,8 +169,11 @@ class Module;
   Expected<std::string> getBitcodeProducerString(MemoryBufferRef Buffer);
 
   /// Read the specified bitcode file, returning the module.
-  Expected<std::unique_ptr<Module>> parseBitcodeFile(MemoryBufferRef Buffer,
-                                                     LLVMContext &Context);
+  Expected<std::unique_ptr<Module>> parseBitcodeFile(
+      MemoryBufferRef Buffer, LLVMContext &Context,
+      DataLayoutCallbackTy DataLayoutCallback = [](StringRef) {
+        return None;
+      });
 
   /// Returns LTO information for the specified bitcode file.
   Expected<BitcodeLTOInfo> getBitcodeLTOInfo(MemoryBufferRef Buffer);
@@ -254,6 +263,8 @@ class Module;
     BufEnd = BufPtr+Size;
     return false;
   }
+
+  APInt readWideAPInt(ArrayRef<uint64_t> Vals, unsigned TypeBits);
 
   const std::error_category &BitcodeErrorCategory();
   enum class BitcodeError { CorruptedBitcode = 1 };

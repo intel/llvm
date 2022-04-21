@@ -12,7 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/BinaryFormat/AMDGPUMetadataVerifier.h"
-#include "llvm/Support/AMDGPUMetadata.h"
+
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLForwardCompat.h"
+#include "llvm/ADT/StringSwitch.h"
+#include "llvm/BinaryFormat/MsgPackDocument.h"
+
+#include <map>
+#include <utility>
 
 namespace llvm {
 namespace AMDGPU {
@@ -56,11 +63,7 @@ bool MetadataVerifier::verifyArray(
   auto &Array = Node.getArray();
   if (Size && Array.size() != *Size)
     return false;
-  for (auto &Item : Array)
-    if (!verifyNode(Item))
-      return false;
-
-  return true;
+  return llvm::all_of(Array, verifyNode);
 }
 
 bool MetadataVerifier::verifyEntry(
@@ -103,8 +106,7 @@ bool MetadataVerifier::verifyKernelArgs(msgpack::DocNode &Node) {
     return false;
   if (!verifyIntegerEntry(ArgsMap, ".offset", true))
     return false;
-  if (!verifyScalarEntry(ArgsMap, ".value_kind", true,
-                         msgpack::Type::String,
+  if (!verifyScalarEntry(ArgsMap, ".value_kind", true, msgpack::Type::String,
                          [](msgpack::DocNode &SNode) {
                            return StringSwitch<bool>(SNode.getString())
                                .Case("by_value", true)
@@ -114,32 +116,29 @@ bool MetadataVerifier::verifyKernelArgs(msgpack::DocNode &Node) {
                                .Case("image", true)
                                .Case("pipe", true)
                                .Case("queue", true)
+                               .Case("hidden_block_count_x", true)
+                               .Case("hidden_block_count_y", true)
+                               .Case("hidden_block_count_z", true)
+                               .Case("hidden_group_size_x", true)
+                               .Case("hidden_group_size_y", true)
+                               .Case("hidden_group_size_z", true)
+                               .Case("hidden_remainder_x", true)
+                               .Case("hidden_remainder_y", true)
+                               .Case("hidden_remainder_z", true)
                                .Case("hidden_global_offset_x", true)
                                .Case("hidden_global_offset_y", true)
                                .Case("hidden_global_offset_z", true)
+                               .Case("hidden_grid_dims", true)
                                .Case("hidden_none", true)
                                .Case("hidden_printf_buffer", true)
+                               .Case("hidden_hostcall_buffer", true)
+                               .Case("hidden_heap_v1", true)
                                .Case("hidden_default_queue", true)
                                .Case("hidden_completion_action", true)
-                               .Default(false);
-                         }))
-    return false;
-  if (!verifyScalarEntry(ArgsMap, ".value_type", true,
-                         msgpack::Type::String,
-                         [](msgpack::DocNode &SNode) {
-                           return StringSwitch<bool>(SNode.getString())
-                               .Case("struct", true)
-                               .Case("i8", true)
-                               .Case("u8", true)
-                               .Case("i16", true)
-                               .Case("u16", true)
-                               .Case("f16", true)
-                               .Case("i32", true)
-                               .Case("u32", true)
-                               .Case("f32", true)
-                               .Case("i64", true)
-                               .Case("u64", true)
-                               .Case("f64", true)
+                               .Case("hidden_multigrid_sync_arg", true)
+                               .Case("hidden_private_base", true)
+                               .Case("hidden_shared_base", true)
+                               .Case("hidden_queue_ptr", true)
                                .Default(false);
                          }))
     return false;

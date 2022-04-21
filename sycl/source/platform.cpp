@@ -6,41 +6,87 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
-#include <CL/sycl/detail/force_device.hpp>
+#include <detail/backend_impl.hpp>
+#include <detail/config.hpp>
+#include <detail/force_device.hpp>
+#include <detail/global_handler.hpp>
+#include <detail/platform_impl.hpp>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-platform::platform() : impl(std::make_shared<detail::platform_impl_host>()) {}
+platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
-platform::platform(cl_platform_id platform_id)
-    : impl(std::make_shared<detail::platform_impl_pi>(
-             detail::pi_cast<detail::RT::pi_platform>(platform_id))) {}
+platform::platform(cl_platform_id PlatformId) {
+  impl = detail::platform_impl::getOrMakePlatformImpl(
+      detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
+      detail::RT::getPlugin<backend::opencl>());
+}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
 }
 
-vector_class<device> platform::get_devices(info::device_type dev_type) const {
-  return impl->get_devices(dev_type);
+cl_platform_id platform::get() const { return impl->get(); }
+
+bool platform::has_extension(const std::string &ExtensionName) const {
+  return impl->has_extension(ExtensionName);
 }
 
-vector_class<platform> platform::get_platforms() {
+bool platform::is_host() const { return impl->is_host(); }
 
-  vector_class<platform> platforms =
-    detail::platform_impl_pi::get_platforms();
+std::vector<device> platform::get_devices(info::device_type DeviceType) const {
+  return impl->get_devices(DeviceType);
+}
 
-  // Add host device platform if required
-  info::device_type forced_type = detail::get_forced_type();
-  if (detail::match_types(forced_type, info::device_type::host))
-    platforms.push_back(platform());
+std::vector<platform> platform::get_platforms() {
+  return detail::platform_impl::get_platforms();
+}
 
-  return platforms;
+backend platform::get_backend() const noexcept { return getImplBackend(impl); }
+
+template <info::platform param>
+typename info::param_traits<info::platform, param>::return_type
+platform::get_info() const {
+  return impl->get_info<param>();
+}
+
+pi_native_handle platform::getNative() const { return impl->getNative(); }
+
+bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
+
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
+  template __SYCL_EXPORT ret_type                                              \
+  platform::get_info<info::param_type::param>() const;
+
+#include <CL/sycl/info/platform_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+context platform::ext_oneapi_get_default_context() const {
+  if (!detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
+    throw std::runtime_error("SYCL default contexts are not enabled");
+
+  // Keeping the default context for platforms in the global cache to avoid
+  // shared_ptr based circular dependency between platform and context classes
+  std::unordered_map<detail::PlatformImplPtr, detail::ContextImplPtr>
+      &PlatformToDefaultContextCache =
+          detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
+
+  std::lock_guard Lock{detail::GlobalHandler::instance()
+                           .getPlatformToDefaultContextCacheMutex()};
+
+  auto It = PlatformToDefaultContextCache.find(impl);
+  if (PlatformToDefaultContextCache.end() == It)
+    std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
+        {impl, detail::getSyclObjImpl(context{get_devices()})});
+
+  return detail::createSyclObjFromImpl<context>(It->second);
 }
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

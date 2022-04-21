@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple armv7-ios5.0 -std=c++11 -fmerge-all-constants -fobjc-arc -Os -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple armv7-ios5.0 -std=c++11 -fmerge-all-constants -fobjc-arc -Os -emit-llvm -o - %s | FileCheck %s
 
 // CHECK: @[[STR0:.*]] = private unnamed_addr constant [5 x i8] c"str0\00", section "__TEXT,__cstring,cstring_literals"
 // CHECK: @[[UNNAMED_CFSTRING0:.*]] = private global %struct.__NSConstantString_tag { i32* getelementptr inbounds ([0 x i32], [0 x i32]* @__CFConstantStringClassReference, i32 0, i32 0), i32 1992, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @[[STR0]], i32 0, i32 0), i32 4 }, section "__DATA,__cfstring"
@@ -42,7 +42,7 @@ std::initializer_list<id> foo1() {
   return {@"str0", @"str1"};
 }
 
-// CHECK: define void @_Z4foo1v(%"class.std::initializer_list.0"* {{.*}} %[[AGG_RESULT:.*]])
+// CHECK: define{{.*}} void @_Z4foo1v(%"class.std::initializer_list.0"* {{.*}} %[[AGG_RESULT:.*]])
 // CHECK: %[[BEGIN:.*]] = getelementptr inbounds %"class.std::initializer_list.0", %"class.std::initializer_list.0"* %[[AGG_RESULT]], i32 0, i32 0
 // CHECK: store i8** getelementptr inbounds ([2 x i8*], [2 x i8*]* @[[REFTMP]], i32 0, i32 0), i8*** %[[BEGIN]]
 // CHECK: %[[SIZE:.*]] = getelementptr inbounds %"class.std::initializer_list.0", %"class.std::initializer_list.0"* %[[AGG_RESULT]], i32 0, i32 1

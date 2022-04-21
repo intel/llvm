@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <future>
 
@@ -18,6 +18,8 @@
 
 #include <future>
 #include <cassert>
+
+#include "test_macros.h"
 
 class A
 {
@@ -45,7 +47,7 @@ int main(int, char**)
         std::packaged_task<double(int, char)> p(A(5));
         assert(p.valid());
         std::future<double> f = p.get_future();
-        p(3, 'a');
+        p(3, 97);
         assert(f.get() == 105.0);
         assert(A::n_copies == 0);
         assert(A::n_moves > 0);
@@ -57,7 +59,7 @@ int main(int, char**)
         std::packaged_task<double(int, char)> p(a);
         assert(p.valid());
         std::future<double> f = p.get_future();
-        p(3, 'a');
+        p(3, 97);
         assert(f.get() == 105.0);
         assert(A::n_copies > 0);
         assert(A::n_moves > 0);

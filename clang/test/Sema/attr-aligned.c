@@ -1,14 +1,16 @@
 // RUN: %clang_cc1 -triple i386-apple-darwin9 -fsyntax-only -verify %s
 
 int x __attribute__((aligned(3))); // expected-error {{requested alignment is not a power of 2}}
-int y __attribute__((aligned(1 << 29))); // expected-error {{requested alignment must be 268435456 bytes or smaller}}
+int y __attribute__((aligned(1ull << 33))); // expected-error {{requested alignment must be 4294967296 bytes or smaller}}
+int y __attribute__((aligned(1ull << 32)));
 
 // PR26444
+int y __attribute__((aligned(1 << 29)));
 int y __attribute__((aligned(1 << 28)));
 
 // PR3254
 short g0[3] __attribute__((aligned));
-short g0_chk[__alignof__(g0) == 16 ? 1 : -1]; 
+short g0_chk[__alignof__(g0) == 16 ? 1 : -1];
 
 // <rdar://problem/6840045>
 typedef char ueber_aligned_char __attribute__((aligned(8)));

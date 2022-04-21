@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // IO functions implementation using Posix API.
 //===----------------------------------------------------------------------===//
-#include "FuzzerDefs.h"
+#include "FuzzerPlatform.h"
 #if LIBFUZZER_POSIX || LIBFUZZER_FUCHSIA
 
 #include "FuzzerExtFunctions.h"
@@ -31,7 +31,7 @@ bool IsFile(const std::string &Path) {
   return S_ISREG(St.st_mode);
 }
 
-static bool IsDirectory(const std::string &Path) {
+bool IsDirectory(const std::string &Path) {
   struct stat St;
   if (stat(Path.c_str(), &St))
     return false;
@@ -53,7 +53,7 @@ std::string Basename(const std::string &Path) {
 }
 
 void ListFilesInDirRecursive(const std::string &Dir, long *Epoch,
-                             Vector<std::string> *V, bool TopDir) {
+                             std::vector<std::string> *V, bool TopDir) {
   auto E = GetEpoch(Dir);
   if (Epoch)
     if (E && *Epoch >= E) return;
@@ -77,7 +77,6 @@ void ListFilesInDirRecursive(const std::string &Dir, long *Epoch,
   if (Epoch && TopDir)
     *Epoch = E;
 }
-
 
 void IterateDirRecursive(const std::string &Dir,
                          void (*DirPreCallback)(const std::string &Dir),
@@ -104,6 +103,10 @@ char GetSeparator() {
   return '/';
 }
 
+bool IsSeparator(char C) {
+  return C == '/';
+}
+
 FILE* OpenFile(int Fd, const char* Mode) {
   return fdopen(Fd, Mode);
 }
@@ -122,14 +125,6 @@ void RemoveFile(const std::string &Path) {
 
 void RenameFile(const std::string &OldPath, const std::string &NewPath) {
   rename(OldPath.c_str(), NewPath.c_str());
-}
-
-void DiscardOutput(int Fd) {
-  FILE* Temp = fopen("/dev/null", "w");
-  if (!Temp)
-    return;
-  dup2(fileno(Temp), Fd);
-  fclose(Temp);
 }
 
 intptr_t GetHandleFromFd(int fd) {
@@ -163,7 +158,7 @@ bool IsInterestingCoverageFile(const std::string &FileName) {
 }
 
 void RawPrint(const char *Str) {
-  write(2, Str, strlen(Str));
+  (void)write(2, Str, strlen(Str));
 }
 
 void MkDir(const std::string &Path) {

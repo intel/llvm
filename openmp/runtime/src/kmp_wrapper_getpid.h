@@ -22,13 +22,15 @@
 #include <unistd.h>
 #if KMP_OS_DARWIN
 // OS X
-#define __kmp_gettid() syscall(SYS_thread_selfid)
+#define __kmp_gettid() pthread_mach_thread_np(pthread_self())
 #elif KMP_OS_FREEBSD
 #include <pthread_np.h>
 #define __kmp_gettid() pthread_getthreadid_np()
 #elif KMP_OS_NETBSD
 #include <lwp.h>
 #define __kmp_gettid() _lwp_self()
+#elif KMP_OS_OPENBSD
+#define __kmp_gettid() syscall(SYS_getthrid)
 #elif defined(SYS_gettid)
 // Hopefully other Unix systems define SYS_gettid syscall for getting os thread
 // id

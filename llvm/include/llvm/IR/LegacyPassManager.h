@@ -16,15 +16,19 @@
 #ifndef LLVM_IR_LEGACYPASSMANAGER_H
 #define LLVM_IR_LEGACYPASSMANAGER_H
 
-#include "llvm/Pass.h"
 #include "llvm/Support/CBindingWrapping.h"
 
 namespace llvm {
 
+class Function;
 class Pass;
 class Module;
 
 namespace legacy {
+
+// Whether or not -debug-pass has been specified. For use to check if it's
+// specified alongside the new PM.
+bool debugPassSpecified();
 
 class PassManagerImpl;
 class FunctionPassManagerImpl;
@@ -63,7 +67,7 @@ private:
   PassManagerImpl *PM;
 };
 
-/// FunctionPassManager manages FunctionPasses and BasicBlockPassManagers.
+/// FunctionPassManager manages FunctionPasses.
 class FunctionPassManager : public PassManagerBase {
 public:
   /// FunctionPassManager ctor - This initializes the pass manager.  It needs,

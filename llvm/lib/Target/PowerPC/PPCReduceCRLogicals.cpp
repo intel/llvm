@@ -24,6 +24,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
@@ -166,9 +167,33 @@ static bool splitMBB(BlockSplitInfo &BSI) {
                                            : *ThisMBB->succ_begin();
   MachineBasicBlock *NewBRTarget =
       BSI.BranchToFallThrough ? OrigFallThrough : OrigTarget;
-  BranchProbability ProbToNewTarget =
-      !BSI.MBPI ? BranchProbability::getUnknown()
-                : BSI.MBPI->getEdgeProbability(ThisMBB, NewBRTarget);
+
+  // It's impossible to know the precise branch probability after the split.
+  // But it still needs to be reasonable, the whole probability to original
+  // targets should not be changed.
+  // After split NewBRTarget will get two incoming edges. Assume P0 is the
+  // original branch probability to NewBRTarget, P1 and P2 are new branch
+  // probabilies to NewBRTarget after split. If the two edge frequencies are
+  // same, then
+  //      F * P1 = F * P0 / 2            ==>  P1 = P0 / 2
+  //      F * (1 - P1) * P2 = F * P1     ==>  P2 = P1 / (1 - P1)
+  BranchProbability ProbToNewTarget, ProbFallThrough;     // Prob for new Br.
+  BranchProbability ProbOrigTarget, ProbOrigFallThrough;  // Prob for orig Br.
+  ProbToNewTarget = ProbFallThrough = BranchProbability::getUnknown();
+  ProbOrigTarget = ProbOrigFallThrough = BranchProbability::getUnknown();
+  if (BSI.MBPI) {
+    if (BSI.BranchToFallThrough) {
+      ProbToNewTarget = BSI.MBPI->getEdgeProbability(ThisMBB, OrigFallThrough) / 2;
+      ProbFallThrough = ProbToNewTarget.getCompl();
+      ProbOrigFallThrough = ProbToNewTarget / ProbToNewTarget.getCompl();
+      ProbOrigTarget = ProbOrigFallThrough.getCompl();
+    } else {
+      ProbToNewTarget = BSI.MBPI->getEdgeProbability(ThisMBB, OrigTarget) / 2;
+      ProbFallThrough = ProbToNewTarget.getCompl();
+      ProbOrigTarget = ProbToNewTarget / ProbToNewTarget.getCompl();
+      ProbOrigFallThrough = ProbOrigTarget.getCompl();
+    }
+  }
 
   // Create a new basic block.
   MachineBasicBlock::iterator InsertPoint = BSI.SplitBefore;
@@ -180,11 +205,16 @@ static bool splitMBB(BlockSplitInfo &BSI) {
   // Move everything after SplitBefore into the new block.
   NewMBB->splice(NewMBB->end(), ThisMBB, InsertPoint, ThisMBB->end());
   NewMBB->transferSuccessors(ThisMBB);
+  if (!ProbOrigTarget.isUnknown()) {
+    auto MBBI = find(NewMBB->successors(), OrigTarget);
+    NewMBB->setSuccProbability(MBBI, ProbOrigTarget);
+    MBBI = find(NewMBB->successors(), OrigFallThrough);
+    NewMBB->setSuccProbability(MBBI, ProbOrigFallThrough);
+  }
 
-  // Add the two successors to ThisMBB. The probabilities come from the
-  // existing blocks if available.
+  // Add the two successors to ThisMBB.
   ThisMBB->addSuccessor(NewBRTarget, ProbToNewTarget);
-  ThisMBB->addSuccessor(NewMBB, ProbToNewTarget.getCompl());
+  ThisMBB->addSuccessor(NewMBB, ProbFallThrough);
 
   // Add the branches to ThisMBB.
   BuildMI(*ThisMBB, ThisMBB->end(), BSI.SplitBefore->getDebugLoc(),
@@ -346,16 +376,16 @@ public:
   };
 
 private:
-  const PPCInstrInfo *TII;
-  MachineFunction *MF;
-  MachineRegisterInfo *MRI;
-  const MachineBranchProbabilityInfo *MBPI;
+  const PPCInstrInfo *TII = nullptr;
+  MachineFunction *MF = nullptr;
+  MachineRegisterInfo *MRI = nullptr;
+  const MachineBranchProbabilityInfo *MBPI = nullptr;
 
   // A vector to contain all the CR logical operations
-  std::vector<CRLogicalOpInfo> AllCRLogicalOps;
+  SmallVector<CRLogicalOpInfo, 16> AllCRLogicalOps;
   void initialize(MachineFunction &MFParm);
   void collectCRLogicals();
-  bool handleCROp(CRLogicalOpInfo &CRI);
+  bool handleCROp(unsigned Idx);
   bool splitBlockOnBinaryCROp(CRLogicalOpInfo &CRI);
   static bool isCRLogical(MachineInstr &MI) {
     unsigned Opc = MI.getOpcode();
@@ -369,7 +399,7 @@ private:
     // Not using a range-based for loop here as the vector may grow while being
     // operated on.
     for (unsigned i = 0; i < AllCRLogicalOps.size(); i++)
-      Changed |= handleCROp(AllCRLogicalOps[i]);
+      Changed |= handleCROp(i);
     return Changed;
   }
 
@@ -441,21 +471,21 @@ PPCReduceCRLogicals::createCRLogicalOpInfo(MachineInstr &MIParam) {
   } else {
     MachineInstr *Def1 = lookThroughCRCopy(MIParam.getOperand(1).getReg(),
                                            Ret.SubregDef1, Ret.CopyDefs.first);
+    assert(Def1 && "Must be able to find a definition of operand 1.");
     Ret.DefsSingleUse &=
       MRI->hasOneNonDBGUse(Def1->getOperand(0).getReg());
     Ret.DefsSingleUse &=
       MRI->hasOneNonDBGUse(Ret.CopyDefs.first->getOperand(0).getReg());
-    assert(Def1 && "Must be able to find a definition of operand 1.");
     if (isBinary(MIParam)) {
       Ret.IsBinary = 1;
       MachineInstr *Def2 = lookThroughCRCopy(MIParam.getOperand(2).getReg(),
                                              Ret.SubregDef2,
                                              Ret.CopyDefs.second);
+      assert(Def2 && "Must be able to find a definition of operand 2.");
       Ret.DefsSingleUse &=
         MRI->hasOneNonDBGUse(Def2->getOperand(0).getReg());
       Ret.DefsSingleUse &=
         MRI->hasOneNonDBGUse(Ret.CopyDefs.second->getOperand(0).getReg());
-      assert(Def2 && "Must be able to find a definition of operand 2.");
       Ret.TrueDefs = std::make_pair(Def1, Def2);
     } else {
       Ret.TrueDefs = std::make_pair(Def1, nullptr);
@@ -506,15 +536,15 @@ MachineInstr *PPCReduceCRLogicals::lookThroughCRCopy(unsigned Reg,
                                                      unsigned &Subreg,
                                                      MachineInstr *&CpDef) {
   Subreg = -1;
-  if (!TargetRegisterInfo::isVirtualRegister(Reg))
+  if (!Register::isVirtualRegister(Reg))
     return nullptr;
   MachineInstr *Copy = MRI->getVRegDef(Reg);
   CpDef = Copy;
   if (!Copy->isCopy())
     return Copy;
-  unsigned CopySrc = Copy->getOperand(1).getReg();
+  Register CopySrc = Copy->getOperand(1).getReg();
   Subreg = Copy->getOperand(1).getSubReg();
-  if (!TargetRegisterInfo::isVirtualRegister(CopySrc)) {
+  if (!Register::isVirtualRegister(CopySrc)) {
     const TargetRegisterInfo *TRI = &TII->getRegisterInfo();
     // Set the Subreg
     if (CopySrc == PPC::CR0EQ || CopySrc == PPC::CR6EQ)
@@ -549,10 +579,11 @@ void PPCReduceCRLogicals::initialize(MachineFunction &MFParam) {
 /// a unary CR logical might be used to change the condition code on a
 /// comparison feeding it. A nullary CR logical might simply be removable
 /// if the user of the bit it [un]sets can be transformed.
-bool PPCReduceCRLogicals::handleCROp(CRLogicalOpInfo &CRI) {
+bool PPCReduceCRLogicals::handleCROp(unsigned Idx) {
   // We can definitely split a block on the inputs to a binary CR operation
   // whose defs and (single) use are within the same block.
   bool Changed = false;
+  CRLogicalOpInfo CRI = AllCRLogicalOps[Idx];
   if (CRI.IsBinary && CRI.ContainedInBlock && CRI.SingleUse && CRI.FeedsBR &&
       CRI.DefsSingleUse) {
     Changed = splitBlockOnBinaryCROp(CRI);

@@ -1,5 +1,5 @@
-; RUN: opt < %s  -basicaa -loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -dce -instcombine -S | FileCheck %s
-; RUN: opt < %s  -basicaa -loop-vectorize -force-vector-width=4 -force-vector-interleave=4 -dce -instcombine -S | FileCheck %s -check-prefix=UNROLL
+; RUN: opt < %s  -basic-aa -loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -dce -instcombine -S | FileCheck %s
+; RUN: opt < %s  -basic-aa -loop-vectorize -force-vector-width=4 -force-vector-interleave=4 -dce -instcombine -S | FileCheck %s -check-prefix=UNROLL
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 
@@ -367,10 +367,11 @@ define void @example11() nounwind uwtable ssp {
 }
 
 ;CHECK-LABEL: @example12(
-;CHECK: %vec.ind1 = phi <4 x i32>
-;CHECK: store <4 x i32>
+;CHECK: vector.body:
+;CHECK: [[VEC_IV_TRUNC:%.+]] = phi <4 x i32>
+;CHECK: store <4 x i32> [[VEC_IV_TRUNC]]
 ;CHECK: ret void
-define void @example12() nounwind uwtable ssp {
+define void @example12() {
   br label %1
 
 ; <label>:1                                       ; preds = %1, %0

@@ -19,6 +19,7 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/ProgramPoint.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/BlockCounter.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState_Fwd.h"
@@ -40,7 +41,7 @@ class LabelDecl;
 namespace ento {
 
 class FunctionSummariesTy;
-class SubEngine;
+class ExprEngine;
 
 //===----------------------------------------------------------------------===//
 /// CoreEngine - Implements the core logic of the graph-reachability
@@ -68,7 +69,7 @@ public:
       std::vector<std::pair<const CFGBlock *, const ExplodedNode *>>;
 
 private:
-  SubEngine &SubEng;
+  ExprEngine &ExprEng;
 
   /// G - The simulation graph.  Each node is a (location,state) pair.
   mutable ExplodedGraph G;
@@ -95,6 +96,11 @@ private:
   /// (This data is owned by AnalysisConsumer.)
   FunctionSummariesTy *FunctionSummaries;
 
+  /// Add path tags with some useful data along the path when we see that
+  /// something interesting is happening. This field is the allocator for such
+  /// tags.
+  DataTag::Factory DataTags;
+
   void generateNode(const ProgramPoint &Loc,
                     ProgramStateRef State,
                     ExplodedNode *Pred);
@@ -116,13 +122,15 @@ private:
   void HandleStaticInit(const DeclStmt *DS, const CFGBlock *B,
                         ExplodedNode *Pred);
 
+  void HandleVirtualBaseBranch(const CFGBlock *B, ExplodedNode *Pred);
+
 private:
   ExplodedNode *generateCallExitBeginNode(ExplodedNode *N,
                                           const ReturnStmt *RS);
 
 public:
   /// Construct a CoreEngine object to analyze the provided CFG.
-  CoreEngine(SubEngine &subengine,
+  CoreEngine(ExprEngine &exprengine,
              FunctionSummariesTy *FS,
              AnalyzerOptions &Opts);
 
@@ -192,6 +200,8 @@ public:
 
   /// Enqueue a single node created as a result of statement processing.
   void enqueueStmtNode(ExplodedNode *N, const CFGBlock *Block, unsigned Idx);
+
+  DataTag::Factory &getDataTags() { return DataTags; }
 };
 
 // TODO: Turn into a class.

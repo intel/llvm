@@ -10,7 +10,7 @@ declare i8 @llvm.cttz.i8(i8)
 
 ; CHECK-LABEL: count_trailing_zeros:
 ; CHECK: cpi    [[RESULT:r[0-9]+]], 0
-; CHECK: breq   [[END_BB:LBB[0-9]+_[0-9]+]]
+; CHECK: breq   [[END_BB:.LBB[0-9]+_[0-9]+]]
 ; CHECK: mov    [[SCRATCH:r[0-9]+]], {{.*}}[[RESULT]]
 ; CHECK: dec    {{.*}}[[SCRATCH]]
 ; CHECK: com    {{.*}}[[RESULT]]
@@ -26,10 +26,7 @@ declare i8 @llvm.cttz.i8(i8)
 ; CHECK: andi   {{.*}}[[RESULT]], 51
 ; CHECK: add    {{.*}}[[RESULT]], {{.*}}[[SCRATCH]]
 ; CHECK: mov    {{.*}}[[SCRATCH]], {{.*}}[[RESULT]]
-; CHECK: lsr    {{.*}}[[SCRATCH]]
-; CHECK: lsr    {{.*}}[[SCRATCH]]
-; CHECK: lsr    {{.*}}[[SCRATCH]]
-; CHECK: lsr    {{.*}}[[SCRATCH]]
+; CHECK: swap   {{.*}}[[SCRATCH]]
 ; CHECK: add    {{.*}}[[SCRATCH]], {{.*}}[[RESULT]]
 ; CHECK: andi   {{.*}}[[SCRATCH]], 15
 ; CHECK: mov    {{.*}}[[RESULT]], {{.*}}[[SCRATCH]]

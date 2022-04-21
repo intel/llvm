@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-stmt-granularity=scalar-indep -polly-print-instructions -polly-scops -analyze < %s | FileCheck %s -match-full-lines
+; RUN: opt %loadPolly -polly-stmt-granularity=scalar-indep -polly-print-instructions -polly-print-scops -disable-output < %s | FileCheck %s -match-full-lines
 ;
 ; Two PHIs, cross-referencing each other. The PHI READs must be carried-out
 ; before the PHI WRITEs to ensure that the value when entering the block is
@@ -57,6 +57,6 @@ return:
 ; CHECK-NEXT:         Instructions {
 ; CHECK-NEXT:               %valA = phi double [ 4.200000e+01, %entry ], [ %valB, %for ]
 ; CHECK-NEXT:               %valB = phi double [ 2.100000e+01, %entry ], [ %valA, %for ]
-; CHECK-NEXT:               store double %valA, double* %A
+; CHECK-NEXT:               store double %valA, double* %A, align 8
 ; CHECK-NEXT:         }
 ; CHECK-NEXT: }

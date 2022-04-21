@@ -61,6 +61,7 @@
 #include "llvm/CodeGen/TargetSchedule.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCSchedule.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -96,14 +97,17 @@ static cl::opt<bool> ForceMemOperand(
     cl::desc("Convert cmovs to branches whenever they have memory operands."),
     cl::init(true), cl::Hidden);
 
+static cl::opt<bool> ForceAll(
+    "x86-cmov-converter-force-all",
+    cl::desc("Convert all cmovs to branches."),
+    cl::init(false), cl::Hidden);
+
 namespace {
 
 /// Converts X86 cmov instructions into branches when profitable.
 class X86CmovConverterPass : public MachineFunctionPass {
 public:
-  X86CmovConverterPass() : MachineFunctionPass(ID) {
-    initializeX86CmovConverterPassPass(*PassRegistry::getPassRegistry());
-  }
+  X86CmovConverterPass() : MachineFunctionPass(ID) { }
 
   StringRef getPassName() const override { return "X86 cmov Conversion"; }
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -113,9 +117,10 @@ public:
   static char ID;
 
 private:
-  MachineRegisterInfo *MRI;
-  const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
+  MachineRegisterInfo *MRI = nullptr;
+  const TargetInstrInfo *TII = nullptr;
+  const TargetRegisterInfo *TRI = nullptr;
+  MachineLoopInfo *MLI = nullptr;
   TargetSchedModel TSchedModel;
 
   /// List of consecutive CMOV instructions.
@@ -166,7 +171,7 @@ bool X86CmovConverterPass::runOnMachineFunction(MachineFunction &MF) {
                     << "**********\n");
 
   bool Changed = false;
-  MachineLoopInfo &MLI = getAnalysis<MachineLoopInfo>();
+  MLI = &getAnalysis<MachineLoopInfo>();
   const TargetSubtargetInfo &STI = MF.getSubtarget();
   MRI = &MF.getRegInfo();
   TII = STI.getInstrInfo();
@@ -174,11 +179,11 @@ bool X86CmovConverterPass::runOnMachineFunction(MachineFunction &MF) {
   TSchedModel.init(&STI);
 
   // Before we handle the more subtle cases of register-register CMOVs inside
-  // of potentially hot loops, we want to quickly remove all CMOVs with
-  // a memory operand. The CMOV will risk a stall waiting for the load to
-  // complete that speculative execution behind a branch is better suited to
-  // handle on modern x86 chips.
-  if (ForceMemOperand) {
+  // of potentially hot loops, we want to quickly remove all CMOVs (ForceAll) or
+  // the ones with a memory operand (ForceMemOperand option). The latter CMOV
+  // will risk a stall waiting for the load to complete that speculative
+  // execution behind a branch is better suited to handle on modern x86 chips.
+  if (ForceMemOperand || ForceAll) {
     CmovGroups AllCmovGroups;
     SmallVector<MachineBasicBlock *, 4> Blocks;
     for (auto &MBB : MF)
@@ -186,7 +191,8 @@ bool X86CmovConverterPass::runOnMachineFunction(MachineFunction &MF) {
     if (collectCmovCandidates(Blocks, AllCmovGroups, /*IncludeLoads*/ true)) {
       for (auto &Group : AllCmovGroups) {
         // Skip any group that doesn't do at least one memory operand cmov.
-        if (!llvm::any_of(Group, [&](MachineInstr *I) { return I->mayLoad(); }))
+        if (ForceMemOperand && !ForceAll &&
+            llvm::none_of(Group, [&](MachineInstr *I) { return I->mayLoad(); }))
           continue;
 
         // For CMOV groups which we can rewrite and which contain a memory load,
@@ -196,6 +202,9 @@ bool X86CmovConverterPass::runOnMachineFunction(MachineFunction &MF) {
         convertCmovInstsToBranches(Group);
       }
     }
+    // Early return as ForceAll converts all CmovGroups.
+    if (ForceAll)
+      return Changed;
   }
 
   //===--------------------------------------------------------------------===//
@@ -222,7 +231,7 @@ bool X86CmovConverterPass::runOnMachineFunction(MachineFunction &MF) {
   //===--------------------------------------------------------------------===//
 
   // Build up the loops in pre-order.
-  SmallVector<MachineLoop *, 4> Loops(MLI.begin(), MLI.end());
+  SmallVector<MachineLoop *, 4> Loops(MLI->begin(), MLI->end());
   // Note that we need to check size on each iteration as we accumulate child
   // loops.
   for (int i = 0; i < (int)Loops.size(); ++i)
@@ -280,7 +289,8 @@ bool X86CmovConverterPass::collectCmovCandidates(
     Group.clear();
     // Condition code of first CMOV instruction current processed range and its
     // opposite condition code.
-    X86::CondCode FirstCC, FirstOppCC, MemOpCC;
+    X86::CondCode FirstCC = X86::COND_INVALID, FirstOppCC = X86::COND_INVALID,
+                  MemOpCC = X86::COND_INVALID;
     // Indicator of a non CMOVrr instruction in the current processed range.
     bool FoundNonCMOVInst = false;
     // Indicator for current processed CMOV-group if it should be skipped.
@@ -364,12 +374,13 @@ bool X86CmovConverterPass::collectCmovCandidates(
 /// \param TrueOpDepth depth cost of CMOV true value operand.
 /// \param FalseOpDepth depth cost of CMOV false value operand.
 static unsigned getDepthOfOptCmov(unsigned TrueOpDepth, unsigned FalseOpDepth) {
-  //===--------------------------------------------------------------------===//
-  // With no info about branch weight, we assume 50% for each value operand.
-  // Thus, depth of optimized CMOV instruction is the rounded up average of
-  // its True-Operand-Value-Depth and False-Operand-Value-Depth.
-  //===--------------------------------------------------------------------===//
-  return (TrueOpDepth + FalseOpDepth + 1) / 2;
+  // The depth of the result after branch conversion is
+  // TrueOpDepth * TrueOpProbability + FalseOpDepth * FalseOpProbability.
+  // As we have no info about branch weight, we assume 75% for one and 25% for
+  // the other, and pick the result with the largest resulting depth.
+  return std::max(
+      divideCeil(TrueOpDepth * 3 + FalseOpDepth, 4),
+      divideCeil(FalseOpDepth * 3 + TrueOpDepth, 4));
 }
 
 bool X86CmovConverterPass::checkForProfitableCmovCandidates(
@@ -437,8 +448,8 @@ bool X86CmovConverterPass::checkForProfitableCmovCandidates(
           // Checks for "isUse()" as "uses()" returns also implicit definitions.
           if (!MO.isReg() || !MO.isUse())
             continue;
-          unsigned Reg = MO.getReg();
-          auto &RDM = RegDefMaps[TargetRegisterInfo::isVirtualRegister(Reg)];
+          Register Reg = MO.getReg();
+          auto &RDM = RegDefMaps[Reg.isVirtual()];
           if (MachineInstr *DefMI = RDM.lookup(Reg)) {
             OperandToDefMap[&MO] = DefMI;
             DepthInfo Info = DepthMap.lookup(DefMI);
@@ -457,8 +468,8 @@ bool X86CmovConverterPass::checkForProfitableCmovCandidates(
         for (auto &MO : MI.operands()) {
           if (!MO.isReg() || !MO.isDef())
             continue;
-          unsigned Reg = MO.getReg();
-          RegDefMaps[TargetRegisterInfo::isVirtualRegister(Reg)][Reg] = &MI;
+          Register Reg = MO.getReg();
+          RegDefMaps[Reg.isVirtual()][Reg] = &MI;
         }
 
         unsigned Latency = TSchedModel.computeInstrLatency(&MI);
@@ -536,7 +547,7 @@ bool X86CmovConverterPass::checkForProfitableCmovCandidates(
       // This is another conservative check to avoid converting CMOV instruction
       // used with tree-search like algorithm, where the branch is unpredicted.
       auto UIs = MRI->use_instructions(MI->defs().begin()->getReg());
-      if (UIs.begin() != UIs.end() && ++UIs.begin() == UIs.end()) {
+      if (!UIs.empty() && ++UIs.begin() == UIs.end()) {
         unsigned Op = UIs.begin()->getOpcode();
         if (Op == X86::MOV64rm || Op == X86::MOV32rm) {
           WorthOpGroup = false;
@@ -580,10 +591,9 @@ static bool checkEFLAGSLive(MachineInstr *MI) {
   }
 
   // We hit the end of the block, check whether EFLAGS is live into a successor.
-  for (auto I = BB->succ_begin(), E = BB->succ_end(); I != E; ++I) {
-    if ((*I)->isLiveIn(X86::EFLAGS))
+  for (MachineBasicBlock *Succ : BB->successors())
+    if (Succ->isLiveIn(X86::EFLAGS))
       return true;
-  }
 
   return false;
 }
@@ -711,7 +721,7 @@ void X86CmovConverterPass::convertCmovInstsToBranches(
     // Skip any CMOVs in this group which don't load from memory.
     if (!MI.mayLoad()) {
       // Remember the false-side register input.
-      unsigned FalseReg =
+      Register FalseReg =
           MI.getOperand(X86::getCondFromCMov(MI) == CC ? 1 : 2).getReg();
       // Walk back through any intermediate cmovs referenced.
       while (true) {
@@ -754,7 +764,7 @@ void X86CmovConverterPass::convertCmovInstsToBranches(
 
     // Get a fresh register to use as the destination of the MOV.
     const TargetRegisterClass *RC = MRI->getRegClass(MI.getOperand(0).getReg());
-    unsigned TmpReg = MRI->createVirtualRegister(RC);
+    Register TmpReg = MRI->createVirtualRegister(RC);
 
     SmallVector<MachineInstr *, 4> NewMIs;
     bool Unfolded = TII->unfoldMemoryOperand(*MBB->getParent(), MI, TmpReg,
@@ -795,8 +805,7 @@ void X86CmovConverterPass::convertCmovInstsToBranches(
         MOp.setIsKill(false);
       }
     }
-    MBB->erase(MachineBasicBlock::iterator(MI),
-               std::next(MachineBasicBlock::iterator(MI)));
+    MBB->erase(&MI);
 
     // Add this PHI to the rewrite table.
     FalseBBRegRewriteTable[NewCMOV->getOperand(0).getReg()] = TmpReg;
@@ -811,9 +820,9 @@ void X86CmovConverterPass::convertCmovInstsToBranches(
   DenseMap<unsigned, std::pair<unsigned, unsigned>> RegRewriteTable;
 
   for (MachineBasicBlock::iterator MIIt = MIItBegin; MIIt != MIItEnd; ++MIIt) {
-    unsigned DestReg = MIIt->getOperand(0).getReg();
-    unsigned Op1Reg = MIIt->getOperand(1).getReg();
-    unsigned Op2Reg = MIIt->getOperand(2).getReg();
+    Register DestReg = MIIt->getOperand(0).getReg();
+    Register Op1Reg = MIIt->getOperand(1).getReg();
+    Register Op2Reg = MIIt->getOperand(2).getReg();
 
     // If this CMOV we are processing is the opposite condition from the jump we
     // generated, then we have to swap the operands for the PHI that is going to
@@ -847,6 +856,12 @@ void X86CmovConverterPass::convertCmovInstsToBranches(
 
   // Now remove the CMOV(s).
   MBB->erase(MIItBegin, MIItEnd);
+
+  // Add new basic blocks to MachineLoopInfo.
+  if (MachineLoop *L = MLI->getLoopFor(MBB)) {
+    L->addBasicBlockToLoop(FalseMBB, MLI->getBase());
+    L->addBasicBlockToLoop(SinkMBB, MLI->getBase());
+  }
 }
 
 INITIALIZE_PASS_BEGIN(X86CmovConverterPass, DEBUG_TYPE, "X86 cmov Conversion",

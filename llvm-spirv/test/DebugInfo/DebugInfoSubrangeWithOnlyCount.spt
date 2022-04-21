@@ -1,0 +1,83 @@
+; RUN: llvm-spirv -to-binary %s -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck < %t.rev.ll %s
+
+; CHECK: !DISubrange(count: 1000)
+
+119734787 65792 393230 48 0 
+2 Capability Addresses 
+2 Capability Kernel 
+2 Capability Int64 
+2 Capability GenericPointer 
+5 ExtInstImport 1 "OpenCL.std"
+5 ExtInstImport 2 "SPIRV.debug"
+3 MemoryModel 2 2 
+15 EntryPoint 6 15 "__omp_offloading_811_198142f_random_fill_sp_l25"
+6 String 29 "Fortran/f.f90"
+4 String 33 "REAL*4"
+16 String 38 "random_fill_sp.DIR.OMP.TARGET.8.split.split.split.split"
+3 String 39 ""
+3 String 41 "a"
+3 Source 4 200000 
+5 Name 4 "structtype"
+5 Name 16 "ascast$val"
+5 Name 17 "ascastB$val"
+5 Name 18 "newFuncRoot"
+6 Name 19 "QNCA_a0$float"
+5 Name 22 "structtype2"
+4 Name 26 ".ascast"
+9 ModuleProcessed "Debug info producer: Fortran"
+4 Decorate 16 FuncParamAttr 2 
+4 Decorate 17 FuncParamAttr 4 
+4 TypeInt 6 64 0 
+4 TypeInt 10 32 0 
+5 Constant 6 7 72 0 
+5 Constant 6 11 1000 0 
+5 Constant 6 23 1 0 
+4 Constant 10 34 32 
+2 TypeVoid 3 
+2 TypeBool 5 
+4 TypeArray 8 5 7 
+3 TypeStruct 4 8 
+
+4 TypePointer 9 7 4 
+4 TypeArray 12 10 11 
+4 TypePointer 13 5 12 
+5 TypeFunction 14 3 9 13 
+3 TypeFloat 20 32 
+4 TypePointer 21 8 20 
+5 TypeStruct 22 6 6 6 
+
+4 TypeArray 24 22 23 
+9 TypeStruct 19 21 6 6 6 6 6 24 
+
+4 TypePointer 25 7 19 
+
+5 ExtInst 3 27 2 DebugInfoNone 
+7 ExtInst 3 30 2 DebugSource 29 27 
+9 ExtInst 3 31 2 DebugCompileUnit 65536 4 30 21 
+7 ExtInst 3 32 2 DebugTypeFunction 0 27 
+8 ExtInst 3 35 2 DebugTypeBasic 33 34 3 
+7 ExtInst 3 36 2 DebugTypeArray 35 11 ; Count = 1000
+8 ExtInst 3 37 2 DebugTypePointer 36 4294967295 0 
+16 ExtInst 3 40 2 DebugFunction 38 32 30 25 0 31 39 44 25 27 27 
+12 ExtInst 3 42 2 DebugLocalVariable 41 37 30 15 0 40 0 
+6 ExtInst 3 43 2 DebugTemplate 40 
+6 ExtInst 3 44 2 DebugOperation 0 
+6 ExtInst 3 45 2 DebugExpression 44 
+
+5 Function 3 15 2 14 
+3 FunctionParameter 9 16 
+3 FunctionParameter 13 17 
+
+2 Label 18 
+4 Bitcast 25 26 16 
+6 ExtInst 3 46 2 DebugScope 43 
+4 Line 29 15 67 
+8 ExtInst 3 28 2 DebugValue 42 26 45 
+5 ExtInst 3 47 2 DebugNoScope 
+1 Return 
+
+1 FunctionEnd 
+

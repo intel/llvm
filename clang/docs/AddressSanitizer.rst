@@ -14,8 +14,9 @@ following types of bugs:
 
 * Out-of-bounds accesses to heap, stack and globals
 * Use-after-free
-* Use-after-return (runtime flag `ASAN_OPTIONS=detect_stack_use_after_return=1`)
-* Use-after-scope (clang flag `-fsanitize-address-use-after-scope`)
+* Use-after-return (clang flag ``-fsanitize-address-use-after-return=(never|runtime|always)`` default: ``runtime``)
+    * Enable ``runtime`` with: ``ASAN_OPTIONS=detect_stack_use_after_return=1``
+* Use-after-scope (clang flag ``-fsanitize-address-use-after-scope``)
 * Double-free, invalid free
 * Memory leaks (experimental)
 
@@ -119,7 +120,7 @@ force disabled by setting ``ASAN_OPTIONS=symbolize=0``):
         #1 0x7f7ddabcac4d in __libc_start_main ??:0
     ...
 
-Note that on OS X you may need to run ``dsymutil`` on your binary to have the
+Note that on macOS you may need to run ``dsymutil`` on your binary to have the
 file\:line info in the AddressSanitizer reports.
 
 Additional Checks
@@ -134,14 +135,34 @@ globals defined in another translation unit. To enable this check at runtime,
 you should set environment variable
 ``ASAN_OPTIONS=check_initialization_order=1``.
 
-Note that this option is not supported on OS X.
+Note that this option is not supported on macOS.
+
+Stack Use After Return (UAR)
+----------------------------
+
+AddressSanitizer can optionally detect stack use after return problems.
+This is available by default, or explicitly
+(``-fsanitize-address-use-after-return=runtime``).
+To enable this check at runtime, set the environment variable
+``ASAN_OPTIONS=detect_stack_use_after_return=1``.
+
+Enabling this check (``-fsanitize-address-use-after-return=always``) will
+reduce code size.  The code size may be reduced further by completely
+eliminating this check (``-fsanitize-address-use-after-return=never``).
+
+To summarize: ``-fsanitize-address-use-after-return=<mode>``
+  * ``never``: Completely disables detection of UAR errors (reduces code size).
+  * ``runtime``: Adds the code for detection, but must be enabled via the
+    runtime environment (``ASAN_OPTIONS=detect_stack_use_after_return=1``).
+  * ``always``: Enables detection of UAR errors in all cases. (reduces code
+    size, but not as much as ``never``).
 
 Memory leak detection
 ---------------------
 
 For more information on leak detector in AddressSanitizer, see
 :doc:`LeakSanitizer`. The leak detection is turned on by default on Linux,
-and can be enabled using ``ASAN_OPTIONS=detect_leaks=1`` on OS X;
+and can be enabled using ``ASAN_OPTIONS=detect_leaks=1`` on macOS;
 however, it is not yet supported on other platforms.
 
 Issue Suppression
@@ -208,8 +229,14 @@ compilers, so we suggest to use it together with
 The same attribute used on a global variable prevents AddressSanitizer
 from adding redzones around it and detecting out of bounds accesses.
 
-Suppressing Errors in Recompiled Code (Blacklist)
--------------------------------------------------
+
+AddressSanitizer also supports
+``__attribute__((disable_sanitizer_instrumentation))``. This attribute
+works similar to ``__attribute__((no_sanitize("address")))``, but it also
+prevents instrumentation performed by other sanitizers.
+
+Suppressing Errors in Recompiled Code (Ignorelist)
+--------------------------------------------------
 
 AddressSanitizer supports ``src`` and ``fun`` entity types in
 :doc:`SanitizerSpecialCaseList`, that can be used to suppress error reports
@@ -255,6 +282,18 @@ library name in the symbolized stack trace of the leak report. See
 <https://github.com/google/sanitizers/wiki/AddressSanitizerLeakSanitizer#suppressions>`_
 for more details.
 
+Code generation control
+=======================
+
+Instrumentation code outlining
+------------------------------
+
+By default AddressSanitizer inlines the instrumentation code to improve the
+run-time performance, which leads to increased binary size. Using the
+(clang flag ``-fsanitize-address-outline-instrumentation` default: ``false``)
+flag forces all code instrumentation to be outlined, which reduces the size
+of the generated code, but also reduces the run-time performance.
+
 Limitations
 ===========
 
@@ -273,7 +312,7 @@ Supported Platforms
 AddressSanitizer is supported on:
 
 * Linux i386/x86\_64 (tested on Ubuntu 12.04)
-* OS X 10.7 - 10.11 (i386/x86\_64)
+* macOS 10.7 - 10.11 (i386/x86\_64)
 * iOS Simulator
 * Android ARM
 * NetBSD i386/x86\_64

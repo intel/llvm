@@ -1,4 +1,4 @@
-//===-- RegisterContextPOSIXCore_powerpc.cpp --------------------*- C++ -*-===//
+//===-- RegisterContextPOSIXCore_powerpc.cpp ------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,7 +39,7 @@ RegisterContextCorePOSIX_powerpc::RegisterContextCorePOSIX_powerpc(
   m_vec.SetByteOrder(vregset.GetByteOrder());
 }
 
-RegisterContextCorePOSIX_powerpc::~RegisterContextCorePOSIX_powerpc() {}
+RegisterContextCorePOSIX_powerpc::~RegisterContextCorePOSIX_powerpc() = default;
 
 bool RegisterContextCorePOSIX_powerpc::ReadGPR() { return true; }
 

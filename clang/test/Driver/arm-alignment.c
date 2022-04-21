@@ -19,6 +19,9 @@
 // RUN: %clang -target armv7-unknown-nacl-gnueabihf -### %s 2> %t
 // RUN: FileCheck --check-prefix=CHECK-UNALIGNED-ARM < %t %s
 
+// RUN: %clang -target armv7-windows -### %s 2> %t
+// RUN: FileCheck --check-prefix=CHECK-UNALIGNED-ARM < %t %s
+
 // RUN: %clang -target aarch64-none-gnueabi -munaligned-access -### %s 2> %t
 // RUN: FileCheck --check-prefix=CHECK-UNALIGNED-AARCH64 < %t %s
 
@@ -80,8 +83,11 @@
 // RUN: %clang -target aarch64-none-gnueabi -mkernel -mno-unaligned-access -### %s 2> %t
 // RUN: FileCheck --check-prefix=CHECK-ALIGNED-AARCH64 < %t %s
 
-// CHECK-ALIGNED-ARM: "-target-feature" "+strict-align"
-// CHECK-ALIGNED-AARCH64: "-target-feature" "+strict-align"
+// RUN: %clang -target aarch64-unknown-openbsd -### %s 2> %t
+// RUN: FileCheck --check-prefix=CHECK-ALIGNED-AARCH64 < %t %s
+
+// CHECK-ALIGNED-ARM: "-target-feature" "+strict-align" {{.*}} "-Wunaligned-access"
+// CHECK-ALIGNED-AARCH64: "-target-feature" "+strict-align" {{.*}} "-Wunaligned-access"
 
 // Make sure that v6M cores and v8M Baseline always trigger the unsupported
 // aligned accesses error for all supported architecture triples.

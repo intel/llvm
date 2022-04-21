@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <forward_list>
 
@@ -16,6 +16,7 @@
 #include <cassert>
 #include <iterator>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)

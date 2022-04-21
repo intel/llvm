@@ -13,16 +13,13 @@
 
 # Create the suffix for the export directory
 # - Only add to suffix when not a default value
-# - Example suffix: .deb.30.s1
-#   final export directory: exports/lin_32e.deb.30.s1/lib
-# - These suffixes imply the build is a Debug, OpenMP 3.0, Stats-Gathering version of the library
+# - Example suffix: .deb.s1
+#   final export directory: exports/lin_32e.deb.s1/lib
+# - These suffixes imply the build is a Debug, Stats-Gathering version of the library
 set(libomp_suffix)
 libomp_append(libomp_suffix .deb DEBUG_BUILD)
 libomp_append(libomp_suffix .dia RELWITHDEBINFO_BUILD)
 libomp_append(libomp_suffix .min MINSIZEREL_BUILD)
-if(NOT "${LIBOMP_OMP_VERSION}" STREQUAL "45")
-  libomp_append(libomp_suffix .${LIBOMP_OMP_VERSION})
-endif()
 libomp_append(libomp_suffix .s1 LIBOMP_STATS)
 libomp_append(libomp_suffix .ompt LIBOMP_OMPT_SUPPORT)
 if(${LIBOMP_OMPT_SUPPORT})
@@ -81,18 +78,17 @@ if(NOT LIBOMP_OUTPUT_DIRECTORY)
 endif()
 add_custom_command(TARGET omp POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBOMP_EXPORTS_LIB_DIR}
-  COMMAND ${CMAKE_COMMAND} -E copy ${LIBOMP_OUTPUT_DIRECTORY}/${LIBOMP_LIB_FILE} ${LIBOMP_EXPORTS_LIB_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:omp> ${LIBOMP_EXPORTS_LIB_DIR}
 )
 
 # Copy Windows import library into exports/ directory post build
 if(WIN32)
-  get_target_property(LIBOMPIMP_OUTPUT_DIRECTORY ompimp ARCHIVE_OUTPUT_DIRECTORY)
+  get_target_property(LIBOMPIMP_OUTPUT_DIRECTORY ${LIBOMP_IMP_LIB_TARGET} ARCHIVE_OUTPUT_DIRECTORY)
   if(NOT LIBOMPIMP_OUTPUT_DIRECTORY)
     set(LIBOMPIMP_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   endif()
-  add_custom_command(TARGET ompimp POST_BUILD
+  add_custom_command(TARGET ${LIBOMP_IMP_LIB_TARGET} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBOMP_EXPORTS_LIB_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy ${LIBOMPIMP_OUTPUT_DIRECTORY}/${LIBOMP_IMP_LIB_FILE} ${LIBOMP_EXPORTS_LIB_DIR}
   )
 endif()
-

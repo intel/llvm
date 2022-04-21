@@ -15,7 +15,5 @@ static_library("MinGW") {
     "//llvm/lib/Option",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "Driver.cpp",
-  ]
+  sources = [ "Driver.cpp" ]
 }

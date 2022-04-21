@@ -17,9 +17,12 @@
 #include <condition_variable>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     std::condition_variable cv;
+    static_cast<void>(cv);
 
   return 0;
 }

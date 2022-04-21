@@ -17,12 +17,15 @@ static_library("cppcoreguidelines") {
   ]
   sources = [
     "AvoidGotoCheck.cpp",
+    "AvoidNonConstGlobalVariablesCheck.cpp",
     "CppCoreGuidelinesTidyModule.cpp",
+    "InitVariablesCheck.cpp",
     "InterfacesGlobalInitCheck.cpp",
     "MacroUsageCheck.cpp",
     "NarrowingConversionsCheck.cpp",
     "NoMallocCheck.cpp",
     "OwningMemoryCheck.cpp",
+    "PreferMemberInitializerCheck.cpp",
     "ProBoundsArrayToPointerDecayCheck.cpp",
     "ProBoundsConstantArrayIndexCheck.cpp",
     "ProBoundsPointerArithmeticCheck.cpp",
@@ -35,5 +38,6 @@ static_library("cppcoreguidelines") {
     "ProTypeVarargCheck.cpp",
     "SlicingCheck.cpp",
     "SpecialMemberFunctionsCheck.cpp",
+    "VirtualClassDestructorCheck.cpp",
   ]
 }

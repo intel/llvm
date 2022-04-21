@@ -1,6 +1,6 @@
-; RUN: %llc_dwarf -stop-after=livedebugvalues -o - %s \
+; RUN: llc -stop-after=livedebugvalues -o - %s \
 ; RUN:   | FileCheck %s --check-prefix=SANITY
-; RUN: %llc_dwarf -march=x86-64 -o - %s -filetype=obj \
+; RUN: llc -march=x86-64 -o - %s -filetype=obj \
 ; RUN:   | llvm-dwarfdump -v -all - | FileCheck %s
 ;
 ; CHECK: .debug_info contents:
@@ -42,7 +42,7 @@ declare i32 @g(...)
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind ssp uwtable "no-frame-pointer-elim"="true" }
+attributes #0 = { nounwind ssp uwtable "frame-pointer"="all" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind }
 

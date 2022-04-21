@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-version=45 -fopenmp %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-version=45 -fopenmp-simd %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
 void foo() {
@@ -55,7 +57,7 @@ public:
 };
 class S6 {
   int a;
-  S6() : a(0) {}
+  S6() : a(0) {} // omp45-note 2 {{implicitly declared private here}}
 
 public:
   S6(const S6 &s6) : a(s6.a) {}
@@ -69,8 +71,9 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   I g(5);
-  int i;
+  int i, z;
   int &j = i;
+  S6 s(0); // omp50-note {{'s' defined here}}
 #pragma omp parallel
 #pragma omp for simd lastprivate // expected-error {{expected '(' after 'lastprivate'}}
   for (int k = 0; k < argc; ++k)
@@ -104,7 +107,15 @@ int foomain(int argc, char **argv) {
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
-#pragma omp for simd lastprivate(a, b) // expected-error {{lastprivate variable with incomplete type 'S1'}}
+#pragma omp for simd lastprivate(conditional: argc,s) lastprivate(conditional: // omp45-error 2 {{use of undeclared identifier 'conditional'}} omp50-error {{expected expression}} expected-error {{expected ')'}} expected-note {{to match this '('}} omp45-error 2 {{calling a private constructor of class 'S6'}} omp50-error {{expected list item of scalar type in 'lastprivate' clause with 'conditional' modifier}}
+  for (int k = 0; k < argc; ++k)
+    ++k;
+#pragma omp parallel
+#pragma omp for simd lastprivate(foo:argc) // omp50-error {{expected 'conditional' in OpenMP clause 'lastprivate'}} omp45-error {{expected ',' or ')' in 'lastprivate' clause}} omp45-error {{expected ')'}} omp45-error {{expected variable name}} omp45-note {{to match this '('}}
+  for (int k = 0; k < argc; ++k)
+    ++k;
+#pragma omp parallel
+#pragma omp for simd lastprivate(z, a, b) // expected-error {{lastprivate variable with incomplete type 'S1'}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
@@ -160,7 +171,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S3 m;
   S6 n(2);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp parallel
 #pragma omp for simd lastprivate // expected-error {{expected '(' after 'lastprivate'}}
@@ -187,7 +198,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for simd lastprivate(argc)
+#pragma omp for simd lastprivate(argc, z)
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel
@@ -252,8 +263,8 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for simd lastprivate(i) // expected-note {{defined as lastprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp for simd' directive may not be lastprivate, predetermined as linear}}
+#pragma omp for simd lastprivate(i) // omp45-note {{defined as lastprivate}}
+  for (i = 0; i < argc; ++i) // omp45-error {{loop iteration variable in the associated loop of 'omp for simd' directive may not be lastprivate, predetermined as linear}}
     foo();
 #pragma omp parallel private(xa) // expected-note {{defined as private}}
 #pragma omp for simd lastprivate(xa)  // expected-error {{lastprivate variable must be shared}}

@@ -14,7 +14,6 @@
 
 namespace llvm {
 
-class raw_ostream;
 namespace pdb {
 
 class PDBSymbolCompilandDetails : public PDBSymbol {
@@ -49,4 +48,4 @@ public:
 } // namespace llvm
 }
 
-#endif // LLVM_DEBUGINFO_PDB_PDBFUNCTION_H
+#endif // LLVM_DEBUGINFO_PDB_PDBSYMBOLCOMPILANDDETAILS_H

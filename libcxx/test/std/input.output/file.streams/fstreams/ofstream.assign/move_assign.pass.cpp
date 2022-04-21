@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
-
 // <fstream>
 
 // template <class charT, class traits = char_traits<charT> >
@@ -17,6 +15,7 @@
 
 #include <fstream>
 #include <cassert>
+#include "test_macros.h"
 #include "platform_support.h"
 
 int main(int, char**)
@@ -25,7 +24,7 @@ int main(int, char**)
     {
         std::ofstream fso(temp.c_str());
         std::ofstream fs;
-        fs = move(fso);
+        fs = std::move(fso);
         fs << 3.25;
     }
     {
@@ -35,10 +34,12 @@ int main(int, char**)
         assert(x == 3.25);
     }
     std::remove(temp.c_str());
+
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wofstream fso(temp.c_str());
         std::wofstream fs;
-        fs = move(fso);
+        fs = std::move(fso);
         fs << 3.25;
     }
     {
@@ -48,6 +49,7 @@ int main(int, char**)
         assert(x == 3.25);
     }
     std::remove(temp.c_str());
+#endif
 
   return 0;
 }

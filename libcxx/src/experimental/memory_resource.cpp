@@ -1,4 +1,4 @@
-//===------------------------ memory_resource.cpp -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "experimental/memory_resource"
+#include <experimental/memory_resource>
 
 #ifndef _LIBCPP_HAS_NO_ATOMIC_HEADER
-#include "atomic"
+#  include <atomic>
 #elif !defined(_LIBCPP_HAS_NO_THREADS)
-#include "mutex"
+#  include <mutex>
+#  if defined(__ELF__) && defined(_LIBCPP_LINK_PTHREAD_LIB)
+#    pragma comment(lib, "pthread")
+#  endif
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_LFTS_PMR
@@ -37,7 +40,7 @@ class _LIBCPP_TYPE_VIS __new_delete_memory_resource_imp
       _VSTD::__libcpp_deallocate(p, n, align);
     }
 
-    bool do_is_equal(memory_resource const & other) const _NOEXCEPT override
+    bool do_is_equal(memory_resource const & other) const noexcept override
         { return &other == this; }
 
 public:
@@ -57,7 +60,7 @@ protected:
         __throw_bad_alloc();
     }
     virtual void do_deallocate(void *, size_t, size_t) {}
-    virtual bool do_is_equal(memory_resource const & __other) const _NOEXCEPT
+    virtual bool do_is_equal(memory_resource const & __other) const noexcept
     { return &__other == this; }
 };
 
@@ -73,54 +76,40 @@ union ResourceInitHelper {
   ~ResourceInitHelper() {}
 };
 
-// Detect if the init_priority attribute is supported.
-#if (defined(_LIBCPP_COMPILER_GCC) && defined(__APPLE__)) \
-  || defined(_LIBCPP_COMPILER_MSVC)
-// GCC on Apple doesn't support the init priority attribute,
-// and MSVC doesn't support any GCC attributes.
-# define _LIBCPP_INIT_PRIORITY_MAX
-#else
-# define _LIBCPP_INIT_PRIORITY_MAX __attribute__((init_priority(101)))
-#endif
-
-// When compiled in C++14 this initialization should be a constant expression.
-// Only in C++11 is "init_priority" needed to ensure initialization order.
-#if _LIBCPP_STD_VER > 11
-_LIBCPP_SAFE_STATIC
-#endif
-ResourceInitHelper res_init _LIBCPP_INIT_PRIORITY_MAX;
+// Pretend we're inside a system header so the compiler doesn't flag the use of the init_priority
+// attribute with a value that's reserved for the implementation (we're the implementation).
+#include "memory_resource_init_helper.h"
 
 } // end namespace
 
 
-memory_resource * new_delete_resource() _NOEXCEPT {
+memory_resource * new_delete_resource() noexcept {
     return &res_init.resources.new_delete_res;
 }
 
-memory_resource * null_memory_resource() _NOEXCEPT {
+memory_resource * null_memory_resource() noexcept {
     return &res_init.resources.null_res;
 }
 
 // default_memory_resource()
 
 static memory_resource *
-__default_memory_resource(bool set = false, memory_resource * new_res = nullptr) _NOEXCEPT
+__default_memory_resource(bool set = false, memory_resource * new_res = nullptr) noexcept
 {
 #ifndef _LIBCPP_HAS_NO_ATOMIC_HEADER
-    _LIBCPP_SAFE_STATIC static atomic<memory_resource*> __res =
-        ATOMIC_VAR_INIT(&res_init.resources.new_delete_res);
+    static constinit atomic<memory_resource*> __res{&res_init.resources.new_delete_res};
     if (set) {
         new_res = new_res ? new_res : new_delete_resource();
         // TODO: Can a weaker ordering be used?
         return _VSTD::atomic_exchange_explicit(
-            &__res, new_res, memory_order::memory_order_acq_rel);
+            &__res, new_res, memory_order_acq_rel);
     }
     else {
         return _VSTD::atomic_load_explicit(
-            &__res, memory_order::memory_order_acquire);
+            &__res, memory_order_acquire);
     }
 #elif !defined(_LIBCPP_HAS_NO_THREADS)
-    _LIBCPP_SAFE_STATIC static memory_resource * res = &res_init.resources.new_delete_res;
+    static constinit memory_resource *res = &res_init.resources.new_delete_res;
     static mutex res_lock;
     if (set) {
         new_res = new_res ? new_res : new_delete_resource();
@@ -133,7 +122,7 @@ __default_memory_resource(bool set = false, memory_resource * new_res = nullptr)
         return res;
     }
 #else
-    _LIBCPP_SAFE_STATIC static memory_resource* res = &res_init.resources.new_delete_res;
+    static constinit memory_resource *res = &res_init.resources.new_delete_res;
     if (set) {
         new_res = new_res ? new_res : new_delete_resource();
         memory_resource * old_res = res;
@@ -145,12 +134,12 @@ __default_memory_resource(bool set = false, memory_resource * new_res = nullptr)
 #endif
 }
 
-memory_resource * get_default_resource() _NOEXCEPT
+memory_resource * get_default_resource() noexcept
 {
     return __default_memory_resource();
 }
 
-memory_resource * set_default_resource(memory_resource * __new_res) _NOEXCEPT
+memory_resource * set_default_resource(memory_resource * __new_res) noexcept
 {
     return __default_memory_resource(true, __new_res);
 }

@@ -11,7 +11,7 @@ set(CLANG_FORMAT_LIB_DEPS
   clangToolingCore
   )
 
-target_link_libraries(clang-format
+clang_target_link_libraries(clang-format
   PRIVATE
   ${CLANG_FORMAT_LIB_DEPS}
   )
@@ -21,20 +21,20 @@ if( LLVM_LIB_FUZZING_ENGINE OR LLVM_USE_SANITIZE_COVERAGE )
 endif()
 
 install(PROGRAMS clang-format-bbedit.applescript
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-format)
 install(PROGRAMS clang-format-diff.py
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-format)
 install(PROGRAMS clang-format-sublime.py
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-format)
 install(PROGRAMS clang-format.el
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-format)
 install(PROGRAMS clang-format.py
-  DESTINATION share/clang
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
   COMPONENT clang-format)
 install(PROGRAMS git-clang-format
-  DESTINATION bin
+  DESTINATION "${CMAKE_INSTALL_BINDIR}"
   COMPONENT clang-format)

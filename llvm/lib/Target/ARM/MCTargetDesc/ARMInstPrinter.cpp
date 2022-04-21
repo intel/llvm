@@ -17,6 +17,7 @@
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -88,8 +89,9 @@ void ARMInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
   OS << markup("<reg:") << getRegisterName(RegNo, DefaultAltIdx) << markup(">");
 }
 
-void ARMInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
-                               StringRef Annot, const MCSubtargetInfo &STI) {
+void ARMInstPrinter::printInst(const MCInst *MI, uint64_t Address,
+                               StringRef Annot, const MCSubtargetInfo &STI,
+                               raw_ostream &O) {
   unsigned Opcode = MI->getOpcode();
 
   switch (Opcode) {
@@ -275,7 +277,7 @@ void ARMInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
       // Copy the rest operands into NewMI.
       for (unsigned i = isStore ? 3 : 2; i < MI->getNumOperands(); ++i)
         NewMI.addOperand(MI->getOperand(i));
-      printInstruction(&NewMI, STI, O);
+      printInstruction(&NewMI, Address, STI, O);
       return;
     }
     break;
@@ -287,8 +289,8 @@ void ARMInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
   case ARM::t2DSB:
     switch (MI->getOperand(0).getImm()) {
     default:
-      if (!printAliasInstr(MI, STI, O))
-        printInstruction(MI, STI, O);
+      if (!printAliasInstr(MI, Address, STI, O))
+        printInstruction(MI, Address, STI, O);
       break;
     case 0:
       O << "\tssbb";
@@ -301,8 +303,8 @@ void ARMInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
     return;
   }
 
-  if (!printAliasInstr(MI, STI, O))
-    printInstruction(MI, STI, O);
+  if (!printAliasInstr(MI, Address, STI, O))
+    printInstruction(MI, Address, STI, O);
 
   printAnnotation(O, Annot);
 }
@@ -345,6 +347,20 @@ void ARMInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
       break;
     }
   }
+}
+
+void ARMInstPrinter::printOperand(const MCInst *MI, uint64_t Address,
+                                  unsigned OpNum, const MCSubtargetInfo &STI,
+                                  raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNum);
+  if (!Op.isImm() || !PrintBranchImmAsAddress || getUseMarkup())
+    return printOperand(MI, OpNum, STI, O);
+  uint64_t Target = ARM_MC::evaluateBranchTarget(MII.get(MI->getOpcode()),
+                                                 Address, Op.getImm());
+  Target &= 0xffffffff;
+  O << formatHex(Target);
+  if (CommentStream)
+    *CommentStream << "imm = #" << formatImm(Op.getImm()) << '\n';
 }
 
 void ARMInstPrinter::printThumbLdrLabelOperand(const MCInst *MI, unsigned OpNum,
@@ -603,6 +619,24 @@ void ARMInstPrinter::printPostIdxImm8s4Operand(const MCInst *MI, unsigned OpNum,
     << markup(">");
 }
 
+template<int shift>
+void ARMInstPrinter::printMveAddrModeRQOperand(const MCInst *MI, unsigned OpNum,
+                                               const MCSubtargetInfo &STI,
+                                               raw_ostream &O) {
+  const MCOperand &MO1 = MI->getOperand(OpNum);
+  const MCOperand &MO2 = MI->getOperand(OpNum + 1);
+
+  O << markup("<mem:") << "[";
+  printRegName(O, MO1.getReg());
+  O << ", ";
+  printRegName(O, MO2.getReg());
+
+  if (shift > 0)
+    printRegImmShift(O, ARM_AM::uxtw, shift, UseMarkup);
+
+  O << "]" << markup(">");
+}
+
 void ARMInstPrinter::printLdStmModeOperand(const MCInst *MI, unsigned OpNum,
                                            const MCSubtargetInfo &STI,
                                            raw_ostream &O) {
@@ -771,11 +805,13 @@ void ARMInstPrinter::printPKHASRShiftImm(const MCInst *MI, unsigned OpNum,
 void ARMInstPrinter::printRegisterList(const MCInst *MI, unsigned OpNum,
                                        const MCSubtargetInfo &STI,
                                        raw_ostream &O) {
-  assert(std::is_sorted(MI->begin() + OpNum, MI->end(),
-                        [&](const MCOperand &LHS, const MCOperand &RHS) {
-                          return MRI.getEncodingValue(LHS.getReg()) <
-                                 MRI.getEncodingValue(RHS.getReg());
-                        }));
+  if (MI->getOpcode() != ARM::t2CLRM) {
+    assert(is_sorted(drop_begin(*MI, OpNum),
+                     [&](const MCOperand &LHS, const MCOperand &RHS) {
+                       return MRI.getEncodingValue(LHS.getReg()) <
+                              MRI.getEncodingValue(RHS.getReg());
+                     }));
+  }
 
   O << "{";
   for (unsigned i = OpNum, e = MI->getNumOperands(); i != e; ++i) {
@@ -930,12 +966,29 @@ void ARMInstPrinter::printPredicateOperand(const MCInst *MI, unsigned OpNum,
     O << ARMCondCodeToString(CC);
 }
 
+void ARMInstPrinter::printMandatoryRestrictedPredicateOperand(
+    const MCInst *MI, unsigned OpNum, const MCSubtargetInfo &STI,
+    raw_ostream &O) {
+  if ((ARMCC::CondCodes)MI->getOperand(OpNum).getImm() == ARMCC::HS)
+    O << "cs";
+  else
+    printMandatoryPredicateOperand(MI, OpNum, STI, O);
+}
+
 void ARMInstPrinter::printMandatoryPredicateOperand(const MCInst *MI,
                                                     unsigned OpNum,
                                                     const MCSubtargetInfo &STI,
                                                     raw_ostream &O) {
   ARMCC::CondCodes CC = (ARMCC::CondCodes)MI->getOperand(OpNum).getImm();
   O << ARMCondCodeToString(CC);
+}
+
+void ARMInstPrinter::printMandatoryInvertedPredicateOperand(const MCInst *MI,
+                                                            unsigned OpNum,
+                                                            const MCSubtargetInfo &STI,
+                                                            raw_ostream &O) {
+  ARMCC::CondCodes CC = (ARMCC::CondCodes)MI->getOperand(OpNum).getImm();
+  O << ARMCondCodeToString(ARMCC::getOppositeCondition(CC));
 }
 
 void ARMInstPrinter::printSBitModifierOperand(const MCInst *MI, unsigned OpNum,
@@ -1020,16 +1073,13 @@ void ARMInstPrinter::printThumbITMask(const MCInst *MI, unsigned OpNum,
                                       raw_ostream &O) {
   // (3 - the number of trailing zeros) is the number of then / else.
   unsigned Mask = MI->getOperand(OpNum).getImm();
-  unsigned Firstcond = MI->getOperand(OpNum - 1).getImm();
-  unsigned CondBit0 = Firstcond & 1;
   unsigned NumTZ = countTrailingZeros(Mask);
   assert(NumTZ <= 3 && "Invalid IT mask!");
   for (unsigned Pos = 3, e = NumTZ; Pos > e; --Pos) {
-    bool T = ((Mask >> Pos) & 1) == CondBit0;
-    if (T)
-      O << 't';
-    else
+    if ((Mask >> Pos) & 1)
       O << 'e';
+    else
+      O << 't';
   }
 }
 
@@ -1284,12 +1334,12 @@ void ARMInstPrinter::printFPImmOperand(const MCInst *MI, unsigned OpNum,
     << markup(">");
 }
 
-void ARMInstPrinter::printNEONModImmOperand(const MCInst *MI, unsigned OpNum,
+void ARMInstPrinter::printVMOVModImmOperand(const MCInst *MI, unsigned OpNum,
                                             const MCSubtargetInfo &STI,
                                             raw_ostream &O) {
   unsigned EncodedImm = MI->getOperand(OpNum).getImm();
   unsigned EltBits;
-  uint64_t Val = ARM_AM::decodeNEONModImm(EncodedImm, EltBits);
+  uint64_t Val = ARM_AM::decodeVMOVModImm(EncodedImm, EltBits);
   O << markup("<imm:") << "#0x";
   O.write_hex(Val);
   O << markup(">");
@@ -1572,6 +1622,20 @@ void ARMInstPrinter::printVectorListFourSpaced(const MCInst *MI, unsigned OpNum,
   O << "}";
 }
 
+template<unsigned NumRegs>
+void ARMInstPrinter::printMVEVectorList(const MCInst *MI, unsigned OpNum,
+                                        const MCSubtargetInfo &STI,
+                                        raw_ostream &O) {
+  unsigned Reg = MI->getOperand(OpNum).getReg();
+  const char *Prefix = "{";
+  for (unsigned i = 0; i < NumRegs; i++) {
+    O << Prefix;
+    printRegName(O, MRI.getSubReg(Reg, ARM::qsub_0 + i));
+    Prefix = ", ";
+  }
+  O << "}";
+}
+
 template<int64_t Angle, int64_t Remainder>
 void ARMInstPrinter::printComplexRotationOp(const MCInst *MI, unsigned OpNo,
                                             const MCSubtargetInfo &STI,
@@ -1580,3 +1644,34 @@ void ARMInstPrinter::printComplexRotationOp(const MCInst *MI, unsigned OpNo,
   O << "#" << (Val * Angle) + Remainder;
 }
 
+void ARMInstPrinter::printVPTPredicateOperand(const MCInst *MI, unsigned OpNum,
+                                              const MCSubtargetInfo &STI,
+                                              raw_ostream &O) {
+  ARMVCC::VPTCodes CC = (ARMVCC::VPTCodes)MI->getOperand(OpNum).getImm();
+  if (CC != ARMVCC::None)
+    O << ARMVPTPredToString(CC);
+}
+
+void ARMInstPrinter::printVPTMask(const MCInst *MI, unsigned OpNum,
+                                  const MCSubtargetInfo &STI,
+                                  raw_ostream &O) {
+  // (3 - the number of trailing zeroes) is the number of them / else.
+  unsigned Mask = MI->getOperand(OpNum).getImm();
+  unsigned NumTZ = countTrailingZeros(Mask);
+  assert(NumTZ <= 3 && "Invalid VPT mask!");
+  for (unsigned Pos = 3, e = NumTZ; Pos > e; --Pos) {
+    bool T = ((Mask >> Pos) & 1) == 0;
+    if (T)
+      O << 't';
+    else
+      O << 'e';
+  }
+}
+
+void ARMInstPrinter::printMveSaturateOp(const MCInst *MI, unsigned OpNum,
+                                        const MCSubtargetInfo &STI,
+                                        raw_ostream &O) {
+  uint32_t Val = MI->getOperand(OpNum).getImm();
+  assert(Val <= 1 && "Invalid MVE saturate operand");
+  O << "#" << (Val == 1 ? 48 : 64);
+}

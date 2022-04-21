@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_UserSettingsController_h_
-#define liblldb_UserSettingsController_h_
+#ifndef LLDB_CORE_USERSETTINGSCONTROLLER_H
+#define LLDB_CORE_USERSETTINGSCONTROLLER_H
 
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-forward.h"
@@ -17,8 +17,8 @@
 
 #include <vector>
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class CommandInterpreter;
@@ -32,12 +32,12 @@ namespace lldb_private {
 
 class Properties {
 public:
-  Properties() : m_collection_sp() {}
+  Properties() = default;
 
   Properties(const lldb::OptionValuePropertiesSP &collection_sp)
       : m_collection_sp(collection_sp) {}
 
-  virtual ~Properties() {}
+  virtual ~Properties() = default;
 
   virtual lldb::OptionValuePropertiesSP GetValueProperties() const {
     // This function is virtual in case subclasses want to lazily implement
@@ -88,4 +88,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_UserSettingsController_h_
+#endif // LLDB_CORE_USERSETTINGSCONTROLLER_H

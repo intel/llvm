@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -verify -fsyntax-only -x c++ -emit-llvm-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
 
 // This recursive function is not called from sycl kernel,
 // so it should not be diagnosed.
@@ -71,7 +71,7 @@ int addInt(int n, int m) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

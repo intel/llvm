@@ -13,44 +13,25 @@
 
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
-#include "llvm/MC/MCInstrDesc.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
-#include <cassert>
 
 #define DEBUG_TYPE "instructionselector"
 
 using namespace llvm;
 
 InstructionSelector::MatcherState::MatcherState(unsigned MaxRenderers)
-    : Renderers(MaxRenderers), MIs() {}
+    : Renderers(MaxRenderers) {}
 
 InstructionSelector::InstructionSelector() = default;
-
-bool InstructionSelector::constrainOperandRegToRegClass(
-    MachineInstr &I, unsigned OpIdx, const TargetRegisterClass &RC,
-    const TargetInstrInfo &TII, const TargetRegisterInfo &TRI,
-    const RegisterBankInfo &RBI) const {
-  MachineBasicBlock &MBB = *I.getParent();
-  MachineFunction &MF = *MBB.getParent();
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-
-  return constrainOperandRegClass(MF, TRI, MRI, TII, RBI, I, RC,
-                                  I.getOperand(OpIdx), OpIdx);
-}
 
 bool InstructionSelector::isOperandImmEqual(
     const MachineOperand &MO, int64_t Value,
     const MachineRegisterInfo &MRI) const {
   if (MO.isReg() && MO.getReg())
-    if (auto VRegVal = getConstantVRegValWithLookThrough(MO.getReg(), MRI))
-      return VRegVal->Value == Value;
+    if (auto VRegVal = getIConstantVRegValWithLookThrough(MO.getReg(), MRI))
+      return VRegVal->Value.getSExtValue() == Value;
   return false;
 }
 
@@ -60,7 +41,7 @@ bool InstructionSelector::isBaseWithConstantOffset(
     return false;
 
   MachineInstr *RootI = MRI.getVRegDef(Root.getReg());
-  if (RootI->getOpcode() != TargetOpcode::G_GEP)
+  if (RootI->getOpcode() != TargetOpcode::G_PTR_ADD)
     return false;
 
   MachineOperand &RHS = RootI->getOperand(2);
@@ -78,6 +59,6 @@ bool InstructionSelector::isObviouslySafeToFold(MachineInstr &MI,
       std::next(MI.getIterator()) == IntoMI.getIterator())
     return true;
 
-  return !MI.mayLoadOrStore() && !MI.hasUnmodeledSideEffects() &&
-         empty(MI.implicit_operands());
+  return !MI.mayLoadOrStore() && !MI.mayRaiseFPException() &&
+         !MI.hasUnmodeledSideEffects() && MI.implicit_operands().empty();
 }

@@ -23,8 +23,8 @@
 #include <string>
 #include <vector>
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class ConstString;
@@ -58,10 +58,11 @@ public:
 
   const char *GetName() { return m_name.c_str(); }
 
-  uint32_t StartListeningForEventSpec(lldb::BroadcasterManagerSP manager_sp,
-                                      const BroadcastEventSpec &event_spec);
+  uint32_t
+  StartListeningForEventSpec(const lldb::BroadcasterManagerSP &manager_sp,
+                             const BroadcastEventSpec &event_spec);
 
-  bool StopListeningForEventSpec(lldb::BroadcasterManagerSP manager_sp,
+  bool StopListeningForEventSpec(const lldb::BroadcasterManagerSP &manager_sp,
                                  const BroadcastEventSpec &event_spec);
 
   uint32_t StartListeningForEvents(Broadcaster *broadcaster,
@@ -144,7 +145,8 @@ private:
   //                             bool exact);
 
   // For Listener only
-  DISALLOW_COPY_AND_ASSIGN(Listener);
+  Listener(const Listener &) = delete;
+  const Listener &operator=(const Listener &) = delete;
 };
 
 } // namespace lldb_private

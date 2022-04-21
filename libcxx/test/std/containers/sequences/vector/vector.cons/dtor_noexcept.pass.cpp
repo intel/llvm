@@ -10,7 +10,7 @@
 
 // ~vector() // implied noexcept;
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <vector>
 #include <cassert>
@@ -25,6 +25,7 @@ struct some_alloc
     typedef T value_type;
     some_alloc(const some_alloc&);
     ~some_alloc() noexcept(false);
+    void allocate(size_t);
 };
 
 int main(int, char**)

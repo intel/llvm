@@ -1,4 +1,4 @@
-//===-- FileSystem.cpp ------------------------------------------*- C++ -*-===//
+//===-- FileSystem.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,7 @@
 
 #include "lldb/Host/windows/windows.h"
 
+#include <share.h>
 #include <shellapi.h>
 #include <sys/stat.h>
 #include <sys/types.h>

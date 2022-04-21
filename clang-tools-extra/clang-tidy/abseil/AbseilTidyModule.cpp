@@ -9,6 +9,7 @@
 #include "../ClangTidy.h"
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
+#include "CleanupCtadCheck.h"
 #include "DurationAdditionCheck.h"
 #include "DurationComparisonCheck.h"
 #include "DurationConversionCastCheck.h"
@@ -21,8 +22,9 @@
 #include "NoInternalDependenciesCheck.h"
 #include "NoNamespaceCheck.h"
 #include "RedundantStrcatCallsCheck.h"
-#include "StringFindStartswithCheck.h"
 #include "StrCatAppendCheck.h"
+#include "StringFindStartswithCheck.h"
+#include "StringFindStrContainsCheck.h"
 #include "TimeComparisonCheck.h"
 #include "TimeSubtractionCheck.h"
 #include "UpgradeDurationConversionsCheck.h"
@@ -34,6 +36,7 @@ namespace abseil {
 class AbseilModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
+    CheckFactories.registerCheck<CleanupCtadCheck>("abseil-cleanup-ctad");
     CheckFactories.registerCheck<DurationAdditionCheck>(
         "abseil-duration-addition");
     CheckFactories.registerCheck<DurationComparisonCheck>(
@@ -61,6 +64,8 @@ public:
         "abseil-str-cat-append");
     CheckFactories.registerCheck<StringFindStartswithCheck>(
         "abseil-string-find-startswith");
+    CheckFactories.registerCheck<StringFindStrContainsCheck>(
+        "abseil-string-find-str-contains");
     CheckFactories.registerCheck<TimeComparisonCheck>(
         "abseil-time-comparison");
     CheckFactories.registerCheck<TimeSubtractionCheck>(

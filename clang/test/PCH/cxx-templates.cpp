@@ -17,6 +17,11 @@
 // RUN: %clang_cc1 -std=c++17 -triple %itanium_abi_triple -fcxx-exceptions -fdelayed-template-parsing -fexceptions -include-pch %t -verify %s
 // RUN: %clang_cc1 -std=c++17 -triple %itanium_abi_triple -fcxx-exceptions -fdelayed-template-parsing -fexceptions -include-pch %t %s -emit-llvm -o - -DNO_ERRORS | FileCheck %s
 
+// Test with pch and template instantiation in the pch.
+// RUN: %clang_cc1 -std=c++17 -triple %itanium_abi_triple -fcxx-exceptions -fexceptions -fpch-instantiate-templates -x c++-header -emit-pch -o %t %S/cxx-templates.h
+// RUN: %clang_cc1 -std=c++17 -triple %itanium_abi_triple -fcxx-exceptions -fexceptions -include-pch %t -verify %s
+// RUN: %clang_cc1 -std=c++17 -triple %itanium_abi_triple -fcxx-exceptions -fexceptions -include-pch %t %s -emit-llvm -o - -DNO_ERRORS | FileCheck %s
+
 // CHECK: define weak_odr {{.*}}void @_ZN2S4IiE1mEv
 // CHECK: define linkonce_odr {{.*}}void @_ZN2S3IiE1mEv
 
@@ -155,4 +160,28 @@ namespace ClassScopeExplicitSpecializations {
   static_assert(A<3>().f<1>() == 1, "");
   static_assert(A<4>().f<0>() == 2, "");
   static_assert(A<4>().f<1>() == 1, "");
+}
+
+namespace DependentMemberExpr {
+#ifndef NO_ERRORS
+  // This used to mark 'f' invalid without producing any diagnostic. That's a
+  // little hard to detect, but we can make sure that constexpr evaluation
+  // fails when it should.
+  static_assert(A<int>().f() == 1); // expected-error {{static_assert failed}}
+#endif
+}
+
+namespace DependentTemplateName {
+  struct HasMember {
+    template <class T> struct Member;
+  };
+
+  void test() {
+    getWithIdentifier<HasMember>();
+  }
+}
+
+namespace ClassTemplateCycle {
+  extern T t;
+  int k = M;
 }

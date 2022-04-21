@@ -303,7 +303,7 @@ EXTRACT_ALL            = YES
 # If the EXTRACT_PRIVATE tag is set to YES all private members of a class
 # will be included in the documentation.
 
-EXTRACT_PRIVATE        = NO
+EXTRACT_PRIVATE        = YES
 
 # If the EXTRACT_STATIC tag is set to YES all static members of a file
 # will be included in the documentation.
@@ -916,7 +916,7 @@ HHC_LOCATION           =
 
 # If the GENERATE_HTMLHELP tag is set to YES, the GENERATE_CHI flag
 # controls if a separate .chi index file is generated (YES) or that
-# it should be included in the master .chm file (NO).
+# it should be included in the main .chm file (NO).
 
 GENERATE_CHI           = NO
 
@@ -1434,7 +1434,7 @@ PERL_PATH              =
 #---------------------------------------------------------------------------
 
 # If the CLASS_DIAGRAMS tag is set to YES (the default) Doxygen will
-# generate a inheritance diagram (in HTML, RTF and LaTeX) for classes with base
+# generate an inheritance diagram (in HTML, RTF and LaTeX) for classes with base
 # or super classes. Setting the tag to NO turns the diagrams off. Note that
 # this option is superseded by the HAVE_DOT option below. This is only a
 # fallback. It is recommended to install and use dot, since it yields more

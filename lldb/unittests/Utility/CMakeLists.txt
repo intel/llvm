@@ -4,43 +4,47 @@ add_lldb_unittest(UtilityTests
   OptionsWithRawTest.cpp
   ArchSpecTest.cpp
   BroadcasterTest.cpp
-  CleanUpTest.cpp
   ConstStringTest.cpp
   CompletionRequestTest.cpp
+  DataEncoderTest.cpp
   DataExtractorTest.cpp
   EnvironmentTest.cpp
   EventTest.cpp
-  FileCollectorTest.cpp
   FileSpecTest.cpp
   FlagsTest.cpp
-  JSONTest.cpp
   ListenerTest.cpp
   LogTest.cpp
   NameMatchesTest.cpp
   PredicateTest.cpp
   ProcessInfoTest.cpp
+  ProcessInstanceInfoTest.cpp
   RangeMapTest.cpp
   RangeTest.cpp
   RegisterValueTest.cpp
+  RegularExpressionTest.cpp
   ReproducerTest.cpp
-  ReproducerInstrumentationTest.cpp
   ScalarTest.cpp
+  SharedClusterTest.cpp
   StateTest.cpp
   StatusTest.cpp
   StreamTeeTest.cpp
   StreamTest.cpp
+  StringExtractorGDBRemoteTest.cpp
   StringExtractorTest.cpp
   StringLexerTest.cpp
   StringListTest.cpp
   StructuredDataTest.cpp
+  SubsystemRAIITest.cpp
   TildeExpressionResolverTest.cpp
   TimeoutTest.cpp
   TimerTest.cpp
+  TraceGDBRemotePacketsTest.cpp
   UriParserTest.cpp
   UserIDResolverTest.cpp
   UUIDTest.cpp
   VASprintfTest.cpp
   VMRangeTest.cpp
+  XcodeSDKTest.cpp
 
   LINK_LIBS
       lldbUtility

@@ -1,16 +1,16 @@
-; RUN: opt -S -wholeprogramdevirt %s | FileCheck --check-prefixes=CHECK,RETP %s
-; RUN: sed -e 's,+retpoline,-retpoline,g' %s | opt -S -wholeprogramdevirt | FileCheck --check-prefixes=CHECK,NORETP %s
+; RUN: opt -S -passes=wholeprogramdevirt -whole-program-visibility %s | FileCheck --check-prefixes=CHECK,RETP %s
+; RUN: sed -e 's,+retpoline,-retpoline,g' %s | opt -S -passes=wholeprogramdevirt -whole-program-visibility | FileCheck --check-prefixes=CHECK,NORETP %s
 
-; RUN: opt -wholeprogramdevirt -wholeprogramdevirt-summary-action=export -wholeprogramdevirt-read-summary=%S/Inputs/export.yaml -wholeprogramdevirt-write-summary=%t -S -o - %s | FileCheck --check-prefixes=CHECK,RETP %s
+; RUN: opt -passes=wholeprogramdevirt -whole-program-visibility -wholeprogramdevirt-summary-action=export -wholeprogramdevirt-read-summary=%S/Inputs/export.yaml -wholeprogramdevirt-write-summary=%t -S -o - %s | FileCheck --check-prefixes=CHECK,RETP %s
 
-; RUN: opt -wholeprogramdevirt -wholeprogramdevirt-summary-action=export -wholeprogramdevirt-read-summary=%S/Inputs/export.yaml -wholeprogramdevirt-write-summary=%t  -O3 -S -o - %s | FileCheck --check-prefixes=CHECK %s
+; RUN: opt -passes='wholeprogramdevirt,default<O3>' -whole-program-visibility -wholeprogramdevirt-summary-action=export -wholeprogramdevirt-read-summary=%S/Inputs/export.yaml -wholeprogramdevirt-write-summary=%t  -S -o - %s | FileCheck --check-prefixes=CHECK %s
 
 ; RUN: FileCheck --check-prefix=SUMMARY %s < %t
 
 ; SUMMARY:      TypeIdMap:       
 ; SUMMARY-NEXT:   typeid3:
 ; SUMMARY-NEXT:     TTRes:           
-; SUMMARY-NEXT:       Kind:            Unsat
+; SUMMARY-NEXT:       Kind:            Unknown
 ; SUMMARY-NEXT:       SizeM1BitWidth:  0
 ; SUMMARY-NEXT:       AlignLog2:       0
 ; SUMMARY-NEXT:       SizeM1:          0
@@ -23,7 +23,7 @@
 ; SUMMARY-NEXT:         ResByArg:        
 ; SUMMARY-NEXT:   typeid1:
 ; SUMMARY-NEXT:     TTRes:           
-; SUMMARY-NEXT:       Kind:            Unsat
+; SUMMARY-NEXT:       Kind:            Unknown
 ; SUMMARY-NEXT:       SizeM1BitWidth:  0
 ; SUMMARY-NEXT:       AlignLog2:       0
 ; SUMMARY-NEXT:       SizeM1:          0
@@ -36,7 +36,7 @@
 ; SUMMARY-NEXT:         ResByArg:        
 ; SUMMARY-NEXT:   typeid2:
 ; SUMMARY-NEXT:     TTRes:           
-; SUMMARY-NEXT:       Kind:            Unsat
+; SUMMARY-NEXT:       Kind:            Unknown
 ; SUMMARY-NEXT:       SizeM1BitWidth:  0
 ; SUMMARY-NEXT:       AlignLog2:       0
 ; SUMMARY-NEXT:       SizeM1:          0
@@ -147,9 +147,10 @@ define i32 @fn3(i8* %obj) #0 {
   ret i32 %result
 }
 
-; CHECK-LABEL: define internal void @branch_funnel(i8*
-; CHECK: define hidden void @__typeid_typeid1_0_branch_funnel(i8* nest, ...)
+; CHECK-LABEL: define hidden void @__typeid_typeid1_0_branch_funnel(i8* nest %0, ...)
 ; CHECK-NEXT: musttail call void (...) @llvm.icall.branch.funnel(i8* %0, i8* bitcast ([1 x i8*]* {{(nonnull )?}}@vt1_1 to i8*), i32 (i8*, i32)* {{(nonnull )?}}@vf1_1, i8* bitcast ([1 x i8*]* {{(nonnull )?}}@vt1_2 to i8*), i32 (i8*, i32)* {{(nonnull )?}}@vf1_2, ...)
+
+; CHECK: define internal void @branch_funnel(i8*
 
 declare i1 @llvm.type.test(i8*, metadata)
 declare void @llvm.assume(i1)

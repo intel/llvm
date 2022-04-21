@@ -1,4 +1,4 @@
-//===-- FileSystemTest.cpp --------------------------------------*- C++ -*-===//
+//===-- FileSystemTest.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -34,7 +34,7 @@ struct DummyFile : public vfs::File {
 
 class DummyFileSystem : public vfs::FileSystem {
   int FSID;   // used to produce UniqueIDs
-  int FileID; // used to produce UniqueIDs
+  int FileID = 0; // used to produce UniqueIDs
   std::string cwd;
   std::map<std::string, vfs::Status> FilesAndDirs;
 
@@ -44,7 +44,7 @@ class DummyFileSystem : public vfs::FileSystem {
   }
 
 public:
-  DummyFileSystem() : FSID(getNextFSID()), FileID(0) {}
+  DummyFileSystem() : FSID(getNextFSID()) {}
 
   ErrorOr<vfs::Status> status(const Twine &Path) override {
     std::map<std::string, vfs::Status>::iterator I =
@@ -101,8 +101,8 @@ public:
           Path(_Path.str()) {
       for (; I != FilesAndDirs.end(); ++I) {
         if (isInPath(I->first)) {
-          CurrentEntry =
-              vfs::directory_entry(I->second.getName(), I->second.getType());
+          CurrentEntry = vfs::directory_entry(std::string(I->second.getName()),
+                                              I->second.getType());
           break;
         }
       }
@@ -111,8 +111,8 @@ public:
       ++I;
       for (; I != FilesAndDirs.end(); ++I) {
         if (isInPath(I->first)) {
-          CurrentEntry =
-              vfs::directory_entry(I->second.getName(), I->second.getType());
+          CurrentEntry = vfs::directory_entry(std::string(I->second.getName()),
+                                              I->second.getType());
           break;
         }
       }
@@ -129,7 +129,7 @@ public:
   }
 
   void addEntry(StringRef Path, const vfs::Status &Status) {
-    FilesAndDirs[Path] = Status;
+    FilesAndDirs[std::string(Path)] = Status;
   }
 
   void addRegularFile(StringRef Path, sys::fs::perms Perms = sys::fs::all_all) {
@@ -287,4 +287,45 @@ TEST(FileSystemTest, EnumerateDirectory) {
 
   EXPECT_THAT(visited,
               testing::UnorderedElementsAre("/foo", "/bar", "/baz", "/qux"));
+}
+
+TEST(FileSystemTest, OpenErrno) {
+#ifdef _WIN32
+  FileSpec spec("C:\\FILE\\THAT\\DOES\\NOT\\EXIST.TXT");
+#else
+  FileSpec spec("/file/that/does/not/exist.txt");
+#endif
+  FileSystem fs;
+  auto file = fs.Open(spec, File::eOpenOptionReadOnly, 0, true);
+  ASSERT_FALSE(file);
+  std::error_code code = errorToErrorCode(file.takeError());
+  EXPECT_EQ(code.category(), std::system_category());
+  EXPECT_EQ(code.value(), ENOENT);
+}
+
+TEST(FileSystemTest, EmptyTest) {
+  FileSpec spec;
+  FileSystem fs;
+
+  {
+    std::error_code ec;
+    fs.DirBegin(spec, ec);
+    EXPECT_EQ(ec.category(), std::system_category());
+    EXPECT_EQ(ec.value(), ENOENT);
+  }
+
+  {
+    llvm::ErrorOr<vfs::Status> status = fs.GetStatus(spec);
+    ASSERT_FALSE(status);
+    EXPECT_EQ(status.getError().category(), std::system_category());
+    EXPECT_EQ(status.getError().value(), ENOENT);
+  }
+
+  EXPECT_EQ(sys::TimePoint<>(), fs.GetModificationTime(spec));
+  EXPECT_EQ(static_cast<uint64_t>(0), fs.GetByteSize(spec));
+  EXPECT_EQ(llvm::sys::fs::perms::perms_not_known, fs.GetPermissions(spec));
+  EXPECT_FALSE(fs.Exists(spec));
+  EXPECT_FALSE(fs.Readable(spec));
+  EXPECT_FALSE(fs.IsDirectory(spec));
+  EXPECT_FALSE(fs.IsLocal(spec));
 }

@@ -1,5 +1,4 @@
-//===-- AppleGetPendingItemsHandler.cpp -------------------------------*- C++
-//-*-===//
+//===-- AppleGetPendingItemsHandler.cpp -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,19 +8,19 @@
 
 #include "AppleGetPendingItemsHandler.h"
 
-
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/FunctionCaller.h"
 #include "lldb/Expression/UtilityFunction.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
@@ -104,14 +103,14 @@ AppleGetPendingItemsHandler::AppleGetPendingItemsHandler(Process *process)
       m_get_pending_items_return_buffer_addr(LLDB_INVALID_ADDRESS),
       m_get_pending_items_retbuffer_mutex() {}
 
-AppleGetPendingItemsHandler::~AppleGetPendingItemsHandler() {}
+AppleGetPendingItemsHandler::~AppleGetPendingItemsHandler() = default;
 
 void AppleGetPendingItemsHandler::Detach() {
   if (m_process && m_process->IsAlive() &&
       m_get_pending_items_return_buffer_addr != LLDB_INVALID_ADDRESS) {
     std::unique_lock<std::mutex> lock(m_get_pending_items_retbuffer_mutex,
                                       std::defer_lock);
-    lock.try_lock(); // Even if we don't get the lock, deallocate the buffer
+    (void)lock.try_lock(); // Even if we don't get the lock, deallocate the buffer
     m_process->DeallocateMemory(m_get_pending_items_return_buffer_addr);
   }
 }
@@ -135,7 +134,7 @@ lldb::addr_t AppleGetPendingItemsHandler::SetupGetPendingItemsFunction(
   ThreadSP thread_sp(thread.shared_from_this());
   ExecutionContext exe_ctx(thread_sp);
   DiagnosticManager diagnostics;
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYSTEM_RUNTIME));
+  Log *log = GetLog(LLDBLog::SystemRuntime);
 
   lldb::addr_t args_addr = LLDB_INVALID_ADDRESS;
   FunctionCaller *get_pending_items_caller = nullptr;
@@ -147,38 +146,26 @@ lldb::addr_t AppleGetPendingItemsHandler::SetupGetPendingItemsFunction(
     // First stage is to make the ClangUtility to hold our injected function:
 
     if (!m_get_pending_items_impl_code) {
-      if (g_get_pending_items_function_code != NULL) {
-        Status error;
-        m_get_pending_items_impl_code.reset(
-            exe_ctx.GetTargetRef().GetUtilityFunctionForLanguage(
-                g_get_pending_items_function_code, eLanguageTypeObjC,
-                g_get_pending_items_function_name, error));
-        if (error.Fail()) {
-          if (log)
-            log->Printf("Failed to get UtilityFunction for pending-items "
-                        "introspection: %s.",
-                        error.AsCString());
+      if (g_get_pending_items_function_code != nullptr) {
+        auto utility_fn_or_error = exe_ctx.GetTargetRef().CreateUtilityFunction(
+            g_get_pending_items_function_code,
+            g_get_pending_items_function_name, eLanguageTypeC, exe_ctx);
+        if (!utility_fn_or_error) {
+          LLDB_LOG_ERROR(log, utility_fn_or_error.takeError(),
+                         "Failed to create UtilityFunction for pending-items "
+                         "introspection: {0}.");
           return args_addr;
         }
-
-        if (!m_get_pending_items_impl_code->Install(diagnostics, exe_ctx)) {
-          if (log) {
-            log->Printf("Failed to install pending-items introspection.");
-            diagnostics.Dump(log);
-          }
-          m_get_pending_items_impl_code.reset();
-          return args_addr;
-        }
+        m_get_pending_items_impl_code = std::move(*utility_fn_or_error);
       } else {
-        if (log)
-          log->Printf("No pending-items introspection code found.");
+        LLDB_LOGF(log, "No pending-items introspection code found.");
         return LLDB_INVALID_ADDRESS;
       }
 
       // Next make the runner function for our implementation utility function.
       Status error;
-      ClangASTContext *clang_ast_context =
-          thread.GetProcess()->GetTarget().GetScratchClangASTContext();
+      TypeSystemClang *clang_ast_context = ScratchTypeSystemClang::GetForTarget(
+          thread.GetProcess()->GetTarget());
       CompilerType get_pending_items_return_type =
           clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
       get_pending_items_caller =
@@ -186,10 +173,10 @@ lldb::addr_t AppleGetPendingItemsHandler::SetupGetPendingItemsFunction(
               get_pending_items_return_type, get_pending_items_arglist,
               thread_sp, error);
       if (error.Fail() || get_pending_items_caller == nullptr) {
-        if (log)
-          log->Printf("Failed to install pending-items introspection function "
-                      "caller: %s.",
-                      error.AsCString());
+        LLDB_LOGF(log,
+                  "Failed to install pending-items introspection function "
+                  "caller: %s.",
+                  error.AsCString());
         m_get_pending_items_impl_code.reset();
         return args_addr;
       }
@@ -199,8 +186,7 @@ lldb::addr_t AppleGetPendingItemsHandler::SetupGetPendingItemsFunction(
   diagnostics.Clear();
 
   if (get_pending_items_caller == nullptr) {
-    if (log)
-      log->Printf("Failed to get get_pending_items_caller.");
+    LLDB_LOGF(log, "Failed to get get_pending_items_caller.");
     return LLDB_INVALID_ADDRESS;
   }
 
@@ -212,7 +198,7 @@ lldb::addr_t AppleGetPendingItemsHandler::SetupGetPendingItemsFunction(
   if (!get_pending_items_caller->WriteFunctionArguments(
           exe_ctx, args_addr, get_pending_items_arglist, diagnostics)) {
     if (log) {
-      log->Printf("Error writing pending-items function arguments.");
+      LLDB_LOGF(log, "Error writing pending-items function arguments.");
       diagnostics.Dump(log);
     }
 
@@ -230,8 +216,9 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   lldb::StackFrameSP thread_cur_frame = thread.GetStackFrameAtIndex(0);
   ProcessSP process_sp(thread.CalculateProcess());
   TargetSP target_sp(thread.CalculateTarget());
-  ClangASTContext *clang_ast_context = target_sp->GetScratchClangASTContext();
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYSTEM_RUNTIME));
+  TypeSystemClang *clang_ast_context =
+      ScratchTypeSystemClang::GetForTarget(*target_sp);
+  Log *log = GetLog(LLDBLog::SystemRuntime);
 
   GetPendingItemsReturnInfo return_value;
   return_value.items_buffer_ptr = LLDB_INVALID_ADDRESS;
@@ -241,9 +228,8 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   error.Clear();
 
   if (!thread.SafeToCallFunctions()) {
-    if (log)
-      log->Printf("Not safe to call functions on thread 0x%" PRIx64,
-                  thread.GetID());
+    LLDB_LOGF(log, "Not safe to call functions on thread 0x%" PRIx64,
+              thread.GetID());
     error.SetErrorString("Not safe to call functions on this thread.");
     return return_value;
   }
@@ -276,26 +262,26 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   CompilerType clang_void_ptr_type =
       clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
   Value return_buffer_ptr_value;
-  return_buffer_ptr_value.SetValueType(Value::eValueTypeScalar);
+  return_buffer_ptr_value.SetValueType(Value::ValueType::Scalar);
   return_buffer_ptr_value.SetCompilerType(clang_void_ptr_type);
 
   CompilerType clang_int_type = clang_ast_context->GetBasicType(eBasicTypeInt);
   Value debug_value;
-  debug_value.SetValueType(Value::eValueTypeScalar);
+  debug_value.SetValueType(Value::ValueType::Scalar);
   debug_value.SetCompilerType(clang_int_type);
 
   CompilerType clang_uint64_type =
       clang_ast_context->GetBasicType(eBasicTypeUnsignedLongLong);
   Value queue_value;
-  queue_value.SetValueType(Value::eValueTypeScalar);
+  queue_value.SetValueType(Value::ValueType::Scalar);
   queue_value.SetCompilerType(clang_uint64_type);
 
   Value page_to_free_value;
-  page_to_free_value.SetValueType(Value::eValueTypeScalar);
+  page_to_free_value.SetValueType(Value::ValueType::Scalar);
   page_to_free_value.SetCompilerType(clang_void_ptr_type);
 
   Value page_to_free_size_value;
-  page_to_free_size_value.SetValueType(Value::eValueTypeScalar);
+  page_to_free_size_value.SetValueType(Value::ValueType::Scalar);
   page_to_free_size_value.SetCompilerType(clang_uint64_type);
 
   std::lock_guard<std::mutex> guard(m_get_pending_items_retbuffer_mutex);
@@ -303,9 +289,8 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
     addr_t bufaddr = process_sp->AllocateMemory(
         32, ePermissionsReadable | ePermissionsWritable, error);
     if (!error.Success() || bufaddr == LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("Failed to allocate memory for return buffer for get "
-                    "current queues func call");
+      LLDB_LOGF(log, "Failed to allocate memory for return buffer for get "
+                     "current queues func call");
       return return_value;
     }
     m_get_pending_items_return_buffer_addr = bufaddr;
@@ -342,12 +327,16 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   options.SetUnwindOnError(true);
   options.SetIgnoreBreakpoints(true);
   options.SetStopOthers(true);
+#if __has_feature(address_sanitizer)
   options.SetTimeout(process_sp->GetUtilityExpressionTimeout());
+#else
+  options.SetTimeout(std::chrono::milliseconds(500));
+#endif
   options.SetTryAllThreads(false);
   options.SetIsForUtilityExpr(true);
   thread.CalculateExecutionContext(exe_ctx);
 
-  if (get_pending_items_caller == NULL) {
+  if (get_pending_items_caller == nullptr) {
     error.SetErrorString("Unable to compile function to call "
                          "__introspection_dispatch_queue_get_pending_items");
     return return_value;
@@ -358,11 +347,11 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   func_call_ret = get_pending_items_caller->ExecuteFunction(
       exe_ctx, &args_addr, options, diagnostics, results);
   if (func_call_ret != eExpressionCompleted || !error.Success()) {
-    if (log)
-      log->Printf("Unable to call "
-                  "__introspection_dispatch_queue_get_pending_items(), got "
-                  "ExpressionResults %d, error contains %s",
-                  func_call_ret, error.AsCString(""));
+    LLDB_LOGF(log,
+              "Unable to call "
+              "__introspection_dispatch_queue_get_pending_items(), got "
+              "ExpressionResults %d, error contains %s",
+              func_call_ret, error.AsCString(""));
     error.SetErrorString("Unable to call "
                          "__introspection_dispatch_queue_get_pending_items() "
                          "for list of queues");
@@ -392,14 +381,14 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
     return return_value;
   }
 
-  if (log)
-    log->Printf("AppleGetPendingItemsHandler called "
-                "__introspection_dispatch_queue_get_pending_items "
-                "(page_to_free == 0x%" PRIx64 ", size = %" PRId64
-                "), returned page is at 0x%" PRIx64 ", size %" PRId64
-                ", count = %" PRId64,
-                page_to_free, page_to_free_size, return_value.items_buffer_ptr,
-                return_value.items_buffer_size, return_value.count);
+  LLDB_LOGF(log,
+            "AppleGetPendingItemsHandler called "
+            "__introspection_dispatch_queue_get_pending_items "
+            "(page_to_free == 0x%" PRIx64 ", size = %" PRId64
+            "), returned page is at 0x%" PRIx64 ", size %" PRId64
+            ", count = %" PRId64,
+            page_to_free, page_to_free_size, return_value.items_buffer_ptr,
+            return_value.items_buffer_size, return_value.count);
 
   return return_value;
 }

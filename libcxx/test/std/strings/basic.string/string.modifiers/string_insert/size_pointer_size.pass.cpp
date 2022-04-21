@@ -11,11 +11,6 @@
 // basic_string<charT,traits,Allocator>&
 //   insert(size_type pos, const charT* s, size_type n);
 
-// When back-deploying to macosx10.7, the RTTI for exception classes
-// incorrectly provided by libc++.dylib is mixed with the one in
-// libc++abi.dylib and exceptions are not caught properly.
-// XFAIL: with_system_cxx_lib=macosx10.7
-
 #include <string>
 #include <stdexcept>
 #include <cassert>
@@ -24,7 +19,7 @@
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S s, typename S::size_type pos, const typename S::value_type* str,
      typename S::size_type n, S expected)
 {
@@ -53,9 +48,8 @@ test(S s, typename S::size_type pos, const typename S::value_type* str,
 #endif
 }
 
-int main(int, char**)
-{
-    {
+bool test() {
+  {
     typedef std::string S;
     test(S(""), 0, "", 0, S(""));
     test(S(""), 0, "12345", 0, S(""));
@@ -377,9 +371,9 @@ int main(int, char**)
     test(S("abcdefghijklmnopqrst"), 21, "12345678901234567890", 10, S("can't happen"));
     test(S("abcdefghijklmnopqrst"), 21, "12345678901234567890", 19, S("can't happen"));
     test(S("abcdefghijklmnopqrst"), 21, "12345678901234567890", 20, S("can't happen"));
-    }
+  }
 #if TEST_STD_VER >= 11
-    {
+  {
     typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
     test(S(""), 0, "", 0, S(""));
     test(S(""), 0, "12345", 0, S(""));
@@ -701,10 +695,10 @@ int main(int, char**)
     test(S("abcdefghijklmnopqrst"), 21, "12345678901234567890", 10, S("can't happen"));
     test(S("abcdefghijklmnopqrst"), 21, "12345678901234567890", 19, S("can't happen"));
     test(S("abcdefghijklmnopqrst"), 21, "12345678901234567890", 20, S("can't happen"));
-    }
+  }
 #endif
 
-    { // test inserting into self
+  { // test inserting into self
     typedef std::string S;
     S s_short = "123/";
     S s_long  = "Lorem ipsum dolor sit amet, consectetur/";
@@ -718,7 +712,17 @@ int main(int, char**)
 
     s_long.insert(0, s_long.data(), s_long.size());
     assert(s_long == "Lorem ipsum dolor sit amet, consectetur/Lorem ipsum dolor sit amet, consectetur/");
-    }
+  }
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
+#endif
 
   return 0;
 }

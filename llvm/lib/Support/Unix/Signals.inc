@@ -36,17 +36,17 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Config/config.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/Support/ExitCodes.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Mutex.h"
 #include "llvm/Support/Program.h"
-#include "llvm/Support/UniqueLock.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <string>
-#include <sysexits.h>
 #ifdef HAVE_BACKTRACE
 # include BACKTRACE_HEADER         // For backtrace().
 #endif
@@ -80,10 +80,16 @@
 using namespace llvm;
 
 static RETSIGTYPE SignalHandler(int Sig);  // defined below.
+static RETSIGTYPE InfoSignalHandler(int Sig);  // defined below.
 
+using SignalHandlerFunctionType = void (*)();
 /// The function to call if ctrl-c is pressed.
-using InterruptFunctionType = void (*)();
-static std::atomic<InterruptFunctionType> InterruptFunction =
+static std::atomic<SignalHandlerFunctionType> InterruptFunction =
+    ATOMIC_VAR_INIT(nullptr);
+static std::atomic<SignalHandlerFunctionType> InfoSignalFunction =
+    ATOMIC_VAR_INIT(nullptr);
+/// The function to call on SIGPIPE (one-time use only).
+static std::atomic<SignalHandlerFunctionType> OneShotPipeSignalFunction =
     ATOMIC_VAR_INIT(nullptr);
 
 namespace {
@@ -199,15 +205,15 @@ struct FilesToRemoveCleanup {
 
 static StringRef Argv0;
 
-// Signals that represent requested termination. There's no bug or failure, or
-// if there is, it's not our direct responsibility. For whatever reason, our
-// continued execution is no longer desirable.
+/// Signals that represent requested termination. There's no bug or failure, or
+/// if there is, it's not our direct responsibility. For whatever reason, our
+/// continued execution is no longer desirable.
 static const int IntSigs[] = {
-  SIGHUP, SIGINT, SIGPIPE, SIGTERM, SIGUSR1, SIGUSR2
+  SIGHUP, SIGINT, SIGTERM, SIGUSR2
 };
 
-// Signals that represent that we have a bug, and our prompt termination has
-// been ordered.
+/// Signals that represent that we have a bug, and our prompt termination has
+/// been ordered.
 static const int KillSigs[] = {
   SIGILL, SIGTRAP, SIGABRT, SIGFPE, SIGBUS, SIGSEGV, SIGQUIT
 #ifdef SIGSYS
@@ -224,11 +230,24 @@ static const int KillSigs[] = {
 #endif
 };
 
+/// Signals that represent requests for status.
+static const int InfoSigs[] = {
+  SIGUSR1
+#ifdef SIGINFO
+  , SIGINFO
+#endif
+};
+
+static const size_t NumSigs =
+    array_lengthof(IntSigs) + array_lengthof(KillSigs) +
+    array_lengthof(InfoSigs) + 1 /* SIGPIPE */;
+
+
 static std::atomic<unsigned> NumRegisteredSignals = ATOMIC_VAR_INIT(0);
 static struct {
   struct sigaction SA;
   int SigNo;
-} RegisteredSignalInfo[array_lengthof(IntSigs) + array_lengthof(KillSigs)];
+} RegisteredSignalInfo[NumSigs];
 
 #if defined(HAVE_SIGALTSTACK)
 // Hold onto both the old and new alternate signal stack so that it's not
@@ -236,7 +255,7 @@ static struct {
 // stack if we remove our signal handlers; that can't be done reliably if
 // someone else is also trying to do the same thing.
 static stack_t OldAltStack;
-static void* NewAltStackPointer;
+LLVM_ATTRIBUTE_USED static void *NewAltStackPointer;
 
 static void CreateSigAltStack() {
   const size_t AltStackSize = MINSIGSTKSZ + 64 * 1024;
@@ -276,15 +295,24 @@ static void RegisterHandlers() { // Not signal-safe.
   // be able to reliably handle signals due to stack overflow.
   CreateSigAltStack();
 
-  auto registerHandler = [&](int Signal) {
+  enum class SignalKind { IsKill, IsInfo };
+  auto registerHandler = [&](int Signal, SignalKind Kind) {
     unsigned Index = NumRegisteredSignals.load();
     assert(Index < array_lengthof(RegisteredSignalInfo) &&
            "Out of space for signal handlers!");
 
     struct sigaction NewHandler;
 
-    NewHandler.sa_handler = SignalHandler;
-    NewHandler.sa_flags = SA_NODEFER | SA_RESETHAND | SA_ONSTACK;
+    switch (Kind) {
+    case SignalKind::IsKill:
+      NewHandler.sa_handler = SignalHandler;
+      NewHandler.sa_flags = SA_NODEFER | SA_RESETHAND | SA_ONSTACK;
+      break;
+    case SignalKind::IsInfo:
+      NewHandler.sa_handler = InfoSignalHandler;
+      NewHandler.sa_flags = SA_ONSTACK;
+      break;
+    }
     sigemptyset(&NewHandler.sa_mask);
 
     // Install the new handler, save the old one in RegisteredSignalInfo.
@@ -294,12 +322,16 @@ static void RegisterHandlers() { // Not signal-safe.
   };
 
   for (auto S : IntSigs)
-    registerHandler(S);
+    registerHandler(S, SignalKind::IsKill);
   for (auto S : KillSigs)
-    registerHandler(S);
+    registerHandler(S, SignalKind::IsKill);
+  if (OneShotPipeSignalFunction)
+    registerHandler(SIGPIPE, SignalKind::IsKill);
+  for (auto S : InfoSigs)
+    registerHandler(S, SignalKind::IsInfo);
 }
 
-static void UnregisterHandlers() {
+void sys::unregisterHandlers() {
   // Restore all of the signal handlers to how they were before we showed up.
   for (unsigned i = 0, e = NumRegisteredSignals.load(); i != e; ++i) {
     sigaction(RegisteredSignalInfo[i].SigNo,
@@ -313,13 +345,29 @@ static void RemoveFilesToRemove() {
   FileToRemoveList::removeAllFiles(FilesToRemove);
 }
 
+void sys::CleanupOnSignal(uintptr_t Context) {
+  int Sig = (int)Context;
+
+  if (llvm::is_contained(InfoSigs, Sig)) {
+    InfoSignalHandler(Sig);
+    return;
+  }
+
+  RemoveFilesToRemove();
+
+  if (llvm::is_contained(IntSigs, Sig) || Sig == SIGPIPE)
+    return;
+
+  llvm::sys::RunSignalHandlers();
+}
+
 // The signal handler that runs.
 static RETSIGTYPE SignalHandler(int Sig) {
   // Restore the signal behavior to default, so that the program actually
   // crashes when we return and the signal reissues.  This also ensures that if
   // we crash in our signal handler that the program will terminate immediately
   // instead of recursing in the signal handler.
-  UnregisterHandlers();
+  sys::unregisterHandlers();
 
   // Unmask all potentially blocked kill signals.
   sigset_t SigMask;
@@ -329,18 +377,20 @@ static RETSIGTYPE SignalHandler(int Sig) {
   {
     RemoveFilesToRemove();
 
-    if (std::find(std::begin(IntSigs), std::end(IntSigs), Sig)
-        != std::end(IntSigs)) {
+    if (Sig == SIGPIPE)
+      if (auto OldOneShotPipeFunction =
+              OneShotPipeSignalFunction.exchange(nullptr))
+        return OldOneShotPipeFunction();
+
+    bool IsIntSig = llvm::is_contained(IntSigs, Sig);
+    if (IsIntSig)
       if (auto OldInterruptFunction = InterruptFunction.exchange(nullptr))
         return OldInterruptFunction();
 
-      // Send a special return code that drivers can check for, from sysexits.h.
-      if (Sig == SIGPIPE)
-        exit(EX_IOERR);
-
-      raise(Sig);   // Execute the default handler.
+    if (Sig == SIGPIPE || IsIntSig) {
+      raise(Sig); // Execute the default handler.
       return;
-   }
+    }
   }
 
   // Otherwise if it is a fault (like SEGV) run any handler.
@@ -356,6 +406,12 @@ static RETSIGTYPE SignalHandler(int Sig) {
 #endif
 }
 
+static RETSIGTYPE InfoSignalHandler(int Sig) {
+  SaveAndRestore<int> SaveErrnoDuringASignalHandler(errno);
+  if (SignalHandlerFunctionType CurrentInfoFunction = InfoSignalFunction)
+    CurrentInfoFunction();
+}
+
 void llvm::sys::RunInterruptHandlers() {
   RemoveFilesToRemove();
 }
@@ -363,6 +419,21 @@ void llvm::sys::RunInterruptHandlers() {
 void llvm::sys::SetInterruptFunction(void (*IF)()) {
   InterruptFunction.exchange(IF);
   RegisterHandlers();
+}
+
+void llvm::sys::SetInfoSignalFunction(void (*Handler)()) {
+  InfoSignalFunction.exchange(Handler);
+  RegisterHandlers();
+}
+
+void llvm::sys::SetOneShotPipeSignalFunction(void (*Handler)()) {
+  OneShotPipeSignalFunction.exchange(Handler);
+  RegisterHandlers();
+}
+
+void llvm::sys::DefaultOneShotPipeSignalHandler() {
+  // Send a special return code that drivers can check for, from sysexits.h.
+  exit(EX_IOERR);
 }
 
 // The public API
@@ -484,7 +555,7 @@ static int unwindBacktrace(void **StackTrace, int MaxEntries) {
 //
 // On glibc systems we have the 'backtrace' function, which works nicely, but
 // doesn't demangle symbols.
-void llvm::sys::PrintStackTrace(raw_ostream &OS) {
+void llvm::sys::PrintStackTrace(raw_ostream &OS, int Depth) {
 #if ENABLE_BACKTRACES
   static void *StackTrace[256];
   int depth = 0;
@@ -501,9 +572,15 @@ void llvm::sys::PrintStackTrace(raw_ostream &OS) {
 #endif
   if (!depth)
     return;
-
-  if (printSymbolizedStackTrace(Argv0, StackTrace, depth, OS))
+  // If "Depth" is not provided by the caller, use the return value of
+  // backtrace() for printing a symbolized stack trace.
+  if (!Depth)
+    Depth = depth;
+  if (printSymbolizedStackTrace(Argv0, StackTrace, Depth, OS))
     return;
+  OS << "Stack dump without symbol names (ensure you have llvm-symbolizer in "
+        "your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point "
+        "to it):\n";
 #if HAVE_DLFCN_H && HAVE_DLADDR
   int width = 0;
   for (int i = 0; i < depth; ++i) {
@@ -539,16 +616,13 @@ void llvm::sys::PrintStackTrace(raw_ostream &OS) {
       else    OS << d;
       free(d);
 
-      // FIXME: When we move to C++11, use %t length modifier. It's not in
-      // C++03 and causes gcc to issue warnings. Losing the upper 32 bits of
-      // the stack offset for a stack dump isn't likely to cause any problems.
-      OS << format(" + %u",(unsigned)((char*)StackTrace[i]-
-                                      (char*)dlinfo.dli_saddr));
+      OS << format(" + %tu", (static_cast<const char*>(StackTrace[i])-
+                              static_cast<const char*>(dlinfo.dli_saddr)));
     }
     OS << '\n';
   }
 #elif defined(HAVE_BACKTRACE)
-  backtrace_symbols_fd(StackTrace, depth, STDERR_FILENO);
+  backtrace_symbols_fd(StackTrace, Depth, STDERR_FILENO);
 #endif
 #endif
 }

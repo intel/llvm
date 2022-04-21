@@ -142,12 +142,15 @@ static __isl_give isl_schedule_node *node_set_options(
 	__isl_take isl_schedule_node *node, void *user)
 {
 	enum isl_ast_loop_type *type = user;
-	int i, n;
+	int i;
+	isl_size n;
 
 	if (isl_schedule_node_get_type(node) != isl_schedule_node_band)
 		return node;
 
 	n = isl_schedule_node_band_n_member(node);
+	if (n < 0)
+		return isl_schedule_node_free(node);
 	for (i = 0; i < n; ++i)
 		node = isl_schedule_node_band_member_set_ast_loop_type(node,
 								i, *type);
@@ -211,6 +214,7 @@ int main(int argc, char **argv)
 	assert(options);
 	ctx = isl_ctx_alloc_with_options(&options_args, options);
 	isl_options_set_ast_build_detect_min_max(ctx, 1);
+	isl_options_set_ast_print_outermost_block(ctx, 0);
 	argc = cg_options_parse(options, argc, argv, ISL_ARG_ALL);
 
 	s = isl_stream_new_file(ctx, stdin);

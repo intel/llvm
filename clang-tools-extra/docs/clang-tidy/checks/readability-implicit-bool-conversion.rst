@@ -82,7 +82,7 @@ In general, the following conversion types are checked:
 The rules for generating fix-it hints are:
 
 - in case of conversions from other built-in type to bool, an explicit
-  comparison is proposed to make it clear what exaclty is being compared:
+  comparison is proposed to make it clear what exactly is being compared:
 
   - ``bool boolean = floating;`` is changed to
     ``bool boolean = floating == 0.0f;``,
@@ -126,10 +126,10 @@ Options
 
 .. option::  AllowIntegerConditions
 
-   When non-zero, the check will allow conditional integer conversions. Default
-   is `0`.
+   When `true`, the check will allow conditional integer conversions. Default
+   is `false`.
 
 .. option::  AllowPointerConditions
 
-   When non-zero, the check will allow conditional pointer conversions. Default
-   is `0`.
+   When `true`, the check will allow conditional pointer conversions. Default
+   is `false`.

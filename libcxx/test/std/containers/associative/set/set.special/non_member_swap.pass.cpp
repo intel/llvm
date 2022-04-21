@@ -14,6 +14,7 @@
 
 #include <set>
 #include <cassert>
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "../../../test_compare.h"
 
@@ -97,7 +98,7 @@ int main(int, char**)
     }
     {
         typedef test_allocator<V> A;
-        typedef test_compare<std::less<int> > C;
+        typedef test_less<int> C;
         typedef std::set<int, C, A> M;
         V ar1[] =
         {
@@ -131,7 +132,7 @@ int main(int, char**)
     }
     {
         typedef other_allocator<V> A;
-        typedef test_compare<std::less<int> > C;
+        typedef test_less<int> C;
         typedef std::set<int, C, A> M;
         V ar1[] =
         {

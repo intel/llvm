@@ -13,7 +13,7 @@
 #ifndef LLVM_LIB_TARGET_X86_X86REGISTERBANKINFO_H
 #define LLVM_LIB_TARGET_X86_X86REGISTERBANKINFO_H
 
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 
 #define GET_REGBANK_DECLARATIONS
 #include "X86GenRegisterBank.inc"
@@ -64,8 +64,8 @@ private:
 public:
   X86RegisterBankInfo(const TargetRegisterInfo &TRI);
 
-  const RegisterBank &
-  getRegBankFromRegClass(const TargetRegisterClass &RC) const override;
+  const RegisterBank &getRegBankFromRegClass(const TargetRegisterClass &RC,
+                                             LLT) const override;
 
   InstructionMappings
   getInstrAlternativeMappings(const MachineInstr &MI) const override;

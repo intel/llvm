@@ -1,4 +1,4 @@
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 @odd = common dso_local global i32 0, align 4
@@ -11,9 +11,12 @@ entry:
   br i1 %tobool, label %if.else, label %if.then, !prof !30
 
 if.then:
+  ; The calls here ensure that the instructions are not hoisted by SimplifyCFG.
+  call void @clobber()
   %0 = load i32, i32* @odd, align 4
   %inc = add i32 %0, 1
   store i32 %inc, i32* @odd, align 4
+  call void @clobber()
   br label %if.end
 
 if.else:
@@ -25,6 +28,8 @@ if.else:
 if.end:
   ret void
 }
+
+declare void @clobber()
 
 define internal fastcc i32 @cond(i32 %i) #1 !prof !29 !PGOFuncName !35 {
 entry:

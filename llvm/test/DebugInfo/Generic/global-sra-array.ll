@@ -21,9 +21,9 @@ target triple = "x86_64-apple-macosx10.12.0"
 ; This array is first split into two struct, which are then split into their
 ; elements, of which only .a survives.
 @array = internal global [2 x %struct.anon] zeroinitializer, align 16, !dbg !0
-; CHECK: @array.0.0 = internal unnamed_addr global i32 0, align 16, !dbg ![[EL0:.*]]
-; CHECK: @array.1.0 = internal unnamed_addr global i32 0, align 8, !dbg ![[EL1:.*]]
-;
+; CHECK: @array.0 = internal unnamed_addr global i32 0, align 16, !dbg ![[EL0:.*]]
+; CHECK: @array.1 = internal unnamed_addr global i32 0, align 8, !dbg ![[EL1:.*]]
+
 ; CHECK: ![[EL0]] = !DIGlobalVariableExpression(var: ![[VAR:.*]], expr: !DIExpression(DW_OP_LLVM_fragment, 0, 32))
 ; CHECK: ![[VAR]] = distinct !DIGlobalVariable(name: "array"
 ; CHECK: ![[EL1]] = !DIGlobalVariableExpression(var: ![[VAR]], expr: !DIExpression(DW_OP_LLVM_fragment, 64, 32))
@@ -70,7 +70,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind optsize ssp uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="penryn" "target-features"="+cx16,+fxsr,+mmx,+sse,+sse2,+sse3,+sse4.1,+ssse3,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind optsize ssp uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="penryn" "target-features"="+cx16,+fxsr,+mmx,+sse,+sse2,+sse3,+sse4.1,+ssse3,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 attributes #2 = { optsize }
 

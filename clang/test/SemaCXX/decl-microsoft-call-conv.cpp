@@ -77,7 +77,7 @@ struct S {
 
   // Structors can't be other than default in MS ABI environment
 #ifdef MSABI
-  __vectorcall S(); // expected-warning {{vectorcall calling convention ignored on constructor/destructor}}
+  __vectorcall S(); // expected-warning {{vectorcall calling convention is not supported on constructor/destructor}}
 #endif
 };
 
@@ -239,7 +239,7 @@ namespace test8 {
   template <typename T>
   struct S {
     void f(T t) { // expected-note {{previous declaration is here}}
-      t = 42; // expected-error {{assigning to 'void *' from incompatible type 'int'}}
+      t = 42; // expected-error {{incompatible integer to pointer conversion assigning to 'void *' from 'int'}}
     }
   };
   template<> void __cdecl S<void*>::f(void*); // expected-error {{function declared 'cdecl' here was previously declared without calling convention}}

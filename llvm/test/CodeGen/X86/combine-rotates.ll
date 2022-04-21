@@ -8,35 +8,33 @@
 define <4 x i32> @combine_vec_rot_rot(<4 x i32> %x) {
 ; SSE2-LABEL: combine_vec_rot_rot:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    movdqa {{.*#+}} xmm1 = [524288,131072,32768,8192]
-; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,3,3]
-; SSE2-NEXT:    pmuludq %xmm1, %xmm0
-; SSE2-NEXT:    pshufd {{.*#+}} xmm3 = xmm0[1,3,2,3]
-; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[1,1,3,3]
-; SSE2-NEXT:    pmuludq %xmm2, %xmm1
-; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm1[1,3,2,3]
-; SSE2-NEXT:    punpckldq {{.*#+}} xmm3 = xmm3[0],xmm2[0],xmm3[1],xmm2[1]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[1,1,3,3]
+; SSE2-NEXT:    pmuludq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,3,2,3]
+; SSE2-NEXT:    pmuludq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; SSE2-NEXT:    pshufd {{.*#+}} xmm3 = xmm1[1,3,2,3]
+; SSE2-NEXT:    punpckldq {{.*#+}} xmm2 = xmm2[0],xmm3[0],xmm2[1],xmm3[1]
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,2,2,3]
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[0,2,2,3]
 ; SSE2-NEXT:    punpckldq {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]
-; SSE2-NEXT:    por %xmm3, %xmm0
+; SSE2-NEXT:    por %xmm2, %xmm0
 ; SSE2-NEXT:    retq
 ;
 ; XOP-LABEL: combine_vec_rot_rot:
 ; XOP:       # %bb.0:
-; XOP-NEXT:    vprotd {{.*}}(%rip), %xmm0, %xmm0
+; XOP-NEXT:    vprotd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; XOP-NEXT:    retq
 ;
 ; AVX2-LABEL: combine_vec_rot_rot:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vpsrlvd {{.*}}(%rip), %xmm0, %xmm1
-; AVX2-NEXT:    vpsllvd {{.*}}(%rip), %xmm0, %xmm0
+; AVX2-NEXT:    vpsrlvd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm1
+; AVX2-NEXT:    vpsllvd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; AVX2-NEXT:    vpor %xmm1, %xmm0, %xmm0
 ; AVX2-NEXT:    retq
 ;
 ; AVX512-LABEL: combine_vec_rot_rot:
 ; AVX512:       # %bb.0:
-; AVX512-NEXT:    vprolvd {{.*}}(%rip), %xmm0, %xmm0
+; AVX512-NEXT:    vprolvd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; AVX512-NEXT:    retq
   %1 = lshr <4 x i32> %x, <i32 1, i32 2, i32 3, i32 4>
   %2 = shl <4 x i32> %x, <i32 31, i32 30, i32 29, i32 28>
@@ -118,57 +116,55 @@ define i32 @combine_rot_select_zero(i32, i32) {
 define <4 x i32> @combine_vec_rot_select_zero(<4 x i32>, <4 x i32>) {
 ; SSE2-LABEL: combine_vec_rot_select_zero:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    movdqa {{.*#+}} xmm2 = [31,31,31,31]
-; SSE2-NEXT:    pand %xmm1, %xmm2
-; SSE2-NEXT:    pxor %xmm3, %xmm3
-; SSE2-NEXT:    pslld $23, %xmm2
-; SSE2-NEXT:    paddd {{.*}}(%rip), %xmm2
-; SSE2-NEXT:    cvttps2dq %xmm2, %xmm2
+; SSE2-NEXT:    pxor %xmm2, %xmm2
+; SSE2-NEXT:    movdqa {{.*#+}} xmm3 = [31,31,31,31]
+; SSE2-NEXT:    pand %xmm1, %xmm3
+; SSE2-NEXT:    pslld $23, %xmm3
+; SSE2-NEXT:    paddd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm3
+; SSE2-NEXT:    cvttps2dq %xmm3, %xmm3
 ; SSE2-NEXT:    movdqa %xmm0, %xmm4
-; SSE2-NEXT:    pmuludq %xmm2, %xmm4
+; SSE2-NEXT:    pmuludq %xmm3, %xmm4
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm5 = xmm4[1,3,2,3]
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm6 = xmm0[1,1,3,3]
-; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm2[1,1,3,3]
-; SSE2-NEXT:    pmuludq %xmm6, %xmm2
-; SSE2-NEXT:    pshufd {{.*#+}} xmm6 = xmm2[1,3,2,3]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm3 = xmm3[1,1,3,3]
+; SSE2-NEXT:    pmuludq %xmm6, %xmm3
+; SSE2-NEXT:    pshufd {{.*#+}} xmm6 = xmm3[1,3,2,3]
 ; SSE2-NEXT:    punpckldq {{.*#+}} xmm5 = xmm5[0],xmm6[0],xmm5[1],xmm6[1]
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm4 = xmm4[0,2,2,3]
-; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm2[0,2,2,3]
-; SSE2-NEXT:    punpckldq {{.*#+}} xmm4 = xmm4[0],xmm2[0],xmm4[1],xmm2[1]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm3 = xmm3[0,2,2,3]
+; SSE2-NEXT:    punpckldq {{.*#+}} xmm4 = xmm4[0],xmm3[0],xmm4[1],xmm3[1]
 ; SSE2-NEXT:    por %xmm5, %xmm4
-; SSE2-NEXT:    pcmpeqd %xmm1, %xmm3
-; SSE2-NEXT:    pand %xmm3, %xmm0
-; SSE2-NEXT:    pandn %xmm4, %xmm3
-; SSE2-NEXT:    por %xmm3, %xmm0
+; SSE2-NEXT:    pcmpeqd %xmm1, %xmm2
+; SSE2-NEXT:    pand %xmm2, %xmm0
+; SSE2-NEXT:    pandn %xmm4, %xmm2
+; SSE2-NEXT:    por %xmm2, %xmm0
 ; SSE2-NEXT:    retq
 ;
 ; XOP-LABEL: combine_vec_rot_select_zero:
 ; XOP:       # %bb.0:
-; XOP-NEXT:    vpand {{.*}}(%rip), %xmm1, %xmm2
-; XOP-NEXT:    vpxor %xmm3, %xmm3, %xmm3
-; XOP-NEXT:    vprotd %xmm2, %xmm0, %xmm2
-; XOP-NEXT:    vpcomeqd %xmm3, %xmm1, %xmm1
-; XOP-NEXT:    vblendvps %xmm1, %xmm0, %xmm2, %xmm0
+; XOP-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; XOP-NEXT:    vprotd %xmm1, %xmm0, %xmm3
+; XOP-NEXT:    vpcomeqd %xmm2, %xmm1, %xmm1
+; XOP-NEXT:    vblendvps %xmm1, %xmm0, %xmm3, %xmm0
 ; XOP-NEXT:    retq
 ;
 ; AVX2-LABEL: combine_vec_rot_select_zero:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm2 = [31,31,31,31]
-; AVX2-NEXT:    vpand %xmm2, %xmm1, %xmm2
-; AVX2-NEXT:    vpxor %xmm3, %xmm3, %xmm3
-; AVX2-NEXT:    vpsllvd %xmm2, %xmm0, %xmm4
+; AVX2-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm3 = [31,31,31,31]
+; AVX2-NEXT:    vpand %xmm3, %xmm1, %xmm3
+; AVX2-NEXT:    vpsllvd %xmm3, %xmm0, %xmm4
 ; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm5 = [32,32,32,32]
-; AVX2-NEXT:    vpsubd %xmm2, %xmm5, %xmm2
-; AVX2-NEXT:    vpsrlvd %xmm2, %xmm0, %xmm2
-; AVX2-NEXT:    vpor %xmm2, %xmm4, %xmm2
-; AVX2-NEXT:    vpcmpeqd %xmm3, %xmm1, %xmm1
-; AVX2-NEXT:    vblendvps %xmm1, %xmm0, %xmm2, %xmm0
+; AVX2-NEXT:    vpsubd %xmm3, %xmm5, %xmm3
+; AVX2-NEXT:    vpsrlvd %xmm3, %xmm0, %xmm3
+; AVX2-NEXT:    vpor %xmm3, %xmm4, %xmm3
+; AVX2-NEXT:    vpcmpeqd %xmm2, %xmm1, %xmm1
+; AVX2-NEXT:    vblendvps %xmm1, %xmm0, %xmm3, %xmm0
 ; AVX2-NEXT:    retq
 ;
 ; AVX512-LABEL: combine_vec_rot_select_zero:
 ; AVX512:       # %bb.0:
-; AVX512-NEXT:    vpandd {{.*}}(%rip){1to4}, %xmm1, %xmm2
-; AVX512-NEXT:    vprolvd %xmm2, %xmm0, %xmm2
+; AVX512-NEXT:    vprolvd %xmm1, %xmm0, %xmm2
 ; AVX512-NEXT:    vptestnmd %xmm1, %xmm1, %k1
 ; AVX512-NEXT:    vmovdqa32 %xmm0, %xmm2 {%k1}
 ; AVX512-NEXT:    vmovdqa %xmm2, %xmm0
@@ -187,9 +183,9 @@ define <4 x i32> @combine_vec_rot_select_zero(<4 x i32>, <4 x i32>) {
 define <4 x i32> @rotate_demanded_bits(<4 x i32>, <4 x i32>) {
 ; SSE2-LABEL: rotate_demanded_bits:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    pand {{.*}}(%rip), %xmm1
+; SSE2-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
 ; SSE2-NEXT:    pslld $23, %xmm1
-; SSE2-NEXT:    paddd {{.*}}(%rip), %xmm1
+; SSE2-NEXT:    paddd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
 ; SSE2-NEXT:    cvttps2dq %xmm1, %xmm1
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,3,3]
 ; SSE2-NEXT:    pmuludq %xmm1, %xmm0
@@ -206,7 +202,7 @@ define <4 x i32> @rotate_demanded_bits(<4 x i32>, <4 x i32>) {
 ;
 ; XOP-LABEL: rotate_demanded_bits:
 ; XOP:       # %bb.0:
-; XOP-NEXT:    vpand {{.*}}(%rip), %xmm1, %xmm1
+; XOP-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
 ; XOP-NEXT:    vprotd %xmm1, %xmm0, %xmm0
 ; XOP-NEXT:    retq
 ;
@@ -223,7 +219,7 @@ define <4 x i32> @rotate_demanded_bits(<4 x i32>, <4 x i32>) {
 ;
 ; AVX512-LABEL: rotate_demanded_bits:
 ; AVX512:       # %bb.0:
-; AVX512-NEXT:    vpandd {{.*}}(%rip){1to4}, %xmm1, %xmm1
+; AVX512-NEXT:    vpandd {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to4}, %xmm1, %xmm1
 ; AVX512-NEXT:    vprolvd %xmm1, %xmm0, %xmm0
 ; AVX512-NEXT:    retq
   %3 = and <4 x i32> %1, <i32 30, i32 30, i32 30, i32 30>
@@ -238,9 +234,9 @@ define <4 x i32> @rotate_demanded_bits(<4 x i32>, <4 x i32>) {
 define <4 x i32> @rotate_demanded_bits_2(<4 x i32>, <4 x i32>) {
 ; SSE2-LABEL: rotate_demanded_bits_2:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    pand {{.*}}(%rip), %xmm1
+; SSE2-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
 ; SSE2-NEXT:    pslld $23, %xmm1
-; SSE2-NEXT:    paddd {{.*}}(%rip), %xmm1
+; SSE2-NEXT:    paddd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
 ; SSE2-NEXT:    cvttps2dq %xmm1, %xmm1
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,3,3]
 ; SSE2-NEXT:    pmuludq %xmm1, %xmm0
@@ -257,7 +253,7 @@ define <4 x i32> @rotate_demanded_bits_2(<4 x i32>, <4 x i32>) {
 ;
 ; XOP-LABEL: rotate_demanded_bits_2:
 ; XOP:       # %bb.0:
-; XOP-NEXT:    vpand {{.*}}(%rip), %xmm1, %xmm1
+; XOP-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
 ; XOP-NEXT:    vprotd %xmm1, %xmm0, %xmm0
 ; XOP-NEXT:    retq
 ;
@@ -274,7 +270,7 @@ define <4 x i32> @rotate_demanded_bits_2(<4 x i32>, <4 x i32>) {
 ;
 ; AVX512-LABEL: rotate_demanded_bits_2:
 ; AVX512:       # %bb.0:
-; AVX512-NEXT:    vpandd {{.*}}(%rip){1to4}, %xmm1, %xmm1
+; AVX512-NEXT:    vpandd {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to4}, %xmm1, %xmm1
 ; AVX512-NEXT:    vprolvd %xmm1, %xmm0, %xmm0
 ; AVX512-NEXT:    retq
   %3 = and <4 x i32> %1, <i32 23, i32 23, i32 23, i32 23>
@@ -290,9 +286,9 @@ define <4 x i32> @rotate_demanded_bits_3(<4 x i32>, <4 x i32>) {
 ; SSE2-LABEL: rotate_demanded_bits_3:
 ; SSE2:       # %bb.0:
 ; SSE2-NEXT:    paddd %xmm1, %xmm1
-; SSE2-NEXT:    pand {{.*}}(%rip), %xmm1
+; SSE2-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
 ; SSE2-NEXT:    pslld $23, %xmm1
-; SSE2-NEXT:    paddd {{.*}}(%rip), %xmm1
+; SSE2-NEXT:    paddd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
 ; SSE2-NEXT:    cvttps2dq %xmm1, %xmm1
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,3,3]
 ; SSE2-NEXT:    pmuludq %xmm1, %xmm0
@@ -310,14 +306,13 @@ define <4 x i32> @rotate_demanded_bits_3(<4 x i32>, <4 x i32>) {
 ; XOP-LABEL: rotate_demanded_bits_3:
 ; XOP:       # %bb.0:
 ; XOP-NEXT:    vpaddd %xmm1, %xmm1, %xmm1
-; XOP-NEXT:    vpand {{.*}}(%rip), %xmm1, %xmm1
 ; XOP-NEXT:    vprotd %xmm1, %xmm0, %xmm0
 ; XOP-NEXT:    retq
 ;
 ; AVX2-LABEL: rotate_demanded_bits_3:
 ; AVX2:       # %bb.0:
 ; AVX2-NEXT:    vpaddd %xmm1, %xmm1, %xmm1
-; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm2 = [30,30,30,30]
+; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm2 = [31,31,31,31]
 ; AVX2-NEXT:    vpand %xmm2, %xmm1, %xmm1
 ; AVX2-NEXT:    vpsllvd %xmm1, %xmm0, %xmm2
 ; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm3 = [32,32,32,32]
@@ -329,7 +324,6 @@ define <4 x i32> @rotate_demanded_bits_3(<4 x i32>, <4 x i32>) {
 ; AVX512-LABEL: rotate_demanded_bits_3:
 ; AVX512:       # %bb.0:
 ; AVX512-NEXT:    vpaddd %xmm1, %xmm1, %xmm1
-; AVX512-NEXT:    vpandd {{.*}}(%rip){1to4}, %xmm1, %xmm1
 ; AVX512-NEXT:    vprolvd %xmm1, %xmm0, %xmm0
 ; AVX512-NEXT:    retq
   %3 = shl <4 x i32> %1, <i32 1, i32 1, i32 1, i32 1>
@@ -340,6 +334,92 @@ define <4 x i32> @rotate_demanded_bits_3(<4 x i32>, <4 x i32>) {
   %8 = lshr <4 x i32> %0, %7
   %9 = or <4 x i32> %5, %8
   ret <4 x i32> %9
+}
+
+define <4 x i32> @rotl_binop_shuffle(<4 x i32>, <4 x i32>) {
+; SSE2-LABEL: rotl_binop_shuffle:
+; SSE2:       # %bb.0:
+; SSE2-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; SSE2-NEXT:    pslld $23, %xmm1
+; SSE2-NEXT:    paddd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; SSE2-NEXT:    cvttps2dq %xmm1, %xmm1
+; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,3,3]
+; SSE2-NEXT:    pmuludq %xmm1, %xmm0
+; SSE2-NEXT:    pshufd {{.*#+}} xmm3 = xmm0[1,3,2,3]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[1,1,3,3]
+; SSE2-NEXT:    pmuludq %xmm2, %xmm1
+; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm1[1,3,2,3]
+; SSE2-NEXT:    punpckldq {{.*#+}} xmm3 = xmm3[0],xmm2[0],xmm3[1],xmm2[1]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,2,2,3]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[0,2,2,3]
+; SSE2-NEXT:    punpckldq {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]
+; SSE2-NEXT:    por %xmm3, %xmm0
+; SSE2-NEXT:    retq
+;
+; XOP-LABEL: rotl_binop_shuffle:
+; XOP:       # %bb.0:
+; XOP-NEXT:    vprotd %xmm1, %xmm0, %xmm0
+; XOP-NEXT:    retq
+;
+; AVX2-LABEL: rotl_binop_shuffle:
+; AVX2:       # %bb.0:
+; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm2 = [31,31,31,31]
+; AVX2-NEXT:    vpand %xmm2, %xmm1, %xmm1
+; AVX2-NEXT:    vpsllvd %xmm1, %xmm0, %xmm2
+; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm3 = [32,32,32,32]
+; AVX2-NEXT:    vpsubd %xmm1, %xmm3, %xmm1
+; AVX2-NEXT:    vpsrlvd %xmm1, %xmm0, %xmm0
+; AVX2-NEXT:    vpor %xmm0, %xmm2, %xmm0
+; AVX2-NEXT:    retq
+;
+; AVX512-LABEL: rotl_binop_shuffle:
+; AVX512:       # %bb.0:
+; AVX512-NEXT:    vprolvd %xmm1, %xmm0, %xmm0
+; AVX512-NEXT:    retq
+  %3 = shufflevector <4 x i32> %0, <4 x i32> undef, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
+  %4 = shufflevector <4 x i32> %1, <4 x i32> undef, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
+  %5 = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %3, <4 x i32> %3, <4 x i32> %4)
+  %6 = shufflevector <4 x i32> %5, <4 x i32> undef, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
+  ret <4 x i32> %6
+}
+
+define <4 x i32> @rotr_binop_shuffle(<4 x i32>, <4 x i32>) {
+; SSE2-LABEL: rotr_binop_shuffle:
+; SSE2:       # %bb.0:
+; SSE2-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[2,2,3,3]
+; SSE2-NEXT:    psllq %xmm1, %xmm2
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,0,1,1]
+; SSE2-NEXT:    psllq %xmm1, %xmm0
+; SSE2-NEXT:    shufps {{.*#+}} xmm0 = xmm0[1,3],xmm2[1,3]
+; SSE2-NEXT:    retq
+;
+; XOP-LABEL: rotr_binop_shuffle:
+; XOP:       # %bb.0:
+; XOP-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[0,0,0,0]
+; XOP-NEXT:    vprotd %xmm1, %xmm0, %xmm0
+; XOP-NEXT:    retq
+;
+; AVX2-LABEL: rotr_binop_shuffle:
+; AVX2:       # %bb.0:
+; AVX2-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
+; AVX2-NEXT:    vpshufd {{.*#+}} xmm2 = xmm0[2,2,3,3]
+; AVX2-NEXT:    vpsllq %xmm1, %xmm2, %xmm2
+; AVX2-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,0,1,1]
+; AVX2-NEXT:    vpsllq %xmm1, %xmm0, %xmm0
+; AVX2-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[1,3],xmm2[1,3]
+; AVX2-NEXT:    retq
+;
+; AVX512-LABEL: rotr_binop_shuffle:
+; AVX512:       # %bb.0:
+; AVX512-NEXT:    vpbroadcastd %xmm1, %xmm1
+; AVX512-NEXT:    vprolvd %xmm1, %xmm0, %xmm0
+; AVX512-NEXT:    retq
+  %3 = shufflevector <4 x i32> %0, <4 x i32> undef, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
+  %4 = shufflevector <4 x i32> %1, <4 x i32> undef, <4 x i32> zeroinitializer
+  %5 = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %3, <4 x i32> %3, <4 x i32> %4)
+  %6 = shufflevector <4 x i32> %5, <4 x i32> undef, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
+  ret <4 x i32> %6
 }
 
 ; OSS Fuzz: https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=9935
@@ -354,3 +434,6 @@ define i32 @fuzz9935() {
   %4 = or i32 %3, %2
   ret i32 %4
 }
+
+declare <4 x i32> @llvm.fshl.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)
+declare <4 x i32> @llvm.fshr.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)

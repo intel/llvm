@@ -1,24 +1,24 @@
 # RUN: llvm-mc %S/Inputs/debug_rnglists_short_section.s -filetype obj -triple x86_64-pc-linux -o - | \
-# RUN: llvm-dwarfdump --debug-rnglists - 2>&1 | FileCheck %s --check-prefix=SHORT
+# RUN: not llvm-dwarfdump --debug-rnglists - 2>&1 | FileCheck %s --check-prefix=SHORT
 # SHORT-NOT: error:
 # SHORT-NOT: range list header
-# SHORT: error: section is not large enough to contain a .debug_rnglists table length at offset 0
+# SHORT: error: parsing .debug_rnglists table at offset 0x0: unexpected end of data at offset 0x3
 # SHORT-NOT: range list header
 # SHORT-NOT: error:
 
 # RUN: llvm-mc %s -filetype obj -triple x86_64-pc-linux -o - | \
-# RUN: llvm-dwarfdump --debug-rnglists - 2> %t.err | FileCheck %s --check-prefix=GOOD
+# RUN: not llvm-dwarfdump --debug-rnglists - 2> %t.err | FileCheck %s --check-prefix=GOOD
 # RUN: FileCheck %s --input-file %t.err
 
 # GOOD: .debug_rnglists contents:
-# GOOD-NEXT: range list header: length = 0x0000001e, version = 0x0005, addr_size = 0x08, seg_size = 0x00, offset_entry_count = 0x00000001
+# GOOD-NEXT: range list header: length = 0x0000001e, format = DWARF32, version = 0x0005, addr_size = 0x08, seg_size = 0x00, offset_entry_count = 0x00000001
 # GOOD-NEXT: offsets: [
 # GOOD-NEXT:    0x00000004
 # GOOD-NEXT: ]
 # GOOD-NEXT: ranges:
 # GOOD-NEXT: [0x0000000000000010, 0x0000000000000020)
 # GOOD-NEXT: <End of list>
-# GOOD-NEXT: range list header: length = 0x0000001a, version = 0x0005, addr_size = 0x08, seg_size = 0x00, offset_entry_count = 0x00000000
+# GOOD-NEXT: range list header: length = 0x0000001a, format = DWARF32, version = 0x0005, addr_size = 0x08, seg_size = 0x00, offset_entry_count = 0x00000000
 # GOOD-NEXT: ranges:
 # GOOD-NEXT: [0x0000000000000030, 0x0000000000000040)
 # GOOD-NEXT: <End of list>
@@ -27,20 +27,15 @@
 # CHECK-NOT: error:
 # CHECK: error: .debug_rnglists table at offset 0x22 has too small length (0xb) to contain a complete header
 # CHECK-NEXT: error: unrecognised .debug_rnglists table version 4 in table at offset 0x2d
-# CHECK-NEXT: error: .debug_rnglists table at offset 0x39 has unsupported address size 2
+# CHECK-NEXT: error: .debug_rnglists table at offset 0x39 has unsupported address size: 3
 # CHECK-NEXT: error: .debug_rnglists table at offset 0x45 has unsupported segment selector size 4
 # CHECK-NEXT: error: .debug_rnglists table at offset 0x51 has more offset entries (12345678) than there is space for
-# CHECK-NEXT: error: insufficient space remaining in table for DW_RLE_start_end encoding at offset 0x69
+# CHECK-NEXT: error: read past end of table when reading DW_RLE_start_end encoding at offset 0x69
 # CHECK-NEXT: error: read past end of table when reading DW_RLE_start_length encoding at offset 0x82
 # CHECK-NEXT: error: unknown rnglists encoding 0x2a at offset 0x98
 # CHECK-NEXT: error: no end of list marker detected at end of .debug_rnglists table starting at offset 0xaa
 # CHECK-NEXT: error: section is not large enough to contain a .debug_rnglists table of length 0x1f at offset 0xe5
 # CHECK-NOT: error:
-
-# RUN: llvm-mc %S/Inputs/debug_rnglists_DWARF64.s -filetype obj -triple x86_64-pc-linux -o - | \
-# RUN: llvm-dwarfdump --debug-rnglists - 2>&1 | FileCheck %s --check-prefix=DWARF64
-
-# DWARF64: DWARF64 is not supported in .debug_rnglists at offset 0x0
 
 .section .debug_rnglists,"",@progbits
 
@@ -76,7 +71,7 @@
 # Table 4 (unsupported address size)
 .long 8  # Table length
 .short 5 # Version
-.byte 2  # Address size
+.byte 3  # Address size
 .byte 0  # Segment selector size
 .long 0  # Offset entry count
 

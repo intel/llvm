@@ -13,12 +13,10 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/Passes.h"
-#include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 
 using namespace llvm;
 
@@ -34,8 +32,8 @@ struct FEntryInserter : public MachineFunctionPass {
 }
 
 bool FEntryInserter::runOnMachineFunction(MachineFunction &MF) {
-  const std::string FEntryName =
-      MF.getFunction().getFnAttribute("fentry-call").getValueAsString();
+  const std::string FEntryName = std::string(
+      MF.getFunction().getFnAttribute("fentry-call").getValueAsString());
   if (FEntryName != "true")
     return false;
 

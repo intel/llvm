@@ -1,4 +1,4 @@
-; ; RUN: opt -analyze -scalar-evolution < %s | FileCheck %s
+; ; RUN: opt -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 define void @infer.sext.0(i1* %c, i32 %start, i32* %buf) {
 ; CHECK-LABEL: Classifying expressions for: @infer.sext.0
@@ -59,7 +59,7 @@ define void @infer.sext.1(i32 %start, i1* %c) {
   %idx = phi i32 [ %start.real, %entry ], [ %idx.inc, %loop ]
   %idx.sext = sext i32 %idx to i64
 ; CHECK: %idx.sext = sext i32 %idx to i64
-; CHECK-NEXT:  -->  {(2 + (sext i32 (4 * %start) to i64))<nsw>,+,2}<nsw><%loop>
+; CHECK-NEXT:  -->  {(2 + (sext i32 (4 * %start) to i64))<nuw><nsw>,+,2}<nsw><%loop>
   %idx.inc = add nsw i32 %idx, 2
   %condition = load i1, i1* %c
   br i1 %condition, label %exit, label %loop

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <initializer_list>
 
@@ -47,15 +47,15 @@ struct B
     }
 };
 
-#endif  // TEST_STD_VER > 11
+#endif // TEST_STD_VER > 11
 
 int main(int, char**)
 {
-    A test1 = {3, 2, 1};
+    A test1 = {3, 2, 1}; (void)test1;
 #if TEST_STD_VER > 11
     constexpr B test2 = {3, 2, 1};
     (void)test2;
-#endif  // TEST_STD_VER > 11
+#endif // TEST_STD_VER > 11
 
   return 0;
 }

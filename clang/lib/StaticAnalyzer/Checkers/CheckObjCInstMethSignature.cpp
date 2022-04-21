@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file defines a CheckObjCInstMethSignature, a flow-insenstive check
+//  This file defines a CheckObjCInstMethSignature, a flow-insensitive check
 //  that determines if an Objective-C class interface incorrectly redefines
 //  the method signature in a subclass.
 //
 //===----------------------------------------------------------------------===//
 
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
+#include "clang/Analysis/PathDiagnostic.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/Type.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
-#include "clang/StaticAnalyzer/Core/BugReporter/PathDiagnostic.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/raw_ostream.h"
@@ -138,6 +138,6 @@ void ento::registerObjCMethSigsChecker(CheckerManager &mgr) {
   mgr.registerChecker<ObjCMethSigsChecker>();
 }
 
-bool ento::shouldRegisterObjCMethSigsChecker(const LangOptions &LO) {
+bool ento::shouldRegisterObjCMethSigsChecker(const CheckerManager &mgr) {
   return true;
 }

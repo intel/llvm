@@ -14,6 +14,7 @@
 #include "clang/AST/ASTImporterLookupTable.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "llvm/Support/FormatVariadic.h"
 
 namespace clang {
 
@@ -22,21 +23,52 @@ namespace {
 struct Builder : RecursiveASTVisitor<Builder> {
   ASTImporterLookupTable &LT;
   Builder(ASTImporterLookupTable &LT) : LT(LT) {}
+
+  bool VisitTypedefNameDecl(TypedefNameDecl *D) {
+    QualType Ty = D->getUnderlyingType();
+    Ty = Ty.getCanonicalType();
+    if (const auto *RTy = dyn_cast<RecordType>(Ty)) {
+      LT.add(RTy->getAsRecordDecl());
+      // iterate over the field decls, adding them
+      for (auto *it : RTy->getAsRecordDecl()->fields()) {
+        LT.add(it);
+      }
+    }
+    return true;
+  }
+
   bool VisitNamedDecl(NamedDecl *D) {
     LT.add(D);
     return true;
   }
+  // In most cases the FriendDecl contains the declaration of the befriended
+  // class as a child node, so it is discovered during the recursive
+  // visitation. However, there are cases when the befriended class is not a
+  // child, thus it must be fetched explicitly from the FriendDecl, and only
+  // then can we add it to the lookup table.
   bool VisitFriendDecl(FriendDecl *D) {
     if (D->getFriendType()) {
       QualType Ty = D->getFriendType()->getType();
-      // FIXME Can this be other than elaborated?
-      QualType NamedTy = cast<ElaboratedType>(Ty)->getNamedType();
-      if (!NamedTy->isDependentType()) {
-        if (const auto *RTy = dyn_cast<RecordType>(NamedTy))
+      if (isa<ElaboratedType>(Ty))
+        Ty = cast<ElaboratedType>(Ty)->getNamedType();
+      // A FriendDecl with a dependent type (e.g. ClassTemplateSpecialization)
+      // always has that decl as child node.
+      // However, there are non-dependent cases which does not have the
+      // type as a child node. We have to dig up that type now.
+      if (!Ty->isDependentType()) {
+        if (const auto *RTy = dyn_cast<RecordType>(Ty))
           LT.add(RTy->getAsCXXRecordDecl());
-        else if (const auto *SpecTy =
-                     dyn_cast<TemplateSpecializationType>(NamedTy)) {
+        else if (const auto *SpecTy = dyn_cast<TemplateSpecializationType>(Ty))
           LT.add(SpecTy->getAsCXXRecordDecl());
+        else if (const auto *SubstTy =
+                     dyn_cast<SubstTemplateTypeParmType>(Ty)) {
+          if (SubstTy->getAsCXXRecordDecl())
+            LT.add(SubstTy->getAsCXXRecordDecl());
+        } else if (isa<TypedefType>(Ty)) {
+          // We do not put friend typedefs to the lookup table because
+          // ASTImporter does not organize typedefs into redecl chains.
+        } else {
+          llvm_unreachable("Unhandled type of friend class");
         }
       }
     }
@@ -62,10 +94,19 @@ void ASTImporterLookupTable::add(DeclContext *DC, NamedDecl *ND) {
 }
 
 void ASTImporterLookupTable::remove(DeclContext *DC, NamedDecl *ND) {
-  DeclList &Decls = LookupTable[DC][ND->getDeclName()];
+  const DeclarationName Name = ND->getDeclName();
+  DeclList &Decls = LookupTable[DC][Name];
   bool EraseResult = Decls.remove(ND);
   (void)EraseResult;
-  assert(EraseResult == true && "Trying to remove not contained Decl");
+#ifndef NDEBUG
+  if (!EraseResult) {
+    std::string Message =
+        llvm::formatv("Trying to remove not contained Decl '{0}' of type {1}",
+                      Name.getAsString(), DC->getDeclKindName())
+            .str();
+    llvm_unreachable(Message.c_str());
+  }
+#endif
 }
 
 void ASTImporterLookupTable::add(NamedDecl *ND) {
@@ -86,6 +127,24 @@ void ASTImporterLookupTable::remove(NamedDecl *ND) {
     remove(ReDC, ND);
 }
 
+void ASTImporterLookupTable::update(NamedDecl *ND, DeclContext *OldDC) {
+  assert(OldDC != ND->getDeclContext() &&
+         "DeclContext should be changed before update");
+  if (contains(ND->getDeclContext(), ND)) {
+    assert(!contains(OldDC, ND) &&
+           "Decl should not be found in the old context if already in the new");
+    return;
+  }
+
+  remove(OldDC, ND);
+  add(ND);
+}
+
+void ASTImporterLookupTable::updateForced(NamedDecl *ND, DeclContext *OldDC) {
+  LookupTable[OldDC][ND->getDeclName()].remove(ND);
+  add(ND);
+}
+
 ASTImporterLookupTable::LookupResult
 ASTImporterLookupTable::lookup(DeclContext *DC, DeclarationName Name) const {
   auto DCI = LookupTable.find(DC->getPrimaryContext());
@@ -98,6 +157,10 @@ ASTImporterLookupTable::lookup(DeclContext *DC, DeclarationName Name) const {
     return {};
 
   return NamesI->second;
+}
+
+bool ASTImporterLookupTable::contains(DeclContext *DC, NamedDecl *ND) const {
+  return lookup(DC, ND->getDeclName()).contains(ND);
 }
 
 void ASTImporterLookupTable::dump(DeclContext *DC) const {

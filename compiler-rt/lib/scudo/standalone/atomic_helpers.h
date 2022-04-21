@@ -21,12 +21,12 @@ enum memory_order {
   memory_order_acq_rel = 4,
   memory_order_seq_cst = 5
 };
-COMPILER_CHECK(memory_order_relaxed == __ATOMIC_RELAXED);
-COMPILER_CHECK(memory_order_consume == __ATOMIC_CONSUME);
-COMPILER_CHECK(memory_order_acquire == __ATOMIC_ACQUIRE);
-COMPILER_CHECK(memory_order_release == __ATOMIC_RELEASE);
-COMPILER_CHECK(memory_order_acq_rel == __ATOMIC_ACQ_REL);
-COMPILER_CHECK(memory_order_seq_cst == __ATOMIC_SEQ_CST);
+static_assert(memory_order_relaxed == __ATOMIC_RELAXED, "");
+static_assert(memory_order_consume == __ATOMIC_CONSUME, "");
+static_assert(memory_order_acquire == __ATOMIC_ACQUIRE, "");
+static_assert(memory_order_release == __ATOMIC_RELEASE, "");
+static_assert(memory_order_acq_rel == __ATOMIC_ACQ_REL, "");
+static_assert(memory_order_seq_cst == __ATOMIC_SEQ_CST, "");
 
 struct atomic_u8 {
   typedef u8 Type;
@@ -51,7 +51,7 @@ struct atomic_u32 {
 struct atomic_u64 {
   typedef u64 Type;
   // On 32-bit platforms u64 is not necessarily aligned on 8 bytes.
-  ALIGNED(8) volatile Type ValDoNotUse;
+  alignas(8) volatile Type ValDoNotUse;
 };
 
 struct atomic_uptr {
@@ -60,7 +60,7 @@ struct atomic_uptr {
 };
 
 template <typename T>
-INLINE typename T::Type atomic_load(const volatile T *A, memory_order MO) {
+inline typename T::Type atomic_load(const volatile T *A, memory_order MO) {
   DCHECK(!(reinterpret_cast<uptr>(A) % sizeof(*A)));
   typename T::Type V;
   __atomic_load(&A->ValDoNotUse, &V, MO);
@@ -68,29 +68,43 @@ INLINE typename T::Type atomic_load(const volatile T *A, memory_order MO) {
 }
 
 template <typename T>
-INLINE void atomic_store(volatile T *A, typename T::Type V, memory_order MO) {
+inline void atomic_store(volatile T *A, typename T::Type V, memory_order MO) {
   DCHECK(!(reinterpret_cast<uptr>(A) % sizeof(*A)));
   __atomic_store(&A->ValDoNotUse, &V, MO);
 }
 
-INLINE void atomic_thread_fence(memory_order) { __sync_synchronize(); }
+inline void atomic_thread_fence(memory_order) { __sync_synchronize(); }
 
 template <typename T>
-INLINE typename T::Type atomic_fetch_add(volatile T *A, typename T::Type V,
+inline typename T::Type atomic_fetch_add(volatile T *A, typename T::Type V,
                                          memory_order MO) {
   DCHECK(!(reinterpret_cast<uptr>(A) % sizeof(*A)));
   return __atomic_fetch_add(&A->ValDoNotUse, V, MO);
 }
 
 template <typename T>
-INLINE typename T::Type atomic_fetch_sub(volatile T *A, typename T::Type V,
+inline typename T::Type atomic_fetch_sub(volatile T *A, typename T::Type V,
                                          memory_order MO) {
   DCHECK(!(reinterpret_cast<uptr>(A) % sizeof(*A)));
   return __atomic_fetch_sub(&A->ValDoNotUse, V, MO);
 }
 
 template <typename T>
-INLINE typename T::Type atomic_exchange(volatile T *A, typename T::Type V,
+inline typename T::Type atomic_fetch_and(volatile T *A, typename T::Type V,
+                                         memory_order MO) {
+  DCHECK(!(reinterpret_cast<uptr>(A) % sizeof(*A)));
+  return __atomic_fetch_and(&A->ValDoNotUse, V, MO);
+}
+
+template <typename T>
+inline typename T::Type atomic_fetch_or(volatile T *A, typename T::Type V,
+                                        memory_order MO) {
+  DCHECK(!(reinterpret_cast<uptr>(A) % sizeof(*A)));
+  return __atomic_fetch_or(&A->ValDoNotUse, V, MO);
+}
+
+template <typename T>
+inline typename T::Type atomic_exchange(volatile T *A, typename T::Type V,
                                         memory_order MO) {
   DCHECK(!(reinterpret_cast<uptr>(A) % sizeof(*A)));
   typename T::Type R;
@@ -99,31 +113,31 @@ INLINE typename T::Type atomic_exchange(volatile T *A, typename T::Type V,
 }
 
 template <typename T>
-INLINE bool atomic_compare_exchange_strong(volatile T *A, typename T::Type *Cmp,
+inline bool atomic_compare_exchange_strong(volatile T *A, typename T::Type *Cmp,
                                            typename T::Type Xchg,
                                            memory_order MO) {
   return __atomic_compare_exchange(&A->ValDoNotUse, Cmp, &Xchg, false, MO,
                                    __ATOMIC_RELAXED);
 }
 
-template <typename T>
-INLINE bool atomic_compare_exchange_weak(volatile T *A, typename T::Type *Cmp,
-                                         typename T::Type Xchg,
-                                         memory_order MO) {
-  return __atomic_compare_exchange(&A->ValDoNotUse, Cmp, &Xchg, true, MO,
-                                   __ATOMIC_RELAXED);
-}
-
 // Clutter-reducing helpers.
 
 template <typename T>
-INLINE typename T::Type atomic_load_relaxed(const volatile T *A) {
+inline typename T::Type atomic_load_relaxed(const volatile T *A) {
   return atomic_load(A, memory_order_relaxed);
 }
 
 template <typename T>
-INLINE void atomic_store_relaxed(volatile T *A, typename T::Type V) {
+inline void atomic_store_relaxed(volatile T *A, typename T::Type V) {
   atomic_store(A, V, memory_order_relaxed);
+}
+
+template <typename T>
+inline typename T::Type atomic_compare_exchange(volatile T *A,
+                                                typename T::Type Cmp,
+                                                typename T::Type Xchg) {
+  atomic_compare_exchange_strong(A, &Cmp, Xchg, memory_order_acquire);
+  return Cmp;
 }
 
 } // namespace scudo

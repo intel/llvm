@@ -1,6 +1,5 @@
-; RUN: opt -basicaa -sroa -loop-rotate -licm -S < %s | FileCheck %s
-; RUN: opt -basicaa -sroa -loop-rotate %s | opt -aa-pipeline=basic-aa -passes='require<aa>,require<targetir>,require<scalar-evolution>,require<opt-remark-emit>,loop(licm)' -S | FileCheck %s
-; RUN: opt -basicaa -sroa -loop-rotate -licm -enable-mssa-loop-dependency=true -verify-memoryssa -S < %s | FileCheck %s
+; RUN: opt -basic-aa -sroa -loop-rotate %s | opt -aa-pipeline=basic-aa -passes='require<aa>,require<targetir>,require<scalar-evolution>,require<opt-remark-emit>,loop-mssa(licm)' -S | FileCheck %s
+; RUN: opt -basic-aa -sroa -loop-rotate -licm -verify-memoryssa -S < %s | FileCheck %s
 ; The objects *p and *q are aliased to each other, but even though *q is
 ; volatile, *p can be considered invariant in the loop. Check if it is moved
 ; out of the loop.
@@ -53,4 +52,4 @@ for.end:                                          ; preds = %for.cond
   ret i32 %8
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

@@ -6,10 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBError_h_
-#define LLDB_SBError_h_
+#ifndef LLDB_API_SBERROR_H
+#define LLDB_API_SBERROR_H
 
 #include "lldb/API/SBDefines.h"
+
+namespace lldb_private {
+class ScriptInterpreter;
+} // namespace lldb_private
 
 namespace lldb {
 
@@ -70,6 +74,9 @@ protected:
   friend class SBTrace;
   friend class SBValue;
   friend class SBWatchpoint;
+  friend class SBFile;
+
+  friend class lldb_private::ScriptInterpreter;
 
   lldb_private::Status *get();
 
@@ -89,4 +96,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBError_h_
+#endif // LLDB_API_SBERROR_H

@@ -14,13 +14,14 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "constexpr_char_traits.hpp"
+#include "constexpr_char_traits.h"
 
 template <class S>
 void
 test(const S& s, const typename S::value_type* str, typename S::size_type pos,
      typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_last_not_of(str, pos));
     assert(s.find_last_not_of(str, pos) == x);
     if (x != S::npos)
         assert(x <= pos && x < s.size());

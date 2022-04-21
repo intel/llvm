@@ -17,7 +17,5 @@ static_library("AsmParser") {
     "//llvm/lib/Target/X86/TargetInfo",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "X86AsmParser.cpp",
-  ]
+  sources = [ "X86AsmParser.cpp" ]
 }

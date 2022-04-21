@@ -8,6 +8,7 @@
 
 #include "IndexingContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "llvm/ADT/ScopeExit.h"
 
 using namespace clang;
 using namespace index;
@@ -133,29 +134,66 @@ public:
     return true;
   }
 
-  template<typename TypeLocType>
-  bool HandleTemplateSpecializationTypeLoc(TypeLocType TL) {
-    if (const auto *T = TL.getTypePtr()) {
-      if (CXXRecordDecl *RD = T->getAsCXXRecordDecl()) {
-        if (!RD->isImplicit() || IndexCtx.shouldIndexImplicitInstantiation()) {
-          IndexCtx.handleReference(RD, TL.getTemplateNameLoc(), Parent,
-                                   ParentDC, SymbolRoleSet(), Relations);
-          return true;
-        }
-      }
-      if (const TemplateDecl *D = T->getTemplateName().getAsTemplateDecl())
-        IndexCtx.handleReference(D, TL.getTemplateNameLoc(), Parent, ParentDC,
-                                 SymbolRoleSet(), Relations);
+  void HandleTemplateSpecializationTypeLoc(TemplateName TemplName,
+                                           SourceLocation TemplNameLoc,
+                                           CXXRecordDecl *ResolvedClass,
+                                           bool IsTypeAlias) {
+    // In presence of type aliases, the resolved class was never written in
+    // the code so don't report it.
+    if (!IsTypeAlias && ResolvedClass &&
+        (!ResolvedClass->isImplicit() ||
+         IndexCtx.shouldIndexImplicitInstantiation())) {
+      IndexCtx.handleReference(ResolvedClass, TemplNameLoc, Parent, ParentDC,
+                               SymbolRoleSet(), Relations);
+    } else if (const TemplateDecl *D = TemplName.getAsTemplateDecl()) {
+      IndexCtx.handleReference(D, TemplNameLoc, Parent, ParentDC,
+                               SymbolRoleSet(), Relations);
     }
-    return true;
   }
 
   bool VisitTemplateSpecializationTypeLoc(TemplateSpecializationTypeLoc TL) {
-    return HandleTemplateSpecializationTypeLoc(TL);
+    auto *T = TL.getTypePtr();
+    if (!T)
+      return true;
+    HandleTemplateSpecializationTypeLoc(
+        T->getTemplateName(), TL.getTemplateNameLoc(), T->getAsCXXRecordDecl(),
+        T->isTypeAlias());
+    return true;
+  }
+
+  bool TraverseTemplateSpecializationTypeLoc(TemplateSpecializationTypeLoc TL) {
+    if (!WalkUpFromTemplateSpecializationTypeLoc(TL))
+      return false;
+    if (!TraverseTemplateName(TL.getTypePtr()->getTemplateName()))
+      return false;
+
+    // The relations we have to `Parent` do not apply to our template arguments,
+    // so clear them while visiting the args.
+    SmallVector<SymbolRelation, 3> SavedRelations = Relations;
+    Relations.clear();
+    auto ResetSavedRelations =
+        llvm::make_scope_exit([&] { this->Relations = SavedRelations; });
+    for (unsigned I = 0, E = TL.getNumArgs(); I != E; ++I) {
+      if (!TraverseTemplateArgumentLoc(TL.getArgLoc(I)))
+        return false;
+    }
+
+    return true;
   }
 
   bool VisitDeducedTemplateSpecializationTypeLoc(DeducedTemplateSpecializationTypeLoc TL) {
-    return HandleTemplateSpecializationTypeLoc(TL);
+    auto *T = TL.getTypePtr();
+    if (!T)
+      return true;
+    HandleTemplateSpecializationTypeLoc(
+        T->getTemplateName(), TL.getTemplateNameLoc(), T->getAsCXXRecordDecl(),
+        /*IsTypeAlias=*/false);
+    return true;
+  }
+
+  bool VisitInjectedClassNameTypeLoc(InjectedClassNameTypeLoc TL) {
+    return IndexCtx.handleReference(TL.getDecl(), TL.getNameLoc(), Parent,
+                                    ParentDC, SymbolRoleSet(), Relations);
   }
 
   bool VisitDependentNameTypeLoc(DependentNameTypeLoc TL) {

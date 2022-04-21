@@ -1,4 +1,4 @@
-; RUN: opt -basicaa -functionattrs -S < %s | FileCheck %s
+; RUN: opt -basic-aa -function-attrs -S < %s | FileCheck %s
 ; RUN: opt -aa-pipeline=basic-aa -passes=function-attrs -S < %s | FileCheck %s
 
 ; Atomic load/store to local doesn't affect whether a function is
@@ -20,5 +20,5 @@ entry:
   ret i32 %r
 }
 
-; CHECK: attributes #0 = { norecurse nounwind readnone ssp uwtable }
-; CHECK: attributes #1 = { norecurse nounwind ssp uwtable }
+; CHECK: attributes #0 = { mustprogress nofree norecurse nosync nounwind readnone ssp willreturn uwtable }
+; CHECK: attributes #1 = { argmemonly mustprogress nofree norecurse nounwind ssp willreturn uwtable }

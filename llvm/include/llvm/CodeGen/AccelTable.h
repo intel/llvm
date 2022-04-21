@@ -5,31 +5,28 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file contains support for writing accelerator tables.
-//
+/// \file
+/// This file contains support for writing accelerator tables.
+///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CODEGEN_DWARFACCELTABLE_H
-#define LLVM_CODEGEN_DWARFACCELTABLE_H
+#ifndef LLVM_CODEGEN_ACCELTABLE_H
+#define LLVM_CODEGEN_ACCELTABLE_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/DIE.h"
 #include "llvm/CodeGen/DwarfStringPoolEntry.h"
-#include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/DJB.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/raw_ostream.h"
-#include <cstddef>
 #include <cstdint>
 #include <vector>
 
+/// \file
 /// The DWARF and Apple accelerator tables are an indirect hash table optimized
 /// for null lookup rather than access to known data. The Apple accelerator
 /// tables are a precursor of the newer DWARF v5 accelerator tables. Both
@@ -101,14 +98,14 @@
 ///
 /// An Apple Accelerator Table can be serialized by calling emitAppleAccelTable
 /// function.
-///
-/// TODO: Add DWARF v5 emission code.
 
 namespace llvm {
 
 class AsmPrinter;
 class DwarfCompileUnit;
 class DwarfDebug;
+class MCSymbol;
+class raw_ostream;
 
 /// Interface which the different types of accelerator table data have to
 /// conform. It serves as a base class for different values of the template
@@ -326,14 +323,8 @@ public:
 
   void emit(AsmPrinter *Asm) const override;
 
-#ifndef _MSC_VER
-  // The line below is rejected by older versions (TBD) of MSVC.
   static constexpr Atom Atoms[] = {
       Atom(dwarf::DW_ATOM_die_offset, dwarf::DW_FORM_data4)};
-#else
-  // FIXME: Erase this path once the minimum MSCV version has been bumped.
-  static const SmallVector<Atom, 4> Atoms;
-#endif
 
 #ifndef NDEBUG
   void print(raw_ostream &OS) const override;
@@ -351,16 +342,10 @@ public:
 
   void emit(AsmPrinter *Asm) const override;
 
-#ifndef _MSC_VER
-  // The line below is rejected by older versions (TBD) of MSVC.
   static constexpr Atom Atoms[] = {
       Atom(dwarf::DW_ATOM_die_offset, dwarf::DW_FORM_data4),
       Atom(dwarf::DW_ATOM_die_tag, dwarf::DW_FORM_data2),
       Atom(dwarf::DW_ATOM_type_flags, dwarf::DW_FORM_data1)};
-#else
-  // FIXME: Erase this path once the minimum MSCV version has been bumped.
-  static const SmallVector<Atom, 4> Atoms;
-#endif
 
 #ifndef NDEBUG
   void print(raw_ostream &OS) const override;
@@ -375,14 +360,8 @@ public:
 
   void emit(AsmPrinter *Asm) const override;
 
-#ifndef _MSC_VER
-  // The line below is rejected by older versions (TBD) of MSVC.
   static constexpr Atom Atoms[] = {
       Atom(dwarf::DW_ATOM_die_offset, dwarf::DW_FORM_data4)};
-#else
-  // FIXME: Erase this path once the minimum MSCV version has been bumped.
-  static const SmallVector<Atom, 4> Atoms;
-#endif
 
 #ifndef NDEBUG
   void print(raw_ostream &OS) const override;
@@ -406,16 +385,10 @@ public:
 
   void emit(AsmPrinter *Asm) const override;
 
-#ifndef _MSC_VER
-  // The line below is rejected by older versions (TBD) of MSVC.
   static constexpr Atom Atoms[] = {
       Atom(dwarf::DW_ATOM_die_offset, dwarf::DW_FORM_data4),
       Atom(dwarf::DW_ATOM_die_tag, dwarf::DW_FORM_data2),
       Atom(5, dwarf::DW_FORM_data1), Atom(6, dwarf::DW_FORM_data4)};
-#else
-  // FIXME: Erase this path once the minimum MSCV version has been bumped.
-  static const SmallVector<Atom, 4> Atoms;
-#endif
 
 #ifndef NDEBUG
   void print(raw_ostream &OS) const override;
@@ -430,4 +403,4 @@ protected:
 
 } // end namespace llvm
 
-#endif // LLVM_CODEGEN_DWARFACCELTABLE_H
+#endif // LLVM_CODEGEN_ACCELTABLE_H

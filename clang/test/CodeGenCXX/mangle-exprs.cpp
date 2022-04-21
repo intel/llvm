@@ -112,10 +112,10 @@ namespace test1 {
   short foo(short);
   int foo(int);
 
-  // CHECK-LABEL: define linkonce_odr signext i16 @_ZN5test11aIsEEDTcl3foocvT__EEES1_(
+  // CHECK-LABEL: define linkonce_odr noundef signext i16 @_ZN5test11aIsEEDTcl3foocvT__EEES1_(
   template <class T> auto a(T t) -> decltype(foo(T())) { return foo(t); }
 
-  // CHECK-LABEL: define linkonce_odr signext i16 @_ZN5test11bIsEEDTcp3foocvT__EEES1_(
+  // CHECK-LABEL: define linkonce_odr noundef signext i16 @_ZN5test11bIsEEDTcp3foocvT__EEES1_(
   template <class T> auto b(T t) -> decltype((foo)(T())) { return (foo)(t); }
 
   void test(short s) {
@@ -143,11 +143,11 @@ namespace test2 {
   float baz(float(*)());
   void fred(float(*)(), float);
 
-  // CHECK-LABEL: define void @_ZN5test211instantiateEv
+  // CHECK-LABEL: define{{.*}} void @_ZN5test211instantiateEv
   void instantiate() {
     // CHECK: call void @_ZN5test21aIPFfvEEEvT_DTclfL0p_EE(
     a(foo, 0.0f);
-    // CHECK: call float @_ZN5test21bIPFfvEEEDTclfp_EET_(
+    // CHECK: call noundef float @_ZN5test21bIPFfvEEEDTclfp_EET_(
     (void) b(foo);
     // CHECK: call void @_ZN5test21cIPFfvEEEvT_PFvDTclfL1p_EEE(
     c(foo, bar);
@@ -175,7 +175,7 @@ namespace test3 {
     int *member;
   };
 
-  // CHECK-LABEL: define void @_ZN5test311instantiateEv
+  // CHECK-LABEL: define{{.*}} void @_ZN5test311instantiateEv
   void instantiate() {
     X x;
     int *ip;
@@ -363,7 +363,7 @@ namespace test8 {
     template <class T> auto bar() const -> decltype(foo<T>()) { return 0; }
   };
 
-  // CHECK-LABEL: define weak_odr i32 @_ZNK5test81XIiE3barIiEEDTcl3fooIT_EEEv
+  // CHECK-LABEL: define weak_odr noundef i32 @_ZNK5test81XIiE3barIiEEDTcl3fooIT_EEEv
   template int X<int>::bar<int>() const;
 }
 
@@ -372,4 +372,20 @@ namespace designated_init {
   // CHECK-LABEL: define {{.*}} @_ZN15designated_init1fINS_1AEEEvDTtlT_di1adi1bdxLi3EdXLi1ELi4ELi9EEE(
   template<typename T> void f(decltype(T{.a.b[3][1 ... 4] = 9}) x) {}
   void use_f(A a) { f<A>(a); }
+}
+
+namespace null {
+  template <decltype(nullptr) P>
+  void cpp_nullptr(typename enable_if<P == nullptr>::type* = 0) {
+  }
+
+  template <void *P>
+  void gnu_null(typename enable_if<P == __null>::type* = 0) {
+  }
+
+  // CHECK-LABEL: define {{.*}} @_ZN4null11cpp_nullptrILDn0EEEvPN9enable_ifIXeqT_LDnEEvE4typeE
+  template void cpp_nullptr<nullptr>(void *);
+
+  // CHECK-LABEL: define {{.*}} @_ZN4null8gnu_nullILPv0EEEvPN9enable_ifIXeqT_Ll0EEvE4typeE
+  template void gnu_null<nullptr>(void *);
 }

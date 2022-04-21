@@ -1,4 +1,4 @@
-//===-- OptionValue.cpp -----------------------------------------*- C++ -*-===//
+//===-- OptionValue.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,9 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Interpreter/OptionValue.h"
-
 #include "lldb/Interpreter/OptionValues.h"
 #include "lldb/Utility/StringList.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -38,7 +39,7 @@ Status OptionValue::SetSubValue(const ExecutionContext *exe_ctx,
                                 VarSetOperationType op, llvm::StringRef name,
                                 llvm::StringRef value) {
   Status error;
-  error.SetErrorStringWithFormat("SetSubValue is not supported");
+  error.SetErrorString("SetSubValue is not supported");
   return error;
 }
 
@@ -165,13 +166,13 @@ const OptionValueFormat *OptionValue::GetAsFormat() const {
 OptionValueLanguage *OptionValue::GetAsLanguage() {
   if (GetType() == OptionValue::eTypeLanguage)
     return static_cast<OptionValueLanguage *>(this);
-  return NULL;
+  return nullptr;
 }
 
 const OptionValueLanguage *OptionValue::GetAsLanguage() const {
   if (GetType() == OptionValue::eTypeLanguage)
     return static_cast<const OptionValueLanguage *>(this);
-  return NULL;
+  return nullptr;
 }
 
 OptionValueFormatEntity *OptionValue::GetAsFormatEntity() {
@@ -470,6 +471,8 @@ const char *OptionValue::GetBuiltinTypeAsCString(Type t) {
     return "dictionary";
   case eTypeEnum:
     return "enum";
+  case eTypeFileLineColumn:
+    return "file:line:column specifier";
   case eTypeFileSpec:
     return "file";
   case eTypeFileSpecList:
@@ -505,43 +508,42 @@ lldb::OptionValueSP OptionValue::CreateValueFromCStringForTypeMask(
   lldb::OptionValueSP value_sp;
   switch (type_mask) {
   case 1u << eTypeArch:
-    value_sp.reset(new OptionValueArch());
+    value_sp = std::make_shared<OptionValueArch>();
     break;
   case 1u << eTypeBoolean:
-    value_sp.reset(new OptionValueBoolean(false));
+    value_sp = std::make_shared<OptionValueBoolean>(false);
     break;
   case 1u << eTypeChar:
-    value_sp.reset(new OptionValueChar('\0'));
+    value_sp = std::make_shared<OptionValueChar>('\0');
     break;
   case 1u << eTypeFileSpec:
-    value_sp.reset(new OptionValueFileSpec());
+    value_sp = std::make_shared<OptionValueFileSpec>();
     break;
   case 1u << eTypeFormat:
-    value_sp.reset(new OptionValueFormat(eFormatInvalid));
+    value_sp = std::make_shared<OptionValueFormat>(eFormatInvalid);
     break;
   case 1u << eTypeFormatEntity:
-    value_sp.reset(new OptionValueFormatEntity(NULL));
+    value_sp = std::make_shared<OptionValueFormatEntity>(nullptr);
     break;
   case 1u << eTypeLanguage:
-    value_sp.reset(new OptionValueLanguage(eLanguageTypeUnknown));
+    value_sp = std::make_shared<OptionValueLanguage>(eLanguageTypeUnknown);
     break;
   case 1u << eTypeSInt64:
-    value_sp.reset(new OptionValueSInt64());
+    value_sp = std::make_shared<OptionValueSInt64>();
     break;
   case 1u << eTypeString:
-    value_sp.reset(new OptionValueString());
+    value_sp = std::make_shared<OptionValueString>();
     break;
   case 1u << eTypeUInt64:
-    value_sp.reset(new OptionValueUInt64());
+    value_sp = std::make_shared<OptionValueUInt64>();
     break;
   case 1u << eTypeUUID:
-    value_sp.reset(new OptionValueUUID());
+    value_sp = std::make_shared<OptionValueUUID>();
     break;
   }
 
   if (value_sp)
-    error = value_sp->SetValueFromString(
-        llvm::StringRef::withNullAsEmpty(value_cstr), eVarSetOperationAssign);
+    error = value_sp->SetValueFromString(value_cstr, eVarSetOperationAssign);
   else
     error.SetErrorString("unsupported type mask");
   return value_sp;
@@ -565,11 +567,14 @@ bool OptionValue::DumpQualifiedName(Stream &strm) const {
   return dumped_something;
 }
 
-size_t OptionValue::AutoComplete(CommandInterpreter &interpreter,
-                                 CompletionRequest &request) {
-  request.SetWordComplete(false);
-  return request.GetNumberOfMatches();
+OptionValueSP OptionValue::DeepCopy(const OptionValueSP &new_parent) const {
+  auto clone = Clone();
+  clone->SetParent(new_parent);
+  return clone;
 }
+
+void OptionValue::AutoComplete(CommandInterpreter &interpreter,
+                               CompletionRequest &request) {}
 
 Status OptionValue::SetValueFromString(llvm::StringRef value,
                                        VarSetOperationType op) {

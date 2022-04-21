@@ -52,7 +52,7 @@ public:
   const ARMSubtarget *getSubtargetImpl() const = delete;
   bool isLittleEndian() const { return isLittle; }
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   // Pass Pipeline Configuration
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
@@ -69,6 +69,14 @@ public:
             TargetTriple.getSubArch() == Triple::ARMSubArch_v7em) ||
            TargetTriple.isOSWindows() ||
            TargetABI == ARMBaseTargetMachine::ARM_ABI_AAPCS16;
+  }
+
+  bool targetSchedulesPostRAScheduling() const override { return true; };
+
+  /// Returns true if a cast between SrcAS and DestAS is a noop.
+  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
+    // Addrspacecasts are always noops.
+    return true;
   }
 };
 

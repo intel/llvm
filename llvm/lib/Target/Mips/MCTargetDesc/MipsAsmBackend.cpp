@@ -197,7 +197,7 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     Value = (int64_t)Value / 2;
     // We now check if Value can be encoded as a 26-bit signed immediate.
     if (!isInt<26>(Value)) {
-      Ctx.reportFatalError(Fixup.getLoc(), "out of range PC26 fixup");
+      Ctx.reportError(Fixup.getLoc(), "out of range PC26 fixup");
       return 0;
     }
     break;
@@ -304,7 +304,6 @@ Optional<MCFixupKind> MipsAsmBackend::getFixupKind(StringRef Name) const {
   return StringSwitch<Optional<MCFixupKind>>(Name)
       .Case("R_MIPS_NONE", FK_NONE)
       .Case("R_MIPS_32", FK_Data_4)
-      .Case("R_MIPS_GOT_PAGE", (MCFixupKind)Mips::fixup_Mips_GOT_PAGE)
       .Case("R_MIPS_CALL_HI16", (MCFixupKind)Mips::fixup_Mips_CALL_HI16)
       .Case("R_MIPS_CALL_LO16", (MCFixupKind)Mips::fixup_Mips_CALL_LO16)
       .Case("R_MIPS_CALL16", (MCFixupKind)Mips::fixup_Mips_CALL16)
@@ -519,7 +518,8 @@ getFixupKindInfo(MCFixupKind Kind) const {
 /// it should return an error.
 ///
 /// \return - True on success.
-bool MipsAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
+bool MipsAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
+                                  const MCSubtargetInfo *STI) const {
   // Check for a less than instruction size number of bytes
   // FIXME: 16 bit instructions are not handled yet here.
   // We shouldn't be using a hard coded number for instruction size.
@@ -586,6 +586,8 @@ MCAsmBackend *llvm::createMipsAsmBackend(const Target &T,
                                          const MCSubtargetInfo &STI,
                                          const MCRegisterInfo &MRI,
                                          const MCTargetOptions &Options) {
-  MipsABIInfo ABI = MipsABIInfo::computeTargetABI(STI.getTargetTriple(), STI.getCPU(), Options);
-  return new MipsAsmBackend(T, MRI, STI.getTargetTriple(), STI.getCPU(), ABI.IsN32());
+  MipsABIInfo ABI = MipsABIInfo::computeTargetABI(STI.getTargetTriple(),
+                                                  STI.getCPU(), Options);
+  return new MipsAsmBackend(T, MRI, STI.getTargetTriple(), STI.getCPU(),
+                            ABI.IsN32());
 }

@@ -1,5 +1,5 @@
 @ RUN: llvm-mc < %s -triple thumbv5-linux-gnueabi -filetype=obj -o - \
-@ RUN:   | llvm-readobj -r | FileCheck %s
+@ RUN:   | llvm-readobj -r - | FileCheck %s
 	.syntax	unified
 
 	.text
@@ -22,5 +22,5 @@ end:
 main2:
 	bx	lr
 
-@ CHECK-NOT: 0x0 R_ARM_THM_CALL end 0x0
-@ CHECK: 0x2004 R_ARM_THM_CALL main2 0x0
+@ CHECK-NOT: 0x0 R_ARM_THM_CALL end
+@ CHECK: 0x2004 R_ARM_THM_CALL main2

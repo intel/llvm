@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class day;
@@ -43,10 +43,10 @@ int main(int, char**)
 
     for (unsigned i = 10; i <= 20; ++i)
     {
-        day day(i);
-        assert(static_cast<unsigned>(++day) == i + 1);
-        assert(static_cast<unsigned>(day++) == i + 1);
-        assert(static_cast<unsigned>(day)   == i + 2);
+        day d(i);
+        assert(static_cast<unsigned>(++d) == i + 1);
+        assert(static_cast<unsigned>(d++) == i + 1);
+        assert(static_cast<unsigned>(d)   == i + 2);
     }
 
   return 0;

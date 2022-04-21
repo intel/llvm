@@ -4,13 +4,15 @@ set(LLVM_LINK_COMPONENTS
 
 add_clang_library(clangApplyReplacements
   lib/Tooling/ApplyReplacements.cpp
+)
 
-  LINK_LIBS
+clang_target_link_libraries(clangApplyReplacements
+  PRIVATE
   clangAST
   clangBasic
   clangRewrite
   clangToolingCore
-  clangToolingRefactor
+  clangToolingRefactoring
   )
 
 include_directories(

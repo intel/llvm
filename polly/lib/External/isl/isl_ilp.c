@@ -36,7 +36,7 @@ static __isl_give isl_basic_set *unit_box_base_points(
 {
 	int i, j, k;
 	struct isl_basic_set *unit_box = NULL;
-	unsigned total;
+	isl_size total;
 
 	if (!bset)
 		goto error;
@@ -47,7 +47,9 @@ static __isl_give isl_basic_set *unit_box_base_points(
 		return isl_basic_set_empty(space);
 	}
 
-	total = isl_basic_set_total_dim(bset);
+	total = isl_basic_set_dim(bset, isl_dim_all);
+	if (total < 0)
+		goto error;
 	unit_box = isl_basic_set_alloc_space(isl_basic_set_get_space(bset),
 					0, 0, bset->n_ineq);
 
@@ -107,9 +109,11 @@ static __isl_give isl_basic_set *add_bounds(__isl_take isl_basic_set *bset,
 	isl_int *f, isl_int l, isl_int u)
 {
 	int k;
-	unsigned total;
+	isl_size total;
 
-	total = isl_basic_set_total_dim(bset);
+	total = isl_basic_set_dim(bset, isl_dim_all);
+	if (total < 0)
+		return isl_basic_set_free(bset);
 	bset = isl_basic_set_extend_constraints(bset, 0, 2);
 
 	k = isl_basic_set_alloc_inequality(bset);
@@ -263,13 +267,15 @@ static enum isl_lp_result solve_ilp(__isl_keep isl_basic_set *bset,
 static enum isl_lp_result solve_ilp_with_eq(__isl_keep isl_basic_set *bset,
 	int max, isl_int *f, isl_int *opt, __isl_give isl_vec **sol_p)
 {
-	unsigned dim;
+	isl_size dim;
 	enum isl_lp_result res;
 	struct isl_mat *T = NULL;
 	struct isl_vec *v;
 
 	bset = isl_basic_set_copy(bset);
-	dim = isl_basic_set_total_dim(bset);
+	dim = isl_basic_set_dim(bset, isl_dim_all);
+	if (dim < 0)
+		goto error;
 	v = isl_vec_alloc(bset->ctx, 1 + dim);
 	if (!v)
 		goto error;
@@ -305,16 +311,14 @@ error:
 enum isl_lp_result isl_basic_set_solve_ilp(__isl_keep isl_basic_set *bset,
 	int max, isl_int *f, isl_int *opt, __isl_give isl_vec **sol_p)
 {
-	unsigned dim;
+	isl_size dim;
 	enum isl_lp_result res;
 
-	if (!bset)
-		return isl_lp_error;
 	if (sol_p)
 		*sol_p = NULL;
 
-	isl_assert(bset->ctx, isl_basic_set_n_param(bset) == 0,
-		return isl_lp_error);
+	if (isl_basic_set_check_no_params(bset) < 0)
+		return isl_lp_error;
 
 	if (isl_basic_set_plain_is_empty(bset))
 		return isl_lp_empty;
@@ -322,7 +326,9 @@ enum isl_lp_result isl_basic_set_solve_ilp(__isl_keep isl_basic_set *bset,
 	if (bset->n_eq)
 		return solve_ilp_with_eq(bset, max, f, opt, sol_p);
 
-	dim = isl_basic_set_total_dim(bset);
+	dim = isl_basic_set_dim(bset, isl_dim_all);
+	if (dim < 0)
+		return isl_lp_error;
 
 	if (max)
 		isl_seq_neg(f, f, 1 + dim);
@@ -351,23 +357,6 @@ static enum isl_lp_result basic_set_opt(__isl_keep isl_basic_set *bset, int max,
 	return res;
 }
 
-static __isl_give isl_mat *extract_divs(__isl_keep isl_basic_set *bset)
-{
-	int i;
-	isl_ctx *ctx = isl_basic_set_get_ctx(bset);
-	isl_mat *div;
-
-	div = isl_mat_alloc(ctx, bset->n_div,
-			    1 + 1 + isl_basic_set_total_dim(bset));
-	if (!div)
-		return NULL;
-
-	for (i = 0; i < bset->n_div; ++i)
-		isl_seq_cpy(div->row[i], bset->div[i], div->n_col);
-
-	return div;
-}
-
 enum isl_lp_result isl_basic_set_opt(__isl_keep isl_basic_set *bset, int max,
 	__isl_keep isl_aff *obj, isl_int *opt)
 {
@@ -377,7 +366,7 @@ enum isl_lp_result isl_basic_set_opt(__isl_keep isl_basic_set *bset, int max,
 	isl_mat *bset_div = NULL;
 	isl_mat *div = NULL;
 	enum isl_lp_result res;
-	int bset_n_div, obj_n_div;
+	isl_size bset_n_div, obj_n_div;
 
 	if (!bset || !obj)
 		return isl_lp_error;
@@ -393,13 +382,15 @@ enum isl_lp_result isl_basic_set_opt(__isl_keep isl_basic_set *bset, int max,
 
 	bset_n_div = isl_basic_set_dim(bset, isl_dim_div);
 	obj_n_div = isl_aff_dim(obj, isl_dim_div);
+	if (bset_n_div < 0 || obj_n_div < 0)
+		return isl_lp_error;
 	if (bset_n_div == 0 && obj_n_div == 0)
 		return basic_set_opt(bset, max, obj, opt);
 
 	bset = isl_basic_set_copy(bset);
 	obj = isl_aff_copy(obj);
 
-	bset_div = extract_divs(bset);
+	bset_div = isl_basic_set_get_divs(bset);
 	exp1 = isl_alloc_array(ctx, int, bset_n_div);
 	exp2 = isl_alloc_array(ctx, int, obj_n_div);
 	if (!bset_div || (bset_n_div && !exp1) || (obj_n_div && !exp2))
@@ -704,6 +695,14 @@ static __isl_give isl_val *isl_pw_aff_opt_val(__isl_take isl_pw_aff *pa,
 	return data.res;
 }
 
+#undef TYPE
+#define TYPE isl_pw_multi_aff
+#include "isl_ilp_opt_multi_val_templ.c"
+
+#undef TYPE
+#define TYPE isl_multi_pw_aff
+#include "isl_ilp_opt_multi_val_templ.c"
+
 /* Internal data structure for isl_union_pw_aff_opt_val.
  *
  * "max" is set if the maximum should be computed.
@@ -787,13 +786,16 @@ __isl_give isl_val *isl_union_pw_aff_max_val(__isl_take isl_union_pw_aff *upa)
 static __isl_give isl_multi_val *isl_multi_union_pw_aff_opt_multi_val(
 	__isl_take isl_multi_union_pw_aff *mupa, int max)
 {
-	int i, n;
+	int i;
+	isl_size n;
 	isl_multi_val *mv;
 
+	n = isl_multi_union_pw_aff_size(mupa);
+	if (n < 0)
+		mupa = isl_multi_union_pw_aff_free(mupa);
 	if (!mupa)
 		return NULL;
 
-	n = isl_multi_union_pw_aff_dim(mupa, isl_dim_set);
 	mv = isl_multi_val_zero(isl_multi_union_pw_aff_get_space(mupa));
 
 	for (i = 0; i < n; ++i) {
@@ -867,6 +869,10 @@ __isl_give isl_multi_val *isl_multi_union_pw_aff_max_multi_val(
 	return isl_multi_union_pw_aff_opt_multi_val(mupa, 1);
 }
 
+#undef BASE
+#define BASE	basic_set
+#include "isl_ilp_opt_val_templ.c"
+
 /* Return the maximal value attained by the given set dimension,
  * independently of the parameter values and of any other dimensions.
  *
@@ -876,23 +882,31 @@ __isl_give isl_multi_val *isl_multi_union_pw_aff_max_multi_val(
 __isl_give isl_val *isl_basic_set_dim_max_val(__isl_take isl_basic_set *bset,
 	int pos)
 {
-	isl_local_space *ls;
-	isl_aff *obj;
-	isl_val *v;
+	return isl_basic_set_dim_opt_val(bset, 1, pos);
+}
 
-	if (!bset)
-		return NULL;
-	if (pos < 0 || pos >= isl_basic_set_dim(bset, isl_dim_set))
-		isl_die(isl_basic_set_get_ctx(bset), isl_error_invalid,
-			"position out of bounds", goto error);
-	ls = isl_local_space_from_space(isl_basic_set_get_space(bset));
-	obj = isl_aff_var_on_domain(ls, isl_dim_set, pos);
-	v = isl_basic_set_max_val(bset, obj);
-	isl_aff_free(obj);
-	isl_basic_set_free(bset);
+#undef BASE
+#define BASE	set
+#include "isl_ilp_opt_val_templ.c"
 
-	return v;
-error:
-	isl_basic_set_free(bset);
-	return NULL;
+/* Return the minimal value attained by the given set dimension,
+ * independently of the parameter values and of any other dimensions.
+ *
+ * Return negative infinity if the optimal value is unbounded and
+ * NaN if "set" is empty.
+ */
+__isl_give isl_val *isl_set_dim_min_val(__isl_take isl_set *set, int pos)
+{
+	return isl_set_dim_opt_val(set, 0, pos);
+}
+
+/* Return the maximal value attained by the given set dimension,
+ * independently of the parameter values and of any other dimensions.
+ *
+ * Return infinity if the optimal value is unbounded and
+ * NaN if "set" is empty.
+ */
+__isl_give isl_val *isl_set_dim_max_val(__isl_take isl_set *set, int pos)
+{
+	return isl_set_dim_opt_val(set, 1, pos);
 }

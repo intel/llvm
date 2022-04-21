@@ -1,4 +1,4 @@
-//===-- SystemInitializerCommon.cpp -----------------------------*- C++ -*-===//
+//===-- SystemInitializerCommon.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,11 +11,11 @@
 #include "Plugins/Process/gdb-remote/ProcessGDBRemoteLog.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
-#include "lldb/Host/HostInfo.h"
 #include "lldb/Host/Socket.h"
-#include "lldb/Utility/Log.h"
-#include "lldb/Utility/Reproducer.h"
+#include "lldb/Utility/LLDBLog.h"
+#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/Timer.h"
+#include "lldb/Version/Version.h"
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
@@ -24,6 +24,7 @@
 #if defined(_WIN32)
 #include "Plugins/Process/Windows/Common/ProcessWindowsLog.h"
 #include "lldb/Host/windows/windows.h"
+#include <crtdbg.h>
 #endif
 
 #include "llvm/Support/TargetSelect.h"
@@ -33,15 +34,42 @@
 using namespace lldb_private;
 using namespace lldb_private::repro;
 
-SystemInitializerCommon::SystemInitializerCommon() {}
+SystemInitializerCommon::SystemInitializerCommon(
+    HostInfo::SharedLibraryDirectoryHelper *helper)
+    : m_shlib_dir_helper(helper) {}
 
-SystemInitializerCommon::~SystemInitializerCommon() {}
+SystemInitializerCommon::~SystemInitializerCommon() = default;
+
+/// Initialize the FileSystem based on the current reproducer mode.
+static llvm::Error InitializeFileSystem() {
+  auto &r = repro::Reproducer::Instance();
+
+  if (repro::Generator *g = r.GetGenerator()) {
+    repro::VersionProvider &vp = g->GetOrCreate<repro::VersionProvider>();
+    vp.SetVersion(lldb_private::GetVersion());
+
+    repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
+
+    FileSystem::Initialize(llvm::FileCollector::createCollectorVFS(
+        llvm::vfs::getRealFileSystem(), fp.GetFileCollector()));
+
+    fp.RecordInterestingDirectory(
+        g->GetOrCreate<repro::WorkingDirectoryProvider>().GetDirectory());
+    fp.RecordInterestingDirectory(
+        g->GetOrCreate<repro::HomeDirectoryProvider>().GetDirectory());
+
+    return llvm::Error::success();
+  }
+
+  FileSystem::Initialize();
+  return llvm::Error::success();
+}
 
 llvm::Error SystemInitializerCommon::Initialize() {
 #if defined(_WIN32)
   const char *disable_crash_dialog_var = getenv("LLDB_DISABLE_CRASH_DIALOG");
   if (disable_crash_dialog_var &&
-      llvm::StringRef(disable_crash_dialog_var).equals_lower("true")) {
+      llvm::StringRef(disable_crash_dialog_var).equals_insensitive("true")) {
     // This will prevent Windows from displaying a dialog box requiring user
     // interaction when
     // LLDB crashes.  This is mostly useful when automating LLDB, for example
@@ -67,32 +95,17 @@ llvm::Error SystemInitializerCommon::Initialize() {
       return e;
   }
 
-  // Initialize the file system.
-  auto &r = repro::Reproducer::Instance();
-  if (repro::Loader *loader = r.GetLoader()) {
-    FileSpec vfs_mapping = loader->GetFile<FileInfo>();
-    if (vfs_mapping) {
-      if (llvm::Error e = FileSystem::Initialize(vfs_mapping))
-        return e;
-    } else {
-      FileSystem::Initialize();
-    }
-  } else if (repro::Generator *g = r.GetGenerator()) {
-    repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
-    FileSystem::Initialize(fp.GetFileCollector());
-  } else {
-    FileSystem::Initialize();
-  }
+  if (auto e = InitializeFileSystem())
+    return e;
 
-  Log::Initialize();
-  HostInfo::Initialize();
+  InitializeLldbChannel();
+  HostInfo::Initialize(m_shlib_dir_helper);
 
   llvm::Error error = Socket::Initialize();
   if (error)
     return error;
 
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
 
   process_gdb_remote::ProcessGDBRemoteLog::Initialize();
 
@@ -107,8 +120,7 @@ llvm::Error SystemInitializerCommon::Initialize() {
 }
 
 void SystemInitializerCommon::Terminate() {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
 
 #if defined(_WIN32)
   ProcessWindowsLog::Terminate();

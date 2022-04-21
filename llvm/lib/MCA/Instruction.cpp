@@ -18,7 +18,17 @@
 namespace llvm {
 namespace mca {
 
-void ReadState::writeStartEvent(unsigned IID, unsigned RegID, unsigned Cycles) {
+void WriteState::writeStartEvent(unsigned IID, MCPhysReg RegID,
+                                 unsigned Cycles) {
+  CRD.IID = IID;
+  CRD.RegID = RegID;
+  CRD.Cycles = Cycles;
+  DependentWriteCyclesLeft = Cycles;
+  DependentWrite = nullptr;
+}
+
+void ReadState::writeStartEvent(unsigned IID, MCPhysReg RegID,
+                                unsigned Cycles) {
   assert(DependentWrites);
   assert(CyclesLeft == UNKNOWN_CYCLES);
 
@@ -28,7 +38,12 @@ void ReadState::writeStartEvent(unsigned IID, unsigned RegID, unsigned Cycles) {
   // The HW is forced to do some extra bookkeeping to track of all the
   // dependent writes, and implement a merging scheme for the partial writes.
   --DependentWrites;
-  TotalCycles = std::max(TotalCycles, Cycles);
+  if (TotalCycles < Cycles) {
+    CRD.IID = IID;
+    CRD.RegID = RegID;
+    CRD.Cycles = Cycles;
+    TotalCycles = Cycles;
+  }
 
   if (!DependentWrites) {
     CyclesLeft = TotalCycles;
@@ -111,15 +126,27 @@ void WriteState::dump() const {
   dbgs() << "{ OpIdx=" << WD->OpIndex << ", Lat=" << getLatency() << ", RegID "
          << getRegisterID() << ", Cycles Left=" << getCyclesLeft() << " }";
 }
-
-void WriteRef::dump() const {
-  dbgs() << "IID=" << getSourceIndex() << ' ';
-  if (isValid())
-    getWriteState()->dump();
-  else
-    dbgs() << "(null)";
-}
 #endif
+
+const CriticalDependency &Instruction::computeCriticalRegDep() {
+  if (CriticalRegDep.Cycles)
+    return CriticalRegDep;
+
+  unsigned MaxLatency = 0;
+  for (const WriteState &WS : getDefs()) {
+    const CriticalDependency &WriteCRD = WS.getCriticalRegDep();
+    if (WriteCRD.Cycles > MaxLatency)
+      CriticalRegDep = WriteCRD;
+  }
+
+  for (const ReadState &RS : getUses()) {
+    const CriticalDependency &ReadCRD = RS.getCriticalRegDep();
+    if (ReadCRD.Cycles > MaxLatency)
+      CriticalRegDep = ReadCRD;
+  }
+
+  return CriticalRegDep;
+}
 
 void Instruction::dispatch(unsigned RCUToken) {
   assert(Stage == IS_INVALID);
@@ -213,8 +240,6 @@ void Instruction::cycleEvent() {
   if (!CyclesLeft)
     Stage = IS_EXECUTED;
 }
-
-const unsigned WriteRef::INVALID_IID = std::numeric_limits<unsigned>::max();
 
 } // namespace mca
 } // namespace llvm

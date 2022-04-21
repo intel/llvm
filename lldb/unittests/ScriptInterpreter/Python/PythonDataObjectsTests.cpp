@@ -1,4 +1,4 @@
-//===-- PythonDataObjectsTests.cpp ------------------------------*- C++ -*-===//
+//===-- PythonDataObjectsTests.cpp ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,18 +15,21 @@
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/lldb-enumerations.h"
+#include "llvm/Testing/Support/Error.h"
 
 #include "PythonTestSuite.h"
 
 using namespace lldb_private;
+using namespace lldb_private::python;
+using llvm::Error;
+using llvm::Expected;
 
 class PythonDataObjectsTest : public PythonTestSuite {
 public:
   void SetUp() override {
     PythonTestSuite::SetUp();
 
-    PythonString sys_module("sys");
-    m_sys_module.Reset(PyRefType::Owned, PyImport_Import(sys_module.get()));
+    m_sys_module = unwrapIgnoringErrors(PythonModule::Import("sys"));
     m_main_module = PythonModule::MainModule();
     m_builtins_module = PythonModule::BuiltinsModule();
   }
@@ -68,13 +71,10 @@ TEST_F(PythonDataObjectsTest, TestResetting) {
   PythonDictionary dict(PyInitialValue::Empty);
 
   PyObject *new_dict = PyDict_New();
-  dict.Reset(PyRefType::Owned, new_dict);
+  dict = Take<PythonDictionary>(new_dict);
   EXPECT_EQ(new_dict, dict.get());
 
-  dict.Reset(PyRefType::Owned, nullptr);
-  EXPECT_EQ(nullptr, dict.get());
-
-  dict.Reset(PyRefType::Owned, PyDict_New());
+  dict = Take<PythonDictionary>(PyDict_New());
   EXPECT_NE(nullptr, dict.get());
   dict.Reset();
   EXPECT_EQ(nullptr, dict.get());
@@ -123,13 +123,11 @@ TEST_F(PythonDataObjectsTest, TestInstanceNameResolutionNoDot) {
   EXPECT_TRUE(major_version_field.IsAllocated());
   EXPECT_TRUE(minor_version_field.IsAllocated());
 
-  PythonInteger major_version_value =
-      major_version_field.AsType<PythonInteger>();
-  PythonInteger minor_version_value =
-      minor_version_field.AsType<PythonInteger>();
+  auto major_version_value = As<long long>(major_version_field);
+  auto minor_version_value = As<long long>(minor_version_field);
 
-  EXPECT_EQ(PY_MAJOR_VERSION, major_version_value.GetInteger());
-  EXPECT_EQ(PY_MINOR_VERSION, minor_version_value.GetInteger());
+  EXPECT_THAT_EXPECTED(major_version_value, llvm::HasValue(PY_MAJOR_VERSION));
+  EXPECT_THAT_EXPECTED(minor_version_value, llvm::HasValue(PY_MINOR_VERSION));
 }
 
 TEST_F(PythonDataObjectsTest, TestGlobalNameResolutionWithDot) {
@@ -137,16 +135,14 @@ TEST_F(PythonDataObjectsTest, TestGlobalNameResolutionWithDot) {
   EXPECT_TRUE(sys_path.IsAllocated());
   EXPECT_TRUE(PythonList::Check(sys_path.get()));
 
-  PythonInteger version_major =
-      m_main_module.ResolveName("sys.version_info.major")
-          .AsType<PythonInteger>();
-  PythonInteger version_minor =
-      m_main_module.ResolveName("sys.version_info.minor")
-          .AsType<PythonInteger>();
-  EXPECT_TRUE(version_major.IsAllocated());
-  EXPECT_TRUE(version_minor.IsAllocated());
-  EXPECT_EQ(PY_MAJOR_VERSION, version_major.GetInteger());
-  EXPECT_EQ(PY_MINOR_VERSION, version_minor.GetInteger());
+  auto version_major =
+      As<long long>(m_main_module.ResolveName("sys.version_info.major"));
+
+  auto version_minor =
+      As<long long>(m_main_module.ResolveName("sys.version_info.minor"));
+
+  EXPECT_THAT_EXPECTED(version_major, llvm::HasValue(PY_MAJOR_VERSION));
+  EXPECT_THAT_EXPECTED(version_minor, llvm::HasValue(PY_MINOR_VERSION));
 }
 
 TEST_F(PythonDataObjectsTest, TestDictionaryResolutionWithDot) {
@@ -155,14 +151,14 @@ TEST_F(PythonDataObjectsTest, TestDictionaryResolutionWithDot) {
   dict.SetItemForKey(PythonString("sys"), m_sys_module);
 
   // Now use that dictionary to resolve `sys.version_info.major`
-  PythonInteger version_major =
-      PythonObject::ResolveNameWithDictionary("sys.version_info.major", dict)
-          .AsType<PythonInteger>();
-  PythonInteger version_minor =
-      PythonObject::ResolveNameWithDictionary("sys.version_info.minor", dict)
-          .AsType<PythonInteger>();
-  EXPECT_EQ(PY_MAJOR_VERSION, version_major.GetInteger());
-  EXPECT_EQ(PY_MINOR_VERSION, version_minor.GetInteger());
+  auto version_major = As<long long>(
+      PythonObject::ResolveNameWithDictionary("sys.version_info.major", dict));
+
+  auto version_minor = As<long long>(
+      PythonObject::ResolveNameWithDictionary("sys.version_info.minor", dict));
+
+  EXPECT_THAT_EXPECTED(version_major, llvm::HasValue(PY_MAJOR_VERSION));
+  EXPECT_THAT_EXPECTED(version_minor, llvm::HasValue(PY_MINOR_VERSION));
 }
 
 TEST_F(PythonDataObjectsTest, TestPythonInteger) {
@@ -176,7 +172,8 @@ TEST_F(PythonDataObjectsTest, TestPythonInteger) {
   PythonInteger python_int(PyRefType::Owned, py_int);
 
   EXPECT_EQ(PyObjectType::Integer, python_int.GetObjectType());
-  EXPECT_EQ(12, python_int.GetInteger());
+  auto python_int_value = As<long long>(python_int);
+  EXPECT_THAT_EXPECTED(python_int_value, llvm::HasValue(12));
 #endif
 
   // Verify that `PythonInteger` works correctly when given a PyLong object.
@@ -187,12 +184,14 @@ TEST_F(PythonDataObjectsTest, TestPythonInteger) {
 
   // Verify that you can reset the value and that it is reflected properly.
   python_long.SetInteger(40);
-  EXPECT_EQ(40, python_long.GetInteger());
+  auto e = As<long long>(python_long);
+  EXPECT_THAT_EXPECTED(e, llvm::HasValue(40));
 
   // Test that creating a `PythonInteger` object works correctly with the
   // int constructor.
   PythonInteger constructed_int(7);
-  EXPECT_EQ(7, constructed_int.GetInteger());
+  auto value = As<long long>(constructed_int);
+  EXPECT_THAT_EXPECTED(value, llvm::HasValue(7));
 }
 
 TEST_F(PythonDataObjectsTest, TestPythonBoolean) {
@@ -321,8 +320,8 @@ TEST_F(PythonDataObjectsTest, TestPythonListValueEquality) {
   PythonList list(PyRefType::Owned, py_list);
 
   PythonObject list_items[list_size];
-  list_items[0].Reset(PythonInteger(long_value0));
-  list_items[1].Reset(PythonString(string_value1));
+  list_items[0] = PythonInteger(long_value0);
+  list_items[1] = PythonString(string_value1);
 
   for (unsigned i = 0; i < list_size; ++i)
     list.SetItemAtIndex(i, list_items[i]);
@@ -339,7 +338,8 @@ TEST_F(PythonDataObjectsTest, TestPythonListValueEquality) {
   PythonInteger chk_int(PyRefType::Borrowed, chk_value1.get());
   PythonString chk_str(PyRefType::Borrowed, chk_value2.get());
 
-  EXPECT_EQ(long_value0, chk_int.GetInteger());
+  auto chkint = As<long long>(chk_value1);
+  ASSERT_THAT_EXPECTED(chkint, llvm::HasValue(long_value0));
   EXPECT_EQ(string_value1, chk_str.GetString());
 }
 
@@ -367,7 +367,8 @@ TEST_F(PythonDataObjectsTest, TestPythonListManipulation) {
   PythonInteger chk_int(PyRefType::Borrowed, chk_value1.get());
   PythonString chk_str(PyRefType::Borrowed, chk_value2.get());
 
-  EXPECT_EQ(long_value0, chk_int.GetInteger());
+  auto e = As<long long>(chk_int);
+  EXPECT_THAT_EXPECTED(e, llvm::HasValue(long_value0));
   EXPECT_EQ(string_value1, chk_str.GetString());
 }
 
@@ -467,10 +468,10 @@ TEST_F(PythonDataObjectsTest, TestPythonDictionaryValueEquality) {
   PythonObject py_keys[dict_entries];
   PythonObject py_values[dict_entries];
 
-  py_keys[0].Reset(PythonString(key_0));
-  py_keys[1].Reset(PythonInteger(key_1));
-  py_values[0].Reset(PythonInteger(value_0));
-  py_values[1].Reset(PythonString(value_1));
+  py_keys[0] = PythonString(key_0);
+  py_keys[1] = PythonInteger(key_1);
+  py_values[0] = PythonInteger(value_0);
+  py_values[1] = PythonString(value_1);
 
   PyObject *py_dict = PyDict_New();
   EXPECT_TRUE(PythonDictionary::Check(py_dict));
@@ -487,10 +488,10 @@ TEST_F(PythonDataObjectsTest, TestPythonDictionaryValueEquality) {
   EXPECT_TRUE(PythonInteger::Check(chk_value1.get()));
   EXPECT_TRUE(PythonString::Check(chk_value2.get()));
 
-  PythonInteger chk_int(PyRefType::Borrowed, chk_value1.get());
   PythonString chk_str(PyRefType::Borrowed, chk_value2.get());
+  auto chkint = As<long long>(chk_value1);
 
-  EXPECT_EQ(value_0, chk_int.GetInteger());
+  EXPECT_THAT_EXPECTED(chkint, llvm::HasValue(value_0));
   EXPECT_EQ(value_1, chk_str.GetString());
 }
 
@@ -507,10 +508,10 @@ TEST_F(PythonDataObjectsTest, TestPythonDictionaryManipulation) {
   PythonString keys[dict_entries];
   PythonObject values[dict_entries];
 
-  keys[0].Reset(PythonString(key_0));
-  keys[1].Reset(PythonString(key_1));
-  values[0].Reset(PythonInteger(value_0));
-  values[1].Reset(PythonString(value_1));
+  keys[0] = PythonString(key_0);
+  keys[1] = PythonString(key_1);
+  values[0] = PythonInteger(value_0);
+  values[1] = PythonString(value_1);
 
   PythonDictionary dict(PyInitialValue::Empty);
   for (int i = 0; i < 2; ++i)
@@ -524,10 +525,10 @@ TEST_F(PythonDataObjectsTest, TestPythonDictionaryManipulation) {
   EXPECT_TRUE(PythonInteger::Check(chk_value1.get()));
   EXPECT_TRUE(PythonString::Check(chk_value2.get()));
 
-  PythonInteger chk_int(PyRefType::Borrowed, chk_value1.get());
+  auto chkint = As<long long>(chk_value1);
   PythonString chk_str(PyRefType::Borrowed, chk_value2.get());
 
-  EXPECT_EQ(value_0, chk_int.GetInteger());
+  EXPECT_THAT_EXPECTED(chkint, llvm::HasValue(value_0));
   EXPECT_EQ(value_1, chk_str.GetString());
 }
 
@@ -581,11 +582,12 @@ TEST_F(PythonDataObjectsTest, TestPythonCallableInvoke) {
 }
 
 TEST_F(PythonDataObjectsTest, TestPythonFile) {
-  File file;
-  FileSystem::Instance().Open(file, FileSpec(FileSystem::DEV_NULL),
-                              File::eOpenOptionRead);
-  PythonFile py_file(file, "r");
-  EXPECT_TRUE(PythonFile::Check(py_file.get()));
+  auto file = FileSystem::Instance().Open(FileSpec(FileSystem::DEV_NULL),
+                                          File::eOpenOptionReadOnly);
+  ASSERT_THAT_EXPECTED(file, llvm::Succeeded());
+  auto py_file = PythonFile::FromFile(*file.get(), "r");
+  ASSERT_THAT_EXPECTED(py_file, llvm::Succeeded());
+  EXPECT_TRUE(PythonFile::Check(py_file.get().get()));
 }
 
 TEST_F(PythonDataObjectsTest, TestObjectAttributes) {
@@ -593,10 +595,9 @@ TEST_F(PythonDataObjectsTest, TestObjectAttributes) {
   EXPECT_TRUE(py_int.HasAttribute("numerator"));
   EXPECT_FALSE(py_int.HasAttribute("this_should_not_exist"));
 
-  PythonInteger numerator_attr =
-      py_int.GetAttributeValue("numerator").AsType<PythonInteger>();
-  EXPECT_TRUE(numerator_attr.IsAllocated());
-  EXPECT_EQ(42, numerator_attr.GetInteger());
+  auto numerator_attr = As<long long>(py_int.GetAttributeValue("numerator"));
+
+  EXPECT_THAT_EXPECTED(numerator_attr, llvm::HasValue(42));
 }
 
 TEST_F(PythonDataObjectsTest, TestExtractingUInt64ThroughStructuredData) {
@@ -623,4 +624,238 @@ TEST_F(PythonDataObjectsTest, TestExtractingUInt64ThroughStructuredData) {
       EXPECT_TRUE(extracted_value == value);
     }
   }
+}
+
+TEST_F(PythonDataObjectsTest, TestCallable) {
+
+  PythonDictionary globals(PyInitialValue::Empty);
+  auto builtins = PythonModule::BuiltinsModule();
+  llvm::Error error = globals.SetItem("__builtins__", builtins);
+  ASSERT_FALSE(error);
+
+  {
+    PyObject *o = PyRun_String("lambda x : x", Py_eval_input, globals.get(),
+                               globals.get());
+    ASSERT_FALSE(o == NULL);
+    auto lambda = Take<PythonCallable>(o);
+    auto arginfo = lambda.GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 1u);
+  }
+
+  {
+    PyObject *o = PyRun_String("lambda x,y=0: x", Py_eval_input, globals.get(),
+                               globals.get());
+    ASSERT_FALSE(o == NULL);
+    auto lambda = Take<PythonCallable>(o);
+    auto arginfo = lambda.GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 2u);
+  }
+
+  {
+    PyObject *o = PyRun_String("lambda x,y=0, **kw: x", Py_eval_input,
+                               globals.get(), globals.get());
+    ASSERT_FALSE(o == NULL);
+    auto lambda = Take<PythonCallable>(o);
+    auto arginfo = lambda.GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 2u);
+  }
+
+  {
+    PyObject *o = PyRun_String("lambda x,y,*a: x", Py_eval_input, globals.get(),
+                               globals.get());
+    ASSERT_FALSE(o == NULL);
+    auto lambda = Take<PythonCallable>(o);
+    auto arginfo = lambda.GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args,
+              PythonCallable::ArgInfo::UNBOUNDED);
+  }
+
+  {
+    PyObject *o = PyRun_String("lambda x,y,*a,**kw: x", Py_eval_input,
+                               globals.get(), globals.get());
+    ASSERT_FALSE(o == NULL);
+    auto lambda = Take<PythonCallable>(o);
+    auto arginfo = lambda.GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args,
+              PythonCallable::ArgInfo::UNBOUNDED);
+  }
+
+  {
+    const char *script = R"(
+class Foo:
+  def bar(self, x):
+     return x
+  @classmethod
+  def classbar(cls, x):
+     return x
+  @staticmethod
+  def staticbar(x):
+     return x
+  def __call__(self, x):
+     return x
+obj = Foo()
+bar_bound   = Foo().bar
+bar_class   = Foo().classbar
+bar_static  = Foo().staticbar
+bar_unbound = Foo.bar
+
+
+class OldStyle:
+  def __init__(self, one, two, three):
+    pass
+
+class NewStyle(object):
+  def __init__(self, one, two, three):
+    pass
+
+)";
+    PyObject *o =
+        PyRun_String(script, Py_file_input, globals.get(), globals.get());
+    ASSERT_FALSE(o == NULL);
+    Take<PythonObject>(o);
+
+    auto bar_bound = As<PythonCallable>(globals.GetItem("bar_bound"));
+    ASSERT_THAT_EXPECTED(bar_bound, llvm::Succeeded());
+    auto arginfo = bar_bound.get().GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 1u);
+
+    auto bar_unbound = As<PythonCallable>(globals.GetItem("bar_unbound"));
+    ASSERT_THAT_EXPECTED(bar_unbound, llvm::Succeeded());
+    arginfo = bar_unbound.get().GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 2u);
+
+    auto bar_class = As<PythonCallable>(globals.GetItem("bar_class"));
+    ASSERT_THAT_EXPECTED(bar_class, llvm::Succeeded());
+    arginfo = bar_class.get().GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 1u);
+
+    auto bar_static = As<PythonCallable>(globals.GetItem("bar_static"));
+    ASSERT_THAT_EXPECTED(bar_static, llvm::Succeeded());
+    arginfo = bar_static.get().GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 1u);
+
+    auto obj = As<PythonCallable>(globals.GetItem("obj"));
+    ASSERT_THAT_EXPECTED(obj, llvm::Succeeded());
+    arginfo = obj.get().GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 1u);
+
+    auto oldstyle = As<PythonCallable>(globals.GetItem("OldStyle"));
+    ASSERT_THAT_EXPECTED(oldstyle, llvm::Succeeded());
+    arginfo = oldstyle.get().GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 3u);
+
+    auto newstyle = As<PythonCallable>(globals.GetItem("NewStyle"));
+    ASSERT_THAT_EXPECTED(newstyle, llvm::Succeeded());
+    arginfo = newstyle.get().GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 3u);
+  }
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 3
+
+  // the old implementation of GetArgInfo just doesn't work on builtins.
+
+  {
+    auto builtins = PythonModule::BuiltinsModule();
+    auto hex = As<PythonCallable>(builtins.GetAttribute("hex"));
+    ASSERT_THAT_EXPECTED(hex, llvm::Succeeded());
+    auto arginfo = hex.get().GetArgInfo();
+    ASSERT_THAT_EXPECTED(arginfo, llvm::Succeeded());
+    EXPECT_EQ(arginfo.get().max_positional_args, 1u);
+  }
+
+#endif
+}
+
+TEST_F(PythonDataObjectsTest, TestScript) {
+
+  static const char script[] = R"(
+def factorial(n):
+  if n > 1:
+    return n * factorial(n-1)
+  else:
+    return 1;
+main = factorial
+)";
+
+  PythonScript factorial(script);
+
+  EXPECT_THAT_EXPECTED(As<long long>(factorial(5ll)), llvm::HasValue(120));
+}
+
+TEST_F(PythonDataObjectsTest, TestExceptions) {
+
+  static const char script[] = R"(
+def foo():
+  return bar()
+def bar():
+  return baz()
+def baz():
+  return 1 / 0
+main = foo
+)";
+
+  PythonScript foo(script);
+
+  EXPECT_THAT_EXPECTED(
+      foo(), llvm::Failed<PythonException>(testing::Property(
+                 &PythonException::ReadBacktrace,
+                 testing::AllOf(testing::ContainsRegex("line 3, in foo"),
+                                testing::ContainsRegex("line 5, in bar"),
+                                testing::ContainsRegex("line 7, in baz"),
+                                testing::ContainsRegex("ZeroDivisionError")))));
+
+  static const char script2[] = R"(
+class MyError(Exception):
+  def __str__(self):
+    return self.my_message
+
+def main():
+  raise MyError("lol")
+
+)";
+
+  PythonScript lol(script2);
+
+  EXPECT_THAT_EXPECTED(lol(),
+                       llvm::Failed<PythonException>(testing::Property(
+                           &PythonException::ReadBacktrace,
+                           testing::ContainsRegex("unprintable MyError"))));
+}
+
+TEST_F(PythonDataObjectsTest, TestRun) {
+
+  PythonDictionary globals(PyInitialValue::Empty);
+
+  auto x = As<long long>(runStringOneLine("40 + 2", globals, globals));
+  ASSERT_THAT_EXPECTED(x, llvm::Succeeded());
+  EXPECT_EQ(x.get(), 42l);
+
+  Expected<PythonObject> r = runStringOneLine("n = 42", globals, globals);
+  ASSERT_THAT_EXPECTED(r, llvm::Succeeded());
+  auto y = As<long long>(globals.GetItem("n"));
+  ASSERT_THAT_EXPECTED(y, llvm::Succeeded());
+  EXPECT_EQ(y.get(), 42l);
+
+  const char script[] = R"(
+def foobar():
+  return "foo" + "bar" + "baz"
+g = foobar()
+)";
+
+  r = runStringMultiLine(script, globals, globals);
+  ASSERT_THAT_EXPECTED(r, llvm::Succeeded());
+  auto g = As<std::string>(globals.GetItem("g"));
+  ASSERT_THAT_EXPECTED(g, llvm::HasValue("foobarbaz"));
 }

@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "TableGenBackends.h"
+
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/StringMatcher.h"
 #include "llvm/TableGen/TableGenBackend.h"
@@ -18,8 +20,7 @@
 
 using namespace llvm;
 
-namespace clang {
-void EmitClangCommentCommandInfo(RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitClangCommentCommandInfo(RecordKeeper &Records, raw_ostream &OS) {
   emitSourceFileHeader("A list of commands useable in documentation "
                        "comments", OS);
 
@@ -62,7 +63,7 @@ void EmitClangCommentCommandInfo(RecordKeeper &Records, raw_ostream &OS) {
   std::vector<StringMatcher::StringPair> Matches;
   for (size_t i = 0, e = Tags.size(); i != e; ++i) {
     Record &Tag = *Tags[i];
-    std::string Name = Tag.getValueAsString("Name");
+    std::string Name = std::string(Tag.getValueAsString("Name"));
     std::string Return;
     raw_string_ostream(Return) << "return &Commands[" << i << "];";
     Matches.emplace_back(std::move(Name), std::move(Return));
@@ -81,6 +82,12 @@ static std::string MangleName(StringRef Str) {
     switch (Str[i]) {
     default:
       Mangled += Str[i];
+      break;
+    case '(':
+      Mangled += "lparen";
+      break;
+    case ')':
+      Mangled += "rparen";
       break;
     case '[':
       Mangled += "lsquare";
@@ -105,7 +112,7 @@ static std::string MangleName(StringRef Str) {
   return Mangled;
 }
 
-void EmitClangCommentCommandList(RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitClangCommentCommandList(RecordKeeper &Records, raw_ostream &OS) {
   emitSourceFileHeader("A list of commands useable in documentation "
                        "comments", OS);
 
@@ -121,4 +128,3 @@ void EmitClangCommentCommandList(RecordKeeper &Records, raw_ostream &OS) {
     OS << "COMMENT_COMMAND(" << MangledName << ")\n";
   }
 }
-} // end namespace clang

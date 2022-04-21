@@ -11,11 +11,6 @@
 // basic_string<charT,traits,Allocator>&
 //   replace(size_type pos, size_type n1, size_type n2, charT c);
 
-// When back-deploying to macosx10.7, the RTTI for exception classes
-// incorrectly provided by libc++.dylib is mixed with the one in
-// libc++abi.dylib and exceptions are not caught properly.
-// XFAIL: with_system_cxx_lib=macosx10.7
-
 #include <string>
 #include <stdexcept>
 #include <algorithm>
@@ -25,7 +20,7 @@
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S s, typename S::size_type pos, typename S::size_type n1,
      typename S::size_type n2, typename S::value_type c,
      S expected)
@@ -59,7 +54,7 @@ test(S s, typename S::size_type pos, typename S::size_type n1,
 }
 
 template <class S>
-void test0()
+TEST_CONSTEXPR_CXX20 void test0()
 {
     test(S(""), 0, 0, 0, '2', S(""));
     test(S(""), 0, 0, 5, '2', S("22222"));
@@ -164,7 +159,7 @@ void test0()
 }
 
 template <class S>
-void test1()
+TEST_CONSTEXPR_CXX20 void test1()
 {
     test(S("abcde"), 6, 0, 0, '2', S("can't happen"));
     test(S("abcde"), 6, 0, 5, '2', S("can't happen"));
@@ -269,7 +264,7 @@ void test1()
 }
 
 template <class S>
-void test2()
+TEST_CONSTEXPR_CXX20 void test2()
 {
     test(S("abcdefghijklmnopqrst"), 0, 0, 0, '2', S("abcdefghijklmnopqrst"));
     test(S("abcdefghijklmnopqrst"), 0, 0, 5, '2', S("22222abcdefghijklmnopqrst"));
@@ -369,8 +364,7 @@ void test2()
     test(S("abcdefghijklmnopqrst"), 21, 0, 20, '2', S("can't happen"));
 }
 
-int main(int, char**)
-{
+bool test() {
     {
     typedef std::string S;
     test0<S>();
@@ -384,6 +378,16 @@ int main(int, char**)
     test1<S>();
     test2<S>();
     }
+#endif
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
 #endif
 
   return 0;

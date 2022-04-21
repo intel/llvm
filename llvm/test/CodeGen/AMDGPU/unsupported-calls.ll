@@ -1,4 +1,5 @@
-; RUN: not llc -march=amdgcn -mtriple=amdgcn-- -tailcallopt < %s 2>&1 | FileCheck -check-prefix=GCN %s
+; RUN: not llc -march=amdgcn -mtriple=amdgcn-mesa-mesa3d -tailcallopt < %s 2>&1 | FileCheck --check-prefix=GCN %s
+; RUN: not llc -march=amdgcn -mtriple=amdgcn--amdpal -tailcallopt < %s 2>&1 | FileCheck --check-prefix=GCN %s
 ; RUN: not llc -march=r600 -mtriple=r600-- -mcpu=cypress -tailcallopt < %s 2>&1 | FileCheck -check-prefix=R600 %s
 
 declare i32 @external_function(i32) nounwind
@@ -61,16 +62,17 @@ define i32 @test_tail_call_bitcast_extern_variadic(<4 x float> %arg0, <4 x float
   ret i32 %call
 }
 
-; GCN: :0:0: in function test_indirect_call void (void ()*): unsupported indirect call to function <unknown>
-; R600: in function test_indirect_call{{.*}}: unsupported call to function <unknown>
-define void @test_indirect_call(void()* %fptr) {
-  call void %fptr()
-  ret void
-}
-
-; GCN: :0:0: in function test_call_from_shader i32 (): unsupported call from graphics shader of function defined_function
-; R600: in function test_call{{.*}}: unsupported call to function defined_function
-define amdgpu_ps i32 @test_call_from_shader() {
+; GCN: :0:0: in function test_c_call_from_shader i32 (): unsupported calling convention for call from graphics shader of function defined_function
+; R600: in function test_c_call{{.*}}: unsupported call to function defined_function
+define amdgpu_ps i32 @test_c_call_from_shader() {
   %call = call i32 @defined_function(i32 0)
   ret i32 %call
 }
+
+; GCN-NOT: in function test_gfx_call{{.*}}unsupported
+; R600: in function test_gfx_call{{.*}}: unsupported call to function defined_function
+define amdgpu_ps i32 @test_gfx_call_from_shader() {
+  %call = call amdgpu_gfx i32 @defined_function(i32 0)
+  ret i32 %call
+}
+

@@ -1,0 +1,54 @@
+name: 'Cached checkout'
+description: 'Checkout a git repository using local cache if possible'
+inputs:
+  repository:
+    description: 'Repository name with owner'
+    default: ${{ github.repository }}
+  ref:
+    description: 'Commit-ish to checkout'
+  path:
+    description: 'Path to checkout repo to'
+  fetch-depth:
+    description: 'Number of commits to fetch'
+    default: 1
+  cache_path:
+    description: 'Path to cache location for all repos'
+  default_branch:
+    description: 'Name of the default branch'
+    default: 'sycl'
+
+runs:
+  using: 'composite'
+  steps:
+  - name: Fetch cache
+    shell: bash
+    run: |
+      mkdir -p ${{ inputs.cache_path }}/${{ inputs.repository }}
+      cd ${{ inputs.cache_path }}/${{ inputs.repository }}
+      if [ -d ./.git ]; then
+        git pull
+      else
+        git clone https://github.com/${{ inputs.repository }}.git .
+      fi
+      chown -R sycl:sycl ${{ inputs.cache_path }}/${{ inputs.repository }}
+  - name: Checkout
+    env:
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
+    uses: actions/checkout@v2
+    with:
+      repository: ${{ inputs.repository }}
+      ref: ${{ inputs.ref }}
+      path: ${{ inputs.path }}
+      fetch-depth: 0
+  - name: Merge sycl HEAD into current branch
+    shell: bash
+    env:
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
+      DEFAULT_BRANCH: ${{ inputs.default_branch }}
+    run: |
+      cd ${{ inputs.path }}
+      git fetch origin $DEFAULT_BRANCH
+      # Set fake identity to fulfil git requirements
+      git config --local user.email "actions@github.com"
+      git config --local user.name "GitHub Actions"
+      git merge --no-ff --no-commit origin/$DEFAULT_BRANCH

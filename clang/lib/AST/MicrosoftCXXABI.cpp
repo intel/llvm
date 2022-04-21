@@ -14,7 +14,9 @@
 #include "CXXABI.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
+#include "clang/AST/CXXInheritance.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/Mangle.h"
 #include "clang/AST/MangleNumberingContext.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Type.h"
@@ -34,8 +36,8 @@ class MicrosoftNumberingContext : public MangleNumberingContext {
 
 public:
   MicrosoftNumberingContext()
-      : MangleNumberingContext(), LambdaManglingNumber(0),
-        StaticLocalNumber(0), StaticThreadlocalNumber(0) {}
+      : LambdaManglingNumber(0), StaticLocalNumber(0),
+        StaticThreadlocalNumber(0) {}
 
   unsigned getManglingNumber(const CXXMethodDecl *CallOperator) override {
     return ++LambdaManglingNumber;
@@ -63,6 +65,32 @@ public:
   }
 };
 
+class MSHIPNumberingContext : public MicrosoftNumberingContext {
+  std::unique_ptr<MangleNumberingContext> DeviceCtx;
+
+public:
+  MSHIPNumberingContext(MangleContext *DeviceMangler) {
+    DeviceCtx = createItaniumNumberingContext(DeviceMangler);
+  }
+
+  unsigned getDeviceManglingNumber(const CXXMethodDecl *CallOperator) override {
+    return DeviceCtx->getManglingNumber(CallOperator);
+  }
+};
+
+class MSSYCLNumberingContext : public MicrosoftNumberingContext {
+  std::unique_ptr<MangleNumberingContext> DeviceCtx;
+
+public:
+  MSSYCLNumberingContext(MangleContext *DeviceMangler) {
+    DeviceCtx = createItaniumNumberingContext(DeviceMangler);
+  }
+
+  unsigned getDeviceManglingNumber(const CXXMethodDecl *CallOperator) override {
+    return DeviceCtx->getManglingNumber(CallOperator);
+  }
+};
+
 class MicrosoftCXXABI : public CXXABI {
   ASTContext &Context;
   llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> RecordToCopyCtor;
@@ -72,8 +100,27 @@ class MicrosoftCXXABI : public CXXABI {
   llvm::SmallDenseMap<TagDecl *, TypedefNameDecl *>
       UnnamedTagDeclToTypedefNameDecl;
 
+  // MangleContext for device numbering context, which is based on Itanium C++
+  // ABI.
+  std::unique_ptr<MangleContext> DeviceMangler;
+
 public:
-  MicrosoftCXXABI(ASTContext &Ctx) : Context(Ctx) { }
+  MicrosoftCXXABI(ASTContext &Ctx) : Context(Ctx) {
+    if (Context.getLangOpts().CUDA && Context.getAuxTargetInfo()) {
+      assert(Context.getTargetInfo().getCXXABI().isMicrosoft() &&
+             Context.getAuxTargetInfo()->getCXXABI().isItaniumFamily() &&
+             "Unexpected combination of C++ ABIs.");
+      DeviceMangler.reset(
+          Context.createMangleContext(Context.getAuxTargetInfo()));
+    } else if (Context.getLangOpts().isSYCL()) {
+      DeviceMangler.reset(
+          ItaniumMangleContext::create(Context, Context.getDiagnostics()));
+    }
+    else if (Context.getLangOpts().isSYCL()) {
+      DeviceMangler.reset(
+          ItaniumMangleContext::create(Context, Context.getDiagnostics()));
+    }
+  }
 
   MemberPointerInfo
   getMemberPointerInfo(const MemberPointerType *MPT) const override;
@@ -82,7 +129,7 @@ public:
     if (!isVariadic &&
         Context.getTargetInfo().getTriple().getArch() == llvm::Triple::x86)
       return CC_X86ThisCall;
-    return CC_C;
+    return Context.getTargetInfo().getDefaultCallingConv();
   }
 
   bool isNearlyEmpty(const CXXRecordDecl *RD) const override {
@@ -132,7 +179,15 @@ public:
 
   std::unique_ptr<MangleNumberingContext>
   createMangleNumberingContext() const override {
-    return llvm::make_unique<MicrosoftNumberingContext>();
+    if (Context.getLangOpts().CUDA && Context.getAuxTargetInfo()) {
+      assert(DeviceMangler && "Missing device mangler");
+      return std::make_unique<MSHIPNumberingContext>(DeviceMangler.get());
+    } else if (Context.getLangOpts().isSYCL()) {
+      assert(DeviceMangler && "Missing device mangler");
+      return std::make_unique<MSSYCLNumberingContext>(DeviceMangler.get());
+    }
+
+    return std::make_unique<MicrosoftNumberingContext>();
   }
 };
 }
@@ -154,27 +209,32 @@ static bool usesMultipleInheritanceModel(const CXXRecordDecl *RD) {
   return false;
 }
 
-MSInheritanceAttr::Spelling CXXRecordDecl::calculateInheritanceModel() const {
+MSInheritanceModel CXXRecordDecl::calculateInheritanceModel() const {
   if (!hasDefinition() || isParsingBaseSpecifiers())
-    return MSInheritanceAttr::Keyword_unspecified_inheritance;
+    return MSInheritanceModel::Unspecified;
   if (getNumVBases() > 0)
-    return MSInheritanceAttr::Keyword_virtual_inheritance;
+    return MSInheritanceModel::Virtual;
   if (usesMultipleInheritanceModel(this))
-    return MSInheritanceAttr::Keyword_multiple_inheritance;
-  return MSInheritanceAttr::Keyword_single_inheritance;
+    return MSInheritanceModel::Multiple;
+  return MSInheritanceModel::Single;
 }
 
-MSInheritanceAttr::Spelling
-CXXRecordDecl::getMSInheritanceModel() const {
+MSInheritanceModel CXXRecordDecl::getMSInheritanceModel() const {
   MSInheritanceAttr *IA = getAttr<MSInheritanceAttr>();
   assert(IA && "Expected MSInheritanceAttr on the CXXRecordDecl!");
-  return IA->getSemanticSpelling();
+  return IA->getInheritanceModel();
 }
 
-MSVtorDispAttr::Mode CXXRecordDecl::getMSVtorDispMode() const {
+bool CXXRecordDecl::nullFieldOffsetIsZero() const {
+  return !inheritanceModelHasOnlyOneField(/*IsMemberFunction=*/false,
+                                          getMSInheritanceModel()) ||
+         (hasDefinition() && isPolymorphic());
+}
+
+MSVtorDispMode CXXRecordDecl::getMSVtorDispMode() const {
   if (MSVtorDispAttr *VDA = getAttr<MSVtorDispAttr>())
     return VDA->getVtorDispMode();
-  return MSVtorDispAttr::Mode(getASTContext().getLangOpts().VtorDispMode);
+  return getASTContext().getLangOpts().getVtorDispMode();
 }
 
 // Returns the number of pointer and integer slots used to represent a member
@@ -209,19 +269,19 @@ MSVtorDispAttr::Mode CXXRecordDecl::getMSVtorDispMode() const {
 static std::pair<unsigned, unsigned>
 getMSMemberPointerSlots(const MemberPointerType *MPT) {
   const CXXRecordDecl *RD = MPT->getMostRecentCXXRecordDecl();
-  MSInheritanceAttr::Spelling Inheritance = RD->getMSInheritanceModel();
+  MSInheritanceModel Inheritance = RD->getMSInheritanceModel();
   unsigned Ptrs = 0;
   unsigned Ints = 0;
   if (MPT->isMemberFunctionPointer())
     Ptrs = 1;
   else
     Ints = 1;
-  if (MSInheritanceAttr::hasNVOffsetField(MPT->isMemberFunctionPointer(),
+  if (inheritanceModelHasNVOffsetField(MPT->isMemberFunctionPointer(),
                                           Inheritance))
     Ints++;
-  if (MSInheritanceAttr::hasVBPtrOffsetField(Inheritance))
+  if (inheritanceModelHasVBPtrOffsetField(Inheritance))
     Ints++;
-  if (MSInheritanceAttr::hasVBTableOffsetField(Inheritance))
+  if (inheritanceModelHasVBTableOffsetField(Inheritance))
     Ints++;
   return std::make_pair(Ptrs, Ints);
 }
@@ -260,4 +320,3 @@ CXXABI::MemberPointerInfo MicrosoftCXXABI::getMemberPointerInfo(
 CXXABI *clang::CreateMicrosoftCXXABI(ASTContext &Ctx) {
   return new MicrosoftCXXABI(Ctx);
 }
-

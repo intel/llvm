@@ -22,13 +22,18 @@ namespace bugprone {
 class StringConstructorCheck : public ClangTidyCheck {
 public:
   StringConstructorCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
+  const bool IsStringviewNullptrCheckEnabled;
   const bool WarnOnLargeLength;
   const unsigned int LargeLengthThreshold;
+  std::vector<std::string> StringNames;
 };
 
 } // namespace bugprone

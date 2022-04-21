@@ -7,7 +7,7 @@ Variable Formatting
 LLDB has a data formatters subsystem that allows users to define custom display
 options for their variables.
 
-Usually, when you type frame variable or run some expression LLDB will
+Usually, when you type ``frame variable`` or run some expression LLDB will
 automatically choose the way to display your results on a per-type basis, as in
 the following example:
 
@@ -17,7 +17,11 @@ the following example:
    (uint8_t) x = 'a'
    (intptr_t) y = 124752287
 
-However, in certain cases, you may want to associate a different style to the display for certain datatypes. To do so, you need to give hints to the debugger
+Note: ``frame variable`` without additional arguments prints the list of
+variables of the current frame.
+
+However, in certain cases, you may want to associate a different style to the
+display for certain datatypes. To do so, you need to give hints to the debugger
 as to how variables should be displayed. The LLDB type command allows you to do
 just that.
 
@@ -28,6 +32,63 @@ Using it you can change your visualization to look like this:
    (lldb) frame variable
    (uint8_t) x = chr='a' dec=65 hex=0x41
    (intptr_t) y = 0x76f919f
+
+In addition, some data structures can encode their data in a way that is not
+easily readable to the user, in which case a data formatter can be used to
+show the data in a human readable way. For example, without a formatter,
+printing a ``std::deque<int>`` with the elements ``{2, 3, 4, 5, 6}`` would
+result in something like:
+
+::
+
+   (lldb) frame variable a_deque
+   (std::deque<Foo, std::allocator<int> >) $0 = {
+      std::_Deque_base<Foo, std::allocator<int> > = {
+         _M_impl = {
+            _M_map = 0x000000000062ceb0
+            _M_map_size = 8
+            _M_start = {
+               _M_cur = 0x000000000062cf00
+               _M_first = 0x000000000062cf00
+               _M_last = 0x000000000062d2f4
+               _M_node = 0x000000000062cec8
+            }
+            _M_finish = {
+               _M_cur = 0x000000000062d300
+               _M_first = 0x000000000062d300
+               _M_last = 0x000000000062d6f4
+               _M_node = 0x000000000062ced0
+            }
+         }
+      }
+   }
+
+which is very hard to make sense of.
+
+Note: ``frame variable <var>`` prints out the variable ``<var>`` in the current
+frame.
+
+On the other hand, a proper formatter is able to produce the following output:
+
+::
+
+   (lldb) frame variable a_deque
+   (std::deque<Foo, std::allocator<int> >) $0 = size=5 {
+      [0] = 2
+      [1] = 3
+      [2] = 4
+      [3] = 5
+      [4] = 6
+   }
+
+which is what the user would expect from a good debugger.
+
+Note: you can also use ``v <var>`` instead of ``frame variable <var>``.
+
+It's worth mentioning that the ``size=5`` string is produced by a summary
+provider and the list of children is produced by a synthetic child provider.
+More information about these providers is available later in this document.
+
 
 There are several features related to data visualization: formats, summaries,
 filters, synthetic children.
@@ -131,6 +192,20 @@ which provides the desired output:
    (C) c = {0x03 0x00 0x00 0x00}
    (D) d = 4
 
+Note, that qualifiers such as const and volatile will be stripped when matching types for example:
+
+::
+
+   (lldb) frame var x y z
+   (int) x = 1
+   (const int) y = 2
+   (volatile int) z = 4
+   (lldb) type format add -f hex int
+   (lldb) frame var x y z
+   (int) x = 0x00000001
+   (const int) y = 0x00000002
+   (volatile int) z = 0x00000004
+
 Two additional options that you will want to look at are --skip-pointers (-p)
 and --skip-references (-r). These two options prevent LLDB from applying a
 format for type T to values of type T* and T& respectively.
@@ -197,7 +272,7 @@ pick:
 +-----------------------------------------------+------------------+--------------------------------------------------------------------------+
 | ``c-string``                                  | s                | show this as a 0-terminated C string                                     |
 +-----------------------------------------------+------------------+--------------------------------------------------------------------------+
-| ``decimal``                                   | i                | show this as a signed integer number (this does not perform a cast, it   |
+| ``decimal``                                   | d                | show this as a signed integer number (this does not perform a cast, it   |
 |                                               |                  | simply shows the bytes as  an integer with sign)                         |
 +-----------------------------------------------+------------------+--------------------------------------------------------------------------+
 | ``enumeration``                               | E                | show this as an enumeration, printing the                                |
@@ -238,6 +313,15 @@ pick:
 |                                               |                  | number                                                                   |
 +-----------------------------------------------+------------------+--------------------------------------------------------------------------+
 | ``character array``                           | a                | show this as a character array                                           |
++-----------------------------------------------+------------------+--------------------------------------------------------------------------+
+| ``address``                                   | A                | show this as an address target (symbol/file/line + offset), possibly     |
+|                                               |                  | also the string this address is pointing to                              |
++-----------------------------------------------+------------------+--------------------------------------------------------------------------+
+| ``hex float``                                 |                  | show this as hexadecimal floating point                                  |
++-----------------------------------------------+------------------+--------------------------------------------------------------------------+
+| ``instruction``                               | i                | show this as an disassembled opcode                                      |
++-----------------------------------------------+------------------+--------------------------------------------------------------------------+
+| ``void``                                      | v                | don't show anything                                                      |
 +-----------------------------------------------+------------------+--------------------------------------------------------------------------+
 
 Type Summary
@@ -357,12 +441,13 @@ simply say ${var.z} because that symbol refers to the pointer z. In order to
 dereference it and get the pointed value, you should say ``${*var.z}``. The
 ``${*var`` tells LLDB to get the object that the expression paths leads to, and
 then dereference it. In this example is it equivalent to ``*(bObject.z)`` in
-C/C++ syntax. Because . and -> operators can both be used, there is no need to
-have dereferences in the middle of an expression path (e.g. you do not need to
-type ``${*(var.x).x}``) to read A::x as contained in ``*(B::x)``. To achieve
-that effect you can simply write ``${var.x->x}``, or even ``${var.x.x}``. The
-``*`` operator only binds to the result of the whole expression path, rather
-than piecewise, and there is no way to use parentheses to change that behavior.
+C/C++ syntax. Because ``.`` and ``->`` operators can both be used, there is no
+need to have dereferences in the middle of an expression path (e.g. you do not
+need to type ``${*(var.x).x}``) to read A::x as contained in ``*(B::x)``. To
+achieve that effect you can simply write ``${var.x->x}``, or even
+``${var.x.x}``. The ``*`` operator only binds to the result of the whole
+expression path, rather than piecewise, and there is no way to use parentheses
+to change that behavior.
 
 Of course, a summary string can contain more than one ${var specifier, and can
 use ``${var`` and ``${*var`` specifiers together.
@@ -402,9 +487,7 @@ themselves, but which carry a special meaning when used in this context:
 | ``%>``     | Print the expression path for this item                                  |
 +------------+--------------------------------------------------------------------------+
 
-Starting with SVN r228207, you can also specify
-``${script.var:pythonFuncName}``. Previously, back to r220821, this was
-specified with a different syntax: ``${var.script:pythonFuncName}``.
+Since lldb 3.7.0, you can also specify ``${script.var:pythonFuncName}``.
 
 It is expected that the function name you use specifies a function whose
 signature is the same as a Python summary function. The return string from the
@@ -564,7 +647,7 @@ the pointer value. However, because pointers have no notion of their size, the
 empty brackets [] operator does not work, and you must explicitly provide
 higher and lower bounds.
 
-In general, LLDB needs the square brackets operator [] in order to handle
+In general, LLDB needs the square brackets ``operator []`` in order to handle
 arrays and pointers correctly, and for pointers it also needs a range. However,
 a few special cases are defined to make your life easier:
 
@@ -641,7 +724,7 @@ class, as shown in this example:
 
    (lldb) type summary add -P Rectangle
    Enter your Python command(s). Type 'DONE' to end.
-   def function (valobj,internal_dict):
+   def function (valobj,internal_dict,options):
       height_val = valobj.GetChildMemberWithName('height')
       width_val = valobj.GetChildMemberWithName('width')
       height = height_val.GetValueAsUnsigned(0)
@@ -667,7 +750,7 @@ passed two parameters: ``valobj`` and ``internal_dict``.
 not touch it.
 
 ``valobj`` is the object encapsulating the actual variable being displayed, and
-its type is SBValue. Out of the many possible operations on an SBValue, the
+its type is `SBValue`. Out of the many possible operations on an `SBValue`, the
 basic one is retrieve the children objects it contains (essentially, the fields
 of the object wrapped by it), by calling ``GetChildMemberWithName()``, passing
 it the child's name as a string.
@@ -675,18 +758,24 @@ it the child's name as a string.
 If the variable has a value, you can ask for it, and return it as a string
 using ``GetValue()``, or as a signed/unsigned number using
 ``GetValueAsSigned()``, ``GetValueAsUnsigned()``. It is also possible to
-retrieve an SBData object by calling ``GetData()`` and then read the object's
-contents out of the SBData.
+retrieve an `SBData` object by calling ``GetData()`` and then read the object's
+contents out of the `SBData`.
 
 If you need to delve into several levels of hierarchy, as you can do with
 summary strings, you can use the method ``GetValueForExpressionPath()``,
 passing it an expression path just like those you could use for summary strings
 (one of the differences is that dereferencing a pointer does not occur by
 prefixing the path with a ``*```, but by calling the ``Dereference()`` method
-on the returned SBValue). If you need to access array slices, you cannot do
+on the returned `SBValue`). If you need to access array slices, you cannot do
 that (yet) via this method call, and you must use ``GetChildAtIndex()``
 querying it for the array items one by one. Also, handling custom formats is
 something you have to deal with on your own.
+
+``options`` Python summary formatters can optionally define this
+third argument, which is an object of type ``lldb.SBTypeSummaryOptions``,
+allowing for a few customizations of the result. The decision to
+adopt or not this third argument - and the meaning of options
+thereof - is up to the individual formatter's writer.
 
 Other than interactively typing a Python script there are two other ways for
 you to input a Python script as a summary:
@@ -705,14 +794,6 @@ you to input a Python script as a summary:
   or somehow loaded it from a file, using the command script import command.
   LLDB will emit a warning if it is unable to find the function you passed, but
   will still register the binding.
-
-Starting in SVN r222593, Python summary formatters can optionally define a
-third argument: options
-
-This is an object of type ``lldb.SBTypeSummaryOptions`` that can be passed into
-the formatter, allowing for a few customizations of the result. The decision to
-adopt or not this third argument - and the meaning of options thereof - is
-within the individual formatters' writer.
 
 Regular Expression Typenames
 ----------------------------
@@ -836,7 +917,7 @@ adheres to a given interface (the word is italicized because Python has no
 explicit notion of interface, by that word we mean a given set of methods must
 be implemented by the Python class):
 
-::
+.. code-block:: python
 
    class SyntheticChildrenProvider:
       def __init__(self, valobj, internal_dict):
@@ -849,33 +930,61 @@ be implemented by the Python class):
          this call should return a new LLDB SBValue object representing the child at the index given as argument
       def update(self):
          this call should be used to update the internal state of this Python object whenever the state of the variables in LLDB changes.[1]
+         Also, this method is invoked before any other method in the interface.
       def has_children(self):
          this call should return True if this object might have children, and False if this object can be guaranteed not to have children.[2]
       def get_value(self):
          this call can return an SBValue to be presented as the value of the synthetic value under consideration.[3]
 
-[1] This method is optional. Also, it may optionally choose to return a value
-(starting with SVN rev153061/LLDB-134). If it returns a value, and that value
-is True, LLDB will be allowed to cache the children and the children count it
-previously obtained, and will not return to the provider class to ask. If
-nothing, None, or anything other than True is returned, LLDB will discard the
-cached information and ask. Regardless, whenever necessary LLDB will call
-update.
+As a warning, exceptions that are thrown by python formatters are caught
+silently by LLDB and should be handled appropriately by the formatter itself.
+Being more specific, in case of exceptions, LLDB might assume that the given
+object has no children or it might skip printing some children, as they are
+printed one by one.
 
-[2] This method is optional (starting with SVN rev166495/LLDB-175). While
-implementing it in terms of num_children is acceptable, implementors are
-encouraged to look for optimized coding alternatives whenever reasonable.
+[1] This method is optional. Also, a boolean value must be returned (since lldb
+3.1.0). If ``False`` is returned, then whenever the process reaches a new stop,
+this method will be invoked again to generate an updated list of the children
+for a given variable. Otherwise, if ``True`` is returned, then the value is
+cached and this method won't be called again, effectively freezing the state of
+the value in subsequent stops. Beware that returning ``True`` incorrectly could
+show misleading information to the user.
 
-[3] This method is optional (starting with SVN revision 219330). The SBValue
-you return here will most likely be a numeric type (int, float, ...) as its
-value bytes will be used as-if they were the value of the root SBValue proper.
-As a shortcut for this, you can inherit from lldb.SBSyntheticValueProvider, and
-just define get_value as other methods are defaulted in the superclass as
-returning default no-children responses.
+[2] This method is optional (since lldb 3.2.0). While implementing it in terms
+of num_children is acceptable, implementors are encouraged to look for
+optimized coding alternatives whenever reasonable.
 
-If a synthetic child provider supplies a special child named $$dereference$$
-then it will be used when evaluating opertaor* and operator-> in the frame
-variable command and related SB API functions.
+[3] This method is optional (since lldb 3.5.2). The `SBValue` you return here
+will most likely be a numeric type (int, float, ...) as its value bytes will be
+used as-if they were the value of the root `SBValue` proper.  As a shortcut for
+this, you can inherit from lldb.SBSyntheticValueProvider, and just define
+get_value as other methods are defaulted in the superclass as returning default
+no-children responses.
+
+If a synthetic child provider supplies a special child named
+``$$dereference$$`` then it will be used when evaluating ``operator *`` and
+``operator ->`` in the frame variable command and related SB API
+functions. It is possible to declare this synthetic child without
+including it in the range of children displayed by LLDB. For example,
+this subset of a synthetic children provider class would allow the
+synthetic value to be dereferenced without actually showing any
+synthtic children in the UI:
+
+.. code-block:: python
+
+      class SyntheticChildrenProvider:
+          [...]
+          def num_children(self):
+              return 0
+          def get_child_index(self, name):
+              if name == '$$dereference$$':
+                  return 0
+              return -1
+          def get_child_at_index(self, index):
+              if index == 0:
+                  return <valobj resulting from dereference>
+              return None
+
 
 For examples of how synthetic children are created, you are encouraged to look
 at examples/synthetic in the LLDB trunk. Please, be aware that the code in
@@ -884,7 +993,7 @@ especially want to begin looking at this example to get a feel for this
 feature, as it is a very easy and well commented example.
 
 The design pattern consistently used in synthetic providers shipping with LLDB
-is to use the __init__ to store the SBValue instance as a part of self. The
+is to use the __init__ to store the `SBValue` instance as a part of self. The
 update function is then used to perform the actual initialization. Once a
 synthetic children provider is written, one must load it into LLDB before it
 can be used. Currently, one can use the LLDB script command to type Python code
@@ -929,6 +1038,24 @@ instead of the real ones. For instance,
       (int) [3] = 1234
    }
 
+It's important to mention that LLDB invokes the synthetic child provider before
+invoking the summary string provider, which allows the latter to have access to
+the actual displayable children. This applies to both inlined summary strings
+and python-based summary providers.
+
+
+As a warning, when programmatically accessing the children or children count of
+a variable that has a synthetic child provider, notice that LLDB hides the
+actual raw children. For example, suppose we have a ``std::vector``, which has
+an actual in-memory property ``__begin`` marking the beginning of its data.
+After the synthetic child provider is executed, the ``std::vector`` variable
+won't show ``__begin`` as child anymore, even through the SB API. It will have
+instead the children calculated by the provider. In case the actual raw
+children are needed, a call to ``value.GetNonSyntheticValue()`` is enough to
+get a raw version of the value. It is import to remember this when implementing
+summary string providers, as they run after the synthetic child provider.
+
+
 In some cases, if LLDB is unable to use the real object to get a child
 specified in an expression path, it will automatically refer to the synthetic
 children. While in summaries it is best to always use ${svar to make your
@@ -951,10 +1078,10 @@ expression:
    Error [IRForTarget]: Call to a function '_ZNSt33vector<int, std::allocator<int> >ixEm' that is not present in the target
    error: Couldn't convert the expression to DWARF
 
-The reason for this is that classes might have an overloaded operator [], or
-other special provisions and the expression command chooses to ignore synthetic
-children in the interest of equivalency with code you asked to have compiled
-from source.
+The reason for this is that classes might have an overloaded ``operator []``,
+or other special provisions and the expression command chooses to ignore
+synthetic children in the interest of equivalency with code you asked to have
+compiled from source.
 
 Filters
 -------
@@ -964,7 +1091,7 @@ have many member variables but not all of these are actually necessary for the
 user to see.
 
 A filter will solve this issue by only letting the user see those member
-variables he cares about. Of course, the equivalent of a filter can be
+variables they care about. Of course, the equivalent of a filter can be
 implemented easily using synthetic children, but a filter lets you get the job
 done without having to write Python code.
 
@@ -1099,11 +1226,11 @@ not-empty category.
 Finding Formatters 101
 ----------------------
 
-Searching for a formatter (including formats, starting in SVN rev r192217)
-given a variable goes through a rather intricate set of rules. Namely, what
-happens is that LLDB starts looking in each enabled category, according to the
-order in which they were enabled (latest enabled first). In each category, LLDB
-does the following:
+Searching for a formatter (including formats, since lldb 3.4.0) given a
+variable goes through a rather intricate set of rules. Namely, what happens is
+that LLDB starts looking in each enabled category, according to the order in
+which they were enabled (latest enabled first). In each category, LLDB does the
+following:
 
 - If there is a formatter for the type of the variable, use it
 - If this object is a pointer, and there is a formatter for the pointee type

@@ -30,7 +30,7 @@ extern inline S &f() {
 // CHECK:     [[init]]:
 // CHECK-NEXT:  %[[or:.*]] = or i32 %[[guard]], 1
 // CHECK-NEXT:  store i32 %[[or]], i32* @"??__J?1??f@@YAAAUS@@XZ@51"
-// CHECK-NEXT:  invoke {{.*}} @"??0S@@QAE@XZ"(%struct.S* @"?s@?1??f@@YAAAUS@@XZ@4U2@A")
+// CHECK-NEXT:  invoke {{.*}} @"??0S@@QAE@XZ"(%struct.S* {{[^,]*}} @"?s@?1??f@@YAAAUS@@XZ@4U2@A")
 // CHECK-NEXT:    to label %[[invoke_cont:.*]] unwind label %[[lpad:.*]]
 //
 // CHECK:     [[invoke_cont]]:
@@ -65,7 +65,7 @@ extern inline S &g() {
 // CHECK-NEXT:  br i1 %[[cmp2]], label %[[init:.*]], label %[[init_end:.*]]
 //
 // CHECK:     [[init]]:
-// CHECK-NEXT:  invoke {{.*}} @"??0S@@QAE@XZ"(%struct.S* @"?s@?1??g@@YAAAUS@@XZ@4U2@A")
+// CHECK-NEXT:  invoke {{.*}} @"??0S@@QAE@XZ"(%struct.S* {{[^,]*}} @"?s@?1??g@@YAAAUS@@XZ@4U2@A")
 // CHECK-NEXT:    to label %[[invoke_cont:.*]] unwind label %[[lpad:.*]]
 //
 // CHECK:     [[invoke_cont]]:
@@ -89,7 +89,7 @@ extern inline S&h(bool b) {
   return b ? j : i;
 }
 
-// CHECK-LABEL: define dso_local i32 @"?g1@@YAHXZ"()
+// CHECK-LABEL: define dso_local noundef i32 @"?g1@@YAHXZ"()
 int f1();
 int g1() {
   static int i = f1();

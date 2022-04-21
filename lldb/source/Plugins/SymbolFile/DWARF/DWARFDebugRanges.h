@@ -6,39 +6,31 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_DWARFDebugRanges_h_
-#define SymbolFileDWARF_DWARFDebugRanges_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGRANGES_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGRANGES_H
 
-#include "DWARFDIE.h"
-#include "SymbolFileDWARF.h"
-
+#include "lldb/Core/dwarf.h"
 #include <map>
 
-class DWARFDebugRangesBase {
-public:
-  virtual ~DWARFDebugRangesBase(){};
+class DWARFUnit;
+namespace lldb_private {
+class DWARFContext;
+}
 
-  virtual void Extract(SymbolFileDWARF *dwarf2Data) = 0;
-  virtual bool FindRanges(const DWARFUnit *cu, dw_offset_t debug_ranges_offset,
-                          DWARFRangeList &range_list) const = 0;
-  virtual uint64_t GetOffset(size_t Index) const = 0;
-};
-
-class DWARFDebugRanges final : public DWARFDebugRangesBase {
+class DWARFDebugRanges {
 public:
   DWARFDebugRanges();
 
-  void Extract(SymbolFileDWARF *dwarf2Data) override;
+  void Extract(lldb_private::DWARFContext &context);
   bool FindRanges(const DWARFUnit *cu, dw_offset_t debug_ranges_offset,
-                  DWARFRangeList &range_list) const override;
-  uint64_t GetOffset(size_t Index) const override;
+                  DWARFRangeList &range_list) const;
 
   static void Dump(lldb_private::Stream &s,
                    const lldb_private::DWARFDataExtractor &debug_ranges_data,
                    lldb::offset_t *offset_ptr, dw_addr_t cu_base_addr);
 
 protected:
-  bool Extract(SymbolFileDWARF *dwarf2Data, lldb::offset_t *offset_ptr,
+  bool Extract(lldb_private::DWARFContext &context, lldb::offset_t *offset_ptr,
                DWARFRangeList &range_list);
 
   typedef std::map<dw_offset_t, DWARFRangeList> range_map;
@@ -47,27 +39,4 @@ protected:
   range_map m_range_map;
 };
 
-// DWARF v5 .debug_rnglists section.
-class DWARFDebugRngLists final : public DWARFDebugRangesBase {
-  struct RngListEntry {
-    uint8_t encoding;
-    uint64_t value0;
-    uint64_t value1;
-  };
-
-public:
-  void Extract(SymbolFileDWARF *dwarf2Data) override;
-  bool FindRanges(const DWARFUnit *cu, dw_offset_t debug_ranges_offset,
-                  DWARFRangeList &range_list) const override;
-  uint64_t GetOffset(size_t Index) const override;
-
-protected:
-  bool ExtractRangeList(const lldb_private::DWARFDataExtractor &data,
-                        uint8_t addrSize, lldb::offset_t *offset_ptr,
-                        std::vector<RngListEntry> &list);
-
-  std::vector<uint64_t> Offsets;
-  std::map<dw_offset_t, std::vector<RngListEntry>> m_range_map;
-};
-
-#endif // SymbolFileDWARF_DWARFDebugRanges_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGRANGES_H

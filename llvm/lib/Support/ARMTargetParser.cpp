@@ -13,6 +13,7 @@
 
 #include "llvm/Support/ARMTargetParser.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/Triple.h"
 #include <cctype>
 
 using namespace llvm;
@@ -27,7 +28,7 @@ static StringRef getHWDivSynonym(StringRef HWDiv) {
 ARM::ArchKind ARM::parseArch(StringRef Arch) {
   Arch = getCanonicalArchName(Arch);
   StringRef Syn = getArchSynonym(Arch);
-  for (const auto A : ARCHNames) {
+  for (const auto &A : ARCHNames) {
     if (A.getName().endswith(Syn))
       return A.ID;
   }
@@ -74,10 +75,19 @@ unsigned ARM::parseArchVersion(StringRef Arch) {
   case ArchKind::ARMV8_3A:
   case ArchKind::ARMV8_4A:
   case ArchKind::ARMV8_5A:
+  case ArchKind::ARMV8_6A:
+  case ArchKind::ARMV8_7A:
+  case ArchKind::ARMV8_8A:
   case ArchKind::ARMV8R:
   case ArchKind::ARMV8MBaseline:
   case ArchKind::ARMV8MMainline:
+  case ArchKind::ARMV8_1MMainline:
     return 8;
+  case ArchKind::ARMV9A:
+  case ArchKind::ARMV9_1A:
+  case ArchKind::ARMV9_2A:
+  case ArchKind::ARMV9_3A:
+    return 9;
   case ArchKind::INVALID:
     return 0;
   }
@@ -93,6 +103,7 @@ ARM::ProfileKind ARM::parseArchProfile(StringRef Arch) {
   case ArchKind::ARMV7EM:
   case ArchKind::ARMV8MMainline:
   case ArchKind::ARMV8MBaseline:
+  case ArchKind::ARMV8_1MMainline:
     return ProfileKind::M;
   case ArchKind::ARMV7R:
   case ArchKind::ARMV8R:
@@ -106,6 +117,13 @@ ARM::ProfileKind ARM::parseArchProfile(StringRef Arch) {
   case ArchKind::ARMV8_3A:
   case ArchKind::ARMV8_4A:
   case ArchKind::ARMV8_5A:
+  case ArchKind::ARMV8_6A:
+  case ArchKind::ARMV8_7A:
+  case ArchKind::ARMV8_8A:
+  case ArchKind::ARMV9A:
+  case ArchKind::ARMV9_1A:
+  case ArchKind::ARMV9_2A:
+  case ArchKind::ARMV9_3A:
     return ProfileKind::A;
   case ArchKind::ARMV2:
   case ArchKind::ARMV2A:
@@ -148,9 +166,17 @@ StringRef ARM::getArchSynonym(StringRef Arch) {
       .Case("v8.3a", "v8.3-a")
       .Case("v8.4a", "v8.4-a")
       .Case("v8.5a", "v8.5-a")
+      .Case("v8.6a", "v8.6-a")
+      .Case("v8.7a", "v8.7-a")
+      .Case("v8.8a", "v8.8-a")
       .Case("v8r", "v8-r")
+      .Cases("v9", "v9a", "v9-a")
+      .Case("v9.1a", "v9.1-a")
+      .Case("v9.2a", "v9.2-a")
+      .Case("v9.3a", "v9.3-a")
       .Case("v8m.base", "v8-m.base")
       .Case("v8m.main", "v8-m.main")
+      .Case("v8.1m.main", "v8.1-m.main")
       .Default(Arch);
 }
 
@@ -159,77 +185,60 @@ bool ARM::getFPUFeatures(unsigned FPUKind, std::vector<StringRef> &Features) {
   if (FPUKind >= FK_LAST || FPUKind == FK_INVALID)
     return false;
 
-  // fp-only-sp and d16 subtarget features are independent of each other, so we
-  // must enable/disable both.
-  switch (FPUNames[FPUKind].Restriction) {
-  case FPURestriction::SP_D16:
-    Features.push_back("+fp-only-sp");
-    Features.push_back("+d16");
-    break;
-  case FPURestriction::D16:
-    Features.push_back("-fp-only-sp");
-    Features.push_back("+d16");
-    break;
-  case FPURestriction::None:
-    Features.push_back("-fp-only-sp");
-    Features.push_back("-d16");
-    break;
+  static const struct FPUFeatureNameInfo {
+    const char *PlusName, *MinusName;
+    FPUVersion MinVersion;
+    FPURestriction MaxRestriction;
+  } FPUFeatureInfoList[] = {
+    // We have to specify the + and - versions of the name in full so
+    // that we can return them as static StringRefs.
+    //
+    // Also, the SubtargetFeatures ending in just "sp" are listed here
+    // under FPURestriction::None, which is the only FPURestriction in
+    // which they would be valid (since FPURestriction::SP doesn't
+    // exist).
+    {"+vfp2", "-vfp2", FPUVersion::VFPV2, FPURestriction::D16},
+    {"+vfp2sp", "-vfp2sp", FPUVersion::VFPV2, FPURestriction::SP_D16},
+    {"+vfp3", "-vfp3", FPUVersion::VFPV3, FPURestriction::None},
+    {"+vfp3d16", "-vfp3d16", FPUVersion::VFPV3, FPURestriction::D16},
+    {"+vfp3d16sp", "-vfp3d16sp", FPUVersion::VFPV3, FPURestriction::SP_D16},
+    {"+vfp3sp", "-vfp3sp", FPUVersion::VFPV3, FPURestriction::None},
+    {"+fp16", "-fp16", FPUVersion::VFPV3_FP16, FPURestriction::SP_D16},
+    {"+vfp4", "-vfp4", FPUVersion::VFPV4, FPURestriction::None},
+    {"+vfp4d16", "-vfp4d16", FPUVersion::VFPV4, FPURestriction::D16},
+    {"+vfp4d16sp", "-vfp4d16sp", FPUVersion::VFPV4, FPURestriction::SP_D16},
+    {"+vfp4sp", "-vfp4sp", FPUVersion::VFPV4, FPURestriction::None},
+    {"+fp-armv8", "-fp-armv8", FPUVersion::VFPV5, FPURestriction::None},
+    {"+fp-armv8d16", "-fp-armv8d16", FPUVersion::VFPV5, FPURestriction::D16},
+    {"+fp-armv8d16sp", "-fp-armv8d16sp", FPUVersion::VFPV5, FPURestriction::SP_D16},
+    {"+fp-armv8sp", "-fp-armv8sp", FPUVersion::VFPV5, FPURestriction::None},
+    {"+fullfp16", "-fullfp16", FPUVersion::VFPV5_FULLFP16, FPURestriction::SP_D16},
+    {"+fp64", "-fp64", FPUVersion::VFPV2, FPURestriction::D16},
+    {"+d32", "-d32", FPUVersion::VFPV3, FPURestriction::None},
+  };
+
+  for (const auto &Info: FPUFeatureInfoList) {
+    if (FPUNames[FPUKind].FPUVer >= Info.MinVersion &&
+        FPUNames[FPUKind].Restriction <= Info.MaxRestriction)
+      Features.push_back(Info.PlusName);
+    else
+      Features.push_back(Info.MinusName);
   }
 
-  // FPU version subtarget features are inclusive of lower-numbered ones, so
-  // enable the one corresponding to this version and disable all that are
-  // higher. We also have to make sure to disable fp16 when vfp4 is disabled,
-  // as +vfp4 implies +fp16 but -vfp4 does not imply -fp16.
-  switch (FPUNames[FPUKind].FPUVer) {
-  case FPUVersion::VFPV5:
-    Features.push_back("+fp-armv8");
-    break;
-  case FPUVersion::VFPV4:
-    Features.push_back("+vfp4");
-    Features.push_back("-fp-armv8");
-    break;
-  case FPUVersion::VFPV3_FP16:
-    Features.push_back("+vfp3");
-    Features.push_back("+fp16");
-    Features.push_back("-vfp4");
-    Features.push_back("-fp-armv8");
-    break;
-  case FPUVersion::VFPV3:
-    Features.push_back("+vfp3");
-    Features.push_back("-fp16");
-    Features.push_back("-vfp4");
-    Features.push_back("-fp-armv8");
-    break;
-  case FPUVersion::VFPV2:
-    Features.push_back("+vfp2");
-    Features.push_back("-vfp3");
-    Features.push_back("-fp16");
-    Features.push_back("-vfp4");
-    Features.push_back("-fp-armv8");
-    break;
-  case FPUVersion::NONE:
-    Features.push_back("-vfp2");
-    Features.push_back("-vfp3");
-    Features.push_back("-fp16");
-    Features.push_back("-vfp4");
-    Features.push_back("-fp-armv8");
-    break;
-  }
+  static const struct NeonFeatureNameInfo {
+    const char *PlusName, *MinusName;
+    NeonSupportLevel MinSupportLevel;
+  } NeonFeatureInfoList[] = {
+      {"+neon", "-neon", NeonSupportLevel::Neon},
+      {"+sha2", "-sha2", NeonSupportLevel::Crypto},
+      {"+aes", "-aes", NeonSupportLevel::Crypto},
+  };
 
-  // crypto includes neon, so we handle this similarly to FPU version.
-  switch (FPUNames[FPUKind].NeonSupport) {
-  case NeonSupportLevel::Crypto:
-    Features.push_back("+neon");
-    Features.push_back("+crypto");
-    break;
-  case NeonSupportLevel::Neon:
-    Features.push_back("+neon");
-    Features.push_back("-crypto");
-    break;
-  case NeonSupportLevel::None:
-    Features.push_back("-neon");
-    Features.push_back("-crypto");
-    break;
+  for (const auto &Info: NeonFeatureInfoList) {
+    if (FPUNames[FPUKind].NeonSupport >= Info.MinSupportLevel)
+      Features.push_back(Info.PlusName);
+    else
+      Features.push_back(Info.MinusName);
   }
 
   return true;
@@ -266,7 +275,7 @@ ARM::ISAKind ARM::parseArchISA(StringRef Arch) {
 
 unsigned ARM::parseFPU(StringRef FPU) {
   StringRef Syn = getFPUSynonym(FPU);
-  for (const auto F : FPUNames) {
+  for (const auto &F : FPUNames) {
     if (Syn == F.getName())
       return F.ID;
   }
@@ -291,6 +300,8 @@ StringRef ARM::getCanonicalArchName(StringRef Arch) {
   // Begins with "arm" / "thumb", move past it.
   if (A.startswith("arm64_32"))
     offset = 8;
+  else if (A.startswith("arm64e"))
+    offset = 6;
   else if (A.startswith("arm64"))
     offset = 5;
   else if (A.startswith("aarch64_32"))
@@ -302,7 +313,7 @@ StringRef ARM::getCanonicalArchName(StringRef Arch) {
   else if (A.startswith("aarch64")) {
     offset = 7;
     // AArch64 uses "_be", not "eb" suffix.
-    if (A.find("eb") != StringRef::npos)
+    if (A.contains("eb"))
       return Error;
     if (A.substr(offset, 3) == "_be")
       offset += 3;
@@ -328,7 +339,7 @@ StringRef ARM::getCanonicalArchName(StringRef Arch) {
     if (A.size() >= 2 && (A[0] != 'v' || !std::isdigit(A[1])))
       return Error;
     // Can't have an extra 'eb'.
-    if (A.find("eb") != StringRef::npos)
+    if (A.contains("eb"))
       return Error;
   }
 
@@ -382,11 +393,11 @@ unsigned ARM::getDefaultFPU(StringRef CPU, ARM::ArchKind AK) {
    .Default(ARM::FK_INVALID);
 }
 
-unsigned ARM::getDefaultExtensions(StringRef CPU, ARM::ArchKind AK) {
+uint64_t ARM::getDefaultExtensions(StringRef CPU, ARM::ArchKind AK) {
   if (CPU == "generic")
     return ARM::ARCHNames[static_cast<unsigned>(AK)].ArchBaseExtensions;
 
-  return StringSwitch<unsigned>(CPU)
+  return StringSwitch<uint64_t>(CPU)
 #define ARM_CPU_NAME(NAME, ID, DEFAULT_FPU, IS_DEFAULT, DEFAULT_EXT)           \
   .Case(NAME,                                                                  \
         ARCHNames[static_cast<unsigned>(ArchKind::ID)].ArchBaseExtensions |    \
@@ -395,7 +406,7 @@ unsigned ARM::getDefaultExtensions(StringRef CPU, ARM::ArchKind AK) {
   .Default(ARM::AEK_INVALID);
 }
 
-bool ARM::getHWDivFeatures(unsigned HWDivKind,
+bool ARM::getHWDivFeatures(uint64_t HWDivKind,
                            std::vector<StringRef> &Features) {
 
   if (HWDivKind == AEK_INVALID)
@@ -414,36 +425,18 @@ bool ARM::getHWDivFeatures(unsigned HWDivKind,
   return true;
 }
 
-bool ARM::getExtensionFeatures(unsigned Extensions,
+bool ARM::getExtensionFeatures(uint64_t Extensions,
                                std::vector<StringRef> &Features) {
 
   if (Extensions == AEK_INVALID)
     return false;
 
-  if (Extensions & AEK_CRC)
-    Features.push_back("+crc");
-  else
-    Features.push_back("-crc");
-
-  if (Extensions & AEK_DSP)
-    Features.push_back("+dsp");
-  else
-    Features.push_back("-dsp");
-
-  if (Extensions & AEK_FP16FML)
-    Features.push_back("+fp16fml");
-  else
-    Features.push_back("-fp16fml");
-
-  if (Extensions & AEK_RAS)
-    Features.push_back("+ras");
-  else
-    Features.push_back("-ras");
-
-  if (Extensions & AEK_DOTPROD)
-    Features.push_back("+dotprod");
-  else
-    Features.push_back("-dotprod");
+  for (const auto &AE : ARCHExtNames) {
+    if ((Extensions & AE.ID) == AE.ID && AE.Feature)
+      Features.push_back(AE.Feature);
+    else if (AE.NegFeature)
+      Features.push_back(AE.NegFeature);
+  }
 
   return getHWDivFeatures(Extensions, Features);
 }
@@ -464,36 +457,103 @@ unsigned ARM::getArchAttr(ARM::ArchKind AK) {
   return ARCHNames[static_cast<unsigned>(AK)].ArchAttr;
 }
 
-StringRef ARM::getArchExtName(unsigned ArchExtKind) {
-  for (const auto AE : ARCHExtNames) {
+StringRef ARM::getArchExtName(uint64_t ArchExtKind) {
+  for (const auto &AE : ARCHExtNames) {
     if (ArchExtKind == AE.ID)
       return AE.getName();
   }
   return StringRef();
 }
 
-StringRef ARM::getArchExtFeature(StringRef ArchExt) {
-  if (ArchExt.startswith("no")) {
-    StringRef ArchExtBase(ArchExt.substr(2));
-    for (const auto AE : ARCHExtNames) {
-      if (AE.NegFeature && ArchExtBase == AE.getName())
-        return StringRef(AE.NegFeature);
-    }
+static bool stripNegationPrefix(StringRef &Name) {
+  if (Name.startswith("no")) {
+    Name = Name.substr(2);
+    return true;
   }
-  for (const auto AE : ARCHExtNames) {
+  return false;
+}
+
+StringRef ARM::getArchExtFeature(StringRef ArchExt) {
+  bool Negated = stripNegationPrefix(ArchExt);
+  for (const auto &AE : ARCHExtNames) {
     if (AE.Feature && ArchExt == AE.getName())
-      return StringRef(AE.Feature);
+      return StringRef(Negated ? AE.NegFeature : AE.Feature);
   }
 
   return StringRef();
 }
 
-StringRef ARM::getHWDivName(unsigned HWDivKind) {
-  for (const auto D : HWDivNames) {
-    if (HWDivKind == D.ID)
-      return D.getName();
+static unsigned findDoublePrecisionFPU(unsigned InputFPUKind) {
+  const ARM::FPUName &InputFPU = ARM::FPUNames[InputFPUKind];
+
+  // If the input FPU already supports double-precision, then there
+  // isn't any different FPU we can return here.
+  //
+  // The current available FPURestriction values are None (no
+  // restriction), D16 (only 16 d-regs) and SP_D16 (16 d-regs
+  // and single precision only); there's no value representing
+  // SP restriction without D16. So this test just means 'is it
+  // SP only?'.
+  if (InputFPU.Restriction != ARM::FPURestriction::SP_D16)
+    return ARM::FK_INVALID;
+
+  // Otherwise, look for an FPU entry with all the same fields, except
+  // that SP_D16 has been replaced with just D16, representing adding
+  // double precision and not changing anything else.
+  for (const ARM::FPUName &CandidateFPU : ARM::FPUNames) {
+    if (CandidateFPU.FPUVer == InputFPU.FPUVer &&
+        CandidateFPU.NeonSupport == InputFPU.NeonSupport &&
+        CandidateFPU.Restriction == ARM::FPURestriction::D16) {
+      return CandidateFPU.ID;
+    }
   }
-  return StringRef();
+
+  // nothing found
+  return ARM::FK_INVALID;
+}
+
+bool ARM::appendArchExtFeatures(StringRef CPU, ARM::ArchKind AK,
+                                StringRef ArchExt,
+                                std::vector<StringRef> &Features,
+                                unsigned &ArgFPUID) {
+
+  size_t StartingNumFeatures = Features.size();
+  const bool Negated = stripNegationPrefix(ArchExt);
+  uint64_t ID = parseArchExt(ArchExt);
+
+  if (ID == AEK_INVALID)
+    return false;
+
+  for (const auto &AE : ARCHExtNames) {
+    if (Negated) {
+      if ((AE.ID & ID) == ID && AE.NegFeature)
+        Features.push_back(AE.NegFeature);
+    } else {
+      if ((AE.ID & ID) == AE.ID && AE.Feature)
+        Features.push_back(AE.Feature);
+    }
+  }
+
+  if (CPU == "")
+    CPU = "generic";
+
+  if (ArchExt == "fp" || ArchExt == "fp.dp") {
+    unsigned FPUKind;
+    if (ArchExt == "fp.dp") {
+      if (Negated) {
+        Features.push_back("-fp64");
+        return true;
+      }
+      FPUKind = findDoublePrecisionFPU(getDefaultFPU(CPU, AK));
+    } else if (Negated) {
+      FPUKind = ARM::FK_NONE;
+    } else {
+      FPUKind = getDefaultFPU(CPU, AK);
+    }
+    ArgFPUID = FPUKind;
+    return ARM::getFPUFeatures(FPUKind, Features);
+  }
+  return StartingNumFeatures != Features.size();
 }
 
 StringRef ARM::getDefaultCPU(StringRef Arch) {
@@ -502,7 +562,7 @@ StringRef ARM::getDefaultCPU(StringRef Arch) {
     return StringRef();
 
   // Look for multiple AKs to find the default for pair AK+Name.
-  for (const auto CPU : CPUNames) {
+  for (const auto &CPU : CPUNames) {
     if (CPU.ArchID == AK && CPU.Default)
       return CPU.getName();
   }
@@ -511,17 +571,17 @@ StringRef ARM::getDefaultCPU(StringRef Arch) {
   return "generic";
 }
 
-unsigned ARM::parseHWDiv(StringRef HWDiv) {
+uint64_t ARM::parseHWDiv(StringRef HWDiv) {
   StringRef Syn = getHWDivSynonym(HWDiv);
-  for (const auto D : HWDivNames) {
+  for (const auto &D : HWDivNames) {
     if (Syn == D.getName())
       return D.ID;
   }
   return AEK_INVALID;
 }
 
-unsigned ARM::parseArchExt(StringRef ArchExt) {
-  for (const auto A : ARCHExtNames) {
+uint64_t ARM::parseArchExt(StringRef ArchExt) {
+  for (const auto &A : ARCHExtNames) {
     if (ArchExt == A.getName())
       return A.ID;
   }
@@ -529,7 +589,7 @@ unsigned ARM::parseArchExt(StringRef ArchExt) {
 }
 
 ARM::ArchKind ARM::parseCPUArch(StringRef CPU) {
-  for (const auto C : CPUNames) {
+  for (const auto &C : CPUNames) {
     if (CPU == C.getName())
       return C.ArchID;
   }

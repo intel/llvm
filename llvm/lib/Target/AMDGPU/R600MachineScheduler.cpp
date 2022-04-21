@@ -12,13 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "R600MachineScheduler.h"
-#include "AMDGPUSubtarget.h"
-#include "R600InstrInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/Pass.h"
-#include "llvm/Support/raw_ostream.h"
+#include "MCTargetDesc/R600MCTargetDesc.h"
+#include "R600Subtarget.h"
 
 using namespace llvm;
 
@@ -34,7 +29,7 @@ void R600SchedStrategy::initialize(ScheduleDAGMI *dag) {
   MRI = &DAG->MRI;
   CurInstKind = IDOther;
   CurEmitted = 0;
-  OccupedSlotsMask = 31;
+  OccupiedSlotsMask = 31;
   InstKindLimit[IDAlu] = TII->getMaxAlusPerClause();
   InstKindLimit[IDOther] = 32;
   InstKindLimit[IDFetch] = ST.getTexVTXClauseSize();
@@ -45,7 +40,7 @@ void R600SchedStrategy::initialize(ScheduleDAGMI *dag) {
 void R600SchedStrategy::MoveUnits(std::vector<SUnit *> &QSrc,
                                   std::vector<SUnit *> &QDst)
 {
-  QDst.insert(QDst.end(), QSrc.begin(), QSrc.end());
+  llvm::append_range(QDst, QSrc);
   QSrc.clear();
 }
 
@@ -129,11 +124,9 @@ SUnit* R600SchedStrategy::pickNode(bool &IsTopNode) {
     DAG->dumpNode(*SU);
   } else {
     dbgs() << "NO NODE \n";
-    for (unsigned i = 0; i < DAG->SUnits.size(); i++) {
-      const SUnit &S = DAG->SUnits[i];
+    for (const SUnit &S : DAG->SUnits)
       if (!S.isScheduled)
         DAG->dumpNode(S);
-    }
   });
 
   return SU;
@@ -143,7 +136,7 @@ void R600SchedStrategy::schedNode(SUnit *SU, bool IsTopNode) {
   if (NextInstKind != CurInstKind) {
     LLVM_DEBUG(dbgs() << "Instruction Type Switch\n");
     if (NextInstKind != IDAlu)
-      OccupedSlotsMask |= 31;
+      OccupiedSlotsMask |= 31;
     CurEmitted = 0;
     CurInstKind = NextInstKind;
   }
@@ -183,7 +176,7 @@ isPhysicalRegCopy(MachineInstr *MI) {
   if (MI->getOpcode() != R600::COPY)
     return false;
 
-  return !TargetRegisterInfo::isVirtualRegister(MI->getOperand(1).getReg());
+  return !MI->getOperand(1).getReg().isVirtual();
 }
 
 void R600SchedStrategy::releaseTopNode(SUnit *SU) {
@@ -207,9 +200,9 @@ void R600SchedStrategy::releaseBottomNode(SUnit *SU) {
 
 }
 
-bool R600SchedStrategy::regBelongsToClass(unsigned Reg,
+bool R600SchedStrategy::regBelongsToClass(Register Reg,
                                           const TargetRegisterClass *RC) const {
-  if (!TargetRegisterInfo::isVirtualRegister(Reg)) {
+  if (!Reg.isVirtual()) {
     return RC->contains(Reg);
   } else {
     return MRI->getRegClass(Reg) == RC;
@@ -270,7 +263,7 @@ R600SchedStrategy::AluKind R600SchedStrategy::getAluKind(SUnit *SU) const {
   }
 
   // Is the result already member of a X/Y/Z/W class ?
-  unsigned DestReg = MI->getOperand(0).getReg();
+  Register DestReg = MI->getOperand(0).getReg();
   if (regBelongsToClass(DestReg, &R600::R600_TReg32_XRegClass) ||
       regBelongsToClass(DestReg, &R600::R600_AddrRegClass))
     return AluT_X;
@@ -335,19 +328,19 @@ SUnit *R600SchedStrategy::PopInst(std::vector<SUnit *> &Q, bool AnyALU) {
 
 void R600SchedStrategy::LoadAlu() {
   std::vector<SUnit *> &QSrc = Pending[IDAlu];
-  for (unsigned i = 0, e = QSrc.size(); i < e; ++i) {
-    AluKind AK = getAluKind(QSrc[i]);
-    AvailableAlus[AK].push_back(QSrc[i]);
+  for (SUnit *SU : QSrc) {
+    AluKind AK = getAluKind(SU);
+    AvailableAlus[AK].push_back(SU);
   }
   QSrc.clear();
 }
 
 void R600SchedStrategy::PrepareNextSlot() {
   LLVM_DEBUG(dbgs() << "New Slot\n");
-  assert (OccupedSlotsMask && "Slot wasn't filled");
-  OccupedSlotsMask = 0;
-//  if (HwGen == AMDGPUSubtarget::NORTHERN_ISLANDS)
-//    OccupedSlotsMask |= 16;
+  assert(OccupiedSlotsMask && "Slot wasn't filled");
+  OccupiedSlotsMask = 0;
+  //  if (HwGen == AMDGPUSubtarget::NORTHERN_ISLANDS)
+  //    OccupiedSlotsMask |= 16;
   InstructionsGroupCandidate.clear();
   LoadAlu();
 }
@@ -357,7 +350,7 @@ void R600SchedStrategy::AssignSlot(MachineInstr* MI, unsigned Slot) {
   if (DstIndex == -1) {
     return;
   }
-  unsigned DestReg = MI->getOperand(DstIndex).getReg();
+  Register DestReg = MI->getOperand(DstIndex).getReg();
   // PressureRegister crashes if an operand is def and used in the same inst
   // and we try to constraint its regclass
   for (MachineInstr::mop_iterator It = MI->operands_begin(),
@@ -405,41 +398,41 @@ unsigned R600SchedStrategy::AvailablesAluCount() const {
 
 SUnit* R600SchedStrategy::pickAlu() {
   while (AvailablesAluCount() || !Pending[IDAlu].empty()) {
-    if (!OccupedSlotsMask) {
+    if (!OccupiedSlotsMask) {
       // Bottom up scheduling : predX must comes first
       if (!AvailableAlus[AluPredX].empty()) {
-        OccupedSlotsMask |= 31;
+        OccupiedSlotsMask |= 31;
         return PopInst(AvailableAlus[AluPredX], false);
       }
       // Flush physical reg copies (RA will discard them)
       if (!AvailableAlus[AluDiscarded].empty()) {
-        OccupedSlotsMask |= 31;
+        OccupiedSlotsMask |= 31;
         return PopInst(AvailableAlus[AluDiscarded], false);
       }
       // If there is a T_XYZW alu available, use it
       if (!AvailableAlus[AluT_XYZW].empty()) {
-        OccupedSlotsMask |= 15;
+        OccupiedSlotsMask |= 15;
         return PopInst(AvailableAlus[AluT_XYZW], false);
       }
     }
-    bool TransSlotOccuped = OccupedSlotsMask & 16;
-    if (!TransSlotOccuped && VLIW5) {
+    bool TransSlotOccupied = OccupiedSlotsMask & 16;
+    if (!TransSlotOccupied && VLIW5) {
       if (!AvailableAlus[AluTrans].empty()) {
-        OccupedSlotsMask |= 16;
+        OccupiedSlotsMask |= 16;
         return PopInst(AvailableAlus[AluTrans], false);
       }
       SUnit *SU = AttemptFillSlot(3, true);
       if (SU) {
-        OccupedSlotsMask |= 16;
+        OccupiedSlotsMask |= 16;
         return SU;
       }
     }
     for (int Chan = 3; Chan > -1; --Chan) {
-      bool isOccupied = OccupedSlotsMask & (1 << Chan);
+      bool isOccupied = OccupiedSlotsMask & (1 << Chan);
       if (!isOccupied) {
         SUnit *SU = AttemptFillSlot(Chan, false);
         if (SU) {
-          OccupedSlotsMask |= (1 << Chan);
+          OccupiedSlotsMask |= (1 << Chan);
           InstructionsGroupCandidate.push_back(SU->getInstr());
           return SU;
         }

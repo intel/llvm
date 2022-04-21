@@ -20,11 +20,13 @@
 
 #include <locale>
 #include <cassert>
+#include <ios>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 #include "platform_support.h" // locale name macros
 
-typedef input_iterator<const char*> I;
+typedef cpp17_input_iterator<const char*> I;
 
 typedef std::time_get_byname<char, I> F;
 
@@ -47,7 +49,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_year(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_year == 109);
         assert(err == std::ios_base::eofbit);
     }
@@ -57,7 +59,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_year(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_year == 109);
         assert(err == std::ios_base::eofbit);
     }
@@ -67,7 +69,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_year(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_year == 109);
         assert(err == std::ios_base::eofbit);
     }
@@ -77,7 +79,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_year(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)/sizeof(in[0])-1);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
         assert(t.tm_year == 109);
         assert(err == std::ios_base::eofbit);
     }

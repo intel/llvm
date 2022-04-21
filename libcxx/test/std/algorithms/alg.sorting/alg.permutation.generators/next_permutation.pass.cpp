@@ -11,17 +11,18 @@
 // template<BidirectionalIterator Iter>
 //   requires ShuffleIterator<Iter>
 //         && LessThanComparable<Iter::value_type>
-//   bool
+//   constexpr bool  // constexpr in C++20
 //   next_permutation(Iter first, Iter last);
 
 #include <algorithm>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 #include <cstdio>
 
-int factorial(int x)
+TEST_CONSTEXPR_CXX14 int factorial(int x)
 {
     int r = 1;
     for (; x; --x)
@@ -30,7 +31,7 @@ int factorial(int x)
 }
 
 template <class Iter>
-void
+TEST_CONSTEXPR_CXX20 bool
 test()
 {
     int ia[] = {1, 2, 3, 4, 5, 6};
@@ -55,6 +56,7 @@ test()
         } while (x);
         assert(count == factorial(e));
     }
+    return true;
 }
 
 int main(int, char**)
@@ -63,5 +65,11 @@ int main(int, char**)
     test<random_access_iterator<int*> >();
     test<int*>();
 
-  return 0;
+#if TEST_STD_VER >= 20
+    static_assert(test<bidirectional_iterator<int*>>());
+    static_assert(test<random_access_iterator<int*>>());
+    static_assert(test<int*>());
+#endif
+
+    return 0;
 }

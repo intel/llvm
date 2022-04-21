@@ -1,6 +1,10 @@
-; REQUIRES: object-emission
+; RUN: %llc_dwarf -O0 -filetype=obj < %s | llvm-dwarfdump -debug-info - | FileCheck %s
 
-; RUN: %llc_dwarf -O0 -filetype=obj < %s | llvm-dwarfdump -v -debug-info - | FileCheck %s
+; The formal parameter 'b' for Function 'x' when inlined within 'a' is lost on
+; powerpc64 (and on x86_64 at at least -O2). Presumably this is a SelectionDAG
+; issue.
+; FIXME: arm64 is an alias for aarch64 on macs, apparently?
+; XFAIL: powerpc64, aarch64, arm64, hexagon, riscv, sparc
 
 ; Build from the following source with clang -O2.
 
@@ -34,25 +38,25 @@
 
 ; CHECK: [[X_DECL:.*]]: DW_TAG_subprogram
 ; CHECK-NOT: DW_TAG
-; CHECK:   DW_AT_name {{.*}} "x"
+; CHECK:   DW_AT_name ("x")
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:   DW_TAG_formal_parameter
 ; CHECK-NOT: DW_TAG
-; CHECK:     DW_AT_name {{.*}} "b"
+; CHECK:     DW_AT_name ("b")
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:       DW_TAG_lexical_block
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:   DW_TAG_variable
 ; CHECK-NOT: DW_TAG
-; CHECK:         DW_AT_name {{.*}} "s"
+; CHECK:         DW_AT_name ("s")
 
 ; CHECK: DW_TAG_subprogram
 ; CHECK-NOT: DW_TAG
-; CHECK:   DW_AT_name {{.*}} "b"
+; CHECK:   DW_AT_name ("b")
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:   DW_TAG_inlined_subroutine
 ; CHECK-NOT: DW_TAG
-; CHECK:     DW_AT_abstract_origin {{.*}} {[[X_DECL]]}
+; CHECK:     DW_AT_abstract_origin {{.*}}[[X_DECL]]
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:     DW_TAG_formal_parameter
 ; CHECK-NOT: DW_TAG
@@ -67,19 +71,20 @@
 
 ; CHECK: DW_TAG_subprogram
 ; CHECK-NOT: DW_TAG
-; CHECK:   DW_AT_name {{.*}} "a"
+; CHECK:   DW_AT_name ("a")
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:   DW_TAG_formal_parameter
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:   DW_TAG_inlined_subroutine
 ; CHECK-NOT: DW_TAG
-; CHECK:     DW_AT_abstract_origin {{.*}} {[[X_DECL]]}
+; CHECK:     DW_AT_abstract_origin {{.*}}[[X_DECL]]
 ; CHECK-NOT: {{DW_TAG|NULL}}
 ; FIXME: This formal parameter goes missing at least at -O2 (& on
 ; mips/powerpc), maybe before that. Perhaps SelectionDAG is to blame (and
 ; fastisel succeeds).
 ; CHECK:     DW_TAG_formal_parameter
 ; CHECK-NOT: DW_TAG
+; CHECK:       DW_AT_location
 ; CHECK:       DW_AT_abstract_origin {{.*}} "b"
 
 ; CHECK-NOT: {{DW_TAG|NULL}}
@@ -122,8 +127,8 @@ declare void @_Z1fi(i32) #1
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #2
 
-attributes #0 = { uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #2 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

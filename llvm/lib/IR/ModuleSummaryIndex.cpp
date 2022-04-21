@@ -14,7 +14,7 @@
 #include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/StringMap.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
@@ -23,17 +23,45 @@ using namespace llvm;
 
 STATISTIC(ReadOnlyLiveGVars,
           "Number of live global variables marked read only");
+STATISTIC(WriteOnlyLiveGVars,
+          "Number of live global variables marked write only");
+
+static cl::opt<bool> PropagateAttrs("propagate-attrs", cl::init(true),
+                                    cl::Hidden,
+                                    cl::desc("Propagate attributes in index"));
+
+static cl::opt<bool> ImportConstantsWithRefs(
+    "import-constants-with-refs", cl::init(true), cl::Hidden,
+    cl::desc("Import constant global variables with references"));
+
+constexpr uint32_t FunctionSummary::ParamAccess::RangeWidth;
 
 FunctionSummary FunctionSummary::ExternalNode =
     FunctionSummary::makeDummyFunctionSummary({});
 
-bool ValueInfo::isDSOLocal() const {
-  // Need to check all summaries are local in case of hash collisions.
-  return getSummaryList().size() &&
-         llvm::all_of(getSummaryList(),
-                      [](const std::unique_ptr<GlobalValueSummary> &Summary) {
-                        return Summary->isDSOLocal();
-                      });
+GlobalValue::VisibilityTypes ValueInfo::getELFVisibility() const {
+  bool HasProtected = false;
+  for (const auto &S : make_pointee_range(getSummaryList())) {
+    if (S.getVisibility() == GlobalValue::HiddenVisibility)
+      return GlobalValue::HiddenVisibility;
+    if (S.getVisibility() == GlobalValue::ProtectedVisibility)
+      HasProtected = true;
+  }
+  return HasProtected ? GlobalValue::ProtectedVisibility
+                      : GlobalValue::DefaultVisibility;
+}
+
+bool ValueInfo::isDSOLocal(bool WithDSOLocalPropagation) const {
+  // With DSOLocal propagation done, the flag in evey summary is the same.
+  // Check the first one is enough.
+  return WithDSOLocalPropagation
+             ? getSummaryList().size() && getSummaryList()[0]->isDSOLocal()
+             : getSummaryList().size() &&
+                   llvm::all_of(
+                       getSummaryList(),
+                       [](const std::unique_ptr<GlobalValueSummary> &Summary) {
+                         return Summary->isDSOLocal();
+                       });
 }
 
 bool ValueInfo::canAutoHide() const {
@@ -45,15 +73,72 @@ bool ValueInfo::canAutoHide() const {
                       });
 }
 
-// Gets the number of immutable refs in RefEdgeList
-unsigned FunctionSummary::immutableRefCount() const {
-  // Here we take advantage of having all readonly references
+// Gets the number of readonly and writeonly refs in RefEdgeList
+std::pair<unsigned, unsigned> FunctionSummary::specialRefCounts() const {
+  // Here we take advantage of having all readonly and writeonly references
   // located in the end of the RefEdgeList.
   auto Refs = refs();
-  unsigned ImmutableRefCnt = 0;
-  for (int I = Refs.size() - 1; I >= 0 && Refs[I].isReadOnly(); --I)
-    ImmutableRefCnt++;
-  return ImmutableRefCnt;
+  unsigned RORefCnt = 0, WORefCnt = 0;
+  int I;
+  for (I = Refs.size() - 1; I >= 0 && Refs[I].isWriteOnly(); --I)
+    WORefCnt++;
+  for (; I >= 0 && Refs[I].isReadOnly(); --I)
+    RORefCnt++;
+  return {RORefCnt, WORefCnt};
+}
+
+constexpr uint64_t ModuleSummaryIndex::BitcodeSummaryVersion;
+
+uint64_t ModuleSummaryIndex::getFlags() const {
+  uint64_t Flags = 0;
+  if (withGlobalValueDeadStripping())
+    Flags |= 0x1;
+  if (skipModuleByDistributedBackend())
+    Flags |= 0x2;
+  if (hasSyntheticEntryCounts())
+    Flags |= 0x4;
+  if (enableSplitLTOUnit())
+    Flags |= 0x8;
+  if (partiallySplitLTOUnits())
+    Flags |= 0x10;
+  if (withAttributePropagation())
+    Flags |= 0x20;
+  if (withDSOLocalPropagation())
+    Flags |= 0x40;
+  return Flags;
+}
+
+void ModuleSummaryIndex::setFlags(uint64_t Flags) {
+  assert(Flags <= 0x7f && "Unexpected bits in flag");
+  // 1 bit: WithGlobalValueDeadStripping flag.
+  // Set on combined index only.
+  if (Flags & 0x1)
+    setWithGlobalValueDeadStripping();
+  // 1 bit: SkipModuleByDistributedBackend flag.
+  // Set on combined index only.
+  if (Flags & 0x2)
+    setSkipModuleByDistributedBackend();
+  // 1 bit: HasSyntheticEntryCounts flag.
+  // Set on combined index only.
+  if (Flags & 0x4)
+    setHasSyntheticEntryCounts();
+  // 1 bit: DisableSplitLTOUnit flag.
+  // Set on per module indexes. It is up to the client to validate
+  // the consistency of this flag across modules being linked.
+  if (Flags & 0x8)
+    setEnableSplitLTOUnit();
+  // 1 bit: PartiallySplitLTOUnits flag.
+  // Set on combined index only.
+  if (Flags & 0x10)
+    setPartiallySplitLTOUnits();
+  // 1 bit: WithAttributePropagation flag.
+  // Set on combined index only.
+  if (Flags & 0x20)
+    setWithAttributePropagation();
+  // 1 bit: WithDSOLocalPropagation flag.
+  // Set on combined index only.
+  if (Flags & 0x40)
+    setWithDSOLocalPropagation();
 }
 
 // Collect for the given module the list of function it defines
@@ -99,78 +184,163 @@ bool ModuleSummaryIndex::isGUIDLive(GlobalValue::GUID GUID) const {
   return false;
 }
 
-static void propagateConstantsToRefs(GlobalValueSummary *S) {
-  // If reference is not readonly then referenced summary is not
-  // readonly either. Note that:
+static void
+propagateAttributesToRefs(GlobalValueSummary *S,
+                          DenseSet<ValueInfo> &MarkedNonReadWriteOnly) {
+  // If reference is not readonly or writeonly then referenced summary is not
+  // read/writeonly either. Note that:
   // - All references from GlobalVarSummary are conservatively considered as
-  //   not readonly. Tracking them properly requires more complex analysis
-  //   then we have now.
+  //   not readonly or writeonly. Tracking them properly requires more complex
+  //   analysis then we have now.
   //
   // - AliasSummary objects have no refs at all so this function is a no-op
   //   for them.
   for (auto &VI : S->refs()) {
-    if (VI.isReadOnly()) {
-      // We only mark refs as readonly when computing function summaries on
-      // analysis phase.
-      assert(isa<FunctionSummary>(S));
+    assert(VI.getAccessSpecifier() == 0 || isa<FunctionSummary>(S));
+    if (!VI.getAccessSpecifier()) {
+      if (!MarkedNonReadWriteOnly.insert(VI).second)
+        continue;
+    } else if (MarkedNonReadWriteOnly.contains(VI))
       continue;
-    }
     for (auto &Ref : VI.getSummaryList())
-      // If references to alias is not readonly then aliasee is not readonly
-      if (auto *GVS = dyn_cast<GlobalVarSummary>(Ref->getBaseObject()))
-        GVS->setReadOnly(false);
+      // If references to alias is not read/writeonly then aliasee
+      // is not read/writeonly
+      if (auto *GVS = dyn_cast<GlobalVarSummary>(Ref->getBaseObject())) {
+        if (!VI.isReadOnly())
+          GVS->setReadOnly(false);
+        if (!VI.isWriteOnly())
+          GVS->setWriteOnly(false);
+      }
   }
 }
 
-// Do the constant propagation in combined index.
-// The goal of constant propagation is internalization of readonly
-// variables. To determine which variables are readonly and which
-// are not we take following steps:
-// - During analysis we speculatively assign readonly attribute to
-//   all variables which can be internalized. When computing function
-//   summary we also assign readonly attribute to a reference if
-//   function doesn't modify referenced variable.
+// Do the access attribute and DSOLocal propagation in combined index.
+// The goal of attribute propagation is internalization of readonly (RO)
+// or writeonly (WO) variables. To determine which variables are RO or WO
+// and which are not we take following steps:
+// - During analysis we speculatively assign readonly and writeonly
+//   attribute to all variables which can be internalized. When computing
+//   function summary we also assign readonly or writeonly attribute to a
+//   reference if function doesn't modify referenced variable (readonly)
+//   or doesn't read it (writeonly).
 //
-// - After computing dead symbols in combined index we do the constant
-//   propagation. During this step we clear readonly attribute from
-//   all variables which:
-//   a. are preserved or can't be imported
-//   b. referenced by any global variable initializer
-//   c. referenced by a function and reference is not readonly
+// - After computing dead symbols in combined index we do the attribute
+//   and DSOLocal propagation. During this step we:
+//   a. clear RO and WO attributes from variables which are preserved or
+//      can't be imported
+//   b. clear RO and WO attributes from variables referenced by any global
+//      variable initializer
+//   c. clear RO attribute from variable referenced by a function when
+//      reference is not readonly
+//   d. clear WO attribute from variable referenced by a function when
+//      reference is not writeonly
+//   e. clear IsDSOLocal flag in every summary if any of them is false.
+//
+//   Because of (c, d) we don't internalize variables read by function A
+//   and modified by function B.
 //
 // Internalization itself happens in the backend after import is finished
-// See internalizeImmutableGVs.
-void ModuleSummaryIndex::propagateConstants(
+// See internalizeGVsAfterImport.
+void ModuleSummaryIndex::propagateAttributes(
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) {
-  for (auto &P : *this)
+  if (!PropagateAttrs)
+    return;
+  DenseSet<ValueInfo> MarkedNonReadWriteOnly;
+  for (auto &P : *this) {
+    bool IsDSOLocal = true;
     for (auto &S : P.second.SummaryList) {
-      if (!isGlobalValueLive(S.get()))
+      if (!isGlobalValueLive(S.get())) {
+        // computeDeadSymbolsAndUpdateIndirectCalls should have marked all
+        // copies live. Note that it is possible that there is a GUID collision
+        // between internal symbols with the same name in different files of the
+        // same name but not enough distinguishing path. Because
+        // computeDeadSymbolsAndUpdateIndirectCalls should conservatively mark
+        // all copies live we can assert here that all are dead if any copy is
+        // dead.
+        assert(llvm::none_of(
+            P.second.SummaryList,
+            [&](const std::unique_ptr<GlobalValueSummary> &Summary) {
+              return isGlobalValueLive(Summary.get());
+            }));
         // We don't examine references from dead objects
-        continue;
+        break;
+      }
 
-      // Global variable can't be marked read only if it is not eligible
-      // to import since we need to ensure that all external references
-      // get a local (imported) copy. It also can't be marked read only
-      // if it or any alias (since alias points to the same memory) are
-      // preserved or notEligibleToImport, since either of those means
-      // there could be writes that are not visible (because preserved
-      // means it could have external to DSO writes, and notEligibleToImport
-      // means it could have writes via inline assembly leading it to be
-      // in the @llvm.*used).
+      // Global variable can't be marked read/writeonly if it is not eligible
+      // to import since we need to ensure that all external references get
+      // a local (imported) copy. It also can't be marked read/writeonly if
+      // it or any alias (since alias points to the same memory) are preserved
+      // or notEligibleToImport, since either of those means there could be
+      // writes (or reads in case of writeonly) that are not visible (because
+      // preserved means it could have external to DSO writes or reads, and
+      // notEligibleToImport means it could have writes or reads via inline
+      // assembly leading it to be in the @llvm.*used).
       if (auto *GVS = dyn_cast<GlobalVarSummary>(S->getBaseObject()))
         // Here we intentionally pass S.get() not GVS, because S could be
-        // an alias.
-        if (!canImportGlobalVar(S.get()) || GUIDPreservedSymbols.count(P.first))
+        // an alias. We don't analyze references here, because we have to
+        // know exactly if GV is readonly to do so.
+        if (!canImportGlobalVar(S.get(), /* AnalyzeRefs */ false) ||
+            GUIDPreservedSymbols.count(P.first)) {
           GVS->setReadOnly(false);
-      propagateConstantsToRefs(S.get());
+          GVS->setWriteOnly(false);
+        }
+      propagateAttributesToRefs(S.get(), MarkedNonReadWriteOnly);
+
+      // If the flag from any summary is false, the GV is not DSOLocal.
+      IsDSOLocal &= S->isDSOLocal();
     }
+    if (!IsDSOLocal)
+      // Mark the flag in all summaries false so that we can do quick check
+      // without going through the whole list.
+      for (const std::unique_ptr<GlobalValueSummary> &Summary :
+           P.second.SummaryList)
+        Summary->setDSOLocal(false);
+  }
+  setWithAttributePropagation();
+  setWithDSOLocalPropagation();
   if (llvm::AreStatisticsEnabled())
     for (auto &P : *this)
       if (P.second.SummaryList.size())
         if (auto *GVS = dyn_cast<GlobalVarSummary>(
                 P.second.SummaryList[0]->getBaseObject()))
-          if (isGlobalValueLive(GVS) && GVS->isReadOnly())
-            ReadOnlyLiveGVars++;
+          if (isGlobalValueLive(GVS)) {
+            if (GVS->maybeReadOnly())
+              ReadOnlyLiveGVars++;
+            if (GVS->maybeWriteOnly())
+              WriteOnlyLiveGVars++;
+          }
+}
+
+bool ModuleSummaryIndex::canImportGlobalVar(GlobalValueSummary *S,
+                                            bool AnalyzeRefs) const {
+  auto HasRefsPreventingImport = [this](const GlobalVarSummary *GVS) {
+    // We don't analyze GV references during attribute propagation, so
+    // GV with non-trivial initializer can be marked either read or
+    // write-only.
+    // Importing definiton of readonly GV with non-trivial initializer
+    // allows us doing some extra optimizations (like converting indirect
+    // calls to direct).
+    // Definition of writeonly GV with non-trivial initializer should also
+    // be imported. Not doing so will result in:
+    // a) GV internalization in source module (because it's writeonly)
+    // b) Importing of GV declaration to destination module as a result
+    //    of promotion.
+    // c) Link error (external declaration with internal definition).
+    // However we do not promote objects referenced by writeonly GV
+    // initializer by means of converting it to 'zeroinitializer'
+    return !(ImportConstantsWithRefs && GVS->isConstant()) &&
+           !isReadOnly(GVS) && !isWriteOnly(GVS) && GVS->refs().size();
+  };
+  auto *GVS = cast<GlobalVarSummary>(S->getBaseObject());
+
+  // Global variable with non-trivial initializer can be imported
+  // if it's readonly. This gives us extra opportunities for constant
+  // folding and converting indirect calls to direct calls. We don't
+  // analyze GV references during attribute propagation, because we
+  // don't know yet if it is readonly or not.
+  return !GlobalValue::isInterposableLinkage(S->linkage()) &&
+         !S->notEligibleToImport() &&
+         (!AnalyzeRefs || !HasRefsPreventingImport(GVS));
 }
 
 // TODO: write a graphviz dumper for SCCs (see ModuleSummaryIndex::exportToDot)
@@ -182,12 +352,12 @@ void ModuleSummaryIndex::dumpSCCs(raw_ostream &O) {
        !I.isAtEnd(); ++I) {
     O << "SCC (" << utostr(I->size()) << " node" << (I->size() == 1 ? "" : "s")
       << ") {\n";
-    for (const ValueInfo V : *I) {
+    for (const ValueInfo &V : *I) {
       FunctionSummary *F = nullptr;
       if (V.getSummaryList().size())
         F = cast<FunctionSummary>(V.getSummaryList().front().get());
       O << " " << (F == nullptr ? "External" : "") << " " << utostr(V.getGUID())
-        << (I.hasLoop() ? " (has loop)" : "") << "\n";
+        << (I.hasCycle() ? " (has cycle)" : "") << "\n";
     }
     O << "}\n";
   }
@@ -276,9 +446,17 @@ static std::string linkageToString(GlobalValue::LinkageTypes LT) {
 
 static std::string fflagsToString(FunctionSummary::FFlags F) {
   auto FlagValue = [](unsigned V) { return V ? '1' : '0'; };
-  char FlagRep[] = {FlagValue(F.ReadNone),     FlagValue(F.ReadOnly),
-                    FlagValue(F.NoRecurse),    FlagValue(F.ReturnDoesNotAlias),
-                    FlagValue(F.NoInline), 0};
+  char FlagRep[] = {FlagValue(F.ReadNone),
+                    FlagValue(F.ReadOnly),
+                    FlagValue(F.NoRecurse),
+                    FlagValue(F.ReturnDoesNotAlias),
+                    FlagValue(F.NoInline),
+                    FlagValue(F.AlwaysInline),
+                    FlagValue(F.NoUnwind),
+                    FlagValue(F.MayThrow),
+                    FlagValue(F.HasUnknownCall),
+                    FlagValue(F.MustBeUnreachable),
+                    0};
 
   return FlagRep;
 }
@@ -333,11 +511,25 @@ static void defineExternalNode(raw_ostream &OS, const char *Pfx,
 
 static bool hasReadOnlyFlag(const GlobalValueSummary *S) {
   if (auto *GVS = dyn_cast<GlobalVarSummary>(S))
-    return GVS->isReadOnly();
+    return GVS->maybeReadOnly();
   return false;
 }
 
-void ModuleSummaryIndex::exportToDot(raw_ostream &OS) const {
+static bool hasWriteOnlyFlag(const GlobalValueSummary *S) {
+  if (auto *GVS = dyn_cast<GlobalVarSummary>(S))
+    return GVS->maybeWriteOnly();
+  return false;
+}
+
+static bool hasConstantFlag(const GlobalValueSummary *S) {
+  if (auto *GVS = dyn_cast<GlobalVarSummary>(S))
+    return GVS->isConstant();
+  return false;
+}
+
+void ModuleSummaryIndex::exportToDot(
+    raw_ostream &OS,
+    const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) const {
   std::vector<Edge> CrossModuleEdges;
   DenseMap<GlobalValue::GUID, std::vector<uint64_t>> NodeMap;
   using GVSOrderedMapTy = std::map<GlobalValue::GUID, GlobalValueSummary *>;
@@ -358,12 +550,14 @@ void ModuleSummaryIndex::exportToDot(raw_ostream &OS) const {
     // 0 - alias
     // 1 - reference
     // 2 - constant reference
-    // Other value: (hotness - 3).
-    TypeOrHotness += 3;
+    // 3 - writeonly reference
+    // Other value: (hotness - 4).
+    TypeOrHotness += 4;
     static const char *EdgeAttrs[] = {
         " [style=dotted]; // alias",
         " [style=dashed]; // ref",
         " [style=dashed,color=forestgreen]; // const-ref",
+        " [style=dashed,color=violetred]; // writeOnly-ref",
         " // call (hotness : Unknown)",
         " [color=blue]; // call (hotness : Cold)",
         " // call (hotness : None)",
@@ -408,11 +602,19 @@ void ModuleSummaryIndex::exportToDot(raw_ostream &OS) const {
         A.add("shape", "Mrecord", "variable");
         if (Flags.Live && hasReadOnlyFlag(SummaryIt.second))
           A.addComment("immutable");
+        if (Flags.Live && hasWriteOnlyFlag(SummaryIt.second))
+          A.addComment("writeOnly");
+        if (Flags.Live && hasConstantFlag(SummaryIt.second))
+          A.addComment("constant");
       }
+      if (Flags.Visibility)
+        A.addComment("visibility");
       if (Flags.DSOLocal)
         A.addComment("dsoLocal");
       if (Flags.CanAutoHide)
         A.addComment("canAutoHide");
+      if (GUIDPreservedSymbols.count(SummaryIt.first))
+        A.addComment("preserved");
 
       auto VI = getValueInfo(SummaryIt.first);
       A.add("label", getNodeLabel(VI, SummaryIt.second));
@@ -429,10 +631,11 @@ void ModuleSummaryIndex::exportToDot(raw_ostream &OS) const {
     for (auto &SummaryIt : GVSMap) {
       auto *GVS = SummaryIt.second;
       for (auto &R : GVS->refs())
-        Draw(SummaryIt.first, R.getGUID(), R.isReadOnly() ? -1 : -2);
+        Draw(SummaryIt.first, R.getGUID(),
+             R.isWriteOnly() ? -1 : (R.isReadOnly() ? -2 : -3));
 
       if (auto *AS = dyn_cast_or_null<AliasSummary>(SummaryIt.second)) {
-        Draw(SummaryIt.first, AS->getAliaseeGUID(), -3);
+        Draw(SummaryIt.first, AS->getAliaseeGUID(), -4);
         continue;
       }
 

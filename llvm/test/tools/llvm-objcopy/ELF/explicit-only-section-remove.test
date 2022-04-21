@@ -1,4 +1,4 @@
-# RUN: yaml2obj %s > %t
+# RUN: yaml2obj %s -o %t
 # RUN: llvm-objcopy -R=.test --only-section=.test %t %t2
 # RUN: llvm-readobj --file-headers --sections %t2 | FileCheck %s
 
@@ -13,9 +13,7 @@ Sections:
     Type:            SHT_PROGBITS
     Flags:           [ ]
 
-# CHECK: SectionHeaderCount: 5
+# CHECK: SectionHeaderCount: 3
 
 # CHECK:     Name: .test
-# CHECK:     Name: .symtab
-# CHECK:     Name: .strtab
 # CHECK:     Name: .shstrtab

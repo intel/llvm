@@ -1,8 +1,11 @@
 // RUN: %clang_hwasan -O1 %s -o %t
-// RUN: %env_hwasan_opts=stack_history_size=2048 not %run %t 2046 2>&1 | FileCheck %s --check-prefix=YES
+// RUN: %env_hwasan_opts=stack_history_size=2048 not %run %t 2045 2>&1 | FileCheck %s --check-prefix=YES
 // RUN: %env_hwasan_opts=stack_history_size=2048 not %run %t 2047 2>&1 | FileCheck %s --check-prefix=NO
 
 // REQUIRES: stable-runtime
+
+// Stack histories are currently not recorded on x86.
+// XFAIL: x86_64
 
 #include <stdlib.h>
 
@@ -22,6 +25,9 @@ int main(int argc, char **argv) {
   FUNC0();
   for (int i = 0; i < X; ++i)
     FUNC();
+  // Make at least one call to OOB where base tag != 0 so that the bug is caught
+  // at least once.
+  OOB();
   OOB();
 }
 

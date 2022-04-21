@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
+// UNSUPPORTED: libcpp-has-no-localization
 
 // <experimental/iterator>
 //
@@ -49,6 +50,6 @@ int main(int, char**) {
     test('x', ints,  ints+10,  "10x11x12x13x14x15x16x17x18x19");
     test("Z", chars, chars+10, "0Z1Z2Z3Z4Z5Z6Z7Z8Z9");
     test("z", ints,  ints+10,  "10z11z12z13z14z15z16z17z18z19");
-    
+
   return 0;
 }

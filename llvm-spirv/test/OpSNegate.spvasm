@@ -1,0 +1,26 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpExtension "SPV_KHR_no_integer_wrap_decoration"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testSNegate"
+               OpName %a "a"
+               OpName %r1 "r1"
+               OpName %r2 "r2"
+               OpDecorate %r2 NoSignedWrap
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+          %5 = OpTypeFunction %void %uint
+          %1 = OpFunction %void None %5
+          %a = OpFunctionParameter %uint
+          %6 = OpLabel
+         %r1 = OpSNegate %uint %a
+         %r2 = OpSNegate %uint %a
+               OpReturn
+               OpFunctionEnd
+
+; CHECK: %r1 = sub i32 0, %a
+; CHECK: %r2 = sub nsw i32 0, %a

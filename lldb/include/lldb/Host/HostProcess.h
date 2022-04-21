@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_Host_HostProcess_h_
-#define lldb_Host_HostProcess_h_
+#ifndef LLDB_HOST_HOSTPROCESS_H
+#define LLDB_HOST_HOSTPROCESS_H
 
 #include "lldb/Host/Host.h"
 #include "lldb/lldb-types.h"
 
-/// \class HostInfo HostInfo.h "lldb/Host/HostProcess.h"
 /// A class that represents a running process on the host machine.
 ///
 /// HostProcess allows querying and manipulation of processes running on the
@@ -38,13 +37,12 @@ public:
   ~HostProcess();
 
   Status Terminate();
-  Status GetMainModule(FileSpec &file_spec) const;
 
   lldb::pid_t GetProcessId() const;
   bool IsRunning() const;
 
-  HostThread StartMonitoring(const Host::MonitorChildProcessCallback &callback,
-                             bool monitor_signals);
+  llvm::Expected<HostThread>
+  StartMonitoring(const Host::MonitorChildProcessCallback &callback);
 
   HostNativeProcessBase &GetNativeProcess();
   const HostNativeProcessBase &GetNativeProcess() const;

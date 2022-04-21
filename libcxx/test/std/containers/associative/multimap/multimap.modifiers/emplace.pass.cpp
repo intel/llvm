@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <map>
 
@@ -18,6 +18,7 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../../Emplaceable.h"
 #include "DefaultOnly.h"
 #include "min_allocator.h"
@@ -37,17 +38,17 @@ int main(int, char**)
         assert(DefaultOnly::count == 1);
         r = m.emplace(std::piecewise_construct, std::forward_as_tuple(1),
                                                 std::forward_as_tuple());
-        assert(r == next(m.begin()));
+        assert(r == std::next(m.begin()));
         assert(m.size() == 2);
-        assert(next(m.begin())->first == 1);
-        assert(next(m.begin())->second == DefaultOnly());
+        assert(std::next(m.begin())->first == 1);
+        assert(std::next(m.begin())->second == DefaultOnly());
         assert(DefaultOnly::count == 2);
         r = m.emplace(std::piecewise_construct, std::forward_as_tuple(1),
                                                 std::forward_as_tuple());
-        assert(r == next(m.begin(), 2));
+        assert(r == std::next(m.begin(), 2));
         assert(m.size() == 3);
-        assert(next(m.begin(), 2)->first == 1);
-        assert(next(m.begin(), 2)->second == DefaultOnly());
+        assert(std::next(m.begin(), 2)->first == 1);
+        assert(std::next(m.begin(), 2)->second == DefaultOnly());
         assert(DefaultOnly::count == 3);
     }
     assert(DefaultOnly::count == 0);
@@ -69,7 +70,7 @@ int main(int, char**)
         assert(m.begin()->second == Emplaceable(2, 3.5));
         r = m.emplace(std::piecewise_construct, std::forward_as_tuple(1),
                                                 std::forward_as_tuple(3, 3.5));
-        assert(r == next(m.begin()));
+        assert(r == std::next(m.begin()));
         assert(m.size() == 3);
         assert(r->first == 1);
         assert(r->second == Emplaceable(3, 3.5));
@@ -97,17 +98,17 @@ int main(int, char**)
         assert(DefaultOnly::count == 1);
         r = m.emplace(std::piecewise_construct, std::forward_as_tuple(1),
                                                 std::forward_as_tuple());
-        assert(r == next(m.begin()));
+        assert(r == std::next(m.begin()));
         assert(m.size() == 2);
-        assert(next(m.begin())->first == 1);
-        assert(next(m.begin())->second == DefaultOnly());
+        assert(std::next(m.begin())->first == 1);
+        assert(std::next(m.begin())->second == DefaultOnly());
         assert(DefaultOnly::count == 2);
         r = m.emplace(std::piecewise_construct, std::forward_as_tuple(1),
                                                 std::forward_as_tuple());
-        assert(r == next(m.begin(), 2));
+        assert(r == std::next(m.begin(), 2));
         assert(m.size() == 3);
-        assert(next(m.begin(), 2)->first == 1);
-        assert(next(m.begin(), 2)->second == DefaultOnly());
+        assert(std::next(m.begin(), 2)->first == 1);
+        assert(std::next(m.begin(), 2)->second == DefaultOnly());
         assert(DefaultOnly::count == 3);
     }
     assert(DefaultOnly::count == 0);
@@ -129,7 +130,7 @@ int main(int, char**)
         assert(m.begin()->second == Emplaceable(2, 3.5));
         r = m.emplace(std::piecewise_construct, std::forward_as_tuple(1),
                                                 std::forward_as_tuple(3, 3.5));
-        assert(r == next(m.begin()));
+        assert(r == std::next(m.begin()));
         assert(m.size() == 3);
         assert(r->first == 1);
         assert(r->second == Emplaceable(3, 3.5));

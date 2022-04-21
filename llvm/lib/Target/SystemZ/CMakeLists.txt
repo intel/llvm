@@ -1,3 +1,5 @@
+add_llvm_component_group(SystemZ HAS_JIT)
+
 set(LLVM_TARGET_DEFINITIONS SystemZ.td)
 
 tablegen(LLVM SystemZGenAsmMatcher.inc -gen-asm-matcher)
@@ -16,8 +18,8 @@ add_llvm_target(SystemZCodeGen
   SystemZAsmPrinter.cpp
   SystemZCallingConv.cpp
   SystemZConstantPoolValue.cpp
+  SystemZCopyPhysRegs.cpp
   SystemZElimCompare.cpp
-  SystemZExpandPseudo.cpp
   SystemZFrameLowering.cpp
   SystemZHazardRecognizer.cpp
   SystemZISelDAGToDAG.cpp
@@ -28,6 +30,7 @@ add_llvm_target(SystemZCodeGen
   SystemZMachineFunctionInfo.cpp
   SystemZMachineScheduler.cpp
   SystemZMCInstLower.cpp
+  SystemZPostRewrite.cpp
   SystemZRegisterInfo.cpp
   SystemZSelectionDAGInfo.cpp
   SystemZShortenInst.cpp
@@ -35,6 +38,22 @@ add_llvm_target(SystemZCodeGen
   SystemZTargetMachine.cpp
   SystemZTargetTransformInfo.cpp
   SystemZTDC.cpp
+
+  LINK_COMPONENTS
+  Analysis
+  AsmPrinter
+  CodeGen
+  Core
+  MC
+  Scalar
+  SelectionDAG
+  Support
+  SystemZDesc
+  SystemZInfo
+  Target
+
+  ADD_TO_COMPONENT
+  SystemZ
   )
 
 add_subdirectory(AsmParser)

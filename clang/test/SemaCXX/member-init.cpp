@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsyntax-only -fcxx-exceptions -verify -std=c++11 -Wall %s
 
 struct Bitfield {
-  int n : 3 = 7; // expected-warning {{C++2a extension}} expected-warning {{changes value from 7 to -1}}
+  int n : 3 = 7; // expected-warning {{C++20 extension}} expected-warning {{changes value from 7 to -1}}
 };
 
 int a;
@@ -21,20 +21,20 @@ struct Recurse { // expected-error {{initializer for 'n' needed}}
 };
 
 struct UnknownBound {
-  int as[] = { 1, 2, 3 }; // expected-error {{array bound cannot be deduced from an in-class initializer}}
+  int as[] = { 1, 2, 3 }; // expected-error {{array bound cannot be deduced from a default member initializer}}
   int bs[4] = { 4, 5, 6, 7 };
-  int cs[] = { 8, 9, 10 }; // expected-error {{array bound cannot be deduced from an in-class initializer}}
+  int cs[] = { 8, 9, 10 }; // expected-error {{array bound cannot be deduced from a default member initializer}}
 };
 
 template<int n> struct T { static const int B; };
 template<> struct T<2> { template<int C, int D> using B = int; };
 const int C = 0, D = 0;
 struct S {
-  int as[] = { decltype(x)::B<C, D>(0) }; // expected-error {{array bound cannot be deduced from an in-class initializer}}
+  int as[] = { decltype(x)::B<C, D>(0) }; // expected-error {{array bound cannot be deduced from a default member initializer}}
   T<sizeof(as) / sizeof(int)> x;
   // test that we handle invalid array bound deductions without crashing when the declarator name is itself invalid
   operator int[](){}; // expected-error {{'operator int' cannot be the name of a variable or data member}} \
-                      // expected-error {{array bound cannot be deduced from an in-class initializer}}
+                      // expected-error {{array bound cannot be deduced from a default member initializer}}
 };
 
 struct ThrowCtor { ThrowCtor(int) noexcept(false); };
@@ -64,7 +64,7 @@ namespace PR10578 {
   template<typename T>
   struct X { 
     X() {
-      T* x = 1; // expected-error{{cannot initialize a variable of type 'int *' with an rvalue of type 'int'}}
+      T* x = 1; // expected-error{{cannot initialize a variable of type 'int *' with an rvalue of type 'int'}} expected-warning {{unused variable}}
     }
   };
 
@@ -184,7 +184,7 @@ void g() { f<int>(); } // expected-note {{in instantiation of function template 
 namespace PR22056 {
 template <int N>
 struct S {
-  int x[3] = {[N] = 3};
+  int x[3] = {[N] = 3}; // expected-warning {{C99 extension}}
 };
 }
 

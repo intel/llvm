@@ -9,8 +9,10 @@
 #include "SIMDIntrinsicsCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Regex.h"
 
 using namespace clang::ast_matchers;
@@ -38,28 +40,22 @@ AST_MATCHER(FunctionDecl, isVectorFunction) {
 
 } // namespace
 
-static StringRef TrySuggestPPC(StringRef Name) {
+static StringRef trySuggestPpc(StringRef Name) {
   if (!Name.consume_front("vec_"))
     return {};
 
-  static const llvm::StringMap<StringRef> Mapping{
-    // [simd.alg]
-    {"max", "$std::max"},
-    {"min", "$std::min"},
-
-    // [simd.binary]
-    {"add", "operator+ on $simd objects"},
-    {"sub", "operator- on $simd objects"},
-    {"mul", "operator* on $simd objects"},
-  };
-
-  auto It = Mapping.find(Name);
-  if (It != Mapping.end())
-    return It->second;
-  return {};
+  return llvm::StringSwitch<StringRef>(Name)
+      // [simd.alg]
+      .Case("max", "$std::max")
+      .Case("min", "$std::min")
+      // [simd.binary]
+      .Case("add", "operator+ on $simd objects")
+      .Case("sub", "operator- on $simd objects")
+      .Case("mul", "operator* on $simd objects")
+      .Default({});
 }
 
-static StringRef TrySuggestX86(StringRef Name) {
+static StringRef trySuggestX86(StringRef Name) {
   if (!(Name.consume_front("_mm_") || Name.consume_front("_mm256_") ||
         Name.consume_front("_mm512_")))
     return {};
@@ -84,20 +80,18 @@ static StringRef TrySuggestX86(StringRef Name) {
 SIMDIntrinsicsCheck::SIMDIntrinsicsCheck(StringRef Name,
                                          ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), Std(Options.get("Std", "")),
-      Suggest(Options.get("Suggest", 0) != 0) {}
+      Suggest(Options.get("Suggest", false)) {}
 
 void SIMDIntrinsicsCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "Std", "");
-  Options.store(Opts, "Suggest", 0);
+  Options.store(Opts, "Std", Std);
+  Options.store(Opts, "Suggest", Suggest);
 }
 
 void SIMDIntrinsicsCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus11)
-    return;
   // If Std is not specified, infer it from the language options.
   // libcxx implementation backports it to C++11 std::experimental::simd.
   if (Std.empty())
-    Std = getLangOpts().CPlusPlus2a ? "std" : "std::experimental";
+    Std = getLangOpts().CPlusPlus20 ? "std" : "std::experimental";
 
   Finder->addMatcher(callExpr(callee(functionDecl(
                                   matchesName("^::(_mm_|_mm256_|_mm512_|vec_)"),
@@ -127,30 +121,28 @@ void SIMDIntrinsicsCheck::check(const MatchFinder::MatchResult &Result) {
   case llvm::Triple::ppc:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
-    New = TrySuggestPPC(Old);
+    New = trySuggestPpc(Old);
     break;
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
-    New = TrySuggestX86(Old);
+    New = trySuggestX86(Old);
     break;
   }
 
   // We have found a std::simd replacement.
   if (!New.empty()) {
-    std::string Message;
     // If Suggest is true, give a P0214 alternative, otherwise point it out it
     // is non-portable.
     if (Suggest) {
-      Message = (Twine("'") + Old + "' can be replaced by " + New).str();
-      Message = llvm::Regex("\\$std").sub(Std, Message);
-      Message =
-          llvm::Regex("\\$simd").sub((Std.str() + "::simd").str(), Message);
+      static const llvm::Regex StdRegex("\\$std"), SimdRegex("\\$simd");
+      diag(Call->getExprLoc(), "'%0' can be replaced by %1")
+          << Old
+          << SimdRegex.sub(SmallString<32>({Std, "::simd"}),
+                           StdRegex.sub(Std, New));
     } else {
-      Message = (Twine("'") + Old + "' is a non-portable " +
-                 llvm::Triple::getArchTypeName(Arch) + " intrinsic function")
-                    .str();
+      diag("'%0' is a non-portable %1 intrinsic function")
+          << Old << llvm::Triple::getArchTypeName(Arch);
     }
-    diag(Call->getExprLoc(), Message);
   }
 }
 

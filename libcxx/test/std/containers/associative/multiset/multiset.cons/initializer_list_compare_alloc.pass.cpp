@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <set>
 
@@ -16,18 +16,19 @@
 
 #include <set>
 #include <cassert>
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "test_allocator.h"
 
 int main(int, char**)
 {
-    typedef test_compare<std::less<int> > Cmp;
+    typedef test_less<int> Cmp;
     typedef test_allocator<int> A;
     typedef std::multiset<int, Cmp, A> C;
     typedef C::value_type V;
     C m({1, 2, 3, 4, 5, 6}, Cmp(10), A(4));
     assert(m.size() == 6);
-    assert(distance(m.begin(), m.end()) == 6);
+    assert(std::distance(m.begin(), m.end()) == 6);
     C::const_iterator i = m.cbegin();
     assert(*i == V(1));
     assert(*++i == V(2));

@@ -1,4 +1,4 @@
-//===-- AddressRange.cpp ----------------------------------------*- C++ -*-===//
+//===-- AddressRange.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,7 @@
 
 #include "lldb/Core/AddressRange.h"
 #include "lldb/Core/Module.h"
+#include "lldb/Core/Section.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
@@ -18,7 +19,7 @@
 
 #include <memory>
 
-#include <inttypes.h>
+#include <cinttypes>
 
 namespace lldb_private {
 class SectionList;
@@ -27,7 +28,7 @@ class SectionList;
 using namespace lldb;
 using namespace lldb_private;
 
-AddressRange::AddressRange() : m_base_addr(), m_byte_size(0) {}
+AddressRange::AddressRange() : m_base_addr() {}
 
 AddressRange::AddressRange(addr_t file_addr, addr_t byte_size,
                            const SectionList *section_list)
@@ -40,24 +41,23 @@ AddressRange::AddressRange(const lldb::SectionSP &section, addr_t offset,
 AddressRange::AddressRange(const Address &so_addr, addr_t byte_size)
     : m_base_addr(so_addr), m_byte_size(byte_size) {}
 
-AddressRange::~AddressRange() {}
+AddressRange::~AddressRange() = default;
 
-// bool
-// AddressRange::Contains (const Address &addr) const
-//{
-//    const addr_t byte_size = GetByteSize();
-//    if (byte_size)
-//        return addr.GetSection() == m_base_addr.GetSection() &&
-//        (addr.GetOffset() - m_base_addr.GetOffset()) < byte_size;
-//}
-//
-// bool
-// AddressRange::Contains (const Address *addr) const
-//{
-//    if (addr)
-//        return Contains (*addr);
-//    return false;
-//}
+bool AddressRange::Contains(const Address &addr) const {
+  SectionSP range_sect_sp = GetBaseAddress().GetSection();
+  SectionSP addr_sect_sp = addr.GetSection();
+  if (range_sect_sp) {
+    if (!addr_sect_sp ||
+        range_sect_sp->GetModule() != addr_sect_sp->GetModule())
+      return false; // Modules do not match.
+  } else if (addr_sect_sp) {
+    return false; // Range has no module but "addr" does because addr has a
+                  // section
+  }
+  // Either the modules match, or both have no module, so it is ok to compare
+  // the file addresses in this case only.
+  return ContainsFileAddress(addr);
+}
 
 bool AddressRange::ContainsFileAddress(const Address &addr) const {
   if (addr.GetSection() == m_base_addr.GetSection())
@@ -161,7 +161,8 @@ bool AddressRange::Dump(Stream *s, Target *target, Address::DumpStyle style,
     s->PutChar('[');
     m_base_addr.Dump(s, target, style, fallback_style);
     s->PutChar('-');
-    s->Address(m_base_addr.GetOffset() + GetByteSize(), addr_size);
+    DumpAddress(s->AsRawOstream(), m_base_addr.GetOffset() + GetByteSize(),
+                addr_size);
     s->PutChar(')');
     return true;
     break;
@@ -185,7 +186,8 @@ bool AddressRange::Dump(Stream *s, Target *target, Address::DumpStyle style,
         s->Printf("%s", module_sp->GetFileSpec().GetFilename().AsCString(
                             "<Unknown>"));
     }
-    s->AddressRange(vmaddr, vmaddr + GetByteSize(), addr_size);
+    DumpAddressRange(s->AsRawOstream(), vmaddr, vmaddr + GetByteSize(),
+                     addr_size);
     return true;
   } else if (fallback_style != Address::DumpStyleInvalid) {
     return Dump(s, target, fallback_style, Address::DumpStyleInvalid);
@@ -201,11 +203,3 @@ void AddressRange::DumpDebug(Stream *s) const {
             static_cast<void *>(m_base_addr.GetSection().get()),
             m_base_addr.GetOffset(), GetByteSize());
 }
-//
-// bool
-// lldb::operator==    (const AddressRange& lhs, const AddressRange& rhs)
-//{
-//    if (lhs.GetBaseAddress() == rhs.GetBaseAddress())
-//        return lhs.GetByteSize() == rhs.GetByteSize();
-//    return false;
-//}

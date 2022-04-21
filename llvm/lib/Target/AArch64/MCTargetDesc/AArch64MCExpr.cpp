@@ -17,6 +17,7 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -42,6 +43,13 @@ StringRef AArch64MCExpr::getVariantKindName() const {
   case VK_ABS_G0:              return ":abs_g0:";
   case VK_ABS_G0_S:            return ":abs_g0_s:";
   case VK_ABS_G0_NC:           return ":abs_g0_nc:";
+  case VK_PREL_G3:             return ":prel_g3:";
+  case VK_PREL_G2:             return ":prel_g2:";
+  case VK_PREL_G2_NC:          return ":prel_g2_nc:";
+  case VK_PREL_G1:             return ":prel_g1:";
+  case VK_PREL_G1_NC:          return ":prel_g1_nc:";
+  case VK_PREL_G0:             return ":prel_g0:";
+  case VK_PREL_G0_NC:          return ":prel_g0_nc:";
   case VK_DTPREL_G2:           return ":dtprel_g2:";
   case VK_DTPREL_G1:           return ":dtprel_g1:";
   case VK_DTPREL_G1_NC:        return ":dtprel_g1_nc:";
@@ -63,6 +71,7 @@ StringRef AArch64MCExpr::getVariantKindName() const {
   case VK_ABS_PAGE_NC:         return ":pg_hi21_nc:";
   case VK_GOT:                 return ":got:";
   case VK_GOT_PAGE:            return ":got:";
+  case VK_GOT_PAGE_LO15:       return ":gotpage_lo15:";
   case VK_GOT_LO12:            return ":got_lo12:";
   case VK_GOTTPREL:            return ":gottprel:";
   case VK_GOTTPREL_PAGE:       return ":gottprel:";
@@ -79,8 +88,7 @@ StringRef AArch64MCExpr::getVariantKindName() const {
 }
 
 void AArch64MCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
-  if (getKind() != VK_NONE)
-    OS << getVariantKindName();
+  OS << getVariantKindName();
   Expr->print(OS, MAI);
 }
 

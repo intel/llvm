@@ -1,4 +1,4 @@
-//===-- ValueObjectConstResultCast.cpp --------------------------*- C++ -*-===//
+//===-- ValueObjectConstResultCast.cpp ------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -27,7 +27,7 @@ ValueObjectConstResultCast::ValueObjectConstResultCast(
   m_name = name;
 }
 
-ValueObjectConstResultCast::~ValueObjectConstResultCast() {}
+ValueObjectConstResultCast::~ValueObjectConstResultCast() = default;
 
 lldb::ValueObjectSP ValueObjectConstResultCast::Dereference(Status &error) {
   return m_impl.Dereference(error);

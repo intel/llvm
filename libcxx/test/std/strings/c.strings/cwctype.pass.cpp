@@ -8,6 +8,8 @@
 
 // <cwctype>
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <cwctype>
 #include <type_traits>
 
@@ -107,7 +109,7 @@ int main(int, char**)
     ASSERT_SAME_TYPE(int, decltype(std::iswxdigit(w)));
 
     ASSERT_SAME_TYPE(int, decltype(std::iswctype(w, std::wctype_t())));
-    
+
     ASSERT_SAME_TYPE(std::wctype_t,  decltype(std::wctype("")));
     ASSERT_SAME_TYPE(std::wint_t,    decltype(std::towlower(w)));
     ASSERT_SAME_TYPE(std::wint_t,    decltype(std::towupper(w)));

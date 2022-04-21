@@ -44,22 +44,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "SystemZ.h"
+#include "SystemZSubtarget.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsS390.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Target/TargetMachine.h"
 #include <deque>
 #include <set>
 
 using namespace llvm;
-
-namespace llvm {
-  void initializeSystemZTDCPassPass(PassRegistry&);
-}
 
 namespace {
 
@@ -71,6 +71,11 @@ public:
   }
 
   bool runOnFunction(Function &F) override;
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<TargetPassConfig>();
+ }
+
 private:
   // Maps seen instructions that can be mapped to a TDC, values are
   // (TDC operand, TDC mask, worthy flag) triples.
@@ -309,6 +314,12 @@ void SystemZTDCPass::convertLogicOp(BinaryOperator &I) {
 }
 
 bool SystemZTDCPass::runOnFunction(Function &F) {
+  auto &TPC = getAnalysis<TargetPassConfig>();
+  if (TPC.getTM<TargetMachine>()
+          .getSubtarget<SystemZSubtarget>(F)
+          .hasSoftFloat())
+    return false;
+
   ConvertedInsts.clear();
   LogicOpsWorklist.clear();
   PossibleJunk.clear();

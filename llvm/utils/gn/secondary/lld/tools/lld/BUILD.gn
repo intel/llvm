@@ -8,9 +8,7 @@ symlinks = [
 ]
 foreach(target, symlinks) {
   symlink_or_copy(target) {
-    deps = [
-      ":lld",
-    ]
+    deps = [ ":lld" ]
     source = "lld"
     output = "$root_out_dir/bin/$target"
   }
@@ -29,12 +27,12 @@ executable("lld") {
   deps = [
     "//lld/COFF",
     "//lld/ELF",
+    "//lld/MachO:MachO",
     "//lld/MinGW",
-    "//lld/lib/Driver",
     "//lld/wasm",
     "//llvm/lib/Support",
+    "//llvm/utils/gn/build/libs/xar",
   ]
-  sources = [
-    "lld.cpp",
-  ]
+  assert_no_deps = [ "//llvm/lib/Debuginfod" ]
+  sources = [ "lld.cpp" ]
 }

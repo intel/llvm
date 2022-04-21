@@ -1,61 +1,44 @@
 # REQUIRES: mips
 # Check R_MIPS_64 relocation calculation.
 
-# RUN: llvm-mc -filetype=obj -triple=mips64-unknown-linux %s -o %t.o
-# RUN: ld.lld -shared %t.o -o %t.so
-# RUN: llvm-objdump -t %t.so | FileCheck -check-prefix=SYM %s
-# RUN: llvm-readobj -r --dynamic-table --mips-plt-got %t.so | FileCheck %s
+# RUN: llvm-mc -filetype=obj -triple=mips64-unknown-linux %s -o %t-be.o
+# RUN: ld.lld -shared %t-be.o -o %t-be.so
+# RUN: llvm-objdump -s -t %t-be.so | FileCheck --check-prefixes=SYM,SYM-BE %s
+# RUN: llvm-readelf --dynamic-table -r -s -A %t-be.so | FileCheck %s
 
-  .global  __start
-__start:
-  nop
+# RUN: llvm-mc -filetype=obj -triple=mips64el-unknown-linux %s -o %t-el.o
+# RUN: ld.lld -shared %t-el.o -o %t-el.so
+# RUN: llvm-objdump -s -t %t-el.so | FileCheck --check-prefixes=SYM,SYM-EL %s
+# RUN: llvm-readelf --dynamic-table -r -s -A %t-el.so | FileCheck %s
 
   .data
-  .type  v1,@object
-  .size  v1,4
-v1:
-  .quad 0
-
   .globl v2
-  .type  v2,@object
-  .size  v2,8
-v2:
+v1:
   .quad v2+8 # R_MIPS_64 target v2 addend 8
+v2:
   .quad v1   # R_MIPS_64 target v1 addend 0
 
-
 # SYM: SYMBOL TABLE:
-# SYM: 00020000 l     O .data           00000004 v1
-# SYM: 00020008 g     O .data           00000008 v2
+# SYM: 00000000000203b0 l .data  0000000000000000 v1
 
-# CHECK:      Relocations [
-# CHECK-NEXT:   Section (7) .rel.dyn {
-# CHECK-NEXT:     0x20010 R_MIPS_REL32/R_MIPS_64/R_MIPS_NONE - 0x0
-# CHECK-NEXT:     0x20008 R_MIPS_REL32/R_MIPS_64/R_MIPS_NONE v2 0x0
-# CHECK-NEXT:   }
-# CHECK-NEXT: ]
+# SYM-BE: Contents of section .data:
+# SYM-BE-NEXT:  {{.*}} 00000000 00000008 00000000 000203b0
 
-# CHECK: DynamicSection [
-# CHECK:   Tag        Type     Name/Value
-# CHECK:   0x0000000000000012 RELSZ    32 (bytes)
-# CHECK:   0x0000000000000013 RELENT   16 (bytes)
+# SYM-EL: Contents of section .data:
+# SYM-EL-NEXT:  {{.*}} 08000000 00000000 b0030200 00000000
 
-# CHECK:      Primary GOT {
-# CHECK-NEXT:   Canonical gp value:
-# CHECK-NEXT:   Reserved entries [
-# CHECK:        ]
-# CHECK-NEXT:   Local entries [
-# CHECK-NEXT:   ]
-# CHECK-NEXT:   Global entries [
-# CHECK-NEXT:     Entry {
-# CHECK-NEXT:       Address:
-# CHECK-NEXT:       Access:
-# CHECK-NEXT:       Initial: 0x20008
-# CHECK-NEXT:       Value: 0x20008
-# CHECK-NEXT:       Type: Object
-# CHECK-NEXT:       Section: .data
-# CHECK-NEXT:       Name: v2
-# CHECK-NEXT:     }
-# CHECK-NEXT:   ]
-# CHECK-NEXT:   Number of TLS and multi-GOT entries: 0
-# CHECK-NEXT: }
+# CHECK: Dynamic section
+# CHECK: (RELSZ)   32 (bytes)
+# CHECK: (RELENT)  16 (bytes)
+
+# CHECK: Relocation section
+# CHECK:      [[V1:[0-9a-f]+]]  {{.*}} R_MIPS_REL32/R_MIPS_64/R_MIPS_NONE [[V2:[0-9a-f]+]] v2
+# CHECK-NEXT: [[V2]]            {{.*}} R_MIPS_REL32/R_MIPS_64/R_MIPS_NONE {{$}}
+
+# CHECK: Symbol table '.symtab'
+# CHECK: {{.*}}: [[V1]]  {{.*}}  v1
+# CHECK: {{.*}}: [[V2]]  {{.*}}  v2
+
+# CHECK: Primary GOT:
+# CHECK:  Global entries:
+# CHECK:   {{.*}} -32736(gp) [[V2]] [[V2]] {{.*}} v2

@@ -1,4 +1,3 @@
-; RUN: opt %s -scalarizer -scalarize-load-store -dce -S | FileCheck %s
 ; RUN: opt %s -passes='function(scalarizer,dce)' -scalarize-load-store -S | FileCheck %s
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 
@@ -33,7 +32,7 @@ define void @f1(<4 x float> %init, <4 x float> *%base, i32 %count) {
 ; CHECK:   %add.i1 = fadd float %val.i1, %val.i3
 ; CHECK:   %add.i2 = fadd float %acc.i0, %acc.i2
 ; CHECK:   %add.i3 = fadd float %acc.i1, %acc.i3
-; CHECK:   %add.upto0 = insertelement <4 x float> undef, float %add.i0, i32 0
+; CHECK:   %add.upto0 = insertelement <4 x float> poison, float %add.i0, i32 0
 ; CHECK:   %add.upto1 = insertelement <4 x float> %add.upto0, float %add.i1, i32 1
 ; CHECK:   %add.upto2 = insertelement <4 x float> %add.upto1, float %add.i2, i32 2
 ; CHECK:   %add = insertelement <4 x float> %add.upto2, float %add.i3, i32 3
@@ -247,7 +246,7 @@ define <4 x float> @f6(<4 x float> %x) {
 ; CHECK: %res.i2 = fadd float %x.i2, 3.0{{[e+0]*}}, !fpmath ![[TAG]]
 ; CHECK: %x.i3 = extractelement <4 x float> %x, i32 3
 ; CHECK: %res.i3 = fadd float %x.i3, 4.0{{[e+0]*}}, !fpmath ![[TAG]]
-; CHECK: %res.upto0 = insertelement <4 x float> undef, float %res.i0, i32 0
+; CHECK: %res.upto0 = insertelement <4 x float> poison, float %res.i0, i32 0
 ; CHECK: %res.upto1 = insertelement <4 x float> %res.upto0, float %res.i1, i32 1
 ; CHECK: %res.upto2 = insertelement <4 x float> %res.upto1, float %res.i2, i32 2
 ; CHECK: %res = insertelement <4 x float> %res.upto2, float %res.i3, i32 3
@@ -276,14 +275,14 @@ define void @f8(<4 x float *> *%dest, <4 x float *> %ptr0, <4 x i32> %i0,
 ; CHECK: %dest.i1 = getelementptr float*, float** %dest.i0, i32 1
 ; CHECK: %dest.i2 = getelementptr float*, float** %dest.i0, i32 2
 ; CHECK: %dest.i3 = getelementptr float*, float** %dest.i0, i32 3
+; CHECK: %ptr0.i0 = extractelement <4 x float*> %ptr0, i32 0
+; CHECK: %ptr0.i2 = extractelement <4 x float*> %ptr0, i32 2
+; CHECK: %ptr0.i3 = extractelement <4 x float*> %ptr0, i32 3
 ; CHECK: %i0.i1 = extractelement <4 x i32> %i0, i32 1
 ; CHECK: %i0.i3 = extractelement <4 x i32> %i0, i32 3
-; CHECK: %ptr0.i0 = extractelement <4 x float*> %ptr0, i32 0
 ; CHECK: %val.i0 = getelementptr float, float* %ptr0.i0, i32 100
 ; CHECK: %val.i1 = getelementptr float, float* %other, i32 %i0.i1
-; CHECK: %ptr0.i2 = extractelement <4 x float*> %ptr0, i32 2
 ; CHECK: %val.i2 = getelementptr float, float* %ptr0.i2, i32 100
-; CHECK: %ptr0.i3 = extractelement <4 x float*> %ptr0, i32 3
 ; CHECK: %val.i3 = getelementptr float, float* %ptr0.i3, i32 %i0.i3
 ; CHECK: store float* %val.i0, float** %dest.i0, align 32
 ; CHECK: store float* %val.i1, float** %dest.i1, align 8
@@ -363,26 +362,6 @@ define void @f11(<32 x i1> *%dest, <32 x i1> *%src0) {
   ret void
 }
 
-; Test that variable inserts aren't scalarized.
-define void @f12(<4 x i32> *%dest, <4 x i32> *%src, i32 %index) {
-; CHECK: @f12(
-; CHECK: %val1 = insertelement <4 x i32> %val0, i32 1, i32 %index
-; CHECK-DAG: %val1.i0 = extractelement <4 x i32> %val1, i32 0
-; CHECK-DAG: %val1.i1 = extractelement <4 x i32> %val1, i32 1
-; CHECK-DAG: %val1.i2 = extractelement <4 x i32> %val1, i32 2
-; CHECK-DAG: %val1.i3 = extractelement <4 x i32> %val1, i32 3
-; CHECK-DAG: %val2.i0 = shl i32 1, %val1.i0
-; CHECK-DAG: %val2.i1 = shl i32 2, %val1.i1
-; CHECK-DAG: %val2.i2 = shl i32 3, %val1.i2
-; CHECK-DAG: %val2.i3 = shl i32 4, %val1.i3
-; CHECK: ret void
-  %val0 = load <4 x i32> , <4 x i32> *%src
-  %val1 = insertelement <4 x i32> %val0, i32 1, i32 %index
-  %val2 = shl <4 x i32> <i32 1, i32 2, i32 3, i32 4>, %val1
-  store <4 x i32> %val2, <4 x i32> *%dest
-  ret void
-}
-
 ; Test vector GEPs with more than one index.
 define void @f13(<4 x float *> *%dest, <4 x [4 x float] *> %ptr, <4 x i32> %i,
                  float *%other) {
@@ -423,7 +402,7 @@ define <4 x float> @f14(<4 x float> %acc, i32 %count) {
 ; CHECK: %this_acc.i2 = phi float [ %acc.i2, %entry ], [ %next_acc.i2, %loop ]
 ; CHECK: %this_acc.i3 = phi float [ %acc.i3, %entry ], [ %next_acc.i3, %loop ]
 ; CHECK: %this_count = phi i32 [ %count, %entry ], [ %next_count, %loop ]
-; CHECK: %this_acc.upto0 = insertelement <4 x float> undef, float %this_acc.i0, i32 0
+; CHECK: %this_acc.upto0 = insertelement <4 x float> poison, float %this_acc.i0, i32 0
 ; CHECK: %this_acc.upto1 = insertelement <4 x float> %this_acc.upto0, float %this_acc.i1, i32 1
 ; CHECK: %this_acc.upto2 = insertelement <4 x float> %this_acc.upto1, float %this_acc.i2, i32 2
 ; CHECK: %this_acc = insertelement <4 x float> %this_acc.upto2, float %this_acc.i3, i32 3
@@ -442,6 +421,134 @@ loop:
 
 exit:
   ret <4 x float> %next_acc
+}
+
+; Test unary operator scalarization.
+define void @f15(<4 x float> %init, <4 x float> *%base, i32 %count) {
+; CHECK-LABEL: @f15(
+; CHECK: %ptr = getelementptr <4 x float>, <4 x float>* %base, i32 %i
+; CHECK: %ptr.i0 = bitcast <4 x float>* %ptr to float*
+; CHECK: %val.i0 = load float, float* %ptr.i0, align 16
+; CHECK: %ptr.i1 = getelementptr float, float* %ptr.i0, i32 1
+; CHECK: %val.i1 = load float, float* %ptr.i1, align 4
+; CHECK: %ptr.i2 = getelementptr float, float* %ptr.i0, i32 2
+; CHECK: %val.i2 = load float, float* %ptr.i2, align 8
+; CHECK: %ptr.i3 = getelementptr float, float* %ptr.i0, i32 3
+; CHECK: %val.i3 = load float, float* %ptr.i3, align 4
+; CHECK: %neg.i0 = fneg float %val.i0
+; CHECK: %neg.i1 = fneg float %val.i1
+; CHECK: %neg.i2 = fneg float %val.i2
+; CHECK: %neg.i3 = fneg float %val.i3
+; CHECK: %neg.upto0 = insertelement <4 x float> poison, float %neg.i0, i32 0
+; CHECK: %neg.upto1 = insertelement <4 x float> %neg.upto0, float %neg.i1, i32 1
+; CHECK: %neg.upto2 = insertelement <4 x float> %neg.upto1, float %neg.i2, i32 2
+; CHECK: %neg = insertelement <4 x float> %neg.upto2, float %neg.i3, i32 3
+; CHECK: %call = call <4 x float> @ext(<4 x float> %neg)
+; CHECK: %call.i0 = extractelement <4 x float> %call, i32 0
+; CHECK: %cmp.i0 = fcmp ogt float %call.i0, 1.000000e+00
+; CHECK: %call.i1 = extractelement <4 x float> %call, i32 1
+; CHECK: %cmp.i1 = fcmp ogt float %call.i1, 2.000000e+00
+; CHECK: %call.i2 = extractelement <4 x float> %call, i32 2
+; CHECK: %cmp.i2 = fcmp ogt float %call.i2, 3.000000e+00
+; CHECK: %call.i3 = extractelement <4 x float> %call, i32 3
+; CHECK: %cmp.i3 = fcmp ogt float %call.i3, 4.000000e+00
+; CHECK: %sel.i0 = select i1 %cmp.i0, float %call.i0, float 5.000000e+00
+; CHECK: %sel.i1 = select i1 %cmp.i1, float %call.i1, float 6.000000e+00
+; CHECK: %sel.i2 = select i1 %cmp.i2, float %call.i2, float 7.000000e+00
+; CHECK: %sel.i3 = select i1 %cmp.i3, float %call.i3, float 8.000000e+00
+; CHECK: store float %sel.i0, float* %ptr.i0, align 16
+; CHECK: store float %sel.i1, float* %ptr.i1, align 4
+; CHECK: store float %sel.i2, float* %ptr.i2, align 8
+; CHECK: store float %sel.i3, float* %ptr.i3, align 4
+entry:
+  br label %loop
+
+loop:
+  %i = phi i32 [ %count, %entry ], [ %nexti, %loop ]
+  %acc = phi <4 x float> [ %init, %entry ], [ %sel, %loop ]
+  %nexti = sub i32 %i, 1
+
+  %ptr = getelementptr <4 x float>, <4 x float> *%base, i32 %i
+  %val = load <4 x float> , <4 x float> *%ptr
+  %neg = fneg <4 x float> %val
+  %call = call <4 x float> @ext(<4 x float> %neg)
+  %cmp = fcmp ogt <4 x float> %call,
+  <float 1.0, float 2.0, float 3.0, float 4.0>
+  %sel = select <4 x i1> %cmp, <4 x float> %call,
+  <4 x float> <float 5.0, float 6.0, float 7.0, float 8.0>
+  store <4 x float> %sel, <4 x float> *%ptr
+
+  %test = icmp eq i32 %nexti, 0
+  br i1 %test, label %loop, label %exit
+
+exit:
+  ret void
+}
+
+; Check that IR flags are preserved.
+define <2 x i32> @f16(<2 x i32> %i, <2 x i32> %j) {
+; CHECK-LABEL: @f16(
+; CHECK: %res.i0 = add nuw nsw i32
+; CHECK: %res.i1 = add nuw nsw i32
+  %res = add nuw nsw <2 x i32> %i, %j
+  ret <2 x i32> %res
+}
+define <2 x i32> @f17(<2 x i32> %i, <2 x i32> %j) {
+; CHECK-LABEL: @f17(
+; CHECK: %res.i0 = sdiv exact i32
+; CHECK: %res.i1 = sdiv exact i32
+  %res = sdiv exact <2 x i32> %i, %j
+  ret <2 x i32> %res
+}
+define <2 x float> @f18(<2 x float> %x, <2 x float> %y) {
+; CHECK-LABEL: @f18(
+; CHECK: %res.i0 = fadd fast float
+; CHECK: %res.i1 = fadd fast float
+  %res = fadd fast <2 x float> %x, %y
+  ret <2 x float> %res
+}
+define <2 x float> @f19(<2 x float> %x) {
+; CHECK-LABEL: @f19(
+; CHECK: %res.i0 = fneg fast float
+; CHECK: %res.i1 = fneg fast float
+  %res = fneg fast <2 x float> %x
+  ret <2 x float> %res
+}
+define <2 x i1> @f20(<2 x float> %x, <2 x float> %y) {
+; CHECK-LABEL: @f20(
+; CHECK: %res.i0 = fcmp fast ogt float
+; CHECK: %res.i1 = fcmp fast ogt float
+  %res = fcmp fast ogt <2 x float> %x, %y
+  ret <2 x i1> %res
+}
+declare <2 x float> @llvm.sqrt.v2f32(<2 x float>)
+define <2 x float> @f21(<2 x float> %x) {
+; CHECK-LABEL: @f21(
+; CHECK: %res.i0 = call fast float @llvm.sqrt.f32
+; CHECK: %res.i1 = call fast float @llvm.sqrt.f32
+  %res = call fast <2 x float> @llvm.sqrt.v2f32(<2 x float> %x)
+  ret <2 x float> %res
+}
+declare <2 x float> @llvm.fma.v2f32(<2 x float>, <2 x float>, <2 x float>)
+define <2 x float> @f22(<2 x float> %x, <2 x float> %y, <2 x float> %z) {
+; CHECK-LABEL: @f22(
+; CHECK: %res.i0 = call fast float @llvm.fma.f32
+; CHECK: %res.i1 = call fast float @llvm.fma.f32
+  %res = call fast <2 x float> @llvm.fma.v2f32(<2 x float> %x, <2 x float> %y, <2 x float> %z)
+  ret <2 x float> %res
+}
+
+; See https://reviews.llvm.org/D83101#2133062
+define <2 x i32> @f23_crash(<2 x i32> %srcvec, i32 %v1) {
+; CHECK-LABEL: @f23_crash(
+; CHECK: %v0 = extractelement <2 x i32> %srcvec, i32 0
+; CHECK: %t1.upto0 = insertelement <2 x i32> poison, i32 %v0, i32 0
+; CHECK: %t1 = insertelement <2 x i32> %t1.upto0, i32 %v1, i32 1
+; CHECK: ret <2 x i32> %t1
+  %v0 = extractelement <2 x i32> %srcvec, i32 0
+  %t0 = insertelement <2 x i32> undef, i32 %v0, i32 0
+  %t1 = insertelement <2 x i32> %t0, i32 %v1, i32 1
+  ret <2 x i32> %t1
 }
 
 !0 = !{ !"root" }

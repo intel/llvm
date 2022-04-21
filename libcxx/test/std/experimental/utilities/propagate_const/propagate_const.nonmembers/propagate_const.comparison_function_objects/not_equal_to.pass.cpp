@@ -6,13 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <propagate_const>
 
 // template <class T> struct not_equal_to<experimental::fundamentals_v2::propagate_const<T>>;
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <cassert>
 

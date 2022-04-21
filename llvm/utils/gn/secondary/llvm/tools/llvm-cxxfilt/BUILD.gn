@@ -1,11 +1,15 @@
 import("//llvm/tools/binutils_symlinks.gni")
+import("//llvm/utils/TableGen/tablegen.gni")
 import("//llvm/utils/gn/build/symlink_or_copy.gni")
+
+tablegen("Opts") {
+  visibility = [ ":llvm-cxxfilt" ]
+  args = [ "-gen-opt-parser-defs" ]
+}
 
 if (llvm_install_binutils_symlinks) {
   symlink_or_copy("cxxfilt") {  # Can't have '+' in target name.
-    deps = [
-      ":llvm-cxxfilt",
-    ]
+    deps = [ ":llvm-cxxfilt" ]
     source = "llvm-cxxfilt"
     output = "$root_out_dir/bin/c++filt"  # Note: c++filt, not cxxfilt
   }
@@ -13,9 +17,7 @@ if (llvm_install_binutils_symlinks) {
 
 # //:llvm-cxxfilt depends on this symlink target, see comment in //BUILD.gn.
 group("symlinks") {
-  deps = [
-    ":llvm-cxxfilt",
-  ]
+  deps = [ ":llvm-cxxfilt" ]
   if (llvm_install_binutils_symlinks) {
     deps += [ ":cxxfilt" ]
   }
@@ -23,10 +25,10 @@ group("symlinks") {
 
 executable("llvm-cxxfilt") {
   deps = [
+    ":Opts",
     "//llvm/lib/Demangle",
+    "//llvm/lib/Option",
     "//llvm/lib/Support",
   ]
-  sources = [
-    "llvm-cxxfilt.cpp",
-  ]
+  sources = [ "llvm-cxxfilt.cpp" ]
 }

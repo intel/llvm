@@ -4,7 +4,7 @@
 ; Check for DW_CFA_GNU_Window_save in debug_frame. Also, Ensure that relocations
 ; are performed correctly in debug_info.
 
-; SPARC64: file format ELF64-sparc
+; SPARC64: file format elf64-sparc
 
 ; SPARC64: .debug_info
 ; SPARC64:      DW_TAG_compile_unit
@@ -20,7 +20,7 @@
 ; SPARC64-NEXT: DW_CFA_register
 
 
-; SPARC32: file format ELF32-sparc
+; SPARC32: file format elf32-sparc
 
 ; SPARC32: .debug_info
 ; SPARC32:      DW_TAG_compile_unit
@@ -48,8 +48,8 @@ entry:
 
 declare signext i32 @printf(i8*, ...) #1
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!9, !10}

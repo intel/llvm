@@ -8,7 +8,6 @@
 
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/MC/MCFixupKindInfo.h"
 
 namespace llvm {
 
@@ -40,8 +39,6 @@ enum {
 
 void MCSymbolELF::setBinding(unsigned Binding) const {
   setIsBindingSet();
-  if (getType() == ELF::STT_SECTION && Binding != ELF::STB_LOCAL)
-    setType(ELF::STT_NOTYPE);
   unsigned Val;
   switch (Binding) {
   default:
@@ -93,8 +90,6 @@ unsigned MCSymbolELF::getBinding() const {
 
 void MCSymbolELF::setType(unsigned Type) const {
   unsigned Val;
-  if (Type == ELF::STT_SECTION && getBinding() != ELF::STB_LOCAL)
-    return;
   switch (Type) {
   default:
     llvm_unreachable("Unsupported Binding");

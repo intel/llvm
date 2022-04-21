@@ -8,7 +8,7 @@
 
 // <experimental/memory_resource>
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 //------------------------------------------------------------------------------
 // TESTING void * memory_resource::deallocate(void *, size_t, size_t = max_align)
@@ -26,7 +26,9 @@
 #include <cstddef>
 #include <cassert>
 
-#include "test_memory_resource.hpp"
+#include "test_memory_resource.h"
+
+#include "test_macros.h"
 
 using std::experimental::pmr::memory_resource;
 

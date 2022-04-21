@@ -1,3 +1,5 @@
+add_llvm_component_group(NVPTX)
+
 set(LLVM_TARGET_DEFINITIONS NVPTX.td)
 
 tablegen(LLVM NVPTXGenAsmWriter.inc -gen-asm-writer)
@@ -10,6 +12,7 @@ add_public_tablegen_target(NVPTXCommonTableGen)
 
 set(NVPTXCodeGen_sources
   NVPTXAllocaHoisting.cpp
+  NVPTXAtomicLower.cpp
   NVPTXAsmPrinter.cpp
   NVPTXAssignValidGlobalNames.cpp
   NVPTXFrameLowering.cpp
@@ -33,9 +36,33 @@ set(NVPTXCodeGen_sources
   NVVMIntrRange.cpp
   NVVMReflect.cpp
   NVPTXProxyRegErasure.cpp
+  SYCL/GlobalOffset.cpp
   )
 
-add_llvm_target(NVPTXCodeGen ${NVPTXCodeGen_sources})
+add_llvm_target(NVPTXCodeGen
+  ${NVPTXCodeGen_sources}
+
+  LINK_COMPONENTS
+  Analysis
+  AsmPrinter
+  CodeGen
+  Core
+  IPO
+  MC
+  NVPTXDesc
+  NVPTXInfo
+  Scalar
+  SelectionDAG
+  Support
+  Target
+  TransformUtils
+  Vectorize
+  Passes
+  SYCLLowerIR
+
+  ADD_TO_COMPONENT
+  NVPTX
+)
 
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)

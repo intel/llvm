@@ -3,7 +3,7 @@
 int gi;
 
 namespace lambdas {
-// CHECK-LABEL: define void @_ZN7lambdas7LambdasEPc
+// CHECK-LABEL: define{{.*}} void @_ZN7lambdas7LambdasEPc
 void Lambdas(char *ptr) {
   auto L1 = [](void *const p __attribute__((pass_object_size(0)))) {
     return __builtin_object_size(p, 0);
@@ -20,10 +20,10 @@ void Lambdas(char *ptr) {
   gi = L2(ptr);
 }
 
-// CHECK-DAG: define internal i64 @"_ZZN7lambdas7LambdasEPcENK3$_0clEPvU17pass_object_size0"
-// CHECK-NOT: call i64 @llvm.objectsize
-// CHECK-DAG: define internal i64 @"_ZZN7lambdas7LambdasEPcENK3$_1clEPvU17pass_object_size0"
-// CHECK-NOT: call i64 @llvm.objectsize
+// CHECK-DAG: define internal noundef i64 @"_ZZN7lambdas7LambdasEPcENK3$_0clEPvU17pass_object_size0"
+// CHECK-NOT: call noundef i64 @llvm.objectsize
+// CHECK-DAG: define internal noundef i64 @"_ZZN7lambdas7LambdasEPcENK3$_1clEPvU17pass_object_size0"
+// CHECK-NOT: call noundef i64 @llvm.objectsize
 }
 
 // This is here instead of in Sema/ because we need to check to make sure the
@@ -32,7 +32,7 @@ namespace addrof {
 void OvlFoo(void *const __attribute__((pass_object_size(0)))) {}
 void OvlFoo(int *const) {}
 
-// CHECK: define void @_ZN6addrof4TestEv
+// CHECK: define{{.*}} void @_ZN6addrof4TestEv
 void Test() {
   // Treating parens-only calls as though they were direct is consistent with
   // how we handle other implicitly unaddressable functions (e.g. builtins).
@@ -50,7 +50,7 @@ namespace delegate {
   };
   A::A(void *const p __attribute__((pass_object_size(0)))) {}
   // Ensure that we forward the size through a delegating constructor call.
-  // CHECK: define void @_ZN8delegate1AC1EPvU17pass_object_size0({{[^,]*}}, i8*{{[^,]*}}, i64{{[^,]*}})
+  // CHECK: define{{.*}} void @_ZN8delegate1AC1EPvU17pass_object_size0({{[^,]*}}, i8*{{[^,]*}}, i64{{[^,]*}})
   // CHECK: call void @_ZN8delegate1AC2EPvU17pass_object_size0({{[^,]*}}, i8*{{[^,]*}}, i64{{[^,]*}})
 }
 
@@ -70,7 +70,7 @@ struct AsMember {
                   double a, ...) {}
 };
 
-// CHECK-LABEL: define void @_ZN8variadic4testEv()
+// CHECK-LABEL: define{{.*}} void @_ZN8variadic4testEv()
 void test() {
   // CHECK-RE: call{{[^@]+}}@_ZN8variadic6AsCtorC1EPKcU17pass_object_size0dz
   AsCtor("a", 1.0);

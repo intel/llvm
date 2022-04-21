@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGIN_ARCHITECTURE_MIPS_H
-#define LLDB_PLUGIN_ARCHITECTURE_MIPS_H
+#ifndef LLDB_SOURCE_PLUGINS_ARCHITECTURE_MIPS_ARCHITECTUREMIPS_H
+#define LLDB_SOURCE_PLUGINS_ARCHITECTURE_MIPS_ARCHITECTUREMIPS_H
 
 #include "lldb/Core/Architecture.h"
 #include "lldb/Utility/ArchSpec.h"
@@ -16,12 +16,11 @@ namespace lldb_private {
 
 class ArchitectureMips : public Architecture {
 public:
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "mips"; }
   static void Initialize();
   static void Terminate();
 
-  ConstString GetPluginName() override;
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   void OverrideStopInfo(Thread &thread) const override {}
 
@@ -35,10 +34,9 @@ public:
                                     AddressClass addr_class) const override;
 
 private:
-  Instruction *GetInstructionAtAddress(const ExecutionContext &exe_ctx,
+  Instruction *GetInstructionAtAddress(Target &target,
                                        const Address &resolved_addr,
                                        lldb::addr_t symbol_offset) const;
-
 
   static std::unique_ptr<Architecture> Create(const ArchSpec &arch);
   ArchitectureMips(const ArchSpec &arch) : m_arch(arch) {}
@@ -48,4 +46,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // LLDB_PLUGIN_ARCHITECTURE_MIPS_H
+#endif // LLDB_SOURCE_PLUGINS_ARCHITECTURE_MIPS_ARCHITECTUREMIPS_H

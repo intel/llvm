@@ -18,10 +18,12 @@
 // string to_string(double val);
 // string to_string(long double val);
 
-#include <limits>
 #include <string>
 #include <cassert>
-#include <sstream>
+#include <limits>
+
+#include "parse_integer.h"
+#include "test_macros.h"
 
 template <class T>
 void
@@ -48,16 +50,12 @@ test_signed()
     {
         std::string s = std::to_string(std::numeric_limits<T>::max());
         assert(s.size() == std::numeric_limits<T>::digits10 + 1);
-        std::istringstream is(s);
-        T t(0);
-        is >> t;
+        T t = parse_integer<T>(s);
         assert(t == std::numeric_limits<T>::max());
     }
     {
         std::string s = std::to_string(std::numeric_limits<T>::min());
-        std::istringstream is(s);
-        T t(0);
-        is >> t;
+        T t = parse_integer<T>(s);
         assert(t == std::numeric_limits<T>::min());
     }
 }
@@ -81,9 +79,7 @@ test_unsigned()
     {
         std::string s = std::to_string(std::numeric_limits<T>::max());
         assert(s.size() == std::numeric_limits<T>::digits10 + 1);
-        std::istringstream is(s);
-        T t(0);
-        is >> t;
+        T t = parse_integer<T>(s);
         assert(t == std::numeric_limits<T>::max());
     }
 }

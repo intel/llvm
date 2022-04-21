@@ -7,7 +7,12 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
+
+// ALLOW_RETRIES: 2
+
+// shared_timed_mutex was introduced in macosx10.12
+// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
 
 // <shared_mutex>
 
@@ -19,6 +24,9 @@
 #include <thread>
 #include <cstdlib>
 #include <cassert>
+
+#include "make_test_thread.h"
+#include "test_macros.h"
 
 std::shared_timed_mutex m;
 
@@ -45,7 +53,7 @@ void f()
 int main(int, char**)
 {
     m.lock();
-    std::thread t(f);
+    std::thread t = support::make_test_thread(f);
     std::this_thread::sleep_for(ms(250));
     m.unlock();
     t.join();

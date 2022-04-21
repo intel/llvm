@@ -2,6 +2,7 @@ set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   CodeGen
   Core
+  FileCheck
   GlobalISel
   MC
   MIRParser
@@ -10,10 +11,16 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(GlobalISelTests
+  ConstantFoldingTest.cpp
   CSETest.cpp
+  LegalizerTest.cpp
   LegalizerHelperTest.cpp
   LegalizerInfoTest.cpp
   MachineIRBuilderTest.cpp
   GISelMITest.cpp
   PatternMatchTest.cpp
+  KnownBitsTest.cpp
+  KnownBitsVectorTest.cpp
+  GISelUtilsTest.cpp
+  GISelAliasTest.cpp
   )

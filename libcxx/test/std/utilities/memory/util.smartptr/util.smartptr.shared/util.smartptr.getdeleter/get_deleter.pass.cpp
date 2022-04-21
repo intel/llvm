@@ -12,8 +12,11 @@
 
 // template<class D, class T> D* get_deleter(const shared_ptr<T>& p);
 
+// UNSUPPORTED: no-rtti
+
 #include <memory>
 #include <cassert>
+#include "test_macros.h"
 #include "deleter_types.h"
 
 struct A

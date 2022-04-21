@@ -16,13 +16,17 @@
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
 // Hardware CRC32 is supported at compilation via the following:
-// - for i386 & x86_64: -msse4.2
+// - for i386 & x86_64: -mcrc32 (earlier: -msse4.2)
 // - for ARM & AArch64: -march=armv8-a+crc or -mcrc
 // An additional check must be performed at runtime as well to make sure the
 // emitted instructions are valid on the target host.
 
-#if defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
-# ifdef __SSE4_2__
+#if defined(__CRC32__) || defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
+# if defined(__CRC32__)
+// NB: clang has <crc32intrin.h> but GCC does not
+#  include <smmintrin.h>
+#  define CRC32_INTRINSIC FIRST_32_SECOND_64(__builtin_ia32_crc32si, __builtin_ia32_crc32di)
+# elif defined(__SSE4_2__)
 #  include <smmintrin.h>
 #  define CRC32_INTRINSIC FIRST_32_SECOND_64(_mm_crc32_u32, _mm_crc32_u64)
 # endif
@@ -30,7 +34,7 @@
 #  include <arm_acle.h>
 #  define CRC32_INTRINSIC FIRST_32_SECOND_64(__crc32cw, __crc32cd)
 # endif
-#endif  // defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
+#endif  // defined(__CRC32__) || defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
 
 namespace __scudo {
 
@@ -85,7 +89,7 @@ static const u32 CRC32Table[] = {
   0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-INLINE u32 computeSoftwareCRC32(u32 Crc, uptr Data) {
+inline u32 computeSoftwareCRC32(u32 Crc, uptr Data) {
   for (uptr i = 0; i < sizeof(Data); i++) {
     Crc = CRC32Table[(Crc ^ Data) & 0xff] ^ (Crc >> 8);
     Data >>= 8;

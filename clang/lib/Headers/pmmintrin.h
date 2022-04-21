@@ -10,6 +10,10 @@
 #ifndef __PMMINTRIN_H
 #define __PMMINTRIN_H
 
+#if !defined(__i386__) && !defined(__x86_64__)
+#error "This header is only meant to be used on x86 and x64 architecture"
+#endif
+
 #include <emmintrin.h>
 
 /* Define the default attributes for the functions in this file. */
@@ -31,7 +35,7 @@
 ///    A pointer to a 128-bit integer vector containing integer values.
 /// \returns A 128-bit vector containing the moved values.
 static __inline__ __m128i __DEFAULT_FN_ATTRS
-_mm_lddqu_si128(__m128i const *__p)
+_mm_lddqu_si128(__m128i_u const *__p)
 {
   return (__m128i)__builtin_ia32_lddqu((char const *)__p);
 }
@@ -263,7 +267,7 @@ _mm_movedup_pd(__m128d __a)
 static __inline__ void __DEFAULT_FN_ATTRS
 _mm_monitor(void const *__p, unsigned __extensions, unsigned __hints)
 {
-  __builtin_ia32_monitor((void *)__p, __extensions, __hints);
+  __builtin_ia32_monitor(__p, __extensions, __hints);
 }
 
 /// Used with the MONITOR instruction to wait while the processor is in

@@ -17,6 +17,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     {
@@ -27,6 +29,7 @@ int main(int, char**)
         assert(*++i == 'c');
         assert(++i == std::istreambuf_iterator<char>());
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wistringstream inf(L"abc");
         std::istreambuf_iterator<wchar_t> i(inf);
@@ -35,6 +38,7 @@ int main(int, char**)
         assert(*++i == L'c');
         assert(++i == std::istreambuf_iterator<wchar_t>());
     }
+#endif
 
   return 0;
 }

@@ -7,11 +7,11 @@ namespace test0 {
     id x;
   };
 
-  // CHECK:    define [[A:%.*]]* @_ZN5test04testENS_1AE(
+  // CHECK:    define{{.*}} [[A:%.*]]* @_ZN5test04testENS_1AE(
   // CHECK:      alloca
   // CHECK-NEXT: getelementptr
   // CHECK-NEXT: store
-  // CHECK-NEXT: call i8* @_Znwm(
+  // CHECK-NEXT: [[CALL:%.*]] = call noalias noundef nonnull i8* @_Znwm(
   // CHECK-NEXT: bitcast
   // CHECK-NEXT: bitcast
   // CHECK-NEXT: bitcast

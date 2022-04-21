@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <functional>
 
@@ -15,11 +15,13 @@
 // template<Returnable R, CopyConstructible Fn, CopyConstructible... Types>
 //   unspecified bind(Fn, Types...);
 
-// https://bugs.llvm.org/show_bug.cgi?id=16343
+// https://llvm.org/PR16343
 
 #include <cmath>
 #include <functional>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct power
 {

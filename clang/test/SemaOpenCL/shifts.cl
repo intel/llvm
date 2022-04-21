@@ -35,7 +35,7 @@ char2 ptest06(char2 c) {
   return c << 1;
 }
 
-void ptest07() {
+void ptest07(void) {
   char3 v = {1,1,1};
   char3 w = {1,2,3};
 
@@ -45,7 +45,7 @@ void ptest07() {
 // ** Negative tests **
 
 char2 ntest01(char c, char2 s) {
-  return c << s; // expected-error {{requested shift is a vector of type 'char2' (vector of 2 'char' values) but the first operand is not a vector ('char')}}
+  return c << s; // expected-error {{requested shift is a vector of type '__private char2' (vector of 2 'char' values) but the first operand is not a vector ('__private char')}}
 }
 
 char3 ntest02(char3 c, char2 s) {

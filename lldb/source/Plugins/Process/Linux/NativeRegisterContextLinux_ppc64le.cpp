@@ -1,4 +1,4 @@
-//===-- NativeRegisterContextLinux_ppc64le.cpp ------------------*- C++ -*-===//
+//===-- NativeRegisterContextLinux_ppc64le.cpp ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -97,10 +97,8 @@ static const uint32_t g_vsx_regnums_ppc64le[] = {
     LLDB_INVALID_REGNUM // register sets need to end with this flag
 };
 
-namespace {
 // Number of register sets provided by this context.
-enum { k_num_register_sets = 4 };
-}
+static constexpr int k_num_register_sets = 4;
 
 static const RegisterSet g_reg_sets_ppc64le[k_num_register_sets] = {
     {"General Purpose Registers", "gpr", k_num_gpr_registers_ppc64le,
@@ -115,10 +113,10 @@ static const RegisterSet g_reg_sets_ppc64le[k_num_register_sets] = {
 
 std::unique_ptr<NativeRegisterContextLinux>
 NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
-    const ArchSpec &target_arch, NativeThreadProtocol &native_thread) {
+    const ArchSpec &target_arch, NativeThreadLinux &native_thread) {
   switch (target_arch.GetMachine()) {
   case llvm::Triple::ppc64le:
-    return llvm::make_unique<NativeRegisterContextLinux_ppc64le>(target_arch,
+    return std::make_unique<NativeRegisterContextLinux_ppc64le>(target_arch,
                                                                  native_thread);
   default:
     llvm_unreachable("have no register context for architecture");
@@ -127,8 +125,9 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
 
 NativeRegisterContextLinux_ppc64le::NativeRegisterContextLinux_ppc64le(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
-    : NativeRegisterContextLinux(native_thread,
-                                 new RegisterInfoPOSIX_ppc64le(target_arch)) {
+    : NativeRegisterContextRegisterInfo(
+          native_thread, new RegisterInfoPOSIX_ppc64le(target_arch)),
+      NativeRegisterContextLinux(native_thread) {
   if (target_arch.GetMachine() != llvm::Triple::ppc64le) {
     llvm_unreachable("Unhandled target architecture.");
   }
@@ -354,10 +353,6 @@ Status NativeRegisterContextLinux_ppc64le::ReadAllRegisterValues(
   Status error;
 
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));
-  if (!data_sp)
-    return Status("failed to allocate DataBufferHeap instance of size %" PRIu64,
-                  REG_CONTEXT_SIZE);
-
   error = ReadGPR();
   if (error.Fail())
     return error;
@@ -375,13 +370,6 @@ Status NativeRegisterContextLinux_ppc64le::ReadAllRegisterValues(
     return error;
 
   uint8_t *dst = data_sp->GetBytes();
-  if (dst == nullptr) {
-    error.SetErrorStringWithFormat("DataBufferHeap instance of size %" PRIu64
-                                   " returned a null pointer",
-                                   REG_CONTEXT_SIZE);
-    return error;
-  }
-
   ::memcpy(dst, &m_gpr_ppc64le, GetGPRSize());
   dst += GetGPRSize();
   ::memcpy(dst, &m_fpr_ppc64le, GetFPRSize());
@@ -456,34 +444,6 @@ bool NativeRegisterContextLinux_ppc64le::IsFPR(unsigned reg) const {
   return (k_first_fpr_ppc64le <= reg && reg <= k_last_fpr_ppc64le);
 }
 
-Status NativeRegisterContextLinux_ppc64le::DoReadGPR(
-    void *buf, size_t buf_size) {
-  int regset = NT_PRSTATUS;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_GETREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoWriteGPR(
-    void *buf, size_t buf_size) {
-  int regset = NT_PRSTATUS;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_SETREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoReadFPR(void *buf,
-                                                     size_t buf_size) {
-  int regset = NT_FPREGSET;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_GETFPREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoWriteFPR(void *buf,
-                                                      size_t buf_size) {
-  int regset = NT_FPREGSET;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_SETFPREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
 uint32_t NativeRegisterContextLinux_ppc64le::CalculateFprOffset(
     const RegisterInfo *reg_info) const {
   return reg_info->byte_offset -
@@ -539,7 +499,7 @@ bool NativeRegisterContextLinux_ppc64le::IsVSX(unsigned reg) {
 }
 
 uint32_t NativeRegisterContextLinux_ppc64le::NumSupportedHardwareWatchpoints() {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
+  Log *log = GetLog(POSIXLog::Watchpoints);
 
   // Read hardware breakpoint and watchpoint information.
   Status error = ReadHardwareDebugInfo();
@@ -553,7 +513,7 @@ uint32_t NativeRegisterContextLinux_ppc64le::NumSupportedHardwareWatchpoints() {
 
 uint32_t NativeRegisterContextLinux_ppc64le::SetHardwareWatchpoint(
     lldb::addr_t addr, size_t size, uint32_t watch_flags) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
+  Log *log = GetLog(POSIXLog::Watchpoints);
   LLDB_LOG(log, "addr: {0:x}, size: {1:x} watch_flags: {2:x}", addr, size,
            watch_flags);
 
@@ -591,7 +551,7 @@ uint32_t NativeRegisterContextLinux_ppc64le::SetHardwareWatchpoint(
 
   // Check 8-byte alignment for hardware watchpoint target address. Below is a
   // hack to recalculate address and size in order to make sure we can watch
-  // non 8-byte alligned addresses as well.
+  // non 8-byte aligned addresses as well.
   if (addr & 0x07) {
 
     addr_t begin = llvm::alignDown(addr, 8);
@@ -640,7 +600,7 @@ uint32_t NativeRegisterContextLinux_ppc64le::SetHardwareWatchpoint(
 
 bool NativeRegisterContextLinux_ppc64le::ClearHardwareWatchpoint(
     uint32_t wp_index) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
+  Log *log = GetLog(POSIXLog::Watchpoints);
   LLDB_LOG(log, "wp_index: {0}", wp_index);
 
   // Read hardware breakpoint and watchpoint information.
@@ -680,7 +640,7 @@ bool NativeRegisterContextLinux_ppc64le::ClearHardwareWatchpoint(
 
 uint32_t
 NativeRegisterContextLinux_ppc64le::GetWatchpointSize(uint32_t wp_index) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
+  Log *log = GetLog(POSIXLog::Watchpoints);
   LLDB_LOG(log, "wp_index: {0}", wp_index);
 
   unsigned control = (m_hwp_regs[wp_index].control >> 5) & 0xff;
@@ -693,7 +653,7 @@ NativeRegisterContextLinux_ppc64le::GetWatchpointSize(uint32_t wp_index) {
 
 bool NativeRegisterContextLinux_ppc64le::WatchpointIsEnabled(
     uint32_t wp_index) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
+  Log *log = GetLog(POSIXLog::Watchpoints);
   LLDB_LOG(log, "wp_index: {0}", wp_index);
 
   return !!((m_hwp_regs[wp_index].control & 0x1) == 0x1);
@@ -701,7 +661,7 @@ bool NativeRegisterContextLinux_ppc64le::WatchpointIsEnabled(
 
 Status NativeRegisterContextLinux_ppc64le::GetWatchpointHitIndex(
     uint32_t &wp_index, lldb::addr_t trap_addr) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
+  Log *log = GetLog(POSIXLog::Watchpoints);
   LLDB_LOG(log, "wp_index: {0}, trap_addr: {1:x}", wp_index, trap_addr);
 
   uint32_t watch_size;
@@ -724,7 +684,7 @@ Status NativeRegisterContextLinux_ppc64le::GetWatchpointHitIndex(
 
 lldb::addr_t
 NativeRegisterContextLinux_ppc64le::GetWatchpointAddress(uint32_t wp_index) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
+  Log *log = GetLog(POSIXLog::Watchpoints);
   LLDB_LOG(log, "wp_index: {0}", wp_index);
 
   if (wp_index >= m_max_hwp_supported)
@@ -738,7 +698,7 @@ NativeRegisterContextLinux_ppc64le::GetWatchpointAddress(uint32_t wp_index) {
 
 lldb::addr_t
 NativeRegisterContextLinux_ppc64le::GetWatchpointHitAddress(uint32_t wp_index) {
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
+  Log *log = GetLog(POSIXLog::Watchpoints);
   LLDB_LOG(log, "wp_index: {0}", wp_index);
 
   if (wp_index >= m_max_hwp_supported)

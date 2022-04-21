@@ -16,6 +16,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     {
@@ -35,6 +37,7 @@ int main(int, char**)
         ss >> i;
         assert(i == 789);
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wistringstream ss(L" 123 456");
         assert(ss.rdbuf() != 0);
@@ -52,6 +55,7 @@ int main(int, char**)
         ss >> i;
         assert(i == 789);
     }
+#endif
 
   return 0;
 }

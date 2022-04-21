@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -verify -Wall -fblocks %s
+// RUN: %clang_cc1 -fsyntax-only -verify -Wall -Wno-unused-but-set-variable -fblocks %s
 
 // PR9463
 double *end;
@@ -40,7 +40,7 @@ namespace N {
 }
 
 void g() {
-  end = 1; // expected-error{{assigning to 'double *' from incompatible type 'int'}}
+  end = 1; // expected-error{{incompatible integer to pointer conversion assigning to 'double *' from 'int'}}
 }
 
 void h(int end) {

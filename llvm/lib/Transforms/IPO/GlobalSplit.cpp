@@ -29,6 +29,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/IPO.h"
@@ -110,6 +111,9 @@ static bool splitGlobal(GlobalVariable &GV) {
                             ConstantInt::get(Int32Ty, ByteOffset - SplitBegin)),
                         Type->getOperand(1)}));
     }
+
+    if (GV.hasMetadata(LLVMContext::MD_vcall_visibility))
+      SplitGV->setVCallVisibilityMetadata(GV.getVCallVisibility());
   }
 
   for (User *U : GV.users()) {
@@ -150,11 +154,8 @@ static bool splitGlobals(Module &M) {
     return false;
 
   bool Changed = false;
-  for (auto I = M.global_begin(); I != M.global_end();) {
-    GlobalVariable &GV = *I;
-    ++I;
+  for (GlobalVariable &GV : llvm::make_early_inc_range(M.globals()))
     Changed |= splitGlobal(GV);
-  }
   return Changed;
 }
 

@@ -1,4 +1,4 @@
-; RUN: opt -mtriple=arm-arm-eabi -mcpu=cortex-m33 < %s -arm-parallel-dsp -verify -S | FileCheck %s
+; RUN: opt -mtriple=arm-none-none-eabi -mcpu=cortex-m33 < %s -arm-parallel-dsp -verify -S | FileCheck %s
 ;
 ; Alias check: check that the rewrite isn't triggered when there's a store
 ; instruction possibly aliasing any mul load operands; arguments are passed
@@ -451,8 +451,10 @@ for.body:
   br i1 %exitcond, label %for.body, label %for.cond.cleanup
 }
 
+; TODO: I think we should be able to generate one smlad here. The search fails
+; when it finds the alias.
 ; CHECK-LABEL: one_pair_alias
-; FIXME: This tests shows we have a bug with smlad insertion
+; CHECK-NOT: call i32 @llvm.arm.smlad
 define i32 @one_pair_alias(i16* noalias nocapture readonly %b, i16* noalias nocapture readonly %c) {
 entry:
   br label %for.body

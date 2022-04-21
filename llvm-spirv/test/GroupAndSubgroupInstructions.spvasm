@@ -1,0 +1,189 @@
+; Generated with:
+; source.cl:
+; void foo(int x, int2 coord, uint c, short s, float f, size_t n,
+;          __global uint* p, read_write image2d_t image) {
+;   work_group_all(x);
+;   work_group_any(x);
+;   work_group_broadcast(x, n);
+;   sub_group_barrier(CLK_LOCAL_MEM_FENCE, memory_scope_sub_group);
+;   sub_group_all(x);
+;   sub_group_any(x);
+;   sub_group_broadcast(x, c);
+;   sub_group_reduce_add(x);
+;   sub_group_reduce_add(f);
+;   sub_group_reduce_min(x);
+;   sub_group_reduce_min(c);
+;   sub_group_reduce_min(f);
+;   sub_group_reduce_max(x);
+;   sub_group_reduce_max(c);
+;   sub_group_reduce_max(f);
+;   intel_sub_group_shuffle(x, c);
+;   intel_sub_group_shuffle_down(x, x, c);
+;   intel_sub_group_shuffle_up(x, x, c);
+;   intel_sub_group_shuffle_xor(x, c);
+;   intel_sub_group_block_read(p);
+;   intel_sub_group_block_write(p, c);
+;   intel_sub_group_block_read(image, coord);
+;   intel_sub_group_block_write(image, coord, c);
+; }
+; clang -cc1 -O2 -triple spir -cl-std=cl2.0 -finclude-default-header -cl-ext=+all source.cl -emit-llvm-bc -o tmp.bc
+; llvm-spirv tmp.bc --spirv-ext=+all -o tmp.spv
+; spirv-dis tmp.spv -o llvm-spirv/test/GroupAndSubgroupInstructions.spvasm
+
+; REQUIRES: spirv-as
+; RUN: spirv-as < %s --target-env spv1.0 -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=CL1.2 -o %t.bc
+; RUN: llvm-dis %t.bc -o %t.ll
+; RUN: FileCheck < %t.ll %s --check-prefixes=CHECK-COMMON,CHECK-CL,CHECK-CL12
+
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=CL2.0 -o %t.bc
+; RUN: llvm-dis %t.bc -o %t.ll
+; RUN: FileCheck < %t.ll %s --check-prefixes=CHECK-COMMON,CHECK-CL,CHECK-CL20
+
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.bc
+; RUN: llvm-dis %t.bc -o %t.ll
+; RUN: FileCheck < %t.ll %s --check-prefixes=CHECK-COMMON,CHECK-SPV-IR
+
+; RUN: llvm-spirv %t.bc --spirv-ext=+all -o %t.rev.spv
+; RUN: spirv-val %t.rev.spv
+
+
+; CHECK-CL-DAG: declare spir_func i32 @_Z14work_group_alli(i32) #[[#Attrs:]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z14work_group_anyi(i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z20work_group_broadcastjj(i32, i32) #[[#Attrs]]
+; CHECK-CL12-DAG: declare spir_func void @_Z7barrierj(i32) #[[#Attrs]]
+; CHECK-CL20-DAG: declare spir_func void @_Z17sub_group_barrierj12memory_scope(i32, i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z13sub_group_alli(i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z13sub_group_anyi(i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z19sub_group_broadcastjj(i32, i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z20sub_group_reduce_addi(i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func float @_Z20sub_group_reduce_addf(float) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z20sub_group_reduce_mini(i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z20sub_group_reduce_minj(i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func float @_Z20sub_group_reduce_minf(float) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z20sub_group_reduce_maxi(i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z20sub_group_reduce_maxj(i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func float @_Z20sub_group_reduce_maxf(float) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z23intel_sub_group_shuffleij(i32, i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z28intel_sub_group_shuffle_downiij(i32, i32, i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z26intel_sub_group_shuffle_upiij(i32, i32, i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z27intel_sub_group_shuffle_xorij(i32, i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z26intel_sub_group_block_readPU3AS1Kj(i32 addrspace(1)*) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func void @_Z27intel_sub_group_block_writePU3AS1jj(i32 addrspace(1)*, i32) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func i32 @_Z26intel_sub_group_block_read14ocl_image2d_rwDv2_i(%opencl.image2d_rw_t addrspace(1)*, <2 x i32>) #[[#Attrs]]
+; CHECK-CL-DAG: declare spir_func void @_Z27intel_sub_group_block_write14ocl_image2d_rwDv2_ij(%opencl.image2d_rw_t addrspace(1)*, <2 x i32>, i32) #[[#Attrs]]
+
+
+; CHECK-SPV-IR: declare spir_func i1 @_Z16__spirv_GroupAllib(i32, i1) #[[#Attrs:]]
+; CHECK-SPV-IR: declare spir_func i1 @_Z16__spirv_GroupAnyib(i32, i1) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z22__spirv_GroupBroadcastiii(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func void @_Z22__spirv_ControlBarrieriii(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z17__spirv_GroupIAddiii(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func float @_Z17__spirv_GroupFAddiif(i32, i32, float) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z17__spirv_GroupSMiniii(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z17__spirv_GroupUMiniij(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func float @_Z17__spirv_GroupFMiniif(i32, i32, float) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z17__spirv_GroupSMaxiii(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z17__spirv_GroupUMaxiij(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func float @_Z17__spirv_GroupFMaxiif(i32, i32, float) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z28__spirv_SubgroupShuffleINTELij(i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z32__spirv_SubgroupShuffleDownINTELiij(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z30__spirv_SubgroupShuffleUpINTELiij(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z31__spirv_SubgroupShuffleXorINTELij(i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z35__spirv_SubgroupBlockReadINTEL_RintPU3AS1Kj(i32 addrspace(1)*) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1jj(i32 addrspace(1)*, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z40__spirv_SubgroupImageBlockReadINTEL_RintPU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_i(%spirv.Image._void_1_0_0_0_0_0_2 addrspace(1)*, <2 x i32>) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func void @_Z36__spirv_SubgroupImageBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_ij(%spirv.Image._void_1_0_0_0_0_0_2 addrspace(1)*, <2 x i32>, i32) #[[#Attrs]]
+
+; CHECK-COMMON: attributes #[[#Attrs]] =
+; CHECK-COMMON-SAME: convergent
+
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 60
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability ImageBasic
+               OpCapability ImageReadWrite
+               OpCapability Groups
+               OpCapability Int16
+               OpCapability GenericPointer
+               OpCapability SubgroupShuffleINTEL
+               OpCapability SubgroupBufferBlockIOINTEL
+               OpCapability SubgroupImageBlockIOINTEL
+               OpExtension "SPV_INTEL_subgroups"
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical32 OpenCL
+               OpSource OpenCL_C 200000
+               OpDecorate %s FuncParamAttr Sext
+               OpDecorate %dst FuncParamAttr NoCapture
+               OpDecorate %src FuncParamAttr NoCapture
+               OpDecorate %e FuncParamAttr NoCapture
+               OpDecorate %foo LinkageAttributes "foo" Export
+       %uint = OpTypeInt 32 0
+     %ushort = OpTypeInt 16 0
+     %uint_0 = OpConstant %uint 0
+     %uint_2 = OpConstant %uint 2
+     %uint_1 = OpConstant %uint 1
+     %uint_3 = OpConstant %uint 3
+   %uint_272 = OpConstant %uint 272
+       %void = OpTypeVoid
+     %v2uint = OpTypeVector %uint 2
+      %float = OpTypeFloat 32
+%_ptr_CrossWorkgroup_uint = OpTypePointer CrossWorkgroup %uint
+%_ptr_Workgroup_uint = OpTypePointer Workgroup %uint
+      %Event = OpTypeEvent
+%_ptr_Generic_Event = OpTypePointer Generic %Event
+         %11 = OpTypeImage %void 2D 0 0 0 0 Unknown ReadWrite
+         %12 = OpTypeFunction %void %uint %v2uint %uint %ushort %float %uint %_ptr_CrossWorkgroup_uint %_ptr_Workgroup_uint %_ptr_CrossWorkgroup_uint %_ptr_Generic_Event %11
+       %bool = OpTypeBool
+        %foo = OpFunction %void None %12
+          %x = OpFunctionParameter %uint
+      %coord = OpFunctionParameter %v2uint
+          %c = OpFunctionParameter %uint
+          %s = OpFunctionParameter %ushort
+          %f = OpFunctionParameter %float
+          %n = OpFunctionParameter %uint
+          %p = OpFunctionParameter %_ptr_CrossWorkgroup_uint
+        %dst = OpFunctionParameter %_ptr_Workgroup_uint
+        %src = OpFunctionParameter %_ptr_CrossWorkgroup_uint
+          %e = OpFunctionParameter %_ptr_Generic_Event
+      %image = OpFunctionParameter %11
+      %entry = OpLabel
+         %28 = OpINotEqual %bool %x %uint_0
+     %call20 = OpGroupAll %bool %uint_2 %28
+       %call = OpSelect %uint %call20 %uint_1 %uint_0
+         %33 = OpINotEqual %bool %x %uint_0
+    %call121 = OpGroupAny %bool %uint_2 %33
+      %call1 = OpSelect %uint %call121 %uint_1 %uint_0
+      %call2 = OpGroupBroadcast %uint %uint_2 %x %n
+               OpControlBarrier %uint_3 %uint_3 %uint_272
+         %39 = OpINotEqual %bool %x %uint_0
+    %call322 = OpGroupAll %bool %uint_3 %39
+      %call3 = OpSelect %uint %call322 %uint_1 %uint_0
+         %42 = OpINotEqual %bool %x %uint_0
+    %call423 = OpGroupAny %bool %uint_3 %42
+      %call4 = OpSelect %uint %call423 %uint_1 %uint_0
+      %call5 = OpGroupBroadcast %uint %uint_3 %x %c
+      %call6 = OpGroupIAdd %uint %uint_3 Reduce %x
+      %call7 = OpGroupFAdd %float %uint_3 Reduce %f
+      %call8 = OpGroupSMin %uint %uint_3 Reduce %x
+      %call9 = OpGroupUMin %uint %uint_3 Reduce %c
+     %call10 = OpGroupFMin %float %uint_3 Reduce %f
+     %call11 = OpGroupSMax %uint %uint_3 Reduce %x
+     %call12 = OpGroupUMax %uint %uint_3 Reduce %c
+     %call13 = OpGroupFMax %float %uint_3 Reduce %f
+     %call14 = OpSubgroupShuffleINTEL %uint %x %c
+     %call15 = OpSubgroupShuffleDownINTEL %uint %x %x %c
+     %call16 = OpSubgroupShuffleUpINTEL %uint %x %x %c
+     %call17 = OpSubgroupShuffleXorINTEL %uint %x %c
+     %call18 = OpSubgroupBlockReadINTEL %uint %p
+               OpSubgroupBlockWriteINTEL %p %c
+     %call19 = OpSubgroupImageBlockReadINTEL %uint %image %coord
+               OpSubgroupImageBlockWriteINTEL %image %coord %c
+               OpReturn
+               OpFunctionEnd

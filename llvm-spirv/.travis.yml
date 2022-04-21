@@ -3,41 +3,46 @@ language: cpp
 os:
   - linux
 
-# Use Ubuntu 16.04 LTS (Xenial) as the Linux testing environment.
-dist: xenial
-sudo: false
+# Use Ubuntu 18.04 LTS (Bionic) as the Linux testing environment.
+dist: bionic
 
 git:
   depth: 1
 
 branches:
   only:
-    - master
+    - /llvm_release_\d+$/
+# From https://docs.travis-ci.com/user/customizing-the-build/#safelisting-or-blocklisting-branches
+# "Note that safelisting also prevents tagged commits from being built.
+#  If you consistently tag your builds in the format v1.3 you can safelist them
+#  all with regular expressions, for example /^v\d+\.\d+(\.\d+)?(-\S*)?$/."
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
-addons:
-  apt:
-    sources:
-    - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main'
-      key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
-    - sourceline: 'deb https://packages.lunarg.com/vulkan xenial main'
-      key_url: 'http://packages.lunarg.com/lunarg-signing-key-pub.asc'
-    packages:
-    - llvm-9-tools
-    - llvm-9-dev
-    - clang-format-9
-    - clang-tidy-9
-    - libclang-9-dev
-    - spirv-tools
+before_install:
+  - |
+    if [ $TRAVIS_OS_NAME == "linux" ]; then
+      curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
+      curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
+      curl -L "https://apt.kitware.com/keys/kitware-archive-latest.asc" | sudo apt-key add -
+      echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
+      echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
+      echo "deb https://apt.kitware.com/ubuntu/ bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
+      sudo apt-get update
+      sudo apt-get -yq --no-install-suggests --no-install-recommends install \
+        llvm-${LLVM_VERSION}-dev \
+        libomp-${LLVM_VERSION}-dev \
+        clang-${LLVM_VERSION} \
+        spirv-tools \
+        cmake
+    fi
 
 compiler:
   - gcc
-  - clang
 
 env:
   global:
     - MAKEFLAGS="-j2"
-    - CHECK_FORMAT=0
-    - CHECK_TIDY=0
+    - LLVM_VERSION=15
   matrix:
     - BUILD_TYPE=Release BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
     - BUILD_TYPE=Debug   BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
@@ -47,23 +52,26 @@ env:
     - BUILD_TYPE=Debug   BUILD_EXTERNAL=1 SHARED_LIBS=OFF MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
     - BUILD_TYPE=Release BUILD_EXTERNAL=0 SHARED_LIBS=OFF MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
     - BUILD_TYPE=Debug   BUILD_EXTERNAL=0 SHARED_LIBS=OFF MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
-  # some bug inside clang-5.0.0, works with 5.0.1
 
 matrix:
   include:
     - os: osx
       env: BUILD_TYPE=Release BUILD_EXTERNAL=0 MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
-      osx_image: xcode9.3
+      osx_image: xcode13
 
     - os: osx
       env: BUILD_TYPE=Debug BUILD_EXTERNAL=0 MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
-      osx_image: xcode9.3
+      osx_image: xcode13
 
-    - env: BUILD_EXTERNAL=1 CHECK_FORMAT=1
-
-    - env: BUILD_EXTERNAL=1 CHECK_TIDY=1
-  allow_failures:
     - compiler: clang
+      env: BUILD_TYPE=Release BUILD_EXTERNAL=1 SHARED_LIBS=OFF  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
+
+    - compiler: clang
+      env: BUILD_TYPE=Debug   BUILD_EXTERNAL=1 SHARED_LIBS=ON   MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
+
+    - compiler: clang
+      env: BUILD_TYPE=Release BUILD_EXTERNAL=0 SHARED_LIBS=ON   MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
+  allow_failures:
     - os: osx
   fast_finish: true
 
@@ -72,8 +80,9 @@ script:
     if [ $BUILD_EXTERNAL == "0" ]; then
       mkdir llvm-spirv
       mv * llvm-spirv
-      git clone https://git.llvm.org/git/llvm.git/ --depth 1
-      mv llvm-spirv llvm/tools/llvm-spirv
+      git clone https://github.com/llvm/llvm-project --depth 1
+      git -C llvm-project log --oneline -1
+      mv llvm-spirv llvm-project/llvm-spirv
     fi
   - |
     if [ $TRAVIS_OS_NAME == "osx" ]; then
@@ -83,21 +92,21 @@ script:
       export PKG_CONFIG_PATH=$PWD/install/lib/pkgconfig
     fi
   - mkdir build && cd build
+  - PATH=/usr/bin:$PATH
   - |
     if [ $BUILD_EXTERNAL == "1" ]; then
-      if [ $CHECK_FORMAT != "1" ]; then
-        cmake .. \
-          -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-          -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
-          -DLLVM_BUILD_TOOLS=ON \
-          -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-9/build/utils/lit/lit.py" \
-          -DLLVM_INCLUDE_TESTS=ON \
-          -DCMAKE_INSTALL_PREFIX=../install/ \
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-          -G "Unix Makefiles"
-      fi
+      cmake .. \
+        -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+        -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
+        -DLLVM_BUILD_TOOLS=ON \
+        -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${LLVM_VERSION}/build/utils/lit/lit.py" \
+        -DLLVM_INCLUDE_TESTS=ON \
+        -DCMAKE_INSTALL_PREFIX=../install/ \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -G "Unix Makefiles"
     else
-      cmake ../llvm/ \
+      BUILDDIR=$(pwd)
+      cmake ../llvm-project/llvm/ \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
         -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
         -DLLVM_BUILD_TOOLS=ON \
@@ -106,47 +115,49 @@ script:
         -DSPIRV_SKIP_CLANG_BUILD=ON \
         -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
         -DLLVM_LIT_ARGS="-sv --no-progress-bar" \
+        -DLLVM_EXTERNAL_PROJECTS="llvm-spirv" \
+        -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=${BUILDDIR}/../llvm-project/llvm-spirv \
+        -DLLVM_ENABLE_PROJECTS="llvm-spirv" \
         -G "Unix Makefiles"
-      ln -s /usr/lib/llvm-9/bin/clang bin/
-    fi
-  - if [ $CHECK_FORMAT == "1" ]; then
-      cd ..;
-      ln -s /usr/share/clang/clang-format-9/clang-format-diff.py utils/;
-      ./utils/check_code_format.sh;
-    elif [ $CHECK_TIDY == "1" ]; then
-      cd ..;
-      ln -s build/compile_commands.json;
-      ./utils/check_code_tidyness.sh;
-    else
-      make $MAKE_TARGETS && make $MAKE_TEST_TARGET && if [ $BUILD_EXTERNAL == "1" ]; then make install; fi
+      ln -s /usr/lib/llvm-${LLVM_VERSION}/bin/clang bin/
     fi
 
-after_success:
-  # Create tarball for deployment
-  - if [[ "${BUILD_EXTERNAL}" == "1" && "${SHARED_LIBS}" == "ON" && "${repo_token}" != "" ]]; then
-      export TAG=dev-build;
-      export TARBALL=SPIRV-LLVM-Translator-${TAG}-${TRAVIS_OS_NAME}-${BUILD_TYPE}.zip;
-      cd ../install;
-      echo ${TRAVIS_COMMIT} > version.txt;
-      find . -print | zip -@ ${TARBALL};
-    fi
+  - make $MAKE_TARGETS && make $MAKE_TEST_TARGET && if [ $BUILD_EXTERNAL == "1" ]; then make install; fi
 
 before_deploy:
-  # Tag the current master top of the tree as "latest".
   # Travis CI relies on the tag name to push to the correct release.
-  - git config --global user.name "Travis CI"
-  - git config --global user.email "builds@travis-ci.org"
-  - git tag -f ${TAG}
-  - git push -f https://${repo_token}@github.com/${TRAVIS_REPO_SLUG} --tags
+  # Tag the current master top of the tree as "dev-build".
+  # We must be very careful with "git push -f" and allow it ONLY
+  # for the "dev-build" tag!
+  - if [[ "${TRAVIS_BRANCH}" == "master" && -z "${TRAVIS_TAG}" ]]; then
+      export TRAVIS_TAG=dev-build;
+      git config --global user.name "Travis CI";
+      git config --global user.email "builds@travis-ci.org";
+      git tag -f ${TRAVIS_TAG};
+      git push -f https://${repo_token}@github.com/${TRAVIS_REPO_SLUG} --tags;
+    fi
+  # Create tarball for deployment
+  - echo ${TRAVIS_COMMIT} > ../install/version.txt;
+  - export TARBALL=SPIRV-LLVM-Translator-${TRAVIS_TAG}-${TRAVIS_OS_NAME}-${BUILD_TYPE}.zip;
+  - cd ../install && find . -print | zip -@ ${TARBALL};
 
 deploy:
-  provider: releases
-  api_key: ${repo_token}
-  on:
-    branch: master
-    condition: ${BUILD_EXTERNAL} == 1 && ${SHARED_LIBS} == ON && ${repo_token}
-  file: ${TARBALL}
-  name: Latest development build $(date -u +'%F %R %Z')
-  skip_cleanup: true
-  overwrite: true
-  prerelease: true
+  - provider: releases
+    api_key: ${repo_token}
+    on:
+      tags: true
+      condition: ${BUILD_EXTERNAL} == 1 && ${SHARED_LIBS} == ON && ${repo_token}
+    file: ${TARBALL}
+    skip_cleanup: true
+    overwrite: false
+  - provider: releases
+    api_key: ${repo_token}
+    on:
+      tags: false
+      branch: master
+      condition: ${BUILD_EXTERNAL} == 1 && ${SHARED_LIBS} == ON && ${repo_token}
+    file: ${TARBALL}
+    name: Latest development build $(date -u +'%F %R %Z')
+    skip_cleanup: true
+    overwrite: true
+    prerelease: true

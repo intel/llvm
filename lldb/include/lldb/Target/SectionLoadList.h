@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_SectionLoadList_h_
-#define liblldb_SectionLoadList_h_
+#ifndef LLDB_TARGET_SECTIONLOADLIST_H
+#define LLDB_TARGET_SECTIONLOADLIST_H
 
 #include <map>
 #include <mutex>
@@ -22,7 +22,7 @@ namespace lldb_private {
 class SectionLoadList {
 public:
   // Constructors and Destructors
-  SectionLoadList() : m_addr_to_sect(), m_sect_to_addr(), m_mutex() {}
+  SectionLoadList() {}
 
   SectionLoadList(const SectionLoadList &rhs);
 
@@ -70,4 +70,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_SectionLoadList_h_
+#endif // LLDB_TARGET_SECTIONLOADLIST_H

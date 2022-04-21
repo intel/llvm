@@ -1,6 +1,6 @@
-; RUN: llc %s -o - | FileCheck %s
-; RUN: llc -mtriple=armv7-linux -exception-model sjlj %s -o - | FileCheck %s -check-prefix CHECK-LINUX
-; RUN: llc -mtriple=thumbv7-win32 -exception-model sjlj %s -o - | FileCheck %s -check-prefix CHECK-WIN32
+; RUN: llc -simplifycfg-require-and-preserve-domtree=1 %s -o - | FileCheck %s
+; RUN: llc -mtriple=armv7-linux -exception-model sjlj -simplifycfg-require-and-preserve-domtree=1 %s -o - | FileCheck %s -check-prefix CHECK-LINUX
+; RUN: llc -mtriple=thumbv7-win32 -exception-model sjlj -simplifycfg-require-and-preserve-domtree=1 %s -o - | FileCheck %s -check-prefix CHECK-WIN32
 target triple = "armv7-apple-ios"
 
 declare i32 @llvm.eh.sjlj.setjmp(i8*)
@@ -20,26 +20,26 @@ declare i8* @llvm.stacksave()
 ;
 ; setjmp sequence:
 ; CHECK: add [[PCREG:r[0-9]+]], pc, #8
-; CHECK-NEXT: str [[PCREG]], {{\[}}[[BUFREG:r[0-9]+]], #4]
+; CHECK-NEXT: str [[PCREG]], [[[BUFREG:r[0-9]+]], #4]
 ; CHECK-NEXT: mov r0, #0
 ; CHECK-NEXT: add pc, pc, #0
 ; CHECK-NEXT: mov r0, #1
 ;
 ; longjmp sequence:
 ; CHECK: ldr sp, [{{\s*}}[[BUFREG:r[0-9]+]], #8]
-; CHECK-NEXT: ldr [[DESTREG:r[0-9]+]], {{\[}}[[BUFREG]], #4]
-; CHECK-NEXT: ldr r7, {{\[}}[[BUFREG]]{{\]}}
+; CHECK-NEXT: ldr [[DESTREG:r[0-9]+]], [[[BUFREG]], #4]
+; CHECK-NEXT: ldr r7, [[[BUFREG]]]
 ; CHECK-NEXT: bx [[DESTREG]]
 
 ; CHECK-LINUX: ldr sp, [{{\s*}}[[BUFREG:r[0-9]+]], #8]
-; CHECK-LINUX-NEXT: ldr [[DESTREG:r[0-9]+]], {{\[}}[[BUFREG]], #4]
-; CHECK-LINUX-NEXT: ldr r7, {{\[}}[[BUFREG]]{{\]}}
-; CHECK-LINUX-NEXT: ldr r11, {{\[}}[[BUFREG]]{{\]}}
+; CHECK-LINUX-NEXT: ldr [[DESTREG:r[0-9]+]], [[[BUFREG]], #4]
+; CHECK-LINUX-NEXT: ldr r7, [[[BUFREG]]]
+; CHECK-LINUX-NEXT: ldr r11, [[[BUFREG]]]
 ; CHECK-LINUX-NEXT: bx [[DESTREG]]
 
 ; CHECK-WIN32: ldr.w r11, [{{\s*}}[[BUFREG:r[0-9]+]]]
-; CHECK-WIN32-NEXT: ldr.w sp, {{\[}}[[BUFREG]], #8]
-; CHECK-WIN32-NEXT: ldr.w pc, {{\[}}[[BUFREG]], #4]
+; CHECK-WIN32-NEXT: ldr.w sp, [[[BUFREG]], #8]
+; CHECK-WIN32-NEXT: ldr.w pc, [[[BUFREG]], #4]
 define void @foobar() {
 entry:
   %buf = alloca [5 x i8*], align 4
@@ -70,15 +70,15 @@ if.end:
 ;
 ; setjmp sequence:
 ; CHECK: add [[PCREG:r[0-9]+]], pc, #8
-; CHECK-NEXT: str [[PCREG]], {{\[}}[[BUFREG:r[0-9]+]], #4]
+; CHECK-NEXT: str [[PCREG]], [[[BUFREG:r[0-9]+]], #4]
 ; CHECK-NEXT: mov r0, #0
 ; CHECK-NEXT: add pc, pc, #0
 ; CHECK-NEXT: mov r0, #1
 ;
 ; longjmp sequence:
 ; CHECK: ldr sp, [{{\s*}}[[BUFREG:r[0-9]+]], #8]
-; CHECK-NEXT: ldr [[DESTREG:r[0-9]+]], {{\[}}[[BUFREG]], #4]
-; CHECK-NEXT: ldr r7, {{\[}}[[BUFREG]]{{\]}}
+; CHECK-NEXT: ldr [[DESTREG:r[0-9]+]], [[[BUFREG]], #4]
+; CHECK-NEXT: ldr r7, [[[BUFREG]]]
 ; CHECK-NEXT: bx [[DESTREG]]
 define void @combine_sjlj_eh_and_setjmp_longjmp() personality i8* bitcast (i32 (...)* @__gxx_personality_sj0 to i8*) {
 entry:

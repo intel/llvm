@@ -1,4 +1,4 @@
-//===-- DWARFDebugAranges.cpp -----------------------------------*- C++ -*-===//
+//===-- DWARFDebugAranges.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,19 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "DWARFDebugAranges.h"
-
-#include <assert.h>
-#include <stdio.h>
-
-#include <algorithm>
-
-#include "lldb/Utility/Log.h"
-#include "lldb/Utility/Stream.h"
-#include "lldb/Utility/Timer.h"
-
+#include "DWARFDebugArangeSet.h"
 #include "DWARFUnit.h"
-#include "DWARFDebugInfo.h"
-#include "SymbolFileDWARF.h"
+#include "LogChannelDWARF.h"
+#include "lldb/Utility/Log.h"
+#include "lldb/Utility/Timer.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -40,43 +32,52 @@ public:
 };
 
 // Extract
-llvm::Error
-DWARFDebugAranges::extract(const DWARFDataExtractor &debug_aranges_data) {
+void DWARFDebugAranges::extract(const DWARFDataExtractor &debug_aranges_data) {
   lldb::offset_t offset = 0;
 
   DWARFDebugArangeSet set;
   Range range;
   while (debug_aranges_data.ValidOffset(offset)) {
-    llvm::Error error = set.extract(debug_aranges_data, &offset);
-    if (!error)
-      return error;
+    const lldb::offset_t set_offset = offset;
+    if (llvm::Error error = set.extract(debug_aranges_data, &offset)) {
+      Log *log = GetLog(DWARFLog::DebugInfo);
+      LLDB_LOG_ERROR(log, std::move(error),
+                     "DWARFDebugAranges::extract failed to extract "
+                     ".debug_aranges set at offset %#" PRIx64,
+                     set_offset);
+    } else {
+      const uint32_t num_descriptors = set.NumDescriptors();
+      if (num_descriptors > 0) {
+        const dw_offset_t cu_offset = set.GetHeader().cu_offset;
 
-    const uint32_t num_descriptors = set.NumDescriptors();
-    if (num_descriptors > 0) {
-      const dw_offset_t cu_offset = set.GetHeader().cu_offset;
-
-      for (uint32_t i = 0; i < num_descriptors; ++i) {
-        const DWARFDebugArangeSet::Descriptor &descriptor =
-            set.GetDescriptorRef(i);
-        m_aranges.Append(RangeToDIE::Entry(descriptor.address,
-                                           descriptor.length, cu_offset));
+        for (uint32_t i = 0; i < num_descriptors; ++i) {
+          const DWARFDebugArangeSet::Descriptor &descriptor =
+              set.GetDescriptorRef(i);
+          m_aranges.Append(RangeToDIE::Entry(descriptor.address,
+                                             descriptor.length, cu_offset));
+        }
       }
     }
+    // Always use the previous DWARFDebugArangeSet's information to calculate
+    // the offset of the next DWARFDebugArangeSet in case we entouncter an
+    // error in the current DWARFDebugArangeSet and our offset position is
+    // still in the middle of the data. If we do this, we can parse all valid
+    // DWARFDebugArangeSet objects without returning invalid errors.
+    offset = set.GetNextOffset();
     set.Clear();
   }
-  return llvm::ErrorSuccess();
 }
 
 void DWARFDebugAranges::Dump(Log *log) const {
-  if (log == NULL)
+  if (log == nullptr)
     return;
 
   const size_t num_entries = m_aranges.GetSize();
   for (size_t i = 0; i < num_entries; ++i) {
     const RangeToDIE::Entry *entry = m_aranges.GetEntryAtIndex(i);
     if (entry)
-      log->Printf("0x%8.8x: [0x%" PRIx64 " - 0x%" PRIx64 ")", entry->data,
-                  entry->GetRangeBase(), entry->GetRangeEnd());
+      LLDB_LOGF(log, "0x%8.8x: [0x%" PRIx64 " - 0x%" PRIx64 ")", entry->data,
+                entry->GetRangeBase(), entry->GetRangeEnd());
   }
 }
 
@@ -87,8 +88,7 @@ void DWARFDebugAranges::AppendRange(dw_offset_t offset, dw_addr_t low_pc,
 }
 
 void DWARFDebugAranges::Sort(bool minimize) {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "%s this = %p", LLVM_PRETTY_FUNCTION,
+  LLDB_SCOPED_TIMERF("%s this = %p", LLVM_PRETTY_FUNCTION,
                      static_cast<void *>(this));
 
   m_aranges.Sort();

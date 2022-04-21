@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // The test checks that the types can be used to pass kernel parameters by value
-// RUN: %clang -std=c++11 -fsyntax-only %s
+// RUN: %clangxx -fsycl -fsyntax-only %s -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning
 
 // Check that the test can be compiled with device compiler as well.
-// RUN: %clang --sycl -fsyntax-only %s
+// RUN: %clangxx -fsycl-device-only -fsyntax-only %s -Wno-sycl-strict
 
 #include <CL/sycl.hpp>
 
@@ -21,6 +21,10 @@ struct SomeStructure {
     int x;
     double y;
   } v;
+};
+
+struct SomeMarrayStructure {
+  cl::sycl::marray<double, 5> points;
 };
 
 #define CHECK_PASSING_TO_KERNEL_BY_VALUE(Type)                                 \
@@ -34,3 +38,4 @@ CHECK_PASSING_TO_KERNEL_BY_VALUE(int)
 CHECK_PASSING_TO_KERNEL_BY_VALUE(cl::sycl::cl_uchar4)
 CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeStructure)
 #endif
+CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeMarrayStructure)

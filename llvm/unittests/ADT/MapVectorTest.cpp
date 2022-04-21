@@ -72,7 +72,7 @@ TEST(MapVectorTest, insert_pop) {
   ASSERT_NE(R.first, MV.end());
   EXPECT_EQ(R.first->first, 4);
   EXPECT_EQ(R.first->second, 7);
-  EXPECT_TRUE(R.second);  
+  EXPECT_TRUE(R.second);
 
   EXPECT_EQ(MV.size(), 2u);
   EXPECT_EQ(MV[1], 2);
@@ -149,8 +149,8 @@ TEST(MapVectorTest, iteration_test) {
 
 TEST(MapVectorTest, NonCopyable) {
   MapVector<int, std::unique_ptr<int>> MV;
-  MV.insert(std::make_pair(1, llvm::make_unique<int>(1)));
-  MV.insert(std::make_pair(2, llvm::make_unique<int>(2)));
+  MV.insert(std::make_pair(1, std::make_unique<int>(1)));
+  MV.insert(std::make_pair(2, std::make_unique<int>(2)));
 
   ASSERT_EQ(MV.count(1), 1u);
   ASSERT_EQ(*MV.find(2)->second, 2);
@@ -162,7 +162,7 @@ template <class IntType> struct MapVectorMappedTypeTest : ::testing::Test {
 
 using MapIntTypes = ::testing::Types<int, long, long long, unsigned,
                                      unsigned long, unsigned long long>;
-TYPED_TEST_CASE(MapVectorMappedTypeTest, MapIntTypes);
+TYPED_TEST_SUITE(MapVectorMappedTypeTest, MapIntTypes, );
 
 TYPED_TEST(MapVectorMappedTypeTest, DifferentDenseMap) {
   // Test that using a map with a mapped type other than 'unsigned' compiles
@@ -306,8 +306,8 @@ TEST(SmallMapVectorSmallTest, iteration_test) {
 
 TEST(SmallMapVectorSmallTest, NonCopyable) {
   SmallMapVector<int, std::unique_ptr<int>, 8> MV;
-  MV.insert(std::make_pair(1, llvm::make_unique<int>(1)));
-  MV.insert(std::make_pair(2, llvm::make_unique<int>(2)));
+  MV.insert(std::make_pair(1, std::make_unique<int>(1)));
+  MV.insert(std::make_pair(2, std::make_unique<int>(2)));
 
   ASSERT_EQ(MV.count(1), 1u);
   ASSERT_EQ(*MV.find(2)->second, 2);

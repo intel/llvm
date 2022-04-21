@@ -3,6 +3,8 @@
 
 void clang_analyzer_eval(int);
 
+#define nil ((id)0)
+
 typedef const void * CFTypeRef;
 extern CFTypeRef CFRetain(CFTypeRef cf);
 void CFRelease(CFTypeRef cf);
@@ -150,7 +152,7 @@ NSNumber* numberFromMyNumberProperty(MyNumber* aMyNumber)
 @end
 
 #if !__has_feature(objc_arc)
-void rdar6611873() {
+void rdar6611873(void) {
   Person *p = [[[Person alloc] init] autorelease];
   
   p.name = [[NSString string] retain]; // expected-warning {{leak}}
@@ -965,7 +967,7 @@ void testOpaqueConsistency(OpaqueIntWrapper *w) {
 
 // rdar://problem/19862648
 - (void)establishIvarIsNilDuringLoops {
-  extern id getRandomObject();
+  extern id getRandomObject(void);
 
   int i = 4; // Must be at least 4 to trigger the bug.
   while (--i) {
@@ -996,7 +998,7 @@ void testOpaqueConsistency(OpaqueIntWrapper *w) {
 @synthesize value;
 @end
 
-void testNoCrashWhenAccessPropertyAndThereAreNoDirectBindingsAtAll() {
+void testNoCrashWhenAccessPropertyAndThereAreNoDirectBindingsAtAll(void) {
    union {
     Wrapper *wrapper;
    } u = { 0 };
@@ -1038,5 +1040,58 @@ void testNoCrashWhenAccessPropertyAndThereAreNoDirectBindingsAtAll() {
 	// farm the getter body and see if it does actually always yield the same value.
 	clang_analyzer_eval(self.no_custom_accessor == self.no_custom_accessor); // expected-warning{{TRUE}}
 	clang_analyzer_eval(self.still_no_custom_accessor == self.still_no_custom_accessor); // expected-warning{{TRUE}}
+}
+@end
+
+@interface Shadowed
+@property (assign) NSObject *o;
+- (NSObject *)getShadowedIvar;
+- (void)clearShadowedIvar;
+- (NSObject *)getShadowedProp;
+- (void)clearShadowedProp;
+
+@property (assign) NSObject *o2;
+@end
+
+@implementation Shadowed
+- (NSObject *)getShadowedIvar {
+  return self->_o;
+}
+- (void)clearShadowedIvar {
+  self->_o = nil;
+}
+- (NSObject *)getShadowedProp {
+  return self.o;
+}
+- (void)clearShadowedProp {
+  self.o = nil;
+}
+@end
+
+@interface Shadowing : Shadowed
+@end
+
+@implementation Shadowing
+// Property 'o' is declared in the superclass but synthesized here.
+// This creates a separate ivar that shadows the superclass's ivar,
+// but the old ivar is still accessible from the methods of the superclass.
+// The old property, however, is not accessible with the property syntax
+// even from the superclass methods.
+@synthesize o;
+
+-(void)testPropertyShadowing {
+  NSObject *oo = self.o; // no-crash
+  clang_analyzer_eval(self.o == oo); // expected-warning{{TRUE}}
+  clang_analyzer_eval([self getShadowedIvar] == oo); // expected-warning{{UNKNOWN}}
+  [self clearShadowedIvar];
+  clang_analyzer_eval(self.o == oo); // expected-warning{{TRUE}}
+  clang_analyzer_eval([self getShadowedIvar] == oo); // expected-warning{{UNKNOWN}}
+  clang_analyzer_eval([self getShadowedIvar] == nil); // expected-warning{{TRUE}}
+}
+
+@synthesize o2 = ooo2;
+
+-(void)testPropertyShadowingWithExplicitIvar {
+  NSObject *oo2 = self.o2; // no-crash
 }
 @end

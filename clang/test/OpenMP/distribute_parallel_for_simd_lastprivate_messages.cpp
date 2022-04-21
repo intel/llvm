@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd %s -Wno-openmp-mapping -Wuninitialized
 
 extern int omp_default_mem_alloc;
 void foo() {
@@ -10,7 +12,7 @@ bool foobool(int argc) {
   return argc;
 }
 
-struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
+struct S1; // expected-note 2 {{declared here}} expected-note 3 {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
   mutable int a;
@@ -69,7 +71,7 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   I g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target
 #pragma omp teams
@@ -103,7 +105,12 @@ int foomain(int argc, char **argv) {
     ++k;
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd lastprivate(argc)
+#pragma omp distribute parallel for simd lastprivate(argc, z)
+  for (int k = 0; k < argc; ++k)
+    ++k;
+#pragma omp target
+#pragma omp teams
+#pragma omp distribute parallel for simd lastprivate(conditional: argc) lastprivate(conditional: // expected-error 2 {{use of undeclared identifier 'conditional'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target
@@ -178,7 +185,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S3 m;
   S6 n(2);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target
 #pragma omp teams
@@ -237,7 +244,7 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd lastprivate(ba)
+#pragma omp distribute parallel for simd lastprivate(ba, z)
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp target
@@ -298,8 +305,8 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd lastprivate(i) // expected-note {{defined as lastprivate}}
-  for (i = 0; i < argc; ++i) // expected-error{{loop iteration variable in the associated loop of 'omp distribute parallel for simd' directive may not be lastprivate, predetermined as linear}}
+#pragma omp distribute parallel for simd lastprivate(i) // omp45-note {{defined as lastprivate}}
+  for (i = 0; i < argc; ++i) // omp45-error {{loop iteration variable in the associated loop of 'omp distribute parallel for simd' directive may not be lastprivate, predetermined as linear}}
     foo();
 #pragma omp target
 #pragma omp teams

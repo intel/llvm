@@ -23,6 +23,7 @@ int bar() {
 
 #pragma omp declare target
 typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_null_allocator;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
 extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
 extern const omp_allocator_handle_t omp_const_mem_alloc;
@@ -58,7 +59,7 @@ template <class T> T foo() {
   #pragma omp allocate(v) allocator(omp_cgroup_mem_alloc)
   v = ST<T>::m;
 #if defined(DEVICE) && !defined(REQUIRES)
-// expected-error@+2 2 {{expected an allocator expression inside of the target region; provide an allocator expression or use 'requires' directive with the 'dynamic_allocators' clause}}
+// expected-error@+2 {{expected an allocator expression inside of the target region; provide an allocator expression or use 'requires' directive with the 'dynamic_allocators' clause}}
 #endif // DEVICE && !REQUIRES
 #pragma omp parallel private(v) allocate(v)
   v = 0;
@@ -80,8 +81,7 @@ int main () {
 #endif // DEVICE && !REQUIRES
 #pragma omp allocate(b)
 #if defined(DEVICE) && !defined(REQUIRES)
-// expected-note@+3 {{in instantiation of function template specialization 'foo<int>' requested here}}
-// expected-note@+2 {{called by 'main'}}
+// expected-note@+2 2{{called by 'main'}}
 #endif // DEVICE && !REQUIRES
   return (foo<int>() + bar());
 }

@@ -3,12 +3,15 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(SupportTests
+  AlignmentTest.cpp
   AlignOfTest.cpp
   AllocatorTest.cpp
   AnnotationsTest.cpp
   ARMAttributeParser.cpp
   ArrayRecyclerTest.cpp
+  Base64Test.cpp
   BinaryStreamTest.cpp
+  BLAKE3Test.cpp
   BlockFrequencyTest.cpp
   BranchProbabilityTest.cpp
   CachePruningTest.cpp
@@ -20,44 +23,61 @@ add_llvm_unittest(SupportTests
   CompressionTest.cpp
   ConvertUTFTest.cpp
   CRCTest.cpp
+  CSKYAttributeParserTest.cpp
+  CSKYTargetParserTest.cpp
   DataExtractorTest.cpp
   DebugTest.cpp
   DebugCounterTest.cpp
   DJBTest.cpp
   EndianStreamTest.cpp
   EndianTest.cpp
+  ELFAttributeParserTest.cpp
   ErrnoTest.cpp
   ErrorOrTest.cpp
   ErrorTest.cpp
-  FileCheckTest.cpp
+  ExtensibleRTTITest.cpp
+  FileCollectorTest.cpp
   FileOutputBufferTest.cpp
+  FileUtilitiesTest.cpp
   FormatVariadicTest.cpp
+  FSUniqueIDTest.cpp
   GlobPatternTest.cpp
+  HashBuilderTest.cpp
   Host.cpp
+  IndexedAccessorTest.cpp
+  InstructionCostTest.cpp
   ItaniumManglingCanonicalizerTest.cpp
   JSONTest.cpp
   KnownBitsTest.cpp
   LEB128Test.cpp
+  LinearPolyBaseTest.cpp
   LineIteratorTest.cpp
   LockFileManagerTest.cpp
   MatchersTest.cpp
   MD5Test.cpp
   ManagedStatic.cpp
   MathExtrasTest.cpp
+  MemoryBufferRefTest.cpp
   MemoryBufferTest.cpp
   MemoryTest.cpp
   NativeFormatTests.cpp
+  OptimizedStructLayoutTest.cpp
   ParallelTest.cpp
   Path.cpp
   ProcessTest.cpp
   ProgramTest.cpp
+  PropertySetIOTest.cpp
   RegexTest.cpp
   ReverseIterationTest.cpp
   ReplaceFileTest.cpp
+  RISCVAttributeParserTest.cpp
   ScaledNumberTest.cpp
+  SimpleTableTest.cpp
+  ScopedPrinterTest.cpp
+  SHA256.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
-  StringPool.cpp
+  SuffixTreeTest.cpp
   SwapByteOrderTest.cpp
   SymbolRemappingReaderTest.cpp
   TarWriterTest.cpp
@@ -67,6 +87,7 @@ add_llvm_unittest(SupportTests
   ThreadPool.cpp
   Threading.cpp
   TimerTest.cpp
+  ToolOutputFileTest.cpp
   TypeNameTest.cpp
   TypeTraitsTest.cpp
   TrailingObjectsTest.cpp
@@ -74,9 +95,12 @@ add_llvm_unittest(SupportTests
   UnicodeTest.cpp
   VersionTupleTest.cpp
   VirtualFileSystemTest.cpp
+  WithColorTest.cpp
   YAMLIOTest.cpp
   YAMLParserTest.cpp
+  buffer_ostream_test.cpp
   formatted_raw_ostream_test.cpp
+  raw_fd_stream_test.cpp
   raw_ostream_test.cpp
   raw_pwrite_stream_test.cpp
   raw_sha1_ostream_test.cpp
@@ -107,4 +131,9 @@ endif()
 # ManagedStatic.cpp uses <pthread>.
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport ${LLVM_PTHREAD_LIB})
 
-add_subdirectory(DynamicLibrary)
+if(NOT LLVM_INTEGRATED_CRT_ALLOC)
+  # The test doesn't pass when using a custom allocator, PR47881.
+  add_subdirectory(DynamicLibrary)
+endif()
+
+add_subdirectory(CommandLineInit)

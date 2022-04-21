@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: dylib-has-no-bad_variant_access
-
+// Throwing bad_variant_access is supported starting in macosx10.13
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}}
 
 // <variant>
 
@@ -28,6 +27,8 @@ public:
 #include <exception>
 #include <type_traits>
 #include <variant>
+
+#include "test_macros.h"
 
 int main(int, char**) {
   static_assert(std::is_base_of<std::exception, std::bad_variant_access>::value,

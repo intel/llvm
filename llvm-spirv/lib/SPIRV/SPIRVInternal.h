@@ -57,6 +57,10 @@
 using namespace SPIRV;
 using namespace llvm;
 
+namespace llvm {
+class IntrinsicInst;
+}
+
 namespace SPIRV {
 
 /// The LLVM/SPIR-V translator version used to fill the lower 16 bits of the
@@ -98,6 +102,7 @@ template <> inline void SPIRVMap<unsigned, Op>::init() {
   _SPIRV_OP(BitCast, Bitcast)
   _SPIRV_OP(AddrSpaceCast, GenericCastToPtr)
   _SPIRV_OP(GetElementPtr, AccessChain)
+  _SPIRV_OP(FNeg, FNegate)
   /*Binary*/
   _SPIRV_OP(And, BitwiseAnd)
   _SPIRV_OP(Or, BitwiseOr)
@@ -183,6 +188,8 @@ enum SPIRAddressSpace {
   SPIRAS_Constant,
   SPIRAS_Local,
   SPIRAS_Generic,
+  SPIRAS_GlobalDevice,
+  SPIRAS_GlobalHost,
   SPIRAS_Input,
   SPIRAS_Output,
   SPIRAS_Count,
@@ -195,6 +202,8 @@ template <> inline void SPIRVMap<SPIRAddressSpace, std::string>::init() {
   add(SPIRAS_Local, "Local");
   add(SPIRAS_Generic, "Generic");
   add(SPIRAS_Input, "Input");
+  add(SPIRAS_GlobalDevice, "GlobalDevice");
+  add(SPIRAS_GlobalHost, "GlobalHost");
 }
 typedef SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind>
     SPIRAddrSpaceCapitalizedNameMap;
@@ -207,6 +216,8 @@ inline void SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind>::init() {
   add(SPIRAS_Local, StorageClassWorkgroup);
   add(SPIRAS_Generic, StorageClassGeneric);
   add(SPIRAS_Input, StorageClassInput);
+  add(SPIRAS_GlobalDevice, StorageClassDeviceOnlyINTEL);
+  add(SPIRAS_GlobalHost, StorageClassHostOnlyINTEL);
 }
 typedef SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind> SPIRSPIRVAddrSpaceMap;
 
@@ -228,6 +239,7 @@ inline void SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>::init() {
   add(Attribute::StructRet, FunctionParameterAttributeSret);
   add(Attribute::NoAlias, FunctionParameterAttributeNoAlias);
   add(Attribute::NoCapture, FunctionParameterAttributeNoCapture);
+  add(Attribute::ReadOnly, FunctionParameterAttributeNoWrite);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>
     SPIRSPIRVFuncParamAttrMap;
@@ -239,6 +251,7 @@ SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>::init() {
   add(Attribute::ReadOnly, FunctionControlConstMask);
   add(Attribute::AlwaysInline, FunctionControlInlineMask);
   add(Attribute::NoInline, FunctionControlDontInlineMask);
+  add(Attribute::OptimizeNone, internal::FunctionControlOptNoneINTELMask);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>
     SPIRSPIRVFuncCtlMaskMap;
@@ -252,6 +265,22 @@ SPIRVMap<SPIRVExtInstSetKind, std::string, SPIRVExtSetShortName>::init() {
 typedef SPIRVMap<SPIRVExtInstSetKind, std::string, SPIRVExtSetShortName>
     SPIRVExtSetShortNameMap;
 
+template <>
+inline void SPIRVMap<internal::InternalJointMatrixLayout, std::string>::init() {
+  add(internal::RowMajor, "matrix.rowmajor");
+  add(internal::ColumnMajor, "matrix.columnmajor");
+  add(internal::PackedA, "matrix.packed.a");
+  add(internal::PackedB, "matrix.packed.b");
+}
+typedef SPIRVMap<internal::InternalJointMatrixLayout, std::string>
+    SPIRVMatrixLayoutMap;
+
+template <> inline void SPIRVMap<spv::Scope, std::string>::init() {
+  add(ScopeWorkgroup, "scope.workgroup");
+  add(ScopeSubgroup, "scope.subgroup");
+}
+typedef SPIRVMap<spv::Scope, std::string> SPIRVMatrixScopeMap;
+
 #define SPIR_MD_COMPILER_OPTIONS "opencl.compiler.options"
 #define SPIR_MD_KERNEL_ARG_ADDR_SPACE "kernel_arg_addr_space"
 #define SPIR_MD_KERNEL_ARG_ACCESS_QUAL "kernel_arg_access_qual"
@@ -259,6 +288,9 @@ typedef SPIRVMap<SPIRVExtInstSetKind, std::string, SPIRVExtSetShortName>
 #define SPIR_MD_KERNEL_ARG_BASE_TYPE "kernel_arg_base_type"
 #define SPIR_MD_KERNEL_ARG_TYPE_QUAL "kernel_arg_type_qual"
 #define SPIR_MD_KERNEL_ARG_NAME "kernel_arg_name"
+
+#define SPIRV_MD_PARAMETER_DECORATIONS "spirv.ParameterDecorations"
+#define SPIRV_MD_DECORATIONS "spirv.Decorations"
 
 #define OCL_TYPE_NAME_SAMPLER_T "sampler_t"
 #define SPIR_TYPE_NAME_EVENT_T "opencl.event_t"
@@ -299,6 +331,7 @@ const static char ConstantSampler[] = "ConstantSampler";
 const static char PipeStorage[] = "PipeStorage";
 const static char ConstantPipeStorage[] = "ConstantPipeStorage";
 const static char VmeImageINTEL[] = "VmeImageINTEL";
+const static char JointMatrixINTEL[] = "JointMatrixINTEL";
 } // namespace kSPIRVTypeName
 
 namespace kSPR2TypeName {
@@ -317,6 +350,13 @@ const static char WriteOnly[] = "write_only";
 const static char ReadWrite[] = "read_write";
 } // namespace kAccessQualName
 
+namespace kAccessQualPostfix {
+const static char ReadOnly[] = "_ro";
+const static char WriteOnly[] = "_wo";
+const static char ReadWrite[] = "_rw";
+const static char Type[] = "_t";
+} // namespace kAccessQualPostfix
+
 namespace kMangledName {
 const static char Sampler[] = "11ocl_sampler";
 const static char AtomicPrefixIncoming[] = "U7_Atomic";
@@ -325,6 +365,8 @@ const static char AtomicPrefixInternal[] = "atomic_";
 
 namespace kSPIRVName {
 const static char GroupPrefix[] = "group_";
+const static char GroupNonUniformPrefix[] = "group_non_uniform_";
+const static char ClusteredPrefix[] = "clustered_";
 const static char Prefix[] = "__spirv_";
 const static char Postfix[] = "__";
 const static char ImageQuerySize[] = "ImageQuerySize";
@@ -333,9 +375,17 @@ const static char ImageSampleExplicitLod[] = "ImageSampleExplicitLod";
 const static char ReservedPrefix[] = "reserved_";
 const static char SampledImage[] = "SampledImage";
 const static char TempSampledImage[] = "TempSampledImage";
+const static char TranslateOCLMemOrder[] = "__translate_ocl_memory_order";
+const static char TranslateOCLMemScope[] = "__translate_ocl_memory_scope";
+const static char TranslateSPIRVMemOrder[] = "__translate_spirv_memory_order";
+const static char TranslateSPIRVMemScope[] = "__translate_spirv_memory_scope";
+const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
+const static char ToGlobal[] = "ToGlobal";
+const static char ToLocal[] = "ToLocal";
+const static char ToPrivate[] = "ToPrivate";
 const static char Sat[] = "sat";
 const static char Rtz[] = "rtz";
 const static char Rte[] = "rte";
@@ -369,6 +419,19 @@ const static char VecTyHint[] = "vec_type_hint";
 const static char WGSize[] = "reqd_work_group_size";
 const static char WGSizeHint[] = "work_group_size_hint";
 const static char SubgroupSize[] = "intel_reqd_sub_group_size";
+const static char MaxWGSize[] = "max_work_group_size";
+const static char NoGlobalOffset[] = "no_global_work_offset";
+const static char MaxWGDim[] = "max_global_work_dim";
+const static char NumSIMD[] = "num_simd_work_items";
+const static char StallEnable[] = "stall_enable";
+const static char FmaxMhz[] = "scheduler_target_fmax_mhz";
+const static char LoopFuse[] = "loop_fuse";
+const static char PreferDSP[] = "prefer_dsp";
+const static char PropDSPPref[] = "propagate_dsp_preference";
+const static char InitiationInterval[] = "initiation_interval";
+const static char MaxConcurrency[] = "max_concurrency";
+const static char DisableLoopPipelining[] = "disable_loop_pipelining";
+const static char IntelFPGAIPInterface[] = "ip_interface";
 } // namespace kSPIR2MD
 
 enum Spir2SamplerKind {
@@ -405,13 +468,18 @@ public:
   /// Translate builtin function name and set
   /// argument attributes and unsigned args.
   BuiltinFuncMangleInfo(const std::string &UniqName = "")
-      : LocalArgBlockIdx(-1), VarArgIdx(-1) {
+      : LocalArgBlockIdx(-1), VarArgIdx(-1), DontMangle(false) {
     if (!UniqName.empty())
       init(UniqName);
   }
   virtual ~BuiltinFuncMangleInfo() {}
   const std::string &getUnmangledName() const { return UnmangledName; }
   void addUnsignedArg(int Ndx) { UnsignedArgs.insert(Ndx); }
+  void addUnsignedArgs(int StartNdx, int StopNdx) {
+    assert(StartNdx < StopNdx && "wrong parameters");
+    for (int I = StartNdx; I <= StopNdx; ++I)
+      addUnsignedArg(I);
+  }
   void addVoidPtrArg(int Ndx) { VoidPtrArgs.insert(Ndx); }
   void addSamplerArg(int Ndx) { SamplerArgs.insert(Ndx); }
   void addAtomicArg(int Ndx) { AtomicArgs.insert(Ndx); }
@@ -427,6 +495,7 @@ public:
     assert(0 <= Ndx && "it is not allowed to set less than zero index");
     VarArgIdx = Ndx;
   }
+  void setAsDontMangle() { DontMangle = true; }
   bool isArgUnsigned(int Ndx) {
     return UnsignedArgs.count(-1) || UnsignedArgs.count(Ndx);
   }
@@ -446,6 +515,7 @@ public:
       *Enum = Loc->second;
     return true;
   }
+  bool avoidMangling() { return DontMangle; }
   unsigned getArgAttr(int Ndx) {
     auto Loc = Attrs.find(Ndx);
     if (Loc == Attrs.end())
@@ -468,8 +538,8 @@ public:
     Info.Attr = getArgAttr(Ndx);
     return Info;
   }
-  virtual void init(const std::string &UniqUnmangledName) {
-    UnmangledName = UniqUnmangledName;
+  virtual void init(StringRef UniqUnmangledName) {
+    UnmangledName = UniqUnmangledName.str();
   }
 
 protected:
@@ -484,6 +554,9 @@ protected:
   int LocalArgBlockIdx; // index of a block with local arguments, idx < 0 if
                         // none
   int VarArgIdx;        // index of ellipsis argument, idx < 0 if none
+private:
+  bool DontMangle; // clang doesn't apply mangling for some builtin functions
+                   // (i.e. enqueue_kernel)
 };
 
 /// \returns a vector of types for a collection of values.
@@ -520,9 +593,8 @@ inline size_t findFirstPtr(const std::vector<Value *> &Args) {
 }
 
 bool isSupportedTriple(Triple T);
-void removeFnAttr(LLVMContext *Context, CallInst *Call,
-                  Attribute::AttrKind Attr);
-void addFnAttr(LLVMContext *Context, CallInst *Call, Attribute::AttrKind Attr);
+void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr);
+void addFnAttr(CallInst *Call, Attribute::AttrKind Attr);
 void saveLLVMModule(Module *M, const std::string &OutputFile);
 std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed);
 std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed);
@@ -537,6 +609,7 @@ PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
                                       unsigned AddrSpace = SPIRAS_Global);
 PointerType *getSamplerType(Module *M);
 PointerType *getPipeStorageType(Module *M);
+PointerType *getSPIRVOpaquePtrType(Module *M, Op OC);
 void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
                                    std::vector<Type *> &ArgTys);
 Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
@@ -576,6 +649,9 @@ Decoration getArgAsDecoration(CallInst *CI, unsigned I);
 bool isPointerToOpaqueStructType(llvm::Type *Ty);
 bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name);
 
+/// Check if a type is SPIRV sampler type.
+bool isSPIRVSamplerType(llvm::Type *Ty);
+
 /// Check if a type is OCL image type.
 /// \return type name without "opencl." prefix.
 bool isOCLImageType(llvm::Type *Ty, StringRef *Name = nullptr);
@@ -585,20 +661,30 @@ bool isOCLImageType(llvm::Type *Ty, StringRef *Name = nullptr);
 ///   type name as spirv.BaseTyName.Postfixes.
 bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix = 0);
 
+bool isSYCLHalfType(llvm::Type *Ty);
+
+bool isSYCLBfloat16Type(llvm::Type *Ty);
+
 /// Decorate a function name as __spirv_{Name}_
 std::string decorateSPIRVFunction(const std::string &S);
 
 /// Remove prefix/postfix from __spirv_{Name}_
-std::string undecorateSPIRVFunction(const std::string &S);
+StringRef undecorateSPIRVFunction(StringRef S);
 
 /// Check if a function has decorated name as __spirv_{Name}_
 /// and get the original name.
-bool isDecoratedSPIRVFunc(const Function *F, std::string *UndecName = nullptr);
+bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecName);
+
+std::string prefixSPIRVName(const std::string &S);
+
+StringRef dePrefixSPIRVName(StringRef R, SmallVectorImpl<StringRef> &Postfix);
 
 /// Get a canonical function name for a SPIR-V op code.
 std::string getSPIRVFuncName(Op OC, StringRef PostFix = "");
 
 std::string getSPIRVFuncName(Op OC, const Type *PRetTy, bool IsSigned = false);
+
+std::string getSPIRVFuncName(SPIRVBuiltinVariableKind BVKind);
 
 /// Get a canonical function name for a SPIR-V extended instruction
 std::string getSPIRVExtFuncName(SPIRVExtInstSetKind Set, unsigned ExtOp,
@@ -611,8 +697,7 @@ std::string getSPIRVExtFuncName(SPIRVExtInstSetKind Set, unsigned ExtOp,
 ///   otherwise return OpNop.
 /// \param Dec contains decorations decoded from function name if it is
 ///   not nullptr.
-Op getSPIRVFuncOC(const std::string &Name,
-                  SmallVectorImpl<std::string> *Dec = nullptr);
+Op getSPIRVFuncOC(StringRef Name, SmallVectorImpl<std::string> *Dec = nullptr);
 
 /// Get SPIR-V builtin variable enum given the canonical builtin name
 /// Assume \param Name is in format __spirv_BuiltIn{Name}
@@ -623,10 +708,9 @@ bool getSPIRVBuiltin(const std::string &Name, spv::BuiltIn &Builtin);
 /// \param DemangledName demanged name of the OpenCL built-in function
 /// \returns true if Name is the name of the OpenCL built-in function,
 /// false for other functions
-bool oclIsBuiltin(const StringRef &Name, std::string *DemangledName = nullptr,
-                  bool IsCpp = false);
+bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp = false);
 
-/// Check if a function type is void(void).
+/// Check if a function returns void
 bool isVoidFuncTy(FunctionType *FT);
 
 /// \returns true if \p T is a function pointer type.
@@ -682,6 +766,19 @@ Instruction *mutateCallInstSPIRV(
 void mutateFunction(
     Function *F,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
+    BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
+    bool TakeName = true);
+
+/// Mutate function by change the arguments & the return type.
+/// \param ArgMutate mutates the function arguments.
+/// \param RetMutate mutates the function return value.
+/// \param TakeName Take the original function's name if a new function with
+///   different type needs to be created.
+void mutateFunction(
+    Function *F,
+    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
+        ArgMutate,
+    std::function<Instruction *(CallInst *)> RetMutate,
     BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
     bool TakeName = true);
 
@@ -759,10 +856,13 @@ std::vector<Value *> getInt32(Module *M, const std::vector<int> &Value);
 ConstantInt *getSizet(Module *M, uint64_t Value);
 
 /// Get metadata operand as int.
-int getMDOperandAsInt(MDNode *N, unsigned I);
+int64_t getMDOperandAsInt(MDNode *N, unsigned I);
 
 /// Get metadata operand as string.
 std::string getMDOperandAsString(MDNode *N, unsigned I);
+
+/// Get metadata operand as another metadata node
+MDNode *getMDOperandAsMDNode(MDNode *N, unsigned I);
 
 /// Get metadata operand as type.
 Type *getMDOperandAsType(MDNode *N, unsigned I);
@@ -855,7 +955,13 @@ std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc = "");
 bool hasAccessQualifiedName(StringRef TyName);
 
 /// Get access qualifier from the type name.
-StringRef getAccessQualifier(StringRef TyName);
+SPIRVAccessQualifierKind getAccessQualifier(StringRef TyName);
+
+/// Get access qualifier from the type name.
+StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access);
+
+/// Get access qualifier from the type name.
+StringRef getAccessQualifierFullName(StringRef TyName);
 
 bool eraseUselessFunctions(Module *M);
 
@@ -881,10 +987,10 @@ bool isValidVectorSize(unsigned I);
 
 enum class ParamType { FLOAT = 0, SIGNED = 1, UNSIGNED = 2, UNKNOWN = 3 };
 
-ParamType lastFuncParamType(const std::string &MangledName);
+ParamType lastFuncParamType(StringRef MangledName);
 
 // Check if the last function parameter is signed
-bool isLastFuncParamSigned(const std::string &MangledName);
+bool isLastFuncParamSigned(StringRef MangledName);
 
 // Check if a mangled function name contains unsigned atomic type
 bool containsUnsignedAtomicType(StringRef Name);
@@ -892,9 +998,25 @@ bool containsUnsignedAtomicType(StringRef Name);
 /// Mangle builtin function name.
 /// \return \param UniqName if \param BtnInfo is null pointer, otherwise
 ///    return IA64 mangled name.
-std::string mangleBuiltin(const std::string &UniqName,
-                          ArrayRef<Type *> ArgTypes,
+std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
                           BuiltinFuncMangleInfo *BtnInfo);
+
+/// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
+/// manner
+std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
+                                           ArrayRef<Type *> ArgTys,
+                                           Type *RetTy = nullptr);
+
+/// Mangle a function in SPIR-V friendly IR manner
+/// \param UniqName full unmangled name of the SPIR-V built-in function that
+/// contains possible postfixes that depend not on opcode but on decorations or
+/// return type, for example __spirv_UConvert_Rint_sat.
+/// \param OC opcode of corresponding built-in instruction. Used to gather info
+/// for unsigned/constant arguments.
+/// \param Types of arguments of SPIR-V built-in function
+/// \return IA64 mangled name.
+std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
+                                           spv::Op OC, ArrayRef<Type *> ArgTys);
 
 /// Remove cast from a value.
 Value *removeCast(Value *V);
@@ -909,23 +1031,79 @@ PointerType *getInt8PtrTy(PointerType *T);
 Value *castToInt8Ptr(Value *V, Instruction *Pos);
 
 template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
-  add(kSPIRVTypeName::DeviceEvent, OpTypeDeviceEvent);
-  add(kSPIRVTypeName::Event, OpTypeEvent);
-  add(kSPIRVTypeName::Image, OpTypeImage);
-  add(kSPIRVTypeName::Pipe, OpTypePipe);
-  add(kSPIRVTypeName::Queue, OpTypeQueue);
-  add(kSPIRVTypeName::ReserveId, OpTypeReserveId);
-  add(kSPIRVTypeName::Sampler, OpTypeSampler);
-  add(kSPIRVTypeName::SampledImg, OpTypeSampledImage);
+#define _SPIRV_OP(x) add(#x, OpType##x);
+  _SPIRV_OP(DeviceEvent)
+  _SPIRV_OP(Event)
+  _SPIRV_OP(Image)
+  _SPIRV_OP(Pipe)
+  _SPIRV_OP(Queue)
+  _SPIRV_OP(ReserveId)
+  _SPIRV_OP(Sampler)
+  _SPIRV_OP(SampledImage)
+  // SPV_INTEL_device_side_avc_motion_estimation types
+  _SPIRV_OP(AvcMcePayloadINTEL)
+  _SPIRV_OP(AvcImePayloadINTEL)
+  _SPIRV_OP(AvcRefPayloadINTEL)
+  _SPIRV_OP(AvcSicPayloadINTEL)
+  _SPIRV_OP(AvcMceResultINTEL)
+  _SPIRV_OP(AvcImeResultINTEL)
+  _SPIRV_OP(AvcImeResultSingleReferenceStreamoutINTEL)
+  _SPIRV_OP(AvcImeResultDualReferenceStreamoutINTEL)
+  _SPIRV_OP(AvcImeSingleReferenceStreaminINTEL)
+  _SPIRV_OP(AvcImeDualReferenceStreaminINTEL)
+  _SPIRV_OP(AvcRefResultINTEL)
+  _SPIRV_OP(AvcSicResultINTEL)
+#undef _SPIRV_OP
 }
 
-// Check if the module contains llvm.loop.unroll.* metadata
-bool hasLoopUnrollMetadata(const Module *M);
+// Check if the module contains llvm.loop.* metadata
+bool hasLoopMetadata(const Module *M);
 
-// If the branch instruction has !llvm.loop metadata, go through its operands
-// and find Loop Control mask and possible parameters.
-spv::LoopControlMask getLoopControl(const BranchInst *Branch,
-                                    std::vector<SPIRVWord> &Parameters);
+// Check if CI is a call to instruction from OpenCL Extended Instruction Set.
+// If so, return it's extended opcode in ExtOp.
+bool isSPIRVOCLExtInst(const CallInst *CI, OCLExtOpKind *ExtOp);
+
+// check LLVM Intrinsics type(s) for validity
+bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM);
+
+/// Decode SPIR-V type name in the format spirv.{TypeName}._{Postfixes}
+/// where Postfixes are strings separated by underscores.
+/// \return TypeName.
+/// \param Strs contains the integers decoded from postfixes.
+std::string decodeSPIRVTypeName(StringRef Name,
+                                SmallVectorImpl<std::string> &Strs);
+
+// Copy attributes from function to call site.
+void setAttrByCalledFunc(CallInst *Call);
+bool isSPIRVBuiltinVariable(GlobalVariable *GV, SPIRVBuiltinVariableKind *Kind);
+// Transform builtin variable from GlobalVariable to builtin call.
+// e.g.
+// - GlobalInvolcationId[x] -> _Z33__spirv_BuiltInGlobalInvocationIdi(x)
+// - WorkDim -> _Z22__spirv_BuiltInWorkDimv()
+bool lowerBuiltinVariableToCall(GlobalVariable *GV,
+                                SPIRVBuiltinVariableKind Kind);
+// Transform all builtin variables into calls
+bool lowerBuiltinVariablesToCalls(Module *M);
+
+/// \brief Post-process OpenCL or SPIRV builtin function returning struct type.
+///
+/// Some builtin functions are translated to SPIR-V instructions with
+/// struct type result, e.g. NDRange creation functions. Such functions
+/// need to be post-processed to return the struct through sret argument.
+bool postProcessBuiltinReturningStruct(Function *F);
+
+/// \brief Post-process OpenCL or SPIRV builtin function having array argument.
+///
+/// These functions are translated to functions with array type argument
+/// first, then post-processed to have pointer arguments.
+bool postProcessBuiltinWithArrayArguments(Function *F, StringRef DemangledName);
+
+bool postProcessBuiltinsReturningStruct(Module *M, bool IsCpp = false);
+
+bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp = false);
+
+template <typename T>
+MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V);
 } // namespace SPIRV
 
 #endif // SPIRV_SPIRVINTERNAL_H

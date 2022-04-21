@@ -8,12 +8,13 @@
 
 // = Big-endian, mips32r2, hard float
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
-// RUN:     --target=mips-mti-linux -mips32r2 -mhard-float -rtlib=platform -fuse-ld=ld \
+// RUN:     --target=mips-mti-linux -mips32r2 -mhard-float -no-pie \
+// RUN:     -rtlib=platform -fuse-ld=ld \
 // RUN:     --sysroot=%S/Inputs/mips_mti_linux/sysroot \
 // RUN:   | FileCheck --check-prefix=CHECK-BE-HF-32R2 %s
 //
 // CHECK-BE-HF-32R2: "{{[^"]*}}clang{{[^"]*}}" {{.*}} "-triple" "mips-mti-linux"
-// CHECK-BE-HF-32R2-SAME: "-fuse-init-array" "-target-cpu" "mips32r2"
+// CHECK-BE-HF-32R2-SAME: "-target-cpu" "mips32r2"
 // CHECK-BE-HF-32R2-SAME: "-isysroot" "{{.*}}mips_mti_linux/sysroot"
 // CHECK-BE-HF-32R2: "{{[^"]*}}ld.lld{{[^"]*}}"
 // CHECK-BE-HF-32R2-SAME: "--sysroot=[[SYSROOT:[^"]+]]" {{.*}} "-dynamic-linker" "/lib/ld-musl-mips.so.1"
@@ -26,12 +27,13 @@
 
 // = Little-endian, mips32r2, hard float
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
-// RUN:     --target=mips-mti-linux -mips32r2 -EL -mhard-float -rtlib=platform -fuse-ld=ld \
+// RUN:     --target=mips-mti-linux -mips32r2 -EL -mhard-float -no-pie \
+// RUN:     -rtlib=platform -fuse-ld=ld \
 // RUN:     --sysroot=%S/Inputs/mips_mti_linux/sysroot \
 // RUN:   | FileCheck --check-prefix=CHECK-LE-HF-32R2 %s
 //
 // CHECK-LE-HF-32R2: "{{[^"]*}}clang{{[^"]*}}" {{.*}} "-triple" "mipsel-mti-linux"
-// CHECK-LE-HF-32R2-SAME: "-fuse-init-array" "-target-cpu" "mips32r2"
+// CHECK-LE-HF-32R2-SAME: "-target-cpu" "mips32r2"
 // CHECK-LE-HF-32R2-SAME: "-isysroot" "{{.*}}mips_mti_linux/sysroot"
 // CHECK-LE-HF-32R2: "{{[^"]*}}ld.lld{{[^"]*}}"
 // CHECK-LE-HF-32R2-SAME: "--sysroot=[[SYSROOT:[^"]+]]" {{.*}} "-dynamic-linker" "/lib/ld-musl-mipsel.so.1"

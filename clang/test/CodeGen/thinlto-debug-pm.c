@@ -1,17 +1,19 @@
 // Test to ensure the opt level is passed down to the ThinLTO backend.
 // REQUIRES: x86-registered-target
-// RUN: %clang_cc1 -o %t.o -flto=thin -fexperimental-new-pass-manager -triple x86_64-unknown-linux-gnu -emit-llvm-bc %s
+
+// TODO: remove redundant `-fno-legacy-pass-manager` key from RUN-lines once we move to NewPM by default.
+
+// RUN: %clang_cc1 -fno-legacy-pass-manager -O2 -o %t.o -flto=thin -triple x86_64-unknown-linux-gnu -emit-llvm-bc %s
 // RUN: llvm-lto -thinlto -o %t %t.o
 
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -O2 -o %t2.o -x ir %t.o -fthinlto-index=%t.thinlto.bc -fdebug-pass-manager -fexperimental-new-pass-manager 2>&1 | FileCheck %s --check-prefix=O2-NEWPM
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -O0 -o %t2.o -x ir %t.o -fthinlto-index=%t.thinlto.bc -fdebug-pass-manager -fexperimental-new-pass-manager 2>&1 | FileCheck %s --check-prefix=O0-NEWPM
-// O2-NEWPM: Running pass: LoopVectorizePass
-// O0-NEWPM-NOT: Running pass: LoopVectorizePass
+// RUN: %clang_cc1 -fno-legacy-pass-manager -triple x86_64-unknown-linux-gnu -emit-obj -O2 -o %t2.o -x ir %t.o -fthinlto-index=%t.thinlto.bc -fdebug-pass-manager 2>&1 | FileCheck %s --check-prefix=O2
+// O2: Running pass: LoopVectorizePass
 
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -O2 -o %t2.o -x ir %t.o -fthinlto-index=%t.thinlto.bc -mllvm -debug-pass=Structure 2>&1 | FileCheck %s --check-prefix=O2-OLDPM
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -O0 -o %t2.o -x ir %t.o -fthinlto-index=%t.thinlto.bc -mllvm -debug-pass=Structure 2>&1 | FileCheck %s --check-prefix=O0-OLDPM
-// O2-OLDPM: Loop Vectorization
-// O0-OLDPM-NOT: Loop Vectorization
+// RUN: %clang_cc1 -fno-legacy-pass-manager -O0 -o %t.o -flto=thin -triple x86_64-unknown-linux-gnu -emit-llvm-bc %s
+// RUN: llvm-lto -thinlto -o %t %t.o
 
-void foo() {
+// RUN: %clang_cc1 -fno-legacy-pass-manager -triple x86_64-unknown-linux-gnu -emit-obj -O0 -o %t2.o -x ir %t.o -fthinlto-index=%t.thinlto.bc -fdebug-pass-manager 2>&1 | FileCheck %s --check-prefix=O0
+// O0-NOT: Running pass: LoopVectorizePass
+
+void foo(void) {
 }

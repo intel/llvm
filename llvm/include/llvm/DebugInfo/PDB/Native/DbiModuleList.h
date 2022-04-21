@@ -31,14 +31,13 @@ struct FileInfoSubstreamHeader;
 class DbiModuleSourceFilesIterator
     : public iterator_facade_base<DbiModuleSourceFilesIterator,
                                   std::random_access_iterator_tag, StringRef> {
-  using BaseType =
-      iterator_facade_base<DbiModuleSourceFilesIterator,
-                           std::random_access_iterator_tag, StringRef>;
+  using BaseType = typename DbiModuleSourceFilesIterator::iterator_facade_base;
 
 public:
   DbiModuleSourceFilesIterator(const DbiModuleList &Modules, uint32_t Modi,
                                uint16_t Filei);
   DbiModuleSourceFilesIterator() = default;
+  DbiModuleSourceFilesIterator(const DbiModuleSourceFilesIterator &R) = default;
   DbiModuleSourceFilesIterator &
   operator=(const DbiModuleSourceFilesIterator &R) = default;
 

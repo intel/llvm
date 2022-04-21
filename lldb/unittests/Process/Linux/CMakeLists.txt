@@ -1,8 +1,10 @@
-include_directories(${LLDB_SOURCE_DIR}/source/Plugins/Process/Linux)
-
-add_lldb_unittest(ProcessorTraceTest
-  ProcessorTraceTest.cpp
+add_lldb_unittest(ProcessLinuxTests
+  IntelPTCollectorTests.cpp
+  PerfTests.cpp
 
   LINK_LIBS
     lldbPluginProcessLinux
   )
+
+target_include_directories(ProcessLinuxTests PRIVATE
+  ${LLDB_SOURCE_DIR}/source/Plugins/Process/Linux)

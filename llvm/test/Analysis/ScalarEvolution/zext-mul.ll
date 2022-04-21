@@ -1,4 +1,4 @@
-; RUN: opt < %s -analyze -scalar-evolution | FileCheck %s
+; RUN: opt < %s -disable-output "-passes=print<scalar-evolution>" 2>&1 | FileCheck %s
 
 ; Check that we convert
 ;   zext((a * b)<nuw>)

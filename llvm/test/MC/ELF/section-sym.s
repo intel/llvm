@@ -1,4 +1,4 @@
-// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readobj -S --symbols -r --expand-relocs | FileCheck %s
+// RUN: llvm-mc -filetype=obj -triple x86_64-pc-linux-gnu %s -o - | llvm-readobj -S --symbols -r --expand-relocs - | FileCheck %s
 
 .section foo, "aG", @progbits, f1, comdat
 .section foo, "G", @progbits, f2, comdat
@@ -46,7 +46,7 @@
 // CHECK-NEXT:     Relocation {
 // CHECK-NEXT:       Offset:  0x0
 // CHECK-NEXT:       Type:    R_X86_64_32 (10)
-// CHECK-NEXT:       Symbol:  foo (3)
+// CHECK-NEXT:       Symbol:  foo (2)
 // CHECK-NEXT:       Addend:  0x0
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
@@ -73,6 +73,15 @@
 // CHECK-NEXT:    Section: .group
 // CHECK-NEXT:  }
 // CHECK-NEXT:  Symbol {
+// CHECK-NEXT:    Name: foo (0)
+// CHECK-NEXT:    Value: 0x0
+// CHECK-NEXT:    Size: 0
+// CHECK-NEXT:    Binding: Local (0x0)
+// CHECK-NEXT:    Type: Section (0x3)
+// CHECK-NEXT:    Other: 0
+// CHECK-NEXT:    Section: foo (0x4)
+// CHECK-NEXT:  }
+// CHECK-NEXT:  Symbol {
 // CHECK-NEXT:    Name: f2
 // CHECK-NEXT:    Value: 0x0
 // CHECK-NEXT:    Size: 0
@@ -80,14 +89,5 @@
 // CHECK-NEXT:    Type: None (0x0)
 // CHECK-NEXT:    Other: 0
 // CHECK-NEXT:    Section: .group
-// CHECK-NEXT:  }
-// CHECK-NEXT:  Symbol {
-// CHECK-NEXT:    Name:  foo (0)
-// CHECK-NEXT:    Value: 0x0
-// CHECK-NEXT:    Size: 0
-// CHECK-NEXT:    Binding: Local (0x0)
-// CHECK-NEXT:    Type: Section (0x3)
-// CHECK-NEXT:    Other: 0
-// CHECK-NEXT:    Section: foo (0x4)
 // CHECK-NEXT:  }
 // CHECK-NEXT: ]

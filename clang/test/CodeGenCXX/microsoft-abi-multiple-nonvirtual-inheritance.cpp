@@ -29,13 +29,13 @@ void call_left_no_override(ChildNoOverride *child) {
 // CHECK: %[[VFTABLE:.*]] = load void (%struct.Left*)**, void (%struct.Left*)*** %[[VFPTR]]
 // CHECK: %[[VFUN:.*]] = getelementptr inbounds void (%struct.Left*)*, void (%struct.Left*)** %[[VFTABLE]], i64 0
 // CHECK: %[[VFUN_VALUE:.*]] = load void (%struct.Left*)*, void (%struct.Left*)** %[[VFUN]]
-// CHECK: call x86_thiscallcc void %[[VFUN_VALUE]](%struct.Left* %[[LEFT]])
+// CHECK: call x86_thiscallcc void %[[VFUN_VALUE]](%struct.Left* {{[^,]*}} %[[LEFT]])
 // CHECK: ret
 }
 
 void ChildOverride::left() {
 // CHECK-LABEL: define dso_local x86_thiscallcc void @"?left@ChildOverride@@UAEXXZ"
-// CHECK-SAME: (%struct.ChildOverride* %[[THIS:.*]])
+// CHECK-SAME: (%struct.ChildOverride* {{[^,]*}} %[[THIS:.*]])
 //
 // No need to adjust 'this' as the ChildOverride's layout begins with Left.
 // CHECK: %[[THIS_ADDR:.*]] = alloca %struct.ChildOverride*, align 4
@@ -44,7 +44,7 @@ void ChildOverride::left() {
   foo(this);
 // CHECK: %[[THIS:.*]] = load %struct.ChildOverride*, %struct.ChildOverride** %[[THIS_ADDR]]
 // CHECK: %[[THIS_i8:.*]] = bitcast %struct.ChildOverride* %[[THIS]] to i8*
-// CHECK: call void @foo(i8* %[[THIS_i8]])
+// CHECK: call void @foo(i8* noundef %[[THIS_i8]])
 // CHECK: ret
 }
 
@@ -58,7 +58,7 @@ void call_left_override(ChildOverride *child) {
 // CHECK: %[[VFUN:.*]] = getelementptr inbounds void (%struct.ChildOverride*)*, void (%struct.ChildOverride*)** %[[VFTABLE]], i64 0
 // CHECK: %[[VFUN_VALUE:.*]] = load void (%struct.ChildOverride*)*, void (%struct.ChildOverride*)** %[[VFUN]]
 //
-// CHECK: call x86_thiscallcc void %[[VFUN_VALUE]](%struct.ChildOverride* %[[CHILD]])
+// CHECK: call x86_thiscallcc void %[[VFUN_VALUE]](%struct.ChildOverride* {{[^,]*}} %[[CHILD]])
 // CHECK: ret
 }
 
@@ -78,7 +78,7 @@ void call_right_no_override(ChildNoOverride *child) {
 // CHECK: %[[VFTABLE:.*]] = load void (%struct.Right*)**, void (%struct.Right*)*** %[[VFPTR]]
 // CHECK: %[[VFUN:.*]] = getelementptr inbounds void (%struct.Right*)*, void (%struct.Right*)** %[[VFTABLE]], i64 0
 // CHECK: %[[VFUN_VALUE:.*]] = load void (%struct.Right*)*, void (%struct.Right*)** %[[VFUN]]
-// CHECK: call x86_thiscallcc void %[[VFUN_VALUE]](%struct.Right* %[[RIGHT]])
+// CHECK: call x86_thiscallcc void %[[VFUN_VALUE]](%struct.Right* {{[^,]*}} %[[RIGHT]])
 // CHECK: ret
 }
 
@@ -101,7 +101,7 @@ void ChildOverride::right() {
 
   foo(this);
 // CHECK: %[[THIS_PARAM:.*]] = bitcast %struct.ChildOverride* %[[THIS]] to i8*
-// CHECK: call void @foo(i8* %[[THIS_PARAM]])
+// CHECK: call void @foo(i8* noundef %[[THIS_PARAM]])
 // CHECK: ret
 }
 
@@ -123,7 +123,7 @@ void call_right_override(ChildOverride *child) {
 // CHECK: %[[VFUN:.*]] = getelementptr inbounds void (i8*)*, void (i8*)** %[[VFTABLE]], i64 0
 // CHECK: %[[VFUN_VALUE:.*]] = load void (i8*)*, void (i8*)** %[[VFUN]]
 //
-// CHECK: call x86_thiscallcc void %[[VFUN_VALUE]](i8* %[[RIGHT]])
+// CHECK: call x86_thiscallcc void %[[VFUN_VALUE]](i8* noundef %[[RIGHT]])
 // CHECK: ret
 }
 
@@ -147,7 +147,7 @@ void GrandchildOverride::right() {
 
   foo(this);
 // CHECK: %[[THIS_PARAM:.*]] = bitcast %struct.GrandchildOverride* %[[THIS]] to i8*
-// CHECK: call void @foo(i8* %[[THIS_PARAM]])
+// CHECK: call void @foo(i8* noundef %[[THIS_PARAM]])
 // CHECK: ret
 }
 
@@ -204,8 +204,8 @@ struct AsymmetricChild : LeftWithNonVirtualDtor, Right {
 void call_asymmetric_child_complete_dtor() {
   // CHECK-LABEL: define dso_local void @"?call_asymmetric_child_complete_dtor@@YAXXZ"
   AsymmetricChild obj;
-  // CHECK: call x86_thiscallcc %struct.AsymmetricChild* @"??0AsymmetricChild@@QAE@XZ"(%struct.AsymmetricChild* %[[OBJ:.*]])
+  // CHECK: call x86_thiscallcc noundef %struct.AsymmetricChild* @"??0AsymmetricChild@@QAE@XZ"(%struct.AsymmetricChild* {{[^,]*}} %[[OBJ:.*]])
   // CHECK-NOT: getelementptr
-  // CHECK: call x86_thiscallcc void @"??1AsymmetricChild@@UAE@XZ"(%struct.AsymmetricChild* %[[OBJ]])
+  // CHECK: call x86_thiscallcc void @"??1AsymmetricChild@@UAE@XZ"(%struct.AsymmetricChild* {{[^,]*}} %[[OBJ]])
   // CHECK: ret
 }

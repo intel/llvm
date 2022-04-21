@@ -72,11 +72,19 @@ class HexagonMCChecker {
   using ReadOnlyIterator = std::set<unsigned>::iterator;
   std::set<unsigned> ReadOnly;
 
+  // Contains the vector-pair-registers with the even number
+  // first ("v0:1", e.g.) used/def'd in this packet.
+  std::set<unsigned> ReversePairs;
+
   void init();
   void init(MCInst const &);
   void initReg(MCInst const &, unsigned, unsigned &PredReg, bool &isTrue);
 
   bool registerUsed(unsigned Register);
+
+  /// \return a tuple of: pointer to the producer instruction or nullptr if
+  /// none was found, the operand index, and the PredicateInfo for the
+  /// producer.
   std::tuple<MCInst const *, unsigned, HexagonMCInstrInfo::PredicateInfo>
   registerProducer(unsigned Register,
                    HexagonMCInstrInfo::PredicateInfo Predicated);
@@ -94,13 +102,11 @@ class HexagonMCChecker {
   bool checkAXOK();
   bool checkHWLoop();
   bool checkCOFMax1();
+  bool checkLegalVecRegPair();
+  bool checkValidTmpDst();
+  bool checkHVXAccum();
 
   static void compoundRegisterMap(unsigned &);
-
-  bool isPredicateRegister(unsigned R) const {
-    return (Hexagon::P0 == R || Hexagon::P1 == R || Hexagon::P2 == R ||
-            Hexagon::P3 == R);
-  }
 
   bool isLoopRegister(unsigned R) const {
     return (Hexagon::SA0 == R || Hexagon::LC0 == R || Hexagon::SA1 == R ||

@@ -5,8 +5,8 @@
 
 void my_longjmp(void) __attribute__((noreturn));
 
-// CHECK-LABEL: define void @calls_noreturn()
-void calls_noreturn() {
+// CHECK-LABEL: define{{.*}} void @calls_noreturn()
+void calls_noreturn(void) {
   my_longjmp();
   // CHECK:      @__asan_handle_no_return{{.*}} !nosanitize
   // CHECK-NEXT: @my_longjmp(){{[^#]*}}

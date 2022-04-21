@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -18,9 +18,10 @@
 // typedef ... reference;
 // typedef ... iterator_category
 
-#include "filesystem_include.hpp"
-#include <type_traits>
+#include "filesystem_include.h"
 #include <cassert>
+#include <iterator>
+#include <type_traits>
 
 #include "test_macros.h"
 

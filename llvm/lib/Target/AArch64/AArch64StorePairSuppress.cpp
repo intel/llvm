@@ -119,7 +119,7 @@ bool AArch64StorePairSuppress::isNarrowFPStore(const MachineInstr &MI) {
 }
 
 bool AArch64StorePairSuppress::runOnMachineFunction(MachineFunction &MF) {
-  if (skipFunction(MF.getFunction()))
+  if (skipFunction(MF.getFunction()) || MF.getFunction().hasOptSize())
     return false;
 
   const TargetSubtargetInfo &ST = MF.getSubtarget();
@@ -149,9 +149,11 @@ bool AArch64StorePairSuppress::runOnMachineFunction(MachineFunction &MF) {
         continue;
       const MachineOperand *BaseOp;
       int64_t Offset;
-      if (TII->getMemOperandWithOffset(MI, BaseOp, Offset, TRI) &&
+      bool OffsetIsScalable;
+      if (TII->getMemOperandWithOffset(MI, BaseOp, Offset, OffsetIsScalable,
+                                       TRI) &&
           BaseOp->isReg()) {
-        unsigned BaseReg = BaseOp->getReg();
+        Register BaseReg = BaseOp->getReg();
         if (PrevBaseReg == BaseReg) {
           // If this block can take STPs, skip ahead to the next block.
           if (!SuppressSTP && shouldAddSTPToBlock(MI.getParent()))

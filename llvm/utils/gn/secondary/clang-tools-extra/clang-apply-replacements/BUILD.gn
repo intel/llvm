@@ -10,7 +10,5 @@ static_library("clang-apply-replacements") {
     "//llvm/lib/Support",
   ]
   include_dirs = [ "include" ]
-  sources = [
-    "lib/Tooling/ApplyReplacements.cpp",
-  ]
+  sources = [ "lib/Tooling/ApplyReplacements.cpp" ]
 }

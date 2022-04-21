@@ -20,16 +20,20 @@ define dllexport void @f2() unnamed_addr {
 }
 
 ; CHECK: .globl lnk1
-define linkonce_odr dllexport void @lnk1() {
+$lnk1 = comdat any
+
+define linkonce_odr dllexport void @lnk1() comdat {
 	ret void
 }
 
 ; CHECK: .globl lnk2
-define linkonce_odr dllexport void @lnk2() alwaysinline {
+$lnk2 = comdat any
+
+define linkonce_odr dllexport void @lnk2() alwaysinline comdat {
 	ret void
 }
 
-; CHECK: .globl weak1
+; CHECK: .weak weak1
 define weak_odr dllexport void @weak1() {
 	ret void
 }
@@ -46,56 +50,24 @@ define weak_odr dllexport void @weak1() {
 ; CHECK: .comm Var3
 @Var3 = common dllexport global i32 0, align 4
 
-; CHECK: .globl WeakVar1
+; CHECK: .weak WeakVar1
 @WeakVar1 = weak_odr dllexport global i32 1, align 4
 
-; CHECK: .globl WeakVar2
+; CHECK: .weak WeakVar2
 @WeakVar2 = weak_odr dllexport unnamed_addr constant i32 1
 
 ; CHECK: .bss
-; CHECK: .globl WeakVar3
+; CHECK: .weak WeakVar3
 @WeakVar3 = weak_odr dllexport global i32 0, align 4
 
-
-; CHECK: .globl alias
-; CHECK: .set alias, notExported
-@alias = dllexport alias void(), void()* @notExported
-
-; CHECK: .globl aliasNotExported
-; CHECK: .set aliasNotExported, f1
-@aliasNotExported = alias void(), void()* @f1
-
-; CHECK: .globl alias2
-; CHECK: .set alias2, f1
-@alias2 = dllexport alias void(), void()* @f1
-
-; CHECK: .globl alias3
-; CHECK: .set alias3, notExported
-@alias3 = dllexport alias void(), void()* @notExported
-
-; CHECK: .weak weak_alias
-; CHECK: .set weak_alias, f1
-@weak_alias = weak_odr dllexport alias void(), void()* @f1
-
-@blob = global [6 x i8] c"\B8*\00\00\00\C3", section ".text", align 16
-@blob_alias = dllexport alias i32 (), bitcast ([6 x i8]* @blob to i32 ()*)
-
-@exportedButNotDefinedVariable = external dllexport global i32
-declare dllexport void @exportedButNotDefinedFunction()
-define void @foo() {
-entry:
-  store i32 4, i32* @exportedButNotDefinedVariable, align 4
-  call void @exportedButNotDefinedFunction()
-  ret void
-}
 
 ; Verify items that should not be exported do not appear in the export table.
 ; We use a separate check prefix to avoid confusion between -NOT and -SAME.
 ; NOTEXPORTED: .section .drectve
-; NOTEXPORTED-NOT: notExported
-; NOTEXPORTED-NOT: aliasNotExported
-; NOTEXPORTED-NOT: exportedButNotDefinedVariable
-; NOTEXPORTED-NOT: exportedButNotDefinedFunction
+; NOTEXPORTED-NOT: :notExported
+; NOTEXPORTED-NOT: :aliasNotExported
+; NOTEXPORTED-NOT: :exportedButNotDefinedVariable
+; NOTEXPORTED-NOT: :exportedButNotDefinedFunction
 
 ; CHECK: .section .drectve
 ; WIN32: .ascii " /EXPORT:f1"
@@ -130,3 +102,35 @@ entry:
 ; MINGW: .ascii " -export:alias3"
 ; MINGW: .ascii " -export:weak_alias"
 ; MINGW: .ascii " -export:blob_alias"
+
+; CHECK: .globl alias
+; CHECK: .set alias, notExported
+@alias = dllexport alias void(), void()* @notExported
+
+; CHECK: .globl aliasNotExported
+; CHECK: .set aliasNotExported, f1
+@aliasNotExported = alias void(), void()* @f1
+
+; CHECK: .globl alias2
+; CHECK: .set alias2, f1
+@alias2 = dllexport alias void(), void()* @f1
+
+; CHECK: .globl alias3
+; CHECK: .set alias3, notExported
+@alias3 = dllexport alias void(), void()* @notExported
+
+; CHECK: .weak weak_alias
+; CHECK: .set weak_alias, f1
+@weak_alias = weak_odr dllexport alias void(), void()* @f1
+
+@blob = global [6 x i8] c"\B8*\00\00\00\C3", section ".text", align 16
+@blob_alias = dllexport alias i32 (), bitcast ([6 x i8]* @blob to i32 ()*)
+
+@exportedButNotDefinedVariable = external dllexport global i32
+declare dllexport void @exportedButNotDefinedFunction()
+define void @foo() {
+entry:
+  store i32 4, i32* @exportedButNotDefinedVariable, align 4
+  call void @exportedButNotDefinedFunction()
+  ret void
+}

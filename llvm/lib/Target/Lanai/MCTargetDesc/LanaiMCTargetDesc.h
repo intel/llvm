@@ -22,17 +22,11 @@ class MCAsmBackend;
 class MCCodeEmitter;
 class MCContext;
 class MCInstrInfo;
-class MCInstrAnalysis;
 class MCObjectTargetWriter;
-class MCRelocationInfo;
 class MCSubtargetInfo;
 class Target;
-class Triple;
-class StringRef;
-class raw_pwrite_stream;
 
 MCCodeEmitter *createLanaiMCCodeEmitter(const MCInstrInfo &MCII,
-                                        const MCRegisterInfo &MRI,
                                         MCContext &Ctx);
 
 MCAsmBackend *createLanaiAsmBackend(const Target &T, const MCSubtargetInfo &STI,

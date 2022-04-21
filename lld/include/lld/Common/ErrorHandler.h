@@ -59,7 +59,7 @@
 //
 // warn() doesn't do anything but printing out a given message.
 //
-// It is not recommended to use llvm::outs() or llvm::errs() directly in lld
+// It is not recommended to use llvm::outs() or lld::errs() directly in lld
 // because they are not thread-safe. The functions declared in this file are
 // thread-safe.
 //
@@ -73,83 +73,125 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileOutputBuffer.h"
+#include <mutex>
 
 namespace llvm {
 class DiagnosticInfo;
+class raw_ostream;
 }
 
 namespace lld {
 
+llvm::raw_ostream &outs();
+llvm::raw_ostream &errs();
+
+enum class ErrorTag { LibNotFound, SymbolNotFound };
+
 class ErrorHandler {
 public:
-  uint64_t ErrorCount = 0;
-  uint64_t ErrorLimit = 20;
-  StringRef ErrorLimitExceededMsg = "too many errors emitted, stopping now";
-  StringRef LogName = "lld";
-  llvm::raw_ostream *ErrorOS = &llvm::errs();
-  bool ColorDiagnostics = llvm::errs().has_colors();
-  bool ExitEarly = true;
-  bool FatalWarnings = false;
-  bool Verbose = false;
+  ~ErrorHandler();
 
-  void error(const Twine &Msg);
-  LLVM_ATTRIBUTE_NORETURN void fatal(const Twine &Msg);
-  void log(const Twine &Msg);
-  void message(const Twine &Msg);
-  void warn(const Twine &Msg);
+  void initialize(llvm::raw_ostream &stdoutOS, llvm::raw_ostream &stderrOS,
+                  bool exitEarly, bool disableOutput);
 
-  std::unique_ptr<llvm::FileOutputBuffer> OutputBuffer;
+  uint64_t errorCount = 0;
+  uint64_t errorLimit = 20;
+  StringRef errorLimitExceededMsg = "too many errors emitted, stopping now";
+  StringRef errorHandlingScript;
+  StringRef logName = "lld";
+  bool exitEarly = true;
+  bool fatalWarnings = false;
+  bool verbose = false;
+  bool vsDiagnostics = false;
+  bool disableOutput = false;
+  std::function<void()> cleanupCallback;
+
+  void error(const Twine &msg);
+  void error(const Twine &msg, ErrorTag tag, ArrayRef<StringRef> args);
+  [[noreturn]] void fatal(const Twine &msg);
+  void log(const Twine &msg);
+  void message(const Twine &msg, llvm::raw_ostream &s);
+  void warn(const Twine &msg);
+
+  raw_ostream &outs();
+  raw_ostream &errs();
+  void flushStreams();
+
+  std::unique_ptr<llvm::FileOutputBuffer> outputBuffer;
 
 private:
-  void print(StringRef S, raw_ostream::Colors C);
+  using Colors = raw_ostream::Colors;
+
+  std::string getLocation(const Twine &msg);
+  void reportDiagnostic(StringRef location, Colors c, StringRef diagKind,
+                        const Twine &msg);
+
+  // We want to separate multi-line messages with a newline. `sep` is "\n"
+  // if the last messages was multi-line. Otherwise "".
+  llvm::StringRef sep;
+
+  // We wrap stdout and stderr so that you can pass alternative stdout/stderr as
+  // arguments to lld::*::link() functions. Since lld::outs() or lld::errs() can
+  // be indirectly called from multiple threads, we protect them using a mutex.
+  // In the future, we plan on supporting several concurent linker contexts,
+  // which explains why the mutex is not a global but part of this context.
+  std::mutex mu;
+  llvm::raw_ostream *stdoutOS{};
+  llvm::raw_ostream *stderrOS{};
 };
 
 /// Returns the default error handler.
 ErrorHandler &errorHandler();
 
-inline void error(const Twine &Msg) { errorHandler().error(Msg); }
-inline LLVM_ATTRIBUTE_NORETURN void fatal(const Twine &Msg) {
-  errorHandler().fatal(Msg);
-}
-inline void log(const Twine &Msg) { errorHandler().log(Msg); }
-inline void message(const Twine &Msg) { errorHandler().message(Msg); }
-inline void warn(const Twine &Msg) { errorHandler().warn(Msg); }
-inline uint64_t errorCount() { return errorHandler().ErrorCount; }
+void error(const Twine &msg);
+void error(const Twine &msg, ErrorTag tag, ArrayRef<StringRef> args);
+[[noreturn]] void fatal(const Twine &msg);
+void log(const Twine &msg);
+void message(const Twine &msg, llvm::raw_ostream &s = outs());
+void warn(const Twine &msg);
+uint64_t errorCount();
 
-LLVM_ATTRIBUTE_NORETURN void exitLld(int Val);
+[[noreturn]] void exitLld(int val);
 
-void diagnosticHandler(const llvm::DiagnosticInfo &DI);
-void checkError(Error E);
+void diagnosticHandler(const llvm::DiagnosticInfo &di);
+void checkError(Error e);
 
 // check functions are convenient functions to strip errors
 // from error-or-value objects.
-template <class T> T check(ErrorOr<T> E) {
-  if (auto EC = E.getError())
-    fatal(EC.message());
-  return std::move(*E);
+template <class T> T check(ErrorOr<T> e) {
+  if (auto ec = e.getError())
+    fatal(ec.message());
+  return std::move(*e);
 }
 
-template <class T> T check(Expected<T> E) {
-  if (!E)
-    fatal(llvm::toString(E.takeError()));
-  return std::move(*E);
+template <class T> T check(Expected<T> e) {
+  if (!e)
+    fatal(llvm::toString(e.takeError()));
+  return std::move(*e);
+}
+
+// Don't move from Expected wrappers around references.
+template <class T> T &check(Expected<T &> e) {
+  if (!e)
+    fatal(llvm::toString(e.takeError()));
+  return *e;
 }
 
 template <class T>
-T check2(ErrorOr<T> E, llvm::function_ref<std::string()> Prefix) {
-  if (auto EC = E.getError())
-    fatal(Prefix() + ": " + EC.message());
-  return std::move(*E);
+T check2(ErrorOr<T> e, llvm::function_ref<std::string()> prefix) {
+  if (auto ec = e.getError())
+    fatal(prefix() + ": " + ec.message());
+  return std::move(*e);
 }
 
 template <class T>
-T check2(Expected<T> E, llvm::function_ref<std::string()> Prefix) {
-  if (!E)
-    fatal(Prefix() + ": " + toString(E.takeError()));
-  return std::move(*E);
+T check2(Expected<T> e, llvm::function_ref<std::string()> prefix) {
+  if (!e)
+    fatal(prefix() + ": " + toString(e.takeError()));
+  return std::move(*e);
 }
 
-inline std::string toString(const Twine &S) { return S.str(); }
+inline std::string toString(const Twine &s) { return s.str(); }
 
 // To evaluate the second argument lazily, we use C macro.
 #define CHECK(E, S) check2((E), [&] { return toString(S); })

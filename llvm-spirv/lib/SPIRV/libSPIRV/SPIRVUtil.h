@@ -43,6 +43,8 @@
 #include <ostream>
 #define spv_ostream std::ostream
 
+#include "llvm/Support/raw_ostream.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -75,6 +77,8 @@ static llvm::sys::Mutex MapLock;
     return MT;                                                                 \
   }
 
+constexpr unsigned MaxWordCount = UINT16_MAX;
+
 // A bi-way map
 template <class Ty1, class Ty2, class Identifier = void> struct SPIRVMap {
 public:
@@ -84,7 +88,7 @@ public:
   void init();
 
   static Ty2 map(Ty1 Key) {
-    Ty2 Val;
+    Ty2 Val = {};
     bool Found = find(Key, &Val);
     (void)Found;
     assert(Found && "Invalid key");
@@ -92,7 +96,7 @@ public:
   }
 
   static Ty1 rmap(Ty2 Key) {
-    Ty1 Val;
+    Ty1 Val = {};
     bool Found = rfind(Key, &Val);
     (void)Found;
     assert(Found && "Invalid key");
@@ -343,6 +347,18 @@ inline std::string getString(const std::vector<uint32_t> &V) {
   return getString(V.cbegin(), V.cend());
 }
 
+// if vector of Literals is expected to contain more than one Literal String
+inline std::vector<std::string> getVecString(const std::vector<uint32_t> &V) {
+  std::vector<std::string> Result;
+  std::string Str;
+  for (auto It = V.cbegin(); It < V.cend(); It += getSizeInWords(Str)) {
+    Str.clear();
+    Str = getString(It, V.cend());
+    Result.push_back(Str);
+  }
+  return Result;
+}
+
 inline std::vector<uint32_t> getVec(const std::string &Str) {
   std::vector<uint32_t> V;
   auto StrSize = Str.size();
@@ -406,6 +422,16 @@ getOrInsert(MapTy &Map, typename MapTy::key_type Key, FuncTy Func) {
   typename MapTy::mapped_type NF = Func();
   Map[Key] = NF;
   return NF;
+}
+
+template <typename T> std::string toString(const T *Object) {
+  if (Object == nullptr)
+    return "";
+  std::string S;
+  llvm::raw_string_ostream RSOS(S);
+  Object->print(RSOS);
+  RSOS.flush();
+  return S;
 }
 
 } // namespace SPIRV

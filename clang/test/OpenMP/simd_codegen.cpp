@@ -1,25 +1,47 @@
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s
-// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm %s -o - | FileCheck %s --check-prefix=TERM_DEBUG
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fopenmp-version=45 | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t %s -fopenmp-version=45
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=45 | FileCheck %s
+// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm %s -o - -fopenmp-version=45 | FileCheck %s --check-prefix=TERM_DEBUG
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fopenmp-version=50 -DOMP5 | FileCheck %s --check-prefix=CHECK --check-prefix=OMP50 --check-prefix=OMP50RT
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t %s -fopenmp-version=50 -DOMP5
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 -DOMP5 | FileCheck %s --check-prefix=CHECK --check-prefix=OMP50 --check-prefix=OMP50RT
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - | FileCheck %s
-// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s
-// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp-simd -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm %s -o - | FileCheck --check-prefix=TERM_DEBUG %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fopenmp-version=45 | FileCheck %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t %s -fopenmp-version=45
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=45 | FileCheck %s
+// RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp-simd -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm %s -o - -fopenmp-version=45 | FileCheck --check-prefix=TERM_DEBUG %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fopenmp-version=50 -DOMP5 | FileCheck %s --check-prefix=CHECK --check-prefix=OMP50
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t %s -fopenmp-version=50 -DOMP5
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -debug-info-kind=limited -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 -DOMP5 | FileCheck %s --check-prefix=CHECK --check-prefix=OMP50
 // expected-no-diagnostics
  #ifndef HEADER
  #define HEADER
 
+#ifdef OMP5
+#define CONDITIONAL conditional :
+#else
+#define CONDITIONAL
+#endif //OMP5
 // CHECK: [[SS_TY:%.+]] = type { i32 }
+// OMP50-DAG: [[LAST_IV:@.+]] = {{.*}}common global i64 0
+// OMP50-DAG: [[LAST_A:@.+]] = {{.*}}common global i32 0
 
-long long get_val() { return 0; }
+long long get_val() { extern void mayThrow(); mayThrow(); return 0; }
 double *g_ptr;
 
-// CHECK-LABEL: define {{.*void}} @{{.*}}simple{{.*}}(float* {{.+}}, float* {{.+}}, float* {{.+}}, float* {{.+}})
+struct S {
+  int a, b;
+};
+
+// CHECK-LABEL: define {{.*void}} @{{.*}}simple{{.*}}(float* noundef {{.+}}, float* noundef {{.+}}, float* noundef {{.+}}, float* noundef {{.+}})
 void simple(float *a, float *b, float *c, float *d) {
+  S s, *p;
+#ifdef OMP5
+  #pragma omp simd if (simd: true) nontemporal(a, b, c, d, s)
+#else
   #pragma omp simd
-// CHECK: store i32 0, i32* [[OMP_IV:%[^,]+]]
+#endif
+  // CHECK: store i32 0, i32* [[OMP_IV:%[^,]+]]
 
 // CHECK: [[IV:%.+]] = load i32, i32* [[OMP_IV]]{{.*}}!llvm.access.group
 // CHECK-NEXT: [[CMP:%.+]] = icmp slt i32 [[IV]], 6
@@ -33,8 +55,17 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK-NEXT: store i32 [[CALC_I_2]], i32* [[LC_I:.+]]{{.*}}!llvm.access.group
 // ... loop body ...
 // End of body: store into a[i]:
+// OMP45-NOT: load float*,{{.*}}!nontemporal
+// CHECK-NOT: load float,{{.*}}!nontemporal
+// OMP50: load float*,{{.*}}!nontemporal
+// OMP50: load float*,{{.*}}!nontemporal
+// OMP50: load float*,{{.*}}!nontemporal
+// OMP50: load i32,{{.*}}!nontemporal
+// OMP50-NOT: load i32,{{.*}}!nontemporal
+// OMP50: load float*,{{.*}}!nontemporal
+// CHECK-NOT: load float,{{.*}}!nontemporal
 // CHECK: store float [[RESULT:%.+]], float* {{%.+}}{{.*}}!llvm.access.group
-    a[i] = b[i] * c[i] * d[i];
+    a[i] = b[i] * c[i] * d[i] + s.a + p->a;
 // CHECK: [[IV1_2:%.+]] = load i32, i32* [[OMP_IV]]{{.*}}!llvm.access.group
 // CHECK-NEXT: [[ADD1_2:%.+]] = add nsw i32 [[IV1_2]], 1
 // CHECK-NEXT: store i32 [[ADD1_2]], i32* [[OMP_IV]]{{.*}}!llvm.access.group
@@ -80,9 +111,8 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK: [[SIMPLE_LOOP2_END]]:
 //
 // Update linear vars after loop, as the loop was operating on a private version.
-// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[LIN0]]
-// CHECK-NEXT: [[LIN_ADD2:%.+]] = add nsw i64 [[LIN0_2]], 27
-// CHECK-NEXT: store i64 [[LIN_ADD2]], i64* [[K_VAR]]
+// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[K_PRIVATIZED]],
+// CHECK-NEXT: store i64 [[LIN0_2]], i64* [[K_VAR]]
 //
 
   int lin = 12;
@@ -116,6 +146,7 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK: [[LINSTART:.+]] = load i32, i32* [[LIN_START]]{{.*}}!llvm.access.group
 // CHECK: [[LINSTEP:.+]] = load i64, i64* [[LIN_STEP]]{{.*}}!llvm.access.group
 // CHECK-NOT: store i32 {{.+}}, i32* [[LIN_VAR]],{{.*}}!llvm.access.group
+// CHECK: store i32 {{.+}}, i32* [[LIN_PRIV:%.+]],{{.*}}!llvm.access.group
 // CHECK: [[GLINSTART:.+]] = load double*, double** [[GLIN_START]]{{.*}}!llvm.access.group
 // CHECK-NEXT: [[IV3_1:%.+]] = load i64, i64* [[OMP_IV3]]{{.*}}!llvm.access.group
 // CHECK-NEXT: [[MUL:%.+]] = mul i64 [[IV3_1]], 1
@@ -134,11 +165,10 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK: [[SIMPLE_LOOP3_END]]:
 //
 // Linear start and step are used to calculate final value of the linear variables.
-// CHECK: [[LINSTART:.+]] = load i32, i32* [[LIN_START]]
-// CHECK: [[LINSTEP:.+]] = load i64, i64* [[LIN_STEP]]
-// CHECK: store i32 {{.+}}, i32* [[LIN_VAR]],
-// CHECK: [[GLINSTART:.+]] = load double*, double** [[GLIN_START]]
-// CHECK: store double* {{.*}}[[GLIN_VAR]]
+// CHECK: [[LIN:%.+]] = load i32, i32* [[LIN_PRIV]]
+// CHECK-NEXT: store i32 [[LIN]], i32* [[LIN_VAR]],
+// CHECK: [[GLIN:%.+]] = load double*, double** [[G_PTR_CUR]]
+// CHECK-NEXT: store double* [[GLIN]], double** [[GLIN_VAR]]
 
   #pragma omp simd
 // CHECK: store i32 0, i32* [[OMP_IV4:%[^,]+]]
@@ -190,7 +220,7 @@ void simple(float *a, float *b, float *c, float *d) {
   int A;
   // CHECK: store i32 -1, i32* [[A:%.+]],
   A = -1;
-  #pragma omp simd lastprivate(A)
+  #pragma omp simd lastprivate(CONDITIONAL A)
 // CHECK: store i64 0, i64* [[OMP_IV7:%[^,]+]]
 // CHECK: br label %[[SIMD_LOOP7_COND:[^,]+]]
 // CHECK: [[SIMD_LOOP7_COND]]:
@@ -205,15 +235,32 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK-NEXT: [[LC_IT_2:%.+]] = add nsw i64 -10, [[LC_IT_1]]
 // CHECK-NEXT: store i64 [[LC_IT_2]], i64* [[LC:%[^,]+]],{{.+}}!llvm.access.group
 // CHECK-NEXT: [[LC_VAL:%.+]] = load i64, i64* [[LC]]{{.+}}!llvm.access.group
-// CHECK-NEXT: [[CONV:%.+]] = trunc i64 [[LC_VAL]] to i32
-// CHECK-NEXT: store i32 [[CONV]], i32* [[A_PRIV:%[^,]+]],{{.+}}!llvm.access.group
-    A = i;
+// CHECK-NEXT: [[A_VAL:%.+]] = load i32, i32* [[A_PRIV:%[^,]+]],{{.+}}!llvm.access.group
+// CHECK-NEXT: [[CAST:%.+]] = sext i32 [[A_VAL]] to i64
+// CHECK-NEXT: [[ADD:%.+]] = add nsw i64 [[CAST]], [[LC_VAL]]
+// CHECK-NEXT: [[CONV:%.+]] = trunc i64 [[ADD]] to i32
+// CHECK-NEXT: store i32 [[CONV]], i32* [[A_PRIV]],{{.+}}!llvm.access.group
+// OMP50-NEXT: [[IV:%.+]] = load i64, i64* [[OMP_IV7]],{{.+}}!llvm.access.group
+// OMP50RT:    call void @__kmpc_critical(%struct.ident_t* {{.+}}, i32 [[GTID:%.+]], [8 x i32]* [[A_REGION:@.+]]),{{.+}}!llvm.access.group
+// OMP50-NEXT: [[LAST_IV_VAL:%.+]] = load i64, i64* [[LAST_IV]],{{.+}}!llvm.access.group
+// OMP50-NEXT: [[CMP:%.+]] = icmp sle i64 [[LAST_IV_VAL]], [[IV]]
+// OMP50-NEXT: br i1 [[CMP]], label %[[LP_THEN:.+]], label %[[LP_DONE:[^,]+]]
+// OMP50:      [[LP_THEN]]:
+// OMP50-NEXT: store i64 [[IV]], i64* [[LAST_IV]],{{.+}}!llvm.access.group
+// OMP50-NEXT: [[A_VAL:%.+]] = load i32, i32* [[A_PRIV]],{{.+}}!llvm.access.group
+// OMP50-NEXT: store i32 [[A_VAL]], i32* [[LAST_A]],{{.+}}!llvm.access.group
+// OMP50-NEXT: br label %[[LP_DONE]]
+// OMP50:      [[LP_DONE]]:
+// OMP50RT-NEXT: call void @__kmpc_end_critical(%struct.ident_t* {{.+}}, i32 [[GTID]], [8 x i32]* [[A_REGION]]),{{.+}}!llvm.access.group
+    A += i;
 // CHECK: [[IV7_2:%.+]] = load i64, i64* [[OMP_IV7]]{{.*}}!llvm.access.group
 // CHECK-NEXT: [[ADD7_2:%.+]] = add nsw i64 [[IV7_2]], 1
 // CHECK-NEXT: store i64 [[ADD7_2]], i64* [[OMP_IV7]]{{.*}}!llvm.access.group
   }
 // CHECK: [[SIMPLE_LOOP7_END]]:
 // CHECK-NEXT: store i64 11, i64*
+// OMP50-NEXT: [[LAST_A_VAL:%.+]] = load i32, i32* [[LAST_A]],
+// OMP50-NEXT: store i32 [[LAST_A_VAL]], i32* [[A_PRIV]],
 // CHECK-NEXT: [[A_PRIV_VAL:%.+]] = load i32, i32* [[A_PRIV]],
 // CHECK-NEXT: store i32 [[A_PRIV_VAL]], i32* [[A]],
   int R;
@@ -221,7 +268,16 @@ void simple(float *a, float *b, float *c, float *d) {
   R = -1;
 // CHECK: store i64 0, i64* [[OMP_IV8:%[^,]+]],
 // CHECK: store i32 1, i32* [[R_PRIV:%[^,]+]],
+#ifdef OMP5
+  #pragma omp simd reduction(*:R) if(A)
+#else
   #pragma omp simd reduction(*:R)
+#endif
+// OMP50:      [[A_VAL:%.+]] = load i32, i32* [[A]],
+// OMP50-NEXT: [[COND:%.+]] = icmp ne i32 [[A_VAL]], 0
+// OMP50-NEXT: br i1 [[COND]], label {{%?}}[[THEN:[^,]+]], label {{%?}}[[ELSE:[^,]+]]
+// OMP50:      [[THEN]]:
+
 // CHECK: br label %[[SIMD_LOOP8_COND:[^,]+]]
 // CHECK: [[SIMD_LOOP8_COND]]:
 // CHECK-NEXT: [[IV8:%.+]] = load i64, i64* [[OMP_IV8]]{{.*}}!llvm.access.group
@@ -242,6 +298,28 @@ void simple(float *a, float *b, float *c, float *d) {
 // CHECK-NEXT: store i64 [[ADD8_2]], i64* [[OMP_IV8]]{{.*}}!llvm.access.group
   }
 // CHECK: [[SIMPLE_LOOP8_END]]:
+// OMP50: br label {{%?}}[[EXIT:[^,]+]]
+// OMP50: br label %[[SIMD_LOOP8_COND:[^,]+]]
+// OMP50: [[SIMD_LOOP8_COND]]:
+// OMP50-NEXT: [[IV8:%.+]] = load i64, i64* [[OMP_IV8]],{{[^!]*}}
+// OMP50-NEXT: [[CMP8:%.+]] = icmp slt i64 [[IV8]], 7
+// OMP50-NEXT: br i1 [[CMP8]], label %[[SIMPLE_LOOP8_BODY:.+]], label %[[SIMPLE_LOOP8_END:[^,]+]]
+// OMP50: [[SIMPLE_LOOP8_BODY]]:
+// Start of body: calculate i from IV:
+// OMP50: [[IV8_0:%.+]] = load i64, i64* [[OMP_IV8]],{{[^!]*}}
+// OMP50-NEXT: [[LC_IT_1:%.+]] = mul nsw i64 [[IV8_0]], 3
+// OMP50-NEXT: [[LC_IT_2:%.+]] = add nsw i64 -10, [[LC_IT_1]]
+// OMP50-NEXT: store i64 [[LC_IT_2]], i64* [[LC:%[^,]+]],{{[^!]*}}
+// OMP50-NEXT: [[LC_VAL:%.+]] = load i64, i64* [[LC]],{{[^!]*}}
+// OMP50: store i32 %{{.+}}, i32* [[R_PRIV]],{{[^!]*}}
+// OMP50: [[IV8_2:%.+]] = load i64, i64* [[OMP_IV8]],{{[^!]*}}
+// OMP50-NEXT: [[ADD8_2:%.+]] = add nsw i64 [[IV8_2]], 1
+// OMP50-NEXT: store i64 [[ADD8_2]], i64* [[OMP_IV8]],{{[^!]*}}
+// OMP50:      br label {{%?}}[[SIMD_LOOP8_COND]], {{.*}}!llvm.loop ![[DISABLE_VECT:.+]]
+// OMP50: [[SIMPLE_LOOP8_END]]:
+// OMP50: br label {{%?}}[[EXIT]]
+// OMP50: [[EXIT]]:
+
 // CHECK-DAG: [[R_VAL:%.+]] = load i32, i32* [[R]],
 // CHECK-DAG: [[R_PRIV_VAL:%.+]] = load i32, i32* [[R_PRIV]],
 // CHECK: [[RED:%.+]] = mul nsw i32 [[R_VAL]], [[R_PRIV_VAL]]
@@ -263,7 +341,7 @@ int templ1(T a, T *z) {
 }
 
 // Instatiation templ1<float,2>
-// CHECK-LABEL: define {{.*i32}} @{{.*}}templ1{{.*}}(float {{.+}}, float* {{.+}})
+// CHECK-LABEL: define {{.*i32}} @{{.*}}templ1{{.*}}(float noundef {{.+}}, float* noundef {{.+}})
 // CHECK: store i64 0, i64* [[T1_OMP_IV:[^,]+]]
 // ...
 // CHECK: [[IV:%.+]] = load i64, i64* [[T1_OMP_IV]]{{.*}}!llvm.access.group
@@ -540,7 +618,7 @@ void widened(float *a, float *b, float *c, float *d) {
 // CHECK: ret void
 }
 
-// CHECK-LABEL: define {{.*void}} @{{.*}}linear{{.*}}(float* {{.+}})
+// CHECK-LABEL: define {{.*void}} @{{.*}}linear{{.*}}(float* noundef {{.+}})
 void linear(float *a) {
   // CHECK: [[VAL_ADDR:%.+]] = alloca i64,
   // CHECK: [[K_ADDR:%.+]] = alloca i64*,
@@ -587,10 +665,9 @@ void linear(float *a) {
 // Update linear vars after loop, as the loop was operating on a private version.
 // CHECK: [[K_REF:%.+]] = load i64*, i64** [[K_ADDR_REF]],
 // CHECK: store i64* [[K_REF]], i64** [[K_PRIV_REF:%.+]],
-// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[LIN0]]
-// CHECK-NEXT: [[LIN_ADD2:%.+]] = add nsw i64 [[LIN0_2]], 27
+// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[K_PRIVATIZED]]
 // CHECK-NEXT: [[K_REF:%.+]] = load i64*, i64** [[K_PRIV_REF]],
-// CHECK-NEXT: store i64 [[LIN_ADD2]], i64* [[K_REF]]
+// CHECK-NEXT: store i64 [[LIN0_2]], i64* [[K_REF]]
 //
 
   #pragma omp simd linear(val(k) : 3)
@@ -632,10 +709,9 @@ void linear(float *a) {
 // Update linear vars after loop, as the loop was operating on a private version.
 // CHECK: [[K_REF:%.+]] = load i64*, i64** [[K_ADDR_REF]],
 // CHECK: store i64* [[K_REF]], i64** [[K_PRIV_REF:%.+]],
-// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[LIN0]]
-// CHECK-NEXT: [[LIN_ADD2:%.+]] = add nsw i64 [[LIN0_2]], 27
+// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[K_PRIVATIZED]]
 // CHECK-NEXT: [[K_REF:%.+]] = load i64*, i64** [[K_PRIV_REF]],
-// CHECK-NEXT: store i64 [[LIN_ADD2]], i64* [[K_REF]]
+// CHECK-NEXT: store i64 [[LIN0_2]], i64* [[K_REF]]
 //
   #pragma omp simd linear(uval(k) : 3)
 // CHECK: store i32 0, i32* [[OMP_IV:%[^,]+]]
@@ -671,21 +747,61 @@ void linear(float *a) {
 // CHECK: [[SIMPLE_LOOP_END]]:
 //
 // Update linear vars after loop, as the loop was operating on a private version.
-// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[LIN0]]
-// CHECK-NEXT: [[LIN_ADD2:%.+]] = add nsw i64 [[LIN0_2]], 27
-// CHECK-NEXT: store i64 [[LIN_ADD2]], i64* [[VAL_ADDR]]
+// CHECK: [[LIN0_2:%.+]] = load i64, i64* [[K_PRIVATIZED]]
+// CHECK-NEXT: store i64 [[LIN0_2]], i64* [[VAL_ADDR]]
 //
 }
 
+#ifdef OMP5
+// OMP50-LABEL: inner_simd
+void inner_simd() {
+  double a, b;
+#pragma omp simd nontemporal(a)
+  for (int i = 0; i < 10; ++i) {
+#pragma omp simd nontemporal(b)
+    for (int k = 0; k < 10; ++k) {
+      // OMP50: load double,{{.*}}!nontemporal
+      // OMP50: store double{{.*}}!nontemporal
+      a = b;
+    }
+    // OMP50-NOT: load double,{{.*}}!nontemporal
+    // OMP50: load double,
+    // OMP50: store double{{.*}}!nontemporal
+    a = b;
+  }
+}
+
+extern struct T t;
+struct Base {
+  float a;
+};
+struct T : public Base {
+  void foo() {
+#pragma omp simd nontemporal(Base::a)
+    for (int i = 0; i < 10; ++i) {
+    // OMP50: store float{{.*}}!nontemporal
+    // OMP50-NOT: nontemporal
+    // OMP50-NEXT: store float
+      Base::a = 0;
+      t.a = 0;
+    }
+  }
+} t;
+
+void bartfoo() {
+  t.foo();
+}
+
+#endif // OMP5
 // TERM_DEBUG-LABEL: bar
-int bar() {return 0;};
+int bar() { extern void mayThrow(); mayThrow(); return 0; };
 
 // TERM_DEBUG-LABEL: parallel_simd
 void parallel_simd(float *a) {
 #pragma omp parallel
 #pragma omp simd
   // TERM_DEBUG-NOT: __kmpc_global_thread_num
-  // TERM_DEBUG:     invoke i32 {{.*}}bar{{.*}}()
+  // TERM_DEBUG:     invoke noundef i32 {{.*}}bar{{.*}}()
   // TERM_DEBUG:     unwind label %[[TERM_LPAD:[^,]+]],
   // TERM_DEBUG-NOT: __kmpc_global_thread_num
   // TERM_DEBUG:     [[TERM_LPAD]]
@@ -697,25 +813,9 @@ void parallel_simd(float *a) {
 // TERM_DEBUG: !{{[0-9]+}} = !DILocation(line: [[@LINE-11]],
 
 // CHECK-LABEL: S8
-// CHECK-DAG: ptrtoint [[SS_TY]]* %{{.+}} to i64
-// CHECK-DAG: ptrtoint [[SS_TY]]* %{{.+}} to i64
-// CHECK-DAG: ptrtoint [[SS_TY]]* %{{.+}} to i64
-// CHECK-DAG: ptrtoint [[SS_TY]]* %{{.+}} to i64
-
-// CHECK-DAG: and i64 %{{.+}}, 15
-// CHECK-DAG: icmp eq i64 %{{.+}}, 0
 // CHECK-DAG: call void @llvm.assume(i1
-
-// CHECK-DAG: and i64 %{{.+}}, 7
-// CHECK-DAG: icmp eq i64 %{{.+}}, 0
 // CHECK-DAG: call void @llvm.assume(i1
-
-// CHECK-DAG: and i64 %{{.+}}, 15
-// CHECK-DAG: icmp eq i64 %{{.+}}, 0
 // CHECK-DAG: call void @llvm.assume(i1
-
-// CHECK-DAG: and i64 %{{.+}}, 3
-// CHECK-DAG: icmp eq i64 %{{.+}}, 0
 // CHECK-DAG: call void @llvm.assume(i1
 struct SS {
   SS(): a(0) {}
@@ -761,6 +861,7 @@ S8 s8(0);
 
 // TERM_DEBUG-NOT: line: 0,
 // TERM_DEBUG: distinct !DISubprogram(linkageName: "_GLOBAL__sub_I_simd_codegen.cpp",
-
+// OMP50-DAG: ![[NOVECT:.+]] = !{!"llvm.loop.vectorize.enable", i1 false}
+// OMP50-DAG: ![[DISABLE_VECT]] = distinct !{{.*}}![[NOVECT]]{{[,}]}}
 #endif // HEADER
 

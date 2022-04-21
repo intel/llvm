@@ -1,4 +1,4 @@
-//===-- LibcGlue.cpp --------------------------------------------*- C++ -*-===//
+//===-- LibcGlue.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,8 +14,8 @@
 
 #if __ANDROID_API__ < 21
 
+#include <csignal>
 #include <fcntl.h>
-#include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 

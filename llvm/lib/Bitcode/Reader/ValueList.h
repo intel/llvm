@@ -21,12 +21,14 @@
 namespace llvm {
 
 class Constant;
+class Error;
 class LLVMContext;
 class Type;
 class Value;
 
 class BitcodeReaderValueList {
-  std::vector<WeakTrackingVH> ValuePtrs;
+  /// Maps Value ID to pair of Value* and Type ID.
+  std::vector<std::pair<WeakTrackingVH, unsigned>> ValuePtrs;
 
   /// As we resolve forward-referenced constants, we add information about them
   /// to this vector.  This allows us to resolve them in bulk instead of
@@ -39,8 +41,15 @@ class BitcodeReaderValueList {
   ResolveConstantsTy ResolveConstants;
   LLVMContext &Context;
 
+  /// Maximum number of valid references. Forward references exceeding the
+  /// maximum must be invalid.
+  unsigned RefsUpperBound;
+
 public:
-  BitcodeReaderValueList(LLVMContext &C) : Context(C) {}
+  BitcodeReaderValueList(LLVMContext &C, size_t RefsUpperBound)
+      : Context(C),
+        RefsUpperBound(std::min((size_t)std::numeric_limits<unsigned>::max(),
+                                RefsUpperBound)) {}
 
   ~BitcodeReaderValueList() {
     assert(ResolveConstants.empty() && "Constants not resolved?");
@@ -48,8 +57,12 @@ public:
 
   // vector compatibility methods
   unsigned size() const { return ValuePtrs.size(); }
-  void resize(unsigned N) { ValuePtrs.resize(N); }
-  void push_back(Value *V) { ValuePtrs.emplace_back(V); }
+  void resize(unsigned N) {
+    ValuePtrs.resize(N);
+  }
+  void push_back(Value *V, unsigned TypeID) {
+    ValuePtrs.emplace_back(V, TypeID);
+  }
 
   void clear() {
     assert(ResolveConstants.empty() && "Constants not resolved?");
@@ -58,11 +71,18 @@ public:
 
   Value *operator[](unsigned i) const {
     assert(i < ValuePtrs.size());
-    return ValuePtrs[i];
+    return ValuePtrs[i].first;
   }
 
-  Value *back() const { return ValuePtrs.back(); }
-  void pop_back() { ValuePtrs.pop_back(); }
+  unsigned getTypeID(unsigned ValNo) const {
+    assert(ValNo < ValuePtrs.size());
+    return ValuePtrs[ValNo].second;
+  }
+
+  Value *back() const { return ValuePtrs.back().first; }
+  void pop_back() {
+    ValuePtrs.pop_back();
+  }
   bool empty() const { return ValuePtrs.empty(); }
 
   void shrinkTo(unsigned N) {
@@ -70,10 +90,10 @@ public:
     ValuePtrs.resize(N);
   }
 
-  Constant *getConstantFwdRef(unsigned Idx, Type *Ty);
-  Value *getValueFwdRef(unsigned Idx, Type *Ty);
+  Constant *getConstantFwdRef(unsigned Idx, Type *Ty, unsigned TyID);
+  Value *getValueFwdRef(unsigned Idx, Type *Ty, unsigned TyID);
 
-  void assignValue(Value *V, unsigned Idx);
+  Error assignValue(unsigned Idx, Value *V, unsigned TypeID);
 
   /// Once all constants are read, this method bulk resolves any forward
   /// references.

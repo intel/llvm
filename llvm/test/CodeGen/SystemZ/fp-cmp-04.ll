@@ -128,7 +128,7 @@ define float @f7(float %dummy, float %a, float *%dest) {
 ; CHECK: br %r14
 entry:
   %abs = call float @llvm.fabs.f32(float %a)
-  %res = fsub float -0.0, %abs
+  %res = fneg float %abs
   %cmp = fcmp olt float %res, 0.0
   br i1 %cmp, label %exit, label %store
 
@@ -147,7 +147,7 @@ define float @f8(float %dummy, float %a, float *%dest) {
 ; CHECK-NEXT: bler %r14
 ; CHECK: br %r14
 entry:
-  %res = fsub float -0.0, %a
+  %res = fneg float %a
   %cmp = fcmp ole float %res, 0.0
   br i1 %cmp, label %exit, label %store
 
@@ -370,12 +370,15 @@ exit:
 ; result.  This is what InstCombine would produce.
 define float @f18(float %dummy, float %a, float *%dest) {
 ; CHECK-LABEL: f18:
-; CHECK: lnebr %f0, %f2
-; CHECK-NEXT: blr %r14
-; CHECK: br %r14
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    lnebr %f0, %f2
+; CHECK-NEXT:    blr %r14
+; CHECK-NEXT:  .LBB17_1: # %store
+; CHECK-NEXT:    ste %f0, 0(%r2)
+; CHECK-NEXT:    br %r14
 entry:
   %abs = call float @llvm.fabs.f32(float %a)
-  %res = fsub float -0.0, %abs
+  %res = fneg float %abs
   %cmp = fcmp ogt float %abs, 0.0
   br i1 %cmp, label %exit, label %store
 
@@ -390,11 +393,14 @@ exit:
 ; Similarly for f8.
 define float @f19(float %dummy, float %a, float *%dest) {
 ; CHECK-LABEL: f19:
-; CHECK: lcebr %f0, %f2
-; CHECK-NEXT: bler %r14
-; CHECK: br %r14
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    lcebr %f0, %f2
+; CHECK-NEXT:    bler %r14
+; CHECK-NEXT:  .LBB18_1: # %store
+; CHECK-NEXT:    ste %f0, 0(%r2)
+; CHECK-NEXT:    br %r14
 entry:
-  %res = fsub float -0.0, %a
+  %res = fneg float %a
   %cmp = fcmp oge float %a, 0.0
   br i1 %cmp, label %exit, label %store
 

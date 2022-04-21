@@ -9,7 +9,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_SPECIAL_MEMBER_FUNCTIONS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_SPECIAL_MEMBER_FUNCTIONS_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 #include "llvm/ADT/DenseMapInfo.h"
 
@@ -25,11 +25,16 @@ namespace cppcoreguidelines {
 class SpecialMemberFunctionsCheck : public ClangTidyCheck {
 public:
   SpecialMemberFunctionsCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void onEndOfTranslationUnit() override;
-
+  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+    return TK_IgnoreUnlessSpelledInSource;
+  }
   enum class SpecialMemberFunctionKind : uint8_t {
     Destructor,
     DefaultDestructor,
@@ -40,19 +45,30 @@ public:
     MoveAssignment
   };
 
+  struct SpecialMemberFunctionData {
+    SpecialMemberFunctionKind FunctionKind;
+    bool IsDeleted;
+
+    bool operator==(const SpecialMemberFunctionData &Other) {
+      return (Other.FunctionKind == FunctionKind) &&
+             (Other.IsDeleted == IsDeleted);
+    }
+  };
+
   using ClassDefId = std::pair<SourceLocation, std::string>;
 
   using ClassDefiningSpecialMembersMap =
       llvm::DenseMap<ClassDefId,
-                     llvm::SmallVector<SpecialMemberFunctionKind, 5>>;
+                     llvm::SmallVector<SpecialMemberFunctionData, 5>>;
 
 private:
   void checkForMissingMembers(
       const ClassDefId &ID,
-      llvm::ArrayRef<SpecialMemberFunctionKind> DefinedSpecialMembers);
+      llvm::ArrayRef<SpecialMemberFunctionData> DefinedSpecialMembers);
 
   const bool AllowMissingMoveFunctions;
   const bool AllowSoleDefaultDtor;
+  const bool AllowMissingMoveFunctionsWhenCopyIsDeleted;
   ClassDefiningSpecialMembersMap ClassWithSpecialMembers;
 };
 
@@ -61,7 +77,7 @@ private:
 } // namespace clang
 
 namespace llvm {
-/// Specialisation of DenseMapInfo to allow ClassDefId objects in DenseMaps
+/// Specialization of DenseMapInfo to allow ClassDefId objects in DenseMaps
 /// FIXME: Move this to the corresponding cpp file as is done for
 /// clang-tidy/readability/IdentifierNamingCheck.cpp.
 template <>
@@ -71,15 +87,13 @@ struct DenseMapInfo<
       clang::tidy::cppcoreguidelines::SpecialMemberFunctionsCheck::ClassDefId;
 
   static inline ClassDefId getEmptyKey() {
-    return ClassDefId(
-        clang::SourceLocation::getFromRawEncoding(static_cast<unsigned>(-1)),
-        "EMPTY");
+    return ClassDefId(DenseMapInfo<clang::SourceLocation>::getEmptyKey(),
+                      "EMPTY");
   }
 
   static inline ClassDefId getTombstoneKey() {
-    return ClassDefId(
-        clang::SourceLocation::getFromRawEncoding(static_cast<unsigned>(-2)),
-        "TOMBSTONE");
+    return ClassDefId(DenseMapInfo<clang::SourceLocation>::getTombstoneKey(),
+                      "TOMBSTONE");
   }
 
   static unsigned getHashValue(ClassDefId Val) {
@@ -87,7 +101,7 @@ struct DenseMapInfo<
     assert(Val != getTombstoneKey() && "Cannot hash the tombstone key!");
 
     std::hash<ClassDefId::second_type> SecondHash;
-    return Val.first.getRawEncoding() + SecondHash(Val.second);
+    return Val.first.getHashValue() + SecondHash(Val.second);
   }
 
   static bool isEqual(const ClassDefId &LHS, const ClassDefId &RHS) {

@@ -36,8 +36,8 @@ protected:
 } // end anonymous namespace
 
 SystemZObjectWriter::SystemZObjectWriter(uint8_t OSABI)
-  : MCELFObjectTargetWriter(/*Is64Bit=*/true, OSABI, ELF::EM_S390,
-                            /*HasRelocationAddend=*/ true) {}
+  : MCELFObjectTargetWriter(/*Is64Bit_=*/true, OSABI, ELF::EM_S390,
+                            /*HasRelocationAddend_=*/ true) {}
 
 // Return the relocation type for an absolute value of MCFixupKind Kind.
 static unsigned getAbsoluteReloc(unsigned Kind) {
@@ -46,6 +46,8 @@ static unsigned getAbsoluteReloc(unsigned Kind) {
   case FK_Data_2: return ELF::R_390_16;
   case FK_Data_4: return ELF::R_390_32;
   case FK_Data_8: return ELF::R_390_64;
+  case SystemZ::FK_390_12: return ELF::R_390_12;
+  case SystemZ::FK_390_20: return ELF::R_390_20;
   }
   llvm_unreachable("Unsupported absolute address");
 }
@@ -117,8 +119,10 @@ unsigned SystemZObjectWriter::getRelocType(MCContext &Ctx,
                                            const MCValue &Target,
                                            const MCFixup &Fixup,
                                            bool IsPCRel) const {
-  MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
   unsigned Kind = Fixup.getKind();
+  if (Kind >= FirstLiteralRelocationKind)
+    return Kind - FirstLiteralRelocationKind;
+  MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
   switch (Modifier) {
   case MCSymbolRefExpr::VK_None:
     if (IsPCRel)
@@ -162,5 +166,5 @@ unsigned SystemZObjectWriter::getRelocType(MCContext &Ctx,
 
 std::unique_ptr<MCObjectTargetWriter>
 llvm::createSystemZObjectWriter(uint8_t OSABI) {
-  return llvm::make_unique<SystemZObjectWriter>(OSABI);
+  return std::make_unique<SystemZObjectWriter>(OSABI);
 }

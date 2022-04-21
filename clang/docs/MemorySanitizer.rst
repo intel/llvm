@@ -85,8 +85,17 @@ particular function.  MemorySanitizer may still instrument such functions to
 avoid false positives.  This attribute may not be supported by other compilers,
 so we suggest to use it together with ``__has_feature(memory_sanitizer)``.
 
-Blacklist
----------
+``__attribute__((disable_sanitizer_instrumentation))``
+--------------------------------------------------------
+
+The ``disable_sanitizer_instrumentation`` attribute can be applied to functions
+to prevent all kinds of instrumentation. As a result, it may introduce false
+positives and therefore should be used with care, and only if absolutely
+required; for example for certain code that cannot tolerate any instrumentation
+and resulting side-effects. This attribute overrides ``no_sanitize("memory")``.
+
+Ignorelist
+----------
 
 MemorySanitizer supports ``src`` and ``fun`` entity types in
 :doc:`SanitizerSpecialCaseList`, that can be used to relax MemorySanitizer
@@ -156,6 +165,7 @@ Use-after-destruction detection
 You can enable experimental use-after-destruction detection in MemorySanitizer.
 After invocation of the destructor, the object will be considered no longer
 readable, and using underlying memory will lead to error reports in runtime.
+Refer to the standard for `lifetime <https://eel.is/c++draft/basic.life#1>`_ definition.
 
 This feature is still experimental, in order to enable it at runtime you need
 to:
@@ -204,6 +214,9 @@ Limitations
   non-position-independent executables, and could fail on some Linux
   kernel versions with disabled ASLR. Refer to documentation for older versions
   for more details.
+* MemorySanitizer might be incompatible with position-independent executables
+  from FreeBSD 13 but there is a check done at runtime and throws a warning
+  in this case.
 
 Current Status
 ==============

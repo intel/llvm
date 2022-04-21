@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGINS_SYMBOLFILENATIVEPDB_PDBUTIL_H
-#define LLDB_PLUGINS_SYMBOLFILENATIVEPDB_PDBUTIL_H
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBUTIL_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBUTIL_H
 
 #include "lldb/Expression/DWARFExpression.h"
 #include "lldb/Symbol/Variable.h"
@@ -105,6 +105,7 @@ struct VariableInfo {
   llvm::codeview::TypeIndex type;
   llvm::Optional<DWARFExpression> location;
   llvm::Optional<Variable::RangeList> ranges;
+  bool is_param;
 };
 
 llvm::pdb::PDB_SymType CVSymToPDBSym(llvm::codeview::SymbolKind kind);

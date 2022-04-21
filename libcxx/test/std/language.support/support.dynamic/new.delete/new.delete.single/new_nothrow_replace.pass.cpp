@@ -10,6 +10,7 @@
 
 // UNSUPPORTED: sanitizer-new-delete
 // XFAIL: libcpp-no-vcruntime
+// XFAIL: LIBCXX-AIX-FIXME
 
 #include <new>
 #include <cstddef>
@@ -45,15 +46,16 @@ struct A
 
 int main(int, char**)
 {
+    new_called = 0;
     A *ap = new (std::nothrow) A;
     DoNotOptimize(ap);
     assert(ap);
     assert(A_constructed);
-    assert(new_called);
+    ASSERT_WITH_OPERATOR_NEW_FALLBACKS(new_called);
     delete ap;
     DoNotOptimize(ap);
     assert(!A_constructed);
-    assert(!new_called);
+    ASSERT_WITH_OPERATOR_NEW_FALLBACKS(!new_called);
 
   return 0;
 }

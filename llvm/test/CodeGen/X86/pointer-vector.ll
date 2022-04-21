@@ -117,7 +117,7 @@ define <2 x i32*> @BITCAST1(<2 x i8*>* %p) nounwind {
 ; CHECK-LABEL: BITCAST1:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    pmovzxdq {{.*#+}} xmm0 = mem[0],zero,mem[1],zero
+; CHECK-NEXT:    movsd {{.*#+}} xmm0 = mem[0],zero
 ; CHECK-NEXT:    retl
 entry:
   %G = load <2 x i8*>, <2 x i8*>* %p
@@ -133,7 +133,7 @@ define <4 x i32> @ICMP0(<4 x i8*>* %p0, <4 x i8*>* %p1) nounwind {
 ; CHECK-NEXT:    movdqa (%ecx), %xmm0
 ; CHECK-NEXT:    pcmpgtd (%eax), %xmm0
 ; CHECK-NEXT:    movaps {{.*#+}} xmm1 = [9,8,7,6]
-; CHECK-NEXT:    blendvps %xmm0, {{\.LCPI.*}}, %xmm1
+; CHECK-NEXT:    blendvps %xmm0, {{\.?LCPI[0-9]+_[0-9]+}}, %xmm1
 ; CHECK-NEXT:    movaps %xmm1, %xmm0
 ; CHECK-NEXT:    retl
 entry:
@@ -152,7 +152,7 @@ define <4 x i32> @ICMP1(<4 x i8*>* %p0, <4 x i8*>* %p1) nounwind {
 ; CHECK-NEXT:    movdqa (%ecx), %xmm0
 ; CHECK-NEXT:    pcmpeqd (%eax), %xmm0
 ; CHECK-NEXT:    movaps {{.*#+}} xmm1 = [9,8,7,6]
-; CHECK-NEXT:    blendvps %xmm0, {{\.LCPI.*}}, %xmm1
+; CHECK-NEXT:    blendvps %xmm0, {{\.?LCPI[0-9]+_[0-9]+}}, %xmm1
 ; CHECK-NEXT:    movaps %xmm1, %xmm0
 ; CHECK-NEXT:    retl
 entry:

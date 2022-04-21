@@ -62,6 +62,7 @@
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SparseBitVector.h"
@@ -76,7 +77,7 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
@@ -87,12 +88,12 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ArrayRecycler.h"
@@ -105,6 +106,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVNExpression.h"
+#include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PredicateInfo.h"
 #include "llvm/Transforms/Utils/VNCoercion.h"
 #include <algorithm>
@@ -122,6 +125,7 @@
 using namespace llvm;
 using namespace llvm::GVNExpression;
 using namespace llvm::VNCoercion;
+using namespace llvm::PatternMatch;
 
 #define DEBUG_TYPE "newgvn"
 
@@ -385,8 +389,7 @@ public:
     if (Members.size() != Other->Members.size())
       return false;
 
-    return all_of(Members,
-                  [&](const Value *V) { return Other->Members.count(V); });
+    return llvm::set_is_subset(Members, Other->Members);
   }
 
 private:
@@ -487,11 +490,12 @@ namespace {
 
 class NewGVN {
   Function &F;
-  DominatorTree *DT;
-  const TargetLibraryInfo *TLI;
-  AliasAnalysis *AA;
-  MemorySSA *MSSA;
-  MemorySSAWalker *MSSAWalker;
+  DominatorTree *DT = nullptr;
+  const TargetLibraryInfo *TLI = nullptr;
+  AliasAnalysis *AA = nullptr;
+  MemorySSA *MSSA = nullptr;
+  MemorySSAWalker *MSSAWalker = nullptr;
+  AssumptionCache *AC = nullptr;
   const DataLayout &DL;
   std::unique_ptr<PredicateInfo> PredInfo;
 
@@ -503,7 +507,7 @@ class NewGVN {
   const SimplifyQuery SQ;
 
   // Number of function arguments, used by ranking
-  unsigned int NumFuncArgs;
+  unsigned int NumFuncArgs = 0;
 
   // RPOOrdering of basic blocks
   DenseMap<const DomTreeNode *, unsigned> RPOOrdering;
@@ -514,9 +518,9 @@ class NewGVN {
   // startsout in, and represents any value. Being an optimistic analysis,
   // anything in the TOP class has the value TOP, which is indeterminate and
   // equivalent to everything.
-  CongruenceClass *TOPClass;
+  CongruenceClass *TOPClass = nullptr;
   std::vector<CongruenceClass *> CongruenceClasses;
-  unsigned NextCongruenceNum;
+  unsigned NextCongruenceNum = 0;
 
   // Value Mappings.
   DenseMap<Value *, CongruenceClass *> ValueToClass;
@@ -633,6 +637,7 @@ class NewGVN {
   BitVector TouchedInstructions;
 
   DenseMap<const BasicBlock *, std::pair<unsigned, unsigned>> BlockInstRange;
+  mutable DenseMap<const IntrinsicInst *, const Value *> IntrinsicInstPred;
 
 #ifndef NDEBUG
   // Debugging for how many times each block and instruction got processed.
@@ -655,15 +660,53 @@ public:
   NewGVN(Function &F, DominatorTree *DT, AssumptionCache *AC,
          TargetLibraryInfo *TLI, AliasAnalysis *AA, MemorySSA *MSSA,
          const DataLayout &DL)
-      : F(F), DT(DT), TLI(TLI), AA(AA), MSSA(MSSA), DL(DL),
-        PredInfo(make_unique<PredicateInfo>(F, *DT, *AC)),
-        SQ(DL, TLI, DT, AC, /*CtxI=*/nullptr, /*UseInstrInfo=*/false) {}
+      : F(F), DT(DT), TLI(TLI), AA(AA), MSSA(MSSA), AC(AC), DL(DL),
+        PredInfo(std::make_unique<PredicateInfo>(F, *DT, *AC)),
+        SQ(DL, TLI, DT, AC, /*CtxI=*/nullptr, /*UseInstrInfo=*/false,
+           /*CanUseUndef=*/false) {}
 
   bool runGVN();
 
 private:
+  /// Helper struct return a Expression with an optional extra dependency.
+  struct ExprResult {
+    const Expression *Expr;
+    Value *ExtraDep;
+    const PredicateBase *PredDep;
+
+    ExprResult(const Expression *Expr, Value *ExtraDep = nullptr,
+               const PredicateBase *PredDep = nullptr)
+        : Expr(Expr), ExtraDep(ExtraDep), PredDep(PredDep) {}
+    ExprResult(const ExprResult &) = delete;
+    ExprResult(ExprResult &&Other)
+        : Expr(Other.Expr), ExtraDep(Other.ExtraDep), PredDep(Other.PredDep) {
+      Other.Expr = nullptr;
+      Other.ExtraDep = nullptr;
+      Other.PredDep = nullptr;
+    }
+    ExprResult &operator=(const ExprResult &Other) = delete;
+    ExprResult &operator=(ExprResult &&Other) = delete;
+
+    ~ExprResult() { assert(!ExtraDep && "unhandled ExtraDep"); }
+
+    operator bool() const { return Expr; }
+
+    static ExprResult none() { return {nullptr, nullptr, nullptr}; }
+    static ExprResult some(const Expression *Expr, Value *ExtraDep = nullptr) {
+      return {Expr, ExtraDep, nullptr};
+    }
+    static ExprResult some(const Expression *Expr,
+                           const PredicateBase *PredDep) {
+      return {Expr, nullptr, PredDep};
+    }
+    static ExprResult some(const Expression *Expr, Value *ExtraDep,
+                           const PredicateBase *PredDep) {
+      return {Expr, ExtraDep, PredDep};
+    }
+  };
+
   // Expression handling.
-  const Expression *createExpression(Instruction *) const;
+  ExprResult createExpression(Instruction *) const;
   const Expression *createBinaryExpression(unsigned, Type *, Value *, Value *,
                                            Instruction *) const;
 
@@ -736,23 +779,22 @@ private:
   void valueNumberInstruction(Instruction *);
 
   // Symbolic evaluation.
-  const Expression *checkSimplificationResults(Expression *, Instruction *,
-                                               Value *) const;
-  const Expression *performSymbolicEvaluation(Value *,
-                                              SmallPtrSetImpl<Value *> &) const;
+  ExprResult checkExprResults(Expression *, Instruction *, Value *) const;
+  ExprResult performSymbolicEvaluation(Value *,
+                                       SmallPtrSetImpl<Value *> &) const;
   const Expression *performSymbolicLoadCoercion(Type *, Value *, LoadInst *,
                                                 Instruction *,
                                                 MemoryAccess *) const;
   const Expression *performSymbolicLoadEvaluation(Instruction *) const;
   const Expression *performSymbolicStoreEvaluation(Instruction *) const;
-  const Expression *performSymbolicCallEvaluation(Instruction *) const;
+  ExprResult performSymbolicCallEvaluation(Instruction *) const;
   void sortPHIOps(MutableArrayRef<ValPair> Ops) const;
   const Expression *performSymbolicPHIEvaluation(ArrayRef<ValPair>,
                                                  Instruction *I,
                                                  BasicBlock *PHIBlock) const;
   const Expression *performSymbolicAggrValueEvaluation(Instruction *) const;
-  const Expression *performSymbolicCmpEvaluation(Instruction *) const;
-  const Expression *performSymbolicPredicateInfoEvaluation(Instruction *) const;
+  ExprResult performSymbolicCmpEvaluation(Instruction *) const;
+  ExprResult performSymbolicPredicateInfoEvaluation(IntrinsicInst *) const;
 
   // Congruence finding.
   bool someEquivalentDominates(const Instruction *, const Instruction *) const;
@@ -773,6 +815,8 @@ private:
   // Ranking
   unsigned int getRank(const Value *) const;
   bool shouldSwapOperands(const Value *, const Value *) const;
+  bool shouldSwapOperandsForIntrinsic(const Value *, const Value *,
+                                      const IntrinsicInst *I) const;
 
   // Reachability handling.
   void updateReachableEdge(BasicBlock *, BasicBlock *);
@@ -795,12 +839,7 @@ private:
   Value *findPHIOfOpsLeader(const Expression *, const Instruction *,
                             const BasicBlock *) const;
 
-  // New instruction creation.
-  void handleNewInstruction(Instruction *) {}
-
   // Various instruction touch utilities
-  template <typename Map, typename KeyType, typename Func>
-  void for_each_found(Map &, const KeyType &, Func);
   template <typename Map, typename KeyType>
   void touchAndErase(Map &, const KeyType &);
   void markUsersTouched(Value *);
@@ -810,9 +849,9 @@ private:
   void markValueLeaderChangeTouched(CongruenceClass *CC);
   void markMemoryLeaderChangeTouched(CongruenceClass *CC);
   void markPhiOfOpsChanged(const Expression *E);
-  void addPredicateUsers(const PredicateBase *, Instruction *) const;
   void addMemoryUsers(const MemoryAccess *To, MemoryAccess *U) const;
   void addAdditionalUsers(Value *To, Value *User) const;
+  void addAdditionalUsers(ExprResult &Res, Instruction *User) const;
 
   // Main loop of value numbering
   void iterateTouchedInstructions();
@@ -829,7 +868,6 @@ private:
   BasicBlock *getBlockForValue(Value *V) const;
   void deleteExpression(const Expression *E) const;
   MemoryUseOrDef *getMemoryAccess(const Instruction *) const;
-  MemoryAccess *getDefiningAccess(const MemoryAccess *) const;
   MemoryPhi *getMemoryAccess(const BasicBlock *) const;
   template <class T, class Range> T *getMinDFSOfRange(const Range &) const;
 
@@ -860,7 +898,7 @@ private:
 
   // Debug counter info.  When verifying, we have to reset the value numbering
   // debug counter to the same state it started in to get the same results.
-  int64_t StartingVNCounter;
+  int64_t StartingVNCounter = 0;
 };
 
 } // end anonymous namespace
@@ -895,7 +933,7 @@ bool NewGVN::isBackedge(BasicBlock *From, BasicBlock *To) const {
 
 #ifndef NDEBUG
 static std::string getBlockName(const BasicBlock *B) {
-  return DOTGraphTraits<const Function *>::getSimpleNodeLabel(B, nullptr);
+  return DOTGraphTraits<DOTFuncInfo *>::getSimpleNodeLabel(B, nullptr);
 }
 #endif
 
@@ -1052,19 +1090,21 @@ const Expression *NewGVN::createBinaryExpression(unsigned Opcode, Type *T,
   E->op_push_back(lookupOperandLeader(Arg2));
 
   Value *V = SimplifyBinOp(Opcode, E->getOperand(0), E->getOperand(1), SQ);
-  if (const Expression *SimplifiedE = checkSimplificationResults(E, I, V))
-    return SimplifiedE;
+  if (auto Simplified = checkExprResults(E, I, V)) {
+    addAdditionalUsers(Simplified, I);
+    return Simplified.Expr;
+  }
   return E;
 }
 
 // Take a Value returned by simplification of Expression E/Instruction
 // I, and see if it resulted in a simpler expression. If so, return
 // that expression.
-const Expression *NewGVN::checkSimplificationResults(Expression *E,
-                                                     Instruction *I,
-                                                     Value *V) const {
+NewGVN::ExprResult NewGVN::checkExprResults(Expression *E, Instruction *I,
+                                            Value *V) const {
   if (!V)
-    return nullptr;
+    return ExprResult::none();
+
   if (auto *C = dyn_cast<Constant>(V)) {
     if (I)
       LLVM_DEBUG(dbgs() << "Simplified " << *I << " to "
@@ -1073,52 +1113,37 @@ const Expression *NewGVN::checkSimplificationResults(Expression *E,
     assert(isa<BasicExpression>(E) &&
            "We should always have had a basic expression here");
     deleteExpression(E);
-    return createConstantExpression(C);
+    return ExprResult::some(createConstantExpression(C));
   } else if (isa<Argument>(V) || isa<GlobalVariable>(V)) {
     if (I)
       LLVM_DEBUG(dbgs() << "Simplified " << *I << " to "
                         << " variable " << *V << "\n");
     deleteExpression(E);
-    return createVariableExpression(V);
+    return ExprResult::some(createVariableExpression(V));
   }
 
   CongruenceClass *CC = ValueToClass.lookup(V);
   if (CC) {
     if (CC->getLeader() && CC->getLeader() != I) {
-      // If we simplified to something else, we need to communicate
-      // that we're users of the value we simplified to.
-      if (I != V) {
-        // Don't add temporary instructions to the user lists.
-        if (!AllTempInstructions.count(I))
-          addAdditionalUsers(V, I);
-      }
-      return createVariableOrConstant(CC->getLeader());
+      return ExprResult::some(createVariableOrConstant(CC->getLeader()), V);
     }
     if (CC->getDefiningExpr()) {
-      // If we simplified to something else, we need to communicate
-      // that we're users of the value we simplified to.
-      if (I != V) {
-        // Don't add temporary instructions to the user lists.
-        if (!AllTempInstructions.count(I))
-          addAdditionalUsers(V, I);
-      }
-
       if (I)
         LLVM_DEBUG(dbgs() << "Simplified " << *I << " to "
                           << " expression " << *CC->getDefiningExpr() << "\n");
       NumGVNOpsSimplified++;
       deleteExpression(E);
-      return CC->getDefiningExpr();
+      return ExprResult::some(CC->getDefiningExpr(), V);
     }
   }
 
-  return nullptr;
+  return ExprResult::none();
 }
 
 // Create a value expression from the instruction I, replacing operands with
 // their leaders.
 
-const Expression *NewGVN::createExpression(Instruction *I) const {
+NewGVN::ExprResult NewGVN::createExpression(Instruction *I) const {
   auto *E = new (ExpressionAllocator) BasicExpression(I->getNumOperands());
 
   bool AllConstant = setBasicExpressionInfo(I, E);
@@ -1149,8 +1174,8 @@ const Expression *NewGVN::createExpression(Instruction *I) const {
             E->getOperand(1)->getType() == I->getOperand(1)->getType()));
     Value *V =
         SimplifyCmpInst(Predicate, E->getOperand(0), E->getOperand(1), SQ);
-    if (const Expression *SimplifiedE = checkSimplificationResults(E, I, V))
-      return SimplifiedE;
+    if (auto Simplified = checkExprResults(E, I, V))
+      return Simplified;
   } else if (isa<SelectInst>(I)) {
     if (isa<Constant>(E->getOperand(0)) ||
         E->getOperand(1) == E->getOperand(2)) {
@@ -1158,24 +1183,26 @@ const Expression *NewGVN::createExpression(Instruction *I) const {
              E->getOperand(2)->getType() == I->getOperand(2)->getType());
       Value *V = SimplifySelectInst(E->getOperand(0), E->getOperand(1),
                                     E->getOperand(2), SQ);
-      if (const Expression *SimplifiedE = checkSimplificationResults(E, I, V))
-        return SimplifiedE;
+      if (auto Simplified = checkExprResults(E, I, V))
+        return Simplified;
     }
   } else if (I->isBinaryOp()) {
     Value *V =
         SimplifyBinOp(E->getOpcode(), E->getOperand(0), E->getOperand(1), SQ);
-    if (const Expression *SimplifiedE = checkSimplificationResults(E, I, V))
-      return SimplifiedE;
-  } else if (auto *BI = dyn_cast<BitCastInst>(I)) {
+    if (auto Simplified = checkExprResults(E, I, V))
+      return Simplified;
+  } else if (auto *CI = dyn_cast<CastInst>(I)) {
     Value *V =
-        SimplifyCastInst(BI->getOpcode(), BI->getOperand(0), BI->getType(), SQ);
-    if (const Expression *SimplifiedE = checkSimplificationResults(E, I, V))
-      return SimplifiedE;
-  } else if (isa<GetElementPtrInst>(I)) {
-    Value *V = SimplifyGEPInst(
-        E->getType(), ArrayRef<Value *>(E->op_begin(), E->op_end()), SQ);
-    if (const Expression *SimplifiedE = checkSimplificationResults(E, I, V))
-      return SimplifiedE;
+        SimplifyCastInst(CI->getOpcode(), E->getOperand(0), CI->getType(), SQ);
+    if (auto Simplified = checkExprResults(E, I, V))
+      return Simplified;
+  } else if (auto *GEPI = dyn_cast<GetElementPtrInst>(I)) {
+    Value *V =
+        SimplifyGEPInst(GEPI->getSourceElementType(), *E->op_begin(),
+                        makeArrayRef(std::next(E->op_begin()), E->op_end()),
+                        GEPI->isInBounds(), SQ);
+    if (auto Simplified = checkExprResults(E, I, V))
+      return Simplified;
   } else if (AllConstant) {
     // We don't bother trying to simplify unless all of the operands
     // were constant.
@@ -1189,10 +1216,10 @@ const Expression *NewGVN::createExpression(Instruction *I) const {
       C.emplace_back(cast<Constant>(Arg));
 
     if (Value *V = ConstantFoldInstOperands(I, C, DL, TLI))
-      if (const Expression *SimplifiedE = checkSimplificationResults(E, I, V))
-        return SimplifiedE;
+      if (auto Simplified = checkExprResults(E, I, V))
+        return Simplified;
   }
-  return E;
+  return ExprResult::some(E);
 }
 
 const AggregateValueExpression *
@@ -1248,6 +1275,7 @@ const UnknownExpression *NewGVN::createUnknownExpression(Instruction *I) const {
 const CallExpression *
 NewGVN::createCallExpression(CallInst *CI, const MemoryAccess *MA) const {
   // FIXME: Add operand bundles for calls.
+  // FIXME: Allow commutative matching for intrinsics.
   auto *E =
       new (ExpressionAllocator) CallExpression(CI->getNumOperands(), CI, MA);
   setBasicExpressionInfo(CI, E);
@@ -1294,11 +1322,11 @@ bool NewGVN::someEquivalentDominates(const Instruction *Inst,
 Value *NewGVN::lookupOperandLeader(Value *V) const {
   CongruenceClass *CC = ValueToClass.lookup(V);
   if (CC) {
-    // Everything in TOP is represented by undef, as it can be any value.
+    // Everything in TOP is represented by poison, as it can be any value.
     // We do have to make sure we get the type right though, so we can't set the
-    // RepLeader to undef.
+    // RepLeader to poison.
     if (CC == TOPClass)
-      return UndefValue::get(V->getType());
+      return PoisonValue::get(V->getType());
     return CC->getStoredValue() ? CC->getStoredValue() : CC->getLeader();
   }
 
@@ -1331,8 +1359,6 @@ LoadExpression *NewGVN::createLoadExpression(Type *LoadType, Value *PointerOp,
   // Give store and loads same opcode so they value number together.
   E->setOpcode(0);
   E->op_push_back(PointerOp);
-  if (LI)
-    E->setAlignment(LI->getAlignment());
 
   // TODO: Value number heap versions. We may be able to discover
   // things alias analysis can't on it's own (IE that a store and a
@@ -1467,7 +1493,7 @@ NewGVN::performSymbolicLoadCoercion(Type *LoadType, Value *LoadPtr,
   // undef value.  This can happen when loading for a fresh allocation with no
   // intervening stores, for example.  Note that this is only true in the case
   // that the result of the allocation is pointer equal to the load ptr.
-  if (isa<AllocaInst>(DepInst) || isMallocLikeFn(DepInst, TLI)) {
+  if (isa<AllocaInst>(DepInst)) {
     return createConstantExpression(UndefValue::get(LoadType));
   }
   // If this load occurs either right after a lifetime begin,
@@ -1475,12 +1501,10 @@ NewGVN::performSymbolicLoadCoercion(Type *LoadType, Value *LoadPtr,
   else if (auto *II = dyn_cast<IntrinsicInst>(DepInst)) {
     if (II->getIntrinsicID() == Intrinsic::lifetime_start)
       return createConstantExpression(UndefValue::get(LoadType));
-  }
-  // If this load follows a calloc (which zero initializes memory),
-  // then the loaded value is zero
-  else if (isCallocLikeFn(DepInst, TLI)) {
-    return createConstantExpression(Constant::getNullValue(LoadType));
-  }
+  } else if (isAllocationFn(DepInst, TLI))
+    if (auto *InitVal = getInitialValueOfAllocation(cast<CallBase>(DepInst),
+                                                    TLI, LoadType))
+      return createConstantExpression(InitVal);
 
   return nullptr;
 }
@@ -1494,9 +1518,9 @@ const Expression *NewGVN::performSymbolicLoadEvaluation(Instruction *I) const {
     return nullptr;
 
   Value *LoadAddressLeader = lookupOperandLeader(LI->getPointerOperand());
-  // Load of undef is undef.
+  // Load of undef is UB.
   if (isa<UndefValue>(LoadAddressLeader))
-    return createConstantExpression(UndefValue::get(LI->getType()));
+    return createConstantExpression(PoisonValue::get(LI->getType()));
   MemoryAccess *OriginalAccess = getMemoryAccess(I);
   MemoryAccess *DefiningAccess =
       MSSAWalker->getClobberingMemoryAccess(OriginalAccess);
@@ -1504,9 +1528,9 @@ const Expression *NewGVN::performSymbolicLoadEvaluation(Instruction *I) const {
   if (!MSSA->isLiveOnEntryDef(DefiningAccess)) {
     if (auto *MD = dyn_cast<MemoryDef>(DefiningAccess)) {
       Instruction *DefiningInst = MD->getMemoryInst();
-      // If the defining instruction is not reachable, replace with undef.
+      // If the defining instruction is not reachable, replace with poison.
       if (!ReachableBlocks.count(DefiningInst->getParent()))
-        return createConstantExpression(UndefValue::get(LI->getType()));
+        return createConstantExpression(PoisonValue::get(LI->getType()));
       // This will handle stores and memory insts.  We only do if it the
       // defining access has a different type, or it is a pointer produced by
       // certain memory operations that cause the memory to have a fixed value
@@ -1527,120 +1551,70 @@ const Expression *NewGVN::performSymbolicLoadEvaluation(Instruction *I) const {
   return LE;
 }
 
-const Expression *
-NewGVN::performSymbolicPredicateInfoEvaluation(Instruction *I) const {
+NewGVN::ExprResult
+NewGVN::performSymbolicPredicateInfoEvaluation(IntrinsicInst *I) const {
   auto *PI = PredInfo->getPredicateInfoFor(I);
   if (!PI)
-    return nullptr;
+    return ExprResult::none();
 
   LLVM_DEBUG(dbgs() << "Found predicate info from instruction !\n");
 
-  auto *PWC = dyn_cast<PredicateWithCondition>(PI);
-  if (!PWC)
-    return nullptr;
+  const Optional<PredicateConstraint> &Constraint = PI->getConstraint();
+  if (!Constraint)
+    return ExprResult::none();
 
-  auto *CopyOf = I->getOperand(0);
-  auto *Cond = PWC->Condition;
+  CmpInst::Predicate Predicate = Constraint->Predicate;
+  Value *CmpOp0 = I->getOperand(0);
+  Value *CmpOp1 = Constraint->OtherOp;
 
-  // If this a copy of the condition, it must be either true or false depending
-  // on the predicate info type and edge.
-  if (CopyOf == Cond) {
-    // We should not need to add predicate users because the predicate info is
-    // already a use of this operand.
-    if (isa<PredicateAssume>(PI))
-      return createConstantExpression(ConstantInt::getTrue(Cond->getType()));
-    if (auto *PBranch = dyn_cast<PredicateBranch>(PI)) {
-      if (PBranch->TrueEdge)
-        return createConstantExpression(ConstantInt::getTrue(Cond->getType()));
-      return createConstantExpression(ConstantInt::getFalse(Cond->getType()));
-    }
-    if (auto *PSwitch = dyn_cast<PredicateSwitch>(PI))
-      return createConstantExpression(cast<Constant>(PSwitch->CaseValue));
-  }
+  Value *FirstOp = lookupOperandLeader(CmpOp0);
+  Value *SecondOp = lookupOperandLeader(CmpOp1);
+  Value *AdditionallyUsedValue = CmpOp0;
 
-  // Not a copy of the condition, so see what the predicates tell us about this
-  // value.  First, though, we check to make sure the value is actually a copy
-  // of one of the condition operands. It's possible, in certain cases, for it
-  // to be a copy of a predicateinfo copy. In particular, if two branch
-  // operations use the same condition, and one branch dominates the other, we
-  // will end up with a copy of a copy.  This is currently a small deficiency in
-  // predicateinfo.  What will end up happening here is that we will value
-  // number both copies the same anyway.
-
-  // Everything below relies on the condition being a comparison.
-  auto *Cmp = dyn_cast<CmpInst>(Cond);
-  if (!Cmp)
-    return nullptr;
-
-  if (CopyOf != Cmp->getOperand(0) && CopyOf != Cmp->getOperand(1)) {
-    LLVM_DEBUG(dbgs() << "Copy is not of any condition operands!\n");
-    return nullptr;
-  }
-  Value *FirstOp = lookupOperandLeader(Cmp->getOperand(0));
-  Value *SecondOp = lookupOperandLeader(Cmp->getOperand(1));
-  bool SwappedOps = false;
   // Sort the ops.
-  if (shouldSwapOperands(FirstOp, SecondOp)) {
+  if (shouldSwapOperandsForIntrinsic(FirstOp, SecondOp, I)) {
     std::swap(FirstOp, SecondOp);
-    SwappedOps = true;
+    Predicate = CmpInst::getSwappedPredicate(Predicate);
+    AdditionallyUsedValue = CmpOp1;
   }
-  CmpInst::Predicate Predicate =
-      SwappedOps ? Cmp->getSwappedPredicate() : Cmp->getPredicate();
 
-  if (isa<PredicateAssume>(PI)) {
-    // If we assume the operands are equal, then they are equal.
-    if (Predicate == CmpInst::ICMP_EQ) {
-      addPredicateUsers(PI, I);
-      addAdditionalUsers(SwappedOps ? Cmp->getOperand(1) : Cmp->getOperand(0),
-                         I);
-      return createVariableOrConstant(FirstOp);
-    }
-  }
-  if (const auto *PBranch = dyn_cast<PredicateBranch>(PI)) {
-    // If we are *not* a copy of the comparison, we may equal to the other
-    // operand when the predicate implies something about equality of
-    // operations.  In particular, if the comparison is true/false when the
-    // operands are equal, and we are on the right edge, we know this operation
-    // is equal to something.
-    if ((PBranch->TrueEdge && Predicate == CmpInst::ICMP_EQ) ||
-        (!PBranch->TrueEdge && Predicate == CmpInst::ICMP_NE)) {
-      addPredicateUsers(PI, I);
-      addAdditionalUsers(SwappedOps ? Cmp->getOperand(1) : Cmp->getOperand(0),
-                         I);
-      return createVariableOrConstant(FirstOp);
-    }
-    // Handle the special case of floating point.
-    if (((PBranch->TrueEdge && Predicate == CmpInst::FCMP_OEQ) ||
-         (!PBranch->TrueEdge && Predicate == CmpInst::FCMP_UNE)) &&
-        isa<ConstantFP>(FirstOp) && !cast<ConstantFP>(FirstOp)->isZero()) {
-      addPredicateUsers(PI, I);
-      addAdditionalUsers(SwappedOps ? Cmp->getOperand(1) : Cmp->getOperand(0),
-                         I);
-      return createConstantExpression(cast<Constant>(FirstOp));
-    }
-  }
-  return nullptr;
+  if (Predicate == CmpInst::ICMP_EQ)
+    return ExprResult::some(createVariableOrConstant(FirstOp),
+                            AdditionallyUsedValue, PI);
+
+  // Handle the special case of floating point.
+  if (Predicate == CmpInst::FCMP_OEQ && isa<ConstantFP>(FirstOp) &&
+      !cast<ConstantFP>(FirstOp)->isZero())
+    return ExprResult::some(createConstantExpression(cast<Constant>(FirstOp)),
+                            AdditionallyUsedValue, PI);
+
+  return ExprResult::none();
 }
 
 // Evaluate read only and pure calls, and create an expression result.
-const Expression *NewGVN::performSymbolicCallEvaluation(Instruction *I) const {
+NewGVN::ExprResult NewGVN::performSymbolicCallEvaluation(Instruction *I) const {
   auto *CI = cast<CallInst>(I);
   if (auto *II = dyn_cast<IntrinsicInst>(I)) {
     // Intrinsics with the returned attribute are copies of arguments.
     if (auto *ReturnedValue = II->getReturnedArgOperand()) {
       if (II->getIntrinsicID() == Intrinsic::ssa_copy)
-        if (const auto *Result = performSymbolicPredicateInfoEvaluation(I))
-          return Result;
-      return createVariableOrConstant(ReturnedValue);
+        if (auto Res = performSymbolicPredicateInfoEvaluation(II))
+          return Res;
+      return ExprResult::some(createVariableOrConstant(ReturnedValue));
     }
   }
   if (AA->doesNotAccessMemory(CI)) {
-    return createCallExpression(CI, TOPClass->getMemoryLeader());
+    return ExprResult::some(
+        createCallExpression(CI, TOPClass->getMemoryLeader()));
   } else if (AA->onlyReadsMemory(CI)) {
-    MemoryAccess *DefiningAccess = MSSAWalker->getClobberingMemoryAccess(CI);
-    return createCallExpression(CI, DefiningAccess);
+    if (auto *MA = MSSA->getMemoryAccess(CI)) {
+      auto *DefiningAccess = MSSAWalker->getClobberingMemoryAccess(MA);
+      return ExprResult::some(createCallExpression(CI, DefiningAccess));
+    } else // MSSA determined that CI does not access memory.
+      return ExprResult::some(
+          createCallExpression(CI, TOPClass->getMemoryLeader()));
   }
-  return nullptr;
+  return ExprResult::none();
 }
 
 // Retrieve the memory class for a given MemoryAccess.
@@ -1745,8 +1719,12 @@ NewGVN::performSymbolicPHIEvaluation(ArrayRef<ValPair> PHIOps,
   // We match the semantics of SimplifyPhiNode from InstructionSimplify here.
   // See if all arguments are the same.
   // We track if any were undef because they need special handling.
-  bool HasUndef = false;
+  bool HasUndef = false, HasPoison = false;
   auto Filtered = make_filter_range(E->operands(), [&](Value *Arg) {
+    if (isa<PoisonValue>(Arg)) {
+      HasPoison = true;
+      return false;
+    }
     if (isa<UndefValue>(Arg)) {
       HasUndef = true;
       return false;
@@ -1754,14 +1732,20 @@ NewGVN::performSymbolicPHIEvaluation(ArrayRef<ValPair> PHIOps,
     return true;
   });
   // If we are left with no operands, it's dead.
-  if (empty(Filtered)) {
-    // If it has undef at this point, it means there are no-non-undef arguments,
-    // and thus, the value of the phi node must be undef.
+  if (Filtered.empty()) {
+    // If it has undef or poison at this point, it means there are no-non-undef
+    // arguments, and thus, the value of the phi node must be undef.
     if (HasUndef) {
       LLVM_DEBUG(
           dbgs() << "PHI Node " << *I
                  << " has no non-undef arguments, valuing it as undef\n");
       return createConstantExpression(UndefValue::get(I->getType()));
+    }
+    if (HasPoison) {
+      LLVM_DEBUG(
+          dbgs() << "PHI Node " << *I
+                 << " has no non-poison arguments, valuing it as poison\n");
+      return createConstantExpression(PoisonValue::get(I->getType()));
     }
 
     LLVM_DEBUG(dbgs() << "No arguments of PHI node " << *I << " are live\n");
@@ -1772,6 +1756,11 @@ NewGVN::performSymbolicPHIEvaluation(ArrayRef<ValPair> PHIOps,
   ++Filtered.begin();
   // Can't use std::equal here, sadly, because filter.begin moves.
   if (llvm::all_of(Filtered, [&](Value *Arg) { return Arg == AllSameValue; })) {
+    // Can't fold phi(undef, X) -> X unless X can't be poison (thus X is undef
+    // in the worst case).
+    if (HasUndef && !isGuaranteedNotToBePoison(AllSameValue, AC, nullptr, DT))
+      return E;
+
     // In LLVM's non-standard representation of phi nodes, it's possible to have
     // phi nodes with cycles (IE dependent on other phis that are .... dependent
     // on the original phi node), especially in weird CFG's where some arguments
@@ -1779,9 +1768,9 @@ NewGVN::performSymbolicPHIEvaluation(ArrayRef<ValPair> PHIOps,
     // infinite loops during evaluation. We work around this by not trying to
     // really evaluate them independently, but instead using a variable
     // expression to say if one is equivalent to the other.
-    // We also special case undef, so that if we have an undef, we can't use the
-    // common value unless it dominates the phi block.
-    if (HasUndef) {
+    // We also special case undef/poison, so that if we have an undef, we can't
+    // use the common value unless it dominates the phi block.
+    if (HasPoison || HasUndef) {
       // If we have undef and at least one other value, this is really a
       // multivalued phi, and we need to know if it's cycle free in order to
       // evaluate whether we can ignore the undef.  The other parts of this are
@@ -1826,7 +1815,7 @@ NewGVN::performSymbolicAggrValueEvaluation(Instruction *I) const {
   return createAggregateValueExpression(I);
 }
 
-const Expression *NewGVN::performSymbolicCmpEvaluation(Instruction *I) const {
+NewGVN::ExprResult NewGVN::performSymbolicCmpEvaluation(Instruction *I) const {
   assert(isa<CmpInst>(I) && "Expected a cmp instruction.");
 
   auto *CI = cast<CmpInst>(I);
@@ -1845,15 +1834,18 @@ const Expression *NewGVN::performSymbolicCmpEvaluation(Instruction *I) const {
   // See if we know something about the comparison itself, like it is the target
   // of an assume.
   auto *CmpPI = PredInfo->getPredicateInfoFor(I);
-  if (dyn_cast_or_null<PredicateAssume>(CmpPI))
-    return createConstantExpression(ConstantInt::getTrue(CI->getType()));
+  if (isa_and_nonnull<PredicateAssume>(CmpPI))
+    return ExprResult::some(
+        createConstantExpression(ConstantInt::getTrue(CI->getType())));
 
   if (Op0 == Op1) {
     // This condition does not depend on predicates, no need to add users
     if (CI->isTrueWhenEqual())
-      return createConstantExpression(ConstantInt::getTrue(CI->getType()));
+      return ExprResult::some(
+          createConstantExpression(ConstantInt::getTrue(CI->getType())));
     else if (CI->isFalseWhenEqual())
-      return createConstantExpression(ConstantInt::getFalse(CI->getType()));
+      return ExprResult::some(
+          createConstantExpression(ConstantInt::getFalse(CI->getType())));
   }
 
   // NOTE: Because we are comparing both operands here and below, and using
@@ -1912,31 +1904,31 @@ const Expression *NewGVN::performSymbolicCmpEvaluation(Instruction *I) const {
           // edge then we may be implied true or false.
           if (CmpInst::isImpliedTrueByMatchingCmp(BranchPredicate,
                                                   OurPredicate)) {
-            addPredicateUsers(PI, I);
-            return createConstantExpression(
-                ConstantInt::getTrue(CI->getType()));
+            return ExprResult::some(
+                createConstantExpression(ConstantInt::getTrue(CI->getType())),
+                PI);
           }
 
           if (CmpInst::isImpliedFalseByMatchingCmp(BranchPredicate,
                                                    OurPredicate)) {
-            addPredicateUsers(PI, I);
-            return createConstantExpression(
-                ConstantInt::getFalse(CI->getType()));
+            return ExprResult::some(
+                createConstantExpression(ConstantInt::getFalse(CI->getType())),
+                PI);
           }
         } else {
           // Just handle the ne and eq cases, where if we have the same
           // operands, we may know something.
           if (BranchPredicate == OurPredicate) {
-            addPredicateUsers(PI, I);
             // Same predicate, same ops,we know it was false, so this is false.
-            return createConstantExpression(
-                ConstantInt::getFalse(CI->getType()));
+            return ExprResult::some(
+                createConstantExpression(ConstantInt::getFalse(CI->getType())),
+                PI);
           } else if (BranchPredicate ==
                      CmpInst::getInversePredicate(OurPredicate)) {
-            addPredicateUsers(PI, I);
             // Inverse predicate, we know the other was false, so this is true.
-            return createConstantExpression(
-                ConstantInt::getTrue(CI->getType()));
+            return ExprResult::some(
+                createConstantExpression(ConstantInt::getTrue(CI->getType())),
+                PI);
           }
         }
       }
@@ -1947,9 +1939,10 @@ const Expression *NewGVN::performSymbolicCmpEvaluation(Instruction *I) const {
 }
 
 // Substitute and symbolize the value before value numbering.
-const Expression *
+NewGVN::ExprResult
 NewGVN::performSymbolicEvaluation(Value *V,
                                   SmallPtrSetImpl<Value *> &Visited) const {
+
   const Expression *E = nullptr;
   if (auto *C = dyn_cast<Constant>(V))
     E = createConstantExpression(C);
@@ -1975,7 +1968,7 @@ NewGVN::performSymbolicEvaluation(Value *V,
       E = performSymbolicPHIEvaluation(Ops, I, getBlockForValue(I));
     } break;
     case Instruction::Call:
-      E = performSymbolicCallEvaluation(I);
+      return performSymbolicCallEvaluation(I);
       break;
     case Instruction::Store:
       E = performSymbolicStoreEvaluation(I);
@@ -1984,12 +1977,14 @@ NewGVN::performSymbolicEvaluation(Value *V,
       E = performSymbolicLoadEvaluation(I);
       break;
     case Instruction::BitCast:
-      E = createExpression(I);
+    case Instruction::AddrSpaceCast:
+      return createExpression(I);
       break;
     case Instruction::ICmp:
     case Instruction::FCmp:
-      E = performSymbolicCmpEvaluation(I);
+      return performSymbolicCmpEvaluation(I);
       break;
+    case Instruction::FNeg:
     case Instruction::Add:
     case Instruction::FAdd:
     case Instruction::Sub:
@@ -2022,25 +2017,17 @@ NewGVN::performSymbolicEvaluation(Value *V,
     case Instruction::Select:
     case Instruction::ExtractElement:
     case Instruction::InsertElement:
-    case Instruction::ShuffleVector:
     case Instruction::GetElementPtr:
-      E = createExpression(I);
+      return createExpression(I);
       break;
+    case Instruction::ShuffleVector:
+      // FIXME: Add support for shufflevector to createExpression.
+      return ExprResult::none();
     default:
-      return nullptr;
+      return ExprResult::none();
     }
   }
-  return E;
-}
-
-// Look up a container in a map, and then call a function for each thing in the
-// found container.
-template <typename Map, typename KeyType, typename Func>
-void NewGVN::for_each_found(Map &M, const KeyType &Key, Func F) {
-  const auto Result = M.find_as(Key);
-  if (Result != M.end())
-    for (typename Map::mapped_type::value_type Mapped : Result->second)
-      F(Mapped);
+  return ExprResult::some(E);
 }
 
 // Look up a container of values/instructions in a map, and touch all the
@@ -2059,6 +2046,20 @@ void NewGVN::addAdditionalUsers(Value *To, Value *User) const {
   assert(User && To != User);
   if (isa<Instruction>(To))
     AdditionalUsers[To].insert(User);
+}
+
+void NewGVN::addAdditionalUsers(ExprResult &Res, Instruction *User) const {
+  if (Res.ExtraDep && Res.ExtraDep != User)
+    addAdditionalUsers(Res.ExtraDep, User);
+  Res.ExtraDep = nullptr;
+
+  if (Res.PredDep) {
+    if (const auto *PBranch = dyn_cast<PredicateBranch>(Res.PredDep))
+      PredicateToUsers[PBranch->Condition].insert(User);
+    else if (const auto *PAssume = dyn_cast<PredicateAssume>(Res.PredDep))
+      PredicateToUsers[PAssume->Condition].insert(User);
+  }
+  Res.PredDep = nullptr;
 }
 
 void NewGVN::markUsersTouched(Value *V) {
@@ -2085,18 +2086,6 @@ void NewGVN::markMemoryUsersTouched(const MemoryAccess *MA) {
   for (auto U : MA->users())
     TouchedInstructions.set(MemoryToDFSNum(U));
   touchAndErase(MemoryToUsers, MA);
-}
-
-// Add I to the set of users of a given predicate.
-void NewGVN::addPredicateUsers(const PredicateBase *PB, Instruction *I) const {
-  // Don't add temporary instructions to the user lists.
-  if (AllTempInstructions.count(I))
-    return;
-
-  if (auto *PBranch = dyn_cast<PredicateBranch>(PB))
-    PredicateToUsers[PBranch->Condition].insert(I);
-  else if (auto *PAssume = dyn_cast<PredicateBranch>(PB))
-    PredicateToUsers[PAssume->Condition].insert(I);
 }
 
 // Touch all the predicates that depend on this instruction.
@@ -2462,23 +2451,27 @@ Value *NewGVN::findConditionEquivalence(Value *Cond) const {
 // Process the outgoing edges of a block for reachability.
 void NewGVN::processOutgoingEdges(Instruction *TI, BasicBlock *B) {
   // Evaluate reachability of terminator instruction.
-  BranchInst *BR;
-  if ((BR = dyn_cast<BranchInst>(TI)) && BR->isConditional()) {
-    Value *Cond = BR->getCondition();
+  Value *Cond;
+  BasicBlock *TrueSucc, *FalseSucc;
+  if (match(TI, m_Br(m_Value(Cond), TrueSucc, FalseSucc))) {
     Value *CondEvaluated = findConditionEquivalence(Cond);
     if (!CondEvaluated) {
       if (auto *I = dyn_cast<Instruction>(Cond)) {
-        const Expression *E = createExpression(I);
-        if (const auto *CE = dyn_cast<ConstantExpression>(E)) {
+        SmallPtrSet<Value *, 4> Visited;
+        auto Res = performSymbolicEvaluation(I, Visited);
+        if (const auto *CE = dyn_cast_or_null<ConstantExpression>(Res.Expr)) {
           CondEvaluated = CE->getConstantValue();
+          addAdditionalUsers(Res, I);
+        } else {
+          // Did not use simplification result, no need to add the extra
+          // dependency.
+          Res.ExtraDep = nullptr;
         }
       } else if (isa<ConstantInt>(Cond)) {
         CondEvaluated = Cond;
       }
     }
     ConstantInt *CI;
-    BasicBlock *TrueSucc = BR->getSuccessor(0);
-    BasicBlock *FalseSucc = BR->getSuccessor(1);
     if (CondEvaluated && (CI = dyn_cast<ConstantInt>(CondEvaluated))) {
       if (CI->isOne()) {
         LLVM_DEBUG(dbgs() << "Condition for Terminator " << *TI
@@ -2496,9 +2489,6 @@ void NewGVN::processOutgoingEdges(Instruction *TI, BasicBlock *B) {
   } else if (auto *SI = dyn_cast<SwitchInst>(TI)) {
     // For switches, propagate the case values into the case
     // destinations.
-
-    // Remember how many outgoing edges there are to every successor.
-    SmallDenseMap<BasicBlock *, unsigned, 16> SwitchEdges;
 
     Value *SwitchCond = SI->getCondition();
     Value *CondEvaluated = findConditionEquivalence(SwitchCond);
@@ -2520,7 +2510,6 @@ void NewGVN::processOutgoingEdges(Instruction *TI, BasicBlock *B) {
     } else {
       for (unsigned i = 0, e = SI->getNumSuccessors(); i != e; ++i) {
         BasicBlock *TargetBlock = SI->getSuccessor(i);
-        ++SwitchEdges[TargetBlock];
         updateReachableEdge(B, TargetBlock);
       }
     }
@@ -2602,6 +2591,15 @@ bool NewGVN::OpIsSafeForPHIOfOpsHelper(
   }
 
   auto *OrigI = cast<Instruction>(V);
+  // When we hit an instruction that reads memory (load, call, etc), we must
+  // consider any store that may happen in the loop. For now, we assume the
+  // worst: there is a store in the loop that alias with this read.
+  // The case where the load is outside the loop is already covered by the
+  // dominator check above.
+  // TODO: relax this condition
+  if (OrigI->mayReadFromMemory())
+    return false;
+
   for (auto *Op : OrigI->operand_values()) {
     if (!isa<Instruction>(Op))
       continue;
@@ -2660,7 +2658,9 @@ Value *NewGVN::findLeaderForInst(Instruction *TransInst,
   TempToBlock.insert({TransInst, PredBB});
   InstrDFS.insert({TransInst, IDFSNum});
 
-  const Expression *E = performSymbolicEvaluation(TransInst, Visited);
+  auto Res = performSymbolicEvaluation(TransInst, Visited);
+  const Expression *E = Res.Expr;
+  addAdditionalUsers(Res, OrigInst);
   InstrDFS.erase(TransInst);
   AllTempInstructions.erase(TransInst);
   TempToBlock.erase(TransInst);
@@ -2801,7 +2801,7 @@ NewGVN::makePossiblePHIOfOps(Instruction *I,
       LLVM_DEBUG(dbgs() << "Skipping phi of ops operand for incoming block "
                         << getBlockName(PredBB)
                         << " because the block is unreachable\n");
-      FoundVal = UndefValue::get(I->getType());
+      FoundVal = PoisonValue::get(I->getType());
       RevisitOnReachabilityChange[PHIBlock].set(InstrToDFSNum(I));
     }
 
@@ -2818,6 +2818,14 @@ NewGVN::makePossiblePHIOfOps(Instruction *I,
         dbgs()
         << "Not creating real PHI of ops because it simplified to existing "
            "value or constant\n");
+    // We have leaders for all operands, but do not create a real PHI node with
+    // those leaders as operands, so the link between the operands and the
+    // PHI-of-ops is not materialized in the IR. If any of those leaders
+    // changes, the PHI-of-op may change also, so we need to add the operands as
+    // additional users.
+    for (auto &O : PHIOps)
+      addAdditionalUsers(O.first, I);
+
     return E;
   }
   auto *ValuePHI = RealToTemp.lookup(I);
@@ -2849,14 +2857,14 @@ NewGVN::makePossiblePHIOfOps(Instruction *I,
 }
 
 // The algorithm initially places the values of the routine in the TOP
-// congruence class. The leader of TOP is the undetermined value `undef`.
+// congruence class. The leader of TOP is the undetermined value `poison`.
 // When the algorithm has finished, values still in TOP are unreachable.
 void NewGVN::initializeCongruenceClasses(Function &F) {
   NextCongruenceNum = 0;
 
   // Note that even though we use the live on entry def as a representative
   // MemoryAccess, it is *not* the same as the actual live on entry def. We
-  // have no real equivalemnt to undef for MemoryAccesses, and so we really
+  // have no real equivalent to poison for MemoryAccesses, and so we really
   // should be checking whether the MemoryAccess is top if we want to know if it
   // is equivalent to everything.  Otherwise, what this really signifies is that
   // the access "it reaches all the way back to the beginning of the function"
@@ -2936,8 +2944,7 @@ void NewGVN::cleanupTables() {
   }
 
   while (!TempInst.empty()) {
-    auto *I = TempInst.back();
-    TempInst.pop_back();
+    auto *I = TempInst.pop_back_val();
     I->deleteValue();
   }
 
@@ -2968,6 +2975,7 @@ void NewGVN::cleanupTables() {
   PredicateToUsers.clear();
   MemoryToUsers.clear();
   RevisitOnReachabilityChange.clear();
+  IntrinsicInstPred.clear();
 }
 
 // Assign local DFS number mapping to instructions, and leave space for Value
@@ -3027,7 +3035,7 @@ void NewGVN::valueNumberMemoryPhi(MemoryPhi *MP) {
            !isMemoryAccessTOP(cast<MemoryAccess>(U)) &&
            ReachableEdges.count({MP->getIncomingBlock(U), PHIBlock});
   });
-  // If all that is left is nothing, our memoryphi is undef. We keep it as
+  // If all that is left is nothing, our memoryphi is poison. We keep it as
   // InitialClass.  Note: The only case this should happen is if we have at
   // least one self-argument.
   if (Filtered.begin() == Filtered.end()) {
@@ -3080,7 +3088,10 @@ void NewGVN::valueNumberInstruction(Instruction *I) {
     const Expression *Symbolized = nullptr;
     SmallPtrSet<Value *, 2> Visited;
     if (DebugCounter::shouldExecute(VNCounter)) {
-      Symbolized = performSymbolicEvaluation(I, Visited);
+      auto Res = performSymbolicEvaluation(I, Visited);
+      Symbolized = Res.Expr;
+      addAdditionalUsers(Res, I);
+
       // Make a phi of ops if necessary
       if (Symbolized && !isa<ConstantExpression>(Symbolized) &&
           !isa<VariableExpression>(Symbolized) && PHINodeUses.count(I)) {
@@ -3431,11 +3442,10 @@ bool NewGVN::runGVN() {
   // Sort dominator tree children arrays into RPO.
   for (auto &B : RPOT) {
     auto *Node = DT->getNode(B);
-    if (Node->getChildren().size() > 1)
-      llvm::sort(Node->begin(), Node->end(),
-                 [&](const DomTreeNode *A, const DomTreeNode *B) {
-                   return RPOOrdering[A] < RPOOrdering[B];
-                 });
+    if (Node->getNumChildren() > 1)
+      llvm::sort(*Node, [&](const DomTreeNode *A, const DomTreeNode *B) {
+        return RPOOrdering[A] < RPOOrdering[B];
+      });
   }
 
   // Now a standard depth first ordering of the domtree is equivalent to RPO.
@@ -3470,7 +3480,7 @@ bool NewGVN::runGVN() {
   // Delete all instructions marked for deletion.
   for (Instruction *ToErase : InstructionsToErase) {
     if (!ToErase->use_empty())
-      ToErase->replaceAllUsesWith(UndefValue::get(ToErase->getType()));
+      ToErase->replaceAllUsesWith(PoisonValue::get(ToErase->getType()));
 
     assert(ToErase->getParent() &&
            "BB containing ToErase deleted unexpectedly!");
@@ -3622,7 +3632,7 @@ void NewGVN::convertClassToDFSOrdered(
 
         // Skip uses in unreachable blocks, as we're going
         // to delete them.
-        if (ReachableBlocks.count(IBlock) == 0)
+        if (!ReachableBlocks.contains(IBlock))
           continue;
 
         DomTreeNode *DomNode = DT->getNode(IBlock);
@@ -3688,16 +3698,17 @@ void NewGVN::deleteInstructionsInBlock(BasicBlock *BB) {
   for (BasicBlock::reverse_iterator I(StartPoint); I != BB->rend();) {
     Instruction &Inst = *I++;
     if (!Inst.use_empty())
-      Inst.replaceAllUsesWith(UndefValue::get(Inst.getType()));
+      Inst.replaceAllUsesWith(PoisonValue::get(Inst.getType()));
     if (isa<LandingPadInst>(Inst))
       continue;
+    salvageKnowledge(&Inst, AC);
 
     Inst.eraseFromParent();
     ++NumGVNInstrDeleted;
   }
   // Now insert something that simplifycfg will turn into an unreachable.
   Type *Int8Ty = Type::getInt8Ty(BB->getContext());
-  new StoreInst(UndefValue::get(Int8Ty),
+  new StoreInst(PoisonValue::get(Int8Ty),
                 Constant::getNullValue(Int8Ty->getPointerTo()),
                 BB->getTerminator());
 }
@@ -3837,8 +3848,8 @@ bool NewGVN::eliminateInstructions(Function &F) {
         LLVM_DEBUG(dbgs() << "Replacing incoming value of " << PHI
                           << " for block "
                           << getBlockName(PHI->getIncomingBlock(Operand))
-                          << " with undef due to it being unreachable\n");
-        Operand.set(UndefValue::get(PHI->getType()));
+                          << " with poison due to it being unreachable\n");
+        Operand.set(PoisonValue::get(PHI->getType()));
       }
   };
   // Replace unreachable phi arguments.
@@ -4138,21 +4149,25 @@ bool NewGVN::eliminateInstructions(Function &F) {
 unsigned int NewGVN::getRank(const Value *V) const {
   // Prefer constants to undef to anything else
   // Undef is a constant, have to check it first.
+  // Prefer poison to undef as it's less defined.
   // Prefer smaller constants to constantexprs
+  // Note that the order here matters because of class inheritance
   if (isa<ConstantExpr>(V))
-    return 2;
-  if (isa<UndefValue>(V))
+    return 3;
+  if (isa<PoisonValue>(V))
     return 1;
+  if (isa<UndefValue>(V))
+    return 2;
   if (isa<Constant>(V))
     return 0;
-  else if (auto *A = dyn_cast<Argument>(V))
-    return 3 + A->getArgNo();
+  if (auto *A = dyn_cast<Argument>(V))
+    return 4 + A->getArgNo();
 
-  // Need to shift the instruction DFS by number of arguments + 3 to account for
+  // Need to shift the instruction DFS by number of arguments + 5 to account for
   // the constant and argument ranking above.
   unsigned Result = InstrToDFSNum(V);
   if (Result > 0)
-    return 4 + NumFuncArgs + Result;
+    return 5 + NumFuncArgs + Result;
   // Unreachable or something else, just return a really large number.
   return ~0;
 }
@@ -4164,6 +4179,29 @@ bool NewGVN::shouldSwapOperands(const Value *A, const Value *B) const {
   // in this order, we order by rank, which will give a strict weak ordering to
   // everything but constants, and then we order by pointer address.
   return std::make_pair(getRank(A), A) > std::make_pair(getRank(B), B);
+}
+
+bool NewGVN::shouldSwapOperandsForIntrinsic(const Value *A, const Value *B,
+                                            const IntrinsicInst *I) const {
+  auto LookupResult = IntrinsicInstPred.find(I);
+  if (shouldSwapOperands(A, B)) {
+    if (LookupResult == IntrinsicInstPred.end())
+      IntrinsicInstPred.insert({I, B});
+    else
+      LookupResult->second = B;
+    return true;
+  }
+
+  if (LookupResult != IntrinsicInstPred.end()) {
+    auto *SeenPredicate = LookupResult->second;
+    if (SeenPredicate) {
+      if (SeenPredicate == B)
+        return true;
+      else
+        LookupResult->second = nullptr;
+    }
+  }
+  return false;
 }
 
 namespace {
@@ -4198,7 +4236,7 @@ bool NewGVNLegacyPass::runOnFunction(Function &F) {
     return false;
   return NewGVN(F, &getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
                 &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F),
-                &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(),
+                &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F),
                 &getAnalysis<AAResultsWrapperPass>().getAAResults(),
                 &getAnalysis<MemorySSAWrapperPass>().getMSSA(),
                 F.getParent()->getDataLayout())
@@ -4237,6 +4275,5 @@ PreservedAnalyses NewGVNPass::run(Function &F, AnalysisManager<Function> &AM) {
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
   PA.preserve<DominatorTreeAnalysis>();
-  PA.preserve<GlobalsAA>();
   return PA;
 }

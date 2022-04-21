@@ -1,3 +1,5 @@
+XFAIL: system-aix
+
 Test the 'u' option of llvm-ar
 
 RUN: rm -rf %t && mkdir -p %t && cd %t
@@ -48,4 +50,4 @@ BOTH-FILES: bar
 RUN: rm -f %t/tmp.a
 RUN: llvm-ar --format=gnu rc %t/tmp.a foo
 RUN: not llvm-ar --format=gnu rcT %t/tmp.a bar 2>&1 | FileCheck --check-prefix=ERROR %s
-ERROR: Cannot convert a regular archive to a thin one.
+ERROR: error: cannot convert a regular archive to a thin one

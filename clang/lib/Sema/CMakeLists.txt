@@ -1,14 +1,23 @@
 set(LLVM_LINK_COMPONENTS
+  Core
+  FrontendOpenMP
+  MC
   Support
   )
 
 if (MSVC)
-  set_source_files_properties(SemaDeclAttr.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaExpr.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaExprCXX.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(SemaSYCL.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaTemplate.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
+
+clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
+  SOURCE OpenCLBuiltins.td
+  TARGET ClangOpenCLBuiltinsImpl
+  )
+
+clang_tablegen(SPIRVBuiltins.inc -gen-clang-spirv-builtins
+ SOURCE SPIRVBuiltins.td
+ TARGET ClangSPIRVBuiltinsImpl
+ )
 
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
@@ -24,10 +33,12 @@ add_clang_library(clangSema
   Sema.cpp
   SemaAccess.cpp
   SemaAttr.cpp
+  SemaAvailability.cpp
   SemaCXXScopeSpec.cpp
   SemaCast.cpp
   SemaChecking.cpp
   SemaCodeComplete.cpp
+  SemaConcept.cpp
   SemaConsumer.cpp
   SemaCoroutine.cpp
   SemaCUDA.cpp
@@ -60,6 +71,11 @@ add_clang_library(clangSema
   SemaTemplateVariadic.cpp
   SemaType.cpp
   TypeLocBuilder.cpp
+
+  DEPENDS
+  ClangOpenCLBuiltinsImpl
+  ClangSPIRVBuiltinsImpl
+  omp_gen
 
   LINK_LIBS
   clangAST

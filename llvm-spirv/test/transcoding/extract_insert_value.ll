@@ -6,6 +6,7 @@ target triple = "spir-unknown-unknown"
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -36,7 +37,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV:        5 CompositeExtract {{[0-9]+}} [[elem_2:[0-9]+]] [[extracted_array]] 2
 ; CHECK-SPIRV:        5 FAdd {{[0-9]+}} [[add:[0-9]+]] [[elem_4]] [[elem_2]]
 ; CHECK-SPIRV:        6 CompositeInsert {{[0-9]+}} [[inserted_array:[0-9]+]] [[add]] [[extracted_array]] 5
-; CHECK-SPIRV:        3 Store {{[0-9]+}} [[inserted_array]]
+; CHECK-SPIRV:        5 Store {{[0-9]+}} [[inserted_array]]
 ; CHECK-SPIRV-LABEL:  1 FunctionEnd
 
 ; Function Attrs: nounwind
@@ -68,7 +69,7 @@ entry:
 ; CHECK-SPIRV:        5 CompositeExtract {{[0-9]+}} [[elem:[0-9]+]] [[extracted_struct]] 0
 ; CHECK-SPIRV:        5 FAdd {{[0-9]+}} [[add:[0-9]+]] [[elem]] {{[0-9]+}}
 ; CHECK-SPIRV:        6 CompositeInsert {{[0-9]+}} [[inserted_struct:[0-9]+]] [[add]] [[extracted_struct]] 0
-; CHECK-SPIRV:        3 Store {{[0-9]+}} [[inserted_struct]]
+; CHECK-SPIRV:        5 Store {{[0-9]+}} [[inserted_struct]]
 ; CHECK-SPIRV-LABEL:  1 FunctionEnd
 
 ; Function Attrs: nounwind

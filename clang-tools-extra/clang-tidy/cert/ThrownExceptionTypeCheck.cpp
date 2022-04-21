@@ -18,14 +18,13 @@ namespace tidy {
 namespace cert {
 
 void ThrownExceptionTypeCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   Finder->addMatcher(
-      cxxThrowExpr(has(ignoringParenImpCasts(
-          cxxConstructExpr(hasDeclaration(cxxConstructorDecl(
-                               isCopyConstructor(), unless(isNoThrow()))))
-              .bind("expr")))),
+      traverse(
+          TK_AsIs,
+          cxxThrowExpr(has(ignoringParenImpCasts(
+              cxxConstructExpr(hasDeclaration(cxxConstructorDecl(
+                                   isCopyConstructor(), unless(isNoThrow()))))
+                  .bind("expr"))))),
       this);
 }
 

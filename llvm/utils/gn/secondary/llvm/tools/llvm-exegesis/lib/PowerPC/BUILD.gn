@@ -14,8 +14,6 @@ static_library("PowerPC") {
     # depend on these Target/PowerPC-internal build targets.
     "//llvm/lib/Target/PowerPC/MCTargetDesc",
   ]
-  sources = [
-    "Target.cpp",
-  ]
+  sources = [ "Target.cpp" ]
   include_dirs = [ "//llvm/lib/Target/PowerPC" ]
 }

@@ -1,4 +1,4 @@
-; RUN: opt < %s -scalar-evolution -analyze | FileCheck %s
+; RUN: opt < %s "-passes=print<scalar-evolution>" -disable-output 2>&1 | FileCheck %s
 ; PR2002
 
 ; CHECK: Loop %loop: backedge-taken count is (100 + (-100 smax %n))

@@ -1,4 +1,4 @@
-//===-- DWARFLocationExpression.cpp -----------------------------*- C++ -*-===//
+//===-- DWARFLocationExpression.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -111,18 +111,18 @@ static DWARFExpression MakeLocationExpressionInternal(lldb::ModuleSP module,
   uint32_t address_size = architecture.GetAddressByteSize();
   uint32_t byte_size = architecture.GetDataByteSize();
   if (byte_order == eByteOrderInvalid || address_size == 0)
-    return DWARFExpression(nullptr);
+    return DWARFExpression();
 
   RegisterKind register_kind = eRegisterKindDWARF;
   StreamBuffer<32> stream(Stream::eBinary, address_size, byte_order);
 
   if (!writer(stream, register_kind))
-    return DWARFExpression(nullptr);
+    return DWARFExpression();
 
   DataBufferSP buffer =
       std::make_shared<DataBufferHeap>(stream.GetData(), stream.GetSize());
   DataExtractor extractor(buffer, byte_order, address_size, byte_size);
-  DWARFExpression result(module, extractor, nullptr, 0, buffer->GetByteSize());
+  DWARFExpression result(module, extractor, nullptr);
   result.SetRegisterKind(register_kind);
 
   return result;
@@ -247,6 +247,32 @@ DWARFExpression lldb_private::npdb::MakeConstantLocationExpression(
               .take_front(size);
   buffer->CopyData(bytes.data(), size);
   DataExtractor extractor(buffer, lldb::eByteOrderLittle, address_size);
-  DWARFExpression result(nullptr, extractor, nullptr, 0, size);
+  DWARFExpression result(nullptr, extractor, nullptr);
   return result;
+}
+
+DWARFExpression lldb_private::npdb::MakeEnregisteredLocationExpressionForClass(
+    llvm::ArrayRef<std::pair<RegisterId, uint32_t>> &members_info,
+    lldb::ModuleSP module) {
+  return MakeLocationExpressionInternal(
+      module, [&](Stream &stream, RegisterKind &register_kind) -> bool {
+        for (auto member_info : members_info) {
+          if (member_info.first != llvm::codeview::RegisterId::NONE) {
+            uint32_t reg_num =
+                GetRegisterNumber(module->GetArchitecture().GetMachine(),
+                                  member_info.first, register_kind);
+            if (reg_num == LLDB_INVALID_REGNUM)
+              return false;
+            if (reg_num > 31) {
+              stream.PutHex8(llvm::dwarf::DW_OP_regx);
+              stream.PutULEB128(reg_num);
+            } else {
+              stream.PutHex8(llvm::dwarf::DW_OP_reg0 + reg_num);
+            }
+          }
+          stream.PutHex8(llvm::dwarf::DW_OP_piece);
+          stream.PutULEB128(member_info.second);
+        }
+        return true;
+      });
 }

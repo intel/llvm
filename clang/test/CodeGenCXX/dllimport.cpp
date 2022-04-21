@@ -1,14 +1,14 @@
-// RUN: %clang_cc1 -triple i686-windows-msvc   -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s -DMSABI -w | FileCheck --check-prefix=MSC --check-prefix=M32 %s
-// RUN: %clang_cc1 -triple x86_64-windows-msvc -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s -DMSABI -w | FileCheck --check-prefix=MSC --check-prefix=M64 %s
-// RUN: %clang_cc1 -triple i686-windows-gnu    -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s         -w | FileCheck --check-prefix=GNU --check-prefix=G32 %s
-// RUN: %clang_cc1 -triple x86_64-windows-gnu  -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s         -w | FileCheck --check-prefix=GNU --check-prefix=G64 %s
-// RUN: %clang_cc1 -triple i686-windows-msvc   -fno-rtti -fno-threadsafe-statics -fms-extensions -fms-compatibility-version=18.00 -emit-llvm -std=c++1y -O1 -disable-llvm-passes -o - %s -DMSABI -w | FileCheck --check-prefix=MO1 --check-prefix=M18 %s
-// RUN: %clang_cc1 -triple i686-windows-msvc   -fno-rtti -fno-threadsafe-statics -fms-extensions -fms-compatibility-version=19.00 -emit-llvm -std=c++1y -O1 -disable-llvm-passes -o - %s -DMSABI -w | FileCheck --check-prefix=MO1 --check-prefix=M19 %s
-// RUN: %clang_cc1 -triple i686-windows-gnu    -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O1 -o - %s         -w | FileCheck --check-prefix=GO1 %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple i686-windows-msvc   -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s -DMSABI -w | FileCheck --check-prefix=MSC --check-prefix=M32 %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple x86_64-windows-msvc -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s -DMSABI -w | FileCheck --check-prefix=MSC --check-prefix=M64 %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple i686-windows-gnu    -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s         -w | FileCheck --check-prefix=GNU --check-prefix=G32 %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple x86_64-windows-gnu  -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s         -w | FileCheck --check-prefix=GNU %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple i686-windows-msvc   -fno-rtti -fno-threadsafe-statics -fms-extensions -fms-compatibility-version=18.00 -emit-llvm -std=c++1y -O1 -disable-llvm-passes -o - %s -DMSABI -w | FileCheck --check-prefix=MO1 --check-prefix=M18 %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple i686-windows-msvc   -fno-rtti -fno-threadsafe-statics -fms-extensions -fms-compatibility-version=19.00 -emit-llvm -std=c++1y -O1 -disable-llvm-passes -o - %s -DMSABI -w | FileCheck --check-prefix=MO1 --check-prefix=M19 %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple i686-windows-gnu    -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O1 -fno-experimental-new-pass-manager -o - %s         -w | FileCheck --check-prefix=GO1 %s
 
 // CHECK-NOT doesn't play nice with CHECK-DAG, so use separate run lines.
-// RUN: %clang_cc1 -triple i686-windows-msvc   -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s -DMSABI -w | FileCheck --check-prefix=MSC2 %s
-// RUN: %clang_cc1 -triple i686-windows-gnu    -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s         -w | FileCheck --check-prefix=GNU2 %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple i686-windows-msvc   -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s -DMSABI -w | FileCheck --check-prefix=MSC2 %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple i686-windows-gnu    -fno-rtti -fno-threadsafe-statics -fms-extensions -emit-llvm -std=c++1y -O0 -o - %s         -w | FileCheck --check-prefix=GNU2 %s
 
 // Helper structs to make templates more expressive.
 struct ImplicitInst_Imported {};
@@ -308,8 +308,8 @@ USE(friend4)
 USE(friend5)
 
 // Implicit declarations can be redeclared with dllimport.
-// MSC-DAG: declare dllimport noalias i8* @"??2@{{YAPAXI|YAPEAX_K}}@Z"(
-// GNU-DAG: declare dllimport noalias i8* @_Znw{{[yj]}}(
+// MSC-DAG: declare dllimport nonnull i8* @"??2@{{YAPAXI|YAPEAX_K}}@Z"(
+// GNU-DAG: declare dllimport nonnull i8* @_Znw{{[yj]}}(
 __declspec(dllimport) void* operator new(__SIZE_TYPE__ n);
 void UNIQ(use)() { ::operator new(42); }
 
@@ -364,12 +364,12 @@ struct __declspec(dllimport) ClassWithNonDllImportField { using X = ClassWithDto
 struct __declspec(dllimport) ClassWithNonDllImportBase : public ClassWithDtor { };
 USECLASS(ClassWithNonDllImportField);
 USECLASS(ClassWithNonDllImportBase);
-// MO1-DAG: declare dllimport x86_thiscallcc void @"??1ClassWithNonDllImportBase@@QAE@XZ"(%struct.ClassWithNonDllImportBase*)
-// MO1-DAG: declare dllimport x86_thiscallcc void @"??1ClassWithNonDllImportField@@QAE@XZ"(%struct.ClassWithNonDllImportField*)
+// MO1-DAG: declare dllimport x86_thiscallcc void @"??1ClassWithNonDllImportBase@@QAE@XZ"(%struct.ClassWithNonDllImportBase* {{[^,]*}})
+// MO1-DAG: declare dllimport x86_thiscallcc void @"??1ClassWithNonDllImportField@@QAE@XZ"(%struct.ClassWithNonDllImportField* {{[^,]*}})
 struct ClassWithCtor { ClassWithCtor() {} };
 struct __declspec(dllimport) ClassWithNonDllImportFieldWithCtor { ClassWithCtor t; };
 USECLASS(ClassWithNonDllImportFieldWithCtor);
-// MO1-DAG: declare dllimport x86_thiscallcc %struct.ClassWithNonDllImportFieldWithCtor* @"??0ClassWithNonDllImportFieldWithCtor@@QAE@XZ"(%struct.ClassWithNonDllImportFieldWithCtor* returned)
+// MO1-DAG: declare dllimport x86_thiscallcc %struct.ClassWithNonDllImportFieldWithCtor* @"??0ClassWithNonDllImportFieldWithCtor@@QAE@XZ"(%struct.ClassWithNonDllImportFieldWithCtor* {{[^,]*}} returned {{[^,]*}})
 struct ClassWithImplicitDtor { __declspec(dllimport) ClassWithImplicitDtor(); ClassWithDtor member; };
 __declspec(dllimport) inline void ReferencingDtorThroughDefinition() { ClassWithImplicitDtor x; };
 USE(ReferencingDtorThroughDefinition)
@@ -386,6 +386,13 @@ __declspec(dllimport) inline void FunctionWithNormalVar() { static int x = 42; }
 USE(FunctionWithTLSVar)
 USE(FunctionWithNormalVar)
 
+// always_inline and __force_inline take precedence.
+__declspec(dllimport) inline int ReferencingNonImportedFuncAlwaysInline() __attribute__((always_inline)) { return NonImportedFunc(); }
+USE(ReferencingNonImportedFuncAlwaysInline)
+// MO1-DAG: define available_externally dllimport i32 @"?ReferencingNonImportedFuncAlwaysInline@@YAHXZ"
+__declspec(dllimport) __forceinline int ReferencingNonImportedFuncForceInline() { return NonImportedFunc(); }
+USE(ReferencingNonImportedFuncForceInline)
+// MO1-DAG: define available_externally dllimport i32 @"?ReferencingNonImportedFuncForceInline@@YAHXZ"
 
 //===----------------------------------------------------------------------===//
 // Function templates
@@ -638,12 +645,12 @@ struct __declspec(dllimport) T {
   // MO1-DAG: @"?b@T@@2HA" = external dllimport global i32
 
   T& operator=(T&) = default;
-  // MO1-DAG: define available_externally dllimport x86_thiscallcc dereferenceable({{[0-9]+}}) %struct.T* @"??4T@@QAEAAU0@AAU0@@Z"
+  // MO1-DAG: define available_externally dllimport x86_thiscallcc nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.T* @"??4T@@QAEAAU0@AAU0@@Z"
 
   T& operator=(T&&) = default;
   // Note: Don't mark inline move operators dllimport because current MSVC versions don't export them.
-  // M18-DAG: define linkonce_odr dso_local x86_thiscallcc dereferenceable({{[0-9]+}}) %struct.T* @"??4T@@QAEAAU0@$$QAU0@@Z"
-  // M19-DAG: define available_externally dllimport x86_thiscallcc dereferenceable({{[0-9]+}}) %struct.T* @"??4T@@QAEAAU0@$$QAU0@@Z"
+  // M18-DAG: define linkonce_odr dso_local x86_thiscallcc nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.T* @"??4T@@QAEAAU0@$$QAU0@@Z"
+  // M19-DAG: define available_externally dllimport x86_thiscallcc nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.T* @"??4T@@QAEAAU0@$$QAU0@@Z"
 };
 USEMEMFUNC(T, a)
 USESTATICMEMFUNC(T, StaticMethod)

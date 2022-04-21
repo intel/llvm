@@ -15,6 +15,7 @@
 
 #include <fstream>
 #include <cassert>
+#include "test_macros.h"
 #include "platform_support.h"
 
 int main(int, char**)
@@ -30,6 +31,8 @@ int main(int, char**)
         assert(x == 3.25);
     }
     std::remove(temp.c_str());
+
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wfstream fs(temp.c_str(), std::ios_base::in | std::ios_base::out
                                                  | std::ios_base::trunc);
@@ -40,6 +43,7 @@ int main(int, char**)
         assert(x == 3.25);
     }
     std::remove(temp.c_str());
+#endif
 
   return 0;
 }

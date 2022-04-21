@@ -1,10 +1,10 @@
 # REQUIRES: x86
 
-# RUN: not ld.lld --unknown1 --unknown2 -m foo /no/such/file -lnosuchlib \
+# RUN: not ld.lld --unknown1 --unkn=own2 -m foo /no/such/file -lnosuchlib \
 # RUN:   2>&1 | FileCheck -check-prefix=UNKNOWN %s
 
 # UNKNOWN: unknown argument '--unknown1'
-# UNKNOWN: unknown argument '--unknown2'
+# UNKNOWN: unknown argument '--unkn=own2'
 # UNKNOWN: unknown emulation: foo
 # UNKNOWN: cannot open /no/such/file
 # UNKNOWN: unable to find library -lnosuchlib
@@ -27,31 +27,27 @@
 
 ## Attempt to link DSO with -r
 # RUN: ld.lld -shared %t -o %t.so
-# RUN: not ld.lld -r %t.so %t -o %tfail 2>&1 | FileCheck -check-prefix=ERR %s
+# RUN: not ld.lld -r %t.so %t -o /dev/null 2>&1 | FileCheck -check-prefix=ERR %s
 # ERR: attempted static link of dynamic object
 
 ## Attempt to use -r and -shared together
-# RUN: not ld.lld -r -shared %t -o %tfail 2>&1 | FileCheck -check-prefix=ERR2 %s
+# RUN: not ld.lld -r -shared %t -o /dev/null 2>&1 | FileCheck -check-prefix=ERR2 %s
 # ERR2: -r and -shared may not be used together
 
-## Attempt to use -r and --gc-sections together
-# RUN: not ld.lld -r --gc-sections %t -o %tfail 2>&1 | FileCheck -check-prefix=ERR3 %s
-# ERR3: -r and --gc-sections may not be used together
-
 ## Attempt to use -r and --gdb-index together
-# RUN: not ld.lld -r --gdb-index %t -o %tfail 2>&1 | FileCheck -check-prefix=ERR4 %s
+# RUN: not ld.lld -r --gdb-index %t -o /dev/null 2>&1 | FileCheck -check-prefix=ERR4 %s
 # ERR4: -r and --gdb-index may not be used together
 
 ## Attempt to use -r and --icf together
-# RUN: not ld.lld -r --icf=all %t -o %tfail 2>&1 | FileCheck -check-prefix=ERR5 %s
+# RUN: not ld.lld -r --icf=all %t -o /dev/null 2>&1 | FileCheck -check-prefix=ERR5 %s
 # ERR5: -r and --icf may not be used together
 
 ## Attempt to use -r and -pie together
-# RUN: not ld.lld -r -pie %t -o %tfail 2>&1 | FileCheck -check-prefix=ERR6 %s
+# RUN: not ld.lld -r -pie %t -o /dev/null 2>&1 | FileCheck -check-prefix=ERR6 %s
 # ERR6: -r and -pie may not be used together
 
 ## Attempt to use -shared and -pie together
-# RUN: not ld.lld -shared -pie %t -o %tfail 2>&1 | FileCheck -check-prefix=ERR7 %s
+# RUN: not ld.lld -shared -pie %t -o /dev/null 2>&1 | FileCheck -check-prefix=ERR7 %s
 # ERR7: -shared and -pie may not be used together
 
 ## "--output=foo" is equivalent to "-o foo".
@@ -62,15 +58,23 @@
 # RUN: not ld.lld %t -output=/no/such/file 2>&1 | FileCheck -check-prefix=ERR9 %s
 # ERR9: cannot open output file utput=/no/such/file
 
-# RUN: not ld.lld %t -z foo 2>&1 | FileCheck -check-prefix=ERR10 %s
-# RUN: not ld.lld %t -z foo --version 2>&1 | FileCheck -check-prefix=ERR10 %s
-# ERR10: unknown -z value: foo
+# RUN: ld.lld %t -z foo -o /dev/null 2>&1 | FileCheck -check-prefix=ERR10 %s
+# RUN: ld.lld %t -z foo -o /dev/null --version 2>&1 | FileCheck -check-prefix=ERR10 %s
+# ERR10: warning: unknown -z value: foo
 
 ## Check we report "unknown -z value" error even with -v.
-# RUN: not ld.lld %t -z foo -v 2>&1 | FileCheck -check-prefix=ERR10 %s
+# RUN: ld.lld %t -z foo -o /dev/null -v 2>&1 | FileCheck -check-prefix=ERR10 %s
+
+## Note: in GNU ld, --fatal-warning still leads to a warning.
+# RUN: not ld.lld %t -z foo --fatal-warnings 2>&1 | FileCheck --check-prefix=ERR10-FATAL %s
+# ERR10-FATAL: error: unknown -z value: foo
 
 # RUN: not ld.lld %t -z max-page-size 2>&1 | FileCheck -check-prefix=ERR11 %s
 # ERR11: unknown -z value: max-page-size
+
+## Attempt to use -r and --export-dynamic together
+# RUN: not ld.lld -r -export-dynamic %t -o /dev/null 2>&1 | FileCheck -check-prefix=ERR12 %s
+# ERR12: -r and --export-dynamic may not be used together
 
 .globl _start
 _start:

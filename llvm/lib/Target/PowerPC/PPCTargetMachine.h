@@ -25,9 +25,12 @@ namespace llvm {
 class PPCTargetMachine final : public LLVMTargetMachine {
 public:
   enum PPCABI { PPC_ABI_UNKNOWN, PPC_ABI_ELFv1, PPC_ABI_ELFv2 };
+  enum Endian { NOT_DETECTED, LITTLE, BIG };
+
 private:
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
   PPCABI TargetABI;
+  Endian Endianness = Endian::NOT_DETECTED;
 
   mutable StringMap<std::unique_ptr<PPCSubtarget>> SubtargetMap;
 
@@ -48,7 +51,7 @@ public:
   // Pass Pipeline Configuration
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
@@ -58,6 +61,15 @@ public:
     const Triple &TT = getTargetTriple();
     return (TT.getArch() == Triple::ppc64 || TT.getArch() == Triple::ppc64le);
   };
+
+  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
+    // Addrspacecasts are always noops.
+    return true;
+  }
+
+  bool isLittleEndian() const;
+
+  int unqualifiedInlineAsmVariant() const override { return 1; }
 };
 } // end namespace llvm
 

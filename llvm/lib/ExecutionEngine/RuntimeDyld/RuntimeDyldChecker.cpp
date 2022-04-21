@@ -9,11 +9,13 @@
 #include "llvm/ExecutionEngine/RuntimeDyldChecker.h"
 #include "RuntimeDyldCheckerImpl.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/MSVCErrorWorkarounds.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include <cctype>
 #include <memory>
@@ -96,8 +98,8 @@ private:
 
   class EvalResult {
   public:
-    EvalResult() : Value(0), ErrorMsg("") {}
-    EvalResult(uint64_t Value) : Value(Value), ErrorMsg("") {}
+    EvalResult() : Value(0) {}
+    EvalResult(uint64_t Value) : Value(Value) {}
     EvalResult(std::string ErrorMsg)
         : Value(0), ErrorMsg(std::move(ErrorMsg)) {}
     uint64_t getValue() const { return Value; }
@@ -231,6 +233,26 @@ private:
           EvalResult(("Cannot decode unknown symbol '" + Symbol + "'").str()),
           "");
 
+    // if there is an offset number expr
+    int64_t Offset = 0;
+    BinOpToken BinOp;
+    std::tie(BinOp, RemainingExpr) = parseBinOpToken(RemainingExpr);
+    switch (BinOp) {
+    case BinOpToken::Add: {
+      EvalResult Number;
+      std::tie(Number, RemainingExpr) = evalNumberExpr(RemainingExpr);
+      Offset = Number.getValue();
+      break;
+    }
+    case BinOpToken::Invalid:
+      break;
+    default:
+      return std::make_pair(
+          unexpectedToken(RemainingExpr, RemainingExpr,
+                          "expected '+' for offset or ',' if no offset"),
+          "");
+    }
+
     if (!RemainingExpr.startswith(","))
       return std::make_pair(
           unexpectedToken(RemainingExpr, RemainingExpr, "expected ','"), "");
@@ -248,7 +270,7 @@ private:
 
     MCInst Inst;
     uint64_t Size;
-    if (!decodeInst(Symbol, Inst, Size))
+    if (!decodeInst(Symbol, Inst, Size, Offset))
       return std::make_pair(
           EvalResult(("Couldn't decode instruction at '" + Symbol + "'").str()),
           "");
@@ -306,7 +328,7 @@ private:
 
     MCInst Inst;
     uint64_t InstSize;
-    if (!decodeInst(Symbol, Inst, InstSize))
+    if (!decodeInst(Symbol, Inst, InstSize, 0))
       return std::make_pair(
           EvalResult(("Couldn't decode instruction at '" + Symbol + "'").str()),
           "");
@@ -351,7 +373,7 @@ private:
     RemainingExpr = RemainingExpr.substr(1).ltrim();
 
     uint64_t StubAddr;
-    std::string ErrorMsg = "";
+    std::string ErrorMsg;
     std::tie(StubAddr, ErrorMsg) = Checker.getStubOrGOTAddrFor(
         StubContainerName, Symbol, PCtx.IsInsideLoad, IsStubAddr);
 
@@ -380,7 +402,9 @@ private:
     RemainingExpr = RemainingExpr.substr(1).ltrim();
 
     StringRef SectionName;
-    std::tie(SectionName, RemainingExpr) = parseSymbol(RemainingExpr);
+    size_t CloseParensIdx = RemainingExpr.find(')');
+    SectionName = RemainingExpr.substr(0, CloseParensIdx).rtrim();
+    RemainingExpr = RemainingExpr.substr(CloseParensIdx).ltrim();
 
     if (!RemainingExpr.startswith(")"))
       return std::make_pair(
@@ -388,7 +412,7 @@ private:
     RemainingExpr = RemainingExpr.substr(1).ltrim();
 
     uint64_t StubAddr;
-    std::string ErrorMsg = "";
+    std::string ErrorMsg;
     std::tie(StubAddr, ErrorMsg) = Checker.getSectionAddr(
         FileName, SectionName, PCtx.IsInsideLoad);
 
@@ -661,18 +685,20 @@ private:
     return evalComplexExpr(std::make_pair(ThisResult, RemainingExpr), PCtx);
   }
 
-  bool decodeInst(StringRef Symbol, MCInst &Inst, uint64_t &Size) const {
+  bool decodeInst(StringRef Symbol, MCInst &Inst, uint64_t &Size,
+                  int64_t Offset) const {
     MCDisassembler *Dis = Checker.Disassembler;
     StringRef SymbolMem = Checker.getSymbolContent(Symbol);
-    ArrayRef<uint8_t> SymbolBytes(SymbolMem.bytes_begin(), SymbolMem.size());
+    ArrayRef<uint8_t> SymbolBytes(SymbolMem.bytes_begin() + Offset,
+                                  SymbolMem.size() - Offset);
 
     MCDisassembler::DecodeStatus S =
-        Dis->getInstruction(Inst, Size, SymbolBytes, 0, nulls(), nulls());
+        Dis->getInstruction(Inst, Size, SymbolBytes, 0, nulls());
 
     return (S == MCDisassembler::Success);
   }
 };
-}
+} // namespace llvm
 
 RuntimeDyldCheckerImpl::RuntimeDyldCheckerImpl(
     IsSymbolValidFunction IsSymbolValid, GetSymbolInfoFunction GetSymbolInfo,
@@ -704,10 +730,11 @@ bool RuntimeDyldCheckerImpl::checkAllRulesInBuffer(StringRef RulePrefix,
   bool DidAllTestsPass = true;
   unsigned NumRules = 0;
 
+  std::string CheckExpr;
   const char *LineStart = MemBuf->getBufferStart();
 
   // Eat whitespace.
-  while (LineStart != MemBuf->getBufferEnd() && std::isspace(*LineStart))
+  while (LineStart != MemBuf->getBufferEnd() && isSpace(*LineStart))
     ++LineStart;
 
   while (LineStart != MemBuf->getBufferEnd() && *LineStart != '\0') {
@@ -717,14 +744,23 @@ bool RuntimeDyldCheckerImpl::checkAllRulesInBuffer(StringRef RulePrefix,
       ++LineEnd;
 
     StringRef Line(LineStart, LineEnd - LineStart);
-    if (Line.startswith(RulePrefix)) {
-      DidAllTestsPass &= check(Line.substr(RulePrefix.size()));
-      ++NumRules;
+    if (Line.startswith(RulePrefix))
+      CheckExpr += Line.substr(RulePrefix.size()).str();
+
+    // If there's a check expr string...
+    if (!CheckExpr.empty()) {
+      // ... and it's complete then run it, otherwise remove the trailer '\'.
+      if (CheckExpr.back() != '\\') {
+        DidAllTestsPass &= check(CheckExpr);
+        CheckExpr.clear();
+        ++NumRules;
+      } else
+        CheckExpr.pop_back();
     }
 
     // Eat whitespace.
     LineStart = LineEnd;
-    while (LineStart != MemBuf->getBufferEnd() && std::isspace(*LineStart))
+    while (LineStart != MemBuf->getBufferEnd() && isSpace(*LineStart))
       ++LineStart;
   }
   return DidAllTestsPass && (NumRules != 0);
@@ -783,7 +819,7 @@ StringRef RuntimeDyldCheckerImpl::getSymbolContent(StringRef Symbol) const {
     logAllUnhandledErrors(SymInfo.takeError(), errs(), "RTDyldChecker: ");
     return StringRef();
   }
-  return SymInfo->getContent();
+  return {SymInfo->getContent().data(), SymInfo->getContent().size()};
 }
 
 std::pair<uint64_t, std::string> RuntimeDyldCheckerImpl::getSectionAddr(
@@ -851,13 +887,13 @@ RuntimeDyldChecker::RuntimeDyldChecker(
     GetGOTInfoFunction GetGOTInfo, support::endianness Endianness,
     MCDisassembler *Disassembler, MCInstPrinter *InstPrinter,
     raw_ostream &ErrStream)
-    : Impl(::llvm::make_unique<RuntimeDyldCheckerImpl>(
+    : Impl(::std::make_unique<RuntimeDyldCheckerImpl>(
           std::move(IsSymbolValid), std::move(GetSymbolInfo),
           std::move(GetSectionInfo), std::move(GetStubInfo),
           std::move(GetGOTInfo), Endianness, Disassembler, InstPrinter,
           ErrStream)) {}
 
-RuntimeDyldChecker::~RuntimeDyldChecker() {}
+RuntimeDyldChecker::~RuntimeDyldChecker() = default;
 
 bool RuntimeDyldChecker::check(StringRef CheckExpr) const {
   return Impl->check(CheckExpr);

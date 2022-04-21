@@ -1,5 +1,3 @@
-include_directories(${LIBXML2_INCLUDE_DIR})
-
 add_lldb_library(lldbPluginSymbolVendorMacOSX PLUGIN
   SymbolVendorMacOSX.cpp
 
@@ -7,4 +5,5 @@ add_lldb_library(lldbPluginSymbolVendorMacOSX PLUGIN
     lldbCore
     lldbHost
     lldbSymbol
+    lldbPluginObjectFileMachO
   )

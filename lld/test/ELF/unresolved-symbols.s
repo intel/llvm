@@ -4,17 +4,17 @@
 # RUN: ld.lld -shared %t2.o -o %t.so
 
 ## Check that %t2.o contains undefined symbol undef.
-# RUN: not ld.lld %t1.o %t2.o -o %t 2>&1 | \
+# RUN: not ld.lld %t1.o %t2.o -o /dev/null 2>&1 | \
 # RUN:   FileCheck -check-prefix=UNDCHECK %s
 # UNDCHECK: error: undefined symbol: undef
 # UNDCHECK: >>> referenced by {{.*}}2.o:(.text+0x1)
 
 ## Error out if unknown option value was set.
-# RUN: not ld.lld %t1.o %t2.o -o %t --unresolved-symbols=xxx 2>&1 | \
+# RUN: not ld.lld %t1.o %t2.o -o /dev/null --unresolved-symbols=xxx 2>&1 | \
 # RUN:   FileCheck -check-prefix=ERR1 %s
 # ERR1: unknown --unresolved-symbols value: xxx
 ## Check alias.
-# RUN: not ld.lld %t1.o %t2.o -o %t --unresolved-symbols xxx 2>&1 | \
+# RUN: not ld.lld %t1.o %t2.o -o /dev/null --unresolved-symbols xxx 2>&1 | \
 # RUN:   FileCheck -check-prefix=ERR1 %s
 
 ## Ignore all should not produce error for symbols from object except
@@ -33,9 +33,10 @@
 ## Ignoring undefines in objects should not produce error for symbol from object.
 # RUN: ld.lld %t1.o %t2.o -o %t2 --unresolved-symbols=ignore-in-object-files
 # RUN: llvm-readobj %t2 > /dev/null 2>&1
-## And still should not should produce for undefines from DSOs.
-# RUN: ld.lld %t1.o %t.so -o /dev/null --allow-shlib-undefined --unresolved-symbols=ignore-in-object-files
-# RUN: llvm-readobj %t2 > /dev/null 2>&1
+## --unresolved-symbols overrides a previous --allow-shlib-undefined.
+# RUN: not ld.lld %t1.o %t.so -o /dev/null --allow-shlib-undefined --unresolved-symbols=ignore-in-object-files 2>&1 | FileCheck %s --check-prefix=SHLIB
+
+# SHLIB: error: {{.*}}.so: undefined reference to undef [--no-allow-shlib-undefined]
 
 ## Ignoring undefines in shared should produce error for symbol from object.
 # RUN: not ld.lld %t2.o -o /dev/null --unresolved-symbols=ignore-in-shared-libs 2>&1 | \
@@ -53,11 +54,9 @@
 # RUN: ld.lld -r %t1.o %t2.o -o %t5 --unresolved-symbols=report-all
 # RUN: llvm-readobj %t5 > /dev/null 2>&1
 
-## report-all is the default one. Check that we do not report
-## undefines from DSO and do report undefines from object. With
-## report-all specified and without.
-# RUN: ld.lld -shared %t1.o %t.so -o %t6 --unresolved-symbols=report-all
-# RUN: llvm-readobj %t6 > /dev/null 2>&1
+## report-all is the default when linking an executable. Check that we report
+## unresolved undefines from both DSO and regular object files.
+# RUN: not ld.lld -shared %t1.o %t.so -o /dev/null --unresolved-symbols=report-all 2>&1 | FileCheck %s --check-prefix=SHLIB
 # RUN: ld.lld -shared %t1.o %t.so -o %t6_1
 # RUN: llvm-readobj %t6_1 > /dev/null 2>&1
 # RUN: not ld.lld %t2.o -o /dev/null --unresolved-symbols=report-all 2>&1 | \

@@ -21,6 +21,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 #include <map>
@@ -73,8 +74,10 @@ public:
   /// thus become dead in the end.
   enum Liveness { Live, MaybeLive };
 
-  DeadArgumentEliminationPass(bool ShouldHackArguments_ = false)
-      : ShouldHackArguments(ShouldHackArguments_) {}
+  DeadArgumentEliminationPass(bool ShouldHackArguments_ = false,
+                              bool CheckSYCLKernels_ = false)
+      : ShouldHackArguments(ShouldHackArguments_),
+        CheckSYCLKernels(CheckSYCLKernels_) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
@@ -121,6 +124,10 @@ public:
   /// (used only by bugpoint).
   bool ShouldHackArguments = false;
 
+  /// This allows to eliminate dead arguments in SYCL kernel wrapper functions
+  /// with external linkage
+  bool CheckSYCLKernels = false;
+
 private:
   Liveness MarkIfNotLive(RetOrArg Use, UseVector &MaybeLiveUses);
   Liveness SurveyUse(const Use *U, UseVector &MaybeLiveUses,
@@ -128,6 +135,7 @@ private:
   Liveness SurveyUses(const Value *V, UseVector &MaybeLiveUses);
 
   void SurveyFunction(const Function &F);
+  bool IsLive(const RetOrArg &RA);
   void MarkValue(const RetOrArg &RA, Liveness L,
                  const UseVector &MaybeLiveUses);
   void MarkLive(const RetOrArg &RA);
@@ -136,6 +144,58 @@ private:
   bool RemoveDeadStuffFromFunction(Function *F);
   bool DeleteDeadVarargs(Function &Fn);
   bool RemoveDeadArgumentsFromCallers(Function &Fn);
+
+  void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF);
+  llvm::DenseSet<Function *> NVPTXKernelSet;
+
+  bool IsNVPTXKernel(const Function *F) { return NVPTXKernelSet.contains(F); };
+
+  void BuildNVPTXKernelSet(const Module &M) {
+
+    auto *NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
+    if (!NvvmMetadata)
+      return;
+
+    for (auto *MetadataNode : NvvmMetadata->operands()) {
+      if (MetadataNode->getNumOperands() != 3)
+        continue;
+
+      // NVPTX identifies kernel entry points using metadata nodes of the form:
+      //   !X = !{<function>, !"kernel", i32 1}
+      auto *Type = dyn_cast<MDString>(MetadataNode->getOperand(1));
+      // Only process kernel entry points.
+      if (!Type || Type->getString() != "kernel")
+        continue;
+
+      // Get a pointer to the entry point function from the metadata.
+      if (const auto &FuncOperand = MetadataNode->getOperand(0)) {
+        if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand)) {
+          if (auto *Func = dyn_cast<Function>(FuncConstant->getValue())) {
+            if (auto *Val = mdconst::dyn_extract<ConstantInt>(
+                    MetadataNode->getOperand(2))) {
+              if (Val->getValue() == 1) {
+                NVPTXKernelSet.insert(Func);
+              }
+            }
+          }
+        }
+      }
+    }
+    return;
+  }
+};
+
+class DeadArgumentEliminationSYCLPass
+    : public PassInfoMixin<DeadArgumentEliminationSYCLPass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
+    return Impl.run(M, MAM);
+  }
+
+private:
+  DeadArgumentEliminationPass Impl =
+      DeadArgumentEliminationPass(/* ShouldHackArguemtns */ false,
+                                  /* CheckSYCLKernels */ true);
 };
 
 } // end namespace llvm

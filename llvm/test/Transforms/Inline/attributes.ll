@@ -22,6 +22,10 @@ define i32 @sanitize_memory_callee(i32 %i) sanitize_memory {
   ret i32 %i
 }
 
+define i32 @sanitize_memtag_callee(i32 %i) sanitize_memtag {
+  ret i32 %i
+}
+
 define i32 @safestack_callee(i32 %i) safestack {
   ret i32 %i
 }
@@ -47,6 +51,10 @@ define i32 @alwaysinline_sanitize_thread_callee(i32 %i) alwaysinline sanitize_th
 }
 
 define i32 @alwaysinline_sanitize_memory_callee(i32 %i) alwaysinline sanitize_memory {
+  ret i32 %i
+}
+
+define i32 @alwaysinline_sanitize_memtag_callee(i32 %i) alwaysinline sanitize_memtag {
   ret i32 %i
 }
 
@@ -104,6 +112,17 @@ define i32 @test_no_sanitize_thread(i32 %arg) {
 ; CHECK-NEXT: ret i32
 }
 
+define i32 @test_no_sanitize_memtag(i32 %arg) {
+  %x1 = call i32 @noattr_callee(i32 %arg)
+  %x2 = call i32 @sanitize_memtag_callee(i32 %x1)
+  %x3 = call i32 @alwaysinline_callee(i32 %x2)
+  %x4 = call i32 @alwaysinline_sanitize_memtag_callee(i32 %x3)
+  ret i32 %x4
+; CHECK-LABEL: @test_no_sanitize_memtag(
+; CHECK-NEXT: @sanitize_memtag_callee
+; CHECK-NEXT: ret i32
+}
+
 
 ; Check that:
 ;  * noattr callee is not inlined into sanitize_(address|memory|thread) caller,
@@ -150,6 +169,17 @@ define i32 @test_sanitize_thread(i32 %arg) sanitize_thread {
   %x4 = call i32 @alwaysinline_sanitize_thread_callee(i32 %x3)
   ret i32 %x4
 ; CHECK-LABEL: @test_sanitize_thread(
+; CHECK-NEXT: @noattr_callee
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_sanitize_memtag(i32 %arg) sanitize_memtag {
+  %x1 = call i32 @noattr_callee(i32 %arg)
+  %x2 = call i32 @sanitize_memtag_callee(i32 %x1)
+  %x3 = call i32 @alwaysinline_callee(i32 %x2)
+  %x4 = call i32 @alwaysinline_sanitize_memtag_callee(i32 %x3)
+  ret i32 %x4
+; CHECK-LABEL: @test_sanitize_memtag(
 ; CHECK-NEXT: @noattr_callee
 ; CHECK-NEXT: ret i32
 }
@@ -359,18 +389,18 @@ define i32 @test_no-use-jump-tables3(i32 %i) "no-jump-tables"="true" {
 ; CHECK-NEXT: ret i32
 }
 
-; Callee with "null-pointer-is-valid"="true" attribute should not be inlined
+; Callee with null_pointer_is_valid attribute should not be inlined
 ; into a caller without this attribute.
 ; Exception: alwaysinline callee can still be inlined but
-; "null-pointer-is-valid"="true" should get copied to caller.
+; null_pointer_is_valid should get copied to caller.
 
-define i32 @null-pointer-is-valid_callee0(i32 %i) "null-pointer-is-valid"="true" {
+define i32 @null-pointer-is-valid_callee0(i32 %i) null_pointer_is_valid {
   ret i32 %i
 ; CHECK: @null-pointer-is-valid_callee0(i32 %i)
 ; CHECK-NEXT: ret i32
 }
 
-define i32 @null-pointer-is-valid_callee1(i32 %i) alwaysinline "null-pointer-is-valid"="true" {
+define i32 @null-pointer-is-valid_callee1(i32 %i) alwaysinline null_pointer_is_valid {
   ret i32 %i
 ; CHECK: @null-pointer-is-valid_callee1(i32 %i)
 ; CHECK-NEXT: ret i32
@@ -382,7 +412,7 @@ define i32 @null-pointer-is-valid_callee2(i32 %i)  {
 ; CHECK-NEXT: ret i32
 }
 
-; No inlining since caller does not have "null-pointer-is-valid"="true" attribute.
+; No inlining since caller does not have null_pointer_is_valid attribute.
 define i32 @test_null-pointer-is-valid0(i32 %i) {
   %1 = call i32 @null-pointer-is-valid_callee0(i32 %i)
   ret i32 %1
@@ -392,21 +422,181 @@ define i32 @test_null-pointer-is-valid0(i32 %i) {
 }
 
 ; alwaysinline should force inlining even when caller does not have
-; "null-pointer-is-valid"="true" attribute. However, the attribute should be
+; null_pointer_is_valid attribute. However, the attribute should be
 ; copied to caller.
-define i32 @test_null-pointer-is-valid1(i32 %i) "null-pointer-is-valid"="false" {
+define i32 @test_null-pointer-is-valid1(i32 %i) {
   %1 = call i32 @null-pointer-is-valid_callee1(i32 %i)
   ret i32 %1
 ; CHECK: @test_null-pointer-is-valid1(i32 %i) [[NULLPOINTERISVALID:#[0-9]+]] {
 ; CHECK-NEXT: ret i32
 }
 
-; Can inline since both caller and callee have "null-pointer-is-valid"="true"
+; Can inline since both caller and callee have null_pointer_is_valid
 ; attribute.
-define i32 @test_null-pointer-is-valid2(i32 %i) "null-pointer-is-valid"="true" {
+define i32 @test_null-pointer-is-valid2(i32 %i) null_pointer_is_valid {
   %1 = call i32 @null-pointer-is-valid_callee2(i32 %i)
   ret i32 %1
 ; CHECK: @test_null-pointer-is-valid2(i32 %i) [[NULLPOINTERISVALID]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @no-infs-fp-math_callee0(i32 %i) "no-infs-fp-math"="false" {
+  ret i32 %i
+; CHECK: @no-infs-fp-math_callee0(i32 %i) [[NO_INFS_FPMATH_FALSE:#[0-9]+]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @no-infs-fp-math_callee1(i32 %i) "no-infs-fp-math"="true" {
+  ret i32 %i
+; CHECK: @no-infs-fp-math_callee1(i32 %i) [[NO_INFS_FPMATH_TRUE:#[0-9]+]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-infs-fp-math0(i32 %i) "no-infs-fp-math"="false" {
+  %1 = call i32 @no-infs-fp-math_callee0(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-infs-fp-math0(i32 %i) [[NO_INFS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-infs-fp-math1(i32 %i) "no-infs-fp-math"="false" {
+  %1 = call i32 @no-infs-fp-math_callee1(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-infs-fp-math1(i32 %i) [[NO_INFS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-infs-fp-math2(i32 %i) "no-infs-fp-math"="true" {
+  %1 = call i32 @no-infs-fp-math_callee0(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-infs-fp-math2(i32 %i) [[NO_INFS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-infs-fp-math3(i32 %i) "no-infs-fp-math"="true" {
+  %1 = call i32 @no-infs-fp-math_callee1(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-infs-fp-math3(i32 %i) [[NO_INFS_FPMATH_TRUE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @no-nans-fp-math_callee0(i32 %i) "no-nans-fp-math"="false" {
+  ret i32 %i
+; CHECK: @no-nans-fp-math_callee0(i32 %i) [[NO_NANS_FPMATH_FALSE:#[0-9]+]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @no-nans-fp-math_callee1(i32 %i) "no-nans-fp-math"="true" {
+  ret i32 %i
+; CHECK: @no-nans-fp-math_callee1(i32 %i) [[NO_NANS_FPMATH_TRUE:#[0-9]+]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-nans-fp-math0(i32 %i) "no-nans-fp-math"="false" {
+  %1 = call i32 @no-nans-fp-math_callee0(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-nans-fp-math0(i32 %i) [[NO_NANS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-nans-fp-math1(i32 %i) "no-nans-fp-math"="false" {
+  %1 = call i32 @no-nans-fp-math_callee1(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-nans-fp-math1(i32 %i) [[NO_NANS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-nans-fp-math2(i32 %i) "no-nans-fp-math"="true" {
+  %1 = call i32 @no-nans-fp-math_callee0(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-nans-fp-math2(i32 %i) [[NO_NANS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-nans-fp-math3(i32 %i) "no-nans-fp-math"="true" {
+  %1 = call i32 @no-nans-fp-math_callee1(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-nans-fp-math3(i32 %i) [[NO_NANS_FPMATH_TRUE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @no-signed-zeros-fp-math_callee0(i32 %i) "no-signed-zeros-fp-math"="false" {
+  ret i32 %i
+; CHECK: @no-signed-zeros-fp-math_callee0(i32 %i) [[NO_SIGNED_ZEROS_FPMATH_FALSE:#[0-9]+]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @no-signed-zeros-fp-math_callee1(i32 %i) "no-signed-zeros-fp-math"="true" {
+  ret i32 %i
+; CHECK: @no-signed-zeros-fp-math_callee1(i32 %i) [[NO_SIGNED_ZEROS_FPMATH_TRUE:#[0-9]+]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-signed-zeros-fp-math0(i32 %i) "no-signed-zeros-fp-math"="false" {
+  %1 = call i32 @no-signed-zeros-fp-math_callee0(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-signed-zeros-fp-math0(i32 %i) [[NO_SIGNED_ZEROS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-signed-zeros-fp-math1(i32 %i) "no-signed-zeros-fp-math"="false" {
+  %1 = call i32 @no-signed-zeros-fp-math_callee1(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-signed-zeros-fp-math1(i32 %i) [[NO_SIGNED_ZEROS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-signed-zeros-fp-math2(i32 %i) "no-signed-zeros-fp-math"="true" {
+  %1 = call i32 @no-signed-zeros-fp-math_callee0(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-signed-zeros-fp-math2(i32 %i) [[NO_SIGNED_ZEROS_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_no-signed-zeros-fp-math3(i32 %i) "no-signed-zeros-fp-math"="true" {
+  %1 = call i32 @no-signed-zeros-fp-math_callee1(i32 %i)
+  ret i32 %1
+; CHECK: @test_no-signed-zeros-fp-math3(i32 %i) [[NO_SIGNED_ZEROS_FPMATH_TRUE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @unsafe-fp-math_callee0(i32 %i) "unsafe-fp-math"="false" {
+  ret i32 %i
+; CHECK: @unsafe-fp-math_callee0(i32 %i) [[UNSAFE_FPMATH_FALSE:#[0-9]+]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @unsafe-fp-math_callee1(i32 %i) "unsafe-fp-math"="true" {
+  ret i32 %i
+; CHECK: @unsafe-fp-math_callee1(i32 %i) [[UNSAFE_FPMATH_TRUE:#[0-9]+]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_unsafe-fp-math0(i32 %i) "unsafe-fp-math"="false" {
+  %1 = call i32 @unsafe-fp-math_callee0(i32 %i)
+  ret i32 %1
+; CHECK: @test_unsafe-fp-math0(i32 %i) [[UNSAFE_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_unsafe-fp-math1(i32 %i) "unsafe-fp-math"="false" {
+  %1 = call i32 @unsafe-fp-math_callee1(i32 %i)
+  ret i32 %1
+; CHECK: @test_unsafe-fp-math1(i32 %i) [[UNSAFE_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_unsafe-fp-math2(i32 %i) "unsafe-fp-math"="true" {
+  %1 = call i32 @unsafe-fp-math_callee0(i32 %i)
+  ret i32 %1
+; CHECK: @test_unsafe-fp-math2(i32 %i) [[UNSAFE_FPMATH_FALSE]] {
+; CHECK-NEXT: ret i32
+}
+
+define i32 @test_unsafe-fp-math3(i32 %i) "unsafe-fp-math"="true" {
+  %1 = call i32 @unsafe-fp-math_callee1(i32 %i)
+  ret i32 %1
+; CHECK: @test_unsafe-fp-math3(i32 %i) [[UNSAFE_FPMATH_TRUE]] {
 ; CHECK-NEXT: ret i32
 }
 
@@ -415,4 +605,12 @@ define i32 @test_null-pointer-is-valid2(i32 %i) "null-pointer-is-valid"="true" {
 ; CHECK: attributes [[FPMAD_TRUE]] = { "less-precise-fpmad"="true" }
 ; CHECK: attributes [[NOIMPLICITFLOAT]] = { noimplicitfloat }
 ; CHECK: attributes [[NOUSEJUMPTABLES]] = { "no-jump-tables"="true" }
-; CHECK: attributes [[NULLPOINTERISVALID]] = { "null-pointer-is-valid"="true" }
+; CHECK: attributes [[NULLPOINTERISVALID]] = { null_pointer_is_valid }
+; CHECK: attributes [[NO_INFS_FPMATH_FALSE]] = { "no-infs-fp-math"="false" }
+; CHECK: attributes [[NO_INFS_FPMATH_TRUE]] = { "no-infs-fp-math"="true" }
+; CHECK: attributes [[NO_NANS_FPMATH_FALSE]] = { "no-nans-fp-math"="false" }
+; CHECK: attributes [[NO_NANS_FPMATH_TRUE]] = { "no-nans-fp-math"="true" }
+; CHECK: attributes [[NO_SIGNED_ZEROS_FPMATH_FALSE]] = { "no-signed-zeros-fp-math"="false" }
+; CHECK: attributes [[NO_SIGNED_ZEROS_FPMATH_TRUE]] = { "no-signed-zeros-fp-math"="true" }
+; CHECK: attributes [[UNSAFE_FPMATH_FALSE]] = { "unsafe-fp-math"="false" }
+; CHECK: attributes [[UNSAFE_FPMATH_TRUE]] = { "unsafe-fp-math"="true" }

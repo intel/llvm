@@ -12,8 +12,8 @@
 
 #include "BPFSubtarget.h"
 #include "BPF.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Host.h"
-#include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -29,7 +29,7 @@ BPFSubtarget &BPFSubtarget::initializeSubtargetDependencies(StringRef CPU,
                                                             StringRef FS) {
   initializeEnvironment();
   initSubtargetFeatures(CPU, FS);
-  ParseSubtargetFeatures(CPU, FS);
+  ParseSubtargetFeatures(CPU, /*TuneCPU*/ CPU, FS);
   return *this;
 }
 
@@ -52,12 +52,13 @@ void BPFSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   if (CPU == "v3") {
     HasJmpExt = true;
     HasJmp32 = true;
+    HasAlu32 = true;
     return;
   }
 }
 
 BPFSubtarget::BPFSubtarget(const Triple &TT, const std::string &CPU,
                            const std::string &FS, const TargetMachine &TM)
-    : BPFGenSubtargetInfo(TT, CPU, FS), InstrInfo(),
+    : BPFGenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS),
       FrameLowering(initializeSubtargetDependencies(CPU, FS)),
       TLInfo(TM, *this) {}

@@ -1,4 +1,4 @@
-// RUN: %clangxx_tsan %s -o %t -framework Foundation -fobjc-arc %darwin_min_target_with_full_runtime_arc_support
+// RUN: %clangxx_tsan %s -o %t -framework Foundation -fobjc-arc
 // RUN:     %run %t 6 2>&1 | FileCheck %s --check-prefix=SIX
 // RUN: not %run %t 7 2>&1 | FileCheck %s --check-prefix=SEVEN
 
@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
 
   @autoreleasepool {
     NSObject* obj = [NSObject new];
-    NSObject* num1 = @7;
+    NSObject* num1 = [NSNumber numberWithInt:7];
     NSObject* num2 = [NSNumber numberWithInt:arg];
 
     assert(!isTaggedPtr(obj));

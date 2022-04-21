@@ -17,6 +17,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int main(int, char**)
 {
     {
@@ -46,6 +48,7 @@ int main(int, char**)
         assert(sb.sputc('3') == '3');
         assert(sb.str() == "0123456789");
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         std::wstringbuf sb(L"0123456789", std::ios_base::in);
         assert(sb.pubseekpos(3, std::ios_base::out) == -1);
@@ -73,6 +76,7 @@ int main(int, char**)
         assert(sb.sputc(L'3') == L'3');
         assert(sb.str() == L"0123456789");
     }
+#endif
 
   return 0;
 }

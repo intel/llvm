@@ -4,7 +4,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EB -mhard-float -mabi=32 \
 // RUN:   | FileCheck --check-prefix=EB-HARD-O32 %s
 // EB-HARD-O32: "-internal-isystem"
@@ -32,7 +33,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EB -mhard-float -mabi=n32 \
 // RUN:   | FileCheck --check-prefix=EB-HARD-N32 %s
 // EB-HARD-N32: "-internal-isystem"
@@ -60,7 +62,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips64-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EB -mhard-float -mabi=64 \
 // RUN:   | FileCheck --check-prefix=EB-HARD-N64 %s
 // EB-HARD-N64: "-internal-isystem"
@@ -88,7 +91,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -mhard-float -mabi=32 \
 // RUN:   | FileCheck --check-prefix=EL-HARD-O32 %s
 // EL-HARD-O32: "-internal-isystem"
@@ -116,7 +120,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -mhard-float -mabi=n32 \
 // RUN:   | FileCheck --check-prefix=EL-HARD-N32 %s
 // EL-HARD-N32: "-internal-isystem"
@@ -144,7 +149,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips64-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -mhard-float -mabi=64 \
 // RUN:   | FileCheck --check-prefix=EL-HARD-N64 %s
 // EL-HARD-N64: "-internal-isystem"
@@ -172,7 +178,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EB -msoft-float \
 // RUN:   | FileCheck --check-prefix=EB-SOFT %s
 // EB-SOFT: "-internal-isystem"
@@ -200,7 +207,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -msoft-float \
 // RUN:   | FileCheck --check-prefix=EL-SOFT %s
 // EL-SOFT: "-internal-isystem"
@@ -228,7 +236,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EB -mhard-float -muclibc \
 // RUN:   | FileCheck --check-prefix=EB-HARD-UCLIBC %s
 // EB-HARD-UCLIBC: "-internal-isystem"
@@ -256,7 +265,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -mhard-float -muclibc \
 // RUN:   | FileCheck --check-prefix=EL-HARD-UCLIBC %s
 // EL-HARD-UCLIBC: "-internal-isystem"
@@ -284,7 +294,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EB -mhard-float -mnan=2008 \
 // RUN:   | FileCheck --check-prefix=EB-HARD-NAN2008 %s
 // EB-HARD-NAN2008: "-internal-isystem"
@@ -312,7 +323,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -mhard-float -mnan=2008 \
 // RUN:   | FileCheck --check-prefix=EL-HARD-NAN2008 %s
 // EL-HARD-NAN2008: "-internal-isystem"
@@ -340,7 +352,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EB -mhard-float -muclibc -mnan=2008 \
 // RUN:   | FileCheck --check-prefix=EB-HARD-UCLIBC-NAN2008 %s
 // EB-HARD-UCLIBC-NAN2008: "-internal-isystem"
@@ -368,7 +381,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -mhard-float -muclibc -mnan=2008 \
 // RUN:   | FileCheck --check-prefix=EL-HARD-UCLIBC-NAN2008 %s
 // EL-HARD-UCLIBC-NAN2008: "-internal-isystem"
@@ -396,7 +410,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -msoft-float -mmicromips \
 // RUN:   | FileCheck --check-prefix=EL-SOFT-MICRO %s
 // EL-SOFT-MICRO: "-internal-isystem"
@@ -424,7 +439,8 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:        --target=mips-mti-linux-gnu \
 // RUN:        --gcc-toolchain=%S/Inputs/mips_mti_tree \
-// RUN:        -stdlib=libstdc++ \
+// RUN:        --sysroot="" \
+// RUN:        -stdlib=libstdc++ -no-pie \
 // RUN:        -EL -mhard-float -mmicromips -mnan=2008 \
 // RUN:   | FileCheck --check-prefix=EL-SOFT-MICRO-NAN2008 %s
 // EL-SOFT-MICRO-NAN2008: "-internal-isystem"

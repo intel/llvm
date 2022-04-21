@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class weekday_last;
@@ -29,7 +29,7 @@ int main(int, char**)
 
     static_assert( weekday_last{weekday{0}}.ok(), "");
     static_assert( weekday_last{weekday{1}}.ok(), "");
-    static_assert(!weekday_last{weekday{7}}.ok(), "");
+    static_assert(!weekday_last{weekday{8}}.ok(), "");
 
     for (unsigned i = 0; i <= 255; ++i)
         assert(weekday_last{weekday{i}}.ok() == weekday{i}.ok());

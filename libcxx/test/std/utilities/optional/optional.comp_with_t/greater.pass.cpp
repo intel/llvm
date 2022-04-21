@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // <optional>
 
 // template <class T, class U> constexpr bool operator>(const optional<T>& x, const U& v);
 // template <class T, class U> constexpr bool operator>(const U& v, const optional<T>& x);
 
 #include <optional>
+
+#include "test_macros.h"
 
 using std::optional;
 

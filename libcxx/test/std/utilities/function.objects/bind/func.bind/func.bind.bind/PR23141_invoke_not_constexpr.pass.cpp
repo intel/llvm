@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <functional>
 
@@ -15,9 +15,11 @@
 // template<Returnable R, CopyConstructible Fn, CopyConstructible... Types>
 //   unspecified bind(Fn, Types...);
 
-// https://bugs.llvm.org/show_bug.cgi?id=23141
+// https://llvm.org/PR23141
 #include <functional>
 #include <type_traits>
+
+#include "test_macros.h"
 
 struct Fun
 {

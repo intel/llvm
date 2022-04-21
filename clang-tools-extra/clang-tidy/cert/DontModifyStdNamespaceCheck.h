@@ -19,11 +19,14 @@ namespace cert {
 /// This check warns for such modifications.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/cert-msc53-cpp.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/cert-dcl58-cpp.html
 class DontModifyStdNamespaceCheck : public ClangTidyCheck {
 public:
   DontModifyStdNamespaceCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };

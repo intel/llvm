@@ -6,19 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CompUnit_h_
-#define liblldb_CompUnit_h_
+#ifndef LLDB_SYMBOL_COMPILEUNIT_H
+#define LLDB_SYMBOL_COMPILEUNIT_H
 
 #include "lldb/Core/FileSpecList.h"
 #include "lldb/Core/ModuleChild.h"
+#include "lldb/Core/SourceLocationSpec.h"
 #include "lldb/Symbol/DebugMacros.h"
 #include "lldb/Symbol/Function.h"
+#include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/SourceModule.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/UserID.h"
 #include "lldb/lldb-enumerations.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 
 namespace lldb_private {
 /// \class CompileUnit CompileUnit.h "lldb/Symbol/CompileUnit.h"
@@ -34,7 +37,6 @@ namespace lldb_private {
 /// table.
 class CompileUnit : public std::enable_shared_from_this<CompileUnit>,
                     public ModuleChild,
-                    public FileSpec,
                     public UserID,
                     public SymbolContextScope {
 public:
@@ -44,7 +46,7 @@ public:
   /// convert into a FileSpec, the SymbolFile plug-in supplied \a uid, and the
   /// source language type.
   ///
-  /// \param[in] module
+  /// \param[in] module_sp
   ///     The parent module that owns this compile unit. This value
   ///     must be a valid pointer value.
   ///
@@ -82,7 +84,7 @@ public:
   /// convert into a FileSpec, the SymbolFile plug-in supplied \a uid, and the
   /// source language type.
   ///
-  /// \param[in] module
+  /// \param[in] module_sp
   ///     The parent module that owns this compile unit. This value
   ///     must be a valid pointer value.
   ///
@@ -114,9 +116,6 @@ public:
   CompileUnit(const lldb::ModuleSP &module_sp, void *user_data,
               const FileSpec &file_spec, lldb::user_id_t uid,
               lldb::LanguageType language, lldb_private::LazyBool is_optimized);
-
-  /// Destructor
-  ~CompileUnit() override;
 
   /// Add a function to this compile unit.
   ///
@@ -163,6 +162,18 @@ public:
   void ForeachFunction(
       llvm::function_ref<bool(const lldb::FunctionSP &)> lambda) const;
 
+  /// Find a function in the compile unit based on the predicate matching_lambda
+  ///
+  /// \param[in] matching_lambda
+  ///     A predicate that will be used within FindFunction to evaluate each
+  ///     FunctionSP in m_functions_by_uid. When the predicate returns true
+  ///     FindFunction will return the corresponding FunctionSP.
+  ///
+  /// \return
+  ///   The first FunctionSP that the matching_lambda prediate returns true for.
+  lldb::FunctionSP FindFunction(
+      llvm::function_ref<bool(const lldb::FunctionSP &)> matching_lambda);
+
   /// Dump the compile unit contents to the stream \a s.
   ///
   /// \param[in] s
@@ -197,9 +208,9 @@ public:
   ///     unit file.
   ///
   /// \param[in] exact
-  ///     If \btrue match only if there is a line table entry for this line
+  ///     If \b true match only if there is a line table entry for this line
   ///     number.
-  ///     If \bfalse, find the line table entry equal to or after this line
+  ///     If \b false, find the line table entry equal to or after this line
   ///     number.
   ///
   /// \param[out] line_entry
@@ -211,6 +222,9 @@ public:
   uint32_t FindLineEntry(uint32_t start_idx, uint32_t line,
                          const FileSpec *file_spec_ptr, bool exact,
                          LineEntry *line_entry);
+
+  /// Return the primary source file associated with this compile unit.
+  const FileSpec &GetPrimaryFile() const { return m_file_spec; }
 
   /// Get the line table for the compile unit.
   ///
@@ -225,6 +239,25 @@ public:
 
   DebugMacros *GetDebugMacros();
 
+  /// Apply a lambda to each external lldb::Module referenced by this
+  /// compilation unit. Recursively also descends into the referenced external
+  /// modules of any encountered compilation unit.
+  ///
+  /// \param visited_symbol_files
+  ///     A set of SymbolFiles that were already visited to avoid
+  ///     visiting one file more than once.
+  ///
+  /// \param[in] lambda
+  ///     The lambda that should be applied to every function. The lambda can
+  ///     return true if the iteration should be aborted earlier.
+  ///
+  /// \return
+  ///     If the lambda early-exited, this function returns true to
+  ///     propagate the early exit.
+  virtual bool ForEachExternalModule(
+      llvm::DenseSet<lldb_private::SymbolFile *> &visited_symbol_files,
+      llvm::function_ref<bool(Module &)> lambda);
+
   /// Get the compile unit's support file list.
   ///
   /// The support file list is used by the line table, and any objects that
@@ -232,7 +265,7 @@ public:
   ///
   /// \return
   ///     A support file list object.
-  FileSpecList &GetSupportFiles();
+  const FileSpecList &GetSupportFiles();
 
   /// Get the compile unit's imported module list.
   ///
@@ -298,6 +331,9 @@ public:
   ///     A line table object pointer that this object now owns.
   void SetLineTable(LineTable *line_table);
 
+  void SetSupportFiles(const FileSpecList &support_files);
+  void SetSupportFiles(FileSpecList &&support_files);
+
   void SetDebugMacros(const DebugMacrosSP &debug_macros);
 
   /// Set accessor for the variable list.
@@ -311,29 +347,22 @@ public:
 
   /// Resolve symbol contexts by file and line.
   ///
-  /// Given a file in \a file_spec, and a line number, find all instances and
+  /// Given a file in \a src_location_spec, find all instances and
   /// append them to the supplied symbol context list \a sc_list.
   ///
-  /// \param[in] file_spec
-  ///     A file specification. If \a file_spec contains no directory
-  ///     information, only the basename will be used when matching
-  ///     contexts. If the directory in \a file_spec is valid, a
-  ///     complete file specification match will be performed.
+  /// \param[in] src_location_spec
+  ///     The \a src_location_spec containing the \a file_spec, the line and the
+  ///     column of the symbol to look for. Also hold the inlines and
+  ///     exact_match flags.
   ///
-  /// \param[in] line
-  ///     The line number to match against the compile unit's line
-  ///     tables.
-  ///
-  /// \param[in] check_inlines
-  ///     If \b true this function will also match any inline
+  ///     If check_inlines is \b true, this function will also match any inline
   ///     file and line matches. If \b false, the compile unit's
   ///     file specification must match \a file_spec for any matches
   ///     to be returned.
   ///
-  /// \param[in] exact
-  ///     If true, only resolve the context if \a line exists in the line table.
-  ///     If false, resolve the context to the closest line greater than \a line
-  ///     in the line table.
+  ///     If exact_match is \b true, only resolve the context if \a line and \a
+  ///     column exists in the line table. If \b false, resolve the context to
+  ///     the closest line greater than \a line in the line table.
   ///
   /// \param[in] resolve_scope
   ///     For each matching line entry, this bitfield indicates what
@@ -347,14 +376,10 @@ public:
   ///     A SymbolContext list class that will get any matching
   ///     entries appended to.
   ///
-  /// \return
-  ///     The number of new matches that were added to \a sc_list.
-  ///
   /// \see enum SymbolContext::Scope
-  uint32_t ResolveSymbolContext(const FileSpec &file_spec, uint32_t line,
-                                bool check_inlines, bool exact,
-                                lldb::SymbolContextItem resolve_scope,
-                                SymbolContextList &sc_list);
+  void ResolveSymbolContext(const SourceLocationSpec &src_location_spec,
+                            lldb::SymbolContextItem resolve_scope,
+                            SymbolContextList &sc_list);
 
   /// Get whether compiler optimizations were enabled for this compile unit
   ///
@@ -384,6 +409,8 @@ protected:
   /// All modules, including the current module, imported by this
   /// compile unit.
   std::vector<SourceModule> m_imported_modules;
+  /// The primary file associated with this compile unit.
+  FileSpec m_file_spec;
   /// Files associated with this compile unit's line table and
   /// declarations.
   FileSpecList m_support_files;
@@ -414,9 +441,11 @@ private:
         (1u << 6) ///< Have we parsed the debug macros already?
   };
 
-  DISALLOW_COPY_AND_ASSIGN(CompileUnit);
+  CompileUnit(const CompileUnit &) = delete;
+  const CompileUnit &operator=(const CompileUnit &) = delete;
+  const char *GetCachedLanguage() const;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_CompUnit_h_
+#endif // LLDB_SYMBOL_COMPILEUNIT_H

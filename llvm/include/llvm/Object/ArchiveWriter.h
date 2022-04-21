@@ -13,10 +13,7 @@
 #ifndef LLVM_OBJECT_ARCHIVEWRITER_H
 #define LLVM_OBJECT_ARCHIVEWRITER_H
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Object/Archive.h"
-#include "llvm/Support/Error.h"
-#include "llvm/Support/FileSystem.h"
 
 namespace llvm {
 
@@ -36,12 +33,18 @@ struct NewArchiveMember {
                                             bool Deterministic);
 };
 
-std::string computeArchiveRelativePath(StringRef From, StringRef To);
+Expected<std::string> computeArchiveRelativePath(StringRef From, StringRef To);
 
 Error writeArchive(StringRef ArcName, ArrayRef<NewArchiveMember> NewMembers,
                    bool WriteSymtab, object::Archive::Kind Kind,
                    bool Deterministic, bool Thin,
                    std::unique_ptr<MemoryBuffer> OldArchiveBuf = nullptr);
+
+// writeArchiveToBuffer is similar to writeArchive but returns the Archive in a
+// buffer instead of writing it out to a file.
+Expected<std::unique_ptr<MemoryBuffer>>
+writeArchiveToBuffer(ArrayRef<NewArchiveMember> NewMembers, bool WriteSymtab,
+                     object::Archive::Kind Kind, bool Deterministic, bool Thin);
 }
 
 #endif

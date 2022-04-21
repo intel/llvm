@@ -1,3 +1,4 @@
+// UNSUPPORTED: -zos, -aix
 // RUN: rm -rf %t
 // Test that only forward declarations are emitted for types defined in modules.
 
@@ -24,6 +25,8 @@
 @import DebugCXX;
 #endif
 
+// Set the line number so that the LIT check expected line number doesn't have to be updated after adding/removing a line in the RUN section.
+#line 50
 using DebugCXX::Struct;
 
 Struct s;
@@ -77,7 +80,7 @@ void foo() {
 
 // CHECK: !DICompositeType(tag: DW_TAG_enumeration_type, name: "Enum",
 // CHECK-SAME:             scope: ![[NS:[0-9]+]],
-// CHECK-SAME:             flags: DIFlagFwdDecl,
+// CHECK-SAME:             flags: DIFlagFwdDecl
 // CHECK-SAME:             identifier:  "_ZTSN8DebugCXX4EnumE")
 
 // CHECK: ![[NS]] = !DINamespace(name: "DebugCXX", scope: ![[MOD:[0-9]+]])
@@ -94,7 +97,7 @@ void foo() {
 // CHECK: !DICompositeType(tag: DW_TAG_class_type,
 // CHECK-SAME:             name: "Template<int, DebugCXX::traits<int> >",
 // CHECK-SAME:             scope: ![[NS]],
-// CHECK-SAME:             flags: DIFlagFwdDecl,
+// CHECK-SAME:             flags: DIFlagFwdDecl
 // CHECK-SAME:             identifier: "_ZTSN8DebugCXX8TemplateIiNS_6traitsIiEEEE")
 
 // This type isn't, however, even with standalone non-module debug info this
@@ -111,7 +114,7 @@ void foo() {
 
 // This type is anchored in the module by an explicit template instantiation.
 // CHECK: !DICompositeType(tag: DW_TAG_structure_type, name: "traits<float>",
-// CHECK-SAME:             flags: DIFlagFwdDecl,
+// CHECK-SAME:             flags: DIFlagFwdDecl
 // CHECK-SAME:             identifier: "_ZTSN8DebugCXX6traitsIfEE")
 
 
@@ -127,11 +130,11 @@ void foo() {
 
 // CHECK: ![[STRUCT]] = !DICompositeType(tag: DW_TAG_structure_type, name: "Struct",
 // CHECK-SAME:             scope: ![[NS]],
-// CHECK-SAME:             flags: DIFlagFwdDecl,
+// CHECK-SAME:             flags: DIFlagFwdDecl
 // CHECK-SAME:             identifier: "_ZTSN8DebugCXX6StructE")
 
 // CHECK: !DICompositeType(tag: DW_TAG_union_type,
-// CHECK-SAME:             flags: DIFlagFwdDecl,
+// CHECK-SAME:             flags: DIFlagFwdDecl
 // CHECK-SAME:             identifier: "_ZTS12TypedefUnion")
 // CHECK: !DICompositeType(tag: DW_TAG_enumeration_type,
 // CHECK-SAME:             flags: DIFlagFwdDecl,
@@ -204,8 +207,7 @@ void foo() {
 // CHECK: ![[GLOBAL_ANON]] = !DICompositeType(tag: DW_TAG_structure_type,
 // CHECK-SAME:              name: "InAnonymousNamespace", {{.*}}DIFlagFwdDecl)
 
-
-// CHECK: !DIImportedEntity(tag: DW_TAG_imported_declaration, scope: !{{[0-9]+}}, entity: ![[STRUCT]], file: ![[CPP]], line: 27)
+// CHECK: !DIImportedEntity(tag: DW_TAG_imported_declaration, scope: !{{[0-9]+}}, entity: ![[STRUCT]], file: ![[CPP]], line: 50)
 
 // CHECK: !DICompileUnit(
 // CHECK-SAME:           splitDebugFilename:
@@ -214,8 +216,9 @@ void foo() {
 // CHECK-PCH:                dwoId: 18446744073709551614
 
 // CHECK: !DICompositeType(tag: DW_TAG_class_type, name: "A",
-// CHECK-SAME:             DIFlagFwdDecl)
+// CHECK-SAME:             DIFlagFwdDecl
 
 // There is a full definition of the type available in the module.
 // CHECK: !DICompositeType(tag: DW_TAG_structure_type, name: "Virtual",
-// CHECK-SAME:             DIFlagFwdDecl, identifier: "_ZTS7Virtual")
+// CHECK-SAME:             DIFlagFwdDecl
+// CHECK-SAME:             identifier: "_ZTS7Virtual")

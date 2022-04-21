@@ -45,7 +45,7 @@
     _Static_assert(sizeof(__val) == sizeof(__Bits));                           \
     _Static_assert(sizeof(__Bits) == 2 * sizeof(int));                         \
     __Bits __tmp;                                                              \
-    memcpy(&__val, &__tmp, sizeof(__val));                                     \
+    memcpy(&__tmp, &__val, sizeof(__val));                                \
     __tmp.__a = ::__FnName(__tmp.__a, __offset, __width);                      \
     __tmp.__b = ::__FnName(__tmp.__b, __offset, __width);                      \
     long long __ret;                                                           \
@@ -129,7 +129,7 @@ __MAKE_SHUFFLES(__shfl_xor, __nvvm_shfl_bfly_i32, __nvvm_shfl_bfly_f32, 0x1f,
     _Static_assert(sizeof(__val) == sizeof(__Bits));                           \
     _Static_assert(sizeof(__Bits) == 2 * sizeof(int));                         \
     __Bits __tmp;                                                              \
-    memcpy(&__val, &__tmp, sizeof(__val));                                     \
+    memcpy(&__tmp, &__val, sizeof(__val));                                     \
     __tmp.__a = ::__FnName(__mask, __tmp.__a, __offset, __width);              \
     __tmp.__b = ::__FnName(__mask, __tmp.__b, __offset, __width);              \
     long long __ret;                                                           \
@@ -211,7 +211,15 @@ inline __device__ unsigned int __ballot_sync(unsigned int mask, int pred) {
   return __nvvm_vote_ballot_sync(mask, pred);
 }
 
-inline __device__ unsigned int __activemask() { return __nvvm_vote_ballot(1); }
+inline __device__ unsigned int __activemask() {
+#if CUDA_VERSION < 9020
+  return __nvvm_vote_ballot(1);
+#else
+  unsigned int mask;
+  asm volatile("activemask.b32 %0;" : "=r"(mask));
+  return mask;
+#endif
+}
 
 inline __device__ unsigned int __fns(unsigned mask, unsigned base, int offset) {
   return __nvvm_fns(mask, base, offset);
@@ -226,7 +234,7 @@ inline __device__ unsigned int __match32_any_sync(unsigned int mask,
   return __nvvm_match_any_sync_i32(mask, value);
 }
 
-inline __device__ unsigned long long
+inline __device__ unsigned int
 __match64_any_sync(unsigned int mask, unsigned long long value) {
   return __nvvm_match_any_sync_i64(mask, value);
 }
@@ -236,7 +244,7 @@ __match32_all_sync(unsigned int mask, unsigned int value, int *pred) {
   return __nvvm_match_all_sync_i32p(mask, value, pred);
 }
 
-inline __device__ unsigned long long
+inline __device__ unsigned int
 __match64_all_sync(unsigned int mask, unsigned long long value, int *pred) {
   return __nvvm_match_all_sync_i64p(mask, value, pred);
 }
@@ -474,5 +482,37 @@ inline __device__ unsigned __funnelshift_rc(unsigned low32, unsigned high32,
 }
 
 #endif // !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 320
+
+#if CUDA_VERSION >= 11000
+extern "C" {
+__device__ inline size_t __nv_cvta_generic_to_global_impl(const void *__ptr) {
+  return (size_t)(void __attribute__((address_space(1))) *)__ptr;
+}
+__device__ inline size_t __nv_cvta_generic_to_shared_impl(const void *__ptr) {
+  return (size_t)(void __attribute__((address_space(3))) *)__ptr;
+}
+__device__ inline size_t __nv_cvta_generic_to_constant_impl(const void *__ptr) {
+  return (size_t)(void __attribute__((address_space(4))) *)__ptr;
+}
+__device__ inline size_t __nv_cvta_generic_to_local_impl(const void *__ptr) {
+  return (size_t)(void __attribute__((address_space(5))) *)__ptr;
+}
+__device__ inline void *__nv_cvta_global_to_generic_impl(size_t __ptr) {
+  return (void *)(void __attribute__((address_space(1))) *)__ptr;
+}
+__device__ inline void *__nv_cvta_shared_to_generic_impl(size_t __ptr) {
+  return (void *)(void __attribute__((address_space(3))) *)__ptr;
+}
+__device__ inline void *__nv_cvta_constant_to_generic_impl(size_t __ptr) {
+  return (void *)(void __attribute__((address_space(4))) *)__ptr;
+}
+__device__ inline void *__nv_cvta_local_to_generic_impl(size_t __ptr) {
+  return (void *)(void __attribute__((address_space(5))) *)__ptr;
+}
+__device__ inline uint32_t __nvvm_get_smem_pointer(void *__ptr) {
+  return __nv_cvta_generic_to_shared_impl(__ptr);
+}
+} // extern "C"
+#endif // CUDA_VERSION >= 11000
 
 #endif // defined(__CLANG_CUDA_INTRINSICS_H__)

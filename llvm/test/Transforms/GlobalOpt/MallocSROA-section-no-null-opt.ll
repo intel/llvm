@@ -1,4 +1,4 @@
-; RUN: opt -globalopt -S < %s | FileCheck %s
+; RUN: opt -passes=globalopt -S < %s | FileCheck %s
 ; CHECK: @Y
 ; CHECK: section ".foo"
 
@@ -31,4 +31,4 @@ entry:
 
 declare noalias i8* @malloc(i32)
 
-attributes #0 = { "null-pointer-is-valid"="true" }
+attributes #0 = { null_pointer_is_valid }

@@ -23,9 +23,12 @@ static_library("COFF") {
     "//llvm/lib/Support",
     "//llvm/lib/Target:TargetsToBuild",
     "//llvm/lib/ToolDrivers/llvm-lib:LibDriver",
+    "//llvm/lib/WindowsDriver",
     "//llvm/lib/WindowsManifest",
   ]
   sources = [
+    "COFFLinkerContext.cpp",
+    "CallGraphSort.cpp",
     "Chunks.cpp",
     "DLL.cpp",
     "DebugTypes.cpp",
@@ -33,6 +36,7 @@ static_library("COFF") {
     "DriverUtils.cpp",
     "ICF.cpp",
     "InputFiles.cpp",
+    "LLDMapFile.cpp",
     "LTO.cpp",
     "MapFile.cpp",
     "MarkLive.cpp",

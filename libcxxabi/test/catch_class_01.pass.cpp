@@ -1,4 +1,4 @@
-//===---------------------- catch_class_01.cpp ----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcxxabi-no-exceptions
+// UNSUPPORTED: no-exceptions
 
 #include <exception>
 #include <stdlib.h>
@@ -43,7 +43,7 @@ void f2()
     }
 }
 
-int main()
+int main(int, char**)
 {
     try
     {
@@ -56,4 +56,6 @@ int main()
         assert(a.id_ == 3);
     }
     assert(A::count == 0);
+
+    return 0;
 }

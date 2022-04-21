@@ -35,8 +35,8 @@ float quality(const Symbol &S) {
 }
 
 SymbolSlab::const_iterator SymbolSlab::find(const SymbolID &ID) const {
-  auto It =
-      llvm::bsearch(Symbols, [&](const Symbol &S) { return !(S.ID < ID); });
+  auto It = llvm::partition_point(Symbols,
+                                  [&](const Symbol &S) { return S.ID < ID; });
   if (It != Symbols.end() && It->ID == ID)
     return It;
   return Symbols.end();
@@ -67,5 +67,15 @@ SymbolSlab SymbolSlab::Builder::build() && {
   return SymbolSlab(std::move(NewArena), std::move(SortedSymbols));
 }
 
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const SymbolSlab &Slab) {
+  OS << "{";
+  llvm::StringRef Sep = "";
+  for (const auto &S : Slab) {
+    OS << Sep << S;
+    Sep = ", ";
+  }
+  OS << "}";
+  return OS;
+}
 } // namespace clangd
 } // namespace clang

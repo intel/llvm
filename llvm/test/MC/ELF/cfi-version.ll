@@ -3,9 +3,12 @@
 ; RUN: %llc_dwarf %s -o - -dwarf-version 4 -filetype=obj | llvm-dwarfdump -v - | FileCheck %s --check-prefix=DWARF4
 ; RUN: %llc_dwarf %s -o - -dwarf-version 5 -filetype=obj | llvm-dwarfdump -v - | FileCheck %s --check-prefix=DWARF4
 
-; .debug_frame is not emitted for targeting Windows x64.
+; PR46647
+; XFAIL: arm64-apple
+
+; .debug_frame is not emitted for targeting Windows x64, arm64, or AIX.
 ; REQUIRES: debug_frame
-; REQUIRES: default_triple
+; REQUIRES: object-emission
 
 ; Function Attrs: nounwind
 define i32 @foo() #0 !dbg !4 {
@@ -17,8 +20,8 @@ entry:
 
 declare i32 @bar(...) #1
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!9, !10}

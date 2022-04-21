@@ -13,9 +13,10 @@
 //   void
 //   swap(T& a, T& b);
 
-#include <utility>
 #include <cassert>
 #include <memory>
+#include <type_traits>
+#include <utility>
 
 #include "test_macros.h"
 
@@ -62,6 +63,16 @@ constexpr bool can_swap() {
 }
 #endif
 
+#if TEST_STD_VER > 17
+constexpr bool test_swap_constexpr()
+{
+    int i = 1;
+    int j = 2;
+    std::swap(i, j);
+    return i == 2 && j == 1;
+}
+#endif // TEST_STD_VER > 17
+
 int main(int, char**)
 {
 
@@ -99,6 +110,10 @@ int main(int, char**)
         static_assert(noexcept(std::swap(nm, nm)), "");
     }
 #endif
+
+#if TEST_STD_VER > 17
+    static_assert(test_swap_constexpr());
+#endif // TEST_STD_VER > 17
 
   return 0;
 }

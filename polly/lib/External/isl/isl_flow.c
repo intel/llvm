@@ -162,7 +162,7 @@ struct isl_labeled_map {
 	int		must;
 };
 
-typedef int (*isl_access_coscheduled)(void *first, void *second);
+typedef isl_bool (*isl_access_coscheduled)(void *first, void *second);
 
 /* A structure containing the input for dependence analysis:
  * - a sink
@@ -448,11 +448,11 @@ static __isl_give isl_flow *isl_flow_alloc(__isl_keep isl_access_info *acc)
 
 	dep->n_source = n;
 	for (i = 0; i < acc->n_must; ++i) {
-		isl_space *dim;
-		dim = space_align_and_join(
+		isl_space *space;
+		space = space_align_and_join(
 			isl_map_get_space(acc->source[i].map),
 			isl_space_reverse(isl_map_get_space(acc->sink.map)));
-		dep->dep[2 * i].map = isl_map_empty(dim);
+		dep->dep[2 * i].map = isl_map_empty(space);
 		dep->dep[2 * i + 1].map = isl_map_copy(dep->dep[2 * i].map);
 		dep->dep[2 * i].data = acc->source[i].data;
 		dep->dep[2 * i + 1].data = acc->source[i].data;
@@ -462,11 +462,11 @@ static __isl_give isl_flow *isl_flow_alloc(__isl_keep isl_access_info *acc)
 			goto error;
 	}
 	for (i = acc->n_must; i < acc->n_must + acc->n_may; ++i) {
-		isl_space *dim;
-		dim = space_align_and_join(
+		isl_space *space;
+		space = space_align_and_join(
 			isl_map_get_space(acc->source[i].map),
 			isl_space_reverse(isl_map_get_space(acc->sink.map)));
-		dep->dep[acc->n_must + i].map = isl_map_empty(dim);
+		dep->dep[acc->n_must + i].map = isl_map_empty(space);
 		dep->dep[acc->n_must + i].data = acc->source[i].data;
 		dep->dep[acc->n_must + i].must = 0;
 		if (!dep->dep[acc->n_must + i].map)
@@ -519,12 +519,12 @@ __isl_give isl_map *isl_flow_get_no_source(__isl_keep isl_flow *deps, int must)
 		return isl_set_unwrap(isl_set_copy(deps->may_no_source));
 }
 
-void isl_flow_free(__isl_take isl_flow *deps)
+__isl_null isl_flow *isl_flow_free(__isl_take isl_flow *deps)
 {
 	int i;
 
 	if (!deps)
-		return;
+		return NULL;
 	isl_set_free(deps->must_no_source);
 	isl_set_free(deps->may_no_source);
 	if (deps->dep) {
@@ -533,6 +533,8 @@ void isl_flow_free(__isl_take isl_flow *deps)
 		free(deps->dep);
 	}
 	free(deps);
+
+	return NULL;
 }
 
 isl_ctx *isl_flow_get_ctx(__isl_keep isl_flow *deps)
@@ -550,14 +552,15 @@ isl_ctx *isl_flow_get_ctx(__isl_keep isl_flow *deps)
  * be greater than the loop iterator of the range at the last
  * of the level/2 shared loops, i.e., loop level/2 - 1.
  */
-static __isl_give isl_map *after_at_level(__isl_take isl_space *dim, int level)
+static __isl_give isl_map *after_at_level(__isl_take isl_space *space,
+	int level)
 {
 	struct isl_basic_map *bmap;
 
 	if (level % 2)
-		bmap = isl_basic_map_equal(dim, level/2);
+		bmap = isl_basic_map_equal(space, level/2);
 	else
-		bmap = isl_basic_map_more_at(dim, level/2 - 1);
+		bmap = isl_basic_map_more_at(space, level/2 - 1);
 
 	return isl_map_from_basic_map(bmap);
 }
@@ -664,7 +667,7 @@ static struct isl_map *last_later_source(struct isl_access_info *acc,
 					 int k, int after_level,
 					 struct isl_set **empty)
 {
-	isl_space *dim;
+	isl_space *space;
 	struct isl_set *set_C;
 	struct isl_map *read_map;
 	struct isl_map *write_map;
@@ -679,9 +682,9 @@ static struct isl_map *last_later_source(struct isl_access_info *acc,
 
 	write_map = isl_map_reverse(write_map);
 	dep_map = isl_map_apply_range(read_map, write_map);
-	dim = space_align_and_join(isl_map_get_space(acc->source[k].map),
+	space = space_align_and_join(isl_map_get_space(acc->source[k].map),
 		    isl_space_reverse(isl_map_get_space(acc->source[j].map)));
-	after_write = after_at_level(dim, after_level);
+	after_write = after_at_level(space, after_level);
 	after_write = isl_map_apply_range(after_write, old_map);
 	after_write = isl_map_reverse(after_write);
 	dep_map = isl_map_intersect(dep_map, after_write);
@@ -729,8 +732,11 @@ static isl_stat intermediate_sources(__isl_keep isl_access_info *acc,
 	struct isl_map **temp_rel, int j, int sink_level)
 {
 	int k, level;
-	int depth = 2 * isl_map_dim(acc->source[j].map, isl_dim_in) + 1;
+	isl_size n_in = isl_map_dim(acc->source[j].map, isl_dim_in);
+	int depth = 2 * n_in + 1;
 
+	if (n_in < 0)
+		return isl_stat_error;
 	if (isl_map_plain_is_empty(temp_rel[j]))
 		return isl_stat_ok;
 
@@ -803,7 +809,7 @@ static __isl_give isl_map *all_later_sources(__isl_keep isl_access_info *acc,
 	__isl_take isl_map *old_map,
 	int j, int before_level, int k, int after_level)
 {
-	isl_space *dim;
+	isl_space *space;
 	isl_set *set_C;
 	isl_map *read_map;
 	isl_map *write_map;
@@ -818,9 +824,10 @@ static __isl_give isl_map *all_later_sources(__isl_keep isl_access_info *acc,
 
 	write_map = isl_map_reverse(write_map);
 	dep_map = isl_map_apply_range(read_map, write_map);
-	dim = isl_space_join(isl_map_get_space(acc->source[acc->n_must + j].map),
+	space = isl_space_join(isl_map_get_space(
+		    acc->source[acc->n_must + j].map),
 		    isl_space_reverse(isl_map_get_space(acc->source[k].map)));
-	after_write = after_at_level(dim, after_level);
+	after_write = after_at_level(space, after_level);
 	after_write = isl_map_apply_range(after_write, old_map);
 	after_write = isl_map_reverse(after_write);
 	dep_map = isl_map_intersect(dep_map, after_write);
@@ -842,9 +849,12 @@ static __isl_give isl_map *all_intermediate_sources(
 	int j, int sink_level)
 {
 	int k, level;
-	int depth = 2 * isl_map_dim(acc->source[acc->n_must + j].map,
-					isl_dim_in) + 1;
+	isl_size n_in = isl_map_dim(acc->source[acc->n_must + j].map,
+				    isl_dim_in);
+	int depth = 2 * n_in + 1;
 
+	if (n_in < 0)
+		return isl_map_free(map);
 	for (k = 0; k < acc->n_must; ++k) {
 		int plevel;
 
@@ -988,10 +998,16 @@ static __isl_give isl_flow *handle_coscheduled(__isl_keep isl_access_info *acc,
 		move = isl_map_empty(isl_map_get_space(must_rel[i]));
 		for (j = i - 1; j >= 0; --j) {
 			int depth;
+			isl_bool coscheduled;
 			isl_map *map, *factor;
 
-			if (!acc->coscheduled(acc->source[i].data,
-						acc->source[j].data))
+			coscheduled = acc->coscheduled(acc->source[i].data,
+							acc->source[j].data);
+			if (coscheduled < 0) {
+				isl_map_free(move);
+				return isl_flow_free(flow);
+			}
+			if (!coscheduled)
 				continue;
 			depth = acc->level_before(acc->source[i].data,
 						acc->source[j].data) / 2;
@@ -1003,11 +1019,17 @@ static __isl_give isl_flow *handle_coscheduled(__isl_keep isl_access_info *acc,
 		}
 		for (j = 0; j < acc->n_may; ++j) {
 			int depth, pos;
+			isl_bool coscheduled;
 			isl_map *map, *factor;
 
 			pos = acc->n_must + j;
-			if (!acc->coscheduled(acc->source[i].data,
-						acc->source[pos].data))
+			coscheduled = acc->coscheduled(acc->source[i].data,
+							acc->source[pos].data);
+			if (coscheduled < 0) {
+				isl_map_free(move);
+				return isl_flow_free(flow);
+			}
+			if (!coscheduled)
 				continue;
 			depth = acc->level_before(acc->source[i].data,
 						acc->source[pos].data) / 2;
@@ -1049,7 +1071,7 @@ static __isl_give isl_flow *compute_mem_based_dependences(
 	for (i = 0; i < acc->n_may; ++i) {
 		int plevel;
 		int is_before;
-		isl_space *dim;
+		isl_space *space;
 		isl_map *before;
 		isl_map *dep;
 
@@ -1060,11 +1082,11 @@ static __isl_give isl_flow *compute_mem_based_dependences(
 		is_before = plevel & 1;
 		plevel >>= 1;
 
-		dim = isl_map_get_space(res->dep[i].map);
+		space = isl_map_get_space(res->dep[i].map);
 		if (is_before)
-			before = isl_map_lex_le_first(dim, plevel);
+			before = isl_map_lex_le_first(space, plevel);
 		else
-			before = isl_map_lex_lt_first(dim, plevel);
+			before = isl_map_lex_lt_first(space, plevel);
 		dep = isl_map_apply_range(isl_map_copy(acc->source[i].map),
 			isl_map_reverse(isl_map_copy(acc->sink.map)));
 		dep = isl_map_intersect(dep, before);
@@ -1132,6 +1154,7 @@ static __isl_give isl_flow *compute_val_based_dependences(
 	isl_set *mustdo = NULL;
 	isl_set *maydo = NULL;
 	int level, j;
+	isl_size n_in;
 	int depth;
 	isl_map **must_rel = NULL;
 	isl_map **may_rel = NULL;
@@ -1144,7 +1167,10 @@ static __isl_give isl_flow *compute_val_based_dependences(
 		goto error;
 	ctx = isl_map_get_ctx(acc->sink.map);
 
-	depth = 2 * isl_map_dim(acc->sink.map, isl_dim_in) + 1;
+	n_in = isl_map_dim(acc->sink.map, isl_dim_in);
+	if (n_in < 0)
+		goto error;
+	depth = 2 * n_in + 1;
 	mustdo = isl_map_domain(isl_map_copy(acc->sink.map));
 	maydo = isl_set_empty(isl_set_get_space(mustdo));
 	if (!mustdo || !maydo)
@@ -1211,7 +1237,9 @@ static __isl_give isl_flow *compute_val_based_dependences(
 				goto error;
 		}
 
-		handle_coscheduled(acc, must_rel, may_rel, res);
+		res = handle_coscheduled(acc, must_rel, may_rel, res);
+		if (!res)
+			goto error;
 
 		for (j = 0; j < acc->n_may; ++j) {
 			int plevel;
@@ -1395,18 +1423,21 @@ static __isl_give struct isl_sched_info *sched_info_alloc(
 	__isl_keep isl_map *map)
 {
 	isl_ctx *ctx;
-	isl_space *dim;
+	isl_space *space;
 	struct isl_sched_info *info;
-	int i, n;
+	int i;
+	isl_size n;
 
 	if (!map)
 		return NULL;
 
-	dim = isl_space_unwrap(isl_space_domain(isl_map_get_space(map)));
-	if (!dim)
+	space = isl_space_unwrap(isl_space_domain(isl_map_get_space(map)));
+	if (!space)
 		return NULL;
-	n = isl_space_dim(dim, isl_dim_in);
-	isl_space_free(dim);
+	n = isl_space_dim(space, isl_dim_in);
+	isl_space_free(space);
+	if (n < 0)
+		return NULL;
 
 	ctx = isl_map_get_ctx(map);
 	info = isl_alloc_type(ctx, struct isl_sched_info);
@@ -1734,21 +1765,9 @@ __isl_give isl_union_access_info *isl_union_access_info_copy(
 	return copy;
 }
 
-/* Print a key-value pair of a YAML mapping to "p",
- * with key "name" and value "umap".
- */
-static __isl_give isl_printer *print_union_map_field(__isl_take isl_printer *p,
-	const char *name, __isl_keep isl_union_map *umap)
-{
-	p = isl_printer_print_str(p, name);
-	p = isl_printer_yaml_next(p);
-	p = isl_printer_print_str(p, "\"");
-	p = isl_printer_print_union_map(p, umap);
-	p = isl_printer_print_str(p, "\"");
-	p = isl_printer_yaml_next(p);
-
-	return p;
-}
+#undef BASE
+#define BASE union_map
+#include "print_yaml_field_templ.c"
 
 /* An enumeration of the various keys that may appear in a YAML mapping
  * of an isl_union_access_info object.
@@ -1796,7 +1815,7 @@ static __isl_give isl_printer *print_access_field(__isl_take isl_printer *p,
 		if (empty)
 			return p;
 	}
-	return print_union_map_field(p, key_str[type], info->access[type]);
+	return print_yaml_field_union_map(p, key_str[type], info->access[type]);
 }
 
 /* Print the information contained in "access" to "p".
@@ -1819,8 +1838,8 @@ __isl_give isl_printer *isl_printer_print_union_access_info(
 		p = isl_printer_print_schedule(p, access->schedule);
 		p = isl_printer_yaml_next(p);
 	} else {
-		p = print_union_map_field(p, key_str[isl_ai_key_schedule_map],
-						access->schedule_map);
+		p = print_yaml_field_union_map(p,
+			key_str[isl_ai_key_schedule_map], access->schedule_map);
 	}
 	p = isl_printer_yaml_end_mapping(p);
 
@@ -2323,16 +2342,16 @@ struct isl_compute_flow_data {
 static isl_stat count_matching_array(__isl_take isl_map *map, void *user)
 {
 	int eq;
-	isl_space *dim;
+	isl_space *space;
 	struct isl_compute_flow_data *data;
 
 	data = (struct isl_compute_flow_data *)user;
 
-	dim = isl_space_range(isl_map_get_space(map));
+	space = isl_space_range(isl_map_get_space(map));
 
-	eq = isl_space_is_equal(dim, data->dim);
+	eq = isl_space_is_equal(space, data->dim);
 
-	isl_space_free(dim);
+	isl_space_free(space);
 	isl_map_free(map);
 
 	if (eq < 0)
@@ -2346,17 +2365,17 @@ static isl_stat count_matching_array(__isl_take isl_map *map, void *user)
 static isl_stat collect_matching_array(__isl_take isl_map *map, void *user)
 {
 	int eq;
-	isl_space *dim;
+	isl_space *space;
 	struct isl_sched_info *info;
 	struct isl_compute_flow_data *data;
 
 	data = (struct isl_compute_flow_data *)user;
 
-	dim = isl_space_range(isl_map_get_space(map));
+	space = isl_space_range(isl_map_get_space(map));
 
-	eq = isl_space_is_equal(dim, data->dim);
+	eq = isl_space_is_equal(space, data->dim);
 
-	isl_space_free(dim);
+	isl_space_free(space);
 
 	if (eq < 0)
 		goto error;
@@ -2395,11 +2414,13 @@ static int before(void *first, void *second)
 {
 	struct isl_sched_info *info1 = first;
 	struct isl_sched_info *info2 = second;
-	int n1, n2;
+	isl_size n1, n2;
 	int i;
 
 	n1 = isl_vec_size(info1->cst);
 	n2 = isl_vec_size(info2->cst);
+	if (n1 < 0 || n2 < 0)
+		return -1;
 
 	if (n2 < n1)
 		n1 = n2;
@@ -2425,20 +2446,22 @@ static int before(void *first, void *second)
 }
 
 /* Check if the given two accesses may be coscheduled.
- * If so, return 1.  Otherwise return 0.
+ * If so, return isl_bool_true.  Otherwise return isl_bool_false.
  *
  * Two accesses may only be coscheduled if the fixed schedule
  * coordinates have the same values.
  */
-static int coscheduled(void *first, void *second)
+static isl_bool coscheduled(void *first, void *second)
 {
 	struct isl_sched_info *info1 = first;
 	struct isl_sched_info *info2 = second;
-	int n1, n2;
+	isl_size n1, n2;
 	int i;
 
 	n1 = isl_vec_size(info1->cst);
 	n2 = isl_vec_size(info2->cst);
+	if (n1 < 0 || n2 < 0)
+		return isl_bool_error;
 
 	if (n2 < n1)
 		n1 = n2;
@@ -2452,10 +2475,10 @@ static int coscheduled(void *first, void *second)
 			continue;
 		cmp = isl_vec_cmp_element(info1->cst, info2->cst, i);
 		if (cmp != 0)
-			return 0;
+			return isl_bool_false;
 	}
 
-	return 1;
+	return isl_bool_true;
 }
 
 /* Given a sink access, look for all the source accesses that access
@@ -2798,6 +2821,7 @@ static isl_bool count_sink_source(__isl_keep isl_schedule_node *node,
 	isl_union_set *domain;
 	isl_union_map *umap;
 	isl_bool r = isl_bool_false;
+	isl_size n;
 
 	if (isl_schedule_node_get_type(node) != isl_schedule_node_leaf)
 		return isl_bool_true;
@@ -2806,23 +2830,23 @@ static isl_bool count_sink_source(__isl_keep isl_schedule_node *node,
 
 	umap = isl_union_map_copy(data->access->access[isl_access_sink]);
 	umap = isl_union_map_intersect_domain(umap, isl_union_set_copy(domain));
-	data->n_sink += isl_union_map_n_map(umap);
+	data->n_sink += n = isl_union_map_n_map(umap);
 	isl_union_map_free(umap);
-	if (!umap)
+	if (n < 0)
 		r = isl_bool_error;
 
 	umap = isl_union_map_copy(data->access->access[isl_access_must_source]);
 	umap = isl_union_map_intersect_domain(umap, isl_union_set_copy(domain));
-	data->n_source += isl_union_map_n_map(umap);
+	data->n_source += n = isl_union_map_n_map(umap);
 	isl_union_map_free(umap);
-	if (!umap)
+	if (n < 0)
 		r = isl_bool_error;
 
 	umap = isl_union_map_copy(data->access->access[isl_access_may_source]);
 	umap = isl_union_map_intersect_domain(umap, isl_union_set_copy(domain));
-	data->n_source += isl_union_map_n_map(umap);
+	data->n_source += n = isl_union_map_n_map(umap);
 	isl_union_map_free(umap);
-	if (!umap)
+	if (n < 0)
 		r = isl_bool_error;
 
 	isl_union_set_free(domain);
@@ -2941,21 +2965,27 @@ static int before_node(void *first, void *second)
 	isl_schedule_node *node1 = first;
 	isl_schedule_node *node2 = second;
 	isl_schedule_node *shared;
-	int depth;
+	isl_size depth;
 	int before = 0;
 
 	shared = isl_schedule_node_get_shared_ancestor(node1, node2);
-	if (!shared)
-		return -1;
-
 	depth = isl_schedule_node_get_schedule_depth(shared);
+	if (depth < 0) {
+		isl_schedule_node_free(shared);
+		return -1;
+	}
+
 	if (isl_schedule_node_get_type(shared) == isl_schedule_node_sequence) {
-		int pos1, pos2;
+		isl_size pos1, pos2;
 
 		pos1 = isl_schedule_node_get_ancestor_child_position(node1,
 								    shared);
 		pos2 = isl_schedule_node_get_ancestor_child_position(node2,
 								    shared);
+		if (pos1 < 0 || pos2 < 0) {
+			isl_schedule_node_free(shared);
+			return -1;
+		}
 		before = pos1 < pos2;
 	}
 
@@ -2965,16 +2995,16 @@ static int before_node(void *first, void *second)
 }
 
 /* Check if the given two accesses may be coscheduled.
- * If so, return 1.  Otherwise return 0.
+ * If so, return isl_bool_true.  Otherwise return isl_bool_false.
  *
  * Two accesses may only be coscheduled if they appear in the same leaf.
  */
-static int coscheduled_node(void *first, void *second)
+static isl_bool coscheduled_node(void *first, void *second)
 {
 	isl_schedule_node *node1 = first;
 	isl_schedule_node *node2 = second;
 
-	return node1 == node2;
+	return isl_bool_ok(node1 == node2);
 }
 
 /* Add the scheduled sources from "data" that access
@@ -3212,14 +3242,15 @@ __isl_give isl_printer *isl_printer_print_union_flow(
 
 	p = isl_printer_yaml_start_mapping(p);
 	umap = isl_union_flow_get_full_must_dependence(flow);
-	p = print_union_map_field(p, "must_dependence", umap);
+	p = print_yaml_field_union_map(p, "must_dependence", umap);
 	isl_union_map_free(umap);
 	umap = isl_union_flow_get_full_may_dependence(flow);
-	p = print_union_map_field(p, "may_dependence", umap);
+	p = print_yaml_field_union_map(p, "may_dependence", umap);
 	isl_union_map_free(umap);
-	p = print_union_map_field(p, "must_no_source", flow->must_no_source);
+	p = print_yaml_field_union_map(p, "must_no_source",
+					flow->must_no_source);
 	umap = isl_union_flow_get_may_no_source(flow);
-	p = print_union_map_field(p, "may_no_source", umap);
+	p = print_yaml_field_union_map(p, "may_no_source", umap);
 	isl_union_map_free(umap);
 	p = isl_printer_yaml_end_mapping(p);
 

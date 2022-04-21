@@ -1,12 +1,11 @@
 // REQUIRES: aarch64
-// RUN: llvm-mc -filetype=obj -triple=aarch64-linux-gnu %s -o %t
-// RUN: echo "SECTIONS { \
-// RUN:       .text_low 0x2000: { *(.text_low) } \
-// RUN:       .text_high 0x8002000 : { *(.text_high) } \
-// RUN:       } " > %t.script
-// RUN: ld.lld --script %t.script %t -o %t2 2>&1
-// RUN: llvm-objdump -d -triple=aarch64-linux-gnu %t2 | FileCheck %s
+// RUN: split-file %s %t
+// RUN: llvm-mc -filetype=obj -triple=aarch64 %t/asm -o %t.o
+// RUN: ld.lld --script %t/lds %t.o -o %t/out
+// RUN: llvm-objdump -d --no-show-raw-insn --print-imm-hex %t/out | FileCheck %s
+// RUN: llvm-nm --no-sort --special-syms %t/out | FileCheck --check-prefix=NM %s
 
+//--- asm
 // Check that we have the out of branch range calculation right. The immediate
 // field is signed so we have a slightly higher negative displacement.
  .section .text_low, "ax", %progbits
@@ -15,6 +14,8 @@
 _start:
  // Need thunk to high_target@plt
  bl high_target
+ // Need thunk to .text_high+4
+ bl .text_high+4
  ret
 
  .section .text_high, "ax", %progbits
@@ -27,17 +28,48 @@ high_target:
 
 // CHECK: Disassembly of section .text_low:
 // CHECK-EMPTY:
-// CHECK-NEXT: _start:
-// CHECK-NEXT:     2000:       02 00 00 94     bl      #8
-// CHECK-NEXT:     2004:       c0 03 5f d6     ret
-// CHECK: __AArch64AbsLongThunk_high_target:
-// CHECK-NEXT:     2008:       50 00 00 58     ldr     x16, #8
-// CHECK-NEXT:     200c:       00 02 1f d6     br      x16
-// CHECK: $d:
-// CHECK-NEXT:     2010:       00 20 00 08     .word   0x08002000
-// CHECK-NEXT:     2014:       00 00 00 00     .word   0x00000000
+// CHECK-NEXT: <_start>:
+// CHECK-NEXT:     2000:       bl      0x200c <__AArch64AbsLongThunk_high_target>
+// CHECK-NEXT:     2004:       bl      0x201c <__AArch64AbsLongThunk_>
+// CHECK-NEXT:                 ret
+// CHECK: <__AArch64AbsLongThunk_high_target>:
+// CHECK-NEXT:     200c:       ldr     x16, 0x2014
+// CHECK-NEXT:                 br      x16
+// CHECK: <$d>:
+// CHECK-NEXT:     2014:       00 20 00 08     .word   0x08002000
+// CHECK-NEXT:     2018:       00 00 00 00     .word   0x00000000
+// CHECK:      <__AArch64AbsLongThunk_>:
+// CHECK-NEXT:     201c:       ldr x16, 0x2024
+// CHECK-NEXT:     2020:       br x16
+// CHECK:      <$d>:
+// CHECK-NEXT:     2024:       04 20 00 08     .word   0x08002004
+// CHECK-NEXT:     2028:       00 00 00 00     .word   0x00000000
 // CHECK: Disassembly of section .text_high:
 // CHECK-EMPTY:
-// CHECK-NEXT: high_target:
-// CHECK-NEXT:  8002000:       00 00 00 96     bl      #-134217728
-// CHECK-NEXT:  8002004:       c0 03 5f d6     ret
+// CHECK-NEXT: <high_target>:
+// CHECK-NEXT:  8002000:       bl      0x2000 <_start>
+// CHECK-NEXT:                 ret
+
+/// Local symbols copied from %t.o
+// NM:      t $x.0
+// NM-NEXT: t $x.1
+/// Local thunk symbols.
+// NM-NEXT: t __AArch64AbsLongThunk_high_target
+// NM-NEXT: t $x
+// NM-NEXT: t $d
+// NM-NEXT: t __AArch64AbsLongThunk_{{$}}
+// NM-NEXT: t $x
+// NM-NEXT: t $d
+/// Global symbols.
+// NM-NEXT: T _start
+// NM-NEXT: T high_target
+
+//--- lds
+PHDRS {
+  low PT_LOAD FLAGS(0x1 | 0x4);
+  high PT_LOAD FLAGS(0x1 | 0x4);
+}
+SECTIONS {
+  .text_low 0x2000: { *(.text_low) } :low
+  .text_high 0x8002000 : { *(.text_high) } :high
+}

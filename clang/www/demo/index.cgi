@@ -1,4 +1,4 @@
-#!/usr/dcs/software/supported/bin/perl -w
+#!/usr/dcs/software/supported/bin/perl
 # LLVM Web Demo script
 #
 
@@ -6,6 +6,7 @@ use strict;
 use CGI;
 use POSIX;
 use Mail::Send;
+use warnings;
 
 $| = 1;
 
@@ -19,7 +20,7 @@ if ( !-d $ROOT ) { mkdir( $ROOT, 0777 ); }
 my $LOGFILE         = "$ROOT/log.txt";
 my $FORM_URL        = 'index.cgi';
 my $MAILADDR        = 'sabre@nondot.org';
-my $CONTACT_ADDRESS = 'Questions or comments?  Email the <a href="http://lists.llvm.org/mailman/listinfo/llvm-dev">LLVM-dev mailing list</a>.';
+my $CONTACT_ADDRESS = 'Questions or comments?  Discuss on the <a href="https://discourse.llvm.org">LLVM forum</a>.';
 my $LOGO_IMAGE_URL  = 'cathead.png';
 my $TIMEOUTAMOUNT   = 20;
 $ENV{'LD_LIBRARY_PATH'} = '/home/vadve/shared/localtools/fc1/lib/';

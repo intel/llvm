@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_TypeSynthetic_h_
-#define lldb_TypeSynthetic_h_
+#ifndef LLDB_DATAFORMATTERS_TYPESYNTHETIC_H
+#define LLDB_DATAFORMATTERS_TYPESYNTHETIC_H
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <functional>
 #include <initializer_list>
@@ -96,7 +96,9 @@ protected:
 
 private:
   bool m_valid;
-  DISALLOW_COPY_AND_ASSIGN(SyntheticChildrenFrontEnd);
+  SyntheticChildrenFrontEnd(const SyntheticChildrenFrontEnd &) = delete;
+  const SyntheticChildrenFrontEnd &
+  operator=(const SyntheticChildrenFrontEnd &) = delete;
 };
 
 class SyntheticValueProviderFrontEnd : public SyntheticChildrenFrontEnd {
@@ -121,14 +123,17 @@ public:
   lldb::ValueObjectSP GetSyntheticValue() override = 0;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(SyntheticValueProviderFrontEnd);
+  SyntheticValueProviderFrontEnd(const SyntheticValueProviderFrontEnd &) =
+      delete;
+  const SyntheticValueProviderFrontEnd &
+  operator=(const SyntheticValueProviderFrontEnd &) = delete;
 };
 
 class SyntheticChildren {
 public:
   class Flags {
   public:
-    Flags() : m_flags(lldb::eTypeOptionCascade) {}
+    Flags() = default;
 
     Flags(const Flags &other) : m_flags(other.m_flags) {}
 
@@ -220,7 +225,7 @@ public:
     void SetValue(uint32_t value) { m_flags = value; }
 
   private:
-    uint32_t m_flags;
+    uint32_t m_flags = lldb::eTypeOptionCascade;
   };
 
   SyntheticChildren(const Flags &flags) : m_flags(flags) {}
@@ -265,7 +270,8 @@ protected:
   Flags m_flags;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(SyntheticChildren);
+  SyntheticChildren(const SyntheticChildren &) = delete;
+  const SyntheticChildren &operator=(const SyntheticChildren &) = delete;
 };
 
 class TypeFilterImpl : public SyntheticChildren {
@@ -273,11 +279,11 @@ class TypeFilterImpl : public SyntheticChildren {
 
 public:
   TypeFilterImpl(const SyntheticChildren::Flags &flags)
-      : SyntheticChildren(flags), m_expression_paths() {}
+      : SyntheticChildren(flags) {}
 
   TypeFilterImpl(const SyntheticChildren::Flags &flags,
                  const std::initializer_list<const char *> items)
-      : SyntheticChildren(flags), m_expression_paths() {
+      : SyntheticChildren(flags) {
     for (auto path : items)
       AddExpressionPath(path);
   }
@@ -333,7 +339,8 @@ public:
   private:
     TypeFilterImpl *filter;
 
-    DISALLOW_COPY_AND_ASSIGN(FrontEnd);
+    FrontEnd(const FrontEnd &) = delete;
+    const FrontEnd &operator=(const FrontEnd &) = delete;
   };
 
   SyntheticChildrenFrontEnd::AutoPointer
@@ -344,7 +351,8 @@ public:
   typedef std::shared_ptr<TypeFilterImpl> SharedPointer;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(TypeFilterImpl);
+  TypeFilterImpl(const TypeFilterImpl &) = delete;
+  const TypeFilterImpl &operator=(const TypeFilterImpl &) = delete;
 };
 
 class CXXSyntheticChildren : public SyntheticChildren {
@@ -354,7 +362,7 @@ public:
       CreateFrontEndCallback;
   CXXSyntheticChildren(const SyntheticChildren::Flags &flags,
                        const char *description, CreateFrontEndCallback callback)
-      : SyntheticChildren(flags), m_create_callback(callback),
+      : SyntheticChildren(flags), m_create_callback(std::move(callback)),
         m_description(description ? description : "") {}
 
   bool IsScripted() override { return false; }
@@ -372,7 +380,8 @@ protected:
   std::string m_description;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(CXXSyntheticChildren);
+  CXXSyntheticChildren(const CXXSyntheticChildren &) = delete;
+  const CXXSyntheticChildren &operator=(const CXXSyntheticChildren &) = delete;
 };
 
 class ScriptedSyntheticChildren : public SyntheticChildren {
@@ -382,7 +391,7 @@ class ScriptedSyntheticChildren : public SyntheticChildren {
 public:
   ScriptedSyntheticChildren(const SyntheticChildren::Flags &flags,
                             const char *pclass, const char *pcode = nullptr)
-      : SyntheticChildren(flags), m_python_class(), m_python_code() {
+      : SyntheticChildren(flags) {
     if (pclass)
       m_python_class = pclass;
     if (pcode)
@@ -435,7 +444,8 @@ public:
     StructuredData::ObjectSP m_wrapper_sp;
     ScriptInterpreter *m_interpreter;
 
-    DISALLOW_COPY_AND_ASSIGN(FrontEnd);
+    FrontEnd(const FrontEnd &) = delete;
+    const FrontEnd &operator=(const FrontEnd &) = delete;
   };
 
   SyntheticChildrenFrontEnd::AutoPointer
@@ -448,8 +458,10 @@ public:
   }
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ScriptedSyntheticChildren);
+  ScriptedSyntheticChildren(const ScriptedSyntheticChildren &) = delete;
+  const ScriptedSyntheticChildren &
+  operator=(const ScriptedSyntheticChildren &) = delete;
 };
 } // namespace lldb_private
 
-#endif // lldb_TypeSynthetic_h_
+#endif // LLDB_DATAFORMATTERS_TYPESYNTHETIC_H

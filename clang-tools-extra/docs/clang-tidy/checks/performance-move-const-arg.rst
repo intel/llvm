@@ -33,5 +33,10 @@ Options
 
 .. option:: CheckTriviallyCopyableMove
 
-   If non-zero, enables detection of trivially copyable types that do not
-   have a move constructor. Default is non-zero.
+   If `true`, enables detection of trivially copyable types that do not
+   have a move constructor. Default is `true`.
+
+.. option:: CheckMoveToConstRef
+
+   If `true`, enables detection of `std::move()` passed as a const
+   reference argument. Default is `true`.

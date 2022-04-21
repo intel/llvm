@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // <functional>
-// REQUIRES: c++98 || c++03 || c++11 || c++14
+// REQUIRES: c++03 || c++11 || c++14
 // unary_function was removed in C++17
 
 // template <class Arg, class Result>
@@ -19,6 +19,8 @@
 
 #include <functional>
 #include <type_traits>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

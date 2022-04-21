@@ -1,5 +1,5 @@
 @ RUN: llvm-mc < %s -triple armv7-linux-gnueabi -filetype=obj -o - \
-@ RUN:   | llvm-readobj -r | FileCheck %s
+@ RUN:   | llvm-readobj -r - | FileCheck %s
 
   .code  16
   .thumb_func
@@ -34,6 +34,7 @@ global_thumb_fn:
   bx  lr
 
 @ CHECK: Section (3) .rel.text
-@ CHECK-NEXT: 0x0 R_ARM_THM_JUMP19 internal_arm_fn 0x0
-@ CHECK-NEXT: 0x4 R_ARM_THM_JUMP19 global_arm_fn 0x0
+@ CHECK-NEXT: 0x0 R_ARM_THM_JUMP19 internal_arm_fn
+@ CHECK-NEXT: 0x4 R_ARM_THM_JUMP19 global_arm_fn
+@ CHECK-NEXT: 0x8 R_ARM_THM_JUMP19 global_thumb_fn
 @ CHECK-NEXT: }

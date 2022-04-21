@@ -13,18 +13,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
-#include "R600InstrInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
+#include "MCTargetDesc/R600MCTargetDesc.h"
+#include "R600.h"
+#include "R600Subtarget.h"
 #include "llvm/CodeGen/DFAPacketizer.h"
 #include "llvm/CodeGen/MachineDominators.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
-#include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/ScheduleDAG.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -90,7 +85,7 @@ private:
       if (DstIdx == -1) {
         continue;
       }
-      unsigned Dst = BI->getOperand(DstIdx).getReg();
+      Register Dst = BI->getOperand(DstIdx).getReg();
       if (isTrans || TII->isTransOnly(*BI)) {
         Result[Dst] = R600::PS;
         continue;
@@ -132,11 +127,11 @@ private:
       R600::OpName::src1,
       R600::OpName::src2
     };
-    for (unsigned i = 0; i < 3; i++) {
-      int OperandIdx = TII->getOperandIdx(MI.getOpcode(), Ops[i]);
+    for (unsigned Op : Ops) {
+      int OperandIdx = TII->getOperandIdx(MI.getOpcode(), Op);
       if (OperandIdx < 0)
         continue;
-      unsigned Src = MI.getOperand(OperandIdx).getReg();
+      Register Src = MI.getOperand(OperandIdx).getReg();
       const DenseMap<unsigned, unsigned>::const_iterator It = PVs.find(Src);
       if (It != PVs.end())
         MI.getOperand(OperandIdx).setReg(It->second);
@@ -186,8 +181,8 @@ public:
     // Does MII and MIJ share the same pred_sel ?
     int OpI = TII->getOperandIdx(MII->getOpcode(), R600::OpName::pred_sel),
         OpJ = TII->getOperandIdx(MIJ->getOpcode(), R600::OpName::pred_sel);
-    unsigned PredI = (OpI > -1)?MII->getOperand(OpI).getReg():0,
-        PredJ = (OpJ > -1)?MIJ->getOperand(OpJ).getReg():0;
+    Register PredI = (OpI > -1)?MII->getOperand(OpI).getReg() : Register(),
+      PredJ = (OpJ > -1)?MIJ->getOperand(OpJ).getReg() : Register();
     if (PredI != PredJ)
       return false;
     if (SUJ->isSucc(SUI)) {
@@ -212,7 +207,7 @@ public:
     return !ARDef || !ARUse;
   }
 
-  // isLegalToPruneDependencies - Is it legal to prune dependece between SUI
+  // isLegalToPruneDependencies - Is it legal to prune dependency between SUI
   // and SUJ.
   bool isLegalToPruneDependencies(SUnit *SUI, SUnit *SUJ) override {
     return false;
@@ -348,20 +343,11 @@ bool R600Packetizer::runOnMachineFunction(MachineFunction &Fn) {
   // dependence between Insn 0 and Insn 2. This can lead to incorrect
   // packetization
   //
-  for (MachineFunction::iterator MBB = Fn.begin(), MBBe = Fn.end();
-       MBB != MBBe; ++MBB) {
-    MachineBasicBlock::iterator End = MBB->end();
-    MachineBasicBlock::iterator MI = MBB->begin();
-    while (MI != End) {
-      if (MI->isKill() || MI->getOpcode() == R600::IMPLICIT_DEF ||
-          (MI->getOpcode() == R600::CF_ALU && !MI->getOperand(8).getImm())) {
-        MachineBasicBlock::iterator DeleteMI = MI;
-        ++MI;
-        MBB->erase(DeleteMI);
-        End = MBB->end();
-        continue;
-      }
-      ++MI;
+  for (MachineBasicBlock &MBB : Fn) {
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      if (MI.isKill() || MI.getOpcode() == R600::IMPLICIT_DEF ||
+          (MI.getOpcode() == R600::CF_ALU && !MI.getOperand(8).getImm()))
+        MBB.erase(MI);
     }
   }
 

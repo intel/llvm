@@ -1,8 +1,8 @@
 # RUN: llvm-mc -triple x86_64-unknown-linux %s -filetype=obj -o %t.o
-# RUN: llvm-dwarfdump -v -debug-info %t.o 2> %t.err | FileCheck %s
-# RUN: FileCheck %s --input-file %t.err --check-prefix=ERR
-# RUN: llvm-dwarfdump -lookup 10 %t.o 2> %t2.err
-# RUN: FileCheck %s --input-file %t2.err --check-prefix=ERR
+# RUN: not llvm-dwarfdump -v -debug-info %t.o 2> %t.err | FileCheck %s
+# RUN: FileCheck %s --input-file %t.err --check-prefix=ERR --implicit-check-not=error
+# RUN: not llvm-dwarfdump -lookup 10 %t.o 2> %t2.err
+# RUN: FileCheck %s --input-file %t2.err --check-prefix=ERR --implicit-check-not=error
 
 # Test object to verify dwarfdump handles v5 range lists.
 # We use very simplified compile unit dies.
@@ -33,7 +33,7 @@
 
 # The split CU uses DW_FORM_rnglistx (the only correct option).
 # There is no DW_AT_rnglists_base in split units.
-        .section .debug_abbrev.dwo,"",@progbits
+        .section .debug_abbrev.dwo,"e",@progbits
         .byte 0x01  # Abbrev code
         .byte 0x11  # DW_TAG_compile_unit
         .byte 0x00  # DW_CHILDREN_no
@@ -97,7 +97,7 @@ CU4_5_version:
         .byte 0                # NULL
 CU4_5_end:
 
-        .section .debug_info.dwo,"",@progbits
+        .section .debug_info.dwo,"e",@progbits
 
 # DWARF v5 split CU header.
         .long  CU_split_5_end-CU_split_5_version  # Length of Unit
@@ -106,6 +106,7 @@ CU_split_5_version:
         .byte 5                # DWARF Unit Type
         .byte 4                # Address Size (in bytes)
         .long 0                # Offset Into Abbrev Section
+        .quad 0xdeadbeefbaadf00d  # DWO id
 # The compile-unit DIE, which has DW_AT_rnglists_base and DW_AT_ranges.
         .byte 1                # Abbreviation code
         .uleb128 1             # DW_AT_ranges
@@ -147,7 +148,7 @@ Rnglist_Table0_end:
 # uses DW_RLE_base_address and DW_RLE_offset_pair. The ranges have entries
 # in the offset table. We use the empty range list so we can test 
 # DW_FORM_rnglistx with an index other than 0.
-        .section .debug_rnglists.dwo,"",@progbits
+        .section .debug_rnglists.dwo,"e",@progbits
         .long Rnglist_Table0_dwo_end - Rnglist_Table0_dwo   # table length
 Rnglist_Table0_dwo:
         .short 5                                    # version
@@ -192,16 +193,14 @@ Range1_end:
 # CHECK-NOT:  Compile Unit:
 # CHECK:      DW_TAG_compile_unit
 # CHECK-NEXT: DW_AT_rnglists_base [DW_FORM_sec_offset]  (0x0000000c)
-# CHECK-NEXT: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x1) rangelist = 0x00000018
+# CHECK-NEXT: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x1) rangelist = 0x00000024
 # CHECK-NEXT: [0x0000002a, 0x00000034) ".text")
 
 # CHECK:      .debug_info.dwo contents:
 # CHECK:      Compile Unit:
 # CHECK-NOT:  contents:
 # CHECK:      DW_TAG_compile_unit
-# CHECK-NEXT: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x1) rangelist = 0x00000009
+# CHECK-NEXT: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x1) rangelist = 0x00000015
 # CHECK-NEXT: [0x0000002a, 0x00000034))
 
-#ERR: error: parsing a range list table: Did not detect a valid range list table with base = 0x8
-#ERR: error: decoding address ranges: missing or invalid range list table
 #ERR: error: decoding address ranges: invalid range list offset 0xfa0

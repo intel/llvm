@@ -1,15 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===--------------- floatunsitf_test.c - Test __floatunsitf --------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __floatunsitf for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_floatunsitf
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -18,9 +8,9 @@
 
 #include "fp_test.h"
 
-COMPILER_RT_ABI long double __floatunsitf(unsigned int a);
+COMPILER_RT_ABI long double __floatunsitf(su_int a);
 
-int test__floatunsitf(unsigned int a, uint64_t expectedHi, uint64_t expectedLo)
+int test__floatunsitf(su_int a, uint64_t expectedHi, uint64_t expectedLo)
 {
     long double x = __floatunsitf(a);
     int ret = compareResultLD(x, expectedHi, expectedLo);

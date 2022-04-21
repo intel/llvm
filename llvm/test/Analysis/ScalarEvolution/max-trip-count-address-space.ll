@@ -1,4 +1,4 @@
-; RUN: opt < %s -analyze -scalar-evolution | FileCheck %s
+; RUN: opt < %s -disable-output "-passes=print<scalar-evolution>" 2>&1 | FileCheck %s
 
 ; ScalarEvolution should be able to understand the loop and eliminate the casts.
 
@@ -65,4 +65,4 @@ for.end:                                          ; preds = %for.cond.for.end_cr
 
 ; CHECK: Determining loop execution counts for: @test
 ; CHECK-NEXT: backedge-taken count is
-; CHECK-NEXT: max backedge-taken count is -1
+; CHECK-NEXT: max backedge-taken count is 2147483646

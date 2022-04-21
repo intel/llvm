@@ -1,4 +1,4 @@
-; RUN: opt < %s -analyze -scalar-evolution | FileCheck %s
+; RUN: opt < %s -disable-output "-passes=print<scalar-evolution>" 2>&1 | FileCheck %s
 
 ; CHECK: Determining loop execution counts for: @test
 ; CHECK: Loop %for.body: backedge-taken count is ((-2 + %len) /u 2)

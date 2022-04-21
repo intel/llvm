@@ -10,8 +10,8 @@
 // easier human consumption.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_INCLUDE_LLVM_XRAY_BLOCKPRINTER_H_
-#define LLVM_INCLUDE_LLVM_XRAY_BLOCKPRINTER_H_
+#ifndef LLVM_XRAY_BLOCKPRINTER_H
+#define LLVM_XRAY_BLOCKPRINTER_H
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/XRay/FDRRecords.h"
@@ -36,8 +36,7 @@ class BlockPrinter : public RecordVisitor {
   State CurrentState = State::Start;
 
 public:
-  explicit BlockPrinter(raw_ostream &O, RecordPrinter &P)
-      : RecordVisitor(), OS(O), RP(P) {}
+  explicit BlockPrinter(raw_ostream &O, RecordPrinter &P) : OS(O), RP(P) {}
 
   Error visit(BufferExtents &) override;
   Error visit(WallclockRecord &) override;
@@ -58,4 +57,4 @@ public:
 } // namespace xray
 } // namespace llvm
 
-#endif // LLVM_INCLUDE_LLVM_XRAY_BLOCKPRINTER_H_
+#endif // LLVM_XRAY_BLOCKPRINTER_H

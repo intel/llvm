@@ -47,11 +47,23 @@ findConstToRemove(const FunctionDecl *Def,
   if (FileRange.isInvalid())
     return None;
 
-  return utils::lexer::getConstQualifyingToken(FileRange, *Result.Context,
-                                               *Result.SourceManager);
+  return utils::lexer::getQualifyingToken(
+      tok::kw_const, FileRange, *Result.Context, *Result.SourceManager);
 }
 
 namespace {
+
+AST_MATCHER(QualType, isLocalConstQualified) {
+  return Node.isLocalConstQualified();
+}
+
+AST_MATCHER(QualType, isTypeOfType) {
+  return isa<TypeOfType>(Node.getTypePtr());
+}
+
+AST_MATCHER(QualType, isTypeOfExprType) {
+  return isa<TypeOfExprType>(Node.getTypePtr());
+}
 
 struct CheckResult {
   // Source range of the relevant `const` token in the definition being checked.
@@ -79,7 +91,7 @@ static CheckResult checkDef(const clang::FunctionDecl *Def,
   Result.Hints.push_back(FixItHint::CreateRemoval(Result.ConstRange));
 
   // Fix the definition and any visible declarations, but don't warn
-  // seperately for each declaration. Instead, associate all fixes with the
+  // separately for each declaration. Instead, associate all fixes with the
   // single warning at the definition.
   for (const FunctionDecl *Decl = Def->getPreviousDecl(); Decl != nullptr;
        Decl = Decl->getPreviousDecl()) {
@@ -95,9 +107,15 @@ static CheckResult checkDef(const clang::FunctionDecl *Def,
 
 void ConstReturnTypeCheck::registerMatchers(MatchFinder *Finder) {
   // Find all function definitions for which the return types are `const`
-  // qualified.
+  // qualified, ignoring decltype types.
+  auto NonLocalConstType = qualType(
+      unless(isLocalConstQualified()),
+      anyOf(decltypeType(), autoType(), isTypeOfType(), isTypeOfExprType()));
   Finder->addMatcher(
-      functionDecl(returns(isConstQualified()), isDefinition()).bind("func"),
+      functionDecl(
+          returns(allOf(isConstQualified(), unless(NonLocalConstType))),
+          anyOf(isDefinition(), cxxMethodDecl(isPure())))
+          .bind("func"),
       this);
 }
 
@@ -115,6 +133,12 @@ void ConstReturnTypeCheck::check(const MatchFinder::MatchResult &Result) {
         << Def->getReturnType();
     if (CR.ConstRange.isValid())
       Diagnostic << CR.ConstRange;
+
+    // Do not propose fixes for virtual function.
+    const auto *Method = dyn_cast<CXXMethodDecl>(Def);
+    if (Method && Method->isVirtual())
+      return;
+
     for (auto &Hint : CR.Hints)
       Diagnostic << Hint;
   }

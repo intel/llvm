@@ -14,8 +14,9 @@
 #define LLVM_MC_MCSYMBOL_H
 
 #include "llvm/ADT/PointerIntPair.h"
-#include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringMapEntry.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFragment.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -27,7 +28,6 @@ namespace llvm {
 
 class MCAsmInfo;
 class MCContext;
-class MCExpr;
 class MCSection;
 class raw_ostream;
 
@@ -46,8 +46,10 @@ protected:
     SymbolKindUnset,
     SymbolKindCOFF,
     SymbolKindELF,
+    SymbolKindGOFF,
     SymbolKindMachO,
     SymbolKindWasm,
+    SymbolKindXCOFF,
   };
 
   /// A symbol can contain an Offset, or Value, or be Common, but never more
@@ -57,6 +59,7 @@ protected:
     SymContentsOffset,
     SymContentsVariable,
     SymContentsCommon,
+    SymContentsTargetCommon, // Index stores the section index
   };
 
   // Special sentinal value for the absolute pseudo fragment.
@@ -92,7 +95,8 @@ protected:
 
   mutable unsigned IsRegistered : 1;
 
-  /// This symbol is visible outside this translation unit.
+  /// True if this symbol is visible outside this translation unit. Note: ELF
+  /// uses binding instead of this bit.
   mutable unsigned IsExternal : 1;
 
   /// This symbol is private extern.
@@ -107,7 +111,7 @@ protected:
 
   /// This is actually a Contents enumerator, but is unsigned to avoid sign
   /// extension and achieve better bitpacking with MSVC.
-  unsigned SymbolContents : 2;
+  unsigned SymbolContents : 3;
 
   /// The alignment of the symbol, if it is 'common', or -1.
   ///
@@ -174,14 +178,6 @@ private:
   /// Placement delete - required by std, but never called.
   void operator delete(void*, unsigned, bool) {
     llvm_unreachable("Constructor throws?");
-  }
-
-  MCSection *getSectionPtr() const {
-    if (MCFragment *F = getFragment()) {
-      assert(F != AbsolutePseudoFragment);
-      return F->getParent();
-    }
-    return nullptr;
   }
 
   /// Get a reference to the name field.  Requires that we have a name
@@ -265,7 +261,7 @@ public:
   /// Get the section associated with a defined, non-absolute symbol.
   MCSection &getSection() const {
     assert(isInSection() && "Invalid accessor!");
-    return *getSectionPtr();
+    return *getFragment()->getParent();
   }
 
   /// Mark the symbol as defined in the fragment \p F.
@@ -281,9 +277,13 @@ public:
 
   bool isCOFF() const { return Kind == SymbolKindCOFF; }
 
+  bool isGOFF() const { return Kind == SymbolKindGOFF; }
+
   bool isMachO() const { return Kind == SymbolKindMachO; }
 
   bool isWasm() const { return Kind == SymbolKindWasm; }
+
+  bool isXCOFF() const { return Kind == SymbolKindXCOFF; }
 
   /// @}
   /// \name Variable Symbols
@@ -341,10 +341,11 @@ public:
   ///
   /// \param Size - The size of the symbol.
   /// \param Align - The alignment of the symbol.
-  void setCommon(uint64_t Size, unsigned Align) {
+  /// \param Target - Is the symbol a target-specific common-like symbol.
+  void setCommon(uint64_t Size, unsigned Align, bool Target = false) {
     assert(getOffset() == 0);
     CommonSize = Size;
-    SymbolContents = SymContentsCommon;
+    SymbolContents = Target ? SymContentsTargetCommon : SymContentsCommon;
 
     assert((!Align || isPowerOf2_32(Align)) &&
            "Alignment must be a power of 2");
@@ -364,20 +365,28 @@ public:
   ///
   /// \param Size - The size of the symbol.
   /// \param Align - The alignment of the symbol.
+  /// \param Target - Is the symbol a target-specific common-like symbol.
   /// \return True if symbol was already declared as a different type
-  bool declareCommon(uint64_t Size, unsigned Align) {
+  bool declareCommon(uint64_t Size, unsigned Align, bool Target = false) {
     assert(isCommon() || getOffset() == 0);
     if(isCommon()) {
-      if(CommonSize != Size || getCommonAlignment() != Align)
-       return true;
+      if (CommonSize != Size || getCommonAlignment() != Align ||
+          isTargetCommon() != Target)
+        return true;
     } else
-      setCommon(Size, Align);
+      setCommon(Size, Align, Target);
     return false;
   }
 
   /// Is this a 'common' symbol.
   bool isCommon() const {
-    return SymbolContents == SymContentsCommon;
+    return SymbolContents == SymContentsCommon ||
+           SymbolContents == SymContentsTargetCommon;
+  }
+
+  /// Is this a target-specific common-like symbol.
+  bool isTargetCommon() const {
+    return SymbolContents == SymContentsTargetCommon;
   }
 
   MCFragment *getFragment(bool SetUsed = true) const {

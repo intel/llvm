@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03, c++11
-// XFAIL: dylib-has-no-shared_mutex
+// UNSUPPORTED: c++03, c++11
 
-// FLAKY_TEST.
+// dylib support for shared_mutex was added in macosx10.12
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
 
 // <shared_mutex>
 
@@ -19,12 +19,15 @@
 // template <class Rep, class Period>
 //   shared_lock(mutex_type& m, const chrono::duration<Rep, Period>& rel_time);
 
-#include <shared_mutex>
 #include <thread>
-#include <vector>
-#include <cstdlib>
-#include <cassert>
 
+#include <atomic>
+#include <cassert>
+#include <cstdlib>
+#include <shared_mutex>
+#include <vector>
+
+#include "make_test_thread.h"
 #include "test_macros.h"
 
 std::shared_timed_mutex m;
@@ -35,60 +38,63 @@ typedef Clock::duration duration;
 typedef std::chrono::milliseconds ms;
 typedef std::chrono::nanoseconds ns;
 
-ms WaitTime = ms(250);
+ms LongTime = ms(5000);
+ms ShortTime = ms(50);
 
-// Thread sanitizer causes more overhead and will sometimes cause this test
-// to fail. To prevent this we give Thread sanitizer more time to complete the
-// test.
-#if !defined(TEST_HAS_SANITIZERS)
-ms Tolerance = ms(50);
-#else
-ms Tolerance = ms(50 * 5);
-#endif
+static const unsigned Threads = 5;
 
+std::atomic<unsigned> CountDown(Threads);
 
 void f1()
 {
-    time_point t0 = Clock::now();
-    std::shared_lock<std::shared_timed_mutex> lk(m, WaitTime + Tolerance);
-    assert(lk.owns_lock() == true);
-    time_point t1 = Clock::now();
-    ns d = t1 - t0 - WaitTime;
-    assert(d < Tolerance);  // within 50ms
+  // Preemptive scheduling means that one cannot make assumptions about when
+  // code executes and therefore we cannot assume anthing about when the mutex
+  // starts waiting relative to code in the main thread. We can however prove
+  // that a timeout occured and that implies that this code is waiting.
+  // See f2() below.
+  //
+  // Nevertheless, we should at least try to ensure that the mutex waits and
+  // therefore we use an atomic variable to signal to the main thread that this
+  // code is just a few instructions away from waiting.
+  --CountDown;
+  std::shared_lock<std::shared_timed_mutex> lk(m, LongTime);
+  assert(lk.owns_lock() == true);
 }
 
 void f2()
 {
-    time_point t0 = Clock::now();
-    std::shared_lock<std::shared_timed_mutex> lk(m, WaitTime);
-    assert(lk.owns_lock() == false);
-    time_point t1 = Clock::now();
-    ns d = t1 - t0 - WaitTime;
-    assert(d < Tolerance);  // within 50ms
+  time_point t0 = Clock::now();
+  std::shared_lock<std::shared_timed_mutex> lk(m, ShortTime);
+  time_point t1 = Clock::now();
+  assert(lk.owns_lock() == false);
+  assert(t1 - t0 >= ShortTime);
 }
 
 int main(int, char**)
 {
-    {
-        m.lock();
-        std::vector<std::thread> v;
-        for (int i = 0; i < 5; ++i)
-            v.push_back(std::thread(f1));
-        std::this_thread::sleep_for(WaitTime);
-        m.unlock();
-        for (auto& t : v)
-            t.join();
-    }
-    {
-        m.lock();
-        std::vector<std::thread> v;
-        for (int i = 0; i < 5; ++i)
-            v.push_back(std::thread(f2));
-        std::this_thread::sleep_for(WaitTime + Tolerance);
-        m.unlock();
-        for (auto& t : v)
-            t.join();
-    }
+  {
+    m.lock();
+    std::vector<std::thread> v;
+    for (unsigned i = 0; i < Threads; ++i)
+      v.push_back(support::make_test_thread(f1));
+    while (CountDown > 0)
+      std::this_thread::yield();
+    // Give one more chance for threads to block and wait for the mutex.
+    std::this_thread::yield();
+    std::this_thread::sleep_for(ShortTime);
+    m.unlock();
+    for (auto& t : v)
+      t.join();
+  }
+  {
+    m.lock();
+    std::vector<std::thread> v;
+    for (unsigned i = 0; i < Threads; ++i)
+      v.push_back(support::make_test_thread(f2));
+    for (auto& t : v)
+      t.join();
+    m.unlock();
+  }
 
   return 0;
 }

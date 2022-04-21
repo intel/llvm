@@ -36,17 +36,6 @@ LoadCommands:
 #CHECK:     ZeroPadBytes:
 #CHECK:   - cmd:             0xDEADBEEF
 #CHECK:     cmdsize:         24
-#CHECK:     PayloadBytes:
-#CHECK:       - 0x01
-#CHECK:       - 0x02
-#CHECK:       - 0x03
-#CHECK:       - 0x04
-#CHECK:       - 0x05
-#CHECK:       - 0x06
-#CHECK:       - 0x07
-#CHECK:       - 0x08
-#CHECK:       - 0x09
-#CHECK:       - 0x0A
-#CHECK:       - 0x0B
-#CHECK:       - 0x0C
+#CHECK:     PayloadBytes:    [ 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA,
+#CHECK:                        0xB, 0xC, 0x0, 0x0, 0x0, 0x0 ]
 #CHECK-NOT: LinkEditData:

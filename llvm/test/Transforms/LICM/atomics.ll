@@ -1,5 +1,5 @@
-; RUN: opt < %s -S -basicaa -licm | FileCheck %s
-; RUN: opt -aa-pipeline=basic-aa -passes='require<opt-remark-emit>,loop(licm)' < %s -S | FileCheck %s
+; RUN: opt < %s -S -basic-aa -licm -enable-new-pm=0 | FileCheck %s
+; RUN: opt -aa-pipeline=basic-aa -passes='require<opt-remark-emit>,loop-mssa(licm)' < %s -S | FileCheck %s
 
 ; Check that we can hoist unordered loads
 define i32 @test1(i32* nocapture %y) nounwind uwtable ssp {
@@ -173,11 +173,10 @@ loop:
 end:
   ret i32 %vala
 ; CHECK-LABEL: define i32 @test7b(
-; CHECK-LABEL: entry:
-; CHECK: store i32 5, i32* %x
 ; CHECK-LABEL: loop:
 ; CHECK: load atomic i32, i32* %y monotonic
 ; CHECK-LABEL: end:
+; CHECK: store i32 5, i32* %x
 ; CHECK: store atomic i32 %{{.+}}, i32* %z unordered, align 4
 }
 

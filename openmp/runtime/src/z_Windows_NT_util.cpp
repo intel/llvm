@@ -23,6 +23,10 @@
 
 #include <ntsecapi.h> // UNICODE_STRING
 #include <ntstatus.h>
+#include <psapi.h>
+#ifdef _MSC_VER
+#pragma comment(lib, "psapi.lib")
+#endif
 
 enum SYSTEM_INFORMATION_CLASS {
   SystemProcessInformation = 5
@@ -236,12 +240,12 @@ static void __kmp_win32_cond_wait(kmp_win32_cond_t *cv, kmp_win32_mutex_t *mx,
         continue;
       }
       // condition fulfilled, exiting
-      old_f = flag->unset_sleeping();
-      KMP_DEBUG_ASSERT(old_f & KMP_BARRIER_SLEEP_STATE);
+      flag->unset_sleeping();
       TCW_PTR(th->th.th_sleep_loc, NULL);
+      th->th.th_sleep_loc_type = flag_unset;
       KF_TRACE(50, ("__kmp_win32_cond_wait: exiting, condition "
-                    "fulfilled: flag's loc(%p): %u => %u\n",
-                    flag->get(), old_f, *(flag->get())));
+                    "fulfilled: flag's loc(%p): %u\n",
+                    flag->get(), (unsigned int)flag->load()));
 
       __kmp_win32_mutex_lock(&cv->waiters_count_lock_);
       KMP_DEBUG_ASSERT(cv->waiters_count_ > 0);
@@ -356,14 +360,13 @@ void __kmp_unlock_suspend_mx(kmp_info_t *th) {
 template <class C>
 static inline void __kmp_suspend_template(int th_gtid, C *flag) {
   kmp_info_t *th = __kmp_threads[th_gtid];
-  int status;
   typename C::flag_t old_spin;
 
   KF_TRACE(30, ("__kmp_suspend_template: T#%d enter for flag's loc(%p)\n",
                 th_gtid, flag->get()));
 
   __kmp_suspend_initialize_thread(th);
-  __kmp_win32_mutex_lock(&th->th.th_suspend_mx);
+  __kmp_lock_suspend_mx(th);
 
   KF_TRACE(10, ("__kmp_suspend_template: T#%d setting sleep bit for flag's"
                 " loc(%p)\n",
@@ -372,21 +375,25 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
   /* TODO: shouldn't this use release semantics to ensure that
      __kmp_suspend_initialize_thread gets called first? */
   old_spin = flag->set_sleeping();
-#if OMP_50_ENABLED
+  TCW_PTR(th->th.th_sleep_loc, (void *)flag);
+  th->th.th_sleep_loc_type = flag->get_type();
   if (__kmp_dflt_blocktime == KMP_MAX_BLOCKTIME &&
       __kmp_pause_status != kmp_soft_paused) {
     flag->unset_sleeping();
-    __kmp_win32_mutex_unlock(&th->th.th_suspend_mx);
+    TCW_PTR(th->th.th_sleep_loc, NULL);
+    th->th.th_sleep_loc_type = flag_unset;
+    __kmp_unlock_suspend_mx(th);
     return;
   }
-#endif
 
   KF_TRACE(5, ("__kmp_suspend_template: T#%d set sleep bit for flag's"
-               " loc(%p)==%d\n",
-               th_gtid, flag->get(), *(flag->get())));
+               " loc(%p)==%u\n",
+               th_gtid, flag->get(), (unsigned int)flag->load()));
 
-  if (flag->done_check_val(old_spin)) {
-    old_spin = flag->unset_sleeping();
+  if (flag->done_check_val(old_spin) || flag->done_check()) {
+    flag->unset_sleeping();
+    TCW_PTR(th->th.th_sleep_loc, NULL);
+    th->th.th_sleep_loc_type = flag_unset;
     KF_TRACE(5, ("__kmp_suspend_template: T#%d false alarm, reset sleep bit "
                  "for flag's loc(%p)\n",
                  th_gtid, flag->get()));
@@ -398,7 +405,7 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
        low probability" return when the condition variable has not been signaled
        or broadcast */
     int deactivated = FALSE;
-    TCW_PTR(th->th.th_sleep_loc, (void *)flag);
+
     while (flag->is_sleeping()) {
       KF_TRACE(15, ("__kmp_suspend_template: T#%d about to perform "
                     "kmp_win32_cond_wait()\n",
@@ -413,12 +420,13 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
           KMP_DEBUG_ASSERT(TCR_4(__kmp_thread_pool_active_nth) >= 0);
         }
         deactivated = TRUE;
-        __kmp_win32_cond_wait(&th->th.th_suspend_cv, &th->th.th_suspend_mx, th,
-                              flag);
-      } else {
-        __kmp_win32_cond_wait(&th->th.th_suspend_cv, &th->th.th_suspend_mx, th,
-                              flag);
       }
+
+      KMP_DEBUG_ASSERT(th->th.th_sleep_loc);
+      KMP_DEBUG_ASSERT(th->th.th_sleep_loc_type == flag->get_type());
+
+      __kmp_win32_cond_wait(&th->th.th_suspend_cv, &th->th.th_suspend_mx, th,
+                            flag);
 
 #ifdef KMP_DEBUG
       if (flag->is_sleeping()) {
@@ -428,6 +436,14 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
 #endif /* KMP_DEBUG */
 
     } // while
+
+    // We may have had the loop variable set before entering the loop body;
+    // so we need to reset sleep_loc.
+    TCW_PTR(th->th.th_sleep_loc, NULL);
+    th->th.th_sleep_loc_type = flag_unset;
+
+    KMP_DEBUG_ASSERT(!flag->is_sleeping());
+    KMP_DEBUG_ASSERT(!th->th.th_sleep_loc);
 
     // Mark the thread as active again (if it was previous marked as inactive)
     if (deactivated) {
@@ -439,27 +455,39 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
     }
   }
 
-  __kmp_win32_mutex_unlock(&th->th.th_suspend_mx);
-
+  __kmp_unlock_suspend_mx(th);
   KF_TRACE(30, ("__kmp_suspend_template: T#%d exit\n", th_gtid));
 }
 
-void __kmp_suspend_32(int th_gtid, kmp_flag_32 *flag) {
+template <bool C, bool S>
+void __kmp_suspend_32(int th_gtid, kmp_flag_32<C, S> *flag) {
   __kmp_suspend_template(th_gtid, flag);
 }
-void __kmp_suspend_64(int th_gtid, kmp_flag_64 *flag) {
+template <bool C, bool S>
+void __kmp_suspend_64(int th_gtid, kmp_flag_64<C, S> *flag) {
+  __kmp_suspend_template(th_gtid, flag);
+}
+template <bool C, bool S>
+void __kmp_atomic_suspend_64(int th_gtid, kmp_atomic_flag_64<C, S> *flag) {
   __kmp_suspend_template(th_gtid, flag);
 }
 void __kmp_suspend_oncore(int th_gtid, kmp_flag_oncore *flag) {
   __kmp_suspend_template(th_gtid, flag);
 }
 
+template void __kmp_suspend_32<false, false>(int, kmp_flag_32<false, false> *);
+template void __kmp_suspend_64<false, true>(int, kmp_flag_64<false, true> *);
+template void __kmp_suspend_64<true, false>(int, kmp_flag_64<true, false> *);
+template void
+__kmp_atomic_suspend_64<false, true>(int, kmp_atomic_flag_64<false, true> *);
+template void
+__kmp_atomic_suspend_64<true, false>(int, kmp_atomic_flag_64<true, false> *);
+
 /* This routine signals the thread specified by target_gtid to wake up
    after setting the sleep bit indicated by the flag argument to FALSE */
 template <class C>
 static inline void __kmp_resume_template(int target_gtid, C *flag) {
   kmp_info_t *th = __kmp_threads[target_gtid];
-  int status;
 
 #ifdef KMP_DEBUG
   int gtid = TCR_4(__kmp_init_gtid) ? __kmp_get_gtid() : -1;
@@ -469,54 +497,70 @@ static inline void __kmp_resume_template(int target_gtid, C *flag) {
                 gtid, target_gtid));
 
   __kmp_suspend_initialize_thread(th);
-  __kmp_win32_mutex_lock(&th->th.th_suspend_mx);
+  __kmp_lock_suspend_mx(th);
 
-  if (!flag) { // coming from __kmp_null_resume_wrapper
+  if (!flag || flag != th->th.th_sleep_loc) {
+    // coming from __kmp_null_resume_wrapper, or thread is now sleeping on a
+    // different location; wake up at new location
     flag = (C *)th->th.th_sleep_loc;
   }
 
   // First, check if the flag is null or its type has changed. If so, someone
   // else woke it up.
-  if (!flag || flag->get_type() != flag->get_ptr_type()) { // get_ptr_type
-    // simply shows what
-    // flag was cast to
+  if (!flag || flag->get_type() != th->th.th_sleep_loc_type) {
+    // simply shows what flag was cast to
     KF_TRACE(5, ("__kmp_resume_template: T#%d exiting, thread T#%d already "
                  "awake: flag's loc(%p)\n",
                  gtid, target_gtid, NULL));
-    __kmp_win32_mutex_unlock(&th->th.th_suspend_mx);
+    __kmp_unlock_suspend_mx(th);
     return;
   } else {
-    typename C::flag_t old_spin = flag->unset_sleeping();
-    if (!flag->is_sleeping_val(old_spin)) {
+    if (!flag->is_sleeping()) {
       KF_TRACE(5, ("__kmp_resume_template: T#%d exiting, thread T#%d already "
-                   "awake: flag's loc(%p): %u => %u\n",
-                   gtid, target_gtid, flag->get(), old_spin, *(flag->get())));
-      __kmp_win32_mutex_unlock(&th->th.th_suspend_mx);
+                   "awake: flag's loc(%p): %u\n",
+                   gtid, target_gtid, flag->get(), (unsigned int)flag->load()));
+      __kmp_unlock_suspend_mx(th);
       return;
     }
   }
+  KMP_DEBUG_ASSERT(flag);
+  flag->unset_sleeping();
   TCW_PTR(th->th.th_sleep_loc, NULL);
+  th->th.th_sleep_loc_type = flag_unset;
+
   KF_TRACE(5, ("__kmp_resume_template: T#%d about to wakeup T#%d, reset sleep "
                "bit for flag's loc(%p)\n",
                gtid, target_gtid, flag->get()));
 
   __kmp_win32_cond_signal(&th->th.th_suspend_cv);
-  __kmp_win32_mutex_unlock(&th->th.th_suspend_mx);
+  __kmp_unlock_suspend_mx(th);
 
   KF_TRACE(30, ("__kmp_resume_template: T#%d exiting after signaling wake up"
                 " for T#%d\n",
                 gtid, target_gtid));
 }
 
-void __kmp_resume_32(int target_gtid, kmp_flag_32 *flag) {
+template <bool C, bool S>
+void __kmp_resume_32(int target_gtid, kmp_flag_32<C, S> *flag) {
   __kmp_resume_template(target_gtid, flag);
 }
-void __kmp_resume_64(int target_gtid, kmp_flag_64 *flag) {
+template <bool C, bool S>
+void __kmp_resume_64(int target_gtid, kmp_flag_64<C, S> *flag) {
+  __kmp_resume_template(target_gtid, flag);
+}
+template <bool C, bool S>
+void __kmp_atomic_resume_64(int target_gtid, kmp_atomic_flag_64<C, S> *flag) {
   __kmp_resume_template(target_gtid, flag);
 }
 void __kmp_resume_oncore(int target_gtid, kmp_flag_oncore *flag) {
   __kmp_resume_template(target_gtid, flag);
 }
+
+template void __kmp_resume_32<false, true>(int, kmp_flag_32<false, true> *);
+template void __kmp_resume_32<false, false>(int, kmp_flag_32<false, false> *);
+template void __kmp_resume_64<false, true>(int, kmp_flag_64<false, true> *);
+template void
+__kmp_atomic_resume_64<false, true>(int, kmp_atomic_flag_64<false, true> *);
 
 void __kmp_yield() { Sleep(0); }
 
@@ -524,7 +568,8 @@ void __kmp_gtid_set_specific(int gtid) {
   if (__kmp_init_gtid) {
     KA_TRACE(50, ("__kmp_gtid_set_specific: T#%d key:%d\n", gtid,
                   __kmp_gtid_threadprivate_key));
-    if (!TlsSetValue(__kmp_gtid_threadprivate_key, (LPVOID)(gtid + 1)))
+    kmp_intptr_t g = (kmp_intptr_t)gtid;
+    if (!TlsSetValue(__kmp_gtid_threadprivate_key, (LPVOID)(g + 1)))
       KMP_FATAL(TLSSetValueFailed);
   } else {
     KA_TRACE(50, ("__kmp_gtid_set_specific: runtime shutdown, returning\n"));
@@ -583,7 +628,8 @@ void __kmp_affinity_bind_thread(int proc) {
 }
 
 void __kmp_affinity_determine_capable(const char *env_var) {
-// All versions of Windows* OS (since Win '95) support SetThreadAffinityMask().
+  // All versions of Windows* OS (since Win '95) support
+  // SetThreadAffinityMask().
 
 #if KMP_GROUP_AFFINITY
   KMP_AFFINITY_ENABLE(__kmp_num_proc_groups * sizeof(DWORD_PTR));
@@ -656,6 +702,7 @@ void __kmp_runtime_initialize(void) {
     BOOL ret = GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                                      GET_MODULE_HANDLE_EX_FLAG_PIN,
                                  (LPCTSTR)&__kmp_serial_initialize, &h);
+    (void)ret;
     KMP_DEBUG_ASSERT2(h && ret, "OpenMP RTL cannot find itself loaded");
     SetErrorMode(err_mode); // Restore error mode
     KA_TRACE(10, ("__kmp_runtime_initialize: dynamic library pinned\n"));
@@ -815,6 +862,7 @@ void __kmp_runtime_initialize(void) {
     __kmp_xproc = info.dwNumberOfProcessors;
   }
 #else
+  (void)kernel32;
   GetSystemInfo(&info);
   __kmp_xproc = info.dwNumberOfProcessors;
 #endif /* KMP_GROUP_AFFINITY */
@@ -887,9 +935,8 @@ void __kmp_terminate_thread(int gtid) {
 }
 
 void __kmp_clear_system_time(void) {
-  BOOL status;
   LARGE_INTEGER time;
-  status = QueryPerformanceCounter(&time);
+  QueryPerformanceCounter(&time);
   __kmp_win32_time = (kmp_int64)time.QuadPart;
 }
 
@@ -913,9 +960,8 @@ void __kmp_initialize_system_tick(void) {
 /* Calculate the elapsed wall clock time for the user */
 
 void __kmp_elapsed(double *t) {
-  BOOL status;
   LARGE_INTEGER now;
-  status = QueryPerformanceCounter(&now);
+  QueryPerformanceCounter(&now);
   *t = ((double)now.QuadPart) * __kmp_win32_tick;
 }
 
@@ -925,11 +971,8 @@ void __kmp_elapsed_tick(double *t) { *t = __kmp_win32_tick; }
 
 void __kmp_read_system_time(double *delta) {
   if (delta != NULL) {
-    BOOL status;
     LARGE_INTEGER now;
-
-    status = QueryPerformanceCounter(&now);
-
+    QueryPerformanceCounter(&now);
     *delta = ((double)(((kmp_int64)now.QuadPart) - __kmp_win32_time)) *
              __kmp_win32_tick;
   }
@@ -942,8 +985,7 @@ kmp_uint64 __kmp_now_nsec() {
   return 1e9 * __kmp_win32_tick * now.QuadPart;
 }
 
-extern "C"
-void *__stdcall __kmp_launch_worker(void *arg) {
+extern "C" void *__stdcall __kmp_launch_worker(void *arg) {
   volatile void *stack_data;
   void *exit_val;
   void *padding = 0;
@@ -974,6 +1016,7 @@ void *__stdcall __kmp_launch_worker(void *arg) {
 
   if (__kmp_stkoffset > 0 && gtid > 0) {
     padding = KMP_ALLOCA(gtid * __kmp_stkoffset);
+    (void)padding;
   }
 
   KMP_FSYNC_RELEASING(&this_thr->th.th_info.ds.ds_alive);
@@ -1281,16 +1324,18 @@ static void __kmp_reap_common(kmp_info_t *th) {
     // KMP_WAIT to cover this usage also.
     void *obj = NULL;
     kmp_uint32 spins;
+    kmp_uint64 time;
 #if USE_ITT_BUILD
     KMP_FSYNC_SPIN_INIT(obj, (void *)&th->th.th_info.ds.ds_alive);
 #endif /* USE_ITT_BUILD */
     KMP_INIT_YIELD(spins);
+    KMP_INIT_BACKOFF(time);
     do {
 #if USE_ITT_BUILD
       KMP_FSYNC_SPIN_PREPARE(obj);
 #endif /* USE_ITT_BUILD */
       __kmp_is_thread_alive(th, &exit_val);
-      KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
+      KMP_YIELD_OVERSUB_ELSE_SPIN(spins, time);
     } while (exit_val == STILL_ACTIVE && TCR_4(th->th.th_info.ds.ds_alive));
 #if USE_ITT_BUILD
     if (exit_val == STILL_ACTIVE) {
@@ -1306,9 +1351,10 @@ static void __kmp_reap_common(kmp_info_t *th) {
   /* NOTE:  The ExitProcess(code) system call causes all threads to Terminate
      with a exit_val = code.  Because of this we can not rely on exit_val having
      any particular value. */
+  kmp_intptr_t e = (kmp_intptr_t)exit_val;
   if (exit_val == STILL_ACTIVE) {
     KA_TRACE(1, ("__kmp_reap_common: thread still active.\n"));
-  } else if ((void *)exit_val != (void *)th) {
+  } else if ((void *)e != (void *)th) {
     KA_TRACE(1, ("__kmp_reap_common: ExitProcess / TerminateThread used?\n"));
   }
 
@@ -1471,13 +1517,12 @@ void __kmp_thread_sleep(int millis) {
 
 // Determine whether the given address is mapped into the current address space.
 int __kmp_is_address_mapped(void *addr) {
-  DWORD status;
   MEMORY_BASIC_INFORMATION lpBuffer;
   SIZE_T dwLength;
 
   dwLength = sizeof(MEMORY_BASIC_INFORMATION);
 
-  status = VirtualQuery(addr, &lpBuffer, dwLength);
+  VirtualQuery(addr, &lpBuffer, dwLength);
 
   return !(((lpBuffer.State == MEM_RESERVE) || (lpBuffer.State == MEM_FREE)) ||
            ((lpBuffer.Protect == PAGE_NOACCESS) ||
@@ -1506,7 +1551,7 @@ void __kmp_free_handle(kmp_thread_t tHandle) {
 int __kmp_get_load_balance(int max) {
   static ULONG glb_buff_size = 100 * 1024;
 
-  // Saved count of the running threads for the thread balance algortihm
+  // Saved count of the running threads for the thread balance algorithm
   static int glb_running_threads = 0;
   static double glb_call_time = 0; /* Thread balance algorithm call time */
 
@@ -1621,3 +1666,63 @@ finish: // Clean up and exit.
 
   return running_threads;
 } //__kmp_get_load_balance()
+
+// Find symbol from the loaded modules
+void *__kmp_lookup_symbol(const char *name) {
+  HANDLE process = GetCurrentProcess();
+  DWORD needed;
+  HMODULE *modules = nullptr;
+  if (!EnumProcessModules(process, modules, 0, &needed))
+    return nullptr;
+  DWORD num_modules = needed / sizeof(HMODULE);
+  modules = (HMODULE *)malloc(num_modules * sizeof(HMODULE));
+  if (!EnumProcessModules(process, modules, needed, &needed)) {
+    free(modules);
+    return nullptr;
+  }
+  void *proc = nullptr;
+  for (uint32_t i = 0; i < num_modules; i++) {
+    proc = (void *)GetProcAddress(modules[i], name);
+    if (proc)
+      break;
+  }
+  free(modules);
+  return proc;
+}
+
+// Functions for hidden helper task
+void __kmp_hidden_helper_worker_thread_wait() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}
+
+void __kmp_do_initialize_hidden_helper_threads() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}
+
+void __kmp_hidden_helper_threads_initz_wait() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}
+
+void __kmp_hidden_helper_initz_release() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}
+
+void __kmp_hidden_helper_main_thread_wait() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}
+
+void __kmp_hidden_helper_main_thread_release() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}
+
+void __kmp_hidden_helper_worker_thread_signal() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}
+
+void __kmp_hidden_helper_threads_deinitz_wait() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}
+
+void __kmp_hidden_helper_threads_deinitz_release() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
+}

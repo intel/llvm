@@ -4,22 +4,20 @@
 #error Extension 'gnu_asm' should be available by default
 #endif
 
-void f1() {
+void f1(void) {
   // PR7673: Some versions of GCC support an empty clobbers section.
   asm ("ret" : : :);
 }
 
-void f2() {
+void f2(void) {
   asm("foo" : "=r" (a)); // expected-error {{use of undeclared identifier 'a'}}
   asm("foo" : : "r" (b)); // expected-error {{use of undeclared identifier 'b'}} 
-
-  asm const (""); // expected-warning {{ignored const qualifier on asm}}
-  asm volatile ("");
-  asm restrict (""); // expected-warning {{ignored restrict qualifier on asm}}
-  // FIXME: Once GCC supports _Atomic, check whether it allows this.
-  asm _Atomic (""); // expected-warning {{ignored _Atomic qualifier on asm}}
 }
 
+void a(void) __asm__(""); // expected-error {{cannot use an empty string literal in 'asm'}}
+void a(void) {
+  __asm__(""); // ok
+}
 
 // rdar://5952468
 __asm ; // expected-error {{expected '(' after 'asm'}}

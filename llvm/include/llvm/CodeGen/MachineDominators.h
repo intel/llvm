@@ -19,13 +19,17 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineInstrBundleIterator.h"
 #include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include <cassert>
 #include <memory>
-#include <vector>
 
 namespace llvm {
+class AnalysisUsage;
+class MachineFunction;
+class Module;
+class raw_ostream;
 
 template <>
 inline void DominatorTreeBase<MachineBasicBlock, false>::addRoot(
@@ -37,6 +41,7 @@ extern template class DomTreeNodeBase<MachineBasicBlock>;
 extern template class DominatorTreeBase<MachineBasicBlock, false>; // DomTree
 extern template class DominatorTreeBase<MachineBasicBlock, true>; // PostDomTree
 
+using MachineDomTree = DomTreeBase<MachineBasicBlock>;
 using MachineDomTreeNode = DomTreeNodeBase<MachineBasicBlock>;
 
 //===-------------------------------------
@@ -65,8 +70,8 @@ class MachineDominatorTree : public MachineFunctionPass {
   /// such as BB == elt.NewBB.
   mutable SmallSet<MachineBasicBlock *, 32> NewBBs;
 
-  /// The DominatorTreeBase that is used to compute a normal dominator tree
-  std::unique_ptr<DomTreeBase<MachineBasicBlock>> DT;
+  /// The DominatorTreeBase that is used to compute a normal dominator tree.
+  std::unique_ptr<MachineDomTree> DT;
 
   /// Apply all the recorded critical edges to the DT.
   /// This updates the underlying DT information in a way that uses
@@ -79,44 +84,46 @@ public:
   static char ID; // Pass ID, replacement for typeid
 
   MachineDominatorTree();
+  explicit MachineDominatorTree(MachineFunction &MF) : MachineFunctionPass(ID) {
+    calculate(MF);
+  }
 
-  DomTreeBase<MachineBasicBlock> &getBase() {
-    if (!DT) DT.reset(new DomTreeBase<MachineBasicBlock>());
+  MachineDomTree &getBase() {
+    if (!DT)
+      DT.reset(new MachineDomTree());
     applySplitCriticalEdges();
     return *DT;
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
-  /// getRoots -  Return the root blocks of the current CFG.  This may include
-  /// multiple blocks if we are computing post dominators.  For forward
-  /// dominators, this will always be a single block (the entry node).
-  ///
-  inline const SmallVectorImpl<MachineBasicBlock*> &getRoots() const {
-    applySplitCriticalEdges();
-    return DT->getRoots();
-  }
-
-  inline MachineBasicBlock *getRoot() const {
+  MachineBasicBlock *getRoot() const {
     applySplitCriticalEdges();
     return DT->getRoot();
   }
 
-  inline MachineDomTreeNode *getRootNode() const {
+  MachineDomTreeNode *getRootNode() const {
     applySplitCriticalEdges();
     return DT->getRootNode();
   }
 
   bool runOnMachineFunction(MachineFunction &F) override;
 
-  inline bool dominates(const MachineDomTreeNode* A,
-                        const MachineDomTreeNode* B) const {
+  void calculate(MachineFunction &F);
+
+  bool dominates(const MachineDomTreeNode *A,
+                 const MachineDomTreeNode *B) const {
     applySplitCriticalEdges();
     return DT->dominates(A, B);
   }
 
-  inline bool dominates(const MachineBasicBlock* A,
-                        const MachineBasicBlock* B) const {
+  void getDescendants(MachineBasicBlock *A,
+                      SmallVectorImpl<MachineBasicBlock *> &Result) {
+    applySplitCriticalEdges();
+    DT->getDescendants(A, Result);
+  }
+
+  bool dominates(const MachineBasicBlock *A, const MachineBasicBlock *B) const {
     applySplitCriticalEdges();
     return DT->dominates(A, B);
   }
@@ -133,36 +140,30 @@ public:
     for (; &*I != A && &*I != B; ++I)
       /*empty*/ ;
 
-    //if(!DT.IsPostDominators) {
-      // A dominates B if it is found first in the basic block.
-      return &*I == A;
-    //} else {
-    //  // A post-dominates B if B is found first in the basic block.
-    //  return &*I == B;
-    //}
+    return &*I == A;
   }
 
-  inline bool properlyDominates(const MachineDomTreeNode* A,
-                                const MachineDomTreeNode* B) const {
+  bool properlyDominates(const MachineDomTreeNode *A,
+                         const MachineDomTreeNode *B) const {
     applySplitCriticalEdges();
     return DT->properlyDominates(A, B);
   }
 
-  inline bool properlyDominates(const MachineBasicBlock* A,
-                                const MachineBasicBlock* B) const {
+  bool properlyDominates(const MachineBasicBlock *A,
+                         const MachineBasicBlock *B) const {
     applySplitCriticalEdges();
     return DT->properlyDominates(A, B);
   }
 
   /// findNearestCommonDominator - Find nearest common dominator basic block
   /// for basic block A and B. If there is no such block then return NULL.
-  inline MachineBasicBlock *findNearestCommonDominator(MachineBasicBlock *A,
-                                                       MachineBasicBlock *B) {
+  MachineBasicBlock *findNearestCommonDominator(MachineBasicBlock *A,
+                                                MachineBasicBlock *B) {
     applySplitCriticalEdges();
     return DT->findNearestCommonDominator(A, B);
   }
 
-  inline MachineDomTreeNode *operator[](MachineBasicBlock *BB) const {
+  MachineDomTreeNode *operator[](MachineBasicBlock *BB) const {
     applySplitCriticalEdges();
     return DT->getNode(BB);
   }
@@ -170,7 +171,7 @@ public:
   /// getNode - return the (Post)DominatorTree node for the specified basic
   /// block.  This is the same as using operator[] on this class.
   ///
-  inline MachineDomTreeNode *getNode(MachineBasicBlock *BB) const {
+  MachineDomTreeNode *getNode(MachineBasicBlock *BB) const {
     applySplitCriticalEdges();
     return DT->getNode(BB);
   }
@@ -178,8 +179,8 @@ public:
   /// addNewBlock - Add a new node to the dominator tree information.  This
   /// creates a new node as a child of DomBB dominator node,linking it into
   /// the children list of the immediate dominator.
-  inline MachineDomTreeNode *addNewBlock(MachineBasicBlock *BB,
-                                         MachineBasicBlock *DomBB) {
+  MachineDomTreeNode *addNewBlock(MachineBasicBlock *BB,
+                                  MachineBasicBlock *DomBB) {
     applySplitCriticalEdges();
     return DT->addNewBlock(BB, DomBB);
   }
@@ -187,14 +188,14 @@ public:
   /// changeImmediateDominator - This method is used to update the dominator
   /// tree information when a node's immediate dominator changes.
   ///
-  inline void changeImmediateDominator(MachineBasicBlock *N,
-                                       MachineBasicBlock* NewIDom) {
+  void changeImmediateDominator(MachineBasicBlock *N,
+                                MachineBasicBlock *NewIDom) {
     applySplitCriticalEdges();
     DT->changeImmediateDominator(N, NewIDom);
   }
 
-  inline void changeImmediateDominator(MachineDomTreeNode *N,
-                                       MachineDomTreeNode* NewIDom) {
+  void changeImmediateDominator(MachineDomTreeNode *N,
+                                MachineDomTreeNode *NewIDom) {
     applySplitCriticalEdges();
     DT->changeImmediateDominator(N, NewIDom);
   }
@@ -202,14 +203,14 @@ public:
   /// eraseNode - Removes a node from  the dominator tree. Block must not
   /// dominate any other blocks. Removes node from its immediate dominator's
   /// children list. Deletes dominator node associated with basic block BB.
-  inline void eraseNode(MachineBasicBlock *BB) {
+  void eraseNode(MachineBasicBlock *BB) {
     applySplitCriticalEdges();
     DT->eraseNode(BB);
   }
 
   /// splitBlock - BB is split and now it has one successor. Update dominator
   /// tree to reflect this change.
-  inline void splitBlock(MachineBasicBlock* NewBB) {
+  void splitBlock(MachineBasicBlock* NewBB) {
     applySplitCriticalEdges();
     DT->splitBlock(NewBB);
   }
@@ -270,7 +271,8 @@ template <class T> struct GraphTraits;
 template <>
 struct GraphTraits<MachineDomTreeNode *>
     : public MachineDomTreeGraphTraitsBase<MachineDomTreeNode,
-                                           MachineDomTreeNode::iterator> {};
+                                           MachineDomTreeNode::const_iterator> {
+};
 
 template <>
 struct GraphTraits<const MachineDomTreeNode *>

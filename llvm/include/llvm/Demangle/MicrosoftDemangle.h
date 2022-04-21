@@ -6,13 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEMANGLE_MICROSOFT_DEMANGLE_H
-#define LLVM_DEMANGLE_MICROSOFT_DEMANGLE_H
+#ifndef LLVM_DEMANGLE_MICROSOFTDEMANGLE_H
+#define LLVM_DEMANGLE_MICROSOFTDEMANGLE_H
 
-#include "llvm/Demangle/DemangleConfig.h"
 #include "llvm/Demangle/MicrosoftDemangleNodes.h"
 #include "llvm/Demangle/StringView.h"
-#include "llvm/Demangle/Utility.h"
 
 #include <utility>
 
@@ -157,6 +155,8 @@ private:
   SymbolNode *demangleEncodedSymbol(StringView &MangledName,
                                     QualifiedNameNode *QN);
   SymbolNode *demangleDeclarator(StringView &MangledName);
+  SymbolNode *demangleMD5Name(StringView &MangledName);
+  SymbolNode *demangleTypeinfoName(StringView &MangledName);
 
   VariableSymbolNode *demangleVariableEncoding(StringView &MangledName,
                                                StorageClass SC);
@@ -176,8 +176,9 @@ private:
 
   ArrayTypeNode *demangleArrayType(StringView &MangledName);
 
+  NodeArrayNode *demangleFunctionParameterList(StringView &MangledName,
+                                               bool &IsVariadic);
   NodeArrayNode *demangleTemplateParameterList(StringView &MangledName);
-  NodeArrayNode *demangleFunctionParameterList(StringView &MangledName);
 
   std::pair<uint64_t, bool> demangleNumber(StringView &MangledName);
   uint64_t demangleUnsigned(StringView &MangledName);
@@ -222,7 +223,7 @@ private:
   demangleSpecialTableSymbolNode(StringView &MangledName,
                                  SpecialIntrinsicKind SIK);
   LocalStaticGuardVariableNode *
-  demangleLocalStaticGuard(StringView &MangledName);
+  demangleLocalStaticGuard(StringView &MangledName, bool IsThread);
   VariableSymbolNode *demangleUntypedVariable(ArenaAllocator &Arena,
                                               StringView &MangledName,
                                               StringView VariableName);
@@ -272,4 +273,4 @@ private:
 } // namespace ms_demangle
 } // namespace llvm
 
-#endif // LLVM_DEMANGLE_MICROSOFT_DEMANGLE_H
+#endif // LLVM_DEMANGLE_MICROSOFTDEMANGLE_H

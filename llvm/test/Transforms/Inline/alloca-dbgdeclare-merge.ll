@@ -1,6 +1,5 @@
-; Test that alloca merging in the inliner places dbg.declare calls immediately
-; after the merged alloca. Not at the end of the entry BB, and definitely not
-; before the alloca.
+; Test that alloca merging in the inliner places dbg.declare calls after the
+; merged alloca, but does not otherwise reorder them.
 ;
 ; clang -g -S -emit-llvm -Xclang -disable-llvm-optzns
 ;
@@ -19,14 +18,21 @@
 ;  g();
 ;}
 ;
-; RUN: opt -always-inline -S < %s | FileCheck %s
+; RUN: opt -always-inline -S -enable-new-pm=0 < %s | FileCheck %s
+
+; FIXME: Why does the dbg.declare for "aaa" occur later in @h than the
+; dbg.declare for "bbb"? I'd expect the opposite, given @f is inlined earlier.
 ;
 ; CHECK:      define void @h()
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT:   %[[AI:.*]] = alloca [100 x i8]
-; CHECK-NEXT:   call void @llvm.dbg.declare(metadata [100 x i8]* %[[AI]],
-; CHECK-NEXT:   call void @llvm.dbg.declare(metadata [100 x i8]* %[[AI]],
+; CHECK-NEXT:   call void @llvm.dbg.declare(metadata [100 x i8]* %[[AI]], metadata [[BBB:![0-9]+]]
+; CHECK-NEXT:   bitcast
+; CHECK-NEXT:   llvm.lifetime.start
+; CHECK-NEXT:   call void @llvm.dbg.declare(metadata [100 x i8]* %[[AI]], metadata [[AAA:![0-9]+]]
 
+; CHECK: [[AAA]] = !DILocalVariable(name: "aaa"
+; CHECK: [[BBB]] = !DILocalVariable(name: "bbb"
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -62,9 +68,9 @@ entry:
   ret void, !dbg !29
 }
 
-attributes #0 = { alwaysinline nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { alwaysinline nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!9, !10}

@@ -7,7 +7,7 @@
 
 ; Check that we get a symbol off of the debug_info section when using split dwarf and pubnames.
 
-; CHECK: .LpubTypes_begin0:
+; CHECK: .LpubTypes_start0:
 ; CHECK-NEXT: .short    2                       # DWARF Version
 ; CHECK-NEXT: .long     .Lcu_begin0             # Offset of Compilation Unit Info
 
@@ -19,7 +19,7 @@ entry:
   ret i32 0, !dbg !10
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!9, !11}

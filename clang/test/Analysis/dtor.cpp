@@ -214,7 +214,7 @@ namespace DestructorVirtualCalls {
       C obj;
       clang_analyzer_eval(obj.get() == 3); // expected-warning{{TRUE}}
 
-      // Sanity check for devirtualization.
+      // Correctness check for devirtualization.
       A *base = &obj;
       clang_analyzer_eval(base->get() == 3); // expected-warning{{TRUE}}
 
@@ -540,3 +540,33 @@ void f() {
   clang_analyzer_eval(__alignof(NonTrivial) > 0); // expected-warning{{TRUE}}
 }
 }
+
+namespace dtor_over_loc_concrete_int {
+struct A {
+  ~A() {}
+};
+
+struct B {
+  A a;
+  ~B() {}
+};
+
+struct C : A {
+  ~C() {}
+};
+
+void testB() {
+  B *b = (B *)-1;
+  b->~B(); // no-crash
+}
+
+void testC() {
+  C *c = (C *)-1;
+  c->~C(); // no-crash
+}
+
+void testAutoDtor() {
+  const A &a = *(A *)-1;
+  // no-crash
+}
+} // namespace dtor_over_loc_concrete_int

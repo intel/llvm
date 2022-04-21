@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Symbols_h_
-#define liblldb_Symbols_h_
+#ifndef LLDB_SYMBOL_LOCATESYMBOLFILE_H
+#define LLDB_SYMBOL_LOCATESYMBOLFILE_H
 
-#include <stdint.h>
+#include <cstdint>
 
 #include "lldb/Core/FileSpecList.h"
 #include "lldb/Utility/FileSpec.h"
@@ -55,4 +55,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // liblldb_Symbols_h_
+#endif // LLDB_SYMBOL_LOCATESYMBOLFILE_H

@@ -5,16 +5,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 
 // using months = duration<signed integer type of at least 20 bits, ratio_divide<years::period, ratio<12>>>;
 
-
 #include <chrono>
-#include <type_traits>
 #include <limits>
+#include <ratio>
+#include <type_traits>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

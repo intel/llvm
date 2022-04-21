@@ -1,5 +1,7 @@
-; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -amdgpu-always-inline %s | FileCheck -check-prefixes=CALLS-ENABLED,ALL %s
-; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -amdgpu-stress-function-calls -amdgpu-always-inline %s | FileCheck -check-prefixes=STRESS-CALLS,ALL %s
+; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -amdgpu-always-inline -amdgpu-enable-lower-module-lds=false %s | FileCheck --check-prefix=ALL %s
+; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -passes=amdgpu-always-inline -amdgpu-enable-lower-module-lds=false %s | FileCheck --check-prefix=ALL %s
+; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -amdgpu-stress-function-calls -amdgpu-always-inline -amdgpu-enable-lower-module-lds=false %s | FileCheck --check-prefix=ALL %s
+; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -amdgpu-stress-function-calls -passes=amdgpu-always-inline -amdgpu-enable-lower-module-lds=false %s | FileCheck --check-prefix=ALL %s
 
 target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
 
@@ -68,6 +70,23 @@ define i32 @transitive_call() {
 
 ; ALL-LABEL: define i32 @recursive_call_lds(i32 %arg0) #0 {
 define i32 @recursive_call_lds(i32 %arg0) {
+  %load = load i32, i32 addrspace(3)* @lds0, align 4
+  %add = add i32 %arg0, %load
+  %call = call i32 @recursive_call_lds(i32 %add)
+  ret i32 %call
+}
+
+; Test we don't break the IR and have both alwaysinline and noinline
+; FIXME: We should really not override noinline.
+
+; ALL-LABEL: define i32 @load_lds_simple_noinline() #0 {
+define i32 @load_lds_simple_noinline() noinline {
+  %load = load i32, i32 addrspace(3)* @lds0, align 4
+  ret i32 %load
+}
+
+; ALL-LABEL: define i32 @recursive_call_lds_noinline(i32 %arg0) #0 {
+define i32 @recursive_call_lds_noinline(i32 %arg0) noinline {
   %load = load i32, i32 addrspace(3)* @lds0, align 4
   %add = add i32 %arg0, %load
   %call = call i32 @recursive_call_lds(i32 %add)

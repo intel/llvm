@@ -1,13 +1,13 @@
-; RUN: llc < %s -mtriple=thumb-apple-ios | FileCheck %s --check-prefix=CHECK --check-prefix=ALIGN4
-; RUN: llc < %s -mtriple=thumb-none-eabi | FileCheck %s --check-prefix=CHECK --check-prefix=ALIGN8
+; RUN: llc < %s -mtriple=thumb-apple-ios | FileCheck %s --check-prefix=CHECK
+; RUN: llc < %s -mtriple=thumb-none-eabi | FileCheck %s --check-prefix=CHECK
 ; RUN: llc < %s -o %t -filetype=obj -mtriple=thumbv6-apple-ios
-; RUN: llvm-objdump -triple=thumbv6-apple-ios -d %t | FileCheck %s --check-prefix=CHECK --check-prefix=ALIGN4
+; RUN: llvm-objdump --triple=thumbv6-apple-ios -d %t | FileCheck %s --check-prefix=CHECK
 ; RUN: llc < %s -o %t -filetype=obj -mtriple=thumbv6-none-eabi
-; RUN: llvm-objdump -triple=thumbv6-none-eabi -d %t | FileCheck %s --check-prefix=CHECK --check-prefix=ALIGN8
+; RUN: llvm-objdump --triple=thumbv6-none-eabi -d %t | FileCheck %s --check-prefix=CHECK
 
 ; Largest stack for which a single tADDspi/tSUBspi is enough
 define void @test1() {
-; CHECK-LABEL: test1:
+; CHECK-LABEL: test1{{>?}}:
 ; CHECK: sub sp, #508
 ; CHECK: add sp, #508
     %tmp = alloca [ 508 x i8 ] , align 4
@@ -16,7 +16,7 @@ define void @test1() {
 
 ; Largest stack for which three tADDspi/tSUBspis are enough
 define void @test100() {
-; CHECK-LABEL: test100:
+; CHECK-LABEL: test100{{>?}}:
 ; CHECK: sub sp, #508
 ; CHECK: sub sp, #508
 ; CHECK: sub sp, #508
@@ -28,14 +28,13 @@ define void @test100() {
 }
 
 ; Largest stack for which three tADDspi/tSUBspis are enough
-define void @test100_nofpelim() "no-frame-pointer-elim"="true" {
-; CHECK-LABEL: test100_nofpelim:
+define void @test100_nofpelim() "frame-pointer"="all" {
+; CHECK-LABEL: test100_nofpelim{{>?}}:
 ; CHECK: sub sp, #508
 ; CHECK: sub sp, #508
 ; CHECK: sub sp, #508
-; ALIGN4: subs r4, r7, #4
-; ALIGN8: subs r4, r7, #7
-; ALIGN8: subs r4, #1
+; CHECK: subs r4, r7, #7
+; CHECK: subs r4, #1
 ; CHECK: mov sp, r4
     %tmp = alloca [ 1524 x i8 ] , align 4
     ret void
@@ -43,7 +42,7 @@ define void @test100_nofpelim() "no-frame-pointer-elim"="true" {
 
 ; Smallest stack for which we use a constant pool
 define void @test2() {
-; CHECK-LABEL: test2:
+; CHECK-LABEL: test2{{>?}}:
 ; CHECK: ldr [[TEMP:r[0-7]]],
 ; CHECK: add sp, [[TEMP]]
 ; CHECK: ldr [[TEMP:r[0-7]]],
@@ -53,20 +52,19 @@ define void @test2() {
 }
 
 ; Smallest stack for which we use a constant pool
-define void @test2_nofpelim() "no-frame-pointer-elim"="true" {
-; CHECK-LABEL: test2_nofpelim:
+define void @test2_nofpelim() "frame-pointer"="all" {
+; CHECK-LABEL: test2_nofpelim{{>?}}:
 ; CHECK: ldr [[TEMP:r[0-7]]],
 ; CHECK: add sp, [[TEMP]]
-; ALIGN4: subs r4, r7, #4
-; ALIGN8: subs r4, r7, #7
-; ALIGN8: subs r4, #1
+; CHECK: subs r4, r7, #7
+; CHECK: subs r4, #1
 ; CHECK: mov sp, r4
     %tmp = alloca [ 1528 x i8 ] , align 4
     ret void
 }
 
 define i32 @test3() {
-; CHECK-LABEL: test3:
+; CHECK-LABEL: test3{{>?}}:
 ; CHECK: ldr [[TEMP:r[0-7]]],
 ; CHECK: add sp, [[TEMP]]
 ; CHECK: ldr [[TEMP2:r[0-7]]],
@@ -81,8 +79,8 @@ define i32 @test3() {
     ret i32 %tmp1
 }
 
-define i32 @test3_nofpelim() "no-frame-pointer-elim"="true" {
-; CHECK-LABEL: test3_nofpelim:
+define i32 @test3_nofpelim() "frame-pointer"="all" {
+; CHECK-LABEL: test3_nofpelim{{>?}}:
 ; CHECK: ldr [[TEMP:r[0-7]]],
 ; CHECK: add sp, [[TEMP]]
 ; CHECK: ldr [[TEMP2:r[0-7]]],

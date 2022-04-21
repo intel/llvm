@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <map>
 
@@ -17,6 +17,7 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int main(int, char**)
@@ -41,7 +42,7 @@ int main(int, char**)
                }
             );
     assert(m.size() == 9);
-    assert(distance(m.begin(), m.end()) == 9);
+    assert(std::distance(m.begin(), m.end()) == 9);
     C::const_iterator i = m.cbegin();
     assert(*i == V(1, 1));
     assert(*++i == V(1, 2));
@@ -73,7 +74,7 @@ int main(int, char**)
                }
             );
     assert(m.size() == 9);
-    assert(distance(m.begin(), m.end()) == 9);
+    assert(std::distance(m.begin(), m.end()) == 9);
     C::const_iterator i = m.cbegin();
     assert(*i == V(1, 1));
     assert(*++i == V(1, 2));

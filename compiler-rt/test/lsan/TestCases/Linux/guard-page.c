@@ -1,6 +1,9 @@
 // Check that if LSan finds that SP doesn't point into thread stack (e.g.
 // if swapcontext is used), LSan will not hit the guard page.
 // RUN: %clang_lsan %s -o %t && %run %t
+// Missing 'getcontext' and 'makecontext' on Android.
+// UNSUPPORTED: android
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,11 +39,11 @@ static void* thread(void* arg) {
 
   if (getcontext(&ctx) < 0)
     die("getcontext", 0);
-  stack = malloc(1 << 11);
+  stack = malloc(1 << 12);
   if (stack == NULL)
     die("malloc", 0);
   ctx.uc_stack.ss_sp = stack;
-  ctx.uc_stack.ss_size = 1 << 11;
+  ctx.uc_stack.ss_size = 1 << 12;
   makecontext(&ctx, ctxfunc, 0);
   setcontext(&ctx);
   die("setcontext", 0);

@@ -1,8 +1,9 @@
-// RUN: %clang_cc1 -triple %itanium_abi_triple -fsyntax-only -Wbind-to-temporary-copy -verify %s 
-// RUN: %clang_cc1 -triple %itanium_abi_triple -fsyntax-only -Wbind-to-temporary-copy -verify -std=c++98 %s
-// RUN: %clang_cc1 -triple %itanium_abi_triple -fsyntax-only -Wbind-to-temporary-copy -verify -std=c++11 %s
+// RUN: %clang_cc1 -std=c++2b -fsyntax-only -verify=expected                -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
+// RUN: %clang_cc1 -std=c++20 -fsyntax-only -verify=expected                -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
+// RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify=expected,cxx98_11,cxx11 -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
+// RUN: %clang_cc1 -std=c++98 -fsyntax-only -verify=expected,cxx98_11,cxx98 -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
 
-class X { 
+class X {
 public:
   operator bool();
   operator int() const;
@@ -31,11 +32,11 @@ public:
   // expected-error{{conversion function cannot have any parameters}}
 
   operator bool(int a = 4, int b = 6) const; // expected-error{{conversion function cannot have any parameters}}
-  
-  
+
+
   operator float(...) const;  // expected-error{{conversion function cannot be variadic}}
-  
-  
+
+
   operator func_type(); // expected-error{{conversion function cannot convert to a function type}}
   operator array_type(); // expected-error{{conversion function cannot convert to an array type}}
 };
@@ -44,10 +45,10 @@ public:
 typedef int INT;
 typedef INT* INT_PTR;
 
-class Z { 
+class Z {
   operator int(); // expected-note {{previous declaration is here}}
   operator int**(); // expected-note {{previous declaration is here}}
-  
+
   operator INT();  // expected-error{{conversion function cannot be redeclared}}
   operator INT_PTR*(); // expected-error{{conversion function cannot be redeclared}}
 };
@@ -60,6 +61,24 @@ public:
   operator A&() const; // expected-warning{{conversion function converting 'B' to its base class 'A' will never be used}}
   operator const void() const; // expected-warning{{conversion function converting 'B' to 'const void' will never be used}}
   operator const B(); // expected-warning{{conversion function converting 'B' to itself will never be used}}
+};
+
+class BaseA {};
+class DerivedA;
+
+class BaseB {
+  virtual operator BaseA &() = 0;
+  virtual operator DerivedA &() = 0;
+};
+
+class DerivedA : public BaseA, BaseB {
+  virtual operator BaseA &();    // OK. Overrides BaseB::operatorBaseA&()
+  virtual operator DerivedA &(); // OK. Overrides BaseB::operatorDerivedA&()
+};
+
+class DerivedB : public BaseA {
+  virtual operator DerivedB &(); // expected-warning{{conversion function converting 'DerivedB' to itself will never be used}}
+  virtual operator BaseA &();    // expected-warning{{conversion function converting 'DerivedB' to its base class 'BaseA' will never be used}}
 };
 
 // This used to crash Clang.
@@ -85,12 +104,12 @@ void f(const C& c) {
 }
 
 // Test. Conversion in base class is visible in derived class.
-class XB { 
+class XB {
 public:
   operator int(); // expected-note {{candidate function}}
 };
 
-class Yb : public XB { 
+class Yb : public XB {
 public:
   operator char(); // expected-note {{candidate function}}
 };
@@ -101,16 +120,18 @@ void f(Yb& a) {
   char ch = a;  // OK. calls Yb::operator char();
 }
 
-// Test conversion + copy construction.
+// Test conversion + copy construction. This is a pure C++98 test.
+// However we may extend implicit moves into C++98, we must make sure the
+// result here is not changed.
 class AutoPtrRef { };
 
 class AutoPtr {
-  AutoPtr(AutoPtr &); // expected-note{{declared private here}}
-  
+  AutoPtr(AutoPtr &); // cxx98-note {{declared private here}}
+
 public:
   AutoPtr();
   AutoPtr(AutoPtrRef);
-  
+
   operator AutoPtrRef();
 };
 
@@ -118,11 +139,11 @@ AutoPtr make_auto_ptr();
 
 AutoPtr test_auto_ptr(bool Cond) {
   AutoPtr p1( make_auto_ptr() );
-  
+
   AutoPtr p;
   if (Cond)
-    return p; // expected-error{{calling a private constructor}}
-  
+    return p; // cxx98-error {{calling a private constructor}}
+
   return AutoPtr();
 }
 
@@ -131,17 +152,14 @@ struct A1 {
   ~A1();
 
 private:
-  A1(const A1&); // expected-note 2 {{declared private here}}
+  A1(const A1 &); // cxx98_11-note 2 {{declared private here}}
 };
 
 A1 f() {
   // FIXME: redundant diagnostics!
-  return "Hello"; // expected-error {{calling a private constructor}}
-#if __cplusplus <= 199711L
-  // expected-warning@-2 {{an accessible copy constructor}}
-#else
-  // expected-warning@-4 {{copying parameter of type 'A1' when binding a reference to a temporary would invoke an inaccessible constructor in C++98}}
-#endif
+  return "Hello"; // cxx98_11-error {{calling a private constructor}}
+  // cxx98-warning@-1 {{an accessible copy constructor}}
+  // cxx11-warning@-2 {{copying parameter of type 'A1' when binding a reference to a temporary would invoke an inaccessible constructor in C++98}}
 }
 
 namespace source_locations {
@@ -167,11 +185,11 @@ namespace source_locations {
     const A<float, int> &caf2 = E();
   }
 
-  // Check 
+  // Check
   template<typename T>
   struct E2 {
     operator T
-    * // expected-error{{pointer to a reference}}
+    * // expected-error{{'operator type-parameter-0-0 *' declared as a pointer to a reference of type 'int &'}}
     () const;
   };
 
@@ -194,7 +212,7 @@ namespace crazy_declarators {
 }
 
 namespace smart_ptr {
-  class Y { 
+  class Y {
     class YRef { };
 
     Y(Y&);
@@ -211,7 +229,7 @@ namespace smart_ptr {
   // expected-note@-2 {{candidate constructor (the implicit move constructor) not}}
 #endif
 
-    explicit X(Y);
+    explicit X(Y); // expected-note {{not a candidate}}
   };
 
   Y make_Y();
@@ -228,7 +246,7 @@ struct Any {
 };
 
 struct Other {
-  Other(const Other &); 
+  Other(const Other &);
   Other();
 };
 
@@ -271,7 +289,7 @@ namespace PR7055 {
   struct Y {
     Y(X);
   };
-  
+
   Y f2(foo());
 }
 
@@ -321,7 +339,7 @@ namespace rdar8018274 {
 
   struct Derived2 : Base { };
 
-  struct SuperDerived : Derived1, Derived2 { 
+  struct SuperDerived : Derived1, Derived2 {
     using Derived1::operator int;
   };
 
@@ -330,7 +348,7 @@ namespace rdar8018274 {
   };
 
   void test2(UeberDerived ud) {
-    int i = ud; // expected-error{{ambiguous conversion from derived class 'rdar8018274::SuperDerived' to base class 'rdar8018274::Base'}}
+    int i = ud; // expected-error{{ambiguous conversion from derived class 'rdar8018274::UeberDerived' to base class 'rdar8018274::Base'}}
   }
 
   struct Base2 {
@@ -341,7 +359,7 @@ namespace rdar8018274 {
     operator int();
   };
 
-  struct Derived23 : Base2, Base3 { 
+  struct Derived23 : Base2, Base3 {
     using Base2::operator int;
   };
 
@@ -386,7 +404,7 @@ namespace PR9336 {
   {
     template<class Container>
     operator Container()
-    { 
+    {
       Container ar;
       T* i;
       ar[0]=*i;

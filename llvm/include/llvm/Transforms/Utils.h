@@ -111,7 +111,7 @@ extern char &LoopSimplifyID;
 
 /// This function returns a new pass that downgrades the debug info in the
 /// module to line tables only.
-ModulePass *createStripNonLineTableDebugInfoPass();
+ModulePass *createStripNonLineTableDebugLegacyPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -119,6 +119,48 @@ ModulePass *createStripNonLineTableDebugInfoPass();
 // number of conditional branches in the hot paths based on profiles.
 //
 FunctionPass *createControlHeightReductionLegacyPass();
-}
+
+//===----------------------------------------------------------------------===//
+//
+// InjectTLIMappingsLegacy - populates the VFABI attribute with the
+// scalar-to-vector mappings from the TargetLibraryInfo.
+//
+FunctionPass *createInjectTLIMappingsLegacyPass();
+
+//===----------------------------------------------------------------------===//
+//
+// UnifyLoopExits - For each loop, creates a new block N such that all exiting
+// blocks branch to N, and then N distributes control flow to all the original
+// exit blocks.
+//
+FunctionPass *createUnifyLoopExitsPass();
+
+//===----------------------------------------------------------------------===//
+//
+// FixIrreducible - Convert each SCC with irreducible control-flow
+// into a natural loop.
+//
+FunctionPass *createFixIrreduciblePass();
+
+//===----------------------------------------------------------------------===//
+//
+// AssumeSimplify - remove redundant assumes and merge assumes in the same
+// BasicBlock when possible.
+//
+FunctionPass *createAssumeSimplifyPass();
+
+//===----------------------------------------------------------------------===//
+//
+// CanonicalizeFreezeInLoops - Canonicalize freeze instructions in loops so they
+// don't block SCEV.
+//
+Pass *createCanonicalizeFreezeInLoopsPass();
+
+//===----------------------------------------------------------------------===//
+// LowerGlobalDtorsLegacy - Lower @llvm.global_dtors by creating wrapper
+// functions that are registered in @llvm.global_ctors and which contain a call
+// to `__cxa_atexit` to register their destructor functions.
+ModulePass *createLowerGlobalDtorsLegacyPass();
+} // namespace llvm
 
 #endif

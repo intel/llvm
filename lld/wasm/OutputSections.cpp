@@ -8,23 +8,33 @@
 
 #include "OutputSections.h"
 #include "InputChunks.h"
+#include "InputElement.h"
 #include "InputFiles.h"
 #include "OutputSegment.h"
 #include "WriterUtils.h"
 #include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Threads.h"
+#include "lld/Common/Memory.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/Parallel.h"
 
 #define DEBUG_TYPE "lld"
 
 using namespace llvm;
 using namespace llvm::wasm;
-using namespace lld;
-using namespace lld::wasm;
 
-static StringRef sectionTypeToString(uint32_t SectionType) {
-  switch (SectionType) {
+namespace lld {
+
+// Returns a string, e.g. "FUNCTION(.text)".
+std::string toString(const wasm::OutputSection &sec) {
+  if (!sec.name.empty())
+    return (sec.getSectionName() + "(" + sec.name + ")").str();
+  return std::string(sec.getSectionName());
+}
+
+namespace wasm {
+static StringRef sectionTypeToString(uint32_t sectionType) {
+  switch (sectionType) {
   case WASM_SEC_CUSTOM:
     return "CUSTOM";
   case WASM_SEC_TYPE:
@@ -39,8 +49,8 @@ static StringRef sectionTypeToString(uint32_t SectionType) {
     return "MEMORY";
   case WASM_SEC_GLOBAL:
     return "GLOBAL";
-  case WASM_SEC_EVENT:
-    return "EVENT";
+  case WASM_SEC_TAG:
+    return "TAG";
   case WASM_SEC_EXPORT:
     return "EXPORT";
   case WASM_SEC_START:
@@ -58,187 +68,259 @@ static StringRef sectionTypeToString(uint32_t SectionType) {
   }
 }
 
-// Returns a string, e.g. "FUNCTION(.text)".
-std::string lld::toString(const OutputSection &Sec) {
-  if (!Sec.Name.empty())
-    return (Sec.getSectionName() + "(" + Sec.Name + ")").str();
-  return Sec.getSectionName();
-}
-
 StringRef OutputSection::getSectionName() const {
-  return sectionTypeToString(Type);
+  return sectionTypeToString(type);
 }
 
-void OutputSection::createHeader(size_t BodySize) {
-  raw_string_ostream OS(Header);
-  debugWrite(OS.tell(), "section type [" + getSectionName() + "]");
-  encodeULEB128(Type, OS);
-  writeUleb128(OS, BodySize, "section size");
-  OS.flush();
-  log("createHeader: " + toString(*this) + " body=" + Twine(BodySize) +
+void OutputSection::createHeader(size_t bodySize) {
+  raw_string_ostream os(header);
+  debugWrite(os.tell(), "section type [" + getSectionName() + "]");
+  encodeULEB128(type, os);
+  writeUleb128(os, bodySize, "section size");
+  os.flush();
+  log("createHeader: " + toString(*this) + " body=" + Twine(bodySize) +
       " total=" + Twine(getSize()));
 }
 
 void CodeSection::finalizeContents() {
-  raw_string_ostream OS(CodeSectionHeader);
-  writeUleb128(OS, Functions.size(), "function count");
-  OS.flush();
-  BodySize = CodeSectionHeader.size();
+  raw_string_ostream os(codeSectionHeader);
+  writeUleb128(os, functions.size(), "function count");
+  os.flush();
+  bodySize = codeSectionHeader.size();
 
-  for (InputFunction *Func : Functions) {
-    Func->OutputOffset = BodySize;
-    Func->calculateSize();
-    BodySize += Func->getSize();
+  for (InputFunction *func : functions) {
+    func->outputSec = this;
+    func->outSecOff = bodySize;
+    func->calculateSize();
+    // All functions should have a non-empty body at this point
+    assert(func->getSize());
+    bodySize += func->getSize();
   }
 
-  createHeader(BodySize);
+  createHeader(bodySize);
 }
 
-void CodeSection::writeTo(uint8_t *Buf) {
-  log("writing " + toString(*this));
-  log(" size=" + Twine(getSize()));
-  log(" headersize=" + Twine(Header.size()));
-  log(" codeheadersize=" + Twine(CodeSectionHeader.size()));
-  Buf += Offset;
+void CodeSection::writeTo(uint8_t *buf) {
+  log("writing " + toString(*this) + " offset=" + Twine(offset) +
+      " size=" + Twine(getSize()));
+  log(" headersize=" + Twine(header.size()));
+  log(" codeheadersize=" + Twine(codeSectionHeader.size()));
+  buf += offset;
 
   // Write section header
-  memcpy(Buf, Header.data(), Header.size());
-  Buf += Header.size();
+  memcpy(buf, header.data(), header.size());
+  buf += header.size();
 
   // Write code section headers
-  memcpy(Buf, CodeSectionHeader.data(), CodeSectionHeader.size());
+  memcpy(buf, codeSectionHeader.data(), codeSectionHeader.size());
 
   // Write code section bodies
-  for (const InputChunk *Chunk : Functions)
-    Chunk->writeTo(Buf);
+  for (const InputChunk *chunk : functions)
+    chunk->writeTo(buf);
 }
 
-uint32_t CodeSection::numRelocations() const {
-  uint32_t Count = 0;
-  for (const InputChunk *Func : Functions)
-    Count += Func->NumRelocations();
-  return Count;
+uint32_t CodeSection::getNumRelocations() const {
+  uint32_t count = 0;
+  for (const InputChunk *func : functions)
+    count += func->getNumRelocations();
+  return count;
 }
 
-void CodeSection::writeRelocations(raw_ostream &OS) const {
-  for (const InputChunk *C : Functions)
-    C->writeRelocations(OS);
+void CodeSection::writeRelocations(raw_ostream &os) const {
+  for (const InputChunk *c : functions)
+    c->writeRelocations(os);
 }
 
 void DataSection::finalizeContents() {
-  raw_string_ostream OS(DataSectionHeader);
+  raw_string_ostream os(dataSectionHeader);
+  unsigned segmentCount = std::count_if(
+      segments.begin(), segments.end(),
+      [](OutputSegment *segment) { return segment->requiredInBinary(); });
+#ifndef NDEBUG
+  unsigned activeCount = std::count_if(
+      segments.begin(), segments.end(), [](OutputSegment *segment) {
+        return (segment->initFlags & WASM_DATA_SEGMENT_IS_PASSIVE) == 0;
+      });
+#endif
 
-  writeUleb128(OS, Segments.size(), "data segment count");
-  OS.flush();
-  BodySize = DataSectionHeader.size();
+  assert((config->sharedMemory || !config->isPic || config->extendedConst ||
+          activeCount <= 1) &&
+         "output segments should have been combined by now");
 
-  for (OutputSegment *Segment : Segments) {
-    raw_string_ostream OS(Segment->Header);
-    writeUleb128(OS, 0, "memory index");
-    WasmInitExpr InitExpr;
-    if (Config->Pic) {
-      assert(Segments.size() <= 1 &&
-             "Currenly only a single data segment is supported in PIC mode");
-      InitExpr.Opcode = WASM_OPCODE_GLOBAL_GET;
-      InitExpr.Value.Global = WasmSym::MemoryBase->getGlobalIndex();
-    } else {
-      InitExpr.Opcode = WASM_OPCODE_I32_CONST;
-      InitExpr.Value.Int32 = Segment->StartVA;
+  writeUleb128(os, segmentCount, "data segment count");
+  os.flush();
+  bodySize = dataSectionHeader.size();
+  bool is64 = config->is64.getValueOr(false);
+
+  for (OutputSegment *segment : segments) {
+    if (!segment->requiredInBinary())
+      continue;
+    raw_string_ostream os(segment->header);
+    writeUleb128(os, segment->initFlags, "init flags");
+    if (segment->initFlags & WASM_DATA_SEGMENT_HAS_MEMINDEX)
+      writeUleb128(os, 0, "memory index");
+    if ((segment->initFlags & WASM_DATA_SEGMENT_IS_PASSIVE) == 0) {
+      if (config->isPic && config->extendedConst) {
+        writeU8(os, WASM_OPCODE_GLOBAL_GET, "global get");
+        writeUleb128(os, WasmSym::memoryBase->getGlobalIndex(),
+                     "literal (global index)");
+        if (segment->startVA) {
+          writePtrConst(os, segment->startVA, is64, "offset");
+          writeU8(os, is64 ? WASM_OPCODE_I64_ADD : WASM_OPCODE_I32_ADD, "add");
+        }
+        writeU8(os, WASM_OPCODE_END, "opcode:end");
+      } else {
+        WasmInitExpr initExpr;
+        initExpr.Extended = false;
+        if (config->isPic) {
+          assert(segment->startVA == 0);
+          initExpr.Inst.Opcode = WASM_OPCODE_GLOBAL_GET;
+          initExpr.Inst.Value.Global = WasmSym::memoryBase->getGlobalIndex();
+        } else {
+          initExpr = intConst(segment->startVA, is64);
+        }
+        writeInitExpr(os, initExpr);
+      }
     }
-    writeInitExpr(OS, InitExpr);
-    writeUleb128(OS, Segment->Size, "segment size");
-    OS.flush();
+    writeUleb128(os, segment->size, "segment size");
+    os.flush();
 
-    Segment->SectionOffset = BodySize;
-    BodySize += Segment->Header.size() + Segment->Size;
-    log("Data segment: size=" + Twine(Segment->Size));
+    segment->sectionOffset = bodySize;
+    bodySize += segment->header.size() + segment->size;
+    log("Data segment: size=" + Twine(segment->size) + ", startVA=" +
+        Twine::utohexstr(segment->startVA) + ", name=" + segment->name);
 
-    for (InputSegment *InputSeg : Segment->InputSegments)
-      InputSeg->OutputOffset = Segment->SectionOffset + Segment->Header.size() +
-                               InputSeg->OutputSegmentOffset;
+    for (InputChunk *inputSeg : segment->inputSegments) {
+      inputSeg->outputSec = this;
+      inputSeg->outSecOff = segment->sectionOffset + segment->header.size() +
+                            inputSeg->outputSegmentOffset;
+    }
   }
 
-  createHeader(BodySize);
+  createHeader(bodySize);
 }
 
-void DataSection::writeTo(uint8_t *Buf) {
-  log("writing " + toString(*this) + " size=" + Twine(getSize()) +
-      " body=" + Twine(BodySize));
-  Buf += Offset;
+void DataSection::writeTo(uint8_t *buf) {
+  log("writing " + toString(*this) + " offset=" + Twine(offset) +
+      " size=" + Twine(getSize()) + " body=" + Twine(bodySize));
+  buf += offset;
 
   // Write section header
-  memcpy(Buf, Header.data(), Header.size());
-  Buf += Header.size();
+  memcpy(buf, header.data(), header.size());
+  buf += header.size();
 
   // Write data section headers
-  memcpy(Buf, DataSectionHeader.data(), DataSectionHeader.size());
+  memcpy(buf, dataSectionHeader.data(), dataSectionHeader.size());
 
-  for (const OutputSegment *Segment : Segments) {
+  for (const OutputSegment *segment : segments) {
+    if (!segment->requiredInBinary())
+      continue;
     // Write data segment header
-    uint8_t *SegStart = Buf + Segment->SectionOffset;
-    memcpy(SegStart, Segment->Header.data(), Segment->Header.size());
+    uint8_t *segStart = buf + segment->sectionOffset;
+    memcpy(segStart, segment->header.data(), segment->header.size());
 
     // Write segment data payload
-    for (const InputChunk *Chunk : Segment->InputSegments)
-      Chunk->writeTo(Buf);
+    for (const InputChunk *chunk : segment->inputSegments)
+      chunk->writeTo(buf);
   }
 }
 
-uint32_t DataSection::numRelocations() const {
-  uint32_t Count = 0;
-  for (const OutputSegment *Seg : Segments)
-    for (const InputChunk *InputSeg : Seg->InputSegments)
-      Count += InputSeg->NumRelocations();
-  return Count;
+uint32_t DataSection::getNumRelocations() const {
+  uint32_t count = 0;
+  for (const OutputSegment *seg : segments)
+    for (const InputChunk *inputSeg : seg->inputSegments)
+      count += inputSeg->getNumRelocations();
+  return count;
 }
 
-void DataSection::writeRelocations(raw_ostream &OS) const {
-  for (const OutputSegment *Seg : Segments)
-    for (const InputChunk *C : Seg->InputSegments)
-      C->writeRelocations(OS);
+void DataSection::writeRelocations(raw_ostream &os) const {
+  for (const OutputSegment *seg : segments)
+    for (const InputChunk *c : seg->inputSegments)
+      c->writeRelocations(os);
+}
+
+bool DataSection::isNeeded() const {
+  for (const OutputSegment *seg : segments)
+    if (seg->requiredInBinary())
+      return true;
+  return false;
+}
+
+// Lots of duplication here with OutputSegment::finalizeInputSegments
+void CustomSection::finalizeInputSections() {
+  SyntheticMergedChunk *mergedSection = nullptr;
+  std::vector<InputChunk *> newSections;
+
+  for (InputChunk *s : inputSections) {
+    s->outputSec = this;
+    MergeInputChunk *ms = dyn_cast<MergeInputChunk>(s);
+    if (!ms) {
+      newSections.push_back(s);
+      continue;
+    }
+
+    if (!mergedSection) {
+      mergedSection =
+          make<SyntheticMergedChunk>(name, 0, WASM_SEG_FLAG_STRINGS);
+      newSections.push_back(mergedSection);
+      mergedSection->outputSec = this;
+    }
+    mergedSection->addMergeChunk(ms);
+  }
+
+  if (!mergedSection)
+    return;
+
+  mergedSection->finalizeContents();
+  inputSections = newSections;
 }
 
 void CustomSection::finalizeContents() {
-  raw_string_ostream OS(NameData);
-  encodeULEB128(Name.size(), OS);
-  OS << Name;
-  OS.flush();
+  finalizeInputSections();
 
-  for (InputSection *Section : InputSections) {
-    Section->OutputOffset = PayloadSize;
-    Section->OutputSec = this;
-    PayloadSize += Section->getSize();
+  raw_string_ostream os(nameData);
+  encodeULEB128(name.size(), os);
+  os << name;
+  os.flush();
+
+  for (InputChunk *section : inputSections) {
+    assert(!section->discarded);
+    section->outSecOff = payloadSize;
+    payloadSize += section->getSize();
   }
 
-  createHeader(PayloadSize + NameData.size());
+  createHeader(payloadSize + nameData.size());
 }
 
-void CustomSection::writeTo(uint8_t *Buf) {
-  log("writing " + toString(*this) + " size=" + Twine(getSize()) +
-      " chunks=" + Twine(InputSections.size()));
+void CustomSection::writeTo(uint8_t *buf) {
+  log("writing " + toString(*this) + " offset=" + Twine(offset) +
+      " size=" + Twine(getSize()) + " chunks=" + Twine(inputSections.size()));
 
-  assert(Offset);
-  Buf += Offset;
+  assert(offset);
+  buf += offset;
 
   // Write section header
-  memcpy(Buf, Header.data(), Header.size());
-  Buf += Header.size();
-  memcpy(Buf, NameData.data(), NameData.size());
-  Buf += NameData.size();
+  memcpy(buf, header.data(), header.size());
+  buf += header.size();
+  memcpy(buf, nameData.data(), nameData.size());
+  buf += nameData.size();
 
   // Write custom sections payload
-  for (const InputSection *Section : InputSections)
-    Section->writeTo(Buf);
+  for (const InputChunk *section : inputSections)
+    section->writeTo(buf);
 }
 
-uint32_t CustomSection::numRelocations() const {
-  uint32_t Count = 0;
-  for (const InputSection *InputSect : InputSections)
-    Count += InputSect->NumRelocations();
-  return Count;
+uint32_t CustomSection::getNumRelocations() const {
+  uint32_t count = 0;
+  for (const InputChunk *inputSect : inputSections)
+    count += inputSect->getNumRelocations();
+  return count;
 }
 
-void CustomSection::writeRelocations(raw_ostream &OS) const {
-  for (const InputSection *S : InputSections)
-    S->writeRelocations(OS);
+void CustomSection::writeRelocations(raw_ostream &os) const {
+  for (const InputChunk *s : inputSections)
+    s->writeRelocations(os);
 }
+
+} // namespace wasm
+} // namespace lld

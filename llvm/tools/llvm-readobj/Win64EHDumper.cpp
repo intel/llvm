@@ -16,13 +16,13 @@ using namespace llvm;
 using namespace llvm::object;
 using namespace llvm::Win64EH;
 
-static const EnumEntry<unsigned> UnwindFlags[] = {
+const EnumEntry<unsigned> UnwindFlags[] = {
   { "ExceptionHandler", UNW_ExceptionHandler },
   { "TerminateHandler", UNW_TerminateHandler },
   { "ChainInfo"       , UNW_ChainInfo        }
 };
 
-static const EnumEntry<unsigned> UnwindOpInfo[] = {
+const EnumEntry<unsigned> UnwindOpInfo[] = {
   { "RAX",  0 },
   { "RCX",  1 },
   { "RDX",  2 },
@@ -111,14 +111,66 @@ static unsigned getNumUsedSlots(const UnwindCode &UnwindCode) {
   }
 }
 
+static std::error_code getSymbol(const COFFObjectFile &COFF, uint64_t VA,
+                                 object::SymbolRef &Sym) {
+  for (const auto &Symbol : COFF.symbols()) {
+    Expected<uint64_t> Address = Symbol.getAddress();
+    if (!Address)
+      return errorToErrorCode(Address.takeError());
+    if (*Address == VA) {
+      Sym = Symbol;
+      return std::error_code();
+    }
+  }
+  return inconvertibleErrorCode();
+}
+
+static object::SymbolRef getPreferredSymbol(const COFFObjectFile &COFF,
+                                            object::SymbolRef Sym,
+                                            uint32_t &SymbolOffset,
+                                            bool IsRangeEnd) {
+  // The symbol resolved by ResolveSymbol can be any internal
+  // nondescriptive symbol; try to resolve a more descriptive one.
+  COFFSymbolRef CoffSym = COFF.getCOFFSymbol(Sym);
+  if (CoffSym.getStorageClass() != COFF::IMAGE_SYM_CLASS_LABEL &&
+      CoffSym.getSectionDefinition() == nullptr)
+    return Sym;
+  for (const auto &S : COFF.symbols()) {
+    COFFSymbolRef CS = COFF.getCOFFSymbol(S);
+    if (CS.getSectionNumber() == CoffSym.getSectionNumber() &&
+        CS.getValue() <= CoffSym.getValue() + SymbolOffset &&
+        CS.getStorageClass() != COFF::IMAGE_SYM_CLASS_LABEL &&
+        CS.getSectionDefinition() == nullptr) {
+      uint32_t Offset = CoffSym.getValue() + SymbolOffset - CS.getValue();
+      // For the end of a range, don't pick a symbol with a zero offset;
+      // prefer a symbol with a small positive offset.
+      if (Offset <= SymbolOffset && (!IsRangeEnd || Offset > 0)) {
+        SymbolOffset = Offset;
+        Sym = S;
+        CoffSym = CS;
+        if (CS.isExternal() && SymbolOffset == 0)
+          return Sym;
+      }
+    }
+  }
+  return Sym;
+}
+
 static std::string formatSymbol(const Dumper::Context &Ctx,
                                 const coff_section *Section, uint64_t Offset,
-                                uint32_t Displacement) {
+                                uint32_t Displacement,
+                                bool IsRangeEnd = false) {
   std::string Buffer;
   raw_string_ostream OS(Buffer);
 
   SymbolRef Symbol;
   if (!Ctx.ResolveSymbol(Section, Offset, Symbol, Ctx.UserData)) {
+    // We found a relocation at the given offset in the section, pointing
+    // at a symbol.
+
+    // Try to resolve label/section symbols into function names.
+    Symbol = getPreferredSymbol(Ctx.COFF, Symbol, Displacement, IsRangeEnd);
+
     Expected<StringRef> Name = Symbol.getName();
     if (Name) {
       OS << *Name;
@@ -131,9 +183,22 @@ static std::string formatSymbol(const Dumper::Context &Ctx,
       // TODO: Actually report errors helpfully.
       consumeError(Name.takeError());
     }
+  } else if (!getSymbol(Ctx.COFF, Ctx.COFF.getImageBase() + Displacement,
+                        Symbol)) {
+    Expected<StringRef> Name = Symbol.getName();
+    if (Name) {
+      OS << *Name;
+      OS << format(" (0x%" PRIX64 ")", Ctx.COFF.getImageBase() + Displacement);
+      return OS.str();
+    } else {
+      consumeError(Name.takeError());
+    }
   }
 
-  OS << format(" (0x%" PRIX64 ")", Offset);
+  if (Displacement > 0)
+    OS << format("(0x%" PRIX64 ")", Ctx.COFF.getImageBase() + Displacement);
+  else
+    OS << format("(0x%" PRIX64 ")", Offset);
   return OS.str();
 }
 
@@ -159,6 +224,18 @@ static std::error_code resolveRelocation(const Dumper::Context &Ctx,
   return std::error_code();
 }
 
+static const object::coff_section *
+getSectionContaining(const COFFObjectFile &COFF, uint64_t VA) {
+  for (const auto &Section : COFF.sections()) {
+    uint64_t Address = Section.getAddress();
+    uint64_t Size = Section.getSize();
+
+    if (VA >= Address && (VA - Address) <= Size)
+      return COFF.getCOFFSection(Section);
+  }
+  return nullptr;
+}
+
 namespace llvm {
 namespace Win64EH {
 void Dumper::printRuntimeFunctionEntry(const Context &Ctx,
@@ -168,7 +245,8 @@ void Dumper::printRuntimeFunctionEntry(const Context &Ctx,
   SW.printString("StartAddress",
                  formatSymbol(Ctx, Section, Offset + 0, RF.StartAddress));
   SW.printString("EndAddress",
-                 formatSymbol(Ctx, Section, Offset + 4, RF.EndAddress));
+                 formatSymbol(Ctx, Section, Offset + 4, RF.EndAddress,
+                              /*IsRangeEnd=*/true));
   SW.printString("UnwindInfoAddress",
                  formatSymbol(Ctx, Section, Offset + 8, RF.UnwindInfoOffset));
 }
@@ -284,16 +362,26 @@ void Dumper::printRuntimeFunction(const Context &Ctx,
   DictScope RFS(SW, "RuntimeFunction");
   printRuntimeFunctionEntry(Ctx, Section, SectionOffset, RF);
 
-  const coff_section *XData;
+  const coff_section *XData = nullptr;
   uint64_t Offset;
   resolveRelocation(Ctx, Section, SectionOffset + 8, XData, Offset);
+  Offset = Offset + RF.UnwindInfoOffset;
+
+  if (!XData) {
+    uint64_t Address = Ctx.COFF.getImageBase() + RF.UnwindInfoOffset;
+    XData = getSectionContaining(Ctx.COFF, Address);
+    if (!XData)
+      return;
+    Offset = RF.UnwindInfoOffset - XData->VirtualAddress;
+  }
 
   ArrayRef<uint8_t> Contents;
-  error(Ctx.COFF.getSectionContents(XData, Contents));
+  if (Error E = Ctx.COFF.getSectionContents(XData, Contents))
+    reportError(std::move(E), Ctx.COFF.getFileName());
+
   if (Contents.empty())
     return;
 
-  Offset = Offset + RF.UnwindInfoOffset;
   if (Offset > Contents.size())
     return;
 
@@ -304,14 +392,19 @@ void Dumper::printRuntimeFunction(const Context &Ctx,
 void Dumper::printData(const Context &Ctx) {
   for (const auto &Section : Ctx.COFF.sections()) {
     StringRef Name;
-    Section.getName(Name);
+    if (Expected<StringRef> NameOrErr = Section.getName())
+      Name = *NameOrErr;
+    else
+      consumeError(NameOrErr.takeError());
 
     if (Name != ".pdata" && !Name.startswith(".pdata$"))
       continue;
 
     const coff_section *PData = Ctx.COFF.getCOFFSection(Section);
     ArrayRef<uint8_t> Contents;
-    error(Ctx.COFF.getSectionContents(PData, Contents));
+
+    if (Error E = Ctx.COFF.getSectionContents(PData, Contents))
+      reportError(std::move(E), Ctx.COFF.getFileName());
     if (Contents.empty())
       continue;
 

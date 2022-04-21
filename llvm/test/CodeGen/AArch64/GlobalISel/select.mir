@@ -1,5 +1,4 @@
 # RUN: llc -O0 -mtriple=aarch64-apple-ios -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=IOS
-# RUN: llc -O0 -mtriple=aarch64-linux-gnu -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=LINUX-DEFAULT
 # RUN: llc -O0 -mtriple=aarch64-linux-gnu -relocation-model=pic -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=LINUX-PIC
 
 --- |
@@ -9,8 +8,6 @@
     %ptr0 = alloca i64
     ret void
   }
-
-  define i8* @gep(i8* %in) { ret i8* undef }
 
   define i8* @ptr_mask(i8* %in) { ret i8* undef }
 
@@ -51,26 +48,6 @@ body:             |
 ...
 
 ---
-# CHECK-LABEL: name: gep
-name:            gep
-legalized:       true
-regBankSelected: true
-registers:
-  - { id: 0, class: gpr }
-  - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
-
-# CHECK:  body:
-# CHECK: %1:gpr64 = MOVi64imm 42
-# CHECK: %2:gpr64 = ADDXrr %0, %1
-body:             |
-  bb.0:
-      liveins: $x0
-    %0(p0) = COPY $x0
-    %1(s64) = G_CONSTANT i64 42
-    %2(p0) = G_GEP %0, %1(s64)
-    $x0 = COPY %2(p0)
-...
 
 ---
 # CHECK-LABEL: name: ptr_mask
@@ -79,12 +56,13 @@ legalized:       true
 regBankSelected: true
 
 # CHECK:  body:
-# CHECK: %1:gpr64sp = ANDXri %0, 8060
+# CHECK: %2:gpr64sp = ANDXri %0, 8060
 body:             |
   bb.0:
       liveins: $x0
     %0:gpr(p0) = COPY $x0
-    %1:gpr(p0) = G_PTR_MASK %0, 3
+    %const:gpr(s64) = G_CONSTANT i64 -8
+    %1:gpr(p0) = G_PTRMASK %0, %const
     $x0 = COPY %1(p0)
 ...
 
@@ -98,9 +76,8 @@ registers:
   - { id: 0, class: gpr }
 
 # CHECK:  body:
-# IOS: %0:gpr64 = MOVaddr target-flags(aarch64-page) @var_local, target-flags(aarch64-pageoff, aarch64-nc) @var_local
-# LINUX-DEFAULT: %0:gpr64 = MOVaddr target-flags(aarch64-page) @var_local, target-flags(aarch64-pageoff, aarch64-nc) @var_local
-# LINUX-PIC: %0:gpr64 = LOADgot target-flags(aarch64-got) @var_local
+# IOS: %0:gpr64common = MOVaddr target-flags(aarch64-page) @var_local, target-flags(aarch64-pageoff, aarch64-nc) @var_local
+# LINUX-PIC: %0:gpr64common = LOADgot target-flags(aarch64-got) @var_local
 body:             |
   bb.0:
     %0(p0) = G_GLOBAL_VALUE @var_local
@@ -116,9 +93,8 @@ registers:
   - { id: 0, class: gpr }
 
 # CHECK:  body:
-# IOS: %0:gpr64 = LOADgot target-flags(aarch64-got) @var_got
-# LINUX-DEFAULT: %0:gpr64 = MOVaddr target-flags(aarch64-page) @var_got, target-flags(aarch64-pageoff, aarch64-nc) @var_got
-# LINUX-PIC: %0:gpr64 = LOADgot target-flags(aarch64-got) @var_got
+# IOS: %0:gpr64common = LOADgot target-flags(aarch64-got) @var_got
+# LINUX-PIC: %0:gpr64common = LOADgot target-flags(aarch64-got) @var_got
 body:             |
   bb.0:
     %0(p0) = G_GLOBAL_VALUE @var_got
@@ -153,13 +129,13 @@ registers:
   - { id: 11, class: gpr }
 
 # CHECK:  body:
-# CHECK:    $wzr = SUBSWrr %0, %0, implicit-def $nzcv
+# CHECK:    SUBSWrr %0, %0, implicit-def $nzcv
 # CHECK:    %1:gpr32 = CSINCWr $wzr, $wzr, 1, implicit $nzcv
 
-# CHECK:    $xzr = SUBSXrr %2, %2, implicit-def $nzcv
+# CHECK:    SUBSXrr %2, %2, implicit-def $nzcv
 # CHECK:    %3:gpr32 = CSINCWr $wzr, $wzr, 3, implicit $nzcv
 
-# CHECK:    $xzr = SUBSXrr %4, %4, implicit-def $nzcv
+# CHECK:    SUBSXrr %4, %4, implicit-def $nzcv
 # CHECK:    %5:gpr32 = CSINCWr $wzr, $wzr, 0, implicit $nzcv
 
 body:             |
@@ -244,8 +220,9 @@ tracksRegLiveness: true
 
 # CHECK:      registers:
 # CHECK-NEXT:  - { id: 0, class: fpr32, preferred-register: '' }
-# CHECK-NEXT:  - { id: 1, class: gpr32, preferred-register: '' }
+# CHECK-NEXT:  - { id: 1, class: gpr, preferred-register: '' }
 # CHECK-NEXT:  - { id: 2, class: fpr32, preferred-register: '' }
+# CHECK-NEXT:  - { id: 3, class: gpr32, preferred-register: '' }
 registers:
   - { id: 0, class: fpr }
   - { id: 1, class: gpr }
@@ -304,11 +281,11 @@ registers:
   - { id: 9, class: gpr }
 
 # CHECK:  body:
-# CHECK:      $wzr = ANDSWri %10, 0, implicit-def $nzcv
+# CHECK:      ANDSWri %10, 0, implicit-def $nzcv
 # CHECK:      %3:gpr32 = CSELWr %1, %2, 1, implicit $nzcv
-# CHECK:      $wzr = ANDSWri %10, 0, implicit-def $nzcv
+# CHECK:      ANDSWri %10, 0, implicit-def $nzcv
 # CHECK:      %6:gpr64 = CSELXr %4, %5, 1, implicit $nzcv
-# CHECK:      $wzr = ANDSWri %10, 0, implicit-def $nzcv
+# CHECK:      ANDSWri %10, 0, implicit-def $nzcv
 # CHECK:      %9:gpr64 = CSELXr %7, %8, 1, implicit $nzcv
 body:             |
   bb.0:

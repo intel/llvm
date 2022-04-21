@@ -7,16 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "PrettyFunctionDumper.h"
-#include "LinePrinter.h"
 #include "PrettyBuiltinDumper.h"
 
+#include "llvm/DebugInfo/PDB/ConcreteSymbolEnumerator.h"
+#include "llvm/DebugInfo/PDB/IPDBLineNumber.h"
 #include "llvm/DebugInfo/PDB/IPDBSession.h"
+#include "llvm/DebugInfo/PDB/Native/LinePrinter.h"
 #include "llvm/DebugInfo/PDB/PDBExtras.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolData.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolFunc.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolFuncDebugEnd.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolFuncDebugStart.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeArray.h"
+#include "llvm/DebugInfo/PDB/PDBSymbolTypeBuiltin.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeEnum.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeFunctionArg.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeFunctionSig.h"
@@ -138,7 +141,8 @@ void FunctionDumper::start(const PDBSymbolFunc &Symbol, PointerType Pointer) {
 
   if (Symbol.hasFramePointer()) {
     WithColor(Printer, PDB_ColorItem::Register).get()
-        << Symbol.getLocalBasePointerRegisterId();
+        << CPURegister{Symbol.getRawSymbol().getPlatform(),
+                       Symbol.getLocalBasePointerRegisterId()};
   } else {
     WithColor(Printer, PDB_ColorItem::Register).get() << "FPO";
   }

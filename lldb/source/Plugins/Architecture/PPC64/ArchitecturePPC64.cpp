@@ -1,4 +1,4 @@
-//===-- ArchitecturePPC64.cpp -----------------------------------*- C++ -*-===//
+//===-- ArchitecturePPC64.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,9 +20,7 @@
 using namespace lldb_private;
 using namespace lldb;
 
-ConstString ArchitecturePPC64::GetPluginNameStatic() {
-  return ConstString("ppc64");
-}
+LLDB_PLUGIN_DEFINE(ArchitecturePPC64)
 
 void ArchitecturePPC64::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
@@ -40,9 +38,6 @@ std::unique_ptr<Architecture> ArchitecturePPC64::Create(const ArchSpec &arch) {
     return std::unique_ptr<Architecture>(new ArchitecturePPC64());
   return nullptr;
 }
-
-ConstString ArchitecturePPC64::GetPluginName() { return GetPluginNameStatic(); }
-uint32_t ArchitecturePPC64::GetPluginVersion() { return 1; }
 
 static int32_t GetLocalEntryOffset(const Symbol &sym) {
   unsigned char other = sym.GetFlags() >> 8 & 0xFF;

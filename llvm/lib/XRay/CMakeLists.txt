@@ -1,4 +1,4 @@
-add_llvm_library(LLVMXRay
+add_llvm_component_library(LLVMXRay
   BlockIndexer.cpp
   BlockPrinter.cpp
   BlockVerifier.cpp
@@ -18,11 +18,7 @@ add_llvm_library(LLVMXRay
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/ADT
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/XRay
 
-  DEPENDS
-  LLVMSupport
-  LLVMObject
-
-  LINK_LIBS
-  LLVMSupport
-  LLVMObject
+  LINK_COMPONENTS
+  Support
+  Object
   )

@@ -1,9 +1,8 @@
 //===--- BranchCloneCheck.cpp - clang-tidy --------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,6 +10,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Analysis/CloneDetection.h"
+#include "clang/Lex/Lexer.h"
 #include "llvm/Support/Casting.h"
 
 using namespace clang;
@@ -40,12 +40,12 @@ static bool areSwitchBranchesIdentical(const SwitchBranch LHS,
   if (LHS.size() != RHS.size())
     return false;
 
-  for (size_t i = 0, Size = LHS.size(); i < Size; i++) {
+  for (size_t I = 0, Size = LHS.size(); I < Size; I++) {
     // NOTE: We strip goto labels and annotations in addition to stripping
     // the `case X:` or `default:` labels, but it is very unlikely that this
-    // would casue false positives in real-world code.
-    if (!areStatementsIdentical(LHS[i]->stripLabelLikeStatements(),
-                                RHS[i]->stripLabelLikeStatements(), Context)) {
+    // would cause false positives in real-world code.
+    if (!areStatementsIdentical(LHS[I]->stripLabelLikeStatements(),
+                                RHS[I]->stripLabelLikeStatements(), Context)) {
       return false;
     }
   }
@@ -59,7 +59,8 @@ namespace bugprone {
 
 void BranchCloneCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
-      ifStmt(stmt().bind("if"),
+      ifStmt(unless(allOf(isConstexpr(), isInTemplateInstantiation())),
+             stmt().bind("if"),
              hasParent(stmt(unless(ifStmt(hasElse(equalsBoundNode("if")))))),
              hasElse(stmt().bind("else"))),
       this);
@@ -112,32 +113,35 @@ void BranchCloneCheck::check(const MatchFinder::MatchResult &Result) {
     size_t N = Branches.size();
     llvm::BitVector KnownAsClone(N);
 
-    for (size_t i = 0; i + 1 < N; i++) {
+    for (size_t I = 0; I + 1 < N; I++) {
       // We have already seen Branches[i] as a clone of an earlier branch.
-      if (KnownAsClone[i])
+      if (KnownAsClone[I])
         continue;
 
       int NumCopies = 1;
 
-      for (size_t j = i + 1; j < N; j++) {
-        if (KnownAsClone[j] ||
-            !areStatementsIdentical(Branches[i]->IgnoreContainers(),
-                                    Branches[j]->IgnoreContainers(), Context))
+      for (size_t J = I + 1; J < N; J++) {
+        if (KnownAsClone[J] ||
+            !areStatementsIdentical(Branches[I]->IgnoreContainers(),
+                                    Branches[J]->IgnoreContainers(), Context))
           continue;
 
         NumCopies++;
-        KnownAsClone[j] = true;
+        KnownAsClone[J] = true;
 
         if (NumCopies == 2) {
-          // We report the first occurence only when we find the second one.
-          diag(Branches[i]->getBeginLoc(),
+          // We report the first occurrence only when we find the second one.
+          diag(Branches[I]->getBeginLoc(),
                "repeated branch in conditional chain");
-          diag(Lexer::getLocForEndOfToken(Branches[i]->getEndLoc(), 0,
-                                          *Result.SourceManager, getLangOpts()),
-               "end of the original", DiagnosticIDs::Note);
+          SourceLocation End =
+              Lexer::getLocForEndOfToken(Branches[I]->getEndLoc(), 0,
+                                         *Result.SourceManager, getLangOpts());
+          if (End.isValid()) {
+            diag(End, "end of the original", DiagnosticIDs::Note);
+          }
         }
 
-        diag(Branches[j]->getBeginLoc(), "clone %0 starts here",
+        diag(Branches[J]->getBeginLoc(), "clone %0 starts here",
              DiagnosticIDs::Note)
             << (NumCopies - 1);
       }
@@ -183,10 +187,10 @@ void BranchCloneCheck::check(const MatchFinder::MatchResult &Result) {
         Branches.back().push_back(S);
     }
 
-    auto End = Branches.end();
-    auto BeginCurrent = Branches.begin();
+    auto *End = Branches.end();
+    auto *BeginCurrent = Branches.begin();
     while (BeginCurrent < End) {
-      auto EndCurrent = BeginCurrent + 1;
+      auto *EndCurrent = BeginCurrent + 1;
       while (EndCurrent < End &&
              areSwitchBranchesIdentical(*BeginCurrent, *EndCurrent, Context)) {
         ++EndCurrent;
@@ -200,7 +204,7 @@ void BranchCloneCheck::check(const MatchFinder::MatchResult &Result) {
 
         SourceLocation EndLoc = (EndCurrent - 1)->back()->getEndLoc();
         // If the case statement is generated from a macro, it's SourceLocation
-        // may be invalid, resuling in an assertation failure down the line.
+        // may be invalid, resulting in an assertion failure down the line.
         // While not optimal, try the begin location in this case, it's still
         // better then nothing.
         if (EndLoc.isInvalid())
@@ -208,10 +212,12 @@ void BranchCloneCheck::check(const MatchFinder::MatchResult &Result) {
 
         if (EndLoc.isMacroID())
           EndLoc = Context.getSourceManager().getExpansionLoc(EndLoc);
+        EndLoc = Lexer::getLocForEndOfToken(EndLoc, 0, *Result.SourceManager,
+                                            getLangOpts());
 
-        diag(Lexer::getLocForEndOfToken(EndLoc, 0, *Result.SourceManager,
-                                        getLangOpts()),
-             "last of these clones ends here", DiagnosticIDs::Note);
+        if (EndLoc.isValid()) {
+          diag(EndLoc, "last of these clones ends here", DiagnosticIDs::Note);
+        }
       }
       BeginCurrent = EndCurrent;
     }

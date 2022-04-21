@@ -11,10 +11,12 @@
 // basic_istream<charT,traits>&
 //    ignore(streamsize n = 1, int_type delim = traits::eof());
 
-// https://bugs.llvm.org/show_bug.cgi?id=16427
+// https://llvm.org/PR16427
 
 #include <sstream>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

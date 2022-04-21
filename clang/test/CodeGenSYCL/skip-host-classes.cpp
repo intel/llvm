@@ -1,5 +1,4 @@
-// RUN: %clang --sycl -c %s  -o %t.ll -Xclang -fsycl-int-header=%t.hpp -emit-llvm -S
-// RUN: FileCheck < %t.ll %s --check-prefix=CHECK
+// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // CHECK-NOT: declare dso_local spir_func void {{.+}}test{{.+}}printer{{.+}}
 class test {

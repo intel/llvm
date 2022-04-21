@@ -1,4 +1,4 @@
-//===-- MessageObjects.cpp --------------------------------------*- C++ -*-===//
+//===-- MessageObjects.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -96,7 +96,8 @@ Expected<JThreadsInfo> JThreadsInfo::create(StringRef Response,
                                             ArrayRef<RegisterInfo> RegInfos) {
   JThreadsInfo jthreads_info;
 
-  StructuredData::ObjectSP json = StructuredData::ParseJSON(Response);
+  StructuredData::ObjectSP json =
+      StructuredData::ParseJSON(std::string(Response));
   StructuredData::Array *array = json->GetAsArray();
   if (!array)
     return make_parsing_error("JThreadsInfo: JSON array");
@@ -154,10 +155,8 @@ Expected<RegisterInfo> RegisterInfoParser::create(StringRef Response) {
           LLDB_INVALID_REGNUM, // process plugin reg num
           LLDB_INVALID_REGNUM  // native register number
       },
-      NULL,
-      NULL,
-      NULL, // Dwarf expression opcode bytes pointer
-      0     // Dwarf expression opcode bytes length
+      nullptr,
+      nullptr,
   };
   Info.name = ConstString(Elements["name"]).GetCString();
   if (!Info.name)
@@ -170,7 +169,7 @@ Expected<RegisterInfo> RegisterInfoParser::create(StringRef Response) {
   Info.byte_size /= CHAR_BIT;
 
   if (!to_integer(Elements["offset"], Info.byte_offset, 10))
-    return make_parsing_error("qRegisterInfo: offset");
+    Info.byte_offset = LLDB_INVALID_INDEX32;
 
   Info.encoding = Args::StringToEncoding(Elements["encoding"]);
   if (Info.encoding == eEncodingInvalid)
@@ -319,7 +318,7 @@ StopReplyStop::create(StringRef Response, support::endianness Endian,
   if (!RegistersOr)
     return RegistersOr.takeError();
 
-  return llvm::make_unique<StopReplyStop>(Signal, Thread, Name,
+  return std::make_unique<StopReplyStop>(Signal, Thread, Name,
                                           std::move(ThreadPcs),
                                           std::move(*RegistersOr), Reason);
 }
@@ -329,7 +328,7 @@ StopReplyExit::create(StringRef Response) {
   uint8_t Status;
   if (!to_integer(Response, Status, 16))
     return make_parsing_error("StopReply: exit status");
-  return llvm::make_unique<StopReplyExit>(Status);
+  return std::make_unique<StopReplyExit>(Status);
 }
 
 //====== Globals ===============================================================

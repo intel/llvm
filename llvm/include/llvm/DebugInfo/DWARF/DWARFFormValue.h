@@ -6,20 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEBUGINFO_DWARFFORMVALUE_H
-#define LLVM_DEBUGINFO_DWARFFORMVALUE_H
+#ifndef LLVM_DEBUGINFO_DWARF_DWARFFORMVALUE_H
+#define LLVM_DEBUGINFO_DWARF_DWARFFORMVALUE_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DIContext.h"
-#include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
+#include "llvm/Support/DataExtractor.h"
 #include <cstdint>
 
 namespace llvm {
 
 class DWARFContext;
+class DWARFObject;
+class DWARFDataExtractor;
 class DWARFUnit;
 class raw_ostream;
 
@@ -55,6 +57,8 @@ private:
   };
 
   dwarf::Form Form;             /// Form for this value.
+  dwarf::DwarfFormat Format =
+      dwarf::DWARF32;           /// Remember the DWARF format at extract time.
   ValueType Value;              /// Contains all data for the form.
   const DWARFUnit *U = nullptr; /// Remember the DWARFUnit at extract time.
   const DWARFContext *C = nullptr; /// Context for extract time.
@@ -70,7 +74,7 @@ public:
   static DWARFFormValue createFromBlockValue(dwarf::Form F,
                                              ArrayRef<uint8_t> D);
   static DWARFFormValue createFromUnit(dwarf::Form F, const DWARFUnit *Unit,
-                                       uint32_t *OffsetPtr);
+                                       uint64_t *OffsetPtr);
 
   dwarf::Form getForm() const { return Form; }
   uint64_t getRawUValue() const { return Value.uval; }
@@ -80,6 +84,9 @@ public:
   void dump(raw_ostream &OS, DIDumpOptions DumpOpts = DIDumpOptions()) const;
   void dumpSectionedAddress(raw_ostream &OS, DIDumpOptions DumpOpts,
                             object::SectionedAddress SA) const;
+  void dumpAddress(raw_ostream &OS, uint64_t Address) const;
+  static void dumpAddress(raw_ostream &OS, uint8_t AddressSize,
+                          uint64_t Address);
   static void dumpAddressSection(const DWARFObject &Obj, raw_ostream &OS,
                                  DIDumpOptions DumpOpts, uint64_t SectionIndex);
 
@@ -87,18 +94,14 @@ public:
   /// in \p FormParams is needed to interpret some forms. The optional
   /// \p Context and \p Unit allows extracting information if the form refers
   /// to other sections (e.g., .debug_str).
-  bool extractValue(const DWARFDataExtractor &Data, uint32_t *OffsetPtr,
+  bool extractValue(const DWARFDataExtractor &Data, uint64_t *OffsetPtr,
                     dwarf::FormParams FormParams,
                     const DWARFContext *Context = nullptr,
                     const DWARFUnit *Unit = nullptr);
 
-  bool extractValue(const DWARFDataExtractor &Data, uint32_t *OffsetPtr,
+  bool extractValue(const DWARFDataExtractor &Data, uint64_t *OffsetPtr,
                     dwarf::FormParams FormParams, const DWARFUnit *U) {
     return extractValue(Data, OffsetPtr, FormParams, nullptr, U);
-  }
-
-  bool isInlinedCStr() const {
-    return Value.data != nullptr && Value.data == (const uint8_t *)Value.cstr;
   }
 
   /// getAsFoo functions below return the extracted value as Foo if only
@@ -111,13 +114,26 @@ public:
   Optional<UnitOffset> getAsRelativeReference() const;
   Optional<uint64_t> getAsUnsignedConstant() const;
   Optional<int64_t> getAsSignedConstant() const;
-  Optional<const char *> getAsCString() const;
+  Expected<const char *> getAsCString() const;
   Optional<uint64_t> getAsAddress() const;
   Optional<object::SectionedAddress> getAsSectionedAddress() const;
   Optional<uint64_t> getAsSectionOffset() const;
   Optional<ArrayRef<uint8_t>> getAsBlock() const;
   Optional<uint64_t> getAsCStringOffset() const;
   Optional<uint64_t> getAsReferenceUVal() const;
+  /// Correctly extract any file paths from a form value.
+  ///
+  /// These attributes can be in the from DW_AT_decl_file or DW_AT_call_file
+  /// attributes. We need to use the file index in the correct DWARFUnit's line
+  /// table prologue, and each DWARFFormValue has the DWARFUnit the form value
+  /// was extracted from.
+  ///
+  /// \param Kind The kind of path to extract.
+  ///
+  /// \returns A valid string value on success, or llvm::None if the form class
+  /// is not FC_Constant, or if the file index is not valid.
+  Optional<std::string>
+  getAsFile(DILineInfoSpecifier::FileLineInfoKind Kind) const;
 
   /// Skip a form's value in \p DebugInfoData at the offset specified by
   /// \p OffsetPtr.
@@ -128,7 +144,7 @@ public:
   /// \param OffsetPtr A reference to the offset that will be updated.
   /// \param Params DWARF parameters to help interpret forms.
   /// \returns true on success, false if the form was not skipped.
-  bool skipValue(DataExtractor DebugInfoData, uint32_t *OffsetPtr,
+  bool skipValue(DataExtractor DebugInfoData, uint64_t *OffsetPtr,
                  const dwarf::FormParams Params) const {
     return DWARFFormValue::skipValue(Form, DebugInfoData, OffsetPtr, Params);
   }
@@ -144,7 +160,7 @@ public:
   /// \param FormParams DWARF parameters to help interpret forms.
   /// \returns true on success, false if the form was not skipped.
   static bool skipValue(dwarf::Form Form, DataExtractor DebugInfoData,
-                        uint32_t *OffsetPtr,
+                        uint64_t *OffsetPtr,
                         const dwarf::FormParams FormParams);
 
 private:
@@ -159,9 +175,14 @@ namespace dwarf {
 /// \returns an optional value that contains a value if the form value
 /// was valid and was a string.
 inline Optional<const char *> toString(const Optional<DWARFFormValue> &V) {
-  if (V)
-    return V->getAsCString();
-  return None;
+  if (!V)
+    return None;
+  Expected<const char*> E = V->getAsCString();
+  if (!E) {
+    consumeError(E.takeError());
+    return None;
+  }
+  return *E;
 }
 
 /// Take an optional DWARFFormValue and try to extract a string value from it.
@@ -171,10 +192,16 @@ inline Optional<const char *> toString(const Optional<DWARFFormValue> &V) {
 /// was valid and was a string.
 inline StringRef toStringRef(const Optional<DWARFFormValue> &V,
                              StringRef Default = {}) {
-  if (V)
-    if (auto S = V->getAsCString())
-      return *S;
-  return Default;
+  if (!V)
+    return Default;
+  auto S = V->getAsCString();
+  if (!S) {
+    consumeError(S.takeError());
+    return Default;
+  }
+  if (!*S)
+    return Default;
+  return *S;
 }
 
 /// Take an optional DWARFFormValue and extract a string value from it.
@@ -185,7 +212,9 @@ inline StringRef toStringRef(const Optional<DWARFFormValue> &V,
 /// form value's encoding wasn't a string.
 inline const char *toString(const Optional<DWARFFormValue> &V,
                             const char *Default) {
-  return toString(V).getValueOr(Default);
+  if (auto E = toString(V))
+    return *E;
+  return Default;
 }
 
 /// Take an optional DWARFFormValue and try to extract an unsigned constant.
@@ -318,4 +347,4 @@ inline Optional<ArrayRef<uint8_t>> toBlock(const Optional<DWARFFormValue> &V) {
 
 } // end namespace llvm
 
-#endif // LLVM_DEBUGINFO_DWARFFORMVALUE_H
+#endif // LLVM_DEBUGINFO_DWARF_DWARFFORMVALUE_H

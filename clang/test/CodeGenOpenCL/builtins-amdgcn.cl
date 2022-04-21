@@ -5,6 +5,11 @@
 
 typedef unsigned long ulong;
 typedef unsigned int uint;
+typedef unsigned short ushort;
+typedef half __attribute__((ext_vector_type(2))) half2;
+typedef short __attribute__((ext_vector_type(2))) short2;
+typedef ushort __attribute__((ext_vector_type(2))) ushort2;
+typedef uint __attribute__((ext_vector_type(4))) uint4;
 
 // CHECK-LABEL: @test_div_scale_f64
 // CHECK: call { double, i1 } @llvm.amdgcn.div.scale.f64(double %a, double %b, i1 true)
@@ -109,6 +114,20 @@ void test_rcp_f32(global float* out, float a)
 void test_rcp_f64(global double* out, double a)
 {
   *out = __builtin_amdgcn_rcp(a);
+}
+
+// CHECK-LABEL: @test_sqrt_f32
+// CHECK: call float @llvm.amdgcn.sqrt.f32
+void test_sqrt_f32(global float* out, float a)
+{
+  *out = __builtin_amdgcn_sqrtf(a);
+}
+
+// CHECK-LABEL: @test_sqrt_f64
+// CHECK: call double @llvm.amdgcn.sqrt.f64
+void test_sqrt_f64(global double* out, double a)
+{
+  *out = __builtin_amdgcn_sqrt(a);
 }
 
 // CHECK-LABEL: @test_rsq_f32
@@ -224,28 +243,28 @@ void test_lerp(global int* out, int a, int b, int c)
 }
 
 // CHECK-LABEL: @test_sicmp_i32
-// CHECK: call i64 @llvm.amdgcn.icmp.i32(i32 %a, i32 %b, i32 32)
+// CHECK: call i64 @llvm.amdgcn.icmp.i64.i32(i32 %a, i32 %b, i32 32)
 void test_sicmp_i32(global ulong* out, int a, int b)
 {
   *out = __builtin_amdgcn_sicmp(a, b, 32);
 }
 
 // CHECK-LABEL: @test_uicmp_i32
-// CHECK: call i64 @llvm.amdgcn.icmp.i32(i32 %a, i32 %b, i32 32)
+// CHECK: call i64 @llvm.amdgcn.icmp.i64.i32(i32 %a, i32 %b, i32 32)
 void test_uicmp_i32(global ulong* out, uint a, uint b)
 {
   *out = __builtin_amdgcn_uicmp(a, b, 32);
 }
 
 // CHECK-LABEL: @test_sicmp_i64
-// CHECK: call i64 @llvm.amdgcn.icmp.i64(i64 %a, i64 %b, i32 38)
+// CHECK: call i64 @llvm.amdgcn.icmp.i64.i64(i64 %a, i64 %b, i32 38)
 void test_sicmp_i64(global ulong* out, long a, long b)
 {
   *out = __builtin_amdgcn_sicmpl(a, b, 39-1);
 }
 
 // CHECK-LABEL: @test_uicmp_i64
-// CHECK: call i64 @llvm.amdgcn.icmp.i64(i64 %a, i64 %b, i32 35)
+// CHECK: call i64 @llvm.amdgcn.icmp.i64.i64(i64 %a, i64 %b, i32 35)
 void test_uicmp_i64(global ulong* out, ulong a, ulong b)
 {
   *out = __builtin_amdgcn_uicmpl(a, b, 30+5);
@@ -287,14 +306,14 @@ void test_readlane(global int* out, int a, int b)
 }
 
 // CHECK-LABEL: @test_fcmp_f32
-// CHECK: call i64 @llvm.amdgcn.fcmp.f32(float %a, float %b, i32 5)
+// CHECK: call i64 @llvm.amdgcn.fcmp.i64.f32(float %a, float %b, i32 5)
 void test_fcmp_f32(global ulong* out, float a, float b)
 {
   *out = __builtin_amdgcn_fcmpf(a, b, 5);
 }
 
 // CHECK-LABEL: @test_fcmp_f64
-// CHECK: call i64 @llvm.amdgcn.fcmp.f64(double %a, double %b, i32 6)
+// CHECK: call i64 @llvm.amdgcn.fcmp.i64.f64(double %a, double %b, i32 6)
 void test_fcmp_f64(global ulong* out, double a, double b)
 {
   *out = __builtin_amdgcn_fcmp(a, b, 3+3);
@@ -377,13 +396,6 @@ void test_wave_barrier()
   __builtin_amdgcn_wave_barrier();
 }
 
-// CHECK-LABEL: @test_s_memtime
-// CHECK: call i64 @llvm.amdgcn.s.memtime()
-void test_s_memtime(global ulong* out)
-{
-  *out = __builtin_amdgcn_s_memtime();
-}
-
 // CHECK-LABEL: @test_s_sleep
 // CHECK: call void @llvm.amdgcn.s.sleep(i32 1)
 // CHECK: call void @llvm.amdgcn.s.sleep(i32 15)
@@ -409,6 +421,15 @@ void test_s_decperflevel()
 {
   __builtin_amdgcn_s_decperflevel(1);
   __builtin_amdgcn_s_decperflevel(15);
+}
+
+// CHECK-LABEL: @test_s_setprio
+// CHECK: call void @llvm.amdgcn.s.setprio(i16 0)
+// CHECK: call void @llvm.amdgcn.s.setprio(i16 3)
+void test_s_setprio()
+{
+  __builtin_amdgcn_s_setprio(0);
+  __builtin_amdgcn_s_setprio(3);
 }
 
 // CHECK-LABEL: @test_cubeid(
@@ -456,7 +477,7 @@ void test_read_exec_hi(global uint* out) {
 }
 
 // CHECK-LABEL: @test_dispatch_ptr
-// CHECK: call i8 addrspace(4)* @llvm.amdgcn.dispatch.ptr()
+// CHECK: call align 4 dereferenceable(64) i8 addrspace(4)* @llvm.amdgcn.dispatch.ptr()
 void test_dispatch_ptr(__constant unsigned char ** out)
 {
   *out = __builtin_amdgcn_dispatch_ptr();
@@ -522,6 +543,42 @@ void test_get_local_id(int d, global int *out)
 	}
 }
 
+// CHECK-LABEL: @test_get_workgroup_size(
+// CHECK: call align 4 dereferenceable(64) i8 addrspace(4)* @llvm.amdgcn.dispatch.ptr()
+// CHECK: getelementptr i8, i8 addrspace(4)* %{{.*}}, i64 4
+// CHECK: load i16, i16 addrspace(4)* %{{.*}}, align 4, !range [[$WS_RANGE:![0-9]*]], !invariant.load
+// CHECK: getelementptr i8, i8 addrspace(4)* %{{.*}}, i64 6
+// CHECK: load i16, i16 addrspace(4)* %{{.*}}, align 2, !range [[$WS_RANGE:![0-9]*]], !invariant.load
+// CHECK: getelementptr i8, i8 addrspace(4)* %{{.*}}, i64 8
+// CHECK: load i16, i16 addrspace(4)* %{{.*}}, align 4, !range [[$WS_RANGE:![0-9]*]], !invariant.load
+void test_get_workgroup_size(int d, global int *out)
+{
+	switch (d) {
+	case 0: *out = __builtin_amdgcn_workgroup_size_x() + 1; break;
+	case 1: *out = __builtin_amdgcn_workgroup_size_y(); break;
+	case 2: *out = __builtin_amdgcn_workgroup_size_z(); break;
+	default: *out = 0;
+	}
+}
+
+// CHECK-LABEL: @test_get_grid_size(
+// CHECK: call align 4 dereferenceable(64) i8 addrspace(4)* @llvm.amdgcn.dispatch.ptr()
+// CHECK: getelementptr i8, i8 addrspace(4)* %{{.*}}, i64 12
+// CHECK: load i32, i32 addrspace(4)* %{{.*}}, align 4, !invariant.load
+// CHECK: getelementptr i8, i8 addrspace(4)* %{{.*}}, i64 16
+// CHECK: load i32, i32 addrspace(4)* %{{.*}}, align 4, !invariant.load
+// CHECK: getelementptr i8, i8 addrspace(4)* %{{.*}}, i64 20
+// CHECK: load i32, i32 addrspace(4)* %{{.*}}, align 4, !invariant.load
+void test_get_grid_size(int d, global int *out)
+{
+	switch (d) {
+	case 0: *out = __builtin_amdgcn_grid_size_x(); break;
+	case 1: *out = __builtin_amdgcn_grid_size_y(); break;
+	case 2: *out = __builtin_amdgcn_grid_size_z(); break;
+	default: *out = 0;
+	}
+}
+
 // CHECK-LABEL: @test_fmed3_f32
 // CHECK: call float @llvm.amdgcn.fmed3.f32(
 void test_fmed3_f32(global float* out, float a, float b, float c)
@@ -548,8 +605,159 @@ kernel void test_ds_consume_lds(global int* out, local int* ptr) {
   *out = __builtin_amdgcn_ds_consume(ptr);
 }
 
+// CHECK-LABEL: @test_gws_init(
+// CHECK: call void @llvm.amdgcn.ds.gws.init(i32 %value, i32 %id)
+kernel void test_gws_init(uint value, uint id) {
+  __builtin_amdgcn_ds_gws_init(value, id);
+}
+
+// CHECK-LABEL: @test_gws_barrier(
+// CHECK: call void @llvm.amdgcn.ds.gws.barrier(i32 %value, i32 %id)
+kernel void test_gws_barrier(uint value, uint id) {
+  __builtin_amdgcn_ds_gws_barrier(value, id);
+}
+
+// CHECK-LABEL: @test_gws_sema_v(
+// CHECK: call void @llvm.amdgcn.ds.gws.sema.v(i32 %id)
+kernel void test_gws_sema_v(uint id) {
+  __builtin_amdgcn_ds_gws_sema_v(id);
+}
+
+// CHECK-LABEL: @test_gws_sema_br(
+// CHECK: call void @llvm.amdgcn.ds.gws.sema.br(i32 %value, i32 %id)
+kernel void test_gws_sema_br(uint value, uint id) {
+  __builtin_amdgcn_ds_gws_sema_br(value, id);
+}
+
+// CHECK-LABEL: @test_gws_sema_p(
+// CHECK: call void @llvm.amdgcn.ds.gws.sema.p(i32 %id)
+kernel void test_gws_sema_p(uint id) {
+  __builtin_amdgcn_ds_gws_sema_p(id);
+}
+
+// CHECK-LABEL: @test_mbcnt_lo(
+// CHECK: call i32 @llvm.amdgcn.mbcnt.lo(i32 %src0, i32 %src1)
+kernel void test_mbcnt_lo(global uint* out, uint src0, uint src1) {
+  *out = __builtin_amdgcn_mbcnt_lo(src0, src1);
+}
+
+// CHECK-LABEL: @test_mbcnt_hi(
+// CHECK: call i32 @llvm.amdgcn.mbcnt.hi(i32 %src0, i32 %src1)
+kernel void test_mbcnt_hi(global uint* out, uint src0, uint src1) {
+  *out = __builtin_amdgcn_mbcnt_hi(src0, src1);
+}
+
+// CHECK-LABEL: @test_alignbit(
+// CHECK: tail call i32 @llvm.fshr.i32(i32 %src0, i32 %src1, i32 %src2)
+kernel void test_alignbit(global uint* out, uint src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_alignbit(src0, src1, src2);
+}
+
+// CHECK-LABEL: @test_alignbyte(
+// CHECK: tail call i32 @llvm.amdgcn.alignbyte(i32 %src0, i32 %src1, i32 %src2)
+kernel void test_alignbyte(global uint* out, uint src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_alignbyte(src0, src1, src2);
+}
+
+// CHECK-LABEL: @test_ubfe(
+// CHECK: tail call i32 @llvm.amdgcn.ubfe.i32(i32 %src0, i32 %src1, i32 %src2)
+kernel void test_ubfe(global uint* out, uint src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_ubfe(src0, src1, src2);
+}
+
+// CHECK-LABEL: @test_sbfe(
+// CHECK: tail call i32 @llvm.amdgcn.sbfe.i32(i32 %src0, i32 %src1, i32 %src2)
+kernel void test_sbfe(global uint* out, uint src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_sbfe(src0, src1, src2);
+}
+
+// CHECK-LABEL: @test_cvt_pkrtz(
+// CHECK: tail call <2 x half> @llvm.amdgcn.cvt.pkrtz(float %src0, float %src1)
+kernel void test_cvt_pkrtz(global half2* out, float src0, float src1) {
+  *out = __builtin_amdgcn_cvt_pkrtz(src0, src1);
+}
+
+// CHECK-LABEL: @test_cvt_pknorm_i16(
+// CHECK: tail call <2 x i16> @llvm.amdgcn.cvt.pknorm.i16(float %src0, float %src1)
+kernel void test_cvt_pknorm_i16(global short2* out, float src0, float src1) {
+  *out = __builtin_amdgcn_cvt_pknorm_i16(src0, src1);
+}
+
+// CHECK-LABEL: @test_cvt_pknorm_u16(
+// CHECK: tail call <2 x i16> @llvm.amdgcn.cvt.pknorm.u16(float %src0, float %src1)
+kernel void test_cvt_pknorm_u16(global ushort2* out, float src0, float src1) {
+  *out = __builtin_amdgcn_cvt_pknorm_u16(src0, src1);
+}
+
+// CHECK-LABEL: @test_cvt_pk_i16(
+// CHECK: tail call <2 x i16> @llvm.amdgcn.cvt.pk.i16(i32 %src0, i32 %src1)
+kernel void test_cvt_pk_i16(global short2* out, int src0, int src1) {
+  *out = __builtin_amdgcn_cvt_pk_i16(src0, src1);
+}
+
+// CHECK-LABEL: @test_cvt_pk_u16(
+// CHECK: tail call <2 x i16> @llvm.amdgcn.cvt.pk.u16(i32 %src0, i32 %src1)
+kernel void test_cvt_pk_u16(global ushort2* out, uint src0, uint src1) {
+  *out = __builtin_amdgcn_cvt_pk_u16(src0, src1);
+}
+
+// CHECK-LABEL: @test_cvt_pk_u8_f32
+// CHECK: tail call i32 @llvm.amdgcn.cvt.pk.u8.f32(float %src0, i32 %src1, i32 %src2)
+kernel void test_cvt_pk_u8_f32(global uint* out, float src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_cvt_pk_u8_f32(src0, src1, src2);
+}
+
+// CHECK-LABEL: @test_sad_u8(
+// CHECK: tail call i32 @llvm.amdgcn.sad.u8(i32 %src0, i32 %src1, i32 %src2)
+kernel void test_sad_u8(global uint* out, uint src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_sad_u8(src0, src1, src2);
+}
+
+// CHECK-LABEL: test_msad_u8(
+// CHECK: call i32 @llvm.amdgcn.msad.u8(i32 %src0, i32 %src1, i32 %src2)
+kernel void test_msad_u8(global uint* out, uint src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_msad_u8(src0, src1, src2);
+}
+
+// CHECK-LABEL: test_sad_hi_u8(
+// CHECK: call i32 @llvm.amdgcn.sad.hi.u8(i32 %src0, i32 %src1, i32 %src2)
+kernel void test_sad_hi_u8(global uint* out, uint src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_sad_hi_u8(src0, src1, src2);
+}
+
+// CHECK-LABEL: @test_sad_u16(
+// CHECK: call i32 @llvm.amdgcn.sad.u16(i32 %src0, i32 %src1, i32 %src2)
+kernel void test_sad_u16(global uint* out, uint src0, uint src1, uint src2) {
+  *out = __builtin_amdgcn_sad_u16(src0, src1, src2);
+}
+
+// CHECK-LABEL: @test_qsad_pk_u16_u8(
+// CHECK: call i64 @llvm.amdgcn.qsad.pk.u16.u8(i64 %src0, i32 %src1, i64 %src2)
+kernel void test_qsad_pk_u16_u8(global ulong* out, ulong src0, uint src1, ulong src2) {
+  *out = __builtin_amdgcn_qsad_pk_u16_u8(src0, src1, src2);
+}
+
+// CHECK-LABEL: @test_mqsad_pk_u16_u8(
+// CHECK: call i64 @llvm.amdgcn.mqsad.pk.u16.u8(i64 %src0, i32 %src1, i64 %src2)
+kernel void test_mqsad_pk_u16_u8(global ulong* out, ulong src0, uint src1, ulong src2) {
+  *out = __builtin_amdgcn_mqsad_pk_u16_u8(src0, src1, src2);
+}
+
+// CHECK-LABEL: test_mqsad_u32_u8(
+// CHECK: call <4 x i32> @llvm.amdgcn.mqsad.u32.u8(i64 %src0, i32 %src1, <4 x i32> %src2)
+kernel void test_mqsad_u32_u8(global uint4* out, ulong src0, uint src1, uint4 src2) {
+  *out = __builtin_amdgcn_mqsad_u32_u8(src0, src1, src2);
+}
+
+// CHECK-LABEL: test_s_setreg(
+// CHECK: call void @llvm.amdgcn.s.setreg(i32 8193, i32 %val)
+kernel void test_s_setreg(uint val) {
+  __builtin_amdgcn_s_setreg(8193, val);
+}
+
 // CHECK-DAG: [[$WI_RANGE]] = !{i32 0, i32 1024}
-// CHECK-DAG: attributes #[[$NOUNWIND_READONLY:[0-9]+]] = { nounwind readonly }
+// CHECK-DAG: [[$WS_RANGE]] = !{i16 1, i16 1025}
+// CHECK-DAG: attributes #[[$NOUNWIND_READONLY:[0-9]+]] = { nofree nounwind readonly }
 // CHECK-DAG: attributes #[[$READ_EXEC_ATTRS]] = { convergent }
 // CHECK-DAG: ![[$EXEC]] = !{!"exec"}
 // CHECK-DAG: ![[$EXEC_LO]] = !{!"exec_lo"}

@@ -1670,7 +1670,7 @@ vzeroupper
 # CHECK-NEXT:  2      21    14.00   *                   vsqrtsd	(%rax), %xmm1, %xmm2
 # CHECK-NEXT:  1      11    4.00                        vsqrtss	%xmm0, %xmm1, %xmm2
 # CHECK-NEXT:  2      16    7.00    *                   vsqrtss	(%rax), %xmm1, %xmm2
-# CHECK-NEXT:  3      2     1.00    *      *      U     vstmxcsr	(%rax)
+# CHECK-NEXT:  3      2     1.00           *      U     vstmxcsr	(%rax)
 # CHECK-NEXT:  1      3     1.00                        vsubpd	%xmm0, %xmm1, %xmm2
 # CHECK-NEXT:  2      8     1.00    *                   vsubpd	(%rax), %xmm1, %xmm2
 # CHECK-NEXT:  1      3     1.00                        vsubpd	%ymm0, %ymm1, %ymm2
@@ -1719,8 +1719,8 @@ vzeroupper
 # CHECK-NEXT:  2      6     1.00    *                   vxorps	(%rax), %xmm1, %xmm2
 # CHECK-NEXT:  1      1     1.00                        vxorps	%ymm0, %ymm1, %ymm2
 # CHECK-NEXT:  2      7     1.00    *                   vxorps	(%rax), %ymm1, %ymm2
-# CHECK-NEXT:  20     8     1.00    *      *      U     vzeroall
-# CHECK-NEXT:  4      0     1.00    *      *      U     vzeroupper
+# CHECK-NEXT:  20     8     1.00                  U     vzeroall
+# CHECK-NEXT:  4      0     1.00                  U     vzeroupper
 
 # CHECK:      Resources:
 # CHECK-NEXT: [0]   - BWDivider

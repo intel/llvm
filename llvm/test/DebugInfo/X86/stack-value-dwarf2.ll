@@ -1,4 +1,4 @@
-; RUN: llc -filetype=obj -o - %s | llvm-dwarfdump -debug-loc - | FileCheck %s
+; RUN: llc -filetype=obj -o - %s -experimental-debug-variable-locations=true | llvm-dwarfdump -debug-loc - | FileCheck %s
 
 ; Note that it would be even better to avoid emitting the empty piece.
 ; CHECK:  {{.*}}: DW_OP_piece 0x8{{$}}
@@ -70,7 +70,7 @@ declare void @_ZN23ConditionPlatformHelper4waitERii(i32* dereferenceable(4), i32
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind "no-frame-pointer-elim-non-leaf" }
+attributes #0 = { nounwind "frame-pointer"="non-leaf" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

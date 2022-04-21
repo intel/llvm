@@ -7,17 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 // <functional>
-// REQUIRES: c++98 || c++03 || c++11 || c++14
 
 // template <CopyConstructible Arg, Returnable Result>
 // pointer_to_unary_function<Arg, Result>
 // ptr_fun(Result (*f)(Arg));
 
-#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
+// REQUIRES: c++03 || c++11 || c++14
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <functional>
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 double unary_f(int i) {return 0.5 - i;}
 

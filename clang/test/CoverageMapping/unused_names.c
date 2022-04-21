@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fprofile-instrument=clang -fcoverage-mapping -emit-llvm -main-file-name unused_names.c -o - %s > %t
+// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -fprofile-instrument=clang -fcoverage-mapping -emit-llvm -main-file-name unused_names.c -o - %s > %t
 // RUN: FileCheck -input-file %t %s
 // RUN: FileCheck -check-prefix=SYSHEADER -input-file %t %s
 
@@ -16,15 +16,15 @@
 #ifdef IS_SYSHEADER
 
 #pragma clang system_header
-inline int foo() { return 0; }
+inline int foo(void) { return 0; }
 
 #else
 
 #define IS_SYSHEADER
 #include __FILE__
 
-int bar() { return 0; }
-inline int baz() { return 0; }
-static int qux() { return 42; }
+int bar(void) { return 0; }
+inline int baz(void) { return 0; }
+static int qux(void) { return 42; }
 
 #endif

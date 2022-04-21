@@ -10,7 +10,7 @@ target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f3
 target triple = "i686-apple-darwin8"
 @G = external global double
 
-define void @test({ double, double }* byval  %z, double* %P) nounwind {
+define void @test({ double, double }* byval({ double, double })  %z, double* %P) nounwind {
 entry:
 	%tmp3 = load double, double* @G, align 16		; <double> [#uses=1]
 	%tmp4 = tail call double @fabs( double %tmp3 ) readnone	; <double> [#uses=1]
@@ -66,7 +66,7 @@ entry:
 
 ; Accessing stack parameters shouldn't assume stack alignment. Here we should
 ; emit two 8-byte loads, followed by two 8-byte stores.
-define x86_stdcallcc void @test5(%struct.sixteen* byval nocapture readonly align 4 %s) #0 {
+define x86_stdcallcc void @test5(%struct.sixteen* byval(%struct.sixteen) nocapture readonly align 4 %s) #0 {
   %d.sroa.0 = alloca [16 x i8], align 1
   %1 = getelementptr inbounds [16 x i8], [16 x i8]* %d.sroa.0, i32 0, i32 0
   call void @llvm.lifetime.start.p0i8(i64 16, i8* %1)
@@ -88,4 +88,4 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture, i8* nocapture readonly, i
 
 declare void @llvm.lifetime.end.p0i8(i64, i8* nocapture) argmemonly nounwind
 
-attributes #0 = { nounwind alignstack=16 "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" }
+attributes #0 = { nounwind alignstack=16 "frame-pointer"="all" }

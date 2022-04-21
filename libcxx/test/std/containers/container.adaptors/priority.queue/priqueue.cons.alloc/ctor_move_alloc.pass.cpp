@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <queue>
 
@@ -16,6 +16,7 @@
 #include <queue>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
 
@@ -40,12 +41,12 @@ struct test
     typedef typename base::value_compare value_compare;
 
     explicit test(const test_allocator<int>& a) : base(a) {}
-    test(const value_compare& comp, const test_allocator<int>& a)
-        : base(comp, c, a) {}
-    test(const value_compare& comp, const container_type& c,
-        const test_allocator<int>& a) : base(comp, c, a) {}
-    test(const value_compare& comp, container_type&& c,
-         const test_allocator<int>& a) : base(comp, std::move(c), a) {}
+    test(const value_compare& compare, const test_allocator<int>& a)
+        : base(compare, c, a) {}
+    test(const value_compare& compare, const container_type& container,
+        const test_allocator<int>& a) : base(compare, container, a) {}
+    test(const value_compare& compare, container_type&& container,
+         const test_allocator<int>& a) : base(compare, std::move(container), a) {}
     test(test&& q, const test_allocator<int>& a) : base(std::move(q), a) {}
     test_allocator<int> get_allocator() {return c.get_allocator();}
 

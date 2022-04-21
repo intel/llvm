@@ -15,10 +15,10 @@ target triple = "x86_64-unknown-linux-gnu"
 ;;   for(int i=1;i<100;i++)
 ;;     for(int j=1;j<100;j++)
 ;;       A[j][i] = A[j - 1][i] + B[j][i];
-;; FIXME: DA misses this case after D35430
 
-; CHECK:      Name:            Dependence
+; CHECK:      Name:            Interchanged
 ; CHECK-NEXT: Function:        interchange_01
+
 define void @interchange_01() {
 entry:
   br label %for2.preheader

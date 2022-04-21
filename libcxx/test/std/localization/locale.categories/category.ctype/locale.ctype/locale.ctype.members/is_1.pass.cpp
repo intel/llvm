@@ -12,8 +12,12 @@
 
 // bool is(mask m, charT c) const;
 
+// XFAIL: libcpp-has-no-wide-characters
+
 #include <locale>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {

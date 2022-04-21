@@ -19,9 +19,14 @@ namespace readability {
 /// Finds TODO comments without a username or bug number.
 ///
 /// Corresponding cpplint.py check: 'readability/todo'
+///
+/// For the user-facing documentation see:
+/// http://clang.llvm.org/extra/clang-tidy/checks/google-readability-todo.html
 class TodoCommentCheck : public ClangTidyCheck {
 public:
   TodoCommentCheck(StringRef Name, ClangTidyContext *Context);
+  ~TodoCommentCheck();
+
   void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
                            Preprocessor *ModuleExpanderPP) override;
 

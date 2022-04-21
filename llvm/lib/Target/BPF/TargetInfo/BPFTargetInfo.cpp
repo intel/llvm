@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TargetInfo/BPFTargetInfo.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -24,7 +24,7 @@ Target &llvm::getTheBPFTarget() {
   return TheBPFTarget;
 }
 
-extern "C" void LLVMInitializeBPFTargetInfo() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeBPFTargetInfo() {
   TargetRegistry::RegisterTarget(getTheBPFTarget(), "bpf", "BPF (host endian)",
                                  "BPF", [](Triple::ArchType) { return false; },
                                  true);

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ModuleList_h_
-#define liblldb_ModuleList_h_
+#ifndef LLDB_CORE_MODULELIST_H
+#define LLDB_CORE_MODULELIST_H
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -20,14 +20,15 @@
 #include "lldb/lldb-types.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/RWMutex.h"
 
 #include <functional>
 #include <list>
 #include <mutex>
 #include <vector>
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class ConstString;
@@ -44,15 +45,31 @@ class Target;
 class TypeList;
 class UUID;
 class VariableList;
+struct ModuleFunctionSearchOptions;
 
 class ModuleListProperties : public Properties {
+  mutable llvm::sys::RWMutex m_symlink_paths_mutex;
+  PathMappingList m_symlink_paths;
+
+  void UpdateSymlinkMappings();
+
 public:
   ModuleListProperties();
 
   FileSpec GetClangModulesCachePath() const;
-  bool SetClangModulesCachePath(llvm::StringRef path);
+  bool SetClangModulesCachePath(const FileSpec &path);
   bool GetEnableExternalLookup() const;
-}; 
+  bool SetEnableExternalLookup(bool new_value);
+  bool GetEnableLLDBIndexCache() const;
+  bool SetEnableLLDBIndexCache(bool new_value);
+  uint64_t GetLLDBIndexCacheMaxByteSize();
+  uint64_t GetLLDBIndexCacheMaxPercent();
+  uint64_t GetLLDBIndexCacheExpirationDays();
+  FileSpec GetLLDBIndexCachePath() const;
+  bool SetLLDBIndexCachePath(const FileSpec &path);
+
+  PathMappingList GetSymlinkMappings() const;
+};
 
 /// \class ModuleList ModuleList.h "lldb/Core/ModuleList.h"
 /// A collection class for Module objects.
@@ -115,10 +132,10 @@ public:
   ///     If true, and a notifier function is set, the notifier function
   ///     will be called.  Defaults to true.
   ///
-  ///     When this ModuleList is the Target's ModuleList, the notifier 
-  ///     function is Target::ModulesDidLoad -- the call to 
-  ///     ModulesDidLoad may be deferred when adding multiple Modules 
-  ///     to the Target, but it must be called at the end, 
+  ///     When this ModuleList is the Target's ModuleList, the notifier
+  ///     function is Target::ModulesDidLoad -- the call to
+  ///     ModulesDidLoad may be deferred when adding multiple Modules
+  ///     to the Target, but it must be called at the end,
   ///     before resuming execution.
   void Append(const lldb::ModuleSP &module_sp, bool notify = true);
 
@@ -130,22 +147,26 @@ public:
   ///
   /// \param[in] module_sp
   ///     A shared pointer to a module to replace in this collection.
-  void ReplaceEquivalent(const lldb::ModuleSP &module_sp);
+  ///
+  /// \param[in] old_modules
+  ///     Optional pointer to a vector which, if provided, will have shared
+  ///     pointers to the replaced module(s) appended to it.
+  void ReplaceEquivalent(
+      const lldb::ModuleSP &module_sp,
+      llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules = nullptr);
 
   /// Append a module to the module list, if it is not already there.
-  ///
-  /// \param[in] module_sp
   ///
   /// \param[in] notify
   ///     If true, and a notifier function is set, the notifier function
   ///     will be called.  Defaults to true.
   ///
-  ///     When this ModuleList is the Target's ModuleList, the notifier 
-  ///     function is Target::ModulesDidLoad -- the call to 
-  ///     ModulesDidLoad may be deferred when adding multiple Modules 
-  ///     to the Target, but it must be called at the end, 
+  ///     When this ModuleList is the Target's ModuleList, the notifier
+  ///     function is Target::ModulesDidLoad -- the call to
+  ///     ModulesDidLoad may be deferred when adding multiple Modules
+  ///     to the Target, but it must be called at the end,
   ///     before resuming execution.
-  bool AppendIfNeeded(const lldb::ModuleSP &module_sp, bool notify = true);
+  bool AppendIfNeeded(const lldb::ModuleSP &new_module, bool notify = true);
 
   void Append(const ModuleList &module_list);
 
@@ -224,20 +245,6 @@ public:
   /// \see ModuleList::GetSize()
   Module *GetModulePointerAtIndex(size_t idx) const;
 
-  /// Get the module pointer for the module at index \a idx without acquiring
-  /// the ModuleList mutex.  This MUST already have been acquired with
-  /// ModuleList::GetMutex and locked for this call to be safe.
-  ///
-  /// \param[in] idx
-  ///     An index into this module collection.
-  ///
-  /// \return
-  ///     A pointer to a Module which can by nullptr if \a idx is out
-  ///     of range.
-  ///
-  /// \see ModuleList::GetSize()
-  Module *GetModulePointerAtIndexUnlocked(size_t idx) const;
-
   /// Find compile units by partial or full path.
   ///
   /// Finds all compile units that match \a path in all of the modules and
@@ -246,35 +253,25 @@ public:
   /// \param[in] path
   ///     The name of the compile unit we are looking for.
   ///
-  /// \param[in] append
-  ///     If \b true, then append any compile units that were found
-  ///     to \a sc_list. If \b false, then the \a sc_list is cleared
-  ///     and the contents of \a sc_list are replaced.
-  ///
   /// \param[out] sc_list
   ///     A symbol context list that gets filled in with all of the
   ///     matches.
-  ///
-  /// \return
-  ///     The number of matches added to \a sc_list.
-  size_t FindCompileUnits(const FileSpec &path, bool append,
-                          SymbolContextList &sc_list) const;
+  void FindCompileUnits(const FileSpec &path, SymbolContextList &sc_list) const;
 
   /// \see Module::FindFunctions ()
-  size_t FindFunctions(ConstString name,
-                       lldb::FunctionNameType name_type_mask,
-                       bool include_symbols, bool include_inlines, bool append,
-                       SymbolContextList &sc_list) const;
+  void FindFunctions(ConstString name, lldb::FunctionNameType name_type_mask,
+                     const ModuleFunctionSearchOptions &options,
+                     SymbolContextList &sc_list) const;
 
   /// \see Module::FindFunctionSymbols ()
-  size_t FindFunctionSymbols(ConstString name,
-                             lldb::FunctionNameType name_type_mask,
-                             SymbolContextList &sc_list);
+  void FindFunctionSymbols(ConstString name,
+                           lldb::FunctionNameType name_type_mask,
+                           SymbolContextList &sc_list);
 
   /// \see Module::FindFunctions ()
-  size_t FindFunctions(const RegularExpression &name, bool include_symbols,
-                       bool include_inlines, bool append,
-                       SymbolContextList &sc_list);
+  void FindFunctions(const RegularExpression &name,
+                     const ModuleFunctionSearchOptions &options,
+                     SymbolContextList &sc_list);
 
   /// Find global and static variables by name.
   ///
@@ -288,11 +285,8 @@ public:
   ///
   /// \param[in] variable_list
   ///     A list of variables that gets the matches appended to.
-  ///
-  /// \return
-  ///     The number of matches added to \a variable_list.
-  size_t FindGlobalVariables(ConstString name, size_t max_matches,
-                             VariableList &variable_list) const;
+  void FindGlobalVariables(ConstString name, size_t max_matches,
+                           VariableList &variable_list) const;
 
   /// Find global and static variables by regular expression.
   ///
@@ -305,15 +299,12 @@ public:
   ///
   /// \param[in] variable_list
   ///     A list of variables that gets the matches appended to.
-  ///
-  /// \return
-  ///     The number of matches added to \a variable_list.
-  size_t FindGlobalVariables(const RegularExpression &regex, size_t max_matches,
-                             VariableList &variable_list) const;
+  void FindGlobalVariables(const RegularExpression &regex, size_t max_matches,
+                           VariableList &variable_list) const;
 
   /// Finds the first module whose file specification matches \a file_spec.
   ///
-  /// \param[in] file_spec_ptr
+  /// \param[in] module_spec
   ///     A file specification object to match against the Module's
   ///     file specifications. If \a file_spec does not have
   ///     directory information, matches will occur by matching only
@@ -321,26 +312,11 @@ public:
   ///     NULL, then file specifications won't be compared when
   ///     searching for matching modules.
   ///
-  /// \param[in] arch_ptr
-  ///     The architecture to search for if non-NULL. If this value
-  ///     is NULL no architecture matching will be performed.
-  ///
-  /// \param[in] uuid_ptr
-  ///     The uuid to search for if non-NULL. If this value is NULL
-  ///     no uuid matching will be performed.
-  ///
-  /// \param[in] object_name
-  ///     An optional object name that must match as well. This value
-  ///     can be NULL.
-  ///
   /// \param[out] matching_module_list
   ///     A module list that gets filled in with any modules that
   ///     match the search criteria.
-  ///
-  /// \return
-  ///     The number of matching modules found by the search.
-  size_t FindModules(const ModuleSpec &module_spec,
-                     ModuleList &matching_module_list) const;
+  void FindModules(const ModuleSpec &module_spec,
+                   ModuleList &matching_module_list) const;
 
   lldb::ModuleSP FindModule(const Module *module_ptr) const;
 
@@ -353,15 +329,13 @@ public:
 
   lldb::ModuleSP FindFirstModule(const ModuleSpec &module_spec) const;
 
-  size_t FindSymbolsWithNameAndType(ConstString name,
-                                    lldb::SymbolType symbol_type,
-                                    SymbolContextList &sc_list,
-                                    bool append = false) const;
+  void FindSymbolsWithNameAndType(ConstString name,
+                                  lldb::SymbolType symbol_type,
+                                  SymbolContextList &sc_list) const;
 
-  size_t FindSymbolsMatchingRegExAndType(const RegularExpression &regex,
-                                         lldb::SymbolType symbol_type,
-                                         SymbolContextList &sc_list,
-                                         bool append = false) const;
+  void FindSymbolsMatchingRegExAndType(const RegularExpression &regex,
+                                       lldb::SymbolType symbol_type,
+                                       SymbolContextList &sc_list) const;
 
   /// Find types by name.
   ///
@@ -372,32 +346,17 @@ public:
   /// \param[in] name
   ///     The name of the type we are looking for.
   ///
-  /// \param[in] append
-  ///     If \b true, any matches will be appended to \a
-  ///     variable_list, else matches replace the contents of
-  ///     \a variable_list.
-  ///
   /// \param[in] max_matches
   ///     Allow the number of matches to be limited to \a
   ///     max_matches. Specify UINT32_MAX to get all possible matches.
   ///
-  /// \param[in] encoding
-  ///     Limit the search to specific types, or get all types if
-  ///     set to Type::invalid.
-  ///
-  /// \param[in] udt_name
-  ///     If the encoding is a user defined type, specify the name
-  ///     of the user defined type ("struct", "union", "class", etc).
-  ///
-  /// \param[out] type_list
+  /// \param[out] types
   ///     A type list gets populated with any matches.
   ///
-  /// \return
-  ///     The number of matches added to \a type_list.
-  size_t FindTypes(Module *search_first, ConstString name,
-                   bool name_is_fully_qualified, size_t max_matches,
-                   llvm::DenseSet<SymbolFile *> &searched_symbol_files,
-                   TypeList &types) const;
+  void FindTypes(Module *search_first, ConstString name,
+                 bool name_is_fully_qualified, size_t max_matches,
+                 llvm::DenseSet<SymbolFile *> &searched_symbol_files,
+                 TypeList &types) const;
 
   bool FindSourceFile(const FileSpec &orig_spec, FileSpec &new_spec) const;
 
@@ -437,10 +396,10 @@ public:
   ///     If true, and a notifier function is set, the notifier function
   ///     will be called.  Defaults to true.
   ///
-  ///     When this ModuleList is the Target's ModuleList, the notifier 
-  ///     function is Target::ModulesDidUnload -- the call to 
-  ///     ModulesDidUnload may be deferred when removing multiple Modules 
-  ///     from the Target, but it must be called at the end, 
+  ///     When this ModuleList is the Target's ModuleList, the notifier
+  ///     function is Target::ModulesDidUnload -- the call to
+  ///     ModulesDidUnload may be deferred when removing multiple Modules
+  ///     from the Target, but it must be called at the end,
   ///     before resuming execution.
   bool Remove(const lldb::ModuleSP &module_sp, bool notify = true);
 
@@ -475,6 +434,7 @@ public:
   /// \return
   ///     The number of modules in the module list.
   size_t GetSize() const;
+  bool IsEmpty() const { return !GetSize(); }
 
   bool LoadScriptingResourcesInTarget(Target *target, std::list<Status> &errors,
                                       Stream *feedback_stream = nullptr,
@@ -484,22 +444,21 @@ public:
 
   static bool ModuleIsInCache(const Module *module_ptr);
 
-  static Status GetSharedModule(const ModuleSpec &module_spec,
-                                lldb::ModuleSP &module_sp,
-                                const FileSpecList *module_search_paths_ptr,
-                                lldb::ModuleSP *old_module_sp_ptr,
-                                bool *did_create_ptr,
-                                bool always_create = false);
+  static Status
+  GetSharedModule(const ModuleSpec &module_spec, lldb::ModuleSP &module_sp,
+                  const FileSpecList *module_search_paths_ptr,
+                  llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules,
+                  bool *did_create_ptr, bool always_create = false);
 
   static bool RemoveSharedModule(lldb::ModuleSP &module_sp);
 
-  static size_t FindSharedModules(const ModuleSpec &module_spec,
-                                  ModuleList &matching_module_list);
+  static void FindSharedModules(const ModuleSpec &module_spec,
+                                ModuleList &matching_module_list);
 
   static size_t RemoveOrphanSharedModules(bool mandatory);
 
   static bool RemoveSharedModuleIfOrphaned(const Module *module_ptr);
-  
+
   void ForEach(std::function<bool(const lldb::ModuleSP &module_sp)> const
                    &callback) const;
 
@@ -521,21 +480,23 @@ protected:
   collection m_modules; ///< The collection of modules.
   mutable std::recursive_mutex m_modules_mutex;
 
-  Notifier *m_notifier;
+  Notifier *m_notifier = nullptr;
 
 public:
   typedef LockingAdaptedIterable<collection, lldb::ModuleSP, vector_adapter,
                                  std::recursive_mutex>
       ModuleIterable;
-  ModuleIterable Modules() { return ModuleIterable(m_modules, GetMutex()); }
+  ModuleIterable Modules() const {
+    return ModuleIterable(m_modules, GetMutex());
+  }
 
   typedef AdaptedIterable<collection, lldb::ModuleSP, vector_adapter>
       ModuleIterableNoLocking;
-  ModuleIterableNoLocking ModulesNoLocking() {
+  ModuleIterableNoLocking ModulesNoLocking() const {
     return ModuleIterableNoLocking(m_modules);
   }
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ModuleList_h_
+#endif // LLDB_CORE_MODULELIST_H

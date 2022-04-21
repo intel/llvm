@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "func-id-helper.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include <sstream>
 
@@ -36,7 +37,7 @@ std::string FuncIdConversionHelper::SymbolOrNumber(int32_t FuncId) const {
   ModuleAddress.SectionIndex = object::SectionedAddress::UndefSection;
   if (auto ResOrErr = Symbolizer.symbolizeCode(BinaryInstrMap, ModuleAddress)) {
     auto &DI = *ResOrErr;
-    if (DI.FunctionName == "<invalid>")
+    if (DI.FunctionName == DILineInfo::BadString)
       F << "@(" << std::hex << It->second << ")";
     else
       F << DI.FunctionName;

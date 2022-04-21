@@ -25,23 +25,24 @@
 namespace clang {
 class TargetInfo;
 class IdentifierTable;
-class ASTContext;
-class QualType;
 class LangOptions;
 
 enum LanguageID {
-  GNU_LANG = 0x1,     // builtin requires GNU mode.
-  C_LANG = 0x2,       // builtin for c only.
-  CXX_LANG = 0x4,     // builtin for cplusplus only.
-  OBJC_LANG = 0x8,    // builtin for objective-c and objective-c++
-  MS_LANG = 0x10,     // builtin requires MS mode.
-  OCLC20_LANG = 0x20, // builtin for OpenCL C 2.0 only.
-  OCLC1X_LANG = 0x40, // builtin for OpenCL C 1.x only.
-  OMP_LANG = 0x80,    // builtin requires OpenMP.
+  GNU_LANG = 0x1,            // builtin requires GNU mode.
+  C_LANG = 0x2,              // builtin for c only.
+  CXX_LANG = 0x4,            // builtin for cplusplus only.
+  OBJC_LANG = 0x8,           // builtin for objective-c and objective-c++
+  MS_LANG = 0x10,            // builtin requires MS mode.
+  OMP_LANG = 0x20,           // builtin requires OpenMP.
+  CUDA_LANG = 0x40,          // builtin requires CUDA.
+  COR_LANG = 0x80,           // builtin requires use of 'fcoroutine-ts' option.
+  OCL_GAS = 0x100,           // builtin requires OpenCL generic address space.
+  OCL_PIPE = 0x200,          // builtin requires OpenCL pipe.
+  OCL_DSE = 0x400,           // builtin requires OpenCL device side enqueue.
+  ALL_OCL_LANGUAGES = 0x800, // builtin for OCL languages.
   ALL_LANGUAGES = C_LANG | CXX_LANG | OBJC_LANG, // builtin for all languages.
   ALL_GNU_LANGUAGES = ALL_LANGUAGES | GNU_LANG,  // builtin requires GNU mode.
-  ALL_MS_LANGUAGES = ALL_LANGUAGES | MS_LANG,    // builtin requires MS mode.
-  ALL_OCLC_LANGUAGES = OCLC1X_LANG | OCLC20_LANG // builtin for OCLC languages.
+  ALL_MS_LANGUAGES = ALL_LANGUAGES | MS_LANG     // builtin requires MS mode.
 };
 
 namespace Builtin {
@@ -69,7 +70,7 @@ class Context {
   llvm::ArrayRef<Info> AuxTSRecords;
 
 public:
-  Context() {}
+  Context() = default;
 
   /// Perform target-specific initialization
   /// \param AuxTarget Target info to incorporate builtins from. May be nullptr.
@@ -160,6 +161,13 @@ public:
     return strchr(getRecord(ID).Attributes, 't') != nullptr;
   }
 
+  /// Determines whether a declaration of this builtin should be recognized
+  /// even if the type doesn't match the specified signature.
+  bool allowTypeMismatch(unsigned ID) const {
+    return strchr(getRecord(ID).Attributes, 'T') != nullptr ||
+           hasCustomTypechecking(ID);
+  }
+
   /// Determines whether this builtin has a result or any arguments which
   /// are pointer types.
   bool hasPtrArgsOrResult(unsigned ID) const {
@@ -172,10 +180,6 @@ public:
     return strchr(getRecord(ID).Type, '&') != nullptr ||
            strchr(getRecord(ID).Type, 'A') != nullptr;
   }
-
-  /// Completely forget that the given ID was ever considered a builtin,
-  /// e.g., because the user provided a conflicting signature.
-  void forgetBuiltin(unsigned ID, IdentifierTable &Table);
 
   /// If this is a library function that comes from a specific
   /// header, retrieve that header name.
@@ -224,7 +228,7 @@ public:
 
   /// Returns true if this is a libc/libm function without the '__builtin_'
   /// prefix.
-  static bool isBuiltinFunc(const char *Name);
+  static bool isBuiltinFunc(llvm::StringRef Name);
 
   /// Returns true if this is a builtin that can be redeclared.  Returns true
   /// for non-builtins.

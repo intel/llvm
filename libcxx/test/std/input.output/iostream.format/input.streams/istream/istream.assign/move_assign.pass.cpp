@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
-
 // <istream>
 
 // template <class charT, class traits = char_traits<charT> >
@@ -17,6 +15,8 @@
 
 #include <istream>
 #include <cassert>
+
+#include "test_macros.h"
 
 
 template <class CharT>
@@ -63,6 +63,7 @@ int main(int, char**)
         assert(is2.precision() == 6);
         assert(is2.getloc().name() == "C");
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         testbuf<wchar_t> sb1;
         testbuf<wchar_t> sb2;
@@ -86,6 +87,7 @@ int main(int, char**)
         assert(is2.precision() == 6);
         assert(is2.getloc().name() == "C");
     }
+#endif
 
   return 0;
 }

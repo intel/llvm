@@ -1,4 +1,4 @@
-//===-- PostfixExpression.cpp -----------------------------------*- C++ -*-===//
+//===-- PostfixExpression.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,6 +18,7 @@
 
 using namespace lldb_private;
 using namespace lldb_private::postfix;
+using namespace lldb_private::dwarf;
 
 static llvm::Optional<BinaryOpNode::OpType>
 GetBinaryOpType(llvm::StringRef token) {
@@ -41,7 +42,8 @@ GetUnaryOpType(llvm::StringRef token) {
   return llvm::None;
 }
 
-Node *postfix::Parse(llvm::StringRef expr, llvm::BumpPtrAllocator &alloc) {
+Node *postfix::ParseOneExpression(llvm::StringRef expr,
+                                  llvm::BumpPtrAllocator &alloc) {
   llvm::SmallVector<Node *, 4> stack;
 
   llvm::StringRef token;
@@ -81,6 +83,26 @@ Node *postfix::Parse(llvm::StringRef expr, llvm::BumpPtrAllocator &alloc) {
     return nullptr;
 
   return stack.back();
+}
+
+std::vector<std::pair<llvm::StringRef, Node *>>
+postfix::ParseFPOProgram(llvm::StringRef prog, llvm::BumpPtrAllocator &alloc) {
+  llvm::SmallVector<llvm::StringRef, 4> exprs;
+  prog.split(exprs, '=');
+  if (exprs.empty() || !exprs.back().trim().empty())
+    return {};
+  exprs.pop_back();
+
+  std::vector<std::pair<llvm::StringRef, Node *>> result;
+  for (llvm::StringRef expr : exprs) {
+    llvm::StringRef lhs;
+    std::tie(lhs, expr) = getToken(expr);
+    Node *rhs = ParseOneExpression(expr, alloc);
+    if (!rhs)
+      return {};
+    result.emplace_back(lhs, rhs);
+  }
+  return result;
 }
 
 namespace {

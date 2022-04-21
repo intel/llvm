@@ -54,10 +54,6 @@ public:
   // FIXME: This should be tablegen'd like getDwarfRegNum is
   int getSEHRegNum(unsigned i) const;
 
-  /// Code Generation virtual methods...
-  ///
-  bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override;
-
   /// getMatchingSuperRegClass - Return a subclass of the specified register
   /// class A so that each register in it has a sub-register of the
   /// specified sub-register index which is in the specified register class B.
@@ -119,32 +115,49 @@ public:
   /// register scavenger to determine what registers are free.
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
+  /// isArgumentReg - Returns true if Reg can be used as an argument to a
+  /// function.
+  bool isArgumentRegister(const MachineFunction &MF,
+                          MCRegister Reg) const override;
+
+  /// Returns true if PhysReg is a fixed register.
+  bool isFixedRegister(const MachineFunction &MF,
+                       MCRegister PhysReg) const override;
+
   void adjustStackMapLiveOutMask(uint32_t *Mask) const override;
 
   bool hasBasePointer(const MachineFunction &MF) const;
 
   bool canRealignStack(const MachineFunction &MF) const override;
 
-  bool hasReservedSpillSlot(const MachineFunction &MF, unsigned Reg,
-                            int &FrameIdx) const override;
-
   void eliminateFrameIndex(MachineBasicBlock::iterator MI,
                            int SPAdj, unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
 
+  /// findDeadCallerSavedReg - Return a caller-saved register that isn't live
+  /// when it reaches the "return" instruction. We can then pop a stack object
+  /// to this register without worry about clobbering it.
+  unsigned findDeadCallerSavedReg(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator &MBBI) const;
+
   // Debug information queries.
-  unsigned getFrameRegister(const MachineFunction &MF) const override;
+  Register getFrameRegister(const MachineFunction &MF) const override;
   unsigned getPtrSizedFrameRegister(const MachineFunction &MF) const;
   unsigned getPtrSizedStackRegister(const MachineFunction &MF) const;
-  unsigned getStackRegister() const { return StackPtr; }
-  unsigned getBaseRegister() const { return BasePtr; }
+  Register getStackRegister() const { return StackPtr; }
+  Register getBaseRegister() const { return BasePtr; }
   /// Returns physical register used as frame pointer.
   /// This will always returns the frame pointer register, contrary to
   /// getFrameRegister() which returns the "base pointer" in situations
   /// involving a stack, frame and base pointer.
-  unsigned getFramePtr() const { return FramePtr; }
+  Register getFramePtr() const { return FramePtr; }
   // FIXME: Move to FrameInfok
   unsigned getSlotSize() const { return SlotSize; }
+
+  bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order,
+                             SmallVectorImpl<MCPhysReg> &Hints,
+                             const MachineFunction &MF, const VirtRegMap *VRM,
+                             const LiveRegMatrix *Matrix) const override;
 };
 
 } // End llvm namespace

@@ -3,18 +3,16 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-scei-ps4"
 
-@G1 = common global <2 x float> zeroinitializer, align 8
-@G2 = common global <8 x float> zeroinitializer, align 32
+@G1 = common dso_local global <2 x float> zeroinitializer, align 8
+@G2 = common dso_local global <8 x float> zeroinitializer, align 32
 
 define <4 x float> @foo() {
 ; CHECK-LABEL: foo:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vmovsd {{.*#+}} xmm0 = mem[0],zero
-; CHECK-NEXT:    vblendps {{.*#+}} ymm0 = ymm0[0,1],mem[2,3,4,5,6,7]
-; CHECK-NEXT:    vextractf128 $1, %ymm0, %xmm1
-; CHECK-NEXT:    vshufps {{.*#+}} xmm0 = xmm1[0,2],xmm0[2,0]
-; CHECK-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[0,2,1,3]
-; CHECK-NEXT:    vzeroupper
+; CHECK-NEXT:    vmovaps G2(%rip), %xmm0
+; CHECK-NEXT:    vmovlps {{.*#+}} xmm0 = mem[0,1],xmm0[2,3]
+; CHECK-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[2,0],mem[0,2]
+; CHECK-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[2,0,3,1]
 ; CHECK-NEXT:    retq
 entry:
   %V = load <2 x float>, <2 x float>* @G1, align 8

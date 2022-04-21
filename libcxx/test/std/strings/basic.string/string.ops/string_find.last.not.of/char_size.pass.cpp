@@ -13,30 +13,32 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(const S& s, typename S::value_type c, typename S::size_type pos,
      typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_last_not_of(c, pos));
     assert(s.find_last_not_of(c, pos) == x);
     if (x != S::npos)
         assert(x <= pos && x < s.size());
 }
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(const S& s, typename S::value_type c, typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_last_not_of(c));
     assert(s.find_last_not_of(c) == x);
     if (x != S::npos)
         assert(x < s.size());
 }
 
-int main(int, char**)
-{
-    {
+bool test() {
+  {
     typedef std::string S;
     test(S(""), 'i', 0, S::npos);
     test(S(""), 'i', 1, S::npos);
@@ -63,9 +65,9 @@ int main(int, char**)
     test(S("csope"), 'i', 4);
     test(S("gfsmthlkon"), 'i', 9);
     test(S("laenfsbridchgotmkqpj"), 'i', 19);
-    }
+  }
 #if TEST_STD_VER >= 11
-    {
+  {
     typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
     test(S(""), 'i', 0, S::npos);
     test(S(""), 'i', 1, S::npos);
@@ -92,7 +94,17 @@ int main(int, char**)
     test(S("csope"), 'i', 4);
     test(S("gfsmthlkon"), 'i', 9);
     test(S("laenfsbridchgotmkqpj"), 'i', 19);
-    }
+  }
+#endif
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  // static_assert(test());
 #endif
 
   return 0;

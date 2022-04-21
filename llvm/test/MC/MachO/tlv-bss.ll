@@ -1,4 +1,4 @@
-; RUN: llc -O0 -mtriple=x86_64-apple-darwin12 -filetype=obj -o - %s | llvm-readobj -S | FileCheck %s
+; RUN: llc -O0 -mtriple=x86_64-apple-darwin12 -filetype=obj -o - %s | llvm-readobj -S - | FileCheck %s
 ; Test that we emit weak_odr thread_locals correctly into the thread_bss section
 ; PR15972
 
@@ -35,4 +35,4 @@ entry:
   ret i8* %0
 }
 
-attributes #0 = { nounwind ssp uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf"="true" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind ssp uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

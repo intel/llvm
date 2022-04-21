@@ -31,7 +31,7 @@ def read_syms_from_file(filename):
     return read_syms_from_list(data.splitlines())
 
 
-def read_blacklist(filename):
+def read_exclusions(filename):
     with open(filename, 'r') as f:
         data = f.read()
     lines = [l.strip() for l in data.splitlines() if l.strip()]
@@ -83,12 +83,12 @@ def is_mach_o(filename):
     with open(filename, 'rb') as f:
         magic_bytes = f.read(4)
     return magic_bytes in [
-        '\xfe\xed\xfa\xce',  # MH_MAGIC
-        '\xce\xfa\xed\xfe',  # MH_CIGAM
-        '\xfe\xed\xfa\xcf',  # MH_MAGIC_64
-        '\xcf\xfa\xed\xfe',  # MH_CIGAM_64
-        '\xca\xfe\xba\xbe',  # FAT_MAGIC
-        '\xbe\xba\xfe\xca'   # FAT_CIGAM
+        b'\xfe\xed\xfa\xce',  # MH_MAGIC
+        b'\xce\xfa\xed\xfe',  # MH_CIGAM
+        b'\xfe\xed\xfa\xcf',  # MH_MAGIC_64
+        b'\xcf\xfa\xed\xfe',  # MH_CIGAM_64
+        b'\xca\xfe\xba\xbe',  # FAT_MAGIC
+        b'\xbe\xba\xfe\xca'   # FAT_CIGAM
     ]
 
 

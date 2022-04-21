@@ -1,14 +1,8 @@
 import("//llvm/utils/TableGen/tablegen.gni")
 
-tablegen("InstCombineTables") {
-  visibility = [ ":InstCombine" ]
-  args = [ "-gen-searchable-tables" ]
-}
-
 static_library("InstCombine") {
   output_name = "LLVMInstCombine"
   deps = [
-    ":InstCombineTables",
     "//llvm/lib/Analysis",
     "//llvm/lib/IR",
     "//llvm/lib/Support",
@@ -23,6 +17,7 @@ static_library("InstCombine") {
     "InstCombineCompares.cpp",
     "InstCombineLoadStoreAlloca.cpp",
     "InstCombineMulDivRem.cpp",
+    "InstCombineNegator.cpp",
     "InstCombinePHI.cpp",
     "InstCombineSelect.cpp",
     "InstCombineShifts.cpp",

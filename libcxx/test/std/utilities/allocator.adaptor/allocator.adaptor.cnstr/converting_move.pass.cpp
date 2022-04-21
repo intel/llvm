@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <memory>
 
@@ -20,6 +20,7 @@
 #include <scoped_allocator>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 
 int main(int, char**)

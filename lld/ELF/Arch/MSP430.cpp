@@ -15,11 +15,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "InputFiles.h"
 #include "Symbols.h"
 #include "Target.h"
 #include "lld/Common/ErrorHandler.h"
-#include "llvm/Object/ELF.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/Endian.h"
 
 using namespace llvm;
@@ -33,20 +32,21 @@ namespace {
 class MSP430 final : public TargetInfo {
 public:
   MSP430();
-  RelExpr getRelExpr(RelType Type, const Symbol &S,
-                     const uint8_t *Loc) const override;
-  void relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const override;
+  RelExpr getRelExpr(RelType type, const Symbol &s,
+                     const uint8_t *loc) const override;
+  void relocate(uint8_t *loc, const Relocation &rel,
+                uint64_t val) const override;
 };
 } // namespace
 
 MSP430::MSP430() {
   // mov.b #0, r3
-  TrapInstr = {0x43, 0x43, 0x43, 0x43};
+  trapInstr = {0x43, 0x43, 0x43, 0x43};
 }
 
-RelExpr MSP430::getRelExpr(RelType Type, const Symbol &S,
-                           const uint8_t *Loc) const {
-  switch (Type) {
+RelExpr MSP430::getRelExpr(RelType type, const Symbol &s,
+                           const uint8_t *loc) const {
+  switch (type) {
   case R_MSP430_10_PCREL:
   case R_MSP430_16_PCREL:
   case R_MSP430_16_PCREL_BYTE:
@@ -59,35 +59,36 @@ RelExpr MSP430::getRelExpr(RelType Type, const Symbol &S,
   }
 }
 
-void MSP430::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
-  switch (Type) {
+void MSP430::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
+  switch (rel.type) {
   case R_MSP430_8:
-    checkIntUInt(Loc, Val, 8, Type);
-    *Loc = Val;
+    checkIntUInt(loc, val, 8, rel);
+    *loc = val;
     break;
   case R_MSP430_16:
   case R_MSP430_16_PCREL:
   case R_MSP430_16_BYTE:
   case R_MSP430_16_PCREL_BYTE:
-    checkIntUInt(Loc, Val, 16, Type);
-    write16le(Loc, Val);
+    checkIntUInt(loc, val, 16, rel);
+    write16le(loc, val);
     break;
   case R_MSP430_32:
-    checkIntUInt(Loc, Val, 32, Type);
-    write32le(Loc, Val);
+    checkIntUInt(loc, val, 32, rel);
+    write32le(loc, val);
     break;
   case R_MSP430_10_PCREL: {
-    int16_t Offset = ((int16_t)Val >> 1) - 1;
-    checkInt(Loc, Offset, 10, Type);
-    write16le(Loc, (read16le(Loc) & 0xFC00) | (Offset & 0x3FF));
+    int16_t offset = ((int16_t)val >> 1) - 1;
+    checkInt(loc, offset, 10, rel);
+    write16le(loc, (read16le(loc) & 0xFC00) | (offset & 0x3FF));
     break;
   }
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + toString(Type));
+    error(getErrorLocation(loc) + "unrecognized relocation " +
+          toString(rel.type));
   }
 }
 
 TargetInfo *elf::getMSP430TargetInfo() {
-  static MSP430 Target;
-  return &Target;
+  static MSP430 target;
+  return &target;
 }

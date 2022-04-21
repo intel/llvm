@@ -62,13 +62,14 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ItaniumManglingCanonicalizer.h"
-#include "llvm/Support/MemoryBuffer.h"
 
 namespace llvm {
 
+class MemoryBuffer;
+
 class SymbolRemappingParseError : public ErrorInfo<SymbolRemappingParseError> {
 public:
-  SymbolRemappingParseError(StringRef File, int64_t Line, Twine Message)
+  SymbolRemappingParseError(StringRef File, int64_t Line, const Twine &Message)
       : File(File), Line(Line), Message(Message.str()) {}
 
   void log(llvm::raw_ostream &OS) const override {

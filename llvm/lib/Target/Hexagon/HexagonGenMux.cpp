@@ -19,8 +19,6 @@
 // the predicate register, they cannot use the .new form. In such cases it
 // is better to collapse them back to a single MUX instruction.
 
-#define DEBUG_TYPE "hexmux"
-
 #include "HexagonInstrInfo.h"
 #include "HexagonRegisterInfo.h"
 #include "HexagonSubtarget.h"
@@ -46,6 +44,8 @@
 #include <iterator>
 #include <limits>
 #include <utility>
+
+#define DEBUG_TYPE "hexmux"
 
 using namespace llvm;
 
@@ -171,7 +171,7 @@ void HexagonGenMux::getDefsUses(const MachineInstr *MI, BitVector &Defs,
   for (const MachineOperand &MO : MI->operands()) {
     if (!MO.isReg() || MO.isImplicit())
       continue;
-    unsigned R = MO.getReg();
+    Register R = MO.getReg();
     BitVector &Set = MO.isDef() ? Defs : Uses;
     expandReg(R, Set);
   }
@@ -183,12 +183,11 @@ void HexagonGenMux::buildMaps(MachineBasicBlock &B, InstrIndexMap &I2X,
   unsigned NR = HRI->getNumRegs();
   BitVector Defs(NR), Uses(NR);
 
-  for (MachineBasicBlock::iterator I = B.begin(), E = B.end(); I != E; ++I) {
-    MachineInstr *MI = &*I;
-    I2X.insert(std::make_pair(MI, Index));
+  for (MachineInstr &MI : B) {
+    I2X.insert(std::make_pair(&MI, Index));
     Defs.reset();
     Uses.reset();
-    getDefsUses(MI, Defs, Uses);
+    getDefsUses(&MI, Defs, Uses);
     DUM.insert(std::make_pair(Index, DefUseInfo(Defs, Uses)));
     Index++;
   }
@@ -232,22 +231,19 @@ bool HexagonGenMux::genMuxInBlock(MachineBasicBlock &B) {
   CondsetMap CM;
   MuxInfoList ML;
 
-  MachineBasicBlock::iterator NextI, End = B.end();
-  for (MachineBasicBlock::iterator I = B.begin(); I != End; I = NextI) {
-    MachineInstr *MI = &*I;
-    NextI = std::next(I);
-    unsigned Opc = MI->getOpcode();
+  for (MachineInstr &MI : llvm::make_early_inc_range(B)) {
+    unsigned Opc = MI.getOpcode();
     if (!isCondTransfer(Opc))
       continue;
-    unsigned DR = MI->getOperand(0).getReg();
+    Register DR = MI.getOperand(0).getReg();
     if (isRegPair(DR))
       continue;
-    MachineOperand &PredOp = MI->getOperand(1);
+    MachineOperand &PredOp = MI.getOperand(1);
     if (PredOp.isUndef())
       continue;
 
-    unsigned PR = PredOp.getReg();
-    unsigned Idx = I2X.lookup(MI);
+    Register PR = PredOp.getReg();
+    unsigned Idx = I2X.lookup(&MI);
     CondsetMap::iterator F = CM.find(DR);
     bool IfTrue = HII->isPredicatedTrue(Opc);
 
@@ -303,8 +299,8 @@ bool HexagonGenMux::genMuxInBlock(MachineBasicBlock &B) {
     std::advance(It2, MaxX);
     MachineInstr &Def1 = *It1, &Def2 = *It2;
     MachineOperand *Src1 = &Def1.getOperand(2), *Src2 = &Def2.getOperand(2);
-    unsigned SR1 = Src1->isReg() ? Src1->getReg() : 0;
-    unsigned SR2 = Src2->isReg() ? Src2->getReg() : 0;
+    Register SR1 = Src1->isReg() ? Src1->getReg() : Register();
+    Register SR2 = Src2->isReg() ? Src2->getReg() : Register();
     bool Failure = false, CanUp = true, CanDown = true;
     for (unsigned X = MinX+1; X < MaxX; X++) {
       const DefUseInfo &DU = DUM.lookup(X);
@@ -332,6 +328,12 @@ bool HexagonGenMux::genMuxInBlock(MachineBasicBlock &B) {
     unsigned MxOpc = getMuxOpcode(*MX.SrcT, *MX.SrcF);
     if (!MxOpc)
       continue;
+    // Basic correctness check: since we are deleting instructions, validate the
+    // iterators. There is a possibility that one of Def1 or Def2 is translated
+    // to "mux" and being considered for other "mux" instructions.
+    if (!MX.At->getParent() || !MX.Def1->getParent() || !MX.Def2->getParent())
+      continue;
+
     MachineBasicBlock &B = *MX.At->getParent();
     const DebugLoc &DL = B.findDebugLoc(MX.At);
     auto NewMux = BuildMI(B, MX.At, DL, HII->get(MxOpc), MX.DefR)
@@ -339,8 +341,8 @@ bool HexagonGenMux::genMuxInBlock(MachineBasicBlock &B) {
                       .add(*MX.SrcT)
                       .add(*MX.SrcF);
     NewMux->clearKillInfo();
-    B.erase(MX.Def1);
-    B.erase(MX.Def2);
+    B.remove(MX.Def1);
+    B.remove(MX.Def2);
     Changed = true;
   }
 
@@ -354,21 +356,21 @@ bool HexagonGenMux::genMuxInBlock(MachineBasicBlock &B) {
         return true;
     return false;
   };
-  for (auto I = B.rbegin(), E = B.rend(); I != E; ++I) {
-    if (I->isDebugInstr())
+  for (MachineInstr &I : llvm::reverse(B)) {
+    if (I.isDebugInstr())
       continue;
     // This isn't 100% accurate, but it's safe.
     // It won't detect (as a kill) a case like this
     //   r0 = add r0, 1    <-- r0 should be "killed"
     //   ... = r0
-    for (MachineOperand &Op : I->operands()) {
+    for (MachineOperand &Op : I.operands()) {
       if (!Op.isReg() || !Op.isUse())
         continue;
       assert(Op.getSubReg() == 0 && "Should have physical registers only");
       bool Live = IsLive(Op.getReg());
       Op.setIsKill(!Live);
     }
-    LPR.stepBackward(*I);
+    LPR.stepBackward(I);
   }
 
   return Changed;

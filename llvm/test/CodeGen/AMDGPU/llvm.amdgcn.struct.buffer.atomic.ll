@@ -1,5 +1,5 @@
-;RUN: llc < %s -march=amdgcn -mcpu=verde -amdgpu-atomic-optimizations=false -verify-machineinstrs | FileCheck %s -check-prefix=CHECK -check-prefix=SICI
-;RUN: llc < %s -march=amdgcn -mcpu=tonga -amdgpu-atomic-optimizations=false -verify-machineinstrs | FileCheck %s -check-prefix=CHECK -check-prefix=VI
+;RUN: llc < %s -march=amdgcn -mcpu=verde -amdgpu-atomic-optimizations=false -verify-machineinstrs | FileCheck %s
+;RUN: llc < %s -march=amdgcn -mcpu=tonga -amdgpu-atomic-optimizations=false -verify-machineinstrs | FileCheck %s
 
 ;CHECK-LABEL: {{^}}test1:
 ;CHECK-NOT: s_waitcnt
@@ -17,6 +17,7 @@
 ;CHECK: buffer_atomic_swap v0, {{v[0-9]+}}, s[0:3], [[SOFS]] idxen offset:4 glc
 ;CHECK: s_waitcnt vmcnt(0)
 ;CHECK: buffer_atomic_swap v0, {{v[0-9]+}}, s[0:3], 0 idxen{{$}}
+;CHECK: buffer_atomic_swap v0, {{v[0-9]+}}, s[0:3], 0 idxen glc
 define amdgpu_ps float @test1(<4 x i32> inreg %rsrc, i32 %data, i32 %vindex, i32 %voffset) {
 main_body:
   %o1 = call i32 @llvm.amdgcn.struct.buffer.atomic.swap.i32(i32 %data, <4 x i32> %rsrc, i32 0, i32 0, i32 0, i32 0)
@@ -27,7 +28,8 @@ main_body:
   %o5 = call i32 @llvm.amdgcn.struct.buffer.atomic.swap.i32(i32 %o4, <4 x i32> %rsrc, i32 0, i32 %ofs.5, i32 0, i32 0)
   %o6 = call i32 @llvm.amdgcn.struct.buffer.atomic.swap.i32(i32 %o5, <4 x i32> %rsrc, i32 0, i32 4, i32 8188, i32 0)
   %unused = call i32 @llvm.amdgcn.struct.buffer.atomic.swap.i32(i32 %o6, <4 x i32> %rsrc, i32 0, i32 0, i32 0, i32 0)
-  %out = bitcast i32 %o6 to float
+  %o7 = bitcast i32 %o6 to float
+  %out = call float @llvm.amdgcn.struct.buffer.atomic.swap.f32(float %o7, <4 x i32> %rsrc, i32 0, i32 0, i32 0, i32 0)
   ret float %out
 }
 
@@ -50,6 +52,10 @@ main_body:
 ;CHECK: buffer_atomic_or v0, v1, s[0:3], 0 idxen glc slc
 ;CHECK: s_waitcnt vmcnt(0)
 ;CHECK: buffer_atomic_xor v0, v1, s[0:3], 0 idxen glc
+;CHECK: s_waitcnt vmcnt(0)
+;CHECK: buffer_atomic_inc v0, v1, s[0:3], 0 idxen glc
+;CHECK: s_waitcnt vmcnt(0)
+;CHECK: buffer_atomic_dec v0, v1, s[0:3], 0 idxen glc
 define amdgpu_ps float @test2(<4 x i32> inreg %rsrc, i32 %data, i32 %vindex) {
 main_body:
   %t1 = call i32 @llvm.amdgcn.struct.buffer.atomic.add.i32(i32 %data, <4 x i32> %rsrc, i32 %vindex, i32 0, i32 0, i32 0)
@@ -61,7 +67,9 @@ main_body:
   %t7 = call i32 @llvm.amdgcn.struct.buffer.atomic.and.i32(i32 %t6, <4 x i32> %rsrc, i32 %vindex, i32 0, i32 0, i32 0)
   %t8 = call i32 @llvm.amdgcn.struct.buffer.atomic.or.i32(i32 %t7, <4 x i32> %rsrc, i32 %vindex, i32 0, i32 0, i32 2)
   %t9 = call i32 @llvm.amdgcn.struct.buffer.atomic.xor.i32(i32 %t8, <4 x i32> %rsrc, i32 %vindex, i32 0, i32 0, i32 0)
-  %out = bitcast i32 %t9 to float
+  %t10 = call i32 @llvm.amdgcn.struct.buffer.atomic.inc.i32(i32 %t9, <4 x i32> %rsrc, i32 %vindex, i32 0, i32 0, i32 0)
+  %t11 = call i32 @llvm.amdgcn.struct.buffer.atomic.dec.i32(i32 %t10, <4 x i32> %rsrc, i32 %vindex, i32 0, i32 0, i32 0)
+  %out = bitcast i32 %t11 to float
   ret float %out
 }
 
@@ -73,7 +81,7 @@ main_body:
 ;CHECK-NOT: s_waitcnt
 ;CHECK: buffer_atomic_cmpswap {{v\[[0-9]+:[0-9]+\]}}, {{v[0-9]+}}, s[0:3], 0 idxen glc
 ;CHECK: s_waitcnt vmcnt(0)
-;CHECK: buffer_atomic_cmpswap {{v\[[0-9]+:[0-9]+\]}}, v2, s[0:3], 0 idxen glc
+;CHECK: buffer_atomic_cmpswap {{v\[[0-9]+:[0-9]+\]}}, {{v[0-9]+}}, s[0:3], 0 idxen glc
 ;CHECK: s_waitcnt vmcnt(0)
 ;CHECK: s_movk_i32 [[SOFS:s[0-9]+]], 0x1ffc
 ;CHECK: buffer_atomic_cmpswap {{v\[[0-9]+:[0-9]+\]}}, {{v\[[0-9]+:[0-9]+\]}}, s[0:3], 0 idxen offen glc
@@ -113,6 +121,7 @@ main_body:
 }
 
 declare i32 @llvm.amdgcn.struct.buffer.atomic.swap.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
+declare float @llvm.amdgcn.struct.buffer.atomic.swap.f32(float, <4 x i32>, i32, i32, i32, i32) #0
 declare i32 @llvm.amdgcn.struct.buffer.atomic.add.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
 declare i32 @llvm.amdgcn.struct.buffer.atomic.sub.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
 declare i32 @llvm.amdgcn.struct.buffer.atomic.smin.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
@@ -122,6 +131,8 @@ declare i32 @llvm.amdgcn.struct.buffer.atomic.umax.i32(i32, <4 x i32>, i32, i32,
 declare i32 @llvm.amdgcn.struct.buffer.atomic.and.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
 declare i32 @llvm.amdgcn.struct.buffer.atomic.or.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
 declare i32 @llvm.amdgcn.struct.buffer.atomic.xor.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
+declare i32 @llvm.amdgcn.struct.buffer.atomic.inc.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
+declare i32 @llvm.amdgcn.struct.buffer.atomic.dec.i32(i32, <4 x i32>, i32, i32, i32, i32) #0
 declare i32 @llvm.amdgcn.struct.buffer.atomic.cmpswap.i32(i32, i32, <4 x i32>, i32, i32, i32, i32) #0
 
 attributes #0 = { nounwind }

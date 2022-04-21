@@ -3,11 +3,11 @@
 # RUN: llvm-mc %s -triple=riscv64 -mattr=+a -riscv-no-aliases -show-encoding \
 # RUN:     | FileCheck -check-prefixes=CHECK-ASM,CHECK-ASM-AND-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+a < %s \
-# RUN:     | llvm-objdump -mattr=+a -riscv-no-aliases -d -r - \
-# RUN:     | FileCheck -check-prefixes=CHECK-OBJ,CHECK-ASM-AND-OBJ %s
+# RUN:     | llvm-objdump --mattr=+a -M no-aliases -d -r - \
+# RUN:     | FileCheck --check-prefix=CHECK-ASM-AND-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple=riscv64 -mattr=+a < %s \
-# RUN:     | llvm-objdump -mattr=+a -riscv-no-aliases -d -r - \
-# RUN:     | FileCheck -check-prefixes=CHECK-OBJ,CHECK-ASM-AND-OBJ %s
+# RUN:     | llvm-objdump --mattr=+a -M no-aliases -d -r - \
+# RUN:     | FileCheck --check-prefix=CHECK-ASM-AND-OBJ %s
 
 # CHECK-ASM-AND-OBJ: lr.w t0, (t1)
 # CHECK-ASM: encoding: [0xaf,0x22,0x03,0x10]

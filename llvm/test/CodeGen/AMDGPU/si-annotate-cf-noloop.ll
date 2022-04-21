@@ -1,5 +1,5 @@
-; RUN: opt -mtriple=amdgcn-- -S -structurizecfg -si-annotate-control-flow %s | FileCheck -check-prefix=OPT %s
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: opt -mtriple=amdgcn-- -S -structurizecfg -si-annotate-control-flow -simplifycfg-require-and-preserve-domtree=1 %s | FileCheck -check-prefix=OPT %s
+; RUN: llc -march=amdgcn -verify-machineinstrs -simplifycfg-require-and-preserve-domtree=1 < %s | FileCheck -check-prefix=GCN %s
 
 
 ; OPT-LABEL: @annotate_unreachable_noloop(
@@ -40,8 +40,6 @@ bb5:                                              ; preds = %bb3, %bb1
 ; GCN: load_dwordx4
 ; GCN: v_cmp_nlt_f32
 ; GCN: s_and_saveexec_b64
-; GCN: ; mask branch [[UNIFIED_RET:BB[0-9]+_[0-9]+]]
-; GCN-NEXT: [[UNIFIED_RET]]:
 ; GCN-NEXT: s_endpgm
 ; GCN: .Lfunc_end
 define amdgpu_kernel void @annotate_ret_noloop(<4 x float> addrspace(1)* noalias nocapture readonly %arg) #0 {

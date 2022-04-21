@@ -1670,7 +1670,7 @@ vzeroupper
 # CHECK-NEXT:  1      27    20.00   *                   vsqrtsd	(%rax), %xmm1, %xmm2
 # CHECK-NEXT:  1      20    20.00                       vsqrtss	%xmm0, %xmm1, %xmm2
 # CHECK-NEXT:  1      27    20.00   *                   vsqrtss	(%rax), %xmm1, %xmm2
-# CHECK-NEXT:  1      100   0.25    *      *      U     vstmxcsr	(%rax)
+# CHECK-NEXT:  1      100   0.25           *      U     vstmxcsr	(%rax)
 # CHECK-NEXT:  1      3     1.00                        vsubpd	%xmm0, %xmm1, %xmm2
 # CHECK-NEXT:  1      10    1.00    *                   vsubpd	(%rax), %xmm1, %xmm2
 # CHECK-NEXT:  1      3     1.00                        vsubpd	%ymm0, %ymm1, %ymm2
@@ -1719,8 +1719,8 @@ vzeroupper
 # CHECK-NEXT:  1      8     0.50    *                   vxorps	(%rax), %xmm1, %xmm2
 # CHECK-NEXT:  1      1     0.25                        vxorps	%ymm0, %ymm1, %ymm2
 # CHECK-NEXT:  1      8     0.50    *                   vxorps	(%rax), %ymm1, %ymm2
-# CHECK-NEXT:  1      100   0.25    *      *      U     vzeroall
-# CHECK-NEXT:  1      100   0.25    *      *      U     vzeroupper
+# CHECK-NEXT:  1      100   0.25                  U     vzeroall
+# CHECK-NEXT:  1      100   0.25                  U     vzeroupper
 
 # CHECK:      Resources:
 # CHECK-NEXT: [0]   - ZnAGU0

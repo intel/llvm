@@ -1,4 +1,4 @@
-; RUN: opt -instcombine -S %s -o - | FileCheck %s
+; RUN: opt -passes=instcombine -S %s -o - | FileCheck %s
 
 ; In this example, the cast from i8* to i32* becomes trivially dead. We should
 ; salvage its debug info.
@@ -31,7 +31,7 @@ entry:
 ; CHECK-NOT: bitcast
 ; CHECK: call void @llvm.dbg.value(metadata i8* %p, metadata ![[Q_VAR:[0-9]+]], metadata !DIExpression())
 ; CHECK-NOT: bitcast
-; CHECK ret void
+; CHECK: ret void
 
 ; CHECK: ![[P_VAR]] = !DILocalVariable(name: "p", {{.*}})
 ; CHECK: ![[Q_VAR]] = !DILocalVariable(name: "q", {{.*}})

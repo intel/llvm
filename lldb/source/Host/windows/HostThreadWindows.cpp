@@ -1,4 +1,4 @@
-//===-- HostThreadWindows.cpp -----------------------------------*- C++ -*-===//
+//===-- HostThreadWindows.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,10 +16,8 @@
 using namespace lldb;
 using namespace lldb_private;
 
-namespace {
-void __stdcall ExitThreadProxy(ULONG_PTR dwExitCode) {
+static void __stdcall ExitThreadProxy(ULONG_PTR dwExitCode) {
   ::ExitThread(dwExitCode);
-}
 }
 
 HostThreadWindows::HostThreadWindows()

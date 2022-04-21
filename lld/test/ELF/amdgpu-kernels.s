@@ -1,5 +1,5 @@
 # REQUIRES: amdgpu
-# RUN: llvm-mc -filetype=obj -triple amdgcn--amdhsa -mcpu=kaveri -mattr=-code-object-v3 %s -o %t.o
+# RUN: llvm-mc -filetype=obj -triple amdgcn--amdhsa -mcpu=kaveri --amdhsa-code-object-version=2 %s -o %t.o
 # RUN: ld.lld -shared %t.o -o %t
 # RUN: llvm-readobj --sections --symbols -l %t | FileCheck %s
 
@@ -34,6 +34,9 @@ kernel1:
 # CHECK: ]
 # CHECK: }
 
+# CHECK: ProgramHeader {
+# CHECK:   Type: PT_LOAD
+
 # CHECK: Symbol {
 # CHECK: Name: kernel0
 # CHECK: Value:
@@ -50,9 +53,4 @@ kernel1:
 # CHECK: Binding: Global
 # CHECK: Type: AMDGPU_HSA_KERNEL
 # CHECK: Section: .text
-# CHECK: }
-
-# CHECK: ProgramHeader {
-# CHECK: Type: PT_LOAD
-# CHECK: VirtualAddress:
 # CHECK: }

@@ -1,16 +1,18 @@
-// RUN: %clang -target i386-unknown-unknown -### -S -O0 -Os %s -o %t.s -fverbose-asm -funwind-tables -fvisibility=hidden 2>&1 | FileCheck -check-prefix=I386 %s
+// RUN: %clang -target i386-unknown-unknown -### -S -O0 -Os %s -o %t.s -fverbose-asm -fvisibility=hidden 2>&1 | FileCheck -check-prefix=I386 %s
 // I386: "-triple" "i386-unknown-unknown"
 // I386: "-S"
 // I386: "-disable-free"
 // I386: "-mrelocation-model" "static"
-// I386: "-mdisable-fp-elim"
-// I386: "-masm-verbose"
-// I386: "-munwind-tables"
+// I386: "-mframe-pointer=all"
+// I386: "-funwind-tables=2"
 // I386: "-Os"
 // I386: "-fvisibility"
 // I386: "hidden"
 // I386: "-o"
 // I386: clang-translation
+
+// RUN: %clang -target i386-unknown-unknown -### -S %s -fasynchronous-unwind-tables -fno-unwind-tables 2>&1 | FileCheck --check-prefix=UNWIND-TABLES %s
+// UNWIND-TABLES: "-funwind-tables=2"
 
 // RUN: %clang -target i386-apple-darwin9 -### -S %s -o %t.s 2>&1 | \
 // RUN: FileCheck -check-prefix=YONAH %s
@@ -76,7 +78,7 @@
 
 // RUN: %clang -target arm64-apple-ios10 -### -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-APPLE %s
-// ARM64-APPLE: -munwind-table
+// ARM64-APPLE: -funwind-tables=2
 
 // RUN: %clang -target arm64-apple-ios10 -### -ffreestanding -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-FREESTANDING-APPLE %s
@@ -84,7 +86,7 @@
 // RUN: %clang -target arm64-apple-ios10 -### -fno-unwind-tables -ffreestanding -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-FREESTANDING-APPLE %s
 //
-// ARM64-FREESTANDING-APPLE-NOT: -munwind-table
+// ARM64-FREESTANDING-APPLE-NOT: -funwind-tables
 
 // RUN: %clang -target arm64-apple-ios10 -### -funwind-tables -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-EXPLICIT-UWTABLE-APPLE %s
@@ -92,15 +94,15 @@
 // RUN: %clang -target arm64-apple-ios10 -### -ffreestanding -funwind-tables -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-EXPLICIT-UWTABLE-APPLE %s
 //
-// ARM64-EXPLICIT-UWTABLE-APPLE: -munwind-table
+// ARM64-EXPLICIT-UWTABLE-APPLE: -funwind-tables
 
 // RUN: %clang -target arm64-apple-ios10 -fno-exceptions -### -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-APPLE-EXCEP %s
-// ARM64-APPLE-EXCEP-NOT: -munwind-table
+// ARM64-APPLE-EXCEP-NOT: -funwind-tables
 
 // RUN: %clang -target armv7k-apple-watchos4.0 -### -S %s -arch armv7k 2>&1 | \
 // RUN: FileCheck -check-prefix=ARMV7K-APPLE %s
-// ARMV7K-APPLE: -munwind-table
+// ARMV7K-APPLE: -funwind-tables
 
 // RUN: %clang -target arm-linux -### -S %s -march=armv5e 2>&1 | \
 // RUN: FileCheck -check-prefix=ARMV5E %s
@@ -108,15 +110,37 @@
 // ARMV5E: "-cc1"
 // ARMV5E: "-target-cpu" "arm1022e"
 
-// RUN: %clang -target arm-linux -mtp=cp15 -### -S %s -arch armv7 2>&1 | \
+// RUN: %clang -target armv7-linux -mtp=cp15 -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=ARMv7_THREAD_POINTER-HARD %s
 // ARMv7_THREAD_POINTER-HARD: "-target-feature" "+read-tp-hard"
 
-// RUN: %clang -target arm-linux -mtp=soft -### -S %s -arch armv7 2>&1 | \
+// RUN: %clang -target armv6t2-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// RUN: %clang -target thumbv6t2-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// RUN: %clang -target armv6k-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// RUN: %clang -target armv6-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// RUN: %clang -target armv5t-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// ARM_THREAD_POINTER-HARD: "-target-feature" "+read-tp-hard"
+
+// RUN: %clang -target armv5t-linux -mtp=cp15 -x assembler -### %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARMv5_THREAD_POINTER_ASSEMBLER %s
+// ARMv5_THREAD_POINTER_ASSEMBLER-NOT: hardware TLS register is not supported for the armv5 sub-architecture
+
+// RUN: %clang -target armv6-linux -mthumb -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=THUMBv6_THREAD_POINTER_UNSUPP %s
+// RUN: %clang -target thumbv6-linux -mthumb -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=THUMBv6_THREAD_POINTER_UNSUPP %s
+// THUMBv6_THREAD_POINTER_UNSUPP: hardware TLS register is not supported for the thumbv6 sub-architecture
+
+// RUN: %clang -target armv7-linux -mtp=soft -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=ARMv7_THREAD_POINTER_SOFT %s
 // ARMv7_THREAD_POINTER_SOFT-NOT: "-target-feature" "+read-tp-hard"
 
-// RUN: %clang -target arm-linux -### -S %s -arch armv7 2>&1 | \
+// RUN: %clang -target armv7-linux -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=ARMv7_THREAD_POINTER_NON %s
 // ARMv7_THREAD_POINTER_NON-NOT: "-target-feature" "+read-tp-hard"
 
@@ -167,12 +191,6 @@
 // PPCPWR8: clang
 // PPCPWR8: "-cc1"
 // PPCPWR8: "-target-cpu" "pwr8"
-
-// RUN: %clang -target powerpc64-unknown-linux-gnu \
-// RUN: -### -S %s -mcpu=a2q 2>&1 | FileCheck -check-prefix=PPCA2Q %s
-// PPCA2Q: clang
-// PPCA2Q: "-cc1"
-// PPCA2Q: "-target-cpu" "a2q"
 
 // RUN: %clang -target powerpc64-unknown-linux-gnu \
 // RUN: -### -S %s -mcpu=630 2>&1 | FileCheck -check-prefix=PPC630 %s
@@ -277,6 +295,18 @@
 // PPC64NS: "-target-cpu" "ppc64"
 
 // RUN: %clang -target powerpc-fsl-linux -### -S %s \
+// RUN: -mcpu=e500 2>&1 | FileCheck -check-prefix=PPCE500 %s
+// PPCE500: clang
+// PPCE500: "-cc1"
+// PPCE500: "-target-cpu" "e500"
+
+// RUN: %clang -target powerpc-fsl-linux -### -S %s \
+// RUN: -mcpu=8548 2>&1 | FileCheck -check-prefix=PPC8548 %s
+// PPC8548: clang
+// PPC8548: "-cc1"
+// PPC8548: "-target-cpu" "e500"
+
+// RUN: %clang -target powerpc-fsl-linux -### -S %s \
 // RUN: -mcpu=e500mc 2>&1 | FileCheck -check-prefix=PPCE500MC %s
 // PPCE500MC: clang
 // PPCE500MC: "-cc1"
@@ -294,7 +324,7 @@
 // AMD64: "-cc1"
 // AMD64: "-triple"
 // AMD64: "amd64-unknown-openbsd5.2"
-// AMD64: "-munwind-tables"
+// AMD64: "-funwind-tables=2"
 
 // RUN: %clang -target amd64--mingw32 -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=AMD64-MINGW %s
@@ -302,7 +332,7 @@
 // AMD64-MINGW: "-cc1"
 // AMD64-MINGW: "-triple"
 // AMD64-MINGW: "amd64-unknown-windows-gnu"
-// AMD64-MINGW: "-munwind-tables"
+// AMD64-MINGW: "-funwind-tables=2"
 
 // RUN: %clang -target i686-linux-android -### -S %s 2>&1 \
 // RUN:        --sysroot=%S/Inputs/basic_android_tree/sysroot \
@@ -318,6 +348,7 @@
 // ANDROID-X86_64: "-target-cpu" "x86-64"
 // ANDROID-X86_64: "-target-feature" "+sse4.2"
 // ANDROID-X86_64: "-target-feature" "+popcnt"
+// ANDROID-X86_64: "-target-feature" "+cx16"
 
 // RUN: %clang -target mips-linux-gnu -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=MIPS %s

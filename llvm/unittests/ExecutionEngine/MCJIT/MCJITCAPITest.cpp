@@ -188,9 +188,10 @@ protected:
     LLVMSetTarget(Module, HostTriple.c_str());
     
     LLVMTypeRef stackmapParamTypes[] = { LLVMInt64Type(), LLVMInt32Type() };
+    LLVMTypeRef stackmapTy =
+        LLVMFunctionType(LLVMVoidType(), stackmapParamTypes, 2, 1);
     LLVMValueRef stackmap = LLVMAddFunction(
-      Module, "llvm.experimental.stackmap",
-      LLVMFunctionType(LLVMVoidType(), stackmapParamTypes, 2, 1));
+      Module, "llvm.experimental.stackmap", stackmapTy);
     LLVMSetLinkage(stackmap, LLVMExternalLinkage);
     
     Function = LLVMAddFunction(Module, "simple_function",
@@ -203,7 +204,7 @@ protected:
       LLVMConstInt(LLVMInt64Type(), 0, 0), LLVMConstInt(LLVMInt32Type(), 5, 0),
       LLVMConstInt(LLVMInt32Type(), 42, 0)
     };
-    LLVMBuildCall(builder, stackmap, stackmapArgs, 3, "");
+    LLVMBuildCall2(builder, stackmapTy, stackmap, stackmapArgs, 3, "");
     LLVMBuildRet(builder, LLVMConstInt(LLVMInt32Type(), 42, 0));
     
     LLVMVerifyModule(Module, LLVMAbortProcessAction, &Error);
@@ -230,7 +231,8 @@ protected:
         LLVMBuilderRef Builder = LLVMCreateBuilder();
         LLVMPositionBuilderAtEnd(Builder, Entry);
         
-        LLVMValueRef IntVal = LLVMBuildLoad(Builder, GlobalVar, "intVal");
+        LLVMValueRef IntVal =
+            LLVMBuildLoad2(Builder, LLVMInt32Type(), GlobalVar, "intVal");
         LLVMBuildRet(Builder, IntVal);
         
         LLVMVerifyModule(Module, LLVMAbortProcessAction, &Error);
@@ -285,7 +287,6 @@ protected:
   
   void buildAndRunPasses() {
     LLVMPassManagerRef pass = LLVMCreatePassManager();
-    LLVMAddConstantPropagationPass(pass);
     LLVMAddInstructionCombiningPass(pass);
     LLVMRunPassManager(pass, Module);
     LLVMDisposePassManager(pass);
@@ -425,9 +426,15 @@ TEST_F(MCJITCAPITest, stackmap_creates_compact_unwind_on_darwin) {
     didAllocateCompactUnwindSection);
 }
 
-TEST_F(MCJITCAPITest, reserve_allocation_space) {
+#if defined(__APPLE__) && defined(__aarch64__)
+// FIXME: Figure out why this fails on mac/arm, PR46647
+#define MAYBE_reserve_allocation_space DISABLED_reserve_allocation_space
+#else
+#define MAYBE_reserve_allocation_space reserve_allocation_space
+#endif
+TEST_F(MCJITCAPITest, MAYBE_reserve_allocation_space) {
   SKIP_UNSUPPORTED_PLATFORM;
-  
+
   TestReserveAllocationSpaceMemoryManager* MM = new TestReserveAllocationSpaceMemoryManager();
   
   buildModuleWithCodeAndData();
@@ -484,7 +491,8 @@ TEST_F(MCJITCAPITest, addGlobalMapping) {
   LLVMBasicBlockRef Entry = LLVMAppendBasicBlock(Function, "");
   LLVMBuilderRef Builder = LLVMCreateBuilder();
   LLVMPositionBuilderAtEnd(Builder, Entry);
-  LLVMValueRef RetVal = LLVMBuildCall(Builder, MappedFn, nullptr, 0, "");
+  LLVMValueRef RetVal =
+      LLVMBuildCall2(Builder, FunctionType, MappedFn, nullptr, 0, "");
   LLVMBuildRet(Builder, RetVal);
   LLVMDisposeBuilder(Builder);
 

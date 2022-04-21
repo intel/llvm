@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INCLUDE_FIXER_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INCLUDE_FIXER_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INCLUDEFIXER_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INCLUDEFIXER_H
 
 #include "Diagnostics.h"
 #include "Headers.h"
@@ -17,8 +17,6 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/ExternalSemaSource.h"
-#include "clang/Sema/Sema.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/Optional.h"
@@ -40,6 +38,7 @@ public:
         IndexRequestLimit(IndexRequestLimit) {}
 
   /// Returns include insertions that can potentially recover the diagnostic.
+  /// If Info is a note and fixes are returned, they should *replace* the note.
   std::vector<Fix> fix(DiagnosticsEngine::Level DiagLevel,
                        const clang::Diagnostic &Info) const;
 
@@ -55,12 +54,13 @@ private:
   /// Generates header insertion fixes for all symbols. Fixes are deduplicated.
   std::vector<Fix> fixesForSymbols(const SymbolSlab &Syms) const;
 
+  llvm::Optional<Fix> insertHeader(llvm::StringRef Name,
+                                   llvm::StringRef Symbol = "") const;
+
   struct UnresolvedName {
     std::string Name;   // E.g. "X" in foo::X.
     SourceLocation Loc; // Start location of the unresolved name.
-    // Lazily get the possible scopes of the unresolved name. `Sema` must be
-    // alive when this is called.
-    std::function<std::vector<std::string>()> GetScopes;
+    std::vector<std::string> Scopes; // Namespace scopes we should search in.
   };
 
   /// Records the last unresolved name seen by Sema.
@@ -97,4 +97,4 @@ private:
 } // namespace clangd
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_INCLUDE_FIXER_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_INCLUDEFIXER_H

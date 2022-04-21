@@ -19,11 +19,11 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstdint>
@@ -64,19 +64,15 @@ class BranchRelaxation : public MachineFunctionPass {
     /// Compute the offset immediately following this block. \p MBB is the next
     /// block.
     unsigned postOffset(const MachineBasicBlock &MBB) const {
-      unsigned PO = Offset + Size;
-      unsigned Align = MBB.getAlignment();
-      if (Align == 0)
-        return PO;
-
-      unsigned AlignAmt = 1 << Align;
-      unsigned ParentAlign = MBB.getParent()->getAlignment();
-      if (Align <= ParentAlign)
-        return PO + OffsetToAlignment(PO, AlignAmt);
+      const unsigned PO = Offset + Size;
+      const Align Alignment = MBB.getAlignment();
+      const Align ParentAlign = MBB.getParent()->getAlignment();
+      if (Alignment <= ParentAlign)
+        return alignTo(PO, Alignment);
 
       // The alignment of this MBB is larger than the function's alignment, so we
       // can't tell whether or not it will insert nops. Assume that it will.
-      return PO + AlignAmt + OffsetToAlignment(PO, AlignAmt);
+      return alignTo(PO, Alignment) + Alignment.value() - ParentAlign.value();
     }
   };
 
@@ -128,9 +124,7 @@ void BranchRelaxation::verify() {
 #ifndef NDEBUG
   unsigned PrevNum = MF->begin()->getNumber();
   for (MachineBasicBlock &MBB : *MF) {
-    unsigned Align = MBB.getAlignment();
-    unsigned Num = MBB.getNumber();
-    assert(BlockInfo[Num].Offset % (1u << Align) == 0);
+    const unsigned Num = MBB.getNumber();
     assert(!Num || BlockInfo[PrevNum].postOffset(MBB) <= BlockInfo[Num].Offset);
     assert(BlockInfo[Num].Size == computeBlockSize(MBB));
     PrevNum = Num;
@@ -143,7 +137,7 @@ void BranchRelaxation::verify() {
 LLVM_DUMP_METHOD void BranchRelaxation::dumpBBs() {
   for (auto &MBB : *MF) {
     const BasicBlockInfo &BBI = BlockInfo[MBB.getNumber()];
-    dbgs() << format("%bb.%u\toffset=%08x\t", MBB.getNumber(), BBI.Offset)
+    dbgs() << format("%%bb.%u\toffset=%08x\t", MBB.getNumber(), BBI.Offset)
            << format("size=%#x\n", BBI.Size);
   }
 }
@@ -196,10 +190,9 @@ unsigned BranchRelaxation::getInstrOffset(const MachineInstr &MI) const {
 
 void BranchRelaxation::adjustBlockOffsets(MachineBasicBlock &Start) {
   unsigned PrevNum = Start.getNumber();
-  for (auto &MBB : make_range(MachineFunction::iterator(Start), MF->end())) {
+  for (auto &MBB :
+       make_range(std::next(MachineFunction::iterator(Start)), MF->end())) {
     unsigned Num = MBB.getNumber();
-    if (!Num) // block zero is never changed from offset zero.
-      continue;
     // Get the offset and known bits at the end of the layout predecessor.
     // Include the alignment of the current block.
     BlockInfo[Num].Offset = BlockInfo[PrevNum].postOffset(MBB);
@@ -251,8 +244,7 @@ MachineBasicBlock *BranchRelaxation::splitBlockBeforeInstr(MachineInstr &MI,
 
   // Cleanup potential unconditional branch to successor block.
   // Note that updateTerminator may change the size of the blocks.
-  NewBB->updateTerminator();
-  OrigBB->updateTerminator();
+  OrigBB->updateTerminator(NewBB);
 
   // Figure out how large the OrigBB is.  As the first half of the original
   // block, it cannot contain a tablejump.  The size includes
@@ -470,10 +462,48 @@ bool BranchRelaxation::fixupUnconditionalBranch(MachineInstr &MI) {
 
   DebugLoc DL = MI.getDebugLoc();
   MI.eraseFromParent();
-  BlockInfo[BranchBB->getNumber()].Size += TII->insertIndirectBranch(
-    *BranchBB, *DestBB, DL, DestOffset - SrcOffset, RS.get());
 
+  // Create the optional restore block and, initially, place it at the end of
+  // function. That block will be placed later if it's used; otherwise, it will
+  // be erased.
+  MachineBasicBlock *RestoreBB = createNewBlockAfter(MF->back());
+
+  TII->insertIndirectBranch(*BranchBB, *DestBB, *RestoreBB, DL,
+                            DestOffset - SrcOffset, RS.get());
+
+  BlockInfo[BranchBB->getNumber()].Size = computeBlockSize(*BranchBB);
   adjustBlockOffsets(*MBB);
+
+  // If RestoreBB is required, try to place just before DestBB.
+  if (!RestoreBB->empty()) {
+    // TODO: For multiple far branches to the same destination, there are
+    // chances that some restore blocks could be shared if they clobber the
+    // same registers and share the same restore sequence. So far, those
+    // restore blocks are just duplicated for each far branch.
+    assert(!DestBB->isEntryBlock());
+    MachineBasicBlock *PrevBB = &*std::prev(DestBB->getIterator());
+    if (auto *FT = PrevBB->getFallThrough()) {
+      assert(FT == DestBB);
+      TII->insertUnconditionalBranch(*PrevBB, FT, DebugLoc());
+      // Recalculate the block size.
+      BlockInfo[PrevBB->getNumber()].Size = computeBlockSize(*PrevBB);
+    }
+    // Now, RestoreBB could be placed directly before DestBB.
+    MF->splice(DestBB->getIterator(), RestoreBB->getIterator());
+    // Update successors and predecessors.
+    RestoreBB->addSuccessor(DestBB);
+    BranchBB->replaceSuccessor(DestBB, RestoreBB);
+    if (TRI->trackLivenessAfterRegAlloc(*MF))
+      computeAndAddLiveIns(LiveRegs, *RestoreBB);
+    // Compute the restore block size.
+    BlockInfo[RestoreBB->getNumber()].Size = computeBlockSize(*RestoreBB);
+    // Update the offset starting from the previous block.
+    adjustBlockOffsets(*PrevBB);
+  } else {
+    // Remove restore block if it's not required.
+    MF->erase(RestoreBB);
+  }
+
   return true;
 }
 
@@ -482,9 +512,7 @@ bool BranchRelaxation::relaxBranchInstructions() {
 
   // Relaxing branches involves creating new basic blocks, so re-eval
   // end() for termination.
-  for (MachineFunction::iterator I = MF->begin(); I != MF->end(); ++I) {
-    MachineBasicBlock &MBB = *I;
-
+  for (MachineBasicBlock &MBB : *MF) {
     // Empty block?
     MachineBasicBlock::iterator Last = MBB.getLastNonDebugInstr();
     if (Last == MBB.end())
@@ -514,25 +542,31 @@ bool BranchRelaxation::relaxBranchInstructions() {
       Next = std::next(J);
       MachineInstr &MI = *J;
 
-      if (MI.isConditionalBranch()) {
-        MachineBasicBlock *DestBB = TII->getBranchDestBlock(MI);
-        if (!isBlockInRange(MI, *DestBB)) {
-          if (Next != MBB.end() && Next->isConditionalBranch()) {
-            // If there are multiple conditional branches, this isn't an
-            // analyzable block. Split later terminators into a new block so
-            // each one will be analyzable.
+      if (!MI.isConditionalBranch())
+        continue;
 
-            splitBlockBeforeInstr(*Next, DestBB);
-          } else {
-            fixupConditionalBranch(MI);
-            ++NumConditionalRelaxed;
-          }
+      if (MI.getOpcode() == TargetOpcode::FAULTING_OP)
+        // FAULTING_OP's destination is not encoded in the instruction stream
+        // and thus never needs relaxed.
+        continue;
 
-          Changed = true;
+      MachineBasicBlock *DestBB = TII->getBranchDestBlock(MI);
+      if (!isBlockInRange(MI, *DestBB)) {
+        if (Next != MBB.end() && Next->isConditionalBranch()) {
+          // If there are multiple conditional branches, this isn't an
+          // analyzable block. Split later terminators into a new block so
+          // each one will be analyzable.
 
-          // This may have modified all of the terminators, so start over.
-          Next = MBB.getFirstTerminator();
+          splitBlockBeforeInstr(*Next, DestBB);
+        } else {
+          fixupConditionalBranch(MI);
+          ++NumConditionalRelaxed;
         }
+
+        Changed = true;
+
+        // This may have modified all of the terminators, so start over.
+        Next = MBB.getFirstTerminator();
       }
     }
   }

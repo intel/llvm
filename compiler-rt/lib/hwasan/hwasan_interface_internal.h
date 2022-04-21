@@ -16,6 +16,7 @@
 
 #include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_platform_limits_posix.h"
+#include <link.h>
 
 extern "C" {
 
@@ -24,6 +25,14 @@ void __hwasan_init_static();
 
 SANITIZER_INTERFACE_ATTRIBUTE
 void __hwasan_init();
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_library_loaded(ElfW(Addr) base, const ElfW(Phdr) * phdr,
+                             ElfW(Half) phnum);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_library_unloaded(ElfW(Addr) base, const ElfW(Phdr) * phdr,
+                               ElfW(Half) phnum);
 
 using __sanitizer::uptr;
 using __sanitizer::sptr;
@@ -103,6 +112,10 @@ SANITIZER_INTERFACE_ATTRIBUTE
 void __hwasan_tag_mismatch(uptr addr, u8 ts);
 
 SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_tag_mismatch4(uptr addr, uptr access_info, uptr *registers_frame,
+                            size_t outsize);
+
+SANITIZER_INTERFACE_ATTRIBUTE
 u8 __hwasan_generate_tag();
 
 // Returns the offset of the first tag mismatch or -1 if the whole range is
@@ -156,59 +169,14 @@ SANITIZER_INTERFACE_ATTRIBUTE
 void __hwasan_print_memory_usage();
 
 SANITIZER_INTERFACE_ATTRIBUTE
-int __sanitizer_posix_memalign(void **memptr, uptr alignment, uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer_memalign(uptr alignment, uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer_aligned_alloc(uptr alignment, uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer___libc_memalign(uptr alignment, uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer_valloc(uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer_pvalloc(uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void __sanitizer_free(void *ptr);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void __sanitizer_cfree(void *ptr);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-uptr __sanitizer_malloc_usable_size(const void *ptr);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-__hwasan::__sanitizer_struct_mallinfo __sanitizer_mallinfo();
-
-SANITIZER_INTERFACE_ATTRIBUTE
-int __sanitizer_mallopt(int cmd, int value);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void __sanitizer_malloc_stats(void);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer_calloc(uptr nmemb, uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer_realloc(void *ptr, uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer_reallocarray(void *ptr, uptr nmemb, uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void * __sanitizer_malloc(uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
 void *__hwasan_memcpy(void *dst, const void *src, uptr size);
 SANITIZER_INTERFACE_ATTRIBUTE
 void *__hwasan_memset(void *s, int c, uptr n);
 SANITIZER_INTERFACE_ATTRIBUTE
 void *__hwasan_memmove(void *dest, const void *src, uptr n);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_set_error_report_callback(void (*callback)(const char *));
 }  // extern "C"
 
 #endif  // HWASAN_INTERFACE_INTERNAL_H

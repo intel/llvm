@@ -76,21 +76,23 @@ static std::string getExprAsString(const clang::Expr &E,
   Text.erase(
       llvm::remove_if(
           Text,
-          [](char C) { return std::isspace(static_cast<unsigned char>(C)); }),
+          [](char C) { return llvm::isSpace(static_cast<unsigned char>(C)); }),
       Text.end());
   return Text;
 }
 
 void ParentVirtualCallCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
-      cxxMemberCallExpr(
-          callee(memberExpr(hasDescendant(implicitCastExpr(
-                                hasImplicitDestinationType(pointsTo(
-                                    type(anything()).bind("castToType"))),
-                                hasSourceExpression(cxxThisExpr(hasType(
-                                    type(anything()).bind("thisType")))))))
-                     .bind("member")),
-          callee(cxxMethodDecl(isVirtual()))),
+      traverse(
+          TK_AsIs,
+          cxxMemberCallExpr(
+              callee(memberExpr(hasDescendant(implicitCastExpr(
+                                    hasImplicitDestinationType(pointsTo(
+                                        type(anything()).bind("castToType"))),
+                                    hasSourceExpression(cxxThisExpr(hasType(
+                                        type(anything()).bind("thisType")))))))
+                         .bind("member")),
+              callee(cxxMethodDecl(isVirtual())))),
       this);
 }
 
@@ -135,9 +137,9 @@ void ParentVirtualCallCheck::check(const MatchFinder::MatchResult &Result) {
   assert(Member->getQualifierLoc().getSourceRange().getBegin().isValid());
   auto Diag = diag(Member->getQualifierLoc().getSourceRange().getBegin(),
                    "qualified name '%0' refers to a member overridden "
-                   "in subclass%1; did you mean %2?")
+                   "in %plural{1:subclass|:subclasses}1; did you mean %2?")
               << getExprAsString(*Member, *Result.Context)
-              << (Parents.size() > 1 ? "es" : "") << ParentsStr;
+              << static_cast<unsigned>(Parents.size()) << ParentsStr;
 
   // Propose a fix if there's only one parent class...
   if (Parents.size() == 1 &&

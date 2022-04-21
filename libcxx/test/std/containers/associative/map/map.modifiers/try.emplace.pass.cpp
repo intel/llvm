@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <map>
 
@@ -24,6 +24,8 @@
 #include <map>
 #include <cassert>
 #include <tuple>
+
+#include "test_macros.h"
 
 class Moveable
 {

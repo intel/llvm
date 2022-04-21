@@ -7,8 +7,8 @@
 
 #include "benchmark/benchmark.h"
 
-#include "CartesianBenchmarks.hpp"
-#include "GenerateInput.hpp"
+#include "CartesianBenchmarks.h"
+#include "GenerateInput.h"
 
 namespace {
 
@@ -30,7 +30,7 @@ struct TestIntBase {
   static std::vector<IntT> generateInput(size_t size) {
     std::vector<IntT> Res(size);
     std::generate(Res.begin(), Res.end(),
-                  [] { return getRandomInteger<IntT>(); });
+                  [] { return getRandomInteger<IntT>(0, std::numeric_limits<IntT>::max()); });
     return Res;
   }
 };

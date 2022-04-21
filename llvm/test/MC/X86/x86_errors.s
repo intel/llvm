@@ -170,6 +170,10 @@ cmpxchg16b (%eax)
 
 // 32: error: unsupported instruction
 // 64: error: unsupported instruction
+{vex} vmovdqu32 %xmm0, %xmm0
+
+// 32: error: unsupported instruction
+// 64: error: unsupported instruction
 {vex2} vmovdqu32 %xmm0, %xmm0
 
 // 32: error: unsupported instruction
@@ -179,3 +183,7 @@ cmpxchg16b (%eax)
 // 32: error: unsupported instruction
 // 64: error: unsupported instruction
 {evex} vmovdqu %xmm0, %xmm0
+
+// 32: 12: error: immediate must be an integer in range [0, 15]
+// 64: 12: error: immediate must be an integer in range [0, 15]
+vpermil2pd $16, %xmm3, %xmm5, %xmm1, %xmm2

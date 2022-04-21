@@ -1,4 +1,4 @@
-; RUN: llc < %s -stackrealign -stack-alignment=32 -mattr=+avx -mtriple=x86_64-apple-darwin10 | FileCheck %s
+; RUN: llc < %s -stackrealign -mattr=+avx -mtriple=x86_64-apple-darwin10 | FileCheck %s
 ; PR11468
 
 define void @f(i64 %sz) uwtable {
@@ -21,7 +21,7 @@ entry:
 ; CHECK: andq $-32, %rsp
 ; CHECK: .cfi_offset %r14, -24
 
-; Restore %rsp from %rbp and subtract the total size of saved regsiters.
+; Restore %rsp from %rbp and subtract the total size of saved registers.
 ; CHECK: leaq -8(%rbp), %rsp
 
 ; Pop saved registers.
@@ -29,5 +29,6 @@ entry:
 ; CHECK: popq %rbp
 }
 
+!llvm.module.flags = !{!1}
 !0 = !{i32 125}
-
+!1 = !{i32 2, !"override-stack-alignment", i32 32}

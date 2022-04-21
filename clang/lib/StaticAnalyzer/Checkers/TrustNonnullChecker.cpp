@@ -87,7 +87,7 @@ public:
 
     if (isNonNullPtr(Call, C))
       if (auto L = Call.getReturnValue().getAs<Loc>())
-        State = State->assume(*L, /*Assumption=*/true);
+        State = State->assume(*L, /*assumption=*/true);
 
     C.addTransition(State);
   }
@@ -106,7 +106,7 @@ public:
         (Msg.getSelector() == SetObjectForKeyedSubscriptSel ||
          Msg.getSelector() == SetObjectForKeySel)) {
       if (auto L = Msg.getArgSVal(1).getAs<Loc>())
-        State = State->assume(*L, /*Assumption=*/true);
+        State = State->assume(*L, /*assumption=*/true);
     }
 
     // Record an implication: index is non-null if the output is non-null.
@@ -252,6 +252,6 @@ void ento::registerTrustNonnullChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<TrustNonnullChecker>(Mgr.getASTContext());
 }
 
-bool ento::shouldRegisterTrustNonnullChecker(const LangOptions &LO) {
+bool ento::shouldRegisterTrustNonnullChecker(const CheckerManager &mgr) {
   return true;
 }

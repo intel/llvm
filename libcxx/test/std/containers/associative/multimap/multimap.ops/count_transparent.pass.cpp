@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <map>
 
@@ -18,10 +18,6 @@
 #include <cassert>
 #include <map>
 #include <utility>
-
-#include "min_allocator.h"
-#include "private_constructor.hpp"
-#include "test_macros.h"
 
 struct Comp {
   using is_transparent = void;

@@ -1,10 +1,11 @@
-; RUN: opt -S -loop-unroll -codegenprepare < %s -domtree -analyze | FileCheck %s
+; REQUIRES: arm-registered-target
+; RUN: opt -S -loop-unroll -codegenprepare < %s -domtree -verify-dom-info | FileCheck %s
 ;
 ; Checks that the dom tree is properly invalidated after an operation that will
 ; invalidate it in CodeGenPrepare. If the domtree isn't properly invalidated,
 ; this will likely segfault, or print badref.
 
-; CHECK-NOT: <badref>
+; CHECK: @f
 
 target datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64"
 target triple = "armv7--linux-gnueabihf"
@@ -29,7 +30,7 @@ for.body:
   br i1 %exitcond, label %for.cond.cleanup, label %for.body, !llvm.loop !3
 }
 
-attributes #0 = { norecurse nounwind readnone "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a8" "target-features"="+dsp,+neon,+vfp3" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind readnone "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a8" "target-features"="+dsp,+neon,+vfp3" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0, !1}
 !llvm.ident = !{!2}

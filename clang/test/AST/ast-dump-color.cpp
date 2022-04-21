@@ -32,7 +32,7 @@ struct Invalid {
 //CHECK: {{^}}[[GREEN:.\[0;1;32m]]TranslationUnitDecl[[RESET:.\[0m]][[Yellow:.\[0;33m]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]<invalid sloc>[[RESET]]> [[Yellow]]<invalid sloc>[[RESET]]{{$}}
 //CHECK: {{^}}[[Blue:.\[0;34m]]|-[[RESET]][[GREEN]]TypedefDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]<invalid sloc>[[RESET]]> [[Yellow]]<invalid sloc>[[RESET]] implicit[[CYAN:.\[0;1;36m]] __int128_t[[RESET]] [[Green:.\[0;32m]]'__int128'[[RESET]]{{$}}
 //CHECK: {{^}}[[Blue]]|-[[RESET]][[GREEN]]TypedefDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]<invalid sloc>[[RESET]]> [[Yellow]]<invalid sloc>[[RESET]] implicit[[CYAN]] __uint128_t[[RESET]] [[Green]]'unsigned __int128'[[RESET]]{{$}}
-//CHECK: {{^}}[[Blue]]|-[[RESET]][[GREEN]]TypedefDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]<invalid sloc>[[RESET]]> [[Yellow]]<invalid sloc>[[RESET]] implicit[[CYAN]] __builtin_va_list[[RESET]] [[Green]]'__va_list_tag [1]'[[RESET]]{{$}}
+//CHECK: {{^}}[[Blue]]|-[[RESET]][[GREEN]]TypedefDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]<invalid sloc>[[RESET]]> [[Yellow]]<invalid sloc>[[RESET]] implicit[[CYAN]] __builtin_va_list[[RESET]] [[Green]]'__va_list_tag[1]'[[RESET]]{{$}}
 //CHECK: {{^}}[[Blue]]|-[[RESET]][[GREEN]]VarDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]{{.*}}ast-dump-color.cpp:6:1[[RESET]], [[Yellow]]col:5[[RESET]]> [[Yellow]]col:5[[RESET]][[CYAN]] Test[[RESET]] [[Green]]'int'[[RESET]]
 //CHECK: {{^}}[[Blue]]| |-[[RESET]][[BLUE:.\[0;1;34m]]UnusedAttr[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:25[[RESET]]> unused{{$}}
 //CHECK: {{^}}[[Blue]]| `-[[RESET]][[Blue]]FullComment[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:4:4[[RESET]], [[Yellow]]line:5:8[[RESET]]>{{$}}
@@ -50,12 +50,14 @@ struct Invalid {
 //CHECK: {{^}}[[Blue]]| |   `-[[RESET]][[MAGENTA]]CompoundStmt[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:14[[RESET]], [[Yellow]]line:15:3[[RESET]]>{{$}}
 //CHECK: {{^}}[[Blue]]| |     |-[[RESET]][[MAGENTA]]CaseStmt[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:11:3[[RESET]], [[Yellow]]line:12:27[[RESET]]>{{$}}
 //CHECK: {{^}}[[Blue]]| |     | |-[[RESET]][[MAGENTA]]ConstantExpr[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:11:8[[RESET]]> [[Green]]'int'[[RESET]][[Cyan]][[RESET]][[Cyan]][[RESET]]{{$}}
+//CHECK: {{^}}[[Blue]]| |     | | |-value: [[RESET]][[Cyan]]Int [[CYAN]]1[[RESET]][[RESET]]{{$}}
 //CHECK: {{^}}[[Blue]]| |     | | `-[[RESET]][[MAGENTA]]IntegerLiteral[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:8[[RESET]]> [[Green]]'int'[[RESET]][[Cyan]][[RESET]][[Cyan]][[RESET]][[CYAN]] 1[[RESET]]{{$}}
 //CHECK: {{^}}[[Blue]]| |     | `-[[RESET]][[MAGENTA]]AttributedStmt[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:12:5[[RESET]], [[Yellow]]col:27[[RESET]]>{{$}}
 //CHECK: {{^}}[[Blue]]| |     |   |-[[RESET]][[BLUE]]FallThroughAttr[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:7[[RESET]], [[Yellow]]col:14[[RESET]]>{{$}}
 //CHECK: {{^}}[[Blue]]| |     |   `-[[RESET]][[MAGENTA]]NullStmt[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:27[[RESET]]>{{$}}
 //CHECK: {{^}}[[Blue]]| |     `-[[RESET]][[MAGENTA]]CaseStmt[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:13:3[[RESET]], [[Yellow]]line:14:5[[RESET]]>{{$}}
 //CHECK: {{^}}[[Blue]]| |       |-[[RESET]][[MAGENTA]]ConstantExpr[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:13:8[[RESET]]> [[Green]]'int'[[RESET]][[Cyan]][[RESET]][[Cyan]][[RESET]]{{$}}
+//CHECK: {{^}}[[Blue]]| |       | |-value: [[RESET]][[Cyan]]Int [[CYAN]]2[[RESET]][[RESET]]{{$}}
 //CHECK: {{^}}[[Blue]]| |       | `-[[RESET]][[MAGENTA]]IntegerLiteral[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:8[[RESET]]> [[Green]]'int'[[RESET]][[Cyan]][[RESET]][[Cyan]][[RESET]][[CYAN]] 2[[RESET]]{{$}}
 //CHECK: {{^}}[[Blue]]| |       `-[[RESET]][[MAGENTA]]NullStmt[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:14:5[[RESET]]>{{$}}
 //CHECK: {{^}}[[Blue]]| `-[[RESET]][[Blue]]FullComment[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:8:4[[RESET]], [[Yellow]]col:11[[RESET]]>{{$}}
@@ -86,7 +88,7 @@ struct Invalid {
 //CHECK: {{^}}[[Blue]]| `-[[RESET]][[MAGENTA]]CXXConstructExpr[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:8[[RESET]]> [[Green]]'class Mutex':'Mutex'[[RESET]][[Cyan]][[RESET]][[Cyan]][[RESET]] [[Green]]'void () noexcept'[[RESET]]{{$}}
 //CHECK: {{^}}[[Blue]]|-[[RESET]][[GREEN]]VarDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:26:1[[RESET]], [[Yellow]]col:5[[RESET]]> [[Yellow]]col:5[[RESET]][[CYAN]] TestExpr[[RESET]] [[Green]]'int'[[RESET]]
 //CHECK: {{^}}[[Blue]]| `-[[RESET]][[BLUE]]GuardedByAttr[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:29[[RESET]], [[Yellow]]col:43[[RESET]]>{{$}}
-//CHECK: {{^}}[[Blue]]|   `-[[RESET]][[MAGENTA]]DeclRefExpr[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:40[[RESET]]> [[Green]]'class Mutex':'Mutex'[[RESET]][[Cyan]] lvalue[[RESET]][[Cyan]][[RESET]] [[GREEN]]Var[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]][[CYAN]] 'mu1'[[RESET]] [[Green]]'class Mutex':'Mutex'[[RESET]]{{$}}
+//CHECK: {{^}}[[Blue]]|   `-[[RESET]][[MAGENTA]]DeclRefExpr[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:40[[RESET]]> [[Green]]'class Mutex':'Mutex'[[RESET]][[Cyan]] lvalue[[RESET]][[Cyan]][[RESET]] [[GREEN]]Var[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]][[CYAN]] 'mu1'[[RESET]] [[Green]]'class Mutex':'Mutex'[[RESET]] non_odr_use_unevaluated{{$}}
 //CHECK: {{^}}[[Blue]]|-[[RESET]][[GREEN]]CXXRecordDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:28:1[[RESET]], [[Yellow]]line:30:1[[RESET]]> [[Yellow]]line:28:8[[RESET]] struct[[CYAN]] Invalid[[RESET]] definition
 //CHECK: {{^}}[[Blue]]| |-[[RESET]][[GREEN]]CXXRecordDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]col:1[[RESET]], [[Yellow]]col:8[[RESET]]> [[Yellow]]col:8[[RESET]] implicit referenced struct[[CYAN]] Invalid[[RESET]]
 //CHECK: {{^}}[[Blue]]| |-[[RESET]][[GREEN]]CXXConstructorDecl[[RESET]][[Yellow]] 0x{{[0-9a-fA-F]*}}[[RESET]] <[[Yellow]]line:29:3[[RESET]], [[Yellow]]col:42[[RESET]]> [[Yellow]]col:29[[RESET]] invalid[[CYAN]] Invalid[[RESET]] [[Green]]'void (int)'[[RESET]]

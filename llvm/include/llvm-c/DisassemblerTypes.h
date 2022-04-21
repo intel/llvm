@@ -7,8 +7,8 @@
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*/
 
-#ifndef LLVM_DISASSEMBLER_TYPES_H
-#define LLVM_DISASSEMBLER_TYPES_H
+#ifndef LLVM_C_DISASSEMBLERTYPES_H
+#define LLVM_C_DISASSEMBLERTYPES_H
 
 #include "llvm-c/DataTypes.h"
 #ifdef __cplusplus
@@ -16,6 +16,12 @@
 #else
 #include <stddef.h>
 #endif
+
+/**
+ * @addtogroup LLVMCDisassembler
+ *
+ * @{
+ */
 
 /**
  * An opaque reference to a disassembler context.
@@ -156,5 +162,9 @@ typedef const char *(*LLVMSymbolLookupCallback)(void *DisInfo,
 
 /* The output reference is to a C++ symbol name. */
 #define LLVMDisassembler_ReferenceType_DeMangled_Name 9
+
+/**
+ * @}
+ */
 
 #endif

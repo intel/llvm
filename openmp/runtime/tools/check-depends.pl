@@ -23,7 +23,7 @@ my $target_os;
 my $target_arch;
 
 # --------------------------------------------------------------------------------------------------
-# Ouput parse error.
+# Output parse error.
 #     $tool -- Name of tool.
 #     @bulk -- Output of the tool.
 #     $n    -- Number of line caused parse error.
@@ -90,7 +90,7 @@ sub get_deps_ldd($) {
 #  0x0000000000000005 (STRTAB)             0x9350
 #  ...
 #
-# Note: In contrast to ldd, readlef shows only direct dependencies.
+# Note: In contrast to ldd, readelf shows only direct dependencies.
 #
 sub get_deps_readelf($) {
 
@@ -131,7 +131,7 @@ sub get_deps_readelf($) {
     # Parse body.
     while ( $i < @bulk ) {
         my $line = $bulk[ $i ];
-        if ( $line !~ m{^\s*0x[0-9a-f]+\s+\(([_A-Z0-9]+)\)\s+(.*)\s*$}i ) {
+        if ( $line !~ m{^\s*0x[0-9a-f]+\s+\(?([_A-Z0-9]+)\)?\s+(.*)\s*$}i ) {
             parse_error( $tool, @bulk, $i );
         }; # if
         my ( $type, $value ) = ( $1, $2 );
@@ -406,11 +406,11 @@ B<check-depends.pl> I<OPTIONS>... I<library>
 
 C<check-depends.pl> finds direct dependencies for a specified library. List of actual dependencies
 is sorted alphabetically and printed. If list of expected dependencies is specified, the scripts
-checks the library has only allowed dependencies. In case of not expected depndencies the script
+checks the library has only allowed dependencies. In case of not expected dependencies. the script
 issues error message and exits with non-zero code.
 
-Linux* OS and OS X*: The script finds dependencies only for dymamic libraries. Windows* OS: The script
-finds dependencies for either static or dymamic libraries.
+Linux* OS and OS X*: The script finds dependencies only for dynamic libraries. Windows* OS: The script
+finds dependencies for either static or dynamic libraries.
 
 The script uses external tools. On Linux* OS, it runs F<readelf>, on OS X* -- F<otool> (or F<otool64>),
 on Windows* OS -- F<link>.

@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===-- glue_numeric_defs.h -----------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,6 +13,9 @@
 #include <iterator>
 
 #include "execution_defs.h"
+#include "pstl_config.h"
+
+_PSTL_HIDE_FROM_ABI_PUSH
 
 namespace std
 {
@@ -57,7 +60,7 @@ exclusive_scan(_ExecutionPolicy&& __exec, _ForwardIterator1 __first, _ForwardIte
                _ForwardIterator2 __result, _Tp __init);
 
 template <class _ExecutionPolicy, class _ForwardIterator1, class _ForwardIterator2, class _Tp, class _BinaryOperation>
-_ForwardIterator2
+__pstl::__internal::__enable_if_execution_policy<_ExecutionPolicy, _ForwardIterator2>
 exclusive_scan(_ExecutionPolicy&& __exec, _ForwardIterator1 __first, _ForwardIterator1 __last,
                _ForwardIterator2 __result, _Tp __init, _BinaryOperation __binary_op);
 
@@ -115,4 +118,7 @@ adjacent_difference(_ExecutionPolicy&& __exec, _ForwardIterator1 __first, _Forwa
                     _ForwardIterator2 __d_first);
 
 } // namespace std
+
+_PSTL_HIDE_FROM_ABI_POP
+
 #endif /* _PSTL_GLUE_NUMERIC_DEFS_H */

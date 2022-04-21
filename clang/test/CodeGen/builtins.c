@@ -16,7 +16,7 @@ void r(char *str, void *ptr) {
 
 int random(void);
 
-int main() {
+int main(void) {
   int N = random();
 #define P(n,args) p(#n #args, __builtin_##n args)
 #define Q(n,args) q(#n #args, __builtin_##n args)
@@ -91,11 +91,15 @@ int main() {
   char s0[10], s1[] = "Hello";
   V(strcat, (s0, s1));
   V(strcmp, (s0, s1));
+  V(strdup, (s0));
   V(strncat, (s0, s1, n));
+  V(strndup, (s0, n));
   V(strchr, (s0, s1[0]));
   V(strrchr, (s0, s1[0]));
   V(strcpy, (s0, s1));
   V(strncpy, (s0, s1, n));
+  V(sprintf, (s0, "%s", s1));
+  V(snprintf, (s0, n, "%s", s1));
   
   // Object size checking
   V(__memset_chk, (s0, 0, sizeof s0, n));
@@ -139,12 +143,12 @@ int main() {
 
 
 
-void foo() {
+void foo(void) {
  __builtin_strcat(0, 0);
 }
 
-// CHECK-LABEL: define void @bar(
-void bar() {
+// CHECK-LABEL: define{{.*}} void @bar(
+void bar(void) {
   float f;
   double d;
   long double ld;
@@ -178,8 +182,8 @@ void bar() {
 }
 // CHECK: }
 
-// CHECK-LABEL: define void @test_conditional_bzero
-void test_conditional_bzero() {
+// CHECK-LABEL: define{{.*}} void @test_conditional_bzero
+void test_conditional_bzero(void) {
   char dst[20];
   int _sz = 20, len = 20;
   return (_sz
@@ -192,9 +196,13 @@ void test_conditional_bzero() {
   // CHECK-NOT: phi
 }
 
-// CHECK-LABEL: define void @test_float_builtins
-void test_float_builtins(float F, double D, long double LD) {
+// CHECK-LABEL: define{{.*}} void @test_float_builtins
+void test_float_builtins(__fp16 *H, float F, double D, long double LD) {
   volatile int res;
+  res = __builtin_isinf(*H);
+  // CHECK:  call half @llvm.fabs.f16(half
+  // CHECK:  fcmp oeq half {{.*}}, 0xH7C00
+
   res = __builtin_isinf(F);
   // CHECK:  call float @llvm.fabs.f32(float
   // CHECK:  fcmp oeq float {{.*}}, 0x7FF0000000000000
@@ -206,6 +214,14 @@ void test_float_builtins(float F, double D, long double LD) {
   res = __builtin_isinf(LD);
   // CHECK:  call x86_fp80 @llvm.fabs.f80(x86_fp80
   // CHECK:  fcmp oeq x86_fp80 {{.*}}, 0xK7FFF8000000000000000
+
+  res = __builtin_isinf_sign(*H);
+  // CHECK:  %[[ABS:.*]] = call half @llvm.fabs.f16(half %[[ARG:.*]])
+  // CHECK:  %[[ISINF:.*]] = fcmp oeq half %[[ABS]], 0xH7C00
+  // CHECK:  %[[BITCAST:.*]] = bitcast half %[[ARG]] to i16
+  // CHECK:  %[[ISNEG:.*]] = icmp slt i16 %[[BITCAST]], 0
+  // CHECK:  %[[SIGN:.*]] = select i1 %[[ISNEG]], i32 -1, i32 1
+  // CHECK:  select i1 %[[ISINF]], i32 %[[SIGN]], i32 0
 
   res = __builtin_isinf_sign(F);
   // CHECK:  %[[ABS:.*]] = call float @llvm.fabs.f32(float %[[ARG:.*]])
@@ -231,6 +247,10 @@ void test_float_builtins(float F, double D, long double LD) {
   // CHECK:  %[[SIGN:.*]] = select i1 %[[ISNEG]], i32 -1, i32 1
   // CHECK:  select i1 %[[ISINF]], i32 %[[SIGN]], i32 0
 
+  res = __builtin_isfinite(*H);
+  // CHECK: call half @llvm.fabs.f16(half
+  // CHECK: fcmp one half {{.*}}, 0xH7C00
+
   res = __builtin_isfinite(F);
   // CHECK: call float @llvm.fabs.f32(float
   // CHECK: fcmp one float {{.*}}, 0x7FF0000000000000
@@ -238,6 +258,14 @@ void test_float_builtins(float F, double D, long double LD) {
   res = finite(D);
   // CHECK: call double @llvm.fabs.f64(double
   // CHECK: fcmp one double {{.*}}, 0x7FF0000000000000
+
+  res = __builtin_isnormal(*H);
+  // CHECK: fcmp oeq half
+  // CHECK: call half @llvm.fabs.f16(half
+  // CHECK: fcmp ult half {{.*}}, 0xH7C00
+  // CHECK: fcmp uge half {{.*}}, 0xH0400
+  // CHECK: and i1
+  // CHECK: and i1
 
   res = __builtin_isnormal(F);
   // CHECK: fcmp oeq float
@@ -251,7 +279,7 @@ void test_float_builtins(float F, double D, long double LD) {
   // CHECK: call i32 @llvm.flt.rounds(
 }
 
-// CHECK-LABEL: define void @test_float_builtin_ops
+// CHECK-LABEL: define{{.*}} void @test_float_builtin_ops
 void test_float_builtin_ops(float F, double D, long double LD) {
   volatile float resf;
   volatile double resd;
@@ -390,12 +418,21 @@ void test_float_builtin_ops(float F, double D, long double LD) {
 
   resli = __builtin_lroundl (LD);
   // CHECK: call i64 @llvm.lround.i64.f80
+
+  resli = __builtin_lrintf (F);
+  // CHECK: call i64 @llvm.lrint.i64.f32
+
+  resli = __builtin_lrint (D);
+  // CHECK: call i64 @llvm.lrint.i64.f64
+
+  resli = __builtin_lrintl (LD);
+  // CHECK: call i64 @llvm.lrint.i64.f80
 }
 
 // __builtin_longjmp isn't supported on all platforms, so only test it on X86.
 #ifdef __x86_64__
 
-// CHECK-LABEL: define void @test_builtin_longjmp
+// CHECK-LABEL: define{{.*}} void @test_builtin_longjmp
 void test_builtin_longjmp(void **buffer) {
   // CHECK: [[BITCAST:%.*]] = bitcast
   // CHECK-NEXT: call void @llvm.eh.sjlj.longjmp(i8* [[BITCAST]])
@@ -405,14 +442,28 @@ void test_builtin_longjmp(void **buffer) {
 
 #endif
 
-// CHECK-LABEL: define i64 @test_builtin_readcyclecounter
-long long test_builtin_readcyclecounter() {
+// CHECK-LABEL: define{{.*}} void @test_memory_builtins
+void test_memory_builtins(int n) {
+  // CHECK: call i8* @malloc
+  void * p = __builtin_malloc(n);
+  // CHECK: call void @free
+  __builtin_free(p);
+  // CHECK: call i8* @calloc
+  p = __builtin_calloc(1, n);
+  // CHECK: call i8* @realloc
+  p = __builtin_realloc(p, n);
+  // CHECK: call void @free
+  __builtin_free(p);
+}
+
+// CHECK-LABEL: define{{.*}} i64 @test_builtin_readcyclecounter
+long long test_builtin_readcyclecounter(void) {
   // CHECK: call i64 @llvm.readcyclecounter()
   return __builtin_readcyclecounter();
 }
 
 /// __builtin_launder should be a NOP in C since there are no vtables.
-// CHECK-LABEL: define void @test_builtin_launder
+// CHECK-LABEL: define{{.*}} void @test_builtin_launder
 void test_builtin_launder(int *p) {
   // CHECK: [[TMP:%.*]] = load i32*,
   // CHECK-NOT: @llvm.launder
@@ -420,11 +471,18 @@ void test_builtin_launder(int *p) {
   int *d = __builtin_launder(p);
 }
 
+// __warn_memset_zero_len should be NOP, see https://sourceware.org/bugzilla/show_bug.cgi?id=25399
+// CHECK-LABEL: define{{.*}} void @test___warn_memset_zero_len
+void test___warn_memset_zero_len(void) {
+  // CHECK-NOT: @__warn_memset_zero_len
+  __warn_memset_zero_len();
+}
+
 // Behavior of __builtin_os_log differs between platforms, so only test on X86
 #ifdef __x86_64__
 
-// CHECK-LABEL: define void @test_builtin_os_log
-// CHECK: (i8* %[[BUF:.*]], i32 %[[I:.*]], i8* %[[DATA:.*]])
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log
+// CHECK: (i8* noundef %[[BUF:.*]], i32 noundef %[[I:.*]], i8* noundef %[[DATA:.*]])
 void test_builtin_os_log(void *buf, int i, const char *data) {
   volatile int len;
   // CHECK: %[[BUF_ADDR:.*]] = alloca i8*, align 8
@@ -444,7 +502,7 @@ void test_builtin_os_log(void *buf, int i, const char *data) {
   // CHECK: %[[V4:.*]] = ptrtoint i8* %[[V3]] to i64
   // CHECK: %[[V5:.*]] = load i8*, i8** %[[DATA_ADDR]]
   // CHECK: %[[V6:.*]] = ptrtoint i8* %[[V5]] to i64
-  // CHECK: call void @__os_log_helper_1_3_4_4_0_8_34_4_17_8_49(i8* %[[V1]], i32 %[[V2]], i64 %[[V4]], i32 16, i64 %[[V6]])
+  // CHECK: call void @__os_log_helper_1_3_4_4_0_8_34_4_17_8_49(i8* noundef %[[V1]], i32 noundef %[[V2]], i64 noundef %[[V4]], i32 noundef 16, i64 noundef %[[V6]])
   __builtin_os_log_format(buf, "%d %{public}s %{private}.16P", i, data, data);
 
   // privacy annotations aren't recognized when they are preceded or followed
@@ -482,10 +540,10 @@ void test_builtin_os_log(void *buf, int i, const char *data) {
   // CHECK: store volatile i32 22, i32* %[[LEN]], align 4
   len = __builtin_os_log_format_buffer_size("%{mask.xyz}s", "abc");
 
-  // CHECK: call void @__os_log_helper_1_2_2_8_112_8_34(i8* {{.*}}, i64 8026488
+  // CHECK: call void @__os_log_helper_1_2_2_8_112_8_34(i8* noundef {{.*}}, i64 noundef 8026488
   __builtin_os_log_format(buf, "%{mask.xyz, public}s", "abc");
 
-  // CHECK: call void @__os_log_helper_1_3_2_8_112_4_1(i8* {{.*}}, i64 8026488
+  // CHECK: call void @__os_log_helper_1_3_2_8_112_4_1(i8* noundef {{.*}}, i64 noundef 8026488
   __builtin_os_log_format(buf, "%{ mask.xyz, private }d", 11);
 
   // Mask type is silently ignored.
@@ -497,7 +555,7 @@ void test_builtin_os_log(void *buf, int i, const char *data) {
 }
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_3_4_4_0_8_34_4_17_8_49
-// CHECK: (i8* %[[BUFFER:.*]], i32 %[[ARG0:.*]], i64 %[[ARG1:.*]], i32 %[[ARG2:.*]], i64 %[[ARG3:.*]])
+// CHECK: (i8* noundef %[[BUFFER:.*]], i32 noundef %[[ARG0:.*]], i64 noundef %[[ARG1:.*]], i32 noundef %[[ARG2:.*]], i64 noundef %[[ARG3:.*]])
 
 // CHECK: %[[BUFFER_ADDR:.*]] = alloca i8*, align 8
 // CHECK: %[[ARG0_ADDR:.*]] = alloca i32, align 4
@@ -547,8 +605,8 @@ void test_builtin_os_log(void *buf, int i, const char *data) {
 // CHECK: %[[V3:.*]] = load i64, i64* %[[ARG3_ADDR]], align 8
 // CHECK: store i64 %[[V3]], i64* %[[ARGDATACAST12]], align 1
 
-// CHECK-LABEL: define void @test_builtin_os_log_wide
-// CHECK: (i8* %[[BUF:.*]], i8* %[[DATA:.*]], i32* %[[STR:.*]])
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_wide
+// CHECK: (i8* noundef %[[BUF:.*]], i8* noundef %[[DATA:.*]], i32* noundef %[[STR:.*]])
 typedef int wchar_t;
 void test_builtin_os_log_wide(void *buf, const char *data, wchar_t *str) {
   volatile int len;
@@ -567,13 +625,13 @@ void test_builtin_os_log_wide(void *buf, const char *data, wchar_t *str) {
   // CHECK: %[[V1:.*]] = load i8*, i8** %[[BUF_ADDR]], align 8
   // CHECK: %[[V2:.*]] = load i32*, i32** %[[STR_ADDR]], align 8
   // CHECK: %[[V3:.*]] = ptrtoint i32* %[[V2]] to i64
-  // CHECK: call void @__os_log_helper_1_2_1_8_80(i8* %[[V1]], i64 %[[V3]])
+  // CHECK: call void @__os_log_helper_1_2_1_8_80(i8* noundef %[[V1]], i64 noundef %[[V3]])
 
   __builtin_os_log_format(buf, "%S", str);
 }
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_2_1_8_80
-// CHECK: (i8* %[[BUFFER:.*]], i64 %[[ARG0:.*]])
+// CHECK: (i8* noundef %[[BUFFER:.*]], i64 noundef %[[ARG0:.*]])
 
 // CHECK: %[[BUFFER_ADDR:.*]] = alloca i8*, align 8
 // CHECK: %[[ARG0_ADDR:.*]] = alloca i64, align 8
@@ -593,8 +651,8 @@ void test_builtin_os_log_wide(void *buf, const char *data, wchar_t *str) {
 // CHECK: %[[V0:.*]] = load i64, i64* %[[ARG0_ADDR]], align 8
 // CHECK: store i64 %[[V0]], i64* %[[ARGDATACAST]], align 1
 
-// CHECK-LABEL: define void @test_builtin_os_log_precision_width
-// CHECK: (i8* %[[BUF:.*]], i8* %[[DATA:.*]], i32 %[[PRECISION:.*]], i32 %[[WIDTH:.*]])
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_precision_width
+// CHECK: (i8* noundef %[[BUF:.*]], i8* noundef %[[DATA:.*]], i32 noundef %[[PRECISION:.*]], i32 noundef %[[WIDTH:.*]])
 void test_builtin_os_log_precision_width(void *buf, const char *data,
                                          int precision, int width) {
   volatile int len;
@@ -616,12 +674,12 @@ void test_builtin_os_log_precision_width(void *buf, const char *data,
   // CHECK: %[[V3:.*]] = load i32, i32* %[[WIDTH_ADDR]], align 4
   // CHECK: %[[V4:.*]] = load i8*, i8** %[[DATA_ADDR]], align 8
   // CHECK: %[[V5:.*]] = ptrtoint i8* %[[V4]] to i64
-  // CHECK: call void @__os_log_helper_1_2_3_4_0_4_16_8_32(i8* %[[V1]], i32 %[[V2]], i32 %[[V3]], i64 %[[V5]])
+  // CHECK: call void @__os_log_helper_1_2_3_4_0_4_16_8_32(i8* noundef %[[V1]], i32 noundef %[[V2]], i32 noundef %[[V3]], i64 noundef %[[V5]])
   __builtin_os_log_format(buf, "Hello %*.*s World", precision, width, data);
 }
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_2_3_4_0_4_16_8_32
-// CHECK: (i8* %[[BUFFER:.*]], i32 %[[ARG0:.*]], i32 %[[ARG1:.*]], i64 %[[ARG2:.*]])
+// CHECK: (i8* noundef %[[BUFFER:.*]], i32 noundef %[[ARG0:.*]], i32 noundef %[[ARG1:.*]], i64 noundef %[[ARG2:.*]])
 
 // CHECK: %[[BUFFER_ADDR:.*]] = alloca i8*, align 8
 // CHECK: %[[ARG0_ADDR:.*]] = alloca i32, align 4
@@ -661,8 +719,8 @@ void test_builtin_os_log_precision_width(void *buf, const char *data,
 // CHECK: %[[V2:.*]] = load i64, i64* %[[ARG2_ADDR]], align 8
 // CHECK: store i64 %[[V2]], i64* %[[ARGDATACAST8]], align 1
 
-// CHECK-LABEL: define void @test_builtin_os_log_invalid
-// CHECK: (i8* %[[BUF:.*]], i32 %[[DATA:.*]])
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_invalid
+// CHECK: (i8* noundef %[[BUF:.*]], i32 noundef %[[DATA:.*]])
 void test_builtin_os_log_invalid(void *buf, int data) {
   volatile int len;
   // CHECK: %[[BUF_ADDR:.*]] = alloca i8*, align 8
@@ -676,13 +734,13 @@ void test_builtin_os_log_invalid(void *buf, int data) {
 
   // CHECK: %[[V1:.*]] = load i8*, i8** %[[BUF_ADDR]], align 8
   // CHECK: %[[V2:.*]] = load i32, i32* %[[DATA_ADDR]], align 4
-  // CHECK: call void @__os_log_helper_1_0_1_4_0(i8* %[[V1]], i32 %[[V2]])
+  // CHECK: call void @__os_log_helper_1_0_1_4_0(i8* noundef %[[V1]], i32 noundef %[[V2]])
 
   __builtin_os_log_format(buf, "invalid specifier %: %d even a trailing one%", data);
 }
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_0_1_4_0
-// CHECK: (i8* %[[BUFFER:.*]], i32 %[[ARG0:.*]])
+// CHECK: (i8* noundef %[[BUFFER:.*]], i32 noundef %[[ARG0:.*]])
 
 // CHECK: %[[BUFFER_ADDR:.*]] = alloca i8*, align 8
 // CHECK: %[[ARG0_ADDR:.*]] = alloca i32, align 4
@@ -702,8 +760,8 @@ void test_builtin_os_log_invalid(void *buf, int data) {
 // CHECK: %[[V0:.*]] = load i32, i32* %[[ARG0_ADDR]], align 4
 // CHECK: store i32 %[[V0]], i32* %[[ARGDATACAST]], align 1
 
-// CHECK-LABEL: define void @test_builtin_os_log_percent
-// CHECK: (i8* %[[BUF:.*]], i8* %[[DATA1:.*]], i8* %[[DATA2:.*]])
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_percent
+// CHECK: (i8* noundef %[[BUF:.*]], i8* noundef %[[DATA1:.*]], i8* noundef %[[DATA2:.*]])
 // Check that the %% which does not consume any argument is correctly handled
 void test_builtin_os_log_percent(void *buf, const char *data1, const char *data2) {
   volatile int len;
@@ -723,13 +781,13 @@ void test_builtin_os_log_percent(void *buf, const char *data1, const char *data2
   // CHECK: %[[V3:.*]] = ptrtoint i8* %[[V2]] to i64
   // CHECK: %[[V4:.*]] = load i8*, i8** %[[DATA2_ADDR]], align 8
   // CHECK: %[[V5:.*]] = ptrtoint i8* %[[V4]] to i64
-  // CHECK: call void @__os_log_helper_1_2_2_8_32_8_32(i8* %[[V1]], i64 %[[V3]], i64 %[[V5]])
+  // CHECK: call void @__os_log_helper_1_2_2_8_32_8_32(i8* noundef %[[V1]], i64 noundef %[[V3]], i64 noundef %[[V5]])
 
   __builtin_os_log_format(buf, "%s %% %s", data1, data2);
 }
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_2_2_8_32_8_32
-// CHECK: (i8* %[[BUFFER:.*]], i64 %[[ARG0:.*]], i64 %[[ARG1:.*]])
+// CHECK: (i8* noundef %[[BUFFER:.*]], i64 noundef %[[ARG0:.*]], i64 noundef %[[ARG1:.*]])
 
 // CHECK: %[[BUFFER_ADDR:.*]] = alloca i8*, align 8
 // CHECK: %[[ARG0_ADDR:.*]] = alloca i64, align 8
@@ -761,7 +819,7 @@ void test_builtin_os_log_percent(void *buf, const char *data1, const char *data2
 
 // Check that the following two functions call the same helper function.
 
-// CHECK-LABEL: define void @test_builtin_os_log_merge_helper0
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_merge_helper0
 // CHECK: call void @__os_log_helper_1_0_2_4_0_8_0(
 void test_builtin_os_log_merge_helper0(void *buf, int i, double d) {
   __builtin_os_log_format(buf, "%d %f", i, d);
@@ -769,7 +827,7 @@ void test_builtin_os_log_merge_helper0(void *buf, int i, double d) {
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_0_2_4_0_8_0(
 
-// CHECK-LABEL: define void @test_builtin_os_log_merge_helper1
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_merge_helper1
 // CHECK: call void @__os_log_helper_1_0_2_4_0_8_0(
 void test_builtin_os_log_merge_helper1(void *buf, unsigned u, long long ll) {
   __builtin_os_log_format(buf, "%u %lld", u, ll);
@@ -777,12 +835,12 @@ void test_builtin_os_log_merge_helper1(void *buf, unsigned u, long long ll) {
 
 // Check that this function doesn't write past the end of array 'buf'.
 
-// CHECK-LABEL: define void @test_builtin_os_log_errno
-void test_builtin_os_log_errno() {
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_errno
+void test_builtin_os_log_errno(void) {
   // CHECK-NOT: @stacksave
   // CHECK: %[[BUF:.*]] = alloca [4 x i8], align 1
   // CHECK: %[[DECAY:.*]] = getelementptr inbounds [4 x i8], [4 x i8]* %[[BUF]], i64 0, i64 0
-  // CHECK: call void @__os_log_helper_1_2_1_0_96(i8* %[[DECAY]])
+  // CHECK: call void @__os_log_helper_1_2_1_0_96(i8* noundef %[[DECAY]])
   // CHECK-NOT: @stackrestore
 
   char buf[__builtin_os_log_format_buffer_size("%m")];
@@ -790,7 +848,7 @@ void test_builtin_os_log_errno() {
 }
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_2_1_0_96
-// CHECK: (i8* %[[BUFFER:.*]])
+// CHECK: (i8* noundef %[[BUFFER:.*]])
 
 // CHECK: %[[BUFFER_ADDR:.*]] = alloca i8*, align 8
 // CHECK: store i8* %[[BUFFER]], i8** %[[BUFFER_ADDR]], align 8
@@ -805,8 +863,8 @@ void test_builtin_os_log_errno() {
 // CHECK: store i8 0, i8* %[[ARGSIZE]], align 1
 // CHECK-NEXT: ret void
 
-// CHECK-LABEL: define void @test_builtin_os_log_long_double
-// CHECK: (i8* %[[BUF:.*]], x86_fp80 %[[LD:.*]])
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_long_double
+// CHECK: (i8* noundef %[[BUF:.*]], x86_fp80 noundef %[[LD:.*]])
 void test_builtin_os_log_long_double(void *buf, long double ld) {
   // CHECK: %[[BUF_ADDR:.*]] = alloca i8*, align 8
   // CHECK: %[[LD_ADDR:.*]] = alloca x86_fp80, align 16
@@ -823,13 +881,13 @@ void test_builtin_os_log_long_double(void *buf, long double ld) {
   // CHECK: %[[V6:.*]] = load i64, i64* %[[V5]], align 16
   // CHECK: %[[V7:.*]] = getelementptr inbounds { i64, i64 }, { i64, i64 }* %[[V4]], i32 0, i32 1
   // CHECK: %[[V8:.*]] = load i64, i64* %[[V7]], align 8
-  // CHECK: call void @__os_log_helper_1_0_1_16_0(i8* %[[V0]], i64 %[[V6]], i64 %[[V8]])
+  // CHECK: call void @__os_log_helper_1_0_1_16_0(i8* noundef %[[V0]], i64 noundef %[[V6]], i64 noundef %[[V8]])
 
   __builtin_os_log_format(buf, "%Lf", ld);
 }
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_0_1_16_0
-// CHECK: (i8* %[[BUFFER:.*]], i64 %[[ARG0_COERCE0:.*]], i64 %[[ARG0_COERCE1:.*]])
+// CHECK: (i8* noundef %[[BUFFER:.*]], i64 noundef %[[ARG0_COERCE0:.*]], i64 noundef %[[ARG0_COERCE1:.*]])
 
 // CHECK: %[[ARG0:.*]] = alloca i128, align 16
 // CHECK: %[[BUFFER_ADDR:.*]] = alloca i8*, align 8

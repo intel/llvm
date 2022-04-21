@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++98 %s
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++11 %s
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++98 %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++11 %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++98 %s
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++11 %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++98 %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++11 %s -Wuninitialized
 
 int temp; // expected-note 7 {{'temp' declared here}}
 
@@ -142,13 +142,13 @@ int main() {
 #if __cplusplus == 201103L
 struct A {
   A() {}
-  A& operator=(A&&) = default;
+  A(const A &) = default;
 };
 
 int A_TEST() {
-  A test;
+  A test, test1;
 #pragma omp declare reduction(+ : A : omp_out) initializer(omp_priv = A()) allocate(test) // expected-warning {{extra tokens at the end of '#pragma omp declare reduction' are ignored}}
-#pragma omp parallel reduction(+ : test)
+#pragma omp parallel reduction(+ : test) reduction(::operator+: test1) // expected-error {{unable to resolve declare reduction construct for type 'A'}}
   {}
   return 0;
 }
@@ -166,8 +166,9 @@ struct S
   void foo(S &x) {};
   // expected-error@+1 {{too many arguments to function call, expected single argument 'x', have 2 arguments}}
   #pragma omp declare reduction (foo : U, S : omp_out.foo(omp_in, false))
+  #pragma omp declare reduction (xxx : U, S : bar(omp_in)) // expected-error {{non-const lvalue reference to type 'S<1>' cannot bind to a value of unrelated type 'U'}}
+  static void bar(S &x); // expected-note {{passing argument to parameter 'x' here}}
 };
-// expected-warning@+2 {{extra tokens at the end of '#pragma omp declare reduction' are ignored}}
 // expected-note@+1 {{in instantiation of template class 'S<1>' requested here}}
 #pragma omp declare reduction (bar : S<1> : omp_out.foo(omp_in))
 

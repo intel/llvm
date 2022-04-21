@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGIN_ARCHITECTURE_PPC64_H
-#define LLDB_PLUGIN_ARCHITECTURE_PPC64_H
+#ifndef LLDB_SOURCE_PLUGINS_ARCHITECTURE_PPC64_ARCHITECTUREPPC64_H
+#define LLDB_SOURCE_PLUGINS_ARCHITECTURE_PPC64_ARCHITECTUREPPC64_H
 
 #include "lldb/Core/Architecture.h"
 
@@ -15,12 +15,11 @@ namespace lldb_private {
 
 class ArchitecturePPC64 : public Architecture {
 public:
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "ppc64"; }
   static void Initialize();
   static void Terminate();
 
-  ConstString GetPluginName() override;
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   void OverrideStopInfo(Thread &thread) const override {}
 
@@ -38,4 +37,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // LLDB_PLUGIN_ARCHITECTURE_PPC64_H
+#endif // LLDB_SOURCE_PLUGINS_ARCHITECTURE_PPC64_ARCHITECTUREPPC64_H

@@ -1,3 +1,7 @@
+include(ExtendPath)
+include(LLVMDistributionSupport)
+include(FindPrefixFromConfig)
+
 set(LLVM_INSTALL_PACKAGE_DIR lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm)
 set(llvm_cmake_builddir "${LLVM_BINARY_DIR}/${LLVM_INSTALL_PACKAGE_DIR}")
 
@@ -28,8 +32,14 @@ endforeach(lib)
 if(intrinsics_gen IN_LIST LLVM_COMMON_DEPENDS)
   list(REMOVE_ITEM LLVM_COMMON_DEPENDS intrinsics_gen)
 endif()
+if(omp_gen IN_LIST LLVM_COMMON_DEPENDS)
+  list(REMOVE_ITEM LLVM_COMMON_DEPENDS omp_gen)
+endif()
 
+#
 # Generate LLVMConfig.cmake for the build tree.
+#
+
 set(LLVM_CONFIG_CODE "
 # LLVM_BUILD_* values available only from LLVM build tree.
 set(LLVM_BUILD_BINARY_DIR \"${LLVM_BINARY_DIR}\")
@@ -37,22 +47,34 @@ set(LLVM_BUILD_LIBRARY_DIR \"${LLVM_LIBRARY_DIR}\")
 set(LLVM_BUILD_MAIN_INCLUDE_DIR \"${LLVM_MAIN_INCLUDE_DIR}\")
 set(LLVM_BUILD_MAIN_SRC_DIR \"${LLVM_MAIN_SRC_DIR}\")
 ")
+
+set(LLVM_CONFIG_MAIN_INCLUDE_DIR "${LLVM_MAIN_INCLUDE_DIR}")
+set(LLVM_CONFIG_INCLUDE_DIR "${LLVM_INCLUDE_DIR}")
 set(LLVM_CONFIG_INCLUDE_DIRS
-  "${LLVM_MAIN_INCLUDE_DIR}"
-  "${LLVM_INCLUDE_DIR}"
+  "${LLVM_CONFIG_MAIN_INCLUDE_DIR}"
+  "${LLVM_CONFIG_INCLUDE_DIR}"
   )
-set(LLVM_CONFIG_INCLUDE_DIR
-  "${LLVM_INCLUDE_DIR}"
-  )
-set(LLVM_CONFIG_MAIN_INCLUDE_DIR
-  "${LLVM_MAIN_INCLUDE_DIR}"
-  )
+list(REMOVE_DUPLICATES LLVM_CONFIG_INCLUDE_DIRS)
+
+set(LLVM_CONFIG_LIBRARY_DIR "${LLVM_LIBRARY_DIR}")
 set(LLVM_CONFIG_LIBRARY_DIRS
-  "${LLVM_LIBRARY_DIR}"
+  "${LLVM_CONFIG_LIBRARY_DIR}"
+  # FIXME: Should there be other entries here?
   )
-set(LLVM_CONFIG_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+list(REMOVE_DUPLICATES LLVM_CONFIG_LIBRARY_DIRS)
+
 set(LLVM_CONFIG_BINARY_DIR "${LLVM_BINARY_DIR}")
+set(LLVM_CONFIG_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(LLVM_CONFIG_TOOLS_BINARY_DIR "${LLVM_TOOLS_BINARY_DIR}")
+
+# Generate a default location for lit
+if (LLVM_BUILD_UTILS)
+  if (CMAKE_HOST_WIN32 AND NOT CYGWIN)
+    set(LLVM_CONFIG_DEFAULT_EXTERNAL_LIT "${LLVM_CONFIG_TOOLS_BINARY_DIR}/llvm-lit.py")
+  else()
+    set(LLVM_CONFIG_DEFAULT_EXTERNAL_LIT "${LLVM_CONFIG_TOOLS_BINARY_DIR}/llvm-lit")
+  endif()
+endif()
 
 if (LLVM_LINK_LLVM_DYLIB)
   set(LLVM_CONFIG_LINK_LLVM_DYLIB
@@ -65,8 +87,8 @@ endif()
 # LLVM_CONFIG_CMAKE_DIR being the source directory. In contrast in the install
 # tree, both the generated LLVMExports.cmake file and the rest of the cmake
 # source files are put in the same cmake directory.
-set(LLVM_CONFIG_EXPORTS_FILE "${LLVM_EXPORTS_FILE}")
 set(LLVM_CONFIG_EXPORTS "${LLVM_EXPORTS};${LLVM_EXPORTS_BUILDTREE_ONLY}")
+set(LLVM_CONFIG_INCLUDE_EXPORTS "include(\"${LLVM_EXPORTS_FILE}\")")
 set(llvm_config_include_buildtree_only_exports
 "include(\"${LLVM_BUILDTREEONLY_EXPORTS_FILE}\")")
 configure_file(
@@ -81,29 +103,42 @@ set(llvm_config_include_buildtree_only_exports)
 file(COPY .
   DESTINATION ${llvm_cmake_builddir}
   FILES_MATCHING PATTERN *.cmake
-  PATTERN .svn EXCLUDE
   PATTERN CMakeFiles EXCLUDE
   )
 
+#
 # Generate LLVMConfig.cmake for the install tree.
-set(LLVM_CONFIG_CODE "
-# Compute the installation prefix from this LLVMConfig.cmake file location.
-get_filename_component(LLVM_INSTALL_PREFIX \"\${CMAKE_CURRENT_LIST_FILE}\" PATH)")
-# Construct the proper number of get_filename_component(... PATH)
-# calls to compute the installation prefix.
-string(REGEX REPLACE "/" ";" _count "${LLVM_INSTALL_PACKAGE_DIR}")
-foreach(p ${_count})
-  set(LLVM_CONFIG_CODE "${LLVM_CONFIG_CODE}
-get_filename_component(LLVM_INSTALL_PREFIX \"\${LLVM_INSTALL_PREFIX}\" PATH)")
-endforeach(p)
-set(LLVM_CONFIG_INCLUDE_DIRS "\${LLVM_INSTALL_PREFIX}/include")
-set(LLVM_CONFIG_INCLUDE_DIR "${LLVM_CONFIG_INCLUDE_DIRS}")
-set(LLVM_CONFIG_MAIN_INCLUDE_DIR "${LLVM_CONFIG_INCLUDE_DIRS}")
-set(LLVM_CONFIG_LIBRARY_DIRS "\${LLVM_INSTALL_PREFIX}/lib\${LLVM_LIBDIR_SUFFIX}")
-set(LLVM_CONFIG_CMAKE_DIR "\${LLVM_INSTALL_PREFIX}/${LLVM_INSTALL_PACKAGE_DIR}")
+#
+
+find_prefix_from_config(LLVM_CONFIG_CODE LLVM_INSTALL_PREFIX "${LLVM_INSTALL_PACKAGE_DIR}")
+
+extend_path(LLVM_CONFIG_MAIN_INCLUDE_DIR "\${LLVM_INSTALL_PREFIX}" "${CMAKE_INSTALL_INCLUDEDIR}")
+# This is the same as the above because the handwritten and generated headers
+# are combined in one directory at install time.
+set(LLVM_CONFIG_INCLUDE_DIR "${LLVM_CONFIG_MAIN_INCLUDE_DIR}")
+set(LLVM_CONFIG_INCLUDE_DIRS
+  "${LLVM_CONFIG_MAIN_INCLUDE_DIR}"
+  "${LLVM_CONFIG_INCLUDE_DIR}"
+  )
+list(REMOVE_DUPLICATES LLVM_CONFIG_INCLUDE_DIRS)
+
+extend_path(LLVM_CONFIG_LIBRARY_DIR "\${LLVM_INSTALL_PREFIX}" "lib\${LLVM_LIBDIR_SUFFIX}")
+set(LLVM_CONFIG_LIBRARY_DIRS
+  "${LLVM_CONFIG_LIBRARY_DIR}"
+  # FIXME: Should there be other entries here?
+  )
+list(REMOVE_DUPLICATES LLVM_CONFIG_LIBRARY_DIRS)
+
 set(LLVM_CONFIG_BINARY_DIR "\${LLVM_INSTALL_PREFIX}")
-set(LLVM_CONFIG_TOOLS_BINARY_DIR "\${LLVM_INSTALL_PREFIX}/bin")
-set(LLVM_CONFIG_EXPORTS_FILE "\${LLVM_CMAKE_DIR}/LLVMExports.cmake")
+extend_path(LLVM_CONFIG_CMAKE_DIR "\${LLVM_INSTALL_PREFIX}" "${LLVM_INSTALL_PACKAGE_DIR}")
+extend_path(LLVM_CONFIG_TOOLS_BINARY_DIR "\${LLVM_INSTALL_PREFIX}" "${LLVM_TOOLS_INSTALL_DIR}")
+
+# Generate a default location for lit
+if (LLVM_INSTALL_UTILS AND LLVM_BUILD_UTILS)
+  set(LLVM_CONFIG_DEFAULT_EXTERNAL_LIT "${LLVM_CONFIG_TOOLS_BINARY_DIR}/llvm-lit")
+endif()
+
+get_config_exports_includes(LLVM LLVM_CONFIG_INCLUDE_EXPORTS)
 set(LLVM_CONFIG_EXPORTS "${LLVM_EXPORTS}")
 configure_file(
   LLVMConfig.cmake.in
@@ -117,11 +152,7 @@ configure_file(
   @ONLY)
 
 if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
-  get_property(llvm_has_exports GLOBAL PROPERTY LLVM_HAS_EXPORTS)
-  if(llvm_has_exports)
-    install(EXPORT LLVMExports DESTINATION ${LLVM_INSTALL_PACKAGE_DIR}
-            COMPONENT cmake-exports)
-  endif()
+  install_distribution_exports(LLVM)
 
   install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LLVMConfig.cmake
@@ -134,8 +165,8 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     DESTINATION ${LLVM_INSTALL_PACKAGE_DIR}
     COMPONENT cmake-exports
     FILES_MATCHING PATTERN *.cmake
-    PATTERN .svn EXCLUDE
     PATTERN LLVMConfig.cmake EXCLUDE
+    PATTERN LLVMConfigExtensions.cmake EXCLUDE
     PATTERN LLVMConfigVersion.cmake EXCLUDE
     PATTERN LLVM-Config.cmake EXCLUDE
     PATTERN GetHostTriple.cmake EXCLUDE)

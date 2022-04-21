@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++03, c++11, c++14
+
 // Tests for uninitialized_copy, uninitialized_copy_n, uninitialized_move, uninitialized_move_n
 
 #include "support/pstl_test_config.h"
@@ -71,7 +73,7 @@ struct test_uninitialized_copy_move
         std::destroy_n(exec, out_first, n);
     }
 
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN || _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN
+#if defined(_PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN) || defined(_PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN)
     template <typename InputIterator, typename OutputIterator>
     void
     operator()(pstl::execution::unsequenced_policy, InputIterator first, InputIterator last, OutputIterator out_first,
@@ -91,8 +93,6 @@ struct test_uninitialized_copy_move
     operator()(Policy&& exec, InputIterator first, InputIterator last, OutputIterator out_first, size_t n,
                /*is_trivial<T>=*/std::true_type)
     {
-        typedef typename std::iterator_traits<InputIterator>::value_type T;
-
         std::uninitialized_copy(exec, first, last, out_first);
         EXPECT_TRUE(IsCheckValueCorrectness(first, out_first, n), "wrong uninitialized_copy");
         std::destroy_n(exec, out_first, n);
@@ -124,7 +124,7 @@ test_uninitialized_copy_move_by_type()
     }
 }
 
-int32_t
+int
 main()
 {
 
@@ -133,8 +133,8 @@ main()
     test_uninitialized_copy_move_by_type<float64_t>();
 
     // for user-defined types
-#if !_PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN && !_PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN &&   \
-    !_PSTL_ICC_16_VC14_TEST_PAR_TBB_RT_RELEASE_64_BROKEN
+#if !defined(_PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN) && !defined(_PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN) &&     \
+    !defined(_PSTL_ICC_16_VC14_TEST_PAR_TBB_RT_RELEASE_64_BROKEN)
     test_uninitialized_copy_move_by_type<Wrapper<int8_t>>();
 #endif
 

@@ -97,15 +97,6 @@ test_not_adjusted:
         mtlr 0
         blr
 
-        .globl test_got_dtprel
-        .p2align 4
-        .type test_got_dtprel,@function
-test_got_dtprel:
-         addis 3, 2, i@got@dtprel@ha
-         ld 3, i@got@dtprel@l(3)
-         addis 3, 2, i@got@dtprel@h
-         addi 3, 2, i@got@dtprel
-
         .section        .debug_addr,"",@progbits
         .quad   i@dtprel+32768
 
@@ -137,10 +128,6 @@ k:
 // InputRelocs: R_PPC64_DTPREL16_HIGHER   {{[0-9a-f]+}} k + 0
 // InputRelocs: R_PPC64_DTPREL16_HI       {{[0-9a-f]+}} k + 0
 // InputRelocs: R_PPC64_DTPREL16_LO       {{[0-9a-f]+}} k + 0
-// InputRelocs: R_PPC64_GOT_DTPREL16_HA    {{[0-9a-f]+}} i + 0
-// InputRelocs: R_PPC64_GOT_DTPREL16_LO_DS {{[0-9a-f]+}} i + 0
-// InputRelocs: R_PPC64_GOT_DTPREL16_HI    {{[0-9a-f]+}} i + 0
-// InputRelocs: R_PPC64_GOT_DTPREL16_DS    {{[0-9a-f]+}} i + 0
 // InputRelocs: Relocation section '.rela.debug_addr'
 // InputRelocs: R_PPC64_DTPREL64          {{[0-9a-f]+}} i + 8000
 
@@ -150,17 +137,17 @@ k:
 // OutputRelocs-NEXT: R_PPC64_DTPMOD64
 
 
-// The got entry for i is at .got+8*3 = 0x420510
+// The got entry for i is at .got+8*1 = 0x4209e0
 // i@dtprel = 1024 - 0x8000 = -31744 = 0xffffffffffff8400
 // HEX-LE:      section '.got':
-// HEX-LE-NEXT: 4204f8 f8844200 00000000 00000000 00000000
-// HEX-LE-NEXT: 420508 00000000 00000000 0084ffff ffffffff
+// HEX-LE-NEXT: 4209d0 d0894200 00000000 00000000 00000000
+// HEX-LE-NEXT: 4209e0 00000000 00000000
 
 // HEX-BE:      section '.got':
-// HEX-BE-NEXT: 4204f8 00000000 004284f8 00000000 00000000
-// HEX-BE-NEXT: 420508 00000000 00000000 ffffffff ffff8400
+// HEX-BE-NEXT: 4209d0 00000000 004289d0 00000000 00000000
+// HEX-BE-NEXT: 4209e0 00000000 00000000
 
-// Dis:     test:
+// Dis:     <test>:
 // Dis:      addi 4, 3, -31744
 // Dis-NEXT: lwa 4, -31744(3)
 
@@ -170,7 +157,7 @@ k:
 // #highera(k@dtprel)  --> ((0x400404 - 0x8000 + 0x8000) >> 32) & 0xffff = 0
 // #ha(k@dtprel)       --> ((0x400404 - 0x8000 + 0x8000) >> 16) & 0xffff = 64
 // #lo(k@dtprel)       --> ((0x400404 - 0x8000) & 0xffff = -31740
-// Dis:  test_adjusted:
+// Dis:  <test_adjusted>:
 // Dis:     lis 4, 0
 // Dis:     ori 4, 4, 0
 // Dis:     lis 5, 64
@@ -180,18 +167,9 @@ k:
 // #higher(k@dtprel)  --> ((0x400404 - 0x8000) >> 32) & 0xffff = 0
 // #hi(k@dtprel)      --> ((0x400404 - 0x8000) >> 16) & 0xffff = 63
 // #lo(k@dtprel)      --> ((0x400404 - 0x8000) & 0xffff = 33796
-// Dis:  test_not_adjusted:
+// Dis:  <test_not_adjusted>:
 // Dis:    lis 4, 0
 // Dis:    ori 4, 4, 0
 // Dis:    oris 4, 4, 63
 // Dis:    ori 4, 4, 33796
 
-// #ha(i@got@dtprel) = ((0x420510 - (.got+0x8000) + 0x8000) >> 16) & 0xffff = 0
-// #lo(i@got@dtprel) = (0x420510 - (.got+0x8000)) & 0xffff = -32744
-// #hi(i@got@dtprel) = ((0x420510 - (.got+0x8000)) >> 16) & 0xffff = -1
-// i@got@dtprel --> 0x420510 - (.got+0x8000) = -32744
-// Dis: test_got_dtprel:
-// Dis:    addis 3, 2, 0
-// Dis:    ld 3, -32744(3)
-// Dis:    addis 3, 2, -1
-// Dis:    addi 3, 2, -32744

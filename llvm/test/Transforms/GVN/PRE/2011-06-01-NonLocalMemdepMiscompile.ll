@@ -1,4 +1,4 @@
-; RUN: opt < %s -basicaa -gvn -S | FileCheck %s
+; RUN: opt < %s -basic-aa -loops -gvn -S | FileCheck %s
 ; This test is checking that (a) this doesn't crash, and (b) we don't
 ; conclude the value of %tmp17 is available in bb1.bb15_crit_edge.
 ; rdar://9429882
@@ -50,8 +50,14 @@ bb15:
   %tmp18 = icmp eq i8 %tmp17, 0
   br label %bb19
 
-; CHECK: bb15:
-; CHECK: %tmp17 = phi i8 [ %tmp17.pre, %bb1.bb15_crit_edge ], [ %tmp8, %bb6 ]
+; CHECK-LABEL: bb6:
+; CHECK:         br i1 undef, label %bb15split, label %bb10
+
+; CHECK-LABEL: bb15split:                                        ; preds = %bb6
+; CHECK-NEXT:    br label %bb15
+
+; CHECK-LABEL: bb15:
+; CHECK:         %tmp17 = phi i8 [ %tmp8, %bb15split ], [ %tmp17.pre, %bb1.bb15_crit_edge ]
 
 bb19:                                             ; preds = %bb15
   ret i1 %tmp18

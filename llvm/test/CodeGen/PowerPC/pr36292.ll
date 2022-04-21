@@ -4,14 +4,10 @@
 $test = comdat any
 
 ; No CTR loop due to frem (since it is always a call).
-define void @test() #0 comdat {
+define void @test() nounwind comdat {
 ; CHECK-LABEL: test:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    .cfi_def_cfa_offset 64
-; CHECK-NEXT:    .cfi_offset lr, 16
-; CHECK-NEXT:    .cfi_offset r29, -24
-; CHECK-NEXT:    .cfi_offset r30, -16
 ; CHECK-NEXT:    std 29, -24(1) # 8-byte Folded Spill
 ; CHECK-NEXT:    std 30, -16(1) # 8-byte Folded Spill
 ; CHECK-NEXT:    std 0, 16(1)
@@ -22,12 +18,13 @@ define void @test() #0 comdat {
 ; CHECK-NEXT:    bge- 0, .LBB0_2
 ; CHECK-NEXT:    .p2align 5
 ; CHECK-NEXT:  .LBB0_1: # %bounds.ok
-; CHECK:         lfsx 2, 0, 3
+; CHECK-NEXT:    #
+; CHECK-NEXT:    lfs 2, 0(3)
 ; CHECK-NEXT:    xxlxor 1, 1, 1
 ; CHECK-NEXT:    bl fmodf
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    addi 30, 30, 1
-; CHECK-NEXT:    stfsx 1, 0, 3
+; CHECK-NEXT:    stfs 1, 0(3)
 ; CHECK-NEXT:    cmpld 30, 29
 ; CHECK-NEXT:    blt+ 0, .LBB0_1
 ; CHECK-NEXT:  .LBB0_2: # %bounds.fail

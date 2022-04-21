@@ -13,11 +13,12 @@
 // template <class Alloc, class... UTypes>
 //   tuple(allocator_arg_t, const Alloc& a, UTypes&&...);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <tuple>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "allocators.h"
 #include "../alloc_first.h"
@@ -80,7 +81,7 @@ struct Explicit {
 int main(int, char**)
 {
     {
-        std::tuple<Explicit> t{std::allocator_arg, std::allocator<void>{}, 42};
+        std::tuple<Explicit> t{std::allocator_arg, std::allocator<int>{}, 42};
         assert(std::get<0>(t).value == 42);
     }
     {

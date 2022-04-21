@@ -13,17 +13,19 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     double data_;
 };
 
 template <class F>
-void
+TEST_CONSTEXPR_CXX20 bool
 test(F f)
 {
     {
-    A a;
+    A a = {0.0};
     f(a) = 5;
     assert(a.data_ == 5);
     A* ap = &a;
@@ -34,11 +36,16 @@ test(F f)
     const F& cf = f;
     assert(cf(ap) == f(ap));
     }
+    return true;
 }
 
 int main(int, char**)
 {
     test(std::mem_fn(&A::data_));
 
-  return 0;
+#if TEST_STD_VER >= 20
+    static_assert(test(std::mem_fn(&A::data_)));
+#endif
+
+    return 0;
 }

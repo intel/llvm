@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_XCORE_XCORE_H
 
 #include "MCTargetDesc/XCoreMCTargetDesc.h"
+#include "llvm/PassRegistry.h"
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
@@ -22,7 +23,6 @@ namespace llvm {
   class ModulePass;
   class TargetMachine;
   class XCoreTargetMachine;
-  class formatted_raw_ostream;
 
   void initializeXCoreLowerThreadLocalPass(PassRegistry &p);
 

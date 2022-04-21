@@ -13,15 +13,16 @@
 #ifndef LLVM_CODEGEN_MACHINEOPERAND_H
 #define LLVM_CODEGEN_MACHINEOPERAND_H
 
-#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/Support/DataTypes.h"
-#include "llvm/Support/LowLevelTypeImpl.h"
 #include <cassert>
 
 namespace llvm {
 
+class LLT;
 class BlockAddress;
+class Constant;
 class ConstantFP;
 class ConstantInt;
 class GlobalValue;
@@ -31,7 +32,6 @@ class MachineRegisterInfo;
 class MCCFIInstruction;
 class MDNode;
 class ModuleSlotTracker;
-class TargetMachine;
 class TargetIntrinsicInfo;
 class TargetRegisterInfo;
 class hash_code;
@@ -67,7 +67,8 @@ public:
     MO_CFIIndex,          ///< MCCFIInstruction index.
     MO_IntrinsicID,       ///< Intrinsic ID for ISel
     MO_Predicate,         ///< Generic predicate for ISel
-    MO_Last = MO_Predicate,
+    MO_ShuffleMask,       ///< Other IR Constant for ISel (shuffle masks)
+    MO_Last = MO_ShuffleMask
   };
 
 private:
@@ -97,8 +98,11 @@ private:
   unsigned IsImp : 1;
 
   /// IsDeadOrKill
-  /// For uses: IsKill - True if this instruction is the last use of the
-  /// register on this path through the function.
+  /// For uses: IsKill - Conservatively indicates the last use of a register
+  /// on this path through the function. A register operand with true value of
+  /// this flag must be the last use of the register, a register operand with
+  /// false value may or may not be the last use of the register. After regalloc
+  /// we can use recomputeLivenessFlags to get precise kill flags.
   /// For defs: IsDead - True if this register is never used by a subsequent
   /// instruction.
   /// This is only valid on register operands.
@@ -157,10 +161,11 @@ private:
 
   /// ParentMI - This is the instruction that this operand is embedded into.
   /// This is valid for all operand types, when the operand is in an instr.
-  MachineInstr *ParentMI;
+  MachineInstr *ParentMI = nullptr;
 
   /// Contents union - This contains the payload for the various operand types.
-  union {
+  union ContentsUnion {
+    ContentsUnion() {}
     MachineBasicBlock *MBB;  // For MO_MachineBasicBlock.
     const ConstantFP *CFP;   // For MO_FPImmediate.
     const ConstantInt *CI;   // For MO_CImmediate. Integers > 64bit.
@@ -171,6 +176,7 @@ private:
     unsigned CFIIndex;       // For MO_CFI.
     Intrinsic::ID IntrinsicID; // For MO_IntrinsicID.
     unsigned Pred;           // For MO_Predicate
+    ArrayRef<int> ShuffleMask; // For MO_ShuffleMask
 
     struct {                  // For MO_Register.
       // Register number is in SmallContents.RegNo.
@@ -193,7 +199,7 @@ private:
   } Contents;
 
   explicit MachineOperand(MachineOperandType K)
-    : OpKind(K), SubReg_TargetFlags(0), ParentMI(nullptr) {
+      : OpKind(K), SubReg_TargetFlags(0) {
     // Assert that the layout is what we expect. It's easy to grow this object.
     static_assert(alignof(MachineOperand) <= alignof(int64_t),
                   "MachineOperand shouldn't be more than 8 byte aligned");
@@ -274,6 +280,9 @@ public:
   /// More complex way of printing a MachineOperand.
   /// \param TypeToPrint specifies the generic type to be printed on uses and
   /// defs. It can be determined using MachineInstr::getTypeToPrint.
+  /// \param OpIdx - specifies the index of the operand in machine instruction.
+  /// This will be used by target dependent MIR formatter. Could be None if the
+  /// index is unknown, e.g. called by dump().
   /// \param PrintDef - whether we want to print `def` on an operand which
   /// isDef. Sometimes, if the operand is printed before '=', we don't print
   /// `def`.
@@ -290,8 +299,9 @@ public:
   /// information from it's parent.
   /// \param IntrinsicInfo - same as \p TRI.
   void print(raw_ostream &os, ModuleSlotTracker &MST, LLT TypeToPrint,
-             bool PrintDef, bool IsStandalone, bool ShouldPrintRegisterTies,
-             unsigned TiedOperandIdx, const TargetRegisterInfo *TRI,
+             Optional<unsigned> OpIdx, bool PrintDef, bool IsStandalone,
+             bool ShouldPrintRegisterTies, unsigned TiedOperandIdx,
+             const TargetRegisterInfo *TRI,
              const TargetIntrinsicInfo *IntrinsicInfo) const;
 
   /// Same as print(os, TRI, IntrinsicInfo), but allows to specify the low-level
@@ -340,14 +350,15 @@ public:
   bool isCFIIndex() const { return OpKind == MO_CFIIndex; }
   bool isIntrinsicID() const { return OpKind == MO_IntrinsicID; }
   bool isPredicate() const { return OpKind == MO_Predicate; }
+  bool isShuffleMask() const { return OpKind == MO_ShuffleMask; }
   //===--------------------------------------------------------------------===//
   // Accessors for Register Operands
   //===--------------------------------------------------------------------===//
 
   /// getReg - Returns the register number.
-  unsigned getReg() const {
+  Register getReg() const {
     assert(isReg() && "This is not a register operand!");
-    return SmallContents.RegNo;
+    return Register(SmallContents.RegNo);
   }
 
   unsigned getSubReg() const {
@@ -448,13 +459,23 @@ public:
     return !isUndef() && !isInternalRead() && (isUse() || getSubReg());
   }
 
+  /// Return true if this operand can validly be appended to an arbitrary
+  /// operand list. i.e. this behaves like an implicit operand.
+  bool isValidExcessOperand() const {
+    if ((isReg() && isImplicit()) || isRegMask())
+      return true;
+
+    // Debug operands
+    return isMetadata() || isMCSymbol();
+  }
+
   //===--------------------------------------------------------------------===//
   // Mutators for Register Operands
   //===--------------------------------------------------------------------===//
 
   /// Change the register this operand corresponds to.
   ///
-  void setReg(unsigned Reg);
+  void setReg(Register Reg);
 
   void setSubReg(unsigned subReg) {
     assert(isReg() && "Wrong MachineOperand mutator");
@@ -467,13 +488,13 @@ public:
   /// using TargetRegisterInfo to compose the subreg indices if necessary.
   /// Reg must be a virtual register, SubIdx can be 0.
   ///
-  void substVirtReg(unsigned Reg, unsigned SubIdx, const TargetRegisterInfo&);
+  void substVirtReg(Register Reg, unsigned SubIdx, const TargetRegisterInfo&);
 
   /// substPhysReg - Substitute the current register with the physical register
   /// Reg, taking any existing SubReg into account. For instance,
   /// substPhysReg(%eax) will change %reg1024:sub_8bit to %al.
   ///
-  void substPhysReg(unsigned Reg, const TargetRegisterInfo&);
+  void substPhysReg(MCRegister Reg, const TargetRegisterInfo&);
 
   void setIsUse(bool Val = true) { setIsDef(!Val); }
 
@@ -578,6 +599,11 @@ public:
     return Contents.Pred;
   }
 
+  ArrayRef<int> getShuffleMask() const {
+    assert(isShuffleMask() && "Wrong MachineOperand accessor");
+    return Contents.ShuffleMask;
+  }
+
   /// Return the offset from the symbol in this operand. This always returns 0
   /// for ExternalSymbol operands.
   int64_t getOffset() const {
@@ -597,14 +623,14 @@ public:
   /// It is sometimes necessary to detach the register mask pointer from its
   /// machine operand. This static method can be used for such detached bit
   /// mask pointers.
-  static bool clobbersPhysReg(const uint32_t *RegMask, unsigned PhysReg) {
+  static bool clobbersPhysReg(const uint32_t *RegMask, MCRegister PhysReg) {
     // See TargetRegisterInfo.h.
     assert(PhysReg < (1u << 30) && "Not a physical register");
     return !(RegMask[PhysReg / 32] & (1u << PhysReg % 32));
   }
 
   /// clobbersPhysReg - Returns true if this RegMask operand clobbers PhysReg.
-  bool clobbersPhysReg(unsigned PhysReg) const {
+  bool clobbersPhysReg(MCRegister PhysReg) const {
      return clobbersPhysReg(getRegMask(), PhysReg);
   }
 
@@ -683,6 +709,16 @@ public:
     Contents.RegMask = RegMaskPtr;
   }
 
+  void setIntrinsicID(Intrinsic::ID IID) {
+    assert(isIntrinsicID() && "Wrong MachineOperand mutator");
+    Contents.IntrinsicID = IID;
+  }
+
+  void setPredicate(unsigned Predicate) {
+    assert(isPredicate() && "Wrong MachineOperand mutator");
+    Contents.Pred = Predicate;
+  }
+
   //===--------------------------------------------------------------------===//
   // Other methods.
   //===--------------------------------------------------------------------===//
@@ -703,36 +739,41 @@ public:
   /// ChangeToImmediate - Replace this operand with a new immediate operand of
   /// the specified value.  If an operand is known to be an immediate already,
   /// the setImm method should be used.
-  void ChangeToImmediate(int64_t ImmVal);
+  void ChangeToImmediate(int64_t ImmVal, unsigned TargetFlags = 0);
 
   /// ChangeToFPImmediate - Replace this operand with a new FP immediate operand
   /// of the specified value.  If an operand is known to be an FP immediate
   /// already, the setFPImm method should be used.
-  void ChangeToFPImmediate(const ConstantFP *FPImm);
+  void ChangeToFPImmediate(const ConstantFP *FPImm, unsigned TargetFlags = 0);
 
   /// ChangeToES - Replace this operand with a new external symbol operand.
-  void ChangeToES(const char *SymName, unsigned char TargetFlags = 0);
+  void ChangeToES(const char *SymName, unsigned TargetFlags = 0);
 
   /// ChangeToGA - Replace this operand with a new global address operand.
   void ChangeToGA(const GlobalValue *GV, int64_t Offset,
-                  unsigned char TargetFlags = 0);
+                  unsigned TargetFlags = 0);
 
   /// ChangeToMCSymbol - Replace this operand with a new MC symbol operand.
-  void ChangeToMCSymbol(MCSymbol *Sym);
+  void ChangeToMCSymbol(MCSymbol *Sym, unsigned TargetFlags = 0);
 
   /// Replace this operand with a frame index.
-  void ChangeToFrameIndex(int Idx);
+  void ChangeToFrameIndex(int Idx, unsigned TargetFlags = 0);
 
   /// Replace this operand with a target index.
   void ChangeToTargetIndex(unsigned Idx, int64_t Offset,
-                           unsigned char TargetFlags = 0);
+                           unsigned TargetFlags = 0);
 
   /// ChangeToRegister - Replace this operand with a new register operand of
   /// the specified value.  If an operand is known to be an register already,
   /// the setReg method should be used.
-  void ChangeToRegister(unsigned Reg, bool isDef, bool isImp = false,
+  void ChangeToRegister(Register Reg, bool isDef, bool isImp = false,
                         bool isKill = false, bool isDead = false,
                         bool isUndef = false, bool isDebug = false);
+
+  /// getTargetIndexName - If this MachineOperand is a TargetIndex that has a
+  /// name, attempt to get the name. Returns nullptr if the TargetIndex does not
+  /// have a name. Asserts if MO is not a TargetIndex.
+  const char *getTargetIndexName() const;
 
   //===--------------------------------------------------------------------===//
   // Construction methods.
@@ -756,7 +797,7 @@ public:
     return Op;
   }
 
-  static MachineOperand CreateReg(unsigned Reg, bool isDef, bool isImp = false,
+  static MachineOperand CreateReg(Register Reg, bool isDef, bool isImp = false,
                                   bool isKill = false, bool isDead = false,
                                   bool isUndef = false,
                                   bool isEarlyClobber = false,
@@ -782,7 +823,7 @@ public:
     return Op;
   }
   static MachineOperand CreateMBB(MachineBasicBlock *MBB,
-                                  unsigned char TargetFlags = 0) {
+                                  unsigned TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_MachineBasicBlock);
     Op.setMBB(MBB);
     Op.setTargetFlags(TargetFlags);
@@ -794,7 +835,7 @@ public:
     return Op;
   }
   static MachineOperand CreateCPI(unsigned Idx, int Offset,
-                                  unsigned char TargetFlags = 0) {
+                                  unsigned TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_ConstantPoolIndex);
     Op.setIndex(Idx);
     Op.setOffset(Offset);
@@ -802,21 +843,21 @@ public:
     return Op;
   }
   static MachineOperand CreateTargetIndex(unsigned Idx, int64_t Offset,
-                                          unsigned char TargetFlags = 0) {
+                                          unsigned TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_TargetIndex);
     Op.setIndex(Idx);
     Op.setOffset(Offset);
     Op.setTargetFlags(TargetFlags);
     return Op;
   }
-  static MachineOperand CreateJTI(unsigned Idx, unsigned char TargetFlags = 0) {
+  static MachineOperand CreateJTI(unsigned Idx, unsigned TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_JumpTableIndex);
     Op.setIndex(Idx);
     Op.setTargetFlags(TargetFlags);
     return Op;
   }
   static MachineOperand CreateGA(const GlobalValue *GV, int64_t Offset,
-                                 unsigned char TargetFlags = 0) {
+                                 unsigned TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_GlobalAddress);
     Op.Contents.OffsetedInfo.Val.GV = GV;
     Op.setOffset(Offset);
@@ -824,7 +865,7 @@ public:
     return Op;
   }
   static MachineOperand CreateES(const char *SymName,
-                                 unsigned char TargetFlags = 0) {
+                                 unsigned TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_ExternalSymbol);
     Op.Contents.OffsetedInfo.Val.SymbolName = SymName;
     Op.setOffset(0); // Offset is always 0.
@@ -832,7 +873,7 @@ public:
     return Op;
   }
   static MachineOperand CreateBA(const BlockAddress *BA, int64_t Offset,
-                                 unsigned char TargetFlags = 0) {
+                                 unsigned TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_BlockAddress);
     Op.Contents.OffsetedInfo.Val.BA = BA;
     Op.setOffset(Offset);
@@ -870,7 +911,7 @@ public:
   }
 
   static MachineOperand CreateMCSymbol(MCSymbol *Sym,
-                                       unsigned char TargetFlags = 0) {
+                                       unsigned TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_MCSymbol);
     Op.Contents.Sym = Sym;
     Op.setOffset(0);
@@ -893,6 +934,12 @@ public:
   static MachineOperand CreatePredicate(unsigned Pred) {
     MachineOperand Op(MachineOperand::MO_Predicate);
     Op.Contents.Pred = Pred;
+    return Op;
+  }
+
+  static MachineOperand CreateShuffleMask(ArrayRef<int> Mask) {
+    MachineOperand Op(MachineOperand::MO_ShuffleMask);
+    Op.Contents.ShuffleMask = Mask;
     return Op;
   }
 

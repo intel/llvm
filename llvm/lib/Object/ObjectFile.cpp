@@ -21,16 +21,22 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <system_error>
 
 using namespace llvm;
 using namespace object;
+
+raw_ostream &object::operator<<(raw_ostream &OS, const SectionedAddress &Addr) {
+  OS << "SectionedAddress{" << format_hex(Addr.Address, 10);
+  if (Addr.SectionIndex != SectionedAddress::UndefSection)
+    OS << ", " << Addr.SectionIndex;
+  return OS << "}";
+}
 
 void ObjectFile::anchor() {}
 
@@ -47,8 +53,12 @@ bool SectionRef::containsSymbol(SymbolRef S) const {
   return *this == **SymSec;
 }
 
-uint64_t ObjectFile::getSymbolValue(DataRefImpl Ref) const {
-  uint32_t Flags = getSymbolFlags(Ref);
+Expected<uint64_t> ObjectFile::getSymbolValue(DataRefImpl Ref) const {
+  uint32_t Flags;
+  if (Error E = getSymbolFlags(Ref).moveInto(Flags))
+    // TODO: Test this error.
+    return std::move(E);
+
   if (Flags & SymbolRef::SF_Undefined)
     return 0;
   if (Flags & SymbolRef::SF_Common)
@@ -67,8 +77,10 @@ Error ObjectFile::printSymbolName(raw_ostream &OS, DataRefImpl Symb) const {
 uint32_t ObjectFile::getSymbolAlignment(DataRefImpl DRI) const { return 0; }
 
 bool ObjectFile::isSectionBitcode(DataRefImpl Sec) const {
-  if (Expected<StringRef> NameOrErr = getSectionName(Sec))
+  Expected<StringRef> NameOrErr = getSectionName(Sec);
+  if (NameOrErr)
     return *NameOrErr == ".llvmbc";
+  consumeError(NameOrErr.takeError());
   return false;
 }
 
@@ -82,7 +94,10 @@ bool ObjectFile::isBerkeleyData(DataRefImpl Sec) const {
   return isSectionData(Sec);
 }
 
-section_iterator ObjectFile::getRelocatedSection(DataRefImpl Sec) const {
+bool ObjectFile::isDebugSection(DataRefImpl Sec) const { return false; }
+
+Expected<section_iterator>
+ObjectFile::getRelocatedSection(DataRefImpl Sec) const {
   return section_iterator(SectionRef(Sec, this));
 }
 
@@ -98,21 +113,25 @@ Triple ObjectFile::makeTriple() const {
     setARMSubArch(TheTriple);
 
   // TheTriple defaults to ELF, and COFF doesn't have an environment:
-  // the best we can do here is indicate that it is mach-o.
-  if (isMachO())
+  // something we can do here is indicate that it is mach-o.
+  if (isMachO()) {
     TheTriple.setObjectFormat(Triple::MachO);
-
-  if (isCOFF()) {
-    const auto COFFObj = dyn_cast<COFFObjectFile>(this);
+  } else if (isCOFF()) {
+    const auto COFFObj = cast<COFFObjectFile>(this);
     if (COFFObj->getArch() == Triple::thumb)
       TheTriple.setTriple("thumbv7-windows");
+  } else if (isXCOFF()) {
+    // XCOFF implies AIX.
+    TheTriple.setOS(Triple::AIX);
+    TheTriple.setObjectFormat(Triple::XCOFF);
   }
 
   return TheTriple;
 }
 
 Expected<std::unique_ptr<ObjectFile>>
-ObjectFile::createObjectFile(MemoryBufferRef Object, file_magic Type) {
+ObjectFile::createObjectFile(MemoryBufferRef Object, file_magic Type,
+                             bool InitContent) {
   StringRef Data = Object.getBuffer();
   if (Type == file_magic::unknown)
     Type = identify_magic(Data);
@@ -126,13 +145,17 @@ ObjectFile::createObjectFile(MemoryBufferRef Object, file_magic Type) {
   case file_magic::windows_resource:
   case file_magic::pdb:
   case file_magic::minidump:
+  case file_magic::goff_object:
+  case file_magic::cuda_fatbinary:
+    return errorCodeToError(object_error::invalid_file_type);
+  case file_magic::tapi_file:
     return errorCodeToError(object_error::invalid_file_type);
   case file_magic::elf:
   case file_magic::elf_relocatable:
   case file_magic::elf_executable:
   case file_magic::elf_shared_object:
   case file_magic::elf_core:
-    return createELFObjectFile(Object);
+    return createELFObjectFile(Object, InitContent);
   case file_magic::macho_object:
   case file_magic::macho_executable:
   case file_magic::macho_fixed_virtual_memory_shared_lib:
@@ -150,7 +173,9 @@ ObjectFile::createObjectFile(MemoryBufferRef Object, file_magic Type) {
   case file_magic::pecoff_executable:
     return createCOFFObjectFile(Object);
   case file_magic::xcoff_object_32:
-    return createXCOFFObjectFile(Object);
+    return createXCOFFObjectFile(Object, Binary::ID_XCOFF32);
+  case file_magic::xcoff_object_64:
+    return createXCOFFObjectFile(Object, Binary::ID_XCOFF64);
   case file_magic::wasm_object:
     return createWasmObjectFile(Object);
   }
@@ -172,4 +197,13 @@ ObjectFile::createObjectFile(StringRef ObjectPath) {
   std::unique_ptr<ObjectFile> Obj = std::move(ObjOrErr.get());
 
   return OwningBinary<ObjectFile>(std::move(Obj), std::move(Buffer));
+}
+
+bool ObjectFile::isReflectionSectionStrippable(
+    llvm::binaryformat::Swift5ReflectionSectionKind ReflectionSectionKind)
+    const {
+  using llvm::binaryformat::Swift5ReflectionSectionKind;
+  return ReflectionSectionKind == Swift5ReflectionSectionKind::fieldmd ||
+         ReflectionSectionKind == Swift5ReflectionSectionKind::reflstr ||
+         ReflectionSectionKind == Swift5ReflectionSectionKind::assocty;
 }

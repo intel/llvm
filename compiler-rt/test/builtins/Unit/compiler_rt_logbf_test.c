@@ -1,27 +1,23 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- compiler_rt_logbf_test.c - Test __compiler_rt_logbf ---------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This file checks __compiler_rt_logbf from the compiler_rt library for
-// conformance against libm.
-//
-//===----------------------------------------------------------------------===//
 
 #define SINGLE_PRECISION
+#include "fp_lib.h"
+#include "int_math.h"
 #include <math.h>
 #include <stdio.h>
-#include "fp_lib.h"
 
 int test__compiler_rt_logbf(fp_t x) {
+#if defined(__ve__)
+  if (fpclassify(x) == FP_SUBNORMAL)
+    return 0;
+#endif
   fp_t crt_value = __compiler_rt_logbf(x);
   fp_t libm_value = logbf(x);
-  // Compare actual rep, e.g. to avoid NaN != the same NaN
-  if (toRep(crt_value) != toRep(libm_value)) {
+  // `!=` operator on fp_t returns false for NaNs so also check if operands are
+  // both NaN. We don't do `toRepr(crt_value) != toRepr(libm_value)` because
+  // that treats different representations of NaN as not equivalent.
+  if (crt_value != libm_value &&
+      !(crt_isnan(crt_value) && crt_isnan(libm_value))) {
     printf("error: in __compiler_rt_logb(%a [%X]) = %a [%X] !=  %a [%X]\n", x,
            toRep(x), crt_value, toRep(crt_value), libm_value,
            toRep(libm_value));

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class weekday;
@@ -37,10 +37,10 @@ constexpr bool testConstexpr()
 {
     M m{1};
     Ms offset{4};
-    if (m + offset != M{5}) return false;
-    if (offset + m != M{5}) return false;
-//  Check the example
-    if (M{1} + Ms{6} != M{0}) return false;
+    assert(m + offset == M{5});
+    assert(offset + m == M{5});
+    //  Check the example
+    assert(M{1} + Ms{6} == M{0});
     return true;
 }
 
@@ -63,9 +63,9 @@ int main(int, char**)
             weekday wd1 = weekday{i} + days{j};
             weekday wd2 = days{j} + weekday{i};
             assert(wd1 == wd2);
-            assert((static_cast<unsigned>(wd1) == euclidian_addition<unsigned, 0, 6>(i, j)));
-            assert((static_cast<unsigned>(wd2) == euclidian_addition<unsigned, 0, 6>(i, j)));
+            assert((wd1.c_encoding() == euclidian_addition<unsigned, 0, 6>(i, j)));
+            assert((wd2.c_encoding() == euclidian_addition<unsigned, 0, 6>(i, j)));
         }
 
-  return 0;
+    return 0;
 }

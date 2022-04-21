@@ -195,13 +195,18 @@ namespace ARMII {
     AddrModeT1_4    = 9,
     AddrModeT1_s    = 10, // i8 * 4 for pc and sp relative data
     AddrModeT2_i12  = 11,
-    AddrModeT2_i8   = 12,
-    AddrModeT2_so   = 13,
-    AddrModeT2_pc   = 14, // +/- i12 for pc relative data
-    AddrModeT2_i8s4 = 15, // i8 * 4
-    AddrMode_i12    = 16,
-    AddrMode5FP16   = 17,  // i8 * 2
-    AddrModeT2_ldrex = 18, // i8 * 4, with unscaled offset in MCInst
+    AddrModeT2_i8   = 12, // +/- i8
+    AddrModeT2_i8pos = 13, // + i8
+    AddrModeT2_i8neg = 14, // - i8
+    AddrModeT2_so   = 15,
+    AddrModeT2_pc   = 16, // +/- i12 for pc relative data
+    AddrModeT2_i8s4 = 17, // i8 * 4
+    AddrMode_i12    = 18,
+    AddrMode5FP16   = 19,  // i8 * 2
+    AddrModeT2_ldrex = 20, // i8 * 4, with unscaled offset in MCInst
+    AddrModeT2_i7s4 = 21, // i7 * 4
+    AddrModeT2_i7s2 = 22, // i7 * 2
+    AddrModeT2_i7   = 23, // i7 * 1
   };
 
   inline static const char *AddrModeToString(AddrMode addrmode) {
@@ -220,11 +225,16 @@ namespace ARMII {
     case AddrModeT1_s:    return "AddrModeT1_s";
     case AddrModeT2_i12:  return "AddrModeT2_i12";
     case AddrModeT2_i8:   return "AddrModeT2_i8";
+    case AddrModeT2_i8pos: return "AddrModeT2_i8pos";
+    case AddrModeT2_i8neg: return "AddrModeT2_i8neg";
     case AddrModeT2_so:   return "AddrModeT2_so";
     case AddrModeT2_pc:   return "AddrModeT2_pc";
     case AddrModeT2_i8s4: return "AddrModeT2_i8s4";
     case AddrMode_i12:    return "AddrMode_i12";
     case AddrModeT2_ldrex:return "AddrModeT2_ldrex";
+    case AddrModeT2_i7s4: return "AddrModeT2_i7s4";
+    case AddrModeT2_i7s2: return "AddrModeT2_i7s2";
+    case AddrModeT2_i7:   return "AddrModeT2_i7";
     }
   }
 
@@ -248,7 +258,7 @@ namespace ARMII {
     MO_OPTION_MASK = 0x3,
 
     /// MO_COFFSTUB - On a symbol operand "FOO", this indicates that the
-    /// reference is actually to the ".refptrp.FOO" symbol.  This is used for
+    /// reference is actually to the ".refptr.FOO" symbol.  This is used for
     /// stub symbols on windows.
     MO_COFFSTUB = 0x4,
 
@@ -385,16 +395,40 @@ namespace ARMII {
     // instruction. Used by the parser to determine whether to require the 'S'
     // suffix on the mnemonic (when not in an IT block) or preclude it (when
     // in an IT block).
-    ThumbArithFlagSetting = 1 << 18,
+    ThumbArithFlagSetting = 1 << 19,
+
+    // Whether an instruction can be included in an MVE tail-predicated loop,
+    // though extra validity checks may need to be performed too.
+    ValidForTailPredication = 1 << 20,
+
+    // Whether an instruction writes to the top/bottom half of a vector element
+    // and leaves the other half untouched.
+    RetainsPreviousHalfElement = 1 << 21,
+
+    // Whether the instruction produces a scalar result from vector operands.
+    HorizontalReduction = 1 << 22,
+
+    // Whether this instruction produces a vector result that is larger than
+    // its input, typically reading from the top/bottom halves of the input(s).
+    DoubleWidthResult = 1 << 23,
+
+    // The vector element size for MVE instructions. 00 = i8, 01 = i16, 10 = i32
+    // and 11 = i64. This is the largest type if multiple are present, so a
+    // MVE_VMOVLs8bh is ize 01=i16, as it extends from a i8 to a i16. There are
+    // some caveats so cannot be used blindly, such as exchanging VMLADAVA's and
+    // complex instructions, which may use different input lanes.
+    VecSizeShift = 24,
+    VecSize = 3 << VecSizeShift,
 
     //===------------------------------------------------------------------===//
     // Code domain.
     DomainShift   = 15,
-    DomainMask    = 7 << DomainShift,
+    DomainMask    = 15 << DomainShift,
     DomainGeneral = 0 << DomainShift,
     DomainVFP     = 1 << DomainShift,
     DomainNEON    = 2 << DomainShift,
     DomainNEONA8  = 4 << DomainShift,
+    DomainMVE     = 8 << DomainShift,
 
     //===------------------------------------------------------------------===//
     // Field shifts - such shifts are used to set field while generating

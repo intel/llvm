@@ -17,6 +17,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/ValueHandle.h"
+#include "isl/isl-noexceptions.h"
 
 namespace llvm {
 class LoopInfo;
@@ -27,11 +28,74 @@ class Region;
 class Pass;
 class DominatorTree;
 class RegionInfo;
+class RegionNode;
 } // namespace llvm
 
 namespace polly {
 class Scop;
 class ScopStmt;
+
+/// Enumeration of assumptions Polly can take.
+enum AssumptionKind {
+  ALIASING,
+  INBOUNDS,
+  WRAPPING,
+  UNSIGNED,
+  PROFITABLE,
+  ERRORBLOCK,
+  COMPLEXITY,
+  INFINITELOOP,
+  INVARIANTLOAD,
+  DELINEARIZATION,
+};
+
+/// Enum to distinguish between assumptions and restrictions.
+enum AssumptionSign { AS_ASSUMPTION, AS_RESTRICTION };
+
+/// Helper struct to remember assumptions.
+struct Assumption {
+  /// The kind of the assumption (e.g., WRAPPING).
+  AssumptionKind Kind;
+
+  /// Flag to distinguish assumptions and restrictions.
+  AssumptionSign Sign;
+
+  /// The valid/invalid context if this is an assumption/restriction.
+  isl::set Set;
+
+  /// The location that caused this assumption.
+  llvm::DebugLoc Loc;
+
+  /// An optional block whose domain can simplify the assumption.
+  llvm::BasicBlock *BB;
+
+  // Whether the assumption must be checked at runtime.
+  bool RequiresRTC;
+};
+
+using RecordedAssumptionsTy = llvm::SmallVector<Assumption, 8>;
+
+/// Record an assumption for later addition to the assumed context.
+///
+/// This function will add the assumption to the RecordedAssumptions. This
+/// collection will be added (@see addAssumption) to the assumed context once
+/// all paramaters are known and the context is fully built.
+///
+/// @param RecordedAssumption container which keeps all recorded assumptions.
+/// @param Kind The assumption kind describing the underlying cause.
+/// @param Set  The relations between parameters that are assumed to hold.
+/// @param Loc  The location in the source that caused this assumption.
+/// @param Sign Enum to indicate if the assumptions in @p Set are positive
+///             (needed/assumptions) or negative (invalid/restrictions).
+/// @param BB   The block in which this assumption was taken. If it is
+///             set, the domain of that block will be used to simplify the
+///             actual assumption in @p Set once it is added. This is useful
+///             if the assumption was created prior to the domain.
+/// @param RTC  Does the assumption require a runtime check?
+void recordAssumption(RecordedAssumptionsTy *RecordedAssumptions,
+                      AssumptionKind Kind, isl::set Set, llvm::DebugLoc Loc,
+                      AssumptionSign Sign, llvm::BasicBlock *BB = nullptr,
+                      bool RTC = true);
 
 /// Type to remap values.
 using ValueMapT = llvm::DenseMap<llvm::AssertingVH<llvm::Value>,
@@ -349,27 +413,6 @@ llvm::Value *expandCodeFor(Scop &S, llvm::ScalarEvolution &SE,
                            llvm::Instruction *IP, ValueMapT *VMap,
                            llvm::BasicBlock *RTCBB);
 
-/// Check if the block is a error block.
-///
-/// A error block is currently any block that fulfills at least one of
-/// the following conditions:
-///
-///  - It is terminated by an unreachable instruction
-///  - It contains a call to a non-pure function that is not immediately
-///    dominated by a loop header and that does not dominate the region exit.
-///    This is a heuristic to pick only error blocks that are conditionally
-///    executed and can be assumed to be not executed at all without the domains
-///    being available.
-///
-/// @param BB The block to check.
-/// @param R  The analyzed region.
-/// @param LI The loop info analysis.
-/// @param DT The dominator tree of the function.
-///
-/// @return True if the block is a error block, false otherwise.
-bool isErrorBlock(llvm::BasicBlock &BB, const llvm::Region &R,
-                  llvm::LoopInfo &LI, const llvm::DominatorTree &DT);
-
 /// Return the condition for the terminator @p TI.
 ///
 /// For unconditional branches the "i1 true" condition will be returned.
@@ -378,6 +421,27 @@ bool isErrorBlock(llvm::BasicBlock &BB, const llvm::Region &R,
 ///
 /// @return The condition of @p TI and nullptr if none could be extracted.
 llvm::Value *getConditionFromTerminator(llvm::Instruction *TI);
+
+/// Get the smallest loop that contains @p S but is not in @p S.
+llvm::Loop *getLoopSurroundingScop(Scop &S, llvm::LoopInfo &LI);
+
+/// Get the number of blocks in @p L.
+///
+/// The number of blocks in a loop are the number of basic blocks actually
+/// belonging to the loop, as well as all single basic blocks that the loop
+/// exits to and which terminate in an unreachable instruction. We do not
+/// allow such basic blocks in the exit of a scop, hence they belong to the
+/// scop and represent run-time conditions which we want to model and
+/// subsequently speculate away.
+///
+/// @see getRegionNodeLoop for additional details.
+unsigned getNumBlocksInLoop(llvm::Loop *L);
+
+/// Get the number of blocks in @p RN.
+unsigned getNumBlocksInRegionNode(llvm::RegionNode *RN);
+
+/// Return the smallest loop surrounding @p RN.
+llvm::Loop *getRegionNodeLoop(llvm::RegionNode *RN, llvm::LoopInfo &LI);
 
 /// Check if @p LInst can be hoisted in @p R.
 ///
@@ -422,22 +486,6 @@ bool canSynthesize(const llvm::Value *V, const Scop &S,
 /// case this function returns nullptr.
 llvm::BasicBlock *getUseBlock(const llvm::Use &U);
 
-/// Derive the individual index expressions from a GEP instruction.
-///
-/// This function optimistically assumes the GEP references into a fixed size
-/// array. If this is actually true, this function returns a list of array
-/// subscript expressions as SCEV as well as a list of integers describing
-/// the size of the individual array dimensions. Both lists have either equal
-/// length or the size list is one element shorter in case there is no known
-/// size available for the outermost array dimension.
-///
-/// @param GEP The GetElementPtr instruction to analyze.
-///
-/// @return A tuple with the subscript expressions and the dimension sizes.
-std::tuple<std::vector<const llvm::SCEV *>, std::vector<int>>
-getIndexExpressionsFromGEP(llvm::GetElementPtrInst *GEP,
-                           llvm::ScalarEvolution &SE);
-
 // If the loop is nonaffine/boxed, return the first non-boxed surrounding loop
 // for Polly. If the loop is affine, return the loop itself.
 //
@@ -475,5 +523,80 @@ bool isDebugCall(llvm::Instruction *Inst);
 ///
 /// Such a statement must not be removed, even if has no side-effects.
 bool hasDebugCall(ScopStmt *Stmt);
+
+/// Find a property value in a LoopID.
+///
+/// Generally, a property MDNode has the format
+///
+///   !{ !"Name", value }
+///
+/// In which case the value is returned.
+///
+/// If the property is just
+///
+///   !{ !"Name" }
+///
+/// Then `nullptr` is set to mark the property is existing, but does not carry
+/// any value. If the property does not exist, `None` is returned.
+llvm::Optional<llvm::Metadata *> findMetadataOperand(llvm::MDNode *LoopMD,
+                                                     llvm::StringRef Name);
+
+/// Find a boolean property value in a LoopID. The value not being defined is
+/// interpreted as a false value.
+bool getBooleanLoopAttribute(llvm::MDNode *LoopID, llvm::StringRef Name);
+
+/// Find an integers property value in a LoopID.
+llvm::Optional<int> getOptionalIntLoopAttribute(llvm::MDNode *LoopID,
+                                                llvm::StringRef Name);
+
+/// Does the loop's LoopID contain a 'llvm.loop.disable_heuristics' property?
+///
+/// This is equivalent to llvm::hasDisableAllTransformsHint(Loop*), but
+/// including the LoopUtils.h header indirectly also declares llvm::MemoryAccess
+/// which clashes with polly::MemoryAccess. Declaring this alias here avoid
+/// having to include LoopUtils.h in other files.
+bool hasDisableAllTransformsHint(llvm::Loop *L);
+bool hasDisableAllTransformsHint(llvm::MDNode *LoopID);
+
+/// Represent the attributes of a loop.
+struct BandAttr {
+  /// LoopID which stores the properties of the loop, such as transformations to
+  /// apply and the metadata of followup-loops.
+  ///
+  /// Cannot be used to identify a loop. Two different loops can have the same
+  /// metadata.
+  llvm::MDNode *Metadata = nullptr;
+
+  /// The LoopInfo reference for this loop.
+  ///
+  /// Only loops from the original IR are represented by LoopInfo. Loops that
+  /// were generated by Polly are not tracked by LoopInfo.
+  llvm::Loop *OriginalLoop = nullptr;
+};
+
+/// Get an isl::id representing a loop.
+///
+/// This takes the ownership of the BandAttr and will be free'd when the
+/// returned isl::Id is free'd.
+isl::id getIslLoopAttr(isl::ctx Ctx, BandAttr *Attr);
+
+/// Create an isl::id that identifies an original loop.
+///
+/// Return nullptr if the loop does not need a BandAttr (i.e. has no
+/// properties);
+///
+/// This creates a BandAttr which must be unique per loop and therefore this
+/// must not be called multiple times on the same loop as their id would be
+/// different.
+isl::id createIslLoopAttr(isl::ctx Ctx, llvm::Loop *L);
+
+/// Is @p Id representing a loop?
+///
+/// Such ids contain a polly::BandAttr as its user pointer.
+bool isLoopAttr(const isl::id &Id);
+
+/// Return the BandAttr of a loop's isl::id.
+BandAttr *getLoopAttr(const isl::id &Id);
+
 } // namespace polly
 #endif

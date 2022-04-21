@@ -4,19 +4,19 @@
 template<typename ...T> struct Unexpanded : T... {
   using T::f; // expected-error {{unexpanded}}
   using typename T::type; // expected-error {{unexpanded}}
-  template<typename ...U> void g(U ...u) { f(u...); } // expected-error {{undeclared identifier 'f'}}
+  template<typename ...U> void g(U ...u) { f(u...); } // expected-error {{explicit qualification required to use member 'f' from dependent base class}}
   void h() {
     Unexpanded<type...> *p; // expected-error {{undeclared identifier 'type'}}
   }
 };
 void test_Unexpanded() {
-  struct A { void f(); }; // expected-note {{must qualify}}
-  struct B { void f(int); }; // expected-note {{must qualify}}
+  struct A { void f(); };
+  struct B { void f(int); }; // expected-note {{here}}
   Unexpanded<A, B>().g(0); // expected-note {{instantiation of}}
 }
 
 // Test using non-type members from pack of base classes.
-template<typename ...T> struct A : T... { // expected-note 2{{candidate}}
+template<typename ...T> struct A : T... {
   using T::T ...; // expected-note 2{{inherited here}}
   using T::operator() ...;
   using T::operator T* ...;
@@ -41,7 +41,7 @@ namespace test_A {
     Y(int, int);
     void operator()(int, int);
     operator Y *();
-    void h(int, int); // expected-note {{not viable}}
+    void h(int, int);
   };
   struct Z {
     Z();
@@ -177,14 +177,14 @@ namespace test_lambda1 {
   };
   struct B {
     template<typename> struct X {
-      void f(int, int); // expected-note {{declared here}} expected-note {{not viable}}
+      void f(int, int); // expected-note {{declared here}}
       using type = int;
     };
   };
   struct C {
     template<typename> struct X {
       void f(int); // expected-note {{candidate}}
-      void f(int, int); // expected-note {{not viable}}
+      void f(int, int);
       using type = int;
     };
   };

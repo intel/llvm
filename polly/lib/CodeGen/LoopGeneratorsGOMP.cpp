@@ -47,7 +47,7 @@ void ParallelLoopGeneratorGOMP::createCallSpawnThreads(Value *SubFn,
   Builder.CreateCall(F, Args);
 }
 
-void ParallelLoopGeneratorGOMP::deployParallelExecution(Value *SubFn,
+void ParallelLoopGeneratorGOMP::deployParallelExecution(Function *SubFn,
                                                         Value *SubFnParam,
                                                         Value *LB, Value *UB,
                                                         Value *Stride) {
@@ -142,8 +142,8 @@ ParallelLoopGeneratorGOMP::createSubFn(Value *Stride, AllocaInst *StructData,
 
   // Add code to load the iv bounds for this set of iterations.
   Builder.SetInsertPoint(PreHeaderBB);
-  Value *LB = Builder.CreateLoad(LBPtr, "polly.par.LB");
-  Value *UB = Builder.CreateLoad(UBPtr, "polly.par.UB");
+  Value *LB = Builder.CreateLoad(LongType, LBPtr, "polly.par.LB");
+  Value *UB = Builder.CreateLoad(LongType, UBPtr, "polly.par.UB");
 
   // Subtract one as the upper bound provided by OpenMP is a < comparison
   // whereas the codegenForSequential function creates a <= comparison.

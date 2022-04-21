@@ -1,5 +1,4 @@
-// RUN: %clang --sycl %s -c -o %T/kernel.spv
-// RUN: %clang -std=c++11 -g %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 //==--------------- nd_range.cpp - SYCL nd_range test ----------------------==//
 //

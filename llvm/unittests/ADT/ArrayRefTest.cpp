@@ -33,10 +33,6 @@ static_assert(
 
 // Check that we can't accidentally assign a temporary location to an ArrayRef.
 // (Unfortunately we can't make use of the same thing with constructors.)
-//
-// Disable this check under MSVC; even MSVC 2015 isn't inconsistent between
-// std::is_assignable and actually writing such an assignment.
-#if !defined(_MSC_VER)
 static_assert(
     !std::is_assignable<ArrayRef<int *>&, int *>::value,
     "Assigning from single prvalue element");
@@ -49,7 +45,6 @@ static_assert(
 static_assert(
     !std::is_assignable<ArrayRef<int *>&, std::initializer_list<int *>>::value,
     "Assigning from an initializer list");
-#endif
 
 namespace {
 
@@ -80,7 +75,9 @@ TEST(ArrayRefTest, AllocatorCopy) {
   EXPECT_NE(makeArrayRef(Array3Src).data(), Array3Copy.data());
 }
 
-TEST(ArrayRefTest, SizeTSizedOperations) {
+// This test is pure UB given the ArrayRef<> implementation.
+// You are not allowed to produce non-null pointers given null base pointer.
+TEST(ArrayRefTest, DISABLED_SizeTSizedOperations) {
   ArrayRef<char> AR(nullptr, std::numeric_limits<ptrdiff_t>::max());
 
   // Check that drop_back accepts size_t-sized numbers.
@@ -255,7 +252,17 @@ TEST(ArrayRefTest, OwningArrayRef) {
   EXPECT_EQ(A.data(), nullptr);
 }
 
-static_assert(is_trivially_copyable<ArrayRef<int>>::value,
+TEST(ArrayRefTest, makeArrayRefFromStdArray) {
+  std::array<int, 5> A1{{42, -5, 0, 1000000, -1000000}};
+  ArrayRef<int> A2 = makeArrayRef(A1);
+
+  EXPECT_EQ(A1.size(), A2.size());
+  for (std::size_t i = 0; i < A1.size(); ++i) {
+    EXPECT_EQ(A1[i], A2[i]);
+  }
+}
+
+static_assert(std::is_trivially_copyable<ArrayRef<int>>::value,
               "trivially copyable");
 
 } // end anonymous namespace

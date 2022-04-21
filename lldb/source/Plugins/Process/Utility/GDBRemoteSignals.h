@@ -6,14 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_GDBRemoteSignals_H_
-#define liblldb_GDBRemoteSignals_H_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_GDBREMOTESIGNALS_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_GDBREMOTESIGNALS_H
 
 #include "lldb/Target/UnixSignals.h"
 
 namespace lldb_private {
 
-/// Empty set of Unix signals to be filled by PlatformRemoteGDBServer
+/// Initially carries signals defined by the GDB Remote Serial Protocol.
+/// Can be filled with platform's signals through PlatformRemoteGDBServer.
 class GDBRemoteSignals : public UnixSignals {
 public:
   GDBRemoteSignals();
@@ -26,4 +27,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_GDBRemoteSignals_H_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_GDBREMOTESIGNALS_H

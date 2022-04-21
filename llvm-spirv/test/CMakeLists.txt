@@ -1,5 +1,3 @@
-include(FindPkgConfig)
-
 llvm_canonicalize_cmake_booleans(SPIRV_SKIP_CLANG_BUILD)
 llvm_canonicalize_cmake_booleans(SPIRV_SKIP_DEBUG_INFO_TESTS)
 
@@ -7,14 +5,33 @@ llvm_canonicalize_cmake_booleans(SPIRV_SKIP_DEBUG_INFO_TESTS)
 get_target_property(LLVM_SPIRV_DIR llvm-spirv BINARY_DIR)
 set(LLVM_SPIRV_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-# find spirv-val
-pkg_search_module(SPIRV_TOOLS SPIRV-Tools)
 if(SPIRV_TOOLS_FOUND)
+  find_program(SPIRV_TOOLS_SPIRV_AS NAMES spirv-as PATHS ${SPIRV_TOOLS_PREFIX}/bin)
+  if(SPIRV_TOOLS_SPIRV_AS)
+    set(SPIRV_TOOLS_SPIRV_AS_FOUND True)
+  endif()
+
+  find_program(SPIRV_TOOLS_SPIRV_LINK NAMES spirv-link PATHS ${SPIRV_TOOLS_PREFIX}/bin)
+  if(SPIRV_TOOLS_SPIRV_LINK)
+    set(SPIRV_TOOLS_SPIRV_LINK_FOUND True)
+  endif()
+
   find_program(SPIRV_TOOLS_SPIRV_VAL NAMES spirv-val PATHS ${SPIRV_TOOLS_PREFIX}/bin)
   if(SPIRV_TOOLS_SPIRV_VAL)
-    get_filename_component(SPIRV_TOOLS_BINDIR "${SPIRV_TOOLS_SPIRV_VAL}" DIRECTORY)
     set(SPIRV_TOOLS_SPIRV_VAL_FOUND True)
   endif()
+
+  set(SPIRV_TOOLS_BINDIR "${SPIRV_TOOLS_PREFIX}/bin")
+endif()
+
+if(NOT SPIRV_TOOLS_SPIRV_AS)
+  message(WARNING "spirv-as not found! SPIR-V assembly tests will not be run.")
+  set(SPIRV_TOOLS_SPIRV_AS_FOUND False)
+endif()
+
+if(NOT SPIRV_TOOLS_SPIRV_LINK)
+  message(WARNING "spirv-link not found! SPIR-V test involving the linker will not be run.")
+  set(SPIRV_TOOLS_SPIRV_LINK_FOUND False)
 endif()
 
 if(NOT SPIRV_TOOLS_SPIRV_VAL)
@@ -29,7 +46,7 @@ configure_lit_site_cfg(
     ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
 )
 
-if(NOT BUILD_EXTERNAL)
+if(NOT LLVM_SPIRV_BUILD_EXTERNAL)
   set(LLVM_SPIRV_TEST_DEPS
     FileCheck
     count
@@ -52,7 +69,7 @@ if(NOT BUILD_EXTERNAL)
       llvm-readobj
     )
   endif(NOT SPIRV_SKIP_DEBUG_INFO_TESTS)
-endif(NOT BUILD_EXTERNAL)
+endif(NOT LLVM_SPIRV_BUILD_EXTERNAL)
 
 
 add_lit_testsuite(check-llvm-spirv "Running the LLVM-SPIRV regression tests"
@@ -66,7 +83,7 @@ add_lit_testsuite(check-llvm-spirv "Running the LLVM-SPIRV regression tests"
 
 # to enable a custom test target on cmake below 3.11
 # starting with 3.11 "test" is only reserved if ENABLE_TESTING(ON)
-if(BUILD_EXTERNAL)
+if(LLVM_SPIRV_BUILD_EXTERNAL)
   cmake_policy(PUSH)
   if(POLICY CMP0037 AND ${CMAKE_VERSION} VERSION_LESS "3.11.0")
     cmake_policy(SET CMP0037 OLD)
@@ -76,4 +93,4 @@ if(BUILD_EXTERNAL)
       check-llvm-spirv
   )
   cmake_policy(POP)
-endif(BUILD_EXTERNAL)
+endif(LLVM_SPIRV_BUILD_EXTERNAL)

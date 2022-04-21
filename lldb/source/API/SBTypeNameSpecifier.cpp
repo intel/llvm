@@ -1,5 +1,4 @@
-//===-- SBTypeNameSpecifier.cpp ------------------------------------*- C++
-//-*-===//
+//===-- SBTypeNameSpecifier.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/API/SBTypeNameSpecifier.h"
-#include "SBReproducerPrivate.h"
+#include "lldb/Utility/Instrumentation.h"
 
 #include "lldb/API/SBStream.h"
 #include "lldb/API/SBType.h"
@@ -18,21 +17,18 @@
 using namespace lldb;
 using namespace lldb_private;
 
-SBTypeNameSpecifier::SBTypeNameSpecifier() : m_opaque_sp() {
-  LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBTypeNameSpecifier);
-}
+SBTypeNameSpecifier::SBTypeNameSpecifier() { LLDB_INSTRUMENT_VA(this); }
 
 SBTypeNameSpecifier::SBTypeNameSpecifier(const char *name, bool is_regex)
     : m_opaque_sp(new TypeNameSpecifierImpl(name, is_regex)) {
-  LLDB_RECORD_CONSTRUCTOR(SBTypeNameSpecifier, (const char *, bool), name,
-                          is_regex);
+  LLDB_INSTRUMENT_VA(this, name, is_regex);
 
-  if (name == NULL || (*name) == 0)
+  if (name == nullptr || (*name) == 0)
     m_opaque_sp.reset();
 }
 
-SBTypeNameSpecifier::SBTypeNameSpecifier(SBType type) : m_opaque_sp() {
-  LLDB_RECORD_CONSTRUCTOR(SBTypeNameSpecifier, (lldb::SBType), type);
+SBTypeNameSpecifier::SBTypeNameSpecifier(SBType type) {
+  LLDB_INSTRUMENT_VA(this, type);
 
   if (type.IsValid())
     m_opaque_sp = TypeNameSpecifierImplSP(
@@ -41,44 +37,43 @@ SBTypeNameSpecifier::SBTypeNameSpecifier(SBType type) : m_opaque_sp() {
 
 SBTypeNameSpecifier::SBTypeNameSpecifier(const lldb::SBTypeNameSpecifier &rhs)
     : m_opaque_sp(rhs.m_opaque_sp) {
-  LLDB_RECORD_CONSTRUCTOR(SBTypeNameSpecifier,
-                          (const lldb::SBTypeNameSpecifier &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 }
 
-SBTypeNameSpecifier::~SBTypeNameSpecifier() {}
+SBTypeNameSpecifier::~SBTypeNameSpecifier() = default;
 
 bool SBTypeNameSpecifier::IsValid() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBTypeNameSpecifier, IsValid);
+  LLDB_INSTRUMENT_VA(this);
   return this->operator bool();
 }
 SBTypeNameSpecifier::operator bool() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBTypeNameSpecifier, operator bool);
+  LLDB_INSTRUMENT_VA(this);
 
-  return m_opaque_sp.get() != NULL;
+  return m_opaque_sp.get() != nullptr;
 }
 
 const char *SBTypeNameSpecifier::GetName() {
-  LLDB_RECORD_METHOD_NO_ARGS(const char *, SBTypeNameSpecifier, GetName);
+  LLDB_INSTRUMENT_VA(this);
 
   if (!IsValid())
-    return NULL;
+    return nullptr;
 
   return m_opaque_sp->GetName();
 }
 
 SBType SBTypeNameSpecifier::GetType() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBType, SBTypeNameSpecifier, GetType);
+  LLDB_INSTRUMENT_VA(this);
 
   if (!IsValid())
-    return LLDB_RECORD_RESULT(SBType());
+    return SBType();
   lldb_private::CompilerType c_type = m_opaque_sp->GetCompilerType();
   if (c_type.IsValid())
-    return LLDB_RECORD_RESULT(SBType(c_type));
-  return LLDB_RECORD_RESULT(SBType());
+    return SBType(c_type);
+  return SBType();
 }
 
 bool SBTypeNameSpecifier::IsRegex() {
-  LLDB_RECORD_METHOD_NO_ARGS(bool, SBTypeNameSpecifier, IsRegex);
+  LLDB_INSTRUMENT_VA(this);
 
   if (!IsValid())
     return false;
@@ -88,9 +83,7 @@ bool SBTypeNameSpecifier::IsRegex() {
 
 bool SBTypeNameSpecifier::GetDescription(
     lldb::SBStream &description, lldb::DescriptionLevel description_level) {
-  LLDB_RECORD_METHOD(bool, SBTypeNameSpecifier, GetDescription,
-                     (lldb::SBStream &, lldb::DescriptionLevel), description,
-                     description_level);
+  LLDB_INSTRUMENT_VA(this, description, description_level);
 
   if (!IsValid())
     return false;
@@ -101,19 +94,16 @@ bool SBTypeNameSpecifier::GetDescription(
 
 lldb::SBTypeNameSpecifier &SBTypeNameSpecifier::
 operator=(const lldb::SBTypeNameSpecifier &rhs) {
-  LLDB_RECORD_METHOD(
-      lldb::SBTypeNameSpecifier &,
-      SBTypeNameSpecifier, operator=,(const lldb::SBTypeNameSpecifier &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 
   if (this != &rhs) {
     m_opaque_sp = rhs.m_opaque_sp;
   }
-  return LLDB_RECORD_RESULT(*this);
+  return *this;
 }
 
 bool SBTypeNameSpecifier::operator==(lldb::SBTypeNameSpecifier &rhs) {
-  LLDB_RECORD_METHOD(
-      bool, SBTypeNameSpecifier, operator==,(lldb::SBTypeNameSpecifier &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 
   if (!IsValid())
     return !rhs.IsValid();
@@ -121,23 +111,21 @@ bool SBTypeNameSpecifier::operator==(lldb::SBTypeNameSpecifier &rhs) {
 }
 
 bool SBTypeNameSpecifier::IsEqualTo(lldb::SBTypeNameSpecifier &rhs) {
-  LLDB_RECORD_METHOD(bool, SBTypeNameSpecifier, IsEqualTo,
-                     (lldb::SBTypeNameSpecifier &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 
   if (!IsValid())
     return !rhs.IsValid();
 
   if (IsRegex() != rhs.IsRegex())
     return false;
-  if (GetName() == NULL || rhs.GetName() == NULL)
+  if (GetName() == nullptr || rhs.GetName() == nullptr)
     return false;
 
   return (strcmp(GetName(), rhs.GetName()) == 0);
 }
 
 bool SBTypeNameSpecifier::operator!=(lldb::SBTypeNameSpecifier &rhs) {
-  LLDB_RECORD_METHOD(
-      bool, SBTypeNameSpecifier, operator!=,(lldb::SBTypeNameSpecifier &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 
   if (!IsValid())
     return !rhs.IsValid();
@@ -156,34 +144,3 @@ void SBTypeNameSpecifier::SetSP(
 SBTypeNameSpecifier::SBTypeNameSpecifier(
     const lldb::TypeNameSpecifierImplSP &type_namespec_sp)
     : m_opaque_sp(type_namespec_sp) {}
-
-namespace lldb_private {
-namespace repro {
-
-template <>
-void RegisterMethods<SBTypeNameSpecifier>(Registry &R) {
-  LLDB_REGISTER_CONSTRUCTOR(SBTypeNameSpecifier, ());
-  LLDB_REGISTER_CONSTRUCTOR(SBTypeNameSpecifier, (const char *, bool));
-  LLDB_REGISTER_CONSTRUCTOR(SBTypeNameSpecifier, (lldb::SBType));
-  LLDB_REGISTER_CONSTRUCTOR(SBTypeNameSpecifier,
-                            (const lldb::SBTypeNameSpecifier &));
-  LLDB_REGISTER_METHOD_CONST(bool, SBTypeNameSpecifier, IsValid, ());
-  LLDB_REGISTER_METHOD_CONST(bool, SBTypeNameSpecifier, operator bool, ());
-  LLDB_REGISTER_METHOD(const char *, SBTypeNameSpecifier, GetName, ());
-  LLDB_REGISTER_METHOD(lldb::SBType, SBTypeNameSpecifier, GetType, ());
-  LLDB_REGISTER_METHOD(bool, SBTypeNameSpecifier, IsRegex, ());
-  LLDB_REGISTER_METHOD(bool, SBTypeNameSpecifier, GetDescription,
-                       (lldb::SBStream &, lldb::DescriptionLevel));
-  LLDB_REGISTER_METHOD(
-      lldb::SBTypeNameSpecifier &,
-      SBTypeNameSpecifier, operator=,(const lldb::SBTypeNameSpecifier &));
-  LLDB_REGISTER_METHOD(
-      bool, SBTypeNameSpecifier, operator==,(lldb::SBTypeNameSpecifier &));
-  LLDB_REGISTER_METHOD(bool, SBTypeNameSpecifier, IsEqualTo,
-                       (lldb::SBTypeNameSpecifier &));
-  LLDB_REGISTER_METHOD(
-      bool, SBTypeNameSpecifier, operator!=,(lldb::SBTypeNameSpecifier &));
-}
-
-}
-}

@@ -1,4 +1,4 @@
-// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -S | FileCheck %s
+// RUN: llvm-mc -triple i386-apple-darwin9 %s -filetype=obj -o - | llvm-readobj -S - | FileCheck %s
 
 // FIXME: This is a horrible way of checking the output, we need an llvm-mc
 // based 'otool'.
@@ -32,7 +32,7 @@ L2:
 // CHECK-NEXT:   Alignment: 4
 // CHECK-NEXT:   RelocationOffset: 0x0
 // CHECK-NEXT:   RelocationCount: 0
-// CHECK-NEXT:   Type: 0x0
+// CHECK-NEXT:   Type: Regular (0x0)
 // CHECK-NEXT:   Attributes [ (0x800004)
 // CHECK-NEXT:     PureInstructions (0x800000)
 // CHECK-NEXT:     SomeInstructions (0x4)

@@ -21,12 +21,17 @@
 #ifndef LLVM_CODEGEN_GLOBALISEL_LOCALIZER_H
 #define LLVM_CODEGEN_GLOBALISEL_LOCALIZER_H
 
-#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 
 namespace llvm {
 // Forward declarations.
+class AnalysisUsage;
+class MachineBasicBlock;
+class MachineInstr;
+class MachineOperand;
 class MachineRegisterInfo;
+class TargetTransformInfo;
 
 /// This pass implements the localization mechanism described at the
 /// top of this file. One specificity of the implementation is that
@@ -40,12 +45,15 @@ public:
   static char ID;
 
 private:
+  /// An input function to decide if the pass should run or not
+  /// on the given MachineFunction.
+  std::function<bool(const MachineFunction &)> DoNotRunPass;
+
   /// MRI contains all the register class/bank information that this
   /// pass uses and updates.
   MachineRegisterInfo *MRI;
-
-  /// Check whether or not \p MI needs to be moved close to its uses.
-  static bool shouldLocalize(const MachineInstr &MI);
+  /// TTI used for getting remat costs for instructions.
+  TargetTransformInfo *TTI;
 
   /// Check if \p MOUse is used in the same basic block as \p Def.
   /// If the use is in the same block, we say it is local.
@@ -57,16 +65,29 @@ private:
   /// Initialize the field members using \p MF.
   void init(MachineFunction &MF);
 
+  typedef SmallSetVector<MachineInstr *, 32> LocalizedSetVecT;
+
+  /// If \p Op is a phi operand and not unique in that phi, that is,
+  /// there are other operands in the phi with the same register,
+  /// return true.
+  bool isNonUniquePhiValue(MachineOperand &Op) const;
+
+  /// Do inter-block localization from the entry block.
+  bool localizeInterBlock(MachineFunction &MF,
+                          LocalizedSetVecT &LocalizedInstrs);
+
+  /// Do intra-block localization of already localized instructions.
+  bool localizeIntraBlock(LocalizedSetVecT &LocalizedInstrs);
+
 public:
   Localizer();
+  Localizer(std::function<bool(const MachineFunction &)>);
 
   StringRef getPassName() const override { return "Localizer"; }
 
   MachineFunctionProperties getRequiredProperties() const override {
     return MachineFunctionProperties()
-        .set(MachineFunctionProperties::Property::IsSSA)
-        .set(MachineFunctionProperties::Property::Legalized)
-        .set(MachineFunctionProperties::Property::RegBankSelected);
+        .set(MachineFunctionProperties::Property::IsSSA);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;

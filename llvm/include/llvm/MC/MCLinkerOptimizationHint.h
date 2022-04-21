@@ -19,7 +19,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstdint>
 
@@ -28,6 +27,7 @@ namespace llvm {
 class MachObjectWriter;
 class MCAsmLayout;
 class MCSymbol;
+class raw_ostream;
 
 /// Linker Optimization Hint Type.
 enum MCLOHType {
@@ -61,6 +61,7 @@ static inline int MCLOHNameToId(StringRef Name) {
     MCLOHCaseNameToId(AdrpAdd)
     MCLOHCaseNameToId(AdrpLdrGot)
     .Default(-1);
+#undef MCLOHCaseNameToId
 }
 
 static inline StringRef MCLOHIdToName(MCLOHType Kind) {
@@ -76,6 +77,7 @@ static inline StringRef MCLOHIdToName(MCLOHType Kind) {
     MCLOHCaseIdToName(AdrpLdrGot);
   }
   return StringRef();
+#undef MCLOHCaseIdToName
 }
 
 static inline int MCLOHIdToNbArgs(MCLOHType Kind) {

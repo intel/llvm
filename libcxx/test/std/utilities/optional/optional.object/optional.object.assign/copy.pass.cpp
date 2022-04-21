@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // <optional>
 
 // optional<T>& operator=(const optional<T>& rhs); // constexpr in C++20
@@ -16,7 +16,7 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "archetypes.hpp"
+#include "archetypes.h"
 
 using std::optional;
 
@@ -30,6 +30,7 @@ struct X
         if (throw_now)
             TEST_THROW(6);
     }
+    X& operator=(X const&) = default;
 };
 
 bool X::throw_now = false;

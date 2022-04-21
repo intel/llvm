@@ -17,7 +17,7 @@ namespace std {
 }
 
 template<typename T> constexpr bool has_type(...) { return false; }
-template<typename T> constexpr bool has_type(T) { return true; }
+template<typename T> constexpr bool has_type(T&) { return true; }
 
 std::initializer_list il = {1, 2, 3, 4, 5};
 
@@ -172,6 +172,10 @@ namespace nondeducible {
   template<typename A = int,
            typename ...B>
   X(float) -> X<A, B...>; // ok
+
+  template <typename> struct UnnamedTemplateParam {};
+  template <typename>                                  // expected-note {{non-deducible template parameter (anonymous)}}
+  UnnamedTemplateParam() -> UnnamedTemplateParam<int>; // expected-error {{deduction guide template contains a template parameter that cannot be deduced}}
 }
 
 namespace default_args_from_ctor {
@@ -268,13 +272,16 @@ namespace tuple_tests {
   // Don't get caught by surprise when X<...> doesn't even exist in the
   // selected specialization!
   namespace libcxx_2 {
-    template<class ...T> struct tuple { // expected-note {{candidate}}
+    template<class ...T> struct tuple {
       template<class ...Args> struct X { static const bool value = false; };
+      // Substitution into X<U...>::value succeeds but produces the
+      // value-dependent expression
+      //   tuple<T...>::X<>::value
+      // FIXME: Is that the right behavior?
       template<class ...U, bool Y = X<U...>::value> tuple(U &&...u);
-      // expected-note@-1 {{substitution failure [with T = <>, U = <int, int, int>]: cannot reference member of primary template because deduced class template specialization 'tuple<>' is an explicit specialization}}
     };
     template <> class tuple<> {};
-    tuple a = {1, 2, 3}; // expected-error {{no viable constructor or deduction guide}}
+    tuple a = {1, 2, 3}; // expected-error {{excess elements in struct initializer}}
   }
 
   namespace libcxx_3 {
@@ -287,7 +294,7 @@ namespace tuple_tests {
 }
 
 namespace dependent {
-  template<typename T> struct X {
+  template<typename T> struct X { // expected-note 3{{here}}
     X(T);
   };
   template<typename T> int Var(T t) {
@@ -297,12 +304,26 @@ namespace dependent {
   template<typename T> int Cast(T t) {
     return X(X(t)) + 1; // expected-error {{invalid operands}}
   }
+  template<typename T> int Cast2(T t) {
+    return (X)(X)t + 1; // expected-error {{deduction not allowed}}
+  }
+  template<typename T> int Cast3(T t) {
+    return X{X{t}} + 1; // expected-error {{invalid operands}}
+  }
+  template<typename T> int Cast4(T t) {
+    return (X){(X){t}} + 1; // expected-error 2{{deduction not allowed}}
+  }
   template<typename T> int New(T t) {
     return X(new X(t)) + 1; // expected-error {{invalid operands}}
   };
+  template<typename T> int *New2(T t) {
+    return new X(X(t)) * 2; // expected-error {{invalid operands}}
+  };
   template int Var(float); // expected-note {{instantiation of}}
   template int Cast(float); // expected-note {{instantiation of}}
+  template int Cast3(float); // expected-note {{instantiation of}}
   template int New(float); // expected-note {{instantiation of}}
+  template int *New2(float); // expected-note {{instantiation of}}
   template<typename T> int operator+(X<T>, int);
   template int Var(int);
   template int Cast(int);
@@ -409,6 +430,17 @@ B b(0, {});
 
 }
 
+namespace no_crash_on_default_arg {
+class A {
+  template <typename T> class B {
+    B(int c = 1);
+  };
+  // This used to crash due to unparsed default arg above. The diagnostic could
+  // be improved, but the point of this test is to simply check we do not crash.
+  B(); // expected-error {{deduction guide declaration without trailing return type}}
+};
+} // namespace no_crash_on_default_arg
+
 #pragma clang diagnostic push
 #pragma clang diagnostic warning "-Wctad-maybe-unsupported"
 namespace test_implicit_ctad_warning {
@@ -489,6 +521,114 @@ static_assert(__is_same(decltype(ta), TestSuppression<const char *>), "");
 }
 #pragma clang diagnostic pop
 
+namespace PR41549 {
+
+template <class H, class P> struct umm;
+
+template <class H = int, class P = int>
+struct umm {
+  umm(H h = 0, P p = 0);
+};
+
+template <class H, class P> struct umm;
+
+umm m(1);
+
+}
+
+namespace PR45124 {
+  class a { int d; };
+  class b : a {};
+
+  struct x { ~x(); };
+  template<typename> class y { y(x = x()); };
+  template<typename z> y(z)->y<z>;
+
+  // Not a constant initializer, but trivial default initialization. We won't
+  // detect this as trivial default initialization if synthesizing the implicit
+  // deduction guide 'template<typename T> y(x = x()) -> Y<T>;' leaves behind a
+  // pending cleanup.
+  __thread b g;
+}
+
+namespace PR47175 {
+  template<typename T> struct A { A(T); T x; };
+  template<typename T> int &&n = A(T()).x;
+  int m = n<int>;
+}
+
+// Ensure we don't crash when CTAD fails.
+template <typename T1, typename T2>
+struct Foo {   // expected-note{{candidate function template not viable}}
+  Foo(T1, T2); // expected-note{{candidate function template not viable}}
+};
+
+template <typename... Args>
+void insert(Args &&...args);
+
+void foo() {
+  insert(Foo(2, 2, 2)); // expected-error{{no viable constructor or deduction guide}}
+}
+
+namespace PR52139 {
+  struct Abstract {
+    template <class... Ts>
+    struct overloaded : Ts... {
+      using Ts::operator()...;
+    };
+    template <class... Ts>
+    overloaded(Ts...) -> overloaded<Ts...>;
+
+  private:
+    virtual void f() = 0;
+  };
+}
+
+namespace function_prototypes {
+  template<class T> using fptr1 = void (*) (T);
+  template<class T> using fptr2 = fptr1<fptr1<T>>;
+
+  template<class T> void foo0(fptr1<T>) {
+    static_assert(__is_same(T, const char*));
+  }
+  void bar0(const char *const volatile __restrict);
+  void t0() { foo0(&bar0); }
+
+  template<class T> void foo1(fptr1<const T *>) {
+     static_assert(__is_same(T, char));  
+  }
+  void bar1(const char * __restrict);
+  void t1() { foo1(&bar1); }
+
+  template<class T> void foo2(fptr2<const T *>) {
+    static_assert(__is_same(T, char));
+  }
+  void bar2(fptr1<const char * __restrict>);
+  void t2() { foo2(&bar2); }
+
+  template<class T> void foo3(fptr1<const T *>) {}
+  void bar3(char * __restrict);
+  void t3() { foo3(&bar3); }
+  // expected-error@-1 {{no matching function for call to 'foo3'}}
+  // expected-note@-4  {{candidate template ignored: cannot deduce a type for 'T' that would make 'const T' equal 'char'}}
+
+  template<class T> void foo4(fptr2<const T *>) {}
+  void bar4(fptr1<char * __restrict>);
+  void t4() { foo4(&bar4); }
+  // expected-error@-1 {{no matching function for call to 'foo4'}}
+  // expected-note@-4  {{candidate template ignored: cannot deduce a type for 'T' that would make 'const T' equal 'char'}}
+
+  template<typename T> void foo5(T(T)) {}
+  const int bar5(int);
+  void t5() { foo5(bar5); }
+  // expected-error@-1 {{no matching function for call to 'foo5'}}
+  // expected-note@-4  {{candidate template ignored: deduced conflicting types for parameter 'T' ('const int' vs. 'int')}}
+
+  struct Foo6 {};
+  template<typename T> void foo6(void(*)(struct Foo6, T)) {}
+  void bar6(Foo6, int);
+  void t6() { foo6(bar6); }
+}
 #else
 
 // expected-no-diagnostics

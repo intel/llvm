@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 
 using namespace fs;
 

@@ -16,8 +16,7 @@
 
 #include "polly/CodeGen/PPCGCodeGeneration.h"
 #include "polly/Config/config.h"
-#include "polly/PruneUnprofitable.h"
-#include "polly/Simplify.h"
+#include "polly/Support/DumpFunctionPass.h"
 #include "polly/Support/DumpModulePass.h"
 #include "llvm/ADT/StringRef.h"
 #include <cstdlib>
@@ -30,22 +29,30 @@ class PassRegistry;
 namespace polly {
 llvm::Pass *createCodePreparationPass();
 llvm::Pass *createScopInlinerPass();
-llvm::Pass *createDeadCodeElimPass();
+llvm::Pass *createDeadCodeElimWrapperPass();
 llvm::Pass *createDependenceInfoPass();
+llvm::Pass *createDependenceInfoPrinterLegacyPass(llvm::raw_ostream &OS);
 llvm::Pass *createDependenceInfoWrapperPassPass();
+llvm::Pass *
+createDependenceInfoPrinterLegacyFunctionPass(llvm::raw_ostream &OS);
 llvm::Pass *createDOTOnlyPrinterPass();
 llvm::Pass *createDOTOnlyViewerPass();
 llvm::Pass *createDOTPrinterPass();
 llvm::Pass *createDOTViewerPass();
 llvm::Pass *createJSONExporterPass();
 llvm::Pass *createJSONImporterPass();
+llvm::Pass *createJSONImporterPrinterLegacyPass(llvm::raw_ostream &OS);
 llvm::Pass *createPollyCanonicalizePass();
 llvm::Pass *createPolyhedralInfoPass();
+llvm::Pass *createPolyhedralInfoPrinterLegacyPass(llvm::raw_ostream &OS);
 llvm::Pass *createScopDetectionWrapperPassPass();
+llvm::Pass *createScopDetectionPrinterLegacyPass(llvm::raw_ostream &OS);
 llvm::Pass *createScopInfoRegionPassPass();
+llvm::Pass *createScopInfoPrinterLegacyRegionPass(llvm::raw_ostream &OS);
 llvm::Pass *createScopInfoWrapperPassPass();
-llvm::Pass *createRewriteByrefParamsPass();
+llvm::Pass *createScopInfoPrinterLegacyFunctionPass(llvm::raw_ostream &OS);
 llvm::Pass *createIslAstInfoWrapperPassPass();
+llvm::Pass *createIslAstInfoPrinterLegacyPass(llvm::raw_ostream &OS);
 llvm::Pass *createCodeGenerationPass();
 #ifdef GPU_CODEGEN
 llvm::Pass *createPPCGCodeGenerationPass(GPUArch Arch = GPUArch::NVPTX64,
@@ -55,10 +62,18 @@ llvm::Pass *
 createManagedMemoryRewritePassPass(GPUArch Arch = GPUArch::NVPTX64,
                                    GPURuntime Runtime = GPURuntime::CUDA);
 #endif
-llvm::Pass *createIslScheduleOptimizerPass();
+llvm::Pass *createIslScheduleOptimizerWrapperPass();
+llvm::Pass *createIslScheduleOptimizerPrinterLegacyPass(llvm::raw_ostream &OS);
 llvm::Pass *createFlattenSchedulePass();
-llvm::Pass *createDeLICMPass();
+llvm::Pass *createFlattenSchedulePrinterLegacyPass(llvm::raw_ostream &OS);
+llvm::Pass *createForwardOpTreeWrapperPass();
+llvm::Pass *createForwardOpTreePrinterLegacyPass(llvm::raw_ostream &OS);
+llvm::Pass *createDeLICMWrapperPass();
+llvm::Pass *createDeLICMPrinterLegacyPass(llvm::raw_ostream &OS);
 llvm::Pass *createMaximalStaticExpansionPass();
+llvm::Pass *createSimplifyWrapperPass(int);
+llvm::Pass *createSimplifyPrinterLegacyPass(llvm::raw_ostream &OS);
+llvm::Pass *createPruneUnprofitableWrapperPass();
 
 extern char &CodePreparationID;
 } // namespace polly
@@ -74,54 +89,92 @@ struct PollyForcePassLinking {
       return;
 
     polly::createCodePreparationPass();
-    polly::createDeadCodeElimPass();
+    polly::createDeadCodeElimWrapperPass();
     polly::createDependenceInfoPass();
+    polly::createDependenceInfoPrinterLegacyPass(llvm::outs());
+    polly::createDependenceInfoWrapperPassPass();
+    polly::createDependenceInfoPrinterLegacyFunctionPass(llvm::outs());
     polly::createDOTOnlyPrinterPass();
     polly::createDOTOnlyViewerPass();
     polly::createDOTPrinterPass();
     polly::createDOTViewerPass();
     polly::createJSONExporterPass();
     polly::createJSONImporterPass();
+    polly::createJSONImporterPrinterLegacyPass(llvm::outs());
     polly::createScopDetectionWrapperPassPass();
+    polly::createScopDetectionPrinterLegacyPass(llvm::outs());
     polly::createScopInfoRegionPassPass();
+    polly::createScopInfoPrinterLegacyRegionPass(llvm::outs());
+    polly::createScopInfoWrapperPassPass();
+    polly::createScopInfoPrinterLegacyFunctionPass(llvm::outs());
     polly::createPollyCanonicalizePass();
     polly::createPolyhedralInfoPass();
+    polly::createPolyhedralInfoPrinterLegacyPass(llvm::outs());
     polly::createIslAstInfoWrapperPassPass();
+    polly::createIslAstInfoPrinterLegacyPass(llvm::outs());
     polly::createCodeGenerationPass();
 #ifdef GPU_CODEGEN
     polly::createPPCGCodeGenerationPass();
     polly::createManagedMemoryRewritePassPass();
 #endif
-    polly::createIslScheduleOptimizerPass();
+    polly::createIslScheduleOptimizerWrapperPass();
+    polly::createIslScheduleOptimizerPrinterLegacyPass(llvm::outs());
     polly::createMaximalStaticExpansionPass();
     polly::createFlattenSchedulePass();
-    polly::createDeLICMPass();
-    polly::createDumpModulePass("", true);
-    polly::createSimplifyPass();
-    polly::createPruneUnprofitablePass();
+    polly::createFlattenSchedulePrinterLegacyPass(llvm::errs());
+    polly::createForwardOpTreeWrapperPass();
+    polly::createForwardOpTreePrinterLegacyPass(llvm::errs());
+    polly::createDeLICMWrapperPass();
+    polly::createDeLICMPrinterLegacyPass(llvm::outs());
+    polly::createDumpModuleWrapperPass("", true);
+    polly::createDumpFunctionWrapperPass("");
+    polly::createSimplifyWrapperPass(0);
+    polly::createSimplifyPrinterLegacyPass(llvm::outs());
+    polly::createPruneUnprofitableWrapperPass();
   }
 } PollyForcePassLinking; // Force link by creating a global definition.
 } // namespace
 
 namespace llvm {
-class PassRegistry;
 void initializeCodePreparationPass(llvm::PassRegistry &);
 void initializeScopInlinerPass(llvm::PassRegistry &);
-void initializeDeadCodeElimPass(llvm::PassRegistry &);
+void initializeScopDetectionWrapperPassPass(llvm::PassRegistry &);
+void initializeScopDetectionPrinterLegacyPassPass(llvm::PassRegistry &);
+void initializeScopInfoRegionPassPass(PassRegistry &);
+void initializeScopInfoPrinterLegacyRegionPassPass(llvm::PassRegistry &);
+void initializeScopInfoWrapperPassPass(PassRegistry &);
+void initializeScopInfoPrinterLegacyFunctionPassPass(PassRegistry &);
+void initializeDeadCodeElimWrapperPassPass(llvm::PassRegistry &);
 void initializeJSONExporterPass(llvm::PassRegistry &);
 void initializeJSONImporterPass(llvm::PassRegistry &);
+void initializeJSONImporterPrinterLegacyPassPass(llvm::PassRegistry &);
+void initializeDependenceInfoPass(llvm::PassRegistry &);
+void initializeDependenceInfoPrinterLegacyPassPass(llvm::PassRegistry &);
+void initializeDependenceInfoWrapperPassPass(llvm::PassRegistry &);
+void initializeDependenceInfoPrinterLegacyFunctionPassPass(
+    llvm::PassRegistry &);
 void initializeIslAstInfoWrapperPassPass(llvm::PassRegistry &);
+void initializeIslAstInfoPrinterLegacyPassPass(llvm::PassRegistry &);
 void initializeCodeGenerationPass(llvm::PassRegistry &);
-void initializeRewriteByrefParamsPass(llvm::PassRegistry &);
 #ifdef GPU_CODEGEN
 void initializePPCGCodeGenerationPass(llvm::PassRegistry &);
 void initializeManagedMemoryRewritePassPass(llvm::PassRegistry &);
 #endif
-void initializeIslScheduleOptimizerPass(llvm::PassRegistry &);
+void initializeIslScheduleOptimizerWrapperPassPass(llvm::PassRegistry &);
+void initializeIslScheduleOptimizerPrinterLegacyPassPass(llvm::PassRegistry &);
 void initializeMaximalStaticExpanderPass(llvm::PassRegistry &);
 void initializePollyCanonicalizePass(llvm::PassRegistry &);
 void initializeFlattenSchedulePass(llvm::PassRegistry &);
-void initializeDeLICMPass(llvm::PassRegistry &);
+void initializeFlattenSchedulePrinterLegacyPassPass(llvm::PassRegistry &);
+void initializeForwardOpTreeWrapperPassPass(llvm::PassRegistry &);
+void initializeForwardOpTreePrinterLegacyPassPass(PassRegistry &);
+void initializeDeLICMWrapperPassPass(llvm::PassRegistry &);
+void initializeDeLICMPrinterLegacyPassPass(llvm::PassRegistry &);
+void initializeSimplifyWrapperPassPass(llvm::PassRegistry &);
+void initializeSimplifyPrinterLegacyPassPass(llvm::PassRegistry &);
+void initializePruneUnprofitableWrapperPassPass(llvm::PassRegistry &);
+void initializePolyhedralInfoPass(llvm::PassRegistry &);
+void initializePolyhedralInfoPrinterLegacyPassPass(llvm::PassRegistry &);
 } // namespace llvm
 
 #endif

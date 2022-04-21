@@ -15,18 +15,18 @@
 #include "llvm/Transforms/Vectorize.h"
 #include "llvm-c/Initialization.h"
 #include "llvm-c/Transforms/Vectorize.h"
-#include "llvm/Analysis/Passes.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/PassRegistry.h"
 
 using namespace llvm;
 
-/// initializeVectorizationPasses - Initialize all passes linked into the
-/// Vectorization library.
+/// Initialize all passes linked into the Vectorization library.
 void llvm::initializeVectorization(PassRegistry &Registry) {
   initializeLoopVectorizePass(Registry);
   initializeSLPVectorizerPass(Registry);
   initializeLoadStoreVectorizerLegacyPassPass(Registry);
+  initializeVectorCombineLegacyPassPass(Registry);
 }
 
 void LLVMInitializeVectorization(LLVMPassRegistryRef R) {

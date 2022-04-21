@@ -1,3 +1,4 @@
+import("//clang-tools-extra/clangd/quality/gen_decision_forest.gni")
 import("//clang-tools-extra/clangd/xpc/enable.gni")
 import("//llvm/utils/gn/build/write_cmake_config.gni")
 
@@ -10,7 +11,12 @@ config("features_config") {
 write_cmake_config("features") {
   input = "Features.inc.in"
   output = "$target_gen_dir/Features.inc"
-  values = []
+  values = [
+    "CLANGD_ENABLE_REMOTE=0",
+    "CLANGD_MALLOC_TRIM=1",
+    "CLANGD_TIDY_CHECKS=1",
+    "ENABLE_GRPC_REFLECTION=0",
+  ]
   if (clangd_build_xpc) {
     values += [ "CLANGD_BUILD_XPC=1" ]
   } else {
@@ -19,28 +25,23 @@ write_cmake_config("features") {
   public_configs = [ ":features_config" ]
 }
 
+gen_decision_forest("CompletionModel") {
+  model = "quality/model"
+  filename = "CompletionModel"
+  cpp_class = "clang::clangd::Example"
+  deps = [ "//clang/lib/Sema" ]
+}
+
 static_library("clangd") {
   output_name = "clangDaemon"
   configs += [ "//llvm/utils/gn/build:clang_code" ]
   deps = [
+    ":CompletionModel",
     ":features",
-    "//clang-tools-extra/clang-tidy/abseil",
-    "//clang-tools-extra/clang-tidy/android",
-    "//clang-tools-extra/clang-tidy/boost",
-    "//clang-tools-extra/clang-tidy/bugprone",
-    "//clang-tools-extra/clang-tidy/cert",
-    "//clang-tools-extra/clang-tidy/cppcoreguidelines",
-    "//clang-tools-extra/clang-tidy/fuchsia",
-    "//clang-tools-extra/clang-tidy/google",
-    "//clang-tools-extra/clang-tidy/hicpp",
-    "//clang-tools-extra/clang-tidy/llvm",
-    "//clang-tools-extra/clang-tidy/misc",
-    "//clang-tools-extra/clang-tidy/modernize",
-    "//clang-tools-extra/clang-tidy/objc",
-    "//clang-tools-extra/clang-tidy/performance",
-    "//clang-tools-extra/clang-tidy/portability",
-    "//clang-tools-extra/clang-tidy/readability",
-    "//clang-tools-extra/clang-tidy/zircon",
+    "//clang-tools-extra/clang-tidy",
+    "//clang-tools-extra/clang-tidy:all-checks",
+    "//clang-tools-extra/clang-tidy:clang-tidy-config",
+    "//clang-tools-extra/clangd/support",
     "//clang/lib/AST",
     "//clang/lib/ASTMatchers",
     "//clang/lib/Basic",
@@ -55,8 +56,9 @@ static_library("clangd") {
     "//clang/lib/Tooling/Core",
     "//clang/lib/Tooling/Inclusions",
     "//clang/lib/Tooling/Refactoring",
+    "//clang/lib/Tooling/Syntax",
     "//llvm/lib/Support",
-    "//llvm/utils/gn/build/libs/atomic",
+    "//llvm/lib/Target:AllTargetsInfos",
     "//llvm/utils/gn/build/libs/pthread",
   ]
   include_dirs = [
@@ -67,47 +69,68 @@ static_library("clangd") {
   ]
   sources = [
     "AST.cpp",
-    "Cancellation.cpp",
+    "ASTSignals.cpp",
     "ClangdLSPServer.cpp",
     "ClangdServer.cpp",
-    "ClangdUnit.cpp",
     "CodeComplete.cpp",
     "CodeCompletionStrings.cpp",
+    "CollectMacros.cpp",
+    "CompileCommands.cpp",
     "Compiler.cpp",
-    "Context.cpp",
+    "Config.cpp",
+    "ConfigCompile.cpp",
+    "ConfigProvider.cpp",
+    "ConfigYAML.cpp",
     "Diagnostics.cpp",
     "DraftStore.cpp",
+    "DumpAST.cpp",
     "ExpectedTypes.cpp",
     "FS.cpp",
-    "FSProvider.cpp",
+    "Feature.cpp",
+    "FeatureModule.cpp",
     "FileDistance.cpp",
     "FindSymbols.cpp",
-    "FormattedString.cpp",
+    "FindTarget.cpp",
+    "Format.cpp",
     "FuzzyMatch.cpp",
     "GlobalCompilationDatabase.cpp",
+    "HeaderSourceSwitch.cpp",
     "Headers.cpp",
+    "HeuristicResolver.cpp",
+    "Hover.cpp",
+    "IncludeCleaner.cpp",
     "IncludeFixer.cpp",
+    "InlayHints.cpp",
     "JSONTransport.cpp",
-    "Logger.cpp",
+    "ParsedAST.cpp",
+    "PathMapping.cpp",
+    "Preamble.cpp",
     "Protocol.cpp",
     "Quality.cpp",
+    "QueryDriverDatabase.cpp",
     "RIFF.cpp",
     "Selection.cpp",
+    "SemanticHighlighting.cpp",
+    "SemanticSelection.cpp",
     "SourceCode.cpp",
     "TUScheduler.cpp",
-    "Threading.cpp",
-    "Trace.cpp",
+    "TidyProvider.cpp",
     "URI.cpp",
     "XRefs.cpp",
     "index/Background.cpp",
+    "index/BackgroundIndexLoader.cpp",
     "index/BackgroundIndexStorage.cpp",
+    "index/BackgroundQueue.cpp",
+    "index/BackgroundRebuild.cpp",
     "index/CanonicalIncludes.cpp",
     "index/FileIndex.cpp",
     "index/Index.cpp",
     "index/IndexAction.cpp",
     "index/MemIndex.cpp",
     "index/Merge.cpp",
+    "index/ProjectAware.cpp",
     "index/Ref.cpp",
+    "index/Relation.cpp",
     "index/Serialization.cpp",
     "index/Symbol.cpp",
     "index/SymbolCollector.cpp",
@@ -119,6 +142,7 @@ static_library("clangd") {
     "index/dex/Iterator.cpp",
     "index/dex/PostingList.cpp",
     "index/dex/Trigram.cpp",
+    "refactor/InsertionPoint.cpp",
     "refactor/Rename.cpp",
     "refactor/Tweak.cpp",
   ]

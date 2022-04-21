@@ -17,22 +17,32 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CODEGEN_GLOBALISEL_LEGALIZEMACHINEIRPASS_H
-#define LLVM_CODEGEN_GLOBALISEL_LEGALIZEMACHINEIRPASS_H
+#ifndef LLVM_CODEGEN_GLOBALISEL_LEGALIZER_H
+#define LLVM_CODEGEN_GLOBALISEL_LEGALIZER_H
 
-#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 
 namespace llvm {
 
-class MachineRegisterInfo;
+class LegalizerInfo;
+class MachineIRBuilder;
+class MachineInstr;
+class GISelChangeObserver;
+class LostDebugLocObserver;
 
 class Legalizer : public MachineFunctionPass {
 public:
   static char ID;
 
-private:
+  struct MFResult {
+    bool Changed;
+    const MachineInstr *FailedOn;
+  };
 
+private:
   /// Initialize the field members using \p MF.
   void init(MachineFunction &MF);
 
@@ -55,14 +65,17 @@ public:
   }
 
   MachineFunctionProperties getClearedProperties() const override {
-    return MachineFunctionProperties()
-      .set(MachineFunctionProperties::Property::NoPHIs);
+    return MachineFunctionProperties().set(
+        MachineFunctionProperties::Property::NoPHIs);
   }
 
-  bool combineExtracts(MachineInstr &MI, MachineRegisterInfo &MRI,
-                       const TargetInstrInfo &TII);
-
   bool runOnMachineFunction(MachineFunction &MF) override;
+
+  static MFResult
+  legalizeMachineFunction(MachineFunction &MF, const LegalizerInfo &LI,
+                          ArrayRef<GISelChangeObserver *> AuxObservers,
+                          LostDebugLocObserver &LocObserver,
+                          MachineIRBuilder &MIRBuilder);
 };
 } // End namespace llvm.
 

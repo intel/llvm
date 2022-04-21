@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 #include "asan_testing.h"
 
@@ -38,7 +39,12 @@ int main(int, char**)
     test(d1);
     test(d2);
     }
-
+    {
+    std::vector<int> vec;
+    vec.reserve(32);
+    vec.resize(16); // destruction during assign
+    test(vec);
+    }
 #if TEST_STD_VER >= 11
     {
     typedef std::vector<int, min_allocator<int>> V;

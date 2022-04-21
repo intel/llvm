@@ -1,4 +1,4 @@
-//===-- SymbolContext.cpp ---------------------------------------*- C++ -*-===//
+//===-- SymbolContext.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,9 +11,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Host/Host.h"
-#include "lldb/Host/StringConvert.h"
 #include "lldb/Symbol/Block.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/Symbol.h"
@@ -21,19 +19,19 @@
 #include "lldb/Symbol/SymbolVendor.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Target/Target.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/Utility/StreamString.h"
 
 using namespace lldb;
 using namespace lldb_private;
 
-SymbolContext::SymbolContext()
-    : target_sp(), module_sp(), comp_unit(nullptr), function(nullptr),
-      block(nullptr), line_entry(), symbol(nullptr), variable(nullptr) {}
+SymbolContext::SymbolContext() : target_sp(), module_sp(), line_entry() {}
 
 SymbolContext::SymbolContext(const ModuleSP &m, CompileUnit *cu, Function *f,
                              Block *b, LineEntry *le, Symbol *s)
     : target_sp(), module_sp(m), comp_unit(cu), function(f), block(b),
-      line_entry(), symbol(s), variable(nullptr) {
+      line_entry(), symbol(s) {
   if (le)
     line_entry = *le;
 }
@@ -42,32 +40,17 @@ SymbolContext::SymbolContext(const TargetSP &t, const ModuleSP &m,
                              CompileUnit *cu, Function *f, Block *b,
                              LineEntry *le, Symbol *s)
     : target_sp(t), module_sp(m), comp_unit(cu), function(f), block(b),
-      line_entry(), symbol(s), variable(nullptr) {
+      line_entry(), symbol(s) {
   if (le)
     line_entry = *le;
 }
 
 SymbolContext::SymbolContext(SymbolContextScope *sc_scope)
-    : target_sp(), module_sp(), comp_unit(nullptr), function(nullptr),
-      block(nullptr), line_entry(), symbol(nullptr), variable(nullptr) {
+    : target_sp(), module_sp(), line_entry() {
   sc_scope->CalculateSymbolContext(this);
 }
 
-SymbolContext::~SymbolContext() {}
-
-const SymbolContext &SymbolContext::operator=(const SymbolContext &rhs) {
-  if (this != &rhs) {
-    target_sp = rhs.target_sp;
-    module_sp = rhs.module_sp;
-    comp_unit = rhs.comp_unit;
-    function = rhs.function;
-    block = rhs.block;
-    line_entry = rhs.line_entry;
-    symbol = rhs.symbol;
-    variable = rhs.variable;
-  }
-  return *this;
-}
+SymbolContext::~SymbolContext() = default;
 
 void SymbolContext::Clear(bool clear_target) {
   if (clear_target)
@@ -131,9 +114,7 @@ bool SymbolContext::DumpStopContext(Stream *s, ExecutionContextScope *exe_scope,
       Block *inlined_block = block->GetContainingInlinedBlock();
       const InlineFunctionInfo *inlined_block_info =
           inlined_block->GetInlinedFunctionInfo();
-      s->Printf(
-          " [inlined] %s",
-          inlined_block_info->GetName(function->GetLanguage()).GetCString());
+      s->Printf(" [inlined] %s", inlined_block_info->GetName().GetCString());
 
       lldb_private::AddressRange block_range;
       if (inlined_block->GetRangeContainingAddress(addr, block_range)) {
@@ -143,11 +124,18 @@ bool SymbolContext::DumpStopContext(Stream *s, ExecutionContextScope *exe_scope,
           s->Printf(" + %" PRIu64, inlined_function_offset);
         }
       }
-      const Declaration &call_site = inlined_block_info->GetCallSite();
-      if (call_site.IsValid()) {
+      // "line_entry" will always be valid as GetParentOfInlinedScope(...) will
+      // fill it in correctly with the calling file and line. Previous code
+      // was extracting the calling file and line from inlined_block_info and
+      // using it right away which is not correct. On the first call to this
+      // function "line_entry" will contain the actual line table entry. On
+      // susequent calls "line_entry" will contain the calling file and line
+      // from the previous inline info.
+      if (line_entry.IsValid()) {
         s->PutCString(" at ");
-        call_site.DumpStopContext(s, show_fullpaths);
+        line_entry.DumpStopContext(s, show_fullpaths);
       }
+
       if (show_inlined_frames) {
         s->EOL();
         s->Indent();
@@ -198,7 +186,7 @@ void SymbolContext::GetDescription(Stream *s, lldb::DescriptionLevel level,
                                    Target *target) const {
   if (module_sp) {
     s->Indent("     Module: file = \"");
-    module_sp->GetFileSpec().Dump(s);
+    module_sp->GetFileSpec().Dump(s->AsRawOstream());
     *s << '"';
     if (module_sp->GetArchitecture().IsValid())
       s->Printf(", arch = \"%s\"",
@@ -220,7 +208,7 @@ void SymbolContext::GetDescription(Stream *s, lldb::DescriptionLevel level,
     Type *func_type = function->GetType();
     if (func_type) {
       s->Indent("   FuncType: ");
-      func_type->GetDescription(s, level, false);
+      func_type->GetDescription(s, level, false, target);
       s->EOL();
     }
   }
@@ -324,19 +312,19 @@ void SymbolContext::Dump(Stream *s, Target *target) const {
   s->Indent();
   *s << "Module       = " << module_sp.get() << ' ';
   if (module_sp)
-    module_sp->GetFileSpec().Dump(s);
+    module_sp->GetFileSpec().Dump(s->AsRawOstream());
   s->EOL();
   s->Indent();
   *s << "CompileUnit  = " << comp_unit;
   if (comp_unit != nullptr)
-    *s << " {0x" << comp_unit->GetID() << "} "
-       << *(static_cast<FileSpec *>(comp_unit));
+    s->Format(" {{{0:x-16}} {1}", comp_unit->GetID(),
+              comp_unit->GetPrimaryFile());
   s->EOL();
   s->Indent();
   *s << "Function     = " << function;
   if (function != nullptr) {
-    *s << " {0x" << function->GetID() << "} " << function->GetType()->GetName()
-       << ", address-range = ";
+    s->Format(" {{{0:x-16}} {1}, address-range = ", function->GetID(),
+              function->GetType()->GetName());
     function->GetAddressRange().Dump(s, target, Address::DumpStyleLoadAddress,
                                      Address::DumpStyleModuleWithFileAddress);
     s->EOL();
@@ -351,10 +339,7 @@ void SymbolContext::Dump(Stream *s, Target *target) const {
   s->Indent();
   *s << "Block        = " << block;
   if (block != nullptr)
-    *s << " {0x" << block->GetID() << '}';
-  // Dump the block and pass it a negative depth to we print all the parent
-  // blocks if (block != NULL)
-  //  block->Dump(s, function->GetFileAddress(), INT_MIN);
+    s->Format(" {{{0:x-16}}", block->GetID());
   s->EOL();
   s->Indent();
   *s << "LineEntry    = ";
@@ -368,7 +353,8 @@ void SymbolContext::Dump(Stream *s, Target *target) const {
   s->EOL();
   *s << "Variable     = " << variable;
   if (variable != nullptr) {
-    *s << " {0x" << variable->GetID() << "} " << variable->GetType()->GetName();
+    s->Format(" {{{0:x-16}} {1}", variable->GetID(),
+              variable->GetType()->GetName());
     s->EOL();
   }
   s->IndentLess();
@@ -491,24 +477,21 @@ bool SymbolContext::GetParentOfInlinedScope(const Address &curr_frame_pc,
             curr_inlined_block_inlined_info->GetCallSite().GetColumn();
         return true;
       } else {
-        Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYMBOLS));
+        Log *log = GetLog(LLDBLog::Symbols);
 
         if (log) {
-          log->Printf(
+          LLDB_LOGF(
+              log,
               "warning: inlined block 0x%8.8" PRIx64
               " doesn't have a range that contains file address 0x%" PRIx64,
               curr_inlined_block->GetID(), curr_frame_pc.GetFileAddress());
         }
 #ifdef LLDB_CONFIGURATION_DEBUG
         else {
-          ObjectFile *objfile = NULL;
+          ObjectFile *objfile = nullptr;
           if (module_sp) {
-            SymbolVendor *symbol_vendor = module_sp->GetSymbolVendor();
-            if (symbol_vendor) {
-              SymbolFile *symbol_file = symbol_vendor->GetSymbolFile();
-              if (symbol_file)
-                objfile = symbol_file->GetObjectFile();
-            }
+            if (SymbolFile *symbol_file = module_sp->GetSymbolFile())
+              objfile = symbol_file->GetObjectFile();
           }
           if (objfile) {
             Host::SystemLog(
@@ -676,12 +659,12 @@ SymbolContext::GetFunctionName(Mangled::NamePreference preference) const {
         const InlineFunctionInfo *inline_info =
             inlined_block->GetInlinedFunctionInfo();
         if (inline_info)
-          return inline_info->GetName(function->GetLanguage());
+          return inline_info->GetName();
       }
     }
-    return function->GetMangled().GetName(function->GetLanguage(), preference);
+    return function->GetMangled().GetName(preference);
   } else if (symbol && symbol->ValueIsAddress()) {
-    return symbol->GetMangled().GetName(symbol->GetLanguage(), preference);
+    return symbol->GetMangled().GetName(preference);
   } else {
     // No function, return an empty string.
     return ConstString();
@@ -729,7 +712,7 @@ bool SymbolContext::GetAddressRangeFromHereToEndLine(uint32_t end_line,
 
   uint32_t line_index = 0;
   bool found = false;
-  while (1) {
+  while (true) {
     LineEntry this_line;
     line_index = comp_unit->FindLineEntry(line_index, line_entry.line, nullptr,
                                           false, &this_line);
@@ -762,9 +745,8 @@ bool SymbolContext::GetAddressRangeFromHereToEndLine(uint32_t end_line,
   }
 
   Block *func_block = GetFunctionBlock();
-  if (func_block &&
-      func_block->GetRangeIndexContainingAddress(
-          end_entry.range.GetBaseAddress()) == UINT32_MAX) {
+  if (func_block && func_block->GetRangeIndexContainingAddress(
+                        end_entry.range.GetBaseAddress()) == UINT32_MAX) {
     error.SetErrorStringWithFormat(
         "end line number %d is not contained within the current function.",
         end_line);
@@ -777,8 +759,8 @@ bool SymbolContext::GetAddressRangeFromHereToEndLine(uint32_t end_line,
   return true;
 }
 
-const Symbol *
-SymbolContext::FindBestGlobalDataSymbol(ConstString name, Status &error) {
+const Symbol *SymbolContext::FindBestGlobalDataSymbol(ConstString name,
+                                                      Status &error) {
   error.Clear();
 
   if (!target_sp) {
@@ -788,8 +770,9 @@ SymbolContext::FindBestGlobalDataSymbol(ConstString name, Status &error) {
   Target &target = *target_sp;
   Module *module = module_sp.get();
 
-  auto ProcessMatches = [this, &name, &target, module]
-  (SymbolContextList &sc_list, Status &error) -> const Symbol* {
+  auto ProcessMatches = [this, &name, &target,
+                         module](SymbolContextList &sc_list,
+                                 Status &error) -> const Symbol * {
     llvm::SmallVector<const Symbol *, 1> external_symbols;
     llvm::SmallVector<const Symbol *, 1> internal_symbols;
     const uint32_t matches = sc_list.GetSize();
@@ -802,77 +785,77 @@ SymbolContext::FindBestGlobalDataSymbol(ConstString name, Status &error) {
 
         if (sym_address.IsValid()) {
           switch (symbol->GetType()) {
-            case eSymbolTypeData:
-            case eSymbolTypeRuntime:
-            case eSymbolTypeAbsolute:
-            case eSymbolTypeObjCClass:
-            case eSymbolTypeObjCMetaClass:
-            case eSymbolTypeObjCIVar:
-              if (symbol->GetDemangledNameIsSynthesized()) {
-                // If the demangled name was synthesized, then don't use it for
-                // expressions. Only let the symbol match if the mangled named
-                // matches for these symbols.
-                if (symbol->GetMangled().GetMangledName() != name)
-                  break;
-              }
-              if (symbol->IsExternal()) {
-                external_symbols.push_back(symbol);
-              } else {
-                internal_symbols.push_back(symbol);
-              }
-              break;
-            case eSymbolTypeReExported: {
-              ConstString reexport_name = symbol->GetReExportedSymbolName();
-              if (reexport_name) {
-                ModuleSP reexport_module_sp;
-                ModuleSpec reexport_module_spec;
-                reexport_module_spec.GetPlatformFileSpec() =
-                symbol->GetReExportedSymbolSharedLibrary();
-                if (reexport_module_spec.GetPlatformFileSpec()) {
-                  reexport_module_sp =
-                  target.GetImages().FindFirstModule(reexport_module_spec);
-                  if (!reexport_module_sp) {
-                    reexport_module_spec.GetPlatformFileSpec()
-                    .GetDirectory()
-                    .Clear();
-                    reexport_module_sp =
+          case eSymbolTypeData:
+          case eSymbolTypeRuntime:
+          case eSymbolTypeAbsolute:
+          case eSymbolTypeObjCClass:
+          case eSymbolTypeObjCMetaClass:
+          case eSymbolTypeObjCIVar:
+            if (symbol->GetDemangledNameIsSynthesized()) {
+              // If the demangled name was synthesized, then don't use it for
+              // expressions. Only let the symbol match if the mangled named
+              // matches for these symbols.
+              if (symbol->GetMangled().GetMangledName() != name)
+                break;
+            }
+            if (symbol->IsExternal()) {
+              external_symbols.push_back(symbol);
+            } else {
+              internal_symbols.push_back(symbol);
+            }
+            break;
+          case eSymbolTypeReExported: {
+            ConstString reexport_name = symbol->GetReExportedSymbolName();
+            if (reexport_name) {
+              ModuleSP reexport_module_sp;
+              ModuleSpec reexport_module_spec;
+              reexport_module_spec.GetPlatformFileSpec() =
+                  symbol->GetReExportedSymbolSharedLibrary();
+              if (reexport_module_spec.GetPlatformFileSpec()) {
+                reexport_module_sp =
                     target.GetImages().FindFirstModule(reexport_module_spec);
-                  }
+                if (!reexport_module_sp) {
+                  reexport_module_spec.GetPlatformFileSpec()
+                      .GetDirectory()
+                      .Clear();
+                  reexport_module_sp =
+                      target.GetImages().FindFirstModule(reexport_module_spec);
                 }
-                // Don't allow us to try and resolve a re-exported symbol if it
-                // is the same as the current symbol
-                if (name == symbol->GetReExportedSymbolName() &&
-                    module == reexport_module_sp.get())
-                  return nullptr;
-
-                return FindBestGlobalDataSymbol(
-                    symbol->GetReExportedSymbolName(), error);
               }
-            } break;
+              // Don't allow us to try and resolve a re-exported symbol if it
+              // is the same as the current symbol
+              if (name == symbol->GetReExportedSymbolName() &&
+                  module == reexport_module_sp.get())
+                return nullptr;
 
-            case eSymbolTypeCode: // We already lookup functions elsewhere
-            case eSymbolTypeVariable:
-            case eSymbolTypeLocal:
-            case eSymbolTypeParam:
-            case eSymbolTypeTrampoline:
-            case eSymbolTypeInvalid:
-            case eSymbolTypeException:
-            case eSymbolTypeSourceFile:
-            case eSymbolTypeHeaderFile:
-            case eSymbolTypeObjectFile:
-            case eSymbolTypeCommonBlock:
-            case eSymbolTypeBlock:
-            case eSymbolTypeVariableType:
-            case eSymbolTypeLineEntry:
-            case eSymbolTypeLineHeader:
-            case eSymbolTypeScopeBegin:
-            case eSymbolTypeScopeEnd:
-            case eSymbolTypeAdditional:
-            case eSymbolTypeCompiler:
-            case eSymbolTypeInstrumentation:
-            case eSymbolTypeUndefined:
-            case eSymbolTypeResolver:
-              break;
+              return FindBestGlobalDataSymbol(symbol->GetReExportedSymbolName(),
+                                              error);
+            }
+          } break;
+
+          case eSymbolTypeCode: // We already lookup functions elsewhere
+          case eSymbolTypeVariable:
+          case eSymbolTypeLocal:
+          case eSymbolTypeParam:
+          case eSymbolTypeTrampoline:
+          case eSymbolTypeInvalid:
+          case eSymbolTypeException:
+          case eSymbolTypeSourceFile:
+          case eSymbolTypeHeaderFile:
+          case eSymbolTypeObjectFile:
+          case eSymbolTypeCommonBlock:
+          case eSymbolTypeBlock:
+          case eSymbolTypeVariableType:
+          case eSymbolTypeLineEntry:
+          case eSymbolTypeLineHeader:
+          case eSymbolTypeScopeBegin:
+          case eSymbolTypeScopeEnd:
+          case eSymbolTypeAdditional:
+          case eSymbolTypeCompiler:
+          case eSymbolTypeInstrumentation:
+          case eSymbolTypeUndefined:
+          case eSymbolTypeResolver:
+            break;
           }
         }
       }
@@ -933,7 +916,6 @@ SymbolContext::FindBestGlobalDataSymbol(ConstString name, Status &error) {
   return nullptr; // no error; we just didn't find anything
 }
 
-
 //
 //  SymbolContextSpecifier
 //
@@ -943,7 +925,7 @@ SymbolContextSpecifier::SymbolContextSpecifier(const TargetSP &target_sp)
       m_start_line(0), m_end_line(0), m_function_spec(), m_class_name(),
       m_address_range_up(), m_type(eNothingSpecified) {}
 
-SymbolContextSpecifier::~SymbolContextSpecifier() {}
+SymbolContextSpecifier::~SymbolContextSpecifier() = default;
 
 bool SymbolContextSpecifier::AddLineSpecification(uint32_t line_no,
                                                   SpecificationType type) {
@@ -990,17 +972,15 @@ bool SymbolContextSpecifier::AddSpecification(const char *spec_string,
     // CompUnits can't necessarily be resolved here, since an inlined function
     // might show up in a number of CompUnits.  Instead we just convert to a
     // FileSpec and store it away.
-    m_file_spec_up.reset(new FileSpec(spec_string));
+    m_file_spec_up = std::make_unique<FileSpec>(spec_string);
     m_type |= eFileSpecified;
     break;
   case eLineStartSpecified:
-    m_start_line = StringConvert::ToSInt32(spec_string, 0, 0, &return_value);
-    if (return_value)
+    if ((return_value = llvm::to_integer(spec_string, m_start_line)))
       m_type |= eLineStartSpecified;
     break;
   case eLineEndSpecified:
-    m_end_line = StringConvert::ToSInt32(spec_string, 0, 0, &return_value);
-    if (return_value)
+    if ((return_value = llvm::to_integer(spec_string, m_end_line)))
       m_type |= eLineEndSpecified;
     break;
   case eFunctionSpecified:
@@ -1032,11 +1012,15 @@ void SymbolContextSpecifier::Clear() {
   m_type = eNothingSpecified;
 }
 
-bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
+bool SymbolContextSpecifier::SymbolContextMatches(const SymbolContext &sc) {
   if (m_type == eNothingSpecified)
     return true;
 
-  if (m_target_sp.get() != sc.target_sp.get())
+  // Only compare targets if this specifier has one and it's not the Dummy
+  // target.  Otherwise if a specifier gets made in the dummy target and
+  // copied over we'll artificially fail the comparision.
+  if (m_target_sp && !m_target_sp->IsDummyTarget() &&
+      m_target_sp != sc.target_sp)
     return false;
 
   if (m_type & eModuleSpecified) {
@@ -1046,8 +1030,7 @@ bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
           return false;
       } else {
         FileSpec module_file_spec(m_module_spec);
-        if (!FileSpec::Equal(module_file_spec, sc.module_sp->GetFileSpec(),
-                             false))
+        if (!FileSpec::Match(module_file_spec, sc.module_sp->GetFileSpec()))
           return false;
       }
     }
@@ -1066,8 +1049,8 @@ bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
             sc.block->GetInlinedFunctionInfo();
         if (inline_info != nullptr) {
           was_inlined = true;
-          if (!FileSpec::Equal(inline_info->GetDeclaration().GetFile(),
-                               *(m_file_spec_up.get()), false))
+          if (!FileSpec::Match(*m_file_spec_up,
+                               inline_info->GetDeclaration().GetFile()))
             return false;
         }
       }
@@ -1075,7 +1058,7 @@ bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
       // Next check the comp unit, but only if the SymbolContext was not
       // inlined.
       if (!was_inlined && sc.comp_unit != nullptr) {
-        if (!FileSpec::Equal(*(sc.comp_unit), *(m_file_spec_up.get()), false))
+        if (!FileSpec::Match(*m_file_spec_up, sc.comp_unit->GetPrimaryFile()))
           return false;
       }
     }
@@ -1097,19 +1080,17 @@ bool SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc) {
       if (inline_info != nullptr) {
         was_inlined = true;
         const Mangled &name = inline_info->GetMangled();
-        if (!name.NameMatches(func_name, sc.function->GetLanguage()))
+        if (!name.NameMatches(func_name))
           return false;
       }
     }
     //  If it wasn't inlined, check the name in the function or symbol:
     if (!was_inlined) {
       if (sc.function != nullptr) {
-        if (!sc.function->GetMangled().NameMatches(func_name,
-                                                   sc.function->GetLanguage()))
+        if (!sc.function->GetMangled().NameMatches(func_name))
           return false;
       } else if (sc.symbol != nullptr) {
-        if (!sc.symbol->GetMangled().NameMatches(func_name,
-                                                 sc.symbol->GetLanguage()))
+        if (!sc.symbol->GetMangled().NameMatches(func_name))
           return false;
       }
     }
@@ -1202,7 +1183,7 @@ void SymbolContextSpecifier::GetDescription(
 
 SymbolContextList::SymbolContextList() : m_symbol_contexts() {}
 
-SymbolContextList::~SymbolContextList() {}
+SymbolContextList::~SymbolContextList() = default;
 
 void SymbolContextList::Append(const SymbolContext &sc) {
   m_symbol_contexts.push_back(sc);
@@ -1295,6 +1276,8 @@ bool SymbolContextList::RemoveContextAtIndex(size_t idx) {
 }
 
 uint32_t SymbolContextList::GetSize() const { return m_symbol_contexts.size(); }
+
+bool SymbolContextList::IsEmpty() const { return m_symbol_contexts.empty(); }
 
 uint32_t SymbolContextList::NumLineEntriesWithLine(uint32_t line) const {
   uint32_t match_count = 0;

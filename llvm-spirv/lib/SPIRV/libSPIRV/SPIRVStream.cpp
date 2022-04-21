@@ -42,6 +42,8 @@
 #include "SPIRVNameMapEnum.h"
 #include "SPIRVOpCode.h"
 
+#include <limits> // std::numeric_limits
+
 namespace SPIRV {
 
 /// Write string with quote. Replace " with \".
@@ -117,6 +119,15 @@ template <class T> const SPIRVEncoder &encode(const SPIRVEncoder &O, T V) {
   }
 #endif
   return O << static_cast<SPIRVWord>(V);
+}
+
+template <>
+const SPIRVEncoder &operator<<(const SPIRVEncoder &O, SPIRVType *P) {
+  if (!P->hasId() && P->getOpCode() == OpTypeForwardPointer)
+    return O << static_cast<SPIRVTypeForwardPointer *>(
+                    static_cast<SPIRVEntry *>(P))
+                    ->getPointerId();
+  return O << P->getId();
 }
 
 #define SPIRV_DEF_ENCDEC(Type)                                                 \
@@ -235,6 +246,33 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
   IS >> *Entry;
   if (Entry->isEndOfBlock() || OpCode == OpNoLine)
     M.setCurrentLine(nullptr);
+
+  if (OpExtension == OpCode) {
+    auto *OpExt = static_cast<SPIRVExtension *>(Entry);
+    ExtensionID ExtID = {};
+    bool ExtIsKnown = SPIRVMap<ExtensionID, std::string>::rfind(
+        OpExt->getExtensionName(), &ExtID);
+    if (!M.getErrorLog().checkError(
+            ExtIsKnown, SPIRVEC_InvalidModule,
+            "input SPIR-V module uses unknown extension '" +
+                OpExt->getExtensionName() + "'")) {
+      M.setInvalid();
+    }
+
+    if (!M.getErrorLog().checkError(
+            M.isAllowedToUseExtension(ExtID), SPIRVEC_InvalidModule,
+            "input SPIR-V module uses extension '" + OpExt->getExtensionName() +
+                "' which were disabled by --spirv-ext option")) {
+      M.setInvalid();
+    }
+  }
+
+  if (!M.getErrorLog().checkError(Entry->isImplemented(),
+                                  SPIRVEC_UnimplementedOpCode,
+                                  std::to_string(Entry->getOpCode()))) {
+    M.setInvalid();
+  }
+
   assert(!IS.bad() && !IS.fail() && "SPIRV stream fails");
   return Entry;
 }
@@ -245,12 +283,51 @@ void SPIRVDecoder::validate() const {
   assert(!IS.bad() && "Bad iInput stream");
 }
 
+// Skip \param n words in SPIR-V binary stream.
+// In case of SPIR-V text format always skip until the end of the line.
+void SPIRVDecoder::ignore(size_t N) {
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+  if (SPIRVUseTextFormat) {
+    IS.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    return;
+  }
+#endif
+  IS.ignore(N * sizeof(SPIRVWord));
+}
+
+void SPIRVDecoder::ignoreInstruction() { ignore(WordCount - 1); }
+
 spv_ostream &operator<<(spv_ostream &O, const SPIRVNL &E) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (SPIRVUseTextFormat)
     O << '\n';
 #endif
   return O;
+}
+
+// Read the next word from the stream and if OpCode matches the argument,
+// decode the whole instruction. Multiple such instructions are possible. If
+// OpCode doesn't match the argument, set position of the next character to be
+// extracted from the stream to the beginning of the non-matching instruction.
+// Returns vector of extracted instructions.
+// Used to decode SPIRVTypeStructContinuedINTEL,
+// SPIRVConstantCompositeContinuedINTEL and
+// SPIRVSpecConstantCompositeContinuedINTEL.
+std::vector<SPIRVEntry *>
+SPIRVDecoder::getContinuedInstructions(const spv::Op ContinuedOpCode) {
+  std::vector<SPIRVEntry *> ContinuedInst;
+  std::streampos Pos = IS.tellg(); // remember position
+  getWordCountAndOpCode();
+  while (OpCode == ContinuedOpCode) {
+    SPIRVEntry *Entry = getEntry();
+    assert(Entry && "Failed to decode entry! Invalid instruction!");
+    M.add(Entry);
+    ContinuedInst.push_back(Entry);
+    Pos = IS.tellg();
+    getWordCountAndOpCode();
+  }
+  IS.seekg(Pos); // restore position
+  return ContinuedInst;
 }
 
 } // namespace SPIRV

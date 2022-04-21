@@ -1,4 +1,4 @@
-//===-- SelectHelper.cpp ----------------------------------------*- C++ -*-===//
+//===-- SelectHelper.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,7 +25,7 @@
 #include <algorithm>
 #include <chrono>
 
-#include <errno.h>
+#include <cerrno>
 #if defined(_WIN32)
 // Define NOMINMAX to avoid macros that conflict with std::min and std::max
 #define NOMINMAX
@@ -92,7 +92,7 @@ static void updateMaxFd(llvm::Optional<lldb::socket_t> &vold,
 
 lldb_private::Status SelectHelper::Select() {
   lldb_private::Status error;
-#ifdef _MSC_VER
+#ifdef _WIN32
   // On windows FD_SETSIZE limits the number of file descriptors, not their
   // numeric value.
   lldbassert(m_fd_map.size() <= FD_SETSIZE);
@@ -107,7 +107,7 @@ lldb_private::Status SelectHelper::Select() {
   for (auto &pair : m_fd_map) {
     pair.second.PrepareForSelect();
     const lldb::socket_t fd = pair.first;
-#if !defined(__APPLE__) && !defined(_MSC_VER)
+#if !defined(__APPLE__) && !defined(_WIN32)
     lldbassert(fd < static_cast<int>(FD_SETSIZE));
     if (fd >= static_cast<int>(FD_SETSIZE)) {
       error.SetErrorStringWithFormat("%i is too large for select()", fd);
@@ -192,7 +192,7 @@ lldb_private::Status SelectHelper::Select() {
   struct timeval *tv_ptr = nullptr;
   struct timeval tv = {0, 0};
 
-  while (1) {
+  while (true) {
     using namespace std::chrono;
     // Setup out relative timeout based on the end time if we have one
     if (m_end_time.hasValue()) {

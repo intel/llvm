@@ -1,4 +1,4 @@
-//===-- source/Host/common/OptionParser.cpp ---------------------*- C++ -*-===//
+//===-- source/Host/common/OptionParser.cpp -------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,7 @@
 
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Host/HostGetOpt.h"
+#include "lldb/Utility/OptionDefinition.h"
 #include "lldb/lldb-private-types.h"
 
 #include <vector>
@@ -27,8 +28,9 @@ void OptionParser::Prepare(std::unique_lock<std::mutex> &lock) {
 
 void OptionParser::EnableError(bool error) { opterr = error ? 1 : 0; }
 
-int OptionParser::Parse(int argc, char *const argv[], llvm::StringRef optstring,
-                        const Option *longopts, int *longindex) {
+int OptionParser::Parse(llvm::MutableArrayRef<char *> argv,
+                        llvm::StringRef optstring, const Option *longopts,
+                        int *longindex) {
   std::vector<option> opts;
   while (longopts->definition != nullptr) {
     option opt;
@@ -40,8 +42,9 @@ int OptionParser::Parse(int argc, char *const argv[], llvm::StringRef optstring,
     ++longopts;
   }
   opts.push_back(option());
-  std::string opt_cstr = optstring;
-  return getopt_long_only(argc, argv, opt_cstr.c_str(), &opts[0], longindex);
+  std::string opt_cstr = std::string(optstring);
+  return getopt_long_only(argv.size() - 1, argv.data(), opt_cstr.c_str(),
+                          &opts[0], longindex);
 }
 
 char *OptionParser::GetOptionArgument() { return optarg; }
@@ -55,11 +58,11 @@ std::string OptionParser::GetShortOptionString(struct option *long_options) {
   int i = 0;
   bool done = false;
   while (!done) {
-    if (long_options[i].name == 0 && long_options[i].has_arg == 0 &&
-        long_options[i].flag == 0 && long_options[i].val == 0) {
+    if (long_options[i].name == nullptr && long_options[i].has_arg == 0 &&
+        long_options[i].flag == nullptr && long_options[i].val == 0) {
       done = true;
     } else {
-      if (long_options[i].flag == NULL && isalpha(long_options[i].val)) {
+      if (long_options[i].flag == nullptr && isalpha(long_options[i].val)) {
         s.append(1, (char)long_options[i].val);
         switch (long_options[i].has_arg) {
         default:

@@ -7,15 +7,15 @@ id getObject();
 void callee();
 
 // Lifetime extension for binding a reference to an rvalue
-// CHECK-LABEL: define void @_Z5test0v()
+// CHECK-LABEL: define{{.*}} void @_Z5test0v()
 void test0() {
-  // CHECK: call i8* @_Z9getObjectv
-  // CHECK-NEXT: call i8* @llvm.objc.retainAutoreleasedReturnValue
+  // CHECK: call noundef i8* @_Z9getObjectv{{.*}} [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
+  // CHECK-NEXT: call void (...) @llvm.objc.clang.arc.noop.use(
   const __strong id &ref1 = getObject();
   // CHECK: call void @_Z6calleev
   callee();
-  // CHECK: call i8* @_Z9getObjectv
-  // CHECK-NEXT: call i8* @llvm.objc.retainAutoreleasedReturnValue
+  // CHECK: call noundef i8* @_Z9getObjectv{{.*}} [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
+  // CHECK-NEXT: call void (...) @llvm.objc.clang.arc.noop.use(
   // CHECK-NEXT: call i8* @llvm.objc.autorelease
   const __autoreleasing id &ref2 = getObject();
   // CHECK: call void @_Z6calleev
@@ -25,7 +25,7 @@ void test0() {
 }
 
 // No lifetime extension when we're binding a reference to an lvalue.
-// CHECK-LABEL: define void @_Z5test1RU8__strongP11objc_objectRU6__weakS0_
+// CHECK-LABEL: define{{.*}} void @_Z5test1RU8__strongP11objc_objectRU6__weakS0_
 void test1(__strong id &x, __weak id &y) {
   // CHECK-NOT: release
   const __strong id &ref1 = x;
@@ -36,7 +36,7 @@ void test1(__strong id &x, __weak id &y) {
 
 typedef __strong id strong_id;
 
-//CHECK: define void @_Z5test3v
+//CHECK: define{{.*}} void @_Z5test3v
 void test3() {
   // CHECK: [[REF:%.*]] = alloca i8**, align 8
   // CHECK: call i8* @llvm.objc.initWeak
@@ -50,7 +50,7 @@ void test3() {
   // CHECK-NEXT: ret void
 }
 
-// CHECK-LABEL: define void @_Z5test4RU8__strongP11objc_object
+// CHECK-LABEL: define{{.*}} void @_Z5test4RU8__strongP11objc_object
 void test4(__strong id &x) {
   // CHECK: call i8* @llvm.objc.retain
   __strong A* const &ar = x;
@@ -62,7 +62,7 @@ void test4(__strong id &x) {
 
 void sink(__strong A* &&);
 
-// CHECK-LABEL: define void @_Z5test5RU8__strongP11objc_object
+// CHECK-LABEL: define{{.*}} void @_Z5test5RU8__strongP11objc_object
 void test5(__strong id &x) {
   // CHECK:      [[REFTMP:%.*]] = alloca {{%.*}}*, align 8
   // CHECK:      [[I:%.*]] = alloca i32, align 4
@@ -84,8 +84,8 @@ void test5(__strong id &x) {
 }
 
 // CHECK-LABEL: define internal void @__cxx_global_var_init(
-// CHECK: call i8* @_Z9getObjectv
-// CHECK-NEXT: call i8* @llvm.objc.retainAutoreleasedReturnValue
+// CHECK: call noundef i8* @_Z9getObjectv{{.*}} [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
+// CHECK-NEXT: call void (...) @llvm.objc.clang.arc.noop.use(
 const __strong id &global_ref = getObject();
 
 // Note: we intentionally don't release the object.

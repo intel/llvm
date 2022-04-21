@@ -42,11 +42,9 @@
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
 #include <map>
@@ -58,8 +56,8 @@
 
 namespace llvm {
 
+class BasicBlock;
 class DominanceFrontier;
-class DominatorTree;
 class Loop;
 class LoopInfo;
 class PostDominatorTree;
@@ -68,6 +66,7 @@ template <class RegionTr> class RegionBase;
 class RegionInfo;
 template <class RegionTr> class RegionInfoBase;
 class RegionNode;
+class raw_ostream;
 
 // Class to be specialized for different users of RegionInfo
 // (i.e. BasicBlocks or MachineBasicBlocks). This is only to avoid needing to
@@ -243,7 +242,7 @@ public:
 ///
 /// You can obtain more examples by either calling
 ///
-/// <tt> "opt -regions -analyze anyprogram.ll" </tt>
+/// <tt> "opt -passes='print<regions>' anyprogram.ll" </tt>
 /// or
 /// <tt> "opt -view-regions-only anyprogram.ll" </tt>
 ///
@@ -574,10 +573,9 @@ public:
   template <bool IsConst>
   class block_iterator_wrapper
       : public df_iterator<
-            typename std::conditional<IsConst, const BlockT, BlockT>::type *> {
+            std::conditional_t<IsConst, const BlockT, BlockT> *> {
     using super =
-        df_iterator<
-            typename std::conditional<IsConst, const BlockT, BlockT>::type *>;
+        df_iterator<std::conditional_t<IsConst, const BlockT, BlockT> *>;
 
   public:
     using Self = block_iterator_wrapper<IsConst>;
@@ -877,8 +875,6 @@ public:
 
   void verifyAnalysis() const;
 };
-
-class Region;
 
 class RegionNode : public RegionNodeBase<RegionTraits<Function>> {
 public:

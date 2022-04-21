@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s -fno-lax-vector-conversions
+// RUN: %clang_cc1 -fsyntax-only -verify %s -flax-vector-conversions=none
 
 typedef float float4 __attribute__((vector_size(16)));
 typedef int int4 __attribute__((vector_size(16)));
@@ -14,10 +14,10 @@ void test2(float4 a, int4p result, int i) {
 
 // PR2039
 typedef int a[5];
-void test3() {
+void test3(void) {
   typedef const a b;
   b r;       // expected-note {{variable 'r' declared const here}}
-  r[0] = 10; // expected-error {{cannot assign to variable 'r' with const-qualified type 'b' (aka 'int const[5]')}}
+  r[0] = 10; // expected-error {{cannot assign to variable 'r' with const-qualified type 'b' (aka 'const int[5]')}}
 }
 
 int test4(const a y) {

@@ -1,7 +1,7 @@
-; RUN: opt %loadPolly -polly-delicm -analyze < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-print-scops -polly-print-delicm -disable-output < %s | FileCheck %s
 ;
 ; llvm.org/PR41656
-; 
+;
 ; This test case has an InvalidContext such that part of the predecessors
 ; of for.body.us.i lie within the invalid context. This causes a
 ; consistency check withing the invalid context of PR41656 to fail.
@@ -81,8 +81,14 @@ attributes #2 = { nounwind }
 !6 = !{!"double", !3, i64 0}
 
 
+; CHECK:      Invalid Context:
+; CHECK-NEXT: [call24] -> {  : call24 <= 2 }
+; CHECK:      Defined Behavior Context:
+; CHECK-NEXT: [call24] -> {  : 3 <= call24 <= 2147483647 }
+
 ; Only write to scalar if call24 >= 3 (i.e. not in invalid context)
-; Since it should be never executed otherwise, the condition is not strictly necessary. 
+; Since it should be never executed otherwise, the condition is not strictly necessary.
+; CHECK-LABEL: DeLICM result:
 ; CHECK:          Stmt_for_body_us_preheader_i
 ; CHECK-NEXT:            MustWriteAccess :=  [Reduction Type: NONE] [Scalar: 1]
 ; CHECK-NEXT:                 [call24] -> { Stmt_for_body_us_preheader_i[] -> MemRef_t_1__phi[] };

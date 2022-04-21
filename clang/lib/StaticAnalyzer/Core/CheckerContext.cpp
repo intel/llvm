@@ -19,6 +19,10 @@ using namespace clang;
 using namespace ento;
 
 const FunctionDecl *CheckerContext::getCalleeDecl(const CallExpr *CE) const {
+  const FunctionDecl *D = CE->getDirectCallee();
+  if (D)
+    return D;
+
   const Expr *Callee = CE->getCallee();
   SVal L = Pred->getSVal(Callee);
   return L.getAsFunctionDecl();
@@ -34,7 +38,7 @@ StringRef CheckerContext::getCalleeName(const FunctionDecl *FunDecl) const {
 }
 
 StringRef CheckerContext::getDeclDescription(const Decl *D) {
-  if (isa<ObjCMethodDecl>(D) || isa<CXXMethodDecl>(D))
+  if (isa<ObjCMethodDecl, CXXMethodDecl>(D))
     return "method";
   if (isa<BlockDecl>(D))
     return "anonymous block";
@@ -51,8 +55,29 @@ bool CheckerContext::isCLibraryFunction(const FunctionDecl *FD,
     if (Name.empty())
       return true;
     StringRef BName = FD->getASTContext().BuiltinInfo.getName(BId);
-    if (BName.find(Name) != StringRef::npos)
-      return true;
+    size_t start = BName.find(Name);
+    if (start != StringRef::npos) {
+      // Accept exact match.
+      if (BName.size() == Name.size())
+        return true;
+
+      //    v-- match starts here
+      // ...xxxxx...
+      //   _xxxxx_
+      //   ^     ^ lookbehind and lookahead characters
+
+      const auto MatchPredecessor = [=]() -> bool {
+        return start <= 0 || !llvm::isAlpha(BName[start - 1]);
+      };
+      const auto MatchSuccessor = [=]() -> bool {
+        std::size_t LookbehindPlace = start + Name.size();
+        return LookbehindPlace >= BName.size() ||
+               !llvm::isAlpha(BName[LookbehindPlace]);
+      };
+
+      if (MatchPredecessor() && MatchSuccessor())
+        return true;
+    }
   }
 
   const IdentifierInfo *II = FD->getIdentifier();
@@ -79,11 +104,10 @@ bool CheckerContext::isCLibraryFunction(const FunctionDecl *FD,
   if (FName.equals(Name))
     return true;
 
-  if (FName.startswith("__inline") && (FName.find(Name) != StringRef::npos))
+  if (FName.startswith("__inline") && FName.contains(Name))
     return true;
 
-  if (FName.startswith("__") && FName.endswith("_chk") &&
-      FName.find(Name) != StringRef::npos)
+  if (FName.startswith("__") && FName.endswith("_chk") && FName.contains(Name))
     return true;
 
   return false;
@@ -93,7 +117,7 @@ StringRef CheckerContext::getMacroNameOrSpelling(SourceLocation &Loc) {
   if (Loc.isMacroID())
     return Lexer::getImmediateMacroName(Loc, getSourceManager(),
                                              getLangOpts());
-  SmallVector<char, 16> buf;
+  SmallString<16> buf;
   return Lexer::getSpelling(Loc, buf, getSourceManager(), getLangOpts());
 }
 

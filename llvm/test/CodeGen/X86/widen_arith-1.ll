@@ -4,30 +4,28 @@
 define void @update(<3 x i8>* %dst, <3 x i8>* %src, i32 %n) nounwind {
 ; CHECK-LABEL: update:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    subl $12, %esp
+; CHECK-NEXT:    pushl %eax
 ; CHECK-NEXT:    movl $0, (%esp)
 ; CHECK-NEXT:    pcmpeqd %xmm0, %xmm0
-; CHECK-NEXT:    movdqa {{.*#+}} xmm1 = <0,4,8,12,u,u,u,u,u,u,u,u,u,u,u,u>
-; CHECK-NEXT:    jmp .LBB0_1
 ; CHECK-NEXT:    .p2align 4, 0x90
-; CHECK-NEXT:  .LBB0_2: # %forbody
-; CHECK-NEXT:    # in Loop: Header=BB0_1 Depth=1
-; CHECK-NEXT:    movl (%esp), %eax
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; CHECK-NEXT:    pmovzxbd {{.*#+}} xmm2 = mem[0],zero,zero,zero,mem[1],zero,zero,zero,mem[2],zero,zero,zero,mem[3],zero,zero,zero
-; CHECK-NEXT:    psubd %xmm0, %xmm2
-; CHECK-NEXT:    pextrb $8, %xmm2, 2(%ecx,%eax,4)
-; CHECK-NEXT:    pshufb %xmm1, %xmm2
-; CHECK-NEXT:    pextrw $0, %xmm2, (%ecx,%eax,4)
-; CHECK-NEXT:    incl (%esp)
 ; CHECK-NEXT:  .LBB0_1: # %forcond
 ; CHECK-NEXT:    # =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    movl (%esp), %eax
 ; CHECK-NEXT:    cmpl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    jl .LBB0_2
-; CHECK-NEXT:  # %bb.3: # %afterfor
-; CHECK-NEXT:    addl $12, %esp
+; CHECK-NEXT:    jge .LBB0_3
+; CHECK-NEXT:  # %bb.2: # %forbody
+; CHECK-NEXT:    # in Loop: Header=BB0_1 Depth=1
+; CHECK-NEXT:    movl (%esp), %eax
+; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; CHECK-NEXT:    movd {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; CHECK-NEXT:    psubb %xmm0, %xmm1
+; CHECK-NEXT:    pextrb $2, %xmm1, 2(%ecx,%eax,4)
+; CHECK-NEXT:    pextrw $0, %xmm1, (%ecx,%eax,4)
+; CHECK-NEXT:    incl (%esp)
+; CHECK-NEXT:    jmp .LBB0_1
+; CHECK-NEXT:  .LBB0_3: # %afterfor
+; CHECK-NEXT:    popl %eax
 ; CHECK-NEXT:    retl
 entry:
 	%dst.addr = alloca <3 x i8>*

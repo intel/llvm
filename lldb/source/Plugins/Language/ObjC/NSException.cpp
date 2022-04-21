@@ -1,4 +1,4 @@
-//===-- NSException.cpp -----------------------------------------*- C++ -*-===//
+//===-- NSException.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,8 +13,6 @@
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/ProcessStructReader.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataBufferHeap.h"
@@ -23,6 +21,8 @@
 #include "lldb/Utility/Stream.h"
 
 #include "Plugins/Language/ObjC/NSString.h"
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -69,10 +69,13 @@ static bool ExtractFields(ValueObject &valobj, ValueObjectSP *name_sp,
   InferiorSizedWord userinfo_isw(userinfo, *process_sp);
   InferiorSizedWord reserved_isw(reserved, *process_sp);
 
-  CompilerType voidstar = process_sp->GetTarget()
-                              .GetScratchClangASTContext()
-                              ->GetBasicType(lldb::eBasicTypeVoid)
-                              .GetPointerType();
+  auto *clang_ast_context =
+      ScratchTypeSystemClang::GetForTarget(process_sp->GetTarget());
+  if (!clang_ast_context)
+    return false;
+
+  CompilerType voidstar =
+      clang_ast_context->GetBasicType(lldb::eBasicTypeVoid).GetPointerType();
 
   if (name_sp)
     *name_sp = ValueObject::CreateValueObjectFromData(
@@ -96,21 +99,19 @@ static bool ExtractFields(ValueObject &valobj, ValueObjectSP *name_sp,
 
 bool lldb_private::formatters::NSException_SummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
-  lldb::ValueObjectSP name_sp;
   lldb::ValueObjectSP reason_sp;
-  if (!ExtractFields(valobj, &name_sp, &reason_sp, nullptr, nullptr))
+  if (!ExtractFields(valobj, nullptr, &reason_sp, nullptr, nullptr))
     return false;
 
-  if (!name_sp || !reason_sp)
+  if (!reason_sp) {
+    stream.Printf("No reason");
     return false;
+  }
 
-  StreamString name_str_summary;
   StreamString reason_str_summary;
-  if (NSStringSummaryProvider(*name_sp, name_str_summary, options) &&
-      NSStringSummaryProvider(*reason_sp, reason_str_summary, options) &&
-      !name_str_summary.Empty() && !reason_str_summary.Empty()) {
-    stream.Printf("name: %s - reason: %s", name_str_summary.GetData(),
-                  reason_str_summary.GetData());
+  if (NSStringSummaryProvider(*reason_sp, reason_str_summary, options) &&
+      !reason_str_summary.Empty()) {
+    stream.Printf("%s", reason_str_summary.GetData());
     return true;
   } else
     return false;
@@ -155,14 +156,14 @@ public:
     //   NSString *reason;
     //   NSDictionary *userInfo;
     //   id reserved;
-    static ConstString g___name("name");
-    static ConstString g___reason("reason");
-    static ConstString g___userInfo("userInfo");
-    static ConstString g___reserved("reserved");
-    if (name == g___name) return 0;
-    if (name == g___reason) return 1;
-    if (name == g___userInfo) return 2;
-    if (name == g___reserved) return 3;
+    static ConstString g_name("name");
+    static ConstString g_reason("reason");
+    static ConstString g_userInfo("userInfo");
+    static ConstString g_reserved("reserved");
+    if (name == g_name) return 0;
+    if (name == g_reason) return 1;
+    if (name == g_userInfo) return 2;
+    if (name == g_reserved) return 3;
     return UINT32_MAX;
   }
 
@@ -179,9 +180,7 @@ lldb_private::formatters::NSExceptionSyntheticFrontEndCreator(
   lldb::ProcessSP process_sp(valobj_sp->GetProcessSP());
   if (!process_sp)
     return nullptr;
-  ObjCLanguageRuntime *runtime =
-      (ObjCLanguageRuntime *)process_sp->GetLanguageRuntime(
-          lldb::eLanguageTypeObjC);
+  ObjCLanguageRuntime *runtime = ObjCLanguageRuntime::Get(*process_sp);
   if (!runtime)
     return nullptr;
 

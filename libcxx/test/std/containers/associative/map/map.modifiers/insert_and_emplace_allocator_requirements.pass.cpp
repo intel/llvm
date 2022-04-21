@@ -14,10 +14,11 @@
 // emplace(...);
 // emplace_hint(...);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <map>
 
+#include "test_macros.h"
 #include "container_test_types.h"
 #include "../../../map_allocator_requirement_test_templates.h"
 

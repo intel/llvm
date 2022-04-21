@@ -1,4 +1,4 @@
-//===-- ValueObjectConstResultChild.cpp --------------------------*- C++-*-===//
+//===-- ValueObjectConstResultChild.cpp -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -34,7 +34,7 @@ ValueObjectConstResultChild::ValueObjectConstResultChild(
   m_name = name;
 }
 
-ValueObjectConstResultChild::~ValueObjectConstResultChild() {}
+ValueObjectConstResultChild::~ValueObjectConstResultChild() = default;
 
 lldb::ValueObjectSP ValueObjectConstResultChild::Dereference(Status &error) {
   return m_impl.Dereference(error);

@@ -6,28 +6,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEBUGINFO_PDB_RAW_DBIMODULEDESCRIPTOR_H
-#define LLVM_DEBUGINFO_PDB_RAW_DBIMODULEDESCRIPTOR_H
+#ifndef LLVM_DEBUGINFO_PDB_NATIVE_DBIMODULEDESCRIPTOR_H
+#define LLVM_DEBUGINFO_PDB_NATIVE_DBIMODULEDESCRIPTOR_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/DebugInfo/PDB/Native/RawTypes.h"
-#include "llvm/Support/BinaryStreamArray.h"
 #include "llvm/Support/BinaryStreamRef.h"
 #include "llvm/Support/Error.h"
 #include <cstdint>
-#include <vector>
 
 namespace llvm {
+template <typename T> struct VarStreamArrayExtractor;
 
 namespace pdb {
-
+struct ModuleInfoHeader;
+struct SectionContrib;
 class DbiModuleDescriptor {
   friend class DbiStreamBuilder;
 
 public:
-  DbiModuleDescriptor();
-  DbiModuleDescriptor(const DbiModuleDescriptor &Info);
-  ~DbiModuleDescriptor();
+  DbiModuleDescriptor() = default;
+  DbiModuleDescriptor(const DbiModuleDescriptor &Info) = default;
+  DbiModuleDescriptor &operator=(const DbiModuleDescriptor &Info) = default;
 
   static Error initialize(BinaryStreamRef Stream, DbiModuleDescriptor &Info);
 
@@ -68,4 +67,4 @@ template <> struct VarStreamArrayExtractor<pdb::DbiModuleDescriptor> {
 
 } // end namespace llvm
 
-#endif // LLVM_DEBUGINFO_PDB_RAW_DBIMODULEDESCRIPTOR_H
+#endif // LLVM_DEBUGINFO_PDB_NATIVE_DBIMODULEDESCRIPTOR_H

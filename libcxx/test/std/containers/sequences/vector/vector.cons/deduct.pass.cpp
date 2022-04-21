@@ -7,22 +7,21 @@
 //===----------------------------------------------------------------------===//
 
 // <vector>
-// UNSUPPORTED: c++98, c++03, c++11, c++14
-// UNSUPPORTED: libcpp-no-deduction-guides
-
+// UNSUPPORTED: c++03, c++11, c++14
 
 // template <class InputIterator, class Allocator = allocator<typename iterator_traits<InputIterator>::value_type>>
-//    deque(InputIterator, InputIterator, Allocator = Allocator())
-//    -> deque<typename iterator_traits<InputIterator>::value_type, Allocator>;
+//    vector(InputIterator, InputIterator, Allocator = Allocator())
+//    -> vector<typename iterator_traits<InputIterator>::value_type, Allocator>;
 //
 
-
 #include <vector>
-#include <iterator>
 #include <cassert>
 #include <cstddef>
 #include <climits> // INT_MAX
+#include <iterator>
+#include <type_traits>
 
+#include "deduction_guides_sfinae_checks.h"
 #include "test_macros.h"
 #include "test_iterators.h"
 #include "test_allocator.h"
@@ -113,5 +112,36 @@ int main(int, char**)
     assert(vec.size() == 0);
     }
 
-  return 0;
+    {
+        typedef test_allocator<short> Alloc;
+        typedef test_allocator<int> ConvertibleToAlloc;
+
+        {
+        std::vector<short, Alloc> source;
+        std::vector vec(source, Alloc(2));
+        static_assert(std::is_same_v<decltype(vec), decltype(source)>);
+        }
+
+        {
+        std::vector<short, Alloc> source;
+        std::vector vec(source, ConvertibleToAlloc(2));
+        static_assert(std::is_same_v<decltype(vec), decltype(source)>);
+        }
+
+        {
+        std::vector<short, Alloc> source;
+        std::vector vec(std::move(source), Alloc(2));
+        static_assert(std::is_same_v<decltype(vec), decltype(source)>);
+        }
+
+        {
+        std::vector<short, Alloc> source;
+        std::vector vec(std::move(source), ConvertibleToAlloc(2));
+        static_assert(std::is_same_v<decltype(vec), decltype(source)>);
+        }
+    }
+
+    SequenceContainerDeductionGuidesSfinaeAway<std::vector, std::vector<int>>();
+
+    return 0;
 }

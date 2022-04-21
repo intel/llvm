@@ -13,30 +13,28 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-forward.h"
 
-#include "llvm/Support/Mutex.h"
-
-#include "IDebugDelegate.h"
 #include "Plugins/DynamicLoader/Windows-DYLD/DynamicLoaderWindowsDYLD.h"
+#include "ProcessDebugger.h"
 
 namespace lldb_private {
 
 class HostProcess;
-class ProcessWindowsData;
 
-class ProcessWindows : public Process, public IDebugDelegate {
+class ProcessWindows : public Process, public ProcessDebugger {
 public:
   // Static functions.
   static lldb::ProcessSP CreateInstance(lldb::TargetSP target_sp,
                                         lldb::ListenerSP listener_sp,
-                                        const FileSpec *);
+                                        const FileSpec *,
+                                        bool can_connect);
 
   static void Initialize();
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "windows"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   // Constructors and destructors
   ProcessWindows(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
@@ -47,9 +45,7 @@ public:
   size_t GetSTDERR(char *buf, size_t buf_size, Status &error) override;
   size_t PutSTDIN(const char *buf, size_t buf_size, Status &error) override;
 
-  // lldb_private::Process overrides
-  ConstString GetPluginName() override;
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   Status EnableBreakpointSite(BreakpointSite *bp_site) override;
   Status DisableBreakpointSite(BreakpointSite *bp_site) override;
@@ -71,9 +67,11 @@ public:
   bool CanDebug(lldb::TargetSP target_sp,
                 bool plugin_specified_by_name) override;
   bool DestroyRequiresHalt() override { return false; }
-  bool UpdateThreadList(ThreadList &old_thread_list,
-                        ThreadList &new_thread_list) override;
+  bool DoUpdateThreadList(ThreadList &old_thread_list,
+                          ThreadList &new_thread_list) override;
   bool IsAlive() override;
+
+  ArchSpec GetSystemArchitecture() override;
 
   size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
                       Status &error) override;
@@ -82,8 +80,6 @@ public:
   lldb::addr_t DoAllocateMemory(size_t size, uint32_t permissions,
                                 Status &error) override;
   Status DoDeallocateMemory(lldb::addr_t ptr) override;
-  Status GetMemoryRegionInfo(lldb::addr_t vm_addr,
-                             MemoryRegionInfo &info) override;
 
   lldb::addr_t GetImageInfoAddress() override;
 
@@ -102,18 +98,26 @@ public:
   void OnDebugString(const std::string &string) override;
   void OnDebuggerError(const Status &error, uint32_t type) override;
 
+  Status GetWatchpointSupportInfo(uint32_t &num) override;
+  Status GetWatchpointSupportInfo(uint32_t &num, bool &after) override;
+  Status EnableWatchpoint(Watchpoint *wp, bool notify = true) override;
+  Status DisableWatchpoint(Watchpoint *wp, bool notify = true) override;
+
+protected:
+  Status DoGetMemoryRegionInfo(lldb::addr_t vm_addr,
+                               MemoryRegionInfo &info) override;
+
 private:
-  Status WaitForDebuggerConnection(DebuggerThreadSP debugger,
-                                   HostProcess &process);
-
-  // These decode the page protection bits.
-  static bool IsPageReadable(uint32_t protect);
-  static bool IsPageWritable(uint32_t protect);
-  static bool IsPageExecutable(uint32_t protect);
-
-  llvm::sys::Mutex m_mutex;
-  std::unique_ptr<ProcessWindowsData> m_session_data;
+  struct WatchpointInfo {
+    uint32_t slot_id;
+    lldb::addr_t address;
+    uint32_t size;
+    bool read;
+    bool write;
+  };
+  std::map<lldb::break_id_t, WatchpointInfo> m_watchpoints;
+  std::vector<lldb::break_id_t> m_watchpoint_ids;
 };
-}
+} // namespace lldb_private
 
 #endif // liblldb_Plugins_Process_Windows_Common_ProcessWindows_H_

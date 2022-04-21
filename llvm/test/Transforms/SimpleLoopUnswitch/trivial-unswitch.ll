@@ -1,5 +1,5 @@
-; RUN: opt -passes='loop(unswitch),verify<loops>' -S < %s | FileCheck %s
-; RUN: opt -enable-mssa-loop-dependency=true -verify-memoryssa -passes='loop(unswitch),verify<loops>' -S < %s | FileCheck %s
+; RUN: opt -passes='loop(simple-loop-unswitch),verify<loops>' -S < %s | FileCheck %s
+; RUN: opt -verify-memoryssa -passes='loop-mssa(simple-loop-unswitch),verify<loops>' -S < %s | FileCheck %s
 
 declare void @some_func() noreturn
 declare void @sink(i32)
@@ -490,6 +490,99 @@ loop_exit:
 ; CHECK-NEXT:    ret
 }
 
+define i32 @test_partial_condition_unswitch_and_select(i32* %var, i1 %cond1, i1 %cond2) {
+; CHECK-LABEL: @test_partial_condition_unswitch_and_select(
+entry:
+  br label %loop_begin
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 %cond1, label %entry.split, label %loop_exit.split
+;
+; CHECK:       entry.split:
+; CHECK-NEXT:    br i1 %cond2, label %entry.split.split, label %loop_exit
+;
+; CHECK:       entry.split.split:
+; CHECK-NEXT:    br label %loop_begin
+
+loop_begin:
+  br i1 %cond1, label %continue, label %loop_exit
+; CHECK:       loop_begin:
+; CHECK-NEXT:    br label %continue
+
+continue:
+  %var_val = load i32, i32* %var
+  %var_cond = trunc i32 %var_val to i1
+  %cond_and = select i1 %var_cond, i1 %cond2, i1 false
+  br i1 %cond_and, label %do_something, label %loop_exit
+; CHECK:       continue:
+; CHECK-NEXT:    %[[VAR:.*]] = load i32
+; CHECK-NEXT:    %[[VAR_COND:.*]] = trunc i32 %[[VAR]] to i1
+; CHECK-NEXT:    %[[COND_AND:.*]] = select i1 %[[VAR_COND]], i1 true, i1 false
+; CHECK-NEXT:    br i1 %[[COND_AND]], label %do_something, label %loop_exit
+
+do_something:
+  call void @some_func() noreturn nounwind
+  br label %loop_begin
+; CHECK:       do_something:
+; CHECK-NEXT:    call
+; CHECK-NEXT:    br label %loop_begin
+
+loop_exit:
+  ret i32 0
+; CHECK:       loop_exit:
+; CHECK-NEXT:    br label %loop_exit.split
+;
+; CHECK:       loop_exit.split:
+; CHECK-NEXT:    ret
+}
+
+define i32 @test_partial_condition_unswitch_or_simple_select(i32* %var, i1 %cond1, i1 %cond2) {
+; CHECK-LABEL: @test_partial_condition_unswitch_or_simple_select(
+entry:
+  br label %loop_begin
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 %cond1, label %entry.split, label %loop_exit.split
+;
+; CHECK:       entry.split:
+; CHECK-NEXT:    br i1 %cond2, label %loop_exit.split1, label %entry.split.split
+;
+; CHECK:       entry.split.split:
+; CHECK-NEXT:    br label %loop_begin
+
+loop_begin:
+  br i1 %cond1, label %continue, label %loop_exit
+; CHECK:       loop_begin:
+; CHECK-NEXT:    br label %continue
+
+continue:
+  %var_val = load i32, i32* %var
+  %var_cond = trunc i32 %var_val to i1
+  %cond_or = select i1 %var_cond, i1 true, i1 %cond2
+  br i1 %cond_or, label %loop_exit, label %do_something
+; CHECK:       continue:
+; CHECK-NEXT:    %[[VAR:.*]] = load i32
+; CHECK-NEXT:    %[[VAR_COND:.*]] = trunc i32 %[[VAR]] to i1
+; CHECK-NEXT:    %[[COND_OR:.*]] = select i1 %[[VAR_COND]], i1 true, i1 false
+; CHECK-NEXT:    br i1 %[[COND_OR]], label %loop_exit, label %do_something
+
+do_something:
+  call void @some_func() noreturn nounwind
+  br label %loop_begin
+; CHECK:       do_something:
+; CHECK-NEXT:    call
+; CHECK-NEXT:    br label %loop_begin
+
+loop_exit:
+  ret i32 0
+; CHECK:       loop_exit:
+; CHECK-NEXT:    br label %loop_exit.split1
+;
+; CHECK:       loop_exit.split1:
+; CHECK-NEXT:    br label %loop_exit.split
+;
+; CHECK:       loop_exit.split:
+; CHECK-NEXT:    ret
+}
+
 define i32 @test_partial_condition_unswitch_or(i32* %var, i1 %cond1, i1 %cond2, i1 %cond3, i1 %cond4, i1 %cond5, i1 %cond6) {
 ; CHECK-LABEL: @test_partial_condition_unswitch_or(
 entry:
@@ -526,6 +619,63 @@ loop_begin:
 ; CHECK-NEXT:    %[[COND_OR4:.*]] = or i1 %[[COND_XOR]], %[[COND_AND]]
 ; CHECK-NEXT:    %[[COND_OR5:.*]] = or i1 %[[COND_OR3]], %[[COND_OR4]]
 ; CHECK-NEXT:    %[[COND_OR6:.*]] = or i1 %[[COND_OR5]], false
+; CHECK-NEXT:    br i1 %[[COND_OR6]], label %loop_exit, label %do_something
+
+do_something:
+  call void @some_func() noreturn nounwind
+  br label %loop_begin
+; CHECK:       do_something:
+; CHECK-NEXT:    call
+; CHECK-NEXT:    br label %loop_begin
+
+loop_exit:
+  ret i32 0
+; CHECK:       loop_exit.split:
+; CHECK-NEXT:    ret
+}
+
+; Check that loop unswitch looks through a combination of or and select instructions.
+; Note that cond6 can be unswitched because `select i1 %cond_or5, i1 true, i1 false` is
+; both logical-or and logical-and.
+define i32 @test_partial_condition_unswitch_or_select(i32* %var, i1 %cond1, i1 %cond2, i1 %cond3, i1 %cond4, i1 %cond5, i1 %cond6) {
+; CHECK-LABEL: @test_partial_condition_unswitch_or_select(
+entry:
+  br label %loop_begin
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    %[[INV_OR1:.*]] = or i1 %cond4, %cond2
+; CHECK-NEXT:    %[[INV_OR2:.*]] = or i1 %[[INV_OR1]], %cond3
+; CHECK-NEXT:    %[[INV_OR3:.*]] = or i1 %[[INV_OR2]], %cond1
+; CHECK-NEXT:    br i1 %[[INV_OR3]], label %loop_exit.split, label %entry.split
+;
+; CHECK:       entry.split:
+; CHECK-NEXT:    br i1 %cond6, label %loop_exit.split1, label %entry.split.split
+;
+; CHECK:       entry.split.split:
+; CHECK-NEXT:    br label %loop_begin
+
+loop_begin:
+  %var_val = load i32, i32* %var
+  %var_cond = trunc i32 %var_val to i1
+  %cond_or1 = or i1 %var_cond, %cond1
+  %cond_or2 = or i1 %cond2, %cond3
+  %cond_or3 = or i1 %cond_or1, %cond_or2
+  %cond_xor1 = xor i1 %cond5, %var_cond
+  %cond_and1 = and i1 %cond6, %var_cond
+  %cond_or4 = or i1 %cond_xor1, %cond_and1
+  %cond_or5 = select i1 %cond_or3, i1 true, i1 %cond_or4
+  %cond_or6 = select i1 %cond_or5, i1 true, i1 %cond4
+  br i1 %cond_or6, label %loop_exit, label %do_something
+; CHECK:       loop_begin:
+; CHECK-NEXT:    %[[VAR:.*]] = load i32
+; CHECK-NEXT:    %[[VAR_COND:.*]] = trunc i32 %[[VAR]] to i1
+; CHECK-NEXT:    %[[COND_OR1:.*]] = or i1 %[[VAR_COND]], false
+; CHECK-NEXT:    %[[COND_OR2:.*]] = or i1 false, false
+; CHECK-NEXT:    %[[COND_OR3:.*]] = or i1 %[[COND_OR1]], %[[COND_OR2]]
+; CHECK-NEXT:    %[[COND_XOR:.*]] = xor i1 %cond5, %[[VAR_COND]]
+; CHECK-NEXT:    %[[COND_AND:.*]] = and i1 false, %[[VAR_COND]]
+; CHECK-NEXT:    %[[COND_OR4:.*]] = or i1 %[[COND_XOR]], %[[COND_AND]]
+; CHECK-NEXT:    %[[COND_OR5:.*]] = select i1 %[[COND_OR3]], i1 true, i1 %[[COND_OR4]]
+; CHECK-NEXT:    %[[COND_OR6:.*]] = select i1 %[[COND_OR5]], i1 true, i1 false
 ; CHECK-NEXT:    br i1 %[[COND_OR6]], label %loop_exit, label %do_something
 
 do_something:
@@ -1242,4 +1392,137 @@ loopexit:
   ret void
 ; CHECK:       loopexit:
 ; CHECK-NEXT:    ret
+}
+
+declare void @f()
+declare void @g()
+define void @test_unswitch_switch_with_nonempty_unreachable() {
+; CHECK-LABEL: @test_unswitch_switch_with_nonempty_unreachable()
+entry:
+  br label %loop
+
+loop:
+  %cleanup.dest.slot.0 = select i1 undef, i32 5, i32 undef
+  br label %for.cond
+
+for.cond:
+  switch i32 %cleanup.dest.slot.0, label %NonEmptyUnreachableBlock [
+    i32 0, label %for.cond
+    i32 1, label %NonEmptyUnreachableBlock
+    i32 2, label %loop.loopexit
+  ]
+
+loop.loopexit:
+  unreachable
+
+NonEmptyUnreachableBlock:
+  call void @f()
+  call void @g()
+  unreachable
+
+; CHECK:loop:
+; CHECK-NEXT:  %cleanup.dest.slot.0 = select i1 undef, i32 5, i32 undef
+; CHECK-NEXT:  switch i32 %cleanup.dest.slot.0, label %NonEmptyUnreachableBlock [
+; CHECK-NEXT:    i32 1, label %NonEmptyUnreachableBlock
+; CHECK-NEXT:    i32 0, label %loop.split
+; CHECK-NEXT:    i32 2, label %loop.split
+; CHECK-NEXT:  ]
+
+; CHECK:loop.split:
+; CHECK-NEXT:  br label %for.cond
+
+; CHECK:for.cond:
+; CHECK-NEXT:  switch i32 %cleanup.dest.slot.0, label %loop.loopexit [
+; CHECK-NEXT:    i32 0, label %for.cond
+; CHECK-NEXT:  ]
+
+; CHECK:loop.loopexit:
+; CHECK-NEXT:  unreachable
+
+; CHECK:NonEmptyUnreachableBlock:
+; CHECK-NEXT:  call void @f()
+; CHECK-NEXT:  call void @g()
+; CHECK-NEXT:  unreachable
+}
+
+define void @test_unswitch_switch_with_nonempty_unreachable2() {
+; CHECK-LABEL: @test_unswitch_switch_with_nonempty_unreachable2()
+entry:
+  br label %loop
+
+loop:
+  %cleanup.dest.slot.0 = select i1 undef, i32 5, i32 undef
+  br label %for.cond
+
+for.cond:
+  switch i32 %cleanup.dest.slot.0, label %for.cond [
+    i32 0, label %for.cond
+    i32 1, label %NonEmptyUnreachableBlock
+    i32 2, label %loop.loopexit
+  ]
+
+loop.loopexit:
+  unreachable
+
+NonEmptyUnreachableBlock:
+  call void @f()
+  call void @g()
+  unreachable
+
+; CHECK:loop:
+; CHECK-NEXT:  %cleanup.dest.slot.0 = select i1 undef, i32 5, i32 undef
+; CHECK-NEXT:  switch i32 %cleanup.dest.slot.0, label %loop.split [
+; CHECK-NEXT:    i32 1, label %NonEmptyUnreachableBlock
+; CHECK-NEXT:  ]
+
+; CHECK:loop.split:
+; CHECK-NEXT:  br label %for.cond
+
+; CHECK:for.cond:
+; CHECK-NEXT:  switch i32 %cleanup.dest.slot.0, label %for.cond.backedge [
+; CHECK-NEXT:    i32 0, label %for.cond.backedge
+; CHECK-NEXT:    i32 2, label %loop.loopexit
+; CHECK-NEXT:  ]
+
+; CHECK:for.cond.backedge:
+; CHECK-NEXT:  br label %for.cond
+
+; CHECK:loop.loopexit:
+; CHECK-NEXT:  unreachable
+
+; CHECK:NonEmptyUnreachableBlock:
+; CHECK-NEXT:  call void @f()
+; CHECK-NEXT:  call void @g()
+; CHECK-NEXT:  unreachable
+}
+
+; PR45355
+define void @test_unswitch_switch_with_duplicate_edge() {
+; CHECK-LABEL: @test_unswitch_switch_with_duplicate_edge()
+entry:
+  br label %lbl1
+
+lbl1:                                             ; preds = %entry
+  %cleanup.dest.slot.0 = select i1 undef, i32 5, i32 undef
+  br label %for.cond1
+
+for.cond1:                                        ; preds = %for.cond1, %lbl1
+  switch i32 %cleanup.dest.slot.0, label %UnifiedUnreachableBlock [
+    i32 0, label %for.cond1
+    i32 5, label %UnifiedUnreachableBlock
+    i32 2, label %lbl1.loopexit
+  ]
+
+UnifiedUnreachableBlock:                          ; preds = %for.cond1, %for.cond1
+  unreachable
+
+lbl1.loopexit:                                    ; preds = %for.cond1
+  unreachable
+
+; CHECK: for.cond1:
+; CHECK-NEXT:  switch i32 %cleanup.dest.slot.0, label %UnifiedUnreachableBlock [
+; CHECK-NEXT:    i32 0, label %for.cond1
+; CHECK-NEXT:    i32 5, label %UnifiedUnreachableBlock
+; CHECK-NEXT:    i32 2, label %lbl1.loopexit
+; CHECK-NEXT:  ]
 }

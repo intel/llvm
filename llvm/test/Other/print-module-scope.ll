@@ -4,34 +4,27 @@
 ;   - works on top of -print-after and -filter-print-funcs
 ;
 ; RUN: opt < %s 2>&1 -disable-output \
-; RUN: 	   -simplifycfg -print-after=simplifycfg -print-module-scope \
+; RUN: 	   -passes=simplifycfg -print-after-all -print-module-scope \
 ; RUN:	   | FileCheck %s -check-prefix=CFG
 ; RUN: opt < %s 2>&1 -disable-output \
-; RUN: 	   -passes=simplify-cfg -print-after-all -print-module-scope \
+; RUN: 	   -passes=simplifycfg -print-after=simplifycfg -print-module-scope \
 ; RUN:	   | FileCheck %s -check-prefix=CFG
 ; RUN: opt < %s 2>&1 -disable-output \
-; RUN: 	   -simplifycfg -print-after=simplifycfg -filter-print-funcs=foo -print-module-scope \
-; RUN:	   | FileCheck %s -check-prefix=FOO
-; RUN: opt < %s 2>&1 -disable-output \
-; RUN: 	   -passes=simplify-cfg -print-after-all -filter-print-funcs=foo -print-module-scope \
+; RUN: 	   -passes=simplifycfg -print-after=simplifycfg -filter-print-funcs=foo -print-module-scope \
 ; RUN:	   | FileCheck %s -check-prefix=FOO
 
-; CFG:      IR Dump After {{Simplify the CFG|SimplifyCFGPass}}
-; CFG-SAME:   function: foo
+; CFG:      IR Dump After {{Simplify the CFG|SimplifyCFGPass}} {{.*}}foo
 ; CFG-NEXT: ModuleID =
 ; CFG: define void @foo
 ; CFG: define void @bar
 ; CFG: declare void @baz
-; CFG: IR Dump After
-; CFG-SAME:   function: bar
+; CFG: IR Dump After {{.*}}bar
 ; CFG-NEXT: ModuleID =
 ; CFG: define void @foo
 ; CFG: define void @bar
 ; CFG: declare void @baz
 
-; FOO:      IR Dump After {{Simplify the CFG|SimplifyCFGPass}}
-; FOO-NOT:    function: bar
-; FOO-SAME:   function: foo
+; FOO:      IR Dump After {{Simplify the CFG|SimplifyCFGPass}} {{.*foo}}
 ; FOO-NEXT: ModuleID =
 ; FOO:   Function Attrs: nounwind ssp
 ; FOO: define void @foo
@@ -51,10 +44,10 @@ define void @bar() #0 {
 
 declare void @baz() #1
 
-attributes #0 = { nounwind "no-frame-pointer-elim"="true" }
+attributes #0 = { nounwind "frame-pointer"="all" }
 
 attributes #1 = { nounwind readnone ssp "use-soft-float"="false" }
-; FOO: attributes #{{[0-9]}} = { nounwind "no-frame-pointer-elim"="true" }
+; FOO: attributes #{{[0-9]}} = { nounwind "frame-pointer"="all" }
 
 ; FOO: attributes #{{[0-9]}} = { nounwind readnone ssp "use-soft-float"="false" }
 

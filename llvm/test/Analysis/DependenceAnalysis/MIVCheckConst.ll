@@ -1,4 +1,3 @@
-; RUN: opt < %s -analyze -basicaa -da
 ; RUN: opt < %s -passes="print<da>"
 
 ; Test that the dependence analysis pass does seg-fault due to a null pointer
@@ -71,4 +70,4 @@ bb40:
   ret void
 }
 
-attributes #0 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

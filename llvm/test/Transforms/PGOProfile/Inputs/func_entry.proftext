@@ -1,17 +1,26 @@
 # IR level Instrumentation Flag
 :ir
-foo
+:entry_first
+hot
 # Func Hash:
-12884901887
+742261418966908927
 # Num Counters:
 1
 # Counter Values:
-9999
+9000
 
-bar
+cold
 # Func Hash:
-12884901887
+742261418966908927
 # Num Counters:
 1
 # Counter Values:
-0
+10
+
+med
+# Func Hash:
+742261418966908927
+# Num Counters:
+1
+# Counter Values:
+50

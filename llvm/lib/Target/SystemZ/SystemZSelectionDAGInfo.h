@@ -17,22 +17,21 @@
 
 namespace llvm {
 
-class SystemZTargetMachine;
-
 class SystemZSelectionDAGInfo : public SelectionDAGTargetInfo {
 public:
   explicit SystemZSelectionDAGInfo() = default;
 
   SDValue EmitTargetCodeForMemcpy(SelectionDAG &DAG, const SDLoc &DL,
                                   SDValue Chain, SDValue Dst, SDValue Src,
-                                  SDValue Size, unsigned Align, bool IsVolatile,
-                                  bool AlwaysInline,
+                                  SDValue Size, Align Alignment,
+                                  bool IsVolatile, bool AlwaysInline,
                                   MachinePointerInfo DstPtrInfo,
                                   MachinePointerInfo SrcPtrInfo) const override;
 
   SDValue EmitTargetCodeForMemset(SelectionDAG &DAG, const SDLoc &DL,
                                   SDValue Chain, SDValue Dst, SDValue Byte,
-                                  SDValue Size, unsigned Align, bool IsVolatile,
+                                  SDValue Size, Align Alignment,
+                                  bool IsVolatile,
                                   MachinePointerInfo DstPtrInfo) const override;
 
   std::pair<SDValue, SDValue>

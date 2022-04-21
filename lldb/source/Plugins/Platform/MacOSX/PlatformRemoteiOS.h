@@ -6,58 +6,46 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_PlatformRemoteiOS_h_
-#define liblldb_PlatformRemoteiOS_h_
-
-#include <string>
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEIOS_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEIOS_H
 
 #include "PlatformRemoteDarwinDevice.h"
-#include "lldb/Utility/FileSpec.h"
+#include "lldb/lldb-forward.h"
+#include "llvm/ADT/StringRef.h"
 
-#include "llvm/Support/FileSystem.h"
+#include <vector>
+
+namespace lldb_private {
+class ArchSpec;
 
 class PlatformRemoteiOS : public PlatformRemoteDarwinDevice {
 public:
   PlatformRemoteiOS();
 
-  ~PlatformRemoteiOS() override = default;
-
-  // Class Functions
-  static lldb::PlatformSP CreateInstance(bool force,
-                                         const lldb_private::ArchSpec *arch);
+  static lldb::PlatformSP CreateInstance(bool force, const ArchSpec *arch);
 
   static void Initialize();
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "remote-ios"; }
 
-  static const char *GetDescriptionStatic();
+  static llvm::StringRef GetDescriptionStatic();
 
-  // lldb_private::Platform functions
+  llvm::StringRef GetDescription() override { return GetDescriptionStatic(); }
 
-  const char *GetDescription() override { return GetDescriptionStatic(); }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
-  // lldb_private::PluginInterface functions
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
-  }
-
-  uint32_t GetPluginVersion() override { return 1; }
-
-  bool GetSupportedArchitectureAtIndex(uint32_t idx,
-                                       lldb_private::ArchSpec &arch) override;
+  std::vector<ArchSpec>
+  GetSupportedArchitectures(const ArchSpec &process_host_arch) override;
 
 protected:
+  bool CheckLocalSharedCache() const override;
 
-  // lldb_private::PlatformRemoteDarwinDevice functions
-
-  void GetDeviceSupportDirectoryNames (std::vector<std::string> &dirnames) override;
-
-  std::string GetPlatformName () override;
-
-private:
-  DISALLOW_COPY_AND_ASSIGN(PlatformRemoteiOS);
+  llvm::StringRef GetDeviceSupportDirectoryName() override;
+  llvm::StringRef GetPlatformName() override;
 };
 
-#endif // liblldb_PlatformRemoteiOS_h_
+} // namespace lldb_private
+
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEIOS_H

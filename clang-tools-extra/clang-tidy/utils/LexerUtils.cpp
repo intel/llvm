@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "LexerUtils.h"
+#include "clang/AST/AST.h"
+#include "clang/Basic/SourceManager.h"
 
 namespace clang {
 namespace tidy {
@@ -17,7 +19,11 @@ Token getPreviousToken(SourceLocation Location, const SourceManager &SM,
                        const LangOptions &LangOpts, bool SkipComments) {
   Token Token;
   Token.setKind(tok::unknown);
+
   Location = Location.getLocWithOffset(-1);
+  if (Location.isInvalid())
+      return Token;
+
   auto StartOfFile = SM.getLocForStartOfFile(SM.getFileID(Location));
   while (Location != StartOfFile) {
     Location = Lexer::GetBeginningOfToken(Location, SM, LangOpts);
@@ -47,6 +53,9 @@ SourceLocation findPreviousTokenKind(SourceLocation Start,
                                      const SourceManager &SM,
                                      const LangOptions &LangOpts,
                                      tok::TokenKind TK) {
+  if (Start.isInvalid() || Start.isMacroID())
+    return SourceLocation();
+
   while (true) {
     SourceLocation L = findPreviousTokenStart(Start, SM, LangOpts);
     if (L.isInvalid() || L.isMacroID())
@@ -66,6 +75,16 @@ SourceLocation findPreviousTokenKind(SourceLocation Start,
 SourceLocation findNextTerminator(SourceLocation Start, const SourceManager &SM,
                                   const LangOptions &LangOpts) {
   return findNextAnyTokenKind(Start, SM, LangOpts, tok::comma, tok::semi);
+}
+
+Optional<Token> findNextTokenSkippingComments(SourceLocation Start,
+                                              const SourceManager &SM,
+                                              const LangOptions &LangOpts) {
+  Optional<Token> CurrentToken;
+  do {
+    CurrentToken = Lexer::findNextToken(Start, SM, LangOpts);
+  } while (CurrentToken && CurrentToken->is(tok::comment));
+  return CurrentToken;
 }
 
 bool rangeContainsExpansionsOrDirectives(SourceRange Range,
@@ -92,15 +111,20 @@ bool rangeContainsExpansionsOrDirectives(SourceRange Range,
   return false;
 }
 
-llvm::Optional<Token> getConstQualifyingToken(CharSourceRange Range,
-                                              const ASTContext &Context,
-                                              const SourceManager &SM) {
+llvm::Optional<Token> getQualifyingToken(tok::TokenKind TK,
+                                         CharSourceRange Range,
+                                         const ASTContext &Context,
+                                         const SourceManager &SM) {
+  assert((TK == tok::kw_const || TK == tok::kw_volatile ||
+          TK == tok::kw_restrict) &&
+         "TK is not a qualifier keyword");
   std::pair<FileID, unsigned> LocInfo = SM.getDecomposedLoc(Range.getBegin());
   StringRef File = SM.getBufferData(LocInfo.first);
   Lexer RawLexer(SM.getLocForStartOfFile(LocInfo.first), Context.getLangOpts(),
                  File.begin(), File.data() + LocInfo.second, File.end());
-  llvm::Optional<Token> FirstConstTok;
-  Token LastTokInRange;
+  llvm::Optional<Token> LastMatchBeforeTemplate;
+  llvm::Optional<Token> LastMatchAfterTemplate;
+  bool SawTemplate = false;
   Token Tok;
   while (!RawLexer.LexFromRawLexer(Tok) &&
          Range.getEnd() != Tok.getLocation() &&
@@ -111,14 +135,84 @@ llvm::Optional<Token> getConstQualifyingToken(CharSourceRange Range,
       Tok.setIdentifierInfo(&Info);
       Tok.setKind(Info.getTokenID());
     }
-    if (Tok.is(tok::kw_const) && !FirstConstTok)
-      FirstConstTok = Tok;
-    LastTokInRange = Tok;
+    if (Tok.is(tok::less))
+      SawTemplate = true;
+    else if (Tok.isOneOf(tok::greater, tok::greatergreater))
+      LastMatchAfterTemplate = None;
+    else if (Tok.is(TK)) {
+      if (SawTemplate)
+        LastMatchAfterTemplate = Tok;
+      else
+        LastMatchBeforeTemplate = Tok;
+    }
   }
-  // If the last token in the range is a `const`, then it const qualifies the
-  // type.  Otherwise, the first `const` token, if any, is the qualifier.
-  return LastTokInRange.is(tok::kw_const) ? LastTokInRange : FirstConstTok;
+  return LastMatchAfterTemplate != None ? LastMatchAfterTemplate
+                                        : LastMatchBeforeTemplate;
 }
+
+static bool breakAndReturnEnd(const Stmt &S) {
+  return isa<CompoundStmt, DeclStmt, NullStmt>(S);
+}
+
+static bool breakAndReturnEndPlus1Token(const Stmt &S) {
+  return isa<Expr, DoStmt, ReturnStmt, BreakStmt, ContinueStmt, GotoStmt, SEHLeaveStmt>(S);
+}
+
+// Given a Stmt which does not include it's semicolon this method returns the
+// SourceLocation of the semicolon.
+static SourceLocation getSemicolonAfterStmtEndLoc(const SourceLocation &EndLoc,
+                                                  const SourceManager &SM,
+                                                  const LangOptions &LangOpts) {
+
+  if (EndLoc.isMacroID()) {
+    // Assuming EndLoc points to a function call foo within macro F.
+    // This method is supposed to return location of the semicolon within
+    // those macro arguments:
+    //  F     (      foo()               ;   )
+    //  ^ EndLoc         ^ SpellingLoc   ^ next token of SpellingLoc
+    const SourceLocation SpellingLoc = SM.getSpellingLoc(EndLoc);
+    Optional<Token> NextTok =
+        findNextTokenSkippingComments(SpellingLoc, SM, LangOpts);
+
+    // Was the next token found successfully?
+    // All macro issues are simply resolved by ensuring it's a semicolon.
+    if (NextTok && NextTok->is(tok::TokenKind::semi)) {
+      // Ideally this would return `F` with spelling location `;` (NextTok)
+      // following the example above. For now simply return NextTok location.
+      return NextTok->getLocation();
+    }
+
+    // Fallthrough to 'normal handling'.
+    //  F     (      foo()              ) ;
+    //  ^ EndLoc         ^ SpellingLoc  ) ^ next token of EndLoc
+  }
+
+  Optional<Token> NextTok = findNextTokenSkippingComments(EndLoc, SM, LangOpts);
+
+  // Testing for semicolon again avoids some issues with macros.
+  if (NextTok && NextTok->is(tok::TokenKind::semi))
+    return NextTok->getLocation();
+
+  return SourceLocation();
+}
+
+SourceLocation getUnifiedEndLoc(const Stmt &S, const SourceManager &SM,
+                                const LangOptions &LangOpts) {
+
+  const Stmt *LastChild = &S;
+  while (!LastChild->children().empty() && !breakAndReturnEnd(*LastChild) &&
+         !breakAndReturnEndPlus1Token(*LastChild)) {
+    for (const Stmt *Child : LastChild->children())
+      LastChild = Child;
+  }
+
+  if (!breakAndReturnEnd(*LastChild) &&
+      breakAndReturnEndPlus1Token(*LastChild))
+    return getSemicolonAfterStmtEndLoc(S.getEndLoc(), SM, LangOpts);
+
+  return S.getEndLoc();
+}
+
 } // namespace lexer
 } // namespace utils
 } // namespace tidy

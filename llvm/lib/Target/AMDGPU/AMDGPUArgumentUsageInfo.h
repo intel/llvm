@@ -9,16 +9,14 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUARGUMENTUSAGEINFO_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUARGUMENTUSAGEINFO_H
 
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/IR/Function.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
 
 class Function;
+class LLT;
 class raw_ostream;
-class GCNSubtarget;
-class TargetMachine;
 class TargetRegisterClass;
 class TargetRegisterInfo;
 
@@ -28,22 +26,34 @@ private:
   friend class AMDGPUArgumentUsageInfo;
 
   union {
-    unsigned Register;
+    MCRegister Reg;
     unsigned StackOffset;
   };
+
+  // Bitmask to locate argument within the register.
+  unsigned Mask;
 
   bool IsStack : 1;
   bool IsSet : 1;
 
-  ArgDescriptor(unsigned Val = 0, bool IsStack = false, bool IsSet = false)
-    : Register(Val), IsStack(IsStack), IsSet(IsSet) {}
 public:
-  static ArgDescriptor createRegister(unsigned Reg) {
-    return ArgDescriptor(Reg, false, true);
+  constexpr ArgDescriptor(unsigned Val = 0, unsigned Mask = ~0u,
+                bool IsStack = false, bool IsSet = false)
+    : Reg(Val), Mask(Mask), IsStack(IsStack), IsSet(IsSet) {}
+
+  static constexpr ArgDescriptor createRegister(Register Reg,
+                                                unsigned Mask = ~0u) {
+    return ArgDescriptor(Reg, Mask, false, true);
   }
 
-  static ArgDescriptor createStack(unsigned Reg) {
-    return ArgDescriptor(Reg, true, true);
+  static constexpr ArgDescriptor createStack(unsigned Offset,
+                                             unsigned Mask = ~0u) {
+    return ArgDescriptor(Offset, Mask, true, true);
+  }
+
+  static constexpr ArgDescriptor createArg(const ArgDescriptor &Arg,
+                                           unsigned Mask) {
+    return ArgDescriptor(Arg.Reg, Mask, Arg.IsStack, Arg.IsSet);
   }
 
   bool isSet() const {
@@ -58,14 +68,22 @@ public:
     return !IsStack;
   }
 
-  unsigned getRegister() const {
+  MCRegister getRegister() const {
     assert(!IsStack);
-    return Register;
+    return Reg;
   }
 
   unsigned getStackOffset() const {
     assert(IsStack);
     return StackOffset;
+  }
+
+  unsigned getMask() const {
+    return Mask;
+  }
+
+  bool isMasked() const {
+    return Mask != ~0u;
   }
 
   void print(raw_ostream &OS, const TargetRegisterInfo *TRI = nullptr) const;
@@ -123,24 +141,29 @@ struct AMDGPUFunctionArgInfo {
   ArgDescriptor ImplicitArgPtr;
 
   // Input registers for non-HSA ABI
-  ArgDescriptor ImplicitBufferPtr = 0;
+  ArgDescriptor ImplicitBufferPtr;
 
-  // VGPRs inputs. These are always v0, v1 and v2 for entry functions.
+  // VGPRs inputs. For entry functions these are either v0, v1 and v2 or packed
+  // into v0, 10 bits per dimension if packed-tid is set.
   ArgDescriptor WorkItemIDX;
   ArgDescriptor WorkItemIDY;
   ArgDescriptor WorkItemIDZ;
 
-  std::pair<const ArgDescriptor *, const TargetRegisterClass *>
+  std::tuple<const ArgDescriptor *, const TargetRegisterClass *, LLT>
   getPreloadedValue(PreloadedValue Value) const;
+
+  static constexpr AMDGPUFunctionArgInfo fixedABILayout();
 };
 
 class AMDGPUArgumentUsageInfo : public ImmutablePass {
 private:
-  static const AMDGPUFunctionArgInfo ExternFunctionInfo;
   DenseMap<const Function *, AMDGPUFunctionArgInfo> ArgInfoMap;
 
 public:
   static char ID;
+
+  static const AMDGPUFunctionArgInfo ExternFunctionInfo;
+  static const AMDGPUFunctionArgInfo FixedABIFunctionInfo;
 
   AMDGPUArgumentUsageInfo() : ImmutablePass(ID) { }
 
@@ -157,15 +180,7 @@ public:
     ArgInfoMap[&F] = ArgInfo;
   }
 
-  const AMDGPUFunctionArgInfo &lookupFuncArgInfo(const Function &F) const {
-    auto I = ArgInfoMap.find(&F);
-    if (I == ArgInfoMap.end()) {
-      assert(F.isDeclaration());
-      return ExternFunctionInfo;
-    }
-
-    return I->second;
-  }
+  const AMDGPUFunctionArgInfo &lookupFuncArgInfo(const Function &F) const;
 };
 
 } // end namespace llvm

@@ -80,14 +80,17 @@ std::error_code inconvertibleErrorCode() {
 }
 
 std::error_code FileError::convertToErrorCode() const {
-  return std::error_code(static_cast<int>(ErrorErrorCode::FileError),
-                         *ErrorErrorCat);
+  std::error_code NestedEC = Err->convertToErrorCode();
+  if (NestedEC == inconvertibleErrorCode())
+    return std::error_code(static_cast<int>(ErrorErrorCode::FileError),
+                           *ErrorErrorCat);
+  return NestedEC;
 }
 
 Error errorCodeToError(std::error_code EC) {
   if (!EC)
     return Error::success();
-  return Error(llvm::make_unique<ECError>(ECError(EC)));
+  return Error(std::make_unique<ECError>(ECError(EC)));
 }
 
 std::error_code errorToErrorCode(Error Err) {
@@ -96,16 +99,17 @@ std::error_code errorToErrorCode(Error Err) {
     EC = EI.convertToErrorCode();
   });
   if (EC == inconvertibleErrorCode())
-    report_fatal_error(EC.message());
+    report_fatal_error(Twine(EC.message()));
   return EC;
 }
 
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
 void Error::fatalUncheckedError() const {
   dbgs() << "Program aborted due to an unhandled Error:\n";
-  if (getPtr())
+  if (getPtr()) {
     getPtr()->log(dbgs());
-  else
+    dbgs() << "\n";
+  }else
     dbgs() << "Error value was Success. (Note: Success values must still be "
               "checked prior to being destroyed).\n";
   abort();
@@ -143,7 +147,7 @@ void report_fatal_error(Error Err, bool GenCrashDiag) {
     raw_string_ostream ErrStream(ErrMsg);
     logAllUnhandledErrors(std::move(Err), ErrStream);
   }
-  report_fatal_error(ErrMsg);
+  report_fatal_error(Twine(ErrMsg));
 }
 
 } // end namespace llvm
@@ -168,17 +172,6 @@ LLVMErrorTypeId LLVMGetStringErrorTypeId() {
   return reinterpret_cast<void *>(&StringError::ID);
 }
 
-#ifndef _MSC_VER
-namespace llvm {
-
-// One of these two variables will be referenced by a symbol defined in
-// llvm-config.h. We provide a link-time (or load time for DSO) failure when
-// there is a mismatch in the build configuration of the API client and LLVM.
-#if LLVM_ENABLE_ABI_BREAKING_CHECKS
-int EnableABIBreakingChecks;
-#else
-int DisableABIBreakingChecks;
-#endif
-
-} // end namespace llvm
-#endif
+LLVMErrorRef LLVMCreateStringError(const char *ErrMsg) {
+  return wrap(make_error<StringError>(ErrMsg, inconvertibleErrorCode()));
+}

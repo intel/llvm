@@ -1,5 +1,5 @@
-; RUN: llc < %s | FileCheck %s --check-prefix=ASM
-; RUN: llc < %s -filetype=obj | llvm-readobj --codeview | FileCheck %s --check-prefix=OBJ
+; RUN: llc < %s -experimental-debug-variable-locations=true | FileCheck %s --check-prefix=ASM
+; RUN: llc < %s -filetype=obj -experimental-debug-variable-locations=true | llvm-readobj --codeview - | FileCheck %s --check-prefix=OBJ
 
 ; Compile with -O1 as C
 
@@ -40,9 +40,9 @@
 ; ASM: # %bb.2:                                 # %for.body.preheader
 ; ASM:         xorl    %edi, %edi
 ; ASM:         xorl    %esi, %esi
+; ASM: [[oy_ox_start:\.Ltmp[0-9]+]]:
 ; ASM:         .p2align        4, 0x90
 ; ASM: .LBB0_3:                                # %for.body
-; ASM: [[oy_ox_start:\.Ltmp[0-9]+]]:
 ; ASM:        #DEBUG_VALUE: loop_csr:o <- [DW_OP_LLVM_fragment 0 32] $edi
 ; ASM:        #DEBUG_VALUE: loop_csr:o <- [DW_OP_LLVM_fragment 32 32] $esi
 ; ASM:        .cv_loc 0 1 13 11               # t.c:13:11
@@ -59,22 +59,33 @@
 ; ASM:         #DEBUG_VALUE: loop_csr:o <- [DW_OP_LLVM_fragment 32 32] $esi
 ; ASM:         cmpl    n(%rip), %eax
 ; ASM:         jl      .LBB0_3
+; ASM: [[loopskip_start:\.Ltmp[0-9]+]]:
+; ASM:         #DEBUG_VALUE: loop_csr:o <- [DW_OP_LLVM_fragment 0 32] 0
+; ASM:         xorl    %esi, %esi
+; ASM:         xorl    %edi, %edi
 ; ASM: [[oy_end:\.Ltmp[0-9]+]]:
 ; ASM:         addl    %edi, %esi
 ; ASM:         movl    %esi, %eax
 
+; XXX FIXME: the debug value line after loopskip_start should be repeated
+; because both fields of 'o' are zero flowing into this block. However, it
+; appears livedebugvalues doesn't account for fragments.
 
 ; ASM-LABEL: pad_right: # @pad_right
 ; ASM:         movq    %rcx, %rax
+; ASM: [[pad_right_tmp:\.Ltmp[0-9]+]]:
 ; ASM:         #DEBUG_VALUE: pad_right:o <- [DW_OP_LLVM_fragment 32 32] $eax
 ; ASM:         retq
+; ASM: [[pad_right_end:\.Lfunc_end1]]:
 
 
 ; ASM-LABEL: pad_left: # @pad_left
 ; ASM:         .cv_loc 2 1 24 3                # t.c:24:3
 ; ASM:         movq    %rcx, %rax
-; ASM:         #DEBUG_VALUE: pad_left:o <- [DW_OP_LLVM_fragment 0 32] $eax
+; ASM: [[pad_left_tmp:\.Ltmp[0-9]+]]:
+; ASM:         #DEBUG_VALUE: pad_left:o <- [DW_OP_LLVM_fragment 0 32] $ecx
 ; ASM:         retq
+; ASM: [[pad_left_end:\.Lfunc_end2]]:
 
 
 ; ASM-LABEL: nested: # @nested
@@ -94,18 +105,19 @@
 ; ASM:         #APP
 ; ASM:         #NO_APP
 ; ASM:         movl    [[offset_o_x]](%rsp), %eax          # 4-byte Reload
-; ASM: [[spill_o_x_end:\.Ltmp[0-9]+]]:
 ; ASM:         retq
+; ASM: [[spill_o_x_end_func:\.Ltmp[0-9]+]]:
+; ASM-NEXT: .Lfunc_end4:
 
 
 ; ASM-LABEL:  .short  4423                    # Record kind: S_GPROC32_ID
 ; ASM:        .asciz  "loop_csr"              # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    [[oy_ox_start]] [[ox_start]], "C\021\030\000\000\000\000\000\000\000"
-; ASM:        .cv_def_range    [[oy_ox_start]] [[oy_start]], "C\021\027\000\000\000\004\000\000\000"
-; ASM:        .cv_def_range    [[ox_start]] [[oy_end]], "C\021\030\000\000\000\000\000\000\000"
-; ASM:        .cv_def_range    [[oy_start]] [[oy_end]], "C\021\027\000\000\000\004\000\000\000"
+; ASM:        .cv_def_range    [[oy_ox_start]] [[ox_start]], subfield_reg, 24, 0
+; ASM:        .cv_def_range    [[oy_ox_start]] [[oy_start]], subfield_reg, 23, 4
+; ASM:        .cv_def_range    [[ox_start]] [[loopskip_start]], subfield_reg, 24, 0
+; ASM:        .cv_def_range    [[oy_start]] [[loopskip_start]], subfield_reg, 23, 4
 
 
 ; OBJ-LABEL: GlobalProcIdSym {
@@ -136,7 +148,7 @@
 ; ASM:        .asciz  "pad_right"             # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    .Ltmp8 .Ltmp8, "C\021\021\000\000\000\004\000\000\000"
+; ASM:        .cv_def_range    [[pad_right_tmp]] [[pad_right_end]], subfield_reg, 17, 4
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -159,7 +171,7 @@
 ; ASM:        .asciz  "pad_left"              # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    .Ltmp10 .Ltmp10, "C\021\021\000\000\000\000\000\000\000"
+; ASM:        .cv_def_range    [[pad_left_tmp]] [[pad_left_end]], subfield_reg, 18, 0
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -169,7 +181,7 @@
 ; OBJ:         VarName: o
 ; OBJ:       }
 ; OBJ:       DefRangeSubfieldRegisterSym {
-; OBJ:         Register: EAX (0x11)
+; OBJ:         Register: ECX (0x12)
 ; OBJ:         MayHaveNoName: 0
 ; OBJ:         OffsetInParent: 0
 ; OBJ:         LocalVariableAddrRange {
@@ -182,10 +194,10 @@
 ; ASM:        .asciz  "nested"                # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    .Lfunc_begin3 .Lfunc_end3, "E\021J\001\000\000\000\000\000\000"
+; ASM:        .cv_def_range    .Lfunc_begin3 .Lfunc_end3, reg_rel, 330, 0, 0
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "p"
-; ASM:        .cv_def_range    [[p_start]] .Lfunc_end3, "C\021\021\000\000\000\004\000\000\000"
+; ASM:        .cv_def_range    [[p_start]] .Lfunc_end3, subfield_reg, 17, 4
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -221,7 +233,7 @@
 ; ASM:        .asciz  "bitpiece_spill"        # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    [[spill_o_x_start]] [[spill_o_x_end]], "E\021O\001A\000$\000\000\000"
+; ASM:        .cv_def_range    [[spill_o_x_start]] .Lfunc_end4, reg_rel, 335, 65, 36
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -341,11 +353,11 @@ entry:
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #3 = { nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #4 = { nounwind readonly uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #3 = { nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #4 = { nounwind readonly uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #5 = { nounwind }
 
 !llvm.dbg.cu = !{!0}

@@ -10,8 +10,8 @@
 // thread and a range of records representing a block.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_LIB_XRAY_BLOCKINDEXER_H_
-#define LLVM_LIB_XRAY_BLOCKINDEXER_H_
+#ifndef LLVM_XRAY_BLOCKINDEXER_H
+#define LLVM_XRAY_BLOCKINDEXER_H
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/XRay/FDRRecords.h"
@@ -41,7 +41,7 @@ private:
   Block CurrentBlock{0, 0, nullptr, {}};
 
 public:
-  explicit BlockIndexer(Index &I) : RecordVisitor(), Indices(I) {}
+  explicit BlockIndexer(Index &I) : Indices(I) {}
 
   Error visit(BufferExtents &) override;
   Error visit(WallclockRecord &) override;
@@ -65,4 +65,4 @@ public:
 } // namespace xray
 } // namespace llvm
 
-#endif // LLVM_LIB_XRAY_BLOCKINDEXER_H_
+#endif // LLVM_XRAY_BLOCKINDEXER_H

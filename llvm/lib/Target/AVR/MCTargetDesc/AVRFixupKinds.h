@@ -137,11 +137,11 @@ namespace fixups {
 /// of the fact that all instructions are aligned to addresses of size
 /// 2, so bit 0 of an address is always 0. This gives us another bit
 /// of precision.
-/// \param[in,out] The target to adjust.
+/// \param [in,out] val The target to adjust.
 template <typename T> inline void adjustBranchTarget(T &val) { val >>= 1; }
 
 } // end of namespace fixups
-}
-} // end of namespace llvm::AVR
+} // namespace AVR
+} // namespace llvm
 
 #endif // LLVM_AVR_FIXUP_KINDS_H

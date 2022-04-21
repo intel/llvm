@@ -25,7 +25,7 @@ TEST_CONSTEXPR bool test_constexpr() {
 
     auto it = std::reverse_copy(std::begin(ia), std::end(ia), std::begin(ib));
 
-    return std::distance(std::begin(ib), it) == std::size(ia)
+    return std::distance(std::begin(ib), it) == static_cast<int>(std::size(ia))
         && std::equal   (std::begin(ia), std::end(ia), std::rbegin(ib))
            ;
     }
@@ -74,19 +74,19 @@ test()
 
 int main(int, char**)
 {
-    test<bidirectional_iterator<const int*>, output_iterator<int*> >();
+    test<bidirectional_iterator<const int*>, cpp17_output_iterator<int*> >();
     test<bidirectional_iterator<const int*>, forward_iterator<int*> >();
     test<bidirectional_iterator<const int*>, bidirectional_iterator<int*> >();
     test<bidirectional_iterator<const int*>, random_access_iterator<int*> >();
     test<bidirectional_iterator<const int*>, int*>();
 
-    test<random_access_iterator<const int*>, output_iterator<int*> >();
+    test<random_access_iterator<const int*>, cpp17_output_iterator<int*> >();
     test<random_access_iterator<const int*>, forward_iterator<int*> >();
     test<random_access_iterator<const int*>, bidirectional_iterator<int*> >();
     test<random_access_iterator<const int*>, random_access_iterator<int*> >();
     test<random_access_iterator<const int*>, int*>();
 
-    test<const int*, output_iterator<int*> >();
+    test<const int*, cpp17_output_iterator<int*> >();
     test<const int*, forward_iterator<int*> >();
     test<const int*, bidirectional_iterator<int*> >();
     test<const int*, random_access_iterator<int*> >();

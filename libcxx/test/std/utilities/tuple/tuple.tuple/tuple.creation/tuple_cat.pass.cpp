@@ -12,7 +12,7 @@
 
 // template <class... Tuples> tuple<CTypes...> tuple_cat(Tuples&&... tpls);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <tuple>
 #include <utility>
@@ -22,6 +22,14 @@
 
 #include "test_macros.h"
 #include "MoveOnly.h"
+
+namespace NS {
+struct Namespaced {
+  int i;
+};
+template<typename ...Ts>
+void forward_as_tuple(Ts...) = delete;
+}
 
 int main(int, char**)
 {
@@ -253,6 +261,14 @@ int main(int, char**)
             int, const int, int&, const int&,
             int, const int, int&, const int&>);
         ((void)r);
+    }
+    {
+        std::tuple<NS::Namespaced> t1(NS::Namespaced{1});
+        std::tuple<NS::Namespaced> t = std::tuple_cat(t1);
+        std::tuple<NS::Namespaced, NS::Namespaced> t2 =
+            std::tuple_cat(t1, t1);
+        assert(std::get<0>(t).i == 1);
+        assert(std::get<0>(t2).i == 1);
     }
   return 0;
 }

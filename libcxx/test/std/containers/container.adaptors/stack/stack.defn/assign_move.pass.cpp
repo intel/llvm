@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <stack>
 
@@ -15,6 +15,7 @@
 #include <stack>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
 

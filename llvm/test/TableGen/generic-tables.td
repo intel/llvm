@@ -1,4 +1,5 @@
 // RUN: llvm-tblgen -gen-searchable-tables -I %p/../../include %s | FileCheck %s
+// RUN: not llvm-tblgen -gen-searchable-tables -I %p/../../include -DERROR1 %s 2>&1 | FileCheck --check-prefix=ERROR1 %s
 // XFAIL: vg_leak
 
 include "llvm/TableGen/SearchableTable.td"
@@ -22,7 +23,7 @@ include "llvm/TableGen/SearchableTable.td"
 // CHECK: const AEntry *lookupATableByValues(uint8_t Val1, uint16_t Val2);
 
 // CHECK-LABEL: GET_ATable_IMPL
-// CHECK: const AEntry ATable[] = {
+// CHECK: constexpr AEntry ATable[] = {
 // CHECK:   { "baz"
 // CHECK:   { "foo"
 // CHECK:   { "foobar"
@@ -54,19 +55,26 @@ def ATable : GenericTable {
 
 
 // CHECK-LABEL: GET_BTable_IMPL
+// CHECK: constexpr BTypeName BTable[] = {
+// CHECK:   { "BAlice", 0xAC,  },
+// CHECK:   { "BBob", 0x14, Bob == 13 },
+// CHECK:   { "BCharlie", 0x80, Charlie == 42 },
+// CHECK:   { "BEve", 0x4C, Eve == 108 },
+// CHECK:  };
 // CHECK: const BTypeName *lookupBTableByName(StringRef Name) {
 // CHECK:   return &BTable[Idx->_index];
 // CHECK: }
 
-class BEntry<bits<16> enc> {
+class BEntry<bits<16> enc, code test = [{}]> {
   string Name = NAME;
   bits<16> Encoding = enc;
+  code Test = test;
 }
 
 def BAlice   : BEntry<0xac>;
-def BBob     : BEntry<0x14>;
-def BCharlie : BEntry<0x80>;
-def BEve     : BEntry<0x4c>;
+def BBob     : BEntry<0x14, [{Bob == 13}]>;
+def BCharlie : BEntry<0x80, "Charlie == 42">;
+def BEve     : BEntry<0x4c, [{Eve == }] # 108>;
 
 def BValues : GenericEnum {
   let FilterClass = "BEntry";
@@ -77,7 +85,8 @@ def BValues : GenericEnum {
 def BTable : GenericTable {
   let FilterClass = "BEntry";
   string CppTypeName = "BTypeName";
-  let Fields = ["Name", "Encoding"];
+  let Fields = ["Name", "Encoding", "Test"];
+  string TypeOf_Test = "code";
 }
 
 def lookupBTableByName : SearchIndex {
@@ -125,7 +134,7 @@ def CTable : GenericTable {
   let FilterClass = "CEntry";
   let Fields = ["Name", "Kind", "Encoding"];
 
-  GenericEnum TypeOf_Kind = CEnum;
+  string TypeOf_Kind = "CEnum";
 
   let PrimaryKey = ["Encoding"];
   let PrimaryKeyName = "lookupCEntryByEncoding";
@@ -136,3 +145,21 @@ def lookupCEntry : SearchIndex {
   let Table = CTable;
   let Key = ["Name", "Kind"];
 }
+
+#ifdef ERROR1
+
+class DEntry<string str, int val1> {
+  string Str = str;
+  bits<8> Val1 = val1;
+}
+
+def DFoo : DEntry<"foo", 1>;
+// ERROR1: [[@LINE+1]]:1: error: Record 'DBar' for table 'DTable' is missing field 'Val1'
+def DBar : DEntry<"bar", ?>;
+
+def DTable : GenericTable {
+  let FilterClass = "DEntry";
+  let Fields = ["Str", "Val1"];
+}
+
+#endif // ERROR1

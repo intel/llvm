@@ -170,7 +170,7 @@ Expected<int> LLI::ExecuteProgram(const std::string &Bitcode,
                                   const std::vector<std::string> &SharedLibs,
                                   unsigned Timeout, unsigned MemoryLimit) {
   std::vector<StringRef> LLIArgs;
-  LLIArgs.push_back(LLIPath.c_str());
+  LLIArgs.push_back(LLIPath);
   LLIArgs.push_back("-force-interpreter=true");
 
   for (std::vector<std::string>::const_iterator i = SharedLibs.begin(),
@@ -192,7 +192,7 @@ Expected<int> LLI::ExecuteProgram(const std::string &Bitcode,
   outs() << "<lli>";
   outs().flush();
   LLVM_DEBUG(errs() << "\nAbout to run:\t";
-             for (unsigned i = 0, e = LLIArgs.size() - 1; i != e; ++i) errs()
+             for (unsigned i = 0, e = LLIArgs.size(); i != e; ++i) errs()
              << " " << LLIArgs[i];
              errs() << "\n";);
   return RunProgramWithTimeout(LLIPath, LLIArgs, InputFile, OutputFile,
@@ -266,15 +266,15 @@ Error CustomCompiler::compileProgram(const std::string &Bitcode,
                                      unsigned Timeout, unsigned MemoryLimit) {
 
   std::vector<StringRef> ProgramArgs;
-  ProgramArgs.push_back(CompilerCommand.c_str());
+  ProgramArgs.push_back(CompilerCommand);
 
-  for (std::size_t i = 0; i < CompilerArgs.size(); ++i)
-    ProgramArgs.push_back(CompilerArgs.at(i).c_str());
+  for (const auto &Arg : CompilerArgs)
+    ProgramArgs.push_back(Arg);
   ProgramArgs.push_back(Bitcode);
 
   // Add optional parameters to the running program from Argv
-  for (unsigned i = 0, e = CompilerArgs.size(); i != e; ++i)
-    ProgramArgs.push_back(CompilerArgs[i].c_str());
+  for (const auto &Arg : CompilerArgs)
+    ProgramArgs.push_back(Arg);
 
   if (RunProgramWithTimeout(CompilerCommand, ProgramArgs, "", "", "", Timeout,
                             MemoryLimit))
@@ -442,7 +442,7 @@ Expected<CC::FileType> LLC::OutputCode(const std::string &Bitcode,
     errs() << "Error making unique filename: " << EC.message() << "\n";
     exit(1);
   }
-  OutputAsmFile = UniqueFile.str();
+  OutputAsmFile = std::string(UniqueFile.str());
   std::vector<StringRef> LLCArgs;
   LLCArgs.push_back(LLCPath);
 
@@ -460,7 +460,7 @@ Expected<CC::FileType> LLC::OutputCode(const std::string &Bitcode,
   outs() << (UseIntegratedAssembler ? "<llc-ia>" : "<llc>");
   outs().flush();
   LLVM_DEBUG(errs() << "\nAbout to run:\t";
-             for (unsigned i = 0, e = LLCArgs.size() - 1; i != e; ++i) errs()
+             for (unsigned i = 0, e = LLCArgs.size(); i != e; ++i) errs()
              << " " << LLCArgs[i];
              errs() << "\n";);
   if (RunProgramWithTimeout(LLCPath, LLCArgs, "", "", "", Timeout, MemoryLimit))
@@ -495,7 +495,7 @@ Expected<int> LLC::ExecuteProgram(const std::string &Bitcode,
     return std::move(E);
 
   std::vector<std::string> CCArgs(ArgsForCC);
-  CCArgs.insert(CCArgs.end(), SharedLibs.begin(), SharedLibs.end());
+  llvm::append_range(CCArgs, SharedLibs);
 
   // Assuming LLC worked, compile the result with CC and run it.
   return cc->ExecuteProgram(OutputAsmFile, Args, *FileKind, InputFile,
@@ -559,7 +559,7 @@ Expected<int> JIT::ExecuteProgram(const std::string &Bitcode,
                                   unsigned Timeout, unsigned MemoryLimit) {
   // Construct a vector of parameters, incorporating those from the command-line
   std::vector<StringRef> JITArgs;
-  JITArgs.push_back(LLIPath.c_str());
+  JITArgs.push_back(LLIPath);
   JITArgs.push_back("-force-interpreter=false");
 
   // Add any extra LLI args.
@@ -570,7 +570,7 @@ Expected<int> JIT::ExecuteProgram(const std::string &Bitcode,
     JITArgs.push_back("-load");
     JITArgs.push_back(SharedLibs[i]);
   }
-  JITArgs.push_back(Bitcode.c_str());
+  JITArgs.push_back(Bitcode);
   // Add optional parameters to the running program from Argv
   for (unsigned i = 0, e = Args.size(); i != e; ++i)
     JITArgs.push_back(Args[i]);
@@ -578,7 +578,7 @@ Expected<int> JIT::ExecuteProgram(const std::string &Bitcode,
   outs() << "<jit>";
   outs().flush();
   LLVM_DEBUG(errs() << "\nAbout to run:\t";
-             for (unsigned i = 0, e = JITArgs.size() - 1; i != e; ++i) errs()
+             for (unsigned i = 0, e = JITArgs.size(); i != e; ++i) errs()
              << " " << JITArgs[i];
              errs() << "\n";);
   LLVM_DEBUG(errs() << "\nSending output to " << OutputFile << "\n");
@@ -607,12 +607,12 @@ AbstractInterpreter::createJIT(const char *Argv0, std::string &Message,
 
 static bool IsARMArchitecture(std::vector<StringRef> Args) {
   for (size_t I = 0; I < Args.size(); ++I) {
-    if (!Args[I].equals_lower("-arch"))
+    if (!Args[I].equals_insensitive("-arch"))
       continue;
     ++I;
     if (I == Args.size())
       break;
-    if (Args[I].startswith_lower("arm"))
+    if (Args[I].startswith_insensitive("arm"))
       return true;
   }
 
@@ -685,7 +685,7 @@ Expected<int> CC::ExecuteProgram(const std::string &ProgramFile,
   outs() << "<CC>";
   outs().flush();
   LLVM_DEBUG(errs() << "\nAbout to run:\t";
-             for (unsigned i = 0, e = CCArgs.size() - 1; i != e; ++i) errs()
+             for (unsigned i = 0, e = CCArgs.size(); i != e; ++i) errs()
              << " " << CCArgs[i];
              errs() << "\n";);
   if (RunProgramWithTimeout(CCPath, CCArgs, "", "", ""))
@@ -733,7 +733,7 @@ Expected<int> CC::ExecuteProgram(const std::string &ProgramFile,
   outs().flush();
   LLVM_DEBUG(
       errs() << "\nAbout to run:\t";
-      for (unsigned i = 0, e = ProgramArgs.size() - 1; i != e; ++i) errs()
+      for (unsigned i = 0, e = ProgramArgs.size(); i != e; ++i) errs()
       << " " << ProgramArgs[i];
       errs() << "\n";);
 
@@ -772,7 +772,7 @@ Error CC::MakeSharedObject(const std::string &InputFile, FileType fileType,
     errs() << "Error making unique filename: " << EC.message() << "\n";
     exit(1);
   }
-  OutputFile = UniqueFilename.str();
+  OutputFile = std::string(UniqueFilename.str());
 
   std::vector<StringRef> CCArgs;
 
@@ -829,7 +829,7 @@ Error CC::MakeSharedObject(const std::string &InputFile, FileType fileType,
   outs() << "<CC>";
   outs().flush();
   LLVM_DEBUG(errs() << "\nAbout to run:\t";
-             for (unsigned i = 0, e = CCArgs.size() - 1; i != e; ++i) errs()
+             for (unsigned i = 0, e = CCArgs.size(); i != e; ++i) errs()
              << " " << CCArgs[i];
              errs() << "\n";);
   if (RunProgramWithTimeout(CCPath, CCArgs, "", "", ""))

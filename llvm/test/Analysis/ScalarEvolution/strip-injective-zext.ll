@@ -1,4 +1,4 @@
-; RUN: opt -analyze -scalar-evolution < %s | FileCheck %s
+; RUN: opt -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 ; The initial SCEV for the backedge count is
 ;   (zext i2 {(trunc i32 (1 + %a1) to i2),+,1}<%b2> to i32).

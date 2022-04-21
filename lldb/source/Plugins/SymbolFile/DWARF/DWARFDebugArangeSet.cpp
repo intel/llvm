@@ -1,4 +1,4 @@
-//===-- DWARFDebugArangeSet.cpp ---------------------------------*- C++ -*-===//
+//===-- DWARFDebugArangeSet.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,25 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "DWARFDebugArangeSet.h"
-
-#include "SymbolFileDWARF.h"
-#include "lldb/Utility/Stream.h"
+#include "DWARFDataExtractor.h"
+#include "LogChannelDWARF.h"
 #include "llvm/Object/Error.h"
-#include <assert.h>
+#include <cassert>
 
 using namespace lldb_private;
 
 DWARFDebugArangeSet::DWARFDebugArangeSet()
-    : m_offset(DW_INVALID_OFFSET), m_header(), m_arange_descriptors() {
-  m_header.length = 0;
-  m_header.version = 0;
-  m_header.cu_offset = 0;
-  m_header.addr_size = 0;
-  m_header.seg_size = 0;
-}
+    : m_offset(DW_INVALID_OFFSET), m_next_offset(DW_INVALID_OFFSET) {}
 
 void DWARFDebugArangeSet::Clear() {
   m_offset = DW_INVALID_OFFSET;
+  m_next_offset = DW_INVALID_OFFSET;
   m_header.length = 0;
   m_header.version = 0;
   m_header.cu_offset = 0;
@@ -56,6 +50,12 @@ llvm::Error DWARFDebugArangeSet::extract(const DWARFDataExtractor &data,
   // consists of an address and a length, each in the size appropriate for an
   // address on the target architecture.
   m_header.length = data.GetDWARFInitialLength(offset_ptr);
+  // The length could be 4 bytes or 12 bytes, so use the current offset to
+  // determine the next offset correctly.
+  if (m_header.length > 0)
+    m_next_offset = *offset_ptr + m_header.length;
+  else
+    m_next_offset = DW_INVALID_OFFSET;
   m_header.version = data.GetU16(offset_ptr);
   m_header.cu_offset = data.GetDWARFOffset(offset_ptr);
   m_header.addr_size = data.GetU8(offset_ptr);
@@ -65,7 +65,8 @@ llvm::Error DWARFDebugArangeSet::extract(const DWARFDataExtractor &data,
   // 1 - the version looks good
   // 2 - the address byte size looks plausible
   // 3 - the length seems to make sense
-  // size looks plausible
+  // 4 - size looks plausible
+  // 5 - the arange tuples do not contain a segment field
   if (m_header.version < 2 || m_header.version > 5)
     return llvm::make_error<llvm::object::GenericBinaryError>(
         "Invalid arange header version");
@@ -82,6 +83,10 @@ llvm::Error DWARFDebugArangeSet::extract(const DWARFDataExtractor &data,
                         1))
     return llvm::make_error<llvm::object::GenericBinaryError>(
         "Invalid arange header length");
+
+  if (m_header.seg_size)
+    return llvm::make_error<llvm::object::GenericBinaryError>(
+        "segmented arange entries are not supported");
 
   // The first tuple following the header in each set begins at an offset
   // that is a multiple of the size of a single tuple (that is, twice the
@@ -102,17 +107,45 @@ llvm::Error DWARFDebugArangeSet::extract(const DWARFDataExtractor &data,
                 "DWARFDebugArangeSet::Descriptor.address and "
                 "DWARFDebugArangeSet::Descriptor.length must have same size");
 
-  while (data.ValidOffset(*offset_ptr)) {
+  const lldb::offset_t next_offset = GetNextOffset();
+  assert(next_offset != DW_INVALID_OFFSET);
+  uint32_t num_terminators = 0;
+  bool last_was_terminator = false;
+  while (*offset_ptr < next_offset) {
     arangeDescriptor.address = data.GetMaxU64(offset_ptr, m_header.addr_size);
     arangeDescriptor.length = data.GetMaxU64(offset_ptr, m_header.addr_size);
 
     // Each set of tuples is terminated by a 0 for the address and 0 for
-    // the length.
-    if (!arangeDescriptor.address && !arangeDescriptor.length)
-      return llvm::ErrorSuccess();
-
-    m_arange_descriptors.push_back(arangeDescriptor);
+    // the length. Some linkers can emit .debug_aranges with multiple
+    // terminator pair entries that are still withing the length of the
+    // DWARFDebugArangeSet. We want to be sure to parse all entries for
+    // this DWARFDebugArangeSet so that we don't stop parsing early and end up
+    // treating addresses as a header of the next DWARFDebugArangeSet. We also
+    // need to make sure we parse all valid address pairs so we don't omit them
+    // from the aranges result, so we can't stop at the first terminator entry
+    // we find.
+    if (arangeDescriptor.address == 0 && arangeDescriptor.length == 0) {
+      ++num_terminators;
+      last_was_terminator = true;
+    } else {
+      last_was_terminator = false;
+      // Only add .debug_aranges address entries that have a non zero size.
+      // Some linkers will zero out the length field for some .debug_aranges
+      // entries if they were stripped. We also could watch out for multiple
+      // entries at address zero and remove those as well.
+      if (arangeDescriptor.length > 0)
+        m_arange_descriptors.push_back(arangeDescriptor);
+    }
   }
+  if (num_terminators > 1) {
+    Log *log = GetLog(DWARFLog::DebugInfo);
+    LLDB_LOG(log,
+             "warning: DWARFDebugArangeSet at %#" PRIx64 " contains %u "
+             "terminator entries",
+             m_offset, num_terminators);
+  }
+  if (last_was_terminator)
+    return llvm::ErrorSuccess();
 
   return llvm::make_error<llvm::object::GenericBinaryError>(
       "arange descriptors not terminated by null entry");

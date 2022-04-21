@@ -14,6 +14,8 @@
 // CHECK-DAG: @"_CTA5?AUY@@" = linkonce_odr unnamed_addr constant %eh.CatchableTypeArray.5 { i32 5, [5 x %eh.CatchableType*] [%eh.CatchableType* @"_CT??_R0?AUY@@@8??0Y@@QAE@ABU0@@Z8", %eh.CatchableType* @"_CT??_R0?AUZ@@@81", %eh.CatchableType* @"_CT??_R0?AUW@@@8??0W@@QAE@ABU0@@Z44", %eh.CatchableType* @"_CT??_R0?AUM@@@818", %eh.CatchableType* @"_CT??_R0?AUV@@@81044"] }, section ".xdata", comdat
 // CHECK-DAG: @"_TI5?AUY@@" = linkonce_odr unnamed_addr constant %eh.ThrowInfo { i32 0, i8* bitcast (void (%struct.Y*)* @"??_DY@@QAEXXZ" to i8*), i8* null, i8* bitcast (%eh.CatchableTypeArray.5* @"_CTA5?AUY@@" to i8*) }, section ".xdata", comdat
 // CHECK-DAG: @"_CT??_R0?AUDefault@@@8??_ODefault@@QAEXAAU0@@Z1" = linkonce_odr unnamed_addr constant %eh.CatchableType { i32 0, i8* bitcast (%rtti.TypeDescriptor13* @"??_R0?AUDefault@@@8" to i8*), i32 0, i32 -1, i32 0, i32 1, i8* bitcast (void (%struct.Default*, %struct.Default*)* @"??_ODefault@@QAEXAAU0@@Z" to i8*) }, section ".xdata", comdat
+// CHECK-DAG: @"_CT??_R0?AUDeletedCopy@@@81" = linkonce_odr unnamed_addr constant %eh.CatchableType { i32 0, i8* bitcast (%rtti.TypeDescriptor17* @"??_R0?AUDeletedCopy@@@8" to i8*), i32 0, i32 -1, i32 0, i32 1, i8* null }, section ".xdata", comdat
+// CHECk-DAG: @"_CT??_R0?AUMoveOnly@@@84" = linkonce_odr unnamed_addr constant %eh.CatchableType { i32 0, i8* bitcast (%rtti.TypeDescriptor14* @"??_R0?AUMoveOnly@@@8" to i8*), i32 0, i321-1, i32 0, i32 4, i8* null }, section ".xdata", comda
 // CHECK-DAG: @"_CT??_R0?AUVariadic@@@8??_OVariadic@@QAEXAAU0@@Z1" = linkonce_odr unnamed_addr constant %eh.CatchableType { i32 0, i8* bitcast (%rtti.TypeDescriptor14* @"??_R0?AUVariadic@@@8" to i8*), i32 0, i32 -1, i32 0, i32 1, i8* bitcast (void (%struct.Variadic*, %struct.Variadic*)* @"??_OVariadic@@QAEXAAU0@@Z" to i8*) }, section ".xdata", comdat
 // CHECK-DAG: @"_CT??_R0?AUTemplateWithDefault@@@8??$?_OH@TemplateWithDefault@@QAEXAAU0@@Z1" = linkonce_odr unnamed_addr constant %eh.CatchableType { i32 0, i8* bitcast (%rtti.TypeDescriptor25* @"??_R0?AUTemplateWithDefault@@@8" to i8*), i32 0, i32 -1, i32 0, i32 1, i8* bitcast (void (%struct.TemplateWithDefault*, %struct.TemplateWithDefault*)* @"??$?_OH@TemplateWithDefault@@QAEXAAU0@@Z" to i8*) }, section ".xdata", comdat
 // CHECK-DAG: @"_CTA2$$T" = linkonce_odr unnamed_addr constant %eh.CatchableTypeArray.2 { i32 2, [2 x %eh.CatchableType*] [%eh.CatchableType* @"_CT??_R0$$T@84", %eh.CatchableType* @"_CT??_R0PAX@84"] }, section ".xdata", comdat
@@ -35,7 +37,7 @@ struct Y : Z, W, virtual V {};
 
 void f(const Y &y) {
   // CHECK-LABEL: @"?f@@YAXABUY@@@Z"
-  // CHECK: call x86_thiscallcc %struct.Y* @"??0Y@@QAE@ABU0@@Z"(%struct.Y* %[[mem:.*]], %struct.Y*
+  // CHECK: call x86_thiscallcc noundef %struct.Y* @"??0Y@@QAE@ABU0@@Z"(%struct.Y* {{[^,]*}} %[[mem:.*]], %struct.Y*
   // CHECK: %[[cast:.*]] = bitcast %struct.Y* %[[mem]] to i8*
   // CHECK: call void @_CxxThrowException(i8* %[[cast]], %eh.ThrowInfo* @"_TI5?AUY@@")
   throw y;
@@ -64,12 +66,37 @@ struct Default {
 // CHECK: store {{.*}} %this, {{.*}} %[[this_addr]], align 4
 // CHECK: %[[this:.*]] = load {{.*}} %[[this_addr]]
 // CHECK: %[[src:.*]] = load {{.*}} %[[src_addr]]
-// CHECK: call x86_thiscallcc {{.*}} @"??0Default@@QAE@AAU0@H@Z"({{.*}} %[[this]], {{.*}} %[[src]], i32 42)
+// CHECK: call x86_thiscallcc {{.*}} @"??0Default@@QAE@AAU0@H@Z"({{.*}} %[[this]], {{.*}} %[[src]], i32 noundef 42)
 // CHECK: ret void
 
 void h(Default &d) {
   throw d;
 }
+
+struct DeletedCopy {
+  DeletedCopy();
+  DeletedCopy(DeletedCopy &&);
+  DeletedCopy(const DeletedCopy &) = delete;
+};
+void throwDeletedCopy() { throw DeletedCopy(); }
+
+
+struct MoveOnly {
+  MoveOnly();
+  MoveOnly(MoveOnly &&);
+  ~MoveOnly();
+  MoveOnly(const MoveOnly &) = delete;
+
+  // For some reason this subobject was important for reproducing PR43680
+  struct HasCopy {
+    HasCopy();
+    HasCopy(const HasCopy &o);
+    ~HasCopy();
+    int x;
+  } sub;
+};
+
+void throwMoveOnly() { throw MoveOnly(); }
 
 struct Variadic {
   Variadic(Variadic &, ...);

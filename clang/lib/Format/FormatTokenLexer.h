@@ -17,10 +17,12 @@
 
 #include "Encoding.h"
 #include "FormatToken.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Regex.h"
 
 #include <stack>
@@ -37,7 +39,9 @@ enum LexerState {
 class FormatTokenLexer {
 public:
   FormatTokenLexer(const SourceManager &SourceMgr, FileID ID, unsigned Column,
-                   const FormatStyle &Style, encoding::Encoding Encoding);
+                   const FormatStyle &Style, encoding::Encoding Encoding,
+                   llvm::SpecificBumpPtrAllocator<FormatToken> &Allocator,
+                   IdentifierTable &IdentTable);
 
   ArrayRef<FormatToken *> lex();
 
@@ -49,10 +53,12 @@ private:
   bool tryMergeLessLess();
   bool tryMergeNSStringLiteral();
   bool tryMergeJSPrivateIdentifier();
-  bool tryMergeCSharpVerbatimStringLiteral();
+  bool tryMergeCSharpStringLiteral();
   bool tryMergeCSharpKeywordVariables();
-  bool tryMergeCSharpNullConditionals();
-  bool tryMergeCSharpDoubleQuestion();
+  bool tryMergeNullishCoalescingEqual();
+  bool tryTransformCSharpForEach();
+  bool tryMergeForEach();
+  bool tryTransformTryUsageForC();
 
   bool tryMergeTokens(ArrayRef<tok::TokenKind> Kinds, TokenType NewType);
 
@@ -78,6 +84,8 @@ private:
   // nested template parts by balancing curly braces.
   void handleTemplateStrings();
 
+  void handleCSharpVerbatimAndInterpolatedStrings();
+
   void tryParsePythonComment();
 
   bool tryMerge_TMacro();
@@ -94,13 +102,14 @@ private:
   unsigned Column;
   unsigned TrailingWhitespace;
   std::unique_ptr<Lexer> Lex;
+  LangOptions LangOpts;
   const SourceManager &SourceMgr;
   FileID ID;
   const FormatStyle &Style;
-  IdentifierTable IdentTable;
+  IdentifierTable &IdentTable;
   AdditionalKeywords Keywords;
   encoding::Encoding Encoding;
-  llvm::SpecificBumpPtrAllocator<FormatToken> Allocator;
+  llvm::SpecificBumpPtrAllocator<FormatToken> &Allocator;
   // Index (in 'Tokens') of the last token that starts a new line.
   unsigned FirstInLineIndex;
   SmallVector<FormatToken *, 16> Tokens;
@@ -111,6 +120,9 @@ private:
 
   llvm::Regex MacroBlockBeginRegex;
   llvm::Regex MacroBlockEndRegex;
+
+  // Targets that may appear inside a C# attribute.
+  static const llvm::StringSet<> CSharpAttributeTargets;
 
   void readRawToken(FormatToken &Tok);
 
