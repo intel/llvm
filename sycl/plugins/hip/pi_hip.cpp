@@ -327,32 +327,32 @@ void simpleGuessLocalWorkSize(size_t *threadsPerBlock,
 
 /// ------ Error handling, matching OpenCL plugin semantics.
 __SYCL_INLINE_NAMESPACE(cl) {
-  namespace sycl {
-  namespace detail {
-  namespace pi {
+namespace sycl {
+namespace detail {
+namespace pi {
 
-  // Report error and no return (keeps compiler from printing warnings).
-  // TODO: Probably change that to throw a catchable exception,
-  //       but for now it is useful to see every failure.
-  //
-  [[noreturn]] void die(const char *Message) {
-    std::cerr << "pi_die: " << Message << std::endl;
-    std::terminate();
-  }
+// Report error and no return (keeps compiler from printing warnings).
+// TODO: Probably change that to throw a catchable exception,
+//       but for now it is useful to see every failure.
+//
+[[noreturn]] void die(const char *Message) {
+  std::cerr << "pi_die: " << Message << std::endl;
+  std::terminate();
+}
 
-  // Reports error messages
-  void hipPrint(const char *Message) {
-    std::cerr << "pi_print: " << Message << std::endl;
-  }
+// Reports error messages
+void hipPrint(const char *Message) {
+  std::cerr << "pi_print: " << Message << std::endl;
+}
 
-  void assertion(bool Condition, const char *Message) {
-    if (!Condition)
-      die(Message);
-  }
+void assertion(bool Condition, const char *Message) {
+  if (!Condition)
+    die(Message);
+}
 
-  } // namespace pi
-  } // namespace detail
-  } // namespace sycl
+} // namespace pi
+} // namespace detail
+} // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 //--------------
@@ -2390,6 +2390,8 @@ pi_result hip_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
 
 pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
 
+                 int         a;
+  std::cout << "In piEvetsWait" << std::endl;
   try {
     assert(num_events != 0);
     assert(event_list);
