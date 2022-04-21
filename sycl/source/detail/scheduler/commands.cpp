@@ -2342,10 +2342,9 @@ pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   // will violate the spec
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
-  RT::PiProgram Program =
-      ProgramManager::getInstance().createPIProgram(
-          *(hostPipeEntry->mDeviceImage), Queue->get_context(),
-          Queue->get_device());
+  RT::PiProgram Program = ProgramManager::getInstance().createPIProgram(
+      *(hostPipeEntry->mDeviceImage), Queue->get_context(),
+      Queue->get_device());
 
   // Get plugin for calling opencl functions
   const detail::plugin &Plugin = Queue->getPlugin();

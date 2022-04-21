@@ -26,15 +26,6 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-template <class _name, class _dataT,
-          class _propertiesT = decltype(oneapi::experimental::properties{}),
-          class = void>
-class host_pipe {
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_list_v<_propertiesT>,
-      "Host pipe is available only through new property list");
-};
-
 using default_pipe_properties =
     decltype(sycl::ext::oneapi::experimental::properties(min_capacity<0>));
 
@@ -46,23 +37,21 @@ class
 #endif
     // TODO: change name to pipe, and merge into the existing pipe
     // implementation
-    host_pipe<_name, _dataT, _propertiesT,
-              std::enable_if_t<sycl::ext::oneapi::experimental::
-                                   is_property_list_v<_propertiesT>>> {
+    host_pipe {
 
   struct
-// Commented out since the host_pipe attribute is not introduced by the front end yet.
-// Confirm with Rob
-// #ifdef __SYCL_DEVICE_ONLY__
-//       [[__sycl_detail__::add_ir_attributes_global_variable(
-//           "sycl-host-pipe",
-//           nullptr)]] [[__sycl_detail__::
-//                            host_pipe]] [[__sycl_detail__::
-//                                              global_variable_allowed]] // may
-//                                                                        // not be
-//                                                                        // needed
-// #endif
-                                                                       __pipeType {
+// Commented out since the host_pipe attribute is not introduced by the front
+// end yet. Confirm with Rob
+#ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_attributes_global_variable(
+          "sycl-host-pipe",
+          nullptr)]] [[__sycl_detail__::
+                           host_pipe]] [[__sycl_detail__::
+                                             global_variable_allowed]] // may
+                                                                       // not be
+                                                                       // needed
+#endif
+      __pipeType {
     const char __p;
   };
 

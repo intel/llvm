@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/intel/experimental/host_pipes.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/ext/intel/experimental/host_pipes.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -17,10 +17,8 @@ namespace intel {
 namespace experimental {
 
 template <class _name, class _dataT, typename _propertiesT>
-_dataT
-host_pipe<_name, _dataT, _propertiesT,
-          std::enable_if_t<sycl::ext::oneapi::experimental::is_property_list_v<
-              _propertiesT>>>::read(queue &q, memory_order order) {
+_dataT host_pipe<_name, _dataT, _propertiesT>::read(queue &q,
+                                                    memory_order order) {
   const device Dev = q.get_device();
   bool IsReadPipeSupported =
       Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -42,11 +40,8 @@ host_pipe<_name, _dataT, _propertiesT,
 }
 
 template <class _name, class _dataT, typename _propertiesT>
-void host_pipe<
-    _name, _dataT, _propertiesT,
-    std::enable_if_t<sycl::ext::oneapi::experimental::is_property_list_v<
-        _propertiesT>>>::write(queue &q, const _dataT &data,
-                               memory_order order) {
+void host_pipe<_name, _dataT, _propertiesT>::write(queue &q, const _dataT &data,
+                                                   memory_order order) {
   const device Dev = q.get_device();
   bool IsReadPipeSupported =
       Dev.has_extension("cl_intel_program_scope_host_pipe");

@@ -41,28 +41,28 @@ struct uses_valid_key {
   template <bool Valid>
   using value_t =
       oneapi::experimental::property_value<uses_valid_key,
-                                           sycl::detail::bool_constant<Valid>>;
+                                           std::bool_constant<Valid>>;
 };
 
 struct uses_ready_key {
   template <bool Ready>
   using value_t =
       oneapi::experimental::property_value<uses_ready_key,
-                                           sycl::detail::bool_constant<Ready>>;
+                                           std::bool_constant<Ready>>;
 };
 
 struct in_csr_key {
   template <bool Enable>
   using value_t =
       oneapi::experimental::property_value<in_csr_key,
-                                           sycl::detail::bool_constant<Enable>>;
+                                           std::bool_constant<Enable>>;
 };
 
 struct first_symbol_in_high_order_bits_key {
   template <bool HighOrder>
-  using value_t = oneapi::experimental::property_value<
-      first_symbol_in_high_order_bits_key,
-      sycl::detail::bool_constant<HighOrder>>;
+  using value_t =
+      oneapi::experimental::property_value<first_symbol_in_high_order_bits_key,
+                                           std::bool_constant<HighOrder>>;
 };
 
 enum class protocol_name : std::uint16_t { AVALON, AXI };

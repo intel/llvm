@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
 #include <cstring>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 #include <helpers/PiImage.hpp>
@@ -55,15 +55,12 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage Img = generateDefaultImage();
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
-
 using namespace sycl;
 using pipe_prop = decltype(ext::oneapi::experimental::properties(
     ext::intel::experimental::min_capacity<5>));
 
 template <unsigned ID> struct pipe_id {
-  static constexpr unsigned id = ID;
+    static constexpr unsigned id = ID;
 };
 
 class test_data_type {
@@ -73,30 +70,6 @@ public:
 
 using test_host_pipe =
     ext::intel::experimental::host_pipe<pipe_id<0>, test_data_type, pipe_prop>;
-
-// pi_device_binary_struct generate_device_binary() {
-//   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-//   unittest::PiArray<unittest::PiOffloadEntry> Entries =
-//       unittest::makeEmptyKernels({"TestKernel"});
-//   unittest::PiPropertySet PropSet;
-//   pi_device_binary_struct MBinaryDesc = pi_device_binary_struct{
-//       PI_DEVICE_BINARY_VERSION,
-//       PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
-//       PI_DEVICE_BINARY_TYPE_SPIRV,
-//       __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64,
-//       "",
-//       "",
-//       nullptr,
-//       nullptr,
-//       &*Bin.begin(),
-//       (&*Bin.begin()) + Bin.size(),
-//       Entries.begin(),
-//       Entries.end(),
-//       PropSet.begin(),
-//       PropSet.end(),
-//   };
-//   return MBinaryDesc;
-// }
 
 pi_event READ = reinterpret_cast<pi_event>(0);
 pi_event WRITE = reinterpret_cast<pi_event>(1);
@@ -125,111 +98,56 @@ void preparePiMock(unittest::PiMock &Mock) {
       redefinedEnqueueWriteHostPipe);
 }
 
-// class PipeTest : public ::testing::Test {
-// protected:
-//   void SetUp() override {
-    // std::cerr << "Zibai started to setup" << std::endl;
-    // sycl::unittest::PiMock Mock;
-    // sycl::platform Plt = Mock.getPlatform();
-    // std::cerr << "Zibai started calling getPlatform" << std::endl;
-    // preparePiMock(Mock);
-    // std::cerr << "Zibai started calling get_devices" << std::endl;
-    // const sycl::device Dev = Plt.get_devices()[0];
-    // std::cerr << "Zibai finished calling get_devices" << std::endl;
-    // sycl::context Ctx{Dev};
-    // std::cerr << "Zibai finished calling Ctx" << std::endl;
-    // sycl::queue Q{Ctx, Dev};
-    // std::cerr << "Zibai finished BUILDING queueu" << std::endl;
-    // plat = Plt;
-    // ctx = Ctx;
-    // q = Q;
-
-    // // Fake registration of host pipes
-    // sycl::detail::host_pipe_map::add(test_host_pipe::get_host_ptr(),
-    //                                  "test_host_pipe_unique_id");
-    // // Fake registration of device image
-    // static constexpr size_t NumberOfImages = 1;
-    // pi_device_binary_struct MNativeImages[NumberOfImages];
-    // std::cerr << "Zibai started generate_device_binary" << std::endl;
-    // MNativeImages[0] = generate_device_binary();
-    // std::cerr << "Zibai finished generate_device_binary" << std::endl;;
-    // MAllBinaries = pi_device_binaries_struct{
-    //     PI_DEVICE_BINARIES_VERSION,
-    //     NumberOfImages,
-    //     MNativeImages,
-    //     nullptr, // not used, put here for compatibility with OpenMP
-    //     nullptr, // not used, put here for compatibility with OpenMP
-    // };
-    // __sycl_register_lib(&MAllBinaries);
-//  }
-
-//   void TearDown() override { __sycl_unregister_lib(&MAllBinaries); }
-
-//   platform plat;
-//   context ctx;
-//   queue q;
-//   pi_device_binaries_struct MAllBinaries;
-// };
-
-
 class PipeTest : public ::testing::Test {
 public:
   PipeTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    std::clog << "Zibai started the setup clog\n";
+    std::clog << "Zibai started the setup()\n";
     preparePiMock(Mock);
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::context Ctx{Dev};
     sycl::queue Q{Ctx, Dev};
     ctx = Ctx;
     q = Q;
-    // Fake registration of host pipes
-    sycl::detail::host_pipe_map::add(test_host_pipe::get_host_ptr(),
-                                     "test_host_pipe_unique_id");
-    // Fake registration of device image
-    // static constexpr size_t NumberOfImages = 1;
-    // pi_device_binary_struct MNativeImages[NumberOfImages];
-    // MNativeImages[0] = generate_device_binary();
-    // std::clog << "Zibai finished generate_device_binary \n";
-    // MAllBinaries = pi_device_binaries_struct{
-    //     PI_DEVICE_BINARIES_VERSION,
-    //     NumberOfImages,
-    //     MNativeImages,
-    //     nullptr, // not used, put here for compatibility with OpenMP
-    //     nullptr, // not used, put here for compatibility with OpenMP
-    // };
-    //__sycl_register_lib(&MAllBinaries); // This is gving some problems!!
   }
-
-  // void TearDown() override { __sycl_unregister_lib(&MAllBinaries); }
 
 protected:
   unittest::PiMock Mock;
   sycl::platform Plt;
   context ctx;
   queue q;
-  pi_device_binaries_struct MAllBinaries;
 };
 
-
-
 TEST_F(PipeTest, Basic) {
+
+  // Fake registration of host pipes
+  sycl::detail::host_pipe_map::add(test_host_pipe::get_host_ptr(),
+                                   "test_host_pipe_unique_id");
+
+  // Device registration
+  std::clog << "Zibai started the Device registration\n";
+  static sycl::unittest::PiImage Img = generateDefaultImage();
+  static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+
   std::clog << "Zibai started the get_host_ptr\n";
   const void *HostPipePtr = test_host_pipe::get_host_ptr();
   std::clog << "Zibai started the hostPipeEntry\n";
   detail::HostPipeMapEntry *hostPipeEntry =
       detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
   const std::string pipe_name = hostPipeEntry->MUniqueId;
-  std::clog << "Zibai what is the pipe_name " << pipe_name << "\n"; // this part is fine
+  std::clog << "Zibai what is the pipe_name " << pipe_name
+            << "\n"; // this part is fine
   test_data_type host_pipe_read_data = {};
   void *data_ptr = &host_pipe_read_data;
   std::clog << "Zibai started the q submit for read\n";
   event e = q.submit([&](handler &CGH) {
     CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(test_data_type), false,
                              true /* read */);
+    // CGH.single_task<TestKernel<>>([&]() {});
   });
+
   std::clog << "Zibai started the wait for read\n";
   e.wait();
   std::clog << "Zibai started the assert\n";

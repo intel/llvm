@@ -862,7 +862,7 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 
 void handler::read_write_host_pipe(const std::string &Name, void *Ptr,
                                    size_t Size, bool Block, bool Read) {
-  throwIfActionIsCreated();
+  // throwIfActionIsCreated(); // Need this?? Zibai
   std::clog << "Zibai remove this read_write_host_pipe is invoked \n";
   HostPipeName = Name;
   HostPipePtr = Ptr;

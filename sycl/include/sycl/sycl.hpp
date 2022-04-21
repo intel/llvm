@@ -67,6 +67,8 @@
 #include <sycl/ext/oneapi/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/annotated_arg/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/annotated_arg/properties.hpp>
+#include <sycl/ext/intel/experimental/host_pipes.hpp>
+#include <sycl/ext/intel/experimental/pipe_properties.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
@@ -82,5 +84,3 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
-#include <sycl/ext/intel/experimental/host_pipes.hpp>
-#include <sycl/ext/intel/experimental/pipe_properties.hpp>

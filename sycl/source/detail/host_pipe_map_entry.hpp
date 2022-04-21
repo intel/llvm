@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <detail/device_binary_image.hpp>
 #include <cstdint>
+#include <detail/device_binary_image.hpp>
 #include <unordered_map>
 
 namespace sycl {
