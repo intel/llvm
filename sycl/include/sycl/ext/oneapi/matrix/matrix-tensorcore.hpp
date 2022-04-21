@@ -619,14 +619,6 @@ float round_to_tf32(float a) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-// This function just zeros out the bottom 13 bits of the tf32 type
-float truncate_to_tf32(float a) {
-  uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
-  tmp_uint &= 0xFFFFE000u;
-  float ret = reinterpret_cast<float &>(tmp_uint);
-  return ret;
-}
-
 } // namespace experimental::matrix
 } // namespace oneapi
 } // namespace ext
