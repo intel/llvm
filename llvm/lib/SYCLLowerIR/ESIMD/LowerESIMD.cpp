@@ -907,15 +907,16 @@ static void updateGenXMDNodes(llvm::Function *F, genx::KernelMDOp MD,
       F->getParent()->getNamedMetadata(GENX_KERNEL_METADATA);
   assert(GenXKernelMD && "invalid genx.kernels metadata");
 
-  SmallPtrSet<Function *, 4> FunctionsVisited;
-  SmallVector<Function *, 4> FunctionsToVisit{F};
-  for (size_t I = 0; I < FunctionsToVisit.size(); I++) {
-    F = FunctionsToVisit[I];
+  SmallPtrSet<Function *, 32> FunctionsVisited;
+  SmallVector<Function *, 32> Worklist{F};
+  while (!Worklist.empty()) {
+    Function *CurF = Worklist.pop_back_val();
+    FunctionsVisited.insert(CurF);
 
-    // Update the meta data attribute for the function 'F'.
+    // Update the meta data attribute for the current function.
     for (auto Node : GenXKernelMD->operands()) {
       if (Node->getNumOperands() <= MD ||
-          getVal(Node->getOperand(genx::KernelMDOp::FunctionRef)) != F)
+          getVal(Node->getOperand(genx::KernelMDOp::FunctionRef)) != CurF)
         continue;
 
       llvm::Value *Old = getVal(Node->getOperand(MD));
@@ -925,10 +926,9 @@ static void updateGenXMDNodes(llvm::Function *F, genx::KernelMDOp MD,
         Node->replaceOperandWith(MD, getMD(New));
       }
     }
-    FunctionsVisited.insert(F);
 
-    // Update all callers of 'F' as well.
-    for (auto It = F->use_begin(); It != F->use_end(); It++) {
+    // Update all callers as well.
+    for (auto It = CurF->use_begin(); It != CurF->use_end(); It++) {
       auto FCall = It->getUser();
       if (!isa<CallInst>(FCall))
         llvm::report_fatal_error(
@@ -938,7 +938,7 @@ static void updateGenXMDNodes(llvm::Function *F, genx::KernelMDOp MD,
 
       auto FCaller = cast<CallInst>(FCall)->getFunction();
       if (!FunctionsVisited.count(FCaller))
-        FunctionsToVisit.push_back(FCaller);
+        Worklist.push_back(FCaller);
     }
   }
 }
