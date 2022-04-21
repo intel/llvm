@@ -38,7 +38,7 @@ void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
   XPTIRegistry::bufferConstructorNotification(UserObj, CodeLoc, HostObj, Type,
                                               Dim, ElemSize, Range);
 }
-// TODO: remove once ABI break is allowed
+// TODO: remove once ABI breaks is allowed
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj) {
   size_t r[3] = {0, 0, 0};
