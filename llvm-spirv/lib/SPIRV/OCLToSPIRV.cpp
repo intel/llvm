@@ -1743,10 +1743,11 @@ static const char *getSubgroupAVCIntelOpKind(StringRef Name) {
       .StartsWith(kOCLSubgroupsAVCIntel::SICPrefix, "sic");
 }
 
-static const char *getSubgroupAVCIntelTyKind(Type *Ty) {
-  auto *STy = cast<StructType>(cast<PointerType>(Ty)->getPointerElementType());
-  auto TName = STy->getName();
-  return TName.endswith("_payload_t") ? "payload" : "result";
+static const char *getSubgroupAVCIntelTyKind(StringRef MangledName) {
+  // We're looking for the type name of the last parameter, which will be at the
+  // very end of the mangled name. Since we only care about the ending of the
+  // name, we don't need to be any more clever than this.
+  return MangledName.endswith("_payload_t") ? "payload" : "result";
 }
 
 static Type *getSubgroupAVCIntelMCEType(Module *M, std::string &TName) {
@@ -1778,11 +1779,9 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
 
   // Update names for built-ins mapped on two or more SPIRV instructions
   if (FName.find(Prefix + "ime_get_streamout_major_shape_") == 0) {
-    auto PTy = cast<PointerType>(CI->getArgOperand(0)->getType());
-    auto *STy = cast<StructType>(PTy->getPointerElementType());
-    assert(STy->hasName() && "Invalid Subgroup AVC Intel built-in call");
-    FName += (STy->getName().contains("single")) ? "_single_reference"
-                                                 : "_dual_reference";
+    // _single_reference functions have 2 arguments, _dual_reference have 3
+    // arguments.
+    FName += (CI->arg_size() == 2) ? "_single_reference" : "_dual_reference";
   } else if (FName.find(Prefix + "sic_configure_ipe") == 0) {
     FName += (CI->arg_size() == 8) ? "_luma" : "_luma_chroma";
   }
@@ -1818,8 +1817,8 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   // Find 'to_mce' conversion function.
   // The operand required conversion is always the last one.
   const char *OpKind = getSubgroupAVCIntelOpKind(DemangledName);
-  const char *TyKind = getSubgroupAVCIntelTyKind(
-      CI->getArgOperand(CI->arg_size() - 1)->getType());
+  const char *TyKind =
+      getSubgroupAVCIntelTyKind(CI->getCalledFunction()->getName());
   std::string MCETName =
       std::string(kOCLSubgroupsAVCIntel::TypePrefix) + "mce_" + TyKind + "_t";
   auto *MCETy =
