@@ -1599,14 +1599,14 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
         }
 
         if (Var->isStaticLocal()) {
-          const DeclContext *DeclCtx = Var->getDeclContext();
-          while (!DeclCtx->isTranslationUnit()) {
-            if (isa<FunctionDecl>(DeclCtx)) {
+          const DeclContext *DC = Var->getDeclContext();
+          while (!DC->isTranslationUnit()) {
+            if (isa<FunctionDecl>(DC)) {
               SemaRef.Diag(D->getLocation(),
                    diag::err_sycl_device_global_incorrect_scope);
               break;
             }
-            DeclCtx = DeclCtx->getParent();
+            DC = DC->getParent();
           }
         }
       }

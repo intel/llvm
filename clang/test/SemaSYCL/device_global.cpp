@@ -54,6 +54,32 @@ struct ABar {
   };
 };
 
+template <typename T> void fooBar() {
+  static device_global<T> c;
+  device_global<T> d;
+}
+
+template <typename T> struct TS {
+private:
+  // FIXME: This one
+  static device_global<T> a;
+  // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
+  device_global<T> b;
+  // FIXME: Why are both messages emitted
+  // expected-error@+2 {{'device_global' member variable 'c' is not publicly accessible from namespace scope}}
+  // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
+  device_global<int> c;
+public:
+  static device_global<T> d;
+  // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
+  device_global<T> e;
+  // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
+  device_global<int> f;
+};
+
+// expected-note@+1 {{in instantiation of template class 'TS<int>' requested here}}
+TS<int> AAAA;
+
 // expected-error@+2{{'device_global' attribute only applies to classes}}
 // expected-error@+1{{'global_variable_allowed' attribute only applies to classes}}
 [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] int integer;
