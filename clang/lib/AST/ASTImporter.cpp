@@ -9191,13 +9191,11 @@ Expected<TemplateName> ASTImporter::Import(TemplateName From) {
     auto QualifierOrErr = Import(QTN->getQualifier());
     if (!QualifierOrErr)
       return QualifierOrErr.takeError();
-
-    if (ExpectedDecl ToTemplateOrErr = Import(From.getAsTemplateDecl()))
-      return ToContext.getQualifiedTemplateName(
-          *QualifierOrErr, QTN->hasTemplateKeyword(),
-          cast<TemplateDecl>(*ToTemplateOrErr));
-    else
-      return ToTemplateOrErr.takeError();
+    auto TNOrErr = Import(QTN->getUnderlyingTemplate());
+    if (!TNOrErr)
+      return TNOrErr.takeError();
+    return ToContext.getQualifiedTemplateName(
+        *QualifierOrErr, QTN->hasTemplateKeyword(), *TNOrErr);
   }
 
   case TemplateName::DependentTemplate: {

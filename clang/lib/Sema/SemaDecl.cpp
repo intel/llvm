@@ -1114,18 +1114,14 @@ Corrected:
 
       UsingShadowDecl *FoundUsingShadow =
           dyn_cast<UsingShadowDecl>(*Result.begin());
-
-      if (SS.isNotEmpty()) {
-        // FIXME: support using shadow-declaration in qualified template name.
-        Template =
-            Context.getQualifiedTemplateName(SS.getScopeRep(),
-                                             /*TemplateKeyword=*/false, TD);
-      } else {
-        assert(!FoundUsingShadow ||
-               TD == cast<TemplateDecl>(FoundUsingShadow->getTargetDecl()));
-        Template = FoundUsingShadow ? TemplateName(FoundUsingShadow)
-                                    : TemplateName(TD);
-      }
+      assert(!FoundUsingShadow ||
+             TD == cast<TemplateDecl>(FoundUsingShadow->getTargetDecl()));
+      Template =
+          FoundUsingShadow ? TemplateName(FoundUsingShadow) : TemplateName(TD);
+      if (SS.isNotEmpty())
+        Template = Context.getQualifiedTemplateName(SS.getScopeRep(),
+                                                    /*TemplateKeyword=*/false,
+                                                    Template);
     } else {
       // All results were non-template functions. This is a function template
       // name.
@@ -2860,6 +2856,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   else if (const auto *NT = dyn_cast<HLSLNumThreadsAttr>(Attr))
     NewAttr =
         S.mergeHLSLNumThreadsAttr(D, *NT, NT->getX(), NT->getY(), NT->getZ());
+  else if (const auto *SA = dyn_cast<HLSLShaderAttr>(Attr))
+    NewAttr = S.mergeHLSLShaderAttr(D, *SA, SA->getType());
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -9344,6 +9342,32 @@ static Scope *getTagInjectionScope(Scope *S, const LangOptions &LangOpts) {
   return S;
 }
 
+/// Determine whether a declaration matches a known function in namespace std.
+static bool isStdBuiltin(ASTContext &Ctx, FunctionDecl *FD,
+                         unsigned BuiltinID) {
+  switch (BuiltinID) {
+  case Builtin::BI__GetExceptionInfo:
+    // No type checking whatsoever.
+    return Ctx.getTargetInfo().getCXXABI().isMicrosoft();
+
+  case Builtin::BIaddressof:
+  case Builtin::BI__addressof:
+  case Builtin::BIforward:
+  case Builtin::BImove:
+  case Builtin::BImove_if_noexcept:
+  case Builtin::BIas_const: {
+    // Ensure that we don't treat the algorithm
+    //   OutputIt std::move(InputIt, InputIt, OutputIt)
+    // as the builtin std::move.
+    const auto *FPT = FD->getType()->castAs<FunctionProtoType>();
+    return FPT->getNumParams() == 1 && !FPT->isVariadic();
+  }
+
+  default:
+    return false;
+  }
+}
+
 NamedDecl*
 Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                               TypeSourceInfo *TInfo, LookupResult &Previous,
@@ -10196,28 +10220,30 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
   // If this is the first declaration of a library builtin function, add
   // attributes as appropriate.
-  if (!D.isRedeclaration() &&
-      NewFD->getDeclContext()->getRedeclContext()->isFileContext()) {
+  if (!D.isRedeclaration()) {
     if (IdentifierInfo *II = Previous.getLookupName().getAsIdentifierInfo()) {
       if (unsigned BuiltinID = II->getBuiltinID()) {
-        if (NewFD->getLanguageLinkage() == CLanguageLinkage) {
-          // Validate the type matches unless this builtin is specified as
-          // matching regardless of its declared type.
-          if (Context.BuiltinInfo.allowTypeMismatch(BuiltinID)) {
-            NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
-          } else {
-            ASTContext::GetBuiltinTypeError Error;
-            LookupNecessaryTypesForBuiltin(S, BuiltinID);
-            QualType BuiltinType = Context.GetBuiltinType(BuiltinID, Error);
-
-            if (!Error && !BuiltinType.isNull() &&
-                Context.hasSameFunctionTypeIgnoringExceptionSpec(
-                    NewFD->getType(), BuiltinType))
+        bool InStdNamespace = Context.BuiltinInfo.isInStdNamespace(BuiltinID);
+        if (!InStdNamespace &&
+            NewFD->getDeclContext()->getRedeclContext()->isFileContext()) {
+          if (NewFD->getLanguageLinkage() == CLanguageLinkage) {
+            // Validate the type matches unless this builtin is specified as
+            // matching regardless of its declared type.
+            if (Context.BuiltinInfo.allowTypeMismatch(BuiltinID)) {
               NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
+            } else {
+              ASTContext::GetBuiltinTypeError Error;
+              LookupNecessaryTypesForBuiltin(S, BuiltinID);
+              QualType BuiltinType = Context.GetBuiltinType(BuiltinID, Error);
+
+              if (!Error && !BuiltinType.isNull() &&
+                  Context.hasSameFunctionTypeIgnoringExceptionSpec(
+                      NewFD->getType(), BuiltinType))
+                NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
+            }
           }
-        } else if (BuiltinID == Builtin::BI__GetExceptionInfo &&
-                   Context.getTargetInfo().getCXXABI().isMicrosoft()) {
-          // FIXME: We should consider this a builtin only in the std namespace.
+        } else if (InStdNamespace && NewFD->isInStdNamespace() &&
+                   isStdBuiltin(Context, NewFD, BuiltinID)) {
           NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
         }
       }

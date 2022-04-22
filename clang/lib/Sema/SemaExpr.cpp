@@ -3441,7 +3441,7 @@ ExprResult Sema::BuildDeclarationNameExpr(
 
   case Decl::Function: {
     if (unsigned BID = cast<FunctionDecl>(VD)->getBuiltinID()) {
-      if (!Context.BuiltinInfo.isPredefinedLibFunction(BID)) {
+      if (!Context.BuiltinInfo.isDirectlyAddressable(BID)) {
         type = Context.BuiltinFnTy;
         valueKind = VK_PRValue;
         break;
@@ -6642,18 +6642,17 @@ static void DiagnosedUnqualifiedCallsToStdFunctions(Sema &S, CallExpr *Call) {
   if (DRE->getQualifier())
     return;
 
-  NamedDecl *D = dyn_cast_or_null<NamedDecl>(Call->getCalleeDecl());
-  if (!D || !D->isInStdNamespace())
+  const FunctionDecl *FD = Call->getDirectCallee();
+  if (!FD)
     return;
 
   // Only warn for some functions deemed more frequent or problematic.
-  static constexpr llvm::StringRef SpecialFunctions[] = {"move", "forward"};
-  auto it = llvm::find(SpecialFunctions, D->getName());
-  if (it == std::end(SpecialFunctions))
+  unsigned BuiltinID = FD->getBuiltinID();
+  if (BuiltinID != Builtin::BImove && BuiltinID != Builtin::BIforward)
     return;
 
   S.Diag(DRE->getLocation(), diag::warn_unqualified_call_to_std_cast_function)
-      << D->getQualifiedNameAsString()
+      << FD->getQualifiedNameAsString()
       << FixItHint::CreateInsertion(DRE->getLocation(), "std::");
 }
 
@@ -20569,13 +20568,44 @@ ExprResult Sema::CheckPlaceholderExpr(Expr *E) {
     auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
     if (DRE) {
       auto *FD = cast<FunctionDecl>(DRE->getDecl());
-      if (FD->getBuiltinID() == Builtin::BI__noop) {
+      unsigned BuiltinID = FD->getBuiltinID();
+      if (BuiltinID == Builtin::BI__noop) {
         E = ImpCastExprToType(E, Context.getPointerType(FD->getType()),
                               CK_BuiltinFnToFnPtr)
                 .get();
         return CallExpr::Create(Context, E, /*Args=*/{}, Context.IntTy,
                                 VK_PRValue, SourceLocation(),
                                 FPOptionsOverride());
+      }
+
+      if (Context.BuiltinInfo.isInStdNamespace(BuiltinID)) {
+        // Any use of these other than a direct call is ill-formed as of C++20,
+        // because they are not addressable functions. In earlier language
+        // modes, warn and force an instantiation of the real body.
+        Diag(E->getBeginLoc(),
+             getLangOpts().CPlusPlus20
+                 ? diag::err_use_of_unaddressable_function
+                 : diag::warn_cxx20_compat_use_of_unaddressable_function);
+        if (FD->isImplicitlyInstantiable()) {
+          // Require a definition here because a normal attempt at
+          // instantiation for a builtin will be ignored, and we won't try
+          // again later. We assume that the definition of the template
+          // precedes this use.
+          InstantiateFunctionDefinition(E->getBeginLoc(), FD,
+                                        /*Recursive=*/false,
+                                        /*DefinitionRequired=*/true,
+                                        /*AtEndOfTU=*/false);
+        }
+        // Produce a properly-typed reference to the function.
+        CXXScopeSpec SS;
+        SS.Adopt(DRE->getQualifierLoc());
+        TemplateArgumentListInfo TemplateArgs;
+        DRE->copyTemplateArgumentsInto(TemplateArgs);
+        return BuildDeclRefExpr(
+            FD, FD->getType(), VK_LValue, DRE->getNameInfo(),
+            DRE->hasQualifier() ? &SS : nullptr, DRE->getFoundDecl(),
+            DRE->getTemplateKeywordLoc(),
+            DRE->hasExplicitTemplateArgs() ? &TemplateArgs : nullptr);
       }
     }
 

@@ -4896,7 +4896,7 @@ def ext_adl_only_template_id : ExtWarn<
   "with explicit template arguments is a C++20 extension">, InGroup<CXX20>;
 
 def warn_unqualified_call_to_std_cast_function : Warning<
-  "unqualified call to %0">, InGroup<DiagGroup<"unqualified-std-cast-call">>;
+  "unqualified call to '%0'">, InGroup<DiagGroup<"unqualified-std-cast-call">>;
 
 // C++ Template Argument Lists
 def err_template_missing_args : Error<
@@ -6637,6 +6637,15 @@ def warn_self_assignment_overloaded : Warning<
 def warn_self_move : Warning<
   "explicitly moving variable of type %0 to itself">,
   InGroup<SelfMove>, DefaultIgnore;
+
+def err_builtin_move_forward_unsupported : Error<
+  "unsupported signature for %q0">;
+def err_use_of_unaddressable_function : Error<
+  "taking address of non-addressable standard library function">;
+// FIXME: This should also be in -Wc++23-compat once we have it.
+def warn_cxx20_compat_use_of_unaddressable_function : Warning<
+  "taking address of non-addressable standard library function "
+  "is incompatible with C++20">, InGroup<CXX20Compat>;
 
 def warn_redundant_move_on_return : Warning<
   "redundant move in return statement">,
