@@ -1603,7 +1603,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
           while (!DC->isTranslationUnit()) {
             if (isa<FunctionDecl>(DC)) {
               SemaRef.Diag(D->getLocation(),
-                   diag::err_sycl_device_global_incorrect_scope);
+                           diag::err_sycl_device_global_incorrect_scope);
               break;
             }
             DC = DC->getParent();
