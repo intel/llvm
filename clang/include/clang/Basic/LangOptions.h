@@ -463,7 +463,24 @@ public:
   /// The default stream kind used for HIP kernel launching.
   GPUDefaultStreamKind GPUDefaultStream;
 
+  /// The seed used by the randomize structure layout feature.
+  std::string RandstructSeed;
+
   LangOptions();
+
+  /// Set language defaults for the given input language and
+  /// language standard in the given LangOptions object.
+  ///
+  /// \param Opts - The LangOptions object to set up.
+  /// \param Lang - The input language.
+  /// \param T - The target triple.
+  /// \param Includes - If the language requires extra headers to be implicitly
+  ///                   included, they will be appended to this list.
+  /// \param LangStd - The input language standard.
+  static void
+  setLangDefaults(LangOptions &Opts, Language Lang, const llvm::Triple &T,
+                  std::vector<std::string> &Includes,
+                  LangStandard::Kind LangStd = LangStandard::lang_unspecified);
 
   // Define accessors/mutators for language options of enumeration type.
 #define LANGOPT(Name, Bits, Default, Description)
@@ -521,6 +538,12 @@ public:
   /// Return the OpenCL C or C++ for OpenCL language name and version
   /// as a string.
   std::string getOpenCLVersionString() const;
+
+  /// Returns true if functions without prototypes or functions with an
+  /// identifier list (aka K&R C functions) are not allowed.
+  bool requiresStrictPrototypes() const {
+    return CPlusPlus || C2x || DisableKNRFunctions;
+  }
 
   /// Check if return address signing is enabled.
   bool hasSignReturnAddress() const {

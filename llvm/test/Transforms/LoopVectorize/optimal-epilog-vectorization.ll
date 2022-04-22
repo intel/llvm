@@ -475,3 +475,149 @@ for.end.loopexit:                                 ; preds = %for.body
 for.end:                                          ; preds = %for.end.loopexit, %entry
   ret void
 }
+
+; Test case for PR54745.
+define void @induction_resume_value_requires_non_trivial_scev_expansion(i8* %dst) {
+; CHECK-LABEL: @induction_resume_value_requires_non_trivial_scev_expansion(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br label [[OUTER_HEADER:%.*]]
+; CHECK:       outer.header:
+; CHECK-NEXT:    [[INDUCTION_IV:%.*]] = phi i8 [ [[INDUCTION_IV_NEXT:%.*]], [[OUTER_LATCH:%.*]] ], [ -56, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    [[INDVAR:%.*]] = phi i8 [ [[INDVAR_NEXT:%.*]], [[OUTER_LATCH]] ], [ 0, [[ENTRY]] ]
+; CHECK-NEXT:    [[OUTER_IV:%.*]] = phi i64 [ 2, [[ENTRY]] ], [ [[OUTER_IV_NEXT:%.*]], [[OUTER_LATCH]] ]
+; CHECK-NEXT:    [[P2:%.*]] = phi i32 [ -202, [[ENTRY]] ], [ [[ADD:%.*]], [[OUTER_LATCH]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = mul i8 [[INDVAR]], -1
+; CHECK-NEXT:    [[TMP1:%.*]] = add i8 [[TMP0]], -3
+; CHECK-NEXT:    [[TRUNC_IV:%.*]] = trunc i64 [[OUTER_IV]] to i32
+; CHECK-NEXT:    [[ADD]] = add i32 [[P2]], [[TRUNC_IV]]
+; CHECK-NEXT:    [[TRUNC_ADD:%.*]] = trunc i32 [[ADD]] to i8
+; CHECK-NEXT:    br i1 false, label [[SCALAR_PH:%.*]], label [[VECTOR_PH:%.*]]
+; CHECK:       vector.ph:
+; CHECK-NEXT:    [[IND_END:%.*]] = mul i8 84, [[INDUCTION_IV]]
+; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i8> poison, i8 [[INDUCTION_IV]], i32 0
+; CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i8> [[DOTSPLATINSERT]], <4 x i8> poison, <4 x i32> zeroinitializer
+; CHECK-NEXT:    [[TMP2:%.*]] = mul <4 x i8> <i8 0, i8 1, i8 2, i8 3>, [[DOTSPLAT]]
+; CHECK-NEXT:    [[INDUCTION:%.*]] = add <4 x i8> zeroinitializer, [[TMP2]]
+; CHECK-NEXT:    [[TMP3:%.*]] = mul i8 [[INDUCTION_IV]], 4
+; CHECK-NEXT:    [[DOTSPLATINSERT2:%.*]] = insertelement <4 x i8> poison, i8 [[TMP3]], i32 0
+; CHECK-NEXT:    [[DOTSPLAT3:%.*]] = shufflevector <4 x i8> [[DOTSPLATINSERT2]], <4 x i8> poison, <4 x i32> zeroinitializer
+; CHECK-NEXT:    br label [[VECTOR_BODY:%.*]]
+; CHECK:       vector.body:
+; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ]
+; CHECK-NEXT:    [[VEC_IND:%.*]] = phi <4 x i8> [ [[INDUCTION]], [[VECTOR_PH]] ], [ [[VEC_IND_NEXT:%.*]], [[VECTOR_BODY]] ]
+; CHECK-NEXT:    [[OFFSET_IDX:%.*]] = add i64 1, [[INDEX]]
+; CHECK-NEXT:    [[TMP4:%.*]] = add i64 [[OFFSET_IDX]], 0
+; CHECK-NEXT:    [[TMP5:%.*]] = getelementptr inbounds i8, i8* [[DST:%.*]], i64 [[TMP4]]
+; CHECK-NEXT:    [[TMP6:%.*]] = getelementptr inbounds i8, i8* [[TMP5]], i32 0
+; CHECK-NEXT:    [[TMP7:%.*]] = bitcast i8* [[TMP6]] to <4 x i8>*
+; CHECK-NEXT:    store <4 x i8> [[VEC_IND]], <4 x i8>* [[TMP7]], align 1
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
+; CHECK-NEXT:    [[VEC_IND_NEXT]] = add <4 x i8> [[VEC_IND]], [[DOTSPLAT3]]
+; CHECK-NEXT:    [[TMP8:%.*]] = icmp eq i64 [[INDEX_NEXT]], 84
+; CHECK-NEXT:    br i1 [[TMP8]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP11:![0-9]+]]
+; CHECK:       middle.block:
+; CHECK-NEXT:    [[CMP_N:%.*]] = icmp eq i64 84, 84
+; CHECK-NEXT:    br i1 [[CMP_N]], label [[OUTER_LATCH]], label [[SCALAR_PH]]
+; CHECK:       scalar.ph:
+; CHECK-NEXT:    [[BC_RESUME_VAL:%.*]] = phi i64 [ 85, [[MIDDLE_BLOCK]] ], [ 1, [[OUTER_HEADER]] ]
+; CHECK-NEXT:    [[BC_RESUME_VAL1:%.*]] = phi i8 [ [[IND_END]], [[MIDDLE_BLOCK]] ], [ 0, [[OUTER_HEADER]] ]
+; CHECK-NEXT:    br label [[INNER:%.*]]
+; CHECK:       inner:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[IV_NEXT:%.*]], [[INNER]] ]
+; CHECK-NEXT:    [[IV_2:%.*]] = phi i8 [ [[BC_RESUME_VAL1]], [[SCALAR_PH]] ], [ [[IV_2_NEXT:%.*]], [[INNER]] ]
+; CHECK-NEXT:    [[IV_2_NEXT]] = sub i8 [[IV_2]], [[TRUNC_ADD]]
+; CHECK-NEXT:    [[GEP_DST:%.*]] = getelementptr inbounds i8, i8* [[DST]], i64 [[IV]]
+; CHECK-NEXT:    store i8 [[IV_2]], i8* [[GEP_DST]], align 1
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EC:%.*]] = icmp ugt i64 [[IV]], 83
+; CHECK-NEXT:    br i1 [[EC]], label [[OUTER_LATCH]], label [[INNER]], !llvm.loop [[LOOP12:![0-9]+]]
+; CHECK:       outer.latch:
+; CHECK-NEXT:    [[OUTER_IV_NEXT]] = add nuw nsw i64 [[OUTER_IV]], 1
+; CHECK-NEXT:    [[INDVAR_NEXT]] = add i8 [[INDVAR]], 1
+; CHECK-NEXT:    [[INDUCTION_IV_NEXT]] = add i8 [[INDUCTION_IV]], [[TMP1]]
+; CHECK-NEXT:    br label [[OUTER_HEADER]]
+;
+; CHECK-PROFITABLE-BY-DEFAULT-LABEL: @induction_resume_value_requires_non_trivial_scev_expansion(
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:  entry:
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    br label [[OUTER_HEADER:%.*]]
+; CHECK-PROFITABLE-BY-DEFAULT:       outer.header:
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[INDUCTION_IV:%.*]] = phi i8 [ [[INDUCTION_IV_NEXT:%.*]], [[OUTER_LATCH:%.*]] ], [ -56, [[ENTRY:%.*]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[INDVAR:%.*]] = phi i8 [ [[INDVAR_NEXT:%.*]], [[OUTER_LATCH]] ], [ 0, [[ENTRY]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[OUTER_IV:%.*]] = phi i64 [ 2, [[ENTRY]] ], [ [[OUTER_IV_NEXT:%.*]], [[OUTER_LATCH]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[P2:%.*]] = phi i32 [ -202, [[ENTRY]] ], [ [[ADD:%.*]], [[OUTER_LATCH]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP0:%.*]] = mul i8 [[INDVAR]], -1
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP1:%.*]] = add i8 [[TMP0]], -3
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TRUNC_IV:%.*]] = trunc i64 [[OUTER_IV]] to i32
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[ADD]] = add i32 [[P2]], [[TRUNC_IV]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TRUNC_ADD:%.*]] = trunc i32 [[ADD]] to i8
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    br i1 false, label [[SCALAR_PH:%.*]], label [[VECTOR_PH:%.*]]
+; CHECK-PROFITABLE-BY-DEFAULT:       vector.ph:
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[IND_END:%.*]] = mul i8 84, [[INDUCTION_IV]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i8> poison, i8 [[INDUCTION_IV]], i32 0
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i8> [[DOTSPLATINSERT]], <4 x i8> poison, <4 x i32> zeroinitializer
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP2:%.*]] = mul <4 x i8> <i8 0, i8 1, i8 2, i8 3>, [[DOTSPLAT]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[INDUCTION:%.*]] = add <4 x i8> zeroinitializer, [[TMP2]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP3:%.*]] = mul i8 [[INDUCTION_IV]], 4
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[DOTSPLATINSERT2:%.*]] = insertelement <4 x i8> poison, i8 [[TMP3]], i32 0
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[DOTSPLAT3:%.*]] = shufflevector <4 x i8> [[DOTSPLATINSERT2]], <4 x i8> poison, <4 x i32> zeroinitializer
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    br label [[VECTOR_BODY:%.*]]
+; CHECK-PROFITABLE-BY-DEFAULT:       vector.body:
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[VEC_IND:%.*]] = phi <4 x i8> [ [[INDUCTION]], [[VECTOR_PH]] ], [ [[VEC_IND_NEXT:%.*]], [[VECTOR_BODY]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[OFFSET_IDX:%.*]] = add i64 1, [[INDEX]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP4:%.*]] = add i64 [[OFFSET_IDX]], 0
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP5:%.*]] = getelementptr inbounds i8, i8* [[DST:%.*]], i64 [[TMP4]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP6:%.*]] = getelementptr inbounds i8, i8* [[TMP5]], i32 0
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP7:%.*]] = bitcast i8* [[TMP6]] to <4 x i8>*
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    store <4 x i8> [[VEC_IND]], <4 x i8>* [[TMP7]], align 1
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[VEC_IND_NEXT]] = add <4 x i8> [[VEC_IND]], [[DOTSPLAT3]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[TMP8:%.*]] = icmp eq i64 [[INDEX_NEXT]], 84
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    br i1 [[TMP8]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP5:![0-9]+]]
+; CHECK-PROFITABLE-BY-DEFAULT:       middle.block:
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[CMP_N:%.*]] = icmp eq i64 84, 84
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    br i1 [[CMP_N]], label [[OUTER_LATCH]], label [[SCALAR_PH]]
+; CHECK-PROFITABLE-BY-DEFAULT:       scalar.ph:
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[BC_RESUME_VAL:%.*]] = phi i64 [ 85, [[MIDDLE_BLOCK]] ], [ 1, [[OUTER_HEADER]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[BC_RESUME_VAL1:%.*]] = phi i8 [ [[IND_END]], [[MIDDLE_BLOCK]] ], [ 0, [[OUTER_HEADER]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    br label [[INNER:%.*]]
+; CHECK-PROFITABLE-BY-DEFAULT:       inner:
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[IV:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[IV_NEXT:%.*]], [[INNER]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[IV_2:%.*]] = phi i8 [ [[BC_RESUME_VAL1]], [[SCALAR_PH]] ], [ [[IV_2_NEXT:%.*]], [[INNER]] ]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[IV_2_NEXT]] = sub i8 [[IV_2]], [[TRUNC_ADD]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[GEP_DST:%.*]] = getelementptr inbounds i8, i8* [[DST]], i64 [[IV]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    store i8 [[IV_2]], i8* [[GEP_DST]], align 1
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[EC:%.*]] = icmp ugt i64 [[IV]], 83
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    br i1 [[EC]], label [[OUTER_LATCH]], label [[INNER]], !llvm.loop [[LOOP6:![0-9]+]]
+; CHECK-PROFITABLE-BY-DEFAULT:       outer.latch:
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[OUTER_IV_NEXT]] = add nuw nsw i64 [[OUTER_IV]], 1
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[INDVAR_NEXT]] = add i8 [[INDVAR]], 1
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    [[INDUCTION_IV_NEXT]] = add i8 [[INDUCTION_IV]], [[TMP1]]
+; CHECK-PROFITABLE-BY-DEFAULT-NEXT:    br label [[OUTER_HEADER]]
+;
+entry:
+  br label %outer.header
+
+outer.header:
+  %outer.iv = phi i64 [ 2, %entry ], [ %outer.iv.next, %outer.latch ]
+  %p2 = phi i32 [ -202, %entry ], [ %add, %outer.latch ]
+  %trunc.iv  = trunc i64 %outer.iv to i32
+  %add = add i32 %p2, %trunc.iv
+  %trunc.add = trunc i32 %add to i8
+  br label %inner
+
+inner:
+  %iv = phi i64 [ 1, %outer.header ], [ %iv.next, %inner ]
+  %iv.2 = phi i8 [ 0, %outer.header ], [ %iv.2.next, %inner ]
+  %iv.2.next = sub i8 %iv.2, %trunc.add
+  %gep.dst = getelementptr inbounds i8, i8* %dst, i64 %iv
+  store i8 %iv.2, i8* %gep.dst
+  %iv.next = add nuw nsw i64 %iv, 1
+  %ec = icmp ugt i64 %iv, 83
+  br i1 %ec, label %outer.latch, label %inner
+
+outer.latch:
+  %outer.iv.next = add nuw nsw i64 %outer.iv, 1
+  br label %outer.header
+}

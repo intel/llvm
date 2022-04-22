@@ -875,6 +875,7 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // Do basic inference of function attributes from known properties of system
   // libraries and other oracles.
   MPM.addPass(InferFunctionAttrsPass());
+  MPM.addPass(CoroEarlyPass());
 
   // Create an early function pass manager to cleanup the output of the
   // frontend.
@@ -885,7 +886,6 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   EarlyFPM.addPass(SimplifyCFGPass());
   EarlyFPM.addPass(SROAPass());
   EarlyFPM.addPass(EarlyCSEPass());
-  EarlyFPM.addPass(CoroEarlyPass());
   if (Level == OptimizationLevel::O3)
     EarlyFPM.addPass(CallSiteSplittingPass());
 
@@ -1850,7 +1850,7 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   }
 
   ModulePassManager CoroPM;
-  CoroPM.addPass(createModuleToFunctionPassAdaptor(CoroEarlyPass()));
+  CoroPM.addPass(CoroEarlyPass());
   CGSCCPassManager CGPM;
   CGPM.addPass(CoroSplitPass());
   CoroPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(std::move(CGPM)));

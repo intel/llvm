@@ -639,7 +639,7 @@ protected:
       return false;
     }
 
-    DataBufferSP data_sp;
+    WritableDataBufferSP data_sp;
     size_t bytes_read = 0;
     if (compiler_type.GetOpaqueQualType()) {
       // Make sure we don't display our type as ASCII bytes like the default
@@ -1052,9 +1052,14 @@ protected:
 
     DataBufferHeap buffer;
 
-    if (m_memory_options.m_string.OptionWasSet())
-      buffer.CopyData(m_memory_options.m_string.GetStringValue());
-    else if (m_memory_options.m_expr.OptionWasSet()) {
+    if (m_memory_options.m_string.OptionWasSet()) {
+      llvm::StringRef str = m_memory_options.m_string.GetStringValue();
+      if (str.empty()) {
+        result.AppendError("search string must have non-zero length.");
+        return false;
+      }
+      buffer.CopyData(str);
+    } else if (m_memory_options.m_expr.OptionWasSet()) {
       StackFrame *frame = m_exe_ctx.GetFramePtr();
       ValueObjectSP result_sp;
       if ((eExpressionCompleted ==

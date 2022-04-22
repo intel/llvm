@@ -447,6 +447,8 @@ def InlineNamespaceReopenedNoninline
 def InvalidNoreturn : DiagGroup<"invalid-noreturn">;
 def InvalidSourceEncoding : DiagGroup<"invalid-source-encoding">;
 def KNRPromotedParameter : DiagGroup<"knr-promoted-parameter">;
+def DeprecatedNonPrototype : DiagGroup<"deprecated-non-prototype">;
+def StrictPrototypes : DiagGroup<"strict-prototypes", [DeprecatedNonPrototype]>;
 def : DiagGroup<"init-self">;
 def : DiagGroup<"inline">;
 def : DiagGroup<"invalid-pch">;
@@ -1266,6 +1268,7 @@ def BackendWarningAttributes : DiagGroup<"attribute-warning">;
 def ProfileInstrMissing : DiagGroup<"profile-instr-missing">;
 def ProfileInstrOutOfDate : DiagGroup<"profile-instr-out-of-date">;
 def ProfileInstrUnprofiled : DiagGroup<"profile-instr-unprofiled">;
+def MisExpect : DiagGroup<"misexpect">;
 
 // AddressSanitizer frontend instrumentation remarks.
 def SanitizeAddressRemarks : DiagGroup<"sanitize-address">;

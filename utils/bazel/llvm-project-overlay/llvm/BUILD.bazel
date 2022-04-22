@@ -645,6 +645,7 @@ cc_library(
         "lib/Bitstream/Reader/*.h",
     ]),
     hdrs = [
+        "include/llvm/Bitstream/BitCodeEnums.h",
         "include/llvm/Bitstream/BitCodes.h",
         "include/llvm/Bitstream/BitstreamReader.h",
     ],
@@ -660,6 +661,7 @@ cc_library(
         "lib/Bitstream/Writer/*.h",
     ]),
     hdrs = [
+        "include/llvm/Bitstream/BitCodeEnums.h",
         "include/llvm/Bitstream/BitCodes.h",
         "include/llvm/Bitstream/BitstreamWriter.h",
     ],
@@ -1623,6 +1625,7 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-exegesis", "lib/Target/Mips/MipsGenExegesis.inc"),
             ("-gen-fast-isel", "lib/Target/Mips/MipsGenFastISel.inc"),
             ("-gen-global-isel", "lib/Target/Mips/MipsGenGlobalISel.inc"),
+            ("-gen-global-isel-combiner -combiners=MipsPostLegalizerCombinerHelper", "lib/Target/Mips/MipsGenPostLegalizeGICombiner.inc"),
             ("-gen-instr-info", "lib/Target/Mips/MipsGenInstrInfo.inc"),
             ("-gen-pseudo-lowering", "lib/Target/Mips/MipsGenMCPseudoLowering.inc"),
             ("-gen-register-bank", "lib/Target/Mips/MipsGenRegisterBank.inc"),

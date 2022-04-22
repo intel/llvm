@@ -333,7 +333,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSIOptimizeExecMaskingPreRAPass(*PR);
   initializeSIOptimizeVGPRLiveRangePass(*PR);
   initializeSILoadStoreOptimizerPass(*PR);
-  initializeAMDGPUFixFunctionBitcastsPass(*PR);
   initializeAMDGPUCtorDtorLoweringPass(*PR);
   initializeAMDGPUAlwaysInlinePass(*PR);
   initializeAMDGPUAttributorPass(*PR);
@@ -959,10 +958,6 @@ void AMDGPUPassConfig::addIRPasses() {
   addPass(createAMDGPUPrintfRuntimeBinding());
   addPass(createAMDGPUCtorDtorLoweringPass());
 
-  // This must occur before inlining, as the inliner will not look through
-  // bitcast calls.
-  addPass(createAMDGPUFixFunctionBitcastsPass());
-
   // A call to propagate attributes pass in the backend in case opt was not run.
   addPass(createAMDGPUPropagateAttributesEarlyPass(&TM));
 
@@ -1406,7 +1401,7 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
     const yaml::MachineFunctionInfo &MFI_, PerFunctionMIParsingState &PFS,
     SMDiagnostic &Error, SMRange &SourceRange) const {
   const yaml::SIMachineFunctionInfo &YamlMFI =
-      reinterpret_cast<const yaml::SIMachineFunctionInfo &>(MFI_);
+      static_cast<const yaml::SIMachineFunctionInfo &>(MFI_);
   MachineFunction &MF = PFS.MF;
   SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
 
@@ -1429,6 +1424,14 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
 
     return false;
   };
+
+  auto parseOptionalRegister = [&](const yaml::StringValue &RegName,
+                                   Register &RegVal) {
+    return !RegName.Value.empty() && parseRegister(RegName, RegVal);
+  };
+
+  if (parseOptionalRegister(YamlMFI.VGPRForAGPRCopy, MFI->VGPRForAGPRCopy))
+    return true;
 
   auto diagnoseRegisterClass = [&](const yaml::StringValue &RegName) {
     // Create a diagnostic for a the register string literal.
@@ -1460,6 +1463,14 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   if (MFI->StackPtrOffsetReg != AMDGPU::SP_REG &&
       !AMDGPU::SGPR_32RegClass.contains(MFI->StackPtrOffsetReg)) {
     return diagnoseRegisterClass(YamlMFI.StackPtrOffsetReg);
+  }
+
+  for (const auto &YamlReg : YamlMFI.WWMReservedRegs) {
+    Register ParsedReg;
+    if (parseRegister(YamlReg, ParsedReg))
+      return true;
+
+    MFI->reserveWWMRegister(ParsedReg);
   }
 
   auto parseAndCheckArgument = [&](const Optional<yaml::SIArgument> &A,

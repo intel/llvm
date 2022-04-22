@@ -244,7 +244,7 @@ endfunction()
 # specific architecture.  When cross-compiling, this is controled via
 # COMPILER_RT_TEST_COMPILER and COMPILER_RT_TEST_COMPILER_CFLAGS.
 macro(get_test_cc_for_arch arch cc_out cflags_out)
-  if(ANDROID OR ${arch} MATCHES "arm|aarch64|riscv32|riscv64")
+  if(ANDROID OR (NOT APPLE AND ${arch} MATCHES "arm|aarch64|riscv32|riscv64"))
     # This is only true if we are cross-compiling.
     # Build all tests with host compiler and use host tools.
     set(${cc_out} ${COMPILER_RT_TEST_COMPILER})
@@ -612,7 +612,6 @@ if(APPLE)
     SANITIZER_COMMON_SUPPORTED_ARCH)
 
 else()
-  filter_available_targets(CRT_SUPPORTED_ARCH ${ALL_CRT_SUPPORTED_ARCH})
   # Architectures supported by compiler-rt libraries.
   filter_available_targets(SANITIZER_COMMON_SUPPORTED_ARCH
     ${ALL_SANITIZER_COMMON_SUPPORTED_ARCH})
@@ -708,12 +707,6 @@ else()
 endif()
 
 # TODO: Add builtins support.
-
-if (CRT_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux" AND NOT LLVM_USE_SANITIZER)
-  set(COMPILER_RT_HAS_CRT TRUE)
-else()
-  set(COMPILER_RT_HAS_CRT FALSE)
-endif()
 
 if (COMPILER_RT_HAS_SANITIZER_COMMON AND DFSAN_SUPPORTED_ARCH AND
     OS_NAME MATCHES "Linux")

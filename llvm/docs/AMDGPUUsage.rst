@@ -947,6 +947,9 @@ The AMDGPU backend supports the following LLVM IR attributes.
                                              version implementation. If this attribute is absent, then the
                                              amdgpu-no-implicitarg-ptr is also removed.
 
+     "amdgpu-no-multigrid-sync-arg"          Similar to amdgpu-no-implicitarg-ptr, except specific to the implicit
+                                             kernel argument that holds the multigrid synchronization pointer. If this
+                                             attribute is absent, then the amdgpu-no-implicitarg-ptr is also removed.
      ======================================= ==========================================================
 
 .. _amdgpu-elf-code-object:
@@ -2823,12 +2826,16 @@ non-AMD key names should be prefixed by "*vendor-name*.".
                                                 "HiddenPrintfBuffer"
                                                   A global address space pointer
                                                   to the runtime printf buffer
-                                                  is passed in kernarg.
+                                                  is passed in kernarg. Mutually
+                                                  exclusive with
+                                                  "HiddenHostcallBuffer".
 
                                                 "HiddenHostcallBuffer"
                                                   A global address space pointer
                                                   to the runtime hostcall buffer
-                                                  is passed in kernarg.
+                                                  is passed in kernarg. Mutually
+                                                  exclusive with
+                                                  "HiddenPrintfBuffer".
 
                                                 "HiddenDefaultQueue"
                                                   A global address space pointer
@@ -3348,12 +3355,18 @@ same *vendor-name*.
                                                      "hidden_printf_buffer"
                                                        A global address space pointer
                                                        to the runtime printf buffer
-                                                       is passed in kernarg.
+                                                       is passed in kernarg. Mutually
+                                                       exclusive with
+                                                       "hidden_hostcall_buffer"
+                                                       before Code Object V5.
 
                                                      "hidden_hostcall_buffer"
                                                        A global address space pointer
                                                        to the runtime hostcall buffer
-                                                       is passed in kernarg.
+                                                       is passed in kernarg. Mutually
+                                                       exclusive with
+                                                       "hidden_printf_buffer"
+                                                       before Code Object V5.
 
                                                      "hidden_default_queue"
                                                        A global address space pointer

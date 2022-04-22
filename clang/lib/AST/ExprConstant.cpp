@@ -8423,7 +8423,8 @@ bool LValueExprEvaluator::VisitMemberExpr(const MemberExpr *E) {
 
 bool LValueExprEvaluator::VisitArraySubscriptExpr(const ArraySubscriptExpr *E) {
   // FIXME: Deal with vectors as array subscript bases.
-  if (E->getBase()->getType()->isVectorType())
+  if (E->getBase()->getType()->isVectorType() ||
+      E->getBase()->getType()->isVLSTBuiltinType())
     return Error(E);
 
   APSInt Index;
@@ -8856,10 +8857,11 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
                                           E->getType()->getPointeeType());
       // 1. We'll allow it in std::allocator::allocate, and anything which that
       //    calls.
-      // 2. We'll allow it in the body of std::source_location:current.  This is
-      //    necessary for libstdc++'s <source_location>, which gave its
-      //    parameter the type void*, and cast from that back to `const __impl*`
-      //    in the body. (Fixed for new versions in gcc.gnu.org/PR104602).
+      // 2. HACK 2022-03-28: Work around an issue with libstdc++'s
+      //    <source_location> header. Fixed in GCC 12 and later (2022-04-??).
+      //    We'll allow it in the body of std::source_location::current.  GCC's
+      //    implementation had a parameter of type `void*`, and casts from
+      //    that back to `const __impl*` in its body.
       if (VoidPtrCastMaybeOK &&
           (Info.getStdAllocatorCaller("allocate") ||
            IsDeclSourceLocationCurrent(Info.CurrentCall->Callee))) {
@@ -9995,6 +9997,17 @@ bool RecordExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
     // the initializer list.
     ImplicitValueInitExpr VIE(HaveInit ? Info.Ctx.IntTy : Field->getType());
     const Expr *Init = HaveInit ? E->getInit(ElementNo++) : &VIE;
+
+    if (Field->getType()->isIncompleteArrayType()) {
+      if (auto *CAT = Info.Ctx.getAsConstantArrayType(Init->getType())) {
+        if (!CAT->getSize().isZero()) {
+          // Bail out for now. This might sort of "work", but the rest of the
+          // code isn't really prepared to handle it.
+          Info.FFDiag(Init, diag::note_constexpr_unsupported_flexible_array);
+          return false;
+        }
+      }
+    }
 
     // Temporarily override This, in case there's a CXXDefaultInitExpr in here.
     ThisOverrideRAII ThisOverride(*Info.CurrentCall, &This,
