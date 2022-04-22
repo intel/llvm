@@ -152,7 +152,6 @@ variables in production code.</span>
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
 | `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 the Level Zero plugin would create all events having device-scope and add proxy host-visible event at the end of each command-list submission. The default is 2, meaning only the last event in a batch is host-visible. |
 | `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS` | Integer | When set to a positive value enables use of Level Zero immediate commandlists, which means there is no batching and all commands are immediately submitted for execution. Default is 0. Note: When immediate commandlist usage is enabled it is necessary to also set SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS to either 0 or 1.  |
-| `SYCL_PI_LEVEL_ZERO_ENABLE_TRACING` | Any(\*) | Enable XPTI-based tracing in L0 plugin |
 
 ## Debugging variables for CUDA Plugin
 

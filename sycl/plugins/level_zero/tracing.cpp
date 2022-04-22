@@ -1,4 +1,4 @@
-//===-------------- tracing.cpp - L0 Host API Tracing ----------------------==//
+//===-------------- tracing.cpp - Level-Zero Host API Tracing --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,8 +14,8 @@
 
 #include <iostream>
 
-constexpr auto L0_CALL_STREAM_NAME = "sycl.experimental.level_zero.call";
-constexpr auto L0_DEBUG_STREAM_NAME = "sycl.experimental.level_zero.debug";
+constexpr auto ZE_CALL_STREAM_NAME = "sycl.experimental.level_zero.call";
+constexpr auto ZE_DEBUG_STREAM_NAME = "sycl.experimental.level_zero.debug";
 
 thread_local uint64_t CallCorrelationID = 0;
 thread_local uint64_t DebugCorrelationID = 0;
@@ -35,25 +35,25 @@ enum class ZEApiKind {
 #undef _ZE_API
 };
 
-void enableL0Tracing() {
+void enableZeTracing() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
 
-  xptiRegisterStream(L0_CALL_STREAM_NAME);
-  xptiInitialize(L0_CALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
-  xptiRegisterStream(L0_DEBUG_STREAM_NAME);
-  xptiInitialize(L0_DEBUG_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  xptiRegisterStream(ZE_CALL_STREAM_NAME);
+  xptiInitialize(ZE_CALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  xptiRegisterStream(ZE_DEBUG_STREAM_NAME);
+  xptiInitialize(ZE_DEBUG_STREAM_NAME, GMajVer, GMinVer, GVerStr);
 
   uint64_t Dummy;
-  xpti::payload_t L0Payload("Level Zero Plugin Layer");
+  xpti::payload_t ZePayload("Level Zero Plugin Layer");
   GCallEvent =
-      xptiMakeEvent("L0 Plugin Layer", &L0Payload, xpti::trace_algorithm_event,
+      xptiMakeEvent("Level Zero Plugin Layer", &ZePayload, xpti::trace_algorithm_event,
                     xpti_at::active, &Dummy);
 
-  xpti::payload_t L0DebugPayload("L0 Plugin Debug Layer");
+  xpti::payload_t ZeDebugPayload("Level Zero Plugin Debug Layer");
   GDebugEvent =
-      xptiMakeEvent("L0 Plugin Debug Layer", &L0DebugPayload,
+      xptiMakeEvent("Level Zero Plugin Debug Layer", &ZeDebugPayload,
                     xpti::trace_algorithm_event, xpti_at::active, &Dummy);
 
   ze_result_t Status = zeInit(0);
@@ -70,7 +70,7 @@ void enableL0Tracing() {
   Status = zelTracerCreate(&TracerDesc, &Tracer);
 
   if (Status != ZE_RESULT_SUCCESS || Tracer == nullptr) {
-    std::cerr << "[WARNING] Failed to create L0 tracer: " << Status << "\n";
+    std::cerr << "[WARNING] Failed to create Level Zero tracer: " << Status << "\n";
     return;
   }
 
@@ -80,8 +80,8 @@ void enableL0Tracing() {
 #define _ZE_API(call, domain, cb, params_type)                                 \
   Prologue.domain.cb = [](params_type *Params, ze_result_t, void *, void **) { \
     if (xptiTraceEnabled()) {                                                  \
-      uint8_t CallStreamID = xptiRegisterStream(L0_CALL_STREAM_NAME);          \
-      uint8_t DebugStreamID = xptiRegisterStream(L0_DEBUG_STREAM_NAME);        \
+      uint8_t CallStreamID = xptiRegisterStream(ZE_CALL_STREAM_NAME);          \
+      uint8_t DebugStreamID = xptiRegisterStream(ZE_DEBUG_STREAM_NAME);        \
       CallCorrelationID = xptiGetUniqueId();                                   \
       DebugCorrelationID = xptiGetUniqueId();                                  \
       const char *FuncName = #call;                                            \
@@ -100,8 +100,8 @@ void enableL0Tracing() {
   Epilogue.domain.cb = [](params_type *Params, ze_result_t Result, void *,     \
                           void **) {                                           \
     if (xptiTraceEnabled()) {                                                  \
-      uint8_t CallStreamID = xptiRegisterStream(L0_CALL_STREAM_NAME);          \
-      uint8_t DebugStreamID = xptiRegisterStream(L0_DEBUG_STREAM_NAME);        \
+      uint8_t CallStreamID = xptiRegisterStream(ZE_CALL_STREAM_NAME);          \
+      uint8_t DebugStreamID = xptiRegisterStream(ZE_DEBUG_STREAM_NAME);        \
       const char *FuncName = #call;                                            \
       xptiNotifySubscribers(CallStreamID,                                      \
                             (uint16_t)xpti::trace_point_type_t::function_end,  \
@@ -122,24 +122,29 @@ void enableL0Tracing() {
 
   Status = zelTracerSetPrologues(Tracer, &Prologue);
   if (Status != ZE_RESULT_SUCCESS) {
-    std::cerr << "Failed to enable L0 tracing\n";
+    std::cerr << "Failed to enable Level Zero tracing\n";
     std::terminate();
   }
   Status = zelTracerSetEpilogues(Tracer, &Epilogue);
   if (Status != ZE_RESULT_SUCCESS) {
-    std::cerr << "Failed to enable L0 tracing\n";
+    std::cerr << "Failed to enable Level Zero tracing\n";
     std::terminate();
   }
 
   Status = zelTracerSetEnabled(Tracer, true);
   if (Status != ZE_RESULT_SUCCESS) {
-    std::cerr << "Failed to enable L0 tracing\n";
+    std::cerr << "Failed to enable Level Zero tracing\n";
     std::terminate();
   }
-#endif
+#endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
-void disableL0Tracing() {
-  xptiFinalize(L0_CALL_STREAM_NAME);
-  xptiFinalize(L0_DEBUG_STREAM_NAME);
+void disableZeTracing() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
+  xptiFinalize(ZE_CALL_STREAM_NAME);
+  xptiFinalize(ZE_DEBUG_STREAM_NAME);
+#endif // XPTI_ENABLE_INSTRUMENTATION
 }

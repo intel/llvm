@@ -56,7 +56,6 @@ int main(int argc, char **argv, char *env[]) {
   };
   const auto EnableZETrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_ZE_ENABLE=1");
-    NewEnv.push_back("SYCL_PI_LEVEL_ZERO_ENABLE_TRACING=1");
     NewEnv.push_back("ZE_ENABLE_TRACING_LAYER=1");
   };
 
