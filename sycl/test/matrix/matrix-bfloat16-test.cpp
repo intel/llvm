@@ -6,12 +6,12 @@
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
 
-#define TILE_SZ 16
-#define TM (TILE_SZ - 1)
-#define TN (TILE_SZ - 1)
-#define TK (2 * TILE_SZ - 2)
+static constexpr size_t TILE_SZ = 16;
+static constexpr size_t TM = TILE_SZ - 1;
+static constexpr size_t TN = TILE_SZ - 1;
+static constexpr size_t TK = 2 * TILE_SZ - 2;
 
-#define SG_SZ 16
+static constexpr size_t SG_SZ = 16;
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
 public:
