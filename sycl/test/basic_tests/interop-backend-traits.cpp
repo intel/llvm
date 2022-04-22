@@ -51,7 +51,7 @@ int main() {
 
 // CUDA does not have a native type for platforms
 // HIP also should follow the same behavior - need confirmation
-#if (!defined(USE_CUDA) || !defined(USE_HIP))
+#if !(defined(USE_CUDA) || defined(USE_HIP))
   static_assert(
       std::is_same_v<sycl::backend_traits<Backend>::input_type<sycl::platform>,
                      sycl::detail::interop<Backend, sycl::platform>::type>);

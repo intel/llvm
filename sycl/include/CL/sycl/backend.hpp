@@ -245,8 +245,7 @@ typename std::enable_if<
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator>
 typename std::enable_if<detail::InteropFeatureSupportMap<Backend>::MakeBuffer ==
-                                true &&
-                            Backend != backend::ext_oneapi_level_zero,
+                            true,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(const typename backend_traits<Backend>::template input_type<
                 buffer<T, Dimensions, AllocatorT>> &BackendObject,
