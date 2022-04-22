@@ -80,10 +80,10 @@ int main() {
           // CHECK: tail call i32 @llvm.nvvm.f2tf32.rna(float {{.*}}
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
-            sub_a.data[i] = float_to_tf32(sub_a.data[i]);
+            sub_a.data[i] = round_to_tf32(sub_a.data[i]);
 
           for (auto i = 0; i < 4; ++i)
-            sub_b.data[i] = float_to_tf32(sub_b.data[i]);
+            sub_b.data[i] = round_to_tf32(sub_b.data[i]);
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k8.mma.row.row.tf32(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 %{{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
@@ -125,10 +125,10 @@ int main() {
           // CHECK: tail call i32 @llvm.nvvm.f2tf32.rna(float {{.*}}
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
-            sub_a.data[i] = float_to_tf32(sub_a.data[i]);
+            sub_a.data[i] = round_to_tf32(sub_a.data[i]);
 
           for (auto i = 0; i < 4; ++i)
-            sub_b.data[i] = float_to_tf32(sub_b.data[i]);
+            sub_b.data[i] = round_to_tf32(sub_b.data[i]);
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k8.mma.col.col.tf32(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
