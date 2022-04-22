@@ -22,8 +22,9 @@ void *loadOsLibrary(const std::string &PluginPath) {
   // RTLD_DEEPBIND option when there are multiple plugins.
   void *so = dlopen(PluginPath.c_str(), RTLD_NOW);
   if (!so && trace(TraceLevel::PI_TRACE_ALL)) {
+    char *Error = dlerror();
     std::cerr << "SYCL_PI_TRACE[-1]: dlopen(" << PluginPath << ") failed with <"
-              << dlerror() << ">" << std::endl;
+              << (Error ? Error : "unknown error") << ">" << std::endl;
   }
   return so;
 }

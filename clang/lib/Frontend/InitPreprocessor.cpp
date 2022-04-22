@@ -371,6 +371,46 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
                                                const LangOptions &LangOpts,
                                                const FrontendOptions &FEOpts,
                                                MacroBuilder &Builder) {
+  if (LangOpts.HLSL) {
+    Builder.defineMacro("__hlsl_clang");
+    // HLSL Version
+    Builder.defineMacro("__HLSL_VERSION",
+                        Twine((unsigned)LangOpts.getHLSLVersion()));
+
+    // Shader target information
+    // "enums" for shader stages
+    Builder.defineMacro("__SHADER_STAGE_VERTEX",
+                        Twine((uint32_t)ShaderStage::Vertex));
+    Builder.defineMacro("__SHADER_STAGE_PIXEL",
+                        Twine((uint32_t)ShaderStage::Pixel));
+    Builder.defineMacro("__SHADER_STAGE_GEOMETRY",
+                        Twine((uint32_t)ShaderStage::Geometry));
+    Builder.defineMacro("__SHADER_STAGE_HULL",
+                        Twine((uint32_t)ShaderStage::Hull));
+    Builder.defineMacro("__SHADER_STAGE_DOMAIN",
+                        Twine((uint32_t)ShaderStage::Domain));
+    Builder.defineMacro("__SHADER_STAGE_COMPUTE",
+                        Twine((uint32_t)ShaderStage::Compute));
+    Builder.defineMacro("__SHADER_STAGE_AMPLIFICATION",
+                        Twine((uint32_t)ShaderStage::Amplification));
+    Builder.defineMacro("__SHADER_STAGE_MESH",
+                        Twine((uint32_t)ShaderStage::Mesh));
+    Builder.defineMacro("__SHADER_STAGE_LIBRARY",
+                        Twine((uint32_t)ShaderStage::Library));
+    // The current shader stage itself
+    uint32_t StageInteger = (uint32_t)TI.getTriple().getEnvironment() -
+                            (uint32_t)llvm::Triple::Pixel;
+
+    Builder.defineMacro("__SHADER_TARGET_STAGE", Twine(StageInteger));
+    // Add target versions
+    if (TI.getTriple().getOS() == llvm::Triple::ShaderModel) {
+      VersionTuple Version = TI.getTriple().getOSVersion();
+      Builder.defineMacro("__SHADER_TARGET_MAJOR", Twine(Version.getMajor()));
+      unsigned Minor = Version.getMinor() ? *Version.getMinor() : 0;
+      Builder.defineMacro("__SHADER_TARGET_MINOR", Twine(Minor));
+    }
+    return;
+  }
   // C++ [cpp.predefined]p1:
   //   The following macro names shall be defined by the implementation:
 
@@ -573,10 +613,11 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_unicode_literals", "200710L");
     Builder.defineMacro("__cpp_user_defined_literals", "200809L");
     Builder.defineMacro("__cpp_lambdas", "200907L");
-    Builder.defineMacro("__cpp_constexpr",
-                        LangOpts.CPlusPlus20 ? "201907L" :
-                        LangOpts.CPlusPlus17 ? "201603L" :
-                        LangOpts.CPlusPlus14 ? "201304L" : "200704");
+    Builder.defineMacro("__cpp_constexpr", LangOpts.CPlusPlus2b   ? "202110L"
+                                           : LangOpts.CPlusPlus20 ? "201907L"
+                                           : LangOpts.CPlusPlus17 ? "201603L"
+                                           : LangOpts.CPlusPlus14 ? "201304L"
+                                                                  : "200704");
     Builder.defineMacro("__cpp_constexpr_in_decltype", "201711L");
     Builder.defineMacro("__cpp_range_based_for",
                         LangOpts.CPlusPlus17 ? "201603L" : "200907");

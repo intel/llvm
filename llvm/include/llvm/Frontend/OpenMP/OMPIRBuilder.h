@@ -403,13 +403,16 @@ public:
   ///                     the loop.
   /// \param Chunk    The size of loop chunk considered as a unit when
   ///                 scheduling. If \p nullptr, defaults to 1.
+  /// \param Ordered  Indicates whether the ordered clause is specified without
+  ///                 parameter.
   ///
   /// \returns Point where to insert code after the workshare construct.
   InsertPointTy applyDynamicWorkshareLoop(DebugLoc DL, CanonicalLoopInfo *CLI,
                                           InsertPointTy AllocaIP,
                                           omp::OMPScheduleType SchedType,
                                           bool NeedsBarrier,
-                                          Value *Chunk = nullptr);
+                                          Value *Chunk = nullptr,
+                                          bool Ordered = false);
 
   /// Modifies the canonical loop to be a workshare loop.
   ///
@@ -867,12 +870,14 @@ public:
   /// \param Loc The source location description.
   /// \param BodyGenCB Callback that will generate the region code.
   /// \param FiniCB Callback to finalize variable copies.
+  /// \param IsNowait If false, a barrier is emitted.
   /// \param DidIt Local variable used as a flag to indicate 'single' thread
   ///
   /// \returns The insertion position *after* the single call.
   InsertPointTy createSingle(const LocationDescription &Loc,
                              BodyGenCallbackTy BodyGenCB,
-                             FinalizeCallbackTy FiniCB, llvm::Value *DidIt);
+                             FinalizeCallbackTy FiniCB, bool IsNowait,
+                             llvm::Value *DidIt);
 
   /// Generator for '#omp master'
   ///

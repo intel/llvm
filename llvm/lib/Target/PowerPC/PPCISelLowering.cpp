@@ -1335,11 +1335,13 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
     setBooleanVectorContents(ZeroOrNegativeOneBooleanContent);
   }
 
+  setLibcallName(RTLIB::MULO_I128, nullptr);
   if (!isPPC64) {
     // These libcalls are not available in 32-bit.
     setLibcallName(RTLIB::SHL_I128, nullptr);
     setLibcallName(RTLIB::SRL_I128, nullptr);
     setLibcallName(RTLIB::SRA_I128, nullptr);
+    setLibcallName(RTLIB::MUL_I128, nullptr);
     setLibcallName(RTLIB::MULO_I64, nullptr);
   }
 
@@ -1349,43 +1351,26 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
   setStackPointerRegisterToSaveRestore(isPPC64 ? PPC::X1 : PPC::R1);
 
   // We have target-specific dag combine patterns for the following nodes:
-  setTargetDAGCombine(ISD::ADD);
-  setTargetDAGCombine(ISD::SHL);
-  setTargetDAGCombine(ISD::SRA);
-  setTargetDAGCombine(ISD::SRL);
-  setTargetDAGCombine(ISD::MUL);
-  setTargetDAGCombine(ISD::FMA);
-  setTargetDAGCombine(ISD::SINT_TO_FP);
-  setTargetDAGCombine(ISD::BUILD_VECTOR);
+  setTargetDAGCombine({ISD::ADD, ISD::SHL, ISD::SRA, ISD::SRL, ISD::MUL,
+                       ISD::FMA, ISD::SINT_TO_FP, ISD::BUILD_VECTOR});
   if (Subtarget.hasFPCVT())
     setTargetDAGCombine(ISD::UINT_TO_FP);
-  setTargetDAGCombine(ISD::LOAD);
-  setTargetDAGCombine(ISD::STORE);
-  setTargetDAGCombine(ISD::BR_CC);
+  setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::BR_CC});
   if (Subtarget.useCRBits())
     setTargetDAGCombine(ISD::BRCOND);
-  setTargetDAGCombine(ISD::BSWAP);
-  setTargetDAGCombine(ISD::INTRINSIC_WO_CHAIN);
-  setTargetDAGCombine(ISD::INTRINSIC_W_CHAIN);
-  setTargetDAGCombine(ISD::INTRINSIC_VOID);
+  setTargetDAGCombine({ISD::BSWAP, ISD::INTRINSIC_WO_CHAIN,
+                       ISD::INTRINSIC_W_CHAIN, ISD::INTRINSIC_VOID});
 
-  setTargetDAGCombine(ISD::SIGN_EXTEND);
-  setTargetDAGCombine(ISD::ZERO_EXTEND);
-  setTargetDAGCombine(ISD::ANY_EXTEND);
+  setTargetDAGCombine({ISD::SIGN_EXTEND, ISD::ZERO_EXTEND, ISD::ANY_EXTEND});
 
-  setTargetDAGCombine(ISD::TRUNCATE);
-  setTargetDAGCombine(ISD::VECTOR_SHUFFLE);
-
+  setTargetDAGCombine({ISD::TRUNCATE, ISD::VECTOR_SHUFFLE});
 
   if (Subtarget.useCRBits()) {
-    setTargetDAGCombine(ISD::TRUNCATE);
-    setTargetDAGCombine(ISD::SETCC);
-    setTargetDAGCombine(ISD::SELECT_CC);
+    setTargetDAGCombine({ISD::TRUNCATE, ISD::SETCC, ISD::SELECT_CC});
   }
 
   if (Subtarget.hasP9Altivec()) {
-    setTargetDAGCombine(ISD::ABS);
-    setTargetDAGCombine(ISD::VSELECT);
+    setTargetDAGCombine({ISD::ABS, ISD::VSELECT});
   }
 
   setLibcallName(RTLIB::LOG_F128, "logf128");
@@ -4446,8 +4431,11 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
           SDValue Off = DAG.getConstant(j, dl, PtrVT);
           Addr = DAG.getNode(ISD::ADD, dl, Off.getValueType(), Addr, Off);
         }
-        SDValue Store = DAG.getStore(Val.getValue(1), dl, Val, Addr,
-                                     MachinePointerInfo(&*FuncArg, j));
+        unsigned StoreSizeInBits = std::min(PtrByteSize, (ObjSize - j)) * 8;
+        EVT ObjType = EVT::getIntegerVT(*DAG.getContext(), StoreSizeInBits);
+        SDValue Store =
+            DAG.getTruncStore(Val.getValue(1), dl, Val, Addr,
+                              MachinePointerInfo(&*FuncArg, j), ObjType);
         MemOps.push_back(Store);
         ++GPR_idx;
       }
@@ -6284,8 +6272,11 @@ SDValue PPCTargetLowering::LowerCall_64SVR4(
         SDValue Const = DAG.getConstant(j, dl, PtrOff.getValueType());
         SDValue AddArg = DAG.getNode(ISD::ADD, dl, PtrVT, Arg, Const);
         if (GPR_idx != NumGPRs) {
-          SDValue Load =
-              DAG.getLoad(PtrVT, dl, Chain, AddArg, MachinePointerInfo());
+          unsigned LoadSizeInBits = std::min(PtrByteSize, (Size - j)) * 8;
+          EVT ObjType = EVT::getIntegerVT(*DAG.getContext(), LoadSizeInBits);
+          SDValue Load = DAG.getExtLoad(ISD::EXTLOAD, dl, PtrVT, Chain, AddArg,
+                                        MachinePointerInfo(), ObjType);
+
           MemOpChains.push_back(Load.getValue(1));
           RegsToPass.push_back(std::make_pair(GPR[GPR_idx++], Load));
           ArgOffset += PtrByteSize;

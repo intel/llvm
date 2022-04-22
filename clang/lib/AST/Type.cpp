@@ -722,8 +722,7 @@ bool Type::isObjCClassOrClassKindOfType() const {
 
 ObjCTypeParamType::ObjCTypeParamType(const ObjCTypeParamDecl *D, QualType can,
                                      ArrayRef<ObjCProtocolDecl *> protocols)
-    : Type(ObjCTypeParam, can,
-           can->getDependence() & ~TypeDependence::UnexpandedPack),
+    : Type(ObjCTypeParam, can, toSemanticDependence(can->getDependence())),
       OTPDecl(const_cast<ObjCTypeParamDecl *>(D)) {
   initialize(protocols);
 }
@@ -1899,8 +1898,14 @@ bool Type::hasAutoForTrailingReturnType() const {
 bool Type::hasIntegerRepresentation() const {
   if (const auto *VT = dyn_cast<VectorType>(CanonicalType))
     return VT->getElementType()->isIntegerType();
-  else
-    return isIntegerType();
+  if (CanonicalType->isVLSTBuiltinType()) {
+    const auto *VT = cast<BuiltinType>(CanonicalType);
+    return VT->getKind() == BuiltinType::SveBool ||
+           (VT->getKind() >= BuiltinType::SveInt8 &&
+            VT->getKind() <= BuiltinType::SveUint64);
+  }
+
+  return isIntegerType();
 }
 
 /// Determine whether this type is an integral type.
@@ -2498,25 +2503,6 @@ bool QualType::isTriviallyCopyableType(const ASTContext &Context) const {
 
   // No other types can match.
   return false;
-}
-
-bool QualType::isTriviallyRelocatableType(const ASTContext &Context) const {
-  QualType BaseElementType = Context.getBaseElementType(*this);
-
-  if (BaseElementType->isIncompleteType()) {
-    return false;
-  } else if (const auto *RD = BaseElementType->getAsRecordDecl()) {
-    return RD->canPassInRegisters();
-  } else {
-    switch (isNonTrivialToPrimitiveDestructiveMove()) {
-    case PCK_Trivial:
-      return !isDestructedType();
-    case PCK_ARCStrong:
-      return true;
-    default:
-      return false;
-    }
-  }
 }
 
 bool QualType::isNonWeakInMRRWithObjCWeak(const ASTContext &Context) const {
@@ -3428,7 +3414,7 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
 
 TypedefType::TypedefType(TypeClass tc, const TypedefNameDecl *D,
                          QualType underlying, QualType can)
-    : Type(tc, can, underlying->getDependence()),
+    : Type(tc, can, toSemanticDependence(underlying->getDependence())),
       Decl(const_cast<TypedefNameDecl *>(D)) {
   assert(!isa<TypedefType>(can) && "Invalid canonical type");
 }
@@ -3439,7 +3425,7 @@ QualType TypedefType::desugar() const {
 
 UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
                      QualType Canon)
-    : Type(Using, Canon, Underlying->getDependence()),
+    : Type(Using, Canon, toSemanticDependence(Underlying->getDependence())),
       Found(const_cast<UsingShadowDecl *>(Found)) {
   assert(Underlying == getUnderlyingType());
 }
@@ -3695,8 +3681,7 @@ TemplateSpecializationType::TemplateSpecializationType(
     : Type(TemplateSpecialization, Canon.isNull() ? QualType(this, 0) : Canon,
            (Canon.isNull()
                 ? TypeDependence::DependentInstantiation
-                : Canon->getDependence() & ~(TypeDependence::VariablyModified |
-                                             TypeDependence::UnexpandedPack)) |
+                : toSemanticDependence(Canon->getDependence())) |
                (toTypeDependence(T.getDependence()) &
                 TypeDependence::UnexpandedPack)),
       Template(T) {

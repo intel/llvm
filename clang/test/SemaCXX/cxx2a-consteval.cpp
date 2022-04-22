@@ -359,22 +359,34 @@ void test() {
   // expected-note@-1 {{is not a constant expression}}
   { A k = to_lvalue_ref(A()); } // expected-error {{is not a constant expression}}
   // expected-note@-1 {{is not a constant expression}} expected-note@-1 {{temporary created here}}
-  { A k = to_lvalue_ref(A().ret_a()); } // expected-error {{is not a constant expression}}
-  // expected-note@-1 {{is not a constant expression}} expected-note@-1 {{temporary created here}}
+  { A k = to_lvalue_ref(A().ret_a()); }
+  // expected-error@-1 {{'alloc::A::ret_a' is not a constant expression}}
+  // expected-note@-2 {{heap-allocated object is not a constant expression}}
+  // expected-error@-3 {{'alloc::to_lvalue_ref' is not a constant expression}}
+  // expected-note@-4 {{reference to temporary is not a constant expression}}
+  // expected-note@-5 {{temporary created here}}
   { int k = A().ret_a().ret_i(); }
+  // expected-error@-1 {{'alloc::A::ret_a' is not a constant expression}}
+  // expected-note@-2 {{heap-allocated object is not a constant expression}}
   { int k = by_value_a(A()); }
   { int k = const_a_ref(A()); }
   { int k = const_a_ref(a); }
   { int k = rvalue_ref(A()); }
   { int k = rvalue_ref(std::move(a)); }
   { int k = const_a_ref(A().ret_a()); }
+  // expected-error@-1 {{'alloc::A::ret_a' is not a constant expression}}
+  // expected-note@-2 {{is not a constant expression}}
   { int k = const_a_ref(to_lvalue_ref(A().ret_a())); }
+  // expected-error@-1 {{'alloc::A::ret_a' is not a constant expression}}
+  // expected-note@-2 {{is not a constant expression}}
   { int k = const_a_ref(to_lvalue_ref(std::move(a))); }
   { int k = by_value_a(A().ret_a()); }
   { int k = by_value_a(to_lvalue_ref(static_cast<const A&&>(a))); }
   { int k = (A().ret_a(), A().ret_i()); }// expected-error {{is not a constant expression}}
   // expected-note@-1 {{is not a constant expression}}
   { int k = (const_a_ref(A().ret_a()), A().ret_i()); }
+  // expected-error@-1 {{'alloc::A::ret_a' is not a constant expression}}
+  // expected-note@-2 {{is not a constant expression}}
 }
 
 }
@@ -709,3 +721,27 @@ T<int> t; // expected-error {{call to consteval function 'NamespaceScopeConsteva
              expected-note {{subobject of type 'int' is not initialized}}
 
 } // namespace NamespaceScopeConsteval
+
+namespace Issue54578 {
+// We expect the user-defined literal to be resovled entirely at compile time
+// despite being instantiated through a template.
+inline consteval unsigned char operator""_UC(const unsigned long long n) {
+  return static_cast<unsigned char>(n);
+}
+
+inline constexpr char f1(const auto octet) {
+  return 4_UC;
+}
+
+template <typename Ty>
+inline constexpr char f2(const Ty octet) {
+  return 4_UC;
+}
+
+void test() {
+  static_assert(f1('a') == 4);
+  static_assert(f2('a') == 4);
+  constexpr int c = f1('a') + f2('a');
+  static_assert(c == 8);
+}
+}

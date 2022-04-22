@@ -268,6 +268,13 @@ template <typename T> auto drop_begin(T &&RangeOrContainer, size_t N = 1) {
                     adl_end(RangeOrContainer));
 }
 
+/// Return a range covering \p RangeOrContainer with the last N elements
+/// excluded.
+template <typename T> auto drop_end(T &&RangeOrContainer, size_t N = 1) {
+  return make_range(adl_begin(RangeOrContainer),
+                    std::prev(adl_end(RangeOrContainer), N));
+}
+
 // mapped_iterator - This is a simple iterator adapter that causes a function to
 // be applied whenever operator* is invoked on the iterator.
 
@@ -1648,6 +1655,15 @@ OutputIt move(R &&Range, OutputIt Out) {
 template <typename R, typename E>
 bool is_contained(R &&Range, const E &Element) {
   return std::find(adl_begin(Range), adl_end(Range), Element) != adl_end(Range);
+}
+
+template <typename T>
+constexpr bool is_contained(std::initializer_list<T> Set, T Value) {
+  // TODO: Use std::find when we switch to C++20.
+  for (T V : Set)
+    if (V == Value)
+      return true;
+  return false;
 }
 
 /// Wrapper function around std::is_sorted to check if elements in a range \p R

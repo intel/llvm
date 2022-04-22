@@ -18,7 +18,7 @@ class TestTraceDumpInfo(TraceIntelPTTestCaseBase):
             os.path.join(self.getSourceDir(), "intelpt-trace", "a.out"))
 
         self.expect("thread trace dump info",
-            substrs=["error: invalid process"],
+            substrs=["error: Command requires a current process."],
             error=True)
 
         # Now we check the output when there's a running target without a trace
@@ -38,4 +38,9 @@ class TestTraceDumpInfo(TraceIntelPTTestCaseBase):
             substrs=['''Trace technology: intel-pt
 
 thread #1: tid = 3842849
-  Raw trace size: 4096 bytes'''])
+  Raw trace size: 4 KiB
+  Total number of instructions: 21
+  Total approximate memory usage: 0.98 KiB
+  Average memory usage per instruction: 48.00 bytes
+
+  Number of TSC decoding errors: 0'''])

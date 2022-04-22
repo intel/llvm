@@ -13,9 +13,9 @@ namespace sycl {
 namespace detail {
 namespace device_global_map {
 
-void add(void *DeviceGlobalPtr, const char *UniqueId) {
-  detail::ProgramManager::getInstance().addDeviceGlobalEntry(DeviceGlobalPtr,
-                                                             UniqueId);
+__SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId) {
+  detail::ProgramManager::getInstance().addOrInitDeviceGlobalEntry(
+      DeviceGlobalPtr, UniqueId);
 }
 
 } // namespace device_global_map

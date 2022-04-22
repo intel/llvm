@@ -5069,6 +5069,7 @@ std::string CGObjCCommonMac::GetSectionName(StringRef Section,
   case llvm::Triple::Wasm:
   case llvm::Triple::GOFF:
   case llvm::Triple::XCOFF:
+  case llvm::Triple::DXContainer:
     llvm::report_fatal_error(
         "Objective-C support is unimplemented for object file format");
   }
@@ -7408,7 +7409,7 @@ CGObjCNonFragileABIMac::GetClassGlobal(StringRef Name,
            : llvm::GlobalValue::ExternalLinkage;
 
   llvm::GlobalVariable *GV = CGM.getModule().getGlobalVariable(Name);
-  if (!GV || GV->getType() != ObjCTypes.ClassnfABITy->getPointerTo()) {
+  if (!GV || GV->getValueType() != ObjCTypes.ClassnfABITy) {
     auto *NewGV = new llvm::GlobalVariable(ObjCTypes.ClassnfABITy, false, L,
                                            nullptr, Name);
 

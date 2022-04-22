@@ -410,9 +410,15 @@ private:
   /// Used for uniquing of annotation arguments.
   llvm::DenseMap<unsigned, llvm::Constant *> AnnotationArgs;
 
+  /// Used for uniquing of SYCL annotation arguments. SYCL annotations are
+  /// handled differently than regular annotations so they cannot share map.
+  llvm::DenseMap<unsigned, llvm::Constant *> SYCLAnnotationArgs;
+
   llvm::StringMap<llvm::GlobalVariable *> CFConstantStringMap;
 
   llvm::DenseMap<llvm::Constant *, llvm::GlobalVariable *> ConstantStringMap;
+  llvm::DenseMap<const UnnamedGlobalConstantDecl *, llvm::GlobalVariable *>
+      UnnamedGlobalConstantDeclMap;
   llvm::DenseMap<const Decl*, llvm::Constant *> StaticLocalDeclMap;
   llvm::DenseMap<const Decl*, llvm::GlobalVariable*> StaticLocalDeclGuardMap;
   llvm::DenseMap<const Expr*, llvm::Constant *> MaterializedGlobalTemporaryMap;
@@ -842,7 +848,9 @@ public:
 
   llvm::Function *CreateGlobalInitOrCleanUpFunction(
       llvm::FunctionType *ty, const Twine &name, const CGFunctionInfo &FI,
-      SourceLocation Loc = SourceLocation(), bool TLS = false);
+      SourceLocation Loc = SourceLocation(), bool TLS = false,
+      llvm::GlobalVariable::LinkageTypes Linkage =
+          llvm::GlobalVariable::InternalLinkage);
 
   /// Return the AST address space of the underlying global variable for D, as
   /// determined by its declaration. Normally this is the same as the address
@@ -888,6 +896,10 @@ public:
 
   /// Get the address of a GUID.
   ConstantAddress GetAddrOfMSGuidDecl(const MSGuidDecl *GD);
+
+  /// Get the address of a UnnamedGlobalConstant
+  ConstantAddress
+  GetAddrOfUnnamedGlobalConstantDecl(const UnnamedGlobalConstantDecl *GCD);
 
   /// Get the address of a template parameter object.
   ConstantAddress
@@ -1308,6 +1320,10 @@ public:
   /// annotations are emitted during finalization of the LLVM code.
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
 
+  /// Emit additional args of the annotation.
+  llvm::Constant *
+  EmitSYCLAnnotationArgs(const SYCLAddIRAnnotationsMemberAttr *Attr);
+
   /// Add attributes from add_ir_attributes_global_variable on TND to GV.
   void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
                                  const RecordDecl *RD);
@@ -1595,6 +1611,16 @@ private:
 
   /// Emit the link options introduced by imported modules.
   void EmitModuleLinkOptions();
+
+  /// Helper function for EmitStaticExternCAliases() to redirect ifuncs that
+  /// have a resolver name that matches 'Elem' to instead resolve to the name of
+  /// 'CppFunc'. This redirection is necessary in cases where 'Elem' has a name
+  /// that will be emitted as an alias of the name bound to 'CppFunc'; ifuncs
+  /// may not reference aliases. Redirection is only performed if 'Elem' is only
+  /// used by ifuncs in which case, 'Elem' is destroyed. 'true' is returned if
+  /// redirection is successful, and 'false' is returned otherwise.
+  bool CheckAndReplaceExternCIFuncs(llvm::GlobalValue *Elem,
+                                    llvm::GlobalValue *CppFunc);
 
   /// Emit aliases for internal-linkage declarations inside "C" language
   /// linkage specifications, giving them the "expected" name where possible.

@@ -426,6 +426,11 @@ public:
   static char ID;
 };
 
+/// Add passes for translating SPIR-V Instructions to the desired
+/// representation in LLVM IR (such as OpenCL builtins or SPIR-V Friendly IR).
+void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,
+                             SPIRV::BIsRepresentation BIsRep);
+
 } // namespace SPIRV
 
 #endif // SPIRVTOOCL_H

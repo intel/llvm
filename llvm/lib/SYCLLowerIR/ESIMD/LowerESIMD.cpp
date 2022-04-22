@@ -336,10 +336,10 @@ public:
         {"svm_block_ld_unaligned", {"svm.block.ld.unaligned", {l(0)}}},
         {"svm_block_ld", {"svm.block.ld", {l(0)}}},
         {"svm_block_st", {"svm.block.st", {l(1)}}},
-        {"svm_gather", {"svm.gather", {ai1(2), a(1), a(0), u(-1)}}},
+        {"svm_gather", {"svm.gather", {ai1(1), t(3), a(0), u(-1)}}},
         {"svm_gather4_scaled",
          {"svm.gather4.scaled", {ai1(1), t(2), c16(0), c64(0), a(0), u(-1)}}},
-        {"svm_scatter", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
+        {"svm_scatter", {"svm.scatter", {ai1(2), t(3), a(0), a(1)}}},
         {"svm_scatter4_scaled",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
 
@@ -637,6 +637,7 @@ public:
         {"lane_id", {"lane.id", {}}},
         {"test_src_tmpl_arg",
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
+        {"slm_init", {"slm.init", {a(0)}}},
     };
   }
 
@@ -1684,12 +1685,14 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
       // TODO FIXME slm_init should be made top-level __esimd_slm_init
-      if (Name.startswith("__esimd_slm_init")) {
+      if (Name.startswith("__esimd_slm_init") &&
+          isa<ConstantInt>(CI->getArgOperand(0))) {
         // tag the kernel with meta-data SLMSize, and remove this builtin
         translateSLMInit(*CI);
         ToErase.push_back(CI);
         continue;
       }
+
       if (Name.startswith("__esimd_nbarrier_init")) {
         translateNbarrierInit(*CI);
         ToErase.push_back(CI);

@@ -32,6 +32,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/FixedPointBuilder.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
@@ -40,6 +41,7 @@
 #include "llvm/IR/IntrinsicsPowerPC.h"
 #include "llvm/IR/MatrixBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/TypeSize.h"
 #include <cstdarg>
 
 using namespace clang;
@@ -420,8 +422,9 @@ public:
 
     if (Value *Result = ConstantEmitter(CGF).tryEmitConstantExpr(E)) {
       if (E->isGLValue())
-        return CGF.Builder.CreateLoad(Address::deprecated(
-            Result, CGF.getContext().getTypeAlignInChars(E->getType())));
+        return CGF.Builder.CreateLoad(Address(
+            Result, CGF.ConvertTypeForMem(E->getType()),
+            CGF.getContext().getTypeAlignInChars(E->getType())));
       return Result;
     }
     return Visit(E->getSubExpr());
@@ -2350,9 +2353,10 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   }
   case CK_VectorSplat: {
     llvm::Type *DstTy = ConvertType(DestTy);
-    Value *Elt = Visit(const_cast<Expr*>(E));
+    Value *Elt = Visit(const_cast<Expr *>(E));
     // Splat the element across to all elements
-    unsigned NumElements = cast<llvm::FixedVectorType>(DstTy)->getNumElements();
+    llvm::ElementCount NumElements =
+        cast<llvm::VectorType>(DstTy)->getElementCount();
     return Builder.CreateVectorSplat(NumElements, Elt, "splat");
   }
 
@@ -4925,7 +4929,9 @@ LValue CodeGenFunction::EmitObjCIsaExpr(const ObjCIsaExpr *E) {
   Expr *BaseExpr = E->getBase();
   Address Addr = Address::invalid();
   if (BaseExpr->isPRValue()) {
-    Addr = Address::deprecated(EmitScalarExpr(BaseExpr), getPointerAlign());
+    llvm::Type *BaseTy =
+        ConvertTypeForMem(BaseExpr->getType()->getPointeeType());
+    Addr = Address(EmitScalarExpr(BaseExpr), BaseTy, getPointerAlign());
   } else {
     Addr = EmitLValue(BaseExpr).getAddress(*this);
   }

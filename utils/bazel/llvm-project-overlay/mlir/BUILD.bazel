@@ -2943,6 +2943,7 @@ cc_library(
     deps = [
         ":Affine",
         ":ArithmeticDialect",
+        ":ArithmeticUtils",
         ":BufferizationDialect",
         ":BufferizationTransforms",
         ":DialectUtils",
@@ -3034,6 +3035,28 @@ cc_library(
         ":IR",
         ":MlirLspServerSupportLib",
         ":Parser",
+        ":Support",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "MlirPdllLspServerLib",
+    srcs = glob(
+        [
+            "lib/Tools/mlir-pdll-lsp-server/*.cpp",
+            "lib/Tools/mlir-pdll-lsp-server/*.h",
+        ],
+    ),
+    hdrs = glob(
+        ["include/mlir/Tools/mlir-pdll-lsp-server/*.h"],
+    ),
+    includes = ["include"],
+    deps = [
+        ":MlirLspServerSupportLib",
+        ":PDLLAST",
+        ":PDLLODS",
+        ":PDLLParser",
         ":Support",
         "//llvm:Support",
     ],
@@ -3839,6 +3862,14 @@ gentbl_cc_library(
         (
             ["-gen-enum-defs"],
             "include/mlir/Dialect/LLVMIR/NVVMOpsEnums.cpp.inc",
+        ),
+        (
+            ["-gen-struct-attr-decls"],
+            "include/mlir/Dialect/LLVMIR/NVVMOpsStructs.h.inc",
+        ),
+        (
+            ["-gen-struct-attr-defs"],
+            "include/mlir/Dialect/LLVMIR/NVVMOpsStructs.cpp.inc",
         ),
         (
             [
@@ -7200,6 +7231,7 @@ cc_library(
         ":AMX",
         ":AMXTransforms",
         ":ArithmeticDialect",
+        ":ArithmeticUtils",
         ":ArmNeon",
         ":ArmSVE",
         ":ArmSVETransforms",
@@ -8441,5 +8473,15 @@ cc_binary(
         ":Support",
         "//llvm:Support",
         "//llvm:config",
+    ],
+)
+
+cc_binary(
+    name = "mlir-pdll-lsp-server",
+    srcs = ["tools/mlir-pdll-lsp-server/mlir-pdll-lsp-server.cpp"],
+    includes = ["include"],
+    deps = [
+        ":MlirPdllLspServerLib",
+        ":Support",
     ],
 )

@@ -280,9 +280,10 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
     if (auto attr = op.getAttrOfType<FlatSymbolRefAttr>("callee"))
       return builder.CreateCall(
           moduleTranslation.lookupFunction(attr.getValue()), operandsRef);
-    auto *calleeType = operandsRef.front()->getType();
-    auto *calleeFunctionType =
-        cast<llvm::FunctionType>(calleeType->getPointerElementType());
+    auto calleeType =
+        op.getOperands().front().getType().cast<LLVMPointerType>();
+    auto *calleeFunctionType = cast<llvm::FunctionType>(
+        moduleTranslation.convertType(calleeType.getElementType()));
     return builder.CreateCall(calleeFunctionType, operandsRef.front(),
                               operandsRef.drop_front());
   };
@@ -303,9 +304,7 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
     // TODO: refactor function type creation which usually occurs in std-LLVM
     // conversion.
     SmallVector<Type, 8> operandTypes;
-    operandTypes.reserve(inlineAsmOp.getOperands().size());
-    for (auto t : inlineAsmOp.getOperands().getTypes())
-      operandTypes.push_back(t);
+    llvm::append_range(operandTypes, inlineAsmOp.getOperands().getTypes());
 
     Type resultType;
     if (inlineAsmOp.getNumResults() == 0) {
@@ -369,9 +368,10 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
           moduleTranslation.lookupBlock(invOp.getSuccessor(0)),
           moduleTranslation.lookupBlock(invOp.getSuccessor(1)), operandsRef);
     } else {
-      auto *calleeType = operandsRef.front()->getType();
-      auto *calleeFunctionType =
-          cast<llvm::FunctionType>(calleeType->getPointerElementType());
+      auto calleeType =
+          invOp.getCalleeOperands().front().getType().cast<LLVMPointerType>();
+      auto *calleeFunctionType = cast<llvm::FunctionType>(
+          moduleTranslation.convertType(calleeType.getElementType()));
       result = builder.CreateInvoke(
           calleeFunctionType, operandsRef.front(),
           moduleTranslation.lookupBlock(invOp.getSuccessor(0)),

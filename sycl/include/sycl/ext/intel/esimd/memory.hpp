@@ -61,12 +61,8 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
     return detail::SLM_BTI;
   } else {
-#ifdef __SYCL_DEVICE_ONLY__
-    const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-    return __esimd_get_surface_index(mem_obj);
-#else  // __SYCL_DEVICE_ONLY__
-    return __esimd_get_surface_index(acc);
-#endif // __SYCL_DEVICE_ONLY__
+    return __esimd_get_surface_index(
+        detail::AccessorPrivateProxy::getNativeImageObj(acc));
   }
 }
 
@@ -138,16 +134,19 @@ gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
   addrs = addrs + offsets_i;
 
   if constexpr (sizeof(T) == 1) {
-    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<4>(),
+                                  detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), mask.data());
     return __esimd_rdregion<T, N * 4, N, /*VS*/ 0, N, 4>(Ret, 0);
   } else if constexpr (sizeof(T) == 2) {
-    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<2>(), mask.data());
+    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<2>(),
+                                  detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), mask.data());
     return __esimd_rdregion<T, N * 2, N, /*VS*/ 0, N, 2>(Ret, 0);
   } else
-    return __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    return __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<1>(),
+                              detail::ElemsPerAddrEncoding<1>()>(addrs.data(),
+                                                                 mask.data());
 }
 
 /// Writes ("scatters") elements of the input vector to different memory
@@ -173,17 +172,19 @@ scatter(Tx *p, simd<uint32_t, N> offsets, simd<Tx, N> vals,
   if constexpr (sizeof(T) == 1) {
     simd<T, N * 4> D;
     D = __esimd_wrregion<T, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<4>(),
+                        detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), D.data(), mask.data());
   } else if constexpr (sizeof(T) == 2) {
     simd<T, N * 2> D;
     D = __esimd_wrregion<T, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<2>(),
+                        detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), D.data(), mask.data());
   } else
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), vals.data(), detail::ElemsPerAddrEncoding<1>(),
-        mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>(),
+                        detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), vals.data(), mask.data());
 }
 
 /// Loads a contiguous block of memory from given memory address and returns
@@ -253,12 +254,8 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
-#if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-#else  // __SYCL_DEVICE_ONLY__
-  auto surf_ind = __esimd_get_surface_index(acc);
-#endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
@@ -317,12 +314,8 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
-#if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-#else //
-  auto surf_ind = __esimd_get_surface_index(acc);
-#endif
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
 }
 
@@ -781,6 +774,9 @@ enum fence_mask : uint8_t {
 /// esimd::fence sets the memory read/write order.
 /// @tparam cntl A bitmask composed from \c fence_mask bits.
 ///
+template <uint8_t cntl> __ESIMD_API void fence() { __esimd_fence(cntl); }
+
+__SYCL_DEPRECATED("use fence<fence_mask>()")
 __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 
 /// Generic work-group barrier.
@@ -802,6 +798,7 @@ __ESIMD_API void barrier() {
 /// @{
 
 /// Declare per-work-group slm size.
+/// @param size  Shared Local Memory (SLM) size
 __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.
@@ -1137,7 +1134,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_from(
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
-                              sycl::access::target::global_buffer, void>
+                              sycl::access::target::device, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
                                            Flags) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
@@ -1267,7 +1264,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
-                              sycl::access::target::global_buffer, void>
+                              sycl::access::target::device, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
                                          Flags) const SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;

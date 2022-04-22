@@ -2161,8 +2161,14 @@ static SDValue foldSelectWithIdentityConstant(SDNode *N, SelectionDAG &DAG,
     }
     if (ConstantSDNode *C = isConstOrConstSplat(V)) {
       switch (Opcode) {
+      case ISD::ADD: // X + 0 --> X
       case ISD::SUB: // X - 0 --> X
+      case ISD::SHL: // X << 0 --> X
+      case ISD::SRA: // X s>> 0 --> X
+      case ISD::SRL: // X u>> 0 --> X
         return C->isZero();
+      case ISD::MUL: // X * 1 --> X
+        return C->isOne();
       }
     }
     return false;
@@ -5921,6 +5927,9 @@ static SDValue combineShiftAnd1ToBitTest(SDNode *And, SelectionDAG &DAG) {
   if (ShiftAmt.uge(VTBitWidth))
     return SDValue();
 
+  if (!TLI.hasBitTest(Srl.getOperand(0), Srl.getOperand(1)))
+    return SDValue();
+
   // Turn this into a bit-test pattern using mask op + setcc:
   // and (not (srl X, C)), 1 --> (and X, 1<<C) == 0
   SDLoc DL(And);
@@ -6346,9 +6355,8 @@ SDValue DAGCombiner::visitAND(SDNode *N) {
   if (SDValue Shifts = unfoldExtremeBitClearingToShifts(N))
     return Shifts;
 
-  if (TLI.hasBitTest(N0, N1))
-    if (SDValue V = combineShiftAnd1ToBitTest(N, DAG))
-      return V;
+  if (SDValue V = combineShiftAnd1ToBitTest(N, DAG))
+    return V;
 
   // Recognize the following pattern:
   //
@@ -9745,6 +9753,21 @@ SDValue DAGCombiner::visitBSWAP(SDNode *N) {
     }
   }
 
+  // Try to canonicalize bswap-of-logical-shift-by-8-bit-multiple as
+  // inverse-shift-of-bswap:
+  // bswap (X u<< C) --> (bswap X) u>> C
+  // bswap (X u>> C) --> (bswap X) u<< C
+  if ((N0.getOpcode() == ISD::SHL || N0.getOpcode() == ISD::SRL) &&
+      N0.hasOneUse()) {
+    auto *ShAmt = dyn_cast<ConstantSDNode>(N0.getOperand(1));
+    if (ShAmt && ShAmt->getAPIntValue().ult(BW) &&
+        ShAmt->getZExtValue() % 8 == 0) {
+      SDValue NewSwap = DAG.getNode(ISD::BSWAP, DL, VT, N0.getOperand(0));
+      unsigned InverseShift = N0.getOpcode() == ISD::SHL ? ISD::SRL : ISD::SHL;
+      return DAG.getNode(InverseShift, DL, VT, NewSwap, N0.getOperand(1));
+    }
+  }
+
   return SDValue();
 }
 
@@ -11509,9 +11532,12 @@ static SDValue tryToFoldExtOfLoad(SelectionDAG &DAG, DAGCombiner &Combiner,
                                   bool LegalOperations, SDNode *N, SDValue N0,
                                   ISD::LoadExtType ExtLoadType,
                                   ISD::NodeType ExtOpc) {
+  // TODO: isFixedLengthVector() should be removed and any negative effects on
+  // code generation being the result of that target's implementation of
+  // isVectorLoadExtDesirable().
   if (!ISD::isNON_EXTLoad(N0.getNode()) ||
       !ISD::isUNINDEXEDLoad(N0.getNode()) ||
-      ((LegalOperations || VT.isVector() ||
+      ((LegalOperations || VT.isFixedLengthVector() ||
         !cast<LoadSDNode>(N0)->isSimple()) &&
        !TLI.isLoadExtLegal(ExtLoadType, VT, N0.getValueType())))
     return {};

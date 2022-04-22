@@ -9,7 +9,6 @@
 #include "./Utils.h"
 #include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Analysis/Presburger/Simplex.h"
-#include "mlir/IR/MLIRContext.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -29,8 +28,9 @@ static IntegerPolyhedron
 makeSetFromConstraints(unsigned ids, ArrayRef<SmallVector<int64_t, 4>> ineqs,
                        ArrayRef<SmallVector<int64_t, 4>> eqs,
                        unsigned syms = 0) {
-  IntegerPolyhedron set(ineqs.size(), eqs.size(), ids + 1, ids - syms, syms,
-                        /*numLocals=*/0);
+  IntegerPolyhedron set(
+      ineqs.size(), eqs.size(), ids + 1,
+      PresburgerSpace::getSetSpace(ids - syms, syms, /*numLocals=*/0));
   for (const auto &eq : eqs)
     set.addEquality(eq);
   for (const auto &ineq : ineqs)
@@ -51,7 +51,7 @@ static void dump(ArrayRef<int64_t> vec) {
 ///   non-empty lexmin.
 ///
 ///   If hasSample is false, check that findIntegerSample returns None and
-///   getIntegerLexMin returns Empty.
+///   findIntegerLexMin returns Empty.
 ///
 /// If fn is TestFunction::Empty, check that isIntegerEmpty returns the
 /// opposite of hasSample.
@@ -73,7 +73,7 @@ static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
 
       EXPECT_TRUE(maybeLexMin.isEmpty());
       if (maybeLexMin.isBounded()) {
-        llvm::errs() << "getIntegerLexMin gave sample: ";
+        llvm::errs() << "findIntegerLexMin gave sample: ";
         dump(*maybeLexMin);
       }
     } else {
@@ -179,7 +179,7 @@ TEST(IntegerPolyhedronTest, clearConstraints) {
 }
 
 TEST(IntegerPolyhedronTest, removeIdRange) {
-  IntegerPolyhedron set(3, 2, 1);
+  IntegerPolyhedron set(PresburgerSpace::getSetSpace(3, 2, 1));
 
   set.addInequality({10, 11, 12, 20, 21, 30, 40});
   set.removeId(IdKind::Symbol, 1);
@@ -573,7 +573,7 @@ TEST(IntegerPolyhedronTest, removeRedundantConstraintsTest) {
 }
 
 TEST(IntegerPolyhedronTest, addConstantUpperBound) {
-  IntegerPolyhedron poly(2);
+  IntegerPolyhedron poly(PresburgerSpace::getSetSpace(2));
   poly.addBound(IntegerPolyhedron::UB, 0, 1);
   EXPECT_EQ(poly.atIneq(0, 0), -1);
   EXPECT_EQ(poly.atIneq(0, 1), 0);
@@ -586,7 +586,7 @@ TEST(IntegerPolyhedronTest, addConstantUpperBound) {
 }
 
 TEST(IntegerPolyhedronTest, addConstantLowerBound) {
-  IntegerPolyhedron poly(2);
+  IntegerPolyhedron poly(PresburgerSpace::getSetSpace(2));
   poly.addBound(IntegerPolyhedron::LB, 0, 1);
   EXPECT_EQ(poly.atIneq(0, 0), 1);
   EXPECT_EQ(poly.atIneq(0, 1), 0);
@@ -627,7 +627,7 @@ static void checkDivisionRepresentation(
 }
 
 TEST(IntegerPolyhedronTest, computeLocalReprSimple) {
-  IntegerPolyhedron poly(1);
+  IntegerPolyhedron poly(PresburgerSpace::getSetSpace(1));
 
   poly.addLocalFloorDiv({1, 4}, 10);
   poly.addLocalFloorDiv({1, 0, 100}, 10);
@@ -642,7 +642,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprSimple) {
 }
 
 TEST(IntegerPolyhedronTest, computeLocalReprConstantFloorDiv) {
-  IntegerPolyhedron poly(4);
+  IntegerPolyhedron poly(PresburgerSpace::getSetSpace(4));
 
   poly.addInequality({1, 0, 3, 1, 2});
   poly.addInequality({1, 2, -8, 1, 10});
@@ -660,7 +660,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprConstantFloorDiv) {
 }
 
 TEST(IntegerPolyhedronTest, computeLocalReprRecursive) {
-  IntegerPolyhedron poly(4);
+  IntegerPolyhedron poly(PresburgerSpace::getSetSpace(4));
   poly.addInequality({1, 0, 3, 1, 2});
   poly.addInequality({1, 2, -8, 1, 10});
   poly.addEquality({1, 2, -4, 1, 10});
@@ -708,7 +708,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprTightUpperBound) {
     IntegerPolyhedron poly =
         parsePoly("(i, j, q) : (4*q - i - j + 2 >= 0, -4*q + i + j >= 0)");
     // Convert `q` to a local variable.
-    poly.convertDimToLocal(2, 3);
+    poly.convertToLocal(IdKind::SetDim, 2, 3);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{1, 1, 0, 1}};
     SmallVector<unsigned, 8> denoms = {4};
@@ -722,7 +722,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprFromEquality) {
   {
     IntegerPolyhedron poly = parsePoly("(i, j, q) : (-4*q + i + j == 0)");
     // Convert `q` to a local variable.
-    poly.convertDimToLocal(2, 3);
+    poly.convertToLocal(IdKind::SetDim, 2, 3);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{-1, -1, 0, 0}};
     SmallVector<unsigned, 8> denoms = {4};
@@ -732,7 +732,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprFromEquality) {
   {
     IntegerPolyhedron poly = parsePoly("(i, j, q) : (4*q - i - j == 0)");
     // Convert `q` to a local variable.
-    poly.convertDimToLocal(2, 3);
+    poly.convertToLocal(IdKind::SetDim, 2, 3);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{-1, -1, 0, 0}};
     SmallVector<unsigned, 8> denoms = {4};
@@ -742,7 +742,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprFromEquality) {
   {
     IntegerPolyhedron poly = parsePoly("(i, j, q) : (3*q + i + j - 2 == 0)");
     // Convert `q` to a local variable.
-    poly.convertDimToLocal(2, 3);
+    poly.convertToLocal(IdKind::SetDim, 2, 3);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{1, 1, 0, -2}};
     SmallVector<unsigned, 8> denoms = {3};
@@ -757,7 +757,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprFromEqualityAndInequality) {
         parsePoly("(i, j, q, k) : (-3*k + i + j == 0, 4*q - "
                   "i - j + 2 >= 0, -4*q + i + j >= 0)");
     // Convert `q` and `k` to local variables.
-    poly.convertDimToLocal(2, 4);
+    poly.convertToLocal(IdKind::SetDim, 2, 4);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{1, 1, 0, 0, 1},
                                                       {-1, -1, 0, 0, 0}};
@@ -771,7 +771,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprNoRepr) {
   IntegerPolyhedron poly =
       parsePoly("(x, q) : (x - 3 * q >= 0, -x + 3 * q + 3 >= 0)");
   // Convert q to a local variable.
-  poly.convertDimToLocal(1, 2);
+  poly.convertToLocal(IdKind::SetDim, 1, 2);
 
   std::vector<SmallVector<int64_t, 8>> divisions = {{0, 0, 0}};
   SmallVector<unsigned, 8> denoms = {0};
@@ -784,7 +784,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprNegConstNormalize) {
   IntegerPolyhedron poly =
       parsePoly("(x, q) : (-1 - 3*x - 6 * q >= 0, 6 + 3*x + 6*q >= 0)");
   // Convert q to a local variable.
-  poly.convertDimToLocal(1, 2);
+  poly.convertToLocal(IdKind::SetDim, 1, 2);
 
   // q = floor((-1/3 - x)/2)
   //   = floor((1/3) + (-1 - x)/2)
@@ -796,14 +796,14 @@ TEST(IntegerPolyhedronTest, computeLocalReprNegConstNormalize) {
 
 TEST(IntegerPolyhedronTest, simplifyLocalsTest) {
   // (x) : (exists y: 2x + y = 1 and y = 2).
-  IntegerPolyhedron poly(1, 0, 1);
+  IntegerPolyhedron poly(PresburgerSpace::getSetSpace(1, 0, 1));
   poly.addEquality({2, 1, -1});
   poly.addEquality({0, 1, -2});
 
   EXPECT_TRUE(poly.isEmpty());
 
   // (x) : (exists y, z, w: 3x + y = 1 and 2y = z and 3y = w and z = w).
-  IntegerPolyhedron poly2(1, 0, 3);
+  IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1, 0, 3));
   poly2.addEquality({3, 1, 0, 0, -1});
   poly2.addEquality({0, 2, -1, 0, 0});
   poly2.addEquality({0, 3, 0, -1, 0});
@@ -812,7 +812,7 @@ TEST(IntegerPolyhedronTest, simplifyLocalsTest) {
   EXPECT_TRUE(poly2.isEmpty());
 
   // (x) : (exists y: x >= y + 1 and 2x + y = 0 and y >= -1).
-  IntegerPolyhedron poly3(1, 0, 1);
+  IntegerPolyhedron poly3(PresburgerSpace::getSetSpace(1, 0, 1));
   poly3.addInequality({1, -1, -1});
   poly3.addInequality({0, 1, 1});
   poly3.addEquality({2, 1, 0});
@@ -823,13 +823,13 @@ TEST(IntegerPolyhedronTest, simplifyLocalsTest) {
 TEST(IntegerPolyhedronTest, mergeDivisionsSimple) {
   {
     // (x) : (exists z, y  = [x / 2] : x = 3y and x + z + 1 >= 0).
-    IntegerPolyhedron poly1(1, 0, 1);
+    IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1, 0, 1));
     poly1.addLocalFloorDiv({1, 0, 0}, 2); // y = [x / 2].
     poly1.addEquality({1, 0, -3, 0});     // x = 3y.
     poly1.addInequality({1, 1, 0, 1});    // x + z + 1 >= 0.
 
     // (x) : (exists y = [x / 2], z : x = 5y).
-    IntegerPolyhedron poly2(1);
+    IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
     poly2.addLocalFloorDiv({1, 0}, 2); // y = [x / 2].
     poly2.addEquality({1, -5, 0});     // x = 5y.
     poly2.appendId(IdKind::Local);     // Add local id z.
@@ -846,13 +846,13 @@ TEST(IntegerPolyhedronTest, mergeDivisionsSimple) {
 
   {
     // (x) : (exists z = [x / 5], y = [x / 2] : x = 3y).
-    IntegerPolyhedron poly1(1);
+    IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1));
     poly1.addLocalFloorDiv({1, 0}, 5);    // z = [x / 5].
     poly1.addLocalFloorDiv({1, 0, 0}, 2); // y = [x / 2].
     poly1.addEquality({1, 0, -3, 0});     // x = 3y.
 
     // (x) : (exists y = [x / 2], z = [x / 5]: x = 5z).
-    IntegerPolyhedron poly2(1);
+    IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
     poly2.addLocalFloorDiv({1, 0}, 2);    // y = [x / 2].
     poly2.addLocalFloorDiv({1, 0, 0}, 5); // z = [x / 5].
     poly2.addEquality({1, 0, -5, 0});     // x = 5z.
@@ -870,14 +870,14 @@ TEST(IntegerPolyhedronTest, mergeDivisionsSimple) {
   {
     // Division Normalization test.
     // (x) : (exists z, y  = [x / 2] : x = 3y and x + z + 1 >= 0).
-    IntegerPolyhedron poly1(1, 0, 1);
+    IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1, 0, 1));
     // This division would be normalized.
     poly1.addLocalFloorDiv({3, 0, 0}, 6); // y = [3x / 6] -> [x/2].
     poly1.addEquality({1, 0, -3, 0});     // x = 3z.
     poly1.addInequality({1, 1, 0, 1});    // x + y + 1 >= 0.
 
     // (x) : (exists y = [x / 2], z : x = 5y).
-    IntegerPolyhedron poly2(1);
+    IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
     poly2.addLocalFloorDiv({1, 0}, 2); // y = [x / 2].
     poly2.addEquality({1, -5, 0});     // x = 5y.
     poly2.appendId(IdKind::Local);     // Add local id z.
@@ -896,13 +896,13 @@ TEST(IntegerPolyhedronTest, mergeDivisionsSimple) {
 TEST(IntegerPolyhedronTest, mergeDivisionsNestedDivsions) {
   {
     // (x) : (exists y = [x / 2], z = [x + y / 3]: y + z >= x).
-    IntegerPolyhedron poly1(1);
+    IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1));
     poly1.addLocalFloorDiv({1, 0}, 2);    // y = [x / 2].
     poly1.addLocalFloorDiv({1, 1, 0}, 3); // z = [x + y / 3].
     poly1.addInequality({-1, 1, 1, 0});   // y + z >= x.
 
     // (x) : (exists y = [x / 2], z = [x + y / 3]: y + z <= x).
-    IntegerPolyhedron poly2(1);
+    IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
     poly2.addLocalFloorDiv({1, 0}, 2);    // y = [x / 2].
     poly2.addLocalFloorDiv({1, 1, 0}, 3); // z = [x + y / 3].
     poly2.addInequality({1, -1, -1, 0});  // y + z <= x.
@@ -919,14 +919,14 @@ TEST(IntegerPolyhedronTest, mergeDivisionsNestedDivsions) {
 
   {
     // (x) : (exists y = [x / 2], z = [x + y / 3], w = [z + 1 / 5]: y + z >= x).
-    IntegerPolyhedron poly1(1);
+    IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1));
     poly1.addLocalFloorDiv({1, 0}, 2);       // y = [x / 2].
     poly1.addLocalFloorDiv({1, 1, 0}, 3);    // z = [x + y / 3].
     poly1.addLocalFloorDiv({0, 0, 1, 1}, 5); // w = [z + 1 / 5].
     poly1.addInequality({-1, 1, 1, 0, 0});   // y + z >= x.
 
     // (x) : (exists y = [x / 2], z = [x + y / 3], w = [z + 1 / 5]: y + z <= x).
-    IntegerPolyhedron poly2(1);
+    IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
     poly2.addLocalFloorDiv({1, 0}, 2);       // y = [x / 2].
     poly2.addLocalFloorDiv({1, 1, 0}, 3);    // z = [x + y / 3].
     poly2.addLocalFloorDiv({0, 0, 1, 1}, 5); // w = [z + 1 / 5].
@@ -943,13 +943,13 @@ TEST(IntegerPolyhedronTest, mergeDivisionsNestedDivsions) {
   }
   {
     // (x) : (exists y = [x / 2], z = [x + y / 3]: y + z >= x).
-    IntegerPolyhedron poly1(1);
+    IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1));
     poly1.addLocalFloorDiv({2, 0}, 4);    // y = [2x / 4] -> [x / 2].
     poly1.addLocalFloorDiv({1, 1, 0}, 3); // z = [x + y / 3].
     poly1.addInequality({-1, 1, 1, 0});   // y + z >= x.
 
     // (x) : (exists y = [x / 2], z = [x + y / 3]: y + z <= x).
-    IntegerPolyhedron poly2(1);
+    IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
     poly2.addLocalFloorDiv({1, 0}, 2); // y = [x / 2].
     // This division would be normalized.
     poly2.addLocalFloorDiv({3, 3, 0}, 9); // z = [3x + 3y / 9] -> [x + y / 3].
@@ -969,13 +969,13 @@ TEST(IntegerPolyhedronTest, mergeDivisionsNestedDivsions) {
 TEST(IntegerPolyhedronTest, mergeDivisionsConstants) {
   {
     // (x) : (exists y = [x + 1 / 3], z = [x + 2 / 3]: y + z >= x).
-    IntegerPolyhedron poly1(1);
+    IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1));
     poly1.addLocalFloorDiv({1, 1}, 2);    // y = [x + 1 / 2].
     poly1.addLocalFloorDiv({1, 0, 2}, 3); // z = [x + 2 / 3].
     poly1.addInequality({-1, 1, 1, 0});   // y + z >= x.
 
     // (x) : (exists y = [x + 1 / 3], z = [x + 2 / 3]: y + z <= x).
-    IntegerPolyhedron poly2(1);
+    IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
     poly2.addLocalFloorDiv({1, 1}, 2);    // y = [x + 1 / 2].
     poly2.addLocalFloorDiv({1, 0, 2}, 3); // z = [x + 2 / 3].
     poly2.addInequality({1, -1, -1, 0});  // y + z <= x.
@@ -991,14 +991,14 @@ TEST(IntegerPolyhedronTest, mergeDivisionsConstants) {
   }
   {
     // (x) : (exists y = [x + 1 / 3], z = [x + 2 / 3]: y + z >= x).
-    IntegerPolyhedron poly1(1);
+    IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1));
     poly1.addLocalFloorDiv({1, 1}, 2); // y = [x + 1 / 2].
     // Normalization test.
     poly1.addLocalFloorDiv({3, 0, 6}, 9); // z = [3x + 6 / 9] -> [x + 2 / 3].
     poly1.addInequality({-1, 1, 1, 0});   // y + z >= x.
 
     // (x) : (exists y = [x + 1 / 3], z = [x + 2 / 3]: y + z <= x).
-    IntegerPolyhedron poly2(1);
+    IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
     // Normalization test.
     poly2.addLocalFloorDiv({2, 2}, 4);    // y = [2x + 2 / 4] -> [x + 1 / 2].
     poly2.addLocalFloorDiv({1, 0, 2}, 3); // z = [x + 2 / 3].
@@ -1017,14 +1017,14 @@ TEST(IntegerPolyhedronTest, mergeDivisionsConstants) {
 
 TEST(IntegerPolyhedronTest, negativeDividends) {
   // (x) : (exists y = [-x + 1 / 2], z = [-x - 2 / 3]: y + z >= x).
-  IntegerPolyhedron poly1(1);
+  IntegerPolyhedron poly1(PresburgerSpace::getSetSpace(1));
   poly1.addLocalFloorDiv({-1, 1}, 2); // y = [x + 1 / 2].
   // Normalization test with negative dividends
   poly1.addLocalFloorDiv({-3, 0, -6}, 9); // z = [3x + 6 / 9] -> [x + 2 / 3].
   poly1.addInequality({-1, 1, 1, 0});     // y + z >= x.
 
   // (x) : (exists y = [x + 1 / 3], z = [x + 2 / 3]: y + z <= x).
-  IntegerPolyhedron poly2(1);
+  IntegerPolyhedron poly2(PresburgerSpace::getSetSpace(1));
   // Normalization test.
   poly2.addLocalFloorDiv({-2, 2}, 4);     // y = [-2x + 2 / 4] -> [-x + 1 / 2].
   poly2.addLocalFloorDiv({-1, 0, -2}, 3); // z = [-x - 2 / 3].
@@ -1052,7 +1052,7 @@ void expectNoRationalLexMin(OptimumKind kind, const IntegerPolyhedron &poly) {
   EXPECT_EQ(poly.findRationalLexMin().getKind(), kind);
 }
 
-TEST(IntegerPolyhedronTest, getRationalLexMin) {
+TEST(IntegerPolyhedronTest, findRationalLexMin) {
   expectRationalLexMin(
       parsePoly("(x, y, z) : (x + 10 >= 0, y + 40 >= 0, z + 30 >= 0)"),
       {{-10, 1}, {-40, 1}, {-30, 1}});
@@ -1124,7 +1124,7 @@ void expectNoIntegerLexMin(OptimumKind kind, const IntegerPolyhedron &poly) {
   EXPECT_EQ(poly.findRationalLexMin().getKind(), kind);
 }
 
-TEST(IntegerPolyhedronTest, getIntegerLexMin) {
+TEST(IntegerPolyhedronTest, findIntegerLexMin) {
   expectIntegerLexMin(parsePoly("(x, y, z) : (2*x + 13 >= 0, 4*y - 3*x - 2  >= "
                                 "0, 11*z + 5*y - 3*x + 7 >= 0)"),
                       {-6, -4, 0});
@@ -1187,4 +1187,29 @@ TEST(IntegerPolyhedronTest, computeVolume) {
   expectComputedVolumeIsValidOverapprox(
       parsePoly("(x, y) : (2*x - y >= 0, y - 3*x >= 0)"),
       /*trueVolume=*/{}, /*resultBound=*/{});
+}
+
+TEST(IntegerPolyhedronTest, containsPointNoLocal) {
+  IntegerPolyhedron poly1 = parsePoly("(x) : ((x floordiv 2) - x == 0)");
+  EXPECT_TRUE(poly1.containsPointNoLocal({0}));
+  EXPECT_FALSE(poly1.containsPointNoLocal({1}));
+
+  IntegerPolyhedron poly2 = parsePoly(
+      "(x) : (x - 2*(x floordiv 2) == 0, x - 4*(x floordiv 4) - 2 == 0)");
+  EXPECT_TRUE(poly2.containsPointNoLocal({6}));
+  EXPECT_FALSE(poly2.containsPointNoLocal({4}));
+
+  IntegerPolyhedron poly3 = parsePoly("(x, y) : (2*x - y >= 0, y - 3*x >= 0)");
+  EXPECT_TRUE(poly3.containsPointNoLocal({0, 0}));
+  EXPECT_FALSE(poly3.containsPointNoLocal({1, 0}));
+}
+
+TEST(IntegerPolyhedronTest, truncateEqualityRegressionTest) {
+  // IntegerRelation::truncate was truncating inequalities to the number of
+  // equalities.
+  IntegerRelation set(PresburgerSpace::getSetSpace(1));
+  IntegerRelation::CountsSnapshot snapshot = set.getCounts();
+  set.addEquality({1, 0});
+  set.truncate(snapshot);
+  EXPECT_EQ(set.getNumEqualities(), 0u);
 }

@@ -1058,7 +1058,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->fixCortexA8 =
       args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
   config->fortranCommon =
-      args.hasFlag(OPT_fortran_common, OPT_no_fortran_common, true);
+      args.hasFlag(OPT_fortran_common, OPT_no_fortran_common, false);
   config->gcSections = args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false);
   config->gnuUnique = args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
   config->gdbIndex = args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
@@ -1286,6 +1286,8 @@ static void readConfigs(opt::InputArgList &args) {
     if (!StringRef(arg->getValue()).endswith("lto-wrapper"))
       error(arg->getSpelling() + ": unknown plugin option '" + arg->getValue() +
             "'");
+
+  config->passPlugins = args::getStrings(args, OPT_load_pass_plugins);
 
   // Parse -mllvm options.
   for (auto *arg : args.filtered(OPT_mllvm))

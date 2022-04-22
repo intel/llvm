@@ -16,6 +16,7 @@
 #include "lldb/Core/Section.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/StringExtractor.h"
+#include <utility>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -89,6 +90,59 @@ static int ProcessPTEvents(pt_insn_decoder &decoder, int errcode) {
   return 0;
 }
 
+// Simple struct used by the decoder to keep the state of the most
+// recent TSC and a flag indicating whether TSCs are enabled, not enabled
+// or we just don't yet.
+struct TscInfo {
+  uint64_t tsc = 0;
+  LazyBool has_tsc = eLazyBoolCalculate;
+
+  explicit operator bool() const { return has_tsc == eLazyBoolYes; }
+};
+
+/// Query the decoder for the most recent TSC timestamp and update
+/// tsc_info accordingly.
+void RefreshTscInfo(TscInfo &tsc_info, pt_insn_decoder &decoder,
+                    DecodedThread &decoded_thread) {
+  if (tsc_info.has_tsc == eLazyBoolNo)
+    return;
+
+  uint64_t new_tsc;
+  if (int tsc_error = pt_insn_time(&decoder, &new_tsc, nullptr, nullptr)) {
+    if (tsc_error == -pte_no_time) {
+      // We now know that the trace doesn't support TSC, so we won't try again.
+      // See
+      // https://github.com/intel/libipt/blob/master/doc/man/pt_qry_time.3.md
+      tsc_info.has_tsc = eLazyBoolNo;
+    } else {
+      // We don't add TSC decoding errors in the decoded trace itself to prevent
+      // creating unnecessary gaps, but we can count how many of these errors
+      // happened. In this case we reuse the previous correct TSC we saw, as
+      // it's better than no TSC at all.
+      decoded_thread.RecordTscError(tsc_error);
+    }
+  } else {
+    tsc_info.tsc = new_tsc;
+    tsc_info.has_tsc = eLazyBoolYes;
+  }
+}
+
+static void AppendError(DecodedThread &decoded_thread, Error &&error,
+                        TscInfo &tsc_info) {
+  if (tsc_info)
+    decoded_thread.AppendError(std::move(error), tsc_info.tsc);
+  else
+    decoded_thread.AppendError(std::move(error));
+}
+
+static void AppendInstruction(DecodedThread &decoded_thread,
+                              const pt_insn &insn, TscInfo &tsc_info) {
+  if (tsc_info)
+    decoded_thread.AppendInstruction(insn, tsc_info.tsc);
+  else
+    decoded_thread.AppendInstruction(insn);
+}
+
 /// Decode all the instructions from a configured decoder.
 /// The decoding flow is based on
 /// https://github.com/intel/libipt/blob/master/doc/howto_libipt.md#the-instruction-flow-decode-loop
@@ -97,67 +151,52 @@ static int ProcessPTEvents(pt_insn_decoder &decoder, int errcode) {
 /// Error codes returned by libipt while decoding are:
 /// - negative: actual errors
 /// - positive or zero: not an error, but a list of bits signaling the status of
-/// the decoder
+/// the decoder, e.g. whether there are events that need to be decoded or not
 ///
 /// \param[in] decoder
 ///   A configured libipt \a pt_insn_decoder.
-///
-/// \return
-///   The decoded instructions.
-static std::vector<IntelPTInstruction>
-DecodeInstructions(pt_insn_decoder &decoder) {
-  std::vector<IntelPTInstruction> instructions;
+static void DecodeInstructions(pt_insn_decoder &decoder,
+                               DecodedThread &decoded_thread) {
+
+  TscInfo tsc_info;
+  // We have this "global" errcode because if it's positive, we'll need
+  // its bits later to process events.
+  int errcode;
 
   while (true) {
-    int errcode = FindNextSynchronizationPoint(decoder);
-    if (errcode == -pte_eos)
-      break;
-
-    if (errcode < 0) {
-      instructions.emplace_back(make_error<IntelPTError>(errcode));
+    if ((errcode = FindNextSynchronizationPoint(decoder)) < 0) {
+      // We signal a gap only if it's not "end of stream"
+      if (errcode != -pte_eos)
+        AppendError(decoded_thread, make_error<IntelPTError>(errcode),
+                    tsc_info);
       break;
     }
 
     // We have synchronized, so we can start decoding
     // instructions and events.
     while (true) {
-      errcode = ProcessPTEvents(decoder, errcode);
-      if (errcode < 0) {
-        instructions.emplace_back(make_error<IntelPTError>(errcode));
+      if ((errcode = ProcessPTEvents(decoder, errcode)) < 0) {
+        AppendError(decoded_thread, make_error<IntelPTError>(errcode),
+                    tsc_info);
         break;
       }
+
+      // We refresh the TSC that might have changed after processing the events.
+      // See
+      // https://github.com/intel/libipt/blob/master/doc/man/pt_evt_next.3.md
+      RefreshTscInfo(tsc_info, decoder, decoded_thread);
+
       pt_insn insn;
-
-      errcode = pt_insn_next(&decoder, &insn, sizeof(insn));
-      if (errcode == -pte_eos)
-        break;
-
-      if (errcode < 0) {
-        instructions.emplace_back(make_error<IntelPTError>(errcode, insn.ip));
+      if ((errcode = pt_insn_next(&decoder, &insn, sizeof(insn))) < 0) {
+        // We signal a gap only if it's not "end of stream"
+        if (errcode != -pte_eos)
+          AppendError(decoded_thread,
+                      make_error<IntelPTError>(errcode, insn.ip), tsc_info);
         break;
       }
-
-      uint64_t time;
-      int time_error = pt_insn_time(&decoder, &time, nullptr, nullptr);
-      if (time_error == -pte_invalid) {
-        // This happens if we invoke the pt_insn_time method incorrectly,
-        // but the instruction is good though.
-        instructions.emplace_back(
-            make_error<IntelPTError>(time_error, insn.ip));
-        instructions.emplace_back(insn);
-        break;
-      }
-      if (time_error == -pte_no_time) {
-        // We simply don't have time information, i.e. None of TSC, MTC or CYC
-        // was enabled.
-        instructions.emplace_back(insn);
-      } else {
-        instructions.emplace_back(insn, time);
-      }
+      AppendInstruction(decoded_thread, insn, tsc_info);
     }
   }
-
-  return instructions;
 }
 
 /// Callback used by libipt for reading the process memory.
@@ -176,70 +215,40 @@ static int ReadProcessMemory(uint8_t *buffer, size_t size,
   return bytes_read;
 }
 
-static Expected<std::vector<IntelPTInstruction>>
-DecodeInMemoryTrace(Process &process, TraceIntelPT &trace_intel_pt,
-                    MutableArrayRef<uint8_t> buffer) {
+static void DecodeInMemoryTrace(DecodedThreadSP &decoded_thread_sp,
+                                TraceIntelPT &trace_intel_pt,
+                                MutableArrayRef<uint8_t> buffer) {
   Expected<pt_cpu> cpu_info = trace_intel_pt.GetCPUInfo();
-  if (!cpu_info)
-    return cpu_info.takeError();
+  if (!cpu_info) {
+    return decoded_thread_sp->AppendError(cpu_info.takeError());
+  }
 
   pt_config config;
   pt_config_init(&config);
   config.cpu = *cpu_info;
 
   if (int errcode = pt_cpu_errata(&config.errata, &config.cpu))
-    return make_error<IntelPTError>(errcode);
+    return decoded_thread_sp->AppendError(make_error<IntelPTError>(errcode));
 
   config.begin = buffer.data();
   config.end = buffer.data() + buffer.size();
 
   pt_insn_decoder *decoder = pt_insn_alloc_decoder(&config);
   if (!decoder)
-    return make_error<IntelPTError>(-pte_nomem);
+    return decoded_thread_sp->AppendError(make_error<IntelPTError>(-pte_nomem));
 
   pt_image *image = pt_insn_get_image(decoder);
 
-  int errcode = pt_image_set_callback(image, ReadProcessMemory, &process);
+  int errcode =
+      pt_image_set_callback(image, ReadProcessMemory,
+                            decoded_thread_sp->GetThread()->GetProcess().get());
   assert(errcode == 0);
   (void)errcode;
 
-  std::vector<IntelPTInstruction> instructions = DecodeInstructions(*decoder);
-
+  DecodeInstructions(*decoder, *decoded_thread_sp);
   pt_insn_free_decoder(decoder);
-  return instructions;
 }
-
-static Expected<std::vector<IntelPTInstruction>>
-DecodeTraceFile(Process &process, TraceIntelPT &trace_intel_pt,
-                const FileSpec &trace_file, size_t &raw_trace_size) {
-  ErrorOr<std::unique_ptr<MemoryBuffer>> trace_or_error =
-      MemoryBuffer::getFile(trace_file.GetPath());
-  if (std::error_code err = trace_or_error.getError())
-    return errorCodeToError(err);
-
-  MemoryBuffer &trace = **trace_or_error;
-  MutableArrayRef<uint8_t> trace_data(
-      // The libipt library does not modify the trace buffer, hence the
-      // following cast is safe.
-      reinterpret_cast<uint8_t *>(const_cast<char *>(trace.getBufferStart())),
-      trace.getBufferSize());
-  raw_trace_size = trace_data.size();
-  return DecodeInMemoryTrace(process, trace_intel_pt, trace_data);
-}
-
-static Expected<std::vector<IntelPTInstruction>>
-DecodeLiveThread(Thread &thread, TraceIntelPT &trace, size_t &raw_trace_size) {
-  Expected<std::vector<uint8_t>> buffer =
-      trace.GetLiveThreadBuffer(thread.GetID());
-  if (!buffer)
-    return buffer.takeError();
-  raw_trace_size = buffer->size();
-  if (Expected<pt_cpu> cpu_info = trace.GetCPUInfo())
-    return DecodeInMemoryTrace(*thread.GetProcess(), trace,
-                               MutableArrayRef<uint8_t>(*buffer));
-  else
-    return cpu_info.takeError();
-}
+// ---------------------------
 
 DecodedThreadSP ThreadDecoder::Decode() {
   if (!m_decoded_thread.hasValue())
@@ -247,33 +256,53 @@ DecodedThreadSP ThreadDecoder::Decode() {
   return *m_decoded_thread;
 }
 
-PostMortemThreadDecoder::PostMortemThreadDecoder(
-    const lldb::ThreadPostMortemTraceSP &trace_thread, TraceIntelPT &trace)
-    : m_trace_thread(trace_thread), m_trace(trace) {}
-
-DecodedThreadSP PostMortemThreadDecoder::DoDecode() {
-  size_t raw_trace_size = 0;
-  if (Expected<std::vector<IntelPTInstruction>> instructions =
-          DecodeTraceFile(*m_trace_thread->GetProcess(), m_trace,
-                          m_trace_thread->GetTraceFile(), raw_trace_size))
-    return std::make_shared<DecodedThread>(m_trace_thread->shared_from_this(),
-                                           std::move(*instructions),
-                                           raw_trace_size);
-  else
-    return std::make_shared<DecodedThread>(m_trace_thread->shared_from_this(),
-                                           instructions.takeError());
-}
+// LiveThreadDecoder ====================
 
 LiveThreadDecoder::LiveThreadDecoder(Thread &thread, TraceIntelPT &trace)
     : m_thread_sp(thread.shared_from_this()), m_trace(trace) {}
 
 DecodedThreadSP LiveThreadDecoder::DoDecode() {
-  size_t raw_trace_size = 0;
-  if (Expected<std::vector<IntelPTInstruction>> instructions =
-          DecodeLiveThread(*m_thread_sp, m_trace, raw_trace_size))
-    return std::make_shared<DecodedThread>(
-        m_thread_sp, std::move(*instructions), raw_trace_size);
-  else
-    return std::make_shared<DecodedThread>(m_thread_sp,
-                                           instructions.takeError());
+  DecodedThreadSP decoded_thread_sp =
+      std::make_shared<DecodedThread>(m_thread_sp);
+
+  Expected<std::vector<uint8_t>> buffer =
+      m_trace.GetLiveThreadBuffer(m_thread_sp->GetID());
+  if (!buffer) {
+    decoded_thread_sp->AppendError(buffer.takeError());
+    return decoded_thread_sp;
+  }
+
+  decoded_thread_sp->SetRawTraceSize(buffer->size());
+  DecodeInMemoryTrace(decoded_thread_sp, m_trace,
+                      MutableArrayRef<uint8_t>(*buffer));
+  return decoded_thread_sp;
+}
+
+// PostMortemThreadDecoder =======================
+
+PostMortemThreadDecoder::PostMortemThreadDecoder(
+    const lldb::ThreadPostMortemTraceSP &trace_thread, TraceIntelPT &trace)
+    : m_trace_thread(trace_thread), m_trace(trace) {}
+
+DecodedThreadSP PostMortemThreadDecoder::DoDecode() {
+  DecodedThreadSP decoded_thread_sp =
+      std::make_shared<DecodedThread>(m_trace_thread);
+
+  ErrorOr<std::unique_ptr<MemoryBuffer>> trace_or_error =
+      MemoryBuffer::getFile(m_trace_thread->GetTraceFile().GetPath());
+  if (std::error_code err = trace_or_error.getError()) {
+    decoded_thread_sp->AppendError(errorCodeToError(err));
+    return decoded_thread_sp;
+  }
+
+  MemoryBuffer &trace = **trace_or_error;
+  MutableArrayRef<uint8_t> trace_data(
+      // The libipt library does not modify the trace buffer, hence the
+      // following cast is safe.
+      reinterpret_cast<uint8_t *>(const_cast<char *>(trace.getBufferStart())),
+      trace.getBufferSize());
+  decoded_thread_sp->SetRawTraceSize(trace_data.size());
+
+  DecodeInMemoryTrace(decoded_thread_sp, m_trace, trace_data);
+  return decoded_thread_sp;
 }

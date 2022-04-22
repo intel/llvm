@@ -79,6 +79,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/LowerWGScope.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
@@ -752,6 +753,24 @@ Expected<std::pair<bool, bool>> parseLoopUnswitchOptions(StringRef Params) {
       return make_error<StringError>(
           formatv("invalid LoopUnswitch pass parameter '{0}' ", ParamName)
               .str(),
+          inconvertibleErrorCode());
+    }
+  }
+  return Result;
+}
+
+Expected<LICMOptions> parseLICMOptions(StringRef Params) {
+  LICMOptions Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    bool Enable = !ParamName.consume_front("no-");
+    if (ParamName == "allowspeculation") {
+      Result.AllowSpeculation = Enable;
+    } else {
+      return make_error<StringError>(
+          formatv("invalid LICM pass parameter '{0}' ", ParamName).str(),
           inconvertibleErrorCode());
     }
   }

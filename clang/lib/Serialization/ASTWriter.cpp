@@ -872,6 +872,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(PP_CONDITIONAL_STACK);
   RECORD(DECLS_TO_CHECK_FOR_DEFERRED_DIAGS);
   RECORD(PP_INCLUDED_FILES);
+  RECORD(PP_ASSUME_NONNULL_LOC);
 
   // SourceManager Block.
   BLOCK(SOURCE_MANAGER_BLOCK);
@@ -1317,8 +1318,7 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
       Record.push_back(M.Signature ? 0 : M.File->getSize());
       Record.push_back(M.Signature ? 0 : getTimestampForOutput(M.File));
 
-      for (auto I : M.Signature)
-        Record.push_back(I);
+      llvm::append_range(Record, M.Signature);
 
       AddString(M.ModuleName, Record);
       AddPath(M.FileName, Record);
@@ -2300,6 +2300,17 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
     Stream.EmitRecord(PP_COUNTER_VALUE, Record);
   }
 
+  // If we have a recorded #pragma assume_nonnull, remember it so it can be
+  // replayed when the preamble terminates into the main file.
+  SourceLocation AssumeNonNullLoc =
+      PP.getPreambleRecordedPragmaAssumeNonNullLoc();
+  if (AssumeNonNullLoc.isValid()) {
+    assert(PP.isRecordingPreamble());
+    AddSourceLocation(AssumeNonNullLoc, Record);
+    Stream.EmitRecord(PP_ASSUME_NONNULL_LOC, Record);
+    Record.clear();
+  }
+
   if (PP.isRecordingPreamble() && PP.hasRecordedPreamble()) {
     assert(!IsModule);
     auto SkipInfo = PP.getPreambleSkipInfo();
@@ -2353,13 +2364,22 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
     uint64_t StartOffset = Stream.GetCurrentBitNo() - MacroOffsetsBase;
     assert((StartOffset >> 32) == 0 && "Macro identifiers offset too large");
 
-    // Emit the macro directives in reverse source order.
-    for (; MD; MD = MD->getPrevious()) {
-      // Once we hit an ignored macro, we're done: the rest of the chain
-      // will all be ignored macros.
-      if (shouldIgnoreMacro(MD, IsModule, PP))
-        break;
-
+    // Write out any exported module macros.
+    bool EmittedModuleMacros = false;
+    // C+=20 Header Units are compiled module interfaces, but they preserve
+    // macros that are live (i.e. have a defined value) at the end of the
+    // compilation.  So when writing a header unit, we preserve only the final
+    // value of each macro (and discard any that are undefined).  Header units
+    // do not have sub-modules (although they might import other header units).
+    // PCH files, conversely, retain the history of each macro's define/undef
+    // and of leaf macros in sub modules.
+    if (IsModule && WritingModule->isHeaderUnit()) {
+      // This is for the main TU when it is a C++20 header unit.
+      // We preserve the final state of defined macros, and we do not emit ones
+      // that are undefined.
+      if (!MD || shouldIgnoreMacro(MD, IsModule, PP) ||
+          MD->getKind() == MacroDirective::MD_Undefine)
+        continue;
       AddSourceLocation(MD->getLocation(), Record);
       Record.push_back(MD->getKind());
       if (auto *DefMD = dyn_cast<DefMacroDirective>(MD)) {
@@ -2367,35 +2387,51 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
       } else if (auto *VisMD = dyn_cast<VisibilityMacroDirective>(MD)) {
         Record.push_back(VisMD->isPublic());
       }
-    }
-
-    // Write out any exported module macros.
-    bool EmittedModuleMacros = false;
-    // We write out exported module macros for PCH as well.
-    auto Leafs = PP.getLeafModuleMacros(Name);
-    SmallVector<ModuleMacro*, 8> Worklist(Leafs.begin(), Leafs.end());
-    llvm::DenseMap<ModuleMacro*, unsigned> Visits;
-    while (!Worklist.empty()) {
-      auto *Macro = Worklist.pop_back_val();
-
-      // Emit a record indicating this submodule exports this macro.
-      ModuleMacroRecord.push_back(
-          getSubmoduleID(Macro->getOwningModule()));
-      ModuleMacroRecord.push_back(getMacroRef(Macro->getMacroInfo(), Name));
-      for (auto *M : Macro->overrides())
-        ModuleMacroRecord.push_back(getSubmoduleID(M->getOwningModule()));
-
+      ModuleMacroRecord.push_back(getSubmoduleID(WritingModule));
+      ModuleMacroRecord.push_back(getMacroRef(MD->getMacroInfo(), Name));
       Stream.EmitRecord(PP_MODULE_MACRO, ModuleMacroRecord);
       ModuleMacroRecord.clear();
-
-      // Enqueue overridden macros once we've visited all their ancestors.
-      for (auto *M : Macro->overrides())
-        if (++Visits[M] == M->getNumOverridingMacros())
-          Worklist.push_back(M);
-
       EmittedModuleMacros = true;
-    }
+    } else {
+      // Emit the macro directives in reverse source order.
+      for (; MD; MD = MD->getPrevious()) {
+        // Once we hit an ignored macro, we're done: the rest of the chain
+        // will all be ignored macros.
+        if (shouldIgnoreMacro(MD, IsModule, PP))
+          break;
+        AddSourceLocation(MD->getLocation(), Record);
+        Record.push_back(MD->getKind());
+        if (auto *DefMD = dyn_cast<DefMacroDirective>(MD)) {
+          Record.push_back(getMacroRef(DefMD->getInfo(), Name));
+        } else if (auto *VisMD = dyn_cast<VisibilityMacroDirective>(MD)) {
+          Record.push_back(VisMD->isPublic());
+        }
+      }
 
+      // We write out exported module macros for PCH as well.
+      auto Leafs = PP.getLeafModuleMacros(Name);
+      SmallVector<ModuleMacro *, 8> Worklist(Leafs.begin(), Leafs.end());
+      llvm::DenseMap<ModuleMacro *, unsigned> Visits;
+      while (!Worklist.empty()) {
+        auto *Macro = Worklist.pop_back_val();
+
+        // Emit a record indicating this submodule exports this macro.
+        ModuleMacroRecord.push_back(getSubmoduleID(Macro->getOwningModule()));
+        ModuleMacroRecord.push_back(getMacroRef(Macro->getMacroInfo(), Name));
+        for (auto *M : Macro->overrides())
+          ModuleMacroRecord.push_back(getSubmoduleID(M->getOwningModule()));
+
+        Stream.EmitRecord(PP_MODULE_MACRO, ModuleMacroRecord);
+        ModuleMacroRecord.clear();
+
+        // Enqueue overridden macros once we've visited all their ancestors.
+        for (auto *M : Macro->overrides())
+          if (++Visits[M] == M->getNumOverridingMacros())
+            Worklist.push_back(M);
+
+        EmittedModuleMacros = true;
+      }
+    }
     if (Record.empty() && !EmittedModuleMacros)
       continue;
 
@@ -3702,8 +3738,7 @@ public:
 
   data_type ImportData(const reader::ASTDeclContextNameLookupTrait::data_type &FromReader) {
     unsigned Start = DeclIDs.size();
-    for (auto ID : FromReader)
-      DeclIDs.push_back(ID);
+    llvm::append_range(DeclIDs, FromReader);
     return std::make_pair(Start, DeclIDs.size());
   }
 
@@ -4561,13 +4596,14 @@ ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
   // entire table, since later PCH files in a PCH chain are only interested in
   // the results at the end of the chain.
   RecordData WeakUndeclaredIdentifiers;
-  for (auto &WeakUndeclaredIdentifier : SemaRef.WeakUndeclaredIdentifiers) {
-    IdentifierInfo *II = WeakUndeclaredIdentifier.first;
-    WeakInfo &WI = WeakUndeclaredIdentifier.second;
-    AddIdentifierRef(II, WeakUndeclaredIdentifiers);
-    AddIdentifierRef(WI.getAlias(), WeakUndeclaredIdentifiers);
-    AddSourceLocation(WI.getLocation(), WeakUndeclaredIdentifiers);
-    WeakUndeclaredIdentifiers.push_back(WI.getUsed());
+  for (const auto &WeakUndeclaredIdentifierList :
+       SemaRef.WeakUndeclaredIdentifiers) {
+    const IdentifierInfo *const II = WeakUndeclaredIdentifierList.first;
+    for (const auto &WI : WeakUndeclaredIdentifierList.second) {
+      AddIdentifierRef(II, WeakUndeclaredIdentifiers);
+      AddIdentifierRef(WI.getAlias(), WeakUndeclaredIdentifiers);
+      AddSourceLocation(WI.getLocation(), WeakUndeclaredIdentifiers);
+    }
   }
 
   // Build a record containing all of the ext_vector declarations.
@@ -5734,7 +5770,7 @@ void ASTRecordWriter::AddCXXDefinitionData(const CXXRecordDecl *D) {
   // Add lambda-specific data.
   if (Data.IsLambda) {
     auto &Lambda = D->getLambdaData();
-    Record->push_back(Lambda.Dependent);
+    Record->push_back(Lambda.DependencyKind);
     Record->push_back(Lambda.IsGenericLambda);
     Record->push_back(Lambda.CaptureDefault);
     Record->push_back(Lambda.NumCaptures);
@@ -5912,8 +5948,7 @@ void ASTWriter::AddedVisibleDecl(const DeclContext *DC, const Decl *D) {
     // We're adding a visible declaration to a predefined decl context. Ensure
     // that we write out all of its lookup results so we don't get a nasty
     // surprise when we try to emit its lookup table.
-    for (auto *Child : DC->decls())
-      DeclsToEmitEvenIfUnreferenced.push_back(Child);
+    llvm::append_range(DeclsToEmitEvenIfUnreferenced, DC->decls());
   }
   DeclsToEmitEvenIfUnreferenced.push_back(D);
 }

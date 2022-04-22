@@ -33,7 +33,9 @@ post-if: false
 runs:
   using: "composite"
   steps:
-  - run: cp -r /actions .
+  - run: |
+      cp -r /actions .
+      git config --global --add safe.directory /__w/repo_cache/intel/llvm-test-suite
     shell: bash
   - name: Checkout LLVM Test Suite
     uses: ./actions/cached_checkout
@@ -93,7 +95,6 @@ runs:
       echo "::endgroup::"
       echo "::group::SYCL_PI_TRACE=-1 sycl-ls"
       echo $LD_LIBRARY_PATH
-      ldd $PWD/toolchain/lib/libpi_hip.so
       SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
       cd build

@@ -134,9 +134,6 @@ def FuncExtFloatAtomicsFp64GenericASMinMax    : FunctionExtension<"cl_ext_float_
 // Not a real extension, but a workaround to add C++ for OpenCL specific builtins.
 def FuncExtOpenCLCxx                     : FunctionExtension<"__cplusplus">;
 
-// Multiple extensions
-def FuncExtKhrMipmapWritesAndWrite3d     : FunctionExtension<"cl_khr_mipmap_image_writes cl_khr_3d_image_writes">;
-
 // Arm extensions.
 def ArmIntegerDotProductInt8                   : FunctionExtension<"cl_arm_integer_dot_product_int8">;
 def ArmIntegerDotProductAccumulateInt8         : FunctionExtension<"cl_arm_integer_dot_product_accumulate_int8">;
@@ -246,7 +243,10 @@ class ImageType<Type _Ty, string _AccessQualifier> :
   let IsConst = _Ty.IsConst;
   let IsVolatile = _Ty.IsVolatile;
   let AddrSpace = _Ty.AddrSpace;
-  let Extension = _Ty.Extension;
+  // Add TypeExtension for "write_only image3d_t".
+  let Extension = !cond(
+      !and(!eq(_Ty.Name, "image3d_t"), !eq(_AccessQualifier, "WO")) : TypeExtension<"cl_khr_3d_image_writes">,
+      true : _Ty.Extension);
 }
 
 // OpenCL enum type (e.g. memory_scope).
@@ -1627,12 +1627,10 @@ let Extension = FuncExtKhrMipmapImageWrites in {
       def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<UInt, 4>]>;
     }
     def : Builtin<"write_imagef", [Void, ImageType<Image2dArrayDepth, aQual>, VectorType<Int, 4>, Int, Float]>;
-    let Extension = FuncExtKhrMipmapWritesAndWrite3d in {
-      foreach imgTy = [Image3d] in {
-        def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Float, 4>]>;
-        def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Int, 4>]>;
-        def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<UInt, 4>]>;
-      }
+    foreach imgTy = [Image3d] in {
+      def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Float, 4>]>;
+      def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Int, 4>]>;
+      def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<UInt, 4>]>;
     }
   }
 }
@@ -1702,7 +1700,9 @@ let Extension = FuncExtKhrSubgroups in {
 // --- Table 28.2.2 ---
 let Extension = FuncExtKhrSubgroups in {
   def : Builtin<"sub_group_barrier", [Void, MemFenceFlags], Attr.Convergent>;
-  def : Builtin<"sub_group_barrier", [Void, MemFenceFlags, MemoryScope], Attr.Convergent>;
+  let MinVersion = CL20 in {
+    def : Builtin<"sub_group_barrier", [Void, MemFenceFlags, MemoryScope], Attr.Convergent>;
+  }
 }
 
 // --- Table 28.2.4 ---
