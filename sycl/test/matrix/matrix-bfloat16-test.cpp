@@ -3,7 +3,6 @@
 #if (SYCL_EXT_ONEAPI_MATRIX == 2)
 #include <iostream>
 
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
 
@@ -38,19 +37,19 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B * 2);
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
-  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, K));
-  buffer<bfloat16, 2> bufB(B.get_data(), range<2>(K, N));
-  buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
+  sycl::buffer<bfloat16, 2> bufA(A.get_data(), sycl::range<2>(M, K));
+  sycl::buffer<bfloat16, 2> bufB(B.get_data(), sycl::range<2>(K, N));
+  sycl::buffer<float, 2> bufC((float *)C.get_data(), sycl::range<2>(M, N));
 
-  queue q;
-  q.submit([&](handler &cgh) {
-     auto accC = bufC.get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.get_access<access::mode::read_write>(cgh);
-     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+  sycl::queue q;
+  q.submit([&](sycl::handler &cgh) {
+     auto accC = bufC.get_access<sycl::access::mode::read_write>(cgh);
+     auto accA = bufA.get_access<sycl::access::mode::read_write>(cgh);
+     auto accB = bufB.get_access<sycl::access::mode::read_write>(cgh);
 
      cgh.parallel_for<class imatrix>(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
+         sycl::nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
+         [accA, accB, accC, M, N, K](sycl::nd_item<2> spmd_item)
 
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -61,7 +60,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
+           sycl::ext::oneapi::sub_group sg = spmd_item.get_sub_group();
            joint_matrix<bfloat16, TM, TK> sub_a(sg);
            // For B, since current implementation does not support non-packed
            // layout, users need to specify the updated VNNI sizes along with
