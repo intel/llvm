@@ -48,8 +48,8 @@ void enableZeTracing() {
   uint64_t Dummy;
   xpti::payload_t ZePayload("Level Zero Plugin Layer");
   GCallEvent =
-      xptiMakeEvent("Level Zero Plugin Layer", &ZePayload, xpti::trace_algorithm_event,
-                    xpti_at::active, &Dummy);
+      xptiMakeEvent("Level Zero Plugin Layer", &ZePayload,
+                    xpti::trace_algorithm_event, xpti_at::active, &Dummy);
 
   xpti::payload_t ZeDebugPayload("Level Zero Plugin Debug Layer");
   GDebugEvent =
@@ -70,7 +70,8 @@ void enableZeTracing() {
   Status = zelTracerCreate(&TracerDesc, &Tracer);
 
   if (Status != ZE_RESULT_SUCCESS || Tracer == nullptr) {
-    std::cerr << "[WARNING] Failed to create Level Zero tracer: " << Status << "\n";
+    std::cerr << "[WARNING] Failed to create Level Zero tracer: " << Status
+              << "\n";
     return;
   }
 
