@@ -4632,18 +4632,31 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
     return PI_ERROR_UNKNOWN;
   }
 
-  // Update the refcount of the program and context to show it's used by this
-  // kernel.
+  PI_CALL((*RetKernel)->initialize());
+  return PI_SUCCESS;
+}
+
+pi_result _pi_kernel::initialize() {
+  // Retain the program and context to show it's used by this kernel.
   PI_CALL(piProgramRetain(Program));
   if (IndirectAccessTrackingEnabled)
     // TODO: do piContextRetain without the guard
     PI_CALL(piContextRetain(Program->Context));
 
   // Set up how to obtain kernel properties when needed.
-  (*RetKernel)->ZeKernelProperties.Compute =
-      [ZeKernel](ze_kernel_properties_t &Properties) {
-        ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
-      };
+  ZeKernelProperties.Compute = [this](ze_kernel_properties_t &Properties) {
+    ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
+  };
+
+  // Cache kernel name.
+  ZeKernelName.Compute = [this](std::string &Name) {
+    size_t Size = 0;
+    ZE_CALL_NOCHECK(zeKernelGetName, (ZeKernel, &Size, nullptr));
+    char *KernelName = new char[Size];
+    ZE_CALL_NOCHECK(zeKernelGetName, (ZeKernel, &Size, KernelName));
+    Name = KernelName;
+    delete[] KernelName;
+  };
 
   return PI_SUCCESS;
 }
@@ -4723,13 +4736,8 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
     try {
-      size_t Size = 0;
-      ZE_CALL(zeKernelGetName, (Kernel->ZeKernel, &Size, nullptr));
-      char *KernelName = new char[Size];
-      ZE_CALL(zeKernelGetName, (Kernel->ZeKernel, &Size, KernelName));
-      pi_result Res = ReturnValue(static_cast<const char *>(KernelName));
-      delete[] KernelName;
-      return Res;
+      std::string &KernelName = *Kernel->ZeKernelName.operator->();
+      return ReturnValue(static_cast<const char *>(KernelName.c_str()));
     } catch (const std::bad_alloc &) {
       return PI_OUT_OF_HOST_MEMORY;
     } catch (...) {
@@ -5082,20 +5090,7 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   auto ZeKernel = pi_cast<ze_kernel_handle_t>(NativeHandle);
   *Kernel = new _pi_kernel(ZeKernel, OwnNativeHandle, Program);
-
-  // Update the refcount of the program and context to show it's used by this
-  // kernel.
-  PI_CALL(piProgramRetain(Program));
-  if (IndirectAccessTrackingEnabled)
-    // TODO: do piContextRetain without the guard
-    PI_CALL(piContextRetain(Program->Context));
-
-  // Set up how to obtain kernel properties when needed.
-  (*Kernel)->ZeKernelProperties.Compute =
-      [ZeKernel](ze_kernel_properties_t &Properties) {
-        ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
-      };
-
+  PI_CALL((*Kernel)->initialize());
   return PI_SUCCESS;
 }
 
