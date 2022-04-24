@@ -578,19 +578,15 @@ public:
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
       const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,     \
-                       NumCols, Layout, Group> &lhs,                           \
-      const sycl::ext::oneapi::experimental::bfloat16 &rhs) {                  \
-    (void)lhs;                                                                 \
-    (void)rhs;                                                                 \
+                       NumCols, Layout, Group> &,                              \
+      const sycl::ext::oneapi::experimental::bfloat16 &) {                     \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_INVALID_DEVICE);                                    \
   }                                                                            \
   friend type operator op(                                                     \
-      const sycl::ext::oneapi::experimental::bfloat16 &lhs,                    \
+      const sycl::ext::oneapi::experimental::bfloat16 &,                       \
       const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,     \
-                       NumCols, Layout, Group> &rhs) {                         \
-    (void)lhs;                                                                 \
-    (void)rhs;                                                                 \
+                       NumCols, Layout, Group> &) {                            \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_INVALID_DEVICE);                                    \
   }
