@@ -394,6 +394,34 @@ public:
     half r = *this;
     return -r;
   }
+
+// Operator +, -, *, /
+#define OP(op, op1)                                                            \
+  friend half operator op(const half &lhs, const half &rhs) {                  \
+    half rtn = lhs;                                                            \
+    rtn op1 rhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  template <typename T,                                                        \
+            typename = std::enable_if_t<std::is_arithmetic<T>::value>>         \
+  friend half operator op(const half &lhs, const T &rhs) {                     \
+    half rtn = lhs;                                                            \
+    rtn op1 rhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  template <typename T,                                                        \
+            typename = std::enable_if_t<std::is_arithmetic<T>::value>>         \
+  friend half operator op(const T &lhs, const half &rhs) {                     \
+    half rtn = rhs;                                                            \
+    rtn op1 lhs;                                                               \
+    return rtn;                                                                \
+  }
+  OP(+, +=)
+  OP(-, -=)
+  OP(*, *=)
+  OP(/, /=)
+#undef OP
+
   // Operator float
   __SYCL_CONSTEXPR_HALF operator float() const {
     return static_cast<float>(Data);
