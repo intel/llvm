@@ -36,6 +36,10 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
 }
 
+// Defined in tracing.cpp
+void enableZeTracing();
+void disableZeTracing();
+
 namespace {
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
@@ -7942,6 +7946,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <CL/sycl/detail/pi.def>
 
+  enableZeTracing();
   return PI_SUCCESS;
 }
 
@@ -8048,6 +8053,8 @@ pi_result piTearDown(void *PluginParameter) {
   }
   if (LeakFound)
     return PI_INVALID_MEM_OBJECT;
+
+  disableZeTracing();
   return PI_SUCCESS;
 }
 
