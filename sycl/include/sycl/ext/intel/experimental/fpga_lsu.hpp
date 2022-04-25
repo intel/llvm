@@ -57,11 +57,11 @@ public:
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     // Get latency control properties
     using _latency_anchor_id_prop =
-        typename GetOrDefaultValT<_propertiesT, latency_anchor_id_key,
-                                  defaultLatencyAnchorIdProperty>::type;
-    using _latency_constraint_prop =
-        typename GetOrDefaultValT<_propertiesT, latency_constraint_key,
-                                  defaultLatencyConstraintProperty>::type;
+        typename detail::GetOrDefaultValT<_propertiesT, latency_anchor_id_key,
+                                          defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_constraint_key,
+        defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
@@ -100,11 +100,11 @@ public:
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     // Get latency control properties
     using _latency_anchor_id_prop =
-        typename GetOrDefaultValT<_propertiesT, latency_anchor_id_key,
-                                  defaultLatencyAnchorIdProperty>::type;
-    using _latency_constraint_prop =
-        typename GetOrDefaultValT<_propertiesT, latency_constraint_key,
-                                  defaultLatencyConstraintProperty>::type;
+        typename detail::GetOrDefaultValT<_propertiesT, latency_anchor_id_key,
+                                          defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_constraint_key,
+        defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
@@ -137,21 +137,21 @@ public:
 
 private:
   static constexpr int32_t _burst_coalesce_val =
-      _GetValue<burst_coalesce_impl, _mem_access_params...>::value;
+      detail::_GetValue<burst_coalesce_impl, _mem_access_params...>::value;
   static constexpr uint8_t _burst_coalesce =
       _burst_coalesce_val == 1 ? BURST_COALESCE : 0;
 
   static constexpr int32_t _cache_val =
-      _GetValue<cache, _mem_access_params...>::value;
+      detail::_GetValue<cache, _mem_access_params...>::value;
   static constexpr uint8_t _cache = (_cache_val > 0) ? CACHE : 0;
 
   static constexpr int32_t _statically_coalesce_val =
-      _GetValue<statically_coalesce_impl, _mem_access_params...>::value;
+      detail::_GetValue<statically_coalesce_impl, _mem_access_params...>::value;
   static constexpr uint8_t _dont_statically_coalesce =
       _statically_coalesce_val == 0 ? STATICALLY_COALESCE : 0;
 
   static constexpr int32_t _prefetch_val =
-      _GetValue<prefetch_impl, _mem_access_params...>::value;
+      detail::_GetValue<prefetch_impl, _mem_access_params...>::value;
   static constexpr uint8_t _prefetch = _prefetch_val ? PREFETCH : 0;
 
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");

@@ -15,10 +15,7 @@
 #include <tuple>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
+namespace sycl::ext::intel::experimental::detail {
 
 template <template <int32_t> class _Type, class _T>
 struct _MatchType : std::is_same<_Type<_T::value>, _T> {};
@@ -57,8 +54,5 @@ using defaultLatencyAnchorIdProperty = latency_anchor_id_key::value_t<-1>;
 using defaultLatencyConstraintProperty =
     latency_constraint_key::value_t<0, latency_control_type::none, 0>;
 
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::intel::experimental::detail
 } // __SYCL_INLINE_NAMESPACE(cl)
