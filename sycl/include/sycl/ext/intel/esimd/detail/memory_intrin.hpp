@@ -530,7 +530,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-__ESIMD_INTRIN void __esimd_slm_init(size_t size)
+__ESIMD_INTRIN void __esimd_slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
