@@ -425,7 +425,8 @@ void collectCompositeElementsDefaultValuesRecursive(
 
 MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
                                      Type *SCTy, ArrayRef<ID> IDs,
-                                     bool IsNativeSpecConstant) {
+                                     bool IsNativeSpecConstant,
+                                     unsigned Padding = 0) {
   SmallVector<Metadata *, 16> MDOps;
   LLVMContext &Ctx = M.getContext();
   auto *Int32Ty = Type::getInt32Ty(Ctx);
@@ -457,9 +458,10 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
            "There must be a single ID for emulated spec constant");
     MDOps.push_back(ConstantAsMetadata::get(
         Constant::getIntegerValue(Int32Ty, APInt(32, IDs[0].ID))));
-    // Second element is always zero here
+    // Second element is padding necessary to ensure alignment of spec constant
+    // in the buffer
     MDOps.push_back(ConstantAsMetadata::get(
-        Constant::getIntegerValue(Int32Ty, APInt(32, 0))));
+        Constant::getIntegerValue(Int32Ty, APInt(32, Padding))));
 
     unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
 
@@ -724,6 +726,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       }
 
       bool IsNewSpecConstant = false;
+      unsigned Padding = 0;
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
         // to a "spec const string literal ID" -> "vector of integer IDs" map,
@@ -770,14 +773,27 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           auto Ins = OffsetMap.insert(std::make_pair(SymID, NextOffset));
           IsNewSpecConstant = Ins.second;
           unsigned CurrentOffset = Ins.first->second;
-          if (IsNewSpecConstant) {
-            unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
 
+          unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
+          unsigned Align = M.getDataLayout().getABITypeAlignment(SCTy);
+
+          // Ensure the specialization constant is properly algined
+          if (CurrentOffset % Align != 0) {
+            Padding = Size - CurrentOffset % Align;
+          }
+          CurrentOffset += Padding;
+
+          if (IsNewSpecConstant) {
+            // The CompositeOffset field is not used for specialization
+            // constant emulation so we can re-use it to communicate to the
+            // runtime the padding required for the specialization constant in
+            // the buffer
             SCMetadata[SymID] = generateSpecConstantMetadata(
-                M, SymID, SCTy, NextID, /* is native spec constant */ false);
+                M, SymID, SCTy, NextID, /* is native spec constant */ false,
+                Padding);
 
             ++NextID.ID;
-            NextOffset += Size;
+            NextOffset += Size + Padding;
           }
 
           Type *Int8Ty = Type::getInt8Ty(CI->getContext());
@@ -806,9 +822,18 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
       }
 
-      if (IsNewSpecConstant && DefaultValue)
+      if (IsNewSpecConstant && DefaultValue) {
+        if (Padding != 0) {
+          // Initialize the padding with null data
+          LLVMContext &Ctx = DefaultValue->getContext();
+          auto PadTy = ArrayType::get(Type::getInt8Ty(Ctx), Padding);
+          DefaultsMetadata.push_back(MDNode::get(
+              Ctx,
+              ConstantAsMetadata::get(llvm::Constant::getNullValue(PadTy))));
+        }
         DefaultsMetadata.push_back(
             generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
+      }
 
       if (HasSretParameter) {
         // If __sycl_getCompositeSpecConstant returns through argument, then the
