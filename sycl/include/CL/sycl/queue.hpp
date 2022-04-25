@@ -872,7 +872,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  event parallel_for(range<Dims> Range, id<Dims> WorkItemOffset,
+  event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return submit(
@@ -894,7 +894,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  event parallel_for(range<Dims> Range, id<Dims> WorkItemOffset, event DepEvent,
+  event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset, event DepEvent,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
     return submit(
@@ -918,7 +918,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  event parallel_for(range<Dims> Range, id<Dims> WorkItemOffset,
+  event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
                      const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
