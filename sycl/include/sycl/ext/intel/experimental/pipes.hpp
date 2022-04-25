@@ -41,13 +41,12 @@ public:
   static _dataT read(bool &Success, _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
-    using _latency_anchor_id_prop =
-        typename detail::GetOrDefaultValT<_functionPropertiesT,
-                                          latency_anchor_id_key,
-                                          defaultLatencyAnchorIdProperty>::type;
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _functionPropertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
         _functionPropertiesT, latency_constraint_key,
-        defaultLatencyConstraintProperty>::type;
+        detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
@@ -90,13 +89,12 @@ public:
                     _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
-    using _latency_anchor_id_prop =
-        typename detail::GetOrDefaultValT<_functionPropertiesT,
-                                          latency_anchor_id_key,
-                                          defaultLatencyAnchorIdProperty>::type;
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _functionPropertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
         _functionPropertiesT, latency_constraint_key,
-        defaultLatencyConstraintProperty>::type;
+        detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
@@ -138,13 +136,12 @@ public:
   static _dataT read(_functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
-    using _latency_anchor_id_prop =
-        typename detail::GetOrDefaultValT<_functionPropertiesT,
-                                          latency_anchor_id_key,
-                                          defaultLatencyAnchorIdProperty>::type;
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _functionPropertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
         _functionPropertiesT, latency_constraint_key,
-        defaultLatencyConstraintProperty>::type;
+        detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
@@ -183,13 +180,12 @@ public:
   static void write(const _dataT &Data, _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
-    using _latency_anchor_id_prop =
-        typename detail::GetOrDefaultValT<_functionPropertiesT,
-                                          latency_anchor_id_key,
-                                          defaultLatencyAnchorIdProperty>::type;
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _functionPropertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
         _functionPropertiesT, latency_constraint_key,
-        defaultLatencyConstraintProperty>::type;
+        detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;

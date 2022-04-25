@@ -56,12 +56,12 @@ public:
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     // Get latency control properties
-    using _latency_anchor_id_prop =
-        typename detail::GetOrDefaultValT<_propertiesT, latency_anchor_id_key,
-                                          defaultLatencyAnchorIdProperty>::type;
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
         _propertiesT, latency_constraint_key,
-        defaultLatencyConstraintProperty>::type;
+        detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
@@ -99,12 +99,12 @@ public:
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     // Get latency control properties
-    using _latency_anchor_id_prop =
-        typename detail::GetOrDefaultValT<_propertiesT, latency_anchor_id_key,
-                                          defaultLatencyAnchorIdProperty>::type;
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
         _propertiesT, latency_constraint_key,
-        defaultLatencyConstraintProperty>::type;
+        detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
