@@ -1287,7 +1287,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       // improved upon
       auto SingleTargetTripleCount = [&Args](OptSpecifier Opt) {
         const Arg *TargetArg = Args.getLastArg(Opt);
-        if (TargetArg && TargetArg->getValues().size() == 1)
+        if (!TargetArg || TargetArg->getValues().size() == 1)
           return true;
         return false;
       };
