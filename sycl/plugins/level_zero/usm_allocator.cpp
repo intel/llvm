@@ -424,19 +424,21 @@ class Bucket {
   size_t chunkedSlabsInPool;
 
   // Statistics
-  size_t allocCount;
   size_t allocPoolCount;
   size_t freeCount;
   size_t currSlabsInUse;
   size_t currSlabsInPool;
-  size_t maxSlabsInUse;
   size_t maxSlabsInPool;
 
 public:
+  // Statistics
+  size_t allocCount;
+  size_t maxSlabsInUse;
+
   Bucket(size_t Sz, USMAllocContext::USMAllocImpl &AllocCtx)
-      : Size{Sz}, OwnAllocCtx{AllocCtx}, chunkedSlabsInPool(0), allocCount(0),
+      : Size{Sz}, OwnAllocCtx{AllocCtx}, chunkedSlabsInPool(0),
         allocPoolCount(0), freeCount(0), currSlabsInUse(0), currSlabsInPool(0),
-        maxSlabsInUse(0), maxSlabsInPool(0) {}
+        maxSlabsInPool(0), allocCount(0), maxSlabsInUse(0) {}
 
   // Get pointer to allocation that is one piece of an available slab in this
   // bucket.
@@ -543,7 +545,8 @@ public:
     return USMSettings.SlabMinSize[(*MemHandle).getMemType()];
   };
 
-  void printStats(bool &TitlePrinted, SystemMemory::MemType MT);
+  void printStats(bool &TitlePrinted, size_t &HighBucketSize,
+                  size_t &HighPeakSlabsInUse, SystemMemory::MemType MT);
 
 private:
   Bucket &findBucket(size_t Size);
@@ -889,18 +892,11 @@ void Bucket::updateStats(int InUse, int InPool) {
 void Bucket::printStats(bool &TitlePrinted, SystemMemory::MemType MT) {
   if (allocCount) {
     if (!TitlePrinted) {
-      auto Label = "Shared";
-      if (MT == SystemMemory::Host) {
-        Label = "Host";
-        std::cout << "Current Pool Size " << USMSettings.CurPoolSize
-                  << std::endl;
-      }
-      if (MT == SystemMemory::Device)
-        Label = "Device";
+      auto Label = MemTypeNames[MT];
       std::cout << Label << " memory statistics\n";
       std::cout << std::setw(14) << "Bucket Size" << std::setw(12) << "Allocs"
                 << std::setw(12) << "Frees" << std::setw(18)
-                << "Allocs From Pool" << std::setw(20) << "Peak Slabs In Use"
+                << "Allocs from Pool" << std::setw(20) << "Peak Slabs in Use"
                 << std::setw(21) << "Peak Slabs in Pool" << std::endl;
       TitlePrinted = true;
     }
@@ -1076,15 +1072,33 @@ void USMAllocContext::deallocate(void *ptr, bool OwnZeMemHandle) {
 // Define destructor for use with unique_ptr
 USMAllocContext::~USMAllocContext() {
   bool TitlePrinted = false;
+  size_t HighBucketSize;
+  size_t HighPeakSlabsInUse;
   if (USMSettings.PoolTrace > 1) {
-    pImpl->printStats(TitlePrinted, pImpl->getMemHandle().getMemType());
+    SystemMemory::MemType MT = pImpl->getMemHandle().getMemType();
+    pImpl->printStats(TitlePrinted, HighBucketSize, HighPeakSlabsInUse, MT);
+    if (TitlePrinted) {
+      std::cout << "Current Pool Size " << USMSettings.CurPoolSize << std::endl;
+      const char *Label = MemTypeNames[MT];
+      std::cout << "Suggested Setting: SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=;"
+                << std::string(1, tolower(*Label)) << std::string(Label + 1)
+                << ":" << HighBucketSize << "," << HighPeakSlabsInUse << ",64K"
+                << std::endl;
+    }
   }
 }
 
 void USMAllocContext::USMAllocImpl::printStats(bool &TitlePrinted,
+                                               size_t &HighBucketSize,
+                                               size_t &HighPeakSlabsInUse,
                                                SystemMemory::MemType MT) {
+  HighBucketSize = 0;
+  HighPeakSlabsInUse = 0;
   for (auto &B : Buckets) {
     (*B).printStats(TitlePrinted, MT);
+    HighPeakSlabsInUse = std::max((*B).maxSlabsInUse, HighPeakSlabsInUse);
+    if ((*B).allocCount)
+      HighBucketSize = std::max((*B).SlabAllocSize(), HighBucketSize);
   }
 }
 
