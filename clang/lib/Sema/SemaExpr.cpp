@@ -9238,18 +9238,23 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
       S.getLangOpts().OpenCL || S.getLangOpts().SYCLIsDevice;
   const LangASMap &ASMap = S.Context.getTargetInfo().getAddressSpaceMap();
   if (!lhq.compatiblyIncludes(rhq, &ASMap)) {
+    const bool AddressSpaceSuperset = Qualifiers::isAddressSpaceSupersetOf(
+        lhq.getAddressSpace(), rhq.getAddressSpace(), &ASMap, IsSYCLOrOpenCL);
+
     // Treat address-space mismatches as fatal.
-    if (!Qualifiers::isAddressSpaceSupersetOf(lhq.getAddressSpace(),
-                                              rhq.getAddressSpace(), &ASMap,
-                                              IsSYCLOrOpenCL))
+    if (!AddressSpaceSuperset)
       return Sema::IncompatiblePointerDiscardsQualifiers;
+
+    // In OpenCL/SYCL don't issue discard qualifier warning if address spaces
+    // overlap.
+    else if (AddressSpaceSuperset && IsSYCLOrOpenCL)
+      ; // keep Compatible
 
     // It's okay to add or remove GC or lifetime qualifiers when converting to
     // and from void*.
-    else if (lhq.withoutObjCGCAttr().withoutObjCLifetime()
-                        .compatiblyIncludes(
-                                rhq.withoutObjCGCAttr().withoutObjCLifetime())
-             && (lhptee->isVoidType() || rhptee->isVoidType()))
+    else if (lhq.withoutObjCGCAttr().withoutObjCLifetime().compatiblyIncludes(
+                 rhq.withoutObjCGCAttr().withoutObjCLifetime()) &&
+             (lhptee->isVoidType() || rhptee->isVoidType()))
       ; // keep old
 
     // Treat lifetime mismatches as fatal.

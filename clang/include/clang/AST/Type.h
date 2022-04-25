@@ -477,9 +477,9 @@ public:
   ///   every address space is a superset of itself.
   /// CL2.0 adds:
   ///   __generic is a superset of any address space except for __constant.
-  /// If ASMap is provided and address spaces are provided in both language and
-  /// target form the function will attempt to convert language to
-  /// target address space.
+  /// If ASMap is provided and address spaces are given in both language and
+  /// target form the function will attempt to convert language to target
+  /// address space.
   static bool isAddressSpaceSupersetOf(LangAS A, LangAS B,
                                        const LangASMap *ASMap = nullptr,
                                        bool IsSYCLOrOpenCL = false) {
@@ -505,15 +505,14 @@ public:
           A = static_cast<LangAS>(
               (*ASMap)[static_cast<unsigned>(A)] +
               static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
-        // When dealing with target AS return true iff:
+        // When dealing with target AS return true if:
         // * A is equal to B, or
         // * in OpenCL or SYCL and A is generic and B is not constant (making
         // sure that constant and generic are in target address spaces).
         if (IsSYCLOrOpenCL)
           return A == B ||
                  (A == Generic && B != Constant && Generic != Constant);
-        else
-          return A == B;
+        return A == B;
       }
     }
 

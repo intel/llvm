@@ -16,7 +16,8 @@ void vector_conv_invalid(const global int4 *const_global_ptr) {
   e = (constant int4)i;
   e = (private int4)i;
 
-  private int4 *private_ptr = (const private int4 *)const_global_ptr; // expected-error{{casting 'const __global int4 *' to type 'const __private int4 *' changes address space of pointer}}
-  global int4 *global_ptr = const_global_ptr;                 // expected-warning {{initializing '__global int4 *__private' with an expression of type 'const __global int4 *__private' discards qualifiers}}
+private
+  int4 *private_ptr = (const private int4 *)const_global_ptr; // expected-error{{casting 'const __global int4 *' to type 'const __private int4 *' changes address space of pointer}}
+  global int4 *global_ptr = const_global_ptr;
   global_ptr = (global int4 *)const_global_ptr;
 }

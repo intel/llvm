@@ -17,16 +17,22 @@ __kernel void ker_2(__global int *Array, int N) {
   Array[N] = *I3;
 }
 
-// Check casting __shared to address space 5 (private for AMD) pointer errors.
+// Check casting __local to address space 5 (private for AMD) pointer errors.
 __kernel void ker_3(__global int *Array, int N) {
-  __private int IP;
+  __local int IP;
   __attribute__((address_space(5))) int *I5;
-  I5 = (__attribute__((address_space(5))) int *)&IP;
+  I5 = (__attribute__((address_space(5))) int *)&IP; // expected-error {{casting '__local int *' to type '__attribute__((address_space(5))) int *' changes address space of pointer}}
   Array[N] = *I5;
 }
 
 // Check casting of address_space(3) to __generic pointer works.
 __kernel void ker_4(__global int *Array, int N, __attribute__((address_space(3))) int *AS3_ptr) {
   __generic int *IG;
-  IG = AS3_ptr; // expected-warning {{assigning to '__generic int *__private' from '__attribute__((address_space(3))) int *__private' discards qualifiers}}
+  IG = AS3_ptr;
+}
+
+// Check casting of address_space(4) (__constant) to __generic pointer fails.
+__kernel void ker_5(__global int *Array, int N, __attribute__((address_space(4))) int *AS4_ptr) {
+  __generic int *IG;
+  IG = AS4_ptr; // expected-error {{assigning '__attribute__((address_space(4))) int *__private' to '__generic int *__private' changes address space of pointer}}
 }
