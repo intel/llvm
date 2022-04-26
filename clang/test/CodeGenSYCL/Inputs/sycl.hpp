@@ -66,7 +66,6 @@ enum class address_space : int {
   constant_space,
   local_space
 };
-
 } // namespace access
 
 // Dummy aspect enum with limited enumerators
