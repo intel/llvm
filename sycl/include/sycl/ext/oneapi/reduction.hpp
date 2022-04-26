@@ -94,13 +94,11 @@ using IsReduOptForFastReduce =
                    sycl::detail::IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
-// std::tuple seems to be a) too heavy and b) not copyable to device now
-// Thus sycl::detail::tuple is used instead.
-// Switching from sycl::device::tuple to std::tuple can be done by re-defining
-// the ReduTupleT type and makeReduTupleT() function below.
-template <typename... Ts> using ReduTupleT = sycl::detail::tuple<Ts...>;
+// Using std::tuple allows usage of functions like std::tuple_element_t
+// Switching tuple can be done by changing the definitions below
+template <typename... Ts> using ReduTupleT = std::tuple<Ts...>;
 template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
-  return sycl::detail::make_tuple(Elements...);
+  return std::make_tuple(Elements...);
 }
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
@@ -550,6 +548,8 @@ public:
   static constexpr bool is_usm = IsUSM;
   static constexpr bool is_placeholder =
       (IsPlaceholder == access::placeholder::true_t);
+
+  static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
 
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
@@ -1774,7 +1774,9 @@ auto createReduOutAccs(size_t NWorkGroups, handler &CGH,
                        std::index_sequence<Is...>) {
   return makeReduTupleT(
       std::get<Is>(ReduTuple).template getWriteMemForPartialReds<IsOneWG>(
-          NWorkGroups, CGH)...);
+          NWorkGroups *
+              std::tuple_element_t<Is, std::tuple<Reductions...>>::num_elements,
+          CGH)...);
 }
 
 /// For the given 'Reductions' types pack and indices enumerating them this
@@ -1982,6 +1984,142 @@ constexpr auto filterSequence(FunctorT F, std::index_sequence<Is...> Indices) {
   return filterSequenceHelper<T...>(F, Indices);
 }
 
+struct IsScalarReduction {
+  template <typename Reduction> struct Func {
+    static constexpr bool value =
+        (Reduction::dims == 0 && Reduction::num_elements == 1);
+  };
+};
+
+struct IsArrayReduction {
+  template <typename Reduction> struct Func {
+    static constexpr bool value =
+        (Reduction::dims == 1 && Reduction::num_elements > 1);
+  };
+};
+
+/// All scalar reductions are processed together; there is one loop of log2(N)
+/// steps, and each reduction uses its own storage.
+template <bool Pow2WG, bool IsOneWG, typename... Reductions, int Dims,
+          typename... LocalAccT, typename... OutAccT, typename... ReducerT,
+          typename... Ts, typename... BOPsT, size_t... Is>
+void reduCGFuncImplScalar(
+    nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<ReducerT...> &ReducersTuple,
+    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
+    std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
+    std::index_sequence<Is...> ReduIndices) {
+  size_t WGSize = NDIt.get_local_range().size();
+  size_t LID = NDIt.get_local_linear_id();
+  initReduLocalAccs<Pow2WG>(LID, WGSize, LocalAccsTuple, ReducersTuple,
+                            IdentitiesTuple, ReduIndices);
+  NDIt.barrier();
+
+  size_t PrevStep = WGSize;
+  for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+    if (LID < CurStep) {
+      // LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+      reduceReduLocalAccs(LID, LID + CurStep, LocalAccsTuple, BOPsTuple,
+                          ReduIndices);
+    } else if (!Pow2WG && LID == CurStep && (PrevStep & 0x1)) {
+      // LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+      reduceReduLocalAccs(WGSize, PrevStep - 1, LocalAccsTuple, BOPsTuple,
+                          ReduIndices);
+    }
+    NDIt.barrier();
+    PrevStep = CurStep;
+  }
+
+  // Compute the partial sum/reduction for the work-group.
+  if (LID == 0) {
+    size_t GrID = NDIt.get_group_linear_id();
+    writeReduSumsToOutAccs<Pow2WG, IsOneWG>(
+        GrID, WGSize, (std::tuple<Reductions...> *)nullptr, OutAccsTuple,
+        LocalAccsTuple, BOPsTuple, IdentitiesTuple, InitToIdentityProps,
+        ReduIndices);
+  }
+}
+
+/// Each array reduction is processed separately.
+template <bool Pow2WG, bool IsOneWG, typename Reduction, int Dims,
+          typename LocalAccT, typename OutAccT, typename ReducerT, typename T,
+          typename BOPT>
+void reduCGFuncImplArrayHelper(nd_item<Dims> NDIt, LocalAccT LocalReds,
+                               OutAccT Out, ReducerT &Reducer, T Identity,
+                               BOPT BOp, bool IsInitializeToIdentity) {
+  size_t WGSize = NDIt.get_local_range().size();
+  size_t LID = NDIt.get_local_linear_id();
+
+  // If there are multiple values, reduce each separately
+  // This prevents local memory from scaling with elements
+  auto NElements = Reduction::num_elements;
+  for (size_t E = 0; E < NElements; ++E) {
+
+    // Copy the element to local memory to prepare it for tree-reduction.
+    LocalReds[LID] = Reducer.getElement(E);
+    if (!Pow2WG)
+      LocalReds[WGSize] = Identity;
+    NDIt.barrier();
+
+    size_t PrevStep = WGSize;
+    for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+      if (LID < CurStep) {
+        LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+      } else if (!Pow2WG && LID == CurStep && (PrevStep & 0x1)) {
+        LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+      }
+      NDIt.barrier();
+      PrevStep = CurStep;
+    }
+
+    // Add the initial value of user's variable to the final result.
+    if (LID == 0) {
+      if (IsOneWG) {
+        LocalReds[0] =
+            BOp(LocalReds[0], IsInitializeToIdentity
+                                  ? Identity
+                                  : Reduction::getOutPointer(Out)[E]);
+      }
+
+      size_t GrID = NDIt.get_group_linear_id();
+      if (Pow2WG) {
+        // The partial sums for the work-group are stored in 0-th elements of
+        // local accessors. Simply write those sums to output accessors.
+        Reduction::getOutPointer(Out)[GrID * NElements + E] = LocalReds[0];
+      } else {
+        // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
+        // elements. Combine them into final partial sums and write to output
+        // accessors.
+        Reduction::getOutPointer(Out)[GrID * NElements + E] =
+            BOp(LocalReds[0], LocalReds[WGSize]);
+      }
+    }
+
+    // Ensure item 0 is finished with LocalReds before next iteration
+    if (E != NElements - 1) {
+      NDIt.barrier();
+    }
+  }
+}
+
+template <bool Pow2WG, bool IsOneWG, typename... Reductions, int Dims,
+          typename... LocalAccT, typename... OutAccT, typename... ReducerT,
+          typename... Ts, typename... BOPsT, size_t... Is>
+void reduCGFuncImplArray(
+    nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<ReducerT...> &ReducersTuple,
+    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
+    std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
+    std::index_sequence<Is...> ReduIndices) {
+  using ReductionPack = std::tuple<Reductions...>;
+  (reduCGFuncImplArrayHelper<Pow2WG, IsOneWG,
+                             std::tuple_element_t<Is, ReductionPack>>(
+       NDIt, std::get<Is>(LocalAccsTuple), std::get<Is>(OutAccsTuple),
+       std::get<Is>(ReducersTuple), std::get<Is>(IdentitiesTuple),
+       std::get<Is>(BOPsTuple), InitToIdentityProps[Is]),
+   ...);
+}
+
 template <typename KernelName, bool Pow2WG, bool IsOneWG, typename KernelType,
           int Dims, typename... Reductions, size_t... Is>
 void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
@@ -1989,6 +2127,21 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
                     std::tuple<Reductions...> &ReduTuple,
                     std::index_sequence<Is...> ReduIndices) {
 
+  // Split reduction sequence into two:
+  // 1) Scalar reductions
+  // 2) Array reductions
+  // This allows us to reuse the existing implementation for scalar reductions
+  // and introduce a new implementation for array reductions. Longer term it
+  // may make sense to generalize the code such that each phase below applies
+  // to all available reduction implementations -- today all reduction classes
+  // use the same privatization-based approach, so this is unnecessary.
+  IsScalarReduction ScalarPredicate;
+  auto ScalarIs = filterSequence<Reductions...>(ScalarPredicate, ReduIndices);
+
+  IsArrayReduction ArrayPredicate;
+  auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
+
+  // Create inputs using the global order of all reductions
   size_t WGSize = Range.get_local_range().size();
   size_t LocalAccSize = WGSize + (Pow2WG ? 0 : 1);
   auto LocalAccsTuple =
@@ -2005,42 +2158,28 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
   using Name = typename get_reduction_main_kernel_name_t<
       KernelName, KernelType, Pow2WG, IsOneWG, decltype(OutAccsTuple)>::name;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+    // Pass all reductions to user's lambda in the same order as supplied
+    // Each reducer initializes its own storage
     auto ReduIndices = std::index_sequence_for<Reductions...>();
     auto ReducersTuple =
         createReducers<Reductions...>(IdentitiesTuple, BOPsTuple, ReduIndices);
-    // The .MValue field of each of the elements in ReducersTuple
-    // gets initialized in this call.
     callReduUserKernelFunc(KernelFunc, NDIt, ReducersTuple, ReduIndices);
 
-    size_t WGSize = NDIt.get_local_range().size();
-    size_t LID = NDIt.get_local_linear_id();
-    initReduLocalAccs<Pow2WG>(LID, WGSize, LocalAccsTuple, ReducersTuple,
-                              IdentitiesTuple, ReduIndices);
-    NDIt.barrier();
+    // Combine and write-back the results of any scalar reductions
+    // reduCGFuncImplScalar<Reductions...>(NDIt, LocalAccsTuple, OutAccsTuple,
+    // ReducersTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps,
+    // ReduIndices);
+    reduCGFuncImplScalar<Pow2WG, IsOneWG, Reductions...>(
+        NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple, IdentitiesTuple,
+        BOPsTuple, InitToIdentityProps, ScalarIs);
 
-    size_t PrevStep = WGSize;
-    for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-      if (LID < CurStep) {
-        // LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-        reduceReduLocalAccs(LID, LID + CurStep, LocalAccsTuple, BOPsTuple,
-                            ReduIndices);
-      } else if (!Pow2WG && LID == CurStep && (PrevStep & 0x1)) {
-        // LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-        reduceReduLocalAccs(WGSize, PrevStep - 1, LocalAccsTuple, BOPsTuple,
-                            ReduIndices);
-      }
-      NDIt.barrier();
-      PrevStep = CurStep;
-    }
-
-    // Compute the partial sum/reduction for the work-group.
-    if (LID == 0) {
-      size_t GrID = NDIt.get_group_linear_id();
-      writeReduSumsToOutAccs<Pow2WG, IsOneWG>(
-          GrID, WGSize, (std::tuple<Reductions...> *)nullptr, OutAccsTuple,
-          LocalAccsTuple, BOPsTuple, IdentitiesTuple, InitToIdentityProps,
-          ReduIndices);
-    }
+    // Combine and write-back the results of any array reductions
+    // These are handled separately to minimize temporary storage and account
+    // for the fact that each array reduction may have a different number of
+    // elements to reduce (i.e. a different extent).
+    reduCGFuncImplArray<Pow2WG, IsOneWG, Reductions...>(
+        NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple, IdentitiesTuple,
+        BOPsTuple, InitToIdentityProps, ArrayIs);
   });
 }
 
@@ -2147,11 +2286,157 @@ void associateReduAccsWithHandler(handler &CGH,
   associateReduAccsWithHandlerHelper(CGH, std::get<Is>(ReduTuple)...);
 }
 
+/// All scalar reductions are processed together; there is one loop of log2(N)
+/// steps, and each reduction uses its own storage.
+template <bool UniformPow2WG, bool IsOneWG, typename... Reductions, int Dims,
+          typename... LocalAccT, typename... InAccT, typename... OutAccT,
+          typename... Ts, typename... BOPsT, size_t... Is>
+void reduAuxCGFuncImplScalar(
+    nd_item<Dims> NDIt, size_t LID, size_t GID, size_t NWorkItems,
+    size_t WGSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
+    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
+    std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
+    std::index_sequence<Is...> ReduIndices) {
+  initReduLocalAccs<UniformPow2WG>(LID, GID, NWorkItems, WGSize, LocalAccsTuple,
+                                   InAccsTuple, IdentitiesTuple, ReduIndices);
+  NDIt.barrier();
+
+  size_t PrevStep = WGSize;
+  for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+    if (LID < CurStep) {
+      // LocalAcc[LID] = BOp(LocalAcc[LID], LocalAcc[LID + CurStep]);
+      reduceReduLocalAccs(LID, LID + CurStep, LocalAccsTuple, BOPsTuple,
+                          ReduIndices);
+    } else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1)) {
+      // LocalAcc[WGSize] = BOp(LocalAcc[WGSize], LocalAcc[PrevStep - 1]);
+      reduceReduLocalAccs(WGSize, PrevStep - 1, LocalAccsTuple, BOPsTuple,
+                          ReduIndices);
+    }
+    NDIt.barrier();
+    PrevStep = CurStep;
+  }
+
+  // Compute the partial sum/reduction for the work-group.
+  if (LID == 0) {
+    size_t GrID = NDIt.get_group_linear_id();
+    writeReduSumsToOutAccs<UniformPow2WG, IsOneWG>(
+        GrID, WGSize, (std::tuple<Reductions...> *)nullptr, OutAccsTuple,
+        LocalAccsTuple, BOPsTuple, IdentitiesTuple, InitToIdentityProps,
+        ReduIndices);
+  }
+}
+
+template <bool UniformPow2WG, bool IsOneWG, typename Reduction, int Dims,
+          typename LocalAccT, typename InAccT, typename OutAccT, typename T,
+          typename BOPT>
+void reduAuxCGFuncImplArrayHelper(nd_item<Dims> NDIt, size_t LID, size_t GID,
+                                  size_t NWorkItems, size_t WGSize,
+                                  LocalAccT LocalReds, InAccT In, OutAccT Out,
+                                  T Identity, BOPT BOp,
+                                  bool IsInitializeToIdentity) {
+
+  // If there are multiple values, reduce each separately
+  // This prevents local memory from scaling with elements
+  auto NElements = Reduction::num_elements;
+  for (size_t E = 0; E < NElements; ++E) {
+    // Normally, the local accessors are initialized with elements from the
+    // input accessors. The exception is the case when (GID >= NWorkItems),
+    // which possible only when UniformPow2WG is false. For that case the
+    // elements of local accessors are initialized with identity value, so they
+    // would not give any impact into the final partial sums during the
+    // tree-reduction algorithm work.
+    if (UniformPow2WG || GID < NWorkItems) {
+      LocalReds[LID] = In[GID * NElements + E];
+    } else {
+      LocalReds[LID] = Identity;
+    }
+
+    // For work-groups, which size is not power of two, local accessors have
+    // an additional element with index WGSize that is used by the
+    // tree-reduction algorithm. Initialize those additional elements with
+    // identity values here.
+    if (!UniformPow2WG) {
+      LocalReds[WGSize] = Identity;
+    }
+
+    NDIt.barrier();
+
+    // Tree reduction in local memory
+    size_t PrevStep = WGSize;
+    for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+      if (LID < CurStep) {
+        LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+      } else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1)) {
+        LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+      }
+      NDIt.barrier();
+      PrevStep = CurStep;
+    }
+
+    // Add the initial value of user's variable to the final result.
+    if (LID == 0) {
+      if (IsOneWG) {
+        LocalReds[0] =
+            BOp(LocalReds[0], IsInitializeToIdentity
+                                  ? Identity
+                                  : Reduction::getOutPointer(Out)[E]);
+      }
+
+      size_t GrID = NDIt.get_group_linear_id();
+      if (UniformPow2WG) {
+        // The partial sums for the work-group are stored in 0-th elements of
+        // local accessors. Simply write those sums to output accessors.
+        Reduction::getOutPointer(Out)[GrID * NElements + E] = LocalReds[0];
+      } else {
+        // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
+        // elements. Combine them into final partial sums and write to output
+        // accessors.
+        Reduction::getOutPointer(Out)[GrID * NElements + E] =
+            BOp(LocalReds[0], LocalReds[WGSize]);
+      }
+    }
+
+    // Ensure item 0 is finished with LocalReds before next iteration
+    if (E != NElements - 1) {
+      NDIt.barrier();
+    }
+  }
+}
+
+template <bool UniformPow2WG, bool IsOneWG, typename... Reductions, int Dims,
+          typename... LocalAccT, typename... InAccT, typename... OutAccT,
+          typename... Ts, typename... BOPsT, size_t... Is>
+void reduAuxCGFuncImplArray(
+    nd_item<Dims> NDIt, size_t LID, size_t GID, size_t NWorkItems,
+    size_t WGSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
+    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
+    std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
+    std::index_sequence<Is...> ReduIndices) {
+  using ReductionPack = std::tuple<Reductions...>;
+  (reduAuxCGFuncImplArrayHelper<UniformPow2WG, IsOneWG,
+                                std::tuple_element_t<Is, ReductionPack>>(
+       NDIt, LID, GID, NWorkItems, WGSize, std::get<Is>(LocalAccsTuple),
+       std::get<Is>(InAccsTuple), std::get<Is>(OutAccsTuple),
+       std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple),
+       InitToIdentityProps[Is]),
+   ...);
+}
+
 template <typename KernelName, typename KernelType, bool UniformPow2WG,
           bool IsOneWG, typename... Reductions, size_t... Is>
 void reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
                        size_t WGSize, std::tuple<Reductions...> &ReduTuple,
                        std::index_sequence<Is...> ReduIndices) {
+
+  // Like reduCGFuncImpl, we also have to split out scalar and array reductions
+  IsScalarReduction ScalarPredicate;
+  auto ScalarIs = filterSequence<Reductions...>(ScalarPredicate, ReduIndices);
+
+  IsArrayReduction ArrayPredicate;
+  auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
+
   // The last kernel DOES write to user's accessor passed to reduction.
   // Associate it with handler manually.
   std::conditional_t<IsOneWG, IsNonUsmReductionPredicate,
@@ -2176,41 +2461,22 @@ void reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
       typename get_reduction_aux_kernel_name_t<KernelName, KernelType,
                                                UniformPow2WG, IsOneWG,
                                                decltype(OutAccsTuple)>::name;
+  // TODO: Opportunity to parallelize across number of elements
   range<1> GlobalRange = {UniformPow2WG ? NWorkItems : NWorkGroups * WGSize};
   nd_range<1> Range{GlobalRange, range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
-    auto ReduIndices = std::index_sequence_for<Reductions...>();
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
     size_t GID = NDIt.get_global_linear_id();
-    initReduLocalAccs<UniformPow2WG>(LID, GID, NWorkItems, WGSize,
-                                     LocalAccsTuple, InAccsTuple,
-                                     IdentitiesTuple, ReduIndices);
-    NDIt.barrier();
 
-    size_t PrevStep = WGSize;
-    for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-      if (LID < CurStep) {
-        // LocalAcc[LID] = BOp(LocalAcc[LID], LocalAcc[LID + CurStep]);
-        reduceReduLocalAccs(LID, LID + CurStep, LocalAccsTuple, BOPsTuple,
-                            ReduIndices);
-      } else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1)) {
-        // LocalAcc[WGSize] = BOp(LocalAcc[WGSize], LocalAcc[PrevStep - 1]);
-        reduceReduLocalAccs(WGSize, PrevStep - 1, LocalAccsTuple, BOPsTuple,
-                            ReduIndices);
-      }
-      NDIt.barrier();
-      PrevStep = CurStep;
-    }
-
-    // Compute the partial sum/reduction for the work-group.
-    if (LID == 0) {
-      size_t GrID = NDIt.get_group_linear_id();
-      writeReduSumsToOutAccs<UniformPow2WG, IsOneWG>(
-          GrID, WGSize, (std::tuple<Reductions...> *)nullptr, OutAccsTuple,
-          LocalAccsTuple, BOPsTuple, IdentitiesTuple, InitToIdentityProps,
-          ReduIndices);
-    }
+    // Handle scalar and array reductions
+    reduAuxCGFuncImplScalar<UniformPow2WG, IsOneWG, Reductions...>(
+        NDIt, LID, GID, NWorkItems, WGSize, LocalAccsTuple, InAccsTuple,
+        OutAccsTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps,
+        ScalarIs);
+    reduAuxCGFuncImplArray<UniformPow2WG, IsOneWG, Reductions...>(
+        NDIt, LID, GID, NWorkItems, WGSize, LocalAccsTuple, InAccsTuple,
+        OutAccsTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps, ArrayIs);
   });
 }
 
