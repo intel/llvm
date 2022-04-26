@@ -379,11 +379,28 @@ static bool parsePersistentCacheConfig() {
   return Ret;
 }
 
+/* Cached static variable signalling if the persistent cache is enabled.
+ * The variable can have three values:
+ *  - None  : The configuration has not been parsed.
+ *  - true  : The persistent cache is enabled.
+ *  - false : The persistent cache is disabled.
+ */
+static std::optional<bool> CacheIsEnabled;
+
+/* Forces a reparsing of the information used to determine if the persistent
+ * cache is enabled. This is primarily used for unit-testing where the
+ * corresponding configuration variable is set by the individual tests.
+ */
+void PersistentDeviceCodeCache::reparseConfig() {
+  CacheIsEnabled = parsePersistentCacheConfig();
+}
+
 /* Returns true if persistent cache is enabled.
  */
 bool PersistentDeviceCodeCache::isEnabled() {
-  static bool Val = parsePersistentCacheConfig();
-  return Val;
+  if (!CacheIsEnabled)
+    reparseConfig();
+  return *CacheIsEnabled;
 }
 
 /* Returns path for device code cache root directory

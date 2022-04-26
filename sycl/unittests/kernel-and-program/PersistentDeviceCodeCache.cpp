@@ -21,9 +21,12 @@
 // TODO: Introduce common unit tests header and move it there
 static void set_env(const char *name, const char *value) {
 #ifdef _WIN32
-  (void)_putenv_s(name, value);
+  (void)_putenv_s(name, value ? value : "");
 #else
-  (void)setenv(name, value, /*overwrite*/ 1);
+  if (value)
+    (void)setenv(name, value, /*overwrite*/ 1);
+  else
+    (void)unsetenv(name);
 #endif
 }
 
@@ -81,10 +84,45 @@ public:
     return _putenv_s(name, value);
   }
 #endif
+
+  std::optional<std::string> SYCLCachePersistentBefore;
+  bool SYCLCachePersistentChanged = false;
+
+  // Caches the initial value of the SYCL_CACHE_PERSISTENT environment variable
+  // before overwriting it with the new value.
+  // Tear-down will reset the environment variable.
+  void SetSYCLCachePersistentEnv(const char *NewValue) {
+    char *SYCLCachePersistent = getenv("SYCL_CACHE_PERSISTENT");
+    // We can skip if the new value is the same as the old one.
+    if ((!NewValue && !SYCLCachePersistent) ||
+        (NewValue && SYCLCachePersistent &&
+         !strcmp(NewValue, SYCLCachePersistent)))
+      return;
+
+    // Cache the old value of SYCL_CACHE_PERSISTENT if it is not already saved.
+    if (!SYCLCachePersistentChanged && SYCLCachePersistent)
+      SYCLCachePersistentBefore = std::string{SYCLCachePersistent};
+
+    // Set the environment variable and signal the configuration file and the
+    // persistent cache.
+    set_env("SYCL_CACHE_PERSISTENT", NewValue);
+    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+    detail::PersistentDeviceCodeCache::reparseConfig();
+    SYCLCachePersistentChanged = true;
+  }
+
   virtual void SetUp() {
     EXPECT_NE(getenv("SYCL_CACHE_DIR"), nullptr)
         << "Please set SYCL_CACHE_DIR environment variable pointing to cache "
            "location.";
+  }
+
+  virtual void TearDown() {
+    // If we changed the cache, set it back to the old value.
+    if (SYCLCachePersistentChanged)
+      SetSYCLCachePersistentEnv(SYCLCachePersistentBefore
+                                    ? SYCLCachePersistentBefore->c_str()
+                                    : nullptr);
   }
 
   PersistenDeviceCodeCache() : Plt{default_selector()} {
@@ -112,8 +150,7 @@ public:
       return;
     }
 
-    set_env("SYCL_CACHE_PERSISTENT", "1");
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+    SetSYCLCachePersistentEnv("1");
 
     std::string BuildOptions{"--concurrent-access=" +
                              std::to_string(ThreadCount)};
@@ -181,8 +218,7 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
     return;
   }
 
-  set_env("SYCL_CACHE_PERSISTENT", "1");
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+  SetSYCLCachePersistentEnv("1");
 
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
@@ -240,8 +276,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
     return;
   }
 
-  set_env("SYCL_CACHE_PERSISTENT", "1");
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+  SetSYCLCachePersistentEnv("1");
 
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -311,8 +346,7 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
     return;
   }
 
-  set_env("SYCL_CACHE_PERSISTENT", "1");
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+  SetSYCLCachePersistentEnv("1");
 
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -368,8 +402,7 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
     return;
   }
 
-  set_env("SYCL_CACHE_PERSISTENT", "1");
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
+  SetSYCLCachePersistentEnv("1");
 
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
