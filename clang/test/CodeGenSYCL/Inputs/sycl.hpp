@@ -5,8 +5,7 @@
 extern "C" int printf(const char* fmt, ...);
 
 #ifdef __SYCL_DEVICE_ONLY__
-__attribute__((convergent))
-extern SYCL_EXTERNAL void
+__attribute__((convergent)) extern SYCL_EXTERNAL void
 __spirv_ControlBarrier(int, int, int) noexcept;
 #endif
 
