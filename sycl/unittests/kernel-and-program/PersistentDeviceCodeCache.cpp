@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
+#include <optional>
 #include <vector>
 
 // TODO: Introduce common unit tests header and move it there

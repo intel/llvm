@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <cstdio>
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
+
+#include <cstdio>
+#include <optional>
 
 #if defined(__SYCL_RT_OS_LINUX)
 #include <unistd.h>
