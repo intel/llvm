@@ -31,18 +31,12 @@ add_custom_target(pi-pretty-printers
 # To get L0 loader
 add_dependencies(sycl_pi_trace_collector pi_level_zero)
 
-if (NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
-  set(LEVEL_ZERO_INCLUDE_DIR
-    "${CMAKE_CURRENT_BINARY_DIR}/../../plugins/level_zero/level_zero_loader/include")
-endif()
-target_include_directories(sycl_pi_trace_collector PRIVATE
-  ${LEVEL_ZERO_INCLUDE_DIR}
-)
+target_link_libraries(sycl_pi_trace_collector PRIVATE LevelZeroLoader::Headers)
 
 add_custom_target(ze-pretty-printers
   COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/generate_ze_pretty_printers.py
-  ${LEVEL_ZERO_INCLUDE_DIR}/level_zero/ze_api.h
+  ${SYCL_INCLUDE_BUILD_DIR}/sycl/level_zero/ze_api.h
   DEPENDS pi_level_zero
   BYPRODUCTS
     ${CMAKE_CURRENT_BINARY_DIR}/ze_printers.def
