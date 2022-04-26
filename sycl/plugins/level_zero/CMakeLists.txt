@@ -116,6 +116,7 @@ add_sycl_plugin(level_zero
     ${XPTI_PROXY_SRC}
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
+    Threads::Threads
 )
 
 find_package(Python3 REQUIRED)
