@@ -271,17 +271,17 @@ void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
 }
 
 pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
-                                              pi_uint32 num_events_in_wait_list,
-                                              const pi_event *event_wait_list) {
+                            pi_uint32 num_events_in_wait_list,
+                            const pi_event *event_wait_list) {
   try {
     ScopedContext active(command_queue->get_context());
 
     if (event_wait_list) {
-      auto result =
-          forLatestEvents(event_wait_list, num_events_in_wait_list,
-                          [stream](pi_event event) -> pi_result {
-                            return PI_CHECK_ERROR(cuStreamWaitEvent(stream, event->get(), 0));
-                          });
+      auto result = forLatestEvents(
+          event_wait_list, num_events_in_wait_list,
+          [stream](pi_event event) -> pi_result {
+            return PI_CHECK_ERROR(cuStreamWaitEvent(stream, event->get(), 0));
+          });
 
       if (result != PI_SUCCESS) {
         return result;
@@ -348,11 +348,10 @@ pi_result cuda_piEventRetain(pi_event event);
 
 /// \endcond
 
-
 _pi_queue::native_type _pi_queue::get_compute() {
-  if(n_compute_streams_ < compute_streams_.size()){
+  if (n_compute_streams_ < compute_streams_.size()) {
     unsigned int idx = n_compute_streams_++;
-    if(idx<compute_streams_.size()){
+    if (idx < compute_streams_.size()) {
       PI_CHECK_ERROR(cuStreamCreate(&compute_streams_[idx], flags_));
     }
   }
@@ -360,19 +359,20 @@ _pi_queue::native_type _pi_queue::get_compute() {
 }
 
 _pi_queue::native_type _pi_queue::get_transfer() {
-  if(transfer_streams_.empty()){ // for example in in-order queue
+  if (transfer_streams_.empty()) { // for example in in-order queue
     return get_compute();
   }
-  if(n_transfer_streams_ < transfer_streams_.size()){
+  if (n_transfer_streams_ < transfer_streams_.size()) {
     unsigned int idx = n_transfer_streams_++;
-    if(idx<transfer_streams_.size()){
+    if (idx < transfer_streams_.size()) {
       PI_CHECK_ERROR(cuStreamCreate(&transfer_streams_[idx], flags_));
     }
   }
   return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
 }
 
-_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue, CUstream stream)
+_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
+                     CUstream stream)
     : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
       isRecorded_{false}, isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr},
       evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
@@ -519,7 +519,7 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
   // for native events, the cuStreamWaitEvent call is used.
   // This makes all future work submitted to stream wait for all
   // work captured in event.
-  queue->for_each_stream([e=event->get()](CUstream s){
+  queue->for_each_stream([e = event->get()](CUstream s) {
     PI_CHECK_ERROR(cuStreamWaitEvent(s, e, 0));
   });
   return PI_SUCCESS;
@@ -2262,14 +2262,14 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
       flags = CU_STREAM_NON_BLOCKING;
     }
 
-    const bool is_ooo =
-        properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    const bool is_ooo = properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 
     std::vector<CUstream> computeCuStreams(is_ooo ? 128 : 1);
     std::vector<CUstream> transferCuStreams(is_ooo ? 64 : 0);
 
     queueImpl = std::unique_ptr<_pi_queue>(
-        new _pi_queue{std::move(computeCuStreams), std::move(transferCuStreams), context, device, properties, flags});
+        new _pi_queue{std::move(computeCuStreams), std::move(transferCuStreams),
+                      context, device, properties, flags});
 
     *queue = queueImpl.release();
 
@@ -2328,8 +2328,8 @@ pi_result cuda_piQueueRelease(pi_queue command_queue) {
     std::unique_ptr<_pi_queue> queueImpl(command_queue);
 
     ScopedContext active(command_queue->get_context());
-    
-    command_queue->for_each_stream([](CUstream s){
+
+    command_queue->for_each_stream([](CUstream s) {
       PI_CHECK_ERROR(cuStreamSynchronize(s));
       PI_CHECK_ERROR(cuStreamDestroy(s));
     });
@@ -2425,7 +2425,8 @@ pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
     ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get_transfer();
 
-    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);                    
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -2469,8 +2470,9 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   try {
     ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get_transfer();
-                                      
-    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);
+
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -2795,7 +2797,8 @@ pi_result cuda_piEnqueueKernelLaunch(
     CUstream cuStream = command_queue->get_compute();
     CUfunction cuFunc = kernel->get();
 
-    retError = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);
+    retError = enqueueEventsWait(command_queue, cuStream,
+                                 num_events_in_wait_list, event_wait_list);
 
     // Set the implicit global offset parameter if kernel has offset variant
     if (kernel->get_with_offset_parameter()) {
@@ -3630,7 +3633,8 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     }
 
     if (event) {
-      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue, command_queue->get_compute());
+      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
+                                      command_queue->get_compute());
       (*event)->start();
       (*event)->record();
     }
@@ -3886,8 +3890,9 @@ pi_result cuda_piEnqueueMemBufferReadRect(
   try {
     ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get_transfer();
-                                      
-    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);
+
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -3936,7 +3941,8 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
   try {
     ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get_transfer();
-    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -3984,7 +3990,8 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     pi_result result;
 
     auto stream = command_queue->get_transfer();
-    result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list, event_wait_list);
+    result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
+                               event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -4030,7 +4037,8 @@ pi_result cuda_piEnqueueMemBufferCopyRect(
   try {
     ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get_transfer();
-    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -4084,8 +4092,8 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
 
     auto stream = command_queue->get_transfer();
     pi_result result;
-    result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list, event_wait_list);
-
+    result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
+                               event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -4258,7 +4266,8 @@ pi_result cuda_piEnqueueMemImageRead(
   try {
     ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get_transfer();
-    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
 
     CUarray array = image->mem_.surface_mem_.get_array();
 
@@ -4288,8 +4297,8 @@ pi_result cuda_piEnqueueMemImageRead(
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_READ, command_queue, cuStream);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_READ,
+                                              command_queue, cuStream);
       new_event->record();
       *event = new_event;
     }
@@ -4327,7 +4336,8 @@ cuda_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
   try {
     ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get_transfer();
-    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
 
     CUarray array = image->mem_.surface_mem_.get_array();
 
@@ -4357,8 +4367,8 @@ cuda_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_WRITE, command_queue, cuStream);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_WRITE,
+                                              command_queue, cuStream);
       new_event->record();
       *event = new_event;
     }
@@ -4388,7 +4398,8 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
   try {
     ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get_transfer();
-    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list, event_wait_list);
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
 
     CUarray srcArray = src_image->mem_.surface_mem_.get_array();
     CUarray dstArray = dst_image->mem_.surface_mem_.get_array();
@@ -4428,8 +4439,8 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY, command_queue, cuStream);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY,
+                                              command_queue, cuStream);
       new_event->record();
       *event = new_event;
     }
@@ -4500,7 +4511,8 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     if (event) {
       try {
         *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-                                        command_queue, command_queue->get_transfer());
+                                        command_queue,
+                                        command_queue->get_transfer());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4554,7 +4566,8 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
     if (event) {
       try {
         *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-                                        command_queue, command_queue->get_transfer());
+                                        command_queue,
+                                        command_queue->get_transfer());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4680,10 +4693,11 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
   try {
     ScopedContext active(queue->get_context());
     CUstream cuStream = queue->get_compute();
-    result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist, events_waitlist);
+    result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist,
+                               events_waitlist);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue, cuStream));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue, cuStream));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cuMemsetD8Async(
@@ -4714,10 +4728,11 @@ pi_result cuda_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   try {
     ScopedContext active(queue->get_context());
     CUstream cuStream = queue->get_transfer();
-    result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist, events_waitlist);
+    result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist,
+                               events_waitlist);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cuStream));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cuStream));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cuMemcpyAsync(
@@ -4763,10 +4778,11 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   try {
     ScopedContext active(queue->get_context());
     CUstream cuStream = queue->get_transfer();
-    result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist, events_waitlist);
+    result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist,
+                               events_waitlist);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cuStream));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cuStream));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cuMemPrefetchAsync(
@@ -4796,8 +4812,8 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
     ScopedContext active(queue->get_context());
 
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_USER, queue, queue->get_transfer()));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_USER, queue, queue->get_transfer()));
       event_ptr->start();
     }
 

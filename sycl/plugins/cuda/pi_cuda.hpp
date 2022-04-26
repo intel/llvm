@@ -393,11 +393,15 @@ struct _pi_queue {
   std::atomic_uint32_t n_transfer_streams_;
   unsigned int flags_;
 
-  _pi_queue(std::vector<CUstream> &&compute_streams_, std::vector<CUstream> &&transfer_streams, _pi_context *context,
-            _pi_device *device, pi_queue_properties properties, unsigned int flags)
-      : compute_streams_{std::move(compute_streams_)}, transfer_streams_{std::move(transfer_streams)}, context_{context}, device_{device},
-        properties_{properties}, refCount_{1}, eventCount_{0}, compute_stream_idx_{0}, transfer_stream_idx_{0}, 
-        n_compute_streams_{0}, n_transfer_streams_{0}, flags_(flags) {
+  _pi_queue(std::vector<CUstream> &&compute_streams_,
+            std::vector<CUstream> &&transfer_streams, _pi_context *context,
+            _pi_device *device, pi_queue_properties properties,
+            unsigned int flags)
+      : compute_streams_{std::move(compute_streams_)},
+        transfer_streams_{std::move(transfer_streams)}, context_{context},
+        device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
+        compute_stream_idx_{0}, transfer_stream_idx_{0}, n_compute_streams_{0},
+        n_transfer_streams_{0}, flags_(flags) {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -409,18 +413,18 @@ struct _pi_queue {
 
   native_type get_compute();
   native_type get_transfer();
-  native_type get() {
-    return get_compute();
-  };
+  native_type get() { return get_compute(); };
 
-  template<typename T>
-  void for_each_stream(T&& f){
-    unsigned int end = std::min(static_cast<unsigned int>(compute_streams_.size()), n_compute_streams_.load());
-    for(unsigned int i=0;i<end;i++){
+  template <typename T> void for_each_stream(T &&f) {
+    unsigned int end =
+        std::min(static_cast<unsigned int>(compute_streams_.size()),
+                 n_compute_streams_.load());
+    for (unsigned int i = 0; i < end; i++) {
       f(compute_streams_[i]);
     }
-    end = std::min(static_cast<unsigned int>(transfer_streams_.size()), n_transfer_streams_.load());
-    for(unsigned int i=0;i<end;i++){
+    end = std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   n_transfer_streams_.load());
+    for (unsigned int i = 0; i < end; i++) {
       f(transfer_streams_[i]);
     }
   }
