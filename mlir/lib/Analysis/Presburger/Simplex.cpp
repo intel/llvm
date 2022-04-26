@@ -19,12 +19,12 @@ using Direction = Simplex::Direction;
 const int nullIndex = std::numeric_limits<int>::max();
 
 SimplexBase::SimplexBase(unsigned nVar, bool mustUseBigM)
-    : usingBigM(mustUseBigM), numFixedCols(mustUseBigM ? 3 : 2), nRow(0),
-      nCol(numFixedCols + nVar), nRedundant(0), tableau(0, nCol), empty(false) {
-  colUnknown.insert(colUnknown.begin(), numFixedCols, nullIndex);
+    : usingBigM(mustUseBigM), nRow(0), nCol(getNumFixedCols() + nVar),
+      nRedundant(0), tableau(0, nCol), empty(false) {
+  colUnknown.insert(colUnknown.begin(), getNumFixedCols(), nullIndex);
   for (unsigned i = 0; i < nVar; ++i) {
     var.emplace_back(Orientation::Column, /*restricted=*/false,
-                     /*pos=*/numFixedCols + i);
+                     /*pos=*/getNumFixedCols() + i);
     colUnknown.push_back(i);
   }
 }
@@ -169,7 +169,7 @@ MaybeOptimum<SmallVector<Fraction, 8>> LexSimplex::findRationalLexMin() {
   return getRationalSample();
 }
 
-LogicalResult LexSimplex::addCut(unsigned row) {
+LogicalResult LexSimplexBase::addCut(unsigned row) {
   int64_t denom = tableau(row, 0);
   addZeroRow(/*makeRestricted=*/true);
   tableau(nRow - 1, 0) = denom;
@@ -211,14 +211,23 @@ MaybeOptimum<SmallVector<int64_t, 8>> LexSimplex::findIntegerLexMin() {
     assert(!sample.isEmpty() && "If we reached here the sample should exist!");
     if (sample.isUnbounded())
       return OptimumKind::Unbounded;
-    return llvm::to_vector<8>(llvm::map_range(
-        *sample, [](const Fraction &f) { return f.getAsInteger(); }));
+    return llvm::to_vector<8>(
+        llvm::map_range(*sample, std::mem_fn(&Fraction::getAsInteger)));
   }
 
   // Polytope is integer empty.
   return OptimumKind::Empty;
 }
 
+bool LexSimplex::isSeparateInequality(ArrayRef<int64_t> coeffs) {
+  SimplexRollbackScopeExit scopeExit(*this);
+  addInequality(coeffs);
+  return findIntegerLexMin().isEmpty();
+}
+
+bool LexSimplex::isRedundantInequality(ArrayRef<int64_t> coeffs) {
+  return isSeparateInequality(getComplementIneq(coeffs));
+}
 bool LexSimplex::rowIsViolated(unsigned row) const {
   if (tableau(row, 2) < 0)
     return true;
@@ -307,9 +316,9 @@ void LexSimplex::restoreRationalConsistency() {
 // which is in contradiction to the fact that B.col(j) / B(i,j) must be
 // lexicographically smaller than B.col(k) / B(i,k), since it lexicographically
 // minimizes the change in sample value.
-LogicalResult LexSimplex::moveRowUnknownToColumn(unsigned row) {
+LogicalResult LexSimplexBase::moveRowUnknownToColumn(unsigned row) {
   Optional<unsigned> maybeColumn;
-  for (unsigned col = getNumFixedCols(); col < nCol; ++col) {
+  for (unsigned col = 3; col < nCol; ++col) {
     if (tableau(row, col) <= 0)
       continue;
     maybeColumn =
@@ -325,8 +334,8 @@ LogicalResult LexSimplex::moveRowUnknownToColumn(unsigned row) {
   return success();
 }
 
-unsigned LexSimplex::getLexMinPivotColumn(unsigned row, unsigned colA,
-                                          unsigned colB) const {
+unsigned LexSimplexBase::getLexMinPivotColumn(unsigned row, unsigned colA,
+                                              unsigned colB) const {
   // A pivot causes the following change. (in the diagram the matrix elements
   // are shown as rationals and there is no common denominator used)
   //
@@ -648,7 +657,7 @@ void Simplex::addInequality(ArrayRef<int64_t> coeffs) {
 ///
 /// We simply add two opposing inequalities, which force the expression to
 /// be zero.
-void Simplex::addEquality(ArrayRef<int64_t> coeffs) {
+void SimplexBase::addEquality(ArrayRef<int64_t> coeffs) {
   addInequality(coeffs);
   SmallVector<int64_t, 8> negatedCoeffs;
   for (int64_t coeff : coeffs)
@@ -705,15 +714,6 @@ Optional<unsigned> SimplexBase::findAnyPivotRow(unsigned col) {
   return {};
 }
 
-// This doesn't find a pivot column only if the row has zero coefficients for
-// every column not marked as an equality.
-Optional<unsigned> SimplexBase::findAnyPivotCol(unsigned row) {
-  for (unsigned col = getNumFixedCols(); col < nCol; ++col)
-    if (tableau(row, col) != 0)
-      return col;
-  return {};
-}
-
 // It's not valid to remove the constraint by deleting the column since this
 // would result in an invalid basis.
 void Simplex::undoLastConstraint() {
@@ -744,7 +744,7 @@ void Simplex::undoLastConstraint() {
 
 // It's not valid to remove the constraint by deleting the column since this
 // would result in an invalid basis.
-void LexSimplex::undoLastConstraint() {
+void LexSimplexBase::undoLastConstraint() {
   if (con.back().orientation == Orientation::Column) {
     // When removing the last constraint during a rollback, we just need to find
     // any pivot at all, i.e., any row with non-zero coefficient for the
@@ -789,10 +789,6 @@ void SimplexBase::undo(UndoLogEntry entry) {
     empty = false;
   } else if (entry == UndoLogEntry::UnmarkLastRedundant) {
     nRedundant--;
-  } else if (entry == UndoLogEntry::UnmarkLastEquality) {
-    numFixedCols--;
-    assert(getNumFixedCols() >= 2 + usingBigM &&
-           "The denominator, constant, big M and symbols are always fixed!");
   } else if (entry == UndoLogEntry::RestoreBasis) {
     assert(!savedBases.empty() && "No bases saved!");
 
@@ -1123,24 +1119,8 @@ Optional<SmallVector<Fraction, 8>> Simplex::getRationalSample() const {
   return sample;
 }
 
-void LexSimplex::addInequality(ArrayRef<int64_t> coeffs) {
+void LexSimplexBase::addInequality(ArrayRef<int64_t> coeffs) {
   addRow(coeffs, /*makeRestricted=*/true);
-}
-
-/// Try to make the equality a fixed column by finding any pivot and performing
-/// it. The only time this is not possible is when the given equality's
-/// direction is already in the span of the existing fixed column equalities. In
-/// that case, we just leave it in row position.
-void LexSimplex::addEquality(ArrayRef<int64_t> coeffs) {
-  const Unknown &u = con[addRow(coeffs, /*makeRestricted=*/true)];
-  Optional<unsigned> pivotCol = findAnyPivotCol(u.pos);
-  if (!pivotCol)
-    return;
-
-  pivot(u.pos, *pivotCol);
-  swapColumns(*pivotCol, getNumFixedCols());
-  numFixedCols++;
-  undoLog.push_back(UndoLogEntry::UnmarkLastEquality);
 }
 
 MaybeOptimum<SmallVector<Fraction, 8>> LexSimplex::getRationalSample() const {
@@ -1213,9 +1193,8 @@ public:
   /// First pushes a snapshot for the current simplex state to the stack so
   /// that this can be rolled back later.
   void addEqualityForDirection(ArrayRef<int64_t> dir) {
-    assert(
-        std::any_of(dir.begin(), dir.end(), [](int64_t x) { return x != 0; }) &&
-        "Direction passed is the zero vector!");
+    assert(llvm::any_of(dir, [](int64_t x) { return x != 0; }) &&
+           "Direction passed is the zero vector!");
     snapshotStack.push_back(simplex.getSnapshot());
     simplex.addEquality(getCoeffsForDirection(dir));
   }

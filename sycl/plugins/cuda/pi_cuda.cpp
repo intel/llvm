@@ -899,15 +899,9 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             context->get_device()->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
-                     : PI_MEMORY_ORDER_RELAXED;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -918,10 +912,11 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              context->get_device()->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
                            PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_DEVICE;
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1186,15 +1181,9 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    atomic64);
   }
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             device->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
-                     : PI_MEMORY_ORDER_RELAXED;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1205,10 +1194,11 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
                            PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_DEVICE;
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }

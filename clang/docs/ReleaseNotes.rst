@@ -82,13 +82,21 @@ Bug Fixes
   alias, target) identifier instead of only processing one such ``#pragma weak``
   per identifier.
   Fixes `Issue 28985 <https://github.com/llvm/llvm-project/issues/28985>`_.
-
+- Assignment expressions in C11 and later mode now properly strip the _Atomic
+  qualifier when determining the type of the assignment expression. Fixes
+  `Issue 48742 <https://github.com/llvm/llvm-project/issues/48742>`_.
+- Improved the diagnostic when accessing a member of an atomic structure or
+  union object in C; was previously an unhelpful error, but now issues a
+  `-Watomic-access` warning which defaults to an error. Fixes
+  `Issue 54563 <https://github.com/llvm/llvm-project/issues/54563>`_.
 - Unevaluated lambdas in dependant contexts no longer result in clang crashing.
   This fixes Issues `50376 <https://github.com/llvm/llvm-project/issues/50376>`_,
   `51414 <https://github.com/llvm/llvm-project/issues/51414>`_,
   `51416 <https://github.com/llvm/llvm-project/issues/51416>`_,
   and `51641 <https://github.com/llvm/llvm-project/issues/51641>`_.
-
+- The builtin function __builtin_dump_struct would crash clang when the target 
+  struct contains a bitfield. It now correctly handles bitfields.
+  This fixes Issue `Issue 54462 <https://github.com/llvm/llvm-project/issues/54462>`_.
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -105,10 +113,11 @@ Improvements to Clang's diagnostics
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
-- The builtin function __builtin_dump_struct would crash clang when the target 
-  struct have bitfield. Now it fixed, and __builtin_dump_struct support dump
-  the bitwidth of bitfields.
-  This fixes `Issue 54462 <https://github.com/llvm/llvm-project/issues/54462>`_.
+- Improve __builtin_dump_struct:
+  - Support bitfields in struct and union.
+  - Improve the dump format, dump both bitwidth(if its a bitfield) and field value.
+  - Remove anonymous tag locations.
+  - Beautify dump format, add indent for nested struct and struct members.
 
 New Compiler Flags
 ------------------
@@ -165,12 +174,6 @@ Attribute Changes in Clang
 - The ``__declspec(naked)`` attribute can no longer be written on a member
   function in Microsoft compatibility mode, matching the behavior of cl.exe.
 
-- Improve __builtin_dump_struct:
-
-  - Support bitfields in struct and union.
-  
-  - Improve the dump format, dump both bitwidth(if its a bitfield) and field value.
-
 Windows Support
 ---------------
 
@@ -202,6 +205,11 @@ C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 - Diagnose consteval and constexpr issues that happen at namespace scope. This
   partially addresses `Issue 51593 <https://github.com/llvm/llvm-project/issues/51593>`_.
+- No longer attempt to evaluate a consteval UDL function call at runtime when
+  it is called through a template instantiation. This fixes
+  `Issue 54578 <https://github.com/llvm/llvm-project/issues/54578>`_.
+
+- Implemented `__builtin_source_location()` which enables library support for std::source_location.
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^

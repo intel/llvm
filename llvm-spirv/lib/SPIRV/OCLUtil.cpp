@@ -967,7 +967,7 @@ getOCLOpaqueTypeAddrSpace(SPIR::TypePrimitiveEnum Prim) {
 static FunctionType *getBlockInvokeTy(Function *F, unsigned BlockIdx) {
   auto Params = F->getFunctionType()->params();
   PointerType *FuncPtr = cast<PointerType>(Params[BlockIdx]);
-  return cast<FunctionType>(FuncPtr->getPointerElementType());
+  return FunctionType::get(FuncPtr, Params, false);
 }
 
 class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {

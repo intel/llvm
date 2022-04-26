@@ -41,7 +41,7 @@ namespace serialization {
 /// Version 4 of AST files also requires that the version control branch and
 /// revision match exactly, since there is no backward compatibility of
 /// AST files at this time.
-const unsigned VERSION_MAJOR = 16;
+const unsigned VERSION_MAJOR = 17;
 
 /// AST file minor version number supported by this version of
 /// Clang.
@@ -698,6 +698,10 @@ enum ASTRecordTypes {
 
   /// Record code for included files.
   PP_INCLUDED_FILES = 66,
+
+  /// Record code for an unterminated \#pragma clang assume_nonnull begin
+  /// recorded in a preamble.
+  PP_ASSUME_NONNULL_LOC = 67,
 };
 
 /// Record types used within a source manager block.
@@ -1509,7 +1513,10 @@ enum DeclCode {
   /// An OMPDeclareReductionDecl record.
   DECL_OMP_DECLARE_REDUCTION,
 
-  DECL_LAST = DECL_OMP_DECLARE_REDUCTION
+  /// A UnnamedGlobalConstantDecl record.
+  DECL_UNNAMED_GLOBAL_CONSTANT,
+
+  DECL_LAST = DECL_UNNAMED_GLOBAL_CONSTANT
 };
 
 /// Record codes for each kind of statement or expression.

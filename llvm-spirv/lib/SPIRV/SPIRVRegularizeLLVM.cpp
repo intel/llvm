@@ -117,6 +117,14 @@ public:
   void expandVEDWithSYCLTypeSRetArg(Function *F);
   void expandVIDWithSYCLTypeByValComp(Function *F);
 
+  // According to the specification, the operands of a shift instruction must be
+  // a scalar/vector of integer. When LLVM-IR contains a shift instruction with
+  // i1 operands, they are treated as a bool. We need to extend them to i32 to
+  // comply with the specification. For example: "%shift = lshr i1 0, 1";
+  // The bit instruction should be changed to the extended version
+  // "%shift = lshr i32 0, 1" so the args are treated as int operands.
+  Value *extendBitInstBoolArg(Instruction *OldInst);
+
   static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
   void adaptStructTypes(StructType *ST);
   static char ID;
@@ -412,6 +420,31 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
     expandVIDWithSYCLTypeByValComp(F);
 }
 
+Value *SPIRVRegularizeLLVMBase::extendBitInstBoolArg(Instruction *II) {
+  IRBuilder<> Builder(II);
+  auto *ArgTy = II->getOperand(0)->getType();
+  Type *NewArgType = nullptr;
+  if (ArgTy->isIntegerTy()) {
+    NewArgType = Builder.getInt32Ty();
+  } else if (ArgTy->isVectorTy() &&
+             cast<VectorType>(ArgTy)->getElementType()->isIntegerTy()) {
+    unsigned NumElements = cast<FixedVectorType>(ArgTy)->getNumElements();
+    NewArgType = VectorType::get(Builder.getInt32Ty(), NumElements, false);
+  } else {
+    llvm_unreachable("Unexpected type");
+  }
+  auto *NewBase = Builder.CreateZExt(II->getOperand(0), NewArgType);
+  auto *NewShift = Builder.CreateZExt(II->getOperand(1), NewArgType);
+  switch (II->getOpcode()) {
+  case Instruction::LShr:
+    return Builder.CreateLShr(NewBase, NewShift);
+  case Instruction::Shl:
+    return Builder.CreateShl(NewBase, NewShift);
+  default:
+    return II;
+  }
+}
+
 void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
   if (!ST->hasName())
     return;
@@ -440,16 +473,26 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
     auto *PtrTy = dyn_cast<PointerType>(ST->getElementType(0));
     assert(PtrTy &&
            "Expected a pointer to an array to represent joint matrix type");
-    size_t TypeLayout[4] = {0, 0, 0, 0};
+    std::vector<size_t> TypeLayout;
     ArrayType *ArrayTy = dyn_cast<ArrayType>(PtrTy->getPointerElementType());
     assert(ArrayTy && "Expected a pointer element type of an array type to "
                       "represent joint matrix type");
-    TypeLayout[0] = ArrayTy->getNumElements();
+    TypeLayout.push_back(ArrayTy->getNumElements());
     for (size_t I = 1; I != 4; ++I) {
       ArrayTy = dyn_cast<ArrayType>(ArrayTy->getElementType());
       assert(ArrayTy &&
              "Expected a element type to represent joint matrix type");
-      TypeLayout[I] = ArrayTy->getNumElements();
+      TypeLayout.push_back(ArrayTy->getNumElements());
+    }
+    // JointMatrixINTEL type can have optional 'Use' parameter, which is encoded
+    // as another array dimention. In case if it has default 'Unnecessary' (4)
+    // parameter - ignore it.
+    if (isa<ArrayType>(ArrayTy->getElementType())) {
+      ArrayTy = cast<ArrayType>(ArrayTy->getElementType());
+      uint32_t UseInt = ArrayTy->getNumElements();
+      assert(UseInt <= 4 && "Use parameter encoded in the array must be < 5 ");
+      if (UseInt != 4)
+        TypeLayout.push_back(UseInt);
     }
 
     auto *ElemTy = ArrayTy->getElementType();
@@ -503,6 +546,9 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
             << kSPIRVTypeName::PostfixDelim << std::to_string(TypeLayout[2] - 1)
             << kSPIRVTypeName::PostfixDelim
             << std::to_string(TypeLayout[3] - 1);
+    if (TypeLayout.size() == 5)
+      SPVName << kSPIRVTypeName::PostfixDelim
+              << std::to_string(TypeLayout[4] - 1);
     // Note, that this structure is not opaque and there is no way to make it
     // opaque but to recreate it entirely and replace it everywhere. Lets
     // keep the structure as is, dealing with it during SPIR-V generation.
@@ -556,6 +602,21 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           }
         }
 
+        // Translator treats i1 as boolean, but bit instructions take
+        // a scalar/vector integers, so we have to extend such arguments
+        if (II.isLogicalShift() &&
+            II.getOperand(0)->getType()->isIntOrIntVectorTy(1)) {
+          auto *NewInst = extendBitInstBoolArg(&II);
+          for (auto *U : II.users()) {
+            if (cast<Instruction>(U)->getOpcode() == Instruction::ZExt) {
+              U->dropAllReferences();
+              U->replaceAllUsesWith(NewInst);
+              ToErase.push_back(cast<Instruction>(U));
+            }
+          }
+          ToErase.push_back(&II);
+        }
+
         // Remove optimization info not supported by SPIRV
         if (auto BO = dyn_cast<BinaryOperator>(&II)) {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
@@ -587,9 +648,8 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           Type *SrcTy = ASCast->getSrcTy();
           if (DestTy->getPointerElementType() !=
               SrcTy->getPointerElementType()) {
-            PointerType *InterTy =
-                PointerType::get(DestTy->getPointerElementType(),
-                                 SrcTy->getPointerAddressSpace());
+            PointerType *InterTy = PointerType::getWithSamePointeeType(
+                cast<PointerType>(DestTy), SrcTy->getPointerAddressSpace());
             BitCastInst *NewBCast = new BitCastInst(
                 ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
             AddrSpaceCastInst *NewASCast =
