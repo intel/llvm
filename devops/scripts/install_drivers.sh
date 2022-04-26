@@ -61,10 +61,13 @@ InstallCPURT () {
     echo "$INSTALL_LOCATION/oclcpu exists and will be removed!"
     rm -Rf $INSTALL_LOCATION/oclcpu;
   fi
+  echo "INSTALL_LOCATION: " $INSTALL_LOCATION
+  echo "LOCATION: " $LOCATION
   python3 $LOCATION/get_release.py intel/llvm $CPU_TAG \
     | grep -E ".*oclcpuexp.*tar.gz" \
     | wget -qi -
   mkdir oclcpu && tar -xf *.tar.gz -C oclcpu && rm *.tar.gz
+  echo "arrived?"
   if [ -e $INSTALL_LOCATION/oclcpu/install.sh ]; then \
     bash -x $INSTALL_LOCATION/oclcpu/install.sh
   else
