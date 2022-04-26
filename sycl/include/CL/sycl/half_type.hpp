@@ -397,21 +397,24 @@ public:
 
 // Operator +, -, *, /
 #define OP(op, op1)                                                            \
-  friend half operator op(const half &lhs, const half &rhs) {                  \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
+                                                const half &rhs) {             \
     half rtn = lhs;                                                            \
     rtn op1 rhs;                                                               \
     return rtn;                                                                \
   }                                                                            \
   template <typename T,                                                        \
             typename = std::enable_if_t<std::is_arithmetic<T>::value>>         \
-  friend half operator op(const half &lhs, const T &rhs) {                     \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
+                                                const T &rhs) {                \
     half rtn = lhs;                                                            \
     rtn op1 rhs;                                                               \
     return rtn;                                                                \
   }                                                                            \
   template <typename T,                                                        \
             typename = std::enable_if_t<std::is_arithmetic<T>::value>>         \
-  friend half operator op(const T &lhs, const half &rhs) {                     \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const T &lhs,                  \
+                                                const half &rhs) {             \
     half rtn = rhs;                                                            \
     rtn op1 lhs;                                                               \
     return rtn;                                                                \
