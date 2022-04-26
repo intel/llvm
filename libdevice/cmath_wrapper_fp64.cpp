@@ -1,4 +1,5 @@
-//==--- cmath_wrapper.cpp - wrappers for C math library functions ----------==//
+//==--- cmath_wrapper_fp64.cpp - wrappers for double precision C math library
+// functions ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
