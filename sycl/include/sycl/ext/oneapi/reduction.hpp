@@ -224,7 +224,7 @@ public:
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          *multi_ptr<T, Space>(ReduVarPtr))
+          multi_ptr<T, Space>(ReduVarPtr)[E])
           .fetch_add(reducer->getElement(E));
     }
   }
@@ -241,7 +241,7 @@ public:
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          *multi_ptr<T, Space>(ReduVarPtr))
+          multi_ptr<T, Space>(ReduVarPtr)[E])
           .fetch_or(reducer->getElement(E));
     }
   }
@@ -258,7 +258,7 @@ public:
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          *multi_ptr<T, Space>(ReduVarPtr))
+          multi_ptr<T, Space>(ReduVarPtr)[E])
           .fetch_xor(reducer->getElement(E));
     }
   }
@@ -275,7 +275,7 @@ public:
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          *multi_ptr<T, Space>(ReduVarPtr))
+          multi_ptr<T, Space>(ReduVarPtr)[E])
           .fetch_and(reducer->getElement(E));
     }
   }
@@ -292,7 +292,7 @@ public:
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          *multi_ptr<T, Space>(ReduVarPtr))
+          multi_ptr<T, Space>(ReduVarPtr)[E])
           .fetch_min(reducer->getElement(E));
     }
   }
@@ -309,7 +309,7 @@ public:
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          *multi_ptr<T, Space>(ReduVarPtr))
+          multi_ptr<T, Space>(ReduVarPtr)[E])
           .fetch_max(reducer->getElement(E));
     }
   }
@@ -333,7 +333,7 @@ public:
   T getIdentity() const { return MIdentity; }
 
   T &getElement(size_t) { return MValue; }
-
+  const T &getElement(size_t E) const { return MValue; }
   T MValue;
 
 private:
