@@ -1,4 +1,6 @@
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+# FIXME: Other location.
+set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (WIN32)
   set(lib-suffix obj)
   set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
@@ -10,6 +12,9 @@ else()
 endif()
 set(install_dest_lib lib${LLVM_LIBDIR_SUFFIX})
 set(clang $<TARGET_FILE:clang>)
+set(llvm-link $<TARGET_FILE:llvm-link>)
+set(llvm-spirv $<TARGET_FILE:llvm-spirv>)
+
 
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
@@ -59,16 +64,39 @@ function(add_devicelib_obj obj_filename)
           COMPONENT libsycldevice)
 endfunction()
 
+function(add_devicelib_bc bc_filename)
+  cmake_parse_arguments(BC  "" "" "SRC;DEP" ${ARGN})
+  set(devicelib-bc-file ${bc_binary_dir}/${bc_filename}.bc)
+  add_custom_command(OUTPUT ${devicelib-bc-file}
+                     COMMAND ${clang} -fsycl-device-only -fsycl-use-bitcode
+                             ${compile_opts}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/${BC_SRC}
+                             -o ${devicelib-bc-file}
+                     MAIN_DEPENDENCY ${BC_SRC}
+                     DEPENDS ${BC_DEP}
+                     VERBATIM)
+  set(devicelib-bc-target ${bc_filename}-bc)
+  add_custom_target(${devicelib-bc-target} DEPENDS ${devicelib-bc-file})
+endfunction()
+
+
 function(add_devicelib_spv spv_filename)
+  add_devicelib_bc(${spv_filename} ${ARGN})
+
   cmake_parse_arguments(SPV  "" "" "SRC;DEP" ${ARGN})
+  set(devicelib-bc-file ${bc_binary_dir}/${spv_filename}.bc)
+  set(devicelib-linked-bc-file ${bc_binary_dir}/${spv_filename}.linked.bc)
   set(devicelib-spv-file ${spv_binary_dir}/${spv_filename}.spv)
   add_custom_command(OUTPUT ${devicelib-spv-file}
-                     COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
-                             ${compile_opts}
-                             ${CMAKE_CURRENT_SOURCE_DIR}/${SPV_SRC}
+                     COMMAND ${llvm-link} ${devicelib-bc-file} ${bc_binary_dir}/libsycl-itt-user-wrappers.bc -o ${devicelib-linked-bc-file}
+                     COMMAND ${llvm-spirv} ${devicelib-linked-bc-file}
+                             -spirv-max-version=1.4
+                             -spirv-debug-info-version=ocl-100
+                             -spirv-allow-extra-diexpressions
+                             -spirv-allow-unknown-intrinsics=llvm.genx.
+                             -spirv-ext=-all,+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io,+SPV_INTEL_device_side_avc_motion_estimation,+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite,+SPV_INTEL_arbitrary_precision_fixed_point,+SPV_INTEL_arbitrary_precision_floating_point,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode,+SPV_INTEL_long_constant_composite,+SPV_INTEL_arithmetic_fence,+SPV_INTEL_token_type,+SPV_INTEL_bfloat16_conversion,+SPV_INTEL_joint_matrix,+SPV_INTEL_hw_thread_queries,+SPV_KHR_uniform_group_instructions
                              -o ${devicelib-spv-file}
-                     MAIN_DEPENDENCY ${SPV_SRC}
-                     DEPENDS ${SPV_DEP}
+                     DEPENDS ${spv_filename}-bc libsycl-itt-user-wrappers-bc
                      VERBATIM)
   set(devicelib-spv-target ${spv_filename}-spv)
   add_custom_target(${devicelib-spv-target} DEPENDS ${devicelib-spv-file})
@@ -92,6 +120,7 @@ set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 add_devicelib_obj(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib_obj(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
 add_devicelib_obj(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})
+add_devicelib_bc(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})
 
 add_devicelib_obj(libsycl-crt SRC crt_wrapper.cpp DEP ${crt_obj_deps})
 add_devicelib_obj(libsycl-complex SRC complex_wrapper.cpp DEP ${complex_obj_deps})
