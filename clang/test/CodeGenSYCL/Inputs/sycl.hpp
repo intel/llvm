@@ -67,12 +67,6 @@ enum class address_space : int {
   local_space
 };
 
-enum class fence_space {
-  local_space = 0,
-  global_space = 1,
-  global_and_local = 2
-};
-
 } // namespace access
 
 // Dummy aspect enum with limited enumerators
