@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -std=c++17 -internal-isystem %S/Inputs -fdeclare-spirv-builtins %s -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -fdeclare-spirv-builtins %s -emit-llvm -o - | FileCheck %s
 
 // Test that when __spirv intrinsics are invoked from kernel functions
 // that have a sub_group_size specified, that such invocations don't
@@ -11,11 +11,11 @@ int main() {
   sycl::queue q;
 
   q.submit([&](sycl::handler &cgh) {
-    auto kernel_ = [=](sycl::nd_item<1> item) [[intel::sub_group_size(8)]] {
-      item.barrier(sycl::access::fence_space::local_space);
+    auto kernel_ = [=](sycl::group<1> item) [[intel::sub_group_size(8)]] {
     };
 
-    cgh.parallel_for<class kernel_class>(cl::sycl::nd_range<1>(), kernel_);
+    cgh.parallel_for_work_group<class kernel_class>(
+        cl::sycl::range<1>(), cl::sycl::range<1>(), kernel_);
   });
   return 0;
 }

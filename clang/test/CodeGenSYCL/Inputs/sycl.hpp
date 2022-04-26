@@ -176,16 +176,6 @@ private:
   int Data;
 };
 
-template <int dimensions = 1> class nd_item {
-public:
-  void barrier(access::fence_space accessSpace =
-                   access::fence_space::global_and_local) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    __spirv_ControlBarrier(0, 0, 0);
-#endif
-  }
-};
-
 namespace ext {
 namespace oneapi {
 template <typename... properties>
@@ -421,30 +411,23 @@ kernel_parallel_for(const KernelType &KernelFunc) {
   KernelFunc(id<Dims>());
 }
 
-template <typename KernelName, typename KernelType, int Dims>
-ATTR_SYCL_KERNEL void
-kernel_parallel_for_item(const KernelType &KernelFunc) {
-  KernelFunc(nd_item<Dims>());
+// Dummy parallel_for_work_item function to mimic calls from
+// parallel_for_work_group.
+void parallel_for_work_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  __spirv_ControlBarrier(0, 0, 0);
+#endif
 }
 
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
 kernel_parallel_for_work_group(const KernelType &KernelFunc) {
   KernelFunc(group<Dims>());
+  parallel_for_work_item();
 }
 
 class handler {
 public:
-  template <typename KernelName = auto_name, typename KernelType, int Dims>
-  void parallel_for(nd_range<Dims> numWorkItems, const KernelType &kernelFunc) {
-    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for_item<NameT, KernelType, Dims>(kernelFunc);
-#else
-    kernelFunc(nd_item<Dims>());
-#endif
-  }
-
   template <typename KernelName = auto_name, typename KernelType, int Dims>
   void parallel_for(range<Dims> numWorkItems, const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
