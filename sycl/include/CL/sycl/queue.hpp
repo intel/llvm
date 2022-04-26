@@ -1016,25 +1016,139 @@ public:
         CodeLoc);
   }
 
-  /// parallel_for version with a kernel represented as a lambda + nd_range that
-  /// specifies global, local sizes and offset.
+  /// parallel_for version with a kernel represented as a lambda + reduction
+  /// operations + range that specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param Rest is a parameter pack argument of size N where N > 1 and the
+  /// first N-1 arguments are reduction operations and the last argument is a
+  /// kernel functor or lambda.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1 &&
+       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value),
+      event>
+  parallel_for(range<Dims> NumWorkItems, RestT... Rest) {
+    // Due to the Rest parameter pack we cannot supply user-side code-location.
+    return submit([&](handler &CGH) {
+      CGH.template parallel_for<KernelName>(NumWorkItems, Rest...);
+    });
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + reduction
+  /// operations + range that specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Rest is a parameter pack argument of size N where N > 1 and the
+  /// first N-1 arguments are reduction operations and the last argument is a
+  /// kernel functor or lambda.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1 &&
+       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value),
+      event>
+  parallel_for(range<Dims> NumWorkItems, event DepEvent, RestT... Rest) {
+    // Due to the Rest parameter pack we cannot supply user-side code-location.
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.template parallel_for<KernelName>(NumWorkItems, Rest...);
+    });
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + reduction
+  /// operations + range that specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Rest is a parameter pack argument of size N where N > 1 and the
+  /// first N-1 arguments are reduction operations and the last argument is a
+  /// kernel functor or lambda.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1 &&
+       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value),
+      event>
+  parallel_for(range<Dims> NumWorkItems, const std::vector<event> &DepEvents,
+               RestT... Rest) {
+    // Due to the Rest parameter pack we cannot supply user-side code-location.
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.template parallel_for<KernelName>(NumWorkItems, Rest...);
+    });
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + reduction
+  /// operations + nd_range that specifies global, local sizes and offset.
   ///
   /// \param ExecutionRange is a range that specifies the work space of the
   /// kernel
-  /// \param Redu is a reduction operation
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims, typename Reduction>
-  event parallel_for(nd_range<Dims> ExecutionRange, Reduction Redu,
-                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    _CODELOCARG(&CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims, Reduction>(
-              ExecutionRange, Redu, KernelFunc);
-        },
-        CodeLoc);
+  /// \param Rest is a parameter pack argument of size N where N > 1 and the
+  /// first N-1 arguments are reduction operations and the last argument is a
+  /// kernel functor or lambda.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1 &&
+       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value),
+      event>
+  parallel_for(nd_range<Dims> ExecutionRange, RestT... Rest) {
+    // Due to the Rest parameter pack we cannot supply user-side code-location.
+    return submit([&](handler &CGH) {
+      CGH.template parallel_for<KernelName>(ExecutionRange, Rest...);
+    });
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + reduction
+  /// operations + nd_range that specifies global, local sizes and offset.
+  ///
+  /// \param ExecutionRange is a range that specifies the work space of the
+  /// kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Rest is a parameter pack argument of size N where N > 1 and the
+  /// first N-1 arguments are reduction operations and the last argument is a
+  /// kernel functor or lambda.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1 &&
+       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value),
+      event>
+  parallel_for(nd_range<Dims> ExecutionRange, event DepEvent, RestT... Rest) {
+    // Due to the Rest parameter pack we cannot supply user-side code-location.
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.template parallel_for<KernelName>(ExecutionRange, Rest...);
+    });
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + reduction
+  /// operations + nd_range that specifies global, local sizes and offset.
+  ///
+  /// \param ExecutionRange is a range that specifies the work space of the
+  /// kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Rest is a parameter pack argument of size N where N > 1 and the
+  /// first N-1 arguments are reduction operations and the last argument is a
+  /// kernel functor or lambda.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1 &&
+       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value),
+      event>
+  parallel_for(nd_range<Dims> ExecutionRange,
+               const std::vector<event> &DepEvents, RestT... Rest) {
+    // Due to the Rest parameter pack we cannot supply user-side code-location.
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.template parallel_for<KernelName>(ExecutionRange, Rest...);
+    });
   }
 
 // Clean up CODELOC and KERNELFUNC macros.
