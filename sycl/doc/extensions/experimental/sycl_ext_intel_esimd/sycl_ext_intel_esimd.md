@@ -38,7 +38,7 @@ functions will always return `1`.
 *Functor kernel*
 ```cpp
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using AccTy = sycl::accessor<int, 1, sycl::access::mode::read_write,
   sycl::target::device>;
@@ -57,12 +57,12 @@ private:
 *Lambda kernel and function*
 ```cpp
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
-using namespace sycl::ext::intel::experimental::esimd;
-using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel;
 using namespace sycl;
 using AccTy = accessor<float, 1, access::mode::read_write, target::device>;
 
@@ -86,7 +86,7 @@ int main(void) {
       simd<float, 8> Val = esimd::block_load<float, 8>(Acc1, 0);
       sycl_device_f(Acc2, Val);
     });
-  });
+  }).wait();
 }
 ```
 
@@ -621,12 +621,12 @@ The parameter and the return type in the ABI form will be `<8 x float>`.
 ### Vector addition (USM)
 ```cpp
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
 using namespace sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 inline auto createExceptionHandler() {
   return [](exception_list l) {
