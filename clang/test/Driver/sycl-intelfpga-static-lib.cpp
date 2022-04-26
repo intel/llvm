@@ -10,7 +10,7 @@
 // RUN: llvm-ar cr %t.a %t1_bundle.o
 
 /// Check phases with static lib
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-dead-args-optimization -fno-sycl-device-lib=all -fintelfpga %t.a -ccc-print-phases 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-dead-args-optimization -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t.a -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_PHASES %s
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.a]]", object, (host-sycl)
 // CHECK_PHASES: 1: linker, {0}, image, (host-sycl)
