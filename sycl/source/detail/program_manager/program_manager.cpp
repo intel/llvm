@@ -913,9 +913,6 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
     Img->print();
   }
-
-  if (std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile)
-    dumpImage(*Img, KSId);
   return *Img;
 }
 
@@ -1094,6 +1091,7 @@ bool ProgramManager::kernelUsesAssert(OSModuleHandle M,
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
 
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -1230,10 +1228,12 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         }
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
-
       cacheKernelUsesAssertInfo(M, *Img);
 
+      if (DumpImages)
+        dumpImage(*Img, KSId);
       m_DeviceImages[KSId]->push_back(std::move(Img));
+
       continue;
     }
     // Otherwise assume that the image contains all kernels associated with the
@@ -1248,6 +1248,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
     cacheKernelUsesAssertInfo(M, *Img);
 
+    if (DumpImages)
+      dumpImage(*Img, KSId);
     Imgs->push_back(std::move(Img));
   }
 }
