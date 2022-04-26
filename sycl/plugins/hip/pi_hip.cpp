@@ -2101,6 +2101,12 @@ pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
 /// \param[out] nativeHandle Set to the native handle of the PI mem object.
 ///
 /// \return PI_SUCCESS
+pi_result hip_piextMemGetNativeHandle(pi_mem mem,
+                                      pi_native_handle *nativeHandle) {
+  *nativeHandle =
+      reinterpret_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
+  return PI_SUCCESS;
+}
 
 /// Created a PI mem object from a HIP mem handle.
 /// TODO: Implement this.
@@ -4910,7 +4916,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piMemRetain, hip_piMemRetain)
   _PI_CL(piMemRelease, hip_piMemRelease)
   _PI_CL(piMemBufferPartition, hip_piMemBufferPartition)
-  //_PI_CL(piextMemGetNativeHandle, hip_piextMemGetNativeHandle)
+  _PI_CL(piextMemGetNativeHandle, hip_piextMemGetNativeHandle)
   _PI_CL(piextMemCreateWithNativeHandle, hip_piextMemCreateWithNativeHandle)
   // Program
   _PI_CL(piProgramCreate, hip_piProgramCreate)
