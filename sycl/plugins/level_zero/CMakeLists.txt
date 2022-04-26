@@ -103,6 +103,8 @@ if (SYCL_ENABLE_XPTI_TRACING)
   set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
 endif()
 
+find_package(Threads REQUIRED)
+
 add_sycl_plugin(level_zero
   SOURCES
     "${sycl_inc_dir}/CL/sycl/detail/pi.h"
