@@ -4,6 +4,12 @@
 
 extern "C" int printf(const char* fmt, ...);
 
+#ifdef __SYCL_DEVICE_ONLY__
+__attribute__((convergent))
+extern SYCL_EXTERNAL void
+__spirv_ControlBarrier(int, int, int) noexcept;
+#endif
+
 // Dummy runtime classes to model SYCL API.
 inline namespace cl {
 namespace sycl {
@@ -61,6 +67,13 @@ enum class address_space : int {
   constant_space,
   local_space
 };
+
+enum class fence_space {
+  local_space = 0,
+  global_space = 1,
+  global_and_local = 2
+};
+
 } // namespace access
 
 // Dummy aspect enum with limited enumerators
@@ -162,6 +175,16 @@ private:
   // Some fake field added to see using of item arguments in the
   // kernel wrapper
   int Data;
+};
+
+template <int dimensions = 1> class nd_item {
+public:
+  void barrier(access::fence_space accessSpace =
+                   access::fence_space::global_and_local) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    __spirv_ControlBarrier(0, 0, 0);
+#endif
+  }
 };
 
 namespace ext {
@@ -401,12 +424,28 @@ kernel_parallel_for(const KernelType &KernelFunc) {
 
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
+kernel_parallel_for_item(const KernelType &KernelFunc) {
+  KernelFunc(nd_item<Dims>());
+}
+
+template <typename KernelName, typename KernelType, int Dims>
+ATTR_SYCL_KERNEL void
 kernel_parallel_for_work_group(const KernelType &KernelFunc) {
   KernelFunc(group<Dims>());
 }
 
 class handler {
 public:
+  template <typename KernelName = auto_name, typename KernelType, int Dims>
+  void parallel_for(nd_range<Dims> numWorkItems, const KernelType &kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_item<NameT, KernelType, Dims>(kernelFunc);
+#else
+    kernelFunc(nd_item<Dims>());
+#endif
+  }
+
   template <typename KernelName = auto_name, typename KernelType, int Dims>
   void parallel_for(range<Dims> numWorkItems, const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
