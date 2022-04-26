@@ -70,7 +70,7 @@ InstallCPURT () {
   else
     echo  $INSTALL_LOCATION/oclcpu/x64/libintelocl.so > /etc/OpenCL/vendors/intel_oclcpu.icd
   fi
-  # how's it hanging?
+  echo "how's it hanging?"
   ldd $INSTALL_LOCATION/oclcpu/x64/libintelocl.so
 }
 
