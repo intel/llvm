@@ -360,7 +360,7 @@ _pi_queue::native_type _pi_queue::get_compute() {
 }
 
 _pi_queue::native_type _pi_queue::get_transfer() {
-  if(!(properties_ & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)){
+  if(transfer_streams_.empty()){ // for example in in-order queue
     return get_compute();
   }
   if(n_transfer_streams_ < transfer_streams_.size()){
@@ -2262,8 +2262,6 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
       *queue = nullptr;
       return PI_INVALID_DEVICE;
     }
-
-    //ScopedContext active(context);
 
     unsigned int flags = 0;
     if (properties == __SYCL_PI_CUDA_USE_DEFAULT_STREAM) {
