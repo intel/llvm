@@ -10,7 +10,7 @@
 // CHECK: llvm-link{{.*}}"-o" "{{.*}}amdgpu-openmp-toolchain-{{.*}}-gfx906-linked-{{.*}}.bc"
 // CHECK: llc{{.*}}amdgpu-openmp-toolchain-{{.*}}-gfx906-linked-{{.*}}.bc" "-mtriple=amdgcn-amd-amdhsa" "-mcpu=gfx906" "-filetype=obj" "-o"{{.*}}amdgpu-openmp-toolchain-{{.*}}-gfx906-{{.*}}.o"
 // CHECK: lld{{.*}}"-flavor" "gnu" "--no-undefined" "-shared" "-o"{{.*}}amdgpu-openmp-toolchain-{{.*}}.out" "{{.*}}amdgpu-openmp-toolchain-{{.*}}-gfx906-{{.*}}.o"
-// CHECK: clang-offload-wrapper{{.*}}"-target" "x86_64-unknown-linux-gnu" "-o" "{{.*}}a-{{.*}}.bc" {{.*}}amdgpu-openmp-toolchain-{{.*}}.out"
+// CHECK: clang-offload-wrapper{{.*}}"-host" "x86_64-unknown-linux-gnu" "-o" "{{.*}}a-{{.*}}.bc" {{.*}}amdgpu-openmp-toolchain-{{.*}}.out"
 // CHECK: "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}}"-o" "{{.*}}a-{{.*}}.o" "-x" "ir" "{{.*}}a-{{.*}}.bc"
 // CHECK: ld{{.*}}"-o" "a.out"{{.*}}"{{.*}}amdgpu-openmp-toolchain-{{.*}}.o" "{{.*}}a-{{.*}}.o" "-lomp" "-lomptarget"
 
