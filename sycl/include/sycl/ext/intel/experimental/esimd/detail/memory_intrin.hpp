@@ -246,6 +246,395 @@ __ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+#ifndef __SYCL_DEVICE_ONLY__
+// Shared utility/helper functions for LSC support under emulation
+// (ESIMD_EMULATOR backend)
+
+// Raw-address increment function for u8u32 and u16u32
+template <typename Ty, __ESIMD_ENS::lsc_data_size DS>
+constexpr uint32_t rawAddressIncrement() {
+  if constexpr (DS == __ESIMD_ENS::lsc_data_size::u8u32) {
+    return 1;
+  } else if constexpr (DS == __ESIMD_ENS::lsc_data_size::u16u32) {
+    return 2;
+  } else {
+    return (uint32_t)sizeof(Ty);
+  }
+}
+
+// Vector index increment function for 'Transposed' 2D-surface access
+template <int N, __ESIMD_EDNS::lsc_data_order _Transposed>
+constexpr int vectorIndexIncrement() {
+  if constexpr (_Transposed == __ESIMD_EDNS::lsc_data_order::transpose) {
+    return 1;
+  } else {
+    return N;
+  }
+}
+
+// Load/Store align bitmask generator for 1-D vector load/store
+//
+// Not only generates address-align bitmask, but also checks
+// legitimacy of load/store operation with respect to vector size,
+// data size, and SIMT
+template <typename Ty, __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_ENS::lsc_data_size DS, int N>
+constexpr unsigned loadstoreAlignMask() {
+  constexpr __ESIMD_ENS::lsc_data_size _DS =
+      __ESIMD_EDNS::finalize_data_size<Ty, DS>(); // Actual data_size
+
+  if constexpr (VS == __ESIMD_EDNS::lsc_vector_size::n1) {
+    static_assert(((_DS == __ESIMD_ENS::lsc_data_size::u32) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u64) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u8) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u16) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u8u32) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u16u32)) &&
+                  "Wrong __ESIMD_EDNS::lsc_data_size for "
+                  "__ESIMD_EDNS::lsc_vector_size == 1\n"
+                  "(loadstoreAlignMask)");
+    return 0x0;
+  } else if constexpr ((VS == __ESIMD_EDNS::lsc_vector_size::n2) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n3) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n4) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n8)) {
+    static_assert(
+        ((_DS == __ESIMD_ENS::lsc_data_size::u32) ||
+         (_DS == __ESIMD_ENS::lsc_data_size::u64)) &&
+        "Wrong Data Size for __ESIMD_EDNS::lsc_vector_size == 2/3/4/8\n"
+        "(loadstoreAlignMask)");
+    // 0x3 for u32 / 0x7 for u64
+    if constexpr (_DS == __ESIMD_ENS::lsc_data_size::u32)
+      return 0x3;
+    else
+      return 0x7;
+  } else if constexpr ((VS == __ESIMD_EDNS::lsc_vector_size::n16) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n32) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n64)) {
+    static_assert(
+        (N == 1) &&
+        "Unsupported SIMT Size for __ESIMD_EDNS::lsc_vector_size = 16/32/64\n"
+        "(loadstoreAlignMask)");
+    // 0x3 for u32 / 0x7 for u64
+    if constexpr (_DS == __ESIMD_ENS::lsc_data_size::u32)
+      return 0x3;
+    else
+      return 0x7;
+  } else {
+    static_assert((N != N) && "Wrong Vector Size!!");
+  }
+}
+
+// Helper function for loading from indexed-surface and SLM
+// INT_MAX is for SLM
+template <typename Ty, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+auto __esimd_emu_lsc_offset_read(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, char *ReadBase,
+    int BufByteWidth = INT_MAX) {
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  constexpr int ElemCount = __ESIMD_EDNS::to_int<VS>();
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-read base
+    int ByteDistance = Offsets[OffsetIdx];
+
+    for (int ElemIdx = 0, VecIdx = OffsetIdx; ElemIdx < ElemCount; ElemIdx += 1,
+             ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+        Output[VecIdx] = *((Ty *)(ReadBase + ByteDistance));
+      }
+    }
+  }
+  return Output;
+}
+
+// Helper function for storing to indexed-surface and SLM. INT_MAX is
+// for SLM
+template <typename Ty, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+void __esimd_emu_lsc_offset_write(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> vals,
+    char *WriteBase, int BufByteWidth = INT_MAX) {
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  using StoreType = typename std::conditional_t<
+      DS == __ESIMD_ENS::lsc_data_size::u8, uint8_t,
+      std::conditional_t<
+          DS == __ESIMD_ENS::lsc_data_size::u16, uint16_t,
+          std::conditional_t<
+              DS == __ESIMD_ENS::lsc_data_size::u32, uint32_t,
+              std::conditional_t<
+                  DS == __ESIMD_ENS::lsc_data_size::u64, uint64_t,
+                  std::conditional_t<
+                      DS == __ESIMD_ENS::lsc_data_size::u8u32, uint8_t,
+                      std::conditional_t<DS ==
+                                             __ESIMD_ENS::lsc_data_size::u16u32,
+                                         uint16_t, void>>>>>>;
+
+  constexpr int ElemCount = __ESIMD_EDNS::to_int<VS>();
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip input vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-write base
+    int ByteDistance = Offsets[OffsetIdx];
+
+    for (int ElemIdx = 0, VecIdx = OffsetIdx; ElemIdx < ElemCount; ElemIdx += 1,
+             ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+        *((StoreType *)(WriteBase + ByteDistance)) = vals[VecIdx];
+      }
+    }
+  }
+}
+
+/// Stateless-2d operations
+/// Template argument check for 2D-load/store
+template <typename T, int Width, int Height,
+          __ESIMD_EDNS::lsc_data_order Transposed, bool Transformed, int NBlks,
+          bool isStore>
+constexpr void loadstore2DArgumentCheck() {
+  const __ESIMD_ENS::lsc_data_size _DS = __ESIMD_EDNS::finalize_data_size<
+      T, __ESIMD_ENS::lsc_data_size::default_size>();
+  static_assert(__ESIMD_DNS::isPowerOf2(NBlks) && (NBlks * sizeof(T) <= 8),
+                "NBlks must be power of 2 and less than or equal to 4!!");
+
+  if constexpr (isStore == true) {
+    static_assert(NBlks == 1, "Mutliple Blocks are not allowed for 2D store!!");
+    static_assert(Transposed == __ESIMD_EDNS::lsc_data_order::nontranspose,
+                  "No Transposed 2D store!!");
+    static_assert(Transformed == false, "No Transformed 2D store!!");
+    static_assert((Height >= 1) && (Height <= 32),
+                  "Invalid Height for 2D store!! H > 32 or H == 0");
+
+    static_assert((Width * sizeof(T) >= 4) && (Width * sizeof(T) <= 64),
+                  "Invalid Width for 2D store!!");
+
+    static_assert(sycl::detail::getNextPowerOfTwo(Width * sizeof(T)) * Height <=
+                      512,
+                  "Invalid Width * Height combination!!");
+  } else // isStore == false
+  {
+    // Restriction : Width * NBlks
+    static_assert(
+        Width * NBlks * sizeof(T) <= 64,
+        "Invalid Width/NBlks combination!! (W * NBlks * sizeof(T) > 64)");
+
+    static_assert(
+        ((Transposed == __ESIMD_EDNS::lsc_data_order::transpose) &
+         Transformed) != true,
+        "Transpose and Transform cannot be used together for 2D-load!!");
+
+    if constexpr (Transformed == false) {
+      if constexpr (Transposed == __ESIMD_EDNS::lsc_data_order::transpose) {
+        static_assert(NBlks == 1,
+                      "Invalid NBlks for Transposed 2D load!! NBlks != 1");
+      }
+
+      static_assert((Height >= 1) && (Height <= 32),
+                    "Invalid Height for Non-transform 2D load!!");
+
+      static_assert((Width * sizeof(T) >= 4) && (Width * sizeof(T) <= 64),
+                    "Invalid Width for Non-transform 2D load!!");
+    } else // Transformed == true
+    {
+      static_assert(
+          (_DS == __ESIMD_ENS::lsc_data_size::u8) ||
+              (_DS == __ESIMD_ENS::lsc_data_size::u16),
+          "For Transformed 2D read, DataSize must be either U8 or U16");
+
+      static_assert((Width * sizeof(T) >= 4) && (Width <= 16),
+                    "Invalid Width for Transformed/Non-Transposed 2D load!!");
+      static_assert((Height * sizeof(T) >= 4) && (Height <= 32),
+                    "Invalid Height for Transformed/Non-Transposed 2D load!!");
+    }
+  }
+}
+
+/// Generic helper function of 2D Block Read supporting both 2d-load
+/// and raw_send
+template <typename Ty, uint N>
+__ESIMD_DNS::vector_type_t<Ty, N>
+__esimd_emu_read_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr,
+                    unsigned SurfaceWidth, unsigned SurfaceHeight,
+                    unsigned SurfacePitch, int X, int Y, int Width, int Height,
+                    int NBlks, __ESIMD_EDNS::lsc_data_order _Transposed,
+                    bool Transformed) {
+  assert(SurfaceHeight >= 0);
+  assert(SurfaceWidth >= 0);
+  assert(SurfaceWidth <= SurfacePitch);
+
+  SurfaceHeight += 1;
+  SurfaceWidth += 1;
+  SurfacePitch += 1;
+
+  constexpr unsigned sizeofTy = sizeof(Ty);
+
+  __ESIMD_DNS::vector_type_t<Ty, N> Output = 0;
+
+  char *buff = (char *)Ptr;
+  assert(buff != NULL);
+
+  int vecIdx = 0;
+  int blkCount = 0;
+
+  for (int xBase = X * sizeofTy; blkCount < NBlks; xBase += sizeofTy * Width) {
+    if (Transformed == true) {
+      constexpr int elems_per_DW = (sizeofTy == 1) ? 4 : 2; /// VNNI_pack
+      int yRead = Y * SurfacePitch;
+      for (int u = 0; u < Height;
+           u += elems_per_DW, yRead += SurfacePitch * elems_per_DW) {
+        vecIdx = u * sycl::detail::getNextPowerOfTwo(Width) +
+                 blkCount * Height * sycl::detail::getNextPowerOfTwo(Width);
+        if ((yRead < 0) || (yRead >= SurfacePitch * SurfaceHeight)) {
+          /// Vertically out-of-bound, skip corresponding vector elements
+          vecIdx += Width * elems_per_DW;;
+          continue;
+        }
+
+        int xRead = xBase;
+        for (int v = 0; v < Width; v += 1, xRead += sizeofTy) {
+          if ((xRead < 0) || (xRead >= SurfaceWidth)) {
+            /// Horizontally out-of-bound, skip corresponding vector elements
+            vecIdx += elems_per_DW;
+            continue;
+          }
+
+          char *base = buff + xRead;
+          int offset = yRead;
+          for (int k = 0; k < elems_per_DW; k++, vecIdx += 1) {
+            if (Pred[vecIdx] != 0) {
+              if (offset >= 0 && offset < SurfacePitch * SurfaceHeight) {
+                Output[vecIdx] = *((Ty *)(base + offset));
+              }
+            }
+            // Increasing in Y-direction
+            offset += SurfacePitch;
+          } // k loop
+        }   // v loop
+      }     // u loop
+    }       // (Transformed == true)
+    else if (_Transposed == __ESIMD_EDNS::lsc_data_order::transpose) {
+      int xRead = xBase;
+      for (int v = 0; v < Width; v += 1, xRead += sizeofTy) {
+        if ((xRead < 0) || (xRead >= SurfaceWidth)) {
+          // Horizontally out-of-bound, skip corresponding vector elements
+          vecIdx += Height;
+          continue;
+        }
+
+        int yRead = Y * SurfacePitch;
+        for (int u = 0; u < Height;
+             u += 1, yRead += SurfacePitch, vecIdx += 1) {
+          if (Pred[vecIdx] != 0) {
+            if ((yRead >= 0) && (yRead < SurfacePitch * SurfaceHeight)) {
+              Output[vecIdx] = *((Ty *)(buff + yRead + xRead));
+            }
+          }
+        } // u loop
+      }   // v loop
+    }     // (_Transposed == __ESIMD_EDNS::lsc_data_order::transpose)
+    else {
+      int yRead = Y * SurfacePitch;
+      for (int u = 0; u < Height; u += 1, yRead += SurfacePitch) {
+        if ((yRead < 0) || (yRead >= SurfacePitch * SurfaceHeight)) {
+          // Vertically Out-of-bound, skip corresponding vector elements
+          vecIdx += Width;
+          continue;
+        }
+
+        int xRead = xBase;
+        for (int v = 0; v < Width; v += 1, xRead += sizeofTy, vecIdx += 1) {
+          if (Pred[vecIdx] != 0) {
+            if ((xRead >= 0) && (xRead < SurfaceWidth)) {
+              Output[vecIdx] = *((Ty *)(buff + yRead + xRead));
+            }
+          }
+        } // v loop
+      }   // u loop
+    }     // Linear loading
+    blkCount += 1;
+    vecIdx = blkCount * sycl::detail::getNextPowerOfTwo(Width) * Height;
+  } // xBase loop
+
+  return Output;
+}
+
+/// Generic helper function of 2D Block Write supporting both
+/// 2d-write and raw_send
+template <typename Ty, uint N>
+void __esimd_emu_write_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
+                          uintptr_t Ptr, unsigned SurfaceWidth,
+                          unsigned SurfaceHeight, unsigned SurfacePitch, int X,
+                          int Y, __ESIMD_DNS::vector_type_t<Ty, N> vals,
+                          int Width, int Height) {
+  assert(SurfaceHeight >= 0);
+  assert(SurfaceWidth >= 0);
+  assert(SurfaceWidth <= SurfacePitch);
+
+  SurfaceHeight += 1;
+  SurfaceWidth += 1;
+  SurfacePitch += 1;
+
+  constexpr unsigned sizeofTy = sizeof(Ty);
+
+  char *buff = (char *)Ptr;
+  assert(buff != NULL);
+
+  int vecIdx = 0;
+  int rowCount = 0;
+  for (int yWrite = Y * SurfacePitch; rowCount < Height;
+       yWrite += SurfacePitch) {
+    if (yWrite == SurfacePitch * SurfaceHeight) {
+      // Vertically Out-of-bound
+      break;
+    }
+    int writeCount = 0;
+    for (int xWrite = X * sizeofTy; writeCount < Width;
+         xWrite += sizeofTy, vecIdx += 1, writeCount += 1) {
+      if (xWrite >= 0 && xWrite < SurfaceWidth && Pred[vecIdx] != 0) {
+        *((Ty *)(buff + yWrite + xWrite)) = vals[vecIdx];
+      }
+    } // xWrite loop
+    rowCount += 1;
+  } // yWrite loop
+}
+
+#endif
+
 /// SLM gather.
 /// Supported platforms: DG2, PVC
 ///
@@ -275,8 +664,14 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_offset_read<Ty, AddressScale, ImmOffset, DS, VS,
+                                     _Transposed, N, MASK>(
+      pred, offsets, I->__cm_emu_get_slm_ptr());
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -313,8 +708,21 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+  char *readBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
+
+  std::lock_guard<std::mutex> lock(*mutexLock);
+
+  return __esimd_emu_lsc_offset_read<Ty, AddressScale, ImmOffset, DS, VS,
+                                     _Transposed, N, MASK>(pred, offsets,
+                                                           readBase, width);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -347,8 +755,35 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  constexpr int ElemCount = __ESIMD_EDNS::to_int<VS>();
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    int ByteDistance = 0;
+
+    assert(((addrs[AddrIdx] & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ElemIdx = 0, VecIdx = AddrIdx; ElemIdx < ElemCount; ElemIdx += 1,
+             ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      Output[VecIdx] = *((Ty *)(addrs[AddrIdx] + ByteDistance));
+    }
+  }
+  return Output;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -383,7 +818,8 @@ __esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  // Prefetch is NOP under ESIMD_EMULATOR
+  return;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -414,7 +850,8 @@ __esimd_lsc_prefetch_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  // Prefetch is NOP under ESIMD_EMULATOR
+  return;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -447,7 +884,14 @@ __ESIMD_INTRIN void __esimd_lsc_store_slm(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  __esimd_emu_lsc_offset_write<Ty, AddressScale, ImmOffset, DS, VS, _Transposed,
+                               N, MASK>(pred, offsets, vals,
+                                        I->__cm_emu_get_slm_ptr());
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -484,7 +928,20 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+  char *writeBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
+
+  std::lock_guard<std::mutex> lock(*mutexLock);
+
+  __esimd_emu_lsc_offset_write<Ty, AddressScale, ImmOffset, DS, VS, _Transposed,
+                               N, MASK>(pred, offsets, vals, writeBase, width);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -517,7 +974,45 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  using StoreType = typename std::conditional_t<
+      DS == __ESIMD_ENS::lsc_data_size::u8, uint8_t,
+      std::conditional_t<
+          DS == __ESIMD_ENS::lsc_data_size::u16, uint16_t,
+          std::conditional_t<
+              DS == __ESIMD_ENS::lsc_data_size::u32, uint32_t,
+              std::conditional_t<
+                  DS == __ESIMD_ENS::lsc_data_size::u64, uint64_t,
+                  std::conditional_t<
+                      DS == __ESIMD_ENS::lsc_data_size::u8u32, uint8_t,
+                      std::conditional_t<DS ==
+                                             __ESIMD_ENS::lsc_data_size::u16u32,
+                                         uint16_t, void>>>>>>;
+
+  constexpr int ElemCount = __ESIMD_EDNS::to_int<VS>();
+  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    int ByteDistance = 0;
+
+    assert(((addrs[AddrIdx] & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ElemIdx = 0, VecIdx = AddrIdx; ElemIdx < ElemCount; ElemIdx += 1,
+             ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+      *((StoreType *)(addrs[AddrIdx] + ByteDistance)) = vals[VecIdx];
+    }
+  }
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -563,8 +1058,11 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  loadstore2DArgumentCheck<Ty, BlockWidth, BlockHeight, _Transposed,
+                           Transformed, NBlocks, false>();
+  return __esimd_emu_read_2d<Ty, N>(Pred, Ptr, SurfaceWidth, SurfaceHeight,
+                                    SurfacePitch, X, Y, BlockWidth, BlockHeight,
+                                    NBlocks, _Transposed, Transformed);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -603,7 +1101,8 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  // Prefetch is NOP under ESIMD_EMULATOR
+  return;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -649,7 +1148,11 @@ __esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  loadstore2DArgumentCheck<Ty, BlockWidth, BlockHeight, _Transposed,
+                           Transformed, NBlocks, true>();
+  __esimd_emu_write_2d<Ty, N>(Pred, Ptr, SurfaceWidth, SurfaceHeight,
+                              SurfacePitch, X, Y, vals, BlockWidth,
+                              BlockHeight);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
