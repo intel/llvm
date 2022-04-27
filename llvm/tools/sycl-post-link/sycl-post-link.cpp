@@ -519,12 +519,17 @@ static bool removeSYCLKernelsConstRefArray(GlobalVariable *GV) {
          "Cannot remove initializer of llvm.used global");
   Initializer->destroyConstant();
   for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    assert(llvm::isSafeToDestroyConstant(*It) &&
-           "Cannot remove an element of initializer of llvm.used global");
     auto Op = (*It)->getOperand(0);
-    (*It)->destroyConstant();
-    // Remove unused kernel declarations to avoid LLVM IR check fails.
     auto *F = dyn_cast<Function>(Op);
+    if (llvm::isSafeToDestroyConstant(*It)) {
+      (*It)->destroyConstant();
+    } else if (F) {
+      // The element in "llvm.used" array has other users. That is Ok for
+      // specialization constants, but is wrong for kernels.
+      llvm::report_fatal_error("Unexpected usage of ESIMD kernel");
+    }
+
+    // Remove unused kernel declarations to avoid LLVM IR check fails.
     if (F && F->isDeclaration())
       F->eraseFromParent();
   }
