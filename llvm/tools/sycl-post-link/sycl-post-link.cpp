@@ -526,7 +526,7 @@ static bool removeSYCLKernelsConstRefArray(GlobalVariable *GV) {
     } else if (F) {
       // The element in "llvm.used" array has other users. That is Ok for
       // specialization constants, but is wrong for kernels.
-      llvm::report_fatal_error("Unexpected usage of ESIMD kernel");
+      llvm::report_fatal_error("Unexpected usage of SYCL kernel");
     }
 
     // Remove unused kernel declarations to avoid LLVM IR check fails.
