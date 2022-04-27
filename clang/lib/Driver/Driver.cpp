@@ -6088,7 +6088,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   // support for spir64 targets is not in place with this new path.
   bool UseNewOffloadingDriver =
       C.isOffloadingHostKind(Action::OFK_OpenMP) &&
-      Args.hasArg(options::OPT_fopenmp_new_driver);
+      Args.hasFlag(options::OPT_fopenmp_new_driver,
+                   options::OPT_fno_openmp_new_driver, true);
 
   for (auto &I : Inputs) {
     types::ID InputType = I.first;
