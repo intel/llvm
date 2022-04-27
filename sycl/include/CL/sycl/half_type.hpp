@@ -467,6 +467,62 @@ public:
   OP(-, -=)
   OP(*, *=)
   OP(/, /=)
+
+#undef OP
+
+// Operator ==, !=, <, >, <=, >=
+#define OP(op)                                                                 \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
+                                                const half &rhs) {             \
+    return lhs.Data op rhs.Data;                                               \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
+                                                const double &rhs) {           \
+    return lhs.Data op rhs;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const double &lhs,             \
+                                                const half &rhs) {             \
+    return lhs op rhs.Data;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
+                                                const float &rhs) {            \
+    return lhs.Data op rhs;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const float &lhs,              \
+                                                const half &rhs) {             \
+    return lhs op rhs.Data;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
+                                                const int &rhs) {              \
+    return lhs.Data op rhs;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const int &lhs,                \
+                                                const half &rhs) {             \
+    return lhs op rhs.Data;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
+                                                const long &rhs) {             \
+    return lhs.Data op rhs;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const long &lhs,               \
+                                                const half &rhs) {             \
+    return lhs op rhs.Data;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
+                                                const long long &rhs) {        \
+    return lhs.Data op rhs;                                                    \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend bool operator op(const long long &lhs,          \
+                                                const half &rhs) {             \
+    return lhs op rhs.Data;                                                    \
+  }
+  OP(==)
+  OP(!=)
+  OP(<)
+  OP(>)
+  OP(<=)
+  OP(>=)
+
 #undef OP
 
   // Operator float
