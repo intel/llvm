@@ -403,17 +403,61 @@ public:
     rtn op1 rhs;                                                               \
     return rtn;                                                                \
   }                                                                            \
-  template <typename T,                                                        \
-            typename = std::enable_if_t<std::is_arithmetic<T>::value>>         \
+  __SYCL_CONSTEXPR_HALF friend double operator op(const half &lhs,             \
+                                                  const double &rhs) {         \
+    double rtn = lhs;                                                          \
+    rtn op1 rhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend double operator op(const double &lhs,           \
+                                                  const half &rhs) {           \
+    double rtn = rhs;                                                          \
+    rtn op1 lhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend float operator op(const half &lhs,              \
+                                                 const float &rhs) {           \
+    float rtn = lhs;                                                           \
+    rtn op1 rhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend float operator op(const float &lhs,             \
+                                                 const half &rhs) {            \
+    float rtn = rhs;                                                           \
+    rtn op1 lhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
-                                                const T &rhs) {                \
+                                                const int &rhs) {              \
     half rtn = lhs;                                                            \
     rtn op1 rhs;                                                               \
     return rtn;                                                                \
   }                                                                            \
-  template <typename T,                                                        \
-            typename = std::enable_if_t<std::is_arithmetic<T>::value>>         \
-  __SYCL_CONSTEXPR_HALF friend half operator op(const T &lhs,                  \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const int &lhs,                \
+                                                const half &rhs) {             \
+    half rtn = rhs;                                                            \
+    rtn op1 lhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
+                                                const long &rhs) {             \
+    half rtn = lhs;                                                            \
+    rtn op1 rhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const long &lhs,               \
+                                                const half &rhs) {             \
+    half rtn = rhs;                                                            \
+    rtn op1 lhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
+                                                const long long &rhs) {        \
+    half rtn = lhs;                                                            \
+    rtn op1 rhs;                                                               \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const long long &lhs,          \
                                                 const half &rhs) {             \
     half rtn = rhs;                                                            \
     rtn op1 lhs;                                                               \
