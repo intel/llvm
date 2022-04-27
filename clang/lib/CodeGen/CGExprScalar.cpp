@@ -2057,10 +2057,9 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm::Type *SrcTy = Src->getType();
     llvm::Type *DstTy = ConvertType(DestTy);
     if (SrcTy->isPtrOrPtrVectorTy() && DstTy->isPtrOrPtrVectorTy() &&
-        SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace()) {
-      llvm_unreachable("wrong cast for pointers in different address spaces"
-                       "(must be an address space cast)!");
-    }
+        SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
+      Src = Builder.CreateAddrSpaceCast(
+          Src, llvm::PointerType::get(SrcTy, DstTy->getPointerAddressSpace()));
 
     if (CGF.SanOpts.has(SanitizerKind::CFIUnrelatedCast)) {
       if (auto *PT = DestTy->getAs<PointerType>()) {
