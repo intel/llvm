@@ -84,6 +84,8 @@ runs:
       export LIT_OPTS="-v --no-progress-bar --show-unsupported --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
+      else
+        echo "no TBB vars. likely /runtime/ directory not existing";
       fi
       # TODO remove workaround of FPGA emu bug
       mkdir -p icd
