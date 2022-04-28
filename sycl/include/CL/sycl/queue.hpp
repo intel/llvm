@@ -872,10 +872,10 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  event
-      parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
-                        _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    _CODELOCARG(&CodeLoc);
+  event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
+                          _KERNELFUNCPARAM(KernelFunc)) {
+    // Actual code location needs to be captured from KernelInfo object.
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, WorkItemOffset,
@@ -895,11 +895,10 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  event
-      parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
-                        event DepEvent,
-                        _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    _CODELOCARG(&CodeLoc);
+  event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
+                          event DepEvent, _KERNELFUNCPARAM(KernelFunc)) {
+    // Actual code location needs to be captured from KernelInfo object.
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -921,11 +920,11 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  event
-      parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
-                        const std::vector<event> &DepEvents,
-                        _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    _CODELOCARG(&CodeLoc);
+  event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
+                          const std::vector<event> &DepEvents,
+                          _KERNELFUNCPARAM(KernelFunc)) {
+    // Actual code location needs to be captured from KernelInfo object.
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -946,6 +945,7 @@ public:
   std::enable_if_t<
       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
@@ -964,6 +964,7 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
@@ -985,6 +986,7 @@ public:
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
@@ -1083,6 +1085,7 @@ private:
   std::enable_if_t<
       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
@@ -1100,6 +1103,7 @@ private:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName, int Dims, typename... RestT>
   event parallel_for_impl(range<Dims> Range, event DepEvent, RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
@@ -1120,6 +1124,7 @@ private:
   event parallel_for_impl(range<Dims> Range,
                           const std::vector<event> &DepEvents,
                           RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
