@@ -56,6 +56,15 @@ add_custom_target(ze-pretty-printers
     ${CMAKE_CURRENT_BINARY_DIR}/ze_printers.def
   )
 
+add_custom_target(cuda-pretty-printers
+  COMMAND ${Python3_EXECUTABLE}
+  ${CMAKE_CURRENT_SOURCE_DIR}/generate_cuda_pretty_printers.py
+  ${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include/generated_cuda_meta.h
+  DEPENDS pi_cuda
+  BYPRODUCTS
+    ${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def
+  )
+
 target_compile_definitions(sycl_pi_trace_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
 target_link_libraries(sycl_pi_trace_collector PRIVATE xptifw)
 if (TARGET OpenCL-Headers)
@@ -69,7 +78,7 @@ target_include_directories(sycl_pi_trace_collector PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
-add_dependencies(sycl_pi_trace_collector pi-pretty-printers ze-pretty-printers)
+add_dependencies(sycl_pi_trace_collector pi-pretty-printers ze-pretty-printers cuda-pretty-printers)
 add_dependencies(sycl-trace sycl_pi_trace_collector)
 add_dependencies(sycl-toolchain sycl-trace)
 

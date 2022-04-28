@@ -23,14 +23,36 @@ else()
   )
 endif()
 
+if (SYCL_ENABLE_XPTI_TRACING)
+  set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
+endif()
+
 add_sycl_plugin(cuda
   SOURCES
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_cuda.hpp"
     "pi_cuda.cpp"
+    "tracing.cpp"
+    ${XPTI_PROXY_SRC}
   LIBRARIES
     cudadrv
+    ${CUDA_cupti_LIBRARY}
+)
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  target_compile_definitions(pi_cuda PRIVATE
+    XPTI_ENABLE_INSTRUMENTATION
+    XPTI_STATIC_LIBRARY
+  )
+  target_include_directories(pi_cuda PRIVATE "${CMAKE_SOURCE_DIR}/../xpti/include")
+  target_link_libraries(pi_cuda PRIVATE ${CMAKE_DL_LIBS})
+endif()
+
+target_include_directories(pi_cuda
+  PRIVATE
+    ${sycl_inc_dir}
+    "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
 )
 
 set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
