@@ -1210,23 +1210,22 @@ detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
       __sycl_std::__invoke_SignBitSet<detail::rel_ret_t<T>>(x));
 }
 
-// The standard is being corrected for "any" at
-// https://github.com/KhronosGroup/SYCL-Docs/pull/234. Scalar/marray version
-// will return scalar "bool".
+namespace detail {
 #if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
 using anyall_ret_t = bool;
 #else
 using anyall_ret_t = int;
 #endif
+} // namespace detail
 
 template <typename T>
-detail::enable_if_t<detail::is_sigeninteger<T>::value, anyall_ret_t>
+detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
 any(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, anyall_ret_t>
+detail::enable_if_t<detail::is_vigeninteger<T>::value, detail::anyall_ret_t>
 any(T x) __NOEXC {
   return detail::rel_sign_bit_test_ret_t<T>(
       __sycl_std::__invoke_Any<detail::rel_sign_bit_test_ret_t<T>>(
@@ -1234,13 +1233,13 @@ any(T x) __NOEXC {
 }
 
 template <typename T>
-detail::enable_if_t<detail::is_sigeninteger<T>::value, anyall_ret_t>
+detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
 all(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, anyall_ret_t>
+detail::enable_if_t<detail::is_vigeninteger<T>::value, detail::anyall_ret_t>
 all(T x) __NOEXC {
   return detail::rel_sign_bit_test_ret_t<T>(
       __sycl_std::__invoke_All<detail::rel_sign_bit_test_ret_t<T>>(
