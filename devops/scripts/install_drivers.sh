@@ -38,7 +38,7 @@ InstallTBB () {
   echo "exiting InstallTBB(): " $TBB_INSTALLED
   echo "TBBROOT: " $TBBROOT 
   echo "LD_LIBRARY_PATH: " $LD_LIBRARY_PATH
-  ls $INSTALL_LOCATION -la 
+  ls $INSTALL_LOCATION/oneapi-tbb -la 
 }
 
 InstallIGFX () {
