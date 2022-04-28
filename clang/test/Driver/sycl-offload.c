@@ -671,6 +671,11 @@
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-2X-ERROR %s
 // CHK-FSYCL-TARGET-2X-ERROR-NOT: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target{{.*}}', specify triple using '-Xsycl-target{{.*}}=<triple>'
 
+/// Check -Xsycl-target-frontend does not trigger an error when no -fsycl-targets is specified
+// RUN:   %clang -### -fsycl -Xsycl-target-frontend -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-TARGET-ERROR %s
+// CHK-NO-FSYCL-TARGET-ERROR-NOT: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-frontend', specify triple using '-Xsycl-target-frontend=<triple>'
+
 /// ###########################################################################
 
 /// Ahead of Time compilation for fpga, gen, cpu

@@ -1095,6 +1095,7 @@
 ?acospi@__host_std@cl@@YANN@Z
 ?add@device_global_map@detail@sycl@cl@@YAXPEBXPEBD@Z
 ?addHostAccessorAndWait@detail@sycl@cl@@YAXPEAVAccessorImplHost@123@@Z
+?addInteropObject@buffer_impl@detail@sycl@cl@@QEBAXAEAV?$vector@_KV?$allocator@_K@std@@@std@@@Z
 ?addOrReplaceAccessorProperties@SYCLMemObjT@detail@sycl@cl@@QEAAXAEBVproperty_list@34@@Z
 ?addReduction@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@$$CBX@std@@@Z
 ?addStream@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@Vstream_impl@detail@sycl@cl@@@std@@@Z
@@ -2193,6 +2194,7 @@
 ?getNativeImpl@kernel@sycl@cl@@AEBA_KXZ
 ?getNativeMem@interop_handle@sycl@cl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@sycl@cl@@AEBA_KXZ
+?getNativeVector@buffer_impl@detail@sycl@cl@@QEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@W4backend@34@@Z
 ?getNativeVector@event@sycl@cl@@AEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ?getOSMemSize@OSUtil@detail@sycl@cl@@SA_KXZ
 ?getOSModuleHandle@OSUtil@detail@sycl@cl@@SA_JPEBX@Z

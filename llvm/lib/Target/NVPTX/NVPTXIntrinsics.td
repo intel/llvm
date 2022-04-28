@@ -1036,6 +1036,11 @@ def INT_NVVM_RCP_RP_FTZ_F : F_MATH_1<"rcp.rp.ftz.f32 \t$dst, $src0;",
 def INT_NVVM_RCP_RP_F : F_MATH_1<"rcp.rp.f32 \t$dst, $src0;",
   Float32Regs, Float32Regs, int_nvvm_rcp_rp_f>;
 
+def INT_NVVM_RCP_APPROX_F : F_MATH_1<"rcp.approx.f32 \t$dst, $src0;",
+  Float32Regs, Float32Regs, int_nvvm_rcp_approx_f>;
+def INT_NVVM_RCP_APPROX_FTZ_F : F_MATH_1<"rcp.approx.ftz.f32 \t$dst, $src0;",
+  Float32Regs, Float32Regs, int_nvvm_rcp_approx_ftz_f>;
+
 def INT_NVVM_RCP_RN_D : F_MATH_1<"rcp.rn.f64 \t$dst, $src0;", Float64Regs,
   Float64Regs, int_nvvm_rcp_rn_d>;
 def INT_NVVM_RCP_RZ_D : F_MATH_1<"rcp.rz.f64 \t$dst, $src0;", Float64Regs,

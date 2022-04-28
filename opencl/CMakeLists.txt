@@ -21,7 +21,7 @@ set(OCL_LOADER_REPO
 # Repo tags/hashes
 
 set(OCL_HEADERS_TAG dcd5bede6859d26833cd85f0d6bbcee7382dc9b3)
-set(OCL_LOADER_TAG 5d9177ee79bfbcc75ee9a8cff6415eab2c3113f6)
+set(OCL_LOADER_TAG aec3952654832211636fc4af613710f80e203b0a)
 
 # OpenCL Headers
 if(NOT OpenCL_HEADERS)
