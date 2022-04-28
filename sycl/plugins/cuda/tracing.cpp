@@ -97,3 +97,13 @@ void enableCUDATracing() {
                       CUPTI_DRIVER_TRACE_CBID_cuGetErrorName);
 #endif
 }
+
+void disableCUDATracing() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
+  xptiFinalize(CUDA_CALL_STREAM_NAME);
+  xptiFinalize(CUDA_DEBUG_STREAM_NAME);
+#endif // XPTI_ENABLE_INSTRUMENTATION
+}
