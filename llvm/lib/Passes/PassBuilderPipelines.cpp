@@ -1301,9 +1301,6 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   if (!LTOPreLink)
     MPM.addPass(RelLookupTableConverterPass());
 
-  if (SYCLOptimizationMode)
-    MPM.addPass(DeadArgumentEliminationSYCLPass());
-
   return MPM;
 }
 
