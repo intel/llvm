@@ -20,6 +20,9 @@ else
 fi;
 
 InstallTBB () {
+  echo "InstallTBB called: " $TBB_INSTALLED
+  echo " INSTALL_LOCATION: " $INSTALL_LOCATION
+  echo " LOCATION: " $LOCATION
   if [ "$TBB_INSTALLED" = false ]; then
     mkdir -p $INSTALL_LOCATION
     cd $INSTALL_LOCATION
@@ -32,6 +35,7 @@ InstallTBB () {
 
     TBB_INSTALLED=true
   fi
+  echo "exiting InstallTBB()"
 }
 
 InstallIGFX () {
