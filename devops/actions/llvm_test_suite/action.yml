@@ -85,11 +85,13 @@ runs:
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       else
-        echo "no TBB vars?";
-        ls /runtimes/ -la
-        ls /runtimes/oneapi-tbb -la
-        ls /runtimes/oneapi-tbb/env -la
+        echo "no TBB vars. /runtimes/ directory does not exist";
+        # /runtimes/ directory does not exist.
+        # ls /runtimes/ -la
+        # ls /runtimes/oneapi-tbb -la
+        # ls /runtimes/oneapi-tbb/env -la
       fi
+      echo "action.yml CP_TEST: " $CP_TEST
       # TODO remove workaround of FPGA emu bug
       mkdir -p icd
       echo /usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so > icd/gpu.icd

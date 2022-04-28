@@ -35,6 +35,8 @@ InstallTBB () {
 
     TBB_INSTALLED=true
   fi
+  export CP_TEST=/runtimes 
+  echo "CP_TEST: " $CP_TEST
   echo "exiting InstallTBB(): " $TBB_INSTALLED
   echo "TBBROOT: " $TBBROOT 
   echo "LD_LIBRARY_PATH: " $LD_LIBRARY_PATH
