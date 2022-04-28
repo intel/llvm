@@ -487,6 +487,9 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
         std::max((uint64_t)LargestVectorWidth,
                  VT->getPrimitiveSizeInBits().getKnownMinSize());
 
+  if (CurFnInfo->getMaxVectorWidth() > LargestVectorWidth)
+    LargestVectorWidth = CurFnInfo->getMaxVectorWidth();
+
   // Add the required-vector-width attribute. This contains the max width from:
   // 1. min-vector-width attribute used in the source program.
   // 2. Any builtins used that have a vector width specified.
@@ -2717,6 +2720,40 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
     V = Builder.CreateBitCast(V, VTy);
   }
 
+  return Address(V, Addr.getElementType(), Addr.getAlignment());
+}
+
+llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
+    llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
+    SourceLocation Location, const SYCLAddIRAnnotationsMemberAttr *Attr) {
+  SmallVector<llvm::Value *, 5> Args = {
+      AnnotatedVal,
+      Builder.CreateBitCast(CGM.EmitAnnotationString("sycl-properties"),
+                            Int8PtrTy),
+      Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location), Int8PtrTy),
+      CGM.EmitAnnotationLineNo(Location), CGM.EmitSYCLAnnotationArgs(Attr)};
+  return Builder.CreateCall(AnnotationFn, Args);
+}
+
+Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
+                                                  Address Addr) {
+  const auto *SYCLAnnotAttr = D->getAttr<SYCLAddIRAnnotationsMemberAttr>();
+  assert(SYCLAnnotAttr && "no add_ir_annotations_member attribute");
+  llvm::Value *V = Addr.getPointer();
+  llvm::Type *VTy = V->getType();
+  auto *PTy = dyn_cast<llvm::PointerType>(VTy);
+  unsigned AS = PTy ? PTy->getAddressSpace() : 0;
+  llvm::Type *IntrType = VTy;
+  if (!VTy->getPointerElementType()->isIntegerTy())
+    IntrType = llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
+  llvm::Function *F =
+      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, IntrType);
+
+  if (VTy != IntrType)
+    V = Builder.CreateBitCast(V, IntrType);
+  V = EmitSYCLAnnotationCall(F, V, D->getLocation(), SYCLAnnotAttr);
+  if (VTy != IntrType)
+    V = Builder.CreateBitCast(V, VTy);
   return Address(V, Addr.getElementType(), Addr.getAlignment());
 }
 

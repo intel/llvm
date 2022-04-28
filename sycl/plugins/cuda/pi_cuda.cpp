@@ -852,15 +852,9 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             context->get_device()->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
-                     : PI_MEMORY_ORDER_RELAXED;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -871,10 +865,11 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              context->get_device()->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
                            PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_DEVICE;
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1139,15 +1134,9 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    atomic64);
   }
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             device->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
-                     : PI_MEMORY_ORDER_RELAXED;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1158,10 +1147,11 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
                            PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_DEVICE;
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -2164,7 +2154,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-pi_result cuda_piMemGetInfo(pi_mem, cl_mem_info, size_t, void *, size_t *) {
+pi_result cuda_piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
   cl::sycl::detail::pi::die("cuda_piMemGetInfo not implemented");
 }
 
@@ -2185,10 +2175,16 @@ pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle, pi_mem *) {
+pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                              pi_context context,
+                                              bool ownNativeHandle,
+                                              pi_mem *mem) {
   cl::sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
@@ -4846,7 +4842,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_size_ret is how many bytes were written
 pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                       pi_mem_info param_name,
+                                       pi_mem_alloc_info param_name,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {

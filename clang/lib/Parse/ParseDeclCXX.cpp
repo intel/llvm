@@ -2049,8 +2049,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       // Parse the definition body.
       ParseStructUnionBody(StartLoc, TagType, cast<RecordDecl>(D));
       if (SkipBody.CheckSameAsPrevious &&
-          !Actions.ActOnDuplicateDefinition(DS, TagOrTempResult.get(),
-                                            SkipBody)) {
+          !Actions.ActOnDuplicateDefinition(TagOrTempResult.get(), SkipBody)) {
         DS.SetTypeSpecError();
         return;
       }
@@ -4303,10 +4302,19 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
   ParsedAttr::Syntax Syntax =
       LO.CPlusPlus ? ParsedAttr::AS_CXX11 : ParsedAttr::AS_C2x;
 
+  // Try parsing microsoft attributes
+  if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {
+    if (hasAttribute(AttrSyntax::Microsoft, ScopeName, AttrName,
+                     getTargetInfo(), getLangOpts()))
+      Syntax = ParsedAttr::AS_Microsoft;
+  }
+
   // If the attribute isn't known, we will not attempt to parse any
   // arguments.
-  if (!hasAttribute(LO.CPlusPlus ? AttrSyntax::CXX : AttrSyntax::C, ScopeName,
+  if (Syntax != ParsedAttr::AS_Microsoft &&
+      !hasAttribute(LO.CPlusPlus ? AttrSyntax::CXX : AttrSyntax::C, ScopeName,
                     AttrName, getTargetInfo(), getLangOpts())) {
+    if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {}
     // Eat the left paren, then skip to the ending right paren.
     ConsumeParen();
     SkipUntil(tok::r_paren);
@@ -4689,8 +4697,29 @@ void Parser::ParseMicrosoftAttributes(ParsedAttributes &Attrs) {
         break;
       if (Tok.getIdentifierInfo()->getName() == "uuid")
         ParseMicrosoftUuidAttributeArgs(Attrs);
-      else
+      else {
+        IdentifierInfo *II = Tok.getIdentifierInfo();
+        SourceLocation NameLoc = Tok.getLocation();
         ConsumeToken();
+        ParsedAttr::Kind AttrKind =
+            ParsedAttr::getParsedKind(II, nullptr, ParsedAttr::AS_Microsoft);
+        // For HLSL we want to handle all attributes, but for MSVC compat, we
+        // silently ignore unknown Microsoft attributes.
+        if (getLangOpts().HLSL || AttrKind != ParsedAttr::UnknownAttribute) {
+          bool AttrParsed = false;
+          if (Tok.is(tok::l_paren)) {
+            CachedTokens OpenMPTokens;
+            AttrParsed =
+                ParseCXX11AttributeArgs(II, NameLoc, Attrs, &EndLoc, nullptr,
+                                        SourceLocation(), OpenMPTokens);
+            ReplayOpenMPAttributeTokens(OpenMPTokens);
+          }
+          if (!AttrParsed) {
+            Attrs.addNew(II, NameLoc, nullptr, SourceLocation(), nullptr, 0,
+                         ParsedAttr::AS_Microsoft);
+          }
+        }
+      }
     }
 
     T.consumeClose();
