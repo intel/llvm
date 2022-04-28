@@ -6,6 +6,8 @@ on:
     - sycl
     # Do not run builds if changes are only in the following locations
     paths-ignore:
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/CODEOWNERS'
     - 'devops/containers/**'
     - 'devops/scripts/install_drivers.sh'
     - 'devops/scripts/install_build_tools.sh'

@@ -31,7 +31,7 @@ struct boo_key {
 };
 
 struct foo {
-  foo(int v) : value(v) {}
+  constexpr foo(int v) : value(v) {}
   int value;
 };
 
@@ -41,9 +41,9 @@ inline bool operator==(const foo &lhs, const foo &rhs) {
 inline bool operator!=(const foo &lhs, const foo &rhs) { return !(lhs == rhs); }
 
 struct foz {
-  foz(float v1, bool v2) : value1(v1), value2(v2) {}
+  constexpr foz(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
-  foz(const foz &f) {
+  constexpr foz(const foz &f) {
     value1 = f.value1;
     value2 = f.value2;
   }
@@ -57,6 +57,7 @@ inline bool operator==(const foz &lhs, const foz &rhs) {
 inline bool operator!=(const foz &lhs, const foz &rhs) { return !(lhs == rhs); }
 
 struct fir {
+  // Intentionally not constexpr to test for properties that cannot be constexpr
   fir(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
   fir(const foz &f) {

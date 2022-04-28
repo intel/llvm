@@ -2548,10 +2548,10 @@ Address CodeGenFunction::EmitLoadOfPointer(Address Ptr,
                                            LValueBaseInfo *BaseInfo,
                                            TBAAAccessInfo *TBAAInfo) {
   llvm::Value *Addr = Builder.CreateLoad(Ptr);
-  return Address::deprecated(
-      Addr,
-      CGM.getNaturalTypeAlignment(PtrTy->getPointeeType(), BaseInfo, TBAAInfo,
-                                  /*forPointeeType=*/true));
+  return Address(Addr, ConvertTypeForMem(PtrTy->getPointeeType()),
+                 CGM.getNaturalTypeAlignment(PtrTy->getPointeeType(), BaseInfo,
+                                             TBAAInfo,
+                                             /*forPointeeType=*/true));
 }
 
 LValue CodeGenFunction::EmitLoadOfPointerLValue(Address PtrAddr,
@@ -2751,8 +2751,7 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
         llvm::Type *VarTy = getTypes().ConvertTypeForMem(VD->getType());
         auto *PTy = llvm::PointerType::get(
             VarTy, getContext().getTargetAddressSpace(VD->getType()));
-        if (PTy != Addr.getType())
-          Addr = Builder.CreatePointerBitCastOrAddrSpaceCast(Addr, PTy, VarTy);
+        Addr = Builder.CreatePointerBitCastOrAddrSpaceCast(Addr, PTy, VarTy);
       } else {
         // Should we be using the alignment of the constant pointer we emitted?
         CharUnits Alignment =
@@ -2841,6 +2840,14 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
     } else if (VD->isStaticLocal()) {
       llvm::Constant *var = CGM.getOrCreateStaticVarDecl(
           *VD, CGM.getLLVMLinkageVarDefinition(VD, /*IsConstant=*/false));
+
+      // Force completion of static variable for SYCL since if it wasn't emitted
+      // already that means it is defined in host code and its parent function
+      // won't be emitted.
+      if (getLangOpts().SYCLIsDevice)
+        EmitStaticVarDecl(
+            *VD, CGM.getLLVMLinkageVarDefinition(VD, /*IsConstant=*/false));
+
       addr = Address(
           var, ConvertTypeForMem(VD->getType()), getContext().getDeclAlign(VD));
 
@@ -4517,6 +4524,9 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
 
   // Emit attribute annotation for a field.
   if (getLangOpts().SYCLIsDevice) {
+    if (field->hasAttr<SYCLAddIRAnnotationsMemberAttr>())
+      addr = EmitFieldSYCLAnnotations(field, addr);
+
     SmallString<256> AnnotStr;
     CGM.generateIntelFPGAAnnotation(field, AnnotStr);
     if (!AnnotStr.empty())

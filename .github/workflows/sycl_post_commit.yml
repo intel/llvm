@@ -98,4 +98,5 @@ jobs:
 
   windows_default:
     name: Windows
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml

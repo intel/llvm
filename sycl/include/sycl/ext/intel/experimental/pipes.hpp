@@ -12,6 +12,8 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/stl.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -19,7 +21,19 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
+template <class _name, class _dataT, int32_t _min_capacity = 0,
+          class _propertiesT = decltype(oneapi::experimental::properties{}),
+          class = void>
+class pipe {
+  static_assert(std::is_same_v<_propertiesT,
+                               decltype(oneapi::experimental::properties{})>,
+                "experimental pipe properties are not yet implemented");
+};
+
+template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT>
+class pipe<_name, _dataT, _min_capacity, _propertiesT,
+           std::enable_if_t<std::is_same_v<
+               _propertiesT, decltype(oneapi::experimental::properties{})>>> {
 public:
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V

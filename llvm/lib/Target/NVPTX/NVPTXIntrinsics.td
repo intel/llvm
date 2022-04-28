@@ -1036,6 +1036,11 @@ def INT_NVVM_RCP_RP_FTZ_F : F_MATH_1<"rcp.rp.ftz.f32 \t$dst, $src0;",
 def INT_NVVM_RCP_RP_F : F_MATH_1<"rcp.rp.f32 \t$dst, $src0;",
   Float32Regs, Float32Regs, int_nvvm_rcp_rp_f>;
 
+def INT_NVVM_RCP_APPROX_F : F_MATH_1<"rcp.approx.f32 \t$dst, $src0;",
+  Float32Regs, Float32Regs, int_nvvm_rcp_approx_f>;
+def INT_NVVM_RCP_APPROX_FTZ_F : F_MATH_1<"rcp.approx.ftz.f32 \t$dst, $src0;",
+  Float32Regs, Float32Regs, int_nvvm_rcp_approx_ftz_f>;
+
 def INT_NVVM_RCP_RN_D : F_MATH_1<"rcp.rn.f64 \t$dst, $src0;", Float64Regs,
   Float64Regs, int_nvvm_rcp_rn_d>;
 def INT_NVVM_RCP_RZ_D : F_MATH_1<"rcp.rz.f64 \t$dst, $src0;", Float64Regs,
@@ -2264,6 +2269,8 @@ multiclass ATOM2_bitwise_impl<string OpStr> {
 multiclass ATOM2_exch_impl<string OpStr> {
    defm _b32 : ATOM2S_impl<OpStr, "i", "b32", Int32Regs, i32imm, imm, i32, []>;
    defm _b64 : ATOM2S_impl<OpStr, "i", "b64", Int64Regs, i64imm, imm, i64, []>;
+   defm _f32 : ATOM2S_impl<OpStr, "f", "b32", Float32Regs, f32imm, fpimm, f32, []>;
+   defm _f64 : ATOM2S_impl<OpStr, "f", "b64", Float64Regs, f64imm, fpimm, f64, []>;
 }
 
 // atom.{min,max}
@@ -2286,6 +2293,8 @@ multiclass ATOM2_incdec_impl<string OpStr> {
 multiclass ATOM3_cas_impl<string OpStr> {
    defm _b32  : ATOM3S_impl<OpStr, "i", "b32", Int32Regs, i32imm, imm, i32, []>;
    defm _b64  : ATOM3S_impl<OpStr, "i", "b64", Int64Regs, i64imm, imm, i64, []>;
+   defm _f32  : ATOM3S_impl<OpStr, "f", "b32", Float32Regs, f32imm, fpimm, f32, []>;
+   defm _f64  : ATOM3S_impl<OpStr, "f", "b64", Float64Regs, f64imm, fpimm, f64, []>;
 }
 
 defm INT_PTX_LD : ATOM_ld_impl;

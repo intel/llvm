@@ -244,6 +244,12 @@ bool CommandInterpreter::GetRepeatPreviousCommand() const {
       nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
+bool CommandInterpreter::GetRequireCommandOverwrite() const {
+  const uint32_t idx = ePropertyRequireCommandOverwrite;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+}
+
 void CommandInterpreter::Initialize() {
   LLDB_SCOPED_TIMER();
 
@@ -2982,24 +2988,18 @@ void CommandInterpreter::PrintCommandOutput(IOHandler &io_handler,
   lldb::StreamFileSP stream = is_stdout ? io_handler.GetOutputStreamFileSP()
                                         : io_handler.GetErrorStreamFileSP();
   // Split the output into lines and poll for interrupt requests
-  const char *data = str.data();
   size_t size = str.size();
   while (size > 0 && !WasInterrupted()) {
-    size_t chunk_size = 0;
-    for (; chunk_size < size; ++chunk_size) {
-      lldbassert(data[chunk_size] != '\0');
-      if (data[chunk_size] == '\n') {
-        ++chunk_size;
-        break;
-      }
-    }
+    llvm::StringRef line;
+    size_t written = 0;
+    std::tie(line, str) = str.split('\n');
     {
       std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());
-      chunk_size = stream->Write(data, chunk_size);
+      written += stream->Write(line.data(), line.size());
+      written += stream->Write("\n", 1);
     }
-    lldbassert(size >= chunk_size);
-    data += chunk_size;
-    size -= chunk_size;
+    lldbassert(size >= written);
+    size -= written;
   }
 
   std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());

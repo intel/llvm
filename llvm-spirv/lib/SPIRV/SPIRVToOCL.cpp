@@ -1270,6 +1270,21 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
   }
 }
 
+void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,
+                             SPIRV::BIsRepresentation BIsRep) {
+  switch (BIsRep) {
+  case SPIRV::BIsRepresentation::OpenCL12:
+    PassMgr.addPass(SPIRVToOCL12Pass());
+    break;
+  case SPIRV::BIsRepresentation::OpenCL20:
+    PassMgr.addPass(SPIRVToOCL20Pass());
+    break;
+  case SPIRV::BIsRepresentation::SPIRVFriendlyIR:
+    // nothing to do, already done
+    break;
+  }
+}
+
 } // namespace SPIRV
 
 ModulePass *
