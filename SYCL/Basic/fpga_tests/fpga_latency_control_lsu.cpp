@@ -40,11 +40,16 @@ int test_latency_control(queue Queue) {
         auto in_ptr = input_accessor.get_pointer();
         auto out_ptr = output_accessor.get_pointer();
 
-        float value = PrefetchingLSU::load<
-            ext::intel::experimental::latency_anchor_id<0>>(in_ptr);
+        float value = PrefetchingLSU::load(
+            in_ptr, ext::oneapi::experimental::properties(
+                        ext::intel::experimental::latency_anchor_id<0>));
 
-        BurstCoalescedLSU::store<ext::intel::experimental::latency_constraint<
-            0, ext::intel::experimental::type::exact, 5>>(out_ptr, value);
+        BurstCoalescedLSU::store(
+            out_ptr, value,
+            ext::oneapi::experimental::properties(
+                ext::intel::experimental::latency_constraint<
+                    0, ext::intel::experimental::latency_control_type::exact,
+                    5>));
       });
     });
   }

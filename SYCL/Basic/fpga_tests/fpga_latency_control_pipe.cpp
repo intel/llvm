@@ -34,12 +34,16 @@ int test_latency_control(queue Queue) {
       cgh.single_task<class kernel>([=] {
         Pipe1::write(input_accessor[0]);
 
-        int value =
-            Pipe1::read<ext::intel::experimental::latency_anchor_id<0>>();
+        int value = Pipe1::read(ext::oneapi::experimental::properties(
+            ext::intel::experimental::latency_anchor_id<0>));
 
-        Pipe2::write<ext::intel::experimental::latency_anchor_id<1>,
-                     ext::intel::experimental::latency_constraint<
-                         0, ext::intel::experimental::type::exact, 2>>(value);
+        Pipe2::write(
+            value,
+            ext::oneapi::experimental::properties(
+                ext::intel::experimental::latency_anchor_id<1>,
+                ext::intel::experimental::latency_constraint<
+                    0, ext::intel::experimental::latency_control_type::exact,
+                    2>));
 
         output_accessor[0] = Pipe2::read();
       });
