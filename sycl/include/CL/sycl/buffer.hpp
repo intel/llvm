@@ -26,9 +26,21 @@ template <int dimensions> class range;
 namespace detail {
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt) {
-  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, Evt);
+make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt = {},
+                   bool OwnNativeHandle = true) {
+  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
+                                                 Evt);
 }
+
+template <backend BackendName, typename DataT, int Dimensions,
+          typename Allocator>
+auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
+    -> backend_return_t<BackendName,
+                        buffer<DataT, Dimensions, Allocator, void>>;
+
+template <backend Backend, typename DataT, int Dimensions,
+          typename AllocatorT = cl::sycl::buffer_allocator>
+struct BufferInterop;
 } // namespace detail
 
 /// Defines a shared array that can be used by kernels in queues.
@@ -314,14 +326,11 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
-    size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
-        detail::getSyclObjImpl(SyclContext), MemObject);
-
-    Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
-        detail::pi::cast<pi_native_handle>(MemObject), SyclContext, BufSize,
+        detail::pi::cast<pi_native_handle>(MemObject), SyclContext,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
-        AvailableEvent);
+        /* OwnNativeHandle */ true, AvailableEvent);
+    Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
@@ -531,7 +540,7 @@ private:
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
-  detail::make_buffer_helper(pi_native_handle, const context &, event);
+  detail::make_buffer_helper(pi_native_handle, const context &, event, bool);
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer
@@ -541,18 +550,15 @@ private:
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(pi_native_handle MemObject, const context &SyclContext,
-         event AvailableEvent = {},
+         bool OwnNativeHandle, event AvailableEvent = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
-    size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
-        detail::getSyclObjImpl(SyclContext), MemObject);
-
-    Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
-        MemObject, SyclContext, BufSize,
+        MemObject, SyclContext,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
-        AvailableEvent);
+        OwnNativeHandle, AvailableEvent);
+    Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
@@ -608,6 +614,21 @@ private:
     if (offset[1])
       return newRange[0] == 1 && newRange[2] == parentRange[2];
     return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
+  }
+
+  template <backend BackendName, typename DataT, int Dimensions,
+            typename Allocator>
+  friend auto detail::get_native_buffer(
+      const buffer<DataT, Dimensions, Allocator, void> &Obj)
+      -> backend_return_t<BackendName,
+                          buffer<DataT, Dimensions, Allocator, void>>;
+
+  template <backend BackendName>
+  backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>
+  getNative() const {
+    auto NativeHandles = impl->getNativeVector(BackendName);
+    return detail::BufferInterop<BackendName, T, dimensions,
+                                 AllocatorT>::GetNativeObjs(NativeHandles);
   }
 };
 

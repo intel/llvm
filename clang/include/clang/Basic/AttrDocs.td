@@ -3629,6 +3629,7 @@ occur after the first argument of the attribute, the N+2'th argument of the
 attribute will occur after the second argument of the attribute, etc.
 The generated call to ``llvm.ptr.annotation`` will have the following arguments
 in this order:
+
   * First argument is a pointer to the field.
   * A pointer to a string literal in a constant global variable. This will
     always be "sycl-properties".
@@ -3639,6 +3640,7 @@ in this order:
     literals in constant global variables. These pointers to string literals
     occur in pairs. If the second value of a pair was a ``nullptr`` or an empty
     string then the pointer will be a null-pointer.
+
 A pair will not be in the call to ``llvm.ptr.annotation`` if the first value of
 the pair is an empty string.
 
@@ -7942,5 +7944,16 @@ The default for the attribute is contolled by the ``-fzero-call-used-regs``
 flag.
 
 .. _Return-Oriented Programming: https://en.wikipedia.org/wiki/Return-oriented_programming
+  }];
+}
+
+def NumThreadsDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``numthreads`` attribute applies to HLSL shaders where explcit thread counts
+are required. The ``X``, ``Y``, and ``Z`` values provided to the attribute
+dictate the thread id. Total number of threads executed is ``X * Y * Z``.
+
+The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sm5-attributes-numthreads
   }];
 }

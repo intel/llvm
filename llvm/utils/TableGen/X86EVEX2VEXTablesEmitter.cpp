@@ -18,6 +18,7 @@
 #include "llvm/TableGen/TableGenBackend.h"
 
 using namespace llvm;
+using namespace X86Disassembler;
 
 namespace {
 
@@ -110,19 +111,19 @@ public:
   IsMatch(const CodeGenInstruction *EVEXInst) : EVEXInst(EVEXInst) {}
 
   bool operator()(const CodeGenInstruction *VEXInst) {
-    X86Disassembler::RecognizableInstrBase VEXRI(*VEXInst);
-    X86Disassembler::RecognizableInstrBase EVEXRI(*EVEXInst);
+    RecognizableInstrBase VEXRI(*VEXInst);
+    RecognizableInstrBase EVEXRI(*EVEXInst);
     bool VEX_W = VEXRI.HasVEX_W;
     bool EVEX_W = EVEXRI.HasVEX_W;
     bool VEX_WIG  = VEXRI.IgnoresVEX_W;
     bool EVEX_WIG  = EVEXRI.IgnoresVEX_W;
-    bool EVEX_W1_VEX_W0 = EVEXRI.Rec->getValueAsBit("EVEX_W1_VEX_W0");
+    bool EVEX_W1_VEX_W0 = EVEXInst->TheDef->getValueAsBit("EVEX_W1_VEX_W0");
 
     if (VEXRI.IsCodeGenOnly != EVEXRI.IsCodeGenOnly ||
         // VEX/EVEX fields
         VEXRI.OpPrefix != EVEXRI.OpPrefix || VEXRI.OpMap != EVEXRI.OpMap ||
         VEXRI.HasVEX_4V != EVEXRI.HasVEX_4V ||
-        VEXRI.HasVEX_LPrefix != EVEXRI.HasVEX_LPrefix ||
+        VEXRI.HasVEX_L != EVEXRI.HasVEX_L ||
         // Match is allowed if either is VEX_WIG, or they match, or EVEX
         // is VEX_W1X and VEX is VEX_W0.
         (!(VEX_WIG || (!EVEX_WIG && EVEX_W == VEX_W) ||
@@ -159,31 +160,6 @@ public:
 
     return true;
   }
-
-private:
-  static inline bool isRegisterOperand(const Record *Rec) {
-    return Rec->isSubClassOf("RegisterClass") ||
-           Rec->isSubClassOf("RegisterOperand");
-  }
-
-  static inline bool isMemoryOperand(const Record *Rec) {
-    return Rec->isSubClassOf("Operand") &&
-           Rec->getValueAsString("OperandType") == "OPERAND_MEMORY";
-  }
-
-  static inline bool isImmediateOperand(const Record *Rec) {
-    return Rec->isSubClassOf("Operand") &&
-           Rec->getValueAsString("OperandType") == "OPERAND_IMMEDIATE";
-  }
-
-  static inline unsigned int getRegOperandSize(const Record *RegRec) {
-    if (RegRec->isSubClassOf("RegisterClass"))
-      return RegRec->getValueAsInt("Alignment");
-    if (RegRec->isSubClassOf("RegisterOperand"))
-      return RegRec->getValueAsDef("RegClass")->getValueAsInt("Alignment");
-
-    llvm_unreachable("Register operand's size not known!");
-  }
 };
 
 void X86EVEX2VEXTablesEmitter::run(raw_ostream &OS) {
@@ -205,11 +181,11 @@ void X86EVEX2VEXTablesEmitter::run(raw_ostream &OS) {
       Target.getInstructionsByEnumValue();
 
   for (const CodeGenInstruction *Inst : NumberedInstructions) {
-    X86Disassembler::RecognizableInstrBase RI(*Inst);
-    const Record *Def = RI.Rec;
+    const Record *Def = Inst->TheDef;
     // Filter non-X86 instructions.
     if (!Def->isSubClassOf("X86Inst"))
       continue;
+    RecognizableInstrBase RI(*Inst);
 
     // Add VEX encoded instructions to one of VEXInsts vectors according to
     // it's opcode.
@@ -217,7 +193,7 @@ void X86EVEX2VEXTablesEmitter::run(raw_ostream &OS) {
       VEXInsts[RI.Opcode].push_back(Inst);
     // Add relevant EVEX encoded instructions to EVEXInsts
     else if (RI.Encoding == X86Local::EVEX && !RI.HasEVEX_K && !RI.HasEVEX_B &&
-             !RI.HasEVEX_L2Prefix && !Def->getValueAsBit("notEVEX2VEXConvertible"))
+             !RI.HasEVEX_L2 && !Def->getValueAsBit("notEVEX2VEXConvertible"))
       EVEXInsts.push_back(Inst);
   }
 

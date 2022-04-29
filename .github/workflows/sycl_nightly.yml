@@ -16,7 +16,8 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      lts_config: "ocl_gen9;ocl_x64;hip_amdgpu"
+      build_configure_extra_args: ''
+      lts_config: "ocl_gen9;ocl_x64"
 
   windows_default:
     name: Windows

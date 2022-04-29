@@ -518,7 +518,7 @@ public:
 
   void *allocate(size_t Size, size_t Alignment, bool &FromPool);
   void *allocate(size_t Size, bool &FromPool);
-  void deallocate(void *Ptr, bool &ToPool);
+  void deallocate(void *Ptr, bool &ToPool, bool OwnZeMemHandle);
 
   SystemMemory &getMemHandle() { return *MemHandle; }
 
@@ -561,7 +561,7 @@ Slab::Slab(Bucket &Bkt)
 
 Slab::~Slab() {
   unregSlab(*this);
-  bucket.getMemHandle().deallocate(MemPtr);
+  bucket.getMemHandle().deallocate(MemPtr, true /* OwnZeMemHandle */);
 }
 
 // Return the index of the first available chunk, -1 otherwize
@@ -933,7 +933,8 @@ Bucket &USMAllocContext::USMAllocImpl::findBucket(size_t Size) {
   return *(*It);
 }
 
-void USMAllocContext::USMAllocImpl::deallocate(void *Ptr, bool &ToPool) {
+void USMAllocContext::USMAllocImpl::deallocate(void *Ptr, bool &ToPool,
+                                               bool OwnZeMemHandle) {
   auto *SlabPtr = AlignPtrDown(Ptr, SlabMinSize());
 
   // Lock the map on read
@@ -943,7 +944,7 @@ void USMAllocContext::USMAllocImpl::deallocate(void *Ptr, bool &ToPool) {
   auto Slabs = getKnownSlabs().equal_range(SlabPtr);
   if (Slabs.first == Slabs.second) {
     Lk.unlock();
-    getMemHandle().deallocate(Ptr);
+    getMemHandle().deallocate(Ptr, OwnZeMemHandle);
     return;
   }
 
@@ -974,7 +975,7 @@ void USMAllocContext::USMAllocImpl::deallocate(void *Ptr, bool &ToPool) {
   // There is a rare case when we have a pointer from system allocation next
   // to some slab with an entry in the map. So we find a slab
   // but the range checks fail.
-  getMemHandle().deallocate(Ptr);
+  getMemHandle().deallocate(Ptr, OwnZeMemHandle);
 }
 
 USMAllocContext::USMAllocContext(std::unique_ptr<SystemMemory> MemHandle)
@@ -1006,9 +1007,9 @@ void *USMAllocContext::allocate(size_t size, size_t alignment) {
   return Ptr;
 }
 
-void USMAllocContext::deallocate(void *ptr) {
+void USMAllocContext::deallocate(void *ptr, bool OwnZeMemHandle) {
   bool ToPool;
-  pImpl->deallocate(ptr, ToPool);
+  pImpl->deallocate(ptr, ToPool, OwnZeMemHandle);
 
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();

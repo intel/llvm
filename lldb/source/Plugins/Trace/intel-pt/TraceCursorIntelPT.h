@@ -24,7 +24,7 @@ public:
 
   virtual bool Next() override;
 
-  llvm::Error GetError() override;
+  const char *GetError() override;
 
   lldb::addr_t GetLoadAddress() override;
 
@@ -42,6 +42,8 @@ private:
   DecodedThreadSP m_decoded_thread_sp;
   /// Internal instruction index currently pointing at.
   size_t m_pos;
+  /// Tsc range covering the current instruction.
+  llvm::Optional<DecodedThread::TscRange> m_tsc_range;
 };
 
 } // namespace trace_intel_pt
