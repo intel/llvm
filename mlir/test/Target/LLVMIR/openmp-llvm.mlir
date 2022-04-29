@@ -657,7 +657,7 @@ llvm.func @body(i64)
 llvm.func @test_omp_wsloop_runtime_simd(%lb : i64, %ub : i64, %step : i64) -> () {
   omp.wsloop schedule(runtime, simd)
   for (%iv) : i64 = (%lb) to (%ub) step (%step) {
-    // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 47
+    // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 1073741871
     // CHECK: %[[continue:.*]] = call i32 @__kmpc_dispatch_next_8u
     // CHECK: %[[cond:.*]] = icmp ne i32 %[[continue]], 0
     // CHECK  br i1 %[[cond]], label %omp_loop.header{{.*}}, label %omp_loop.exit{{.*}}
@@ -674,7 +674,7 @@ llvm.func @body(i64)
 llvm.func @test_omp_wsloop_guided_simd(%lb : i64, %ub : i64, %step : i64) -> () {
   omp.wsloop schedule(guided, simd)
   for (%iv) : i64 = (%lb) to (%ub) step (%step) {
-    // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 46
+    // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 1073741870
     // CHECK: %[[continue:.*]] = call i32 @__kmpc_dispatch_next_8u
     // CHECK: %[[cond:.*]] = icmp ne i32 %[[continue]], 0
     // CHECK  br i1 %[[cond]], label %omp_loop.header{{.*}}, label %omp_loop.exit{{.*}}
@@ -788,7 +788,7 @@ llvm.func @body(i64)
 llvm.func @test_omp_wsloop_dynamic_ordered(%lb : i64, %ub : i64, %step : i64) -> () {
  omp.wsloop schedule(dynamic) ordered(0)
  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
-  // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 1073741891, i64 1, i64 %{{.*}}, i64 1, i64 1)
+  // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 67, i64 1, i64 %{{.*}}, i64 1, i64 1)
   // CHECK: call void @__kmpc_dispatch_fini_8u
   // CHECK: %[[continue:.*]] = call i32 @__kmpc_dispatch_next_8u
   // CHECK: %[[cond:.*]] = icmp ne i32 %[[continue]], 0
@@ -806,7 +806,7 @@ llvm.func @body(i64)
 llvm.func @test_omp_wsloop_auto_ordered(%lb : i64, %ub : i64, %step : i64) -> () {
  omp.wsloop schedule(auto) ordered(0)
  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
-  // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 1073741894, i64 1, i64 %{{.*}}, i64 1, i64 1)
+  // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 70, i64 1, i64 %{{.*}}, i64 1, i64 1)
   // CHECK: call void @__kmpc_dispatch_fini_8u
   // CHECK: %[[continue:.*]] = call i32 @__kmpc_dispatch_next_8u
   // CHECK: %[[cond:.*]] = icmp ne i32 %[[continue]], 0
@@ -824,7 +824,7 @@ llvm.func @body(i64)
 llvm.func @test_omp_wsloop_runtime_ordered(%lb : i64, %ub : i64, %step : i64) -> () {
  omp.wsloop schedule(runtime) ordered(0)
  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
-  // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 1073741893, i64 1, i64 %{{.*}}, i64 1, i64 1)
+  // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 69, i64 1, i64 %{{.*}}, i64 1, i64 1)
   // CHECK: call void @__kmpc_dispatch_fini_8u
   // CHECK: %[[continue:.*]] = call i32 @__kmpc_dispatch_next_8u
   // CHECK: %[[cond:.*]] = icmp ne i32 %[[continue]], 0
@@ -842,7 +842,7 @@ llvm.func @body(i64)
 llvm.func @test_omp_wsloop_guided_ordered(%lb : i64, %ub : i64, %step : i64) -> () {
  omp.wsloop schedule(guided) ordered(0)
  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
-  // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 1073741892, i64 1, i64 %{{.*}}, i64 1, i64 1)
+  // CHECK: call void @__kmpc_dispatch_init_8u(%struct.ident_t* @{{.*}}, i32 %{{.*}}, i32 68, i64 1, i64 %{{.*}}, i64 1, i64 1)
   // CHECK: call void @__kmpc_dispatch_fini_8u
   // CHECK: %[[continue:.*]] = call i32 @__kmpc_dispatch_next_8u
   // CHECK: %[[cond:.*]] = icmp ne i32 %[[continue]], 0
@@ -891,7 +891,15 @@ llvm.func @test_omp_wsloop_dynamic_monotonic_ordered(%lb : i64, %ub : i64, %step
 
 // -----
 
-omp.critical.declare @mutex hint(contended)
+omp.critical.declare @mutex_none hint(none) // 0
+omp.critical.declare @mutex_uncontended hint(uncontended) // 1
+omp.critical.declare @mutex_contended hint(contended) // 2
+omp.critical.declare @mutex_nonspeculative hint(nonspeculative) // 4
+omp.critical.declare @mutex_nonspeculative_uncontended hint(nonspeculative, uncontended) // 5
+omp.critical.declare @mutex_nonspeculative_contended hint(nonspeculative, contended) // 6
+omp.critical.declare @mutex_speculative hint(speculative) // 8
+omp.critical.declare @mutex_speculative_uncontended hint(speculative, uncontended) // 9
+omp.critical.declare @mutex_speculative_contended hint(speculative, contended) // 10
 
 // CHECK-LABEL: @omp_critical
 llvm.func @omp_critical(%x : !llvm.ptr<i32>, %xval : i32) -> () {
@@ -905,15 +913,95 @@ llvm.func @omp_critical(%x : !llvm.ptr<i32>, %xval : i32) -> () {
   }
   // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_.var{{.*}})
 
-  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex.var{{.*}}, i32 2)
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_none.var{{.*}}, i32 0)
   // CHECK: br label %omp.critical.region
   // CHECK: omp.critical.region
-  omp.critical(@mutex) {
+  omp.critical(@mutex_none) {
   // CHECK: store
     llvm.store %xval, %x : !llvm.ptr<i32>
     omp.terminator
   }
-  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex.var{{.*}})
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_none.var{{.*}})
+
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_uncontended.var{{.*}}, i32 1)
+  // CHECK: br label %omp.critical.region
+  // CHECK: omp.critical.region
+  omp.critical(@mutex_uncontended) {
+  // CHECK: store
+    llvm.store %xval, %x : !llvm.ptr<i32>
+    omp.terminator
+  }
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_uncontended.var{{.*}})
+
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_contended.var{{.*}}, i32 2)
+  // CHECK: br label %omp.critical.region
+  // CHECK: omp.critical.region
+  omp.critical(@mutex_contended) {
+  // CHECK: store
+    llvm.store %xval, %x : !llvm.ptr<i32>
+    omp.terminator
+  }
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_contended.var{{.*}})
+
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_nonspeculative.var{{.*}}, i32 4)
+  // CHECK: br label %omp.critical.region
+  // CHECK: omp.critical.region
+  omp.critical(@mutex_nonspeculative) {
+  // CHECK: store
+    llvm.store %xval, %x : !llvm.ptr<i32>
+    omp.terminator
+  }
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_nonspeculative.var{{.*}})
+
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_nonspeculative_uncontended.var{{.*}}, i32 5)
+  // CHECK: br label %omp.critical.region
+  // CHECK: omp.critical.region
+  omp.critical(@mutex_nonspeculative_uncontended) {
+  // CHECK: store
+    llvm.store %xval, %x : !llvm.ptr<i32>
+    omp.terminator
+  }
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_nonspeculative_uncontended.var{{.*}})
+
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_nonspeculative_contended.var{{.*}}, i32 6)
+  // CHECK: br label %omp.critical.region
+  // CHECK: omp.critical.region
+  omp.critical(@mutex_nonspeculative_contended) {
+  // CHECK: store
+    llvm.store %xval, %x : !llvm.ptr<i32>
+    omp.terminator
+  }
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_nonspeculative_contended.var{{.*}})
+
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_speculative.var{{.*}}, i32 8)
+  // CHECK: br label %omp.critical.region
+  // CHECK: omp.critical.region
+  omp.critical(@mutex_speculative) {
+  // CHECK: store
+    llvm.store %xval, %x : !llvm.ptr<i32>
+    omp.terminator
+  }
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_speculative.var{{.*}})
+
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_speculative_uncontended.var{{.*}}, i32 9)
+  // CHECK: br label %omp.critical.region
+  // CHECK: omp.critical.region
+  omp.critical(@mutex_speculative_uncontended) {
+  // CHECK: store
+    llvm.store %xval, %x : !llvm.ptr<i32>
+    omp.terminator
+  }
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_speculative_uncontended.var{{.*}})
+
+  // CHECK: call void @__kmpc_critical_with_hint({{.*}}critical_user_mutex_speculative_contended.var{{.*}}, i32 10)
+  // CHECK: br label %omp.critical.region
+  // CHECK: omp.critical.region
+  omp.critical(@mutex_speculative_contended) {
+  // CHECK: store
+    llvm.store %xval, %x : !llvm.ptr<i32>
+    omp.terminator
+  }
+  // CHECK: call void @__kmpc_end_critical({{.*}}critical_user_mutex_speculative_contended.var{{.*}})
   llvm.return
 }
 
@@ -1854,6 +1942,9 @@ llvm.func @omp_sections_empty() -> () {
 
 // CHECK-LABEL: @omp_sections_trivial
 llvm.func @omp_sections_trivial() -> () {
+  // CHECK:   br label %[[ENTRY:[a-zA-Z_.]+]]
+
+  // CHECK: [[ENTRY]]:
   // CHECK:   br label %[[PREHEADER:.*]]
 
   // CHECK: [[PREHEADER]]:
@@ -2047,3 +2138,43 @@ llvm.func @single_nowait(%x: i32, %y: i32, %zaddr: !llvm.ptr<i32>) {
   // CHECK: ret void
   llvm.return
 }
+
+// -----
+
+// CHECK: @_QFsubEx = internal global i32 undef
+// CHECK: @_QFsubEx.cache = common global i8** null
+
+// CHECK-LABEL: @omp_threadprivate
+llvm.func @omp_threadprivate() {
+// CHECK:  [[THREAD:%.*]] = call i32 @__kmpc_global_thread_num(%struct.ident_t* @[[GLOB:[0-9]+]])
+// CHECK:  [[TMP1:%.*]] = call i8* @__kmpc_threadprivate_cached(%struct.ident_t* @[[GLOB]], i32 [[THREAD]], i8* bitcast (i32* @_QFsubEx to i8*), i64 4, i8*** @_QFsubEx.cache)
+// CHECK:  [[TMP2:%.*]] = bitcast i8* [[TMP1]] to i32*
+// CHECK:  store i32 1, i32* [[TMP2]], align 4
+// CHECK:  store i32 3, i32* [[TMP2]], align 4
+
+// CHECK-LABEL: omp.par.region{{.*}}
+// CHECK:  [[THREAD2:%.*]] = call i32 @__kmpc_global_thread_num(%struct.ident_t* @[[GLOB2:[0-9]+]])
+// CHECK:  [[TMP3:%.*]] = call i8* @__kmpc_threadprivate_cached(%struct.ident_t* @[[GLOB2]], i32 [[THREAD2]], i8* bitcast (i32* @_QFsubEx to i8*), i64 4, i8*** @_QFsubEx.cache)
+// CHECK:  [[TMP4:%.*]] = bitcast i8* [[TMP3]] to i32*
+// CHECK:  store i32 2, i32* [[TMP4]], align 4
+
+  %0 = llvm.mlir.constant(1 : i32) : i32
+  %1 = llvm.mlir.constant(2 : i32) : i32
+  %2 = llvm.mlir.constant(3 : i32) : i32
+
+  %3 = llvm.mlir.addressof @_QFsubEx : !llvm.ptr<i32>
+  %4 = omp.threadprivate %3 : !llvm.ptr<i32> -> !llvm.ptr<i32>
+
+  llvm.store %0, %4 : !llvm.ptr<i32>
+
+  omp.parallel  {
+    %5 = omp.threadprivate %3 : !llvm.ptr<i32> -> !llvm.ptr<i32>
+    llvm.store %1, %5 : !llvm.ptr<i32>
+    omp.terminator
+  }
+
+  llvm.store %2, %4 : !llvm.ptr<i32>
+  llvm.return
+}
+
+llvm.mlir.global internal @_QFsubEx() : i32

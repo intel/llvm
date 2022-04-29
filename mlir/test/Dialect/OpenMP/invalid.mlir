@@ -708,6 +708,42 @@ func @omp_atomic_update9(%x: memref<i32>, %expr: i32) {
 
 // -----
 
+func @omp_atomic_update(%x: memref<i32>, %expr: i32) {
+  // expected-error @below {{the hints omp_sync_hint_uncontended and omp_sync_hint_contended cannot be combined}}
+  omp.atomic.update hint(uncontended, contended) %x : memref<i32> {
+  ^bb0(%xval: i32):
+    %newval = llvm.add %xval, %expr : i32
+    omp.yield (%newval : i32)
+  }
+  return
+}
+
+// -----
+
+func @omp_atomic_update(%x: memref<i32>, %expr: i32) {
+  // expected-error @below {{the hints omp_sync_hint_nonspeculative and omp_sync_hint_speculative cannot be combined}}
+  omp.atomic.update hint(nonspeculative, speculative) %x : memref<i32> {
+  ^bb0(%xval: i32):
+    %newval = llvm.add %xval, %expr : i32
+    omp.yield (%newval : i32)
+  }
+  return
+}
+
+// -----
+
+func @omp_atomic_update(%x: memref<i32>, %expr: i32) {
+  // expected-error @below {{invalid_hint is not a valid hint}}
+  omp.atomic.update hint(invalid_hint) %x : memref<i32> {
+  ^bb0(%xval: i32):
+    %newval = llvm.add %xval, %expr : i32
+    omp.yield (%newval : i32)
+  }
+  return
+}
+
+// -----
+
 func @omp_atomic_capture(%x: memref<i32>, %v: memref<i32>, %expr: i32) {
   // expected-error @below {{expected three operations in omp.atomic.capture region}}
   omp.atomic.capture {
@@ -848,6 +884,66 @@ func @omp_atomic_capture(%x: memref<i32>, %y: memref<i32>, %v: memref<i32>, %exp
 
 // -----
 
+func @omp_atomic_capture(%x: memref<i32>, %v: memref<i32>, %expr: i32) {
+  // expected-error @below {{the hints omp_sync_hint_uncontended and omp_sync_hint_contended cannot be combined}}
+  omp.atomic.capture hint(contended, uncontended) {
+    omp.atomic.update %x : memref<i32> {
+    ^bb0(%xval: i32):
+      %newval = llvm.add %xval, %expr : i32
+      omp.yield(%newval : i32)
+    }
+    omp.atomic.read %v = %x : memref<i32>
+  }
+  return
+}
+
+// -----
+
+func @omp_atomic_capture(%x: memref<i32>, %v: memref<i32>, %expr: i32) {
+  // expected-error @below {{the hints omp_sync_hint_nonspeculative and omp_sync_hint_speculative cannot be combined}}
+  omp.atomic.capture hint(nonspeculative, speculative) {
+    omp.atomic.update %x : memref<i32> {
+    ^bb0(%xval: i32):
+      %newval = llvm.add %xval, %expr : i32
+      omp.yield(%newval : i32)
+    }
+    omp.atomic.read %v = %x : memref<i32>
+  }
+  return
+}
+
+// -----
+
+func @omp_atomic_capture(%x: memref<i32>, %v: memref<i32>, %expr: i32) {
+  // expected-error @below {{invalid_hint is not a valid hint}}
+  omp.atomic.capture hint(invalid_hint) {
+    omp.atomic.update %x : memref<i32> {
+    ^bb0(%xval: i32):
+      %newval = llvm.add %xval, %expr : i32
+      omp.yield(%newval : i32)
+    }
+    omp.atomic.read %v = %x : memref<i32>
+  }
+  return
+}
+
+// -----
+
+func @omp_atomic_capture(%x: memref<i32>, %v: memref<i32>, %expr: i32) {
+  // expected-error @below {{operations inside capture region must not have hint clause}}
+  omp.atomic.capture {
+    omp.atomic.update hint(uncontended) %x : memref<i32> {
+    ^bb0(%xval: i32):
+      %newval = llvm.add %xval, %expr : i32
+      omp.yield(%newval : i32)
+    }
+    omp.atomic.read %v = %x : memref<i32>
+  }
+  return
+}
+
+// -----
+
 func @omp_sections(%data_var : memref<i32>) -> () {
   // expected-error @below {{expected equal sizes for allocate and allocator variables}}
   "omp.sections" (%data_var) ({
@@ -978,5 +1074,72 @@ func @omp_single(%data_var : memref<i32>) -> () {
   "omp.single" (%data_var) ({
     omp.barrier
   }) {operand_segment_sizes = dense<[1,0]> : vector<2xi32>} : (memref<i32>) -> ()
+  return
+}
+
+// -----
+
+func @omp_task(%ptr: !llvm.ptr<f32>) {
+  // expected-error @below {{op expected symbol reference @add_f32 to point to a reduction declaration}}
+  omp.task in_reduction(@add_f32 -> %ptr : !llvm.ptr<f32>) {
+    // CHECK: "test.foo"() : () -> ()
+    "test.foo"() : () -> ()
+    // CHECK: omp.terminator
+    omp.terminator
+  }
+}
+
+// -----
+
+omp.reduction.declare @add_f32 : f32
+init {
+^bb0(%arg: f32):
+  %0 = arith.constant 0.0 : f32
+  omp.yield (%0 : f32)
+}
+combiner {
+^bb1(%arg0: f32, %arg1: f32):
+  %1 = arith.addf %arg0, %arg1 : f32
+  omp.yield (%1 : f32)
+}
+
+func @omp_task(%ptr: !llvm.ptr<f32>) {
+  // expected-error @below {{op accumulator variable used more than once}}
+  omp.task in_reduction(@add_f32 -> %ptr : !llvm.ptr<f32>, @add_f32 -> %ptr : !llvm.ptr<f32>) {
+    // CHECK: "test.foo"() : () -> ()
+    "test.foo"() : () -> ()
+    // CHECK: omp.terminator
+    omp.terminator
+  }
+}
+
+// -----
+
+omp.reduction.declare @add_i32 : i32
+init {
+^bb0(%arg: i32):
+  %0 = arith.constant 0 : i32
+  omp.yield (%0 : i32)
+}
+combiner {
+^bb1(%arg0: i32, %arg1: i32):
+  %1 = arith.addi %arg0, %arg1 : i32
+  omp.yield (%1 : i32)
+}
+atomic {
+^bb2(%arg2: !llvm.ptr<i32>, %arg3: !llvm.ptr<i32>):
+  %2 = llvm.load %arg3 : !llvm.ptr<i32>
+  llvm.atomicrmw add %arg2, %2 monotonic : i32
+  omp.yield
+}
+
+func @omp_task(%mem: memref<1xf32>) {
+  // expected-error @below {{op expected accumulator ('memref<1xf32>') to be the same type as reduction declaration ('!llvm.ptr<i32>')}}
+  omp.task in_reduction(@add_i32 -> %mem : memref<1xf32>) {
+    // CHECK: "test.foo"() : () -> ()
+    "test.foo"() : () -> ()
+    // CHECK: omp.terminator
+    omp.terminator
+  }
   return
 }

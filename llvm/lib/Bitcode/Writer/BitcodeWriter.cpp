@@ -19,6 +19,7 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -1821,6 +1822,7 @@ void ModuleBitcodeWriter::writeDISubprogram(const DISubprogram *N,
   Record.push_back(N->getThisAdjustment());
   Record.push_back(VE.getMetadataOrNullID(N->getThrownTypes().get()));
   Record.push_back(VE.getMetadataOrNullID(N->getAnnotations().get()));
+  Record.push_back(VE.getMetadataOrNullID(N->getRawTargetFuncName()));
 
   Stream.EmitRecord(bitc::METADATA_SUBPROGRAM, Record, Abbrev);
   Record.clear();
@@ -3359,8 +3361,10 @@ void ModuleBitcodeWriter::writeFunction(
   bool NeedsMetadataAttachment = F.hasMetadata();
 
   DILocation *LastDL = nullptr;
+  SmallPtrSet<Function *, 4> BlockAddressUsers;
+
   // Finally, emit all the instructions, in order.
-  for (const BasicBlock &BB : F)
+  for (const BasicBlock &BB : F) {
     for (const Instruction &I : BB) {
       writeInstruction(I, InstID, Vals);
 
@@ -3391,6 +3395,25 @@ void ModuleBitcodeWriter::writeFunction(
 
       LastDL = DL;
     }
+
+    if (BlockAddress *BA = BlockAddress::lookup(&BB)) {
+      for (User *U : BA->users()) {
+        if (auto *I = dyn_cast<Instruction>(U)) {
+          Function *P = I->getParent()->getParent();
+          if (P != &F)
+            BlockAddressUsers.insert(P);
+        }
+      }
+    }
+  }
+
+  if (!BlockAddressUsers.empty()) {
+    SmallVector<uint64_t, 4> Record;
+    Record.reserve(BlockAddressUsers.size());
+    for (Function *F : BlockAddressUsers)
+      Record.push_back(VE.getValueID(F));
+    Stream.EmitRecord(bitc::FUNC_CODE_BLOCKADDR_USERS, Record);
+  }
 
   // Emit names for all the instructions etc.
   if (auto *Symtab = F.getValueSymbolTable())
@@ -4387,7 +4410,7 @@ void ModuleBitcodeWriter::writeModuleHash(size_t BlockStartPos) {
     uint32_t Vals[5];
     Hasher.update(ArrayRef<uint8_t>((const uint8_t *)&(Buffer)[BlockStartPos],
                                     Buffer.size() - BlockStartPos));
-    StringRef Hash = Hasher.result();
+    std::array<uint8_t, 20> Hash = Hasher.result();
     for (int Pos = 0; Pos < 20; Pos += 4) {
       Vals[Pos / 4] = support::endian::read32be(Hash.data() + Pos);
     }
@@ -4867,6 +4890,9 @@ static const char *getSectionNameForBitcode(const Triple &T) {
   case Triple::GOFF:
     llvm_unreachable("GOFF is not yet implemented");
     break;
+  case Triple::SPIRV:
+    llvm_unreachable("SPIRV is not yet implemented");
+    break;
   case Triple::XCOFF:
     llvm_unreachable("XCOFF is not yet implemented");
     break;
@@ -4888,6 +4914,9 @@ static const char *getSectionNameForCommandline(const Triple &T) {
     return ".llvmcmd";
   case Triple::GOFF:
     llvm_unreachable("GOFF is not yet implemented");
+    break;
+  case Triple::SPIRV:
+    llvm_unreachable("SPIRV is not yet implemented");
     break;
   case Triple::XCOFF:
     llvm_unreachable("XCOFF is not yet implemented");

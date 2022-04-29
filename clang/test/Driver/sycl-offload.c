@@ -242,7 +242,7 @@
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT2:.+\.o]]"
-// CHK-INT-HEADER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown,host-x86_64-unknown-linux-gnu" {{.*}} "-inputs=[[OUTPUT1]],[[OUTPUT2]]"
+// CHK-INT-HEADER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown,host-x86_64-unknown-linux-gnu" {{.*}} "-input=[[OUTPUT1]]" "-input=[[OUTPUT2]]"
 
 /// ###########################################################################
 
@@ -671,6 +671,11 @@
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-2X-ERROR %s
 // CHK-FSYCL-TARGET-2X-ERROR-NOT: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target{{.*}}', specify triple using '-Xsycl-target{{.*}}=<triple>'
 
+/// Check -Xsycl-target-frontend does not trigger an error when no -fsycl-targets is specified
+// RUN:   %clang -### -fsycl -Xsycl-target-frontend -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-TARGET-ERROR %s
+// CHK-NO-FSYCL-TARGET-ERROR-NOT: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-frontend', specify triple using '-Xsycl-target-frontend=<triple>'
+
 /// ###########################################################################
 
 /// Ahead of Time compilation for fpga, gen, cpu
@@ -1059,7 +1064,7 @@
 // RUN:   | FileCheck -check-prefix=FO-CHECK %s
 // FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
-// FO-CHECK: clang-offload-bundler{{.*}} "-outputs=somefile.obj" "-inputs=[[OUTPUT1]],[[OUTPUT2]]"
+// FO-CHECK: clang-offload-bundler{{.*}} "-output=somefile.obj" "-input=[[OUTPUT1]]" "-input=[[OUTPUT2]]"
 
 /// passing of a library should not trigger the unbundler
 // RUN: touch %t.a
