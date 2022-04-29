@@ -5443,8 +5443,15 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Assume native event is host-visible, or otherwise we'd
   // need to create a host-visible proxy for it.
   (*Event)->HostVisibleEvent = *Event;
-  // To match with the regular piEventCreate() and piEventRelease(),
-  // we increase the ref count of the pi_event we return to SYCL RT.
+  // A regular pi_event created by piEventCreate() starts with its reference
+  // count = 2 because of our explicit call to piEventCreate() at the end of
+  // createEventAndAssociateQueue().
+  // Then, this ref count becomes zero when the event is completed and RT
+  // calls piEventRelease().
+  // However, an interop event created in this function would go through
+  // the same life cycle, meaning it will be released twice.
+  // To match with this life cycle of +2 and -2,
+  // we increase the ref count of the interop pi_event we return to SYCL RT.
   PI_CALL(piEventRetain(*Event));
   return PI_SUCCESS;
 }
