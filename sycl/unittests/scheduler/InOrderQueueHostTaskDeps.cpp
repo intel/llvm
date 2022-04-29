@@ -33,25 +33,38 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
 }
 
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-  // This test only contains device image for SPIR-V capable devices.
-  if (Plt.get_backend() != sycl::backend::opencl &&
-      Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-    return;
-  }
+  struct : public sycl::device_selector {
+    int operator()(const sycl::device &Device) const override {
+      const sycl::platform &Platform = Device.get_platform();
+      if (Platform.is_host())
+        return -1;
+      if (Platform.get_backend() != sycl::backend::opencl &&
+          Platform.get_backend() != sycl::backend::ext_oneapi_level_zero)
+        return -1;
+      if (!Device.has(sycl::aspect::online_compiler))
+        return -1;
 
-  unittest::PiMock Mock{Plt};
+      return sycl::default_selector()(Device);
+    }
+  } DeviceSelector;
+
+  sycl::device Dev;
+  try {
+    Dev = sycl::device{DeviceSelector};
+  } catch (const sycl::exception &E) {
+    if (E.code() == sycl::errc::runtime) {
+      std::cerr << "No suitable device for the test, skipping.\n";
+      return;
+    }
+
+    throw E;
+  }
+  sycl::unittest::PiMock Mock{Dev.get_platform()};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 
-  context Ctx{Plt};
-  queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
+  context Ctx{Dev.get_platform()};
+  queue InOrderQueue{Ctx, DeviceSelector, property::queue::in_order()};
 
   kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx);

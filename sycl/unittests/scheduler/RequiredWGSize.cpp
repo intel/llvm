@@ -25,7 +25,8 @@ std::array<size_t, 3> IncomingLocalSize = {0, 0, 0};
 std::array<size_t, 3> RequiredLocalSize = {0, 0, 0};
 
 static pi_result redefinedProgramCreate(pi_context, const void *, size_t,
-                                        pi_program *) {
+                                        pi_program *p) {
+  *p = reinterpret_cast<pi_program>(new int[1]);
   return PI_SUCCESS;
 }
 
@@ -50,7 +51,8 @@ static pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
                                       const char *, pi_uint32,
                                       const pi_program *,
                                       void (*)(pi_program, void *), void *,
-                                      pi_program *) {
+                                      pi_program *p) {
+  *p = reinterpret_cast<pi_program>(new int[1]);
   return PI_SUCCESS;
 }
 
@@ -82,6 +84,7 @@ static pi_result redefinedProgramRetain(pi_program program) {
 }
 
 static pi_result redefinedProgramRelease(pi_program program) {
+  delete[] reinterpret_cast<int *>(program);
   return PI_SUCCESS;
 }
 
@@ -187,26 +190,35 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
 }
 
 static void performChecks() {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
+  struct : public sycl::device_selector {
+    int operator()(const sycl::device &Device) const override {
+      const sycl::platform &Platform = Device.get_platform();
+      if (Platform.is_host())
+        return -1;
+      if (Platform.get_backend() == sycl::backend::ext_oneapi_cuda)
+        return -1;
+      if (Platform.get_backend() == sycl::backend::ext_oneapi_hip)
+        return -1;
+      if (!Device.has(sycl::aspect::online_compiler))
+        return -1;
 
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
+      return sycl::default_selector()(Device);
+    }
+  } DeviceSelector;
 
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
+  sycl::device Dev;
+  try {
+    Dev = sycl::device{DeviceSelector};
+  } catch (const sycl::exception &E) {
+    if (E.code() == sycl::errc::runtime) {
+      std::cerr << "No suitable device for the test, skipping.\n";
+      return;
+    }
 
-  sycl::unittest::PiMock Mock{Plt};
+    throw E;
+  }
+  sycl::unittest::PiMock Mock{Dev.get_platform()};
   setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
 
   sycl::queue Queue{Dev};
 

@@ -195,4 +195,18 @@ inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
       redefinedEnqueueKernelLaunchCommon);
   Mock.redefine<PiApiKind::piextDeviceSelectBinary>(
       redefinedDeviceSelectBinary);
+
+  // Library code uses current DSO to locate fallback .spv files. Unittest don't
+  // link against libsycl.so but use object files directly so that currend DSO
+  // is the unittest's executable location. Ensure we have mock .spv files in
+  // place.
+  std::string LibSyclDir = OSUtil::getCurrentDSODir();
+  const char *FileNames[] = {
+      "libsycl-fallback-cassert.spv",      "libsycl-fallback-cmath.spv",
+      "libsycl-fallback-cmath-fp64.spv",   "libsycl-fallback-complex.spv",
+      "libsycl-fallback-complex-fp64.spv", "libsycl-fallback-cstring.spv"};
+  for (const char * Name : FileNames) {
+    std::ofstream F(LibSyclDir + OSUtil::DirSep + Name);
+    F << "Mock\n";
+  }
 }
