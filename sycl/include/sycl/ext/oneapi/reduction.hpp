@@ -356,14 +356,16 @@ class reduction_impl_base {};
 /// are reductions.
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
   static constexpr bool value =
-      std::is_base_of<reduction_impl_base, FirstT>::value &&
+      std::is_base_of<reduction_impl_base,
+                      std::remove_reference_t<FirstT>>::value &&
       AreAllButLastReductions<RestT...>::value;
 };
 
 /// Helper specialization of AreAllButLastReductions for one element only.
 /// Returns true if the template parameter is not a reduction.
 template <typename T> struct AreAllButLastReductions<T> {
-  static constexpr bool value = !std::is_base_of<reduction_impl_base, T>::value;
+  static constexpr bool value =
+      !std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
 };
 
 /// This class encapsulates the reduction variable/accessor,
