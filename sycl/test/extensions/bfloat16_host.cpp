@@ -8,7 +8,7 @@
 
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
-#include <sycl/ext/intel/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 #include <sycl/sycl.hpp>
 
 #include <cmath>
@@ -42,7 +42,7 @@ float bitsToFloatConv(std::string Bits) {
 }
 
 bool check_bf16_from_float(float Val, uint16_t Expected) {
-  uint16_t Result = sycl::ext::intel::experimental::bfloat16::from_float(Val);
+  uint16_t Result = sycl::ext::oneapi::experimental::bfloat16::from_float(Val);
   if (Result != Expected) {
     std::cout << "from_float check for Val = " << Val << " failed!\n"
               << "Expected " << Expected << " Got " << Result << "\n";
@@ -52,7 +52,7 @@ bool check_bf16_from_float(float Val, uint16_t Expected) {
 }
 
 bool check_bf16_to_float(uint16_t Val, float Expected) {
-  float Result = sycl::ext::intel::experimental::bfloat16::to_float(Val);
+  float Result = sycl::ext::oneapi::experimental::bfloat16::to_float(Val);
   if (Result != Expected) {
     std::cout << "to_float check for Val = " << Val << " failed!\n"
               << "Expected " << Expected << " Got " << Result << "\n";
