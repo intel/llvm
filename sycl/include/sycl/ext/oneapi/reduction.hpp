@@ -94,11 +94,13 @@ using IsReduOptForFastReduce =
                    sycl::detail::IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
-// Using std::tuple allows usage of functions like std::tuple_element_t
-// Switching tuple can be done by changing the definitions below
-template <typename... Ts> using ReduTupleT = std::tuple<Ts...>;
+// std::tuple seems to be a) too heavy and b) not copyable to device now
+// Thus sycl::detail::tuple is used instead.
+// Switching from sycl::device::tuple to std::tuple can be done by re-defining
+// the ReduTupleT type and makeReduTupleT() function below.
+template <typename... Ts> using ReduTupleT = sycl::detail::tuple<Ts...>;
 template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
-  return std::make_tuple(Elements...);
+  return sycl::detail::make_tuple(Elements...);
 }
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
@@ -2010,7 +2012,7 @@ template <bool Pow2WG, bool IsOneWG, typename... Reductions, int Dims,
           typename... Ts, typename... BOPsT, size_t... Is>
 void reduCGFuncImplScalar(
     nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
-    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<ReducerT...> &ReducersTuple,
+    ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...> ReduIndices) {
@@ -2112,7 +2114,7 @@ template <bool Pow2WG, bool IsOneWG, typename... Reductions, int Dims,
           typename... Ts, typename... BOPsT, size_t... Is>
 void reduCGFuncImplArray(
     nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
-    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<ReducerT...> &ReducersTuple,
+    ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...> ReduIndices) {
