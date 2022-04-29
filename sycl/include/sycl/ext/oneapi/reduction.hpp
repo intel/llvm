@@ -355,7 +355,6 @@ private:
 ///
 /// It allows to reduce the size of the 'reducer' object by not holding
 /// the identity field inside it and allows to add a default constructor.
-// TODO: More types and ops can be added to here later.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           class Algorithm, bool View>
 class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
