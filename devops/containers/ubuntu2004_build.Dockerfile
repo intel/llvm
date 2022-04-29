@@ -6,7 +6,7 @@ USER root
 
 # Install Nvidia keys
 # https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
-RUN apt install -yqq wget
+RUN apt-get update && apt-get install -yqq wget
 RUN wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb
 RUN dpkg -i cuda-keyring_1.0-1_all.deb
 
