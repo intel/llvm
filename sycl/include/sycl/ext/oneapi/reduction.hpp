@@ -757,8 +757,6 @@ private:
 
 public:
   using reducer_type = typename algo::reducer_type;
-  // using result_type = T;
-  // using binary_operation = BinaryOperation;
   using rw_accessor_type = typename algo::rw_accessor_type;
   using dw_accessor_type = typename algo::dw_accessor_type;
 
