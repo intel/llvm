@@ -221,8 +221,8 @@ struct FuncOpLowering : public OpConversionPattern<toy::FuncOp> {
     }
 
     // Create a new non-toy function, with the same region.
-    auto func = rewriter.create<mlir::FuncOp>(op.getLoc(), op.getName(),
-                                              op.getFunctionType());
+    auto func = rewriter.create<mlir::func::FuncOp>(op.getLoc(), op.getName(),
+                                                    op.getFunctionType());
     rewriter.inlineRegionBefore(op.getRegion(), func.getBody(), func.end());
     rewriter.eraseOp(op);
     return success();
@@ -310,6 +310,8 @@ struct TransposeOpLowering : public ConversionPattern {
 namespace {
 struct ToyToAffineLoweringPass
     : public PassWrapper<ToyToAffineLoweringPass, OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ToyToAffineLoweringPass)
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<AffineDialect, func::FuncDialect, memref::MemRefDialect>();
   }

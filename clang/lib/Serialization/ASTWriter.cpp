@@ -1117,8 +1117,7 @@ std::pair<ASTFileSignature, ASTFileSignature>
 ASTWriter::createSignature(StringRef AllBytes, StringRef ASTBlockBytes) {
   llvm::SHA1 Hasher;
   Hasher.update(ASTBlockBytes);
-  auto Hash = Hasher.result();
-  ASTFileSignature ASTBlockHash = ASTFileSignature::create(Hash);
+  ASTFileSignature ASTBlockHash = ASTFileSignature::create(Hasher.result());
 
   // Add the remaining bytes (i.e. bytes before the unhashed control block that
   // are not part of the AST block).
@@ -1126,8 +1125,7 @@ ASTWriter::createSignature(StringRef AllBytes, StringRef ASTBlockBytes) {
       AllBytes.take_front(ASTBlockBytes.bytes_end() - AllBytes.bytes_begin()));
   Hasher.update(
       AllBytes.take_back(AllBytes.bytes_end() - ASTBlockBytes.bytes_end()));
-  Hash = Hasher.result();
-  ASTFileSignature Signature = ASTFileSignature::create(Hash);
+  ASTFileSignature Signature = ASTFileSignature::create(Hasher.result());
 
   return std::make_pair(ASTBlockHash, Signature);
 }
@@ -6814,6 +6812,26 @@ void OMPClauseWriter::VisitOMPUseDeviceAddrClause(OMPUseDeviceAddrClause *C) {
 }
 
 void OMPClauseWriter::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *C) {
+  Record.push_back(C->varlist_size());
+  Record.push_back(C->getUniqueDeclarationsNum());
+  Record.push_back(C->getTotalComponentListNum());
+  Record.push_back(C->getTotalComponentsNum());
+  Record.AddSourceLocation(C->getLParenLoc());
+  for (auto *E : C->varlists())
+    Record.AddStmt(E);
+  for (auto *D : C->all_decls())
+    Record.AddDeclRef(D);
+  for (auto N : C->all_num_lists())
+    Record.push_back(N);
+  for (auto N : C->all_lists_sizes())
+    Record.push_back(N);
+  for (auto &M : C->all_components()) {
+    Record.AddStmt(M.getAssociatedExpression());
+    Record.AddDeclRef(M.getAssociatedDeclaration());
+  }
+}
+
+void OMPClauseWriter::VisitOMPHasDeviceAddrClause(OMPHasDeviceAddrClause *C) {
   Record.push_back(C->varlist_size());
   Record.push_back(C->getUniqueDeclarationsNum());
   Record.push_back(C->getTotalComponentListNum());

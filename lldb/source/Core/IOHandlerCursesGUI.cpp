@@ -4537,7 +4537,8 @@ struct Row {
     if (parent)
       parent->DrawTreeForChild(window, this, 0);
 
-    if (might_have_children) {
+    if (might_have_children &&
+        (!calculated_children || !GetChildren().empty())) {
       // It we can get UTF8 characters to work we should try to use the
       // "symbol" UTF8 string below
       //            const char *symbol = "";
@@ -5016,8 +5017,7 @@ class FrameTreeDelegate : public TreeDelegate {
 public:
   FrameTreeDelegate() : TreeDelegate() {
     FormatEntity::Parse(
-        "frame #${frame.index}: {${function.name}${function.pc-offset}}}",
-        m_format);
+        "#${frame.index}: {${function.name}${function.pc-offset}}}", m_format);
   }
 
   ~FrameTreeDelegate() override = default;
@@ -5825,9 +5825,11 @@ protected:
         ++m_num_rows;
       }
 
-      auto &children = row.GetChildren();
-      if (row.expanded && !children.empty()) {
-        DisplayRows(window, children, options);
+      if (row.expanded) {
+        auto &children = row.GetChildren();
+        if (!children.empty()) {
+          DisplayRows(window, children, options);
+        }
       }
     }
   }
@@ -5848,11 +5850,13 @@ protected:
         return &row;
       else {
         --row_index;
-        auto &children = row.GetChildren();
-        if (row.expanded && !children.empty()) {
-          Row *result = GetRowForRowIndexImpl(children, row_index);
-          if (result)
-            return result;
+        if (row.expanded) {
+          auto &children = row.GetChildren();
+          if (!children.empty()) {
+            Row *result = GetRowForRowIndexImpl(children, row_index);
+            if (result)
+              return result;
+          }
         }
       }
     }
@@ -6403,8 +6407,11 @@ public:
       if (exe_ctx.HasThreadScope()) {
         Process *process = exe_ctx.GetProcessPtr();
         if (process && process->IsAlive() &&
-            StateIsStoppedState(process->GetState(), true))
-          exe_ctx.GetThreadRef().StepOut();
+            StateIsStoppedState(process->GetState(), true)) {
+          Thread *thread = exe_ctx.GetThreadPtr();
+          uint32_t frame_idx = thread->GetSelectedFrameIndex();
+          exe_ctx.GetThreadRef().StepOut(frame_idx);
+        }
       }
     }
       return MenuActionResult::Handled;
@@ -7362,7 +7369,9 @@ public:
             m_debugger.GetCommandInterpreter().GetExecutionContext();
         if (exe_ctx.HasThreadScope() &&
             StateIsStoppedState(exe_ctx.GetProcessRef().GetState(), true)) {
-          exe_ctx.GetThreadRef().StepOut();
+          Thread *thread = exe_ctx.GetThreadPtr();
+          uint32_t frame_idx = thread->GetSelectedFrameIndex();
+          exe_ctx.GetThreadRef().StepOut(frame_idx);
         }
       }
       return eKeyHandled;
@@ -7667,14 +7676,6 @@ void IOHandlerCursesGUI::Activate() {
     status_window_sp->SetDelegate(
         WindowDelegateSP(new StatusBarWindowDelegate(m_debugger)));
 
-    // Show the main help window once the first time the curses GUI is
-    // launched
-    static bool g_showed_help = false;
-    if (!g_showed_help) {
-      g_showed_help = true;
-      main_window_sp->CreateHelpSubwindow();
-    }
-
     // All colors with black background.
     init_pair(1, COLOR_BLACK, COLOR_BLACK);
     init_pair(2, COLOR_RED, COLOR_BLACK);
@@ -7714,7 +7715,9 @@ IOHandlerCursesGUI::~IOHandlerCursesGUI() = default;
 
 void IOHandlerCursesGUI::Cancel() {}
 
-bool IOHandlerCursesGUI::Interrupt() { return false; }
+bool IOHandlerCursesGUI::Interrupt() {
+  return m_debugger.GetCommandInterpreter().IOHandlerInterrupt(*this);
+}
 
 void IOHandlerCursesGUI::GotEOF() {}
 

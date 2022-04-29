@@ -25,15 +25,16 @@
 using namespace mlir;
 
 namespace {
-class TestSCFForUtilsPass
-    : public PassWrapper<TestSCFForUtilsPass, OperationPass<FuncOp>> {
-public:
+struct TestSCFForUtilsPass
+    : public PassWrapper<TestSCFForUtilsPass, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestSCFForUtilsPass)
+
   StringRef getArgument() const final { return "test-scf-for-utils"; }
   StringRef getDescription() const final { return "test scf.for utils"; }
   explicit TestSCFForUtilsPass() = default;
 
   void runOnOperation() override {
-    FuncOp func = getOperation();
+    func::FuncOp func = getOperation();
     SmallVector<scf::ForOp, 4> toErase;
 
     func.walk([&](Operation *fakeRead) {
@@ -57,9 +58,10 @@ public:
   }
 };
 
-class TestSCFIfUtilsPass
+struct TestSCFIfUtilsPass
     : public PassWrapper<TestSCFIfUtilsPass, OperationPass<ModuleOp>> {
-public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestSCFIfUtilsPass)
+
   StringRef getArgument() const final { return "test-scf-if-utils"; }
   StringRef getDescription() const final { return "test scf.if utils"; }
   explicit TestSCFIfUtilsPass() = default;
@@ -68,7 +70,7 @@ public:
     int count = 0;
     getOperation().walk([&](scf::IfOp ifOp) {
       auto strCount = std::to_string(count++);
-      FuncOp thenFn, elseFn;
+      func::FuncOp thenFn, elseFn;
       OpBuilder b(ifOp);
       IRRewriter rewriter(b);
       if (failed(outlineIfOp(rewriter, ifOp, &thenFn,
@@ -95,9 +97,10 @@ static const StringLiteral kTestPipeliningAnnotationPart =
 static const StringLiteral kTestPipeliningAnnotationIteration =
     "__test_pipelining_iteration";
 
-class TestSCFPipeliningPass
-    : public PassWrapper<TestSCFPipeliningPass, OperationPass<FuncOp>> {
-public:
+struct TestSCFPipeliningPass
+    : public PassWrapper<TestSCFPipeliningPass, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestSCFPipeliningPass)
+
   TestSCFPipeliningPass() = default;
   TestSCFPipeliningPass(const TestSCFPipeliningPass &) {}
   StringRef getArgument() const final { return "test-scf-pipelining"; }

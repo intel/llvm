@@ -1073,6 +1073,18 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
         if (ValTy.getSizeInBytes() < MMO.getSize())
           report("store memory size cannot exceed value size", MI);
       }
+
+      const AtomicOrdering Order = MMO.getSuccessOrdering();
+      if (Opc == TargetOpcode::G_STORE) {
+        if (Order == AtomicOrdering::Acquire ||
+            Order == AtomicOrdering::AcquireRelease)
+          report("atomic store cannot use acquire ordering", MI);
+
+      } else {
+        if (Order == AtomicOrdering::Release ||
+            Order == AtomicOrdering::AcquireRelease)
+          report("atomic load cannot use release ordering", MI);
+      }
     }
 
     break;
@@ -1912,6 +1924,10 @@ MachineVerifier::visitMachineOperand(const MachineOperand *MO, unsigned MONum) {
       return;
     if (MRI->tracksLiveness() && !MI->isDebugInstr())
       checkLiveness(MO, MONum);
+
+    if (MO->isDef() && MO->isUndef() && !MO->getSubReg() &&
+        MO->getReg().isVirtual()) // TODO: Apply to physregs too
+      report("Undef virtual register def operands require a subregister", MO, MONum);
 
     // Verify the consistency of tied operands.
     if (MO->isTied()) {

@@ -1,4 +1,3 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S %s -flegacy-pass-manager -o - | FileCheck %s
 // RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S %s -fno-legacy-pass-manager -o - | FileCheck %s
 
 #include <CL/sycl.hpp>
