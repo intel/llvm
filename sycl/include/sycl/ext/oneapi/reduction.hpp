@@ -317,6 +317,11 @@ public:
   }
 };
 
+/// Specialization of the generic class 'reducer'. It is used for reductions
+/// of those types and operations for which the identity value is not known.
+///
+/// It stores a copy of the identity and binary operation associated with the
+/// reduction.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           class Algorithm, bool View>
 class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
