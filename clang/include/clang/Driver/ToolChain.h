@@ -716,6 +716,11 @@ public:
   getHIPDeviceLibs(const llvm::opt::ArgList &Args,
                    const Action::OffloadKind DeviceOffloadingKind) const;
 
+  /// Add the system specific linker arguments to use
+  /// for the given HIP runtime library type.
+  virtual void AddHIPRuntimeLibArgs(const llvm::opt::ArgList &Args,
+                                    llvm::opt::ArgStringList &CmdArgs) const {}
+
   /// Return sanitizers which are available in this toolchain.
   virtual SanitizerMask getSupportedSanitizers() const;
 

@@ -367,6 +367,8 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     A.renderAsInput(Args, CmdArgs);
   }
 
+  addHIPRuntimeLibArgs(TC, Args, CmdArgs);
+
   TC.addProfileRTLibs(Args, CmdArgs);
 
   std::vector<const char *> Environment;
@@ -554,6 +556,13 @@ void MSVCToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void MSVCToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                       ArgStringList &CC1Args) const {
   RocmInstallation.AddHIPIncludeArgs(DriverArgs, CC1Args);
+}
+
+void MSVCToolChain::AddHIPRuntimeLibArgs(const ArgList &Args,
+                                         ArgStringList &CmdArgs) const {
+  CmdArgs.append({Args.MakeArgString(StringRef("-libpath:") +
+                                     RocmInstallation.getLibPath()),
+                  "amdhip64.lib"});
 }
 
 void MSVCToolChain::printVerboseInfo(raw_ostream &OS) const {
