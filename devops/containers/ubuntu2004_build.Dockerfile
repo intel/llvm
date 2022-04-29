@@ -6,9 +6,7 @@ USER root
 
 # Install Nvidia keys
 # https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
-RUN apt-get update && apt-get install -yqq wget
-RUN wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb
-RUN dpkg -i cuda-keyring_1.0-1_all.deb
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/3bf863cc.pub
 
 # Install SYCL prerequisites
 COPY scripts/install_build_tools.sh /install.sh
