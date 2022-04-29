@@ -117,8 +117,6 @@ reduction(T *Var, const T &Identity, BinaryOperation Combiner,
 /// Constructs a reduction object using the reduction variable referenced by
 /// the given sycl::span \p Span, reduction operation \p Combiner, and
 /// optional reduction properties.
-/// The reduction algorithm may be less efficient for this variant as the
-/// reduction identity is not known statically and it is not provided by user.
 template <typename T, size_t Extent, typename BinaryOperation>
 std::enable_if_t<Extent != dynamic_extent &&
                      has_known_identity<BinaryOperation, T>::value,
