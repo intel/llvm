@@ -331,7 +331,7 @@ public:
   T getIdentity() const { return MIdentity; }
 
   T &getElement(size_t) { return MValue; }
-  const T &getElement(size_t E) const { return MValue; }
+  const T &getElement(size_t) const { return MValue; }
   T MValue;
 
 private:
