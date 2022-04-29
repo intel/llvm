@@ -181,9 +181,6 @@ Table 1. Member functions of `bfloat16` class.
 |===
 | Member Function | Description
 
-| `static bfloat16 from_bits(const storage_t &a);`
-| Create `bfloat16` with the `value` equals to `a`.
-
 |  `static storage_t from_float(const float &a);`
 |  Explicitly convert from `float` to `bfloat16`.
 
@@ -205,9 +202,6 @@ Table 1. Member functions of `bfloat16` class.
 | `explicit operator bool() { /* ... */ }`
 | Convert `bfloat16` to `bool` type. Return `false` if the `value` equals to
   zero, return `true` otherwise.
-
-| `storage_t raw() const`
-| Return raw bits representing the `bfloat16` value.
 
 | `friend bfloat16 operator-(bfloat16 &bf) { /* ... */ }`
 | Construct new instance of `bfloat16` class with negated value of the `bf`.
@@ -339,7 +333,5 @@ None.
                              Add operator overloadings +
                              Apply code review suggestions
 |3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
-|4|2021-12-30|Alexey Sotkin |Add methods to explicitly set/get the value
-                             with/as raw bits. +
-                             Add `operator sycl::half()`
+|4|2021-12-30|Alexey Sotkin |Add `operator sycl::half()`
 |========================================
