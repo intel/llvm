@@ -24,7 +24,7 @@ int main(int argc, char **argv, char *env[]) {
           // TODO graph dot
           clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
           clEnumValN(ZE, "level_zero", "Trace Level Zero calls"),
-          clEnumValN(ZE, "cuda", "Trace CUDA Driver API calls")));
+          clEnumValN(CU, "cuda", "Trace CUDA Driver API calls")));
   cl::opt<PrintFormatKind> PrintFormat(
       "print-format", cl::desc("Print format"),
       cl::values(
@@ -73,7 +73,7 @@ int main(int argc, char **argv, char *env[]) {
       EnableZETrace();
       break;
     case CU:
-      EnableZETrace();
+      EnableCUTrace();
       break;
     }
   }
