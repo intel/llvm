@@ -372,10 +372,8 @@ public:
     MValue = BOp(MValue, Partial);
   }
 
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  static enable_if_t<has_known_identity_impl<_BinaryOperation, _T>::value, _T>
-  getIdentity() {
-    return known_identity_impl<_BinaryOperation, _T>::value;
+  static T getIdentity() {
+    return known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t) { return MValue; }
@@ -455,10 +453,8 @@ public:
     return {MValue[Index], BinaryOperation()};
   }
 
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  static enable_if_t<has_known_identity_impl<_BinaryOperation, _T>::value, _T>
-  getIdentity() {
-    return known_identity_impl<_BinaryOperation, _T>::value;
+  static T getIdentity() {
+    return known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t E) { return MValue[E]; }
