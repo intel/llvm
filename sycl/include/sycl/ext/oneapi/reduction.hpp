@@ -369,8 +369,8 @@ public:
     return known_identity_impl<_BinaryOperation, _T>::value;
   }
 
-  T &getElement(size_t E) { return MValue; }
-  const T &getElement(size_t E) const { return MValue; }
+  T &getElement(size_t) { return MValue; }
+  const T &getElement(size_t) const { return MValue; }
   T MValue;
 };
 
