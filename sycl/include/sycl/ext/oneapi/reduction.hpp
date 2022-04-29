@@ -645,7 +645,7 @@ public:
 
   /// If reduction is initialized with read-write accessor, which does not
   /// require initialization with identity value, then return user's read-write
-  /// accessor. Otherwise, create 1-element global buffer initialized with
+  /// accessor. Otherwise, create global buffer with 'num_elements' initialized with
   /// identity value and return an accessor to that buffer.
   template <bool HasFastAtomics = (has_fast_atomics || has_atomic_add_float64)>
   std::enable_if_t<HasFastAtomics, rw_accessor_type>
