@@ -1998,7 +1998,7 @@ struct IsScalarReduction {
 struct IsArrayReduction {
   template <typename Reduction> struct Func {
     static constexpr bool value =
-        (Reduction::dims == 1 && Reduction::num_elements > 1);
+        (Reduction::dims == 1 && Reduction::num_elements >= 1);
   };
 };
 
