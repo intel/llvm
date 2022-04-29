@@ -3375,24 +3375,30 @@ pi_result piQueueFinish(pi_queue Queue) {
     return PI_SUCCESS;
   }
 
+  std::unique_lock lock(Queue->Mutex);
   std::vector<ze_command_queue_handle_t> ZeQueues;
-  {
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock lock(Queue->Mutex);
 
-    // execute any command list that may still be open.
-    if (auto Res = Queue->executeAllOpenCommandLists())
-      return Res;
+  // execute any command list that may still be open.
+  if (auto Res = Queue->executeAllOpenCommandLists())
+    return Res;
 
-    // Make a copy of queues to sync and release the lock.
-    ZeQueues = Queue->CopyQueueGroup.ZeQueues;
-    std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
-              Queue->ComputeQueueGroup.ZeQueues.end(),
-              std::back_inserter(ZeQueues));
-  }
+  // Make a copy of queues to sync and release the lock.
+  ZeQueues = Queue->CopyQueueGroup.ZeQueues;
+  std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
+            Queue->ComputeQueueGroup.ZeQueues.end(),
+            std::back_inserter(ZeQueues));
 
   // Don't hold a lock to the queue's mutex while waiting.
   // This allows continue working with the queue from other threads.
+  // TODO: this currently exhibits some issues in the driver, so
+  // we control this with an env var. Remove this control when
+  // we settle one way or the other.
+  static bool HoldLock =
+      std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK") != nullptr;
+  if (!HoldLock) {
+    lock.unlock();
+  }
+
   for (auto ZeQueue : ZeQueues) {
     if (ZeQueue)
       ZE_CALL(zeHostSynchronize, (ZeQueue));

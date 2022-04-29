@@ -62,6 +62,7 @@
 #include "llvm/Transforms/Coroutines/CoroSplit.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -926,6 +927,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   }
   if (LangOpts.SYCLIsDevice) {
     MPM.addPass(SYCLMutatePrintfAddrspacePass());
+    if (!CodeGenOpts.DisableLLVMPasses && LangOpts.EnableDAEInSpirKernels)
+      MPM.addPass(DeadArgumentEliminationSYCLPass());
   }
 
   // Add SPIRITTAnnotations pass to the pass manager if
