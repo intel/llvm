@@ -18,6 +18,13 @@
 #include <llvm/Support/FileSystem.h>
 #include <vector>
 
+#define ASSERT_NO_ERROR(x)                                                     \
+  if (std::error_code EC = x) {                                                \
+    FAIL() << #x ": did not return errc::success.\n"                           \
+           << "error number: " << EC.value() << "\n"                           \
+           << "error message: " << EC.message() << "\n";                       \
+  }
+
 // TODO: Introduce common unit tests header and move it there
 static void set_env(const char *name, const char *value) {
 #ifdef _WIN32
@@ -121,7 +128,7 @@ public:
     std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
         Dev, Img, {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID},
         BuildOptions);
-    llvm::sys::fs::remove_directories(ItemDir);
+    ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
     Barrier b(ThreadCount);
     {
@@ -147,7 +154,7 @@ public:
 
       ThreadPool MPool(ThreadCount, testLambda);
     }
-    llvm::sys::fs::remove_directories(ItemDir);
+    ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
   }
 
 protected:
@@ -188,7 +195,7 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, SpecConst, Key);
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, SpecConst, Key,
                                                    NativeProg);
@@ -204,7 +211,7 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
     }
   }
 
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 
 /* Do read/write for the same cache item to/from 300 threads for small device
@@ -246,7 +253,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Only source file is present
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
@@ -257,7 +264,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
                                                                 BuildOptions);
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
       << "Item with missed binary file was read";
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Only binary file is present
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
@@ -268,7 +275,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
                                                            BuildOptions);
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
       << "Item with missed source file was read";
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Binary file is corrupted
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
@@ -286,7 +293,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
       << "Item with corrupted binary file was read";
 
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Source file is empty
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
@@ -299,7 +306,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
                                                            BuildOptions);
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
       << "Item with corrupted binary file was read";
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 
 /* Checks that lock file affects cache operations as expected:
@@ -317,7 +324,7 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Create 1st cahe item
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
@@ -356,7 +363,7 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
           << "Corrupted image loaded from persistent cache";
     }
   }
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 
 #ifndef _WIN32
@@ -374,17 +381,19 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
   EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/0.bin")) << "No file created";
-  llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::no_perms);
+  ASSERT_NO_ERROR(llvm::sys::fs::setPermissions(ItemDir + "/0.bin",
+                                                llvm::sys::fs::no_perms));
   // No access to binary file new cache item to be created
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
   EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/1.bin")) << "No file created";
 
-  llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::no_perms);
+  ASSERT_NO_ERROR(llvm::sys::fs::setPermissions(ItemDir + "/1.bin",
+                                                llvm::sys::fs::no_perms));
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                                 BuildOptions);
 
@@ -392,8 +401,10 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
       << "Read from the file without permissions.";
 
-  llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::all_perms);
-  llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::all_perms);
+  ASSERT_NO_ERROR(llvm::sys::fs::setPermissions(ItemDir + "/0.bin",
+                                                llvm::sys::fs::all_perms));
+  ASSERT_NO_ERROR(llvm::sys::fs::setPermissions(ItemDir + "/1.bin",
+                                                llvm::sys::fs::all_perms));
 
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img, {},
                                                            BuildOptions);
@@ -404,7 +415,7 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
           << "Corrupted image loaded from persistent cache";
     }
   }
-  llvm::sys::fs::remove_directories(ItemDir);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 #endif //_WIN32
 } // namespace
