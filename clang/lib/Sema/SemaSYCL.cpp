@@ -3719,6 +3719,12 @@ static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
       CalcEffectiveSubGroup(S.Context, S.getLangOpts(), FD))
     return;
 
+  // No need to validate __spirv routines here since they
+  // are mapped to the equivalent SPIRV operations.
+  const IdentifierInfo *II = FD->getIdentifier();
+  if (II && II->getName().startswith("__spirv_"))
+    return;
+
   // Else we need to figure out why they don't match.
   SourceLocation FDAttrLoc = GetSubGroupLoc(FD);
   SourceLocation KernelAttrLoc = GetSubGroupLoc(SYCLKernel);

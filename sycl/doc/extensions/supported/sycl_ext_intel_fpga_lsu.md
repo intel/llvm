@@ -43,16 +43,16 @@ The implementation relies on the Clang built-in `__builtin_intel_fpga_mem` when
 parsing the SYCL device code. The built-in uses the LLVM `ptr.annotation`
 intrinsic under the hood to annotate the pointer that is being accessed.
 ```c++
-template <class... mem_access_params> class lsu final {
+template <class... MemAccessParams> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
-    check_space<_space>();
+  template <typename T, access::address_space Space>
+  static T load(sycl::multi_ptr<T, Space> Ptr) {
+    check_space<Space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    return *__builtin_intel_fpga_mem((_T *)Ptr,
+    return *__builtin_intel_fpga_mem((T *)Ptr,
                                      _burst_coalesce | _cache |
                                          _dont_statically_coalesce | _prefetch,
                                      _cache_val);
@@ -61,12 +61,12 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
-    check_space<_space>();
+  template <typename T, access::address_space Space>
+  static void store(sycl::multi_ptr<T, Space> Ptr, T Val) {
+    check_space<Space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    *__builtin_intel_fpga_mem((_T *)Ptr,
+    *__builtin_intel_fpga_mem((T *)Ptr,
                               _burst_coalesce | _cache |
                                   _dont_statically_coalesce | _prefetch,
                               _cache_val) = Val;
@@ -126,8 +126,8 @@ this extension may change these APIs in ways that are incompatible with the
 versions described here.
 
 In the experimental API version, member functions `load()` and `store()` take
-template arguments, which can contain the latency control properties
-`latency_anchor_id` and/or `latency_constraint`.
+in a property list as function argument, which can contain the latency control
+properties `latency_anchor_id` and/or `latency_constraint`.
 
 1. **`sycl::ext::intel::experimental::latency_anchor_id<N>`, where `N` is an integer**:
 represents ID of the current function call when it performs as an anchor. The ID
@@ -138,116 +138,58 @@ parameters when the current function performs as a non-anchor, where:
     - **`A` is an integer**: The ID of the target anchor defined on a different
     instruction through a `latency_anchor_id` property.
     - **`B` is an enum value**: The type of control from the set
-    {`type::exact`, `type::max`, `type::min`}.
+    {`latency_control_type::exact`, `latency_control_type::max`, `latency_control_type::min`}.
     - **`C` is an integer**: The relative clock cycle difference between the
     target anchor and the current function call, that the constraint should
     infer subject to the type of the control (exact, max, min).
 
-The template arguments above don't have to be specified if user doesn't want to
-apply latency controls. The template arguments can be passed in arbitrary order.
-
-### Implementation
+### Synopsis
 ```c++
 // Added in version 2 of this extension.
 namespace sycl::ext::intel::experimental {
-enum class type {
+enum class latency_control_type {
   none, // default
   exact,
   max,
   min
 };
 
-template <int32_t _N> struct latency_anchor_id {
-  static constexpr int32_t value = _N;
-  static constexpr int32_t default_value = -1;
+struct latency_anchor_id_key {
+  template <int Anchor>
+  using value_t =
+      oneapi::experimental::property_value<latency_anchor_id_key,
+                                           std::integral_constant<int, Anchor>>;
 };
 
-template <int32_t _N1, type _N2, int32_t _N3> struct latency_constraint {
-  static constexpr std::tuple<int32_t, type, int32_t> value = {_N1, _N2, _N3};
-  static constexpr std::tuple<int32_t, type, int32_t> default_value = {
-      0, type::none, 0};
+struct latency_constraint_key {
+  template <int Target, latency_control_type Type, int Cycle>
+  using value_t = oneapi::experimental::property_value<
+      latency_constraint_key, std::integral_constant<int, Target>,
+      std::integral_constant<latency_control_type, Type>,
+      std::integral_constant<int, Cycle>>;
 };
 
-template <class... mem_access_params> class lsu final {
-public:
-  lsu() = delete;
+template <int Anchor>
+inline constexpr latency_anchor_id_key::value_t<Anchor> latency_anchor_id;
 
-  template <class... _Params, typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
-    check_space<_space>();
-    check_load();
-#if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    static constexpr auto _anchor_id =
-        __GetValue<int, latency_anchor_id, _Params...>::value;
-    static constexpr auto _constraint =
-        __GetValue3<int, type, int, latency_constraint, _Params...>::value;
+template <int Target, latency_control_type Type, int Cycle>
+inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
+    latency_constraint;
 
-    static constexpr int _target_anchor = std::get<0>(_constraint);
-    static constexpr type _control_type = std::get<1>(_constraint);
-    static constexpr int _cycle = std::get<2>(_constraint);
-    int _type;
-    if (_control_type == type::none) {
-      _type = 0;
-    } else if (_control_type == type::exact) {
-      _type = 1;
-    } else if (_control_type == type::max) {
-      _type = 2;
-    } else { // _control_type == type::min
-      _type = 3;
-    }
+template <class... MemAccessParams> class lsu final {
+  template <typename T, access::address_space Space>
+  static T load(sycl::multi_ptr<T, Space> Ptr);
 
-    return *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
-                                          _type, _cycle);
-#else
-    return *Ptr;
-#endif
-  }
+  template <typename T, access::address_space Space, typename PropertiesT>
+  static T load(sycl::multi_ptr<T, Space> Ptr, PropertiesT Properties);
 
-  template <class... _Params, typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
-    check_space<_space>();
-    check_store();
-#if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    static constexpr auto _anchor_id =
-        __GetValue<int, latency_anchor_id, _Params...>::value;
-    static constexpr auto _constraint =
-        __GetValue3<int, type, int, latency_constraint, _Params...>::value;
+  template <typename T, access::address_space Space>
+  static void store(sycl::multi_ptr<T, Space> Ptr, T Val);
 
-    static constexpr int _target_anchor = std::get<0>(_constraint);
-    static constexpr type _control_type = std::get<1>(_constraint);
-    static constexpr int _cycle = std::get<2>(_constraint);
-    int _type;
-    if (_control_type == type::none) {
-      _type = 0;
-    } else if (_control_type == type::exact) {
-      _type = 1;
-    } else if (_control_type == type::max) {
-      _type = 2;
-    } else { // _control_type == type::min
-      _type = 3;
-    }
-
-    *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor, _type,
-                                   _cycle) = Val;
-#else
-    *Ptr = Val;
-#endif
-  }
-  ...
-private:
-#if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-  template <typename _T>
-  static _T *__latency_control_mem_wrapper(_T * Ptr, int32_t AnchorID,
-                                           int32_t TargetAnchor, int32_t Type,
-                                           int32_t Cycle) {
-    return __builtin_intel_fpga_mem(Ptr,
-                                    _burst_coalesce | _cache |
-                                    _dont_statically_coalesce | _prefetch,
-                                    _cache_val);
-  }
-#endif
-  ...
-}
+  template <typename T, access::address_space Space, typename PropertiesT>
+  static void store(sycl::multi_ptr<T, Space> Ptr, T Val,
+                    PropertiesT Properties);
+};
 } // namespace sycl::ext::intel::experimental
 ```
 
@@ -267,7 +209,6 @@ Queue.submit([&](sycl::handler &cgh) {
     auto input_ptr = input_accessor.get_pointer();
     auto output_ptr = output_accessor.get_pointer();
 
-    // latency controls
     using ExpPrefetchingLSU = sycl::ext::intel::experimental::lsu<
         sycl::ext::intel::experimental::prefetch<true>,
         sycl::ext::intel::experimental::statically_coalesce<false>>;
@@ -277,17 +218,19 @@ Queue.submit([&](sycl::handler &cgh) {
         sycl::ext::intel::experimental::statically_coalesce<false>>;
 
     // The following load is anchor 1
-    int Z = ExpPrefetchingLSU::load<
-        sycl::ext::intel::experimental::latency_anchor_id<1>>(input_ptr + 2);
+    int Z = ExpPrefetchingLSU::load(
+        input_ptr + 2,
+        sycl::ext::oneapi::experimental::properties(latency_anchor_id<1>));
 
     // The following store occurs exactly 5 cycles after the anchor 1 read
-    ExpBurstCoalescedLSU::store<
-        sycl::ext::intel::experimental::latency_constraint<
-            1, sycl::ext::intel::experimental::type::exact, 5>>(output_ptr + 2,
-                                                                Z);
+    ExpBurstCoalescedLSU::store(
+        output_ptr + 2, Z,
+        sycl::ext::oneapi::experimental::properties(
+            latency_constraint<1, latency_control_type::exact, 5>));
   });
 });
 ...
+} // namespace sycl::ext::intel::experimental
 ```
 
 ## Feature Test Macro
