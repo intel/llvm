@@ -84,18 +84,16 @@ runs:
       export LIT_OPTS="-v --no-progress-bar --show-unsupported --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
+      elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
+        source /opt/runtimes/oneapi-tbb/env/vars.sh;
       else
-        echo "no TBB vars. /runtimes/ directory does not exist";
-        # /runtimes/ directory does not exist.
-        # ls /runtimes/ -la
-        # ls /runtimes/oneapi-tbb -la
-        # ls /runtimes/oneapi-tbb/env -la
+        echo "no TBB vars in /opt/runtimes or /runtimes";
       fi
-      echo "action.yml CP_TEST: " $CP_TEST
       # TODO remove workaround of FPGA emu bug
       mkdir -p icd
       echo /usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so > icd/gpu.icd
       echo /runtimes/oclcpu/x64/libintelocl.so > icd/cpu.icd
+      echo /opt/runtimes/oclcpu/x64/libintelocl.so > icd/cpu2.icd
       export OCL_ICD_VENDORS=$PWD/icd
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
