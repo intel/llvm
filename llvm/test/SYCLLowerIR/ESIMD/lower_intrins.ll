@@ -1,7 +1,8 @@
 ; This test checks C++ ESIMD intrinsics lowering to "@llvm.genx.*" form
 ; consumable by the CM back-end.
 ;
-; RUN: opt < %s -LowerESIMD -S | FileCheck %s
+; RUN: opt < %s -LowerESIMD -S --enable-new-pm=1 | FileCheck %s
+; RUN: opt < %s -LowerESIMD -S --enable-new-pm=0 | FileCheck %s
 ;
 ; TODO refactor all the test cases - make them C++ and move to
 ; sycl\test\esimd\intrins_trans.cpp for much easier maintenance w/o losing
