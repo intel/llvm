@@ -553,12 +553,12 @@ TEST(DiagnosticTest, ClangTidyEnablesClangWarning) {
   // clang-diagnostic-* is acceptable
   TU.ClangTidyProvider = addClangArgs({"-Wunused"}, "clang-diagnostic-*");
   EXPECT_THAT(*TU.build().getDiagnostics(), ElementsAre(UnusedFooWarning));
-  // And plain *
+  // And plain * (may turn on other checks too).
   TU.ClangTidyProvider = addClangArgs({"-Wunused"}, "*");
-  EXPECT_THAT(*TU.build().getDiagnostics(), ElementsAre(UnusedFooWarning));
+  EXPECT_THAT(*TU.build().getDiagnostics(), Contains(UnusedFooWarning));
   // And we can explicitly exclude a category too.
-  TU.ClangTidyProvider =
-      addClangArgs({"-Wunused"}, "*,-clang-diagnostic-unused-function");
+  TU.ClangTidyProvider = addClangArgs(
+      {"-Wunused"}, "clang-diagnostic-*,-clang-diagnostic-unused-function");
   EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
 
   // Without the exact check specified, the warnings are not enabled.
