@@ -38,8 +38,7 @@ public:
       : CommandObjectParsed(
             interpreter, "command source",
             "Read and execute LLDB commands from the file <filename>.",
-            nullptr),
-        m_options() {
+            nullptr) {
     CommandArgumentEntry arg;
     CommandArgumentData file_arg;
 
@@ -57,9 +56,9 @@ public:
 
   ~CommandObjectCommandsSource() override = default;
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
-    return "";
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
+    return std::string("");
   }
 
   void
@@ -76,8 +75,8 @@ protected:
   class CommandOptions : public Options {
   public:
     CommandOptions()
-        : Options(), m_stop_on_error(true), m_silent_run(false),
-          m_stop_on_continue(true), m_cmd_relative_to_command_file(false) {}
+        : m_stop_on_error(true), m_silent_run(false), m_stop_on_continue(true),
+          m_cmd_relative_to_command_file(false) {}
 
     ~CommandOptions() override = default;
 
@@ -207,7 +206,7 @@ class CommandObjectCommandsAlias : public CommandObjectRaw {
 protected:
   class CommandOptions : public OptionGroup {
   public:
-    CommandOptions() : OptionGroup(), m_help(), m_long_help() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -258,8 +257,7 @@ public:
   CommandObjectCommandsAlias(CommandInterpreter &interpreter)
       : CommandObjectRaw(
             interpreter, "command alias",
-            "Define a custom command in terms of an existing command."),
-        m_option_group(), m_command_options() {
+            "Define a custom command in terms of an existing command.") {
     m_option_group.Append(&m_command_options);
     m_option_group.Finalize();
 
@@ -485,8 +483,9 @@ protected:
     OptionArgVectorSP option_arg_vector_sp =
         OptionArgVectorSP(new OptionArgVector);
 
-    if (CommandObjectSP cmd_obj_sp =
-            m_interpreter.GetCommandSPExact(cmd_obj.GetCommandName())) {
+    const bool include_aliases = true;
+    if (CommandObjectSP cmd_obj_sp = m_interpreter.GetCommandSPExact(
+            cmd_obj.GetCommandName(), include_aliases)) {
       if (m_interpreter.AliasExists(alias_command) ||
           m_interpreter.UserCommandExists(alias_command)) {
         result.AppendWarningWithFormat(
@@ -792,8 +791,7 @@ public:
             "regular expressions.",
             "command regex <cmd-name> [s/<regex>/<subst>/ ...]"),
         IOHandlerDelegateMultiline("",
-                                   IOHandlerDelegate::Completion::LLDBCommand),
-        m_options() {
+                                   IOHandlerDelegate::Completion::LLDBCommand) {
     SetHelpLong(
         R"(
 )"
@@ -1024,7 +1022,7 @@ private:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1078,7 +1076,7 @@ public:
                               std::string funct, std::string help,
                               ScriptedCommandSynchronicity synch)
       : CommandObjectRaw(interpreter, name), m_function_name(funct),
-        m_synchro(synch), m_fetched_help_long(false) {
+        m_synchro(synch) {
     if (!help.empty())
       SetHelp(help);
     else {
@@ -1141,7 +1139,7 @@ protected:
 private:
   std::string m_function_name;
   ScriptedCommandSynchronicity m_synchro;
-  bool m_fetched_help_long;
+  bool m_fetched_help_long = false;
 };
 
 class CommandObjectScriptingObject : public CommandObjectRaw {
@@ -1238,8 +1236,7 @@ class CommandObjectCommandsScriptImport : public CommandObjectParsed {
 public:
   CommandObjectCommandsScriptImport(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "command script import",
-                            "Import a scripting module in LLDB.", nullptr),
-        m_options() {
+                            "Import a scripting module in LLDB.", nullptr) {
     CommandArgumentEntry arg1;
     CommandArgumentData cmd_arg;
 
@@ -1270,7 +1267,7 @@ public:
 protected:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1394,7 +1391,7 @@ public:
                             "must be a path to a user-added container "
                             "command, and the last element will be the new "
                             "command name."),
-        IOHandlerDelegateMultiline("DONE"), m_options() {
+        IOHandlerDelegateMultiline("DONE") {
     CommandArgumentEntry arg1;
     CommandArgumentData cmd_arg;
 
@@ -1425,8 +1422,7 @@ public:
 protected:
   class CommandOptions : public Options {
   public:
-    CommandOptions()
-        : Options(), m_class_name(), m_funct_name(), m_short_help() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1449,7 +1445,7 @@ protected:
           m_short_help = std::string(option_arg);
         break;
       case 'o':
-        m_overwrite = true;
+        m_overwrite_lazy = eLazyBoolYes;
         break;
       case 's':
         m_synchronicity =
@@ -1471,7 +1467,7 @@ protected:
       m_class_name.clear();
       m_funct_name.clear();
       m_short_help.clear();
-      m_overwrite = false;
+      m_overwrite_lazy = eLazyBoolCalculate;
       m_synchronicity = eScriptedCommandSynchronicitySynchronous;
     }
 
@@ -1484,7 +1480,7 @@ protected:
     std::string m_class_name;
     std::string m_funct_name;
     std::string m_short_help;
-    bool m_overwrite;
+    LazyBool m_overwrite_lazy;
     ScriptedCommandSynchronicity m_synchronicity =
         eScriptedCommandSynchronicitySynchronous;
   };
@@ -1503,7 +1499,6 @@ protected:
 
     ScriptInterpreter *interpreter = GetDebugger().GetScriptInterpreter();
     if (interpreter) {
-
       StringList lines;
       lines.SplitIntoLines(data);
       if (lines.GetSize() > 0) {
@@ -1566,8 +1561,19 @@ protected:
       result.AppendError("'command script add' requires at least one argument");
       return false;
     }
-    // Store the options in case we get multi-line input
-    m_overwrite = m_options.m_overwrite;
+    // Store the options in case we get multi-line input, also figure out the
+    // default if not user supplied:
+    switch (m_options.m_overwrite_lazy) {
+      case eLazyBoolCalculate:
+        m_overwrite = !GetDebugger().GetCommandInterpreter().GetRequireCommandOverwrite();
+        break;
+      case eLazyBoolYes:
+        m_overwrite = true;
+        break;
+      case eLazyBoolNo:
+        m_overwrite = false;
+    }
+    
     Status path_error;
     m_container = GetCommandInterpreter().VerifyUserMultiwordCmdPath(
         command, true, path_error);
@@ -1641,8 +1647,9 @@ protected:
   std::string m_cmd_name;
   CommandObjectMultiword *m_container = nullptr;
   std::string m_short_help;
-  bool m_overwrite;
-  ScriptedCommandSynchronicity m_synchronicity;
+  bool m_overwrite = eLazyBoolCalculate;
+  ScriptedCommandSynchronicity m_synchronicity =
+      eScriptedCommandSynchronicitySynchronous;
 };
 
 // CommandObjectCommandsScriptList
@@ -1883,7 +1890,7 @@ public:
 protected:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options(), m_short_help(), m_long_help() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 

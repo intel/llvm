@@ -23,6 +23,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/ProfileData/SampleProf.h"
@@ -39,7 +40,6 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <set>
 #include <system_error>
 #include <vector>
 
@@ -655,6 +655,8 @@ std::error_code SampleProfileReaderExtBinaryBase::readOneSection(
       Summary->setPartialProfile(true);
     if (hasSecFlag(Entry, SecProfSummaryFlags::SecFlagFullContext))
       FunctionSamples::ProfileIsCSFlat = ProfileIsCSFlat = true;
+    if (hasSecFlag(Entry, SecProfSummaryFlags::SecFlagIsCSNested))
+      FunctionSamples::ProfileIsCSNested = ProfileIsCSNested = true;
     if (hasSecFlag(Entry, SecProfSummaryFlags::SecFlagFSDiscriminator))
       FunctionSamples::ProfileIsFS = ProfileIsFS = true;
     break;
@@ -688,9 +690,6 @@ std::error_code SampleProfileReaderExtBinaryBase::readOneSection(
     ProfileIsProbeBased =
         hasSecFlag(Entry, SecFuncMetadataFlags::SecFlagIsProbeBased);
     FunctionSamples::ProfileIsProbeBased = ProfileIsProbeBased;
-    ProfileIsCSNested =
-        hasSecFlag(Entry, SecFuncMetadataFlags::SecFlagIsCSNested);
-    FunctionSamples::ProfileIsCSNested = ProfileIsCSNested;
     bool HasAttribute =
         hasSecFlag(Entry, SecFuncMetadataFlags::SecFlagHasAttribute);
     if (std::error_code EC = readFuncMetadata(HasAttribute))
@@ -1276,6 +1275,8 @@ static std::string getSecFlagsStr(const SecHdrTableEntry &Entry) {
       Flags.append("partial,");
     if (hasSecFlag(Entry, SecProfSummaryFlags::SecFlagFullContext))
       Flags.append("context,");
+    if (hasSecFlag(Entry, SecProfSummaryFlags::SecFlagIsCSNested))
+      Flags.append("context-nested,");
     if (hasSecFlag(Entry, SecProfSummaryFlags::SecFlagFSDiscriminator))
       Flags.append("fs-discriminator,");
     break;
@@ -1288,8 +1289,6 @@ static std::string getSecFlagsStr(const SecHdrTableEntry &Entry) {
       Flags.append("probe,");
     if (hasSecFlag(Entry, SecFuncMetadataFlags::SecFlagHasAttribute))
       Flags.append("attr,");
-    if (hasSecFlag(Entry, SecFuncMetadataFlags::SecFlagIsCSNested))
-      Flags.append("preinlined,");
     break;
   default:
     break;
@@ -1829,7 +1828,7 @@ SampleProfileReaderItaniumRemapper::create(std::unique_ptr<MemoryBuffer> &B,
                                            SampleProfileReader &Reader,
                                            LLVMContext &C) {
   auto Remappings = std::make_unique<SymbolRemappingReader>();
-  if (Error E = Remappings->read(*B.get())) {
+  if (Error E = Remappings->read(*B)) {
     handleAllErrors(
         std::move(E), [&](const SymbolRemappingParseError &ParseError) {
           C.diagnose(DiagnosticInfoSampleProfile(B->getBufferIdentifier(),
@@ -1883,7 +1882,6 @@ SampleProfileReader::create(std::unique_ptr<MemoryBuffer> &B, LLVMContext &C,
     Reader->Remapper = std::move(ReaderOrErr.get());
   }
 
-  FunctionSamples::Format = Reader->getFormat();
   if (std::error_code EC = Reader->readHeader()) {
     return EC;
   }

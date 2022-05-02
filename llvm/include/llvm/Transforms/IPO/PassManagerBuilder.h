@@ -16,7 +16,6 @@
 
 #include "llvm-c/Transforms/PassManagerBuilder.h"
 #include <functional>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -24,7 +23,6 @@ namespace llvm {
 class ModuleSummaryIndex;
 class Pass;
 class TargetLibraryInfoImpl;
-class TargetMachine;
 
 // The old pass manager infrastructure is hidden in a legacy namespace now.
 namespace legacy {
@@ -215,7 +213,6 @@ private:
   void addInitialAliasAnalysisPasses(legacy::PassManagerBase &PM) const;
   void addLTOOptimizationPasses(legacy::PassManagerBase &PM);
   void addLateLTOOptimizationPasses(legacy::PassManagerBase &PM);
-  void addPGOInstrPasses(legacy::PassManagerBase &MPM, bool IsCS);
   void addFunctionSimplificationPasses(legacy::PassManagerBase &MPM);
   void addVectorPasses(legacy::PassManagerBase &PM, bool IsFullLTO);
 
@@ -227,8 +224,6 @@ public:
 
   /// populateModulePassManager - This sets up the primary pass manager.
   void populateModulePassManager(legacy::PassManagerBase &MPM);
-  void populateLTOPassManager(legacy::PassManagerBase &PM);
-  void populateThinLTOPassManager(legacy::PassManagerBase &PM);
 };
 
 /// Registers a function for adding a standard set of passes.  This should be

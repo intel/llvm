@@ -50,9 +50,6 @@
    don't. */
 #cmakedefine01 HAVE_DECL_STRERROR_S
 
-/* Define to 1 if you have the DIA SDK installed, and to 0 if you don't. */
-#cmakedefine01 LLVM_ENABLE_DIA_SDK
-
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #cmakedefine HAVE_DLFCN_H ${HAVE_DLFCN_H}
 
@@ -157,9 +154,6 @@
 
 /* Define to 1 if you have the `pread' function. */
 #cmakedefine HAVE_PREAD ${HAVE_PREAD}
-
-/* Have pthread_getspecific */
-#cmakedefine HAVE_PTHREAD_GETSPECIFIC ${HAVE_PTHREAD_GETSPECIFIC}
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #cmakedefine HAVE_PTHREAD_H ${HAVE_PTHREAD_H}
@@ -299,9 +293,6 @@
 /* Target triple LLVM will generate code for by default */
 /* Doesn't use `cmakedefine` because it is allowed to be empty. */
 #define LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}"
-
-/* Define if zlib compression is available */
-#cmakedefine01 LLVM_ENABLE_ZLIB
 
 /* Define if overriding target triple is enabled */
 #cmakedefine LLVM_TARGET_TRIPLE_ENV "${LLVM_TARGET_TRIPLE_ENV}"

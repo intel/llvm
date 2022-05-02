@@ -75,7 +75,7 @@
 #endif
 
 #ifndef __SYCL_FALLTHROUGH
-#if defined(__cplusplus) && __cplusplus > 201402L &&                           \
+#if defined(__cplusplus) && __cplusplus >= 201703L &&                          \
     __SYCL_HAS_CPP_ATTRIBUTE(fallthrough)
 #define __SYCL_FALLTHROUGH [[fallthrough]]
 #elif __SYCL_HAS_CPP_ATTRIBUTE(gnu::fallthrough)

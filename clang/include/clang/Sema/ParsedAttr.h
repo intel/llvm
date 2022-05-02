@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_SEMA_ATTRIBUTELIST_H
-#define LLVM_CLANG_SEMA_ATTRIBUTELIST_H
+#ifndef LLVM_CLANG_SEMA_PARSEDATTR_H
+#define LLVM_CLANG_SEMA_PARSEDATTR_H
 
 #include "clang/Basic/AttrSubjectMatchRules.h"
 #include "clang/Basic/AttributeCommonInfo.h"
@@ -49,8 +49,12 @@ struct ParsedAttrInfo {
   unsigned NumArgs : 4;
   /// The number of optional arguments of this attributes.
   unsigned OptArgs : 4;
+  /// The number of non-fake arguments specified in the attribute definition.
+  unsigned NumArgMembers : 4;
   /// True if the parsing does not match the semantic content.
   unsigned HasCustomParsing : 1;
+  // True if this attribute accepts expression parameter pack expansions.
+  unsigned AcceptsExprPack : 1;
   /// True if this attribute is only available for certain targets.
   unsigned IsTargetSpecific : 1;
   /// True if this attribute applies to types.
@@ -73,12 +77,32 @@ struct ParsedAttrInfo {
   // The names of the known arguments of this attribute.
   ArrayRef<const char *> ArgNames;
 
-  ParsedAttrInfo(AttributeCommonInfo::Kind AttrKind =
-                     AttributeCommonInfo::NoSemaHandlerAttribute)
-      : AttrKind(AttrKind), NumArgs(0), OptArgs(0), HasCustomParsing(0),
-        IsTargetSpecific(0), IsType(0), IsStmt(0), IsKnownToGCC(0),
-        IsSupportedByPragmaAttribute(0) {}
+protected:
+  constexpr ParsedAttrInfo(AttributeCommonInfo::Kind AttrKind =
+                               AttributeCommonInfo::NoSemaHandlerAttribute)
+      : AttrKind(AttrKind), NumArgs(0), OptArgs(0), NumArgMembers(0),
+        HasCustomParsing(0), AcceptsExprPack(0), IsTargetSpecific(0), IsType(0),
+        IsStmt(0), IsKnownToGCC(0), IsSupportedByPragmaAttribute(0),
+        SupportsNonconformingLambdaSyntax(0) {}
 
+  constexpr ParsedAttrInfo(AttributeCommonInfo::Kind AttrKind, unsigned NumArgs,
+                           unsigned OptArgs, unsigned NumArgMembers,
+                           unsigned HasCustomParsing, unsigned AcceptsExprPack,
+                           unsigned IsTargetSpecific, unsigned IsType,
+                           unsigned IsStmt, unsigned IsKnownToGCC,
+                           unsigned IsSupportedByPragmaAttribute,
+                           unsigned SupportsNonconformingLambdaSyntax,
+                           ArrayRef<Spelling> Spellings,
+                           ArrayRef<const char *> ArgNames)
+      : AttrKind(AttrKind), NumArgs(NumArgs), OptArgs(OptArgs),
+        NumArgMembers(NumArgMembers), HasCustomParsing(HasCustomParsing),
+        AcceptsExprPack(AcceptsExprPack), IsTargetSpecific(IsTargetSpecific),
+        IsType(IsType), IsStmt(IsStmt), IsKnownToGCC(IsKnownToGCC),
+        IsSupportedByPragmaAttribute(IsSupportedByPragmaAttribute),
+        SupportsNonconformingLambdaSyntax(SupportsNonconformingLambdaSyntax),
+        Spellings(Spellings), ArgNames(ArgNames) {}
+
+public:
   virtual ~ParsedAttrInfo() = default;
 
   /// Check if this attribute appertains to D, and issue a diagnostic if not.
@@ -109,6 +133,10 @@ struct ParsedAttrInfo {
   spellingIndexToSemanticSpelling(const ParsedAttr &Attr) const {
     return UINT_MAX;
   }
+  /// Returns true if the specified parameter index for this attribute in
+  /// Attr.td is an ExprArgument or VariadicExprArgument, or a subclass thereof;
+  /// returns false otherwise.
+  virtual bool isParamExpr(size_t N) const { return false; }
   /// Populate Rules with the match rules of this attribute.
   virtual void getPragmaAttributeMatchRules(
       llvm::SmallVectorImpl<std::pair<attr::SubjectMatchRule, bool>> &Rules,
@@ -604,9 +632,13 @@ public:
   bool isStmtAttr() const;
 
   bool hasCustomParsing() const;
+  bool acceptsExprPack() const;
+  bool isParamExpr(size_t N) const;
   unsigned getMinArgs() const;
   unsigned getMaxArgs() const;
+  unsigned getNumArgMembers() const;
   bool hasVariadicArg() const;
+  void handleAttrWithDelayedArgs(Sema &S, Decl *D) const;
   bool diagnoseAppertainsTo(class Sema &S, const Decl *D) const;
   bool diagnoseAppertainsTo(class Sema &S, const Stmt *St) const;
   bool diagnoseMutualExclusion(class Sema &S, const Decl *D) const;
@@ -879,6 +911,7 @@ class ParsedAttributesView {
   using SizeType = decltype(std::declval<VecTy>().size());
 
 public:
+  SourceRange Range;
   bool empty() const { return AttrList.empty(); }
   SizeType size() const { return AttrList.size(); }
   ParsedAttr &operator[](SizeType pos) { return *AttrList[pos]; }
@@ -977,15 +1010,19 @@ public:
 
   AttributePool &getPool() const { return pool; }
 
-  void takeAllFrom(ParsedAttributes &attrs) {
-    addAll(attrs.begin(), attrs.end());
-    attrs.clearListOnly();
-    pool.takeAllFrom(attrs.pool);
+  void takeAllFrom(ParsedAttributes &Other) {
+    assert(&Other != this &&
+           "ParsedAttributes can't take attributes from itself");
+    addAll(Other.begin(), Other.end());
+    Other.clearListOnly();
+    pool.takeAllFrom(Other.pool);
   }
 
-  void takeOneFrom(ParsedAttributes &Attrs, ParsedAttr *PA) {
-    Attrs.getPool().remove(PA);
-    Attrs.remove(PA);
+  void takeOneFrom(ParsedAttributes &Other, ParsedAttr *PA) {
+    assert(&Other != this &&
+           "ParsedAttributes can't take attribute from itself");
+    Other.getPool().remove(PA);
+    Other.remove(PA);
     getPool().add(PA);
     addAtEnd(PA);
   }
@@ -993,6 +1030,7 @@ public:
   void clear() {
     clearListOnly();
     pool.clear();
+    Range = SourceRange();
   }
 
   /// Add attribute with expression arguments.
@@ -1076,27 +1114,6 @@ private:
   mutable AttributePool pool;
 };
 
-struct ParsedAttributesWithRange : ParsedAttributes {
-  ParsedAttributesWithRange(AttributeFactory &factory)
-      : ParsedAttributes(factory) {}
-
-  void clear() {
-    ParsedAttributes::clear();
-    Range = SourceRange();
-  }
-
-  SourceRange Range;
-};
-struct ParsedAttributesViewWithRange : ParsedAttributesView {
-  ParsedAttributesViewWithRange() : ParsedAttributesView() {}
-  void clearListOnly() {
-    ParsedAttributesView::clearListOnly();
-    Range = SourceRange();
-  }
-
-  SourceRange Range;
-};
-
 /// These constants match the enumerated choices of
 /// err_attribute_argument_n_type and err_attribute_argument_type.
 enum AttributeArgumentNType {
@@ -1167,4 +1184,4 @@ inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
 
 } // namespace clang
 
-#endif // LLVM_CLANG_SEMA_ATTRIBUTELIST_H
+#endif // LLVM_CLANG_SEMA_PARSEDATTR_H

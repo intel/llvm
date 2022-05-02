@@ -12,9 +12,6 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 
-#include <array>
-#include <cmath>
-#include <cstdint>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -38,13 +35,11 @@ namespace sycl {
 
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 namespace detail {
 class WrapperElementTypeProxy;
 } // namespace detail
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 
@@ -61,7 +56,7 @@ inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
   const uint8_t Exp32 = (Bits & 0x7f800000) >> 23;
   const int16_t Exp32Diff = Exp32 - 127;
 
-  // intialize to 0, covers the case for 0 and small numbers
+  // initialize to 0, covers the case for 0 and small numbers
   uint16_t Exp16 = 0, Frac16 = 0;
 
   if (__builtin_expect(Exp32Diff > 15, 0)) {
@@ -268,8 +263,7 @@ public:
   // Initialize underlying data
   constexpr explicit half_v2(uint16_t x) : Buf(x) {}
 
-  friend class sycl::ext::intel::experimental::esimd::detail::
-      WrapperElementTypeProxy;
+  friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
 
 private:
   uint16_t Buf;
@@ -345,7 +339,7 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
   // Since StorageT and BIsRepresentationT are different on host, these two
   // helpers are required for 'vec' class
-  constexpr half(const detail::host_half_impl::half_v2 &rhs) : Data(rhs){};
+  constexpr half(const detail::host_half_impl::half_v2 &rhs) : Data(rhs) {}
   constexpr operator detail::host_half_impl::half_v2() const { return Data; }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -407,8 +401,7 @@ public:
 
   template <typename Key> friend struct std::hash;
 
-  friend class sycl::ext::intel::experimental::esimd::detail::
-      WrapperElementTypeProxy;
+  friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
 
 private:
   StorageT Data;

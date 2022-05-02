@@ -21,9 +21,9 @@ namespace sycl {
 /// \ingroup sycl_api
 class kernel_handler {
 public:
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
   template <auto &S>
-  typename std::remove_reference_t<decltype(S)>::value_type
+  __SYCL_ALWAYS_INLINE typename std::remove_reference_t<decltype(S)>::value_type
   get_specialization_constant() {
 #ifdef __SYCL_DEVICE_ONLY__
     return getSpecializationConstantOnDevice<S>();
@@ -35,7 +35,7 @@ public:
         PI_INVALID_OPERATION);
 #endif // __SYCL_DEVICE_ONLY__
   }
-#endif // __cplusplus > 201402L
+#endif // __cplusplus >= 201703L
 
 private:
   void __init_specialization_constants_buffer(
@@ -49,7 +49,7 @@ private:
       auto &S,
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
       std::enable_if_t<std::is_fundamental_v<T>> * = nullptr>
-  T getSpecializationConstantOnDevice() {
+  __SYCL_ALWAYS_INLINE T getSpecializationConstantOnDevice() {
     const char *SymbolicID = __builtin_sycl_unique_stable_id(S);
     return __sycl_getScalar2020SpecConstantValue<T>(
         SymbolicID, &S, MSpecializationConstantsBuffer);
@@ -58,7 +58,7 @@ private:
       auto &S,
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
       std::enable_if_t<std::is_compound_v<T>> * = nullptr>
-  T getSpecializationConstantOnDevice() {
+  __SYCL_ALWAYS_INLINE T getSpecializationConstantOnDevice() {
     const char *SymbolicID = __builtin_sycl_unique_stable_id(S);
     return __sycl_getComposite2020SpecConstantValue<T>(
         SymbolicID, &S, MSpecializationConstantsBuffer);

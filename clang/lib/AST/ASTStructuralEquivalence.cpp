@@ -517,6 +517,7 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
    case TemplateName::Template:
    case TemplateName::QualifiedTemplate:
    case TemplateName::SubstTemplateTemplateParm:
+   case TemplateName::UsingTemplate:
      // It is sufficient to check value of getAsTemplateDecl.
      break;
 
@@ -929,6 +930,13 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     if (!IsStructurallyEquivalent(
             Context, cast<AttributedType>(T1)->getEquivalentType(),
             cast<AttributedType>(T2)->getEquivalentType()))
+      return false;
+    break;
+
+  case Type::BTFTagAttributed:
+    if (!IsStructurallyEquivalent(
+            Context, cast<BTFTagAttributedType>(T1)->getWrappedType(),
+            cast<BTFTagAttributedType>(T2)->getWrappedType()))
       return false;
     break;
 

@@ -40,20 +40,24 @@ class TestStopAtEntry(TestBase):
         return None
 
     @skipUnlessDarwin
+    @skipIfRemote
     def test_stop_default_platform_sync(self):
         self.do_test_stop_at_entry(True, False)
 
     @skipUnlessDarwin
+    @skipIfRemote
     def test_stop_default_platform_async(self):
         self.do_test_stop_at_entry(False, False)
 
     @skipUnlessDarwin
+    @skipIfRemote
     @expectedFailureIfFn(no_debugserver)
     @expectedFailureIfFn(port_not_available)
     def test_stop_remote_platform_sync(self):
         self.do_test_stop_at_entry(True, True)
 
     @skipUnlessDarwin
+    @skipIfRemote
     @expectedFailureIfFn(no_debugserver)
     @expectedFailureIfFn(port_not_available)
     def test_stop_remote_platform_async(self):
@@ -86,7 +90,7 @@ class TestStopAtEntry(TestBase):
         error = lldb.SBError()
 
         process = target.Launch(launch_info, error)
-        self.assertTrue(error.Success(), "Launch failed: {0}".format(error.description))
+        self.assertSuccess(error, "Launch failed")
         # If we are asynchronous, we have to wait for the events:
         if not synchronous:
             listener = launch_info.GetListener()
@@ -106,7 +110,7 @@ class TestStopAtEntry(TestBase):
 
         # Now make sure that we can resume the process and have it exit.
         error = process.Continue()
-        self.assertTrue(error.Success(), "Error continuing: {0}".format(error.description))
+        self.assertSuccess(error, "Error continuing")
         # Fetch events till we get eStateExited:
         if not synchronous:
             # Get events till exited.

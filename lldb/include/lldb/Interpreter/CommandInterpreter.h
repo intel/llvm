@@ -252,7 +252,8 @@ public:
   }
 
   void SourceInitFileCwd(CommandReturnObject &result);
-  void SourceInitFileHome(CommandReturnObject &result, bool is_repl = false);
+  void SourceInitFileHome(CommandReturnObject &result, bool is_repl);
+  void SourceInitFileGlobal(CommandReturnObject &result);
 
   bool AddCommand(llvm::StringRef name, const lldb::CommandObjectSP &cmd_sp,
                   bool can_replace);
@@ -548,6 +549,8 @@ public:
   void SetEchoCommentCommands(bool enable);
 
   bool GetRepeatPreviousCommand() const;
+  
+  bool GetRequireCommandOverwrite() const;
 
   const CommandObject::CommandMap &GetUserCommands() const {
     return m_user_dict;
@@ -605,6 +608,10 @@ public:
 
   FileSpec GetCurrentSourceDir();
 
+  bool IsInteractive();
+
+  bool IOHandlerInterrupt(IOHandler &io_handler) override;
+
 protected:
   friend class Debugger;
 
@@ -617,8 +624,6 @@ protected:
       return ConstString("quit\n");
     return ConstString();
   }
-
-  bool IOHandlerInterrupt(IOHandler &io_handler) override;
 
   void GetProcessOutput();
 
@@ -649,10 +654,11 @@ private:
 
   void FindCommandsForApropos(llvm::StringRef word, StringList &commands_found,
                               StringList &commands_help,
-                              CommandObject::CommandMap &command_map);
+                              const CommandObject::CommandMap &command_map);
 
   // An interruptible wrapper around the stream output
-  void PrintCommandOutput(Stream &stream, llvm::StringRef str);
+  void PrintCommandOutput(IOHandler &io_handler, llvm::StringRef str,
+                          bool is_stdout);
 
   bool EchoCommandNonInteractive(llvm::StringRef line,
                                  const Flags &io_handler_flags) const;

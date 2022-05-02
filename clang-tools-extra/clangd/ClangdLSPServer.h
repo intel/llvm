@@ -10,8 +10,6 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDLSPSERVER_H
 
 #include "ClangdServer.h"
-#include "DraftStore.h"
-#include "FindSymbols.h"
 #include "GlobalCompilationDatabase.h"
 #include "LSPBinder.h"
 #include "Protocol.h"
@@ -20,9 +18,7 @@
 #include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "support/Threading.h"
-#include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/JSON.h"
 #include <chrono>
 #include <cstddef>
@@ -30,8 +26,6 @@
 
 namespace clang {
 namespace clangd {
-
-class SymbolIndex;
 
 /// This class exposes ClangdServer's capabilities via Language Server Protocol.
 ///
@@ -62,9 +56,6 @@ public:
     std::function<bool(const Tweak &)> TweakFilter = [](const Tweak &T) {
       return !T.hidden(); // only enable non-hidden tweaks.
     };
-
-    /// Enable preview of InlayHints feature.
-    bool InlayHints = false;
 
     /// Limit the number of references returned (0 means no limit).
     size_t ReferencesLimit = 0;
@@ -124,6 +115,8 @@ private:
                          Callback<std::vector<Location>>);
   void onGoToDefinition(const TextDocumentPositionParams &,
                         Callback<std::vector<Location>>);
+  void onGoToType(const TextDocumentPositionParams &,
+                  Callback<std::vector<Location>>);
   void onGoToImplementation(const TextDocumentPositionParams &,
                             Callback<std::vector<Location>>);
   void onReference(const ReferenceParams &, Callback<std::vector<Location>>);

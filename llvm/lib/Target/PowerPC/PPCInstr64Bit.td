@@ -1014,8 +1014,6 @@ let Interpretation64Bit = 1, isCodeGenOnly = 1 in {
   def SETB8 : XForm_44<31, 128, (outs g8rc:$RT), (ins crrc:$BFA),
                        "setb $RT, $BFA", IIC_IntGeneral>, isPPC64;
 }
-def DARN : XForm_45<31, 755, (outs g8rc:$RT), (ins u2imm:$L),
-                     "darn $RT, $L", IIC_LdStLD>, isPPC64;
 def ADDPCIS : DXForm<19, 2, (outs g8rc:$RT), (ins i32imm:$D),
                      "addpcis $RT, $D", IIC_BrB, []>, isPPC64;
 def MODSD : XForm_8<31, 777, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
@@ -1038,6 +1036,11 @@ let Interpretation64Bit = 1, isCodeGenOnly = 1 in
 def MULLI8 : DForm_2<7, (outs g8rc:$rD), (ins g8rc:$rA, s16imm64:$imm),
                        "mulli $rD, $rA, $imm", IIC_IntMulLI,
                        [(set i64:$rD, (mul i64:$rA, imm64SExt16:$imm))]>;
+}
+
+let hasSideEffects = 1 in {
+def DARN : XForm_45<31, 755, (outs g8rc:$RT), (ins u2imm:$L),
+                    "darn $RT, $L", IIC_LdStLD>, isPPC64;
 }
 
 let hasSideEffects = 0 in {
@@ -1396,10 +1399,6 @@ def LDUX : XForm_1_memOp<31, 53, (outs g8rc:$rD, ptr_rc_nor0:$ea_result),
                         "ldux $rD, $addr", IIC_LdStLDUX,
                         []>, RegConstraint<"$addr.ptrreg = $ea_result">,
                         NoEncode<"$ea_result">, isPPC64;
-
-def LDMX : XForm_1<31, 309, (outs g8rc:$rD), (ins memrr:$src),
-                   "ldmx $rD, $src", IIC_LdStLD, []>, isPPC64,
-                   Requires<[IsISA3_0]>;
 }
 
 let mayLoad = 1, hasNoSchedulingInfo = 1 in {
@@ -1760,26 +1759,27 @@ defm FCTIWUZ : XForm_26r<63, 143, (outs f8rc:$frD), (ins f8rc:$frB),
 
 // These instructions store a hash computed from the value of the link register
 // and the value of the stack pointer.
-let mayStore = 1 in {
-def HASHST : XForm_XD6_RA5_RB5<31, 722, (outs),
-                               (ins g8rc:$RB, memrihash:$D_RA_XD),
-                               "hashst $RB, $D_RA_XD", IIC_IntGeneral, []>;
-def HASHSTP : XForm_XD6_RA5_RB5<31, 658, (outs),
+let mayStore = 1, Interpretation64Bit = 1, isCodeGenOnly = 1 in {
+def HASHST8 : XForm_XD6_RA5_RB5<31, 722, (outs),
                                 (ins g8rc:$RB, memrihash:$D_RA_XD),
-                                "hashstp $RB, $D_RA_XD", IIC_IntGeneral, []>;
+                                "hashst $RB, $D_RA_XD", IIC_IntGeneral, []>;
+def HASHSTP8 : XForm_XD6_RA5_RB5<31, 658, (outs),
+                                 (ins g8rc:$RB, memrihash:$D_RA_XD),
+                                 "hashstp $RB, $D_RA_XD", IIC_IntGeneral, []>;
 }
 
 // These instructions check a hash computed from the value of the link register
 // and the value of the stack pointer. The hasSideEffects flag is needed as the
 // instruction may TRAP if the hash does not match the hash stored at the
 // specified address.
-let mayLoad = 1, hasSideEffects = 1 in {
-def HASHCHK : XForm_XD6_RA5_RB5<31, 754, (outs),
-                                (ins g8rc:$RB, memrihash:$D_RA_XD),
-                                "hashchk $RB, $D_RA_XD", IIC_IntGeneral, []>;
-def HASHCHKP : XForm_XD6_RA5_RB5<31, 690, (outs),
+let mayLoad = 1, hasSideEffects = 1,
+    Interpretation64Bit = 1, isCodeGenOnly = 1 in {
+def HASHCHK8 : XForm_XD6_RA5_RB5<31, 754, (outs),
                                  (ins g8rc:$RB, memrihash:$D_RA_XD),
-                                 "hashchkp $RB, $D_RA_XD", IIC_IntGeneral, []>;
+                                 "hashchk $RB, $D_RA_XD", IIC_IntGeneral, []>;
+def HASHCHKP8 : XForm_XD6_RA5_RB5<31, 690, (outs),
+                                  (ins g8rc:$RB, memrihash:$D_RA_XD),
+                                  "hashchkp $RB, $D_RA_XD", IIC_IntGeneral, []>;
 }
 
 let Interpretation64Bit = 1, isCodeGenOnly = 1, hasSideEffects = 1 in

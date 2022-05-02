@@ -57,6 +57,10 @@ llvm.mlir.global extern_weak @extern_weak() : i64
 llvm.mlir.global linkonce_odr @linkonce_odr() : i64
 // CHECK: llvm.mlir.global weak_odr
 llvm.mlir.global weak_odr @weak_odr() : i64
+// CHECK: llvm.mlir.global external @has_thr_local(42 : i64) {thr_local} : i64
+llvm.mlir.global external @has_thr_local(42 : i64) {thr_local} : i64
+// CHECK: llvm.mlir.global external @has_dso_local(42 : i64) {dso_local} : i64
+llvm.mlir.global external @has_dso_local(42 : i64) {dso_local} : i64
 
 // CHECK-LABEL: references
 func @references() {
@@ -80,8 +84,8 @@ llvm.mlir.global internal constant @sectionvar("teststring")  {section = ".mysec
 
 // -----
 
-// expected-error @+1 {{requires string attribute 'sym_name'}}
-"llvm.mlir.global"() ({}) {type = i64, constant, value = 42 : i64} : () -> ()
+// expected-error @+1 {{op requires attribute 'sym_name'}}
+"llvm.mlir.global"() ({}) {linkage = "private", type = i64, constant, global_type = i64, value = 42 : i64} : () -> ()
 
 // -----
 
@@ -172,8 +176,7 @@ llvm.func @bar() {
 
 // -----
 
-// expected-error @+2 {{'llvm.mlir.global' op expects regions to end with 'llvm.return', found 'llvm.mlir.constant'}}
-// expected-note @+1 {{in custom textual format, the absence of terminator implies 'llvm.return'}}
+// expected-error @+2 {{block with no terminator}}
 llvm.mlir.global internal @g() : i64 {
   %c = llvm.mlir.constant(42 : i64) : i64
 }

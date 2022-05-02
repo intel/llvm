@@ -32,7 +32,7 @@ namespace {
 /// given module containing PDL pattern operations.
 struct PatternLowering {
 public:
-  PatternLowering(FuncOp matcherFunc, ModuleOp rewriterModule);
+  PatternLowering(pdl_interp::FuncOp matcherFunc, ModuleOp rewriterModule);
 
   /// Generate code for matching and rewriting based on the pattern operations
   /// within the module.
@@ -110,7 +110,7 @@ private:
   OpBuilder builder;
 
   /// The matcher function used for all match related logic within PDL patterns.
-  FuncOp matcherFunc;
+  pdl_interp::FuncOp matcherFunc;
 
   /// The rewriter module containing the all rewrite related logic within PDL
   /// patterns.
@@ -137,7 +137,8 @@ private:
 };
 } // namespace
 
-PatternLowering::PatternLowering(FuncOp matcherFunc, ModuleOp rewriterModule)
+PatternLowering::PatternLowering(pdl_interp::FuncOp matcherFunc,
+                                 ModuleOp rewriterModule)
     : builder(matcherFunc.getContext()), matcherFunc(matcherFunc),
       rewriterModule(rewriterModule), rewriterSymbolTable(rewriterModule) {}
 
@@ -150,7 +151,7 @@ void PatternLowering::lower(ModuleOp module) {
 
   // Insert the root operation, i.e. argument to the matcher, at the root
   // position.
-  Block *matcherEntryBlock = matcherFunc.addEntryBlock();
+  Block *matcherEntryBlock = &matcherFunc.front();
   values.insert(predicateBuilder.getRoot(), matcherEntryBlock->getArgument(0));
 
   // Generate a root matcher node from the provided PDL module.
@@ -239,7 +240,7 @@ Value PatternLowering::getValueAt(Block *&currentBlock, Position *pos) {
   // Get the value for the parent position.
   Value parentVal;
   if (Position *parent = pos->getParent())
-    parentVal = getValueAt(currentBlock, pos->getParent());
+    parentVal = getValueAt(currentBlock, parent);
 
   // TODO: Use a location from the position.
   Location loc = parentVal ? parentVal.getLoc() : builder.getUnknownLoc();
@@ -248,45 +249,43 @@ Value PatternLowering::getValueAt(Block *&currentBlock, Position *pos) {
   switch (pos->getKind()) {
   case Predicates::OperationPos: {
     auto *operationPos = cast<OperationPosition>(pos);
-    if (!operationPos->isUpward()) {
+    if (operationPos->isOperandDefiningOp())
       // Standard (downward) traversal which directly follows the defining op.
       value = builder.create<pdl_interp::GetDefiningOpOp>(
           loc, builder.getType<pdl::OperationType>(), parentVal);
-      break;
-    }
+    else
+      // A passthrough operation position.
+      value = parentVal;
+    break;
+  }
+  case Predicates::UsersPos: {
+    auto *usersPos = cast<UsersPosition>(pos);
 
     // The first operation retrieves the representative value of a range.
-    // This applies only when the parent is a range of values.
-    if (parentVal.getType().isa<pdl::RangeType>())
+    // This applies only when the parent is a range of values and we were
+    // requested to use a representative value (e.g., upward traversal).
+    if (parentVal.getType().isa<pdl::RangeType>() &&
+        usersPos->useRepresentative())
       value = builder.create<pdl_interp::ExtractOp>(loc, parentVal, 0);
     else
       value = parentVal;
 
     // The second operation retrieves the users.
     value = builder.create<pdl_interp::GetUsersOp>(loc, value);
-
-    // The third operation iterates over them.
+    break;
+  }
+  case Predicates::ForEachPos: {
     assert(!failureBlockStack.empty() && "expected valid failure block");
     auto foreach = builder.create<pdl_interp::ForEachOp>(
-        loc, value, failureBlockStack.back(), /*initLoop=*/true);
+        loc, parentVal, failureBlockStack.back(), /*initLoop=*/true);
     value = foreach.getLoopVariable();
 
-    // Create the success and continuation blocks.
-    Block *successBlock = builder.createBlock(&foreach.region());
-    Block *continueBlock = builder.createBlock(successBlock);
+    // Create the continuation block.
+    Block *continueBlock = builder.createBlock(&foreach.getRegion());
     builder.create<pdl_interp::ContinueOp>(loc);
     failureBlockStack.push_back(continueBlock);
 
-    // The fourth operation extracts the operand(s) of the user at the specified
-    // index (which can be None, indicating all operands).
-    builder.setInsertionPointToStart(&foreach.region().front());
-    Value operands = builder.create<pdl_interp::GetOperandsOp>(
-        loc, parentVal.getType(), value, operationPos->getIndex());
-
-    // The fifth operation compares the operands to the parent value / range.
-    builder.create<pdl_interp::AreEqualOp>(loc, parentVal, operands,
-                                           successBlock, continueBlock);
-    currentBlock = successBlock;
+    currentBlock = &foreach.getRegion().front();
     break;
   }
   case Predicates::OperandPos: {
@@ -432,9 +431,8 @@ void PatternLowering::generate(BoolNode *boolNode, Block *&currentBlock,
   }
   case Predicates::ConstraintQuestion: {
     auto *cstQuestion = cast<ConstraintQuestion>(question);
-    builder.create<pdl_interp::ApplyConstraintOp>(
-        loc, cstQuestion->getName(), args, cstQuestion->getParams(), success,
-        failure);
+    builder.create<pdl_interp::ApplyConstraintOp>(loc, cstQuestion->getName(),
+                                                  args, success, failure);
     break;
   }
   default:
@@ -592,13 +590,14 @@ void PatternLowering::generate(SuccessNode *successNode, Block *&currentBlock) {
 
 SymbolRefAttr PatternLowering::generateRewriter(
     pdl::PatternOp pattern, SmallVectorImpl<Position *> &usedMatchValues) {
-  FuncOp rewriterFunc =
-      FuncOp::create(pattern.getLoc(), "pdl_generated_rewriter",
-                     builder.getFunctionType(llvm::None, llvm::None));
+  builder.setInsertionPointToEnd(rewriterModule.getBody());
+  auto rewriterFunc = builder.create<pdl_interp::FuncOp>(
+      pattern.getLoc(), "pdl_generated_rewriter",
+      builder.getFunctionType(llvm::None, llvm::None));
   rewriterSymbolTable.insert(rewriterFunc);
 
   // Generate the rewriter function body.
-  builder.setInsertionPointToEnd(rewriterFunc.addEntryBlock());
+  builder.setInsertionPointToEnd(&rewriterFunc.front());
 
   // Map an input operand of the pattern to a generated interpreter value.
   DenseMap<Value, Value> rewriteValues;
@@ -630,7 +629,8 @@ SymbolRefAttr PatternLowering::generateRewriter(
     Position *inputPos = valueToPosition.lookup(oldValue);
     assert(inputPos && "expected value to be a pattern input");
     usedMatchValues.push_back(inputPos);
-    return newValue = rewriterFunc.front().addArgument(oldValue.getType());
+    return newValue = rewriterFunc.front().addArgument(oldValue.getType(),
+                                                       oldValue.getLoc());
   };
 
   // If this is a custom rewriter, simply dispatch to the registered rewrite
@@ -643,8 +643,7 @@ SymbolRefAttr PatternLowering::generateRewriter(
     auto mappedArgs = llvm::map_range(rewriter.externalArgs(), mapRewriteValue);
     args.append(mappedArgs.begin(), mappedArgs.end());
     builder.create<pdl_interp::ApplyRewriteOp>(
-        rewriter.getLoc(), /*resultTypes=*/TypeRange(), rewriteName, args,
-        rewriter.externalConstParamsAttr());
+        rewriter.getLoc(), /*resultTypes=*/TypeRange(), rewriteName, args);
   } else {
     // Otherwise this is a dag rewriter defined using PDL operations.
     for (Operation &rewriteOp : *rewriter.getBody()) {
@@ -677,8 +676,8 @@ void PatternLowering::generateRewriter(
     arguments.push_back(mapRewriteValue(argument));
   auto interpOp = builder.create<pdl_interp::ApplyRewriteOp>(
       rewriteOp.getLoc(), rewriteOp.getResultTypes(), rewriteOp.nameAttr(),
-      arguments, rewriteOp.constParamsAttr());
-  for (auto it : llvm::zip(rewriteOp.results(), interpOp.results()))
+      arguments);
+  for (auto it : llvm::zip(rewriteOp.getResults(), interpOp.getResults()))
     rewriteValues[std::get<0>(it)] = std::get<1>(it);
 }
 
@@ -736,7 +735,7 @@ void PatternLowering::generateRewriter(
   bool seenVariableLength = false;
   Type valueTy = builder.getType<pdl::ValueType>();
   Type valueRangeTy = pdl::RangeType::get(valueTy);
-  for (auto it : llvm::enumerate(resultTys)) {
+  for (const auto &it : llvm::enumerate(resultTys)) {
     Value &type = rewriteValues[it.value()];
     if (type)
       continue;
@@ -832,7 +831,6 @@ void PatternLowering::generateOperationResultTypeRewriter(
   // Look for an operation that was replaced by `op`. The result types will be
   // inferred from the results that were replaced.
   Block *rewriterBlock = op->getBlock();
-  Value replacedOp;
   for (OpOperand &use : op.op().getUses()) {
     // Check that the use corresponds to a ReplaceOp and that it is the
     // replacement value, not the operation being replaced.
@@ -862,7 +860,7 @@ void PatternLowering::generateOperationResultTypeRewriter(
   // Otherwise, handle inference for each of the result types individually.
   OperandRange resultTypeValues = op.types();
   types.reserve(resultTypeValues.size());
-  for (auto it : llvm::enumerate(resultTypeValues)) {
+  for (const auto &it : llvm::enumerate(resultTypeValues)) {
     Value resultType = it.value();
 
     // Check for an already translated value.
@@ -904,7 +902,7 @@ void PDLToPDLInterpPass::runOnOperation() {
   // Create the main matcher function This function contains all of the match
   // related functionality from patterns in the module.
   OpBuilder builder = OpBuilder::atBlockBegin(module.getBody());
-  FuncOp matcherFunc = builder.create<FuncOp>(
+  auto matcherFunc = builder.create<pdl_interp::FuncOp>(
       module.getLoc(), pdl_interp::PDLInterpDialect::getMatcherFunctionName(),
       builder.getFunctionType(builder.getType<pdl::OperationType>(),
                               /*results=*/llvm::None),

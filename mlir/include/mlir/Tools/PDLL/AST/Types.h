@@ -22,6 +22,7 @@ struct AttributeTypeStorage;
 struct ConstraintTypeStorage;
 struct OperationTypeStorage;
 struct RangeTypeStorage;
+struct RewriteTypeStorage;
 struct TupleTypeStorage;
 struct TypeTypeStorage;
 struct ValueTypeStorage;
@@ -51,7 +52,6 @@ public:
   };
 
   Type(Storage *impl = nullptr) : impl(impl) {}
-  Type(const Type &other) = default;
 
   bool operator==(const Type &other) const { return impl == other.impl; }
   bool operator!=(const Type &other) const { return !(*this == other); }
@@ -205,6 +205,20 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// RewriteType
+//===----------------------------------------------------------------------===//
+
+/// This class represents a PDLL type that corresponds to a rewrite reference.
+/// This type has no MLIR C++ API correspondance.
+class RewriteType : public Type::TypeBase<detail::RewriteTypeStorage> {
+public:
+  using Base::Base;
+
+  /// Return an instance of the Rewrite type.
+  static RewriteType get(Context &context);
+};
+
+//===----------------------------------------------------------------------===//
 // TupleType
 //===----------------------------------------------------------------------===//
 
@@ -262,6 +276,15 @@ public:
 } // namespace ast
 } // namespace pdll
 } // namespace mlir
+
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::AttributeTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::ConstraintTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::OperationTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::RangeTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::RewriteTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::TupleTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::TypeTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::ValueTypeStorage)
 
 namespace llvm {
 template <> struct DenseMapInfo<mlir::pdll::ast::Type> {

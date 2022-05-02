@@ -1,10 +1,13 @@
-* @bader
+* @pvchupin
 
 # Front-end compiler
 clang/ @intel/dpcpp-cfe-reviewers
 
 # Clang driver
 clang/**/Driver/ @intel/dpcpp-clang-driver-reviewers
+
+# Clang tools
+clang-tools-extra/ @intel/dpcpp-cfe-reviewers
 
 # LLVM-SPIRV translator
 llvm-spirv/ @intel/dpcpp-spirv-reviewers
@@ -22,17 +25,17 @@ libdevice/ @intel/llvm-reviewers-runtime
 sycl/ @intel/llvm-reviewers-runtime
 
 # Documentation
-sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers
+sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers @tfzhu
 sycl/doc/ @intel/dpcpp-doc-reviewers
 sycl/doc/design/ @intel/dpcpp-specification-reviewers
+sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
-sycl/doc/extensions/SPIRV/ @intel/dpcpp-spirv-doc-reviewers
 
 # Level Zero plugin
 sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
 
 # ESIMD CPU emulator plug-in
-sycl/plugins/esimd_cpu/ @intel/dpcpp-esimd-reviewers
+sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
@@ -48,7 +51,13 @@ llvm/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
-SYCLLowerIR/ @intel/dpcpp-esimd-reviewers
+ESIMD/ @intel/dpcpp-esimd-reviewers
 esimd/ @intel/dpcpp-esimd-reviewers
-sycl/include/sycl/ext/intel/experimental/esimd.hpp @intel/dpcpp-esimd-reviewers
-sycl/doc/extensions/ExplicitSIMD/ @intel/dpcpp-esimd-reviewers
+sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
+sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
+llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
+
+# DevOps configs
+.github/workflows/ @intel/dpcpp-devops-reviewers
+buildbot/ @intel/dpcpp-devops-reviewers
+devops/ @intel/dpcpp-devops-reviewers

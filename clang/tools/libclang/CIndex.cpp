@@ -1442,6 +1442,7 @@ bool CursorVisitor::VisitTemplateParameters(
 bool CursorVisitor::VisitTemplateName(TemplateName Name, SourceLocation Loc) {
   switch (Name.getKind()) {
   case TemplateName::Template:
+  case TemplateName::UsingTemplate:
     return Visit(MakeCursorTemplateRef(Name.getAsTemplateDecl(), Loc, TU));
 
   case TemplateName::OverloadedTemplate:
@@ -1462,7 +1463,7 @@ bool CursorVisitor::VisitTemplateName(TemplateName Name, SourceLocation Loc) {
   case TemplateName::QualifiedTemplate:
     // FIXME: Visit nested-name-specifier.
     return Visit(MakeCursorTemplateRef(
-        Name.getAsQualifiedTemplateName()->getDecl(), Loc, TU));
+        Name.getAsQualifiedTemplateName()->getTemplateDecl(), Loc, TU));
 
   case TemplateName::SubstTemplateTemplateParm:
     return Visit(MakeCursorTemplateRef(
@@ -1675,6 +1676,10 @@ bool CursorVisitor::VisitUsingTypeLoc(UsingTypeLoc TL) { return false; }
 
 bool CursorVisitor::VisitAttributedTypeLoc(AttributedTypeLoc TL) {
   return Visit(TL.getModifiedLoc());
+}
+
+bool CursorVisitor::VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
+  return Visit(TL.getWrappedLoc());
 }
 
 bool CursorVisitor::VisitFunctionTypeLoc(FunctionTypeLoc TL,
@@ -2280,6 +2285,8 @@ void OMPClauseEnqueue::VisitOMPUpdateClause(const OMPUpdateClause *) {}
 
 void OMPClauseEnqueue::VisitOMPCaptureClause(const OMPCaptureClause *) {}
 
+void OMPClauseEnqueue::VisitOMPCompareClause(const OMPCompareClause *) {}
+
 void OMPClauseEnqueue::VisitOMPSeqCstClause(const OMPSeqCstClause *) {}
 
 void OMPClauseEnqueue::VisitOMPAcqRelClause(const OMPAcqRelClause *) {}
@@ -2570,6 +2577,10 @@ void OMPClauseEnqueue::VisitOMPUseDeviceAddrClause(
 }
 void OMPClauseEnqueue::VisitOMPIsDevicePtrClause(
     const OMPIsDevicePtrClause *C) {
+  VisitOMPClauseList(C);
+}
+void OMPClauseEnqueue::VisitOMPHasDeviceAddrClause(
+    const OMPHasDeviceAddrClause *C) {
   VisitOMPClauseList(C);
 }
 void OMPClauseEnqueue::VisitOMPNontemporalClause(
@@ -4013,7 +4024,7 @@ static const ExprEvalResult *evaluateExpr(Expr *expr, CXCursor C) {
   }
 
   if (expr->getStmtClass() == Stmt::ImplicitCastExprClass) {
-    const ImplicitCastExpr *I = dyn_cast<ImplicitCastExpr>(expr);
+    const auto *I = cast<ImplicitCastExpr>(expr);
     auto *subExpr = I->getSubExprAsWritten();
     if (subExpr->getStmtClass() == Stmt::StringLiteralClass ||
         subExpr->getStmtClass() == Stmt::ObjCStringLiteralClass) {
@@ -4952,7 +4963,7 @@ CXStringSet *clang_Cursor_getObjCManglings(CXCursor C) {
 
 CXPrintingPolicy clang_getCursorPrintingPolicy(CXCursor C) {
   if (clang_Cursor_isNull(C))
-    return 0;
+    return nullptr;
   return new PrintingPolicy(getCursorContext(C).getPrintingPolicy());
 }
 
@@ -5725,6 +5736,14 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("OMPMaskedDirective");
   case CXCursor_OMPGenericLoopDirective:
     return cxstring::createRef("OMPGenericLoopDirective");
+  case CXCursor_OMPTeamsGenericLoopDirective:
+    return cxstring::createRef("OMPTeamsGenericLoopDirective");
+  case CXCursor_OMPTargetTeamsGenericLoopDirective:
+    return cxstring::createRef("OMPTargetTeamsGenericLoopDirective");
+  case CXCursor_OMPParallelGenericLoopDirective:
+    return cxstring::createRef("OMPParallelGenericLoopDirective");
+  case CXCursor_OMPTargetParallelGenericLoopDirective:
+    return cxstring::createRef("OMPTargetParallelGenericLoopDirective");
   case CXCursor_OverloadCandidate:
     return cxstring::createRef("OverloadCandidate");
   case CXCursor_TypeAliasTemplateDecl:
@@ -6469,6 +6488,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::Binding:
   case Decl::MSProperty:
   case Decl::MSGuid:
+  case Decl::UnnamedGlobalConstant:
   case Decl::TemplateParamObject:
   case Decl::IndirectField:
   case Decl::ObjCIvar:
@@ -6743,8 +6763,8 @@ void clang_getDefinitionSpellingAndExtent(
     CXCursor C, const char **startBuf, const char **endBuf, unsigned *startLine,
     unsigned *startColumn, unsigned *endLine, unsigned *endColumn) {
   assert(getCursorDecl(C) && "CXCursor has null decl");
-  const FunctionDecl *FD = dyn_cast<FunctionDecl>(getCursorDecl(C));
-  CompoundStmt *Body = dyn_cast<CompoundStmt>(FD->getBody());
+  const auto *FD = cast<FunctionDecl>(getCursorDecl(C));
+  const auto *Body = cast<CompoundStmt>(FD->getBody());
 
   SourceManager &SM = FD->getASTContext().getSourceManager();
   *startBuf = SM.getCharacterData(Body->getLBracLoc());
@@ -6978,16 +6998,16 @@ CXToken *clang_getToken(CXTranslationUnit TU, CXSourceLocation Location) {
 
   if (isNotUsableTU(TU)) {
     LOG_BAD_TU(TU);
-    return NULL;
+    return nullptr;
   }
 
   ASTUnit *CXXUnit = cxtu::getASTUnit(TU);
   if (!CXXUnit)
-    return NULL;
+    return nullptr;
 
   SourceLocation Begin = cxloc::translateSourceLocation(Location);
   if (Begin.isInvalid())
-    return NULL;
+    return nullptr;
   SourceManager &SM = CXXUnit->getSourceManager();
   std::pair<FileID, unsigned> DecomposedEnd = SM.getDecomposedLoc(Begin);
   DecomposedEnd.second +=
@@ -7000,7 +7020,7 @@ CXToken *clang_getToken(CXTranslationUnit TU, CXSourceLocation Location) {
   getTokens(CXXUnit, SourceRange(Begin, End), CXTokens);
 
   if (CXTokens.empty())
-    return NULL;
+    return nullptr;
 
   CXTokens.resize(1);
   CXToken *Token = static_cast<CXToken *>(llvm::safe_malloc(sizeof(CXToken)));
@@ -8284,7 +8304,8 @@ CXFile clang_getIncludedFile(CXCursor cursor) {
     return nullptr;
 
   const InclusionDirective *ID = getCursorInclusionDirective(cursor);
-  return const_cast<FileEntry *>(ID->getFile());
+  Optional<FileEntryRef> File = ID->getFile();
+  return const_cast<FileEntry *>(File ? &File->getFileEntry() : nullptr);
 }
 
 unsigned clang_Cursor_getObjCPropertyAttributes(CXCursor C, unsigned reserved) {
@@ -8292,7 +8313,7 @@ unsigned clang_Cursor_getObjCPropertyAttributes(CXCursor C, unsigned reserved) {
     return CXObjCPropertyAttr_noattr;
 
   unsigned Result = CXObjCPropertyAttr_noattr;
-  const ObjCPropertyDecl *PD = dyn_cast<ObjCPropertyDecl>(getCursorDecl(C));
+  const auto *PD = cast<ObjCPropertyDecl>(getCursorDecl(C));
   ObjCPropertyAttribute::Kind Attr = PD->getPropertyAttributesAsWritten();
 
 #define SET_CXOBJCPROP_ATTR(A)                                                 \
@@ -8320,7 +8341,7 @@ CXString clang_Cursor_getObjCPropertyGetterName(CXCursor C) {
   if (C.kind != CXCursor_ObjCPropertyDecl)
     return cxstring::createNull();
 
-  const ObjCPropertyDecl *PD = dyn_cast<ObjCPropertyDecl>(getCursorDecl(C));
+  const auto *PD = cast<ObjCPropertyDecl>(getCursorDecl(C));
   Selector sel = PD->getGetterName();
   if (sel.isNull())
     return cxstring::createNull();
@@ -8332,7 +8353,7 @@ CXString clang_Cursor_getObjCPropertySetterName(CXCursor C) {
   if (C.kind != CXCursor_ObjCPropertyDecl)
     return cxstring::createNull();
 
-  const ObjCPropertyDecl *PD = dyn_cast<ObjCPropertyDecl>(getCursorDecl(C));
+  const auto *PD = cast<ObjCPropertyDecl>(getCursorDecl(C));
   Selector sel = PD->getSetterName();
   if (sel.isNull())
     return cxstring::createNull();

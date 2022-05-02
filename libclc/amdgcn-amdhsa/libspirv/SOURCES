@@ -1,3 +1,6 @@
+
+group/collectives.cl
+group/collectives_helpers.ll
 atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 synchronization/barrier.cl
@@ -28,15 +31,19 @@ math/fmin.cl
 math/fmod.cl
 math/frexp.cl
 math/hypot.cl
+math/ilogb.cl
 math/ldexp.cl
 math/lgamma.cl
 math/log.cl
+math/log2.cl
 math/log10.cl
 math/log1p.cl
 math/logb.cl
+math/mangle_common.h
 math/modf.cl
 math/nextafter.cl
 math/pow.cl
+math/remainder.cl
 math/round.cl
 math/rsqrt.cl
 math/sin.cl
@@ -56,3 +63,4 @@ workitem/get_sub_group_id.cl
 workitem/get_sub_group_local_id.cl
 workitem/get_sub_group_size.cl
 misc/sub_group_shuffle.cl
+async/wait_group_events.cl

@@ -9,6 +9,7 @@
 #include "PassDetail.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/FileUtilities.h"
@@ -180,7 +181,7 @@ struct PassCrashReproducerGenerator::Impl {
 
   /// Flag indicating if reproducer generation should be localized to the
   /// failing pass.
-  bool localReproducer;
+  bool localReproducer = false;
 
   /// A record of all of the currently active reproducer contexts.
   SmallVector<std::unique_ptr<RecoveryReproducerContext>> activeContexts;
@@ -190,7 +191,7 @@ struct PassCrashReproducerGenerator::Impl {
   SetVector<std::pair<Pass *, Operation *>> runningPasses;
 
   /// Various pass manager flags that get emitted when generating a reproducer.
-  bool pmFlagVerifyPasses;
+  bool pmFlagVerifyPasses = false;
 };
 
 PassCrashReproducerGenerator::PassCrashReproducerGenerator(

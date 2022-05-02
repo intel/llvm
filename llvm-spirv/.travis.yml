@@ -42,7 +42,7 @@ compiler:
 env:
   global:
     - MAKEFLAGS="-j2"
-    - LLVM_VERSION=14
+    - LLVM_VERSION=15
   matrix:
     - BUILD_TYPE=Release BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
     - BUILD_TYPE=Debug   BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"

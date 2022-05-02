@@ -88,6 +88,9 @@ public:
   constexpr bool IsSubnormal() const {
     return Exponent() == 0 && !GetSignificand().IsZero();
   }
+  constexpr bool IsNormal() const {
+    return !(IsInfinite() || IsNotANumber() || IsSubnormal());
+  }
 
   constexpr Real ABS() const { // non-arithmetic, no flags returned
     return {word_.IBCLR(bits - 1)};
@@ -116,6 +119,9 @@ public:
       const Real &, Rounding rounding = defaultRounding) const;
 
   ValueWithRealFlags<Real> SQRT(Rounding rounding = defaultRounding) const;
+
+  // NEAREST(), IEEE_NEXT_AFTER(), IEEE_NEXT_UP(), and IEEE_NEXT_DOWN()
+  ValueWithRealFlags<Real> NEAREST(bool upward) const;
 
   // HYPOT(x,y)=SQRT(x**2 + y**2) computed so as to avoid spurious
   // intermediate overflows.
@@ -155,6 +161,26 @@ public:
   static constexpr int MAXEXPONENT{maxExponent - exponentBias};
   static constexpr int MINEXPONENT{2 - exponentBias};
 
+  // SCALE(); also known as IEEE_SCALB and (in IEEE-754 '08) ScaleB.
+  template <typename INT>
+  ValueWithRealFlags<Real> SCALE(
+      const INT &by, Rounding rounding = defaultRounding) const {
+    auto expo{exponentBias + by.ToInt64()};
+    if (IsZero()) {
+      expo = exponentBias; // ignore by, don't overflow
+    } else if (by > INT{maxExponent}) {
+      expo = maxExponent;
+    } else if (by < INT{-exponentBias}) {
+      expo = -1;
+    }
+    Real twoPow;
+    RealFlags flags{
+        twoPow.Normalize(false, static_cast<int>(expo), Fraction::MASKL(1))};
+    ValueWithRealFlags<Real> result{Multiply(twoPow, rounding)};
+    result.flags |= flags;
+    return result;
+  }
+
   constexpr Real FlushSubnormalToZero() const {
     if (IsSubnormal()) {
       return Real{};
@@ -169,6 +195,10 @@ public:
                 .IBSET(significandBits - 1)
                 .IBSET(significandBits - 2)};
   }
+
+  static constexpr Real PositiveZero() { return Real{}; }
+
+  static constexpr Real NegativeZero() { return {Word{}.MASKL(1)}; }
 
   static constexpr Real Infinity(bool negative) {
     Word infinity{maxExponent};

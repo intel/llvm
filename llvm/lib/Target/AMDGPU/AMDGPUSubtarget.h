@@ -45,23 +45,23 @@ private:
   Triple TargetTriple;
 
 protected:
-  bool GCN3Encoding;
-  bool Has16BitInsts;
-  bool HasMadMixInsts;
-  bool HasMadMacF32Insts;
-  bool HasDsSrc2Insts;
-  bool HasSDWA;
-  bool HasVOP3PInsts;
-  bool HasMulI24;
-  bool HasMulU24;
-  bool HasSMulHi;
-  bool HasInv2PiInlineImm;
-  bool HasFminFmaxLegacy;
-  bool EnablePromoteAlloca;
-  bool HasTrigReducedRange;
-  unsigned MaxWavesPerEU;
-  unsigned LocalMemorySize;
-  char WavefrontSizeLog2;
+  bool GCN3Encoding = false;
+  bool Has16BitInsts = false;
+  bool HasMadMixInsts = false;
+  bool HasMadMacF32Insts = false;
+  bool HasDsSrc2Insts = false;
+  bool HasSDWA = false;
+  bool HasVOP3PInsts = false;
+  bool HasMulI24 = true;
+  bool HasMulU24 = true;
+  bool HasSMulHi = false;
+  bool HasInv2PiInlineImm = false;
+  bool HasFminFmaxLegacy = true;
+  bool EnablePromoteAlloca = false;
+  bool HasTrigReducedRange = false;
+  unsigned MaxWavesPerEU = 10;
+  unsigned LocalMemorySize = 0;
+  char WavefrontSizeLog2 = 0;
 
 public:
   AMDGPUSubtarget(const Triple &TT);
@@ -212,7 +212,19 @@ public:
   /// Returns the offset in bytes from the start of the input buffer
   ///        of the first explicit kernel argument.
   unsigned getExplicitKernelArgOffset(const Function &F) const {
-    return isAmdHsaOrMesa(F) ? 0 : 36;
+    switch (TargetTriple.getOS()) {
+    case Triple::AMDHSA:
+    case Triple::AMDPAL:
+    case Triple::Mesa3D:
+      return 0;
+    case Triple::UnknownOS:
+    default:
+      // For legacy reasons unknown/other is treated as a different version of
+      // mesa.
+      return 36;
+    }
+
+    llvm_unreachable("invalid triple OS");
   }
 
   /// \returns Maximum number of work groups per compute unit supported by the
@@ -255,7 +267,7 @@ public:
   /// \p WavefrontSize.
   AMDGPUDwarfFlavour getAMDGPUDwarfFlavour() const;
 
-  virtual ~AMDGPUSubtarget() {}
+  virtual ~AMDGPUSubtarget() = default;
 };
 
 } // end namespace llvm

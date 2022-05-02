@@ -1,0 +1,98 @@
+= sycl_ext_oneapi_usm_device_read_only
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+== Overview
+
+Introduce new property notifying the SYCL runtime that the memory being
+allocated is only possibly modified from the host, but read-only in
+all device code.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine
+the macro `SYCL_EXT_ONEAPI_USM_DEVICE_READ_ONLY` to one of the values defined
+in the table below.  Applications can test for the existence of this macro
+to determine if the implementation supports this feature, or applications
+can test the macro's value to determine which of the extension's features
+the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== API of the extension
+
+The core SYCL specification currently says this in Section 4.8.3
+"USM allocations":
+
+> This specification does not yet define any USM allocation properties.
+
+This extension adds support for a new property for all USM allocation routines
+taking properties list:
+
+```c++
+namespace sycl::ext::oneapi::property::usm {
+
+  class device_read_only {
+  public:
+    device_read_only() = default;
+  };
+
+} // namespace
+```
+The new property hints the SYCL runtime that the memory being allocated is
+only possibly modified from the host. Any device accesses to the memory
+allocated with this property must be read-only. If device code does write to
+the memory that was allocated with this property, the results
+are undefined. This hint may be used by an implementation to optimize
+allocations and and their access, if possible.

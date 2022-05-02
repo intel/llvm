@@ -66,7 +66,7 @@ PreprocessorLexer *Preprocessor::getCurrentFileLexer() const {
 
 /// EnterSourceFile - Add a source file to the top of the include stack and
 /// start lexing tokens from it instead of the current buffer.
-bool Preprocessor::EnterSourceFile(FileID FID, const DirectoryLookup *CurDir,
+bool Preprocessor::EnterSourceFile(FileID FID, ConstSearchDirIterator CurDir,
                                    SourceLocation Loc,
                                    bool IsFirstIncludeOfFile) {
   assert(!CurTokenLexer && "Cannot #include a file inside a macro!");
@@ -100,7 +100,7 @@ bool Preprocessor::EnterSourceFile(FileID FID, const DirectoryLookup *CurDir,
 /// EnterSourceFileWithLexer - Add a source file to the top of the include stack
 ///  and start lexing tokens from it instead of the current buffer.
 void Preprocessor::EnterSourceFileWithLexer(Lexer *TheLexer,
-                                            const DirectoryLookup *CurDir) {
+                                            ConstSearchDirIterator CurDir) {
 
   // Add the current lexer to the include stack.
   if (CurPPLexer || CurTokenLexer)
@@ -432,8 +432,13 @@ bool Preprocessor::HandleEndOfFile(Token &Result, SourceLocation EndLoc,
   // instantiation or a _Pragma.
   if (PragmaAssumeNonNullLoc.isValid() &&
       !isEndOfMacro && !(CurLexer && CurLexer->Is_PragmaLexer)) {
-    Diag(PragmaAssumeNonNullLoc, diag::err_pp_eof_in_assume_nonnull);
-
+    // If we're at the end of generating a preamble, we should record the
+    // unterminated \#pragma clang assume_nonnull so we can restore it later
+    // when the preamble is loaded into the main file.
+    if (isRecordingPreamble() && isInPrimaryFile())
+      PreambleRecordedPragmaAssumeNonNullLoc = PragmaAssumeNonNullLoc;
+    else
+      Diag(PragmaAssumeNonNullLoc, diag::err_pp_eof_in_assume_nonnull);
     // Recover by leaving immediately.
     PragmaAssumeNonNullLoc = SourceLocation();
   }
@@ -514,10 +519,14 @@ bool Preprocessor::HandleEndOfFile(Token &Result, SourceLocation EndLoc,
                              PPCallbacks::ExitFile, FileType, ExitedFID);
     }
 
-    // Restore conditional stack from the preamble right after exiting from the
-    // predefines file.
-    if (ExitedFromPredefinesFile)
+    // Restore conditional stack as well as the recorded
+    // \#pragma clang assume_nonnull from the preamble right after exiting
+    // from the predefines file.
+    if (ExitedFromPredefinesFile) {
       replayPreambleConditionalStack();
+      if (PreambleRecordedPragmaAssumeNonNullLoc.isValid())
+        PragmaAssumeNonNullLoc = PreambleRecordedPragmaAssumeNonNullLoc;
+    }
 
     if (!isEndOfMacro && CurPPLexer && FoundPCHThroughHeader &&
         (isInPrimaryFile() ||

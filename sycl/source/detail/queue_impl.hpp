@@ -97,6 +97,7 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(
             MDiscardEvents &&
             (MHostQueue ? true
@@ -109,7 +110,7 @@ public:
                             "discard_events and enable_profiling.");
     }
     if (!Context->hasDevice(Device))
-      throw cl::sycl::invalid_parameter_error(
+      throw cl::sycl::invalid_object_error(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);
@@ -135,6 +136,7 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(
             MDiscardEvents &&
             (MHostQueue ? true
@@ -439,16 +441,28 @@ public:
     return MAssertHappenedBuffer;
   }
 
-private:
-  void finalizeHandler(handler &Handler, const CG::CGTYPE &Type,
+protected:
+  // template is needed for proper unit testing
+  template <typename HandlerType = handler>
+  void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
-      bool NeedSeparateDependencyMgmt =
-          (Type == CG::CGTYPE::CodeplayHostTask ||
-           Type == CG::CGTYPE::CodeplayInteropTask);
+
+      auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
+        return (Type == CG::CGTYPE::CodeplayHostTask ||
+                Type == CG::CGTYPE::CodeplayInteropTask);
+      };
+
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MLastEventMtx};
+
+      if (MLastCGType == CG::CGTYPE::None)
+        MLastCGType = Type;
+      // Also handles case when sync model changes. E.g. Last is host, new is
+      // kernel.
+      bool NeedSeparateDependencyMgmt =
+          IsExpDepManaged(Type) || IsExpDepManaged(MLastCGType);
 
       if (NeedSeparateDependencyMgmt)
         Handler.depends_on(MLastEvent);
@@ -456,10 +470,12 @@ private:
       EventRet = Handler.finalize();
 
       MLastEvent = EventRet;
+      MLastCGType = Type;
     } else
       EventRet = Handler.finalize();
   }
 
+private:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -560,12 +576,17 @@ private:
   // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
   std::mutex MLastEventMtx;
+  // Used for in-order queues in pair with MLastEvent
+  // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
+  // backend. Using type to setup explicit sync between host and pi tasks.
+  CG::CGTYPE MLastCGType = CG::CGTYPE::None;
 
   const bool MIsInorder;
 
 public:
   // Queue constructed with the discard_events property
   const bool MDiscardEvents;
+  const bool MIsProfilingEnabled;
 
 private:
   // This flag says if we can discard events based on a queue "setup" which will

@@ -20,18 +20,6 @@
 #include "tsan_report.h"
 #include "tsan_flags.h"
 
-// May be overriden by front-end.
-SANITIZER_WEAK_DEFAULT_IMPL
-void __sanitizer_malloc_hook(void *ptr, uptr size) {
-  (void)ptr;
-  (void)size;
-}
-
-SANITIZER_WEAK_DEFAULT_IMPL
-void __sanitizer_free_hook(void *ptr) {
-  (void)ptr;
-}
-
 namespace __tsan {
 
 struct MapUnmapCallback {
@@ -124,21 +112,21 @@ ScopedGlobalProcessor::~ScopedGlobalProcessor() {
   gp->mtx.Unlock();
 }
 
-void AllocatorLock() NO_THREAD_SAFETY_ANALYSIS {
+void AllocatorLock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   global_proc()->internal_alloc_mtx.Lock();
   InternalAllocatorLock();
 }
 
-void AllocatorUnlock() NO_THREAD_SAFETY_ANALYSIS {
+void AllocatorUnlock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   InternalAllocatorUnlock();
   global_proc()->internal_alloc_mtx.Unlock();
 }
 
-void GlobalProcessorLock() NO_THREAD_SAFETY_ANALYSIS {
+void GlobalProcessorLock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   global_proc()->mtx.Lock();
 }
 
-void GlobalProcessorUnlock() NO_THREAD_SAFETY_ANALYSIS {
+void GlobalProcessorUnlock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   global_proc()->mtx.Unlock();
 }
 
@@ -378,7 +366,6 @@ void invoke_malloc_hook(void *ptr, uptr size) {
   ThreadState *thr = cur_thread();
   if (ctx == 0 || !ctx->initialized || thr->ignore_interceptors)
     return;
-  __sanitizer_malloc_hook(ptr, size);
   RunMallocHooks(ptr, size);
 }
 
@@ -386,7 +373,6 @@ void invoke_free_hook(void *ptr) {
   ThreadState *thr = cur_thread();
   if (ctx == 0 || !ctx->initialized || thr->ignore_interceptors)
     return;
-  __sanitizer_free_hook(ptr);
   RunFreeHooks(ptr);
 }
 

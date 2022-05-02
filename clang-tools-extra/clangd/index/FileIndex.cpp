@@ -9,7 +9,6 @@
 #include "FileIndex.h"
 #include "CollectMacros.h"
 #include "ParsedAST.h"
-#include "SymbolCollector.h"
 #include "index/CanonicalIncludes.h"
 #include "index/Index.h"
 #include "index/MemIndex.h"
@@ -18,6 +17,7 @@
 #include "index/Relation.h"
 #include "index/Serialization.h"
 #include "index/Symbol.h"
+#include "index/SymbolCollector.h"
 #include "index/SymbolID.h"
 #include "index/SymbolOrigin.h"
 #include "index/dex/Dex.h"
@@ -27,14 +27,12 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Index/IndexingAction.h"
 #include "clang/Index/IndexingOptions.h"
-#include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Error.h"
 #include <algorithm>
 #include <memory>
 #include <tuple>
@@ -54,8 +52,12 @@ SlabTuple indexSymbols(ASTContext &AST, Preprocessor &PP,
   CollectorOpts.CollectIncludePath = true;
   CollectorOpts.Includes = &Includes;
   CollectorOpts.CountReferences = false;
-  CollectorOpts.Origin = SymbolOrigin::Dynamic;
+  CollectorOpts.Origin =
+      IsIndexMainAST ? SymbolOrigin::Open : SymbolOrigin::Preamble;
   CollectorOpts.CollectMainFileRefs = CollectMainFileRefs;
+  // We want stdlib implementation details in the index only if we've opened the
+  // file in question. This does means xrefs won't work, though.
+  CollectorOpts.CollectReserved = IsIndexMainAST;
 
   index::IndexingOptions IndexOpts;
   // We only need declarations, because we don't count references.
@@ -82,7 +84,7 @@ SlabTuple indexSymbols(ASTContext &AST, Preprocessor &PP,
     Collector.handleMacros(*MacroRefsToIndex);
 
   const auto &SM = AST.getSourceManager();
-  const auto *MainFileEntry = SM.getFileEntryForID(SM.getMainFileID());
+  const auto MainFileEntry = SM.getFileEntryRefForID(SM.getMainFileID());
   std::string FileName =
       std::string(MainFileEntry ? MainFileEntry->getName() : "");
 

@@ -21,7 +21,6 @@
 namespace llvm {
 
 class GCNTargetMachine;
-class LLVMContext;
 class GCNSubtarget;
 class MachineIRBuilder;
 
@@ -101,6 +100,11 @@ public:
     MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
     AMDGPUFunctionArgInfo::PreloadedValue ArgType) const;
 
+  Register getKernargParameterPtr(MachineIRBuilder &B, int64_t Offset) const;
+  bool legalizeKernargMemParameter(MachineInstr &MI, MachineIRBuilder &B,
+                                   uint64_t Offset,
+                                   Align Alignment = Align(4)) const;
+
   bool legalizeUnsignedDIV_REM(MachineInstr &MI, MachineRegisterInfo &MRI,
                                MachineIRBuilder &B) const;
 
@@ -169,6 +173,8 @@ public:
                             Intrinsic::ID IID) const;
 
   bool legalizeBVHIntrinsic(MachineInstr &MI, MachineIRBuilder &B) const;
+
+  bool legalizeFPTruncRound(MachineInstr &MI, MachineIRBuilder &B) const;
 
   bool legalizeImageIntrinsic(
       MachineInstr &MI, MachineIRBuilder &B,

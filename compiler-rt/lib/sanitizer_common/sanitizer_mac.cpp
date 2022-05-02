@@ -25,6 +25,7 @@
 #include "sanitizer_common.h"
 #include "sanitizer_file.h"
 #include "sanitizer_flags.h"
+#include "sanitizer_interface_internal.h"
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_libc.h"
 #include "sanitizer_platform_limits_posix.h"
@@ -390,6 +391,13 @@ bool FileExists(const char *filename) {
     return false;
   // Sanity check: filename is a regular file.
   return S_ISREG(st.st_mode);
+}
+
+bool DirExists(const char *path) {
+  struct stat st;
+  if (stat(path, &st))
+    return false;
+  return S_ISDIR(st.st_mode);
 }
 
 tid_t GetTid() {
@@ -871,9 +879,9 @@ void LogFullErrorReport(const char *buffer) {
 SignalContext::WriteFlag SignalContext::GetWriteFlag() const {
 #if defined(__x86_64__) || defined(__i386__)
   ucontext_t *ucontext = static_cast<ucontext_t*>(context);
-  return ucontext->uc_mcontext->__es.__err & 2 /*T_PF_WRITE*/ ? WRITE : READ;
+  return ucontext->uc_mcontext->__es.__err & 2 /*T_PF_WRITE*/ ? Write : Read;
 #else
-  return UNKNOWN;
+  return Unknown;
 #endif
 }
 
@@ -1051,12 +1059,12 @@ void MaybeReexec() {
   }
 
   // Verify that interceptors really work.  We'll use dlsym to locate
-  // "pthread_create", if interceptors are working, it should really point to
-  // "wrap_pthread_create" within our own dylib.
-  Dl_info info_pthread_create;
-  void *dlopen_addr = dlsym(RTLD_DEFAULT, "pthread_create");
-  RAW_CHECK(dladdr(dlopen_addr, &info_pthread_create));
-  if (internal_strcmp(info.dli_fname, info_pthread_create.dli_fname) != 0) {
+  // "puts", if interceptors are working, it should really point to
+  // "wrap_puts" within our own dylib.
+  Dl_info info_puts;
+  void *dlopen_addr = dlsym(RTLD_DEFAULT, "puts");
+  RAW_CHECK(dladdr(dlopen_addr, &info_puts));
+  if (internal_strcmp(info.dli_fname, info_puts.dli_fname) != 0) {
     Report(
         "ERROR: Interceptors are not working. This may be because %s is "
         "loaded too late (e.g. via dlopen). Please launch the executable "
@@ -1396,7 +1404,7 @@ void DumpProcessMap() {
     char uuid_str[128];
     FormatUUID(uuid_str, sizeof(uuid_str), modules[i].uuid());
     Printf("0x%zx-0x%zx %s (%s) %s\n", modules[i].base_address(),
-           modules[i].max_executable_address(), modules[i].full_name(),
+           modules[i].max_address(), modules[i].full_name(),
            ModuleArchToString(modules[i].arch()), uuid_str);
   }
   Printf("End of module map.\n");

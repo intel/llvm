@@ -15,10 +15,12 @@ func @verifyDesignatedLoc(%arg0 : i32) -> i32 {
   %0 = "test.loc_src"(%arg0) : (i32) -> i32 loc("loc3")
   %1 = "test.loc_src"(%0) : (i32) -> i32 loc("loc2")
   %2 = "test.loc_src"(%1) : (i32) -> i32 loc("loc1")
+  "test.loc_src_no_res"(%2) : (i32) -> () loc("loc4")
 
   // CHECK: "test.loc_dst"({{.*}}) : (i32) -> i32 loc("loc1")
   // CHECK: "test.loc_dst"({{.*}}) : (i32) -> i32 loc("named")
   // CHECK: "test.loc_dst"({{.*}}) : (i32) -> i32 loc(fused<"fused">["loc2", "loc3"])
+  // CHECK: "test.loc_dst_no_res"({{.*}}) : (i32) -> () loc("loc4")
   return %1 : i32
 }
 
@@ -353,13 +355,6 @@ func @testConstOpMatchNonConst(%arg0 : i32) -> (i32) {
 //===----------------------------------------------------------------------===//
 // Test Enum Attributes
 //===----------------------------------------------------------------------===//
-
-// CHECK-LABEL: verifyStrEnumAttr
-func @verifyStrEnumAttr() -> i32 {
-  // CHECK: "test.str_enum_attr"() {attr = "B"}
-  %0 = "test.str_enum_attr"() {attr = "A"} : () -> i32
-  return %0 : i32
-}
 
 // CHECK-LABEL: verifyI32EnumAttr
 func @verifyI32EnumAttr() -> i32 {

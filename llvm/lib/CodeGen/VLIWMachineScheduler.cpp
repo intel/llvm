@@ -27,7 +27,6 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSchedule.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -293,7 +292,7 @@ void ConvergingVLIWScheduler::initialize(ScheduleDAGMI *dag) {
 
   const std::vector<unsigned> &MaxPressure =
       DAG->getRegPressure().MaxSetPressure;
-  HighPressureSets.assign(MaxPressure.size(), 0);
+  HighPressureSets.assign(MaxPressure.size(), false);
   for (unsigned i = 0, e = MaxPressure.size(); i < e; ++i) {
     unsigned Limit = DAG->getRegClassInfo()->getRegPressureSetLimit(i);
     HighPressureSets[i] =

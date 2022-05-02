@@ -11,7 +11,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     - [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     - [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu)
+    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-emulator)
     - [Build Doxygen documentation](#build-doxygen-documentation)
     - [Deployment](#deployment)
   - [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -54,7 +54,7 @@ docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llv
 ```
 
 This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](dev/DockerBKMs.md) for more info on Docker
+instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on Docker
 commands.
 
 ### Create DPC++ workspace
@@ -121,7 +121,7 @@ flags can be found by launching the script with `--help`):
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* '--enable-esimd-cpu-emulation' -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* '--enable-esimd-emulator' -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
@@ -168,22 +168,31 @@ There is experimental support for DPC++ for CUDA devices.
 
 To enable support for CUDA devices, follow the instructions for the Linux or
 Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
-the CUDA backend has experimental Windows support, windows subsystem for 
+the CUDA backend has Windows support; windows subsystem for
 linux (WSL) is not needed to build and run the CUDA backend.
 
-Enabling this flag requires an installation of
+Enabling this flag requires an installation of at least
 [CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
 the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
 
-Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
-a Titan RTX GPU (SM 71). The CUDA backend should work on Windows or Linux 
-operating systems with any GPU compatible with SM 50 or above. The default 
-SM for the NVIDIA CUDA backend is 5.0. Users can specify lower values, 
-but some features may not be supported. Windows CUDA support is experimental
-as it is not currently tested on the CI.
+**_NOTE:_** An installation of at least
+[CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because
+there is a known issue with some math builtins when using -O1/O2/O3
+Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
+earlier versions of the CUDA toolkit: see
+[this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352)).
+
+An installation of at least
+[CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive)
+is required to fully utilize Turing (SM 75) devices and to enable Ampere (SM 80)
+core features.
+
+The CUDA backend should work on Windows or Linux operating systems with any
+GPU compatible with SM 50 or above. The default SM for the NVIDIA CUDA backend
+is 5.0. Users can specify lower values, but some features may not be supported.
 
 **Non-standard CUDA location**
 
@@ -261,37 +270,23 @@ CUDA 11, and using a GeForce 1060 device.
 There is experimental support for DPC++ for using ESIMD CPU Emulation
 
 This feature supports ESIMD CPU Emulation using CM_EMU library [CM
-Emulation
-project](https://github.com/intel/cm-cpu-emulation). Pre-built library
-package will be downloaded and installed in your deploy directory
-during toolchain build.
+Emulation project](https://github.com/intel/cm-cpu-emulation). The
+library package will be generated from source codes downloaded from
+its open source project and installed in your deploy directory during
+toolchain build.
 
 To enable support for ESIMD CPU emulation, follow the instructions for
-the Linux DPC++ toolchain, but add the `--enable-esimd-cpu-emulation'.
+the Linux DPC++ toolchain, but add the `--enable-esimd-emulator'.
 
 Enabling this flag requires following packages installed.
 
 * Ubuntu 20.04
     * libva-dev / 2.7.0-2
-    * libva-drm2 / 2.7.0-2
-    * libva-glx2 / 2.7.0-2
-    * libva-wayland2 / 2.7.0-2
-    * libva-x11-2 / 2.7.0-2
-    * libva2 / focal 2.7.0-2
     * libffi-dev / 3.3-4
-    * libffi7 / 3.3-4
-    * libdrm-amdgpu1
-    * libdrm-common
-    * libdrm-dev
-    * libdrm-intel1
-    * libdrm-nouveau2
-    * libdrm-radeon1
-    * libdrm2
+    * libtool
 * RHEL 8.*
     * libffi
     * libffi-devel
-    * libdrm
-    * libdrm-devel
     * libva
     * libva-devel
 
@@ -448,7 +443,7 @@ command:
 
 ### Obtain prerequisites for ahead of time (AOT) compilation
 
-[Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
+[Ahead of time compilation](design/CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
 requires ahead of time compiler available in `PATH`. There is
 AOT compiler for each device type:
 
@@ -516,10 +511,10 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
-If testing with HIP for AMD make sure to specify the GPU being used
-by adding `-hip-amd-arch=<target>`to buildbot/configure.py or add 
-`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` 
-to the CMake variable `SYCL_CLANG_EXTRA_FLAGS`.
+If testing with HIP for AMD, the lit tests will use `gfx906` as the default
+architecture. It is possible to change it by adding
+`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to the CMake
+variable `SYCL_CLANG_EXTRA_FLAGS`.
 
 #### Run DPC++ E2E test suite
 
@@ -674,7 +669,7 @@ clang++ -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 simple-sycl-app.cpp -o si
 
 Additionally, user can pass specific options of AOT compiler to
 the DPC++ compiler using ```-Xsycl-target-backend``` option, see
-[Device code formats](CompilerAndRuntimeDesign.md#device-code-formats) for
+[Device code formats](design/CompilerAndRuntimeDesign.md#device-code-formats) for
 more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
@@ -700,7 +695,7 @@ The SYCL host device executes the SYCL application directly in the host,
 without using any low-level API.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
-if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
+if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
 
 **Linux & Windows (64-bit)**:
 
@@ -719,7 +714,7 @@ SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
 device selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
-[Intel FPGA selector(s)](extensions/IntelFPGA/FPGASelector.md)) as
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
 
@@ -830,6 +825,24 @@ which contains all the symbols required.
   GPU (SM 71), but it should work on any GPU compatible with SM 50 or above
 * The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
   project and may cause compilation issues on some platforms
+* `sycl::sqrt` is not correctly rounded by default as the SYCL specification
+  allows lower precision, when porting from CUDA it may be helpful to use
+  `-fsycl-fp32-prec-sqrt` to use the correctly rounded square root, this is
+  significantly slower but matches the default precision used by `nvcc`, and
+  this `clang++` flag is equivalent to the `nvcc` `-prec-sqrt` flag, except that
+  it defaults to `false`.
+* No Opt (O0) uses the IPSCCP compiler pass by default, although the IPSCCP pass
+  can be switched off at O0 using the `-mllvm -use-ipsccp-nvptx-O0=false` flag at
+  the user's discretion.
+  The reason that the IPSCCP pass is used by default even at O0 is that there is
+  currently an unresolved issue with the nvvm-reflect compiler pass: This pass is
+  used to pick the correct branches depending on the SM version which can be
+  optionally specified by the `--cuda-gpu-arch` flag.
+  If the arch flag is not specified by the user, the default value, SM 50, is used.
+  Without the execution of the IPSCCP pass at -O0 when using a low SM version,
+  dead instructions which require a higher SM version can remain. Since
+  corresponding issues occur in other backends future work will aim for a
+  universal solution to these issues.
 
 ### HIP back-end limitations
 

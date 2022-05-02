@@ -26,8 +26,8 @@
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Endian.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timer.h"
 #include "lldb/Utility/UUID.h"
@@ -39,12 +39,14 @@
 using namespace lldb;
 using namespace lldb_private;
 
-static CFURLRef (*g_dlsym_DBGCopyFullDSYMURLForUUID)(CFUUIDRef uuid, CFURLRef exec_url) = nullptr;
-static CFDictionaryRef (*g_dlsym_DBGCopyDSYMPropertyLists)(CFURLRef dsym_url) = nullptr;
+static CFURLRef (*g_dlsym_DBGCopyFullDSYMURLForUUID)(
+    CFUUIDRef uuid, CFURLRef exec_url) = nullptr;
+static CFDictionaryRef (*g_dlsym_DBGCopyDSYMPropertyLists)(CFURLRef dsym_url) =
+    nullptr;
 
 int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
                                        ModuleSpec &return_module_spec) {
-  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
+  Log *log = GetLog(LLDBLog::Host);
   if (!ModuleList::GetGlobalModuleListProperties().GetEnableExternalLookup()) {
     LLDB_LOGF(log, "Spotlight lookup for .dSYM bundles is disabled.");
     return 0;
@@ -57,22 +59,19 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
   const UUID *uuid = module_spec.GetUUIDPtr();
   const ArchSpec *arch = module_spec.GetArchitecturePtr();
 
-  if (repro::Loader *l = repro::Reproducer::Instance().GetLoader()) {
-    static repro::SymbolFileLoader symbol_file_loader(l);
-    std::pair<FileSpec, FileSpec> paths = symbol_file_loader.GetPaths(uuid);
-    return_module_spec.GetFileSpec() = paths.first;
-    return_module_spec.GetSymbolFileSpec() = paths.second;
-    return 1;
-  }
-
   int items_found = 0;
 
   if (g_dlsym_DBGCopyFullDSYMURLForUUID == nullptr ||
       g_dlsym_DBGCopyDSYMPropertyLists == nullptr) {
-    void *handle = dlopen ("/System/Library/PrivateFrameworks/DebugSymbols.framework/DebugSymbols", RTLD_LAZY | RTLD_LOCAL);
+    void *handle = dlopen(
+        "/System/Library/PrivateFrameworks/DebugSymbols.framework/DebugSymbols",
+        RTLD_LAZY | RTLD_LOCAL);
     if (handle) {
-      g_dlsym_DBGCopyFullDSYMURLForUUID = (CFURLRef (*)(CFUUIDRef, CFURLRef)) dlsym (handle, "DBGCopyFullDSYMURLForUUID");
-      g_dlsym_DBGCopyDSYMPropertyLists = (CFDictionaryRef (*)(CFURLRef)) dlsym (handle, "DBGCopyDSYMPropertyLists");
+      g_dlsym_DBGCopyFullDSYMURLForUUID =
+          (CFURLRef(*)(CFUUIDRef, CFURLRef))dlsym(handle,
+                                                  "DBGCopyFullDSYMURLForUUID");
+      g_dlsym_DBGCopyDSYMPropertyLists = (CFDictionaryRef(*)(CFURLRef))dlsym(
+          handle, "DBGCopyDSYMPropertyLists");
     }
   }
 
@@ -102,8 +101,8 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
                 FALSE));
         }
 
-        CFCReleaser<CFURLRef> dsym_url(
-            g_dlsym_DBGCopyFullDSYMURLForUUID(module_uuid_ref.get(), exec_url.get()));
+        CFCReleaser<CFURLRef> dsym_url(g_dlsym_DBGCopyFullDSYMURLForUUID(
+            module_uuid_ref.get(), exec_url.get()));
         char path[PATH_MAX];
 
         if (dsym_url.get()) {
@@ -256,12 +255,6 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
     }
   }
 
-  if (repro::Generator *g = repro::Reproducer::Instance().GetGenerator()) {
-    g->GetOrCreate<repro::SymbolFileProvider>().AddSymbolFile(
-        uuid, return_module_spec.GetFileSpec(),
-        return_module_spec.GetSymbolFileSpec());
-  }
-
   return items_found;
 }
 
@@ -305,13 +298,22 @@ FileSpec Symbols::FindSymbolFileInBundle(const FileSpec &dsym_bundle_fspec,
 }
 
 static bool GetModuleSpecInfoFromUUIDDictionary(CFDictionaryRef uuid_dict,
-                                                ModuleSpec &module_spec) {
-  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
+                                                ModuleSpec &module_spec,
+                                                Status &error) {
+  Log *log = GetLog(LLDBLog::Host);
   bool success = false;
   if (uuid_dict != NULL && CFGetTypeID(uuid_dict) == CFDictionaryGetTypeID()) {
     std::string str;
     CFStringRef cf_str;
     CFDictionaryRef cf_dict;
+
+    cf_str = (CFStringRef)CFDictionaryGetValue((CFDictionaryRef)uuid_dict,
+                                               CFSTR("DBGError"));
+    if (cf_str && CFGetTypeID(cf_str) == CFStringGetTypeID()) {
+      if (CFCString::FileSystemRepresentation(cf_str, str)) {
+        error.SetErrorString(str);
+      }
+    }
 
     cf_str = (CFStringRef)CFDictionaryGetValue(
         (CFDictionaryRef)uuid_dict, CFSTR("DBGSymbolRichExecutable"));
@@ -464,29 +466,10 @@ static bool GetModuleSpecInfoFromUUIDDictionary(CFDictionaryRef uuid_dict,
 }
 
 bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
-                                          bool force_lookup) {
+                                          Status &error, bool force_lookup) {
   bool success = false;
   const UUID *uuid_ptr = module_spec.GetUUIDPtr();
   const FileSpec *file_spec_ptr = module_spec.GetFileSpecPtr();
-
-  if (repro::Loader *l = repro::Reproducer::Instance().GetLoader()) {
-    static repro::SymbolFileLoader symbol_file_loader(l);
-    std::pair<FileSpec, FileSpec> paths = symbol_file_loader.GetPaths(uuid_ptr);
-    if (paths.first)
-      module_spec.GetFileSpec() = paths.first;
-    if (paths.second)
-      module_spec.GetSymbolFileSpec() = paths.second;
-    return true;
-  }
-
-  // Lambda to capture the state of module_spec before returning from this
-  // function.
-  auto RecordResult = [&]() {
-    if (repro::Generator *g = repro::Reproducer::Instance().GetGenerator()) {
-      g->GetOrCreate<repro::SymbolFileProvider>().AddSymbolFile(
-          uuid_ptr, module_spec.GetFileSpec(), module_spec.GetSymbolFileSpec());
-    }
-  };
 
   // It's expensive to check for the DBGShellCommands defaults setting, only do
   // it once per lldb run and cache the result.
@@ -513,7 +496,6 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
   // When g_dbgshell_command is NULL, the user has not enabled the use of an
   // external program to find the symbols, don't run it for them.
   if (!force_lookup && g_dbgshell_command == NULL) {
-    RecordResult();
     return false;
   }
 
@@ -592,7 +574,7 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
                        g_dsym_for_uuid_exe_path, file_path);
 
       if (!command.GetString().empty()) {
-        Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
+        Log *log = GetLog(LLDBLog::Host);
         int exit_status = -1;
         int signo = -1;
         std::string command_output;
@@ -604,15 +586,15 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
             LLDB_LOGF(log, "Calling %s with file %s to find dSYM",
                       g_dsym_for_uuid_exe_path, file_path);
         }
-        Status error = Host::RunShellCommand(
+        error = Host::RunShellCommand(
             command.GetData(),
             FileSpec(),      // current working directory
             &exit_status,    // Exit status
             &signo,          // Signal int *
             &command_output, // Command output
             std::chrono::seconds(
-               640), // Large timeout to allow for long dsym download times
-            false);  // Don't run in a shell (we don't need shell expansion)
+                640), // Large timeout to allow for long dsym download times
+            false);   // Don't run in a shell (we don't need shell expansion)
         if (error.Success() && exit_status == 0 && !command_output.empty()) {
           CFCData data(CFDataCreateWithBytesNoCopy(
               NULL, (const UInt8 *)command_output.data(), command_output.size(),
@@ -628,8 +610,8 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
               CFCString uuid_cfstr(uuid_str.c_str());
               CFDictionaryRef uuid_dict = (CFDictionaryRef)CFDictionaryGetValue(
                   plist.get(), uuid_cfstr.get());
-              success =
-                  GetModuleSpecInfoFromUUIDDictionary(uuid_dict, module_spec);
+              success = GetModuleSpecInfoFromUUIDDictionary(uuid_dict,
+                                                            module_spec, error);
             } else {
               const CFIndex num_values = ::CFDictionaryGetCount(plist.get());
               if (num_values > 0) {
@@ -638,19 +620,17 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
                 ::CFDictionaryGetKeysAndValues(plist.get(), NULL,
                                                (const void **)&values[0]);
                 if (num_values == 1) {
-                  success = GetModuleSpecInfoFromUUIDDictionary(values[0],
-                                                                module_spec);
-                  RecordResult();
+                  success = GetModuleSpecInfoFromUUIDDictionary(
+                      values[0], module_spec, error);
                   return success;
                 } else {
                   for (CFIndex i = 0; i < num_values; ++i) {
                     ModuleSpec curr_module_spec;
-                    if (GetModuleSpecInfoFromUUIDDictionary(values[i],
-                                                            curr_module_spec)) {
+                    if (GetModuleSpecInfoFromUUIDDictionary(
+                            values[i], curr_module_spec, error)) {
                       if (module_spec.GetArchitecture().IsCompatibleMatch(
                               curr_module_spec.GetArchitecture())) {
                         module_spec = curr_module_spec;
-                        RecordResult();
                         return true;
                       }
                     }
@@ -672,6 +652,5 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
       }
     }
   }
-  RecordResult();
   return success;
 }

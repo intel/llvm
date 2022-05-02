@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
-#include "xpti/xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.hpp"
 #include "xpti_timers.hpp"
 
 #include <chrono>
@@ -20,12 +20,6 @@
 static uint8_t GStreamID = 0;
 std::mutex GIOMutex;
 xpti::ThreadID GThreadIDEnum;
-
-static const char *TPTypes[] = {
-    "unknown", "graph_create", "node_create", "edge_create",
-    "region_", "task_",        "barrier_",    "lock_",
-    "signal ", "transfer_",    "thread_",     "wait_",
-    0};
 
 // The lone callback function we are going to use to demonstrate how to attach
 // the collector to the running executable
@@ -44,13 +38,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   // The basic collector will take in streams from anyone as we are just
   // printing out the stream data
   if (stream_name) {
-    char *tstr;
     // Register this stream to get the stream ID; This stream may already have
     // been registered by the framework and will return the previously
     // registered stream ID
     GStreamID = xptiRegisterStream(stream_name);
-    xpti::string_id_t dev_id = xptiRegisterString("sycl_device", &tstr);
-    (void)dev_id;
     // Register our lone callback to all pre-defined trace point types
     xptiRegisterCallback(GStreamID,
                          (uint16_t)xpti::trace_point_type_t::graph_create,
@@ -139,9 +130,10 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
          ID);
   // Go through all available meta-data for an event and print it out
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-  for (auto &Item : *Metadata) {
-    printf("   %-25s:%s\n", xptiLookupString(Item.first),
-           xptiLookupString(Item.second));
+  for (const auto &Item : *Metadata) {
+    std::cout << "     ";
+    std::cout << xptiLookupString(Item.first) << " : ";
+    std::cout << xpti::readMetadata(Item) << "\n";
   }
 
   if (Payload->source_file_sid() != xpti::invalid_id && Payload->line_no > 0) {

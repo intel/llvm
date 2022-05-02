@@ -46,8 +46,8 @@ struct ForwardView : std::ranges::view_base {
   constexpr explicit ForwardView(int* ptr = globalBuff) : ptr_(ptr) {}
   constexpr ForwardView(ForwardView&&) = default;
   constexpr ForwardView& operator=(ForwardView&&) = default;
-  constexpr auto begin() const { return ForwardIter(ptr_); }
-  constexpr auto end() const { return ForwardIter(ptr_ + 8); }
+  constexpr auto begin() const { return forward_iterator<int*>(ptr_); }
+  constexpr auto end() const { return forward_iterator<int*>(ptr_ + 8); }
 };
 static_assert(std::ranges::view<ForwardView>);
 static_assert(std::ranges::forward_range<ForwardView>);
@@ -98,10 +98,10 @@ struct SizedSentinelView : std::ranges::view_base {
   constexpr int *end() const { return globalBuff + count_; }
 };
 // TODO: remove these bogus operators
-constexpr auto operator- (const RandomAccessIter &lhs, int* rhs) { return lhs.base() - rhs; }
-constexpr auto operator- (int* lhs, const RandomAccessIter &rhs) { return lhs - rhs.base(); }
-constexpr bool operator==(const RandomAccessIter &lhs, int* rhs) { return lhs.base() == rhs; }
-constexpr bool operator==(int* lhs, const RandomAccessIter &rhs) { return rhs.base() == lhs; }
+constexpr auto operator- (const RandomAccessIter &lhs, int* rhs) { return base(lhs) - rhs; }
+constexpr auto operator- (int* lhs, const RandomAccessIter &rhs) { return lhs - base(rhs); }
+constexpr bool operator==(const RandomAccessIter &lhs, int* rhs) { return base(lhs) == rhs; }
+constexpr bool operator==(int* lhs, const RandomAccessIter &rhs) { return base(rhs) == lhs; }
 
 struct SizedSentinelNotConstView : std::ranges::view_base {
   ForwardIter begin() const;

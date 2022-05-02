@@ -17,7 +17,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <array>
@@ -360,6 +360,11 @@ public:
   LeafTy divideCoefficientBy(ScalarTy RHS) const {
     return static_cast<LeafTy>(
         LinearPolySize::get(getKnownMinValue() / RHS, isScalable()));
+  }
+
+  LeafTy multiplyCoefficientBy(ScalarTy RHS) const {
+    return static_cast<LeafTy>(
+        LinearPolySize::get(getKnownMinValue() * RHS, isScalable()));
   }
 
   LeafTy coefficientNextPowerOf2() const {

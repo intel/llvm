@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL1.2
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=-__opencl_c_pipes,-__opencl_c_generic_address_space
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=-__opencl_c_pipes,-__opencl_c_generic_address_space
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=-all
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=-all
 
 void foo(read_only pipe int p);
 #if __OPENCL_C_VERSION__ > 120
@@ -25,7 +25,7 @@ typedef int pipe;
 // expected-warning@-6 {{typedef requires a name}}
 #endif
 
-void bar() {
+void bar(void) {
  reserve_id_t r;
 #if defined(__OPENCL_C_VERSION__)
 // expected-error@-2 {{use of undeclared identifier 'reserve_id_t'}}

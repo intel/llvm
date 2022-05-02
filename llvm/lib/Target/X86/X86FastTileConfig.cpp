@@ -56,8 +56,6 @@ public:
   bool isTileLoad(MachineInstr &MI);
   bool isTileStore(MachineInstr &MI);
   bool isAMXInstr(MachineInstr &MI);
-  void getTileStoreShape(MachineInstr &MI,
-                         SmallVector<MachineOperand *> &ShapedTiles);
 
   MachineInstr *getKeyAMXInstr(MachineInstr *MI);
   void getTileShapesCfg(MachineInstr *MI,
@@ -156,6 +154,7 @@ MachineInstr *X86FastTileConfig::getKeyAMXInstr(MachineInstr *MI) {
 
     if (isAMXInstr(*II)) {
       assert((KeyAMXNum == 0) && "Too many Key AMX instruction!");
+      (void) KeyAMXNum;
       KeyAMXNum++;
       KeyMI = &*II;
     }

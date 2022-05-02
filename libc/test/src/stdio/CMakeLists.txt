@@ -1,11 +1,35 @@
 add_libc_testsuite(libc_stdio_unittests)
 
 add_libc_unittest(
-  fwrite_test
+  fileop_test
   SUITE
     libc_stdio_unittests
   SRCS
-    fwrite_test.cpp
+    fileop_test.cpp
   DEPENDS
+    libc.src.stdio.fclose
+    libc.src.stdio.fflush
+    libc.src.stdio.fopen
+    libc.src.stdio.fread
+    libc.src.stdio.fseek
     libc.src.stdio.fwrite
 )
+
+add_libc_unittest(
+  unlocked_fileop_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    unlocked_fileop_test.cpp
+  DEPENDS
+    libc.src.stdio.fclose
+    libc.src.stdio.flockfile
+    libc.src.stdio.fopen
+    libc.src.stdio.fread_unlocked
+    libc.src.stdio.funlockfile
+    libc.src.stdio.fwrite_unlocked
+)
+
+add_subdirectory(printf_core)
+
+add_subdirectory(testdata)

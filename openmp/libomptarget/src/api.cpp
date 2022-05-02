@@ -53,6 +53,7 @@ EXTERN void *llvm_omp_target_alloc_shared(size_t size, int device_num) {
   return targetAllocExplicit(size, device_num, TARGET_ALLOC_SHARED, __func__);
 }
 
+EXTERN void *llvm_omp_target_dynamic_shared_alloc() { return nullptr; }
 EXTERN void *llvm_omp_get_dynamic_shared() { return nullptr; }
 
 EXTERN void omp_target_free(void *device_ptr, int device_num) {
@@ -107,10 +108,11 @@ EXTERN int omp_target_is_present(const void *ptr, int device_num) {
   DeviceTy &Device = *PM->Devices[device_num];
   bool IsLast; // not used
   bool IsHostPtr;
-  void *TgtPtr = Device.getTgtPtrBegin(const_cast<void *>(ptr), 0, IsLast,
-                                       /*UpdateRefCount=*/false,
-                                       /*UseHoldRefCount=*/false, IsHostPtr);
-  int rc = (TgtPtr != NULL);
+  TargetPointerResultTy TPR =
+      Device.getTgtPtrBegin(const_cast<void *>(ptr), 0, IsLast,
+                            /*UpdateRefCount=*/false,
+                            /*UseHoldRefCount=*/false, IsHostPtr);
+  int rc = (TPR.TargetPointer != NULL);
   // Under unified memory the host pointer can be returned by the
   // getTgtPtrBegin() function which means that there is no device
   // corresponding point for ptr. This function should return false

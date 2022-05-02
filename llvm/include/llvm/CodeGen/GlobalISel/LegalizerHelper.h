@@ -21,16 +21,23 @@
 #define LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
 
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
-#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
-#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
-#include "llvm/CodeGen/LowLevelType.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 
 namespace llvm {
 // Forward declarations.
+class APInt;
+class GAnyLoad;
+class GLoadStore;
+class GStore;
+class GenericMachineInstr;
+class MachineFunction;
+class MachineIRBuilder;
+class MachineInstr;
+class MachineInstrBuilder;
+struct MachinePointerInfo;
+template <typename T> class SmallVectorImpl;
 class LegalizerInfo;
-class Legalizer;
 class MachineRegisterInfo;
 class GISelChangeObserver;
 class LostDebugLocObserver;

@@ -43,8 +43,8 @@
 // linked as --whole-archive to override the weak symbols that are used to
 // implement a fallback for toolchains that do not yet have a hostrpc library.
 extern "C" {
-unsigned long hostrpc_assign_buffer(hsa_agent_t agent, hsa_queue_t *this_Q,
-                                    uint32_t device_id);
+uint64_t hostrpc_assign_buffer(hsa_agent_t agent, hsa_queue_t *this_Q,
+                               uint32_t device_id);
 hsa_status_t hostrpc_init();
 hsa_status_t hostrpc_terminate();
 
@@ -52,8 +52,8 @@ __attribute__((weak)) hsa_status_t hostrpc_init() { return HSA_STATUS_SUCCESS; }
 __attribute__((weak)) hsa_status_t hostrpc_terminate() {
   return HSA_STATUS_SUCCESS;
 }
-__attribute__((weak)) unsigned long
-hostrpc_assign_buffer(hsa_agent_t, hsa_queue_t *, uint32_t device_id) {
+__attribute__((weak)) uint64_t hostrpc_assign_buffer(hsa_agent_t, hsa_queue_t *,
+                                                     uint32_t device_id) {
   DP("Warning: Attempting to assign hostrpc to device %u, but hostrpc library "
      "missing\n",
      device_id);
@@ -1231,8 +1231,8 @@ int32_t runRegionLocked(int32_t device_id, void *tgt_entry_ptr, void **tgt_args,
         // under a multiple reader lock, not a writer lock.
         static pthread_mutex_t hostcall_init_lock = PTHREAD_MUTEX_INITIALIZER;
         pthread_mutex_lock(&hostcall_init_lock);
-        unsigned long buffer = hostrpc_assign_buffer(
-            DeviceInfo.HSAAgents[device_id], queue, device_id);
+        uint64_t buffer = hostrpc_assign_buffer(DeviceInfo.HSAAgents[device_id],
+                                                queue, device_id);
         pthread_mutex_unlock(&hostcall_init_lock);
         if (!buffer) {
           DP("hostrpc_assign_buffer failed, gpu would dereference null and "
@@ -1240,6 +1240,8 @@ int32_t runRegionLocked(int32_t device_id, void *tgt_entry_ptr, void **tgt_args,
           return OFFLOAD_FAIL;
         }
 
+        DP("Implicit argument count: %d\n",
+           KernelInfoEntry.implicit_argument_count);
         if (KernelInfoEntry.implicit_argument_count >= 4) {
           // Initialise pointer for implicit_argument_count != 0 ABI
           // Guess that the right implicit argument is at offset 24 after
@@ -1247,8 +1249,10 @@ int32_t runRegionLocked(int32_t device_id, void *tgt_entry_ptr, void **tgt_args,
           // the offset from msgpack. Clang is not annotating it at present.
           uint64_t Offset =
               sizeof(void *) * (KernelInfoEntry.explicit_argument_count + 3);
-          if ((Offset + 8) > (ArgPool->kernarg_segment_size)) {
-            DP("Bad offset of hostcall, exceeds kernarg segment size\n");
+          if ((Offset + 8) > ArgPool->kernarg_size_including_implicit()) {
+            DP("Bad offset of hostcall: %lu, exceeds kernarg size w/ implicit "
+               "args: %d\n",
+               Offset + 8, ArgPool->kernarg_size_including_implicit());
           } else {
             memcpy(static_cast<char *>(kernarg) + Offset, &buffer, 8);
           }

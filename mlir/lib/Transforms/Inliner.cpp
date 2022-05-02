@@ -16,6 +16,7 @@
 #include "PassDetail.h"
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/IR/Threading.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -435,7 +436,7 @@ static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
   auto &calls = inliner.calls;
 
   // A set of dead nodes to remove after inlining.
-  SmallVector<CallGraphNode *, 1> deadNodes;
+  llvm::SmallSetVector<CallGraphNode *, 1> deadNodes;
 
   // Collect all of the direct calls within the nodes of the current SCC. We
   // don't traverse nested callgraph nodes, because they are handled separately
@@ -446,7 +447,7 @@ static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
 
     // Don't collect calls if the node is already dead.
     if (useList.isDead(node)) {
-      deadNodes.push_back(node);
+      deadNodes.insert(node);
     } else {
       collectCallOps(*node->getCallableRegion(), node, cg, inliner.symbolTable,
                      calls, /*traverseNestedCGNodes=*/false);
@@ -457,6 +458,8 @@ static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
   // here as more calls may be added during inlining.
   bool inlinedAnyCalls = false;
   for (unsigned i = 0; i != calls.size(); ++i) {
+    if (deadNodes.contains(calls[i].sourceNode))
+      continue;
     ResolvedCall it = calls[i];
     bool doInline = shouldInline(it);
     CallOpInterface call = it.call;
@@ -493,7 +496,7 @@ static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
     // If we inlined in place, mark the node for deletion.
     if (inlineInPlace) {
       useList.eraseNode(it.targetNode);
-      deadNodes.push_back(it.targetNode);
+      deadNodes.insert(it.targetNode);
     }
   }
 
@@ -563,7 +566,7 @@ private:
 
 InlinerPass::InlinerPass() : InlinerPass(defaultInlinerOptPipeline) {}
 InlinerPass::InlinerPass(std::function<void(OpPassManager &)> defaultPipeline)
-    : defaultPipeline(defaultPipeline) {
+    : defaultPipeline(std::move(defaultPipeline)) {
   opPipelines.push_back({});
 
   // Initialize the pass options with the provided arguments.
@@ -582,14 +585,8 @@ InlinerPass::InlinerPass(std::function<void(OpPassManager &)> defaultPipeline,
     return;
 
   // Update the option for the op specific optimization pipelines.
-  for (auto &it : opPipelines) {
-    std::string pipeline;
-    llvm::raw_string_ostream pipelineOS(pipeline);
-    pipelineOS << it.getKey() << "(";
-    it.second.printAsTextualPipeline(pipelineOS);
-    pipelineOS << ")";
-    opPipelineStrs.addValue(pipeline);
-  }
+  for (auto &it : opPipelines)
+    opPipelineList.addValue(it.second);
   this->opPipelines.emplace_back(std::move(opPipelines));
 }
 
@@ -748,21 +745,9 @@ LogicalResult InlinerPass::initializeOptions(StringRef options) {
 
   // Initialize the op specific pass pipelines.
   llvm::StringMap<OpPassManager> pipelines;
-  for (StringRef pipeline : opPipelineStrs) {
-    // Skip empty pipelines.
-    if (pipeline.empty())
-      continue;
-
-    // Pipelines are expected to be of the form `<op-name>(<pipeline>)`.
-    size_t pipelineStart = pipeline.find_first_of('(');
-    if (pipelineStart == StringRef::npos || !pipeline.consume_back(")"))
-      return failure();
-    StringRef opName = pipeline.take_front(pipelineStart);
-    OpPassManager pm(opName);
-    if (failed(parsePassPipeline(pipeline.drop_front(1 + pipelineStart), pm)))
-      return failure();
-    pipelines.try_emplace(opName, std::move(pm));
-  }
+  for (OpPassManager pipeline : opPipelineList)
+    if (!pipeline.empty())
+      pipelines.try_emplace(pipeline.getOpName(), pipeline);
   opPipelines.assign({std::move(pipelines)});
 
   return success();

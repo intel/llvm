@@ -185,10 +185,11 @@ static const char *const operationInterfaceFallbackDecl = R"(
 )";
 
 /// Generate the declaration for the given dialect class.
-static void emitDialectDecl(Dialect &dialect,
-                            iterator_range<DialectFilterIterator> dialectAttrs,
-                            iterator_range<DialectFilterIterator> dialectTypes,
-                            raw_ostream &os) {
+static void
+emitDialectDecl(Dialect &dialect,
+                const iterator_range<DialectFilterIterator> &dialectAttrs,
+                const iterator_range<DialectFilterIterator> &dialectTypes,
+                raw_ostream &os) {
   /// Build the list of dependent dialects
   std::string dependentDialectRegistrations;
   {
@@ -209,9 +210,9 @@ static void emitDialectDecl(Dialect &dialect,
 
     // Check for any attributes/types registered to this dialect.  If there are,
     // add the hooks for parsing/printing.
-    if (!dialectAttrs.empty() || dialect.useDefaultAttributePrinterParser())
+    if (!dialectAttrs.empty() && dialect.useDefaultAttributePrinterParser())
       os << attrParserDecl;
-    if (!dialectTypes.empty() || dialect.useDefaultTypePrinterParser())
+    if (!dialectTypes.empty() && dialect.useDefaultTypePrinterParser())
       os << typeParserDecl;
 
     // Add the decls for the various features of the dialect.
@@ -235,7 +236,7 @@ static void emitDialectDecl(Dialect &dialect,
     os << "};\n";
   }
   if (!dialect.getCppNamespace().empty())
-    os << "DECLARE_EXPLICIT_TYPE_ID(" << dialect.getCppNamespace()
+    os << "MLIR_DECLARE_EXPLICIT_TYPE_ID(" << dialect.getCppNamespace()
        << "::" << dialect.getCppClassName() << ")\n";
 }
 
@@ -272,7 +273,7 @@ static const char *const dialectDestructorStr = R"(
 static void emitDialectDef(Dialect &dialect, raw_ostream &os) {
   // Emit the TypeID explicit specializations to have a single symbol def.
   if (!dialect.getCppNamespace().empty())
-    os << "DEFINE_EXPLICIT_TYPE_ID(" << dialect.getCppNamespace()
+    os << "MLIR_DEFINE_EXPLICIT_TYPE_ID(" << dialect.getCppNamespace()
        << "::" << dialect.getCppClassName() << ")\n";
 
   // Emit all nested namespaces.

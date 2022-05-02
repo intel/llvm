@@ -36,6 +36,9 @@
 ;
 ; RUN: sed -e 's/<LANG1>/DW_LANG_Fortran08/;s/<LANG2>/Fortran/' %s > %t
 ; RUN: llc -filetype=obj -o - %t | llvm-readobj --codeview - | FileCheck %t
+;
+; RUN: sed -e 's/<LANG1>/DW_LANG_Rust/;s/<LANG2>/Rust/' %s > %t
+; RUN: llc -filetype=obj -o - %t | llvm-readobj --codeview - | FileCheck %t
 
 ; CHECK:      CodeViewDebugInfo [
 ; CHECK:        Subsection [
@@ -61,7 +64,7 @@ target triple = "x86_64-pc-windows-msvc19.0.24215"
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!2, !3}
 
-!0 = distinct !DICompileUnit(language: <LANG1>, file: !1, producer: "clang")
+!0 = distinct !DICompileUnit(language: <LANG1>, file: !1, producer: "clang", emissionKind: FullDebug)
 !1 = !DIFile(filename: "empty", directory: "path/to")
 !2 = !{i32 2, !"CodeView", i32 1}
 !3 = !{i32 2, !"Debug Info Version", i32 3}

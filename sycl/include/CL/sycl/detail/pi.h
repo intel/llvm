@@ -42,10 +42,12 @@
 //   piextEventCreateWithNativeHandle
 // 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle. Added
 // piQueueFlush function.
+// 7.9 Added new context and ownership arguments to
+// piextMemCreateWithNativeHandle.
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 6
-#define _PI_H_VERSION_MINOR 8
+#define _PI_H_VERSION_MAJOR 7
+#define _PI_H_VERSION_MINOR 9
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -114,6 +116,10 @@ typedef enum {
   PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = CL_INVALID_IMAGE_FORMAT_DESCRIPTOR,
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
+  PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
+  PI_COMMAND_EXECUTION_FAILURE =
+      -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
+            ///< during command enqueue or execution.
   PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
       -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
             ///< method determines the function exists but its address cannot be
@@ -301,14 +307,17 @@ typedef enum {
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
   PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
+  // Return true if sub-device should do its own program build
+  PI_DEVICE_INFO_BUILD_ON_SUBDEVICE = 0x10028,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
+  PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
   PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
+  PI_DEVICE_INFO_BACKEND_VERSION = 0x10113,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003
-
 } _pi_device_info;
 
 typedef enum {
@@ -329,7 +338,8 @@ typedef enum {
   PI_CONTEXT_INFO_PROPERTIES = CL_CONTEXT_PROPERTIES,
   PI_CONTEXT_INFO_REFERENCE_COUNT = CL_CONTEXT_REFERENCE_COUNT,
   // Atomics capabilities extensions
-  PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010
+  PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010,
+  PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x10011
 } _pi_context_info;
 
 typedef enum {
@@ -443,7 +453,17 @@ typedef enum {
 
 typedef enum {
   // Device-specific value opaque in PI API.
-  PI_MEM_ADVISE_UNKNOWN
+  PI_MEM_ADVICE_UNKNOWN,
+  PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY = 101,
+  PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY = 102,
+  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION = 103,
+  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION = 104,
+  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY = 105,
+  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY = 106,
+  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST = 107,
+  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 108,
+  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 109,
+  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 110,
 } _pi_mem_advice;
 
 typedef enum {
@@ -536,6 +556,13 @@ constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELEASE = 0x04;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQ_REL = 0x08;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_SEQ_CST = 0x10;
 
+using pi_memory_scope_capabilities = pi_bitfield;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_WORK_ITEM = 0x01;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_SUB_GROUP = 0x02;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_WORK_GROUP = 0x04;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_DEVICE = 0x08;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_SYSTEM = 0x10;
+
 typedef enum {
   PI_PROFILING_INFO_COMMAND_QUEUED = CL_PROFILING_COMMAND_QUEUED,
   PI_PROFILING_INFO_COMMAND_SUBMIT = CL_PROFILING_COMMAND_SUBMIT,
@@ -567,6 +594,24 @@ constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
 // make the translation to OpenCL transparent.
 using pi_mem_properties = pi_bitfield;
 constexpr pi_mem_properties PI_MEM_PROPERTIES_CHANNEL = CL_MEM_CHANNEL_INTEL;
+constexpr pi_mem_properties PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION =
+    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
+
+// NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
+// make the translation to OpenCL transparent.
+using pi_usm_mem_properties = pi_bitfield;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_WRTITE_COMBINED =
+    CL_MEM_ALLOC_WRITE_COMBINED_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE =
+    CL_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST =
+    CL_MEM_ALLOC_INITIAL_PLACEMENT_HOST_INTEL;
+// Hints that the device/shared allocation will not be written on device.
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_DEVICE_READ_ONLY = (1 << 3);
+
+constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION =
+    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
 
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
@@ -732,6 +777,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
+/// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -896,6 +943,14 @@ typedef struct {
 
 using pi_image_format = _pi_image_format;
 using pi_image_desc = _pi_image_desc;
+
+typedef enum {
+  PI_MEM_CONTEXT = CL_MEM_CONTEXT,
+  PI_MEM_SIZE = CL_MEM_SIZE
+} _pi_mem_info;
+
+using pi_mem_info = _pi_mem_info;
+
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
 // They are 3 distinct categories:
@@ -1118,10 +1173,9 @@ __SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                                          const pi_image_desc *image_desc,
                                          void *host_ptr, pi_mem *ret_mem);
 
-__SYCL_EXPORT pi_result piMemGetInfo(
-    pi_mem mem,
-    cl_mem_info param_name, // TODO: untie from OpenCL
-    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piMemGetInfo(pi_mem mem, pi_mem_info param_name,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret);
 
 __SYCL_EXPORT pi_result piMemImageGetInfo(pi_mem image,
                                           pi_image_info param_name,
@@ -1148,9 +1202,13 @@ __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI mem from.
+/// \param context The PI context of the memory allocation.
+/// \param ownNativeHandle Indicates if we own the native memory handle or it
+/// came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param mem is the PI mem created from the native handle.
-__SYCL_EXPORT pi_result
-piextMemCreateWithNativeHandle(pi_native_handle nativeHandle, pi_mem *mem);
+__SYCL_EXPORT pi_result piextMemCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_mem *mem);
 
 //
 // Program
@@ -1574,7 +1632,7 @@ typedef enum {
   PI_MEM_ALLOC_BASE_PTR = CL_MEM_ALLOC_BASE_PTR_INTEL,
   PI_MEM_ALLOC_SIZE = CL_MEM_ALLOC_SIZE_INTEL,
   PI_MEM_ALLOC_DEVICE = CL_MEM_ALLOC_DEVICE_INTEL,
-} _pi_mem_info;
+} _pi_mem_alloc_info;
 
 typedef enum {
   PI_MEM_TYPE_UNKNOWN = CL_MEM_TYPE_UNKNOWN_INTEL,
@@ -1582,10 +1640,6 @@ typedef enum {
   PI_MEM_TYPE_DEVICE = CL_MEM_TYPE_DEVICE_INTEL,
   PI_MEM_TYPE_SHARED = CL_MEM_TYPE_SHARED_INTEL
 } _pi_usm_type;
-
-typedef enum : pi_bitfield {
-  PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
-} _pi_usm_mem_properties;
 
 // Flag is used for piProgramUSMEnqueuePrefetch. PI_USM_MIGRATION_TBD0 is a
 // placeholder for future developments and should not change the behaviour of
@@ -1596,9 +1650,8 @@ typedef enum : pi_bitfield {
 
 using pi_usm_capability_query = _pi_usm_capability_query;
 using pi_usm_capabilities = _pi_usm_capabilities;
-using pi_mem_info = _pi_mem_info;
+using pi_mem_alloc_info = _pi_mem_alloc_info;
 using pi_usm_type = _pi_usm_type;
-using pi_usm_mem_properties = _pi_usm_mem_properties;
 using pi_usm_migration_flags = _pi_usm_migration_flags;
 
 /// Allocates host memory accessible by the device.
@@ -1726,7 +1779,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 /// \param param_value is the result
 /// \param param_value_size_ret is how many bytes were written
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
-    pi_context context, const void *ptr, pi_mem_info param_name,
+    pi_context context, const void *ptr, pi_mem_alloc_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose

@@ -807,14 +807,6 @@ def : InstRW<[P9_StoreAndALUOp_3C, IP_EXEC_1C, IP_EXEC_1C, IP_AGEN_1C,
     (instregex "ST(B|H|W|D)CX$")
 )>;
 
-// Cracked Load Instruction.
-// Two consecutive load operations for a total of 8 cycles.
-def : InstRW<[P9_LoadAndLoadOp_8C, IP_AGEN_1C, IP_AGEN_1C,
-              DISP_1C, DISP_1C],
-      (instrs
-    LDMX
-)>;
-
 // Cracked Load instruction.
 // Requires consecutive Load and ALU pieces totaling 6 cycles. The Load and ALU
 // operations cannot be done at the same time and so their latencies are added.
@@ -940,6 +932,7 @@ def : InstRW<[P9_DIV_12C, IP_EXECE_1C, IP_EXECO_1C, DISP_EVEN_1C],
     (instregex "M(T|F)TB(8)?$"),
     (instregex "MF(SPR|CTR|LR)(8)?$"),
     (instregex "M(T|F)MSR(D)?$"),
+    (instregex "M(T|F)(U)?DSCR$"),
     (instregex "MTSPR(8)?$")
 )>;
 
@@ -1415,7 +1408,7 @@ def : InstRW<[],
   (instregex "NOP_GT_PWR(6|7)$"),
   (instregex "TLB(IA|IVAX|SX|SX2|SX2D|LD|LI|RE|RE2|WE|WE2)$"),
   (instregex "WRTEE(I)?$"),
-  (instregex "HASH(ST|STP|CHK|CHKP)$"),
+  (instregex "HASH(ST|STP|CHK|CHKP)(8)?$"),
   ATTN,
   CLRBHRB,
   MFBHRBE,

@@ -2,10 +2,10 @@
 // This test checks compile-time evaluation of functions from esimd_util.hpp
 
 #include "CL/sycl.hpp"
-#include "sycl/ext/intel/experimental/esimd.hpp"
+#include "sycl/ext/intel/esimd.hpp"
 
-using namespace sycl::ext::intel::experimental::esimd;
-using namespace sycl::ext::intel::experimental::esimd::detail;
+using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel::esimd::detail;
 
 static_assert(getNextPowerOf2<0>() == 0, "");
 static_assert(getNextPowerOf2<1>() == 1, "");

@@ -21,7 +21,7 @@ void variadic(int, ...) {}
 
 // there are more types like this checked in sycl-restrict.cpp
 int calledFromKernel(int a) {
-  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  // expected-error@+1 {{zero-length arrays are not permitted in SYCL device code}}
   int MalArray[0];
 
   // expected-error@+1 {{'__float128' is not supported on this target}}
@@ -67,9 +67,9 @@ void setup_sycl_operation(const T VA[]) {
     // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<AName, (lambda}}
     h.single_task<class AName>([]() {
       // ======= Zero Length Arrays Not Allowed in Kernel ==========
-      // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+      // expected-error@+1 {{zero-length arrays are not permitted in SYCL device code}}
       int MalArray[0];
-      // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+      // expected-error@+1 {{zero-length arrays are not permitted in SYCL device code}}
       intDef MalArrayDef[0];
       // ---- false positive tests. These should not generate any errors.
       foo<int[0]>();
@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
   deviceQueue.submit([&](sycl::handler &h) {
     // expected-note@#KernelSingleTaskKernelFuncCall 8 {{called by 'kernel_single_task<AName, (lambda}}
     h.single_task<class AName>([]() {
-      // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+      // expected-error@+1 {{zero-length arrays are not permitted in SYCL device code}}
       int BadArray[0];
 
       // expected-error@+1 {{'__float128' is not supported on this target}}

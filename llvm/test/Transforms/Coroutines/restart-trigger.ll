@@ -1,8 +1,8 @@
 ; REQUIRES: asserts
 ; The following tests use the new pass manager, and verify that the coroutine
 ; passes re-run the CGSCC pipeline.
-; RUN: opt < %s -S -passes='default<O0>' -enable-coroutines -debug-only=coro-split 2>&1 | FileCheck --check-prefix=CHECK-NEWPM %s
-; RUN: opt < %s -S -passes='default<O1>' -enable-coroutines -debug-only=coro-split 2>&1 | FileCheck --check-prefix=CHECK-NEWPM %s
+; RUN: opt < %s -S -passes='default<O0>' -debug-only=coro-split 2>&1 | FileCheck --check-prefix=CHECK-NEWPM %s
+; RUN: opt < %s -S -passes='default<O1>' -debug-only=coro-split 2>&1 | FileCheck --check-prefix=CHECK-NEWPM %s
 
 ; CHECK:      CoroSplit: Processing coroutine 'f' state: 0
 ; CHECK-NEXT: CoroSplit: Processing coroutine 'f' state: 1
@@ -10,7 +10,7 @@
 ; CHECK-NEWPM-NOT:  CoroSplit: Processing coroutine 'f' state: 1
 
 
-define void @f() {
+define void @f() "coroutine.presplit"="0" {
   %id = call token @llvm.coro.id(i32 0, i8* null, i8* null, i8* null)
   %size = call i32 @llvm.coro.size.i32()
   %alloc = call i8* @malloc(i32 %size)

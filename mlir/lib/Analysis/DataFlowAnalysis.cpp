@@ -12,6 +12,8 @@
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
+#include <queue>
+
 using namespace mlir;
 using namespace mlir::detail;
 
@@ -165,7 +167,7 @@ private:
   template <typename ValuesT>
   void markAllPessimisticFixpoint(Operation *op, ValuesT values) {
     markAllPessimisticFixpoint(values);
-    opWorklist.push_back(op);
+    opWorklist.push(op);
   }
   template <typename ValuesT>
   void markAllPessimisticFixpointAndVisitUsers(ValuesT values) {
@@ -195,10 +197,10 @@ private:
   DenseSet<std::pair<Block *, Block *>> executableEdges;
 
   /// A worklist containing blocks that need to be processed.
-  SmallVector<Block *, 64> blockWorklist;
+  std::queue<Block *> blockWorklist;
 
   /// A worklist of operations that need to be processed.
-  SmallVector<Operation *, 64> opWorklist;
+  std::queue<Operation *> opWorklist;
 
   /// The callable operations that have their argument/result state tracked.
   DenseMap<Operation *, CallableLatticeState> callableLatticeState;
@@ -229,12 +231,18 @@ ForwardDataFlowSolver::ForwardDataFlowSolver(
 void ForwardDataFlowSolver::solve() {
   while (!blockWorklist.empty() || !opWorklist.empty()) {
     // Process any operations in the op worklist.
-    while (!opWorklist.empty())
-      visitUsers(*opWorklist.pop_back_val());
+    while (!opWorklist.empty()) {
+      Operation *nextOp = opWorklist.front();
+      opWorklist.pop();
+      visitUsers(*nextOp);
+    }
 
     // Process any blocks in the block worklist.
-    while (!blockWorklist.empty())
-      visitBlock(blockWorklist.pop_back_val());
+    while (!blockWorklist.empty()) {
+      Block *nextBlock = blockWorklist.front();
+      blockWorklist.pop();
+      visitBlock(nextBlock);
+    }
   }
 }
 
@@ -368,7 +376,7 @@ void ForwardDataFlowSolver::visitOperation(Operation *op) {
 
   // Visit the current operation.
   if (analysis.visitOperation(op, operandLattices) == ChangeResult::Change)
-    opWorklist.push_back(op);
+    opWorklist.push(op);
 
   // `visitOperation` is required to define all of the result lattices.
   assert(llvm::none_of(
@@ -477,7 +485,7 @@ void ForwardDataFlowSolver::visitRegionSuccessors(
       // region operation can provide information for certain results that
       // aren't part of the control flow.
       if (succArgs.size() != results.size()) {
-        opWorklist.push_back(parentOp);
+        opWorklist.push(parentOp);
         if (succArgs.empty()) {
           markAllPessimisticFixpoint(results);
           continue;
@@ -673,10 +681,13 @@ void ForwardDataFlowSolver::visitBlockArgument(Block *block, int i) {
     // Try to get the operand forwarded by the predecessor. If we can't reason
     // about the terminator of the predecessor, mark as having reached a
     // fixpoint.
-    Optional<OperandRange> branchOperands;
-    if (auto branch = dyn_cast<BranchOpInterface>(pred->getTerminator()))
-      branchOperands = branch.getSuccessorOperands(it.getSuccessorIndex());
-    if (!branchOperands) {
+    auto branch = dyn_cast<BranchOpInterface>(pred->getTerminator());
+    if (!branch) {
+      updatedLattice |= argLattice.markPessimisticFixpoint();
+      break;
+    }
+    Value operand = branch.getSuccessorOperands(it.getSuccessorIndex())[i];
+    if (!operand) {
       updatedLattice |= argLattice.markPessimisticFixpoint();
       break;
     }
@@ -684,7 +695,7 @@ void ForwardDataFlowSolver::visitBlockArgument(Block *block, int i) {
     // If the operand hasn't been resolved, it is uninitialized and can merge
     // with anything.
     AbstractLatticeElement *operandLattice =
-        analysis.lookupLatticeElement((*branchOperands)[i]);
+        analysis.lookupLatticeElement(operand);
     if (!operandLattice)
       continue;
 
@@ -713,7 +724,7 @@ ForwardDataFlowSolver::markEntryBlockExecutable(Region *region,
 ChangeResult ForwardDataFlowSolver::markBlockExecutable(Block *block) {
   bool marked = executableBlocks.insert(block).second;
   if (marked)
-    blockWorklist.push_back(block);
+    blockWorklist.push(block);
   return marked ? ChangeResult::Change : ChangeResult::NoChange;
 }
 
@@ -749,7 +760,7 @@ bool ForwardDataFlowSolver::isAtFixpoint(Value value) const {
 void ForwardDataFlowSolver::join(Operation *owner, AbstractLatticeElement &to,
                                  const AbstractLatticeElement &from) {
   if (to.join(from) == ChangeResult::Change)
-    opWorklist.push_back(owner);
+    opWorklist.push(owner);
 }
 
 //===----------------------------------------------------------------------===//

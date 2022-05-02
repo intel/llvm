@@ -19,7 +19,6 @@
 
 #include "llvm/ProfileData/SampleProfWriter.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/ProfileData/SampleProf.h"
 #include "llvm/Support/Compression.h"
@@ -87,10 +86,8 @@ std::error_code SampleProfileWriterExtBinaryBase::compressAndOutput() {
     return sampleprof_error::success;
   auto &OS = *OutputStream;
   SmallString<128> CompressedStrings;
-  llvm::Error E = zlib::compress(UncompressedStrings, CompressedStrings,
-                                 zlib::BestSizeCompression);
-  if (E)
-    return sampleprof_error::compress_failed;
+  zlib::compress(UncompressedStrings, CompressedStrings,
+                 zlib::BestSizeCompression);
   encodeULEB128(UncompressedStrings.size(), OS);
   encodeULEB128(CompressedStrings.size(), OS);
   OS << CompressedStrings.str();
@@ -323,13 +320,13 @@ std::error_code SampleProfileWriterExtBinaryBase::writeOneSection(
     setToCompressSection(SecProfileSymbolList);
   if (Type == SecFuncMetadata && FunctionSamples::ProfileIsProbeBased)
     addSectionFlag(SecFuncMetadata, SecFuncMetadataFlags::SecFlagIsProbeBased);
-  if (Type == SecFuncMetadata && FunctionSamples::ProfileIsCSNested)
-    addSectionFlag(SecFuncMetadata, SecFuncMetadataFlags::SecFlagIsCSNested);
   if (Type == SecFuncMetadata &&
       (FunctionSamples::ProfileIsCSFlat || FunctionSamples::ProfileIsCSNested))
     addSectionFlag(SecFuncMetadata, SecFuncMetadataFlags::SecFlagHasAttribute);
   if (Type == SecProfSummary && FunctionSamples::ProfileIsCSFlat)
     addSectionFlag(SecProfSummary, SecProfSummaryFlags::SecFlagFullContext);
+  if (Type == SecProfSummary && FunctionSamples::ProfileIsCSNested)
+    addSectionFlag(SecProfSummary, SecProfSummaryFlags::SecFlagIsCSNested);
   if (Type == SecProfSummary && FunctionSamples::ProfileIsFS)
     addSectionFlag(SecProfSummary, SecProfSummaryFlags::SecFlagFSDiscriminator);
 

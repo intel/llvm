@@ -133,15 +133,13 @@ static bool runNVVMReflect(Function &F, unsigned SmVersion) {
       // FIXME: Add assertions about ConvCall.
       Str = ConvCall->getArgOperand(0);
     }
-    assert(isa<ConstantExpr>(Str) &&
-           "Format of __nvvm__reflect function not recognized");
-    const ConstantExpr *GEP = cast<ConstantExpr>(Str);
-
-    const Value *Sym = GEP->getOperand(0);
-    assert(isa<Constant>(Sym) &&
+    // Pre opaque pointers we have a constant expression wrapping the constant
+    // string.
+    Str = Str->stripPointerCasts();
+    assert(isa<Constant>(Str) &&
            "Format of __nvvm_reflect function not recognized");
 
-    const Value *Operand = cast<Constant>(Sym)->getOperand(0);
+    const Value *Operand = cast<Constant>(Str)->getOperand(0);
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(Operand)) {
       // For CUDA-7.0 style __nvvm_reflect calls, we need to find the operand's
       // initializer.
@@ -170,6 +168,12 @@ static bool runNVVMReflect(Function &F, unsigned SmVersion) {
         ReflectVal = Flag->getSExtValue();
     } else if (ReflectArg == "__CUDA_ARCH") {
       ReflectVal = SmVersion * 10;
+    } else if (ReflectArg == "__CUDA_PREC_SQRT") {
+      // Try to pull __CUDA_PREC_SQRT from the nvvm-reflect-prec-sqrt module
+      // flag.
+      if (auto *Flag = mdconst::extract_or_null<ConstantInt>(
+              F.getParent()->getModuleFlag("nvvm-reflect-prec-sqrt")))
+        ReflectVal = Flag->getSExtValue();
     }
     Call->replaceAllUsesWith(ConstantInt::get(Call->getType(), ReflectVal));
     ToRemove.push_back(Call);

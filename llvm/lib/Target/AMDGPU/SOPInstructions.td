@@ -152,8 +152,8 @@ class SOP1_64_0 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
 }
 
 // 64-bit input, no output
-class SOP1_1 <string opName, RegisterClass rc = SReg_64, list<dag> pattern=[]> : SOP1_Pseudo <
-  opName, (outs), (ins rc:$src0), "$src0", pattern> {
+class SOP1_1 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins SReg_64:$src0), "$src0", pattern> {
   let has_sdst = 0;
 }
 
@@ -235,10 +235,10 @@ def : GCNPat <
 
 let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
 def S_BREV_B32 : SOP1_32 <"s_brev_b32",
-  [(set i32:$sdst, (bitreverse i32:$src0))]
+  [(set i32:$sdst, (UniformUnaryFrag<bitreverse> i32:$src0))]
 >;
 def S_BREV_B64 : SOP1_64 <"s_brev_b64",
-  [(set i64:$sdst, (bitreverse i64:$src0))]
+  [(set i64:$sdst, (UniformUnaryFrag<bitreverse> i64:$src0))]
 >;
 } // End isReMaterializable = 1, isAsCheapAsAMove = 1
 
@@ -246,10 +246,10 @@ let Defs = [SCC] in {
 def S_BCNT0_I32_B32 : SOP1_32 <"s_bcnt0_i32_b32">;
 def S_BCNT0_I32_B64 : SOP1_32_64 <"s_bcnt0_i32_b64">;
 def S_BCNT1_I32_B32 : SOP1_32 <"s_bcnt1_i32_b32",
-  [(set i32:$sdst, (ctpop i32:$src0))]
+  [(set i32:$sdst, (UniformUnaryFrag<ctpop> i32:$src0))]
 >;
 def S_BCNT1_I32_B64 : SOP1_32_64 <"s_bcnt1_i32_b64",
-  [(set i32:$sdst, (ctpop i64:$src0))]
+  [(set i32:$sdst, (UniformUnaryFrag<ctpop> i64:$src0))]
 >;
 } // End Defs = [SCC]
 
@@ -276,10 +276,10 @@ def S_FLBIT_I32 : SOP1_32 <"s_flbit_i32",
 >;
 def S_FLBIT_I32_I64 : SOP1_32_64 <"s_flbit_i32_i64">;
 def S_SEXT_I32_I8 : SOP1_32 <"s_sext_i32_i8",
-  [(set i32:$sdst, (sext_inreg i32:$src0, i8))]
+  [(set i32:$sdst, (UniformSextInreg<i8> i32:$src0))]
 >;
 def S_SEXT_I32_I16 : SOP1_32 <"s_sext_i32_i16",
-  [(set i32:$sdst, (sext_inreg i32:$src0, i16))]
+  [(set i32:$sdst, (UniformSextInreg<i16> i32:$src0))]
 >;
 } // End isReMaterializable = 1
 
@@ -300,8 +300,7 @@ def S_SETPC_B64 : SOP1_1  <"s_setpc_b64">;
 
 let isReturn = 1 in {
 // Define variant marked as return rather than branch.
-def S_SETPC_B64_return : SOP1_1<"", CCR_SGPR_64, [(AMDGPUret_flag i64:$src0)]>;
-def S_SETPC_B64_return_gfx : SOP1_1<"", Gfx_CCR_SGPR_64, [(AMDGPUret_gfx_flag i64:$src0)]>;
+def S_SETPC_B64_return : SOP1_1<"">;
 }
 } // End isTerminator = 1, isBarrier = 1
 
@@ -341,7 +340,7 @@ def S_CBRANCH_JOIN : SOP1_0_32R <"s_cbranch_join">;
 
 let Defs = [SCC] in {
 def S_ABS_I32 : SOP1_32 <"s_abs_i32",
-    [(set i32:$sdst, (abs i32:$src0))]
+    [(set i32:$sdst, (UniformUnaryFrag<abs> i32:$src0))]
   >;
 } // End Defs = [SCC]
 
@@ -518,10 +517,9 @@ let Uses = [SCC] in {
     def S_CSELECT_B32 : SOP2_32 <"s_cselect_b32",
       [(set i32:$sdst, (SelectPat<select> i32:$src0, i32:$src1))]
     >;
-    def S_CSELECT_B64 : SOP2_64 <"s_cselect_b64",
-      [(set i64:$sdst, (SelectPat<select> i64:$src0, i64:$src1))]
-    >;
   }
+
+  def S_CSELECT_B64 : SOP2_64 <"s_cselect_b64">;
 } // End Uses = [SCC]
 
 let Defs = [SCC] in {
@@ -551,11 +549,11 @@ def S_XOR_B64 : SOP2_64 <"s_xor_b64",
 >;
 
 def S_XNOR_B32 : SOP2_32 <"s_xnor_b32",
-  [(set i32:$sdst, (not (xor_oneuse i32:$src0, i32:$src1)))]
+  [(set i32:$sdst, (UniformUnaryFrag<not> (xor_oneuse i32:$src0, i32:$src1)))]
 >;
 
 def S_XNOR_B64 : SOP2_64 <"s_xnor_b64",
-  [(set i64:$sdst, (not (xor_oneuse i64:$src0, i64:$src1)))]
+  [(set i64:$sdst, (UniformUnaryFrag<not> (xor_oneuse i64:$src0, i64:$src1)))]
 >;
 
 def S_NAND_B32 : SOP2_32 <"s_nand_b32",
@@ -1280,7 +1278,10 @@ def S_SLEEP : SOPP_Pseudo <"s_sleep", (ins i32imm:$simm16),
   let hasSideEffects = 1;
 }
 
-def S_SETPRIO : SOPP_Pseudo <"s_setprio" , (ins i16imm:$simm16), "$simm16">;
+def S_SETPRIO : SOPP_Pseudo <"s_setprio", (ins i16imm:$simm16), "$simm16",
+  [(int_amdgcn_s_setprio timm:$simm16)]> {
+  let hasSideEffects = 1;
+}
 
 let Uses = [EXEC, M0] in {
 // FIXME: Should this be mayLoad+mayStore?
@@ -1342,7 +1343,7 @@ let SubtargetPredicate = isGFX10Plus in {
       let fixed_imm = 1;
     }
   def S_WAITCNT_DEPCTR :
-    SOPP_Pseudo <"s_waitcnt_depctr" , (ins s16imm:$simm16), "$simm16">;
+    SOPP_Pseudo <"s_waitcnt_depctr" , (ins DepCtrImm:$simm16), "$simm16">;
 
   let hasSideEffects = 0, Uses = [MODE], Defs = [MODE] in {
     def S_ROUND_MODE :
@@ -1371,14 +1372,14 @@ def : GCNPat <
 >;
 
 def : GCNPat <
-  (i64 (ctpop i64:$src)),
+  (i64 (UniformUnaryFrag<ctpop> i64:$src)),
     (i64 (REG_SEQUENCE SReg_64,
      (i32 (COPY_TO_REGCLASS (S_BCNT1_I32_B64 $src), SReg_32)), sub0,
      (S_MOV_B32 (i32 0)), sub1))
 >;
 
 def : GCNPat <
-  (i32 (smax i32:$x, (i32 (ineg i32:$x)))),
+  (i32 (UniformBinFrag<smax> i32:$x, (i32 (ineg i32:$x)))),
   (S_ABS_I32 SReg_32:$x)
 >;
 
@@ -1409,7 +1410,7 @@ def : GCNPat <
 // REG_SEQUENCE patterns don't support instructions with multiple
 // outputs.
 def : GCNPat<
-  (i64 (zext i16:$src)),
+  (i64 (UniformUnaryFrag<zext> i16:$src)),
     (REG_SEQUENCE SReg_64,
       (i32 (COPY_TO_REGCLASS (S_AND_B32 $src, (S_MOV_B32 (i32 0xffff))), SGPR_32)), sub0,
       (S_MOV_B32 (i32 0)), sub1)
@@ -1422,7 +1423,7 @@ def : GCNPat <
 >;
 
 def : GCNPat<
-  (i32 (zext i16:$src)),
+  (i32 (UniformUnaryFrag<zext> i16:$src)),
   (S_AND_B32 (S_MOV_B32 (i32 0xffff)), $src)
 >;
 

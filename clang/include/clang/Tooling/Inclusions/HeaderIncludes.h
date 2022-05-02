@@ -14,6 +14,7 @@
 #include "clang/Tooling/Inclusions/IncludeStyle.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
+#include <list>
 #include <unordered_map>
 
 namespace clang {
@@ -97,7 +98,8 @@ private:
   // Map from include name (quotation trimmed) to a list of existing includes
   // (in case there are more than one) with the name in the current file. <x>
   // and "x" will be treated as the same header when deleting #includes.
-  llvm::StringMap<llvm::SmallVector<Include, 1>> ExistingIncludes;
+  // std::list is used for pointers stability (see IncludesByPriority)
+  llvm::StringMap<std::list<Include>> ExistingIncludes;
 
   /// Map from priorities of #include categories to all #includes in the same
   /// category. This is used to find #includes of the same category when
@@ -126,6 +128,23 @@ private:
   // Matches a whole #include directive.
   llvm::Regex IncludeRegex;
 };
+
+/// \returns a regex that can match various styles of C++ includes.
+/// For example:
+/// \code
+/// #include <foo.h>
+/// @import bar;
+/// #include "bar.h"
+/// \endcode
+llvm::Regex getCppIncludeRegex();
+
+/// \returns the last match in the list of matches that is not empty.
+llvm::StringRef getIncludeNameFromMatches(
+    const llvm::SmallVectorImpl<llvm::StringRef> &Matches);
+
+/// \returns the given include name and removes the following symbols from the
+/// beginning and ending of the include name: " > < ;
+llvm::StringRef trimInclude(llvm::StringRef IncludeName);
 
 } // namespace tooling
 } // namespace clang

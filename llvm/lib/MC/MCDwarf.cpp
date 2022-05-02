@@ -387,8 +387,7 @@ static void emitOneV5FileEntry(MCStreamer *MCOS, const MCDwarfFile &DwarfFile,
   if (EmitMD5) {
     const MD5::MD5Result &Cksum = *DwarfFile.Checksum;
     MCOS->emitBinaryData(
-        StringRef(reinterpret_cast<const char *>(Cksum.Bytes.data()),
-                  Cksum.Bytes.size()));
+        StringRef(reinterpret_cast<const char *>(Cksum.data()), Cksum.size()));
   }
   if (HasSource) {
     if (LineStr)
@@ -561,7 +560,7 @@ Expected<unsigned> MCDwarfLineTable::tryGetFile(StringRef &Directory,
 
 static bool isRootFile(const MCDwarfFile &RootFile, StringRef &Directory,
                        StringRef &FileName, Optional<MD5::MD5Result> Checksum) {
-  if (RootFile.Name.empty() || RootFile.Name != FileName.data())
+  if (RootFile.Name.empty() || StringRef(RootFile.Name) != FileName)
     return false;
   return RootFile.Checksum == Checksum;
 }
@@ -586,7 +585,7 @@ MCDwarfLineTableHeader::tryGetFile(StringRef &Directory,
     trackMD5Usage(Checksum.hasValue());
     HasSource = (Source != None);
   }
-  if (isRootFile(RootFile, Directory, FileName, Checksum) && DwarfVersion >= 5)
+  if (DwarfVersion >= 5 && isRootFile(RootFile, Directory, FileName, Checksum))
     return 0;
   if (FileNumber == 0) {
     // File numbers start with 1 and/or after any file numbers

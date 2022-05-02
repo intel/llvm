@@ -1,6 +1,4 @@
 // REQUIRES: case-insensitive-filesystem
-// Disable file portability check to unblock pulldown
-// XFAIL: system-windows
 
 // RUN: mkdir -p %t/asystempath
 // RUN: cp %S/Inputs/case-insensitive-include.h %t/asystempath/

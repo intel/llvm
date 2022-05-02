@@ -20,14 +20,12 @@ namespace sycl {
 
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
 } // namespace detail
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 
@@ -164,15 +162,16 @@ protected:
   AccessorImplPtr impl;
 
 private:
-  friend class sycl::ext::intel::experimental::esimd::detail::
-      AccessorPrivateProxy;
+  friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 };
 
 class __SYCL_EXPORT LocalAccessorImplHost {
 public:
+  // Allocate ElemSize more data to have sufficient padding to enforce
+  // alignment.
   LocalAccessorImplHost(sycl::range<3> Size, int Dims, int ElemSize)
       : MSize(Size), MDims(Dims), MElemSize(ElemSize),
-        MMem(Size[0] * Size[1] * Size[2] * ElemSize) {}
+        MMem(Size[0] * Size[1] * Size[2] * ElemSize + ElemSize) {}
 
   sycl::range<3> MSize;
   int MDims;
@@ -190,9 +189,20 @@ public:
   }
   sycl::range<3> &getSize() { return impl->MSize; }
   const sycl::range<3> &getSize() const { return impl->MSize; }
-  void *getPtr() { return impl->MMem.data(); }
+  void *getPtr() {
+    // Const cast this in order to call the const getPtr.
+    return const_cast<const LocalAccessorBaseHost *>(this)->getPtr();
+  }
   void *getPtr() const {
-    return const_cast<void *>(reinterpret_cast<void *>(impl->MMem.data()));
+    char *ptr = impl->MMem.data();
+
+    // Align the pointer to MElemSize.
+    size_t val = reinterpret_cast<size_t>(ptr);
+    if (val % impl->MElemSize != 0) {
+      ptr += impl->MElemSize - val % impl->MElemSize;
+    }
+
+    return ptr;
   }
 
   int getNumOfDims() { return impl->MDims; }
@@ -209,7 +219,7 @@ using Requirement = AccessorImplHost;
 
 void __SYCL_EXPORT addHostAccessorAndWait(Requirement *Req);
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::mode deduceAccessMode() {

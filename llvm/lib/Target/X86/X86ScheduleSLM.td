@@ -200,6 +200,7 @@ def  : WriteRes<WriteFMaskedStore64Y,   [SLM_MEC_RSV]>;
 def  : WriteRes<WriteFMove,         [SLM_FPC_RSV01]>;
 def  : WriteRes<WriteFMoveX,        [SLM_FPC_RSV01]>;
 def  : WriteRes<WriteFMoveY,        [SLM_FPC_RSV01]>;
+defm : X86WriteResUnsupported<WriteFMoveZ>;
 defm : X86WriteRes<WriteEMMS,       [SLM_FPC_RSV01], 10, [10], 9>;
 
 defm : SLMWriteResPair<WriteFAdd,     [SLM_FPC_RSV1], 3>;
@@ -345,6 +346,7 @@ def  : WriteRes<WriteVecMaskedStore64Y,   [SLM_MEC_RSV]>;
 def  : WriteRes<WriteVecMove,         [SLM_FPC_RSV01]>;
 def  : WriteRes<WriteVecMoveX,        [SLM_FPC_RSV01]>;
 def  : WriteRes<WriteVecMoveY,        [SLM_FPC_RSV01]>;
+defm : X86WriteResUnsupported<WriteVecMoveZ>;
 def  : WriteRes<WriteVecMoveToGpr,    [SLM_IEC_RSV01]>;
 def  : WriteRes<WriteVecMoveFromGpr,  [SLM_IEC_RSV01]>;
 
@@ -375,10 +377,8 @@ defm : SLMWriteResPair<WriteVecIMul,  [SLM_FPC_RSV0],   4>;
 defm : SLMWriteResPair<WriteVecIMulX, [SLM_FPC_RSV0],   5, [2]>;
 defm : SLMWriteResPair<WriteVecIMulY, [SLM_FPC_RSV0],   5, [2]>;
 defm : X86WriteResPairUnsupported<WriteVecIMulZ>;
-// FIXME: The below is closer to correct, but caused some perf regressions.
-//defm : SLMWriteResPair<WritePMULLD,  [SLM_FPC_RSV0],   11, [11], 7>;
-defm : SLMWriteResPair<WritePMULLD,  [SLM_FPC_RSV0],   4>;
-defm : SLMWriteResPair<WritePMULLDY, [SLM_FPC_RSV0],   4>;
+defm : SLMWriteResPair<WritePMULLD,  [SLM_FPC_RSV0],   11, [11], 7>;
+defm : X86WriteResPairUnsupported<WritePMULLDY>;
 defm : X86WriteResPairUnsupported<WritePMULLDZ>;
 defm : SLMWriteResPair<WriteShuffle,  [SLM_FPC_RSV0],  1>;
 defm : SLMWriteResPair<WriteShuffleY, [SLM_FPC_RSV0],  1>;
@@ -479,5 +479,23 @@ def SLMWriteResGroup1rm : SchedWriteRes<[SLM_MEC_RSV,SLM_FPC_RSV01]> {
 def: InstRW<[SLMWriteResGroup1rm], (instrs MMX_PADDQrm, PADDQrm,
                                            MMX_PSUBQrm, PSUBQrm,
                                            PCMPEQQrm)>;
+
+///////////////////////////////////////////////////////////////////////////////
+// Dependency breaking instructions.
+///////////////////////////////////////////////////////////////////////////////
+
+def : IsZeroIdiomFunction<[
+  // GPR Zero-idioms.
+  DepBreakingClass<[ XOR32rr ], ZeroIdiomPredicate>,
+
+  // SSE Zero-idioms.
+  DepBreakingClass<[
+    // fp variants.
+    XORPSrr, XORPDrr,
+
+    // int variants.
+    PXORrr,
+  ], ZeroIdiomPredicate>,
+]>;
 
 } // SchedModel

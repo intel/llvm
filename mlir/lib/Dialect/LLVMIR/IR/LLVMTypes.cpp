@@ -113,7 +113,16 @@ LLVMFunctionType::getChecked(function_ref<InFlightDiagnostic()> emitError,
                           isVarArg);
 }
 
+LLVMFunctionType LLVMFunctionType::clone(TypeRange inputs,
+                                         TypeRange results) const {
+  assert(results.size() == 1 && "expected a single result type");
+  return get(results[0], llvm::to_vector(inputs), isVarArg());
+}
+
 Type LLVMFunctionType::getReturnType() { return getImpl()->getReturnType(); }
+ArrayRef<Type> LLVMFunctionType::getReturnTypes() {
+  return getImpl()->getReturnType();
+}
 
 unsigned LLVMFunctionType::getNumParams() {
   return getImpl()->getArgumentTypes().size();
@@ -123,7 +132,7 @@ Type LLVMFunctionType::getParamType(unsigned i) {
   return getImpl()->getArgumentTypes()[i];
 }
 
-bool LLVMFunctionType::isVarArg() { return getImpl()->isVariadic(); }
+bool LLVMFunctionType::isVarArg() const { return getImpl()->isVariadic(); }
 
 ArrayRef<Type> LLVMFunctionType::getParams() {
   return getImpl()->getArgumentTypes();
@@ -147,6 +156,8 @@ LLVMFunctionType::verify(function_ref<InFlightDiagnostic()> emitError,
 //===----------------------------------------------------------------------===//
 
 bool LLVMPointerType::isValidElementType(Type type) {
+  if (!type)
+    return true;
   return isCompatibleOuterType(type)
              ? !type.isa<LLVMVoidType, LLVMTokenType, LLVMMetadataType,
                          LLVMLabelType>()
@@ -154,8 +165,14 @@ bool LLVMPointerType::isValidElementType(Type type) {
 }
 
 LLVMPointerType LLVMPointerType::get(Type pointee, unsigned addressSpace) {
-  assert(pointee && "expected non-null subtype");
+  assert(pointee && "expected non-null subtype, pass the context instead if "
+                    "the opaque pointer type is desired");
   return Base::get(pointee.getContext(), pointee, addressSpace);
+}
+
+LLVMPointerType LLVMPointerType::get(MLIRContext *context,
+                                     unsigned addressSpace) {
+  return Base::get(context, Type(), addressSpace);
 }
 
 LLVMPointerType
@@ -165,7 +182,15 @@ LLVMPointerType::getChecked(function_ref<InFlightDiagnostic()> emitError,
                           addressSpace);
 }
 
+LLVMPointerType
+LLVMPointerType::getChecked(function_ref<InFlightDiagnostic()> emitError,
+                            MLIRContext *context, unsigned addressSpace) {
+  return Base::getChecked(emitError, context, Type(), addressSpace);
+}
+
 Type LLVMPointerType::getElementType() const { return getImpl()->pointeeType; }
+
+bool LLVMPointerType::isOpaque() const { return !getImpl()->pointeeType; }
 
 unsigned LLVMPointerType::getAddressSpace() const {
   return getImpl()->addressSpace;
@@ -713,9 +738,13 @@ static bool isCompatibleImpl(Type type, SetVector<Type> &callstack) {
       .Case<VectorType>([&](auto vecType) {
         return vecType.getRank() == 1 && isCompatible(vecType.getElementType());
       })
+      .Case<LLVMPointerType>([&](auto pointerType) {
+        if (pointerType.isOpaque())
+          return true;
+        return isCompatible(pointerType.getElementType());
+      })
       // clang-format off
       .Case<
-          LLVMPointerType,
           LLVMFixedVectorType,
           LLVMScalableVectorType,
           LLVMArrayType

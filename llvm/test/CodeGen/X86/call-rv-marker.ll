@@ -38,8 +38,8 @@ entry:
   ret i8* %call
 }
 
-define i8* @rv_marker_1_claim() {
-; CHECK-LABEL:  rv_marker_1_claim:
+define i8* @rv_marker_1_unsafeClaim() {
+; CHECK-LABEL:  rv_marker_1_unsafeClaim:
 ; CHECK:         pushq %rax
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    callq   _foo1
@@ -55,17 +55,18 @@ entry:
 
 define void @rv_marker_2_select(i32 %c) {
 ; CHECK-LABEL: rv_marker_2_select:
-; CHECK:        pushq   %rax
-; CHECK-NEXT:   .cfi_def_cfa_offset 16
-; CHECK-NEXT:   cmpl    $1, %edi
-; CHECK-NEXT:   movl    $1, %edi
-; CHECK-NEXT:   adcl    $0, %edi
-; CHECK-NEXT:   callq   _foo0
-; CHECK-NEXT:   movq    %rax, %rdi
-; CHECK-NEXT:   callq   _objc_retainAutoreleasedReturnValue
-; CHECK-NEXT:   movq    %rax, %rdi
-; CHECK-NEXT:   popq    %rax
-; CHECK-NEXT:   jmp _foo2
+; CHECK:         pushq %rax
+; CHECK-NEXT:    .cfi_def_cfa_offset 16
+; CHECK-NEXT:    xorl %eax, %eax
+; CHECK-NEXT:    cmpl $1, %edi
+; CHECK-NEXT:    adcl $1, %eax
+; CHECK-NEXT:    movl %eax, %edi
+; CHECK-NEXT:    callq _foo0
+; CHECK-NEXT:    movq %rax, %rdi
+; CHECK-NEXT:    callq _objc_retainAutoreleasedReturnValue
+; CHECK-NEXT:    movq %rax, %rdi
+; CHECK-NEXT:    popq %rax
+; CHECK-NEXT:    jmp _foo2
 ;
 entry:
   %tobool.not = icmp eq i32 %c, 0

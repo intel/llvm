@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
@@ -27,13 +27,15 @@ namespace {
 // TODO: Add common surrounding loop depth-wise dependence checks.
 /// Checks dependences between all pairs of memref accesses in a Function.
 struct TestMemRefDependenceCheck
-    : public PassWrapper<TestMemRefDependenceCheck, FunctionPass> {
+    : public PassWrapper<TestMemRefDependenceCheck, OperationPass<>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestMemRefDependenceCheck)
+
   StringRef getArgument() const final { return "test-memref-dependence-check"; }
   StringRef getDescription() const final {
     return "Checks dependences between all pairs of memref accesses.";
   }
   SmallVector<Operation *, 4> loadsAndStores;
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
 } // namespace
@@ -100,12 +102,12 @@ static void checkDependences(ArrayRef<Operation *> loadsAndStores) {
   }
 }
 
-// Walks the Function 'f' adding load and store ops to 'loadsAndStores'.
-// Runs pair-wise dependence checks.
-void TestMemRefDependenceCheck::runOnFunction() {
+/// Walks the operation adding load and store ops to 'loadsAndStores'. Runs
+/// pair-wise dependence checks.
+void TestMemRefDependenceCheck::runOnOperation() {
   // Collect the loads and stores within the function.
   loadsAndStores.clear();
-  getFunction().walk([&](Operation *op) {
+  getOperation()->walk([&](Operation *op) {
     if (isa<AffineLoadOp, AffineStoreOp>(op))
       loadsAndStores.push_back(op);
   });

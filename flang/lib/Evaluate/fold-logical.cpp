@@ -91,7 +91,7 @@ Expr<Type<TypeCategory::Logical, KIND>> FoldIntrinsicFunction(
             }));
   } else if (name == "btest") {
     if (const auto *ix{UnwrapExpr<Expr<SomeInteger>>(args[0])}) {
-      return std::visit(
+      return common::visit(
           [&](const auto &x) {
             using IT = ResultType<decltype(x)>;
             return FoldElementalIntrinsic<T, IT, SameInt>(context,
@@ -117,6 +117,20 @@ Expr<Type<TypeCategory::Logical, KIND>> FoldIntrinsicFunction(
     return FoldElementalIntrinsic<T, DefaultReal>(context, std::move(funcRef),
         ScalarFunc<T, DefaultReal>([](const Scalar<DefaultReal> &x) {
           return Scalar<T>{x.IsNotANumber()};
+        }));
+  } else if (name == "__builtin_ieee_is_negative") {
+    auto restorer{context.messages().DiscardMessages()};
+    using DefaultReal = Type<TypeCategory::Real, 4>;
+    return FoldElementalIntrinsic<T, DefaultReal>(context, std::move(funcRef),
+        ScalarFunc<T, DefaultReal>([](const Scalar<DefaultReal> &x) {
+          return Scalar<T>{x.IsNegative()};
+        }));
+  } else if (name == "__builtin_ieee_is_normal") {
+    auto restorer{context.messages().DiscardMessages()};
+    using DefaultReal = Type<TypeCategory::Real, 4>;
+    return FoldElementalIntrinsic<T, DefaultReal>(context, std::move(funcRef),
+        ScalarFunc<T, DefaultReal>([](const Scalar<DefaultReal> &x) {
+          return Scalar<T>{x.IsNormal()};
         }));
   } else if (name == "is_contiguous") {
     if (args.at(0)) {
@@ -198,7 +212,7 @@ Expr<LogicalResult> FoldOperation(
 
 Expr<LogicalResult> FoldOperation(
     FoldingContext &context, Relational<SomeType> &&relation) {
-  return std::visit(
+  return common::visit(
       [&](auto &&x) {
         return Expr<LogicalResult>{FoldOperation(context, std::move(x))};
       },
@@ -254,6 +268,9 @@ Expr<Type<TypeCategory::Logical, KIND>> FoldOperation(
   return Expr<LOGICAL>{std::move(operation)};
 }
 
+#ifdef _MSC_VER // disable bogus warning about missing definitions
+#pragma warning(disable : 4661)
+#endif
 FOR_EACH_LOGICAL_KIND(template class ExpressionBase, )
 template class ExpressionBase<SomeLogical>;
 } // namespace Fortran::evaluate

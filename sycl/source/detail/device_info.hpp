@@ -234,23 +234,6 @@ template <> struct get_device_info<bool, info::device::queue_profiling> {
   }
 };
 
-// Specialization for atomic64 that is necessary because
-// PI_DEVICE_INFO_ATOMIC_64 is currently only implemented for the cuda backend.
-template <> struct get_device_info<bool, info::device::atomic64> {
-  static bool get(RT::PiDevice dev, const plugin &Plugin) {
-
-    bool result = false;
-
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, pi::cast<RT::PiDeviceInfo>(info::device::atomic64), sizeof(result),
-        &result, nullptr);
-    if (Err != PI_SUCCESS) {
-      return false;
-    }
-    return result;
-  }
-};
-
 // Specialization for atomic_memory_order_capabilities, PI returns a bitfield
 template <>
 struct get_device_info<std::vector<memory_order>,
@@ -263,6 +246,21 @@ struct get_device_info<std::vector<memory_order>,
             info::device::atomic_memory_order_capabilities),
         sizeof(pi_memory_order_capabilities), &result, nullptr);
     return readMemoryOrderBitfield(result);
+  }
+};
+
+// Specialization for atomic_memory_scope_capabilities, PI returns a bitfield
+template <>
+struct get_device_info<std::vector<memory_scope>,
+                       info::device::atomic_memory_scope_capabilities> {
+  static std::vector<memory_scope> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_scope_capabilities result;
+    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(
+            info::device::atomic_memory_scope_capabilities),
+        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    return readMemoryScopeBitfield(result);
   }
 };
 
@@ -765,6 +763,13 @@ get_device_info_host<info::device::atomic_memory_order_capabilities>() {
 }
 
 template <>
+inline std::vector<memory_scope>
+get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
+  return {memory_scope::work_item, memory_scope::sub_group,
+          memory_scope::work_group, memory_scope::device, memory_scope::system};
+}
+
+template <>
 inline cl_uint get_device_info_host<info::device::max_read_image_args>() {
   // current value is the required minimum
   return 128;
@@ -1061,7 +1066,7 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 
 template <> inline device get_device_info_host<info::device::parent_device>() {
   // TODO: implement host device partitioning
-  throw runtime_error(
+  throw invalid_object_error(
       "Partitioning to subdevices of the host device is not implemented yet",
       PI_INVALID_DEVICE);
 }
@@ -1131,6 +1136,13 @@ get_device_info_host<info::device::sub_group_independent_forward_progress>() {
 template <>
 inline bool get_device_info_host<info::device::kernel_kernel_pipe_support>() {
   return false;
+}
+
+template <>
+inline std::string get_device_info_host<info::device::backend_version>() {
+  throw runtime_error(
+      "Backend version feature is not supported on HOST device.",
+      PI_INVALID_DEVICE);
 }
 
 template <>

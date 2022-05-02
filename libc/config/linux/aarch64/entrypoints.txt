@@ -17,24 +17,31 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.ctype.tolower
     libc.src.ctype.toupper
     
-    # errno.h entrypoints
-    libc.src.errno.__errno_location
+    # fcntl.h entrypoints
+    libc.src.fcntl.creat
+    libc.src.fcntl.open
+    libc.src.fcntl.openat
 
     # string.h entrypoints
     libc.src.string.bcmp
     libc.src.string.bzero
+    libc.src.string.memccpy
     libc.src.string.memchr
     libc.src.string.memcmp
     libc.src.string.memcpy
     libc.src.string.memmove
-    libc.src.string.memset
+    libc.src.string.mempcpy
     libc.src.string.memrchr
+    libc.src.string.memset
+    libc.src.string.stpcpy
+    libc.src.string.stpncpy
     libc.src.string.strcat
     libc.src.string.strchr
-    libc.src.string.strcpy
     libc.src.string.strcmp
+    libc.src.string.strcpy
     libc.src.string.strcspn
     libc.src.string.strlen
+    libc.src.string.strncat
     libc.src.string.strncmp
     libc.src.string.strncpy
     libc.src.string.strnlen
@@ -45,6 +52,10 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strtok
     libc.src.string.strtok_r
 
+    # string.h entrypoints that depend on malloc
+    libc.src.string.strdup
+    libc.src.string.strndup
+
     # inttypes.h entrypoints
     libc.src.inttypes.imaxdiv
     libc.src.inttypes.strtoimax
@@ -53,6 +64,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     # stdlib.h entrypoints
     libc.src.stdlib.abs
     libc.src.stdlib.atoi
+    libc.src.stdlib.atof
     libc.src.stdlib.atol
     libc.src.stdlib.atoll
     libc.src.stdlib.bsearch
@@ -62,10 +74,33 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.stdlib.llabs
     libc.src.stdlib.lldiv
     libc.src.stdlib.qsort
+    libc.src.stdlib.strtod
+    libc.src.stdlib.strtof
     libc.src.stdlib.strtol
+    libc.src.stdlib.strtold
     libc.src.stdlib.strtoll
     libc.src.stdlib.strtoul
     libc.src.stdlib.strtoull
+
+    # stdlib.h external entrypoints
+    libc.src.stdlib.malloc
+    libc.src.stdlib.calloc
+    libc.src.stdlib.realloc
+    libc.src.stdlib.free
+
+    # sys/stat.h entrypoints
+    libc.src.sys.stat.mkdir
+    libc.src.sys.stat.mkdirat
+
+    # unistd.h entrypoints
+    libc.src.unistd.close
+    libc.src.unistd.fsync
+    libc.src.unistd.lseek
+    libc.src.unistd.read
+    libc.src.unistd.rmdir
+    libc.src.unistd.unlink
+    libc.src.unistd.unlinkat
+    libc.src.unistd.write
 )
 
 set(TARGET_LIBM_ENTRYPOINTS
@@ -136,6 +171,9 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.ldexp
     libc.src.math.ldexpf
     libc.src.math.ldexpl
+    libc.src.math.log10f
+    libc.src.math.log1pf
+    libc.src.math.log2f
     libc.src.math.logf
     libc.src.math.logb
     libc.src.math.logbf
@@ -169,7 +207,49 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.trunc
     libc.src.math.truncf
     libc.src.math.truncl
+
+    # sys/mman.h entrypoints
+    libc.src.sys.mman.mmap
+    libc.src.sys.mman.munmap
 )
+
+if(LLVM_LIBC_FULL_BUILD)
+  list(APPEND TARGET_LIBC_ENTRYPOINTS
+    # threads.h entrypoints
+    libc.src.threads.call_once
+    libc.src.threads.cnd_broadcast
+    libc.src.threads.cnd_destroy
+    libc.src.threads.cnd_init
+    libc.src.threads.cnd_signal
+    libc.src.threads.cnd_wait
+    libc.src.threads.mtx_destroy
+    libc.src.threads.mtx_init
+    libc.src.threads.mtx_lock
+    libc.src.threads.mtx_unlock
+    libc.src.threads.thrd_create
+    libc.src.threads.thrd_join
+
+    # pthread.h entrypoints
+    libc.src.pthread.pthread_attr_destroy
+    libc.src.pthread.pthread_attr_init
+    libc.src.pthread.pthread_attr_getdetachstate
+    libc.src.pthread.pthread_attr_getguardsize
+    libc.src.pthread.pthread_attr_getstack
+    libc.src.pthread.pthread_attr_getstacksize
+    libc.src.pthread.pthread_attr_setdetachstate
+    libc.src.pthread.pthread_attr_setguardsize
+    libc.src.pthread.pthread_attr_setstack
+    libc.src.pthread.pthread_attr_setstacksize
+    libc.src.pthread.pthread_mutexattr_destroy
+    libc.src.pthread.pthread_mutexattr_init
+    libc.src.pthread.pthread_mutexattr_getpshared
+    libc.src.pthread.pthread_mutexattr_getrobust
+    libc.src.pthread.pthread_mutexattr_gettype
+    libc.src.pthread.pthread_mutexattr_setpshared
+    libc.src.pthread.pthread_mutexattr_setrobust
+    libc.src.pthread.pthread_mutexattr_settype
+  )
+endif()
 
 set(TARGET_LLVMLIBC_ENTRYPOINTS
   ${TARGET_LIBC_ENTRYPOINTS}

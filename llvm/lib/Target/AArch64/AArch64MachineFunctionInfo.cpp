@@ -15,8 +15,11 @@
 
 #include "AArch64MachineFunctionInfo.h"
 #include "AArch64InstrInfo.h"
-#include <llvm/IR/Metadata.h>
-#include <llvm/IR/Module.h>
+#include "AArch64Subtarget.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Metadata.h"
+#include "llvm/IR/Module.h"
+#include "llvm/MC/MCAsmInfo.h"
 
 using namespace llvm;
 
@@ -113,4 +116,25 @@ bool AArch64FunctionInfo::shouldSignReturnAddress() const {
   return shouldSignReturnAddress(llvm::any_of(
       MF.getFrameInfo().getCalleeSavedInfo(),
       [](const auto &Info) { return Info.getReg() == AArch64::LR; }));
+}
+
+bool AArch64FunctionInfo::needsDwarfUnwindInfo() const {
+  if (!NeedsDwarfUnwindInfo)
+    NeedsDwarfUnwindInfo = MF.needsFrameMoves() &&
+                           !MF.getTarget().getMCAsmInfo()->usesWindowsCFI();
+
+  return *NeedsDwarfUnwindInfo;
+}
+
+bool AArch64FunctionInfo::needsAsyncDwarfUnwindInfo() const {
+  if (!NeedsAsyncDwarfUnwindInfo) {
+    const Function &F = MF.getFunction();
+    //  The check got "minsize" is because epilogue unwind info is not emitted
+    //  (yet) for homogeneous epilogues, outlined functions, and functions
+    //  outlined from.
+    NeedsAsyncDwarfUnwindInfo = needsDwarfUnwindInfo() &&
+                                F.getUWTableKind() == UWTableKind::Async &&
+                                !F.hasMinSize();
+  }
+  return *NeedsAsyncDwarfUnwindInfo;
 }

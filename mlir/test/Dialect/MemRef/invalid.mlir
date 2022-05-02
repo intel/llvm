@@ -149,7 +149,7 @@ func @transpose_wrong_type(%v : memref<?x?xf32, affine_map<(i, j)[off, M]->(off 
 // -----
 
 func @memref_reinterpret_cast_too_many_offsets(%in: memref<?xf32>) {
-  // expected-error @+1 {{expected <= 1 offset values}}
+  // expected-error @+1 {{expected 1 offset values}}
   %out = memref.reinterpret_cast %in to
            offset: [0, 0], sizes: [10, 10], strides: [10, 1]
            : memref<?xf32> to memref<10x10xf32, offset: 0, strides: [10, 1]>
@@ -203,6 +203,44 @@ func @memref_reinterpret_cast_offset_mismatch(%in: memref<?xf32>) {
   %out = memref.reinterpret_cast %in to
            offset: [2], sizes: [10], strides: [2]
          : memref<?xf32> to memref<10xf32, offset: 2, strides: [1]>
+  return
+}
+
+// -----
+
+func @memref_reinterpret_cast_no_map_but_offset(%in: memref<?xf32>) {
+  // expected-error @+1 {{expected result type with offset = 0 instead of 2}}
+  %out = memref.reinterpret_cast %in to offset: [2], sizes: [10], strides: [1]
+         : memref<?xf32> to memref<10xf32>
+  return
+}
+
+// -----
+
+func @memref_reinterpret_cast_no_map_but_stride(%in: memref<?xf32>) {
+  // expected-error @+1 {{expected result type with stride = 10 instead of 1 in dim = 0}}
+  %out = memref.reinterpret_cast %in to offset: [0], sizes: [10], strides: [10]
+         : memref<?xf32> to memref<10xf32>
+  return
+}
+
+// -----
+
+func @memref_reinterpret_cast_no_map_but_strides(%in: memref<?x?xf32>) {
+  // expected-error @+1 {{expected result type with stride = 42 instead of 10 in dim = 0}}
+  %out = memref.reinterpret_cast %in to
+           offset: [0], sizes: [9, 10], strides: [42, 1]
+         : memref<?x?xf32> to memref<9x10xf32>
+  return
+}
+
+// -----
+
+func @memref_reinterpret_cast_non_strided_layout(%in: memref<?x?xf32>) {
+  // expected-error @+1 {{expected result type to have strided layout but found 'memref<9x10xf32, affine_map<(d0, d1) -> (d0)>>}}
+  %out = memref.reinterpret_cast %in to
+           offset: [0], sizes: [9, 10], strides: [42, 1]
+         : memref<?x?xf32> to memref<9x10xf32, affine_map<(d0, d1) -> (d0)>>
   return
 }
 
@@ -313,7 +351,7 @@ func @nonexistent_global_memref() {
 
 // -----
 
-func @foo()
+func private @foo()
 
 func @nonexistent_global_memref() {
   // expected-error @+1 {{'foo' does not reference a valid global memref}}
@@ -355,35 +393,47 @@ func @copy_different_eltype(%arg0: memref<2xf32>, %arg1: memref<2xf16>) {
 // -----
 
 func @expand_shape(%arg0: memref<f32>) {
-  // expected-error @+1 {{expected non-zero memref ranks}}
+  // expected-error @+1 {{invalid number of reassociation groups: found 1, expected 0}}
   %0 = memref.expand_shape %arg0 [[0]] : memref<f32> into memref<f32>
+  return
+}
+
+// -----
+
+func @expand_shape(%arg0: memref<f32>) {
+  // expected-error @+1 {{rank 0 memrefs can only be extended/collapsed with/from ones}}
+  %0 = memref.expand_shape %arg0 [] : memref<f32> into memref<1x2xf32>
+  return
 }
 
 // -----
 
 func @collapse_shape_to_higher_rank(%arg0: memref<f32>) {
-  // expected-error @+1 {{expected the type 'memref<f32>' to have higher rank than the type = 'memref<1xf32>'}}
+  // expected-error @+1 {{op reassociation index 0 is out of bounds}}
   %0 = memref.collapse_shape %arg0 [[0]] : memref<f32> into memref<1xf32>
 }
 
 // -----
 
 func @expand_shape_to_smaller_rank(%arg0: memref<1xf32>) {
-  // expected-error @+1 {{expected the type 'memref<f32>' to have higher rank than the type = 'memref<1xf32>'}}
+  // expected-error @+1 {{op reassociation index 0 is out of bounds}}
   %0 = memref.expand_shape %arg0 [[0]] : memref<1xf32> into memref<f32>
 }
 
 // -----
 
-func @collapse_shape(%arg0: memref<?xf32>) {
-  // expected-error @+1 {{expected to collapse or expand dims}}
-  %0 = memref.collapse_shape %arg0 [[0]] : memref<?xf32> into memref<?xf32>
+func @expand_shape_invalid_result_layout(
+    %arg0: memref<30x20xf32, offset : 100, strides : [4000, 2]>) {
+  // expected-error @+1 {{expected expanded type to be 'memref<2x15x20xf32, affine_map<(d0, d1, d2) -> (d0 * 60000 + d1 * 4000 + d2 * 2 + 100)>>' but found 'memref<2x15x20xf32, affine_map<(d0, d1, d2) -> (d0 * 5000 + d1 * 4000 + d2 * 2 + 100)>>'}}
+  %0 = memref.expand_shape %arg0 [[0, 1], [2]] :
+      memref<30x20xf32, offset : 100, strides : [4000, 2]>
+      into memref<2x15x20xf32, offset : 100, strides : [5000, 4000, 2]>
 }
 
 // -----
 
 func @collapse_shape_mismatch_indices_num(%arg0: memref<?x?x?xf32>) {
-  // expected-error @+1 {{expected rank of the collapsed type(2) to be the number of reassociation maps(1)}}
+  // expected-error @+1 {{invalid number of reassociation groups: found 1, expected 2}}
   %0 = memref.collapse_shape %arg0 [[0, 1]] :
     memref<?x?x?xf32> into memref<?x?xf32, offset: 0, strides: [?, 1]>
 }
@@ -391,15 +441,26 @@ func @collapse_shape_mismatch_indices_num(%arg0: memref<?x?x?xf32>) {
 // -----
 
 func @collapse_shape_invalid_reassociation(%arg0: memref<?x?x?xf32>) {
-  // expected-error @+1 {{expected reassociation map #1 to be valid and contiguous}}
+  // expected-error @+1 {{reassociation indices must be contiguous}}
   %0 = memref.collapse_shape %arg0 [[0, 1], [1, 2]] :
     memref<?x?x?xf32> into memref<?x?xf32, offset: 0, strides: [?, 1]>
 }
 
 // -----
 
+func @collapse_shape_reshaping_non_contiguous(
+    %arg0: memref<3x4x5xf32, offset: 0, strides: [270, 50, 10]>) {
+  // expected-error @+1 {{invalid source layout map or collapsing non-contiguous dims}}
+  %0 = memref.collapse_shape %arg0 [[0, 1], [2]] :
+      memref<3x4x5xf32, offset: 0, strides: [270, 50, 10]>
+      into memref<12x5xf32, offset: 0, strides: [50, 1]>
+  return
+}
+
+// -----
+
 func @collapse_shape_wrong_collapsed_type(%arg0: memref<?x?x?xf32>) {
-  // expected-error @+1 {{expected collapsed type to be 'memref<?x?xf32>', but got 'memref<?x?xf32, affine_map<(d0, d1)[s0] -> (d0 * s0 + d1)>>'}}
+  // expected-error @+1 {{expected collapsed type to be 'memref<?x?xf32>' but found 'memref<?x?xf32, affine_map<(d0, d1)[s0] -> (d0 * s0 + d1)>>'}}
   %0 = memref.collapse_shape %arg0 [[0, 1], [2]] :
     memref<?x?x?xf32> into memref<?x?xf32, affine_map<(d0, d1)[s0] -> (d0 * s0 + d1)>>
 }
@@ -408,7 +469,7 @@ func @collapse_shape_wrong_collapsed_type(%arg0: memref<?x?x?xf32>) {
 
 func @expand_shape_illegal_dynamic_memref
   (%arg0: memref<?x?x?xf32>) -> memref<?x?x?x4x?xf32> {
-  // expected-error @+1 {{invalid to have a single dimension (2) expanded into multiple dynamic dims (2,4)}}
+  // expected-error @+1 {{at most one dimension in a reassociation group may be dynamic}}
   %0 = memref.expand_shape %arg0 [[0], [1], [2, 3, 4]]
       : memref<?x?x?xf32> into memref<?x?x?x4x?xf32>
   return %0 : memref<?x?x?x4x?xf32>
@@ -418,7 +479,7 @@ func @expand_shape_illegal_dynamic_memref
 
 func @expand_shape_illegal_static_memref
   (%arg0: memref<2x3x20xf32>) -> memref<2x3x2x4x5xf32> {
-  // expected-error @+1 {{expected dimension 2 of collapsed type to be static value of 40}}
+  // expected-error @+1 {{collapsed dim size (20) must equal reassociation group size (40)}}
   %0 = memref.expand_shape %arg0 [[0], [1], [2, 3, 4]]
       : memref<2x3x20xf32> into memref<2x3x2x4x5xf32>
   return %0 : memref<2x3x2x4x5xf32>
@@ -428,7 +489,7 @@ func @expand_shape_illegal_static_memref
 
 func @collapse_shape_illegal_static_memref
   (%arg0: memref<2x3x2x4x5xf32>) -> memref<2x3x20xf32> {
-  // expected-error @+1 {{expected dimension 2 of collapsed type to be static value of 40}}
+  // expected-error @+1 {{collapsed dim size (20) must equal reassociation group size (40)}}
   %0 = memref.collapse_shape %arg0 [[0], [1], [2, 3, 4]]
       : memref<2x3x2x4x5xf32> into memref<2x3x20xf32>
   return %0 : memref<2x3x20xf32>
@@ -438,7 +499,7 @@ func @collapse_shape_illegal_static_memref
 
 func @expand_shape_illegal_mixed_memref(%arg0 : memref<?x?xf32>)
     -> memref<?x4x5xf32> {
-  // expected-error @+1 {{expected dimension 1 of collapsed type to be static value of 5}}
+  // expected-error @+1 {{collapsed dim (1) must be dynamic if and only if reassociation group is dynamic}}
   %0 = memref.expand_shape %arg0 [[0, 1], [2]]
       : memref<?x?xf32> into memref<?x4x5xf32>
   return %0 : memref<?x4x5xf32>
@@ -448,7 +509,7 @@ func @expand_shape_illegal_mixed_memref(%arg0 : memref<?x?xf32>)
 
 func @expand_shape_illegal_mixed_memref_2(%arg0 : memref<?x?xf32>)
     -> memref<?x4x5xf32> {
-  // expected-error @+1 {{expected dimension 1 of collapsed type to be static value of 20}}
+  // expected-error @+1 {{collapsed dim (1) must be dynamic if and only if reassociation group is dynamic}}
   %0 = memref.expand_shape %arg0 [[0], [1, 2]]
       : memref<?x?xf32> into memref<?x4x5xf32>
   return %0 : memref<?x4x5xf32>
@@ -456,9 +517,19 @@ func @expand_shape_illegal_mixed_memref_2(%arg0 : memref<?x?xf32>)
 
 // -----
 
+func @expand_shape_invalid_static_dim_size(%arg0 : memref<?x21xf32>)
+    -> memref<?x4x5xf32> {
+  // expected-error @+1 {{collapsed dim size (21) must equal reassociation group size (20)}}
+  %0 = memref.expand_shape %arg0 [[0], [1, 2]]
+      : memref<?x21xf32> into memref<?x4x5xf32>
+  return %0 : memref<?x4x5xf32>
+}
+
+// -----
+
 func @collapse_shape_illegal_mixed_memref(%arg0 : memref<?x4x5xf32>)
     -> memref<?x?xf32> {
-  // expected-error @+1 {{expected dimension 1 of collapsed type to be static value of 5}}
+  // expected-error @+1 {{collapsed dim (1) must be dynamic if and only if reassociation group is dynamic}}
   %0 = memref.collapse_shape %arg0 [[0, 1], [2]]
       : memref<?x4x5xf32> into memref<?x?xf32>
   return %0 : memref<?x?xf32>
@@ -468,7 +539,7 @@ func @collapse_shape_illegal_mixed_memref(%arg0 : memref<?x4x5xf32>)
 
 func @collapse_shape_illegal_mixed_memref_2(%arg0 : memref<?x4x5xf32>)
     -> memref<?x?xf32> {
-  // expected-error @+1 {{expected dimension 1 of collapsed type to be static value of 20}}
+  // expected-error @+1 {{collapsed dim (1) must be dynamic if and only if reassociation group is dynamic}}
   %0 = memref.collapse_shape %arg0 [[0], [1, 2]]
       : memref<?x4x5xf32> into memref<?x?xf32>
   return %0 : memref<?x?xf32>
@@ -478,7 +549,7 @@ func @collapse_shape_illegal_mixed_memref_2(%arg0 : memref<?x4x5xf32>)
 
 func @invalid_view(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = memref.alloc() : memref<2048xi8>
-  // expected-error@+1 {{expects 1 offset operand}}
+  // expected-error@+1 {{expected SSA operand}}
   %1 = memref.view %0[][%arg0, %arg1]
     : memref<2048xi8> to memref<?x?xf32>
   return
@@ -580,7 +651,7 @@ func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = memref.alloc() : memref<8x16x4xf32>
-  // expected-error@+1 {{expected <= 3 offset values}}
+  // expected-error@+1 {{expected 3 offset values}}
   %1 = memref.subview %0[%arg0, %arg1, 0, 0][%arg2, 0, 0, 0][1, 1, 1, 1]
     : memref<8x16x4xf32> to
       memref<8x?x4xf32, offset: 0, strides:[?, ?, 4]>
@@ -635,15 +706,6 @@ func @invalid_rank_reducing_subview(%arg0 : memref<?x?xf32>, %arg1 : index, %arg
   // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result layout)}}
   %0 = memref.subview %arg0[0, %arg1][%arg2, 1][1, 1] : memref<?x?xf32> to memref<?xf32>
   return
-}
-
-// -----
-
-func @static_stride_to_dynamic_stride(%arg0 : memref<?x?x?xf32>, %arg1 : index,
-    %arg2 : index) -> memref<?x?xf32, offset:?, strides: [?, ?]> {
-  // expected-error @+1 {{expected result type to be 'memref<1x?x?xf32, affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2 + d2)>>' or a rank-reduced version. (mismatch of result layout)}}
-  %0 = memref.subview %arg0[0, 0, 0] [1, %arg1, %arg2] [1, 1, 1] : memref<?x?x?xf32> to memref<?x?xf32, offset: ?, strides: [?, ?]>
-  return %0 : memref<?x?xf32, offset: ?, strides: [?, ?]>
 }
 
 // -----
@@ -776,7 +838,7 @@ func @assume_alignment(%0: memref<4x4xf16>) {
 
 // -----
 
-"alloca_without_scoped_alloc_parent"() ( {
+"alloca_without_scoped_alloc_parent"() ({
   memref.alloca() : memref<1xf32>
   // expected-error@-1 {{requires an ancestor op with AutomaticAllocationScope trait}}
   return
@@ -838,5 +900,97 @@ func @test_alloc_memref_map_rank_mismatch() {
 func @rank(%0: f32) {
   // expected-error@+1 {{'memref.rank' op operand #0 must be unranked.memref of any type values or memref of any type values}}
   "memref.rank"(%0): (f32)->index
+  return
+}
+
+// -----
+
+#map = affine_map<(d0, d1, d2)[s0, s1, s2, s3] -> (s0 + d0 * s1 + d1 * s2 + d2 * s3)>
+func @illegal_num_offsets(%arg0 : memref<?x?x?xf32>, %arg1 : index, %arg2 : index) {
+  // expected-error@+1 {{expected 3 offset values}}
+  %0 = memref.subview %arg0[0, 0] [%arg1, %arg2] [1, 1] : memref<?x?x?xf32> to memref<?x?x?xf32, #map>
+}
+
+// -----
+
+func @atomic_rmw_idxs_rank_mismatch(%I: memref<16x10xf32>, %i : index, %val : f32) {
+  // expected-error@+1 {{expects the number of subscripts to be equal to memref rank}}
+  %x = memref.atomic_rmw addf %val, %I[%i] : (f32, memref<16x10xf32>) -> f32
+  return
+}
+
+// -----
+
+func @atomic_rmw_expects_float(%I: memref<16x10xi32>, %i : index, %val : i32) {
+  // expected-error@+1 {{expects a floating-point type}}
+  %x = memref.atomic_rmw addf %val, %I[%i, %i] : (i32, memref<16x10xi32>) -> i32
+  return
+}
+
+// -----
+
+func @atomic_rmw_expects_int(%I: memref<16x10xf32>, %i : index, %val : f32) {
+  // expected-error@+1 {{expects an integer type}}
+  %x = memref.atomic_rmw addi %val, %I[%i, %i] : (f32, memref<16x10xf32>) -> f32
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_wrong_arg_num(%I: memref<10xf32>, %i : index) {
+  // expected-error@+1 {{expected single number of entry block arguments}}
+  %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%arg0 : f32, %arg1 : f32):
+      %c1 = arith.constant 1.0 : f32
+      memref.atomic_yield %c1 : f32
+  }
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_wrong_arg_type(%I: memref<10xf32>, %i : index) {
+  // expected-error@+1 {{expected block argument of the same type result type}}
+  %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : i32):
+      %c1 = arith.constant 1.0 : f32
+      memref.atomic_yield %c1 : f32
+  }
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_result_type_mismatch(%I: memref<10xf32>, %i : index) {
+ // expected-error@+1 {{failed to verify that result type matches element type of memref}}
+ %0 = "memref.generic_atomic_rmw"(%I, %i) ({
+    ^bb0(%old_value: f32):
+      %c1 = arith.constant 1.0 : f32
+      memref.atomic_yield %c1 : f32
+    }) : (memref<10xf32>, index) -> i32
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_has_side_effects(%I: memref<10xf32>, %i : index) {
+  // expected-error@+4 {{should contain only operations with no side effects}}
+  %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : f32):
+      %c1 = arith.constant 1.0 : f32
+      %buf = memref.alloc() : memref<2048xf32>
+      memref.atomic_yield %c1 : f32
+  }
+}
+
+// -----
+
+func @atomic_yield_type_mismatch(%I: memref<10xf32>, %i : index) {
+  // expected-error@+4 {{op types mismatch between yield op: 'i32' and its parent: 'f32'}}
+  %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : f32):
+      %c1 = arith.constant 1 : i32
+      memref.atomic_yield %c1 : i32
+  }
   return
 }

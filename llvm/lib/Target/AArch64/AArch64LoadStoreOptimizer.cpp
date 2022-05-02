@@ -9,6 +9,12 @@
 // This file contains a pass that performs load / store related peephole
 // optimizations. This pass should be run after register allocation.
 //
+// The pass runs after the PrologEpilogInserter where we emit the CFI
+// instructions. In order to preserve the correctness of the unwind informaiton,
+// the pass should not change the order of any two instructions, one of which
+// has the FrameSetup/FrameDestroy flag or, alternatively, apply an add-hoc fix
+// to unwind information.
+//
 //===----------------------------------------------------------------------===//
 
 #include "AArch64InstrInfo.h"
@@ -31,6 +37,7 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -923,6 +930,7 @@ AArch64LoadStoreOpt::mergePairedInsns(MachineBasicBlock::iterator I,
       assert(all_of(MI.operands(),
                     [this, &RenameReg](const MachineOperand &MOP) {
                       return !MOP.isReg() || MOP.isDebug() || !MOP.getReg() ||
+                             MOP.isUndef() ||
                              !TRI->regsOverlap(MOP.getReg(), *RenameReg);
                     }) &&
              "Rename register used between paired instruction, trashing the "
@@ -1139,7 +1147,7 @@ AArch64LoadStoreOpt::promoteLoadFromStore(MachineBasicBlock::iterator LoadI,
                                ? getLdStOffsetOp(*StoreI).getImm()
                                : getLdStOffsetOp(*StoreI).getImm() * StoreSize;
     int Width = LoadSize * 8;
-    unsigned DestReg =
+    Register DestReg =
         IsStoreXReg ? Register(TRI->getMatchingSuperReg(
                           LdRt, AArch64::sub_32, &AArch64::GPR64RegClass))
                     : LdRt;
@@ -1467,18 +1475,19 @@ canRenameUpToDef(MachineInstr &FirstMI, LiveRegUnits &UsedInBetween,
   return true;
 }
 
-// Check if we can find a physical register for renaming. This register must:
-// * not be defined up to FirstMI (checking DefinedInBB)
-// * not used between the MI and the defining instruction of the register to
-//   rename (checked using UsedInBetween).
+// Check if we can find a physical register for renaming \p Reg. This register
+// must:
+// * not be defined already in \p DefinedInBB; DefinedInBB must contain all
+//   defined registers up to the point where the renamed register will be used,
+// * not used in \p UsedInBetween; UsedInBetween must contain all accessed
+//   registers in the range the rename register will be used,
 // * is available in all used register classes (checked using RequiredClasses).
 static Optional<MCPhysReg> tryToFindRegisterToRename(
-    MachineInstr &FirstMI, MachineInstr &MI, LiveRegUnits &DefinedInBB,
+    const MachineFunction &MF, Register Reg, LiveRegUnits &DefinedInBB,
     LiveRegUnits &UsedInBetween,
     SmallPtrSetImpl<const TargetRegisterClass *> &RequiredClasses,
     const TargetRegisterInfo *TRI) {
-  auto &MF = *FirstMI.getParent()->getParent();
-  MachineRegisterInfo &RegInfo = MF.getRegInfo();
+  const MachineRegisterInfo &RegInfo = MF.getRegInfo();
 
   // Checks if any sub- or super-register of PR is callee saved.
   auto AnySubOrSuperRegCalleePreserved = [&MF, TRI](MCPhysReg PR) {
@@ -1499,7 +1508,7 @@ static Optional<MCPhysReg> tryToFindRegisterToRename(
     });
   };
 
-  auto *RegClass = TRI->getMinimalPhysRegClass(getLdStRegOp(FirstMI).getReg());
+  auto *RegClass = TRI->getMinimalPhysRegClass(Reg);
   for (const MCPhysReg &PR : *RegClass) {
     if (DefinedInBB.available(PR) && UsedInBetween.available(PR) &&
         !RegInfo.isReserved(PR) && !AnySubOrSuperRegCalleePreserved(PR) &&
@@ -1722,8 +1731,8 @@ AArch64LoadStoreOpt::findMatchingInsn(MachineBasicBlock::iterator I,
 
             if (*MaybeCanRename) {
               Optional<MCPhysReg> MaybeRenameReg = tryToFindRegisterToRename(
-                  FirstMI, MI, DefinedInBB, UsedInBetween, RequiredClasses,
-                  TRI);
+                  *FirstMI.getParent()->getParent(), Reg, DefinedInBB,
+                  UsedInBetween, RequiredClasses, TRI);
               if (MaybeRenameReg) {
                 Flags.setRenameReg(*MaybeRenameReg);
                 Flags.setMergeForward(true);
@@ -1760,6 +1769,28 @@ AArch64LoadStoreOpt::findMatchingInsn(MachineBasicBlock::iterator I,
   return E;
 }
 
+static MachineBasicBlock::iterator
+maybeMoveCFI(MachineInstr &MI, MachineBasicBlock::iterator MaybeCFI) {
+  auto End = MI.getParent()->end();
+  if (MaybeCFI == End ||
+      MaybeCFI->getOpcode() != TargetOpcode::CFI_INSTRUCTION ||
+      !(MI.getFlag(MachineInstr::FrameSetup) ||
+        MI.getFlag(MachineInstr::FrameDestroy)) ||
+      getLdStBaseOp(MI).getReg() != AArch64::SP)
+    return End;
+
+  const MachineFunction &MF = *MI.getParent()->getParent();
+  unsigned CFIIndex = MaybeCFI->getOperand(0).getCFIIndex();
+  const MCCFIInstruction &CFI = MF.getFrameInstructions()[CFIIndex];
+  switch (CFI.getOperation()) {
+  case MCCFIInstruction::OpDefCfa:
+  case MCCFIInstruction::OpDefCfaOffset:
+    return MaybeCFI;
+  default:
+    return End;
+  }
+}
+
 MachineBasicBlock::iterator
 AArch64LoadStoreOpt::mergeUpdateInsn(MachineBasicBlock::iterator I,
                                      MachineBasicBlock::iterator Update,
@@ -1769,6 +1800,12 @@ AArch64LoadStoreOpt::mergeUpdateInsn(MachineBasicBlock::iterator I,
          "Unexpected base register update instruction to merge!");
   MachineBasicBlock::iterator E = I->getParent()->end();
   MachineBasicBlock::iterator NextI = next_nodbg(I, E);
+
+  // If updating the SP and the following instruction is CFA offset related CFI
+  // instruction move it after the merged instruction.
+  MachineBasicBlock::iterator CFI =
+      IsPreIdx ? maybeMoveCFI(*Update, next_nodbg(Update, E)) : E;
+
   // Return the instruction following the merged instruction, which is
   // the instruction following our unmerged load. Unless that's the add/sub
   // instruction we're merging, in which case it's the one after that.
@@ -1806,7 +1843,10 @@ AArch64LoadStoreOpt::mergeUpdateInsn(MachineBasicBlock::iterator I,
               .setMemRefs(I->memoperands())
               .setMIFlags(I->mergeFlagsWith(*Update));
   }
-  (void)MIB;
+  if (CFI != E) {
+    MachineBasicBlock *MBB = I->getParent();
+    MBB->splice(std::next(MIB.getInstr()->getIterator()), MBB, CFI);
+  }
 
   if (IsPreIdx) {
     ++NumPreFolded;

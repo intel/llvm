@@ -4,18 +4,19 @@
 import ctypes
 import numpy as np
 import os
-
-import mlir.all_passes_registration
+import sys
 
 from mlir import ir
 from mlir import runtime as rt
-from mlir import execution_engine
-from mlir import passmanager
 
 from mlir.dialects import sparse_tensor as st
 from mlir.dialects import builtin
+from mlir.dialects import func
 from mlir.dialects.linalg.opdsl import lang as dsl
 
+_SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(_SCRIPT_PATH)
+from tools import sparse_compiler
 
 @dsl.linalg_structured_op
 def sddmm_dsl(
@@ -43,7 +44,7 @@ def build_SDDMM(attr: st.EncodingAttr):
   arguments = [a, b, s, c]
   with ir.InsertionPoint(module.body):
 
-    @builtin.FuncOp.from_py_func(*arguments)
+    @func.FuncOp.from_py_func(*arguments)
     def sddmm(*args):
       return sddmm_dsl(args[0], args[1], args[2], outs=[args[3]])
 
@@ -67,17 +68,14 @@ func @main(%a: tensor<8x8xf64>,
 """
 
 
-def build_compile_and_run_SDDMMM(attr: st.EncodingAttr, opt: str,
-                                 support_lib: str, compiler):
+def build_compile_and_run_SDDMMM(attr: st.EncodingAttr, compiler):
   # Build.
   module = build_SDDMM(attr)
   func = str(module.operation.regions[0].blocks[0].operations[0].operation)
   module = ir.Module.parse(func + boilerplate(attr))
 
   # Compile.
-  compiler(module)
-  engine = execution_engine.ExecutionEngine(
-      module, opt_level=0, shared_libs=[support_lib])
+  engine = compiler.compile_and_jit(module)
 
   # Set up numpy input and buffer for output.
   a = np.array([[1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1],
@@ -119,29 +117,6 @@ def build_compile_and_run_SDDMMM(attr: st.EncodingAttr, opt: str,
     quit(f'FAILURE')
 
 
-class SparseCompiler:
-  """Sparse compiler passes."""
-
-  def __init__(self, options: str):
-    pipeline = (
-        f'sparsification{{{options}}},'
-        f'sparse-tensor-conversion,'
-        f'builtin.func(linalg-bufferize,convert-linalg-to-loops,convert-vector-to-scf),'
-        f'convert-scf-to-std,'
-        f'func-bufferize,'
-        f'tensor-constant-bufferize,'
-        f'builtin.func(tensor-bufferize,std-bufferize,finalizing-bufferize),'
-        f'convert-vector-to-llvm{{reassociate-fp-reductions=1 enable-index-optimizations=1}},'
-        f'lower-affine,'
-        f'convert-memref-to-llvm,'
-        f'convert-std-to-llvm,'
-        f'reconcile-unrealized-casts')
-    self.pipeline = pipeline
-
-  def __call__(self, module: ir.Module):
-    passmanager.PassManager.parse(self.pipeline).run(module)
-
-
 def main():
   support_lib = os.getenv('SUPPORT_LIB')
   assert support_lib is not None, 'SUPPORT_LIB is undefined'
@@ -177,8 +152,9 @@ def main():
                   opt = (f'parallelization-strategy={par} '
                          f'vectorization-strategy={vec} '
                          f'vl={vl} enable-simd-index32={e}')
-                  compiler = SparseCompiler(options=opt)
-                  build_compile_and_run_SDDMMM(attr, opt, support_lib, compiler)
+                  compiler = sparse_compiler.SparseCompiler(
+                      options=opt, opt_level=0, shared_libs=[support_lib])
+                  build_compile_and_run_SDDMMM(attr, compiler)
                   count = count + 1
   # CHECK: Passed 16 tests
   print('Passed ', count, 'tests')

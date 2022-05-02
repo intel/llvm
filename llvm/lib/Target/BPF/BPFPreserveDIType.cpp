@@ -12,6 +12,7 @@
 
 #include "BPF.h"
 #include "BPFCORE.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
@@ -105,10 +106,10 @@ static bool BPFPreserveDITypeImpl(Function &F) {
 
     BasicBlock *BB = Call->getParent();
     IntegerType *VarType = Type::getInt64Ty(BB->getContext());
-    std::string GVName = BaseName + std::to_string(Count) + "$" +
-        std::to_string(Reloc);
+    std::string GVName =
+        BaseName + std::to_string(Count) + "$" + std::to_string(Reloc);
     GlobalVariable *GV = new GlobalVariable(
-        *M, VarType, false, GlobalVariable::ExternalLinkage, NULL, GVName);
+        *M, VarType, false, GlobalVariable::ExternalLinkage, nullptr, GVName);
     GV->addAttribute(BPFCoreSharedInfo::TypeIdAttr);
     GV->setMetadata(LLVMContext::MD_preserve_access_index, MD);
 

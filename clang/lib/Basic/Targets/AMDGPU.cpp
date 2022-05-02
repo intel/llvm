@@ -183,6 +183,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
   // XXX - What does the member GPU mean if device name string passed here?
   if (isAMDGCN(getTriple())) {
     switch (llvm::AMDGPU::parseArchAMDGCN(CPU)) {
+    case GK_GFX1036:
     case GK_GFX1035:
     case GK_GFX1034:
     case GK_GFX1033:
@@ -227,6 +228,9 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["s-memrealtime"] = true;
       Features["s-memtime-inst"] = true;
       break;
+    case GK_GFX940:
+      Features["gfx940-insts"] = true;
+      LLVM_FALLTHROUGH;
     case GK_GFX90A:
       Features["gfx90a-insts"] = true;
       LLVM_FALLTHROUGH;
@@ -402,6 +406,9 @@ void AMDGPUTargetInfo::getTargetDefines(const LangOptions &Opts,
       }
     }
   }
+
+  if (AllowAMDGPUUnsafeFPAtomics)
+    Builder.defineMacro("__AMDGCN_UNSAFE_FP_ATOMICS__");
 
   // TODO: __HAS_FMAF__, __HAS_LDEXPF__, __HAS_FP64__ are deprecated and will be
   // removed in the near future.

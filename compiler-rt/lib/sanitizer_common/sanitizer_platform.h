@@ -116,6 +116,13 @@
 #  define SANITIZER_FUCHSIA 0
 #endif
 
+// Assume linux that is not glibc or android is musl libc.
+#if SANITIZER_LINUX && !SANITIZER_GLIBC && !SANITIZER_ANDROID
+#  define SANITIZER_MUSL 1
+#else
+#  define SANITIZER_MUSL 0
+#endif
+
 #define SANITIZER_POSIX                                     \
   (SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_MAC || \
    SANITIZER_NETBSD || SANITIZER_SOLARIS)
@@ -333,7 +340,7 @@
 #  define MSC_PREREQ(version) 0
 #endif
 
-#if SANITIZER_MAC && !(defined(__arm64__) && SANITIZER_IOS)
+#if SANITIZER_MAC && defined(__x86_64__)
 #  define SANITIZER_NON_UNIQUE_TYPEINFO 0
 #else
 #  define SANITIZER_NON_UNIQUE_TYPEINFO 1

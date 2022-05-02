@@ -516,7 +516,7 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
 
   // Determine spill area sizes.
   for (const CalleeSavedInfo &I : CSI) {
-    unsigned Reg = I.getReg();
+    Register Reg = I.getReg();
     int FI = I.getFrameIdx();
     switch (Reg) {
     case ARM::R8:
@@ -751,7 +751,7 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
     MachineBasicBlock::iterator Pos = std::next(GPRCS1Push);
     int CFIIndex;
     for (const auto &Entry : CSI) {
-      unsigned Reg = Entry.getReg();
+      Register Reg = Entry.getReg();
       int FI = Entry.getFrameIdx();
       switch (Reg) {
       case ARM::R8:
@@ -784,7 +784,7 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
   if (GPRCS2Size > 0) {
     MachineBasicBlock::iterator Pos = std::next(GPRCS2Push);
     for (const auto &Entry : CSI) {
-      unsigned Reg = Entry.getReg();
+      Register Reg = Entry.getReg();
       int FI = Entry.getFrameIdx();
       switch (Reg) {
       case ARM::R8:
@@ -794,7 +794,7 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
       case ARM::R12:
         if (STI.splitFramePushPop(MF)) {
           unsigned DwarfReg = MRI->getDwarfRegNum(
-              Reg == ARM::R12 ? (unsigned)ARM::RA_AUTH_CODE : Reg, true);
+              Reg == ARM::R12 ? ARM::RA_AUTH_CODE : Reg, true);
           unsigned Offset = MFI.getObjectOffset(FI);
           unsigned CFIIndex = MF.addFrameInst(
               MCCFIInstruction::createOffset(nullptr, DwarfReg, Offset));
@@ -812,7 +812,7 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
     // instructions in the prologue.
     MachineBasicBlock::iterator Pos = std::next(LastPush);
     for (const auto &Entry : CSI) {
-      unsigned Reg = Entry.getReg();
+      Register Reg = Entry.getReg();
       int FI = Entry.getFrameIdx();
       if ((Reg >= ARM::D0 && Reg <= ARM::D31) &&
           (Reg < ARM::D8 || Reg >= ARM::D8 + AFI->getNumAlignedDPRCS2Regs())) {
@@ -1144,7 +1144,7 @@ void ARMFrameLowering::emitPushInst(MachineBasicBlock &MBB,
   while (i != 0) {
     unsigned LastReg = 0;
     for (; i != 0; --i) {
-      unsigned Reg = CSI[i-1].getReg();
+      Register Reg = CSI[i-1].getReg();
       if (!(Func)(Reg, STI.splitFramePushPop(MF))) continue;
 
       // D-registers in the aligned area DPRCS2 are NOT spilled here.
@@ -1237,7 +1237,7 @@ void ARMFrameLowering::emitPopInst(MachineBasicBlock &MBB,
     bool DeleteRet = false;
     for (; i != 0; --i) {
       CalleeSavedInfo &Info = CSI[i-1];
-      unsigned Reg = Info.getReg();
+      Register Reg = Info.getReg();
       if (!(Func)(Reg, STI.splitFramePushPop(MF))) continue;
 
       // The aligned reloads from area DPRCS2 are not inserted here.
@@ -1812,7 +1812,7 @@ bool ARMFrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
   // shrinkwrapping can cause clobbering of r12 when the PAC code is
   // generated. A follow-up patch will fix this in a more performant manner.
   if (MF.getInfo<ARMFunctionInfo>()->shouldSignReturnAddress(
-          false /*SpillsLR */))
+          true /* SpillsLR */))
     return false;
 
   return true;
@@ -2353,7 +2353,7 @@ bool ARMFrameLowering::assignCalleeSavedSpillSlots(
     // LR, R7, R6, R5, R4, <R12>, R11, R10,  R9,  R8, D15-D8
     CSI.insert(find_if(CSI,
                        [=](const auto &CS) {
-                         unsigned Reg = CS.getReg();
+                         Register Reg = CS.getReg();
                          return Reg == ARM::R10 || Reg == ARM::R11 ||
                                 Reg == ARM::R8 || Reg == ARM::R9 ||
                                 ARM::DPRRegClass.contains(Reg);
@@ -2488,6 +2488,7 @@ void ARMFrameLowering::adjustForSegmentedStacks(
   unsigned CFIIndex;
   const ARMSubtarget *ST = &MF.getSubtarget<ARMSubtarget>();
   bool Thumb = ST->isThumb();
+  bool Thumb2 = ST->isThumb2();
 
   // Sadly, this currently doesn't support varargs, platforms other than
   // android/linux. Note that thumb1/thumb2 are support for android/linux.
@@ -2505,19 +2506,10 @@ void ARMFrameLowering::adjustForSegmentedStacks(
   ARMFunctionInfo *ARMFI = MF.getInfo<ARMFunctionInfo>();
   DebugLoc DL;
 
-  uint64_t StackSize = MFI.getStackSize();
-
-  // Do not generate a prologue for leaf functions with a stack of size zero.
-  // For non-leaf functions we have to allow for the possibility that the
-  // callis to a non-split function, as in PR37807. This function could also
-  // take the address of a non-split function. When the linker tries to adjust
-  // its non-existent prologue, it would fail with an error. Mark the object
-  // file so that such failures are not errors. See this Go language bug-report
-  // https://go-review.googlesource.com/c/go/+/148819/
-  if (StackSize == 0 && !MFI.hasTailCall()) {
-    MF.getMMI().setHasNosplitStack(true);
+  if (!MFI.needsSplitStackProlog())
     return;
-  }
+
+  uint64_t StackSize = MFI.getStackSize();
 
   // Use R4 and R5 as scratch registers.
   // We save R4 and R5 before use and restore them before leaving the function.
@@ -2630,17 +2622,46 @@ void ARMFrameLowering::adjustForSegmentedStacks(
 
   // sub SR1, sp, #StackSize
   if (!CompareStackPointer && Thumb) {
-    BuildMI(McrMBB, DL, TII.get(ARM::tSUBi8), ScratchReg1)
-        .add(condCodeOp())
-        .addReg(ScratchReg1)
-        .addImm(AlignedStackSize)
-        .add(predOps(ARMCC::AL));
+    if (AlignedStackSize < 256) {
+      BuildMI(McrMBB, DL, TII.get(ARM::tSUBi8), ScratchReg1)
+          .add(condCodeOp())
+          .addReg(ScratchReg1)
+          .addImm(AlignedStackSize)
+          .add(predOps(ARMCC::AL));
+    } else {
+      if (Thumb2) {
+        BuildMI(McrMBB, DL, TII.get(ARM::t2MOVi32imm), ScratchReg0)
+            .addImm(AlignedStackSize);
+      } else {
+        auto MBBI = McrMBB->end();
+        auto RegInfo = STI.getRegisterInfo();
+        RegInfo->emitLoadConstPool(*McrMBB, MBBI, DL, ScratchReg0, 0,
+                                   AlignedStackSize);
+      }
+      BuildMI(McrMBB, DL, TII.get(ARM::tSUBrr), ScratchReg1)
+          .add(condCodeOp())
+          .addReg(ScratchReg1)
+          .addReg(ScratchReg0)
+          .add(predOps(ARMCC::AL));
+    }
   } else if (!CompareStackPointer) {
-    BuildMI(McrMBB, DL, TII.get(ARM::SUBri), ScratchReg1)
-        .addReg(ARM::SP)
-        .addImm(AlignedStackSize)
-        .add(predOps(ARMCC::AL))
-        .add(condCodeOp());
+    if (AlignedStackSize < 256) {
+      BuildMI(McrMBB, DL, TII.get(ARM::SUBri), ScratchReg1)
+          .addReg(ARM::SP)
+          .addImm(AlignedStackSize)
+          .add(predOps(ARMCC::AL))
+          .add(condCodeOp());
+    } else {
+      auto MBBI = McrMBB->end();
+      auto RegInfo = STI.getRegisterInfo();
+      RegInfo->emitLoadConstPool(*McrMBB, MBBI, DL, ScratchReg0, 0,
+                                 AlignedStackSize);
+      BuildMI(McrMBB, DL, TII.get(ARM::SUBrr), ScratchReg1)
+          .addReg(ARM::SP)
+          .addReg(ScratchReg0)
+          .add(predOps(ARMCC::AL))
+          .add(condCodeOp());
+    }
   }
 
   if (Thumb && ST->isThumb1Only()) {
@@ -2707,28 +2728,69 @@ void ARMFrameLowering::adjustForSegmentedStacks(
   // Pass first argument for the __morestack by Scratch Register #0.
   //   The amount size of stack required
   if (Thumb) {
-    BuildMI(AllocMBB, DL, TII.get(ARM::tMOVi8), ScratchReg0)
-        .add(condCodeOp())
-        .addImm(AlignedStackSize)
-        .add(predOps(ARMCC::AL));
+    if (AlignedStackSize < 256) {
+      BuildMI(AllocMBB, DL, TII.get(ARM::tMOVi8), ScratchReg0)
+          .add(condCodeOp())
+          .addImm(AlignedStackSize)
+          .add(predOps(ARMCC::AL));
+    } else {
+      if (Thumb2) {
+        BuildMI(AllocMBB, DL, TII.get(ARM::t2MOVi32imm), ScratchReg0)
+            .addImm(AlignedStackSize);
+      } else {
+        auto MBBI = AllocMBB->end();
+        auto RegInfo = STI.getRegisterInfo();
+        RegInfo->emitLoadConstPool(*AllocMBB, MBBI, DL, ScratchReg0, 0,
+                                   AlignedStackSize);
+      }
+    }
   } else {
-    BuildMI(AllocMBB, DL, TII.get(ARM::MOVi), ScratchReg0)
-        .addImm(AlignedStackSize)
-        .add(predOps(ARMCC::AL))
-        .add(condCodeOp());
+    if (AlignedStackSize < 256) {
+      BuildMI(AllocMBB, DL, TII.get(ARM::MOVi), ScratchReg0)
+          .addImm(AlignedStackSize)
+          .add(predOps(ARMCC::AL))
+          .add(condCodeOp());
+    } else {
+      auto MBBI = AllocMBB->end();
+      auto RegInfo = STI.getRegisterInfo();
+      RegInfo->emitLoadConstPool(*AllocMBB, MBBI, DL, ScratchReg0, 0,
+                                 AlignedStackSize);
+    }
   }
+
   // Pass second argument for the __morestack by Scratch Register #1.
   //   The amount size of stack consumed to save function arguments.
   if (Thumb) {
-    BuildMI(AllocMBB, DL, TII.get(ARM::tMOVi8), ScratchReg1)
-        .add(condCodeOp())
-        .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()))
-        .add(predOps(ARMCC::AL));
+    if (ARMFI->getArgumentStackSize() < 256) {
+      BuildMI(AllocMBB, DL, TII.get(ARM::tMOVi8), ScratchReg1)
+          .add(condCodeOp())
+          .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()))
+          .add(predOps(ARMCC::AL));
+    } else {
+      if (Thumb2) {
+        BuildMI(AllocMBB, DL, TII.get(ARM::t2MOVi32imm), ScratchReg1)
+            .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()));
+      } else {
+        auto MBBI = AllocMBB->end();
+        auto RegInfo = STI.getRegisterInfo();
+        RegInfo->emitLoadConstPool(
+            *AllocMBB, MBBI, DL, ScratchReg1, 0,
+            alignToARMConstant(ARMFI->getArgumentStackSize()));
+      }
+    }
   } else {
-    BuildMI(AllocMBB, DL, TII.get(ARM::MOVi), ScratchReg1)
-        .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()))
-        .add(predOps(ARMCC::AL))
-        .add(condCodeOp());
+    if (alignToARMConstant(ARMFI->getArgumentStackSize()) < 256) {
+      BuildMI(AllocMBB, DL, TII.get(ARM::MOVi), ScratchReg1)
+          .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()))
+          .add(predOps(ARMCC::AL))
+          .add(condCodeOp());
+    } else {
+      auto MBBI = AllocMBB->end();
+      auto RegInfo = STI.getRegisterInfo();
+      RegInfo->emitLoadConstPool(
+          *AllocMBB, MBBI, DL, ScratchReg1, 0,
+          alignToARMConstant(ARMFI->getArgumentStackSize()));
+    }
   }
 
   // push {lr} - Save return address of this function.

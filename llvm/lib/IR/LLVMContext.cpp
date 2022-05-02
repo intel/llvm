@@ -20,8 +20,6 @@
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/LLVMRemarkStreamer.h"
-#include "llvm/IR/Metadata.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Remarks/RemarkStreamer.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -84,6 +82,11 @@ LLVMContext::LLVMContext() : pImpl(new LLVMContextImpl(*this)) {
          "clang.arc.attachedcall operand bundle id drifted!");
   (void)ClangAttachedCall;
 
+  auto *PtrauthEntry = pImpl->getOrInsertBundleTag("ptrauth");
+  assert(PtrauthEntry->second == LLVMContext::OB_ptrauth &&
+         "ptrauth operand bundle id drifted!");
+  (void)PtrauthEntry;
+
   SyncScope::ID SingleThreadSSID =
       pImpl->getOrInsertSyncScopeID("singlethread");
   assert(SingleThreadSSID == SyncScope::SingleThread &&
@@ -135,9 +138,21 @@ bool LLVMContext::getDiagnosticsHotnessRequested() const {
 void LLVMContext::setDiagnosticsHotnessThreshold(Optional<uint64_t> Threshold) {
   pImpl->DiagnosticsHotnessThreshold = Threshold;
 }
-
+void LLVMContext::setMisExpectWarningRequested(bool Requested) {
+  pImpl->MisExpectWarningRequested = Requested;
+}
+bool LLVMContext::getMisExpectWarningRequested() const {
+  return pImpl->MisExpectWarningRequested;
+}
 uint64_t LLVMContext::getDiagnosticsHotnessThreshold() const {
   return pImpl->DiagnosticsHotnessThreshold.getValueOr(UINT64_MAX);
+}
+void LLVMContext::setDiagnosticsMisExpectTolerance(
+    Optional<uint64_t> Tolerance) {
+  pImpl->DiagnosticsMisExpectTolerance = Tolerance;
+}
+uint64_t LLVMContext::getDiagnosticsMisExpectTolerance() const {
+  return pImpl->DiagnosticsMisExpectTolerance.getValueOr(0);
 }
 
 bool LLVMContext::isDiagnosticsHotnessThresholdSetFromPSI() const {
@@ -348,10 +363,12 @@ std::unique_ptr<DiagnosticHandler> LLVMContext::getDiagnosticHandler() {
   return std::move(pImpl->DiagHandler);
 }
 
-void LLVMContext::enableOpaquePointers() const {
-  assert(pImpl->PointerTypes.empty() && pImpl->ASPointerTypes.empty() &&
-         "Must be called before creating any pointer types");
-  pImpl->setOpaquePointers(true);
+bool LLVMContext::hasSetOpaquePointersValue() const {
+  return pImpl->hasOpaquePointersValue();
+}
+
+void LLVMContext::setOpaquePointers(bool Enable) const {
+  pImpl->setOpaquePointers(Enable);
 }
 
 bool LLVMContext::supportsTypedPointers() const {

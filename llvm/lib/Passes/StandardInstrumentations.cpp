@@ -19,6 +19,7 @@
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -439,19 +440,11 @@ const Module *getModuleForComparison(Any IR) {
   return nullptr;
 }
 
-} // namespace
-
-template <typename T> ChangeReporter<T>::~ChangeReporter<T>() {
-  assert(BeforeStack.empty() && "Problem with Change Printer stack.");
-}
-
-template <typename T>
-bool ChangeReporter<T>::isInterestingFunction(const Function &F) {
+bool isInterestingFunction(const Function &F) {
   return isFunctionInPrintList(F.getName());
 }
 
-template <typename T>
-bool ChangeReporter<T>::isInterestingPass(StringRef PassID) {
+bool isInterestingPass(StringRef PassID) {
   if (isIgnored(PassID))
     return false;
 
@@ -462,13 +455,18 @@ bool ChangeReporter<T>::isInterestingPass(StringRef PassID) {
 
 // Return true when this is a pass on IR for which printing
 // of changes is desired.
-template <typename T>
-bool ChangeReporter<T>::isInteresting(Any IR, StringRef PassID) {
+bool isInteresting(Any IR, StringRef PassID) {
   if (!isInterestingPass(PassID))
     return false;
   if (any_isa<const Function *>(IR))
     return isInterestingFunction(*any_cast<const Function *>(IR));
   return true;
+}
+
+} // namespace
+
+template <typename T> ChangeReporter<T>::~ChangeReporter() {
+  assert(BeforeStack.empty() && "Problem with Change Printer stack.");
 }
 
 template <typename T>
@@ -587,7 +585,7 @@ void TextChangeReporter<T>::handleIgnored(StringRef PassID, std::string &Name) {
   Out << formatv("*** IR Pass {0} on {1} ignored ***\n", PassID, Name);
 }
 
-IRChangedPrinter::~IRChangedPrinter() {}
+IRChangedPrinter::~IRChangedPrinter() = default;
 
 void IRChangedPrinter::registerCallbacks(PassInstrumentationCallbacks &PIC) {
   if (PrintChanged == ChangePrinter::PrintChangedVerbose ||
@@ -1207,7 +1205,7 @@ void VerifyInstrumentation::registerCallbacks(
       });
 }
 
-InLineChangePrinter::~InLineChangePrinter() {}
+InLineChangePrinter::~InLineChangePrinter() = default;
 
 void InLineChangePrinter::generateIRRepresentation(Any IR, StringRef PassID,
                                                    IRDataT<EmptyData> &D) {

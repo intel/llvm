@@ -70,7 +70,7 @@ and not recommended to use in production environment.
     Enables (or disables) LLVM IR dead argument elimination pass to remove
     unused arguments for the kernel functions before translation to SPIR-V.
     Currently has effect only on spir64\* targets.
-    Disabled by default.
+    Enabled by default.
 
 **`-f[no-]sycl-id-queries-fit-in-int`**
 
@@ -256,6 +256,14 @@ and not recommended to use in production environment.
     NOTE: Using -fsycl-host-compiler-options to pass any kind of phase limiting
     options (e.g. -c, -E, -S) may interfere with the expected output set during
     the host compilation.  Doing so is considered undefined behavior.
+
+**`-fsycl-fp32-prec-sqrt`**
+
+    Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
+    Without this flag, the default precision requirement for `sycl::sqrt` is 3
+    ULP.
+
+    NOTE: This flag is currently only supported with the CUDA and HIP targets.
 
 # Example: SYCL device code compilation
 

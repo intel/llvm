@@ -10,12 +10,13 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
-#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectStreamer.h"
-#include "llvm/MC/MCSectionCOFF.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Win64EH.h"
+namespace llvm {
+class MCSection;
+}
 
 using namespace llvm;
 
@@ -513,7 +514,7 @@ static void ARM64EmitUnwindCode(MCStreamer &streamer, const MCSymbol *begin,
 }
 
 // Returns the epilog symbol of an epilog with the exact same unwind code
-// sequence, if it exists.  Otherwise, returns nulltpr.
+// sequence, if it exists.  Otherwise, returns nullptr.
 // EpilogInstrs - Unwind codes for the current epilog.
 // Epilogs - Epilogs that potentialy match the current epilog.
 static MCSymbol*

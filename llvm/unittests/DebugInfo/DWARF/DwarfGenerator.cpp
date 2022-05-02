@@ -47,8 +47,8 @@ namespace {} // end anonymous namespace
 //===----------------------------------------------------------------------===//
 unsigned dwarfgen::DIE::computeSizeAndOffsets(unsigned Offset) {
   auto &DG = CU->getGenerator();
-  return Die->computeOffsetsAndAbbrevs(DG.getAsmPrinter(), DG.getAbbrevSet(),
-                                       Offset);
+  return Die->computeOffsetsAndAbbrevs(DG.getAsmPrinter()->getDwarfFormParams(),
+                                       DG.getAbbrevSet(), Offset);
 }
 
 void dwarfgen::DIE::addAttribute(uint16_t A, dwarf::Form Form, uint64_t U) {
@@ -112,7 +112,7 @@ void dwarfgen::DIE::addAttribute(uint16_t A, dwarf::Form Form, const void *P,
         DIEInteger(
             (const_cast<uint8_t *>(static_cast<const uint8_t *>(P)))[I]));
 
-  Block->ComputeSize(DG.getAsmPrinter());
+  Block->computeSize(DG.getAsmPrinter()->getDwarfFormParams());
   Die->addValue(DG.getAllocator(), static_cast<dwarf::Attribute>(A), Form,
                 Block);
 }
@@ -464,7 +464,7 @@ llvm::Error dwarfgen::Generator::init(Triple TheTriple, uint16_t V) {
   TLOF->Initialize(*MC, *TM);
   MC->setObjectFileInfo(TLOF);
 
-  MCE = TheTarget->createMCCodeEmitter(*MII, *MRI, *MC);
+  MCE = TheTarget->createMCCodeEmitter(*MII, *MC);
   if (!MCE)
     return make_error<StringError>("no code emitter for target " + TripleName,
                                    inconvertibleErrorCode());

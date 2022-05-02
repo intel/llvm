@@ -21,6 +21,10 @@ func @inline_notation() -> i32 {
   affine.if #set0(%2) {
   } loc(fused<"myPass">["foo", "foo2"])
 
+  // CHECK: } loc(fused<"myPass">["foo"])
+  affine.if #set0(%2) {
+  } loc(fused<"myPass">["foo"])
+
   // CHECK: return %0 : i32 loc(unknown)
   return %1 : i32 loc(unknown)
 }
@@ -48,7 +52,7 @@ func @escape_strings() {
 // CHECK-LABEL: func @argLocs(
 // CHECK-SAME:  %arg0: i32 loc({{.*}}locations.mlir":[[# @LINE+1]]:15),
 func @argLocs(%x: i32,
-// CHECK-SAME:  %arg1: i64 loc({{.*}}locations.mlir":[[# @LINE+1]]:15))
+// CHECK-SAME:  %arg1: i64 loc("hotdog")
               %y: i64 loc("hotdog")) {
   return
 }

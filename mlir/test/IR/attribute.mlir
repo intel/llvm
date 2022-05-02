@@ -150,8 +150,54 @@ func @int_attrs_pass() {
   } : () -> ()
   return
 }
+
 // -----
 
+//===----------------------------------------------------------------------===//
+// Check that i0 is parsed and verified correctly. It can only have value 0.
+// We check it explicitly because there are various special cases for it that
+// are good to verify.
+//===----------------------------------------------------------------------===//
+
+func @int0_attrs_pass() {
+  "test.i0_attr"() {
+    // CHECK: attr_00 = 0 : i0
+    attr_00 = 0 : i0,
+    // CHECK: attr_01 = 0 : si0
+    attr_01 = 0 : si0,
+    // CHECK: attr_02 = 0 : ui0
+    attr_02 = 0 : ui0,
+    // CHECK: attr_03 = 0 : i0
+    attr_03 = 0x0000 : i0,
+    // CHECK: attr_04 = 0 : si0
+    attr_04 = 0x0000 : si0,
+    // CHECK: attr_05 = 0 : ui0
+    attr_05 = 0x0000 : ui0
+  } : () -> ()
+  return
+}
+
+// -----
+
+func @int0_attrs_negative_fail() {
+  "test.i0_attr"() {
+    // expected-error @+1 {{integer constant out of range for attribute}}
+    attr_00 = -1 : i0
+  } : () -> ()
+  return
+}
+
+// -----
+
+func @int0_attrs_positive_fail() {
+  "test.i0_attr"() {
+    // expected-error @+1 {{integer constant out of range for attribute}}
+    attr_00 = 1 : i0
+  } : () -> ()
+  return
+}
+
+// -----
 
 func @wrong_int_attrs_signedness_fail() {
   // expected-error @+1 {{'si32_attr' failed to satisfy constraint: 32-bit signed integer attribute}}
@@ -184,7 +230,8 @@ func @wrong_int_attrs_type_fail() {
   "test.int_attrs"() {
     any_i32_attr = 5.0 : f32,
     si32_attr = 7 : si32,
-    ui32_attr = 6 : ui32
+    ui32_attr = 6 : ui32,
+    index_attr = 1 : index
   } : () -> ()
   return
 }
@@ -293,29 +340,6 @@ func @non_type_in_type_array_attr_fail() {
 func @string_attr_custom_type() {
   // CHECK: "string_data" : !foo.string
   test.string_attr_with_type "string_data" : !foo.string
-  return
-}
-
-// -----
-
-//===----------------------------------------------------------------------===//
-// Test StrEnumAttr
-//===----------------------------------------------------------------------===//
-
-// CHECK-LABEL: func @allowed_cases_pass
-func @allowed_cases_pass() {
-  // CHECK: test.str_enum_attr
-  %0 = "test.str_enum_attr"() {attr = "A"} : () -> i32
-  // CHECK: test.str_enum_attr
-  %1 = "test.str_enum_attr"() {attr = "B"} : () -> i32
-  return
-}
-
-// -----
-
-func @disallowed_case_fail() {
-  // expected-error @+1 {{allowed string cases: 'A', 'B'}}
-  %0 = "test.str_enum_attr"() {attr = 7: i32} : () -> i32
   return
 }
 
@@ -466,7 +490,7 @@ func @fn() { return }
 
 // -----
 
-// expected-error @+1 {{referencing to a 'FuncOp' symbol}}
+// expected-error @+1 {{referencing to a 'func::FuncOp' symbol}}
 "test.symbol_ref_attr"() {symbol = @foo} : () -> ()
 
 // -----
@@ -599,3 +623,7 @@ func @erroneous_fields() {
   return
 }
 
+// -----
+
+// expected-error @+1 {{invalid dialect namespace '"string with space"'}}
+#invalid_dialect = opaque<"string with space", "0xDEADBEEF"> : tensor<100xi32>

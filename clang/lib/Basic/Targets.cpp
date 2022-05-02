@@ -19,6 +19,8 @@
 #include "Targets/ARM.h"
 #include "Targets/AVR.h"
 #include "Targets/BPF.h"
+#include "Targets/CSKY.h"
+#include "Targets/DirectX.h"
 #include "Targets/Hexagon.h"
 #include "Targets/Lanai.h"
 #include "Targets/Le64.h"
@@ -674,6 +676,8 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
         return nullptr;
     }
 
+  case llvm::Triple::dxil:
+    return new DirectXTargetInfo(Triple,Opts);
   case llvm::Triple::renderscript32:
     return new LinuxTargetInfo<RenderScript32TargetInfo>(Triple, Opts);
   case llvm::Triple::renderscript64:
@@ -681,6 +685,14 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::ve:
     return new LinuxTargetInfo<VETargetInfo>(Triple, Opts);
+
+  case llvm::Triple::csky:
+    switch (os) {
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<CSKYTargetInfo>(Triple, Opts);
+    default:
+      return new CSKYTargetInfo(Triple, Opts);
+    }
   }
 }
 } // namespace targets
@@ -755,6 +767,10 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
   Target->setSupportedOpenCLOpts();
   Target->setCommandLineOpenCLOpts();
   Target->setMaxAtomicWidth();
+
+  if (!Opts->DarwinTargetVariantTriple.empty())
+    Target->DarwinTargetVariantTriple =
+        llvm::Triple(Opts->DarwinTargetVariantTriple);
 
   if (!Target->validateTarget(Diags))
     return nullptr;

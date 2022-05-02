@@ -9,6 +9,7 @@
 #include "Lexer.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Tools/PDLL/AST/Diagnostic.h"
+#include "mlir/Tools/PDLL/Parser/CodeComplete.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/SourceMgr.h"
@@ -67,11 +68,19 @@ std::string Token::getStringValue() const {
 // Lexer
 //===----------------------------------------------------------------------===//
 
-Lexer::Lexer(llvm::SourceMgr &mgr, ast::DiagnosticEngine &diagEngine)
-    : srcMgr(mgr), diagEngine(diagEngine), addedHandlerToDiagEngine(false) {
+Lexer::Lexer(llvm::SourceMgr &mgr, ast::DiagnosticEngine &diagEngine,
+             CodeCompleteContext *codeCompleteContext)
+    : srcMgr(mgr), diagEngine(diagEngine), addedHandlerToDiagEngine(false),
+      codeCompletionLocation(nullptr) {
   curBufferID = mgr.getMainFileID();
   curBuffer = srcMgr.getMemoryBuffer(curBufferID)->getBuffer();
   curPtr = curBuffer.begin();
+
+  // Set the code completion location if necessary.
+  if (codeCompleteContext) {
+    codeCompletionLocation =
+        codeCompleteContext->getCodeCompleteLoc().getPointer();
+  }
 
   // If the diag engine has no handler, add a default that emits to the
   // SourceMgr.
@@ -94,7 +103,7 @@ Lexer::~Lexer() {
 LogicalResult Lexer::pushInclude(StringRef filename) {
   std::string includedFile;
   int bufferID = srcMgr.AddIncludeFile(
-      filename.str(), llvm::SMLoc::getFromPointer(curPtr), includedFile);
+      filename.str(), SMLoc::getFromPointer(curPtr), includedFile);
   if (!bufferID) return failure();
 
   curBufferID = bufferID;
@@ -103,18 +112,18 @@ LogicalResult Lexer::pushInclude(StringRef filename) {
   return success();
 }
 
-Token Lexer::emitError(llvm::SMRange loc, const Twine &msg) {
+Token Lexer::emitError(SMRange loc, const Twine &msg) {
   diagEngine.emitError(loc, msg);
   return formToken(Token::error, loc.Start.getPointer());
 }
-Token Lexer::emitErrorAndNote(llvm::SMRange loc, const Twine &msg,
-                              llvm::SMRange noteLoc, const Twine &note) {
+Token Lexer::emitErrorAndNote(SMRange loc, const Twine &msg,
+                              SMRange noteLoc, const Twine &note) {
   diagEngine.emitError(loc, msg)->attachNote(note, noteLoc);
   return formToken(Token::error, loc.Start.getPointer());
 }
 Token Lexer::emitError(const char *loc, const Twine &msg) {
-  return emitError(llvm::SMRange(llvm::SMLoc::getFromPointer(loc),
-                                 llvm::SMLoc::getFromPointer(loc + 1)),
+  return emitError(SMRange(SMLoc::getFromPointer(loc),
+                                 SMLoc::getFromPointer(loc + 1)),
                    msg);
 }
 
@@ -147,6 +156,10 @@ Token Lexer::lexToken() {
   while (true) {
     const char *tokStart = curPtr;
 
+    // Check to see if this token is at the code completion location.
+    if (tokStart == codeCompletionLocation)
+      return formToken(Token::code_complete, tokStart);
+
     // This always consumes at least one character.
     int curChar = getNextChar();
     switch (curChar) {
@@ -161,7 +174,7 @@ Token Lexer::lexToken() {
         Token eof = formToken(Token::eof, tokStart);
 
         // Check to see if we are in an included file.
-        llvm::SMLoc parentIncludeLoc = srcMgr.getParentIncludeLoc(curBufferID);
+        SMLoc parentIncludeLoc = srcMgr.getParentIncludeLoc(curBufferID);
         if (parentIncludeLoc.isValid()) {
           curBufferID = srcMgr.FindBufferContainingLoc(parentIncludeLoc);
           curBuffer = srcMgr.getMemoryBuffer(curBufferID)->getBuffer();
@@ -298,7 +311,9 @@ Token Lexer::lexIdentifier(const char *tokStart) {
                          .Case("OpName", Token::kw_OpName)
                          .Case("Pattern", Token::kw_Pattern)
                          .Case("replace", Token::kw_replace)
+                         .Case("return", Token::kw_return)
                          .Case("rewrite", Token::kw_rewrite)
+                         .Case("Rewrite", Token::kw_Rewrite)
                          .Case("type", Token::kw_type)
                          .Case("Type", Token::kw_Type)
                          .Case("TypeRange", Token::kw_TypeRange)

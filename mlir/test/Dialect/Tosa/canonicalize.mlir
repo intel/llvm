@@ -49,6 +49,65 @@ func @cast_nofold(%arg0: tensor<?x1xf32>) -> tensor<?x1xi32> {
 
 // -----
 
+// CHECK-LABEL: @clamp_not_noop
+func @clamp_not_noop(%arg0: tensor<4xi32>) -> tensor<4xi32> {
+  // CHECK: "tosa.clamp"
+  %0 = "tosa.clamp"(%arg0) {min_int = 1 : i64, max_int = 4 : i64, min_fp = 1.0 : f32, max_fp = 4.0 : f32} : (tensor<4xi32>) -> tensor<4xi32>
+  return %0 : tensor<4xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @clamp_float_is_noop
+func @clamp_float_is_noop(%arg0: tensor<4xf32>) -> tensor<4xf32> {
+  // CHECK: return %arg0
+  // CHECK-NOT: "tosa.clamp"
+  %0 = "tosa.clamp"(%arg0) {min_int = -128 : i64, max_int = 127 : i64, min_fp = -3.40282347E+38 : f32, max_fp = 3.40282347E+38 : f32} :  (tensor<4xf32>) -> tensor<4xf32>
+  return %0 : tensor<4xf32>
+}
+
+// -----
+
+// CHECK-LABEL: @clamp_int8_is_noop
+func @clamp_int8_is_noop(%arg0: tensor<4xi8>) -> tensor<4xi8> {
+  // CHECK: return %arg0
+  // CHECK-NOT: "tosa.clamp"
+  %0 = "tosa.clamp"(%arg0) {min_int = -128 : i64, max_int = 127 : i64, min_fp = -3.40282347E+38 : f32, max_fp = 3.40282347E+38 : f32} :  (tensor<4xi8>) -> tensor<4xi8>
+  return %0 : tensor<4xi8>
+}
+
+// -----
+
+// CHECK-LABEL: @clamp_int16_is_noop
+func @clamp_int16_is_noop(%arg0: tensor<4xi16>) -> tensor<4xi16> {
+  // CHECK: return %arg0
+  // CHECK-NOT: "tosa.clamp"
+  %0 = "tosa.clamp"(%arg0) {min_int = -32768 : i64, max_int = 32767 : i64, min_fp = -3.40282347E+38 : f32, max_fp = 3.40282347E+38 : f32} :  (tensor<4xi16>) -> tensor<4xi16>
+  return %0 : tensor<4xi16>
+}
+
+// -----
+
+// CHECK-LABEL: @clamp_uint8_is_noop
+func @clamp_uint8_is_noop(%arg0: tensor<4xui8>) -> tensor<4xui8> {
+  // CHECK: return %arg0
+  // CHECK-NOT: "tosa.clamp"
+  %0 = "tosa.clamp"(%arg0) {min_int = 0 : i64, max_int = 255 : i64, min_fp = -3.40282347E+38 : f32, max_fp = 3.40282347E+38 : f32} :  (tensor<4xui8>) -> tensor<4xui8>
+  return %0 : tensor<4xui8>
+}
+
+// -----
+
+// CHECK-LABEL: @clamp_twice_is_single_clamp
+func @clamp_twice_is_single_clamp(%arg0: tensor<4xi8>) -> tensor<4xi8> {
+  // CHECK: "tosa.clamp"(%arg0) {max_fp = 3.000000e+00 : f32, max_int = 2 : i64, min_fp = -3.000000e+00 : f32, min_int = -2 : i64}
+  %0 = "tosa.clamp"(%arg0) {max_fp = 3.0 : f32, max_int = 4 : i64, min_fp = -5.0 : f32, min_int = -2 : i64} :  (tensor<4xi8>) -> tensor<4xi8>
+  %1 = "tosa.clamp"(%0) {max_fp = 5.0 : f32, max_int = 2 : i64, min_fp = -3.0 : f32, min_int = -4 : i64} :  (tensor<4xi8>) -> tensor<4xi8>
+  return %1 : tensor<4xi8>
+}
+
+// -----
+
 // CHECK-LABEL: @concat_fold
 func @concat_fold(%arg0: tensor<?x1xf32>) -> tensor<?x1xf32> {
   // CHECK: return %arg0
@@ -188,6 +247,48 @@ func @mul_one_int(%arg0: tensor<2x3xi32>) -> tensor<2x3xi32> {
   // CHECK-NOT: tosa.mul
   %ones = "tosa.const"() {value = dense<1> : tensor<2x3xi32>} : () -> tensor<2x3xi32>
   %1 = "tosa.mul"(%arg0, %ones) {shift = 0 : i32} : (tensor<2x3xi32>, tensor<2x3xi32>) -> tensor<2x3xi32>
+  return %1 : tensor<2x3xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @select_same_value
+func @select_same_value(%arg0: tensor<2x3xi1>, %arg1: tensor<2x3xi32>) -> tensor<2x3xi32> {
+  %0 = "tosa.select"(%arg0, %arg1, %arg1) : (tensor<2x3xi1>, tensor<2x3xi32>, tensor<2x3xi32>) -> tensor<2x3xi32>
+  // CHECK: return %arg1
+  // CHECK-NOT: tosa.select
+  return %0 : tensor<2x3xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @select_true_value
+func @select_true_value(%arg0: tensor<2x3xi32>, %arg1: tensor<2x3xi32>) -> tensor<2x3xi32> {
+  %c1 = "tosa.const"() {value = dense<1> : tensor<2x3xi1>} : () -> tensor<2x3xi1>
+  %0 = "tosa.select"(%c1, %arg0, %arg1) : (tensor<2x3xi1>, tensor<2x3xi32>, tensor<2x3xi32>) -> tensor<2x3xi32>
+  // CHECK: return %arg0
+  // CHECK-NOT: tosa.select
+  return %0 : tensor<2x3xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @select_false_value
+func @select_false_value(%arg0: tensor<2x3xi32>, %arg1: tensor<2x3xi32>) -> tensor<2x3xi32> {
+  %c0 = "tosa.const"() {value = dense<0> : tensor<2x3xi1>} : () -> tensor<2x3xi1>
+  %0 = "tosa.select"(%c0, %arg0, %arg1) : (tensor<2x3xi1>, tensor<2x3xi32>, tensor<2x3xi32>) -> tensor<2x3xi32>
+  // CHECK: return %arg1
+  // CHECK-NOT: tosa.select
+  return %0 : tensor<2x3xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @select_not_pred
+func @select_not_pred(%arg0: tensor<2x3xi1>, %arg1: tensor<2x3xi32>, %arg2: tensor<2x3xi32>) -> tensor<2x3xi32> {
+  %0 = "tosa.logical_not"(%arg0) : (tensor<2x3xi1>) -> tensor<2x3xi1>
+  %1 = "tosa.select"(%0, %arg1, %arg2) : (tensor<2x3xi1>, tensor<2x3xi32>, tensor<2x3xi32>) -> tensor<2x3xi32>
+  // CHECK: "tosa.select"(%arg0, %arg2, %arg1)
   return %1 : tensor<2x3xi32>
 }
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple armv7-apple-darwin9 -emit-llvm -o - %s -Wno-return-type-c-linkage -std=c++03 | FileCheck %s -check-prefixes=CHECK
+// RUN: %clang_cc1 -no-opaque-pointers -triple armv7-apple-darwin9 -emit-llvm -o - %s -Wno-return-type-c-linkage -std=c++03 | FileCheck %s -check-prefixes=CHECK
 
 // This isn't really testing anything ARM-specific; it's just a convenient
 // 32-bit platform.
@@ -112,7 +112,7 @@ TEST(struct_indirect_1)
 // CHECK-LABEL: define {{.*}} void @return_struct_indirect_1({{.*}} noalias sret
 
 // Should not be byval.
-// CHECK-LABEL: define {{.*}} void @take_struct_indirect_1({{.*}}*{{( %.*)?}})
+// CHECK-LABEL: define {{.*}} void @take_struct_indirect_1({{.*}}* noundef{{( %.*)?}})
 
 // Do a simple standalone test here of a function definition to ensure that
 // we don't have problems due to failure to eagerly synthesize a copy

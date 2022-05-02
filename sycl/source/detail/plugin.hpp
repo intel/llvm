@@ -238,6 +238,16 @@ public:
     LastDeviceIds[PlatformId] = Id;
   }
 
+  // Adjust the id of the last device for the given platform.
+  // Involved when there is no device on that platform at all.
+  // The function is expected to be called in a thread safe manner.
+  void adjustLastDeviceId(RT::PiPlatform Platform) {
+    int PlatformId = getPlatformId(Platform);
+    if (PlatformId > 0 &&
+        LastDeviceIds[PlatformId] < LastDeviceIds[PlatformId - 1])
+      LastDeviceIds[PlatformId] = LastDeviceIds[PlatformId - 1];
+  }
+
   bool containsPiPlatform(RT::PiPlatform Platform) {
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     return It != PiPlatforms.end();

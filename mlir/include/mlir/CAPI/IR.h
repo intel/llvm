@@ -22,6 +22,7 @@
 
 DEFINE_C_API_PTR_METHODS(MlirContext, mlir::MLIRContext)
 DEFINE_C_API_PTR_METHODS(MlirDialect, mlir::Dialect)
+DEFINE_C_API_PTR_METHODS(MlirDialectRegistry, mlir::DialectRegistry)
 DEFINE_C_API_PTR_METHODS(MlirOperation, mlir::Operation)
 DEFINE_C_API_PTR_METHODS(MlirBlock, mlir::Block)
 DEFINE_C_API_PTR_METHODS(MlirOpPrintingFlags, mlir::OpPrintingFlags)
@@ -33,7 +34,6 @@ DEFINE_C_API_METHODS(MlirIdentifier, mlir::StringAttr)
 DEFINE_C_API_METHODS(MlirLocation, mlir::Location)
 DEFINE_C_API_METHODS(MlirModule, mlir::ModuleOp)
 DEFINE_C_API_METHODS(MlirType, mlir::Type)
-DEFINE_C_API_METHODS(MlirTypeID, mlir::TypeID)
 DEFINE_C_API_METHODS(MlirValue, mlir::Value)
 
 #endif // MLIR_CAPI_IR_H

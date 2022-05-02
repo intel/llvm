@@ -175,7 +175,7 @@ uses the package and provides other details.
 Package                                                     Version      Notes
 =========================================================== ============ ==========================================
 `CMake <http://cmake.org/>`__                               >=3.13.4     Makefile/workspace generator
-`GCC <http://gcc.gnu.org/>`_                                >=5.1.0      C/C++ compiler\ :sup:`1`
+`GCC <http://gcc.gnu.org/>`_                                >=7.1.0      C/C++ compiler\ :sup:`1`
 `python <http://www.python.org/>`_                          >=3.6        Automated test suite\ :sup:`2`
 `zlib <http://zlib.net>`_                                   >=1.2.3.4    Compression library\ :sup:`3`
 `GNU Make <http://savannah.gnu.org/projects/make>`_         3.79, 3.79.1 Makefile/build processor\ :sup:`4`
@@ -235,10 +235,10 @@ LLVM is written using the subset of C++ documented in :doc:`coding
 standards<CodingStandards>`. To enforce this language version, we check the most
 popular host toolchains for specific minimum versions in our build systems:
 
-* Clang 3.5
-* Apple Clang 6.0
-* GCC 5.1
-* Visual Studio 2017
+* Clang 5.0
+* Apple Clang 9.3
+* GCC 7.1
+* Visual Studio 2019 16.7
 
 Anything older than these toolchains *may* work, but will require forcing the
 build system with a special option and is not really a supported host platform.
@@ -273,8 +273,8 @@ Getting a Modern Host C++ Toolchain
 This section mostly applies to Linux and older BSDs. On macOS, you should
 have a sufficiently modern Xcode, or you will likely need to upgrade until you
 do. Windows does not have a "system compiler", so you must install either Visual
-Studio 2017 or a recent version of mingw64. FreeBSD 10.0 and newer have a modern
-Clang as the system compiler.
+Studio 2019 (or later), or a recent version of mingw64. FreeBSD 10.0 and newer
+have a modern Clang as the system compiler.
 
 However, some Linux distributions and some other or older BSDs sometimes have
 extremely old versions of GCC. These steps attempt to help you upgrade you
@@ -303,11 +303,11 @@ GCC from source. It is also quite easy to do these days.
 .. _github gist:
   https://gist.github.com/application2000/73fd6f4bf1be6600a2cf9f56315a2d91
 
-Easy steps for installing GCC 5.1.0:
+Easy steps for installing GCC 7.1.0:
 
 .. code-block:: console
 
-  % gcc_version=5.1.0
+  % gcc_version=7.1.0
   % wget https://ftp.gnu.org/gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.bz2
   % wget https://ftp.gnu.org/gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.bz2.sig
   % wget https://ftp.gnu.org/gnu/gnu-keyring.gpg
@@ -623,10 +623,15 @@ used by people developing LLVM.
 |                         | other LLVM subprojects to additionally build. (Only|
 |                         | effective when using a side-by-side project layout |
 |                         | e.g. via git). The default list is empty. Can      |
-|                         | include: clang, clang-tools-extra, compiler-rt,    |
-|                         | cross-project-tests, flang, libc, libclc, libcxx,  |
-|                         | libcxxabi, libunwind, lld, lldb, mlir, openmp,     |
-|                         | polly, or pstl.                                    |
+|                         | include: clang, clang-tools-extra,                 |
+|                         | cross-project-tests, flang, libc, libclc, lld,     |
+|                         | lldb, mlir, openmp, polly, or pstl.                |
++-------------------------+----------------------------------------------------+
+| LLVM_ENABLE_RUNTIMES    | A semicolon-delimited list selecting which of the  |
+|                         | runtimes to build. (Only effective when using the  |
+|                         | full monorepo layout). The default list is empty.  |
+|                         | Can include: compiler-rt, libc, libcxx, libcxxabi, |
+|                         | libunwind, or openmp.                              |
 +-------------------------+----------------------------------------------------+
 | LLVM_ENABLE_SPHINX      | Build sphinx-based documentation from the source   |
 |                         | code. This is disabled by default because it is    |
@@ -1215,6 +1220,11 @@ following options with cmake:
  * -DLLVM_ENABLE_PROJECTS
    Set this equal to the projects you wish to compile (e.g. clang, lld, etc.) If
    compiling more than one project, separate the items with a semicolon. Should
+   you run into issues with the semicolon, try surrounding it with single quotes.
+
+ * -DLLVM_ENABLE_RUNTIMES
+   Set this equal to the runtimes you wish to compile (e.g. libcxx, libcxxabi, etc.)
+   If compiling more than one runtime, separate the items with a semicolon. Should
    you run into issues with the semicolon, try surrounding it with single quotes.
 
  * -DCLANG_ENABLE_STATIC_ANALYZER

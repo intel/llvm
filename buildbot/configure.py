@@ -31,27 +31,25 @@ def do_configure(args):
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
-    sycl_build_pi_cuda = 'OFF'
-    sycl_build_pi_esimd_emulator = 'OFF'
-    sycl_build_pi_hip = 'OFF'
     sycl_build_pi_hip_platform = 'AMD'
     sycl_clang_extra_flags = ''
-    sycl_werror = 'ON'
+    sycl_werror = 'OFF'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
     llvm_enable_lld = 'OFF'
+    sycl_enabled_plugins = ["opencl", "level_zero"]
 
     sycl_enable_xpti_tracing = 'ON'
-    xpti_enable_werror = 'ON'
+    xpti_enable_werror = 'OFF'
 
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
 
-    if args.enable_esimd_cpu_emulation:
-        sycl_build_pi_esimd_emulator = 'ON'
+    if args.enable_esimd_emulator:
+        sycl_enabled_plugins.append("esimd_emulator")
 
     if args.cuda or args.hip:
         llvm_enable_projects += ';libclc'
@@ -60,14 +58,12 @@ def do_configure(args):
         llvm_targets_to_build += ';NVPTX'
         libclc_targets_to_build = libclc_nvidia_target_names
         libclc_gen_remangled_variants = 'ON'
-        sycl_build_pi_cuda = 'ON'
+        sycl_enabled_plugins.append("cuda")
 
     if args.hip:
         if args.hip_platform == 'AMD':
             llvm_targets_to_build += ';AMDGPU'
             libclc_targets_to_build += libclc_amd_target_names
-            if args.hip_amd_arch:
-                sycl_clang_extra_flags += "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch="+args.hip_amd_arch
 
             # The HIP plugin for AMD uses lld for linking
             llvm_enable_projects += ';lld'
@@ -77,11 +73,11 @@ def do_configure(args):
         libclc_gen_remangled_variants = 'ON'
 
         sycl_build_pi_hip_platform = args.hip_platform
-        sycl_build_pi_hip = 'ON'
+        sycl_enabled_plugins.append("hip")
 
-    if args.no_werror:
-        sycl_werror = 'OFF'
-        xpti_enable_werror = 'OFF'
+    if args.werror or args.ci_defaults:
+        sycl_werror = 'ON'
+        xpti_enable_werror = 'ON'
 
     if args.no_assertions:
         llvm_enable_assertions = 'OFF'
@@ -103,8 +99,8 @@ def do_configure(args):
         print("# Default CI configuration will be applied. #")
         print("#############################################")
 
-        # For clang-format and clang-tidy
-        llvm_enable_projects += ";clang-tools-extra"
+        # For clang-format, clang-tidy and code coverage
+        llvm_enable_projects += ";clang-tools-extra;compiler-rt"
         # libclc is required for CI validation
         if 'libclc' not in llvm_enable_projects:
             llvm_enable_projects += ';libclc'
@@ -116,6 +112,9 @@ def do_configure(args):
             libclc_targets_to_build += libclc_amd_target_names
         if libclc_nvidia_target_names not in libclc_targets_to_build:
             libclc_targets_to_build += libclc_nvidia_target_names
+
+    if args.enable_plugin:
+        sycl_enabled_plugins += args.enable_plugin
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -135,8 +134,6 @@ def do_configure(args):
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
         "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
-        "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
-        "-DSYCL_BUILD_PI_HIP={}".format(sycl_build_pi_hip),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
@@ -147,9 +144,9 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
-        "-DSYCL_BUILD_PI_ESIMD_EMULATOR={}".format(sycl_build_pi_esimd_emulator),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
-        "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags)
+        "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
+        "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins)))
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -211,12 +208,11 @@ def main():
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
-    parser.add_argument("--hip-amd-arch", type=str, help="Sets AMD gpu architecture for llvm lit tests, this is only needed for the HIP backend and AMD platform")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
-    parser.add_argument("--enable-esimd-cpu-emulation", action='store_true', help="build with ESIMD_CPU emulation support")
+    parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
-    parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
+    parser.add_argument("--werror", action='store_true', help="Don't treat warnings as errors")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
     parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
@@ -226,6 +222,7 @@ def main():
     parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
     parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
     parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
+    parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
     args = parser.parse_args()
 
     print("args:{}".format(args))

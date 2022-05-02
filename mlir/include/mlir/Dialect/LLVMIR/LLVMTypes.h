@@ -135,7 +135,7 @@ public:
   static bool isValidResultType(Type type);
 
   /// Returns whether the function is variadic.
-  bool isVarArg();
+  bool isVarArg() const;
 
   /// Gets or creates an instance of LLVM dialect function in the same context
   /// as the `result` type.
@@ -145,8 +145,16 @@ public:
   getChecked(function_ref<InFlightDiagnostic()> emitError, Type result,
              ArrayRef<Type> arguments, bool isVarArg = false);
 
+  /// Returns a clone of this function type with the given argument
+  /// and result types.
+  LLVMFunctionType clone(TypeRange inputs, TypeRange results) const;
+
   /// Returns the result type of the function.
   Type getReturnType();
+
+  /// Returns the result type of the function as an ArrayRef, enabling better
+  /// integration with generic MLIR utilities.
+  ArrayRef<Type> getReturnTypes();
 
   /// Returns the number of arguments to the function.
   unsigned getNumParams();
@@ -168,29 +176,38 @@ public:
 //===----------------------------------------------------------------------===//
 
 /// LLVM dialect pointer type. This type typically represents a reference to an
-/// object in memory. It is parameterized by the element type and the address
-/// space.
+/// object in memory. Pointers may be opaque or parameterized by the element
+/// type. Both opaque and non-opaque pointers are additionally parameterized by
+/// the address space.
 class LLVMPointerType : public Type::TypeBase<LLVMPointerType, Type,
                                               detail::LLVMPointerTypeStorage,
                                               DataLayoutTypeInterface::Trait> {
 public:
   /// Inherit base constructors.
   using Base::Base;
-  using Base::getChecked;
 
   /// Checks if the given type can have a pointer type pointing to it.
   static bool isValidElementType(Type type);
 
   /// Gets or creates an instance of LLVM dialect pointer type pointing to an
   /// object of `pointee` type in the given address space. The pointer type is
-  /// created in the same context as `pointee`.
+  /// created in the same context as `pointee`. If the pointee is not provided,
+  /// creates an opaque pointer in the given context and address space.
+  static LLVMPointerType get(MLIRContext *context, unsigned addressSpace = 0);
   static LLVMPointerType get(Type pointee, unsigned addressSpace = 0);
   static LLVMPointerType
   getChecked(function_ref<InFlightDiagnostic()> emitError, Type pointee,
              unsigned addressSpace = 0);
+  static LLVMPointerType
+  getChecked(function_ref<InFlightDiagnostic()> emitError, MLIRContext *context,
+             unsigned addressSpace = 0);
 
-  /// Returns the pointed-to type.
+  /// Returns the pointed-to type. It may be null if the pointer is opaque.
   Type getElementType() const;
+
+  /// Returns `true` if this type is the opaque pointer type, i.e., it has no
+  /// pointed-to type.
+  bool isOpaque() const;
 
   /// Returns the address space of the pointer.
   unsigned getAddressSpace() const;
@@ -198,6 +215,10 @@ public:
   /// Verifies that the type about to be constructed is well-formed.
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               Type pointee, unsigned);
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+                              MLIRContext *context, unsigned) {
+    return success();
+  }
 
   /// Hooks for DataLayoutTypeInterface. Should not be called directly. Obtain a
   /// DataLayout instance and query it instead.
@@ -337,35 +358,6 @@ public:
 
   LogicalResult verifyEntries(DataLayoutEntryListRef entries,
                               Location loc) const;
-};
-
-//===----------------------------------------------------------------------===//
-// LLVMVectorType.
-//===----------------------------------------------------------------------===//
-
-/// LLVM dialect vector type, represents a sequence of elements that can be
-/// processed as one, typically in SIMD context. This is a base class for fixed
-/// and scalable vectors.
-class LLVMVectorType : public Type {
-public:
-  /// Inherit base constructor.
-  using Type::Type;
-
-  /// Support type casting functionality.
-  static bool classof(Type type);
-
-  /// Checks if the given type can be used in a vector type.
-  static bool isValidElementType(Type type);
-
-  /// Returns the element type of the vector.
-  Type getElementType();
-
-  /// Returns the number of elements in the vector.
-  llvm::ElementCount getElementCount();
-
-  /// Verifies that the type about to be constructed is well-formed.
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              Type elementType, unsigned numElements);
 };
 
 //===----------------------------------------------------------------------===//

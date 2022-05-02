@@ -39,6 +39,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  getenv
+  SRCS
+    getenv.cpp
+  HDRS
+    getenv.h
+  DEPENDS
+    libc.config.linux.app_h
+)
+
+add_entrypoint_object(
   strtof
   SRCS
     strtof.cpp
@@ -199,17 +209,16 @@ if(LLVM_LIBC_INCLUDE_SCUDO)
     message(FATAL_ERROR "Architecture ${LIBC_TARGET_ARCHITECTURE} is not supported by SCUDO. 
       Either disable LLVM_LIBC_INCLUDE_SCUDO or change your target architecture.")
   endif()
-  list(APPEND SCUDO_DEPS RTScudoStandalone.${LIBC_TARGET_ARCHITECTURE} 
-       RTScudoStandaloneCWrappers.${LIBC_TARGET_ARCHITECTURE})
-  if((LIBC_TARGET_ARCHITECTURE IN_LIST ALL_GWP_ASAN_SUPPORTED_ARCH) 
-      AND COMPILER_RT_BUILD_GWP_ASAN)
-    list(APPEND SCUDO_DEPS RTGwpAsan.${LIBC_TARGET_ARCHITECTURE} 
-                            RTGwpAsanBacktraceLibc.${LIBC_TARGET_ARCHITECTURE} 
-                            RTGwpAsanSegvHandler.${LIBC_TARGET_ARCHITECTURE})
-  elseif(COMPILER_RT_BUILD_GWP_ASAN)
-    message(WARNING "Architecture ${LIBC_TARGET_ARCHITECTURE} is not supported by GWP-ASan. Skipping.")
-  endif()
 
+  list(APPEND SCUDO_DEPS RTScudoStandalone.${LIBC_TARGET_ARCHITECTURE}
+      RTScudoStandaloneCWrappers.${LIBC_TARGET_ARCHITECTURE})
+
+  list(APPEND SCUDO_DEPS
+    RTGwpAsan.${LIBC_TARGET_ARCHITECTURE}
+    RTGwpAsanBacktraceLibc.${LIBC_TARGET_ARCHITECTURE}
+    RTGwpAsanSegvHandler.${LIBC_TARGET_ARCHITECTURE}
+    )
+  
   add_entrypoint_external(
     malloc
     DEPENDS
@@ -226,11 +235,31 @@ if(LLVM_LIBC_INCLUDE_SCUDO)
       ${SCUDO_DEPS}
   )
   add_entrypoint_external(
+    aligned_alloc
+    DEPENDS
+      ${SCUDO_DEPS}
+  )
+  add_entrypoint_external(
     free
     DEPENDS
       ${SCUDO_DEPS}
   )
-
+else()
+  add_entrypoint_external(
+    malloc
+  )
+  add_entrypoint_external(
+    calloc
+  )
+  add_entrypoint_external(
+    realloc
+  )
+  add_entrypoint_external(
+    aligned_alloc
+  )
+  add_entrypoint_external(
+    free
+  )
 endif()
 
 if(NOT LLVM_LIBC_FULL_BUILD)
@@ -248,14 +277,33 @@ add_entrypoint_object(
     .${LIBC_TARGET_OS}._Exit
 )
 
+add_entrypoint_object(
+  atexit
+  SRCS
+    atexit.cpp
+  HDRS
+    atexit.h
+  CXX_STANDARD
+    20 # For constinit of the atexit callback list.
+  DEPENDS
+    libc.src.__support.CPP.blockstore
+    libc.src.__support.threads.mutex
+)
+
+add_entrypoint_object(
+  exit
+  SRCS
+    exit.cpp
+  HDRS
+    exit.h
+  DEPENDS
+    ._Exit
+    .atexit
+)
+
 # add_entrypoint_object(
 #   abort
-#   SRCS
-#     abort.cpp
-#   HDRS
-#     abort.h
+#   ALIAS
 #   DEPENDS
-#     libc.include.stdlib
-#     libc.src.signal.raise
-#     ._Exit
+#     .${LIBC_TARGET_OS}.abort
 # )

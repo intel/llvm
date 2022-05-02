@@ -962,6 +962,12 @@ void X86MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
     // These are not truly commutable so hide them from the default case.
     break;
 
+  case X86::MASKMOVDQU:
+  case X86::VMASKMOVDQU:
+    if (AsmPrinter.getSubtarget().is64Bit())
+      OutMI.setFlags(X86::IP_HAS_AD_SIZE);
+    break;
+
   default: {
     // If the instruction is a commutable arithmetic instruction we might be
     // able to commute the operands to get a 2 byte VEX prefix.
@@ -1347,11 +1353,12 @@ void X86AsmPrinter::LowerASAN_CHECK_MEMACCESS(const MachineInstr &MI) {
                             AccessInfo.CompileKernel, &ShadowBase,
                             &MappingScale, &OrShadowOffset);
 
-  std::string Name = AccessInfo.IsWrite ? "store" : "load";
-  std::string Op = OrShadowOffset ? "or" : "add";
-  std::string SymName = "__asan_check_" + Name + "_" + Op + "_" +
-                        utostr(1ULL << AccessInfo.AccessSizeIndex) + "_" +
-                        TM.getMCRegisterInfo()->getName(Reg.asMCReg());
+  StringRef Name = AccessInfo.IsWrite ? "store" : "load";
+  StringRef Op = OrShadowOffset ? "or" : "add";
+  std::string SymName = ("__asan_check_" + Name + "_" + Op + "_" +
+                         Twine(1ULL << AccessInfo.AccessSizeIndex) + "_" +
+                         TM.getMCRegisterInfo()->getName(Reg.asMCReg()))
+                            .str();
   if (OrShadowOffset)
     report_fatal_error(
         "OrShadowOffset is not supported with optimized callbacks");

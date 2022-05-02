@@ -12,6 +12,7 @@
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/MachO.h"
@@ -27,8 +28,8 @@
 namespace lld {
 namespace macho {
 
+class InputSection;
 class Symbol;
-struct SymbolPriorityEntry;
 
 using NamePair = std::pair<llvm::StringRef, llvm::StringRef>;
 using SectionRenameMap = llvm::DenseMap<NamePair, NamePair>;
@@ -106,7 +107,6 @@ struct Configuration {
   bool implicitDylibs = false;
   bool isPic = false;
   bool headerPadMaxInstallNames = false;
-  bool ltoNewPassManager = LLVM_ENABLE_NEW_PASS_MANAGER;
   bool markDeadStrippableDylib = false;
   bool printDylibSearch = false;
   bool printEachFile = false;
@@ -168,12 +168,15 @@ struct Configuration {
   std::vector<SectionAlign> sectionAlignments;
   std::vector<SegmentProtection> segmentProtections;
 
-  llvm::DenseMap<llvm::StringRef, SymbolPriorityEntry> priorities;
+  bool callGraphProfileSort = false;
+  llvm::StringRef printSymbolOrder;
+
   SectionRenameMap sectionRenameMap;
   SegmentRenameMap segmentRenameMap;
 
   SymbolPatterns exportedSymbols;
   SymbolPatterns unexportedSymbols;
+  SymbolPatterns whyLive;
 
   bool zeroModTime = false;
 
@@ -181,23 +184,9 @@ struct Configuration {
 
   llvm::MachO::Architecture arch() const { return platformInfo.target.Arch; }
 
-  llvm::MachO::PlatformKind platform() const {
+  llvm::MachO::PlatformType platform() const {
     return platformInfo.target.Platform;
   }
-};
-
-// The symbol with the highest priority should be ordered first in the output
-// section (modulo input section contiguity constraints). Using priority
-// (highest first) instead of order (lowest first) has the convenient property
-// that the default-constructed zero priority -- for symbols/sections without a
-// user-defined order -- naturally ends up putting them at the end of the
-// output.
-struct SymbolPriorityEntry {
-  // The priority given to a matching symbol, regardless of which object file
-  // it originated from.
-  size_t anyObjectFile = 0;
-  // The priority given to a matching symbol from a particular object file.
-  llvm::DenseMap<llvm::StringRef, size_t> objectFiles;
 };
 
 // Whether to force-load an archive.
@@ -207,7 +196,7 @@ enum class ForceLoad {
   No,      // Never load the archive, regardless of other flags
 };
 
-extern Configuration *config;
+extern std::unique_ptr<Configuration> config;
 
 } // namespace macho
 } // namespace lld

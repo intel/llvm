@@ -25,6 +25,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Object/Archive.h"
@@ -68,15 +69,26 @@ static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
 // and -help) will be hidden.
 static cl::OptionCategory
     ClangOffloadBundlerCategory("clang-offload-bundler options");
-
 static cl::list<std::string>
-    InputFileNames("inputs", cl::CommaSeparated, cl::OneOrMore,
-                   cl::desc("[<input file>,...]"),
+    InputFileNames("input", cl::ZeroOrMore,
+                   cl::desc("Input file."
+                            " Can be specified multiple times "
+                            "for multiple input files."),
                    cl::cat(ClangOffloadBundlerCategory));
 static cl::list<std::string>
-    OutputFileNames("outputs", cl::CommaSeparated,
-                    cl::desc("[<output file>,...]"),
+    InputFileNamesDeprecatedOpt("inputs", cl::CommaSeparated, cl::ZeroOrMore,
+                                cl::desc("[<input file>,...] (deprecated)"),
+                                cl::cat(ClangOffloadBundlerCategory));
+static cl::list<std::string>
+    OutputFileNames("output", cl::ZeroOrMore,
+                    cl::desc("Output file."
+                             " Can be specified multiple times "
+                             "for multiple output files."),
                     cl::cat(ClangOffloadBundlerCategory));
+static cl::list<std::string>
+    OutputFileNamesDeprecatedOpt("outputs", cl::CommaSeparated, cl::ZeroOrMore,
+                                 cl::desc("[<output file>,...] (deprecated)"),
+                                 cl::cat(ClangOffloadBundlerCategory));
 static cl::list<std::string>
     TargetNames("targets", cl::CommaSeparated,
                 cl::desc("[<offload kind>-<target triple>,...]"),
@@ -142,6 +154,12 @@ static cl::opt<bool>
                               "the output file when bundling object files.\n"),
                      cl::init(true), cl::cat(ClangOffloadBundlerCategory));
 
+static cl::opt<bool> HipOpenmpCompatible(
+    "hip-openmp-compatible",
+    cl::desc("Treat hip and hipv4 offload kinds as "
+             "compatible with openmp kind, and vice versa.\n"),
+    cl::init(false), cl::cat(ClangOffloadBundlerCategory));
+
 /// Magic string that marks the existence of offloading data.
 #define OFFLOAD_BUNDLER_MAGIC_STR "__CLANG_OFFLOAD_BUNDLE__"
 
@@ -193,6 +211,21 @@ struct OffloadTargetInfo {
     return OffloadKind == "host" || OffloadKind == "openmp" ||
            OffloadKind == "sycl" || OffloadKind == "fpga" ||
            OffloadKind == "hip" || OffloadKind == "hipv4";
+  }
+
+  bool isOffloadKindCompatible(const StringRef TargetOffloadKind) const {
+    if (OffloadKind == TargetOffloadKind)
+      return true;
+    if (HipOpenmpCompatible) {
+      bool HIPCompatibleWithOpenMP =
+          OffloadKind.startswith_insensitive("hip") &&
+          TargetOffloadKind == "openmp";
+      bool OpenMPCompatibleWithHIP =
+          OffloadKind == "openmp" &&
+          TargetOffloadKind.startswith_insensitive("hip");
+      return HIPCompatibleWithOpenMP || OpenMPCompatibleWithHIP;
+    }
+    return false;
   }
 
   bool isTripleValid() const {
@@ -402,7 +435,7 @@ class BinaryFileHandler final : public FileHandler {
   std::string CurWriteBundleTarget;
 
 public:
-  BinaryFileHandler() : FileHandler() {}
+  BinaryFileHandler() {}
 
   ~BinaryFileHandler() final {}
 
@@ -749,8 +782,7 @@ class ObjectFileHandler final : public FileHandler {
 
 public:
   ObjectFileHandler(std::unique_ptr<ObjectFile> ObjIn)
-      : FileHandler(), Obj(std::move(ObjIn)),
-        CurrentSection(Obj->section_begin()),
+      : Obj(std::move(ObjIn)), CurrentSection(Obj->section_begin()),
         NextSection(Obj->section_begin()) {}
 
   ~ObjectFileHandler() final {}
@@ -1005,8 +1037,7 @@ protected:
   }
 
 public:
-  TextFileHandler(StringRef Comment)
-      : FileHandler(), Comment(Comment), ReadChars(0) {
+  TextFileHandler(StringRef Comment) : Comment(Comment), ReadChars(0) {
     BundleStartString =
         "\n" + Comment.str() + " " OFFLOAD_BUNDLER_MAGIC_STR "__START__ ";
     BundleEndString =
@@ -1615,7 +1646,7 @@ bool isCodeObjectCompatible(OffloadTargetInfo &CodeObjectInfo,
   }
 
   // Incompatible if Kinds or Triples mismatch.
-  if (CodeObjectInfo.OffloadKind != TargetInfo.OffloadKind ||
+  if (!CodeObjectInfo.isOffloadKindCompatible(TargetInfo.OffloadKind) ||
       !CodeObjectInfo.Triple.isCompatibleWith(TargetInfo.Triple)) {
     DEBUG_WITH_TYPE(
         "CodeObjectCompatibility",
@@ -1808,7 +1839,7 @@ static Error UnbundleArchive() {
     } // End of processing of all bundle entries of this child of input archive.
   }   // End of while over children of input archive.
 
-  assert(!ArchiveErr && "Error occured while reading archive!");
+  assert(!ArchiveErr && "Error occurred while reading archive!");
 
   /// Write out an archive for each target
   for (auto &Target : TargetNames) {
@@ -1886,6 +1917,38 @@ int main(int argc, const char **argv) {
     }
   };
 
+  auto warningOS = [argv]() -> raw_ostream & {
+    return WithColor::warning(errs(), StringRef(argv[0]));
+  };
+
+  if (InputFileNames.getNumOccurrences() != 0 &&
+      InputFileNamesDeprecatedOpt.getNumOccurrences() != 0) {
+    reportError(createStringError(
+        errc::invalid_argument,
+        "-inputs and -input cannot be used together, use only -input instead"));
+  }
+  if (InputFileNamesDeprecatedOpt.size()) {
+    warningOS() << "-inputs is deprecated, use -input instead\n";
+    // temporary hack to support -inputs
+    std::vector<std::string> &s = InputFileNames;
+    s.insert(s.end(), InputFileNamesDeprecatedOpt.begin(),
+             InputFileNamesDeprecatedOpt.end());
+  }
+
+  if (OutputFileNames.getNumOccurrences() != 0 &&
+      OutputFileNamesDeprecatedOpt.getNumOccurrences() != 0) {
+    reportError(createStringError(errc::invalid_argument,
+                                  "-outputs and -output cannot be used "
+                                  "together, use only -output instead"));
+  }
+  if (OutputFileNamesDeprecatedOpt.size()) {
+    warningOS() << "-outputs is deprecated, use -output instead\n";
+    // temporary hack to support -outputs
+    std::vector<std::string> &s = OutputFileNames;
+    s.insert(s.end(), OutputFileNamesDeprecatedOpt.begin(),
+             OutputFileNamesDeprecatedOpt.end());
+  }
+
   if (ListBundleIDs) {
     if (Unbundle) {
       reportError(
@@ -1909,10 +1972,9 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
-  if (OutputFileNames.getNumOccurrences() == 0 && !CheckSection) {
-    reportError(createStringError(
-        errc::invalid_argument,
-        "for the --outputs option: must be specified at least once!"));
+  if (OutputFileNames.size() == 0 && !CheckSection) {
+    reportError(
+        createStringError(errc::invalid_argument, "no output file specified!"));
   }
   if (TargetNames.getNumOccurrences() == 0) {
     reportError(createStringError(

@@ -192,6 +192,7 @@ public:
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
   static constexpr char SYCL_ASSERT_USED[] = "SYCL/assert used";
   static constexpr char SYCL_EXPORTED_SYMBOLS[] = "SYCL/exported symbols";
+  static constexpr char SYCL_DEVICE_GLOBALS[] = "SYCL/device globals";
 
   // Function for bulk addition of an entire property set under given category
   // (property set name).

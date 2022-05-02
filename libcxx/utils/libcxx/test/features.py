@@ -18,6 +18,13 @@ _isGCC        = lambda cfg: '__GNUC__' in compilerMacros(cfg) and '__clang__' no
 _isMSVC       = lambda cfg: '_MSC_VER' in compilerMacros(cfg)
 _msvcVersion  = lambda cfg: (int(compilerMacros(cfg)['_MSC_VER']) // 100, int(compilerMacros(cfg)['_MSC_VER']) % 100)
 
+def _hasSuitableClangTidy(cfg):
+  try:
+    return int(re.search('[0-9]+', commandOutput(cfg, ['clang-tidy --version'])).group()) >= 13
+  except ConfigurationRuntimeError:
+    return False
+
+
 DEFAULT_FEATURES = [
   Feature(name='fcoroutines-ts',
           when=lambda cfg: hasCompileFlag(cfg, '-fcoroutines-ts') and
@@ -36,7 +43,6 @@ DEFAULT_FEATURES = [
   Feature(name='-fsized-deallocation',          when=lambda cfg: hasCompileFlag(cfg, '-fsized-deallocation')),
   Feature(name='-faligned-allocation',          when=lambda cfg: hasCompileFlag(cfg, '-faligned-allocation')),
   Feature(name='fdelayed-template-parsing',     when=lambda cfg: hasCompileFlag(cfg, '-fdelayed-template-parsing')),
-  Feature(name='libcpp-no-concepts',            when=lambda cfg: featureTestMacros(cfg).get('__cpp_concepts', 0) < 201907),
   Feature(name='libcpp-no-coroutines',          when=lambda cfg: featureTestMacros(cfg).get('__cpp_impl_coroutine', 0) < 201902),
   Feature(name='has-fobjc-arc',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc') and
                                                                  sys.platform.lower().strip() == 'darwin'), # TODO: this doesn't handle cross-compiling to Apple platforms.
@@ -73,6 +79,43 @@ DEFAULT_FEATURES = [
             void f() { new int(3); }
           """, ['-shared'])),
 
+  # Check for a Windows UCRT bug (fixed in UCRT/Windows 10.0.20348.0):
+  # https://developercommunity.visualstudio.com/t/utf-8-locales-break-ctype-functions-for-wchar-type/1653678
+  Feature(name='win32-broken-utf8-wchar-ctype',
+          when=lambda cfg: '_WIN32' in compilerMacros(cfg) and not programSucceeds(cfg, """
+            #include <locale.h>
+            #include <wctype.h>
+            int main(int, char**) {
+              setlocale(LC_ALL, "en_US.UTF-8");
+              return towlower(L'\\xDA') != L'\\xFA';
+            }
+          """)),
+
+  # Check for a Windows UCRT bug (fixed in UCRT/Windows 10.0.19041.0).
+  # https://developercommunity.visualstudio.com/t/printf-formatting-with-g-outputs-too/1660837
+  Feature(name='win32-broken-printf-g-precision',
+          when=lambda cfg: '_WIN32' in compilerMacros(cfg) and not programSucceeds(cfg, """
+            #include <stdio.h>
+            #include <string.h>
+            int main(int, char**) {
+              char buf[100];
+              snprintf(buf, sizeof(buf), "%#.*g", 0, 0.0);
+              return strcmp(buf, "0.");
+            }
+          """)),
+
+  # Check for Glibc < 2.27, where the ru_RU.UTF-8 locale had
+  # mon_decimal_point == ".", which our tests don't handle.
+  Feature(name='glibc-old-ru_RU-decimal-point',
+          when=lambda cfg: not '_LIBCPP_HAS_NO_LOCALIZATION' in compilerMacros(cfg) and not programSucceeds(cfg, """
+            #include <locale.h>
+            #include <string.h>
+            int main(int, char**) {
+              setlocale(LC_ALL, "ru_RU.UTF-8");
+              return strcmp(localeconv()->mon_decimal_point, ",");
+            }
+          """)),
+
   # Whether Bash can run on the executor.
   # This is not always the case, for example when running on embedded systems.
   #
@@ -83,19 +126,29 @@ DEFAULT_FEATURES = [
   # manages to find binaries to execute.
   Feature(name='executor-has-no-bash',
           when=lambda cfg: runScriptExitCode(cfg, ['%{exec} bash -c \'bash --version\'']) != 0),
+  Feature(name='has-clang-tidy',
+          when=_hasSuitableClangTidy),
 
   Feature(name='apple-clang',                                                                                                      when=_isAppleClang),
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}'.format(**compilerMacros(cfg)),                                          when=_isAppleClang),
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}.{__clang_minor__}'.format(**compilerMacros(cfg)),                        when=_isAppleClang),
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}.{__clang_minor__}.{__clang_patchlevel__}'.format(**compilerMacros(cfg)), when=_isAppleClang),
 
-  Feature(name='clang',                                                                                                            when=_isClang,
-          actions=[AddCompileFlag('-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER')]),
+  Feature(name='clang',                                                                                                            when=_isClang),
   Feature(name=lambda cfg: 'clang-{__clang_major__}'.format(**compilerMacros(cfg)),                                                when=_isClang),
   Feature(name=lambda cfg: 'clang-{__clang_major__}.{__clang_minor__}'.format(**compilerMacros(cfg)),                              when=_isClang),
   Feature(name=lambda cfg: 'clang-{__clang_major__}.{__clang_minor__}.{__clang_patchlevel__}'.format(**compilerMacros(cfg)),       when=_isClang),
 
-  Feature(name='gcc',                                                                                                              when=_isGCC),
+  # Note: Due to a GCC bug (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=104760), we must disable deprecation warnings
+  #       on GCC or spurious diagnostics are issued.
+  #
+  # TODO:
+  # - Enable -Wplacement-new with GCC.
+  # - Enable -Wclass-memaccess with GCC.
+  Feature(name='gcc',                                                                                                              when=_isGCC,
+          actions=[AddCompileFlag('-D_LIBCPP_DISABLE_DEPRECATION_WARNINGS'),
+                   AddCompileFlag('-Wno-placement-new'),
+                   AddCompileFlag('-Wno-class-memaccess')]),
   Feature(name=lambda cfg: 'gcc-{__GNUC__}'.format(**compilerMacros(cfg)),                                                         when=_isGCC),
   Feature(name=lambda cfg: 'gcc-{__GNUC__}.{__GNUC_MINOR__}'.format(**compilerMacros(cfg)),                                        when=_isGCC),
   Feature(name=lambda cfg: 'gcc-{__GNUC__}.{__GNUC_MINOR__}.{__GNUC_PATCHLEVEL__}'.format(**compilerMacros(cfg)),                  when=_isGCC),
@@ -119,7 +172,6 @@ macros = {
   '_LIBCPP_HAS_THREAD_API_PTHREAD': 'libcpp-has-thread-api-pthread',
   '_LIBCPP_NO_VCRUNTIME': 'libcpp-no-vcruntime',
   '_LIBCPP_ABI_VERSION': 'libcpp-abi-version',
-  '_LIBCPP_ABI_UNSTABLE': 'libcpp-abi-unstable',
   '_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY': 'libcpp-has-no-filesystem-library',
   '_LIBCPP_HAS_NO_RANDOM_DEVICE': 'libcpp-has-no-random-device',
   '_LIBCPP_HAS_NO_LOCALIZATION': 'libcpp-has-no-localization',
@@ -129,22 +181,10 @@ macros = {
   '_LIBCPP_HAS_NO_UNICODE': 'libcpp-has-no-unicode',
 }
 for macro, feature in macros.items():
-  DEFAULT_FEATURES += [
-    Feature(name=lambda cfg, m=macro, f=feature: f + (
-              '={}'.format(compilerMacros(cfg)[m]) if compilerMacros(cfg)[m] else ''
-            ),
-            when=lambda cfg, m=macro: m in compilerMacros(cfg),
-
-            # FIXME: This is a hack that should be fixed using module maps.
-            # If modules are enabled then we have to lift all of the definitions
-            # in <__config_site> onto the command line.
-            actions=lambda cfg, m=macro: [
-              AddCompileFlag('-Wno-macro-redefined -D{}'.format(m) + (
-                '={}'.format(compilerMacros(cfg)[m]) if compilerMacros(cfg)[m] else ''
-              ))
-            ]
-    )
-  ]
+  DEFAULT_FEATURES.append(
+    Feature(name=lambda cfg, m=macro, f=feature: f + ('={}'.format(compilerMacros(cfg)[m]) if compilerMacros(cfg)[m] else ''),
+            when=lambda cfg, m=macro: m in compilerMacros(cfg))
+  )
 
 
 # Mapping from canonical locale names (used in the tests) to possible locale
@@ -153,6 +193,7 @@ for macro, feature in macros.items():
 locales = {
   'en_US.UTF-8':     ['en_US.UTF-8', 'en_US.utf8', 'English_United States.1252'],
   'fr_FR.UTF-8':     ['fr_FR.UTF-8', 'fr_FR.utf8', 'French_France.1252'],
+  'ja_JP.UTF-8':     ['ja_JP.UTF-8', 'ja_JP.utf8', 'Japanese_Japan.923'],
   'ru_RU.UTF-8':     ['ru_RU.UTF-8', 'ru_RU.utf8', 'Russian_Russia.1251'],
   'zh_CN.UTF-8':     ['zh_CN.UTF-8', 'zh_CN.utf8', 'Chinese_China.936'],
   'fr_CA.ISO8859-1': ['fr_CA.ISO8859-1', 'French_Canada.1252'],

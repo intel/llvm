@@ -128,6 +128,17 @@ void __dfsan_unimplemented(char *fname) {
            fname);
 }
 
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE void __dfsan_wrapper_extern_weak_null(
+    const void *addr, char *fname) {
+  if (!addr)
+    Report(
+        "ERROR: DataFlowSanitizer: dfsan generated wrapper calling null "
+        "extern_weak function %s\nIf this only happens with dfsan, the "
+        "dfsan instrumentation pass may be accidentally optimizing out a "
+        "null check\n",
+        fname);
+}
+
 // Use '-mllvm -dfsan-debug-nonzero-labels' and break on this function
 // to try to figure out where labels are being introduced in a nominally
 // label-free program.
@@ -332,9 +343,9 @@ static void MoveOrigin(const void *dst, const void *src, uptr size,
   // origins by copying origins in a reverse order; otherwise, copy origins in
   // a normal order. The orders of origin transfer are consistent with the
   // orders of how memcpy and memmove transfer user data.
-  uptr src_aligned_beg = reinterpret_cast<uptr>(src) & ~3UL;
-  uptr src_aligned_end = (reinterpret_cast<uptr>(src) + size) & ~3UL;
-  uptr dst_aligned_beg = reinterpret_cast<uptr>(dst) & ~3UL;
+  uptr src_aligned_beg = OriginAlignDown((uptr)src);
+  uptr src_aligned_end = OriginAlignDown((uptr)src + size);
+  uptr dst_aligned_beg = OriginAlignDown((uptr)dst);
   if (dst_aligned_beg < src_aligned_end && dst_aligned_beg >= src_aligned_beg)
     return ReverseCopyOrigin(dst, src, size, stack);
   return CopyOrigin(dst, src, size, stack);
@@ -401,10 +412,16 @@ extern "C" SANITIZER_INTERFACE_ATTRIBUTE void __dfsan_mem_origin_transfer(
   MoveOrigin(dst, src, len, &stack);
 }
 
-SANITIZER_INTERFACE_ATTRIBUTE void dfsan_mem_origin_transfer(const void *dst,
-                                                             const void *src,
-                                                             uptr len) {
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE void dfsan_mem_origin_transfer(
+    const void *dst, const void *src, uptr len) {
   __dfsan_mem_origin_transfer(dst, src, len);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE void dfsan_mem_shadow_transfer(
+    void *dst, const void *src, uptr len) {
+  internal_memcpy((void *)__dfsan::shadow_for(dst),
+                  (const void *)__dfsan::shadow_for(src),
+                  len * sizeof(dfsan_label));
 }
 
 namespace __dfsan {
@@ -414,8 +431,7 @@ bool dfsan_init_is_running = false;
 
 void dfsan_copy_memory(void *dst, const void *src, uptr size) {
   internal_memcpy(dst, src, size);
-  internal_memcpy((void *)shadow_for(dst), (const void *)shadow_for(src),
-                  size * sizeof(dfsan_label));
+  dfsan_mem_shadow_transfer(dst, src, size);
   if (dfsan_get_track_origins())
     dfsan_mem_origin_transfer(dst, src, size);
 }
@@ -598,6 +614,60 @@ SANITIZER_INTERFACE_ATTRIBUTE void dfsan_set_label_origin(dfsan_label label,
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE int
 dfsan_has_label(dfsan_label label, dfsan_label elem) {
   return (label & elem) == elem;
+}
+
+namespace __dfsan {
+
+typedef void (*dfsan_conditional_callback_t)(dfsan_label label,
+                                             dfsan_origin origin);
+static dfsan_conditional_callback_t conditional_callback = nullptr;
+static dfsan_label labels_in_signal_conditional = 0;
+
+static void ConditionalCallback(dfsan_label label, dfsan_origin origin) {
+  // Programs have many branches. For efficiency the conditional sink callback
+  // handler needs to ignore as many as possible as early as possible.
+  if (label == 0) {
+    return;
+  }
+  if (conditional_callback == nullptr) {
+    return;
+  }
+
+  // This initial ConditionalCallback handler needs to be in here in dfsan
+  // runtime (rather than being an entirely user implemented hook) so that it
+  // has access to dfsan thread information.
+  DFsanThread *t = GetCurrentThread();
+  // A callback operation which does useful work (like record the flow) will
+  // likely be too long executed in a signal handler.
+  if (t && t->InSignalHandler()) {
+    // Record set of labels used in signal handler for completeness.
+    labels_in_signal_conditional |= label;
+    return;
+  }
+
+  conditional_callback(label, origin);
+}
+
+}  // namespace __dfsan
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE void
+__dfsan_conditional_callback_origin(dfsan_label label, dfsan_origin origin) {
+  __dfsan::ConditionalCallback(label, origin);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE void __dfsan_conditional_callback(
+    dfsan_label label) {
+  __dfsan::ConditionalCallback(label, 0);
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE void dfsan_set_conditional_callback(
+    __dfsan::dfsan_conditional_callback_t callback) {
+  __dfsan::conditional_callback = callback;
+}
+
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE dfsan_label
+dfsan_get_labels_in_signal_conditional() {
+  return __dfsan::labels_in_signal_conditional;
 }
 
 class Decorator : public __sanitizer::SanitizerCommonDecorator {
@@ -878,6 +948,20 @@ void dfsan_clear_thread_local_state() {
   }
 }
 
+SANITIZER_INTERFACE_ATTRIBUTE
+void dfsan_set_arg_tls(uptr offset, dfsan_label label) {
+  // 2x to match ShadowTLSAlignment.
+  // ShadowTLSAlignment should probably be changed.
+  // TODO: Consider reducing ShadowTLSAlignment to 1.
+  // Aligning to 2 bytes is probably a remnant of fast16 mode.
+  ((dfsan_label *)__dfsan_arg_tls)[offset * 2] = label;
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void dfsan_set_arg_origin_tls(uptr offset, dfsan_origin o) {
+  __dfsan_arg_origin_tls[offset] = o;
+}
+
 extern "C" void dfsan_flush() {
   const uptr maxVirtualAddress = GetMaxUserVirtualAddress();
   for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
@@ -898,6 +982,7 @@ extern "C" void dfsan_flush() {
       Die();
     }
   }
+  __dfsan::labels_in_signal_conditional = 0;
 }
 
 // TODO: CheckMemoryLayoutSanity is based on msan.
@@ -1046,7 +1131,7 @@ static void DFsanInit(int argc, char **argv, char **envp) {
 
   dfsan_allocator_init();
 
-  DFsanThread *main_thread = DFsanThread::Create(nullptr, nullptr, nullptr);
+  DFsanThread *main_thread = DFsanThread::Create(nullptr, nullptr);
   SetCurrentThread(main_thread);
   main_thread->Init();
 

@@ -40,7 +40,6 @@ using llvm::SmallVector;
 using llvm::SMLoc;
 using llvm::StringMap;
 using llvm::StringRef;
-using llvm::Twine;
 using mlir::tblgen::Attribute;
 using mlir::tblgen::EnumAttr;
 using mlir::tblgen::EnumAttrCase;
@@ -888,7 +887,6 @@ static void emitOperandDeserialization(const Operator &op, ArrayRef<SMLoc> loc,
                                        StringRef wordIndex, StringRef operands,
                                        StringRef attributes, raw_ostream &os) {
   // Process operands/attributes
-  unsigned operandNum = 0;
   for (unsigned i = 0, e = op.getNumArgs(); i < e; ++i) {
     auto argument = op.getArg(i);
     if (auto *valueArg = argument.dyn_cast<NamedTypeConstraint *>()) {
@@ -917,7 +915,6 @@ static void emitOperandDeserialization(const Operator &op, ArrayRef<SMLoc> loc,
       if (!valueArg->isVariableLength()) {
         os << tabs << formatv("  {0}++;\n", wordIndex);
       }
-      operandNum++;
       os << tabs << "}\n";
     } else {
       os << tabs << formatv("if ({0} < {1}.size()) {{\n", wordIndex, words);

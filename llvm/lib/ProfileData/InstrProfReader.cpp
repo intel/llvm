@@ -14,11 +14,11 @@
 #include "llvm/ProfileData/InstrProfReader.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProf.h"
+#include "llvm/ProfileData/MemProf.h"
 #include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
@@ -27,7 +27,6 @@
 #include "llvm/Support/SwapByteOrder.h"
 #include "llvm/Support/SymbolRemappingReader.h"
 #include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -37,6 +36,31 @@
 #include <vector>
 
 using namespace llvm;
+
+// Extracts the variant information from the top 8 bits in the version and
+// returns an enum specifying the variants present.
+static InstrProfKind getProfileKindFromVersion(uint64_t Version) {
+  InstrProfKind ProfileKind = InstrProfKind::Unknown;
+  if (Version & VARIANT_MASK_IR_PROF) {
+    ProfileKind |= InstrProfKind::IRInstrumentation;
+  }
+  if (Version & VARIANT_MASK_CSIR_PROF) {
+    ProfileKind |= InstrProfKind::ContextSensitive;
+  }
+  if (Version & VARIANT_MASK_INSTR_ENTRY) {
+    ProfileKind |= InstrProfKind::FunctionEntryInstrumentation;
+  }
+  if (Version & VARIANT_MASK_BYTE_COVERAGE) {
+    ProfileKind |= InstrProfKind::SingleByteCoverage;
+  }
+  if (Version & VARIANT_MASK_FUNCTION_ENTRY_ONLY) {
+    ProfileKind |= InstrProfKind::FunctionEntryOnly;
+  }
+  if (Version & VARIANT_MASK_MEMPROF) {
+    ProfileKind |= InstrProfKind::MemProf;
+  }
+  return ProfileKind;
+}
 
 static Expected<std::unique_ptr<MemoryBuffer>>
 setupMemoryBuffer(const Twine &Path) {
@@ -131,14 +155,6 @@ IndexedInstrProfReader::create(std::unique_ptr<MemoryBuffer> Buffer,
   return std::move(Result);
 }
 
-void InstrProfIterator::Increment() {
-  if (auto E = Reader->readNextRecord(Record)) {
-    // Handle errors in the reader.
-    InstrProfError::take(std::move(E));
-    *this = InstrProfIterator();
-  }
-}
-
 bool TextInstrProfReader::hasFormat(const MemoryBuffer &Buffer) {
   // Verify that this really looks like plain ASCII text by checking a
   // 'reasonable' number of characters (up to profile magic size).
@@ -154,30 +170,24 @@ bool TextInstrProfReader::hasFormat(const MemoryBuffer &Buffer) {
 // with a leading ':' will be reported an error format.
 Error TextInstrProfReader::readHeader() {
   Symtab.reset(new InstrProfSymtab());
-  bool IsIRInstr = false;
-  bool IsEntryFirst = false;
-  bool IsCS = false;
 
   while (Line->startswith(":")) {
     StringRef Str = Line->substr(1);
     if (Str.equals_insensitive("ir"))
-      IsIRInstr = true;
+      ProfileKind |= InstrProfKind::IRInstrumentation;
     else if (Str.equals_insensitive("fe"))
-      IsIRInstr = false;
+      ProfileKind |= InstrProfKind::FrontendInstrumentation;
     else if (Str.equals_insensitive("csir")) {
-      IsIRInstr = true;
-      IsCS = true;
+      ProfileKind |= InstrProfKind::IRInstrumentation;
+      ProfileKind |= InstrProfKind::ContextSensitive;
     } else if (Str.equals_insensitive("entry_first"))
-      IsEntryFirst = true;
+      ProfileKind |= InstrProfKind::FunctionEntryInstrumentation;
     else if (Str.equals_insensitive("not_entry_first"))
-      IsEntryFirst = false;
+      ProfileKind &= ~InstrProfKind::FunctionEntryInstrumentation;
     else
       return error(instrprof_error::bad_header);
     ++Line;
   }
-  IsIRLevelProfile = IsIRInstr;
-  InstrEntryBBEnabled = IsEntryFirst;
-  HasCSIRLevelProfile = IsCS;
   return success();
 }
 
@@ -304,6 +314,11 @@ Error TextInstrProfReader::readNextRecord(NamedInstrProfRecord &Record) {
 }
 
 template <class IntPtrT>
+InstrProfKind RawInstrProfReader<IntPtrT>::getProfileKind() const {
+  return getProfileKindFromVersion(Version);
+}
+
+template <class IntPtrT>
 bool RawInstrProfReader<IntPtrT>::hasFormat(const MemoryBuffer &DataBuffer) {
   if (DataBuffer.getBufferSize() < sizeof(uint64_t))
     return false;
@@ -383,22 +398,21 @@ Error RawInstrProfReader<IntPtrT>::readHeader(
 
   CountersDelta = swap(Header.CountersDelta);
   NamesDelta = swap(Header.NamesDelta);
-  auto DataSize = swap(Header.DataSize);
+  auto NumData = swap(Header.DataSize);
   auto PaddingBytesBeforeCounters = swap(Header.PaddingBytesBeforeCounters);
-  auto CountersSize = swap(Header.CountersSize);
+  auto CountersSize = swap(Header.CountersSize) * getCounterTypeSize();
   auto PaddingBytesAfterCounters = swap(Header.PaddingBytesAfterCounters);
   auto NamesSize = swap(Header.NamesSize);
   ValueKindLast = swap(Header.ValueKindLast);
 
-  auto DataSizeInBytes = DataSize * sizeof(RawInstrProf::ProfileData<IntPtrT>);
+  auto DataSize = NumData * sizeof(RawInstrProf::ProfileData<IntPtrT>);
   auto PaddingSize = getNumPaddingBytes(NamesSize);
 
   // Profile data starts after profile header and binary ids if exist.
   ptrdiff_t DataOffset = sizeof(RawInstrProf::Header) + BinaryIdsSize;
-  ptrdiff_t CountersOffset =
-      DataOffset + DataSizeInBytes + PaddingBytesBeforeCounters;
-  ptrdiff_t NamesOffset = CountersOffset + (sizeof(uint64_t) * CountersSize) +
-                          PaddingBytesAfterCounters;
+  ptrdiff_t CountersOffset = DataOffset + DataSize + PaddingBytesBeforeCounters;
+  ptrdiff_t NamesOffset =
+      CountersOffset + CountersSize + PaddingBytesAfterCounters;
   ptrdiff_t ValueDataOffset = NamesOffset + NamesSize + PaddingSize;
 
   auto *Start = reinterpret_cast<const char *>(&Header);
@@ -412,12 +426,12 @@ Error RawInstrProfReader<IntPtrT>::readHeader(
     assert(CountersDelta == 0 && NamesDelta == 0);
     Data = Correlator->getDataPointer();
     DataEnd = Data + Correlator->getDataSize();
-    NamesStart = Correlator->getCompressedNamesPointer();
-    NamesEnd = NamesStart + Correlator->getCompressedNamesSize();
+    NamesStart = Correlator->getNamesPointer();
+    NamesEnd = NamesStart + Correlator->getNamesSize();
   } else {
     Data = reinterpret_cast<const RawInstrProf::ProfileData<IntPtrT> *>(
         Start + DataOffset);
-    DataEnd = Data + DataSize;
+    DataEnd = Data + NumData;
     NamesStart = Start + NamesOffset;
     NamesEnd = NamesStart + NamesSize;
   }
@@ -425,7 +439,8 @@ Error RawInstrProfReader<IntPtrT>::readHeader(
   // Binary ids start just after the header.
   BinaryIdsStart =
       reinterpret_cast<const uint8_t *>(&Header) + sizeof(RawInstrProf::Header);
-  CountersStart = reinterpret_cast<const uint64_t *>(Start + CountersOffset);
+  CountersStart = Start + CountersOffset;
+  CountersEnd = CountersStart + CountersSize;
   ValueDataStart = reinterpret_cast<const uint8_t *>(Start + ValueDataOffset);
 
   const uint8_t *BufferEnd = (const uint8_t *)DataBuffer->getBufferEnd();
@@ -433,7 +448,7 @@ Error RawInstrProfReader<IntPtrT>::readHeader(
     return error(instrprof_error::bad_header);
 
   std::unique_ptr<InstrProfSymtab> NewSymtab = std::make_unique<InstrProfSymtab>();
-  if (Error E = createSymtab(*NewSymtab.get()))
+  if (Error E = createSymtab(*NewSymtab))
     return E;
 
   Symtab = std::move(NewSymtab);
@@ -459,58 +474,42 @@ Error RawInstrProfReader<IntPtrT>::readRawCounts(
   if (NumCounters == 0)
     return error(instrprof_error::malformed, "number of counters is zero");
 
-  ArrayRef<uint64_t> RawCounts;
-  if (Correlator) {
-    uint64_t CounterOffset = swap<IntPtrT>(Data->CounterPtr) / sizeof(uint64_t);
-    RawCounts =
-        makeArrayRef<uint64_t>(CountersStart + CounterOffset, NumCounters);
-  } else {
-    IntPtrT CounterPtr = Data->CounterPtr;
-    ptrdiff_t CounterOffset = getCounterOffset(CounterPtr);
-    if (CounterOffset < 0)
-      return error(
-          instrprof_error::malformed,
-          ("counter offset " + Twine(CounterOffset) + " is negative").str());
+  ptrdiff_t CounterBaseOffset = swap(Data->CounterPtr) - CountersDelta;
+  if (CounterBaseOffset < 0)
+    return error(
+        instrprof_error::malformed,
+        ("counter offset " + Twine(CounterBaseOffset) + " is negative").str());
 
-    // Check bounds. Note that the counter pointer embedded in the data record
-    // may itself be corrupt.
-    auto *NamesStartAsCounter = reinterpret_cast<const uint64_t *>(NamesStart);
-    ptrdiff_t MaxNumCounters = NamesStartAsCounter - CountersStart;
-    if (MaxNumCounters < 0 || NumCounters > (uint32_t)MaxNumCounters)
-      return error(instrprof_error::malformed,
-                   "counter pointer is out of bounds");
-    // We need to compute the in-buffer counter offset from the in-memory
-    // address distance. The initial CountersDelta is the in-memory address
-    // difference start(__llvm_prf_cnts)-start(__llvm_prf_data), so
-    // SrcData->CounterPtr - CountersDelta computes the offset into the
-    // in-buffer counter section.
-    if (CounterOffset > MaxNumCounters)
-      return error(instrprof_error::malformed,
-                   ("counter offset " + Twine(CounterOffset) +
-                    " is greater than the maximum number of counters " +
-                    Twine((uint32_t)MaxNumCounters))
-                       .str());
+  if (CounterBaseOffset >= CountersEnd - CountersStart)
+    return error(instrprof_error::malformed,
+                 ("counter offset " + Twine(CounterBaseOffset) +
+                  " is greater than the maximum counter offset " +
+                  Twine(CountersEnd - CountersStart - 1))
+                     .str());
 
-    if (((uint32_t)CounterOffset + NumCounters) > (uint32_t)MaxNumCounters)
-      return error(instrprof_error::malformed,
-                   ("number of counters " +
-                    Twine(((uint32_t)CounterOffset + NumCounters)) +
-                    " is greater than the maximum number of counters " +
-                    Twine((uint32_t)MaxNumCounters))
-                       .str());
-    // CountersDelta decreases as we advance to the next data record.
-    CountersDelta -= sizeof(*Data);
+  uint64_t MaxNumCounters =
+      (CountersEnd - (CountersStart + CounterBaseOffset)) /
+      getCounterTypeSize();
+  if (NumCounters > MaxNumCounters)
+    return error(instrprof_error::malformed,
+                 ("number of counters " + Twine(NumCounters) +
+                  " is greater than the maximum number of counters " +
+                  Twine(MaxNumCounters))
+                     .str());
 
-    RawCounts = makeArrayRef(getCounter(CounterOffset), NumCounters);
+  Record.Counts.clear();
+  Record.Counts.reserve(NumCounters);
+  for (uint32_t I = 0; I < NumCounters; I++) {
+    const char *Ptr =
+        CountersStart + CounterBaseOffset + I * getCounterTypeSize();
+    if (hasSingleByteCoverage()) {
+      // A value of zero signifies the block is covered.
+      Record.Counts.push_back(*Ptr == 0 ? 1 : 0);
+    } else {
+      const auto *CounterValue = reinterpret_cast<const uint64_t *>(Ptr);
+      Record.Counts.push_back(swap(*CounterValue));
+    }
   }
-
-  if (ShouldSwapBytes) {
-    Record.Counts.clear();
-    Record.Counts.reserve(RawCounts.size());
-    for (uint64_t Count : RawCounts)
-      Record.Counts.push_back(swap(Count));
-  } else
-    Record.Counts = RawCounts;
 
   return success();
 }
@@ -740,6 +739,11 @@ InstrProfReaderIndex<HashTableImpl>::InstrProfReaderIndex(
   RecordIterator = HashTable->data_begin();
 }
 
+template <typename HashTableImpl>
+InstrProfKind InstrProfReaderIndex<HashTableImpl>::getProfileKind() const {
+  return getProfileKindFromVersion(FormatVersion);
+}
+
 namespace {
 /// A remapper that does not apply any remappings.
 class InstrProfReaderNullRemapper : public InstrProfReaderRemapper {
@@ -932,24 +936,17 @@ Error IndexedInstrProfReader::readHeader() {
   if ((const unsigned char *)DataBuffer->getBufferEnd() - Cur < 24)
     return error(instrprof_error::truncated);
 
-  auto *Header = reinterpret_cast<const IndexedInstrProf::Header *>(Cur);
-  Cur += sizeof(IndexedInstrProf::Header);
+  auto HeaderOr = IndexedInstrProf::Header::readFromBuffer(Start);
+  if (!HeaderOr)
+    return HeaderOr.takeError();
 
-  // Check the magic number.
-  uint64_t Magic = endian::byte_swap<uint64_t, little>(Header->Magic);
-  if (Magic != IndexedInstrProf::Magic)
-    return error(instrprof_error::bad_magic);
+  const IndexedInstrProf::Header *Header = &HeaderOr.get();
+  Cur += Header->size();
 
-  // Read the version.
-  uint64_t FormatVersion = endian::byte_swap<uint64_t, little>(Header->Version);
-  if (GET_VERSION(FormatVersion) >
-      IndexedInstrProf::ProfVersion::CurrentVersion)
-    return error(instrprof_error::unsupported_version);
-
-  Cur = readSummary((IndexedInstrProf::ProfVersion)FormatVersion, Cur,
+  Cur = readSummary((IndexedInstrProf::ProfVersion)Header->formatVersion(), Cur,
                     /* UseCS */ false);
-  if (FormatVersion & VARIANT_MASK_CSIR_PROF)
-    Cur = readSummary((IndexedInstrProf::ProfVersion)FormatVersion, Cur,
+  if (Header->formatVersion() & VARIANT_MASK_CSIR_PROF)
+    Cur = readSummary((IndexedInstrProf::ProfVersion)Header->formatVersion(), Cur,
                       /* UseCS */ true);
 
   // Read the hash type and start offset.
@@ -960,10 +957,46 @@ Error IndexedInstrProfReader::readHeader() {
 
   uint64_t HashOffset = endian::byte_swap<uint64_t, little>(Header->HashOffset);
 
-  // The rest of the file is an on disk hash table.
-  auto IndexPtr =
-      std::make_unique<InstrProfReaderIndex<OnDiskHashTableImplV3>>(
-          Start + HashOffset, Cur, Start, HashType, FormatVersion);
+  // The hash table with profile counts comes next.
+  auto IndexPtr = std::make_unique<InstrProfReaderIndex<OnDiskHashTableImplV3>>(
+      Start + HashOffset, Cur, Start, HashType, Header->formatVersion());
+
+  // The MemProfOffset field in the header is only valid when the format version
+  // is higher than 8 (when it was introduced).
+  if (GET_VERSION(Header->formatVersion()) >= 8 &&
+      Header->formatVersion() & VARIANT_MASK_MEMPROF) {
+    uint64_t MemProfOffset =
+        endian::byte_swap<uint64_t, little>(Header->MemProfOffset);
+
+    const unsigned char *Ptr = Start + MemProfOffset;
+    // The value returned from RecordTableGenerator.Emit.
+    const uint64_t RecordTableOffset =
+        support::endian::readNext<uint64_t, little, unaligned>(Ptr);
+    // The offset in the stream right before invoking FrameTableGenerator.Emit.
+    const uint64_t FramePayloadOffset =
+        support::endian::readNext<uint64_t, little, unaligned>(Ptr);
+    // The value returned from FrameTableGenerator.Emit.
+    const uint64_t FrameTableOffset =
+        support::endian::readNext<uint64_t, little, unaligned>(Ptr);
+
+    // Read the schema.
+    auto SchemaOr = memprof::readMemProfSchema(Ptr);
+    if (!SchemaOr)
+      return SchemaOr.takeError();
+    Schema = SchemaOr.get();
+
+    // Now initialize the table reader with a pointer into data buffer.
+    MemProfRecordTable.reset(MemProfRecordHashTable::Create(
+        /*Buckets=*/Start + RecordTableOffset,
+        /*Payload=*/Ptr,
+        /*Base=*/Start, memprof::RecordLookupTrait(Schema)));
+
+    // Initialize the frame table reader with the payload and bucket offsets.
+    MemProfFrameTable.reset(MemProfFrameHashTable::Create(
+        /*Buckets=*/Start + FrameTableOffset,
+        /*Payload=*/Start + FramePayloadOffset,
+        /*Base=*/Start, memprof::FrameLookupTrait()));
+  }
 
   // Load the remapping table now if requested.
   if (RemappingBuffer) {
@@ -981,16 +1014,16 @@ Error IndexedInstrProfReader::readHeader() {
 }
 
 InstrProfSymtab &IndexedInstrProfReader::getSymtab() {
-  if (Symtab.get())
-    return *Symtab.get();
+  if (Symtab)
+    return *Symtab;
 
   std::unique_ptr<InstrProfSymtab> NewSymtab = std::make_unique<InstrProfSymtab>();
-  if (Error E = Index->populateSymtab(*NewSymtab.get())) {
+  if (Error E = Index->populateSymtab(*NewSymtab)) {
     consumeError(error(InstrProfError::take(std::move(E))));
   }
 
   Symtab = std::move(NewSymtab);
-  return *Symtab.get();
+  return *Symtab;
 }
 
 Expected<InstrProfRecord>
@@ -1007,6 +1040,43 @@ IndexedInstrProfReader::getInstrProfRecord(StringRef FuncName,
       return std::move(I);
   }
   return error(instrprof_error::hash_mismatch);
+}
+
+Expected<memprof::MemProfRecord>
+IndexedInstrProfReader::getMemProfRecord(const uint64_t FuncNameHash) {
+  // TODO: Add memprof specific errors.
+  if (MemProfRecordTable == nullptr)
+    return make_error<InstrProfError>(instrprof_error::invalid_prof,
+                                      "no memprof data available in profile");
+  auto Iter = MemProfRecordTable->find(FuncNameHash);
+  if (Iter == MemProfRecordTable->end())
+    return make_error<InstrProfError>(instrprof_error::hash_mismatch,
+                                      "memprof record not found for hash " +
+                                          Twine(FuncNameHash));
+
+  // Setup a callback to convert from frame ids to frame using the on-disk
+  // FrameData hash table.
+  memprof::FrameId LastUnmappedFrameId = 0;
+  bool HasFrameMappingError = false;
+  auto IdToFrameCallback = [&](const memprof::FrameId Id) {
+    auto FrIter = MemProfFrameTable->find(Id);
+    if (FrIter == MemProfFrameTable->end()) {
+      LastUnmappedFrameId = Id;
+      HasFrameMappingError = true;
+      return memprof::Frame(0, 0, 0, false);
+    }
+    return *FrIter;
+  };
+
+  memprof::MemProfRecord Record(*Iter, IdToFrameCallback);
+
+  // Check that all frame ids were successfully converted to frames.
+  if (HasFrameMappingError) {
+    return make_error<InstrProfError>(instrprof_error::hash_mismatch,
+                                      "memprof frame not found for frame id " +
+                                          Twine(LastUnmappedFrameId));
+  }
+  return Record;
 }
 
 Error IndexedInstrProfReader::getFunctionCounts(StringRef FuncName,

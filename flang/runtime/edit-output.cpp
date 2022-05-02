@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "edit-output.h"
+#include "utf.h"
 #include "flang/Common/uint128.h"
 #include <algorithm>
 
@@ -53,10 +54,10 @@ bool EditIntegerOutput(IoStatementState &io, const DataEdit &edit,
     }
     break;
   case 'A': // legacy extension
-    return EditDefaultCharacterOutput(
+    return EditCharacterOutput(
         io, edit, reinterpret_cast<char *>(&n), sizeof n);
   default:
-    io.GetIoErrorHandler().Crash(
+    io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with an INTEGER data item",
         edit.descriptor);
     return false;
@@ -283,10 +284,13 @@ bool RealOutputEditing<binaryPrecision>::EditFOutput(const DataEdit &edit) {
       return EmitPrefix(edit, converted.length, editWidth) &&
           io_.Emit(converted.str, converted.length) && EmitSuffix(edit);
     }
-    int scale{IsZero() ? 1 : edit.modes.scale}; // kP
-    int expo{converted.decimalExponent + scale};
+    int expo{converted.decimalExponent + edit.modes.scale /*kP*/};
     int signLength{*converted.str == '-' || *converted.str == '+' ? 1 : 0};
     int convertedDigits{static_cast<int>(converted.length) - signLength};
+    if (IsZero()) { // don't treat converted "0" as significant digit
+      expo = 0;
+      convertedDigits = 0;
+    }
     int trailingOnes{0};
     if (expo > extraDigits && extraDigits >= 0 && canIncrease) {
       extraDigits = expo;
@@ -410,7 +414,7 @@ bool RealOutputEditing<binaryPrecision>::EditListDirectedOutput(
 template <int binaryPrecision>
 bool RealOutputEditing<binaryPrecision>::EditEXOutput(const DataEdit &) {
   io_.GetIoErrorHandler().Crash(
-      "EX output editing is not yet implemented"); // TODO
+      "not yet implemented: EX output editing"); // TODO
 }
 
 template <int KIND> bool RealOutputEditing<KIND>::Edit(const DataEdit &edit) {
@@ -434,7 +438,7 @@ template <int KIND> bool RealOutputEditing<KIND>::Edit(const DataEdit &edit) {
   case 'G':
     return Edit(EditForGOutput(edit));
   case 'A': // legacy extension
-    return EditDefaultCharacterOutput(
+    return EditCharacterOutput(
         io_, edit, reinterpret_cast<char *>(&x_), sizeof x_);
   default:
     if (edit.IsListDirected()) {
@@ -467,8 +471,9 @@ bool EditLogicalOutput(IoStatementState &io, const DataEdit &edit, bool truth) {
   }
 }
 
-bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
-    ListDirectedStatementState<Direction::Output> &list, const char *x,
+template <typename CHAR>
+bool ListDirectedCharacterOutput(IoStatementState &io,
+    ListDirectedStatementState<Direction::Output> &list, const CHAR *x,
     std::size_t length) {
   bool ok{true};
   MutableModes &modes{io.mutableModes()};
@@ -477,13 +482,13 @@ bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
     ok = ok && list.EmitLeadingSpaceOrAdvance(io);
     // Value is delimited with ' or " marks, and interior
     // instances of that character are doubled.
-    ok = ok && io.Emit(&modes.delim, 1);
-    auto EmitOne{[&](char ch) {
+    auto EmitOne{[&](CHAR ch) {
       if (connection.NeedAdvance(1)) {
         ok = ok && io.AdvanceRecord();
       }
-      ok = ok && io.Emit(&ch, 1);
+      ok = ok && io.EmitEncoded(&ch, 1);
     }};
+    EmitOne(modes.delim);
     for (std::size_t j{0}; j < length; ++j) {
       // Doubled delimiters must be put on the same record
       // in order to be acceptable as list-directed or NAMELIST
@@ -494,7 +499,7 @@ bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
       // the same thing when tested with this case.
       // This runtime splits the doubled delimiters across
       // two records for lack of a better alternative.
-      if (x[j] == modes.delim) {
+      if (x[j] == static_cast<CHAR>(modes.delim)) {
         EmitOne(x[j]);
       }
       EmitOne(x[j]);
@@ -502,16 +507,17 @@ bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
     EmitOne(modes.delim);
   } else {
     // Undelimited list-directed output
-    ok = ok &&
-        list.EmitLeadingSpaceOrAdvance(
-            io, length > 0 && !list.lastWasUndelimitedCharacter());
+    ok = ok && list.EmitLeadingSpaceOrAdvance(io, length > 0 ? 1 : 0, true);
     std::size_t put{0};
+    std::size_t oneIfUTF8{connection.useUTF8<CHAR>() ? 1 : length};
     while (ok && put < length) {
-      auto chunk{std::min(length - put, connection.RemainingSpaceInRecord())};
-      ok = ok && io.Emit(x + put, chunk);
-      put += chunk;
-      if (put < length) {
-        ok = ok && io.AdvanceRecord() && io.Emit(" ", 1);
+      if (std::size_t chunk{std::min<std::size_t>(
+              std::min<std::size_t>(length - put, oneIfUTF8),
+              connection.RemainingSpaceInRecord())}) {
+        ok = io.EmitEncoded(x + put, chunk);
+        put += chunk;
+      } else {
+        ok = io.AdvanceRecord() && io.Emit(" ", 1);
       }
     }
     list.set_lastWasUndelimitedCharacter(true);
@@ -519,8 +525,9 @@ bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
   return ok;
 }
 
-bool EditDefaultCharacterOutput(IoStatementState &io, const DataEdit &edit,
-    const char *x, std::size_t length) {
+template <typename CHAR>
+bool EditCharacterOutput(IoStatementState &io, const DataEdit &edit,
+    const CHAR *x, std::size_t length) {
   switch (edit.descriptor) {
   case 'A':
   case 'G':
@@ -534,7 +541,7 @@ bool EditDefaultCharacterOutput(IoStatementState &io, const DataEdit &edit,
   int len{static_cast<int>(length)};
   int width{edit.width.value_or(len)};
   return io.EmitRepeated(' ', std::max(0, width - len)) &&
-      io.Emit(x, std::min(width, len));
+      io.EmitEncoded(x, std::min(width, len));
 }
 
 template bool EditIntegerOutput<1>(
@@ -555,4 +562,22 @@ template class RealOutputEditing<8>;
 template class RealOutputEditing<10>;
 // TODO: double/double
 template class RealOutputEditing<16>;
+
+template bool ListDirectedCharacterOutput(IoStatementState &,
+    ListDirectedStatementState<Direction::Output> &, const char *,
+    std::size_t chars);
+template bool ListDirectedCharacterOutput(IoStatementState &,
+    ListDirectedStatementState<Direction::Output> &, const char16_t *,
+    std::size_t chars);
+template bool ListDirectedCharacterOutput(IoStatementState &,
+    ListDirectedStatementState<Direction::Output> &, const char32_t *,
+    std::size_t chars);
+
+template bool EditCharacterOutput(
+    IoStatementState &, const DataEdit &, const char *, std::size_t chars);
+template bool EditCharacterOutput(
+    IoStatementState &, const DataEdit &, const char16_t *, std::size_t chars);
+template bool EditCharacterOutput(
+    IoStatementState &, const DataEdit &, const char32_t *, std::size_t chars);
+
 } // namespace Fortran::runtime::io

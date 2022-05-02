@@ -848,7 +848,11 @@ namespace llvm {
     }
 
     unsigned getVectorNumElements() const {
-      // TODO: Check that this isn't a scalable vector.
+      if (isScalableVector())
+        llvm::reportInvalidSizeRequest(
+            "Possible incorrect use of MVT::getVectorNumElements() for "
+            "scalable vector. Scalable flag may be dropped, use "
+            "MVT::getVectorElementCount() instead");
       return getVectorMinNumElements();
     }
 
@@ -1072,6 +1076,12 @@ namespace llvm {
     TypeSize getStoreSize() const {
       TypeSize BaseSize = getSizeInBits();
       return {(BaseSize.getKnownMinSize() + 7) / 8, BaseSize.isScalable()};
+    }
+
+    // Return the number of bytes overwritten by a store of this value type or
+    // this value type's element type in the case of a vector.
+    uint64_t getScalarStoreSize() const {
+      return getScalarType().getStoreSize().getFixedSize();
     }
 
     /// Return the number of bits overwritten by a store of the specified value

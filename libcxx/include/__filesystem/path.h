@@ -10,18 +10,24 @@
 #ifndef _LIBCPP___FILESYSTEM_PATH_H
 #define _LIBCPP___FILESYSTEM_PATH_H
 
+#include <__algorithm/replace.h>
+#include <__algorithm/replace_copy.h>
 #include <__availability>
 #include <__config>
-#include <string>
-#include <type_traits>
 #include <__iterator/back_insert_iterator.h>
 #include <__iterator/iterator_traits.h>
 #include <cstddef>
+#include <string>
 #include <string_view>
+#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
-# include <locale>
 # include <iomanip> // for quoted
+# include <locale>
+#endif
+
+#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#  pragma GCC system_header
 #endif
 
 #ifndef _LIBCPP_CXX03_LANG
@@ -962,7 +968,7 @@ public:
   _LIBCPP_INLINE_VISIBILITY friend basic_istream<_CharT, _Traits>&
   operator>>(basic_istream<_CharT, _Traits>& __is, path& __p) {
     basic_string<_CharT, _Traits> __tmp;
-    __is >> __quoted(__tmp);
+    __is >> _VSTD::__quoted(__tmp);
     __p = __tmp;
     return __is;
   }

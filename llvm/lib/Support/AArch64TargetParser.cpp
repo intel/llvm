@@ -64,56 +64,14 @@ bool AArch64::getExtensionFeatures(uint64_t Extensions,
   if (Extensions == AArch64::AEK_INVALID)
     return false;
 
-  if (Extensions & AEK_FP)
-    Features.push_back("+fp-armv8");
-  if (Extensions & AEK_SIMD)
-    Features.push_back("+neon");
-  if (Extensions & AEK_CRC)
-    Features.push_back("+crc");
-  if (Extensions & AEK_CRYPTO)
-    Features.push_back("+crypto");
-  if (Extensions & AEK_DOTPROD)
-    Features.push_back("+dotprod");
-  if (Extensions & AEK_FP16FML)
-    Features.push_back("+fp16fml");
-  if (Extensions & AEK_FP16)
-    Features.push_back("+fullfp16");
-  if (Extensions & AEK_PROFILE)
-    Features.push_back("+spe");
-  if (Extensions & AEK_RAS)
-    Features.push_back("+ras");
-  if (Extensions & AEK_LSE)
-    Features.push_back("+lse");
-  if (Extensions & AEK_RDM)
-    Features.push_back("+rdm");
-  if (Extensions & AEK_SVE)
-    Features.push_back("+sve");
-  if (Extensions & AEK_SVE2)
-    Features.push_back("+sve2");
-  if (Extensions & AEK_SVE2AES)
-    Features.push_back("+sve2-aes");
-  if (Extensions & AEK_SVE2SM4)
-    Features.push_back("+sve2-sm4");
-  if (Extensions & AEK_SVE2SHA3)
-    Features.push_back("+sve2-sha3");
-  if (Extensions & AEK_SVE2BITPERM)
-    Features.push_back("+sve2-bitperm");
-  if (Extensions & AArch64::AEK_TME)
-    Features.push_back("+tme");
-  if (Extensions & AEK_RCPC)
-    Features.push_back("+rcpc");
-  if (Extensions & AEK_BRBE)
-    Features.push_back("+brbe");
-  if (Extensions & AEK_PAUTH)
-    Features.push_back("+pauth");
-  if (Extensions & AEK_FLAGM)
-    Features.push_back("+flagm");
-  if (Extensions & AArch64::AEK_SME)
-    Features.push_back("+sme");
-  if (Extensions & AArch64::AEK_SMEF64)
-    Features.push_back("+sme-f64");
-  if (Extensions & AArch64::AEK_SMEI64)
-    Features.push_back("+sme-i64");
+#define AARCH64_ARCH_EXT_NAME(NAME, ID, FEATURE, NEGFEATURE)                   \
+  if (Extensions & ID) {                                                       \
+    const char *feature = FEATURE;                                             \
+    /* INVALID and NONE have no feature name. */                               \
+    if (feature)                                                               \
+      Features.push_back(feature);                                             \
+  }
+#include "../../include/llvm/Support/AArch64TargetParser.def"
 
   return true;
 }
@@ -136,12 +94,16 @@ bool AArch64::getArchFeatures(AArch64::ArchKind AK,
     Features.push_back("+v8.6a");
   if (AK == AArch64::ArchKind::ARMV8_7A)
     Features.push_back("+v8.7a");
+  if (AK == AArch64::ArchKind::ARMV8_8A)
+    Features.push_back("+v8.8a");
   if (AK == AArch64::ArchKind::ARMV9A)
     Features.push_back("+v9a");
   if (AK == AArch64::ArchKind::ARMV9_1A)
     Features.push_back("+v9.1a");
   if (AK == AArch64::ArchKind::ARMV9_2A)
     Features.push_back("+v9.2a");
+  if (AK == AArch64::ArchKind::ARMV9_3A)
+    Features.push_back("+v9.3a");
   if(AK == AArch64::ArchKind::ARMV8R)
     Features.push_back("+v8r");
 

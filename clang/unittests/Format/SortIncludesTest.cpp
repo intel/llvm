@@ -70,6 +70,21 @@ TEST_F(SortIncludesTest, BasicSorting) {
                  {tooling::Range(25, 1)}));
 }
 
+TEST_F(SortIncludesTest, TrailingComments) {
+  EXPECT_EQ("#include \"a.h\"\n"
+            "#include \"b.h\" /* long\n"
+            "                  * long\n"
+            "                  * comment*/\n"
+            "#include \"c.h\"\n"
+            "#include \"d.h\"\n",
+            sort("#include \"a.h\"\n"
+                 "#include \"c.h\"\n"
+                 "#include \"b.h\" /* long\n"
+                 "                  * long\n"
+                 "                  * comment*/\n"
+                 "#include \"d.h\"\n"));
+}
+
 TEST_F(SortIncludesTest, SortedIncludesUsingSortPriorityAttribute) {
   FmtStyle.IncludeStyle.IncludeBlocks = tooling::IncludeStyle::IBS_Regroup;
   FmtStyle.IncludeStyle.IncludeCategories = {
@@ -441,6 +456,103 @@ TEST_F(SortIncludesTest, HandlesMultilineIncludes) {
                  "#include \\\n"
                  "\"c.h\"\n"
                  "#include \"b.h\"\n"));
+}
+
+TEST_F(SortIncludesTest, SupportAtImportLines) {
+  // Test from https://github.com/llvm/llvm-project/issues/38995
+  EXPECT_EQ("#import \"a.h\"\n"
+            "#import \"b.h\"\n"
+            "#import \"c.h\"\n"
+            "#import <d/e.h>\n"
+            "@import Foundation;\n",
+            sort("#import \"b.h\"\n"
+                 "#import \"c.h\"\n"
+                 "#import <d/e.h>\n"
+                 "@import Foundation;\n"
+                 "#import \"a.h\"\n"));
+
+  // Slightly more complicated test that shows sorting in each priorities still
+  // works.
+  EXPECT_EQ("#import \"a.h\"\n"
+            "#import \"b.h\"\n"
+            "#import \"c.h\"\n"
+            "#import <d/e.h>\n"
+            "@import Base;\n"
+            "@import Foundation;\n"
+            "@import base;\n"
+            "@import foundation;\n",
+            sort("#import \"b.h\"\n"
+                 "#import \"c.h\"\n"
+                 "@import Base;\n"
+                 "#import <d/e.h>\n"
+                 "@import foundation;\n"
+                 "@import Foundation;\n"
+                 "@import base;\n"
+                 "#import \"a.h\"\n"));
+
+  // Test that shows main headers in two groups are still found and sorting
+  // still works. The @import's are kept in their respective group but are
+  // put at the end of each group.
+  FmtStyle.IncludeStyle.IncludeBlocks = tooling::IncludeStyle::IBS_Preserve;
+  EXPECT_EQ("#import \"foo.hpp\"\n"
+            "#import \"b.h\"\n"
+            "#import \"c.h\"\n"
+            "#import <d/e.h>\n"
+            "@import Base;\n"
+            "@import Foundation;\n"
+            "@import foundation;\n"
+            "\n"
+            "#import \"foo.h\"\n"
+            "#include \"foobar\"\n"
+            "#import <f/g.h>\n"
+            "@import AAAA;\n"
+            "@import aaaa;\n",
+            sort("#import \"b.h\"\n"
+                 "@import Foundation;\n"
+                 "@import foundation;\n"
+                 "#import \"c.h\"\n"
+                 "#import <d/e.h>\n"
+                 "@import Base;\n"
+                 "#import \"foo.hpp\"\n"
+                 "\n"
+                 "@import aaaa;\n"
+                 "#import <f/g.h>\n"
+                 "@import AAAA;\n"
+                 "#include \"foobar\"\n"
+                 "#import \"foo.h\"\n",
+                 "foo.c", 2));
+
+  // Regrouping and putting @import's in the very last group
+  FmtStyle.IncludeStyle.IncludeBlocks = tooling::IncludeStyle::IBS_Regroup;
+  EXPECT_EQ("#import \"foo.hpp\"\n"
+            "\n"
+            "#import \"b.h\"\n"
+            "#import \"c.h\"\n"
+            "#import \"foo.h\"\n"
+            "#include \"foobar\"\n"
+            "\n"
+            "#import <d/e.h>\n"
+            "#import <f/g.h>\n"
+            "\n"
+            "@import AAAA;\n"
+            "@import Base;\n"
+            "@import Foundation;\n"
+            "@import aaaa;\n"
+            "@import foundation;\n",
+            sort("#import \"b.h\"\n"
+                 "@import Foundation;\n"
+                 "@import foundation;\n"
+                 "#import \"c.h\"\n"
+                 "#import <d/e.h>\n"
+                 "@import Base;\n"
+                 "#import \"foo.hpp\"\n"
+                 "\n"
+                 "@import aaaa;\n"
+                 "#import <f/g.h>\n"
+                 "@import AAAA;\n"
+                 "#include \"foobar\"\n"
+                 "#import \"foo.h\"\n",
+                 "foo.c"));
 }
 
 TEST_F(SortIncludesTest, LeavesMainHeaderFirst) {

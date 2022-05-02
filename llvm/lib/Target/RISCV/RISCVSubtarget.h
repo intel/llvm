@@ -20,7 +20,7 @@
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
@@ -33,12 +33,23 @@ namespace llvm {
 class StringRef;
 
 class RISCVSubtarget : public RISCVGenSubtargetInfo {
+public:
+  enum RISCVProcFamilyEnum : uint8_t {
+    Others,
+    SiFive7,
+  };
+
+private:
   virtual void anchor();
+
+  RISCVProcFamilyEnum RISCVProcFamily = Others;
+
   bool HasStdExtM = false;
   bool HasStdExtA = false;
   bool HasStdExtF = false;
   bool HasStdExtD = false;
   bool HasStdExtC = false;
+  bool HasStdExtZihintpause = false;
   bool HasStdExtZba = false;
   bool HasStdExtZbb = false;
   bool HasStdExtZbc = false;
@@ -50,15 +61,38 @@ class RISCVSubtarget : public RISCVGenSubtargetInfo {
   bool HasStdExtZbs = false;
   bool HasStdExtZbt = false;
   bool HasStdExtV = false;
-  bool HasStdExtZvlsseg = false;
+  bool HasStdExtZve32x = false;
+  bool HasStdExtZve32f = false;
+  bool HasStdExtZve64x = false;
+  bool HasStdExtZve64f = false;
+  bool HasStdExtZve64d = false;
+  bool HasStdExtZvfh = false;
   bool HasStdExtZfhmin = false;
   bool HasStdExtZfh = false;
+  bool HasStdExtZfinx = false;
+  bool HasStdExtZdinx = false;
+  bool HasStdExtZhinxmin = false;
+  bool HasStdExtZhinx = false;
+  bool HasStdExtZbkb = false;
+  bool HasStdExtZbkc = false;
+  bool HasStdExtZbkx = false;
+  bool HasStdExtZknd = false;
+  bool HasStdExtZkne = false;
+  bool HasStdExtZknh = false;
+  bool HasStdExtZksed = false;
+  bool HasStdExtZksh = false;
+  bool HasStdExtZkr = false;
+  bool HasStdExtZkn = false;
+  bool HasStdExtZks = false;
+  bool HasStdExtZkt = false;
+  bool HasStdExtZk = false;
   bool HasRV64 = false;
   bool IsRV32E = false;
   bool EnableLinkerRelax = false;
   bool EnableRVCHintInstrs = true;
   bool EnableSaveRestore = false;
   unsigned XLen = 32;
+  unsigned ZvlLen = 0;
   MVT XLenVT = MVT::i32;
   uint8_t MaxInterleaveFactor = 2;
   RISCVABI::ABI TargetABI = RISCVABI::ABI_Unknown;
@@ -100,11 +134,20 @@ public:
     return &TSInfo;
   }
   bool enableMachineScheduler() const override { return true; }
+
+  /// Returns RISCV processor family.
+  /// Avoid this function! CPU specifics should be kept local to this class
+  /// and preferably modeled with SubtargetFeatures or properties in
+  /// initializeProperties().
+  RISCVProcFamilyEnum getProcFamily() const { return RISCVProcFamily; }
+
   bool hasStdExtM() const { return HasStdExtM; }
   bool hasStdExtA() const { return HasStdExtA; }
   bool hasStdExtF() const { return HasStdExtF; }
   bool hasStdExtD() const { return HasStdExtD; }
   bool hasStdExtC() const { return HasStdExtC; }
+  bool hasStdExtV() const { return HasStdExtV; }
+  bool hasStdExtZihintpause() const { return HasStdExtZihintpause; }
   bool hasStdExtZba() const { return HasStdExtZba; }
   bool hasStdExtZbb() const { return HasStdExtZbb; }
   bool hasStdExtZbc() const { return HasStdExtZbc; }
@@ -115,10 +158,23 @@ public:
   bool hasStdExtZbr() const { return HasStdExtZbr; }
   bool hasStdExtZbs() const { return HasStdExtZbs; }
   bool hasStdExtZbt() const { return HasStdExtZbt; }
-  bool hasStdExtV() const { return HasStdExtV; }
-  bool hasStdExtZvlsseg() const { return HasStdExtZvlsseg; }
+  bool hasStdExtZvl() const { return ZvlLen != 0; }
+  bool hasStdExtZvfh() const { return HasStdExtZvfh; }
   bool hasStdExtZfhmin() const { return HasStdExtZfhmin; }
   bool hasStdExtZfh() const { return HasStdExtZfh; }
+  bool hasStdExtZfinx() const { return HasStdExtZfinx; }
+  bool hasStdExtZdinx() const { return HasStdExtZdinx; }
+  bool hasStdExtZhinxmin() const { return HasStdExtZhinxmin; }
+  bool hasStdExtZhinx() const { return HasStdExtZhinx; }
+  bool hasStdExtZbkb() const { return HasStdExtZbkb; }
+  bool hasStdExtZbkc() const { return HasStdExtZbkc; }
+  bool hasStdExtZbkx() const { return HasStdExtZbkx; }
+  bool hasStdExtZknd() const { return HasStdExtZknd; }
+  bool hasStdExtZkne() const { return HasStdExtZkne; }
+  bool hasStdExtZknh() const { return HasStdExtZknh; }
+  bool hasStdExtZksed() const { return HasStdExtZksed; }
+  bool hasStdExtZksh() const { return HasStdExtZksh; }
+  bool hasStdExtZkr() const { return HasStdExtZkr; }
   bool is64Bit() const { return HasRV64; }
   bool isRV32E() const { return IsRV32E; }
   bool enableLinkerRelax() const { return EnableLinkerRelax; }
@@ -126,6 +182,29 @@ public:
   bool enableSaveRestore() const { return EnableSaveRestore; }
   MVT getXLenVT() const { return XLenVT; }
   unsigned getXLen() const { return XLen; }
+  unsigned getFLen() const {
+    if (HasStdExtD)
+      return 64;
+
+    if (HasStdExtF)
+      return 32;
+
+    return 0;
+  }
+  unsigned getELEN() const {
+    assert(hasVInstructions() && "Expected V extension");
+    return hasVInstructionsI64() ? 64 : 32;
+  }
+  unsigned getMinVLen() const { return ZvlLen; }
+  unsigned getMaxVLen() const { return 65536; }
+  unsigned getRealMinVLen() const {
+    unsigned VLen = getMinRVVVectorSizeInBits();
+    return VLen == 0 ? getMinVLen() : VLen;
+  }
+  unsigned getRealMaxVLen() const {
+    unsigned VLen = getMaxRVVVectorSizeInBits();
+    return VLen == 0 ? getMaxVLen() : VLen;
+  }
   RISCVABI::ABI getTargetABI() const { return TargetABI; }
   bool isRegisterReservedByUser(Register i) const {
     assert(i < RISCV::NUM_TARGET_REGS && "Register out of range");
@@ -133,11 +212,13 @@ public:
   }
 
   // Vector codegen related methods.
-  bool hasVInstructions() const { return HasStdExtV; }
-  bool hasVInstructionsI64() const { return HasStdExtV; }
-  bool hasVInstructionsF16() const { return HasStdExtV && hasStdExtZfh(); }
-  bool hasVInstructionsF32() const { return HasStdExtV && hasStdExtF(); }
-  bool hasVInstructionsF64() const { return HasStdExtV && hasStdExtD(); }
+  bool hasVInstructions() const { return HasStdExtZve32x; }
+  bool hasVInstructionsI64() const { return HasStdExtZve64x; }
+  bool hasVInstructionsF16() const { return HasStdExtZvfh && HasStdExtZfh; }
+  // FIXME: Consider Zfinx in the future
+  bool hasVInstructionsF32() const { return HasStdExtZve32f && HasStdExtF; }
+  // FIXME: Consider Zdinx in the future
+  bool hasVInstructionsF64() const { return HasStdExtZve64d && HasStdExtD; }
   // F16 and F64 both require F32.
   bool hasVInstructionsAnyF() const { return hasVInstructionsF32(); }
   unsigned getMaxInterleaveFactor() const {
@@ -157,13 +238,18 @@ public:
   const LegalizerInfo *getLegalizerInfo() const override;
   const RegisterBankInfo *getRegBankInfo() const override;
 
+  bool useConstantPoolForLargeInts() const;
+
+  // Maximum cost used for building integers, integers will be put into constant
+  // pool if exceeded.
+  unsigned getMaxBuildIntsCost() const;
+
   // Return the known range for the bit length of RVV data registers. A value
   // of 0 means nothing is known about that particular limit beyond what's
   // implied by the architecture.
   unsigned getMaxRVVVectorSizeInBits() const;
   unsigned getMinRVVVectorSizeInBits() const;
   unsigned getMaxLMULForFixedLengthVectors() const;
-  unsigned getMaxELENForFixedLengthVectors() const;
   bool useRVVForFixedLengthVectors() const;
 };
 } // End llvm namespace

@@ -14,8 +14,6 @@
 
 #include "VPlanPredicator.h"
 #include "VPlan.h"
-#include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -231,7 +229,7 @@ void VPlanPredicator::linearizeRegionRec(VPRegionBlock *Region) {
 }
 
 // Entry point. The driver function for the predicator.
-void VPlanPredicator::predicate(void) {
+void VPlanPredicator::predicate() {
   // Predicate the blocks within Region.
   predicateRegionRec(cast<VPRegionBlock>(Plan.getEntry()));
 

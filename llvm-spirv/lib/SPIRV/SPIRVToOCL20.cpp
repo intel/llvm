@@ -97,6 +97,10 @@ void SPIRVToOCL20Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
 
 void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  SmallVector<AttributeSet, 2> ArgAttrs = {Attrs.getParamAttrs(1),
+                                           Attrs.getParamAttrs(2)};
+  AttributeList NewAttrs = AttributeList::get(*Ctx, Attrs.getFnAttrs(),
+                                              Attrs.getRetAttrs(), ArgAttrs);
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
@@ -116,7 +120,7 @@ void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
         return (ExecScope == ScopeWorkgroup) ? kOCLBuiltinName::WorkGroupBarrier
                                              : kOCLBuiltinName::SubGroupBarrier;
       },
-      &Attrs);
+      &NewAttrs);
 }
 
 std::string SPIRVToOCL20Base::mapFPAtomicName(Op OC) {
@@ -181,7 +185,7 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
             OC == OpAtomicIIncrement ? OpAtomicIAdd : OpAtomicISub);
         auto Ptr = findFirstPtr(Args);
         Type *ValueTy =
-            cast<PointerType>(Args[Ptr]->getType())->getElementType();
+            cast<PointerType>(Args[Ptr]->getType())->getPointerElementType();
         assert(ValueTy->isIntegerTy());
         Args.insert(Args.begin() + 1, llvm::ConstantInt::get(ValueTy, 1));
         return Name;
@@ -201,8 +205,8 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
           Type *PtrArgTy = PtrArg->getType();
           if (PtrArgTy->isPointerTy()) {
             if (PtrArgTy->getPointerAddressSpace() != SPIRAS_Generic) {
-              Type *FixedPtr = PtrArgTy->getPointerElementType()->getPointerTo(
-                  SPIRAS_Generic);
+              Type *FixedPtr = PointerType::getWithSamePointeeType(
+                  cast<PointerType>(PtrArgTy), SPIRAS_Generic);
               Args[I] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
                   PtrArg, FixedPtr, PtrArg->getName() + ".as", CI);
             }
@@ -255,8 +259,8 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
             Align(CI->getType()->getScalarSizeInBits() / 8));
         new StoreInst(Args[1], PExpected, PInsertBefore);
         unsigned AddrSpc = SPIRAS_Generic;
-        Type *PtrTyAS =
-            PExpected->getType()->getElementType()->getPointerTo(AddrSpc);
+        Type *PtrTyAS = PointerType::getWithSamePointeeType(
+            cast<PointerType>(PExpected->getType()), AddrSpc);
         Args[1] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
             PExpected, PtrTyAS, PExpected->getName() + ".as", PInsertBefore);
         std::swap(Args[3], Args[4]);

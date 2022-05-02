@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_LINALG_LINALG_H_
-#define MLIR_DIALECT_LINALG_LINALG_H_
+#ifndef MLIR_DIALECT_LINALG_IR_LINALG_H
+#define MLIR_DIALECT_LINALG_IR_LINALG_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
@@ -90,7 +90,7 @@ SmallVector<AffineExpr, 4> concat(ArrayRef<AffineExpr> a,
 /// Return the dims that are `iteratorTypeName` loops in the LinalgOp `op`.
 /// Assumes `op` is a LinalgOp.
 void getDimsOfType(Operation *op, StringRef iteratorTypeName,
-                   SmallVectorImpl<AffineExpr> &res);
+                   SmallVectorImpl<unsigned> &res);
 
 namespace detail {
 LogicalResult verifyStructuredOpInterface(Operation *op);
@@ -103,6 +103,19 @@ LogicalResult verifyStructuredOpInterface(Operation *op);
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Linalg Enums
+//===----------------------------------------------------------------------===//
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsEnums.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Linalg Attributes
+//===----------------------------------------------------------------------===//
+
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/Linalg/IR/LinalgOpsAttrDefs.h.inc"
 
 //===----------------------------------------------------------------------===//
 // Linalg Interfaces
@@ -120,4 +133,4 @@ LogicalResult verifyStructuredOpInterface(Operation *op);
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.h.inc"
 
-#endif // MLIR_DIALECT_LINALG_LINALG_H_
+#endif // MLIR_DIALECT_LINALG_IR_LINALG_H

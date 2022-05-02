@@ -27,9 +27,11 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/platform.hpp>
+#include <CL/sycl/queue.hpp>
 #include <detail/platform_impl.hpp>
 
 #include <functional>

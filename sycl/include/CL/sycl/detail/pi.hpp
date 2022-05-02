@@ -376,6 +376,13 @@ public:
     ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
     return ExportedSymbols;
   }
+  const PropertyRange getDeviceGlobals() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    DeviceBinaryImage::PropertyRange DeviceGlobals;
+    DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
+    return DeviceGlobals;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -411,6 +418,15 @@ template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
   RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
   return (To)(value);
+}
+
+// Cast for std::vector<cl_event>, according to the spec, make_event
+// should create one(?) event from a vector of cl_event
+template <class To> inline To cast(std::vector<cl_event> value) {
+  RT::assertion(value.size() == 1,
+                "Temporary workaround requires that the "
+                "size of the input vector for make_event be equal to one.");
+  return (To)(value[0]);
 }
 
 // These conversions should use PI interop API.

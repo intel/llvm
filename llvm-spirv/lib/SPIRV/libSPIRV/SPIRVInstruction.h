@@ -397,12 +397,12 @@ public:
       assert(MemoryAccess.size() > 1 && "Alignment operand is missing");
       Alignment = MemoryAccess[MemAccessNumParam++];
     }
-    if (MemoryAccess[0] & internal::MemoryAccessAliasScopeINTELMask) {
+    if (MemoryAccess[0] & MemoryAccessAliasScopeINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
       AliasScopeInstID = MemoryAccess[MemAccessNumParam++];
     }
-    if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
+    if (MemoryAccess[0] & MemoryAccessNoAliasINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
       NoAliasInstID = MemoryAccess[MemAccessNumParam];
@@ -415,10 +415,10 @@ public:
     return getMemoryAccessMask() & MemoryAccessNontemporalMask;
   }
   SPIRVWord isAliasScope() const {
-    return getMemoryAccessMask() & internal::MemoryAccessAliasScopeINTELMask;
+    return getMemoryAccessMask() & MemoryAccessAliasScopeINTELMaskMask;
   }
   SPIRVWord isNoAlias() const {
-    return getMemoryAccessMask() & internal::MemoryAccessNoAliasINTELMask;
+    return getMemoryAccessMask() & MemoryAccessNoAliasINTELMaskMask;
   }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }
@@ -1863,7 +1863,7 @@ public:
   // Incomplete constructor
   SPIRVCompositeConstruct() : SPIRVInstruction(OC) {}
 
-  const std::vector<SPIRVValue *> getConstituents() const {
+  std::vector<SPIRVValue *> getOperands() override {
     return getValues(Constituents);
   }
 
@@ -1875,13 +1875,15 @@ protected:
   _SPIRV_DEF_ENCDEC3(Type, Id, Constituents)
   void validate() const override {
     SPIRVInstruction::validate();
-    switch (getValueType(this->getId())->getOpCode()) {
+    size_t TypeOpCode = this->getType()->getOpCode();
+    switch (TypeOpCode) {
     case OpTypeVector:
-      assert(getConstituents().size() > 1 &&
+      assert(Constituents.size() > 1 &&
              "There must be at least two Constituent operands in vector");
       break;
     case OpTypeArray:
     case OpTypeStruct:
+    case internal::OpTypeJointMatrixINTEL:
       break;
     default:
       assert(false && "Invalid type");
@@ -2090,6 +2092,9 @@ public:
 
   SPIRVValue *getVector() { return getValue(VectorId); }
   SPIRVValue *getIndex() const { return getValue(IndexId); }
+  std::vector<SPIRVValue *> getOperands() override {
+    return {getVector(), getIndex()};
+  }
 
 protected:
   _SPIRV_DEF_ENCDEC4(Type, Id, VectorId, IndexId)
@@ -2097,7 +2102,8 @@ protected:
     SPIRVInstruction::validate();
     if (getValue(VectorId)->isForward())
       return;
-    assert(getValueType(VectorId)->isTypeVector());
+    assert(getValueType(VectorId)->isTypeVector() ||
+           getValueType(VectorId)->isTypeJointMatrixINTEL());
   }
   SPIRVId VectorId;
   SPIRVId IndexId;
@@ -2122,8 +2128,11 @@ public:
         IndexId(SPIRVID_INVALID), ComponentId(SPIRVID_INVALID) {}
 
   SPIRVValue *getVector() { return getValue(VectorId); }
-  SPIRVValue *getIndex() const { return getValue(IndexId); }
   SPIRVValue *getComponent() { return getValue(ComponentId); }
+  SPIRVValue *getIndex() const { return getValue(IndexId); }
+  std::vector<SPIRVValue *> getOperands() override {
+    return {getVector(), getComponent(), getIndex()};
+  }
 
 protected:
   _SPIRV_DEF_ENCDEC5(Type, Id, VectorId, ComponentId, IndexId)
@@ -2131,7 +2140,8 @@ protected:
     SPIRVInstruction::validate();
     if (getValue(VectorId)->isForward())
       return;
-    assert(getValueType(VectorId)->isTypeVector());
+    assert(getValueType(VectorId)->isTypeVector() ||
+           getValueType(VectorId)->isTypeJointMatrixINTEL());
   }
   SPIRVId VectorId;
   SPIRVId IndexId;
@@ -3290,6 +3300,76 @@ class SPIRVJointMatrixINTELInst : public SPIRVJointMatrixINTELInstBase {
 _SPIRV_OP(JointMatrixLoad, true, 6, true)
 _SPIRV_OP(JointMatrixStore, false, 5, true)
 _SPIRV_OP(JointMatrixMad, true, 7)
+_SPIRV_OP(JointMatrixWorkItemLength, true, 4)
+#undef _SPIRV_OP
+
+class SPIRVGroupUniformArithmeticKHRInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityGroupUniformArithmeticKHR);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_uniform_group_instructions;
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupUniformArithmeticKHRInstBase,            \
+                            Op##x##KHR, __VA_ARGS__>                           \
+      SPIRV##x##KHR;
+_SPIRV_OP(GroupIMul, true, 6, false, 1)
+_SPIRV_OP(GroupFMul, true, 6, false, 1)
+_SPIRV_OP(GroupBitwiseAnd, true, 6, false, 1)
+_SPIRV_OP(GroupBitwiseOr, true, 6, false, 1)
+_SPIRV_OP(GroupBitwiseXor, true, 6, false, 1)
+_SPIRV_OP(GroupLogicalAnd, true, 6, false, 1)
+_SPIRV_OP(GroupLogicalOr, true, 6, false, 1)
+_SPIRV_OP(GroupLogicalXor, true, 6, false, 1)
+#undef _SPIRV_OP
+
+class SPIRVComplexFloat : public SPIRVInstTemplateBase {
+protected:
+  void validate() const override {
+    SPIRVId Op1 = Ops[0];
+    SPIRVId Op2 = Ops[1];
+    SPIRVType *Op1Ty, *Op2Ty;
+    SPIRVInstruction::validate();
+    if (getValue(Op1)->isForward() || getValue(Op2)->isForward())
+      return;
+    if (getValueType(Op1)->isTypeVector()) {
+      Op1Ty = getValueType(Op1)->getVectorComponentType();
+      Op2Ty = getValueType(Op2)->getVectorComponentType();
+      assert(getValueType(Op1)->getVectorComponentCount() ==
+                 getValueType(Op2)->getVectorComponentCount() &&
+             "Inconsistent Vector component width");
+    } else {
+      Op1Ty = getValueType(Op1);
+      Op2Ty = getValueType(Op2);
+    }
+    (void)Op1Ty;
+    (void)Op2Ty;
+    assert(Op1Ty->isTypeFloat() && "Invalid type for complex instruction");
+    assert(Op1Ty == Op2Ty && "Invalid type for complex instruction");
+  }
+
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityComplexFloatMulDivINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_complex_float_mul_div;
+  }
+};
+
+template <Op OC>
+class SPIRVComplexFloatInst
+    : public SPIRVInstTemplate<SPIRVComplexFloat, OC, true, 5, false> {};
+
+#define _SPIRV_OP(x) typedef SPIRVComplexFloatInst<internal::Op##x> SPIRV##x;
+_SPIRV_OP(ComplexFMulINTEL)
+_SPIRV_OP(ComplexFDivINTEL)
 #undef _SPIRV_OP
 } // namespace SPIRV
 

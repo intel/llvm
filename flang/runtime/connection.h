@@ -22,8 +22,6 @@ class IoStatementState;
 enum class Direction { Output, Input };
 enum class Access { Sequential, Direct, Stream };
 
-inline bool IsRecordFile(Access a) { return a != Access::Stream; }
-
 // These characteristics of a connection are immutable after being
 // established in an OPEN statement.
 struct ConnectionAttributes {
@@ -31,10 +29,23 @@ struct ConnectionAttributes {
   std::optional<bool> isUnformatted; // FORM='UNFORMATTED' if true
   bool isUTF8{false}; // ENCODING='UTF-8'
   std::optional<std::int64_t> openRecl; // RECL= on OPEN
+
+  bool IsRecordFile() const {
+    // Formatted stream files are viewed as having records, at least on input
+    return access != Access::Stream || !isUnformatted.value_or(true);
+  }
+
+  template <typename CHAR = char> constexpr bool useUTF8() const {
+    // For wide CHARACTER kinds, always use UTF-8 for formatted I/O.
+    // For single-byte CHARACTER, encode characters >= 0x80 with
+    // UTF-8 iff the mode is set.
+    return sizeof(CHAR) > 1 || isUTF8;
+  }
 };
 
 struct ConnectionState : public ConnectionAttributes {
   bool IsAtEOF() const; // true when read has hit EOF or endfile record
+  bool IsAfterEndfile() const; // true after ENDFILE until repositioned
   std::size_t RemainingSpaceInRecord() const;
   bool NeedAdvance(std::size_t) const;
   void HandleAbsolutePosition(std::int64_t);
@@ -43,7 +54,6 @@ struct ConnectionState : public ConnectionAttributes {
   void BeginRecord() {
     positionInRecord = 0;
     furthestPositionInRecord = 0;
-    leftTabLimit.reset();
   }
 
   std::optional<std::int64_t> EffectiveRecordLength() const {

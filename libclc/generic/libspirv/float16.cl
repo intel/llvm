@@ -4345,6 +4345,36 @@ __spirv_ocl_exp2(__clc_vec16_float16_t args_0) {
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t
+__clc_native_exp2(__clc_float16_t args_0) {
+  return __clc_native_exp2(as_half(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec2_fp16_t
+__clc_native_exp2(__clc_vec2_float16_t args_0) {
+  return __clc_native_exp2(as_half2(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec3_fp16_t
+__clc_native_exp2(__clc_vec3_float16_t args_0) {
+  return __clc_native_exp2(as_half3(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec4_fp16_t
+__clc_native_exp2(__clc_vec4_float16_t args_0) {
+  return __clc_native_exp2(as_half4(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec8_fp16_t
+__clc_native_exp2(__clc_vec8_float16_t args_0) {
+  return __clc_native_exp2(as_half8(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec16_fp16_t
+__clc_native_exp2(__clc_vec16_float16_t args_0) {
+  return __clc_native_exp2(as_half16(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t
 __spirv_ocl_expm1(__clc_float16_t args_0) {
   return __spirv_ocl_expm1(as_half(args_0));
 }
@@ -6611,6 +6641,36 @@ __spirv_ocl_tanh(__clc_vec8_float16_t args_0) {
 _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec16_fp16_t
 __spirv_ocl_tanh(__clc_vec16_float16_t args_0) {
   return __spirv_ocl_tanh(as_half16(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t
+__clc_native_tanh(__clc_float16_t args_0) {
+  return __clc_native_tanh(as_half(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec2_fp16_t
+__clc_native_tanh(__clc_vec2_float16_t args_0) {
+  return __clc_native_tanh(as_half2(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec3_fp16_t
+__clc_native_tanh(__clc_vec3_float16_t args_0) {
+  return __clc_native_tanh(as_half3(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec4_fp16_t
+__clc_native_tanh(__clc_vec4_float16_t args_0) {
+  return __clc_native_tanh(as_half4(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec8_fp16_t
+__clc_native_tanh(__clc_vec8_float16_t args_0) {
+  return __clc_native_tanh(as_half8(args_0));
+}
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec16_fp16_t
+__clc_native_tanh(__clc_vec16_float16_t args_0) {
+  return __clc_native_tanh(as_half16(args_0));
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t

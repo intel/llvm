@@ -4,18 +4,19 @@
 import ctypes
 import numpy as np
 import os
-
-import mlir.all_passes_registration
+import sys
 
 from mlir import ir
 from mlir import runtime as rt
-from mlir import execution_engine
-from mlir import passmanager
 
 from mlir.dialects import sparse_tensor as st
 from mlir.dialects import builtin
+from mlir.dialects import func
 from mlir.dialects.linalg.opdsl import lang as dsl
 
+_SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(_SCRIPT_PATH)
+from tools import sparse_compiler
 
 @dsl.linalg_structured_op
 def matmul_dsl(
@@ -40,7 +41,7 @@ def build_SpMM(attr: st.EncodingAttr):
   arguments = [a, b, c]
   with ir.InsertionPoint(module.body):
 
-    @builtin.FuncOp.from_py_func(*arguments)
+    @func.FuncOp.from_py_func(*arguments)
     def spMxM(*args):
       return matmul_dsl(args[0], args[1], outs=[args[2]])
 
@@ -67,17 +68,14 @@ func @main(%ad: tensor<3x4xf64>, %b: tensor<4x2xf64>, %c: tensor<3x2xf64>) -> te
 """
 
 
-def build_compile_and_run_SpMM(attr: st.EncodingAttr, support_lib: str,
-                               compiler):
+def build_compile_and_run_SpMM(attr: st.EncodingAttr, compiler):
   # Build.
   module = build_SpMM(attr)
   func = str(module.operation.regions[0].blocks[0].operations[0].operation)
   module = ir.Module.parse(func + boilerplate(attr))
 
   # Compile.
-  compiler(module)
-  engine = execution_engine.ExecutionEngine(
-      module, opt_level=0, shared_libs=[support_lib])
+  engine = compiler.compile_and_jit(module)
 
   # Set up numpy input and buffer for output.
   a = np.array(
@@ -106,30 +104,6 @@ def build_compile_and_run_SpMM(attr: st.EncodingAttr, support_lib: str,
     pass
   else:
     quit(f'FAILURE')
-
-
-class SparseCompiler:
-  """Sparse compiler passes."""
-
-  def __init__(self, options: str):
-    pipeline = (
-        f'builtin.func(linalg-generalize-named-ops,linalg-fuse-elementwise-ops),'
-        f'sparsification{{{options}}},'
-        f'sparse-tensor-conversion,'
-        f'builtin.func(linalg-bufferize,convert-linalg-to-loops,convert-vector-to-scf),'
-        f'convert-scf-to-std,'
-        f'func-bufferize,'
-        f'tensor-constant-bufferize,'
-        f'builtin.func(tensor-bufferize,std-bufferize,finalizing-bufferize),'
-        f'convert-vector-to-llvm{{reassociate-fp-reductions=1 enable-index-optimizations=1}},'
-        f'lower-affine,'
-        f'convert-memref-to-llvm,'
-        f'convert-std-to-llvm,'
-        f'reconcile-unrealized-casts')
-    self.pipeline = pipeline
-
-  def __call__(self, module: ir.Module):
-    passmanager.PassManager.parse(self.pipeline).run(module)
 
 
 def main():
@@ -162,13 +136,14 @@ def main():
         ir.AffineMap.get_permutation([1, 0])
     ]
     bitwidths = [0]
+    compiler = sparse_compiler.SparseCompiler(
+        options=opt, opt_level=0, shared_libs=[support_lib])
     for level in levels:
       for ordering in orderings:
         for pwidth in bitwidths:
           for iwidth in bitwidths:
             attr = st.EncodingAttr.get(level, ordering, pwidth, iwidth)
-            compiler = SparseCompiler(options=opt)
-            build_compile_and_run_SpMM(attr, support_lib, compiler)
+            build_compile_and_run_SpMM(attr, compiler)
             count = count + 1
     # CHECK: Passed 8 tests
     print('Passed ', count, 'tests')

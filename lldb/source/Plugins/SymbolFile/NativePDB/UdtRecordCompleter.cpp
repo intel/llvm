@@ -10,6 +10,7 @@
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-forward.h"
 
@@ -137,8 +138,6 @@ Error UdtRecordCompleter::visitKnownMember(
   clang::QualType member_type =
       m_ast_builder.GetOrCreateType(PdbTypeSymId(static_data_member.Type));
 
-  m_ast_builder.CompleteType(member_type);
-
   CompilerType member_ct = m_ast_builder.ToCompilerType(member_type);
 
   lldb::AccessType access =
@@ -148,7 +147,7 @@ Error UdtRecordCompleter::visitKnownMember(
 
   // Static constant members may be a const[expr] declaration.
   // Query the symbol's value as the variable initializer if valid.
-  if (member_ct.IsConst()) {
+  if (member_ct.IsConst() && member_ct.IsCompleteType()) {
     std::string qual_name = decl->getQualifiedNameAsString();
 
     auto results =
@@ -169,7 +168,7 @@ Error UdtRecordCompleter::visitKnownMember(
             TypeSystemClang::SetIntegerInitializerForVariable(
                 decl, constant.Value.extOrTrunc(type_width));
           } else {
-            LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_AST),
+            LLDB_LOG(GetLog(LLDBLog::AST),
                      "Class '{0}' has a member '{1}' of type '{2}' ({3} bits) "
                      "which resolves to a wider constant value ({4} bits). "
                      "Ignoring constant.",
@@ -190,7 +189,7 @@ Error UdtRecordCompleter::visitKnownMember(
               decl->setConstexpr(true);
             } else {
               LLDB_LOG(
-                  GetLogIfAllCategoriesSet(LIBLLDB_LOG_AST),
+                  GetLog(LLDBLog::AST),
                   "Class '{0}' has a member '{1}' of type '{2}' ({3} bits) "
                   "which resolves to a constant value of mismatched width "
                   "({4} bits). Ignoring constant.",

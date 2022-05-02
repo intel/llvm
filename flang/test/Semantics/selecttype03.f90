@@ -30,6 +30,13 @@ end select
 
 select type ( y => fun(1) )
   type is (t1)
+    y%i = 1 !VDC
+  type is (t2)
+    call sub_with_in_and_inout_param(y,y) !VDC
+end select
+
+select type ( y => (fun(1)) )
+  type is (t1)
     !ERROR: Left-hand side of assignment is not modifiable
     y%i = 1 !VDC
   type is (t2)
@@ -99,11 +106,11 @@ contains
     integer :: i
     class(t1),DIMENSION(:),allocatable :: foo
     integer, dimension(2) :: U
-    U = (/ 1,2 /)  
+    U = (/ 1,2 /)
     if (i>0) then
       foo = array1(2,U)
     else if (i<0) then
-      !ERROR: No intrinsic or user-defined ASSIGNMENT(=) matches operand types TYPE(t1) and TYPE(t2)
+      !ERROR: No intrinsic or user-defined ASSIGNMENT(=) matches operand types CLASS(t1) and CLASS(t2)
       foo = array2(2,U)
     end if
   end function

@@ -31,6 +31,7 @@ cc_binary(
     ],
     stamp = 0,
     deps = [
+        ":support",
         "//llvm:Support",
         "//llvm:TableGen",
         "//llvm:config",
@@ -474,6 +475,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":basic",
+        ":config",
         "//llvm:Support",
     ],
 )
@@ -1040,6 +1042,7 @@ cc_library(
     ]),
     hdrs = glob([
         "include/clang/Tooling/Inclusions/**/*.h",
+        "include/clang/Tooling/Inclusions/**/*.inc",
     ]),
     deps = [
         ":basic",
@@ -1342,6 +1345,7 @@ cc_library(
         "//llvm:ProfileData",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:WindowsDriver",
         "//llvm:config",
     ],
 )
@@ -1666,6 +1670,20 @@ gentbl(
 )
 
 cc_library(
+    name = "support",
+    srcs = glob([
+        "lib/Support/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/clang/Support/*.h",
+    ]),
+    includes = ["include"],
+    deps = [
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
     name = "serialization",
     srcs = [
         "include/clang/Serialization/AttrPCHRead.inc",
@@ -1710,6 +1728,7 @@ cc_library(
         ":codegen",
         ":config",
         ":driver",
+        ":extract_api",
         ":frontend",
         ":frontend_rewrite",
         ":static_analyzer_frontend",
@@ -2136,6 +2155,24 @@ cc_binary(
         ":frontend",
         ":tooling",
         ":tooling_dependency_scanning",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "extract_api",
+    srcs = glob([
+        "lib/ExtractAPI/**/*.cpp",
+        "lib/ExtractAPI/**/*.h",
+    ]),
+    hdrs = glob(["include/clang/ExtractAPI/**/*.h"]),
+    includes = ["include"],
+    deps = [
+        ":ast",
+        ":basic",
+        ":frontend",
+        ":index",
+        "//llvm:Option",
         "//llvm:Support",
     ],
 )
