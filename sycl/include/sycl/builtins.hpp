@@ -1109,12 +1109,9 @@ fast_normalize(T p) __NOEXC {
   return __sycl_std::__invoke_fast_normalize<T>(p);
 }
 
-/* --------------- 4.13.7 Relational functions. Device version --------------*/
-// int isequal (half x, half y)
-// shortn isequal (halfn x, halfn y)
-// igeninteger32bit isequal (genfloatf x, genfloatf y)
-// int isequal (double x,double y);
-// longn isequal (doublen x, doublen y)
+/* SYCL 1.2.1 ---- 4.13.7 Relational functions. -----------------------------*/
+/* SYCL 2020  ---- 4.17.9 Relational functions. -----------------------------*/
+
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isequal(T x, T y) __NOEXC {
@@ -1122,11 +1119,6 @@ detail::common_rel_ret_t<T> isequal(T x, T y) __NOEXC {
       __sycl_std::__invoke_FOrdEqual<detail::rel_ret_t<T>>(x, y));
 }
 
-// int isnotequal (half x, half y)
-// shortn isnotequal (halfn x, halfn y)
-// igeninteger32bit isnotequal (genfloatf x, genfloatf y)
-// int isnotequal (double x, double y)
-// longn isnotequal (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnotequal(T x, T y) __NOEXC {
@@ -1134,11 +1126,6 @@ detail::common_rel_ret_t<T> isnotequal(T x, T y) __NOEXC {
       __sycl_std::__invoke_FUnordNotEqual<detail::rel_ret_t<T>>(x, y));
 }
 
-// int isgreater (half x, half y)
-// shortn isgreater (halfn x, halfn y)
-// igeninteger32bit isgreater (genfloatf x, genfloatf y)
-// int isgreater (double x, double y)
-// longn isgreater (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isgreater(T x, T y) __NOEXC {
@@ -1146,11 +1133,6 @@ detail::common_rel_ret_t<T> isgreater(T x, T y) __NOEXC {
       __sycl_std::__invoke_FOrdGreaterThan<detail::rel_ret_t<T>>(x, y));
 }
 
-// int isgreaterequal (half x, half y)
-// shortn isgreaterequal (halfn x, halfn y)
-// igeninteger32bit isgreaterequal (genfloatf x, genfloatf y)
-// int isgreaterequal (double x, double y)
-// longn isgreaterequal (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isgreaterequal(T x, T y) __NOEXC {
@@ -1158,11 +1140,6 @@ detail::common_rel_ret_t<T> isgreaterequal(T x, T y) __NOEXC {
       __sycl_std::__invoke_FOrdGreaterThanEqual<detail::rel_ret_t<T>>(x, y));
 }
 
-// int isless (half x, half y)
-// shortn isless (halfn x, halfn y)
-// igeninteger32bit isless (genfloatf x, genfloatf y)
-// int isless (long x, long y)
-// longn isless (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isless(T x, T y) __NOEXC {
@@ -1170,11 +1147,6 @@ detail::common_rel_ret_t<T> isless(T x, T y) __NOEXC {
       __sycl_std::__invoke_FOrdLessThan<detail::rel_ret_t<T>>(x, y));
 }
 
-// int islessequal (half x, half y)
-// shortn islessequal (halfn x, halfn y)
-// igeninteger32bit islessequal (genfloatf x, genfloatf y)
-// int islessequal (double x, double y)
-// longn islessequal (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> islessequal(T x, T y) __NOEXC {
@@ -1182,11 +1154,6 @@ detail::common_rel_ret_t<T> islessequal(T x, T y) __NOEXC {
       __sycl_std::__invoke_FOrdLessThanEqual<detail::rel_ret_t<T>>(x, y));
 }
 
-// int islessgreater (half x, half y)
-// shortn islessgreater (halfn x, halfn y)
-// igeninteger32bit islessgreater (genfloatf x, genfloatf y)
-// int islessgreater (double x, double y)
-// longn islessgreater (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> islessgreater(T x, T y) __NOEXC {
@@ -1194,11 +1161,6 @@ detail::common_rel_ret_t<T> islessgreater(T x, T y) __NOEXC {
       __sycl_std::__invoke_FOrdNotEqual<detail::rel_ret_t<T>>(x, y));
 }
 
-// int isfinite (half x)
-// shortn isfinite (halfn x)
-// igeninteger32bit isfinite (genfloatf x)
-// int isfinite (double x)
-// longn isfinite (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isfinite(T x) __NOEXC {
@@ -1206,11 +1168,6 @@ detail::common_rel_ret_t<T> isfinite(T x) __NOEXC {
       __sycl_std::__invoke_IsFinite<detail::rel_ret_t<T>>(x));
 }
 
-// int isinf (half x)
-// shortn isinf (halfn x)
-// igeninteger32bit isinf (genfloatf x)
-// int isinf (double x)
-// longn isinf (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isinf(T x) __NOEXC {
@@ -1218,11 +1175,6 @@ detail::common_rel_ret_t<T> isinf(T x) __NOEXC {
       __sycl_std::__invoke_IsInf<detail::rel_ret_t<T>>(x));
 }
 
-// int isnan (half x)
-// shortn isnan (halfn x)
-// igeninteger32bit isnan (genfloatf x)
-// int isnan (double x)
-// longn isnan (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnan(T x) __NOEXC {
@@ -1230,11 +1182,6 @@ detail::common_rel_ret_t<T> isnan(T x) __NOEXC {
       __sycl_std::__invoke_IsNan<detail::rel_ret_t<T>>(x));
 }
 
-// int isnormal (half x)
-// shortn isnormal (halfn x)
-// igeninteger32bit isnormal (genfloatf x)
-// int isnormal (double x)
-// longn isnormal (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnormal(T x) __NOEXC {
@@ -1242,11 +1189,6 @@ detail::common_rel_ret_t<T> isnormal(T x) __NOEXC {
       __sycl_std::__invoke_IsNormal<detail::rel_ret_t<T>>(x));
 }
 
-// int isordered (half x)
-// shortn isordered (halfn x, halfn y)
-// igeninteger32bit isordered (genfloatf x, genfloatf y)
-// int isordered (double x, double y)
-// longn isordered (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isordered(T x, T y) __NOEXC {
@@ -1254,11 +1196,6 @@ detail::common_rel_ret_t<T> isordered(T x, T y) __NOEXC {
       __sycl_std::__invoke_Ordered<detail::rel_ret_t<T>>(x, y));
 }
 
-// int isunordered (half x, half y)
-// shortn isunordered (halfn x, halfn y)
-// igeninteger32bit isunordered (genfloatf x, genfloatf y)
-// int isunordered (double x, double y)
-// longn isunordered (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isunordered(T x, T y) __NOEXC {
@@ -1266,11 +1203,6 @@ detail::common_rel_ret_t<T> isunordered(T x, T y) __NOEXC {
       __sycl_std::__invoke_Unordered<detail::rel_ret_t<T>>(x, y));
 }
 
-// int signbit (half x)
-// shortn signbit (halfn x)
-// igeninteger32bit signbit (genfloatf x)
-// int signbit (double)
-// longn signbit (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
@@ -1278,15 +1210,25 @@ detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
       __sycl_std::__invoke_SignBitSet<detail::rel_ret_t<T>>(x));
 }
 
+namespace detail {
+#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
+using anyall_ret_t = bool;
+#else
+using anyall_ret_t = int;
+#endif
+} // namespace detail
+
 // int any (sigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_sigeninteger<T>::value, int> any(T x) __NOEXC {
+detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
+any(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
 // int any (vigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
+detail::enable_if_t<detail::is_vigeninteger<T>::value, detail::anyall_ret_t>
+any(T x) __NOEXC {
   return detail::rel_sign_bit_test_ret_t<T>(
       __sycl_std::__invoke_Any<detail::rel_sign_bit_test_ret_t<T>>(
           detail::rel_sign_bit_test_arg_t<T>(x)));
@@ -1294,13 +1236,15 @@ detail::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
 
 // int all (sigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_sigeninteger<T>::value, int> all(T x) __NOEXC {
+detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
+all(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
 // int all (vigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, int> all(T x) __NOEXC {
+detail::enable_if_t<detail::is_vigeninteger<T>::value, detail::anyall_ret_t>
+all(T x) __NOEXC {
   return detail::rel_sign_bit_test_ret_t<T>(
       __sycl_std::__invoke_All<detail::rel_sign_bit_test_ret_t<T>>(
           detail::rel_sign_bit_test_arg_t<T>(x)));

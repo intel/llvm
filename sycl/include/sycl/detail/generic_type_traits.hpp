@@ -572,9 +572,31 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
   return (x & msbMask(x));
 }
 
+#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
+// SYCL 2020 4.17.9 (Relation functions), e.g. table 178
+//
+//  genbool isequal (genfloatf x, genfloatf y)
+//  genbool isequal (genfloatd x, genfloatd y)
+//
+// TODO: marray support isn't implemented yet.
+template <typename T>
+using common_rel_ret_t =
+    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, bool>;
+#else
+// SYCL 1.2.1 4.13.7 (Relation functions), e.g.
+//
+//   igeninteger32bit isequal (genfloatf x, genfloatf y)
+//   igeninteger64bit isequal (genfloatd x, genfloatd y)
+//
+// However, we have pre-existing bug so
+//
+//   igeninteger32bit isequal (genfloatd x, genfloatd y)
+//
+// Fixing it would be an ABI-breaking change so isn't done.
 template <typename T>
 using common_rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+#endif
 
 // forward declaration
 template <int N> struct Boolean;
