@@ -124,9 +124,6 @@ public:
   bfloat16(const bfloat16 &) = default;
   ~bfloat16() = default;
 
-  // Explicit initialization
-  static bfloat16 from_bits(const storage_t &a);
-
   // Explicit conversion functions
   static storage_t from_float(const float &a);
   static float to_float(const storage_t &a);
@@ -141,9 +138,6 @@ public:
 
   // Convert bfloat16 to bool type
   explicit operator bool();
-
-  // Get bfloat16 as raw bits.
-  storage_t raw() const;
 
   friend bfloat16 operator-(bfloat16 &bf) { /* ... */ }
 
