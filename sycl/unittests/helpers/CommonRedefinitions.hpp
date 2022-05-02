@@ -205,7 +205,7 @@ inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
       "libsycl-fallback-cassert.spv",      "libsycl-fallback-cmath.spv",
       "libsycl-fallback-cmath-fp64.spv",   "libsycl-fallback-complex.spv",
       "libsycl-fallback-complex-fp64.spv", "libsycl-fallback-cstring.spv"};
-  for (const char * Name: FileNames) {
+  for (const char *Name : FileNames) {
     std::ofstream F(LibSyclDir + OSUtil::DirSep + Name);
     F << "Mock\n";
   }
