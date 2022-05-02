@@ -14,7 +14,7 @@ include_directories(${OpenCL_INCLUDE_DIR})
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
 
-if (MSVC)
+if (WIN32)
   set(LIBCM ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/libcm${CMAKE_STATIC_LIBRARY_SUFFIX})
   set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/igfxcmrt64_emu${CMAKE_STATIC_LIBRARY_SUFFIX})
 else()
@@ -25,13 +25,19 @@ endif()
 set (DEFAULT_CM_EMU_PREBUILT_PACKAGE "https://github.com/intel/cm-cpu-emulation/releases/download/v2022-02-11/intel-cmemu-1.0.20.u20.04-release.x86_64.tar.xz")
 set (DEFAULT_CM_EMU_SOURCE_URL "https://github.com/intel/cm-cpu-emulation.git")
 
-if (DEFINED USE_DEFAULT_CM_EMU_SOURCE)
-  if ((DEFINED USE_LOCAL_CM_EMU_SOURCE) OR (DEFINED USE_CM_EMU_PREBUILT_PACKAGE))
-    message(FATAL_ERROR "Configuration failure : Building CM_EMU library with local source or using pre-built one with online-building of CM_EMU")
+if ((DEFINED USE_DEFAULT_CM_EMU_SOURCE) OR (DEFINED USE_LOCAL_CM_EMU_SOURCE))
+  if (DEFINED USE_CM_EMU_PREBUILT_PACKAGE)
+    message(FATAL_ERROR "Configuration failure : Pre-built package and On-line building of CM_EMU library package cannot be applied together")
   endif()
-  if (MSVC)
-    message(FATAL_ERROR "Online-building of CM_EMU library is not supported under Windows environment")
-  else()
+  if ((DEFINED USE_DEFAULT_CM_EMU_SOURCE) AND (DEFINED USE_LOCAL_CM_EMU_SOURCE))
+    message(FATAL_ERROR "Configuration failure : Either default CM_EMU source or local source can be used for on-line CM building - not together")
+  endif()
+  if (WIN32)
+    message(FATAL_ERROR "Configuration failure : Online-building of CM_EMU library is not supported under Windows environment")
+  endif()
+
+  if (DEFINED USE_DEFAULT_CM_EMU_SOURCE)
+    message(STATUS "CM_EMU library package will be built online with source codes downloaded from ${DEFAULT_CM_EMU_SOURCE_URL}")
     ExternalProject_Add(cm-emu
       GIT_REPOSITORY    ${DEFAULT_CM_EMU_SOURCE_URL}
       GIT_TAG           f9d167edbcb995e713d5a8
@@ -42,14 +48,8 @@ if (DEFINED USE_DEFAULT_CM_EMU_SOURCE)
                         -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
       BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
     )
-  endif()
-elseif (DEFINED USE_LOCAL_CM_EMU_SOURCE)
-  if (DEFINED USE_CM_EMU_PREBUILT_PACKAGE)
-    message(FATAL_ERROR "Configuration failure : Using pre-built CM_EMU package with online-building of it")
-  endif()
-  if (MSVC)
-    message(FATAL_ERROR "Building of CM_EMU library is not supported under Windows environment")
-  else()
+  elseif (DEFINED USE_LOCAL_CM_EMU_SOURCE)
+    message(STATUS "CM_EMU library package will be built online with source codes from ${USE_LOCAL_CM_EMU_SOURCE}")
     ExternalProject_Add(cm-emu
       DOWNLOAD_COMMAND  ""
       SOURCE_DIR        ${USE_LOCAL_CM_EMU_SOURCE}
@@ -65,6 +65,8 @@ else()
   set(ACTUAL_CM_EMU_PREBUILT_PACKAGE ${DEFAULT_CM_EMU_PREBUILT_PACKAGE})
   if (DEFINED USE_CM_EMU_PREBUILT_PACKAGE)
     set(ACTUAL_CM_EMU_PREBUILT_PACKAGE ${USE_CM_EMU_PREBUILT_PACKAGE})
+  else()
+    message(STATUS "Neither of USE_DEFAULT_CM_EMU_SOURCE, USE_LOCAL_CM_EMU_SOURCE, USE_CM_EMU_PREBUILT_PACKAGE is set, using prebuilt libCM from ${DEFAULT_CM_EMU_PREBUILT_PACKAGE}")
   endif()
   file (MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
   ExternalProject_Add(cm-emu
@@ -94,7 +96,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 # Compilation option modification to prevent build termination caused by
 # warnings from CM-imported files
-if (MSVC)
+if (WIN32)
 string(REPLACE "/W4" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 else()
 string(REPLACE "-pedantic" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -124,7 +126,7 @@ install(DIRECTORY    ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install/include/libcm/cm
 )
 
 # Copy '.so' files to '$(INSTALL)/lib'
-if (MSVC)
+if (WIN32)
   install(DIRECTORY   ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install/lib/
           DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
           COMPONENT   libcmrt-libs
