@@ -20,6 +20,9 @@ else
 fi;
 
 InstallTBB () {
+  echo "InstallTBB called: " $TBB_INSTALLED
+  echo " INSTALL_LOCATION: " $INSTALL_LOCATION
+  echo " LOCATION: " $LOCATION
   if [ "$TBB_INSTALLED" = false ]; then
     mkdir -p $INSTALL_LOCATION
     cd $INSTALL_LOCATION
@@ -32,6 +35,12 @@ InstallTBB () {
 
     TBB_INSTALLED=true
   fi
+  export CP_TEST=/runtimes 
+  echo "CP_TEST: " $CP_TEST
+  echo "exiting InstallTBB(): " $TBB_INSTALLED
+  echo "TBBROOT: " $TBBROOT 
+  echo "LD_LIBRARY_PATH: " $LD_LIBRARY_PATH
+  ls $INSTALL_LOCATION/oneapi-tbb -la 
 }
 
 InstallIGFX () {
@@ -53,7 +62,7 @@ InstallIGFX () {
 }
 
 InstallCPURT () {
-  echo "Installing Intel OpenCL CPU Runtime..."
+  echo "CP Installing Intel OpenCL CPU Runtime..."
   echo "CPU Runtime version $CPU_TAG"
   mkdir -p $INSTALL_LOCATION
   cd $INSTALL_LOCATION
@@ -61,15 +70,20 @@ InstallCPURT () {
     echo "$INSTALL_LOCATION/oclcpu exists and will be removed!"
     rm -Rf $INSTALL_LOCATION/oclcpu;
   fi
+  echo "pre-python. INSTALL_LOCATION: " $INSTALL_LOCATION
+  echo "LOCATION: " $LOCATION 
   python3 $LOCATION/get_release.py intel/llvm $CPU_TAG \
     | grep -E ".*oclcpuexp.*tar.gz" \
     | wget -qi -
   mkdir oclcpu && tar -xf *.tar.gz -C oclcpu && rm *.tar.gz
+  echo "post-python"
   if [ -e $INSTALL_LOCATION/oclcpu/install.sh ]; then \
     bash -x $INSTALL_LOCATION/oclcpu/install.sh
   else
     echo  $INSTALL_LOCATION/oclcpu/x64/libintelocl.so > /etc/OpenCL/vendors/intel_oclcpu.icd
   fi
+  echo "post-installation. ldd"
+  ldd $INSTALL_LOCATION/oclcpu/x64/libintelocl.so
 }
 
 InstallFPGAEmu () {
