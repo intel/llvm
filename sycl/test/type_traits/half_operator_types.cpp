@@ -9,46 +9,89 @@
 
 #include <CL/sycl.hpp>
 
-template <typename T1, typename T_rtn> void check_half_math_operator_types() {
-  static_assert(std::is_same<decltype(T1(1) + sycl::half(1)), T_rtn>::value);
-  static_assert(std::is_same<decltype(T1(1) - sycl::half(1)), T_rtn>::value);
-  static_assert(std::is_same<decltype(T1(1) * sycl::half(1)), T_rtn>::value);
-  static_assert(std::is_same<decltype(T1(1) / sycl::half(1)), T_rtn>::value);
+template <typename T1, typename T_rtn>
+void check_half_math_operator_types(sycl::queue Queue) {
 
-  static_assert(std::is_same<decltype(sycl::half(1) + T1(1)), T_rtn>::value);
-  static_assert(std::is_same<decltype(sycl::half(1) - T1(1)), T_rtn>::value);
-  static_assert(std::is_same<decltype(sycl::half(1) * T1(1)), T_rtn>::value);
-  static_assert(std::is_same<decltype(sycl::half(1) / T1(1)), T_rtn>::value);
+  // Test on host
+  static_assert(std::is_same_v<decltype(T1(1) + sycl::half(1)), T_rtn>);
+  static_assert(std::is_same_v<decltype(T1(1) - sycl::half(1)), T_rtn>);
+  static_assert(std::is_same_v<decltype(T1(1) * sycl::half(1)), T_rtn>);
+  static_assert(std::is_same_v<decltype(T1(1) / sycl::half(1)), T_rtn>);
+
+  static_assert(std::is_same_v<decltype(sycl::half(1) + T1(1)), T_rtn>);
+  static_assert(std::is_same_v<decltype(sycl::half(1) - T1(1)), T_rtn>);
+  static_assert(std::is_same_v<decltype(sycl::half(1) * T1(1)), T_rtn>);
+  static_assert(std::is_same_v<decltype(sycl::half(1) / T1(1)), T_rtn>);
+
+  // Test on device
+  Queue.submit([&](sycl::handler &cgh) {
+    cgh.single_task([=] {
+      static_assert(std::is_same_v<decltype(T1(1) + sycl::half(1)), T_rtn>);
+      static_assert(std::is_same_v<decltype(T1(1) - sycl::half(1)), T_rtn>);
+      static_assert(std::is_same_v<decltype(T1(1) * sycl::half(1)), T_rtn>);
+      static_assert(std::is_same_v<decltype(T1(1) / sycl::half(1)), T_rtn>);
+
+      static_assert(std::is_same_v<decltype(sycl::half(1) + T1(1)), T_rtn>);
+      static_assert(std::is_same_v<decltype(sycl::half(1) - T1(1)), T_rtn>);
+      static_assert(std::is_same_v<decltype(sycl::half(1) * T1(1)), T_rtn>);
+      static_assert(std::is_same_v<decltype(sycl::half(1) / T1(1)), T_rtn>);
+    });
+  });
 }
 
-template <typename T1> void check_half_logical_operator_types() {
-  static_assert(std::is_same<decltype(T1(1) == sycl::half(1)), bool>::value);
-  static_assert(std::is_same<decltype(T1(1) != sycl::half(1)), bool>::value);
-  static_assert(std::is_same<decltype(T1(1) > sycl::half(1)), bool>::value);
-  static_assert(std::is_same<decltype(T1(1) < sycl::half(1)), bool>::value);
-  static_assert(std::is_same<decltype(T1(1) <= sycl::half(1)), bool>::value);
-  static_assert(std::is_same<decltype(T1(1) <= sycl::half(1)), bool>::value);
+template <typename T1>
+void check_half_logical_operator_types(sycl::queue Queue) {
 
-  static_assert(std::is_same<decltype(sycl::half(1) == T1(1)), bool>::value);
-  static_assert(std::is_same<decltype(sycl::half(1) != T1(1)), bool>::value);
-  static_assert(std::is_same<decltype(sycl::half(1) > T1(1)), bool>::value);
-  static_assert(std::is_same<decltype(sycl::half(1) < T1(1)), bool>::value);
-  static_assert(std::is_same<decltype(sycl::half(1) <= T1(1)), bool>::value);
-  static_assert(std::is_same<decltype(sycl::half(1) <= T1(1)), bool>::value);
+  // Test on host
+  static_assert(std::is_same_v<decltype(T1(1) == sycl::half(1)), bool>);
+  static_assert(std::is_same_v<decltype(T1(1) != sycl::half(1)), bool>);
+  static_assert(std::is_same_v<decltype(T1(1) > sycl::half(1)), bool>);
+  static_assert(std::is_same_v<decltype(T1(1) < sycl::half(1)), bool>);
+  static_assert(std::is_same_v<decltype(T1(1) <= sycl::half(1)), bool>);
+  static_assert(std::is_same_v<decltype(T1(1) <= sycl::half(1)), bool>);
+
+  static_assert(std::is_same_v<decltype(sycl::half(1) == T1(1)), bool>);
+  static_assert(std::is_same_v<decltype(sycl::half(1) != T1(1)), bool>);
+  static_assert(std::is_same_v<decltype(sycl::half(1) > T1(1)), bool>);
+  static_assert(std::is_same_v<decltype(sycl::half(1) < T1(1)), bool>);
+  static_assert(std::is_same_v<decltype(sycl::half(1) <= T1(1)), bool>);
+  static_assert(std::is_same_v<decltype(sycl::half(1) <= T1(1)), bool>);
+
+  // Test on device
+  Queue.submit([&](sycl::handler &cgh) {
+    cgh.single_task([=] {
+      static_assert(std::is_same_v<decltype(T1(1) == sycl::half(1)), bool>);
+      static_assert(std::is_same_v<decltype(T1(1) != sycl::half(1)), bool>);
+      static_assert(std::is_same_v<decltype(T1(1) > sycl::half(1)), bool>);
+      static_assert(std::is_same_v<decltype(T1(1) < sycl::half(1)), bool>);
+      static_assert(std::is_same_v<decltype(T1(1) <= sycl::half(1)), bool>);
+      static_assert(std::is_same_v<decltype(T1(1) <= sycl::half(1)), bool>);
+
+      static_assert(std::is_same_v<decltype(sycl::half(1) == T1(1)), bool>);
+      static_assert(std::is_same_v<decltype(sycl::half(1) != T1(1)), bool>);
+      static_assert(std::is_same_v<decltype(sycl::half(1) > T1(1)), bool>);
+      static_assert(std::is_same_v<decltype(sycl::half(1) < T1(1)), bool>);
+      static_assert(std::is_same_v<decltype(sycl::half(1) <= T1(1)), bool>);
+      static_assert(std::is_same_v<decltype(sycl::half(1) <= T1(1)), bool>);
+    });
+  });
 }
 
 int main() {
-  check_half_math_operator_types<sycl::half, sycl::half>();
-  check_half_math_operator_types<double, double>();
-  check_half_math_operator_types<float, float>();
-  check_half_math_operator_types<int, sycl::half>();
-  check_half_math_operator_types<long, sycl::half>();
-  check_half_math_operator_types<long long, sycl::half>();
 
-  check_half_logical_operator_types<sycl::half>();
-  check_half_logical_operator_types<double>();
-  check_half_logical_operator_types<float>();
-  check_half_logical_operator_types<int>();
-  check_half_logical_operator_types<long>();
-  check_half_logical_operator_types<long long>();
+  sycl::queue Queue;
+
+  check_half_math_operator_types<sycl::half, sycl::half>(Queue);
+  check_half_math_operator_types<double, double>(Queue);
+  check_half_math_operator_types<float, float>(Queue);
+  check_half_math_operator_types<int, sycl::half>(Queue);
+  check_half_math_operator_types<long, sycl::half>(Queue);
+  check_half_math_operator_types<long long, sycl::half>(Queue);
+
+  check_half_logical_operator_types<sycl::half>(Queue);
+  check_half_logical_operator_types<double>(Queue);
+  check_half_logical_operator_types<float>(Queue);
+  check_half_logical_operator_types<int>(Queue);
+  check_half_logical_operator_types<long>(Queue);
+  check_half_logical_operator_types<long long>(Queue);
 }

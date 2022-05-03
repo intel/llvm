@@ -386,81 +386,76 @@ public:
     operator--();
     return ret;
   }
-  constexpr half &operator-() {
-    Data = -Data;
-    return *this;
-  }
-  constexpr half operator-() const {
-    half r = *this;
-    return -r;
+  __SYCL_CONSTEXPR_HALF friend half operator-(const half other) {
+    return half(-other.Data);
   }
 
 // Operator +, -, *, /
 #define OP(op, op_eq)                                                          \
-  __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
-                                                const half &rhs) {             \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const half lhs,                \
+                                                const half rhs) {              \
     half rtn = lhs;                                                            \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend double operator op(const half &lhs,             \
-                                                  const double &rhs) {         \
+  __SYCL_CONSTEXPR_HALF friend double operator op(const half lhs,              \
+                                                  const double rhs) {          \
     double rtn = lhs;                                                          \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend double operator op(const double &lhs,           \
-                                                  const half &rhs) {           \
-    double rtn = rhs;                                                          \
-    rtn op_eq lhs;                                                             \
+  __SYCL_CONSTEXPR_HALF friend double operator op(const double lhs,            \
+                                                  const half rhs) {            \
+    double rtn = lhs;                                                          \
+    rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend float operator op(const half &lhs,              \
-                                                 const float &rhs) {           \
+  __SYCL_CONSTEXPR_HALF friend float operator op(const half lhs,               \
+                                                 const float rhs) {            \
     float rtn = lhs;                                                           \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend float operator op(const float &lhs,             \
-                                                 const half &rhs) {            \
-    float rtn = rhs;                                                           \
-    rtn op_eq lhs;                                                             \
+  __SYCL_CONSTEXPR_HALF friend float operator op(const float lhs,              \
+                                                 const half rhs) {             \
+    float rtn = lhs;                                                           \
+    rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
-                                                const int &rhs) {              \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const half lhs,                \
+                                                const int rhs) {               \
     half rtn = lhs;                                                            \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend half operator op(const int &lhs,                \
-                                                const half &rhs) {             \
-    half rtn = rhs;                                                            \
-    rtn op_eq lhs;                                                             \
-    return rtn;                                                                \
-  }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
-                                                const long &rhs) {             \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const int lhs,                 \
+                                                const half rhs) {              \
     half rtn = lhs;                                                            \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend half operator op(const long &lhs,               \
-                                                const half &rhs) {             \
-    half rtn = rhs;                                                            \
-    rtn op_eq lhs;                                                             \
-    return rtn;                                                                \
-  }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
-                                                const long long &rhs) {        \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const half lhs,                \
+                                                const long rhs) {              \
     half rtn = lhs;                                                            \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
-  __SYCL_CONSTEXPR_HALF friend half operator op(const long long &lhs,          \
-                                                const half &rhs) {             \
-    half rtn = rhs;                                                            \
-    rtn op_eq lhs;                                                             \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const long lhs,                \
+                                                const half rhs) {              \
+    half rtn = lhs;                                                            \
+    rtn op_eq rhs;                                                             \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const half lhs,                \
+                                                const long long rhs) {         \
+    half rtn = lhs;                                                            \
+    rtn op_eq rhs;                                                             \
+    return rtn;                                                                \
+  }                                                                            \
+  __SYCL_CONSTEXPR_HALF friend half operator op(const long long lhs,           \
+                                                const half rhs) {              \
+    half rtn = lhs;                                                            \
+    rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
@@ -471,8 +466,8 @@ public:
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const unsigned int &lhs,       \
                                                 const half &rhs) {             \
-    half rtn = rhs;                                                            \
-    rtn op_eq lhs;                                                             \
+    half rtn = lhs;                                                            \
+    rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
@@ -483,8 +478,8 @@ public:
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const unsigned long &lhs,      \
                                                 const half &rhs) {             \
-    half rtn = rhs;                                                            \
-    rtn op_eq lhs;                                                             \
+    half rtn = lhs;                                                            \
+    rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(                               \
@@ -495,8 +490,8 @@ public:
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const unsigned long long &lhs, \
                                                 const half &rhs) {             \
-    half rtn = rhs;                                                            \
-    rtn op_eq lhs;                                                             \
+    half rtn = lhs;                                                            \
+    rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }
   OP(+, +=)
