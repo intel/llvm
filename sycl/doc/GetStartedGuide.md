@@ -117,7 +117,7 @@ You can use the following flags with `configure.py` (full list of available
 flags can be found by launching the script with `--help`):
 
 * `--system-ocl` -> Don't download OpenCL headers and library via CMake but use the system ones
-* `--no-werror` -> Don't treat warnings as errors when compiling llvm
+* `--werror` -> treat warnings as errors when compiling LLVM
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
