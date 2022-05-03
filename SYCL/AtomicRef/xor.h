@@ -136,10 +136,6 @@ template <access::address_space space, typename T,
 void xor_test_scopes(queue q) {
   std::vector<memory_scope> scopes =
       q.get_device().get_info<info::device::atomic_memory_scope_capabilities>();
-  if (std::find(scopes.begin(), scopes.end(), memory_scope::system) !=
-      scopes.end()) {
-    xor_test<space, T, order, memory_scope::system>(q);
-  }
   if (std::find(scopes.begin(), scopes.end(), memory_scope::work_group) !=
       scopes.end()) {
     xor_test<space, T, order, memory_scope::work_group>(q);

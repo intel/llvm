@@ -138,10 +138,6 @@ template <access::address_space space, typename T,
 void exchange_test_scopes(queue q, size_t N) {
   std::vector<memory_scope> scopes =
       q.get_device().get_info<info::device::atomic_memory_scope_capabilities>();
-  if (std::find(scopes.begin(), scopes.end(), memory_scope::system) !=
-      scopes.end()) {
-    exchange_test<space, T, order, memory_scope::system>(q, N);
-  }
   if (std::find(scopes.begin(), scopes.end(), memory_scope::work_group) !=
       scopes.end()) {
     exchange_test<space, T, order, memory_scope::work_group>(q, N);
