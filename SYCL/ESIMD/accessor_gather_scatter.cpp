@@ -126,5 +126,7 @@ int main(void) {
   passed &= test<int, 16, 1>(q);
   passed &= test<float, 8, 2>(q);
   passed &= test<float, 16, 1>(q);
+  passed &= test<float, 32, 1>(q);
+  passed &= test<float, 32, 4>(q);
   return passed ? 0 : 1;
 }
