@@ -703,7 +703,7 @@ void *Slab::getEnd() const {
 bool Slab::hasAvail() { return NumAllocated != getNumChunks(); }
 
 // If a slab was available in the pool then note that the current pooled
-// size has reduced by the size of this slab.
+// size has reduced by the size of a slab in this bucket.
 void Bucket::decrementPool(bool &FromPool) {
   FromPool = true;
   updateStats(1, -1);
