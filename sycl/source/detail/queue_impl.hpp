@@ -316,6 +316,10 @@ public:
       // queue property.
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
     }
+    if (MPropList
+	    .has_property<ext::oneapi::property::queue::lazy_execution>()) {
+      CreationFlags |= PI_QUEUE_LAZY_EXECUTION;
+    }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();

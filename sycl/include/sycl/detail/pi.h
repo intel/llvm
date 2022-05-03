@@ -569,6 +569,7 @@ constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_QUEUE_LAZY_EXECUTION = (1 << 11);
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
