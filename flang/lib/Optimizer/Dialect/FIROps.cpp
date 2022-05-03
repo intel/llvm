@@ -566,9 +566,11 @@ mlir::LogicalResult ArrayModifyOp::verify() {
 //===----------------------------------------------------------------------===//
 
 mlir::OpFoldResult fir::BoxAddrOp::fold(llvm::ArrayRef<mlir::Attribute> opnds) {
-  if (auto v = getVal().getDefiningOp()) {
-    if (auto box = dyn_cast<fir::EmboxOp>(v))
-      return box.getMemref();
+  if (auto *v = getVal().getDefiningOp()) {
+    if (auto box = dyn_cast<fir::EmboxOp>(v)) {
+      if (!box.getSlice()) // Fold only if not sliced
+        return box.getMemref();
+    }
     if (auto box = dyn_cast<fir::EmboxCharOp>(v))
       return box.getMemref();
   }
@@ -667,7 +669,7 @@ mlir::ParseResult fir::CallOp::parse(mlir::OpAsmParser &parser,
 }
 
 void fir::CallOp::build(mlir::OpBuilder &builder, mlir::OperationState &result,
-                        mlir::FuncOp callee, mlir::ValueRange operands) {
+                        mlir::func::FuncOp callee, mlir::ValueRange operands) {
   result.addOperands(operands);
   result.addAttribute(getCalleeAttrNameStr(), SymbolRefAttr::get(callee));
   result.addTypes(callee.getFunctionType().getResults());
@@ -1724,17 +1726,6 @@ void IterWhileOp::print(mlir::OpAsmPrinter &p) {
 
 mlir::Region &fir::IterWhileOp::getLoopBody() { return getRegion(); }
 
-bool fir::IterWhileOp::isDefinedOutsideOfLoop(mlir::Value value) {
-  return !getRegion().isAncestor(value.getParentRegion());
-}
-
-mlir::LogicalResult
-fir::IterWhileOp::moveOutOfLoop(llvm::ArrayRef<mlir::Operation *> ops) {
-  for (auto *op : ops)
-    op->moveBefore(*this);
-  return success();
-}
-
 mlir::BlockArgument fir::IterWhileOp::iterArgToBlockArg(mlir::Value iterArg) {
   for (auto i : llvm::enumerate(getInitArgs()))
     if (iterArg == i.value())
@@ -2021,17 +2012,6 @@ void DoLoopOp::print(mlir::OpAsmPrinter &p) {
 }
 
 mlir::Region &fir::DoLoopOp::getLoopBody() { return getRegion(); }
-
-bool fir::DoLoopOp::isDefinedOutsideOfLoop(mlir::Value value) {
-  return !getRegion().isAncestor(value.getParentRegion());
-}
-
-mlir::LogicalResult
-fir::DoLoopOp::moveOutOfLoop(llvm::ArrayRef<mlir::Operation *> ops) {
-  for (auto op : ops)
-    op->moveBefore(*this);
-  return success();
-}
 
 /// Translate a value passed as an iter_arg to the corresponding block
 /// argument in the body of the loop.
@@ -2423,10 +2403,9 @@ fir::SelectOp::getCompareOperands(llvm::ArrayRef<mlir::Value>, unsigned) {
   return {};
 }
 
-llvm::Optional<mlir::MutableOperandRange>
-fir::SelectOp::getMutableSuccessorOperands(unsigned oper) {
-  return ::getMutableSuccessorOperands(oper, getTargetArgsMutable(),
-                                       getTargetOffsetAttr());
+mlir::SuccessorOperands fir::SelectOp::getSuccessorOperands(unsigned oper) {
+  return mlir::SuccessorOperands(::getMutableSuccessorOperands(
+      oper, getTargetArgsMutable(), getTargetOffsetAttr()));
 }
 
 llvm::Optional<llvm::ArrayRef<mlir::Value>>
@@ -2484,10 +2463,9 @@ fir::SelectCaseOp::getCompareOperands(mlir::ValueRange operands,
   return {getSubOperands(cond, getSubOperands(1, operands, segments), a)};
 }
 
-llvm::Optional<mlir::MutableOperandRange>
-fir::SelectCaseOp::getMutableSuccessorOperands(unsigned oper) {
-  return ::getMutableSuccessorOperands(oper, getTargetArgsMutable(),
-                                       getTargetOffsetAttr());
+mlir::SuccessorOperands fir::SelectCaseOp::getSuccessorOperands(unsigned oper) {
+  return mlir::SuccessorOperands(::getMutableSuccessorOperands(
+      oper, getTargetArgsMutable(), getTargetOffsetAttr()));
 }
 
 llvm::Optional<llvm::ArrayRef<mlir::Value>>
@@ -2756,10 +2734,9 @@ fir::SelectRankOp::getCompareOperands(llvm::ArrayRef<mlir::Value>, unsigned) {
   return {};
 }
 
-llvm::Optional<mlir::MutableOperandRange>
-fir::SelectRankOp::getMutableSuccessorOperands(unsigned oper) {
-  return ::getMutableSuccessorOperands(oper, getTargetArgsMutable(),
-                                       getTargetOffsetAttr());
+mlir::SuccessorOperands fir::SelectRankOp::getSuccessorOperands(unsigned oper) {
+  return mlir::SuccessorOperands(::getMutableSuccessorOperands(
+      oper, getTargetArgsMutable(), getTargetOffsetAttr()));
 }
 
 llvm::Optional<llvm::ArrayRef<mlir::Value>>
@@ -2801,10 +2778,9 @@ fir::SelectTypeOp::getCompareOperands(llvm::ArrayRef<mlir::Value>, unsigned) {
   return {};
 }
 
-llvm::Optional<mlir::MutableOperandRange>
-fir::SelectTypeOp::getMutableSuccessorOperands(unsigned oper) {
-  return ::getMutableSuccessorOperands(oper, getTargetArgsMutable(),
-                                       getTargetOffsetAttr());
+mlir::SuccessorOperands fir::SelectTypeOp::getSuccessorOperands(unsigned oper) {
+  return mlir::SuccessorOperands(::getMutableSuccessorOperands(
+      oper, getTargetArgsMutable(), getTargetOffsetAttr()));
 }
 
 llvm::Optional<llvm::ArrayRef<mlir::Value>>
@@ -3336,14 +3312,15 @@ bool fir::isReferenceLike(mlir::Type type) {
          type.isa<fir::PointerType>();
 }
 
-mlir::FuncOp fir::createFuncOp(mlir::Location loc, mlir::ModuleOp module,
-                               StringRef name, mlir::FunctionType type,
-                               llvm::ArrayRef<mlir::NamedAttribute> attrs) {
-  if (auto f = module.lookupSymbol<mlir::FuncOp>(name))
+mlir::func::FuncOp
+fir::createFuncOp(mlir::Location loc, mlir::ModuleOp module, StringRef name,
+                  mlir::FunctionType type,
+                  llvm::ArrayRef<mlir::NamedAttribute> attrs) {
+  if (auto f = module.lookupSymbol<mlir::func::FuncOp>(name))
     return f;
   mlir::OpBuilder modBuilder(module.getBodyRegion());
   modBuilder.setInsertionPointToEnd(module.getBody());
-  auto result = modBuilder.create<mlir::FuncOp>(loc, name, type, attrs);
+  auto result = modBuilder.create<mlir::func::FuncOp>(loc, name, type, attrs);
   result.setVisibility(mlir::SymbolTable::Visibility::Private);
   return result;
 }
@@ -3359,7 +3336,7 @@ fir::GlobalOp fir::createGlobalOp(mlir::Location loc, mlir::ModuleOp module,
   return result;
 }
 
-bool fir::hasHostAssociationArgument(mlir::FuncOp func) {
+bool fir::hasHostAssociationArgument(mlir::func::FuncOp func) {
   if (auto allArgAttrs = func.getAllArgAttrs())
     for (auto attr : allArgAttrs)
       if (auto dict = attr.template dyn_cast_or_null<mlir::DictionaryAttr>())
@@ -3379,8 +3356,8 @@ bool fir::valueHasFirAttribute(mlir::Value value,
   // If this is a function argument, look in the argument attributes.
   if (auto blockArg = value.dyn_cast<mlir::BlockArgument>()) {
     if (blockArg.getOwner() && blockArg.getOwner()->isEntryBlock())
-      if (auto funcOp =
-              mlir::dyn_cast<mlir::FuncOp>(blockArg.getOwner()->getParentOp()))
+      if (auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(
+              blockArg.getOwner()->getParentOp()))
         if (funcOp.getArgAttr(blockArg.getArgNumber(), attributeName))
           return true;
     return false;
@@ -3409,7 +3386,7 @@ bool fir::valueHasFirAttribute(mlir::Value value,
   return false;
 }
 
-bool fir::anyFuncArgsHaveAttr(mlir::FuncOp func, llvm::StringRef attr) {
+bool fir::anyFuncArgsHaveAttr(mlir::func::FuncOp func, llvm::StringRef attr) {
   for (unsigned i = 0, end = func.getNumArguments(); i < end; ++i)
     if (func.getArgAttr(i, attr))
       return true;

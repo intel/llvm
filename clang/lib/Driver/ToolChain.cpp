@@ -154,6 +154,7 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
       {"cl", "--driver-mode=cl"},
       {"++", "--driver-mode=g++"},
       {"flang", "--driver-mode=flang"},
+      {"clang-dxc", "--driver-mode=dxc"},
   };
 
   for (size_t i = 0; i < llvm::array_lengthof(DriverSuffixes); ++i) {
@@ -1286,7 +1287,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       // improved upon
       auto SingleTargetTripleCount = [&Args](OptSpecifier Opt) {
         const Arg *TargetArg = Args.getLastArg(Opt);
-        if (TargetArg && TargetArg->getValues().size() == 1)
+        if (!TargetArg || TargetArg->getValues().size() == 1)
           return true;
         return false;
       };

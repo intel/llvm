@@ -4251,6 +4251,13 @@ static bool isCanonicalResultType(QualType T) {
 QualType
 ASTContext::getFunctionNoProtoType(QualType ResultTy,
                                    const FunctionType::ExtInfo &Info) const {
+  // FIXME: This assertion cannot be enabled (yet) because the ObjC rewriter
+  // functionality creates a function without a prototype regardless of
+  // language mode (so it makes them even in C++). Once the rewriter has been
+  // fixed, this assertion can be enabled again.
+  //assert(!LangOpts.requiresStrictPrototypes() &&
+  //       "strict prototypes are disabled");
+
   // Unique functions, to guarantee there is only one function of a particular
   // structure.
   llvm::FoldingSetNodeID ID;
@@ -6137,6 +6144,9 @@ ASTContext::getNameForTemplate(TemplateName Name,
     return DeclarationNameInfo(subst->getParameterPack()->getDeclName(),
                                NameLoc);
   }
+  case TemplateName::UsingTemplate:
+    return DeclarationNameInfo(Name.getAsUsingShadowDecl()->getDeclName(),
+                               NameLoc);
   }
 
   llvm_unreachable("bad template name kind!");
@@ -6145,6 +6155,7 @@ ASTContext::getNameForTemplate(TemplateName Name,
 TemplateName
 ASTContext::getCanonicalTemplateName(const TemplateName &Name) const {
   switch (Name.getKind()) {
+  case TemplateName::UsingTemplate:
   case TemplateName::QualifiedTemplate:
   case TemplateName::Template: {
     TemplateDecl *Template = Name.getAsTemplateDecl();
@@ -11254,7 +11265,7 @@ QualType ASTContext::GetBuiltinType(unsigned Id,
 
 
   // We really shouldn't be making a no-proto type here.
-  if (ArgTypes.empty() && Variadic && !getLangOpts().CPlusPlus)
+  if (ArgTypes.empty() && Variadic && !getLangOpts().requiresStrictPrototypes())
     return getFunctionNoProtoType(ResType, EI);
 
   FunctionProtoType::ExtProtoInfo EPI;
@@ -11351,7 +11362,7 @@ static GVALinkage adjustGVALinkageForAttributes(const ASTContext &Context,
     // name between the host and device compilation which is the same for the
     // same compilation unit whereas different among different compilation
     // units.
-    if (Context.shouldExternalizeStaticVar(D))
+    if (Context.shouldExternalize(D))
       return GVA_StrongExternal;
   } else if (Context.getLangOpts().SYCLIsDevice &&
              D->hasAttr<OpenCLKernelAttr>()) {
@@ -11916,6 +11927,23 @@ ASTContext::getMSGuidDecl(MSGuidDecl::Parts Parts) const {
   return New;
 }
 
+UnnamedGlobalConstantDecl *
+ASTContext::getUnnamedGlobalConstantDecl(QualType Ty,
+                                         const APValue &APVal) const {
+  llvm::FoldingSetNodeID ID;
+  UnnamedGlobalConstantDecl::Profile(ID, Ty, APVal);
+
+  void *InsertPos;
+  if (UnnamedGlobalConstantDecl *Existing =
+          UnnamedGlobalConstantDecls.FindNodeOrInsertPos(ID, InsertPos))
+    return Existing;
+
+  UnnamedGlobalConstantDecl *New =
+      UnnamedGlobalConstantDecl::Create(*this, Ty, APVal);
+  UnnamedGlobalConstantDecls.InsertNode(New, InsertPos);
+  return New;
+}
+
 TemplateParamObjectDecl *
 ASTContext::getTemplateParamObjectDecl(QualType T, const APValue &V) const {
   assert(T->isRecordType() && "template param object of unexpected type");
@@ -12301,7 +12329,7 @@ operator<<(const StreamingDiagnostic &DB,
   return DB << "a prior #pragma section";
 }
 
-bool ASTContext::mayExternalizeStaticVar(const Decl *D) const {
+bool ASTContext::mayExternalize(const Decl *D) const {
   bool IsStaticVar =
       isa<VarDecl>(D) && cast<VarDecl>(D)->getStorageClass() == SC_Static;
   bool IsExplicitDeviceVar = (D->hasAttr<CUDADeviceAttr>() &&
@@ -12309,14 +12337,16 @@ bool ASTContext::mayExternalizeStaticVar(const Decl *D) const {
                              (D->hasAttr<CUDAConstantAttr>() &&
                               !D->getAttr<CUDAConstantAttr>()->isImplicit());
   // CUDA/HIP: static managed variables need to be externalized since it is
-  // a declaration in IR, therefore cannot have internal linkage.
-  return IsStaticVar &&
-         (D->hasAttr<HIPManagedAttr>() || IsExplicitDeviceVar);
+  // a declaration in IR, therefore cannot have internal linkage. Kernels in
+  // anonymous name space needs to be externalized to avoid duplicate symbols.
+  return (IsStaticVar &&
+          (D->hasAttr<HIPManagedAttr>() || IsExplicitDeviceVar)) ||
+         (D->hasAttr<CUDAGlobalAttr>() && D->isInAnonymousNamespace());
 }
 
-bool ASTContext::shouldExternalizeStaticVar(const Decl *D) const {
-  return mayExternalizeStaticVar(D) &&
-         (D->hasAttr<HIPManagedAttr>() ||
+bool ASTContext::shouldExternalize(const Decl *D) const {
+  return mayExternalize(D) &&
+         (D->hasAttr<HIPManagedAttr>() || D->hasAttr<CUDAGlobalAttr>() ||
           CUDADeviceVarODRUsedByHost.count(cast<VarDecl>(D)));
 }
 

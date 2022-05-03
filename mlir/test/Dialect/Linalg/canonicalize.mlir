@@ -175,6 +175,24 @@ func @remove_no_op_mismatched_types(%arg0 : tensor<?x?x?xf32>)
 
 // -----
 
+#map = affine_map<() -> ()>
+func @cant_fold_to_tensor_cast(%arg0 : f32) -> tensor<f32> {
+  %out = linalg.init_tensor [] : tensor<f32>
+  %g = linalg.generic {
+    indexing_maps = [#map, #map],
+    iterator_types = []
+  } ins(%arg0 : f32)
+    outs(%out : tensor<f32>) {
+  ^bb0(%arg2 : f32, %arg3 : f32):
+    linalg.yield %arg2 : f32
+  } -> (tensor<f32>)
+  return %g : tensor<f32>
+}
+// CHECK-LABEL: func @cant_fold_to_tensor_cast
+//       CHECK:     linalg.generic
+
+// -----
+
 #map = affine_map<(d0, d1) -> (d0, d1)>
 func @keep_not_noop(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %c0 = arith.constant 0 : index
@@ -321,59 +339,6 @@ func @self_copy(%arg0 : memref<2x3x?x4xf32>) {
 
 //   CHECK: return
   return
-}
-
-// -----
-
-// CHECK-LABEL: func @fold_fill_generic_basic
-//  CHECK-SAME: (%[[ARG0:.*]]: tensor<?xf32>) -> tensor<?xf32> { 
-//   CHECK-NOT: linalg.fill
-//       CHECK: %[[GENERIC_OP:.*]] = linalg.generic
-//  CHECK-SAME: ins(%[[ARG0]] : tensor<?xf32>)
-//  CHECK-SAME: outs({{.*}} : tensor<?xf32>) {
-#map0 = affine_map<(d0) -> (d0)>
-func @fold_fill_generic_basic(%arg0: tensor<?xf32>) -> (tensor<?xf32>) {
-  %c0 = arith.constant 0 : index
-  %cst = arith.constant 7.0 : f32
-  %0 = tensor.dim %arg0, %c0 : tensor<?xf32>
-  %1 = linalg.init_tensor [%0] : tensor<?xf32>
-  %2 = linalg.fill ins(%cst : f32) outs(%1 : tensor<?xf32>) -> tensor<?xf32>
-  %3 = linalg.init_tensor [%0] : tensor<?xf32>
-  %4 = linalg.generic {indexing_maps = [#map0, #map0, #map0], iterator_types=["parallel"]} ins(%arg0, %2 : tensor<?xf32>, tensor<?xf32>) outs (%3:tensor<?xf32>) {
-  ^bb0(%arg1: f32, %arg2: f32, %arg3: f32):
-    %5 = arith.addf  %arg1, %arg2 : f32
-	linalg.yield %5 : f32
-  } -> tensor<?xf32>
-  return %4 : tensor<?xf32>
-}
-
-// -----
-
-// CHECK-LABEL: func @fold_fill_generic_mixedaccess
-//   CHECK-NOT: linalg.fill
-//       CHECK: %[[GENERIC_OP:.*]] = linalg.generic
-//   CHECK-NOT: ins
-//  CHECK-SAME: outs({{.*}} : tensor<?x?xf32>) {
-#map0 = affine_map<(d0, d1) -> (d0, d1)>
-#map1 = affine_map<(d0, d1) -> (d1, d0)>
-func @fold_fill_generic_mixedaccess(%arg0: tensor<?x?xf32>) -> (tensor<?x?xf32>) {
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 0 : index
-  %cst1 = arith.constant 7.0 : f32
-  %cst2 = arith.constant 6.0 : f32
-  %0 = tensor.dim %arg0, %c0 : tensor<?x?xf32>
-  %1 = tensor.dim %arg0, %c1 : tensor<?x?xf32>
-  %2 = linalg.init_tensor [%0, %1] : tensor<?x?xf32>
-  %3 = linalg.fill ins(%cst1 : f32) outs(%2 : tensor<?x?xf32>) -> tensor<?x?xf32>
-  %4 = linalg.init_tensor [%1, %0] : tensor<?x?xf32>
-  %5 = linalg.fill ins(%cst2 : f32) outs(%4 : tensor<?x?xf32>) -> tensor<?x?xf32>
-  %6 = linalg.init_tensor [%0, %1] : tensor<?x?xf32>
-  %7 = linalg.generic {indexing_maps = [#map0, #map1, #map0], iterator_types=["parallel","parallel"]} ins(%3, %5 : tensor<?x?xf32>, tensor<?x?xf32>) outs (%6:tensor<?x?xf32>) {
-  ^bb0(%arg1: f32, %arg2: f32, %arg3: f32):
-    %8 = arith.divf  %arg1, %arg2 : f32
-	linalg.yield %8 : f32
-  } -> tensor<?x?xf32>
-  return %7 : tensor<?x?xf32>
 }
 
 // -----

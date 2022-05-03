@@ -140,6 +140,11 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::SCEI, T.getVendor());
   EXPECT_EQ(Triple::PS4, T.getOS());
 
+  T = Triple("x86_64-sie-ps5");
+  EXPECT_EQ(Triple::x86_64, T.getArch());
+  EXPECT_EQ(Triple::SCEI, T.getVendor());
+  EXPECT_EQ(Triple::PS5, T.getOS());
+
   T = Triple("powerpc-ibm-aix");
   EXPECT_EQ(Triple::ppc, T.getArch());
   EXPECT_EQ(Triple::IBM, T.getVendor());
@@ -662,6 +667,42 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
   EXPECT_EQ(Triple::ShaderModel, T.getOS());
   EXPECT_EQ(Triple::Library, T.getEnvironment());
+
+  T = Triple("dxil-unknown-shadermodel-raygeneration");
+  EXPECT_EQ(Triple::dxil, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::ShaderModel, T.getOS());
+  EXPECT_EQ(Triple::RayGeneration, T.getEnvironment());
+
+  T = Triple("dxil-unknown-shadermodel-intersection");
+  EXPECT_EQ(Triple::dxil, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::ShaderModel, T.getOS());
+  EXPECT_EQ(Triple::Intersection, T.getEnvironment());
+
+  T = Triple("dxil-unknown-shadermodel-anyhit");
+  EXPECT_EQ(Triple::dxil, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::ShaderModel, T.getOS());
+  EXPECT_EQ(Triple::AnyHit, T.getEnvironment());
+
+  T = Triple("dxil-unknown-shadermodel-closesthit");
+  EXPECT_EQ(Triple::dxil, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::ShaderModel, T.getOS());
+  EXPECT_EQ(Triple::ClosestHit, T.getEnvironment());
+
+  T = Triple("dxil-unknown-shadermodel-miss");
+  EXPECT_EQ(Triple::dxil, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::ShaderModel, T.getOS());
+  EXPECT_EQ(Triple::Miss, T.getEnvironment());
+
+  T = Triple("dxil-unknown-shadermodel-callable");
+  EXPECT_EQ(Triple::dxil, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::ShaderModel, T.getOS());
+  EXPECT_EQ(Triple::Callable, T.getEnvironment());
   
   T = Triple("dxil-unknown-shadermodel-mesh");
   EXPECT_EQ(Triple::dxil, T.getArch());
@@ -958,11 +999,13 @@ TEST(TripleTest, BitWidthPredicates) {
   EXPECT_FALSE(T.isArch16Bit());
   EXPECT_TRUE(T.isArch32Bit());
   EXPECT_FALSE(T.isArch64Bit());
+  EXPECT_TRUE(T.isSPIRV());
 
   T.setArch(Triple::spirv64);
   EXPECT_FALSE(T.isArch16Bit());
   EXPECT_FALSE(T.isArch32Bit());
   EXPECT_TRUE(T.isArch64Bit());
+  EXPECT_TRUE(T.isSPIRV());
 
   T.setArch(Triple::sparc);
   EXPECT_FALSE(T.isArch16Bit());
@@ -1630,6 +1673,9 @@ TEST(TripleTest, FileFormat) {
   EXPECT_EQ(Triple::ELF, Triple("csky-unknown-unknown").getObjectFormat());
   EXPECT_EQ(Triple::ELF, Triple("csky-unknown-linux").getObjectFormat());
 
+  EXPECT_EQ(Triple::SPIRV, Triple("spirv32-unknown-unknown").getObjectFormat());
+  EXPECT_EQ(Triple::SPIRV, Triple("spirv64-unknown-unknown").getObjectFormat());
+
   EXPECT_EQ(Triple::ELF,
             Triple("loongarch32-unknown-unknown").getObjectFormat());
   EXPECT_EQ(Triple::ELF, Triple("loongarch64-unknown-linux").getObjectFormat());
@@ -1646,6 +1692,9 @@ TEST(TripleTest, FileFormat) {
   Triple CygwinNormalized(Triple::normalize("i686-pc-cygwin-elf"));
   EXPECT_EQ(Triple::ELF, CygwinNormalized.getObjectFormat());
 
+  EXPECT_EQ(Triple::DXContainer,
+            Triple("dxil-unknown-shadermodel").getObjectFormat());
+
   Triple T = Triple("");
   T.setObjectFormat(Triple::ELF);
   EXPECT_EQ(Triple::ELF, T.getObjectFormat());
@@ -1658,6 +1707,9 @@ TEST(TripleTest, FileFormat) {
 
   T.setObjectFormat(Triple::GOFF);
   EXPECT_EQ(Triple::GOFF, T.getObjectFormat());
+
+  T.setObjectFormat(Triple::SPIRV);
+  EXPECT_EQ(Triple::SPIRV, T.getObjectFormat());
 }
 
 TEST(TripleTest, NormalizeWindows) {

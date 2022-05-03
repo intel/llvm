@@ -52,7 +52,6 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/Coroutines.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
@@ -75,7 +74,7 @@ static cl::opt<bool> EnableNewPassManager(
     cl::desc("Enable the new pass manager, translating "
              "'opt -foo' to 'opt -passes=foo'. This is strictly for the new PM "
              "migration, use '-passes=' when possible."),
-    cl::init(LLVM_ENABLE_NEW_PASS_MANAGER));
+    cl::init(true));
 
 // This flag specifies a textual description of the optimization pass pipeline
 // to run over the module. This flag switches opt to use the new pass manager
@@ -249,11 +248,6 @@ static cl::opt<bool> DiscardValueNames(
     cl::desc("Discard names from Value (other than GlobalValue)."),
     cl::init(false), cl::Hidden);
 
-static cl::opt<bool> Coroutines(
-  "enable-coroutines",
-  cl::desc("Enable coroutine passes."),
-  cl::init(false), cl::Hidden);
-
 static cl::opt<bool> TimeTrace(
     "time-trace",
     cl::desc("Record time trace"));
@@ -370,9 +364,6 @@ static void AddOptimizationPasses(legacy::PassManagerBase &MPM,
 
   if (TM)
     TM->adjustPassManager(Builder);
-
-  if (Coroutines)
-    addCoroutinePassesToExtensionPoints(Builder);
 
   switch (PGOKindFlag) {
   case InstrGen:
@@ -541,7 +532,6 @@ int main(int argc, char **argv) {
   // Initialize passes
   PassRegistry &Registry = *PassRegistry::getPassRegistry();
   initializeCore(Registry);
-  initializeCoroutines(Registry);
   initializeScalarOpts(Registry);
   initializeObjCARCOpts(Registry);
   initializeVectorization(Registry);
@@ -581,6 +571,7 @@ int main(int argc, char **argv) {
   initializeJMCInstrumenterPass(Registry);
   initializeSYCLLowerWGScopeLegacyPassPass(Registry);
   initializeSYCLLowerESIMDLegacyPassPass(Registry);
+  initializeSYCLLowerInvokeSimdLegacyPassPass(Registry);
   initializeSPIRITTAnnotationsLegacyPassPass(Registry);
   initializeESIMDLowerLoadStorePass(Registry);
   initializeESIMDLowerVecArgLegacyPassPass(Registry);

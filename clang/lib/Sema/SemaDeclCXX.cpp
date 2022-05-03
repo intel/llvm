@@ -1893,7 +1893,7 @@ static bool CheckConstexprDeclStmt(Sema &SemaRef, const FunctionDecl *Dcl,
           if (Kind == Sema::CheckConstexprKind::Diagnose) {
             SemaRef.Diag(VD->getLocation(),
                          SemaRef.getLangOpts().CPlusPlus2b
-                             ? diag::warn_cxx20_compat_constexpr_static_var
+                             ? diag::warn_cxx20_compat_constexpr_var
                              : diag::ext_constexpr_static_var)
                 << isa<CXXConstructorDecl>(Dcl)
                 << (VD->getTLSKind() == VarDecl::TLS_Dynamic);
@@ -1901,11 +1901,17 @@ static bool CheckConstexprDeclStmt(Sema &SemaRef, const FunctionDecl *Dcl,
             return false;
           }
         }
-        if (!SemaRef.LangOpts.CPlusPlus2b &&
-            CheckLiteralType(SemaRef, Kind, VD->getLocation(), VD->getType(),
-                             diag::err_constexpr_local_var_non_literal_type,
-                             isa<CXXConstructorDecl>(Dcl)))
+        if (SemaRef.LangOpts.CPlusPlus2b) {
+          CheckLiteralType(SemaRef, Kind, VD->getLocation(), VD->getType(),
+                           diag::warn_cxx20_compat_constexpr_var,
+                           isa<CXXConstructorDecl>(Dcl),
+                           /*variable of non-literal type*/ 2);
+        } else if (CheckLiteralType(
+                       SemaRef, Kind, VD->getLocation(), VD->getType(),
+                       diag::err_constexpr_local_var_non_literal_type,
+                       isa<CXXConstructorDecl>(Dcl))) {
           return false;
+        }
         if (!VD->getType()->isDependentType() &&
             !VD->hasInit() && !VD->isCXXForRangeDecl()) {
           if (Kind == Sema::CheckConstexprKind::Diagnose) {
@@ -3444,7 +3450,7 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
           << SourceRange(D.getName().TemplateId->LAngleLoc,
                          D.getName().TemplateId->RAngleLoc)
           << D.getName().TemplateId->LAngleLoc;
-      D.SetIdentifier(Name.getAsIdentifierInfo(), Loc);
+      D.SetIdentifier(II, Loc);
     }
 
     if (SS.isSet() && !SS.isInvalid()) {
@@ -11049,6 +11055,8 @@ void Sema::CheckDeductionGuideDeclarator(Declarator &D, QualType &R,
       TemplateName SpecifiedName = RetTST.getTypePtr()->getTemplateName();
       bool TemplateMatches =
           Context.hasSameTemplateName(SpecifiedName, GuidedTemplate);
+      // FIXME: We should consider other template kinds (using, qualified),
+      // otherwise we will emit bogus diagnostics.
       if (SpecifiedName.getKind() == TemplateName::Template && TemplateMatches)
         AcceptableReturnType = true;
       else {
@@ -13377,7 +13385,8 @@ void Sema::CheckImplicitSpecialMemberDeclaration(Scope *S, FunctionDecl *FD) {
   R.resolveKind();
   R.suppressDiagnostics();
 
-  CheckFunctionDeclaration(S, FD, R, /*IsMemberSpecialization*/false);
+  CheckFunctionDeclaration(S, FD, R, /*IsMemberSpecialization*/ false,
+                           FD->isThisDeclarationADefinition());
 }
 
 void Sema::setupImplicitSpecialMemberType(CXXMethodDecl *SpecialMem,
@@ -13441,14 +13450,13 @@ CXXConstructorDecl *Sema::DeclareImplicitDefaultConstructor(
   DefaultCon->setAccess(AS_public);
   DefaultCon->setDefaulted();
 
-  if (getLangOpts().CUDA) {
+  setupImplicitSpecialMemberType(DefaultCon, Context.VoidTy, None);
+
+  if (getLangOpts().CUDA)
     inferCUDATargetForImplicitSpecialMember(ClassDecl, CXXDefaultConstructor,
                                             DefaultCon,
                                             /* ConstRHS */ false,
                                             /* Diagnose */ false);
-  }
-
-  setupImplicitSpecialMemberType(DefaultCon, Context.VoidTy, None);
 
   // We don't need to use SpecialMemberIsTrivial here; triviality for default
   // constructors is easy to compute.
@@ -13722,14 +13730,13 @@ CXXDestructorDecl *Sema::DeclareImplicitDestructor(CXXRecordDecl *ClassDecl) {
   Destructor->setAccess(AS_public);
   Destructor->setDefaulted();
 
-  if (getLangOpts().CUDA) {
+  setupImplicitSpecialMemberType(Destructor, Context.VoidTy, None);
+
+  if (getLangOpts().CUDA)
     inferCUDATargetForImplicitSpecialMember(ClassDecl, CXXDestructor,
                                             Destructor,
                                             /* ConstRHS */ false,
                                             /* Diagnose */ false);
-  }
-
-  setupImplicitSpecialMemberType(Destructor, Context.VoidTy, None);
 
   // We don't need to use SpecialMemberIsTrivial here; triviality for
   // destructors is easy to compute.
@@ -14362,14 +14369,13 @@ CXXMethodDecl *Sema::DeclareImplicitCopyAssignment(CXXRecordDecl *ClassDecl) {
   CopyAssignment->setDefaulted();
   CopyAssignment->setImplicit();
 
-  if (getLangOpts().CUDA) {
+  setupImplicitSpecialMemberType(CopyAssignment, RetType, ArgType);
+
+  if (getLangOpts().CUDA)
     inferCUDATargetForImplicitSpecialMember(ClassDecl, CXXCopyAssignment,
                                             CopyAssignment,
                                             /* ConstRHS */ Const,
                                             /* Diagnose */ false);
-  }
-
-  setupImplicitSpecialMemberType(CopyAssignment, RetType, ArgType);
 
   // Add the parameter to the operator.
   ParmVarDecl *FromParam = ParmVarDecl::Create(Context, CopyAssignment,
@@ -14697,14 +14703,13 @@ CXXMethodDecl *Sema::DeclareImplicitMoveAssignment(CXXRecordDecl *ClassDecl) {
   MoveAssignment->setDefaulted();
   MoveAssignment->setImplicit();
 
-  if (getLangOpts().CUDA) {
+  setupImplicitSpecialMemberType(MoveAssignment, RetType, ArgType);
+
+  if (getLangOpts().CUDA)
     inferCUDATargetForImplicitSpecialMember(ClassDecl, CXXMoveAssignment,
                                             MoveAssignment,
                                             /* ConstRHS */ false,
                                             /* Diagnose */ false);
-  }
-
-  setupImplicitSpecialMemberType(MoveAssignment, RetType, ArgType);
 
   // Add the parameter to the operator.
   ParmVarDecl *FromParam = ParmVarDecl::Create(Context, MoveAssignment,
@@ -15076,14 +15081,13 @@ CXXConstructorDecl *Sema::DeclareImplicitCopyConstructor(
   CopyConstructor->setAccess(AS_public);
   CopyConstructor->setDefaulted();
 
-  if (getLangOpts().CUDA) {
+  setupImplicitSpecialMemberType(CopyConstructor, Context.VoidTy, ArgType);
+
+  if (getLangOpts().CUDA)
     inferCUDATargetForImplicitSpecialMember(ClassDecl, CXXCopyConstructor,
                                             CopyConstructor,
                                             /* ConstRHS */ Const,
                                             /* Diagnose */ false);
-  }
-
-  setupImplicitSpecialMemberType(CopyConstructor, Context.VoidTy, ArgType);
 
   // During template instantiation of special member functions we need a
   // reliable TypeSourceInfo for the parameter types in order to allow functions
@@ -15216,14 +15220,13 @@ CXXConstructorDecl *Sema::DeclareImplicitMoveConstructor(
   MoveConstructor->setAccess(AS_public);
   MoveConstructor->setDefaulted();
 
-  if (getLangOpts().CUDA) {
+  setupImplicitSpecialMemberType(MoveConstructor, Context.VoidTy, ArgType);
+
+  if (getLangOpts().CUDA)
     inferCUDATargetForImplicitSpecialMember(ClassDecl, CXXMoveConstructor,
                                             MoveConstructor,
                                             /* ConstRHS */ false,
                                             /* Diagnose */ false);
-  }
-
-  setupImplicitSpecialMemberType(MoveConstructor, Context.VoidTy, ArgType);
 
   // Add the parameter to the constructor.
   ParmVarDecl *FromParam = ParmVarDecl::Create(Context, MoveConstructor,
@@ -17408,6 +17411,21 @@ void Sema::DiagnoseReturnInConstructorExceptionHandler(CXXTryStmt *TryBlock) {
   for (unsigned I = 0, E = TryBlock->getNumHandlers(); I != E; ++I) {
     CXXCatchStmt *Handler = TryBlock->getHandler(I);
     SearchForReturnInStmt(*this, Handler);
+  }
+}
+
+void Sema::SetFunctionBodyKind(Decl *D, SourceLocation Loc,
+                               FnBodyKind BodyKind) {
+  switch (BodyKind) {
+  case FnBodyKind::Delete:
+    SetDeclDeleted(D, Loc);
+    break;
+  case FnBodyKind::Default:
+    SetDeclDefaulted(D, Loc);
+    break;
+  case FnBodyKind::Other:
+    llvm_unreachable(
+        "Parsed function body should be '= delete;' or '= default;'");
   }
 }
 
