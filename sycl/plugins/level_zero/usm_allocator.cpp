@@ -414,13 +414,26 @@ class Bucket {
   // routines, slab map and etc.
   USMAllocContext::USMAllocImpl &OwnAllocCtx;
 
-  // For counting number of slabs in the pool.
-  // For non-chunked slabs each slab has a single allocation so the
-  // count of entries in the Available list gives the number in the pool.
-  // For chunked slabs there may be some chunks in use and others free.
-  // Only those with 0 chunks in use are consider in the pool.
-  // We need a separate counter of chunked slabs in pool because
-  // the length of the Available list is not enough in this case.
+  // For buckets used in chunked mode, a counter of slabs in the pool.
+  // 
+  // For allocations that use an entire slab each, the entries in the Available
+  // list are entries in the pool.Each slab is available for a new
+  // allocation.The size of the Available list is the size of the pool.
+  //
+  // For allocations that use slabs in chunked mode, slabs will be in the
+  // Available list if any one or more of their chunks is free.The entire slab
+  // is not necessarily free, just some chunks in the slab are free. To
+  // implement pooling we will allow one slab in the Available list to be
+  // entirely empty. Normally such a slab would have been freed from USM. But
+  // now we don't, and treat this slab as "in the pool".
+  //
+  // When a slab becomes entirely free we have to decide whether to return it to
+  // USM or keep it allocated. A simple check for size of the Available list is
+  // not sufficient to check whether any slab has been pooled yet.We would have
+  // to traverse the entire Available listand check if any of them is entirely
+  // free. Instead we keep a counter of entirely empty slabs within the
+  // Available list to speed up the process of checking if a slab in this bucket
+  // is already pooled.
   size_t chunkedSlabsInPool;
 
   // Statistics
@@ -447,6 +460,7 @@ public:
   // Get pointer to allocation that is a full slab in this bucket.
   void *getSlab(bool &FromPool);
 
+  // Return the allocation size of this bucket.
   size_t getSize() const { return Size; }
 
   // Free an allocation that is one piece of a slab in this bucket.
@@ -494,6 +508,8 @@ public:
 private:
   void onFreeChunk(Slab &, bool &ToPool);
 
+  // Update statistics of pool usage, and indicate that an allocation was made
+  // from the pool.
   void decrementPool(bool &FromPool);
 
   // Get a slab to be used for chunked allocations.
