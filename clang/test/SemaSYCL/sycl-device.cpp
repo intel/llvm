@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-host -fsyntax-only -verify -DHOST %s
 // RUN: %clang_cc1 -verify -DNO_SYCL %s
 
 #ifndef NO_SYCL
@@ -34,6 +35,11 @@ public:
 __attribute__((sycl_device)) int *func0() { return nullptr; }
 
 __attribute__((sycl_device)) void func2(int *) {}
+
+#elif defined(HOST)
+
+// expected-no-diagnostics
+__attribute__((sycl_device)) void func3() {}
 
 #else // NO_SYCL
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute ignored}}
