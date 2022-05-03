@@ -568,7 +568,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Device)->getHandleRef(),
-              ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+              ContextImpl->acquireCachedLibPrograms().get(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -1900,7 +1900,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Devs[0])->getHandleRef(),
-              ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+              ContextImpl->acquireCachedLibPrograms().get(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
