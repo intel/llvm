@@ -38,7 +38,7 @@ NOTE: This extension is experimental: interfaces are subject to change later.
 == Introduction
 
 This extension introduces an interface that enables a lazy execution and easy replay of a kernel graph by separating
-Its definition and execution. 
+its definition and execution.
 
 == Feature test macro
 
@@ -64,7 +64,7 @@ Table 2. Terminology.
 |Concept|Description
 |graph| Class that stores structured work units and their dependencies
 |node| The unit of work. Can have different attributes.
-|edge| Dependency between work units. Happens before relation.
+|edge| Dependency between work units. Happens-before relation.
 |===
 
 == Node
@@ -85,7 +85,7 @@ NOTE:
 
 == Edge
 
-A dependency between two nodes representing a happens before relationship. `sender` and `receiver` may be associated to different graphs.
+A dependency between two nodes representing a happens-before relationship. `sender` and `receiver` may be associated to different graphs.
 
 [source,c++]
 ----
@@ -119,7 +119,7 @@ namespace sycl::ext::oneapi::experimental {
   
   graph<graph_state::modifiable> make_graph();
   
-  graph<graph_state::modifiable> compile(const graph<graph_state::executable> Graph);
+  graph<graph_state::executable> compile(const graph<graph_state::modifiable> Graph);
   
 }
 
@@ -130,7 +130,7 @@ sycl::event sycl::queue(const graph<graph_state::executable> Graph);
 === Executable Graph
 
 A `graph` object in `graph_state::executable` represents a user generated device and context specific execution object that is submitted to a queue for execution.
-The structure of such a `graph` object in this state is immutable and can not be changed, so are the tasks assigned with each node.
+The structure of such a `graph` object in this state is immutable and cannot be changed, so are the tasks assigned with each node.
 Support of submitting a graph for execution, before a previous execution has been completed is backend specific. The runtime may throw an error.
 
 Table 3. Constructor of the `graph` class.
