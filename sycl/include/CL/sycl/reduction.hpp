@@ -143,7 +143,7 @@ std::enable_if_t<Extent != dynamic_extent &&
                      T, BinaryOperation, 1, Extent,
                      ext::oneapi::detail::default_reduction_algorithm<
                          true, access::placeholder::false_t, 1>>>
-reduction(span<T, Extent> Span, BinaryOperation,
+reduction(span<T, Extent>, BinaryOperation,
           const property_list &PropList = {}) {
   // TODO: implement reduction that works even when identity is not known.
   (void)PropList;
