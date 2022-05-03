@@ -19,6 +19,7 @@
 using namespace cl::sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel::experimental::esimd;
 
 #define LOCAL_SIZE 4
 #define GLOBAL_SIZE 6
@@ -68,11 +69,10 @@ void load_to_slm(uint grpSize, uint localId, uint slmOffset, char *addr,
     vOffsets += (grpSize * 256);
   }
 
-  esimd::fence(fence_mask::global_coherent_fence);
-  experimental::esimd::split_barrier(
-      experimental::esimd::split_barrier_action::signal);
-  experimental::esimd::split_barrier(
-      experimental::esimd::split_barrier_action::wait);
+  // add memory fence and split barriers
+  fence<fence_mask::global_coherent_fence>();
+  split_barrier<split_barrier_action::signal>();
+  split_barrier<split_barrier_action::wait>();
 }
 
 int main(void) {
@@ -115,7 +115,7 @@ int main(void) {
             uint globalID = ndi.get_global_id(0);
             uint groupID = ndi.get_group(0);
 
-            slm_init(1024);
+            slm_init<1024>();
 
             int grpMemOffset = groupID * groupSize * VL * 4;
 

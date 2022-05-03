@@ -60,7 +60,7 @@ int main() {
             auto compare = simd<int, SIMDSize>(id * SIMDSize, 1);
             auto swap = compare * 2;
 
-            slm_init(4096);
+            slm_init<4096>();
             lsc_slm_block_store<int, SIMDSize>(offset, data * 2);
             auto data_0 = lsc_slm_block_load<int, SIMDSize>(offset);
             lsc_block_store<int, SIMDSize>(access_0, offset, data_0);

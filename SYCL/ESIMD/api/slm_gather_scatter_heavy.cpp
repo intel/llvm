@@ -111,7 +111,7 @@ struct GatherKernel : KernelBase<T, VL, STRIDE> {
   static const char *get_name() { return "slm_gather"; }
 
   void operator()(nd_item<1> i) const SYCL_ESIMD_KERNEL {
-    slm_init(B::SLM_CHUNK_SIZE);
+    slm_init<B::SLM_CHUNK_SIZE>();
 
     // first, read data w/o shuffling into SLM
     simd<T, VL> val;
@@ -174,7 +174,7 @@ struct ScatterKernel : KernelBase<T, VL, STRIDE> {
   static const char *get_name() { return "slm_scatter"; }
 
   ESIMD_INLINE void operator()(nd_item<1> i) const SYCL_ESIMD_KERNEL {
-    slm_init(B::SLM_CHUNK_SIZE);
+    slm_init<B::SLM_CHUNK_SIZE>();
 
     // first, read data from memory into registers w/o shuffling
     simd<T, VL> val;
@@ -242,7 +242,7 @@ struct GatherKernel<T, 1, STRIDE, TEST_VECTOR_NO_MASK>
   static const char *get_name() { return "slm_gather_vl1"; }
 
   void operator()(nd_item<1> i) const SYCL_ESIMD_KERNEL {
-    slm_init(B::SLM_CHUNK_SIZE);
+    slm_init<B::SLM_CHUNK_SIZE>();
 
     // first, read data into SLM
     T val = scalar_load<T>(B::acc_in, B::get_wi_offset(i) * sizeof(T));
@@ -268,7 +268,7 @@ struct ScatterKernel<T, 1, STRIDE, TEST_VECTOR_NO_MASK>
   static const char *get_name() { return "slm_scatter_vl1"; }
 
   ESIMD_INLINE void operator()(nd_item<1> i) const SYCL_ESIMD_KERNEL {
-    slm_init(B::SLM_CHUNK_SIZE);
+    slm_init<B::SLM_CHUNK_SIZE>();
 
     // first, read data from memory into registers
     simd<T, 1> val;

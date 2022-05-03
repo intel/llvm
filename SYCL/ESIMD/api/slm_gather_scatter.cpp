@@ -21,9 +21,9 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
     using namespace sycl::ext::intel::esimd;
 
     // In this test, we have a single workitem. No barriers required.
-    slm_init(
-        VL * STRIDE *
-        sizeof(typename sycl::ext::intel::esimd::detail::dword_type<T>::type));
+    slm_init<VL * STRIDE *
+             sizeof(typename sycl::ext::intel::esimd::detail::dword_type<
+                    T>::type)>();
 
     simd<T, VL> valsIn;
     valsIn.copy_from(buf);

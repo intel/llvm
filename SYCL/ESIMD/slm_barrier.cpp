@@ -112,7 +112,7 @@ int main(void) {
             uint globalID = ndi.get_global_id(0);
             uint groupID = ndi.get_group(0);
 
-            slm_init(1024);
+            slm_init<1024>();
 
             int grpMemOffset = groupID * groupSize * VL * 4;
 

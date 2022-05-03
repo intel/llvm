@@ -28,7 +28,7 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
                                    uint32_t gid, uint32_t lid,
                                    uint32_t local_size, uint32_t num_blocks) {
   // Declare and initialize SLM
-  slm_init(SLM_SIZE);
+  slm_init<SLM_SIZE>();
   uint linear_id = gid * local_size + lid;
 
   simd<uint, 16> slm_offset(0, 1);

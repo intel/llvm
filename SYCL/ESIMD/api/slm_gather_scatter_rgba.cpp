@@ -32,7 +32,7 @@ template <typename T, unsigned VL, auto CH_MASK> struct Kernel {
     // In this test, each group consist of one workitem. No barriers required.
     // Each workitem accesses contiguous block of VL elements, where
     // each element consists of RGBA channels.
-    slm_init(VL * NUM_RGBA_CHANNELS * sizeof(T));
+    slm_init<VL * NUM_RGBA_CHANNELS * sizeof(T)>();
 
     // Prepare initial values in SLM:
     // 0, -1, -2, -3, -4 ...
