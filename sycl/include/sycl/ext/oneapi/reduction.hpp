@@ -2116,7 +2116,7 @@ void reduCGFuncImplArray(
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
-    std::index_sequence<Is...> ReduIndices) {
+    std::index_sequence<Is...>) {
   using ReductionPack = std::tuple<Reductions...>;
   (reduCGFuncImplArrayHelper<Pow2WG, IsOneWG,
                              std::tuple_element_t<Is, ReductionPack>>(
@@ -2419,7 +2419,7 @@ void reduAuxCGFuncImplArray(
     ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
-    std::index_sequence<Is...> ReduIndices) {
+    std::index_sequence<Is...>) {
   using ReductionPack = std::tuple<Reductions...>;
   (reduAuxCGFuncImplArrayHelper<UniformPow2WG, IsOneWG,
                                 std::tuple_element_t<Is, ReductionPack>>(
