@@ -8,72 +8,77 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+using namespace std;
+
+template <typename T1, typename T_rtn> void math_operator_helper() {
+  static_assert(
+      is_same_v<decltype(declval<T1>() + declval<sycl::half>()), T_rtn>);
+  static_assert(
+      is_same_v<decltype(declval<T1>() - declval<sycl::half>()), T_rtn>);
+  static_assert(
+      is_same_v<decltype(declval<T1>() * declval<sycl::half>()), T_rtn>);
+  static_assert(
+      is_same_v<decltype(declval<T1>() / declval<sycl::half>()), T_rtn>);
+
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() + declval<T1>()), T_rtn>);
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() - declval<T1>()), T_rtn>);
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() * declval<T1>()), T_rtn>);
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() / declval<T1>()), T_rtn>);
+}
+
+template <typename T1> void logical_operator_helper() {
+  static_assert(
+      is_same_v<decltype(declval<T1>() == declval<sycl::half>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<T1>() != declval<sycl::half>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<T1>() > declval<sycl::half>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<T1>() < declval<sycl::half>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<T1>() <= declval<sycl::half>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<T1>() >= declval<sycl::half>()), bool>);
+
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() == declval<T1>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() != declval<T1>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() > declval<T1>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() < declval<T1>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() <= declval<T1>()), bool>);
+  static_assert(
+      is_same_v<decltype(declval<sycl::half>() >= declval<T1>()), bool>);
+}
 
 template <typename T1, typename T_rtn>
-void check_half_math_operator_types(sycl::queue Queue) {
+void check_half_math_operator_types(sycl::queue &Queue) {
 
   // Test on host
-  static_assert(std::is_same_v<decltype(T1(1) + sycl::half(1)), T_rtn>);
-  static_assert(std::is_same_v<decltype(T1(1) - sycl::half(1)), T_rtn>);
-  static_assert(std::is_same_v<decltype(T1(1) * sycl::half(1)), T_rtn>);
-  static_assert(std::is_same_v<decltype(T1(1) / sycl::half(1)), T_rtn>);
-
-  static_assert(std::is_same_v<decltype(sycl::half(1) + T1(1)), T_rtn>);
-  static_assert(std::is_same_v<decltype(sycl::half(1) - T1(1)), T_rtn>);
-  static_assert(std::is_same_v<decltype(sycl::half(1) * T1(1)), T_rtn>);
-  static_assert(std::is_same_v<decltype(sycl::half(1) / T1(1)), T_rtn>);
+  math_operator_helper<T1, T_rtn>();
 
   // Test on device
   Queue.submit([&](sycl::handler &cgh) {
-    cgh.single_task([=] {
-      static_assert(std::is_same_v<decltype(T1(1) + sycl::half(1)), T_rtn>);
-      static_assert(std::is_same_v<decltype(T1(1) - sycl::half(1)), T_rtn>);
-      static_assert(std::is_same_v<decltype(T1(1) * sycl::half(1)), T_rtn>);
-      static_assert(std::is_same_v<decltype(T1(1) / sycl::half(1)), T_rtn>);
-
-      static_assert(std::is_same_v<decltype(sycl::half(1) + T1(1)), T_rtn>);
-      static_assert(std::is_same_v<decltype(sycl::half(1) - T1(1)), T_rtn>);
-      static_assert(std::is_same_v<decltype(sycl::half(1) * T1(1)), T_rtn>);
-      static_assert(std::is_same_v<decltype(sycl::half(1) / T1(1)), T_rtn>);
-    });
+    cgh.single_task([=] { math_operator_helper<T1, T_rtn>(); });
   });
 }
 
 template <typename T1>
-void check_half_logical_operator_types(sycl::queue Queue) {
+void check_half_logical_operator_types(sycl::queue &Queue) {
 
   // Test on host
-  static_assert(std::is_same_v<decltype(T1(1) == sycl::half(1)), bool>);
-  static_assert(std::is_same_v<decltype(T1(1) != sycl::half(1)), bool>);
-  static_assert(std::is_same_v<decltype(T1(1) > sycl::half(1)), bool>);
-  static_assert(std::is_same_v<decltype(T1(1) < sycl::half(1)), bool>);
-  static_assert(std::is_same_v<decltype(T1(1) <= sycl::half(1)), bool>);
-  static_assert(std::is_same_v<decltype(T1(1) <= sycl::half(1)), bool>);
-
-  static_assert(std::is_same_v<decltype(sycl::half(1) == T1(1)), bool>);
-  static_assert(std::is_same_v<decltype(sycl::half(1) != T1(1)), bool>);
-  static_assert(std::is_same_v<decltype(sycl::half(1) > T1(1)), bool>);
-  static_assert(std::is_same_v<decltype(sycl::half(1) < T1(1)), bool>);
-  static_assert(std::is_same_v<decltype(sycl::half(1) <= T1(1)), bool>);
-  static_assert(std::is_same_v<decltype(sycl::half(1) <= T1(1)), bool>);
+  logical_operator_helper<T1>();
 
   // Test on device
   Queue.submit([&](sycl::handler &cgh) {
-    cgh.single_task([=] {
-      static_assert(std::is_same_v<decltype(T1(1) == sycl::half(1)), bool>);
-      static_assert(std::is_same_v<decltype(T1(1) != sycl::half(1)), bool>);
-      static_assert(std::is_same_v<decltype(T1(1) > sycl::half(1)), bool>);
-      static_assert(std::is_same_v<decltype(T1(1) < sycl::half(1)), bool>);
-      static_assert(std::is_same_v<decltype(T1(1) <= sycl::half(1)), bool>);
-      static_assert(std::is_same_v<decltype(T1(1) <= sycl::half(1)), bool>);
-
-      static_assert(std::is_same_v<decltype(sycl::half(1) == T1(1)), bool>);
-      static_assert(std::is_same_v<decltype(sycl::half(1) != T1(1)), bool>);
-      static_assert(std::is_same_v<decltype(sycl::half(1) > T1(1)), bool>);
-      static_assert(std::is_same_v<decltype(sycl::half(1) < T1(1)), bool>);
-      static_assert(std::is_same_v<decltype(sycl::half(1) <= T1(1)), bool>);
-      static_assert(std::is_same_v<decltype(sycl::half(1) <= T1(1)), bool>);
-    });
+    cgh.single_task([=] { logical_operator_helper<T1>(); });
   });
 }
 
