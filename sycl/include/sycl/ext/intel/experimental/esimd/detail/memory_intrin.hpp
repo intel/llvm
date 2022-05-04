@@ -521,7 +521,7 @@ __esimd_emu_read_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr,
                  blkCount * Height * sycl::detail::getNextPowerOfTwo(Width);
         if ((yRead < 0) || (yRead >= SurfacePitch * SurfaceHeight)) {
           /// Vertically out-of-bound, skip corresponding vector elements
-          vecIdx += Width * elems_per_DW;;
+          vecIdx += Width * elems_per_DW;
           continue;
         }
 
