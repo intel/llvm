@@ -823,7 +823,7 @@ void Bucket::onFreeChunk(Slab &Slab, bool &ToPool) {
     // or freed from USM.
     if (!CanPool(ToPool)) {
       // Note: since the slab is stored as unique_ptr, just remove it from
-      // the list to remove the list to destroy the object
+      // the list to destroy the object.
       auto It = Slab.getIterator();
       assert(It != AvailableSlabs.end());
       AvailableSlabs.erase(It);
