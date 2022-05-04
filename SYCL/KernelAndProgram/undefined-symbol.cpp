@@ -1,8 +1,3 @@
-// because of problems getting GPU driver uplifted on GitHub Actions
-// this test both fails on GHA and passes on Jenkins.
-// Disabling it until this is sorted
-// REQUIRES: TEMPORARILY_DISABLED
-
 // XFAIL: cuda || hip
 
 // RUN: %clangxx -fsycl %s -o %t.out
