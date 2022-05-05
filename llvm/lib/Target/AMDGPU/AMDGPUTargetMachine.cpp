@@ -44,6 +44,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/GlobalOffset.h"
 #include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -382,6 +383,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeGCNPreRAOptimizationsPass(*PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
+  initializeGlobalOffsetPass(*PR);
   initializeLocalAccessorToSharedMemoryPass(*PR);
 }
 
@@ -1037,8 +1039,10 @@ void AMDGPUPassConfig::addIRPasses() {
     addEarlyCSEOrGVNPass();
 
   if (TM.getTargetTriple().getArch() == Triple::amdgcn &&
-      TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA)
+      TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA) {
     addPass(createLocalAccessorToSharedMemoryPass());
+    addPass(createGlobalOffsetPass());
+  }
 }
 
 void AMDGPUPassConfig::addCodeGenPrepare() {

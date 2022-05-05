@@ -6,29 +6,34 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass operates on SYCL kernels being compiled to CUDA. It looks for uses
-// of the `llvm.nvvm.implicit.offset` intrinsic and replaces it with a offset
-// parameter which will be threaded through from the kernel entry point.
+// This pass operates on SYCL kernels. It looks for uses of the
+// `llvm.{amdgcn|nvvm}.implicit.offset` intrinsic and replaces it with an
+// offset parameter which will be threaded through from the kernel entry point.
 //
 //===----------------------------------------------------------------------===//
 
-#include "GlobalOffset.h"
-
-#include "../MCTargetDesc/NVPTXBaseInfo.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/SYCLLowerIR/TargetHelpers.h"
 #include "llvm/Target/TargetIntrinsicInfo.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
 using namespace llvm;
+using namespace TargetHelpers;
 
 #define DEBUG_TYPE "globaloffset"
 
+#include "llvm/Support/CommandLine.h"
+static cl::opt<bool>
+    EnableGlobalOffset("enable-global-offset", cl::Hidden, cl::init(true),
+                       cl::desc("Enable SYCL global offset pass"));
 namespace llvm {
+ModulePass *createGlobalOffsetPass();
 void initializeGlobalOffsetPass(PassRegistry &);
 } // end namespace llvm
 
@@ -43,24 +48,35 @@ public:
     if (skipModule(M))
       return false;
 
-    llvm::Function *ImplicitOffsetIntrinsic =
-        M.getFunction(Intrinsic::getName(Intrinsic::nvvm_implicit_offset));
+    if (!EnableGlobalOffset)
+      return false;
+
+    AT = getArchType(M);
+    llvm::Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
+        AT == ArchType::Cuda ? Intrinsic::nvvm_implicit_offset
+                             : Intrinsic::amdgcn_implicit_offset));
 
     if (!ImplicitOffsetIntrinsic || ImplicitOffsetIntrinsic->use_empty()) {
       return false;
     }
 
+    // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
+    // happy with ADDRESS_SPACE_GENERIC (0).
+    TargetAS = AT == ArchType::Cuda ? 0 : 5;
     KernelImplicitArgumentType =
         ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
-    ImplicitOffsetPtrType = Type::getInt32Ty(M.getContext())->getPointerTo();
+    ImplicitOffsetPtrType =
+        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
     assert(
         (!ImplicitOffsetIntrinsic ||
          ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
-        "Intrinsic::nvvm_implicit_offset does not return the expected "
-        "type");
+        "Implicit offset intrinsic does not return the expected type");
 
-    // Find all entry points.
-    EntryPointMetadata = getEntryPointMetadata(M);
+    SmallVector<KernelPayload, 4> KernelPayloads;
+    populateKernels(M, KernelPayloads, AT);
+
+    // Validate kernels and populate entry map
+    EntryPointMetadata = validateKernels(M, KernelPayloads);
 
     // Add implicit parameters to all direct and indirect users of the offset
     addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
@@ -81,36 +97,41 @@ public:
     LLVMContext &Ctx = M.getContext();
     MDNode *FuncMetadata = EntryPointMetadata[Func];
 
-    bool AlreadyProcessed = ProcessedFunctions.count(Func) == 1;
-    if (AlreadyProcessed)
+    // Already processed.
+    if (ProcessedFunctions.count(Func) == 1)
       return;
 
     // Add the new argument to all other kernel entry points, despite not
     // using the global offset.
-    auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
-    assert(NvvmMetadata && "IR compiled to PTX must have nvvm.annotations");
+    auto *KernelMetadata = M.getNamedMetadata(getAnnotationString(AT).c_str());
+    assert(KernelMetadata && "IR compiled must have correct annotations");
 
-    auto NewFunc = addOffsetArgumentToFunction(
-                       M, Func, KernelImplicitArgumentType->getPointerTo(),
-                       /*KeepOriginal=*/true)
-                       .first;
+    auto *NewFunc = addOffsetArgumentToFunction(
+                        M, Func, KernelImplicitArgumentType->getPointerTo(),
+                        /*KeepOriginal=*/true)
+                        .first;
     Argument *NewArgument = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
-    // Pass the values by value to the kernel
-    NewArgument->addAttr(
-        Attribute::getWithByValType(Ctx, KernelImplicitArgumentType));
+    // Pass byval to the kernel for NVIDIA, AMD's calling convention disallows
+    // byval args, use byref.
+    auto Attr =
+        AT == ArchType::Cuda
+            ? Attribute::getWithByValType(Ctx, KernelImplicitArgumentType)
+            : Attribute::getWithByRefType(Ctx, KernelImplicitArgumentType);
+    NewArgument->addAttr(Attr);
 
     // Add the metadata.
     Metadata *NewMetadata[] = {ConstantAsMetadata::get(NewFunc),
                                FuncMetadata->getOperand(1),
                                FuncMetadata->getOperand(2)};
-    NvvmMetadata->addOperand(MDNode::get(Ctx, NewMetadata));
+    KernelMetadata->addOperand(MDNode::get(Ctx, NewMetadata));
 
     // Create alloca of zeros for the implicit offset in original func
     BasicBlock *EntryBlock = &Func->getEntryBlock();
     IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
     Type *ImplicitOffsetType =
         ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
-    AllocaInst *ImplicitOffset = Builder.CreateAlloca(ImplicitOffsetType);
+    AllocaInst *ImplicitOffset =
+        Builder.CreateAlloca(ImplicitOffsetType, TargetAS);
     uint64_t AllocByteSize =
         ImplicitOffset->getAllocationSizeInBits(M.getDataLayout()).getValue() /
         8;
@@ -166,7 +187,7 @@ public:
       if (!CallToOld)
         return;
 
-      auto Caller = CallToOld->getFunction();
+      auto *Caller = CallToOld->getFunction();
 
       // Determine if `Caller` needs processed or if this is another callsite
       // from an already-processed function.
@@ -193,7 +214,7 @@ public:
 
         // Replace call to other function (which now has a new parameter),
         // with a call including the new parameter to that same function.
-        auto NewCaller = CallInst::Create(
+        auto *NewCaller = CallInst::Create(
             /* Ty= */ CalleeWithImplicitParam->getFunctionType(),
             /* Func= */ CalleeWithImplicitParam,
             /* Args= */ ImplicitOffsets,
@@ -244,8 +265,7 @@ public:
     }
 
     // Add the offset argument. Must be the same type as returned by
-    // `llvm.nvvm.implicit.offset`.
-
+    // `llvm.{amdgcn|nvvm}.implicit.offset`.
     Arguments.push_back(ImplicitArgumentType);
     ArgumentAttributes.push_back(AttributeSet());
 
@@ -263,6 +283,8 @@ public:
     // Keep original function ordering.
     M.getFunctionList().insertAfter(Func->getIterator(), NewFunc);
 
+    Value *ImplicitOffset = nullptr;
+    bool ImplicitOffsetAllocaInserted = false;
     if (KeepOriginal) {
       // TODO: Are there better naming alternatives that allow for unmangling?
       NewFunc->setName(Func->getName() + "_with_offset");
@@ -278,6 +300,40 @@ public:
       SmallVector<ReturnInst *, 8> Returns;
       CloneFunctionInto(NewFunc, Func, VMap,
                         CloneFunctionChangeType::GlobalChanges, Returns);
+      // In order to keep the signatures of functions called by the kernel
+      // unified, the pass has to copy global offset to an array allocated in
+      // addrspace(3). This is done as kernels can't allocate and fill the
+      // array in constant address space, which would be required for the case
+      // with no global offset.
+      if (AT == ArchType::AMDHSA) {
+        BasicBlock *EntryBlock = &NewFunc->getEntryBlock();
+        IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
+        Type *ImplicitOffsetType =
+            ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
+        Value *OrigImplicitOffset =
+            NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
+        AllocaInst *ImplicitOffsetAlloca =
+            Builder.CreateAlloca(ImplicitOffsetType, TargetAS);
+        auto DL = M.getDataLayout();
+        uint64_t AllocByteSize =
+            ImplicitOffsetAlloca->getAllocationSizeInBits(DL).getValue() / 8;
+        // After AMD's kernel arg lowering pass runs the accesses to arguments
+        // are replaced with uses of kernarg.segment.ptr which is in
+        // addrspace(4), cast implicit offset arg to constant memory so the
+        // memcpy is issued into a correct address space.
+        auto OrigImplicitOffsetAS4 = Builder.CreateAddrSpaceCast(
+            OrigImplicitOffset,
+            Type::getInt8Ty(M.getContext())->getPointerTo(4));
+        Builder.CreateMemCpy(
+            ImplicitOffsetAlloca, ImplicitOffsetAlloca->getAlign(),
+            OrigImplicitOffsetAS4,
+            OrigImplicitOffsetAS4->getPointerAlignment(DL), AllocByteSize);
+        ImplicitOffset = ImplicitOffsetAlloca;
+        ImplicitArgumentType = ImplicitOffset->getType();
+        ImplicitOffsetAllocaInserted = true;
+      } else {
+        ImplicitOffset = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
+      }
     } else {
       NewFunc->copyAttributesFrom(Func);
       NewFunc->setComdat(Func->getComdat());
@@ -300,15 +356,23 @@ public:
       Func->getAllMetadata(MDs);
       for (auto MD : MDs)
         NewFunc->addMetadata(MD.first, *MD.second);
-    }
 
-    Value *ImplicitOffset = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
+      ImplicitOffset = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
+    }
+    assert(ImplicitOffset && "Value of implicit offset must be set.");
+
     // Add bitcast to match the return type of the intrinsic if needed.
     if (ImplicitArgumentType != ImplicitOffsetPtrType) {
       BasicBlock *EntryBlock = &NewFunc->getEntryBlock();
-      IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
-      ImplicitOffset =
-          Builder.CreateBitCast(ImplicitOffset, ImplicitOffsetPtrType);
+      // Make sure bitcast is inserted after alloca, if present.
+      BasicBlock::iterator InsertionPt =
+          ImplicitOffsetAllocaInserted
+              ? std::next(((AllocaInst *)ImplicitOffset)->getIterator())
+              : EntryBlock->getFirstInsertionPt();
+      IRBuilder<> Builder(EntryBlock, InsertionPt);
+      ImplicitOffset = Builder.CreateBitCast(
+          ImplicitOffset,
+          Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS));
     }
 
     ProcessedFunctions[NewFunc] = ImplicitOffset;
@@ -317,10 +381,8 @@ public:
     return {NewFunc, ImplicitOffset};
   }
 
-  static llvm::DenseMap<Function *, MDNode *> getEntryPointMetadata(Module &M) {
-    auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
-    assert(NvvmMetadata && "IR compiled to PTX must have nvvm.annotations");
-
+  static DenseMap<Function *, MDNode *>
+  validateKernels(Module &M, SmallVectorImpl<KernelPayload> &KernelPayloads) {
     SmallPtrSet<GlobalValue *, 8u> Used;
     SmallVector<GlobalValue *, 4> Vec;
     collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/false);
@@ -333,36 +395,18 @@ public:
       return !GV->hasOneUse() || !Used.count(GV);
     };
 
-    llvm::DenseMap<Function *, MDNode *> NvvmEntryPointMetadata;
-    for (auto MetadataNode : NvvmMetadata->operands()) {
-      if (MetadataNode->getNumOperands() != 3)
-        continue;
+    llvm::DenseMap<Function *, MDNode *> EntryPointMetadata;
+    for (auto &KP : KernelPayloads) {
+      if (HasUseOtherThanLLVMUsed(KP.Kernel))
+        llvm_unreachable("Kernel entry point can't have uses.");
 
-      // NVPTX identifies kernel entry points using metadata nodes of the form:
-      //   !X = !{<function>, !"kernel", i32 1}
-      auto Type = dyn_cast<MDString>(MetadataNode->getOperand(1));
-      // Only process kernel entry points.
-      if (!Type || Type->getString() != "kernel")
-        continue;
-
-      // Get a pointer to the entry point function from the metadata.
-      const auto &FuncOperand = MetadataNode->getOperand(0);
-      if (!FuncOperand)
-        continue;
-      auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
-      if (!FuncConstant)
-        continue;
-      auto Func = dyn_cast<Function>(FuncConstant->getValue());
-      if (!Func)
-        continue;
-
-      assert(!HasUseOtherThanLLVMUsed(Func) && "Kernel entry point with uses");
-      NvvmEntryPointMetadata[Func] = MetadataNode;
+      EntryPointMetadata[KP.Kernel] = KP.MD;
     }
-    return NvvmEntryPointMetadata;
+
+    return EntryPointMetadata;
   }
 
-  virtual llvm::StringRef getPassName() const {
+  virtual llvm::StringRef getPassName() const override {
     return "Add implicit SYCL global offset";
   }
 
@@ -373,6 +417,9 @@ private:
   llvm::DenseMap<Function *, MDNode *> EntryPointMetadata;
   llvm::Type *KernelImplicitArgumentType;
   llvm::Type *ImplicitOffsetPtrType;
+
+  TargetHelpers::ArchType AT;
+  unsigned TargetAS = 0;
 };
 
 } // end anonymous namespace

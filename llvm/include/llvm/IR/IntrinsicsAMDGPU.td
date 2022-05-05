@@ -2061,4 +2061,8 @@ def int_amdgcn_reloc_constant : Intrinsic<
   [llvm_i32_ty], [llvm_metadata_ty],
   [IntrNoMem, IntrSpeculatable, IntrWillReturn]
 >;
+
+// SYCL
+def int_amdgcn_implicit_offset : GCCBuiltin<"__builtin_amdgcn_implicit_offset">,
+  Intrinsic<[LLVMQualPointerType<llvm_i32_ty, 5>], [], [IntrNoMem, IntrSpeculatable]>;
 }
