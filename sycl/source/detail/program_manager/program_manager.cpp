@@ -567,8 +567,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Device)->getHandleRef(),
-              ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+              getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -779,13 +778,14 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
                               PI_INVALID_OPERATION);
 }
 
-static RT::PiProgram loadDeviceLibFallback(
-    const ContextImplPtr Context, DeviceLibExt Extension,
-    const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-        &CachedLibPrograms) {
+static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
+                                           DeviceLibExt Extension,
+                                           const RT::PiDevice &Device) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
+
+  auto LockedCache = Context->acquireCachedLibPrograms();
+  auto CachedLibPrograms = LockedCache.get();
   auto CacheResult = CachedLibPrograms.emplace(
       std::make_pair(std::make_pair(Extension, Device), nullptr));
   bool Cached = !CacheResult.second;
@@ -923,11 +923,9 @@ static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
   return ((DeviceLibReqMask & Mask) == Mask);
 }
 
-static std::vector<RT::PiProgram> getDeviceLibPrograms(
-    const ContextImplPtr Context, const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-        &CachedLibPrograms,
-    uint32_t DeviceLibReqMask) {
+static std::vector<RT::PiProgram>
+getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
+                     uint32_t DeviceLibReqMask) {
   std::vector<RT::PiProgram> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
@@ -975,21 +973,18 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
     bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
 
     if (!DeviceSupports || InhibitNativeImpl) {
-      Programs.push_back(
-          loadDeviceLibFallback(Context, Ext, Device, CachedLibPrograms));
+      Programs.push_back(loadDeviceLibFallback(Context, Ext, Device));
       FallbackIsLoaded = true;
     }
   }
   return Programs;
 }
 
-ProgramManager::ProgramPtr ProgramManager::build(
-    ProgramPtr Program, const ContextImplPtr Context,
-    const std::string &CompileOptions, const std::string &LinkOptions,
-    const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-        &CachedLibPrograms,
-    uint32_t DeviceLibReqMask) {
+ProgramManager::ProgramPtr
+ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
+                      const std::string &CompileOptions,
+                      const std::string &LinkOptions,
+                      const RT::PiDevice &Device, uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
@@ -1008,8 +1003,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   std::vector<RT::PiProgram> LinkPrograms;
   if (LinkDeviceLibs) {
-    LinkPrograms = getDeviceLibPrograms(Context, Device, CachedLibPrograms,
-                                        DeviceLibReqMask);
+    LinkPrograms = getDeviceLibPrograms(Context, Device, DeviceLibReqMask);
   }
 
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
@@ -1899,8 +1893,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Devs[0])->getHandleRef(),
-              ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+              getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 

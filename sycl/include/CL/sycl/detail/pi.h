@@ -117,6 +117,9 @@ typedef enum {
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
+  PI_PLUGIN_SPECIFIC_ERROR = -996, ///< PI_PLUGIN_SPECIFIC_ERROR indicates
+                                   ///< that an backend spcific error or
+                                   ///< warning has been emitted by the plugin.
   PI_COMMAND_EXECUTION_FAILURE =
       -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
             ///< during command enqueue or execution.
@@ -1795,6 +1798,18 @@ __SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 /// No PI calls should be made until the next piPluginInit call.
 /// \param PluginParameter placeholder for future use, currenly not used.
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
+
+/// API to get Plugin specific warning and error messages.
+/// \param message is a returned address to the first element in the message the
+/// plugin owns the error message string. The string is thread-local. As a
+/// result, different threads may return different errors. A message is
+/// overwritten by the following error or warning that is produced within the
+/// given thread. The memory is cleaned up at the end of the thread's lifetime.
+///
+/// \return PI_SUCCESS if plugin is indicating non-fatal warning. Any other
+/// error code indicates that plugin considers this to be a fatal error and the
+/// runtime must handle it or end the application.
+__SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
