@@ -1709,7 +1709,6 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_VERSION: {
     std::stringstream s;
-    s << "Compute Capability ";
     int major;
     cl::sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&major,
