@@ -798,6 +798,13 @@ __ESIMD_API void barrier() {
 /// @{
 
 /// Declare per-work-group slm size.
+/// @tparam SLMSize  Shared Local Memory (SLM) size
+template <uint32_t SLMSize> __ESIMD_API void slm_init() {
+  __esimd_slm_init(SLMSize);
+}
+
+/// Declare per-work-group slm size. Non-constant argument version to be used
+/// with specialization constants only.
 /// @param size  Shared Local Memory (SLM) size
 __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 

@@ -57,6 +57,24 @@ pi_result map_error(CUresult result) {
   }
 }
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+static void setErrorMessage(const char *message, pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result cuda_piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -4759,13 +4777,20 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
 
-// CUDA has an issue with cuMemPrefetchAsync returning cudaErrorInvalidDevice
-// for Windows machines
-// TODO: Remove when fix is found
-#ifdef _MSC_VER
-  cl::sycl::detail::pi::die(
-      "cuda_piextUSMEnqueuePrefetch does not currently work on Windows");
-#endif
+  // Certain cuda devices and Windows do not have support for some Unified
+  // Memory features. cuMemPrefetchAsync requires concurrent memory access
+  // for managed memory. Therfore, ignore prefetch hint if concurrent managed
+  // memory access is not available.
+  int isConcurrentManagedAccessAvailable = 0;
+  cuDeviceGetAttribute(&isConcurrentManagedAccessAvailable,
+                       CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS,
+                       queue->get_context()->get_device()->get());
+  if (!isConcurrentManagedAccessAvailable) {
+    setErrorMessage("Prefetch hint ignored as device does not support "
+                    "concurrent managed access",
+                    PI_SUCCESS);
+    return PI_PLUGIN_SPECIFIC_ERROR;
+  }
 
   // flags is currently unused so fail if set
   if (flags != 0)
@@ -5113,6 +5138,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
 
 #undef _PI_CL

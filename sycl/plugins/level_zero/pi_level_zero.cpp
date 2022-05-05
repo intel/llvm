@@ -589,6 +589,25 @@ inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
+
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
   zePrint("ZE ---> %s%s\n", ZeName, ZeArgs);
@@ -3375,24 +3394,30 @@ pi_result piQueueFinish(pi_queue Queue) {
     return PI_SUCCESS;
   }
 
+  std::unique_lock lock(Queue->Mutex);
   std::vector<ze_command_queue_handle_t> ZeQueues;
-  {
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock lock(Queue->Mutex);
 
-    // execute any command list that may still be open.
-    if (auto Res = Queue->executeAllOpenCommandLists())
-      return Res;
+  // execute any command list that may still be open.
+  if (auto Res = Queue->executeAllOpenCommandLists())
+    return Res;
 
-    // Make a copy of queues to sync and release the lock.
-    ZeQueues = Queue->CopyQueueGroup.ZeQueues;
-    std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
-              Queue->ComputeQueueGroup.ZeQueues.end(),
-              std::back_inserter(ZeQueues));
-  }
+  // Make a copy of queues to sync and release the lock.
+  ZeQueues = Queue->CopyQueueGroup.ZeQueues;
+  std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
+            Queue->ComputeQueueGroup.ZeQueues.end(),
+            std::back_inserter(ZeQueues));
 
   // Don't hold a lock to the queue's mutex while waiting.
   // This allows continue working with the queue from other threads.
+  // TODO: this currently exhibits some issues in the driver, so
+  // we control this with an env var. Remove this control when
+  // we settle one way or the other.
+  static bool HoldLock =
+      std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK") != nullptr;
+  if (!HoldLock) {
+    lock.unlock();
+  }
+
   for (auto ZeQueue : ZeQueues) {
     if (ZeQueue)
       ZE_CALL(zeHostSynchronize, (ZeQueue));
@@ -4636,18 +4661,31 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
     return PI_ERROR_UNKNOWN;
   }
 
-  // Update the refcount of the program and context to show it's used by this
-  // kernel.
+  PI_CALL((*RetKernel)->initialize());
+  return PI_SUCCESS;
+}
+
+pi_result _pi_kernel::initialize() {
+  // Retain the program and context to show it's used by this kernel.
   PI_CALL(piProgramRetain(Program));
   if (IndirectAccessTrackingEnabled)
     // TODO: do piContextRetain without the guard
     PI_CALL(piContextRetain(Program->Context));
 
   // Set up how to obtain kernel properties when needed.
-  (*RetKernel)->ZeKernelProperties.Compute =
-      [ZeKernel](ze_kernel_properties_t &Properties) {
-        ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
-      };
+  ZeKernelProperties.Compute = [this](ze_kernel_properties_t &Properties) {
+    ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
+  };
+
+  // Cache kernel name.
+  ZeKernelName.Compute = [this](std::string &Name) {
+    size_t Size = 0;
+    ZE_CALL_NOCHECK(zeKernelGetName, (ZeKernel, &Size, nullptr));
+    char *KernelName = new char[Size];
+    ZE_CALL_NOCHECK(zeKernelGetName, (ZeKernel, &Size, KernelName));
+    Name = KernelName;
+    delete[] KernelName;
+  };
 
   return PI_SUCCESS;
 }
@@ -4727,13 +4765,8 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
     try {
-      size_t Size = 0;
-      ZE_CALL(zeKernelGetName, (Kernel->ZeKernel, &Size, nullptr));
-      char *KernelName = new char[Size];
-      ZE_CALL(zeKernelGetName, (Kernel->ZeKernel, &Size, KernelName));
-      pi_result Res = ReturnValue(static_cast<const char *>(KernelName));
-      delete[] KernelName;
-      return Res;
+      std::string &KernelName = *Kernel->ZeKernelName.operator->();
+      return ReturnValue(static_cast<const char *>(KernelName.c_str()));
     } catch (const std::bad_alloc &) {
       return PI_OUT_OF_HOST_MEMORY;
     } catch (...) {
@@ -5086,20 +5119,7 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   auto ZeKernel = pi_cast<ze_kernel_handle_t>(NativeHandle);
   *Kernel = new _pi_kernel(ZeKernel, OwnNativeHandle, Program);
-
-  // Update the refcount of the program and context to show it's used by this
-  // kernel.
-  PI_CALL(piProgramRetain(Program));
-  if (IndirectAccessTrackingEnabled)
-    // TODO: do piContextRetain without the guard
-    PI_CALL(piContextRetain(Program->Context));
-
-  // Set up how to obtain kernel properties when needed.
-  (*Kernel)->ZeKernelProperties.Compute =
-      [ZeKernel](ze_kernel_properties_t &Properties) {
-        ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
-      };
-
+  PI_CALL((*Kernel)->initialize());
   return PI_SUCCESS;
 }
 

@@ -52,6 +52,8 @@ struct _pi_object {
   _pi_object() : RefCount{1} {}
 
   std::atomic<pi_uint32> RefCount;
+
+  virtual ~_pi_object() = default;
 };
 struct _pi_platform {
   _pi_platform() = default;
@@ -105,9 +107,28 @@ struct _pi_queue : _pi_object {
   cm_support::CmQueue *CmQueuePtr = nullptr;
 };
 
-struct _pi_mem : _pi_object {
-  _pi_mem() = default;
+struct cm_surface_ptr_t {
+  // 'UP' means 'User-Provided' in CM Lib - corresponding to
+  // Buffer/Image created with PI_MEM_FLAGS_HOST_PTR_USE option in
+  // SYCL
+  enum SurfaceType {
+    TypeNone,
+    TypeRegularBuffer,
+    TypeUserProvidedBuffer,
+    TypeRegularImage,
+    TypeUserProvidedImage
+  };
+  SurfaceType tag = TypeNone;
 
+  union {
+    cm_support::CmBuffer *RegularBufPtr = nullptr;
+    cm_support::CmBufferUP *UPBufPtr;
+    cm_support::CmSurface2D *RegularImgPtr;
+    cm_support::CmSurface2DUP *UPImgPtr;
+  };
+};
+
+struct _pi_mem : _pi_object {
   pi_context Context;
 
   // To be used for piEnqueueMemBufferMap
@@ -135,67 +156,35 @@ struct _pi_mem : _pi_object {
   // Supporing multi-threaded mapping/unmapping calls
   std::mutex MappingsMutex;
 
-  _pi_mem_type getMemType() const { return MemType; };
+  cm_surface_ptr_t SurfacePtr;
+
+  // Destructor for invoking buffer/image destory calls in CM Runtime
+  ~_pi_mem();
 
 protected:
-  _pi_mem(pi_context ctxt, char *HostPtr, _pi_mem_type MemTypeArg,
+  _pi_mem(pi_context ctxt, char *HostPtr, cm_surface_ptr_t SurfacePtrArg,
           unsigned int SurfaceIdxArg)
-      : Context{ctxt}, MapHostPtr{HostPtr},
-        SurfaceIndex{SurfaceIdxArg}, MemType{MemTypeArg} {}
-
-private:
-  _pi_mem_type MemType;
-};
-
-// TODO: Merge cm_buffer_ptr_slot and cm_image_ptr_slot into one
-// struct
-struct cm_buffer_ptr_slot {
-  // 'UP' means 'User-Provided' in CM Lib - corresponding to
-  // Host-created buffer in SYCL
-
-  enum type { type_none, type_regular, type_user_provided };
-  type tag = type_none;
-
-  union {
-    cm_support::CmBuffer *RegularBufPtr = nullptr;
-    cm_support::CmBufferUP *UPBufPtr;
-  };
-};
-
-struct cm_image_ptr_slot {
-  // 'UP' means 'User-Provided' in CM Lib - corresponding to
-  // Host-created image in SYCL
-
-  enum type { type_none, type_regular, type_user_provided };
-  type tag = type_none;
-
-  union {
-    cm_support::CmSurface2D *RegularImgPtr = nullptr;
-    cm_support::CmSurface2DUP *UPImgPtr;
-  };
+      : Context{ctxt}, MapHostPtr{HostPtr}, SurfaceIndex{SurfaceIdxArg},
+        SurfacePtr{SurfacePtrArg} {}
 };
 
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_context ctxt, char *HostPtr, cm_buffer_ptr_slot BufferPtrArg,
+  _pi_buffer(pi_context ctxt, char *HostPtr, cm_surface_ptr_t SurfacePtrArg,
              unsigned int SurfaceIdxArg, size_t SizeArg)
-      : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_BUFFER, SurfaceIdxArg),
-        BufferPtr{BufferPtrArg}, Size{SizeArg} {}
+      : _pi_mem(ctxt, HostPtr, SurfacePtrArg, SurfaceIdxArg), Size{SizeArg} {}
 
-  cm_buffer_ptr_slot BufferPtr;
   size_t Size;
 };
 
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context ctxt, char *HostPtr, cm_image_ptr_slot ImagePtrArg,
+  _pi_image(pi_context ctxt, char *HostPtr, cm_surface_ptr_t SurfacePtrArg,
             unsigned int SurfaceIdxArg, size_t WidthArg, size_t HeightArg,
             size_t BPPArg)
-      : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_IMAGE2D, SurfaceIdxArg),
-        ImagePtr(ImagePtrArg), Width{WidthArg}, Height{HeightArg},
-        BytesPerPixel{BPPArg} {}
+      : _pi_mem(ctxt, HostPtr, SurfacePtrArg, SurfaceIdxArg), Width{WidthArg},
+        Height{HeightArg}, BytesPerPixel{BPPArg} {}
 
-  cm_image_ptr_slot ImagePtr;
   size_t Width;
   size_t Height;
   size_t BytesPerPixel;
