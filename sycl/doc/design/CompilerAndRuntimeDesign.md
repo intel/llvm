@@ -662,7 +662,7 @@ expected by the SYCL.
 In order to emulate this and make generated kernel compliant, an intrinsic
 `llvm.nvvm.implicit.offset` (clang builtin `__builtin_ptx_implicit_offset`) was
 introduced materializing the use of this implicit parameter for the NVPTX
-backend. AMDGCN uses the same approach with `llvm.andgpu.implicit.offset` and
+backend. AMDGCN uses the same approach with `llvm.amdgpu.implicit.offset` and
 `__builtin_amdgcn_implicit_offset`. The intrinsic returns a pointer to `i32`
 referring to a 3 elements array.
 

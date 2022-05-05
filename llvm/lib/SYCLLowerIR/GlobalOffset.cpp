@@ -31,7 +31,7 @@ using namespace TargetHelpers;
 #include "llvm/Support/CommandLine.h"
 static cl::opt<bool>
     EnableGlobalOffset("enable-global-offset", cl::Hidden, cl::init(true),
-                       cl::desc("Enabel SYCL global offset pass"));
+                       cl::desc("Enable SYCL global offset pass"));
 namespace llvm {
 ModulePass *createGlobalOffsetPass();
 void initializeGlobalOffsetPass(PassRegistry &);
