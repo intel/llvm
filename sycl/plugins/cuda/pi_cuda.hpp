@@ -413,9 +413,10 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get_compute();
-  native_type get_transfer();
-  native_type get() { return get_compute(); };
+  // get_next_compute/transfer_stream() functions return streams from appropriate pools in round-robin fashion
+  native_type get_next_compute_stream();
+  native_type get_next_transfer_stream();
+  native_type get() { return get_next_compute_stream(); };
 
   template <typename T> void for_each_stream(T &&f) {
     unsigned int end =
