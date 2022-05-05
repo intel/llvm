@@ -14,9 +14,9 @@ void kernel(int *ptr) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, sizeof(int) * 4);
   simd<int, 32 * 4> v1(0, 1);
 
-  auto v0 = gather_rgba<int, 32, rgba_channel_mask::ABGR>(ptr, offsets);
+  auto v0 = gather_rgba<rgba_channel_mask::ABGR>(ptr, offsets);
 
   v0 = v0 + v1;
 
-  scatter_rgba<int, 32, rgba_channel_mask::ABGR>(ptr, offsets, v0);
+  scatter_rgba<rgba_channel_mask::ABGR>(ptr, offsets, v0);
 }

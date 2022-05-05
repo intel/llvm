@@ -691,6 +691,23 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+template <typename T, int N, __ESIMD_NS::rgba_channel_mask RGBAMask,
+          typename SurfIndAliasTy, int16_t Scale = 0>
+__ESIMD_INTRIN
+    __ESIMD_DNS::vector_type_t<T, N * get_num_channels_enabled(RGBAMask)>
+    __esimd_gather4_masked_scaled2(
+        SurfIndAliasTy surf_ind, uint32_t global_offset,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+        __ESIMD_DNS::simd_mask_storage_t<N> pred)
+#ifdef __SYCL_DEVICE_ONLY__
+        ;
+#else
+{
+  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  return {};
+}
+#endif
+
 // Reads a block of data from given surface at given offset, offset must be
 // 16-byte-aligned.
 template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
