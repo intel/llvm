@@ -915,6 +915,52 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals) {
                                               vals.data());
 }
 
+namespace detail {
+// Compile-time checks for lsc_load2d/store2d restrictions.
+template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
+          bool Transposed, bool Transformed, bool IsStore = false>
+constexpr void check_lsc_block_2d_restrictions() {
+  constexpr int GRFByteSize = BlockWidth * BlockHeight * NBlocks * sizeof(T);
+  static_assert(!IsStore || GRFByteSize <= 512,
+                "2D store supports 512 bytes max");
+  static_assert(IsStore || GRFByteSize <= 2048,
+                "2D load supports 2048 bytes max");
+  static_assert(!Transposed || !Transformed,
+                "Transposed and transformed is not supported");
+  static_assert(!Transposed || (Transposed && NBlocks == 1),
+                "Transposed expected to be 1 block only");
+  static_assert(!Transformed || (sizeof(T) == 1 || sizeof(T) == 2),
+                "VNNI transform is supported only for data size u8 or u16");
+  static_assert(!Transposed || (sizeof(T) == 4 || sizeof(T) == 8),
+                "Transposed load is supported only for data size u32 or u64");
+  if constexpr (Transposed) {
+    static_assert(sizeof(T) == 64 ? BlockHeight == 8
+                                  : BlockHeight >= 1 && BlockHeight <= 32,
+                  "Unsupported block height");
+    static_assert(sizeof(T) == 64 ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
+                                  : BlockWidth >= 1 && BlockWidth <= 8,
+                  "Unsupported block width");
+  } else if constexpr (Transformed) {
+    static_assert(__ESIMD_DNS::isPowerOf2(NBlocks, 4),
+                  "Unsupported number of blocks");
+    static_assert(BlockHeight * sizeof(T) >= 4 && BlockHeight <= 32,
+                  "Unsupported block height");
+    static_assert(BlockWidth * sizeof(T) >= 4 &&
+                      BlockWidth * NBlocks * sizeof(T) <= 64,
+                  "Unsupported block width");
+  } else {
+    static_assert(
+        __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
+        "Unsupported number of blocks");
+    static_assert(BlockHeight >= 1 && BlockHeight <= 32,
+                  "Unsupported block height");
+    static_assert(BlockWidth * sizeof(T) >= 4 &&
+                      BlockWidth * NBlocks * sizeof(T) <= 64,
+                  "Unsupported block width");
+  }
+}
+} // namespace detail
+
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
@@ -953,11 +999,9 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_load2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
            unsigned SurfacePitch, int X, int Y) {
-  static_assert(!Transposed || !Transformed,
-                "Transposed and transformed is not supported");
-  static_assert(!Transposed || (Transposed && NBlocks == 1),
-                "Transposed expected to be 1 block only");
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
+                                          Transposed, Transformed>();
   constexpr int ElemsPerDword = 4 / sizeof(T);
   constexpr int GRFRowSize = Transposed ? BlockHeight : BlockWidth;
   constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
@@ -971,12 +1015,6 @@ lsc_load2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
       "These parameters require unpadding. It is not implemented yet");
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
-  static_assert(!Transformed ||
-                    (DS == lsc_data_size::u8 || DS == lsc_data_size::u16),
-                "VNNI transform is supported only for data size U8 or U16");
-  static_assert(!Transposed ||
-                    (DS == lsc_data_size::u32 || DS == lsc_data_size::u64),
-                "Transposed load is supported only for data size u32 or u64");
   __ESIMD_NS::simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
@@ -1017,6 +1055,8 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
                                 unsigned SurfaceHeight, unsigned SurfacePitch,
                                 int X, int Y) {
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
+  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
+                                          false, false>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<N> pred = 1;
@@ -1060,6 +1100,8 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
                              unsigned SurfaceHeight, unsigned SurfacePitch,
                              int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
+  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, 1, false,
+                                          false, true /*IsStore*/>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<N> pred = 1;
