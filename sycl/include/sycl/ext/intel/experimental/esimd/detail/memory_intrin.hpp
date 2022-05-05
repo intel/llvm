@@ -276,7 +276,12 @@ constexpr int vectorIndexIncrement() {
 //
 // Not only generates address-align bitmask, but also checks
 // legitimacy of load/store operation with respect to vector size,
-// data size, and SIMT
+// data size
+/// @tparam Ty is element type.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 template <typename Ty, __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_ENS::lsc_data_size DS, int N>
 constexpr unsigned loadstoreAlignMask() {
@@ -313,7 +318,7 @@ constexpr unsigned loadstoreAlignMask() {
                        (VS == __ESIMD_EDNS::lsc_vector_size::n64)) {
     static_assert(
         (N == 1) &&
-        "Unsupported SIMT Size for __ESIMD_EDNS::lsc_vector_size = 16/32/64\n"
+        "Unsupported Size for __ESIMD_EDNS::lsc_vector_size = 16/32/64\n"
         "(loadstoreAlignMask)");
     // 0x3 for u32 / 0x7 for u64
     if constexpr (_DS == __ESIMD_ENS::lsc_data_size::u32)
@@ -341,7 +346,7 @@ auto __esimd_emu_lsc_offset_read(
 
   __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
 
-  constexpr int ElemCount = __ESIMD_EDNS::to_int<VS>();
+  constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
 
   for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
     if (Pred[OffsetIdx] == 0) {
@@ -355,8 +360,8 @@ auto __esimd_emu_lsc_offset_read(
     // ByteDistance : byte-distance from buffer-read base
     int ByteDistance = Offsets[OffsetIdx];
 
-    for (int ElemIdx = 0, VecIdx = OffsetIdx; ElemIdx < ElemCount; ElemIdx += 1,
-             ByteDistance += rawAddressIncrement<Ty, DS>(),
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
@@ -396,8 +401,6 @@ void __esimd_emu_lsc_offset_write(
                                              __ESIMD_ENS::lsc_data_size::u16u32,
                                          uint16_t, void>>>>>>;
 
-  constexpr int ElemCount = __ESIMD_EDNS::to_int<VS>();
-
   for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
     if (Pred[OffsetIdx] == 0) {
       // Skip input vector elements correpsonding to
@@ -409,9 +412,10 @@ void __esimd_emu_lsc_offset_write(
 
     // ByteDistance : byte-distance from buffer-write base
     int ByteDistance = Offsets[OffsetIdx];
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
 
-    for (int ElemIdx = 0, VecIdx = OffsetIdx; ElemIdx < ElemCount; ElemIdx += 1,
-             ByteDistance += rawAddressIncrement<Ty, DS>(),
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
@@ -423,6 +427,10 @@ void __esimd_emu_lsc_offset_write(
 
 /// Stateless-2d operations
 /// Template argument check for 2D-load/store
+/// @tparam T is element type.
+/// @tparam Width is width of block
+/// @tparam Height is height of block
+/// @tparam NBlks is Number of blocks
 template <typename T, int Width, int Height,
           __ESIMD_EDNS::lsc_data_order Transposed, bool Transformed, int NBlks,
           bool isStore>
@@ -649,7 +657,8 @@ void __esimd_emu_write_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @return is a vector of type T and size N * to_int<VS>()
@@ -664,13 +673,12 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
-
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
   return __esimd_emu_lsc_offset_read<Ty, AddressScale, ImmOffset, DS, VS,
-                                     _Transposed, N, MASK>(
+                                     _Transposed, N,
+                                     loadstoreAlignMask<Ty, VS, DS, N>()>(
       pred, offsets, I->__cm_emu_get_slm_ptr());
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -689,7 +697,8 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
@@ -708,7 +717,6 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
   char *readBase;
   uint32_t width;
   std::mutex *mutexLock;
@@ -721,8 +729,9 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   std::lock_guard<std::mutex> lock(*mutexLock);
 
   return __esimd_emu_lsc_offset_read<Ty, AddressScale, ImmOffset, DS, VS,
-                                     _Transposed, N, MASK>(pred, offsets,
-                                                           readBase, width);
+                                     _Transposed, N,
+                                     loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, readBase, width);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -740,7 +749,8 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param addrs is the load addresses.
 /// @return is a vector of type T and N * to_int<VS>()
@@ -760,10 +770,7 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   static_assert(ImmOffset == 0);
   static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
 
-  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
   __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
-
-  constexpr int ElemCount = __ESIMD_EDNS::to_int<VS>();
 
   for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
     if (pred[AddrIdx] == 0) {
@@ -772,15 +779,19 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
       continue;
     }
 
+    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
     int ByteDistance = 0;
+    uintptr_t BaseAddr = addrs[AddrIdx];
 
-    assert(((addrs[AddrIdx] & MASK)) == 0 && "Address Alignment Error!!");
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
 
-    for (int ElemIdx = 0, VecIdx = AddrIdx; ElemIdx < ElemCount; ElemIdx += 1,
-             ByteDistance += rawAddressIncrement<Ty, DS>(),
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
 
-      Output[VecIdx] = *((Ty *)(addrs[AddrIdx] + ByteDistance));
+      Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
     }
   }
   return Output;
@@ -800,7 +811,8 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
@@ -836,7 +848,8 @@ __esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
@@ -868,7 +881,8 @@ __esimd_lsc_prefetch_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @param vals is values to store.
@@ -884,14 +898,12 @@ __ESIMD_INTRIN void __esimd_lsc_store_slm(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
-
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
   __esimd_emu_lsc_offset_write<Ty, AddressScale, ImmOffset, DS, VS, _Transposed,
-                               N, MASK>(pred, offsets, vals,
-                                        I->__cm_emu_get_slm_ptr());
+                               N, loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, vals, I->__cm_emu_get_slm_ptr());
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -908,7 +920,8 @@ __ESIMD_INTRIN void __esimd_lsc_store_slm(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
@@ -928,7 +941,6 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
   char *writeBase;
   uint32_t width;
   std::mutex *mutexLock;
@@ -941,7 +953,8 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
   std::lock_guard<std::mutex> lock(*mutexLock);
 
   __esimd_emu_lsc_offset_write<Ty, AddressScale, ImmOffset, DS, VS, _Transposed,
-                               N, MASK>(pred, offsets, vals, writeBase, width);
+                               N, loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, vals, writeBase, width);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -958,7 +971,8 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param vals is values to store.
@@ -993,9 +1007,6 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
                                              __ESIMD_ENS::lsc_data_size::u16u32,
                                          uint16_t, void>>>>>>;
 
-  constexpr int ElemCount = __ESIMD_EDNS::to_int<VS>();
-  constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
-
   for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
     if (pred[AddrIdx] == 0) {
       // Skip Output vector elements correpsonding to
@@ -1003,14 +1014,18 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
       continue;
     }
 
+    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
     int ByteDistance = 0;
+    uintptr_t BaseAddr = addrs[AddrIdx];
 
-    assert(((addrs[AddrIdx] & MASK)) == 0 && "Address Alignment Error!!");
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
 
-    for (int ElemIdx = 0, VecIdx = AddrIdx; ElemIdx < ElemCount; ElemIdx += 1,
-             ByteDistance += rawAddressIncrement<Ty, DS>(),
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
-      *((StoreType *)(addrs[AddrIdx] + ByteDistance)) = vals[VecIdx];
+      *((StoreType *)(BaseAddr + ByteDistance)) = vals[VecIdx];
     }
   }
 }
@@ -1059,7 +1074,7 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 #else  // __SYCL_DEVICE_ONLY__
 {
   loadstore2DArgumentCheck<Ty, BlockWidth, BlockHeight, _Transposed,
-                           Transformed, NBlocks, false>();
+                           Transformed, NBlocks, false /* isStore*/>();
   return __esimd_emu_read_2d<Ty, N>(Pred, Ptr, SurfaceWidth, SurfaceHeight,
                                     SurfacePitch, X, Y, BlockWidth, BlockHeight,
                                     NBlocks, _Transposed, Transformed);
@@ -1149,7 +1164,7 @@ __esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 #else  // __SYCL_DEVICE_ONLY__
 {
   loadstore2DArgumentCheck<Ty, BlockWidth, BlockHeight, _Transposed,
-                           Transformed, NBlocks, true>();
+                           Transformed, NBlocks, true /* isStore */>();
   __esimd_emu_write_2d<Ty, N>(Pred, Ptr, SurfaceWidth, SurfaceHeight,
                               SurfacePitch, X, Y, vals, BlockWidth,
                               BlockHeight);
@@ -1168,7 +1183,8 @@ __esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
@@ -1200,7 +1216,8 @@ __esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
@@ -1235,7 +1252,8 @@ __esimd_lsc_xatomic_slm_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
@@ -1272,7 +1290,8 @@ __esimd_lsc_xatomic_slm_2(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
@@ -1307,7 +1326,8 @@ __esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
@@ -1345,7 +1365,8 @@ __esimd_lsc_xatomic_bti_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
@@ -1385,7 +1406,8 @@ __esimd_lsc_xatomic_bti_2(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
@@ -1417,7 +1439,8 @@ __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
@@ -1452,7 +1475,8 @@ __esimd_lsc_xatomic_stateless_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
@@ -1483,7 +1507,8 @@ __esimd_lsc_xatomic_stateless_2(
 /// @tparam Kind is the Sfid shaded function.
 /// @tparam FenceOp is the fence operation.
 /// @tparam Scope is the operation scope.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access,
+/// platform dependent).
 /// @param pred is predicates.
 template <__ESIMD_ENS::lsc_memory_kind Kind, __ESIMD_ENS::lsc_fence_op FenceOp,
           __ESIMD_ENS::lsc_scope Scope, int N>
