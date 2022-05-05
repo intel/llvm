@@ -379,6 +379,8 @@ struct _pi_mem {
 ///
 struct _pi_queue {
   using native_type = CUstream;
+  static constexpr int default_num_compute_streams = 128;
+  static constexpr int default_num_transfer_streams = 64;
 
   std::vector<native_type> compute_streams_;
   std::vector<native_type> transfer_streams_;
@@ -389,8 +391,8 @@ struct _pi_queue {
   std::atomic_uint32_t eventCount_;
   std::atomic_uint32_t compute_stream_idx_;
   std::atomic_uint32_t transfer_stream_idx_;
-  std::atomic_uint32_t n_compute_streams_;
-  std::atomic_uint32_t n_transfer_streams_;
+  std::atomic_uint32_t num_compute_streams_;
+  std::atomic_uint32_t num_transfer_streams_;
   unsigned int flags_;
 
   _pi_queue(std::vector<CUstream> &&compute_streams_,
@@ -400,8 +402,8 @@ struct _pi_queue {
       : compute_streams_{std::move(compute_streams_)},
         transfer_streams_{std::move(transfer_streams)}, context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
-        compute_stream_idx_{0}, transfer_stream_idx_{0}, n_compute_streams_{0},
-        n_transfer_streams_{0}, flags_(flags) {
+        compute_stream_idx_{0}, transfer_stream_idx_{0}, num_compute_streams_{0},
+        num_transfer_streams_{0}, flags_(flags) {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -418,12 +420,12 @@ struct _pi_queue {
   template <typename T> void for_each_stream(T &&f) {
     unsigned int end =
         std::min(static_cast<unsigned int>(compute_streams_.size()),
-                 n_compute_streams_.load());
+                 num_compute_streams_.load());
     for (unsigned int i = 0; i < end; i++) {
       f(compute_streams_[i]);
     }
     end = std::min(static_cast<unsigned int>(transfer_streams_.size()),
-                   n_transfer_streams_.load());
+                   num_transfer_streams_.load());
     for (unsigned int i = 0; i < end; i++) {
       f(transfer_streams_[i]);
     }
