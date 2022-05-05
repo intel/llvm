@@ -402,8 +402,8 @@ struct _pi_queue {
       : compute_streams_{std::move(compute_streams_)},
         transfer_streams_{std::move(transfer_streams)}, context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
-        compute_stream_idx_{0}, transfer_stream_idx_{0}, num_compute_streams_{0},
-        num_transfer_streams_{0}, flags_(flags) {
+        compute_stream_idx_{0}, transfer_stream_idx_{0},
+        num_compute_streams_{0}, num_transfer_streams_{0}, flags_(flags) {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }

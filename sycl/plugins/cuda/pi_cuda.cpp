@@ -2280,10 +2280,13 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
       flags = CU_STREAM_NON_BLOCKING;
     }
 
-    const bool is_out_of_order= properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    const bool is_out_of_order =
+        properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 
-    std::vector<CUstream> computeCuStreams(is_out_of_order? _pi_queue::default_num_compute_streams : 1);
-    std::vector<CUstream> transferCuStreams(is_out_of_order? _pi_queue::default_num_transfer_streams : 0);
+    std::vector<CUstream> computeCuStreams(
+        is_out_of_order ? _pi_queue::default_num_compute_streams : 1);
+    std::vector<CUstream> transferCuStreams(
+        is_out_of_order ? _pi_queue::default_num_transfer_streams : 0);
 
     queueImpl = std::unique_ptr<_pi_queue>(
         new _pi_queue{std::move(computeCuStreams), std::move(transferCuStreams),
