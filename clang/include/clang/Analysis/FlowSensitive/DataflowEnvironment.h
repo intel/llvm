@@ -111,7 +111,13 @@ public:
 
   /// Creates an environment that uses `DACtx` to store objects that encompass
   /// the state of a program.
-  explicit Environment(DataflowAnalysisContext &DACtx) : DACtx(&DACtx) {}
+  explicit Environment(DataflowAnalysisContext &DACtx);
+
+  Environment(const Environment &Other);
+  Environment &operator=(const Environment &Other);
+
+  Environment(Environment &&Other) = default;
+  Environment &operator=(Environment &&Other) = default;
 
   /// Creates an environment that uses `DACtx` to store objects that encompass
   /// the state of a program.
@@ -166,6 +172,10 @@ public:
   /// Creates a storage location for `E`. Does not assign the returned storage
   /// location to `E` in the environment. Does not assign a value to the
   /// returned storage location in the environment.
+  ///
+  /// Requirements:
+  ///
+  ///  `E` must not be a `ExprWithCleanups`.
   StorageLocation &createStorageLocation(const Expr &E);
 
   /// Assigns `Loc` as the storage location of `D` in the environment.
@@ -185,11 +195,16 @@ public:
   /// Requirements:
   ///
   ///  `E` must not be assigned a storage location in the environment.
+  ///  `E` must not be a `ExprWithCleanups`.
   void setStorageLocation(const Expr &E, StorageLocation &Loc);
 
   /// Returns the storage location assigned to `E` in the environment, applying
   /// the `SP` policy for skipping past indirections, or null if `E` isn't
   /// assigned a storage location in the environment.
+  ///
+  /// Requirements:
+  ///
+  ///  `E` must not be a `ExprWithCleanups`.
   StorageLocation *getStorageLocation(const Expr &E, SkipPast SP) const;
 
   /// Returns the storage location assigned to the `this` pointee in the
@@ -220,6 +235,12 @@ public:
 
   /// Equivalent to `getValue(getStorageLocation(E, SP), SkipPast::None)` if `E`
   /// is assigned a storage location in the environment, otherwise returns null.
+  ///
+  /// Requirements:
+  ///
+  ///  `E` must not be a `ExprWithCleanups`.
+  ///
+  /// FIXME: `Environment` should ignore any `ExprWithCleanups` it sees.
   Value *getValue(const Expr &E, SkipPast SP) const;
 
   /// Transfers ownership of `Loc` to the analysis context and returns a
@@ -297,9 +318,8 @@ public:
                : makeAnd(makeImplication(LHS, RHS), makeImplication(RHS, LHS));
   }
 
-  const llvm::DenseSet<BoolValue *> &getFlowConditionConstraints() const {
-    return FlowConditionConstraints;
-  }
+  /// Returns the token that identifies the flow condition of the environment.
+  AtomicBoolValue &getFlowConditionToken() const { return *FlowConditionToken; }
 
   /// Adds `Val` to the set of clauses that constitute the flow condition.
   void addToFlowCondition(BoolValue &Val);
@@ -345,7 +365,7 @@ private:
                  std::pair<StructValue *, const ValueDecl *>>
       MemberLocToStruct;
 
-  llvm::DenseSet<BoolValue *> FlowConditionConstraints;
+  AtomicBoolValue *FlowConditionToken;
 };
 
 } // namespace dataflow
