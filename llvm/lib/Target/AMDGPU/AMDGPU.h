@@ -26,6 +26,7 @@ FunctionPass *createAMDGPUPostLegalizeCombiner(bool IsOptNone);
 FunctionPass *createAMDGPURegBankCombiner(bool IsOptNone);
 void initializeAMDGPURegBankCombinerPass(PassRegistry &);
 
+void initializeGlobalOffsetPass(PassRegistry &);
 void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
 
 // SI Passes
