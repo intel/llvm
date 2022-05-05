@@ -477,6 +477,10 @@ public:
     return new _pi_event(type, queue->get_context(), queue);
   }
 
+  static pi_event make_with_native(pi_context context, CUevent eventNative) {
+    return new _pi_event(context, eventNative);
+  }
+
   pi_result release();
 
   ~_pi_event();
@@ -485,6 +489,10 @@ private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CUDA.
   _pi_event(pi_command_type type, pi_context context, pi_queue queue);
+
+  // This constructor is private to force programmers to use the
+  // make_from_native / for event introp
+  _pi_event(pi_context context, CUevent eventNative);
 
   pi_command_type commandType_; // The type of command associated with event.
 

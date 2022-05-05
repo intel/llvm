@@ -344,6 +344,12 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
   cuda_piContextRetain(context_);
 }
 
+_pi_event::_pi_event(pi_context context, CUevent eventNative)
+    : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, hasBeenWaitedOn_{false},
+      isRecorded_{false}, isStarted_{false}, evEnd_{eventNative},
+      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
+                                                                  context} {}
+
 _pi_event::~_pi_event() {
   if (queue_ != nullptr) {
     cuda_piQueueRelease(queue_);
@@ -1977,8 +1983,6 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
 
   std::unique_ptr<_pi_context> context{ctxt};
 
-  PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
-
   if (!ctxt->is_primary()) {
     CUcontext cuCtxt = ctxt->get();
     CUcontext current = nullptr;
@@ -1986,6 +1990,7 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
     if (cuCtxt != current) {
       PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
     }
+    PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
     PI_CHECK_ERROR(cuCtxSynchronize());
     cuCtxGetCurrent(&current);
     if (cuCtxt == current) {
@@ -1994,6 +1999,7 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
     return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
   } else {
     // Primary context is not destroyed, but released
+    PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
     CUdevice cuDev = ctxt->get_device()->get();
     CUcontext current;
     cuCtxPopCurrent(&current);
@@ -2021,12 +2027,43 @@ pi_result cuda_piextContextGetNativeHandle(pi_context context,
 /// \param[out] context Set to the PI context object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle, pi_uint32,
-                                                  const pi_device *, bool,
-                                                  pi_context *) {
-  cl::sycl::detail::pi::die(
-      "Creation of PI context from native handle not implemented");
-  return {};
+pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_uint32 num_devices,
+                                                  const pi_device *devices,
+                                                  bool ownNativeHandle,
+                                                  pi_context *piContext) {
+  (void)num_devices;
+  (void)devices;
+  (void)ownNativeHandle;
+  assert(piContext != nullptr);
+  assert(ownNativeHandle == false);
+
+  CUcontext newContext = reinterpret_cast<CUcontext>(nativeHandle);
+
+  // Push native context to thread
+  pi_result retErr = PI_CHECK_ERROR(cuCtxPushCurrent(newContext));
+
+  // Get context's native device
+  CUdevice cu_device;
+  retErr = PI_CHECK_ERROR(cuCtxGetDevice(&cu_device));
+
+  // Create a SYCL device from the ctx device
+  pi_device device = nullptr;
+  retErr = cuda_piextDeviceCreateWithNativeHandle(cu_device, nullptr, &device);
+
+  // Create sycl context
+  *piContext =
+      new _pi_context{_pi_context::kind::user_defined, newContext, device};
+
+  // Use default stream to record base event counter
+  retErr =
+      PI_CHECK_ERROR(cuEventCreate(&(*piContext)->evBase_, CU_EVENT_DEFAULT));
+  retErr = PI_CHECK_ERROR(cuEventRecord((*piContext)->evBase_, 0));
+
+  // Pop native context
+  retErr = PI_CHECK_ERROR(cuCtxPopCurrent(nullptr));
+
+  return retErr;
 }
 
 /// Creates a PI Memory object using a CUDA memory allocation.
@@ -2430,13 +2467,29 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 ///        the native handle, if it can.
 ///
 /// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                pi_queue *,
+pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                pi_queue *queue,
                                                 bool ownNativeHandle) {
   (void)ownNativeHandle;
-  cl::sycl::detail::pi::die(
-      "Creation of PI queue from native handle not implemented");
-  return {};
+  assert(ownNativeHandle == 1);
+
+  unsigned int flags;
+  CUstream cuStream = reinterpret_cast<CUstream>(nativeHandle);
+
+  auto retErr = PI_CHECK_ERROR(cuStreamGetFlags(cuStream, &flags));
+
+  pi_queue_properties properties = 0;
+  if (flags == CU_STREAM_DEFAULT)
+    properties = __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
+  else if (flags == CU_STREAM_NON_BLOCKING)
+    properties = __SYCL_PI_CUDA_SYNC_WITH_DEFAULT;
+  else
+    cl::sycl::detail::pi::die("Unknown cuda stream");
+
+  *queue = new _pi_queue{cuStream, context, context->get_device(), properties};
+
+  return retErr;
 }
 
 pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -3699,11 +3752,19 @@ pi_result cuda_piextEventGetNativeHandle(pi_event event,
 /// \param[out] event Set to the PI event object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                bool, pi_event *) {
-  cl::sycl::detail::pi::die(
-      "Creation of PI event from native handle not implemented");
-  return {};
+pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                bool ownNativeHandle,
+                                                pi_event *event) {
+  (void)ownNativeHandle;
+  assert(ownNativeHandle == true);
+
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  *event = _pi_event::make_with_native(context,
+                                       reinterpret_cast<CUevent>(nativeHandle));
+
+  return PI_SUCCESS;
 }
 
 /// Creates a PI sampler object

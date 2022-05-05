@@ -22,12 +22,12 @@ namespace cuda {
 
 // Implementation of cuda::make<device>
 inline __SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
-  return detail::make_device(NativeHandle, backend::cuda);
+  return sycl::detail::make_device(NativeHandle, backend::cuda);
 }
 
 // Implementation of cuda::make<platform>
 inline __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
-  return detail::make_platform(NativeHandle, backend::cuda);
+  return sycl::detail::make_platform(NativeHandle, backend::cuda);
 }
 
 } // namespace cuda
