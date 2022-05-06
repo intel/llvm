@@ -136,6 +136,9 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "cmath-fp64",
     "complex",
     "complex-fp64",
+#if defined(WIN32)
+    "msvc-math",
+#endif
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",

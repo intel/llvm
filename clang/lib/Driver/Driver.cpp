@@ -4675,7 +4675,11 @@ class OffloadingActionBuilder final {
           {"libsycl-complex", "libm-fp32"},
           {"libsycl-complex-fp64", "libm-fp64"},
           {"libsycl-cmath", "libm-fp32"},
-          {"libsycl-cmath-fp64", "libm-fp64"}};
+          {"libsycl-cmath-fp64", "libm-fp64"},
+#if defined(WIN32)
+          {"libsycl-msvc-math", "libm-fp32"},
+#endif
+      };
       // For AOT compilation, we need to link sycl_device_fallback_libs as
       // default too.
       const SYCLDeviceLibsList sycl_device_fallback_libs = {
