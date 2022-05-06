@@ -261,6 +261,8 @@ private:
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions, const RT::PiDevice &Device,
+                   std::map<std::pair<DeviceLibExt, RT::PiDevice>,
+                            RT::PiProgram> &CachedLibPrograms,
                    uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
