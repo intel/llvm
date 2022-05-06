@@ -59,10 +59,57 @@ static bool equivalentValues(QualType Type, Value *Val1,
   if (auto *IndVal1 = dyn_cast<IndirectionValue>(Val1)) {
     auto *IndVal2 = cast<IndirectionValue>(Val2);
     assert(IndVal1->getKind() == IndVal2->getKind());
-    return &IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc();
+    if (&IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc())
+      return true;
   }
 
   return Model.compareEquivalent(Type, *Val1, Env1, *Val2, Env2);
+}
+
+/// Attempts to merge distinct values `Val1` and `Val1` in `Env1` and `Env2`,
+/// respectively, of the same type `Type`. Merging generally produces a single
+/// value that (soundly) approximates the two inputs, although the actual
+/// meaning depends on `Model`.
+static Value *mergeDistinctValues(QualType Type, Value *Val1, Environment &Env1,
+                                  Value *Val2, const Environment &Env2,
+                                  Environment::ValueModel &Model) {
+  // Join distinct boolean values preserving information about the constraints
+  // in the respective path conditions. Note: this construction can, in
+  // principle, result in exponential growth in the size of boolean values.
+  // Potential optimizations may be worth considering. For example, represent
+  // the flow condition of each environment using a bool atom and store, in
+  // `DataflowAnalysisContext`, a mapping of bi-conditionals between flow
+  // condition atoms and flow condition constraints. Something like:
+  // \code
+  //   FC1 <=> C1 ^ C2
+  //   FC2 <=> C2 ^ C3 ^ C4
+  //   FC3 <=> (FC1 v FC2) ^ C5
+  // \code
+  // Then, we can track dependencies between flow conditions (e.g. above `FC3`
+  // depends on `FC1` and `FC2`) and modify `flowConditionImplies` to construct
+  // a formula that includes the bi-conditionals for all flow condition atoms in
+  // the transitive set, before invoking the solver.
+  //
+  // FIXME: Does not work for backedges, since the two (or more) paths will not
+  // have mutually exclusive conditions.
+  if (auto *Expr1 = dyn_cast<BoolValue>(Val1)) {
+    for (BoolValue *Constraint : Env1.getFlowConditionConstraints()) {
+      Expr1 = &Env1.makeAnd(*Expr1, *Constraint);
+    }
+    auto *Expr2 = cast<BoolValue>(Val2);
+    for (BoolValue *Constraint : Env2.getFlowConditionConstraints()) {
+      Expr2 = &Env1.makeAnd(*Expr2, *Constraint);
+    }
+    return &Env1.makeOr(*Expr1, *Expr2);
+  }
+
+  // FIXME: Consider destroying `MergedValue` immediately if `ValueModel::merge`
+  // returns false to avoid storing unneeded values in `DACtx`.
+  if (Value *MergedVal = Env1.createValue(Type))
+    if (Model.merge(Type, *Val1, Env1, *Val2, Env2, *MergedVal, Env1))
+      return MergedVal;
+
+  return nullptr;
 }
 
 /// Initializes a global storage value.
@@ -164,6 +211,42 @@ joinConstraints(DataflowAnalysisContext *Context,
   return JoinedConstraints;
 }
 
+static void
+getFieldsFromClassHierarchy(QualType Type, bool IgnorePrivateFields,
+                            llvm::DenseSet<const FieldDecl *> &Fields) {
+  if (Type->isIncompleteType() || Type->isDependentType() ||
+      !Type->isRecordType())
+    return;
+
+  for (const FieldDecl *Field : Type->getAsRecordDecl()->fields()) {
+    if (IgnorePrivateFields &&
+        (Field->getAccess() == AS_private ||
+         (Field->getAccess() == AS_none && Type->getAsRecordDecl()->isClass())))
+      continue;
+    Fields.insert(Field);
+  }
+  if (auto *CXXRecord = Type->getAsCXXRecordDecl()) {
+    for (const CXXBaseSpecifier &Base : CXXRecord->bases()) {
+      // Ignore private fields (including default access in C++ classes) in
+      // base classes, because they are not visible in derived classes.
+      getFieldsFromClassHierarchy(Base.getType(), /*IgnorePrivateFields=*/true,
+                                  Fields);
+    }
+  }
+}
+
+/// Gets the set of all fields accesible from the type.
+///
+/// FIXME: Does not precisely handle non-virtual diamond inheritance. A single
+/// field decl will be modeled for all instances of the inherited field.
+static llvm::DenseSet<const FieldDecl *>
+getAccessibleObjectFields(QualType Type) {
+  llvm::DenseSet<const FieldDecl *> Fields;
+  // Don't ignore private fields for the class itself, only its super classes.
+  getFieldsFromClassHierarchy(Type, /*IgnorePrivateFields=*/false, Fields);
+  return Fields;
+}
+
 Environment::Environment(DataflowAnalysisContext &DACtx,
                          const DeclContext &DeclCtx)
     : Environment(DACtx) {
@@ -206,9 +289,7 @@ bool Environment::equivalentTo(const Environment &Other,
   if (MemberLocToStruct != Other.MemberLocToStruct)
     return false;
 
-  if (LocToVal.size() != Other.LocToVal.size())
-    return false;
-
+  // Compare the contents for the intersection of their domains.
   for (auto &Entry : LocToVal) {
     const StorageLocation *Loc = Entry.first;
     assert(Loc != nullptr);
@@ -218,7 +299,7 @@ bool Environment::equivalentTo(const Environment &Other,
 
     auto It = Other.LocToVal.find(Loc);
     if (It == Other.LocToVal.end())
-      return false;
+      continue;
     assert(It->second != nullptr);
 
     if (!equivalentValues(Loc->getType(), Val, *this, It->second, Other, Model))
@@ -267,19 +348,14 @@ LatticeJoinEffect Environment::join(const Environment &Other,
       continue;
     assert(It->second != nullptr);
 
-    if (equivalentValues(Loc->getType(), Val, *this, It->second, Other,
-                         Model)) {
+    if (Val == It->second) {
       LocToVal.insert({Loc, Val});
       continue;
     }
 
-    // FIXME: Consider destroying `MergedValue` immediately if
-    // `ValueModel::merge` returns false to avoid storing unneeded values in
-    // `DACtx`.
-    if (Value *MergedVal = createValue(Loc->getType()))
-      if (Model.merge(Loc->getType(), *Val, *this, *It->second, Other,
-                      *MergedVal, *this))
-        LocToVal.insert({Loc, MergedVal});
+    if (Value *MergedVal = mergeDistinctValues(Loc->getType(), Val, *this,
+                                               It->second, Other, Model))
+      LocToVal.insert({Loc, MergedVal});
   }
   if (OldLocToVal.size() != LocToVal.size())
     Effect = LatticeJoinEffect::Changed;
@@ -296,7 +372,7 @@ StorageLocation &Environment::createStorageLocation(QualType Type) {
     // FIXME: Explore options to avoid eager initialization of fields as some of
     // them might not be needed for a particular analysis.
     llvm::DenseMap<const ValueDecl *, StorageLocation *> FieldLocs;
-    for (const FieldDecl *Field : Type->getAsRecordDecl()->fields()) {
+    for (const FieldDecl *Field : getAccessibleObjectFields(Type)) {
       FieldLocs.insert({Field, &createStorageLocation(Field->getType())});
     }
     return takeOwnership(
@@ -363,7 +439,7 @@ void Environment::setValue(const StorageLocation &Loc, Value &Val) {
     const QualType Type = AggregateLoc.getType();
     assert(Type->isStructureOrClassType());
 
-    for (const FieldDecl *Field : Type->getAsRecordDecl()->fields()) {
+    for (const FieldDecl *Field : getAccessibleObjectFields(Type)) {
       assert(Field != nullptr);
       StorageLocation &FieldLoc = AggregateLoc.getChild(*Field);
       MemberLocToStruct[&FieldLoc] = std::make_pair(StructVal, Field);
@@ -412,8 +488,8 @@ Value *Environment::createValue(QualType Type) {
   Value *Val = createValueUnlessSelfReferential(Type, Visited, /*Depth=*/0,
                                                 CreatedValuesCount);
   if (CreatedValuesCount > MaxCompositeValueSize) {
-    llvm::errs() << "Attempting to initialize a huge value of type: "
-                 << Type.getAsString() << "\n";
+    llvm::errs() << "Attempting to initialize a huge value of type: " << Type
+                 << '\n';
   }
   return Val;
 }
@@ -479,7 +555,7 @@ Value *Environment::createValueUnlessSelfReferential(
     // FIXME: Initialize only fields that are accessed in the context that is
     // being analyzed.
     llvm::DenseMap<const ValueDecl *, Value *> FieldValues;
-    for (const FieldDecl *Field : Type->getAsRecordDecl()->fields()) {
+    for (const FieldDecl *Field : getAccessibleObjectFields(Type)) {
       assert(Field != nullptr);
 
       QualType FieldType = Field->getType();

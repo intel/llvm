@@ -53,11 +53,14 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDVecArg.cpp
   ESIMD/ESIMDVerifier.cpp
+  LowerInvokeSimd.cpp
   LowerWGScope.cpp
   LowerWGLocalMemory.cpp
   MutatePrintfAddrspace.cpp
 
   LocalAccessorToSharedMemory.cpp
+  GlobalOffset.cpp
+  TargetHelpers.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

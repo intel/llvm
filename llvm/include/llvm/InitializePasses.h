@@ -48,9 +48,6 @@ void initializeInstrumentation(PassRegistry&);
 /// Initialize all passes linked into the Analysis library.
 void initializeAnalysis(PassRegistry&);
 
-/// Initialize all passes linked into the Coroutines library.
-void initializeCoroutines(PassRegistry&);
-
 /// Initialize all passes linked into the CodeGen library.
 void initializeCodeGen(PassRegistry&);
 
@@ -103,6 +100,7 @@ void initializeCFGSimplifyPassPass(PassRegistry&);
 void initializeCFGuardPass(PassRegistry&);
 void initializeCFGuardLongjmpPass(PassRegistry&);
 void initializeCFGViewerLegacyPassPass(PassRegistry&);
+void initializeCFIFixupPass(PassRegistry&);
 void initializeCFIInstrInserterPass(PassRegistry&);
 void initializeCFLAndersAAWrapperPassPass(PassRegistry&);
 void initializeCFLSteensAAWrapperPassPass(PassRegistry&);
@@ -342,11 +340,6 @@ void initializeOptimizationRemarkEmitterWrapperPassPass(PassRegistry&);
 void initializeOptimizePHIsPass(PassRegistry&);
 void initializePAEvalPass(PassRegistry&);
 void initializePEIPass(PassRegistry&);
-void initializePGOIndirectCallPromotionLegacyPassPass(PassRegistry&);
-void initializePGOInstrumentationGenLegacyPassPass(PassRegistry&);
-void initializePGOInstrumentationUseLegacyPassPass(PassRegistry&);
-void initializePGOInstrumentationGenCreateVarLegacyPassPass(PassRegistry&);
-void initializePGOMemOPSizeOptLegacyPassPass(PassRegistry&);
 void initializePHIEliminationPass(PassRegistry&);
 void initializePartialInlinerLegacyPassPass(PassRegistry&);
 void initializePartiallyInlineLibCallsLegacyPassPass(PassRegistry&);
@@ -443,6 +436,7 @@ void initializeStripSymbolsPass(PassRegistry&);
 void initializeStructurizeCFGLegacyPassPass(PassRegistry &);
 void initializeSYCLLowerWGScopeLegacyPassPass(PassRegistry &);
 void initializeSYCLLowerESIMDLegacyPassPass(PassRegistry &);
+void initializeSYCLLowerInvokeSimdLegacyPassPass(PassRegistry &);
 void initializeSYCLMutatePrintfAddrspaceLegacyPassPass(PassRegistry &);
 void initializeSPIRITTAnnotationsLegacyPassPass(PassRegistry &);
 void initializeESIMDLowerLoadStorePass(PassRegistry &);

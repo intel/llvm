@@ -3915,6 +3915,7 @@ public:
   LValue EmitObjCIsaExpr(const ObjCIsaExpr *E);
   LValue EmitCompoundLiteralLValue(const CompoundLiteralExpr *E);
   LValue EmitInitListLValue(const InitListExpr *E);
+  void EmitIgnoredConditionalOperator(const AbstractConditionalOperator *E);
   LValue EmitConditionalOperatorLValue(const AbstractConditionalOperator *E);
   LValue EmitCastLValue(const CastExpr *E);
   LValue EmitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *E);
@@ -4507,6 +4508,16 @@ public:
   /// Emit field annotations for the given field & value. Returns the
   /// annotation result.
   Address EmitFieldAnnotations(const FieldDecl *D, Address V);
+
+  /// Emit a "sycl-properties" annotation call (intrinsic).
+  llvm::Value *
+  EmitSYCLAnnotationCall(llvm::Function *AnnotationFn,
+                         llvm::Value *AnnotatedVal, SourceLocation Location,
+                         const SYCLAddIRAnnotationsMemberAttr *Attr);
+
+  /// Emit sycl field annotations for given field & value. Returns the
+  /// annotation result.
+  Address EmitFieldSYCLAnnotations(const FieldDecl *D, Address V);
 
   /// Emit Intel FPGA field annotations for the given field and value. Returns
   /// the annotation result.

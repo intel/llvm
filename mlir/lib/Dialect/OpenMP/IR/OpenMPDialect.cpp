@@ -27,6 +27,7 @@
 
 #include "mlir/Dialect/OpenMP/OpenMPOpsDialect.cpp.inc"
 #include "mlir/Dialect/OpenMP/OpenMPOpsEnums.cpp.inc"
+#include "mlir/Dialect/OpenMP/OpenMPOpsInterfaces.cpp.inc"
 #include "mlir/Dialect/OpenMP/OpenMPTypeInterfaces.cpp.inc"
 
 using namespace mlir;
@@ -56,19 +57,6 @@ void OpenMPDialect::initialize() {
   LLVM::LLVMPointerType::attachInterface<
       PointerLikeModel<LLVM::LLVMPointerType>>(*getContext());
   MemRefType::attachInterface<PointerLikeModel<MemRefType>>(*getContext());
-}
-
-//===----------------------------------------------------------------------===//
-// ParallelOp
-//===----------------------------------------------------------------------===//
-
-void ParallelOp::build(OpBuilder &builder, OperationState &state,
-                       ArrayRef<NamedAttribute> attributes) {
-  ParallelOp::build(
-      builder, state, /*if_expr_var=*/nullptr, /*num_threads_var=*/nullptr,
-      /*allocate_vars=*/ValueRange(), /*allocators_vars=*/ValueRange(),
-      /*proc_bind_val=*/nullptr);
-  state.addAttributes(attributes);
 }
 
 //===----------------------------------------------------------------------===//
@@ -140,13 +128,6 @@ static ParseResult parseClauseAttr(AsmParser &parser, ClauseAttr &attr) {
 template <typename ClauseAttr>
 void printClauseAttr(OpAsmPrinter &p, Operation *op, ClauseAttr attr) {
   p << stringifyEnum(attr.getValue());
-}
-
-LogicalResult ParallelOp::verify() {
-  if (allocate_vars().size() != allocators_vars().size())
-    return emitError(
-        "expected equal sizes for allocate and allocator variables");
-  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -237,7 +218,7 @@ verifyScheduleModifiers(OpAsmParser &parser,
 /// sched-mod-val ::=  `monotonic` | `nonmonotonic` | `simd` | `none`
 static ParseResult parseScheduleClause(
     OpAsmParser &parser, ClauseScheduleKindAttr &scheduleAttr,
-    ScheduleModifierAttr &schedule_modifier, UnitAttr &simdModifier,
+    ScheduleModifierAttr &scheduleModifier, UnitAttr &simdModifier,
     Optional<OpAsmParser::UnresolvedOperand> &chunkSize, Type &chunkType) {
   StringRef keyword;
   if (parser.parseKeyword(&keyword))
@@ -281,7 +262,7 @@ static ParseResult parseScheduleClause(
     SMLoc loc = parser.getCurrentLocation();
     if (Optional<ScheduleModifier> mod =
             symbolizeScheduleModifier(modifiers[0])) {
-      schedule_modifier = ScheduleModifierAttr::get(parser.getContext(), *mod);
+      scheduleModifier = ScheduleModifierAttr::get(parser.getContext(), *mod);
     } else {
       return parser.emitError(loc, "invalid schedule modifier");
     }
@@ -401,6 +382,10 @@ static ParseResult parseSynchronizationHint(OpAsmParser &parser,
                                             IntegerAttr &hintAttr) {
   StringRef hintKeyword;
   int64_t hint = 0;
+  if (succeeded(parser.parseOptionalKeyword("none"))) {
+    hintAttr = IntegerAttr::get(parser.getBuilder().getI64Type(), 0);
+    return success();
+  }
   do {
     if (failed(parser.parseKeyword(&hintKeyword)))
       return failure();
@@ -425,8 +410,10 @@ static void printSynchronizationHint(OpAsmPrinter &p, Operation *op,
                                      IntegerAttr hintAttr) {
   int64_t hint = hintAttr.getInt();
 
-  if (hint == 0)
+  if (hint == 0) {
+    p << "none";
     return;
+  }
 
   // Helper function to get n-th bit from the right end of `value`
   auto bitn = [](int value, int n) -> bool { return value & (1 << n); };
@@ -467,6 +454,27 @@ static LogicalResult verifySynchronizationHint(Operation *op, uint64_t hint) {
     return op->emitOpError() << "the hints omp_sync_hint_nonspeculative and "
                                 "omp_sync_hint_speculative cannot be combined.";
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ParallelOp
+//===----------------------------------------------------------------------===//
+
+void ParallelOp::build(OpBuilder &builder, OperationState &state,
+                       ArrayRef<NamedAttribute> attributes) {
+  ParallelOp::build(
+      builder, state, /*if_expr_var=*/nullptr, /*num_threads_var=*/nullptr,
+      /*allocate_vars=*/ValueRange(), /*allocators_vars=*/ValueRange(),
+      /*reduction_vars=*/ValueRange(), /*reductions=*/nullptr,
+      /*proc_bind_val=*/nullptr);
+  state.addAttributes(attributes);
+}
+
+LogicalResult ParallelOp::verify() {
+  if (allocate_vars().size() != allocators_vars().size())
+    return emitError(
+        "expected equal sizes for allocate and allocator variables");
+  return verifyReductionVarList(*this, reductions(), reduction_vars());
 }
 
 //===----------------------------------------------------------------------===//
@@ -709,14 +717,25 @@ LogicalResult ReductionDeclareOp::verifyRegions() {
 }
 
 LogicalResult ReductionOp::verify() {
-  // TODO: generalize this to an op interface when there is more than one op
-  // that supports reductions.
-  auto container = (*this)->getParentOfType<WsLoopOp>();
-  for (unsigned i = 0, e = container.getNumReductionVars(); i < e; ++i)
-    if (container.reduction_vars()[i] == accumulator())
-      return success();
-
+  auto *op = (*this)->getParentWithTrait<ReductionClauseInterface::Trait>();
+  if (!op)
+    return emitOpError() << "must be used within an operation supporting "
+                            "reduction clause interface";
+  while (op) {
+    for (const auto &var :
+         cast<ReductionClauseInterface>(op).getReductionVars())
+      if (var == accumulator())
+        return success();
+    op = op->getParentWithTrait<ReductionClauseInterface::Trait>();
+  }
   return emitOpError() << "the accumulator is not used by the parent";
+}
+
+//===----------------------------------------------------------------------===//
+// TaskOp
+//===----------------------------------------------------------------------===//
+LogicalResult TaskOp::verify() {
+  return verifyReductionVarList(*this, in_reductions(), in_reduction_vars());
 }
 
 //===----------------------------------------------------------------------===//
@@ -748,11 +767,10 @@ LogicalResult CriticalDeclareOp::verify() {
   return verifySynchronizationHint(*this, hint_val());
 }
 
-LogicalResult
-CriticalOp::verifySymbolUses(SymbolTableCollection &symbol_table) {
+LogicalResult CriticalOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   if (nameAttr()) {
     SymbolRefAttr symbolRef = nameAttr();
-    auto decl = symbol_table.lookupNearestSymbolFrom<CriticalDeclareOp>(
+    auto decl = symbolTable.lookupNearestSymbolFrom<CriticalDeclareOp>(
         *this, symbolRef);
     if (!decl) {
       return emitOpError() << "expected symbol reference " << symbolRef
@@ -852,7 +870,7 @@ LogicalResult AtomicUpdateOp::verify() {
                      "element type is the same as that of the region argument");
   }
 
-  return success();
+  return verifySynchronizationHint(*this, hint_val());
 }
 
 LogicalResult AtomicUpdateOp::verifyRegions() {
@@ -903,6 +921,10 @@ AtomicUpdateOp AtomicCaptureOp::getAtomicUpdateOp() {
   return dyn_cast<AtomicUpdateOp>(getSecondOp());
 }
 
+LogicalResult AtomicCaptureOp::verify() {
+  return verifySynchronizationHint(*this, hint_val());
+}
+
 LogicalResult AtomicCaptureOp::verifyRegions() {
   Block::OpListType &ops = region().front().getOperations();
   if (ops.size() != 3)
@@ -937,6 +959,10 @@ LogicalResult AtomicCaptureOp::verifyRegions() {
     return firstReadStmt.emitError()
            << "captured variable in omp.atomic.read must be updated in "
               "second operation";
+
+  if (getFirstOp()->getAttr("hint_val") || getSecondOp()->getAttr("hint_val"))
+    return emitOpError(
+        "operations inside capture region must not have hint clause");
   return success();
 }
 

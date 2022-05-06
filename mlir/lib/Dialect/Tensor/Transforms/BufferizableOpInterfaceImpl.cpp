@@ -108,12 +108,54 @@ struct CollapseShapeOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           BufferizationState &state) const {
     auto collapseShapeOp = cast<tensor::CollapseShapeOp>(op);
-    Value buffer =
-        *state.getBuffer(rewriter, collapseShapeOp->getOpOperand(0) /*src*/);
-    Type resultType =
-        getMemRefType(collapseShapeOp.getResultType(), state.getOptions());
+    RankedTensorType tensorResultType = collapseShapeOp.getResultType();
+    OpOperand &srcOperand = collapseShapeOp->getOpOperand(0) /*src*/;
+    auto bufferType = state.getBufferType(srcOperand).cast<MemRefType>();
+
+    if (tensorResultType.getRank() == 0) {
+      // 0-d collapses must go through a different op builder.
+      Value buffer = *state.getBuffer(rewriter, srcOperand);
+      MemRefType resultType;
+
+      if (bufferType.getLayout().isIdentity()) {
+        // Standard layout: result type has no offset.
+        MemRefLayoutAttrInterface layout;
+        resultType = MemRefType::get({}, tensorResultType.getElementType(),
+                                     layout, bufferType.getMemorySpace());
+      } else {
+        // Source memref has a layout map: result type has the same offset as
+        // the source type.
+        SmallVector<int64_t> strides;
+        int64_t offset;
+        if (failed(getStridesAndOffset(bufferType, strides, offset)))
+          return failure();
+        AffineMap resultLayout =
+            makeStridedLinearLayoutMap({}, offset, op->getContext());
+        resultType =
+            MemRefType::get({}, tensorResultType.getElementType(), resultLayout,
+                            bufferType.getMemorySpaceAsInt());
+      }
+
+      replaceOpWithNewBufferizedOp<memref::CollapseShapeOp>(
+          rewriter, op, resultType, buffer, collapseShapeOp.reassociation());
+      return success();
+    }
+
+    // If the dims are not collapsible (due to an incompatible source layout
+    // map), force an out-of-place bufferization, i.e., a buffer copy. This
+    // newly allocated buffer will have no layout map and thus be collapsible.
+    bool canBeCollapsed = memref::ExpandShapeOp::isGuaranteedCollapsible(
+        bufferType, collapseShapeOp.getReassociationIndices());
+    Optional<BufferizationState::ForceInPlacability> overrideInPlace =
+        canBeCollapsed
+            ? None
+            : Optional<BufferizationState::ForceInPlacability>(
+                  BufferizationState::ForceInPlacability::FORCE_OUT_OF_PLACE);
+    Value buffer = *state.getBuffer(rewriter, srcOperand, overrideInPlace);
+
+    // Result type is inferred by the builder.
     replaceOpWithNewBufferizedOp<memref::CollapseShapeOp>(
-        rewriter, op, resultType, buffer, collapseShapeOp.reassociation());
+        rewriter, op, buffer, collapseShapeOp.getReassociationIndices());
     return success();
   }
 };
@@ -175,12 +217,15 @@ struct ExpandShapeOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           BufferizationState &state) const {
     auto expandShapeOp = cast<tensor::ExpandShapeOp>(op);
+    auto tensorResultType = expandShapeOp.getResultType();
     Value buffer =
         *state.getBuffer(rewriter, expandShapeOp->getOpOperand(0) /*src*/);
-    Type resultType =
-        getMemRefType(expandShapeOp.getResultType(), state.getOptions());
+
+    // Memref result type is inferred by the builder based on reassociation
+    // indices and result shape.
     replaceOpWithNewBufferizedOp<memref::ExpandShapeOp>(
-        rewriter, op, resultType, buffer, expandShapeOp.reassociation());
+        rewriter, op, tensorResultType.getShape(), buffer,
+        expandShapeOp.getReassociationIndices());
     return success();
   }
 };
@@ -215,9 +260,12 @@ struct ExtractSliceOpInterface
                           BufferizationState &state) const {
     auto extractSliceOp = cast<tensor::ExtractSliceOp>(op);
     Location loc = extractSliceOp.getLoc();
+
+    // Even if this op was decided to bufferize out-of-place, do not insert the
+    // buffer copy yet. This is done later in this function.
     Value srcMemref =
         *state.getBuffer(rewriter, extractSliceOp->getOpOperand(0) /*source*/,
-                         /*forceInPlace=*/true);
+                         BufferizationState::ForceInPlacability::FORCE_INPLACE);
     auto srcMemrefType = srcMemref.getType().cast<MemRefType>();
     auto dstTensorType =
         extractSliceOp.result().getType().cast<RankedTensorType>();

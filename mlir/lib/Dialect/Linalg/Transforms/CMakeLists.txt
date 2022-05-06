@@ -1,8 +1,10 @@
 add_mlir_dialect_library(MLIRLinalgTransforms
+  BubbleUpExtractSlice.cpp
   BufferizableOpInterfaceImpl.cpp
   Bufferize.cpp
   CodegenStrategy.cpp
   ComprehensiveBufferizePass.cpp
+  ConstantFold.cpp
   Detensorize.cpp
   DropUnitDims.cpp
   ElementwiseOpFusion.cpp

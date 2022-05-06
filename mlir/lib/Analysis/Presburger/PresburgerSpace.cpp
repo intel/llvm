@@ -56,6 +56,19 @@ unsigned PresburgerSpace::getIdKindOverlap(IdKind kind, unsigned idStart,
   return overlapEnd - overlapStart;
 }
 
+IdKind PresburgerSpace::getIdKindAt(unsigned pos) const {
+  assert(pos < getNumIds() && "`pos` should represent a valid id position");
+  if (pos < getIdKindEnd(IdKind::Domain))
+    return IdKind::Domain;
+  if (pos < getIdKindEnd(IdKind::Range))
+    return IdKind::Range;
+  if (pos < getIdKindEnd(IdKind::Symbol))
+    return IdKind::Symbol;
+  if (pos < getIdKindEnd(IdKind::Local))
+    return IdKind::Local;
+  llvm_unreachable("`pos` should represent a valid id position");
+}
+
 unsigned PresburgerSpace::insertId(IdKind kind, unsigned pos, unsigned num) {
   assert(pos <= getNumIdKind(kind));
 
@@ -91,20 +104,14 @@ void PresburgerSpace::removeIdRange(IdKind kind, unsigned idStart,
     numLocals -= numIdsEliminated;
 }
 
-void PresburgerSpace::truncateIdKind(IdKind kind, unsigned num) {
-  unsigned curNum = getNumIdKind(kind);
-  assert(num <= curNum && "Can't truncate to more ids!");
-  removeIdRange(kind, num, curNum);
-}
-
-bool PresburgerSpace::isSpaceCompatible(const PresburgerSpace &other) const {
+bool PresburgerSpace::isCompatible(const PresburgerSpace &other) const {
   return getNumDomainIds() == other.getNumDomainIds() &&
          getNumRangeIds() == other.getNumRangeIds() &&
          getNumSymbolIds() == other.getNumSymbolIds();
 }
 
-bool PresburgerSpace::isSpaceEqual(const PresburgerSpace &other) const {
-  return isSpaceCompatible(other) && getNumLocalIds() == other.getNumLocalIds();
+bool PresburgerSpace::isEqual(const PresburgerSpace &other) const {
+  return isCompatible(other) && getNumLocalIds() == other.getNumLocalIds();
 }
 
 void PresburgerSpace::setDimSymbolSeparation(unsigned newSymbolCount) {

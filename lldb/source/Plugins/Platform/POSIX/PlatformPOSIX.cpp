@@ -8,6 +8,7 @@
 
 #include "PlatformPOSIX.h"
 
+#include "Plugins/Platform/gdb-server/PlatformRemoteGDBServer.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
@@ -229,7 +230,7 @@ lldb_private::Status PlatformPOSIX::GetFile(
     }
 
     if (error.Success()) {
-      lldb::DataBufferSP buffer_sp(new DataBufferHeap(1024, 0));
+      lldb::WritableDataBufferSP buffer_sp(new DataBufferHeap(1024, 0));
       uint64_t offset = 0;
       error.Clear();
       while (error.Success()) {
@@ -307,7 +308,8 @@ Status PlatformPOSIX::ConnectRemote(Args &args) {
   } else {
     if (!m_remote_platform_sp)
       m_remote_platform_sp =
-          Platform::Create(ConstString("remote-gdb-server"), error);
+          platform_gdb_server::PlatformRemoteGDBServer::CreateInstance(
+              /*force=*/true, nullptr);
 
     if (m_remote_platform_sp && error.Success())
       error = m_remote_platform_sp->ConnectRemote(args);

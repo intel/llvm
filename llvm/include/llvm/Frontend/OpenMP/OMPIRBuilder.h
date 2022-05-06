@@ -344,6 +344,7 @@ public:
                                    ArrayRef<CanonicalLoopInfo *> Loops,
                                    InsertPointTy ComputeIP);
 
+private:
   /// Modifies the canonical loop to be a statically-scheduled workshare loop.
   ///
   /// This takes a \p LoopInfo representing a canonical loop, such as the one
@@ -411,6 +412,7 @@ public:
                                           bool NeedsBarrier,
                                           Value *Chunk = nullptr);
 
+public:
   /// Modifies the canonical loop to be a workshare loop.
   ///
   /// This takes a \p LoopInfo representing a canonical loop, such as the one
@@ -433,13 +435,23 @@ public:
   ///                     the loop.
   /// \param SchedKind Scheduling algorithm to use.
   /// \param ChunkSize The chunk size for the inner loop.
+  /// \param HasSimdModifier Whether the simd modifier is present in the
+  ///                        schedule clause.
+  /// \param HasMonotonicModifier Whether the monotonic modifier is present in
+  ///                             the schedule clause.
+  /// \param HasNonmonotonicModifier Whether the nonmonotonic modifier is
+  ///                                present in the schedule clause.
+  /// \param HasOrderedClause Whether the (parameterless) ordered clause is
+  ///                         present.
   ///
   /// \returns Point where to insert code after the workshare construct.
   InsertPointTy applyWorkshareLoop(
       DebugLoc DL, CanonicalLoopInfo *CLI, InsertPointTy AllocaIP,
       bool NeedsBarrier,
       llvm::omp::ScheduleKind SchedKind = llvm::omp::OMP_SCHEDULE_Default,
-      Value *ChunkSize = nullptr);
+      Value *ChunkSize = nullptr, bool HasSimdModifier = false,
+      bool HasMonotonicModifier = false, bool HasNonmonotonicModifier = false,
+      bool HasOrderedClause = false);
 
   /// Tile a loop nest.
   ///

@@ -23,6 +23,8 @@
 #endif // __SYCL_DEVICE_ONLY__
 
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
+#define DEVICE_EXTERN_C_INLINE                                                 \
+  DEVICE_EXTERNAL EXTERN_C __attribute__((always_inline))
 #endif // __SPIR__
 
 #endif // __LIBDEVICE_DEVICE_H__

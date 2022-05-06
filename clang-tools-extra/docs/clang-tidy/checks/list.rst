@@ -234,6 +234,7 @@ Clang-Tidy Checks
    `modernize-deprecated-headers <modernize-deprecated-headers.html>`_, "Yes"
    `modernize-deprecated-ios-base-aliases <modernize-deprecated-ios-base-aliases.html>`_, "Yes"
    `modernize-loop-convert <modernize-loop-convert.html>`_, "Yes"
+   `modernize-macro-to-enum <modernize-macro-to-enum.html>`_, "Yes"
    `modernize-make-shared <modernize-make-shared.html>`_, "Yes"
    `modernize-make-unique <modernize-make-unique.html>`_, "Yes"
    `modernize-pass-by-value <modernize-pass-by-value.html>`_, "Yes"
@@ -288,6 +289,7 @@ Clang-Tidy Checks
    `performance-unnecessary-value-param <performance-unnecessary-value-param.html>`_, "Yes"
    `portability-restrict-system-includes <portability-restrict-system-includes.html>`_, "Yes"
    `portability-simd-intrinsics <portability-simd-intrinsics.html>`_,
+   `portability-std-allocator-const <portability-std-allocator-const.html>`_,
    `readability-avoid-const-params-in-decls <readability-avoid-const-params-in-decls.html>`_, "Yes"
    `readability-braces-around-statements <readability-braces-around-statements.html>`_, "Yes"
    `readability-const-return-type <readability-const-return-type.html>`_, "Yes"
@@ -426,6 +428,7 @@ Clang-Tidy Checks
    `cppcoreguidelines-avoid-magic-numbers <cppcoreguidelines-avoid-magic-numbers.html>`_, `readability-magic-numbers <readability-magic-numbers.html>`_,
    `cppcoreguidelines-c-copy-assignment-signature <cppcoreguidelines-c-copy-assignment-signature.html>`_, `misc-unconventional-assign-operator <misc-unconventional-assign-operator.html>`_,
    `cppcoreguidelines-explicit-virtual-functions <cppcoreguidelines-explicit-virtual-functions.html>`_, `modernize-use-override <modernize-use-override.html>`_, "Yes"
+   `cppcoreguidelines-macro-to-enum <cppcoreguidelines-macro-to-enum.html>`_, `modernize-macro-to-enum <modernize-macro-to-enum.html>`_, "Yes"
    `cppcoreguidelines-non-private-member-variables-in-classes <cppcoreguidelines-non-private-member-variables-in-classes.html>`_, `misc-non-private-member-variables-in-classes <misc-non-private-member-variables-in-classes.html>`_,
    `fuchsia-header-anon-namespaces <fuchsia-header-anon-namespaces.html>`_, `google-build-namespaces <google-build-namespaces.html>`_,
    `google-readability-braces-around-statements <google-readability-braces-around-statements.html>`_, `readability-braces-around-statements <readability-braces-around-statements.html>`_, "Yes"

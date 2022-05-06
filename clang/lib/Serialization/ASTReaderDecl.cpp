@@ -370,6 +370,7 @@ namespace clang {
     void VisitFieldDecl(FieldDecl *FD);
     void VisitMSPropertyDecl(MSPropertyDecl *FD);
     void VisitMSGuidDecl(MSGuidDecl *D);
+    void VisitUnnamedGlobalConstantDecl(UnnamedGlobalConstantDecl *D);
     void VisitTemplateParamObjectDecl(TemplateParamObjectDecl *D);
     void VisitIndirectFieldDecl(IndirectFieldDecl *FD);
     RedeclarableResult VisitVarDeclImpl(VarDecl *D);
@@ -1428,6 +1429,17 @@ void ASTDeclReader::VisitMSGuidDecl(MSGuidDecl *D) {
     Reader.getContext().setPrimaryMergedDecl(D, Existing->getCanonicalDecl());
 }
 
+void ASTDeclReader::VisitUnnamedGlobalConstantDecl(
+    UnnamedGlobalConstantDecl *D) {
+  VisitValueDecl(D);
+  D->Value = Record.readAPValue();
+
+  // Add this to the AST context's lookup structure, and merge if needed.
+  if (UnnamedGlobalConstantDecl *Existing =
+          Reader.getContext().UnnamedGlobalConstantDecls.GetOrInsertNode(D))
+    Reader.getContext().setPrimaryMergedDecl(D, Existing->getCanonicalDecl());
+}
+
 void ASTDeclReader::VisitTemplateParamObjectDecl(TemplateParamObjectDecl *D) {
   VisitValueDecl(D);
   D->Value = Record.readAPValue();
@@ -2370,13 +2382,17 @@ ASTDeclReader::VisitVarTemplateSpecializationDeclImpl(
   if (writtenAsCanonicalDecl) {
     auto *CanonPattern = readDeclAs<VarTemplateDecl>();
     if (D->isCanonicalDecl()) { // It's kept in the folding set.
-      // FIXME: If it's already present, merge it.
+      VarTemplateSpecializationDecl *CanonSpec;
       if (auto *Partial = dyn_cast<VarTemplatePartialSpecializationDecl>(D)) {
-        CanonPattern->getCommonPtr()->PartialSpecializations
-            .GetOrInsertNode(Partial);
+        CanonSpec = CanonPattern->getCommonPtr()
+                        ->PartialSpecializations.GetOrInsertNode(Partial);
       } else {
-        CanonPattern->getCommonPtr()->Specializations.GetOrInsertNode(D);
+        CanonSpec =
+            CanonPattern->getCommonPtr()->Specializations.GetOrInsertNode(D);
       }
+      // If we already have a matching specialization, merge it.
+      if (CanonSpec != D)
+        mergeRedeclarable<VarDecl>(D, CanonSpec, Redecl);
     }
   }
 
@@ -3053,6 +3069,8 @@ ASTDeclReader::getPrimaryDCForAnonymousDecl(DeclContext *LexicalDC) {
   if (auto *RD = dyn_cast<CXXRecordDecl>(LexicalDC)) {
     auto *DD = RD->getCanonicalDecl()->DefinitionData;
     return DD ? DD->Definition : nullptr;
+  } else if (auto *OID = dyn_cast<ObjCInterfaceDecl>(LexicalDC)) {
+    return OID->getCanonicalDecl()->getDefinition();
   }
 
   // For anything else, walk its merged redeclarations looking for a definition.
@@ -3708,6 +3726,9 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
     break;
   case DECL_MS_GUID:
     D = MSGuidDecl::CreateDeserialized(Context, ID);
+    break;
+  case DECL_UNNAMED_GLOBAL_CONSTANT:
+    D = UnnamedGlobalConstantDecl::CreateDeserialized(Context, ID);
     break;
   case DECL_TEMPLATE_PARAM_OBJECT:
     D = TemplateParamObjectDecl::CreateDeserialized(Context, ID);

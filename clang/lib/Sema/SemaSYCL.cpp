@@ -914,42 +914,6 @@ private:
   Sema &SemaRef;
 };
 
-// Searches for a call to PFWG lambda function and captures it.
-class FindPFWGLambdaFnVisitor
-    : public RecursiveASTVisitor<FindPFWGLambdaFnVisitor> {
-public:
-  // LambdaObjTy - lambda type of the PFWG lambda object
-  FindPFWGLambdaFnVisitor(const CXXRecordDecl *LambdaObjTy)
-      : LambdaFn(nullptr), LambdaObjTy(LambdaObjTy) {}
-
-  bool VisitCallExpr(CallExpr *Call) {
-    auto *M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
-    if (!M || (M->getOverloadedOperator() != OO_Call))
-      return true;
-
-    unsigned int NumPFWGLambdaArgs =
-        M->getNumParams() + 1; // group, optional kernel_handler and lambda obj
-    if (Call->getNumArgs() != NumPFWGLambdaArgs)
-      return true;
-    if (!Util::isSyclType(Call->getArg(1)->getType(), "group", true /*Tmpl*/))
-      return true;
-    if ((Call->getNumArgs() > 2) &&
-        !Util::isSyclKernelHandlerType(Call->getArg(2)->getType()))
-      return true;
-    if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
-      return true;
-    LambdaFn = M; // call to PFWG lambda found - record the lambda
-    return false; // ... and stop searching
-  }
-
-  // Returns the captured lambda function or nullptr;
-  CXXMethodDecl *getLambdaFn() const { return LambdaFn; }
-
-private:
-  CXXMethodDecl *LambdaFn;
-  const CXXRecordDecl *LambdaObjTy;
-};
-
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
 public:
   MarkWIScopeFnVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
@@ -2158,15 +2122,18 @@ public:
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     // USM allows to use raw pointers instead of buffers/accessors, but these
-    // pointers point to the specially allocated memory. For pointer fields we
-    // add a kernel argument with the same type as field but global address
-    // space, because OpenCL requires it.
+    // pointers point to the specially allocated memory. For pointer fields,
+    // except for function pointer fields, we add a kernel argument with the
+    // same type as field but global address space, because OpenCL requires it.
+    // Function pointers should have program address space. This is set in
+    // CodeGen.
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
     auto AS = Quals.getAddressSpace();
     // Leave global_device and global_host address spaces as is to help FPGA
     // device in memory allocations
-    if (AS != LangAS::sycl_global_device && AS != LangAS::sycl_global_host)
+    if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
+        AS != LangAS::sycl_global_host)
       Quals.setAddressSpace(LangAS::sycl_global);
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
@@ -2541,10 +2508,16 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   void markParallelWorkItemCalls() {
     if (getKernelInvocationKind(KernelCallerFunc) ==
         InvokeParallelForWorkGroup) {
-      FindPFWGLambdaFnVisitor V(KernelObj);
-      V.TraverseStmt(KernelCallerFunc->getBody());
-      CXXMethodDecl *WGLambdaFn = V.getLambdaFn();
-      assert(WGLambdaFn && "PFWG lambda not found");
+      // Fetch the kernel object and the associated call operator
+      // (of either the lambda or the function object).
+      CXXRecordDecl *KernelObj =
+          GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
+      CXXMethodDecl *WGLambdaFn = nullptr;
+      if (KernelObj->isLambda())
+        WGLambdaFn = KernelObj->getLambdaCallOperator();
+      else
+        WGLambdaFn = getOperatorParens(KernelObj);
+      assert(WGLambdaFn && "non callable object is passed as kernel obj");
       // Mark the function that it "works" in a work group scope:
       // NOTE: In case of parallel_for_work_item the marker call itself is
       // marked with work item scope attribute, here  the '()' operator of the
@@ -3744,6 +3717,12 @@ static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
   // If they are the same, no error.
   if (CalcEffectiveSubGroup(S.Context, S.getLangOpts(), SYCLKernel) ==
       CalcEffectiveSubGroup(S.Context, S.getLangOpts(), FD))
+    return;
+
+  // No need to validate __spirv routines here since they
+  // are mapped to the equivalent SPIRV operations.
+  const IdentifierInfo *II = FD->getIdentifier();
+  if (II && II->getName().startswith("__spirv_"))
     return;
 
   // Else we need to figure out why they don't match.

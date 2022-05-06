@@ -296,7 +296,7 @@ bool lldb_private::formatters::LibCxxMapIteratorSyntheticFrontEnd::Update() {
         llvm::Optional<uint64_t> size = tree_node_type.GetByteSize(nullptr);
         if (!size)
           return false;
-        DataBufferSP buffer_sp(new DataBufferHeap(*size, 0));
+        WritableDataBufferSP buffer_sp(new DataBufferHeap(*size, 0));
         ProcessSP process_sp(target_sp->GetProcessSP());
         Status error;
         process_sp->ReadMemory(addr, buffer_sp->GetBytes(),
@@ -578,16 +578,20 @@ ExtractLibcxxStringInfo(ValueObject &valobj) {
   uint64_t size_mode_value = 0;
 
   if (layout == eLibcxxStringLayoutModeDSC) {
-    ValueObjectSP size_mode(D->GetChildAtIndexPath({1, 1, 0}));
+    llvm::SmallVector<size_t, 3> size_mode_locations[] = {
+        {1, 2}, // Post-c3d0205ee771 layout
+        {1, 1, 0},
+        {1, 1, 1},
+    };
+    ValueObjectSP size_mode;
+    for (llvm::ArrayRef<size_t> loc : size_mode_locations) {
+      size_mode = D->GetChildAtIndexPath(loc);
+      if (size_mode && size_mode->GetName() == g_size_name)
+        break;
+    }
+
     if (!size_mode)
       return {};
-
-    if (size_mode->GetName() != g_size_name) {
-      // we are hitting the padding structure, move along
-      size_mode = D->GetChildAtIndexPath({1, 1, 1});
-      if (!size_mode)
-        return {};
-    }
 
     size_mode_value = (size_mode->GetValueAsUnsigned(0));
     short_mode = ((size_mode_value & 0x80) == 0);

@@ -140,6 +140,21 @@ static CallInst *findSingleCall(Function *F, omp::RuntimeFunction FnID,
   return Calls.front();
 }
 
+static omp::ScheduleKind getSchedKind(omp::OMPScheduleType SchedType) {
+  switch (SchedType & ~omp::OMPScheduleType::ModifierMask) {
+  case omp::OMPScheduleType::BaseDynamicChunked:
+    return omp::OMP_SCHEDULE_Dynamic;
+  case omp::OMPScheduleType::BaseGuidedChunked:
+    return omp::OMP_SCHEDULE_Guided;
+  case omp::OMPScheduleType::BaseAuto:
+    return omp::OMP_SCHEDULE_Auto;
+  case omp::OMPScheduleType::BaseRuntime:
+    return omp::OMP_SCHEDULE_Runtime;
+  default:
+    llvm_unreachable("unknown type for this test");
+  }
+}
+
 class OpenMPIRBuilderTest : public testing::Test {
 protected:
   void SetUp() override {
@@ -1898,7 +1913,8 @@ TEST_F(OpenMPIRBuilderTest, StaticWorkShareLoop) {
   Builder.SetInsertPoint(BB, BB->getFirstInsertionPt());
   InsertPointTy AllocaIP = Builder.saveIP();
 
-  OMPBuilder.applyStaticWorkshareLoop(DL, CLI, AllocaIP, /*NeedsBarrier=*/true);
+  OMPBuilder.applyWorkshareLoop(DL, CLI, AllocaIP, /*NeedsBarrier=*/true,
+                                OMP_SCHEDULE_Static);
 
   BasicBlock *Cond = Body->getSinglePredecessor();
   Instruction *Cmp = &*Cond->begin();
@@ -1989,8 +2005,8 @@ TEST_P(OpenMPIRBuilderTestWithIVBits, StaticChunkedWorkshareLoop) {
   Value *ChunkSize = ConstantInt::get(LCTy, 5);
   InsertPointTy AllocaIP{&F->getEntryBlock(),
                          F->getEntryBlock().getFirstInsertionPt()};
-  OMPBuilder.applyStaticChunkedWorkshareLoop(DL, CLI, AllocaIP,
-                                             /*NeedsBarrier=*/true, ChunkSize);
+  OMPBuilder.applyWorkshareLoop(DL, CLI, AllocaIP, /*NeedsBarrier=*/true,
+                                OMP_SCHEDULE_Static, ChunkSize);
 
   OMPBuilder.finalize();
   EXPECT_FALSE(verifyModule(*M, &errs()));
@@ -2056,13 +2072,13 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
 
   omp::OMPScheduleType SchedType = GetParam();
   uint32_t ChunkSize = 1;
-  switch (SchedType & ~omp::OMPScheduleType::ModifierMask) {
-  case omp::OMPScheduleType::DynamicChunked:
-  case omp::OMPScheduleType::GuidedChunked:
+  switch (SchedType & ~OMPScheduleType::ModifierMask) {
+  case omp::OMPScheduleType::BaseDynamicChunked:
+  case omp::OMPScheduleType::BaseGuidedChunked:
     ChunkSize = 7;
     break;
-  case omp::OMPScheduleType::Auto:
-  case omp::OMPScheduleType::Runtime:
+  case omp::OMPScheduleType::BaseAuto:
+  case omp::OMPScheduleType::BaseRuntime:
     ChunkSize = 1;
     break;
   default:
@@ -2074,7 +2090,8 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
   Value *StartVal = ConstantInt::get(LCTy, 10);
   Value *StopVal = ConstantInt::get(LCTy, 52);
   Value *StepVal = ConstantInt::get(LCTy, 2);
-  Value *ChunkVal = ConstantInt::get(LCTy, ChunkSize);
+  Value *ChunkVal =
+      (ChunkSize == 1) ? nullptr : ConstantInt::get(LCTy, ChunkSize);
   auto LoopBodyGen = [&](InsertPointTy, llvm::Value *) {};
 
   CanonicalLoopInfo *CLI = OMPBuilder.createCanonicalLoop(
@@ -2089,11 +2106,18 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
   InsertPointTy AfterIP = CLI->getAfterIP();
   BasicBlock *Preheader = CLI->getPreheader();
   BasicBlock *ExitBlock = CLI->getExit();
+  BasicBlock *LatchBlock = CLI->getLatch();
   Value *IV = CLI->getIndVar();
 
-  InsertPointTy EndIP =
-      OMPBuilder.applyDynamicWorkshareLoop(DL, CLI, AllocaIP, SchedType,
-                                           /*NeedsBarrier=*/true, ChunkVal);
+  InsertPointTy EndIP = OMPBuilder.applyWorkshareLoop(
+      DL, CLI, AllocaIP, /*NeedsBarrier=*/true, getSchedKind(SchedType),
+      ChunkVal, /*Simd=*/false,
+      (SchedType & omp::OMPScheduleType::ModifierMonotonic) ==
+          omp::OMPScheduleType::ModifierMonotonic,
+      (SchedType & omp::OMPScheduleType::ModifierNonmonotonic) ==
+          omp::OMPScheduleType::ModifierNonmonotonic,
+      /*Ordered=*/false);
+
   // The returned value should be the "after" point.
   ASSERT_EQ(EndIP.getBlock(), AfterIP.getBlock());
   ASSERT_EQ(EndIP.getPoint(), AfterIP.getPoint());
@@ -2131,7 +2155,17 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
   EXPECT_EQ(InitCall->arg_size(), 7U);
   EXPECT_EQ(InitCall->getArgOperand(6), ConstantInt::get(LCTy, ChunkSize));
   ConstantInt *SchedVal = cast<ConstantInt>(InitCall->getArgOperand(2));
-  EXPECT_EQ(SchedVal->getValue(), static_cast<uint64_t>(SchedType));
+  if ((SchedType & OMPScheduleType::MonotonicityMask) ==
+      OMPScheduleType::None) {
+    // Implementation is allowed to add default nonmonotonicity flag
+    EXPECT_EQ(
+        static_cast<OMPScheduleType>(SchedVal->getValue().getZExtValue()) |
+            OMPScheduleType::ModifierNonmonotonic,
+        SchedType | OMPScheduleType::ModifierNonmonotonic);
+  } else {
+    EXPECT_EQ(static_cast<OMPScheduleType>(SchedVal->getValue().getZExtValue()),
+              SchedType);
+  }
 
   ConstantInt *OrigLowerBound =
       dyn_cast<ConstantInt>(LowerBoundStore->getValueOperand());
@@ -2145,6 +2179,10 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
   EXPECT_EQ(OrigLowerBound->getValue(), 1);
   EXPECT_EQ(OrigUpperBound->getValue(), 21);
   EXPECT_EQ(OrigStride->getValue(), 1);
+
+  CallInst *FiniCall = dyn_cast<CallInst>(
+      &*(LatchBlock->getTerminator()->getPrevNonDebugInstruction(true)));
+  EXPECT_EQ(FiniCall, nullptr);
 
   // The original loop iterator should only be used in the condition, in the
   // increment and in the statement that adds the lower bound to it.
@@ -2165,21 +2203,99 @@ TEST_P(OpenMPIRBuilderTestWithParams, DynamicWorkShareLoop) {
 
 INSTANTIATE_TEST_SUITE_P(
     OpenMPWSLoopSchedulingTypes, OpenMPIRBuilderTestWithParams,
-    ::testing::Values(omp::OMPScheduleType::DynamicChunked,
-                      omp::OMPScheduleType::GuidedChunked,
-                      omp::OMPScheduleType::Auto, omp::OMPScheduleType::Runtime,
-                      omp::OMPScheduleType::DynamicChunked |
+    ::testing::Values(omp::OMPScheduleType::UnorderedDynamicChunked,
+                      omp::OMPScheduleType::UnorderedGuidedChunked,
+                      omp::OMPScheduleType::UnorderedAuto,
+                      omp::OMPScheduleType::UnorderedRuntime,
+                      omp::OMPScheduleType::UnorderedDynamicChunked |
                           omp::OMPScheduleType::ModifierMonotonic,
-                      omp::OMPScheduleType::DynamicChunked |
+                      omp::OMPScheduleType::UnorderedDynamicChunked |
                           omp::OMPScheduleType::ModifierNonmonotonic,
-                      omp::OMPScheduleType::GuidedChunked |
+                      omp::OMPScheduleType::UnorderedGuidedChunked |
                           omp::OMPScheduleType::ModifierMonotonic,
-                      omp::OMPScheduleType::GuidedChunked |
+                      omp::OMPScheduleType::UnorderedGuidedChunked |
                           omp::OMPScheduleType::ModifierNonmonotonic,
-                      omp::OMPScheduleType::Auto |
+                      omp::OMPScheduleType::UnorderedAuto |
                           omp::OMPScheduleType::ModifierMonotonic,
-                      omp::OMPScheduleType::Runtime |
+                      omp::OMPScheduleType::UnorderedRuntime |
                           omp::OMPScheduleType::ModifierMonotonic));
+
+TEST_F(OpenMPIRBuilderTest, DynamicWorkShareLoopOrdered) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  IRBuilder<> Builder(BB);
+  OpenMPIRBuilder::LocationDescription Loc({Builder.saveIP(), DL});
+
+  uint32_t ChunkSize = 1;
+  Type *LCTy = Type::getInt32Ty(Ctx);
+  Value *StartVal = ConstantInt::get(LCTy, 10);
+  Value *StopVal = ConstantInt::get(LCTy, 52);
+  Value *StepVal = ConstantInt::get(LCTy, 2);
+  Value *ChunkVal = ConstantInt::get(LCTy, ChunkSize);
+  auto LoopBodyGen = [&](InsertPointTy, llvm::Value *) {};
+
+  CanonicalLoopInfo *CLI = OMPBuilder.createCanonicalLoop(
+      Loc, LoopBodyGen, StartVal, StopVal, StepVal,
+      /*IsSigned=*/false, /*InclusiveStop=*/false);
+
+  Builder.SetInsertPoint(BB, BB->getFirstInsertionPt());
+  InsertPointTy AllocaIP = Builder.saveIP();
+
+  // Collect all the info from CLI, as it isn't usable after the call to
+  // createDynamicWorkshareLoop.
+  BasicBlock *Preheader = CLI->getPreheader();
+  BasicBlock *ExitBlock = CLI->getExit();
+  BasicBlock *LatchBlock = CLI->getLatch();
+  Value *IV = CLI->getIndVar();
+
+  InsertPointTy EndIP = OMPBuilder.applyWorkshareLoop(
+      DL, CLI, AllocaIP, /*NeedsBarrier=*/true, OMP_SCHEDULE_Static, ChunkVal,
+      /*HasSimdModifier=*/false, /*HasMonotonicModifier=*/false,
+      /*HasNonmonotonicModifier=*/false,
+      /*HasOrderedClause=*/true);
+
+  // Add a termination to our block and check that it is internally consistent.
+  Builder.restoreIP(EndIP);
+  Builder.CreateRetVoid();
+  OMPBuilder.finalize();
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  CallInst *InitCall = nullptr;
+  for (Instruction &EI : *Preheader) {
+    Instruction *Cur = &EI;
+    if (isa<CallInst>(Cur)) {
+      InitCall = cast<CallInst>(Cur);
+      if (InitCall->getCalledFunction()->getName() == "__kmpc_dispatch_init_4u")
+        break;
+      InitCall = nullptr;
+    }
+  }
+  EXPECT_NE(InitCall, nullptr);
+  EXPECT_EQ(InitCall->arg_size(), 7U);
+  ConstantInt *SchedVal = cast<ConstantInt>(InitCall->getArgOperand(2));
+  EXPECT_EQ(SchedVal->getValue(),
+            static_cast<uint64_t>(OMPScheduleType::OrderedStaticChunked));
+
+  CallInst *FiniCall = dyn_cast<CallInst>(
+      &*(LatchBlock->getTerminator()->getPrevNonDebugInstruction(true)));
+  ASSERT_NE(FiniCall, nullptr);
+  EXPECT_EQ(FiniCall->getCalledFunction()->getName(),
+            "__kmpc_dispatch_fini_4u");
+  EXPECT_EQ(FiniCall->arg_size(), 2U);
+  EXPECT_EQ(InitCall->getArgOperand(0), FiniCall->getArgOperand(0));
+  EXPECT_EQ(InitCall->getArgOperand(1), FiniCall->getArgOperand(1));
+
+  // The original loop iterator should only be used in the condition, in the
+  // increment and in the statement that adds the lower bound to it.
+  EXPECT_EQ(std::distance(IV->use_begin(), IV->use_end()), 3);
+
+  // The exit block should contain the barrier call, plus the call to obtain
+  // the thread ID.
+  size_t NumCallsInExitBlock =
+      count_if(*ExitBlock, [](Instruction &I) { return isa<CallInst>(I); });
+  EXPECT_EQ(NumCallsInExitBlock, 2u);
+}
 
 TEST_F(OpenMPIRBuilderTest, MasterDirective) {
   using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
@@ -3995,7 +4111,12 @@ TEST_F(OpenMPIRBuilderTest, CreateSectionsSimple) {
   OMPBuilder.initialize();
   F->setName("func");
   IRBuilder<> Builder(BB);
+
+  BasicBlock *EnterBB = BasicBlock::Create(Ctx, "sections.enter", F);
+  Builder.CreateBr(EnterBB);
+  Builder.SetInsertPoint(EnterBB);
   OpenMPIRBuilder::LocationDescription Loc({Builder.saveIP(), DL});
+
   llvm::SmallVector<BodyGenCallbackTy, 4> SectionCBVector;
   llvm::SmallVector<BasicBlock *, 4> CaseBBs;
 
@@ -4150,7 +4271,11 @@ TEST_F(OpenMPIRBuilderTest, CreateSectionsNoWait) {
   F->setName("func");
   IRBuilder<> Builder(BB);
 
+  BasicBlock *EnterBB = BasicBlock::Create(Ctx, "sections.enter", F);
+  Builder.CreateBr(EnterBB);
+  Builder.SetInsertPoint(EnterBB);
   OpenMPIRBuilder::LocationDescription Loc({Builder.saveIP(), DL});
+
   IRBuilder<>::InsertPoint AllocaIP(&F->getEntryBlock(),
                                     F->getEntryBlock().getFirstInsertionPt());
   llvm::SmallVector<BodyGenCallbackTy, 4> SectionCBVector;
