@@ -927,7 +927,7 @@ constexpr void check_lsc_block_2d_restrictions() {
                 "2D load supports 2048 bytes max");
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
-  static_assert(!Transposed || (Transposed && NBlocks == 1),
+  static_assert(!Transposed || NBlocks == 1,
                 "Transposed expected to be 1 block only");
   static_assert(!Transformed || (sizeof(T) == 1 || sizeof(T) == 2),
                 "VNNI transform is supported only for data size u8 or u16");
