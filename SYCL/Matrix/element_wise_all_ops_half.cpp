@@ -27,7 +27,7 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 #define TK 16
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
+private:
   T *mat;
 
 public:
@@ -69,7 +69,7 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            auto wi_slice_a = sub_a.get_wi_data();
            for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] + 2;
+             wi_slice_a[i] = wi_slice_a[i] + static_cast<half>(2);
            }
            joint_matrix_store(sg, sub_a,
                               accA.get_pointer() + (sg_startx * TM) * N +
@@ -102,7 +102,7 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            auto wi_slice_a = sub_a.get_wi_data();
            for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] - 2;
+             wi_slice_a[i] = wi_slice_a[i] - static_cast<half>(2);
            }
            joint_matrix_store(sg, sub_a,
                               accA.get_pointer() + (sg_startx * TM) * N +
@@ -135,7 +135,7 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            auto wi_slice_a = sub_a.get_wi_data();
            for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] * 3.0;
+             wi_slice_a[i] = wi_slice_a[i] * static_cast<half>(3.0);
            }
            joint_matrix_store(sg, sub_a,
                               accA.get_pointer() + (sg_startx * TM) * N +
@@ -168,7 +168,7 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            auto wi_slice_a = sub_a.get_wi_data();
            for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] / 2.0;
+             wi_slice_a[i] = wi_slice_a[i] / static_cast<half>(2.0);
            }
            joint_matrix_store(sg, sub_a,
                               accA.get_pointer() + (sg_startx * TM) * N +
@@ -202,13 +202,16 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            auto wi_slice_a = sub_a.get_wi_data();
            for (int i = 0; i < wi_slice_a.length(); i++) {
              if (wi_slice_a[i]) {
-               if (wi_slice_a[i] > 2.0 || wi_slice_a[i] >= 2.0 ||
-                   wi_slice_a[i] < 2.0 || wi_slice_a[i] <= 2.0) {
-                 T val = (wi_slice_a[i] != 2.0) ? wi_slice_a[i]
-                                                : static_cast<half>(2.0);
+               if (wi_slice_a[i] > static_cast<half>(2.0) ||
+                   wi_slice_a[i] >= static_cast<half>(2.0) ||
+                   wi_slice_a[i] < static_cast<half>(2.0) ||
+                   wi_slice_a[i] <= static_cast<half>(2.0)) {
+                 T val = (wi_slice_a[i] != static_cast<half>(2.0))
+                             ? wi_slice_a[i]
+                             : static_cast<half>(2.0);
                  val--;
                  val++;
-                 if (wi_slice_a[i] == 2.0) {
+                 if (wi_slice_a[i] == static_cast<half>(2.0)) {
                    val -= 2;
                    val *= 3.0;
                    val /= 2.0;
