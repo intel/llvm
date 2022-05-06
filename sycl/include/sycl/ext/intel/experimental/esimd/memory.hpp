@@ -930,7 +930,7 @@ constexpr void check_lsc_block_2d_restrictions() {
   if constexpr (Transposed) {
     static_assert(NBlocks == 1, "Transposed expected to be 1 block only");
     static_assert(sizeof(T) == 4 || sizeof(T) == 8,
-      "Transposed load is supported only for data size u32 or u64");
+                  "Transposed load is supported only for data size u32 or u64");
     static_assert(sizeof(T) == 64 ? BlockHeight == 8
                                   : BlockHeight >= 1 && BlockHeight <= 32,
                   "Unsupported block height");
@@ -939,7 +939,7 @@ constexpr void check_lsc_block_2d_restrictions() {
                   "Unsupported block width");
   } else if constexpr (Transformed) {
     static_assert(sizeof(T) == 1 || sizeof(T) == 2,
-      "VNNI transform is supported only for data size u8 or u16");
+                  "VNNI transform is supported only for data size u8 or u16");
     static_assert(__ESIMD_DNS::isPowerOf2(NBlocks, 4),
                   "Unsupported number of blocks");
     static_assert(BlockHeight * sizeof(T) >= 4 && BlockHeight <= 32,
