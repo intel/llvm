@@ -12,30 +12,53 @@
 
 namespace Fortran::evaluate {
 
+// Given a collection of ConstantSubscripts values, package them as a Constant.
+// Return scalar value if asScalar == true and shape-dim array otherwise.
+template <typename T>
+Expr<T> PackageConstantBounds(
+    const ConstantSubscripts &&bounds, bool asScalar = false) {
+  if (asScalar) {
+    return Expr<T>{Constant<T>{bounds.at(0)}};
+  } else {
+    // As rank-dim array
+    const int rank{GetRank(bounds)};
+    std::vector<Scalar<T>> packed(rank);
+    std::transform(bounds.begin(), bounds.end(), packed.begin(),
+        [](ConstantSubscript x) { return Scalar<T>(x); });
+    return Expr<T>{Constant<T>{std::move(packed), ConstantSubscripts{rank}}};
+  }
+}
+
 // Class to retrieve the constant lower bound of an expression which is an
 // array that devolves to a type of Constant<T>
 class GetConstantArrayLboundHelper {
 public:
-  GetConstantArrayLboundHelper(ConstantSubscript dim) : dim_{dim} {}
+  GetConstantArrayLboundHelper(std::optional<ConstantSubscript> dim)
+      : dim_{dim} {}
 
-  template <typename T> ConstantSubscript GetLbound(const T &) {
+  template <typename T> ConstantSubscripts GetLbound(const T &) {
     // The method is needed for template expansion, but we should never get
     // here in practice.
     CHECK(false);
-    return 0;
+    return {0};
   }
 
-  template <typename T> ConstantSubscript GetLbound(const Constant<T> &x) {
+  template <typename T> ConstantSubscripts GetLbound(const Constant<T> &x) {
     // Return the lower bound
-    return x.lbounds()[dim_];
+    if (dim_) {
+      return {x.lbounds().at(*dim_)};
+    } else {
+      return x.lbounds();
+    }
   }
 
-  template <typename T> ConstantSubscript GetLbound(const Parentheses<T> &x) {
-    // Strip off the parentheses
-    return GetLbound(x.left());
+  template <typename T> ConstantSubscripts GetLbound(const Parentheses<T> &x) {
+    // LBOUND for (x) is [1, ..., 1] cause of temp variable inside
+    // parentheses (lower bound is omitted, the default value is 1).
+    return ConstantSubscripts(x.Rank(), ConstantSubscript{1});
   }
 
-  template <typename T> ConstantSubscript GetLbound(const Expr<T> &x) {
+  template <typename T> ConstantSubscripts GetLbound(const Expr<T> &x) {
     // recurse through Expr<T>'a until we hit a constant
     return common::visit([&](const auto &inner) { return GetLbound(inner); },
         //      [&](const auto &) { return 0; },
@@ -43,7 +66,7 @@ public:
   }
 
 private:
-  ConstantSubscript dim_;
+  std::optional<ConstantSubscript> dim_;
 };
 
 template <int KIND>
@@ -89,16 +112,13 @@ Expr<Type<TypeCategory::Integer, KIND>> LBOUND(FoldingContext &context,
         }
       }
       if (IsActuallyConstant(*array)) {
-        return Expr<T>{GetConstantArrayLboundHelper{*dim}.GetLbound(*array)};
+        const ConstantSubscripts bounds{
+            GetConstantArrayLboundHelper{dim}.GetLbound(*array)};
+        return PackageConstantBounds<T>(std::move(bounds), dim.has_value());
       }
       if (lowerBoundsAreOne) {
-        if (dim) {
-          return Expr<T>{1};
-        } else {
-          std::vector<Scalar<T>> ones(rank, Scalar<T>{1});
-          return Expr<T>{
-              Constant<T>{std::move(ones), ConstantSubscripts{rank}}};
-        }
+        ConstantSubscripts ones(rank, ConstantSubscript{1});
+        return PackageConstantBounds<T>(std::move(ones), dim.has_value());
       }
     }
   }
@@ -331,14 +351,12 @@ private:
       if constexpr (T::category == TypeCategory::Logical) {
         // array(at) .EQV. value?
         static_assert(WHICH == WhichLocation::Findloc);
-        cmp.emplace(
-            ConvertToType<LogicalResult>(Expr<T>{LogicalOperation<T::kind>{
-                LogicalOperator::Eqv, Expr<T>{Constant<T>{std::move(element)}},
-                Expr<T>{Constant<T>{*value}}}}));
+        cmp.emplace(ConvertToType<LogicalResult>(
+            Expr<T>{LogicalOperation<T::kind>{LogicalOperator::Eqv,
+                Expr<T>{Constant<T>{element}}, Expr<T>{Constant<T>{*value}}}}));
       } else { // compare array(at) to value
-        cmp.emplace(
-            PackageRelation(relation, Expr<T>{Constant<T>{std::move(element)}},
-                Expr<T>{Constant<T>{*value}}));
+        cmp.emplace(PackageRelation(relation, Expr<T>{Constant<T>{element}},
+            Expr<T>{Constant<T>{*value}}));
       }
       Expr<LogicalResult> folded{Fold(context_, std::move(*cmp))};
       result = GetScalarConstantValue<LogicalResult>(folded).value().IsTrue();
@@ -563,6 +581,28 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
                 posVal, i.bits);
           }
           return std::invoke(fptr, i, posVal);
+        }));
+  } else if (name == "ibits") {
+    return FoldElementalIntrinsic<T, T, Int4, Int4>(context, std::move(funcRef),
+        ScalarFunc<T, T, Int4, Int4>([&](const Scalar<T> &i,
+                                         const Scalar<Int4> &pos,
+                                         const Scalar<Int4> &len) -> Scalar<T> {
+          auto posVal{static_cast<int>(pos.ToInt64())};
+          auto lenVal{static_cast<int>(len.ToInt64())};
+          if (posVal < 0) {
+            context.messages().Say(
+                "bit position for IBITS(POS=%d,LEN=%d) is negative"_err_en_US,
+                posVal, lenVal);
+          } else if (lenVal < 0) {
+            context.messages().Say(
+                "bit length for IBITS(POS=%d,LEN=%d) is negative"_err_en_US,
+                posVal, lenVal);
+          } else if (posVal + lenVal > i.bits) {
+            context.messages().Say(
+                "IBITS(POS=%d,LEN=%d) must have POS+LEN no greater than %d"_err_en_US,
+                posVal + lenVal, i.bits);
+          }
+          return i.IBITS(posVal, lenVal);
         }));
   } else if (name == "index" || name == "scan" || name == "verify") {
     if (auto *charExpr{UnwrapExpr<Expr<SomeCharacter>>(args[0])}) {
@@ -951,7 +991,7 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
   } else if (name == "ubound") {
     return UBOUND(context, std::move(funcRef));
   }
-  // TODO: dot_product, ibits, ishftc, matmul, sign, transfer
+  // TODO: dot_product, ishftc, matmul, sign, transfer
   return Expr<T>{std::move(funcRef)};
 }
 

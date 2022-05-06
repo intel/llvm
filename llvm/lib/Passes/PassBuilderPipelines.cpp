@@ -875,6 +875,7 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // Do basic inference of function attributes from known properties of system
   // libraries and other oracles.
   MPM.addPass(InferFunctionAttrsPass());
+  MPM.addPass(CoroEarlyPass());
 
   // Create an early function pass manager to cleanup the output of the
   // frontend.
@@ -885,7 +886,6 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   EarlyFPM.addPass(SimplifyCFGPass());
   EarlyFPM.addPass(SROAPass());
   EarlyFPM.addPass(EarlyCSEPass());
-  EarlyFPM.addPass(CoroEarlyPass());
   if (Level == OptimizationLevel::O3)
     EarlyFPM.addPass(CallSiteSplittingPass());
 
@@ -1190,6 +1190,9 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // the vectorizer will be able to use them to help recognize vectorizable
   // memory operations.
   MPM.addPass(RecomputeGlobalsAAPass());
+
+  for (auto &C : OptimizerEarlyEPCallbacks)
+    C(MPM, Level);
 
   FunctionPassManager OptimizePM;
   OptimizePM.addPass(Float2IntPass());
@@ -1834,6 +1837,10 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
     if (!FPM.isEmpty())
       MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
+
+  for (auto &C : OptimizerEarlyEPCallbacks)
+    C(MPM, Level);
+
   if (!VectorizerStartEPCallbacks.empty()) {
     FunctionPassManager FPM;
     for (auto &C : VectorizerStartEPCallbacks)
@@ -1843,7 +1850,7 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   }
 
   ModulePassManager CoroPM;
-  CoroPM.addPass(createModuleToFunctionPassAdaptor(CoroEarlyPass()));
+  CoroPM.addPass(CoroEarlyPass());
   CGSCCPassManager CGPM;
   CGPM.addPass(CoroSplitPass());
   CoroPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(std::move(CGPM)));

@@ -20,6 +20,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/VectorInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
@@ -102,7 +103,7 @@ void populateVectorTransferLoweringPatterns(
 
 /// These patterns materialize masks for various vector ops such as transfers.
 void populateVectorMaskMaterializationPatterns(RewritePatternSet &patterns,
-                                               bool indexOptimizations);
+                                               bool force32BitVectorIndices);
 
 /// Collect a set of patterns to propagate insert_map/extract_map in the ssa
 /// chain.

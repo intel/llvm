@@ -460,6 +460,11 @@ ProgramStateRef CStringChecker::CheckOverlap(CheckerContext &C,
 
   ProgramStateRef stateTrue, stateFalse;
 
+  // Assume different address spaces cannot overlap.
+  if (First.Expression->getType()->getPointeeType().getAddressSpace() !=
+      Second.Expression->getType()->getPointeeType().getAddressSpace())
+    return state;
+
   // Get the buffer values and make sure they're known locations.
   const LocationContext *LCtx = C.getLocationContext();
   SVal firstVal = state->getSVal(First.Expression, LCtx);
@@ -1041,23 +1046,20 @@ bool CStringChecker::SummarizeRegion(raw_ostream &os, ASTContext &Ctx,
   case MemRegion::CXXThisRegionKind:
   case MemRegion::CXXTempObjectRegionKind:
     os << "a C++ temp object of type "
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+       << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   case MemRegion::NonParamVarRegionKind:
-    os << "a variable of type"
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+    os << "a variable of type" << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   case MemRegion::ParamVarRegionKind:
-    os << "a parameter of type"
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+    os << "a parameter of type" << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   case MemRegion::FieldRegionKind:
-    os << "a field of type "
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+    os << "a field of type " << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   case MemRegion::ObjCIvarRegionKind:
     os << "an instance variable of type "
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+       << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   default:
     return false;

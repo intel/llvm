@@ -65,25 +65,31 @@ void populateSparseTensorRewriting(RewritePatternSet &patterns);
 /// Function type which is used to control when to stop fusion. It is expected
 /// that OpOperand is not modified in the callback. The OpOperand is not marked
 /// as const to allow callers to use non-const methods.
-using ControlElementwiseOpsFusionFn =
+using ControlFusionFn =
     std::function<bool(const OpResult &producer, OpOperand &consumer)>;
+
+/// Patterns for fusing linalg operation on tensors.
+
+/// Pattern to fuse `linalg.generic` -> `linalg.generic` operations
+/// when both operations are fusable elementwise operations.
+void populateElementwiseOpsFusionPatterns(
+    RewritePatternSet &patterns,
+    const ControlFusionFn &controlElementwiseOpFusion);
 
 /// Patterns to fold an expanding (collapsing) tensor_reshape operation with its
 /// producer (consumer) generic operation by expanding the dimensionality of the
 /// loop in the generic op.
 void populateFoldReshapeOpsByExpansionPatterns(
-    RewritePatternSet &patterns,
-    const ControlElementwiseOpsFusionFn &controlFoldingReshapes =
-        skipUnitDimReshape);
+    RewritePatternSet &patterns, const ControlFusionFn &controlFoldingReshapes);
 
 /// Patterns to fold an expanding tensor.expand_shape operation with its
 /// producer generic operation by collapsing the dimensions of the generic op.
 void populateFoldReshapeOpsByCollapsingPatterns(
-    RewritePatternSet &patterns,
-    const ControlElementwiseOpsFusionFn &controlFoldingReshapes =
-        [](const OpResult & /*producer*/, OpOperand & /*consumer*/) {
-          return true;
-        });
+    RewritePatternSet &patterns, const ControlFusionFn &controlFoldingReshapes);
+
+/// Patterns to constant fold Linalg operations.
+void populateConstantFoldLinalgOperations(RewritePatternSet &patterns,
+                                          const ControlFusionFn &controlFn);
 
 /// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
 /// producer (consumer) generic operation by linearizing the indexing map used
@@ -119,38 +125,8 @@ void populateFoldUnitExtentDimsPatterns(RewritePatternSet &patterns);
 /// Patterns that are used to inline constant operands into linalg generic ops.
 void populateInlineConstantOperandsPatterns(RewritePatternSet &patterns);
 
-/// Options that control fusion of elementwise operations.
-struct LinalgElementwiseFusionOptions {
-  /// Enable fusion of reshapes into the shape with elementwise operations. By
-  /// default it is disabled for unit dimensions reshape.
-  ControlElementwiseOpsFusionFn controlFoldingReshapesFn = skipUnitDimReshape;
-
-  LinalgElementwiseFusionOptions &
-  setControlFoldingReshapes(ControlElementwiseOpsFusionFn fun) {
-    controlFoldingReshapesFn = std::move(fun);
-    return *this;
-  }
-
-  /// Function to allow the caller to control when to stop fusion. Once a
-  /// producer is deemed fusable with the consumer (structurally), this callback
-  /// can be used to abort the fusion based on non-structural constraints. This
-  /// is the hook for cost models to control the amount of fusion done.
-  ControlElementwiseOpsFusionFn controlElementwiseOpsFusionFn =
-      [](const OpResult & /*producer */, OpOperand & /*consumer */) {
-        return true;
-      };
-
-  LinalgElementwiseFusionOptions &
-  setControlElementwiseOpsFusionFn(ControlElementwiseOpsFusionFn fun) {
-    controlElementwiseOpsFusionFn = std::move(fun);
-    return *this;
-  }
-};
-
-/// Patterns for fusing linalg operation on tensors.
-void populateElementwiseOpsFusionPatterns(
-    RewritePatternSet &patterns,
-    LinalgElementwiseFusionOptions options = LinalgElementwiseFusionOptions());
+/// Patterns that are used to bubble up extract slice op above linalg op.
+void populateBubbleUpExtractSliceOpPatterns(RewritePatternSet &patterns);
 
 /// Patterns to push reshape op towards the end of the graph in order to expose
 /// more fusion opportunities.
@@ -553,69 +529,38 @@ void transformIndexOps(RewriterBase &b, LinalgOp op,
                        SmallVectorImpl<Value> &ivs,
                        const LoopIndexToRangeIndexMap &loopIndexToRangeIndex);
 
-/// Callback returning the padding value to use for a given OpOperand or failure
-/// for no padding. This should be a function of both the operation and the
-/// operand type.
-using PaddingValueComputationFunction =
-    std::function<FailureOr<Value>(OpBuilder &, OpOperand &)>;
-
-/// Callback returning true if the PadOp defining the given OpOperand shall be
-/// marked as nofold to enable packing.
-using PaddingNoFoldComputationFunction = std::function<bool(OpOperand &)>;
-
-/// Callback returning the number of loops to hoist the PadOp defining the given
-/// OpOperand.
-using PaddingHoistComputationFunction = std::function<int64_t(OpOperand &)>;
-
-/// Callback returning the transpose vector used to permute the result tensor
-/// dimensions of the PadOp defining the given OpOperand.
-using PaddingTransposeComputationFunction =
-    std::function<SmallVector<int64_t>(OpOperand &)>;
-
 struct LinalgPaddingOptions {
-  /// Callback returning the padding value to use for a given OpOperand or
-  /// failure for no padding. Padding operations are introduced if
-  /// `paddingValueComputationFunction` is set and does not return failure.
-  /// Padding all operands guarantees the operation is statically shaped and
-  /// thus can be vectorized.
-  PaddingValueComputationFunction paddingValueComputationFunction = nullptr;
-
-  LinalgPaddingOptions &
-  setPaddingValueComputationFunction(PaddingValueComputationFunction fun) {
-    paddingValueComputationFunction = std::move(fun);
+  /// A padding value for every operand.
+  SmallVector<Attribute> paddingValues;
+  LinalgPaddingOptions &setPaddingValues(ArrayRef<Attribute> pv) {
+    paddingValues.assign(pv.begin(), pv.end());
     return *this;
   }
-
-  /// Callback returning true if the PadOp defining the given OpOperand shall be
-  /// marked as nofold to enable packing. A padding operation is only marked
-  /// nofold if `paddingNoFoldComputationFunction` is set and returns true.
-  /// Otherwise, the nofold attribute is set to false.
-  PaddingNoFoldComputationFunction paddingNoFoldComputationFunction = nullptr;
-
-  LinalgPaddingOptions &
-  setPaddingNoFoldComputationFunction(PaddingNoFoldComputationFunction fun) {
-    paddingNoFoldComputationFunction = std::move(fun);
+  /// A list of iterator dimensions to pad.
+  SmallVector<int64_t> paddingDimensions;
+  LinalgPaddingOptions &setPaddingDimensions(ArrayRef<int64_t> pd) {
+    paddingDimensions.assign(pd.begin(), pd.end());
     return *this;
   }
-
-  /// Callback returning the number of loops to hoist the PadOp defining the
-  /// given OpOperand.
-  PaddingHoistComputationFunction paddingHoistComputationFunction = nullptr;
-
-  LinalgPaddingOptions &
-  setPaddingHoistComputationFunction(PaddingHoistComputationFunction fun) {
-    paddingHoistComputationFunction = std::move(fun);
+  /// A flag for every operand to mark the PadOp as nofold which enables packing
+  /// for statically shaped operands.
+  SmallVector<bool> packPaddings;
+  LinalgPaddingOptions &setPackPaddings(ArrayRef<bool> pp) {
+    packPaddings.assign(pp.begin(), pp.end());
     return *this;
   }
-
-  /// Callback returning the transpose vector used to permute the result tensor
-  /// dimensions of the PadOp defining the given OpOperand.
-  PaddingTransposeComputationFunction paddingTransposeComputationFunction =
-      nullptr;
-
-  LinalgPaddingOptions &setPaddingTransposeComputationFunction(
-      PaddingTransposeComputationFunction fun) {
-    paddingTransposeComputationFunction = std::move(fun);
+  /// A number of loops to hoist the PadOp out for every operand.
+  SmallVector<int64_t> hoistPaddings;
+  LinalgPaddingOptions &setHoistPaddings(ArrayRef<int64_t> hp) {
+    hoistPaddings.assign(hp.begin(), hp.end());
+    return *this;
+  }
+  /// A permutation vector for every operand used to transpose the packed PadOp
+  /// results.
+  SmallVector<SmallVector<int64_t>> transposePaddings;
+  LinalgPaddingOptions &
+  setTransposePaddings(ArrayRef<SmallVector<int64_t>> tp) {
+    transposePaddings.assign(tp.begin(), tp.end());
     return *this;
   }
 };
@@ -1254,16 +1199,17 @@ struct PadOpTransformationPattern : public OpRewritePattern<tensor::PadOp> {
                                 PatternRewriter &rewriter) const override;
 };
 
-/// Pad the operands of `opToPad` to a static bounding box. Use `paddingFunc`
-/// and `nofoldFunc` to set the padding value and the nofold attribute of the
-/// introduced tensor::PadOps, respectively. Update `paddedOp` to the cloned
-/// statically shaped operation and return the extracted dynamically shaped
-/// results. If padding fails, return failure.
+/// Pad the iterator dimensions `paddingDimensions` of all `opToPad` operands to
+/// a static bounding box. Use `paddingValues` and `packPaddings` to set padding
+/// value and nofold attribute of the created tensor::PadOps, respectively.
+/// Update `paddedOp` to the cloned operation with statically shaped
+/// `paddingDimensions` and return the extracted dynamically shaped results. If
+/// padding fails, return failure.
 FailureOr<SmallVector<Value>>
 rewriteAsPaddedOp(OpBuilder &b, LinalgOp opToPad,
-                  const PaddingValueComputationFunction &paddingFunc,
-                  const PaddingNoFoldComputationFunction &nofoldFunc,
-                  LinalgOp &paddedOp);
+                  ArrayRef<int64_t> paddingDimensions,
+                  ArrayRef<Attribute> paddingValues,
+                  ArrayRef<bool> packPaddings, LinalgOp &paddedOp);
 
 using OptimizeCopyFn =
     std::function<LogicalResult(PatternRewriter &, tensor::PadOp, Value)>;
@@ -1458,8 +1404,8 @@ using ControlSplitReductionFn =
 /// Patterns to apply `splitReduction` below.
 void populateSplitReductionPattern(
     RewritePatternSet &patterns,
-    ControlSplitReductionFn controlSplitReductionFn,
-    LinalgTransformationFilter f = LinalgTransformationFilter());
+    const ControlSplitReductionFn &controlSplitReductionFn,
+    const LinalgTransformationFilter &f = LinalgTransformationFilter());
 
 /// Apply transformation to split the single linalg op reduction into a parallel
 /// and reduction dimension. Then create a new linalg.generic op doing the rest
@@ -1502,8 +1448,8 @@ void populateSplitReductionPattern(
 /// ```
 FailureOr<LinalgOp>
 splitReduction(PatternRewriter &b, LinalgOp op,
-               ControlSplitReductionFn controlSplitReductionFn,
-               LinalgTransformationFilter f);
+               const ControlSplitReductionFn &controlSplitReductionFn,
+               const LinalgTransformationFilter &f);
 
 } // namespace linalg
 } // namespace mlir

@@ -35,6 +35,7 @@ public:
     return __spirv_ConvertFToBF16INTEL(a);
 #endif
 #else
+    (void)a;
     throw exception{errc::feature_not_supported,
                     "Bfloat16 conversion is not supported on host device"};
 #endif
@@ -50,6 +51,7 @@ public:
     return __spirv_ConvertBF16ToFINTEL(a);
 #endif
 #else
+    (void)a;
     throw exception{errc::feature_not_supported,
                     "Bfloat16 conversion is not supported on host device"};
 #endif
@@ -88,6 +90,7 @@ public:
     return bfloat16{-__spirv_ConvertBF16ToFINTEL(lhs.value)};
 #endif
 #else
+    (void)lhs;
     throw exception{errc::feature_not_supported,
                     "Bfloat16 unary minus is not supported on host device"};
 #endif

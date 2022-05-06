@@ -25,6 +25,9 @@
 namespace llvm {
 class raw_ostream;
 }
+namespace Fortran::parser {
+struct Expr;
+}
 
 namespace Fortran::semantics {
 
@@ -191,6 +194,12 @@ public:
   MaybeExpr &init() { return init_; }
   const MaybeExpr &init() const { return init_; }
   void set_init(MaybeExpr &&expr) { init_ = std::move(expr); }
+  const parser::Expr *unanalyzedPDTComponentInit() const {
+    return unanalyzedPDTComponentInit_;
+  }
+  void set_unanalyzedPDTComponentInit(const parser::Expr *expr) {
+    unanalyzedPDTComponentInit_ = expr;
+  }
   ArraySpec &shape() { return shape_; }
   const ArraySpec &shape() const { return shape_; }
   ArraySpec &coshape() { return coshape_; }
@@ -212,6 +221,7 @@ public:
 
 private:
   MaybeExpr init_;
+  const parser::Expr *unanalyzedPDTComponentInit_{nullptr};
   ArraySpec shape_;
   ArraySpec coshape_;
   const Symbol *commonBlock_{nullptr}; // common block this object is in
@@ -640,6 +650,10 @@ public:
             [](const UseDetails &x) { return x.symbol().Rank(); },
             [](const HostAssocDetails &x) { return x.symbol().Rank(); },
             [](const ObjectEntityDetails &oed) { return oed.shape().Rank(); },
+            [](const ProcEntityDetails &ped) {
+              const Symbol *iface{ped.interface().symbol()};
+              return iface ? iface->Rank() : 0;
+            },
             [](const AssocEntityDetails &aed) {
               if (const auto &expr{aed.expr()}) {
                 if (auto assocRank{aed.rank()}) {

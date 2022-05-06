@@ -263,6 +263,10 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
       continue;
     }
 
+    // In some error cases, the input could be Nothing; skip those.
+    if (II.isNothing())
+      continue;
+
     // Otherwise, this is a linker input argument.
     const Arg &A = II.getInputArg();
 
@@ -432,6 +436,13 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
 
     return TargetCPUName;
   }
+  case llvm::Triple::csky:
+    if (const Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
+      return A->getValue();
+    else if (const Arg *A = Args.getLastArg(options::OPT_march_EQ))
+      return A->getValue();
+    else
+      return "ck810";
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
     if (const Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
@@ -627,15 +638,6 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                                          Path));
   }
 
-  // Pass an option to enable/disable the new pass manager.
-  if (auto *A = Args.getLastArg(options::OPT_flegacy_pass_manager,
-                                options::OPT_fno_legacy_pass_manager)) {
-    if (A->getOption().matches(options::OPT_flegacy_pass_manager))
-      CmdArgs.push_back("-plugin-opt=legacy-pass-manager");
-    else
-      CmdArgs.push_back("-plugin-opt=new-pass-manager");
-  }
-
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
   if (!StatsFile.empty())
@@ -674,6 +676,17 @@ void tools::addOpenMPRuntimeSpecificRPath(const ToolChain &TC,
     CmdArgs.push_back("-rpath");
     CmdArgs.push_back(Args.MakeArgString(DefaultLibPath));
   }
+}
+
+void tools::addOpenMPRuntimeLibraryPath(const ToolChain &TC,
+                                        const ArgList &Args,
+                                        ArgStringList &CmdArgs) {
+  // Default to clang lib / lib64 folder, i.e. the same location as device
+  // runtime.
+  SmallString<256> DefaultLibPath =
+      llvm::sys::path::parent_path(TC.getDriver().Dir);
+  llvm::sys::path::append(DefaultLibPath, Twine("lib") + CLANG_LIBDIR_SUFFIX);
+  CmdArgs.push_back(Args.MakeArgString("-L" + DefaultLibPath));
 }
 
 void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
@@ -735,6 +748,7 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
 
   if (RTKind == Driver::OMPRT_OMP)
     addOpenMPRuntimeSpecificRPath(TC, Args, CmdArgs);
+  addOpenMPRuntimeLibraryPath(TC, Args, CmdArgs);
 
   return true;
 }
@@ -1002,6 +1016,19 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
 
   if (SanArgs.hasCrossDsoCfi() && !AddExportDynamic)
     CmdArgs.push_back("--export-dynamic-symbol=__cfi_check");
+
+  if (SanArgs.hasMemTag()) {
+    if (!TC.getTriple().isAndroid()) {
+      TC.getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
+          << "-fsanitize=memtag*" << TC.getTriple().str();
+    }
+    CmdArgs.push_back(
+        Args.MakeArgString("--android-memtag-mode=" + SanArgs.getMemtagMode()));
+    if (SanArgs.hasMemtagHeap())
+      CmdArgs.push_back("--android-memtag-heap");
+    if (SanArgs.hasMemtagStack())
+      CmdArgs.push_back("--android-memtag-stack");
+  }
 
   return !StaticRuntimes.empty() || !NonWholeStaticRuntimes.empty();
 }
@@ -1773,9 +1800,9 @@ bool tools::GetSDLFromOffloadArchive(
 
     std::string UnbundleArg("-unbundle");
     std::string TypeArg("-type=a");
-    std::string InputArg("-inputs=" + ArchiveOfBundles);
+    std::string InputArg("-input=" + ArchiveOfBundles);
     std::string OffloadArg("-targets=" + std::string(DeviceTriple));
-    std::string OutputArg("-outputs=" + OutputLib);
+    std::string OutputArg("-output=" + OutputLib);
 
     const char *UBProgram = DriverArgs.MakeArgString(
         T.getToolChain().GetProgramPath("clang-offload-bundler"));

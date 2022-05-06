@@ -70,7 +70,7 @@ and not recommended to use in production environment.
     Enables (or disables) LLVM IR dead argument elimination pass to remove
     unused arguments for the kernel functions before translation to SPIR-V.
     Currently has effect only on spir64\* targets.
-    Disabled by default.
+    Enabled by default.
 
 **`-f[no-]sycl-id-queries-fit-in-int`**
 

@@ -365,8 +365,10 @@ public:
     if (HasValue2 == nullptr)
       return false;
 
-    assert(HasValue1 != HasValue2);
-    cast<StructValue>(&MergedVal)->setProperty("has_value", HasValueTop);
+    if (HasValue1 == HasValue2)
+      cast<StructValue>(&MergedVal)->setProperty("has_value", *HasValue1);
+    else
+      cast<StructValue>(&MergedVal)->setProperty("has_value", HasValueTop);
     return true;
   }
 
@@ -873,6 +875,121 @@ TEST_F(FlowConditionTest, Join) {
         const Environment &Env = Results[0].second.Env;
         auto *FooVal = cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
         EXPECT_TRUE(Env.flowConditionImplies(*FooVal));
+      });
+}
+
+// Verifies that flow conditions are properly constructed even when the
+// condition is not meaningfully interpreted.
+//
+// Note: currently, arbitrary function calls are uninterpreted, so the test
+// exercises this case. If and when we change that, this test will not add to
+// coverage (although it may still test a valuable case).
+TEST_F(FlowConditionTest, OpaqueFlowConditionMergesToOpaqueBool) {
+  std::string Code = R"(
+    bool foo();
+
+    void target() {
+      bool Bar = true;
+      if (foo())
+        Bar = false;
+      (void)0;
+      /*[[p]]*/
+    }
+  )";
+  runDataflow(
+      Code, [](llvm::ArrayRef<
+                   std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                   Results,
+               ASTContext &ASTCtx) {
+        ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+        const Environment &Env = Results[0].second.Env;
+
+        const ValueDecl *BarDecl = findValueDecl(ASTCtx, "Bar");
+        ASSERT_THAT(BarDecl, NotNull());
+
+        auto &BarVal =
+            *cast<BoolValue>(Env.getValue(*BarDecl, SkipPast::Reference));
+
+        EXPECT_FALSE(Env.flowConditionImplies(BarVal));
+      });
+}
+
+// Verifies that flow conditions are properly constructed even when the
+// condition is not meaningfully interpreted.
+//
+// Note: currently, fields with recursive type calls are uninterpreted (beneath
+// the first instance), so the test exercises this case. If and when we change
+// that, this test will not add to coverage (although it may still test a
+// valuable case).
+TEST_F(FlowConditionTest, OpaqueFieldFlowConditionMergesToOpaqueBool) {
+  std::string Code = R"(
+    struct Rec {
+      Rec* Next;
+    };
+
+    struct Foo {
+      Rec* X;
+    };
+
+    void target(Foo F) {
+      bool Bar = true;
+      if (F.X->Next)
+        Bar = false;
+      (void)0;
+      /*[[p]]*/
+    }
+  )";
+  runDataflow(
+      Code, [](llvm::ArrayRef<
+                   std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                   Results,
+               ASTContext &ASTCtx) {
+        ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+        const Environment &Env = Results[0].second.Env;
+
+        const ValueDecl *BarDecl = findValueDecl(ASTCtx, "Bar");
+        ASSERT_THAT(BarDecl, NotNull());
+
+        auto &BarVal =
+            *cast<BoolValue>(Env.getValue(*BarDecl, SkipPast::Reference));
+
+        EXPECT_FALSE(Env.flowConditionImplies(BarVal));
+      });
+}
+
+// Verifies that flow conditions are properly constructed even when the
+// condition is not meaningfully interpreted. Adds to above by nesting the
+// interestnig case inside a normal branch. This protects against degenerate
+// solutions which only test for empty flow conditions, for example.
+TEST_F(FlowConditionTest, OpaqueFlowConditionInsideBranchMergesToOpaqueBool) {
+  std::string Code = R"(
+    bool foo();
+
+    void target(bool Cond) {
+      bool Bar = true;
+      if (Cond) {
+        if (foo())
+          Bar = false;
+        (void)0;
+        /*[[p]]*/
+      }
+    }
+  )";
+  runDataflow(
+      Code, [](llvm::ArrayRef<
+                   std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                   Results,
+               ASTContext &ASTCtx) {
+        ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+        const Environment &Env = Results[0].second.Env;
+
+        const ValueDecl *BarDecl = findValueDecl(ASTCtx, "Bar");
+        ASSERT_THAT(BarDecl, NotNull());
+
+        auto &BarVal =
+            *cast<BoolValue>(Env.getValue(*BarDecl, SkipPast::Reference));
+
+        EXPECT_FALSE(Env.flowConditionImplies(BarVal));
       });
 }
 

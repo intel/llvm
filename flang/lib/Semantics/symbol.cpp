@@ -211,7 +211,8 @@ void GenericDetails::CopyFrom(const GenericDetails &from) {
   for (std::size_t i{0}; i < from.specificProcs_.size(); ++i) {
     if (std::find_if(specificProcs_.begin(), specificProcs_.end(),
             [&](const Symbol &mySymbol) {
-              return &mySymbol == &*from.specificProcs_[i];
+              return &mySymbol.GetUltimate() ==
+                  &from.specificProcs_[i]->GetUltimate();
             }) == specificProcs_.end()) {
       specificProcs_.push_back(from.specificProcs_[i]);
       bindingNames_.push_back(from.bindingNames_[i]);
@@ -379,6 +380,9 @@ llvm::raw_ostream &operator<<(
   DumpList(os, "shape", x.shape());
   DumpList(os, "coshape", x.coshape());
   DumpExpr(os, "init", x.init_);
+  if (x.unanalyzedPDTComponentInit()) {
+    os << " (has unanalyzedPDTComponentInit)";
+  }
   return os;
 }
 

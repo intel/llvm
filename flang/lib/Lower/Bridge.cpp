@@ -195,8 +195,8 @@ public:
     for (int entryIndex = 0, last = funit.entryPointList.size();
          entryIndex < last; ++entryIndex) {
       funit.setActiveEntry(entryIndex);
-      // Calling CalleeInterface ctor will build a declaration mlir::FuncOp with
-      // no other side effects.
+      // Calling CalleeInterface ctor will build a declaration
+      // mlir::func::FuncOp with no other side effects.
       // TODO: when doing some compiler profiling on real apps, it may be worth
       // to check it's better to save the CalleeInterface instead of recomputing
       // it later when lowering the body. CalleeInterface ctor should be linear
@@ -367,6 +367,95 @@ public:
         &getMLIRContext(), tc, bridge.getDefaultKinds().GetDefaultKind(tc),
         llvm::None);
   }
+
+  bool createHostAssociateVarClone(
+      const Fortran::semantics::Symbol &sym) override final {
+    mlir::Location loc = genLocation(sym.name());
+    mlir::Type symType = genType(sym);
+    const auto *details = sym.detailsIf<Fortran::semantics::HostAssocDetails>();
+    assert(details && "No host-association found");
+    const Fortran::semantics::Symbol &hsym = details->symbol();
+    Fortran::lower::SymbolBox hsb = lookupSymbol(hsym);
+
+    auto allocate = [&](llvm::ArrayRef<mlir::Value> shape,
+                        llvm::ArrayRef<mlir::Value> typeParams) -> mlir::Value {
+      mlir::Value allocVal = builder->allocateLocal(
+          loc, symType, mangleName(sym), toStringRef(sym.GetUltimate().name()),
+          /*pinned=*/true, shape, typeParams,
+          sym.GetUltimate().attrs().test(Fortran::semantics::Attr::TARGET));
+      return allocVal;
+    };
+
+    fir::ExtendedValue hexv = getExtendedValue(hsb);
+    fir::ExtendedValue exv = hexv.match(
+        [&](const fir::BoxValue &box) -> fir::ExtendedValue {
+          const Fortran::semantics::DeclTypeSpec *type = sym.GetType();
+          if (type && type->IsPolymorphic())
+            TODO(loc, "create polymorphic host associated copy");
+          // Create a contiguous temp with the same shape and length as
+          // the original variable described by a fir.box.
+          llvm::SmallVector<mlir::Value> extents =
+              fir::factory::getExtents(*builder, loc, hexv);
+          if (box.isDerivedWithLengthParameters())
+            TODO(loc, "get length parameters from derived type BoxValue");
+          if (box.isCharacter()) {
+            mlir::Value len = fir::factory::readCharLen(*builder, loc, box);
+            mlir::Value temp = allocate(extents, {len});
+            return fir::CharArrayBoxValue{temp, len, extents};
+          }
+          return fir::ArrayBoxValue{allocate(extents, {}), extents};
+        },
+        [&](const fir::MutableBoxValue &box) -> fir::ExtendedValue {
+          // Allocate storage for a pointer/allocatble descriptor.
+          // No shape/lengths to be passed to the alloca.
+          return fir::MutableBoxValue(allocate({}, {}),
+                                      box.nonDeferredLenParams(), {});
+        },
+        [&](const auto &) -> fir::ExtendedValue {
+          mlir::Value temp =
+              allocate(fir::factory::getExtents(*builder, loc, hexv),
+                       fir::getTypeParams(hexv));
+          return fir::substBase(hexv, temp);
+        });
+
+    return bindIfNewSymbol(sym, exv);
+  }
+
+  void
+  copyHostAssociateVar(const Fortran::semantics::Symbol &sym) override final {
+    // 1) Fetch the original copy of the variable.
+    assert(sym.has<Fortran::semantics::HostAssocDetails>() &&
+           "No host-association found");
+    const Fortran::semantics::Symbol &hsym = sym.GetUltimate();
+    Fortran::lower::SymbolBox hsb = lookupSymbol(hsym);
+    fir::ExtendedValue hexv = getExtendedValue(hsb);
+
+    // 2) Create a copy that will mask the original.
+    createHostAssociateVarClone(sym);
+    Fortran::lower::SymbolBox sb = lookupSymbol(sym);
+    fir::ExtendedValue exv = getExtendedValue(sb);
+
+    // 3) Perform the assignment.
+    mlir::Location loc = genLocation(sym.name());
+    mlir::Type symType = genType(sym);
+    if (auto seqTy = symType.dyn_cast<fir::SequenceType>()) {
+      Fortran::lower::StatementContext stmtCtx;
+      Fortran::lower::createSomeArrayAssignment(*this, exv, hexv, localSymbols,
+                                                stmtCtx);
+      stmtCtx.finalize();
+    } else if (hexv.getBoxOf<fir::CharBoxValue>()) {
+      fir::factory::CharacterExprHelper{*builder, loc}.createAssign(exv, hexv);
+    } else if (hexv.getBoxOf<fir::MutableBoxValue>()) {
+      TODO(loc, "firstprivatisation of allocatable variables");
+    } else {
+      auto loadVal = builder->create<fir::LoadOp>(loc, fir::getBase(hexv));
+      builder->create<fir::StoreOp>(loc, loadVal, fir::getBase(exv));
+    }
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Utility methods
+  //===--------------------------------------------------------------------===//
 
   mlir::Location getCurrentLocation() override final { return toLocation(); }
 
@@ -653,8 +742,8 @@ private:
     return cond;
   }
 
-  mlir::FuncOp getFunc(llvm::StringRef name, mlir::FunctionType ty) {
-    if (mlir::FuncOp func = builder->getNamedFunction(name)) {
+  mlir::func::FuncOp getFunc(llvm::StringRef name, mlir::FunctionType ty) {
+    if (mlir::func::FuncOp func = builder->getNamedFunction(name)) {
       assert(func.getFunctionType() == ty);
       return func;
     }
@@ -1503,19 +1592,19 @@ private:
   //===--------------------------------------------------------------------===//
 
   void genFIR(const Fortran::parser::EventPostStmt &stmt) {
-    TODO(toLocation(), "EventPostStmt lowering");
+    genEventPostStatement(*this, stmt);
   }
 
   void genFIR(const Fortran::parser::EventWaitStmt &stmt) {
-    TODO(toLocation(), "EventWaitStmt lowering");
+    genEventWaitStatement(*this, stmt);
   }
 
   void genFIR(const Fortran::parser::FormTeamStmt &stmt) {
-    TODO(toLocation(), "FormTeamStmt lowering");
+    genFormTeamStatement(*this, getEval(), stmt);
   }
 
   void genFIR(const Fortran::parser::LockStmt &stmt) {
-    TODO(toLocation(), "LockStmt lowering");
+    genLockStatement(*this, stmt);
   }
 
   fir::ExtendedValue
@@ -1883,23 +1972,23 @@ private:
   }
 
   void genFIR(const Fortran::parser::SyncAllStmt &stmt) {
-    TODO(toLocation(), "SyncAllStmt lowering");
+    genSyncAllStatement(*this, stmt);
   }
 
   void genFIR(const Fortran::parser::SyncImagesStmt &stmt) {
-    TODO(toLocation(), "SyncImagesStmt lowering");
+    genSyncImagesStatement(*this, stmt);
   }
 
   void genFIR(const Fortran::parser::SyncMemoryStmt &stmt) {
-    TODO(toLocation(), "SyncMemoryStmt lowering");
+    genSyncMemoryStatement(*this, stmt);
   }
 
   void genFIR(const Fortran::parser::SyncTeamStmt &stmt) {
-    TODO(toLocation(), "SyncTeamStmt lowering");
+    genSyncTeamStatement(*this, stmt);
   }
 
   void genFIR(const Fortran::parser::UnlockStmt &stmt) {
-    TODO(toLocation(), "UnlockStmt lowering");
+    genUnlockStatement(*this, stmt);
   }
 
   void genFIR(const Fortran::parser::AssignStmt &stmt) {
@@ -2102,7 +2191,7 @@ private:
   void startNewFunction(Fortran::lower::pft::FunctionLikeUnit &funit) {
     assert(!builder && "expected nullptr");
     Fortran::lower::CalleeInterface callee(funit, *this);
-    mlir::FuncOp func = callee.addEntryBlockAndMapArguments();
+    mlir::func::FuncOp func = callee.addEntryBlockAndMapArguments();
     builder = new fir::FirOpBuilder(func, bridge.getKindMap());
     assert(builder && "FirOpBuilder did not instantiate");
     builder->setInsertionPointToStart(&func.front());
@@ -2298,7 +2387,7 @@ private:
     // FIXME: get rid of the bogus function context and instantiate the
     // globals directly into the module.
     mlir::MLIRContext *context = &getMLIRContext();
-    mlir::FuncOp func = fir::FirOpBuilder::createFunction(
+    mlir::func::FuncOp func = fir::FirOpBuilder::createFunction(
         mlir::UnknownLoc::get(context), getModuleOp(),
         fir::NameUniquer::doGenerated("Sham"),
         mlir::FunctionType::get(context, llvm::None, llvm::None));

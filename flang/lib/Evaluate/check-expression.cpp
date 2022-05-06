@@ -173,7 +173,7 @@ struct IsActuallyConstantHelper {
     return (*this)(x.left());
   }
   template <typename T> bool operator()(const Expr<T> &x) {
-    return common::visit([this](const auto &y) { return (*this)(y); }, x.u);
+    return common::visit([=](const auto &y) { return (*this)(y); }, x.u);
   }
   bool operator()(const Expr<SomeType> &x) {
     if (IsNullPointer(x)) {
@@ -192,6 +192,8 @@ template <typename A> bool IsActuallyConstant(const A &x) {
 }
 
 template bool IsActuallyConstant(const Expr<SomeType> &);
+template bool IsActuallyConstant(const Expr<SomeInteger> &);
+template bool IsActuallyConstant(const Expr<SubscriptInteger> &);
 
 // Object pointer initialization checking predicate IsInitialDataTarget().
 // This code determines whether an expression is allowable as the static

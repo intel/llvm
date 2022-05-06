@@ -22,6 +22,7 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -1529,6 +1530,36 @@ static Instruction *foldSelectZeroOrOnes(ICmpInst *Cmp, Value *TVal,
   return nullptr;
 }
 
+static Value *foldSelectInstWithICmpConst(SelectInst &SI, ICmpInst *ICI) {
+  const APInt *CmpC;
+  Value *V;
+  CmpInst::Predicate Pred;
+  if (!match(ICI, m_ICmp(Pred, m_Value(V), m_APInt(CmpC))))
+    return nullptr;
+
+  BinaryOperator *BO;
+  const APInt *C;
+  CmpInst::Predicate CPred;
+  if (match(&SI, m_Select(m_Specific(ICI), m_APInt(C), m_BinOp(BO))))
+    CPred = ICI->getPredicate();
+  else if (match(&SI, m_Select(m_Specific(ICI), m_BinOp(BO), m_APInt(C))))
+    CPred = ICI->getInversePredicate();
+  else
+    return nullptr;
+
+  const APInt *BinOpC;
+  if (!match(BO, m_BinOp(m_Specific(V), m_APInt(BinOpC))))
+    return nullptr;
+
+  ConstantRange R = ConstantRange::makeExactICmpRegion(CPred, *CmpC)
+                        .binaryOp(BO->getOpcode(), *BinOpC);
+  if (R == *C) {
+    BO->dropPoisonGeneratingFlags();
+    return BO;
+  }
+  return nullptr;
+}
+
 /// Visit a SelectInst that has an ICmpInst as its first operand.
 Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
                                                       ICmpInst *ICI) {
@@ -1537,6 +1568,9 @@ Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
 
   if (Instruction *NewSPF = canonicalizeSPF(SI, *ICI, *this))
     return NewSPF;
+
+  if (Value *V = foldSelectInstWithICmpConst(SI, ICI))
+    return replaceInstUsesWith(SI, V);
 
   if (Value *V = canonicalizeClampLike(SI, *ICI, Builder))
     return replaceInstUsesWith(SI, V);
@@ -1566,6 +1600,23 @@ Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
       SI.setOperand(2, CmpRHS);
       Changed = true;
     }
+  }
+
+  // Canonicalize a signbit condition to use zero constant by swapping:
+  // (CmpLHS > -1) ? TV : FV --> (CmpLHS < 0) ? FV : TV
+  // To avoid conflicts (infinite loops) with other canonicalizations, this is
+  // not applied with any constant select arm.
+  if (Pred == ICmpInst::ICMP_SGT && match(CmpRHS, m_AllOnes()) &&
+      !match(TrueVal, m_Constant()) && !match(FalseVal, m_Constant()) &&
+      ICI->hasOneUse()) {
+    InstCombiner::BuilderTy::InsertPointGuard Guard(Builder);
+    Builder.SetInsertPoint(&SI);
+    Value *IsNeg = Builder.CreateICmpSLT(
+        CmpLHS, ConstantInt::getNullValue(CmpLHS->getType()), ICI->getName());
+    replaceOperand(SI, 0, IsNeg);
+    SI.swapValues();
+    SI.swapProfMetadata();
+    return &SI;
   }
 
   // FIXME: This code is nearly duplicated in InstSimplify. Using/refactoring
@@ -2570,6 +2621,20 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
         match(TrueVal, m_Specific(B)) && match(FalseVal, m_Zero()))
       return replaceOperand(SI, 0, A);
 
+    Value *C;
+    // select (~a | c), a, b -> and a, (or c, freeze(b))
+    if (match(CondVal, m_c_Or(m_Not(m_Specific(TrueVal)), m_Value(C))) &&
+        CondVal->hasOneUse()) {
+      FalseVal = Builder.CreateFreeze(FalseVal);
+      return BinaryOperator::CreateAnd(TrueVal, Builder.CreateOr(C, FalseVal));
+    }
+    // select (~c & b), a, b -> and b, (or freeze(a), c)
+    if (match(CondVal, m_c_And(m_Not(m_Value(C)), m_Specific(FalseVal))) &&
+        CondVal->hasOneUse()) {
+      TrueVal = Builder.CreateFreeze(TrueVal);
+      return BinaryOperator::CreateAnd(FalseVal, Builder.CreateOr(C, TrueVal));
+    }
+
     if (!SelType->isVectorTy()) {
       if (Value *S = simplifyWithOpReplaced(TrueVal, CondVal, One, SQ,
                                             /* AllowRefinement */ true))
@@ -3017,18 +3082,22 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   // select(mask, mload(,,mask,0), 0) -> mload(,,mask,0)
   // Load inst is intentionally not checked for hasOneUse()
   if (match(FalseVal, m_Zero()) &&
-      match(TrueVal, m_MaskedLoad(m_Value(), m_Value(), m_Specific(CondVal),
-                                  m_CombineOr(m_Undef(), m_Zero())))) {
-    auto *MaskedLoad = cast<IntrinsicInst>(TrueVal);
-    if (isa<UndefValue>(MaskedLoad->getArgOperand(3)))
-      MaskedLoad->setArgOperand(3, FalseVal /* Zero */);
-    return replaceInstUsesWith(SI, MaskedLoad);
+      (match(TrueVal, m_MaskedLoad(m_Value(), m_Value(), m_Specific(CondVal),
+                                   m_CombineOr(m_Undef(), m_Zero()))) ||
+       match(TrueVal, m_MaskedGather(m_Value(), m_Value(), m_Specific(CondVal),
+                                     m_CombineOr(m_Undef(), m_Zero()))))) {
+    auto *MaskedInst = cast<IntrinsicInst>(TrueVal);
+    if (isa<UndefValue>(MaskedInst->getArgOperand(3)))
+      MaskedInst->setArgOperand(3, FalseVal /* Zero */);
+    return replaceInstUsesWith(SI, MaskedInst);
   }
 
   Value *Mask;
   if (match(TrueVal, m_Zero()) &&
-      match(FalseVal, m_MaskedLoad(m_Value(), m_Value(), m_Value(Mask),
-                                   m_CombineOr(m_Undef(), m_Zero()))) &&
+      (match(FalseVal, m_MaskedLoad(m_Value(), m_Value(), m_Value(Mask),
+                                    m_CombineOr(m_Undef(), m_Zero()))) ||
+       match(FalseVal, m_MaskedGather(m_Value(), m_Value(), m_Value(Mask),
+                                      m_CombineOr(m_Undef(), m_Zero())))) &&
       (CondVal->getType() == Mask->getType())) {
     // We can remove the select by ensuring the load zeros all lanes the
     // select would have.  We determine this by proving there is no overlap
@@ -3039,10 +3108,10 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
       CanMergeSelectIntoLoad = match(V, m_Zero());
 
     if (CanMergeSelectIntoLoad) {
-      auto *MaskedLoad = cast<IntrinsicInst>(FalseVal);
-      if (isa<UndefValue>(MaskedLoad->getArgOperand(3)))
-        MaskedLoad->setArgOperand(3, TrueVal /* Zero */);
-      return replaceInstUsesWith(SI, MaskedLoad);
+      auto *MaskedInst = cast<IntrinsicInst>(FalseVal);
+      if (isa<UndefValue>(MaskedInst->getArgOperand(3)))
+        MaskedInst->setArgOperand(3, TrueVal /* Zero */);
+      return replaceInstUsesWith(SI, MaskedInst);
     }
   }
 

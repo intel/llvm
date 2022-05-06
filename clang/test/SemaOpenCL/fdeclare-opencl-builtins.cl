@@ -27,7 +27,7 @@
 
 // First, test that Clang gracefully handles missing types.
 #ifdef NO_HEADER
-void test_without_header() {
+void test_without_header(void) {
   barrier(0);
   // expected-note@-1 0+{{candidate function not viable}}
   // expected-error@-2 0+{{argument type 'void' is incomplete}}
@@ -73,6 +73,7 @@ typedef struct {int a;} ndrange_t;
 
 // Enable extensions that are enabled in opencl-c-base.h.
 #if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
+#define __opencl_c_device_enqueue 1
 #define __opencl_c_generic_address_space 1
 #define cl_khr_subgroup_extended_types 1
 #define cl_khr_subgroup_ballot 1
@@ -215,7 +216,7 @@ void test_legacy_atomics_cpp(__generic volatile unsigned int *a) {
 }
 #endif
 
-kernel void basic_conversion() {
+kernel void basic_conversion(void) {
   float f;
   char2 c2;
   long2 l2;
@@ -233,7 +234,7 @@ kernel void basic_conversion() {
   i4 = convert_int4_sat(f4);
 }
 
-kernel void basic_conversion_neg() {
+kernel void basic_conversion_neg(void) {
   int i;
   float f;
 
@@ -336,7 +337,7 @@ kernel void extended_subgroup(global uint4 *out, global int *scalar, global char
 #endif
 }
 
-kernel void basic_vector_data() {
+kernel void basic_vector_data(void) {
 #if __OPENCL_C_VERSION__ >= CL_VERSION_2_0
   generic void *generic_p;
 #endif
@@ -368,7 +369,7 @@ kernel void basic_vector_data() {
   f16 = vload16(s, (const __private float *) private_p);
 }
 
-kernel void basic_work_item() {
+kernel void basic_work_item(void) {
   uint ui;
 
   barrier(CLK_GLOBAL_MEM_FENCE);

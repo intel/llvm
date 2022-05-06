@@ -817,7 +817,7 @@ void ObjectFileMachO::Terminate() {
 }
 
 ObjectFile *ObjectFileMachO::CreateInstance(const lldb::ModuleSP &module_sp,
-                                            DataBufferSP &data_sp,
+                                            DataBufferSP data_sp,
                                             lldb::offset_t data_offset,
                                             const FileSpec *file,
                                             lldb::offset_t file_offset,
@@ -848,7 +848,7 @@ ObjectFile *ObjectFileMachO::CreateInstance(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFile *ObjectFileMachO::CreateMemoryInstance(
-    const lldb::ModuleSP &module_sp, DataBufferSP &data_sp,
+    const lldb::ModuleSP &module_sp, WritableDataBufferSP data_sp,
     const ProcessSP &process_sp, lldb::addr_t header_addr) {
   if (ObjectFileMachO::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
     std::unique_ptr<ObjectFile> objfile_up(
@@ -929,7 +929,7 @@ ConstString ObjectFileMachO::GetSectionNameEHFrame() {
   return g_section_name_eh_frame;
 }
 
-bool ObjectFileMachO::MagicBytesMatch(DataBufferSP &data_sp,
+bool ObjectFileMachO::MagicBytesMatch(DataBufferSP data_sp,
                                       lldb::addr_t data_offset,
                                       lldb::addr_t data_length) {
   DataExtractor data;
@@ -940,7 +940,7 @@ bool ObjectFileMachO::MagicBytesMatch(DataBufferSP &data_sp,
 }
 
 ObjectFileMachO::ObjectFileMachO(const lldb::ModuleSP &module_sp,
-                                 DataBufferSP &data_sp,
+                                 DataBufferSP data_sp,
                                  lldb::offset_t data_offset,
                                  const FileSpec *file,
                                  lldb::offset_t file_offset,
@@ -954,7 +954,7 @@ ObjectFileMachO::ObjectFileMachO(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFileMachO::ObjectFileMachO(const lldb::ModuleSP &module_sp,
-                                 lldb::DataBufferSP &header_data_sp,
+                                 lldb::WritableDataBufferSP header_data_sp,
                                  const lldb::ProcessSP &process_sp,
                                  lldb::addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
@@ -2712,7 +2712,7 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
         if (process_shared_cache_uuid.IsValid() &&
           process_shared_cache_uuid != UUID::fromOptionalData(&cache_uuid, 16))
         return;
-      const bool pinned = dyld_shared_cache_pin_mapping(shared_cache);
+
       dyld_shared_cache_for_each_image(shared_cache, ^(dyld_image_t image) {
         uuid_t dsc_image_uuid;
         if (found_image)
@@ -2769,8 +2769,6 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
               nlist_count = nlistCount;
             });
       });
-      if (pinned)
-        dyld_shared_cache_unpin_mapping(shared_cache);
     });
     if (nlist_buffer) {
       DataExtractor dsc_local_symbols_data(nlist_buffer,
@@ -6969,7 +6967,8 @@ bool ObjectFileMachO::LoadCoreFileImages(lldb_private::Process &process) {
       module_spec.GetFileSpec() = FileSpec(image.filename.c_str());
     }
     if (image.currently_executing) {
-      Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+      Status error;
+      Symbols::DownloadObjectAndSymbolFile(module_spec, error, true);
       if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
         process.GetTarget().GetOrCreateModule(module_spec, false);
       }

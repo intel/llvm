@@ -80,7 +80,7 @@ static MachineOperand earlyUseOperand(MachineOperand Op) {
 SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
                                              const SystemZSubtarget &STI)
     : TargetLowering(TM), Subtarget(STI) {
-  MVT PtrVT = MVT::getIntegerVT(8 * TM.getPointerSize(0));
+  MVT PtrVT = MVT::getIntegerVT(TM.getPointerSizeInBits(0));
 
   auto *Regs = STI.getSpecialRegisters();
 
@@ -640,26 +640,26 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::VAEND,   MVT::Other, Expand);
 
   // Codes for which we want to perform some z-specific combinations.
-  setTargetDAGCombine(ISD::ZERO_EXTEND);
-  setTargetDAGCombine(ISD::SIGN_EXTEND);
-  setTargetDAGCombine(ISD::SIGN_EXTEND_INREG);
-  setTargetDAGCombine(ISD::LOAD);
-  setTargetDAGCombine(ISD::STORE);
-  setTargetDAGCombine(ISD::VECTOR_SHUFFLE);
-  setTargetDAGCombine(ISD::EXTRACT_VECTOR_ELT);
-  setTargetDAGCombine(ISD::FP_ROUND);
-  setTargetDAGCombine(ISD::STRICT_FP_ROUND);
-  setTargetDAGCombine(ISD::FP_EXTEND);
-  setTargetDAGCombine(ISD::SINT_TO_FP);
-  setTargetDAGCombine(ISD::UINT_TO_FP);
-  setTargetDAGCombine(ISD::STRICT_FP_EXTEND);
-  setTargetDAGCombine(ISD::BSWAP);
-  setTargetDAGCombine(ISD::SDIV);
-  setTargetDAGCombine(ISD::UDIV);
-  setTargetDAGCombine(ISD::SREM);
-  setTargetDAGCombine(ISD::UREM);
-  setTargetDAGCombine(ISD::INTRINSIC_VOID);
-  setTargetDAGCombine(ISD::INTRINSIC_W_CHAIN);
+  setTargetDAGCombine({ISD::ZERO_EXTEND,
+                       ISD::SIGN_EXTEND,
+                       ISD::SIGN_EXTEND_INREG,
+                       ISD::LOAD,
+                       ISD::STORE,
+                       ISD::VECTOR_SHUFFLE,
+                       ISD::EXTRACT_VECTOR_ELT,
+                       ISD::FP_ROUND,
+                       ISD::STRICT_FP_ROUND,
+                       ISD::FP_EXTEND,
+                       ISD::SINT_TO_FP,
+                       ISD::UINT_TO_FP,
+                       ISD::STRICT_FP_EXTEND,
+                       ISD::BSWAP,
+                       ISD::SDIV,
+                       ISD::UDIV,
+                       ISD::SREM,
+                       ISD::UREM,
+                       ISD::INTRINSIC_VOID,
+                       ISD::INTRINSIC_W_CHAIN});
 
   // Handle intrinsics.
   setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
@@ -1033,6 +1033,17 @@ SystemZTargetLowering::getConstraintType(StringRef Constraint) const {
     case 'L': // Signed 20-bit displacement (on all targets we support)
     case 'M': // 0x7fffffff
       return C_Immediate;
+
+    default:
+      break;
+    }
+  } else if (Constraint.size() == 2 && Constraint[0] == 'Z') {
+    switch (Constraint[1]) {
+    case 'Q': // Address with base and unsigned 12-bit displacement
+    case 'R': // Likewise, plus an index
+    case 'S': // Address with base and signed 20-bit displacement
+    case 'T': // Likewise, plus an index
+      return C_Address;
 
     default:
       break;
