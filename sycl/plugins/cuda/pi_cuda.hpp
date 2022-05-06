@@ -415,7 +415,8 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  // get_next_compute/transfer_stream() functions return streams from appropriate pools in round-robin fashion
+  // get_next_compute/transfer_stream() functions return streams from
+  // appropriate pools in round-robin fashion
   native_type get_next_compute_stream();
   native_type get_next_transfer_stream();
   native_type get() { return get_next_compute_stream(); };
@@ -425,16 +426,16 @@ struct _pi_queue {
       std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
       unsigned int end =
           std::min(static_cast<unsigned int>(compute_streams_.size()),
-                  num_compute_streams_);
+                   num_compute_streams_);
       for (unsigned int i = 0; i < end; i++) {
         f(compute_streams_[i]);
       }
     }
     {
       std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
-      unsigned int end = 
+      unsigned int end =
           std::min(static_cast<unsigned int>(transfer_streams_.size()),
-                  num_transfer_streams_);
+                   num_transfer_streams_);
       for (unsigned int i = 0; i < end; i++) {
         f(transfer_streams_[i]);
       }

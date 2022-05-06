@@ -2408,7 +2408,8 @@ pi_result cuda_piQueueFlush(pi_queue command_queue) {
 pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
                                          pi_native_handle *nativeHandle) {
   ScopedContext active(queue->get_context());
-  *nativeHandle = reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
+  *nativeHandle =
+      reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
 }
 
@@ -4534,9 +4535,9 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
 
     if (event) {
       try {
-        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-                                        command_queue,
-                                        command_queue->get_next_transfer_stream());
+        *event = _pi_event::make_native(
+            PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue,
+            command_queue->get_next_transfer_stream());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4589,9 +4590,9 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 
     if (event) {
       try {
-        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-                                        command_queue,
-                                        command_queue->get_next_transfer_stream());
+        *event = _pi_event::make_native(
+            PI_COMMAND_TYPE_MEM_BUFFER_UNMAP, command_queue,
+            command_queue->get_next_transfer_stream());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
