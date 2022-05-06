@@ -391,15 +391,17 @@ struct _pi_queue {
   std::atomic_uint32_t eventCount_;
   std::atomic_uint32_t compute_stream_idx_;
   std::atomic_uint32_t transfer_stream_idx_;
-  std::atomic_uint32_t num_compute_streams_;
-  std::atomic_uint32_t num_transfer_streams_;
+  unsigned int num_compute_streams_;
+  unsigned int num_transfer_streams_;
   unsigned int flags_;
+  std::mutex compute_stream_mutex_;
+  std::mutex transfer_stream_mutex_;
 
-  _pi_queue(std::vector<CUstream> &&compute_streams_,
+  _pi_queue(std::vector<CUstream> &&compute_streams,
             std::vector<CUstream> &&transfer_streams, _pi_context *context,
             _pi_device *device, pi_queue_properties properties,
             unsigned int flags)
-      : compute_streams_{std::move(compute_streams_)},
+      : compute_streams_{std::move(compute_streams)},
         transfer_streams_{std::move(transfer_streams)}, context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
         compute_stream_idx_{0}, transfer_stream_idx_{0},
@@ -419,16 +421,23 @@ struct _pi_queue {
   native_type get() { return get_next_compute_stream(); };
 
   template <typename T> void for_each_stream(T &&f) {
-    unsigned int end =
-        std::min(static_cast<unsigned int>(compute_streams_.size()),
-                 num_compute_streams_.load());
-    for (unsigned int i = 0; i < end; i++) {
-      f(compute_streams_[i]);
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                  num_compute_streams_);
+      for (unsigned int i = 0; i < end; i++) {
+        f(compute_streams_[i]);
+      }
     }
-    end = std::min(static_cast<unsigned int>(transfer_streams_.size()),
-                   num_transfer_streams_.load());
-    for (unsigned int i = 0; i < end; i++) {
-      f(transfer_streams_[i]);
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end = 
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                  num_transfer_streams_);
+      for (unsigned int i = 0; i < end; i++) {
+        f(transfer_streams_[i]);
+      }
     }
   }
 

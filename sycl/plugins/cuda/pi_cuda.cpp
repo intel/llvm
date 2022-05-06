@@ -369,6 +369,7 @@ pi_result cuda_piEventRetain(pi_event event);
 
 CUstream _pi_queue::get_next_compute_stream() {
   if (num_compute_streams_ < compute_streams_.size()) {
+    std::lock_guard<std::mutex> guard(compute_stream_mutex_);
     unsigned int idx = num_compute_streams_++;
     if (idx < compute_streams_.size()) {
       PI_CHECK_ERROR(cuStreamCreate(&compute_streams_[idx], flags_));
@@ -382,6 +383,7 @@ CUstream _pi_queue::get_next_transfer_stream() {
     return get_next_compute_stream();
   }
   if (num_transfer_streams_ < transfer_streams_.size()) {
+    std::lock_guard<std::mutex> guard(transfer_stream_mutex_);
     unsigned int idx = num_transfer_streams_++;
     if (idx < transfer_streams_.size()) {
       PI_CHECK_ERROR(cuStreamCreate(&transfer_streams_[idx], flags_));
