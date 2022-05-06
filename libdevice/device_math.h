@@ -24,11 +24,11 @@ typedef struct {
 
 typedef __devicelib_div_t_32 div_t;
 #ifdef _WIN32
-typedef __devicelib_div_t_32 ldiv_t
+typedef __devicelib_div_t_32 ldiv_t;
 #else
 typedef __devicelib_div_t_64 ldiv_t;
 #endif
-    typedef __devicelib_div_t_64 lldiv_t;
+typedef __devicelib_div_t_64 lldiv_t;
 
 DEVICE_EXTERN_C
 int __devicelib_abs(int x);
