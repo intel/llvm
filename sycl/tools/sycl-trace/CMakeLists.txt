@@ -60,7 +60,7 @@ add_dependencies(sycl_pi_trace_collector pi-pretty-printers ze-pretty-printers)
 
 if(SYCL_BUILD_PI_CUDA)
 
-  find_package(CUDA 10.1 REQUIRED)
+  find_package(CUDAToolkit 10.1 REQUIRED)
   target_include_directories(sycl_pi_trace_collector
     PRIVATE
     "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
@@ -75,7 +75,8 @@ if(SYCL_BUILD_PI_CUDA)
   add_custom_target(cuda-pretty-printers
     COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/generate_cuda_pretty_printers.py
-    ${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include/generated_cuda_meta.h
+#    ${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include/generated_cuda_meta.h
+/usr/local/cuda/targets/x86_64-linux/include/generated_cuda_meta.h
     DEPENDS pi_cuda
     BYPRODUCTS
       ${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def

@@ -4,7 +4,9 @@ message(STATUS "Including the PI API CUDA backend.")
  # we only require the CUDA driver API to be used
  # CUDA_CUDA_LIBRARY variable defines the path to libcuda.so, the CUDA Driver API library.
 
-find_package(CUDA 10.1 REQUIRED)
+find_package(CUDAToolkit 10.1 REQUIRED)
+
+message(STATUS "Including the PI API CUDA backend.")
 
 # Make imported library global to use it within the project.
 add_library(cudadrv SHARED IMPORTED GLOBAL)
@@ -12,14 +14,14 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 if (WIN32)
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_IMPLIB               ${CUDA_CUDA_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+      IMPORTED_IMPLIB               ${CUDA_cuda_driver_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
   )
 else()
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+      IMPORTED_LOCATION             ${CUDA_cuda_driver_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
   )
 endif()
 
