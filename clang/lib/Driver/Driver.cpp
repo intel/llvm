@@ -4670,7 +4670,7 @@ class OffloadingActionBuilder final {
       SYCLTC->SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
       using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
-      
+
       const SYCLDeviceLibsList sycl_device_wrapper_libs = {
         {"libsycl-crt", "libc"},
         {"libsycl-complex", "libm-fp32"},
