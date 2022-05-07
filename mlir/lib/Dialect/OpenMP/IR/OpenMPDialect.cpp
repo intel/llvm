@@ -967,7 +967,8 @@ LogicalResult CancelOp::verify() {
       !isa<ParallelOp>(parentOp)) {
     return emitOpError() << "cancel parallel must appear "
                          << "inside a parallel region";
-  } else if (cct == ClauseCancellationConstructType::Loop) {
+  }
+  if (cct == ClauseCancellationConstructType::Loop) {
     if (!isa<WsLoopOp>(parentOp)) {
       return emitOpError() << "cancel loop must appear "
                            << "inside a worksharing-loop region";
@@ -985,7 +986,7 @@ LogicalResult CancelOp::verify() {
       return emitOpError() << "cancel sections must appear "
                            << "inside a sections region";
     }
-    if (parentOp->getParentOp() && isa<SectionsOp>(parentOp->getParentOp()) &&
+    if (isa_and_nonnull<SectionsOp>(parentOp->getParentOp()) &&
         cast<SectionsOp>(parentOp->getParentOp()).nowaitAttr()) {
       return emitError() << "A sections construct that is canceled "
                          << "must not have a nowait clause";
@@ -1011,8 +1012,9 @@ LogicalResult CancellationPointOp::verify() {
       !(isa<ParallelOp>(parentOp))) {
     return emitOpError() << "cancellation point parallel must appear "
                          << "inside a parallel region";
-  } else if ((cct == ClauseCancellationConstructType::Loop) &&
-             !isa<WsLoopOp>(parentOp)) {
+  }
+  if ((cct == ClauseCancellationConstructType::Loop) &&
+      !isa<WsLoopOp>(parentOp)) {
     return emitOpError() << "cancellation point loop must appear "
                          << "inside a worksharing-loop region";
   } else if ((cct == ClauseCancellationConstructType::Sections) &&

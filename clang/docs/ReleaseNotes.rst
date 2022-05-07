@@ -69,7 +69,7 @@ Major New Features
       Randomizing structure layout is a C-only feature.
 
 Bug Fixes
-------------------
+---------
 - ``CXXNewExpr::getArraySize()`` previously returned a ``llvm::Optional``
   wrapping a ``nullptr`` when the ``CXXNewExpr`` did not have an array
   size expression. This was fixed and ``::getArraySize()`` will now always
@@ -422,7 +422,10 @@ libclang
 Static Analyzer
 ---------------
 
-- ...
+- Added a new checker ``alpha.unix.cstring.UninitializedRead`` this will check for uninitialized reads
+  from common memory copy/manipulation functions such as ``memcpy``, ``mempcpy``, ``memmove``, ``memcmp``, `
+  `strcmp``, ``strncmp``, ``strcpy``, ``strlen``, ``strsep`` and many more. Although 
+  this checker currently is in list of alpha checkers due to a false positive.
 
 .. _release-notes-ubsan:
 
