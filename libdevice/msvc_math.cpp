@@ -8,6 +8,7 @@
 
 #ifdef __SPIR__
 
+#include "device.h"
 #include <math.h>
 union _Fval { // pun floating type as integer array
   unsigned short _Sh[8];
