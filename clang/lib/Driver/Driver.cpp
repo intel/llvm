@@ -4676,7 +4676,7 @@ class OffloadingActionBuilder final {
           {"libsycl-complex-fp64", "libm-fp64"},
           {"libsycl-cmath", "libm-fp32"},
           {"libsycl-cmath-fp64", "libm-fp64"},
-#if defined(WIN32)
+#if defined(_WIN32)
           {"libsycl-msvc-math", "libm-fp32"},
 #endif
       };
