@@ -12,10 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "DirectXTargetMachine.h"
+#include "DXILWriter/DXILWriterPass.h"
+#include "DirectX.h"
 #include "DirectXSubtarget.h"
 #include "DirectXTargetTransformInfo.h"
 #include "TargetInfo/DirectXTargetInfo.h"
-#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -31,6 +32,8 @@ using namespace llvm;
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDirectXTarget() {
   RegisterTargetMachine<DirectXTargetMachine> X(getTheDirectXTarget());
+  auto *PR = PassRegistry::getPassRegistry();
+  initializeDXILPrepareModulePass(*PR);
 }
 
 class DXILTargetObjectFile : public TargetLoweringObjectFile {
@@ -81,13 +84,14 @@ bool DirectXTargetMachine::addPassesToEmitFile(
     PassManagerBase &PM, raw_pwrite_stream &Out, raw_pwrite_stream *DwoOut,
     CodeGenFileType FileType, bool DisableVerify,
     MachineModuleInfoWrapperPass *MMIWP) {
+  PM.add(createDXILPrepareModulePass());
   switch (FileType) {
   case CGFT_AssemblyFile:
     PM.add(createPrintModulePass(Out, "", true));
     break;
   case CGFT_ObjectFile:
-    // TODO: Write DXIL instead of bitcode
-    PM.add(createBitcodeWriterPass(Out, true, false, false));
+    // TODO: Use MC Object streamer to write DXContainer
+    PM.add(createDXILWriterPass(Out));
     break;
   case CGFT_Null:
     break;

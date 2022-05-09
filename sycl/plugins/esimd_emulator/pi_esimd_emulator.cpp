@@ -141,6 +141,25 @@ static std::mutex *PiESimdSurfaceMapLock = new std::mutex;
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
+
 using IDBuilder = sycl::detail::Builder;
 
 template <int NDims>
@@ -1011,17 +1030,17 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   char *MapBasePtr = nullptr;
-  cm_buffer_ptr_slot CmBuf;
+  cm_surface_ptr_t CmBuf;
   cm_support::SurfaceIndex *CmIndex;
   int Status = cm_support::CM_FAILURE;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
-    CmBuf.tag = cm_buffer_ptr_slot::type_user_provided;
+    CmBuf.tag = cm_surface_ptr_t::TypeUserProvidedBuffer;
     Status = Context->Device->CmDevicePtr->CreateBufferUP(
         static_cast<unsigned int>(Size), HostPtr, CmBuf.UPBufPtr);
     CmBuf.UPBufPtr->GetIndex(CmIndex);
   } else {
-    CmBuf.tag = cm_buffer_ptr_slot::type_regular;
+    CmBuf.tag = cm_surface_ptr_t::TypeRegularBuffer;
     Status = Context->Device->CmDevicePtr->CreateBuffer(
         static_cast<unsigned int>(Size), CmBuf.RegularBufPtr);
     CmBuf.RegularBufPtr->GetIndex(CmIndex);
@@ -1077,56 +1096,38 @@ pi_result piMemRelease(pi_mem Mem) {
   }
 
   if (--(Mem->RefCount) == 0) {
-    int Status = cm_support::CM_FAILURE;
-
-    if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
-      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      if (PiBuf->BufferPtr.tag == cm_buffer_ptr_slot::type_user_provided) {
-        Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
-            PiBuf->BufferPtr.UPBufPtr);
-      } else {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiBuf->BufferPtr.RegularBufPtr);
-      }
-    } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
-      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      if (PiImg->ImagePtr.tag == cm_image_ptr_slot::type_user_provided) {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
-            PiImg->ImagePtr.UPImgPtr);
-      } else {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiImg->ImagePtr.RegularImgPtr);
-      }
-    }
-
-    if (Status != cm_support::CM_SUCCESS) {
-      return PI_INVALID_MEM_OBJECT;
-    }
-
     // Removing Surface-map entry
     std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
     auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
-    if (MapEntryIt != PiESimdSurfaceMap->end()) {
-      PiESimdSurfaceMap->erase(MapEntryIt);
-    } else {
-      if (PrintPiTrace) {
-        std::cerr << "Failure from CM-managed buffer/image deletion"
-                  << std::endl;
-      }
-      return PI_INVALID_MEM_OBJECT;
-    }
-
-    // TODO : Erasing should be done during 'piMemRelease'? Or Host has
-    // to call 'piEnqueueMemUnmap' for all mapped addresses before
-    // calling 'piMemRelease'?
-    std::lock_guard<std::mutex> MapLock{Mem->MappingsMutex};
-    for (auto mapit = Mem->Mappings.begin(); mapit != Mem->Mappings.end();) {
-      mapit = Mem->Mappings.erase(mapit);
-    }
-
+    assert(MapEntryIt != PiESimdSurfaceMap->end() &&
+           "Failure from Buffer/Image deletion");
+    PiESimdSurfaceMap->erase(MapEntryIt);
     delete Mem;
   }
   return PI_SUCCESS;
+}
+
+_pi_mem::~_pi_mem() {
+  int Status = cm_support::CM_FAILURE;
+
+  cm_support::CmDevice *CmDevice = Context->Device->CmDevicePtr;
+
+  if (SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedBuffer) {
+    Status = CmDevice->DestroyBufferUP(SurfacePtr.UPBufPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer) {
+    Status = CmDevice->DestroySurface(SurfacePtr.RegularBufPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedImage) {
+    Status = CmDevice->DestroySurface2DUP(SurfacePtr.UPImgPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage) {
+    Status = CmDevice->DestroySurface(SurfacePtr.RegularImgPtr);
+  }
+
+  assert(Status == cm_support::CM_SUCCESS &&
+         "Surface Deletion Failure from CM_EMU");
+
+  for (auto mapit = Mappings.begin(); mapit != Mappings.end();) {
+    mapit = Mappings.erase(mapit);
+  }
 }
 
 cm_support::CM_SURFACE_FORMAT
@@ -1219,18 +1220,19 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   }
 
   char *MapBasePtr = nullptr;
-  cm_image_ptr_slot CmImg;
+  cm_surface_ptr_t CmImg;
   cm_support::SurfaceIndex *CmIndex;
   int Status = cm_support::CM_SUCCESS;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
-    CmImg.tag = cm_image_ptr_slot::type_user_provided;
+    CmImg.tag = cm_surface_ptr_t::TypeUserProvidedImage;
     Status = Context->Device->CmDevicePtr->CreateSurface2DUP(
         static_cast<unsigned int>(ImageDesc->image_width),
         static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
         HostPtr, CmImg.UPImgPtr);
     CmImg.UPImgPtr->GetIndex(CmIndex);
   } else {
+    CmImg.tag = cm_surface_ptr_t::TypeRegularImage;
     Status = Context->Device->CmDevicePtr->CreateSurface2D(
         static_cast<unsigned int>(ImageDesc->image_width),
         static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
@@ -1520,12 +1522,13 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
     RetEv->IsDummyEvent = true;
   }
 
-  if (buf->BufferPtr.tag == cm_buffer_ptr_slot::type_user_provided) {
+  if (buf->SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedBuffer) {
     // CM does not provide 'ReadSurface' call for 'User-Provided'
     // Surface. memcpy is used for BufferRead PI_API call.
     memcpy(Dst, buf->MapHostPtr, Size);
   } else {
-    int Status = buf->BufferPtr.RegularBufPtr->ReadSurface(
+    assert(buf->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer);
+    int Status = buf->SurfacePtr.RegularBufPtr->ReadSurface(
         reinterpret_cast<unsigned char *>(Dst),
         nullptr, // event
         static_cast<uint64_t>(Size));
@@ -1706,12 +1709,13 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
   }
 
   size_t Size = RowPitch * (Region->height);
-  if (PiImg->ImagePtr.tag == cm_image_ptr_slot::type_user_provided) {
+  if (PiImg->SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedImage) {
     // CM does not provide 'ReadSurface' call for 'User-Provided'
     // Surface. memcpy is used for ImageRead PI_API call.
     memcpy(Ptr, PiImg->MapHostPtr, Size);
   } else {
-    int Status = PiImg->ImagePtr.RegularImgPtr->ReadSurface(
+    assert(PiImg->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage);
+    int Status = PiImg->SurfacePtr.RegularImgPtr->ReadSurface(
         reinterpret_cast<unsigned char *>(Ptr),
         nullptr, // event
         static_cast<uint64_t>(Size));
@@ -1974,43 +1978,9 @@ pi_result piTearDown(void *) {
 
   for (auto it = PiESimdSurfaceMap->begin(); it != PiESimdSurfaceMap->end();) {
     auto Mem = it->second;
-    if (Mem == nullptr) {
-      /// Skipping map entry for SLM_BTI
-      it = PiESimdSurfaceMap->erase(it);
-      continue;
-    }
-    int Status = cm_support::CM_FAILURE;
-
-    if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
-      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      if (PiBuf->BufferPtr.tag == cm_buffer_ptr_slot::type_user_provided) {
-        Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
-            PiBuf->BufferPtr.UPBufPtr);
-      } else {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiBuf->BufferPtr.RegularBufPtr);
-      }
-    } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
-      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      if (PiImg->ImagePtr.tag == cm_image_ptr_slot::type_user_provided) {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
-            PiImg->ImagePtr.UPImgPtr);
-      } else {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiImg->ImagePtr.RegularImgPtr);
-      }
-    }
-
-    if (Status != cm_support::CM_SUCCESS) {
-      return PI_INVALID_MEM_OBJECT;
-    }
-
-    // No "MappingsMutex" as piTearDown is guaranteed to be called
-    // from single thread for plug-in
-    for (auto mapit = Mem->Mappings.begin(); mapit != Mem->Mappings.end();) {
-      mapit = Mem->Mappings.erase(mapit);
-    }
-
+    if (Mem != nullptr) {
+      delete Mem;
+    } // else { /* Null-entry for SLM_BTI */ }
     it = PiESimdSurfaceMap->erase(it);
   }
   return PI_SUCCESS;

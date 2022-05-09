@@ -385,6 +385,12 @@ bool Debugger::GetShowProgress() const {
       nullptr, idx, g_debugger_properties[idx].default_uint_value != 0);
 }
 
+bool Debugger::SetShowProgress(bool show_progress) {
+  const uint32_t idx = ePropertyShowProgress;
+  return m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx,
+                                                      show_progress);
+}
+
 llvm::StringRef Debugger::GetShowProgressAnsiPrefix() const {
   const uint32_t idx = ePropertyShowProgressAnsiPrefix;
   return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
@@ -893,7 +899,8 @@ Status Debugger::SetInputString(const char *data) {
     return result;
   }
 
-  write(fds[WRITE], data, size);
+  int r = write(fds[WRITE], data, size);
+  (void)r;
   // Close the write end of the pipe, so that the command interpreter will exit
   // when it consumes all the data.
   llvm::sys::Process::SafelyCloseFileDescriptor(fds[WRITE]);
@@ -1194,11 +1201,11 @@ bool Debugger::PopIOHandler(const IOHandlerSP &pop_reader_sp) {
 }
 
 StreamSP Debugger::GetAsyncOutputStream() {
-  return std::make_shared<StreamAsynchronousIO>(*this, true);
+  return std::make_shared<StreamAsynchronousIO>(*this, true, GetUseColor());
 }
 
 StreamSP Debugger::GetAsyncErrorStream() {
-  return std::make_shared<StreamAsynchronousIO>(*this, false);
+  return std::make_shared<StreamAsynchronousIO>(*this, false, GetUseColor());
 }
 
 size_t Debugger::GetNumDebuggers() {
