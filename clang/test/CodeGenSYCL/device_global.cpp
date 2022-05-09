@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 #include "sycl.hpp"
 
 // Test cases below show that 'sycl-unique-id' LLVM IR attribute is attached to the
@@ -89,8 +89,8 @@ void bar() {
 }
 } // namespace
 
-// CHECK: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8 addrspace(4)* }] [{ i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @__cxx_global_var_init{{.*}}, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*) }, { i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @_GLOBAL__sub_I_device_global.cpp, i8 addrspace(4)* null }]
-// CHECK: @llvm.used = appending global [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*)], section "llvm.metadata"
+// CHECK: @llvm.global_ctors = appending global [2 x { i32, ptr, ptr addrspace(4) }] [{ i32, ptr, ptr addrspace(4) } { i32 65535, ptr @__cxx_global_var_init{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4)) }, { i32, ptr, ptr addrspace(4) } { i32 65535, ptr @_GLOBAL__sub_I_device_global.cpp, ptr addrspace(4) null }]
+// CHECK: @llvm.used = appending global [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4))], section "llvm.metadata"
 
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }

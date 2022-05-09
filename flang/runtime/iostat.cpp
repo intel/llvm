@@ -77,6 +77,10 @@ const char *IostatErrorString(int iostat) {
     return "Erroneous unformatted sequential file record structure";
   case IostatUTF8Decoding:
     return "UTF-8 decoding error";
+  case IostatUnitOverflow:
+    return "UNIT number is out of range";
+  case IostatBadRealInput:
+    return "Bad REAL input value";
   default:
     return nullptr;
   }

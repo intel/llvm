@@ -68,7 +68,8 @@ class Driver {
     GXXMode,
     CPPMode,
     CLMode,
-    FlangMode
+    FlangMode,
+    DXCMode
   } Mode;
 
   enum SaveTempsMode {
@@ -149,9 +150,6 @@ public:
   typedef SmallVector<std::string, 4> prefix_list;
   prefix_list PrefixDirs;
 
-  /// Alternative toolchain path used prior to sysroot.
-  std::string OverlayToolChainPath;
-
   /// sysroot, if present
   std::string SysRoot;
 
@@ -197,6 +195,9 @@ public:
   /// Whether the driver should invoke flang for fortran inputs.
   /// Other modes fall back to calling gcc which in turn calls gfortran.
   bool IsFlangMode() const { return Mode == FlangMode; }
+
+  /// Whether the driver should follow dxc.exe like behavior.
+  bool IsDXCMode() const { return Mode == DXCMode; }
 
   /// Only print tool bindings, don't build any jobs.
   unsigned CCCPrintBindings : 1;

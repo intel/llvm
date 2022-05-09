@@ -189,6 +189,10 @@ public:
   }
 
   void resize(size_t size) { BaseT::MSizeInBytes = size; }
+
+  void addInteropObject(std::vector<pi_native_handle> &Handles) const;
+
+  std::vector<pi_native_handle> getNativeVector(backend BackendName) const;
 };
 
 } // namespace detail

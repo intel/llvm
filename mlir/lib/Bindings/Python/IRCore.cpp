@@ -505,6 +505,14 @@ size_t PyMlirContext::getLiveCount() { return getLiveContexts().size(); }
 
 size_t PyMlirContext::getLiveOperationCount() { return liveOperations.size(); }
 
+size_t PyMlirContext::clearLiveOperations() {
+  for (auto &op : liveOperations)
+    op.second.second->setInvalid();
+  size_t numInvalidated = liveOperations.size();
+  liveOperations.clear();
+  return numInvalidated;
+}
+
 size_t PyMlirContext::getLiveModuleCount() { return liveModules.size(); }
 
 pybind11::object PyMlirContext::contextEnter() {
@@ -1075,6 +1083,21 @@ py::object PyOperation::createFromCapsule(py::object capsule) {
       .releaseObject();
 }
 
+static void maybeInsertOperation(PyOperationRef &op,
+                                 const py::object &maybeIp) {
+  // InsertPoint active?
+  if (!maybeIp.is(py::cast(false))) {
+    PyInsertionPoint *ip;
+    if (maybeIp.is_none()) {
+      ip = PyThreadContextEntry::getDefaultInsertionPoint();
+    } else {
+      ip = py::cast<PyInsertionPoint *>(maybeIp);
+    }
+    if (ip)
+      ip->insert(*op.get());
+  }
+}
+
 py::object PyOperation::create(
     const std::string &name, llvm::Optional<std::vector<PyType *>> results,
     llvm::Optional<std::vector<PyValue *>> operands,
@@ -1192,20 +1215,18 @@ py::object PyOperation::create(
   MlirOperation operation = mlirOperationCreate(&state);
   PyOperationRef created =
       PyOperation::createDetached(location->getContext(), operation);
-
-  // InsertPoint active?
-  if (!maybeIp.is(py::cast(false))) {
-    PyInsertionPoint *ip;
-    if (maybeIp.is_none()) {
-      ip = PyThreadContextEntry::getDefaultInsertionPoint();
-    } else {
-      ip = py::cast<PyInsertionPoint *>(maybeIp);
-    }
-    if (ip)
-      ip->insert(*created.get());
-  }
+  maybeInsertOperation(created, maybeIp);
 
   return created->createOpView();
+}
+
+py::object PyOperation::clone(const py::object &maybeIp) {
+  MlirOperation clonedOperation = mlirOperationClone(operation);
+  PyOperationRef cloned =
+      PyOperation::createDetached(getContext(), clonedOperation);
+  maybeInsertOperation(cloned, maybeIp);
+
+  return cloned->createOpView();
 }
 
 py::object PyOperation::createOpView() {
@@ -2195,6 +2216,7 @@ void mlir::python::populateIRCore(py::module &m) {
              return ref.releaseObject();
            })
       .def("_get_live_operation_count", &PyMlirContext::getLiveOperationCount)
+      .def("_clear_live_operations", &PyMlirContext::clearLiveOperations)
       .def("_get_live_module_count", &PyMlirContext::getLiveModuleCount)
       .def_property_readonly(MLIR_PYTHON_CAPI_PTR_ATTR,
                              &PyMlirContext::getCapsule)
@@ -2616,6 +2638,7 @@ void mlir::python::populateIRCore(py::module &m) {
                                return py::none();
                              })
       .def("erase", &PyOperation::erase)
+      .def("clone", &PyOperation::clone, py::arg("ip") = py::none())
       .def_property_readonly(MLIR_PYTHON_CAPI_PTR_ATTR,
                              &PyOperation::getCapsule)
       .def(MLIR_PYTHON_CAPI_FACTORY_ATTR, &PyOperation::createFromCapsule)
@@ -2741,6 +2764,15 @@ void mlir::python::populateIRCore(py::module &m) {
           py::arg("parent"), py::arg("arg_types") = py::list(),
           "Creates and returns a new Block at the beginning of the given "
           "region (with given argument types).")
+      .def(
+          "append_to",
+          [](PyBlock &self, PyRegion &region) {
+            MlirBlock b = self.get();
+            if (!mlirRegionIsNull(mlirBlockGetParentRegion(b)))
+              mlirBlockDetach(b);
+            mlirRegionAppendOwnedBlock(region.get(), b);
+          },
+          "Append this block to a region, transferring ownership if necessary")
       .def(
           "create_before",
           [](PyBlock &self, py::args pyArgTypes) {

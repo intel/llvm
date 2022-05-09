@@ -12,6 +12,7 @@
 #include "flang/Evaluate/tools.h"
 #include "flang/Parser/message.h"
 #include "flang/Parser/parsing.h"
+#include "flang/Parser/unparse.h"
 #include "flang/Semantics/scope.h"
 #include "flang/Semantics/semantics.h"
 #include "flang/Semantics/symbol.h"
@@ -45,7 +46,8 @@ struct ModHeader {
 static std::optional<SourceName> GetSubmoduleParent(const parser::Program &);
 static void CollectSymbols(const Scope &, SymbolVector &, SymbolVector &);
 static void PutPassName(llvm::raw_ostream &, const std::optional<SourceName> &);
-static void PutInit(llvm::raw_ostream &, const Symbol &, const MaybeExpr &);
+static void PutInit(llvm::raw_ostream &, const Symbol &, const MaybeExpr &,
+    const parser::Expr *);
 static void PutInit(llvm::raw_ostream &, const MaybeIntExpr &);
 static void PutBound(llvm::raw_ostream &, const Bound &);
 static void PutShapeSpec(llvm::raw_ostream &, const ShapeSpec &);
@@ -323,7 +325,12 @@ void ModFileWriter::PutSymbol(
           },
           [](const HostAssocDetails &) {},
           [](const MiscDetails &) {},
-          [&](const auto &) { PutEntity(decls_, symbol); },
+          [&](const auto &) {
+            PutEntity(decls_, symbol);
+            if (symbol.test(Symbol::Flag::OmpThreadprivate)) {
+              decls_ << "!$omp threadprivate(" << symbol.name() << ")\n";
+            }
+          },
       },
       symbol.details());
 }
@@ -395,7 +402,7 @@ void ModFileWriter::PutDECStructure(
         }
         decls_ << ref->name();
         PutShape(decls_, object->shape(), '(', ')');
-        PutInit(decls_, *ref, object->init());
+        PutInit(decls_, *ref, object->init(), nullptr);
         emittedDECFields_.insert(*ref);
       } else if (any) {
         break; // any later use of this structure will use RECORD/str/
@@ -657,7 +664,7 @@ void ModFileWriter::PutObjectEntity(
       symbol.attrs());
   PutShape(os, details.shape(), '(', ')');
   PutShape(os, details.coshape(), '[', ']');
-  PutInit(os, symbol, details.init());
+  PutInit(os, symbol, details.init(), details.unanalyzedPDTComponentInit());
   os << '\n';
 }
 
@@ -711,13 +718,14 @@ void ModFileWriter::PutTypeParam(llvm::raw_ostream &os, const Symbol &symbol) {
   os << '\n';
 }
 
-void PutInit(
-    llvm::raw_ostream &os, const Symbol &symbol, const MaybeExpr &init) {
-  if (init) {
-    if (symbol.attrs().test(Attr::PARAMETER) ||
-        symbol.owner().IsDerivedType()) {
-      os << (symbol.attrs().test(Attr::POINTER) ? "=>" : "=");
-      init->AsFortran(os);
+void PutInit(llvm::raw_ostream &os, const Symbol &symbol, const MaybeExpr &init,
+    const parser::Expr *unanalyzed) {
+  if (symbol.attrs().test(Attr::PARAMETER) || symbol.owner().IsDerivedType()) {
+    const char *assign{symbol.attrs().test(Attr::POINTER) ? "=>" : "="};
+    if (unanalyzed) {
+      parser::Unparse(os << assign, *unanalyzed);
+    } else if (init) {
+      init->AsFortran(os << assign);
     }
   }
 }
@@ -926,6 +934,7 @@ Scope *ModFileReader::Read(const SourceName &name,
   parser::Options options;
   options.isModuleFile = true;
   options.features.Enable(common::LanguageFeature::BackslashEscapes);
+  options.features.Enable(common::LanguageFeature::OpenMP);
   if (!isIntrinsic.value_or(false)) {
     options.searchDirectories = context_.searchDirectories();
     // If a directory is in both lists, the intrinsic module directory

@@ -105,7 +105,6 @@ protected:
   unsigned PrefLoopLogAlignment = 0;
   unsigned MaxBytesForLoopAlignment = 0;
   unsigned MaxJumpTableSize = 0;
-  unsigned WideningBaseCost = 0;
 
   // ReserveXRegister[i] - X#i is not available as a general purpose register.
   BitVector ReserveXRegister;
@@ -205,8 +204,8 @@ public:
   /// Return true if the CPU supports any kind of instruction fusion.
   bool hasFusion() const {
     return hasArithmeticBccFusion() || hasArithmeticCbzFusion() ||
-           hasFuseAES() || hasFuseArithmeticLogic() ||
-           hasFuseCCSelect() || hasFuseLiterals();
+           hasFuseAES() || hasFuseArithmeticLogic() || hasFuseCCSelect() ||
+           hasFuseAdrpAdd() || hasFuseLiterals();
   }
 
   unsigned getMaxInterleaveFactor() const { return MaxInterleaveFactor; }
@@ -234,8 +233,6 @@ public:
   }
 
   unsigned getMaximumJumpTableSize() const { return MaxJumpTableSize; }
-
-  unsigned getWideningBaseCost() const { return WideningBaseCost; }
 
   /// CPU has TBI (top byte of addresses is ignored during HW address
   /// translation) and OS enables it.

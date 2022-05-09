@@ -358,6 +358,7 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("cxxm", TY_CXXModule)
       .Case("aocr", TY_FPGA_AOCR)
       .Case("aocx", TY_FPGA_AOCX)
+      .Case("hlsl", TY_HLSL)
       .Default(TY_INVALID);
 }
 

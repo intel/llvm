@@ -235,6 +235,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case NetBSD: return "netbsd";
   case OpenBSD: return "openbsd";
   case PS4: return "ps4";
+  case PS5: return "ps5";
   case RTEMS: return "rtems";
   case Solaris: return "solaris";
   case TvOS: return "tvos";
@@ -279,6 +280,12 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case Domain: return "domain";
   case Compute: return "compute";
   case Library: return "library";
+  case RayGeneration: return "raygeneration";
+  case Intersection: return "intersection";
+  case AnyHit: return "anyhit";
+  case ClosestHit: return "closesthit";
+  case Miss: return "miss";
+  case Callable: return "callable";
   case Mesh: return "mesh";
   case Amplification: return "amplification";
   }
@@ -334,12 +341,14 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("sparc", sparc)
     .Case("sparcel", sparcel)
     .Case("sparcv9", sparcv9)
+    .Case("s390x", systemz)
     .Case("systemz", systemz)
     .Case("tce", tce)
     .Case("tcele", tcele)
     .Case("thumb", thumb)
     .Case("thumbeb", thumbeb)
     .Case("x86", x86)
+    .Case("i386", x86)
     .Case("x86-64", x86_64)
     .Case("xcore", xcore)
     .Case("nvptx", nvptx)
@@ -570,6 +579,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("nvcl", Triple::NVCL)
     .StartsWith("amdhsa", Triple::AMDHSA)
     .StartsWith("ps4", Triple::PS4)
+    .StartsWith("ps5", Triple::PS5)
     .StartsWith("elfiamcu", Triple::ELFIAMCU)
     .StartsWith("tvos", Triple::TvOS)
     .StartsWith("watchos", Triple::WatchOS)
@@ -615,6 +625,12 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("domain", Triple::Domain)
       .StartsWith("compute", Triple::Compute)
       .StartsWith("library", Triple::Library)
+      .StartsWith("raygeneration", Triple::RayGeneration)
+      .StartsWith("intersection", Triple::Intersection)
+      .StartsWith("anyhit", Triple::AnyHit)
+      .StartsWith("closesthit", Triple::ClosestHit)
+      .StartsWith("miss", Triple::Miss)
+      .StartsWith("callable", Triple::Callable)
       .StartsWith("mesh", Triple::Mesh)
       .StartsWith("amplification", Triple::Amplification)
       .Default(Triple::UnknownEnvironment);
@@ -622,15 +638,16 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
 
 static Triple::ObjectFormatType parseFormat(StringRef EnvironmentName) {
   return StringSwitch<Triple::ObjectFormatType>(EnvironmentName)
-    // "xcoff" must come before "coff" because of the order-dependendent
-    // pattern matching.
-    .EndsWith("xcoff", Triple::XCOFF)
-    .EndsWith("coff", Triple::COFF)
-    .EndsWith("elf", Triple::ELF)
-    .EndsWith("goff", Triple::GOFF)
-    .EndsWith("macho", Triple::MachO)
-    .EndsWith("wasm", Triple::Wasm)
-    .Default(Triple::UnknownObjectFormat);
+      // "xcoff" must come before "coff" because of the order-dependendent
+      // pattern matching.
+      .EndsWith("xcoff", Triple::XCOFF)
+      .EndsWith("coff", Triple::COFF)
+      .EndsWith("elf", Triple::ELF)
+      .EndsWith("goff", Triple::GOFF)
+      .EndsWith("macho", Triple::MachO)
+      .EndsWith("wasm", Triple::Wasm)
+      .EndsWith("spirv", Triple::SPIRV)
+      .Default(Triple::UnknownObjectFormat);
 }
 
 static Triple::SubArchType parseSubArch(StringRef SubArchName) {
@@ -743,13 +760,24 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
 
 static StringRef getObjectFormatTypeName(Triple::ObjectFormatType Kind) {
   switch (Kind) {
-  case Triple::UnknownObjectFormat: return "";
-  case Triple::COFF:  return "coff";
-  case Triple::ELF:   return "elf";
-  case Triple::GOFF:  return "goff";
-  case Triple::MachO: return "macho";
-  case Triple::Wasm:  return "wasm";
-  case Triple::XCOFF: return "xcoff";
+  case Triple::UnknownObjectFormat:
+    return "";
+  case Triple::COFF:
+    return "coff";
+  case Triple::ELF:
+    return "elf";
+  case Triple::GOFF:
+    return "goff";
+  case Triple::MachO:
+    return "macho";
+  case Triple::Wasm:
+    return "wasm";
+  case Triple::XCOFF:
+    return "xcoff";
+  case Triple::DXContainer:
+    return "dxcontainer";
+  case Triple::SPIRV:
+    return "spirv";
   }
   llvm_unreachable("unknown object format type");
 }
@@ -834,11 +862,10 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
 
   case Triple::spirv32:
   case Triple::spirv64:
-    // TODO: In future this will be Triple::SPIRV.
-    return Triple::UnknownObjectFormat;
+    return Triple::SPIRV;
 
   case Triple::dxil:
-    return Triple::UnknownObjectFormat;
+    return Triple::DXContainer;
   }
   llvm_unreachable("unknown architecture");
 }
@@ -1911,3 +1938,33 @@ VersionTuple Triple::getCanonicalVersionForOS(OSType OSKind,
     return Version;
   }
 }
+
+// HLSL triple environment orders are relied on in the front end
+static_assert(Triple::Vertex - Triple::Pixel == 1,
+              "incorrect HLSL stage order");
+static_assert(Triple::Geometry - Triple::Pixel == 2,
+              "incorrect HLSL stage order");
+static_assert(Triple::Hull - Triple::Pixel == 3,
+              "incorrect HLSL stage order");
+static_assert(Triple::Domain - Triple::Pixel == 4,
+              "incorrect HLSL stage order");
+static_assert(Triple::Compute - Triple::Pixel == 5,
+              "incorrect HLSL stage order");
+static_assert(Triple::Library - Triple::Pixel == 6,
+              "incorrect HLSL stage order");
+static_assert(Triple::RayGeneration - Triple::Pixel == 7,
+              "incorrect HLSL stage order");
+static_assert(Triple::Intersection - Triple::Pixel == 8,
+              "incorrect HLSL stage order");
+static_assert(Triple::AnyHit - Triple::Pixel == 9,
+              "incorrect HLSL stage order");
+static_assert(Triple::ClosestHit - Triple::Pixel == 10,
+              "incorrect HLSL stage order");
+static_assert(Triple::Miss - Triple::Pixel == 11,
+              "incorrect HLSL stage order");
+static_assert(Triple::Callable - Triple::Pixel == 12,
+              "incorrect HLSL stage order");
+static_assert(Triple::Mesh - Triple::Pixel == 13,
+              "incorrect HLSL stage order");
+static_assert(Triple::Amplification - Triple::Pixel == 14,
+              "incorrect HLSL stage order");

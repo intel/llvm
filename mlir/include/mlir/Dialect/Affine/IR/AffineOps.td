@@ -109,7 +109,10 @@ def AffineApplyOp : Affine_Op<"apply", [NoSideEffect]> {
 def AffineForOp : Affine_Op<"for",
     [AutomaticAllocationScope, ImplicitAffineTerminator, RecursiveSideEffects,
      DeclareOpInterfaceMethods<LoopLikeOpInterface,
-     ["getSingleInductionVar", "getSingleLowerBound", "getSingleStep"]>]> {
+     ["getSingleInductionVar", "getSingleLowerBound", "getSingleStep",
+      "getSingleUpperBound"]>,
+     DeclareOpInterfaceMethods<RegionBranchOpInterface,
+     ["getSuccessorEntryOperands"]>]> {
   let summary = "for operation";
   let description = [{
     Syntax:
@@ -493,6 +496,9 @@ class AffineLoadOpBase<string mnemonic, list<Trait> traits = []> :
     }
 
     static StringRef getMapAttrName() { return "map"; }
+
+    // TODO: Remove once prefixing is flipped.
+    operand_range getIndices() { return indices(); }
   }];
 }
 
@@ -856,6 +862,9 @@ class AffineStoreOpBase<string mnemonic, list<Trait> traits = []> :
     }
 
     static StringRef getMapAttrName() { return "map"; }
+
+    // TODO: Remove once prefixing is flipped.
+    operand_range getIndices() { return indices(); }
   }];
 }
 

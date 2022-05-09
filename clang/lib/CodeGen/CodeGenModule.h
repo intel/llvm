@@ -355,8 +355,9 @@ private:
   /// is defined once we get to the end of the of the translation unit.
   std::vector<GlobalDecl> Aliases;
 
-  /// List of multiversion functions that have to be emitted.  Used to make sure
-  /// we properly emit the iFunc.
+  /// List of multiversion functions to be emitted. This list is processed in
+  /// conjunction with other deferred symbols and is used to ensure that
+  /// multiversion function resolvers and ifuncs are defined and emitted.
   std::vector<GlobalDecl> MultiVersionFuncs;
 
   typedef llvm::StringMap<llvm::TrackingVH<llvm::Constant> > ReplacementsTy;
@@ -417,6 +418,8 @@ private:
   llvm::StringMap<llvm::GlobalVariable *> CFConstantStringMap;
 
   llvm::DenseMap<llvm::Constant *, llvm::GlobalVariable *> ConstantStringMap;
+  llvm::DenseMap<const UnnamedGlobalConstantDecl *, llvm::GlobalVariable *>
+      UnnamedGlobalConstantDeclMap;
   llvm::DenseMap<const Decl*, llvm::Constant *> StaticLocalDeclMap;
   llvm::DenseMap<const Decl*, llvm::GlobalVariable*> StaticLocalDeclGuardMap;
   llvm::DenseMap<const Expr*, llvm::Constant *> MaterializedGlobalTemporaryMap;
@@ -895,6 +898,10 @@ public:
   /// Get the address of a GUID.
   ConstantAddress GetAddrOfMSGuidDecl(const MSGuidDecl *GD);
 
+  /// Get the address of a UnnamedGlobalConstant
+  ConstantAddress
+  GetAddrOfUnnamedGlobalConstantDecl(const UnnamedGlobalConstantDecl *GCD);
+
   /// Get the address of a template parameter object.
   ConstantAddress
   GetAddrOfTemplateParamObject(const TemplateParamObjectDecl *TPO);
@@ -1243,6 +1250,7 @@ public:
 
   StringRef getMangledName(GlobalDecl GD);
   StringRef getBlockMangledName(GlobalDecl GD, const BlockDecl *BD);
+  const GlobalDecl getMangledNameDecl(StringRef);
 
   void EmitTentativeDefinition(const VarDecl *D);
 
@@ -1485,9 +1493,10 @@ public:
                                            TBAAAccessInfo *TBAAInfo = nullptr);
   bool stopAutoInit();
 
-  /// Print the postfix for externalized static variable for single source
-  /// offloading languages CUDA and HIP.
-  void printPostfixForExternalizedStaticVar(llvm::raw_ostream &OS) const;
+  /// Print the postfix for externalized static variable or kernels for single
+  /// source offloading languages CUDA and HIP.
+  void printPostfixForExternalizedDecl(llvm::raw_ostream &OS,
+                                       const Decl *D) const;
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
@@ -1496,9 +1505,18 @@ private:
       llvm::AttributeList ExtraAttrs = llvm::AttributeList(),
       ForDefinition_t IsForDefinition = NotForDefinition);
 
-  llvm::Constant *GetOrCreateMultiVersionResolver(GlobalDecl GD,
-                                                  llvm::Type *DeclTy,
-                                                  const FunctionDecl *FD);
+  // References to multiversion functions are resolved through an implicitly
+  // defined resolver function. This function is responsible for creating
+  // the resolver symbol for the provided declaration. The value returned
+  // will be for an ifunc (llvm::GlobalIFunc) if the current target supports
+  // that feature and for a regular function (llvm::GlobalValue) otherwise.
+  llvm::Constant *GetOrCreateMultiVersionResolver(GlobalDecl GD);
+
+  // In scenarios where a function is not known to be a multiversion function
+  // until a later declaration, it is sometimes necessary to change the
+  // previously created mangled name to align with requirements of whatever
+  // multiversion function kind the function is now known to be. This function
+  // is responsible for performing such mangled name updates.
   void UpdateMultiVersionNames(GlobalDecl GD, const FunctionDecl *FD,
                                StringRef &CurName);
 
@@ -1525,7 +1543,6 @@ private:
   void EmitAliasDefinition(GlobalDecl GD);
   void emitIFuncDefinition(GlobalDecl GD);
   void emitCPUDispatchDefinition(GlobalDecl GD);
-  void EmitTargetClonesResolver(GlobalDecl GD);
   void EmitObjCPropertyImplementations(const ObjCImplementationDecl *D);
   void EmitObjCIvarInitializations(ObjCImplementationDecl *D);
 
@@ -1591,6 +1608,7 @@ private:
   // registered by the atexit subroutine using unatexit.
   void unregisterGlobalDtorsWithUnAtExit();
 
+  /// Emit deferred multiversion function resolvers and associated variants.
   void emitMultiVersionFunctions();
 
   /// Emit any vtables which we deferred and still have a use for.
@@ -1605,6 +1623,16 @@ private:
 
   /// Emit the link options introduced by imported modules.
   void EmitModuleLinkOptions();
+
+  /// Helper function for EmitStaticExternCAliases() to redirect ifuncs that
+  /// have a resolver name that matches 'Elem' to instead resolve to the name of
+  /// 'CppFunc'. This redirection is necessary in cases where 'Elem' has a name
+  /// that will be emitted as an alias of the name bound to 'CppFunc'; ifuncs
+  /// may not reference aliases. Redirection is only performed if 'Elem' is only
+  /// used by ifuncs in which case, 'Elem' is destroyed. 'true' is returned if
+  /// redirection is successful, and 'false' is returned otherwise.
+  bool CheckAndReplaceExternCIFuncs(llvm::GlobalValue *Elem,
+                                    llvm::GlobalValue *CppFunc);
 
   /// Emit aliases for internal-linkage declarations inside "C" language
   /// linkage specifications, giving them the "expected" name where possible.

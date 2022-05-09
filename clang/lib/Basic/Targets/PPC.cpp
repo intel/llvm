@@ -81,6 +81,8 @@ bool PPCTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       IsISA3_0 = true;
     } else if (Feature == "+isa-v31-instructions") {
       IsISA3_1 = true;
+    } else if (Feature == "+quadword-atomics") {
+      HasQuadwordAtomics = true;
     }
     // TODO: Finish this list and add an assert that we've handled them
     // all.
@@ -206,6 +208,7 @@ static void defineXLCompatMacros(MacroBuilder &Builder) {
   Builder.defineMacro("__dcbf", "__builtin_dcbf");
   Builder.defineMacro("__fmadd", "__builtin_fma");
   Builder.defineMacro("__fmadds", "__builtin_fmaf");
+  Builder.defineMacro("__abs", "__builtin_abs");
   Builder.defineMacro("__labs", "__builtin_labs");
   Builder.defineMacro("__llabs", "__builtin_llabs");
   Builder.defineMacro("__popcnt4", "__builtin_popcount");
@@ -247,6 +250,12 @@ static void defineXLCompatMacros(MacroBuilder &Builder) {
   Builder.defineMacro("__test_data_class", "__builtin_ppc_test_data_class");
   Builder.defineMacro("__swdiv", "__builtin_ppc_swdiv");
   Builder.defineMacro("__swdivs", "__builtin_ppc_swdivs");
+  Builder.defineMacro("__builtin_maxfe", "__builtin_ppc_maxfe");
+  Builder.defineMacro("__builtin_maxfl", "__builtin_ppc_maxfl");
+  Builder.defineMacro("__builtin_maxfs", "__builtin_ppc_maxfs");
+  Builder.defineMacro("__builtin_minfe", "__builtin_ppc_minfe");
+  Builder.defineMacro("__builtin_minfl", "__builtin_ppc_minfl");
+  Builder.defineMacro("__builtin_minfs", "__builtin_ppc_minfs");
 }
 
 /// PPCTargetInfo::getTargetDefines - Return a set of the PowerPC-specific
@@ -544,6 +553,12 @@ bool PPCTargetInfo::initFeatureMap(
   Features["isa-v30-instructions"] =
       llvm::StringSwitch<bool>(CPU).Case("pwr9", true).Default(false);
 
+  Features["quadword-atomics"] =
+      getTriple().isArch64Bit() && llvm::StringSwitch<bool>(CPU)
+                                       .Case("pwr9", true)
+                                       .Case("pwr8", true)
+                                       .Default(false);
+
   // Power10 includes all the same features as Power9 plus any features specific
   // to the Power10 core.
   if (CPU == "pwr10" || CPU == "power10") {
@@ -654,6 +669,7 @@ bool PPCTargetInfo::hasFeature(StringRef Feature) const {
       .Case("isa-v207-instructions", IsISA2_07)
       .Case("isa-v30-instructions", IsISA3_0)
       .Case("isa-v31-instructions", IsISA3_1)
+      .Case("quadword-atomics", HasQuadwordAtomics)
       .Default(false);
 }
 

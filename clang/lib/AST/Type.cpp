@@ -722,8 +722,7 @@ bool Type::isObjCClassOrClassKindOfType() const {
 
 ObjCTypeParamType::ObjCTypeParamType(const ObjCTypeParamDecl *D, QualType can,
                                      ArrayRef<ObjCProtocolDecl *> protocols)
-    : Type(ObjCTypeParam, can,
-           can->getDependence() & ~TypeDependence::UnexpandedPack),
+    : Type(ObjCTypeParam, can, toSemanticDependence(can->getDependence())),
       OTPDecl(const_cast<ObjCTypeParamDecl *>(D)) {
   initialize(protocols);
 }
@@ -3415,7 +3414,7 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
 
 TypedefType::TypedefType(TypeClass tc, const TypedefNameDecl *D,
                          QualType underlying, QualType can)
-    : Type(tc, can, underlying->getDependence()),
+    : Type(tc, can, toSemanticDependence(underlying->getDependence())),
       Decl(const_cast<TypedefNameDecl *>(D)) {
   assert(!isa<TypedefType>(can) && "Invalid canonical type");
 }
@@ -3426,7 +3425,7 @@ QualType TypedefType::desugar() const {
 
 UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
                      QualType Canon)
-    : Type(Using, Canon, Underlying->getDependence()),
+    : Type(Using, Canon, toSemanticDependence(Underlying->getDependence())),
       Found(const_cast<UsingShadowDecl *>(Found)) {
   assert(Underlying == getUnderlyingType());
 }
@@ -3682,8 +3681,7 @@ TemplateSpecializationType::TemplateSpecializationType(
     : Type(TemplateSpecialization, Canon.isNull() ? QualType(this, 0) : Canon,
            (Canon.isNull()
                 ? TypeDependence::DependentInstantiation
-                : Canon->getDependence() & ~(TypeDependence::VariablyModified |
-                                             TypeDependence::UnexpandedPack)) |
+                : toSemanticDependence(Canon->getDependence())) |
                (toTypeDependence(T.getDependence()) &
                 TypeDependence::UnexpandedPack)),
       Template(T) {
@@ -3694,7 +3692,8 @@ TemplateSpecializationType::TemplateSpecializationType(
          "Use DependentTemplateSpecializationType for dependent template-name");
   assert((T.getKind() == TemplateName::Template ||
           T.getKind() == TemplateName::SubstTemplateTemplateParm ||
-          T.getKind() == TemplateName::SubstTemplateTemplateParmPack) &&
+          T.getKind() == TemplateName::SubstTemplateTemplateParmPack ||
+          T.getKind() == TemplateName::UsingTemplate) &&
          "Unexpected template name for TemplateSpecializationType");
 
   auto *TemplateArgs = reinterpret_cast<TemplateArgument *>(this + 1);

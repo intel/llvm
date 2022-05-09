@@ -19,6 +19,7 @@
 
 #include "clang/ExtractAPI/API.h"
 #include "clang/ExtractAPI/Serialization/SerializerBase.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/raw_ostream.h"
@@ -45,6 +46,25 @@ class SymbolGraphSerializer : public APISerializer {
   /// The Symbol Graph format version used by this serializer.
   static const VersionTuple FormatVersion;
 
+  using PathComponentStack = llvm::SmallVector<llvm::StringRef, 4>;
+  /// The current path component stack.
+  ///
+  /// Note: this is used to serialize the ``pathComponents`` field of symbols in
+  /// the Symbol Graph.
+  PathComponentStack PathComponents;
+
+  /// A helper type to manage PathComponents correctly using RAII.
+  struct PathComponentGuard {
+    PathComponentGuard(PathComponentStack &PC, StringRef Component) : PC(PC) {
+      PC.emplace_back(Component);
+    }
+
+    ~PathComponentGuard() { PC.pop_back(); }
+
+  private:
+    PathComponentStack &PC;
+  };
+
 public:
   /// Serialize the APIs in \c APISet in the Symbol Graph format.
   ///
@@ -62,6 +82,13 @@ public:
     /// For example enum constants are members of the enum, class/instance
     /// methods are members of the class, etc.
     MemberOf,
+
+    /// The source symbol is inherited from the target symbol.
+    InheritsFrom,
+
+    /// The source symbol conforms to the target symbol.
+    /// For example Objective-C protocol conformances.
+    ConformsTo,
   };
 
   /// Get the string representation of the relationship kind.
@@ -95,23 +122,49 @@ private:
   ///
   /// \returns \c None if this \p Record should be skipped, or a JSON object
   /// containing common symbol information of \p Record.
-  Optional<Object> serializeAPIRecord(const APIRecord &Record) const;
+  template <typename RecordTy>
+  Optional<Object> serializeAPIRecord(const RecordTy &Record) const;
+
+  /// Helper method to serialize second-level member records of \p Record and
+  /// the member-of relationships.
+  template <typename MemberTy>
+  void serializeMembers(const APIRecord &Record,
+                        const SmallVector<std::unique_ptr<MemberTy>> &Members);
 
   /// Serialize the \p Kind relationship between \p Source and \p Target.
   ///
   /// Record the relationship between the two symbols in
   /// SymbolGraphSerializer::Relationships.
-  void serializeRelationship(RelationshipKind Kind, const APIRecord &Source,
-                             const APIRecord &Target);
+  void serializeRelationship(RelationshipKind Kind, SymbolReference Source,
+                             SymbolReference Target);
 
-  /// Serialize a global record.
-  void serializeGlobalRecord(const GlobalRecord &Record);
+  /// Serialize a global function record.
+  void serializeGlobalFunctionRecord(const GlobalFunctionRecord &Record);
+
+  /// Serialize a global variable record.
+  void serializeGlobalVariableRecord(const GlobalVariableRecord &Record);
 
   /// Serialize an enum record.
   void serializeEnumRecord(const EnumRecord &Record);
 
   /// Serialize a struct record.
   void serializeStructRecord(const StructRecord &Record);
+
+  /// Serialize an Objective-C container record.
+  void serializeObjCContainerRecord(const ObjCContainerRecord &Record);
+
+  /// Serialize a macro defintion record.
+  void serializeMacroDefinitionRecord(const MacroDefinitionRecord &Record);
+
+  /// Serialize a typedef record.
+  void serializeTypedefRecord(const TypedefRecord &Record);
+
+  /// Push a component to the current path components stack.
+  ///
+  /// \param Component The component to push onto the path components stack.
+  /// \return A PathComponentGuard responsible for removing the latest
+  /// component from the stack on scope exit.
+  LLVM_NODISCARD PathComponentGuard makePathComponentGuard(StringRef Component);
 
 public:
   SymbolGraphSerializer(const APISet &API, StringRef ProductName,
