@@ -24,7 +24,7 @@
 // Diagnostic is emitted because the arguments mismatch.
 [[intel::max_concurrency(2)]] // expected-note {{previous attribute is here}}
 [[intel::max_concurrency(4)]] void
-func5() {} // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
+func5() {} // expected-warning@-1 {{attribute 'max_concurrency' is already applied with different arguments}}
 
 [[intel::max_concurrency(1)]] void func6(); // expected-note {{previous attribute is here}}
 [[intel::max_concurrency(3)]] void func6(); // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}

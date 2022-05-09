@@ -7664,7 +7664,7 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
       if (const auto *DeclExpr =
-	      D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+	      dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr())) {
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
