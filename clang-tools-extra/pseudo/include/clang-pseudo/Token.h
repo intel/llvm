@@ -74,6 +74,20 @@ struct Token {
     Flags |= uint8_t{static_cast<std::underlying_type_t<T>>(Mask)};
   }
 
+  /// Returns the next token in the stream. this may not be a sentinel.
+  const Token &next() const {
+    assert(Kind != tok::eof);
+    return *(this + 1);
+  }
+  /// Returns the next token in the stream, skipping over comments.
+  const Token &nextNC() const {
+    const Token *T = this;
+    do
+      T = &T->next();
+    while (T->Kind == tok::comment);
+    return *T;
+  }
+
   /// The type of token as determined by clang's lexer.
   clang::tok::TokenKind Kind = clang::tok::unknown;
 };
@@ -180,7 +194,8 @@ enum class LexFlags : uint8_t {
   NeedsCleaning = 1 << 1,
 };
 
-/// Derives a token stream by decoding escapes and interpreting raw_identifiers.
+/// Derives a token stream by decoding escapes, interpreting raw_identifiers and
+/// splitting the greatergreater token.
 ///
 /// Tokens containing UCNs, escaped newlines, trigraphs etc are decoded and
 /// their backing data is owned by the returned stream.

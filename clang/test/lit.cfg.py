@@ -25,7 +25,7 @@ config.name = 'Clang'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp', '.i', '.cppm', '.m', '.mm', '.cu', '.hip',
+config.suffixes = ['.c', '.cpp', '.i', '.cppm', '.m', '.mm', '.cu', '.hip', '.hlsl',
                    '.ll', '.cl', '.clcpp', '.s', '.S', '.modulemap', '.test', '.rs', '.ifs', '.rc']
 
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
@@ -64,9 +64,11 @@ tool_dirs = [config.clang_tools_dir, config.llvm_tools_dir]
 
 tools = [
     'apinotes-test', 'c-index-test', 'clang-diff', 'clang-format', 'clang-repl',
-    'clang-tblgen', 'clang-scan-deps', 'opt', 'llvm-ifs', 'yaml2obj',
+    'clang-tblgen', 'clang-scan-deps', 'opt', 'llvm-ifs', 'yaml2obj', 'clang-linker-wrapper',
     ToolSubst('%clang_extdef_map', command=FindTool(
         'clang-extdef-mapping'), unresolved='ignore'),
+    ToolSubst('%clang_dxc', command=config.clang,
+        extra_args=['--driver-mode=dxc']),
 ]
 
 if config.clang_examples:
@@ -115,6 +117,11 @@ config.substitutions.append(
     ('%hmaptool', "'%s' %s" % (config.python_executable,
                              os.path.join(config.clang_tools_dir, 'hmaptool'))))
 
+config.substitutions.append(
+    ('%deps-to-rsp',
+     '"%s" %s' % (config.python_executable, os.path.join(config.clang_src_dir, 'utils',
+                                                         'module-deps-to-rsp.py'))))
+
 config.substitutions.append(('%host_cc', config.host_cc))
 config.substitutions.append(('%host_cxx', config.host_cxx))
 
@@ -126,6 +133,9 @@ if config.has_plugins and config.llvm_plugin_ext:
 if config.clang_default_pie_on_linux:
     config.available_features.add('default-pie-on-linux')
 
+if config.clang_enable_opaque_pointers:
+    config.available_features.add('enable-opaque-pointers')
+
 # Set available features we allow tests to conditionalize on.
 #
 if config.clang_default_cxx_stdlib != '':
@@ -134,10 +144,6 @@ if config.clang_default_cxx_stdlib != '':
 # As of 2011.08, crash-recovery tests still do not pass on FreeBSD.
 if platform.system() not in ['FreeBSD']:
     config.available_features.add('crash-recovery')
-
-# Support for new pass manager.
-if config.enable_experimental_new_pass_manager:
-    config.available_features.add('experimental-new-pass-manager')
 
 # ANSI escape sequences in non-dumb terminal
 if platform.system() not in ['Windows']:
@@ -183,10 +189,6 @@ if re.match(r'.*-(windows-msvc)$', config.target_triple):
 # [PR8833] LLP64-incompatible tests
 if not re.match(r'^x86_64.*-(windows-msvc|windows-gnu)$', config.target_triple):
     config.available_features.add('LP64')
-
-# [PR12920] "clang-driver" -- set if gcc driver is not used.
-if not re.match(r'.*-(cygwin)$', config.target_triple):
-    config.available_features.add('clang-driver')
 
 # Tests that are specific to the Apple Silicon macOS.
 if re.match(r'^arm64(e)?-apple-(macos|darwin)', config.target_triple):

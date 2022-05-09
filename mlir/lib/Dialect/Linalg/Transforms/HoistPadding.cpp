@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -127,7 +128,7 @@ static bool isOnlyUsedAsInputOfLinalgOp(tensor::PadOp padOp) {
 static void
 getAtMostNEnclosingLoops(tensor::PadOp padOp, int nLevels,
                          SmallVector<scf::ForOp> &reverseEnclosingLoops) {
-  AsmState state(padOp->getParentOfType<mlir::FuncOp>());
+  AsmState state(padOp->getParentOfType<func::FuncOp>());
   (void)state;
   scf::ForOp outermostEnclosingForOp = nullptr;
   Operation *nextEnclosingOp = padOp->getParentOp();

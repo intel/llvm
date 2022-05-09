@@ -17,17 +17,17 @@ using namespace Fortran::runtime;
 void fir::runtime::genExit(fir::FirOpBuilder &builder, mlir::Location loc,
                            mlir::Value status) {
   auto exitFunc = fir::runtime::getRuntimeFunc<mkRTKey(Exit)>(loc, builder);
-  llvm::SmallVector<mlir::Value> args =
-      fir::runtime::createArguments(builder, loc, exitFunc.getType(), status);
+  llvm::SmallVector<mlir::Value> args = fir::runtime::createArguments(
+      builder, loc, exitFunc.getFunctionType(), status);
   builder.create<fir::CallOp>(loc, exitFunc, args);
 }
 
 void fir::runtime::genReportFatalUserError(fir::FirOpBuilder &builder,
                                            mlir::Location loc,
                                            llvm::StringRef message) {
-  mlir::FuncOp crashFunc =
+  mlir::func::FuncOp crashFunc =
       fir::runtime::getRuntimeFunc<mkRTKey(ReportFatalUserError)>(loc, builder);
-  mlir::FunctionType funcTy = crashFunc.getType();
+  mlir::FunctionType funcTy = crashFunc.getFunctionType();
   mlir::Value msgVal = fir::getBase(
       fir::factory::createStringLiteral(builder, loc, message.str() + '\0'));
   mlir::Value sourceLine =

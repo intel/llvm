@@ -38,13 +38,21 @@ What's New in Libc++ 15.0.0?
 New Features
 ------------
 
- - Implemented P0627R6 (Function to mark unreachable code)
+- Implemented P0627R6 (Function to mark unreachable code)
 
- - Implemented P1165R1 (Make stateful allocator propagation more consistent for ``operator+(basic_string)``)
+- Implemented P1165R1 (Make stateful allocator propagation more consistent for ``operator+(basic_string)``)
 
- - `pop_heap` now uses an algorithm known as "bottom-up heapsort" or
-   "heapsort with bounce" to reduce the number of comparisons, and rearranges
-   elements using move-assignment instead of `swap`.
+- Implemented P0674R1 (Support arrays in make_shared and allocate_shared)
+
+- `pop_heap` now uses an algorithm known as "bottom-up heapsort" or
+  "heapsort with bounce" to reduce the number of comparisons, and rearranges
+  elements using move-assignment instead of `swap`.
+
+ - Libc++ now supports a variety of assertions that can be turned on to help catch
+   undefined behavior in user code. This new support is now separate from the old
+   (and incomplete) Debug Mode. Vendors can select whether the library they ship
+   should include assertions or not by default. For details, see
+   :ref:`the documentation <assertions-mode>` about this new feature.
 
 API Changes
 -----------
@@ -59,10 +67,10 @@ API Changes
   ``<filesystem>`` header. The associated macro
   ``_LIBCPP_DEPRECATED_EXPERIMENTAL_FILESYSTEM`` has also been removed.
 
-- Some libc++ headers no longer transitively include all of ``<algorithm>``and ``<chrono>``.
+- Some libc++ headers no longer transitively include all of ``<algorithm>``, ``<chrono>`` and ``<utility>``.
   If, after updating libc++, you see compiler errors related to missing declarations in
   namespace ``std``, it might be because one of your source files now needs to
-  ``#include <algorithm>`` and/or ``#include <chrono>``.
+  ``#include <algorithm>``, ``#include <chrono>`` and/or ``#include <utility>``.
 
 - The integer distributions ``binomial_distribution``, ``discrete_distribution``,
   ``geometric_distribution``, ``negative_binomial_distribution``, ``poisson_distribution``,
@@ -73,6 +81,10 @@ API Changes
 
 - The C++14 function ``std::quoted(const char*)`` is no longer supported in
   C++03 or C++11 modes.
+
+- Setting a custom debug handler with ``std::__libcpp_debug_function`` is not
+  supported anymore. Please migrate to using the new support for
+  :ref:`assertions <assertions-mode>` instead.
 
 ABI Changes
 -----------
@@ -106,3 +118,9 @@ Build System Changes
   libc++abi already installs its headers in the right location. However, vendors building
   libc++ against alternate ABI libraries should make sure that their ABI library installs
   its own headers.
+
+- The legacy testing configuration is now deprecated and will be removed in the next release. For
+  most users, this should not have any impact. However, if you are testing libc++ in a configuration
+  or on a platform that used to be supported by the legacy testing configuration and isn't supported
+  by one of the configurations in ``libcxx/test/configs``, please reach out to the libc++ developers
+  to get your configuration supported officially.

@@ -3,20 +3,20 @@
 
 module {
   // GENERIC: "llvm.func"
-  // GENERIC: sym_name = "foo"
-  // GENERIC-SAME: type = !llvm.func<void ()>
+  // GENERIC: function_type = !llvm.func<void ()>
+  // GENERIC-SAME: sym_name = "foo"
   // GENERIC-SAME: () -> ()
   // CHECK: llvm.func @foo()
   "llvm.func"() ({
-  }) {sym_name = "foo", type = !llvm.func<void ()>} : () -> ()
+  }) {sym_name = "foo", function_type = !llvm.func<void ()>} : () -> ()
 
   // GENERIC: "llvm.func"
-  // GENERIC: sym_name = "bar"
-  // GENERIC-SAME: type = !llvm.func<i64 (i64, i64)>
+  // GENERIC: function_type = !llvm.func<i64 (i64, i64)>
+  // GENERIC-SAME: sym_name = "bar"
   // GENERIC-SAME: () -> ()
   // CHECK: llvm.func @bar(i64, i64) -> i64
   "llvm.func"() ({
-  }) {sym_name = "bar", type = !llvm.func<i64 (i64, i64)>} : () -> ()
+  }) {sym_name = "bar", function_type = !llvm.func<i64 (i64, i64)>} : () -> ()
 
   // GENERIC: "llvm.func"
   // CHECK: llvm.func @baz(%{{.*}}: i64) -> i64
@@ -26,15 +26,15 @@ module {
     // GENERIC: llvm.return
     llvm.return %arg0 : i64
 
-  // GENERIC: sym_name = "baz"
-  // GENERIC-SAME: type = !llvm.func<i64 (i64)>
+  // GENERIC: function_type = !llvm.func<i64 (i64)>
+  // GENERIC-SAME: sym_name = "baz"
   // GENERIC-SAME: () -> ()
-  }) {sym_name = "baz", type = !llvm.func<i64 (i64)>} : () -> ()
+  }) {sym_name = "baz", function_type = !llvm.func<i64 (i64)>} : () -> ()
 
   // CHECK: llvm.func @qux(!llvm.ptr<i64> {llvm.noalias}, i64)
   // CHECK: attributes {xxx = {yyy = 42 : i64}}
   "llvm.func"() ({
-  }) {sym_name = "qux", type = !llvm.func<void (ptr<i64>, i64)>,
+  }) {sym_name = "qux", function_type = !llvm.func<void (ptr<i64>, i64)>,
       arg_attrs = [{llvm.noalias}, {}], xxx = {yyy = 42}} : () -> ()
 
   // CHECK: llvm.func @roundtrip1()
@@ -97,6 +97,11 @@ module {
     llvm.return
   }
 
+  // CHECK: llvm.func @nestattr(%{{.*}}: !llvm.ptr<i32> {llvm.nest})
+  llvm.func @nestattr(%arg0: !llvm.ptr<i32> {llvm.nest}) {
+    llvm.return
+  }
+
   // CHECK: llvm.func @variadic(...)
   llvm.func @variadic(...)
 
@@ -143,28 +148,28 @@ module {
 
 module {
   // expected-error@+1 {{requires one region}}
-  "llvm.func"() {sym_name = "no_region", type = !llvm.func<void ()>} : () -> ()
+  "llvm.func"() {function_type = !llvm.func<void ()>, sym_name = "no_region"} : () -> ()
 }
 
 // -----
 
 module {
-  // expected-error@+1 {{requires a type attribute 'type'}}
+  // expected-error@+1 {{requires attribute 'function_type'}}
   "llvm.func"() ({}) {sym_name = "missing_type"} : () -> ()
 }
 
 // -----
 
 module {
-  // expected-error@+1 {{requires 'type' attribute of wrapped LLVM function type}}
-  "llvm.func"() ({}) {sym_name = "non_llvm_type", type = i64} : () -> ()
+  // expected-error@+1 {{attribute 'function_type' failed to satisfy constraint: type attribute of LLVM function type}}
+  "llvm.func"() ({}) {sym_name = "non_llvm_type", function_type = i64} : () -> ()
 }
 
 // -----
 
 module {
-  // expected-error@+1 {{requires 'type' attribute of wrapped LLVM function type}}
-  "llvm.func"() ({}) {sym_name = "non_function_type", type = i64} : () -> ()
+  // expected-error@+1 {{attribute 'function_type' failed to satisfy constraint: type attribute of LLVM function type}}
+  "llvm.func"() ({}) {sym_name = "non_function_type", function_type = i64} : () -> ()
 }
 
 // -----
@@ -174,7 +179,7 @@ module {
   "llvm.func"() ({
   ^bb0(%arg0: i64):
     llvm.return
-  }) {sym_name = "wrong_arg_number", type = !llvm.func<void ()>} : () -> ()
+  }) {function_type = !llvm.func<void ()>, sym_name = "wrong_arg_number"} : () -> ()
 }
 
 // -----
@@ -184,7 +189,7 @@ module {
   "llvm.func"() ({
   ^bb0(%arg0: tensor<*xf32>):
     llvm.return
-  }) {sym_name = "wrong_arg_number", type = !llvm.func<void (i64)>} : () -> ()
+  }) {function_type = !llvm.func<void (i64)>, sym_name = "wrong_arg_number"} : () -> ()
 }
 
 // -----

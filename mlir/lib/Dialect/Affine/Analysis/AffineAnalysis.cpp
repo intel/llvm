@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IntegerSet.h"
@@ -28,6 +29,7 @@
 #define DEBUG_TYPE "affine-analysis"
 
 using namespace mlir;
+using namespace presburger;
 
 /// Get the value that is being reduced by `pos`-th reduction in the loop if
 /// such a reduction can be performed by affine parallel loops. This assumes
@@ -324,7 +326,7 @@ static Block *getCommonBlock(const MemRefAccess &srcAccess,
 
   if (numCommonLoops == 0) {
     Block *block = srcAccess.opInst->getBlock();
-    while (!llvm::isa<FuncOp>(block->getParentOp())) {
+    while (!llvm::isa<func::FuncOp>(block->getParentOp())) {
       block = block->getParentOp()->getBlock();
     }
     return block;
@@ -444,12 +446,10 @@ static void computeDirectionVector(
   dependenceComponents->resize(numCommonLoops);
   for (unsigned j = 0; j < numCommonLoops; ++j) {
     (*dependenceComponents)[j].op = commonLoops[j].getOperation();
-    auto lbConst =
-        dependenceDomain->getConstantBound(FlatAffineConstraints::LB, j);
+    auto lbConst = dependenceDomain->getConstantBound(IntegerPolyhedron::LB, j);
     (*dependenceComponents)[j].lb =
         lbConst.getValueOr(std::numeric_limits<int64_t>::min());
-    auto ubConst =
-        dependenceDomain->getConstantBound(FlatAffineConstraints::UB, j);
+    auto ubConst = dependenceDomain->getConstantBound(IntegerPolyhedron::UB, j);
     (*dependenceComponents)[j].ub =
         ubConst.getValueOr(std::numeric_limits<int64_t>::max());
   }

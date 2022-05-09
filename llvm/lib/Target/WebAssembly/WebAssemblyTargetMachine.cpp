@@ -25,11 +25,12 @@
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Function.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/LowerAtomic.h"
+#include "llvm/Transforms/Scalar/LowerAtomicPass.h"
 #include "llvm/Transforms/Utils.h"
 using namespace llvm;
 
@@ -56,7 +57,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
   auto &PR = *PassRegistry::getPassRegistry();
   initializeWebAssemblyAddMissingPrototypesPass(PR);
   initializeWebAssemblyLowerEmscriptenEHSjLjPass(PR);
-  initializeLowerGlobalDtorsPass(PR);
+  initializeLowerGlobalDtorsLegacyPassPass(PR);
   initializeFixFunctionBitcastsPass(PR);
   initializeOptimizeReturnedPass(PR);
   initializeWebAssemblyArgumentMovePass(PR);
@@ -412,7 +413,7 @@ void WebAssemblyPassConfig::addIRPasses() {
   addPass(createWebAssemblyAddMissingPrototypes());
 
   // Lower .llvm.global_dtors into .llvm_global_ctors with __cxa_atexit calls.
-  addPass(createWebAssemblyLowerGlobalDtors());
+  addPass(createLowerGlobalDtorsLegacyPass());
 
   // Fix function bitcasts, as WebAssembly requires caller and callee signatures
   // to match.
@@ -593,8 +594,7 @@ yaml::MachineFunctionInfo *WebAssemblyTargetMachine::convertFuncInfoToYAML(
 bool WebAssemblyTargetMachine::parseMachineFunctionInfo(
     const yaml::MachineFunctionInfo &MFI, PerFunctionMIParsingState &PFS,
     SMDiagnostic &Error, SMRange &SourceRange) const {
-  const auto &YamlMFI =
-      reinterpret_cast<const yaml::WebAssemblyFunctionInfo &>(MFI);
+  const auto &YamlMFI = static_cast<const yaml::WebAssemblyFunctionInfo &>(MFI);
   MachineFunction &MF = PFS.MF;
   MF.getInfo<WebAssemblyFunctionInfo>()->initializeBaseYamlFields(YamlMFI);
   return false;

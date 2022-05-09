@@ -15,16 +15,15 @@
 
 #include "CompileTimePropertiesPass.h"
 #include "DeviceGlobals.h"
+#include "ModuleSplitter.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
+#include "Support.h"
 
-#include "llvm/ADT/SetVector.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/IRPrintingPasses.h"
-#include "llvm/IR/InstIterator.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -39,14 +38,9 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
-#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
-#include "llvm/Transforms/IPO/GlobalDCE.h"
-#include "llvm/Transforms/IPO/StripDeadPrototypes.h"
-#include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
@@ -61,8 +55,6 @@
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
-using EntryPointGroup = std::vector<const Function *>;
-using EntryPointGroupMap = std::map<StringRef, EntryPointGroup>;
 
 namespace {
 
@@ -73,10 +65,6 @@ cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 constexpr char COL_CODE[] = "Code";
 constexpr char COL_SYM[] = "Symbols";
 constexpr char COL_PROPS[] = "Properties";
-constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
-
-// Identifying name for global scope
-constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 
 // InputFilename - The filename to read from.
 cl::opt<std::string> InputFilename{cl::Positional,
@@ -108,7 +96,6 @@ cl::opt<bool> SplitEsimd{"split-esimd",
 
 // TODO Design note: sycl-post-link should probably separate different kinds of
 // its functionality on logical and source level:
-//  - LLVM IR module splitting
 //  - Running LLVM IR passes on resulting modules
 //  - Generating additional files (like spec constants, dead arg info,...)
 // The tool itself could be just a "driver" creating needed pipelines from the
@@ -145,19 +132,15 @@ cl::opt<bool> OptLevelO3("O3",
                          cl::desc("Optimization level 3. Similar to clang -O3"),
                          cl::cat(PostLinkCat));
 
-enum IRSplitMode {
-  SPLIT_PER_TU,     // one module per translation unit
-  SPLIT_PER_KERNEL, // one module per kernel
-  SPLIT_AUTO        // automatically select split mode
-};
-
-cl::opt<IRSplitMode> SplitMode(
-    "split", cl::desc("split input module"), cl::Optional, cl::init(SPLIT_AUTO),
-    cl::values(
-        clEnumValN(SPLIT_PER_TU, "source",
-                   "1 output module per source (translation unit)"),
-        clEnumValN(SPLIT_PER_KERNEL, "kernel", "1 output module per kernel"),
-        clEnumValN(SPLIT_AUTO, "auto", "Choose split mode automatically")),
+cl::opt<module_split::IRSplitMode> SplitMode(
+    "split", cl::desc("split input module"), cl::Optional,
+    cl::init(module_split::SPLIT_AUTO),
+    cl::values(clEnumValN(module_split::SPLIT_PER_TU, "source",
+                          "1 output module per source (translation unit)"),
+               clEnumValN(module_split::SPLIT_PER_KERNEL, "kernel",
+                          "1 output module per kernel"),
+               clEnumValN(module_split::SPLIT_AUTO, "auto",
+                          "Choose split mode automatically")),
     cl::cat(PostLinkCat));
 
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
@@ -208,231 +191,12 @@ struct GlobalBinImageProps {
   bool EmitDeviceGlobalPropSet;
 };
 
-void error(const Twine &Msg) {
-  errs() << "sycl-post-link: " << Msg << '\n';
-  exit(1);
-}
-
-void checkError(std::error_code EC, const Twine &Prefix) {
-  if (EC)
-    error(Prefix + ": " + EC.message());
-}
-
 void writeToFile(const std::string &Filename, const std::string &Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
   checkError(EC, "error opening the file '" + Filename + "'");
   OS.write(Content.data(), Content.size());
   OS.close();
-}
-
-// Describes scope covered by each entry in the module-entry points map
-// populated by the groupEntryPoints function.
-enum EntryPointsGroupScope {
-  Scope_PerKernel, // one entry per kernel
-  Scope_PerModule, // one entry per module
-  Scope_Global     // single entry in the map for all kernels
-};
-
-bool hasIndirectFunctionCalls(const Module &M) {
-  for (const auto &F : M.functions()) {
-    // There are functions marked with [[intel::device_indirectly_callable]]
-    // attribute, because it instructs us to make this function available to the
-    // whole program as it was compiled as a single module.
-    if (F.hasFnAttribute("referenced-indirectly"))
-      return true;
-    if (F.isDeclaration())
-      continue;
-    // There are indirect calls in the module, which means that we don't know
-    // how to group functions so both caller and callee of indirect call are in
-    // the same module.
-    for (const auto &I : instructions(F)) {
-      if (auto *CI = dyn_cast<CallInst>(&I))
-        if (!CI->getCalledFunction())
-          return true;
-    }
-
-    // Function pointer is used somewhere. Follow the same rule as above.
-    for (const auto *U : F.users())
-      if (!isa<CallInst>(U))
-        return true;
-  }
-
-  return false;
-}
-
-EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M) {
-  if (SplitMode.getNumOccurrences() > 0) {
-    switch (SplitMode) {
-    case SPLIT_PER_TU:
-      return Scope_PerModule;
-
-    case SPLIT_PER_KERNEL:
-      return Scope_PerKernel;
-
-    case SPLIT_AUTO: {
-      if (IROutputOnly) {
-        // We allow enabling auto split mode even in presence of -ir-output-only
-        // flag, but in this case we are limited by it so we can't do any split
-        // at all.
-        return Scope_Global;
-      }
-
-      if (hasIndirectFunctionCalls(M))
-        return Scope_Global;
-
-      // At the moment, we assume that per-source split is the best way of
-      // splitting device code and can always be used except for cases handled
-      // above.
-      return Scope_PerModule;
-    }
-    }
-  }
-  return Scope_Global;
-}
-
-// Return true if the function is a SPIRV or SYCL builtin, e.g.
-// _Z28__spirv_GlobalInvocationId_xv
-bool isSpirvSyclBuiltin(StringRef FName) {
-  if (!FName.consume_front("_Z"))
-    return false;
-  // now skip the digits
-  FName = FName.drop_while([](char C) { return std::isdigit(C); });
-
-  return FName.startswith("__spirv_") || FName.startswith("__sycl_");
-}
-
-bool isEntryPoint(const Function &F) {
-  // Skip declarations, if any: they should not be included into a map of entry
-  // points groups or otherwise we will end up with incorrectly generated list
-  // of symbols.
-  if (F.isDeclaration())
-    return false;
-
-  // Kernels are always considered to be entry points
-  if (CallingConv::SPIR_KERNEL == F.getCallingConv())
-    return true;
-
-  if (!EmitOnlyKernelsAsEntryPoints) {
-    // If not disabled, SYCL_EXTERNAL functions with sycl-module-id attribute
-    // are also considered as entry points (except __spirv_* and __sycl_*
-    // functions)
-    return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-           !isSpirvSyclBuiltin(F.getName());
-  }
-
-  return false;
-}
-
-// This function decides how entry points of the input module M will be
-// distributed ("split") into multiple modules based on the command options and
-// IR attributes. The decision is recorded in the output map parameter
-// EntryPointsGroups which maps some key to a group of entry points. Each such
-// group along with IR it depends on (globals, functions from its call graph,
-// ...) will constitute a separate module.
-EntryPointGroupMap groupEntryPoints(const Module &M,
-                                    EntryPointsGroupScope EntryScope) {
-  EntryPointGroupMap EntryPointsGroups{};
-  // Only process module entry points:
-  for (const auto &F : M.functions()) {
-    if (!isEntryPoint(F))
-      continue;
-
-    switch (EntryScope) {
-    case Scope_PerKernel:
-      EntryPointsGroups[F.getName()].push_back(&F);
-      break;
-    case Scope_PerModule: {
-      if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
-        // TODO It may make sense to group all entry points w/o the attribute
-        // into a separate module rather than issuing an error. Should probably
-        // be controlled by an option.
-        error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
-              "' attribute for entry point '" + F.getName() +
-              "', per-module split not possible");
-
-      Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
-      StringRef Val = Id.getValueAsString();
-      EntryPointsGroups[Val].push_back(&F);
-      break;
-    }
-    case Scope_Global:
-      // the map key is not significant here
-      EntryPointsGroups[GLOBAL_SCOPE_NAME].push_back(&F);
-      break;
-    }
-  }
-
-  // No entry points met, record this.
-  if (EntryPointsGroups.empty())
-    EntryPointsGroups[GLOBAL_SCOPE_NAME] = {};
-
-  return EntryPointsGroups;
-}
-
-// For device global variables with the 'device_image_scope' property,
-// the function checks that there are no usages of a single device global
-// variable from kernels grouped to different modules.
-void checkImageScopedDeviceGlobals(const Module &M,
-                                   const EntryPointGroupMap &GMap) {
-  // Early exit if there is only one group
-  if (GMap.size() < 2)
-    return;
-
-  // Reverse the EntryPointGroupMap to get a map of entry point -> module's name
-  unsigned EntryPointNumber = 0;
-  for (const auto &Group : GMap)
-    EntryPointNumber += static_cast<unsigned>(Group.second.size());
-  DenseMap<const Function *, StringRef> EntryPointModules(EntryPointNumber);
-  for (const auto &Group : GMap) {
-    auto ModuleName = Group.first;
-    for (const auto *F : Group.second) {
-      EntryPointModules.insert({F, ModuleName});
-    }
-  }
-
-  // Processing device global variables with the "device_image_scope" property
-  for (auto &GV : M.globals()) {
-    if (!isDeviceGlobalVariable(GV) || !hasDeviceImageScopeProperty(GV))
-      continue;
-
-    Optional<StringRef> VarEntryPointModule{};
-    auto CheckEntryPointModule = [&VarEntryPointModule, &EntryPointModules,
-                                  &GV](const auto *F) {
-      auto EntryPointModulesIt = EntryPointModules.find(F);
-      assert(EntryPointModulesIt != EntryPointModules.end() &&
-             "There is no group for an entry point");
-      if (!VarEntryPointModule.hasValue()) {
-        VarEntryPointModule = EntryPointModulesIt->second;
-        return;
-      }
-      if (EntryPointModulesIt->second != *VarEntryPointModule) {
-        error("device_global variable '" + Twine(GV.getName()) +
-              "' with property \"device_image_scope\" is used in more "
-              "than one device image.");
-      }
-    };
-
-    SmallSetVector<const User *, 32> Workqueue;
-    for (auto *U : GV.users())
-      Workqueue.insert(U);
-
-    while (!Workqueue.empty()) {
-      const User *U = Workqueue.back();
-      Workqueue.pop_back();
-      if (auto *I = dyn_cast<const Instruction>(U)) {
-        auto *F = I->getFunction();
-        Workqueue.insert(F);
-        continue;
-      }
-      if (auto *F = dyn_cast<const Function>(U)) {
-        if (isEntryPoint(*F))
-          CheckEntryPointModule(F);
-      }
-      for (auto *UU : U->users())
-        Workqueue.insert(UU);
-    }
-  }
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
@@ -524,69 +288,12 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 
 // The function joins names of entry points from one split module to a single
 // std::string with '\n' as delimiter.
-std::string collectSymbolsList(const EntryPointGroup &ModuleEntryPoints) {
+std::string
+collectSymbolsList(const module_split::EntryPointVec &ModuleEntryPoints) {
   std::string SymbolsStr;
   for (const auto *F : ModuleEntryPoints)
     SymbolsStr = (Twine(SymbolsStr) + Twine(F->getName()) + Twine('\n')).str();
   return SymbolsStr;
-}
-
-// The function produces a copy of input LLVM IR module M with only those entry
-// points that are specified in ModuleEntryPoints vector.
-std::unique_ptr<Module>
-extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
-  // For each group of entry points collect all dependencies.
-  SetVector<const GlobalValue *> GVs;
-  std::vector<const Function *> Workqueue;
-
-  for (const auto &F : ModuleEntryPoints) {
-    GVs.insert(F);
-    Workqueue.push_back(F);
-  }
-
-  while (!Workqueue.empty()) {
-    const Function *F = &*Workqueue.back();
-    Workqueue.pop_back();
-    for (const auto &I : instructions(F)) {
-      if (const CallBase *CB = dyn_cast<CallBase>(&I)) {
-        if (const Function *CF = CB->getCalledFunction()) {
-          if (!CF->isDeclaration() && !GVs.count(CF)) {
-            GVs.insert(CF);
-            Workqueue.push_back(CF);
-          }
-        }
-      }
-    }
-  }
-
-  // It's not easy to trace global variable's uses inside needed functions
-  // because global variable can be used inside a combination of operators, so
-  // mark all global variables as needed and remove dead ones after cloning.
-  // Notice. For device global variables with the 'device_image_scope' property,
-  // removing dead ones is a must, the 'checkImageScopedDeviceGlobals' function
-  // checks that there are no usages of a single device global variable with the
-  // 'device_image_scope' property from multiple modules and the splitter must
-  // not add such usages after the check.
-  for (const auto &G : M.globals()) {
-    GVs.insert(&G);
-  }
-
-  ValueToValueMapTy VMap;
-  // Clone definitions only for needed globals. Others will be added as
-  // declarations and removed later.
-  std::unique_ptr<Module> MClone = CloneModule(
-      M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
-
-  ModuleAnalysisManager MAM;
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  ModulePassManager MPM;
-  // Do cleanup.
-  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
-  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
-  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
-  MPM.run(*MClone.get(), MAM);
-
-  return MClone;
 }
 
 std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
@@ -616,18 +323,15 @@ void saveModuleIR(Module &M, StringRef OutFilename) {
   PrintModule.run(M);
 }
 
-void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
+void saveModuleProperties(module_split::ModuleDesc &ResM,
                           const GlobalBinImageProps &ImgPSInfo,
                           const std::string &PropSetFile) {
+  Module &M = ResM.getModule();
   using PropSetRegTy = llvm::util::PropertySetRegistry;
   PropSetRegTy PropSet;
 
   {
-    legacy::PassManager GetSYCLDeviceLibReqMask;
-    auto *SDLReqMaskLegacyPass = new SYCLDeviceLibReqMaskPass();
-    GetSYCLDeviceLibReqMask.add(SDLReqMaskLegacyPass);
-    GetSYCLDeviceLibReqMask.run(M);
-    uint32_t MRMask = SDLReqMaskLegacyPass->getSYCLDeviceLibReqMask();
+    uint32_t MRMask = getSYCLDeviceLibReqMask(M);
     std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
@@ -676,7 +380,7 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
 
   if (ImgPSInfo.EmitExportedSymbols) {
     // Extract the exported functions for a result module
-    for (const auto *F : ModuleEntryPoints)
+    for (const auto *F : ResM.EntryPoints.Functions)
       if (F->getCallingConv() == CallingConv::SPIR_FUNC)
         PropSet[PropSetRegTy::SYCL_EXPORTED_SYMBOLS].insert(
             {F->getName(), true});
@@ -792,48 +496,6 @@ bool processCompileTimeProperties(Module &M) {
   return !Res.areAllPreserved();
 }
 
-// Module split helper.
-// Supports 2 modes of splitting:
-// 1. No split. Just provide source module.
-// 2. Split. Split on submodules using subsequences of entry points in an input
-//    module as a split condition.
-class ModuleSplitter {
-  std::unique_ptr<Module> InputModule{nullptr};
-  bool IsSplit;
-  EntryPointGroupMap GMap;
-  EntryPointGroupMap::const_iterator GMapIt;
-
-public:
-  ModuleSplitter(std::unique_ptr<Module> M, bool Split,
-                 EntryPointGroupMap GroupMap)
-      : InputModule(std::move(M)), IsSplit(Split), GMap(std::move(GroupMap)) {
-    assert(!GMap.empty() && "Entry points group map is empty!");
-    GMapIt = GMap.cbegin();
-  }
-
-  // Gets next subsequence of entry points in an input module and provides split
-  // submodule containing these entry points and their dependencies.
-  std::pair<std::unique_ptr<Module>, const EntryPointGroup &> nextSplit() {
-    assert(InputModule);
-
-    assert(GMapIt != GMap.cend());
-    const EntryPointGroup &SplitModuleEntryPoints = GMapIt->second;
-    ++GMapIt;
-
-    std::unique_ptr<Module> SplitModule{nullptr};
-    if (IsSplit && !SplitModuleEntryPoints.empty()) {
-      SplitModule = extractCallGraph(*InputModule, SplitModuleEntryPoints);
-    } else {
-      assert(GMap.size() == 1 && "Too many entry points groups in map!");
-      SplitModule = std::move(InputModule);
-    }
-
-    return {std::move(SplitModule), SplitModuleEntryPoints};
-  }
-
-  size_t totalSplits() { return GMap.size(); }
-};
-
 // Removes the global variable "llvm.used" and returns true on success.
 // "llvm.used" is a global constant array containing references to kernels
 // available in the module and callable from host code. The elements of
@@ -857,12 +519,18 @@ static bool removeSYCLKernelsConstRefArray(GlobalVariable *GV) {
          "Cannot remove initializer of llvm.used global");
   Initializer->destroyConstant();
   for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    assert(llvm::isSafeToDestroyConstant(*It) &&
-           "Cannot remove an element of initializer of llvm.used global");
-    auto F = cast<Function>((*It)->getOperand(0));
-    (*It)->destroyConstant();
+    auto Op = (*It)->getOperand(0);
+    auto *F = dyn_cast<Function>(Op);
+    if (llvm::isSafeToDestroyConstant(*It)) {
+      (*It)->destroyConstant();
+    } else if (F) {
+      // The element in "llvm.used" array has other users. That is Ok for
+      // specialization constants, but is wrong for kernels.
+      llvm::report_fatal_error("Unexpected usage of SYCL kernel");
+    }
+
     // Remove unused kernel declarations to avoid LLVM IR check fails.
-    if (F->isDeclaration())
+    if (F && F->isDeclaration())
       F->eraseFromParent();
   }
   return true;
@@ -890,27 +558,27 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     lowerEsimdConstructs(*M);
 
-  EntryPointGroupMap GMap =
-      groupEntryPoints(*M, selectDeviceCodeGroupScope(*M));
-  if (DeviceGlobals)
-    checkImageScopedDeviceGlobals(*M, GMap);
-  bool DoSplit = (SplitMode.getNumOccurrences() > 0);
-  ModuleSplitter MSplit(std::move(M), DoSplit, std::move(GMap));
+  module_split::IRSplitMode Mode = (SplitMode.getNumOccurrences() > 0)
+                                       ? SplitMode
+                                       : module_split::SPLIT_NONE;
+  std::unique_ptr<module_split::ModuleSplitterBase> MSplit =
+      module_split::getSplitterByMode(std::move(M), Mode, IROutputOnly,
+                                      EmitOnlyKernelsAsEntryPoints,
+                                      DeviceGlobals);
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
 
-  for (size_t I = 0; I < MSplit.totalSplits(); ++I) {
-    std::unique_ptr<Module> ResM;
-    EntryPointGroup SplitModuleEntryPoints;
-    std::tie(ResM, SplitModuleEntryPoints) = MSplit.nextSplit();
+  for (size_t I = 0; I < MSplit->totalSplits(); ++I) {
+    module_split::ModuleDesc ResMDesc = MSplit->nextSplit();
+    Module &ResM = ResMDesc.getModule();
 
-    bool SpecConstsMet = processSpecConstants(*ResM);
-    bool CompileTimePropertiesMet = processCompileTimeProperties(*ResM);
+    bool SpecConstsMet = processSpecConstants(ResM);
+    bool CompileTimePropertiesMet = processCompileTimeProperties(ResM);
 
     if (IROutputOnly) {
       // the result is the transformed input LLVM IR file rather than a file
       // table
-      saveModuleIR(*ResM, OutputFilename);
+      saveModuleIR(ResM, OutputFilename);
       return TblFiles;
     }
 
@@ -922,13 +590,13 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
                                  !IsLLVMUsedRemoved && !SpecConstsMet &&
                                  !CompileTimePropertiesMet &&
-                                 (MSplit.totalSplits() == 1);
+                                 (MSplit->totalSplits() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
       else {
         ResModuleFile =
             makeResultFileName((OutputAssembly) ? ".ll" : ".bc", I, FileSuffix);
-        saveModuleIR(*ResM, ResModuleFile);
+        saveModuleIR(ResM, ResModuleFile);
       }
       // "Code" column is always output
       TblFiles[COL_CODE].push_back(ResModuleFile);
@@ -942,15 +610,14 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
                                        IsEsimd,
                                        DeviceGlobals};
       std::string PropSetFile = makeResultFileName(".prop", I, FileSuffix);
-      saveModuleProperties(*ResM, SplitModuleEntryPoints, ImgPSInfo,
-                           PropSetFile);
+      saveModuleProperties(ResMDesc, ImgPSInfo, PropSetFile);
       TblFiles[COL_PROPS].push_back(PropSetFile);
     }
 
     if (DoSymGen) {
       // extract symbols from module
       std::string ResultSymbolsList =
-          collectSymbolsList(SplitModuleEntryPoints);
+          collectSymbolsList(ResMDesc.EntryPoints.Functions);
       std::string ResultSymbolsFile = makeResultFileName(".sym", I, FileSuffix);
       writeToFile(ResultSymbolsFile, ResultSymbolsList);
       TblFiles[COL_SYM].push_back(ResultSymbolsFile);
@@ -961,53 +628,23 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
 }
 
 TableFiles processInputModule(std::unique_ptr<Module> M) {
-  if (!SplitEsimd)
-    return processOneModule(std::move(M), false, false);
-  EntryPointGroup SyclFunctions;
-  EntryPointGroup EsimdFunctions;
-  // Collect information about the SYCL and ESIMD functions in the module.
-  // Only process module entry points.
-  for (const auto &F : M->functions()) {
-    if (isEntryPoint(F)) {
-      if (F.getMetadata("sycl_explicit_simd"))
-        EsimdFunctions.push_back(&F);
-      else
-        SyclFunctions.push_back(&F);
-    }
-  }
-
+  std::unique_ptr<module_split::ModuleSplitterBase> SrcSplit =
+      module_split::getSplitterByKernelType(std::move(M), SplitEsimd,
+                                            EmitOnlyKernelsAsEntryPoints);
   // Do we have both Sycl and Esimd code?
-  bool SyclAndEsimdCode = !SyclFunctions.empty() && !EsimdFunctions.empty();
-
-  // If only SYCL kernels or only ESIMD kernels, no splitting needed.
-  // Otherwise splitting a module with a mix of SYCL and ESIMD kernels into two
-  // separate modules.
-  std::unique_ptr<Module> SyclModule{nullptr};
-  std::unique_ptr<Module> EsimdModule{nullptr};
-  if (EsimdFunctions.empty())
-    SyclModule = std::move(M);
-  else if (SyclFunctions.empty())
-    EsimdModule = std::move(M);
-  else {
-    SyclModule = extractCallGraph(*M, SyclFunctions);
-    EsimdModule = extractCallGraph(*M, EsimdFunctions);
-  }
-
-  TableFiles SyclTblFiles =
-      processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
-  TableFiles EsimdTblFiles =
-      processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
-
-  // Merge the two resulting file maps
+  bool SyclAndEsimdCode = (SrcSplit->totalSplits() == 2);
   TableFiles MergedTblFiles;
-  for (auto &ColumnStr : {COL_CODE, COL_PROPS, COL_SYM}) {
-    auto &SyclFiles = SyclTblFiles[ColumnStr];
-    auto &EsimdFiles = EsimdTblFiles[ColumnStr];
-    auto &MergedFiles = MergedTblFiles[ColumnStr];
-    std::copy(SyclFiles.begin(), SyclFiles.end(),
-              std::back_inserter(MergedFiles));
-    std::copy(EsimdFiles.begin(), EsimdFiles.end(),
-              std::back_inserter(MergedFiles));
+  while (SrcSplit->hasMoreSplits()) {
+    module_split::ModuleDesc MDesc = SrcSplit->nextSplit();
+    TableFiles ResTblFiles = processOneModule(
+        std::move(MDesc.M), SplitEsimd && MDesc.isEsimd(), SyclAndEsimdCode);
+    // Merge the two resulting file maps
+    for (auto &ColumnStr : {COL_CODE, COL_PROPS, COL_SYM}) {
+      auto &ResFiles = ResTblFiles[ColumnStr];
+      auto &MergedFiles = MergedTblFiles[ColumnStr];
+      std::copy(ResFiles.begin(), ResFiles.end(),
+                std::back_inserter(MergedFiles));
+    }
   }
   return MergedTblFiles;
 }
@@ -1080,7 +717,7 @@ int main(int argc, char **argv) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
-  if (IROutputOnly && (DoSplit && SplitMode != SPLIT_AUTO)) {
+  if (IROutputOnly && (DoSplit && SplitMode != module_split::SPLIT_AUTO)) {
     errs() << "error: -" << SplitMode.ArgStr << "=" << SplitMode.ValueStr
            << " can't be used with -" << IROutputOnly.ArgStr << "\n";
     return 1;

@@ -17,9 +17,9 @@ using namespace Fortran::runtime;
 mlir::Value fir::runtime::genLboundDim(fir::FirOpBuilder &builder,
                                        mlir::Location loc, mlir::Value array,
                                        mlir::Value dim) {
-  mlir::FuncOp lboundFunc =
+  mlir::func::FuncOp lboundFunc =
       fir::runtime::getRuntimeFunc<mkRTKey(LboundDim)>(loc, builder);
-  auto fTy = lboundFunc.getType();
+  auto fTy = lboundFunc.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(3));
@@ -34,9 +34,9 @@ mlir::Value fir::runtime::genLboundDim(fir::FirOpBuilder &builder,
 void fir::runtime::genUbound(fir::FirOpBuilder &builder, mlir::Location loc,
                              mlir::Value resultBox, mlir::Value array,
                              mlir::Value kind) {
-  mlir::FuncOp uboundFunc =
+  mlir::func::FuncOp uboundFunc =
       fir::runtime::getRuntimeFunc<mkRTKey(Ubound)>(loc, builder);
-  auto fTy = uboundFunc.getType();
+  auto fTy = uboundFunc.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(2));
@@ -50,9 +50,9 @@ void fir::runtime::genUbound(fir::FirOpBuilder &builder, mlir::Location loc,
 mlir::Value fir::runtime::genSizeDim(fir::FirOpBuilder &builder,
                                      mlir::Location loc, mlir::Value array,
                                      mlir::Value dim) {
-  mlir::FuncOp sizeFunc =
+  mlir::func::FuncOp sizeFunc =
       fir::runtime::getRuntimeFunc<mkRTKey(SizeDim)>(loc, builder);
-  auto fTy = sizeFunc.getType();
+  auto fTy = sizeFunc.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(3));
@@ -65,9 +65,9 @@ mlir::Value fir::runtime::genSizeDim(fir::FirOpBuilder &builder,
 /// the DIM argument is absent.
 mlir::Value fir::runtime::genSize(fir::FirOpBuilder &builder,
                                   mlir::Location loc, mlir::Value array) {
-  mlir::FuncOp sizeFunc =
+  mlir::func::FuncOp sizeFunc =
       fir::runtime::getRuntimeFunc<mkRTKey(Size)>(loc, builder);
-  auto fTy = sizeFunc.getType();
+  auto fTy = sizeFunc.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(2));

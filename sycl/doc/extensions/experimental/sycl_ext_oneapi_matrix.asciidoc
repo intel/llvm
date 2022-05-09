@@ -548,19 +548,19 @@ While this provides fast element indexing on the GPU compared to the non-restric
  However using the `mma` ptx instructions as opposed to the `wmma` ptx instructions the mapping is known. Knowing this mapping is important for the user to implement new operations like sum of rows of a matrix for quantized algorithms.
 
 #### proposal: Explicit conversion in the interface from SIMD to SPMD
-We introduce a new function `get_wi_slice` that provides any portion of the matrix that the user wants but in a SPMD array object:.
+We introduce a new function `get_wi_data` that provides any portion of the matrix that the user wants but in a SPMD array object:.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, typename T, size_t NumRows, size_t NumCols, matrix_layout L>
-  marray<T, n_rows * n_cols> get_wi_slice(joint_matrix<T, NumRows, NumCols, L, Group> &m, size_t row_index,  
+  marray<T, n_rows * n_cols> get_wi_data(joint_matrix<T, NumRows, NumCols, L, Group> &m, size_t row_index,  
                                           size_t col_index, size_t n_rows, size_t n_cols);
 }
 ```
 
 Example where each WI gets 1 column:  
 ```c++
-marray<T,msize> wi_C = get_wi_slice(C, 0, wi_idx, msize, 1, matrix_layout::row_major);
+marray<T,msize> wi_C = get_wi_data(C, 0, wi_idx, msize, 1, matrix_layout::row_major);
 for (int i = 0; i < msize; i++)        
    row_sum += wi_C[i];
 ```
@@ -582,7 +582,7 @@ We did not utilize this extension for this matrix API version because sub-group 
 -- Yes, this will be addressed in the next revision where `use` argument will be introduced to distinguish between right (B) , left (A), and accumulator matrix. 
 - Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
 
-- In the future looking APIs, `get_wi_slice` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
+- In the future looking APIs, `get_wi_data` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
 
 ## TODO List
 - Add support for fill matrix and element-wise operations features

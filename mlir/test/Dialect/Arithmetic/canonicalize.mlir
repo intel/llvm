@@ -282,6 +282,53 @@ func @signExtendConstant() -> i16 {
   return %ext : i16
 }
 
+// CHECK-LABEL: @signExtendConstantSplat
+//       CHECK:   %[[cres:.+]] = arith.constant dense<-2> : vector<4xi16>
+//       CHECK:   return %[[cres]]
+func @signExtendConstantSplat() -> vector<4xi16> {
+  %c-2 = arith.constant -2 : i8
+  %splat = vector.splat %c-2 : vector<4xi8>
+  %ext = arith.extsi %splat : vector<4xi8> to vector<4xi16>
+  return %ext : vector<4xi16>
+}
+
+// CHECK-LABEL: @signExtendConstantVector
+//       CHECK:   %[[cres:.+]] = arith.constant dense<[1, 3, 5, 7]> : vector<4xi16>
+//       CHECK:   return %[[cres]]
+func @signExtendConstantVector() -> vector<4xi16> {
+  %vector = arith.constant dense<[1, 3, 5, 7]> : vector<4xi8>
+  %ext = arith.extsi %vector : vector<4xi8> to vector<4xi16>
+  return %ext : vector<4xi16>
+}
+
+// CHECK-LABEL: @unsignedExtendConstant
+//       CHECK:   %[[cres:.+]] = arith.constant 2 : i16
+//       CHECK:   return %[[cres]]
+func @unsignedExtendConstant() -> i16 {
+  %c2 = arith.constant 2 : i8
+  %ext = arith.extui %c2 : i8 to i16
+  return %ext : i16
+}
+
+// CHECK-LABEL: @unsignedExtendConstantSplat
+//       CHECK:   %[[cres:.+]] = arith.constant dense<2> : vector<4xi16>
+//       CHECK:   return %[[cres]]
+func @unsignedExtendConstantSplat() -> vector<4xi16> {
+  %c2 = arith.constant 2 : i8
+  %splat = vector.splat %c2 : vector<4xi8>
+  %ext = arith.extui %splat : vector<4xi8> to vector<4xi16>
+  return %ext : vector<4xi16>
+}
+
+// CHECK-LABEL: @unsignedExtendConstantVector
+//       CHECK:   %[[cres:.+]] = arith.constant dense<[1, 3, 5, 7]> : vector<4xi16>
+//       CHECK:   return %[[cres]]
+func @unsignedExtendConstantVector() -> vector<4xi16> {
+  %vector = arith.constant dense<[1, 3, 5, 7]> : vector<4xi8>
+  %ext = arith.extui %vector : vector<4xi8> to vector<4xi16>
+  return %ext : vector<4xi16>
+}
+
 // CHECK-LABEL: @truncConstant
 //       CHECK:   %[[cres:.+]] = arith.constant -2 : i16
 //       CHECK:   return %[[cres]]
@@ -289,6 +336,25 @@ func @truncConstant(%arg0: i8) -> i16 {
   %c-2 = arith.constant -2 : i32
   %tr = arith.trunci %c-2 : i32 to i16
   return %tr : i16
+}
+
+// CHECK-LABEL: @truncConstantSplat
+//       CHECK:   %[[cres:.+]] = arith.constant dense<-2> : vector<4xi8>
+//       CHECK:   return %[[cres]]
+func @truncConstantSplat() -> vector<4xi8> {
+  %c-2 = arith.constant -2 : i16
+  %splat = vector.splat %c-2 : vector<4xi16>
+  %trunc = arith.trunci %splat : vector<4xi16> to vector<4xi8>
+  return %trunc : vector<4xi8>
+}
+
+// CHECK-LABEL: @truncConstantVector
+//       CHECK:   %[[cres:.+]] = arith.constant dense<[1, 3, 5, 7]> : vector<4xi8>
+//       CHECK:   return %[[cres]]
+func @truncConstantVector() -> vector<4xi8> {
+  %vector = arith.constant dense<[1, 3, 5, 7]> : vector<4xi16>
+  %trunc = arith.trunci %vector : vector<4xi16> to vector<4xi8>
+  return %trunc : vector<4xi8>
 }
 
 // CHECK-LABEL: @truncTrunc
@@ -682,6 +748,22 @@ func @test_maxsi(%arg0 : i8) -> (i8, i8, i8, i8) {
   return %0, %1, %2, %3: i8, i8, i8, i8
 }
 
+// CHECK-LABEL: test_maxsi2
+// CHECK: %[[C0:.+]] = arith.constant 42
+// CHECK: %[[MAX_INT_CST:.+]] = arith.constant 127
+// CHECK: %[[X:.+]] = arith.maxsi %arg0, %[[C0]]
+// CHECK: return %arg0, %[[MAX_INT_CST]], %arg0, %[[X]]
+func @test_maxsi2(%arg0 : i8) -> (i8, i8, i8, i8) {
+  %maxIntCst = arith.constant 127 : i8
+  %minIntCst = arith.constant -128 : i8
+  %c0 = arith.constant 42 : i8
+  %0 = arith.maxsi %arg0, %arg0 : i8
+  %1 = arith.maxsi %maxIntCst, %arg0: i8
+  %2 = arith.maxsi %minIntCst, %arg0: i8
+  %3 = arith.maxsi %c0, %arg0 : i8
+  return %0, %1, %2, %3: i8, i8, i8, i8
+}
+
 // -----
 
 // CHECK-LABEL: test_maxui
@@ -697,6 +779,22 @@ func @test_maxui(%arg0 : i8) -> (i8, i8, i8, i8) {
   %1 = arith.maxui %arg0, %maxIntCst : i8
   %2 = arith.maxui %arg0, %minIntCst : i8
   %3 = arith.maxui %arg0, %c0 : i8
+  return %0, %1, %2, %3: i8, i8, i8, i8
+}
+
+// CHECK-LABEL: test_maxui
+// CHECK: %[[C0:.+]] = arith.constant 42
+// CHECK: %[[MAX_INT_CST:.+]] = arith.constant -1
+// CHECK: %[[X:.+]] = arith.maxui %arg0, %[[C0]]
+// CHECK: return %arg0, %[[MAX_INT_CST]], %arg0, %[[X]]
+func @test_maxui2(%arg0 : i8) -> (i8, i8, i8, i8) {
+  %maxIntCst = arith.constant 255 : i8
+  %minIntCst = arith.constant 0 : i8
+  %c0 = arith.constant 42 : i8
+  %0 = arith.maxui %arg0, %arg0 : i8
+  %1 = arith.maxui %maxIntCst, %arg0 : i8
+  %2 = arith.maxui %minIntCst, %arg0 : i8
+  %3 = arith.maxui %c0, %arg0 : i8
   return %0, %1, %2, %3: i8, i8, i8, i8
 }
 
@@ -718,6 +816,22 @@ func @test_minsi(%arg0 : i8) -> (i8, i8, i8, i8) {
   return %0, %1, %2, %3: i8, i8, i8, i8
 }
 
+// CHECK-LABEL: test_minsi
+// CHECK: %[[C0:.+]] = arith.constant 42
+// CHECK: %[[MIN_INT_CST:.+]] = arith.constant -128
+// CHECK: %[[X:.+]] = arith.minsi %arg0, %[[C0]]
+// CHECK: return %arg0, %arg0, %[[MIN_INT_CST]], %[[X]]
+func @test_minsi2(%arg0 : i8) -> (i8, i8, i8, i8) {
+  %maxIntCst = arith.constant 127 : i8
+  %minIntCst = arith.constant -128 : i8
+  %c0 = arith.constant 42 : i8
+  %0 = arith.minsi %arg0, %arg0 : i8
+  %1 = arith.minsi %maxIntCst, %arg0 : i8
+  %2 = arith.minsi %minIntCst, %arg0 : i8
+  %3 = arith.minsi %c0, %arg0 : i8
+  return %0, %1, %2, %3: i8, i8, i8, i8
+}
+
 // -----
 
 // CHECK-LABEL: test_minui
@@ -733,6 +847,22 @@ func @test_minui(%arg0 : i8) -> (i8, i8, i8, i8) {
   %1 = arith.minui %arg0, %maxIntCst : i8
   %2 = arith.minui %arg0, %minIntCst : i8
   %3 = arith.minui %arg0, %c0 : i8
+  return %0, %1, %2, %3: i8, i8, i8, i8
+}
+
+// CHECK-LABEL: test_minui
+// CHECK: %[[C0:.+]] = arith.constant 42
+// CHECK: %[[MIN_INT_CST:.+]] = arith.constant 0
+// CHECK: %[[X:.+]] = arith.minui %arg0, %[[C0]]
+// CHECK: return %arg0, %arg0, %[[MIN_INT_CST]], %[[X]]
+func @test_minui2(%arg0 : i8) -> (i8, i8, i8, i8) {
+  %maxIntCst = arith.constant 255 : i8
+  %minIntCst = arith.constant 0 : i8
+  %c0 = arith.constant 42 : i8
+  %0 = arith.minui %arg0, %arg0 : i8
+  %1 = arith.minui %maxIntCst, %arg0 : i8
+  %2 = arith.minui %minIntCst, %arg0 : i8
+  %3 = arith.minui %c0, %arg0 : i8
   return %0, %1, %2, %3: i8, i8, i8, i8
 }
 
@@ -857,6 +987,25 @@ func @constant_FPtoUI() -> i32 {
   return %res : i32
 }
 
+// CHECK-LABEL: @constant_FPtoUI_splat(
+func @constant_FPtoUI_splat() -> vector<4xi32> {
+  // CHECK: %[[C0:.+]] = arith.constant dense<2> : vector<4xi32>
+  // CHECK: return %[[C0]]
+  %c0 = arith.constant 2.0 : f32
+  %splat = vector.splat %c0 : vector<4xf32>
+  %res = arith.fptoui %splat : vector<4xf32> to vector<4xi32>
+  return %res : vector<4xi32>
+}
+
+// CHECK-LABEL: @constant_FPtoUI_vector(
+func @constant_FPtoUI_vector() -> vector<4xi32> {
+  // CHECK: %[[C0:.+]] = arith.constant dense<[1, 3, 5, 7]> : vector<4xi32>
+  // CHECK: return %[[C0]]
+  %vector = arith.constant dense<[1.0, 3.0, 5.0, 7.0]> : vector<4xf32>
+  %res = arith.fptoui %vector : vector<4xf32> to vector<4xi32>
+  return %res : vector<4xi32>
+}
+
 // -----
 // CHECK-LABEL: @invalid_constant_FPtoUI(
 func @invalid_constant_FPtoUI() -> i32 {
@@ -876,6 +1025,25 @@ func @constant_FPtoSI() -> i32 {
   %c0 = arith.constant -2.0 : f32
   %res = arith.fptosi %c0 : f32 to i32
   return %res : i32
+}
+
+// CHECK-LABEL: @constant_FPtoSI_splat(
+func @constant_FPtoSI_splat() -> vector<4xi32> {
+  // CHECK: %[[C0:.+]] = arith.constant dense<-2> : vector<4xi32>
+  // CHECK: return %[[C0]]
+  %c0 = arith.constant -2.0 : f32
+  %splat = vector.splat %c0 : vector<4xf32>
+  %res = arith.fptosi %splat : vector<4xf32> to vector<4xi32>
+  return %res : vector<4xi32>
+}
+
+// CHECK-LABEL: @constant_FPtoSI_vector(
+func @constant_FPtoSI_vector() -> vector<4xi32> {
+  // CHECK: %[[C0:.+]] = arith.constant dense<[-1, -3, -5, -7]> : vector<4xi32>
+  // CHECK: return %[[C0]]
+  %vector = arith.constant dense<[-1.0, -3.0, -5.0, -7.0]> : vector<4xf32>
+  %res = arith.fptosi %vector : vector<4xf32> to vector<4xi32>
+  return %res : vector<4xi32>
 }
 
 // -----
@@ -898,14 +1066,52 @@ func @constant_SItoFP() -> f32 {
   return %res : f32
 }
 
+// CHECK-LABEL: @constant_SItoFP_splat(
+func @constant_SItoFP_splat() -> vector<4xf32> {
+  // CHECK: %[[C0:.+]] = arith.constant dense<2.000000e+00> : vector<4xf32>
+  // CHECK: return %[[C0]]
+  %c0 = arith.constant 2 : i32
+  %splat = vector.splat %c0 : vector<4xi32>
+  %res = arith.sitofp %splat : vector<4xi32> to vector<4xf32>
+  return %res : vector<4xf32>
+}
+
+// CHECK-LABEL: @constant_SItoFP_vector(
+func @constant_SItoFP_vector() -> vector<4xf32> {
+  // CHECK: %[[C0:.+]] = arith.constant dense<[1.000000e+00, 3.000000e+00, 5.000000e+00, 7.000000e+00]> : vector<4xf32>
+  // CHECK: return %[[C0]]
+  %vector = arith.constant dense<[1, 3, 5, 7]> : vector<4xi32>
+  %res = arith.sitofp %vector : vector<4xi32> to vector<4xf32>
+  return %res : vector<4xf32>
+}
+
 // -----
 // CHECK-LABEL: @constant_UItoFP(
 func @constant_UItoFP() -> f32 {
   // CHECK: %[[C0:.+]] = arith.constant 2.000000e+00 : f32
   // CHECK: return %[[C0]]
   %c0 = arith.constant 2 : i32
-  %res = arith.sitofp %c0 : i32 to f32
+  %res = arith.uitofp %c0 : i32 to f32
   return %res : f32
+}
+
+// CHECK-LABEL: @constant_UItoFP_splat(
+func @constant_UItoFP_splat() -> vector<4xf32> {
+  // CHECK: %[[C0:.+]] = arith.constant dense<2.000000e+00> : vector<4xf32>
+  // CHECK: return %[[C0]]
+  %c0 = arith.constant 2 : i32
+  %splat = vector.splat %c0 : vector<4xi32>
+  %res = arith.uitofp %splat : vector<4xi32> to vector<4xf32>
+  return %res : vector<4xf32>
+}
+
+// CHECK-LABEL: @constant_UItoFP_vector(
+func @constant_UItoFP_vector() -> vector<4xf32> {
+  // CHECK: %[[C0:.+]] = arith.constant dense<[1.000000e+00, 3.000000e+00, 5.000000e+00, 7.000000e+00]> : vector<4xf32>
+  // CHECK: return %[[C0]]
+  %vector = arith.constant dense<[1, 3, 5, 7]> : vector<4xi32>
+  %res = arith.uitofp %vector : vector<4xi32> to vector<4xf32>
+  return %res : vector<4xf32>
 }
 
 // -----
@@ -1021,4 +1227,95 @@ func @nofoldShl2() -> i64 {
   %cm32 = arith.constant -32 : i64
   %r = arith.shli %c1, %cm32 : i64
   return %r : i64
+}
+
+// CHECK-LABEL: @foldShru(
+// CHECK: %[[res:.+]] = arith.constant 2 : i64
+// CHECK: return %[[res]]
+func @foldShru() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %c32 = arith.constant 2 : i64
+  %r = arith.shrui %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @foldShru2(
+// CHECK: %[[res:.+]] = arith.constant 9223372036854775807 : i64
+// CHECK: return %[[res]]
+func @foldShru2() -> i64 {
+  %c1 = arith.constant -2 : i64
+  %c32 = arith.constant 1 : i64
+  %r = arith.shrui %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShru(
+// CHECK: %[[res:.+]] = arith.shrui
+// CHECK: return %[[res]]
+func @nofoldShru() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %c132 = arith.constant 132 : i64
+  %r = arith.shrui %c1, %c132 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShru2(
+// CHECK: %[[res:.+]] = arith.shrui
+// CHECK: return %[[res]]
+func @nofoldShru2() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %cm32 = arith.constant -32 : i64
+  %r = arith.shrui %c1, %cm32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @foldShrs(
+// CHECK: %[[res:.+]] = arith.constant 2 : i64
+// CHECK: return %[[res]]
+func @foldShrs() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %c32 = arith.constant 2 : i64
+  %r = arith.shrsi %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @foldShrs2(
+// CHECK: %[[res:.+]] = arith.constant -1 : i64
+// CHECK: return %[[res]]
+func @foldShrs2() -> i64 {
+  %c1 = arith.constant -2 : i64
+  %c32 = arith.constant 1 : i64
+  %r = arith.shrsi %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShrs(
+// CHECK: %[[res:.+]] = arith.shrsi
+// CHECK: return %[[res]]
+func @nofoldShrs() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %c132 = arith.constant 132 : i64
+  %r = arith.shrsi %c1, %c132 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShrs2(
+// CHECK: %[[res:.+]] = arith.shrsi
+// CHECK: return %[[res]]
+func @nofoldShrs2() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %cm32 = arith.constant -32 : i64
+  %r = arith.shrsi %c1, %cm32 : i64
+  return %r : i64
+}
+
+// -----
+
+// CHECK-LABEL: @test_negf(
+// CHECK: %[[res:.+]] = arith.constant -2.0
+// CHECK: return %[[res]]
+func @test_negf() -> (f32) {
+  %c = arith.constant 2.0 : f32
+  %0 = arith.negf %c : f32
+  return %0: f32
 }

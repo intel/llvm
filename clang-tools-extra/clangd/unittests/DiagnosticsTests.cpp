@@ -22,6 +22,7 @@
 #include "support/Path.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/TargetSelect.h"
 #include "gmock/gmock.h"
@@ -36,6 +37,7 @@ namespace {
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Contains;
+using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::IsEmpty;
@@ -477,9 +479,8 @@ TEST(DiagnosticTest, ClangTidySuppressionComment) {
       #define BAD2 BAD
       double h = BAD2;  // NOLINT
       // NOLINTBEGIN
-      // FIXME: re-enable when NOLINTBEGIN suppresss block is enabled in clangd.
-      // double x = BAD2;
-      // double y = BAD2;
+      double x = BAD2;
+      double y = BAD2;
       // NOLINTEND
 
       // verify no crashes on unmatched nolints.
@@ -677,6 +678,67 @@ TEST(DiagnosticTest, ElseAfterReturnRange) {
                   Diag(Main.range(), "do not use 'else' after 'return'"))));
 }
 
+TEST(DiagnosticTest, ClangTidySelfContainedDiags) {
+  Annotations Main(R"cpp($MathHeader[[]]
+    struct Foo{
+      int A, B;
+      Foo()$Fix[[]] {
+        $A[[A = 1;]]
+        $B[[B = 1;]]
+      }
+    };
+    void InitVariables() {
+      float $C[[C]]$CFix[[]];
+      double $D[[D]]$DFix[[]];
+    }
+  )cpp");
+  TestTU TU = TestTU::withCode(Main.code());
+  TU.ClangTidyProvider =
+      addTidyChecks("cppcoreguidelines-prefer-member-initializer,"
+                    "cppcoreguidelines-init-variables");
+  clangd::Fix ExpectedAFix;
+  ExpectedAFix.Message =
+      "'A' should be initialized in a member initializer of the constructor";
+  ExpectedAFix.Edits.push_back(TextEdit{Main.range("Fix"), " : A(1)"});
+  ExpectedAFix.Edits.push_back(TextEdit{Main.range("A"), ""});
+
+  // When invoking clang-tidy normally, this code would produce `, B(1)` as the
+  // fix the `B` member, as it would think its already included the ` : ` from
+  // the previous `A` fix.
+  clangd::Fix ExpectedBFix;
+  ExpectedBFix.Message =
+      "'B' should be initialized in a member initializer of the constructor";
+  ExpectedBFix.Edits.push_back(TextEdit{Main.range("Fix"), " : B(1)"});
+  ExpectedBFix.Edits.push_back(TextEdit{Main.range("B"), ""});
+
+  clangd::Fix ExpectedCFix;
+  ExpectedCFix.Message = "variable 'C' is not initialized";
+  ExpectedCFix.Edits.push_back(TextEdit{Main.range("CFix"), " = NAN"});
+  ExpectedCFix.Edits.push_back(
+      TextEdit{Main.range("MathHeader"), "#include <math.h>\n\n"});
+
+  // Again in clang-tidy only the include directive would be emitted for the
+  // first warning. However we need the include attaching for both warnings.
+  clangd::Fix ExpectedDFix;
+  ExpectedDFix.Message = "variable 'D' is not initialized";
+  ExpectedDFix.Edits.push_back(TextEdit{Main.range("DFix"), " = NAN"});
+  ExpectedDFix.Edits.push_back(
+      TextEdit{Main.range("MathHeader"), "#include <math.h>\n\n"});
+  EXPECT_THAT(
+      *TU.build().getDiagnostics(),
+      UnorderedElementsAre(
+          AllOf(Diag(Main.range("A"), "'A' should be initialized in a member "
+                                      "initializer of the constructor"),
+                withFix(equalToFix(ExpectedAFix))),
+          AllOf(Diag(Main.range("B"), "'B' should be initialized in a member "
+                                      "initializer of the constructor"),
+                withFix(equalToFix(ExpectedBFix))),
+          AllOf(Diag(Main.range("C"), "variable 'C' is not initialized"),
+                withFix(equalToFix(ExpectedCFix))),
+          AllOf(Diag(Main.range("D"), "variable 'D' is not initialized"),
+                withFix(equalToFix(ExpectedDFix)))));
+}
+
 TEST(DiagnosticsTest, Preprocessor) {
   // This looks like a preamble, but there's an #else in the middle!
   // Check that:
@@ -744,6 +806,40 @@ TEST(DiagnosticsTest, RecursivePreambleIfndefGuard) {
   EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(diagName("pp_including_mainfile_in_preamble")));
   EXPECT_THAT(TU.build().getLocalTopLevelDecls(), SizeIs(1));
+}
+
+TEST(DiagnosticsTest, PreambleWithPragmaAssumeNonnull) {
+  auto TU = TestTU::withCode(R"cpp(
+#pragma clang assume_nonnull begin
+void foo(int *x);
+#pragma clang assume_nonnull end
+)cpp");
+  auto AST = TU.build();
+  EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  const auto *X = cast<FunctionDecl>(findDecl(AST, "foo")).getParamDecl(0);
+  ASSERT_TRUE(X->getOriginalType()->getNullability(X->getASTContext()) ==
+              NullabilityKind::NonNull);
+}
+
+TEST(DiagnosticsTest, PreambleHeaderWithBadPragmaAssumeNonnull) {
+  Annotations Header(R"cpp(
+#pragma clang assume_nonnull begin  // error-ok
+void foo(int *X);
+)cpp");
+  auto TU = TestTU::withCode(R"cpp(
+#include "foo.h"  // unterminated assume_nonnull should not affect bar.
+void bar(int *Y);
+)cpp");
+  TU.AdditionalFiles = {{"foo.h", std::string(Header.code())}};
+  auto AST = TU.build();
+  EXPECT_THAT(*AST.getDiagnostics(),
+              ElementsAre(diagName("pp_eof_in_assume_nonnull")));
+  const auto *X = cast<FunctionDecl>(findDecl(AST, "foo")).getParamDecl(0);
+  ASSERT_TRUE(X->getOriginalType()->getNullability(X->getASTContext()) ==
+              NullabilityKind::NonNull);
+  const auto *Y = cast<FunctionDecl>(findDecl(AST, "bar")).getParamDecl(0);
+  ASSERT_FALSE(
+      Y->getOriginalType()->getNullability(X->getASTContext()).hasValue());
 }
 
 TEST(DiagnosticsTest, InsideMacros) {
@@ -1095,6 +1191,27 @@ using Type = ns::$template[[Foo]]<int>;
                             "Include \"x.h\" for symbol ns::X")))));
 }
 
+TEST(IncludeFixerTest, TypoInMacro) {
+  auto TU = TestTU::withCode(R"cpp(// error-ok
+#define ID(T) T
+X a1;
+ID(X a2);
+ns::X a3;
+ID(ns::X a4);
+namespace ns{};
+ns::X a5;
+ID(ns::X a6);
+)cpp");
+  auto Index = buildIndexWithSymbol(
+      {SymbolWithHeader{"X", "unittest:///x.h", "\"x.h\""},
+       SymbolWithHeader{"ns::X", "unittest:///ns.h", "\"x.h\""}});
+  TU.ExternalIndex = Index.get();
+  // FIXME: -fms-compatibility (which is default on windows) breaks the
+  // ns::X cases when the namespace is undeclared. Find out why!
+  TU.ExtraArgs = {"-fno-ms-compatibility"};
+  EXPECT_THAT(*TU.build().getDiagnostics(), Each(withFix(_)));
+}
+
 TEST(IncludeFixerTest, MultipleMatchedSymbols) {
   Annotations Test(R"cpp(// error-ok
 $insert[[]]namespace na {
@@ -1292,7 +1409,7 @@ TEST(IncludeFixerTest, NoCrashOnTemplateInstantiations) {
 TEST(IncludeFixerTest, HeaderNamedInDiag) {
   Annotations Test(R"cpp(
     $insert[[]]int main() {
-      [[printf]]("");
+      [[printf]](""); // error-ok
     }
   )cpp");
   auto TU = TestTU::withCode(Test.code());
@@ -1303,16 +1420,19 @@ TEST(IncludeFixerTest, HeaderNamedInDiag) {
   EXPECT_THAT(
       *TU.build().getDiagnostics(),
       ElementsAre(AllOf(
-          Diag(Test.range(), "implicitly declaring library function 'printf' "
-                             "with type 'int (const char *, ...)'"),
+          Diag(Test.range(), "call to undeclared library function 'printf' "
+                             "with type 'int (const char *, ...)'; ISO C99 "
+                             "and later do not support implicit function "
+                             "declarations"),
           withFix(Fix(Test.range("insert"), "#include <stdio.h>\n",
                       "Include <stdio.h> for symbol printf")))));
 }
 
 TEST(IncludeFixerTest, CImplicitFunctionDecl) {
-  Annotations Test("void x() { [[foo]](); }");
+  Annotations Test("void x() { [[foo]](); /* error-ok */ }");
   auto TU = TestTU::withCode(Test.code());
   TU.Filename = "test.c";
+  TU.ExtraArgs.push_back("-std=c99");
 
   Symbol Sym = func("foo");
   Sym.Flags |= Symbol::IndexedForCodeCompletion;
@@ -1329,7 +1449,8 @@ TEST(IncludeFixerTest, CImplicitFunctionDecl) {
       *TU.build().getDiagnostics(),
       ElementsAre(AllOf(
           Diag(Test.range(),
-               "implicit declaration of function 'foo' is invalid in C99"),
+               "call to undeclared function 'foo'; ISO C99 and later do not "
+               "support implicit function declarations"),
           withFix(Fix(Range{}, "#include \"foo.h\"\n",
                       "Include \"foo.h\" for symbol foo")))));
 }
@@ -1621,6 +1742,8 @@ $fix[[  $diag[[#include "unused.h"]]
 ]]
   #include "used.h"
 
+  #include "ignore.h"
+
   #include <system_header.h>
 
   void foo() {
@@ -1637,12 +1760,19 @@ $fix[[  $diag[[#include "unused.h"]]
     #pragma once
     void used() {}
   )cpp";
+  TU.AdditionalFiles["ignore.h"] = R"cpp(
+    #pragma once
+    void ignore() {}
+  )cpp";
   TU.AdditionalFiles["system/system_header.h"] = "";
   TU.ExtraArgs = {"-isystem" + testPath("system")};
   // Off by default.
   EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
   Config Cfg;
   Cfg.Diagnostics.UnusedIncludes = Config::UnusedIncludesPolicy::Strict;
+  // Set filtering.
+  Cfg.Diagnostics.Includes.IgnoreHeader.emplace_back(
+      [](llvm::StringRef Header) { return Header.endswith("ignore.h"); });
   WithContextValue WithCfg(Config::Key, std::move(Cfg));
   EXPECT_THAT(
       *TU.build().getDiagnostics(),
@@ -1659,6 +1789,28 @@ $fix[[  $diag[[#include "unused.h"]]
   EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
 }
 
+TEST(DiagnosticsTest, FixItFromHeader) {
+  llvm::StringLiteral Header(R"cpp(
+    void foo(int *);
+    void foo(int *, int);)cpp");
+  Annotations Source(R"cpp(
+  /*error-ok*/
+    void bar() {
+      int x;
+      $diag[[foo]]($fix[[]]x, 1);
+    })cpp");
+  TestTU TU;
+  TU.Code = Source.code().str();
+  TU.HeaderCode = Header.str();
+  EXPECT_THAT(
+      *TU.build().getDiagnostics(),
+      UnorderedElementsAre(AllOf(
+          Diag(Source.range("diag"), "no matching function for call to 'foo'"),
+          withFix(Fix(Source.range("fix"), "&",
+                      "candidate function not viable: no known conversion from "
+                      "'int' to 'int *' for 1st argument; take the address of "
+                      "the argument with &")))));
+}
 } // namespace
 } // namespace clangd
 } // namespace clang

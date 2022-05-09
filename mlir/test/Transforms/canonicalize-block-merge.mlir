@@ -1,4 +1,4 @@
-// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline='builtin.func(canonicalize)' -split-input-file | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline='func.func(canonicalize)' -split-input-file | FileCheck %s
 
 // Check the simple case of single operation blocks with a return.
 
@@ -250,4 +250,28 @@ func @nomerge(%arg0: i32, %i: i32) {
 
 ^bb3:  // pred: ^bb1
   return
+}
+
+
+// CHECK-LABEL: func @mismatch_dominance(
+func @mismatch_dominance() -> i32 {
+  // CHECK: %[[RES:.*]] = "test.producing_br"()
+  %0 = "test.producing_br"()[^bb1, ^bb2] {
+        operand_segment_sizes = dense<0> : vector<2 x i32>
+	} : () -> i32
+
+^bb1:
+  // CHECK: "test.br"(%[[RES]])[^[[MERGE_BLOCK:.*]]]
+  "test.br"(%0)[^bb4] : (i32) -> ()
+
+^bb2:
+  %1 = "foo.def"() : () -> i32
+  "test.br"()[^bb3] : () -> ()
+
+^bb3:
+  // CHECK: "test.br"(%{{.*}})[^[[MERGE_BLOCK]]]
+  "test.br"(%1)[^bb4] : (i32) -> ()
+
+^bb4(%3: i32):
+  return %3 : i32
 }

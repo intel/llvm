@@ -23,8 +23,16 @@ namespace __ESIMD_ENS {
 /// @addtogroup sycl_esimd_memory
 /// @{
 
-/// Generic work-group split barrier
-__ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
+/// Generic work-group split barrier.
+/// @tparam flag  - split barrier action.
+template <split_barrier_action flag> __ESIMD_API void split_barrier() {
+  __esimd_sbarrier(flag);
+}
+
+__SYCL_DEPRECATED("use split_barrier<split_barrier_action>()")
+__ESIMD_API void split_barrier(split_barrier_action flag) {
+  __esimd_sbarrier(flag);
+}
 
 /// @} sycl_esimd_memory
 
@@ -197,7 +205,7 @@ __ESIMD_API void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
 /// Available only on PVC
 ///
 /// @param id  - named barrier id
-__ESIMD_API void nbarrier_wait(uint8_t id) {
+__ESIMD_API void named_barrier_wait(uint8_t id) {
   __esimd_nbarrier(0 /*wait*/, id, 0 /*thread count*/);
 }
 
@@ -205,7 +213,7 @@ __ESIMD_API void nbarrier_wait(uint8_t id) {
 /// Available only on PVC
 ///
 /// @tparam NbarCount  - number of named barriers
-template <uint8_t NbarCount> __ESIMD_API void nbarrier_init() {
+template <uint8_t NbarCount> __ESIMD_API void named_barrier_init() {
   __esimd_nbarrier_init(NbarCount);
 }
 
@@ -221,10 +229,10 @@ template <uint8_t NbarCount> __ESIMD_API void nbarrier_init() {
 /// @param num_producers  - number of producers
 ///
 /// @param num_consumers  - number of consumers
-__ESIMD_API void nbarrier_signal(uint8_t barrier_id,
-                                 uint8_t producer_consumer_mode,
-                                 uint32_t num_producers,
-                                 uint32_t num_consumers) {
+__ESIMD_API void named_barrier_signal(uint8_t barrier_id,
+                                      uint8_t producer_consumer_mode,
+                                      uint32_t num_producers,
+                                      uint32_t num_consumers) {
   constexpr uint32_t gateway = 3;
   constexpr uint32_t barrier = 4;
   constexpr uint32_t descriptor = 1 << 25 | // Message length: 1 register

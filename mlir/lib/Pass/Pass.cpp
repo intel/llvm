@@ -14,6 +14,7 @@
 #include "PassDetail.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Threading.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Support/FileUtilities.h"
@@ -54,12 +55,14 @@ void Pass::copyOptionValuesFrom(const Pass *other) {
 void Pass::printAsTextualPipeline(raw_ostream &os) {
   // Special case for adaptors to use the 'op_name(sub_passes)' format.
   if (auto *adaptor = dyn_cast<OpToOpPassAdaptor>(this)) {
-    llvm::interleaveComma(adaptor->getPassManagers(), os,
-                          [&](OpPassManager &pm) {
-                            os << pm.getOpName() << "(";
-                            pm.printAsTextualPipeline(os);
-                            os << ")";
-                          });
+    llvm::interleave(
+        adaptor->getPassManagers(),
+        [&](OpPassManager &pm) {
+          os << pm.getOpName() << "(";
+          pm.printAsTextualPipeline(os);
+          os << ")";
+        },
+        [&] { os << ","; });
     return;
   }
   // Otherwise, print the pass argument followed by its options. If the pass
@@ -295,14 +298,17 @@ OperationName OpPassManager::getOpName(MLIRContext &context) const {
 /// Prints out the given passes as the textual representation of a pipeline.
 static void printAsTextualPipeline(ArrayRef<std::unique_ptr<Pass>> passes,
                                    raw_ostream &os) {
-  llvm::interleaveComma(passes, os, [&](const std::unique_ptr<Pass> &pass) {
-    pass->printAsTextualPipeline(os);
-  });
+  llvm::interleave(
+      passes,
+      [&](const std::unique_ptr<Pass> &pass) {
+        pass->printAsTextualPipeline(os);
+      },
+      [&] { os << ","; });
 }
 
 /// Prints out the passes of the pass manager as the textual representation
 /// of pipelines.
-void OpPassManager::printAsTextualPipeline(raw_ostream &os) {
+void OpPassManager::printAsTextualPipeline(raw_ostream &os) const {
   ::printAsTextualPipeline(impl->passes, os);
 }
 
@@ -408,22 +414,24 @@ LogicalResult OpToOpPassAdaptor::run(Pass *pass, Operation *op,
   // failed).
   if (!passFailed && verifyPasses) {
     bool runVerifierNow = true;
+
+    // If the pass is an adaptor pass, we don't run the verifier recursively
+    // because the nested operations should have already been verified after
+    // nested passes had run.
+    bool runVerifierRecursively = !isa<OpToOpPassAdaptor>(pass);
+
     // Reduce compile time by avoiding running the verifier if the pass didn't
     // change the IR since the last time the verifier was run:
     //
     //  1) If the pass said that it preserved all analyses then it can't have
     //     permuted the IR.
-    //  2) If we just ran an OpToOpPassAdaptor (e.g. to run function passes
-    //     within a module) then each sub-unit will have been verified on the
-    //     subunit (and those passes aren't allowed to modify the parent).
     //
     // We run these checks in EXPENSIVE_CHECKS mode out of caution.
 #ifndef EXPENSIVE_CHECKS
-    runVerifierNow = !isa<OpToOpPassAdaptor>(pass) &&
-                     !pass->passState->preservedAnalyses.isAll();
+    runVerifierNow = !pass->passState->preservedAnalyses.isAll();
 #endif
     if (runVerifierNow)
-      passFailed = failed(verify(op));
+      passFailed = failed(verify(op, runVerifierRecursively));
   }
 
   // Instrument after the pass has run.

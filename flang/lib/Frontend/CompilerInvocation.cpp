@@ -61,11 +61,9 @@ static bool parseShowColorsArgs(
 
   for (auto *a : args) {
     const llvm::opt::Option &O = a->getOption();
-    if (O.matches(clang::driver::options::OPT_fcolor_diagnostics) ||
-        O.matches(clang::driver::options::OPT_fdiagnostics_color)) {
+    if (O.matches(clang::driver::options::OPT_fcolor_diagnostics)) {
       ShowColors = Colors_On;
-    } else if (O.matches(clang::driver::options::OPT_fno_color_diagnostics) ||
-        O.matches(clang::driver::options::OPT_fno_diagnostics_color)) {
+    } else if (O.matches(clang::driver::options::OPT_fno_color_diagnostics)) {
       ShowColors = Colors_Off;
     } else if (O.matches(clang::driver::options::OPT_fdiagnostics_color_EQ)) {
       llvm::StringRef value(a->getValue());
@@ -149,6 +147,9 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
       break;
     case clang::driver::options::OPT_emit_llvm:
       opts.programAction = EmitLLVM;
+      break;
+    case clang::driver::options::OPT_emit_llvm_bc:
+      opts.programAction = EmitLLVMBitcode;
       break;
     case clang::driver::options::OPT_emit_obj:
       opts.programAction = EmitObj;
@@ -381,6 +382,15 @@ static std::string getIntrinsicDir() {
   return std::string(driverPath);
 }
 
+// Generate the path to look for OpenMP headers
+static std::string getOpenMPHeadersDir() {
+  llvm::SmallString<128> includePath;
+  includePath.assign(llvm::sys::fs::getMainExecutable(nullptr, nullptr));
+  llvm::sys::path::remove_filename(includePath);
+  includePath.append("/../include/flang/OpenMP/");
+  return std::string(includePath);
+}
+
 /// Parses all preprocessor input arguments and populates the preprocessor
 /// options accordingly.
 ///
@@ -587,6 +597,9 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &res,
   res.frontendOpts_.llvmArgs =
       args.getAllArgValues(clang::driver::options::OPT_mllvm);
 
+  res.frontendOpts_.mlirArgs =
+      args.getAllArgValues(clang::driver::options::OPT_mmlir);
+
   return success;
 }
 
@@ -626,6 +639,11 @@ void CompilerInvocation::SetDefaultFortranOpts() {
 
   std::vector<std::string> searchDirectories{"."s};
   fortranOptions.searchDirectories = searchDirectories;
+
+  // Add the location of omp_lib.h to the search directories. Currently this is
+  // identical to the modules' directory.
+  fortranOptions.searchDirectories.emplace_back(getOpenMPHeadersDir());
+
   fortranOptions.isFixedForm = false;
 }
 

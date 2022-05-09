@@ -86,7 +86,7 @@ prependResAttrsToArgAttrs(OpBuilder &builder,
   auto allAttrs = SmallVector<Attribute>(
       numArguments + 1, DictionaryAttr::get(builder.getContext()));
   NamedAttribute *argAttrs = nullptr;
-  for (auto it = attributes.begin(); it != attributes.end();) {
+  for (auto *it = attributes.begin(); it != attributes.end();) {
     if (it->getName() == FunctionOpInterface::getArgDictAttrName()) {
       auto arrayAttrs = it->getValue().cast<ArrayAttr>();
       assert(arrayAttrs.size() == numArguments &&
@@ -113,7 +113,6 @@ prependResAttrsToArgAttrs(OpBuilder &builder,
     return;
   }
   *argAttrs = newArgAttrs;
-  return;
 }
 
 /// Creates an auxiliary function with pointer-to-memref-descriptor-struct
@@ -126,8 +125,9 @@ prependResAttrsToArgAttrs(OpBuilder &builder,
 /// the extra arguments.
 static void wrapForExternalCallers(OpBuilder &rewriter, Location loc,
                                    LLVMTypeConverter &typeConverter,
-                                   FuncOp funcOp, LLVM::LLVMFuncOp newFuncOp) {
-  auto type = funcOp.getType();
+                                   func::FuncOp funcOp,
+                                   LLVM::LLVMFuncOp newFuncOp) {
+  auto type = funcOp.getFunctionType();
   SmallVector<NamedAttribute, 4> attributes;
   filterFuncAttributes(funcOp->getAttrs(), /*filterArgAndResAttrs=*/false,
                        attributes);
@@ -184,13 +184,14 @@ static void wrapForExternalCallers(OpBuilder &rewriter, Location loc,
 /// corresponding to a memref descriptor.
 static void wrapExternalFunction(OpBuilder &builder, Location loc,
                                  LLVMTypeConverter &typeConverter,
-                                 FuncOp funcOp, LLVM::LLVMFuncOp newFuncOp) {
+                                 func::FuncOp funcOp,
+                                 LLVM::LLVMFuncOp newFuncOp) {
   OpBuilder::InsertionGuard guard(builder);
 
   Type wrapperType;
   bool resultIsNowArg;
   std::tie(wrapperType, resultIsNowArg) =
-      typeConverter.convertFunctionTypeCWrapper(funcOp.getType());
+      typeConverter.convertFunctionTypeCWrapper(funcOp.getFunctionType());
   // This conversion can only fail if it could not convert one of the argument
   // types. But since it has been applied to a non-wrapper function before, it
   // should have failed earlier and not reach this point at all.
@@ -210,7 +211,7 @@ static void wrapExternalFunction(OpBuilder &builder, Location loc,
   builder.setInsertionPointToStart(newFuncOp.addEntryBlock());
 
   // Get a ValueRange containing arguments.
-  FunctionType type = funcOp.getType();
+  FunctionType type = funcOp.getFunctionType();
   SmallVector<Value, 8> args;
   args.reserve(type.getNumInputs());
   ValueRange wrapperArgsRange(newFuncOp.getArguments());
@@ -274,21 +275,22 @@ static void wrapExternalFunction(OpBuilder &builder, Location loc,
 
 namespace {
 
-struct FuncOpConversionBase : public ConvertOpToLLVMPattern<FuncOp> {
+struct FuncOpConversionBase : public ConvertOpToLLVMPattern<func::FuncOp> {
 protected:
-  using ConvertOpToLLVMPattern<FuncOp>::ConvertOpToLLVMPattern;
+  using ConvertOpToLLVMPattern<func::FuncOp>::ConvertOpToLLVMPattern;
 
   // Convert input FuncOp to LLVMFuncOp by using the LLVMTypeConverter provided
   // to this legalization pattern.
   LLVM::LLVMFuncOp
-  convertFuncOpToLLVMFuncOp(FuncOp funcOp,
+  convertFuncOpToLLVMFuncOp(func::FuncOp funcOp,
                             ConversionPatternRewriter &rewriter) const {
     // Convert the original function arguments. They are converted using the
     // LLVMTypeConverter provided to this legalization pattern.
     auto varargsAttr = funcOp->getAttrOfType<BoolAttr>("func.varargs");
     TypeConverter::SignatureConversion result(funcOp.getNumArguments());
     auto llvmType = getTypeConverter()->convertFunctionSignature(
-        funcOp.getType(), varargsAttr && varargsAttr.getValue(), result);
+        funcOp.getFunctionType(), varargsAttr && varargsAttr.getValue(),
+        result);
     if (!llvmType)
       return nullptr;
 
@@ -363,7 +365,7 @@ struct FuncOpConversion : public FuncOpConversionBase {
       : FuncOpConversionBase(converter) {}
 
   LogicalResult
-  matchAndRewrite(FuncOp funcOp, OpAdaptor adaptor,
+  matchAndRewrite(func::FuncOp funcOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto newFuncOp = convertFuncOpToLLVMFuncOp(funcOp, rewriter);
     if (!newFuncOp)
@@ -390,7 +392,7 @@ struct BarePtrFuncOpConversion : public FuncOpConversionBase {
   using FuncOpConversionBase::FuncOpConversionBase;
 
   LogicalResult
-  matchAndRewrite(FuncOp funcOp, OpAdaptor adaptor,
+  matchAndRewrite(func::FuncOp funcOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     // TODO: bare ptr conversion could be handled by argument materialization
@@ -401,7 +403,7 @@ struct BarePtrFuncOpConversion : public FuncOpConversionBase {
     // Store the type of memref-typed arguments before the conversion so that we
     // can promote them to MemRef descriptor at the beginning of the function.
     SmallVector<Type, 8> oldArgTypes =
-        llvm::to_vector<8>(funcOp.getType().getInputs());
+        llvm::to_vector<8>(funcOp.getFunctionType().getInputs());
 
     auto newFuncOp = convertFuncOpToLLVMFuncOp(funcOp, rewriter);
     if (!newFuncOp)
@@ -599,7 +601,8 @@ struct ReturnOpLowering : public ConvertOpToLLVMPattern<func::ReturnOp> {
       for (auto it : llvm::zip(op->getOperands(), adaptor.getOperands())) {
         Type oldTy = std::get<0>(it).getType();
         Value newOperand = std::get<1>(it);
-        if (oldTy.isa<MemRefType>()) {
+        if (oldTy.isa<MemRefType>() && getTypeConverter()->canConvertToBarePtr(
+                                           oldTy.cast<BaseMemRefType>())) {
           MemRefDescriptor memrefDesc(newOperand);
           newOperand = memrefDesc.alignedPtr(rewriter, loc);
         } else if (oldTy.isa<UnrankedMemRefType>()) {

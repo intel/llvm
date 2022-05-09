@@ -53,6 +53,26 @@ protected:
 /// members used to implement virtual inheritance.
 enum class MSVtorDispMode { Never, ForVBaseOverride, ForVFTable };
 
+/// Shader programs run in specific pipeline stages.
+enum class ShaderStage {
+  Pixel = 0,
+  Vertex,
+  Geometry,
+  Hull,
+  Domain,
+  Compute,
+  Library,
+  RayGeneration,
+  Intersection,
+  AnyHit,
+  ClosestHit,
+  Miss,
+  Callable,
+  Mesh,
+  Amplification,
+  Invalid,
+};
+
 /// Keeps track of the various options that can be
 /// enabled, which controls the dialect of C or C++ that is accepted.
 class LangOptions : public LangOptionsBase {
@@ -89,6 +109,9 @@ public:
 
     /// Compiling a module from a list of header files.
     CMK_HeaderModule,
+
+    /// Compiling a module header unit.
+    CMK_HeaderUnit,
 
     /// Compiling a C++ modules TS module interface unit.
     CMK_ModuleInterface,
@@ -140,6 +163,16 @@ public:
   enum class SYCLVersionList {
     sycl_1_2_1,
     undefined
+  };
+
+  enum HLSLLangStd {
+    HLSL_Unset = 0,
+    HLSL_2015 = 2015,
+    HLSL_2016 = 2016,
+    HLSL_2017 = 2017,
+    HLSL_2018 = 2018,
+    HLSL_2021 = 2021,
+    HLSL_202x = 2029,
   };
 
   /// Clang versions with different platform ABI conformance.
@@ -430,7 +463,24 @@ public:
   /// The default stream kind used for HIP kernel launching.
   GPUDefaultStreamKind GPUDefaultStream;
 
+  /// The seed used by the randomize structure layout feature.
+  std::string RandstructSeed;
+
   LangOptions();
+
+  /// Set language defaults for the given input language and
+  /// language standard in the given LangOptions object.
+  ///
+  /// \param Opts - The LangOptions object to set up.
+  /// \param Lang - The input language.
+  /// \param T - The target triple.
+  /// \param Includes - If the language requires extra headers to be implicitly
+  ///                   included, they will be appended to this list.
+  /// \param LangStd - The input language standard.
+  static void
+  setLangDefaults(LangOptions &Opts, Language Lang, const llvm::Triple &T,
+                  std::vector<std::string> &Includes,
+                  LangStandard::Kind LangStd = LangStandard::lang_unspecified);
 
   // Define accessors/mutators for language options of enumeration type.
 #define LANGOPT(Name, Bits, Default, Description)
@@ -488,6 +538,12 @@ public:
   /// Return the OpenCL C or C++ for OpenCL language name and version
   /// as a string.
   std::string getOpenCLVersionString() const;
+
+  /// Returns true if functions without prototypes or functions with an
+  /// identifier list (aka K&R C functions) are not allowed.
+  bool requiresStrictPrototypes() const {
+    return CPlusPlus || C2x || DisableKNRFunctions;
+  }
 
   /// Check if return address signing is enabled.
   bool hasSignReturnAddress() const {

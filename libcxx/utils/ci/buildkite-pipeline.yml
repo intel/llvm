@@ -276,6 +276,20 @@ steps:
             limit: 2
       timeout_in_minutes: 120
 
+    - label: "MSAN"
+      command: "libcxx/utils/ci/run-buildbot generic-msan"
+      artifact_paths:
+        - "**/test-results.xml"
+        - "**/*.abilist"
+      agents:
+        queue: "libcxx-builders"
+        os: "linux"
+      retry:
+        automatic:
+          - exit_status: -1  # Agent was lost
+            limit: 2
+      timeout_in_minutes: 120
+
   # Tests with the various supported ways to build libc++.
   - label: "Bootstrapping build"
     command: "libcxx/utils/ci/run-buildbot bootstrapping-build"
@@ -670,6 +684,21 @@ steps:
             limit: 2
       timeout_in_minutes: 120
 
+    - label: "Apple back-deployment macosx11.0 arm64"
+      command: "libcxx/utils/ci/run-buildbot apple-system-backdeployment-11.0"
+      artifact_paths:
+        - "**/test-results.xml"
+        - "**/*.abilist"
+      agents:
+        queue: "libcxx-builders"
+        os: "macos"
+        arch: "arm64"
+      retry:
+        automatic:
+          - exit_status: -1  # Agent was lost
+            limit: 2
+      timeout_in_minutes: 120
+
   - group: "ARM"
     steps:
     - label: "AArch64"
@@ -678,7 +707,7 @@ steps:
         - "**/test-results.xml"
         - "**/*.abilist"
       agents:
-        queue: "libcxx-builders-linaro-arm-test"
+        queue: "libcxx-builders-linaro-arm"
         arch: "aarch64"
       retry:
         automatic:
@@ -692,7 +721,7 @@ steps:
         - "**/test-results.xml"
         - "**/*.abilist"
       agents:
-        queue: "libcxx-builders-linaro-arm-test"
+        queue: "libcxx-builders-linaro-arm"
         arch: "aarch64"
       retry:
         automatic:
@@ -706,7 +735,7 @@ steps:
         - "**/test-results.xml"
         - "**/*.abilist"
       agents:
-        queue: "libcxx-builders-linaro-arm-test"
+        queue: "libcxx-builders-linaro-arm"
         arch: "armv8l"
       retry:
         automatic:
@@ -720,7 +749,7 @@ steps:
         - "**/test-results.xml"
         - "**/*.abilist"
       agents:
-        queue: "libcxx-builders-linaro-arm-test"
+        queue: "libcxx-builders-linaro-arm"
         arch: "armv8l"
       retry:
         automatic:
@@ -734,7 +763,7 @@ steps:
         - "**/test-results.xml"
         - "**/*.abilist"
       agents:
-        queue: "libcxx-builders-linaro-arm-test"
+        queue: "libcxx-builders-linaro-arm"
         arch: "armv8l" # Compiling for v7, running on v8 hardware
       retry:
         automatic:
@@ -748,7 +777,7 @@ steps:
         - "**/test-results.xml"
         - "**/*.abilist"
       agents:
-        queue: "libcxx-builders-linaro-arm-test"
+        queue: "libcxx-builders-linaro-arm"
         arch: "armv8l" # Compiling for v7, running on v8 hardware
       retry:
         automatic:

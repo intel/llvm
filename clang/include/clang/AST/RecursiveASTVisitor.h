@@ -2039,6 +2039,7 @@ DEF_TRAVERSE_DECL(BindingDecl, {
 DEF_TRAVERSE_DECL(MSPropertyDecl, { TRY_TO(TraverseDeclaratorHelper(D)); })
 
 DEF_TRAVERSE_DECL(MSGuidDecl, {})
+DEF_TRAVERSE_DECL(UnnamedGlobalConstantDecl, {})
 
 DEF_TRAVERSE_DECL(TemplateParamObjectDecl, {})
 
@@ -3089,6 +3090,17 @@ DEF_TRAVERSE_STMT(OMPMaskedDirective,
 DEF_TRAVERSE_STMT(OMPGenericLoopDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
+DEF_TRAVERSE_STMT(OMPTeamsGenericLoopDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPTargetTeamsGenericLoopDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPParallelGenericLoopDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPTargetParallelGenericLoopDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
 // OpenMP clauses.
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseOMPClause(OMPClause *C) {
@@ -3701,6 +3713,13 @@ bool RecursiveASTVisitor<Derived>::VisitOMPUseDeviceAddrClause(
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPIsDevicePtrClause(
     OMPIsDevicePtrClause *C) {
+  TRY_TO(VisitOMPClauseList(C));
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPHasDeviceAddrClause(
+    OMPHasDeviceAddrClause *C) {
   TRY_TO(VisitOMPClauseList(C));
   return true;
 }

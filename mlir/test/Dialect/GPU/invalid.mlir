@@ -331,10 +331,10 @@ module {
 
 module {
   gpu.module @gpu_funcs {
-    // expected-error @+1 {{requires 'type' attribute of function type}}
+    // expected-error @+1 {{attribute 'function_type' failed to satisfy constraint: type attribute of function type}}
     "gpu.func"() ({
       gpu.return
-    }) {sym_name="kernel_1", type=f32} : () -> ()
+    }) {sym_name="kernel_1", function_type=f32} : () -> ()
   }
 }
 
@@ -415,7 +415,7 @@ module {
     "gpu.func"() ({
     ^bb0(%arg0: f32, %arg1: memref<?xf32>, %arg2: memref<5xf32, 3>, %arg3: memref<5xf32, 5>):
       "gpu.return"() : () -> ()
-    } ) {gpu.kernel, sym_name = "kernel_1", type = (f32, memref<?xf32>) -> (), workgroup_attributions = 3: i64} : () -> ()
+    } ) {function_type = (f32, memref<?xf32>) -> (), gpu.kernel, sym_name = "kernel_1", workgroup_attributions = 3: i64} : () -> ()
   }
 }
 
@@ -491,7 +491,7 @@ func @mmamatrix_invalid_element_type(){
 func @mmaLoadOp_identity_layout(){
     %wg = memref.alloca() {alignment = 32} : memref<32x32xf16, #layout_map_col_major, 3>
     %i = arith.constant 16 : index
-    // expected-error @+1 {{expected identity layout map for source memref}}
+    // expected-error @+1 {{expected source memref most minor dim must have unit stride}}
     %0 = gpu.subgroup_mma_load_matrix %wg[%i, %i] {leadDimension = 32 : index} : memref<32x32xf16, #layout_map_col_major, 3> -> !gpu.mma_matrix<16x16xf16, "AOp">
     return
 }
@@ -514,7 +514,7 @@ func @wmmaStoreOp_invalid_map(%arg0 : !gpu.mma_matrix<16x16xf16, "COp">) -> () {
     %sg = memref.alloca(){alignment = 32} : memref<32x32xf16, #layout_map_col_major, 3>
     %i = arith.constant 16 : index
     %j = arith.constant 16 : index
-    // expected-error @+1 {{expected identity layout map for destination memref}}
+    // expected-error @+1 {{expected destination memref most minor dim must have unit stride}}
     gpu.subgroup_mma_store_matrix %arg0, %sg[%i,%j] {leadDimension= 32 : index} : !gpu.mma_matrix<16x16xf16, "COp">, memref<32x32xf16,#layout_map_col_major, 3>
     return
 }

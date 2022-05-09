@@ -66,8 +66,8 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -110,7 +110,6 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
@@ -184,6 +183,15 @@ static cl::opt<bool> ClCombineOffsetLabelsOnGEP(
         "Combine the label of the offset with the label of the pointer when "
         "doing pointer arithmetic."),
     cl::Hidden, cl::init(true));
+
+static cl::list<std::string> ClCombineTaintLookupTables(
+    "dfsan-combine-taint-lookup-table",
+    cl::desc(
+        "When dfsan-combine-offset-labels-on-gep and/or "
+        "dfsan-combine-pointer-labels-on-load are false, this flag can "
+        "be used to re-enable combining offset and/or pointer taint when "
+        "loading specific constant global variables (i.e. lookup tables)."),
+    cl::Hidden);
 
 static cl::opt<bool> ClDebugNonzeroLabels(
     "dfsan-debug-nonzero-labels",
@@ -431,6 +439,7 @@ class DataFlowSanitizer {
   FunctionType *DFSanUnionLoadFnTy;
   FunctionType *DFSanLoadLabelAndOriginFnTy;
   FunctionType *DFSanUnimplementedFnTy;
+  FunctionType *DFSanWrapperExternWeakNullFnTy;
   FunctionType *DFSanSetLabelFnTy;
   FunctionType *DFSanNonzeroLabelFnTy;
   FunctionType *DFSanVarargWrapperFnTy;
@@ -446,6 +455,7 @@ class DataFlowSanitizer {
   FunctionCallee DFSanUnionLoadFn;
   FunctionCallee DFSanLoadLabelAndOriginFn;
   FunctionCallee DFSanUnimplementedFn;
+  FunctionCallee DFSanWrapperExternWeakNullFn;
   FunctionCallee DFSanSetLabelFn;
   FunctionCallee DFSanNonzeroLabelFn;
   FunctionCallee DFSanVarargWrapperFn;
@@ -465,6 +475,7 @@ class DataFlowSanitizer {
   DFSanABIList ABIList;
   DenseMap<Value *, Function *> UnwrappedFnMap;
   AttributeMask ReadOnlyNoneAttrs;
+  StringSet<> CombineTaintLookupTableNames;
 
   /// Memory map parameters used in calculation mapping application addresses
   /// to shadow addresses and origin addresses.
@@ -481,6 +492,7 @@ class DataFlowSanitizer {
   TransformedFunction getCustomFunctionType(FunctionType *T);
   WrapperKind getWrapperKind(Function *F);
   void addGlobalNameSuffix(GlobalValue *GV);
+  void buildExternWeakCheckIfNeeded(IRBuilder<> &IRB, Function *F);
   Function *buildWrapperFunction(Function *F, StringRef NewFName,
                                  GlobalValue::LinkageTypes NewFLink,
                                  FunctionType *NewFT);
@@ -654,6 +666,8 @@ struct DFSanFunction {
   // branch instruction using the given conditional expression.
   void addConditionalCallbacksIfEnabled(Instruction &I, Value *Condition);
 
+  bool isLookupTableConstant(Value *P);
+
 private:
   /// Collapses the shadow with aggregate type into a single primitive shadow
   /// value.
@@ -788,6 +802,9 @@ DataFlowSanitizer::DataFlowSanitizer(
   // FIXME: should we propagate vfs::FileSystem to this constructor?
   ABIList.set(
       SpecialCaseList::createOrDie(AllABIListFiles, *vfs::getRealFileSystem()));
+
+  for (StringRef v : ClCombineTaintLookupTables)
+    CombineTaintLookupTableNames.insert(v);
 }
 
 TransformedFunction DataFlowSanitizer::getCustomFunctionType(FunctionType *T) {
@@ -1027,6 +1044,10 @@ bool DataFlowSanitizer::initializeModule(Module &M) {
                         /*isVarArg=*/false);
   DFSanUnimplementedFnTy = FunctionType::get(
       Type::getVoidTy(*Ctx), Type::getInt8PtrTy(*Ctx), /*isVarArg=*/false);
+  Type *DFSanWrapperExternWeakNullArgs[2] = {Int8Ptr, Int8Ptr};
+  DFSanWrapperExternWeakNullFnTy =
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanWrapperExternWeakNullArgs,
+                        /*isVarArg=*/false);
   Type *DFSanSetLabelArgs[4] = {PrimitiveShadowTy, OriginTy,
                                 Type::getInt8PtrTy(*Ctx), IntptrTy};
   DFSanSetLabelFnTy = FunctionType::get(Type::getVoidTy(*Ctx),
@@ -1118,6 +1139,23 @@ void DataFlowSanitizer::addGlobalNameSuffix(GlobalValue *GV) {
   }
 }
 
+void DataFlowSanitizer::buildExternWeakCheckIfNeeded(IRBuilder<> &IRB,
+                                                     Function *F) {
+  // If the function we are wrapping was ExternWeak, it may be null.
+  // The original code before calling this wrapper may have checked for null,
+  // but replacing with a known-to-not-be-null wrapper can break this check.
+  // When replacing uses of the extern weak function with the wrapper we try
+  // to avoid replacing uses in conditionals, but this is not perfect.
+  // In the case where we fail, and accidentially optimize out a null check
+  // for a extern weak function, add a check here to help identify the issue.
+  if (GlobalValue::isExternalWeakLinkage(F->getLinkage())) {
+    std::vector<Value *> Args;
+    Args.push_back(IRB.CreatePointerCast(F, IRB.getInt8PtrTy()));
+    Args.push_back(IRB.CreateGlobalStringPtr(F->getName()));
+    IRB.CreateCall(DFSanWrapperExternWeakNullFn, Args);
+  }
+}
+
 Function *
 DataFlowSanitizer::buildWrapperFunction(Function *F, StringRef NewFName,
                                         GlobalValue::LinkageTypes NewFLink,
@@ -1170,6 +1208,8 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
   }
   DFSanUnimplementedFn =
       Mod->getOrInsertFunction("__dfsan_unimplemented", DFSanUnimplementedFnTy);
+  DFSanWrapperExternWeakNullFn = Mod->getOrInsertFunction(
+      "__dfsan_wrapper_extern_weak_null", DFSanWrapperExternWeakNullFnTy);
   {
     AttributeList AL;
     AL = AL.addParamAttribute(M.getContext(), 0, Attribute::ZExt);
@@ -1213,6 +1253,8 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
       DFSanLoadLabelAndOriginFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
       DFSanUnimplementedFn.getCallee()->stripPointerCasts());
+  DFSanRuntimeFunctions.insert(
+      DFSanWrapperExternWeakNullFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
       DFSanSetLabelFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
@@ -1414,7 +1456,40 @@ bool DataFlowSanitizer::runImpl(Module &M) {
 
       Value *WrappedFnCst =
           ConstantExpr::getBitCast(NewF, PointerType::getUnqual(FT));
-      F.replaceAllUsesWith(WrappedFnCst);
+
+      // Extern weak functions can sometimes be null at execution time.
+      // Code will sometimes check if an extern weak function is null.
+      // This could look something like:
+      //   declare extern_weak i8 @my_func(i8)
+      //   br i1 icmp ne (i8 (i8)* @my_func, i8 (i8)* null), label %use_my_func,
+      //   label %avoid_my_func
+      // The @"dfsw$my_func" wrapper is never null, so if we replace this use
+      // in the comparision, the icmp will simplify to false and we have
+      // accidentially optimized away a null check that is necessary.
+      // This can lead to a crash when the null extern_weak my_func is called.
+      //
+      // To prevent (the most common pattern of) this problem,
+      // do not replace uses in comparisons with the wrapper.
+      // We definitely want to replace uses in call instructions.
+      // Other uses (e.g. store the function address somewhere) might be
+      // called or compared or both - this case may not be handled correctly.
+      // We will default to replacing with wrapper in cases we are unsure.
+      auto IsNotCmpUse = [](Use &U) -> bool {
+        User *Usr = U.getUser();
+        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Usr)) {
+          // This is the most common case for icmp ne null
+          if (CE->getOpcode() == Instruction::ICmp) {
+            return false;
+          }
+        }
+        if (Instruction *I = dyn_cast<Instruction>(Usr)) {
+          if (I->getOpcode() == Instruction::ICmp) {
+            return false;
+          }
+        }
+        return true;
+      };
+      F.replaceUsesWithIf(WrappedFnCst, IsNotCmpUse);
 
       UnwrappedFnMap[WrappedFnCst] = &F;
       *FI = NewF;
@@ -1833,6 +1908,14 @@ Align DFSanFunction::getOriginAlign(Align InstAlignment) {
   return Align(std::max(MinOriginAlignment, Alignment));
 }
 
+bool DFSanFunction::isLookupTableConstant(Value *P) {
+  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(P->stripPointerCasts()))
+    if (GV->isConstant() && GV->hasName())
+      return DFS.CombineTaintLookupTableNames.count(GV->getName());
+
+  return false;
+}
+
 bool DFSanFunction::useCallbackLoadLabelAndOrigin(uint64_t Size,
                                                   Align InstAlignment) {
   // When enabling tracking load instructions, we always use
@@ -2086,6 +2169,29 @@ static AtomicOrdering addAcquireOrdering(AtomicOrdering AO) {
   llvm_unreachable("Unknown ordering");
 }
 
+Value *StripPointerGEPsAndCasts(Value *V) {
+  if (!V->getType()->isPointerTy())
+    return V;
+
+  // DFSan pass should be running on valid IR, but we'll
+  // keep a seen set to ensure there are no issues.
+  SmallPtrSet<const Value *, 4> Visited;
+  Visited.insert(V);
+  do {
+    if (auto *GEP = dyn_cast<GEPOperator>(V)) {
+      V = GEP->getPointerOperand();
+    } else if (Operator::getOpcode(V) == Instruction::BitCast) {
+      V = cast<Operator>(V)->getOperand(0);
+      if (!V->getType()->isPointerTy())
+        return V;
+    } else if (isa<GlobalAlias>(V)) {
+      V = cast<GlobalAlias>(V)->getAliasee();
+    }
+  } while (Visited.insert(V).second);
+
+  return V;
+}
+
 void DFSanVisitor::visitLoadInst(LoadInst &LI) {
   auto &DL = LI.getModule()->getDataLayout();
   uint64_t Size = DL.getTypeStoreSize(LI.getType());
@@ -2114,7 +2220,9 @@ void DFSanVisitor::visitLoadInst(LoadInst &LI) {
     Shadows.push_back(PrimitiveShadow);
     Origins.push_back(Origin);
   }
-  if (ClCombinePointerLabelsOnLoad) {
+  if (ClCombinePointerLabelsOnLoad ||
+      DFSF.isLookupTableConstant(
+          StripPointerGEPsAndCasts(LI.getPointerOperand()))) {
     Value *PtrShadow = DFSF.getShadow(LI.getPointerOperand());
     PrimitiveShadow = DFSF.combineShadows(PrimitiveShadow, PtrShadow, Pos);
     if (ShouldTrackOrigins) {
@@ -2476,7 +2584,9 @@ void DFSanVisitor::visitLandingPadInst(LandingPadInst &LPI) {
 }
 
 void DFSanVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
-  if (ClCombineOffsetLabelsOnGEP) {
+  if (ClCombineOffsetLabelsOnGEP ||
+      DFSF.isLookupTableConstant(
+          StripPointerGEPsAndCasts(GEPI.getPointerOperand()))) {
     visitInstOperands(GEPI);
     return;
   }
@@ -2778,16 +2888,19 @@ bool DFSanVisitor::visitWrappedCallBase(Function &F, CallBase &CB) {
     CB.setCalledFunction(&F);
     IRB.CreateCall(DFSF.DFS.DFSanUnimplementedFn,
                    IRB.CreateGlobalStringPtr(F.getName()));
+    DFSF.DFS.buildExternWeakCheckIfNeeded(IRB, &F);
     DFSF.setShadow(&CB, DFSF.DFS.getZeroShadow(&CB));
     DFSF.setOrigin(&CB, DFSF.DFS.ZeroOrigin);
     return true;
   case DataFlowSanitizer::WK_Discard:
     CB.setCalledFunction(&F);
+    DFSF.DFS.buildExternWeakCheckIfNeeded(IRB, &F);
     DFSF.setShadow(&CB, DFSF.DFS.getZeroShadow(&CB));
     DFSF.setOrigin(&CB, DFSF.DFS.ZeroOrigin);
     return true;
   case DataFlowSanitizer::WK_Functional:
     CB.setCalledFunction(&F);
+    DFSF.DFS.buildExternWeakCheckIfNeeded(IRB, &F);
     visitInstOperands(CB);
     return true;
   case DataFlowSanitizer::WK_Custom:

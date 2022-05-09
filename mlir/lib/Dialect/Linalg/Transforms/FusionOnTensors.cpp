@@ -163,7 +163,8 @@ static LinalgOp getTiledProducer(OpBuilder &b, OpResult producerResult,
   erase_value(tileIvs, nullptr);
   SmallVector<Value> tiledOperands = producerOp.getInputAndOutputOperands();
   tiledOperands = makeTiledShapes(b, loc, producerOp, tiledOperands, tileIvs,
-                                  tileSizes, producerLoopBounds);
+                                  tileSizes, producerLoopBounds,
+                                  /**omitPartialTileCheck=*/false);
 
   // Output fusion has to update the iteration arguments of the tile loop nest.
   // In particular, the iteration argument of the outermost tile loop needs to
@@ -347,6 +348,12 @@ FailureOr<LinalgOp> TileLoopNest::fuseProducer(OpBuilder &b,
   LinalgOp consumerOp = consumerOpOperand->getOwner();
   if (sliceOp->getBlock() != rootOp->getBlock() ||
       consumerOp->getBlock() != rootOp->getBlock())
+    return failure();
+
+  // Check `consumerOpOperand` is not shape-only to avoid fusion if the data is
+  // not used by the `consumerOp` computation.
+  BlockArgument bbArg = consumerOp.getTiedBlockArgument(consumerOpOperand);
+  if (bbArg.getUses().empty())
     return failure();
 
   // Check if the producer is a LinalgOp possibly passed by iteration argument.

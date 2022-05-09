@@ -587,7 +587,7 @@ StmtResult Sema::BuildAttributedStmt(SourceLocation AttrsLoc,
   return AttributedStmt::Create(Context, AttrsLoc, Attrs, SubStmt);
 }
 
-StmtResult Sema::ActOnAttributedStmt(const ParsedAttributesWithRange &Attrs,
+StmtResult Sema::ActOnAttributedStmt(const ParsedAttributes &Attrs,
                                      Stmt *SubStmt) {
   SmallVector<const Attr *, 1> SemanticAttrs;
   ProcessStmtAttributes(SubStmt, Attrs, SemanticAttrs);
@@ -3312,7 +3312,7 @@ Sema::ActOnContinueStmt(SourceLocation ContinueLoc, Scope *CurScope) {
     // C99 6.8.6.2p1: A break shall appear only in or as a loop body.
     return StmtError(Diag(ContinueLoc, diag::err_continue_not_in_loop));
   }
-  if (S->getFlags() & Scope::ConditionVarScope) {
+  if (S->isConditionVarScope()) {
     // We cannot 'continue;' from within a statement expression in the
     // initializer of a condition variable because we would jump past the
     // initialization of that variable.

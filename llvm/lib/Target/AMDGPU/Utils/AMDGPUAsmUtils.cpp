@@ -11,27 +11,53 @@
 
 namespace llvm {
 namespace AMDGPU {
+
+namespace DepCtr {
+
+// NOLINTBEGIN
+const CustomOperandVal DepCtrInfo[] = {
+  // Name               max dflt offset width  constraint
+  {{"depctr_hold_cnt"},  1,   1,    7,    1,   isGFX10_BEncoding},
+  {{"depctr_sa_sdst"},   1,   1,    0,    1},
+  {{"depctr_va_vdst"},  15,  15,   12,    4},
+  {{"depctr_va_sdst"},   7,   7,    9,    3},
+  {{"depctr_va_ssrc"},   1,   1,    8,    1},
+  {{"depctr_va_vcc"},    1,   1,    1,    1},
+  {{"depctr_vm_vsrc"},   7,   7,    2,    3},
+};
+// NOLINTEND
+
+const int DEP_CTR_SIZE =
+    static_cast<int>(sizeof(DepCtrInfo) / sizeof(CustomOperandVal));
+
+} // namespace DepCtr
+
 namespace SendMsg {
 
-// This must be in sync with llvm::AMDGPU::SendMsg::Id enum members, see SIDefines.h.
-const char *const IdSymbolic[ID_GAPS_LAST_] = {
-  nullptr,
-  "MSG_INTERRUPT",
-  "MSG_GS",
-  "MSG_GS_DONE",
-  "MSG_SAVEWAVE",
-  "MSG_STALL_WAVE_GEN",
-  "MSG_HALT_WAVES",
-  "MSG_ORDERED_PS_DONE",
-  "MSG_EARLY_PRIM_DEALLOC",
-  "MSG_GS_ALLOC_REQ",
-  "MSG_GET_DOORBELL",
-  "MSG_GET_DDID",
-  nullptr,
-  nullptr,
-  nullptr,
-  "MSG_SYSMSG"
+// Disable lint checking for this block since it makes the table unreadable.
+// NOLINTBEGIN
+const CustomOperand<const MCSubtargetInfo &> Msg[] = {
+  {{""}},
+  {{"MSG_INTERRUPT"},           ID_INTERRUPT},
+  {{"MSG_GS"},                  ID_GS},
+  {{"MSG_GS_DONE"},             ID_GS_DONE},
+  {{"MSG_SAVEWAVE"},            ID_SAVEWAVE,            isGFX8Plus},
+  {{"MSG_STALL_WAVE_GEN"},      ID_STALL_WAVE_GEN,      isGFX9Plus},
+  {{"MSG_HALT_WAVES"},          ID_HALT_WAVES,          isGFX9Plus},
+  {{"MSG_ORDERED_PS_DONE"},     ID_ORDERED_PS_DONE,     isGFX9Plus},
+  {{"MSG_EARLY_PRIM_DEALLOC"},  ID_EARLY_PRIM_DEALLOC,  isGFX9},
+  {{"MSG_GS_ALLOC_REQ"},        ID_GS_ALLOC_REQ,        isGFX9Plus},
+  {{"MSG_GET_DOORBELL"},        ID_GET_DOORBELL,        isGFX9Plus},
+  {{"MSG_GET_DDID"},            ID_GET_DDID,            isGFX10Plus},
+  {{""}},
+  {{""}},
+  {{""}},
+  {{"MSG_SYSMSG"},              ID_SYSMSG},
 };
+// NOLINTEND
+
+const int MSG_SIZE = static_cast<int>(
+    sizeof(Msg) / sizeof(CustomOperand<const MCSubtargetInfo &>));
 
 // These two must be in sync with llvm::AMDGPU::SendMsg::Op enum members, see SIDefines.h.
 const char *const OpSysSymbolic[OP_SYS_LAST_] = {
@@ -56,25 +82,21 @@ namespace Hwreg {
 // Disable lint checking for this block since it makes the table unreadable.
 // NOLINTBEGIN
 const CustomOperand<const MCSubtargetInfo &> Opr[] = {
-  {},
+  {{""}},
   {{"HW_REG_MODE"},          ID_MODE},
   {{"HW_REG_STATUS"},        ID_STATUS},
   {{"HW_REG_TRAPSTS"},       ID_TRAPSTS},
-  {{"HW_REG_HW_ID"},         ID_HW_ID,
-                                     [](const MCSubtargetInfo &STI) {
-                                       return isSI(STI) || isCI(STI) ||
-                                              isVI(STI) || isGFX9(STI);
-                                     }},
+  {{"HW_REG_HW_ID"},         ID_HW_ID,       isNotGFX10Plus},
   {{"HW_REG_GPR_ALLOC"},     ID_GPR_ALLOC},
   {{"HW_REG_LDS_ALLOC"},     ID_LDS_ALLOC},
   {{"HW_REG_IB_STS"},        ID_IB_STS},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
+  {{""}},
+  {{""}},
+  {{""}},
+  {{""}},
+  {{""}},
+  {{""}},
+  {{""}},
   {{"HW_REG_SH_MEM_BASES"},  ID_MEM_BASES,   isGFX9Plus},
   {{"HW_REG_TBA_LO"},        ID_TBA_LO,      isGFX9_GFX10},
   {{"HW_REG_TBA_HI"},        ID_TBA_HI,      isGFX9_GFX10},
@@ -82,17 +104,13 @@ const CustomOperand<const MCSubtargetInfo &> Opr[] = {
   {{"HW_REG_TMA_HI"},        ID_TMA_HI,      isGFX9_GFX10},
   {{"HW_REG_FLAT_SCR_LO"},   ID_FLAT_SCR_LO, isGFX10Plus},
   {{"HW_REG_FLAT_SCR_HI"},   ID_FLAT_SCR_HI, isGFX10Plus},
-  {{"HW_REG_XNACK_MASK"},    ID_XNACK_MASK,
-                                     [](const MCSubtargetInfo &STI) {
-                                       return isGFX10(STI) &&
-                                              !AMDGPU::isGFX10_BEncoding(STI);
-                                     }},
+  {{"HW_REG_XNACK_MASK"},    ID_XNACK_MASK,  isGFX10Before1030},
   {{"HW_REG_HW_ID1"},        ID_HW_ID1,      isGFX10Plus},
   {{"HW_REG_HW_ID2"},        ID_HW_ID2,      isGFX10Plus},
   {{"HW_REG_POPS_PACKER"},   ID_POPS_PACKER, isGFX10},
-  {},
-  {},
-  {},
+  {{""}},
+  {{""}},
+  {{""}},
   {{"HW_REG_SHADER_CYCLES"}, ID_SHADER_CYCLES, isGFX10_BEncoding},
 
   // GFX940 specific registers

@@ -547,9 +547,8 @@ def lto_debug_pass_manager: FF<"lto-debug-pass-manager">,
   HelpText<"Debug new pass manager">;
 def lto_emit_asm: FF<"lto-emit-asm">,
   HelpText<"Emit assembly code">;
-defm lto_legacy_pass_manager: BB<"lto-legacy-pass-manager",
-  "Use the legacy pass manager in LLVM",
-  "Use the new pass manager in LLVM">;
+def no_lto_legacy_pass_manager: FF<"no-lto-legacy-pass-manager">,
+  HelpText<"Use the new pass manager in LLVM">;
 def lto_newpm_passes: JJ<"lto-newpm-passes=">,
   HelpText<"Passes to run during LTO">;
 def lto_O: JJ<"lto-O">, MetaVarName<"<opt-level>">,
@@ -583,6 +582,8 @@ def opt_remarks_with_hotness: FF<"opt-remarks-with-hotness">,
   HelpText<"Include hotness information in the optimization remarks file">;
 def opt_remarks_format: Separate<["--"], "opt-remarks-format">,
   HelpText<"The format used for serializing remarks (default: YAML)">;
+def opt_stats_filename: JJ<"stats-file=">,
+  HelpText<"Filename to write statistics to">;
 def save_temps: F<"save-temps">, HelpText<"Save intermediate LTO compilation results">;
 def lto_basic_block_sections: JJ<"lto-basic-block-sections=">,
   HelpText<"Enable basic block sections for LTO">;
@@ -620,8 +621,6 @@ def: J<"plugin-opt=lto-partitions=">, Alias<lto_partitions>, HelpText<"Alias for
 def plugin_opt_mcpu_eq: J<"plugin-opt=mcpu=">;
 def: F<"plugin-opt=new-pass-manager">,
   Alias<no_lto_legacy_pass_manager>, HelpText<"Alias for --no-lto-legacy-pass-manager">;
-def: F<"plugin-opt=legacy-pass-manager">,
-  Alias<lto_legacy_pass_manager>, HelpText<"Alias for --no-legacy-pass-manager">;
 def: F<"plugin-opt=cs-profile-generate">,
   Alias<lto_cs_profile_generate>, HelpText<"Alias for --lto-cs-profile-generate">;
 def: J<"plugin-opt=cs-profile-path=">,
@@ -690,6 +689,7 @@ def: Flag<["-"], "d">;
 def: Flag<["-"], "dc">;
 def: Flag<["-"], "g">;
 def: F<"long-plt">;
+def: FF<"no-add-needed">;
 def: F<"no-copy-dt-needed-entries">;
 def: F<"no-ctors-in-init-array">;
 def: F<"no-keep-memory">;
@@ -714,3 +714,17 @@ defm check_dynamic_relocations: BB<"check-dynamic-relocations",
     "Perform additional validation of the written dynamic relocations",
     "Do not perform additional validation of the written dynamic relocations">,
   Flags<[HelpHidden]>;
+
+defm load_pass_plugins: EEq<"load-pass-plugin", "Load passes from plugin library">;
+
+// Hidden options, used by clang's -fsanitize=memtag-* options to emit an ELF
+// note to designate what kinds of memory (stack/heap) should be protected using
+// ARM's MTE on armv8.5+. A binary's desire for stack MTE can't be obtained
+// implicitly, so we have a specific bit in the note to signal to the loader to
+// remap the stack as PROT_MTE.
+defm android_memtag_stack: BB<"android-memtag-stack",
+    "Instruct the dynamic loader to prepare for MTE stack instrumentation", "">;
+defm android_memtag_heap: BB<"android-memtag-heap",
+    "Instruct the dynamic loader to enable MTE protection for the heap", "">;
+defm android_memtag_mode: EEq<"android-memtag-mode",
+    "Instruct the dynamic loader to start under MTE mode {async, sync, none}">;

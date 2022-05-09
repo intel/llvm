@@ -542,7 +542,7 @@ func @return_type_mismatch() -> i32 {
 
 func @return_inside_loop() {
   affine.for %i = 1 to 100 {
-    // expected-error@+1 {{'func.return' op expects parent op 'builtin.func'}}
+    // expected-error@+1 {{'func.return' op expects parent op 'func.func'}}
     return
   }
   return
@@ -565,8 +565,8 @@ func @func_variadic(...)
 
 // -----
 
-func @redef()  // expected-note {{see existing symbol definition here}}
-func @redef()  // expected-error {{redefinition of symbol named 'redef'}}
+func private @redef()  // expected-note {{see existing symbol definition here}}
+func private @redef()  // expected-error {{redefinition of symbol named 'redef'}}
 
 // -----
 
@@ -680,7 +680,7 @@ func @calls(%arg0: i32) {
   %z = "casdasda"(%x) : (ppop32) -> i32
 }
 // -----
-// expected-error@+2 {{expected SSA operand}}
+// expected-error@+1 {{expected SSA operand}}
 func@n(){^b(
 // -----
 
@@ -882,7 +882,7 @@ func @type_alias_unknown(!unknown_alias) -> () { // expected-error {{undefined s
 
 // -----
 
-!missing_type_alias = type // expected-error@+2 {{expected non-function type}}
+!missing_type_alias = type // expected-error@+1 {{expected non-function type}}
 
 // -----
 
@@ -1643,3 +1643,14 @@ func @invalid_region_dominance_with_dominance_free_regions() {
 // -----
 
 func @foo() {} // expected-error {{expected non-empty function body}}
+
+// -----
+
+// expected-error@+1 {{expected valid attribute name}}
+"t"(){""}
+
+// -----
+
+// expected-error@+2 {{expected ']'}}
+"f"() { b = [@m:
+

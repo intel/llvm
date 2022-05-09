@@ -18,24 +18,26 @@
 ; CHECK-SPIRV: TypeInt [[#TypeInt:]] 32
 ; CHECK-SPIRV: Constant [[#TypeInt]] [[#Scope:]] 2
 ; CHECK-SPIRV: Constant [[#TypeInt]] [[#Val1:]] 0
+; CHECK-SPIRV: TypeBool [[#TypeBool:]]
 ; CHECK-SPIRV: TypeFloat [[#TypeFloat:]] 16
+; CHECK-SPIRV: ConstantFalse [[#TypeBool]] [[#ConstFalse:]]
 ; CHECK-SPIRV: Constant [[#TypeFloat]] [[#Val2:]]
 
 ; CHECK-SPIRV: GroupBitwiseAndKHR [[#TypeInt]] [[#]] [[#Scope]] 0 [[#Val1]]
 ; CHECK-SPIRV: GroupBitwiseOrKHR [[#TypeInt]] [[#]] [[#Scope]] 0 [[#Val1]]
 ; CHECK-SPIRV: GroupBitwiseXorKHR [[#TypeInt]] [[#]] [[#Scope]] 0 [[#Val1]]
-; CHECK-SPIRV: GroupLogicalAndKHR [[#TypeInt]] [[#]] [[#Scope]] 0 [[#Val1]]
-; CHECK-SPIRV: GroupLogicalOrKHR [[#TypeInt]] [[#]] [[#Scope]] 0 [[#Val1]]
-; CHECK-SPIRV: GroupLogicalXorKHR [[#TypeInt]] [[#]] [[#Scope]] 0 [[#Val1]]
+; CHECK-SPIRV: GroupLogicalAndKHR [[#TypeBool]] [[#]] [[#Scope]] 0 [[#ConstFalse]]
+; CHECK-SPIRV: GroupLogicalOrKHR [[#TypeBool]] [[#]] [[#Scope]] 0 [[#ConstFalse]]
+; CHECK-SPIRV: GroupLogicalXorKHR [[#TypeBool]] [[#]] [[#Scope]] 0 [[#ConstFalse]]
 ; CHECK-SPIRV: GroupIMulKHR [[#TypeInt]] [[#]] [[#Scope]] 0 [[#Val1]]
 ; CHECK-SPIRV: GroupFMulKHR [[#TypeFloat]] [[#]] [[#Scope]] 0 [[#Val2]]
 
 ; CHECK-LLVM: %call1 = call spir_func i32 @_Z26__spirv_GroupBitwiseAndKHR{{.*}}(i32 2, i32 0, i32 0)
 ; CHECK-LLVM: %call2 = call spir_func i32 @_Z25__spirv_GroupBitwiseOrKHR{{.*}}(i32 2, i32 0, i32 0)
 ; CHECK-LLVM: %call3 = call spir_func i32 @_Z26__spirv_GroupBitwiseXorKHR{{.*}}(i32 2, i32 0, i32 0)
-; CHECK-LLVM: %call4 = call spir_func i32 @_Z26__spirv_GroupLogicalAndKHR{{.*}}(i32 2, i32 0, i32 0)
-; CHECK-LLVM: %call5 = call spir_func i32 @_Z25__spirv_GroupLogicalOrKHR{{.*}}(i32 2, i32 0, i32 0)
-; CHECK-LLVM: %call6 = call spir_func i32 @_Z26__spirv_GroupLogicalXorKHR{{.*}}(i32 2, i32 0, i32 0)
+; CHECK-LLVM: %call4 = call spir_func i1 @_Z26__spirv_GroupLogicalAndKHR{{.*}}(i32 2, i32 0, i1 false)
+; CHECK-LLVM: %call5 = call spir_func i1 @_Z25__spirv_GroupLogicalOrKHR{{.*}}(i32 2, i32 0, i1 false)
+; CHECK-LLVM: %call6 = call spir_func i1 @_Z26__spirv_GroupLogicalXorKHR{{.*}}(i32 2, i32 0, i1 false)
 ; CHECK-LLVM: %call7 = call spir_func i32 @_Z20__spirv_GroupIMulKHR{{.*}}(i32 2, i32 0, i32 0)
 ; CHECK-LLVM: %call8 = call spir_func half @_Z20__spirv_GroupFMulKHR{{.*}}(i32 2, i32 0, half 0xH0000)
 
@@ -50,9 +52,9 @@ entry:
   %call1 = tail call spir_func i32 @_Z26__spirv_GroupBitwiseAndKHRjji(i32 2, i32 0, i32 0) #2
   %call2 = tail call spir_func i32 @_Z25__spirv_GroupBitwiseOrKHRjji(i32 2, i32 0, i32 0) #2
   %call3 = tail call spir_func i32 @_Z26__spirv_GroupBitwiseXorKHRjji(i32 2, i32 0, i32 0) #2
-  %call4 = tail call spir_func i32 @_Z26__spirv_GroupLogicalAndKHRjji(i32 2, i32 0, i32 0) #2
-  %call5 = tail call spir_func i32 @_Z25__spirv_GroupLogicalOrKHRjji(i32 2, i32 0, i32 0) #2
-  %call6 = tail call spir_func i32 @_Z26__spirv_GroupLogicalXorKHRjji(i32 2, i32 0, i32 0) #2
+  %call4 = tail call spir_func i1 @_Z26__spirv_GroupLogicalAndKHRjji(i32 2, i32 0, i1 false) #2
+  %call5 = tail call spir_func i1 @_Z25__spirv_GroupLogicalOrKHRjji(i32 2, i32 0, i1 false) #2
+  %call6 = tail call spir_func i1 @_Z26__spirv_GroupLogicalXorKHRjji(i32 2, i32 0, i1 false) #2
   %call7 = tail call spir_func i32 @_Z20__spirv_GroupIMulKHRjji(i32 2, i32 0, i32 0) #2
   %call8 = tail call fast spir_func half @_Z20__spirv_GroupFMulKHRjjDF16_(i32 2, i32 0, half 0xH0000) #2
   ret void
@@ -68,13 +70,13 @@ declare dso_local spir_func i32 @_Z25__spirv_GroupBitwiseOrKHRjji(i32, i32, i32)
 declare dso_local spir_func i32 @_Z26__spirv_GroupBitwiseXorKHRjji(i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z26__spirv_GroupLogicalAndKHRjji(i32, i32, i32) local_unnamed_addr #1
+declare dso_local spir_func i1 @_Z26__spirv_GroupLogicalAndKHRjji(i32, i32, i1) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z25__spirv_GroupLogicalOrKHRjji(i32, i32, i32) local_unnamed_addr #1
+declare dso_local spir_func i1 @_Z25__spirv_GroupLogicalOrKHRjji(i32, i32, i1) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z26__spirv_GroupLogicalXorKHRjji(i32, i32, i32) local_unnamed_addr #1
+declare dso_local spir_func i1 @_Z26__spirv_GroupLogicalXorKHRjji(i32, i32, i1) local_unnamed_addr #1
 
 ; Function Attrs: convergent
 declare dso_local spir_func i32 @_Z20__spirv_GroupIMulKHRjji(i32, i32, i32) local_unnamed_addr #1

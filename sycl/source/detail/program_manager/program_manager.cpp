@@ -567,8 +567,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Device)->getHandleRef(),
-              ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+              getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -779,13 +778,14 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
                               PI_INVALID_OPERATION);
 }
 
-static RT::PiProgram loadDeviceLibFallback(
-    const ContextImplPtr Context, DeviceLibExt Extension,
-    const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-        &CachedLibPrograms) {
+static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
+                                           DeviceLibExt Extension,
+                                           const RT::PiDevice &Device) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
+
+  auto LockedCache = Context->acquireCachedLibPrograms();
+  auto CachedLibPrograms = LockedCache.get();
   auto CacheResult = CachedLibPrograms.emplace(
       std::make_pair(std::make_pair(Extension, Device), nullptr));
   bool Cached = !CacheResult.second;
@@ -913,9 +913,6 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
     Img->print();
   }
-
-  if (std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile)
-    dumpImage(*Img, KSId);
   return *Img;
 }
 
@@ -926,11 +923,9 @@ static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
   return ((DeviceLibReqMask & Mask) == Mask);
 }
 
-static std::vector<RT::PiProgram> getDeviceLibPrograms(
-    const ContextImplPtr Context, const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-        &CachedLibPrograms,
-    uint32_t DeviceLibReqMask) {
+static std::vector<RT::PiProgram>
+getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
+                     uint32_t DeviceLibReqMask) {
   std::vector<RT::PiProgram> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
@@ -978,21 +973,18 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
     bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
 
     if (!DeviceSupports || InhibitNativeImpl) {
-      Programs.push_back(
-          loadDeviceLibFallback(Context, Ext, Device, CachedLibPrograms));
+      Programs.push_back(loadDeviceLibFallback(Context, Ext, Device));
       FallbackIsLoaded = true;
     }
   }
   return Programs;
 }
 
-ProgramManager::ProgramPtr ProgramManager::build(
-    ProgramPtr Program, const ContextImplPtr Context,
-    const std::string &CompileOptions, const std::string &LinkOptions,
-    const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-        &CachedLibPrograms,
-    uint32_t DeviceLibReqMask) {
+ProgramManager::ProgramPtr
+ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
+                      const std::string &CompileOptions,
+                      const std::string &LinkOptions,
+                      const RT::PiDevice &Device, uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
@@ -1001,13 +993,6 @@ ProgramManager::ProgramPtr ProgramManager::build(
   }
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
-
-  // TODO: Currently, online linking isn't implemented yet on Level Zero.
-  // To enable device libraries and unify the behaviors on all backends,
-  // online linking is disabled temporarily, all fallback device libraries
-  // will be linked offline. When Level Zero supports online linking, we need
-  // to remove the line of code below and switch back to online linking.
-  LinkDeviceLibs = false;
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
@@ -1018,8 +1003,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   std::vector<RT::PiProgram> LinkPrograms;
   if (LinkDeviceLibs) {
-    LinkPrograms = getDeviceLibPrograms(Context, Device, CachedLibPrograms,
-                                        DeviceLibReqMask);
+    LinkPrograms = getDeviceLibPrograms(Context, Device, DeviceLibReqMask);
   }
 
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
@@ -1101,6 +1085,7 @@ bool ProgramManager::kernelUsesAssert(OSModuleHandle M,
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
 
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -1207,31 +1192,42 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
         auto DeviceGlobals = Img->getDeviceGlobals();
         for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
-          auto Entry = m_DeviceGlobals.find(DeviceGlobal->Name);
-          assert(Entry != m_DeviceGlobals.end() &&
-                 "Device global has not been registered.");
-
           pi::ByteArray DeviceGlobalInfo =
               pi::DeviceBinaryProperty(DeviceGlobal).asByteArray();
 
           // The supplied device_global info property is expected to contain:
           // * 8 bytes - Size of the property.
           // * 4 bytes - Size of the underlying type in the device_global.
-          // * 1 byte  - 0 if device_global has device_image_scope and any value
+          // * 4 bytes - 0 if device_global has device_image_scope and any value
           //             otherwise.
-          // Note: Property may be padded.
-          assert(DeviceGlobalInfo.size() >= 13 && "Unexpected property size");
+          assert(DeviceGlobalInfo.size() == 16 && "Unexpected property size");
           const std::uint32_t TypeSize =
               *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
-          const std::uint32_t DeviceImageScopeDecorated = DeviceGlobalInfo[12];
-          Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
+          const std::uint32_t DeviceImageScopeDecorated =
+              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[12]);
+
+          auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
+          if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
+            // If it has already been registered we update the information.
+            ExistingDeviceGlobal->second->initialize(TypeSize,
+                                                     DeviceImageScopeDecorated);
+          } else {
+            // If it has not already been registered we create a new entry.
+            // Note: Pointer to the device global is not available here, so it
+            //       cannot be set until registration happens.
+            auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
+                DeviceGlobal->Name, TypeSize, DeviceImageScopeDecorated);
+            m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
+          }
         }
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
-
       cacheKernelUsesAssertInfo(M, *Img);
 
+      if (DumpImages)
+        dumpImage(*Img, KSId);
       m_DeviceImages[KSId]->push_back(std::move(Img));
+
       continue;
     }
     // Otherwise assume that the image contains all kernels associated with the
@@ -1246,6 +1242,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
     cacheKernelUsesAssertInfo(M, *Img);
 
+    if (DumpImages)
+      dumpImage(*Img, KSId);
     Imgs->push_back(std::move(Img));
   }
 }
@@ -1476,13 +1474,23 @@ kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
   return KernelID->second;
 }
 
-void ProgramManager::addDeviceGlobalEntry(void *DeviceGlobalPtr,
-                                          const char *UniqueId) {
+void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
+                                                const char *UniqueId) {
   std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
 
-  assert(m_DeviceGlobals.find(UniqueId) == m_DeviceGlobals.end() &&
-         "Device global has already been registered.");
-  m_DeviceGlobals.insert({UniqueId, DeviceGlobalMapEntry(DeviceGlobalPtr)});
+  auto ExistingDeviceGlobal = m_DeviceGlobals.find(UniqueId);
+  if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
+    // Update the existing information and add the entry to the pointer map.
+    ExistingDeviceGlobal->second->initialize(DeviceGlobalPtr);
+    m_Ptr2DeviceGlobal.insert(
+        {DeviceGlobalPtr, ExistingDeviceGlobal->second.get()});
+    return;
+  }
+
+  auto EntryUPtr =
+      std::make_unique<DeviceGlobalMapEntry>(UniqueId, DeviceGlobalPtr);
+  auto NewEntry = m_DeviceGlobals.emplace(UniqueId, std::move(EntryUPtr));
+  m_Ptr2DeviceGlobal.insert({DeviceGlobalPtr, NewEntry.first->second.get()});
 }
 
 std::vector<device_image_plain>
@@ -1885,8 +1893,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Devs[0])->getHandleRef(),
-              ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+              getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 

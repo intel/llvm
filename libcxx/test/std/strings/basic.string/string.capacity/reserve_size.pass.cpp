@@ -12,8 +12,7 @@
 
 // This test relies on https://llvm.org/PR45368 being fixed, which isn't in
 // older Apple dylibs
-//
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx{{10.9|10.10|10.11|10.12|10.13|10.14|10.15|11.0}}
 
 #include <string>
 #include <stdexcept>
@@ -23,7 +22,7 @@
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(typename S::size_type min_cap, typename S::size_type erased_index, typename S::size_type res_arg)
 {
     S s(min_cap, 'a');
@@ -47,7 +46,7 @@ test(typename S::size_type min_cap, typename S::size_type erased_index, typename
 #endif
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {

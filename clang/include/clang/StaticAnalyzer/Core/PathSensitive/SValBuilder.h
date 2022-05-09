@@ -332,9 +332,8 @@ public:
     return nonloc::ConcreteInt(BasicVals.getIntValue(integer, isUnsigned));
   }
 
-  NonLoc makeIntValWithPtrWidth(uint64_t integer, bool isUnsigned) {
-    return nonloc::ConcreteInt(
-        BasicVals.getIntWithPtrWidth(integer, isUnsigned));
+  NonLoc makeIntValWithWidth(QualType ptrType, uint64_t integer) {
+    return nonloc::ConcreteInt(BasicVals.getValue(integer, ptrType));
   }
 
   NonLoc makeLocAsInteger(Loc loc, unsigned bits) {
@@ -365,11 +364,19 @@ public:
   /// space.
   /// \param type pointer type.
   Loc makeNullWithType(QualType type) {
-    return loc::ConcreteInt(BasicVals.getZeroWithTypeSize(type));
-  }
+    // We cannot use the `isAnyPointerType()`.
+    assert((type->isPointerType() || type->isObjCObjectPointerType() ||
+            type->isBlockPointerType() || type->isNullPtrType() ||
+            type->isReferenceType()) &&
+           "makeNullWithType must use pointer type");
 
-  Loc makeNull() {
-    return loc::ConcreteInt(BasicVals.getZeroWithPtrWidth());
+    // The `sizeof(T&)` is `sizeof(T)`, thus we replace the reference with a
+    // pointer. Here we assume that references are actually implemented by
+    // pointers under-the-hood.
+    type = type->isReferenceType()
+               ? Context.getPointerType(type->getPointeeType())
+               : type;
+    return loc::ConcreteInt(BasicVals.getZeroWithTypeSize(type));
   }
 
   Loc makeLoc(SymbolRef sym) {

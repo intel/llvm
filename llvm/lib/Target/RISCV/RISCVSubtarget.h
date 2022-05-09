@@ -34,22 +34,6 @@ class StringRef;
 
 class RISCVSubtarget : public RISCVGenSubtargetInfo {
 public:
-  enum ExtZvl : unsigned {
-    NotSet = 0,
-    Zvl32b = 32,
-    Zvl64b = 64,
-    Zvl128b = 128,
-    Zvl256b = 256,
-    Zvl512b = 512,
-    Zvl1024b = 1024,
-    Zvl2048b = 2048,
-    Zvl4096b = 4096,
-    Zvl8192b = 8192,
-    Zvl16384b = 16384,
-    Zvl32768b = 32768,
-    Zvl65536b = 65536
-  };
-
   enum RISCVProcFamilyEnum : uint8_t {
     Others,
     SiFive7,
@@ -82,6 +66,7 @@ private:
   bool HasStdExtZve64x = false;
   bool HasStdExtZve64f = false;
   bool HasStdExtZve64d = false;
+  bool HasStdExtZvfh = false;
   bool HasStdExtZfhmin = false;
   bool HasStdExtZfh = false;
   bool HasStdExtZfinx = false;
@@ -107,7 +92,7 @@ private:
   bool EnableRVCHintInstrs = true;
   bool EnableSaveRestore = false;
   unsigned XLen = 32;
-  ExtZvl ZvlLen = ExtZvl::NotSet;
+  unsigned ZvlLen = 0;
   MVT XLenVT = MVT::i32;
   uint8_t MaxInterleaveFactor = 2;
   RISCVABI::ABI TargetABI = RISCVABI::ABI_Unknown;
@@ -173,7 +158,8 @@ public:
   bool hasStdExtZbr() const { return HasStdExtZbr; }
   bool hasStdExtZbs() const { return HasStdExtZbs; }
   bool hasStdExtZbt() const { return HasStdExtZbt; }
-  bool hasStdExtZvl() const { return ZvlLen != ExtZvl::NotSet; }
+  bool hasStdExtZvl() const { return ZvlLen != 0; }
+  bool hasStdExtZvfh() const { return HasStdExtZvfh; }
   bool hasStdExtZfhmin() const { return HasStdExtZfhmin; }
   bool hasStdExtZfh() const { return HasStdExtZfh; }
   bool hasStdExtZfinx() const { return HasStdExtZfinx; }
@@ -205,8 +191,12 @@ public:
 
     return 0;
   }
+  unsigned getELEN() const {
+    assert(hasVInstructions() && "Expected V extension");
+    return hasVInstructionsI64() ? 64 : 32;
+  }
   unsigned getMinVLen() const { return ZvlLen; }
-  unsigned getMaxVLen() const { return Zvl65536b; }
+  unsigned getMaxVLen() const { return 65536; }
   unsigned getRealMinVLen() const {
     unsigned VLen = getMinRVVVectorSizeInBits();
     return VLen == 0 ? getMinVLen() : VLen;
@@ -224,7 +214,7 @@ public:
   // Vector codegen related methods.
   bool hasVInstructions() const { return HasStdExtZve32x; }
   bool hasVInstructionsI64() const { return HasStdExtZve64x; }
-  bool hasVInstructionsF16() const { return HasStdExtZve32f && HasStdExtZfh; }
+  bool hasVInstructionsF16() const { return HasStdExtZvfh && HasStdExtZfh; }
   // FIXME: Consider Zfinx in the future
   bool hasVInstructionsF32() const { return HasStdExtZve32f && HasStdExtF; }
   // FIXME: Consider Zdinx in the future
@@ -260,7 +250,6 @@ public:
   unsigned getMaxRVVVectorSizeInBits() const;
   unsigned getMinRVVVectorSizeInBits() const;
   unsigned getMaxLMULForFixedLengthVectors() const;
-  unsigned getMaxELENForFixedLengthVectors() const;
   bool useRVVForFixedLengthVectors() const;
 };
 } // End llvm namespace

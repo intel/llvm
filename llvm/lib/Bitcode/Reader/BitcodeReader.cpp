@@ -52,6 +52,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
+#include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
@@ -557,6 +558,13 @@ class BitcodeReader : public BitcodeReaderBase, public GVMaterializer {
   DenseMap<Function *, std::vector<BasicBlock *>> BasicBlockFwdRefs;
   std::deque<Function *> BasicBlockFwdRefQueue;
 
+  /// These are Functions that contain BlockAddresses which refer a different
+  /// Function. When parsing the different Function, queue Functions that refer
+  /// to the different Function. Those Functions must be materialized in order
+  /// to resolve their BlockAddress constants before the different Function
+  /// gets moved into another Module.
+  std::vector<Function *> BackwardRefFunctions;
+
   /// Indicates that we are using a new encoding for instruction operands where
   /// most operands in the current FUNCTION_BLOCK are encoded relative to the
   /// instruction number, for a more compact encoding.  Some instruction
@@ -879,6 +887,11 @@ Error BitcodeReader::materializeForwardReferencedFunctions() {
       return Err;
   }
   assert(BasicBlockFwdRefs.empty() && "Function missing from queue");
+
+  for (Function *F : BackwardRefFunctions)
+    if (Error Err = materialize(F))
+      return Err;
+  BackwardRefFunctions.clear();
 
   // Reset state.
   WillMaterializeAllForwardRefs = false;
@@ -1882,7 +1895,9 @@ Error BitcodeReader::parseTypeTableBody() {
     case bitc::TYPE_CODE_OPAQUE_POINTER: { // OPAQUE_POINTER: [addrspace]
       if (Record.size() != 1)
         return error("Invalid opaque pointer record");
-      if (Context.supportsTypedPointers())
+      if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue())) {
+        Context.setOpaquePointers(true);
+      } else if (Context.supportsTypedPointers())
         return error(
             "Opaque pointers are only supported in -opaque-pointers mode");
       unsigned AddressSpace = Record[0];
@@ -4144,11 +4159,23 @@ Error BitcodeReader::propagateAttributeTypes(CallBase *CB,
   case Intrinsic::aarch64_ldaxr:
   case Intrinsic::aarch64_ldxr:
   case Intrinsic::aarch64_stlxr:
-  case Intrinsic::aarch64_stxr: {
-    unsigned ArgNo = CB->getIntrinsicID() == Intrinsic::aarch64_stlxr ||
-                             CB->getIntrinsicID() == Intrinsic::aarch64_stxr
-                         ? 1
-                         : 0;
+  case Intrinsic::aarch64_stxr:
+  case Intrinsic::arm_ldaex:
+  case Intrinsic::arm_ldrex:
+  case Intrinsic::arm_stlex:
+  case Intrinsic::arm_strex: {
+    unsigned ArgNo;
+    switch (CB->getIntrinsicID()) {
+    case Intrinsic::aarch64_stlxr:
+    case Intrinsic::aarch64_stxr:
+    case Intrinsic::arm_stlex:
+    case Intrinsic::arm_strex:
+      ArgNo = 1;
+      break;
+    default:
+      ArgNo = 0;
+      break;
+    }
     if (!Attrs.getParamElementType(ArgNo)) {
       Type *ElTy = getPtrElementTypeByID(ArgTyIDs[ArgNo]);
       if (!ElTy)
@@ -4301,6 +4328,31 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       CurBB = FunctionBBs[0];
       continue;
     }
+
+    case bitc::FUNC_CODE_BLOCKADDR_USERS: // BLOCKADDR_USERS: [vals...]
+      // The record should not be emitted if it's an empty list.
+      if (Record.empty())
+        return error("Invalid record");
+      // When we have the RARE case of a BlockAddress Constant that is not
+      // scoped to the Function it refers to, we need to conservatively
+      // materialize the referred to Function, regardless of whether or not
+      // that Function will ultimately be linked, otherwise users of
+      // BitcodeReader might start splicing out Function bodies such that we
+      // might no longer be able to materialize the BlockAddress since the
+      // BasicBlock (and entire body of the Function) the BlockAddress refers
+      // to may have been moved. In the case that the user of BitcodeReader
+      // decides ultimately not to link the Function body, materializing here
+      // could be considered wasteful, but it's better than a deserialization
+      // failure as described. This keeps BitcodeReader unaware of complex
+      // linkage policy decisions such as those use by LTO, leaving those
+      // decisions "one layer up."
+      for (uint64_t ValID : Record)
+        if (auto *F = dyn_cast<Function>(ValueList[ValID]))
+          BackwardRefFunctions.push_back(F);
+        else
+          return error("Invalid record");
+
+      continue;
 
     case bitc::FUNC_CODE_DEBUG_LOC_AGAIN:  // DEBUG_LOC_AGAIN
       // This record indicates that the last instruction is at the same

@@ -374,7 +374,7 @@ template <typename FN>
 mlir::Value genSpecial2Args(FN func, fir::FirOpBuilder &builder,
                             mlir::Location loc, mlir::Value maskBox,
                             mlir::Value dim) {
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(2));
@@ -390,7 +390,7 @@ template <typename FN>
 static void genReduction2Args(FN func, fir::FirOpBuilder &builder,
                               mlir::Location loc, mlir::Value resultBox,
                               mlir::Value maskBox, mlir::Value dim) {
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(4));
@@ -407,7 +407,7 @@ static void genReduction3Args(FN func, fir::FirOpBuilder &builder,
                               mlir::Value arrayBox, mlir::Value dim,
                               mlir::Value maskBox) {
 
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(4));
@@ -424,7 +424,7 @@ static void genReduction4Args(FN func, fir::FirOpBuilder &builder,
                               mlir::Location loc, mlir::Value resultBox,
                               mlir::Value arrayBox, mlir::Value maskBox,
                               mlir::Value kind, mlir::Value back) {
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(4));
@@ -441,7 +441,7 @@ static void
 genReduction5Args(FN func, fir::FirOpBuilder &builder, mlir::Location loc,
                   mlir::Value resultBox, mlir::Value arrayBox, mlir::Value dim,
                   mlir::Value maskBox, mlir::Value kind, mlir::Value back) {
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(5));
@@ -503,7 +503,7 @@ void fir::runtime::genCountDim(fir::FirOpBuilder &builder, mlir::Location loc,
                                mlir::Value resultBox, mlir::Value maskBox,
                                mlir::Value dim, mlir::Value kind) {
   auto func = fir::runtime::getRuntimeFunc<mkRTKey(CountDim)>(loc, builder);
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(5));
@@ -539,7 +539,7 @@ void fir::runtime::genMaxlocDim(fir::FirOpBuilder &builder, mlir::Location loc,
 mlir::Value fir::runtime::genMaxval(fir::FirOpBuilder &builder,
                                     mlir::Location loc, mlir::Value arrayBox,
                                     mlir::Value maskBox) {
-  mlir::FuncOp func;
+  mlir::func::FuncOp func;
   auto ty = arrayBox.getType();
   auto arrTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
@@ -571,7 +571,7 @@ mlir::Value fir::runtime::genMaxval(fir::FirOpBuilder &builder,
   else
     fir::emitFatalError(loc, "invalid type in Maxval lowering");
 
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(2));
@@ -597,7 +597,7 @@ void fir::runtime::genMaxvalChar(fir::FirOpBuilder &builder, mlir::Location loc,
                                  mlir::Value maskBox) {
   auto func =
       fir::runtime::getRuntimeFunc<mkRTKey(MaxvalCharacter)>(loc, builder);
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(3));
@@ -644,7 +644,7 @@ void fir::runtime::genMinvalChar(fir::FirOpBuilder &builder, mlir::Location loc,
                                  mlir::Value maskBox) {
   auto func =
       fir::runtime::getRuntimeFunc<mkRTKey(MinvalCharacter)>(loc, builder);
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(3));
@@ -658,7 +658,7 @@ void fir::runtime::genMinvalChar(fir::FirOpBuilder &builder, mlir::Location loc,
 mlir::Value fir::runtime::genMinval(fir::FirOpBuilder &builder,
                                     mlir::Location loc, mlir::Value arrayBox,
                                     mlir::Value maskBox) {
-  mlir::FuncOp func;
+  mlir::func::FuncOp func;
   auto ty = arrayBox.getType();
   auto arrTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
@@ -690,7 +690,7 @@ mlir::Value fir::runtime::genMinval(fir::FirOpBuilder &builder,
   else
     fir::emitFatalError(loc, "invalid type in Minval lowering");
 
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   auto sourceLine =
       fir::factory::locationToLineNo(builder, loc, fTy.getInput(2));
@@ -715,7 +715,7 @@ mlir::Value fir::runtime::genProduct(fir::FirOpBuilder &builder,
                                      mlir::Location loc, mlir::Value arrayBox,
                                      mlir::Value maskBox,
                                      mlir::Value resultBox) {
-  mlir::FuncOp func;
+  mlir::func::FuncOp func;
   auto ty = arrayBox.getType();
   auto arrTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
@@ -757,7 +757,7 @@ mlir::Value fir::runtime::genProduct(fir::FirOpBuilder &builder,
   else
     fir::emitFatalError(loc, "invalid type in Product lowering");
 
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   if (fir::isa_complex(eleTy)) {
     auto sourceLine =
@@ -783,7 +783,7 @@ mlir::Value fir::runtime::genDotProduct(fir::FirOpBuilder &builder,
                                         mlir::Value vectorABox,
                                         mlir::Value vectorBBox,
                                         mlir::Value resultBox) {
-  mlir::FuncOp func;
+  mlir::func::FuncOp func;
   auto ty = vectorABox.getType();
   auto arrTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
@@ -834,7 +834,7 @@ mlir::Value fir::runtime::genDotProduct(fir::FirOpBuilder &builder,
   else
     fir::emitFatalError(loc, "invalid type in DotProduct lowering");
 
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
 
   if (fir::isa_complex(eleTy)) {
@@ -867,7 +867,7 @@ void fir::runtime::genSumDim(fir::FirOpBuilder &builder, mlir::Location loc,
 mlir::Value fir::runtime::genSum(fir::FirOpBuilder &builder, mlir::Location loc,
                                  mlir::Value arrayBox, mlir::Value maskBox,
                                  mlir::Value resultBox) {
-  mlir::FuncOp func;
+  mlir::func::FuncOp func;
   auto ty = arrayBox.getType();
   auto arrTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
@@ -907,7 +907,7 @@ mlir::Value fir::runtime::genSum(fir::FirOpBuilder &builder, mlir::Location loc,
   else
     fir::emitFatalError(loc, "invalid type in Sum lowering");
 
-  auto fTy = func.getType();
+  auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
   if (fir::isa_complex(eleTy)) {
     auto sourceLine =

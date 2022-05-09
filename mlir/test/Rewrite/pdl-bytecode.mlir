@@ -90,7 +90,7 @@ module @patterns {
   module @rewriters {
     pdl_interp.func @success(%root : !pdl.operation) {
       %operand = pdl_interp.get_operand 0 of %root
-      pdl_interp.apply_rewrite "rewriter"[42](%root, %operand : !pdl.operation, !pdl.value)
+      pdl_interp.apply_rewrite "rewriter"(%root, %operand : !pdl.operation, !pdl.value)
       pdl_interp.finalize
     }
   }
@@ -99,7 +99,7 @@ module @patterns {
 // CHECK-LABEL: test.apply_rewrite_1
 // CHECK: %[[INPUT:.*]] = "test.op_input"
 // CHECK-NOT: "test.op"
-// CHECK: "test.success"(%[[INPUT]]) {constantParams = [42]}
+// CHECK: "test.success"(%[[INPUT]])
 module @ir attributes { test.apply_rewrite_1 } {
   %input = "test.op_input"() : () -> i32
   "test.op"(%input) : (i32) -> ()
@@ -181,8 +181,9 @@ module @patterns {
 
   module @rewriters {
     pdl_interp.func @success(%root : !pdl.operation) {
+      %attr = pdl_interp.apply_rewrite "str_creator" : !pdl.attribute
       %type = pdl_interp.apply_rewrite "type_creator" : !pdl.type
-      %newOp = pdl_interp.create_operation "test.success" -> (%type : !pdl.type)
+      %newOp = pdl_interp.create_operation "test.success" {"attr" = %attr} -> (%type : !pdl.type)
       pdl_interp.erase %root
       pdl_interp.finalize
     }
@@ -190,7 +191,7 @@ module @patterns {
 }
 
 // CHECK-LABEL: test.apply_rewrite_4
-// CHECK: "test.success"() : () -> f32
+// CHECK: "test.success"() {attr = "test.str"} : () -> f32
 module @ir attributes { test.apply_rewrite_4 } {
   "test.op"() : () -> ()
 }

@@ -197,7 +197,10 @@ struct PerfSample {
   }
 
 #ifndef NDEBUG
+  uint64_t Linenum = 0;
+
   void print() const {
+    dbgs() << "Line " << Linenum << "\n";
     dbgs() << "LBR stack\n";
     printLBRStack(LBRStack);
     dbgs() << "Call stack\n";
@@ -255,6 +258,9 @@ struct UnwindState {
   const SmallVector<LBREntry, 16> &LBRStack;
   // Used to iterate the address range
   InstructionPointer InstPtr;
+  // Indicate whether unwinding is currently in a bad state which requires to
+  // skip all subsequent unwinding.
+  bool Invalid = false;
   UnwindState(const PerfSample *Sample, const ProfiledBinary *Binary)
       : Binary(Binary), LBRStack(Sample->LBRStack),
         InstPtr(Binary, Sample->CallStack.front()) {
@@ -284,6 +290,7 @@ struct UnwindState {
            "IP should align with context leaf");
   }
 
+  void setInvalid() { Invalid = true; }
   bool hasNextLBR() const { return LBRIndex < LBRStack.size(); }
   uint64_t getCurrentLBRSource() const { return LBRStack[LBRIndex].Source; }
   uint64_t getCurrentLBRTarget() const { return LBRStack[LBRIndex].Target; }
@@ -333,7 +340,7 @@ struct ContextKey {
   };
 
   // Utilities for LLVM-style RTTI
-  enum ContextKind { CK_StringBased, CK_ProbeBased };
+  enum ContextKind { CK_StringBased, CK_AddrBased };
   const ContextKind Kind;
   ContextKind getKind() const { return Kind; }
   ContextKey(ContextKind K) : Kind(K){};
@@ -359,34 +366,23 @@ struct StringBasedCtxKey : public ContextKey {
   }
 };
 
-// Probe based context key as the intermediate key of context
-// String based context key will introduce redundant string handling
-// since the callee context is inferred from the context string which
-// need to be splitted by '@' to get the last location frame, so we
-// can just use probe instead and generate the string in the end.
-struct ProbeBasedCtxKey : public ContextKey {
-  SmallVector<const MCDecodedPseudoProbe *, 16> Probes;
+// Address-based context id
+struct AddrBasedCtxKey : public ContextKey {
+  SmallVector<uint64_t, 16> Context;
 
-  ProbeBasedCtxKey() : ContextKey(CK_ProbeBased) {}
+  bool WasLeafInlined;
+  AddrBasedCtxKey() : ContextKey(CK_AddrBased), WasLeafInlined(false){};
   static bool classof(const ContextKey *K) {
-    return K->getKind() == CK_ProbeBased;
+    return K->getKind() == CK_AddrBased;
   }
 
   bool isEqual(const ContextKey *K) const override {
-    const ProbeBasedCtxKey *O = dyn_cast<ProbeBasedCtxKey>(K);
-    assert(O != nullptr && "Probe based key shouldn't be null in isEqual");
-    return std::equal(Probes.begin(), Probes.end(), O->Probes.begin(),
-                      O->Probes.end());
+    const AddrBasedCtxKey *Other = dyn_cast<AddrBasedCtxKey>(K);
+    return Context == Other->Context;
   }
 
   void genHashCode() override {
-    for (const auto *P : Probes) {
-      HashCode = hash_combine(HashCode, P);
-    }
-    if (HashCode == 0) {
-      // Avoid zero value of HashCode when it's an empty list
-      HashCode = 1;
-    }
+    HashCode = hash_combine_range(Context.begin(), Context.end());
   }
 };
 
@@ -433,22 +429,14 @@ struct FrameStack {
   std::shared_ptr<StringBasedCtxKey> getContextKey();
 };
 
-struct ProbeStack {
-  SmallVector<const MCDecodedPseudoProbe *, 16> Stack;
+struct AddressStack {
+  SmallVector<uint64_t, 16> Stack;
   ProfiledBinary *Binary;
-  ProbeStack(ProfiledBinary *B) : Binary(B) {}
+  AddressStack(ProfiledBinary *B) : Binary(B) {}
   bool pushFrame(UnwindState::ProfiledFrame *Cur) {
     assert(!Cur->isExternalFrame() &&
            "External frame's not expected for context stack.");
-    const MCDecodedPseudoProbe *CallProbe =
-        Binary->getCallProbeForAddr(Cur->Address);
-    // We may not find a probe for a merged or external callsite.
-    // Callsite merging may cause the loss of original probe IDs.
-    // Cutting off the context from here since the inliner will
-    // not know how to consume a context with unknown callsites.
-    if (!CallProbe)
-      return false;
-    Stack.push_back(CallProbe);
+    Stack.push_back(Cur->Address);
     return true;
   }
 
@@ -456,18 +444,7 @@ struct ProbeStack {
     if (!Stack.empty())
       Stack.pop_back();
   }
-  // Use pseudo probe based context key to get the sample counter
-  // A context stands for a call path from 'main' to an uninlined
-  // callee with all inline frames recovered on that path. The probes
-  // belonging to that call path is the probes either originated from
-  // the callee or from any functions inlined into the callee. Since
-  // pseudo probes are organized in a tri-tree style after decoded,
-  // the tree path from the tri-tree root (which is the uninlined
-  // callee) to the probe node forms an inline context.
-  // Here we use a list of probe(pointer) as the context key to speed up
-  // aggregation and the final context string will be generate in
-  // ProfileGenerator
-  std::shared_ptr<ProbeBasedCtxKey> getContextKey();
+  std::shared_ptr<AddrBasedCtxKey> getContextKey();
 };
 
 /*
@@ -506,10 +483,14 @@ private:
   bool isCallState(UnwindState &State) const {
     // The tail call frame is always missing here in stack sample, we will
     // use a specific tail call tracker to infer it.
-    return Binary->addressIsCall(State.getCurrentLBRSource());
+    return isValidState(State) &&
+           Binary->addressIsCall(State.getCurrentLBRSource());
   }
 
   bool isReturnState(UnwindState &State) const {
+    if (!isValidState(State))
+      return false;
+
     // Simply check addressIsReturn, as ret is always reliable, both for
     // regular call and tail call.
     if (!Binary->addressIsReturn(State.getCurrentLBRSource()))
@@ -526,6 +507,8 @@ private:
         Binary->getCallAddrFromFrameAddr(State.getCurrentLBRTarget());
     return (CallAddr != 0);
   }
+
+  bool isValidState(UnwindState &State) const { return !State.Invalid; }
 
   void unwindCall(UnwindState &State);
   void unwindLinear(UnwindState &State, uint64_t Repeat);
@@ -561,7 +544,8 @@ public:
   };
   virtual ~PerfReaderBase() = default;
   static std::unique_ptr<PerfReaderBase> create(ProfiledBinary *Binary,
-                                                PerfInputFile &PerfInput);
+                                                PerfInputFile &PerfInput,
+                                                Optional<uint32_t> PIDFilter);
 
   // Entry of the reader to parse multiple perf traces
   virtual void parsePerfTraces() = 0;
@@ -585,14 +569,16 @@ protected:
 // Read perf script to parse the events and samples.
 class PerfScriptReader : public PerfReaderBase {
 public:
-  PerfScriptReader(ProfiledBinary *B, StringRef PerfTrace)
-      : PerfReaderBase(B, PerfTrace){};
+  PerfScriptReader(ProfiledBinary *B, StringRef PerfTrace,
+                   Optional<uint32_t> PID)
+      : PerfReaderBase(B, PerfTrace), PIDFilter(PID){};
 
   // Entry of the reader to parse multiple perf traces
   virtual void parsePerfTraces() override;
   // Generate perf script from perf data
   static PerfInputFile convertPerfDataToTrace(ProfiledBinary *Binary,
-                                              PerfInputFile &File);
+                                              PerfInputFile &File,
+                                              Optional<uint32_t> PIDFilter);
   // Extract perf script type by peaking at the input
   static PerfContent checkPerfScriptType(StringRef FileName);
 
@@ -652,6 +638,8 @@ protected:
   AggregatedCounter AggregatedSamples;
   // Keep track of all invalid return addresses
   std::set<uint64_t> InvalidReturnAddresses;
+  // PID for the process of interest
+  Optional<uint32_t> PIDFilter;
 };
 
 /*
@@ -662,8 +650,9 @@ protected:
 */
 class LBRPerfReader : public PerfScriptReader {
 public:
-  LBRPerfReader(ProfiledBinary *Binary, StringRef PerfTrace)
-      : PerfScriptReader(Binary, PerfTrace){};
+  LBRPerfReader(ProfiledBinary *Binary, StringRef PerfTrace,
+                Optional<uint32_t> PID)
+      : PerfScriptReader(Binary, PerfTrace, PID){};
   // Parse the LBR only sample.
   virtual void parseSample(TraceStream &TraceIt, uint64_t Count) override;
 };
@@ -679,8 +668,9 @@ public:
 */
 class HybridPerfReader : public PerfScriptReader {
 public:
-  HybridPerfReader(ProfiledBinary *Binary, StringRef PerfTrace)
-      : PerfScriptReader(Binary, PerfTrace){};
+  HybridPerfReader(ProfiledBinary *Binary, StringRef PerfTrace,
+                   Optional<uint32_t> PID)
+      : PerfScriptReader(Binary, PerfTrace, PID){};
   // Parse the hybrid sample including the call and LBR line
   void parseSample(TraceStream &TraceIt, uint64_t Count) override;
   void generateUnsymbolizedProfile() override;

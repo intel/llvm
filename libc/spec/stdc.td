@@ -1,8 +1,5 @@
 def StdC : StandardSpec<"stdc"> {
 
-  NamedType FILE = NamedType<"FILE">;
-  PtrType FILEPtr = PtrType<FILE>;
-  RestrictedPtrType FILERestrictedPtr = RestrictedPtrType<FILE>;
   NamedType StructTmType = NamedType<"struct tm">;
   PtrType StructTmPtr = PtrType<StructTmType>;
   PtrType TimeTTypePtr = PtrType<TimeTType>;
@@ -482,12 +479,43 @@ def StdC : StandardSpec<"stdc"> {
       [], // Enumerations
       [
           FunctionSpec<
+              "fclose",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fflush",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fopen",
+              RetValSpec<FILEPtr>,
+              [ArgSpec<ConstCharPtr>,
+               ArgSpec<ConstCharPtr>]
+          >,
+          FunctionSpec<
+              "fread",
+              RetValSpec<SizeTType>,
+              [ArgSpec<VoidRestrictedPtr>,
+               ArgSpec<SizeTType>,
+               ArgSpec<SizeTType>,
+               ArgSpec<FILERestrictedPtr>]
+          >,
+          FunctionSpec<
+              "fseek",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>,
+               ArgSpec<LongType>,
+               ArgSpec<IntType>]
+          >,
+          FunctionSpec<
               "fwrite",
               RetValSpec<SizeTType>,
               [ArgSpec<ConstVoidRestrictedPtr>,
-              ArgSpec<SizeTType>,
-              ArgSpec<SizeTType>,
-              ArgSpec<FILERestrictedPtr>]
+               ArgSpec<SizeTType>,
+               ArgSpec<SizeTType>,
+               ArgSpec<FILERestrictedPtr>]
           >,
       ]
   >;
@@ -536,6 +564,7 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"malloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>]>,
           FunctionSpec<"calloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>, ArgSpec<SizeTType>]>,
           FunctionSpec<"realloc", RetValSpec<VoidPtr>, [ArgSpec<VoidPtr>, ArgSpec<SizeTType>]>,
+          FunctionSpec<"aligned_alloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>, ArgSpec<SizeTType>]>,
           FunctionSpec<"free", RetValSpec<VoidType>, [ArgSpec<VoidPtr>]>,
 
           FunctionSpec<"_Exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,

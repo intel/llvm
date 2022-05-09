@@ -118,6 +118,10 @@ def warn_float_overflow : Warning<
 def warn_float_underflow : Warning<
   "magnitude of floating-point constant too small for type %0; minimum is %1">,
   InGroup<LiteralRange>;
+def warn_float_compare_literal : Warning<
+  "floating-point comparison is always %select{true|false}0; "
+  "constant cannot be represented exactly in type %1">,
+  InGroup<LiteralRange>;
 def warn_double_const_requires_fp64 : Warning<
   "double precision constant requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0, "
   "casting to single precision">;
@@ -446,9 +450,9 @@ def warn_return_value_udt_incomplete: Warning<
 def warn_implicit_function_decl : Warning<
   "implicit declaration of function %0">,
   InGroup<ImplicitFunctionDeclare>, DefaultIgnore;
-def ext_implicit_function_decl : ExtWarn<
-  "implicit declaration of function %0 is invalid in C99">,
-  InGroup<ImplicitFunctionDeclare>;
+def ext_implicit_function_decl_c99 : ExtWarn<
+  "call to undeclared function %0; ISO C99 and later do not support implicit "
+  "function declarations">, InGroup<ImplicitFunctionDeclare>, DefaultError;
 def note_function_suggestion : Note<"did you mean %0?">;
 
 def err_ellipsis_first_param : Error<
@@ -727,6 +731,10 @@ def note_unreachable_silence : Note<
 def ext_implicit_lib_function_decl : ExtWarn<
   "implicitly declaring library function '%0' with type %1">,
   InGroup<ImplicitFunctionDeclare>;
+def ext_implicit_lib_function_decl_c99 : ExtWarn<
+  "call to undeclared library function '%0' with type %1; ISO C99 and later "
+  "do not support implicit function declarations">,
+  InGroup<ImplicitFunctionDeclare>, DefaultError;
 def note_include_header_or_declare : Note<
   "include the header <%0> or explicitly provide a declaration for '%1'">;
 def note_previous_builtin_declaration : Note<"%0 is a builtin with type %1">;
@@ -2722,6 +2730,13 @@ def warn_cxx17_compat_constexpr_body_invalid_stmt : Warning<
   "use of this statement in a constexpr %select{function|constructor}0 "
   "is incompatible with C++ standards before C++20">,
   InGroup<CXXPre20Compat>, DefaultIgnore;
+def ext_constexpr_body_invalid_stmt_cxx2b : ExtWarn<
+  "use of this statement in a constexpr %select{function|constructor}0 "
+  "is a C++2b extension">, InGroup<CXX2b>;
+def warn_cxx20_compat_constexpr_body_invalid_stmt : Warning<
+  "use of this statement in a constexpr %select{function|constructor}0 "
+  "is incompatible with C++ standards before C++2b">,
+  InGroup<CXXPre2bCompat>, DefaultIgnore;
 def ext_constexpr_type_definition : ExtWarn<
   "type definition in a constexpr %select{function|constructor}0 "
   "is a C++14 extension">, InGroup<CXX14>;
@@ -2739,12 +2754,18 @@ def warn_cxx11_compat_constexpr_local_var : Warning<
   "variable declaration in a constexpr %select{function|constructor}0 "
   "is incompatible with C++ standards before C++14">,
   InGroup<CXXPre14Compat>, DefaultIgnore;
-def err_constexpr_local_var_static : Error<
-  "%select{static|thread_local}1 variable not permitted in a constexpr "
-  "%select{function|constructor}0">;
+def ext_constexpr_static_var : ExtWarn<
+  "definition of a %select{static|thread_local}1 variable "
+  "in a constexpr %select{function|constructor}0 "
+  "is a C++2b extension">, InGroup<CXX2b>;
+def warn_cxx20_compat_constexpr_var : Warning<
+  "definition of a %select{static variable|thread_local variable|variable "
+  "of non-literal type}1 in a constexpr %select{function|constructor}0 "
+  "is incompatible with C++ standards before C++2b">,
+  InGroup<CXXPre2bCompat>, DefaultIgnore;
 def err_constexpr_local_var_non_literal_type : Error<
   "variable of non-literal type %1 cannot be defined in a constexpr "
-  "%select{function|constructor}0">;
+  "%select{function|constructor}0 before C++2b">;
 def ext_constexpr_local_var_no_init : ExtWarn<
   "uninitialized variable in a constexpr %select{function|constructor}0 "
   "is a C++20 extension">, InGroup<CXX20>;
@@ -4407,6 +4428,9 @@ def err_uninitialized_member_in_ctor : Error<
 def err_default_arg_makes_ctor_special : Error<
   "addition of default argument on redeclaration makes this constructor a "
   "%select{default|copy|move}0 constructor">;
+def err_stmt_expr_in_default_arg : Error<
+  "default %select{argument|non-type template argument}0 may not use a GNU "
+  "statement expression">;
 
 def err_use_of_default_argument_to_function_declared_later : Error<
   "use of default argument to function %0 that is declared later in class %1">;
@@ -5578,16 +5602,26 @@ def warn_missing_sentinel : Warning <
   InGroup<Sentinel>;
 def note_sentinel_here : Note<
   "%select{function|method|block}0 has been explicitly marked sentinel here">;
+def warn_strict_uses_without_prototype : Warning<
+  "passing arguments to %select{a function|%1}0 without a prototype is "
+  "deprecated in all versions of C and is not supported in C2x">,
+  InGroup<DeprecatedNonPrototype>;
 def warn_missing_prototype : Warning<
   "no previous prototype for function %0">,
   InGroup<DiagGroup<"missing-prototypes">>, DefaultIgnore;
 def note_declaration_not_a_prototype : Note<
   "this declaration is not a prototype; add %select{'void'|parameter declarations}0 "
   "to make it %select{a prototype for a zero-parameter function|one}0">;
-def warn_strict_prototypes : Warning<
-  "this %select{function declaration is not|block declaration is not|"
-  "old-style function definition is not preceded by}0 a prototype">,
-  InGroup<DiagGroup<"strict-prototypes">>, DefaultIgnore;
+// This is not actually an extension, but we only want it to be enabled in
+// -pedantic mode and this is the most direct way of accomplishing that.
+def warn_strict_prototypes : Extension<
+  "a %select{function|block}0 declaration without a prototype is deprecated "
+  "%select{in all versions of C|}0">, InGroup<StrictPrototypes>;
+def warn_non_prototype_changes_behavior : Warning<
+  "a function declaration without a prototype is deprecated in all versions of "
+  "C and is not supported in C2x">, InGroup<DeprecatedNonPrototype>;
+def note_func_decl_changes_behavior : Note<
+  "a function declaration without a prototype is not supported in C2x">;
 def warn_missing_variable_declarations : Warning<
   "no previous extern declaration for non-static variable %0">,
   InGroup<DiagGroup<"missing-variable-declarations">>, DefaultIgnore;
@@ -6466,6 +6500,9 @@ def err_atomic_specifier_bad_type
             "%select{incomplete |array |function |reference |atomic |qualified "
             "|sizeless ||integer }0type "
             "%1 %select{|||||||which is not trivially copyable|}0">;
+def warn_atomic_member_access : Warning<
+  "accessing a member of an atomic structure or union is undefined behavior">,
+  InGroup<DiagGroup<"atomic-access">>, DefaultError;
 
 // Expressions.
 def ext_sizeof_alignof_function_type : Extension<
@@ -6504,9 +6541,9 @@ def warn_sub_ptr_zero_size_types : Warning<
 def warn_pointer_arith_null_ptr : Warning<
   "performing pointer arithmetic on a null pointer has undefined behavior%select{| if the offset is nonzero}0">,
   InGroup<NullPointerArithmetic>, DefaultIgnore;
-def warn_gnu_null_ptr_arith : Warning<
+def warn_gnu_null_ptr_arith : Extension<
   "arithmetic on a null pointer treated as a cast from integer to pointer is a GNU extension">,
-  InGroup<NullPointerArithmetic>, DefaultIgnore;
+  InGroup<GNUNullPointerArithmetic>;
 def warn_pointer_sub_null_ptr : Warning<
   "performing pointer subtraction with a null pointer %select{has|may have}0 undefined behavior">,
   InGroup<NullPointerSubtraction>, DefaultIgnore;
@@ -6518,6 +6555,10 @@ def err_unique_stable_id_global_storage
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,
   InGroup<DiagGroup<"float-equal">>, DefaultIgnore;
+
+def err_setting_eval_method_used_in_unsafe_context : Error <
+  "%select{'#pragma clang fp eval_method'|option 'ffp-eval-method'}0 cannot be used with "
+  "%select{option 'fapprox-func'|option 'mreassociate'|option 'freciprocal'|option 'ffp-eval-method'|'#pragma clang fp reassociate'}1">;
 
 def warn_remainder_division_by_zero : Warning<
   "%select{remainder|division}0 by zero is undefined">,
@@ -6597,6 +6638,15 @@ def warn_self_move : Warning<
   "explicitly moving variable of type %0 to itself">,
   InGroup<SelfMove>, DefaultIgnore;
 
+def err_builtin_move_forward_unsupported : Error<
+  "unsupported signature for %q0">;
+def err_use_of_unaddressable_function : Error<
+  "taking address of non-addressable standard library function">;
+// FIXME: This should also be in -Wc++23-compat once we have it.
+def warn_cxx20_compat_use_of_unaddressable_function : Warning<
+  "taking address of non-addressable standard library function "
+  "is incompatible with C++20">, InGroup<CXX20Compat>;
+
 def warn_redundant_move_on_return : Warning<
   "redundant move in return statement">,
   InGroup<RedundantMove>, DefaultIgnore;
@@ -6653,10 +6703,13 @@ def err_subscript_function_type : Error<
   "subscript of pointer to function type %0">;
 def err_subscript_incomplete_or_sizeless_type : Error<
   "subscript of pointer to %select{incomplete|sizeless}0 type %1">;
+def err_subscript_svbool_t : Error<
+  "subscript of svbool_t is not allowed">;
 def err_dereference_incomplete_type : Error<
   "dereference of pointer to incomplete type %0">;
 def ext_gnu_subscript_void_type : Extension<
-  "subscript of a pointer to void is a GNU extension">, InGroup<PointerArith>;
+  "subscript of a pointer to void is a GNU extension">,
+  InGroup<GNUPointerArith>;
 def err_typecheck_member_reference_struct_union : Error<
   "member reference base type %0 is not a structure or union">;
 def err_typecheck_member_reference_ivar : Error<
@@ -7182,11 +7235,11 @@ def err_duplicate_property : Error<
   "property has a previous declaration">;
 def ext_gnu_void_ptr : Extension<
   "arithmetic on%select{ a|}0 pointer%select{|s}0 to void is a GNU extension">,
-  InGroup<PointerArith>;
+  InGroup<GNUPointerArith>;
 def ext_gnu_ptr_func_arith : Extension<
   "arithmetic on%select{ a|}0 pointer%select{|s}0 to%select{ the|}2 function "
   "type%select{|s}2 %1%select{| and %3}2 is a GNU extension">,
-  InGroup<PointerArith>;
+  InGroup<GNUPointerArith>;
 def err_readonly_message_assignment : Error<
   "assigning to 'readonly' return result of an Objective-C message not allowed">;
 def ext_integer_increment_complex : Extension<
@@ -7882,8 +7935,8 @@ def err_invalid_declarator_scope : Error<"cannot define or redeclare %0 here "
 def err_export_non_namespace_scope_name : Error<
   "cannot export %0 as it is not at namespace scope">;
 def err_redeclaration_non_exported : Error <
-  "cannot export redeclaration %0 here since the previous declaration is not "
-  "exported">;
+  "cannot export redeclaration %0 here since the previous declaration "
+  "%select{is not exported|has internal linkage|has module linkage}1">;
 def err_invalid_declarator_global_scope : Error<
   "definition or redeclaration of %0 cannot name the global scope">;
 def err_invalid_declarator_in_function : Error<
@@ -8822,6 +8875,8 @@ let CategoryName = "Inline Assembly Issue" in {
     " in asm %select{input|output}1 with a memory constraint '%2'">;
   def err_asm_input_duplicate_match : Error<
     "more than one input constraint matches the same output '%0'">;
+  def err_store_value_to_reg : Error<
+    "impossible constraint in asm: can't store value into a register">;
 
   def warn_asm_label_on_auto_decl : Warning<
     "ignored asm label '%0' on automatic variable">;
@@ -10778,6 +10833,8 @@ def err_omp_expected_int_param : Error<
   "expected a reference to an integer-typed parameter">;
 def err_omp_at_least_one_motion_clause_required : Error<
   "expected at least one 'to' clause or 'from' clause specified to '#pragma omp target update'">;
+def err_omp_cannot_update_with_internal_linkage : Error<
+  "the host cannot update a declare target variable that is not externally visible.">;
 def err_omp_usedeviceptr_not_a_pointer : Error<
   "expected pointer or reference to pointer in 'use_device_ptr' clause">;
 def err_omp_argument_type_isdeviceptr : Error <
@@ -10962,7 +11019,7 @@ def note_omp_exits_structured_block
     : Note<"jump exits scope of OpenMP structured block">;
 def err_omp_lastprivate_loop_var_non_loop_iteration : Error<
   "only loop iteration variables are allowed in 'lastprivate' clause in "
-  "'omp loop' directives">;
+  "'omp %0' directives">;
 def err_omp_interop_variable_expected : Error<
   "expected%select{| non-const}0 variable of type 'omp_interop_t'">;
 def err_omp_interop_variable_wrong_type : Error<
@@ -11103,6 +11160,8 @@ def ext_export_no_name_block : ExtWarn<
 def ext_export_no_names : ExtWarn<
   "ISO C++20 does not permit a declaration that does not introduce any names "
   "to be exported">, InGroup<ExportUnnamed>;
+def introduces_no_names : Error<
+  "declaration does not introduce any names to be exported">;
 def note_export : Note<"export block begins here">;
 def err_export_no_name : Error<
   "%select{empty|static_assert|asm}0 declaration cannot be exported">;
@@ -11114,7 +11173,8 @@ def err_export_within_export : Error<
 def err_export_internal : Error<
   "declaration of %0 with internal linkage cannot be exported">;
 def err_export_using_internal : Error<
-  "using declaration referring to %0 with internal linkage cannot be exported">;
+  "using declaration referring to %1 with %select{internal|module|unknown}0 "
+  "linkage cannot be exported">;
 def err_export_not_in_module_interface : Error<
   "export declaration can only be used within a module interface unit"
   "%select{ after the module declaration|}0">;
@@ -11753,4 +11813,28 @@ def err_riscv_builtin_requires_extension : Error<
   "builtin requires at least one of the following extensions support to be enabled : %0">;
 def err_riscv_builtin_invalid_lmul : Error<
   "LMUL argument must be in the range [0,3] or [5,7]">;
+
+def err_std_source_location_impl_not_found : Error<
+  "'std::source_location::__impl' was not found; it must be defined before '__builtin_source_location' is called">;
+def err_std_source_location_impl_malformed : Error<
+  "'std::source_location::__impl' must be standard-layout and have only two 'const char *' fields '_M_file_name' and '_M_function_name', and two integral fields '_M_line' and '_M_column'">;
+
+// HLSL Diagnostics
+def err_hlsl_attr_unsupported_in_stage : Error<"attribute %0 is unsupported in %select{Pixel|Vertex|Geometry|Hull|Domain|Compute|Library|RayGeneration|Intersection|AnyHit|ClosestHit|Miss|Callable|Mesh|Amplification|Invalid}1 shaders, requires %2">;
+
+def err_hlsl_numthreads_argument_oor : Error<"argument '%select{X|Y|Z}0' to numthreads attribute cannot exceed %1">;
+def err_hlsl_numthreads_invalid : Error<"total number of threads cannot exceed %0">;
+def err_hlsl_attribute_param_mismatch : Error<"%0 attribute parameters do not match the previous declaration">;
+
+def err_hlsl_pointers_unsupported : Error<
+  "%select{pointers|references}0 are unsupported in HLSL">;
+
+def err_hlsl_operator_unsupported : Error<
+  "the '%select{&|*|->}0' operator is unsupported in HLSL">;
+
+// Layout randomization diagnostics.
+def err_non_designated_init_used : Error<
+  "a randomized struct can only be initialized with a designated initializer">;
+def err_cast_from_randomized_struct : Error<
+  "casting from randomized structure pointer type %0 to %1">;
 } // end of sema component.

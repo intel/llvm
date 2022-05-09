@@ -104,6 +104,19 @@ static Type *getPromotedType(Type *Ty) {
   return Ty;
 }
 
+/// Recognize a memcpy/memmove from a trivially otherwise unused alloca.
+/// TODO: This should probably be integrated with visitAllocSites, but that
+/// requires a deeper change to allow either unread or unwritten objects.
+static bool hasUndefSource(AnyMemTransferInst *MI) {
+  auto *Src = MI->getRawSource();
+  while (isa<GetElementPtrInst>(Src) || isa<BitCastInst>(Src)) {
+    if (!Src->hasOneUse())
+      return false;
+    Src = cast<Instruction>(Src)->getOperand(0);
+  }
+  return isa<AllocaInst>(Src) && Src->hasOneUse();
+}
+
 Instruction *InstCombinerImpl::SimplifyAnyMemTransfer(AnyMemTransferInst *MI) {
   Align DstAlign = getKnownAlignment(MI->getRawDest(), DL, MI, &AC, &DT);
   MaybeAlign CopyDstAlign = MI->getDestAlign();
@@ -123,6 +136,14 @@ Instruction *InstCombinerImpl::SimplifyAnyMemTransfer(AnyMemTransferInst *MI) {
   // that the store must be storing the constant value (else the memory
   // wouldn't be constant), and this must be a noop.
   if (AA->pointsToConstantMemory(MI->getDest())) {
+    // Set the size of the copy to 0, it will be deleted on the next iteration.
+    MI->setLength(Constant::getNullValue(MI->getLength()->getType()));
+    return MI;
+  }
+
+  // If the source is provably undef, the memcpy/memmove doesn't do anything
+  // (unless the transfer is volatile).
+  if (hasUndefSource(MI) && !MI->isVolatile()) {
     // Set the size of the copy to 0, it will be deleted on the next iteration.
     MI->setLength(Constant::getNullValue(MI->getLength()->getType()));
     return MI;
@@ -791,6 +812,10 @@ static Optional<bool> getKnownSign(Value *Op, Instruction *CxtI,
   if (Known.isNegative())
     return true;
 
+  Value *X, *Y;
+  if (match(Op, m_NSWSub(m_Value(X), m_Value(Y))))
+    return isImpliedByDomCondition(ICmpInst::ICMP_SLT, X, Y, CxtI, DL);
+
   return isImpliedByDomCondition(
       ICmpInst::ICMP_SLT, Op, Constant::getNullValue(Op->getType()), CxtI, DL);
 }
@@ -1163,7 +1188,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   Intrinsic::ID IID = II->getIntrinsicID();
   switch (IID) {
   case Intrinsic::objectsize:
-    if (Value *V = lowerObjectSizeCall(II, DL, &TLI, /*MustSucceed=*/false))
+    if (Value *V = lowerObjectSizeCall(II, DL, &TLI, AA, /*MustSucceed=*/false))
       return replaceInstUsesWith(CI, V);
     return nullptr;
   case Intrinsic::abs: {
@@ -1348,6 +1373,24 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   case Intrinsic::bswap: {
     Value *IIOperand = II->getArgOperand(0);
     Value *X = nullptr;
+
+    // Try to canonicalize bswap-of-logical-shift-by-8-bit-multiple as
+    // inverse-shift-of-bswap:
+    // bswap (shl X, C) --> lshr (bswap X), C
+    // bswap (lshr X, C) --> shl (bswap X), C
+    // TODO: Use knownbits to allow variable shift and non-splat vector match.
+    BinaryOperator *BO;
+    if (match(IIOperand, m_OneUse(m_BinOp(BO)))) {
+      const APInt *C;
+      if (match(BO, m_LogicalShift(m_Value(X), m_APIntAllowUndef(C))) &&
+          (*C & 7) == 0) {
+        Value *NewSwap = Builder.CreateUnaryIntrinsic(Intrinsic::bswap, X);
+        BinaryOperator::BinaryOps InverseShift =
+            BO->getOpcode() == Instruction::Shl ? Instruction::LShr
+                                                : Instruction::Shl;
+        return BinaryOperator::Create(InverseShift, NewSwap, BO->getOperand(1));
+      }
+    }
 
     KnownBits Known = computeKnownBits(IIOperand, 0, II);
     uint64_t LZ = alignDown(Known.countMinLeadingZeros(), 8);
@@ -2764,47 +2807,56 @@ static IntrinsicInst *findInitTrampoline(Value *Callee) {
   return nullptr;
 }
 
-void InstCombinerImpl::annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI) {
+bool InstCombinerImpl::annotateAnyAllocSite(CallBase &Call,
+                                            const TargetLibraryInfo *TLI) {
   // Note: We only handle cases which can't be driven from generic attributes
   // here.  So, for example, nonnull and noalias (which are common properties
   // of some allocation functions) are expected to be handled via annotation
   // of the respective allocator declaration with generic attributes.
+  bool Changed = false;
 
-  uint64_t Size;
-  ObjectSizeOpts Opts;
-  if (getObjectSize(&Call, Size, DL, TLI, Opts) && Size > 0) {
-    // TODO: We really should just emit deref_or_null here and then
-    // let the generic inference code combine that with nonnull.
-    if (Call.hasRetAttr(Attribute::NonNull))
-      Call.addRetAttr(Attribute::getWithDereferenceableBytes(
-          Call.getContext(), Size));
-    else
-      Call.addRetAttr(Attribute::getWithDereferenceableOrNullBytes(
-          Call.getContext(), Size));
+  if (isAllocationFn(&Call, TLI)) {
+    uint64_t Size;
+    ObjectSizeOpts Opts;
+    if (getObjectSize(&Call, Size, DL, TLI, Opts) && Size > 0) {
+      // TODO: We really should just emit deref_or_null here and then
+      // let the generic inference code combine that with nonnull.
+      if (Call.hasRetAttr(Attribute::NonNull)) {
+        Changed = !Call.hasRetAttr(Attribute::Dereferenceable);
+        Call.addRetAttr(
+            Attribute::getWithDereferenceableBytes(Call.getContext(), Size));
+      } else {
+        Changed = !Call.hasRetAttr(Attribute::DereferenceableOrNull);
+        Call.addRetAttr(Attribute::getWithDereferenceableOrNullBytes(
+            Call.getContext(), Size));
+      }
+    }
   }
 
   // Add alignment attribute if alignment is a power of two constant.
   Value *Alignment = getAllocAlignment(&Call, TLI);
   if (!Alignment)
-    return;
+    return Changed;
 
   ConstantInt *AlignOpC = dyn_cast<ConstantInt>(Alignment);
   if (AlignOpC && AlignOpC->getValue().ult(llvm::Value::MaximumAlignment)) {
     uint64_t AlignmentVal = AlignOpC->getZExtValue();
     if (llvm::isPowerOf2_64(AlignmentVal)) {
-      Call.removeRetAttr(Attribute::Alignment);
-      Call.addRetAttr(Attribute::getWithAlignment(Call.getContext(),
-                                                  Align(AlignmentVal)));
+      Align ExistingAlign = Call.getRetAlign().valueOrOne();
+      Align NewAlign = Align(AlignmentVal);
+      if (NewAlign > ExistingAlign) {
+        Call.addRetAttr(
+            Attribute::getWithAlignment(Call.getContext(), NewAlign));
+        Changed = true;
+      }
     }
   }
+  return Changed;
 }
 
 /// Improvements for call, callbr and invoke instructions.
 Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
-  if (isAllocationFn(&Call, &TLI))
-    annotateAnyAllocSite(Call, &TLI);
-
-  bool Changed = false;
+  bool Changed = annotateAnyAllocSite(Call, &TLI);
 
   // Mark any parameters that are known to be non-null with the nonnull
   // attribute.  This is helpful for inlining calls to functions with null
@@ -3155,12 +3207,15 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     if (!CastInst::isBitOrNoopPointerCastable(ActTy, ParamTy, DL))
       return false;   // Cannot transform this parameter value.
 
+    // Check if there are any incompatible attributes we cannot drop safely.
     if (AttrBuilder(FT->getContext(), CallerPAL.getParamAttrs(i))
-            .overlaps(AttributeFuncs::typeIncompatible(ParamTy)))
+            .overlaps(AttributeFuncs::typeIncompatible(
+                ParamTy, AttributeFuncs::ASK_UNSAFE_TO_DROP)))
       return false;   // Attribute not compatible with transformed value.
 
-    if (Call.isInAllocaArgument(i))
-      return false;   // Cannot transform to and from inalloca.
+    if (Call.isInAllocaArgument(i) ||
+        CallerPAL.hasParamAttr(i, Attribute::Preallocated))
+      return false; // Cannot transform to and from inalloca/preallocated.
 
     if (CallerPAL.hasParamAttr(i, Attribute::SwiftError))
       return false;
@@ -3238,14 +3293,20 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
       NewArg = Builder.CreateBitOrPointerCast(*AI, ParamTy);
     Args.push_back(NewArg);
 
-    // Add any parameter attributes.
+    // Add any parameter attributes except the ones incompatible with the new
+    // type. Note that we made sure all incompatible ones are safe to drop.
+    AttributeMask IncompatibleAttrs = AttributeFuncs::typeIncompatible(
+        ParamTy, AttributeFuncs::ASK_SAFE_TO_DROP);
     if (CallerPAL.hasParamAttr(i, Attribute::ByVal) &&
         !ParamTy->isOpaquePointerTy()) {
-      AttrBuilder AB(FT->getContext(), CallerPAL.getParamAttrs(i));
+      AttrBuilder AB(Ctx, CallerPAL.getParamAttrs(i).removeAttributes(
+                              Ctx, IncompatibleAttrs));
       AB.addByValAttr(ParamTy->getNonOpaquePointerElementType());
       ArgAttrs.push_back(AttributeSet::get(Ctx, AB));
-    } else
-      ArgAttrs.push_back(CallerPAL.getParamAttrs(i));
+    } else {
+      ArgAttrs.push_back(
+          CallerPAL.getParamAttrs(i).removeAttributes(Ctx, IncompatibleAttrs));
+    }
   }
 
   // If the function takes more arguments than the call was taking, add them

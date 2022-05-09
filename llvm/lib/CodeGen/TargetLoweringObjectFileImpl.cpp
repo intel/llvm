@@ -446,9 +446,11 @@ static SectionKind getELFKindForNamedSection(StringRef Name, SectionKind K) {
                                       /*AddSegmentInfo=*/false) ||
       Name == getInstrProfSectionName(IPSK_covfun, Triple::ELF,
                                       /*AddSegmentInfo=*/false) ||
-      Name == ".llvmbc" || Name == ".llvmcmd" ||
-      Name.startswith(".llvm.offloading."))
+      Name == ".llvmbc" || Name == ".llvmcmd")
     return SectionKind::getMetadata();
+
+  if (Name.startswith(".llvm.offloading"))
+    return SectionKind::getExclude();
 
   if (Name.empty() || Name[0] != '.') return K;
 
@@ -508,8 +510,11 @@ static unsigned getELFSectionType(StringRef Name, SectionKind K) {
 static unsigned getELFSectionFlags(SectionKind K) {
   unsigned Flags = 0;
 
-  if (!K.isMetadata())
+  if (!K.isMetadata() && !K.isExclude())
     Flags |= ELF::SHF_ALLOC;
+
+  if (K.isExclude())
+    Flags |= ELF::SHF_EXCLUDE;
 
   if (K.isText())
     Flags |= ELF::SHF_EXECINSTR;
@@ -1176,6 +1181,15 @@ void TargetLoweringObjectFileMachO::Initialize(MCContext &Ctx,
       dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
 }
 
+MCSection *TargetLoweringObjectFileMachO::getStaticDtorSection(
+    unsigned Priority, const MCSymbol *KeySym) const {
+  // TODO(yln): Remove -lower-global-dtors-via-cxa-atexit fallback flag
+  // (LowerGlobalDtorsViaCxaAtExit) and always issue a fatal error here.
+  if (TM->Options.LowerGlobalDtorsViaCxaAtExit)
+    report_fatal_error("@llvm.global_dtors should have been lowered already");
+  return StaticDtorSection;
+}
+
 void TargetLoweringObjectFileMachO::emitModuleMetadata(MCStreamer &Streamer,
                                                        Module &M) const {
   // Emit the linker options if present.
@@ -1525,6 +1539,9 @@ getCOFFSectionFlags(SectionKind K, const TargetMachine &TM) {
   if (K.isMetadata())
     Flags |=
       COFF::IMAGE_SCN_MEM_DISCARDABLE;
+  else if (K.isExclude())
+    Flags |=
+      COFF::IMAGE_SCN_LNK_REMOVE | COFF::IMAGE_SCN_MEM_DISCARDABLE;
   else if (K.isText())
     Flags |=
       COFF::IMAGE_SCN_MEM_EXECUTE |
@@ -2175,8 +2192,7 @@ MCSection *TargetLoweringObjectFileWasm::getStaticCtorSection(
 
 MCSection *TargetLoweringObjectFileWasm::getStaticDtorSection(
     unsigned Priority, const MCSymbol *KeySym) const {
-  llvm_unreachable("@llvm.global_dtors should have been lowered already");
-  return nullptr;
+  report_fatal_error("@llvm.global_dtors should have been lowered already");
 }
 
 //===----------------------------------------------------------------------===//

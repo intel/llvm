@@ -1,5 +1,5 @@
 // RUN: mlir-opt %s -test-linalg-codegen-strategy="anchor-op=linalg.matvec pad hoist-paddings=1,1,0 run-enable-pass=false" -cse -canonicalize -split-input-file | FileCheck %s --check-prefix=MATVEC
-// RUN: mlir-opt %s -test-linalg-codegen-strategy="anchor-op=linalg.matvec pad hoist-paddings=1,1,0 transpose-paddings=1:0,0,0 run-enable-pass=false" -cse -canonicalize -split-input-file | FileCheck %s --check-prefix=TRANSP
+// RUN: mlir-opt %s -test-linalg-codegen-strategy="anchor-op=linalg.matvec pad hoist-paddings=1,1,0 transpose-paddings=[1,0],[0],[0] run-enable-pass=false" -cse -canonicalize -split-input-file | FileCheck %s --check-prefix=TRANSP
 // RUN: mlir-opt %s -test-linalg-codegen-strategy="anchor-op=linalg.matmul pad hoist-paddings=1,2,1 run-enable-pass=false" -cse -canonicalize -split-input-file | FileCheck %s --check-prefix=MATMUL
 
 //  MATVEC-DAG: #[[DIV4:[0-9a-z]+]] = affine_map<(d0) -> (d0 ceildiv 4)>
@@ -45,7 +45,7 @@ func @static_size_divisible(%arg0: tensor<24x12xf32>,
 
 // -----
 
-// MATVEC-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0) -> (5, -d0 + 12)>
+// MATVEC-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0) -> (-d0 + 12, 5)>
 // MATVEC-DAG: #[[MAP1:[0-9a-z]+]] = affine_map<(d0) -> (-d0 + 5)>
 // MATVEC-DAG: #[[DIV5:[0-9a-z]+]] = affine_map<(d0) -> (d0 ceildiv 5)>
 #map0 = affine_map<(d0) -> (5, -d0 + 12)>
@@ -102,7 +102,7 @@ func @static_size_not_divisible(%arg0: tensor<24x12xf32>,
 
 // MATVEC-DAG: #[[SDIV4:[0-9a-z]+]] = affine_map<()[s0] -> (s0 ceildiv 4)>
 // MATVEC-DAG: #[[DDIV4:[0-9a-z]+]] = affine_map<(d0) -> (d0 ceildiv 4)>
-// MATVEC-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0)[s0] -> (4, -d0 + s0)>
+// MATVEC-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0)[s0] -> (-d0 + s0, 4)>
 // MATVEC-DAG: #[[MAP1:[0-9a-z]+]] = affine_map<(d0) -> (-d0 + 4)>
 #map0 = affine_map<(d0)[s0] -> (4, -d0 + s0)>
 #map1 = affine_map<(d0) -> (-d0 + 4)>
@@ -343,7 +343,7 @@ func @index_result_loop(%arg0: tensor<24x12xf32>,
 
 // -----
 
-#map0 = affine_map<(d0) -> (5, -d0 + 12)>
+#map0 = affine_map<(d0) -> (-d0 + 12, 5)>
 #map1 = affine_map<(d0) -> (-d0 + 5)>
 
 //      MATMUL:  tile_and_fuse
@@ -425,7 +425,7 @@ func @tile_and_fuse(%arg0: tensor<12x6xf32>,
 
 // -----
 
-#map0 = affine_map<(d0)[s0] -> (4, -d0 + s0)>
+#map0 = affine_map<(d0)[s0] -> (-d0 + s0, 4)>
 #map1 = affine_map<(d0) -> (-d0 + 4)>
 
 //      TRANSP:  transpose

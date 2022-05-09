@@ -214,15 +214,15 @@ struct FuncOpLowering : public OpConversionPattern<toy::FuncOp> {
       return failure();
 
     // Verify that the given main has no inputs and results.
-    if (op.getNumArguments() || op.getType().getNumResults()) {
+    if (op.getNumArguments() || op.getFunctionType().getNumResults()) {
       return rewriter.notifyMatchFailure(op, [](Diagnostic &diag) {
         diag << "expected 'main' to have 0 inputs and 0 results";
       });
     }
 
     // Create a new non-toy function, with the same region.
-    auto func =
-        rewriter.create<mlir::FuncOp>(op.getLoc(), op.getName(), op.getType());
+    auto func = rewriter.create<mlir::func::FuncOp>(op.getLoc(), op.getName(),
+                                                    op.getFunctionType());
     rewriter.inlineRegionBefore(op.getRegion(), func.getBody(), func.end());
     rewriter.eraseOp(op);
     return success();
@@ -310,6 +310,8 @@ struct TransposeOpLowering : public ConversionPattern {
 namespace {
 struct ToyToAffineLoweringPass
     : public PassWrapper<ToyToAffineLoweringPass, OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ToyToAffineLoweringPass)
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<AffineDialect, func::FuncDialect, memref::MemRefDialect>();
   }

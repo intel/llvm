@@ -16,11 +16,11 @@
 // respective callers.
 //
 // After analyzing a FuncOp, additional information about its bbArgs is
-// gathered through PostAnalysisStepFns and stored in
-// `ModuleAnalysisState`.
+// gathered through PostAnalysisStepFns and stored in `FuncAnalysisState`.
 //
-// * `equivalentFuncOpBBArgsAnalysis` determines the equivalent bbArg for each
-//   tensor return value (if any).
+// * `aliasingFuncOpBBArgsAnalysis` determines the equivalent/aliasing bbArgs
+// for
+//   each tensor return value (if any).
 // * `funcOpBbArgReadWriteAnalysis` determines whether or not a tensor bbArg is
 //   read/written.
 //
@@ -86,57 +86,98 @@ using namespace tensor;
 using namespace comprehensive_bufferize;
 using namespace mlir::bufferization;
 
+/// A mapping of FuncOps to their callers.
+using FuncCallerMap = DenseMap<func::FuncOp, DenseSet<Operation *>>;
+
 namespace {
 /// The state of analysis of a FuncOp.
 enum class FuncOpAnalysisState { NotAnalyzed, InProgress, Analyzed };
 
 /// Extra analysis state that is required for bufferization of function
 /// boundaries.
-struct ModuleAnalysisState : public DialectAnalysisState {
+struct FuncAnalysisState : public DialectAnalysisState {
+  // Note: Function arguments and/or function return values may disappear during
+  // bufferization. Functions and their CallOps are analyzed and bufferized
+  // separately. To ensure that a CallOp analysis/bufferization can access an
+  // already bufferized function's analysis results, we store bbArg/return value
+  // indices instead of BlockArguments/OpOperand pointers.
+
+  /// A set of block argument indices.
+  using BbArgIndexSet = DenseSet<int64_t>;
+
+  /// A mapping of indices to indices.
+  using IndexMapping = DenseMap<int64_t, int64_t>;
+
+  /// A mapping of indices to a list of indices.
+  using IndexToIndexListMapping = DenseMap<int64_t, SmallVector<int64_t>>;
+
   /// A mapping of ReturnOp OpOperand indices to equivalent FuncOp BBArg
   /// indices.
-  DenseMap<FuncOp, DenseMap<int64_t, int64_t>> equivalentFuncArgs;
+  DenseMap<func::FuncOp, IndexMapping> equivalentFuncArgs;
+
+  /// A mapping of ReturnOp OpOperand indices to aliasing FuncOp BBArg indices.
+  DenseMap<func::FuncOp, IndexToIndexListMapping> aliasingFuncArgs;
+
+  /// A mapping of FuncOp BBArg indices to aliasing ReturnOp OpOperand indices.
+  DenseMap<func::FuncOp, IndexToIndexListMapping> aliasingReturnVals;
 
   /// A set of all read BlockArguments of FuncOps.
-  // Note: BlockArgument knows about its owner, so we do not need to store
-  // FuncOps here.
-  DenseSet<BlockArgument> readBbArgs;
+  DenseMap<func::FuncOp, BbArgIndexSet> readBbArgs;
 
   /// A set of all written-to BlockArguments of FuncOps.
-  DenseSet<BlockArgument> writtenBbArgs;
+  DenseMap<func::FuncOp, BbArgIndexSet> writtenBbArgs;
 
   /// Keep track of which FuncOps are fully analyzed or currently being
   /// analyzed.
-  DenseMap<FuncOp, FuncOpAnalysisState> analyzedFuncOps;
+  DenseMap<func::FuncOp, FuncOpAnalysisState> analyzedFuncOps;
 
-  // A list of functions in the order in which they are analyzed + bufferized.
-  SmallVector<FuncOp> orderedFuncOps;
-
-  // A mapping of FuncOps to their callers.
-  DenseMap<FuncOp, DenseSet<Operation *>> callerMap;
+  /// This function is called right before analyzing the given FuncOp. It
+  /// initializes the data structures for the FuncOp in this state object.
+  void startFunctionAnalysis(func::FuncOp funcOp) {
+    analyzedFuncOps[funcOp] = FuncOpAnalysisState::InProgress;
+    auto createdEquiv = equivalentFuncArgs.try_emplace(funcOp, IndexMapping());
+    auto createdAliasingOperands =
+        aliasingFuncArgs.try_emplace(funcOp, IndexToIndexListMapping());
+    auto createdAliasingResults =
+        aliasingReturnVals.try_emplace(funcOp, IndexToIndexListMapping());
+    auto createdRead = readBbArgs.try_emplace(funcOp, BbArgIndexSet());
+    auto createdWritten = writtenBbArgs.try_emplace(funcOp, BbArgIndexSet());
+    (void)createdEquiv;
+    (void)createdAliasingOperands;
+    (void)createdAliasingResults;
+    (void)createdRead;
+    (void)createdWritten;
+#ifndef NDEBUG
+    assert(createdEquiv.second && "equivalence info exists already");
+    assert(createdAliasingOperands.second && "aliasing info exists already");
+    assert(createdAliasingResults.second && "aliasing info exists already");
+    assert(createdRead.second && "bbarg access info exists already");
+    assert(createdWritten.second && "bbarg access info exists already");
+#endif // NDEBUG
+  }
 };
 } // namespace
 
-/// Get ModuleAnalysisState.
-static const ModuleAnalysisState &
-getModuleAnalysisState(const AnalysisState &state) {
-  Optional<const ModuleAnalysisState *> maybeState =
-      state.getDialectState<ModuleAnalysisState>(
+/// Get FuncAnalysisState.
+static const FuncAnalysisState &
+getFuncAnalysisState(const AnalysisState &state) {
+  Optional<const FuncAnalysisState *> maybeState =
+      state.getDialectState<FuncAnalysisState>(
           func::FuncDialect::getDialectNamespace());
-  assert(maybeState.hasValue() && "ModuleAnalysisState does not exist");
+  assert(maybeState.hasValue() && "FuncAnalysisState does not exist");
   return **maybeState;
 }
 
-/// Get or create ModuleAnalysisState.
-static ModuleAnalysisState &getModuleAnalysisState(AnalysisState &state) {
-  return state.getOrCreateDialectState<ModuleAnalysisState>(
+/// Get or create FuncAnalysisState.
+static FuncAnalysisState &getFuncAnalysisState(AnalysisState &state) {
+  return state.getOrCreateDialectState<FuncAnalysisState>(
       func::FuncDialect::getDialectNamespace());
 }
 
 /// Return the state (phase) of analysis of the FuncOp.
 static FuncOpAnalysisState getFuncOpAnalysisState(const AnalysisState &state,
-                                                  FuncOp funcOp) {
-  const ModuleAnalysisState &moduleState = getModuleAnalysisState(state);
+                                                  func::FuncOp funcOp) {
+  const FuncAnalysisState &moduleState = getFuncAnalysisState(state);
   auto it = moduleState.analyzedFuncOps.find(funcOp);
   if (it == moduleState.analyzedFuncOps.end())
     return FuncOpAnalysisState::NotAnalyzed;
@@ -145,7 +186,7 @@ static FuncOpAnalysisState getFuncOpAnalysisState(const AnalysisState &state,
 
 /// Return the unique ReturnOp that terminates `funcOp`.
 /// Return nullptr if there is no such unique ReturnOp.
-static func::ReturnOp getAssumedUniqueReturnOp(FuncOp funcOp) {
+static func::ReturnOp getAssumedUniqueReturnOp(func::FuncOp funcOp) {
   func::ReturnOp returnOp;
   for (Block &b : funcOp.getBody()) {
     if (auto candidateOp = dyn_cast<func::ReturnOp>(b.getTerminator())) {
@@ -180,30 +221,35 @@ static void annotateEquivalentReturnBbArg(OpOperand &returnVal,
   op->setAttr(kEquivalentArgsAttr, b.getI64ArrayAttr(equivBbArgs));
 }
 
-/// Store function BlockArguments that are equivalent to a returned value in
-/// ModuleAnalysisState.
+/// Store function BlockArguments that are equivalent to/aliasing a returned
+/// value in FuncAnalysisState.
 static LogicalResult
-equivalentFuncOpBBArgsAnalysis(Operation *op, AnalysisState &state,
-                               BufferizationAliasInfo &aliasInfo,
-                               SmallVector<Operation *> &newOps) {
-  ModuleAnalysisState &moduleState = getModuleAnalysisState(state);
+aliasingFuncOpBBArgsAnalysis(Operation *op, AnalysisState &state,
+                             BufferizationAliasInfo &aliasInfo,
+                             SmallVector<Operation *> &newOps) {
+  FuncAnalysisState &funcState = getFuncAnalysisState(state);
 
   // Support only single return-terminated block in the function.
-  auto funcOp = cast<FuncOp>(op);
+  auto funcOp = cast<func::FuncOp>(op);
   func::ReturnOp returnOp = getAssumedUniqueReturnOp(funcOp);
   assert(returnOp && "expected func with single return op");
 
   for (OpOperand &returnVal : returnOp->getOpOperands())
     if (returnVal.get().getType().isa<RankedTensorType>())
       for (BlockArgument bbArg : funcOp.getArguments())
-        if (bbArg.getType().isa<RankedTensorType>())
+        if (bbArg.getType().isa<RankedTensorType>()) {
+          int64_t returnIdx = returnVal.getOperandNumber();
+          int64_t bbArgIdx = bbArg.getArgNumber();
           if (aliasInfo.areEquivalentBufferizedValues(returnVal.get(), bbArg)) {
-            moduleState
-                .equivalentFuncArgs[funcOp][returnVal.getOperandNumber()] =
-                bbArg.getArgNumber();
+            funcState.equivalentFuncArgs[funcOp][returnIdx] = bbArgIdx;
             if (state.getOptions().testAnalysisOnly)
               annotateEquivalentReturnBbArg(returnVal, bbArg);
           }
+          if (aliasInfo.areAliasingBufferizedValues(returnVal.get(), bbArg)) {
+            funcState.aliasingFuncArgs[funcOp][returnIdx].push_back(bbArgIdx);
+            funcState.aliasingReturnVals[funcOp][bbArgIdx].push_back(returnIdx);
+          }
+        }
 
   return success();
 }
@@ -215,13 +261,13 @@ static bool isValueWritten(Value value, const AnalysisState &state,
                            const BufferizationAliasInfo &aliasInfo) {
 #ifndef NDEBUG
   assert(value.getType().isa<TensorType>() && "expected TensorType");
-  FuncOp funcOp;
+  func::FuncOp funcOp;
   if (auto bbArg = value.dyn_cast<BlockArgument>()) {
     Operation *owner = bbArg.getOwner()->getParentOp();
-    funcOp = isa<FuncOp>(owner) ? cast<FuncOp>(owner)
-                                : owner->getParentOfType<FuncOp>();
+    funcOp = isa<func::FuncOp>(owner) ? cast<func::FuncOp>(owner)
+                                      : owner->getParentOfType<func::FuncOp>();
   } else {
-    funcOp = value.getDefiningOp()->getParentOfType<FuncOp>();
+    funcOp = value.getDefiningOp()->getParentOfType<func::FuncOp>();
   }
   assert(getFuncOpAnalysisState(state, funcOp) !=
              FuncOpAnalysisState::NotAnalyzed &&
@@ -237,7 +283,7 @@ static bool isValueWritten(Value value, const AnalysisState &state,
   return isWritten;
 }
 
-static void annotateFuncArgAccess(FuncOp funcOp, BlockArgument bbArg,
+static void annotateFuncArgAccess(func::FuncOp funcOp, BlockArgument bbArg,
                                   bool isRead, bool isWritten) {
   OpBuilder b(funcOp.getContext());
   Attribute accessType;
@@ -260,15 +306,15 @@ static LogicalResult
 funcOpBbArgReadWriteAnalysis(Operation *op, AnalysisState &state,
                              BufferizationAliasInfo &aliasInfo,
                              SmallVector<Operation *> &newOps) {
-  ModuleAnalysisState &moduleState = getModuleAnalysisState(state);
-  auto funcOp = cast<FuncOp>(op);
+  FuncAnalysisState &funcState = getFuncAnalysisState(state);
+  auto funcOp = cast<func::FuncOp>(op);
 
   // If the function has no body, conservatively assume that all args are
   // read + written.
   if (funcOp.getBody().empty()) {
     for (BlockArgument bbArg : funcOp.getArguments()) {
-      moduleState.readBbArgs.insert(bbArg);
-      moduleState.writtenBbArgs.insert(bbArg);
+      funcState.readBbArgs[funcOp].insert(bbArg.getArgNumber());
+      funcState.writtenBbArgs[funcOp].insert(bbArg.getArgNumber());
     }
 
     return success();
@@ -282,9 +328,9 @@ funcOpBbArgReadWriteAnalysis(Operation *op, AnalysisState &state,
     if (state.getOptions().testAnalysisOnly)
       annotateFuncArgAccess(funcOp, bbArg, isRead, isWritten);
     if (isRead)
-      moduleState.readBbArgs.insert(bbArg);
+      funcState.readBbArgs[funcOp].insert(bbArg.getArgNumber());
     if (isWritten)
-      moduleState.writtenBbArgs.insert(bbArg);
+      funcState.writtenBbArgs[funcOp].insert(bbArg.getArgNumber());
   }
 
   return success();
@@ -301,22 +347,22 @@ static Value getNonCastedValue(Value value) {
   return value;
 }
 
-/// Remove the attribute that triggers inplace bufferization on a FuncOp
+/// Remove the attribute that triggers inplace bufferization on a func::FuncOp
 /// argument `bbArg`.
 static void removeBufferizationFuncArguments(BlockArgument bbArg) {
-  auto funcOp = cast<FuncOp>(bbArg.getOwner()->getParentOp());
+  auto funcOp = cast<func::FuncOp>(bbArg.getOwner()->getParentOp());
   funcOp.removeArgAttr(bbArg.getArgNumber(),
                        BufferizableOpInterface::kBufferLayoutAttrName);
   funcOp.removeArgAttr(bbArg.getArgNumber(),
                        BufferizableOpInterface::kInplaceableAttrName);
 }
 
-/// Return the FuncOp called by `callOp`.
-static FuncOp getCalledFunction(CallOpInterface callOp) {
+/// Return the func::FuncOp called by `callOp`.
+static func::FuncOp getCalledFunction(CallOpInterface callOp) {
   SymbolRefAttr sym = callOp.getCallableForCallee().dyn_cast<SymbolRefAttr>();
   if (!sym)
     return nullptr;
-  return dyn_cast_or_null<FuncOp>(
+  return dyn_cast_or_null<func::FuncOp>(
       SymbolTable::lookupNearestSymbolFrom(callOp, sym));
 }
 
@@ -343,20 +389,21 @@ getBufferizedFunctionType(MLIRContext *ctx, TypeRange argumentTypes,
 }
 
 /// Gather equivalence info of CallOps.
-/// Note: This only adds new equivalence info if `funcOp` was already analyzed.
+/// Note: This only adds new equivalence info if the called function was already
+/// analyzed.
 // TODO: This does not handle cyclic function call graphs etc.
-static void equivalenceAnalysis(FuncOp funcOp,
+static void equivalenceAnalysis(func::FuncOp funcOp,
                                 BufferizationAliasInfo &aliasInfo,
-                                ModuleAnalysisState &moduleState) {
+                                FuncAnalysisState &funcState) {
   funcOp->walk([&](func::CallOp callOp) {
-    FuncOp calledFunction = getCalledFunction(callOp);
-    assert(calledFunction && "could not retrieved called FuncOp");
+    func::FuncOp calledFunction = getCalledFunction(callOp);
+    assert(calledFunction && "could not retrieved called func::FuncOp");
 
     // No equivalence info available for the called function.
-    if (!moduleState.equivalentFuncArgs.count(calledFunction))
+    if (!funcState.equivalentFuncArgs.count(calledFunction))
       return WalkResult::skip();
 
-    for (auto it : moduleState.equivalentFuncArgs[calledFunction]) {
+    for (auto it : funcState.equivalentFuncArgs[calledFunction]) {
       int64_t returnIdx = it.first;
       int64_t bbargIdx = it.second;
       Value returnVal = callOp.getResult(returnIdx);
@@ -382,15 +429,15 @@ static void equivalenceAnalysis(FuncOp funcOp,
 /// Note: Returning a memref currently fails bufferization. If such memrefs
 /// originate from an op with an Alloc effect, they could be hoisted in the
 /// future.
-static LogicalResult bufferizeFuncOpBoundary(FuncOp funcOp,
+static LogicalResult bufferizeFuncOpBoundary(func::FuncOp funcOp,
                                              RewriterBase &rewriter,
                                              BufferizationState &state) {
-  const ModuleAnalysisState &moduleState =
-      getModuleAnalysisState(state.getAnalysisState());
+  const FuncAnalysisState &funcState =
+      getFuncAnalysisState(state.getAnalysisState());
 
   // If nothing to do then we are done.
-  if (!llvm::any_of(funcOp.getType().getInputs(), isaTensor) &&
-      !llvm::any_of(funcOp.getType().getResults(), isaTensor))
+  if (!llvm::any_of(funcOp.getFunctionType().getInputs(), isaTensor) &&
+      !llvm::any_of(funcOp.getFunctionType().getResults(), isaTensor))
     return success();
 
   // Get the bufferized FunctionType for funcOp or construct it if not yet
@@ -412,12 +459,12 @@ static LogicalResult bufferizeFuncOpBoundary(FuncOp funcOp,
   // bufferization contract they want to enforce atm.
   // As a consequence, only support functions that don't return any tensor atm.
   if (funcOp.getBody().empty()) {
-    if (llvm::any_of(funcOp.getType().getResults(), isaTensor))
+    if (llvm::any_of(funcOp.getFunctionType().getResults(), isaTensor))
       return funcOp->emitError() << "cannot bufferize bodiless function that "
                                  << "returns a tensor";
     FunctionType bufferizedFuncType = getBufferizedFunctionType(
-        funcOp.getContext(), funcOp.getType().getInputs(), TypeRange{},
-        state.getOptions());
+        funcOp.getContext(), funcOp.getFunctionType().getInputs(),
+        funcOp.getFunctionType().getResults(), state.getOptions());
     funcOp.setType(bufferizedFuncType);
     return success();
   }
@@ -438,8 +485,8 @@ static LogicalResult bufferizeFuncOpBoundary(FuncOp funcOp,
     }
 
     // If return operand is equivalent to some bbArg, no need to return it.
-    auto funcOpIt = moduleState.equivalentFuncArgs.find(funcOp);
-    if (funcOpIt != moduleState.equivalentFuncArgs.end() &&
+    auto funcOpIt = funcState.equivalentFuncArgs.find(funcOp);
+    if (funcOpIt != funcState.equivalentFuncArgs.end() &&
         funcOpIt->second.count(returnOperand.getOperandNumber()))
       continue;
 
@@ -451,8 +498,8 @@ static LogicalResult bufferizeFuncOpBoundary(FuncOp funcOp,
   // 2. Rewrite the terminator without the inPlace bufferizable values.
   ValueRange retValues{returnValues};
   FunctionType bufferizedFuncType = getBufferizedFunctionType(
-      funcOp.getContext(), funcOp.getType().getInputs(), retValues.getTypes(),
-      state.getOptions());
+      funcOp.getContext(), funcOp.getFunctionType().getInputs(),
+      retValues.getTypes(), state.getOptions());
   OpBuilder b(returnOp);
   b.create<func::ReturnOp>(returnOp.getLoc(), returnValues);
   returnOp->erase();
@@ -519,14 +566,14 @@ static LogicalResult bufferizeFuncOpBoundary(FuncOp funcOp,
 /// retrieve the called FuncOp from any CallOpInterface.
 static LogicalResult
 getFuncOpsOrderedByCalls(ModuleOp moduleOp,
-                         SmallVectorImpl<FuncOp> &orderedFuncOps,
-                         DenseMap<FuncOp, DenseSet<Operation *>> &callerMap) {
+                         SmallVectorImpl<func::FuncOp> &orderedFuncOps,
+                         FuncCallerMap &callerMap) {
   // For each FuncOp, the set of functions called by it (i.e. the union of
   // symbols of all nested CallOpInterfaceOp).
-  DenseMap<FuncOp, DenseSet<FuncOp>> calledBy;
+  DenseMap<func::FuncOp, DenseSet<func::FuncOp>> calledBy;
   // For each FuncOp, the number of CallOpInterface it contains.
-  DenseMap<FuncOp, unsigned> numberCallOpsContainedInFuncOp;
-  WalkResult res = moduleOp.walk([&](FuncOp funcOp) -> WalkResult {
+  DenseMap<func::FuncOp, unsigned> numberCallOpsContainedInFuncOp;
+  WalkResult res = moduleOp.walk([&](func::FuncOp funcOp) -> WalkResult {
     if (!funcOp.getBody().empty()) {
       func::ReturnOp returnOp = getAssumedUniqueReturnOp(funcOp);
       if (!returnOp)
@@ -540,8 +587,8 @@ getFuncOpsOrderedByCalls(ModuleOp moduleOp,
       // Only support CallOp for now.
       if (!isa<func::CallOp>(callOp.getOperation()))
         return callOp->emitError() << "expected a CallOp";
-      FuncOp calledFunction = getCalledFunction(callOp);
-      assert(calledFunction && "could not retrieved called FuncOp");
+      func::FuncOp calledFunction = getCalledFunction(callOp);
+      assert(calledFunction && "could not retrieved called func::FuncOp");
       auto it = callerMap.try_emplace(calledFunction, DenseSet<Operation *>{});
       it.first->getSecond().insert(callOp);
       if (calledBy[calledFunction].count(funcOp) == 0) {
@@ -569,9 +616,8 @@ getFuncOpsOrderedByCalls(ModuleOp moduleOp,
   return success();
 }
 
-static void
-foreachCaller(const DenseMap<FuncOp, DenseSet<Operation *>> &callerMap,
-              FuncOp callee, llvm::function_ref<void(Operation *)> doit) {
+static void foreachCaller(const FuncCallerMap &callerMap, func::FuncOp callee,
+                          llvm::function_ref<void(Operation *)> doit) {
   auto itCallers = callerMap.find(callee);
   if (itCallers == callerMap.end())
     return;
@@ -583,13 +629,13 @@ foreachCaller(const DenseMap<FuncOp, DenseSet<Operation *>> &callerMap,
 /// This is a purely mechanical process that may later become part of a
 /// separate pass with its own layout assignment heuristic.
 static void layoutPostProcessing(ModuleOp moduleOp) {
-  SmallVector<FuncOp> orderedFuncOps;
-  DenseMap<FuncOp, DenseSet<Operation *>> callerMap;
+  SmallVector<func::FuncOp> orderedFuncOps;
+  DenseMap<func::FuncOp, DenseSet<Operation *>> callerMap;
   auto res = getFuncOpsOrderedByCalls(moduleOp, orderedFuncOps, callerMap);
   (void)res;
   assert(succeeded(res) && "unexpected getFuncOpsOrderedByCalls failure");
 
-  for (FuncOp funcOp : orderedFuncOps) {
+  for (func::FuncOp funcOp : orderedFuncOps) {
     DenseMap<Operation *, SmallVector<Value>> operandsPerCaller;
     foreachCaller(callerMap, funcOp, [&](Operation *caller) {
       operandsPerCaller.try_emplace(caller, SmallVector<Value>());
@@ -598,7 +644,8 @@ static void layoutPostProcessing(ModuleOp moduleOp) {
     SmallVector<Type> argumentTypes;
     // Iterate on each function argument and check it it was marked with a
     // desired layout.
-    for (const auto &it : llvm::enumerate(funcOp.getType().getInputs())) {
+    for (const auto &it :
+         llvm::enumerate(funcOp.getFunctionType().getInputs())) {
       int argNumber = it.index();
       Type inputType = it.value();
       auto memrefType = inputType.dyn_cast<MemRefType>();
@@ -661,7 +708,7 @@ static void layoutPostProcessing(ModuleOp moduleOp) {
 
     // Finally set the funcOp type to update the arguments.
     auto newFuncType = FunctionType::get(moduleOp.getContext(), argumentTypes,
-                                         funcOp.getType().getResults());
+                                         funcOp.getFunctionType().getResults());
     funcOp.setType(newFuncType);
   }
 }
@@ -671,11 +718,11 @@ namespace linalg {
 namespace comprehensive_bufferize {
 namespace std_ext {
 
-/// Return the index of the bbArg in the given FuncOp that is equivalent to the
-/// specified return value (if any).
-static Optional<int64_t>
-getEquivalentFuncArgIdx(FuncOp funcOp, const ModuleAnalysisState &state,
-                        int64_t returnValIdx) {
+/// Return the index of the bbArg in the given func::FuncOp that is equivalent
+/// to the specified return value (if any).
+static Optional<int64_t> getEquivalentFuncArgIdx(func::FuncOp funcOp,
+                                                 const FuncAnalysisState &state,
+                                                 int64_t returnValIdx) {
   auto funcOpIt = state.equivalentFuncArgs.find(funcOp);
   if (funcOpIt == state.equivalentFuncArgs.end())
     // No equivalence info stores for funcOp.
@@ -695,48 +742,56 @@ struct CallOpInterface
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
                               const AnalysisState &state) const {
     func::CallOp callOp = cast<func::CallOp>(op);
-    FuncOp funcOp = getCalledFunction(callOp);
-    assert(funcOp && "expected CallOp to a FuncOp");
+    func::FuncOp funcOp = getCalledFunction(callOp);
+    assert(funcOp && "expected CallOp to a func::FuncOp");
 
-    const ModuleAnalysisState &moduleState = getModuleAnalysisState(state);
+    const FuncAnalysisState &funcState = getFuncAnalysisState(state);
     if (getFuncOpAnalysisState(state, funcOp) != FuncOpAnalysisState::Analyzed)
       // FuncOp not analyzed yet. Assume that OpOperand is read.
       return true;
 
-    return moduleState.readBbArgs.contains(
-        funcOp.getArgument(opOperand.getOperandNumber()));
+    return funcState.readBbArgs.lookup(funcOp).contains(
+        opOperand.getOperandNumber());
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
                                const AnalysisState &state) const {
     func::CallOp callOp = cast<func::CallOp>(op);
-    FuncOp funcOp = getCalledFunction(callOp);
-    assert(funcOp && "expected CallOp to a FuncOp");
+    func::FuncOp funcOp = getCalledFunction(callOp);
+    assert(funcOp && "expected CallOp to a func::FuncOp");
 
-    const ModuleAnalysisState &moduleState = getModuleAnalysisState(state);
+    const FuncAnalysisState &funcState = getFuncAnalysisState(state);
     if (getFuncOpAnalysisState(state, funcOp) != FuncOpAnalysisState::Analyzed)
       // FuncOp not analyzed yet. Assume that OpOperand is written.
       return true;
 
-    return moduleState.writtenBbArgs.contains(
-        funcOp.getArgument(opOperand.getOperandNumber()));
+    return funcState.writtenBbArgs.lookup(funcOp).contains(
+        opOperand.getOperandNumber());
   }
 
   SmallVector<OpResult> getAliasingOpResult(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
     func::CallOp callOp = cast<func::CallOp>(op);
-    FuncOp funcOp = getCalledFunction(callOp);
-    assert(funcOp && "expected CallOp to a FuncOp");
-    const ModuleAnalysisState &moduleState = getModuleAnalysisState(state);
+    func::FuncOp funcOp = getCalledFunction(callOp);
+    assert(funcOp && "expected CallOp to a func::FuncOp");
+    const FuncAnalysisState &funcState = getFuncAnalysisState(state);
+    if (getFuncOpAnalysisState(state, funcOp) !=
+        FuncOpAnalysisState::Analyzed) {
+      // FuncOp not analyzed yet. Any OpResult may be aliasing.
+      SmallVector<OpResult> result;
+      for (OpResult opResult : op->getOpResults())
+        if (opResult.getType().isa<TensorType>())
+          result.push_back(opResult);
+      return result;
+    }
 
+    // Get aliasing results from state.
+    auto aliasingReturnVals =
+        funcState.aliasingReturnVals.lookup(funcOp).lookup(
+            opOperand.getOperandNumber());
     SmallVector<OpResult> result;
-    for (int64_t resultIdx = 0; resultIdx < callOp->getNumResults();
-         ++resultIdx)
-      if (Optional<int64_t> maybeArgNumber =
-              getEquivalentFuncArgIdx(funcOp, moduleState, resultIdx))
-        if (*maybeArgNumber == opOperand.getOperandNumber())
-          result.push_back(callOp->getOpResult(resultIdx));
-
+    for (int64_t resultIdx : aliasingReturnVals)
+      result.push_back(callOp->getOpResult(resultIdx));
     return result;
   }
 
@@ -744,20 +799,26 @@ struct CallOpInterface
   getAliasingOpOperand(Operation *op, OpResult opResult,
                        const AnalysisState &state) const {
     func::CallOp callOp = cast<func::CallOp>(op);
-    FuncOp funcOp = getCalledFunction(callOp);
-    assert(funcOp && "expected CallOp to a FuncOp");
-    const ModuleAnalysisState &moduleState = getModuleAnalysisState(state);
+    func::FuncOp funcOp = getCalledFunction(callOp);
+    assert(funcOp && "expected CallOp to a func::FuncOp");
+    const FuncAnalysisState &funcState = getFuncAnalysisState(state);
+    if (getFuncOpAnalysisState(state, funcOp) !=
+        FuncOpAnalysisState::Analyzed) {
+      // FuncOp not analyzed yet. Any OpOperand may be aliasing.
+      SmallVector<OpOperand *> result;
+      for (OpOperand &opOperand : op->getOpOperands())
+        if (opOperand.get().getType().isa<TensorType>())
+          result.push_back(&opOperand);
+      return result;
+    }
 
-    // TODO: We should be looking for aliasing block arguments here. The current
-    // condition is actually stronger than neccesary. Once we check for aliasing
-    // block arguments, we may be multiple.
-    if (Optional<int64_t> maybeArgNumber = getEquivalentFuncArgIdx(
-            funcOp, moduleState, opResult.getResultNumber()))
-      return {&op->getOpOperand(*maybeArgNumber)};
-
-    // Note: Returning a non-equivalent tensor from a FuncOp is currently not
-    // supported an will fail bufferization.
-    return {};
+    // Get aliasing bbArgs from state.
+    auto aliasingFuncArgs = funcState.aliasingFuncArgs.lookup(funcOp).lookup(
+        opResult.getResultNumber());
+    SmallVector<OpOperand *> result;
+    for (int64_t bbArgIdx : aliasingFuncArgs)
+      result.push_back(&callOp->getOpOperand(bbArgIdx));
+    return result;
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
@@ -765,18 +826,20 @@ struct CallOpInterface
     return BufferRelation::Equivalent;
   }
 
-  /// In a first approximation, all the function arguments of a FuncOp are
+  /// In a first approximation, all the function arguments of a func::FuncOp are
   /// marked inplaceable. For now, it is the responsibility of the `callOp`
-  /// bufferization to allow FuncOp that are inplaceable to write inPlace.
+  /// bufferization to allow func::FuncOp that are inplaceable to write inPlace.
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           BufferizationState &state) const {
     func::CallOp callOp = cast<func::CallOp>(op);
     unsigned numResults = callOp.getNumResults();
     unsigned numOperands = callOp->getNumOperands();
-    FuncOp funcOp = getCalledFunction(callOp);
-    assert(funcOp && "expected CallOp to a FuncOp");
-    const ModuleAnalysisState &moduleState =
-        getModuleAnalysisState(state.getAnalysisState());
+    func::FuncOp funcOp = getCalledFunction(callOp);
+    assert(funcOp && "expected CallOp to a func::FuncOp");
+    const FuncAnalysisState &funcState =
+        getFuncAnalysisState(state.getAnalysisState());
+    const OneShotBufferizationOptions &options =
+        static_cast<const OneShotBufferizationOptions &>(state.getOptions());
 
     // Result types of the bufferized CallOp.
     SmallVector<Type> resultTypes;
@@ -800,11 +863,11 @@ struct CallOpInterface
     //
     // Note: If a function has no body, no equivalence information is
     // available. Consequently, a tensor return value cannot be proven to fold
-    // onto a FuncOp bbArg, so calls to such functions are not bufferizable at
-    // the moment.
+    // onto a func::FuncOp bbArg, so calls to such functions are not
+    // bufferizable at the moment.
 
     // 1. Compute the result types of the new CallOp. Tensor results that are
-    // equivalent to a FuncOp bbArg are no longer returned.
+    // equivalent to a func::FuncOp bbArg are no longer returned.
     for (const auto &it : llvm::enumerate(callOp.getResultTypes())) {
       unsigned returnValIdx = it.index();
       Type returnType = it.value();
@@ -816,7 +879,7 @@ struct CallOpInterface
       }
 
       if (Optional<int64_t> bbArgIdx =
-              getEquivalentFuncArgIdx(funcOp, moduleState, returnValIdx)) {
+              getEquivalentFuncArgIdx(funcOp, funcState, returnValIdx)) {
         // Return operands that are equivalent to some bbArg, are not
         // returned.
         FailureOr<Value> bufferOrFailure =
@@ -828,8 +891,16 @@ struct CallOpInterface
         continue;
       }
 
-      return callOp->emitError(
-          "call to FuncOp that returns non-equivalent tensors not supported");
+      if (!options.allowReturnAllocs)
+        return callOp->emitError(
+            "call to FuncOp that returns non-equivalent tensors not supported");
+
+      // Returning a memref. This memref is not equivalent to any bbArg. It is
+      // likely a newly allocated buffer. We may want to hoist such allocations
+      // to the call site in the future.
+      retValMapping[returnValIdx] = resultTypes.size();
+      resultTypes.push_back(
+          funcOp.getFunctionType().getResult(resultTypes.size()));
     }
 
     // 2. Compute bufferized FunctionType.
@@ -837,7 +908,7 @@ struct CallOpInterface
     // Get the bufferized FunctionType for funcOp or construct it if not yet
     // available.
     FunctionType bufferizedFuncType = getBufferizedFunctionType(
-        funcOp.getContext(), argumentTypes, resultTypes, state.getOptions());
+        funcOp.getContext(), argumentTypes, resultTypes, options);
 
     // 3. Rewrite tensor operands as memrefs based on `bufferizedFuncType`.
     for (OpOperand &opOperand : callOp->getOpOperands()) {
@@ -851,8 +922,8 @@ struct CallOpInterface
       }
 
       // Retrieve buffers for tensor operands. Tensor operand buffers, who's
-      // corresponding FuncOp bbArgs are equivalent to a returned tensor, were
-      // already stored in `newOperands` during Step 1.
+      // corresponding func::FuncOp bbArgs are equivalent to a returned tensor,
+      // were already stored in `newOperands` during Step 1.
       Value buffer = newOperands[idx];
       if (!buffer) {
         FailureOr<Value> bufferOrFailure = state.getBuffer(rewriter, opOperand);
@@ -919,7 +990,7 @@ struct ReturnOpInterface
                           BufferizationState &state) const {
 #ifndef NDEBUG
     auto returnOp = cast<func::ReturnOp>(op);
-    assert(isa<FuncOp>(returnOp->getParentOp()) &&
+    assert(isa<func::FuncOp>(returnOp->getParentOp()) &&
            "only support FuncOp parent for ReturnOp");
 #endif // NDEBUG
     return failure();
@@ -927,7 +998,8 @@ struct ReturnOpInterface
 };
 
 struct FuncOpInterface
-    : public BufferizableOpInterface::ExternalModel<FuncOpInterface, FuncOp> {
+    : public BufferizableOpInterface::ExternalModel<FuncOpInterface,
+                                                    func::FuncOp> {
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           BufferizationState &state) const {
     return failure();
@@ -936,7 +1008,7 @@ struct FuncOpInterface
   /// Return `true` if the given function argument is writable.
   bool isWritable(Operation *op, Value value,
                   const AnalysisState &state) const {
-    auto funcOp = cast<FuncOp>(op);
+    auto funcOp = cast<func::FuncOp>(op);
     BlockArgument bbArg = value.dyn_cast<BlockArgument>();
     assert(bbArg && "expected BlockArgument");
 
@@ -961,22 +1033,24 @@ struct FuncOpInterface
 
 void mlir::linalg::comprehensive_bufferize::std_ext::
     registerModuleBufferizationExternalModels(DialectRegistry &registry) {
-  registry.addOpInterface<func::CallOp, std_ext::CallOpInterface>();
-  registry.addOpInterface<func::ReturnOp, std_ext::ReturnOpInterface>();
-  registry.addOpInterface<FuncOp, std_ext::FuncOpInterface>();
+  registry.addExtension(+[](MLIRContext *ctx, func::FuncDialect *dialect) {
+    func::CallOp::attachInterface<std_ext::CallOpInterface>(*ctx);
+    func::ReturnOp::attachInterface<std_ext::ReturnOpInterface>(*ctx);
+    func::FuncOp::attachInterface<std_ext::FuncOpInterface>(*ctx);
+  });
 }
 
-/// Set the attribute that triggers inplace bufferization on a FuncOp argument
-/// `bbArg`.
+/// Set the attribute that triggers inplace bufferization on a func::FuncOp
+/// argument `bbArg`.
 static void setInPlaceFuncArgument(BlockArgument bbArg, bool inPlace) {
-  auto funcOp = cast<FuncOp>(bbArg.getOwner()->getParentOp());
+  auto funcOp = cast<func::FuncOp>(bbArg.getOwner()->getParentOp());
   funcOp.setArgAttr(bbArg.getArgNumber(),
                     BufferizableOpInterface::kInplaceableAttrName,
                     BoolAttr::get(bbArg.getContext(), inPlace));
 }
 
 /// Annotate the IR with the result of the analysis. For testing/debugging only.
-static void annotateOpsWithBufferizationMarkers(FuncOp funcOp,
+static void annotateOpsWithBufferizationMarkers(func::FuncOp funcOp,
                                                 const AnalysisState &state) {
   auto bufferizableOp = cast<BufferizableOpInterface>(funcOp.getOperation());
   for (BlockArgument bbArg : funcOp.getArguments())
@@ -989,36 +1063,40 @@ LogicalResult mlir::linalg::comprehensive_bufferize::runModuleBufferize(
   IRRewriter rewriter(moduleOp.getContext());
   OneShotAnalysisState analysisState(moduleOp, options);
   BufferizationState bufferizationState(analysisState);
-  ModuleAnalysisState &moduleState = getModuleAnalysisState(analysisState);
+  FuncAnalysisState &funcState = getFuncAnalysisState(analysisState);
   BufferizationAliasInfo &aliasInfo = analysisState.getAliasInfo();
 
-  if (failed(getFuncOpsOrderedByCalls(moduleOp, moduleState.orderedFuncOps,
-                                      moduleState.callerMap)))
+  // A list of functions in the order in which they are analyzed + bufferized.
+  SmallVector<func::FuncOp> orderedFuncOps;
+
+  // A mapping of FuncOps to their callers.
+  FuncCallerMap callerMap;
+
+  if (failed(getFuncOpsOrderedByCalls(moduleOp, orderedFuncOps, callerMap)))
     return failure();
 
   // Collect bbArg/return value information after the analysis.
-  options.addPostAnalysisStep(equivalentFuncOpBBArgsAnalysis);
+  options.addPostAnalysisStep(aliasingFuncOpBBArgsAnalysis);
   options.addPostAnalysisStep(funcOpBbArgReadWriteAnalysis);
 
   // Analyze ops.
-  for (FuncOp funcOp : moduleState.orderedFuncOps) {
+  for (func::FuncOp funcOp : orderedFuncOps) {
     // No body => no analysis.
     if (funcOp.getBody().empty())
       continue;
 
     // Now analyzing function.
-    moduleState.analyzedFuncOps[funcOp] = FuncOpAnalysisState::InProgress;
+    funcState.startFunctionAnalysis(funcOp);
+
+    // Gather equivalence info for CallOps.
+    equivalenceAnalysis(funcOp, aliasInfo, funcState);
 
     // Analyze funcOp.
     if (failed(analyzeOp(funcOp, analysisState)))
       return failure();
 
-    // Gather equivalence info for CallOps.
-    // TODO: Make this a post-analysis step.
-    equivalenceAnalysis(funcOp, aliasInfo, moduleState);
-
     // Mark op as fully analyzed.
-    moduleState.analyzedFuncOps[funcOp] = FuncOpAnalysisState::Analyzed;
+    funcState.analyzedFuncOps[funcOp] = FuncOpAnalysisState::Analyzed;
 
     // Add annotations to function arguments.
     if (options.testAnalysisOnly)
@@ -1028,25 +1106,23 @@ LogicalResult mlir::linalg::comprehensive_bufferize::runModuleBufferize(
   if (options.testAnalysisOnly)
     return success();
 
-  // Bufferize function bodies.
-  for (FuncOp funcOp : moduleState.orderedFuncOps) {
+  // Bufferize functions.
+  for (func::FuncOp funcOp : orderedFuncOps) {
     // No body => no analysis.
-    if (funcOp.getBody().empty())
-      continue;
+    if (!funcOp.getBody().empty())
+      if (failed(bufferizeOp(funcOp, bufferizationState)))
+        return failure();
 
-    if (failed(bufferizeOp(funcOp, bufferizationState)))
-      return failure();
-  }
-
-  // Bufferize function boundaries.
-  for (FuncOp funcOp : moduleState.orderedFuncOps) {
     // Note: It would be good to apply cleanups here but we cannot as aliasInfo
     // would be invalidated.
     if (failed(bufferizeFuncOpBoundary(funcOp, rewriter, bufferizationState)))
       return failure();
+  }
 
+  // Check result.
+  for (func::FuncOp funcOp : orderedFuncOps) {
     if (!options.allowReturnAllocs &&
-        llvm::any_of(funcOp.getType().getResults(), [](Type t) {
+        llvm::any_of(funcOp.getFunctionType().getResults(), [](Type t) {
           return t.isa<MemRefType, UnrankedMemRefType>();
         })) {
       funcOp->emitError("memref return type is unsupported");
@@ -1063,7 +1139,7 @@ LogicalResult mlir::linalg::comprehensive_bufferize::runModuleBufferize(
   layoutPostProcessing(moduleOp);
 
   // Post-pass cleanup of inplaceable and buffer_layout attributes.
-  moduleOp.walk([&](FuncOp op) {
+  moduleOp.walk([&](func::FuncOp op) {
     for (BlockArgument bbArg : op.getArguments())
       removeBufferizationFuncArguments(bbArg);
   });

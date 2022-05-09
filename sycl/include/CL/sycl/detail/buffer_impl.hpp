@@ -139,6 +139,20 @@ public:
   }
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
+      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                    std::move(Allocator), /*OwnNativeHandle*/ true,
+                    std::move(AvailableEvent)) {}
+
+  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              bool OwnNativeHandle, event AvailableEvent)
+      : BaseT(MemObject, SyclContext, OwnNativeHandle,
+              std::move(AvailableEvent), std::move(Allocator)) {}
+
+  // TODO: remove the following 2 constructors when it is allowed to break ABI.
+  buffer_impl(cl_mem MemObject, const context &SyclContext,
               const size_t SizeInBytes,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
@@ -175,6 +189,10 @@ public:
   }
 
   void resize(size_t size) { BaseT::MSizeInBytes = size; }
+
+  void addInteropObject(std::vector<pi_native_handle> &Handles) const;
+
+  std::vector<pi_native_handle> getNativeVector(backend BackendName) const;
 };
 
 } // namespace detail

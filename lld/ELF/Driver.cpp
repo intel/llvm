@@ -705,6 +705,28 @@ static StringRef getDynamicLinker(opt::InputArgList &args) {
   return arg->getValue();
 }
 
+static int getMemtagMode(opt::InputArgList &args) {
+  StringRef memtagModeArg = args.getLastArgValue(OPT_android_memtag_mode);
+  if (!config->androidMemtagHeap && !config->androidMemtagStack) {
+    if (!memtagModeArg.empty())
+      error("when using --android-memtag-mode, at least one of "
+            "--android-memtag-heap or "
+            "--android-memtag-stack is required");
+    return ELF::NT_MEMTAG_LEVEL_NONE;
+  }
+
+  if (memtagModeArg == "sync" || memtagModeArg.empty())
+    return ELF::NT_MEMTAG_LEVEL_SYNC;
+  if (memtagModeArg == "async")
+    return ELF::NT_MEMTAG_LEVEL_ASYNC;
+  if (memtagModeArg == "none")
+    return ELF::NT_MEMTAG_LEVEL_NONE;
+
+  error("unknown --android-memtag-mode value: \"" + memtagModeArg +
+        "\", should be one of {async, sync, none}");
+  return ELF::NT_MEMTAG_LEVEL_NONE;
+}
+
 static ICFLevel getICF(opt::InputArgList &args) {
   auto *arg = args.getLastArg(OPT_icf_none, OPT_icf_safe, OPT_icf_all);
   if (!arg || arg->getOption().getID() == OPT_icf_none)
@@ -1008,6 +1030,11 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_allow_multiple_definition,
                    OPT_no_allow_multiple_definition, false) ||
       hasZOption(args, "muldefs");
+  config->androidMemtagHeap =
+      args.hasFlag(OPT_android_memtag_heap, OPT_no_android_memtag_heap, false);
+  config->androidMemtagStack = args.hasFlag(OPT_android_memtag_stack,
+                                            OPT_no_android_memtag_stack, false);
+  config->androidMemtagMode = getMemtagMode(args);
   config->auxiliaryList = args::getStrings(args, OPT_auxiliary);
   if (opt::Arg *arg =
           args.getLastArg(OPT_Bno_symbolic, OPT_Bsymbolic_non_weak_functions,
@@ -1058,7 +1085,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->fixCortexA8 =
       args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
   config->fortranCommon =
-      args.hasFlag(OPT_fortran_common, OPT_no_fortran_common, true);
+      args.hasFlag(OPT_fortran_common, OPT_no_fortran_common, false);
   config->gcSections = args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false);
   config->gnuUnique = args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
   config->gdbIndex = args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
@@ -1075,9 +1102,6 @@ static void readConfigs(opt::InputArgList &args) {
                                             OPT_no_lto_pgo_warn_mismatch, true);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
   config->ltoEmitAsm = args.hasArg(OPT_lto_emit_asm);
-  config->ltoNewPassManager =
-      args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
-                   LLVM_ENABLE_NEW_PASS_MANAGER);
   config->ltoNewPmPasses = args.getLastArgValue(OPT_lto_newpm_passes);
   config->ltoWholeProgramVisibility =
       args.hasFlag(OPT_lto_whole_program_visibility,
@@ -1103,6 +1127,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->oFormatBinary = isOutputFormatBinary(args);
   config->omagic = args.hasFlag(OPT_omagic, OPT_no_omagic, false);
   config->optRemarksFilename = args.getLastArgValue(OPT_opt_remarks_filename);
+  config->optStatsFilename = args.getLastArgValue(OPT_opt_stats_filename);
 
   // Parse remarks hotness threshold. Valid value is either integer or 'auto'.
   if (auto *arg = args.getLastArg(OPT_opt_remarks_hotness_threshold)) {
@@ -1285,6 +1310,8 @@ static void readConfigs(opt::InputArgList &args) {
     if (!StringRef(arg->getValue()).endswith("lto-wrapper"))
       error(arg->getSpelling() + ": unknown plugin option '" + arg->getValue() +
             "'");
+
+  config->passPlugins = args::getStrings(args, OPT_load_pass_plugins);
 
   // Parse -mllvm options.
   for (auto *arg : args.filtered(OPT_mllvm))

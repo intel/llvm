@@ -54,14 +54,11 @@ bool isHsaAbiVersion5(const MCSubtargetInfo *STI);
 /// false otherwise.
 bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI);
 
+/// \returns The offset of the multigrid_sync_arg argument from implicitarg_ptr
+unsigned getMultigridSyncArgImplicitArgPosition();
+
 /// \returns The offset of the hostcall pointer argument from implicitarg_ptr
 unsigned getHostcallImplicitArgPosition();
-
-/// \returns The offset of the heap ptr argument from implicitarg_ptr
-unsigned getHeapPtrImplicitArgPosition();
-
-/// \returns The offset of the queue ptr argument from implicitarg_ptr
-unsigned getQueuePtrImplicitArgPosition();
 
 /// \returns Code object version.
 unsigned getAmdhsaCodeObjectVersion();
@@ -74,12 +71,19 @@ struct GcnBufferFormatInfo {
   unsigned DataFormat;
 };
 
+struct MAIInstInfo {
+  uint16_t Opcode;
+  bool is_dgemm;
+  bool is_gfx940_xdl;
+};
+
 #define GET_MIMGBaseOpcode_DECL
 #define GET_MIMGDim_DECL
 #define GET_MIMGEncoding_DECL
 #define GET_MIMGLZMapping_DECL
 #define GET_MIMGMIPMapping_DECL
 #define GET_MIMGBiASMapping_DECL
+#define GET_MAIInstInfoTable_DECL
 #include "AMDGPUGenSearchableTables.inc"
 
 namespace IsaInfo {
@@ -450,6 +454,13 @@ bool getVOP2IsSingle(unsigned Opc);
 LLVM_READONLY
 bool getVOP3IsSingle(unsigned Opc);
 
+/// Returns true if MAI operation is a double precision GEMM.
+LLVM_READONLY
+bool getMAIIsDGEMM(unsigned Opc);
+
+LLVM_READONLY
+bool getMAIIsGFX940XDL(unsigned Opc);
+
 LLVM_READONLY
 const GcnBufferFormatInfo *getGcnBufferFormatInfo(uint8_t BitsPerComp,
                                                   uint8_t NumComponents,
@@ -631,6 +642,18 @@ void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width);
 
 } // namespace Hwreg
 
+namespace DepCtr {
+
+int getDefaultDepCtrEncoding(const MCSubtargetInfo &STI);
+int encodeDepCtr(const StringRef Name, int64_t Val, unsigned &UsedOprMask,
+                 const MCSubtargetInfo &STI);
+bool isSymbolicDepCtrEncoding(unsigned Code, bool &HasNonDefaultVal,
+                              const MCSubtargetInfo &STI);
+bool decodeDepCtr(unsigned Code, int &Id, StringRef &Name, unsigned &Val,
+                  bool &IsDefault, const MCSubtargetInfo &STI);
+
+} // namespace DepCtr
+
 namespace Exp {
 
 bool getTgtName(unsigned Id, StringRef &Name, int &Index);
@@ -679,19 +702,19 @@ unsigned getDefaultFormatEncoding(const MCSubtargetInfo &STI);
 namespace SendMsg {
 
 LLVM_READONLY
-int64_t getMsgId(const StringRef Name);
+int64_t getMsgId(const StringRef Name, const MCSubtargetInfo &STI);
 
 LLVM_READONLY
 int64_t getMsgOpId(int64_t MsgId, const StringRef Name);
 
 LLVM_READNONE
-StringRef getMsgName(int64_t MsgId);
+StringRef getMsgName(int64_t MsgId, const MCSubtargetInfo &STI);
 
 LLVM_READNONE
 StringRef getMsgOpName(int64_t MsgId, int64_t OpId);
 
 LLVM_READNONE
-bool isValidMsgId(int64_t MsgId, const MCSubtargetInfo &STI, bool Strict = true);
+bool isValidMsgId(int64_t MsgId);
 
 LLVM_READNONE
 bool isValidMsgOp(int64_t MsgId, int64_t OpId, const MCSubtargetInfo &STI,
@@ -773,9 +796,12 @@ bool isCI(const MCSubtargetInfo &STI);
 bool isVI(const MCSubtargetInfo &STI);
 bool isGFX9(const MCSubtargetInfo &STI);
 bool isGFX9_GFX10(const MCSubtargetInfo &STI);
+bool isGFX8Plus(const MCSubtargetInfo &STI);
 bool isGFX9Plus(const MCSubtargetInfo &STI);
 bool isGFX10(const MCSubtargetInfo &STI);
 bool isGFX10Plus(const MCSubtargetInfo &STI);
+bool isNotGFX10Plus(const MCSubtargetInfo &STI);
+bool isGFX10Before1030(const MCSubtargetInfo &STI);
 bool isGCN3Encoding(const MCSubtargetInfo &STI);
 bool isGFX10_AEncoding(const MCSubtargetInfo &STI);
 bool isGFX10_BEncoding(const MCSubtargetInfo &STI);

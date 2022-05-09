@@ -1408,10 +1408,9 @@ static Operation *widenOp(Operation *op, VectorizationState &state) {
   // name that works both in scalar mode and vector mode.
   // TODO: Is it worth considering an Operation.clone operation which
   // changes the type so we can promote an Operation with less boilerplate?
-  OperationState vecOpState(op->getLoc(), op->getName(), vectorOperands,
-                            vectorTypes, op->getAttrs(), /*successors=*/{},
-                            /*regions=*/{});
-  Operation *vecOp = state.builder.createOperation(vecOpState);
+  Operation *vecOp =
+      state.builder.create(op->getLoc(), op->getName().getIdentifier(),
+                           vectorOperands, vectorTypes, op->getAttrs());
   state.registerOpVectorReplacement(op, vecOp);
   return vecOp;
 }
@@ -1701,18 +1700,18 @@ static void vectorizeLoops(Operation *parentOp, DenseSet<Operation *> &loops,
   LLVM_DEBUG(dbgs() << "\n");
 }
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 createSuperVectorizePass(ArrayRef<int64_t> virtualVectorSize) {
   return std::make_unique<Vectorize>(virtualVectorSize);
 }
-std::unique_ptr<OperationPass<FuncOp>> createSuperVectorizePass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createSuperVectorizePass() {
   return std::make_unique<Vectorize>();
 }
 
 /// Applies vectorization to the current function by searching over a bunch of
 /// predetermined patterns.
 void Vectorize::runOnOperation() {
-  FuncOp f = getOperation();
+  func::FuncOp f = getOperation();
   if (!fastestVaryingPattern.empty() &&
       fastestVaryingPattern.size() != vectorSizes.size()) {
     f.emitRemark("Fastest varying pattern specified with different size than "
@@ -1856,11 +1855,11 @@ vectorizeAffineLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
   return vectorizeLoopNest(loops, strategy);
 }
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 createSuperVectorizePass(ArrayRef<int64_t> virtualVectorSize) {
   return std::make_unique<Vectorize>(virtualVectorSize);
 }
-std::unique_ptr<OperationPass<FuncOp>> createSuperVectorizePass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createSuperVectorizePass() {
   return std::make_unique<Vectorize>();
 }
 

@@ -43,7 +43,7 @@ machineFunctionInfo:
   frameOffsetReg:  '$sgpr33'
   stackPtrOffsetReg: '$sgpr32'
 body:             |
-  bb.0 (%ir-block.0):
+  bb.0:
 
     INLINEASM &"; def $0", 1 /* sideeffect attdialect */, 10 /* regdef */, implicit-def $agpr0
     %14:vgpr_32 = COPY killed $agpr0

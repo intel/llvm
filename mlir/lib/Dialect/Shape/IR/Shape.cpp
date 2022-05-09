@@ -257,7 +257,7 @@ ParseResult AssumingOp::parse(OpAsmParser &parser, OperationState &result) {
   Region *doRegion = result.addRegion();
 
   auto &builder = parser.getBuilder();
-  OpAsmParser::OperandType cond;
+  OpAsmParser::UnresolvedOperand cond;
   if (parser.parseOperand(cond) ||
       parser.resolveOperand(cond, builder.getType<WitnessType>(),
                             result.operands))
@@ -1190,13 +1190,13 @@ void FunctionLibraryOp::build(OpBuilder &builder, OperationState &result,
       ::mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(name)));
 }
 
-FuncOp FunctionLibraryOp::getShapeFunction(Operation *op) {
+func::FuncOp FunctionLibraryOp::getShapeFunction(Operation *op) {
   auto attr = getMapping()
                   .get(op->getName().getIdentifier())
                   .dyn_cast_or_null<FlatSymbolRefAttr>();
   if (!attr)
     return nullptr;
-  return lookupSymbol<FuncOp>(attr);
+  return lookupSymbol<func::FuncOp>(attr);
 }
 
 ParseResult FunctionLibraryOp::parse(OpAsmParser &parser,
@@ -1832,7 +1832,7 @@ LogicalResult ReduceOp::verify() {
 
 ParseResult ReduceOp::parse(OpAsmParser &parser, OperationState &result) {
   // Parse operands.
-  SmallVector<OpAsmParser::OperandType, 3> operands;
+  SmallVector<OpAsmParser::UnresolvedOperand, 3> operands;
   Type shapeOrExtentTensorType;
   if (parser.parseOperandList(operands, /*requiredOperandCount=*/-1,
                               OpAsmParser::Delimiter::Paren) ||

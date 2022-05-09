@@ -51,7 +51,9 @@ public:
     return false;
   }
 
-  bool shortenInstruction(MCInst &) const override { return false; }
+  bool shortenInstruction(MCInst &, const MCSubtargetInfo &) const override {
+    return false;
+  }
 
   bool isADRP(const MCInst &Inst) const override {
     return Inst.getOpcode() == AArch64::ADRP;
@@ -1100,8 +1102,6 @@ public:
   }
 
   bool isMoveMem2Reg(const MCInst &Inst) const override { return false; }
-
-  bool isADD64rr(const MCInst &Inst) const override { return false; }
 
   bool isLeave(const MCInst &Inst) const override { return false; }
 

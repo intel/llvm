@@ -43,9 +43,6 @@
 using namespace llvm;
 
 namespace llvm {
-class DIExpression;
-class DILocalVariable;
-class DILocation;
 class MDNode;
 class RegisterBank;
 
@@ -460,6 +457,12 @@ MIRParserImpl::initializeMachineFunction(const yaml::MachineFunction &YamlMF,
   MF.setAlignment(YamlMF.Alignment.valueOrOne());
   MF.setExposesReturnsTwice(YamlMF.ExposesReturnsTwice);
   MF.setHasWinCFI(YamlMF.HasWinCFI);
+
+  MF.setCallsEHReturn(YamlMF.CallsEHReturn);
+  MF.setCallsUnwindInit(YamlMF.CallsUnwindInit);
+  MF.setHasEHCatchret(YamlMF.HasEHCatchret);
+  MF.setHasEHScopes(YamlMF.HasEHScopes);
+  MF.setHasEHFunclets(YamlMF.HasEHFunclets);
 
   if (YamlMF.Legalized)
     MF.getProperties().set(MachineFunctionProperties::Property::Legalized);

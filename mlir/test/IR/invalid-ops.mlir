@@ -98,7 +98,7 @@ func @func_with_ops(tensor<12xi1>, tensor<42xi32>, tensor<42xi32>) {
 
 func @return_not_in_function() {
   "foo.region"() ({
-    // expected-error@+1 {{'func.return' op expects parent op 'builtin.func'}}
+    // expected-error@+1 {{'func.return' op expects parent op 'func.func'}}
     return
   }): () -> ()
   return
@@ -111,3 +111,10 @@ func @invalid_splat(%v : f32) { // expected-note {{prior use here}}
   // expected-error@-1 {{expects different type than prior uses}}
   return
 }
+
+// -----
+
+// Case that resulted in leak previously.
+
+// expected-error@+1 {{expected ':' after block name}}
+"g"()({^a:^b })

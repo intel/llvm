@@ -192,6 +192,11 @@ class Preprocessor {
   LangOptions::FPEvalMethodKind CurrentFPEvalMethod =
       LangOptions::FPEvalMethodKind::FEM_UnsetOnCommandLine;
 
+  // Keeps the value of the last evaluation method before a
+  // `pragma float_control (precise,off) is applied.
+  LangOptions::FPEvalMethodKind LastFPEvalMethod =
+      LangOptions::FPEvalMethodKind::FEM_UnsetOnCommandLine;
+
   // The most recent pragma location where the floating point evaluation
   // method was modified. This is used to determine whether the
   // 'pragma clang fp eval_method' was used whithin the current scope.
@@ -403,6 +408,14 @@ private:
   /// The source location of the currently-active
   /// \#pragma clang assume_nonnull begin.
   SourceLocation PragmaAssumeNonNullLoc;
+
+  /// Set only for preambles which end with an active
+  /// \#pragma clang assume_nonnull begin.
+  ///
+  /// When the preamble is loaded into the main file,
+  /// `PragmaAssumeNonNullLoc` will be set to this to
+  /// replay the unterminated assume_nonnull.
+  SourceLocation PreambleRecordedPragmaAssumeNonNullLoc;
 
   /// True if we hit the code-completion point.
   bool CodeCompletionReached = false;
@@ -1757,6 +1770,21 @@ public:
     PragmaAssumeNonNullLoc = Loc;
   }
 
+  /// Get the location of the recorded unterminated \#pragma clang
+  /// assume_nonnull begin in the preamble, if one exists.
+  ///
+  /// Returns an invalid location if the premable did not end with
+  /// such a pragma active or if there is no recorded preamble.
+  SourceLocation getPreambleRecordedPragmaAssumeNonNullLoc() const {
+    return PreambleRecordedPragmaAssumeNonNullLoc;
+  }
+
+  /// Record the location of the unterminated \#pragma clang
+  /// assume_nonnull begin in the preamble.
+  void setPreambleRecordedPragmaAssumeNonNullLoc(SourceLocation Loc) {
+    PreambleRecordedPragmaAssumeNonNullLoc = Loc;
+  }
+
   /// Set the directory in which the main file should be considered
   /// to have been found, if it is not a real file.
   void setMainFileDir(const DirectoryEntry *Dir) {
@@ -2076,6 +2104,14 @@ public:
 
   SourceLocation getLastFPEvalPragmaLocation() const {
     return LastFPEvalPragmaLocation;
+  }
+
+  LangOptions::FPEvalMethodKind getLastFPEvalMethod() const {
+    return LastFPEvalMethod;
+  }
+
+  void setLastFPEvalMethod(LangOptions::FPEvalMethodKind Val) {
+    LastFPEvalMethod = Val;
   }
 
   void setCurrentFPEvalMethod(SourceLocation PragmaLoc,

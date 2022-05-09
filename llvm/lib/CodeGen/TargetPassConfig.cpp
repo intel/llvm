@@ -138,6 +138,11 @@ static cl::opt<RunOutliner> EnableMachineOutliner(
                           "Disable all outlining"),
                // Sentinel value for unspecified option.
                clEnumValN(RunOutliner::AlwaysOutline, "", "")));
+// Disable the pass to fix unwind information. Whether the pass is included in
+// the pipeline is controlled via the target options, this option serves as
+// manual override.
+static cl::opt<bool> DisableCFIFixup("disable-cfi-fixup", cl::Hidden,
+                                     cl::desc("Disable the CFI fixup pass"));
 // Enable or disable FastISel. Both options are needed, because
 // FastISel is enabled by default with -fast, and we wish to be
 // able to enable or disable fast-isel independently from -O0.
@@ -894,6 +899,12 @@ void TargetPassConfig::addIRPasses() {
   addPass(&ShadowStackGCLoweringID);
   addPass(createLowerConstantIntrinsicsPass());
 
+  // For MachO, lower @llvm.global_dtors into @llvm_global_ctors with
+  // __cxa_atexit() calls to avoid emitting the deprecated __mod_term_func.
+  if (TM->getTargetTriple().isOSBinFormatMachO() &&
+      TM->Options.LowerGlobalDtorsViaCxaAtExit)
+    addPass(createLowerGlobalDtorsLegacyPass());
+
   // Make sure that no unreachable blocks are instruction selected.
   addPass(createUnreachableBlockEliminationPass());
 
@@ -1268,6 +1279,9 @@ void TargetPassConfig::addMachinePasses() {
              EnableMachineFunctionSplitter) {
     addPass(createMachineFunctionSplitterPass());
   }
+
+  if (!DisableCFIFixup && TM->Options.EnableCFIFixup)
+    addPass(createCFIFixup());
 
   // Add passes that directly emit MI after all other MI passes.
   addPreEmitPass2();

@@ -61,7 +61,7 @@ SValBuilder::SValBuilder(llvm::BumpPtrAllocator &alloc, ASTContext &context,
 
 DefinedOrUnknownSVal SValBuilder::makeZeroVal(QualType type) {
   if (Loc::isLocType(type))
-    return makeNull();
+    return makeNullWithType(type);
 
   if (type->isIntegralOrEnumerationType())
     return makeIntVal(0, type);
@@ -359,7 +359,7 @@ Optional<SVal> SValBuilder::getConstantVal(const Expr *E) {
     return makeBoolVal(cast<ObjCBoolLiteralExpr>(E));
 
   case Stmt::CXXNullPtrLiteralExprClass:
-    return makeNull();
+    return makeNullWithType(E->getType());
 
   case Stmt::CStyleCastExprClass:
   case Stmt::CXXFunctionalCastExprClass:
@@ -399,7 +399,7 @@ Optional<SVal> SValBuilder::getConstantVal(const Expr *E) {
 
     if (Loc::isLocType(E->getType()))
       if (E->isNullPointerConstant(Ctx, Expr::NPC_ValueDependentIsNotNull))
-        return makeNull();
+        return makeNullWithType(E->getType());
 
     return None;
   }
@@ -682,8 +682,11 @@ SVal SValBuilder::evalCastSubKind(loc::ConcreteInt V, QualType CastTy,
   }
 
   // Pointer to any pointer.
-  if (Loc::isLocType(CastTy))
-    return V;
+  if (Loc::isLocType(CastTy)) {
+    llvm::APSInt Value = V.getValue();
+    BasicVals.getAPSIntType(CastTy).apply(Value);
+    return loc::ConcreteInt(BasicVals.getValue(Value));
+  }
 
   // Pointer to whatever else.
   return UnknownVal();
@@ -742,9 +745,6 @@ SVal SValBuilder::evalCastSubKind(loc::MemRegionVal V, QualType CastTy,
       // This change is needed for architectures with varying
       // pointer widths. See the amdgcn opencl reproducer with
       // this change as an example: solver-sym-simplification-ptr-bool.cl
-      // FIXME: Cleanup remainder of `getZeroWithPtrWidth ()`
-      //        and `getIntWithPtrWidth()` functions to prevent future
-      //        confusion
       if (!Ty->isReferenceType())
         return makeNonLoc(Sym, BO_NE, BasicVals.getZeroWithTypeSize(Ty),
                           CastTy);

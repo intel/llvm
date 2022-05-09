@@ -92,6 +92,13 @@ public:
   /// Get the code defined by a label
   virtual pft::Evaluation *lookupLabel(pft::Label label) = 0;
 
+  /// For a given symbol which is host-associated, create a clone using
+  /// parameters from the host-associated symbol.
+  virtual bool
+  createHostAssociateVarClone(const Fortran::semantics::Symbol &sym) = 0;
+
+  virtual void copyHostAssociateVar(const Fortran::semantics::Symbol &sym) = 0;
+
   //===--------------------------------------------------------------------===//
   // Expressions
   //===--------------------------------------------------------------------===//
@@ -158,6 +165,11 @@ public:
   virtual mlir::Type genType(const Fortran::semantics::DerivedTypeSpec &) = 0;
   /// Generate the type from a Variable
   virtual mlir::Type genType(const pft::Variable &) = 0;
+
+  /// Register a runtime derived type information object symbol to ensure its
+  /// object will be generated as a global.
+  virtual void registerRuntimeTypeInfo(mlir::Location loc,
+                                       SymbolRef typeInfoSym) = 0;
 
   //===--------------------------------------------------------------------===//
   // Locations

@@ -113,7 +113,7 @@ SYCL_ESIMD_FUNCTION void test_simd_view_from_vector() {
   simd_view sv16b(v16);
   // expected-error@+5 {{no matching constructor for initialization of 'simd_view}}
   // expected-note@sycl/ext/intel/esimd/simd_view.hpp:* 3 {{candidate }}
-  // expected-note@sycl/ext/intel/esimd/simd.hpp:* {{candidate }}
+  // expected-note@sycl/ext/intel/esimd/simd.hpp:* 2 {{candidate }}
   // expected-note@sycl/ext/intel/esimd/detail/simd_obj_impl.hpp:* {{candidate }}
   // expected-note@sycl/ext/intel/esimd/simd_view.hpp:* 2 {{candidate }}
   simd_view<simd<int, 16>, region_base<false, int, 1, 1, 16, 1>> sv16c(

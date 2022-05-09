@@ -693,9 +693,6 @@ unsigned FAddCombine::calcInstrNumber(const AddendVect &Opnds) {
   unsigned OpndNum = Opnds.size();
   unsigned InstrNeeded = OpndNum - 1;
 
-  // The number of addends in the form of "(-1)*x".
-  unsigned NegOpndNum = 0;
-
   // Adjust the number of instructions needed to emit the N-ary add.
   for (const FAddend *Opnd : Opnds) {
     if (Opnd->isConstant())
@@ -707,9 +704,6 @@ unsigned FAddCombine::calcInstrNumber(const AddendVect &Opnds) {
       continue;
 
     const FAddendCoef &CE = Opnd->getCoef();
-    if (CE.isMinusOne() || CE.isMinusTwo())
-      NegOpndNum++;
-
     // Let the addend be "c * x". If "c == +/-1", the value of the addend
     // is immediately available; otherwise, it needs exactly one instruction
     // to evaluate the value.
@@ -2011,6 +2005,22 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
     if (match(Op0, m_OneUse(m_And(m_Specific(Op1), m_Constant(C))))) {
       return BinaryOperator::CreateNeg(
           Builder.CreateAnd(Op1, Builder.CreateNot(C)));
+    }
+  }
+
+  {
+    // sub(add(X,Y), s/umin(X,Y)) --> s/umax(X,Y)
+    // sub(add(X,Y), s/umax(X,Y)) --> s/umin(X,Y)
+    // TODO: generalize to sub(add(Z,Y),umin(X,Y)) --> add(Z,usub.sat(Y,X))?
+    if (auto *II = dyn_cast<MinMaxIntrinsic>(Op1)) {
+      Value *X = II->getLHS();
+      Value *Y = II->getRHS();
+      if (match(Op0, m_c_Add(m_Specific(X), m_Specific(Y))) &&
+          (Op0->hasOneUse() || Op1->hasOneUse())) {
+        Intrinsic::ID InvID = getInverseMinMaxIntrinsic(II->getIntrinsicID());
+        Value *InvMaxMin = Builder.CreateBinaryIntrinsic(InvID, X, Y);
+        return replaceInstUsesWith(I, InvMaxMin);
+      }
     }
   }
 

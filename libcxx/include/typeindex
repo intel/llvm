@@ -44,13 +44,12 @@ struct hash<type_index>
 
 */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
 #include <__functional/unary_function.h>
 #include <compare>
 #include <typeinfo>
 #include <version>
-
-#include <utility> // TODO: Remove this
 
 // TODO: remove these headers
 #include <__functional/binary_function.h>

@@ -16,8 +16,9 @@
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Attributes.h"
-#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/PassManager.h"
@@ -25,8 +26,6 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
-#include <map>
-#include <set>
 #include <vector>
 
 #define DEBUG_TYPE "iroutliner"
@@ -277,13 +276,29 @@ void OutlinableRegion::splitCandidate() {
   // We iterate over the instructions in the region, if we find a PHINode, we
   // check if there are predecessors outside of the region, if there are,
   // we ignore this region since we are unable to handle the severing of the
-  // phi node right now. 
+  // phi node right now.
+
+  // TODO: Handle extraneous inputs for PHINodes through variable number of
+  // inputs, similar to how outputs are handled.
   BasicBlock::iterator It = StartInst->getIterator();
+  EndBB = BackInst->getParent();
+  BasicBlock *IBlock;
+  bool EndBBTermAndBackInstDifferent = EndBB->getTerminator() != BackInst;
   while (PHINode *PN = dyn_cast<PHINode>(&*It)) {
     unsigned NumPredsOutsideRegion = 0;
-    for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i)
-      if (!BBSet.contains(PN->getIncomingBlock(i)))
+    for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
+      if (!BBSet.contains(PN->getIncomingBlock(i))) {
         ++NumPredsOutsideRegion;
+        continue;
+      }
+
+      // We must consider the case there the incoming block to the PHINode is
+      // the same as the final block of the OutlinableRegion.  If this is the
+      // case, the branch from this block must also be outlined to be valid.
+      IBlock = PN->getIncomingBlock(i);
+      if (IBlock == EndBB && EndBBTermAndBackInstDifferent)
+        ++NumPredsOutsideRegion;
+    }
 
     if (NumPredsOutsideRegion > 1)
       return;
@@ -298,11 +313,9 @@ void OutlinableRegion::splitCandidate() {
   
   // If the region ends with a PHINode, but does not contain all of the phi node
   // instructions of the region, we ignore it for now.
-  if (isa<PHINode>(BackInst)) {
-    EndBB = BackInst->getParent();
-    if (BackInst != &*std::prev(EndBB->getFirstInsertionPt()))
-      return;
-  }
+  if (isa<PHINode>(BackInst) &&
+      BackInst != &*std::prev(EndBB->getFirstInsertionPt()))
+    return;
 
   // The basic block gets split like so:
   // block:                 block:
@@ -679,6 +692,18 @@ static void moveFunctionData(Function &Old, Function &New,
       if (!isa<CallInst>(&Val)) {
         // Remove the debug information for outlined functions.
         Val.setDebugLoc(DebugLoc());
+
+        // Loop info metadata may contain line locations. Update them to have no
+        // value in the new subprogram since the outlined code could be from
+        // several locations.
+        auto updateLoopInfoLoc = [&New](Metadata *MD) -> Metadata * {
+          if (DISubprogram *SP = New.getSubprogram())
+            if (auto *Loc = dyn_cast_or_null<DILocation>(MD))
+              return DILocation::get(New.getContext(), Loc->getLine(),
+                                     Loc->getColumn(), SP, nullptr);
+          return MD;
+        };
+        updateLoopMetadataDebugLocations(Val, updateLoopInfoLoc);
         continue;
       }
 
@@ -1146,6 +1171,25 @@ static Optional<unsigned> getGVNForPHINode(OutlinableRegion &Region,
     OGVN = Cand.getCanonicalNum(GVN);
     assert(OGVN.hasValue() && "No GVN found for incoming value?");
     PHIGVNs.push_back(*OGVN);
+
+    // Find the incoming block and use the canonical numbering as well to define
+    // the hash for the PHINode.
+    OGVN = Cand.getGVN(IncomingBlock);
+
+    // If there is no number for the incoming block, it is becaause we have
+    // split the candidate basic blocks.  So we use the previous block that it
+    // was split from to find the valid global value numbering for the PHINode.
+    if (!OGVN.hasValue()) {
+      assert(Cand.getStartBB() == IncomingBlock &&
+             "Unknown basic block used in exit path PHINode.");
+
+      BasicBlock *PrevBlock = IncomingBlock->getSinglePredecessor();
+      OGVN = Cand.getGVN(PrevBlock);
+    }
+    GVN = OGVN.getValue();
+    OGVN = Cand.getCanonicalNum(GVN);
+    assert(OGVN.hasValue() && "No GVN found for incoming block?");
+    PHIGVNs.push_back(*OGVN);
   }
 
   // Now that we have the GVNs for the incoming values, we are going to combine
@@ -1581,12 +1625,12 @@ static void findCanonNumsForPHI(
 /// function.
 ///
 /// \param PN [in] - The PHINode that we are finding the canonical numbers for.
-/// \param Region [in] - The OutlinableRegion containing \p PN. 
+/// \param Region [in] - The OutlinableRegion containing \p PN.
 /// \param OverallPhiBlock [in] - The overall PHIBlock we are trying to find
 /// \p PN in.
 /// \param OutputMappings [in] - The mapping of output values from outlined
 /// region to their original values.
-/// \param UsedPhis [in, out] - The PHINodes in the block that have already been
+/// \param UsedPHIs [in, out] - The PHINodes in the block that have already been
 /// matched.
 /// \return the newly found or created PHINode in \p OverallPhiBlock.
 static PHINode*
@@ -1693,6 +1737,10 @@ findOrCreatePHIInBlock(PHINode &PN, OutlinableRegion &Region,
     IncomingVal = findOutputMapping(OutputMappings, IncomingVal);
     Value *Val = Region.findCorrespondingValueIn(*FirstRegion, IncomingVal);
     assert(Val && "Value is nullptr?");
+    DenseMap<Value *, Value *>::iterator RemappedIt =
+        FirstRegion->RemappedArguments.find(Val);
+    if (RemappedIt != FirstRegion->RemappedArguments.end())
+      Val = RemappedIt->second;
     NewPN->setIncomingValue(Idx, Val);
   }
   return NewPN;
@@ -1736,6 +1784,8 @@ replaceArgumentUses(OutlinableRegion &Region,
                         << *Region.ExtractedFunction << " with " << *AggArg
                         << " in function " << *Group.OutlinedFunction << "\n");
       Arg->replaceAllUsesWith(AggArg);
+      Value *V = Region.Call->getArgOperand(ArgIdx);
+      Region.RemappedArguments.insert(std::make_pair(V, AggArg));
       continue;
     }
 
@@ -2350,6 +2400,9 @@ void IROutliner::pruneIncompatibleRegions(
     if (BBHasAddressTaken)
       continue;
 
+    if (IRSC.getFunction()->hasOptNone())
+      continue;
+
     if (IRSC.front()->Inst->getFunction()->hasLinkOnceODRLinkage() &&
         !OutlineFromLinkODRs)
       continue;
@@ -2945,7 +2998,7 @@ bool IROutlinerLegacyPass::runOnModule(Module &M) {
   std::unique_ptr<OptimizationRemarkEmitter> ORE;
   auto GORE = [&ORE](Function &F) -> OptimizationRemarkEmitter & {
     ORE.reset(new OptimizationRemarkEmitter(&F));
-    return *ORE.get();
+    return *ORE;
   };
 
   auto GTTI = [this](Function &F) -> TargetTransformInfo & {
@@ -2976,7 +3029,7 @@ PreservedAnalyses IROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
   std::function<OptimizationRemarkEmitter &(Function &)> GORE =
       [&ORE](Function &F) -> OptimizationRemarkEmitter & {
     ORE.reset(new OptimizationRemarkEmitter(&F));
-    return *ORE.get();
+    return *ORE;
   };
 
   if (IROutliner(GTTI, GIRSI, GORE).run(M))

@@ -57,14 +57,14 @@ namespace {
 /// Expand function arguments according to the provided TypeConverter and
 /// ValueDecomposer.
 struct DecomposeCallGraphTypesForFuncArgs
-    : public DecomposeCallGraphTypesOpConversionPattern<FuncOp> {
+    : public DecomposeCallGraphTypesOpConversionPattern<func::FuncOp> {
   using DecomposeCallGraphTypesOpConversionPattern::
       DecomposeCallGraphTypesOpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(FuncOp op, OpAdaptor adaptor,
+  matchAndRewrite(func::FuncOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    auto functionType = op.getType();
+    auto functionType = op.getFunctionType();
 
     // Convert function arguments using the provided TypeConverter.
     TypeConverter::SignatureConversion conversion(functionType.getNumInputs());

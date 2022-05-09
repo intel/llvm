@@ -844,6 +844,9 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(BA->getTargetFlags());
     break;
   }
+  case ISD::AssertAlign:
+    ID.AddInteger(cast<AssertAlignSDNode>(N)->getAlign().value());
+    break;
   } // end switch (N->getOpcode())
 
   // Target specific memory nodes could also have address spaces and flags
@@ -1420,6 +1423,12 @@ SDValue SelectionDAG::getNOT(const SDLoc &DL, SDValue Val, EVT VT) {
 SDValue SelectionDAG::getLogicalNOT(const SDLoc &DL, SDValue Val, EVT VT) {
   SDValue TrueValue = getBoolConstant(true, DL, VT, VT);
   return getNode(ISD::XOR, DL, VT, Val, TrueValue);
+}
+
+SDValue SelectionDAG::getVPLogicalNOT(const SDLoc &DL, SDValue Val,
+                                      SDValue Mask, SDValue EVL, EVT VT) {
+  SDValue TrueValue = getBoolConstant(true, DL, VT, VT);
+  return getNode(ISD::VP_XOR, DL, VT, Val, TrueValue, Mask, EVL);
 }
 
 SDValue SelectionDAG::getBoolConstant(bool V, const SDLoc &DL, EVT VT,
@@ -5055,6 +5064,8 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     break;
   case ISD::FREEZE:
     assert(VT == Operand.getValueType() && "Unexpected VT!");
+    if (isGuaranteedNotToBeUndefOrPoison(Operand))
+      return Operand;
     break;
   case ISD::TokenFactor:
   case ISD::MERGE_VALUES:
@@ -5608,8 +5619,18 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
 
       // Build vector (integer) scalar operands may need implicit
       // truncation - do this before constant folding.
-      if (ScalarVT.isInteger() && ScalarVT.bitsGT(InSVT))
+      if (ScalarVT.isInteger() && ScalarVT.bitsGT(InSVT)) {
+        // Don't create illegally-typed nodes unless they're constants or undef
+        // - if we fail to constant fold we can't guarantee the (dead) nodes
+        // we're creating will be cleaned up before being visited for
+        // legalization.
+        if (NewNodesMustHaveLegalTypes && !ScalarOp.isUndef() &&
+            !isa<ConstantSDNode>(ScalarOp) &&
+            TLI->getTypeAction(*getContext(), InSVT) !=
+                TargetLowering::TypeLegal)
+          return SDValue();
         ScalarOp = getNode(ISD::TRUNCATE, DL, InSVT, ScalarOp);
+      }
 
       ScalarOps.push_back(ScalarOp);
     }
@@ -10384,6 +10405,11 @@ bool llvm::isAllOnesConstant(SDValue V) {
 bool llvm::isOneConstant(SDValue V) {
   ConstantSDNode *Const = dyn_cast<ConstantSDNode>(V);
   return Const != nullptr && Const->isOne();
+}
+
+bool llvm::isMinSignedConstant(SDValue V) {
+  ConstantSDNode *Const = dyn_cast<ConstantSDNode>(V);
+  return Const != nullptr && Const->isMinSignedValue();
 }
 
 SDValue llvm::peekThroughBitcasts(SDValue V) {

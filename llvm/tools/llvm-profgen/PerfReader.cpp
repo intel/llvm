@@ -100,6 +100,11 @@ void VirtualUnwinder::unwindLinear(UnwindState &State, uint64_t Repeat) {
   InstructionPointer &IP = State.InstPtr;
   uint64_t Target = State.getCurrentLBRTarget();
   uint64_t End = IP.Address;
+  if (Target > End) {
+    // Skip unwinding the rest of LBR trace when a bogus range is seen.
+    State.setInvalid();
+    return;
+  }
   if (Binary->usePseudoProbes()) {
     // We don't need to top frame probe since it should be extracted
     // from the range.
@@ -179,17 +184,12 @@ std::shared_ptr<StringBasedCtxKey> FrameStack::getContextKey() {
   return KeyStr;
 }
 
-std::shared_ptr<ProbeBasedCtxKey> ProbeStack::getContextKey() {
-  std::shared_ptr<ProbeBasedCtxKey> ProbeBasedKey =
-      std::make_shared<ProbeBasedCtxKey>();
-  for (auto CallProbe : Stack) {
-    ProbeBasedKey->Probes.emplace_back(CallProbe);
-  }
-  CSProfileGenerator::compressRecursionContext<const MCDecodedPseudoProbe *>(
-      ProbeBasedKey->Probes);
-  CSProfileGenerator::trimContext<const MCDecodedPseudoProbe *>(
-      ProbeBasedKey->Probes);
-  return ProbeBasedKey;
+std::shared_ptr<AddrBasedCtxKey> AddressStack::getContextKey() {
+  std::shared_ptr<AddrBasedCtxKey> KeyStr = std::make_shared<AddrBasedCtxKey>();
+  KeyStr->Context = Stack;
+  CSProfileGenerator::compressRecursionContext<uint64_t>(KeyStr->Context);
+  CSProfileGenerator::trimContext<uint64_t>(KeyStr->Context);
+  return KeyStr;
 }
 
 template <typename T>
@@ -252,8 +252,8 @@ void VirtualUnwinder::collectSamplesFromFrameTrie(
 void VirtualUnwinder::collectSamplesFromFrameTrie(
     UnwindState::ProfiledFrame *Cur) {
   if (Binary->usePseudoProbes()) {
-    ProbeStack Stack(Binary);
-    collectSamplesFromFrameTrie<ProbeStack>(Cur, Stack);
+    AddressStack Stack(Binary);
+    collectSamplesFromFrameTrie<AddressStack>(Cur, Stack);
   } else {
     FrameStack Stack(Binary);
     collectSamplesFromFrameTrie<FrameStack>(Cur, Stack);
@@ -308,19 +308,28 @@ bool VirtualUnwinder::unwind(const PerfSample *Sample, uint64_t Repeat) {
       // extra frame when processing the return paired with this call.
       unwindCall(State);
     } else if (isReturnState(State)) {
-      // Unwind returns - check whether the IP is indeed at a return instruction
+      // Unwind returns - check whether the IP is indeed at a return
+      // instruction
       unwindReturn(State);
-    } else {
+    } else if (isValidState(State)) {
       // Unwind branches
-      // For regular intra function branches, we only need to record branch with
-      // context. For an artificial branch cross function boundaries, we got an
-      // issue with returning to external code. Take the two LBR enties for
-      // example: [foo:8(RETURN), ext:1] [ext:3(CALL), bar:1] After perf reader,
-      // we only get[foo:8(RETURN), bar:1], unwinder will be confused like foo
-      // return to bar. Here we detect and treat this case as BRANCH instead of
-      // RETURN which only update the source address.
+      // For regular intra function branches, we only need to record branch
+      // with context. For an artificial branch cross function boundaries, we
+      // got an issue with returning to external code. Take the two LBR enties
+      // for example: [foo:8(RETURN), ext:1] [ext:3(CALL), bar:1] After perf
+      // reader, we only get[foo:8(RETURN), bar:1], unwinder will be confused
+      // like foo return to bar. Here we detect and treat this case as BRANCH
+      // instead of RETURN which only update the source address.
       unwindBranch(State);
+    } else {
+      // Skip unwinding the rest of LBR trace. Reset the stack and update the
+      // state so that the rest of the trace can still be processed as if they
+      // do not have stack samples.
+      State.clearCallStack();
+      State.InstPtr.update(State.getCurrentLBRSource());
+      State.pushFrame(State.InstPtr.Address);
     }
+
     State.advanceLBR();
     // Record `branch` with calling context after unwinding.
     recordBranchCount(Branch, State, Repeat);
@@ -332,7 +341,8 @@ bool VirtualUnwinder::unwind(const PerfSample *Sample, uint64_t Repeat) {
 }
 
 std::unique_ptr<PerfReaderBase>
-PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput) {
+PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput,
+                       Optional<uint32_t> PIDFilter) {
   std::unique_ptr<PerfReaderBase> PerfReader;
 
   if (PerfInput.Format == PerfFormat::UnsymbolizedProfile) {
@@ -343,7 +353,8 @@ PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput) {
 
   // For perf data input, we need to convert them into perf script first.
   if (PerfInput.Format == PerfFormat::PerfData)
-    PerfInput = PerfScriptReader::convertPerfDataToTrace(Binary, PerfInput);
+    PerfInput =
+        PerfScriptReader::convertPerfDataToTrace(Binary, PerfInput, PIDFilter);
 
   assert((PerfInput.Format == PerfFormat::PerfScript) &&
          "Should be a perfscript!");
@@ -351,9 +362,10 @@ PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput) {
   PerfInput.Content =
       PerfScriptReader::checkPerfScriptType(PerfInput.InputFile);
   if (PerfInput.Content == PerfContent::LBRStack) {
-    PerfReader.reset(new HybridPerfReader(Binary, PerfInput.InputFile));
+    PerfReader.reset(
+        new HybridPerfReader(Binary, PerfInput.InputFile, PIDFilter));
   } else if (PerfInput.Content == PerfContent::LBR) {
-    PerfReader.reset(new LBRPerfReader(Binary, PerfInput.InputFile));
+    PerfReader.reset(new LBRPerfReader(Binary, PerfInput.InputFile, PIDFilter));
   } else {
     exitWithError("Unsupported perfscript!");
   }
@@ -361,8 +373,8 @@ PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput) {
   return PerfReader;
 }
 
-PerfInputFile PerfScriptReader::convertPerfDataToTrace(ProfiledBinary *Binary,
-                                                       PerfInputFile &File) {
+PerfInputFile PerfScriptReader::convertPerfDataToTrace(
+    ProfiledBinary *Binary, PerfInputFile &File, Optional<uint32_t> PIDFilter) {
   StringRef PerfData = File.InputFile;
   // Run perf script to retrieve PIDs matching binary we're interested in.
   auto PerfExecutable = sys::Process::FindInEnvPath("PATH", "perf");
@@ -388,7 +400,7 @@ PerfInputFile PerfScriptReader::convertPerfDataToTrace(ProfiledBinary *Binary,
     if (isMMap2Event(TraceIt.getCurrentLine()) &&
         extractMMap2EventForBinary(Binary, TraceIt.getCurrentLine(), MMap)) {
       auto It = PIDSet.emplace(MMap.PID);
-      if (It.second) {
+      if (It.second && (!PIDFilter || MMap.PID == *PIDFilter)) {
         if (!PIDs.empty()) {
           PIDs.append(",");
         }
@@ -415,6 +427,10 @@ void PerfScriptReader::updateBinaryAddress(const MMapEvent &Event) {
   // Drop the event which doesn't belong to user-provided binary
   StringRef BinaryName = llvm::sys::path::filename(Event.BinaryPath);
   if (Binary->getName() != BinaryName)
+    return;
+
+  // Drop the event if process does not match pid filter
+  if (PIDFilter && Event.PID != *PIDFilter)
     return;
 
   // Drop the event if its image is loaded at the same address
@@ -461,14 +477,17 @@ static std::string getContextKeyStr(ContextKey *K,
                                     const ProfiledBinary *Binary) {
   if (const auto *CtxKey = dyn_cast<StringBasedCtxKey>(K)) {
     return SampleContext::getContextString(CtxKey->Context);
-  } else if (const auto *CtxKey = dyn_cast<ProbeBasedCtxKey>(K)) {
-    SampleContextFrameVector ContextStack;
-    for (const auto *Probe : CtxKey->Probes) {
-      Binary->getInlineContextForProbe(Probe, ContextStack, true);
+  } else if (const auto *CtxKey = dyn_cast<AddrBasedCtxKey>(K)) {
+    std::ostringstream OContextStr;
+    for (uint32_t I = 0; I < CtxKey->Context.size(); I++) {
+      if (OContextStr.str().size())
+        OContextStr << " @ ";
+      OContextStr << "0x"
+                  << to_hexString(
+                         Binary->virtualAddrToOffset(CtxKey->Context[I]),
+                         false);
     }
-    // Probe context key at this point does not have leaf probe, so do not
-    // include the leaf inline location.
-    return SampleContext::getContextString(ContextStack, true);
+    return OContextStr.str();
   } else {
     llvm_unreachable("unexpected key type");
   }
@@ -722,7 +741,9 @@ void HybridPerfReader::parseSample(TraceStream &TraceIt, uint64_t Count) {
   //          ... 0x4005c8/0x4005dc/P/-/-/0    # LBR Entries
   //
   std::shared_ptr<PerfSample> Sample = std::make_shared<PerfSample>();
-
+#ifndef NDEBUG
+  Sample->Linenum = TraceIt.getLineNumber();
+#endif
   // Parsing call stack and populate into PerfSample.CallStack
   if (!extractCallstack(TraceIt, Sample->CallStack)) {
     // Skip the next LBR line matched current call stack
@@ -917,8 +938,10 @@ void PerfScriptReader::computeCounterFromLBR(const PerfSample *Sample,
     // If this not the first LBR, update the range count between TO of current
     // LBR and FROM of next LBR.
     uint64_t StartOffset = TargetOffset;
-    if (EndOffeset != 0)
-      Counter.recordRangeCount(StartOffset, EndOffeset, Repeat);
+    if (EndOffeset != 0) {
+      if (StartOffset <= EndOffeset)
+        Counter.recordRangeCount(StartOffset, EndOffeset, Repeat);
+    }
     EndOffeset = SourceOffset;
   }
 }
@@ -1163,41 +1186,55 @@ void PerfScriptReader::warnInvalidRange() {
   const char *RangeCrossFuncMsg =
       "Fall through range should not cross function boundaries, likely due to "
       "profile and binary mismatch.";
+  const char *BogusRangeMsg = "Range start is after range end.";
 
+  uint64_t TotalRangeNum = 0;
   uint64_t InstNotBoundary = 0;
   uint64_t UnmatchedRange = 0;
   uint64_t RangeCrossFunc = 0;
+  uint64_t BogusRange = 0;
 
   for (auto &I : Ranges) {
     uint64_t StartOffset = I.first.first;
     uint64_t EndOffset = I.first.second;
+    TotalRangeNum += I.second;
 
     if (!Binary->offsetIsCode(StartOffset) ||
         !Binary->offsetIsTransfer(EndOffset)) {
-      InstNotBoundary++;
+      InstNotBoundary += I.second;
       WarnInvalidRange(StartOffset, EndOffset, EndNotBoundaryMsg);
     }
 
     auto *FRange = Binary->findFuncRangeForOffset(StartOffset);
     if (!FRange) {
-      UnmatchedRange++;
+      UnmatchedRange += I.second;
       WarnInvalidRange(StartOffset, EndOffset, DanglingRangeMsg);
       continue;
     }
 
     if (EndOffset >= FRange->EndOffset) {
-      RangeCrossFunc++;
+      RangeCrossFunc += I.second;
       WarnInvalidRange(StartOffset, EndOffset, RangeCrossFuncMsg);
+    }
+
+    if (StartOffset > EndOffset) {
+      BogusRange += I.second;
+      WarnInvalidRange(StartOffset, EndOffset, BogusRangeMsg);
     }
   }
 
-  uint64_t TotalRangeNum = Ranges.size();
-  emitWarningSummary(InstNotBoundary, TotalRangeNum,
-                     "of profiled ranges are not on instruction boundary.");
-  emitWarningSummary(UnmatchedRange, TotalRangeNum,
-                     "of profiled ranges do not belong to any functions.");
-  emitWarningSummary(RangeCrossFunc, TotalRangeNum,
-                     "of profiled ranges do cross function boundaries.");
+  emitWarningSummary(
+      InstNotBoundary, TotalRangeNum,
+      "of samples are from ranges that are not on instruction boundary.");
+  emitWarningSummary(
+      UnmatchedRange, TotalRangeNum,
+      "of samples are from ranges that do not belong to any functions.");
+  emitWarningSummary(
+      RangeCrossFunc, TotalRangeNum,
+      "of samples are from ranges that do cross function boundaries.");
+  emitWarningSummary(
+      BogusRange, TotalRangeNum,
+      "of samples are from ranges that have range start after range end.");
 }
 
 void PerfScriptReader::parsePerfTraces() {

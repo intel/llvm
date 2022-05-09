@@ -389,7 +389,7 @@ TEST(SimplexTest, isMarkedRedundantTiledLoopNestConstraints) {
   EXPECT_FALSE(simplex.isMarkedRedundant(5));
 }
 
-TEST(Simplextest, pivotRedundantRegressionTest) {
+TEST(SimplexTest, pivotRedundantRegressionTest) {
   Simplex simplex(2);
   simplex.addInequality({-1, 0, -1}); // x <= -1.
   unsigned snapshot = simplex.getSnapshot();
@@ -537,4 +537,31 @@ TEST(SimplexTest, IsRationalSubsetOf) {
   EXPECT_TRUE(sim2.isRationalSubsetOf(s1));
   EXPECT_TRUE(sim2.isRationalSubsetOf(s2));
   EXPECT_FALSE(sim2.isRationalSubsetOf(empty));
+}
+
+TEST(SimplexTest, addDivisionVariable) {
+  Simplex simplex(/*nVar=*/1);
+  simplex.addDivisionVariable({1, 0}, 2);
+  simplex.addInequality({1, 0, -3}); // x >= 3.
+  simplex.addInequality({-1, 0, 9}); // x <= 9.
+  Optional<SmallVector<int64_t, 8>> sample = simplex.findIntegerSample();
+  ASSERT_TRUE(sample.hasValue());
+  EXPECT_EQ((*sample)[0] / 2, (*sample)[1]);
+}
+
+TEST(SimplexTest, LexIneqType) {
+  LexSimplex simplex(/*nVar=*/1);
+  simplex.addInequality({2, -1}); // x >= 1/2.
+
+  // Redundant inequality x >= 2/3.
+  EXPECT_TRUE(simplex.isRedundantInequality({3, -2}));
+  EXPECT_FALSE(simplex.isSeparateInequality({3, -2}));
+
+  // Separate inequality x <= 2/3.
+  EXPECT_FALSE(simplex.isRedundantInequality({-3, 2}));
+  EXPECT_TRUE(simplex.isSeparateInequality({-3, 2}));
+
+  // Cut inequality x <= 1.
+  EXPECT_FALSE(simplex.isRedundantInequality({-1, 1}));
+  EXPECT_FALSE(simplex.isSeparateInequality({-1, 1}));
 }

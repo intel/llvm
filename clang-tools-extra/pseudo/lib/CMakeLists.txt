@@ -1,7 +1,8 @@
 set(LLVM_LINK_COMPONENTS Support)
 
 add_clang_library(clangPseudo
-  DirectiveMap.cpp
+  DirectiveTree.cpp
+  Forest.cpp
   Grammar.cpp
   GrammarBNF.cpp
   Lex.cpp

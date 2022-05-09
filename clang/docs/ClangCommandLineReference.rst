@@ -801,7 +801,7 @@ Generate Interface Stub Files, emit merged text not binary.
 
 Extract API information
 
-.. option:: -fopenmp-new-driver
+.. option:: -fopenmp-new-driver, fno-openmp-new-driver
 
 Use the new driver for OpenMP offloading.
 
@@ -2093,10 +2093,6 @@ Emit OpenMP code only for SIMD-based constructs.
 
 Enable debugging in the OpenMP offloading device RTL
 
-.. option:: -fopenmp-target-new-runtime, -fno-openmp-target-new-runtime
-
-Use the new bitcode library for OpenMP offloading
-
 .. option:: -fopenmp-offload-mandatory
 
 Indicate that offloading to the device is mandatory and do not generate host-fallback code.
@@ -3329,7 +3325,7 @@ Work around VLLDM erratum CVE-2021-35465 (ARM only)
 
 .. option:: -mno-bti-at-return-twice
 
-Do not add a BTI instruction after a setjmp or other return-twice construct (Arm only)
+Do not add a BTI instruction after a setjmp or other return-twice construct (AArch32/AArch64 only)
 
 .. option:: -mno-movt
 

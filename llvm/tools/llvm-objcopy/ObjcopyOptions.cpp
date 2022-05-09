@@ -551,8 +551,8 @@ static Error loadNewSectionData(StringRef ArgValue, StringRef OptionName,
   return Error::success();
 }
 
-// ParseObjcopyOptions returns the config and sets the input arguments. If a
-// help flag is set then ParseObjcopyOptions will print the help messege and
+// parseObjcopyOptions returns the config and sets the input arguments. If a
+// help flag is set then parseObjcopyOptions will print the help messege and
 // exit.
 Expected<DriverConfig>
 objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
@@ -870,11 +870,12 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
       InputArgs.hasArg(OBJCOPY_extract_main_partition);
   ELFConfig.LocalizeHidden = InputArgs.hasArg(OBJCOPY_localize_hidden);
   Config.Weaken = InputArgs.hasArg(OBJCOPY_weaken);
-  if (InputArgs.hasArg(OBJCOPY_discard_all, OBJCOPY_discard_locals))
-    Config.DiscardMode =
-        InputArgs.hasFlag(OBJCOPY_discard_all, OBJCOPY_discard_locals)
-            ? DiscardType::All
-            : DiscardType::Locals;
+  if (auto *Arg =
+          InputArgs.getLastArg(OBJCOPY_discard_all, OBJCOPY_discard_locals)) {
+    Config.DiscardMode = Arg->getOption().matches(OBJCOPY_discard_all)
+                             ? DiscardType::All
+                             : DiscardType::Locals;
+  }
   Config.OnlyKeepDebug = InputArgs.hasArg(OBJCOPY_only_keep_debug);
   ELFConfig.KeepFileSymbols = InputArgs.hasArg(OBJCOPY_keep_file_symbols);
   MachOConfig.KeepUndefined = InputArgs.hasArg(OBJCOPY_keep_undefined);
@@ -1012,8 +1013,8 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
   return std::move(DC);
 }
 
-// ParseInstallNameToolOptions returns the config and sets the input arguments.
-// If a help flag is set then ParseInstallNameToolOptions will print the help
+// parseInstallNameToolOptions returns the config and sets the input arguments.
+// If a help flag is set then parseInstallNameToolOptions will print the help
 // messege and exit.
 Expected<DriverConfig>
 objcopy::parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr) {
@@ -1210,8 +1211,8 @@ objcopy::parseBitcodeStripOptions(ArrayRef<const char *> ArgsArr,
   return std::move(DC);
 }
 
-// ParseStripOptions returns the config and sets the input arguments. If a
-// help flag is set then ParseStripOptions will print the help messege and
+// parseStripOptions returns the config and sets the input arguments. If a
+// help flag is set then parseStripOptions will print the help messege and
 // exit.
 Expected<DriverConfig>
 objcopy::parseStripOptions(ArrayRef<const char *> RawArgsArr,
@@ -1277,11 +1278,10 @@ objcopy::parseStripOptions(ArrayRef<const char *> RawArgsArr,
   ELFConfig.AllowBrokenLinks = InputArgs.hasArg(STRIP_allow_broken_links);
   Config.StripDebug = InputArgs.hasArg(STRIP_strip_debug);
 
-  if (InputArgs.hasArg(STRIP_discard_all, STRIP_discard_locals))
-    Config.DiscardMode =
-        InputArgs.hasFlag(STRIP_discard_all, STRIP_discard_locals)
-            ? DiscardType::All
-            : DiscardType::Locals;
+  if (auto *Arg = InputArgs.getLastArg(STRIP_discard_all, STRIP_discard_locals))
+    Config.DiscardMode = Arg->getOption().matches(STRIP_discard_all)
+                             ? DiscardType::All
+                             : DiscardType::Locals;
   Config.StripSections = InputArgs.hasArg(STRIP_strip_sections);
   Config.StripUnneeded = InputArgs.hasArg(STRIP_strip_unneeded);
   if (auto Arg = InputArgs.getLastArg(STRIP_strip_all, STRIP_no_strip_all))
@@ -1313,8 +1313,9 @@ objcopy::parseStripOptions(ArrayRef<const char *> RawArgsArr,
       return std::move(E);
 
   if (!InputArgs.hasArg(STRIP_no_strip_all) && !Config.StripDebug &&
-      !Config.StripUnneeded && Config.DiscardMode == DiscardType::None &&
-      !Config.StripAllGNU && Config.SymbolsToRemove.empty())
+      !Config.OnlyKeepDebug && !Config.StripUnneeded &&
+      Config.DiscardMode == DiscardType::None && !Config.StripAllGNU &&
+      Config.SymbolsToRemove.empty())
     Config.StripAll = true;
 
   if (Config.DiscardMode == DiscardType::All) {

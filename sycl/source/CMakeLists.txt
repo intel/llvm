@@ -98,8 +98,6 @@ function(add_sycl_rt_library LIB_NAME)
       OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})

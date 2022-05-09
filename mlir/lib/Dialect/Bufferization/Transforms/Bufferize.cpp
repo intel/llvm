@@ -224,7 +224,7 @@ std::unique_ptr<Pass> mlir::bufferization::createOneShotBufferizePass(
   return std::make_unique<OneShotBufferizePass>(options);
 }
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::bufferization::createFinalizingBufferizePass() {
   return std::make_unique<FinalizingBufferizePass>();
 }
@@ -304,12 +304,21 @@ checkBufferizationResult(Operation *op, const BufferizationOptions &options) {
 LogicalResult
 bufferization::finalizeBuffers(Operation *op,
                                const BufferizationOptions &options) {
+  // Hoist buffers.
   if (failed(hoistBufferAllocations(op, options)))
     return failure();
-  if (failed(createAllocDeallocOps(op, options, /*onlyLeakingAllocs=*/true)))
+
+  // Deallocate buffers that escape block boundaries ("leaking buffers") with
+  // the buffer deallocation pass.
+  bool hasLeakingAlloc = false;
+  if (failed(createAllocDeallocOps(op, options, /*onlyLeakingAllocs=*/true,
+                                   &hasLeakingAlloc)))
     return failure();
-  if (options.createDeallocs && failed(deallocateBuffers(op)))
+  if (options.createDeallocs && hasLeakingAlloc &&
+      failed(deallocateBuffers(op)))
     return failure();
+
+  // Deallocate all remaining buffers at the end of the block.
   if (failed(createAllocDeallocOps(op, options)))
     return failure();
 
