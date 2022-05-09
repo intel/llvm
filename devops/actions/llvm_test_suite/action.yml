@@ -93,7 +93,6 @@ runs:
       echo "::endgroup::"
       echo "::group::SYCL_PI_TRACE=-1 sycl-ls"
       echo $LD_LIBRARY_PATH
-      ldd $PWD/toolchain/lib/libpi_hip.so
       SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
       cd build

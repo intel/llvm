@@ -3611,6 +3611,85 @@ where the last N*2 are as described above.
   }];
 }
 
+def SYCLAddIRAnnotationsMemberDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "add_ir_annotations_member";
+  let Content = [{
+This attribute can be applied to a non-static field. Access to a field with this
+attribute will generate a call to ``llvm.ptr.annotation`` with the arguments
+paired.
+The attribute must contain N*2 arguments. Each of the first N of these arguments
+must be either string literals or ``constexpr const char *``. The following N
+must be integer, floating point, character, boolean, ``const char *``, or an
+enumeration as either a literal or ``constexpr`` value. The first N arguments
+and the second N arguments are zipped into pairs when creating the call to
+``llvm.ptr.annotation``, i.e. in the constant global variable pointed to by the
+generated annotation intrinsic call, the N+1'th argument of the attribute will
+occur after the first argument of the attribute, the N+2'th argument of the
+attribute will occur after the second argument of the attribute, etc.
+The generated call to ``llvm.ptr.annotation`` will have the following arguments
+in this order:
+
+  * First argument is a pointer to the field.
+  * A pointer to a string literal in a constant global variable. This will
+    always be "sycl-properties".
+  * A pointer to a string literal in a constant global variable with the name of
+    the source file.
+  * The line number of the field declaration in the source file.
+  * A pointer to a constant global variable containing pointers to string
+    literals in constant global variables. These pointers to string literals
+    occur in pairs. If the second value of a pair was a ``nullptr`` or an empty
+    string then the pointer will be a null-pointer.
+
+A pair will not be in the call to ``llvm.ptr.annotation`` if the first value of
+the pair is an empty string.
+
+.. code-block:: c++
+
+  struct Foo {
+    int *ptr
+  #ifdef __SYCL_DEVICE_ONLY__
+        [[__sycl_detail__::add_ir_annotations_member(
+            "Attr1", "Attr2", "Attribute value", 3.14)]]
+  #endif
+        ;
+  };
+  // Accessing the 'ptr' field of 'Foo' will result in a call to
+  // 'llvm.ptr.annotation' with the second argument pointing to a constant
+  // global variable containing "sycl-properties" and the fifth argument
+  // pointing to a constant global variable with pointers to string literals
+  // "Attr1", "Attribute value", "Attr2", "3.14" in that order.
+
+Optionally, the first argument of the attribute can be an initializer list
+containing only string literals. This initializer list acts as a filter,
+allowing only pairs with the first value in the initializer list to be
+generated. If this intializer list is present, the attribute must have N*2+1
+arguments, where the last N*2 are as described above.
+
+.. code-block:: c++
+
+  struct Foo {
+    int *ptr
+  #ifdef __SYCL_DEVICE_ONLY__
+        [[__sycl_detail__::add_ir_annotations_member(
+            {"Attr2"}, "Attr1", "Attr2", "Attribute value", 3.14)]]
+  #endif
+        ;
+  };
+  // Accessing the 'ptr' field of 'Foo' will result in a call to
+  // 'llvm.ptr.annotation' with the second argument pointing to a constant
+  // global variable containing "sycl-properties" and the fifth argument
+  // pointing to a constant global variable with pointers to string literals
+  // "Attr2", "3.14" in that order.
+
+.. Note:: This attribute will only generate a call to ``llvm.ptr.annotation`` in
+  SYCL device code.
+
+.. Note:: This attribute is intended as an internal implementation detail and is
+  not intended to be used by external users.
+  }];
+}
+
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::device_indirectly_callable";

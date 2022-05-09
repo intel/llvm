@@ -2873,6 +2873,55 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
     Annotations.push_back(EmitAnnotateAttr(GV, I, D->getLocation()));
 }
 
+llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
+    const SYCLAddIRAnnotationsMemberAttr *Attr) {
+  llvm::SmallVector<std::pair<std::string, std::string>, 4>
+      AnnotationNameValPairs =
+          Attr->getFilteredAttributeNameValuePairs(getContext());
+  if (AnnotationNameValPairs.empty())
+    return llvm::ConstantPointerNull::get(GlobalsInt8PtrTy);
+
+  // For each name-value pair of the SYCL annotation attribute, create an
+  // annotation string for it. This will be the annotation arguments. If the
+  // value is the empty string, use a null-pointer instead.
+  llvm::SmallVector<llvm::Constant *, 4> LLVMArgs;
+  llvm::FoldingSetNodeID ID;
+  LLVMArgs.reserve(AnnotationNameValPairs.size() * 2);
+  for (const std::pair<std::string, std::string> &NVP :
+       AnnotationNameValPairs) {
+    llvm::Constant *NameStrC = EmitAnnotationString(NVP.first);
+    llvm::Constant *ValueStrC =
+        NVP.second == "" ? llvm::ConstantPointerNull::get(GlobalsInt8PtrTy)
+                         : EmitAnnotationString(NVP.second);
+    LLVMArgs.push_back(NameStrC);
+    LLVMArgs.push_back(ValueStrC);
+    ID.Add(NameStrC);
+    ID.Add(ValueStrC);
+  }
+
+  // If another SYCL annotation had the same arguments we can reuse the
+  // annotation value it created.
+  llvm::Constant *&LookupRef = SYCLAnnotationArgs[ID.ComputeHash()];
+  if (LookupRef)
+    return LookupRef;
+
+  // Create an anonymous struct global variable pointing to the annotation
+  // arguments in the order they were added above. This is the final constant
+  // used as the annotation value.
+  auto *Struct = llvm::ConstantStruct::getAnon(LLVMArgs);
+  auto *GV = new llvm::GlobalVariable(getModule(), Struct->getType(), true,
+                                      llvm::GlobalValue::PrivateLinkage, Struct,
+                                      ".args");
+  GV->setSection(AnnotationSection);
+  GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+  auto *Bitcasted = llvm::ConstantExpr::getBitCast(GV, GlobalsInt8PtrTy);
+
+  // Set the look-up reference to the final annotation value for future
+  // annotations to reuse.
+  LookupRef = Bitcasted;
+  return Bitcasted;
+}
+
 void CodeGenModule::AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
                                               const RecordDecl *RD) {
   const auto *A = RD->getAttr<SYCLAddIRAttributesGlobalVariableAttr>();

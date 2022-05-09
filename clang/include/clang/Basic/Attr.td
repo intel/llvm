@@ -1689,6 +1689,16 @@ def SYCLAddIRAttributesGlobalVariable : InheritableAttr {
   let Documentation = [SYCLAddIRAttributesGlobalVariableDocs];
 }
 
+def SYCLAddIRAnnotationsMember : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "add_ir_annotations_member">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Field], ErrorDiag>;
+  let AcceptsExprPack = 1;
+  let AdditionalMembers = SYCLAddIRAttrCommonMembers.MemberCode;
+  let Documentation = [SYCLAddIRAnnotationsMemberDocs];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;

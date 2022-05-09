@@ -7911,6 +7911,38 @@ static void handleSYCLAddIRAttributesGlobalVariableAttr(Sema &S, Decl *D,
   S.AddSYCLAddIRAttributesGlobalVariableAttr(D, A, Args);
 }
 
+SYCLAddIRAnnotationsMemberAttr *Sema::MergeSYCLAddIRAnnotationsMemberAttr(
+    Decl *D, const SYCLAddIRAnnotationsMemberAttr &A) {
+  if (const auto *ExistingAttr = D->getAttr<SYCLAddIRAnnotationsMemberAttr>()) {
+    checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this);
+    return nullptr;
+  }
+  return A.clone(Context);
+}
+
+void Sema::AddSYCLAddIRAnnotationsMemberAttr(Decl *D,
+                                             const AttributeCommonInfo &CI,
+                                             MutableArrayRef<Expr *> Args) {
+  auto *Attr = SYCLAddIRAnnotationsMemberAttr::Create(Context, Args.data(),
+                                                      Args.size(), CI);
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,
+                                  CI))
+    return;
+  D->addAttr(Attr);
+}
+
+static void handleSYCLAddIRAnnotationsMemberAttr(Sema &S, Decl *D,
+                                                 const ParsedAttr &A) {
+  llvm::SmallVector<Expr *, 4> Args;
+  Args.reserve(A.getNumArgs());
+  for (unsigned I = 0; I < A.getNumArgs(); I++) {
+    assert(A.getArgAsExpr(I));
+    Args.push_back(A.getArgAsExpr(I));
+  }
+
+  S.AddSYCLAddIRAnnotationsMemberAttr(D, A, Args);
+}
+
 namespace {
 struct IntrinToName {
   uint32_t Id;
@@ -11388,6 +11420,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLAddIRAttributesGlobalVariable:
     handleSYCLAddIRAttributesGlobalVariableAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAddIRAnnotationsMember:
+    handleSYCLAddIRAnnotationsMemberAttr(S, D, AL);
     break;
 
   // Swift attributes.

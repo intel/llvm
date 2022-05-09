@@ -1048,7 +1048,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   return PI_SUCCESS;
 }
 
-pi_result piMemGetInfo(pi_mem, cl_mem_info, size_t, void *, size_t *) {
+pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1265,7 +1265,8 @@ pi_result piextMemGetNativeHandle(pi_mem, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_mem *) {
+pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
+                                         pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1881,8 +1882,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_info, size_t,
-                                  void *, size_t *) {
+pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
+                                  size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
