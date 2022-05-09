@@ -7659,12 +7659,12 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
 
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
-    if (const auto *DeclAttr =
-            D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
       // If the other attribute argument is instantiation dependent, we won't
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
-      if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+      if (const auto *DeclExpr =
+	      D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
