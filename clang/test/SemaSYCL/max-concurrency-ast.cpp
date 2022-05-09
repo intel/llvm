@@ -77,17 +77,17 @@ void foo() {
     // CHECK-NEXT: value: Int 4
     // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 4
     h.single_task<class kernel_name_3>(
-        []() [[intel::max_concurrency(4)]]{});
+        []() [[intel::max_concurrency(4)]] {});
 
     // Ignore duplicate attribute.
     h.single_task<class kernel_name_4>(
-    // CHECK: FunctionDecl {{.*}}kernel_name_4
-    // CHECK: SYCLIntelFPGAMaxConcurrencyAttr
-    // CHECK-NEXT: ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT: value: Int 3
-    // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+        // CHECK: FunctionDecl {{.*}}kernel_name_4
+        // CHECK: SYCLIntelFPGAMaxConcurrencyAttr
+        // CHECK-NEXT: ConstantExpr {{.*}} 'int'
+        // CHECK-NEXT: value: Int 3
+        // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
         []() [[intel::max_concurrency(3),
-               intel::max_concurrency(3)]]{});
+               intel::max_concurrency(3)]] {});
   });
 
   func3<5>();

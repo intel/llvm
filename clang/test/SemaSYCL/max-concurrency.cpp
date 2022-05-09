@@ -15,16 +15,16 @@
 
 // Tests for Intel FPGA max_concurrency function attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
-[[intel::max_concurrency(2)]]
-[[intel::max_concurrency(2)]] void func3() {}
+[[intel::max_concurrency(2)]] [[intel::max_concurrency(2)]] void func3() {}
 
 // No diagnostic is emitted because the arguments match.
 [[intel::max_concurrency(4)]] void func4();
 [[intel::max_concurrency(4)]] void func4(); // OK
 
 // Diagnostic is emitted because the arguments mismatch.
-[[intel::max_concurrency(2)]]                  // expected-note {{previous attribute is here}}
-[[intel::max_concurrency(4)]] void func5() {}  // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
+[[intel::max_concurrency(2)]] // expected-note {{previous attribute is here}}
+[[intel::max_concurrency(4)]] void
+func5() {} // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
 
 [[intel::max_concurrency(1)]] void func6(); // expected-note {{previous attribute is here}}
 [[intel::max_concurrency(3)]] void func6(); // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
@@ -48,7 +48,7 @@ template <int N>
 [[intel::max_concurrency(N)]] void func10(); // expected-error {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
 
 template <int size>
-[[intel::max_concurrency(10)]] void func11();     // expected-note {{previous attribute is here}}
+[[intel::max_concurrency(10)]] void func11(); // expected-note {{previous attribute is here}}
 template <int size>
 [[intel::max_concurrency(size)]] void func11() {} // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
 
@@ -79,8 +79,8 @@ template <typename Ty>
 
 struct S {};
 void test() {
-  //expected-note@+1{{in instantiation of function template specialization 'func14<S>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func14<S>' requested here}}
   func14<S>();
-  //expected-note@+1{{in instantiation of function template specialization 'func14<float>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func14<float>' requested here}}
   func14<float>();
 }
