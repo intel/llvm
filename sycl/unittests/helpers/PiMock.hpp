@@ -141,7 +141,7 @@ public:
   PiMock(const cl::sycl::host_selector &HostSelector) = delete;
 
   PiMock(PiMock &&Other) {
-    MPlatform=std::move(Other.MPlatform);
+    MPlatform = std::move(Other.MPlatform);
     OrigFuncTable = std::move(Other.OrigFuncTable);
     Other.OrigFuncTable = {}; // Move above doesn't reset the optional.
     MPiPluginMockPtr = std::move(Other.MPiPluginMockPtr);
