@@ -1235,8 +1235,12 @@ Value *getScalarOrArrayConstantInt(Instruction *Pos, Type *T, unsigned Len,
     assert(Len == 1 && "Invalid length");
     return ConstantInt::get(IT, V, IsSigned);
   }
-  if (auto PT = dyn_cast<PointerType>(T)) {
-    auto ET = PT->getPointerElementType();
+  if (isa<PointerType>(T)) {
+    unsigned PointerSize =
+        Pos->getModule()->getDataLayout().getPointerTypeSizeInBits(T);
+    auto *ET = Type::getIntNTy(T->getContext(), PointerSize);
+    assert(cast<PointerType>(T)->isOpaqueOrPointeeTypeMatches(ET) &&
+           "Pointer-to-non-size_t arguments are not valid for this call");
     auto AT = ArrayType::get(ET, Len);
     std::vector<Constant *> EV(Len, ConstantInt::get(ET, V, IsSigned));
     auto CA = ConstantArray::get(AT, EV);

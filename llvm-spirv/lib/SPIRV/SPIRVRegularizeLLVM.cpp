@@ -633,12 +633,11 @@ bool SPIRVRegularizeLLVMBase::regularize() {
         // Add an additional bitcast in case address space cast also changes
         // pointer element type.
         if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
-          Type *DestTy = ASCast->getDestTy();
-          Type *SrcTy = ASCast->getSrcTy();
-          if (DestTy->getPointerElementType() !=
-              SrcTy->getPointerElementType()) {
+          PointerType *DestTy = cast<PointerType>(ASCast->getDestTy());
+          PointerType *SrcTy = cast<PointerType>(ASCast->getSrcTy());
+          if (!DestTy->hasSameElementTypeAs(SrcTy)) {
             PointerType *InterTy = PointerType::getWithSamePointeeType(
-                cast<PointerType>(DestTy), SrcTy->getPointerAddressSpace());
+                DestTy, SrcTy->getPointerAddressSpace());
             BitCastInst *NewBCast = new BitCastInst(
                 ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
             AddrSpaceCastInst *NewASCast =
