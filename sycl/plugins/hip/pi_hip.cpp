@@ -980,7 +980,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    PI_DEVICE_TYPE_GPU);
   }
   case PI_DEVICE_INFO_VENDOR_ID: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 4318u);
+    return getInfo(param_value_size, param_value, param_value_size_ret, 4098u);
   }
   case PI_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     int compute_units = 0;
