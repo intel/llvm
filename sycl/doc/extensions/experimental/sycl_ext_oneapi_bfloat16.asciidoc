@@ -139,9 +139,6 @@ public:
   operator float() const;
   operator sycl::half() const;
 
-  // Get bfloat16 as uint16.
-  operator storage_t() const;
-
   // Convert bfloat16 to bool type
   explicit operator bool();
 
