@@ -1,9 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 // RUN: not %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -verify -DNO_SYCL %s
-// RUN: %clang_cc1 -fsycl-is-host -fsyntax-only -verify -DSYCL_HOST %s
-
-#if !defined(NO_SYCL) || defined(SYCL_HOST)
 
 [[intel::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute only applies to functions}}
 int N;
@@ -40,14 +36,6 @@ void helper() {}
 void foo() {
   helper();
 }
-
-#else
-
-[[intel::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute ignored}}
-void
-baz() {}
-
-#endif // NO_SYCL
 
 // CHECK: FunctionDecl {{.*}} helper
 //
