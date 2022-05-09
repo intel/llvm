@@ -4765,8 +4765,11 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   unsigned int is_managed;
   PI_CHECK_ERROR(cuPointerGetAttribute(
       &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
-  if (!is_managed)
-    return PI_SUCCESS;
+  if (!is_managed) {
+    setErrorMessage("Prefetch hint ignored as prefetch only works with ",
+                    "USM" PI_SUCCESS);
+    return PI_PLUGIN_SPECIFIC_ERROR;
+  }
 
   // flags is currently unused so fail if set
   if (flags != 0)
