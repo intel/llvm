@@ -2944,7 +2944,7 @@ Query for this feature with ``__has_builtin(__builtin_trap)``.
 
 ``__builtin_sycl_unique_stable_name()`` is a builtin that takes a type and
 produces a string literal containing a unique name for the type that is stable
-across split compilations, mainly to support SYCL/Data Parallel C++ language.
+across split compilations, mainly to support SYCL language.
 
 In cases where the split compilation needs to share a unique token for a type
 across the boundary (such as in an offloading situation), this name can be used
