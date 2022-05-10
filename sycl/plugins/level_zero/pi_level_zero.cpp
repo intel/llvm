@@ -5047,7 +5047,7 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 }
 
 // Exteral PI API entry
-pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
+pi_result i(pi_context Context, pi_event *RetEvent) {
   return EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
 }
 
@@ -5449,9 +5449,9 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Then, this ref count becomes zero when the event is completed and RT
   // calls piEventRelease().
   // However, an interop event created in this function would go through
-  // the same life cycle, meaning it will be released twice.
-  // To match with this life cycle of +2 and -2,
-  // we increase the ref count of the interop pi_event we return to SYCL RT.
+  // a different life cycle, meaning it will be released only once when RT
+  // calls piEventRelease in the sycl::event_impl destructor.
+  // So, we increase the ref count of the interop pi_event here. Refcount=1.
   PI_CALL(piEventRetain(*Event));
   return PI_SUCCESS;
 }
