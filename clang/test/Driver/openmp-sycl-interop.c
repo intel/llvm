@@ -4,7 +4,7 @@
 // REQUIRES: x86-registered-target
 
 // RUN: touch %t.o
-// RUN: %clang --target=x86_64-host-linux-gnu -fsycl -fopenmp -fopenmp-targets=x86_64-device-linux-gnu -### %t.o 2>&1 \
+// RUN: %clang --target=x86_64-host-linux-gnu -fno-openmp-new-driver -fsycl -fopenmp -fopenmp-targets=x86_64-device-linux-gnu -### %t.o 2>&1 \
 // RUN:   | FileCheck %s
 // CHECK: clang-offload-wrapper{{(.exe)?}}" {{.*}}"-o=[[SYCLBC:.+\.bc]]" {{.*}}"-target=spir64" "-kind=sycl"
 // CHECK: llc{{.*}}" {{.*}}"-o" "[[SYCLOBJ:.+]]" "[[SYCLBC]]"
