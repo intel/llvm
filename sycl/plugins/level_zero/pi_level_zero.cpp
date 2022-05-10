@@ -5449,9 +5449,10 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Then, this ref count becomes zero when the event is completed and RT
   // calls piEventRelease().
   // However, an interop event created in this function would go through
-  // a different life cycle, meaning it will be released only once when RT
-  // calls piEventRelease in the sycl::event_impl destructor.
-  // So, we increase the ref count of the interop pi_event here. Refcount=1.
+  // the same life cycle, meaning it will be released only twice when RT
+  // calls piEventRelease in the sycl::event_impl destructor and when
+  // the Queue associated with the event is released.
+  // So, we increase the ref count of the interop pi_event here.
   PI_CALL(piEventRetain(*Event));
   return PI_SUCCESS;
 }
