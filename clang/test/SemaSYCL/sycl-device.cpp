@@ -1,8 +1,10 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -DSYCL %s
 // RUN: %clang_cc1 -fsycl-is-host -fsyntax-only -verify -DHOST %s
-// RUN: %clang_cc1 -verify -DNO_SYCL %s
+// RUN: %clang_cc1 -verify %s
 
-#ifndef NO_SYCL
+// Semantic tests for sycl_device attribute
+
+#ifdef SYCL
 
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute only applies to functions}}
 int N;
@@ -41,8 +43,8 @@ __attribute__((sycl_device)) void func2(int *) {}
 // expected-no-diagnostics
 __attribute__((sycl_device)) void func3() {}
 
-#else // NO_SYCL
+#else
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute ignored}}
 void baz() {}
 
-#endif // NO_SYCL
+#endif
