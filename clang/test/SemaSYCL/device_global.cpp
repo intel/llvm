@@ -33,6 +33,18 @@ namespace {
 device_global<int> same_name; // OK
 }
 
+// TODO: add diagnostic for this case
+inline namespace other {
+device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
+} // namespace other
+
+// TODO: add diagnostic for this case
+// inline namespace {
+//  namespace foo {               // ILLEGAL: namespace name shadows "::foo"
+//  }                             // namespace which contains "device_global"
+//                                // variable.
+//}
+
 struct BBar {
 private:
   struct BarInsider {
