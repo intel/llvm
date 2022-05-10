@@ -1,7 +1,6 @@
 /// Check that OpenMP and SYCL device binaries are wrapped and linked to the host
 /// image when program uses both OpenMP and SYCL offloading models.
 
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 
 // RUN: touch %t.o

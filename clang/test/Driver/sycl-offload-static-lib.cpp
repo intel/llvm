@@ -1,7 +1,6 @@
 ///
 /// Perform several driver tests for SYCL offloading with -foffload-static-lib
 ///
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 
 /// test behaviors of passing a fat static lib

@@ -2,7 +2,7 @@
 /// Perform several driver tests for SYCL device libraries on Windows
 ///
 
-// REQUIRES: clang-driver, windows
+// REQUIRES: windows
 
 /// ###########################################################################
 

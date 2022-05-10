@@ -1,7 +1,6 @@
 ///
 /// tests specific to -fintelfpga -fsycl w/ static libs
 ///
-// REQUIRES: clang-driver
 // REQUIRES: system-windows
 
 // make dummy archive
