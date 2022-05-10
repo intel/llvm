@@ -1136,10 +1136,8 @@ SDValue DAGCombiner::CombineTo(SDNode *N, const SDValue *To, unsigned NumTo,
   if (AddTo) {
     // Push the new nodes and any users onto the worklist
     for (unsigned i = 0, e = NumTo; i != e; ++i) {
-      if (To[i].getNode()) {
-        AddToWorklist(To[i].getNode());
-        AddUsersToWorklist(To[i].getNode());
-      }
+      if (To[i].getNode())
+        AddToWorklistWithUsers(To[i].getNode());
     }
   }
 
@@ -2520,7 +2518,8 @@ SDValue DAGCombiner::visitADDLike(SDNode *N) {
                        N1.getOperand(1));
 
   // fold (A-B)+(C-D) to (A+C)-(B+D) when A or C is constant
-  if (N0.getOpcode() == ISD::SUB && N1.getOpcode() == ISD::SUB) {
+  if (N0.getOpcode() == ISD::SUB && N1.getOpcode() == ISD::SUB && 
+      N0->hasOneUse() && N1->hasOneUse()) {
     SDValue N00 = N0.getOperand(0);
     SDValue N01 = N0.getOperand(1);
     SDValue N10 = N1.getOperand(0);
@@ -10471,24 +10470,27 @@ bool refineUniformBase(SDValue &BasePtr, SDValue &Index, bool IndexIsScaled,
 }
 
 // Fold sext/zext of index into index type.
-bool refineIndexType(MaskedGatherScatterSDNode *MGS, SDValue &Index,
-                     bool Scaled, bool Signed, SelectionDAG &DAG) {
+bool refineIndexType(SDValue &Index, ISD::MemIndexType &IndexType,
+                     SelectionDAG &DAG) {
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
 
   // It's always safe to look through zero extends.
   if (Index.getOpcode() == ISD::ZERO_EXTEND) {
     SDValue Op = Index.getOperand(0);
-    MGS->setIndexType(Scaled ? ISD::UNSIGNED_SCALED : ISD::UNSIGNED_UNSCALED);
     if (TLI.shouldRemoveExtendFromGSIndex(Op.getValueType())) {
+      IndexType = ISD::getUnsignedIndexType(IndexType);
       Index = Op;
+      return true;
+    } else if (ISD::isIndexTypeSigned(IndexType)) {
+      IndexType = ISD::getUnsignedIndexType(IndexType);
       return true;
     }
   }
 
   // It's only safe to look through sign extends when Index is signed.
-  if (Index.getOpcode() == ISD::SIGN_EXTEND && Signed) {
+  if (Index.getOpcode() == ISD::SIGN_EXTEND &&
+      ISD::isIndexTypeSigned(IndexType)) {
     SDValue Op = Index.getOperand(0);
-    MGS->setIndexType(Scaled ? ISD::SIGNED_SCALED : ISD::SIGNED_UNSCALED);
     if (TLI.shouldRemoveExtendFromGSIndex(Op.getValueType())) {
       Index = Op;
       return true;
@@ -10506,6 +10508,7 @@ SDValue DAGCombiner::visitMSCATTER(SDNode *N) {
   SDValue Scale = MSC->getScale();
   SDValue StoreVal = MSC->getValue();
   SDValue BasePtr = MSC->getBasePtr();
+  ISD::MemIndexType IndexType = MSC->getIndexType();
   SDLoc DL(N);
 
   // Zap scatters with a zero mask.
@@ -10514,17 +10517,16 @@ SDValue DAGCombiner::visitMSCATTER(SDNode *N) {
 
   if (refineUniformBase(BasePtr, Index, MSC->isIndexScaled(), DAG)) {
     SDValue Ops[] = {Chain, StoreVal, Mask, BasePtr, Index, Scale};
-    return DAG.getMaskedScatter(
-        DAG.getVTList(MVT::Other), MSC->getMemoryVT(), DL, Ops,
-        MSC->getMemOperand(), MSC->getIndexType(), MSC->isTruncatingStore());
+    return DAG.getMaskedScatter(DAG.getVTList(MVT::Other), MSC->getMemoryVT(),
+                                DL, Ops, MSC->getMemOperand(), IndexType,
+                                MSC->isTruncatingStore());
   }
 
-  if (refineIndexType(MSC, Index, MSC->isIndexScaled(), MSC->isIndexSigned(),
-                      DAG)) {
+  if (refineIndexType(Index, IndexType, DAG)) {
     SDValue Ops[] = {Chain, StoreVal, Mask, BasePtr, Index, Scale};
-    return DAG.getMaskedScatter(
-        DAG.getVTList(MVT::Other), MSC->getMemoryVT(), DL, Ops,
-        MSC->getMemOperand(), MSC->getIndexType(), MSC->isTruncatingStore());
+    return DAG.getMaskedScatter(DAG.getVTList(MVT::Other), MSC->getMemoryVT(),
+                                DL, Ops, MSC->getMemOperand(), IndexType,
+                                MSC->isTruncatingStore());
   }
 
   return SDValue();
@@ -10602,6 +10604,7 @@ SDValue DAGCombiner::visitMGATHER(SDNode *N) {
   SDValue Scale = MGT->getScale();
   SDValue PassThru = MGT->getPassThru();
   SDValue BasePtr = MGT->getBasePtr();
+  ISD::MemIndexType IndexType = MGT->getIndexType();
   SDLoc DL(N);
 
   // Zap gathers with a zero mask.
@@ -10610,19 +10613,16 @@ SDValue DAGCombiner::visitMGATHER(SDNode *N) {
 
   if (refineUniformBase(BasePtr, Index, MGT->isIndexScaled(), DAG)) {
     SDValue Ops[] = {Chain, PassThru, Mask, BasePtr, Index, Scale};
-    return DAG.getMaskedGather(DAG.getVTList(N->getValueType(0), MVT::Other),
-                               MGT->getMemoryVT(), DL, Ops,
-                               MGT->getMemOperand(), MGT->getIndexType(),
-                               MGT->getExtensionType());
+    return DAG.getMaskedGather(
+        DAG.getVTList(N->getValueType(0), MVT::Other), MGT->getMemoryVT(), DL,
+        Ops, MGT->getMemOperand(), IndexType, MGT->getExtensionType());
   }
 
-  if (refineIndexType(MGT, Index, MGT->isIndexScaled(), MGT->isIndexSigned(),
-                      DAG)) {
+  if (refineIndexType(Index, IndexType, DAG)) {
     SDValue Ops[] = {Chain, PassThru, Mask, BasePtr, Index, Scale};
-    return DAG.getMaskedGather(DAG.getVTList(N->getValueType(0), MVT::Other),
-                               MGT->getMemoryVT(), DL, Ops,
-                               MGT->getMemOperand(), MGT->getIndexType(),
-                               MGT->getExtensionType());
+    return DAG.getMaskedGather(
+        DAG.getVTList(N->getValueType(0), MVT::Other), MGT->getMemoryVT(), DL,
+        Ops, MGT->getMemOperand(), IndexType, MGT->getExtensionType());
   }
 
   return SDValue();
@@ -13686,8 +13686,7 @@ SDValue DAGCombiner::visitBITCAST(SDNode *N) {
       if (Op.getOpcode() == ISD::BITCAST &&
           Op.getOperand(0).getValueType() == VT)
         return SDValue(Op.getOperand(0));
-      if (Op.isUndef() || ISD::isBuildVectorOfConstantSDNodes(Op.getNode()) ||
-          ISD::isBuildVectorOfConstantFPSDNodes(Op.getNode()))
+      if (Op.isUndef() || isAnyConstantBuildVector(Op))
         return DAG.getBitcast(VT, Op);
       return SDValue();
     };
@@ -22042,6 +22041,9 @@ static SDValue combineShuffleOfBitcast(ShuffleVectorSDNode *SVN,
   if (!InVT.isVector() ||
       (!Op1.isUndef() && (Op1.getOpcode() != ISD::BITCAST ||
                           Op1.getOperand(0).getValueType() != InVT)))
+    return SDValue();
+  if (isAnyConstantBuildVector(Op0.getOperand(0)) &&
+      (Op1.isUndef() || isAnyConstantBuildVector(Op1.getOperand(0))))
     return SDValue();
 
   int VTLanes = VT.getVectorNumElements();

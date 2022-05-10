@@ -2063,12 +2063,13 @@ static void unswitchNontrivialInvariants(
          "Can only unswitch switches and conditional branch!");
   bool PartiallyInvariant = !PartialIVInfo.InstToDuplicate.empty();
   bool FullUnswitch =
-      SI || (BI->getCondition() == Invariants[0] && !PartiallyInvariant);
+      SI || (skipTrivialSelect(BI->getCondition()) == Invariants[0] &&
+             !PartiallyInvariant);
   if (FullUnswitch)
     assert(Invariants.size() == 1 &&
            "Cannot have other invariants with full unswitching!");
   else
-    assert(isa<Instruction>(BI->getCondition()) &&
+    assert(isa<Instruction>(skipTrivialSelect(BI->getCondition())) &&
            "Partial unswitching requires an instruction as the condition!");
 
   if (MSSAU && VerifyMemorySSA)
@@ -2231,7 +2232,7 @@ static void unswitchNontrivialInvariants(
       BI->setSuccessor(ClonedSucc, ClonedPH);
       BI->setSuccessor(1 - ClonedSucc, LoopPH);
       if (InsertFreeze) {
-        auto Cond = BI->getCondition();
+        auto Cond = skipTrivialSelect(BI->getCondition());
         if (!isGuaranteedNotToBeUndefOrPoison(Cond, &AC, BI, &DT))
           BI->setCondition(new FreezeInst(Cond, Cond->getName() + ".fr", BI));
       }
@@ -2965,8 +2966,9 @@ static bool unswitchBestCondition(
     ArrayRef<Value *> Invariants = TerminatorAndInvariants.second;
     BranchInst *BI = dyn_cast<BranchInst>(&TI);
     InstructionCost CandidateCost = ComputeUnswitchedCost(
-        TI, /*FullUnswitch*/ !BI || (Invariants.size() == 1 &&
-                                     Invariants[0] == BI->getCondition()));
+        TI, /*FullUnswitch*/ !BI ||
+                (Invariants.size() == 1 &&
+                 Invariants[0] == skipTrivialSelect(BI->getCondition())));
     // Calculate cost multiplier which is a tool to limit potentially
     // exponential behavior of loop-unswitch.
     if (EnableUnswitchCostMultiplier) {

@@ -4181,9 +4181,25 @@ static SDValue lowerConvertToSVBool(SDValue Op, SelectionDAG &DAG) {
   case AArch64ISD::SETCC_MERGE_ZERO:
     return Reinterpret;
   case ISD::INTRINSIC_WO_CHAIN:
-    if (InOp.getConstantOperandVal(0) == Intrinsic::aarch64_sve_ptrue)
+    switch (InOp.getConstantOperandVal(0)) {
+    case Intrinsic::aarch64_sve_ptrue:
+    case Intrinsic::aarch64_sve_cmpeq_wide:
+    case Intrinsic::aarch64_sve_cmpne_wide:
+    case Intrinsic::aarch64_sve_cmpge_wide:
+    case Intrinsic::aarch64_sve_cmpgt_wide:
+    case Intrinsic::aarch64_sve_cmplt_wide:
+    case Intrinsic::aarch64_sve_cmple_wide:
+    case Intrinsic::aarch64_sve_cmphs_wide:
+    case Intrinsic::aarch64_sve_cmphi_wide:
+    case Intrinsic::aarch64_sve_cmplo_wide:
+    case Intrinsic::aarch64_sve_cmpls_wide:
       return Reinterpret;
+    }
   }
+
+  // Splat vectors of 1 will generate ptrue instructions
+  if (ISD::isConstantSplatVectorAllOnes(InOp.getNode()))
+    return Reinterpret;
 
   // Otherwise, zero the newly introduced lanes.
   SDValue Mask = getPTrue(DAG, DL, InVT, AArch64SVEPredPattern::all);
@@ -4711,10 +4727,8 @@ SDValue AArch64TargetLowering::LowerMGATHER(SDValue Op,
     return DAG.getMergeValues({Select, Load.getValue(1)}, DL);
   }
 
-  bool IsScaled =
-      IndexType == ISD::SIGNED_SCALED || IndexType == ISD::UNSIGNED_SCALED;
-  bool IsSigned =
-      IndexType == ISD::SIGNED_SCALED || IndexType == ISD::SIGNED_UNSCALED;
+  bool IsScaled = MGT->isIndexScaled();
+  bool IsSigned = MGT->isIndexSigned();
 
   // SVE supports an index scaled by sizeof(MemVT.elt) only, everything else
   // must be calculated before hand.
@@ -4727,7 +4741,7 @@ SDValue AArch64TargetLowering::LowerMGATHER(SDValue Op,
     Scale = DAG.getTargetConstant(1, DL, Scale.getValueType());
 
     SDValue Ops[] = {Chain, PassThru, Mask, BasePtr, Index, Scale};
-    IndexType = IsSigned ? ISD::SIGNED_UNSCALED : ISD::UNSIGNED_UNSCALED;
+    IndexType = getUnscaledIndexType(IndexType);
     return DAG.getMaskedGather(MGT->getVTList(), MemVT, DL, Ops,
                                MGT->getMemOperand(), IndexType, ExtType);
   }
@@ -4812,10 +4826,8 @@ SDValue AArch64TargetLowering::LowerMSCATTER(SDValue Op,
   EVT MemVT = MSC->getMemoryVT();
   ISD::MemIndexType IndexType = MSC->getIndexType();
 
-  bool IsScaled =
-      IndexType == ISD::SIGNED_SCALED || IndexType == ISD::UNSIGNED_SCALED;
-  bool IsSigned =
-      IndexType == ISD::SIGNED_SCALED || IndexType == ISD::SIGNED_UNSCALED;
+  bool IsScaled = MSC->isIndexScaled();
+  bool IsSigned = MSC->isIndexSigned();
 
   // SVE supports an index scaled by sizeof(MemVT.elt) only, everything else
   // must be calculated before hand.
@@ -4828,7 +4840,7 @@ SDValue AArch64TargetLowering::LowerMSCATTER(SDValue Op,
     Scale = DAG.getTargetConstant(1, DL, Scale.getValueType());
 
     SDValue Ops[] = {Chain, StoreVal, Mask, BasePtr, Index, Scale};
-    IndexType = IsSigned ? ISD::SIGNED_UNSCALED : ISD::UNSIGNED_UNSCALED;
+    IndexType = getUnscaledIndexType(IndexType);
     return DAG.getMaskedScatter(MSC->getVTList(), MemVT, DL, Ops,
                                 MSC->getMemOperand(), IndexType,
                                 MSC->isTruncatingStore());
@@ -14654,7 +14666,9 @@ static bool isPredicateCCSettingOp(SDValue N) {
         N.getConstantOperandVal(0) == Intrinsic::aarch64_sve_whilele ||
         N.getConstantOperandVal(0) == Intrinsic::aarch64_sve_whilelo ||
         N.getConstantOperandVal(0) == Intrinsic::aarch64_sve_whilels ||
-        N.getConstantOperandVal(0) == Intrinsic::aarch64_sve_whilelt)))
+        N.getConstantOperandVal(0) == Intrinsic::aarch64_sve_whilelt ||
+        // get_active_lane_mask is lowered to a whilelo instruction.
+        N.getConstantOperandVal(0) == Intrinsic::get_active_lane_mask)))
     return true;
 
   return false;
@@ -17667,6 +17681,45 @@ static SDValue performBRCONDCombine(SDNode *N,
   return SDValue();
 }
 
+static SDValue foldCSELofCTTZ(SDNode *N, SelectionDAG &DAG) {
+  unsigned CC = N->getConstantOperandVal(2);
+  SDValue SUBS = N->getOperand(3);
+  SDValue Zero, CTTZ;
+
+  if (CC == AArch64CC::EQ && SUBS.getOpcode() == AArch64ISD::SUBS) {
+    Zero = N->getOperand(0);
+    CTTZ = N->getOperand(1);
+  } else if (CC == AArch64CC::NE && SUBS.getOpcode() == AArch64ISD::SUBS) {
+    Zero = N->getOperand(1);
+    CTTZ = N->getOperand(0);
+  } else
+    return SDValue();
+
+  if ((CTTZ.getOpcode() != ISD::CTTZ && CTTZ.getOpcode() != ISD::TRUNCATE) ||
+      (CTTZ.getOpcode() == ISD::TRUNCATE &&
+       CTTZ.getOperand(0).getOpcode() != ISD::CTTZ))
+    return SDValue();
+
+  assert((CTTZ.getValueType() == MVT::i32 || CTTZ.getValueType() == MVT::i64) &&
+         "Illegal type in CTTZ folding");
+
+  if (!isNullConstant(Zero) || !isNullConstant(SUBS.getOperand(1)))
+    return SDValue();
+
+  SDValue X = CTTZ.getOpcode() == ISD::TRUNCATE
+                  ? CTTZ.getOperand(0).getOperand(0)
+                  : CTTZ.getOperand(0);
+
+  if (X != SUBS.getOperand(0))
+    return SDValue();
+
+  unsigned BitWidth = CTTZ.getValueSizeInBits();
+  SDValue BitWidthMinusOne =
+      DAG.getConstant(BitWidth - 1, SDLoc(N), CTTZ.getValueType());
+  return DAG.getNode(ISD::AND, SDLoc(N), CTTZ.getValueType(), CTTZ,
+                     BitWidthMinusOne);
+}
+
 // Optimize CSEL instructions
 static SDValue performCSELCombine(SDNode *N,
                                   TargetLowering::DAGCombinerInfo &DCI,
@@ -17674,6 +17727,11 @@ static SDValue performCSELCombine(SDNode *N,
   // CSEL x, x, cc -> x
   if (N->getOperand(0) == N->getOperand(1))
     return N->getOperand(0);
+
+  // CSEL 0, cttz(X), eq(X, 0) -> AND cttz bitwidth-1
+  // CSEL cttz(X), 0, ne(X, 0) -> AND cttz bitwidth-1
+  if (SDValue Folded = foldCSELofCTTZ(N, DAG))
+    return Folded;
 
   return performCONDCombine(N, DCI, DAG, 2, 3);
 }
