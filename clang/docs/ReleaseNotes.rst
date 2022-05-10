@@ -210,6 +210,10 @@ Improvements to Clang's diagnostics
 - ``-Wenum-conversion`` now warns on converting a signed enum of one type to an
   unsigned enum of a different type (or vice versa) rather than
   ``-Wsign-conversion``.
+- Added the ``-Wunreachable-code-generic-assoc`` diagnostic flag (grouped under
+  the ``-Wunreachable-code`` flag) which is enabled by default and warns the
+  user about ``_Generic`` selection associations which are unreachable because
+  the type specified is an array type or a qualified type.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -347,8 +351,11 @@ C++2b Feature Support
 - Implemented `P0849R8: auto(x): decay-copy in the language <https://wg21.link/P0849R8>`_.
 - Implemented `P2242R3: Non-literal variables (and labels and gotos) in constexpr functions	<https://wg21.link/P2242R3>`_.
 
-CUDA Language Changes in Clang
-------------------------------
+CUDA/HIP Language Changes in Clang
+----------------------------------
+
+- Added `__noinline__` as a keyword to avoid diagnostics due to usage of
+ `__attribute__((__noinline__))` in CUDA/HIP programs.
 
 Objective-C Language Changes in Clang
 -------------------------------------
