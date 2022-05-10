@@ -943,19 +943,19 @@ __ESIMD_API void slm_scalar_store(uint32_t offset, T val) {
 /// operation semantics and parameter restrictions/interdependencies.
 /// @tparam T The element type of the returned vector.
 /// @tparam N The number of elements to access.
-/// @tparam Mask Pixel's channel mask.
+/// @tparam RGBAMask Pixel's channel mask.
 /// @param offsets Byte offsets within the SLM of each element.
 /// @param mask Operation mask. All-1 by default.
 /// @return Gathered data as an \c N - element vector.
 ///
-template <typename T, int N, rgba_channel_mask Mask>
+template <typename T, int N, rgba_channel_mask RGBAMask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
-                             simd<T, N * get_num_channels_enabled(Mask)>>
+                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
 slm_gather_rgba(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  return __esimd_gather4_scaled<T, N, decltype(si), Mask>(
-      mask.data(), si, 0 /*global_offset*/, offsets.data());
+  const auto SI = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  return __esimd_gather4_masked_scaled2<T, N, RGBAMask>(
+      SI, 0 /*global_offset*/, offsets.data(), mask.data());
 }
 
 /// Gather data from the Shared Local Memory at specified \c offsets and return
