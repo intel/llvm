@@ -5047,7 +5047,7 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 }
 
 // Exteral PI API entry
-pi_result i(pi_context Context, pi_event *RetEvent) {
+pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   return EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
 }
 
