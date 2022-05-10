@@ -495,8 +495,8 @@ struct joint_matrix_mad_impl<
                                       0);
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
-                           std::is_same<
-                               T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
+                           std::is_same<T1, sycl::ext::oneapi::experimental::
+                                                bfloat16>::value) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
         auto ptrC = reinterpret_cast<float const *>(&C.data);
@@ -532,8 +532,8 @@ struct joint_matrix_mad_impl<
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
-                           std::is_same<
-                               T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
+                           std::is_same<T1, sycl::ext::oneapi::experimental::
+                                                bfloat16>::value) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
         auto ptrC = reinterpret_cast<float const *>(&C.data);
@@ -555,8 +555,8 @@ struct joint_matrix_mad_impl<
                                  get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
-                           std::is_same<
-                               T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
+                           std::is_same<T1, sycl::ext::oneapi::experimental::
+                                                bfloat16>::value) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
         auto ptrC = reinterpret_cast<float const *>(&C.data);
