@@ -7422,10 +7422,6 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (getLangOpts().SYCLIsDevice) {
     if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             NewVD->getType())) {
-
-      if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage())
-        Diag(D.getIdentifierLoc(),
-             diag::err_sycl_device_global_incorrect_scope);
       if (SCSpec == DeclSpec::SCS_static) {
         const DeclContext *DC = NewVD->getDeclContext();
         while (!DC->isTranslationUnit()) {
@@ -7436,7 +7432,9 @@ NamedDecl *Sema::ActOnVariableDeclarator(
           }
           DC = DC->getParent();
         }
-      }
+      } else if (!NewVD->hasGlobalStorage())
+        Diag(D.getIdentifierLoc(),
+             diag::err_sycl_device_global_incorrect_scope);
     }
 
     // Static variables declared inside SYCL device code must be const or

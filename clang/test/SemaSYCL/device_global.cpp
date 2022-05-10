@@ -73,7 +73,6 @@ template <typename T> void fooBar() {
 
 template <typename T> struct TS {
 private:
-  // FIXME: This one
   static device_global<T> a;
   // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
   device_global<T> b;
@@ -81,6 +80,7 @@ private:
   // expected-error@+2 {{'device_global' member variable 'c' is not publicly accessible from namespace scope}}
   // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
   device_global<int> c;
+
 public:
   static device_global<T> d;
   // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
