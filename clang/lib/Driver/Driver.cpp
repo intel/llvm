@@ -6077,12 +6077,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   // Builder to be used to build offloading actions.
   OffloadingActionBuilder OffloadBuilder(C, Args, Inputs);
 
-  // TODO: Do not use the new offloading driver at this time. Offloading
-  // support for spir64 targets is not in place with this new path.
   bool UseNewOffloadingDriver =
       (C.isOffloadingHostKind(Action::OFK_OpenMP) &&
        Args.hasFlag(options::OPT_fopenmp_new_driver,
-                    options::OPT_no_offload_new_driver, false)) ||
+                    options::OPT_no_offload_new_driver, true)) ||
       Args.hasFlag(options::OPT_offload_new_driver,
                    options::OPT_no_offload_new_driver, false);
 
