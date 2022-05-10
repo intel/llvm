@@ -5331,15 +5331,15 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   case PI_PROFILING_INFO_COMMAND_START: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
     uint64_t ContextStartTime =
-        (tsResult.context.kernelStart & TimestampMaxValue) * ZeTimerResolution;
+        (tsResult.global.kernelStart & TimestampMaxValue) * ZeTimerResolution;
     return ReturnValue(ContextStartTime);
   }
   case PI_PROFILING_INFO_COMMAND_END: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
 
     uint64_t ContextStartTime =
-        (tsResult.context.kernelStart & TimestampMaxValue);
-    uint64_t ContextEndTime = (tsResult.context.kernelEnd & TimestampMaxValue);
+        (tsResult.global.kernelStart & TimestampMaxValue);
+    uint64_t ContextEndTime = (tsResult.global.kernelEnd & TimestampMaxValue);
 
     //
     // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
