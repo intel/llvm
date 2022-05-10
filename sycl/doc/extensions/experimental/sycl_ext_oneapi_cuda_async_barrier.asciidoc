@@ -261,7 +261,7 @@ public:
 [source, c++]
 ----
 using namespace sycl;
-using namespace sycl::ext::oneapi::cuda;
+using namespace sycl::ext::oneapi::experimental::cuda;
 
 [...]
 
@@ -295,7 +295,7 @@ q.submit([&](handler &cgh) {
 [source, c++]
 ----
 using namespace sycl;
-using namespace sycl::ext::oneapi::cuda;
+using namespace sycl::ext::oneapi::experimental::cuda;
 
 [...]
 
@@ -328,7 +328,7 @@ q.submit([&](handler &cgh) {
 [source, c++]
 ----
 using namespace sycl;
-using namespace sycl::ext::oneapi::cuda;
+using namespace sycl::ext::oneapi::experimental::cuda;
 
 [...]
 
