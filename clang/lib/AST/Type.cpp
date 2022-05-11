@@ -3191,6 +3191,7 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
   case CC_AAPCS: return "aapcs";
   case CC_AAPCS_VFP: return "aapcs-vfp";
   case CC_AArch64VectorCall: return "aarch64_vector_pcs";
+  case CC_AArch64SVEPCS: return "aarch64_sve_pcs";
   case CC_IntelOclBicc: return "intel_ocl_bicc";
   case CC_SpirFunction: return "spir_function";
   case CC_OpenCLKernel: return "opencl_kernel";
@@ -3626,6 +3627,7 @@ bool AttributedType::isCallingConv() const {
   case attr::SwiftAsyncCall:
   case attr::VectorCall:
   case attr::AArch64VectorPcs:
+  case attr::AArch64SVEPcs:
   case attr::Pascal:
   case attr::MSABI:
   case attr::SysVABI:
