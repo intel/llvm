@@ -205,13 +205,11 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
   bool passed = true;
+  // Only these four masks are supported for rgba write operations:
   passed &= test<rgba_channel_mask::ABGR>(q);
-  passed &= test<rgba_channel_mask::AR>(q);
-  passed &= test<rgba_channel_mask::A>(q);
+  passed &= test<rgba_channel_mask::BGR>(q);
+  passed &= test<rgba_channel_mask::GR>(q);
   passed &= test<rgba_channel_mask::R>(q);
-  passed &= test<rgba_channel_mask::B>(q);
-  // TODO disabled due to a compiler bug:
-  //passed &= test<rgba_channel_mask::ABR>(q);
 
   std::cout << (passed ? "Test passed\n" : "Test FAILED\n");
   return passed ? 0 : 1;
