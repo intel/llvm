@@ -344,11 +344,14 @@ private:
                                             const CastInst *CI2);
   Value *simplifyIntToPtrRoundTripCast(Value *Val);
 
-  Value *foldAndOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &And);
-  Value *foldOrOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &Or);
+  Value *foldAndOrOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &BO,
+                          bool IsAnd);
   Value *foldXorOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &Xor);
 
   Value *foldEqOfParts(ICmpInst *Cmp0, ICmpInst *Cmp1, bool IsAnd);
+
+  Value *foldAndOrOfICmpsUsingRanges(ICmpInst *ICmp1, ICmpInst *ICmp2,
+                                     bool IsAnd);
 
   /// Optimize (fcmp)&(fcmp) or (fcmp)|(fcmp).
   /// NOTE: Unlike most of instcombine, this returns a Value which should
@@ -661,7 +664,8 @@ public:
                                     Constant *RHSC);
   Instruction *foldICmpAddOpConst(Value *X, const APInt &C,
                                   ICmpInst::Predicate Pred);
-  Instruction *foldICmpWithCastOp(ICmpInst &ICI);
+  Instruction *foldICmpWithCastOp(ICmpInst &ICmp);
+  Instruction *foldICmpWithZextOrSext(ICmpInst &ICmp);
 
   Instruction *foldICmpUsingKnownBits(ICmpInst &Cmp);
   Instruction *foldICmpWithDominatingICmp(ICmpInst &Cmp);

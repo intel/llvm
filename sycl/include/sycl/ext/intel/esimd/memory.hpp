@@ -539,12 +539,23 @@ __ESIMD_API std::enable_if_t<
   return gather_rgba<RGBAMask>(p, offsets, mask);
 }
 
+namespace detail {
+template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
+  using CM = rgba_channel_mask;
+  static_assert(
+      (M == CM::ABGR || M == CM::BGR || M == CM::GR || M == CM::R) &&
+      "Only ABGR, BGR, GR, R channel masks are valid in write operations");
+}
+} // namespace detail
+
 /// @anchor usm_scatter_rgba
 /// Transpose and scatter pixels to given memory locations defined by the base
 /// pointer \c p and \c offsets. Up to 4 32-bit data elements may be accessed at
 /// each address depending on the channel mask \c RGBAMask. Each
 /// pixel's address must be 4 byte aligned. This is basically an inverse
-/// operation for gather_rgba.
+/// operation for gather_rgba. Unlike \c gather_rgba, this function imposes
+/// restrictions on possible \c Mask template argument values. It can only be
+/// one of the following: \c ABGR, \c BGR, \c GR, \c R.
 ///
 /// @tparam T Element type of the returned vector. Must be 4 bytes in size.
 /// @tparam N Number of pixels to access (matches the size of the \c offsets
@@ -562,6 +573,7 @@ __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4>
 scatter_rgba(T *p, simd<uint32_t, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
+  detail::validate_rgba_write_channel_mask<Mask>();
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -959,7 +971,7 @@ slm_gather_rgba(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 }
 
 /// Gather data from the Shared Local Memory at specified \c offsets and return
-/// it as simd vector. See @ref usm_gather_rgba for information about the
+/// it as simd vector. See @ref usm_scatter_rgba for information about the
 /// operation semantics and parameter restrictions/interdependencies.
 /// @tparam T The element type of the returned vector.
 /// @tparam N The number of elements to access.
@@ -973,6 +985,7 @@ __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
 slm_scatter_rgba(simd<uint32_t, N> offsets,
                  simd<T, N * get_num_channels_enabled(Mask)> vals,
                  simd_mask<N> mask = 1) {
+  detail::validate_rgba_write_channel_mask<Mask>();
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   constexpr int16_t Scale = 0;
   constexpr int global_offset = 0;
