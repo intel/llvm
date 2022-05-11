@@ -45,7 +45,9 @@ using marray_half_list =
     type_list<marray<half, 1>, marray<half, 2>, marray<half, 3>,
               marray<half, 4>, marray<half, 8>, marray<half, 16>>;
 
-using half_list = type_list<scalar_half_list, vector_half_list>;
+using scalar_vector_half_list = type_list<scalar_half_list, vector_half_list>;
+
+using half_list = type_list<scalar_half_list, vector_half_list, marray_half_list>;
 
 using scalar_float_list = type_list<float>;
 
@@ -57,7 +59,9 @@ using marray_float_list =
     type_list<marray<float, 1>, marray<float, 2>, marray<float, 3>,
               marray<float, 4>, marray<float, 8>, marray<float, 16>>;
 
-using float_list = type_list<scalar_float_list, vector_float_list>;
+using scalar_vector_float_list = type_list<scalar_float_list, vector_float_list>;
+
+using float_list = type_list<scalar_float_list, vector_float_list, marray_float_list>;
 
 using scalar_double_list = type_list<double>;
 
@@ -68,6 +72,8 @@ using vector_double_list =
 using marray_double_list =
     type_list<marray<double, 1>, marray<double, 2>, marray<double, 3>,
               marray<double, 4>, marray<double, 8>, marray<double, 16>>;
+
+using scalar_vector_double_list = type_list<scalar_double_list, vector_double_list>;
 
 using double_list =
     type_list<scalar_double_list, vector_double_list, marray_double_list>;
@@ -81,7 +87,9 @@ using vector_floating_list =
 using marray_floating_list =
     type_list<marray_float_list, marray_double_list, marray_half_list>;
 
-using floating_list = type_list<scalar_floating_list, vector_floating_list>;
+using scalar_vector_floating_list = type_list<scalar_floating_list, vector_floating_list>;
+
+using floating_list = type_list<scalar_floating_list, vector_floating_list, marray_floating_list>;
 
 // geometric floating point types
 using scalar_geo_half_list = type_list<half>;

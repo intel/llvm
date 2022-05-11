@@ -86,8 +86,8 @@ namespace native {
 // genfloatfh tanh (genfloatfh x)
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    sycl::detail::enable_if_t<sycl::detail::is_genfloatf<T>::value ||
-                                  sycl::detail::is_genfloath<T>::value,
+    sycl::detail::enable_if_t<sycl::detail::is_svgenfloatf<T>::value ||
+                                  sycl::detail::is_svgenfloath<T>::value,
                               T>
     tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
@@ -129,7 +129,7 @@ tanh(sycl::marray<T, N> x) __NOEXC {
 // genfloath exp2 (genfloath x)
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    sycl::detail::enable_if_t<sycl::detail::is_genfloath<T>::value, T>
+    sycl::detail::enable_if_t<sycl::detail::is_svgenfloath<T>::value, T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
   using _ocl_T = cl::sycl::detail::ConvertToOpenCLType_t<T>;
