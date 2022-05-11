@@ -1773,6 +1773,7 @@ unsigned SIInstrInfo::getNumWaitStates(const MachineInstr &MI) {
   // hazard, even if one exist, won't really be visible. Should we handle it?
   case AMDGPU::SI_MASKED_UNREACHABLE:
   case AMDGPU::WAVE_BARRIER:
+  case AMDGPU::SCHED_BARRIER:
     return 0;
   }
 }
@@ -3488,6 +3489,9 @@ bool SIInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
 
   // INLINEASM_BR can jump to another block
   if (MI.getOpcode() == TargetOpcode::INLINEASM_BR)
+    return true;
+
+  if (MI.getOpcode() == AMDGPU::SCHED_BARRIER && MI.getOperand(0).getImm() == 0)
     return true;
 
   // Target-independent instructions do not have an implicit-use of EXEC, even
@@ -7835,6 +7839,7 @@ SIInstrInfo::splitFlatOffset(int64_t COffsetVal, unsigned AddrSpace,
 }
 
 // This must be kept in sync with the SIEncodingFamily class in SIInstrInfo.td
+// and the columns of the getMCOpcodeGen table.
 enum SIEncodingFamily {
   SI = 0,
   VI = 1,
@@ -7845,7 +7850,8 @@ enum SIEncodingFamily {
   GFX10 = 6,
   SDWA10 = 7,
   GFX90A = 8,
-  GFX940 = 9
+  GFX940 = 9,
+  GFX11 = 10,
 };
 
 static SIEncodingFamily subtargetEncodingFamily(const GCNSubtarget &ST) {
@@ -7860,6 +7866,8 @@ static SIEncodingFamily subtargetEncodingFamily(const GCNSubtarget &ST) {
     return SIEncodingFamily::VI;
   case AMDGPUSubtarget::GFX10:
     return SIEncodingFamily::GFX10;
+  case AMDGPUSubtarget::GFX11:
+    return SIEncodingFamily::GFX11;
   }
   llvm_unreachable("Unknown subtarget generation!");
 }
