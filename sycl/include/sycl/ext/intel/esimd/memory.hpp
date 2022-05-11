@@ -506,7 +506,7 @@ __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
 /// R1 R2 ... Rn A1 A2 ... An
 /// @endcode
 ///
-/// @tparam Tx Element type of the returned vector. Must be 4 bytes in size.
+/// @tparam T Element type of the returned vector. Must be 4 bytes in size.
 /// @tparam N Number of pixels to access (matches the size of the \c offsets
 ///   vector). Must be 8, 16 or 32.
 /// @tparam Mask A pixel's channel mask.
@@ -517,16 +517,26 @@ __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
 ///   undefined.
 /// @return Read data - up to N*4 values of type \c Tx.
 ///
-template <typename Tx, int N, rgba_channel_mask Mask,
-          class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
-                             simd<Tx, N * get_num_channels_enabled(Mask)>>
-gather_rgba(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
-
+template <rgba_channel_mask RGBAMask, typename T, int N>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4,
+                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
+gather_rgba(const T *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  return __esimd_svm_gather4_scaled<T, N, Mask>(addrs.data(), mask.data());
+  return __esimd_svm_gather4_scaled<detail::__raw_t<T>, N, RGBAMask>(
+      addrs.data(), mask.data());
+}
+
+template <typename T, int N, rgba_channel_mask RGBAMask>
+__SYCL_DEPRECATED("use gather_rgba<rgba_channel_mask>()")
+__ESIMD_API std::enable_if_t<
+    (N == 8 || N == 16 || N == 32) && sizeof(T) == 4,
+    simd<T, N * get_num_channels_enabled(
+                    RGBAMask)>> gather_rgba(const T *p,
+                                            simd<uint32_t, N> offsets,
+                                            simd_mask<N> mask = 1) {
+  return gather_rgba<RGBAMask>(p, offsets, mask);
 }
 
 namespace detail {
@@ -541,16 +551,16 @@ template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
 /// @anchor usm_scatter_rgba
 /// Transpose and scatter pixels to given memory locations defined by the base
 /// pointer \c p and \c offsets. Up to 4 32-bit data elements may be accessed at
-/// each address depending on the channel mask \c Mask template parameter. Each
+/// each address depending on the channel mask \c RGBAMask. Each
 /// pixel's address must be 4 byte aligned. This is basically an inverse
 /// operation for gather_rgba. Unlike \c gather_rgba, this function imposes
 /// restrictions on possible \c Mask template argument values. It can only be
 /// one of the following: \c ABGR, \c BGR, \c GR, \c R.
 ///
-/// @tparam Tx Element type of the returned vector. Must be 4 bytes in size.
+/// @tparam T Element type of the returned vector. Must be 4 bytes in size.
 /// @tparam N Number of pixels to access (matches the size of the \c offsets
 ///   vector). Must be 8, 16 or 32.
-/// @tparam Mask A pixel's channel mask.
+/// @tparam RGBAMask A pixel's channel mask.
 /// @param p The USM base pointer representing memory address of the access.
 /// @param vals values to be written.
 /// @param offsets Byte offsets of the pixels relative to the base pointer.
@@ -558,18 +568,93 @@ template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
 ///   predicate are not accessed. Their values in the resulting vector are
 ///   undefined.
 ///
-template <typename Tx, int N, rgba_channel_mask Mask,
-          class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
-scatter_rgba(Tx *p, simd<uint32_t, N> offsets,
-             simd<Tx, N * get_num_channels_enabled(Mask)> vals,
+template <rgba_channel_mask RGBAMask, typename T, int N>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4>
+scatter_rgba(T *p, simd<uint32_t, N> offsets,
+             simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
-  detail::validate_rgba_write_channel_mask<Mask>();
+  detail::validate_rgba_write_channel_mask<RGBAMask>();
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  __esimd_svm_scatter4_scaled<T, N, Mask>(addrs.data(), vals.data(),
-                                          mask.data());
+  __esimd_svm_scatter4_scaled<detail::__raw_t<T>, N, RGBAMask>(
+      addrs.data(), vals.data(), mask.data());
+}
+
+template <typename T, int N, rgba_channel_mask RGBAMask>
+__SYCL_DEPRECATED("use scatter_rgba<rgba_channel_mask>()")
+__ESIMD_API std::
+    enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4> scatter_rgba(
+        T *p, simd<uint32_t, N> offsets,
+        simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+        simd_mask<N> mask = 1) {
+  scatter_rgba<RGBAMask>(p, offsets, vals, mask);
+}
+
+/// Gather and transpose pixels from the given memory locations defined by the
+/// base specified by \c acc, the global offset \c global_offset and a vector of
+/// offsets \c offsets. Up to 4 32-bit data elements may be accessed at each
+/// address depending on the channel mask \c RGBAMask. Each pixel's address must
+/// be 4-byte aligned.
+/// For usage examples, see \ref usm_gather_rgba above, the only difference
+/// would be the usage of an accessor instead of a usm pointer.
+///
+/// @tparam RGBAMask A pixel's channel mask.
+/// @tparam AccessorT The accessor type for the memory to be loaded/gathered.
+/// The returned vector elements mutch the accessor data type. The loaded
+/// elements must be 4 bytes in size.
+/// @tparam N Number of pixels to access (matches the size of the \c offsets
+///   vector). Must be 8, 16 or 32.
+/// @param acc The accessor representing memory address of the access.
+/// @param offsets Byte offsets of the pixels relative to the base pointer.
+/// @param global_offset Byte offset of the pixels relative to the base pointer.
+/// @param mask Memory access mask. Pixels with zero corresponding mask's
+///   predicate are not accessed. Their values in the resulting vector are
+///   undefined.
+/// @return Read data - up to N*4 values of type \c Tx.
+///
+template <rgba_channel_mask RGBAMask, typename AccessorT, int N,
+          typename T = typename AccessorT::value_type>
+__ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
+                              sizeof(T) == 4 && !std::is_pointer_v<AccessorT>),
+                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
+gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
+            uint32_t global_offset = 0, simd_mask<N> mask = 1) {
+  // TODO (performance) use hardware-supported scale once BE supports it
+  constexpr uint32_t Scale = 0;
+  const auto SI = get_surface_index(acc);
+  return __esimd_gather4_masked_scaled2<detail::__raw_t<T>, N, RGBAMask,
+                                        decltype(SI), Scale>(
+      SI, global_offset, offsets.data(), mask.data());
+}
+
+/// Gather data from the memory addressed by accessor \c acc, offset common
+/// for all loaded elements \c global_offset and per-element offsets \c offsets,
+/// and return it as simd vector. See @ref usm_gather_rgba for information about
+/// the operation semantics and parameter restrictions/interdependencies.
+/// @tparam RGBAMask Pixel's channel mask.
+/// @tparam AccessorT The accessor type for the memory to be stored/scattered.
+/// The returned vector elements mast match the accessor data type. The loaded
+/// elements must be 4 bytes in size.
+/// @tparam N The number of elements to access.
+/// @param offsets Byte offsets of each element.
+/// @param vals values to be written.
+/// @param global_offset Byte offset of the pixels relative to the base pointer.
+/// @param mask Operation mask. All-1 by default.
+///
+template <rgba_channel_mask RGBAMask, typename AccessorT, int N,
+          typename T = typename AccessorT::value_type>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+                             !std::is_pointer_v<AccessorT>>
+scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
+             simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+             uint32_t global_offset = 0, simd_mask<N> mask = 1) {
+  detail::validate_rgba_write_channel_mask<RGBAMask>();
+  // TODO (performance) use hardware-supported scale once BE supports it
+  constexpr uint32_t Scale = 0;
+  const auto SI = get_surface_index(acc);
+  __esimd_scatter4_scaled<T, N, decltype(SI), RGBAMask, Scale>(
+      mask.data(), SI, global_offset, offsets.data(), vals.data());
 }
 
 /// @} sycl_esimd_memory
@@ -871,19 +956,19 @@ __ESIMD_API void slm_scalar_store(uint32_t offset, T val) {
 /// operation semantics and parameter restrictions/interdependencies.
 /// @tparam T The element type of the returned vector.
 /// @tparam N The number of elements to access.
-/// @tparam Mask Pixel's channel mask.
+/// @tparam RGBAMask Pixel's channel mask.
 /// @param offsets Byte offsets within the SLM of each element.
 /// @param mask Operation mask. All-1 by default.
 /// @return Gathered data as an \c N - element vector.
 ///
-template <typename T, int N, rgba_channel_mask Mask>
+template <typename T, int N, rgba_channel_mask RGBAMask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
-                             simd<T, N * get_num_channels_enabled(Mask)>>
+                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
 slm_gather_rgba(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  return __esimd_gather4_scaled<T, N, decltype(si), Mask>(
-      mask.data(), si, 0 /*global_offset*/, offsets.data());
+  const auto SI = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  return __esimd_gather4_masked_scaled2<T, N, RGBAMask>(
+      SI, 0 /*global_offset*/, offsets.data(), mask.data());
 }
 
 /// Gather data from the Shared Local Memory at specified \c offsets and return
