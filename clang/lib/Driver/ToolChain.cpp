@@ -1214,10 +1214,17 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       // AMD GPU is a special case, as -mcpu is required for the device
       // compilation, except for SYCL which uses --offload-arch.
       if (SameTripleAsHost || (getTriple().getArch() == llvm::Triple::amdgcn &&
-                               DeviceOffloadKind != Action::OFK_SYCL))
+                               DeviceOffloadKind != Action::OFK_SYCL)) {
         DAL->append(A);
-      else
-        Modified = true;
+        continue;
+      }
+      // SPIR-V special case for -mlong-double
+      if (getTriple().isSPIR() &&
+          A->getOption().matches(options::OPT_LongDouble_Group)) {
+        DAL->append(A);
+        continue;
+      }
+      Modified = true;
       continue;
     }
 

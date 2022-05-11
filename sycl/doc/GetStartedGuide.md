@@ -859,11 +859,8 @@ which contains all the symbols required.
 
 ## Find More
 
-* DPC++ specification:
-[https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-* SYCL\* 2020 specification:
-[https://www.khronos.org/registry/SYCL/](https://www.khronos.org/registry/SYCL/)
-* oneAPI Level Zero specification:
-[https://spec.oneapi.com/versions/latest/oneL0/index.html](https://spec.oneapi.com/versions/latest/oneL0/index.html)
+* [DPC++ specification](https://spec.oneapi.io/versions/latest/elements/dpcpp/source/index.html)
+* [SYCL\* specification](https://www.khronos.org/registry/SYCL)
+* [Level Zero specification](https://spec.oneapi.io/level-zero/latest/index.html)
 
-\*Other names and brands may be claimed as the property of others.
+<sub>\*Other names and brands may be claimed as the property of others.</sub>

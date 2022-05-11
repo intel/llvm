@@ -26,6 +26,7 @@ FunctionPass *createAMDGPUPostLegalizeCombiner(bool IsOptNone);
 FunctionPass *createAMDGPURegBankCombiner(bool IsOptNone);
 void initializeAMDGPURegBankCombinerPass(PassRegistry &);
 
+void initializeGlobalOffsetPass(PassRegistry &);
 void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
 
 // SI Passes
@@ -332,6 +333,9 @@ extern char &GCNNSAReassignID;
 
 void initializeGCNPreRAOptimizationsPass(PassRegistry &);
 extern char &GCNPreRAOptimizationsID;
+
+FunctionPass *createAMDGPUSetWavePriorityPass();
+void initializeAMDGPUSetWavePriorityPass(PassRegistry &);
 
 namespace AMDGPU {
 enum TargetIndex {
