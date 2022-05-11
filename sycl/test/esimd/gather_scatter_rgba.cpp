@@ -33,5 +33,5 @@ void kernel1(int *ptr, simd<int, 32 * AGR_N_CHANNELS> v) SYCL_ESIMD_FUNCTION {
   // expected-error-re@* {{static_assert failed{{.*}}Only ABGR, BGR, GR, R channel masks are valid in write operations}}
   // expected-note@* {{in instantiation }}
   // expected-note@+1 {{in instantiation }}
-  scatter_rgba<int, 32, rgba_channel_mask::AGR>(ptr, offsets, v);
+  scatter_rgba<rgba_channel_mask::AGR>(ptr, offsets, v);
 }
