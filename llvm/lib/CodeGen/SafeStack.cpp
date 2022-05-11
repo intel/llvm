@@ -48,6 +48,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
@@ -100,24 +101,6 @@ static cl::opt<bool> ClColoring("safe-stack-coloring",
                                 cl::Hidden, cl::init(true));
 
 namespace {
-
-/// Rewrite an SCEV expression for a memory access address to an expression that
-/// represents offset from the given alloca.
-///
-/// The implementation simply replaces all mentions of the alloca with zero.
-class AllocaOffsetRewriter : public SCEVRewriteVisitor<AllocaOffsetRewriter> {
-  const Value *AllocaPtr;
-
-public:
-  AllocaOffsetRewriter(ScalarEvolution &SE, const Value *AllocaPtr)
-      : SCEVRewriteVisitor(SE), AllocaPtr(AllocaPtr) {}
-
-  const SCEV *visitUnknown(const SCEVUnknown *Expr) {
-    if (Expr->getValue() == AllocaPtr)
-      return SE.getZero(Expr->getType());
-    return Expr;
-  }
-};
 
 /// The SafeStack pass splits the stack of each function into the safe
 /// stack, which is only accessed through memory safe dereferences (as
@@ -233,9 +216,18 @@ uint64_t SafeStack::getStaticAllocaAllocationSize(const AllocaInst* AI) {
 
 bool SafeStack::IsAccessSafe(Value *Addr, uint64_t AccessSize,
                              const Value *AllocaPtr, uint64_t AllocaSize) {
-  AllocaOffsetRewriter Rewriter(SE, AllocaPtr);
-  const SCEV *Expr = Rewriter.visit(SE.getSCEV(Addr));
+  const SCEV *AddrExpr = SE.getSCEV(Addr);
+  const auto *Base = dyn_cast<SCEVUnknown>(SE.getPointerBase(AddrExpr));
+  if (!Base || Base->getValue() != AllocaPtr) {
+    LLVM_DEBUG(
+        dbgs() << "[SafeStack] "
+               << (isa<AllocaInst>(AllocaPtr) ? "Alloca " : "ByValArgument ")
+               << *AllocaPtr << "\n"
+               << "SCEV " << *AddrExpr << " not directly based on alloca\n");
+    return false;
+  }
 
+  const SCEV *Expr = SE.removePointerBase(AddrExpr);
   uint64_t BitWidth = SE.getTypeSizeInBits(Expr->getType());
   ConstantRange AccessStartRange = SE.getUnsignedRange(Expr);
   ConstantRange SizeRange =
@@ -641,6 +633,13 @@ Value *SafeStack::moveStaticAllocasToUnsafeStack(
   // expected.
   // FIXME: no need to update BasePointer in leaf functions.
   unsigned FrameSize = alignTo(SSL.getFrameSize(), StackAlignment);
+
+  MDBuilder MDB(F.getContext());
+  SmallVector<Metadata *, 2> Data;
+  Data.push_back(MDB.createString("unsafe-stack-size"));
+  Data.push_back(MDB.createConstant(ConstantInt::get(Int32Ty, FrameSize)));
+  MDNode *MD = MDTuple::get(F.getContext(), Data);
+  F.setMetadata(LLVMContext::MD_annotation, MD);
 
   // Update shadow stack pointer in the function epilogue.
   IRB.SetInsertPoint(BasePointer->getNextNode());

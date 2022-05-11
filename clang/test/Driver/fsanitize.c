@@ -84,7 +84,7 @@
 // CHECK-BOUNDS: "-fsanitize={{((array-bounds|local-bounds),?){2}"}}
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=all %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-FSANITIZE-ALL
-// CHECK-FSANITIZE-ALL: error: unsupported argument 'all' to option 'fsanitize='
+// CHECK-FSANITIZE-ALL: error: unsupported argument 'all' to option '-fsanitize='
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=address,undefined -fno-sanitize=all -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-FNO-SANITIZE-ALL
 // CHECK-FNO-SANITIZE-ALL: "-fsanitize=thread"
@@ -195,13 +195,13 @@
 
 // RUN: %clang -target aarch64-linux -fsanitize=memtag -march=armv8-a+memtag %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-MT
 // CHECK-SANMT-MT: "-target-feature" "+mte"
-// CHECK-SANMT-MT-SAME: "-fsanitize=memtag"
+// CHECK-SANMT-MT-SAME: "-fsanitize=memtag-stack,memtag-heap"
 
 // RUN: %clang -target aarch64-linux -fsanitize=memtag %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-NOMT-0
-// CHECK-SANMT-NOMT-0: '-fsanitize=memtag' requires hardware support (+memtag)
+// CHECK-SANMT-NOMT-0: '-fsanitize=memtag-stack' requires hardware support (+memtag)
 
 // RUN: %clang -target aarch64-linux -fsanitize=memtag -I +mte %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-NOMT-1
-// CHECK-SANMT-NOMT-1: '-fsanitize=memtag' requires hardware support (+memtag)
+// CHECK-SANMT-NOMT-1: '-fsanitize=memtag-stack' requires hardware support (+memtag)
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-address-use-after-scope %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-USE-AFTER-SCOPE
 // RUN: %clang_cl --target=x86_64-windows -fsanitize=address -fsanitize-address-use-after-scope -### -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-USE-AFTER-SCOPE
@@ -245,6 +245,7 @@
 // RUN: %clang_cl --target=x86_64-windows-msvc -fsanitize=address -fsanitize-address-globals-dead-stripping -### -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-GLOBALS
 // RUN: %clang_cl --target=x86_64-windows-msvc -fsanitize=address -### -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-GLOBALS
 // RUN: %clang -target x86_64-scei-ps4  -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-GLOBALS
+// RUN: %clang -target x86_64-sie-ps5  -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-GLOBALS
 // CHECK-ASAN-GLOBALS: -cc1{{.*}}-fsanitize-address-globals-dead-stripping
 // CHECK-NO-ASAN-GLOBALS-NOT: -cc1{{.*}}-fsanitize-address-globals-dead-stripping
 
@@ -366,16 +367,16 @@
 // CHECK-RECOVER-ASAN: "-fsanitize-recover=address"
 
 // RUN: %clang -target x86_64-linux-gnu %s -fsanitize=undefined -fsanitize-recover=foobar,object-size,unreachable -### 2>&1 | FileCheck %s --check-prefix=CHECK-DIAG-RECOVER
-// CHECK-DIAG-RECOVER: unsupported argument 'foobar' to option 'fsanitize-recover='
-// CHECK-DIAG-RECOVER: unsupported argument 'unreachable' to option 'fsanitize-recover='
+// CHECK-DIAG-RECOVER: unsupported argument 'foobar' to option '-fsanitize-recover='
+// CHECK-DIAG-RECOVER: unsupported argument 'unreachable' to option '-fsanitize-recover='
 
 // RUN: %clang -target x86_64-linux-gnu %s -fsanitize=undefined -fsanitize-recover -fno-sanitize-recover -### 2>&1 | FileCheck %s --check-prefix=CHECK-DEPRECATED-RECOVER
 // CHECK-DEPRECATED-RECOVER-NOT: is deprecated
 
 // RUN: %clang -target x86_64-linux-gnu %s -fsanitize=kernel-address -fno-sanitize-recover=kernel-address -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-RECOVER-KASAN
 // RUN: %clang -target x86_64-linux-gnu %s -fsanitize=kernel-hwaddress -fno-sanitize-recover=kernel-hwaddress -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-RECOVER-KHWASAN
-// CHECK-NO-RECOVER-KASAN: unsupported argument 'kernel-address' to option 'fno-sanitize-recover='
-// CHECK-NO-RECOVER-KHWASAN: unsupported argument 'kernel-hwaddress' to option 'fno-sanitize-recover='
+// CHECK-NO-RECOVER-KASAN: unsupported argument 'kernel-address' to option '-fno-sanitize-recover='
+// CHECK-NO-RECOVER-KHWASAN: unsupported argument 'kernel-hwaddress' to option '-fno-sanitize-recover='
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=leak %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANL
 // CHECK-SANL: "-fsanitize=leak"
@@ -440,8 +441,8 @@
 // CHECK-ASAN: "-fno-assume-sane-operator-new"
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=zzz %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-DIAG1
-// CHECK-DIAG1: unsupported argument 'zzz' to option 'fsanitize='
-// CHECK-DIAG1-NOT: unsupported argument 'zzz' to option 'fsanitize='
+// CHECK-DIAG1: unsupported argument 'zzz' to option '-fsanitize='
+// CHECK-DIAG1-NOT: unsupported argument 'zzz' to option '-fsanitize='
 
 // RUN: %clang -target x86_64-apple-darwin10 -fsanitize=memory %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-MSAN-DARWIN
 // CHECK-MSAN-DARWIN: unsupported option '-fsanitize=memory' for target 'x86_64-apple-darwin10'
@@ -605,10 +606,10 @@
 // CHECK-CFI-ICALL-MIPS: unsupported option '-fsanitize=cfi-icall' for target 'mips-unknown-linux'
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize-trap=address -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-TRAP
-// CHECK-ASAN-TRAP: error: unsupported argument 'address' to option '-fsanitize-trap'
+// CHECK-ASAN-TRAP: error: unsupported argument 'address' to option '-fsanitize-trap='
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize-trap=hwaddress -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-HWASAN-TRAP
-// CHECK-HWASAN-TRAP: error: unsupported argument 'hwaddress' to option '-fsanitize-trap'
+// CHECK-HWASAN-TRAP: error: unsupported argument 'hwaddress' to option '-fsanitize-trap='
 
 // RUN: %clang -target x86_64-apple-darwin10 -mmacosx-version-min=10.7 -flto -fsanitize=cfi-vcall -fno-sanitize-trap=cfi -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI-NOTRAP-OLD-MACOS
 // CHECK-CFI-NOTRAP-OLD-MACOS: error: unsupported option '-fno-sanitize-trap=cfi-vcall' for target 'x86_64-apple-darwin10'
@@ -783,6 +784,29 @@
 // RUN: %clang -target x86_64-scei-ps4 -fsanitize=address -nodefaultlibs -nostdlib  %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-NOLIB-PS4
 // CHECK-ASAN-NOLIB-PS4-NOT: SceDbgAddressSanitizer_stub_weak
 
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-PS5
+// Make sure there are no *.{o,bc} or -l passed before the ASan library.
+// CHECK-ASAN-PS5-NOT: {{(\.(o|bc)"? |-l).*-lSceAddressSanitizer_nosubmission_stub_weak}}
+// CHECK-ASAN-PS5: --dependent-lib=libSceAddressSanitizer_nosubmission_stub_weak.a
+// CHECK-ASAN-PS5-NOT: {{(\.(o|bc)"? |-l).*-lSceAddressSanitizer_nosubmission_stub_weak}}
+// CHECK-ASAN-PS5: -lSceAddressSanitizer_nosubmission_stub_weak
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=address -nostdlib %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-NOLIB-PS5
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=address -nodefaultlibs %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-NOLIB-PS5
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=address -nodefaultlibs -nostdlib  %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-NOLIB-PS5
+// CHECK-ASAN-NOLIB-PS5-NOT: SceAddressSanitizer_nosubmission_stub_weak
+
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-PS5
+// Make sure there are no *.{o,bc} or -l passed before the TSan library.
+// CHECK-TSAN-PS5-NOT: {{(\.(o|bc)"? |-l).*-lSceThreadSanitizer_nosubmission_stub_weak}}
+// CHECK-TSAN-PS5: --dependent-lib=libSceThreadSanitizer_nosubmission_stub_weak.a
+// CHECK-TSAN-PS5-NOT: {{(\.(o|bc)"? |-l).*-lSceThreadSanitizer_nosubmission_stub_weak}}
+// CHECK-TSAN-PS5: -lSceThreadSanitizer_nosubmission_stub_weak
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=thread -nostdlib %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-NOLIB-PS5
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=thread -nodefaultlibs %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-NOLIB-PS5
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=thread -nodefaultlibs -nostdlib  %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-NOLIB-PS5
+// CHECK-TSAN-NOLIB-PS5-NOT: SceThreadSanitizer_nosubmission_stub_weak
+
+
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-MINIMAL
 // CHECK-ASAN-MINIMAL: error: invalid argument '-fsanitize-minimal-runtime' not allowed with '-fsanitize=address'
 
@@ -801,7 +825,7 @@
 // CHECK-INTSAN-MINIMAL: "-fsanitize-minimal-runtime"
 
 // RUN: %clang -target aarch64-linux-android -march=armv8-a+memtag -fsanitize=memtag -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-MEMTAG-MINIMAL
-// CHECK-MEMTAG-MINIMAL: "-fsanitize=memtag"
+// CHECK-MEMTAG-MINIMAL: "-fsanitize=memtag-stack,memtag-heap"
 // CHECK-MEMTAG-MINIMAL: "-fsanitize-minimal-runtime"
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=undefined -fsanitize=function -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UBSAN-FUNCTION-MINIMAL

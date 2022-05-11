@@ -10,12 +10,16 @@
 #define LIB_MLIR_TOOLS_MLIRPDLLSPSERVER_SERVER_H_
 
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/StringRef.h"
 #include <memory>
+#include <string>
 
 namespace mlir {
 namespace lsp {
 struct Diagnostic;
+class CompilationDatabase;
 struct CompletionList;
+struct DocumentLink;
 struct DocumentSymbol;
 struct Hover;
 struct Location;
@@ -28,7 +32,20 @@ class URIForFile;
 /// separate from the logic that involves LSP server/client communication.
 class PDLLServer {
 public:
-  PDLLServer();
+  struct Options {
+    Options(const std::vector<std::string> &compilationDatabases,
+            const std::vector<std::string> &extraDirs)
+        : compilationDatabases(compilationDatabases), extraDirs(extraDirs) {}
+
+    /// The filenames for databases containing compilation commands for PDLL
+    /// files passed to the server.
+    const std::vector<std::string> &compilationDatabases;
+
+    /// Additional list of include directories to search.
+    const std::vector<std::string> &extraDirs;
+  };
+
+  PDLLServer(const Options &options);
   ~PDLLServer();
 
   /// Add or update the document, with the provided `version`, at the given URI.
@@ -51,6 +68,10 @@ public:
   void findReferencesOf(const URIForFile &uri, const Position &pos,
                         std::vector<Location> &references);
 
+  /// Return the document links referenced by the given file.
+  void getDocumentLinks(const URIForFile &uri,
+                        std::vector<DocumentLink> &documentLinks);
+
   /// Find a hover description for the given hover position, or None if one
   /// couldn't be found.
   Optional<Hover> findHover(const URIForFile &uri, const Position &hoverPos);
@@ -69,7 +90,6 @@ public:
 
 private:
   struct Impl;
-
   std::unique_ptr<Impl> impl;
 };
 

@@ -591,26 +591,16 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   if (AMDGPUBypassSlowDiv)
     addBypassSlowDiv(64, 32);
 
-  setTargetDAGCombine(ISD::BITCAST);
-  setTargetDAGCombine(ISD::SHL);
-  setTargetDAGCombine(ISD::SRA);
-  setTargetDAGCombine(ISD::SRL);
-  setTargetDAGCombine(ISD::TRUNCATE);
-  setTargetDAGCombine(ISD::MUL);
-  setTargetDAGCombine(ISD::SMUL_LOHI);
-  setTargetDAGCombine(ISD::UMUL_LOHI);
-  setTargetDAGCombine(ISD::MULHU);
-  setTargetDAGCombine(ISD::MULHS);
-  setTargetDAGCombine(ISD::SELECT);
-  setTargetDAGCombine(ISD::SELECT_CC);
-  setTargetDAGCombine(ISD::STORE);
-  setTargetDAGCombine(ISD::FADD);
-  setTargetDAGCombine(ISD::FSUB);
-  setTargetDAGCombine(ISD::FNEG);
-  setTargetDAGCombine(ISD::FABS);
-  setTargetDAGCombine(ISD::AssertZext);
-  setTargetDAGCombine(ISD::AssertSext);
-  setTargetDAGCombine(ISD::INTRINSIC_WO_CHAIN);
+  setTargetDAGCombine({ISD::BITCAST,    ISD::SHL,
+                       ISD::SRA,        ISD::SRL,
+                       ISD::TRUNCATE,   ISD::MUL,
+                       ISD::SMUL_LOHI,  ISD::UMUL_LOHI,
+                       ISD::MULHU,      ISD::MULHS,
+                       ISD::SELECT,     ISD::SELECT_CC,
+                       ISD::STORE,      ISD::FADD,
+                       ISD::FSUB,       ISD::FNEG,
+                       ISD::FABS,       ISD::AssertZext,
+                       ISD::AssertSext, ISD::INTRINSIC_WO_CHAIN});
 }
 
 bool AMDGPUTargetLowering::mayIgnoreSignedZero(SDValue Op) const {
@@ -856,6 +846,8 @@ bool AMDGPUTargetLowering::isSDNodeAlwaysUniform(const SDNode *N) const {
         AMDGPUAS::CONSTANT_ADDRESS_32BIT)
       return true;
     return false;
+  case AMDGPUISD::SETCC: // ballot-style instruction
+    return true;
   }
   return false;
 }
@@ -3004,12 +2996,11 @@ SDValue AMDGPUTargetLowering::performLoadCombine(SDNode *N,
     // the bytes again are not eliminated in the case of an unaligned copy.
     if (!allowsMisalignedMemoryAccesses(
             VT, AS, Alignment, LN->getMemOperand()->getFlags(), &IsFast)) {
-      SDValue Ops[2];
-
       if (VT.isVector())
-        std::tie(Ops[0], Ops[1]) = scalarizeVectorLoad(LN, DAG);
-      else
-        std::tie(Ops[0], Ops[1]) = expandUnalignedLoad(LN, DAG);
+        return SplitVectorLoad(SDValue(LN, 0), DAG);
+
+      SDValue Ops[2];
+      std::tie(Ops[0], Ops[1]) = expandUnalignedLoad(LN, DAG);
 
       return DAG.getMergeValues(Ops, SDLoc(N));
     }
@@ -3060,7 +3051,7 @@ SDValue AMDGPUTargetLowering::performStoreCombine(SDNode *N,
     if (!allowsMisalignedMemoryAccesses(
             VT, AS, Alignment, SN->getMemOperand()->getFlags(), &IsFast)) {
       if (VT.isVector())
-        return scalarizeVectorStore(SN, DAG);
+        return SplitVectorStore(SDValue(SN, 0), DAG);
 
       return expandUnalignedStore(SN, DAG);
     }
@@ -4587,6 +4578,19 @@ SDValue AMDGPUTargetLowering::getRecipEstimate(SDValue Operand,
   return SDValue();
 }
 
+static unsigned workitemIntrinsicDim(unsigned ID) {
+  switch (ID) {
+  case Intrinsic::amdgcn_workitem_id_x:
+    return 0;
+  case Intrinsic::amdgcn_workitem_id_y:
+    return 1;
+  case Intrinsic::amdgcn_workitem_id_z:
+    return 2;
+  default:
+    llvm_unreachable("not a workitem intrinsic");
+  }
+}
+
 void AMDGPUTargetLowering::computeKnownBitsForTargetNode(
     const SDValue Op, KnownBits &Known,
     const APInt &DemandedElts, const SelectionDAG &DAG, unsigned Depth) const {
@@ -4721,6 +4725,14 @@ void AMDGPUTargetLowering::computeKnownBitsForTargetNode(
       // These return at most the wavefront size - 1.
       unsigned Size = Op.getValueType().getSizeInBits();
       Known.Zero.setHighBits(Size - ST.getWavefrontSizeLog2());
+      break;
+    }
+    case Intrinsic::amdgcn_workitem_id_x:
+    case Intrinsic::amdgcn_workitem_id_y:
+    case Intrinsic::amdgcn_workitem_id_z: {
+      unsigned MaxValue = Subtarget->getMaxWorkitemID(
+          DAG.getMachineFunction().getFunction(), workitemIntrinsicDim(IID));
+      Known.Zero.setHighBits(countLeadingZeros(MaxValue));
       break;
     }
     default:

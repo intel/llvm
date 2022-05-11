@@ -134,16 +134,19 @@ gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
   addrs = addrs + offsets_i;
 
   if constexpr (sizeof(T) == 1) {
-    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<4>(),
+                                  detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), mask.data());
     return __esimd_rdregion<T, N * 4, N, /*VS*/ 0, N, 4>(Ret, 0);
   } else if constexpr (sizeof(T) == 2) {
-    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<2>(), mask.data());
+    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<2>(),
+                                  detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), mask.data());
     return __esimd_rdregion<T, N * 2, N, /*VS*/ 0, N, 2>(Ret, 0);
   } else
-    return __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    return __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<1>(),
+                              detail::ElemsPerAddrEncoding<1>()>(addrs.data(),
+                                                                 mask.data());
 }
 
 /// Writes ("scatters") elements of the input vector to different memory
@@ -169,17 +172,19 @@ scatter(Tx *p, simd<uint32_t, N> offsets, simd<Tx, N> vals,
   if constexpr (sizeof(T) == 1) {
     simd<T, N * 4> D;
     D = __esimd_wrregion<T, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<4>(),
+                        detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), D.data(), mask.data());
   } else if constexpr (sizeof(T) == 2) {
     simd<T, N * 2> D;
     D = __esimd_wrregion<T, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<2>(),
+                        detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), D.data(), mask.data());
   } else
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), vals.data(), detail::ElemsPerAddrEncoding<1>(),
-        mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>(),
+                        detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), vals.data(), mask.data());
 }
 
 /// Loads a contiguous block of memory from given memory address and returns
@@ -524,12 +529,23 @@ gather_rgba(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
   return __esimd_svm_gather4_scaled<T, N, Mask>(addrs.data(), mask.data());
 }
 
+namespace detail {
+template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
+  using CM = rgba_channel_mask;
+  static_assert(
+      (M == CM::ABGR || M == CM::BGR || M == CM::GR || M == CM::R) &&
+      "Only ABGR, BGR, GR, R channel masks are valid in write operations");
+}
+} // namespace detail
+
 /// @anchor usm_scatter_rgba
 /// Transpose and scatter pixels to given memory locations defined by the base
 /// pointer \c p and \c offsets. Up to 4 32-bit data elements may be accessed at
 /// each address depending on the channel mask \c Mask template parameter. Each
 /// pixel's address must be 4 byte aligned. This is basically an inverse
-/// operation for gather_rgba.
+/// operation for gather_rgba. Unlike \c gather_rgba, this function imposes
+/// restrictions on possible \c Mask template argument values. It can only be
+/// one of the following: \c ABGR, \c BGR, \c GR, \c R.
 ///
 /// @tparam Tx Element type of the returned vector. Must be 4 bytes in size.
 /// @tparam N Number of pixels to access (matches the size of the \c offsets
@@ -548,6 +564,7 @@ __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
 scatter_rgba(Tx *p, simd<uint32_t, N> offsets,
              simd<Tx, N * get_num_channels_enabled(Mask)> vals,
              simd_mask<N> mask = 1) {
+  detail::validate_rgba_write_channel_mask<Mask>();
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -769,6 +786,9 @@ enum fence_mask : uint8_t {
 /// esimd::fence sets the memory read/write order.
 /// @tparam cntl A bitmask composed from \c fence_mask bits.
 ///
+template <uint8_t cntl> __ESIMD_API void fence() { __esimd_fence(cntl); }
+
+__SYCL_DEPRECATED("use fence<fence_mask>()")
 __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 
 /// Generic work-group barrier.
@@ -790,6 +810,14 @@ __ESIMD_API void barrier() {
 /// @{
 
 /// Declare per-work-group slm size.
+/// @tparam SLMSize  Shared Local Memory (SLM) size
+template <uint32_t SLMSize> __ESIMD_API void slm_init() {
+  __esimd_slm_init(SLMSize);
+}
+
+/// Declare per-work-group slm size. Non-constant argument version to be used
+/// with specialization constants only.
+/// @param size  Shared Local Memory (SLM) size
 __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.
@@ -859,7 +887,7 @@ slm_gather_rgba(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 }
 
 /// Gather data from the Shared Local Memory at specified \c offsets and return
-/// it as simd vector. See @ref usm_gather_rgba for information about the
+/// it as simd vector. See @ref usm_scatter_rgba for information about the
 /// operation semantics and parameter restrictions/interdependencies.
 /// @tparam T The element type of the returned vector.
 /// @tparam N The number of elements to access.
@@ -873,6 +901,7 @@ __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
 slm_scatter_rgba(simd<uint32_t, N> offsets,
                  simd<T, N * get_num_channels_enabled(Mask)> vals,
                  simd_mask<N> mask = 1) {
+  detail::validate_rgba_write_channel_mask<Mask>();
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   constexpr int16_t Scale = 0;
   constexpr int global_offset = 0;

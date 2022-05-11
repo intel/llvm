@@ -24,6 +24,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/NonTrivialTypeVisitor.h"
+#include "clang/AST/Randstruct.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/PartialDiagnostic.h"
@@ -503,9 +504,11 @@ ParsedType Sema::getTypeName(const IdentifierInfo &II, SourceLocation NameLoc,
     FoundUsingShadow = nullptr;
   } else if (AllowDeducedTemplate) {
     if (auto *TD = getAsTypeTemplateDecl(IIDecl)) {
-      // FIXME: TemplateName should include FoundUsingShadow sugar.
-      T = Context.getDeducedTemplateSpecializationType(TemplateName(TD),
-                                                       QualType(), false);
+      assert(!FoundUsingShadow || FoundUsingShadow->getTargetDecl() == TD);
+      TemplateName Template =
+          FoundUsingShadow ? TemplateName(FoundUsingShadow) : TemplateName(TD);
+      T = Context.getDeducedTemplateSpecializationType(Template, QualType(),
+                                                       false);
       // Don't wrap in a further UsingType.
       FoundUsingShadow = nullptr;
     }
@@ -930,9 +933,13 @@ Corrected:
       //
       //   appeared.
       //
-      // We also allow this in C99 as an extension.
-      if (NamedDecl *D = ImplicitlyDefineFunction(NameLoc, *Name, S))
-        return NameClassification::NonType(D);
+      // We also allow this in C99 as an extension. However, this is not
+      // allowed in all language modes as functions without prototypes may not
+      // be supported.
+      if (getLangOpts().implicitFunctionsAllowed()) {
+        if (NamedDecl *D = ImplicitlyDefineFunction(NameLoc, *Name, S))
+          return NameClassification::NonType(D);
+      }
     }
 
     if (getLangOpts().CPlusPlus20 && SS.isEmpty() && NextToken.is(tok::less)) {
@@ -1106,12 +1113,16 @@ Corrected:
       IsFunctionTemplate = isa<FunctionTemplateDecl>(TD);
       IsVarTemplate = isa<VarTemplateDecl>(TD);
 
+      UsingShadowDecl *FoundUsingShadow =
+          dyn_cast<UsingShadowDecl>(*Result.begin());
+      assert(!FoundUsingShadow ||
+             TD == cast<TemplateDecl>(FoundUsingShadow->getTargetDecl()));
+      Template =
+          FoundUsingShadow ? TemplateName(FoundUsingShadow) : TemplateName(TD);
       if (SS.isNotEmpty())
-        Template =
-            Context.getQualifiedTemplateName(SS.getScopeRep(),
-                                             /*TemplateKeyword=*/false, TD);
-      else
-        Template = TemplateName(TD);
+        Template = Context.getQualifiedTemplateName(SS.getScopeRep(),
+                                                    /*TemplateKeyword=*/false,
+                                                    Template);
     } else {
       // All results were non-template functions. This is a function template
       // name.
@@ -1679,7 +1690,13 @@ bool Sema::CheckRedeclarationExported(NamedDecl *New, NamedDecl *Old) {
 
   assert(IsNewExported);
 
-  Diag(New->getLocation(), diag::err_redeclaration_non_exported) << New;
+  auto Lk = Old->getFormalLinkage();
+  int S = 0;
+  if (Lk == Linkage::InternalLinkage)
+    S = 1;
+  else if (Lk == Linkage::ModuleLinkage)
+    S = 2;
+  Diag(New->getLocation(), diag::err_redeclaration_non_exported) << New << S;
   Diag(Old->getLocation(), diag::note_previous_declaration);
   return true;
 }
@@ -1889,13 +1906,26 @@ static bool ShouldDiagnoseUnusedDecl(const NamedDecl *D) {
   // Types of valid local variables should be complete, so this should succeed.
   if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
 
-    // White-list anything with an __attribute__((unused)) type.
+    const Expr *Init = VD->getInit();
+    if (const auto *Cleanups = dyn_cast_or_null<ExprWithCleanups>(Init))
+      Init = Cleanups->getSubExpr();
+
     const auto *Ty = VD->getType().getTypePtr();
 
     // Only look at the outermost level of typedef.
     if (const TypedefType *TT = Ty->getAs<TypedefType>()) {
+      // Allow anything marked with __attribute__((unused)).
       if (TT->getDecl()->hasAttr<UnusedAttr>())
         return false;
+    }
+
+    // Warn for reference variables whose initializtion performs lifetime
+    // extension.
+    if (const auto *MTE = dyn_cast_or_null<MaterializeTemporaryExpr>(Init)) {
+      if (MTE->getExtendingDecl()) {
+        Ty = VD->getType().getNonReferenceType().getTypePtr();
+        Init = MTE->getSubExpr()->IgnoreImplicitAsWritten();
+      }
     }
 
     // If we failed to complete the type for some reason, or if the type is
@@ -1916,10 +1946,7 @@ static bool ShouldDiagnoseUnusedDecl(const NamedDecl *D) {
         if (!RD->hasTrivialDestructor() && !RD->hasAttr<WarnUnusedAttr>())
           return false;
 
-        if (const Expr *Init = VD->getInit()) {
-          if (const ExprWithCleanups *Cleanups =
-                  dyn_cast<ExprWithCleanups>(Init))
-            Init = Cleanups->getSubExpr();
+        if (Init) {
           const CXXConstructExpr *Construct =
             dyn_cast<CXXConstructExpr>(Init);
           if (Construct && !Construct->isElidable()) {
@@ -1931,10 +1958,16 @@ static bool ShouldDiagnoseUnusedDecl(const NamedDecl *D) {
 
           // Suppress the warning if we don't know how this is constructed, and
           // it could possibly be non-trivial constructor.
-          if (Init->isTypeDependent())
+          if (Init->isTypeDependent()) {
             for (const CXXConstructorDecl *Ctor : RD->ctors())
               if (!Ctor->isTrivial())
                 return false;
+          }
+
+          // Suppress the warning if the constructor is unresolved because
+          // its arguments are dependent.
+          if (isa<CXXUnresolvedConstructExpr>(Init))
+            return false;
         }
       }
     }
@@ -2269,7 +2302,8 @@ NamedDecl *Sema::LazilyCreateBuiltin(IdentifierInfo *II, unsigned ID,
   if (!ForRedeclaration &&
       (Context.BuiltinInfo.isPredefinedLibFunction(ID) ||
        Context.BuiltinInfo.isHeaderDependentFunction(ID))) {
-    Diag(Loc, diag::ext_implicit_lib_function_decl)
+    Diag(Loc, LangOpts.C99 ? diag::ext_implicit_lib_function_decl_c99
+                           : diag::ext_implicit_lib_function_decl)
         << Context.BuiltinInfo.getName(ID) << R;
     if (const char *Header = Context.BuiltinInfo.getHeaderName(ID))
       Diag(Loc, diag::note_include_header_or_declare)
@@ -2816,8 +2850,15 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   else if (const auto *A =
                dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(Attr))
     NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLAddIRAnnotationsMemberAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAnnotationsMemberAttr(D, *A);
   else if (const auto *A = dyn_cast<ReqdWorkGroupSizeAttr>(Attr))
     NewAttr = S.MergeReqdWorkGroupSizeAttr(D, *A);
+  else if (const auto *NT = dyn_cast<HLSLNumThreadsAttr>(Attr))
+    NewAttr =
+        S.mergeHLSLNumThreadsAttr(D, *NT, NT->getX(), NT->getY(), NT->getZ());
+  else if (const auto *SA = dyn_cast<HLSLShaderAttr>(Attr))
+    NewAttr = S.mergeHLSLShaderAttr(D, *SA, SA->getType());
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -3268,6 +3309,10 @@ getNoteDiagForInvalidRedeclaration(const T *Old, const T *New) {
     PrevDiag = diag::note_previous_definition;
   else if (Old->isImplicit()) {
     PrevDiag = diag::note_previous_implicit_declaration;
+    if (const auto *FD = dyn_cast<FunctionDecl>(Old)) {
+      if (FD->getBuiltinID())
+        PrevDiag = diag::note_previous_builtin_declaration;
+    }
     if (OldLocation.isInvalid())
       OldLocation = New->getLocation();
   } else
@@ -3419,8 +3464,8 @@ static void adjustDeclContextForDeclaratorDecl(DeclaratorDecl *NewD,
 /// merged with.
 ///
 /// Returns true if there was an error, false otherwise.
-bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
-                             Scope *S, bool MergeTypeWithOld) {
+bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
+                             bool MergeTypeWithOld, bool NewDeclIsDefn) {
   // Verify the old decl was also a function.
   FunctionDecl *Old = OldD->getAsFunction();
   if (!Old) {
@@ -3901,39 +3946,137 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
 
   // C: Function types need to be compatible, not identical. This handles
   // duplicate function decls like "void f(int); void f(enum X);" properly.
-  if (!getLangOpts().CPlusPlus &&
-      Context.typesAreCompatible(OldQType, NewQType)) {
-    const FunctionType *OldFuncType = OldQType->getAs<FunctionType>();
-    const FunctionType *NewFuncType = NewQType->getAs<FunctionType>();
-    const FunctionProtoType *OldProto = nullptr;
-    if (MergeTypeWithOld && isa<FunctionNoProtoType>(NewFuncType) &&
-        (OldProto = dyn_cast<FunctionProtoType>(OldFuncType))) {
-      // The old declaration provided a function prototype, but the
-      // new declaration does not. Merge in the prototype.
-      assert(!OldProto->hasExceptionSpec() && "Exception spec in C");
-      SmallVector<QualType, 16> ParamTypes(OldProto->param_types());
-      NewQType =
-          Context.getFunctionType(NewFuncType->getReturnType(), ParamTypes,
-                                  OldProto->getExtProtoInfo());
-      New->setType(NewQType);
-      New->setHasInheritedPrototype();
-
-      // Synthesize parameters with the same types.
-      SmallVector<ParmVarDecl*, 16> Params;
-      for (const auto &ParamType : OldProto->param_types()) {
-        ParmVarDecl *Param = ParmVarDecl::Create(Context, New, SourceLocation(),
-                                                 SourceLocation(), nullptr,
-                                                 ParamType, /*TInfo=*/nullptr,
-                                                 SC_None, nullptr);
-        Param->setScopeInfo(0, Params.size());
-        Param->setImplicit();
-        Params.push_back(Param);
-      }
-
-      New->setParams(Params);
+  if (!getLangOpts().CPlusPlus) {
+    // C99 6.7.5.3p15: ...If one type has a parameter type list and the other
+    // type is specified by a function definition that contains a (possibly
+    // empty) identifier list, both shall agree in the number of parameters
+    // and the type of each parameter shall be compatible with the type that
+    // results from the application of default argument promotions to the
+    // type of the corresponding identifier. ...
+    // This cannot be handled by ASTContext::typesAreCompatible() because that
+    // doesn't know whether the function type is for a definition or not when
+    // eventually calling ASTContext::mergeFunctionTypes(). The only situation
+    // we need to cover here is that the number of arguments agree as the
+    // default argument promotion rules were already checked by
+    // ASTContext::typesAreCompatible().
+    if (Old->hasPrototype() && !New->hasWrittenPrototype() && NewDeclIsDefn &&
+        Old->getNumParams() != New->getNumParams()) {
+      Diag(New->getLocation(), diag::err_conflicting_types) << New;
+      Diag(Old->getLocation(), PrevDiag) << Old << Old->getType();
+      return true;
     }
 
-    return MergeCompatibleFunctionDecls(New, Old, S, MergeTypeWithOld);
+    // If we are merging two functions where only one of them has a prototype,
+    // we may have enough information to decide to issue a diagnostic that the
+    // function without a protoype will change behavior in C2x. This handles
+    // cases like:
+    //   void i(); void i(int j);
+    //   void i(int j); void i();
+    //   void i(); void i(int j) {}
+    // See ActOnFinishFunctionBody() for other cases of the behavior change
+    // diagnostic. See GetFullTypeForDeclarator() for handling of a function
+    // type without a prototype.
+    if (New->hasWrittenPrototype() != Old->hasWrittenPrototype() &&
+        !New->isImplicit() && !Old->isImplicit()) {
+      const FunctionDecl *WithProto, *WithoutProto;
+      if (New->hasWrittenPrototype()) {
+        WithProto = New;
+        WithoutProto = Old;
+      } else {
+        WithProto = Old;
+        WithoutProto = New;
+      }
+
+      if (WithProto->getNumParams() != 0) {
+        // The function definition has parameters, so this will change
+        // behavior in C2x.
+        //
+        // If we already warned about about the function without a prototype
+        // being deprecated, add a note that it also changes behavior. If we
+        // didn't warn about it being deprecated (because the diagnostic is
+        // not enabled), warn now that it is deprecated and changes behavior.
+        bool AddNote = false;
+        if (Diags.isIgnored(diag::warn_strict_prototypes,
+                            WithoutProto->getLocation())) {
+          if (WithoutProto->getBuiltinID() == 0 &&
+              !WithoutProto->isImplicit() &&
+              SourceMgr.isBeforeInTranslationUnit(WithoutProto->getLocation(),
+                                                  WithProto->getLocation())) {
+            PartialDiagnostic PD =
+                PDiag(diag::warn_non_prototype_changes_behavior);
+            if (TypeSourceInfo *TSI = WithoutProto->getTypeSourceInfo()) {
+              if (auto FTL = TSI->getTypeLoc().getAs<FunctionNoProtoTypeLoc>())
+                PD << FixItHint::CreateInsertion(FTL.getRParenLoc(), "void");
+            }
+            Diag(WithoutProto->getLocation(), PD);
+          }
+        } else {
+          AddNote = true;
+        }
+
+        // Because the function with a prototype has parameters but a previous
+        // declaration had none, the function with the prototype will also
+        // change behavior in C2x.
+        if (WithProto->getBuiltinID() == 0 && !WithProto->isImplicit()) {
+          if (SourceMgr.isBeforeInTranslationUnit(
+                  WithProto->getLocation(), WithoutProto->getLocation())) {
+            // If the function with the prototype comes before the function
+            // without the prototype, we only want to diagnose the one without
+            // the prototype.
+            Diag(WithoutProto->getLocation(),
+                 diag::warn_non_prototype_changes_behavior);
+          } else {
+            // Otherwise, diagnose the one with the prototype, and potentially
+            // attach a note to the one without a prototype if needed.
+            Diag(WithProto->getLocation(),
+                 diag::warn_non_prototype_changes_behavior);
+            if (AddNote && WithoutProto->getBuiltinID() == 0)
+              Diag(WithoutProto->getLocation(),
+                   diag::note_func_decl_changes_behavior);
+          }
+        } else if (AddNote && WithoutProto->getBuiltinID() == 0 &&
+                   !WithoutProto->isImplicit()) {
+          // If we were supposed to add a note but the function with a
+          // prototype is a builtin or was implicitly declared, which means we
+          // have nothing to attach the note to, so we issue a warning instead.
+          Diag(WithoutProto->getLocation(),
+               diag::warn_non_prototype_changes_behavior);
+        }
+      }
+    }
+
+    if (Context.typesAreCompatible(OldQType, NewQType)) {
+      const FunctionType *OldFuncType = OldQType->getAs<FunctionType>();
+      const FunctionType *NewFuncType = NewQType->getAs<FunctionType>();
+      const FunctionProtoType *OldProto = nullptr;
+      if (MergeTypeWithOld && isa<FunctionNoProtoType>(NewFuncType) &&
+          (OldProto = dyn_cast<FunctionProtoType>(OldFuncType))) {
+        // The old declaration provided a function prototype, but the
+        // new declaration does not. Merge in the prototype.
+        assert(!OldProto->hasExceptionSpec() && "Exception spec in C");
+        SmallVector<QualType, 16> ParamTypes(OldProto->param_types());
+        NewQType =
+            Context.getFunctionType(NewFuncType->getReturnType(), ParamTypes,
+                                    OldProto->getExtProtoInfo());
+        New->setType(NewQType);
+        New->setHasInheritedPrototype();
+
+        // Synthesize parameters with the same types.
+        SmallVector<ParmVarDecl *, 16> Params;
+        for (const auto &ParamType : OldProto->param_types()) {
+          ParmVarDecl *Param = ParmVarDecl::Create(
+              Context, New, SourceLocation(), SourceLocation(), nullptr,
+              ParamType, /*TInfo=*/nullptr, SC_None, nullptr);
+          Param->setScopeInfo(0, Params.size());
+          Param->setImplicit();
+          Params.push_back(Param);
+        }
+
+        New->setParams(Params);
+      }
+
+      return MergeCompatibleFunctionDecls(New, Old, S, MergeTypeWithOld);
+    }
   }
 
   // Check if the function types are compatible when pointer size address
@@ -5702,7 +5845,7 @@ static bool hasSimilarParameters(ASTContext &Context,
   return true;
 }
 
-/// NeedsRebuildingInCurrentInstantiation - Checks whether the given
+/// RebuildDeclaratorInCurrentInstantiation - Checks whether the given
 /// declarator needs to be rebuilt in the current instantiation.
 /// Any bits of declarator which appear before the name are valid for
 /// consideration here.  That's specifically the type in the decl spec
@@ -8731,15 +8874,24 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
   bool isInline = D.getDeclSpec().isInlineSpecified();
 
   if (!SemaRef.getLangOpts().CPlusPlus) {
-    // Determine whether the function was written with a
-    // prototype. This true when:
+    // Determine whether the function was written with a prototype. This is
+    // true when:
     //   - there is a prototype in the declarator, or
     //   - the type R of the function is some kind of typedef or other non-
     //     attributed reference to a type name (which eventually refers to a
-    //     function type).
+    //     function type). Note, we can't always look at the adjusted type to
+    //     check this case because attributes may cause a non-function
+    //     declarator to still have a function type. e.g.,
+    //       typedef void func(int a);
+    //       __attribute__((noreturn)) func other_func; // This has a prototype
     bool HasPrototype =
-      (D.isFunctionDeclarator() && D.getFunctionTypeInfo().hasPrototype) ||
-      (!R->getAsAdjusted<FunctionType>() && R->isFunctionProtoType());
+        (D.isFunctionDeclarator() && D.getFunctionTypeInfo().hasPrototype) ||
+        (D.getDeclSpec().isTypeRep() &&
+         D.getDeclSpec().getRepAsType().get()->isFunctionProtoType()) ||
+        (!R->getAsAdjusted<FunctionType>() && R->isFunctionProtoType());
+    assert(
+        (HasPrototype || !SemaRef.getLangOpts().requiresStrictPrototypes()) &&
+        "Strict prototypes are required");
 
     NewFD = FunctionDecl::Create(
         SemaRef.Context, DC, D.getBeginLoc(), NameInfo, R, TInfo, SC,
@@ -9191,6 +9343,32 @@ static Scope *getTagInjectionScope(Scope *S, const LangOptions &LangOpts) {
   return S;
 }
 
+/// Determine whether a declaration matches a known function in namespace std.
+static bool isStdBuiltin(ASTContext &Ctx, FunctionDecl *FD,
+                         unsigned BuiltinID) {
+  switch (BuiltinID) {
+  case Builtin::BI__GetExceptionInfo:
+    // No type checking whatsoever.
+    return Ctx.getTargetInfo().getCXXABI().isMicrosoft();
+
+  case Builtin::BIaddressof:
+  case Builtin::BI__addressof:
+  case Builtin::BIforward:
+  case Builtin::BImove:
+  case Builtin::BImove_if_noexcept:
+  case Builtin::BIas_const: {
+    // Ensure that we don't treat the algorithm
+    //   OutputIt std::move(InputIt, InputIt, OutputIt)
+    // as the builtin std::move.
+    const auto *FPT = FD->getType()->castAs<FunctionProtoType>();
+    return FPT->getNumParams() == 1 && !FPT->isVariadic();
+  }
+
+  default:
+    return false;
+  }
+}
+
 NamedDecl*
 Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                               TypeSourceInfo *TInfo, LookupResult &Previous,
@@ -9522,11 +9700,15 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
 
     if (isFriend) {
+      // In MSVC mode for older versions of the standard, friend function
+      // declarations behave as declarations
+      bool PerformFriendInjection =
+          getLangOpts().MSVCCompat && !getLangOpts().CPlusPlus20;
       if (FunctionTemplate) {
-        FunctionTemplate->setObjectOfFriendDecl();
+        FunctionTemplate->setObjectOfFriendDecl(PerformFriendInjection);
         FunctionTemplate->setAccess(AS_public);
       }
-      NewFD->setObjectOfFriendDecl();
+      NewFD->setObjectOfFriendDecl(PerformFriendInjection);
       NewFD->setAccess(AS_public);
     }
 
@@ -9763,7 +9945,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
     if (!NewFD->isInvalidDecl())
       D.setRedeclaration(CheckFunctionDeclaration(S, NewFD, Previous,
-                                                  isMemberSpecialization));
+                                                  isMemberSpecialization,
+                                                  D.isFunctionDefinition()));
     else if (!Previous.empty())
       // Recover gracefully from an invalid redeclaration.
       D.setRedeclaration(true);
@@ -9913,7 +10096,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
       if (!NewFD->isInvalidDecl())
         D.setRedeclaration(CheckFunctionDeclaration(S, NewFD, Previous,
-                                                    isMemberSpecialization));
+                                                    isMemberSpecialization,
+                                                    D.isFunctionDefinition()));
       else if (!Previous.empty())
         // Recover gracefully from an invalid redeclaration.
         D.setRedeclaration(true);
@@ -10041,28 +10225,30 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
   // If this is the first declaration of a library builtin function, add
   // attributes as appropriate.
-  if (!D.isRedeclaration() &&
-      NewFD->getDeclContext()->getRedeclContext()->isFileContext()) {
+  if (!D.isRedeclaration()) {
     if (IdentifierInfo *II = Previous.getLookupName().getAsIdentifierInfo()) {
       if (unsigned BuiltinID = II->getBuiltinID()) {
-        if (NewFD->getLanguageLinkage() == CLanguageLinkage) {
-          // Validate the type matches unless this builtin is specified as
-          // matching regardless of its declared type.
-          if (Context.BuiltinInfo.allowTypeMismatch(BuiltinID)) {
-            NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
-          } else {
-            ASTContext::GetBuiltinTypeError Error;
-            LookupNecessaryTypesForBuiltin(S, BuiltinID);
-            QualType BuiltinType = Context.GetBuiltinType(BuiltinID, Error);
-
-            if (!Error && !BuiltinType.isNull() &&
-                Context.hasSameFunctionTypeIgnoringExceptionSpec(
-                    NewFD->getType(), BuiltinType))
+        bool InStdNamespace = Context.BuiltinInfo.isInStdNamespace(BuiltinID);
+        if (!InStdNamespace &&
+            NewFD->getDeclContext()->getRedeclContext()->isFileContext()) {
+          if (NewFD->getLanguageLinkage() == CLanguageLinkage) {
+            // Validate the type matches unless this builtin is specified as
+            // matching regardless of its declared type.
+            if (Context.BuiltinInfo.allowTypeMismatch(BuiltinID)) {
               NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
+            } else {
+              ASTContext::GetBuiltinTypeError Error;
+              LookupNecessaryTypesForBuiltin(S, BuiltinID);
+              QualType BuiltinType = Context.GetBuiltinType(BuiltinID, Error);
+
+              if (!Error && !BuiltinType.isNull() &&
+                  Context.hasSameFunctionTypeIgnoringExceptionSpec(
+                      NewFD->getType(), BuiltinType))
+                NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
+            }
           }
-        } else if (BuiltinID == Builtin::BI__GetExceptionInfo &&
-                   Context.getTargetInfo().getCXXABI().isMicrosoft()) {
-          // FIXME: We should consider this a builtin only in the std namespace.
+        } else if (InStdNamespace && NewFD->isInStdNamespace() &&
+                   isStdBuiltin(Context, NewFD, BuiltinID)) {
           NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
         }
       }
@@ -11022,7 +11208,8 @@ static bool CheckMultiVersionFunction(Sema &S, FunctionDecl *NewFD,
 /// \returns true if the function declaration is a redeclaration.
 bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
                                     LookupResult &Previous,
-                                    bool IsMemberSpecialization) {
+                                    bool IsMemberSpecialization,
+                                    bool DeclIsDefn) {
   assert(!NewFD->getReturnType()->isVariablyModifiedType() &&
          "Variably modified return types are not handled here");
 
@@ -11140,7 +11327,8 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
   if (Redeclaration) {
     // NewFD and OldDecl represent declarations that need to be
     // merged.
-    if (MergeFunctionDecl(NewFD, OldDecl, S, MergeTypeWithPrevious)) {
+    if (MergeFunctionDecl(NewFD, OldDecl, S, MergeTypeWithPrevious,
+                          DeclIsDefn)) {
       NewFD->setInvalidDecl();
       return Redeclaration;
     }
@@ -11384,6 +11572,11 @@ void Sema::CheckMain(FunctionDecl* FD, const DeclSpec& DS) {
     FD->setInvalidDecl();
     return;
   }
+
+  // Functions named main in hlsl are default entries, but don't have specific
+  // signatures they are required to conform to.
+  if (getLangOpts().HLSL)
+    return;
 
   QualType T = FD->getType();
   assert(T->isFunctionType() && "function decl is not of function type");
@@ -14203,18 +14396,28 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
                                            SourceLocation LocAfterDecls) {
   DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
 
-  // Verify 6.9.1p6: 'every identifier in the identifier list shall be declared'
-  // for a K&R function.
+  // C99 6.9.1p6 "If a declarator includes an identifier list, each declaration
+  // in the declaration list shall have at least one declarator, those
+  // declarators shall only declare identifiers from the identifier list, and
+  // every identifier in the identifier list shall be declared.
+  //
+  // C89 3.7.1p5 "If a declarator includes an identifier list, only the
+  // identifiers it names shall be declared in the declaration list."
+  //
+  // This is why we only diagnose in C99 and later. Note, the other conditions
+  // listed are checked elsewhere.
   if (!FTI.hasPrototype) {
     for (int i = FTI.NumParams; i != 0; /* decrement in loop */) {
       --i;
       if (FTI.Params[i].Param == nullptr) {
-        SmallString<256> Code;
-        llvm::raw_svector_ostream(Code)
-            << "  int " << FTI.Params[i].Ident->getName() << ";\n";
-        Diag(FTI.Params[i].IdentLoc, diag::ext_param_not_declared)
-            << FTI.Params[i].Ident
-            << FixItHint::CreateInsertion(LocAfterDecls, Code);
+        if (getLangOpts().C99) {
+          SmallString<256> Code;
+          llvm::raw_svector_ostream(Code)
+              << "  int " << FTI.Params[i].Ident->getName() << ";\n";
+          Diag(FTI.Params[i].IdentLoc, diag::ext_param_not_declared)
+              << FTI.Params[i].Ident
+              << FixItHint::CreateInsertion(LocAfterDecls, Code);
+        }
 
         // Implicitly declare the argument as type 'int' for lack of a better
         // type.
@@ -14238,7 +14441,7 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
 Decl *
 Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Declarator &D,
                               MultiTemplateParamsArg TemplateParameterLists,
-                              SkipBodyInfo *SkipBody) {
+                              SkipBodyInfo *SkipBody, FnBodyKind BodyKind) {
   assert(getCurFunctionDecl() == nullptr && "Function parsing confused");
   assert(D.isFunctionDeclarator() && "Not a function declarator!");
   Scope *ParentScope = FnBodyScope->getParent();
@@ -14257,7 +14460,7 @@ Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Declarator &D,
 
   D.setFunctionDefinitionKind(FunctionDefinitionKind::Definition);
   Decl *DP = HandleDeclarator(ParentScope, D, TemplateParameterLists);
-  Decl *Dcl = ActOnStartOfFunctionDef(FnBodyScope, DP, SkipBody);
+  Decl *Dcl = ActOnStartOfFunctionDef(FnBodyScope, DP, SkipBody, BodyKind);
 
   if (!Bases.empty())
     ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(Dcl, Bases);
@@ -14433,7 +14636,8 @@ static void RebuildLambdaScopeInfo(CXXMethodDecl *CallOperator,
 }
 
 Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
-                                    SkipBodyInfo *SkipBody) {
+                                    SkipBodyInfo *SkipBody,
+                                    FnBodyKind BodyKind) {
   if (!D) {
     // Parsing the function declaration failed in some way. Push on a fake scope
     // anyway so we can try to parse the function body.
@@ -14522,11 +14726,11 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
     }
   }
 
-  // The return type of a function definition must be complete
-  // (C99 6.9.1p3, C++ [dcl.fct]p6).
+  // The return type of a function definition must be complete (C99 6.9.1p3),
+  // unless the function is deleted (C++ specifc, C++ [dcl.fct.def.general]p2)
   QualType ResultType = FD->getReturnType();
   if (!ResultType->isDependentType() && !ResultType->isVoidType() &&
-      !FD->isInvalidDecl() &&
+      !FD->isInvalidDecl() && BodyKind != FnBodyKind::Delete &&
       RequireCompleteType(FD->getLocation(), ResultType,
                           diag::err_func_def_incomplete_result))
     FD->setInvalidDecl();
@@ -14535,8 +14739,9 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
     PushDeclContext(FnBodyScope, FD);
 
   // Check the validity of our function parameters
-  CheckParmsForFunctionDef(FD->parameters(),
-                           /*CheckParameterNames=*/true);
+  if (BodyKind != FnBodyKind::Delete)
+    CheckParmsForFunctionDef(FD->parameters(),
+                             /*CheckParameterNames=*/true);
 
   // Add non-parameter declarations already in the function to the current
   // scope.
@@ -14884,18 +15089,63 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
                       ? FixItHint::CreateInsertion(findBeginLoc(), "static ")
                       : FixItHint{});
         }
+      }
 
-        // GNU warning -Wstrict-prototypes
-        //   Warn if K&R function is defined without a previous declaration.
-        //   This warning is issued only if the definition itself does not
-        //   provide a prototype. Only K&R definitions do not provide a
-        //   prototype.
-        if (!FD->hasWrittenPrototype()) {
-          TypeSourceInfo *TI = FD->getTypeSourceInfo();
-          TypeLoc TL = TI->getTypeLoc();
-          FunctionTypeLoc FTL = TL.getAsAdjusted<FunctionTypeLoc>();
-          Diag(FTL.getLParenLoc(), diag::warn_strict_prototypes) << 2;
+      // If the function being defined does not have a prototype, then we may
+      // need to diagnose it as changing behavior in C2x because we now know
+      // whether the function accepts arguments or not. This only handles the
+      // case where the definition has no prototype but does have parameters
+      // and either there is no previous potential prototype, or the previous
+      // potential prototype also has no actual prototype. This handles cases
+      // like:
+      //   void f(); void f(a) int a; {}
+      //   void g(a) int a; {}
+      // See MergeFunctionDecl() for other cases of the behavior change
+      // diagnostic. See GetFullTypeForDeclarator() for handling of a function
+      // type without a prototype.
+      if (!FD->hasWrittenPrototype() && FD->getNumParams() != 0 &&
+          (!PossiblePrototype || (!PossiblePrototype->hasWrittenPrototype() &&
+                                  !PossiblePrototype->isImplicit()))) {
+        // The function definition has parameters, so this will change behavior
+        // in C2x. If there is a possible prototype, it comes before the
+        // function definition.
+        // FIXME: The declaration may have already been diagnosed as being
+        // deprecated in GetFullTypeForDeclarator() if it had no arguments, but
+        // there's no way to test for the "changes behavior" condition in
+        // SemaType.cpp when forming the declaration's function type. So, we do
+        // this awkward dance instead.
+        //
+        // If we have a possible prototype and it declares a function with a
+        // prototype, we don't want to diagnose it; if we have a possible
+        // prototype and it has no prototype, it may have already been
+        // diagnosed in SemaType.cpp as deprecated depending on whether
+        // -Wstrict-prototypes is enabled. If we already warned about it being
+        // deprecated, add a note that it also changes behavior. If we didn't
+        // warn about it being deprecated (because the diagnostic is not
+        // enabled), warn now that it is deprecated and changes behavior.
+        bool AddNote = false;
+        if (PossiblePrototype) {
+          if (Diags.isIgnored(diag::warn_strict_prototypes,
+                              PossiblePrototype->getLocation())) {
+
+            PartialDiagnostic PD =
+                PDiag(diag::warn_non_prototype_changes_behavior);
+            if (TypeSourceInfo *TSI = PossiblePrototype->getTypeSourceInfo()) {
+              if (auto FTL = TSI->getTypeLoc().getAs<FunctionNoProtoTypeLoc>())
+                PD << FixItHint::CreateInsertion(FTL.getRParenLoc(), "void");
+            }
+            Diag(PossiblePrototype->getLocation(), PD);
+          } else {
+            AddNote = true;
+          }
         }
+
+        // Because this function definition has no prototype and it has
+        // parameters, it will definitely change behavior in C2x.
+        Diag(FD->getLocation(), diag::warn_non_prototype_changes_behavior);
+        if (AddNote)
+          Diag(PossiblePrototype->getLocation(),
+               diag::note_func_decl_changes_behavior);
       }
 
       // Warn on CPUDispatch with an actual body.
@@ -15116,6 +15366,10 @@ void Sema::ActOnFinishDelayedAttribute(Scope *S, Decl *D,
 /// call, forming a call to an implicitly defined function (per C99 6.5.1p2).
 NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
                                           IdentifierInfo &II, Scope *S) {
+  // It is not valid to implicitly define a function in C2x.
+  assert(LangOpts.implicitFunctionsAllowed() &&
+         "Implicit function declarations aren't allowed in this language mode");
+
   // Find the scope in which the identifier is injected and the corresponding
   // DeclContext.
   // FIXME: C89 does not say what happens if there is no enclosing block scope.
@@ -15154,15 +15408,13 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
     }
   }
 
-  // Extension in C99.  Legal in C90, but warn about it.
+  // Extension in C99 (defaults to error). Legal in C89, but warn about it.
   unsigned diag_id;
   if (II.getName().startswith("__builtin_"))
     diag_id = diag::warn_builtin_unknown;
   // OpenCL v2.0 s6.9.u - Implicit function declaration is not supported.
-  else if (getLangOpts().OpenCL)
-    diag_id = diag::err_opencl_implicit_function_decl;
   else if (getLangOpts().C99)
-    diag_id = diag::ext_implicit_function_decl;
+    diag_id = diag::ext_implicit_function_decl_c99;
   else
     diag_id = diag::warn_implicit_function_decl;
 
@@ -15180,9 +15432,16 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
   }
 
   Diag(Loc, diag_id) << &II;
-  if (Corrected)
-    diagnoseTypo(Corrected, PDiag(diag::note_function_suggestion),
-                 /*ErrorRecovery*/ false);
+  if (Corrected) {
+    // If the correction is going to suggest an implicitly defined function,
+    // skip the correction as not being a particularly good idea.
+    bool Diagnose = true;
+    if (const auto *D = Corrected.getCorrectionDecl())
+      Diagnose = !D->isImplicit();
+    if (Diagnose)
+      diagnoseTypo(Corrected, PDiag(diag::note_function_suggestion),
+                   /*ErrorRecovery*/ false);
+  }
 
   // If we found a prior declaration of this function, don't bother building
   // another one. We've already pushed that one into scope, so there's nothing
@@ -16128,9 +16387,20 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
       // with C structs, unions, and enums when looking for a matching
       // tag declaration or definition. See the similar lookup tweak
       // in Sema::LookupName; is there a better way to deal with this?
-      while (isa<RecordDecl>(SearchDC) || isa<EnumDecl>(SearchDC))
+      while (isa<RecordDecl, EnumDecl, ObjCContainerDecl>(SearchDC))
+        SearchDC = SearchDC->getParent();
+    } else if (getLangOpts().CPlusPlus) {
+      // Inside ObjCContainer want to keep it as a lexical decl context but go
+      // past it (most often to TranslationUnit) to find the semantic decl
+      // context.
+      while (isa<ObjCContainerDecl>(SearchDC))
         SearchDC = SearchDC->getParent();
     }
+  } else if (getLangOpts().CPlusPlus) {
+    // Don't use ObjCContainerDecl as the semantic decl context for anonymous
+    // TagDecl the same way as we skip it for named TagDecl.
+    while (isa<ObjCContainerDecl>(SearchDC))
+      SearchDC = SearchDC->getParent();
   }
 
   if (Previous.isSingleResult() &&
@@ -16780,8 +17050,7 @@ void Sema::ActOnTagStartDefinition(Scope *S, Decl *TagD) {
   AddPushedVisibilityAttribute(Tag);
 }
 
-bool Sema::ActOnDuplicateDefinition(DeclSpec &DS, Decl *Prev,
-                                    SkipBodyInfo &SkipBody) {
+bool Sema::ActOnDuplicateDefinition(Decl *Prev, SkipBodyInfo &SkipBody) {
   if (!hasStructuralCompatLayout(Prev, SkipBody.New))
     return false;
 
@@ -17880,6 +18149,33 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
 
     // Handle attributes before checking the layout.
     ProcessDeclAttributeList(S, Record, Attrs);
+
+    // Check to see if a FieldDecl is a pointer to a function.
+    auto IsFunctionPointer = [&](const Decl *D) {
+      const FieldDecl *FD = dyn_cast<FieldDecl>(D);
+      if (!FD)
+        return false;
+      QualType FieldType = FD->getType().getDesugaredType(Context);
+      if (isa<PointerType>(FieldType)) {
+        QualType PointeeType = cast<PointerType>(FieldType)->getPointeeType();
+        return PointeeType.getDesugaredType(Context)->isFunctionType();
+      }
+      return false;
+    };
+
+    // Maybe randomize the record's decls. We automatically randomize a record
+    // of function pointers, unless it has the "no_randomize_layout" attribute.
+    if (!getLangOpts().CPlusPlus &&
+        (Record->hasAttr<RandomizeLayoutAttr>() ||
+         (!Record->hasAttr<NoRandomizeLayoutAttr>() &&
+          llvm::all_of(Record->decls(), IsFunctionPointer))) &&
+        !Record->isUnion() && !getLangOpts().RandstructSeed.empty() &&
+        !Record->isRandomized()) {
+      SmallVector<Decl *, 32> NewDeclOrdering;
+      if (randstruct::randomizeStructureLayout(Context, Record,
+                                               NewDeclOrdering))
+        Record->reorderDecls(NewDeclOrdering);
+    }
 
     // We may have deferred checking for a deleted destructor. Check now.
     if (CXXRecord) {

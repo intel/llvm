@@ -949,10 +949,12 @@ class AMDGPUBufferLoad<LLVMType data_ty = llvm_any_ty> : Intrinsic <
 def int_amdgcn_buffer_load_format : AMDGPUBufferLoad<llvm_anyfloat_ty>;
 def int_amdgcn_buffer_load : AMDGPUBufferLoad;
 
+// Generate a buffer_load instruction that may be optimized to s_buffer_load if
+// the offset argument is uniform.
 def int_amdgcn_s_buffer_load : Intrinsic <
   [llvm_any_ty],
   [llvm_v4i32_ty,     // rsrc(SGPR)
-   llvm_i32_ty,       // byte offset(SGPR/imm)
+   llvm_i32_ty,       // byte offset
    llvm_i32_ty],      // cachepolicy(imm; bit 0 = glc, bit 2 = dlc)
   [IntrNoMem, IntrWillReturn, ImmArg<ArgIndex<2>>]>,
   AMDGPURsrcIntrinsic<0>;
@@ -2059,4 +2061,8 @@ def int_amdgcn_reloc_constant : Intrinsic<
   [llvm_i32_ty], [llvm_metadata_ty],
   [IntrNoMem, IntrSpeculatable, IntrWillReturn]
 >;
+
+// SYCL
+def int_amdgcn_implicit_offset : GCCBuiltin<"__builtin_amdgcn_implicit_offset">,
+  Intrinsic<[LLVMQualPointerType<llvm_i32_ty, 5>], [], [IntrNoMem, IntrSpeculatable]>;
 }

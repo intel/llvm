@@ -195,6 +195,12 @@ void MIRPrinter::print(const MachineFunction &MF) {
   YamlMF.ExposesReturnsTwice = MF.exposesReturnsTwice();
   YamlMF.HasWinCFI = MF.hasWinCFI();
 
+  YamlMF.CallsEHReturn = MF.callsEHReturn();
+  YamlMF.CallsUnwindInit = MF.callsUnwindInit();
+  YamlMF.HasEHCatchret = MF.hasEHCatchret();
+  YamlMF.HasEHScopes = MF.hasEHScopes();
+  YamlMF.HasEHFunclets = MF.hasEHFunclets();
+
   YamlMF.Legalized = MF.getProperties().hasProperty(
       MachineFunctionProperties::Property::Legalized);
   YamlMF.RegBankSelected = MF.getProperties().hasProperty(
@@ -473,6 +479,12 @@ void MIRPrinter::convertStackObjects(yaml::MachineFunction &YMF,
     raw_string_ostream StrOS(YMF.FrameInfo.StackProtector.Value);
     MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping)
         .printStackObjectReference(MFI.getStackProtectorIndex());
+  }
+
+  if (MFI.hasFunctionContextIndex()) {
+    raw_string_ostream StrOS(YMF.FrameInfo.FunctionContext.Value);
+    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping)
+        .printStackObjectReference(MFI.getFunctionContextIndex());
   }
 
   // Print the debug variable information.

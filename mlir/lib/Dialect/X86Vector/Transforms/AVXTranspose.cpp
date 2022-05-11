@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/X86Vector/Transforms.h"
@@ -264,7 +265,7 @@ public:
       return rewriter.notifyMatchFailure(op, "Unsupported vector type");
 
     SmallVector<int64_t, 4> transp;
-    for (auto attr : op.transp())
+    for (auto attr : op.getTransp())
       transp.push_back(attr.cast<IntegerAttr>().getInt());
 
     // Check whether the two source vector dimensions that are greater than one
@@ -289,7 +290,7 @@ public:
           VectorType::get({n * m}, op.getVectorType().getElementType());
       auto reshInputType = VectorType::get({m, n}, srcType.getElementType());
       auto reshInput =
-          ib.create<vector::ShapeCastOp>(flattenedType, op.vector());
+          ib.create<vector::ShapeCastOp>(flattenedType, op.getVector());
       reshInput = ib.create<vector::ShapeCastOp>(reshInputType, reshInput);
 
       // Extract 1-D vectors from the higher-order dimension of the input

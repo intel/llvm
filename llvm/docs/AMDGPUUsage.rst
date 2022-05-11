@@ -18,6 +18,7 @@ User Guide for AMDGPU Backend
    AMDGPU/AMDGPUAsmGFX90a
    AMDGPU/AMDGPUAsmGFX10
    AMDGPU/AMDGPUAsmGFX1011
+   AMDGPU/AMDGPUAsmGFX1013
    AMDGPU/AMDGPUAsmGFX1030
    AMDGPUModifierSyntax
    AMDGPUOperandSyntax
@@ -442,6 +443,36 @@ Every processor supports every OS ABI (see :ref:`amdgpu-os`) with the following 
 
                                                                                                         Add product
                                                                                                         names.
+
+     **GCN GFX11**
+     -----------------------------------------------------------------------------------------------------------------------
+     ``gfx1100``                 ``amdgcn``   dGPU  - cumode          - Architected   - *pal-amdpal*  *TBA*
+                                                    - wavefrontsize64   flat
+                                                                        scratch                       .. TODO::
+                                                                      - Packed
+                                                                        work-item                       Add product
+                                                                        IDs                             names.
+
+     ``gfx1101``                 ``amdgcn``   dGPU  - cumode          - Architected                   *TBA*
+                                                    - wavefrontsize64   flat
+                                                                        scratch                       .. TODO::
+                                                                      - Packed
+                                                                        work-item                       Add product
+                                                                        IDs                             names.
+
+     ``gfx1102``                 ``amdgcn``   dGPU  - cumode          - Architected                   *TBA*
+                                                    - wavefrontsize64   flat
+                                                                        scratch                       .. TODO::
+                                                                      - Packed
+                                                                        work-item                       Add product
+                                                                        IDs                             names.
+
+     ``gfx1103``                 ``amdgcn``   APU   - cumode          - Architected                   *TBA*
+                                                    - wavefrontsize64   flat
+                                                                        scratch                       .. TODO::
+                                                                      - Packed
+                                                                        work-item                       Add product
+                                                                        IDs                             names.
 
      =========== =============== ============ ===== ================= =============== =============== ======================
 
@@ -946,6 +977,9 @@ The AMDGPU backend supports the following LLVM IR attributes.
                                              version implementation. If this attribute is absent, then the
                                              amdgpu-no-implicitarg-ptr is also removed.
 
+     "amdgpu-no-multigrid-sync-arg"          Similar to amdgpu-no-implicitarg-ptr, except specific to the implicit
+                                             kernel argument that holds the multigrid synchronization pointer. If this
+                                             attribute is absent, then the amdgpu-no-implicitarg-ptr is also removed.
      ======================================= ==========================================================
 
 .. _amdgpu-elf-code-object:
@@ -1240,11 +1274,13 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX1034``    0x03e      ``gfx1034``
      ``EF_AMDGPU_MACH_AMDGCN_GFX90A``     0x03f      ``gfx90a``
      ``EF_AMDGPU_MACH_AMDGCN_GFX940``     0x040      ``gfx940``
-     *reserved*                           0x041      Reserved.
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1100``    0x041      ``gfx1100``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1013``    0x042      ``gfx1013``
      *reserved*                           0x043      Reserved.
-     *reserved*                           0x044      Reserved.
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1103``    0x044      ``gfx1103``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1036``    0x045      ``gfx1036``
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1101``    0x046      ``gfx1101``
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1102``    0x047      ``gfx1102``
      ==================================== ========== =============================
 
 Sections
@@ -2822,12 +2858,16 @@ non-AMD key names should be prefixed by "*vendor-name*.".
                                                 "HiddenPrintfBuffer"
                                                   A global address space pointer
                                                   to the runtime printf buffer
-                                                  is passed in kernarg.
+                                                  is passed in kernarg. Mutually
+                                                  exclusive with
+                                                  "HiddenHostcallBuffer".
 
                                                 "HiddenHostcallBuffer"
                                                   A global address space pointer
                                                   to the runtime hostcall buffer
-                                                  is passed in kernarg.
+                                                  is passed in kernarg. Mutually
+                                                  exclusive with
+                                                  "HiddenPrintfBuffer".
 
                                                 "HiddenDefaultQueue"
                                                   A global address space pointer
@@ -3347,12 +3387,18 @@ same *vendor-name*.
                                                      "hidden_printf_buffer"
                                                        A global address space pointer
                                                        to the runtime printf buffer
-                                                       is passed in kernarg.
+                                                       is passed in kernarg. Mutually
+                                                       exclusive with
+                                                       "hidden_hostcall_buffer"
+                                                       before Code Object V5.
 
                                                      "hidden_hostcall_buffer"
                                                        A global address space pointer
                                                        to the runtime hostcall buffer
-                                                       is passed in kernarg.
+                                                       is passed in kernarg. Mutually
+                                                       exclusive with
+                                                       "hidden_printf_buffer"
+                                                       before Code Object V5.
 
                                                      "hidden_default_queue"
                                                        A global address space pointer
@@ -3581,17 +3627,17 @@ Code object V5 metadata is the same as
                                                        is 1 or 2, then must be 1.
 
                                                      "hidden_remainder_x"
-                                                       The grid dispatch work group size of the the partial work group
+                                                       The grid dispatch work group size of the partial work group
                                                        of the X dimension, if it exists. Must be zero if a partial
                                                        work group does not exist in the X dimension.
 
                                                      "hidden_remainder_y"
-                                                       The grid dispatch work group size of the the partial work group
+                                                       The grid dispatch work group size of the partial work group
                                                        of the Y dimension, if it exists. Must be zero if a partial
                                                        work group does not exist in the Y dimension.
 
                                                      "hidden_remainder_z"
-                                                       The grid dispatch work group size of the the partial work group
+                                                       The grid dispatch work group size of the partial work group
                                                        of the Z dimension, if it exists. Must be zero if a partial
                                                        work group does not exist in the Z dimension.
 
@@ -14204,6 +14250,8 @@ in this description.
 
                                                                 :doc:`gfx1012<AMDGPU/AMDGPUAsmGFX1011>`
 
+                                                                :doc:`gfx1013<AMDGPU/AMDGPUAsmGFX1013>`
+
     RDNA 2        :doc:`GFX10 RDNA2<AMDGPU/AMDGPUAsmGFX1030>`   :doc:`gfx1030<AMDGPU/AMDGPUAsmGFX1030>`
 
                                                                 :doc:`gfx1031<AMDGPU/AMDGPUAsmGFX1030>`
@@ -14984,6 +15032,33 @@ These symbols cannot identify connected components in order to automatically
 track the usage for each kernel. However, in some cases careful organization of
 the kernels and functions in the source file means there is minimal additional
 effort required to accurately calculate GPR usage.
+
+SYCL Kernel Metadata
+====================
+
+This section describes the additional metadata that is inserted for SYCL
+kernels. As SYCL is a single source programming model functions can either
+execute on a host or a device (i.e. GPU). Device kernels are akin to kernel
+entry-points in GPU program. To mark an LLVM IR function as a device kernel
+function, we make use of special LLVM metadata. The AMDGCN back-end will look
+for a named metadata node called ``amdgcn.annotations``. This named metadata
+must contain a list of metadata that describe the kernel IR. For our purposes,
+we need to declare a metadata node that assigns the `"kernel"` attribute to the
+LLVM IR function that should be emitted as a SYCL kernel function. These
+metadata nodes take the form:
+
+.. code-block:: text
+
+  !{<function ref>, metadata !"kernel", i32 1}
+
+Consider the metadata generated by global-offset pass, showing a void kernel
+function `example_kernel_with_offset` taking one argument, a pointer to 3 i32
+integers:
+
+.. code-block:: llvm
+
+  !amdgcn.annotations = !{!0}
+  !0 = !{void ([3 x i32]*)* @_ZTS14example_kernel_with_offset, !"kernel", i32 1}
 
 Additional Documentation
 ========================

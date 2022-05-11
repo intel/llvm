@@ -913,6 +913,8 @@ class sve_int_count<bits<3> opc, string asm>
   let Inst{10}    = opc{0};
   let Inst{9-5}   = pattern;
   let Inst{4-0}   = Rd;
+
+  let isReMaterializable = 1;
 }
 
 multiclass sve_int_count<bits<3> opc, string asm, SDPatternOperator op> {
@@ -2539,6 +2541,8 @@ class sve_int_read_vl_a<bit op, bits<5> opc2, string asm, bit streaming_sve = 0b
   let Inst{11}    = streaming_sve;
   let Inst{10-5}  = imm6;
   let Inst{4-0}   = Rd;
+
+  let isReMaterializable = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2763,11 +2767,19 @@ class sve_int_bin_pred_arit_log<bits<2> sz8_64, bits<2> fmt, bits<3> opc,
   let ElementSize = zprty.ElementSize;
 }
 
-multiclass sve_int_bin_pred_log<bits<3> opc, string asm, SDPatternOperator op> {
-  def _B : sve_int_bin_pred_arit_log<0b00, 0b11, opc, asm, ZPR8>;
-  def _H : sve_int_bin_pred_arit_log<0b01, 0b11, opc, asm, ZPR16>;
-  def _S : sve_int_bin_pred_arit_log<0b10, 0b11, opc, asm, ZPR32>;
-  def _D : sve_int_bin_pred_arit_log<0b11, 0b11, opc, asm, ZPR64>;
+multiclass sve_int_bin_pred_log<bits<3> opc, string asm, string Ps,
+                                SDPatternOperator op,
+                                DestructiveInstTypeEnum flags> {
+  let DestructiveInstType = flags in {
+  def _B : sve_int_bin_pred_arit_log<0b00, 0b11, opc, asm, ZPR8>,
+             SVEPseudo2Instr<Ps # _B, 1>;
+  def _H : sve_int_bin_pred_arit_log<0b01, 0b11, opc, asm, ZPR16>,
+             SVEPseudo2Instr<Ps # _H, 1>;
+  def _S : sve_int_bin_pred_arit_log<0b10, 0b11, opc, asm, ZPR32>,
+             SVEPseudo2Instr<Ps # _S, 1>;
+  def _D : sve_int_bin_pred_arit_log<0b11, 0b11, opc, asm, ZPR64>,
+             SVEPseudo2Instr<Ps # _D, 1>;
+  }
 
   def : SVE_3_Op_Pat<nxv16i8, op, nxv16i1, nxv16i8, nxv16i8, !cast<Instruction>(NAME # _B)>;
   def : SVE_3_Op_Pat<nxv8i16, op, nxv8i1, nxv8i16, nxv8i16, !cast<Instruction>(NAME # _H)>;
@@ -5190,6 +5202,8 @@ class sve_int_index_ii<bits<2> sz8_64, string asm, ZPRRegOp zprty,
   let Inst{15-10} = 0b010000;
   let Inst{9-5}   = imm5;
   let Inst{4-0}   = Zd;
+
+  let isReMaterializable = 1;
 }
 
 multiclass sve_int_index_ii<string asm> {

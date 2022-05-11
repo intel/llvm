@@ -199,17 +199,6 @@ MutableModes &ExternalIoStatementBase::mutableModes() { return unit_.modes; }
 
 ConnectionState &ExternalIoStatementBase::GetConnectionState() { return unit_; }
 
-void ExternalIoStatementBase::CompleteOperation() {
-  if (!completedOperation()) {
-    if (mutableModes().nonAdvancing) {
-      unit_.leftTabLimit = unit_.furthestPositionInRecord;
-    } else {
-      unit_.leftTabLimit.reset();
-    }
-    IoStatementBase::CompleteOperation();
-  }
-}
-
 int ExternalIoStatementBase::EndIoStatement() {
   CompleteOperation();
   auto result{IoStatementBase::EndIoStatement()};
@@ -329,13 +318,20 @@ void ExternalIoStatementState<DIR>::CompleteOperation() {
     if (!mutableModes().nonAdvancing || GetIoStat() == IostatEor) {
       FinishReadingRecord();
     }
-  } else {
-    if (!mutableModes().nonAdvancing) {
+  } else { // output
+    if (mutableModes().nonAdvancing) {
+      // Make effects of positioning past the last Emit() visible with blanks.
+      std::int64_t n{unit().positionInRecord - unit().furthestPositionInRecord};
+      unit().positionInRecord = unit().furthestPositionInRecord;
+      while (n-- > 0 && unit().Emit(" ", 1, 1, *this)) {
+      }
+      unit().leftTabLimit = unit().furthestPositionInRecord;
+    } else {
       unit().AdvanceRecord(*this);
     }
     unit().FlushIfTerminal(*this);
   }
-  return ExternalIoStatementBase::CompleteOperation();
+  return IoStatementBase::CompleteOperation();
 }
 
 template <Direction DIR> int ExternalIoStatementState<DIR>::EndIoStatement() {
@@ -485,7 +481,7 @@ bool IoStatementState::EmitEncoded(const CHAR *data0, std::size_t chars) {
   // Don't allow sign extension
   using UnsignedChar = std::make_unsigned_t<CHAR>;
   const UnsignedChar *data{reinterpret_cast<const UnsignedChar *>(data0)};
-  if (GetConnectionState().isUTF8) {
+  if (GetConnectionState().useUTF8<CHAR>()) {
     char buffer[256];
     std::size_t at{0};
     while (chars-- > 0) {
@@ -676,8 +672,16 @@ bool IoStatementState::CheckForEndOfRecord() {
       if (connection.positionInRecord >= *length) {
         IoErrorHandler &handler{GetIoErrorHandler()};
         if (mutableModes().nonAdvancing) {
-          handler.SignalEor();
-        } else if (connection.openRecl && !connection.modes.pad) {
+          if (connection.access == Access::Stream &&
+              connection.unterminatedRecord) {
+            // Reading final unterminated record left by a
+            // non-advancing WRITE on a stream file prior to
+            // positioning or ENDFILE.
+            handler.SignalEnd();
+          } else {
+            handler.SignalEor();
+          }
+        } else if (!connection.modes.pad) {
           handler.SignalError(IostatRecordReadOverrun);
         }
         return connection.modes.pad; // PAD='YES'
@@ -1018,7 +1022,7 @@ void ExternalMiscIoStatementState::CompleteOperation() {
     ext.Rewind(*this);
     break;
   }
-  return ExternalIoStatementBase::CompleteOperation();
+  return IoStatementBase::CompleteOperation();
 }
 
 int ExternalMiscIoStatementState::EndIoStatement() {

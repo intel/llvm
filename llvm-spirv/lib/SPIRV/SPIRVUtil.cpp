@@ -1115,7 +1115,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
       return SPIR::RefParamType(new SPIR::PrimitiveType(
           Signed ? SPIR::PRIMITIVE_LONG : SPIR::PRIMITIVE_ULONG));
     default:
-      llvm_unreachable("invliad int size");
+      return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_INT));
     }
   }
   if (Ty->isVoidTy())
@@ -1791,7 +1791,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
   Module *M = GV->getParent();
   LLVMContext &C = M->getContext();
   std::string FuncName = GV->getName().str();
-  Type *GVTy = GV->getType()->getPointerElementType();
+  Type *GVTy = GV->getValueType();
   Type *ReturnTy = GVTy;
   // Some SPIR-V builtin variables are translated to a function with an index
   // argument.
@@ -1861,7 +1861,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
 
       Value *Ptr = LD->getPointerOperand();
 
-      if (isa<FixedVectorType>(Ptr->getType()->getPointerElementType())) {
+      if (isa<FixedVectorType>(LD->getType())) {
         LD->replaceAllUsesWith(Vectors.back());
       } else {
         auto *GEP = dyn_cast<GetElementPtrInst>(Ptr);

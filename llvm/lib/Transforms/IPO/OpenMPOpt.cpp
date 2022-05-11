@@ -935,8 +935,7 @@ private:
     SmallDenseMap<BasicBlock *, SmallPtrSet<Instruction *, 4>> BB2PRMap;
 
     BasicBlock *StartBB = nullptr, *EndBB = nullptr;
-    auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP,
-                         BasicBlock &ContinuationIP) {
+    auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {
       BasicBlock *CGStartBB = CodeGenIP.getBlock();
       BasicBlock *CGEndBB =
           SplitBlock(CGStartBB, &*CodeGenIP.getPoint(), DT, LI);
@@ -975,8 +974,7 @@ private:
       const DebugLoc DL = ParentBB->getTerminator()->getDebugLoc();
       ParentBB->getTerminator()->eraseFromParent();
 
-      auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP,
-                           BasicBlock &ContinuationIP) {
+      auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {
         BasicBlock *CGStartBB = CodeGenIP.getBlock();
         BasicBlock *CGEndBB =
             SplitBlock(CGStartBB, &*CodeGenIP.getPoint(), DT, LI);
@@ -4276,10 +4274,10 @@ struct AAKernelInfoCallSite : AAKernelInfo {
       unsigned ScheduleTypeVal =
           ScheduleTypeCI ? ScheduleTypeCI->getZExtValue() : 0;
       switch (OMPScheduleType(ScheduleTypeVal)) {
-      case OMPScheduleType::Static:
-      case OMPScheduleType::StaticChunked:
-      case OMPScheduleType::Distribute:
-      case OMPScheduleType::DistributeChunked:
+      case OMPScheduleType::UnorderedStatic:
+      case OMPScheduleType::UnorderedStaticChunked:
+      case OMPScheduleType::OrderedDistribute:
+      case OMPScheduleType::OrderedDistributeChunked:
         break;
       default:
         SPMDCompatibilityTracker.indicatePessimisticFixpoint();
@@ -5001,8 +4999,15 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
 
   unsigned MaxFixpointIterations =
       (isOpenMPDevice(M)) ? SetFixpointIterations : 32;
-  Attributor A(Functions, InfoCache, CGUpdater, nullptr, true, false,
-               MaxFixpointIterations, OREGetter, DEBUG_TYPE);
+
+  AttributorConfig AC(CGUpdater);
+  AC.DefaultInitializeLiveInternals = false;
+  AC.RewriteSignatures = false;
+  AC.MaxFixpointIterations = MaxFixpointIterations;
+  AC.OREGetter = OREGetter;
+  AC.PassName = DEBUG_TYPE;
+
+  Attributor A(Functions, InfoCache, AC);
 
   OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
   bool Changed = OMPOpt.run(true);
@@ -5068,8 +5073,16 @@ PreservedAnalyses OpenMPOptCGSCCPass::run(LazyCallGraph::SCC &C,
 
   unsigned MaxFixpointIterations =
       (isOpenMPDevice(M)) ? SetFixpointIterations : 32;
-  Attributor A(Functions, InfoCache, CGUpdater, nullptr, false, true,
-               MaxFixpointIterations, OREGetter, DEBUG_TYPE);
+
+  AttributorConfig AC(CGUpdater);
+  AC.DefaultInitializeLiveInternals = false;
+  AC.IsModulePass = false;
+  AC.RewriteSignatures = false;
+  AC.MaxFixpointIterations = MaxFixpointIterations;
+  AC.OREGetter = OREGetter;
+  AC.PassName = DEBUG_TYPE;
+
+  Attributor A(Functions, InfoCache, AC);
 
   OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
   bool Changed = OMPOpt.run(false);
@@ -5139,8 +5152,16 @@ struct OpenMPOptCGSCCLegacyPass : public CallGraphSCCPass {
 
     unsigned MaxFixpointIterations =
         (isOpenMPDevice(M)) ? SetFixpointIterations : 32;
-    Attributor A(Functions, InfoCache, CGUpdater, nullptr, false, true,
-                 MaxFixpointIterations, OREGetter, DEBUG_TYPE);
+
+    AttributorConfig AC(CGUpdater);
+    AC.DefaultInitializeLiveInternals = false;
+    AC.IsModulePass = false;
+    AC.RewriteSignatures = false;
+    AC.MaxFixpointIterations = MaxFixpointIterations;
+    AC.OREGetter = OREGetter;
+    AC.PassName = DEBUG_TYPE;
+
+    Attributor A(Functions, InfoCache, AC);
 
     OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
     bool Result = OMPOpt.run(false);

@@ -487,6 +487,9 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
         std::max((uint64_t)LargestVectorWidth,
                  VT->getPrimitiveSizeInBits().getKnownMinSize());
 
+  if (CurFnInfo->getMaxVectorWidth() > LargestVectorWidth)
+    LargestVectorWidth = CurFnInfo->getMaxVectorWidth();
+
   // Add the required-vector-width attribute. This contains the max width from:
   // 1. min-vector-width attribute used in the source program.
   // 2. Any builtins used that have a vector width specified.
@@ -908,7 +911,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (SanOpts.hasOneOf(SanitizerKind::HWAddress |
                          SanitizerKind::KernelHWAddress))
       Fn->addFnAttr(llvm::Attribute::SanitizeHWAddress);
-    if (SanOpts.has(SanitizerKind::MemTag))
+    if (SanOpts.has(SanitizerKind::MemtagStack))
       Fn->addFnAttr(llvm::Attribute::SanitizeMemTag);
     if (SanOpts.has(SanitizerKind::Thread))
       Fn->addFnAttr(llvm::Attribute::SanitizeThread);
@@ -2699,7 +2702,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
 
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
-  if (VTy->getPointerElementType()->isIntegerTy()) {
+  if (Addr.getElementType()->isIntegerTy()) {
     llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
 
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
@@ -2720,6 +2723,40 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   return Address(V, Addr.getElementType(), Addr.getAlignment());
 }
 
+llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
+    llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
+    SourceLocation Location, const SYCLAddIRAnnotationsMemberAttr *Attr) {
+  SmallVector<llvm::Value *, 5> Args = {
+      AnnotatedVal,
+      Builder.CreateBitCast(CGM.EmitAnnotationString("sycl-properties"),
+                            Int8PtrTy),
+      Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location), Int8PtrTy),
+      CGM.EmitAnnotationLineNo(Location), CGM.EmitSYCLAnnotationArgs(Attr)};
+  return Builder.CreateCall(AnnotationFn, Args);
+}
+
+Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
+                                                  Address Addr) {
+  const auto *SYCLAnnotAttr = D->getAttr<SYCLAddIRAnnotationsMemberAttr>();
+  assert(SYCLAnnotAttr && "no add_ir_annotations_member attribute");
+  llvm::Value *V = Addr.getPointer();
+  llvm::Type *VTy = V->getType();
+  auto *PTy = dyn_cast<llvm::PointerType>(VTy);
+  unsigned AS = PTy ? PTy->getAddressSpace() : 0;
+  llvm::Type *IntrType = VTy;
+  if (!Addr.getElementType()->isIntegerTy())
+    IntrType = llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
+  llvm::Function *F =
+      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, IntrType);
+
+  if (VTy != IntrType)
+    V = Builder.CreateBitCast(V, IntrType);
+  V = EmitSYCLAnnotationCall(F, V, D->getLocation(), SYCLAnnotAttr);
+  if (VTy != IntrType)
+    V = Builder.CreateBitCast(V, VTy);
+  return Address(V, Addr.getElementType(), Addr.getAlignment());
+}
+
 Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(const FieldDecl *D,
                                                        Address Addr,
                                                        StringRef AnnotStr) {
@@ -2733,7 +2770,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
   llvm::Type *VTy = V->getType();
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
-  if (VTy->getPointerElementType()->isIntegerTy()) {
+  if (Addr.getElementType()->isIntegerTy()) {
     llvm::Function *F =
         CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
     V = EmitAnnotationCall(F, V, AnnotStr, Location);

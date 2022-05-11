@@ -279,15 +279,15 @@ static bool isNoopPtrIntCastPair(const Operator *I2P, const DataLayout &DL,
   // arithmetic may also be undefined after invalid pointer reinterpret cast.
   // However, as we confirm through the target hooks that it's a no-op
   // addrspacecast, it doesn't matter since the bits should be the same.
+  unsigned P2IOp0AS = P2I->getOperand(0)->getType()->getPointerAddressSpace();
+  unsigned I2PAS = I2P->getType()->getPointerAddressSpace();
   return CastInst::isNoopCast(Instruction::CastOps(I2P->getOpcode()),
                               I2P->getOperand(0)->getType(), I2P->getType(),
                               DL) &&
          CastInst::isNoopCast(Instruction::CastOps(P2I->getOpcode()),
                               P2I->getOperand(0)->getType(), P2I->getType(),
                               DL) &&
-         TTI->isNoopAddrSpaceCast(
-             P2I->getOperand(0)->getType()->getPointerAddressSpace(),
-             I2P->getType()->getPointerAddressSpace());
+         (P2IOp0AS == I2PAS || TTI->isNoopAddrSpaceCast(P2IOp0AS, I2PAS));
 }
 
 // Returns true if V is an address expression.
@@ -1240,8 +1240,16 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
             if (!cast<PointerType>(ASC->getType())
                     ->hasSameElementTypeAs(
                         cast<PointerType>(NewV->getType()))) {
+              BasicBlock::iterator InsertPos;
+              if (Instruction *NewVInst = dyn_cast<Instruction>(NewV))
+                InsertPos = std::next(NewVInst->getIterator());
+              else if (Instruction *VInst = dyn_cast<Instruction>(V))
+                InsertPos = std::next(VInst->getIterator());
+              else
+                InsertPos = ASC->getIterator();
+
               NewV = CastInst::Create(Instruction::BitCast, NewV,
-                                      ASC->getType(), "", ASC);
+                                      ASC->getType(), "", &*InsertPos);
             }
             ASC->replaceAllUsesWith(NewV);
             DeadInstructions.push_back(ASC);

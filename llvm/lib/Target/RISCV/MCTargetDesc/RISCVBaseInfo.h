@@ -97,7 +97,7 @@ enum {
   UsesMaskPolicyMask = 1 << UsesMaskPolicyShift,
 };
 
-// Match with the definitions in RISCVInstrFormatsV.td
+// Match with the definitions in RISCVInstrFormats.td
 enum VConstraintType {
   NoConstraint = 0,
   VS2Constraint = 0b001,
@@ -128,8 +128,8 @@ static inline unsigned getFormat(uint64_t TSFlags) {
 }
 /// \returns the constraint for the instruction.
 static inline VConstraintType getConstraint(uint64_t TSFlags) {
-  return static_cast<VConstraintType>
-             ((TSFlags & ConstraintMask) >> ConstraintShift);
+  return static_cast<VConstraintType>((TSFlags & ConstraintMask) >>
+                                      ConstraintShift);
 }
 /// \returns the LMUL for the instruction.
 static inline VLMUL getLMul(uint64_t TSFlags) {
@@ -382,6 +382,12 @@ inline static RISCVII::VLMUL getVLMUL(unsigned VType) {
 
 // Decode VLMUL into 1,2,4,8 and fractional indicator.
 std::pair<unsigned, bool> decodeVLMUL(RISCVII::VLMUL VLMUL);
+
+inline static RISCVII::VLMUL encodeLMUL(unsigned LMUL, bool Fractional) {
+  assert(isValidLMUL(LMUL, Fractional) && "Unsupported LMUL");
+  unsigned LmulLog2 = Log2_32(LMUL);
+  return static_cast<RISCVII::VLMUL>(Fractional ? 8 - LmulLog2 : LmulLog2);
+}
 
 inline static unsigned decodeVSEW(unsigned VSEW) {
   assert(VSEW < 8 && "Unexpected VSEW value");
