@@ -1598,7 +1598,7 @@ detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
 // genfloatf divide (genfloatf x, genfloatf y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> divide(T x,
-                                                              T y) __NOEXC {
+                                                                T y) __NOEXC {
   return __sycl_std::__invoke_native_divide<T>(x, y);
 }
 
@@ -1640,7 +1640,8 @@ detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> log10(T x) __NOEXC {
 
 // genfloatf powr (genfloatf x, genfloatf y)
 template <typename T>
-detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> powr(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> powr(T x,
+                                                              T y) __NOEXC {
   return __sycl_std::__invoke_native_powr<T>(x, y);
 }
 
@@ -1742,7 +1743,7 @@ detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
 // genfloatf divide (genfloatf x, genfloatf y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> divide(T x,
-                                                              T y) __NOEXC {
+                                                                T y) __NOEXC {
   return __sycl_std::__invoke_half_divide<T>(x, y);
 }
 
@@ -1784,7 +1785,8 @@ detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> log10(T x) __NOEXC {
 
 // genfloatf powr (genfloatf x, genfloatf y)
 template <typename T>
-detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> powr(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> powr(T x,
+                                                              T y) __NOEXC {
   return __sycl_std::__invoke_half_powr<T>(x, y);
 }
 
