@@ -2623,8 +2623,10 @@ void CastOperation::checkAddressSpaceCast(QualType SrcType, QualType DestType) {
       LangAS DestAS = DestPPointee.getAddressSpace();
       LangAS SrcAS = SrcPPointee.getAddressSpace();
       const bool OverlappingAS =
-          Qualifiers::isAddressSpaceSupersetOf(DestAS, SrcAS, &ASMap, true) ||
-          Qualifiers::isAddressSpaceSupersetOf(SrcAS, DestAS, &ASMap, true);
+          Qualifiers::isAddressSpaceSupersetOf(
+              DestAS, SrcAS, &ASMap, clang::Qualifiers::ASOffload::OpenCL) ||
+          Qualifiers::isAddressSpaceSupersetOf(
+              SrcAS, DestAS, &ASMap, clang::Qualifiers::ASOffload::OpenCL);
       if (Nested ? DestAS != SrcAS : !OverlappingAS) {
         Self.Diag(OpRange.getBegin(), DiagID)
             << SrcType << DestType << Sema::AA_Casting

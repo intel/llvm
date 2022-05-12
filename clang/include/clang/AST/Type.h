@@ -470,6 +470,10 @@ public:
     Mask |= qs.Mask;
   }
 
+  /// Languages can have different address space semantics, especially with
+  /// regards to which AS are consider to be overlapping. ASOffload specifies
+  /// the target language in which the address space was used.
+  enum class ASOffload { OpenCL, SYCL, CUDA, None };
   /// Returns true if address space A is equal to or a superset of B.
   /// OpenCL v2.0 defines conversion rules (OpenCLC v2.0 s6.5.5) and notion of
   /// overlapping address spaces.
@@ -482,36 +486,66 @@ public:
   /// address space.
   static bool isAddressSpaceSupersetOf(LangAS A, LangAS B,
                                        const LangASMap *ASMap = nullptr,
-                                       bool IsSYCLOrOpenCL = false) {
+                                       ASOffload ASO = ASOffload::None) {
     if (ASMap) {
-      bool IsATargetAS = false;
-      bool IsBTargetAS = false;
-      if (A > LangAS::FirstTargetAddressSpace)
-        IsATargetAS = true;
-      if (B > LangAS::FirstTargetAddressSpace)
-        IsBTargetAS = true;
+      const bool IsATargetAS = isTargetAddressSpace(A);
+      const bool IsBTargetAS = isTargetAddressSpace(B);
+      // Extend the set only when dealing with mixed address spaces, if both
+      // are expressed in terms of target values, use the strict path.
       if (IsATargetAS ^ IsBTargetAS) {
-        LangAS Generic = static_cast<LangAS>(
-            (*ASMap)[static_cast<unsigned>(LangAS::opencl_generic)] +
-            static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
-        LangAS Constant = static_cast<LangAS>(
-            (*ASMap)[static_cast<unsigned>(LangAS::opencl_constant)] +
-            static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
-        if (IsATargetAS)
-          B = static_cast<LangAS>(
-              (*ASMap)[static_cast<unsigned>(B)] +
-              static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
+        if (!IsATargetAS)
+          A = getLangASFromTargetAS((*ASMap)[static_cast<unsigned>(A)]);
         else
-          A = static_cast<LangAS>(
-              (*ASMap)[static_cast<unsigned>(A)] +
-              static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
+          B = getLangASFromTargetAS((*ASMap)[static_cast<unsigned>(B)]);
         // When dealing with target AS return true if:
         // * A is equal to B, or
         // * in OpenCL or SYCL and A is generic and B is not constant (making
         // sure that constant and generic are in target address spaces).
-        if (IsSYCLOrOpenCL)
+        if (ASOffload::OpenCL == ASO) {
+          LangAS Generic = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::opencl_generic)]);
+          LangAS Constant = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::opencl_constant)]);
+          LangAS Global = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::opencl_global)]);
+          LangAS GlobalDevice = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::opencl_global_device)]);
+          LangAS GlobalHost = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::opencl_global_host)]);
           return A == B ||
-                 (A == Generic && B != Constant && Generic != Constant);
+                 (A == Generic && B != Constant && Generic != Constant) ||
+                 (A == Global && (B == GlobalDevice || B == GlobalHost));
+        }
+        if (ASOffload::SYCL == ASO) {
+          LangAS Default = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::Default)]);
+          LangAS Global = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::sycl_global)]);
+          LangAS GlobalDevice = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::sycl_global_device)]);
+          LangAS GlobalHost = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::sycl_global_host)]);
+          LangAS Private = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::sycl_private)]);
+          LangAS Local = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::sycl_local)]);
+          return A == B ||
+                 (A == Global && (B == GlobalDevice || B == GlobalHost)) ||
+                 (A == Default && (B == Private || B == Local || B == Global ||
+                                   B == GlobalDevice || B == GlobalHost));
+        }
+        if (ASOffload::CUDA == ASO) {
+          LangAS Default = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::Default)]);
+          LangAS Shared = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::cuda_shared)]);
+          LangAS Constant = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::cuda_constant)]);
+          LangAS Device = getLangASFromTargetAS(
+              (*ASMap)[static_cast<unsigned>(LangAS::cuda_device)]);
+          return A == B || (A == Default &&
+                            (B == Constant || B == Device || B == Shared));
+        }
         return A == B;
       }
     }
@@ -553,10 +587,9 @@ public:
   /// Generally this answers the question of whether an object with the other
   /// qualifiers can be safely used as an object with these qualifiers.
   bool compatiblyIncludes(Qualifiers other, const LangASMap *ASMap = nullptr,
-                          bool IsSYCLOrOpenCL = false) {
+                          ASOffload ASO = ASOffload::None) {
     return isAddressSpaceSupersetOf(this->getAddressSpace(),
-                                    other.getAddressSpace(), ASMap,
-                                    IsSYCLOrOpenCL) &&
+                                    other.getAddressSpace(), ASMap, ASO) &&
            // ObjC GC qualifiers can match, be added, or be removed, but can't
            // be changed.
            (getObjCGCAttr() == other.getObjCGCAttr() || !hasObjCGCAttr() ||

@@ -3208,7 +3208,8 @@ static bool isNonTrivialObjCLifetimeConversion(Qualifiers FromQuals,
 static bool isQualificationConversionStep(QualType FromType, QualType ToType,
                                           bool CStyle, bool IsTopLevel,
                                           bool &PreviousToQualsIncludeConst,
-                                          bool &ObjCLifetimeConversion) {
+                                          bool &ObjCLifetimeConversion,
+                                          const Sema *const S = nullptr) {
   Qualifiers FromQuals = FromType.getQualifiers();
   Qualifiers ToQuals = ToType.getQualifiers();
 
@@ -3239,7 +3240,15 @@ static bool isQualificationConversionStep(QualType FromType, QualType ToType,
 
   //   -- for every j > 0, if const is in cv 1,j then const is in cv
   //      2,j, and similarly for volatile.
-  if (!CStyle && !ToQuals.compatiblyIncludes(FromQuals))
+  auto ASO = clang::Qualifiers::ASOffload::None;
+  if (S->getLangOpts().OpenCL)
+    ASO = clang::Qualifiers::ASOffload::OpenCL;
+  else if (S->getLangOpts().SYCLIsDevice)
+    ASO = clang::Qualifiers::ASOffload::SYCL;
+  else if (S->getLangOpts().CUDAIsDevice)
+    ASO = clang::Qualifiers::ASOffload::CUDA;
+  const LangASMap &ASMap = S->Context.getTargetInfo().getAddressSpaceMap();
+  if (!CStyle && !ToQuals.compatiblyIncludes(FromQuals, &ASMap, ASO))
     return false;
 
   // If address spaces mismatch:
@@ -3306,7 +3315,7 @@ Sema::IsQualificationConversion(QualType FromType, QualType ToType,
   while (Context.UnwrapSimilarTypes(FromType, ToType)) {
     if (!isQualificationConversionStep(
             FromType, ToType, CStyle, !UnwrappedAnyPointer,
-            PreviousToQualsIncludeConst, ObjCLifetimeConversion))
+            PreviousToQualsIncludeConst, ObjCLifetimeConversion, this))
       return false;
     UnwrappedAnyPointer = true;
   }

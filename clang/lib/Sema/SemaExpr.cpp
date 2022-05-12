@@ -9234,12 +9234,18 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     rhq.removeObjCLifetime();
   }
 
-  const bool IsSYCLOrOpenCL =
-      S.getLangOpts().OpenCL || S.getLangOpts().SYCLIsDevice;
+  auto ASO = clang::Qualifiers::ASOffload::None;
+  if (S.getLangOpts().OpenCL)
+    ASO = clang::Qualifiers::ASOffload::OpenCL;
+  else if (S.getLangOpts().SYCLIsDevice)
+    ASO = clang::Qualifiers::ASOffload::SYCL;
+  else if (S.getLangOpts().CUDAIsDevice)
+    ASO = clang::Qualifiers::ASOffload::CUDA;
+
   const LangASMap &ASMap = S.Context.getTargetInfo().getAddressSpaceMap();
-  if (!lhq.compatiblyIncludes(rhq, &ASMap)) {
+  if (!lhq.compatiblyIncludes(rhq, &ASMap, ASO)) {
     const bool AddressSpaceSuperset = Qualifiers::isAddressSpaceSupersetOf(
-        lhq.getAddressSpace(), rhq.getAddressSpace(), &ASMap, IsSYCLOrOpenCL);
+        lhq.getAddressSpace(), rhq.getAddressSpace(), &ASMap, ASO);
 
     // Treat address-space mismatches as fatal.
     if (!AddressSpaceSuperset)
@@ -9247,7 +9253,10 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
 
     // In OpenCL/SYCL don't issue discard qualifier warning if address spaces
     // overlap.
-    else if (AddressSpaceSuperset && IsSYCLOrOpenCL)
+    else if (AddressSpaceSuperset &&
+             (ASO == clang::Qualifiers::ASOffload::OpenCL ||
+              ASO == clang::Qualifiers::ASOffload::SYCL ||
+              ASO == clang::Qualifiers::ASOffload::CUDA))
       ; // keep Compatible
 
     // It's okay to add or remove GC or lifetime qualifiers when converting to
