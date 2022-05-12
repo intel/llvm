@@ -1,5 +1,4 @@
 /// Tests specific to `-fsycl-targets=nvptx64-nvidia-nvcl`
-// REQUIRES: clang-driver
 
 // UNSUPPORTED: system-windows
 
