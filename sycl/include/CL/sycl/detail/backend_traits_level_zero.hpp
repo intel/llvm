@@ -24,6 +24,7 @@
 #include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/queue.hpp>
 #include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_context_handle_t *ze_context_handle_t;
@@ -133,8 +134,21 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
 template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
+    device Device;
     ext::oneapi::level_zero::ownership Ownership{
         ext::oneapi::level_zero::ownership::transfer};
+
+    __SYCL_DEPRECATED("Use backend_input_t<backend::ext_oneapi_level_zero, "
+                      "queue> constructor with device parameter")
+    type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
+         ext::oneapi::level_zero::ownership ownership)
+        : NativeHandle(nativeHandle),
+          Device(ext::oneapi::filter_selector("level_zero")),
+          Ownership(ownership) {}
+
+    type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
+         device dev, ext::oneapi::level_zero::ownership ownership)
+        : NativeHandle(nativeHandle), Device(dev), Ownership(ownership) {}
   };
 };
 

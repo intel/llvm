@@ -115,6 +115,7 @@ struct {
 ``` C++
 struct {
   ze_command_queue_handle_t NativeHandle;
+  device Device;
   ext::oneapi::level_zero::ownership Ownership{
       ext::oneapi::level_zero::ownership::transfer};
 }
@@ -485,3 +486,4 @@ struct free_memory {
 |6|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
 |7|2021-09-13|Sergey Maslov|Updated according to SYCL 2020 standard
 |8|2022-01-06|Artur Gainullin|Introduced make_buffer() API
+|9|2022-05-12|Steffen Larsen|Added device member to queue input type

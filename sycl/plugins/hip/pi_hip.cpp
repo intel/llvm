@@ -2310,10 +2310,12 @@ pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
 /// \return TBD
 pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                pi_context context,
+                                               pi_device *device,
                                                pi_queue *queue,
                                                bool ownNativeHandle) {
   (void)nativeHandle;
   (void)context;
+  (void)device;
   (void)queue;
   (void)ownNativeHandle;
   cl::sycl::detail::pi::die(

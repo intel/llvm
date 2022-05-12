@@ -431,7 +431,8 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_context, pi_queue *piQueue,
+                                           pi_context, pi_device *,
+                                           pi_queue *piQueue,
                                            bool ownNativeHandle) {
   (void)ownNativeHandle;
   assert(piQueue != nullptr);

@@ -91,7 +91,25 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiQueue, !KeepOwnership);
+      NativeHandle, ContextImpl->getHandleRef(),
+      nullptr, &PiQueue, !KeepOwnership);
+  // Construct the SYCL queue from PI queue.
+  return detail::createSyclObjFromImpl<queue>(
+      std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context, const device &Device,
+                               bool KeepOwnership, const async_handler &Handler,
+                               backend Backend) {
+  const auto &Plugin = getPlugin(Backend);
+  const auto &ContextImpl = getSyclObjImpl(Context);
+  const auto &DeviceImpl = getSyclObjImpl(Device);
+  // Create PI queue first.
+  pi::PiQueue PiQueue = nullptr;
+  Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
+      NativeHandle, ContextImpl->getHandleRef(), &DeviceImpl->getHandleRef(),
+      &PiQueue, !KeepOwnership);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));

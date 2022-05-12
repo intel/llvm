@@ -2373,7 +2373,7 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 ///
 /// \return TBD
 pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                pi_queue *,
+                                                pi_device *, pi_queue *,
                                                 bool ownNativeHandle) {
   (void)ownNativeHandle;
   cl::sycl::detail::pi::die(

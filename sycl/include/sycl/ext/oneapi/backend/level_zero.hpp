@@ -31,7 +31,11 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
 #endif
+__SYCL_DEPRECATED("Use make_queue with device parameter")
 __SYCL_EXPORT queue make_queue(const context &Context,
+                               pi_native_handle InteropHandle,
+                               bool keep_ownership = false);
+__SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
 __SYCL_EXPORT event make_event(const context &Context,
@@ -137,7 +141,7 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
     const context &TargetContext, const async_handler Handler) {
   (void)Handler;
   return ext::oneapi::level_zero::make_queue(
-      TargetContext,
+      TargetContext, BackendObject.Device,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
