@@ -1195,7 +1195,9 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, PropertyList, CodeLoc) {}
+      : accessor(BufferRef, PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1208,7 +1210,9 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, PropertyList, CodeLoc) {}
+      : accessor(BufferRef, PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1285,7 +1289,9 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
+      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1299,7 +1305,9 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
+      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
 #endif
 
@@ -1341,7 +1349,9 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
+      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1355,7 +1365,9 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
+      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1399,7 +1411,9 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
-                 CodeLoc) {}
+                 CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1414,7 +1428,9 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
-                 CodeLoc) {}
+                 CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1508,7 +1524,9 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {}
+      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1522,7 +1540,9 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {}
+      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1617,7 +1637,9 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
-                 PropertyList, CodeLoc) {}
+                 PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1632,7 +1654,9 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
-                 PropertyList, CodeLoc) {}
+                 PropertyList, CodeLoc) {
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 #endif
 
   template <typename... NewPropsT>
@@ -1802,6 +1826,32 @@ private:
           PI_INVALID_VALUE);
     }
   }
+
+#if __cplusplus >= 201703L
+  template <typename... PropTypes>
+  void adjustAccPropsInBuf(detail::SYCLMemObjI *SYCLMemObject) {
+    if constexpr (PropertyListT::template has_property<
+                      sycl::ext::intel::property::buffer_location>()) {
+      auto location = (PropertyListT::template get_property<
+                           sycl::ext::intel::property::buffer_location>())
+                          .get_location();
+      property_list PropList{
+          sycl::property::buffer::detail::buffer_location(location)};
+      detail::SYCLMemObjT *SYCLMemObjectT =
+          dynamic_cast<detail::SYCLMemObjT *>(SYCLMemObject);
+      SYCLMemObjectT->addOrReplaceAccessorProperties(PropList);
+    } else {
+      deleteAccPropsFromBuf(SYCLMemObject);
+    }
+  }
+
+  void deleteAccPropsFromBuf(detail::SYCLMemObjI *SYCLMemObject) {
+    detail::SYCLMemObjT *SYCLMemObjectT =
+        dynamic_cast<detail::SYCLMemObjT *>(SYCLMemObject);
+    SYCLMemObjectT->deleteAccessorProperty(
+        sycl::detail::PropWithDataKind::AccPropBufferLocation);
+  }
+#endif
 };
 
 #if __cplusplus >= 201703L

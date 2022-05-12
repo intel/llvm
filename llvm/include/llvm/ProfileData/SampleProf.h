@@ -18,15 +18,12 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cstdint>
 #include <list>
@@ -39,6 +36,9 @@
 #include <utility>
 
 namespace llvm {
+
+class DILocation;
+class raw_ostream;
 
 const std::error_category &sampleprof_category();
 
@@ -55,7 +55,6 @@ enum class sampleprof_error {
   not_implemented,
   counter_overflow,
   ostream_seek_unsupported,
-  compress_failed,
   uncompress_failed,
   zlib_unavailable,
   hash_mismatch
@@ -201,9 +200,9 @@ enum class SecProfSummaryFlags : uint32_t {
   /// SecFlagFSDiscriminator means this profile uses flow-sensitive
   /// discriminators.
   SecFlagFSDiscriminator = (1 << 2),
-  /// SecFlagIsCSNested means this is context-sensitive nested profile for
-  /// CSSPGO
-  SecFlagIsCSNested = (1 << 4),
+  /// SecFlagIsPreInlined means this profile contains ShouldBeInlined
+  /// contexts thus this is CS preinliner computed.
+  SecFlagIsPreInlined = (1 << 4),
 };
 
 enum class SecFuncMetadataFlags : uint32_t {
@@ -831,7 +830,7 @@ public:
   /// Return the sample count of the first instruction of the function.
   /// The function can be either a standalone symbol or an inlined function.
   uint64_t getEntrySamples() const {
-    if (FunctionSamples::ProfileIsCSFlat && getHeadSamples()) {
+    if (FunctionSamples::ProfileIsCS && getHeadSamples()) {
       // For CS profile, if we already have more accurate head samples
       // counted by branch sample from caller, use them as entry samples.
       return getHeadSamples();
@@ -1048,9 +1047,9 @@ public:
 
   static bool ProfileIsProbeBased;
 
-  static bool ProfileIsCSFlat;
+  static bool ProfileIsCS;
 
-  static bool ProfileIsCSNested;
+  static bool ProfileIsPreInlined;
 
   SampleContext &getContext() const { return Context; }
 

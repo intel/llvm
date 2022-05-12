@@ -640,8 +640,7 @@ define { i64, i1 } @addcarry_fake_carry(i64 %a, i64 %b, i1 %carryin) {
 ; CHECK-LABEL: addcarry_fake_carry:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movq %rdi, %rax
-; CHECK-NEXT:    andb $1, %dl
-; CHECK-NEXT:    addb $-1, %dl
+; CHECK-NEXT:    btl $0, %edx
 ; CHECK-NEXT:    adcq %rsi, %rax
 ; CHECK-NEXT:    setb %dl
 ; CHECK-NEXT:    retq
@@ -1366,11 +1365,9 @@ define void @add_U256_without_i128_or_recursive(%uint256* sret(%uint256) %0, %ui
 define i32 @addcarry_ult(i32 %a, i32 %b, i32 %x, i32 %y) {
 ; CHECK-LABEL: addcarry_ult:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    # kill: def $esi killed $esi def $rsi
-; CHECK-NEXT:    # kill: def $edi killed $edi def $rdi
-; CHECK-NEXT:    leal (%rdi,%rsi), %eax
+; CHECK-NEXT:    movl %edi, %eax
 ; CHECK-NEXT:    cmpl %ecx, %edx
-; CHECK-NEXT:    adcl $0, %eax
+; CHECK-NEXT:    adcl %esi, %eax
 ; CHECK-NEXT:    retq
   %s = add i32 %a, %b
   %k = icmp ult i32 %x, %y
@@ -1382,11 +1379,9 @@ define i32 @addcarry_ult(i32 %a, i32 %b, i32 %x, i32 %y) {
 define i32 @addcarry_ugt(i32 %a, i32 %b, i32 %x, i32 %y) {
 ; CHECK-LABEL: addcarry_ugt:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    # kill: def $esi killed $esi def $rsi
-; CHECK-NEXT:    # kill: def $edi killed $edi def $rdi
-; CHECK-NEXT:    leal (%rdi,%rsi), %eax
+; CHECK-NEXT:    movl %edi, %eax
 ; CHECK-NEXT:    cmpl %edx, %ecx
-; CHECK-NEXT:    adcl $0, %eax
+; CHECK-NEXT:    adcl %esi, %eax
 ; CHECK-NEXT:    retq
   %s = add i32 %a, %b
   %k = icmp ugt i32 %x, %y

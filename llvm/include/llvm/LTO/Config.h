@@ -57,8 +57,8 @@ struct Config {
   unsigned OptLevel = 2;
   bool DisableVerify = false;
 
-  /// Use the new pass manager
-  bool UseNewPM = LLVM_ENABLE_NEW_PASS_MANAGER;
+  /// Use the standard optimization pipeline.
+  bool UseDefaultPipeline = false;
 
   /// Flag to indicate that the optimizer should not assume builtins are present
   /// on the target.

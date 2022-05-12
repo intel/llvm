@@ -14,10 +14,10 @@
 // USM system memory allocation/deallocation interface.
 class SystemMemory {
 public:
-  enum MemType { Host, Device, Shared, All };
+  enum MemType { Host, Device, Shared, SharedReadOnly, All };
   virtual void *allocate(size_t size) = 0;
   virtual void *allocate(size_t size, size_t aligned) = 0;
-  virtual void deallocate(void *ptr) = 0;
+  virtual void deallocate(void *ptr, bool OwnZeMemHandle) = 0;
   virtual MemType getMemType() = 0;
   virtual ~SystemMemory() = default;
 };
@@ -32,7 +32,7 @@ public:
 
   void *allocate(size_t size);
   void *allocate(size_t size, size_t alignment);
-  void deallocate(void *ptr);
+  void deallocate(void *ptr, bool OwnZeMemHandle);
 
 private:
   std::unique_ptr<USMAllocImpl> pImpl;

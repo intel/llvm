@@ -37,8 +37,8 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 !3 = !{}
 
 ; CHECK: [Code|Properties]
-; CHECK: {{.*}}_0.ll|{{.*}}_0.prop
-; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop
+; CHECK-DAG: {{.*}}tmp_0.ll|{{.*}}_0.prop
+; CHECK-DAG: {{.*}}tmp_esimd_0.ll|{{.*}}_esimd_0.prop
 
 ; CHECK-SYCL-IR-DAG: define dso_local spir_kernel void @SYCL_kernel()
 ; CHECK-SYCL-IR-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()

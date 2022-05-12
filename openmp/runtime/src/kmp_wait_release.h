@@ -105,7 +105,7 @@ template <flag_type FlagType> class kmp_flag {
 protected:
   flag_properties t; /**< "Type" of the flag in loc */
   kmp_info_t *waiting_threads[1]; /**< Threads sleeping on this thread. */
-  kmp_uint32 num_waiting_threads; /**< #threads sleeping on this thread. */
+  kmp_uint32 num_waiting_threads; /**< Num threads sleeping on this thread. */
   std::atomic<bool> *sleepLoc;
 
 public:
@@ -623,10 +623,6 @@ final_spin=FALSE)
     // Don't suspend if wait loop designated non-sleepable
     // in template parameters
     if (!Sleepable)
-      continue;
-
-    if (__kmp_dflt_blocktime == KMP_MAX_BLOCKTIME &&
-        __kmp_pause_status != kmp_soft_paused)
       continue;
 
 #if KMP_HAVE_MWAIT || KMP_HAVE_UMWAIT

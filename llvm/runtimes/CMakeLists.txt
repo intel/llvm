@@ -75,7 +75,7 @@ function(builtin_default_target compiler_rt_path)
 
   set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default ON)
   # AIX should fold 32-bit & 64-bit arch libraries into a single archive.
-  if (TARGET_TRIPLE MATCHES "aix")
+  if (LLVM_TARGET_TRIPLE MATCHES "aix")
     set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default OFF)
   endif()
 
@@ -84,7 +84,7 @@ function(builtin_default_target compiler_rt_path)
                            DEPENDS ${ARG_DEPENDS}
                            CMAKE_ARGS -DLLVM_LIBRARY_OUTPUT_INTDIR=${LLVM_LIBRARY_DIR}
                                       -DLLVM_RUNTIME_OUTPUT_INTDIR=${LLVM_TOOLS_BINARY_DIR}
-                                      -DLLVM_DEFAULT_TARGET_TRIPLE=${TARGET_TRIPLE}
+                                      -DLLVM_DEFAULT_TARGET_TRIPLE=${LLVM_TARGET_TRIPLE}
                                       -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=${LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default}
                                       -DCMAKE_C_COMPILER_WORKS=ON
                                       -DCMAKE_ASM_COMPILER_WORKS=ON
@@ -95,7 +95,7 @@ function(builtin_default_target compiler_rt_path)
                                                 DARWIN
                                                 SANITIZER
                            USE_TOOLCHAIN
-                           TARGET_TRIPLE ${TARGET_TRIPLE}
+                           TARGET_TRIPLE ${LLVM_TARGET_TRIPLE}
                            ${EXTRA_ARGS})
 endfunction()
 
@@ -220,12 +220,17 @@ function(runtime_default_target)
   endforeach()
 
   if(LLVM_INCLUDE_TESTS)
+    include(${LLVM_BINARY_DIR}/runtimes/Tests.cmake OPTIONAL)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LLVM_BINARY_DIR}/runtimes/Tests.cmake)
+    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_TESTSUITES ${SUB_LIT_TESTSUITES})
+    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_PARAMS ${SUB_LIT_PARAMS})
+    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_EXTRA_ARGS ${SUB_LIT_EXTRA_ARGS})
     list(APPEND test_targets runtimes-test-depends check-runtimes)
   endif()
 
   set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default ON)
   # AIX should fold 32-bit & 64-bit arch libraries into a single archive.
-  if (TARGET_TRIPLE MATCHES "aix")
+  if (LLVM_TARGET_TRIPLE MATCHES "aix")
     set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default OFF)
   endif()
 
@@ -235,7 +240,7 @@ function(runtime_default_target)
                            # Builtins were built separately above
                            CMAKE_ARGS -DCOMPILER_RT_BUILD_BUILTINS=Off
                                       -DLLVM_INCLUDE_TESTS=${LLVM_INCLUDE_TESTS}
-                                      -DLLVM_DEFAULT_TARGET_TRIPLE=${TARGET_TRIPLE}
+                                      -DLLVM_DEFAULT_TARGET_TRIPLE=${LLVM_TARGET_TRIPLE}
                                       -DLLVM_ENABLE_PROJECTS_USED=${LLVM_ENABLE_PROJECTS_USED}
                                       -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=${LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default}
                                       -DLLVM_BUILD_TOOLS=${LLVM_BUILD_TOOLS}
@@ -254,7 +259,8 @@ function(runtime_default_target)
                                          ${SUB_CHECK_TARGETS}
                                          ${SUB_INSTALL_TARGETS}
                            USE_TOOLCHAIN
-                           TARGET_TRIPLE ${TARGET_TRIPLE}
+                           TARGET_TRIPLE ${LLVM_TARGET_TRIPLE}
+                           BYPRODUCTS ${LLVM_BINARY_DIR}/runtimes/Tests.cmake
                            ${EXTRA_ARGS})
 endfunction()
 
@@ -296,6 +302,11 @@ function(runtime_register_target name target)
   endforeach()
 
   if(LLVM_INCLUDE_TESTS)
+    include(${LLVM_BINARY_DIR}/runtimes/${name}/Tests.cmake OPTIONAL)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LLVM_BINARY_DIR}/runtimes/${name}/Tests.cmake)
+    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_TESTSUITES ${SUB_LIT_TESTSUITES})
+    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_PARAMS ${SUB_LIT_PARAMS})
+    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_EXTRA_ARGS ${SUB_LIT_EXTRA_ARGS})
     set(runtimes-test-depends-${name} runtimes-test-depends)
     set(check-runtimes-${name} check-runtimes)
     list(APPEND ${name}_test_targets runtimes-test-depends-${name} check-runtimes-${name})
@@ -355,6 +366,7 @@ function(runtime_register_target name target)
                                          ${${name}_test_targets}
                            USE_TOOLCHAIN
                            TARGET_TRIPLE ${target}
+                           BYPRODUCTS ${LLVM_BINARY_DIR}/runtimes/${name}/Tests.cmake
                            ${EXTRA_ARGS})
 endfunction()
 
@@ -468,7 +480,6 @@ if(runtimes)
 
   if(LLVM_INCLUDE_TESTS)
     set_property(GLOBAL APPEND PROPERTY LLVM_ADDITIONAL_TEST_DEPENDS runtimes-test-depends)
-    set_property(GLOBAL APPEND PROPERTY LLVM_ADDITIONAL_TEST_TARGETS check-runtimes)
 
     set(RUNTIMES_TEST_DEPENDS
         FileCheck
@@ -480,8 +491,8 @@ if(runtimes)
         obj2yaml
         sancov
         sanstats
-        gtest_main
-        gtest
+        llvm_gtest_main
+        llvm_gtest
       )
     foreach(target ${test_targets} ${SUB_CHECK_TARGETS})
       add_dependencies(${target} ${RUNTIMES_TEST_DEPENDS})

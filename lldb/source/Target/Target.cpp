@@ -62,6 +62,7 @@
 
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/Support/ThreadPool.h"
 
 #include <memory>
 #include <mutex>
@@ -185,6 +186,8 @@ void Target::CleanupProcess() {
 
 void Target::DeleteCurrentProcess() {
   if (m_process_sp) {
+    // We dispose any active tracing sessions on the current process
+    m_trace_sp.reset();
     m_section_load_history.Clear();
     if (m_process_sp->IsAlive())
       m_process_sp->Destroy(false);
@@ -285,6 +288,17 @@ void Target::Destroy() {
   m_stop_hooks.clear();
   m_stop_hook_next_id = 0;
   m_suppress_stop_hooks = false;
+}
+
+llvm::StringRef Target::GetABIName() const {
+  lldb::ABISP abi_sp;
+  if (m_process_sp)
+    abi_sp = m_process_sp->GetABI();
+  if (!abi_sp)
+    abi_sp = ABI::FindPlugin(ProcessSP(), GetArchitecture());
+  if (abi_sp)
+      return abi_sp->GetPluginName();
+  return {};
 }
 
 BreakpointList &Target::GetBreakpointList(bool internal) {
@@ -1470,11 +1484,11 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
     if (other.IsValid()) {
       auto platform_sp = GetPlatform();
       if (!platform_sp ||
-          !platform_sp->IsCompatibleArchitecture(other, false, nullptr)) {
+          !platform_sp->IsCompatibleArchitecture(other, {}, false, nullptr)) {
         ArchSpec platform_arch;
-        auto arch_platform_sp =
-            Platform::GetPlatformForArchitecture(other, &platform_arch);
-        if (arch_platform_sp) {
+        if (PlatformSP arch_platform_sp =
+                GetDebugger().GetPlatformList().GetOrCreate(other, {},
+                                                            &platform_arch)) {
           SetPlatform(arch_platform_sp);
           if (platform_arch.IsValid())
             other = platform_arch;
@@ -1610,6 +1624,17 @@ void Target::NotifyModulesRemoved(lldb_private::ModuleList &module_list) {
 void Target::ModulesDidLoad(ModuleList &module_list) {
   const size_t num_images = module_list.GetSize();
   if (m_valid && num_images) {
+    if (GetPreloadSymbols()) {
+      // Try to preload symbols in parallel.
+      llvm::ThreadPoolTaskGroup task_group(Debugger::GetThreadPool());
+      auto preload_symbols_fn = [&](size_t idx) {
+        ModuleSP module_sp(module_list.GetModuleAtIndex(idx));
+        module_sp->PreloadSymbols();
+      };
+      for (size_t idx = 0; idx < num_images; ++idx)
+        task_group.async(preload_symbols_fn, idx);
+      task_group.wait();
+    }
     for (size_t idx = 0; idx < num_images; ++idx) {
       ModuleSP module_sp(module_list.GetModuleAtIndex(idx));
       LoadScriptingResourceForModule(module_sp, this);
@@ -1642,11 +1667,11 @@ void Target::SymbolsDidLoad(ModuleList &module_list) {
 void Target::ModulesDidUnload(ModuleList &module_list, bool delete_locations) {
   if (m_valid && module_list.GetSize()) {
     UnloadModuleSections(module_list);
+    BroadcastEvent(eBroadcastBitModulesUnloaded,
+                   new TargetEventData(this->shared_from_this(), module_list));
     m_breakpoint_list.UpdateBreakpoints(module_list, false, delete_locations);
     m_internal_breakpoint_list.UpdateBreakpoints(module_list, false,
                                                  delete_locations);
-    BroadcastEvent(eBroadcastBitModulesUnloaded,
-                   new TargetEventData(this->shared_from_this(), module_list));
   }
 }
 
@@ -1684,7 +1709,6 @@ bool Target::ModuleIsExcludedForUnconstrainedSearches(
 
 size_t Target::ReadMemoryFromFileCache(const Address &addr, void *dst,
                                        size_t dst_len, Status &error) {
-  LLDB_SCOPED_TIMER();
   SectionSP section_sp(addr.GetSection());
   if (section_sp) {
     // If the contents of this section are encrypted, the on-disk file is
@@ -2157,11 +2181,6 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
             return true;
           });
         }
-
-        // Preload symbols outside of any lock, so hopefully we can do this for
-        // each library in parallel.
-        if (GetPreloadSymbols())
-          module_sp->PreloadSymbols();
 
         llvm::SmallVector<ModuleSP, 1> replaced_modules;
         for (ModuleSP &old_module_sp : old_modules) {
@@ -3814,6 +3833,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->SetValueChangedCallback(
         ePropertyDisableSTDIO, [this] { DisableSTDIOValueChangedCallback(); });
 
+    m_collection_sp->SetValueChangedCallback(
+        ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
     m_experimental_properties_up =
         std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
@@ -3835,6 +3856,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->AppendProperty(
         ConstString("process"), ConstString("Settings specific to processes."),
         true, Process::GetGlobalProperties().GetValueProperties());
+    m_collection_sp->SetValueChangedCallback(
+        ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
   }
 }
 
@@ -4164,10 +4187,42 @@ bool TargetProperties::GetEnableNotifyAboutFixIts() const {
       nullptr, idx, g_target_properties[idx].default_uint_value != 0);
 }
 
-bool TargetProperties::GetEnableSaveObjects() const {
-  const uint32_t idx = ePropertySaveObjects;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+FileSpec TargetProperties::GetSaveJITObjectsDir() const {
+  const uint32_t idx = ePropertySaveObjectsDir;
+  return m_collection_sp->GetPropertyAtIndexAsFileSpec(nullptr, idx);
+}
+
+void TargetProperties::CheckJITObjectsDir() {
+  FileSpec new_dir = GetSaveJITObjectsDir();
+  if (!new_dir)
+    return;
+
+  const FileSystem &instance = FileSystem::Instance();
+  bool exists = instance.Exists(new_dir);
+  bool is_directory = instance.IsDirectory(new_dir);
+  std::string path = new_dir.GetPath(true);
+  bool writable = llvm::sys::fs::can_write(path);
+  if (exists && is_directory && writable)
+    return;
+
+  m_collection_sp->GetPropertyAtIndex(nullptr, true, ePropertySaveObjectsDir)
+      ->GetValue()
+      ->Clear();
+
+  std::string buffer;
+  llvm::raw_string_ostream os(buffer);
+  os << "JIT object dir '" << path << "' ";
+  if (!exists)
+    os << "does not exist";
+  else if (!is_directory)
+    os << "is not a directory";
+  else if (!writable)
+    os << "is not writable";
+
+  llvm::Optional<lldb::user_id_t> debugger_id = llvm::None;
+  if (m_target)
+    debugger_id = m_target->GetDebugger().GetID();
+  Debugger::ReportError(os.str(), debugger_id);
 }
 
 bool TargetProperties::GetEnableSyntheticValue() const {
@@ -4186,6 +4241,15 @@ uint32_t TargetProperties::GetMaximumNumberOfChildrenToDisplay() const {
   const uint32_t idx = ePropertyMaxChildrenCount;
   return m_collection_sp->GetPropertyAtIndexAsSInt64(
       nullptr, idx, g_target_properties[idx].default_uint_value);
+}
+
+std::pair<uint32_t, bool>
+TargetProperties::GetMaximumDepthOfChildrenToDisplay() const {
+  const uint32_t idx = ePropertyMaxChildrenDepth;
+  auto *option_value =
+      m_collection_sp->GetPropertyAtIndexAsOptionValueUInt64(nullptr, idx);
+  bool is_default = !option_value->OptionWasSet();
+  return {option_value->GetCurrentValue(), is_default};
 }
 
 uint32_t TargetProperties::GetMaximumSizeOfStringSummary() const {

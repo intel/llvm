@@ -869,13 +869,13 @@ types::ID MachO::LookupTypeForExtension(StringRef Ext) const {
 bool MachO::HasNativeLLVMSupport() const { return true; }
 
 ToolChain::CXXStdlibType Darwin::GetDefaultCXXStdlibType() const {
-  // Default to use libc++ on OS X 10.9+ and iOS 7+.
-  if ((isTargetMacOSBased() && !isMacosxVersionLT(10, 9)) ||
-      (isTargetIOSBased() && !isIPhoneOSVersionLT(7, 0)) ||
-      isTargetWatchOSBased())
-    return ToolChain::CST_Libcxx;
+  // Use libstdc++ on old targets (OSX < 10.9 and iOS < 7)
+  if ((isTargetMacOSBased() && isMacosxVersionLT(10, 9)) ||
+      (isTargetIOSBased() && isIPhoneOSVersionLT(7, 0)))
+    return ToolChain::CST_Libstdcxx;
 
-  return ToolChain::CST_Libstdcxx;
+  // On all other targets, use libc++
+  return ToolChain::CST_Libcxx;
 }
 
 /// Darwin provides an ARC runtime starting in MacOS X 10.7 and iOS 5.0.
@@ -1886,16 +1886,9 @@ inferDeploymentTargetFromArch(DerivedArgList &Args, const Darwin &Toolchain,
   llvm::Triple::OSType OSTy = llvm::Triple::UnknownOS;
 
   StringRef MachOArchName = Toolchain.getMachOArchName(Args);
-  if (MachOArchName == "arm64" || MachOArchName == "arm64e") {
-#if __arm64__
-    // A clang running on an Apple Silicon mac defaults
-    // to building for mac when building for arm64 rather than
-    // defaulting to iOS.
+  if (MachOArchName == "arm64" || MachOArchName == "arm64e")
     OSTy = llvm::Triple::MacOSX;
-#else
-    OSTy = llvm::Triple::IOS;
-#endif
-  } else if (MachOArchName == "armv7" || MachOArchName == "armv7s")
+  else if (MachOArchName == "armv7" || MachOArchName == "armv7s")
     OSTy = llvm::Triple::IOS;
   else if (MachOArchName == "armv7k" || MachOArchName == "arm64_32")
     OSTy = llvm::Triple::WatchOS;
@@ -2487,12 +2480,9 @@ DerivedArgList *MachO::TranslateArgs(const DerivedArgList &Args,
     if (A->getOption().matches(options::OPT_Xarch__)) {
       // Skip this argument unless the architecture matches either the toolchain
       // triple arch, or the arch being bound.
-      llvm::Triple::ArchType XarchArch =
-          tools::darwin::getArchTypeForMachOArchName(A->getValue(0));
-      if (!(XarchArch == getArch() ||
-            (!BoundArch.empty() &&
-             XarchArch ==
-                 tools::darwin::getArchTypeForMachOArchName(BoundArch))))
+      StringRef XarchArch = A->getValue(0);
+      if (!(XarchArch == getArchName() ||
+            (!BoundArch.empty() && XarchArch == BoundArch)))
         continue;
 
       Arg *OriginalArg = A;
@@ -2561,14 +2551,6 @@ DerivedArgList *MachO::TranslateArgs(const DerivedArgList &Args,
     case options::OPT_Wno_nonportable_cfstrings:
       DAL->AddFlagArg(
           A, Opts.getOption(options::OPT_mno_warn_nonportable_cfstrings));
-      break;
-
-    case options::OPT_fpascal_strings:
-      DAL->AddFlagArg(A, Opts.getOption(options::OPT_mpascal_strings));
-      break;
-
-    case options::OPT_fno_pascal_strings:
-      DAL->AddFlagArg(A, Opts.getOption(options::OPT_mno_pascal_strings));
       break;
     }
   }

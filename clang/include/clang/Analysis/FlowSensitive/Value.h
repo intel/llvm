@@ -189,7 +189,9 @@ public:
   }
 };
 
-/// Models a value of `struct` or `class` type.
+/// Models a value of `struct` or `class` type, with a flat map of fields to
+/// child storage locations, containing all accessible members of base struct
+/// and class types.
 class StructValue final : public Value {
 public:
   StructValue() : StructValue(llvm::DenseMap<const ValueDecl *, Value *>()) {}
@@ -201,11 +203,13 @@ public:
     return Val->getKind() == Kind::Struct;
   }
 
-  /// Returns the child value that is assigned for `D`.
-  Value &getChild(const ValueDecl &D) const {
+  /// Returns the child value that is assigned for `D` or null if the child is
+  /// not initialized.
+  Value *getChild(const ValueDecl &D) const {
     auto It = Children.find(&D);
-    assert(It != Children.end());
-    return *It->second;
+    if (It == Children.end())
+      return nullptr;
+    return It->second;
   }
 
   /// Assigns `Val` as the child value for `D`.

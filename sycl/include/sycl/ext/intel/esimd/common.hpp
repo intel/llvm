@@ -48,7 +48,9 @@
 
 #define __ESIMD_API ESIMD_INLINE
 
-#define __ESIMD_UNSUPPORTED_ON_HOST throw cl::sycl::feature_not_supported()
+#define __ESIMD_UNSUPPORTED_ON_HOST                                            \
+  throw sycl::exception(sycl::errc::feature_not_supported,                     \
+                        "This ESIMD feature is not supported on HOST")
 
 #endif // __SYCL_DEVICE_ONLY__
 

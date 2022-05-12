@@ -695,11 +695,8 @@ protected:
       }
     }
 
-    if (m_interpreter.TruncationWarningNecessary()) {
-      result.GetOutputStream().Printf(m_interpreter.TruncationWarningText(),
-                                      m_cmd_name.c_str());
-      m_interpreter.TruncationWarningGiven();
-    }
+    m_interpreter.PrintWarningsIfNecessary(result.GetOutputStream(),
+                                           m_cmd_name);
 
     // Increment statistics.
     bool res = result.Succeeded();
@@ -726,7 +723,7 @@ class CommandObjectFrameRecognizerAdd : public CommandObjectParsed {
 private:
   class CommandOptions : public Options {
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
     ~CommandOptions() override = default;
 
     Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,

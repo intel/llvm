@@ -88,9 +88,16 @@ enum {
   // Pseudos.
   IsRVVWideningReductionShift = HasVecPolicyOpShift + 1,
   IsRVVWideningReductionMask = 1 << IsRVVWideningReductionShift,
+
+  // Does this instruction care about mask policy. If it is not, the mask policy
+  // could be either agnostic or undisturbed. For example, unmasked, store, and
+  // reduction operations result would not be affected by mask policy, so
+  // compiler has free to select either one.
+  UsesMaskPolicyShift = IsRVVWideningReductionShift + 1,
+  UsesMaskPolicyMask = 1 << UsesMaskPolicyShift,
 };
 
-// Match with the definitions in RISCVInstrFormatsV.td
+// Match with the definitions in RISCVInstrFormats.td
 enum VConstraintType {
   NoConstraint = 0,
   VS2Constraint = 0b001,
@@ -110,8 +117,8 @@ enum VLMUL : uint8_t {
 };
 
 enum {
-  TAIL_UNDISTURBED = 0,
   TAIL_AGNOSTIC = 1,
+  MASK_AGNOSTIC = 2,
 };
 
 // Helper functions to read TSFlags.
@@ -121,8 +128,8 @@ static inline unsigned getFormat(uint64_t TSFlags) {
 }
 /// \returns the constraint for the instruction.
 static inline VConstraintType getConstraint(uint64_t TSFlags) {
-  return static_cast<VConstraintType>
-             ((TSFlags & ConstraintMask) >> ConstraintShift);
+  return static_cast<VConstraintType>((TSFlags & ConstraintMask) >>
+                                      ConstraintShift);
 }
 /// \returns the LMUL for the instruction.
 static inline VLMUL getLMul(uint64_t TSFlags) {
@@ -155,6 +162,10 @@ static inline bool hasVecPolicyOp(uint64_t TSFlags) {
 /// \returns true if it is a vector widening reduction instruction.
 static inline bool isRVVWideningReduction(uint64_t TSFlags) {
   return TSFlags & IsRVVWideningReductionMask;
+}
+/// \returns true if mask policy is valid for the instruction.
+static inline bool UsesMaskPolicy(uint64_t TSFlags) {
+  return TSFlags & UsesMaskPolicyMask;
 }
 
 // RISC-V Specific Machine Operand Flags
@@ -372,9 +383,20 @@ inline static RISCVII::VLMUL getVLMUL(unsigned VType) {
 // Decode VLMUL into 1,2,4,8 and fractional indicator.
 std::pair<unsigned, bool> decodeVLMUL(RISCVII::VLMUL VLMUL);
 
+inline static RISCVII::VLMUL encodeLMUL(unsigned LMUL, bool Fractional) {
+  assert(isValidLMUL(LMUL, Fractional) && "Unsupported LMUL");
+  unsigned LmulLog2 = Log2_32(LMUL);
+  return static_cast<RISCVII::VLMUL>(Fractional ? 8 - LmulLog2 : LmulLog2);
+}
+
 inline static unsigned decodeVSEW(unsigned VSEW) {
   assert(VSEW < 8 && "Unexpected VSEW value");
   return 1 << (VSEW + 3);
+}
+
+inline static unsigned encodeSEW(unsigned SEW) {
+  assert(isValidSEW(SEW) && "Unexpected SEW value");
+  return Log2_32(SEW) - 3;
 }
 
 inline static unsigned getSEW(unsigned VType) {

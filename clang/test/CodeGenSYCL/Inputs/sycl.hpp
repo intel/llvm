@@ -4,6 +4,11 @@
 
 extern "C" int printf(const char* fmt, ...);
 
+#ifdef __SYCL_DEVICE_ONLY__
+__attribute__((convergent)) extern SYCL_EXTERNAL void
+__spirv_ControlBarrier(int, int, int) noexcept;
+#endif
+
 // Dummy runtime classes to model SYCL API.
 inline namespace cl {
 namespace sycl {
@@ -130,11 +135,13 @@ struct no_alias {
 };
 } // namespace property
 
+// device_global type decorated with attributes
 template <typename T>
-class [[__sycl_detail__::device_global]] device_global {
+class [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global {
 public:
   const T &get() const noexcept { return *Data; }
   device_global() {}
+  operator T &() noexcept { return *Data; }
 
 private:
   T *Data;
@@ -397,10 +404,19 @@ kernel_parallel_for(const KernelType &KernelFunc) {
   KernelFunc(id<Dims>());
 }
 
+// Dummy parallel_for_work_item function to mimic calls from
+// parallel_for_work_group.
+void parallel_for_work_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  __spirv_ControlBarrier(0, 0, 0);
+#endif
+}
+
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
 kernel_parallel_for_work_group(const KernelType &KernelFunc) {
   KernelFunc(group<Dims>());
+  parallel_for_work_item();
 }
 
 class handler {

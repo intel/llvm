@@ -668,7 +668,7 @@ __esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
                             repeat_count, T, T1, T2, N, N1, N2>(
       std::addressof(src0), src1, src2);
 #else  // __SYCL_EXPLICIT_SIMD_PLUGIN__
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 #endif // __SYCL_EXPLICIT_SIMD_PLUGIN__
 }
@@ -685,7 +685,7 @@ __esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                             repeat_count, T, T1, T2, N, N1, N2>(nullptr, src1,
                                                                 src2);
 #else  // __SYCL_EXPLICIT_SIMD_PLUGIN__
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 #endif // __SYCL_EXPLICIT_SIMD_PLUGIN__
 }
@@ -698,7 +698,7 @@ inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw(__ESIMD_DNS::vector_type_t<T, N> src0,
               __ESIMD_DNS::vector_type_t<T1, N1> src1,
               __ESIMD_DNS::vector_type_t<T2, N2> src2) {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 }
 
@@ -709,7 +709,7 @@ template <__ESIMD_ENS::argument_type src1_precision,
 inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                __ESIMD_DNS::vector_type_t<T2, N2> src2) {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 }
 

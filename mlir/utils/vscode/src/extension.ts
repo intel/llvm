@@ -16,6 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize the commands of the extension.
   context.subscriptions.push(
       vscode.commands.registerCommand('mlir.restart', async () => {
+        // Dispose and reactivate the context.
         mlirContext.dispose();
         await mlirContext.activate(outputChannel);
       }));

@@ -71,6 +71,25 @@ CONSTFIX char clGetDeviceFunctionPointerName[] =
 
 #undef CONSTFIX
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
+
 // USM helper function to get an extension function pointer
 template <const char *FuncName, typename T>
 static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
@@ -193,11 +212,24 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  // TODO: Implement.
-  case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_INVALID_VALUE;
+  case PI_DEVICE_INFO_ATOMIC_64: {
+    size_t extSize;
+    cl_bool result = clGetDeviceInfo(
+        cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize);
+    std::string extStr(extSize, '\0');
+    result = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
+                             extSize, &extStr.front(), nullptr);
+    if (extStr.find("cl_khr_int64_base_atomics") == std::string::npos ||
+        extStr.find("cl_khr_int64_extended_atomics") == std::string::npos)
+      result = false;
+    else
+      result = true;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
@@ -721,7 +753,10 @@ pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                         pi_mem *piMem) {
+                                         pi_context context,
+                                         bool ownNativeHandle, pi_mem *piMem) {
+  (void)context;
+  (void)ownNativeHandle;
   assert(piMem != nullptr);
   *piMem = reinterpret_cast<pi_mem>(nativeHandle);
   return PI_SUCCESS;
@@ -1274,7 +1309,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_ret is how many bytes were written
 pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                  pi_mem_info param_name,
+                                  pi_mem_alloc_info param_name,
                                   size_t param_value_size, void *param_value,
                                   size_t *param_value_size_ret) {
 
@@ -1527,6 +1562,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
 
 #undef _PI_CL

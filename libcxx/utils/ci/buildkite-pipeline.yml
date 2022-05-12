@@ -203,8 +203,8 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "Clang 12"
-    command: "libcxx/utils/ci/run-buildbot generic-clang-12"
+  - label: "Clang 13"
+    command: "libcxx/utils/ci/run-buildbot generic-clang-13"
     artifact_paths:
       - "**/test-results.xml"
       - "**/*.abilist"
@@ -217,8 +217,8 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "Clang 13"
-    command: "libcxx/utils/ci/run-buildbot generic-clang-13"
+  - label: "Clang 14"
+    command: "libcxx/utils/ci/run-buildbot generic-clang-14"
     artifact_paths:
       - "**/test-results.xml"
       - "**/*.abilist"
@@ -264,6 +264,20 @@ steps:
 
     - label: "UBSAN"
       command: "libcxx/utils/ci/run-buildbot generic-ubsan"
+      artifact_paths:
+        - "**/test-results.xml"
+        - "**/*.abilist"
+      agents:
+        queue: "libcxx-builders"
+        os: "linux"
+      retry:
+        automatic:
+          - exit_status: -1  # Agent was lost
+            limit: 2
+      timeout_in_minutes: 120
+
+    - label: "MSAN"
+      command: "libcxx/utils/ci/run-buildbot generic-msan"
       artifact_paths:
         - "**/test-results.xml"
         - "**/*.abilist"
@@ -664,6 +678,21 @@ steps:
         queue: "libcxx-builders"
         os: "macos"
         arch: "x86_64" # We need to use x86_64 for back-deployment CI, since the old dylibs were compiled for x86_64
+      retry:
+        automatic:
+          - exit_status: -1  # Agent was lost
+            limit: 2
+      timeout_in_minutes: 120
+
+    - label: "Apple back-deployment macosx11.0 arm64"
+      command: "libcxx/utils/ci/run-buildbot apple-system-backdeployment-11.0"
+      artifact_paths:
+        - "**/test-results.xml"
+        - "**/*.abilist"
+      agents:
+        queue: "libcxx-builders"
+        os: "macos"
+        arch: "arm64"
       retry:
         automatic:
           - exit_status: -1  # Agent was lost

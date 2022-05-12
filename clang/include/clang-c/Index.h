@@ -2600,7 +2600,23 @@ enum CXCursorKind {
    */
   CXCursor_OMPGenericLoopDirective = 295,
 
-  CXCursor_LastStmt = CXCursor_OMPGenericLoopDirective,
+  /** OpenMP teams loop directive.
+   */
+  CXCursor_OMPTeamsGenericLoopDirective = 296,
+
+  /** OpenMP target teams loop directive.
+   */
+  CXCursor_OMPTargetTeamsGenericLoopDirective = 297,
+
+  /** OpenMP parallel loop directive.
+   */
+  CXCursor_OMPParallelGenericLoopDirective = 298,
+
+  /** OpenMP target parallel loop directive.
+   */
+  CXCursor_OMPTargetParallelGenericLoopDirective = 299,
+
+  CXCursor_LastStmt = CXCursor_OMPTargetParallelGenericLoopDirective,
 
   /**
    * Cursor that represents the translation unit itself.
@@ -3402,20 +3418,21 @@ enum CXTypeKind {
 
   CXType_ExtVector = 176,
   CXType_Atomic = 177,
+  CXType_BTFTagAttributed = 178,
 
   /* SPIRV builtin types. */
-  CXType_SampledOCLImage1dRO = 178,
-  CXType_SampledOCLImage1dArrayRO = 179,
-  CXType_SampledOCLImage1dBufferRO = 180,
-  CXType_SampledOCLImage2dRO = 181,
-  CXType_SampledOCLImage2dArrayRO = 182,
-  CXType_SampledOCLImage2dDepthRO = 183,
-  CXType_SampledOCLImage2dArrayDepthRO = 184,
-  CXType_SampledOCLImage2dMSAARO = 185,
-  CXType_SampledOCLImage2dArrayMSAARO = 186,
-  CXType_SampledOCLImage2dMSAADepthRO = 187,
-  CXType_SampledOCLImage2dArrayMSAADepthRO = 188,
-  CXType_SampledOCLImage3dRO = 189
+  CXType_SampledOCLImage1dRO = 200,
+  CXType_SampledOCLImage1dArrayRO = 201,
+  CXType_SampledOCLImage1dBufferRO = 202,
+  CXType_SampledOCLImage2dRO = 203,
+  CXType_SampledOCLImage2dArrayRO = 204,
+  CXType_SampledOCLImage2dDepthRO = 205,
+  CXType_SampledOCLImage2dArrayDepthRO = 206,
+  CXType_SampledOCLImage2dMSAARO = 207,
+  CXType_SampledOCLImage2dArrayMSAARO = 208,
+  CXType_SampledOCLImage2dMSAADepthRO = 209,
+  CXType_SampledOCLImage2dArrayMSAADepthRO = 210,
+  CXType_SampledOCLImage3dRO = 211
 };
 
 /**

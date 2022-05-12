@@ -57,6 +57,24 @@ pi_result map_error(CUresult result) {
   }
 }
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+static void setErrorMessage(const char *message, pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result cuda_piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -852,15 +870,9 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             context->get_device()->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
-                     : PI_MEMORY_ORDER_RELAXED;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -871,10 +883,11 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              context->get_device()->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
                            PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_DEVICE;
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1139,15 +1152,9 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    atomic64);
   }
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             device->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
-                     : PI_MEMORY_ORDER_RELAXED;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1158,10 +1165,11 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
                            PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_DEVICE;
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1732,6 +1740,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    int major =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    std::string result = std::to_string(major) + "." + std::to_string(minor);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   result.c_str());
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -2155,7 +2172,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-pi_result cuda_piMemGetInfo(pi_mem, cl_mem_info, size_t, void *, size_t *) {
+pi_result cuda_piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
   cl::sycl::detail::pi::die("cuda_piMemGetInfo not implemented");
 }
 
@@ -2176,10 +2193,16 @@ pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle, pi_mem *) {
+pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                              pi_context context,
+                                              bool ownNativeHandle,
+                                              pi_mem *mem) {
   cl::sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
@@ -4724,13 +4747,20 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
 
-// CUDA has an issue with cuMemPrefetchAsync returning cudaErrorInvalidDevice
-// for Windows machines
-// TODO: Remove when fix is found
-#ifdef _MSC_VER
-  cl::sycl::detail::pi::die(
-      "cuda_piextUSMEnqueuePrefetch does not currently work on Windows");
-#endif
+  // Certain cuda devices and Windows do not have support for some Unified
+  // Memory features. cuMemPrefetchAsync requires concurrent memory access
+  // for managed memory. Therfore, ignore prefetch hint if concurrent managed
+  // memory access is not available.
+  int isConcurrentManagedAccessAvailable = 0;
+  cuDeviceGetAttribute(&isConcurrentManagedAccessAvailable,
+                       CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS,
+                       queue->get_context()->get_device()->get());
+  if (!isConcurrentManagedAccessAvailable) {
+    setErrorMessage("Prefetch hint ignored as device does not support "
+                    "concurrent managed access",
+                    PI_SUCCESS);
+    return PI_PLUGIN_SPECIFIC_ERROR;
+  }
 
   // flags is currently unused so fail if set
   if (flags != 0)
@@ -4837,7 +4867,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_size_ret is how many bytes were written
 pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                       pi_mem_info param_name,
+                                       pi_mem_alloc_info param_name,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
@@ -5078,6 +5108,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
 
 #undef _PI_CL

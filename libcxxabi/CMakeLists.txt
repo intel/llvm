@@ -121,26 +121,14 @@ endif()
 option(LIBCXXABI_INCLUDE_TESTS "Generate build targets for the libc++abi unit tests." ${LLVM_INCLUDE_TESTS})
 set(LIBCXXABI_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}" CACHE STRING
     "Define suffix of library directory name (32/64)")
+option(LIBCXXABI_INSTALL_HEADERS "Install the libc++abi headers." ON)
 option(LIBCXXABI_INSTALL_LIBRARY "Install the libc++abi library." ON)
+set(LIBCXXABI_INSTALL_INCLUDE_DIR "include/c++/v1" CACHE PATH "Path to install the libc++abi headers at.")
 
-if(NOT CMAKE_SYSROOT AND LIBCXXABI_SYSROOT)
-  message(WARNING "LIBCXXABI_SYSROOT is deprecated, please use CMAKE_SYSROOT instead")
+# TODO: Remove this after branching for LLVM 15
+if(LIBCXXABI_SYSROOT OR LIBCXXABI_TARGET_TRIPLE OR LIBCXXABI_GCC_TOOLCHAIN)
+  message(WARNING "LIBCXXABI_SYSROOT, LIBCXXABI_TARGET_TRIPLE and LIBCXXABI_GCC_TOOLCHAIN are not supported anymore, please use the native CMake equivalents instead")
 endif()
-if(NOT CMAKE_CXX_COMPILER_TARGET AND LIBCXXABI_TARGET_TRIPLE)
-  message(WARNING "LIBCXXABI_TARGET_TRIPLE is deprecated, please use CMAKE_CXX_COMPILER_TARGET instead")
-endif()
-if(NOT CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN AND LIBCXXABI_GCC_TOOLCHAIN)
-  message(WARNING "LIBCXXABI_GCC_TOOLCHAIN is deprecated, please use CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN instead")
-endif()
-
-if(CMAKE_CXX_COMPILER_TARGET)
-  set(LIBCXXABI_DEFAULT_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
-else()
-  set(LIBCXXABI_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
-endif()
-set(LIBCXXABI_TARGET_TRIPLE "${LIBCXXABI_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Target triple for cross compiling.")
-set(LIBCXXABI_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}" CACHE PATH "GCC toolchain for cross compiling.")
-set(LIBCXXABI_SYSROOT "${CMAKE_SYSROOT}" CACHE PATH "Sysroot for cross compiling.")
 
 set(LIBCXXABI_LIBCXX_LIBRARY_PATH "" CACHE PATH "The path to libc++ library.")
 set(LIBCXXABI_LIBRARY_VERSION "1.0" CACHE STRING
@@ -284,20 +272,11 @@ include(HandleLibcxxabiFlags)
 if(ZOS)
   add_target_flags_if_supported("-fzos-le-char-mode=ebcdic")
 endif()
-if(LIBCXXABI_TARGET_TRIPLE)
-  add_target_flags_if_supported("--target=${LIBCXXABI_TARGET_TRIPLE}")
-endif()
-if(LIBCXXABI_GCC_TOOLCHAIN)
-  add_target_flags_if_supported("--gcc-toolchain=${LIBCXXABI_GCC_TOOLCHAIN}")
-endif()
-if(LIBCXXABI_SYSROOT)
-  add_target_flags_if_supported("--sysroot=${LIBCXXABI_SYSROOT}")
-endif()
 
 # Configure compiler. Must happen after setting the target flags.
 include(config-ix)
 
-if (LIBCXXABI_HAS_NOSTDINCXX_FLAG)
+if (CXX_SUPPORTS_NOSTDINCXX_FLAG)
   list(APPEND LIBCXXABI_COMPILE_FLAGS -nostdinc++)
   # cmake 3.14 and above remove system include paths that are explicitly
   # passed on the command line.  We build with -nostdinc++ and explicitly add
@@ -323,13 +302,20 @@ add_definitions(-D_LIBCPP_BUILDING_LIBRARY)
 
 # Disable DLL annotations on Windows for static builds.
 if (WIN32 AND LIBCXXABI_ENABLE_STATIC AND NOT LIBCXXABI_ENABLE_SHARED)
-  if (LIBCXX_ENABLE_SHARED AND LIBCXX_ENABLE_STATIC_ABI_LIBRARY)
+  # If LIBCXX_ENABLE_SHARED isn't set (by the user on the cmake command
+  # line or via a cache file), use its expected default value (enabled).
+  if ((LIBCXX_ENABLE_SHARED OR NOT DEFINED LIBCXX_ENABLE_SHARED) AND LIBCXX_ENABLE_STATIC_ABI_LIBRARY)
     # Building libcxxabi statically, but intending for it to be statically
     # linked into a shared libcxx; keep dllexport enabled within libcxxabi,
     # as the symbols will need to be exported from libcxx.
   else()
     # Regular static build; disable dllexports.
     add_definitions(-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS)
+    if (NOT LIBCXXABI_HERMETIC_STATIC_LIBRARY)
+      # TODO: Enable this warning message as soon as we're sure this is the solution.
+      # message(WARNING "Implicitly disabling dllexport on Win32 is not supported anymore. Please build with "
+      #                 "LIBCXXABI_HERMETIC_STATIC_LIBRARY=ON instead. This will become an error in LLVM 16.")
+    endif()
   endif()
 endif()
 
@@ -499,11 +485,6 @@ if (MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 endif()
 
-# Define LIBCXXABI_USE_LLVM_UNWINDER for conditional compilation.
-if (LIBCXXABI_USE_LLVM_UNWINDER)
-  add_definitions(-DLIBCXXABI_USE_LLVM_UNWINDER)
-endif()
-
 if (LIBCXXABI_SILENT_TERMINATE)
   add_definitions(-DLIBCXXABI_SILENT_TERMINATE)
 endif()
@@ -516,7 +497,7 @@ if (LIBCXXABI_BAREMETAL)
     add_definitions(-DLIBCXXABI_BAREMETAL)
 endif()
 
-if (LIBCXXABI_HAS_COMMENT_LIB_PRAGMA)
+if (C_SUPPORTS_COMMENT_LIB_PRAGMA)
   if (LIBCXXABI_HAS_PTHREAD_LIB)
     add_definitions(-D_LIBCXXABI_LINK_PTHREAD_LIB)
   endif()
@@ -541,7 +522,6 @@ set(LIBCXXABI_LIBUNWIND_INCLUDES "${LIBCXXABI_LIBUNWIND_INCLUDES}" CACHE PATH
 set(LIBCXXABI_LIBUNWIND_PATH "${LIBCXXABI_LIBUNWIND_PATH}" CACHE PATH
     "Specify path to libunwind source." FORCE)
 
-include_directories(include)
 if (LIBCXXABI_USE_LLVM_UNWINDER OR LLVM_NATIVE_ARCH MATCHES ARM)
   find_path(LIBCXXABI_LIBUNWIND_INCLUDES_INTERNAL libunwind.h
     PATHS ${LIBCXXABI_LIBUNWIND_INCLUDES}
@@ -565,6 +545,7 @@ endif()
 
 # Add source code. This also contains all of the logic for deciding linker flags
 # soname, etc...
+add_subdirectory(include)
 add_subdirectory(src)
 
 if (LIBCXXABI_INCLUDE_TESTS)

@@ -6,11 +6,12 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-SPIRV: 5 ExtInstImport [[SetInstID:[0-9]+]] "OpenCL.std"
 ; CHECK-SPIRV: 4 TypeInt [[IntTypeID:[0-9]+]] 32 {{[0-9]+}}
 ; CHECK-SPIRV: 4 TypeVector [[Int2TypeID:[0-9]+]] [[IntTypeID]] 2
 ; CHECK-SPIRV: 6 CompositeInsert [[Int2TypeID]] [[CompositeID:[0-9]+]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: 7 VectorShuffle [[Int2TypeID]] [[ShuffleID:[0-9]+]] [[CompositeID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV: 7 ExtInst [[Int2TypeID]] {{[0-9]+}} 1 s_min {{[0-9]+}} [[ShuffleID]]
+; CHECK-SPIRV: 7 ExtInst [[Int2TypeID]] {{[0-9]+}} [[SetInstID]] s_min {{[0-9]+}} [[ShuffleID]]
 
 ; CHECK-LLVM: call spir_func <2 x i32> @_Z3minDv2_iS_(
 

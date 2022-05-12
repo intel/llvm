@@ -1767,7 +1767,8 @@ TSAN_INTERCEPTOR(int, listen, int fd, int backlog) {
 
 TSAN_INTERCEPTOR(int, close, int fd) {
   SCOPED_INTERCEPTOR_RAW(close, fd);
-  FdClose(thr, pc, fd);
+  if (!in_symbolizer())
+    FdClose(thr, pc, fd);
   return REAL(close)(fd);
 }
 
@@ -1900,8 +1901,10 @@ TSAN_INTERCEPTOR(int, epoll_ctl, int epfd, int op, int fd, void *ev) {
     FdAccess(thr, pc, epfd);
   if (epfd >= 0 && fd >= 0)
     FdAccess(thr, pc, fd);
-  if (op == EPOLL_CTL_ADD && epfd >= 0)
+  if (op == EPOLL_CTL_ADD && epfd >= 0) {
+    FdPollAdd(thr, pc, epfd, fd);
     FdRelease(thr, pc, epfd);
+  }
   int res = REAL(epoll_ctl)(epfd, op, fd, ev);
   return res;
 }
@@ -1964,13 +1967,14 @@ TSAN_INTERCEPTOR(int, pthread_sigmask, int how, const __sanitizer_sigset_t *set,
 
 namespace __tsan {
 
-static void ReportErrnoSpoiling(ThreadState *thr, uptr pc) {
+static void ReportErrnoSpoiling(ThreadState *thr, uptr pc, int sig) {
   VarSizeStackTrace stack;
   // StackTrace::GetNestInstructionPc(pc) is used because return address is
   // expected, OutputReport() will undo this.
   ObtainCurrentStack(thr, StackTrace::GetNextInstructionPc(pc), &stack);
   ThreadRegistryLock l(&ctx->thread_registry);
   ScopedReport rep(ReportTypeErrnoInSignal);
+  rep.SetSigNum(sig);
   if (!IsFiredSuppression(ctx, ReportTypeErrnoInSignal, stack)) {
     rep.AddStack(stack, true);
     OutputReport(thr, rep);
@@ -2037,7 +2041,7 @@ static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
   // signal; and it looks too fragile to intercept all ways to reraise a signal.
   if (ShouldReport(thr, ReportTypeErrnoInSignal) && !sync && sig != SIGTERM &&
       errno != 99)
-    ReportErrnoSpoiling(thr, pc);
+    ReportErrnoSpoiling(thr, pc, sig);
   errno = saved_errno;
 }
 

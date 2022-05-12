@@ -95,7 +95,7 @@ struct ExtractProperties<std::tuple<PropertiesTs...>> {
   using ExtractedPropertiesT = std::tuple<>;
 
   template <typename... PropertyValueTs>
-  static ExtractedPropertiesT<PropertyValueTs...>
+  static constexpr ExtractedPropertiesT<PropertyValueTs...>
   Extract(std::tuple<PropertyValueTs...>) {
     return {};
   }
@@ -112,7 +112,7 @@ struct ExtractProperties<std::tuple<PropertyT, PropertiesTs...>> {
                             NextExtractedPropertiesT<PropertyValueTs...>>::type;
 
   template <typename... PropertyValueTs>
-  static ExtractedPropertiesT<PropertyValueTs...>
+  static constexpr ExtractedPropertiesT<PropertyValueTs...>
   Extract(std::tuple<PropertyValueTs...> PropertyValues) {
     PropertyT ThisExtractedProperty = std::get<PropertyT>(PropertyValues);
     NextExtractedPropertiesT<PropertyValueTs...> NextExtractedProperties =
@@ -137,7 +137,7 @@ template <typename PropertiesT> class properties {
 
 public:
   template <typename... PropertyValueTs>
-  properties(PropertyValueTs... props)
+  constexpr properties(PropertyValueTs... props)
       : Storage(detail::ExtractProperties<StorageT>::Extract(
             std::tuple<PropertyValueTs...>{props...})) {}
 

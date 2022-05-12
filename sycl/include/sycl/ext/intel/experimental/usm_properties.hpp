@@ -7,6 +7,19 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
+
+namespace oneapi {
+namespace property {
+namespace usm {
+class device_read_only
+    : public sycl::detail::DataLessProperty<sycl::detail::DeviceReadOnly> {
+public:
+  device_read_only() = default;
+};
+} // namespace usm
+} // namespace property
+} // namespace oneapi
+
 namespace intel {
 namespace experimental {
 namespace property {
@@ -28,6 +41,10 @@ private:
 } // namespace experimental
 } // namespace intel
 } // namespace ext
+
+template <>
+struct is_property<ext::oneapi::property::usm::device_read_only>
+    : std::true_type {};
 
 template <>
 struct is_property<ext::intel::experimental::property::usm::buffer_location>

@@ -495,9 +495,7 @@ entry:
 
 ; GCN-LABEL: {{^}}test_br_cc_f16:
 ; GFX1032:  v_cmp_nlt_f16_e32 vcc_lo,
-; GFX1032:  s_and_b32 vcc_lo, exec_lo, vcc_lo
 ; GFX1064:  v_cmp_nlt_f16_e32 vcc,
-; GFX1064:  s_and_b64 vcc, exec, vcc{{$}}
 ; GCN-NEXT: s_cbranch_vccnz
 define amdgpu_kernel void @test_br_cc_f16(
     half addrspace(1)* %r,
@@ -1136,8 +1134,8 @@ declare void @external_void_func_void() #1
 ; GCN-DAG: v_writelane_b32 v40, s30, 0
 ; GCN-DAG: v_writelane_b32 v40, s31, 1
 ; GCN: s_swappc_b64
-; GCN-DAG: v_readlane_b32 s4, v40, 0
-; GCN-DAG: v_readlane_b32 s5, v40, 1
+; GCN-DAG: v_readlane_b32 s30, v40, 0
+; GCN-DAG: v_readlane_b32 s31, v40, 1
 
 
 ; GFX1064: s_addk_i32 s32, 0xfc00

@@ -126,6 +126,11 @@ def FunctionTmpl
                                  FunctionDecl::TK_FunctionTemplate}],
                     "function templates">;
 
+def HLSLEntry
+    : SubsetSubject<Function,
+                    [{S->isExternallyVisible() && !isa<CXXMethodDecl>(S)}],
+                    "global functions">;
+
 def ClassTmpl : SubsetSubject<CXXRecord, [{S->getDescribedClassTemplate()}],
                               "class templates">;
 
@@ -299,6 +304,9 @@ class Clang<string name, bit allowInC = 1> : Spelling<name, "Clang"> {
   bit AllowInC = allowInC;
 }
 
+// HLSL Semantic spellings
+class HLSLSemantic<string name> : Spelling<name, "HLSLSemantic">;
+
 class Accessor<string name, list<Spelling> spellings> {
   string Name = name;
   list<Spelling> Spellings = spellings;
@@ -346,6 +354,8 @@ def BlocksSupported : LangOpt<"Blocks">;
 def ObjCAutoRefCount : LangOpt<"ObjCAutoRefCount">;
 def ObjCNonFragileRuntime
     : LangOpt<"", "LangOpts.ObjCRuntime.allowsClassStubs()">;
+
+def HLSL : LangOpt<"HLSL">;
 
 // Language option for CMSE extensions
 def Cmse : LangOpt<"Cmse">;
@@ -728,9 +738,13 @@ def AlignNatural : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def AlwaysInline : InheritableAttr {
-  let Spellings = [GCC<"always_inline">, Keyword<"__forceinline">];
-  let Subjects = SubjectList<[Function]>;
+def AlwaysInline : DeclOrStmtAttr {
+  let Spellings = [GCC<"always_inline">, CXX11<"clang", "always_inline">,
+                   C2x<"clang", "always_inline">, Keyword<"__forceinline">];
+  let Accessors = [Accessor<"isClangAlwaysInline", [CXX11<"clang", "always_inline">,
+                                                    C2x<"clang", "always_inline">]>];
+  let Subjects = SubjectList<[Function, Stmt], WarnDiag,
+                             "functions and statements">;
   let Documentation = [AlwaysInlineDocs];
 }
 
@@ -1212,7 +1226,7 @@ def : MutualExclusions<[CUDAConstant, CUDAShared, HIPManaged]>;
 def SYCLDevice : InheritableAttr {
   let Spellings = [GNU<"sycl_device">];
   let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceDocs];
 }
 
@@ -1257,17 +1271,8 @@ def SYCLUsesAspects : InheritableAttr {
   let Subjects = SubjectList<[CXXRecord, Function], ErrorDiag>;
   let Args = [VariadicExprArgument<"Aspects">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  // Only used internally by the SYCL implementation
+  // Only used internally by SYCL implementation
   let Documentation = [Undocumented];
-}
-
-def SYCLDeviceGlobal : InheritableAttr {
-  let Spellings = [CXX11<"__sycl_detail__", "device_global">];
-  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  // Only used internally by the SYCL implementation
-  let Documentation = [Undocumented];
-  let SimpleHandler = 1;
 }
 
 // Marks functions which must not be vectorized via horizontal SIMT widening,
@@ -1448,6 +1453,24 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
+def SYCLDeviceGlobal: InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "device_global">];
+  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by SYCL implementation
+  let Documentation = [SYCLDeviceGlobalAttrDocs];
+  let SimpleHandler = 1;
+}
+
+def SYCLGlobalVariableAllowed : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "global_variable_allowed">];
+  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by SYCL implementation
+  let Documentation = [SYCLGlobalVariableAllowedAttrDocs];
+  let SimpleHandler = 1;
+}
+
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
   let Spellings = [CXX11<"intel", "no_global_work_offset">];
   let Args = [ExprArgument<"Value", /*optional*/1>];
@@ -1467,6 +1490,223 @@ def SYCLIntelLoopFuse : InheritableAttr {
                   [CXX11<"intel", "loop_fuse_independent">]>];
   let Documentation = [SYCLIntelLoopFuseDocs];
   let SupportsNonconformingLambdaSyntax = 1;
+}
+
+class SYCLAddIRAttrMemberCodeHolder<code Code> {
+  code MemberCode = Code;
+}
+
+// Common class for SYCL add_ir_attributes_* attributes.
+def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
+  static Optional<std::string>
+  getValidAttributeNameAsString(const Expr *NameE, const ASTContext &Context) {
+    if (const auto *NameLiteral = dyn_cast<StringLiteral>(NameE))
+      return NameLiteral->getString().str();
+
+    const auto *NameCE = dyn_cast<ConstantExpr>(NameE);
+    if (!NameCE)
+      return None;
+
+    APValue NameLValue;
+    if (!NameCE->isCXX11ConstantExpr(Context, &NameLValue))
+      NameLValue = NameCE->getAPValueResult();
+
+    if (!NameLValue.isLValue())
+      return None;
+
+    if (const auto *NameValExpr =
+            NameLValue.getLValueBase().dyn_cast<const Expr *>())
+      return getValidAttributeNameAsString(NameValExpr, Context);
+
+    if (const auto *NameValDecl =
+            NameLValue.getLValueBase().dyn_cast<const ValueDecl *>()) {
+      if (const auto *NameVarDecl = dyn_cast<const VarDecl>(NameValDecl)) {
+        return getValidAttributeNameAsString(NameVarDecl->getInit(), Context);
+      }
+    }
+    return None;
+  }
+
+  static Optional<std::string>
+  getValidAttributeValueAsString(const APValue &Value,
+                                 const ASTContext &Context,
+                                 QualType ValueQType) {
+    assert(!Value.isLValue());
+    if (ValueQType->isCharType()) {
+      char C = static_cast<char>(Value.getInt().getExtValue());
+      return std::string(&C, 1);
+    }
+    if (ValueQType->isBooleanType())
+      return std::string(Value.getInt().getExtValue() ? "true" : "false");
+    if (ValueQType->isIntegralOrEnumerationType() ||
+        ValueQType->isFloatingType())
+      return Value.getAsString(Context, ValueQType);
+    return None;
+  }
+
+  static Optional<std::string>
+  getValidAttributeValueAsString(const Expr *ValueE,
+                                 const ASTContext &Context) {
+    if (ValueE->getType()->isNullPtrType())
+      return std::string("");
+    if (const auto *StringVal = dyn_cast<StringLiteral>(ValueE))
+      return StringVal->getString().str();
+    if (const auto *BoolVal = dyn_cast<CXXBoolLiteralExpr>(ValueE))
+      return std::string(BoolVal->getValue() ? "true" : "false");
+    if (const auto *FloatingVal = dyn_cast<FloatingLiteral>(ValueE))
+      return APValue(FloatingVal->getValue())
+          .getAsString(Context, ValueE->getType());
+    if (const auto *CharacterVal = dyn_cast<CharacterLiteral>(ValueE)) {
+      char C = static_cast<char>(CharacterVal->getValue());
+      return std::string(&C, 1);
+    }
+    if (const auto *IntegerVal = dyn_cast<IntegerLiteral>(ValueE)) {
+      SmallString<10> IntegerStrBuffer;
+      IntegerVal->getValue().toString(IntegerStrBuffer, 10,
+                                      ValueE->getType()->isSignedIntegerType());
+      return std::string(IntegerStrBuffer);
+    }
+
+    const auto *ValueCE = dyn_cast<ConstantExpr>(ValueE);
+    if (!ValueCE)
+      return None;
+
+    APValue ValueAPV;
+    if (!ValueCE->isCXX11ConstantExpr(Context, &ValueAPV))
+      ValueAPV = ValueCE->getAPValueResult();
+
+    if (!ValueAPV.isLValue())
+      return getValidAttributeValueAsString(ValueAPV, Context,
+                                            ValueCE->getType());
+
+    if (ValueAPV.getLValueBase().isNull())
+      return std::string("");
+
+    if (const auto *ValueValExpr =
+            ValueAPV.getLValueBase().dyn_cast<const Expr *>())
+      return getValidAttributeValueAsString(ValueValExpr, Context);
+
+    if (const auto *ValueValDecl =
+            ValueAPV.getLValueBase().dyn_cast<const ValueDecl *>()) {
+      if (const auto *ValueVarDecl = dyn_cast<const VarDecl>(ValueValDecl)) {
+        return getValidAttributeValueAsString(ValueVarDecl->getInit(), Context);
+      }
+    }
+    return None;
+  }
+
+  static Optional<llvm::SmallSet<StringRef, 4>> getAttributeFilterFromExprs(
+      Expr **AttributeExprs, size_t AttributeExprsSize) {
+    if (!AttributeExprsSize)
+      return None;
+
+    const auto *FilterListE = dyn_cast<InitListExpr>(AttributeExprs[0]);
+    if (!FilterListE)
+      return None;
+
+    llvm::SmallSet<StringRef, 4> Filter;
+    for (const Expr *FilterE : FilterListE->inits()) {
+      const auto *FilterStrLit = dyn_cast<StringLiteral>(FilterE);
+      assert(FilterStrLit && "Element in filter list is not a string literal.");
+      Filter.insert(FilterStrLit->getString());
+    }
+    return Filter;
+  }
+
+  Optional<llvm::SmallSet<StringRef, 4>> getAttributeFilter() const {
+    return getAttributeFilterFromExprs(args_begin(), args_size());
+  }
+
+  bool hasFilterList() const {
+    return args_size() && isa<InitListExpr>(*args_begin());
+  }
+
+  SmallVector<std::pair<std::string, std::string>, 4>
+  getFilteredAttributeNameValuePairs(
+      const Optional<llvm::SmallSet<StringRef, 4>> &AttributeNameFilter,
+      const ASTContext &Context) const {
+    Expr **AttributeExprs = args_begin() + hasFilterList();
+    size_t AttributeExprsSize = args_size() - hasFilterList();
+
+    assert((AttributeExprsSize & 1) == 0 && "Too few remaining expressions.");
+
+    SmallVector<std::pair<std::string, std::string>, 4> Attrs;
+    for (size_t I = 0; I < AttributeExprsSize / 2; ++I) {
+      Optional<std::string> NameStr =
+          getValidAttributeNameAsString(AttributeExprs[I], Context);
+      assert(NameStr && "Attribute name is not a valid string.");
+
+      // If attribute name is empty, then skip attribute.
+      if (NameStr->empty())
+        continue;
+
+      // If attribute name is not in the filter, we skip it.
+      if (AttributeNameFilter && !AttributeNameFilter->contains(*NameStr))
+        continue;
+
+      Optional<std::string> ValueStr = getValidAttributeValueAsString(
+          AttributeExprs[I + AttributeExprsSize / 2], Context);
+      assert(ValueStr && "Attribute value is not a valid type.");
+
+      Attrs.push_back(std::make_pair(*NameStr, *ValueStr));
+    }
+
+    return Attrs;
+  }
+
+  SmallVector<std::pair<std::string, std::string>, 4>
+  getFilteredAttributeNameValuePairs(const ASTContext &Context) const {
+    Optional<llvm::SmallSet<StringRef, 4>> AttributeNameFilter =
+        getAttributeFilter();
+    return getFilteredAttributeNameValuePairs(AttributeNameFilter, Context);
+  }
+
+  SmallVector<std::pair<std::string, std::string>, 4>
+  getAttributeNameValuePairs(const ASTContext &Context) const {
+    return getFilteredAttributeNameValuePairs(None, Context);
+  }
+}]>;
+
+def SYCLAddIRAttributesFunction : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "add_ir_attributes_function">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let AcceptsExprPack = 1;
+  let AdditionalMembers = SYCLAddIRAttrCommonMembers.MemberCode;
+  let Documentation = [SYCLAddIRAttributesFunctionDocs];
+}
+
+def SYCLAddIRAttributesKernelParameter : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__",
+                         "add_ir_attributes_kernel_parameter">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[ParmVar], ErrorDiag>;
+  let AcceptsExprPack = 1;
+  let AdditionalMembers = SYCLAddIRAttrCommonMembers.MemberCode;
+  let Documentation = [SYCLAddIRAttributesKernelParameterDocs];
+}
+
+def SYCLAddIRAttributesGlobalVariable : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__",
+                         "add_ir_attributes_global_variable">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Record], ErrorDiag>;
+  let AcceptsExprPack = 1;
+  let AdditionalMembers = SYCLAddIRAttrCommonMembers.MemberCode;
+  let Documentation = [SYCLAddIRAttributesGlobalVariableDocs];
+}
+
+def SYCLAddIRAnnotationsMember : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "add_ir_annotations_member">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Field], ErrorDiag>;
+  let AcceptsExprPack = 1;
+  let AdditionalMembers = SYCLAddIRAttrCommonMembers.MemberCode;
+  let Documentation = [SYCLAddIRAnnotationsMemberDocs];
 }
 
 def C11NoReturn : InheritableAttr {
@@ -2395,10 +2635,14 @@ def Convergent : InheritableAttr {
   let SimpleHandler = 1;
 }
 
-def NoInline : InheritableAttr {
-  let Spellings = [GCC<"noinline">, Declspec<"noinline">];
-  let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+def NoInline : DeclOrStmtAttr {
+  let Spellings = [GCC<"noinline">, CXX11<"clang", "noinline">,
+                   C2x<"clang", "noinline">, Declspec<"noinline">];
+  let Accessors = [Accessor<"isClangNoInline", [CXX11<"clang", "noinline">,
+                                                C2x<"clang", "noinline">]>];
+  let Documentation = [NoInlineDocs];
+  let Subjects = SubjectList<[Function, Stmt], WarnDiag,
+                             "functions and statements">;
   let SimpleHandler = 1;
 }
 
@@ -3027,17 +3271,20 @@ def ReqdWorkGroupSize : InheritableAttr {
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
-    ArrayRef<const Expr *> dimensions() const {
-      return {getXDim(), getYDim(), getZDim()};
+    Optional<llvm::APSInt> getXDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
-    Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
-      return getXDim()->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> getYDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
-    Optional<llvm::APSInt> getYDimVal(ASTContext &Ctx) const {
-      return getYDim()->getIntegerConstantExpr(Ctx);
-    }
-    Optional<llvm::APSInt> getZDimVal(ASTContext &Ctx) const {
-      return getZDim()->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> getZDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
   }];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
@@ -3382,8 +3629,12 @@ def TargetClones : InheritableAttr {
     StringRef getFeatureStr(unsigned Index) const {
       return *(featuresStrs_begin() + Index);
     }
-    // 'default' is always moved to the end, so it isn't considered
-    // when mangling the index.
+    // Given an index into the 'featuresStrs' sequence, compute a unique
+    // ID to be used with function name mangling for the associated variant.
+    // This mapping is necessary due to a requirement that the mangling ID
+    // used for the "default" variant be the largest mangling ID in the
+    // variant set. Duplicate variants present in 'featuresStrs' are also
+    // assigned their own unique ID (the mapping is bijective).
     unsigned getMangledIndex(unsigned Index) const {
       if (getFeatureStr(Index) == "default")
         return std::count_if(featuresStrs_begin(), featuresStrs_end(),
@@ -3393,9 +3644,10 @@ def TargetClones : InheritableAttr {
                            [](StringRef S) { return S != "default"; });
     }
 
-    // True if this is the first of this version to appear in the config string.
-    // This is used to make sure we don't try to emit this function multiple
-    // times.
+    // Given an index into the 'featuresStrs' sequence, determine if the
+    // index corresponds to the first instance of the named variant. This
+    // is used to skip over duplicate variant instances when iterating over
+    // 'featuresStrs'.
     bool isFirstOfVersion(unsigned Index) const {
       StringRef FeatureStr(getFeatureStr(Index));
       return 0 == std::count_if(
@@ -4580,7 +4832,7 @@ def Builtin : InheritableAttr {
 
 def EnforceTCB : InheritableAttr {
   let Spellings = [Clang<"enforce_tcb">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, ObjCMethod]>;
   let Args = [StringArgument<"TCBName">];
   let Documentation = [EnforceTCBDocs];
   bit InheritEvenIfAlreadyPresent = 1;
@@ -4588,7 +4840,7 @@ def EnforceTCB : InheritableAttr {
 
 def EnforceTCBLeaf : InheritableAttr {
   let Spellings = [Clang<"enforce_tcb_leaf">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, ObjCMethod]>;
   let Args = [StringArgument<"TCBName">];
   let Documentation = [EnforceTCBLeafDocs];
   bit InheritEvenIfAlreadyPresent = 1;
@@ -4602,3 +4854,50 @@ def Error : InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [ErrorAttrDocs];
 }
+
+def HLSLNumThreads: InheritableAttr {
+  let Spellings = [Microsoft<"numthreads">];
+  let Args = [IntArgument<"X">, IntArgument<"Y">, IntArgument<"Z">];
+  let Subjects = SubjectList<[HLSLEntry]>;
+  let LangOpts = [HLSL];
+  let Documentation = [NumThreadsDocs];
+}
+
+def HLSLSV_GroupIndex: InheritableAttr {
+  let Spellings = [HLSLSemantic<"SV_GroupIndex">];
+  let Subjects = SubjectList<[ParmVar, GlobalVar]>;
+  let LangOpts = [HLSL];
+  let Documentation = [HLSLSV_GroupIndexDocs];
+}
+
+def HLSLShader : InheritableAttr {
+  let Spellings = [Microsoft<"shader">];
+  let Subjects = SubjectList<[HLSLEntry]>;
+  let LangOpts = [HLSL];
+  let Args = [EnumArgument<"Type", "ShaderType",
+                           ["pixel", "vertex", "geometry", "hull", "domain",
+                            "compute", "raygeneration", "intersection",
+                            "anyhit", "closesthit", "miss", "callable", "mesh",
+                            "amplification"],
+                           ["Pixel", "Vertex", "Geometry", "Hull", "Domain",
+                            "Compute", "RayGeneration", "Intersection",
+                            "AnyHit", "ClosestHit", "Miss", "Callable", "Mesh",
+                            "Amplification"]
+                           >];
+  let Documentation = [HLSLSV_ShaderTypeAttrDocs];
+}
+
+def RandomizeLayout : InheritableAttr {
+  let Spellings = [GCC<"randomize_layout">];
+  let Subjects = SubjectList<[Record]>;
+  let Documentation = [ClangRandomizeLayoutDocs];
+  let LangOpts = [COnly];
+}
+
+def NoRandomizeLayout : InheritableAttr {
+  let Spellings = [GCC<"no_randomize_layout">];
+  let Subjects = SubjectList<[Record]>;
+  let Documentation = [ClangRandomizeLayoutDocs];
+  let LangOpts = [COnly];
+}
+def : MutualExclusions<[RandomizeLayout, NoRandomizeLayout]>;

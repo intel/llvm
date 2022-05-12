@@ -183,8 +183,10 @@ public:
   // built-in kernel name.
   kernel_id getBuiltInKernelID(const std::string &KernelName);
 
-  // The function inserts a device_global entry into the device_global map.
-  void addDeviceGlobalEntry(void *DeviceGlobalPtr, const char *UniqueId);
+  // The function inserts or initializes a device_global entry into the
+  // device_global map.
+  void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
+                                  const char *UniqueId);
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
@@ -259,8 +261,6 @@ private:
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions, const RT::PiDevice &Device,
-                   std::map<std::pair<DeviceLibExt, RT::PiDevice>,
-                            RT::PiProgram> &CachedLibPrograms,
                    uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
@@ -387,10 +387,12 @@ private:
   using KernelNameWithOSModule = std::pair<std::string, OSModuleHandle>;
   std::set<KernelNameWithOSModule> m_KernelUsesAssert;
 
-  // Map between device_global unique ids and associated information.
-  std::unordered_map<std::string, DeviceGlobalMapEntry> m_DeviceGlobals;
+  // Maps between device_global identifiers and associated information.
+  std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>
+      m_DeviceGlobals;
+  std::unordered_map<const void *, DeviceGlobalMapEntry *> m_Ptr2DeviceGlobal;
 
-  /// Protects m_DeviceGlobals.
+  /// Protects m_DeviceGlobals and m_Ptr2DeviceGlobal.
   std::mutex m_DeviceGlobalsMutex;
 };
 } // namespace detail

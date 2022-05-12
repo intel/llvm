@@ -18,12 +18,18 @@
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 2 UserSemantic "qux"
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "{baz}"
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 3 UserSemantic "my_custom_annotations: 20, 60, 80"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_with_zerointializer: 0, 0, 0"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_with_false: 0"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_mixed: 0, 1, 0"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
 
 %class.anon = type { i8 }
 %struct.bar = type { i32, i8, float, i8 }
+%struct.S = type { i32 }
+%struct.S.1 = type { i32 }
+%struct.S.2 = type { i32 }
 
 ; CHECK-LLVM-DAG:  [[STR:@[0-9_.]+]] = {{.*}}42
 ; CHECK-LLVM-DAG: [[STR2:@[0-9_.]+]] = {{.*}}{FOO}
@@ -33,6 +39,9 @@ target triple = "spir64-unknown-linux"
 ; CHECK-LLVM-DAG: [[STR6:@[0-9_.]+]] = {{.*}}qux
 ; CHECK-LLVM-DAG: [[STR7:@[0-9_.]+]] = {{.*}}my_custom_annotations: 30, 60
 ; CHECK-LLVM-DAG: [[STR8:@[0-9_.]+]] = {{.*}}my_custom_annotations: 20, 60, 80
+; CHECK-LLVM-DAG: [[STR9:@[0-9_.]+]] = {{.*}}annotation_with_zerointializer: 0, 0, 0
+; CHECK-LLVM-DAG: [[STR10:@[0-9_.]+]] = {{.*}}annotation_with_false: 0
+; CHECK-LLVM-DAG: [[STR11:@[0-9_.]+]] = {{.*}}"annotation_mixed: 0, 1, 0
 @.str = private unnamed_addr constant [3 x i8] c"42\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [23 x i8] c"annotate_attribute.cpp\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [6 x i8] c"{FOO}\00", section "llvm.metadata"
@@ -41,8 +50,14 @@ target triple = "spir64-unknown-linux"
 @.str.5 = private unnamed_addr constant [4 x i8] c"128\00", section "llvm.metadata"
 @.str.6 = private unnamed_addr constant [4 x i8] c"qux\00", section "llvm.metadata"
 @.str.7 = private unnamed_addr constant [22 x i8] c"my_custom_annotations\00", section "llvm.metadata"
+@.str.8 = private unnamed_addr constant [31 x i8] c"annotation_with_zerointializer\00", section "llvm.metadata"
+@.str.9 = private unnamed_addr constant [22 x i8] c"annotation_with_false\00", section "llvm.metadata"
+@.str.10 = private unnamed_addr constant [17 x i8] c"annotation_mixed\00", section "llvm.metadata"
 @.args.0 = private unnamed_addr constant { i32, i32 } { i32 30, i32 60 }, section "llvm.metadata"
 @.args.1 = private unnamed_addr constant { i32, i32, i32 } { i32 20, i32 60, i32 80 }, section "llvm.metadata"
+@.args.2 = private unnamed_addr constant { i32, i32, i32 } zeroinitializer, section "llvm.metadata"
+@.args.3 = private unnamed_addr constant { i1 } zeroinitializer, section "llvm.metadata"
+@.args.4 = private unnamed_addr constant { i32, i32, i32 } { i32 0, i32 1, i32 0 }, section "llvm.metadata"
 
 
 ; Function Attrs: nounwind
@@ -142,6 +157,53 @@ entry:
   call void @llvm.lifetime.end.p0i8(i64 12, i8* %7) #4
   ret void
 }
+
+; Function Attrs: mustprogress noinline norecurse optnone uwtable
+define dso_local noundef i32 @with_zeroinitializer() #0 {
+entry:
+  %retval = alloca i32, align 4
+  %s = alloca %struct.S, align 4
+  store i32 0, i32* %retval, align 4
+  %a = getelementptr inbounds %struct.S, %struct.S* %s, i32 0, i32 0
+  %0 = call i32* @llvm.ptr.annotation.p0i32(i32* %a, i8* getelementptr inbounds ([31 x i8], [31 x i8]* @.str.8, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i32, i32, i32 }* @.args.2 to i8*))
+  ; CHECK-LLVM: %[[FIELD5:.*]] = getelementptr inbounds %struct.S, %struct.S* %{{[a-z]+}}, i32 0, i32 0
+  ; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD5]]{{.*}}[[STR9]]
+  %1 = load i32, i32* %0, align 4
+  call void @_Z3fooi(i32 noundef %1)
+  ret i32 0
+}
+
+; Function Attrs: mustprogress noinline norecurse optnone uwtable
+define dso_local noundef i32 @with_false() #0 {
+entry:
+  %retval = alloca i32, align 4
+  %s = alloca %struct.S.1, align 4
+  store i32 0, i32* %retval, align 4
+  %a = getelementptr inbounds %struct.S.1, %struct.S.1* %s, i32 0, i32 0
+  %0 = call i32* @llvm.ptr.annotation.p0i32(i32* %a, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.9, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i1 }* @.args.3 to i8*))
+  ; CHECK-LLVM: %[[FIELD6:.*]] = getelementptr inbounds %struct.S.1, %struct.S.1* %{{[a-z]+}}, i32 0, i32 0
+  ; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD6]]{{.*}}[[STR10]]
+  %1 = load i32, i32* %0, align 4
+  call void @_Z3fooi(i32 noundef %1)
+  ret i32 0
+}
+
+; Function Attrs: mustprogress noinline norecurse optnone uwtable
+define dso_local noundef i32 @mixed() #0 {
+entry:
+  %retval = alloca i32, align 4
+  %s = alloca %struct.S.2, align 4
+  store i32 0, i32* %retval, align 4
+  %a = getelementptr inbounds %struct.S.2, %struct.S.2* %s, i32 0, i32 0
+  %0 = call i32* @llvm.ptr.annotation.p0i32(i32* %a, i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str.10, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i32, i32, i32 }* @.args.4 to i8*))
+  ; CHECK-LLVM: %[[FIELD7:.*]] = getelementptr inbounds %struct.S.2, %struct.S.2* %{{[a-z]+}}, i32 0, i32 0
+  ; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD7]]{{.*}}[[STR11]]
+  %1 = load i32, i32* %0, align 4
+  call void @_Z3fooi(i32 noundef %1)
+  ret i32 0
+}
+
+declare dso_local void @_Z3fooi(i32 noundef)
 
 ; Function Attrs: nounwind
 declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32, i8*) #4

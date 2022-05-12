@@ -2488,6 +2488,7 @@ void ARMFrameLowering::adjustForSegmentedStacks(
   unsigned CFIIndex;
   const ARMSubtarget *ST = &MF.getSubtarget<ARMSubtarget>();
   bool Thumb = ST->isThumb();
+  bool Thumb2 = ST->isThumb2();
 
   // Sadly, this currently doesn't support varargs, platforms other than
   // android/linux. Note that thumb1/thumb2 are support for android/linux.
@@ -2505,19 +2506,10 @@ void ARMFrameLowering::adjustForSegmentedStacks(
   ARMFunctionInfo *ARMFI = MF.getInfo<ARMFunctionInfo>();
   DebugLoc DL;
 
-  uint64_t StackSize = MFI.getStackSize();
-
-  // Do not generate a prologue for leaf functions with a stack of size zero.
-  // For non-leaf functions we have to allow for the possibility that the
-  // callis to a non-split function, as in PR37807. This function could also
-  // take the address of a non-split function. When the linker tries to adjust
-  // its non-existent prologue, it would fail with an error. Mark the object
-  // file so that such failures are not errors. See this Go language bug-report
-  // https://go-review.googlesource.com/c/go/+/148819/
-  if (StackSize == 0 && !MFI.hasTailCall()) {
-    MF.getMMI().setHasNosplitStack(true);
+  if (!MFI.needsSplitStackProlog())
     return;
-  }
+
+  uint64_t StackSize = MFI.getStackSize();
 
   // Use R4 and R5 as scratch registers.
   // We save R4 and R5 before use and restore them before leaving the function.
@@ -2570,8 +2562,9 @@ void ARMFrameLowering::adjustForSegmentedStacks(
     // Make sure the LiveIns are still sorted and unique.
     MBB->sortUniqueLiveIns();
     // Replace the edges to PrologueMBB by edges to the sequences
-    // we are about to add.
-    MBB->ReplaceUsesOfBlockWith(&PrologueMBB, AddedBlocks[0]);
+    // we are about to add, but only update for immediate predecessors.
+    if (MBB->isSuccessor(&PrologueMBB))
+      MBB->ReplaceUsesOfBlockWith(&PrologueMBB, AddedBlocks[0]);
   }
 
   // The required stack size that is aligned to ARM constant criterion.
@@ -2630,17 +2623,46 @@ void ARMFrameLowering::adjustForSegmentedStacks(
 
   // sub SR1, sp, #StackSize
   if (!CompareStackPointer && Thumb) {
-    BuildMI(McrMBB, DL, TII.get(ARM::tSUBi8), ScratchReg1)
-        .add(condCodeOp())
-        .addReg(ScratchReg1)
-        .addImm(AlignedStackSize)
-        .add(predOps(ARMCC::AL));
+    if (AlignedStackSize < 256) {
+      BuildMI(McrMBB, DL, TII.get(ARM::tSUBi8), ScratchReg1)
+          .add(condCodeOp())
+          .addReg(ScratchReg1)
+          .addImm(AlignedStackSize)
+          .add(predOps(ARMCC::AL));
+    } else {
+      if (Thumb2) {
+        BuildMI(McrMBB, DL, TII.get(ARM::t2MOVi32imm), ScratchReg0)
+            .addImm(AlignedStackSize);
+      } else {
+        auto MBBI = McrMBB->end();
+        auto RegInfo = STI.getRegisterInfo();
+        RegInfo->emitLoadConstPool(*McrMBB, MBBI, DL, ScratchReg0, 0,
+                                   AlignedStackSize);
+      }
+      BuildMI(McrMBB, DL, TII.get(ARM::tSUBrr), ScratchReg1)
+          .add(condCodeOp())
+          .addReg(ScratchReg1)
+          .addReg(ScratchReg0)
+          .add(predOps(ARMCC::AL));
+    }
   } else if (!CompareStackPointer) {
-    BuildMI(McrMBB, DL, TII.get(ARM::SUBri), ScratchReg1)
-        .addReg(ARM::SP)
-        .addImm(AlignedStackSize)
-        .add(predOps(ARMCC::AL))
-        .add(condCodeOp());
+    if (AlignedStackSize < 256) {
+      BuildMI(McrMBB, DL, TII.get(ARM::SUBri), ScratchReg1)
+          .addReg(ARM::SP)
+          .addImm(AlignedStackSize)
+          .add(predOps(ARMCC::AL))
+          .add(condCodeOp());
+    } else {
+      auto MBBI = McrMBB->end();
+      auto RegInfo = STI.getRegisterInfo();
+      RegInfo->emitLoadConstPool(*McrMBB, MBBI, DL, ScratchReg0, 0,
+                                 AlignedStackSize);
+      BuildMI(McrMBB, DL, TII.get(ARM::SUBrr), ScratchReg1)
+          .addReg(ARM::SP)
+          .addReg(ScratchReg0)
+          .add(predOps(ARMCC::AL))
+          .add(condCodeOp());
+    }
   }
 
   if (Thumb && ST->isThumb1Only()) {
@@ -2707,28 +2729,69 @@ void ARMFrameLowering::adjustForSegmentedStacks(
   // Pass first argument for the __morestack by Scratch Register #0.
   //   The amount size of stack required
   if (Thumb) {
-    BuildMI(AllocMBB, DL, TII.get(ARM::tMOVi8), ScratchReg0)
-        .add(condCodeOp())
-        .addImm(AlignedStackSize)
-        .add(predOps(ARMCC::AL));
+    if (AlignedStackSize < 256) {
+      BuildMI(AllocMBB, DL, TII.get(ARM::tMOVi8), ScratchReg0)
+          .add(condCodeOp())
+          .addImm(AlignedStackSize)
+          .add(predOps(ARMCC::AL));
+    } else {
+      if (Thumb2) {
+        BuildMI(AllocMBB, DL, TII.get(ARM::t2MOVi32imm), ScratchReg0)
+            .addImm(AlignedStackSize);
+      } else {
+        auto MBBI = AllocMBB->end();
+        auto RegInfo = STI.getRegisterInfo();
+        RegInfo->emitLoadConstPool(*AllocMBB, MBBI, DL, ScratchReg0, 0,
+                                   AlignedStackSize);
+      }
+    }
   } else {
-    BuildMI(AllocMBB, DL, TII.get(ARM::MOVi), ScratchReg0)
-        .addImm(AlignedStackSize)
-        .add(predOps(ARMCC::AL))
-        .add(condCodeOp());
+    if (AlignedStackSize < 256) {
+      BuildMI(AllocMBB, DL, TII.get(ARM::MOVi), ScratchReg0)
+          .addImm(AlignedStackSize)
+          .add(predOps(ARMCC::AL))
+          .add(condCodeOp());
+    } else {
+      auto MBBI = AllocMBB->end();
+      auto RegInfo = STI.getRegisterInfo();
+      RegInfo->emitLoadConstPool(*AllocMBB, MBBI, DL, ScratchReg0, 0,
+                                 AlignedStackSize);
+    }
   }
+
   // Pass second argument for the __morestack by Scratch Register #1.
   //   The amount size of stack consumed to save function arguments.
   if (Thumb) {
-    BuildMI(AllocMBB, DL, TII.get(ARM::tMOVi8), ScratchReg1)
-        .add(condCodeOp())
-        .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()))
-        .add(predOps(ARMCC::AL));
+    if (ARMFI->getArgumentStackSize() < 256) {
+      BuildMI(AllocMBB, DL, TII.get(ARM::tMOVi8), ScratchReg1)
+          .add(condCodeOp())
+          .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()))
+          .add(predOps(ARMCC::AL));
+    } else {
+      if (Thumb2) {
+        BuildMI(AllocMBB, DL, TII.get(ARM::t2MOVi32imm), ScratchReg1)
+            .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()));
+      } else {
+        auto MBBI = AllocMBB->end();
+        auto RegInfo = STI.getRegisterInfo();
+        RegInfo->emitLoadConstPool(
+            *AllocMBB, MBBI, DL, ScratchReg1, 0,
+            alignToARMConstant(ARMFI->getArgumentStackSize()));
+      }
+    }
   } else {
-    BuildMI(AllocMBB, DL, TII.get(ARM::MOVi), ScratchReg1)
-        .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()))
-        .add(predOps(ARMCC::AL))
-        .add(condCodeOp());
+    if (alignToARMConstant(ARMFI->getArgumentStackSize()) < 256) {
+      BuildMI(AllocMBB, DL, TII.get(ARM::MOVi), ScratchReg1)
+          .addImm(alignToARMConstant(ARMFI->getArgumentStackSize()))
+          .add(predOps(ARMCC::AL))
+          .add(condCodeOp());
+    } else {
+      auto MBBI = AllocMBB->end();
+      auto RegInfo = STI.getRegisterInfo();
+      RegInfo->emitLoadConstPool(
+          *AllocMBB, MBBI, DL, ScratchReg1, 0,
+          alignToARMConstant(ARMFI->getArgumentStackSize()));
+    }
   }
 
   // push {lr} - Save return address of this function.

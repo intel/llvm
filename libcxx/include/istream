@@ -158,6 +158,7 @@ template <class Stream, class T>
 
 */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
 #include <__utility/forward.h>
 #include <ostream>
@@ -1592,7 +1593,7 @@ operator>>(basic_istream<_CharT, _Traits>& __is, bitset<_Size>& __x)
             size_t __c = 0;
             _CharT __zero = __ct.widen('0');
             _CharT __one = __ct.widen('1');
-            while (__c < _Size)
+            while (__c != _Size)
             {
                 typename _Traits::int_type __i = __is.rdbuf()->sgetc();
                 if (_Traits::eq_int_type(__i, _Traits::eof()))

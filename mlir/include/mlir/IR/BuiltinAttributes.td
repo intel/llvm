@@ -14,6 +14,7 @@
 #ifndef BUILTIN_ATTRIBUTES
 #define BUILTIN_ATTRIBUTES
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinDialect.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/SubElementInterfaces.td"
@@ -152,7 +153,8 @@ def Builtin_DenseIntOrFPElementsAttr : Builtin_Attr<
     Syntax:
 
     ```
-    dense-intorfloat-elements-attribute ::= `dense` `<` attribute-value `>` `:`
+    tensor-literal ::= integer-literal | float-literal | bool-literal | [] | [tensor-literal (, tensor-literal)* ]
+    dense-intorfloat-elements-attribute ::= `dense` `<` tensor-literal `>` `:`
                                             ( tensor-type | vector-type )
     ```
 
@@ -1098,11 +1100,11 @@ def Builtin_UnitAttr : Builtin_Attr<"Unit"> {
 
     ```mlir
     // A unit attribute defined with the `unit` value specifier.
-    func @verbose_form() attributes {dialectName.unitAttr = unit}
+    func.func @verbose_form() attributes {dialectName.unitAttr = unit}
 
     // A unit attribute in an attribute dictionary can also be defined without
     // the value specifier.
-    func @simple_form() attributes {dialectName.unitAttr}
+    func.func @simple_form() attributes {dialectName.unitAttr}
     ```
   }];
   let extraClassDeclaration = [{

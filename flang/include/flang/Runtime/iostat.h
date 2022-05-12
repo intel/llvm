@@ -56,6 +56,20 @@ enum Iostat {
   IostatBackspaceAtFirstRecord,
   IostatRewindNonSequential,
   IostatWriteAfterEndfile,
+  IostatFormattedIoOnUnformattedUnit,
+  IostatUnformattedIoOnFormattedUnit,
+  IostatListIoOnDirectAccessUnit,
+  IostatUnformattedChildOnFormattedParent,
+  IostatFormattedChildOnUnformattedParent,
+  IostatChildInputFromOutputParent,
+  IostatChildOutputToInputParent,
+  IostatShortRead,
+  IostatMissingTerminator,
+  IostatBadUnformattedRecord,
+  IostatUTF8Decoding,
+  IostatUnitOverflow,
+  IostatBadRealInput,
+  IostatBadScaleFactor,
 };
 
 const char *IostatErrorString(int);

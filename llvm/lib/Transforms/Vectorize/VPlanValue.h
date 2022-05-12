@@ -106,6 +106,7 @@ public:
     VPVFirstOrderRecurrencePHISC,
     VPVWidenPHISC,
     VPVWidenIntOrFpInductionSC,
+    VPVWidenPointerInductionSC,
     VPVPredInstPHI,
     VPVReductionPHISC,
   };
@@ -327,10 +328,12 @@ public:
   /// type identification.
   using VPRecipeTy = enum {
     VPBranchOnMaskSC,
+    VPExpandSCEVSC,
     VPInstructionSC,
     VPInterleaveSC,
     VPReductionSC,
     VPReplicateSC,
+    VPScalarIVStepsSC,
     VPWidenCallSC,
     VPWidenCanonicalIVSC,
     VPWidenGEPSC,
@@ -344,6 +347,7 @@ public:
     VPFirstOrderRecurrencePHISC,
     VPWidenPHISC,
     VPWidenIntOrFpInductionSC,
+    VPWidenPointerInductionSC,
     VPPredInstPHISC,
     VPReductionPHISC,
     VPFirstPHISC = VPBlendSC,

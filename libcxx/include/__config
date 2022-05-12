@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _LIBCPP_CONFIG
-#define _LIBCPP_CONFIG
+#ifndef _LIBCPP___CONFIG
+#define _LIBCPP___CONFIG
 
 #include <__config_site>
 
@@ -114,6 +114,8 @@
 #  define _LIBCPP_ABI_DO_NOT_EXPORT_BASIC_STRING_COMMON
 // Remove vector base class
 #  define _LIBCPP_ABI_DO_NOT_EXPORT_VECTOR_BASE_COMMON
+// According to the Standard, `bitset::operator[] const` returns bool
+#  define _LIBCPP_ABI_BITSET_VECTOR_BOOL_CONST_SUBSCRIPT_RETURN_BOOL
 #elif _LIBCPP_ABI_VERSION == 1
 #  if !defined(_LIBCPP_OBJECT_FORMAT_COFF)
 // Enable compiling copies of now inline methods into the dylib to support
@@ -294,19 +296,6 @@
 #    define _LIBCPP_HAS_BITSCAN64
 #  endif
 #  define _LIBCPP_HAS_OPEN_WITH_WCHAR
-#  if defined(_LIBCPP_MSVCRT)
-#    define _LIBCPP_HAS_QUICK_EXIT
-#  endif
-
-// Some CRT APIs are unavailable to store apps
-#  if defined(WINAPI_FAMILY)
-#    include <winapifamily.h>
-#    if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP) &&                  \
-        (!defined(WINAPI_PARTITION_SYSTEM) ||                                  \
-         !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_SYSTEM))
-#      define _LIBCPP_WINDOWS_STORE_APP
-#    endif
-#  endif
 #endif // defined(_WIN32)
 
 #ifdef __sun__
@@ -361,7 +350,8 @@
 //      Use rand_s(), for use on Windows.
 //      When this option is used, the token passed to `std::random_device`'s
 //      constructor *must* be "/dev/urandom" -- anything else is an error.
-#if defined(__OpenBSD__) || defined(__APPLE__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || \
+    defined(__OpenBSD__) || defined(__DragonFly__)
 #  define _LIBCPP_USING_ARC4_RANDOM
 #elif defined(__wasi__)
 #  define _LIBCPP_USING_GETENTROPY
@@ -392,72 +382,6 @@
 #  define _LIBCPP_NO_CFI
 #endif
 
-// If the compiler supports using_if_exists, pretend we have those functions and they'll
-// be picked up if the C library provides them.
-//
-// TODO: Once we drop support for Clang 12, we can assume the compiler supports using_if_exists
-//       for platforms that don't have a conforming C11 library, so we can drop this whole thing.
-#if __has_attribute(using_if_exists)
-# define _LIBCPP_HAS_TIMESPEC_GET
-# define _LIBCPP_HAS_QUICK_EXIT
-# define _LIBCPP_HAS_ALIGNED_ALLOC
-#else
-#if (defined(__ISO_C_VISIBLE) && (__ISO_C_VISIBLE >= 2011)) || __cplusplus >= 201103L
-#  if defined(__FreeBSD__)
-#    define _LIBCPP_HAS_ALIGNED_ALLOC
-#    define _LIBCPP_HAS_QUICK_EXIT
-#    if __FreeBSD_version >= 1300064 || \
-       (__FreeBSD_version >= 1201504 && __FreeBSD_version < 1300000)
-#      define _LIBCPP_HAS_TIMESPEC_GET
-#    endif
-#  elif defined(__BIONIC__)
-#    if __ANDROID_API__ >= 21
-#      define _LIBCPP_HAS_QUICK_EXIT
-#    endif
-#    if __ANDROID_API__ >= 28
-#      define _LIBCPP_HAS_ALIGNED_ALLOC
-#    endif
-#    if __ANDROID_API__ >= 29
-#      define _LIBCPP_HAS_TIMESPEC_GET
-#    endif
-#  elif defined(__Fuchsia__) || defined(__wasi__) || defined(__NetBSD__)
-#    define _LIBCPP_HAS_ALIGNED_ALLOC
-#    define _LIBCPP_HAS_QUICK_EXIT
-#    define _LIBCPP_HAS_TIMESPEC_GET
-#  elif defined(__OpenBSD__)
-#    define _LIBCPP_HAS_ALIGNED_ALLOC
-#    define _LIBCPP_HAS_TIMESPEC_GET
-#  elif defined(__linux__)
-#    if !defined(_LIBCPP_HAS_MUSL_LIBC)
-#      if _LIBCPP_GLIBC_PREREQ(2, 15) || defined(__BIONIC__)
-#        define _LIBCPP_HAS_QUICK_EXIT
-#      endif
-#      if _LIBCPP_GLIBC_PREREQ(2, 17)
-#        define _LIBCPP_HAS_ALIGNED_ALLOC
-#        define _LIBCPP_HAS_TIMESPEC_GET
-#      endif
-#    else // defined(_LIBCPP_HAS_MUSL_LIBC)
-#      define _LIBCPP_HAS_ALIGNED_ALLOC
-#      define _LIBCPP_HAS_QUICK_EXIT
-#      define _LIBCPP_HAS_TIMESPEC_GET
-#    endif
-#  elif defined(_LIBCPP_MSVCRT)
-     // Using Microsoft's C Runtime library, not MinGW
-#    define _LIBCPP_HAS_TIMESPEC_GET
-#  elif defined(__APPLE__)
-     // timespec_get and aligned_alloc were introduced in macOS 10.15 and
-     // aligned releases
-#    if ((defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101500) || \
-         (defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ >= 130000) || \
-         (defined(__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__ >= 130000) || \
-         (defined(__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__ >= 60000))
-#      define _LIBCPP_HAS_ALIGNED_ALLOC
-#      define _LIBCPP_HAS_TIMESPEC_GET
-#    endif
-#  endif // __APPLE__
-#endif
-#endif // __has_attribute(using_if_exists)
-
 #ifndef _LIBCPP_CXX03_LANG
 # define _LIBCPP_ALIGNOF(_Tp) alignof(_Tp)
 #elif defined(_LIBCPP_COMPILER_CLANG_BASED)
@@ -470,9 +394,6 @@
 
 #if defined(_LIBCPP_COMPILER_CLANG_BASED)
 
-#if defined(_LIBCPP_ALTERNATE_STRING_LAYOUT)
-#  error _LIBCPP_ALTERNATE_STRING_LAYOUT is deprecated, please use _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT instead
-#endif
 #if defined(__APPLE__) && !defined(__i386__) && !defined(__x86_64__) &&       \
     (!defined(__arm__) || __ARM_ARCH_7K__ >= 2)
 #  define _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT
@@ -493,10 +414,6 @@ typedef __char32_t char32_t;
 
 #if !__has_feature(cxx_exceptions)
 #  define _LIBCPP_NO_EXCEPTIONS
-#endif
-
-#if !(__has_feature(cxx_strong_enums))
-#define _LIBCPP_HAS_NO_STRONG_ENUMS
 #endif
 
 #if __has_feature(cxx_attributes)
@@ -846,10 +763,6 @@ typedef unsigned int   char32_t;
 #  define _LIBCPP_CONSTEVAL consteval
 #endif
 
-#if _LIBCPP_STD_VER <= 17 || !defined(__cpp_concepts) || __cpp_concepts < 201907L
-#define _LIBCPP_HAS_NO_CONCEPTS
-#endif
-
 #ifdef __GNUC__
 #  define _LIBCPP_NOALIAS __attribute__((__malloc__))
 #else
@@ -862,7 +775,7 @@ typedef unsigned int   char32_t;
 # define _LIBCPP_USING_IF_EXISTS
 #endif
 
-#ifdef _LIBCPP_HAS_NO_STRONG_ENUMS
+#ifdef _LIBCPP_CXX03_LANG
 #  define _LIBCPP_DECLARE_STRONG_ENUM(x) struct _LIBCPP_TYPE_VIS x { enum __lx
 #  define _LIBCPP_DECLARE_STRONG_ENUM_EPILOG(x) \
      __lx __v_; \
@@ -870,10 +783,10 @@ typedef unsigned int   char32_t;
      _LIBCPP_INLINE_VISIBILITY explicit x(int __v) : __v_(static_cast<__lx>(__v)) {} \
      _LIBCPP_INLINE_VISIBILITY operator int() const {return __v_;} \
      };
-#else  // _LIBCPP_HAS_NO_STRONG_ENUMS
+#else  // _LIBCPP_CXX03_LANG
 #  define _LIBCPP_DECLARE_STRONG_ENUM(x) enum class _LIBCPP_ENUM_VIS x
 #  define _LIBCPP_DECLARE_STRONG_ENUM_EPILOG(x)
-#endif // _LIBCPP_HAS_NO_STRONG_ENUMS
+#endif // _LIBCPP_CXX03_LANG
 
 // _LIBCPP_DEBUG potential values:
 //  - undefined: No assertions. This is the default.
@@ -1440,6 +1353,14 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(
 #  define _LIBCPP_GCC_DIAGNOSTIC_IGNORED(str)
 #endif
 
+#if defined(_AIX) && !defined(_LIBCPP_COMPILER_GCC)
+#  define _LIBCPP_PACKED_BYTE_FOR_AIX _Pragma("pack(1)")
+#  define _LIBCPP_PACKED_BYTE_FOR_AIX_END _Pragma("pack(pop)")
+#else
+#  define _LIBCPP_PACKED_BYTE_FOR_AIX      /* empty */
+#  define _LIBCPP_PACKED_BYTE_FOR_AIX_END  /* empty */
+#endif
+
 #endif // __cplusplus
 
-#endif // _LIBCPP_CONFIG
+#endif // _LIBCPP___CONFIG

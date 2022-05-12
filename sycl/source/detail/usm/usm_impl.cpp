@@ -150,8 +150,16 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     }
     case alloc::shared: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
-          &RetVal, C, Id, nullptr, Size, Alignment);
+      if (PropList.has_property<
+              cl::sycl::ext::oneapi::property::usm::device_read_only>()) {
+        pi_usm_mem_properties Props[3] = {PI_MEM_ALLOC_FLAGS,
+                                          PI_MEM_ALLOC_DEVICE_READ_ONLY, 0};
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
+            &RetVal, C, Id, Props, Size, Alignment);
+      } else {
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
+            &RetVal, C, Id, nullptr, Size, Alignment);
+      }
       break;
     }
     case alloc::host:
@@ -290,8 +298,10 @@ void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt,
 }
 
 void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt,
-                    const property_list &, const detail::code_location CL) {
-  return malloc_shared(Size, Dev, Ctxt, CL);
+                    const property_list &PropList,
+                    const detail::code_location CL) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared, CL,
+                                   PropList);
 }
 
 void *malloc_shared(size_t Size, const queue &Q,
@@ -334,9 +344,10 @@ void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
 }
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
-                           const context &Ctxt, const property_list &,
+                           const context &Ctxt, const property_list &PropList,
                            const detail::code_location CL) {
-  return aligned_alloc_shared(Alignment, Size, Dev, Ctxt, CL);
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared,
+                                   CL, PropList);
 }
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q,

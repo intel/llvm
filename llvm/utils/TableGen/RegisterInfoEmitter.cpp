@@ -753,7 +753,7 @@ RegisterInfoEmitter::emitComposeSubRegIndices(raw_ostream &OS,
   }
   OS << "  };\n\n";
 
-  OS << "  --IdxA; assert(IdxA < " << SubRegIndicesSize << ");\n"
+  OS << "  --IdxA; assert(IdxA < " << SubRegIndicesSize << "); (void) IdxA;\n"
      << "  --IdxB; assert(IdxB < " << SubRegIndicesSize << ");\n";
   if (Rows.size() > 1)
     OS << "  return Rows[RowMap[IdxA]][IdxB];\n";
@@ -814,12 +814,14 @@ RegisterInfoEmitter::emitComposeSubRegIndexLaneMask(raw_ostream &OS,
     OS << "  // Sequence " << Idx << "\n";
     Idx += Sequence.size() + 1;
   }
+  auto *IntType = getMinimalTypeForRange(*std::max_element(
+      SubReg2SequenceIndexMap.begin(), SubReg2SequenceIndexMap.end()));
   OS << "  };\n"
-        "  static const MaskRolOp *const CompositeSequences[] = {\n";
+        "  static const "
+     << IntType << " CompositeSequences[] = {\n";
   for (size_t i = 0, e = SubRegIndices.size(); i != e; ++i) {
     OS << "    ";
-    unsigned Idx = SubReg2SequenceIndexMap[i];
-    OS << format("&LaneMaskComposeSequences[%u]", Idx);
+    OS << SubReg2SequenceIndexMap[i];
     if (i+1 != e)
       OS << ",";
     OS << " // to " << SubRegIndices[i].getName() << "\n";
@@ -832,7 +834,9 @@ RegisterInfoEmitter::emitComposeSubRegIndexLaneMask(raw_ostream &OS,
         "  --IdxA; assert(IdxA < " << SubRegIndices.size()
      << " && \"Subregister index out of bounds\");\n"
         "  LaneBitmask Result;\n"
-        "  for (const MaskRolOp *Ops = CompositeSequences[IdxA]; Ops->Mask.any(); ++Ops) {\n"
+        "  for (const MaskRolOp *Ops =\n"
+        "       &LaneMaskComposeSequences[CompositeSequences[IdxA]];\n"
+        "       Ops->Mask.any(); ++Ops) {\n"
         "    LaneBitmask::Type M = LaneMask.getAsInteger() & Ops->Mask.getAsInteger();\n"
         "    if (unsigned S = Ops->RotateLeft)\n"
         "      Result |= LaneBitmask((M << S) | (M >> (LaneBitmask::BitWidth - S)));\n"
@@ -849,7 +853,9 @@ RegisterInfoEmitter::emitComposeSubRegIndexLaneMask(raw_ostream &OS,
         "  --IdxA; assert(IdxA < " << SubRegIndices.size()
      << " && \"Subregister index out of bounds\");\n"
         "  LaneBitmask Result;\n"
-        "  for (const MaskRolOp *Ops = CompositeSequences[IdxA]; Ops->Mask.any(); ++Ops) {\n"
+        "  for (const MaskRolOp *Ops =\n"
+        "       &LaneMaskComposeSequences[CompositeSequences[IdxA]];\n"
+        "       Ops->Mask.any(); ++Ops) {\n"
         "    LaneBitmask::Type M = LaneMask.getAsInteger();\n"
         "    if (unsigned S = Ops->RotateLeft)\n"
         "      Result |= LaneBitmask((M >> S) | (M << (LaneBitmask::BitWidth - S)));\n"
@@ -1720,6 +1726,7 @@ void RegisterInfoEmitter::debugDump(raw_ostream &OS) {
     OS << "\tHasDisjunctSubRegs: " << RC.HasDisjunctSubRegs << '\n';
     OS << "\tCoveredBySubRegs: " << RC.CoveredBySubRegs << '\n';
     OS << "\tAllocatable: " << RC.Allocatable << '\n';
+    OS << "\tAllocationPriority: " << unsigned(RC.AllocationPriority) << '\n';
     OS << "\tRegs:";
     for (const CodeGenRegister *R : RC.getMembers()) {
       OS << " " << R->getName();

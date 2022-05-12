@@ -5929,41 +5929,44 @@ _mm512_maskz_srlv_epi64(__mmask8 __U, __m512i __X, __m512i __Y)
                                             (__v8di)_mm512_setzero_si512());
 }
 
-#define _mm512_ternarylogic_epi32(A, B, C, imm) \
-  ((__m512i)__builtin_ia32_pternlogd512_mask((__v16si)(__m512i)(A), \
-                                             (__v16si)(__m512i)(B), \
-                                             (__v16si)(__m512i)(C), (int)(imm), \
-                                             (__mmask16)-1))
+/// \enum _MM_TERNLOG_ENUM
+///    A helper to represent the ternary logic operations among vector \a A,
+///    \a B and \a C. The representation is passed to \a imm.
+typedef enum {
+  _MM_TERNLOG_A = 0xF0,
+  _MM_TERNLOG_B = 0xCC,
+  _MM_TERNLOG_C = 0xAA
+} _MM_TERNLOG_ENUM;
 
-#define _mm512_mask_ternarylogic_epi32(A, U, B, C, imm) \
-  ((__m512i)__builtin_ia32_pternlogd512_mask((__v16si)(__m512i)(A), \
-                                             (__v16si)(__m512i)(B), \
-                                             (__v16si)(__m512i)(C), (int)(imm), \
-                                             (__mmask16)(U)))
+#define _mm512_ternarylogic_epi32(A, B, C, imm)                                \
+  ((__m512i)__builtin_ia32_pternlogd512_mask(                                  \
+      (__v16si)(__m512i)(A), (__v16si)(__m512i)(B), (__v16si)(__m512i)(C),     \
+      (unsigned char)(imm), (__mmask16)-1))
 
-#define _mm512_maskz_ternarylogic_epi32(U, A, B, C, imm) \
-  ((__m512i)__builtin_ia32_pternlogd512_maskz((__v16si)(__m512i)(A), \
-                                              (__v16si)(__m512i)(B), \
-                                              (__v16si)(__m512i)(C), \
-                                              (int)(imm), (__mmask16)(U)))
+#define _mm512_mask_ternarylogic_epi32(A, U, B, C, imm)                        \
+  ((__m512i)__builtin_ia32_pternlogd512_mask(                                  \
+      (__v16si)(__m512i)(A), (__v16si)(__m512i)(B), (__v16si)(__m512i)(C),     \
+      (unsigned char)(imm), (__mmask16)(U)))
 
-#define _mm512_ternarylogic_epi64(A, B, C, imm) \
-  ((__m512i)__builtin_ia32_pternlogq512_mask((__v8di)(__m512i)(A), \
-                                             (__v8di)(__m512i)(B), \
-                                             (__v8di)(__m512i)(C), (int)(imm), \
-                                             (__mmask8)-1))
+#define _mm512_maskz_ternarylogic_epi32(U, A, B, C, imm)                       \
+  ((__m512i)__builtin_ia32_pternlogd512_maskz(                                 \
+      (__v16si)(__m512i)(A), (__v16si)(__m512i)(B), (__v16si)(__m512i)(C),     \
+      (unsigned char)(imm), (__mmask16)(U)))
 
-#define _mm512_mask_ternarylogic_epi64(A, U, B, C, imm) \
-  ((__m512i)__builtin_ia32_pternlogq512_mask((__v8di)(__m512i)(A), \
-                                             (__v8di)(__m512i)(B), \
-                                             (__v8di)(__m512i)(C), (int)(imm), \
-                                             (__mmask8)(U)))
+#define _mm512_ternarylogic_epi64(A, B, C, imm)                                \
+  ((__m512i)__builtin_ia32_pternlogq512_mask(                                  \
+      (__v8di)(__m512i)(A), (__v8di)(__m512i)(B), (__v8di)(__m512i)(C),        \
+      (unsigned char)(imm), (__mmask8)-1))
 
-#define _mm512_maskz_ternarylogic_epi64(U, A, B, C, imm) \
-  ((__m512i)__builtin_ia32_pternlogq512_maskz((__v8di)(__m512i)(A), \
-                                              (__v8di)(__m512i)(B), \
-                                              (__v8di)(__m512i)(C), (int)(imm), \
-                                              (__mmask8)(U)))
+#define _mm512_mask_ternarylogic_epi64(A, U, B, C, imm)                        \
+  ((__m512i)__builtin_ia32_pternlogq512_mask(                                  \
+      (__v8di)(__m512i)(A), (__v8di)(__m512i)(B), (__v8di)(__m512i)(C),        \
+      (unsigned char)(imm), (__mmask8)(U)))
+
+#define _mm512_maskz_ternarylogic_epi64(U, A, B, C, imm)                       \
+  ((__m512i)__builtin_ia32_pternlogq512_maskz(                                 \
+      (__v8di)(__m512i)(A), (__v8di)(__m512i)(B), (__v8di)(__m512i)(C),        \
+      (unsigned char)(imm), (__mmask8)(U)))
 
 #ifdef __x86_64__
 #define _mm_cvt_roundsd_i64(A, R) \
@@ -9316,7 +9319,7 @@ _mm512_mask_abs_pd(__m512d __W, __mmask8 __K, __m512d __A)
  */
 
 static __inline__ long long __DEFAULT_FN_ATTRS512 _mm512_reduce_add_epi64(__m512i __W) {
-  return __builtin_ia32_reduce_add_q512(__W);
+  return __builtin_reduce_add((__v8di)__W);
 }
 
 static __inline__ long long __DEFAULT_FN_ATTRS512 _mm512_reduce_mul_epi64(__m512i __W) {
@@ -9334,7 +9337,7 @@ static __inline__ long long __DEFAULT_FN_ATTRS512 _mm512_reduce_or_epi64(__m512i
 static __inline__ long long __DEFAULT_FN_ATTRS512
 _mm512_mask_reduce_add_epi64(__mmask8 __M, __m512i __W) {
   __W = _mm512_maskz_mov_epi64(__M, __W);
-  return __builtin_ia32_reduce_add_q512(__W);
+  return __builtin_reduce_add((__v8di)__W);
 }
 
 static __inline__ long long __DEFAULT_FN_ATTRS512
@@ -9380,7 +9383,7 @@ _mm512_mask_reduce_mul_pd(__mmask8 __M, __m512d __W) {
 
 static __inline__ int __DEFAULT_FN_ATTRS512
 _mm512_reduce_add_epi32(__m512i __W) {
-  return __builtin_ia32_reduce_add_d512((__v16si)__W);
+  return __builtin_reduce_add((__v16si)__W);
 }
 
 static __inline__ int __DEFAULT_FN_ATTRS512
@@ -9401,7 +9404,7 @@ _mm512_reduce_or_epi32(__m512i __W) {
 static __inline__ int __DEFAULT_FN_ATTRS512
 _mm512_mask_reduce_add_epi32( __mmask16 __M, __m512i __W) {
   __W = _mm512_maskz_mov_epi32(__M, __W);
-  return __builtin_ia32_reduce_add_d512((__v16si)__W);
+  return __builtin_reduce_add((__v16si)__W);
 }
 
 static __inline__ int __DEFAULT_FN_ATTRS512
