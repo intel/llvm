@@ -270,6 +270,7 @@ LANGOPT(GPUExcludeWrongSideOverloads, 1, 0, "always exclude wrong side overloads
 
 LANGOPT(SYCLIsDevice      , 1, 0, "Generate code for SYCL device")
 LANGOPT(SYCLIsHost        , 1, 0, "SYCL host compilation")
+LANGOPT(IntelFPGA         , 1, 0, "Perform ahead-of-time compilation for FPGA")
 LANGOPT(SYCLAllowFuncPtr  , 1, 0, "Allow function pointers in SYCL device code")
 LANGOPT(SYCLStdLayoutKernelParams, 1, 0, "Enable standard layout requirement for SYCL kernel parameters")
 LANGOPT(SYCLUnnamedLambda , 1, 0, "Allow unnamed lambda SYCL kernels")
