@@ -517,7 +517,8 @@ __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
 ///   undefined.
 /// @return Read data - up to N*4 values of type \c Tx.
 ///
-template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T, int N>
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
+          int N>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4,
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
 gather_rgba(const T *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
@@ -568,7 +569,8 @@ template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
 ///   predicate are not accessed. Their values in the resulting vector are
 ///   undefined.
 ///
-template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T, int N>
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
+          int N>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4>
 scatter_rgba(T *p, simd<uint32_t, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
@@ -613,7 +615,8 @@ __ESIMD_API std::
 ///   undefined.
 /// @return Read data - up to N*4 values of type \c Tx.
 ///
-template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename AccessorT, int N,
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          typename AccessorT, int N,
           typename T = typename AccessorT::value_type>
 __ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
                               sizeof(T) == 4 && !std::is_pointer_v<AccessorT>),
@@ -642,7 +645,8 @@ gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
 /// @param global_offset Byte offset of the pixels relative to the base pointer.
 /// @param mask Operation mask. All-1 by default.
 ///
-template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename AccessorT, int N,
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          typename AccessorT, int N,
           typename T = typename AccessorT::value_type>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
                              !std::is_pointer_v<AccessorT>>
