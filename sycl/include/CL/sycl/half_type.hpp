@@ -202,6 +202,8 @@ public:
   constexpr half_v2(half_v2 &&) = default;
 
   __SYCL_CONSTEXPR_HALF half_v2(const float &rhs) : Buf(float2Half(rhs)) {}
+  __SYCL_CONSTEXPR_HALF explicit half_v2(const double &rhs)
+      : Buf(float2Half(rhs)) {}
 
   constexpr half_v2 &operator=(const half_v2 &rhs) = default;
 
