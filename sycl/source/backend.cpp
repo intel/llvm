@@ -91,8 +91,8 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(),
-      nullptr, &PiQueue, !KeepOwnership);
+      NativeHandle, ContextImpl->getHandleRef(), nullptr, &PiQueue,
+      !KeepOwnership);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
