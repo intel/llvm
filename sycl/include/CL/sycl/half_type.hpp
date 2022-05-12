@@ -218,19 +218,19 @@ public:
   }
   __SYCL_CONSTEXPR_HALF friend bool operator<(const half_v2 &lhs,
                                               const half_v2 &rhs) {
-    return lhs.Buf < rhs.Buf;
+    return half2Float(lhs.Buf) < half2Float(rhs.Buf);
   }
   __SYCL_CONSTEXPR_HALF friend bool operator>(const half_v2 &lhs,
                                               const half_v2 &rhs) {
-    return lhs.Buf > rhs.Buf;
+    return half2Float(lhs.Buf) > half2Float(rhs.Buf);
   }
   __SYCL_CONSTEXPR_HALF friend bool operator>=(const half_v2 &lhs,
                                                const half_v2 &rhs) {
-    return lhs.Buf >= rhs.Buf;
+    return half2Float(lhs.Buf) >= half2Float(rhs.Buf);
   }
   __SYCL_CONSTEXPR_HALF friend bool operator<=(const half_v2 &lhs,
                                                const half_v2 &rhs) {
-    return lhs.Buf <= rhs.Buf;
+    return half2Float(lhs.Buf) <= half2Float(rhs.Buf);
   }
 
   // Operator +=, -=, *=, /=
@@ -278,8 +278,9 @@ public:
   }
 
   // Operator neg
-  __SYCL_CONSTEXPR_HALF friend half_v2 operator-(const half_v2 other) {
-    return half_v2(uint16_t(-other.Buf ^ 0x800));
+  __SYCL_CONSTEXPR_HALF friend half_v2 operator-(half_v2 other) {
+    other.Buf |= 0x8000;
+    return other;
   }
 
   // Operator float
