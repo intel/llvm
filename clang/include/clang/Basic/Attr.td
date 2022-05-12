@@ -1226,7 +1226,7 @@ def : MutualExclusions<[CUDAConstant, CUDAShared, HIPManaged]>;
 def SYCLDevice : InheritableAttr {
   let Spellings = [GNU<"sycl_device">];
   let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceDocs];
 }
 

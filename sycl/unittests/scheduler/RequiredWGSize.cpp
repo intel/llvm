@@ -238,6 +238,5 @@ TEST(RequiredWGSize, NoRequiredSize) {
 TEST(RequiredWGSize, HasRequiredSize) {
   reset();
   RequiredLocalSize = {1, 2, 3};
-  return; // FIXME: Resolve post-commit failures.
   performChecks();
 }
