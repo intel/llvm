@@ -21,6 +21,15 @@
       llvm::report_fatal_error(llvm::Twine(__FILE__ " ") + (Msg));             \
   } while (false)
 
+#define CHECK_AND_EXIT(E)                                                      \
+  {                                                                            \
+    Error LocE = std::move(E);                                                 \
+    if (LocE) {                                                                \
+      logAllUnhandledErrors(std::move(LocE), WithColor::error(errs()));        \
+      exit(1);                                                                 \
+    }                                                                          \
+  }
+
 namespace llvm {
 
 inline void error(const Twine &Msg) {
