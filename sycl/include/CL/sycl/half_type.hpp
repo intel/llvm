@@ -279,7 +279,7 @@ public:
 
   // Operator neg
   __SYCL_CONSTEXPR_HALF friend half_v2 operator-(half_v2 other) {
-    other.Buf |= 0x8000;
+    other.Buf ^= 0x8000;
     return other;
   }
 
