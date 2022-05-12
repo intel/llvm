@@ -244,6 +244,16 @@ for the HIP installation:
 * `SYCL_BUILD_PI_HIP_AMD_LIBRARY`: Path to HIP runtime library (default
   `/opt/rocm/hip/lib/libamdhip64.so`).
 
+These variables can be passed to `configure.py` using `--cmake-opt`, for example
+with a ROCm installation in `/usr/local`:
+
+```
+python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_INCLUDE_DIR=/usr/local/rocm/hip/include \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR=/usr/local/rocm/hsa/include \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_AMD_LIBRARY=/usr/local/rocm/hip/lib/libamdhip64.so
+```
+
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
 There is experimental support for DPC++ for HIP on Nvidia devices. Note as this
