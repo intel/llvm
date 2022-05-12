@@ -173,7 +173,7 @@ linux (WSL) is not needed to build and run the CUDA backend.
 
 Errors may occur if DPC++ is built with a toolkit version which is higher than
 the CUDA driver version. In order to check that the CUDA driver and toolkits
-match, use the cuda executable `deviceQuery` which is usually found in 
+match, use the CUDA executable `deviceQuery` which is usually found in 
 `$CUDA_INSTALL_DIR/cuda/extras/demo_suite/deviceQuery`.
 
 Enabling this flag requires an installation of
