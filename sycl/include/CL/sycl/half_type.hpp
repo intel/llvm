@@ -205,6 +205,32 @@ public:
 
   constexpr half_v2 &operator=(const half_v2 &rhs) = default;
 
+  // Operator ==
+  __SYCL_CONSTEXPR_HALF friend bool operator==(const half_v2 &lhs,
+                                               const half_v2 &rhs) {
+    return lhs.Buf == rhs.Buf;
+  }
+  __SYCL_CONSTEXPR_HALF friend bool operator!=(const half_v2 &lhs,
+                                               const half_v2 &rhs) {
+    return lhs.Buf != rhs.Buf;
+  }
+  __SYCL_CONSTEXPR_HALF friend bool operator<(const half_v2 &lhs,
+                                              const half_v2 &rhs) {
+    return lhs.Buf < rhs.Buf;
+  }
+  __SYCL_CONSTEXPR_HALF friend bool operator>(const half_v2 &lhs,
+                                              const half_v2 &rhs) {
+    return lhs.Buf > rhs.Buf;
+  }
+  __SYCL_CONSTEXPR_HALF friend bool operator>=(const half_v2 &lhs,
+                                               const half_v2 &rhs) {
+    return lhs.Buf >= rhs.Buf;
+  }
+  __SYCL_CONSTEXPR_HALF friend bool operator<=(const half_v2 &lhs,
+                                               const half_v2 &rhs) {
+    return lhs.Buf <= rhs.Buf;
+  }
+
   // Operator +=, -=, *=, /=
   __SYCL_CONSTEXPR_HALF half_v2 &operator+=(const half_v2 &rhs) {
     *this = operator float() + static_cast<float>(rhs);
@@ -250,9 +276,8 @@ public:
   }
 
   // Operator neg
-  constexpr half_v2 &operator-() {
-    Buf ^= 0x8000;
-    return *this;
+  __SYCL_CONSTEXPR_HALF friend half_v2 operator-(const half_v2 other) {
+    return half_v2(uint16_t(-other.Buf ^ 0x800));
   }
 
   // Operator float
@@ -509,67 +534,67 @@ public:
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const double &rhs) {           \
-    return lhs.Data op rhs;                                                    \
+    return lhs.Data op static_cast<StorageT>(rhs);                             \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const double &lhs,             \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return static_cast<StorageT>(lhs) op rhs.Data;                             \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const float &rhs) {            \
-    return lhs.Data op rhs;                                                    \
+    return lhs.Data op static_cast<StorageT>(rhs);                             \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const float &lhs,              \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return static_cast<StorageT>(lhs) op rhs.Data;                             \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const int &rhs) {              \
-    return lhs.Data op rhs;                                                    \
+    return static_cast<int>(lhs.Data) op rhs;                                  \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const int &lhs,                \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op static_cast<int>(rhs.Data);                                  \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const long &rhs) {             \
-    return lhs.Data op rhs;                                                    \
+    return static_cast<long>(lhs.Data) op rhs;                                 \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const long &lhs,               \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op static_cast<long>(rhs.Data);                                 \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const long long &rhs) {        \
-    return lhs.Data op rhs;                                                    \
+    return static_cast<long long>(lhs.Data) op rhs;                            \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const long long &lhs,          \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op static_cast<long long>(rhs.Data);                            \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const unsigned int &rhs) {     \
-    return lhs.Data op rhs;                                                    \
+    return static_cast<unsigned int>(lhs.Data) op rhs;                         \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned int &lhs,       \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op static_cast<unsigned int>(rhs.Data);                         \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const unsigned long &rhs) {    \
-    return lhs.Data op rhs;                                                    \
+    return static_cast<unsigned long>(lhs.Data) op rhs;                        \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned long &lhs,      \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op static_cast<unsigned long>(rhs.Data);                        \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(                               \
       const half &lhs, const unsigned long long &rhs) {                        \
-    return lhs.Data op rhs;                                                    \
+    return static_cast<unsigned long long>(lhs.Data) op rhs;                   \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned long long &lhs, \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op static_cast<unsigned long long>(rhs.Data);                   \
   }
   OP(==)
   OP(!=)
