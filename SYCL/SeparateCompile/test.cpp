@@ -25,8 +25,13 @@
 // RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -output=a.o -output=a_kernel.bc -input=a_fat.o -unbundle
 // RUN: clang-offload-bundler -type=o -targets=host-x86_64,sycl-spir64-pc-linux-gnu -output=b.o -output=b_kernel.bc -input=b_fat.o -unbundle
 //
+// As we are doing a separate device compilation here, we need to explicitly
+// add the device lib instrumentation (itt_compiler_wrapper)
+// >> ---- unbundle compiler wrapper device object
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers%obj_ext -output=compiler_wrappers.bc -unbundle
+//
 // >> ---- link device code
-// RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc
+// RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc compiler_wrappers.bc
 //
 // >> convert linked .bc to spirv
 // RUN: llvm-spirv -o=app.spv app.bc

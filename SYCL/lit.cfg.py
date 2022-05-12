@@ -92,6 +92,10 @@ if config.extra_environment:
            llvm_config.with_environment(var,"")
 
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
+if platform.system() == "Windows":
+    config.substitutions.append( ('%sycl_static_libs_dir',  config.sycl_libs_dir + '/../lib' ) )
+elif platform.system() == "Linux":
+    config.substitutions.append( ('%sycl_static_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 
 if lit_config.params.get('gpu-intel-dg1', False):
@@ -155,6 +159,7 @@ if cl_options:
     config.substitutions.append( ('%cxx_std_option',  '/std:' ) )
     config.substitutions.append( ('%fPIC', '') )
     config.substitutions.append( ('%shared_lib', '/LD') )
+    config.substitutions.append( ('%obj_ext', '.obj') )
 else:
     config.substitutions.append( ('%sycl_options', ' -lsycl -I' +
                                 config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl') +
@@ -168,6 +173,7 @@ else:
     # configurations
     config.substitutions.append( ('%fPIC', ('' if platform.system() == 'Windows' else '-fPIC')) )
     config.substitutions.append( ('%shared_lib', '-shared') )
+    config.substitutions.append( ('%obj_ext', '.o') )
 
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'

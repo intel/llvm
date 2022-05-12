@@ -4,7 +4,15 @@
 // FIXME Disabled fallback assert as it'll require either online linking or
 // explicit offline linking step here
 // FIXME separate compilation requires -fno-sycl-dead-args-optimization
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 -fsycl-device-only -fno-sycl-use-bitcode -fno-sycl-dead-args-optimization -Xclang -fsycl-int-header=%t.h -c %s -o %t.spv -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
+// As we are doing a separate device compilation here, we need to explicitly
+// add the device lib instrumentation (itt_compiler_wrapper)
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 -fsycl-device-only -fsycl-use-bitcode -fno-sycl-dead-args-optimization -Xclang -fsycl-int-header=%t.h -c %s -o %t.bc -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
+// >> ---- unbundle compiler wrapper device object
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers%obj_ext -output=%t_compiler_wrappers.bc -unbundle
+// >> ---- link device code
+// RUN: llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc
+// >> ---- translate to SPIR-V
+// RUN: llvm-spirv -o %t.spv %t_app.bc
 // RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -fno-sycl-dead-args-optimization -Xclang -verify-ignore-unexpected=note,warning
 // RUN: %BE_RUN_PLACEHOLDER env SYCL_USE_KERNEL_SPV=%t.spv %t.out | FileCheck %s
 // CHECK: Passed
