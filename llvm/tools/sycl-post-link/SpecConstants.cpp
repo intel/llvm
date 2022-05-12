@@ -777,7 +777,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
           unsigned Align = M.getDataLayout().getABITypeAlignment(SCTy);
 
-          // Ensure the specialization constant is properly algined
+          // Ensure the specialization constant is properly aligned
           if (CurrentOffset % Align != 0) {
             Padding = Size - CurrentOffset % Align;
           }
