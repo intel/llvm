@@ -278,39 +278,38 @@ private:
                                                             Descriptors.size());
         unsigned LocalOffset = 0;
         while (It != End) {
+          unsigned int ID = It[0];
+          unsigned int CompositeOffset = It[1];
+          unsigned int Size = It[2];
+
           if (MBinImage->supportsSpecConstants()) {
             // Make sure that alignment is correct in blob.
-            const unsigned OffsetFromLast = /*Offset*/ It[1] - LocalOffset;
+            const unsigned OffsetFromLast = CompositeOffset - LocalOffset;
             BlobOffset += OffsetFromLast;
 
-            // Composites may have a special padding element at the end which
-            // should not have a descriptor. These padding elements all have max
-            // ID value.
-            if (It[0] != std::numeric_limits<std::uint32_t>::max()) {
-              // The map is not locked here because updateSpecConstSymMap() is
-              // only supposed to be called from c'tor.
-              MSpecConstSymMap[std::string{SCName}].push_back(
-                  SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
-                                 /*Size*/ It[2], BlobOffset});
-            }
-
-            LocalOffset += OffsetFromLast + /*Size*/ It[2];
+            LocalOffset += OffsetFromLast + Size;
           } else {
             // For emulated specialization constants the CompositeOffset is used
             // to indicate necessary padding to ensure correct alignment.
-            BlobOffset += /* CompositeOffset */ It[1];
+            BlobOffset += CompositeOffset;
 
-            // The map is not locked here because updateSpecConstSymMap() is
-            // only supposed to be called from c'tor.
             // Now that we've handled the padding we can set the
             // CompositeOffset to 0, so that emulated and native spec constants
             // can be handled the same going forward.
-            MSpecConstSymMap[std::string{SCName}].push_back(
-                SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ 0,
-                               /*Size*/ It[2], BlobOffset});
+            CompositeOffset = 0;
           }
 
-          BlobOffset += /*Size*/ It[2];
+          // Composites may have a special padding element at the end which
+          // should not have a descriptor. These padding elements all have max
+          // ID value.
+          if (ID != std::numeric_limits<std::uint32_t>::max()) {
+            // The map is not locked here because updateSpecConstSymMap() is
+            // only supposed to be called from c'tor.
+            MSpecConstSymMap[std::string{SCName}].push_back(
+                SpecConstDescT{ID, CompositeOffset, Size, BlobOffset});
+          }
+
+          BlobOffset += Size;
           It += NumElements;
         }
       }
