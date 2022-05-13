@@ -2,7 +2,6 @@
 /// Perform several driver tests for SYCL offloading
 ///
 
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 
 /// ###########################################################################

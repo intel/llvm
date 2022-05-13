@@ -75,6 +75,8 @@ set(files
   __algorithm/ranges_find.h
   __algorithm/ranges_find_if.h
   __algorithm/ranges_find_if_not.h
+  __algorithm/ranges_for_each.h
+  __algorithm/ranges_for_each_n.h
   __algorithm/ranges_max.h
   __algorithm/ranges_max_element.h
   __algorithm/ranges_min.h
@@ -396,6 +398,7 @@ set(files
   __ranges/transform_view.h
   __ranges/view_interface.h
   __ranges/views.h
+  __ranges/zip_view.h
   __split_buffer
   __std_stream
   __string
