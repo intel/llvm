@@ -134,28 +134,48 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
   using type = ze_event_handle_t;
 };
 
-template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
+struct OptionalDevice {
+
+  OptionalDevice() : DeviceImpl(nullptr) {}
+  OptionalDevice(device dev) : DeviceImpl(getSyclObjImpl(dev)) {}
+
+  operator device() const {
+    if (!hasDevice())
+      throw runtime_error("No device has been set.", PI_INVALID_DEVICE);
+    return createSyclObjFromImpl<device>(DeviceImpl);
+  }
+
+  bool hasDevice() const { return DeviceImpl != nullptr; }
+private:
+  std::shared_ptr<device_impl> DeviceImpl;
+};
+
+template <>
+struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
 
     // TODO: Change this to be device when the deprecated constructor is
     // removed.
-    std::shared_ptr<device_impl> Device;
+    OptionalDevice Device;
+
+    type()
+        : NativeHandle(0),
+          Ownership(ext::oneapi::level_zero::ownership::transfer), Device() {}
 
     __SYCL_DEPRECATED("Use backend_input_t<backend::ext_oneapi_level_zero, "
                       "queue> constructor with device parameter")
     type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
          ext::oneapi::level_zero::ownership ownership =
              ext::oneapi::level_zero::ownership::transfer)
-        : NativeHandle(nativeHandle), Ownership(ownership), Device(nullptr) {}
+        : NativeHandle(nativeHandle), Ownership(ownership), Device() {}
 
     type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
          device dev,
          ext::oneapi::level_zero::ownership ownership =
              ext::oneapi::level_zero::ownership::transfer)
-        : NativeHandle(nativeHandle), Ownership(ownership),
-          Device(getSyclObjImpl(dev)) {}
+        : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
   };
 };
 
