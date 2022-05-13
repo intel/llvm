@@ -14,6 +14,7 @@ This extension provides a feature-test macro as described in the core SYCL speci
 |---|:---|
 |1|Initial extension version.
 |2|Added support for the make_buffer() API.
+|3|Added device member to backend_input_t<backend::ext_oneapi_level_zero, queue>.
 
 NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
       as deprecated and will be removed in the next release.
