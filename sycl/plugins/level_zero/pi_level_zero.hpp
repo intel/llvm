@@ -889,7 +889,11 @@ struct _pi_queue : _pi_object {
   // needs to be set to true. The caller must verify that this command list and
   // fence have been signalled.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
-                             bool MakeAvailable);
+                             bool MakeAvailable, std::vector<_pi_event*>& EventListToCleanup);
+
+  pi_result resetCommandLists();
+
+  pi_result cleanup_garbage();
 
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
@@ -1247,12 +1251,15 @@ struct _pi_event : _pi_object {
   _pi_ze_event_list_t WaitList;
 
   // Performs the cleanup of a completed event.
-  pi_result cleanup(pi_queue LockedQueue = nullptr);
+  pi_result cleanup();
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.
   //
   bool CleanedUp = {false};
+
+  // Performs the cleanup of dependant events of a completed event.
+  pi_result cleanupDepEvents();
 
   // Indicates that this PI event had already completed in the sense
   // that no other synchromization is needed. Note that the underlying
