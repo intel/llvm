@@ -280,8 +280,7 @@ constexpr int vectorIndexIncrement() {
 /// @tparam Ty is element type.
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 template <typename Ty, __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_ENS::lsc_data_size DS, int N>
 constexpr unsigned loadstoreAlignMask() {
@@ -657,8 +656,7 @@ void __esimd_emu_write_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @return is a vector of type T and size N * to_int<VS>()
@@ -697,8 +695,7 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
@@ -749,8 +746,7 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the load addresses.
 /// @return is a vector of type T and N * to_int<VS>()
@@ -811,8 +807,7 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
@@ -848,8 +843,7 @@ __esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
@@ -881,8 +875,7 @@ __esimd_lsc_prefetch_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @param vals is values to store.
@@ -920,8 +913,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_slm(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
@@ -971,8 +963,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param vals is values to store.
@@ -1183,8 +1174,7 @@ __esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
@@ -1216,8 +1206,7 @@ __esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
@@ -1252,8 +1241,7 @@ __esimd_lsc_xatomic_slm_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
@@ -1290,8 +1278,7 @@ __esimd_lsc_xatomic_slm_2(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
@@ -1326,8 +1313,7 @@ __esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
@@ -1365,8 +1351,7 @@ __esimd_lsc_xatomic_bti_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
@@ -1406,8 +1391,7 @@ __esimd_lsc_xatomic_bti_2(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
@@ -1439,8 +1423,8 @@ __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
@@ -1475,8 +1459,7 @@ __esimd_lsc_xatomic_stateless_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
@@ -1507,8 +1490,7 @@ __esimd_lsc_xatomic_stateless_2(
 /// @tparam Kind is the Sfid shaded function.
 /// @tparam FenceOp is the fence operation.
 /// @tparam Scope is the operation scope.
-/// @tparam N is the SIMD size of operation (the number of addresses to access,
-/// platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 template <__ESIMD_ENS::lsc_memory_kind Kind, __ESIMD_ENS::lsc_fence_op FenceOp,
           __ESIMD_ENS::lsc_scope Scope, int N>
