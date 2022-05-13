@@ -45,69 +45,10 @@ or may be in a preliminary state.  The specification itself may also change in
 incompatible ways before it is finalized.  *Shipping software products should
 not rely on APIs defined in this specification.*
 
-== Overview
+== Specification
 
 This extension adds support for 2D memcpy routines that can copy a specified
 rectangular region in the presence of array padding.
-
-The handler class gains one new method:
-
-[cols="^60a,40"]
-|===
-| Member Function | Description
-
-a|
-[source,c++]
-----
-void memcpy2D(void *dest, size_t destPitch,
-  const void *src, size_t srcPitch,
-  size_t width, size_t height)
-----
-
-| Copies the data located at `src` to `dest`. The width of a row in bytes,
-including any padding, is specified by `destPitch` for `dest` and `srcPitch`
-for `src`. The amount of data to copy is specified as `width` bytes per row
-times `height` number of rows.  `width` must not be larger than either
-`srcPitch` or `destPitch`.
-
-|===
-
-=== Queue Shortcuts
-
-This extension also defines additional shortcut methods. The `queue` class
-gains three new methods:
-
-[cols="^60a,40"]
-|===
-| Member Function | Description
-
-|
-[source,c++]
-----
-event memcpy2D(void *dest, size_t destPitch,
-  const void *src, size_t srcPitch,
-  size_t width, size_t height)
-
-event memcpy2D(void *dest, size_t destPitch,
-  const void *src, size_t srcPitch,
-  size_t width, size_t height,
-  event depEvent)
-
-event memcpy2D(void *dest, size_t destPitch,
-  const void *src, size_t srcPitch,
-  size_t width, size_t height,
-  const std::vector<event> &depEvents)
-----
-
-| Copies the data located at `src` to `dest`.  The width of a row in bytes,
-including any padding, is specified by `destPitch` for `dest` and `srcPitch`
-for `src`.  The amount of data to copy is specified as `width` bytes per row
-times `height` number of rows.  `width` must not be larger than either `srcPitch`
-or `destPitch`.  If specified, the operation will not begin until the dependent
-events have completed.
-
-|===
-
 
 === Feature test macro
 
@@ -127,5 +68,70 @@ supports.
 |1
 |Initial version of this extension.
 |===
+
+=== API Additions
+
+
+The handler class gains one new method:
+
+[cols="^60a,40"]
+|===
+| Member Function | Description
+
+a|
+[source,c++]
+----
+void ext_oneapi_memcpy2D(void *dest, size_t destPitch,
+  const void *src, size_t srcPitch,
+  size_t width, size_t height)
+----
+
+| Copies the data located at `src` to `dest`. At least one of `src` or `dest`
+must be a USM pointer. The width of a row in bytes,
+including any padding, is specified by `destPitch` for `dest` and `srcPitch`
+for `src`. The amount of data to copy is specified as `width` bytes per row
+times `height` number of rows.  `width` must not be larger than either
+`srcPitch` or `destPitch`, otherwise this function throws a synchronous
+`exception` with the `errc::invalid` error code.
+
+|===
+
+This extension also defines additional shortcut methods. The `queue` class
+gains three new methods:
+
+[cols="^60a,40"]
+|===
+| Member Function | Description
+
+|
+[source,c++]
+----
+event ext_oneapi_memcpy2D(void *dest, size_t destPitch,
+  const void *src, size_t srcPitch,
+  size_t width, size_t height)
+
+event ext_oneapi_memcpy2D(void *dest, size_t destPitch,
+  const void *src, size_t srcPitch,
+  size_t width, size_t height,
+  event depEvent)
+
+event ext_oneapi_memcpy2D(void *dest, size_t destPitch,
+  const void *src, size_t srcPitch,
+  size_t width, size_t height,
+  const std::vector<event> &depEvents)
+----
+
+| Copies the data located at `src` to `dest`. At least one of `src` or `dest`
+must be a USM pointer. The width of a row in bytes,
+including any padding, is specified by `destPitch` for `dest` and `srcPitch`
+for `src`.  The amount of data to copy is specified as `width` bytes per row
+times `height` number of rows.  `width` must not be larger than either
+`srcPitch` or `destPitch`, otherwise this function throws a synchronous
+`exception` with the `errc::invalid` error code.  If specified, the operation
+will not begin until the dependent events have completed.
+
+|===
+
+
 
 
