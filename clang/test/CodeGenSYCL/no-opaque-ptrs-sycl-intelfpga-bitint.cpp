@@ -18,7 +18,7 @@ signed _BitInt(211) foo(signed _BitInt(211) a, signed _BitInt(211) b) {
 
 int main() {
   sycl::handler h;
-  auto lambda = []() { 
+  auto lambda = []() {
     _BitInt(211) a, b = 3, c = 4;
     a = foo(b, c);
   };
