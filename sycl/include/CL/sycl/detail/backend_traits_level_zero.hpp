@@ -150,8 +150,7 @@ private:
   std::shared_ptr<device_impl> DeviceImpl;
 };
 
-template <>
-struct BackendInput<backend::ext_oneapi_level_zero, queue> {
+template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
