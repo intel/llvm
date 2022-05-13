@@ -135,7 +135,6 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
 };
 
 struct OptionalDevice {
-
   OptionalDevice() : DeviceImpl(nullptr) {}
   OptionalDevice(device dev) : DeviceImpl(getSyclObjImpl(dev)) {}
 
@@ -146,6 +145,7 @@ struct OptionalDevice {
   }
 
   bool hasDevice() const { return DeviceImpl != nullptr; }
+
 private:
   std::shared_ptr<device_impl> DeviceImpl;
 };
