@@ -278,14 +278,15 @@ public:
   }
 
   // Operator neg
-  constexpr half_v2 &operator-() {
-    Buf ^= 0x8000;
-    return *this;
-  }
-
   __SYCL_CONSTEXPR_HALF friend half_v2 operator-(half_v2 other) {
     other.Buf ^= 0x8000;
     return other;
+  }
+
+  // TODO: legacy operator remove when ABI break allowed
+  constexpr half_v2 &operator-() {
+    Buf ^= 0x8000;
+    return *this;
   }
 
   // Operator float
