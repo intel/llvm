@@ -2373,8 +2373,9 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 ///
 /// \return TBD
 pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                pi_device *, pi_queue *,
-                                                bool ownNativeHandle) {
+                                                pi_device *,
+                                                bool ownNativeHandle,
+                                                pi_queue *) {
   (void)ownNativeHandle;
   cl::sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");

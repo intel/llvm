@@ -39,6 +39,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// Forward declarations
+class device_impl;
+
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods
 // from the corresponding classes. The interop<backend, queue> specialization
@@ -134,21 +137,25 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
 template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
-    device Device;
-    ext::oneapi::level_zero::ownership Ownership{
-        ext::oneapi::level_zero::ownership::transfer};
+    ext::oneapi::level_zero::ownership Ownership;
+
+    // TODO: Change this to be device when the deprecated constructor is
+    // removed.
+    std::shared_ptr<device_impl> Device;
 
     __SYCL_DEPRECATED("Use backend_input_t<backend::ext_oneapi_level_zero, "
                       "queue> constructor with device parameter")
     type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
-         ext::oneapi::level_zero::ownership ownership)
-        : NativeHandle(nativeHandle),
-          Device(ext::oneapi::filter_selector("level_zero")),
-          Ownership(ownership) {}
+         ext::oneapi::level_zero::ownership ownership =
+             ext::oneapi::level_zero::ownership::transfer)
+        : NativeHandle(nativeHandle), Ownership(ownership), Device(nullptr) {}
 
     type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
-         device dev, ext::oneapi::level_zero::ownership ownership)
-        : NativeHandle(nativeHandle), Device(dev), Ownership(ownership) {}
+         device dev,
+         ext::oneapi::level_zero::ownership ownership =
+             ext::oneapi::level_zero::ownership::transfer)
+        : NativeHandle(nativeHandle), Ownership(ownership),
+          Device(getSyclObjImpl(dev)) {}
   };
 };
 

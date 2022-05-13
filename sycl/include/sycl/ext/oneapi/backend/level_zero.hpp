@@ -140,8 +140,12 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   (void)Handler;
+  device Device =
+      BackendObject.Device
+          ? detail::createSyclObjFromImpl<device>(BackendObject.Device)
+          : TargetContext.get_devices()[0];
   return ext::oneapi::level_zero::make_queue(
-      TargetContext, BackendObject.Device,
+      TargetContext, Device,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
