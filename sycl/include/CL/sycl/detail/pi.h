@@ -44,10 +44,11 @@
 // piQueueFlush function.
 // 7.9 Added new context and ownership arguments to
 // piextMemCreateWithNativeHandle.
+// 8.10 Added new optional device argument to piextQueueCreateWithNativeHandle
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 7
-#define _PI_H_VERSION_MINOR 9
+#define _PI_H_VERSION_MAJOR 8
+#define _PI_H_VERSION_MINOR 10
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
