@@ -11,6 +11,6 @@
 // host-intelfpga-no-diagnostics
 // device-error@+2 3{{signed _BitInt of bit sizes greater than 128 not supported}}
 // host-error@+1 3{{signed _BitInt of bit sizes greater than 128 not supported}}
-signed _BitInt(211) foo(signed  _BitInt(211) a, signed _BitInt(211) b) {
-  return a/b;
+signed _BitInt(211) foo(signed _BitInt(211) a, signed _BitInt(211) b) {
+  return a / b;
 }
