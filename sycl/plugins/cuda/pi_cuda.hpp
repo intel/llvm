@@ -158,19 +158,25 @@ struct _pi_context {
   using native_type = CUcontext;
 
   enum class kind { primary, user_defined } kind_;
-  native_type cuContext_;
-  _pi_device *deviceId_;
+  std::vector<native_type> cuContexts_;
+  std::vector<pi_device> deviceIds_;
   std::atomic_uint32_t refCount_;
 
   CUevent evBase_; // CUDA event used as base counter
 
-  _pi_context(kind k, CUcontext ctxt, _pi_device *devId)
-      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1},
+  _pi_context(kind k, std::vector<CUcontext>&& ctxts, std::vector<pi_device>&& devIds)
+      : kind_{k}, cuContexts_{std::move(ctxts)}, deviceIds_{std::move(devIds)}, refCount_{1},
         evBase_(nullptr) {
-    cuda_piDeviceRetain(deviceId_);
+    for(pi_device dev : deviceIds_){
+      cuda_piDeviceRetain(dev);
+    }
   };
 
-  ~_pi_context() { cuda_piDeviceRelease(deviceId_); }
+  ~_pi_context() { 
+    for(pi_device dev : deviceIds_){
+      cuda_piDeviceRelease(dev);
+    }
+  }
 
   void invoke_extended_deleters() {
     std::lock_guard<std::mutex> guard(mutex_);
@@ -185,9 +191,18 @@ struct _pi_context {
     extended_deleters_.emplace_back(deleter_data{function, user_data});
   }
 
-  pi_device get_device() const noexcept { return deviceId_; }
+  const std::vector<pi_device>& get_devices() const noexcept { return deviceIds_; }
 
-  native_type get() const noexcept { return cuContext_; }
+  const std::vector<CUcontext>& get() const noexcept { return cuContexts_; }
+
+  CUcontext get(pi_device device){
+    for(size_t i=0; i<deviceIds_.size(); i++){
+      if(deviceIds_[i]==device){
+        return cuContexts_[i];
+      }
+    }
+    return nullptr;
+  }
 
   bool is_primary() const noexcept { return kind_ == kind::primary; }
 
@@ -402,6 +417,12 @@ struct _pi_queue {
 
   native_type get() const noexcept { return stream_; };
 
+  CUcontext get_native_context(){
+    CUcontext res = context_->get(device_);
+    assert(res != nullptr);
+    return res;
+  }
+
   _pi_context *get_context() const { return context_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
@@ -455,6 +476,8 @@ public:
 
   pi_context get_context() const noexcept { return context_; };
 
+  CUcontext get_native_context() const noexcept { return native_context_; };
+
   pi_uint32 increment_reference_count() { return ++refCount_; }
 
   pi_uint32 decrement_reference_count() { return --refCount_; }
@@ -475,7 +498,7 @@ public:
 
   // construct a native CUDA. This maps closely to the underlying CUDA event.
   static pi_event make_native(pi_command_type type, pi_queue queue) {
-    return new _pi_event(type, queue->get_context(), queue);
+    return new _pi_event(type, queue->get_context(), queue->get_native_context(), queue);
   }
 
   pi_result release();
@@ -485,7 +508,7 @@ public:
 private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CUDA.
-  _pi_event(pi_command_type type, pi_context context, pi_queue queue);
+  _pi_event(pi_command_type type, pi_context context, CUcontext, pi_queue queue);
 
   pi_command_type commandType_; // The type of command associated with event.
 
@@ -517,6 +540,8 @@ private:
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
                        // with the queue_ member.
+  CUcontext native_context_; // CUcontext associated with the event. If this is not a
+                            // native event, this will be nullptr.
 };
 
 /// Implementation of PI Program on CUDA Module object
@@ -587,7 +612,7 @@ struct _pi_kernel {
   std::atomic_uint32_t refCount_;
 
   static constexpr pi_uint32 REQD_THREADS_PER_BLOCK_DIMENSIONS = 3u;
-  size_t reqdThreadsPerBlock_[REQD_THREADS_PER_BLOCK_DIMENSIONS];
+  std::vector<std::array<size_t, REQD_THREADS_PER_BLOCK_DIMENSIONS>> reqdThreadsPerBlock_;
 
   /// Structure that holds the arguments to the kernel.
   /// Note earch argument size is known, since it comes
@@ -677,15 +702,19 @@ struct _pi_kernel {
   _pi_kernel(CUfunction func, CUfunction funcWithOffsetParam, const char *name,
              pi_program program, pi_context ctxt)
       : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
-        name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
+        name_{name}, context_{ctxt}, program_{program}, refCount_{1}, reqdThreadsPerBlock_{ctxt->get_devices().size()} {
     cuda_piProgramRetain(program_);
     cuda_piContextRetain(context_);
     /// Note: this code assumes that there is only one device per context
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
-    (void)retError;
-    assert(retError == PI_SUCCESS);
+    int device_num = 0;
+    for(pi_device device : ctxt->get_devices()){
+      pi_result retError = cuda_piKernelGetGroupInfo(
+          this, device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+          sizeof(reqdThreadsPerBlock_[device_num]), 
+          &reqdThreadsPerBlock_[device_num++][0], nullptr);
+      (void)retError;
+      assert(retError == PI_SUCCESS);
+    }
   }
 
   ~_pi_kernel()

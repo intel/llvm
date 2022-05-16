@@ -179,12 +179,7 @@ pi_result check_error(CUresult result, const char *function, int line,
 /// contexts to be restored by SYCL.
 class ScopedContext {
 public:
-  ScopedContext(pi_context ctxt) {
-    if (!ctxt) {
-      throw PI_INVALID_CONTEXT;
-    }
-
-    CUcontext desired = ctxt->get();
+  ScopedContext(CUcontext desired) {
     CUcontext original = nullptr;
 
     PI_CHECK_ERROR(cuCtxGetCurrent(&original));
@@ -341,10 +336,10 @@ pi_result cuda_piEventRetain(pi_event event);
 
 /// \endcond
 
-_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
+_pi_event::_pi_event(pi_command_type type, pi_context context, CUcontext native_context, pi_queue queue)
     : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
       isRecorded_{false}, isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, context_{context} {
+      evQueued_{nullptr}, queue_{queue}, context_{context}, native_context_{native_context} {
 
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
 
@@ -864,8 +859,8 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_NUM_DEVICES:
     return getInfo(param_value_size, param_value, param_value_size_ret, 1);
   case PI_CONTEXT_INFO_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   context->get_device());
+    return getInfoArray(context->get_devices().size(), param_value_size, param_value, param_value_size_ret,
+                   &context->get_devices()[0]);
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
@@ -877,11 +872,15 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                    capabilities);
   }
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             context->get_device()->get()) == CUDA_SUCCESS);
+    int major = std::numeric_limits<int>::max();
+    for(pi_device device : context->get_devices()){
+      int dev_major = 0;
+      cl::sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&dev_major,
+                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                              device->get()) == CUDA_SUCCESS);
+      major = std::min(major, dev_major);
+    }
     pi_memory_order_capabilities capabilities =
         (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
@@ -956,7 +955,8 @@ pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
                                              const char *func_name,
                                              pi_uint64 *func_pointer_ret) {
   // Check if device passed is the same the device bound to the context
-  assert(device == program->get_context()->get_device());
+  const auto& devices = program->get_context()->get_devices();
+  assert(std::find(devices.begin(), devices.end(), device) != devices.end());
   assert(func_pointer_ret != nullptr);
 
   CUfunction func;
@@ -1831,7 +1831,6 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
   // TODO: How to implement context callback?
   assert(pfn_notify == nullptr);
   assert(user_data == nullptr);
-  assert(num_devices == 1);
   // Need input context
   assert(retcontext != nullptr);
   pi_result errcode_ret = PI_SUCCESS;
@@ -1860,38 +1859,43 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
 
   std::unique_ptr<_pi_context> piContextPtr{nullptr};
   try {
-    CUcontext current = nullptr;
-
     if (property_cuda_primary) {
+      assert(num_devices == 1); //TODO proper error
       // Use the CUDA primary context and assume that we want to use it
       // immediately as we want to forge context switches.
       CUcontext Ctxt;
       errcode_ret =
           PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&Ctxt, devices[0]->get()));
       piContextPtr = std::unique_ptr<_pi_context>(
-          new _pi_context{_pi_context::kind::primary, Ctxt, *devices});
+          new _pi_context{_pi_context::kind::primary, {Ctxt}, {*devices}});
       errcode_ret = PI_CHECK_ERROR(cuCtxPushCurrent(Ctxt));
     } else {
-      // Create a scoped context.
-      CUcontext newContext;
+      std::vector<CUcontext> cuda_contexts(num_devices);
+      std::vector<pi_device> devices_vec(num_devices);
+      CUcontext current;
       PI_CHECK_ERROR(cuCtxGetCurrent(&current));
-      errcode_ret = PI_CHECK_ERROR(
-          cuCtxCreate(&newContext, CU_CTX_MAP_HOST, devices[0]->get()));
+        std::cout << "current context " << current << std::endl;
+      for(pi_uint32 device_num = 0; device_num < num_devices; device_num++){
+        // Create a scoped context.
+        std::cout << "creating context" << std::endl;
+        errcode_ret = PI_CHECK_ERROR(
+            cuCtxCreate(&cuda_contexts[device_num], CU_CTX_MAP_HOST, devices[device_num]->get()));
+        std::cout << "created context " << errcode_ret << std::endl;
+        devices_vec[device_num] = devices[device_num];
+      }
       piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{
-          _pi_context::kind::user_defined, newContext, *devices});
+          _pi_context::kind::user_defined, std::move(cuda_contexts), std::move(devices_vec)});
+
+      // For non-primary scoped contexts keep the last active on top of the stack
+      // as `cuCtxCreate` replaces it implicitly otherwise.
+      // Primary contexts are kept on top of the stack, so the previous context
+      // is not queried and therefore not recovered.
+      //PI_CHECK_ERROR(cuCtxSetCurrent(current));
     }
 
     // Use default stream to record base event counter
     PI_CHECK_ERROR(cuEventCreate(&piContextPtr->evBase_, CU_EVENT_DEFAULT));
     PI_CHECK_ERROR(cuEventRecord(piContextPtr->evBase_, 0));
-
-    // For non-primary scoped contexts keep the last active on top of the stack
-    // as `cuCtxCreate` replaces it implicitly otherwise.
-    // Primary contexts are kept on top of the stack, so the previous context
-    // is not queried and therefore not recovered.
-    if (current != nullptr) {
-      PI_CHECK_ERROR(cuCtxSetCurrent(current));
-    }
 
     *retcontext = piContextPtr.release();
   } catch (pi_result err) {
@@ -1915,22 +1919,24 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
 
   PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
 
-  if (!ctxt->is_primary()) {
-    CUcontext cuCtxt = ctxt->get();
-    CUcontext current = nullptr;
-    cuCtxGetCurrent(&current);
-    if (cuCtxt != current) {
-      PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
+  if (!ctxt->is_primary()) {;
+    CUcontext initial = nullptr;
+    cuCtxGetCurrent(&initial);
+    for(CUcontext cuCtxt : ctxt->get()){
+      if (cuCtxt != initial) {
+        PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
+      }
+      PI_CHECK_ERROR(cuCtxSynchronize());
+      CUcontext current;
+      cuCtxGetCurrent(&current);
+      if (cuCtxt == current) {
+        PI_CHECK_ERROR(cuCtxPopCurrent(&current));
+      }
+      PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
     }
-    PI_CHECK_ERROR(cuCtxSynchronize());
-    cuCtxGetCurrent(&current);
-    if (cuCtxt == current) {
-      PI_CHECK_ERROR(cuCtxPopCurrent(&current));
-    }
-    return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
   } else {
     // Primary context is not destroyed, but released
-    CUdevice cuDev = ctxt->get_device()->get();
+    CUdevice cuDev = ctxt->get_devices()[0]->get();
     CUcontext current;
     cuCtxPopCurrent(&current);
     return PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(cuDev));
@@ -1945,7 +1951,7 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
 /// \return PI_SUCCESS
 pi_result cuda_piextContextGetNativeHandle(pi_context context,
                                            pi_native_handle *nativeHandle) {
-  *nativeHandle = reinterpret_cast<pi_native_handle>(context->get());
+  *nativeHandle = reinterpret_cast<pi_native_handle>(context->get()[0]);
   return PI_SUCCESS;
 }
 
@@ -1986,7 +1992,7 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
   pi_mem retMemObj = nullptr;
 
   try {
-    ScopedContext active(context);
+    ScopedContext active(context->get()[0]); 
     CUdeviceptr ptr;
     _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
         _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
@@ -2063,7 +2069,7 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
       return PI_SUCCESS;
     }
 
-    ScopedContext active(uniqueMemObj->get_context());
+    ScopedContext active(uniqueMemObj->get_context()->get()[0]);
 
     if (memObj->mem_type_ == _pi_mem::mem_type::buffer) {
       switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
@@ -2155,7 +2161,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
 
   std::unique_ptr<_pi_mem> retMemObj{nullptr};
   try {
-    ScopedContext active(context);
+    ScopedContext active(context->get()[0]);
 
     retMemObj = std::unique_ptr<_pi_mem>{new _pi_mem{
         context, parent_buffer, allocMode, ptr, hostPtr, bufferRegion.size}};
@@ -2221,12 +2227,14 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
 
     std::unique_ptr<_pi_queue> queueImpl{nullptr};
 
-    if (context->get_device() != device) {
+    CUcontext native_context = context->get(device);
+
+    if (native_context == nullptr) {
       *queue = nullptr;
       return PI_INVALID_DEVICE;
     }
 
-    ScopedContext active(context);
+    ScopedContext active(native_context);
 
     CUstream cuStream;
     unsigned int flags = 0;
@@ -2303,7 +2311,7 @@ pi_result cuda_piQueueRelease(pi_queue command_queue) {
   try {
     std::unique_ptr<_pi_queue> queueImpl(command_queue);
 
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     auto stream = queueImpl->stream_;
     PI_CHECK_ERROR(cuStreamSynchronize(stream));
@@ -2326,7 +2334,7 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
 
     assert(command_queue !=
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
     result = PI_CHECK_ERROR(cuStreamSynchronize(command_queue->stream_));
 
   } catch (pi_result err) {
@@ -2396,7 +2404,7 @@ pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     retErr = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                       event_wait_list, nullptr);
@@ -2442,7 +2450,7 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     retErr = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                       event_wait_list, nullptr);
@@ -2487,7 +2495,7 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
       return PI_INVALID_EVENT;
     }
 
-    auto context = event_list[0]->get_context();
+    auto context = event_list[0]->get_native_context();
     ScopedContext active(context);
 
     auto waitFunc = [context](pi_event event) -> pi_result {
@@ -2495,7 +2503,7 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
         return PI_INVALID_EVENT;
       }
 
-      if (event->get_context() != context) {
+      if (event->get_native_context() != context) {
         return PI_INVALID_CONTEXT;
       }
 
@@ -2518,7 +2526,7 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
   std::unique_ptr<_pi_kernel> retKernel{nullptr};
 
   try {
-    ScopedContext active(program->get_context());
+    ScopedContext active(program->get_context()->get()[0]);
 
     CUfunction cuFunc;
     retErr = PI_CHECK_ERROR(
@@ -2716,9 +2724,17 @@ pi_result cuda_piEnqueueKernelLaunch(
 
   try {
     // Set the active context here as guessLocalWorkSize needs an active context
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
     {
-      size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
+      int dev_idx = 0;
+      auto devices = command_queue->context_->get_devices();
+      for(int i=0;i<devices.size();i++){
+        if(devices[i] == command_queue->device_){
+          dev_idx = i;
+          break;
+        }
+      }
+      size_t *reqdThreadsPerBlock = &kernel->reqdThreadsPerBlock_[dev_idx][0];
       maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
       command_queue->device_->get_max_work_item_sizes(
           sizeof(maxThreadsPerBlock), maxThreadsPerBlock);
@@ -2917,7 +2933,7 @@ pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
   size_t image_size_bytes = pixel_size_bytes * image_desc->image_width *
                             image_desc->image_height * image_desc->image_depth;
 
-  ScopedContext active(context);
+  ScopedContext active(context->get()[0]);
   CUarray image_array;
   retErr = PI_CHECK_ERROR(cuArray3DCreate(&image_array, &array_desc));
 
@@ -3029,7 +3045,7 @@ pi_result cuda_piProgramBuild(pi_program program, pi_uint32 num_devices,
   pi_result retError = PI_SUCCESS;
 
   try {
-    ScopedContext active(program->get_context());
+    ScopedContext active(program->get_context()->get()[0]);
 
     program->build_program(options);
 
@@ -3049,8 +3065,6 @@ pi_result cuda_piProgramCreate(pi_context, const void *, size_t, pi_program *) {
 /// Note: No calls to CUDA driver API in this function, only store binaries
 /// for later.
 ///
-/// Note: Only supports one device
-///
 pi_result cuda_piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
@@ -3063,10 +3077,18 @@ pi_result cuda_piProgramCreateWithBinary(
   assert(binaries != nullptr);
   assert(program != nullptr);
   assert(device_list != nullptr);
-  assert(num_devices == 1 && "CUDA contexts are for a single device");
-  assert((context->get_device()->get() == device_list[0]->get()) &&
-         "Mismatch between devices context and passed context when creating "
-         "program from binary");
+  for(int i=0;i<num_devices;i++){
+    bool found_device = false;
+    for(pi_device context_device : context->get_devices()){
+      if(device_list[i] == context_device){
+        found_device = true;
+        break;
+      }
+      assert(found_device &&
+            "Mismatch between devices context and passed context when creating "
+            "program from binary");
+    }
+  }
 
   pi_result retError = PI_SUCCESS;
 
@@ -3103,8 +3125,8 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
   case PI_PROGRAM_INFO_NUM_DEVICES:
     return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
   case PI_PROGRAM_INFO_DEVICES:
-    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        &program->context_->deviceId_);
+    return getInfoArray(program->context_->get_devices().size(), param_value_size, param_value, param_value_size_ret,
+                        &program->context_->get_devices()[0]);
   case PI_PROGRAM_INFO_SOURCE:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    program->binary_);
@@ -3145,7 +3167,7 @@ pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
   pi_result retError = PI_SUCCESS;
 
   try {
-    ScopedContext active(context);
+    ScopedContext active(context->get()[0]);
 
     CUlinkState state;
     std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
@@ -3211,7 +3233,7 @@ pi_result cuda_piProgramCompile(
   pi_result retError = PI_SUCCESS;
 
   try {
-    ScopedContext active(program->get_context());
+    ScopedContext active(program->get_context()->get()[0]);
 
     program->build_program(options);
 
@@ -3274,7 +3296,7 @@ pi_result cuda_piProgramRelease(pi_program program) {
     pi_result result = PI_INVALID_PROGRAM;
 
     try {
-      ScopedContext active(program->get_context());
+      ScopedContext active(program->get_context()->get()[0]);
       auto cuModule = program->get();
       result = PI_CHECK_ERROR(cuModuleUnload(cuModule));
     } catch (...) {
@@ -3548,7 +3570,7 @@ pi_result cuda_piEventRelease(pi_event event) {
     std::unique_ptr<_pi_event> event_ptr{event};
     pi_result result = PI_INVALID_EVENT;
     try {
-      ScopedContext active(event->get_context());
+      ScopedContext active(event->get_context()->get()[0]);
       result = event->release();
     } catch (...) {
       result = PI_OUT_OF_RESOURCES;
@@ -3593,7 +3615,7 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
   }
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     if (event_wait_list) {
       auto result =
@@ -3863,7 +3885,7 @@ pi_result cuda_piEnqueueMemBufferReadRect(
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     retErr = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                       event_wait_list, nullptr);
@@ -3914,7 +3936,7 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     retErr = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                       event_wait_list, nullptr);
@@ -3961,7 +3983,7 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     if (event_wait_list) {
       cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
@@ -4014,7 +4036,7 @@ pi_result cuda_piEnqueueMemBufferCopyRect(
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     retErr = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                       event_wait_list, nullptr);
@@ -4067,7 +4089,7 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     if (event_wait_list) {
       cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
@@ -4247,7 +4269,7 @@ pi_result cuda_piEnqueueMemImageRead(
   CUstream cuStream = command_queue->get();
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     if (event_wait_list) {
       cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
@@ -4320,7 +4342,7 @@ cuda_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
   CUstream cuStream = command_queue->get();
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     if (event_wait_list) {
       cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
@@ -4385,7 +4407,7 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
   CUstream cuStream = command_queue->get();
 
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     if (event_wait_list) {
       cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
@@ -4492,7 +4514,7 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, event);
   } else {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     if (is_pinned) {
       ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
@@ -4546,7 +4568,7 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
         memobj->mem_.buffer_mem_.get_size(), mapped_ptr,
         num_events_in_wait_list, event_wait_list, event);
   } else {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext active(command_queue->get_native_context());
 
     if (is_pinned) {
       ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
@@ -4579,7 +4601,7 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
   assert(properties == nullptr);
   pi_result result = PI_SUCCESS;
   try {
-    ScopedContext active(context);
+    ScopedContext active(context->get()[0]);
     result = PI_CHECK_ERROR(cuMemAllocHost(result_ptr, size));
   } catch (pi_result error) {
     result = error;
@@ -4603,7 +4625,7 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   assert(properties == nullptr);
   pi_result result = PI_SUCCESS;
   try {
-    ScopedContext active(context);
+    ScopedContext active(context->get(device));
     result = PI_CHECK_ERROR(cuMemAlloc((CUdeviceptr *)result_ptr, size));
   } catch (pi_result error) {
     result = error;
@@ -4627,7 +4649,7 @@ pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   assert(properties == nullptr);
   pi_result result = PI_SUCCESS;
   try {
-    ScopedContext active(context);
+    ScopedContext active(context->get(device));
     result = PI_CHECK_ERROR(cuMemAllocManaged((CUdeviceptr *)result_ptr, size,
                                               CU_MEM_ATTACH_GLOBAL));
   } catch (pi_result error) {
@@ -4646,7 +4668,7 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
   assert(context != nullptr);
   pi_result result = PI_SUCCESS;
   try {
-    ScopedContext active(context);
+    ScopedContext active(context->get()[0]);
     bool is_managed;
     unsigned int type;
     void *attribute_values[2] = {&is_managed, &type};
@@ -4681,7 +4703,7 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
-    ScopedContext active(queue->get_context());
+    ScopedContext active(queue->get_native_context());
     result = cuda_piEnqueueEventsWait(queue, num_events_in_waitlist,
                                       events_waitlist, nullptr);
     if (event) {
@@ -4715,7 +4737,7 @@ pi_result cuda_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
-    ScopedContext active(queue->get_context());
+    ScopedContext active(queue->get_native_context());
     result = cuda_piEnqueueEventsWait(queue, num_events_in_waitlist,
                                       events_waitlist, nullptr);
     if (event) {
@@ -4754,7 +4776,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   int isConcurrentManagedAccessAvailable = 0;
   cuDeviceGetAttribute(&isConcurrentManagedAccessAvailable,
                        CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS,
-                       queue->get_context()->get_device()->get());
+                       queue->device_->get());
   if (!isConcurrentManagedAccessAvailable) {
     setErrorMessage("Prefetch hint ignored as device does not support "
                     "concurrent managed access",
@@ -4772,7 +4794,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
-    ScopedContext active(queue->get_context());
+    ScopedContext active(queue->get_native_context());
     result = cuda_piEnqueueEventsWait(queue, num_events_in_waitlist,
                                       events_waitlist, nullptr);
     if (event) {
@@ -4781,7 +4803,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cuMemPrefetchAsync(
-        (CUdeviceptr)ptr, size, queue->get_context()->get_device()->get(),
+        (CUdeviceptr)ptr, size, queue->device_->get(),
         cuStream));
     if (event) {
       result = event_ptr->record();
@@ -4804,7 +4826,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
-    ScopedContext active(queue->get_context());
+    ScopedContext active(queue->get_native_context());
 
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(
@@ -4822,7 +4844,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       result = PI_CHECK_ERROR(cuMemAdvise(
           (CUdeviceptr)ptr, length,
           (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1),
-          queue->get_context()->get_device()->get()));
+          queue->device_->get()));
       break;
     case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST:
     case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST:
@@ -4876,7 +4898,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   pi_result result = PI_SUCCESS;
 
   try {
-    ScopedContext active(context);
+    ScopedContext active(context->get()[0]);
     switch (param_name) {
     case PI_MEM_ALLOC_TYPE: {
       unsigned int value;
