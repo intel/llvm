@@ -175,8 +175,7 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
     OptionalDevice Device;
 
     type()
-        : NativeHandle(0),
-          Ownership(ext::oneapi::level_zero::ownership::transfer), Device() {}
+        : Ownership(ext::oneapi::level_zero::ownership::transfer), Device() {}
 
     __SYCL_DEPRECATED("Use backend_input_t<backend::ext_oneapi_level_zero, "
                       "queue> constructor with device parameter")
