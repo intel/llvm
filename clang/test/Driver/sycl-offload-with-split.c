@@ -2,7 +2,6 @@
 /// Device code split specific test.
 ///
 
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 
 /// ###########################################################################

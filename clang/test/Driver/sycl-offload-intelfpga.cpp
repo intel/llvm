@@ -1,7 +1,6 @@
 ///
 /// tests specific to -fintelfpga -fsycl
 ///
-// REQUIRES: clang-driver
 
 /// Check SYCL headers path
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s 2>&1 \

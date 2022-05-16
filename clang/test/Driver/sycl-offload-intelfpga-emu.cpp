@@ -1,7 +1,6 @@
 ///
 /// tests specific to -fintelfpga -fsycl for emulation
 ///
-// REQUIRES: clang-driver
 
 /// -fintelfpga -fsycl-link tests
 // RUN:  touch %t.o

@@ -1283,6 +1283,9 @@ __SYCL_EXPORT pi_result piProgramRelease(pi_program program);
 
 /// Sets a specialization constant to a specific value.
 ///
+/// Note: Only used when specialization constants are natively supported (SPIR-V
+/// binaries), and not when they are emulated (AOT binaries).
+///
 /// \param prog the program object which will use the value
 /// \param spec_id integer ID of the constant
 /// \param spec_size size of the value

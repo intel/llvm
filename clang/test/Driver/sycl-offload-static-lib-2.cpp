@@ -1,7 +1,6 @@
 ///
 /// Perform several driver tests for SYCL offloading involving static libs
 ///
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 
 /// ###########################################################################
