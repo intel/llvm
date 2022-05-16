@@ -139,16 +139,22 @@ struct OptionalDevice {
   OptionalDevice(device dev) : DeviceImpl(getSyclObjImpl(dev)) {}
 
   operator device() const {
-    if (!hasDevice())
+    if (!DeviceImpl)
       throw runtime_error("No device has been set.", PI_INVALID_DEVICE);
     return createSyclObjFromImpl<device>(DeviceImpl);
   }
 
-  bool hasDevice() const { return DeviceImpl != nullptr; }
-
 private:
   std::shared_ptr<device_impl> DeviceImpl;
+
+  friend bool OptionalDeviceHasDevice(const OptionalDevice &Dev);
 };
+
+// Inspector function in the detail namespace to avoid exposing
+// OptionalDevice::hasDevice to user-space.
+inline bool OptionalDeviceHasDevice(const OptionalDevice &Dev) {
+  return Dev.DeviceImpl != nullptr;
+}
 
 template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
