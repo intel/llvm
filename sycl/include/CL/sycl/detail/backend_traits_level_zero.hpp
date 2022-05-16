@@ -148,8 +148,8 @@ struct OptionalDevice {
     DeviceImpl = Other.DeviceImpl;
     return *this;
   }
-  OptionalDevice &operator=(std::shared_ptr<device_impl> &Other) {
-    DeviceImpl = Other;
+  OptionalDevice &operator=(device &Other) {
+    DeviceImpl = getSyclObjImpl(Other);
     return *this;
   }
 
