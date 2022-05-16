@@ -175,7 +175,7 @@ enum class device : cl_device_info {
   ext_oneapi_max_work_groups_3d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D,
   atomic_memory_scope_capabilities =
       PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
-  ext_oneapi_bfloat16 = PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16
+  ext_oneapi_bfloat16 = PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16,
 };
 
 enum class device_type : pi_uint64 {

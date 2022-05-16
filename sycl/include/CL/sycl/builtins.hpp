@@ -1573,73 +1573,73 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 /* ----------------- -ffast-math functions. ---------------------------------*/
 // genfloatf cos (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> cos(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> cos(T x) __NOEXC {
   return native::cos(x);
 }
 
 // genfloatf exp (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> exp(T x) __NOEXC {
   return native::exp(x);
 }
 
 // genfloatf exp2 (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp2(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> exp2(T x) __NOEXC {
   return native::exp2(x);
 }
 
 // genfloatf exp10 (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp10(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> exp10(T x) __NOEXC {
   return native::exp10(x);
 }
 
 // genfloatf log(genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> log(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> log(T x) __NOEXC {
   return native::log(x);
 }
 
 // genfloatf log2 (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> log2(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> log2(T x) __NOEXC {
   return native::log2(x);
 }
 
 // genfloatf log10 (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> log10(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> log10(T x) __NOEXC {
   return native::log10(x);
 }
 
 // genfloatf powr (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> powr(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> powr(T x, T y) __NOEXC {
   return native::powr(x, y);
 }
 
 // genfloatf rsqrt (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> rsqrt(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> rsqrt(T x) __NOEXC {
   return native::rsqrt(x);
 }
 
 // genfloatf sin (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> sin(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> sin(T x) __NOEXC {
   return native::sin(x);
 }
 
 // genfloatf sqrt (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> sqrt(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> sqrt(T x) __NOEXC {
   return native::sqrt(x);
 }
 
 // genfloatf tan (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T> tan(T x) __NOEXC {
   return native::tan(x);
 }
 
