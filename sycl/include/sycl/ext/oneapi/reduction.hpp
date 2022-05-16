@@ -1034,16 +1034,35 @@ struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
 };
 
 /// Called in device code. This function iterates through the index space
-/// \p Range using stride equal to the global range specified in \p NdId,
+/// by assigning contiguous chunks to each work-group, then iterating
+/// through each chunk using a stride equal to the work-group's local range,
 /// which gives much better performance than using stride equal to 1.
 /// For each of the index the given \p F function/functor is called and
 /// the reduction value hold in \p Reducer is accumulated in those calls.
 template <typename KernelFunc, int Dims, typename ReducerT>
-void reductionLoop(const range<Dims> &Range, ReducerT &Reducer,
+void reductionLoop(const range<Dims> &Range, const size_t PerGroup,
+                   const size_t Remainder, ReducerT &Reducer,
                    const nd_item<1> &NdId, KernelFunc &F) {
-  size_t Start = NdId.get_global_id(0);
-  size_t End = Range.size();
-  size_t Stride = NdId.get_global_range(0);
+
+  // Divide into contiguous chunks and assign each chunk to a Group
+  // Rely on precomputed PerGroup and Remainder to avoid repeating modulo
+  auto Group = NdId.get_group();
+  size_t GroupId = Group.get_group_linear_id();
+  size_t NumGroups = Group.get_group_linear_range();
+  size_t GroupStart = GroupId * PerGroup;
+  size_t GroupEnd = GroupStart + PerGroup;
+  bool LastGroup = (GroupId == NumGroups - 1);
+  if (LastGroup) {
+    GroupEnd += Remainder;
+  }
+  if (GroupEnd > Range.size()) {
+    GroupEnd = Range.size();
+  }
+
+  // Loop over the contiguous chunk
+  size_t Start = GroupStart + NdId.get_local_id(0);
+  size_t End = GroupEnd;
+  size_t Stride = NdId.get_local_range(0);
   for (size_t I = Start; I < End; I += Stride)
     F(sycl::detail::getDelinearizedId(Range, I), Reducer);
 }
@@ -1058,10 +1077,14 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
   using Name =
       typename get_reduction_main_kernel_name_t<KernelName, KernelType,
                                                 Reduction::is_usm, false>::name;
+
+  size_t NWorkGroups = NDRange.get_group_range().size();
+  size_t PerGroup = Range.size() / NWorkGroups;
+  size_t Remainder = Range.size() % NWorkGroups;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
-    reductionLoop(Range, Reducer, NDId, KernelFunc);
+    reductionLoop(Range, PerGroup, Remainder, Reducer, NDId, KernelFunc);
 
     // Work-group cooperates to initialize multiple reduction variables
     auto LID = NDId.get_local_id(0);
@@ -1108,10 +1131,12 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
   using Name =
       typename get_reduction_main_kernel_name_t<KernelName, KernelType,
                                                 Reduction::is_usm, false>::name;
+  size_t PerGroup = Range.size() / NWorkGroups;
+  size_t Remainder = Range.size() % NWorkGroups;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
-    reductionLoop(Range, Reducer, NDId, KernelFunc);
+    reductionLoop(Range, PerGroup, Remainder, Reducer, NDId, KernelFunc);
 
     typename Reduction::binary_operation BOp;
     auto Group = NDId.get_group();
@@ -1191,10 +1216,12 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
   using Name =
       typename get_reduction_main_kernel_name_t<KernelName, KernelType,
                                                 Reduction::is_usm, false>::name;
+  size_t PerGroup = Range.size() / NWorkGroups;
+  size_t Remainder = Range.size() % NWorkGroups;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(Identity, BOp);
-    reductionLoop(Range, Reducer, NDId, KernelFunc);
+    reductionLoop(Range, PerGroup, Remainder, Reducer, NDId, KernelFunc);
 
     // If there are multiple values, reduce each separately
     // This prevents local memory from scaling with elements

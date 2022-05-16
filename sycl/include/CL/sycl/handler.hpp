@@ -1617,6 +1617,22 @@ public:
     // for the device.
     size_t MaxWGSize =
         ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+
+    // The maximum WGSize returned by CPU devices is very large and does not
+    // help the reduction implementation: since all work associated with a
+    // work-group is typically assigned to one CPU thread, selecting a large
+    // work-group size unnecessarily increases the number of accumulators.
+    // The default of 16 was chosen based on empirical benchmarking results;
+    // an environment variable is provided to allow users to override this
+    // behavior.
+    if (detail::getDeviceFromHandler(*this).is_cpu()) {
+      if (const char *MaxWGSizeEnv = getenv("SYCL_CPU_REDUCTION_MAX_WG_SIZE")) {
+        MaxWGSize = std::atoi(MaxWGSizeEnv);
+      } else {
+        MaxWGSize = 16;
+      }
+    }
+
     ext::oneapi::detail::reduCGFunc<KernelName>(
         *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups, Redu);
     if (Reduction::is_usm ||
