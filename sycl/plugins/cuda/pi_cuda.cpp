@@ -3436,6 +3436,15 @@ pi_result cuda_piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
   return PI_SUCCESS;
 }
 
+pi_result cuda_piextProgramSetSpecializationConstant(pi_program, pi_uint32,
+                                                     size_t, const void *) {
+  // This entry point is only used for native specialization constants (SPIR-V),
+  // and the CUDA plugin is AOT only so this entry point is not supported.
+  cl::sycl::detail::pi::die(
+      "Native specialization constants are not supported");
+  return {};
+}
+
 pi_result cuda_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
                                         size_t arg_size,
                                         const void *arg_value) {
@@ -4762,6 +4771,15 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
     return PI_PLUGIN_SPECIFIC_ERROR;
   }
 
+  unsigned int is_managed;
+  PI_CHECK_ERROR(cuPointerGetAttribute(
+      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
+  if (!is_managed) {
+    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
+                    PI_SUCCESS);
+    return PI_PLUGIN_SPECIFIC_ERROR;
+  }
+
   // flags is currently unused so fail if set
   if (flags != 0)
     return PI_INVALID_VALUE;
@@ -5057,6 +5075,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRetain, cuda_piKernelRetain)
   _PI_CL(piKernelRelease, cuda_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, cuda_piKernelSetExecInfo)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         cuda_piextProgramSetSpecializationConstant)
   _PI_CL(piextKernelSetArgPointer, cuda_piextKernelSetArgPointer)
   _PI_CL(piextKernelCreateWithNativeHandle,
          cuda_piextKernelCreateWithNativeHandle)

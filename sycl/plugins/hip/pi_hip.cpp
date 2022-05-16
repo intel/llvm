@@ -3375,6 +3375,15 @@ pi_result hip_piKernelSetExecInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
+pi_result hip_piextProgramSetSpecializationConstant(pi_program, pi_uint32,
+                                                    size_t, const void *) {
+  // This entry point is only used for native specialization constants (SPIR-V),
+  // and the HIP plugin is AOT only so this entry point is not supported.
+  cl::sycl::detail::pi::die(
+      "Native specialization constants are not supported");
+  return {};
+}
+
 pi_result hip_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
                                        size_t arg_size, const void *arg_value) {
   kernel->set_kernel_arg(arg_index, arg_size, arg_value);
@@ -4959,6 +4968,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRetain, hip_piKernelRetain)
   _PI_CL(piKernelRelease, hip_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, hip_piKernelSetExecInfo)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         hip_piextProgramSetSpecializationConstant)
   _PI_CL(piextKernelSetArgPointer, hip_piextKernelSetArgPointer)
   // Event
   _PI_CL(piEventCreate, hip_piEventCreate)
