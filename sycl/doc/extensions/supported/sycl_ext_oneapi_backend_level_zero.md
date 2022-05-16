@@ -109,8 +109,21 @@ struct {
 ```
 </td>
 </tr><tr>
-<td>queue</td>
-<td><pre>ze_command_queue_handle_t</pre></td>
+<td rowspan="2">queue</td>
+<td rowspan="2"><pre>ze_command_queue_handle_t</pre></td>
+<td>
+
+``` C++
+struct {
+  ze_command_queue_handle_t NativeHandle;
+  ext::oneapi::level_zero::ownership Ownership{
+      ext::oneapi::level_zero::ownership::transfer};
+}
+```
+
+Deprecated.[^1]
+</td>
+</tr><tr>
 <td>
 
 ``` C++
@@ -192,6 +205,8 @@ struct {
 </td>
 </tr>
 </table>
+
+[^1]: The SYCL implementation is responsible for distinguishing between the variants of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code>.
 
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
                 
@@ -277,7 +292,10 @@ make_queue<backend::ext_oneapi_level_zero>(
     const context &Context)
 ```
 </td>
-<td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_queue_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.</td>
+<td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_queue_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The <code>Device</code> input structure member specifies the device to create the <code>queue</code> against and must be in <code>Context</code>. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.
+
+If the deprecated variant of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code> is passed to <code>make_queue</code> the queue is attached to the first device in <code>Context</code>.
+</td>
 </tr><tr>
 <td>
 
