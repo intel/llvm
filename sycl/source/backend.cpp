@@ -78,7 +78,7 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
 }
 
 queue make_queue_impl(pi_native_handle NativeHandle, const context &Context,
-                      RT::PiDevice *Device, bool KeepOwnership,
+                      RT::PiDevice Device, bool KeepOwnership,
                       const async_handler &Handler, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
@@ -111,7 +111,7 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                bool KeepOwnership, const async_handler &Handler,
                                backend Backend) {
   const auto &DeviceImpl = getSyclObjImpl(Device);
-  return make_queue_impl(NativeHandle, Context, &DeviceImpl->getHandleRef(),
+  return make_queue_impl(NativeHandle, Context, DeviceImpl->getHandleRef(),
                          KeepOwnership, Handler, Backend);
 }
 

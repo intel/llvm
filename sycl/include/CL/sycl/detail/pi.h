@@ -1165,7 +1165,7 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 ///        should take ownership of the native handle.
 /// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_device *device,
+    pi_native_handle nativeHandle, pi_context context, pi_device device,
     bool pluginOwnsNativeHandle, pi_queue *queue);
 
 //
