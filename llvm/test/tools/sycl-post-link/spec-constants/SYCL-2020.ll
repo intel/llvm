@@ -237,12 +237,11 @@ attributes #3 = { nounwind }
 ; CHECK-DEF: !sycl.specialization-constants-default-values = !{![[#ID4:]], ![[#ID5_PAD:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]], ![[#ID_COMPOS3_DEFAULT:]], ![[#ID8:]], ![[#ID9:]]
 ; CHECK-RT: !sycl.specialization-constants-default-values
 ;
-; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2}
+; Emulated spec constant may use an extra padding element to ensure alignment
+; CHECK-RT: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2}
+; CHECK-DEF: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2, i32 -1, i32 2, i32 2}
 ;
-; Emulated spec constant may use composite offset field for alignment padding
-;
-; CHECK-RT:  ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
-; CHECK-DEF: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 2, i32 4}
+; CHECK:  ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
 ;
 ; For composite types, the amount of metadata is a bit different between native and emulated spec constants
 ;

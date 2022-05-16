@@ -425,8 +425,7 @@ void collectCompositeElementsDefaultValuesRecursive(
 
 MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
                                      Type *SCTy, ArrayRef<ID> IDs,
-                                     bool IsNativeSpecConstant,
-                                     unsigned Padding = 0) {
+                                     bool IsNativeSpecConstant) {
   SmallVector<Metadata *, 16> MDOps;
   LLVMContext &Ctx = M.getContext();
   auto *Int32Ty = Type::getInt32Ty(Ctx);
@@ -458,10 +457,9 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
            "There must be a single ID for emulated spec constant");
     MDOps.push_back(ConstantAsMetadata::get(
         Constant::getIntegerValue(Int32Ty, APInt(32, IDs[0].ID))));
-    // Second element is padding necessary to ensure alignment of spec constant
-    // in the buffer
+    // Second element is always zero here
     MDOps.push_back(ConstantAsMetadata::get(
-        Constant::getIntegerValue(Int32Ty, APInt(32, Padding))));
+        Constant::getIntegerValue(Int32Ty, APInt(32, 0))));
 
     unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
 
@@ -773,27 +771,74 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           auto Ins = OffsetMap.insert(std::make_pair(SymID, NextOffset));
           IsNewSpecConstant = Ins.second;
           unsigned CurrentOffset = Ins.first->second;
-
-          unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
-          unsigned Align = M.getDataLayout().getABITypeAlignment(SCTy);
-
-          // Ensure the specialization constant is properly aligned
-          if (CurrentOffset % Align != 0) {
-            Padding = Size - CurrentOffset % Align;
-          }
-          CurrentOffset += Padding;
-
           if (IsNewSpecConstant) {
-            // The CompositeOffset field is not used for specialization
-            // constant emulation so we can re-use it to communicate to the
-            // runtime the padding required for the specialization constant in
-            // the buffer
+            unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
+            unsigned Align = M.getDataLayout().getABITypeAlignment(SCTy);
+
+            // Ensure correct alignment
+            if (CurrentOffset % Align != 0) {
+              // Compute necessary padding to correctly align the constant.
+              Padding = Size - CurrentOffset % Align;
+
+              // Update offsets.
+              NextOffset += Padding;
+              CurrentOffset += Padding;
+              OffsetMap[SymID] = NextOffset;
+
+              // The spec constant map can't be empty as the first offset is 0
+              // and so it can't be misaligned.
+              assert(!SCMetadata.empty() &&
+                     "Cannot add padding to first spec constant");
+
+              // To communicate the padding to the runtime, update the metadata
+              // node of the previous spec constant to append a padding node. It
+              // can't be added in front of the current spec constant, as doing
+              // so would require the spec constant node to have a non-zero
+              // CompositeOffset which breaks accessing it in the runtime.
+              auto Prev = SCMetadata.back();
+
+              // Emulated spec constants don't use composite so should
+              // always be formatted as (SymID, ID, Offset, Size), except when
+              // they include padding, but since padding is added at insertion
+              // of the next element, the last element of the map can never be
+              // padded.
+              assert(Prev.second->getNumOperands() == 4 &&
+                     "Incorrect emulated spec constant format");
+
+              LLVMContext &Ctx = M.getContext();
+              auto *Int32Ty = Type::getInt32Ty(Ctx);
+              SmallVector<Metadata *, 16> MDOps;
+
+              // Copy the existing metadata.
+              MDOps.push_back(Prev.second->getOperand(0));
+              MDOps.push_back(Prev.second->getOperand(1));
+              MDOps.push_back(Prev.second->getOperand(2));
+              auto &SizeOp = Prev.second->getOperand(3);
+              MDOps.push_back(SizeOp);
+
+              // Extract the size of the previous node to use as CompositeOffset
+              // for the padding node.
+              auto PrevSize = mdconst::extract<ConstantInt>(SizeOp)->getValue();
+
+              // The max value is a magic value used for padding that the
+              // runtime knows to skip.
+              MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
+                  Int32Ty, APInt(32, std::numeric_limits<unsigned>::max()))));
+              MDOps.push_back(ConstantAsMetadata::get(
+                  Constant::getIntegerValue(Int32Ty, PrevSize)));
+              MDOps.push_back(ConstantAsMetadata::get(
+                  Constant::getIntegerValue(Int32Ty, APInt(32, Padding))));
+
+              // Replace previous metadata node with the node including the
+              // padding.
+              SCMetadata[Prev.first] = MDNode::get(Ctx, MDOps);
+            }
+
             SCMetadata[SymID] = generateSpecConstantMetadata(
-                M, SymID, SCTy, NextID, /* is native spec constant */ false,
-                Padding);
+                M, SymID, SCTy, NextID, /* is native spec constant */ false);
 
             ++NextID.ID;
-            NextOffset += Size + Padding;
+            NextOffset += Size;
           }
 
           Type *Int8Ty = Type::getInt8Ty(CI->getContext());
