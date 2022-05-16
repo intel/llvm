@@ -144,6 +144,15 @@ struct OptionalDevice {
     return createSyclObjFromImpl<device>(DeviceImpl);
   }
 
+  OptionalDevice &operator=(OptionalDevice &Other) {
+    DeviceImpl = Other.DeviceImpl;
+    return *this;
+  }
+  OptionalDevice &operator=(std::shared_ptr<device_impl> &Other) {
+    DeviceImpl = Other;
+    return *this;
+  }
+
 private:
   std::shared_ptr<device_impl> DeviceImpl;
 
