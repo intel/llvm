@@ -409,7 +409,7 @@ pi_uint64 _pi_event::get_queued_time() const {
   assert(is_started());
 
   PI_CHECK_ERROR(
-      cuEventElapsedTime(&miliSeconds, context_->evBase_, evQueued_));
+      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evQueued_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
 
@@ -417,7 +417,8 @@ pi_uint64 _pi_event::get_start_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
 
-  PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, context_->evBase_, evStart_));
+  PI_CHECK_ERROR(
+      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
 
@@ -425,7 +426,8 @@ pi_uint64 _pi_event::get_end_time() const {
   float miliSeconds = 0.0f;
   assert(is_started() && is_recorded());
 
-  PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, context_->evBase_, evEnd_));
+  PI_CHECK_ERROR(
+      cuEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evEnd_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
 
@@ -1881,9 +1883,16 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
           _pi_context::kind::user_defined, newContext, *devices});
     }
 
-    // Use default stream to record base event counter
-    PI_CHECK_ERROR(cuEventCreate(&piContextPtr->evBase_, CU_EVENT_DEFAULT));
-    PI_CHECK_ERROR(cuEventRecord(piContextPtr->evBase_, 0));
+    static std::once_flag initFlag;
+    std::call_once(
+        initFlag,
+        [](pi_result &err) {
+          // Use default stream to record base event counter
+          PI_CHECK_ERROR(
+              cuEventCreate(&_pi_platform::evBase_, CU_EVENT_DEFAULT));
+          PI_CHECK_ERROR(cuEventRecord(_pi_platform::evBase_, 0));
+        },
+        errcode_ret);
 
     // For non-primary scoped contexts keep the last active on top of the stack
     // as `cuCtxCreate` replaces it implicitly otherwise.
@@ -1912,8 +1921,6 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
   ctxt->invoke_extended_deleters();
 
   std::unique_ptr<_pi_context> context{ctxt};
-
-  PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
 
   if (!ctxt->is_primary()) {
     CUcontext cuCtxt = ctxt->get();
@@ -5137,3 +5144,5 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 }
 
 } // extern "C"
+
+CUevent _pi_platform::evBase_{nullptr};

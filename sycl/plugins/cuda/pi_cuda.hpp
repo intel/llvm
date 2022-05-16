@@ -61,6 +61,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
 ///  when devices are used.
 ///
 struct _pi_platform {
+  static CUevent evBase_; // CUDA event used as base counter
   std::vector<std::unique_ptr<_pi_device>> devices_;
 };
 
@@ -162,11 +163,8 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  CUevent evBase_; // CUDA event used as base counter
-
   _pi_context(kind k, CUcontext ctxt, _pi_device *devId)
-      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1},
-        evBase_(nullptr) {
+      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1} {
     cuda_piDeviceRetain(deviceId_);
   };
 
