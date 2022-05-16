@@ -4980,7 +4980,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   }
 
   // PI interface supports higher version or the same version.
-  if (strlen(SupportedVersion) >= sizeof(PluginInit->PluginVersion))
+  size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
+  if (strlen(SupportedVersion) >= PluginVersionSize)
     return PI_INVALID_VALUE;
   strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
