@@ -121,7 +121,7 @@ struct {
 }
 ```
 
-Deprecated.[^1]
+Deprecated as of version 3 of this specification.[^1]
 </td>
 </tr><tr>
 <td>
@@ -134,6 +134,8 @@ struct {
       ext::oneapi::level_zero::ownership::transfer};
 }
 ```
+
+Supported since version 3 of this specification.[^1]
 </td>
 </tr><tr>
 <td>event</td>
