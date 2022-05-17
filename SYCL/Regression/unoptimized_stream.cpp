@@ -3,14 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// UNSUPPORTED: cuda
-// Disable test due to flaky failure on CUDA(issue #387)
-
-// NOTE: The libclc target used by the CUDA backend used to generate atomic load
-//       variants that were unsupported by NVPTX. Even if they were not used
-//       directly, sycl::stream and other operations would keep the invalid
-//       operations in when optimizations were disabled.
-
 #include <sycl/sycl.hpp>
 
 int main() {
