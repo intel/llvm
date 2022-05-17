@@ -51,8 +51,8 @@ private:
   llvm::DenseMap<Function *, Value *> ProcessedFunctions;
   // Keep a map of all entry point functions with metadata
   llvm::DenseMap<Function *, MDNode *> EntryPointMetadata;
-  llvm::Type *KernelImplicitArgumentType;
-  llvm::Type *ImplicitOffsetPtrType;
+  llvm::Type *KernelImplicitArgumentType = nullptr;
+  llvm::Type *ImplicitOffsetPtrType = nullptr;
 
   ArchType AT;
   unsigned TargetAS = 0;
