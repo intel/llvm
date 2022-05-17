@@ -33,19 +33,11 @@ namespace __sycl_std = __host_std;
 #endif
 
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
-// genfloat acos (genfloat x)
-template <typename T>
-detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
-  return __sycl_std::__invoke_acos<T>(x);
-}
-
 #define __SYCL_MATH_FUNCTION_OVERLOAD(NAME)                                    \
   template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE std::enable_if_t<                                \
-      std::is_same<T, half>::value || std::is_same<T, float>::value ||         \
-          std::is_same<T, double>::value,                                      \
-      sycl::marray<T, N>>                                                      \
-  NAME(sycl::marray<T, N> x) __NOEXC {                                         \
+  inline __SYCL_ALWAYS_INLINE                                                  \
+      std::enable_if_t<detail::is_sgenfloat<T>::value, sycl::marray<T, N>>     \
+      NAME(sycl::marray<T, N> x) __NOEXC {                                     \
     sycl::marray<T, N> res;                                                    \
     auto x_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&x);               \
     auto res_vec2 = reinterpret_cast<sycl::vec<T, 2> *>(&res);                 \
@@ -102,11 +94,9 @@ __SYCL_MATH_FUNCTION_OVERLOAD(trunc)
 
 #define __SYCL_MATH_FUNCTION_2_OVERLOAD(NAME)                                  \
   template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE std::enable_if_t<                                \
-      std::is_same<T, half>::value || std::is_same<T, float>::value ||         \
-          std::is_same<T, double>::value,                                      \
-      sycl::marray<T, N>>                                                      \
-  NAME(sycl::marray<T, N> x, sycl::marray<T, N> y) __NOEXC {                   \
+  inline __SYCL_ALWAYS_INLINE                                                  \
+      std::enable_if_t<detail::is_sgenfloat<T>::value, sycl::marray<T, N>>     \
+      NAME(sycl::marray<T, N> x, sycl::marray<T, N> y) __NOEXC {               \
     sycl::marray<T, N> res;                                                    \
     auto x_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&x);               \
     auto y_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&y);               \
@@ -140,12 +130,10 @@ __SYCL_MATH_FUNCTION_2_OVERLOAD(remainder)
 
 #define __SYCL_MATH_FUNCTION_3_OVERLOAD(NAME)                                  \
   template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE std::enable_if_t<                                \
-      std::is_same<T, half>::value || std::is_same<T, float>::value ||         \
-          std::is_same<T, double>::value,                                      \
-      sycl::marray<T, N>>                                                      \
-  NAME(sycl::marray<T, N> x, sycl::marray<T, N> y, sycl::marray<T, N> z)       \
-      __NOEXC {                                                                \
+  inline __SYCL_ALWAYS_INLINE                                                  \
+      std::enable_if_t<detail::is_sgenfloat<T>::value, sycl::marray<T, N>>     \
+      NAME(sycl::marray<T, N> x, sycl::marray<T, N> y, sycl::marray<T, N> z)   \
+          __NOEXC {                                                            \
     sycl::marray<T, N> res;                                                    \
     auto x_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&x);               \
     auto y_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&y);               \
@@ -167,6 +155,12 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
 __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
+
+// genfloat acos (genfloat x)
+template <typename T>
+detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
+  return __sycl_std::__invoke_acos<T>(x);
+}
 
 // genfloat acosh (genfloat x)
 template <typename T>
