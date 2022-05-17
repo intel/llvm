@@ -143,7 +143,7 @@ void GlobalOffsetPass::processKernelEntryPoint(Module &M, Function *Func) {
                              FuncMetadata->getOperand(2)};
   KernelMetadata->addOperand(MDNode::get(Ctx, NewMetadata));
 
-  // Create alloca of zeros for the implicit offset in original func
+  // Create alloca of zeros for the implicit offset in the original func.
   BasicBlock *EntryBlock = &Func->getEntryBlock();
   IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
   Type *ImplicitOffsetType =
