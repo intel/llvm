@@ -26,19 +26,18 @@ constexpr auto Backend = sycl::backend::ext_oneapi_level_zero;
 constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
 #endif
 
-<<<<<<< HEAD
 #ifdef USE_HIP
 #include <CL/sycl/detail/backend_traits_hip.hpp>
 
 constexpr auto Backend = sycl::backend::ext_oneapi_hip;
-=======
+#endif
+
 #ifdef USE_CUDA_EXPERIMENTAL
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
+#include <sycl/ext/oneapi/experimental/backend/backend_traits_cuda.hpp>
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
-#include <sycl/sycl.hpp>
 
-    constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
->>>>>>> d9daac27135f... add cuda experimental interop testing
+constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
 #endif
 
 #include <sycl/sycl.hpp>

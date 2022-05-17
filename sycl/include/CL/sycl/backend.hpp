@@ -23,6 +23,7 @@
 #else
 #include <CL/sycl/detail/backend_traits_cuda.hpp>
 #endif
+#endif
 #if SYCL_EXT_ONEAPI_BACKEND_HIP
 #include <CL/sycl/detail/backend_traits_hip.hpp>
 #endif
