@@ -778,12 +778,15 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             // Ensure correct alignment
             if (CurrentOffset % Align != 0) {
               // Compute necessary padding to correctly align the constant.
-              Padding = Size - CurrentOffset % Align;
+              Padding = Align - CurrentOffset % Align;
 
               // Update offsets.
               NextOffset += Padding;
               CurrentOffset += Padding;
               OffsetMap[SymID] = NextOffset;
+
+              assert(CurrentOffset % Align == 0 &&
+                     "Alignment calculation error");
 
               // The spec constant map can't be empty as the first offset is 0
               // and so it can't be misaligned.
