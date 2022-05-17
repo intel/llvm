@@ -128,14 +128,6 @@ DEVICE_EXTERN_C_INLINE
 float __imf_saturatef(float x) { return __devicelib_imf_saturatef(x); }
 
 DEVICE_EXTERN_C_INLINE
-float __imf_expf(float x) { return __devicelib_imf_expf(x); }
-
-DEVICE_EXTERN_C_INLINE
-_iml_half_internal __imf_expf16(_iml_half_internal x) {
-  return __devicelib_imf_expf16(x);
-}
-
-DEVICE_EXTERN_C_INLINE
 int __imf_float2int_rd(float x) { return __devicelib_imf_float2int_rd(x); }
 
 DEVICE_EXTERN_C_INLINE
