@@ -122,8 +122,8 @@ void cmk_acum_iterative(unsigned *buf, unsigned h_pos,
   cnt_table.select<1, 1, TUPLE_SZ, 1>(0, 0) +=
       cnt_table.select<1, 1, TUPLE_SZ, 1>(1, 0);
 
-  simd<unsigned, 8> voff(0, 1);        // 0, 1, 2, 3
-  simd_mask<8> p = voff < TUPLE_SZ;    // predicate
+  simd<unsigned, 8> voff(0, 1);     // 0, 1, 2, 3
+  simd_mask<8> p = voff < TUPLE_SZ; // predicate
   voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) *
          sizeof(unsigned);
   scatter<unsigned, 8>(buf, voff, S.select<8, 1>(0), p);
@@ -173,8 +173,8 @@ void cmk_acum_iterative_low(unsigned *buf, unsigned h_pos,
   cnt_table.select<1, 1, TUPLE_SZ, 1>(0, 0) +=
       cnt_table.select<1, 1, TUPLE_SZ, 1>(1, 0);
 
-  simd<unsigned, 8> voff(0, 1);        // 0, 1, 2, 3
-  simd_mask<8> p = voff < TUPLE_SZ;    // predicate
+  simd<unsigned, 8> voff(0, 1);     // 0, 1, 2, 3
+  simd_mask<8> p = voff < TUPLE_SZ; // predicate
   voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) *
          sizeof(unsigned);
   scatter<unsigned, 8>(buf, voff, S.select<8, 1>(0), p);
@@ -196,8 +196,7 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
 
     simd_mask<32> p = elm32 < remaining;
 
-    S = gather_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset,
-                                                           p);
+    S = gather_rgba<GATHER_SCATTER_MASK>(buf, element_offset, p);
 
     auto cnt_table = S.bit_cast_view<unsigned int, TUPLE_SZ, 32>();
     cnt_table.column(0) += prev;
@@ -226,8 +225,7 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
       cnt_table.select<1, 1, 16, 1>(j, 16) +=
           cnt_table.replicate_vs_w_hs<1, 0, 16, 0>(j, 15);
     }
-    scatter_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset, S,
-                                                        p);
+    scatter_rgba<GATHER_SCATTER_MASK>(buf, element_offset, S, p);
     elm32 += 32;
     element_offset += stride_elems * TUPLE_SZ * sizeof(unsigned) * 32;
     prev = cnt_table.column(31);

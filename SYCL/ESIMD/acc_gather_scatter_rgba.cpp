@@ -1,4 +1,4 @@
-//==-------- usm_gather_scatter_rgba.cpp  - DPC++ ESIMD on-device test -----==//
+//==-------- acc_gather_scatter_rgba.cpp  - DPC++ ESIMD on-device test -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,8 +10,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
-// The test checks functionality of the gather_rgba/scatter_rgba USM-based ESIMD
-// intrinsics.
+// The test checks functionality of the gather_rgba/scatter_rgba accessor-based
+// ESIMD intrinsics.
 
 #include "esimd_test_utils.hpp"
 
@@ -21,40 +21,39 @@
 
 using namespace cl::sycl;
 
+template <typename T>
+using AccT = accessor<T, 1, access_mode::read_write, access::target::device>;
+
 constexpr int MASKED_LANE_NUM_REV = 1;
 constexpr int NUM_RGBA_CHANNELS =
     get_num_channels_enabled(sycl::ext::intel::esimd::rgba_channel_mask::ABGR);
 
 template <typename T, unsigned VL, unsigned STRIDE, auto CH_MASK>
 struct Kernel {
-  T *bufIn;
-  T *bufOut;
-  Kernel(T *bufIn, T *bufOut) : bufIn(bufIn), bufOut(bufOut) {}
+  AccT<T> InAcc;
+  AccT<T> OutAcc;
+  Kernel(AccT<T> InAcc, AccT<T> OutAcc) : InAcc(InAcc), OutAcc(OutAcc) {}
 
   void operator()(id<1> i) const SYCL_ESIMD_KERNEL {
     using namespace sycl::ext::intel::esimd;
     constexpr int numChannels = get_num_channels_enabled(CH_MASK);
 
-    // every workitem accesses contiguous block of VL * STRIDE elements,
+    // Every workitem accesses contiguous block of VL * STRIDE elements,
     // where each element consists of RGBA channels.
-    uint32_t global_offset = i * VL * STRIDE * NUM_RGBA_CHANNELS;
+    uint32_t global_offset = i * VL * STRIDE * NUM_RGBA_CHANNELS * sizeof(T);
 
     simd<uint32_t, VL> byteOffsets(0, STRIDE * sizeof(T) * NUM_RGBA_CHANNELS);
     simd<T, VL * numChannels> v;
     if constexpr (CH_MASK == rgba_channel_mask::ABGR)
       // Check that the default mask value is ABGR.
-      v = gather_rgba(bufIn + global_offset, byteOffsets);
+      v = gather_rgba(InAcc, byteOffsets, global_offset);
     else
-      v = gather_rgba<CH_MASK>(bufIn + global_offset, byteOffsets);
+      v = gather_rgba<CH_MASK>(InAcc, byteOffsets, global_offset);
     v += (int)i;
 
     simd_mask<VL> pred = 1;
     pred[VL - MASKED_LANE_NUM_REV] = 0; // mask out the last lane
-    if constexpr (CH_MASK == rgba_channel_mask::ABGR)
-      // Check that the default mask value is ABGR.
-      scatter_rgba(bufOut + global_offset, byteOffsets, v, pred);
-    else
-      scatter_rgba<CH_MASK>(bufOut + global_offset, byteOffsets, v, pred);
+    scatter_rgba<CH_MASK>(OutAcc, byteOffsets, v, global_offset, pred);
   }
 };
 
@@ -84,8 +83,8 @@ bool test(queue q) {
             << " STRIDE=" << STRIDE << " MASK=" << convertMaskToStr(CH_MASK)
             << "...\t";
 
-  T *A = malloc_shared<T>(size, q);
-  T *B = malloc_shared<T>(size, q);
+  T *A = new T[size];
+  T *B = new T[size];
   T *gold = new T[size];
 
   for (int i = 0; i < size; ++i) {
@@ -113,16 +112,20 @@ bool test(queue q) {
       gold[i + j] = -A[i + j];
 
   try {
+    buffer<T, 1> InBuf(A, range<1>(size));
+    buffer<T, 1> OutBuf(B, range<1>(size));
     range<1> glob_range{numWorkItems};
     auto e = q.submit([&](handler &cgh) {
-      Kernel<T, VL, STRIDE, CH_MASK> kernel(A, B);
+      auto InAcc = InBuf.template get_access<access::mode::read_write>(cgh);
+      auto OutAcc = OutBuf.template get_access<access::mode::read_write>(cgh);
+      Kernel<T, VL, STRIDE, CH_MASK> kernel(InAcc, OutAcc);
       cgh.parallel_for(glob_range, kernel);
     });
     e.wait();
   } catch (sycl::exception const &e) {
-    std::cout << "SYCL exception caught: " << e.what() << '\n';
-    free(A, q);
-    free(B, q);
+    std::cerr << "SYCL exception caught: " << e.what() << '\n';
+    delete[] A;
+    delete[] B;
     delete[] gold;
     return false; // not success
   }
@@ -143,8 +146,8 @@ bool test(queue q) {
               << (size - err_cnt) << "/" << size << ")\n";
   }
 
-  free(A, q);
-  free(B, q);
+  delete[] A;
+  delete[] B;
   delete[] gold;
 
   if (err_cnt == 0)

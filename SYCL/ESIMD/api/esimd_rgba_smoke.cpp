@@ -92,11 +92,11 @@ bool test_impl(queue q) {
       cgh.single_task<TestID<T, NPixels, static_cast<int>(ChMask)>>(
           [=]() SYCL_ESIMD_KERNEL {
             constexpr unsigned NElems = NPixels * NOnChs;
-            simd<T, NPixels> offsets(0, sizeof(T) * NAllChs);
-            simd<T, NElems> p = gather_rgba<T, NPixels, ChMask>(A, offsets);
+            simd<unsigned int, NPixels> offsets(0, sizeof(T) * NAllChs);
+            simd<T, NElems> p = gather_rgba<ChMask>(A, offsets);
             // simply scatter back to B - should give same results as A in
             // enabled channels, the rest should remain zero:
-            scatter_rgba<T, NPixels, ChMask>(B, offsets, p);
+            scatter_rgba<ChMask>(B, offsets, p);
             // copy instead of scattering to C - thus getting AOS to SOA layout
             // layout conversion:
             //   R0 R1 ... G0 G1 ... B0 B1 ... A0 A1 ...
