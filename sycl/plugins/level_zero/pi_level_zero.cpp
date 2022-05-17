@@ -3388,13 +3388,13 @@ pi_result piQueueFinish(pi_queue Queue) {
 
   if (UseImmediateCommandLists) {
     // Lock automatically releases when this goes out of scope.
-    std::scoped_lock lock(Queue->Mutex);
+    std::scoped_lock Lock(Queue->Mutex);
 
     Queue->synchronize();
     return PI_SUCCESS;
   }
 
-  std::unique_lock lock(Queue->Mutex);
+  std::unique_lock Lock(Queue->Mutex);
   std::vector<ze_command_queue_handle_t> ZeQueues;
 
   // execute any command list that may still be open.
@@ -3407,6 +3407,9 @@ pi_result piQueueFinish(pi_queue Queue) {
             Queue->ComputeQueueGroup.ZeQueues.end(),
             std::back_inserter(ZeQueues));
 
+  // Remember the last command's event.
+  auto LastCommandEvent = Queue->LastCommandEvent;
+
   // Don't hold a lock to the queue's mutex while waiting.
   // This allows continue working with the queue from other threads.
   // TODO: this currently exhibits some issues in the driver, so
@@ -3415,12 +3418,24 @@ pi_result piQueueFinish(pi_queue Queue) {
   static bool HoldLock =
       std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK") != nullptr;
   if (!HoldLock) {
-    lock.unlock();
+    Lock.unlock();
   }
 
   for (auto ZeQueue : ZeQueues) {
     if (ZeQueue)
       ZE_CALL(zeHostSynchronize, (ZeQueue));
+  }
+
+  // Prevent unneeded already finished events to show up in the wait list.
+  // We can only do so if nothing else was submitted to the queue
+  // while we were synchronizing it.
+  if (!HoldLock) {
+    std::scoped_lock Lock(Queue->Mutex);
+    if (LastCommandEvent == Queue->LastCommandEvent) {
+      Queue->LastCommandEvent = nullptr;
+    }
+  } else {
+    Queue->LastCommandEvent = nullptr;
   }
   return PI_SUCCESS;
 }
