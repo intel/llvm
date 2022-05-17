@@ -142,9 +142,9 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producer,
   clonedShapes.reserve(producer.getNumInputsAndOutputs());
 
   // Compute subranges for all tensor input/output operands.
-  clonedShapes.append(makeTiledShapes(b, loc, producer,
-                                      getTiledOperands(producer), ivs,
-                                      tileSizes, sizeBounds));
+  clonedShapes.append(makeTiledShapes(
+      b, loc, producer, getTiledOperands(producer), ivs, tileSizes, sizeBounds,
+      /**omitPartialTileCheck=*/false));
 
   // Iterate over the results in order.
   // Extract the subtensor type from the linearized range.
@@ -168,8 +168,8 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producer,
 
   // Shift all IndexOp results by the tile offset.
   SmallVector<Value> allIvs;
-  transform(loopRanges, std::back_inserter(allIvs),
-            [](Range range) { return range.offset; });
+  llvm::transform(loopRanges, std::back_inserter(allIvs),
+                  [](Range range) { return range.offset; });
   addTileLoopIvsToIndexOpResults(b, clonedOp, allIvs);
 
   return clonedOp;

@@ -237,7 +237,8 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
         Subscripts.push_back(
             Builder.getOrCreateSubrange(CountAsMD, nullptr, nullptr, nullptr));
       }
-      TotalCount *= static_cast<uint64_t>(Count);
+      // Count = -1 means that the array is empty
+      TotalCount *= Count > 0 ? static_cast<size_t>(Count) : 0;
       continue;
     }
   }

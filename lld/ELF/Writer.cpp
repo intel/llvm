@@ -362,6 +362,13 @@ template <class ELFT> void elf::createSyntheticSections() {
     part.dynSymTab =
         std::make_unique<SymbolTableSection<ELFT>>(*part.dynStrTab);
     part.dynamic = std::make_unique<DynamicSection<ELFT>>();
+
+    if (config->emachine == EM_AARCH64 &&
+        config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE) {
+      part.memtagAndroidNote = std::make_unique<MemtagAndroidNote>();
+      add(*part.memtagAndroidNote);
+    }
+
     if (config->androidPackDynRelocs)
       part.relaDyn =
           std::make_unique<AndroidPackedRelocationSection<ELFT>>(relaDynName);
@@ -636,7 +643,7 @@ static bool shouldKeepInSymtab(const Defined &sym) {
 
   // If --emit-reloc or -r is given, preserve symbols referenced by relocations
   // from live sections.
-  if (sym.used)
+  if (sym.used && config->copyRelocs)
     return true;
 
   // Exclude local symbols pointing to .ARM.exidx sections.
@@ -673,7 +680,7 @@ static bool includeInSymtab(const Symbol &b) {
       return true;
 
     if (auto *s = dyn_cast<MergeInputSection>(sec))
-      return s->getSectionPiece(d->value)->live;
+      return s->getSectionPiece(d->value).live;
     return sec->isLive();
   }
   return b.used || !config->gcSections;
@@ -711,23 +718,29 @@ template <class ELFT> void Writer<ELFT>::addSectionSymbols() {
     if (!osd)
       continue;
     OutputSection &osec = osd->osec;
-    auto i = llvm::find_if(osec.commands, [](SectionCommand *cmd) {
-      if (auto *isd = dyn_cast<InputSectionDescription>(cmd))
-        return !isd->sections.empty();
-      return false;
-    });
-    if (i == osec.commands.end())
-      continue;
-    InputSectionBase *isec = cast<InputSectionDescription>(*i)->sections[0];
+    InputSectionBase *isec = nullptr;
+    // Iterate over all input sections and add a STT_SECTION symbol if any input
+    // section may be a relocation target.
+    for (SectionCommand *cmd : osec.commands) {
+      auto *isd = dyn_cast<InputSectionDescription>(cmd);
+      if (!isd)
+        continue;
+      for (InputSectionBase *s : isd->sections) {
+        // Relocations are not using REL[A] section symbols.
+        if (s->type == SHT_REL || s->type == SHT_RELA)
+          continue;
 
-    // Relocations are not using REL[A] section symbols.
-    if (isec->type == SHT_REL || isec->type == SHT_RELA)
-      continue;
+        // Unlike other synthetic sections, mergeable output sections contain
+        // data copied from input sections, and there may be a relocation
+        // pointing to its contents if -r or --emit-reloc is given.
+        if (isa<SyntheticSection>(s) && !(s->flags & SHF_MERGE))
+          continue;
 
-    // Unlike other synthetic sections, mergeable output sections contain data
-    // copied from input sections, and there may be a relocation pointing to its
-    // contents if -r or --emit-reloc is given.
-    if (isa<SyntheticSection>(isec) && !(isec->flags & SHF_MERGE))
+        isec = s;
+        break;
+      }
+    }
+    if (!isec)
       continue;
 
     // Set the symbol to be relative to the output section so that its st_value
@@ -748,6 +761,8 @@ template <class ELFT> void Writer<ELFT>::addSectionSymbols() {
 static bool isRelroSection(const OutputSection *sec) {
   if (!config->zRelro)
     return false;
+  if (sec->relro)
+    return true;
 
   uint64_t flags = sec->flags;
 

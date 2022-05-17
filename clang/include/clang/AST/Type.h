@@ -830,6 +830,8 @@ public:
   /// Return true if this is a trivially copyable type (C++0x [basic.types]p9)
   bool isTriviallyCopyableType(const ASTContext &Context) const;
 
+  /// Return true if this is a trivially relocatable type.
+  bool isTriviallyRelocatableType(const ASTContext &Context) const;
 
   /// Returns true if it is a class and it might be dynamic.
   bool mayBeDynamicClass() const;
@@ -931,6 +933,10 @@ public:
   /// The resulting type might still be qualified if it's sugar for an array
   /// type.  To strip qualifiers even from within a sugared array type, use
   /// ASTContext::getUnqualifiedArrayType.
+  ///
+  /// Note: In C, the _Atomic qualifier is special (see C2x 6.2.5p29 for
+  /// details), and it is not stripped by this function. Use
+  /// getAtomicUnqualifiedType() to strip qualifiers including _Atomic.
   inline QualType getUnqualifiedType() const;
 
   /// Retrieve the unqualified variant of the given type, removing as little
@@ -1311,6 +1317,8 @@ private:
   static bool hasNonTrivialToPrimitiveDestructCUnion(const RecordDecl *RD);
   static bool hasNonTrivialToPrimitiveCopyCUnion(const RecordDecl *RD);
 };
+
+raw_ostream &operator<<(raw_ostream &OS, QualType QT);
 
 } // namespace clang
 

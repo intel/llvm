@@ -57,6 +57,24 @@ pi_result map_error(CUresult result) {
   }
 }
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+static void setErrorMessage(const char *message, pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result cuda_piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -852,15 +870,9 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             context->get_device()->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
-                     : PI_MEMORY_ORDER_RELAXED;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -871,10 +883,11 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              context->get_device()->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
                            PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_DEVICE;
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1139,15 +1152,9 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    atomic64);
   }
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    int major = 0;
-    cl::sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             device->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
-                     : PI_MEMORY_ORDER_RELAXED;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1158,10 +1165,11 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
     pi_memory_order_capabilities capabilities =
-        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
                            PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_DEVICE;
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -3428,6 +3436,15 @@ pi_result cuda_piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
   return PI_SUCCESS;
 }
 
+pi_result cuda_piextProgramSetSpecializationConstant(pi_program, pi_uint32,
+                                                     size_t, const void *) {
+  // This entry point is only used for native specialization constants (SPIR-V),
+  // and the CUDA plugin is AOT only so this entry point is not supported.
+  cl::sycl::detail::pi::die(
+      "Native specialization constants are not supported");
+  return {};
+}
+
 pi_result cuda_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
                                         size_t arg_size,
                                         const void *arg_value) {
@@ -4739,13 +4756,29 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
 
-// CUDA has an issue with cuMemPrefetchAsync returning cudaErrorInvalidDevice
-// for Windows machines
-// TODO: Remove when fix is found
-#ifdef _MSC_VER
-  cl::sycl::detail::pi::die(
-      "cuda_piextUSMEnqueuePrefetch does not currently work on Windows");
-#endif
+  // Certain cuda devices and Windows do not have support for some Unified
+  // Memory features. cuMemPrefetchAsync requires concurrent memory access
+  // for managed memory. Therfore, ignore prefetch hint if concurrent managed
+  // memory access is not available.
+  int isConcurrentManagedAccessAvailable = 0;
+  cuDeviceGetAttribute(&isConcurrentManagedAccessAvailable,
+                       CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS,
+                       queue->get_context()->get_device()->get());
+  if (!isConcurrentManagedAccessAvailable) {
+    setErrorMessage("Prefetch hint ignored as device does not support "
+                    "concurrent managed access",
+                    PI_SUCCESS);
+    return PI_PLUGIN_SPECIFIC_ERROR;
+  }
+
+  unsigned int is_managed;
+  PI_CHECK_ERROR(cuPointerGetAttribute(
+      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
+  if (!is_managed) {
+    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
+                    PI_SUCCESS);
+    return PI_PLUGIN_SPECIFIC_ERROR;
+  }
 
   // flags is currently unused so fail if set
   if (flags != 0)
@@ -5042,6 +5075,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRetain, cuda_piKernelRetain)
   _PI_CL(piKernelRelease, cuda_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, cuda_piKernelSetExecInfo)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         cuda_piextProgramSetSpecializationConstant)
   _PI_CL(piextKernelSetArgPointer, cuda_piextKernelSetArgPointer)
   _PI_CL(piextKernelCreateWithNativeHandle,
          cuda_piextKernelCreateWithNativeHandle)
@@ -5093,6 +5128,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
 
 #undef _PI_CL

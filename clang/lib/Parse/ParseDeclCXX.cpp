@@ -2049,8 +2049,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       // Parse the definition body.
       ParseStructUnionBody(StartLoc, TagType, cast<RecordDecl>(D));
       if (SkipBody.CheckSameAsPrevious &&
-          !Actions.ActOnDuplicateDefinition(DS, TagOrTempResult.get(),
-                                            SkipBody)) {
+          !Actions.ActOnDuplicateDefinition(TagOrTempResult.get(), SkipBody)) {
         DS.SetTypeSpecError();
         return;
       }
@@ -2171,8 +2170,11 @@ BaseResult Parser::ParseBaseSpecifier(Decl *ClassDecl) {
 
   // Parse an (optional) access specifier.
   AccessSpecifier Access = getAccessSpecifierIfPresent();
-  if (Access != AS_none)
+  if (Access != AS_none) {
     ConsumeToken();
+    if (getLangOpts().HLSL)
+      Diag(Tok.getLocation(), diag::ext_hlsl_access_specifiers);
+  }
 
   CheckMisplacedCXX11Attribute(Attributes, StartLoc);
 
@@ -3271,6 +3273,8 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclarationWithPragmas(
     LLVM_FALLTHROUGH;
   case tok::kw_public:
   case tok::kw_protected: {
+    if (getLangOpts().HLSL)
+      Diag(Tok.getLocation(), diag::ext_hlsl_access_specifiers);
     AccessSpecifier NewAS = getAccessSpecifierIfPresent();
     assert(NewAS != AS_none);
     // Current token is a C++ access specifier.
@@ -3367,7 +3371,7 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
         break;
       }
 
-      if ((S->getFlags() & Scope::FnScope))
+      if (S->isFunctionScope())
         // If we're in a function or function template then this is a local
         // class rather than a nested class.
         break;
@@ -3510,8 +3514,9 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
   // C++ 11p3: Members of a class defined with the keyword class are private
   // by default. Members of a class defined with the keywords struct or union
   // are public by default.
+  // HLSL: In HLSL members of a class are public by default.
   AccessSpecifier CurAS;
-  if (TagType == DeclSpec::TST_class)
+  if (TagType == DeclSpec::TST_class && !getLangOpts().HLSL)
     CurAS = AS_private;
   else
     CurAS = AS_public;
@@ -4303,10 +4308,19 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
   ParsedAttr::Syntax Syntax =
       LO.CPlusPlus ? ParsedAttr::AS_CXX11 : ParsedAttr::AS_C2x;
 
+  // Try parsing microsoft attributes
+  if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {
+    if (hasAttribute(AttrSyntax::Microsoft, ScopeName, AttrName,
+                     getTargetInfo(), getLangOpts()))
+      Syntax = ParsedAttr::AS_Microsoft;
+  }
+
   // If the attribute isn't known, we will not attempt to parse any
   // arguments.
-  if (!hasAttribute(LO.CPlusPlus ? AttrSyntax::CXX : AttrSyntax::C, ScopeName,
+  if (Syntax != ParsedAttr::AS_Microsoft &&
+      !hasAttribute(LO.CPlusPlus ? AttrSyntax::CXX : AttrSyntax::C, ScopeName,
                     AttrName, getTargetInfo(), getLangOpts())) {
+    if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {}
     // Eat the left paren, then skip to the ending right paren.
     ConsumeParen();
     SkipUntil(tok::r_paren);
@@ -4689,8 +4703,29 @@ void Parser::ParseMicrosoftAttributes(ParsedAttributes &Attrs) {
         break;
       if (Tok.getIdentifierInfo()->getName() == "uuid")
         ParseMicrosoftUuidAttributeArgs(Attrs);
-      else
+      else {
+        IdentifierInfo *II = Tok.getIdentifierInfo();
+        SourceLocation NameLoc = Tok.getLocation();
         ConsumeToken();
+        ParsedAttr::Kind AttrKind =
+            ParsedAttr::getParsedKind(II, nullptr, ParsedAttr::AS_Microsoft);
+        // For HLSL we want to handle all attributes, but for MSVC compat, we
+        // silently ignore unknown Microsoft attributes.
+        if (getLangOpts().HLSL || AttrKind != ParsedAttr::UnknownAttribute) {
+          bool AttrParsed = false;
+          if (Tok.is(tok::l_paren)) {
+            CachedTokens OpenMPTokens;
+            AttrParsed =
+                ParseCXX11AttributeArgs(II, NameLoc, Attrs, &EndLoc, nullptr,
+                                        SourceLocation(), OpenMPTokens);
+            ReplayOpenMPAttributeTokens(OpenMPTokens);
+          }
+          if (!AttrParsed) {
+            Attrs.addNew(II, NameLoc, nullptr, SourceLocation(), nullptr, 0,
+                         ParsedAttr::AS_Microsoft);
+          }
+        }
+      }
     }
 
     T.consumeClose();

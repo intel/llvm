@@ -160,11 +160,19 @@ uint64_t SectionBase::getOffset(uint64_t offset) const {
   case Regular:
   case Synthetic:
     return cast<InputSection>(this)->outSecOff + offset;
-  case EHFrame:
-    // The file crtbeginT.o has relocations pointing to the start of an empty
-    // .eh_frame that is known to be the first in the link. It does that to
-    // identify the start of the output .eh_frame.
+  case EHFrame: {
+    // Two code paths may reach here. First, clang_rt.crtbegin.o and GCC
+    // crtbeginT.o may reference the start of an empty .eh_frame to identify the
+    // start of the output .eh_frame. Just return offset.
+    //
+    // Second, InputSection::copyRelocations on .eh_frame. Some pieces may be
+    // discarded due to GC/ICF. We should compute the output section offset.
+    const EhInputSection *es = cast<EhInputSection>(this);
+    if (!es->rawData.empty())
+      if (InputSection *isec = es->getParent())
+        return isec->outSecOff + es->getParentOffset(offset);
     return offset;
+  }
   case Merge:
     const MergeInputSection *ms = cast<MergeInputSection>(this);
     if (InputSection *isec = ms->getParent())
@@ -721,11 +729,13 @@ uint64_t InputSectionBase::getRelocTargetVA(const InputFile *file, RelType type,
     if (expr == R_ARM_PCA)
       // Some PC relative ARM (Thumb) relocations align down the place.
       p = p & 0xfffffffc;
-    if (sym.isUndefWeak()) {
+    if (sym.isUndefined()) {
       // On ARM and AArch64 a branch to an undefined weak resolves to the next
       // instruction, otherwise the place. On RISCV, resolve an undefined weak
       // to the same instruction to cause an infinite loop (making the user
       // aware of the issue) while ensuring no overflow.
+      // Note: if the symbol is hidden, its binding has been converted to local,
+      // so we just check isUndefined() here.
       if (config->emachine == EM_ARM)
         dest = getARMUndefinedRelativeWeakVA(type, a, p);
       else if (config->emachine == EM_AARCH64)
@@ -1334,6 +1344,15 @@ void EhInputSection::split(ArrayRef<RelTy> rels) {
                 getObjMsg(d.data() - rawData.data()));
 }
 
+// Return the offset in an output section for a given input offset.
+uint64_t EhInputSection::getParentOffset(uint64_t offset) const {
+  const EhSectionPiece &piece = partition_point(
+      pieces, [=](EhSectionPiece p) { return p.inputOff <= offset; })[-1];
+  if (piece.outputOff == -1) // invalid piece
+    return offset - piece.inputOff;
+  return piece.outputOff + (offset - piece.inputOff);
+}
+
 static size_t findNull(StringRef s, size_t entSize) {
   for (unsigned i = 0, n = s.size(); i != n; i += entSize) {
     const char *b = s.begin() + i;
@@ -1410,26 +1429,17 @@ void MergeInputSection::splitIntoPieces() {
     splitNonStrings(data(), entsize);
 }
 
-SectionPiece *MergeInputSection::getSectionPiece(uint64_t offset) {
-  if (this->rawData.size() <= offset)
+SectionPiece &MergeInputSection::getSectionPiece(uint64_t offset) {
+  if (rawData.size() <= offset)
     fatal(toString(this) + ": offset is outside the section");
-
-  // If Offset is not at beginning of a section piece, it is not in the map.
-  // In that case we need to  do a binary search of the original section piece vector.
-  auto it = partition_point(
-      pieces, [=](SectionPiece p) { return p.inputOff <= offset; });
-  return &it[-1];
+  return partition_point(
+      pieces, [=](SectionPiece p) { return p.inputOff <= offset; })[-1];
 }
 
-// Returns the offset in an output section for a given input offset.
-// Because contents of a mergeable section is not contiguous in output,
-// it is not just an addition to a base output offset.
+// Return the offset in an output section for a given input offset.
 uint64_t MergeInputSection::getParentOffset(uint64_t offset) const {
-  // If Offset is not at beginning of a section piece, it is not in the map.
-  // In that case we need to search from the original section piece vector.
-  const SectionPiece &piece = *getSectionPiece(offset);
-  uint64_t addend = offset - piece.inputOff;
-  return piece.outputOff + addend;
+  const SectionPiece &piece = getSectionPiece(offset);
+  return piece.outputOff + (offset - piece.inputOff);
 }
 
 template InputSection::InputSection(ObjFile<ELF32LE> &, const ELF32LE::Shdr &,

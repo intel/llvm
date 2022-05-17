@@ -20,8 +20,6 @@
 namespace Fortran::frontend {
 
 enum ActionKind {
-  InvalidAction = 0,
-
   /// -test-io mode
   InputOutputTest,
 
@@ -36,6 +34,9 @@ enum ActionKind {
 
   /// Emit an .ll file
   EmitLLVM,
+
+  /// Emit a .bc file
+  EmitLLVMBitcode,
 
   /// Emit a .o file.
   EmitObj,
@@ -241,7 +242,7 @@ struct FrontendOptions {
   std::string outputFile;
 
   /// The frontend action to perform.
-  frontend::ActionKind programAction;
+  frontend::ActionKind programAction = ParseSyntaxOnly;
 
   // The form to process files in, if specified.
   FortranForm fortranForm = FortranForm::Unknown;
@@ -269,6 +270,10 @@ struct FrontendOptions {
   /// A list of arguments to forward to LLVM's option processing; this
   /// should only be used for debugging and experimental features.
   std::vector<std::string> llvmArgs;
+
+  /// A list of arguments to forward to MLIR's option processing; this
+  /// should only be used for debugging and experimental features.
+  std::vector<std::string> mlirArgs;
 
   // Return the appropriate input kind for a file extension. For example,
   /// "*.f" would return Language::Fortran.

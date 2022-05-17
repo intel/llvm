@@ -240,9 +240,9 @@ private:
 namespace ext {
 namespace oneapi {
 namespace detail {
-template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-          access::placeholder IsPlaceholder>
-class reduction_impl;
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          class Algorithm>
+class reduction_impl_algo;
 
 using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
@@ -927,14 +927,11 @@ private:
   }
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = typename std::conditional_t<
-        detail::is_same_v<id<Dims>, LambdaArgType>, LambdaArgType,
-        typename std::conditional_t<
-            detail::is_convertible_v<nd_item<Dims>, LambdaArgType>,
-            nd_item<Dims>,
-            typename std::conditional_t<
-                detail::is_convertible_v<item<Dims>, LambdaArgType>, item<Dims>,
-                LambdaArgType>>>;
+    using type = typename std::conditional<
+        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
+        typename std::conditional<
+            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
+            LambdaArgType>::type>::type;
   };
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -2685,11 +2682,11 @@ private:
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
-  // Make reduction_impl friend to store buffers and arrays created for it
-  // in handler from reduction_impl methods.
-  template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-            access::placeholder IsPlaceholder>
-  friend class ext::oneapi::detail::reduction_impl;
+  // Make reduction friends to store buffers and arrays created for it
+  // in handler from reduction methods.
+  template <typename T, class BinaryOperation, int Dims, size_t Extent,
+            class Algorithm>
+  friend class ext::oneapi::detail::reduction_impl_algo;
 
   // This method needs to call the method finalize().
   template <typename Reduction, typename... RestT>

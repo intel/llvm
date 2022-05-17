@@ -753,7 +753,7 @@ RegisterInfoEmitter::emitComposeSubRegIndices(raw_ostream &OS,
   }
   OS << "  };\n\n";
 
-  OS << "  --IdxA; assert(IdxA < " << SubRegIndicesSize << ");\n"
+  OS << "  --IdxA; assert(IdxA < " << SubRegIndicesSize << "); (void) IdxA;\n"
      << "  --IdxB; assert(IdxB < " << SubRegIndicesSize << ");\n";
   if (Rows.size() > 1)
     OS << "  return Rows[RowMap[IdxA]][IdxB];\n";
@@ -1726,6 +1726,7 @@ void RegisterInfoEmitter::debugDump(raw_ostream &OS) {
     OS << "\tHasDisjunctSubRegs: " << RC.HasDisjunctSubRegs << '\n';
     OS << "\tCoveredBySubRegs: " << RC.CoveredBySubRegs << '\n';
     OS << "\tAllocatable: " << RC.Allocatable << '\n';
+    OS << "\tAllocationPriority: " << unsigned(RC.AllocationPriority) << '\n';
     OS << "\tRegs:";
     for (const CodeGenRegister *R : RC.getMembers()) {
       OS << " " << R->getName();

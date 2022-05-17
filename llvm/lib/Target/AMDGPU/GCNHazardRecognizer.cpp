@@ -166,6 +166,11 @@ static bool isPermlane(const MachineInstr &MI) {
          Opcode == AMDGPU::V_PERMLANEX16_B32_e64;
 }
 
+static bool isLdsDma(const MachineInstr &MI) {
+  return SIInstrInfo::isVALU(MI) &&
+         (SIInstrInfo::isMUBUF(MI) || SIInstrInfo::isFLAT(MI));
+}
+
 static unsigned getHWReg(const SIInstrInfo *TII, const MachineInstr &RegInstr) {
   const MachineOperand *RegOp = TII->getNamedOperand(RegInstr,
                                                      AMDGPU::OpName::simm16);
@@ -226,12 +231,12 @@ GCNHazardRecognizer::getHazardType(SUnit *SU, int Stalls) {
   if (isRFE(MI->getOpcode()) && checkRFEHazards(MI) > 0)
     return HazardType;
 
-  if (ST.hasReadM0MovRelInterpHazard() &&
-      (TII.isVINTRP(*MI) || isSMovRel(MI->getOpcode())) &&
-      checkReadM0Hazards(MI) > 0)
-    return HazardType;
-
-  if (ST.hasReadM0SendMsgHazard() && isSendMsgTraceDataOrGDS(TII, *MI) &&
+  if (((ST.hasReadM0MovRelInterpHazard() &&
+        (TII.isVINTRP(*MI) || isSMovRel(MI->getOpcode()))) ||
+       (ST.hasReadM0SendMsgHazard() && isSendMsgTraceDataOrGDS(TII, *MI)) ||
+       (ST.hasReadM0LdsDmaHazard() && isLdsDma(*MI)) ||
+       (ST.hasReadM0LdsDirectHazard() &&
+        MI->readsRegister(AMDGPU::LDS_DIRECT))) &&
       checkReadM0Hazards(MI) > 0)
     return HazardType;
 
@@ -351,11 +356,11 @@ unsigned GCNHazardRecognizer::PreEmitNoopsCommon(MachineInstr *MI) {
   if (isRFE(MI->getOpcode()))
     return std::max(WaitStates, checkRFEHazards(MI));
 
-  if (ST.hasReadM0MovRelInterpHazard() && (TII.isVINTRP(*MI) ||
-                                           isSMovRel(MI->getOpcode())))
-    return std::max(WaitStates, checkReadM0Hazards(MI));
-
-  if (ST.hasReadM0SendMsgHazard() && isSendMsgTraceDataOrGDS(TII, *MI))
+  if ((ST.hasReadM0MovRelInterpHazard() &&
+       (TII.isVINTRP(*MI) || isSMovRel(MI->getOpcode()))) ||
+      (ST.hasReadM0SendMsgHazard() && isSendMsgTraceDataOrGDS(TII, *MI)) ||
+      (ST.hasReadM0LdsDmaHazard() && isLdsDma(*MI)) ||
+      (ST.hasReadM0LdsDirectHazard() && MI->readsRegister(AMDGPU::LDS_DIRECT)))
     return std::max(WaitStates, checkReadM0Hazards(MI));
 
   if (SIInstrInfo::isMAI(*MI))
@@ -794,7 +799,7 @@ GCNHazardRecognizer::checkVALUHazardsHelper(const MachineOperand &Def,
   // 8 bytes can have there store data over written by the next instruction.
   const SIRegisterInfo *TRI = ST.getRegisterInfo();
 
-  const int VALUWaitStates = 1;
+  const int VALUWaitStates = ST.hasGFX940Insts() ? 2 : 1;
   int WaitStatesNeeded = 0;
 
   if (!TRI->isVectorRegister(MRI, Def.getReg()))
@@ -813,13 +818,136 @@ GCNHazardRecognizer::checkVALUHazardsHelper(const MachineOperand &Def,
 }
 
 int GCNHazardRecognizer::checkVALUHazards(MachineInstr *VALU) {
+  int WaitStatesNeeded = 0;
+
+  if (ST.hasTransForwardingHazard() && !SIInstrInfo::isTRANS(*VALU)) {
+    const int TransDefWaitstates = 1;
+
+    auto IsTransDefFn = [this, VALU](const MachineInstr &MI) {
+      if (!SIInstrInfo::isTRANS(MI))
+        return false;
+      const SIRegisterInfo *TRI = ST.getRegisterInfo();
+      const SIInstrInfo *TII = ST.getInstrInfo();
+      Register Def = TII->getNamedOperand(MI, AMDGPU::OpName::vdst)->getReg();
+
+      for (const MachineOperand &Use : VALU->explicit_uses()) {
+        if (Use.isReg() && TRI->regsOverlap(Def, Use.getReg()))
+          return true;
+      }
+
+      return false;
+    };
+
+    int WaitStatesNeededForDef =
+        TransDefWaitstates -
+        getWaitStatesSince(IsTransDefFn, TransDefWaitstates);
+    WaitStatesNeeded = std::max(WaitStatesNeeded, WaitStatesNeededForDef);
+  }
+
+  if (ST.hasDstSelForwardingHazard()) {
+    const int Shift16DefWaitstates = 1;
+
+    auto IsShift16BitDefFn = [this, VALU](const MachineInstr &MI) {
+      if (!SIInstrInfo::isVALU(MI))
+        return false;
+      const SIInstrInfo *TII = ST.getInstrInfo();
+      if (SIInstrInfo::isSDWA(MI)) {
+        if (auto *DstSel = TII->getNamedOperand(MI, AMDGPU::OpName::dst_sel))
+          if (DstSel->getImm() == AMDGPU::SDWA::DWORD)
+            return false;
+      } else {
+        if ((AMDGPU::getNamedOperandIdx(MI.getOpcode(),
+                                        AMDGPU::OpName::op_sel) == -1) ||
+            !(TII->getNamedOperand(MI, AMDGPU::OpName::src0_modifiers)
+                  ->getImm() &
+              SISrcMods::DST_OP_SEL))
+          return false;
+      }
+      const SIRegisterInfo *TRI = ST.getRegisterInfo();
+      if (auto *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst)) {
+        Register Def = Dst->getReg();
+
+        for (const MachineOperand &Use : VALU->explicit_uses()) {
+          if (Use.isReg() && TRI->regsOverlap(Def, Use.getReg()))
+            return true;
+        }
+      }
+
+      return false;
+    };
+
+    int WaitStatesNeededForDef =
+        Shift16DefWaitstates -
+        getWaitStatesSince(IsShift16BitDefFn, Shift16DefWaitstates);
+    WaitStatesNeeded = std::max(WaitStatesNeeded, WaitStatesNeededForDef);
+  }
+
+  if (ST.hasVDecCoExecHazard()) {
+    const int VALUWriteSGPRVALUReadWaitstates = 2;
+    const int VALUWriteEXECRWLane = 4;
+    const int VALUWriteVGPRReadlaneRead = 1;
+
+    const SIRegisterInfo *TRI = ST.getRegisterInfo();
+    const MachineRegisterInfo &MRI = MF.getRegInfo();
+    Register UseReg;
+    auto IsVALUDefSGPRFn = [&UseReg, TRI](const MachineInstr &MI) {
+      if (!SIInstrInfo::isVALU(MI))
+        return false;
+      return MI.modifiesRegister(UseReg, TRI);
+    };
+
+    for (const MachineOperand &Use : VALU->explicit_uses()) {
+      if (!Use.isReg())
+        continue;
+
+      UseReg = Use.getReg();
+      if (TRI->isSGPRReg(MRI, UseReg)) {
+        int WaitStatesNeededForDef =
+            VALUWriteSGPRVALUReadWaitstates -
+            getWaitStatesSince(IsVALUDefSGPRFn,
+                               VALUWriteSGPRVALUReadWaitstates);
+        WaitStatesNeeded = std::max(WaitStatesNeeded, WaitStatesNeededForDef);
+      }
+    }
+
+    if (VALU->readsRegister(AMDGPU::VCC, TRI)) {
+      UseReg = AMDGPU::VCC;
+      int WaitStatesNeededForDef =
+          VALUWriteSGPRVALUReadWaitstates -
+          getWaitStatesSince(IsVALUDefSGPRFn, VALUWriteSGPRVALUReadWaitstates);
+      WaitStatesNeeded = std::max(WaitStatesNeeded, WaitStatesNeededForDef);
+    }
+
+    switch (VALU->getOpcode()) {
+    case AMDGPU::V_READLANE_B32:
+    case AMDGPU::V_READFIRSTLANE_B32: {
+      MachineOperand *Src = TII.getNamedOperand(*VALU, AMDGPU::OpName::src0);
+      UseReg = Src->getReg();
+      int WaitStatesNeededForDef =
+          VALUWriteVGPRReadlaneRead -
+          getWaitStatesSince(IsVALUDefSGPRFn, VALUWriteVGPRReadlaneRead);
+      WaitStatesNeeded = std::max(WaitStatesNeeded, WaitStatesNeededForDef);
+    }
+      LLVM_FALLTHROUGH;
+    case AMDGPU::V_WRITELANE_B32: {
+      UseReg = AMDGPU::EXEC;
+      int WaitStatesNeededForDef =
+          VALUWriteEXECRWLane -
+          getWaitStatesSince(IsVALUDefSGPRFn, VALUWriteEXECRWLane);
+      WaitStatesNeeded = std::max(WaitStatesNeeded, WaitStatesNeededForDef);
+      break;
+    }
+    default:
+      break;
+    }
+  }
+
   // This checks for the hazard where VMEM instructions that store more than
   // 8 bytes can have there store data over written by the next instruction.
   if (!ST.has12DWordStoreHazard())
-    return 0;
+    return WaitStatesNeeded;
 
   const MachineRegisterInfo &MRI = MF.getRegInfo();
-  int WaitStatesNeeded = 0;
 
   for (const MachineOperand &Def : VALU->defs()) {
     WaitStatesNeeded = std::max(WaitStatesNeeded, checkVALUHazardsHelper(Def, MRI));
@@ -891,10 +1019,10 @@ int GCNHazardRecognizer::checkRFEHazards(MachineInstr *RFE) {
 
 int GCNHazardRecognizer::checkReadM0Hazards(MachineInstr *MI) {
   const SIInstrInfo *TII = ST.getInstrInfo();
-  const int SMovRelWaitStates = 1;
+  const int ReadM0WaitStates = 1;
   auto IsHazardFn = [TII](const MachineInstr &MI) { return TII->isSALU(MI); };
-  return SMovRelWaitStates - getWaitStatesSinceDef(AMDGPU::M0, IsHazardFn,
-                                                   SMovRelWaitStates);
+  return ReadM0WaitStates -
+         getWaitStatesSinceDef(AMDGPU::M0, IsHazardFn, ReadM0WaitStates);
 }
 
 void GCNHazardRecognizer::fixHazards(MachineInstr *MI) {

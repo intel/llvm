@@ -81,7 +81,10 @@ public:
   InstructionCost getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp,
                                  ArrayRef<int> Mask, int Index,
                                  VectorType *SubTp,
-                                 ArrayRef<Value *> Args = None);
+                                 ArrayRef<const Value *> Args = None);
+
+  InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                        TTI::TargetCostKind CostKind);
 
   InstructionCost getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
                                          const Value *Ptr, bool VariableMask,
@@ -113,7 +116,7 @@ public:
     // Don't allow elements larger than the ELEN.
     // FIXME: How to limit for scalable vectors?
     if (isa<FixedVectorType>(DataType) &&
-        DataType->getScalarSizeInBits() > ST->getMaxELENForFixedLengthVectors())
+        DataType->getScalarSizeInBits() > ST->getELEN())
       return false;
 
     if (Alignment <
@@ -141,7 +144,7 @@ public:
     // Don't allow elements larger than the ELEN.
     // FIXME: How to limit for scalable vectors?
     if (isa<FixedVectorType>(DataType) &&
-        DataType->getScalarSizeInBits() > ST->getMaxELENForFixedLengthVectors())
+        DataType->getScalarSizeInBits() > ST->getELEN())
       return false;
 
     if (Alignment <

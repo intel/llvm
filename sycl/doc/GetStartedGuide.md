@@ -117,11 +117,11 @@ You can use the following flags with `configure.py` (full list of available
 flags can be found by launching the script with `--help`):
 
 * `--system-ocl` -> Don't download OpenCL headers and library via CMake but use the system ones
-* `--no-werror` -> Don't treat warnings as errors when compiling llvm
+* `--werror` -> treat warnings as errors when compiling LLVM
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* '--enable-esimd-emulator' -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
@@ -177,6 +177,11 @@ the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
+
+Errors may occur if DPC++ is built with a toolkit version which is higher than
+the CUDA driver version. In order to check that the CUDA driver and toolkits
+match, use the CUDA executable `deviceQuery` which is usually found in 
+`$CUDA_INSTALL_DIR/cuda/extras/demo_suite/deviceQuery`.
 
 **_NOTE:_** An installation of at least
 [CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because
@@ -243,6 +248,16 @@ for the HIP installation:
   `/opt/rocm/hsa/include`).
 * `SYCL_BUILD_PI_HIP_AMD_LIBRARY`: Path to HIP runtime library (default
   `/opt/rocm/hip/lib/libamdhip64.so`).
+
+These variables can be passed to `configure.py` using `--cmake-opt`, for example
+with a ROCm installation in `/usr/local`:
+
+```
+python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_INCLUDE_DIR=/usr/local/rocm/hip/include \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR=/usr/local/rocm/hsa/include \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_AMD_LIBRARY=/usr/local/rocm/hip/lib/libamdhip64.so
+```
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
@@ -859,11 +874,8 @@ which contains all the symbols required.
 
 ## Find More
 
-* DPC++ specification:
-[https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-* SYCL\* 2020 specification:
-[https://www.khronos.org/registry/SYCL/](https://www.khronos.org/registry/SYCL/)
-* oneAPI Level Zero specification:
-[https://spec.oneapi.com/versions/latest/oneL0/index.html](https://spec.oneapi.com/versions/latest/oneL0/index.html)
+* [DPC++ specification](https://spec.oneapi.io/versions/latest/elements/dpcpp/source/index.html)
+* [SYCL\* specification](https://www.khronos.org/registry/SYCL)
+* [Level Zero specification](https://spec.oneapi.io/level-zero/latest/index.html)
 
-\*Other names and brands may be claimed as the property of others.
+<sub>\*Other names and brands may be claimed as the property of others.</sub>

@@ -693,10 +693,8 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::Name &n) {
   if (std::optional<int> kind{IsImpliedDo(n.source)}) {
     return AsMaybeExpr(ConvertToKind<TypeCategory::Integer>(
         *kind, AsExpr(ImpliedDoIndex{n.source})));
-  } else if (context_.HasError(n)) {
-    return std::nullopt;
-  } else if (!n.symbol) {
-    SayAt(n, "Internal error: unresolved name '%s'"_err_en_US, n.source);
+  }
+  if (context_.HasError(n.symbol)) { // includes case of no symbol
     return std::nullopt;
   } else {
     const Symbol &ultimate{n.symbol->GetUltimate()};
@@ -1069,7 +1067,8 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::StructureComponent &sc) {
     }
   } else if (auto *details{sym->detailsIf<semantics::MiscDetails>()}) {
     // special part-ref: %re, %im, %kind, %len
-    // Type errors are detected and reported in semantics.
+    // Type errors on the base of %re/%im/%len are detected and
+    // reported in name resolution.
     using MiscKind = semantics::MiscDetails::Kind;
     MiscKind kind{details->kind()};
     if (kind == MiscKind::ComplexPartRe || kind == MiscKind::ComplexPartIm) {
@@ -1090,7 +1089,6 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::StructureComponent &sc) {
       }
     } else if (kind == MiscKind::KindParamInquiry ||
         kind == MiscKind::LenParamInquiry) {
-      // Convert x%KIND -> intrinsic KIND(x), x%LEN -> intrinsic LEN(x)
       ActualArgument arg{std::move(*base)};
       SetArgSourceLocation(arg, name);
       return MakeFunctionRef(name, ActualArguments{std::move(arg)});
@@ -2175,53 +2173,52 @@ auto ExpressionAnalyzer::GetCalleeAndArguments(const parser::Name &name,
     return std::nullopt; // also handles null symbol
   }
   const Symbol &ultimate{DEREF(symbol).GetUltimate()};
-  if (ultimate.attrs().test(semantics::Attr::INTRINSIC)) {
-    if (std::optional<SpecificCall> specificCall{context_.intrinsics().Probe(
-            CallCharacteristics{ultimate.name().ToString(), isSubroutine},
-            arguments, GetFoldingContext())}) {
-      CheckBadExplicitType(*specificCall, *symbol);
-      return CalleeAndArguments{
-          ProcedureDesignator{std::move(specificCall->specificIntrinsic)},
-          std::move(specificCall->arguments)};
-    }
-  } else {
-    CheckForBadRecursion(name.source, ultimate);
-    bool dueToNullActual{false};
-    if (ultimate.has<semantics::GenericDetails>()) {
-      ExpressionAnalyzer::AdjustActuals noAdjustment;
-      auto pair{ResolveGeneric(
-          *symbol, arguments, noAdjustment, mightBeStructureConstructor)};
-      symbol = pair.first;
-      dueToNullActual = pair.second;
-    }
-    if (symbol) {
-      if (symbol->GetUltimate().has<semantics::DerivedTypeDetails>()) {
-        if (mightBeStructureConstructor) {
-          return CalleeAndArguments{
-              semantics::SymbolRef{*symbol}, std::move(arguments)};
-        }
-      } else if (IsProcedure(*symbol)) {
-        return CalleeAndArguments{
-            ProcedureDesignator{*symbol}, std::move(arguments)};
-      }
-      if (!context_.HasError(*symbol)) {
-        AttachDeclaration(
-            Say(name.source, "'%s' is not a callable procedure"_err_en_US,
-                name.source),
-            *symbol);
-      }
+  CheckForBadRecursion(name.source, ultimate);
+  bool dueToNullActual{false};
+  bool isGenericInterface{ultimate.has<semantics::GenericDetails>()};
+  const Symbol *resolution{nullptr};
+  if (isGenericInterface) {
+    ExpressionAnalyzer::AdjustActuals noAdjustment;
+    auto pair{ResolveGeneric(
+        *symbol, arguments, noAdjustment, mightBeStructureConstructor)};
+    resolution = pair.first;
+    dueToNullActual = pair.second;
+  }
+  if (!resolution) {
+    // Not generic, or no resolution; may be intrinsic
+    bool isIntrinsic{symbol->attrs().test(semantics::Attr::INTRINSIC)};
+    if (!isIntrinsic && !isGenericInterface) {
+      resolution = symbol;
     } else if (std::optional<SpecificCall> specificCall{
                    context_.intrinsics().Probe(
                        CallCharacteristics{
                            ultimate.name().ToString(), isSubroutine},
                        arguments, GetFoldingContext())}) {
-      // Generics can extend intrinsics
+      CheckBadExplicitType(*specificCall, *symbol);
       return CalleeAndArguments{
           ProcedureDesignator{std::move(specificCall->specificIntrinsic)},
           std::move(specificCall->arguments)};
     } else {
-      EmitGenericResolutionError(*name.symbol, dueToNullActual);
+      if (isGenericInterface) {
+        EmitGenericResolutionError(*symbol, dueToNullActual);
+      }
+      return std::nullopt;
     }
+  }
+  if (resolution->GetUltimate().has<semantics::DerivedTypeDetails>()) {
+    if (mightBeStructureConstructor) {
+      return CalleeAndArguments{
+          semantics::SymbolRef{*resolution}, std::move(arguments)};
+    }
+  } else if (IsProcedure(*resolution)) {
+    return CalleeAndArguments{
+        ProcedureDesignator{*resolution}, std::move(arguments)};
+  }
+  if (!context_.HasError(*resolution)) {
+    AttachDeclaration(
+        Say(name.source, "'%s' is not a callable procedure"_err_en_US,
+            name.source),
+        *resolution);
   }
   return std::nullopt;
 }
@@ -3200,7 +3197,7 @@ void ArgumentAnalyzer::Analyze(const parser::Variable &x) {
           symbol->name())};
       if (subp->isFunction()) {
         const auto &result{subp->result().name()};
-        msg->Attach(result, "Function result is '%s'"_err_en_US, result);
+        msg->Attach(result, "Function result is '%s'"_en_US, result);
       }
     } else {
       context_.SayAt(x, "Assignment to constant '%s' is not allowed"_err_en_US,
@@ -3230,12 +3227,10 @@ void ArgumentAnalyzer::Analyze(
             actual = ActualArgument(label.v);
           },
           [&](const parser::ActualArg::PercentRef &) {
-            context_.Say(
-                "not yet implemented: %REF() intrinsic for arguments"_err_en_US);
+            context_.Say("%REF() intrinsic for arguments"_todo_en_US);
           },
           [&](const parser::ActualArg::PercentVal &) {
-            context_.Say(
-                "not yet implemetned: %VAL() intrinsic for arguments"_err_en_US);
+            context_.Say("%VAL() intrinsic for arguments"_todo_en_US);
           },
       },
       std::get<parser::ActualArg>(arg.t).u);

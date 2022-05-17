@@ -1,7 +1,6 @@
 ///
 /// tests specific to -fintelfpga -fsycl w/ static libs
 ///
-// REQUIRES: clang-driver
 
 // make dummy archive
 // Build a fat static lib that will be used for all tests
@@ -33,7 +32,7 @@
 /// Check for unbundle and use of deps in static lib
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fintelfpga -Xshardware %t.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_UNBUNDLE %s
-// CHECK_UNBUNDLE: clang-offload-bundler" "-type=aoo" "-targets=sycl-fpga_dep" "-inputs={{.*}}" "-outputs=[[DEPFILES:.+\.txt]]" "-unbundle"
+// CHECK_UNBUNDLE: clang-offload-bundler" "-type=aoo" "-targets=sycl-fpga_dep" "-input={{.*}}" "-output=[[DEPFILES:.+\.txt]]" "-unbundle"
 // CHECK_UNBUNDLE: aoc{{.*}} "-dep-files=@[[DEPFILES]]"
 
 /// Check for no unbundle and use of deps in static lib when using triple

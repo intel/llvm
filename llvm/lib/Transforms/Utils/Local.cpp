@@ -500,15 +500,12 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     if (isMathLibCallNoop(Call, TLI))
       return true;
 
-  // To express possible interaction with floating point environment constrained
-  // intrinsics are described as if they access memory. So they look like having
-  // side effect but actually do not have it unless they raise floating point
-  // exception. If FP exceptions are ignored, the intrinsic may be deleted.
-  if (auto *CI = dyn_cast<ConstrainedFPIntrinsic>(I)) {
-    Optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
-    if (!EB || *EB == fp::ExceptionBehavior::ebIgnore)
-      return true;
-  }
+  // Non-volatile atomic loads from constants can be removed.
+  if (auto *LI = dyn_cast<LoadInst>(I))
+    if (auto *GV = dyn_cast<GlobalVariable>(
+            LI->getPointerOperand()->stripPointerCasts()))
+      if (!LI->isVolatile() && GV->isConstant())
+        return true;
 
   return false;
 }
@@ -1389,7 +1386,7 @@ Align llvm::getOrEnforceKnownAlignment(Value *V, MaybeAlign PrefAlign,
 static bool PhiHasDebugValue(DILocalVariable *DIVar,
                              DIExpression *DIExpr,
                              PHINode *APN) {
-  // Since we can't guarantee that the original dbg.declare instrinsic
+  // Since we can't guarantee that the original dbg.declare intrinsic
   // is removed by LowerDbgDeclare(), we need to make sure that we are
   // not inserting the same dbg.value intrinsic over and over.
   SmallVector<DbgValueInst *, 1> DbgValues;
@@ -1468,7 +1465,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
     LLVM_DEBUG(dbgs() << "Failed to convert dbg.declare to dbg.value: "
                       << *DII << '\n');
     // For now, when there is a store to parts of the variable (but we do not
-    // know which part) we insert an dbg.value instrinsic to indicate that we
+    // know which part) we insert an dbg.value intrinsic to indicate that we
     // know nothing about the variable's content.
     DV = UndefValue::get(DV->getType());
     Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc, SI);

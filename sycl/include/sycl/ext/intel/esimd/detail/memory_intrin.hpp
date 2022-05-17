@@ -81,12 +81,11 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 // flat_read does flat-address gather
-template <typename Ty, int N, int NumBlk = 0>
+template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
 __ESIMD_INTRIN
     __ESIMD_DNS::vector_type_t<Ty,
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
     __esimd_svm_gather(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                       int ElemsPerAddr = NumBlk,
                        __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
 #ifdef __SYCL_DEVICE_ONLY__
         ;
@@ -95,18 +94,18 @@ __ESIMD_INTRIN
   auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
   __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
       V = 0;
-  ElemsPerAddr = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
+  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
   if (sizeof(Ty) == 2)
-    ElemsPerAddr = ElemsPerAddr / 2;
+    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
       if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           V[I * NumBlkDecoded + J] = *(Addr + J);
       } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           V[J * N + I] = *(Addr + J);
       }
     }
@@ -116,30 +115,30 @@ __ESIMD_INTRIN
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_write does flat-address scatter
-template <typename Ty, int N, int NumBlk = 0>
+template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
 __ESIMD_INTRIN void __esimd_svm_scatter(
     __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty,
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
         vals,
-    int ElemsPerAddr = NumBlk, __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
+    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
   auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
-  ElemsPerAddr = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
+  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
   if (sizeof(Ty) == 2)
-    ElemsPerAddr = ElemsPerAddr / 2;
+    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
       if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           *(Addr + J) = vals[I * NumBlkDecoded + J];
       } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           *(Addr + J) = vals[J * N + I];
       }
     }
@@ -531,7 +530,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-__ESIMD_INTRIN void __esimd_slm_init(size_t size)
+__ESIMD_INTRIN void __esimd_slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -739,14 +738,15 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// gather4 scaled from a surface/SLM
-template <typename Ty, int N, typename SurfIndAliasTy,
-          __ESIMD_NS::rgba_channel_mask Mask, int16_t Scale = 0>
+// gather4 scaled masked from a surface/SLM
+template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
+          typename SurfIndAliasTy, int16_t Scale = 0>
 __ESIMD_INTRIN
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-    __esimd_gather4_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                           SurfIndAliasTy surf_ind, int global_offset,
-                           __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
+    __esimd_gather4_masked_scaled2(
+        SurfIndAliasTy surf_ind, int global_offset,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+        __ESIMD_DNS::simd_mask_storage_t<N> pred)
 #ifdef __SYCL_DEVICE_ONLY__
         ;
 #else

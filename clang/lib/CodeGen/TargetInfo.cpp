@@ -151,6 +151,26 @@ static bool occupiesMoreThan(CodeGenTypes &cgt,
   return (intCount + fpCount > maxAllRegisters);
 }
 
+/// Helper function for AMDGCN and NVVM targets, adds a NamedMDNode with GV,
+/// Name, and Operand as operands, and adds the resulting MDNode to the
+/// AnnotationName MDNode.
+static void addAMDGCOrNVVMMetadata(const char *AnnotationName,
+                                   llvm::GlobalValue *GV, StringRef Name,
+                                   int Operand) {
+  llvm::Module *M = GV->getParent();
+  llvm::LLVMContext &Ctx = M->getContext();
+
+  // Get annotations metadata node.
+  llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata(AnnotationName);
+
+  llvm::Metadata *MDVals[] = {
+      llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
+      llvm::ConstantAsMetadata::get(
+          llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
+  // Append metadata to annotations node.
+  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
+}
+
 bool SwiftABIInfo::isLegalVectorTypeForSwift(CharUnits vectorSize,
                                              llvm::Type *eltTy,
                                              unsigned numElts) const {
@@ -2297,6 +2317,8 @@ class X86_64ABIInfo : public SwiftABIInfo {
   /// \param isNamedArg - Whether the argument in question is a "named"
   /// argument, as used in AMD64-ABI 3.5.7.
   ///
+  /// \param IsRegCall - Whether the calling conversion is regcall.
+  ///
   /// If a word is unused its result will be NoClass; if a type should
   /// be passed in Memory then at least the classification of \arg Lo
   /// will be Memory.
@@ -2306,7 +2328,7 @@ class X86_64ABIInfo : public SwiftABIInfo {
   /// If the \arg Lo class is ComplexX87, then the \arg Hi class will
   /// also be ComplexX87.
   void classify(QualType T, uint64_t OffsetBase, Class &Lo, Class &Hi,
-                bool isNamedArg) const;
+                bool isNamedArg, bool IsRegCall = false) const;
 
   llvm::Type *GetByteVectorType(QualType Ty) const;
   llvm::Type *GetSSETypeAtOffset(llvm::Type *IRType,
@@ -2331,13 +2353,16 @@ class X86_64ABIInfo : public SwiftABIInfo {
 
   ABIArgInfo classifyArgumentType(QualType Ty, unsigned freeIntRegs,
                                   unsigned &neededInt, unsigned &neededSSE,
-                                  bool isNamedArg) const;
+                                  bool isNamedArg,
+                                  bool IsRegCall = false) const;
 
   ABIArgInfo classifyRegCallStructType(QualType Ty, unsigned &NeededInt,
-                                       unsigned &NeededSSE) const;
+                                       unsigned &NeededSSE,
+                                       unsigned &MaxVectorWidth) const;
 
   ABIArgInfo classifyRegCallStructTypeImpl(QualType Ty, unsigned &NeededInt,
-                                           unsigned &NeededSSE) const;
+                                           unsigned &NeededSSE,
+                                           unsigned &MaxVectorWidth) const;
 
   bool IsIllegalVectorType(QualType Ty) const;
 
@@ -2832,8 +2857,8 @@ X86_64ABIInfo::Class X86_64ABIInfo::merge(Class Accum, Class Field) {
   return SSE;
 }
 
-void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase,
-                             Class &Lo, Class &Hi, bool isNamedArg) const {
+void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase, Class &Lo,
+                             Class &Hi, bool isNamedArg, bool IsRegCall) const {
   // FIXME: This code can be simplified by introducing a simple value class for
   // Class pairs with appropriate constructor methods for the various
   // situations.
@@ -3031,7 +3056,9 @@ void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase,
 
     // AMD64-ABI 3.2.3p2: Rule 1. If the size of an object is larger
     // than eight eightbytes, ..., it has class MEMORY.
-    if (Size > 512)
+    // regcall ABI doesn't have limitation to an object. The only limitation
+    // is the free registers, which will be checked in computeInfo.
+    if (!IsRegCall && Size > 512)
       return;
 
     // AMD64-ABI 3.2.3p2: Rule 1. If ..., or it contains unaligned
@@ -3738,15 +3765,14 @@ classifyReturnType(QualType RetTy) const {
   return ABIArgInfo::getDirect(ResType);
 }
 
-ABIArgInfo X86_64ABIInfo::classifyArgumentType(
-  QualType Ty, unsigned freeIntRegs, unsigned &neededInt, unsigned &neededSSE,
-  bool isNamedArg)
-  const
-{
+ABIArgInfo
+X86_64ABIInfo::classifyArgumentType(QualType Ty, unsigned freeIntRegs,
+                                    unsigned &neededInt, unsigned &neededSSE,
+                                    bool isNamedArg, bool IsRegCall) const {
   Ty = useFirstFieldIfTransparentUnion(Ty);
 
   X86_64ABIInfo::Class Lo, Hi;
-  classify(Ty, 0, Lo, Hi, isNamedArg);
+  classify(Ty, 0, Lo, Hi, isNamedArg, IsRegCall);
 
   // Check some invariants.
   // FIXME: Enforce these by construction.
@@ -3869,7 +3895,8 @@ ABIArgInfo X86_64ABIInfo::classifyArgumentType(
 
 ABIArgInfo
 X86_64ABIInfo::classifyRegCallStructTypeImpl(QualType Ty, unsigned &NeededInt,
-                                             unsigned &NeededSSE) const {
+                                             unsigned &NeededSSE,
+                                             unsigned &MaxVectorWidth) const {
   auto RT = Ty->getAs<RecordType>();
   assert(RT && "classifyRegCallStructType only valid with struct types");
 
@@ -3884,7 +3911,8 @@ X86_64ABIInfo::classifyRegCallStructTypeImpl(QualType Ty, unsigned &NeededInt,
     }
 
     for (const auto &I : CXXRD->bases())
-      if (classifyRegCallStructTypeImpl(I.getType(), NeededInt, NeededSSE)
+      if (classifyRegCallStructTypeImpl(I.getType(), NeededInt, NeededSSE,
+                                        MaxVectorWidth)
               .isIndirect()) {
         NeededInt = NeededSSE = 0;
         return getIndirectReturnResult(Ty);
@@ -3893,20 +3921,27 @@ X86_64ABIInfo::classifyRegCallStructTypeImpl(QualType Ty, unsigned &NeededInt,
 
   // Sum up members
   for (const auto *FD : RT->getDecl()->fields()) {
-    if (FD->getType()->isRecordType() && !FD->getType()->isUnionType()) {
-      if (classifyRegCallStructTypeImpl(FD->getType(), NeededInt, NeededSSE)
+    QualType MTy = FD->getType();
+    if (MTy->isRecordType() && !MTy->isUnionType()) {
+      if (classifyRegCallStructTypeImpl(MTy, NeededInt, NeededSSE,
+                                        MaxVectorWidth)
               .isIndirect()) {
         NeededInt = NeededSSE = 0;
         return getIndirectReturnResult(Ty);
       }
     } else {
       unsigned LocalNeededInt, LocalNeededSSE;
-      if (classifyArgumentType(FD->getType(), UINT_MAX, LocalNeededInt,
-                               LocalNeededSSE, true)
+      if (classifyArgumentType(MTy, UINT_MAX, LocalNeededInt, LocalNeededSSE,
+                               true, true)
               .isIndirect()) {
         NeededInt = NeededSSE = 0;
         return getIndirectReturnResult(Ty);
       }
+      if (const auto *AT = getContext().getAsConstantArrayType(MTy))
+        MTy = AT->getElementType();
+      if (const auto *VT = MTy->getAs<VectorType>())
+        if (getContext().getTypeSize(VT) > MaxVectorWidth)
+          MaxVectorWidth = getContext().getTypeSize(VT);
       NeededInt += LocalNeededInt;
       NeededSSE += LocalNeededSSE;
     }
@@ -3915,14 +3950,17 @@ X86_64ABIInfo::classifyRegCallStructTypeImpl(QualType Ty, unsigned &NeededInt,
   return ABIArgInfo::getDirect();
 }
 
-ABIArgInfo X86_64ABIInfo::classifyRegCallStructType(QualType Ty,
-                                                    unsigned &NeededInt,
-                                                    unsigned &NeededSSE) const {
+ABIArgInfo
+X86_64ABIInfo::classifyRegCallStructType(QualType Ty, unsigned &NeededInt,
+                                         unsigned &NeededSSE,
+                                         unsigned &MaxVectorWidth) const {
 
   NeededInt = 0;
   NeededSSE = 0;
+  MaxVectorWidth = 0;
 
-  return classifyRegCallStructTypeImpl(Ty, NeededInt, NeededSSE);
+  return classifyRegCallStructTypeImpl(Ty, NeededInt, NeededSSE,
+                                       MaxVectorWidth);
 }
 
 void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
@@ -3942,13 +3980,13 @@ void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
   // Keep track of the number of assigned registers.
   unsigned FreeIntRegs = IsRegCall ? 11 : 6;
   unsigned FreeSSERegs = IsRegCall ? 16 : 8;
-  unsigned NeededInt, NeededSSE;
+  unsigned NeededInt = 0, NeededSSE = 0, MaxVectorWidth = 0;
 
   if (!::classifyReturnType(getCXXABI(), FI, *this)) {
     if (IsRegCall && FI.getReturnType()->getTypePtr()->isRecordType() &&
         !FI.getReturnType()->getTypePtr()->isUnionType()) {
-      FI.getReturnInfo() =
-          classifyRegCallStructType(FI.getReturnType(), NeededInt, NeededSSE);
+      FI.getReturnInfo() = classifyRegCallStructType(
+          FI.getReturnType(), NeededInt, NeededSSE, MaxVectorWidth);
       if (FreeIntRegs >= NeededInt && FreeSSERegs >= NeededSSE) {
         FreeIntRegs -= NeededInt;
         FreeSSERegs -= NeededSSE;
@@ -3971,6 +4009,8 @@ void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
   // integer register.
   if (FI.getReturnInfo().isIndirect())
     --FreeIntRegs;
+  else if (NeededSSE && MaxVectorWidth > 0)
+    FI.setMaxVectorWidth(MaxVectorWidth);
 
   // The chain argument effectively gives us another free register.
   if (FI.isChainCall())
@@ -3985,7 +4025,8 @@ void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
     bool IsNamedArg = ArgNo < NumRequiredArgs;
 
     if (IsRegCall && it->type->isStructureOrClassType())
-      it->info = classifyRegCallStructType(it->type, NeededInt, NeededSSE);
+      it->info = classifyRegCallStructType(it->type, NeededInt, NeededSSE,
+                                           MaxVectorWidth);
     else
       it->info = classifyArgumentType(it->type, FreeIntRegs, NeededInt,
                                       NeededSSE, IsNamedArg);
@@ -3997,6 +4038,8 @@ void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
     if (FreeIntRegs >= NeededInt && FreeSSERegs >= NeededSSE) {
       FreeIntRegs -= NeededInt;
       FreeSSERegs -= NeededSSE;
+      if (MaxVectorWidth > FI.getMaxVectorWidth())
+        FI.setMaxVectorWidth(MaxVectorWidth);
     } else {
       it->info = getIndirectResult(it->type, FreeIntRegs);
     }
@@ -7304,18 +7347,7 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
 
 void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
                                              StringRef Name, int Operand) {
-  llvm::Module *M = GV->getParent();
-  llvm::LLVMContext &Ctx = M->getContext();
-
-  // Get "nvvm.annotations" metadata node
-  llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata("nvvm.annotations");
-
-  llvm::Metadata *MDVals[] = {
-      llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
-      llvm::ConstantAsMetadata::get(
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
-  // Append metadata to nvvm.annotations
-  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
+  addAMDGCOrNVVMMetadata("nvvm.annotations", GV, Name, Operand);
 }
 
 bool NVPTXTargetCodeGenInfo::shouldEmitStaticExternCAliases() const {
@@ -7491,12 +7523,9 @@ QualType SystemZABIInfo::GetSingleElementType(QualType Ty) const {
 
     // Check the fields.
     for (const auto *FD : RD->fields()) {
-      // For compatibility with GCC, ignore empty bitfields in C++ mode.
       // Unlike isSingleElementStruct(), empty structure and array fields
       // do count.  So do anonymous bitfields that aren't zero-sized.
-      if (getContext().getLangOpts().CPlusPlus &&
-          FD->isZeroLengthBitField(getContext()))
-        continue;
+
       // Like isSingleElementStruct(), ignore C++20 empty data members.
       if (FD->hasAttr<NoUniqueAddressAttr>() &&
           isEmptyRecord(getContext(), FD->getType(), true))
@@ -9285,6 +9314,12 @@ public:
                             llvm::Type *BlockTy) const override;
   bool shouldEmitStaticExternCAliases() const override;
   void setCUDAKernelCallingConvention(const FunctionType *&FT) const override;
+
+private:
+  // Adds a NamedMDNode with GV, Name, and Operand as operands, and adds the
+  // resulting MDNode to the amdgcn.annotations MDNode.
+  static void addAMDGCNMetadata(llvm::GlobalValue *GV, StringRef Name,
+                                int Operand);
 };
 }
 
@@ -9299,6 +9334,11 @@ static bool requiresAMDGPUProtectedVisibility(const Decl *D,
           (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>() ||
            cast<VarDecl>(D)->getType()->isCUDADeviceBuiltinSurfaceType() ||
            cast<VarDecl>(D)->getType()->isCUDADeviceBuiltinTextureType()));
+}
+
+void AMDGPUTargetCodeGenInfo::addAMDGCNMetadata(llvm::GlobalValue *GV,
+                                                StringRef Name, int Operand) {
+  addAMDGCOrNVVMMetadata("amdgcn.annotations", GV, Name, Operand);
 }
 
 void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
@@ -9402,9 +9442,14 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
 
   const bool IsHIPKernel =
       M.getLangOpts().HIP && FD && FD->hasAttr<CUDAGlobalAttr>();
-
   if (IsHIPKernel)
     F->addFnAttr("uniform-work-group-size", "true");
+
+  // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.
+  const bool IsSYCLKernel =
+      FD && M.getLangOpts().SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>();
+  if (IsSYCLKernel)
+    addAMDGCNMetadata(F, "kernel", 1);
 
   if (M.getContext().getTargetInfo().allowAMDGPUUnsafeFPAtomics())
     F->addFnAttr("amdgpu-unsafe-fp-atomics", "true");

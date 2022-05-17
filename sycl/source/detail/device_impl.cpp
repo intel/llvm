@@ -133,9 +133,11 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   Plugin.call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
       MDevice, Properties, SubDevicesCount, SubDevices.data(),
       &ReturnedSubDevices);
-  // TODO: check that returned number of sub-devices matches what was
-  // requested, otherwise this walk below is wrong.
-  //
+  if (ReturnedSubDevices != SubDevicesCount) {
+    throw sycl::exception(
+        errc::invalid,
+        "Could not partition to the specified number of sub-devices");
+  }
   // TODO: Need to describe the subdevice model. Some sub_device management
   // may be necessary. What happens if create_sub_devices is called multiple
   // times with the same arguments?
@@ -161,8 +163,14 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw cl::sycl::feature_not_supported();
   }
-  size_t SubDevicesCount =
-      get_info<info::device::max_compute_units>() / ComputeUnits;
+  // If count exceeds the total number of compute units in the device, an
+  // exception with the errc::invalid error code must be thrown.
+  auto MaxComputeUnits = get_info<info::device::max_compute_units>();
+  if (ComputeUnits > MaxComputeUnits)
+    throw sycl::exception(errc::invalid,
+                          "Total counts exceed max compute units");
+
+  size_t SubDevicesCount = MaxComputeUnits / ComputeUnits;
   const cl_device_partition_property Properties[3] = {
       CL_DEVICE_PARTITION_EQUALLY, (cl_device_partition_property)ComputeUnits,
       0};
@@ -184,7 +192,33 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
   static const cl_device_partition_property P[] = {
       CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
   std::vector<cl_device_partition_property> Properties(P, P + 3);
-  Properties.insert(Properties.begin() + 1, Counts.begin(), Counts.end());
+
+  // Fill the properties vector with counts and validate it
+  auto It = Properties.begin() + 1;
+  size_t TotalCounts = 0;
+  size_t NonZeroCounts = 0;
+  for (auto Count : Counts) {
+    TotalCounts += Count;
+    NonZeroCounts += (Count != 0) ? 1 : 0;
+    It = Properties.insert(It, Count);
+  }
+
+  // If the number of non-zero values in counts exceeds the device’s maximum
+  // number of sub devices (as returned by info::device::
+  // partition_max_sub_devices) an exception with the errc::invalid
+  // error code must be thrown.
+  if (NonZeroCounts > get_info<info::device::partition_max_sub_devices>())
+    throw sycl::exception(errc::invalid,
+                          "Total non-zero counts exceed max sub-devices");
+
+  // If the total of all the values in the counts vector exceeds the total
+  // number of compute units in the device (as returned by
+  // info::device::max_compute_units), an exception with the errc::invalid
+  // error code must be thrown.
+  if (TotalCounts > get_info<info::device::max_compute_units>())
+    throw sycl::exception(errc::invalid,
+                          "Total counts exceed max compute units");
+
   return create_sub_devices(Properties.data(), Counts.size());
 }
 
@@ -205,7 +239,12 @@ std::vector<device> device_impl::create_sub_devices(
   const pi_device_partition_property Properties[3] = {
       PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
       (pi_device_partition_property)AffinityDomain, 0};
-  size_t SubDevicesCount = get_info<info::device::partition_max_sub_devices>();
+
+  pi_uint32 SubDevicesCount = 0;
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
+      MDevice, Properties, 0, nullptr, &SubDevicesCount);
+
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
@@ -276,8 +315,8 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_system_allocations>();
   case aspect::ext_intel_pci_address:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_PCI_ADDRESS, sizeof(pi_device_type),
-               &device_type, &return_size) == PI_SUCCESS;
+               MDevice, PI_DEVICE_INFO_PCI_ADDRESS, 0, nullptr, &return_size) ==
+           PI_SUCCESS;
   case aspect::ext_intel_gpu_eu_count:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, sizeof(pi_device_type),

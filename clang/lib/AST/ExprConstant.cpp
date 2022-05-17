@@ -1978,7 +1978,8 @@ static bool IsGlobalLValue(APValue::LValueBase B) {
       return true;
     // ... the address of a function,
     // ... the address of a GUID [MS extension],
-    return isa<FunctionDecl>(D) || isa<MSGuidDecl>(D);
+    // ... the address of an unnamed global constant
+    return isa<FunctionDecl, MSGuidDecl, UnnamedGlobalConstantDecl>(D);
   }
 
   if (B.is<TypeInfoLValue>() || B.is<DynamicAllocLValue>())
@@ -2013,6 +2014,10 @@ static bool IsGlobalLValue(APValue::LValueBase B) {
   // Block variables at global or local static scope.
   case Expr::BlockExprClass:
     return !cast<BlockExpr>(E)->getBlockDecl()->hasCaptures();
+  // The APValue generated from a __builtin_source_location will be emitted as a
+  // literal.
+  case Expr::SourceLocExprClass:
+    return true;
   case Expr::ImplicitValueInitExprClass:
     // FIXME:
     // We can never form an lvalue with an implicit value initialization as its
@@ -4022,6 +4027,16 @@ static CompleteObject findCompleteObject(EvalInfo &Info, const Expr *E,
         return CompleteObject();
       }
       return CompleteObject(LVal.Base, &V, GD->getType());
+    }
+
+    // Allow reading the APValue from an UnnamedGlobalConstantDecl.
+    if (auto *GCD = dyn_cast<UnnamedGlobalConstantDecl>(D)) {
+      if (isModification(AK)) {
+        Info.FFDiag(E, diag::note_constexpr_modify_global);
+        return CompleteObject();
+      }
+      return CompleteObject(LVal.Base, const_cast<APValue *>(&GCD->getValue()),
+                            GCD->getType());
     }
 
     // Allow reading from template parameter objects.
@@ -8112,6 +8127,7 @@ public:
   bool VisitVarDecl(const Expr *E, const VarDecl *VD);
   bool VisitUnaryPreIncDec(const UnaryOperator *UO);
 
+  bool VisitCallExpr(const CallExpr *E);
   bool VisitDeclRefExpr(const DeclRefExpr *E);
   bool VisitPredefinedExpr(const PredefinedExpr *E) { return Success(E); }
   bool VisitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *E);
@@ -8175,7 +8191,8 @@ static bool EvaluateLValue(const Expr *E, LValue &Result, EvalInfo &Info,
 
 bool LValueExprEvaluator::VisitDeclRefExpr(const DeclRefExpr *E) {
   const NamedDecl *D = E->getDecl();
-  if (isa<FunctionDecl, MSGuidDecl, TemplateParamObjectDecl>(D))
+  if (isa<FunctionDecl, MSGuidDecl, TemplateParamObjectDecl,
+          UnnamedGlobalConstantDecl>(D))
     return Success(cast<ValueDecl>(D));
   if (const VarDecl *VD = dyn_cast<VarDecl>(D))
     return VisitVarDecl(E, VD);
@@ -8274,6 +8291,20 @@ bool LValueExprEvaluator::VisitVarDecl(const Expr *E, const VarDecl *VD) {
     return false;
   }
   return Success(*V, E);
+}
+
+bool LValueExprEvaluator::VisitCallExpr(const CallExpr *E) {
+  switch (E->getBuiltinCallee()) {
+  case Builtin::BIas_const:
+  case Builtin::BIforward:
+  case Builtin::BImove:
+  case Builtin::BImove_if_noexcept:
+    if (cast<FunctionDecl>(E->getCalleeDecl())->isConstexpr())
+      return Visit(E->getArg(0));
+    break;
+  }
+
+  return ExprEvaluatorBaseTy::VisitCallExpr(E);
 }
 
 bool LValueExprEvaluator::VisitMaterializeTemporaryExpr(
@@ -8407,7 +8438,8 @@ bool LValueExprEvaluator::VisitMemberExpr(const MemberExpr *E) {
 
 bool LValueExprEvaluator::VisitArraySubscriptExpr(const ArraySubscriptExpr *E) {
   // FIXME: Deal with vectors as array subscript bases.
-  if (E->getBase()->getType()->isVectorType())
+  if (E->getBase()->getType()->isVectorType() ||
+      E->getBase()->getType()->isVLSTBuiltinType())
     return Error(E);
 
   APSInt Index;
@@ -8599,7 +8631,7 @@ static bool evaluateLValueAsAllocSize(EvalInfo &Info, APValue::LValueBase Base,
     return false;
 
   const Expr *Init = VD->getAnyInitializer();
-  if (!Init)
+  if (!Init || Init->getType().isNull())
     return false;
 
   const Expr *E = Init->IgnoreParens();
@@ -8715,7 +8747,7 @@ public:
   bool VisitCXXNewExpr(const CXXNewExpr *E);
 
   bool VisitSourceLocExpr(const SourceLocExpr *E) {
-    assert(E->isStringType() && "SourceLocExpr isn't a pointer type?");
+    assert(!E->isIntType() && "SourceLocExpr isn't a pointer type?");
     APValue LValResult = E->EvaluateInContext(
         Info.Ctx, Info.CurrentCall->CurSourceLocExprScope.getDefaultExpr());
     Result.setFrom(Info.Ctx, LValResult);
@@ -8798,6 +8830,22 @@ bool PointerExprEvaluator::VisitUnaryAddrOf(const UnaryOperator *E) {
   return evaluateLValue(E->getSubExpr(), Result);
 }
 
+// Is the provided decl 'std::source_location::current'?
+static bool IsDeclSourceLocationCurrent(const FunctionDecl *FD) {
+  if (!FD)
+    return false;
+  const IdentifierInfo *FnII = FD->getIdentifier();
+  if (!FnII || !FnII->isStr("current"))
+    return false;
+
+  const auto *RD = dyn_cast<RecordDecl>(FD->getParent());
+  if (!RD)
+    return false;
+
+  const IdentifierInfo *ClassII = RD->getIdentifier();
+  return RD->isInStdNamespace() && ClassII && ClassII->isStr("source_location");
+}
+
 bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
   const Expr *SubExpr = E->getSubExpr();
 
@@ -8815,14 +8863,24 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
     // permitted in constant expressions in C++11. Bitcasts from cv void* are
     // also static_casts, but we disallow them as a resolution to DR1312.
     if (!E->getType()->isVoidPointerType()) {
-      if (!Result.InvalidBase && !Result.Designator.Invalid &&
+      // In some circumstances, we permit casting from void* to cv1 T*, when the
+      // actual pointee object is actually a cv2 T.
+      bool VoidPtrCastMaybeOK =
+          !Result.InvalidBase && !Result.Designator.Invalid &&
           !Result.IsNullPtr &&
           Info.Ctx.hasSameUnqualifiedType(Result.Designator.getType(Info.Ctx),
-                                          E->getType()->getPointeeType()) &&
-          Info.getStdAllocatorCaller("allocate")) {
-        // Inside a call to std::allocator::allocate and friends, we permit
-        // casting from void* back to cv1 T* for a pointer that points to a
-        // cv2 T.
+                                          E->getType()->getPointeeType());
+      // 1. We'll allow it in std::allocator::allocate, and anything which that
+      //    calls.
+      // 2. HACK 2022-03-28: Work around an issue with libstdc++'s
+      //    <source_location> header. Fixed in GCC 12 and later (2022-04-??).
+      //    We'll allow it in the body of std::source_location::current.  GCC's
+      //    implementation had a parameter of type `void*`, and casts from
+      //    that back to `const __impl*` in its body.
+      if (VoidPtrCastMaybeOK &&
+          (Info.getStdAllocatorCaller("allocate") ||
+           IsDeclSourceLocationCurrent(Info.CurrentCall->Callee))) {
+        // Permitted.
       } else {
         Result.Designator.setInvalid();
         if (SubExpr->getType()->isVoidPointerType())
@@ -9045,6 +9103,8 @@ static bool isOneByteCharacterType(QualType T) {
 bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
                                                 unsigned BuiltinOp) {
   switch (BuiltinOp) {
+  case Builtin::BIaddressof:
+  case Builtin::BI__addressof:
   case Builtin::BI__builtin_addressof:
     return evaluateLValue(E->getArg(0), Result);
   case Builtin::BI__builtin_assume_aligned: {
@@ -9955,6 +10015,17 @@ bool RecordExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
     ImplicitValueInitExpr VIE(HaveInit ? Info.Ctx.IntTy : Field->getType());
     const Expr *Init = HaveInit ? E->getInit(ElementNo++) : &VIE;
 
+    if (Field->getType()->isIncompleteArrayType()) {
+      if (auto *CAT = Info.Ctx.getAsConstantArrayType(Init->getType())) {
+        if (!CAT->getSize().isZero()) {
+          // Bail out for now. This might sort of "work", but the rest of the
+          // code isn't really prepared to handle it.
+          Info.FFDiag(Init, diag::note_constexpr_unsupported_flexible_array);
+          return false;
+        }
+      }
+    }
+
     // Temporarily override This, in case there's a CXXDefaultInitExpr in here.
     ThisOverrideRAII ThisOverride(*Info.CurrentCall, &This,
                                   isa<CXXDefaultInitExpr>(Init));
@@ -10300,9 +10371,9 @@ bool VectorExprEvaluator::VisitCastExpr(const CastExpr *E) {
       for (unsigned i = 0; i < NElts; i++) {
         llvm::APInt Elt;
         if (BigEndian)
-          Elt = SValInt.rotl(i*EltSize+FloatEltSize).trunc(FloatEltSize);
+          Elt = SValInt.rotl(i*EltSize+FloatEltSize).truncOrSelf(FloatEltSize);
         else
-          Elt = SValInt.rotr(i*EltSize).trunc(FloatEltSize);
+          Elt = SValInt.rotr(i*EltSize).truncOrSelf(FloatEltSize);
         Elts.push_back(APValue(APFloat(Sem, Elt)));
       }
     } else if (EltTy->isIntegerType()) {
