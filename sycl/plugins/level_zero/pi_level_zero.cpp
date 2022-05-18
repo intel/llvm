@@ -6014,7 +6014,7 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    PI_CALL(Event->cleanup(Queue));
+    PI_CALL(EventRelease(Event, Queue));
     return PI_SUCCESS;
   };
 
