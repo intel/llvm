@@ -4929,11 +4929,11 @@ pi_result piKernelRetain(pi_kernel Kernel) {
 pi_result piKernelRelease(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
-  auto KernelProgram = Kernel->Program;
+  pi_program KernelProgram = nullptr;
   bool RefCountZero = false;
   {
     std::scoped_lock Guard(Kernel->Mutex);
-
+    KernelProgram = Kernel->Program;
     if (IndirectAccessTrackingEnabled) {
       // piKernelRelease is called by Event->cleanup() as soon as kernel
       // execution has finished. This is the place where we need to release
@@ -4968,8 +4968,9 @@ pi_result piKernelRelease(pi_kernel Kernel) {
   if (RefCountZero)
     delete Kernel;
 
-  // do a release on the program this kernel was part of
-  PI_CALL(piProgramRelease(KernelProgram));
+  if (KernelProgram)
+    // do a release on the program this kernel was part of
+    PI_CALL(piProgramRelease(KernelProgram));
 
   return PI_SUCCESS;
 }
@@ -4984,16 +4985,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
-
-  // Get a new command list to be used on this call
-  pi_command_list_ptr_t CommandList{};
-  {
-    std::scoped_lock QueueLock(Queue->Mutex);
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, CommandList, false /* UseCopyEngine */,
-            true /* AllowBatching */))
-      return Res;
-  }
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock Lock(Queue->Mutex, Kernel->Mutex);
@@ -5086,6 +5077,13 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
                                                           EventWaitList, Queue))
+    return Res;
+
+  // Get a new command list to be used on this call
+  pi_command_list_ptr_t CommandList{};
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, CommandList, false /* UseCopyEngine */,
+          true /* AllowBatching */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;

@@ -1395,6 +1395,7 @@ struct _pi_kernel : _pi_object {
     return true;
   }
 
+  // The caller must lock access to the kernel and program.
   void retain() {
     ++RefCount;
     // When retaining a kernel, you are also retaining the program it is part
