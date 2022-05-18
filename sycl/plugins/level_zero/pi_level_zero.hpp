@@ -1194,8 +1194,7 @@ struct _pi_event : _pi_object {
   _pi_event(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
             pi_context Context, pi_command_type CommandType, bool OwnZeEvent)
       : ZeEvent{ZeEvent}, OwnZeEvent{OwnZeEvent}, ZeEventPool{ZeEventPool},
-        ZeCommandList{nullptr}, CommandType{CommandType}, Context{Context},
-        CommandData{nullptr} {}
+        CommandType{CommandType}, Context{Context}, CommandData{nullptr} {}
 
   // Level Zero event handle.
   ze_event_handle_t ZeEvent;
@@ -1228,11 +1227,6 @@ struct _pi_event : _pi_object {
     return !Queue || // tentatively assume user events are profiling enabled
            (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
   }
-
-  // Level Zero command list where the command signaling this event was appended
-  // to. This is currently used to remember/destroy the command list after all
-  // commands in it are completed, i.e. this event signaled.
-  ze_command_list_handle_t ZeCommandList;
 
   // Keeps the command-queue and command associated with the event.
   // These are NULL for the user events.

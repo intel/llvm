@@ -653,11 +653,8 @@ inline static pi_result createEventAndAssociateQueue(
 
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
-    (*Event)->ZeCommandList = CommandList->first;
     CommandList->second.append(*Event);
     PI_CALL(piEventRetain(*Event));
-  } else {
-    (*Event)->ZeCommandList = nullptr;
   }
 
   // We need to increment the reference counter here to avoid pi_queue
@@ -893,10 +890,6 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   auto &EventList = CommandList->second.EventList;
   for (auto &Event : EventList) {
     Event->Completed = true;
-    // All events in this loop are in the same command list which has been just
-    // reset above. We don't want cleanup() to reset same command list again for
-    // all events in the loop so set it to nullptr.
-    Event->ZeCommandList = nullptr;
     if (!Event->CleanedUp) {
       Event->cleanup(this);
     }
@@ -1631,13 +1624,18 @@ pi_result _pi_queue::executeOpenCommandListWithEvent(pi_event Event) {
     return PI_SUCCESS;
   }
 
+  auto &ComputeEventList =
+      ComputeCommandBatch.OpenCommandList->second.EventList;
   if (hasOpenCommandList(IsCopy{false}) &&
-      ComputeCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
+      std::find(ComputeEventList.begin(), ComputeEventList.end(), Event) !=
+          ComputeEventList.end()) {
     if (auto Res = executeOpenCommandList(IsCopy{false}))
       return Res;
   }
+  auto &CopyEventList = CopyCommandBatch.OpenCommandList->second.EventList;
   if (hasOpenCommandList(IsCopy{true}) &&
-      CopyCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
+      std::find(CopyEventList.begin(), CopyEventList.end(), Event) !=
+          CopyEventList.end()) {
     if (auto Res = executeOpenCommandList(IsCopy{true}))
       return Res;
   }
@@ -6016,7 +6014,6 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    Event->ZeCommandList = nullptr;
     PI_CALL(Event->cleanup(Queue));
     return PI_SUCCESS;
   };
@@ -6561,9 +6558,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
     if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
       return Res;
 
-    // Set the commandlist in the event
+    // Add the event to the command list.
     if (Event) {
-      (*Event)->ZeCommandList = CommandList->first;
       CommandList->second.append(*Event);
       PI_CALL(piEventRetain(*Event));
     }
@@ -6685,8 +6681,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
     return Res;
 
-  // Set the commandlist in the event
-  (*Event)->ZeCommandList = CommandList->first;
   CommandList->second.append(*Event);
   PI_CALL(piEventRetain(*Event));
 
