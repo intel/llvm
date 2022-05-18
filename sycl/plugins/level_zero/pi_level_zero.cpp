@@ -276,9 +276,6 @@ template <> ze_result_t zeHostSynchronize(ze_event_handle_t Handle) {
 template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
   return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
 }
-template <> ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
-  return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
-}
 
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -5414,8 +5411,9 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 }
 
 // Perform any necessary cleanup after an event has been signalled.
-// This currently recycles the associate command list, and also makes
-// sure to release any kernel that may have been used by the event.
+// This currently makes sure to release any kernel that may have been used by
+// the event, updates the last command event in the queue and cleanes up all dep
+// events of of the event.
 pi_result _pi_event::cleanup(pi_queue LockedQueue) {
   // The implementation of this is slightly tricky.  The same event
   // can be referred to by multiple threads, so it is possible to
@@ -5430,44 +5428,6 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
     // Lock automatically releases when this goes out of scope.
     auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
                                         : std::unique_lock(Queue->Mutex));
-    // Immediate commandlists do not have a fence, so skip this step
-    if (!UseImmediateCommandLists && ZeCommandList) {
-      // Event has been signalled: If the fence for the associated command list
-      // is signalled, then reset the fence and command list and add them to the
-      // available list for reuse in PI calls.
-      if (Queue->RefCount > 0) {
-        auto it = Queue->CommandListMap.find(ZeCommandList);
-        if (it == Queue->CommandListMap.end()) {
-          die("Missing command-list completition fence");
-        }
-
-        // It is possible that the fence was already noted as signalled and
-        // reset.  In that case the InUse flag will be false, and
-        // we shouldn't query it, synchronize on it, or try to reset it.
-        if (it->second.InUse) {
-          // Workaround for VM_BIND mode.
-          // Make sure that the command-list doing memcpy is reset before
-          // non-USM host memory potentially involved in the memcpy is freed.
-          //
-          // NOTE: it is valid to wait for the fence here as long as we aren't
-          // doing batching on the involved command-list. Today memcpy goes by
-          // itself in a command list.
-          //
-          // TODO: this will unnecessarily(?) wait for non-USM memory buffers
-          // too, so we might need to add a new command type to differentiate.
-          //
-          ze_result_t ZeResult =
-              (CommandType == PI_COMMAND_TYPE_MEM_BUFFER_COPY)
-                  ? ZE_CALL_NOCHECK(zeHostSynchronize, (it->second.ZeFence))
-                  : ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-
-          if (ZeResult == ZE_RESULT_SUCCESS) {
-            Queue->resetCommandList(it, true);
-            ZeCommandList = nullptr;
-          }
-        }
-      }
-    }
 
     // Release the kernel associated with this event if there is one.
     if (CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL && CommandData) {
@@ -5564,6 +5524,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       }
     }
   }
+  std::unordered_set<pi_queue> Queues;
   for (uint32_t I = 0; I < NumEvents; I++) {
     if (!EventList[I]->Completed) {
       auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
@@ -5574,10 +5535,19 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
       ZE_CALL(zeHostSynchronize, (ZeEvent));
     }
+    if (auto Q = EventList[I]->Queue)
+      Queues.insert(Q);
+
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
     EventList[I]->cleanup();
   }
+
+  // We waited some events above, check queue for signaled command lists and
+  // reset them.
+  for (auto Q : Queues)
+    Q->resetCommandLists();
+
   return PI_SUCCESS;
 }
 
