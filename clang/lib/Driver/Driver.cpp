@@ -4958,8 +4958,12 @@ class OffloadingActionBuilder final {
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
         if (isSPIR) {
+
+          bool UseOnlineLink =
+              Args.hasArg(options::OPT_fsycl_device_lib_online_link);
+          bool UseOfflineLink = isSpirvAOT || !UseOnlineLink;
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
-              TC, FullLinkObjects, isSpirvAOT,
+              TC, FullLinkObjects, UseOfflineLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
         }
 
