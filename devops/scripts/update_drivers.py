@@ -20,12 +20,12 @@ def uplift_linux_igfx_driver(config, platform_tag):
     for a in compute_runtime['assets']:
         if a['name'].endswith('.sum'):
             deps = str(urlopen(a['browser_download_url']).read())
-            print(a['browser_download_url'])
-            print(deps)
+            # print(a['browser_download_url'])
+            # print(deps)
             m = re.search(r"intel-igc-core_([0-9\.]*)_amd64", deps)
             if m is not None:
                 ver = m.group()
-                print("IGC MATCH")
+                # print("IGC MATCH")
                 config[platform_tag]['igc']['github_tag'] = 'igc-' + ver
                 config[platform_tag]['igc']['version'] = ver
                 config[platform_tag]['igc']['url'] = 'https://github.com/intel/intel-graphics-compiler/releases/tag/igc-' + ver
