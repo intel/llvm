@@ -700,8 +700,8 @@ processInputModule(std::unique_ptr<Module> M) {
   // However, if split mode is "auto", then entry point filtering is still
   // performed.
   assert(!IROutputOnly || (SplitMode == module_split::SPLIT_NONE) ||
-    (SplitMode == module_split::SPLIT_AUTO) &&
-    "invalid split mode for IR-only output");
+         (SplitMode == module_split::SPLIT_AUTO) &&
+             "invalid split mode for IR-only output");
 
   // Top-level per-kernel/per-source splitter. SYCL/ESIMD splitting is applied
   // to modules resulting from the top-level splitting.
