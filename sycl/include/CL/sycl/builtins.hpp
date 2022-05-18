@@ -19,6 +19,14 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace detail {
+template <class T, size_t N> vec<T, 2> to_vec(marray<T, N> x, size_t start) {
+  vec<T, 2> res;
+  std::memcpy(&res, &x[start], sizeof(vec<T, 2>));
+  return res;
+}
+} // namespace detail
+
 #ifdef __SYCL_DEVICE_ONLY__
 #define __sycl_std
 #else
@@ -36,13 +44,13 @@ namespace __sycl_std = __host_std;
 #define __SYCL_MATH_FUNCTION_OVERLOAD(NAME)                                    \
   template <typename T, size_t N>                                              \
   inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, sycl::marray<T, N>>     \
-      NAME(sycl::marray<T, N> x) __NOEXC {                                     \
-    sycl::marray<T, N> res;                                                    \
-    auto x_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&x);               \
-    auto res_vec2 = reinterpret_cast<sycl::vec<T, 2> *>(&res);                 \
+      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
+      NAME(marray<T, N> x) __NOEXC {                                           \
+    marray<T, N> res;                                                          \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      res_vec2[i] = __sycl_std::__invoke_##NAME<sycl::vec<T, 2>>(x_vec2[i]);   \
+      vec<T, 2> partial_res =                                                  \
+          __sycl_std::__invoke_##NAME<vec<T, 2>>(detail::to_vec(x, i * 2));    \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));               \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1]);                   \
@@ -95,15 +103,13 @@ __SYCL_MATH_FUNCTION_OVERLOAD(trunc)
 #define __SYCL_MATH_FUNCTION_2_OVERLOAD(NAME)                                  \
   template <typename T, size_t N>                                              \
   inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, sycl::marray<T, N>>     \
-      NAME(sycl::marray<T, N> x, sycl::marray<T, N> y) __NOEXC {               \
-    sycl::marray<T, N> res;                                                    \
-    auto x_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&x);               \
-    auto y_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&y);               \
-    auto res_vec2 = reinterpret_cast<sycl::vec<T, 2> *>(&res);                 \
+      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
+      NAME(marray<T, N> x, marray<T, N> y) __NOEXC {                           \
+    marray<T, N> res;                                                          \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      res_vec2[i] =                                                            \
-          __sycl_std::__invoke_##NAME<sycl::vec<T, 2>>(x_vec2[i], y_vec2[i]);  \
+      auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(               \
+          detail::to_vec(x, i * 2), detail::to_vec(y, i * 2));                 \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));               \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1], y[N - 1]);         \
@@ -131,17 +137,14 @@ __SYCL_MATH_FUNCTION_2_OVERLOAD(remainder)
 #define __SYCL_MATH_FUNCTION_3_OVERLOAD(NAME)                                  \
   template <typename T, size_t N>                                              \
   inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, sycl::marray<T, N>>     \
-      NAME(sycl::marray<T, N> x, sycl::marray<T, N> y, sycl::marray<T, N> z)   \
-          __NOEXC {                                                            \
-    sycl::marray<T, N> res;                                                    \
-    auto x_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&x);               \
-    auto y_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&y);               \
-    auto z_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&z);               \
-    auto res_vec2 = reinterpret_cast<sycl::vec<T, 2> *>(&res);                 \
+      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
+      NAME(marray<T, N> x, marray<T, N> y, marray<T, N> z) __NOEXC {           \
+    marray<T, N> res;                                                          \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      res_vec2[i] = __sycl_std::__invoke_##NAME<sycl::vec<T, 2>>(              \
-          x_vec2[i], y_vec2[i], z_vec2[i]);                                    \
+      auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(               \
+          detail::to_vec(x, i * 2), detail::to_vec(y, i * 2),                  \
+          detail::to_vec(z, i * 2));                                           \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));               \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] =                                                             \
@@ -1530,14 +1533,13 @@ namespace native {
 
 #define __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(NAME)                             \
   template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE sycl::marray<float, N> NAME(                     \
-      sycl::marray<float, N> x) __NOEXC {                                      \
-    sycl::marray<float, N> res;                                                \
-    auto x_vec2 = reinterpret_cast<sycl::vec<float, 2> const *>(&x);           \
-    auto res_vec2 = reinterpret_cast<sycl::vec<float, 2> *>(&res);             \
+  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(marray<float, N> x)        \
+      __NOEXC {                                                                \
+    marray<float, N> res;                                                      \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      res_vec2[i] =                                                            \
-          __sycl_std::__invoke_native_##NAME<sycl::vec<float, 2>>(x_vec2[i]);  \
+      auto partial_res = __sycl_std::__invoke_native_##NAME<vec<float, 2>>(    \
+          detail::to_vec(x, i * 2));                                           \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] = __sycl_std::__invoke_native_##NAME<float>(x[N - 1]);        \
@@ -1562,15 +1564,13 @@ __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(recip)
 
 #define __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(NAME)                           \
   template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE sycl::marray<float, N> NAME(                     \
-      sycl::marray<float, N> x, sycl::marray<float, N> y) __NOEXC {            \
-    sycl::marray<float, N> res;                                                \
-    auto x_vec2 = reinterpret_cast<sycl::vec<float, 2> const *>(&x);           \
-    auto y_vec2 = reinterpret_cast<sycl::vec<float, 2> const *>(&y);           \
-    auto res_vec2 = reinterpret_cast<sycl::vec<float, 2> *>(&res);             \
+  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(                           \
+      marray<float, N> x, marray<float, N> y) __NOEXC {                        \
+    marray<float, N> res;                                                      \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      res_vec2[i] = __sycl_std::__invoke_native_##NAME<sycl::vec<float, 2>>(   \
-          x_vec2[i], y_vec2[i]);                                               \
+      auto partial_res = __sycl_std::__invoke_native_##NAME<vec<float, 2>>(    \
+          detail::to_vec(x, i * 2), detail::to_vec(y, i * 2));                 \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] =                                                             \
@@ -1674,14 +1674,13 @@ namespace half_precision {
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 #define __SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(NAME)                     \
   template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE sycl::marray<float, N> NAME(                     \
-      sycl::marray<float, N> x) __NOEXC {                                      \
-    sycl::marray<float, N> res;                                                \
-    auto x_vec2 = reinterpret_cast<sycl::vec<float, 2> const *>(&x);           \
-    auto res_vec2 = reinterpret_cast<sycl::vec<float, 2> *>(&res);             \
+  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(marray<float, N> x)        \
+      __NOEXC {                                                                \
+    marray<float, N> res;                                                      \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      res_vec2[i] =                                                            \
-          __sycl_std::__invoke_half_##NAME<sycl::vec<float, 2>>(x_vec2[i]);    \
+      auto partial_res = __sycl_std::__invoke_half_##NAME<vec<float, 2>>(      \
+          detail::to_vec(x, i * 2));                                           \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] = __sycl_std::__invoke_half_##NAME<float>(x[N - 1]);          \
@@ -1706,15 +1705,13 @@ __SYCL_HALF_PRECISION_MATH_FUNCTION_OVERLOAD(recip)
 
 #define __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD(NAME)                   \
   template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE sycl::marray<float, N> NAME(                     \
-      sycl::marray<float, N> x, sycl::marray<float, N> y) __NOEXC {            \
-    sycl::marray<float, N> res;                                                \
-    auto x_vec2 = reinterpret_cast<sycl::vec<float, 2> const *>(&x);           \
-    auto y_vec2 = reinterpret_cast<sycl::vec<float, 2> const *>(&y);           \
-    auto res_vec2 = reinterpret_cast<sycl::vec<float, 2> *>(&res);             \
+  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(                           \
+      marray<float, N> x, marray<float, N> y) __NOEXC {                        \
+    marray<float, N> res;                                                      \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      res_vec2[i] = __sycl_std::__invoke_half_##NAME<sycl::vec<float, 2>>(     \
-          x_vec2[i], y_vec2[i]);                                               \
+      auto partial_res = __sycl_std::__invoke_half_##NAME<vec<float, 2>>(      \
+          detail::to_vec(x, i * 2), detail::to_vec(y, i * 2));                 \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] =                                                             \
