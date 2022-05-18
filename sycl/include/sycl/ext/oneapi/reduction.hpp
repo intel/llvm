@@ -1041,23 +1041,17 @@ struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
 /// the reduction value hold in \p Reducer is accumulated in those calls.
 template <typename KernelFunc, int Dims, typename ReducerT>
 void reductionLoop(const range<Dims> &Range, const size_t PerGroup,
-                   const size_t Remainder, ReducerT &Reducer,
+                   const size_t /*Remainder*/, ReducerT &Reducer,
                    const nd_item<1> &NdId, KernelFunc &F) {
 
   // Divide into contiguous chunks and assign each chunk to a Group
-  // Rely on precomputed PerGroup and Remainder to avoid repeating modulo
+  // Rely on precomputed division to avoid repeating expensive operations
   auto Group = NdId.get_group();
   size_t GroupId = Group.get_group_linear_id();
   size_t NumGroups = Group.get_group_linear_range();
-  size_t GroupStart = GroupId * PerGroup;
-  size_t GroupEnd = GroupStart + PerGroup;
   bool LastGroup = (GroupId == NumGroups - 1);
-  if (LastGroup) {
-    GroupEnd += Remainder;
-  }
-  if (GroupEnd > Range.size()) {
-    GroupEnd = Range.size();
-  }
+  size_t GroupStart = GroupId * PerGroup;
+  size_t GroupEnd = LastGroup ? Range.size() : (GroupStart + PerGroup);
 
   // Loop over the contiguous chunk
   size_t Start = GroupStart + NdId.get_local_id(0);
