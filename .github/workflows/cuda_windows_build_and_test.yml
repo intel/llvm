@@ -45,36 +45,36 @@ jobs:
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache"
-#    - name: Build
-#      id: build
-#      run: |
-#        cmake --build build --target sycl-toolchain
-#        sccache --show-stats
-#    - name: check-llvm
-#      shell: bash
-#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-#      run: |
-#        cmake --build build --target check-llvm
-#    - name: check-clang
-#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-#      shell: bash
-#      run: |
-#        cmake --build build --target check-clang
-#    - name: check-sycl
-#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-#      shell: bash
-#      run: |
-#        cmake --build build --target check-sycl
-#    - name: check-llvm-spirv
-#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-#      shell: bash
-#      run: |
-#        cmake --build build --target check-llvm-spirv
-#    - name: check-xptifw
-#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-#      shell: bash
-#      run: |
-#        cmake --build build --target check-xptifw
+    - name: Build
+      id: build
+      run: |
+        cmake --build build --target sycl-toolchain
+        sccache --show-stats
+    - name: check-llvm
+      shell: bash
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build build --target check-llvm
+    - name: check-clang
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: bash
+      run: |
+        cmake --build build --target check-clang
+    - name: check-sycl-cuda
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: bash
+      run: |
+        cmake --build build --target check-sycl-cuda
+    - name: check-llvm-spirv
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: bash
+      run: |
+        cmake --build build --target check-llvm-spirv
+    - name: check-xptifw
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: bash
+      run: |
+        cmake --build build --target check-xptifw
 #    - name: Install
 #      shell: bash
 #      run: cmake --build build --target deploy-sycl-toolchain
