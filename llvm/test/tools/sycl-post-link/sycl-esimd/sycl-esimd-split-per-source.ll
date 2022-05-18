@@ -68,8 +68,8 @@ attributes #1 = { "sycl-module-id"="b.cpp" }
 ; CHECK: [Code|Properties]
 ; CHECK-DAG: {{.*}}tmp_0.ll|{{.*}}_0.prop
 ; CHECK-DAG: {{.*}}tmp_1.ll|{{.*}}_1.prop
-; CHECK-DAG: {{.*}}tmp_esimd_2.ll|{{.*}}_esimd_2.prop
-; CHECK-DAG: {{.*}}tmp_esimd_3.ll|{{.*}}_esimd_3.prop
+; CHECK-DAG: {{.*}}tmp_esimd_0.ll|{{.*}}_esimd_0.prop
+; CHECK-DAG: {{.*}}tmp_esimd_1.ll|{{.*}}_esimd_1.prop
 
 ; CHECK-SYCL-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel1()
 ; CHECK-SYCL-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel2()
