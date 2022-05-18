@@ -8,8 +8,6 @@
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 #include <sycl/sycl.hpp>
 
-#include <cuda.h>
-
 using namespace sycl;
 
 //
