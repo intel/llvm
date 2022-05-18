@@ -2495,7 +2495,7 @@ private:
   /// Namespace definitions that we will export when they finish.
   llvm::SmallPtrSet<const NamespaceDecl*, 8> DeferredExportedNamespaces;
 
-  /// Get the module whose scope we are currently within.
+  /// Get the module unit whose scope we are currently within.
   Module *getCurrentModule() const {
     return ModuleScopes.empty() ? nullptr : ModuleScopes.back().Module;
   }
@@ -2512,6 +2512,11 @@ private:
   void PopGlobalModuleFragment();
 
   VisibleModuleSet VisibleModules;
+
+  /// Cache for module units which is usable for current module.
+  llvm::DenseSet<const Module *> UsableModuleUnitsCache;
+
+  bool isUsableModule(const Module *M);
 
 public:
   /// Get the module owning an entity.
@@ -3059,7 +3064,7 @@ public:
   // Returns true if the function declaration is a redeclaration
   bool CheckFunctionDeclaration(Scope *S,
                                 FunctionDecl *NewFD, LookupResult &Previous,
-                                bool IsMemberSpecialization);
+                                bool IsMemberSpecialization, bool DeclIsDefn);
   bool shouldLinkDependentDeclWithPrevious(Decl *D, Decl *OldDecl);
   bool canFullyTypeCheckRedeclaration(ValueDecl *NewD, ValueDecl *OldD,
                                       QualType NewT, QualType OldT);
@@ -3151,6 +3156,18 @@ public:
   void ActOnDocumentableDecl(Decl *D);
   void ActOnDocumentableDecls(ArrayRef<Decl *> Group);
 
+  enum class FnBodyKind {
+    /// C++ [dcl.fct.def.general]p1
+    /// function-body:
+    ///   ctor-initializer[opt] compound-statement
+    ///   function-try-block
+    Other,
+    ///   = default ;
+    Default,
+    ///   = delete ;
+    Delete
+  };
+
   void ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
                                        SourceLocation LocAfterDecls);
   void CheckForFunctionRedefinition(
@@ -3158,9 +3175,12 @@ public:
       SkipBodyInfo *SkipBody = nullptr);
   Decl *ActOnStartOfFunctionDef(Scope *S, Declarator &D,
                                 MultiTemplateParamsArg TemplateParamLists,
-                                SkipBodyInfo *SkipBody = nullptr);
+                                SkipBodyInfo *SkipBody = nullptr,
+                                FnBodyKind BodyKind = FnBodyKind::Other);
   Decl *ActOnStartOfFunctionDef(Scope *S, Decl *D,
-                                SkipBodyInfo *SkipBody = nullptr);
+                                SkipBodyInfo *SkipBody = nullptr,
+                                FnBodyKind BodyKind = FnBodyKind::Other);
+  void SetFunctionBodyKind(Decl *D, SourceLocation Loc, FnBodyKind BodyKind);
   void ActOnStartTrailingRequiresClause(Scope *S, Declarator &D);
   ExprResult ActOnFinishTrailingRequiresClause(ExprResult ConstraintExpr);
   ExprResult ActOnRequiresClause(ExprResult ConstraintExpr);
@@ -3730,13 +3750,15 @@ public:
   HLSLNumThreadsAttr *mergeHLSLNumThreadsAttr(Decl *D,
                                               const AttributeCommonInfo &AL,
                                               int X, int Y, int Z);
+  HLSLShaderAttr *mergeHLSLShaderAttr(Decl *D, const AttributeCommonInfo &AL,
+                                      HLSLShaderAttr::ShaderType ShaderType);
 
   void mergeDeclAttributes(NamedDecl *New, Decl *Old,
                            AvailabilityMergeKind AMK = AMK_Redeclaration);
   void MergeTypedefNameDecl(Scope *S, TypedefNameDecl *New,
                             LookupResult &OldDecls);
   bool MergeFunctionDecl(FunctionDecl *New, NamedDecl *&Old, Scope *S,
-                         bool MergeTypeWithOld);
+                         bool MergeTypeWithOld, bool NewDeclIsDefn);
   bool MergeCompatibleFunctionDecls(FunctionDecl *New, FunctionDecl *Old,
                                     Scope *S, bool MergeTypeWithOld);
   void mergeObjCMethodDecls(ObjCMethodDecl *New, ObjCMethodDecl *Old);
@@ -3814,7 +3836,8 @@ public:
                                 QualType& ConvertedType);
   bool FunctionParamTypesAreEqual(const FunctionProtoType *OldType,
                                   const FunctionProtoType *NewType,
-                                  unsigned *ArgPos = nullptr);
+                                  unsigned *ArgPos = nullptr,
+                                  bool Reversed = false);
   void HandleFunctionTypeMismatch(PartialDiagnostic &PDiag,
                                   QualType FromType, QualType ToType);
 
@@ -4476,8 +4499,8 @@ public:
                                 = NotForRedeclaration);
   bool LookupBuiltin(LookupResult &R);
   void LookupNecessaryTypesForBuiltin(Scope *S, unsigned ID);
-  bool LookupName(LookupResult &R, Scope *S,
-                  bool AllowBuiltinCreation = false);
+  bool LookupName(LookupResult &R, Scope *S, bool AllowBuiltinCreation = false,
+                  bool ForceNoCPlusPlus = false);
   bool LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
                            bool InUnqualifiedLookup = false);
   bool LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
@@ -8996,7 +9019,8 @@ public:
   FunctionTemplateDecl *getMoreSpecializedTemplate(
       FunctionTemplateDecl *FT1, FunctionTemplateDecl *FT2, SourceLocation Loc,
       TemplatePartialOrderingContext TPOC, unsigned NumCallArguments1,
-      unsigned NumCallArguments2, bool Reversed = false);
+      unsigned NumCallArguments2, bool Reversed = false,
+      bool AllowOrderingByConstraints = true);
   UnresolvedSetIterator
   getMostSpecialized(UnresolvedSetIterator SBegin, UnresolvedSetIterator SEnd,
                      TemplateSpecCandidateSet &FailedCandidates,
@@ -11929,6 +11953,9 @@ public:
   /// Called on well-formed 'is_device_ptr' clause.
   OMPClause *ActOnOpenMPIsDevicePtrClause(ArrayRef<Expr *> VarList,
                                           const OMPVarListLocTy &Locs);
+  /// Called on well-formed 'has_device_addr' clause.
+  OMPClause *ActOnOpenMPHasDeviceAddrClause(ArrayRef<Expr *> VarList,
+                                            const OMPVarListLocTy &Locs);
   /// Called on well-formed 'nontemporal' clause.
   OMPClause *ActOnOpenMPNontemporalClause(ArrayRef<Expr *> VarList,
                                           SourceLocation StartLoc,
@@ -12335,6 +12362,10 @@ public:
   QualType CheckVectorConditionalTypes(ExprResult &Cond, ExprResult &LHS,
                                        ExprResult &RHS,
                                        SourceLocation QuestionLoc);
+
+  QualType CheckSizelessVectorConditionalTypes(ExprResult &Cond,
+                                               ExprResult &LHS, ExprResult &RHS,
+                                               SourceLocation QuestionLoc);
   QualType FindCompositePointerType(SourceLocation Loc, Expr *&E1, Expr *&E2,
                                     bool ConvertArgs = true);
   QualType FindCompositePointerType(SourceLocation Loc,
@@ -12364,9 +12395,13 @@ public:
                                bool AllowBothBool, bool AllowBoolConversion,
                                bool AllowBoolOperation, bool ReportInvalid);
   QualType GetSignedVectorType(QualType V);
+  QualType GetSignedSizelessVectorType(QualType V);
   QualType CheckVectorCompareOperands(ExprResult &LHS, ExprResult &RHS,
                                       SourceLocation Loc,
                                       BinaryOperatorKind Opc);
+  QualType CheckSizelessVectorCompareOperands(ExprResult &LHS, ExprResult &RHS,
+                                              SourceLocation Loc,
+                                              BinaryOperatorKind Opc);
   QualType CheckVectorLogicalOperands(ExprResult &LHS, ExprResult &RHS,
                                       SourceLocation Loc);
 

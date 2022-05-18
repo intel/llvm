@@ -35,6 +35,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/FPEnv.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instruction.h"
@@ -48,7 +49,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MachineValueType.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -485,6 +485,17 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
 
     setOperationAction(ISD::CTPOP, Ty, Legal);
     setOperationAction(ISD::CTLZ, Ty, Legal);
+  }
+
+  setOperationAction(ISD::ADDC, MVT::i32, Legal);
+  setOperationAction(ISD::ADDE, MVT::i32, Legal);
+  setOperationAction(ISD::SUBC, MVT::i32, Legal);
+  setOperationAction(ISD::SUBE, MVT::i32, Legal);
+  if (STI.getPTXVersion() >= 43) {
+    setOperationAction(ISD::ADDC, MVT::i64, Legal);
+    setOperationAction(ISD::ADDE, MVT::i64, Legal);
+    setOperationAction(ISD::SUBC, MVT::i64, Legal);
+    setOperationAction(ISD::SUBE, MVT::i64, Legal);
   }
 
   setOperationAction(ISD::CTTZ, MVT::i16, Expand);

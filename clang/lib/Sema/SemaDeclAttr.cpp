@@ -6445,6 +6445,21 @@ static void handleLifetimeCategoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 }
 
+static void handleRandomizeLayoutAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (checkAttrMutualExclusion<NoRandomizeLayoutAttr>(S, D, AL))
+    return;
+  if (!D->hasAttr<RandomizeLayoutAttr>())
+    D->addAttr(::new (S.Context) RandomizeLayoutAttr(S.Context, AL));
+}
+
+static void handleNoRandomizeLayoutAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  if (checkAttrMutualExclusion<RandomizeLayoutAttr>(S, D, AL))
+    return;
+  if (!D->hasAttr<NoRandomizeLayoutAttr>())
+    D->addAttr(::new (S.Context) NoRandomizeLayoutAttr(S.Context, AL));
+}
+
 bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
                                 const FunctionDecl *FD) {
   if (Attrs.isInvalid())
@@ -9296,6 +9311,54 @@ HLSLNumThreadsAttr *Sema::mergeHLSLNumThreadsAttr(Decl *D,
   return ::new (Context) HLSLNumThreadsAttr(Context, AL, X, Y, Z);
 }
 
+static void handleHLSLSVGroupIndexAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  using llvm::Triple;
+  Triple Target = S.Context.getTargetInfo().getTriple();
+  if (Target.getEnvironment() != Triple::Compute) {
+    uint32_t Pipeline =
+        (uint32_t)S.Context.getTargetInfo().getTriple().getEnvironment() -
+        (uint32_t)llvm::Triple::Pixel;
+    S.Diag(AL.getLoc(), diag::err_hlsl_attr_unsupported_in_stage)
+        << AL << Pipeline << "Compute";
+    return;
+  }
+
+  D->addAttr(::new (S.Context) HLSLSV_GroupIndexAttr(S.Context, AL));
+}
+
+static void handleHLSLShaderAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef Str;
+  SourceLocation ArgLoc;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &ArgLoc))
+    return;
+
+  HLSLShaderAttr::ShaderType ShaderType;
+  if (!HLSLShaderAttr::ConvertStrToShaderType(Str, ShaderType)) {
+    S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported)
+        << AL << Str << ArgLoc;
+    return;
+  }
+
+  // FIXME: check function match the shader stage.
+
+  HLSLShaderAttr *NewAttr = S.mergeHLSLShaderAttr(D, AL, ShaderType);
+  if (NewAttr)
+    D->addAttr(NewAttr);
+}
+
+HLSLShaderAttr *
+Sema::mergeHLSLShaderAttr(Decl *D, const AttributeCommonInfo &AL,
+                          HLSLShaderAttr::ShaderType ShaderType) {
+  if (HLSLShaderAttr *NT = D->getAttr<HLSLShaderAttr>()) {
+    if (NT->getType() != ShaderType) {
+      Diag(NT->getLocation(), diag::err_hlsl_attribute_param_mismatch) << AL;
+      Diag(AL.getLoc(), diag::note_conflicting_attribute);
+    }
+    return nullptr;
+  }
+  return HLSLShaderAttr::Create(Context, ShaderType, AL);
+}
+
 static void handleMSInheritanceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.LangOpts.CPlusPlus) {
     S.Diag(AL.getLoc(), diag::err_attribute_not_supported_in_lang)
@@ -11208,6 +11271,12 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_Section:
     handleSectionAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_RandomizeLayout:
+    handleRandomizeLayoutAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_NoRandomizeLayout:
+    handleNoRandomizeLayoutAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_CodeSeg:
     handleCodeSegAttr(S, D, AL);
     break;
@@ -11348,6 +11417,12 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   // HLSL attributes:
   case ParsedAttr::AT_HLSLNumThreads:
     handleHLSLNumThreadsAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_HLSLSV_GroupIndex:
+    handleHLSLSVGroupIndexAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_HLSLShader:
+    handleHLSLShaderAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AbiTag:

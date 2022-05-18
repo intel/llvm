@@ -598,30 +598,6 @@ void ASTWriter::WriteTypeAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // Type
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 3));   // Quals
   TypeExtQualAbbrev = Stream.EmitAbbrev(std::move(Abv));
-
-  // Abbreviation for TYPE_FUNCTION_PROTO
-  Abv = std::make_shared<BitCodeAbbrev>();
-  Abv->Add(BitCodeAbbrevOp(serialization::TYPE_FUNCTION_PROTO));
-  // FunctionType
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // ReturnType
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // NoReturn
-  Abv->Add(BitCodeAbbrevOp(0));                         // HasRegParm
-  Abv->Add(BitCodeAbbrevOp(0));                         // RegParm
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 4)); // CC
-  Abv->Add(BitCodeAbbrevOp(0));                         // ProducesResult
-  Abv->Add(BitCodeAbbrevOp(0));                         // NoCallerSavedRegs
-  Abv->Add(BitCodeAbbrevOp(0));                         // NoCfCheck
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // CmseNSCall
-  // FunctionProtoType
-  Abv->Add(BitCodeAbbrevOp(0));                         // IsVariadic
-  Abv->Add(BitCodeAbbrevOp(0));                         // HasTrailingReturn
-  Abv->Add(BitCodeAbbrevOp(0));                         // TypeQuals
-  Abv->Add(BitCodeAbbrevOp(0));                         // RefQualifier
-  Abv->Add(BitCodeAbbrevOp(EST_None));                  // ExceptionSpec
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // NumParams
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Array));
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // Params
-  TypeFunctionProtoAbbrev = Stream.EmitAbbrev(std::move(Abv));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1117,8 +1093,7 @@ std::pair<ASTFileSignature, ASTFileSignature>
 ASTWriter::createSignature(StringRef AllBytes, StringRef ASTBlockBytes) {
   llvm::SHA1 Hasher;
   Hasher.update(ASTBlockBytes);
-  auto Hash = Hasher.result();
-  ASTFileSignature ASTBlockHash = ASTFileSignature::create(Hash);
+  ASTFileSignature ASTBlockHash = ASTFileSignature::create(Hasher.result());
 
   // Add the remaining bytes (i.e. bytes before the unhashed control block that
   // are not part of the AST block).
@@ -1126,8 +1101,7 @@ ASTWriter::createSignature(StringRef AllBytes, StringRef ASTBlockBytes) {
       AllBytes.take_front(ASTBlockBytes.bytes_end() - AllBytes.bytes_begin()));
   Hasher.update(
       AllBytes.take_back(AllBytes.bytes_end() - ASTBlockBytes.bytes_end()));
-  Hash = Hasher.result();
-  ASTFileSignature Signature = ASTFileSignature::create(Hash);
+  ASTFileSignature Signature = ASTFileSignature::create(Hasher.result());
 
   return std::make_pair(ASTBlockHash, Signature);
 }
@@ -3140,6 +3114,7 @@ void ASTWriter::WriteFileDeclIDsMap() {
   for (auto &FileDeclEntry : SortedFileDeclIDs) {
     DeclIDInFileInfo &Info = *FileDeclEntry.second;
     Info.FirstDeclIndex = FileGroupedDeclIDs.size();
+    llvm::stable_sort(Info.DeclIDs);
     for (auto &LocDeclEntry : Info.DeclIDs)
       FileGroupedDeclIDs.push_back(LocDeclEntry.second);
   }
@@ -5488,16 +5463,7 @@ void ASTWriter::associateDeclWithFile(const Decl *D, DeclID ID) {
 
   std::pair<unsigned, serialization::DeclID> LocDecl(Offset, ID);
   LocDeclIDsTy &Decls = Info->DeclIDs;
-
-  if (Decls.empty() || Decls.back().first <= Offset) {
-    Decls.push_back(LocDecl);
-    return;
-  }
-
-  LocDeclIDsTy::iterator I =
-      llvm::upper_bound(Decls, LocDecl, llvm::less_first());
-
-  Decls.insert(I, LocDecl);
+  Decls.push_back(LocDecl);
 }
 
 unsigned ASTWriter::getAnonymousDeclarationNumber(const NamedDecl *D) {
@@ -6814,6 +6780,26 @@ void OMPClauseWriter::VisitOMPUseDeviceAddrClause(OMPUseDeviceAddrClause *C) {
 }
 
 void OMPClauseWriter::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *C) {
+  Record.push_back(C->varlist_size());
+  Record.push_back(C->getUniqueDeclarationsNum());
+  Record.push_back(C->getTotalComponentListNum());
+  Record.push_back(C->getTotalComponentsNum());
+  Record.AddSourceLocation(C->getLParenLoc());
+  for (auto *E : C->varlists())
+    Record.AddStmt(E);
+  for (auto *D : C->all_decls())
+    Record.AddDeclRef(D);
+  for (auto N : C->all_num_lists())
+    Record.push_back(N);
+  for (auto N : C->all_lists_sizes())
+    Record.push_back(N);
+  for (auto &M : C->all_components()) {
+    Record.AddStmt(M.getAssociatedExpression());
+    Record.AddDeclRef(M.getAssociatedDeclaration());
+  }
+}
+
+void OMPClauseWriter::VisitOMPHasDeviceAddrClause(OMPHasDeviceAddrClause *C) {
   Record.push_back(C->varlist_size());
   Record.push_back(C->getUniqueDeclarationsNum());
   Record.push_back(C->getTotalComponentListNum());

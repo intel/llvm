@@ -235,6 +235,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case NetBSD: return "netbsd";
   case OpenBSD: return "openbsd";
   case PS4: return "ps4";
+  case PS5: return "ps5";
   case RTEMS: return "rtems";
   case Solaris: return "solaris";
   case TvOS: return "tvos";
@@ -340,12 +341,14 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("sparc", sparc)
     .Case("sparcel", sparcel)
     .Case("sparcv9", sparcv9)
+    .Case("s390x", systemz)
     .Case("systemz", systemz)
     .Case("tce", tce)
     .Case("tcele", tcele)
     .Case("thumb", thumb)
     .Case("thumbeb", thumbeb)
     .Case("x86", x86)
+    .Case("i386", x86)
     .Case("x86-64", x86_64)
     .Case("xcore", xcore)
     .Case("nvptx", nvptx)
@@ -576,6 +579,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("nvcl", Triple::NVCL)
     .StartsWith("amdhsa", Triple::AMDHSA)
     .StartsWith("ps4", Triple::PS4)
+    .StartsWith("ps5", Triple::PS5)
     .StartsWith("elfiamcu", Triple::ELFIAMCU)
     .StartsWith("tvos", Triple::TvOS)
     .StartsWith("watchos", Triple::WatchOS)
@@ -634,15 +638,16 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
 
 static Triple::ObjectFormatType parseFormat(StringRef EnvironmentName) {
   return StringSwitch<Triple::ObjectFormatType>(EnvironmentName)
-    // "xcoff" must come before "coff" because of the order-dependendent
-    // pattern matching.
-    .EndsWith("xcoff", Triple::XCOFF)
-    .EndsWith("coff", Triple::COFF)
-    .EndsWith("elf", Triple::ELF)
-    .EndsWith("goff", Triple::GOFF)
-    .EndsWith("macho", Triple::MachO)
-    .EndsWith("wasm", Triple::Wasm)
-    .Default(Triple::UnknownObjectFormat);
+      // "xcoff" must come before "coff" because of the order-dependendent
+      // pattern matching.
+      .EndsWith("xcoff", Triple::XCOFF)
+      .EndsWith("coff", Triple::COFF)
+      .EndsWith("elf", Triple::ELF)
+      .EndsWith("goff", Triple::GOFF)
+      .EndsWith("macho", Triple::MachO)
+      .EndsWith("wasm", Triple::Wasm)
+      .EndsWith("spirv", Triple::SPIRV)
+      .Default(Triple::UnknownObjectFormat);
 }
 
 static Triple::SubArchType parseSubArch(StringRef SubArchName) {
@@ -755,14 +760,24 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
 
 static StringRef getObjectFormatTypeName(Triple::ObjectFormatType Kind) {
   switch (Kind) {
-  case Triple::UnknownObjectFormat: return "";
-  case Triple::COFF:  return "coff";
-  case Triple::ELF:   return "elf";
-  case Triple::GOFF:  return "goff";
-  case Triple::MachO: return "macho";
-  case Triple::Wasm:  return "wasm";
-  case Triple::XCOFF: return "xcoff";
-  case Triple::DXContainer:  return "dxcontainer";
+  case Triple::UnknownObjectFormat:
+    return "";
+  case Triple::COFF:
+    return "coff";
+  case Triple::ELF:
+    return "elf";
+  case Triple::GOFF:
+    return "goff";
+  case Triple::MachO:
+    return "macho";
+  case Triple::Wasm:
+    return "wasm";
+  case Triple::XCOFF:
+    return "xcoff";
+  case Triple::DXContainer:
+    return "dxcontainer";
+  case Triple::SPIRV:
+    return "spirv";
   }
   llvm_unreachable("unknown object format type");
 }
@@ -847,8 +862,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
 
   case Triple::spirv32:
   case Triple::spirv64:
-    // TODO: In future this will be Triple::SPIRV.
-    return Triple::UnknownObjectFormat;
+    return Triple::SPIRV;
 
   case Triple::dxil:
     return Triple::DXContainer;

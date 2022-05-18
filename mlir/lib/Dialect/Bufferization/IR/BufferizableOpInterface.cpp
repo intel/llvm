@@ -33,11 +33,6 @@ namespace bufferization {
 using namespace mlir;
 using namespace bufferization;
 
-/// Attribute name used to mark the bufferization layout for region
-/// arguments during linalg comprehensive bufferization.
-constexpr const ::llvm::StringLiteral
-    bufferization::BufferizableOpInterface::kBufferLayoutAttrName;
-
 /// Attribute name used to mark region arguments that can be bufferized
 /// in-place during linalg comprehensive bufferization.
 constexpr const ::llvm::StringLiteral
@@ -55,6 +50,31 @@ static const char *kSkipDeallocAttr = "bufferization.skip_dealloc";
 
 // Default constructor for BufferizationOptions.
 BufferizationOptions::BufferizationOptions() = default;
+
+bool BufferizationOptions::isOpAllowed(Operation *op) const {
+  // Special case: If function boundary bufferization is deactivated, do not
+  // allow ops that belong to the `func` dialect.
+  bool isFuncBoundaryOp = isa_and_nonnull<func::FuncDialect>(op->getDialect());
+  if (!bufferizeFunctionBoundaries && isFuncBoundaryOp)
+    return false;
+
+  // All other ops: Allow/disallow according to filter.
+  bool isAllowed = !filterHasAllowRule();
+  for (const OpFilterEntry &entry : opFilter) {
+    bool filterResult = entry.fn(op);
+    switch (entry.type) {
+    case OpFilterEntry::ALLOW:
+      isAllowed |= filterResult;
+      break;
+    case OpFilterEntry::DENY:
+      if (filterResult)
+        // DENY filter matches. This op is no allowed. (Even if other ALLOW
+        // filters may match.)
+        return false;
+    };
+  }
+  return isAllowed;
+}
 
 BufferizableOpInterface
 BufferizationOptions::dynCastBufferizableOp(Operation *op) const {
@@ -247,12 +267,12 @@ Value mlir::bufferization::lookupBuffer(RewriterBase &rewriter, Value tensor,
                                                     tensor);
 }
 
-/// Return the result buffer (memref) for a given OpResult (tensor). Allocate
+/// Return the buffer (memref) for a given OpOperand (tensor). Allocate
 /// a new buffer and copy over data from the existing buffer if out-of-place
-/// bufferization is necessary.
+/// bufferization was decided.
 FailureOr<Value>
 BufferizationState::getBuffer(RewriterBase &rewriter, OpOperand &opOperand,
-                              bool forceInPlace,
+                              Optional<ForceInPlacability> overrideInPlace,
                               Optional<Operation *> customCopyInsertionPoint) {
   const BufferizationOptions &options = analysisState.getOptions();
   OpBuilder::InsertionGuard guard(rewriter);
@@ -263,7 +283,11 @@ BufferizationState::getBuffer(RewriterBase &rewriter, OpOperand &opOperand,
   Value operand = opOperand.get();
   Value operandBuffer = lookupBuffer(rewriter, operand, options);
 
-  if (forceInPlace || analysisState.isInPlace(opOperand))
+  // Can `operandBuffer` be used directly or do we need a copy?
+  bool inplace =
+      overrideInPlace != FORCE_OUT_OF_PLACE &&
+      (overrideInPlace == FORCE_INPLACE || analysisState.isInPlace(opOperand));
+  if (inplace)
     return operandBuffer;
 
   // Bufferizing out-of-place: Allocate a new buffer.
@@ -315,6 +339,18 @@ BufferizationState::getBuffer(RewriterBase &rewriter, OpOperand &opOperand,
     return failure();
 
   return resultBuffer;
+}
+
+/// Return the buffer type for a given OpOperand (tensor) after bufferization.
+BaseMemRefType BufferizationState::getBufferType(OpOperand &opOperand) const {
+  Value tensor = opOperand.get();
+  auto tensorType = tensor.getType().dyn_cast<TensorType>();
+  assert(tensorType && "unexpected non-tensor type");
+
+  if (auto toTensorOp = tensor.getDefiningOp<bufferization::ToTensorOp>())
+    return toTensorOp.memref().getType().cast<BaseMemRefType>();
+
+  return getMemRefType(tensorType, getOptions());
 }
 
 void bufferization::replaceOpWithBufferizedValues(RewriterBase &rewriter,
@@ -466,7 +502,6 @@ FailureOr<Value> BufferizationState::createAlloc(OpBuilder &b, Location loc,
 
   // Compute allocation memref type.
   assert(shapedValue.getType().isa<ShapedType>());
-  MemRefType memRefType = shapedValue.getType().dyn_cast<MemRefType>();
   SmallVector<Value> dynShape;
   MemRefType allocMemRefType =
       getAllocationTypeAndShape(b, loc, shapedValue, dynShape);
@@ -485,17 +520,7 @@ FailureOr<Value> BufferizationState::createAlloc(OpBuilder &b, Location loc,
   }
 
   // Create the buffer allocation.
-  Value alloc =
-      createBufferAllocation(b, loc, allocMemRefType, dynShape, skipDealloc);
-
-  // Insert a cast if a different type was requested.
-  if (memRefType && memRefType != allocMemRefType) {
-    assert(memref::CastOp::areCastCompatible(allocMemRefType, memRefType) &&
-           "createAlloc: cast incompatible");
-    alloc = b.create<memref::CastOp>(loc, memRefType, alloc);
-  }
-
-  return alloc;
+  return createBufferAllocation(b, loc, allocMemRefType, dynShape, skipDealloc);
 }
 
 /// Create a memory copy between two memref buffers.
@@ -621,7 +646,7 @@ bool bufferization::isFunctionArgument(Value value) {
   auto bbArg = value.dyn_cast<BlockArgument>();
   if (!bbArg)
     return false;
-  return isa<FuncOp>(bbArg.getOwner()->getParentOp());
+  return isa<func::FuncOp>(bbArg.getOwner()->getParentOp());
 }
 
 MemRefType bufferization::getContiguousMemRefType(ShapedType shapedType,

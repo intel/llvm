@@ -659,11 +659,12 @@ PI interface.
 The CUDA API does not natively support the global offset parameter
 expected by the SYCL.
 
-In order to emulate this and make generated kernel compliant, an
-intrinsic `llvm.nvvm.implicit.offset` (clang builtin
-`__builtin_ptx_implicit_offset`) was introduced materializing the use
-of this implicit parameter for the NVPTX backend. The intrinsic returns
-a pointer to `i32` referring to a 3 elements array.
+In order to emulate this and make generated kernel compliant, an intrinsic
+`llvm.nvvm.implicit.offset` (clang builtin `__builtin_ptx_implicit_offset`) was
+introduced materializing the use of this implicit parameter for the NVPTX
+backend. AMDGCN uses the same approach with `llvm.amdgpu.implicit.offset` and
+`__builtin_amdgcn_implicit_offset`. The intrinsic returns a pointer to `i32`
+referring to a 3 elements array.
 
 Each non-kernel function reaching the implicit offset intrinsic in the
 call graph is augmented with an extra implicit parameter of type
@@ -682,7 +683,7 @@ on the following logic:
 
 - If the 2 versions exist, the original kernel is called if global
   offset is 0 otherwise it will call the cloned one and pass the
-  offset by value;
+  offset by value (for CUDA backend), or by ref for AMD;
 - If only 1 function exist, it is assumed that the kernel makes no use
   of this parameter and therefore ignores it.
 

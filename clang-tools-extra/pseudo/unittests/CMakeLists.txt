@@ -4,8 +4,9 @@ set(LLVM_LINK_COMPONENTS
 
 add_custom_target(ClangPseudoUnitTests)
 add_unittest(ClangPseudoUnitTests ClangPseudoTests
-  DirectiveMapTest.cpp
+  DirectiveTreeTest.cpp
   ForestTest.cpp
+  GLRTest.cpp
   GrammarTest.cpp
   LRTableTest.cpp
   TokenTest.cpp
@@ -15,7 +16,6 @@ clang_target_link_libraries(ClangPseudoTests
   PRIVATE
   clangBasic
   clangLex
-  clangTesting
   )
 
 target_link_libraries(ClangPseudoTests

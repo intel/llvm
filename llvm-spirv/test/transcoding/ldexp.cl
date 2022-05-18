@@ -1,5 +1,5 @@
 // Check that translator converts scalar arg to vector for ldexp math instructions
-// RUN: %clang_cc1 -triple spir-unknown-unknown -O1 -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc %s -o %t.bc
+// RUN: %clang_cc1 -triple spir-unknown-unknown -O1 -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc %s -o %t.bc -no-opaque-pointers
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv -to-text %t.spv -o %t.spt

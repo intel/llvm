@@ -13,6 +13,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
@@ -1033,14 +1034,18 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
   case ISD::STRICT_FSETCC:
   case ISD::STRICT_FSETCCS:
   case ISD::SETCC:
+  case ISD::VP_SETCC:
   case ISD::BR_CC: {
-    unsigned CCOperand = Node->getOpcode() == ISD::SELECT_CC ? 4 :
-                         Node->getOpcode() == ISD::STRICT_FSETCC ? 3 :
-                         Node->getOpcode() == ISD::STRICT_FSETCCS ? 3 :
-                         Node->getOpcode() == ISD::SETCC ? 2 : 1;
-    unsigned CompareOperand = Node->getOpcode() == ISD::BR_CC ? 2 :
-                              Node->getOpcode() == ISD::STRICT_FSETCC ? 1 :
-                              Node->getOpcode() == ISD::STRICT_FSETCCS ? 1 : 0;
+    unsigned Opc = Node->getOpcode();
+    unsigned CCOperand = Opc == ISD::SELECT_CC                         ? 4
+                         : Opc == ISD::STRICT_FSETCC                   ? 3
+                         : Opc == ISD::STRICT_FSETCCS                  ? 3
+                         : (Opc == ISD::SETCC || Opc == ISD::VP_SETCC) ? 2
+                                                                       : 1;
+    unsigned CompareOperand = Opc == ISD::BR_CC            ? 2
+                              : Opc == ISD::STRICT_FSETCC  ? 1
+                              : Opc == ISD::STRICT_FSETCCS ? 1
+                                                           : 0;
     MVT OpVT = Node->getOperand(CompareOperand).getSimpleValueType();
     ISD::CondCode CCCode =
         cast<CondCodeSDNode>(Node->getOperand(CCOperand))->get();
@@ -1189,6 +1194,7 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
   case ISD::VECREDUCE_UMIN:
   case ISD::VECREDUCE_FMAX:
   case ISD::VECREDUCE_FMIN:
+  case ISD::IS_FPCLASS:
     Action = TLI.getOperationAction(
         Node->getOpcode(), Node->getOperand(0).getValueType());
     break;
@@ -2912,7 +2918,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     // SIGN_EXTEND_INREG does not guarantee that the high bits are already zero.
 
     // TODO: Do this for vectors too?
-    if (ExtraVT.getSizeInBits() == 1) {
+    if (ExtraVT.isScalarInteger() && ExtraVT.getSizeInBits() == 1) {
       SDValue One = DAG.getConstant(1, dl, VT);
       SDValue And = DAG.getNode(ISD::AND, dl, VT, Node->getOperand(0), One);
       SDValue Zero = DAG.getConstant(0, dl, VT);
@@ -3143,6 +3149,15 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
   case ISD::FABS:
     Results.push_back(ExpandFABS(Node));
     break;
+  case ISD::IS_FPCLASS: {
+    auto CNode = cast<ConstantSDNode>(Node->getOperand(1));
+    auto Test = static_cast<FPClassTest>(CNode->getZExtValue());
+    if (SDValue Expanded =
+            TLI.expandIS_FPCLASS(Node->getValueType(0), Node->getOperand(0),
+                                 Test, Node->getFlags(), SDLoc(Node), DAG))
+      Results.push_back(Expanded);
+    break;
+  }
   case ISD::SMIN:
   case ISD::SMAX:
   case ISD::UMIN:
@@ -3585,18 +3600,26 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     Results.push_back(Tmp1);
     break;
   case ISD::SETCC:
+  case ISD::VP_SETCC:
   case ISD::STRICT_FSETCC:
   case ISD::STRICT_FSETCCS: {
-    bool IsStrict = Node->getOpcode() != ISD::SETCC;
+    bool IsVP = Node->getOpcode() == ISD::VP_SETCC;
+    bool IsStrict = Node->getOpcode() == ISD::STRICT_FSETCC ||
+                    Node->getOpcode() == ISD::STRICT_FSETCCS;
     bool IsSignaling = Node->getOpcode() == ISD::STRICT_FSETCCS;
     SDValue Chain = IsStrict ? Node->getOperand(0) : SDValue();
     unsigned Offset = IsStrict ? 1 : 0;
     Tmp1 = Node->getOperand(0 + Offset);
     Tmp2 = Node->getOperand(1 + Offset);
     Tmp3 = Node->getOperand(2 + Offset);
-    bool Legalized =
-        TLI.LegalizeSetCCCondCode(DAG, Node->getValueType(0), Tmp1, Tmp2, Tmp3,
-                                  NeedInvert, dl, Chain, IsSignaling);
+    SDValue Mask, EVL;
+    if (IsVP) {
+      Mask = Node->getOperand(3 + Offset);
+      EVL = Node->getOperand(4 + Offset);
+    }
+    bool Legalized = TLI.LegalizeSetCCCondCode(
+        DAG, Node->getValueType(0), Tmp1, Tmp2, Tmp3, Mask, EVL, NeedInvert, dl,
+        Chain, IsSignaling);
 
     if (Legalized) {
       // If we expanded the SETCC by swapping LHS and RHS, or by inverting the
@@ -3606,6 +3629,9 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
           Tmp1 = DAG.getNode(Node->getOpcode(), dl, Node->getVTList(),
                              {Chain, Tmp1, Tmp2, Tmp3}, Node->getFlags());
           Chain = Tmp1.getValue(1);
+        } else if (IsVP) {
+          Tmp1 = DAG.getNode(Node->getOpcode(), dl, Node->getValueType(0),
+                             {Tmp1, Tmp2, Tmp3, Mask, EVL}, Node->getFlags());
         } else {
           Tmp1 = DAG.getNode(Node->getOpcode(), dl, Node->getValueType(0), Tmp1,
                              Tmp2, Tmp3, Node->getFlags());
@@ -3614,8 +3640,13 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
 
       // If we expanded the SETCC by inverting the condition code, then wrap
       // the existing SETCC in a NOT to restore the intended condition.
-      if (NeedInvert)
-        Tmp1 = DAG.getLogicalNOT(dl, Tmp1, Tmp1->getValueType(0));
+      if (NeedInvert) {
+        if (!IsVP)
+          Tmp1 = DAG.getLogicalNOT(dl, Tmp1, Tmp1->getValueType(0));
+        else
+          Tmp1 =
+              DAG.getVPLogicalNOT(dl, Tmp1, Mask, EVL, Tmp1->getValueType(0));
+      }
 
       Results.push_back(Tmp1);
       if (IsStrict)
@@ -3630,21 +3661,12 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
 
     // Otherwise, SETCC for the given comparison type must be completely
     // illegal; expand it into a SELECT_CC.
+    // FIXME: This drops the mask/evl for VP_SETCC.
     EVT VT = Node->getValueType(0);
-    int TrueValue;
-    switch (TLI.getBooleanContents(Tmp1.getValueType())) {
-    case TargetLowering::ZeroOrOneBooleanContent:
-    case TargetLowering::UndefinedBooleanContent:
-      TrueValue = 1;
-      break;
-    case TargetLowering::ZeroOrNegativeOneBooleanContent:
-      TrueValue = -1;
-      break;
-    }
+    EVT Tmp1VT = Tmp1.getValueType();
     Tmp1 = DAG.getNode(ISD::SELECT_CC, dl, VT, Tmp1, Tmp2,
-                       DAG.getConstant(TrueValue, dl, VT),
-                       DAG.getConstant(0, dl, VT),
-                       Tmp3);
+                       DAG.getBoolConstant(true, dl, VT, Tmp1VT),
+                       DAG.getBoolConstant(false, dl, VT, Tmp1VT), Tmp3);
     Tmp1->setFlags(Node->getFlags());
     Results.push_back(Tmp1);
     break;
@@ -3700,7 +3722,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     if (!Legalized) {
       Legalized = TLI.LegalizeSetCCCondCode(
           DAG, getSetCCResultType(Tmp1.getValueType()), Tmp1, Tmp2, CC,
-          NeedInvert, dl, Chain);
+          /*Mask*/ SDValue(), /*EVL*/ SDValue(), NeedInvert, dl, Chain);
 
       assert(Legalized && "Can't legalize SELECT_CC with legal condition!");
 
@@ -3733,9 +3755,9 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     Tmp3 = Node->getOperand(3);              // RHS
     Tmp4 = Node->getOperand(1);              // CC
 
-    bool Legalized =
-        TLI.LegalizeSetCCCondCode(DAG, getSetCCResultType(Tmp2.getValueType()),
-                                  Tmp2, Tmp3, Tmp4, NeedInvert, dl, Chain);
+    bool Legalized = TLI.LegalizeSetCCCondCode(
+        DAG, getSetCCResultType(Tmp2.getValueType()), Tmp2, Tmp3, Tmp4,
+        /*Mask*/ SDValue(), /*EVL*/ SDValue(), NeedInvert, dl, Chain);
     (void)Legalized;
     assert(Legalized && "Can't legalize BR_CC with legal condition!");
 
@@ -4703,6 +4725,12 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
     Results.push_back(DAG.getNode(ISD::FP_ROUND, dl, OVT,
                                   Tmp3, DAG.getIntPtrConstant(0, dl)));
     break;
+  case ISD::STRICT_FADD:
+  case ISD::STRICT_FSUB:
+  case ISD::STRICT_FMUL:
+  case ISD::STRICT_FDIV:
+  case ISD::STRICT_FMINNUM:
+  case ISD::STRICT_FMAXNUM:
   case ISD::STRICT_FREM:
   case ISD::STRICT_FPOW:
     Tmp1 = DAG.getNode(ISD::STRICT_FP_EXTEND, dl, {NVT, MVT::Other},
@@ -4727,6 +4755,22 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
                     DAG.getNode(Node->getOpcode(), dl, NVT, Tmp1, Tmp2, Tmp3),
                     DAG.getIntPtrConstant(0, dl)));
     break;
+  case ISD::STRICT_FMA:
+    Tmp1 = DAG.getNode(ISD::STRICT_FP_EXTEND, dl, {NVT, MVT::Other},
+                       {Node->getOperand(0), Node->getOperand(1)});
+    Tmp2 = DAG.getNode(ISD::STRICT_FP_EXTEND, dl, {NVT, MVT::Other},
+                       {Node->getOperand(0), Node->getOperand(2)});
+    Tmp3 = DAG.getNode(ISD::STRICT_FP_EXTEND, dl, {NVT, MVT::Other},
+                       {Node->getOperand(0), Node->getOperand(3)});
+    Tmp4 = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, Tmp1.getValue(1),
+                       Tmp2.getValue(1), Tmp3.getValue(1));
+    Tmp4 = DAG.getNode(Node->getOpcode(), dl, {NVT, MVT::Other},
+                       {Tmp4, Tmp1, Tmp2, Tmp3});
+    Tmp4 = DAG.getNode(ISD::STRICT_FP_ROUND, dl, {OVT, MVT::Other},
+                       {Tmp4.getValue(1), Tmp4, DAG.getIntPtrConstant(0, dl)});
+    Results.push_back(Tmp4);
+    Results.push_back(Tmp4.getValue(1));
+    break;
   case ISD::FCOPYSIGN:
   case ISD::FPOWI: {
     Tmp1 = DAG.getNode(ISD::FP_EXTEND, dl, NVT, Node->getOperand(0));
@@ -4743,6 +4787,16 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
                                   Tmp3, DAG.getIntPtrConstant(isTrunc, dl)));
     break;
   }
+  case ISD::STRICT_FPOWI:
+    Tmp1 = DAG.getNode(ISD::STRICT_FP_EXTEND, dl, {NVT, MVT::Other},
+                       {Node->getOperand(0), Node->getOperand(1)});
+    Tmp2 = DAG.getNode(Node->getOpcode(), dl, {NVT, MVT::Other},
+                       {Tmp1.getValue(1), Tmp1, Node->getOperand(2)});
+    Tmp3 = DAG.getNode(ISD::STRICT_FP_ROUND, dl, {OVT, MVT::Other},
+                       {Tmp2.getValue(1), Tmp2, DAG.getIntPtrConstant(0, dl)});
+    Results.push_back(Tmp3);
+    Results.push_back(Tmp3.getValue(1));
+    break;
   case ISD::FFLOOR:
   case ISD::FCEIL:
   case ISD::FRINT:
@@ -4767,12 +4821,19 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
     break;
   case ISD::STRICT_FFLOOR:
   case ISD::STRICT_FCEIL:
+  case ISD::STRICT_FRINT:
+  case ISD::STRICT_FNEARBYINT:
   case ISD::STRICT_FROUND:
+  case ISD::STRICT_FROUNDEVEN:
+  case ISD::STRICT_FTRUNC:
+  case ISD::STRICT_FSQRT:
   case ISD::STRICT_FSIN:
   case ISD::STRICT_FCOS:
   case ISD::STRICT_FLOG:
+  case ISD::STRICT_FLOG2:
   case ISD::STRICT_FLOG10:
   case ISD::STRICT_FEXP:
+  case ISD::STRICT_FEXP2:
     Tmp1 = DAG.getNode(ISD::STRICT_FP_EXTEND, dl, {NVT, MVT::Other},
                        {Node->getOperand(0), Node->getOperand(1)});
     Tmp2 = DAG.getNode(Node->getOpcode(), dl, {NVT, MVT::Other},

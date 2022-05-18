@@ -3,7 +3,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   BufferizableOpInterfaceImpl.cpp
   Bufferize.cpp
   CodegenStrategy.cpp
-  ComprehensiveBufferizePass.cpp
+  ConstantFold.cpp
   Detensorize.cpp
   DropUnitDims.cpp
   ElementwiseOpFusion.cpp
@@ -13,6 +13,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   Generalization.cpp
   Hoisting.cpp
   HoistPadding.cpp
+  InitTensorElimination.cpp
   InlineScalarOperands.cpp
   Interchange.cpp
   Loops.cpp
@@ -39,6 +40,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRArithmetic
   MLIRArithmeticTransforms
   MLIRBufferization
+  MLIRBufferizationTransforms
   MLIRComplex
   MLIRFunc
   MLIRFuncToLLVM
@@ -49,7 +51,6 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRLinalg
   MLIRLinalgAnalysis
   MLIRLinalgUtils
-  MLIRModuleBufferization
   MLIRSCF
   MLIRSCFTransforms
   MLIRSCFUtils

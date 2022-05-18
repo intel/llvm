@@ -38,9 +38,21 @@ class TestTraceDumpInfo(TraceIntelPTTestCaseBase):
             substrs=['''Trace technology: intel-pt
 
 thread #1: tid = 3842849
-  Raw trace size: 4 KiB
   Total number of instructions: 21
-  Total approximate memory usage: 0.98 KiB
-  Average memory usage per instruction: 48.00 bytes
 
-  Number of TSC decoding errors: 0'''])
+  Memory usage:
+    Raw trace size: 4 KiB
+    Total approximate memory usage (excluding raw trace): 1.27 KiB
+    Average memory usage per instruction (excluding raw trace): 61.76 bytes
+
+  Timing:
+    Decoding instructions: ''', '''s
+
+  Events:
+    Number of instructions with events: 1
+    Number of individual events: 1
+      paused: 1
+
+  Errors:
+    Number of TSC decoding errors: 0'''],
+            patterns=["Decoding instructions: \d.\d\ds"])

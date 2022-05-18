@@ -972,11 +972,8 @@ protected:
       }
     }
 
-    if (m_interpreter.TruncationWarningNecessary()) {
-      result.GetOutputStream().Printf(m_interpreter.TruncationWarningText(),
-                                      m_cmd_name.c_str());
-      m_interpreter.TruncationWarningGiven();
-    }
+    m_interpreter.PrintWarningsIfNecessary(result.GetOutputStream(),
+                                           m_cmd_name);
 
     return result.Succeeded();
   }
@@ -2464,7 +2461,8 @@ protected:
         if (m_symbol_file.GetOptionValue().OptionWasSet())
           module_spec.GetSymbolFileSpec() =
               m_symbol_file.GetOptionValue().GetCurrentValue();
-        if (Symbols::DownloadObjectAndSymbolFile(module_spec)) {
+        Status error;
+        if (Symbols::DownloadObjectAndSymbolFile(module_spec, error)) {
           ModuleSP module_sp(
               target->GetOrCreateModule(module_spec, true /* notify */));
           if (module_sp) {
@@ -2500,6 +2498,7 @@ protected:
           result.AppendErrorWithFormat(
               "Unable to locate the executable or symbol file with UUID %s",
               strm.GetData());
+          result.SetError(error);
           return false;
         }
       } else {
@@ -4165,10 +4164,13 @@ protected:
 
   bool DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
                                    CommandReturnObject &result, bool &flush) {
-    if (Symbols::DownloadObjectAndSymbolFile(module_spec)) {
+    Status error;
+    if (Symbols::DownloadObjectAndSymbolFile(module_spec, error)) {
       if (module_spec.GetSymbolFileSpec())
         return AddModuleSymbols(m_exe_ctx.GetTargetPtr(), module_spec, flush,
                                 result);
+    } else {
+      result.SetError(error);
     }
     return false;
   }

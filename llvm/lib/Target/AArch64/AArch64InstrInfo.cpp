@@ -4147,11 +4147,12 @@ static MCCFIInstruction createDefCFAExpression(const TargetRegisterInfo &TRI,
 
 MCCFIInstruction llvm::createDefCFA(const TargetRegisterInfo &TRI,
                                     unsigned FrameReg, unsigned Reg,
-                                    const StackOffset &Offset) {
+                                    const StackOffset &Offset,
+                                    bool LastAdjustmentWasScalable) {
   if (Offset.getScalable())
     return createDefCFAExpression(TRI, Reg, Offset);
 
-  if (FrameReg == Reg)
+  if (FrameReg == Reg && !LastAdjustmentWasScalable)
     return MCCFIInstruction::cfiDefCfaOffset(nullptr, int(Offset.getFixed()));
 
   unsigned DwarfReg = TRI.getDwarfRegNum(Reg, true);
@@ -4283,8 +4284,8 @@ static void emitFrameOffsetAdj(MachineBasicBlock &MBB,
       const TargetSubtargetInfo &STI = MF.getSubtarget();
       const TargetRegisterInfo &TRI = *STI.getRegisterInfo();
 
-      unsigned CFIIndex =
-          MF.addFrameInst(createDefCFA(TRI, FrameReg, DestReg, CFAOffset));
+      unsigned CFIIndex = MF.addFrameInst(
+          createDefCFA(TRI, FrameReg, DestReg, CFAOffset, VScale != 1));
       BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
           .addCFIIndex(CFIIndex)
           .setMIFlags(Flag);
@@ -7595,7 +7596,8 @@ static void signOutlinedFunction(MachineFunction &MF, MachineBasicBlock &MBB,
     }
 
     // If v8.3a features are available we can replace a RET instruction by
-    // RETAA or RETAB and omit the AUT instructions
+    // RETAA or RETAB and omit the AUT instructions. In this case the
+    // DW_CFA_AARCH64_negate_ra_state can't be emitted.
     if (Subtarget.hasPAuth() && MBBAUT != MBB.end() &&
         MBBAUT->getOpcode() == AArch64::RET) {
       BuildMI(MBB, MBBAUT, DL,
@@ -7608,6 +7610,11 @@ static void signOutlinedFunction(MachineFunction &MF, MachineBasicBlock &MBB,
               TII->get(ShouldSignReturnAddrWithAKey ? AArch64::AUTIASP
                                                     : AArch64::AUTIBSP))
           .setMIFlag(MachineInstr::FrameDestroy);
+      unsigned CFIIndexAuth =
+          MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
+      BuildMI(MBB, MBBAUT, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndexAuth)
+          .setMIFlags(MachineInstr::FrameDestroy);
     }
   }
 }

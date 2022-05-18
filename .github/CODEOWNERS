@@ -35,7 +35,7 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
 
 # ESIMD CPU emulator plug-in
-sycl/plugins/esimd_cpu/ @intel/dpcpp-esimd-reviewers
+sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda

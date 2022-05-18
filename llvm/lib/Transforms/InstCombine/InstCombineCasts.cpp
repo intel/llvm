@@ -1517,10 +1517,8 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
   unsigned SrcBitSize = SrcTy->getScalarSizeInBits();
   unsigned DestBitSize = DestTy->getScalarSizeInBits();
 
-  // If we know that the value being extended is positive, we can use a zext
-  // instead.
-  KnownBits Known = computeKnownBits(Src, 0, &CI);
-  if (Known.isNonNegative())
+  // If the value being extended is zero or positive, use a zext instead.
+  if (isKnownNonNegative(Src, DL, 0, &AC, &CI, &DT))
     return CastInst::Create(Instruction::ZExt, Src, DestTy);
 
   // Try to extend the entire expression tree to the wide destination type.
@@ -2285,6 +2283,8 @@ static bool collectInsertionElements(Value *V, unsigned Shift,
   switch (I->getOpcode()) {
   default: return false; // Unhandled case.
   case Instruction::BitCast:
+    if (I->getOperand(0)->getType()->isVectorTy())
+      return false;
     return collectInsertionElements(I->getOperand(0), Shift, Elements, VecEltTy,
                                     isBigEndian);
   case Instruction::ZExt:

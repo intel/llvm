@@ -362,6 +362,13 @@ template <class ELFT> void elf::createSyntheticSections() {
     part.dynSymTab =
         std::make_unique<SymbolTableSection<ELFT>>(*part.dynStrTab);
     part.dynamic = std::make_unique<DynamicSection<ELFT>>();
+
+    if (config->emachine == EM_AARCH64 &&
+        config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE) {
+      part.memtagAndroidNote = std::make_unique<MemtagAndroidNote>();
+      add(*part.memtagAndroidNote);
+    }
+
     if (config->androidPackDynRelocs)
       part.relaDyn =
           std::make_unique<AndroidPackedRelocationSection<ELFT>>(relaDynName);
@@ -636,7 +643,7 @@ static bool shouldKeepInSymtab(const Defined &sym) {
 
   // If --emit-reloc or -r is given, preserve symbols referenced by relocations
   // from live sections.
-  if (sym.used)
+  if (sym.used && config->copyRelocs)
     return true;
 
   // Exclude local symbols pointing to .ARM.exidx sections.
@@ -754,6 +761,8 @@ template <class ELFT> void Writer<ELFT>::addSectionSymbols() {
 static bool isRelroSection(const OutputSection *sec) {
   if (!config->zRelro)
     return false;
+  if (sec->relro)
+    return true;
 
   uint64_t flags = sec->flags;
 

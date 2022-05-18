@@ -185,7 +185,7 @@ template <class T> struct ZeCache : private T {
   // order to disallow access other than through "->".
   //
   typedef std::function<void(T &)> InitFunctionType;
-  InitFunctionType Compute;
+  InitFunctionType Compute{nullptr};
   bool Computed{false};
 
   ZeCache() : T{} {}
@@ -893,6 +893,10 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable);
 
+  // Reset signalled command lists in the queue and put them to the cache of
+  // command lists. A caller must not lock the queue mutex.
+  pi_result resetCommandLists();
+
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
   // checked. Otherwise, the OpenCommandList containing compute commands is
@@ -1381,6 +1385,9 @@ struct _pi_kernel : _pi_object {
       : ZeKernel{Kernel}, OwnZeKernel{OwnZeKernel}, Program{Program},
         MemAllocs{}, SubmissionsCount{0} {}
 
+  // Completed initialization of PI kernel. Must be called after construction.
+  pi_result initialize();
+
   // Returns true if kernel has indirect access, false otherwise.
   bool hasIndirectAccess() {
     // Currently indirect access flag is set for all kernels and there is no API
@@ -1453,6 +1460,7 @@ struct _pi_kernel : _pi_object {
 
   // Cache of the kernel properties.
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
+  ZeCache<std::string> ZeKernelName;
 };
 
 struct _pi_sampler : _pi_object {

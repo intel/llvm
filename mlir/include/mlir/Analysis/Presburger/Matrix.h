@@ -124,10 +124,10 @@ public:
 
   /// Divide the first `nCols` of the specified row by their GCD.
   /// Returns the GCD of the first `nCols` of the specified row.
-  uint64_t normalizeRow(unsigned row, unsigned nCols);
+  int64_t normalizeRow(unsigned row, unsigned nCols);
   /// Divide the columns of the specified row by their GCD.
   /// Returns the GCD of the columns of the specified row.
-  uint64_t normalizeRow(unsigned row);
+  int64_t normalizeRow(unsigned row);
 
   /// The given vector is interpreted as a row vector v. Post-multiply v with
   /// this matrix, say M, and return vM.
@@ -151,6 +151,9 @@ public:
 
   /// Add an extra row at the bottom of the matrix and return its position.
   unsigned appendExtraRow();
+  /// Same as above, but copy the given elements into the row. The length of
+  /// `elems` must be equal to the number of columns.
+  unsigned appendExtraRow(ArrayRef<int64_t> elems);
 
   /// Print the matrix.
   void print(raw_ostream &os) const;
