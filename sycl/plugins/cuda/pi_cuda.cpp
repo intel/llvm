@@ -2081,7 +2081,6 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
     if (cuCtxt != current) {
       PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
     }
-    PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
     PI_CHECK_ERROR(cuCtxSynchronize());
     cuCtxGetCurrent(&current);
     if (cuCtxt == current) {
@@ -2090,7 +2089,6 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
     return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
   } else {
     // Primary context is not destroyed, but released
-    PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
     CUdevice cuDev = ctxt->get_device()->get();
     CUcontext current;
     cuCtxPopCurrent(&current);
@@ -2145,11 +2143,6 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   // Create sycl context
   *piContext =
       new _pi_context{_pi_context::kind::user_defined, newContext, device};
-
-  // Use default stream to record base event counter
-  retErr =
-      PI_CHECK_ERROR(cuEventCreate(&(*piContext)->evBase_, CU_EVENT_DEFAULT));
-  retErr = PI_CHECK_ERROR(cuEventRecord((*piContext)->evBase_, 0));
 
   // Pop native context
   retErr = PI_CHECK_ERROR(cuCtxPopCurrent(nullptr));
@@ -2549,7 +2542,9 @@ pi_result cuda_piQueueFlush(pi_queue command_queue) {
 /// \return PI_SUCCESS
 pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
                                          pi_native_handle *nativeHandle) {
+
   ScopedContext active(queue->get_context());
+
   *nativeHandle =
       reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
@@ -2586,7 +2581,18 @@ pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   else
     cl::sycl::detail::pi::die("Unknown cuda stream");
 
-  *queue = new _pi_queue{cuStream, context, context->get_device(), properties};
+  std::vector<CUstream> computeCuStreams(1, cuStream);
+  std::vector<CUstream> transferCuStreams(0);
+
+  // Create queue and set num_compute_streams to 1, as computeCuStreams has
+  // valid stream
+  *queue = new _pi_queue{std::move(computeCuStreams),
+                         std::move(transferCuStreams),
+                         context,
+                         context->get_device(),
+                         properties,
+                         flags};
+  (*queue)->num_compute_streams_ = 1;
 
   return retErr;
 }
