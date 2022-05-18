@@ -17,7 +17,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl::ext::oneapi::experimental::cuda {
 
 class barrier {
+#ifdef __SYCL_DEVICE_ONLY__
   int64_t state;
+#endif
 
 public:
   using arrival_token = int64_t;
@@ -32,6 +34,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __clc_BarrierInitialize(&state, expected_count);
 #else
+    (void)expected_count;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -68,6 +71,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __clc_BarrierArriveNoComplete(&state, count);
 #else
+    (void)count;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -77,6 +81,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __clc_BarrierArriveAndDropNoComplete(&state, count);
 #else
+    (void)count;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -104,6 +109,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __clc_BarrierWait(&state, arrival);
 #else
+    (void)arrival;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -113,6 +119,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __clc_BarrierTestWait(&state, arrival);
 #else
+    (void)arrival;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
