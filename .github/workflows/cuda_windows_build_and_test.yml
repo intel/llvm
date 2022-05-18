@@ -22,7 +22,7 @@ jobs:
         git config --system core.longpaths true
         git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "SCCACHE_DIR=C:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - uses: actions/checkout@v2
       with:
         path: src
@@ -35,11 +35,10 @@ jobs:
       run: |
         mkdir build
         mkdir install
-        IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
-        IF NOT EXIST D:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
+        IF NOT EXIST C:\github\_work\cache MKDIR C:\github\_work\cache
+        IF NOT EXIST C:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR C:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
-          --ci-default ^
-          --cuda ^
+          --ci-default --cuda ^
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
@@ -50,31 +49,31 @@ jobs:
       run: |
         cmake --build build --target sycl-toolchain
         sccache --show-stats
-    - name: check-llvm
-      shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      run: |
-        cmake --build build --target check-llvm
-    - name: check-clang
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
-      run: |
-        cmake --build build --target check-clang
+#    - name: check-llvm
+#      shell: bash
+#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+#      run: |
+#        cmake --build build --target check-llvm
+#    - name: check-clang
+#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+#      shell: bash
+#      run: |
+#        cmake --build build --target check-clang
     - name: check-sycl-cuda
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: |
         cmake --build build --target check-sycl-cuda
-    - name: check-llvm-spirv
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
-      run: |
-        cmake --build build --target check-llvm-spirv
-    - name: check-xptifw
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
-      run: |
-        cmake --build build --target check-xptifw
+#    - name: check-llvm-spirv
+#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+#      shell: bash
+#      run: |
+#        cmake --build build --target check-llvm-spirv
+#    - name: check-xptifw
+#      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+#      shell: bash
+#      run: |
+#        cmake --build build --target check-xptifw
 #    - name: Install
 #      shell: bash
 #      run: cmake --build build --target deploy-sycl-toolchain
