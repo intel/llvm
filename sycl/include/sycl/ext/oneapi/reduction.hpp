@@ -1041,11 +1041,11 @@ struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
 /// the reduction value hold in \p Reducer is accumulated in those calls.
 template <typename KernelFunc, int Dims, typename ReducerT>
 void reductionLoop(const range<Dims> &Range, const size_t PerGroup,
-                   const size_t /*Remainder*/, ReducerT &Reducer,
-                   const nd_item<1> &NdId, KernelFunc &F) {
+                   ReducerT &Reducer, const nd_item<1> &NdId, KernelFunc &F) {
 
   // Divide into contiguous chunks and assign each chunk to a Group
   // Rely on precomputed division to avoid repeating expensive operations
+  // TODO: Some devices may prefer alternative remainder handling
   auto Group = NdId.get_group();
   size_t GroupId = Group.get_group_linear_id();
   size_t NumGroups = Group.get_group_linear_range();
@@ -1074,11 +1074,10 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
 
   size_t NWorkGroups = NDRange.get_group_range().size();
   size_t PerGroup = Range.size() / NWorkGroups;
-  size_t Remainder = Range.size() % NWorkGroups;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
-    reductionLoop(Range, PerGroup, Remainder, Reducer, NDId, KernelFunc);
+    reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
 
     // Work-group cooperates to initialize multiple reduction variables
     auto LID = NDId.get_local_id(0);
@@ -1126,11 +1125,10 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
       typename get_reduction_main_kernel_name_t<KernelName, KernelType,
                                                 Reduction::is_usm, false>::name;
   size_t PerGroup = Range.size() / NWorkGroups;
-  size_t Remainder = Range.size() % NWorkGroups;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
-    reductionLoop(Range, PerGroup, Remainder, Reducer, NDId, KernelFunc);
+    reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
 
     typename Reduction::binary_operation BOp;
     auto Group = NDId.get_group();
@@ -1211,11 +1209,10 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
       typename get_reduction_main_kernel_name_t<KernelName, KernelType,
                                                 Reduction::is_usm, false>::name;
   size_t PerGroup = Range.size() / NWorkGroups;
-  size_t Remainder = Range.size() % NWorkGroups;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(Identity, BOp);
-    reductionLoop(Range, PerGroup, Remainder, Reducer, NDId, KernelFunc);
+    reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
 
     // If there are multiple values, reduce each separately
     // This prevents local memory from scaling with elements
