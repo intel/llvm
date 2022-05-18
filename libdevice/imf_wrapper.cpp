@@ -292,4 +292,47 @@ float __imf_half2float(_iml_half_internal x) {
   return __devicelib_imf_half2float(x);
 }
 
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_brev(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_brevll(unsigned long long int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_brev(unsigned int x) { return __devicelib_imf_brev(x); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __imf_brevll(unsigned long long int x) {
+  return __devicelib_imf_brevll(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_clz(int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_clzll(long long int);
+
+DEVICE_EXTERN_C_INLINE
+int __imf_clz(int x) { return __devicelib_imf_clz(x); }
+
+DEVICE_EXTERN_C_INLINE
+int __imf_clzll(long long int x) { return __devicelib_imf_clzll(x); }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_popc(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_popcll(unsigned long long int);
+
+DEVICE_EXTERN_C_INLINE
+int __imf_popc(unsigned int x) { return __devicelib_imf_popc(x); }
+
+DEVICE_EXTERN_C_INLINE
+int __imf_popcll(unsigned long long int x) { return __devicelib_imf_popcll(x); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_sad(int, int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_sad(int x, int y, unsigned int z) { return __devicelib_imf_sad(x, y, z); }
 #endif // __LIBDEVICE_IMF_ENABLED__

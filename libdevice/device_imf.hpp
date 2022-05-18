@@ -412,5 +412,45 @@ static inline _iml_half __trunc(_iml_half x) {
 #endif
 }
 
+static inline int __clz(int x) {
+  uint32_t xi32 = x;
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_clz(xi32);
+#elif defined(__SPIR__)
+  return __spirv_ocl_clz(xi32);
+#endif
+}
+
+static inline int __clzll(long long int x) {
+  uint64_t xi64 = x;
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_clzll(xi64);
+#elif defined(__SPIR__)
+  return __spirv_ocl_clz(xi64);
+#endif
+}
+
+static inline int __popc(unsigned int x) {
+  uint32_t xui32 = x;
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_popcount(xui32);
+#elif defined(__SPIR__)
+  return __spirv_ocl_popcount(xui32);
+#endif
+}
+
+static inline int __popcll(unsigned long long int x) {
+  uint64_t xui64 = x;
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __builtin_popcountll(xui64);
+#elif defined(__SPIR__)
+  return __spirv_ocl_popcount(xui64);
+#endif
+}
+
+static inline unsigned int __abs(int x) {
+  return x < 0 ? -x : x;
+}
+
 #endif // __LIBDEVICE_IMF_ENABLED__
 #endif // __LIBDEVICE_DEVICE_IMF_H__

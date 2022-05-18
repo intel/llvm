@@ -124,7 +124,8 @@ set(bc_binary_dir ${obj_binary_dir}/libdevice)
 
 set(fallback-imf-src imf_utils/saturatef.cpp
                      imf_utils/float_convert.cpp
-                     imf_utils/half_convert.cpp)
+                     imf_utils/half_convert.cpp
+                     imf_utils/integer_misc.cpp)
 set(fallback-imf-fp64-src imf_utils/double_convert.cpp)
 set(wrapper-imf-src imf_wrapper.cpp imf_wrapper_fp64.cpp)
 set(imf-src ${wrapper-imf-src} ${fallback-imf-src} ${fallback-imf-fp64-src})

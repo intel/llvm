@@ -1738,6 +1738,14 @@ extern SYCL_EXTERNAL double hypot(double x, double y);
 extern SYCL_EXTERNAL void *memcpy(void *dest, const void *src, size_t n);
 extern SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
 extern SYCL_EXTERNAL int memcmp(const void *s1, const void *s2, size_t n);
+extern SYCL_EXTERNAL unsigned int __imf_brev(unsigned int x);
+extern SYCL_EXTERNAL unsigned long long int
+__imf_brevll(unsigned long long int x);
+extern SYCL_EXTERNAL int __imf_clz(int x);
+extern SYCL_EXTERNAL int __imf_clzll(long long int x);
+extern SYCL_EXTERNAL int __imf_popc(unsigned int x);
+extern SYCL_EXTERNAL int __imf_popcll(unsigned long long int x);
+extern SYCL_EXTERNAL unsigned int __imf_sad(int x, int y, unsigned int z);
 extern SYCL_EXTERNAL float __imf_saturatef(float x);
 extern SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern SYCL_EXTERNAL int __imf_float2int_rn(float x);
