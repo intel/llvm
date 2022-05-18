@@ -892,7 +892,7 @@ struct _pi_queue : _pi_object {
                              bool MakeAvailable);
 
   // Reset signalled command lists in the queue and put them to the cache of
-  // command lists.
+  // command lists. A caller must not lock the queue mutex.
   pi_result resetCommandLists();
 
   // Returns true if an OpenCommandList has commands that need to be submitted.

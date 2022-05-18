@@ -1135,7 +1135,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
 }
 
 // Reset signalled command lists in the queue and put them to the cache of
-// command lists.
+// command lists. A caller must not lock the queue mutex.
 pi_result _pi_queue::resetCommandLists() {
   // We check for command lists that have been already signalled, but have not
   // been added to the available list yet. Each command list has a fence
