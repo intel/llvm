@@ -1145,7 +1145,7 @@ pi_result _pi_queue::resetCommandLists() {
   // returned to the command list cache. All events associated with command list
   // are cleaned up if command list was reset.
   std::scoped_lock Lock(this->Mutex);
-  for (auto it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
+  for (auto &&it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
     // It is possible that the fence was already noted as signalled and
     // reset. In that case the InUse flag will be false.
     if (it->second.InUse) {
