@@ -334,5 +334,7 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_sad(int, int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
-unsigned int __imf_sad(int x, int y, unsigned int z) { return __devicelib_imf_sad(x, y, z); }
+unsigned int __imf_sad(int x, int y, unsigned int z) {
+  return __devicelib_imf_sad(x, y, z);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__

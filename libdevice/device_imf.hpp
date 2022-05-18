@@ -448,9 +448,7 @@ static inline int __popcll(unsigned long long int x) {
 #endif
 }
 
-static inline unsigned int __abs(int x) {
-  return x < 0 ? -x : x;
-}
+static inline unsigned int __abs(int x) { return x < 0 ? -x : x; }
 
 #endif // __LIBDEVICE_IMF_ENABLED__
 #endif // __LIBDEVICE_DEVICE_IMF_H__
