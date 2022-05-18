@@ -891,6 +891,10 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable);
 
+  // Reset signalled command lists in the queue and put them to the cache of
+  // command lists.
+  pi_result resetCommandLists();
+
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
   // checked. Otherwise, the OpenCommandList containing compute commands is
