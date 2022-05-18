@@ -10,16 +10,16 @@ target triple = "spir64-unknown-linux"
 
 $_Z3barIiET_S0_ = comdat any
 
-; CHECK-TU0-NOT: @{{.*}}GV{{.*}}
-; CHECK-TU1: @{{.*}}GV{{.*}} = internal addrspace(1) constant [1 x i32] [i32 42], align 4
+; CHECK-TU1-NOT: @{{.*}}GV{{.*}}
+; CHECK-TU0: @{{.*}}GV{{.*}} = internal addrspace(1) constant [1 x i32] [i32 42], align 4
 @_ZL2GV = internal addrspace(1) constant [1 x i32] [i32 42], align 4
 
-; CHECK-TU0: define dso_local spir_kernel void @{{.*}}TU0_kernel0{{.*}}
-; CHECK-TU0-TXT: {{.*}}TU0_kernel0{{.*}}
-; CHECK-TU1-NOT: define dso_local spir_kernel void @{{.*}}TU0_kernel0{{.*}}
-; CHECK-TU1-TXT-NOT: {{.*}}TU0_kernel0{{.*}}
+; CHECK-TU1: define dso_local spir_kernel void @{{.*}}TU0_kernel0{{.*}}
+; CHECK-TU1-TXT: {{.*}}TU0_kernel0{{.*}}
+; CHECK-TU0-NOT: define dso_local spir_kernel void @{{.*}}TU0_kernel0{{.*}}
+; CHECK-TU0-TXT-NOT: {{.*}}TU0_kernel0{{.*}}
 
-; CHECK-TU0: call spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU1: call spir_func void @{{.*}}foo{{.*}}()
 
 define dso_local spir_kernel void @_ZTSZ4mainE11TU0_kernel0() #0 {
 entry:
@@ -27,10 +27,10 @@ entry:
   ret void
 }
 
-; CHECK-TU0: define dso_local spir_func void @{{.*}}foo{{.*}}()
-; CHECK-TU1-NOT: define dso_local spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU1: define dso_local spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU0-NOT: define dso_local spir_func void @{{.*}}foo{{.*}}()
 
-; CHECK-TU0: call spir_func i32 @{{.*}}bar{{.*}}(i32 1)
+; CHECK-TU1: call spir_func i32 @{{.*}}bar{{.*}}(i32 1)
 
 define dso_local spir_func void @_Z3foov() {
 entry:
@@ -41,8 +41,8 @@ entry:
   ret void
 }
 
-; CHECK-TU0: define {{.*}} spir_func i32 @{{.*}}bar{{.*}}(i32 %arg)
-; CHECK-TU1-NOT: define {{.*}} spir_func i32 @{{.*}}bar{{.*}}(i32 %arg)
+; CHECK-TU1: define {{.*}} spir_func i32 @{{.*}}bar{{.*}}(i32 %arg)
+; CHECK-TU0-NOT: define {{.*}} spir_func i32 @{{.*}}bar{{.*}}(i32 %arg)
 
 ; Function Attrs: nounwind
 define linkonce_odr dso_local spir_func i32 @_Z3barIiET_S0_(i32 %arg) comdat {
@@ -53,12 +53,12 @@ entry:
   ret i32 %0
 }
 
-; CHECK-TU0: define dso_local spir_kernel void @{{.*}}TU0_kernel1{{.*}}()
-; CHECK-TU0-TXT: {{.*}}TU0_kernel1{{.*}}
-; CHECK-TU1-NOT: define dso_local spir_kernel void @{{.*}}TU0_kernel1{{.*}}()
-; CHECK-TU1-TXT-NOT: {{.*}}TU0_kernel1{{.*}}
+; CHECK-TU1: define dso_local spir_kernel void @{{.*}}TU0_kernel1{{.*}}()
+; CHECK-TU1-TXT: {{.*}}TU0_kernel1{{.*}}
+; CHECK-TU0-NOT: define dso_local spir_kernel void @{{.*}}TU0_kernel1{{.*}}()
+; CHECK-TU0-TXT-NOT: {{.*}}TU0_kernel1{{.*}}
 
-; CHECK-TU0: call spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-TU1: call spir_func void @{{.*}}foo1{{.*}}()
 
 define dso_local spir_kernel void @_ZTSZ4mainE11TU0_kernel1() #0 {
 entry:
@@ -66,8 +66,8 @@ entry:
   ret void
 }
 
-; CHECK-TU0: define dso_local spir_func void @{{.*}}foo1{{.*}}()
-; CHECK-TU1-NOT: define dso_local spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-TU1: define dso_local spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-TU0-NOT: define dso_local spir_func void @{{.*}}foo1{{.*}}()
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo1v() {
@@ -77,12 +77,12 @@ entry:
   ret void
 }
 
-; CHECK-TU0-NOT: define dso_local spir_kernel void @{{.*}}TU1_kernel{{.*}}()
-; CHECK-TU0-TXT-NOT: {{.*}}TU1_kernel{{.*}}
-; CHECK-TU1: define dso_local spir_kernel void @{{.*}}TU1_kernel{{.*}}()
-; CHECK-TU1-TXT: {{.*}}TU1_kernel{{.*}}
+; CHECK-TU1-NOT: define dso_local spir_kernel void @{{.*}}TU1_kernel{{.*}}()
+; CHECK-TU1-TXT-NOT: {{.*}}TU1_kernel{{.*}}
+; CHECK-TU0: define dso_local spir_kernel void @{{.*}}TU1_kernel{{.*}}()
+; CHECK-TU0-TXT: {{.*}}TU1_kernel{{.*}}
 
-; CHECK-TU1: call spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-TU0: call spir_func void @{{.*}}foo2{{.*}}()
 
 define dso_local spir_kernel void @_ZTSZ4mainE10TU1_kernel() #1 {
 entry:
@@ -90,14 +90,14 @@ entry:
   ret void
 }
 
-; CHECK-TU0-NOT: define dso_local spir_func void @{{.*}}foo2{{.*}}()
-; CHECK-TU1: define dso_local spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-TU1-NOT: define dso_local spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-TU0: define dso_local spir_func void @{{.*}}foo2{{.*}}()
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo2v() {
 entry:
   %a = alloca i32, align 4
-; CHECK-TU1: %0 = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @{{.*}}GV{{.*}} to [1 x i32] addrspace(4)*), i64 0, i64 0), align 4
+; CHECK-TU0: %0 = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @{{.*}}GV{{.*}} to [1 x i32] addrspace(4)*), i64 0, i64 0), align 4
   %0 = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @_ZL2GV to [1 x i32] addrspace(4)*), i64 0, i64 0), align 4
   %add = add nsw i32 4, %0
   store i32 %add, i32* %a, align 4

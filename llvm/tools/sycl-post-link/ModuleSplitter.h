@@ -170,7 +170,7 @@ getSplitterByKernelType(std::unique_ptr<Module> M,
                         EntryPointVec *AllowedEntries = nullptr);
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
+getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode, bool AutoSplitIsGlobalScope,
                   bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef _NDEBUG

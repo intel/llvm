@@ -693,19 +693,20 @@ processInputModule(std::unique_ptr<Module> M) {
   // - doing it before SYCL/ESIMD splitting is required for correctness
   Modified |= lowerInvokeSimd(*M);
 
-  // --ir-output-only assumes single module output this no code splitting.
-  // Violation of this invariant is user error and must've been reported.
-  assert(!IROutputOnly || (SplitMode == module_split::SPLIT_NONE) ||
-         (SplitMode == module_split::SPLIT_AUTO) &&
-             "invalid split mode for IR-only output");
-  SplitMode = IROutputOnly ? module_split::SPLIT_NONE : SplitMode;
-
   DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "Input");
+
+  // --ir-output-only assumes single module output thus no code splitting.
+  // Violation of this invariant is user error and must've been reported.
+  // However, if split mode is "auto", then entry point filtering is still
+  // performed.
+  assert(!IROutputOnly || (SplitMode == module_split::SPLIT_NONE) ||
+    (SplitMode == module_split::SPLIT_AUTO) &&
+    "invalid split mode for IR-only output");
 
   // Top-level per-kernel/per-source splitter. SYCL/ESIMD splitting is applied
   // to modules resulting from the top-level splitting.
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
-      module_split::getSplitterByMode(std::move(M), SplitMode,
+      module_split::getSplitterByMode(std::move(M), SplitMode, IROutputOnly,
                                       EmitOnlyKernelsAsEntryPoints);
   Modified |= Splitter->totalSplits() > 1;
 
@@ -748,6 +749,14 @@ processInputModule(std::unique_ptr<Module> M) {
     bool NoSplitOccurred = (MMs.size() == 1) && (Table->getNumRows() == 0);
 #endif // _NDEBUG
 
+    if (!SplitEsimd && (MMs.size() > 1)) {
+      // SYCL/ESIMD splitting is not requested, link back into single module
+      assert(MMs.size() == 2);
+      module_split::ModuleDesc M2 = link(std::move(MMs[0]), std::move(MMs[1]));
+      MMs.clear();
+      MMs.emplace_back(std::move(M2));
+      Modified = true;
+    }
     if (IROutputOnly) {
       assert(NoSplitOccurred && "--ir-output-only assumes no splitting");
       saveModuleIR(MMs.front().getModule(), OutputFilename);

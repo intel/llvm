@@ -77,7 +77,8 @@ bool hasIndirectFunctionsOrCalls(const Module &M) {
 }
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
-                                                 IRSplitMode Mode) {
+                                                 IRSplitMode Mode,
+  bool AutoSplitIsGlobalScope) {
   switch (Mode) {
   case SPLIT_PER_TU:
     return Scope_PerModule;
@@ -86,7 +87,7 @@ EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
     return Scope_PerKernel;
 
   case SPLIT_AUTO: {
-    if (hasIndirectFunctionsOrCalls(M))
+    if (hasIndirectFunctionsOrCalls(M) || AutoSplitIsGlobalScope)
       return Scope_Global;
 
     // At the moment, we assume that per-source split is the best way of
@@ -186,7 +187,9 @@ EntryPointGroupVec groupEntryPointsByScope(const Module &M,
                                            EntryPointsGroupScope EntryScope,
                                            bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec EntryPointGroups{};
-  std::map<StringRef, EntryPointVec> EntryPointMap;
+  // Use MapVector for deterministic order of traversal (helps tests).
+  MapVector<StringRef, EntryPointVec> EntryPointMap;
+
 
   // Only process module entry points:
   for (const auto &F : M.functions()) {
@@ -228,7 +231,6 @@ EntryPointGroupVec groupEntryPointsByScope(const Module &M,
     // No entry points met, record this.
     EntryPointGroups.push_back({GLOBAL_SCOPE_NAME, {}});
   }
-
   return EntryPointGroups;
 }
 
@@ -349,9 +351,9 @@ getSplitterByKernelType(std::unique_ptr<Module> M,
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
+getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode, bool AutoSplitIsGlobalScope,
                   bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(*M, Mode);
+  EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(*M, Mode, AutoSplitIsGlobalScope);
   EntryPointGroupVec Groups =
       groupEntryPointsByScope(*M, Scope, EmitOnlyKernelsAsEntryPoints);
   assert(!Groups.empty() && "At least one group is expected");
