@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass operates on SYCL kernels being compiled to CUDA. It modifies
-// kernel entry points which take pointers to shared memory and modifies them
-// to take offsets into shared memory (represented by a symbol in the shared
-// address space). The SYCL runtime is expected to provide offsets rather than
-// pointers to these functions.
+// This pass operates on SYCL kernels. It modifies kernel entry points which
+// take pointers to shared memory and alters them to take offsets into shared
+// memory (represented by a symbol in the shared address space). The SYCL
+// runtime is expected to provide offsets rather than pointers to these
+// functions.
 //
 //===----------------------------------------------------------------------===//
 
@@ -94,21 +94,18 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
                                                          Function *F) {
   // Check if this function is eligible by having an argument that uses shared
   // memory.
-  auto UsesLocalMemory = false;
-  for (Function::arg_iterator FA = F->arg_begin(), FE = F->arg_end(); FA != FE;
-       ++FA) {
-    if (FA->getType()->isPointerTy() &&
-        FA->getType()->getPointerAddressSpace() == SharedASValue) {
-      UsesLocalMemory = true;
-      break;
-    }
-  }
+  const bool UsesLocalMemory =
+      std::any_of(F->arg_begin(), F->arg_end(), [&](Argument &FA) {
+        return FA.getType()->isPointerTy() &&
+               FA.getType()->getPointerAddressSpace() == SharedASValue;
+      });
 
   // Skip functions which are not eligible.
   if (!UsesLocalMemory)
     return nullptr;
 
-  // Create a global symbol to CUDA shared memory.
+  // Create a global symbol to CUDA's ADDRESS_SPACE_SHARED or AMD's
+  // LOCAL_ADDRESS.
   auto SharedMemGlobalName = F->getName().str();
   SharedMemGlobalName.append("_shared_mem");
   auto *SharedMemGlobalType =
@@ -135,20 +132,19 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
   SmallVector<AttributeSet, 8> ArgumentAttributes;
   SmallVector<bool, 10> ArgumentReplaced(FTy->getNumParams(), false);
 
-  unsigned i = 0;
-  for (Function::arg_iterator FA = F->arg_begin(), FE = F->arg_end(); FA != FE;
-       ++FA, ++i) {
-    if (FA->getType()->isPointerTy() &&
-        FA->getType()->getPointerAddressSpace() == SharedASValue) {
+  for (const auto &I : enumerate(F->args())) {
+    const Argument &FA = I.value();
+    if (FA.getType()->isPointerTy() &&
+        FA.getType()->getPointerAddressSpace() == SharedASValue) {
       // Replace pointers to shared memory with i32 offsets.
       Arguments.push_back(Type::getInt32Ty(M.getContext()));
       ArgumentAttributes.push_back(
           AttributeSet::get(M.getContext(), ArrayRef<Attribute>{}));
-      ArgumentReplaced[i] = true;
+      ArgumentReplaced[I.index()] = true;
     } else {
       // Replace other arguments with the same type as before.
-      Arguments.push_back(FA->getType());
-      ArgumentAttributes.push_back(FAttrs.getParamAttrs(i));
+      Arguments.push_back(FA.getType());
+      ArgumentAttributes.push_back(FAttrs.getParamAttrs(I.index()));
     }
   }
 
@@ -170,7 +166,7 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
   // Splice the body of the old function right into the new function.
   NF->getBasicBlockList().splice(NF->begin(), F->getBasicBlockList());
 
-  i = 0;
+  unsigned i = 0;
   for (Function::arg_iterator FA = F->arg_begin(), FE = F->arg_end(),
                               NFA = NF->arg_begin();
        FA != FE; ++FA, ++NFA, ++i) {

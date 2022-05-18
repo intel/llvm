@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass operates on SYCL kernels being compiled to CUDA. It modifies
-// kernel entry points which take pointers to shared memory and modifies them
-// to take offsets into shared memory (represented by a symbol in the shared
-// address space). The SYCL runtime is expected to provide offsets rather than
-// pointers to these functions.
+// This pass operates on SYCL kernels. It modifies kernel entry points which
+// take pointers to shared memory and alters them to take offsets into shared
+// memory (represented by a symbol in the shared address space). The SYCL
+// runtime is expected to provide offsets rather than pointers to these
+// functions.
 //
 //===----------------------------------------------------------------------===//
 
@@ -41,13 +41,26 @@ public:
   }
 
 private:
+  /// This function replaces pointers to shared memory with offsets to a global
+  /// symbol in shared memory.
+  /// It alters the signature of the kernel (pointer vs offset value) as well
+  /// as the access (dereferencing the argument pointer vs GEP to the global
+  /// symbol).
+  ///
+  /// \param F The kernel to be processed.
+  ///
+  /// \returns A new function with global symbol accesses.
   Function *processKernel(Module &M, Function *F);
+
+  /// Update kernel metadata to reflect the change in the signature.
+  ///
+  /// \param A map of original kernels to the modified ones.
   void postProcessKernels(
       SmallVectorImpl<std::pair<Function *, KernelPayload>> &NewToOldKernels);
 
 private:
-  // The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen to
-  // be 3.
+  /// The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
+  /// to be 3.
   const unsigned SharedASValue = 3;
 };
 

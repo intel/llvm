@@ -71,7 +71,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     return PreservedAnalyses::all();
 
   AT = TargetHelpers::getArchType(M);
-  llvm::Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
+  Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
       AT == ArchType::Cuda
           ? static_cast<unsigned>(Intrinsic::nvvm_implicit_offset)
           : static_cast<unsigned>(Intrinsic::amdgcn_implicit_offset)));
@@ -82,12 +82,13 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
   // happy with ADDRESS_SPACE_GENERIC (0).
   TargetAS = AT == ArchType::Cuda ? 0 : 5;
+  /// The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
+  /// to be 3, use it for the implicit argument pointer type.
   KernelImplicitArgumentType =
       ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
   ImplicitOffsetPtrType =
       Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
-  assert((!ImplicitOffsetIntrinsic ||
-          ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
+  assert((ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
          "Implicit offset intrinsic does not return the expected type");
 
   SmallVector<KernelPayload, 4> KernelPayloads;
@@ -108,10 +109,11 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   return PreservedAnalyses::none();
 }
 
-void GlobalOffsetPass::processKernelEntryPoint(Module &M, Function *Func) {
+void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
   assert(EntryPointMetadata.count(Func) != 0 &&
          "Function must be an entry point");
 
+  auto &M = *Func->getParent();
   LLVMContext &Ctx = M.getContext();
   MDNode *FuncMetadata = EntryPointMetadata[Func];
 
@@ -128,7 +130,7 @@ void GlobalOffsetPass::processKernelEntryPoint(Module &M, Function *Func) {
                       M, Func, KernelImplicitArgumentType->getPointerTo(),
                       /*KeepOriginal=*/true)
                       .first;
-  Argument *NewArgument = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
+  Argument *NewArgument = std::prev(NewFunc->arg_end());
   // Pass byval to the kernel for NVIDIA, AMD's calling convention disallows
   // byval args, use byref.
   auto Attr =
@@ -161,26 +163,6 @@ void GlobalOffsetPass::processKernelEntryPoint(Module &M, Function *Func) {
       ImplicitOffsetType, ImplicitOffset, 0, 0);
 }
 
-// This function adds an implicit parameter to the function containing a call
-// instruction to the implicit offset intrinsic or another function (which
-// eventually calls the instrinsic). If the call instruction is to the
-// implicit offset intrinsic, then the intrinisic is replaced with the
-// parameter that was added.
-//
-// `Callee` is the function (to which this transformation has already been
-// applied), or to the implicit offset intrinsic. `CalleeWithImplicitParam`
-// indicates whether Callee is to the implicit intrinsic (when `nullptr`) or
-// to another function (not `nullptr`) - this is used to know whether calls to
-// it needs to have the implicit parameter added to it or replaced with the
-// implicit parameter.
-//
-// Once the function, say `F`, containing a call to `Callee` has the implicit
-// parameter added, callers of `F` are processed by recursively calling this
-// function, passing `F` to `CalleeWithImplicitParam`.
-//
-// Since the cloning of entry points may alter the users of a function, the
-// cloning must be done as early as possible, as to ensure that no users are
-// added to previous callees in the call-tree.
 void GlobalOffsetPass::addImplicitParameterToCallers(
     Module &M, Value *Callee, Function *CalleeWithImplicitParam) {
 
@@ -193,7 +175,7 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 
     Function *Caller = Call->getFunction();
     if (EntryPointMetadata.count(Caller) != 0) {
-      processKernelEntryPoint(M, Caller);
+      processKernelEntryPoint(Caller);
     }
   }
 
@@ -223,7 +205,7 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
       CallToOld->replaceAllUsesWith(ImplicitOffset);
     } else {
       // Build up a list of arguments to call the modified function using.
-      llvm::SmallVector<Value *, 8> ImplicitOffsets;
+      SmallVector<Value *, 8> ImplicitOffsets;
       for (Use &U : CallToOld->args()) {
         ImplicitOffsets.push_back(U);
       }
@@ -231,32 +213,33 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 
       // Replace call to other function (which now has a new parameter),
       // with a call including the new parameter to that same function.
-      auto *NewCaller = CallInst::Create(
+      auto *NewCallInst = CallInst::Create(
           /* Ty= */ CalleeWithImplicitParam->getFunctionType(),
           /* Func= */ CalleeWithImplicitParam,
           /* Args= */ ImplicitOffsets,
           /* NameStr= */ Twine(),
           /* InsertBefore= */ CallToOld);
-      NewCaller->setTailCallKind(CallToOld->getTailCallKind());
-      NewCaller->copyMetadata(*CallToOld);
-      CallToOld->replaceAllUsesWith(NewCaller);
+      NewCallInst->setTailCallKind(CallToOld->getTailCallKind());
+      NewCallInst->copyMetadata(*CallToOld);
+      CallToOld->replaceAllUsesWith(NewCallInst);
 
       if (CallToOld->hasName()) {
-        NewCaller->takeName(CallToOld);
+        NewCallInst->takeName(CallToOld);
       }
     }
 
     // Remove the caller now that it has been replaced.
     CallToOld->eraseFromParent();
 
-    if (!AlreadyProcessed) {
-      // Process callers of the old function.
-      addImplicitParameterToCallers(M, Caller, NewFunc);
+    if (AlreadyProcessed)
+      continue;
 
-      // Now that the old function is dead, delete it.
-      Caller->dropAllReferences();
-      Caller->eraseFromParent();
-    }
+    // Process callers of the old function.
+    addImplicitParameterToCallers(M, Caller, NewFunc);
+
+    // Now that the old function is dead, delete it.
+    Caller->dropAllReferences();
+    Caller->eraseFromParent();
   }
 }
 
@@ -270,13 +253,9 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
   // Construct an argument list containing all of the previous arguments.
   SmallVector<Type *, 8> Arguments;
   SmallVector<AttributeSet, 8> ArgumentAttributes;
-
-  unsigned i = 0;
-  for (Function::arg_iterator FuncArg = Func->arg_begin(),
-                              FuncEnd = Func->arg_end();
-       FuncArg != FuncEnd; ++FuncArg, ++i) {
-    Arguments.push_back(FuncArg->getType());
-    ArgumentAttributes.push_back(FuncAttrs.getParamAttrs(i));
+  for (const auto &I : enumerate(Func->args())) {
+    Arguments.push_back(I.value().getType());
+    ArgumentAttributes.push_back(FuncAttrs.getParamAttrs(I.index()));
   }
 
   // Add the offset argument. Must be the same type as returned by
@@ -325,8 +304,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
       IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
       Type *ImplicitOffsetType =
           ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
-      Value *OrigImplicitOffset =
-          NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
+      Value *OrigImplicitOffset = std::prev(NewFunc->arg_end());
       AllocaInst *ImplicitOffsetAlloca =
           Builder.CreateAlloca(ImplicitOffsetType, TargetAS);
       auto DL = M.getDataLayout();
@@ -346,7 +324,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
       ImplicitArgumentType = ImplicitOffset->getType();
       ImplicitOffsetAllocaInserted = true;
     } else {
-      ImplicitOffset = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
+      ImplicitOffset = std::prev(NewFunc->arg_end());
     }
   } else {
     NewFunc->copyAttributesFrom(Func);
@@ -371,7 +349,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     for (auto MD : MDs)
       NewFunc->addMetadata(MD.first, *MD.second);
 
-    ImplicitOffset = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
+    ImplicitOffset = std::prev(NewFunc->arg_end());
   }
   assert(ImplicitOffset && "Value of implicit offset must be set.");
 
@@ -381,7 +359,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     // Make sure bitcast is inserted after alloca, if present.
     BasicBlock::iterator InsertionPt =
         ImplicitOffsetAllocaInserted
-            ? std::next(((AllocaInst *)ImplicitOffset)->getIterator())
+            ? std::next(cast<AllocaInst>(ImplicitOffset)->getIterator())
             : EntryBlock->getFirstInsertionPt();
     IRBuilder<> Builder(EntryBlock, InsertionPt);
     ImplicitOffset = Builder.CreateBitCast(
@@ -409,7 +387,7 @@ DenseMap<Function *, MDNode *> GlobalOffsetPass::validateKernels(
     return !GV->hasOneUse() || !Used.count(GV);
   };
 
-  llvm::DenseMap<Function *, MDNode *> EntryPointMetadata;
+  DenseMap<Function *, MDNode *> EntryPointMetadata;
   for (auto &KP : KernelPayloads) {
     if (HasUseOtherThanLLVMUsed(KP.Kernel))
       llvm_unreachable("Kernel entry point can't have uses.");
