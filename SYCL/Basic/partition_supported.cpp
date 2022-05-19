@@ -6,15 +6,13 @@
 // Nvidia should not allow sub_devices but does not throw corresponding error.
 // XFAIL: hip_nvidia
 /* Check that:
-1) [info::device::partition_properties]: returns the partition properties
-supported by this SYCL device; a vector of info::partition_property. If this
-SYCL device cannot be partitioned into at least two sub devices then the
-returned vector **must be empty**.
+1) if partition_equally is supported, then we check that the correct
+invalid errc is returned if more than max_compute_units are requested
 
-2) [create_sub_devices()]: If the SYCL device
-does not support info::partition_property::partition_by_affinity_domain or the
-SYCL device does not support the info::partition_affinity_domain provided, an
-exception with the **feature_not_supported error code must be thrown**.
+2) If the SYCL device does not support
+info::partition_property::partition_by_affinity_domain or the SYCL device does
+not support the info::partition_affinity_domain provided, an exception with the
+**feature_not_supported error code must be thrown**.
 */
 
 #include <CL/sycl.hpp>
@@ -57,24 +55,10 @@ int main() {
 
   auto dev = cl::sycl::device(cl::sycl::default_selector());
 
-  cl::sycl::info::partition_property partitionProperty =
-      cl::sycl::info::partition_property::partition_by_affinity_domain;
-  cl::sycl::info::partition_affinity_domain affinityDomain =
-      cl::sycl::info::partition_affinity_domain::next_partitionable;
-
-  if (supports_partition_property(dev, partitionProperty)) {
-    if (supports_affinity_domain(dev, partitionProperty, affinityDomain)) {
-      auto subDevices = dev.create_sub_devices<
-          cl::sycl::info::partition_property::partition_by_affinity_domain>(
-          affinityDomain);
-
-      if (subDevices.size() < 2) {
-        std::cerr << "device::create_sub_device(info::partition_affinity_"
-                     "domain) should have returned at least 2 devices"
-                  << std::endl;
-        return -1;
-      }
-    }
+  // 1 - check exceed max_compute_units
+  cl::sycl::info::partition_property partitionEqually =
+      cl::sycl::info::partition_property::partition_equally;
+  if (supports_partition_property(dev, partitionEqually)) {
     auto maxUnits = dev.get_info<sycl::info::device::max_compute_units>();
     try {
       std::vector<sycl::device> v = dev.create_sub_devices<
@@ -90,6 +74,26 @@ int main() {
                      "we should have received"
                   << sycl::errc::invalid << "but instead got"
                   << ex.code().value() << std::endl;
+        return -1;
+      }
+    }
+  }
+
+  // 2 - check affinity
+  cl::sycl::info::partition_property partitionProperty =
+      cl::sycl::info::partition_property::partition_by_affinity_domain;
+  cl::sycl::info::partition_affinity_domain affinityDomain =
+      cl::sycl::info::partition_affinity_domain::next_partitionable;
+  if (supports_partition_property(dev, partitionProperty)) {
+    if (supports_affinity_domain(dev, partitionProperty, affinityDomain)) {
+      auto subDevices = dev.create_sub_devices<
+          cl::sycl::info::partition_property::partition_by_affinity_domain>(
+          affinityDomain);
+
+      if (subDevices.size() < 2) {
+        std::cerr << "device::create_sub_device(info::partition_affinity_"
+                     "domain) should have returned at least 2 devices"
+                  << std::endl;
         return -1;
       }
     }
