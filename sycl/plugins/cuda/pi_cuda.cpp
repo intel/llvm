@@ -2563,8 +2563,10 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 /// \return TBD
 pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                 pi_context context,
-                                                pi_queue *queue,
-                                                bool ownNativeHandle) {
+                                                pi_device device,
+                                                bool ownNativeHandle,
+                                                pi_queue *queue) {
+  (void)device;
   (void)ownNativeHandle;
   assert(ownNativeHandle == 1);
 

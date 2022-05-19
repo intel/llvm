@@ -52,7 +52,7 @@ inline auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
 
 // Specialisation of non-free context get_native
 template <>
-backend_return_t<backend::ext_oneapi_cuda, context>
+inline backend_return_t<backend::ext_oneapi_cuda, context>
 context::get_native<backend::ext_oneapi_cuda>() const {
   return sycl::get_native<backend::ext_oneapi_cuda, context>(*this);
 }
@@ -83,7 +83,7 @@ inline auto get_native<backend::ext_oneapi_cuda, platform>(const platform &C)
 
 // Specialisation of non-free platform get_native
 template <>
-backend_return_t<backend::ext_oneapi_cuda, platform>
+inline backend_return_t<backend::ext_oneapi_cuda, platform>
 platform::get_native<backend::ext_oneapi_cuda>() const {
   return sycl::get_native<backend::ext_oneapi_cuda, platform>(*this);
 }
