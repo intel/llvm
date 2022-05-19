@@ -35,7 +35,8 @@ jobs:
         echo LLVMBOT_TOKEN: $LLVMBOT_TOKEN
         echo github.repository: ${{github.repository}}
         git push origin ${BRANCH} --force
-        gh pr create --title "[GHA] Uplift GPU RT version for Linux CI" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION" --assignee @intel/dpcpp-devops-reviewers
+        # gh pr create --title "[GHA] Uplift GPU RT version for Linux CI" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION" --assignee @intel/dpcpp-devops-reviewers
+        gh pr create --title "[GHA] Uplift GPU RT version for Linux CI" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION"
 
   update_driver_linux_staging:
     runs-on: ubuntu-latest
@@ -64,5 +65,6 @@ jobs:
         # git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH}
         # CP temporary
         git push origin ${BRANCH} --force
-        gh pr create --title "[GHA] Uplift GPU RT version for Nightly runs" --body "Uplift GPU RT version for Linux Staging to $NEW_DRIVER_VERSION" --assignee @intel/dpcpp-devops-reviewers
+        # gh pr create --title "[GHA] Uplift GPU RT version for Nightly runs" --body "Uplift GPU RT version for Linux Staging to $NEW_DRIVER_VERSION" --assignee @intel/dpcpp-devops-reviewers
+        gh pr create --title "[GHA] Uplift GPU RT version for Nightly runs" --body "Uplift GPU RT version for Linux Staging to $NEW_DRIVER_VERSION"
 
