@@ -30,8 +30,8 @@
 
 extern "C" {
 // Forward declarartions.
-static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
+static pi_result EventRelease(pi_event Event);
+static pi_result QueueRelease(pi_queue Queue);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
 }
@@ -1454,8 +1454,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       // command-list itself. This host-visible event will not be
       // waited/released by SYCL RT, so it must be destroyed after all events in
       // the batch are gone.
-      PI_CALL(piEventRelease(HostVisibleEvent));
-      PI_CALL(piEventRelease(HostVisibleEvent));
+      // We know here that refcount is more than 2 so decrement refcount
+      // manually to avoid calling piEventRelease under queue lock.
+      assert(HostVisibleEvent->RefCount > 2);
+      HostVisibleEvent->RefCount -= 2;
 
       // Indicate no cleanup is needed for this PI event as it is special.
       HostVisibleEvent->CleanedUp = true;
@@ -3347,11 +3349,11 @@ pi_result piQueueRelease(pi_queue Queue) {
     PI_CALL(Event->cleanup());
     PI_CALL(piEventRelease(Event));
   }
-  PI_CALL(QueueRelease(Queue, nullptr));
+  PI_CALL(QueueRelease(Queue));
   return PI_SUCCESS;
 }
 
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
+static pi_result QueueRelease(pi_queue Queue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Queue->RefCount, PI_INVALID_QUEUE);
 
@@ -3361,8 +3363,7 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
   bool RefCountZero = false;
   {
     // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
-                                        : std::unique_lock(Queue->Mutex));
+    std::scoped_lock Lock(Queue->Mutex);
 
     Queue->RefCount--;
     if (Queue->RefCount == 0) {
@@ -5427,7 +5428,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // This currently makes sure to release any kernel that may have been used by
 // the event, updates the last command event in the queue and cleanes up all dep
 // events of of the event.
-pi_result _pi_event::cleanup(pi_queue LockedQueue) {
+// The caller must not lock any mutexes.
+pi_result _pi_event::cleanup() {
   // The implementation of this is slightly tricky.  The same event
   // can be referred to by multiple threads, so it is possible to
   // have a race condition between the read of fields of the event,
@@ -5439,8 +5441,7 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
   // part of the cleanup operations.
   if (Queue) {
     // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
-                                        : std::unique_lock(Queue->Mutex));
+    std::scoped_lock Lock(Queue->Mutex);
 
     // Release the kernel associated with this event if there is one.
     if (CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL && CommandData) {
@@ -5464,7 +5465,7 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
     // NOTE: that this needs to be done only once for an event so
     // this is guarded with the CleanedUp flag.
     //
-    PI_CALL(EventRelease(this, LockedQueue));
+    PI_CALL(EventRelease(this));
   }
 
   // Make a list of all the dependent events that must have signalled
@@ -5491,9 +5492,7 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
       // twice, so it is safe. Lock automatically releases when this goes out of
       // scope.
       // TODO: this code needs to be moved out of the guard.
-      auto Lock = ((DepEvent->Queue == LockedQueue)
-                       ? std::unique_lock<pi_shared_mutex>()
-                       : std::unique_lock(DepEvent->Queue->Mutex));
+      std::scoped_lock(DepEvent->Queue->Mutex);
 
       if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
           DepEvent->CommandData) {
@@ -5501,7 +5500,7 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
         DepEvent->CommandData = nullptr;
       }
     }
-    PI_CALL(EventRelease(DepEvent, LockedQueue));
+    PI_CALL(EventRelease(DepEvent));
   }
 
   return PI_SUCCESS;
@@ -5589,11 +5588,10 @@ pi_result piEventRetain(pi_event Event) {
   return PI_SUCCESS;
 }
 
-pi_result piEventRelease(pi_event Event) {
-  return EventRelease(Event, nullptr);
-}
+pi_result piEventRelease(pi_event Event) { return EventRelease(Event); }
 
-static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
+// The caller must not lock any mutexes.
+static pi_result EventRelease(pi_event Event) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
   if (!Event->RefCount) {
     die("piEventRelease: called on a destroyed event");
@@ -5601,7 +5599,7 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
 
   if (--(Event->RefCount) == 0) {
     if (!Event->CleanedUp)
-      Event->cleanup(LockedQueue);
+      Event->cleanup();
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
@@ -5618,7 +5616,7 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     // and release a reference to it.
     if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
       // Decrement ref-count of the host-visible proxy event.
-      PI_CALL(EventRelease(Event->HostVisibleEvent, LockedQueue));
+      PI_CALL(EventRelease(Event->HostVisibleEvent));
     }
 
     auto Context = Event->Context;
@@ -5630,7 +5628,7 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     // pi_event is released. Here we have to decrement it so pi_queue
     // can be released successfully.
     if (Event->Queue) {
-      PI_CALL(QueueRelease(Event->Queue, LockedQueue));
+      PI_CALL(QueueRelease(Event->Queue));
     }
     delete Event;
   }
@@ -6029,7 +6027,7 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    PI_CALL(EventRelease(Event, Queue));
+    PI_CALL(EventRelease(Event));
     return PI_SUCCESS;
   };
 
