@@ -2879,7 +2879,7 @@ pi_result cuda_piEnqueueKernelLaunch(
           command_queue->get_context()->get_device()->get());
 
       static const int env_val = std::atoi(local_mem_sz_ptr);
-      if (env_val < 0 || env_val > device_max_local_mem) {
+      if (env_val <= 0 || env_val > device_max_local_mem) {
         return PI_INVALID_BUFFER_SIZE;
       }
       PI_CHECK_ERROR(cuFuncSetAttribute(
