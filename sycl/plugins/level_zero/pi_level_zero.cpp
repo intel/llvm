@@ -5430,24 +5430,36 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // events of of the event.
 // The caller must not lock any mutexes.
 pi_result _pi_event::cleanup() {
-  // The implementation of this is slightly tricky.  The same event
-  // can be referred to by multiple threads, so it is possible to
-  // have a race condition between the read of fields of the event,
-  // and reseting those fields in some other thread.
-  // But, since the event is uniquely associated with the queue
-  // for the event, we use the locking that we already have to do on the
-  // queue to also serve as the thread safety mechanism for the
-  // any of the Event's data members that need to be read/reset as
-  // part of the cleanup operations.
+  pi_kernel AssociatedKernel = nullptr;
+  // List of dependent events.
+  std::list<pi_event> EventsToBeReleased;
+  {
+    std::scoped_lock EventLock(this->Mutex);
+    // Exit early of even was already cleanedup.
+    if (CleanedUp)
+      return PI_SUCCESS;
+
+    // Remember the kernel associated with this event if there is one. We are
+    // going to release it later.
+    if (CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL && CommandData) {
+      AssociatedKernel = pi_cast<pi_kernel>(CommandData);
+      CommandData = nullptr;
+    }
+
+    // Make a list of all the dependent events that must have signalled
+    // because this event was dependent on them.
+    WaitList.collectEventsForReleaseAndDestroyPiZeEventList(EventsToBeReleased);
+
+    CleanedUp = true;
+  }
+
+  // We've reset event data members above, now cleanup resources.
+  if (AssociatedKernel)
+    PI_CALL(piKernelRelease(AssociatedKernel));
+
   if (Queue) {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock Lock(Queue->Mutex);
-
-    // Release the kernel associated with this event if there is one.
-    if (CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL && CommandData) {
-      PI_CALL(piKernelRelease(pi_cast<pi_kernel>(CommandData)));
-      CommandData = nullptr;
-    }
 
     // If this event was the LastCommandEvent in the queue, being used
     // to make sure that commands were executed in-order, remove this.
@@ -5459,47 +5471,42 @@ pi_result _pi_event::cleanup() {
     }
   }
 
-  if (!CleanedUp) {
-    CleanedUp = true;
-    // Release this event since we explicitly retained it on creation.
-    // NOTE: that this needs to be done only once for an event so
-    // this is guarded with the CleanedUp flag.
-    //
+  // Release this event since we explicitly retained it on creation and
+  // association with queue. Events which don't have associated queue doesn't
+  // require this release because it means that they are not created using
+  // createEventAndAssociateQueue, i.e. additional retain was not made.
+  if (Queue)
     PI_CALL(EventRelease(this));
-  }
 
-  // Make a list of all the dependent events that must have signalled
-  // because this event was dependent on them.  This list will be appended
-  // to as we walk it so that this algorithm doesn't go recursive
-  // due to dependent events themselves being dependent on other events
-  // forming a potentially very deep tree, and deep recursion.  That
-  // turned out to be a significant problem with the recursive code
-  // that preceded this implementation.
-
-  std::list<pi_event> EventsToBeReleased;
-
-  WaitList.collectEventsForReleaseAndDestroyPiZeEventList(EventsToBeReleased);
-
+  // The list of dependent events will be appended to as we walk it so that this
+  // algorithm doesn't go recursive due to dependent events themselves being
+  // dependent on other events forming a potentially very deep tree, and deep
+  // recursion.  That turned out to be a significant problem with the recursive
+  // code that preceded this implementation.
   while (!EventsToBeReleased.empty()) {
     pi_event DepEvent = EventsToBeReleased.front();
     EventsToBeReleased.pop_front();
 
-    DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
-        EventsToBeReleased);
-    if (IndirectAccessTrackingEnabled && DepEvent->Queue) {
-      // DepEvent has finished, we can release the associated kernel if there is
-      // one. This is the earliest place we can do this and it can't be done
-      // twice, so it is safe. Lock automatically releases when this goes out of
-      // scope.
-      // TODO: this code needs to be moved out of the guard.
-      std::scoped_lock(DepEvent->Queue->Mutex);
-
-      if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
-          DepEvent->CommandData) {
-        PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
-        DepEvent->CommandData = nullptr;
+    pi_kernel DepEventKernel = nullptr;
+    {
+      std::scoped_lock DepEventLock(DepEvent->Mutex);
+      DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+          EventsToBeReleased);
+      if (IndirectAccessTrackingEnabled) {
+        // DepEvent has finished, we can release the associated kernel if there
+        // is one. This is the earliest place we can do this and it can't be
+        // done twice, so it is safe. Lock automatically releases when this goes
+        // out of scope.
+        // TODO: this code needs to be moved out of the guard.
+        if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
+            DepEvent->CommandData) {
+          DepEventKernel = pi_cast<pi_kernel>(DepEvent->CommandData);
+          DepEvent->CommandData = nullptr;
+        }
       }
     }
+    if (DepEventKernel)
+      PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
     PI_CALL(EventRelease(DepEvent));
   }
 
