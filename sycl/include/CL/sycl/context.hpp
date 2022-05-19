@@ -222,7 +222,7 @@ public:
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   backend_return_t<Backend, context> get_native() const {
-    return sycl::get_native<Backend, context>(*this);
+    return reinterpret_cast<backend_return_t<Backend, context>>(getNative());
   }
 
 private:

@@ -125,7 +125,7 @@ public:
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   backend_return_t<Backend, platform> get_native() const {
-    return sycl::get_native<Backend, platform>(*this);
+    return reinterpret_cast<backend_return_t<Backend, platform>>(getNative());
   }
 
   /// Indicates if all of the SYCL devices on this platform have the
