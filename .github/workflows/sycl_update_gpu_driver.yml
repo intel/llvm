@@ -21,7 +21,7 @@ jobs:
         LLVMBOT_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        cd $GITHUB_WORKSPACE/src
+        cd $GITHUB_WORKSPACE
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift GPU RT version for Linux CI"
@@ -43,7 +43,7 @@ jobs:
         LLVMBOT_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        cd $GITHUB_WORKSPACE/src
+        cd $GITHUB_WORKSPACE
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift GPU RT version for Nightly runs"
