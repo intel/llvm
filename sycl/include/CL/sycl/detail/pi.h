@@ -320,7 +320,8 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
-  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER = 0x20004,
 } _pi_device_info;
 
 typedef enum {
@@ -1282,6 +1283,9 @@ __SYCL_EXPORT pi_result piProgramRetain(pi_program program);
 __SYCL_EXPORT pi_result piProgramRelease(pi_program program);
 
 /// Sets a specialization constant to a specific value.
+///
+/// Note: Only used when specialization constants are natively supported (SPIR-V
+/// binaries), and not when they are emulated (AOT binaries).
 ///
 /// \param prog the program object which will use the value
 /// \param spec_id integer ID of the constant

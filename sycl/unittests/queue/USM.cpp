@@ -54,12 +54,18 @@ pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
 }
 
 pi_result redefinedEventRelease(pi_event) { return PI_SUCCESS; }
+pi_result redefinedEventsWait(pi_uint32 /* num_events */,
+                              const pi_event * /* event_list  */) {
+  return PI_SUCCESS;
+}
 
-bool preparePiMock(platform &Plt) {
+// Check that zero-length USM memset/memcpy use piEnqueueEventsWait.
+TEST(USM, NoOpPreservesDependencyChain) {
+  platform Plt{default_selector()};
   if (Plt.is_host()) {
     std::cout << "Not run on host - no PI events created in that case"
               << std::endl;
-    return false;
+    return;
   }
 
   unittest::PiMock Mock{Plt};
@@ -70,14 +76,7 @@ bool preparePiMock(platform &Plt) {
   Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-  return true;
-}
-
-// Check that zero-length USM memset/memcpy use piEnqueueEventsWait.
-TEST(USM, NoOpPreservesDependencyChain) {
-  platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
-    return;
+  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 
   context Ctx{Plt.get_devices()[0]};
   queue Q{Ctx, default_selector()};
@@ -102,6 +101,6 @@ TEST(USM, NoOpPreservesDependencyChain) {
 
   free(Src, Q);
   free(Dst, Q);
+  TestContext.Deps.clear();
 }
-
 } // namespace

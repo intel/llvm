@@ -86,11 +86,12 @@ pi_result redefinedEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-bool preparePiMock(platform &Plt) {
+TEST(QueueWait, QueueWaitTest) {
+  platform Plt{default_selector()};
   if (Plt.is_host()) {
     std::cout << "Not run on host - no PI events created in that case"
               << std::endl;
-    return false;
+    return;
   }
 
   unittest::PiMock Mock{Plt};
@@ -105,13 +106,6 @@ bool preparePiMock(platform &Plt) {
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-  return true;
-}
-
-TEST(QueueWait, QueueWaitTest) {
-  platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
-    return;
   context Ctx{Plt.get_devices()[0]};
   queue Q{Ctx, default_selector()};
 

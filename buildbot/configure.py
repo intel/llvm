@@ -212,7 +212,7 @@ def main():
     parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
-    parser.add_argument("--werror", action='store_true', help="Don't treat warnings as errors")
+    parser.add_argument("--werror", action='store_true', help="Treat warnings as errors")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
     parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")

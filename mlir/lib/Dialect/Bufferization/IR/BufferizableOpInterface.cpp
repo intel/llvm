@@ -33,11 +33,6 @@ namespace bufferization {
 using namespace mlir;
 using namespace bufferization;
 
-/// Attribute name used to mark the bufferization layout for region
-/// arguments during linalg comprehensive bufferization.
-constexpr const ::llvm::StringLiteral
-    bufferization::BufferizableOpInterface::kBufferLayoutAttrName;
-
 /// Attribute name used to mark region arguments that can be bufferized
 /// in-place during linalg comprehensive bufferization.
 constexpr const ::llvm::StringLiteral
@@ -55,6 +50,31 @@ static const char *kSkipDeallocAttr = "bufferization.skip_dealloc";
 
 // Default constructor for BufferizationOptions.
 BufferizationOptions::BufferizationOptions() = default;
+
+bool BufferizationOptions::isOpAllowed(Operation *op) const {
+  // Special case: If function boundary bufferization is deactivated, do not
+  // allow ops that belong to the `func` dialect.
+  bool isFuncBoundaryOp = isa_and_nonnull<func::FuncDialect>(op->getDialect());
+  if (!bufferizeFunctionBoundaries && isFuncBoundaryOp)
+    return false;
+
+  // All other ops: Allow/disallow according to filter.
+  bool isAllowed = !filterHasAllowRule();
+  for (const OpFilterEntry &entry : opFilter) {
+    bool filterResult = entry.fn(op);
+    switch (entry.type) {
+    case OpFilterEntry::ALLOW:
+      isAllowed |= filterResult;
+      break;
+    case OpFilterEntry::DENY:
+      if (filterResult)
+        // DENY filter matches. This op is no allowed. (Even if other ALLOW
+        // filters may match.)
+        return false;
+    };
+  }
+  return isAllowed;
+}
 
 BufferizableOpInterface
 BufferizationOptions::dynCastBufferizableOp(Operation *op) const {

@@ -1226,7 +1226,7 @@ def : MutualExclusions<[CUDAConstant, CUDAShared, HIPManaged]>;
 def SYCLDevice : InheritableAttr {
   let Spellings = [GNU<"sycl_device">];
   let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceDocs];
 }
 
@@ -4868,6 +4868,23 @@ def HLSLSV_GroupIndex: InheritableAttr {
   let Subjects = SubjectList<[ParmVar, GlobalVar]>;
   let LangOpts = [HLSL];
   let Documentation = [HLSLSV_GroupIndexDocs];
+}
+
+def HLSLShader : InheritableAttr {
+  let Spellings = [Microsoft<"shader">];
+  let Subjects = SubjectList<[HLSLEntry]>;
+  let LangOpts = [HLSL];
+  let Args = [EnumArgument<"Type", "ShaderType",
+                           ["pixel", "vertex", "geometry", "hull", "domain",
+                            "compute", "raygeneration", "intersection",
+                            "anyhit", "closesthit", "miss", "callable", "mesh",
+                            "amplification"],
+                           ["Pixel", "Vertex", "Geometry", "Hull", "Domain",
+                            "Compute", "RayGeneration", "Intersection",
+                            "AnyHit", "ClosestHit", "Miss", "Callable", "Mesh",
+                            "Amplification"]
+                           >];
+  let Documentation = [HLSLSV_ShaderTypeAttrDocs];
 }
 
 def RandomizeLayout : InheritableAttr {
