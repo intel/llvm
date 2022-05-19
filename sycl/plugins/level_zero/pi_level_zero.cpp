@@ -1134,6 +1134,31 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 }
 
+// Reset signalled command lists in the queue and put them to the cache of
+// command lists. A caller must not lock the queue mutex.
+pi_result _pi_queue::resetCommandLists() {
+  // We check for command lists that have been already signalled, but have not
+  // been added to the available list yet. Each command list has a fence
+  // associated which tracks if a command list has completed dispatch of its
+  // commands and is ready for reuse. If a command list is found to have been
+  // signalled, then the command list & fence are reset and command list is
+  // returned to the command list cache. All events associated with command list
+  // are cleaned up if command list was reset.
+  std::scoped_lock Lock(this->Mutex);
+  for (auto &&it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
+    // It is possible that the fence was already noted as signalled and
+    // reset. In that case the InUse flag will be false.
+    if (it->second.InUse) {
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        PI_CALL(resetCommandList(it, true));
+      }
+    }
+  }
+  return PI_SUCCESS;
+}
+
 // Retrieve an available command list to be used in a PI call.
 pi_result
 _pi_context::getAvailableCommandList(pi_queue Queue,
@@ -1209,28 +1234,6 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
                 .first;
       }
       ZeCommandListCache.pop_front();
-      return PI_SUCCESS;
-    }
-  }
-
-  // If there are no available command lists in the cache, then we check for
-  // command lists that have already signalled, but have not been added to the
-  // available list yet. Each command list has a fence associated which tracks
-  // if a command list has completed dispatch of its commands and is ready for
-  // reuse. If a command list is found to have been signalled, then the
-  // command list & fence are reset and we return.
-  for (auto it = Queue->CommandListMap.begin();
-       it != Queue->CommandListMap.end(); ++it) {
-    // Make sure this is the command list type needed.
-    if (UseCopyEngine != it->second.isCopy(Queue))
-      continue;
-
-    ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-    if (ZeResult == ZE_RESULT_SUCCESS) {
-      Queue->resetCommandList(it, false);
-      CommandList = it;
-      CommandList->second.InUse = true;
       return PI_SUCCESS;
     }
   }
@@ -3388,40 +3391,58 @@ pi_result piQueueFinish(pi_queue Queue) {
 
   if (UseImmediateCommandLists) {
     // Lock automatically releases when this goes out of scope.
-    std::scoped_lock lock(Queue->Mutex);
+    std::scoped_lock Lock(Queue->Mutex);
 
     Queue->synchronize();
     return PI_SUCCESS;
+  } else {
+    std::unique_lock Lock(Queue->Mutex);
+    std::vector<ze_command_queue_handle_t> ZeQueues;
+
+    // execute any command list that may still be open.
+    if (auto Res = Queue->executeAllOpenCommandLists())
+      return Res;
+
+    // Make a copy of queues to sync and release the lock.
+    ZeQueues = Queue->CopyQueueGroup.ZeQueues;
+    std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
+              Queue->ComputeQueueGroup.ZeQueues.end(),
+              std::back_inserter(ZeQueues));
+
+    // Remember the last command's event.
+    auto LastCommandEvent = Queue->LastCommandEvent;
+
+    // Don't hold a lock to the queue's mutex while waiting.
+    // This allows continue working with the queue from other threads.
+    // TODO: this currently exhibits some issues in the driver, so
+    // we control this with an env var. Remove this control when
+    // we settle one way or the other.
+    static bool HoldLock =
+        std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK") != nullptr;
+    if (!HoldLock) {
+      Lock.unlock();
+    }
+
+    for (auto ZeQueue : ZeQueues) {
+      if (ZeQueue)
+        ZE_CALL(zeHostSynchronize, (ZeQueue));
+    }
+
+    // Prevent unneeded already finished events to show up in the wait list.
+    // We can only do so if nothing else was submitted to the queue
+    // while we were synchronizing it.
+    if (!HoldLock) {
+      std::scoped_lock Lock(Queue->Mutex);
+      if (LastCommandEvent == Queue->LastCommandEvent) {
+        Queue->LastCommandEvent = nullptr;
+      }
+    } else {
+      Queue->LastCommandEvent = nullptr;
+    }
   }
-
-  std::unique_lock lock(Queue->Mutex);
-  std::vector<ze_command_queue_handle_t> ZeQueues;
-
-  // execute any command list that may still be open.
-  if (auto Res = Queue->executeAllOpenCommandLists())
-    return Res;
-
-  // Make a copy of queues to sync and release the lock.
-  ZeQueues = Queue->CopyQueueGroup.ZeQueues;
-  std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
-            Queue->ComputeQueueGroup.ZeQueues.end(),
-            std::back_inserter(ZeQueues));
-
-  // Don't hold a lock to the queue's mutex while waiting.
-  // This allows continue working with the queue from other threads.
-  // TODO: this currently exhibits some issues in the driver, so
-  // we control this with an env var. Remove this control when
-  // we settle one way or the other.
-  static bool HoldLock =
-      std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK") != nullptr;
-  if (!HoldLock) {
-    lock.unlock();
-  }
-
-  for (auto ZeQueue : ZeQueues) {
-    if (ZeQueue)
-      ZE_CALL(zeHostSynchronize, (ZeQueue));
-  }
+  // Reset signalled command lists and return them back to the cache of
+  // available command lists.
+  Queue->resetCommandLists();
   return PI_SUCCESS;
 }
 
@@ -5850,25 +5871,30 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     return Queue->executeCommandList(CommandList);
   }
 
-  // If wait-list is empty, then this particular command should wait until
-  // all previous enqueued commands to the command-queue have completed.
-  //
-  // TODO: find a way to do that without blocking the host.
+  {
+    // If wait-list is empty, then this particular command should wait until
+    // all previous enqueued commands to the command-queue have completed.
+    //
+    // TODO: find a way to do that without blocking the host.
 
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock lock(Queue->Mutex);
+    // Lock automatically releases when this goes out of scope.
+    std::scoped_lock lock(Queue->Mutex);
 
-  auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                          Queue->CommandListMap.end());
-  if (Res != PI_SUCCESS)
-    return Res;
+    auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
+                                            Queue->CommandListMap.end());
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  Queue->synchronize();
+    Queue->synchronize();
 
-  Queue->LastCommandEvent = *Event;
+    Queue->LastCommandEvent = *Event;
 
-  ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
-  (*Event)->Completed = true;
+    ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+    (*Event)->Completed = true;
+  }
+
+  Queue->resetCommandLists();
+
   return PI_SUCCESS;
 }
 
