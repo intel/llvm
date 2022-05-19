@@ -478,6 +478,10 @@ public:
   /// forward slash (/) elsewhere.
   bool UseTargetPathSeparator = false;
 
+  /// The name of the file to which the backend should save YAML optimization
+  /// records.
+  std::string OptRecordFile;
+
   LangOptions();
 
   /// Set language defaults for the given input language and

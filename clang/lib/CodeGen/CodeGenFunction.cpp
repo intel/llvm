@@ -1602,26 +1602,27 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   // Emit the standard function prologue.
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
+  if (!getLangOpts().OptRecordFile.empty()) {
+    SyclOptReportHandler &SyclOptReport = CGM.getDiags().getSYCLOptReport();
+    if (Fn && SyclOptReport.HasOptReportInfo(FD)) {
+      llvm::OptimizationRemarkEmitter ORE(Fn);
+      for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
+        llvm::DiagnosticLocation DL =
+            SourceLocToDebugLoc(ORI.value().KernelArgLoc);
+        StringRef NameInDesc = ORI.value().KernelArgDescName;
+        StringRef ArgType = ORI.value().KernelArgType;
+        StringRef ArgDesc = ORI.value().KernelArgDesc;
+        unsigned ArgSize = ORI.value().KernelArgSize;
+        StringRef ArgDecomposedField = ORI.value().KernelArgDecomposedField;
 
-  SyclOptReportHandler &SyclOptReport = CGM.getDiags().getSYCLOptReport();
-  if (Fn && SyclOptReport.HasOptReportInfo(FD)) {
-    llvm::OptimizationRemarkEmitter ORE(Fn);
-    for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
-      llvm::DiagnosticLocation DL =
-          SourceLocToDebugLoc(ORI.value().KernelArgLoc);
-      StringRef NameInDesc = ORI.value().KernelArgDescName;
-      StringRef ArgType = ORI.value().KernelArgType;
-      StringRef ArgDesc = ORI.value().KernelArgDesc;
-      unsigned ArgSize = ORI.value().KernelArgSize;
-      StringRef ArgDecomposedField = ORI.value().KernelArgDecomposedField;
-
-      llvm::OptimizationRemark Remark("sycl", "Region", DL,
-                                      &Fn->getEntryBlock());
-      Remark << "Arg " << llvm::ore::NV("Argument", ORI.index()) << ":"
-             << ArgDesc << NameInDesc << "  (" << ArgDecomposedField
-             << "Type:" << ArgType << ", "
-             << "Size: " << llvm::ore::NV("Argument", ArgSize) << ")";
-      ORE.emit(Remark);
+        llvm::OptimizationRemark Remark("sycl", "Region", DL,
+                                        &Fn->getEntryBlock());
+        Remark << "Arg " << llvm::ore::NV("Argument", ORI.index()) << ":"
+               << ArgDesc << NameInDesc << "  (" << ArgDecomposedField
+               << "Type:" << ArgType << ", "
+               << "Size: " << llvm::ore::NV("Argument", ArgSize) << ")";
+        ORE.emit(Remark);
+      }
     }
   }
 
