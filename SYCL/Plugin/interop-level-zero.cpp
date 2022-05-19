@@ -47,7 +47,7 @@ int main() {
       make_context<backend::ext_oneapi_level_zero>(ContextInteropInput);
 
   backend_input_t<backend::ext_oneapi_level_zero, queue> QueueInteropInput = {
-      ZeQueue, ext::oneapi::level_zero::ownership::keep};
+      ZeQueue, Queue.get_device(), ext::oneapi::level_zero::ownership::keep};
   auto QueueInterop = make_queue<backend::ext_oneapi_level_zero>(
       QueueInteropInput, ContextInterop);
 
