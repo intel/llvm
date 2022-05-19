@@ -470,6 +470,10 @@ public:
   /// The seed used by the randomize structure layout feature.
   std::string RandstructSeed;
 
+  /// The name of the file to which the backend should save YAML optimization
+  /// records.
+  std::string OptRecordFile;
+
   LangOptions();
 
   /// Set language defaults for the given input language and
