@@ -1650,10 +1650,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   // There is a current limitation of GPU vector backend that requires kernel
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with
-  // 'alwaysinline' attribute.
+  // 'alwaysinline' attribute, except few cases.
   if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
       !F.hasFnAttribute(Attribute::NoInline) &&
-      !F.hasFnAttribute(Attribute::AlwaysInline))
+      !F.hasFnAttribute(Attribute::AlwaysInline) &&
+      !F.hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall))
     F.addFnAttr(Attribute::AlwaysInline);
 
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
