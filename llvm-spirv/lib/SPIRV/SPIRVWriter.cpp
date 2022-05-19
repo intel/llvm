@@ -5039,7 +5039,6 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   if (Opts.isSPIRVMemToRegEnabled())
     PassMgr.add(createPromoteMemoryToRegisterPass());
   PassMgr.add(createPreprocessMetadataLegacy());
-  PassMgr.add(createOCLTypeToSPIRVLegacy());
   PassMgr.add(createSPIRVLowerOCLBlocksLegacy());
   PassMgr.add(createOCLToSPIRVLegacy());
   PassMgr.add(createSPIRVRegularizeLLVMLegacy());
