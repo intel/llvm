@@ -50,6 +50,13 @@ inline auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
   return ret;
 }
 
+// Specialisation of non-free context get_native
+template <>
+backend_return_t<backend::ext_oneapi_cuda, context>
+context::get_native<backend::ext_oneapi_cuda>() const {
+  return sycl::get_native<backend::ext_oneapi_cuda, context>(*this);
+}
+
 // CUDA device specialization
 template <>
 inline device make_device<backend::ext_oneapi_cuda>(
@@ -72,6 +79,13 @@ inline auto get_native<backend::ext_oneapi_cuda, platform>(const platform &C)
         get_native<backend::ext_oneapi_cuda>(platform_devices[i]);
 
   return native_devices;
+}
+
+// Specialisation of non-free platform get_native
+template <>
+backend_return_t<backend::ext_oneapi_cuda, platform>
+platform::get_native<backend::ext_oneapi_cuda>() const {
+  return sycl::get_native<backend::ext_oneapi_cuda, platform>(*this);
 }
 
 template <>
