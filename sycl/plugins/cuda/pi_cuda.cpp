@@ -2867,6 +2867,19 @@ pi_result cuda_piEnqueueKernelLaunch(
       retImplEv->start();
     }
 
+    // Set local mem max size if env var is present
+    {
+      char *local_mem_sz_ptr;
+      if ((local_mem_sz_ptr = std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SZ")) !=
+          nullptr) {
+        int val = std::atoi(local_mem_sz_ptr);
+        if (val) {
+          PI_CHECK_ERROR(cuFuncSetAttribute(
+              cuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, val));
+        }
+      }
+    }
+
     retError = PI_CHECK_ERROR(cuLaunchKernel(
         cuFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
         threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2], local_size,

@@ -69,6 +69,12 @@ Note that all device selectors will throw an exception if the filtered list of d
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
+## Controlling DPC++ CUDA Plugin
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_PI_CUDA_MAX_LOCAL_MEM_SZ` | Integer | Specifies the maximum size of a local memory allocation in bytes. If the value exceeds the device's capabilities then a runtime error is thrown. |
+
 ## Tools variables
 
 | Environment variable | Values | Description |
