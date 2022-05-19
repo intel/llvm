@@ -80,6 +80,8 @@ public:
     rebuildEntryPoints(Names);
   }
 
+  bool isESIMD() const { return Props.HasEsimd == ESIMDStatus::ESIMD_ONLY; }
+  bool isSYCL() const { return Props.HasEsimd == ESIMDStatus::SYCL_ONLY; }
   const EntryPointVec &entries() const { return EntryPoints.Functions; }
   EntryPointVec &entries() { return EntryPoints.Functions; }
   Module &getModule() { return *M; }
@@ -100,6 +102,8 @@ public:
   }
 
   void rebuildEntryPoints(const Module &M) { EntryPoints.rebuild(M); }
+
+  void renameDuplicatesOf(const Module &M, StringRef Suff);
 
   // Updates Props.HasEsimd to ESIMDStatus::ESIMD_ONLY/SYCL_ONLY if this module
   // descriptor is a ESIMD/SYCL part of the ESIMD/SYCL module split. Otherwise

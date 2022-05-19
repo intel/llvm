@@ -722,7 +722,8 @@ processInputModule(std::unique_ptr<Module> M) {
     // undergo different set of LLVMIR passes. After this they are linked back
     // together to form single module with disjoint SYCL and ESIMD call graphs
     // unless --split-esimd option is specified. The graphs become disjoint when
-    // linked back because functions shared between graphs are cloned.
+    // linked back because functions shared between graphs are cloned and
+    // renamed.
     std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
         module_split::getSplitterByKernelType(
             std::move(MDesc.releaseModulePtr()), EmitOnlyKernelsAsEntryPoints,
@@ -750,8 +751,14 @@ processInputModule(std::unique_ptr<Module> M) {
 #endif // _NDEBUG
 
     if (!SplitEsimd && (MMs.size() > 1)) {
-      // SYCL/ESIMD splitting is not requested, link back into single module
+      // SYCL/ESIMD splitting is not requested, link back into single module.
       assert(MMs.size() == 2);
+      assert(MMs[0].isESIMD() && MMs[1].isSYCL() ||
+             MMs[1].isESIMD() && MMs[0].isSYCL());
+      int ESIMDInd = MMs[0].isESIMD() ? 0 : 1;
+      int SYCLInd = MMs[0].isESIMD() ? 1 : 0;
+      // ... but before that, make sure no link conflicts will occur.
+      MMs[ESIMDInd].renameDuplicatesOf(MMs[SYCLInd].getModule(), ".esimd");
       module_split::ModuleDesc M2 = link(std::move(MMs[0]), std::move(MMs[1]));
       MMs.clear();
       MMs.emplace_back(std::move(M2));

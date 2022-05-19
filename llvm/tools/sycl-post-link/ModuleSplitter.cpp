@@ -472,9 +472,39 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints,
   llvm::errs() << "}\n";
 }
 
-// Updates Props.HasEsimd to ESIMDStatus::ESIMD_ONLY/SYCL_ONLY if this module
-// descriptor is a ESIMD/SYCL part of the ESIMD/SYCL module split. Otherwise
-// assumes the module has both SYCL and ESIMD.
+void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
+  Module &MB = getModule();
+#ifndef _NDEBUG
+  DenseSet<StringRef> EntryNamesB;
+  auto It0 = entries().cbegin();
+  auto It1 = entries().cend();
+  std::for_each(It0, It1,
+                [&](const Function *F) { EntryNamesB.insert(F->getName()); });
+#endif // _NDEBUG
+  for (const GlobalObject &GoA : MA.global_objects()) {
+    if (GoA.isDeclaration()) {
+      continue;
+    }
+    StringRef Name = GoA.getName();
+    auto *F = dyn_cast<Function>(&GoA);
+    GlobalObject *GoB =
+        F ? cast_or_null<GlobalObject>(MB.getFunction(Name))
+          : cast_or_null<GlobalObject>(MB.getGlobalVariable(Name));
+
+    if (!GoB || GoB->isDeclaration()) {
+      // function or variable is not shared or is a declaration in MB
+      continue;
+    }
+#ifndef _NDEBUG
+    if (F) {
+      // this is a shared function, must not be an entry point:
+      assert(!EntryNamesB.contains(Name));
+    }
+#endif // _NDEBUG
+    // rename the global object in MB:
+    GoB->setName(Name + Suff);
+  }
+}
 
 void ModuleDesc::assignESIMDProperty() {
   if (EntryPoints.isEsimd()) {
