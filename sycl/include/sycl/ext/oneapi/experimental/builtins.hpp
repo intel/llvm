@@ -108,7 +108,7 @@ tanh(sycl::marray<T, N> x) __NOEXC {
   sycl::marray<T, N> res;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = __clc_native_tanh(sycl::detail::to_vec(x, i * 2));
+    auto partial_res = __clc_native_tanh(sycl::detail::to_vec2(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if constexpr (N % 2) {
@@ -117,7 +117,7 @@ tanh(sycl::marray<T, N> x) __NOEXC {
 #else
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(
-        sycl::detail::to_vec(x, i * 2));
+        sycl::detail::to_vec2(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if constexpr (N % 2) {
@@ -148,7 +148,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
   sycl::marray<half, N> res;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = __clc_native_exp2(sycl::detail::to_vec(x, i * 2));
+    auto partial_res = __clc_native_exp2(sycl::detail::to_vec2(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if constexpr (N % 2) {
@@ -157,7 +157,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 #else
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(
-        sycl::detail::to_vec(x, i * 2));
+        sycl::detail::to_vec2(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if constexpr (N % 2) {
