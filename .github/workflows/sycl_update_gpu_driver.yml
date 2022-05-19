@@ -23,8 +23,10 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE
         # Set fake identity to fulfil git requirements
-        git config --global user.name "iclsrc"
-        git config --global user.email "ia.compiler.tools.git@intel.com"
+        # git config --global user.name "iclsrc"
+        # git config --global user.email "ia.compiler.tools.git@intel.com"
+        git config --global user.name "cperkinsintel"
+        git config --global user.email "chris.perkins@intel.com"
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift GPU RT version for Linux CI"
@@ -52,8 +54,10 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE
         # Set fake identity to fulfil git requirements
-        git config --global user.name "iclsrc"
-        git config --global user.email "ia.compiler.tools.git@intel.com"
+        # git config --global user.name "iclsrc"
+        # git config --global user.email "ia.compiler.tools.git@intel.com"
+        git config --global user.name "cperkinsintel"
+        git config --global user.email "chris.perkins@intel.com"
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift GPU RT version for Nightly runs"
