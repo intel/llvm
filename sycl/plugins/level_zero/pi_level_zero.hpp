@@ -891,7 +891,7 @@ struct _pi_queue : _pi_object {
   // needs to be set to true. The caller must verify that this command list and
   // fence have been signalled.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
-                             bool MakeAvailable);
+                             bool MakeAvailable, std::vector<_pi_event *> &);
 
   // Reset signalled command lists in the queue and put them to the cache of
   // command lists. A caller must not lock the queue mutex.

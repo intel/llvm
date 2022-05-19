@@ -866,8 +866,10 @@ bool _pi_queue::isInOrderQueue() const {
   return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
 }
 
-pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
-                                      bool MakeAvailable) {
+pi_result
+_pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
+                            bool MakeAvailable,
+                            std::vector<pi_event> &EventListToCleanup) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
   auto &ZeCommandListCache =
       UseCopyEngine
@@ -884,17 +886,16 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     CommandList->second.InUse = false;
   }
 
-  // Finally release/cleanup all the events in this command list.
-  // Note, we don't need to synchronize the events since the fence
-  // synchronized above already does that.
   auto &EventList = CommandList->second.EventList;
+  // We don't need to synchronize the events since the fence
+  // synchronized above already does that.
   for (auto &Event : EventList) {
     Event->Completed = true;
-    if (!Event->CleanedUp) {
-      Event->cleanup(this);
-    }
-    PI_CALL(EventRelease(Event, this));
   }
+  // Remember all the events in this command list which needs to be
+  // released/cleaned up and clear event list associated with command list.
+  EventListToCleanup.insert(EventListToCleanup.end(), EventList.begin(),
+                            EventList.end());
   EventList.clear();
 
   // Standard commandlists move in and out of the cache as they are recycled.
@@ -1127,24 +1128,33 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
 // Reset signalled command lists in the queue and put them to the cache of
 // command lists. A caller must not lock the queue mutex.
 pi_result _pi_queue::resetCommandLists() {
-  // We check for command lists that have been already signalled, but have not
-  // been added to the available list yet. Each command list has a fence
-  // associated which tracks if a command list has completed dispatch of its
-  // commands and is ready for reuse. If a command list is found to have been
-  // signalled, then the command list & fence are reset and command list is
-  // returned to the command list cache. All events associated with command list
-  // are cleaned up if command list was reset.
-  std::scoped_lock Lock(this->Mutex);
-  for (auto &&it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
-    // It is possible that the fence was already noted as signalled and
-    // reset. In that case the InUse flag will be false.
-    if (it->second.InUse) {
-      ze_result_t ZeResult =
-          ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-      if (ZeResult == ZE_RESULT_SUCCESS) {
-        PI_CALL(resetCommandList(it, true));
+  std::vector<pi_event> EventListToCleanup;
+  {
+    // We check for command lists that have been already signalled, but have not
+    // been added to the available list yet. Each command list has a fence
+    // associated which tracks if a command list has completed dispatch of its
+    // commands and is ready for reuse. If a command list is found to have been
+    // signalled, then the command list & fence are reset and command list is
+    // returned to the command list cache. All events associated with command
+    // list are cleaned up if command list was reset.
+    std::scoped_lock Lock(this->Mutex);
+    for (auto &&it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
+      // It is possible that the fence was already noted as signalled and
+      // reset. In that case the InUse flag will be false.
+      if (it->second.InUse) {
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+        if (ZeResult == ZE_RESULT_SUCCESS) {
+          PI_CALL(resetCommandList(it, true, EventListToCleanup));
+        }
       }
     }
+  }
+  for (auto Event : EventListToCleanup) {
+    PI_CALL(Event->cleanup());
+    // These events were just removed from command list, so dercement ref count
+    // (it was incremented when they were added to the command list).
+    PI_CALL(piEventRelease(Event));
   }
   return PI_SUCCESS;
 }
@@ -3290,6 +3300,7 @@ pi_result piQueueRetain(pi_queue Queue) {
 
 pi_result piQueueRelease(pi_queue Queue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  std::vector<pi_event> EventListToCleanup;
   {
     // Have this scope such that the lock is released before the
     // queue is potentially deleted in QueueRelease.
@@ -3320,7 +3331,7 @@ pi_result piQueueRelease(pi_queue Queue) {
         // commandlist but do need to do event cleanup which is also in the
         // resetCommandList function.
         if (it->second.InUse) {
-          Queue->resetCommandList(it, true);
+          Queue->resetCommandList(it, true, EventListToCleanup);
         }
         // TODO: remove "if" when the problem is fixed in the level zero
         // runtime. Destroy only if a queue is healthy. Destroying a fence may
@@ -3331,6 +3342,10 @@ pi_result piQueueRelease(pi_queue Queue) {
       }
       Queue->CommandListMap.clear();
     }
+  }
+  for (auto Event : EventListToCleanup) {
+    PI_CALL(Event->cleanup());
+    PI_CALL(piEventRelease(Event));
   }
   PI_CALL(QueueRelease(Queue, nullptr));
   return PI_SUCCESS;
