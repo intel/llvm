@@ -591,21 +591,20 @@ define void @vlmax(i64 %N, double* %c, double* %a, double* %b) {
 ; CHECK-NEXT:    blez a0, .LBB11_3
 ; CHECK-NEXT:  # %bb.1: # %for.body.preheader
 ; CHECK-NEXT:    li a5, 0
-; CHECK-NEXT:    li t1, 0
+; CHECK-NEXT:    li t0, 0
 ; CHECK-NEXT:    slli a7, a6, 3
 ; CHECK-NEXT:  .LBB11_2: # %for.body
 ; CHECK-NEXT:    # =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    add t0, a2, a5
-; CHECK-NEXT:    vsetvli zero, a6, e64, m1, ta, mu
-; CHECK-NEXT:    vle64.v v8, (t0)
+; CHECK-NEXT:    add a4, a2, a5
+; CHECK-NEXT:    vle64.v v8, (a4)
 ; CHECK-NEXT:    add a4, a3, a5
 ; CHECK-NEXT:    vle64.v v9, (a4)
 ; CHECK-NEXT:    vfadd.vv v8, v8, v9
 ; CHECK-NEXT:    add a4, a1, a5
 ; CHECK-NEXT:    vse64.v v8, (a4)
-; CHECK-NEXT:    add t1, t1, a6
+; CHECK-NEXT:    add t0, t0, a6
 ; CHECK-NEXT:    add a5, a5, a7
-; CHECK-NEXT:    blt t1, a0, .LBB11_2
+; CHECK-NEXT:    blt t0, a0, .LBB11_2
 ; CHECK-NEXT:  .LBB11_3: # %for.end
 ; CHECK-NEXT:    ret
 entry:
@@ -645,7 +644,6 @@ define void @vector_init_vlmax(i64 %N, double* %c) {
 ; CHECK-NEXT:    vmv.v.i v8, 0
 ; CHECK-NEXT:  .LBB12_2: # %for.body
 ; CHECK-NEXT:    # =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    vsetvli zero, a2, e64, m1, ta, mu
 ; CHECK-NEXT:    vse64.v v8, (a1)
 ; CHECK-NEXT:    add a3, a3, a2
 ; CHECK-NEXT:    add a1, a1, a4
@@ -719,7 +717,7 @@ define void @vector_init_vsetvli_fv(i64 %N, double* %c) {
 ; CHECK-NEXT:    vmv.v.i v8, 0
 ; CHECK-NEXT:  .LBB14_1: # %for.body
 ; CHECK-NEXT:    # =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    vsetvli zero, a3, e64, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 4, e64, m1, ta, mu
 ; CHECK-NEXT:    vse64.v v8, (a1)
 ; CHECK-NEXT:    add a2, a2, a3
 ; CHECK-NEXT:    add a1, a1, a4
@@ -811,7 +809,40 @@ for.end:                                          ; preds = %for.body
   ret void
 }
 
+; Demonstrates a case where mutation in phase3 is problematic.  We mutate the
+; vsetvli without considering that it changes the compatibility result of the
+; vadd in the second block.
+; FIXME: This currently crashes with strict asserts enabled.
+define <vscale x 4 x i32> @cross_block_mutate(<vscale x 4 x i32> %a, <vscale x 4 x i32> %b,
+; CHECK-LABEL: cross_block_mutate:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetivli a0, 6, e32, m2, tu, mu
+; CHECK-NEXT:    vmv.s.x v8, a0
+; CHECK-NEXT:    vadd.vv v8, v8, v10, v0.t
+; CHECK-NEXT:    vsetvli zero, a0, e32, m2, tu, mu
+; CHECK-NEXT:    ret
+                                         <vscale x 4 x i1> %mask) {
+entry:
+  %vl = tail call i64 @llvm.riscv.vsetvli(i64 6, i64 1, i64 0)
+  %vl.trunc = trunc i64 %vl to i32
+  %a.mod = insertelement <vscale x 4 x i32> %a, i32 %vl.trunc, i32 0
+  br label %fallthrough
+
+fallthrough:
+  %res = call <vscale x 4 x i32> @llvm.riscv.vadd.mask.nxv4i32.nxv4i32(
+               <vscale x 4 x i32> undef, <vscale x 4 x i32> %a.mod,
+               <vscale x 4 x i32> %b, <vscale x 4 x i1> %mask, i64 %vl, i64 0)
+  ret <vscale x 4 x i32> %res
+}
+
 declare i64 @llvm.riscv.vsetvlimax.i64(i64, i64)
 declare <vscale x 1 x double> @llvm.riscv.vle.nxv1f64.i64(<vscale x 1 x double>, <vscale x 1 x double>* nocapture, i64)
 declare <vscale x 1 x double> @llvm.riscv.vfadd.nxv1f64.nxv1f64.i64(<vscale x 1 x double>, <vscale x 1 x double>, <vscale x 1 x double>, i64)
 declare void @llvm.riscv.vse.nxv1f64.i64(<vscale x 1 x double>, <vscale x 1 x double>* nocapture, i64)
+declare <vscale x 4 x i32> @llvm.riscv.vadd.mask.nxv4i32.nxv4i32(
+  <vscale x 4 x i32>,
+  <vscale x 4 x i32>,
+  <vscale x 4 x i32>,
+  <vscale x 4 x i1>,
+  i64,
+  i64);

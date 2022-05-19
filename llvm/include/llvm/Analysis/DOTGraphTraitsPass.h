@@ -41,10 +41,9 @@ template <typename AnalysisT, bool IsSimple,
           typename AnalysisGraphTraitsT =
               DefaultAnalysisGraphTraits<typename AnalysisT::Result &, GraphT>>
 struct DOTGraphTraitsViewer
-    : public PassInfoMixin<DOTGraphTraitsViewer<AnalysisT, IsSimple, GraphT,
-                                                AnalysisGraphTraitsT>> {
+    : PassInfoMixin<DOTGraphTraitsViewer<AnalysisT, IsSimple, GraphT,
+                                         AnalysisGraphTraitsT>> {
   DOTGraphTraitsViewer(StringRef GraphName) : Name(GraphName) {}
-  virtual ~DOTGraphTraitsViewer() {}
 
   /// Return true if this function should be processed.
   ///
@@ -67,6 +66,18 @@ struct DOTGraphTraitsViewer
 
     return PreservedAnalyses::all();
   };
+
+protected:
+  /// Avoid compiler warning "has virtual functions but non-virtual destructor
+  /// [-Wnon-virtual-dtor]" in derived classes.
+  ///
+  /// DOTGraphTraitsViewer is also used as a mixin for avoiding repeated
+  /// implementation of viewer passes, ie there should be no
+  /// runtime-polymorphisms/downcasting involving this class and hence no
+  /// virtual destructor needed. Making this dtor protected stops accidental
+  /// invocation when the derived class destructor should have been called.
+  /// Those derived classes sould be marked final to avoid the warning.
+  ~DOTGraphTraitsViewer() {}
 
 private:
   StringRef Name;
@@ -96,10 +107,9 @@ template <typename AnalysisT, bool IsSimple,
           typename AnalysisGraphTraitsT =
               DefaultAnalysisGraphTraits<typename AnalysisT::Result &, GraphT>>
 struct DOTGraphTraitsPrinter
-    : public PassInfoMixin<DOTGraphTraitsPrinter<AnalysisT, IsSimple, GraphT,
-                                                 AnalysisGraphTraitsT>> {
+    : PassInfoMixin<DOTGraphTraitsPrinter<AnalysisT, IsSimple, GraphT,
+                                          AnalysisGraphTraitsT>> {
   DOTGraphTraitsPrinter(StringRef GraphName) : Name(GraphName) {}
-  virtual ~DOTGraphTraitsPrinter() {}
 
   /// Return true if this function should be processed.
   ///
@@ -123,6 +133,18 @@ struct DOTGraphTraitsPrinter
 
     return PreservedAnalyses::all();
   };
+
+protected:
+  /// Avoid compiler warning "has virtual functions but non-virtual destructor
+  /// [-Wnon-virtual-dtor]" in derived classes.
+  ///
+  /// DOTGraphTraitsPrinter is also used as a mixin for avoiding repeated
+  /// implementation of printer passes, ie there should be no
+  /// runtime-polymorphisms/downcasting involving this class and hence no
+  /// virtual destructor needed. Making this dtor protected stops accidental
+  /// invocation when the derived class destructor should have been called.
+  /// Those derived classes sould be marked final to avoid the warning.
+  ~DOTGraphTraitsPrinter() {}
 
 private:
   StringRef Name;

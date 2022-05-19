@@ -1218,7 +1218,7 @@ public:
   /// Truncate to new width.
   ///
   /// Truncate the APInt to a specified width. It is an error to specify a width
-  /// that is greater than or equal to the current width.
+  /// that is greater than the current width.
   APInt trunc(unsigned width) const;
 
   /// Truncate to new width with unsigned saturation.
@@ -1238,7 +1238,7 @@ public:
   ///
   /// This operation sign extends the APInt to a new width. If the high order
   /// bit is set, the fill on the left will be done with 1 bits, otherwise zero.
-  /// It is an error to specify a width that is less than or equal to the
+  /// It is an error to specify a width that is less than the
   /// current width.
   APInt sext(unsigned width) const;
 
@@ -1246,7 +1246,7 @@ public:
   ///
   /// This operation zero extends the APInt to a new width. The high order bits
   /// are filled with 0 bits.  It is an error to specify a width that is less
-  /// than or equal to the current width.
+  /// than the current width.
   APInt zext(unsigned width) const;
 
   /// Sign extend or truncate to width
@@ -1263,15 +1263,15 @@ public:
 
   /// Truncate this APInt if necessary to ensure that its bit width is <= \p
   /// width.
-  APInt truncOrSelf(unsigned width) const;
+  [[deprecated("Use trunc instead")]] APInt truncOrSelf(unsigned width) const;
 
   /// Sign-extend this APInt if necessary to ensure that its bit width is >= \p
   /// width.
-  APInt sextOrSelf(unsigned width) const;
+  [[deprecated("Use sext instead")]] APInt sextOrSelf(unsigned width) const;
 
   /// Zero-extend this APInt if necessary to ensure that its bit width is >= \p
   /// width.
-  APInt zextOrSelf(unsigned width) const;
+  [[deprecated("Use zext instead")]] APInt zextOrSelf(unsigned width) const;
 
   /// @}
   /// \name Bit Manipulation Operators

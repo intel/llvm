@@ -175,6 +175,8 @@ private:
                  raw_ostream &O);
   void printDefaultVccOperand(unsigned OpNo, const MCSubtargetInfo &STI,
                               raw_ostream &O);
+  void printWaitVDST(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                    raw_ostream &O);
 
   void printExpSrcN(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                     raw_ostream &O, unsigned N);
@@ -237,6 +239,8 @@ protected:
                      const MCSubtargetInfo &STI, raw_ostream &O);
   void printDepCtr(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                    raw_ostream &O);
+  void printDelayFlag(const MCInst *MI, unsigned OpNo,
+                      const MCSubtargetInfo &STI, raw_ostream &O);
   void printHwreg(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                   raw_ostream &O);
   void printEndpgm(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,

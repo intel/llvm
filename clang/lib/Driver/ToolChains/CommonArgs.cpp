@@ -744,6 +744,9 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
   if (IsOffloadingHost)
     CmdArgs.push_back("-lomptarget");
 
+  if (IsOffloadingHost && TC.getDriver().isUsingLTO(/* IsOffload */ true))
+    CmdArgs.push_back("-lomptarget.devicertl");
+
   addArchSpecificRPath(TC, Args, CmdArgs);
 
   if (RTKind == Driver::OMPRT_OMP)
@@ -751,6 +754,25 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
   addOpenMPRuntimeLibraryPath(TC, Args, CmdArgs);
 
   return true;
+}
+
+void tools::addFortranRuntimeLibs(llvm::opt::ArgStringList &CmdArgs) {
+  CmdArgs.push_back("-lFortran_main");
+  CmdArgs.push_back("-lFortranRuntime");
+  CmdArgs.push_back("-lFortranDecimal");
+}
+
+void tools::addFortranRuntimeLibraryPath(const ToolChain &TC,
+                                         const llvm::opt::ArgList &Args,
+                                         ArgStringList &CmdArgs) {
+  // Default to the <driver-path>/../lib directory. This works fine on the
+  // platforms that we have tested so far. We will probably have to re-fine
+  // this in the future. In particular, on some platforms, we may need to use
+  // lib64 instead of lib.
+  SmallString<256> DefaultLibPath =
+      llvm::sys::path::parent_path(TC.getDriver().Dir);
+  llvm::sys::path::append(DefaultLibPath, "lib");
+  CmdArgs.push_back(Args.MakeArgString("-L" + DefaultLibPath));
 }
 
 static void addSanitizerRuntime(const ToolChain &TC, const ArgList &Args,
@@ -1295,7 +1317,7 @@ tools::ParsePICArgs(const ToolChain &ToolChain, const ArgList &Args) {
   // generation, independent of the argument order.
   if (KernelOrKext &&
       ((!EffectiveTriple.isiOS() || EffectiveTriple.isOSVersionLT(6)) &&
-       !EffectiveTriple.isWatchOS()))
+       !EffectiveTriple.isWatchOS() && !EffectiveTriple.isDriverKit()))
     PIC = PIE = false;
 
   if (Arg *A = Args.getLastArg(options::OPT_mdynamic_no_pic)) {

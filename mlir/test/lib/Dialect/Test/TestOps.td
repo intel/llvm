@@ -324,7 +324,7 @@ def TestBitEnum
       ]> {
   let genSpecializedAttr = 0;
   let cppNamespace = "test";
-  let separator = ",";
+  let separator = ", ";
 }
 
 // Define the enum attribute.
@@ -347,7 +347,7 @@ def TestBitEnumVerticalBar
       ]> {
   let genSpecializedAttr = 0;
   let cppNamespace = "test";
-  let separator = "|";
+  let separator = " | ";
 }
 
 def TestBitEnumVerticalBarAttr
@@ -2245,6 +2245,12 @@ def FormatCustomDirectiveAttrDict
   let assemblyFormat = [{
     custom<CustomDirectiveAttrDict>( attr-dict )
   }];
+}
+
+def FormatLiteralFollowingOptionalGroup
+    : TEST_Op<"format_literal_following_optional_group"> {
+  let arguments = (ins TypeAttr:$type, OptionalAttr<AnyAttr>:$value);
+  let assemblyFormat = "(`(` $value^ `)`)? `:` $type attr-dict";
 }
 
 //===----------------------------------------------------------------------===//

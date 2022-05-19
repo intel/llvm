@@ -881,20 +881,16 @@ func.func @type_alias_unknown(!unknown_alias) -> () { // expected-error {{undefi
 
 // -----
 
-!missing_eq_alias type i32 // expected-error {{expected '=' in type alias definition}}
+!missing_eq_alias i32 // expected-error {{expected '=' in type alias definition}}
 
 // -----
 
-!missing_kw_type_alias = i32 // expected-error {{expected 'type' in type alias definition}}
+!missing_type_alias = // expected-error {{expected non-function type}}
 
 // -----
 
-!missing_type_alias = type // expected-error {{expected non-function type}}
-
-// -----
-
-!redef_alias = type i32
-!redef_alias = type i32 // expected-error {{redefinition of type alias id 'redef_alias'}}
+!redef_alias = i32
+!redef_alias = i32 // expected-error {{redefinition of type alias id 'redef_alias'}}
 
 // -----
 
@@ -932,7 +928,7 @@ func.func @invalid_tensor_literal() {
 
 func.func @invalid_affine_structure() {
   %c0 = arith.constant 0 : index
-  %idx = affine.apply affine_map<(d0, d1)> (%c0, %c0) // expected-error {{expected '->' or '['}}
+  %idx = affine.apply affine_map<(d0, d1)> (%c0, %c0) // expected-error {{expected '->' or ':'}}
   return
 }
 

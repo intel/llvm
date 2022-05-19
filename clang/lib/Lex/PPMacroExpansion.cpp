@@ -1642,7 +1642,9 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
           case Builtin::BI__builtin_intel_fpga_reg:
             return LangOpts.SYCLIsDevice;
           default:
-            return true;
+            return Builtin::evaluateRequiredTargetFeatures(
+                getBuiltinInfo().getRequiredFeatures(II->getBuiltinID()),
+                getTargetInfo().getTargetOpts().FeatureMap);
           }
           return true;
         } else if (II->getTokenID() != tok::identifier ||

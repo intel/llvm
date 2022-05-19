@@ -998,7 +998,7 @@ void VPlan::execute(VPTransformState *State) {
         // TODO: Split off the case that all users of a pointer phi are scalar
         // from the VPWidenPointerInductionRecipe.
         if (all_of(WidenPhi->users(), [WidenPhi](const VPUser *U) {
-              return cast<VPRecipeBase>(U)->usesScalars(WidenPhi);
+              return U->usesScalars(WidenPhi);
             }))
           continue;
 
@@ -1433,8 +1433,17 @@ void VPReplicateRecipe::print(raw_ostream &O, const Twine &Indent,
     printAsOperand(O, SlotTracker);
     O << " = ";
   }
-  O << Instruction::getOpcodeName(getUnderlyingInstr()->getOpcode()) << " ";
-  printOperands(O, SlotTracker);
+  if (auto *CB = dyn_cast<CallBase>(getUnderlyingInstr())) {
+    O << "call @" << CB->getCalledFunction()->getName() << "(";
+    interleaveComma(make_range(op_begin(), op_begin() + (getNumOperands() - 1)),
+                    O, [&O, &SlotTracker](VPValue *Op) {
+                      Op->printAsOperand(O, SlotTracker);
+                    });
+    O << ")";
+  } else {
+    O << Instruction::getOpcodeName(getUnderlyingInstr()->getOpcode()) << " ";
+    printOperands(O, SlotTracker);
+  }
 
   if (AlsoPack)
     O << " (S->V)";
@@ -1453,7 +1462,7 @@ void VPWidenMemoryInstructionRecipe::print(raw_ostream &O, const Twine &Indent,
   O << Indent << "WIDEN ";
 
   if (!isStore()) {
-    printAsOperand(O, SlotTracker);
+    getVPSingleValue()->printAsOperand(O, SlotTracker);
     O << " = ";
   }
   O << Instruction::getOpcodeName(Ingredient.getOpcode()) << " ";
@@ -1760,9 +1769,8 @@ void VPSlotTracker::assignSlots(const VPlan &Plan) {
 }
 
 bool vputils::onlyFirstLaneUsed(VPValue *Def) {
-  return all_of(Def->users(), [Def](VPUser *U) {
-    return cast<VPRecipeBase>(U)->onlyFirstLaneUsed(Def);
-  });
+  return all_of(Def->users(),
+                [Def](VPUser *U) { return U->onlyFirstLaneUsed(Def); });
 }
 
 VPValue *vputils::getOrCreateVPValueForSCEVExpr(VPlan &Plan, const SCEV *Expr,
