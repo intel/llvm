@@ -39,6 +39,7 @@ define dso_local spir_func <4 x float> @block_read(i64 %addr) noinline {
 ; Function Attrs: convergent
 declare dso_local spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (float addrspace(4)*, <4 x float>, i32)*, float addrspace(4)*, float, i32) local_unnamed_addr
 
+;------------- This is also an entry point, because of the "sycl-module-id" attribute #0.
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
 define dso_local x86_regcallcc <4 x float> @_SIMD_CALLEE(float addrspace(4)* %A, <4 x float> %non_uni_val, i32 %uni_val) #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !0 {
 ; Verify that correct attributes are attached to the function:
