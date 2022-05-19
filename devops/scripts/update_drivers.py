@@ -24,7 +24,7 @@ def uplift_linux_igfx_driver(config, platform_tag):
             # print(deps)
             m = re.search(r"intel-igc-core_([0-9\.]*)_amd64", deps)
             if m is not None:
-                ver = m.group()
+                ver = m.group(1)
                 # print("IGC MATCH")
                 config[platform_tag]['igc']['github_tag'] = 'igc-' + ver
                 config[platform_tag]['igc']['version'] = ver
