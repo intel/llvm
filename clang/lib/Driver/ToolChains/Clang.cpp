@@ -9384,11 +9384,16 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
     assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
+    bool SplitEsimdByDefault = getToolChain().getTriple().isSPIR();
+    bool SplitEsimd = TCArgs.hasFlag(
+        options::OPT_fsycl_device_code_split_esimd,
+        options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
     // Symbol file and specialization constant info generation is mandatory -
     // add options unconditionally
     addArgs(CmdArgs, TCArgs, {"-symbols"});
     addArgs(CmdArgs, TCArgs, {"-emit-exported-symbols"});
-    addArgs(CmdArgs, TCArgs, {"-split-esimd"});
+    if (SplitEsimd)
+      addArgs(CmdArgs, TCArgs, {"-split-esimd"});
     addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
   addArgs(CmdArgs, TCArgs,
