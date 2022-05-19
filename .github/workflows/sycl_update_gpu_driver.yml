@@ -8,7 +8,7 @@ on:
 jobs:
   update_driver_linux:
     runs-on: ubuntu-latest
-    if: github.repository == 'intel/llvm'
+    #if: github.repository == 'intel/llvm'
     steps:
     - uses: actions/checkout@v2
     - name: Update dependencies file
@@ -30,7 +30,7 @@ jobs:
 
   update_driver_linux_staging:
     runs-on: ubuntu-latest
-    if: github.repository == 'intel/llvm'
+    #if: github.repository == 'intel/llvm'
     steps:
     - uses: actions/checkout@v2
     - name: Update dependencies file
