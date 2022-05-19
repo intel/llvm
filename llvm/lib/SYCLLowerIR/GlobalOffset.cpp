@@ -5,12 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This pass operates on SYCL kernels. It looks for uses of the
-// `llvm.{amdgcn|nvvm}.implicit.offset` intrinsic and replaces it with an
-// offset parameter which will be threaded through from the kernel entry point.
-//
-//===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/GlobalOffset.h"
 #include "llvm/ADT/SmallSet.h"

@@ -5,14 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This pass operates on SYCL kernels. It modifies kernel entry points which
-// take pointers to shared memory and alters them to take offsets into shared
-// memory (represented by a symbol in the shared address space). The SYCL
-// runtime is expected to provide offsets rather than pointers to these
-// functions.
-//
-//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_SYCL_LOCALACCESSORTOSHAREDMEMORY_H
 #define LLVM_SYCL_LOCALACCESSORTOSHAREDMEMORY_H
@@ -26,6 +18,11 @@ namespace llvm {
 class ModulePass;
 class PassRegistry;
 
+/// This pass operates on SYCL kernels. It modifies kernel entry points which
+/// take pointers to shared memory and alters them to take offsets into shared
+/// memory (represented by a symbol in the shared address space). The SYCL
+/// runtime is expected to provide offsets rather than pointers to these
+/// functions.
 class LocalAccessorToSharedMemoryPass
     : public PassInfoMixin<LocalAccessorToSharedMemoryPass> {
 private:

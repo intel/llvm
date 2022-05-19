@@ -5,12 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This pass operates on SYCL kernels. It looks for uses of the
-// `llvm.{amdgcn|nvvm}.implicit.offset` intrinsic and replaces it with an
-// offset parameter which will be threaded through from the kernel entry point.
-//
-//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_SYCL_GLOBALOFFSET_H
 #define LLVM_SYCL_GLOBALOFFSET_H
@@ -24,6 +18,10 @@ namespace llvm {
 class ModulePass;
 class PassRegistry;
 
+/// This pass operates on SYCL kernels. It looks for uses of the
+/// `llvm.{amdgcn|nvvm}.implicit.offset` intrinsic and replaces it with an
+/// offset parameter which will be threaded through from the kernel entry
+/// point.
 class GlobalOffsetPass : public PassInfoMixin<GlobalOffsetPass> {
 private:
   using KernelPayload = TargetHelpers::KernelPayload;
