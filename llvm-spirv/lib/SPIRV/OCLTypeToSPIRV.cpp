@@ -82,6 +82,8 @@ bool OCLTypeToSPIRVBase::runOCLTypeToSPIRV(Module &Module) {
   LLVM_DEBUG(dbgs() << "Enter OCLTypeToSPIRV:\n");
   M = &Module;
   Ctx = &M->getContext();
+  AdaptedTy.clear();
+  WorkSet.clear();
   auto Src = getSPIRVSource(&Module);
   if (std::get<0>(Src) != spv::SourceLanguageOpenCL_C)
     return false;
