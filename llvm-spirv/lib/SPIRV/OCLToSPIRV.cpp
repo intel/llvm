@@ -38,19 +38,16 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "ocl-to-spv"
 
+#include "OCLToSPIRV.h"
 #include "OCLTypeToSPIRV.h"
-#include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
@@ -87,290 +84,64 @@ static Type *getBlockStructType(Value *Parameter) {
   return ParamType;
 }
 
-class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase> {
-public:
-  OCLToSPIRVBase() : M(nullptr), Ctx(nullptr), CLVer(0) {}
-  virtual ~OCLToSPIRVBase() {}
-  bool runOCLToSPIRV(Module &M);
+bool OCLToSPIRVLegacy::runOnModule(Module &M) {
+  setOCLTypeToSPIRV(&getAnalysis<OCLTypeToSPIRVLegacy>());
+  return runOCLToSPIRV(M);
+}
 
-  virtual void visitCallInst(CallInst &CI);
+void OCLToSPIRVLegacy::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<OCLTypeToSPIRVLegacy>();
+}
 
-  /// Transform barrier/work_group_barrier/sub_group_barrier
-  ///     to __spirv_ControlBarrier.
-  /// barrier(flag) =>
-  ///   __spirv_ControlBarrier(workgroup, workgroup, map(flag))
-  /// work_group_barrier(scope, flag) =>
-  ///   __spirv_ControlBarrier(workgroup, map(scope), map(flag))
-  /// sub_group_barrier(scope, flag) =>
-  ///   __spirv_ControlBarrier(subgroup, map(scope), map(flag))
-  void visitCallBarrier(CallInst *CI);
+llvm::PreservedAnalyses OCLToSPIRVPass::run(llvm::Module &M,
+                                            llvm::ModuleAnalysisManager &MAM) {
+  setOCLTypeToSPIRV(&MAM.getResult<OCLTypeToSPIRVPass>(M));
+  return runOCLToSPIRV(M) ? llvm::PreservedAnalyses::none()
+                          : llvm::PreservedAnalyses::all();
+}
 
-  /// Erase useless convert functions.
-  /// \return true if the call instruction is erased.
-  bool eraseUselessConvert(CallInst *Call, StringRef MangledName,
-                           StringRef DeMangledName);
+/// Get vector width from OpenCL vload* function name.
+SPIRVWord OCLToSPIRVBase::getVecLoadWidth(const std::string &DemangledName) {
+  SPIRVWord Width = 0;
+  if (DemangledName == "vloada_half")
+    Width = 1;
+  else {
+    unsigned Loc = 5;
+    if (DemangledName.find("vload_half") == 0)
+      Loc = 10;
+    else if (DemangledName.find("vloada_half") == 0)
+      Loc = 11;
 
-  /// Transform convert_ to
-  ///   __spirv_{CastOpName}_R{TargeTyName}{_sat}{_rt[p|n|z|e]}
-  void visitCallConvert(CallInst *CI, StringRef MangledName,
-                        StringRef DemangledName);
-
-  /// Transform async_work_group{_strided}_copy.
-  /// async_work_group_copy(dst, src, n, event)
-  ///   => async_work_group_strided_copy(dst, src, n, 1, event)
-  /// async_work_group_strided_copy(dst, src, n, stride, event)
-  ///   => __spirv_AsyncGroupCopy(ScopeWorkGroup, dst, src, n, stride, event)
-  void visitCallAsyncWorkGroupCopy(CallInst *CI, StringRef DemangledName);
-
-  /// Transform OCL builtin function to SPIR-V builtin function.
-  void transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info);
-
-  /// Transform atomic_work_item_fence/mem_fence to __spirv_MemoryBarrier.
-  /// func(flag, order, scope) =>
-  ///   __spirv_MemoryBarrier(map(scope), map(flag)|map(order))
-  void transMemoryBarrier(CallInst *CI, AtomicWorkItemFenceLiterals);
-
-  /// Transform all to __spirv_Op(All|Any).  Note that the types mismatch so
-  // some extra code is emitted to convert between the two.
-  void visitCallAllAny(spv::Op OC, CallInst *CI);
-
-  /// Transform atomic_* to __spirv_Atomic*.
-  /// atomic_x(ptr_arg, args, order, scope) =>
-  ///   __spirv_AtomicY(ptr_arg, map(order), map(scope), args)
-  void transAtomicBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info);
-
-  /// Transform atomic_work_item_fence to __spirv_MemoryBarrier.
-  /// atomic_work_item_fence(flag, order, scope) =>
-  ///   __spirv_MemoryBarrier(map(scope), map(flag)|map(order))
-  void visitCallAtomicWorkItemFence(CallInst *CI);
-
-  /// Transform atomic_compare_exchange call.
-  /// In atomic_compare_exchange, the expected value parameter is a pointer.
-  /// However in SPIR-V it is a value. The transformation adds a load
-  /// instruction, result of which is passed to atomic_compare_exchange as
-  /// argument.
-  /// The transformation adds a store instruction after the call, to update the
-  /// value in expected with the value pointed to by object. Though, it is not
-  /// necessary in case they are equal, this approach makes result code simpler.
-  /// Also ICmp instruction is added, because the call must return result of
-  /// comparison.
-  /// \returns the call instruction of atomic_compare_exchange_strong.
-  CallInst *visitCallAtomicCmpXchg(CallInst *CI);
-
-  /// Transform atomic_init.
-  /// atomic_init(p, x) => store p, x
-  void visitCallAtomicInit(CallInst *CI);
-
-  /// Transform legacy OCL 1.x atomic builtins to SPIR-V builtins for extensions
-  ///   cl_khr_int64_base_atomics
-  ///   cl_khr_int64_extended_atomics
-  /// Do nothing if the called function is not a legacy atomic builtin.
-  void visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
-                             StringRef DemangledName);
-
-  /// Transform OCL 2.0 C++11 atomic builtins to SPIR-V builtins.
-  /// Do nothing if the called function is not a C++11 atomic builtin.
-  void visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
-                            StringRef DemangledName);
-
-  /// Transform OCL builtin function to SPIR-V builtin function.
-  /// Assuming there is a simple name mapping without argument changes.
-  /// Should be called at last.
-  void visitCallBuiltinSimple(CallInst *CI, StringRef MangledName,
-                              StringRef DemangledName);
-
-  /// Transform get_image_{width|height|depth|dim}.
-  /// get_image_xxx(...) =>
-  ///   dimension = __spirv_ImageQuerySizeLod_R{ReturnType}(...);
-  ///   return dimension.{x|y|z};
-  void visitCallGetImageSize(CallInst *CI, StringRef DemangledName);
-
-  /// Transform {work|sub}_group_x =>
-  ///   __spirv_{OpName}
-  ///
-  /// Special handling of work_group_broadcast.
-  ///   work_group_broadcast(a, x, y, z)
-  ///     =>
-  ///   __spirv_GroupBroadcast(a, vec3(x, y, z))
-
-  void visitCallGroupBuiltin(CallInst *CI, StringRef DemangledName);
-
-  /// Transform mem_fence to __spirv_MemoryBarrier.
-  /// mem_fence(flag) => __spirv_MemoryBarrier(Workgroup, map(flag))
-  void visitCallMemFence(CallInst *CI, StringRef DemangledName);
-
-  void visitCallNDRange(CallInst *CI, StringRef DemangledName);
-
-  /// Transform read_image with sampler arguments.
-  /// read_image(image, sampler, ...) =>
-  ///   sampled_image = __spirv_SampledImage(image, sampler);
-  ///   return __spirv_ImageSampleExplicitLod_R{ReturnType}(sampled_image, ...);
-  void visitCallReadImageWithSampler(CallInst *CI, StringRef MangledName);
-
-  /// Transform read_image with msaa image arguments.
-  /// Sample argument must be acoded as Image Operand.
-  void visitCallReadImageMSAA(CallInst *CI, StringRef MangledName);
-
-  /// Transform {read|write}_image without sampler arguments.
-  void visitCallReadWriteImage(CallInst *CI, StringRef DemangledName);
-
-  /// Transform to_{global|local|private}.
-  ///
-  /// T* a = ...;
-  /// addr T* b = to_addr(a);
-  ///   =>
-  /// i8* x = cast<i8*>(a);
-  /// addr i8* y = __spirv_GenericCastToPtr_ToAddr(x);
-  /// addr T* b = cast<addr T*>(y);
-  void visitCallToAddr(CallInst *CI, StringRef DemangledName);
-
-  /// Transform return type of relatinal built-in functions like isnan, isfinite
-  /// to boolean values.
-  void visitCallRelational(CallInst *CI, StringRef DemangledName);
-
-  /// Transform vector load/store functions to SPIR-V extended builtin
-  ///   functions
-  /// {vload|vstore{a}}{_half}{n}{_rte|_rtz|_rtp|_rtn} =>
-  ///   __spirv_ocl_{ExtendedInstructionOpCodeName}__R{ReturnType}
-  void visitCallVecLoadStore(CallInst *CI, StringRef MangledName,
-                             StringRef DemangledName);
-
-  /// Transforms get_mem_fence built-in to SPIR-V function and aligns result
-  /// values with SPIR 1.2. get_mem_fence(ptr) => __spirv_GenericPtrMemSemantics
-  /// GenericPtrMemSemantics valid values are 0x100, 0x200 and 0x300, where is
-  /// SPIR 1.2 defines them as 0x1, 0x2 and 0x3, so this function adjusts
-  /// GenericPtrMemSemantics results to SPIR 1.2 values.
-  void visitCallGetFence(CallInst *CI, StringRef DemangledName);
-
-  /// Transforms OpDot instructions with a scalar type to a fmul instruction
-  void visitCallDot(CallInst *CI);
-
-  /// Fixes for built-in functions with vector+scalar arguments that are
-  /// translated to the SPIR-V instructions where all arguments must have the
-  /// same type.
-  void visitCallScalToVec(CallInst *CI, StringRef MangledName,
-                          StringRef DemangledName);
-
-  /// Transform get_image_channel_{order|data_type} built-in functions to
-  ///   __spirv_ocl_{ImageQueryOrder|ImageQueryFormat}
-  void visitCallGetImageChannel(CallInst *CI, StringRef DemangledName,
-                                unsigned int Offset);
-
-  /// Transform enqueue_kernel and kernel query built-in functions to
-  /// spirv-friendly format filling arguments, required for device-side enqueue
-  /// instructions, but missed in the original call
-  void visitCallEnqueueKernel(CallInst *CI, StringRef DemangledName);
-  void visitCallKernelQuery(CallInst *CI, StringRef DemangledName);
-
-  /// For cl_intel_subgroups block read built-ins:
-  void visitSubgroupBlockReadINTEL(CallInst *CI);
-
-  /// For cl_intel_subgroups block write built-ins:
-  void visitSubgroupBlockWriteINTEL(CallInst *CI);
-
-  /// For cl_intel_media_block_io built-ins:
-  void visitSubgroupImageMediaBlockINTEL(CallInst *CI, StringRef DemangledName);
-  // For cl_intel_device_side_avc_motion_estimation built-ins
-  void visitSubgroupAVCBuiltinCall(CallInst *CI, StringRef DemangledName);
-  void visitSubgroupAVCWrapperBuiltinCall(CallInst *CI, Op WrappedOC,
-                                          StringRef DemangledName);
-  void visitSubgroupAVCBuiltinCallWithSampler(CallInst *CI,
-                                              StringRef DemangledName);
-
-  void visitCallLdexp(CallInst *CI, StringRef MangledName,
-                      StringRef DemangledName);
-
-  /// For cl_intel_convert_bfloat16_as_ushort
-  void visitCallConvertBFloat16AsUshort(CallInst *CI, StringRef DemangledName);
-  /// For cl_intel_convert_as_bfloat16_float
-  void visitCallConvertAsBFloat16Float(CallInst *CI, StringRef DemangledName);
-
-  void setOCLTypeToSPIRV(OCLTypeToSPIRVBase *OCLTypeToSPIRV) {
-    OCLTypeToSPIRVPtr = OCLTypeToSPIRV;
+    std::stringstream SS(DemangledName.substr(Loc));
+    SS >> Width;
   }
-  OCLTypeToSPIRVBase *getOCLTypeToSPIRV() { return OCLTypeToSPIRVPtr; }
+  return Width;
+}
 
-private:
-  Module *M;
-  LLVMContext *Ctx;
-  unsigned CLVer; /// OpenCL version as major*10+minor
-  std::set<Value *> ValuesToDelete;
-  OCLTypeToSPIRVBase *OCLTypeToSPIRVPtr;
-
-  ConstantInt *addInt32(int I) { return getInt32(M, I); }
-  ConstantInt *addSizet(uint64_t I) { return getSizet(M, I); }
-
-  /// Get vector width from OpenCL vload* function name.
-  SPIRVWord getVecLoadWidth(const std::string &DemangledName) {
-    SPIRVWord Width = 0;
-    if (DemangledName == "vloada_half")
-      Width = 1;
-    else {
-      unsigned Loc = 5;
-      if (DemangledName.find("vload_half") == 0)
-        Loc = 10;
-      else if (DemangledName.find("vloada_half") == 0)
-        Loc = 11;
-
-      std::stringstream SS(DemangledName.substr(Loc));
-      SS >> Width;
-    }
-    return Width;
+/// Transform OpenCL vload/vstore function name.
+void OCLToSPIRVBase::transVecLoadStoreName(std::string &DemangledName,
+                                           const std::string &Stem,
+                                           bool AlwaysN) {
+  auto HalfStem = Stem + "_half";
+  auto HalfStemR = HalfStem + "_r";
+  if (!AlwaysN && DemangledName == HalfStem)
+    return;
+  if (!AlwaysN && DemangledName.find(HalfStemR) == 0) {
+    DemangledName = HalfStemR;
+    return;
   }
-
-  /// Transform OpenCL vload/vstore function name.
-  void transVecLoadStoreName(std::string &DemangledName,
-                             const std::string &Stem, bool AlwaysN) {
-    auto HalfStem = Stem + "_half";
-    auto HalfStemR = HalfStem + "_r";
-    if (!AlwaysN && DemangledName == HalfStem)
-      return;
-    if (!AlwaysN && DemangledName.find(HalfStemR) == 0) {
-      DemangledName = HalfStemR;
-      return;
-    }
-    if (DemangledName.find(HalfStem) == 0) {
-      auto OldName = DemangledName;
-      DemangledName = HalfStem + "n";
-      if (OldName.find("_r") != std::string::npos)
-        DemangledName += "_r";
-      return;
-    }
-    if (DemangledName.find(Stem) == 0) {
-      DemangledName = Stem + "n";
-      return;
-    }
+  if (DemangledName.find(HalfStem) == 0) {
+    auto OldName = DemangledName;
+    DemangledName = HalfStem + "n";
+    if (OldName.find("_r") != std::string::npos)
+      DemangledName += "_r";
+    return;
   }
-};
-
-class OCLToSPIRVLegacy : public OCLToSPIRVBase, public llvm::ModulePass {
-public:
-  OCLToSPIRVLegacy() : ModulePass(ID) {
-    initializeOCLToSPIRVLegacyPass(*PassRegistry::getPassRegistry());
+  if (DemangledName.find(Stem) == 0) {
+    DemangledName = Stem + "n";
+    return;
   }
-
-  bool runOnModule(Module &M) override {
-    setOCLTypeToSPIRV(&getAnalysis<OCLTypeToSPIRVLegacy>());
-    return runOCLToSPIRV(M);
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<OCLTypeToSPIRVLegacy>();
-  }
-
-  static char ID;
-};
-
-class OCLToSPIRVPass : public OCLToSPIRVBase,
-                       public llvm::PassInfoMixin<OCLToSPIRVBase> {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM) {
-    setOCLTypeToSPIRV(&MAM.getResult<OCLTypeToSPIRVPass>(M));
-    return runOCLToSPIRV(M) ? llvm::PreservedAnalyses::none()
-                            : llvm::PreservedAnalyses::all();
-  }
-};
+}
 
 char OCLToSPIRVLegacy::ID = 0;
 

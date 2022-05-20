@@ -38,6 +38,7 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "clmdtospv"
 
+#include "PreprocessMetadata.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "SPIRVMDBuilder.h"
@@ -48,8 +49,6 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
@@ -60,42 +59,6 @@ namespace SPIRV {
 
 cl::opt<bool> EraseOCLMD("spirv-erase-cl-md", cl::init(true),
                          cl::desc("Erase OpenCL metadata"));
-
-class PreprocessMetadataBase {
-public:
-  PreprocessMetadataBase() : M(nullptr), Ctx(nullptr) {}
-
-  bool runPreprocessMetadata(Module &M);
-  void visit(Module *M);
-  void preprocessCXXStructorList(SPIRVMDBuilder::NamedMDWrapper &EM,
-                                 GlobalVariable *V, ExecutionMode EMode);
-  void preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B, SPIRVMDWalker *W);
-  void preprocessVectorComputeMetadata(Module *M, SPIRVMDBuilder *B,
-                                       SPIRVMDWalker *W);
-
-private:
-  Module *M;
-  LLVMContext *Ctx;
-};
-
-class PreprocessMetadataLegacy : public ModulePass,
-                                 public PreprocessMetadataBase {
-public:
-  PreprocessMetadataLegacy() : ModulePass(ID) {
-    initializePreprocessMetadataLegacyPass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
-
-  static char ID;
-};
-
-class PreprocessMetadataPass
-    : public llvm::PassInfoMixin<PreprocessMetadataPass>,
-      public PreprocessMetadataBase {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM);
-};
 
 char PreprocessMetadataLegacy::ID = 0;
 
