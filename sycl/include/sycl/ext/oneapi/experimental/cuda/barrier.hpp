@@ -32,6 +32,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __clc_BarrierInitialize(&state, expected_count);
 #else
+    (void)state;
+    (void)expected_count;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -68,6 +70,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __clc_BarrierArriveNoComplete(&state, count);
 #else
+    (void)count;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -77,6 +80,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __clc_BarrierArriveAndDropNoComplete(&state, count);
 #else
+    (void)count;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -104,6 +108,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __clc_BarrierWait(&state, arrival);
 #else
+    (void)arrival;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -113,6 +118,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __clc_BarrierTestWait(&state, arrival);
 #else
+    (void)arrival;
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
@@ -127,7 +133,13 @@ public:
 #endif
   }
 
+// On Windows certain headers define macros min/max
+#pragma push_macro("max")
+#ifdef max
+#undef max
+#endif
   static constexpr uint64_t max() { return (1 << 20) - 1; }
+#pragma pop_macro("max")
 };
 
 } // namespace sycl::ext::oneapi::experimental::cuda

@@ -1134,6 +1134,31 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 }
 
+// Reset signalled command lists in the queue and put them to the cache of
+// command lists. A caller must not lock the queue mutex.
+pi_result _pi_queue::resetCommandLists() {
+  // We check for command lists that have been already signalled, but have not
+  // been added to the available list yet. Each command list has a fence
+  // associated which tracks if a command list has completed dispatch of its
+  // commands and is ready for reuse. If a command list is found to have been
+  // signalled, then the command list & fence are reset and command list is
+  // returned to the command list cache. All events associated with command list
+  // are cleaned up if command list was reset.
+  std::scoped_lock Lock(this->Mutex);
+  for (auto &&it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
+    // It is possible that the fence was already noted as signalled and
+    // reset. In that case the InUse flag will be false.
+    if (it->second.InUse) {
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        PI_CALL(resetCommandList(it, true));
+      }
+    }
+  }
+  return PI_SUCCESS;
+}
+
 // Retrieve an available command list to be used in a PI call.
 pi_result
 _pi_context::getAvailableCommandList(pi_queue Queue,
@@ -1209,28 +1234,6 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
                 .first;
       }
       ZeCommandListCache.pop_front();
-      return PI_SUCCESS;
-    }
-  }
-
-  // If there are no available command lists in the cache, then we check for
-  // command lists that have already signalled, but have not been added to the
-  // available list yet. Each command list has a fence associated which tracks
-  // if a command list has completed dispatch of its commands and is ready for
-  // reuse. If a command list is found to have been signalled, then the
-  // command list & fence are reset and we return.
-  for (auto it = Queue->CommandListMap.begin();
-       it != Queue->CommandListMap.end(); ++it) {
-    // Make sure this is the command list type needed.
-    if (UseCopyEngine != it->second.isCopy(Queue))
-      continue;
-
-    ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-    if (ZeResult == ZE_RESULT_SUCCESS) {
-      Queue->resetCommandList(it, false);
-      CommandList = it;
-      CommandList->second.InUse = true;
       return PI_SUCCESS;
     }
   }
@@ -3388,40 +3391,58 @@ pi_result piQueueFinish(pi_queue Queue) {
 
   if (UseImmediateCommandLists) {
     // Lock automatically releases when this goes out of scope.
-    std::scoped_lock lock(Queue->Mutex);
+    std::scoped_lock Lock(Queue->Mutex);
 
     Queue->synchronize();
     return PI_SUCCESS;
+  } else {
+    std::unique_lock Lock(Queue->Mutex);
+    std::vector<ze_command_queue_handle_t> ZeQueues;
+
+    // execute any command list that may still be open.
+    if (auto Res = Queue->executeAllOpenCommandLists())
+      return Res;
+
+    // Make a copy of queues to sync and release the lock.
+    ZeQueues = Queue->CopyQueueGroup.ZeQueues;
+    std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
+              Queue->ComputeQueueGroup.ZeQueues.end(),
+              std::back_inserter(ZeQueues));
+
+    // Remember the last command's event.
+    auto LastCommandEvent = Queue->LastCommandEvent;
+
+    // Don't hold a lock to the queue's mutex while waiting.
+    // This allows continue working with the queue from other threads.
+    // TODO: this currently exhibits some issues in the driver, so
+    // we control this with an env var. Remove this control when
+    // we settle one way or the other.
+    static bool HoldLock =
+        std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK") != nullptr;
+    if (!HoldLock) {
+      Lock.unlock();
+    }
+
+    for (auto ZeQueue : ZeQueues) {
+      if (ZeQueue)
+        ZE_CALL(zeHostSynchronize, (ZeQueue));
+    }
+
+    // Prevent unneeded already finished events to show up in the wait list.
+    // We can only do so if nothing else was submitted to the queue
+    // while we were synchronizing it.
+    if (!HoldLock) {
+      std::scoped_lock Lock(Queue->Mutex);
+      if (LastCommandEvent == Queue->LastCommandEvent) {
+        Queue->LastCommandEvent = nullptr;
+      }
+    } else {
+      Queue->LastCommandEvent = nullptr;
+    }
   }
-
-  std::unique_lock lock(Queue->Mutex);
-  std::vector<ze_command_queue_handle_t> ZeQueues;
-
-  // execute any command list that may still be open.
-  if (auto Res = Queue->executeAllOpenCommandLists())
-    return Res;
-
-  // Make a copy of queues to sync and release the lock.
-  ZeQueues = Queue->CopyQueueGroup.ZeQueues;
-  std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
-            Queue->ComputeQueueGroup.ZeQueues.end(),
-            std::back_inserter(ZeQueues));
-
-  // Don't hold a lock to the queue's mutex while waiting.
-  // This allows continue working with the queue from other threads.
-  // TODO: this currently exhibits some issues in the driver, so
-  // we control this with an env var. Remove this control when
-  // we settle one way or the other.
-  static bool HoldLock =
-      std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK") != nullptr;
-  if (!HoldLock) {
-    lock.unlock();
-  }
-
-  for (auto ZeQueue : ZeQueues) {
-    if (ZeQueue)
-      ZE_CALL(zeHostSynchronize, (ZeQueue));
-  }
+  // Reset signalled command lists and return them back to the cache of
+  // available command lists.
+  Queue->resetCommandLists();
   return PI_SUCCESS;
 }
 
@@ -3447,8 +3468,9 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                           pi_context Context, pi_queue *Queue,
-                                           bool OwnNativeHandle) {
+                                           pi_context Context, pi_device Device,
+                                           bool OwnNativeHandle,
+                                           pi_queue *Queue) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
@@ -3457,9 +3479,11 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Assume this is the "0" index queue in the compute command-group.
   std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
 
-  // Attach the queue to the "0" device.
-  // TODO: see if we need to let user choose the device.
-  pi_device Device = Context->Devices[0];
+  // For compatibility with older implementations we allow the device to be
+  // optional for now. Once the deprecated interop API is removed this can be
+  // changed to an assert(Device).
+  if (!Device)
+    Device = Context->Devices[0];
   // TODO: see what we can do to correctly initialize PI queue for
   // compute vs. copy Level-Zero queue. Currently we will send
   // all commands to the "ZeQueue".
@@ -4533,11 +4557,18 @@ pi_result piProgramRetain(pi_program Program) {
 
 pi_result piProgramRelease(pi_program Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
-  // Check if the program is already released
-  PI_ASSERT(Program->RefCount > 0, PI_INVALID_VALUE);
-  if (--(Program->RefCount) == 0) {
-    delete Program;
+  bool RefCountZero = false;
+  {
+    std::scoped_lock Guard(Program->Mutex);
+    // Check if the program is already released
+    PI_ASSERT(Program->RefCount > 0, PI_INVALID_VALUE);
+    if (--(Program->RefCount) == 0) {
+      RefCountZero = true;
+    }
   }
+  if (RefCountZero)
+    delete Program;
+
   return PI_SUCCESS;
 }
 
@@ -4707,6 +4738,7 @@ pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
+  std::scoped_lock Guard(Kernel->Mutex);
   ZE_CALL(zeKernelSetArgumentValue,
           (pi_cast<ze_kernel_handle_t>(Kernel->ZeKernel),
            pi_cast<uint32_t>(ArgIndex), pi_cast<size_t>(ArgSize),
@@ -4734,8 +4766,10 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   //       Improve that by passing SYCL buffer accessor type into
   //       piextKernelSetArgMemObj.
   //
+  std::scoped_lock Guard(Kernel->Mutex);
   Kernel->PendingArguments.push_back(
       {ArgIndex, sizeof(void *), *ArgValue, _pi_mem::read_write});
+
   return PI_SUCCESS;
 }
 
@@ -4744,6 +4778,7 @@ pi_result piextKernelSetArgSampler(pi_kernel Kernel, pi_uint32 ArgIndex,
                                    const pi_sampler *ArgValue) {
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
+  std::scoped_lock Guard(Kernel->Mutex);
   ZE_CALL(zeKernelSetArgumentValue,
           (pi_cast<ze_kernel_handle_t>(Kernel->ZeKernel),
            pi_cast<uint32_t>(ArgIndex), sizeof(void *),
@@ -4758,6 +4793,8 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
+  std::shared_lock Guard(Kernel->Mutex);
   switch (ParamName) {
   case PI_KERNEL_INFO_CONTEXT:
     return ReturnValue(pi_context{Kernel->Program->Context});
@@ -4808,6 +4845,8 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
+  std::shared_lock Guard(Kernel->Mutex);
   switch (ParamName) {
   case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
     // TODO: To revisit after level_zero/issues/262 is resolved
@@ -4863,6 +4902,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel Kernel, pi_device Device,
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
+  std::shared_lock Guard(Kernel->Mutex);
   if (ParamName == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
     ReturnValue(uint32_t{Kernel->ZeKernelProperties->maxSubgroupSize});
   } else if (ParamName == PI_KERNEL_MAX_NUM_SUB_GROUPS) {
@@ -4882,49 +4922,58 @@ pi_result piKernelRetain(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
-  ++(Kernel->RefCount);
-  // When retaining a kernel, you are also retaining the program it is part of.
-  PI_CALL(piProgramRetain(Kernel->Program));
+  // When retaining a kernel, you are also retaining the program it is part
+  // of.
+  std::scoped_lock Lock(Kernel->Mutex, Kernel->Program->Mutex);
+  Kernel->retain();
   return PI_SUCCESS;
 }
 
 pi_result piKernelRelease(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
-
-  if (IndirectAccessTrackingEnabled) {
-    // piKernelRelease is called by Event->cleanup() as soon as kernel
-    // execution has finished. This is the place where we need to release memory
-    // allocations. If kernel is not in use (not submitted by some other thread)
-    // then release referenced memory allocations. As a result, memory can be
-    // deallocated and context can be removed from container in the platform.
-    // That's why we need to lock a mutex here.
-    pi_platform Plt = Kernel->Program->Context->getPlatform();
-    std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
-
-    if (--Kernel->SubmissionsCount == 0) {
-      // Kernel is not submitted for execution, release referenced memory
-      // allocations.
-      for (auto &MemAlloc : Kernel->MemAllocs) {
-        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
-                      MemAlloc->second.OwnZeMemHandle);
-      }
-      Kernel->MemAllocs.clear();
-    }
-  }
-
-  auto KernelProgram = Kernel->Program;
-  if (--(Kernel->RefCount) == 0) {
-    if (Kernel->OwnZeKernel)
-      ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
+  pi_program KernelProgram = nullptr;
+  bool RefCountZero = false;
+  {
+    std::scoped_lock Guard(Kernel->Mutex);
+    KernelProgram = Kernel->Program;
     if (IndirectAccessTrackingEnabled) {
-      PI_CALL(piContextRelease(KernelProgram->Context));
+      // piKernelRelease is called by Event->cleanup() as soon as kernel
+      // execution has finished. This is the place where we need to release
+      // memory allocations. If kernel is not in use (not submitted by some
+      // other thread) then release referenced memory allocations. As a result,
+      // memory can be deallocated and context can be removed from container in
+      // the platform. That's why we need to lock a mutex here.
+      pi_platform Plt = KernelProgram->Context->getPlatform();
+      std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
+
+      if (--Kernel->SubmissionsCount == 0) {
+        // Kernel is not submitted for execution, release referenced memory
+        // allocations.
+        for (auto &MemAlloc : Kernel->MemAllocs) {
+          USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
+                        MemAlloc->second.OwnZeMemHandle);
+        }
+        Kernel->MemAllocs.clear();
+      }
     }
-    delete Kernel;
+
+    if (--(Kernel->RefCount) == 0) {
+      if (Kernel->OwnZeKernel)
+        ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
+      if (IndirectAccessTrackingEnabled) {
+        PI_CALL(piContextRelease(KernelProgram->Context));
+      }
+      RefCountZero = true;
+    }
   }
 
-  // do a release on the program this kernel was part of
-  PI_CALL(piProgramRelease(KernelProgram));
+  if (RefCountZero)
+    delete Kernel;
+
+  if (KernelProgram)
+    // do a release on the program this kernel was part of
+    PI_CALL(piProgramRelease(KernelProgram));
 
   return PI_SUCCESS;
 }
@@ -4940,6 +4989,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT(Event, PI_INVALID_EVENT);
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
 
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock Lock(Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
     if (!PiDriverGlobalOffsetExtensionFound) {
       zePrint("No global offset extension found on this driver\n");
@@ -5025,9 +5076,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   ZE_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock QueueLock(Queue->Mutex);
-
   _pi_ze_event_list_t TmpWaitList;
 
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
@@ -5053,12 +5101,11 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // the code can do a piKernelRelease on this kernel.
   (*Event)->CommandData = (void *)Kernel;
 
-  // Use piKernelRetain to increment the reference count and indicate
-  // that the Kernel is in use. Once the event has been signalled, the
-  // code in Event.cleanup() will do a piReleaseKernel to update
-  // the reference count on the kernel, using the kernel saved
-  // in CommandData.
-  PI_CALL(piKernelRetain(Kernel));
+  // Increment the reference count of the Kernel and indicate that the Kernel is
+  // in use. Once the event has been signalled, the code in Event.cleanup() will
+  // do a piReleaseKernel to update the reference count on the kernel, using the
+  // kernel saved in CommandData.
+  Kernel->retain();
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
@@ -5128,6 +5175,7 @@ pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
+  std::shared_lock Guard(Kernel->Mutex);
   auto *ZeKernel = pi_cast<ze_kernel_handle_t *>(NativeHandle);
   *ZeKernel = Kernel->ZeKernel;
   return PI_SUCCESS;
@@ -5791,6 +5839,7 @@ pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,
 pi_result piSamplerRetain(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
+  std::scoped_lock Guard(Sampler->Mutex);
   ++(Sampler->RefCount);
   return PI_SUCCESS;
 }
@@ -5798,10 +5847,18 @@ pi_result piSamplerRetain(pi_sampler Sampler) {
 pi_result piSamplerRelease(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
-  if (--(Sampler->RefCount) == 0) {
-    ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
-    delete Sampler;
+  bool RefCountZero = false;
+  {
+    std::scoped_lock Guard(Sampler->Mutex);
+    if (--(Sampler->RefCount) == 0) {
+      ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
+      RefCountZero = true;
+    }
   }
+
+  if (RefCountZero)
+    delete Sampler;
+
   return PI_SUCCESS;
 }
 
@@ -5850,25 +5907,30 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     return Queue->executeCommandList(CommandList);
   }
 
-  // If wait-list is empty, then this particular command should wait until
-  // all previous enqueued commands to the command-queue have completed.
-  //
-  // TODO: find a way to do that without blocking the host.
+  {
+    // If wait-list is empty, then this particular command should wait until
+    // all previous enqueued commands to the command-queue have completed.
+    //
+    // TODO: find a way to do that without blocking the host.
 
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock lock(Queue->Mutex);
+    // Lock automatically releases when this goes out of scope.
+    std::scoped_lock lock(Queue->Mutex);
 
-  auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                          Queue->CommandListMap.end());
-  if (Res != PI_SUCCESS)
-    return Res;
+    auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
+                                            Queue->CommandListMap.end());
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  Queue->synchronize();
+    Queue->synchronize();
 
-  Queue->LastCommandEvent = *Event;
+    Queue->LastCommandEvent = *Event;
 
-  ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
-  (*Event)->Completed = true;
+    ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+    (*Event)->Completed = true;
+  }
+
+  Queue->resetCommandLists();
+
   return PI_SUCCESS;
 }
 
@@ -7918,6 +7980,7 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
   PI_ASSERT(ParamValue, PI_INVALID_VALUE);
 
+  std::scoped_lock Guard(Kernel->Mutex);
   if (ParamName == PI_USM_INDIRECT_ACCESS &&
       *(static_cast<const pi_bool *>(ParamValue)) == PI_TRUE) {
     // The whole point for users really was to not need to know anything
