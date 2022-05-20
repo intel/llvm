@@ -44,10 +44,11 @@
 // piQueueFlush function.
 // 7.9 Added new context and ownership arguments to
 // piextMemCreateWithNativeHandle.
+// 8.10 Added new optional device argument to piextQueueCreateWithNativeHandle
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 7
-#define _PI_H_VERSION_MINOR 9
+#define _PI_H_VERSION_MAJOR 8
+#define _PI_H_VERSION_MINOR 10
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -320,7 +321,8 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
-  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER = 0x20004,
 } _pi_device_info;
 
 typedef enum {
@@ -1157,12 +1159,15 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 ///
 /// \param nativeHandle is the native handle to create PI queue from.
 /// \param context is the PI context of the queue.
-/// \param queue is the PI queue created from the native handle.
+/// \param device is the PI device associated with the native device used when
+///   creating the native queue. This parameter is optional but some backends
+///   may fail to create the right PI queue if omitted.
 /// \param pluginOwnsNativeHandle Indicates whether the created PI object
 ///        should take ownership of the native handle.
+/// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_queue *queue,
-    bool pluginOwnsNativeHandle);
+    pi_native_handle nativeHandle, pi_context context, pi_device device,
+    bool pluginOwnsNativeHandle, pi_queue *queue);
 
 //
 // Memory
@@ -1822,9 +1827,9 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  char PiVersion[4];
+  char PiVersion[10];
   // Plugin edits this.
-  char PluginVersion[4];
+  char PluginVersion[10];
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

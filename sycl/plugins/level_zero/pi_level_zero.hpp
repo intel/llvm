@@ -261,6 +261,8 @@ struct _pi_object {
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
   pi_shared_mutex Mutex;
+
+  void retain() { ++RefCount; }
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -891,6 +893,10 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable);
 
+  // Reset signalled command lists in the queue and put them to the cache of
+  // command lists. A caller must not lock the queue mutex.
+  pi_result resetCommandLists();
+
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
   // checked. Otherwise, the OpenCommandList containing compute commands is
@@ -1389,6 +1395,13 @@ struct _pi_kernel : _pi_object {
     return true;
   }
 
+  // The caller must lock access to the kernel and program.
+  void retain() {
+    ++RefCount;
+    // When retaining a kernel, you are also retaining the program it is part
+    // of.
+    Program->retain();
+  }
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 

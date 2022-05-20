@@ -2319,10 +2319,12 @@ pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
 /// \return TBD
 pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                pi_context context,
-                                               pi_queue *queue,
-                                               bool ownNativeHandle) {
+                                               pi_device device,
+                                               bool ownNativeHandle,
+                                               pi_queue *queue) {
   (void)nativeHandle;
   (void)context;
+  (void)device;
   (void)queue;
   (void)ownNativeHandle;
   cl::sycl::detail::pi::die(
@@ -4901,7 +4903,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   }
 
   // PI interface supports higher version or the same version.
-  strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
+  size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
+  if (strlen(SupportedVersion) >= PluginVersionSize)
+    return PI_INVALID_VALUE;
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
   // Set whole function table to zero to make it easier to detect if
   // functions are not set up below.

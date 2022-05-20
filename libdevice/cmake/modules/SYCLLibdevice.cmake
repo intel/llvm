@@ -98,6 +98,9 @@ add_devicelib_obj(libsycl-complex SRC complex_wrapper.cpp DEP ${complex_obj_deps
 add_devicelib_obj(libsycl-complex-fp64 SRC complex_wrapper_fp64.cpp DEP ${complex_obj_deps} )
 add_devicelib_obj(libsycl-cmath SRC cmath_wrapper.cpp DEP ${cmath_obj_deps})
 add_devicelib_obj(libsycl-cmath-fp64 SRC cmath_wrapper_fp64.cpp DEP ${cmath_obj_deps} )
+if(WIN32)
+add_devicelib_obj(libsycl-msvc-math SRC msvc_math.cpp DEP ${cmath_obj_deps})
+endif()
 
 add_fallback_devicelib(libsycl-fallback-cassert SRC fallback-cassert.cpp DEP ${crt_obj_deps})
 add_fallback_devicelib(libsycl-fallback-cstring SRC fallback-cstring.cpp DEP ${crt_obj_deps})
