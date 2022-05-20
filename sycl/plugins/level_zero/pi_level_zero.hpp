@@ -893,9 +893,6 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable, std::vector<_pi_event *> &);
 
-  // Reset signalled command lists in the queue and put them to the cache of
-  // command lists. A caller must not lock the queue mutex.
-  pi_result resetCommandLists();
 
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
@@ -1246,8 +1243,6 @@ struct _pi_event : _pi_object {
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
 
-  // Performs the cleanup of a completed event.
-  pi_result cleanup();
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.

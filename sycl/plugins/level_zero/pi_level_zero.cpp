@@ -34,6 +34,7 @@ static pi_result EventRelease(pi_event Event);
 static pi_result QueueRelease(pi_queue Queue);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
+static pi_result cleanup(pi_event Event);
 }
 
 // Defined in tracing.cpp
@@ -1127,7 +1128,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
 
 // Reset signalled command lists in the queue and put them to the cache of
 // command lists. A caller must not lock the queue mutex.
-pi_result _pi_queue::resetCommandLists() {
+pi_result resetCommandLists(pi_queue Queue) {
   std::vector<pi_event> EventListToCleanup;
   {
     // We check for command lists that have been already signalled, but have not
@@ -1137,21 +1138,22 @@ pi_result _pi_queue::resetCommandLists() {
     // signalled, then the command list & fence are reset and command list is
     // returned to the command list cache. All events associated with command
     // list are cleaned up if command list was reset.
-    std::scoped_lock Lock(this->Mutex);
-    for (auto &&it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
+    std::scoped_lock Lock(Queue->Mutex);
+    for (auto &&it = Queue->CommandListMap.begin();
+         it != Queue->CommandListMap.end(); ++it) {
       // It is possible that the fence was already noted as signalled and
       // reset. In that case the InUse flag will be false.
       if (it->second.InUse) {
         ze_result_t ZeResult =
             ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
         if (ZeResult == ZE_RESULT_SUCCESS) {
-          PI_CALL(resetCommandList(it, true, EventListToCleanup));
+          PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
         }
       }
     }
   }
   for (auto Event : EventListToCleanup) {
-    PI_CALL(Event->cleanup());
+    PI_CALL(cleanup(Event));
     // These events were just removed from command list, so dercement ref count
     // (it was incremented when they were added to the command list).
     PI_CALL(piEventRelease(Event));
@@ -3346,7 +3348,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     }
   }
   for (auto Event : EventListToCleanup) {
-    PI_CALL(Event->cleanup());
+    PI_CALL(cleanup(Event));
     PI_CALL(piEventRelease(Event));
   }
   PI_CALL(QueueRelease(Queue));
@@ -3453,7 +3455,7 @@ pi_result piQueueFinish(pi_queue Queue) {
   }
   // Reset signalled command lists and return them back to the cache of
   // available command lists.
-  Queue->resetCommandLists();
+  resetCommandLists(Queue);
   return PI_SUCCESS;
 }
 
@@ -5429,45 +5431,50 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // the event, updates the last command event in the queue and cleanes up all dep
 // events of of the event.
 // The caller must not lock any mutexes.
-pi_result _pi_event::cleanup() {
+static pi_result cleanup(pi_event Event) {
   pi_kernel AssociatedKernel = nullptr;
   // List of dependent events.
   std::list<pi_event> EventsToBeReleased;
+  pi_queue AssociatedQueue = nullptr;
   {
-    std::scoped_lock EventLock(this->Mutex);
-    // Exit early of even was already cleanedup.
-    if (CleanedUp)
+    std::scoped_lock EventLock(Event->Mutex);
+    // Exit early of event was already cleanedup.
+    if (Event->CleanedUp)
       return PI_SUCCESS;
+
+    AssociatedQueue = Event->Queue;
 
     // Remember the kernel associated with this event if there is one. We are
     // going to release it later.
-    if (CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL && CommandData) {
-      AssociatedKernel = pi_cast<pi_kernel>(CommandData);
-      CommandData = nullptr;
+    if (Event->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
+        Event->CommandData) {
+      AssociatedKernel = pi_cast<pi_kernel>(Event->CommandData);
+      Event->CommandData = nullptr;
     }
 
     // Make a list of all the dependent events that must have signalled
     // because this event was dependent on them.
-    WaitList.collectEventsForReleaseAndDestroyPiZeEventList(EventsToBeReleased);
+    Event->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+        EventsToBeReleased);
 
-    CleanedUp = true;
+    Event->CleanedUp = true;
   }
 
   // We've reset event data members above, now cleanup resources.
   if (AssociatedKernel)
     PI_CALL(piKernelRelease(AssociatedKernel));
 
-  if (Queue) {
+  if (AssociatedQueue) {
     // Lock automatically releases when this goes out of scope.
-    std::scoped_lock Lock(Queue->Mutex);
+    std::scoped_lock Lock(AssociatedQueue->Mutex);
 
     // If this event was the LastCommandEvent in the queue, being used
     // to make sure that commands were executed in-order, remove this.
     // If we don't do this, the event can get released and freed leaving
     // a dangling pointer to this event.  It could also cause unneeded
     // already finished events to show up in the wait list.
-    if (Queue->LastCommandEvent == this) {
-      Queue->LastCommandEvent = nullptr;
+    if (AssociatedQueue->LastCommandEvent == Event) {
+      AssociatedQueue->LastCommandEvent = nullptr;
     }
   }
 
@@ -5475,8 +5482,8 @@ pi_result _pi_event::cleanup() {
   // association with queue. Events which don't have associated queue doesn't
   // require this release because it means that they are not created using
   // createEventAndAssociateQueue, i.e. additional retain was not made.
-  if (Queue)
-    PI_CALL(EventRelease(this));
+  if (AssociatedQueue)
+    PI_CALL(EventRelease(Event));
 
   // The list of dependent events will be appended to as we walk it so that this
   // algorithm doesn't go recursive due to dependent events themselves being
@@ -5559,13 +5566,13 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
-    EventList[I]->cleanup();
+    cleanup(EventList[I]);
   }
 
   // We waited some events above, check queue for signaled command lists and
   // reset them.
   for (auto Q : Queues)
-    Q->resetCommandLists();
+    resetCommandLists(Q);
 
   return PI_SUCCESS;
 }
@@ -5606,7 +5613,7 @@ static pi_result EventRelease(pi_event Event) {
 
   if (--(Event->RefCount) == 0) {
     if (!Event->CleanedUp)
-      Event->cleanup();
+      cleanup(Event);
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
@@ -5917,7 +5924,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     (*Event)->Completed = true;
   }
 
-  Queue->resetCommandLists();
+  resetCommandLists(Queue);
 
   return PI_SUCCESS;
 }
