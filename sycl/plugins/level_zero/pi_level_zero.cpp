@@ -5664,6 +5664,18 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   // need to create a host-visible proxy for it.
   (*Event)->HostVisibleEvent = *Event;
 
+  // Regular events managed by SYCL RT are created with RefCnt == 2 to represent
+  // that their resource is "owned" by the queue where the task that would
+  // signal this event is running. There is no such implicit ownership with the
+  // events created from native handle. If we don't own it then it's completely
+  // user's responsibility and if we do then we have no way to determine if such
+  // a task exists. Indeed, the user might have created ZeEvent in non-signaled
+  // state and never used it to run anything. As such, even in the scenario with
+  // ownership transfer, it's user's responsibility to ensure that lifetime of
+  // the sycl::even they are creating covers the point where anything signals
+  // it.
+  (*Event)->CleanedUp = true;
+
   return PI_SUCCESS;
 }
 
