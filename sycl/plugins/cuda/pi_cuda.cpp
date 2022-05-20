@@ -1934,6 +1934,7 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
       }
       PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
     }
+    return PI_SUCCESS;
   } else {
     // Primary context is not destroyed, but released
     CUdevice cuDev = ctxt->get_devices()[0]->get();
@@ -1975,7 +1976,7 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle, pi_uint32,
 /// Can trigger a manual copy depending on the mode.
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
-pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
+pi_result cuda_piMemBufferCreate(pi_context context, pi_device device, pi_mem_flags flags,
                                  size_t size, void *host_ptr, pi_mem *ret_mem,
                                  const pi_mem_properties *properties) {
   // Need input memory object
@@ -1992,7 +1993,7 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
   pi_mem retMemObj = nullptr;
 
   try {
-    ScopedContext active(context->get()[0]); 
+    ScopedContext active(context->get(device)); 
     CUdeviceptr ptr;
     _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
         _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
@@ -2728,7 +2729,7 @@ pi_result cuda_piEnqueueKernelLaunch(
     {
       int dev_idx = 0;
       auto devices = command_queue->context_->get_devices();
-      for(int i=0;i<devices.size();i++){
+      for(size_t i=0;i<devices.size();i++){
         if(devices[i] == command_queue->device_){
           dev_idx = i;
           break;
@@ -2848,7 +2849,7 @@ pi_result cuda_piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
 }
 
 /// \TODO Not implemented
-pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
+pi_result cuda_piMemImageCreate(pi_context context, pi_device device, pi_mem_flags flags,
                                 const pi_image_format *image_format,
                                 const pi_image_desc *image_desc, void *host_ptr,
                                 pi_mem *ret_mem) {
@@ -2933,7 +2934,7 @@ pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
   size_t image_size_bytes = pixel_size_bytes * image_desc->image_width *
                             image_desc->image_height * image_desc->image_depth;
 
-  ScopedContext active(context->get()[0]);
+  ScopedContext active(context->get(device));
   CUarray image_array;
   retErr = PI_CHECK_ERROR(cuArray3DCreate(&image_array, &array_desc));
 
@@ -3077,7 +3078,7 @@ pi_result cuda_piProgramCreateWithBinary(
   assert(binaries != nullptr);
   assert(program != nullptr);
   assert(device_list != nullptr);
-  for(int i=0;i<num_devices;i++){
+  for(size_t i=0;i<num_devices;i++){
     bool found_device = false;
     for(pi_device context_device : context->get_devices()){
       if(device_list[i] == context_device){

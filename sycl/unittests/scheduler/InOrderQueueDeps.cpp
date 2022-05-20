@@ -17,7 +17,7 @@
 using namespace cl::sycl;
 
 static pi_result
-redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
+redefinedMemBufferCreate(pi_context context, pi_device, pi_mem_flags flags, size_t size,
                          void *host_ptr, pi_mem *ret_mem,
                          const pi_mem_properties *properties = nullptr) {
   return PI_SUCCESS;

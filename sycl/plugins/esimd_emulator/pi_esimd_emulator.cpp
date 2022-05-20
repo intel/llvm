@@ -1004,9 +1004,10 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
+pi_result piMemBufferCreate(pi_context Context, pi_device Device, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
+  ARG_UNUSED(Device);
   ARG_UNUSED(properties);
 
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
@@ -1159,6 +1160,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                            const pi_image_format *ImageFormat,
                            const pi_image_desc *ImageDesc, void *HostPtr,
                            pi_mem *RetImage) {
+                             (void)device;
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
       std::cerr << "Invalid memory attribute for piMemImageCreate" << std::endl;

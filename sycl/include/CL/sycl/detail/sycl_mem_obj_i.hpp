@@ -19,9 +19,11 @@ namespace detail {
 class event_impl;
 class context_impl;
 struct MemObjRecord;
+class device_impl;
 
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 
 // The class serves as an interface in the scheduler for all SYCL memory
 // objects.
@@ -43,7 +45,7 @@ public:
   // Non null HostPtr requires allocation to be made with USE_HOST_PTR property.
   // Method returns a pointer to host allocation if Context is host one and
   // cl_mem obect if not.
-  virtual void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
+  virtual void *allocateMem(ContextImplPtr Context, DeviceImplPtr Device, bool InitFromUserData,
                             void *HostPtr, RT::PiEvent &InteropEvent) = 0;
 
   // Should be used for memory object created without use_host_ptr property.

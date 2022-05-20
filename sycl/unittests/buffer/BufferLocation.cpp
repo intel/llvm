@@ -19,7 +19,7 @@
 const uint64_t DEFAULT_VALUE = 7777;
 static uint64_t PassedLocation = DEFAULT_VALUE;
 
-pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
+pi_result redefinedMemBufferCreate(pi_context, pi_device, pi_mem_flags, size_t size,
                                    void *, pi_mem *,
                                    const pi_mem_properties *properties) {
   PassedLocation = DEFAULT_VALUE;

@@ -26,10 +26,12 @@ namespace detail {
 class queue_impl;
 class event_impl;
 class context_impl;
+class device_impl;
 
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 
 // The class contains methods that work with memory. All operations with
 // device memory should go through MemoryManager.
@@ -44,7 +46,7 @@ public:
 
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
-  static void *allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+  static void *allocate(ContextImplPtr TargetContext, DeviceImplPtr TargetDevice, SYCLMemObjI *MemObj,
                         bool InitFromUserData, void *HostPtr,
                         std::vector<EventImplPtr> DepEvents,
                         RT::PiEvent &OutEvent);
@@ -71,6 +73,7 @@ public:
   // as host ptr or cl_mem provided by user. TargetContext should be device
   // one(not host).
   static void *allocateMemBuffer(ContextImplPtr TargetContext,
+                                 DeviceImplPtr TargetDevice,
                                  SYCLMemObjI *MemObj, void *UserPtr,
                                  bool HostPtrReadOnly, size_t Size,
                                  const EventImplPtr &InteropEvent,
@@ -82,7 +85,7 @@ public:
   // as host ptr or cl_mem provided by user. TargetContext should be device
   // one(not host).
   static void *allocateMemImage(
-      ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
+      ContextImplPtr TargetContext, DeviceImplPtr TargetDevice, SYCLMemObjI *MemObj, void *UserPtr,
       bool HostPtrReadOnly, size_t Size, const RT::PiMemImageDesc &Desc,
       const RT::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
       const ContextImplPtr &InteropContext,
@@ -104,13 +107,13 @@ public:
                                         const sycl::property_list &PropsList,
                                         RT::PiEvent &OutEventToWait);
 
-  static void *allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
+  static void *allocateImageObject(ContextImplPtr TargetContext, DeviceImplPtr TargetDevice, void *UserPtr,
                                    bool HostPtrReadOnly,
                                    const RT::PiMemImageDesc &Desc,
                                    const RT::PiMemImageFormat &Format,
                                    const sycl::property_list &PropsList);
 
-  static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
+  static void *allocateBufferObject(ContextImplPtr TargetContext, DeviceImplPtr TargetDevice, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size,
                                     const sycl::property_list &PropsList);
 

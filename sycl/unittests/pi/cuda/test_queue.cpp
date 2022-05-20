@@ -153,7 +153,7 @@ TEST_F(CudaTestQueue, PICreateQueueInterop) {
   CUcontext cuCtx;
   CUresult res = cuStreamGetCtx(cuStream, &cuCtx);
   ASSERT_EQ(res, CUDA_SUCCESS);
-  EXPECT_EQ(cuCtx, context_->get());
+  EXPECT_EQ(cuCtx, context_->get()[0]);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piQueueRelease>(queue)),
             PI_SUCCESS);

@@ -87,7 +87,7 @@ TEST_F(CudaContextsTest, ContextLifetime) {
   // check that the context is now the active CUDA context
   CUcontext cudaCtxt = nullptr;
   cuCtxGetCurrent(&cudaCtxt);
-  ASSERT_EQ(cudaCtxt, context->get());
+  ASSERT_EQ(cudaCtxt, context->get()[0]);
 
   plugin->call<detail::PiApiKind::piQueueRelease>(queue);
   plugin->call<detail::PiApiKind::piContextRelease>(context);
@@ -126,7 +126,7 @@ TEST_F(CudaContextsTest, ContextLifetimeExisting) {
 
   // check that the context is now the active CUDA context
   cuCtxGetCurrent(&current);
-  ASSERT_EQ(current, context->get());
+  ASSERT_EQ(current, context->get()[0]);
 
   plugin->call<detail::PiApiKind::piQueueRelease>(queue);
   plugin->call<detail::PiApiKind::piContextRelease>(context);
@@ -192,7 +192,7 @@ TEST_F(CudaContextsTest, ContextThread) {
 
     // check that the first context is now the active CUDA context
     cuCtxGetCurrent(&current);
-    ASSERT_EQ(current, context1->get());
+    ASSERT_EQ(current, context1->get()[0]);
 
     plugin->call<detail::PiApiKind::piQueueRelease>(queue);
 
@@ -209,7 +209,7 @@ TEST_F(CudaContextsTest, ContextThread) {
     // check that the first context is still active, this is because deleting a
     // context only cleans up the current thread
     cuCtxGetCurrent(&current);
-    ASSERT_EQ(current, context1->get());
+    ASSERT_EQ(current, context1->get()[0]);
 
     // create a queue with the second context
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piQueueCreate>(
@@ -222,7 +222,7 @@ TEST_F(CudaContextsTest, ContextThread) {
 
     // check that the second context is now the active CUDA context
     cuCtxGetCurrent(&current);
-    ASSERT_EQ(current, context2->get());
+    ASSERT_EQ(current, context2->get()[0]);
 
     plugin->call<detail::PiApiKind::piQueueRelease>(queue);
   });

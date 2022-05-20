@@ -58,7 +58,7 @@ static pi_result redefinedMemRetain(pi_mem c) {
   return PI_SUCCESS;
 }
 
-pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
+pi_result redefinedMemBufferCreate(pi_context, pi_device, pi_mem_flags, size_t size,
                                    void *, pi_mem *,
                                    const pi_mem_properties *) {
   return PI_SUCCESS;

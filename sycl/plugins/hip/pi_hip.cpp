@@ -1894,9 +1894,10 @@ pi_result hip_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// Can trigger a manual copy depending on the mode.
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
-pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
+pi_result hip_piMemBufferCreate(pi_context context, pi_device device, pi_mem_flags flags,
                                 size_t size, void *host_ptr, pi_mem *ret_mem,
                                 const pi_mem_properties *properties) {
+  (void) device;
   // Need input memory object
   assert(ret_mem != nullptr);
   assert(properties == nullptr && "no mem properties goes to HIP RT yet");
@@ -2709,10 +2710,11 @@ hip_piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
 
 /// \TODO Not implemented
 
-pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
+pi_result hip_piMemImageCreate(pi_context context, pi_device device, pi_mem_flags flags,
                                const pi_image_format *image_format,
                                const pi_image_desc *image_desc, void *host_ptr,
                                pi_mem *ret_mem) {
+                                 (void) device;
 
   // Need input memory object
   assert(ret_mem != nullptr);

@@ -71,10 +71,10 @@ TEST_F(CudaBaseObjectsTest, piContextCreate) {
       << "piContextCreate failed.\n";
 
   EXPECT_NE(ctxt, nullptr);
-  EXPECT_EQ(ctxt->get_device(), device);
+  EXPECT_EQ(ctxt->get_devices()[0], device);
 
   // Retrieve the cuCtxt to check information is correct
-  CUcontext cudaContext = ctxt->get();
+  CUcontext cudaContext = ctxt->get()[0];
   unsigned int version = 0;
   cuCtxGetApiVersion(cudaContext, &version);
   EXPECT_EQ(version, LATEST_KNOWN_CUDA_DRIVER_API_VERSION);
@@ -109,11 +109,11 @@ TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryTrue) {
                 properties, 1, &device, nullptr, nullptr, &ctxt)),
             PI_SUCCESS);
   EXPECT_NE(ctxt, nullptr);
-  EXPECT_EQ(ctxt->get_device(), device);
+  EXPECT_EQ(ctxt->get_devices()[0], device);
   EXPECT_TRUE(ctxt->is_primary());
 
   // Retrieve the cuCtxt to check information is correct
-  CUcontext cudaContext = ctxt->get();
+  CUcontext cudaContext = ctxt->get()[0];
   unsigned int version = 0;
   CUresult cuErr = cuCtxGetApiVersion(cudaContext, &version);
   ASSERT_EQ(cuErr, CUDA_SUCCESS);
@@ -154,11 +154,11 @@ TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryFalse) {
                 properties, 1, &device, nullptr, nullptr, &ctxt)),
             PI_SUCCESS);
   EXPECT_NE(ctxt, nullptr);
-  EXPECT_EQ(ctxt->get_device(), device);
+  EXPECT_EQ(ctxt->get_devices()[0], device);
   EXPECT_FALSE(ctxt->is_primary());
 
   // Retrieve the cuCtxt to check information is correct
-  CUcontext cudaContext = ctxt->get();
+  CUcontext cudaContext = ctxt->get()[0];
   unsigned int version = 0;
   CUresult cuErr = cuCtxGetApiVersion(cudaContext, &version);
   ASSERT_EQ(cuErr, CUDA_SUCCESS);
@@ -200,7 +200,7 @@ TEST_F(CudaBaseObjectsTest, piContextCreateChildThread) {
 
   // Retrieve the cuCtxt to check information is correct
   auto checkValue = [=]() {
-    CUcontext cudaContext = ctxt->get();
+    CUcontext cudaContext = ctxt->get()[0];
     unsigned int version = 0;
     auto cuErr = cuCtxGetApiVersion(cudaContext, &version);
     EXPECT_EQ(cuErr, CUDA_SUCCESS);

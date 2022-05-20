@@ -75,7 +75,7 @@ TEST_F(CudaTestMemObj, piMemBufferCreateSimple) {
   const size_t memSize = 1024u;
   pi_mem memObj;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
                 nullptr)),
             PI_SUCCESS);
 
@@ -87,7 +87,7 @@ TEST_F(CudaTestMemObj, piMemBufferAllocHost) {
   const size_t memSize = 1024u;
   pi_mem memObj;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
                 memSize, nullptr, &memObj, nullptr)),
             PI_SUCCESS);
 
@@ -116,7 +116,7 @@ TEST_F(CudaTestMemObj, piMemBufferCreateNoActiveContext) {
   // to allocate the memory object
   pi_mem memObj;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
                 nullptr)),
             PI_SUCCESS);
   ASSERT_NE(memObj, nullptr);
@@ -138,7 +138,7 @@ TEST_F(CudaTestMemObj, piMemBufferPinnedMappedRead) {
 
   pi_mem memObj;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
                 memSize, nullptr, &memObj, nullptr)),
             PI_SUCCESS);
 
@@ -177,7 +177,7 @@ TEST_F(CudaTestMemObj, piMemBufferPinnedMappedWrite) {
 
   pi_mem memObj;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
                 memSize, nullptr, &memObj, nullptr)),
             PI_SUCCESS);
 

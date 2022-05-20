@@ -306,10 +306,11 @@ public:
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
                                      pi_native_handle MemObject);
 
-  __SYCL_DLL_LOCAL void *allocateMem(ContextImplPtr Context,
+  __SYCL_DLL_LOCAL void *allocateMem(ContextImplPtr Context, DeviceImplPtr Device,
                                      bool InitFromUserData, void *HostPtr,
                                      RT::PiEvent &InteropEvent) override {
     (void)Context;
+    (void)Device;
     (void)InitFromUserData;
     (void)HostPtr;
     (void)InteropEvent;

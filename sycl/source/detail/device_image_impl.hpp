@@ -61,7 +61,7 @@ public:
                     RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
-        MKernelIDs(std::move(KernelIDs)) {
+        MKernelIDs(std::move(KernelIDs)), MSpecConstsBuffers(MDevices.size()) {
     updateSpecConstSymMap();
   }
 
@@ -72,7 +72,7 @@ public:
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
-        MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
+        MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob), MSpecConstsBuffers(MDevices.size()),
         MSpecConstSymMap(SpecConstMap) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
@@ -191,9 +191,17 @@ public:
     return MSpecConstsBlob;
   }
 
-  RT::PiMem &get_spec_const_buffer_ref() noexcept {
+  RT::PiMem &get_spec_const_buffer_ref(device dev) noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-    if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
+    RT::PiMem* mem = nullptr;
+    for(size_t i =0;i< MDevices.size();i++){
+      if(MDevices[i]== dev){
+        mem = &MSpecConstsBuffers[i];
+        break;
+      }
+    }
+    assert(mem);
+    if (nullptr == *mem && !MSpecConstsBlob.empty()) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       // Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
       // since post-enqueue cleanup might trigger destruction of
@@ -201,12 +209,12 @@ public:
       // while MSpecConstsBuffer is still in use.
       // TODO consider changing the lifetime of device_image_impl instead
       memBufferCreateHelper(Plugin,
-                            detail::getSyclObjImpl(MContext)->getHandleRef(),
+                            detail::getSyclObjImpl(MContext)->getHandleRef(), detail::getSyclObjImpl(dev)->getHandleRef(),
                             PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
                             MSpecConstsBlob.size(), MSpecConstsBlob.data(),
-                            &MSpecConstsBuffer, nullptr);
+                            mem, nullptr);
     }
-    return MSpecConstsBuffer;
+    return *mem;
   }
 
   const SpecConstMapT &get_spec_const_data_ref() const noexcept {
@@ -235,10 +243,12 @@ public:
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin.call<PiApiKind::piProgramRelease>(MProgram);
     }
-    if (MSpecConstsBuffer) {
-      std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      memReleaseHelper(Plugin, MSpecConstsBuffer);
+    for (auto mem : MSpecConstsBuffers) {
+      if(mem){
+        std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+        const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+        memReleaseHelper(Plugin, mem);
+      }
     }
   }
 
@@ -332,7 +342,7 @@ private:
   // Buffer containing binary blob which can have values of all specialization
   // constants in the image, it is using for storing non-native specialization
   // constants
-  RT::PiMem MSpecConstsBuffer = nullptr;
+  std::vector<RT::PiMem> MSpecConstsBuffers;
   // Contains map of spec const names to their descriptions + offsets in
   // the MSpecConstsBlob
   std::map<std::string, std::vector<SpecConstDescT>> MSpecConstSymMap;

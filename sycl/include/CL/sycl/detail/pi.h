@@ -1168,10 +1168,10 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 // Memory
 //
 __SYCL_EXPORT pi_result piMemBufferCreate(
-    pi_context context, pi_mem_flags flags, size_t size, void *host_ptr,
+    pi_context context, pi_device device, pi_mem_flags flags, size_t size, void *host_ptr,
     pi_mem *ret_mem, const pi_mem_properties *properties = nullptr);
 
-__SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
+__SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_device device, pi_mem_flags flags,
                                          const pi_image_format *image_format,
                                          const pi_image_desc *image_desc,
                                          void *host_ptr, pi_mem *ret_mem);

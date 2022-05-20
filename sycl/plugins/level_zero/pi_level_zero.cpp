@@ -3537,9 +3537,10 @@ static pi_result ZeHostMemAllocHelper(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
+pi_result piMemBufferCreate(pi_context Context, pi_device Device, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
+  (void)Device;
 
   // TODO: implement support for more access modes
   if (!((Flags & PI_MEM_FLAGS_ACCESS_RW) ||
@@ -3720,10 +3721,11 @@ pi_result piMemRelease(pi_mem Mem) {
   return PI_SUCCESS;
 }
 
-pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
+pi_result piMemImageCreate(pi_context Context, pi_device Dev, pi_mem_flags Flags,
                            const pi_image_format *ImageFormat,
                            const pi_image_desc *ImageDesc, void *HostPtr,
                            pi_mem *RetImage) {
+                             (void) Dev;
 
   // TODO: implement read-only, write-only
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {

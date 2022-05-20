@@ -13,7 +13,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
+void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx, pi_device Dev,
                            pi_mem_flags Flags, size_t Size, void *HostPtr,
                            pi_mem *RetMem,
                            const pi_mem_properties *Props = nullptr);
