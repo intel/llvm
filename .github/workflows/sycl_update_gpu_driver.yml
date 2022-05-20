@@ -17,7 +17,7 @@ jobs:
         echo 'NEW_DRIVER_VERSION='$version >> $GITHUB_ENV
     - name: Create Pull Request
       env:
-        BRANCH: ci/update_gpu_driver-linux
+        BRANCH: ci/update_gpu_driver-linux-${{ env.NEW_DRIVER_VERSION }}
         LLVMBOT_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -28,7 +28,7 @@ jobs:
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift GPU RT version for Linux CI"
-        git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH} --force
+        git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH}
         gh pr create --title "[GHA] Uplift GPU RT version for Linux CI" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION" --assignee @intel/dpcpp-devops-reviewers
 
   update_driver_linux_staging:
@@ -42,7 +42,7 @@ jobs:
         echo 'NEW_DRIVER_VERSION='$version >> $GITHUB_ENV
     - name: Create Pull Request
       env:
-        BRANCH: ci/update_gpu_driver-linux_staging
+        BRANCH: ci/update_gpu_driver-linux_staging-${{ env.NEW_DRIVER_VERSION }}
         LLVMBOT_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -53,6 +53,6 @@ jobs:
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift GPU RT version for Nightly runs"
-        git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH} --force
+        git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH}
         gh pr create --title "[GHA] Uplift GPU RT version for Nightly runs" --body "Uplift GPU RT version for Linux Staging to $NEW_DRIVER_VERSION" --assignee @intel/dpcpp-devops-reviewers
 
