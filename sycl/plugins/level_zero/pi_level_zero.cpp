@@ -4557,11 +4557,18 @@ pi_result piProgramRetain(pi_program Program) {
 
 pi_result piProgramRelease(pi_program Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
-  // Check if the program is already released
-  PI_ASSERT(Program->RefCount > 0, PI_INVALID_VALUE);
-  if (--(Program->RefCount) == 0) {
-    delete Program;
+  bool RefCountZero = false;
+  {
+    std::scoped_lock Guard(Program->Mutex);
+    // Check if the program is already released
+    PI_ASSERT(Program->RefCount > 0, PI_INVALID_VALUE);
+    if (--(Program->RefCount) == 0) {
+      RefCountZero = true;
+    }
   }
+  if (RefCountZero)
+    delete Program;
+
   return PI_SUCCESS;
 }
 
@@ -4731,6 +4738,7 @@ pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
+  std::scoped_lock Guard(Kernel->Mutex);
   ZE_CALL(zeKernelSetArgumentValue,
           (pi_cast<ze_kernel_handle_t>(Kernel->ZeKernel),
            pi_cast<uint32_t>(ArgIndex), pi_cast<size_t>(ArgSize),
@@ -4758,8 +4766,10 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   //       Improve that by passing SYCL buffer accessor type into
   //       piextKernelSetArgMemObj.
   //
+  std::scoped_lock Guard(Kernel->Mutex);
   Kernel->PendingArguments.push_back(
       {ArgIndex, sizeof(void *), *ArgValue, _pi_mem::read_write});
+
   return PI_SUCCESS;
 }
 
@@ -4768,6 +4778,7 @@ pi_result piextKernelSetArgSampler(pi_kernel Kernel, pi_uint32 ArgIndex,
                                    const pi_sampler *ArgValue) {
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
+  std::scoped_lock Guard(Kernel->Mutex);
   ZE_CALL(zeKernelSetArgumentValue,
           (pi_cast<ze_kernel_handle_t>(Kernel->ZeKernel),
            pi_cast<uint32_t>(ArgIndex), sizeof(void *),
@@ -4782,6 +4793,8 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
+  std::shared_lock Guard(Kernel->Mutex);
   switch (ParamName) {
   case PI_KERNEL_INFO_CONTEXT:
     return ReturnValue(pi_context{Kernel->Program->Context});
@@ -4832,6 +4845,8 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
+  std::shared_lock Guard(Kernel->Mutex);
   switch (ParamName) {
   case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
     // TODO: To revisit after level_zero/issues/262 is resolved
@@ -4887,6 +4902,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel Kernel, pi_device Device,
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
+  std::shared_lock Guard(Kernel->Mutex);
   if (ParamName == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
     ReturnValue(uint32_t{Kernel->ZeKernelProperties->maxSubgroupSize});
   } else if (ParamName == PI_KERNEL_MAX_NUM_SUB_GROUPS) {
@@ -4906,49 +4922,58 @@ pi_result piKernelRetain(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
-  ++(Kernel->RefCount);
-  // When retaining a kernel, you are also retaining the program it is part of.
-  PI_CALL(piProgramRetain(Kernel->Program));
+  // When retaining a kernel, you are also retaining the program it is part
+  // of.
+  std::scoped_lock Lock(Kernel->Mutex, Kernel->Program->Mutex);
+  Kernel->retain();
   return PI_SUCCESS;
 }
 
 pi_result piKernelRelease(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
-
-  if (IndirectAccessTrackingEnabled) {
-    // piKernelRelease is called by Event->cleanup() as soon as kernel
-    // execution has finished. This is the place where we need to release memory
-    // allocations. If kernel is not in use (not submitted by some other thread)
-    // then release referenced memory allocations. As a result, memory can be
-    // deallocated and context can be removed from container in the platform.
-    // That's why we need to lock a mutex here.
-    pi_platform Plt = Kernel->Program->Context->getPlatform();
-    std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
-
-    if (--Kernel->SubmissionsCount == 0) {
-      // Kernel is not submitted for execution, release referenced memory
-      // allocations.
-      for (auto &MemAlloc : Kernel->MemAllocs) {
-        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
-                      MemAlloc->second.OwnZeMemHandle);
-      }
-      Kernel->MemAllocs.clear();
-    }
-  }
-
-  auto KernelProgram = Kernel->Program;
-  if (--(Kernel->RefCount) == 0) {
-    if (Kernel->OwnZeKernel)
-      ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
+  pi_program KernelProgram = nullptr;
+  bool RefCountZero = false;
+  {
+    std::scoped_lock Guard(Kernel->Mutex);
+    KernelProgram = Kernel->Program;
     if (IndirectAccessTrackingEnabled) {
-      PI_CALL(piContextRelease(KernelProgram->Context));
+      // piKernelRelease is called by Event->cleanup() as soon as kernel
+      // execution has finished. This is the place where we need to release
+      // memory allocations. If kernel is not in use (not submitted by some
+      // other thread) then release referenced memory allocations. As a result,
+      // memory can be deallocated and context can be removed from container in
+      // the platform. That's why we need to lock a mutex here.
+      pi_platform Plt = KernelProgram->Context->getPlatform();
+      std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
+
+      if (--Kernel->SubmissionsCount == 0) {
+        // Kernel is not submitted for execution, release referenced memory
+        // allocations.
+        for (auto &MemAlloc : Kernel->MemAllocs) {
+          USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
+                        MemAlloc->second.OwnZeMemHandle);
+        }
+        Kernel->MemAllocs.clear();
+      }
     }
-    delete Kernel;
+
+    if (--(Kernel->RefCount) == 0) {
+      if (Kernel->OwnZeKernel)
+        ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
+      if (IndirectAccessTrackingEnabled) {
+        PI_CALL(piContextRelease(KernelProgram->Context));
+      }
+      RefCountZero = true;
+    }
   }
 
-  // do a release on the program this kernel was part of
-  PI_CALL(piProgramRelease(KernelProgram));
+  if (RefCountZero)
+    delete Kernel;
+
+  if (KernelProgram)
+    // do a release on the program this kernel was part of
+    PI_CALL(piProgramRelease(KernelProgram));
 
   return PI_SUCCESS;
 }
@@ -4964,6 +4989,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT(Event, PI_INVALID_EVENT);
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
 
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock Lock(Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
     if (!PiDriverGlobalOffsetExtensionFound) {
       zePrint("No global offset extension found on this driver\n");
@@ -5049,9 +5076,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   ZE_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock QueueLock(Queue->Mutex);
-
   _pi_ze_event_list_t TmpWaitList;
 
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
@@ -5077,12 +5101,11 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // the code can do a piKernelRelease on this kernel.
   (*Event)->CommandData = (void *)Kernel;
 
-  // Use piKernelRetain to increment the reference count and indicate
-  // that the Kernel is in use. Once the event has been signalled, the
-  // code in Event.cleanup() will do a piReleaseKernel to update
-  // the reference count on the kernel, using the kernel saved
-  // in CommandData.
-  PI_CALL(piKernelRetain(Kernel));
+  // Increment the reference count of the Kernel and indicate that the Kernel is
+  // in use. Once the event has been signalled, the code in Event.cleanup() will
+  // do a piReleaseKernel to update the reference count on the kernel, using the
+  // kernel saved in CommandData.
+  Kernel->retain();
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
@@ -5152,6 +5175,7 @@ pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
+  std::shared_lock Guard(Kernel->Mutex);
   auto *ZeKernel = pi_cast<ze_kernel_handle_t *>(NativeHandle);
   *ZeKernel = Kernel->ZeKernel;
   return PI_SUCCESS;
@@ -5815,6 +5839,7 @@ pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,
 pi_result piSamplerRetain(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
+  std::scoped_lock Guard(Sampler->Mutex);
   ++(Sampler->RefCount);
   return PI_SUCCESS;
 }
@@ -5822,10 +5847,18 @@ pi_result piSamplerRetain(pi_sampler Sampler) {
 pi_result piSamplerRelease(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
-  if (--(Sampler->RefCount) == 0) {
-    ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
-    delete Sampler;
+  bool RefCountZero = false;
+  {
+    std::scoped_lock Guard(Sampler->Mutex);
+    if (--(Sampler->RefCount) == 0) {
+      ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
+      RefCountZero = true;
+    }
   }
+
+  if (RefCountZero)
+    delete Sampler;
+
   return PI_SUCCESS;
 }
 
@@ -7947,6 +7980,7 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
   PI_ASSERT(ParamValue, PI_INVALID_VALUE);
 
+  std::scoped_lock Guard(Kernel->Mutex);
   if (ParamName == PI_USM_INDIRECT_ACCESS &&
       *(static_cast<const pi_bool *>(ParamValue)) == PI_TRUE) {
     // The whole point for users really was to not need to know anything
