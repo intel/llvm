@@ -3,15 +3,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: enable compile+runtime checks for operations defined in SPIR-V 1.3.
-// That requires either adding a switch to clang (-spirv-max-version=1.3) or
-// raising the spirv version from 1.1. to 1.3 for spirv translator
-// unconditionally. Using operators specific for spirv 1.3 and higher with
-// -spirv-max-version=1.1 being set by default causes assert/check fails
-// in spirv translator.
-// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -I . -o \
-   %t13.out
-
 #include "support.h"
 #include <CL/sycl.hpp>
 #include <algorithm>
@@ -86,7 +77,6 @@ int main() {
   test<class KernelNameMaximumI>(q, input, output, sycl::maximum<int>(),
                                  std::numeric_limits<int>::lowest());
 
-#ifdef SPIRV_1_3
   test<class KernelName_WonwuUVPUPOTKRKIBtT>(q, input, output,
                                              sycl::multiplies<int>(), 1);
   test<class KernelName_qYBaJDZTMGkdIwD>(q, input, output, sycl::bit_or<int>(),
@@ -94,7 +84,6 @@ int main() {
   test<class KernelName_eLSFt>(q, input, output, sycl::bit_xor<int>(), 0);
   test<class KernelName_uFhJnxSVhNAiFPTG>(q, input, output,
                                           sycl::bit_and<int>(), ~0);
-#endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;
 }

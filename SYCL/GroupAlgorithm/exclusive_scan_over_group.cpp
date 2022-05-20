@@ -3,6 +3,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: ze_debug4,ze_debug-1
 
+// CPU and ACC not yet supported:
+// Unsupported SPIR-V module SPIRV module requires unsupported capability 6400
+
 #include <CL/sycl.hpp>
 #include <algorithm>
 #include <iostream>
@@ -36,10 +39,7 @@ int main(int argc, const char **argv) {
   int num_wg = 1;
   int group_size = 16;
 
-  cl::sycl::queue queue{
-      cl::sycl::gpu_selector{},
-      cl::sycl::property_list{cl::sycl::property::queue::enable_profiling(),
-                              cl::sycl::property::queue::in_order()}};
+  cl::sycl::queue queue;
 
   typedef int T;
   size_t nelems = num_wg * group_size;

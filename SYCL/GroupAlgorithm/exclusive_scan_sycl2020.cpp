@@ -4,8 +4,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel -DSPIRV_1_3 %s -I . -o %t13.out
-
 #include "support.h"
 #include <CL/sycl.hpp>
 #include <algorithm>
@@ -45,7 +43,8 @@ void test(queue q, InputContainer input, OutputContainer output,
   typedef typename OutputContainer::value_type OutputT;
   typedef class exclusive_scan_kernel<SpecializationKernelName, 0> kernel_name0;
   constexpr size_t G = 64;
-  constexpr size_t N = input.size();
+  constexpr size_t N = input.size(); // 128 or 12
+  constexpr size_t confirmRange = std::min(G, N);
   std::vector<OutputT> expected(N);
 
   // checking
@@ -64,9 +63,10 @@ void test(queue q, InputContainer input, OutputContainer output,
       });
     });
   }
-  emu::exclusive_scan(input.begin(), input.begin() + G, expected.begin(),
-                      identity, binary_op);
-  assert(std::equal(output.begin(), output.begin() + G, expected.begin()));
+  emu::exclusive_scan(input.begin(), input.begin() + confirmRange,
+                      expected.begin(), identity, binary_op);
+  assert(std::equal(output.begin(), output.begin() + confirmRange,
+                    expected.begin()));
 
   typedef class exclusive_scan_kernel<SpecializationKernelName, 1> kernel_name1;
   constexpr OutputT init = 42;
@@ -88,9 +88,10 @@ void test(queue q, InputContainer input, OutputContainer output,
       });
     });
   }
-  emu::exclusive_scan(input.begin(), input.begin() + G, expected.begin(), init,
-                      binary_op);
-  assert(std::equal(output.begin(), output.begin() + G, expected.begin()));
+  emu::exclusive_scan(input.begin(), input.begin() + confirmRange,
+                      expected.begin(), init, binary_op);
+  assert(std::equal(output.begin(), output.begin() + confirmRange,
+                    expected.begin()));
 
   typedef class exclusive_scan_kernel<SpecializationKernelName, 2> kernel_name2;
 
@@ -176,15 +177,12 @@ int main() {
                                  std::numeric_limits<int>::max());
   test<class KernelNameMaximumI>(q, input, output, sycl::maximum<int>(),
                                  std::numeric_limits<int>::lowest());
-
-#ifdef SPIRV_1_3
   test<class KernelNameMultipliesI>(q, input_small, output_small,
                                     sycl::multiplies<int>(), 1);
   test<class KernelNameBitOrI>(q, input, output, sycl::bit_or<int>(), 0);
   test<class KernelNameBitXorI>(q, input, output, sycl::bit_xor<int>(), 0);
   test<class KernelNameBitAndI>(q, input_small, output_small,
                                 sycl::bit_and<int>(), ~0);
-#endif // SPIRV_1_3
 
   // as part of SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS (
   // https://github.com/intel/llvm/pull/5108/ ) joint_exclusive_scan and
