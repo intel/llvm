@@ -51,7 +51,9 @@ def main(platform_tag):
     with open(config_name, "w") as f:
         json.dump(config, f, indent=2)
 
+    return config[platform_tag]['compute_runtime']['version']
+
 
 if __name__ == '__main__':
     platform_tag = sys.argv[1] if len(sys.argv) > 1 else 'linux_staging'
-    main(platform_tag)
+    sys.stdout.write(main(platform_tag) + '\n')
