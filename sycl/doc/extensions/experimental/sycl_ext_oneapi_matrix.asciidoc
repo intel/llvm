@@ -182,14 +182,17 @@ Besides matrix multiply and add, matrices are used in linear and non linear piec
 
 We explored multiple options to enable this feature in the matrix interface: 1) Allowing non-restrictive element indexing on the matrix elements would result into slow indexing on the GPU, 2) Operator overloading can represent only element-wise operations and not the operations on pieces (row, column, diagonal, etc) of the matrix. 3) Providing specific functions for these piece-wise operations can resolve some of the functions we know of today like the ones involved in quantization but it is not general to any problem that may occur in the future. 
 
-In order to be able to perform any piece-wise operation in a general and in an efficient way, we provide a mapping conversion function from the matrix domain that is owned by a group of work items to the portion that is owned by a work item. Besides, the WI data to joint matrix mapping coordinates information must be known. 
+In order to be able to perform any piece-wise operation in a general and efficient way, we provide a mapping conversion function from the matrix domain that is owned by a group of work items to the portion that is owned by each work item. This enables the WI to perform piece-wise operations on the matrix within the SYCL SPMD programming model. In joint matrix, it is up to the implementation to distribute the matrix among the work items or keep it shared. For instance, the matrix is a shared entity among the work items in the case of AMX where the AMX tile that holds the matrix data is a 2d register that is shared among the work items. Therefore the partitioning among the WIs is implementation defined.  Here, for the purpose of piece-wise operations, the conversion to the SPMD model happens using the matrix elements to WI mapping. Besides, the WI data to joint matrix mapping coordinates information must be known in order to extract the relevant piece for operations like sum of rows of a matrix. 
 
 Nvidia wmma interface added a new member to `fragment` class to designate the WI owned part of the matrix. 
 While this provides fast element indexing on the GPU compared to the non-restrictive option, the user does not know the mapping of the owned data to the original matrix. 
  However using the `mma` ptx instructions as opposed to the `wmma` ptx instructions the mapping is known. Knowing this mapping is important for the user to implement new operations like sum of rows of a matrix for quantized algorithms.
 
 ##### Solution: Explicit conversion with mapping from SIMD to SPMD
-We introduce a new function `get_wi_data` that provides a view of the portion of the matrix that is owned by the current WI.
+We introduce a new function `get_wi_data` that provides a view of the portion of the matrix that is owned by the current WI. So modifying `wi_data` means also modifying the joint matrix corresponding elements. The indexing provided inside the `wi_data` class acesses only the portion of the current WI and returns  `wi_element`. This latter holds a reference to the original joint_matrix that `wi_data` was constructed from. Users can use the `=` operator to update the element of the `joint_matrix` represented by the `wi_element` after the element-wise operation.
+
+Using `get_wi_data`, it is not possible to know which portions of data are owned by each thread in the group as this is implementation defined and change from one backend to the other. For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping coordinates information is needed to reason about the matrix view. But for element-wise operations where the same operation is performed on all the elements of the matrix, having all the WIs in the group apply the operation inside a loop iterating over the `length` of `wi_data` guarantees the whole matrix element-wise operation.   
+
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -233,7 +236,9 @@ public:
 }
 ```
 
-Example where each WI gets a vector in `wi_data_c`. Vectorization along the subgroup dimension will get enabled automatically to vectorize the contiguous portion of the matrix.  
+Example where each WI gets a vector in `wi_data_c`. Vectorization along the subgroup dimension will get enabled automatically to vectorize the contiguous portion of the matrix.  Since `wi_data_c` constructs a view of the joint matrix `matC`, `wi_data_c[i] OP rhs` updates the corresponding matrix element in the joint_matrix `matC`.
+
+
 ```c++
 auto wi_data_c = matC.get_wi_data();             
 for (int i = 0; i < wi_data_c.length(); i++)                
@@ -243,6 +248,9 @@ for (int i = 0; i < wi_data_c.length(); i++)
 IMPORTANT: In the current implementation, only the subgroup scope is supported.  
 
 IMPORTANT: The WI data to joint matrix mapping coordinates information is not implemented yet. 
+
+IMPORTANT: Since the current tensorcores implementation is AOT, it is possible to know how many elements are owned by each WI at compile time. so `wi_data` in this case can be of type `marray`. An additional interface will be provided for the tensorcores AOT backend. 
+
 
 ## VNNI/Packed Layout
 Intel AMX and DPAS compute assumes register for B tile (src1) to be in VNNI format as they need 32bit of K-data in A and B to be contiguous in memory.
@@ -599,6 +607,30 @@ The current experimental API uses `joint_` semantics to define the memory scope 
 multi_ptr<matrix<T>, address_space::local_space> tA_ptr = group_local_memory<matrix<sub_group, int8_t, tM, tN>>(sg);
 ```
 We did not utilize this extension for this matrix API version because sub-group local memory is not yet well defined in {dpcpp}. Moreover, the representation of this notion in LLVM IR and SPIR-V is not clear yet. 
+
+### WI data to joint matrix mapping coordinates information for piece-wise operations
+The indexing provided inside the `wi_data` class acesses only the portion of the current WI. It is not possible the location or coordinates of this portion in the original matrix.  This coordinates mapping  is implementation defined and change from one backend to the other.   For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping coordinates information is needed to reason about the matrix view.
+With joint matrix, we want to write, as much as possible, one code to run on different backends. So if backend X states that a WI owns one exact row of the matrix for instance. Writing the following code will work only on that backend for that version of hardware. The hardware and implementations change, for instance, the same WI can own half of the row because SG size increased or hardware units increased. 
+
+```c++
+auto data = C.get_wi_data();
+for (int i = 0; i < length; ++i) {
+  sum_of_local_rows[row] += data[i];
+}
+```
+
+
+
+We want to keep backward compatibility in the joint matrix code when implementations or hardware change. To that end, instead of hard-code this mapping, we write  general backend and target-agnostic, especially in the JIT compilation mode of SYCL. This is possible by querying this mapping so code does not have to change from one version to the other.
+
+So for the mapping problem, since this mapping is implementation-defined, one of the proposals is to add runtime functions like:
+```c++
+auto data = C.get_wi_data();
+for (int i = 0; i < length; ++i) {
+  auto row, col = data[i].get_coord();
+  sum_of_local_rows[row] += data[i];
+}
+```
 
 
 ## Open Questions
