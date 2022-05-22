@@ -380,6 +380,12 @@ static void appendLinkOptionsFromImage(std::string &LinkOpts,
   }
 }
 
+static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
+                                const char *PropName) {
+  pi_device_binary_property Prop = Img.getProperty(PropName);
+  return Prop && (pi::DeviceBinaryProperty(Prop).asUint32() != 0);
+}
+
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img) {
   // Build options are overridden if environment variables are present.
@@ -387,7 +393,6 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   // is reasonable to use static here to read them only once.
   static const char *CompileOptsEnv =
       SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
-  pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
   // Update only if compile options are not overwritten by environment
   // variable
   if (!CompileOptsEnv) {
@@ -397,9 +402,14 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (TemporaryStr != nullptr)
       CompileOpts += std::string(TemporaryStr);
   }
+  bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
+  bool isDoubleGRFEsimdImage =
+      getUint32PropAsBool(Img, "isDoubleGRFEsimdImage");
+  assert((!isDoubleGRFEsimdImage || isEsimdImage) &&
+         "doubleGRF applies only to ESIMD binary images");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
-  if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+  if (isEsimdImage) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     CompileOpts += "-vc-codegen";
@@ -407,6 +417,10 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // level is at least 1.
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
       CompileOpts += " -disable-finalizer-msg";
+  }
+  if (isDoubleGRFEsimdImage) {
+    assert(!CompileOpts.empty()); // -vc-codegen must be present
+    CompileOpts += " -doubleGRF";
   }
 }
 

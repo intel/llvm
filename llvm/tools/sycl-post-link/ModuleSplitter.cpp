@@ -39,6 +39,7 @@ constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+constexpr char ATTR_DOUBLE_GRF[] = "esimd-double-grf";
 
 // Describes scope covered by each entry in the module-entry points map
 // populated by the groupEntryPointsByScope function.
@@ -228,6 +229,34 @@ EntryPointGroupVec groupEntryPointsByScope(const Module &M,
   return EntryPointGroups;
 }
 
+EntryPointGroupVec
+groupEntryPointsByAttribute(const Module &M, StringRef AttrName,
+                            bool EmitOnlyKernelsAsEntryPoints) {
+  EntryPointGroupVec EntryPointGroups{};
+  std::map<StringRef, EntryPointVec> EntryPointMap;
+
+  // Only process module entry points:
+  for (const auto &F : M.functions()) {
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints)) {
+      continue;
+    }
+    if (F.hasFnAttribute(AttrName)) {
+      EntryPointMap[AttrName].push_back(&F);
+    } else {
+      EntryPointMap[""].push_back(&F);
+    }
+  }
+  if (!EntryPointMap.empty()) {
+    EntryPointGroups.reserve(EntryPointMap.size());
+    for (auto &EPG : EntryPointMap)
+      EntryPointGroups.push_back({EPG.first, std::move(EPG.second)});
+  } else {
+    // No entry points met, record this.
+    EntryPointGroups.push_back({GLOBAL_SCOPE_NAME, {}});
+  }
+  return EntryPointGroups;
+}
+
 // For device global variables with the 'device_image_scope' property,
 // the function checks that there are no usages of a single device global
 // variable from kernels grouped to different modules.
@@ -324,21 +353,21 @@ void collectGlobalVarsToExtract(SetVector<const GlobalValue *> &GVs,
 ModuleDesc extractSubModule(const Module &M,
                             const SetVector<const GlobalValue *> GVs,
                             const EntryPointGroup &ModuleEntryPoints) {
-  ModuleDesc Res{nullptr, ModuleEntryPoints};
-
   // For each group of entry points collect all dependencies.
   ValueToValueMapTy VMap;
   // Clone definitions only for needed globals. Others will be added as
   // declarations and removed later.
-  Res.M = CloneModule(M, VMap,
-                      [&](const GlobalValue *GV) { return GVs.count(GV); });
-
-  EntryPointVec &NewEPs = Res.EntryPoints.Functions;
-  // replace entry points with cloned ones
-  std::for_each(NewEPs.begin(), NewEPs.end(),
-                [&VMap](const Function *F) { return cast<Function>(VMap[F]); });
-
-  return Res;
+  std::unique_ptr<Module> SubM = CloneModule(
+      M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
+  // Replace entry points with cloned ones.
+  EntryPointVec NewEPs;
+  const EntryPointVec &EPs = ModuleEntryPoints.Functions;
+  NewEPs.reserve(EPs.size());
+  std::transform(
+      EPs.cbegin(), EPs.cend(), std::inserter(NewEPs, NewEPs.end()),
+      [&VMap](const Function *F) { return cast<Function>(VMap[F]); });
+  return ModuleDesc{std::move(SubM), EntryPointGroup{ModuleEntryPoints.GroupId,
+                                                     std::move(NewEPs)}};
 }
 
 // TODO: try to move including all passes (cleanup, spec consts, compile time
@@ -392,6 +421,10 @@ bool module_split::ModuleDesc::isEsimd() {
   return (EntryPoints.GroupId == ESIMD_SCOPE_NAME);
 }
 
+bool module_split::ModuleDesc::isDoubleGRF() {
+  return (EntryPoints.GroupId == ATTR_DOUBLE_GRF);
+}
+
 std::unique_ptr<ModuleSplitterBase>
 module_split::getSplitterByKernelType(std::unique_ptr<Module> M,
                                       bool SplitEsimd,
@@ -420,6 +453,20 @@ std::unique_ptr<ModuleSplitterBase> module_split::getSplitterByMode(
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
+    return std::make_unique<ModuleSplitter>(std::move(M), std::move(Groups));
+  else
+    return std::make_unique<ModuleCopier>(std::move(M), std::move(Groups));
+}
+
+std::unique_ptr<ModuleSplitterBase>
+module_split::getESIMDDoubleGRFSplitter(std::unique_ptr<Module> M,
+                                        bool EmitOnlyKernelsAsEntryPoints) {
+  EntryPointGroupVec Groups = groupEntryPointsByAttribute(
+      *M, ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints);
+  assert(!Groups.empty() && "At least one group is expected");
+  assert(Groups.size() <= 2 && "At most 2 groups are expected");
+
+  if (Groups.size() > 1)
     return std::make_unique<ModuleSplitter>(std::move(M), std::move(Groups));
   else
     return std::make_unique<ModuleCopier>(std::move(M), std::move(Groups));

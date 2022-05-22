@@ -49,6 +49,7 @@ struct ModuleDesc {
   const Module &getModule() const { return *M; }
 
   bool isEsimd();
+  bool isDoubleGRF();
 };
 
 // Module split support interface.
@@ -104,6 +105,10 @@ std::unique_ptr<ModuleSplitterBase>
 getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
                   bool IROutputOnly, bool EmitOnlyKernelsAsEntryPoints,
                   bool DeviceGlobals);
+
+std::unique_ptr<ModuleSplitterBase>
+getESIMDDoubleGRFSplitter(std::unique_ptr<Module> M,
+                          bool EmitOnlyKernelsAsEntryPoints);
 
 } // namespace module_split
 

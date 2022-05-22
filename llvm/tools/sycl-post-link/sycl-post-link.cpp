@@ -187,7 +187,8 @@ struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
   bool EmitExportedSymbols;
-  bool IsEsimdKernel;
+  bool IsEsimdBinImage;
+  bool IsDoubleGRFEsimdBinImage;
   bool EmitDeviceGlobalPropSet;
 };
 
@@ -403,8 +404,11 @@ void saveModuleProperties(module_split::ModuleDesc &ResM,
     }
   }
 
-  if (ImgPSInfo.IsEsimdKernel)
+  if (ImgPSInfo.IsEsimdBinImage)
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
+  if (ImgPSInfo.IsDoubleGRFEsimdBinImage)
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
+        {"isDoubleGRFEsimdImage", true});
 
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
@@ -566,61 +570,77 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
                                       EmitOnlyKernelsAsEntryPoints,
                                       DeviceGlobals);
 
-  StringRef FileSuffix = IsEsimd ? "esimd_" : "";
+  StringRef FileSuffix0 = IsEsimd ? "esimd_" : "";
 
   for (size_t I = 0; I < MSplit->totalSplits(); ++I) {
-    module_split::ModuleDesc ResMDesc = MSplit->nextSplit();
-    Module &ResM = ResMDesc.getModule();
+    module_split::ModuleDesc ParentMDesc = MSplit->nextSplit();
+    SmallVector<module_split::ModuleDesc, 2> MMs;
 
-    bool SpecConstsMet = processSpecConstants(ResM);
-    bool CompileTimePropertiesMet = processCompileTimeProperties(ResM);
-
-    if (IROutputOnly) {
-      // the result is the transformed input LLVM IR file rather than a file
-      // table
-      saveModuleIR(ResM, OutputFilename);
-      return TblFiles;
-    }
-
-    {
-      // Reuse input module with only regular SYCL kernels if there were
-      // no spec constants and no splitting.
-      // We cannot reuse input module for ESIMD code since it was transformed.
-      std::string ResModuleFile{};
-      bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
-                                 !IsLLVMUsedRemoved && !SpecConstsMet &&
-                                 !CompileTimePropertiesMet &&
-                                 (MSplit->totalSplits() == 1);
-      if (CanReuseInputModule)
-        ResModuleFile = InputFilename;
-      else {
-        ResModuleFile =
-            makeResultFileName((OutputAssembly) ? ".ll" : ".bc", I, FileSuffix);
-        saveModuleIR(ResM, ResModuleFile);
+    if (IsEsimd) {
+      std::unique_ptr<module_split::ModuleSplitterBase> DoubleGRFSplit =
+          module_split::getESIMDDoubleGRFSplitter(std::move(ParentMDesc.M),
+                                                  EmitOnlyKernelsAsEntryPoints);
+      while (DoubleGRFSplit->hasMoreSplits()) {
+        MMs.emplace_back(DoubleGRFSplit->nextSplit());
       }
-      // "Code" column is always output
-      TblFiles[COL_CODE].push_back(ResModuleFile);
+    } else {
+      MMs.emplace_back(std::move(ParentMDesc));
     }
 
-    {
-      GlobalBinImageProps ImgPSInfo = {SpecConstsMet,
-                                       EmitKernelParamInfo,
-                                       EmitProgramMetadata,
-                                       EmitExportedSymbols,
-                                       IsEsimd,
-                                       DeviceGlobals};
-      std::string PropSetFile = makeResultFileName(".prop", I, FileSuffix);
-      saveModuleProperties(ResMDesc, ImgPSInfo, PropSetFile);
-      TblFiles[COL_PROPS].push_back(PropSetFile);
-    }
+    for (auto &MDesc : MMs) {
+      Module &ResM = MDesc.getModule();
+      bool SpecConstsMet = processSpecConstants(ResM);
+      bool CompileTimePropertiesMet = processCompileTimeProperties(ResM);
 
-    if (DoSymGen) {
-      // extract symbols from module
-      std::string ResultSymbolsList =
-          collectSymbolsList(ResMDesc.EntryPoints.Functions);
-      std::string ResultSymbolsFile = makeResultFileName(".sym", I, FileSuffix);
-      writeToFile(ResultSymbolsFile, ResultSymbolsList);
-      TblFiles[COL_SYM].push_back(ResultSymbolsFile);
+      if (IROutputOnly) {
+        // the result is the transformed input LLVM IR file rather than a file
+        // table
+        saveModuleIR(ResM, OutputFilename);
+        return TblFiles;
+      }
+      StringRef FileSuffix = MDesc.isDoubleGRF() ? "esimd_x2grf_" : FileSuffix0;
+      {
+        // Reuse input module with only regular SYCL kernels if there were
+        // no spec constants and no splitting.
+        // We cannot reuse input module for ESIMD code since it was transformed.
+        std::string ResModuleFile{};
+        bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
+                                   !IsLLVMUsedRemoved && !SpecConstsMet &&
+                                   !CompileTimePropertiesMet &&
+                                   (MSplit->totalSplits() == 1);
+        if (CanReuseInputModule)
+          ResModuleFile = InputFilename;
+        else {
+          ResModuleFile = makeResultFileName((OutputAssembly) ? ".ll" : ".bc",
+                                             I, FileSuffix);
+          saveModuleIR(ResM, ResModuleFile);
+        }
+        // "Code" column is always output
+        TblFiles[COL_CODE].push_back(ResModuleFile);
+      }
+
+      {
+        GlobalBinImageProps ImgPSInfo = {SpecConstsMet,
+                                         EmitKernelParamInfo,
+                                         EmitProgramMetadata,
+                                         EmitExportedSymbols,
+                                         IsEsimd,
+                                         MDesc.isDoubleGRF(),
+                                         DeviceGlobals};
+        std::string PropSetFile = makeResultFileName(".prop", I, FileSuffix);
+        saveModuleProperties(MDesc, ImgPSInfo, PropSetFile);
+        TblFiles[COL_PROPS].push_back(PropSetFile);
+      }
+
+      if (DoSymGen) {
+        // extract symbols from module
+        std::string ResultSymbolsList =
+            collectSymbolsList(MDesc.EntryPoints.Functions);
+        std::string ResultSymbolsFile =
+            makeResultFileName(".sym", I, FileSuffix);
+        writeToFile(ResultSymbolsFile, ResultSymbolsList);
+        TblFiles[COL_SYM].push_back(ResultSymbolsFile);
+      }
     }
   }
 
