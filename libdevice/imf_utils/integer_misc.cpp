@@ -54,7 +54,8 @@ unsigned int __devicelib_imf_sad(int x, int y, unsigned int z) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_usad(unsigned int x, unsigned int y,
                                   unsigned int z) {
-  return __abs(x - y) + z;
+  long long int xll = x, yll = y;
+  return static_cast<unsigned int>(__abs(xll - yll)) + z;
 }
 
 DEVICE_EXTERN_C_INLINE

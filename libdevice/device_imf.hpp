@@ -451,6 +451,10 @@ static inline int __popcll(unsigned long long int x) {
 
 static inline unsigned int __abs(int x) { return x < 0 ? -x : x; }
 
+static inline unsigned long long int __abs(long long int x) {
+  return x < 0 ? -x : x;
+}
+
 template <typename Ty1, typename Ty2>
 static inline Ty2 __get_bytes_by_index(Ty1 x, size_t idx) {
   static_assert(!std::is_signed<Ty1>::value && !std::is_signed<Ty2>::value,
