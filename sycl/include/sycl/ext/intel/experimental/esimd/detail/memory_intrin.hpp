@@ -424,73 +424,6 @@ void __esimd_emu_lsc_offset_write(
   }
 }
 
-/// Stateless-2d operations
-/// Template argument check for 2D-load/store
-/// @tparam T is element type.
-/// @tparam Width is width of block
-/// @tparam Height is height of block
-/// @tparam NBlks is Number of blocks
-template <typename T, int Width, int Height,
-          __ESIMD_EDNS::lsc_data_order Transposed, bool Transformed, int NBlks,
-          bool isStore>
-constexpr void loadstore2DArgumentCheck() {
-  const __ESIMD_ENS::lsc_data_size _DS = __ESIMD_EDNS::finalize_data_size<
-      T, __ESIMD_ENS::lsc_data_size::default_size>();
-  static_assert(__ESIMD_DNS::isPowerOf2(NBlks) && (NBlks * sizeof(T) <= 8),
-                "NBlks must be power of 2 and less than or equal to 4!!");
-
-  if constexpr (isStore == true) {
-    static_assert(NBlks == 1, "Mutliple Blocks are not allowed for 2D store!!");
-    static_assert(Transposed == __ESIMD_EDNS::lsc_data_order::nontranspose,
-                  "No Transposed 2D store!!");
-    static_assert(Transformed == false, "No Transformed 2D store!!");
-    static_assert((Height >= 1) && (Height <= 32),
-                  "Invalid Height for 2D store!! H > 32 or H == 0");
-
-    static_assert((Width * sizeof(T) >= 4) && (Width * sizeof(T) <= 64),
-                  "Invalid Width for 2D store!!");
-
-    static_assert(sycl::detail::getNextPowerOfTwo(Width * sizeof(T)) * Height <=
-                      512,
-                  "Invalid Width * Height combination!!");
-  } else // isStore == false
-  {
-    // Restriction : Width * NBlks
-    static_assert(
-        Width * NBlks * sizeof(T) <= 64,
-        "Invalid Width/NBlks combination!! (W * NBlks * sizeof(T) > 64)");
-
-    static_assert(
-        ((Transposed == __ESIMD_EDNS::lsc_data_order::transpose) &
-         Transformed) != true,
-        "Transpose and Transform cannot be used together for 2D-load!!");
-
-    if constexpr (Transformed == false) {
-      if constexpr (Transposed == __ESIMD_EDNS::lsc_data_order::transpose) {
-        static_assert(NBlks == 1,
-                      "Invalid NBlks for Transposed 2D load!! NBlks != 1");
-      }
-
-      static_assert((Height >= 1) && (Height <= 32),
-                    "Invalid Height for Non-transform 2D load!!");
-
-      static_assert((Width * sizeof(T) >= 4) && (Width * sizeof(T) <= 64),
-                    "Invalid Width for Non-transform 2D load!!");
-    } else // Transformed == true
-    {
-      static_assert(
-          (_DS == __ESIMD_ENS::lsc_data_size::u8) ||
-              (_DS == __ESIMD_ENS::lsc_data_size::u16),
-          "For Transformed 2D read, DataSize must be either U8 or U16");
-
-      static_assert((Width * sizeof(T) >= 4) && (Width <= 16),
-                    "Invalid Width for Transformed/Non-Transposed 2D load!!");
-      static_assert((Height * sizeof(T) >= 4) && (Height <= 32),
-                    "Invalid Height for Transformed/Non-Transposed 2D load!!");
-    }
-  }
-}
-
 /// Generic helper function of 2D Block Read supporting both 2d-load
 /// and raw_send
 template <typename Ty, uint N>
@@ -1064,8 +997,8 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  loadstore2DArgumentCheck<Ty, BlockWidth, BlockHeight, _Transposed,
-                           Transformed, NBlocks, false /* isStore*/>();
+  // Template arguments are already checked by
+  // check_lsc_block_2d_restrictions()
   return __esimd_emu_read_2d<Ty, N>(Pred, Ptr, SurfaceWidth, SurfaceHeight,
                                     SurfacePitch, X, Y, BlockWidth, BlockHeight,
                                     NBlocks, _Transposed, Transformed);
@@ -1154,8 +1087,8 @@ __esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  loadstore2DArgumentCheck<Ty, BlockWidth, BlockHeight, _Transposed,
-                           Transformed, NBlocks, true /* isStore */>();
+  // Template arguments are already checked by
+  // check_lsc_block_2d_restrictions()
   __esimd_emu_write_2d<Ty, N>(Pred, Ptr, SurfaceWidth, SurfaceHeight,
                               SurfacePitch, X, Y, vals, BlockWidth,
                               BlockHeight);
