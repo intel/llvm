@@ -4,6 +4,10 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// disabling hip because some of the binary_ops tested are not supported
+// getting undefined symbols for a handful of __spirv__ * functions.
+// XFAIL: hip
+
 #include "support.h"
 #include <CL/sycl.hpp>
 #include <algorithm>
