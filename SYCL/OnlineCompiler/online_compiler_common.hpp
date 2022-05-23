@@ -51,7 +51,6 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
 
 int main(int argc, char **argv) {
   cl::sycl::queue Q;
-  cl::sycl::context Context = Q.get_context();
   cl::sycl::device Device = Q.get_device();
 
   { // Compile and run a trivial OpenCL kernel.
@@ -73,7 +72,7 @@ int main(int argc, char **argv) {
       return 1;
     }
 #ifdef RUN_KERNELS
-    testSyclKernel(Q, getSYCLKernelWithIL(Context, IL));
+    testSyclKernel(Q, getSYCLKernelWithIL(Q, IL));
 #endif // RUN_KERNELS
   }
 
@@ -93,7 +92,7 @@ int main(int argc, char **argv) {
       return 1;
     }
 #ifdef RUN_KERNELS
-    testSyclKernel(Q, getSYCLKernelWithIL(Context, IL));
+    testSyclKernel(Q, getSYCLKernelWithIL(Q, IL));
 #endif // RUN_KERNELS
   }
 

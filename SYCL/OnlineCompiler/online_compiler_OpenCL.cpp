@@ -19,8 +19,10 @@
 using byte = unsigned char;
 
 #ifdef RUN_KERNELS
-sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
+sycl::kernel getSYCLKernelWithIL(sycl::queue &Queue,
                                  const std::vector<byte> &IL) {
+  sycl::context Context = Queue.get_context();
+
   cl_int Err;
   cl_program ClProgram =
       clCreateProgramWithIL(sycl::get_native<sycl::backend::opencl>(Context),
