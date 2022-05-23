@@ -30,7 +30,6 @@
 
 extern "C" {
 // Forward declarartions.
-static pi_result EventRelease(pi_event Event);
 static pi_result QueueRelease(pi_queue Queue);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
@@ -5483,7 +5482,7 @@ static pi_result cleanup(pi_event Event) {
   // require this release because it means that they are not created using
   // createEventAndAssociateQueue, i.e. additional retain was not made.
   if (AssociatedQueue)
-    PI_CALL(EventRelease(Event));
+    PI_CALL(piEventRelease(Event));
 
   // The list of dependent events will be appended to as we walk it so that this
   // algorithm doesn't go recursive due to dependent events themselves being
@@ -5514,7 +5513,7 @@ static pi_result cleanup(pi_event Event) {
     }
     if (DepEventKernel)
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
-    PI_CALL(EventRelease(DepEvent));
+    PI_CALL(piEventRelease(DepEvent));
   }
 
   return PI_SUCCESS;
@@ -5602,10 +5601,7 @@ pi_result piEventRetain(pi_event Event) {
   return PI_SUCCESS;
 }
 
-pi_result piEventRelease(pi_event Event) { return EventRelease(Event); }
-
-// The caller must not lock any mutexes.
-static pi_result EventRelease(pi_event Event) {
+pi_result piEventRelease(pi_event Event) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
   if (!Event->RefCount) {
     die("piEventRelease: called on a destroyed event");
@@ -5630,7 +5626,7 @@ static pi_result EventRelease(pi_event Event) {
     // and release a reference to it.
     if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
       // Decrement ref-count of the host-visible proxy event.
-      PI_CALL(EventRelease(Event->HostVisibleEvent));
+      PI_CALL(piEventRelease(Event->HostVisibleEvent));
     }
 
     auto Context = Event->Context;
@@ -6041,7 +6037,7 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    PI_CALL(EventRelease(Event));
+    PI_CALL(piEventRelease(Event));
     return PI_SUCCESS;
   };
 
