@@ -660,6 +660,10 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   if (ReqSubGroup && (IsKernelOrDevice || !ReqSubGroup->isSYCL2020Spelling())) {
     const auto *CE = cast<ConstantExpr>(ReqSubGroup->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    if (CGM.getTriple().isNVPTX() && (ArgVal->getSExtValue() != 32)) {
+      CGM.getDiags().Report(FD->getLocation(), diag::err_fe_backend_unsupported)
+          << "CUDA backend requires subgroup size 32";
+    }
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("intel_reqd_sub_group_size",
