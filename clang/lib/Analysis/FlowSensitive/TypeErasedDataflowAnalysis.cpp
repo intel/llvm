@@ -46,7 +46,7 @@ public:
       : CFCtx(CFCtx), BlockToState(BlockToState) {}
 
   const Environment *getEnvironment(const Stmt &S) const override {
-    auto BlockIT = CFCtx.getStmtToBlock().find(&S);
+    auto BlockIT = CFCtx.getStmtToBlock().find(&ignoreCFGOmittedNodes(S));
     assert(BlockIT != CFCtx.getStmtToBlock().end());
     const auto &State = BlockToState[BlockIT->getSecond()->getBlockID()];
     assert(State.hasValue());
@@ -77,26 +77,26 @@ public:
       : StmtToEnv(StmtToEnv), Env(Env), BlockSuccIdx(BlockSuccIdx) {}
 
   void VisitIfStmt(const IfStmt *S) {
-    auto *Cond = S->getCond()->IgnoreParenImpCasts();
+    auto *Cond = S->getCond();
     assert(Cond != nullptr);
     extendFlowCondition(*Cond);
   }
 
   void VisitWhileStmt(const WhileStmt *S) {
-    auto *Cond = S->getCond()->IgnoreParenImpCasts();
+    auto *Cond = S->getCond();
     assert(Cond != nullptr);
     extendFlowCondition(*Cond);
   }
 
   void VisitBinaryOperator(const BinaryOperator *S) {
     assert(S->getOpcode() == BO_LAnd || S->getOpcode() == BO_LOr);
-    auto *LHS = S->getLHS()->IgnoreParenImpCasts();
+    auto *LHS = S->getLHS();
     assert(LHS != nullptr);
     extendFlowCondition(*LHS);
   }
 
   void VisitConditionalOperator(const ConditionalOperator *S) {
-    auto *Cond = S->getCond()->IgnoreParenImpCasts();
+    auto *Cond = S->getCond();
     assert(Cond != nullptr);
     extendFlowCondition(*Cond);
   }
