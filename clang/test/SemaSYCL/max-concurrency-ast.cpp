@@ -56,6 +56,7 @@ public:
 
 void foo() {
   q.submit([&](handler &h) {
+    // Test attribute is not propagated.
     // CHECK: FunctionDecl {{.*}}kernel_name_1
     // CHECK-NOT: SYCLIntelFPGAMaxConcurrencyAttr
     KernelFunctor f1;
@@ -86,6 +87,7 @@ void foo() {
         // CHECK-NEXT: ConstantExpr {{.*}} 'int'
         // CHECK-NEXT: value: Int 3
         // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+        // CHECK-NOT: SYCLIntelFPGAMaxConcurrencyAttr
         []() [[intel::max_concurrency(3),
                intel::max_concurrency(3)]] {});
   });
