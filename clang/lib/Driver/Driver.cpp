@@ -4753,14 +4753,19 @@ class OffloadingActionBuilder final {
       SYCLTC->SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
       using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
+
       const SYCLDeviceLibsList sycl_device_wrapper_libs = {
-          {"libsycl-crt", "libc"},
-          {"libsycl-complex", "libm-fp32"},
-          {"libsycl-complex-fp64", "libm-fp64"},
-          {"libsycl-cmath", "libm-fp32"},
-          {"libsycl-cmath-fp64", "libm-fp64"},
-          {"libsycl-imf", "libimf-fp32"},
-          {"libsycl-imf-fp64", "libimf-fp64"}};
+        {"libsycl-crt", "libc"},
+        {"libsycl-complex", "libm-fp32"},
+        {"libsycl-complex-fp64", "libm-fp64"},
+        {"libsycl-cmath", "libm-fp32"},
+        {"libsycl-cmath-fp64", "libm-fp64"},
+#if defined(_WIN32)
+        {"libsycl-msvc-math", "libm-fp32"},
+#endif
+        {"libsycl-imf", "libimf-fp32"},
+        {"libsycl-imf-fp64", "libimf-fp64"}
+      };
       // For AOT compilation, we need to link sycl_device_fallback_libs as
       // default too.
       const SYCLDeviceLibsList sycl_device_fallback_libs = {

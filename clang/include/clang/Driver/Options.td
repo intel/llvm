@@ -5897,7 +5897,7 @@ def arcmt_action_EQ : Joined<["-"], "arcmt-action=">, Flags<[CC1Option, NoDriver
 
 def opt_record_file : Separate<["-"], "opt-record-file">,
   HelpText<"File name to use for YAML optimization record output">,
-  MarshallingInfoString<CodeGenOpts<"OptRecordFile">>;
+  MarshallingInfoString<LangOpts<"OptRecordFile">>;
 def opt_record_passes : Separate<["-"], "opt-record-passes">,
   HelpText<"Only record remark information for passes whose names match the given regular expression">;
 def opt_record_format : Separate<["-"], "opt-record-format">,
