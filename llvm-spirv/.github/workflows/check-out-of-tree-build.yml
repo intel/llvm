@@ -52,6 +52,7 @@ jobs:
             llvm-${{ env.LLVM_VERSION }}-dev \
             libomp-${{ env.LLVM_VERSION }}-dev \
             llvm-${{ env.LLVM_VERSION }}-tools \
+            mlir-${{ env.LLVM_VERSION }}-tools \
             spirv-tools
           # Linux systems in GitHub Actions already have older versions of clang
           # pre-installed. Make sure to override these with the relevant version.
