@@ -1434,6 +1434,11 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_trivially_constructible`` (C++, GNU, Microsoft)
 * ``__is_trivially_copyable`` (C++, GNU, Microsoft)
 * ``__is_trivially_destructible`` (C++, MSVC 2013)
+* ``__is_trivially_relocatable`` (Clang): Returns true if moving an object
+  of the given type, and then destroying the source object, is known to be
+  functionally equivalent to copying the underlying bytes and then dropping the
+  source object on the floor. This is true of trivial types and types which
+  were made trivially relocatable via the ``clang::trivial_abi`` attribute.
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
   Returns false for enumeration types. Note, before Clang 13, returned true for
@@ -2944,7 +2949,7 @@ Query for this feature with ``__has_builtin(__builtin_trap)``.
 
 ``__builtin_sycl_unique_stable_name()`` is a builtin that takes a type and
 produces a string literal containing a unique name for the type that is stable
-across split compilations, mainly to support SYCL/Data Parallel C++ language.
+across split compilations, mainly to support SYCL language.
 
 In cases where the split compilation needs to share a unique token for a type
 across the boundary (such as in an offloading situation), this name can be used
@@ -4014,7 +4019,7 @@ Note that ``-ffp-contract=fast`` will override pragmas to fuse multiply and
 addition across statements regardless of any controlling pragmas.
 
 ``#pragma clang fp exceptions`` specifies floating point exception behavior. It
-may take one the the values: ``ignore``, ``maytrap`` or ``strict``. Meaning of
+may take one of the values: ``ignore``, ``maytrap`` or ``strict``. Meaning of
 these values is same as for `constrained floating point intrinsics <http://llvm.org/docs/LangRef.html#constrained-floating-point-intrinsics>`_.
 
 .. code-block:: c++

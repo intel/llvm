@@ -344,6 +344,7 @@ void SPIRVRegularizeLLVMBase::lowerUMulWithOverflow(
 
 void SPIRVRegularizeLLVMBase::expandVEDWithSYCLTypeSRetArg(Function *F) {
   auto Attrs = F->getAttributes();
+  StructType *SRetTy = cast<StructType>(Attrs.getParamStructRetType(0));
   Attrs = Attrs.removeParamAttribute(F->getContext(), 0, Attribute::StructRet);
   std::string Name = F->getName().str();
   CallInst *OldCall = nullptr;
@@ -351,17 +352,14 @@ void SPIRVRegularizeLLVMBase::expandVEDWithSYCLTypeSRetArg(Function *F) {
       F,
       [=, &OldCall](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
         Args.erase(Args.begin());
-        auto *SRetPtrTy = cast<PointerType>(CI->getOperand(0)->getType());
-        auto *ET = SRetPtrTy->getPointerElementType();
-        RetTy = cast<StructType>(ET)->getElementType(0);
+        RetTy = SRetTy->getElementType(0);
         OldCall = CI;
         return Name;
       },
       [=, &OldCall](CallInst *NewCI) {
         IRBuilder<> Builder(OldCall);
-        auto *SRetPtrTy = cast<PointerType>(OldCall->getOperand(0)->getType());
-        auto *ET = SRetPtrTy->getPointerElementType();
-        Value *Target = Builder.CreateStructGEP(ET, OldCall->getOperand(0), 0);
+        Value *Target =
+            Builder.CreateStructGEP(SRetTy, OldCall->getOperand(0), 0);
         return Builder.CreateStore(NewCI, Target);
       },
       nullptr, &Attrs, true);
@@ -369,16 +367,15 @@ void SPIRVRegularizeLLVMBase::expandVEDWithSYCLTypeSRetArg(Function *F) {
 
 void SPIRVRegularizeLLVMBase::expandVIDWithSYCLTypeByValComp(Function *F) {
   auto Attrs = F->getAttributes();
+  auto *CompPtrTy = cast<StructType>(Attrs.getParamByValType(1));
   Attrs = Attrs.removeParamAttribute(F->getContext(), 1, Attribute::ByVal);
   std::string Name = F->getName().str();
   mutateFunction(
       F,
       [=](CallInst *CI, std::vector<Value *> &Args) {
-        auto *CompPtrTy = cast<PointerType>(CI->getOperand(1)->getType());
-        auto *ET = CompPtrTy->getPointerElementType();
-        Type *HalfTy = cast<StructType>(ET)->getElementType(0);
+        Type *HalfTy = CompPtrTy->getElementType(0);
         IRBuilder<> Builder(CI);
-        auto *Target = Builder.CreateStructGEP(ET, CI->getOperand(1), 0);
+        auto *Target = Builder.CreateStructGEP(CompPtrTy, CI->getOperand(1), 0);
         Args[1] = Builder.CreateLoad(HalfTy, Target);
         return Name;
       },
@@ -392,9 +389,8 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
   for (auto &F : *M) {
     if (F.getName().startswith("_Z28__spirv_VectorExtractDynamic") &&
         F.hasStructRetAttr()) {
-      auto *SRetPtrTy = cast<PointerType>(F.getArg(0)->getType());
-      if (isSYCLHalfType(SRetPtrTy->getPointerElementType()) ||
-          isSYCLBfloat16Type(SRetPtrTy->getPointerElementType()))
+      auto *SRetTy = F.getParamStructRetType(0);
+      if (isSYCLHalfType(SRetTy) || isSYCLBfloat16Type(SRetTy))
         ToExpandVEDWithSYCLTypeSRetArg.push_back(&F);
       else
         llvm_unreachable("The return type of the VectorExtractDynamic "
@@ -403,8 +399,7 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
     }
     if (F.getName().startswith("_Z27__spirv_VectorInsertDynamic") &&
         F.getArg(1)->getType()->isPointerTy()) {
-      auto *CompPtrTy = cast<PointerType>(F.getArg(1)->getType());
-      auto *ET = CompPtrTy->getPointerElementType();
+      auto *ET = F.getParamByValType(1);
       if (isSYCLHalfType(ET) || isSYCLBfloat16Type(ET))
         ToExpandVIDWithSYCLTypeByValComp.push_back(&F);
       else

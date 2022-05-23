@@ -143,7 +143,9 @@ protected:
   bool HasDot7Insts = false;
   bool HasMAIInsts = false;
   bool HasPkFmacF16Inst = false;
-  bool HasAtomicFaddInsts = false;
+  bool HasAtomicFaddRtnInsts = false;
+  bool HasAtomicFaddNoRtnInsts = false;
+  bool HasAtomicPkFaddNoRtnInsts = false;
   bool SupportsSRAMECC = false;
 
   // This should not be used directly. 'TargetID' tracks the dynamic settings
@@ -709,8 +711,14 @@ public:
   }
 
   bool hasAtomicFaddInsts() const {
-    return HasAtomicFaddInsts;
+    return HasAtomicFaddRtnInsts || HasAtomicFaddNoRtnInsts;
   }
+
+  bool hasAtomicFaddRtnInsts() const { return HasAtomicFaddRtnInsts; }
+
+  bool hasAtomicFaddNoRtnInsts() const { return HasAtomicFaddNoRtnInsts; }
+
+  bool hasAtomicPkFaddNoRtnInsts() const { return HasAtomicPkFaddNoRtnInsts; }
 
   bool hasNoSdstCMPX() const {
     return HasNoSdstCMPX;
@@ -929,6 +937,14 @@ public:
   bool hasReadM0SendMsgHazard() const {
     return getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS &&
            getGeneration() <= AMDGPUSubtarget::GFX9;
+  }
+
+  bool hasReadM0LdsDmaHazard() const {
+    return getGeneration() == AMDGPUSubtarget::GFX9;
+  }
+
+  bool hasReadM0LdsDirectHazard() const {
+    return getGeneration() == AMDGPUSubtarget::GFX9;
   }
 
   bool hasVcmpxPermlaneHazard() const {

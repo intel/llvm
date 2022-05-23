@@ -160,6 +160,10 @@ static codegen::RegisterCodeGenFlags CodeGenFlags;
 /// section will contain one or more offloading binaries stored contiguously.
 #define OFFLOAD_SECTION_MAGIC_STR ".llvm.offloading"
 
+/// The magic offset for the first object inside CUDA's fatbinary. This can be
+/// different but it should work for what is passed here.
+static constexpr unsigned FatbinaryOffset = 0x50;
+
 /// Information for a device offloading file extracted from the host.
 struct DeviceFile {
   DeviceFile(StringRef Kind, StringRef TheTriple, StringRef Arch,
@@ -173,7 +177,10 @@ struct DeviceFile {
 };
 
 namespace llvm {
-/// Helper that allows DeviceFile to be used as a key in a DenseMap.
+/// Helper that allows DeviceFile to be used as a key in a DenseMap. For now we
+/// assume device files with matching architectures and triples but different
+/// offloading kinds should be handlded together, this may not be true in the
+/// future.
 template <> struct DenseMapInfo<DeviceFile> {
   static DeviceFile getEmptyKey() {
     return {DenseMapInfo<StringRef>::getEmptyKey(),
@@ -595,7 +602,7 @@ extractFromBuffer(std::unique_ptr<MemoryBuffer> Buffer,
 // TODO: Move these to a separate file.
 namespace nvptx {
 Expected<std::string> assemble(StringRef InputFile, Triple TheTriple,
-                               StringRef Arch) {
+                               StringRef Arch, bool RDC = true) {
   // NVPTX uses the ptxas binary to create device object files.
   Expected<std::string> PtxasPath = findProgram("ptxas", {CudaBinaryPath});
   if (!PtxasPath)
@@ -626,12 +633,10 @@ Expected<std::string> assemble(StringRef InputFile, Triple TheTriple,
   CmdArgs.push_back(Opt);
   CmdArgs.push_back("--gpu-name");
   CmdArgs.push_back(Arch);
-  CmdArgs.push_back("-c");
+  if (RDC)
+    CmdArgs.push_back("-c");
 
   CmdArgs.push_back(InputFile);
-
-  if (Verbose)
-    printCommands(CmdArgs);
 
   if (Error Err = executeCommands(*PtxasPath, CmdArgs))
     return std::move(Err);
@@ -670,9 +675,6 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
 
-  if (Verbose)
-    printCommands(CmdArgs);
-
   if (Error Err = executeCommands(*NvlinkPath, CmdArgs))
     return std::move(Err);
 
@@ -683,7 +685,8 @@ namespace amdgcn {
 Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
                            StringRef Arch) {
   // AMDGPU uses lld to link device object files.
-  Expected<std::string> LLDPath = findProgram("lld", {CudaBinaryPath});
+  Expected<std::string> LLDPath =
+      findProgram("lld", {getMainExecutable("lld")});
   if (!LLDPath)
     return LLDPath.takeError();
 
@@ -706,9 +709,6 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   // Add extracted input files.
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
-
-  if (Verbose)
-    printCommands(CmdArgs);
 
   if (Error Err = executeCommands(*LLDPath, CmdArgs))
     return std::move(Err);
@@ -786,9 +786,6 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   // Add extracted input files.
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
-
-  if (Verbose)
-    printCommands(CmdArgs);
 
   if (Error Err = executeCommands(LinkerUserPath, CmdArgs))
     return std::move(Err);
@@ -933,7 +930,8 @@ bool isValidCIdentifier(StringRef S) {
 }
 
 Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
-                       const Triple &TheTriple, StringRef Arch) {
+                       const Triple &TheTriple, StringRef Arch,
+                       bool &WholeProgram) {
   SmallVector<std::unique_ptr<MemoryBuffer>, 4> SavedBuffers;
   SmallVector<std::unique_ptr<lto::InputFile>, 4> BitcodeFiles;
   SmallVector<std::string, 4> NewInputFiles;
@@ -950,13 +948,37 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
         MemoryBuffer::getFileOrSTDIN(File);
     if (std::error_code EC = BufferOrErr.getError())
       return createFileError(File, EC);
+    MemoryBufferRef Buffer = **BufferOrErr;
 
     file_magic Type = identify_magic((*BufferOrErr)->getBuffer());
-    if (Type != file_magic::bitcode) {
+    switch (Type) {
+    case file_magic::bitcode: {
+      Expected<std::unique_ptr<lto::InputFile>> InputFileOrErr =
+          llvm::lto::InputFile::create(Buffer);
+      if (!InputFileOrErr)
+        return InputFileOrErr.takeError();
+
+      // Save the input file and the buffer associated with its memory.
+      BitcodeFiles.push_back(std::move(*InputFileOrErr));
+      SavedBuffers.push_back(std::move(*BufferOrErr));
+      continue;
+    }
+    case file_magic::cuda_fatbinary: {
+      // Cuda fatbinaries made by Clang almost almost have an object eighty
+      // bytes from the beginning. This should be sufficient to identify the
+      // symbols.
+      Buffer = MemoryBufferRef(
+          (*BufferOrErr)->getBuffer().drop_front(FatbinaryOffset), "FatBinary");
+      LLVM_FALLTHROUGH;
+    }
+    case file_magic::elf_relocatable:
+    case file_magic::elf_shared_object:
+    case file_magic::macho_object:
+    case file_magic::coff_object: {
       Expected<std::unique_ptr<ObjectFile>> ObjFile =
-          ObjectFile::createObjectFile(**BufferOrErr, Type);
+          ObjectFile::createObjectFile(Buffer);
       if (!ObjFile)
-        return ObjFile.takeError();
+        continue;
 
       NewInputFiles.push_back(File.str());
       for (auto &Sym : (*ObjFile)->symbols()) {
@@ -970,15 +992,10 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
         else
           UsedInSharedLib.insert(Saver.save(*Name));
       }
-    } else {
-      Expected<std::unique_ptr<lto::InputFile>> InputFileOrErr =
-          llvm::lto::InputFile::create(**BufferOrErr);
-      if (!InputFileOrErr)
-        return InputFileOrErr.takeError();
-
-      // Save the input file and the buffer associated with its memory.
-      BitcodeFiles.push_back(std::move(*InputFileOrErr));
-      SavedBuffers.push_back(std::move(*BufferOrErr));
+      continue;
+    }
+    default:
+      continue;
     }
   }
 
@@ -1009,7 +1026,7 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
   };
 
   // We assume visibility of the whole program if every input file was bitcode.
-  bool WholeProgram = BitcodeFiles.size() == InputFiles.size();
+  WholeProgram = BitcodeFiles.size() == InputFiles.size();
   auto LTOBackend =
       (EmbedBitcode) ? createLTO(TheTriple, Arch, WholeProgram, OutputBitcode)
                      : createLTO(TheTriple, Arch, WholeProgram);
@@ -1089,7 +1106,7 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
   // Is we are compiling for NVPTX we need to run the assembler first.
   if (TheTriple.isNVPTX() && !EmbedBitcode) {
     for (auto &File : Files) {
-      auto FileOrErr = nvptx::assemble(File, TheTriple, Arch);
+      auto FileOrErr = nvptx::assemble(File, TheTriple, Arch, !WholeProgram);
       if (!FileOrErr)
         return FileOrErr.takeError();
       File = *FileOrErr;
@@ -1117,15 +1134,24 @@ Error linkDeviceFiles(ArrayRef<DeviceFile> DeviceFiles,
   for (auto &LinkerInput : LinkerInputMap) {
     DeviceFile &File = LinkerInput.getFirst();
     Triple TheTriple = Triple(File.TheTriple);
+    bool WholeProgram = false;
 
     // Run LTO on any bitcode files and replace the input with the result.
-    if (Error Err =
-            linkBitcodeFiles(LinkerInput.getSecond(), TheTriple, File.Arch))
+    if (Error Err = linkBitcodeFiles(LinkerInput.getSecond(), TheTriple,
+                                     File.Arch, WholeProgram))
       return Err;
 
     // If we are embedding bitcode for JIT, skip the final device linking.
     if (EmbedBitcode) {
       assert(!LinkerInput.getSecond().empty() && "No bitcode image to embed");
+      LinkedImages.push_back(LinkerInput.getSecond().front());
+      continue;
+    }
+
+    // If we performed LTO on NVPTX and had whole program visibility, we can use
+    // CUDA in non-RDC mode.
+    if (WholeProgram && TheTriple.isNVPTX()) {
+      assert(!LinkerInput.getSecond().empty() && "No non-RDC image to embed");
       LinkedImages.push_back(LinkerInput.getSecond().front());
       continue;
     }
@@ -1159,9 +1185,8 @@ Expected<std::string> compileModule(Module &M) {
 
   SmallString<128> ObjectFile;
   int FD = -1;
-  if (Error Err = createOutputFile(sys::path::filename(ExecutableName) +
-                                       "offload-wrapper",
-                                   "o", ObjectFile))
+  if (Error Err = createOutputFile(
+          sys::path::filename(ExecutableName) + "-wrapper", "o", ObjectFile))
     return std::move(Err);
   if (std::error_code EC = sys::fs::openFileForWrite(ObjectFile, FD))
     return errorCodeToError(EC);

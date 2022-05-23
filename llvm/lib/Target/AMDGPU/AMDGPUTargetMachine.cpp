@@ -44,6 +44,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/GlobalOffset.h"
 #include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -278,6 +279,10 @@ EnableDCEInRA("amdgpu-dce-in-ra",
     cl::init(true), cl::Hidden,
     cl::desc("Enable machine DCE inside regalloc"));
 
+static cl::opt<bool> EnableSetWavePriority("amdgpu-set-wave-priority",
+                                           cl::desc("Adjust wave priority"),
+                                           cl::init(false), cl::Hidden);
+
 static cl::opt<bool> EnableScalarIRPasses(
   "amdgpu-scalar-ir-passes",
   cl::desc("Enable scalar IR passes"),
@@ -382,6 +387,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeGCNPreRAOptimizationsPass(*PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
+  initializeGlobalOffsetPass(*PR);
   initializeLocalAccessorToSharedMemoryPass(*PR);
 }
 
@@ -1037,8 +1043,10 @@ void AMDGPUPassConfig::addIRPasses() {
     addEarlyCSEOrGVNPass();
 
   if (TM.getTargetTriple().getArch() == Triple::amdgcn &&
-      TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA)
+      TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA) {
     addPass(createLocalAccessorToSharedMemoryPass());
+    addPass(createGlobalOffsetPass());
+  }
 }
 
 void AMDGPUPassConfig::addCodeGenPrepare() {
@@ -1368,6 +1376,8 @@ void GCNPassConfig::addPreEmitPass() {
     addPass(&SIInsertHardClausesID);
 
   addPass(&SILateBranchLoweringPassID);
+  if (isPassEnabled(EnableSetWavePriority, CodeGenOpt::Less))
+    addPass(createAMDGPUSetWavePriorityPass());
   if (getOptLevel() > CodeGenOpt::None)
     addPass(&SIPreEmitPeepholeID);
   // The hazard recognizer that runs as part of the post-ra scheduler does not
