@@ -11,6 +11,7 @@
 
 #include "device.h"
 #include "imf_half.hpp"
+#include <cstddef>
 #include <type_traits>
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
@@ -450,5 +451,33 @@ static inline int __popcll(unsigned long long int x) {
 
 static inline unsigned int __abs(int x) { return x < 0 ? -x : x; }
 
+template <typename Ty1, typename Ty2>
+static inline Ty2 __get_bytes_by_index(Ty1 x, size_t idx) {
+  static_assert(!std::is_signed<Ty1>::value && !std::is_signed<Ty2>::value,
+                "__get_bytes_by_index can only accept unsigned value.");
+  static_assert(std::is_integral<Ty1>::value && std::is_integral<Ty2>::value,
+                "__get_bytes_by_index can only accept integral type.");
+  size_t bits_shift = idx * sizeof(Ty2) * 8;
+  Ty1 mask1 = static_cast<Ty1>(-1);
+  x >>= bits_shift;
+  x = x & mask1;
+  return static_cast<Ty2>(x);
+}
+
+template <typename Ty1, typename Ty2, size_t N>
+Ty1 __assemble_integral_value(Ty2 *x) {
+  static_assert(!std::is_signed<Ty1>::value && !std::is_signed<Ty2>::value,
+                "__assemble_integeral_value can only accept unsigned value.");
+  static_assert(std::is_integral<Ty1>::value && std::is_integral<Ty2>::value,
+                "__assemble_integeral_value can only accept integral value.");
+  static_assert(sizeof(Ty1) == N * sizeof(Ty2),
+                "size mismatch for __assemble_integeral_value");
+  Ty1 res = 0;
+  for (size_t idx = 0; idx < N; ++idx) {
+    res <<= sizeof(Ty2) * 8;
+    res |= static_cast<Ty1>(x[N - 1 - idx]);
+  }
+  return res;
+}
 #endif // __LIBDEVICE_IMF_ENABLED__
 #endif // __LIBDEVICE_DEVICE_IMF_H__

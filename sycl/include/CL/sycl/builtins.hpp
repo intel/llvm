@@ -751,7 +751,7 @@ sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T> ctz(
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") intel {
-  using namespace ext::intel;
+using namespace ext::intel;
 }
 
 // geninteger mad_hi (geninteger a, geninteger b, geninteger c)
@@ -1741,11 +1741,17 @@ extern SYCL_EXTERNAL int memcmp(const void *s1, const void *s2, size_t n);
 extern SYCL_EXTERNAL unsigned int __imf_brev(unsigned int x);
 extern SYCL_EXTERNAL unsigned long long int
 __imf_brevll(unsigned long long int x);
+extern SYCL_EXTERNAL unsigned int
+__imf_byte_perm(unsigned int x, unsigned int y, unsigned int s);
+extern SYCL_EXTERNAL int __imf_ffs(int x);
+extern SYCL_EXTERNAL int __imf_ffsll(long long int x);
 extern SYCL_EXTERNAL int __imf_clz(int x);
 extern SYCL_EXTERNAL int __imf_clzll(long long int x);
 extern SYCL_EXTERNAL int __imf_popc(unsigned int x);
 extern SYCL_EXTERNAL int __imf_popcll(unsigned long long int x);
 extern SYCL_EXTERNAL unsigned int __imf_sad(int x, int y, unsigned int z);
+extern SYCL_EXTERNAL unsigned int __imf_usad(unsigned int x, unsigned int y,
+                                             unsigned int z);
 extern SYCL_EXTERNAL float __imf_saturatef(float x);
 extern SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern SYCL_EXTERNAL int __imf_float2int_rn(float x);

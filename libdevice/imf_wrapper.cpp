@@ -334,7 +334,36 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_sad(int, int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_usad(unsigned int, unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_sad(int x, int y, unsigned int z) {
   return __devicelib_imf_sad(x, y, z);
 }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_usad(unsigned int x, unsigned int y, unsigned int z) {
+  return __devicelib_imf_usad(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_byte_perm(unsigned int, unsigned int,
+                                       unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_byte_perm(unsigned int x, unsigned int y, unsigned int s) {
+  return __devicelib_imf_byte_perm(x, y, s);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_ffs(int);
+
+DEVICE_EXTERN_C_INLINE
+int __imf_ffs(int x) { return __devicelib_imf_ffs(x); }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_ffsll(long long int);
+
+DEVICE_EXTERN_C_INLINE
+int __imf_ffsll(long long int x) { return __devicelib_imf_ffsll(x); }
 #endif // __LIBDEVICE_IMF_ENABLED__
