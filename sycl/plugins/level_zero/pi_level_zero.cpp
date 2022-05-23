@@ -1518,7 +1518,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     CaptureIndirectAccesses();
   }
 
-  if (!UseImmediateCommandLists) {
+  if (!UseImmediateCommandLists && !CommandList->second.EventList.empty()) {
     // In this mode all inner-batch events have device visibility only,
     // and we want the last command in the batch to signal a host-visible
     // event that anybody waiting for any event in the batch will
@@ -1547,10 +1547,11 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       // command-list itself. This host-visible event will not be
       // waited/released by SYCL RT, so it must be destroyed after all events in
       // the batch are gone.
-      // We know here that refcount is more than 2 so decrement refcount
-      // manually to avoid calling piEventRelease under queue lock.
+      // We know that refcount is more than 2 so calling piEventRelease is safe
+      // because it locks the queue only if refcount of the event is zero.
       assert(HostVisibleEvent->RefCount > 2);
-      HostVisibleEvent->RefCount -= 2;
+      PI_CALL(piEventRelease(HostVisibleEvent));
+      PI_CALL(piEventRelease(HostVisibleEvent));
 
       // Indicate no cleanup is needed for this PI event as it is special.
       HostVisibleEvent->CleanedUp = true;
