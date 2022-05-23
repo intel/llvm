@@ -53,6 +53,10 @@ int main() {
 
   backend_input_t<backend::ext_oneapi_level_zero, event> EventInteropInput = {
       ZeEvent};
+  // ZeEvent isn't owning the resource (it's owned by Event object), we cannot \
+  // transfer ownership that we don't have. As such, use "keep".
+  EventInteropInput.Ownership =
+      cl::sycl::ext::oneapi::level_zero::ownership::keep;
   auto EventInterop = make_event<backend::ext_oneapi_level_zero>(
       EventInteropInput, ContextInterop);
 
