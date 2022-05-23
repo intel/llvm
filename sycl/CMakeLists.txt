@@ -146,7 +146,7 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_HIP ON)
 endif()
 if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_HIP ON)
+  set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
 endif()
 
 # Configure SYCL version macro

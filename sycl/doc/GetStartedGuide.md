@@ -178,6 +178,11 @@ the system, refer to
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
 
+Errors may occur if DPC++ is built with a toolkit version which is higher than
+the CUDA driver version. In order to check that the CUDA driver and toolkits
+match, use the CUDA executable `deviceQuery` which is usually found in 
+`$CUDA_INSTALL_DIR/cuda/extras/demo_suite/deviceQuery`.
+
 **_NOTE:_** An installation of at least
 [CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because
 there is a known issue with some math builtins when using -O1/O2/O3
@@ -243,6 +248,16 @@ for the HIP installation:
   `/opt/rocm/hsa/include`).
 * `SYCL_BUILD_PI_HIP_AMD_LIBRARY`: Path to HIP runtime library (default
   `/opt/rocm/hip/lib/libamdhip64.so`).
+
+These variables can be passed to `configure.py` using `--cmake-opt`, for example
+with a ROCm installation in `/usr/local`:
+
+```
+python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_INCLUDE_DIR=/usr/local/rocm/hip/include \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR=/usr/local/rocm/hsa/include \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_AMD_LIBRARY=/usr/local/rocm/hip/lib/libamdhip64.so
+```
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
