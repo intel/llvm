@@ -886,11 +886,6 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   }
 
   auto &EventList = CommandList->second.EventList;
-  // We don't need to synchronize the events since the fence
-  // synchronized above already does that.
-  for (auto &Event : EventList) {
-    Event->Completed = true;
-  }
   // Remember all the events in this command list which needs to be
   // released/cleaned up and clear event list associated with command list.
   EventListToCleanup.insert(EventListToCleanup.end(), EventList.begin(),
@@ -1245,6 +1240,10 @@ pi_result resetCommandLists(pi_queue Queue) {
     }
   }
   for (auto Event : EventListToCleanup) {
+    // We don't need to synchronize the events since the fence
+    // synchronized above already does that.
+    Event->Completed = true;
+
     PI_CALL(cleanup(Event));
     // These events were just removed from command list, so dercement ref count
     // (it was incremented when they were added to the command list).
@@ -3440,6 +3439,9 @@ pi_result piQueueRelease(pi_queue Queue) {
     }
   }
   for (auto Event : EventListToCleanup) {
+    // We don't need to synchronize the events since the queue
+    // synchronized above already does that.
+    Event->Completed = true;
     PI_CALL(cleanup(Event));
     PI_CALL(piEventRelease(Event));
   }
