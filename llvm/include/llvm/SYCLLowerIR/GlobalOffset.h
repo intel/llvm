@@ -18,10 +18,10 @@ namespace llvm {
 class ModulePass;
 class PassRegistry;
 
-/// This pass operates on SYCL kernels. It looks for uses of the
-/// `llvm.{amdgcn|nvvm}.implicit.offset` intrinsic and replaces it with an
-/// offset parameter which will be threaded through from the kernel entry
-/// point.
+/// This pass operates on SYCL kernels that target AMDGPU or NVVM. It looks for
+/// uses of the `llvm.{amdgcn|nvvm}.implicit.offset` intrinsic and replaces it
+/// with an offset parameter which will be threaded through from the kernel
+/// entry point.
 class GlobalOffsetPass : public PassInfoMixin<GlobalOffsetPass> {
 private:
   using KernelPayload = TargetHelpers::KernelPayload;
@@ -35,9 +35,9 @@ public:
 
 private:
   /// After the execution of this function, the module to which the kernel
-  /// `Func` belongs contains a clone of the original kernel with the signature
-  /// extended with the implicit offset parameter and `_with_offset` appended
-  /// to the name.
+  /// `Func` belongs, contains both the original function and its clone with the
+  /// signature extended with the implicit offset parameter and `_with_offset`
+  /// appended to the name.
   /// An alloca of 3 zeros (corresponding to offsets in x, y and z) is added to
   /// the original kernel, in order to keep the interface of kernel's call
   /// graph unified, regardless of the fact if the global offset has been used.
@@ -89,15 +89,17 @@ private:
                               Type *ImplicitArgumentType = nullptr,
                               bool KeepOriginal = false);
 
-  /// This function makes sure that a given kernel entry point has no llvm
-  /// uses.
+  /// Create a mapping of kernel entry points to their metadata nodes. While
+  /// iterating over kernels make sure that a given kernel entry point has no
+  /// llvm uses.
   ///
   /// \param KernelPayloads A collection of kernel functions present in a
   /// module `M`.
   ///
   /// \returns A map of kernel functions to corresponding metadata nodes.
   DenseMap<Function *, MDNode *>
-  validateKernels(Module &M, SmallVectorImpl<KernelPayload> &KernelPayloads);
+  generateKernelMDNodeMap(Module &M,
+                          SmallVectorImpl<KernelPayload> &KernelPayloads);
 
 private:
   /// Keep track of which functions have been processed to avoid processing

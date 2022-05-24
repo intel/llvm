@@ -31,8 +31,8 @@ public:
   }
 
   bool runOnModule(Module &M) override {
-    ModuleAnalysisManager DummyMAM;
-    auto PA = Impl.run(M, DummyMAM);
+    ModuleAnalysisManager MAM;
+    auto PA = Impl.run(M, MAM);
     return !PA.areAllPreserved();
   }
 

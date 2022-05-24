@@ -89,7 +89,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   TargetHelpers::populateKernels(M, KernelPayloads, AT);
 
   // Validate kernels and populate entry map
-  EntryPointMetadata = validateKernels(M, KernelPayloads);
+  EntryPointMetadata = generateKernelMDNodeMap(M, KernelPayloads);
 
   // Add implicit parameters to all direct and indirect users of the offset
   addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
@@ -367,7 +367,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
   return {NewFunc, ImplicitOffset};
 }
 
-DenseMap<Function *, MDNode *> GlobalOffsetPass::validateKernels(
+DenseMap<Function *, MDNode *> GlobalOffsetPass::generateKernelMDNodeMap(
     Module &M, SmallVectorImpl<KernelPayload> &KernelPayloads) {
   SmallPtrSet<GlobalValue *, 8u> Used;
   SmallVector<GlobalValue *, 4> Vec;
