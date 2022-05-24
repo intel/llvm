@@ -5665,7 +5665,7 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   (*Event)->HostVisibleEvent = *Event;
 
   // Regular events managed by SYCL RT are created with RefCnt == 2 so that
-  // their lifetime is extended to keep them alive for the driver to write 
+  // their lifetime is extended to keep them alive for the driver to write
   // back once device code finishes.
   //
   // There is no such requirement for the events constructed from the native
