@@ -595,8 +595,8 @@ private:
 ///
 struct _pi_program {
   using native_type = CUmodule;
-  native_type module_;
-  const char *binary_;
+  std::vector<native_type> modules_;
+  const char * binary_;
   size_t binarySizeInBytes_;
   std::atomic_uint32_t refCount_;
   _pi_context *context_;
@@ -623,7 +623,7 @@ struct _pi_program {
 
   pi_context get_context() const { return context_; };
 
-  native_type get() const noexcept { return module_; };
+  std::vector<native_type> get() const noexcept { return modules_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
@@ -651,8 +651,8 @@ struct _pi_program {
 struct _pi_kernel {
   using native_type = CUfunction;
 
-  native_type function_;
-  native_type functionWithOffsetParam_;
+  std::vector<native_type> functions_;
+  std::vector<native_type> functionsWithOffsetParam_;
   std::string name_;
   pi_context context_;
   pi_program program_;
@@ -746,13 +746,12 @@ struct _pi_kernel {
     }
   } args_;
 
-  _pi_kernel(CUfunction func, CUfunction funcWithOffsetParam, const char *name,
+  _pi_kernel(std::vector<CUfunction> funcs, std::vector<CUfunction> funcsWithOffsetParam, const char *name,
              pi_program program, pi_context ctxt)
-      : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
+      : functions_{funcs}, functionsWithOffsetParam_{funcsWithOffsetParam},
         name_{name}, context_{ctxt}, program_{program}, refCount_{1}, reqdThreadsPerBlock_{ctxt->get_devices().size()} {
     cuda_piProgramRetain(program_);
     cuda_piContextRetain(context_);
-    /// Note: this code assumes that there is only one device per context
     int device_num = 0;
     for(pi_device device : ctxt->get_devices()){
       pi_result retError = cuda_piKernelGetGroupInfo(
@@ -777,15 +776,33 @@ struct _pi_kernel {
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
-  native_type get() const noexcept { return function_; };
-
-  native_type get_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_;
+  std::vector<native_type> get() const noexcept { return functions_; };
+  native_type get(pi_device device) const noexcept {
+    const auto& devices = context_->get_devices();
+    for(size_t i=0;i<devices.size();i++){
+      if(devices[i]==device){ 
+        return functions_[i];
+      }
+    }
+    assert(false);
   };
 
-  bool has_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_ != nullptr;
+  std::vector<native_type> get_with_offset_parameter() const noexcept {
+    return functionsWithOffsetParam_;
+  };
+  native_type get_with_offset_parameter(pi_device device) const noexcept {
+    const auto& devices = context_->get_devices();
+    for(size_t i=0;i<devices.size();i++){
+      if(devices[i]==device){ 
+        return functionsWithOffsetParam_[i];
+      }
+    }
+    assert(false);
   }
+
+  /*bool has_with_offset_parameter() const noexcept {
+    return functionWithOffsetParam_ != nullptr;
+  }*/
 
   pi_context get_context() const noexcept { return context_; };
 

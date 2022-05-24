@@ -267,7 +267,7 @@ void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
   int recommendedBlockSize, minGrid;
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
-      &minGrid, &recommendedBlockSize, kernel->get(), NULL, local_size,
+      &minGrid, &recommendedBlockSize, kernel->get()[0], NULL, local_size,
       maxThreadsPerBlock[0]));
 
   (void)minGrid; // Not used, avoid warnings
@@ -295,7 +295,8 @@ pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
     auto result = forLatestEvents(
         event_wait_list, num_events_in_wait_list,
         [stream](pi_event event) -> pi_result {
-          return PI_CHECK_ERROR(cuStreamWaitEvent(stream, event->get(), 0));
+          auto err = cuStreamWaitEvent(stream, event->get(), 0);
+          return PI_CHECK_ERROR(err);
         });
 
     if (result != PI_SUCCESS) {
@@ -550,7 +551,7 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 }
 
 _pi_program::_pi_program(pi_context ctxt)
-    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
+    : modules_{ctxt->get_devices().size(), nullptr}, binary_{0}, binarySizeInBytes_{0}, refCount_{1},
       context_{ctxt}, kernelReqdWorkGroupSizeMD_{} {
   cuda_piContextRetain(context_);
 }
@@ -627,11 +628,13 @@ pi_result _pi_program::build_program(const char *build_options) {
   options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
   optionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
-  auto result = PI_CHECK_ERROR(
-      cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
-                         numberOfOptions, options, optionVals));
-
-  const auto success = (result == PI_SUCCESS);
+  auto native_ctxts = get_context()->get();
+  bool success = true;
+  for(size_t i=0;i<native_ctxts.size();i++){
+    success &= PI_SUCCESS == PI_CHECK_ERROR(
+        cuModuleLoadDataEx(&modules_[i], static_cast<const void *>(binary_),
+                          numberOfOptions, options, optionVals));
+  }
 
   buildStatus_ =
       success ? PI_PROGRAM_BUILD_STATUS_SUCCESS : PI_PROGRAM_BUILD_STATUS_ERROR;
@@ -997,13 +1000,22 @@ pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
                                              pi_program program,
                                              const char *func_name,
                                              pi_uint64 *func_pointer_ret) {
+  assert(func_pointer_ret != nullptr);
   // Check if device passed is the same the device bound to the context
   const auto& devices = program->get_context()->get_devices();
-  assert(std::find(devices.begin(), devices.end(), device) != devices.end());
-  assert(func_pointer_ret != nullptr);
+  const auto& modules = program->get();
+  assert(devices.size() == modules.size());
+  CUmodule module = nullptr;
+  for(size_t i=0;i<devices.size();i++){
+    if(devices[i] == device){
+      module = modules[i];
+      break;
+    }
+  }
+  assert(module);
 
   CUfunction func;
-  CUresult ret = cuModuleGetFunction(&func, program->get(), func_name);
+  CUresult ret = cuModuleGetFunction(&func, module, func_name);
   *func_pointer_ret = reinterpret_cast<pi_uint64>(func);
   pi_result retError = PI_SUCCESS;
 
@@ -1922,13 +1934,10 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
       std::vector<pi_device> devices_vec(num_devices);
       CUcontext current;
       PI_CHECK_ERROR(cuCtxGetCurrent(&current));
-        std::cout << "current context " << current << std::endl;
       for(pi_uint32 device_num = 0; device_num < num_devices; device_num++){
         // Create a scoped context.
-        std::cout << "creating context" << std::endl;
         errcode_ret = PI_CHECK_ERROR(
             cuCtxCreate(&cuda_contexts[device_num], CU_CTX_MAP_HOST, devices[device_num]->get()));
-        std::cout << "created context " << errcode_ret << std::endl;
         devices_vec[device_num] = devices[device_num];
       }
       piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{
@@ -2582,26 +2591,31 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
   std::unique_ptr<_pi_kernel> retKernel{nullptr};
 
   try {
-    ScopedContext active(program->get_context()->get()[0]);
+    const auto& modules = program->get();
+    std::vector<CUfunction> cuFuncs(modules.size());
+    std::vector<CUfunction> cuFuncsWithOffsetParam(modules.size());
 
-    CUfunction cuFunc;
-    retErr = PI_CHECK_ERROR(
-        cuModuleGetFunction(&cuFunc, program->get(), kernel_name));
+    for(size_t i = 0;i<modules.size();i++){
+      CUmodule module = modules[i];
+      ScopedContext active(program->get_context()->get()[i]);
 
-    std::string kernel_name_woffset = std::string(kernel_name) + "_with_offset";
-    CUfunction cuFuncWithOffsetParam;
-    CUresult offsetRes = cuModuleGetFunction(
-        &cuFuncWithOffsetParam, program->get(), kernel_name_woffset.c_str());
+      retErr = PI_CHECK_ERROR(
+          cuModuleGetFunction(&cuFuncs[i], module, kernel_name));
 
-    // If there is no kernel with global offset parameter we mark it as missing
-    if (offsetRes == CUDA_ERROR_NOT_FOUND) {
-      cuFuncWithOffsetParam = nullptr;
-    } else {
-      retErr = PI_CHECK_ERROR(offsetRes);
+      std::string kernel_name_woffset = std::string(kernel_name) + "_with_offset";
+      CUresult offsetRes = cuModuleGetFunction(
+          &cuFuncsWithOffsetParam[i], module, kernel_name_woffset.c_str());
+
+      // If there is no kernel with global offset parameter we mark it as missing
+      if (offsetRes == CUDA_ERROR_NOT_FOUND) {
+        cuFuncsWithOffsetParam[i] = nullptr;
+      } else {
+        retErr = PI_CHECK_ERROR(offsetRes);
+      }
     }
 
     retKernel = std::unique_ptr<_pi_kernel>(
-        new _pi_kernel{cuFunc, cuFuncWithOffsetParam, kernel_name, program,
+        new _pi_kernel{cuFuncs, cuFuncsWithOffsetParam, kernel_name, program,
                        program->get_context()});
   } catch (pi_result err) {
     retErr = err;
@@ -2694,7 +2708,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&max_threads,
                              CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             kernel->get()) == CUDA_SUCCESS);
+                             kernel->get()[0]) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      size_t(max_threads));
     }
@@ -2717,7 +2731,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int bytes = 0;
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                             kernel->get()) == CUDA_SUCCESS);
+                             kernel->get()[0]) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
@@ -2735,7 +2749,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int bytes = 0;
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                             kernel->get()) == CUDA_SUCCESS);
+                             kernel->get()[0]) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
@@ -2743,7 +2757,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int numRegs = 0;
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                             kernel->get()) == CUDA_SUCCESS);
+                             kernel->get()[0]) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint32(numRegs));
     }
@@ -2840,20 +2854,21 @@ pi_result cuda_piEnqueueKernelLaunch(
     std::unique_ptr<_pi_event> retImplEv{nullptr};
 
     CUstream cuStream = command_queue->get_next_compute_stream();
-    CUfunction cuFunc = kernel->get();
+    CUfunction cuFunc = kernel->get(command_queue->device_);
+
 
     retError = enqueueEventsWait(command_queue, cuStream,
                                  num_events_in_wait_list, event_wait_list);
 
     // Set the implicit global offset parameter if kernel has offset variant
-    if (kernel->get_with_offset_parameter()) {
+    if (kernel->get_with_offset_parameter(command_queue->device_)) {
       std::uint32_t cuda_implicit_offset[3] = {0, 0, 0};
       if (global_work_offset) {
         for (size_t i = 0; i < work_dim; i++) {
           cuda_implicit_offset[i] =
               static_cast<std::uint32_t>(global_work_offset[i]);
           if (global_work_offset[i] != 0) {
-            cuFunc = kernel->get_with_offset_parameter();
+            cuFunc = kernel->get_with_offset_parameter(command_queue->device_);
           }
         }
       }
@@ -2873,6 +2888,7 @@ pi_result cuda_piEnqueueKernelLaunch(
         cuFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
         threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2], local_size,
         cuStream, const_cast<void **>(argIndices.data()), nullptr));
+  
     if (local_size != 0)
       kernel->clear_local_size();
 
@@ -3099,10 +3115,7 @@ pi_result cuda_piProgramBuild(pi_program program, pi_uint32 num_devices,
   pi_result retError = PI_SUCCESS;
 
   try {
-    ScopedContext active(program->get_context()->get()[0]);
-
     program->build_program(options);
-
   } catch (pi_result err) {
     retError = err;
   }
@@ -3131,7 +3144,7 @@ pi_result cuda_piProgramCreateWithBinary(
   assert(binaries != nullptr);
   assert(program != nullptr);
   assert(device_list != nullptr);
-  for(size_t i=0;i<num_devices;i++){
+  /*for(size_t i=0;i<num_devices;i++){
     bool found_device = false;
     for(pi_device context_device : context->get_devices()){
       if(device_list[i] == context_device){
@@ -3142,7 +3155,7 @@ pi_result cuda_piProgramCreateWithBinary(
             "Mismatch between devices context and passed context when creating "
             "program from binary");
     }
-  }
+  }*/
 
   pi_result retError = PI_SUCCESS;
 
@@ -3287,10 +3300,7 @@ pi_result cuda_piProgramCompile(
   pi_result retError = PI_SUCCESS;
 
   try {
-    ScopedContext active(program->get_context()->get()[0]);
-
     program->build_program(options);
-
   } catch (pi_result err) {
     retError = err;
   }
@@ -3350,9 +3360,11 @@ pi_result cuda_piProgramRelease(pi_program program) {
     pi_result result = PI_INVALID_PROGRAM;
 
     try {
-      ScopedContext active(program->get_context()->get()[0]);
-      auto cuModule = program->get();
-      result = PI_CHECK_ERROR(cuModuleUnload(cuModule));
+      const auto& modules = program->get();
+      for(size_t i=0;i<modules.size();i++){
+        ScopedContext active(program->get_context()->get()[i]);
+        result = PI_CHECK_ERROR(cuModuleUnload(modules[i]));
+      }
     } catch (...) {
       result = PI_OUT_OF_RESOURCES;
     }
@@ -3371,7 +3383,7 @@ pi_result cuda_piProgramRelease(pi_program program) {
 /// \return TBD
 pi_result cuda_piextProgramGetNativeHandle(pi_program program,
                                            pi_native_handle *nativeHandle) {
-  *nativeHandle = reinterpret_cast<pi_native_handle>(program->get());
+  *nativeHandle = reinterpret_cast<pi_native_handle>(program->get()[0]);
   return PI_SUCCESS;
 }
 
@@ -3452,7 +3464,7 @@ pi_result cuda_piKernelGetSubGroupInfo(
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&max_threads,
                              CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             kernel->get()) == CUDA_SUCCESS);
+                             kernel->get(device)) == CUDA_SUCCESS);
       int warpSize = 0;
       cuda_piKernelGetSubGroupInfo(kernel, device, PI_KERNEL_MAX_SUB_GROUP_SIZE,
                                    0, nullptr, sizeof(uint32_t), &warpSize,

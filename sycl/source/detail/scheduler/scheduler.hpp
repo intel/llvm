@@ -175,11 +175,13 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+class device_impl;
 class queue_impl;
 class event_impl;
 class context_impl;
 class DispatchHostTask;
 
+using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
@@ -207,6 +209,9 @@ struct MemObjRecord {
 
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
+
+  // The context which has the latest state of the memory object.
+  DeviceImplPtr MCurDevice;
 
   // The mode this object can be accessed with from the host context.
   // Valid only if the current context is host.
@@ -600,7 +605,7 @@ protected:
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
                                        const Requirement *Req,
-                                       const ContextImplPtr &Context);
+                                       const DeviceImplPtr &Context);
 
     template <typename T>
     typename detail::enable_if_t<
@@ -618,7 +623,7 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const ContextImplPtr &Context);
+                                        const DeviceImplPtr &Context);
 
     friend class Command;
 
