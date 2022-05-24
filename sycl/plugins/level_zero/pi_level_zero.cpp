@@ -5670,7 +5670,7 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   // them. That release is needed to match the `piEventRetain` of regular events
   // made for waiting for event completion, but not this interop event.
   (*Event)->CleanedUp = true;
-  
+
   return PI_SUCCESS;
 }
 
