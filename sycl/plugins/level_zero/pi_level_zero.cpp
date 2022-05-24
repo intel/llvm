@@ -5664,17 +5664,11 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   // need to create a host-visible proxy for it.
   (*Event)->HostVisibleEvent = *Event;
 
-  // Regular events managed by SYCL RT are created with RefCnt == 2 so that
-  // their lifetime is extended to keep them alive for the driver to write
-  // back once device code finishes.
-  //
-  // There is no such requirement for the events constructed from the native
-  // ZeEvent. Indeed, it isn't even mandatory for that event to ever be
-  // signalled/associated with device task/etc. As such, the runtime has no
-  // knowledge or responsibility to extened lifetime of the underlying ZeEvent.
-  // Instead, it's the user's responsibility to ensure that the lifetime of
-  // sycl::event created from the native handle (if the ownership is being
-  // transferred) is such that its lifetime doesn't end prematurely.
+  // Unlike regular events managed by SYCL RT we don't have to wait for interop
+  // events completion, and not need to do the their `cleanup()`. This in particular
+  // guarantees that the extra `piEventRelease` is not called on them. That release
+  // is needed to match the `piEventRetain` of regular events made for waiting for
+  // event completion, but not this interop event.
   (*Event)->CleanedUp = true;
 
   return PI_SUCCESS;
