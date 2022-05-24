@@ -67,7 +67,7 @@ int main() {
     // CHECK-NEXT:  value: Int 0
     // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
     h.single_task<class test_kernel2>(
-        []() [[intel::no_global_work_offset(0)]]{});
+        []() [[intel::no_global_work_offset(0)]] {});
 
     // CHECK: FunctionDecl {{.*}}test_kernel3
     // CHECK: SYCLIntelNoGlobalWorkOffsetAttr
@@ -75,7 +75,7 @@ int main() {
     // CHECK-NEXT:  value: Int 42
     // CHECK-NEXT:  IntegerLiteral{{.*}}42{{$}}
     h.single_task<class test_kernel3>(
-        []() [[intel::no_global_work_offset(42)]]{});
+        []() [[intel::no_global_work_offset(42)]] {});
 
     // CHECK: FunctionDecl {{.*}}test_kernel4
     // CHECK: SYCLIntelNoGlobalWorkOffsetAttr
@@ -84,18 +84,18 @@ int main() {
     // CHECK-NEXT: UnaryOperator{{.*}} 'int' prefix '-'
     // CHECK-NEXT-NEXT: IntegerLiteral{{.*}}1{{$}}
     h.single_task<class test_kernel4>(
-        []() [[intel::no_global_work_offset(-1)]]{});
+        []() [[intel::no_global_work_offset(-1)]] {});
 
     // Ignore duplicate attribute.
     h.single_task<class test_kernel5>(
-    // CHECK: FunctionDecl {{.*}}test_kernel5		    
-    // CHECK:       SYCLIntelNoGlobalWorkOffsetAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NOT:   SYCLIntelNoGlobalWorkOffsetAttr
+        // CHECK: FunctionDecl {{.*}}test_kernel5
+        // CHECK:       SYCLIntelNoGlobalWorkOffsetAttr
+        // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+        // CHECK-NEXT:  value: Int 1
+        // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+        // CHECK-NOT:   SYCLIntelNoGlobalWorkOffsetAttr
         []() [[intel::no_global_work_offset,
-               intel::no_global_work_offset]]{}); // OK
+               intel::no_global_work_offset]] {}); // OK
 
     // Test attribute does not get propagated.
     // CHECK: FunctionDecl {{.*}}test_kernel6

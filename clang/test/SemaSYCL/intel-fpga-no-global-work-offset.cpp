@@ -9,7 +9,7 @@
 
 [[intel::no_global_work_offset(0, 1)]] void test1() {} // expected-error{{'no_global_work_offset' attribute takes no more than 1 argument}}
 
-[[intelfpga::no_global_work_offset]] void RemovedSpell(); //expected-warning {{unknown attribute 'no_global_work_offset' ignored}}
+[[intelfpga::no_global_work_offset]] void RemovedSpell(); // expected-warning {{unknown attribute 'no_global_work_offset' ignored}}
 
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
@@ -19,7 +19,7 @@ template <typename Ty>
 
 struct S {};
 void var() {
-  //expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
   func<S>();
 }
 
@@ -34,9 +34,8 @@ int foo();
 constexpr int bar() { return 0; }
 [[intel::no_global_work_offset(bar() + 12)]] void func2(); // OK
 
-
 // No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
-[[intel::no_global_work_offset]] void func3 ();
+[[intel::no_global_work_offset]] void func3();
 [[intel::no_global_work_offset(1)]] void func3() {} // OK
 
 [[intel::no_global_work_offset(0)]] void func4(); // expected-note {{previous attribute is here}}
@@ -52,11 +51,11 @@ constexpr int bar() { return 0; }
 
 // Test that checks template parameter suppport on function.
 template <int N>
-[[intel::no_global_work_offset(0)]] void func7();   // expected-note {{previous attribute is here}}
+[[intel::no_global_work_offset(0)]] void func7(); // expected-note {{previous attribute is here}}
 template <int N>
 [[intel::no_global_work_offset(N)]] void func7() {} // expected-warning {{attribute 'no_global_work_offset' is already applied with different arguments}}
 
 int check() {
-  func7<1>(); //expected-note {{in instantiation of function template specialization 'func7<1>' requested here}}
+  func7<1>(); // expected-note {{in instantiation of function template specialization 'func7<1>' requested here}}
   return 0;
 }
