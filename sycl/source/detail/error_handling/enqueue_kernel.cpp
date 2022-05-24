@@ -346,6 +346,7 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
     // TODO: Handle other error codes
 
   default:
+    DeviceImpl.getPlugin().checkPiResult(Error);
     throw runtime_error(
         "Native API failed. Native API returns: " + codeToString(Error), Error);
   }
