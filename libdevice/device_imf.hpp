@@ -483,5 +483,45 @@ Ty1 __assemble_integral_value(Ty2 *x) {
   }
   return res;
 }
+
+template <typename Ty> static inline Ty __uhadd(Ty x, Ty y) {
+  static_assert(std::is_integral<Ty>::value && !std::is_signed<Ty>::value,
+                "__uhadd can only accept unsigned integral type.");
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return (x >> 1) + (y >> 1) + ((x & y) & 0x1);
+#elif defined(__SPIR__)
+  return __spirv_ocl_u_hadd(x, y);
+#endif
+}
+
+template <typename Ty> static inline Ty __shadd(Ty x, Ty y) {
+  static_assert(std::is_integral<Ty>::value && std::is_signed<Ty>::value,
+                "__shadd can only accept signed integral type.");
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return (x >> 1) + (y >> 1) + ((x & y) & 0x1);
+#elif defined(__SPIR__)
+  return __spirv_ocl_s_hadd(x, y);
+#endif
+}
+
+template <typename Ty> static inline Ty __urhadd(Ty x, Ty y) {
+  static_assert(std::is_integral<Ty>::value && !std::is_signed<Ty>::value,
+                "__urhadd can only accept unsigned integral type.");
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return (x >> 1) + (y >> 1) + ((x | y) & 0x1);
+#elif defined(__SPIR__)
+  return __spirv_ocl_u_rhadd(x, y);
+#endif
+}
+
+template <typename Ty> static inline Ty __srhadd(Ty x, Ty y) {
+  static_assert(std::is_integral<Ty>::value && std::is_signed<Ty>::value,
+                "__srhadd can only accept signed integral type.");
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return (x >> 1) + (y >> 1) + ((x | y) & 0x1);
+#elif defined(__SPIR__)
+  return __spirv_ocl_s_rhadd(x, y);
+#endif
+}
 #endif // __LIBDEVICE_IMF_ENABLED__
 #endif // __LIBDEVICE_DEVICE_IMF_H__

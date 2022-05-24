@@ -1752,6 +1752,13 @@ extern SYCL_EXTERNAL int __imf_popcll(unsigned long long int x);
 extern SYCL_EXTERNAL unsigned int __imf_sad(int x, int y, unsigned int z);
 extern SYCL_EXTERNAL unsigned int __imf_usad(unsigned int x, unsigned int y,
                                              unsigned int z);
+extern SYCL_EXTERNAL int __imf_rhadd(int x, int y);
+extern SYCL_EXTERNAL unsigned int __imf_urhadd(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_uhadd(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL int __imf_mul24(int x, int y);
+extern SYCL_EXTERNAL unsigned int __imf_umul24(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL int __imf_mulhi(int x, int y);
+extern SYCL_EXTERNAL unsigned int __imf_umulhi(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL float __imf_saturatef(float x);
 extern SYCL_EXTERNAL float __imf_fmaf(float x, float y, float z);
 extern SYCL_EXTERNAL float __imf_fabsf(float x);

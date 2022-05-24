@@ -94,4 +94,57 @@ int __devicelib_imf_ffs(int x) { return __do_imf_ffs(x); }
 
 DEVICE_EXTERN_C_INLINE
 int __devicelib_imf_ffsll(long long int x) { return __do_imf_ffs(x); }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_rhadd(int x, int y) { return __srhadd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_uhadd(unsigned int x, unsigned int y) {
+  return __uhadd(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_urhadd(unsigned int x, unsigned int y) {
+  return __urhadd(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_mul24(int x, int y) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return x * y;
+#elif defined(__SPIR__)
+  return __spirv_ocl_s_mul24(x, y);
+#endif
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umul24(unsigned int x, unsigned int y) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return x * y;
+#elif defined(__SPIR__)
+  return __spirv_ocl_u_mul24(x, y);
+#endif
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_mulhi(int x, int y) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  int64_t p = static_cast<int64_t>(x) * static_cast<int64_t>(y);
+  p >>= 32;
+  return static_cast<int>(p);
+#elif defined(__SPIR__)
+  return __spirv_ocl_s_mul_hi(x, y);
+#endif
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umulhi(unsigned int x, unsigned int y) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  uint64_t p = static_cast<uint64_t>(x) * static_cast<uint64_t>(y);
+  p >>= 32;
+  return static_cast<unsigned int>(p);
+#elif defined(__SPIR__)
+  return __spirv_ocl_u_mul_hi(x, y);
+#endif
+}
 #endif //__LIBDEVICE_IMF_ENABLED__

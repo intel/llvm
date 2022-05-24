@@ -368,6 +368,56 @@ DEVICE_EXTERN_C_INLINE
 int __imf_ffsll(long long int x) { return __devicelib_imf_ffsll(x); }
 
 DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_rhadd(int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_uhadd(int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_urhadd(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __imf_rhadd(int x, int y) { return __devicelib_imf_rhadd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_uhadd(unsigned int x, unsigned int y) {
+  return __devicelib_imf_uhadd(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_urhadd(unsigned int x, unsigned int y) {
+  return __devicelib_imf_urhadd(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_mul24(int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umul24(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __imf_mul24(int x, int y) { return __devicelib_imf_mul24(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_umul24(unsigned int x, unsigned int y) {
+  return __devicelib_imf_umul24(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_mulhi(int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umulhi(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __imf_mulhi(int x, int y) { return __devicelib_imf_mulhi(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_umulhi(unsigned int x, unsigned int y) {
+  return __devicelib_imf_umulhi(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_fmaf(float, float, float);
 
 DEVICE_EXTERN_C_INLINE
