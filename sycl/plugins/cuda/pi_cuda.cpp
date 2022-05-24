@@ -2876,11 +2876,14 @@ pi_result cuda_piEnqueueKernelLaunch(
       cuDeviceGetAttribute(
           &device_max_local_mem,
           CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN,
-          command_queue->get_context()->get_device()->get());
+          command_queue->get_device()->get());
 
       static const int env_val = std::atoi(local_mem_sz_ptr);
       if (env_val <= 0 || env_val > device_max_local_mem) {
-        return PI_INVALID_BUFFER_SIZE;
+        setErrorMessage("Invalid value specified for "
+                        "SYCL_PI_LOCAL_MEM_SIZE",
+                        PI_SUCCESS);
+        return PI_PLUGIN_SPECIFIC_ERROR;
       }
       PI_CHECK_ERROR(cuFuncSetAttribute(
           cuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, env_val));
