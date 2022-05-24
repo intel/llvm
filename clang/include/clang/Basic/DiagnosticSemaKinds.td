@@ -3288,6 +3288,9 @@ def err_attribute_argument_is_zero : Error<
 def warn_attribute_argument_n_negative : Warning<
   "%0 attribute parameter %1 is negative and will be ignored">,
   InGroup<CudaCompat>;
+def warn_reqd_sub_group_attribute_cuda_n_32 : Warning<
+  "CUDA requires sub_group size 32: size %0 request will be ignored">,
+  InGroup<CudaCompat>;
 def err_property_function_in_objc_container : Error<
   "use of Objective-C property in function nested in Objective-C "
   "container not supported, move function outside its container">;

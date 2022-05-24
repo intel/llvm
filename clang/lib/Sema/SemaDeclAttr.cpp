@@ -3886,6 +3886,10 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
           << CI << /*positive*/ 0;
       return;
     }
+    if (Context.getTargetInfo().getTriple().isNVPTX() && ArgVal != 32) {
+      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_cuda_n_32)
+          << ArgVal.getSExtValue();
+    }
 
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
