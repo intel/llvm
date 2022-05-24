@@ -49,7 +49,7 @@ constexpr int bar() { return 0; }
 [[intel::no_global_work_offset(0)]] void func6(); // expected-note {{previous attribute is here}}
 [[intel::no_global_work_offset(1)]] void func6(); // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
 
-// Test that checks template parameter suppport on function.
+// Test that checks template parameter support on function.
 template <int N>
 [[intel::no_global_work_offset(0)]] void func7(); // expected-note {{previous attribute is here}}
 template <int N>
