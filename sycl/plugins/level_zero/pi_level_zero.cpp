@@ -1122,7 +1122,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
 // Perform any necessary cleanup after an event has been signalled.
 // This currently makes sure to release any kernel that may have been used by
 // the event, updates the last command event in the queue and cleanes up all dep
-// events of of the event.
+// events of the event.
 // The caller must not lock any mutexes.
 static pi_result cleanup(pi_event Event) {
   pi_kernel AssociatedKernel = nullptr;
@@ -1158,25 +1158,26 @@ static pi_result cleanup(pi_event Event) {
     PI_CALL(piKernelRelease(AssociatedKernel));
 
   if (AssociatedQueue) {
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock Lock(AssociatedQueue->Mutex);
+    {
+      // Lock automatically releases when this goes out of scope.
+      std::scoped_lock Lock(AssociatedQueue->Mutex);
 
-    // If this event was the LastCommandEvent in the queue, being used
-    // to make sure that commands were executed in-order, remove this.
-    // If we don't do this, the event can get released and freed leaving
-    // a dangling pointer to this event.  It could also cause unneeded
-    // already finished events to show up in the wait list.
-    if (AssociatedQueue->LastCommandEvent == Event) {
-      AssociatedQueue->LastCommandEvent = nullptr;
+      // If this event was the LastCommandEvent in the queue, being used
+      // to make sure that commands were executed in-order, remove this.
+      // If we don't do this, the event can get released and freed leaving
+      // a dangling pointer to this event.  It could also cause unneeded
+      // already finished events to show up in the wait list.
+      if (AssociatedQueue->LastCommandEvent == Event) {
+        AssociatedQueue->LastCommandEvent = nullptr;
+      }
     }
-  }
 
-  // Release this event since we explicitly retained it on creation and
-  // association with queue. Events which don't have associated queue doesn't
-  // require this release because it means that they are not created using
-  // createEventAndAssociateQueue, i.e. additional retain was not made.
-  if (AssociatedQueue)
+    // Release this event since we explicitly retained it on creation and
+    // association with queue. Events which don't have associated queue doesn't
+    // require this release because it means that they are not created using
+    // createEventAndAssociateQueue, i.e. additional retain was not made.
     PI_CALL(piEventRelease(Event));
+  }
 
   // The list of dependent events will be appended to as we walk it so that this
   // algorithm doesn't go recursive due to dependent events themselves being
@@ -1245,7 +1246,7 @@ pi_result resetCommandLists(pi_queue Queue) {
     Event->Completed = true;
 
     PI_CALL(cleanup(Event));
-    // These events were just removed from command list, so dercement ref count
+    // These events were just removed from command list, so decrement ref count
     // (it was incremented when they were added to the command list).
     PI_CALL(piEventRelease(Event));
   }
@@ -1518,13 +1519,14 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     CaptureIndirectAccesses();
   }
 
-  if (!UseImmediateCommandLists && !CommandList->second.EventList.empty()) {
+  if (!UseImmediateCommandLists) {
     // In this mode all inner-batch events have device visibility only,
     // and we want the last command in the batch to signal a host-visible
     // event that anybody waiting for any event in the batch will
     // really be using.
     //
-    if (EventsScope == LastCommandInBatchHostVisible) {
+    if (EventsScope == LastCommandInBatchHostVisible &&
+        !CommandList->second.EventList.empty()) {
       // Create a "proxy" host-visible event.
       //
       pi_event HostVisibleEvent;
