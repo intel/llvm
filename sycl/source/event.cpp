@@ -9,11 +9,13 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 #include <memory>
@@ -22,7 +24,11 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-event::event() : impl(std::make_shared<detail::event_impl>()) {}
+event::event() : impl(std::make_shared<detail::event_impl>()) {
+  const device &SyclDevice = default_selector().select_device();
+  impl->setContextImpl(
+      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice)));
+}
 
 event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
