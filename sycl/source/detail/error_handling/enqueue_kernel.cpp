@@ -343,10 +343,19 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
   case PI_INVALID_VALUE:
     return handleInvalidValue(DeviceImpl, NDRDesc);
 
+  case PI_PLUGIN_SPECIFIC_ERROR: {
+    char *message = nullptr;
+    DeviceImpl.getPlugin().call_nocheck<PiApiKind::piPluginGetLastError>(
+        &message);
+    throw runtime_error(
+        "Native API failed. Native API returns: " + codeToString(Error) + "\n" +
+            std::string(message) + "\n",
+        Error);
+  }
+
     // TODO: Handle other error codes
 
   default:
-    DeviceImpl.getPlugin().checkPiResult(Error);
     throw runtime_error(
         "Native API failed. Native API returns: " + codeToString(Error), Error);
   }
