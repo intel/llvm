@@ -41,11 +41,11 @@ public:
 // CHECK-NEXT: NonTypeTemplateParmDecl
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
 
-// Test that checks template parameter suppport on function.
+// Test that checks template parameter support on function.
 template <int N>
 [[intel::no_global_work_offset(N)]] void func1() {}
 
-// Test that checks template parameter suppport on member function of class template.
+// Test that checks template parameter support on member function of class template.
 template <int SIZE>
 class KernelFunctor2 {
 public:
