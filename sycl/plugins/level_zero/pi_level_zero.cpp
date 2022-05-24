@@ -5665,12 +5665,12 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   (*Event)->HostVisibleEvent = *Event;
 
   // Unlike regular events managed by SYCL RT we don't have to wait for interop
-  // events completion, and not need to do the their `cleanup()`. This in particular
-  // guarantees that the extra `piEventRelease` is not called on them. That release
-  // is needed to match the `piEventRetain` of regular events made for waiting for
-  // event completion, but not this interop event.
+  // events completion, and not need to do the their `cleanup()`. This in
+  // particular guarantees that the extra `piEventRelease` is not called on
+  // them. That release is needed to match the `piEventRetain` of regular events
+  // made for waiting for event completion, but not this interop event.
   (*Event)->CleanedUp = true;
-
+  
   return PI_SUCCESS;
 }
 
