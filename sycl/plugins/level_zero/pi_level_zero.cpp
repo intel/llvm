@@ -628,9 +628,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
-// This helper function increments the internal reference counter of the Queue.
-inline static void piQueueRetainInternal(pi_queue Queue) { Queue->RefCount++; }
-
 // This helper function creates a pi_event and associate a pi_queue.
 // Note that the caller of this function must have acquired lock on the Queue
 // that is passed in.
@@ -665,7 +662,7 @@ inline static pi_result createEventAndAssociateQueue(
   // piEventRelease requires access to the associated pi_queue.
   // In piEventRelease, the reference counter of the Queue is decremented
   // to release it.
-  piQueueRetainInternal(Queue);
+  Queue->RefCount++;
 
   // SYCL RT does not track completion of the events, so it could
   // release a PI event as soon as that's not being waited in the app.
@@ -3284,53 +3281,57 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 
 pi_result piQueueRetain(pi_queue Queue) {
   Queue->RefCountExternal++;
-  piQueueRetainInternal(Queue);
+  Queue->RefCount++;
   return PI_SUCCESS;
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  // Only single thread can reach external ref count equal to 0. So, code under
-  // if condition doesn't need to be guarded with a mutex. If external ref count
-  // reaches 0 then it means that queue is not accessible anymore from outside
-  // of the Level Zero plugin. Behavior is undefined if DPCPP runtime calls
-  // piQueueRelease on a queue with external ref count 0 or provides such queue
-  // as an argument to any of the pi functions.
-  if (--(Queue->RefCountExternal) == 0) {
-    // When external reference count goes to zero it is still possible
-    // that internal references still exists, e.g. command-lists that
-    // are not yet completed. So do full queue synchronization here
-    // and perform proper cleanup.
-    //
-    // It is possible to get to here and still have an open command list
-    // if no wait or finish ever occurred for this queue.
-    if (auto Res = Queue->executeAllOpenCommandLists())
-      return Res;
-
-    // Make sure all commands get executed.
-    Queue->synchronize();
-
-    // Destroy all the fences created associated with this queue.
-    for (auto it = Queue->CommandListMap.begin();
-         it != Queue->CommandListMap.end(); ++it) {
-      // This fence wasn't yet signalled when we polled it for recycling
-      // the command-list, so need to release the command-list too.
-      // For immediate commandlists we don't need to do an L0 reset of the
-      // commandlist but do need to do event cleanup which is also in the
-      // resetCommandList function.
-      if (it->second.InUse) {
-        Queue->resetCommandList(it, true);
-      }
-      // TODO: remove "if" when the problem is fixed in the level zero
-      // runtime. Destroy only if a queue is healthy. Destroying a fence may
-      // cause a hang otherwise.
-      // If the fence is a nullptr we are using immediate commandlists.
-      if (Queue->Healthy && it->second.ZeFence != nullptr)
-        ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
-    }
-    Queue->CommandListMap.clear();
+  if (--(Queue->RefCountExternal) != 0) {
+    PI_CALL(piQueueReleaseInternal(Queue, nullptr));
+    return PI_SUCCESS;
   }
+
+  // Only a single thread can reach external ref count equal to 0. So, the
+  // following codec doesn't need to be guarded with a mutex. If external ref
+  // count reaches 0 then it means that queue is not accessible anymore from
+  // outside of the Level Zero plugin. Behavior is undefined if DPCPP runtime
+  // calls piQueueRelease on a queue with external ref count 0 or provides such
+  // queue as an argument to any of the pi functions.
+
+  // When external reference count goes to zero it is still possible
+  // that internal references still exists, e.g. command-lists that
+  // are not yet completed. So do full queue synchronization here
+  // and perform proper cleanup.
+  //
+  // It is possible to get to here and still have an open command list
+  // if no wait or finish ever occurred for this queue.
+  if (auto Res = Queue->executeAllOpenCommandLists())
+    return Res;
+
+  // Make sure all commands get executed.
+  Queue->synchronize();
+
+  // Destroy all the fences created associated with this queue.
+  for (auto it = Queue->CommandListMap.begin();
+       it != Queue->CommandListMap.end(); ++it) {
+    // This fence wasn't yet signalled when we polled it for recycling
+    // the command-list, so need to release the command-list too.
+    // For immediate commandlists we don't need to do an L0 reset of the
+    // commandlist but do need to do event cleanup which is also in the
+    // resetCommandList function.
+    if (it->second.InUse) {
+      Queue->resetCommandList(it, true);
+    }
+    // TODO: remove "if" when the problem is fixed in the level zero
+    // runtime. Destroy only if a queue is healthy. Destroying a fence may
+    // cause a hang otherwise.
+    // If the fence is a nullptr we are using immediate commandlists.
+    if (Queue->Healthy && it->second.ZeFence != nullptr)
+      ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
+  }
+  Queue->CommandListMap.clear();
 
   PI_CALL(piQueueReleaseInternal(Queue, nullptr));
   return PI_SUCCESS;
@@ -3338,15 +3339,14 @@ pi_result piQueueRelease(pi_queue Queue) {
 
 static pi_result piQueueReleaseInternal(pi_queue Queue, pi_queue LockedQueue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  PI_ASSERT(Queue->RefCount, PI_INVALID_QUEUE);
 
   if (--(Queue->RefCount) != 0)
     return PI_SUCCESS;
 
-  // Only single thread can reach internal ref count equal to 0. This means that
-  // the following code is executed by single thread. If internal ref count
-  // reaches 0 then it means that queue is deleted. Behavior is undefined if the
-  // Level Zero plugin uses a deleted queue (with internal ref count 0).
+  // Only a single thread can reach internal ref count equal to 0. This means
+  // that the following code is executed by a single thread. If internal ref
+  // count reaches 0 then it means that queue is deleted. Behavior is undefined
+  // if the Level Zero plugin uses a deleted queue (with internal ref count 0).
   if (Queue->OwnZeCommandQueue) {
     for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
       if (ZeQueue)
@@ -3712,8 +3712,8 @@ pi_result piMemRelease(pi_mem Mem) {
   if (--(Mem->RefCount) != 0)
     return PI_SUCCESS;
 
-  // Only single thread can reach ref count equal to 0. This means that
-  // the following code is executed by single thread.
+  // Only a single thread can reach ref count equal to 0. This means that
+  // the following code is executed by a single thread.
   if (Mem->isImage()) {
     char *ZeHandleImage;
     PI_CALL(Mem->getZeHandle(ZeHandleImage, _pi_mem::write_only));
@@ -4541,10 +4541,12 @@ pi_result piProgramRetain(pi_program Program) {
 pi_result piProgramRelease(pi_program Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
 
-  // Only single thread can reach ref count equal to 0. This means that
-  // the code under if is executed by single thread.
-  if (--(Program->RefCount) == 0)
-    delete Program;
+  if (--(Program->RefCount) != 0)
+    return PI_SUCCESS;
+
+  // Only a single thread can reach ref count equal to 0. This means that
+  // the following code is executed by a single thread.
+  delete Program;
 
   return PI_SUCCESS;
 }
@@ -4930,8 +4932,8 @@ pi_result piKernelRelease(pi_kernel Kernel) {
   if (--(Kernel->RefCount) != 0)
     return PI_SUCCESS;
 
-  // Only single thread can reach ref count equal to 0. This means that
-  // the following code is executed by single thread.
+  // Only a single thread can reach ref count equal to 0. This means that
+  // the following code is executed by a single thread.
   auto KernelProgram = Kernel->Program;
   if (Kernel->OwnZeKernel)
     ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
@@ -5813,12 +5815,13 @@ pi_result piSamplerRetain(pi_sampler Sampler) {
 pi_result piSamplerRelease(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
-  // Only single thread can reach ref count equal to 0. This means that
-  // the code under if is executed by single thread.
-  if (--(Sampler->RefCount) == 0) {
-    ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
-    delete Sampler;
-  }
+  if (--(Sampler->RefCount) != 0)
+    return PI_SUCCESS;
+
+  // Only a single thread can reach ref count equal to 0. This means that
+  // the following code is executed by a single thread.
+  ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
+  delete Sampler;
 
   return PI_SUCCESS;
 }
