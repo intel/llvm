@@ -1920,13 +1920,13 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
       // runtime allocated alignment.
       // 2. kernel_arg_exclusive_ptr - To indicate that it is illegal to
       // dereference the pointer from outside current invocation of the
-      // kernel
+      // kernel.
       // In both cases, the value of metadata element is 'true' for any
       // kernel arguments that corresponds to the base pointer of an accessor
       // and 'false' otherwise.
-      // Note: Although both metadata applies only to base pointer of accessor
-      // currently, it is possible that one or both may be extended to include
-      // other pointers. Therefore, both metadata is required.
+      // Note: Although both metadata apply only to the base pointer of an
+      // accessor currently, it is possible that one or both may be extended
+      // to include other pointers. Therefore, both metadata are required.
       if (parm->hasAttr<SYCLAccessorPtrAttr>()) {
         isKernelArgAnAccessor = true;
         argSYCLAccessorPtrs.push_back(
