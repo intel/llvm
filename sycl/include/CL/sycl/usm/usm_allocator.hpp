@@ -30,7 +30,7 @@ __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
 __SYCL_EXPORT void free(void *ptr, const context &ctxt,
                         const detail::code_location CodeLoc);
 
-template <typename T, usm::alloc AllocKind, size_t Alignment = alignof(T)>
+template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
 public:
   using value_type = T;
@@ -116,7 +116,9 @@ public:
   }
 
 private:
-  constexpr size_t getAlignment() const { return Alignment; }
+  constexpr size_t getAlignment() const {
+    return std::max(alignof(T), Alignment);
+  }
 
   template <class U, usm::alloc AllocKindU, size_t AlignmentU>
   friend class usm_allocator;
