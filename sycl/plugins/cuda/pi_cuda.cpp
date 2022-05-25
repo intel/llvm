@@ -2882,7 +2882,7 @@ pi_result cuda_piEnqueueKernelLaunch(
       if (env_val <= 0 || env_val > device_max_local_mem) {
         setErrorMessage("Invalid value specified for "
                         "SYCL_PI_LOCAL_MEM_SIZE",
-                        PI_SUCCESS);
+                        PI_PLUGIN_SPECIFIC_ERROR);
         return PI_PLUGIN_SPECIFIC_ERROR;
       }
       PI_CHECK_ERROR(cuFuncSetAttribute(
