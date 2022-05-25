@@ -58,19 +58,19 @@ public:
   /// host device to avoid attempts to call method get on such events.
   //
   /// \return true if this event is a SYCL host event.
-  bool is_host() const;
+  bool is_host();
 
   /// Returns a valid OpenCL event interoperability handle.
   ///
   /// \return a valid instance of OpenCL cl_event.
-  cl_event get() const;
+  cl_event get();
 
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self);
 
   /// Waits for the event.
   ///
@@ -101,18 +101,18 @@ public:
   /// \return depends on template parameter.
   template <info::event_profiling param>
   typename info::param_traits<info::event_profiling, param>::return_type
-  get_profiling_info() const;
+  get_profiling_info();
 
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
   template <info::event param>
-  typename info::param_traits<info::event, param>::return_type get_info() const;
+  typename info::param_traits<info::event, param>::return_type get_info();
 
   ~event_impl();
 
   /// Waits for the event with respect to device type.
-  void waitInternal() const;
+  void waitInternal();
 
   /// Marks this event as completed.
   void setComplete();
@@ -135,7 +135,7 @@ public:
 
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const plugin &getPlugin() const;
+  const plugin &getPlugin();
 
   /// Associate event with the context.
   ///
@@ -167,7 +167,7 @@ public:
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.
-  pi_native_handle getNative() const;
+  pi_native_handle getNative();
 
   /// Returns vector of event dependencies.
   ///
@@ -218,7 +218,11 @@ private:
   void instrumentationEpilog(void *TelementryEvent, const std::string &Name,
                              int32_t StreamID, uint64_t IId) const;
   void checkProfilingPreconditions() const;
+  // events constructed without a context will lazily use the default context
+  // when needed.
+  void ensureContextInitialized();
   mutable bool MIsInitialized = true;
+  mutable bool MIsContextInitialized = false;
   mutable RT::PiEvent MEvent = nullptr;
   mutable ContextImplPtr MContext;
   mutable bool MOpenCLInterop = false;
