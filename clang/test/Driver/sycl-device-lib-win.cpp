@@ -21,6 +21,8 @@
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath-fp64.obj" "-output={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-msvc-math.obj" "-output={{.*}}libsycl-msvc-math-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf.obj" "-output={{.*}}libsycl-imf-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf-fp64.obj" "-output={{.*}}libsycl-imf-fp64-{{.*}}.o" "-unbundle"
 
 /// ###########################################################################
 /// test sycl fallback device libraries are not linked by default
@@ -48,6 +50,8 @@
 // SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath-fp64.obj" "-output={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-msvc-math.obj" "-output={{.*}}libsycl-msvc-math-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf.obj" "-output={{.*}}libsycl-imf-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf-fp64.obj" "-output={{.*}}libsycl-imf-fp64-{{.*}}.o" "-unbundle"
 
 /// ###########################################################################
 
@@ -59,6 +63,8 @@
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath-fp64.obj" "-output={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-msvc-math.obj" "-output={{.*}}libsycl-msvc-math-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf.obj" "-output={{.*}}libsycl-imf-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf-fp64.obj" "-output={{.*}}libsycl-imf-fp64-{{.*}}.o" "-unbundle"
 
 /// ###########################################################################
 
@@ -66,6 +72,33 @@
 // RUN: %clangxx -fsycl %s -fno-sycl-device-lib=libm-fp32,libm-fp64 --sysroot=%S/Inputs/SYCL-windows -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBM
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBM: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBM: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf.obj" "-output={{.*}}libsycl-imf-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBM: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf-fp64.obj" "-output={{.*}}libsycl-imf-fp64-{{.*}}.o" "-unbundle"
+
+/// ###########################################################################
+
+/// test behavior of -fno-sycl-device-lib=libimf-fp32
+// RUN: %clangxx -fsycl %s -fno-sycl-device-lib=libimf-fp32 --sysroot=%S/Inputs/SYCL-windows -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP32
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP32: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP32: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP32: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP32: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP32: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath-fp64.obj" "-output={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP32: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf-fp64.obj" "-output={{.*}}libsycl-imf-fp64-{{.*}}.o" "-unbundle"
+
+/// ###########################################################################
+
+/// test behavior of -fno-sycl-device-lib=libimf-fp64
+// RUN: %clangxx -fsycl %s -fno-sycl-device-lib=libimf-fp64 --sysroot=%S/Inputs/SYCL-windows -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP64
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP64: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP64: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP64: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP64: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP64: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath-fp64.obj" "-output={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBIMF_FP64: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf.obj" "-output={{.*}}libsycl-imf-{{.*}}.o" "-unbundle"
+
 /// ###########################################################################
 
 /// test behavior of disabling all device libraries
@@ -112,6 +145,8 @@
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath-fp64.obj" "-output={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-msvc-math.obj" "-output={{.*}}libsycl-msvc-math-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf.obj" "-output={{.*}}libsycl-imf-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-imf-fp64.obj" "-output={{.*}}libsycl-imf-fp64-{{.*}}.o" "-unbundle"
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: llvm-link{{.*}} "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
 
 /// ###########################################################################
