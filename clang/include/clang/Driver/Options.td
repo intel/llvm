@@ -2770,10 +2770,10 @@ def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["auto"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the 'auto' mode, i.e. use heuristic to distribute device code across modules">;
-def fsycl_instrument_device_code : Flag<["-"], "fsycl-instrument-device-code">,
-  Group<sycl_Group>, Flags<[CC1Option, CoreOption]>,
-  HelpText<"Add ITT instrumentation intrinsics calls">,
-  MarshallingInfoFlag<CodeGenOpts<"SPIRITTAnnotations">>;
+defm sycl_instrument_device_code : BoolFOption<"sycl-instrument-device-code",
+  CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
+  PosFlag<SetTrue, [], "Add">, NegFlag<SetFalse, [], "Do not add">,
+  BothFlags<[CC1Option, CoreOption], " ITT instrumentation intrinsics calls">>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,

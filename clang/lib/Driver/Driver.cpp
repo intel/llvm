@@ -4811,7 +4811,8 @@ class OffloadingActionBuilder final {
       addInputs(sycl_device_wrapper_libs);
       if (isSpirvAOT)
         addInputs(sycl_device_fallback_libs);
-      if (Args.hasArg(options::OPT_fsycl_instrument_device_code))
+      if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                       options::OPT_fno_sycl_instrument_device_code, true))
         addInputs(sycl_device_annotation_libs);
       return NumOfDeviceLibLinked != 0;
     }
