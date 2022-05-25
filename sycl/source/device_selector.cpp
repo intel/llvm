@@ -39,6 +39,7 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 
 device device_selector::select_device() const {
   std::vector<device> devices = device::get_devices();
+  auto &program_manager = cl::sycl::detail::ProgramManager::getInstance();
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
@@ -60,6 +61,10 @@ device device_selector::select_device() const {
 
     // A negative score means that a device must not be selected.
     if (dev_score < 0)
+      continue;
+
+    // Don't select devices with no compatible images
+    if (!dev.is_host() && !program_manager.hasCompatibleImage(dev))
       continue;
 
     // SYCL spec says: "If more than one device receives the high score then
