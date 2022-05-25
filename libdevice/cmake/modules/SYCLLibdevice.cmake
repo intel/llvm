@@ -201,6 +201,10 @@ function(add_devicelib_bc src_file sycl_target)
   else()
     set(bc_compile_flags -fsycl -fsycl-device-only -fsycl-targets=${sycl_target})
   endif()
+  if (WIN32)
+    list(APPEND bc_compile_flags -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
+    list(APPEND bc_compile_flags -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
+  endif()
   add_custom_command(OUTPUT ${devicelib-bc}
                      COMMAND ${clang} ${bc_compile_flags}
                              ${CMAKE_CURRENT_SOURCE_DIR}/${src_file}
