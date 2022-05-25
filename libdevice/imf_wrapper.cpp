@@ -410,6 +410,24 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_umulhi(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+long long int __devicelib_imf_mul64hi(long long int, long long int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_umul64hi(unsigned long long int,
+                                                unsigned long long int);
+
+DEVICE_EXTERN_C_INLINE
+long long int __imf_mul64hi(long long int x, long long int y) {
+  return __devicelib_imf_mul64hi(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __imf_umul64hi(unsigned long long int x,
+                                      unsigned long long int y) {
+  return __devicelib_imf_umul64hi(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
 int __imf_mulhi(int x, int y) { return __devicelib_imf_mulhi(x, y); }
 
 DEVICE_EXTERN_C_INLINE

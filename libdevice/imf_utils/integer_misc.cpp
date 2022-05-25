@@ -147,4 +147,28 @@ unsigned int __devicelib_imf_umulhi(unsigned int x, unsigned int y) {
   return __spirv_ocl_u_mul_hi(x, y);
 #endif
 }
+
+DEVICE_EXTERN_C_INLINE
+long long int __devicelib_imf_mul64hi(long long int x, long long int y) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  __int128_t p = static_cast<__int128_t>(x) * static_cast<__int128_t>(y);
+  p >>= 64;
+  return static_cast<long long int>(p);
+#elif defined(__SPIR__)
+  return __spirv_ocl_s_mul_hi(static_cast<int64_t>(x), static_cast<int64_t>(y));
+#endif
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_umul64hi(unsigned long long int x,
+                                                unsigned long long int y) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  __uint128_t p = static_cast<__uint128_t>(x) * static_cast<__uint128_t>(y);
+  p >>= 64;
+  return static_cast<unsigned long long int>(p);
+#elif defined(__SPIR__)
+  return __spirv_ocl_u_mul_hi(static_cast<uint64_t>(x),
+                              static_cast<uint64_t>(y));
+#endif
+}
 #endif //__LIBDEVICE_IMF_ENABLED__
