@@ -2185,9 +2185,8 @@ cl_int enqueueImpKernel(
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong
     const device_impl &DeviceImpl = *(Queue->getDeviceImplPtr());
-    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl, Kernel,
-                                                      NDRDesc);
-    return Error;
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
+                                                        Kernel, NDRDesc);
   }
 
   return PI_SUCCESS;
