@@ -279,6 +279,10 @@ EnableDCEInRA("amdgpu-dce-in-ra",
     cl::init(true), cl::Hidden,
     cl::desc("Enable machine DCE inside regalloc"));
 
+static cl::opt<bool> EnableSetWavePriority("amdgpu-set-wave-priority",
+                                           cl::desc("Adjust wave priority"),
+                                           cl::init(false), cl::Hidden);
+
 static cl::opt<bool> EnableScalarIRPasses(
   "amdgpu-scalar-ir-passes",
   cl::desc("Enable scalar IR passes"),
@@ -383,8 +387,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeGCNPreRAOptimizationsPass(*PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
-  initializeGlobalOffsetPass(*PR);
-  initializeLocalAccessorToSharedMemoryPass(*PR);
+  initializeGlobalOffsetLegacyPass(*PR);
+  initializeLocalAccessorToSharedMemoryLegacyPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -636,6 +640,14 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         }
         if (PassName == "amdgpu-lower-module-lds") {
           PM.addPass(AMDGPULowerModuleLDSPass());
+          return true;
+        }
+        if (PassName == "localaccessortosharedmemory") {
+          PM.addPass(LocalAccessorToSharedMemoryPass());
+          return true;
+        }
+        if (PassName == "globaloffset") {
+          PM.addPass(LocalAccessorToSharedMemoryPass());
           return true;
         }
         return false;
@@ -1040,8 +1052,8 @@ void AMDGPUPassConfig::addIRPasses() {
 
   if (TM.getTargetTriple().getArch() == Triple::amdgcn &&
       TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA) {
-    addPass(createLocalAccessorToSharedMemoryPass());
-    addPass(createGlobalOffsetPass());
+    addPass(createLocalAccessorToSharedMemoryPassLegacy());
+    addPass(createGlobalOffsetPassLegacy());
   }
 }
 
@@ -1372,6 +1384,8 @@ void GCNPassConfig::addPreEmitPass() {
     addPass(&SIInsertHardClausesID);
 
   addPass(&SILateBranchLoweringPassID);
+  if (isPassEnabled(EnableSetWavePriority, CodeGenOpt::Less))
+    addPass(createAMDGPUSetWavePriorityPass());
   if (getOptLevel() > CodeGenOpt::None)
     addPass(&SIPreEmitPeepholeID);
   // The hazard recognizer that runs as part of the post-ra scheduler does not

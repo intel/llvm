@@ -3124,7 +3124,6 @@ void ExprEngine::VisitMSAsmStmt(const MSAsmStmt *A, ExplodedNode *Pred,
 // Visualization.
 //===----------------------------------------------------------------------===//
 
-#ifndef NDEBUG
 namespace llvm {
 
 template<>
@@ -3222,29 +3221,18 @@ struct DOTGraphTraits<ExplodedGraph*> : public DefaultDOTGraphTraits {
 };
 
 } // namespace llvm
-#endif
 
 void ExprEngine::ViewGraph(bool trim) {
-#ifndef NDEBUG
   std::string Filename = DumpGraph(trim);
   llvm::DisplayGraph(Filename, false, llvm::GraphProgram::DOT);
-#else
-  llvm::errs() << "Warning: viewing graph requires assertions" << "\n";
-#endif
 }
 
-
-void ExprEngine::ViewGraph(ArrayRef<const ExplodedNode*> Nodes) {
-#ifndef NDEBUG
+void ExprEngine::ViewGraph(ArrayRef<const ExplodedNode *> Nodes) {
   std::string Filename = DumpGraph(Nodes);
   llvm::DisplayGraph(Filename, false, llvm::GraphProgram::DOT);
-#else
-  llvm::errs() << "Warning: viewing graph requires assertions" << "\n";
-#endif
 }
 
 std::string ExprEngine::DumpGraph(bool trim, StringRef Filename) {
-#ifndef NDEBUG
   if (trim) {
     std::vector<const ExplodedNode *> Src;
 
@@ -3259,35 +3247,26 @@ std::string ExprEngine::DumpGraph(bool trim, StringRef Filename) {
       Src.push_back(N);
     }
     return DumpGraph(Src, Filename);
-  } else {
-    return llvm::WriteGraph(&G, "ExprEngine", /*ShortNames=*/false,
-                            /*Title=*/"Exploded Graph",
-                            /*Filename=*/std::string(Filename));
   }
-#else
-  llvm::errs() << "Warning: dumping graph requires assertions" << "\n";
-  return "";
-#endif
+
+  return llvm::WriteGraph(&G, "ExprEngine", /*ShortNames=*/false,
+                          /*Title=*/"Exploded Graph",
+                          /*Filename=*/std::string(Filename));
 }
 
-std::string ExprEngine::DumpGraph(ArrayRef<const ExplodedNode*> Nodes,
+std::string ExprEngine::DumpGraph(ArrayRef<const ExplodedNode *> Nodes,
                                   StringRef Filename) {
-#ifndef NDEBUG
   std::unique_ptr<ExplodedGraph> TrimmedG(G.trim(Nodes));
 
   if (!TrimmedG.get()) {
     llvm::errs() << "warning: Trimmed ExplodedGraph is empty.\n";
     return "";
-  } else {
-    return llvm::WriteGraph(TrimmedG.get(), "TrimmedExprEngine",
-                            /*ShortNames=*/false,
-                            /*Title=*/"Trimmed Exploded Graph",
-                            /*Filename=*/std::string(Filename));
   }
-#else
-  llvm::errs() << "Warning: dumping graph requires assertions" << "\n";
-  return "";
-#endif
+
+  return llvm::WriteGraph(TrimmedG.get(), "TrimmedExprEngine",
+                          /*ShortNames=*/false,
+                          /*Title=*/"Trimmed Exploded Graph",
+                          /*Filename=*/std::string(Filename));
 }
 
 void *ProgramStateTrait<ReplayWithoutInlining>::GDMIndex() {

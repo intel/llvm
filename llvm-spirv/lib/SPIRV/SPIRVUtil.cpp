@@ -1861,7 +1861,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
 
       Value *Ptr = LD->getPointerOperand();
 
-      if (isa<FixedVectorType>(Ptr->getType()->getPointerElementType())) {
+      if (isa<FixedVectorType>(LD->getType())) {
         LD->replaceAllUsesWith(Vectors.back());
       } else {
         auto *GEP = dyn_cast<GetElementPtrInst>(Ptr);

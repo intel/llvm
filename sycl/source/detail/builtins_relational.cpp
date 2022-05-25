@@ -21,20 +21,26 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 namespace {
 
-template <typename T> inline T __vFOrdEqual(T x, T y) { return -(x == y); }
+template <typename T> inline T __vFOrdEqual(T x, T y) {
+  return -static_cast<T>(x == y);
+}
 
 template <typename T> inline T __sFOrdEqual(T x, T y) { return x == y; }
 
-template <typename T> inline T __vFUnordNotEqual(T x, T y) { return -(x != y); }
+template <typename T> inline T __vFUnordNotEqual(T x, T y) {
+  return -static_cast<T>(x != y);
+}
 
 template <typename T> inline T __sFUnordNotEqual(T x, T y) { return x != y; }
 
-template <typename T> inline T __vFOrdGreaterThan(T x, T y) { return -(x > y); }
+template <typename T> inline T __vFOrdGreaterThan(T x, T y) {
+  return -static_cast<T>(x > y);
+}
 
 template <typename T> inline T __sFOrdGreaterThan(T x, T y) { return x > y; }
 
 template <typename T> inline T __vFOrdGreaterThanEqual(T x, T y) {
-  return -(x >= y);
+  return -static_cast<T>(x >= y);
 }
 
 template <typename T> inline T __sFOrdGreaterThanEqual(T x, T y) {
@@ -42,13 +48,13 @@ template <typename T> inline T __sFOrdGreaterThanEqual(T x, T y) {
 }
 
 template <typename T> inline T __vFOrdLessThanEqual(T x, T y) {
-  return -(x <= y);
+  return -static_cast<T>(x <= y);
 }
 
 template <typename T> inline T __sFOrdLessThanEqual(T x, T y) { return x <= y; }
 
 template <typename T> inline T __vFOrdNotEqual(T x, T y) {
-  return -((x < y) || (x > y));
+  return -static_cast<T>((x < y) || (x > y));
 }
 
 template <typename T> inline T __sFOrdNotEqual(T x, T y) {
@@ -56,7 +62,7 @@ template <typename T> inline T __sFOrdNotEqual(T x, T y) {
 }
 
 template <typename T> inline T __vLessOrGreater(T x, T y) {
-  return -((x < y) || (x > y));
+  return -static_cast<T>((x < y) || (x > y));
 }
 
 template <typename T> inline T __sLessOrGreater(T x, T y) {
@@ -67,7 +73,7 @@ template <typename T> s::cl_int inline __Any(T x) { return d::msbIsSet(x); }
 template <typename T> s::cl_int inline __All(T x) { return d::msbIsSet(x); }
 
 template <typename T> inline T __vOrdered(T x, T y) {
-  return -(
+  return -static_cast<T>(
       !(std::isunordered(d::cast_if_host_half(x), d::cast_if_host_half(y))));
 }
 
@@ -227,7 +233,7 @@ __SYCL_EXPORT s::cl_int FOrdLessThan(s::cl_half x, s::cl_half y) __NOEXC {
   return (x < y);
 }
 __SYCL_EXPORT s::cl_short __vFOrdLessThan(s::cl_half x, s::cl_half y) __NOEXC {
-  return -(x < y);
+  return -static_cast<s::cl_short>(x < y);
 }
 MAKE_1V_2V_FUNC(FOrdLessThan, __vFOrdLessThan, s::cl_int, s::cl_float,
                 s::cl_float)

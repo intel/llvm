@@ -7623,14 +7623,17 @@ SYCLIntelFPGAMaxConcurrencyAttr *Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
-    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr());
-    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNThreadsExpr());
-    if (DeclExpr && MergeExpr &&
-        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-      Diag(A.getLoc(), diag::note_previous_attribute);
+    if (const auto *DeclExpr =
+            dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNThreadsExpr())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
     }
-    return nullptr;
   }
 
   return ::new (Context)
@@ -7654,14 +7657,21 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
       return;
     }
 
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
-      const auto *DeclExpr =
-          dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr());
-      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
-        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr =
+              dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
       }
-      return;
     }
   }
 
@@ -9324,6 +9334,39 @@ static void handleHLSLSVGroupIndexAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   D->addAttr(::new (S.Context) HLSLSV_GroupIndexAttr(S.Context, AL));
+}
+
+static void handleHLSLShaderAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef Str;
+  SourceLocation ArgLoc;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &ArgLoc))
+    return;
+
+  HLSLShaderAttr::ShaderType ShaderType;
+  if (!HLSLShaderAttr::ConvertStrToShaderType(Str, ShaderType)) {
+    S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported)
+        << AL << Str << ArgLoc;
+    return;
+  }
+
+  // FIXME: check function match the shader stage.
+
+  HLSLShaderAttr *NewAttr = S.mergeHLSLShaderAttr(D, AL, ShaderType);
+  if (NewAttr)
+    D->addAttr(NewAttr);
+}
+
+HLSLShaderAttr *
+Sema::mergeHLSLShaderAttr(Decl *D, const AttributeCommonInfo &AL,
+                          HLSLShaderAttr::ShaderType ShaderType) {
+  if (HLSLShaderAttr *NT = D->getAttr<HLSLShaderAttr>()) {
+    if (NT->getType() != ShaderType) {
+      Diag(NT->getLocation(), diag::err_hlsl_attribute_param_mismatch) << AL;
+      Diag(AL.getLoc(), diag::note_conflicting_attribute);
+    }
+    return nullptr;
+  }
+  return HLSLShaderAttr::Create(Context, ShaderType, AL);
 }
 
 static void handleMSInheritanceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -11387,6 +11430,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_HLSLSV_GroupIndex:
     handleHLSLSVGroupIndexAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_HLSLShader:
+    handleHLSLShaderAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AbiTag:

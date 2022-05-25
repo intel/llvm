@@ -460,7 +460,10 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.SplitDwarfFile = CodeGenOpts.SplitDwarfFile;
   Options.MCOptions.MCRelaxAll = CodeGenOpts.RelaxAll;
   Options.MCOptions.MCSaveTempLabels = CodeGenOpts.SaveTempLabels;
-  Options.MCOptions.MCUseDwarfDirectory = !CodeGenOpts.NoDwarfDirectoryAsm;
+  Options.MCOptions.MCUseDwarfDirectory =
+      CodeGenOpts.NoDwarfDirectoryAsm
+          ? llvm::MCTargetOptions::DisableDwarfDirectory
+          : llvm::MCTargetOptions::EnableDwarfDirectory;
   Options.MCOptions.MCNoExecStack = CodeGenOpts.NoExecStack;
   Options.MCOptions.MCIncrementalLinkerCompatible =
       CodeGenOpts.IncrementalLinkerCompatible;
@@ -931,7 +934,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   // Add SPIRITTAnnotations pass to the pass manager if
   // -fsycl-instrument-device-code option was passed. This option can be used
   // only with spir triple.
-  if (CodeGenOpts.SPIRITTAnnotations) {
+  if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations) {
     assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
            "ITT annotations can only be added to a module with spir target");
     MPM.addPass(SPIRITTAnnotationsPass());
