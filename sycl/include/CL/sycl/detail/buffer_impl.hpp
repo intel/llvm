@@ -36,8 +36,6 @@ class buffer;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
 
-using buffer_allocator = detail::sycl_memory_object_allocator;
-
 namespace detail {
 
 class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {

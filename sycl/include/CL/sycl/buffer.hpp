@@ -23,7 +23,27 @@ class handler;
 class queue;
 template <int dimensions> class range;
 
+// Guard SYCL 2020 buffer_allocator with template arguments behind the
+// SYCL2020_CONFORMANT_APIS macro.
+#ifdef SYCL2020_CONFORMANT_APIS
+template <typename DataT>
+using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
+#else
+using buffer_allocator = detail::sycl_memory_object_allocator<char>;
+#endif
+
 namespace detail {
+
+// Generalized implementation of the default allocator used by buffers.
+// TODO: When the SYCL 1.2.1 version of buffer_allocator is removed, this should
+//       be removed.
+#ifdef SYCL2020_CONFORMANT_APIS
+template <typename DataT>
+using default_buffer_allocator = buffer_allocator<std::remove_const_t<DataT>>;
+#else
+template <typename> using default_buffer_allocator = buffer_allocator;
+#endif
+
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
 make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt = {},
@@ -39,7 +59,7 @@ auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
                         buffer<DataT, Dimensions, Allocator, void>>;
 
 template <backend Backend, typename DataT, int Dimensions,
-          typename AllocatorT = cl::sycl::buffer_allocator>
+          typename AllocatorT = detail::default_buffer_allocator<DataT>>
 struct BufferInterop;
 } // namespace detail
 
@@ -52,7 +72,7 @@ struct BufferInterop;
 ///
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
-          typename AllocatorT = cl::sycl::buffer_allocator,
+          typename AllocatorT = detail::default_buffer_allocator<T>,
           typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
                                                             (dimensions <= 3)>>
 class buffer {
@@ -96,7 +116,7 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>());
     impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
@@ -108,7 +128,7 @@ public:
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
             allocator));
     impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
                                   (const void *)typeid(T).name(), dimensions,
@@ -122,7 +142,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>());
     impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
@@ -135,7 +155,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
             allocator));
     impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
                                   (const void *)typeid(T).name(), dimensions,
@@ -151,7 +171,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>());
     impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
@@ -166,7 +186,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
             allocator));
     impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
                                   (const void *)typeid(T).name(), dimensions,
@@ -181,7 +201,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
             allocator));
     impl->constructorNotification(CodeLoc, (void *)impl.get(),
                                   (void *)hostData.get(),
@@ -197,7 +217,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
             allocator));
     impl->constructorNotification(CodeLoc, (void *)impl.get(),
                                   (void *)hostData.get(),
@@ -213,7 +233,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>());
     impl->constructorNotification(CodeLoc, (void *)impl.get(),
                                   (void *)hostData.get(),
                                   (const void *)typeid(T).name(), dimensions,
@@ -228,7 +248,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>());
     impl->constructorNotification(CodeLoc, (void *)impl.get(),
                                   (void *)hostData.get(),
                                   (const void *)typeid(T).name(), dimensions,
@@ -245,7 +265,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
             allocator));
     size_t r[3] = {Range[0], 0, 0};
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &first,
@@ -263,7 +283,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>());
     size_t r[3] = {Range[0], 0, 0};
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &first,
                                   (const void *)typeid(T).name(), dimensions,
@@ -281,7 +301,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         container.data(), size() * sizeof(T),
         detail::getNextPowerOfTwo(sizeof(T)), propList,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
             allocator));
     size_t r[3] = {Range[0], 0, 0};
     impl->constructorNotification(CodeLoc, (void *)impl.get(), container.data(),
@@ -328,7 +348,7 @@ public:
 
     impl = std::make_shared<detail::buffer_impl>(
         detail::pi::cast<pi_native_handle>(MemObject), SyclContext,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
         /* OwnNativeHandle */ true, AvailableEvent);
     Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
@@ -556,7 +576,7 @@ private:
 
     impl = std::make_shared<detail::buffer_impl>(
         MemObject, SyclContext,
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
         OwnNativeHandle, AvailableEvent);
     Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
