@@ -617,7 +617,10 @@ public:
         // info is in ParsedAttr. We don't have to map from Attr to ParsedAttr
         // currently. Erich is currently working on that in LLVM, once that is
         // committed we need to change this".
-        if (FD->hasAttr<DLLImportAttr>()) {
+        // `_wassert` is provided by libdevice's CRT wrapper, don't error on
+        // it.
+        if (FD->hasAttr<DLLImportAttr>() &&
+            FD->getNameAsString() != "_wassert") {
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallDllimportFunction;
           SemaRef.Diag(FD->getLocation(), diag::note_callee_decl) << FD;
