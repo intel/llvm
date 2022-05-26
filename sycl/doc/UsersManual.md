@@ -197,7 +197,7 @@ and not recommended to use in production environment.
     compilation. If online link is enabled, all required device libraries will
     be linked with user's device image by SYCL runtime during execution time,
     otherwise the link will happen in build time, online link is disabled by
-    default currently and this option is ignored in AOT compilation.
+    default currently. This option is ignored in AOT compilation.
 
 ## Intel FPGA specific options
 
