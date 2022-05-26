@@ -69,6 +69,34 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
                  size_t LocalMemBytesPerWorkItem) {
   device Dev = Queue->get_device();
   size_t MaxWGSize = Dev.get_info<info::device::max_work_group_size>();
+
+  // The maximum WGSize returned by CPU devices is very large and does not
+  // help the reduction implementation: since all work associated with a
+  // work-group is typically assigned to one CPU thread, selecting a large
+  // work-group size unnecessarily increases the number of accumulators.
+  // The default of 16 was chosen based on empirical benchmarking results;
+  // an environment variable is provided to allow users to override this
+  // behavior.
+  using CPUMaxWGConfig =
+      detail::SYCLConfig<detail::SYCL_REDUCTION_MAX_WORKGROUP_SIZE_CPU>;
+  if (Dev.is_cpu()) {
+    size_t CPUMaxWGSize = CPUMaxWGConfig::get();
+    if (CPUMaxWGSize == 0)
+      CPUMaxWGSize = 16;
+    return std::min(MaxWGSize, MaxWGSize);
+  }
+
+  // If the user has specified an explicit max work-group size we use that.
+  using GPUMaxWGConfig =
+      detail::SYCLConfig<detail::SYCL_REDUCTION_MAX_WORKGROUP_SIZE_GPU>;
+  if (Dev.is_gpu() && GPUMaxWGConfig::get())
+    return std::min(GPUMaxWGConfig::get(), MaxWGSize);
+
+  using ACCMaxWGConfig =
+      detail::SYCLConfig<detail::SYCL_REDUCTION_MAX_WORKGROUP_SIZE_ACC>;
+  if (Dev.is_accelerator() && ACCMaxWGConfig::get())
+    return std::min(ACCMaxWGConfig::get(), MaxWGSize);
+
   size_t WGSizePerMem = MaxWGSize * 2;
   size_t WGSize = MaxWGSize;
   if (LocalMemBytesPerWorkItem != 0) {
@@ -95,16 +123,10 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   // the local memory assigned to one work-group by code in another work-group.
   // It seems the only good solution for this work-group detection problem is
   // kernel precompilation and querying the kernel properties.
-  if (WGSize >= 4) {
+  if (WGSize >= 4 && WGSizePerMem < MaxWGSize * 2) {
     // Let's return a twice smaller number, but... do that only if the kernel
-    // is limited by memory, or the kernel uses opencl:cpu backend, which
-    // surprisingly uses lots of resources to run the kernels with reductions
-    // and often causes CL_OUT_OF_RESOURCES error even when reduction
-    // does not use local accessors.
-    if (WGSizePerMem < MaxWGSize * 2 ||
-        (Queue->get_device().is_cpu() &&
-         Queue->get_device().get_platform().get_backend() == backend::opencl))
-      WGSize /= 2;
+    // is limited by memory.
+    WGSize /= 2;
   }
 
   return WGSize;

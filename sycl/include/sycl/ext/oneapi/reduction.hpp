@@ -1042,7 +1042,6 @@ struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
 template <typename KernelFunc, int Dims, typename ReducerT>
 void reductionLoop(const range<Dims> &Range, const size_t PerGroup,
                    ReducerT &Reducer, const nd_item<1> &NdId, KernelFunc &F) {
-
   // Divide into contiguous chunks and assign each chunk to a Group
   // Rely on precomputed division to avoid repeating expensive operations
   // TODO: Some devices may prefer alternative remainder handling

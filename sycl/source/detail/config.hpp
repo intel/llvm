@@ -378,6 +378,64 @@ public:
   }
 };
 
+static size_t ParseReductionMaxWG(const char *ValueStr,
+                                  const char *ConfigName) {
+  // Default to 0 to signify an unset value.
+  if (!ValueStr)
+    return 0;
+
+  int Result = 1;
+  try {
+    Result = std::stoi(ValueStr);
+  } catch (...) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Invalid value for " + std::string{ConfigName} +
+            " environment variable: value should be a number");
+  }
+
+  if (Result < 1)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Invalid value for " + std::string{ConfigName} +
+            " environment variable: value should be larger than zero");
+
+  return Result;
+}
+
+template <> class SYCLConfig<SYCL_REDUCTION_MAX_WORKGROUP_SIZE_CPU> {
+  using BaseT = SYCLConfigBase<SYCL_REDUCTION_MAX_WORKGROUP_SIZE_CPU>;
+
+public:
+  static size_t get() {
+    static size_t Value =
+        ParseReductionMaxWG(BaseT::getRawValue(), BaseT::MConfigName);
+    return Value;
+  }
+};
+
+template <> class SYCLConfig<SYCL_REDUCTION_MAX_WORKGROUP_SIZE_GPU> {
+  using BaseT = SYCLConfigBase<SYCL_REDUCTION_MAX_WORKGROUP_SIZE_GPU>;
+
+public:
+  static size_t get() {
+    static size_t Value =
+        ParseReductionMaxWG(BaseT::getRawValue(), BaseT::MConfigName);
+    return Value;
+  }
+};
+
+template <> class SYCLConfig<SYCL_REDUCTION_MAX_WORKGROUP_SIZE_ACC> {
+  using BaseT = SYCLConfigBase<SYCL_REDUCTION_MAX_WORKGROUP_SIZE_ACC>;
+
+public:
+  static size_t get() {
+    static size_t Value =
+        ParseReductionMaxWG(BaseT::getRawValue(), BaseT::MConfigName);
+    return Value;
+  }
+};
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
