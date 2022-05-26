@@ -391,6 +391,8 @@ struct _pi_queue {
   std::atomic_uint32_t transfer_stream_idx_;
   unsigned int num_compute_streams_;
   unsigned int num_transfer_streams_;
+  unsigned int last_sync_compute_streams_;
+  unsigned int last_sync_transfer_streams_;
   unsigned int flags_;
   std::mutex compute_stream_mutex_;
   std::mutex transfer_stream_mutex_;
@@ -403,7 +405,7 @@ struct _pi_queue {
         transfer_streams_{std::move(transfer_streams)}, context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
         compute_stream_idx_{0}, transfer_stream_idx_{0},
-        num_compute_streams_{0}, num_transfer_streams_{0}, flags_(flags) {
+        num_compute_streams_{0}, num_transfer_streams_{0}, last_sync_compute_streams_{0}, last_sync_transfer_streams_{0}, flags_(flags) {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -437,6 +439,29 @@ struct _pi_queue {
       for (unsigned int i = 0; i < end; i++) {
         f(transfer_streams_[i]);
       }
+    }
+  }
+  
+  template <typename T> void sync_streams(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int start = last_sync_compute_streams_;
+      unsigned int size = static_cast<unsigned int>(compute_streams_.size());
+      unsigned int end = num_compute_streams_ < size ? num_compute_streams_ : compute_stream_idx_.load() % size;
+      for (unsigned int i = start; i != end;(++i < size) ? i : (i=0)) {
+        f(compute_streams_[i]);
+      }
+      last_sync_compute_streams_ = end;
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int start = last_sync_transfer_streams_;
+      unsigned int size = static_cast<unsigned int>(transfer_streams_.size());
+      unsigned int end = num_transfer_streams_ < size ? num_transfer_streams_ : transfer_stream_idx_.load() % size;
+      for (unsigned int i = start; i != end; (++i < size) ? i : (i=0)) {
+        f(transfer_streams_[i]);
+      }
+      last_sync_transfer_streams_ = end;
     }
   }
 
