@@ -1635,7 +1635,7 @@ pi_command_list_ptr_t _pi_queue::eventOpenCommandList(pi_event Event) {
   }
   if (hasOpenCommandList(IsCopy{true}) &&
       CopyCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
-    return ComputeCommandBatch.OpenCommandList;
+    return CopyCommandBatch.OpenCommandList;
   }
   return CommandListMap.end();
 }
@@ -1697,12 +1697,17 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
         auto Queue = EventList[I]->Queue;
         if (Queue) {
+          // The caller of createAndRetainPiZeEventList must already hold
+          // a lock of the CurQueue. Additionally lock the Queue if it
+          // is different from CurQueue.
+          auto Lock = ((Queue == CurQueue) ? std::unique_lock<pi_shared_mutex>()
+                                           : std::unique_lock(Queue->Mutex));
+
           // If the event that is going to be waited is in an open batch
           // different from where this next command is going to be added,
           // then we have to force execute of that open command-list
           // to avoid deadlocks.
           //
-          std::scoped_lock lock(Queue->Mutex);
           const auto &OpenCommandList =
               Queue->eventOpenCommandList(EventList[I]);
           if (OpenCommandList != Queue->CommandListMap.end()) {
