@@ -145,7 +145,7 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(code, exc, str)                     \
   __SYCL_REPORT_OCL_ERR_TO_EXC(code, exc, str)
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
-  __SYCL_REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
+  __SYCL_REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error, nullptr)
 #else
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
   __SYCL_REPORT_OCL_ERR_TO_STREAM(code)
