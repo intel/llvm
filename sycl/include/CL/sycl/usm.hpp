@@ -267,7 +267,8 @@ T *malloc(
     const property_list &PropList = {},
     const detail::code_location CodeLoc = detail::code_location::current()) {
   return static_cast<T *>(
-      malloc(Count * sizeof(T), Dev, Ctxt, Kind, PropList, CodeLoc));
+      aligned_alloc(std::max(alignof(T), alignof(std::max_align_t)),
+                    Count * sizeof(T), Dev, Ctxt, Kind, PropList, CodeLoc));
 }
 
 template <typename T>
