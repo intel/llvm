@@ -9,7 +9,7 @@
 #ifndef LLDB_SOURCE_PLUGINS_TRACE_INTEL_PT_TRACECURSORINTELPT_H
 #define LLDB_SOURCE_PLUGINS_TRACE_INTEL_PT_TRACECURSORINTELPT_H
 
-#include "IntelPTDecoder.h"
+#include "ThreadDecoder.h"
 #include "TraceIntelPTSessionFileParser.h"
 
 namespace lldb_private {
@@ -20,7 +20,7 @@ public:
   TraceCursorIntelPT(lldb::ThreadSP thread_sp,
                      DecodedThreadSP decoded_thread_sp);
 
-  size_t Seek(int64_t offset, SeekType origin) override;
+  uint64_t Seek(int64_t offset, SeekType origin) override;
 
   virtual bool Next() override;
 
@@ -30,10 +30,16 @@ public:
 
   llvm::Optional<uint64_t> GetCounter(lldb::TraceCounter counter_type) override;
 
+  lldb::TraceEvents GetEvents() override;
+
   lldb::TraceInstructionControlFlowType
   GetInstructionControlFlowType() override;
 
   bool IsError() override;
+
+  bool GoToId(lldb::user_id_t id) override;
+
+  lldb::user_id_t GetId() const override;
 
 private:
   size_t GetInternalInstructionSize();

@@ -49,6 +49,7 @@
 
 namespace llvm {
 class raw_ostream;
+class ThreadPool;
 }
 
 namespace lldb_private {
@@ -301,6 +302,8 @@ public:
 
   bool GetShowProgress() const;
 
+  bool SetShowProgress(bool show_progress);
+
   llvm::StringRef GetShowProgressAnsiPrefix() const;
 
   llvm::StringRef GetShowProgressAnsiSuffix() const;
@@ -376,6 +379,9 @@ public:
   lldb::BroadcasterManagerSP GetBroadcasterManager() {
     return m_broadcaster_manager_sp;
   }
+
+  /// Shared thread poll. Use only with ThreadPoolTaskGroup.
+  static llvm::ThreadPool &GetThreadPool();
 
   /// Report warning events.
   ///

@@ -48,6 +48,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/RegisterBank.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
@@ -96,6 +97,7 @@ namespace {
     const TargetInstrInfo *TII;
     const TargetRegisterInfo *TRI;
     const MachineRegisterInfo *MRI;
+    const RegisterBankInfo *RBI;
 
     unsigned foundErrors;
 
@@ -371,6 +373,7 @@ unsigned MachineVerifier::verify(const MachineFunction &MF) {
   TM = &MF.getTarget();
   TII = MF.getSubtarget().getInstrInfo();
   TRI = MF.getSubtarget().getRegisterInfo();
+  RBI = MF.getSubtarget().getRegBankInfo();
   MRI = &MF.getRegInfo();
 
   const bool isFunctionFailedISel = MF.getProperties().hasProperty(
@@ -1001,17 +1004,23 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
       break;
     }
 
-    if (MRI->getRegBankOrNull(Src) != MRI->getRegBankOrNull(Dst)) {
-      report(
-          Twine(OpcName, " source and destination register banks must match"),
-          MI);
+    const RegisterBank *SrcRB = RBI->getRegBank(Src, *MRI, *TRI);
+    const RegisterBank *DstRB = RBI->getRegBank(Dst, *MRI, *TRI);
+
+    // Allow only the source bank to be set.
+    if ((SrcRB && DstRB && SrcRB != DstRB) || (DstRB && !SrcRB)) {
+      report(Twine(OpcName, " cannot change register bank"), MI);
       break;
     }
 
-    if (MRI->getRegClassOrNull(Src) != MRI->getRegClassOrNull(Dst))
+    // Don't allow a class change. Do allow member class->regbank.
+    const TargetRegisterClass *DstRC = MRI->getRegClassOrNull(Dst);
+    if (DstRC && DstRC != MRI->getRegClassOrNull(Src)) {
       report(
           Twine(OpcName, " source and destination register classes must match"),
           MI);
+      break;
+    }
 
     break;
   }
@@ -1072,6 +1081,18 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
       } else if (MI->getOpcode() == TargetOpcode::G_STORE) {
         if (ValTy.getSizeInBytes() < MMO.getSize())
           report("store memory size cannot exceed value size", MI);
+      }
+
+      const AtomicOrdering Order = MMO.getSuccessOrdering();
+      if (Opc == TargetOpcode::G_STORE) {
+        if (Order == AtomicOrdering::Acquire ||
+            Order == AtomicOrdering::AcquireRelease)
+          report("atomic store cannot use acquire ordering", MI);
+
+      } else {
+        if (Order == AtomicOrdering::Release ||
+            Order == AtomicOrdering::AcquireRelease)
+          report("atomic load cannot use release ordering", MI);
       }
     }
 
@@ -1912,6 +1933,10 @@ MachineVerifier::visitMachineOperand(const MachineOperand *MO, unsigned MONum) {
       return;
     if (MRI->tracksLiveness() && !MI->isDebugInstr())
       checkLiveness(MO, MONum);
+
+    if (MO->isDef() && MO->isUndef() && !MO->getSubReg() &&
+        MO->getReg().isVirtual()) // TODO: Apply to physregs too
+      report("Undef virtual register def operands require a subregister", MO, MONum);
 
     // Verify the consistency of tied operands.
     if (MO->isTied()) {

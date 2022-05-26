@@ -142,28 +142,9 @@ static cl::opt<bool> DisableGEPConstOperand(
     "disable-gep-const-evaluation", cl::Hidden, cl::init(false),
     cl::desc("Disables evaluation of GetElementPtr with constant operands"));
 
-namespace {
-/// This function behaves more like CallBase::hasFnAttr: when it looks for the
-/// requested attribute, it check both the call instruction and the called
-/// function (if it's available and operand bundles don't prohibit that).
-Attribute getFnAttr(CallBase &CB, StringRef AttrKind) {
-  Attribute CallAttr = CB.getFnAttr(AttrKind);
-  if (CallAttr.isValid())
-    return CallAttr;
-
-  // Operand bundles override attributes on the called function, but don't
-  // override attributes directly present on the call instruction.
-  if (!CB.isFnAttrDisallowedByOpBundle(AttrKind))
-    if (const Function *F = CB.getCalledFunction())
-      return F->getFnAttribute(AttrKind);
-
-  return {};
-}
-} // namespace
-
 namespace llvm {
 Optional<int> getStringFnAttrAsInt(CallBase &CB, StringRef AttrKind) {
-  Attribute Attr = getFnAttr(CB, AttrKind);
+  Attribute Attr = CB.getFnAttr(AttrKind);
   int AttrValue;
   if (Attr.getValueAsString().getAsInteger(10, AttrValue))
     return None;
@@ -1222,6 +1203,10 @@ private:
     set(InlineCostFeatureIndex::ColdCcPenalty,
         (F.getCallingConv() == CallingConv::Cold));
 
+    set(InlineCostFeatureIndex::LastCallToStaticBonus,
+        (F.hasLocalLinkage() && F.hasOneLiveUse() &&
+         &F == CandidateCall.getCalledFunction()));
+
     // FIXME: we shouldn't repeat this logic in both the Features and Cost
     // analyzer - instead, we should abstract it to a common method in the
     // CallAnalyzer
@@ -2155,14 +2140,14 @@ bool CallAnalyzer::visitCallBase(CallBase &Call) {
   if (isa<CallInst>(Call) && cast<CallInst>(Call).cannotDuplicate())
     ContainsNoDuplicateCall = true;
 
-  Value *Callee = Call.getCalledOperand();
-  Function *F = dyn_cast_or_null<Function>(Callee);
+  Function *F = Call.getCalledFunction();
   bool IsIndirectCall = !F;
   if (IsIndirectCall) {
     // Check if this happens to be an indirect function call to a known function
     // in this inline context. If not, we've done all we can.
+    Value *Callee = Call.getCalledOperand();
     F = dyn_cast_or_null<Function>(SimplifiedValues.lookup(Callee));
-    if (!F) {
+    if (!F || F->getFunctionType() != Call.getFunctionType()) {
       onCallArgumentSetup(Call);
 
       if (!Call.onlyReadsMemory())

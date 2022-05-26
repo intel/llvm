@@ -111,6 +111,8 @@ static std::string getResult(pi_result Res) {
     return "PI_COMMAND_EXECUTION_FAILURE";
   case PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
     return "PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE";
+  case PI_PLUGIN_SPECIFIC_ERROR:
+    return "PI_PLUGIN_SPECIFIC_ERROR";
   case PI_ERROR_UNKNOWN:
     return "PI_ERROR_UNKNOWN";
   }

@@ -131,8 +131,10 @@ int main() {
   context InteropContext =
       make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
 
-  queue InteropQueue = make_queue<backend::ext_oneapi_level_zero>(
-      {ZeQueue, ext::oneapi::level_zero::ownership::keep}, Context);
+  backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInput{
+      ZeQueue, InteropDevice, ext::oneapi::level_zero::ownership::keep};
+  queue InteropQueue =
+      make_queue<backend::ext_oneapi_level_zero>(InteropQueueInput, Context);
   event InteropEvent = make_event<backend::ext_oneapi_level_zero>(
       {ZeEvent, ext::oneapi::level_zero::ownership::keep}, Context);
   kernel_bundle<bundle_state::executable> InteropKernelBundle =
@@ -159,6 +161,10 @@ int main() {
   // expected-warning@+1 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
   auto E = ext::oneapi::level_zero::make<event>(
       Context, ZeEvent, ext::oneapi::level_zero::ownership::keep);
+  // expected-warning@+2 {{'type' is deprecated: Use backend_input_t<backend::ext_oneapi_level_zero, queue> constructor with device parameter}}
+  backend_input_t<backend::ext_oneapi_level_zero, queue>
+      InteropQueueInputDeprecated{ZeQueue,
+                                  ext::oneapi::level_zero::ownership::keep};
 
   return 0;
 }

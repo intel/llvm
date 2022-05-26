@@ -1321,8 +1321,7 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
     setOperationAction(ISD::ATOMIC_STORE, MVT::i64, Expand);
   }
 
-  if (EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics()) {
-    setMaxAtomicSizeInBitsSupported(128);
+  if (shouldInlineQuadwordAtomics()) {
     setOperationAction(ISD::ATOMIC_LOAD, MVT::i128, Custom);
     setOperationAction(ISD::ATOMIC_STORE, MVT::i128, Custom);
     setOperationAction(ISD::INTRINSIC_VOID, MVT::i128, Custom);
@@ -1347,6 +1346,10 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
 
   if (!isPPC64)
     setMaxAtomicSizeInBitsSupported(32);
+  else if (shouldInlineQuadwordAtomics())
+    setMaxAtomicSizeInBitsSupported(128);
+  else
+    setMaxAtomicSizeInBitsSupported(64);
 
   setStackPointerRegisterToSaveRestore(isPPC64 ? PPC::X1 : PPC::R1);
 
@@ -10563,6 +10566,31 @@ SDValue PPCTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                     dl, SDValue());
     return Result.first;
   }
+  case Intrinsic::ppc_maxfe:
+  case Intrinsic::ppc_maxfl:
+  case Intrinsic::ppc_maxfs:
+  case Intrinsic::ppc_minfe:
+  case Intrinsic::ppc_minfl:
+  case Intrinsic::ppc_minfs: {
+    EVT VT = Op.getValueType();
+    assert(
+        all_of(Op->ops().drop_front(4),
+               [VT](const SDUse &Use) { return Use.getValueType() == VT; }) &&
+        "ppc_[max|min]f[e|l|s] must have uniform type arguments");
+    (void)VT;
+    ISD::CondCode CC = ISD::SETGT;
+    if (IntrinsicID == Intrinsic::ppc_minfe ||
+        IntrinsicID == Intrinsic::ppc_minfl ||
+        IntrinsicID == Intrinsic::ppc_minfs)
+      CC = ISD::SETLT;
+    unsigned I = Op.getNumOperands() - 2, Cnt = I;
+    SDValue Res = Op.getOperand(I);
+    for (--I; Cnt != 0; --Cnt, I = (--I == 0 ? (Op.getNumOperands() - 1) : I)) {
+      Res =
+          DAG.getSelectCC(dl, Res, Op.getOperand(I), Res, Op.getOperand(I), CC);
+    }
+    return Res;
+  }
   }
 
   // If this is a lowered altivec predicate compare, CompareOpc is set to the
@@ -11223,6 +11251,8 @@ void PPCTargetLowering::ReplaceNodeResults(SDNode *N,
       Results.push_back(DAG.getNode(ISD::BUILD_PAIR, dl, MVT::ppcf128,
                                     N->getOperand(2), N->getOperand(1)));
       break;
+    case Intrinsic::ppc_maxfe:
+    case Intrinsic::ppc_minfe:
     case Intrinsic::ppc_fnmsub:
     case Intrinsic::ppc_convert_f128_to_ppcf128:
       Results.push_back(LowerINTRINSIC_WO_CHAIN(SDValue(N, 0), DAG));
@@ -18027,10 +18057,18 @@ CCAssignFn *PPCTargetLowering::ccAssignFnForCall(CallingConv::ID CC,
   }
 }
 
+bool PPCTargetLowering::shouldInlineQuadwordAtomics() const {
+  // TODO: 16-byte atomic type support for AIX is in progress; we should be able
+  // to inline 16-byte atomic ops on AIX too in the future.
+  return Subtarget.isPPC64() &&
+         (EnableQuadwordAtomics || !Subtarget.getTargetTriple().isOSAIX()) &&
+         Subtarget.hasQuadwordAtomics();
+}
+
 TargetLowering::AtomicExpansionKind
 PPCTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
   unsigned Size = AI->getType()->getPrimitiveSizeInBits();
-  if (EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics() && Size == 128)
+  if (shouldInlineQuadwordAtomics() && Size == 128)
     return AtomicExpansionKind::MaskedIntrinsic;
   return TargetLowering::shouldExpandAtomicRMWInIR(AI);
 }
@@ -18038,7 +18076,7 @@ PPCTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
 TargetLowering::AtomicExpansionKind
 PPCTargetLowering::shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *AI) const {
   unsigned Size = AI->getNewValOperand()->getType()->getPrimitiveSizeInBits();
-  if (EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics() && Size == 128)
+  if (shouldInlineQuadwordAtomics() && Size == 128)
     return AtomicExpansionKind::MaskedIntrinsic;
   return TargetLowering::shouldExpandAtomicCmpXchgInIR(AI);
 }
@@ -18068,8 +18106,7 @@ getIntrinsicForAtomicRMWBinOp128(AtomicRMWInst::BinOp BinOp) {
 Value *PPCTargetLowering::emitMaskedAtomicRMWIntrinsic(
     IRBuilderBase &Builder, AtomicRMWInst *AI, Value *AlignedAddr, Value *Incr,
     Value *Mask, Value *ShiftAmt, AtomicOrdering Ord) const {
-  assert(EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics() &&
-         "Only support quadword now");
+  assert(shouldInlineQuadwordAtomics() && "Only support quadword now");
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
   Type *ValTy = Incr->getType();
   assert(ValTy->getPrimitiveSizeInBits() == 128);
@@ -18093,8 +18130,7 @@ Value *PPCTargetLowering::emitMaskedAtomicRMWIntrinsic(
 Value *PPCTargetLowering::emitMaskedAtomicCmpXchgIntrinsic(
     IRBuilderBase &Builder, AtomicCmpXchgInst *CI, Value *AlignedAddr,
     Value *CmpVal, Value *NewVal, Value *Mask, AtomicOrdering Ord) const {
-  assert(EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics() &&
-         "Only support quadword now");
+  assert(shouldInlineQuadwordAtomics() && "Only support quadword now");
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
   Type *ValTy = CmpVal->getType();
   assert(ValTy->getPrimitiveSizeInBits() == 128);

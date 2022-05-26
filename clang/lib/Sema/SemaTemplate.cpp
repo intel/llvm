@@ -11,11 +11,13 @@
 #include "TreeTransform.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/TemplateName.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/LangOptions.h"
@@ -223,6 +225,7 @@ TemplateNameKind Sema::isTemplateName(Scope *S,
     return TNK_Non_template;
 
   NamedDecl *D = nullptr;
+  UsingShadowDecl *FoundUsingShadow = dyn_cast<UsingShadowDecl>(*R.begin());
   if (R.isAmbiguous()) {
     // If we got an ambiguity involving a non-function template, treat this
     // as a template name, and pick an arbitrary template for error recovery.
@@ -233,6 +236,7 @@ TemplateNameKind Sema::isTemplateName(Scope *S,
           AnyFunctionTemplates = true;
         else {
           D = FoundTemplate;
+          FoundUsingShadow = dyn_cast<UsingShadowDecl>(FoundD);
           break;
         }
       }
@@ -280,13 +284,13 @@ TemplateNameKind Sema::isTemplateName(Scope *S,
     }
 
     TemplateDecl *TD = cast<TemplateDecl>(D);
-
+    Template =
+        FoundUsingShadow ? TemplateName(FoundUsingShadow) : TemplateName(TD);
+    assert(!FoundUsingShadow || FoundUsingShadow->getTargetDecl() == TD);
     if (SS.isSet() && !SS.isInvalid()) {
       NestedNameSpecifier *Qualifier = SS.getScopeRep();
-      Template = Context.getQualifiedTemplateName(Qualifier,
-                                                  hasTemplateKeyword, TD);
-    } else {
-      Template = TemplateName(TD);
+      Template = Context.getQualifiedTemplateName(Qualifier, hasTemplateKeyword,
+                                                  Template);
     }
 
     if (isa<FunctionTemplateDecl>(TD)) {
@@ -997,8 +1001,8 @@ ParsedTemplateArgument Sema::ActOnTemplateTypeArgument(TypeResult ParsedType) {
       TemplateName Name = DTST.getTypePtr()->getTemplateName();
       if (SS.isSet())
         Name = Context.getQualifiedTemplateName(SS.getScopeRep(),
-                                                /*HasTemplateKeyword*/ false,
-                                                Name.getAsTemplateDecl());
+                                                /*HasTemplateKeyword=*/false,
+                                                Name);
       ParsedTemplateArgument Result(SS, TemplateTy::make(Name),
                                     DTST.getTemplateNameLoc());
       if (EllipsisLoc.isValid())

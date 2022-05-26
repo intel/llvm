@@ -16,11 +16,14 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/ExtensibleDialect.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Reducer/ReductionPatternInterface.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 
 // Include this before the using namespace lines below to
@@ -207,6 +210,58 @@ public:
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// Dynamic operations
+//===----------------------------------------------------------------------===//
+
+std::unique_ptr<DynamicOpDefinition> getDynamicGenericOp(TestDialect *dialect) {
+  return DynamicOpDefinition::get(
+      "dynamic_generic", dialect, [](Operation *op) { return success(); },
+      [](Operation *op) { return success(); });
+}
+
+std::unique_ptr<DynamicOpDefinition>
+getDynamicOneOperandTwoResultsOp(TestDialect *dialect) {
+  return DynamicOpDefinition::get(
+      "dynamic_one_operand_two_results", dialect,
+      [](Operation *op) {
+        if (op->getNumOperands() != 1) {
+          op->emitOpError()
+              << "expected 1 operand, but had " << op->getNumOperands();
+          return failure();
+        }
+        if (op->getNumResults() != 2) {
+          op->emitOpError()
+              << "expected 2 results, but had " << op->getNumResults();
+          return failure();
+        }
+        return success();
+      },
+      [](Operation *op) { return success(); });
+}
+
+std::unique_ptr<DynamicOpDefinition>
+getDynamicCustomParserPrinterOp(TestDialect *dialect) {
+  auto verifier = [](Operation *op) {
+    if (op->getNumOperands() == 0 && op->getNumResults() == 0)
+      return success();
+    op->emitError() << "operation should have no operands and no results";
+    return failure();
+  };
+  auto regionVerifier = [](Operation *op) { return success(); };
+
+  auto parser = [](OpAsmParser &parser, OperationState &state) {
+    return parser.parseKeyword("custom_keyword");
+  };
+
+  auto printer = [](Operation *op, OpAsmPrinter &printer, llvm::StringRef) {
+    printer << op->getName() << " custom_keyword";
+  };
+
+  return DynamicOpDefinition::get("dynamic_custom_parser_printer", dialect,
+                                  verifier, regionVerifier, parser, printer);
+}
+
+//===----------------------------------------------------------------------===//
 // TestDialect
 //===----------------------------------------------------------------------===//
 
@@ -240,6 +295,10 @@ void TestDialect::initialize() {
 #define GET_OP_LIST
 #include "TestOps.cpp.inc"
       >();
+  registerDynamicOp(getDynamicGenericOp(this));
+  registerDynamicOp(getDynamicOneOperandTwoResultsOp(this));
+  registerDynamicOp(getDynamicCustomParserPrinterOp(this));
+
   addInterfaces<TestOpAsmInterface, TestDialectFoldInterface,
                 TestInlinerInterface, TestReductionPatternInterface>();
   allowUnknownOperations();
@@ -335,22 +394,31 @@ TestDialect::getOperationPrinter(Operation *op) const {
 // TestBranchOp
 //===----------------------------------------------------------------------===//
 
-Optional<MutableOperandRange>
-TestBranchOp::getMutableSuccessorOperands(unsigned index) {
+SuccessorOperands TestBranchOp::getSuccessorOperands(unsigned index) {
   assert(index == 0 && "invalid successor index");
-  return getTargetOperandsMutable();
+  return SuccessorOperands(getTargetOperandsMutable());
 }
 
 //===----------------------------------------------------------------------===//
 // TestProducingBranchOp
 //===----------------------------------------------------------------------===//
 
-Optional<MutableOperandRange>
-TestProducingBranchOp::getMutableSuccessorOperands(unsigned index) {
+SuccessorOperands TestProducingBranchOp::getSuccessorOperands(unsigned index) {
   assert(index <= 1 && "invalid successor index");
   if (index == 1)
-    return getFirstOperandsMutable();
-  return getSecondOperandsMutable();
+    return SuccessorOperands(getFirstOperandsMutable());
+  return SuccessorOperands(getSecondOperandsMutable());
+}
+
+//===----------------------------------------------------------------------===//
+// TestProducingBranchOp
+//===----------------------------------------------------------------------===//
+
+SuccessorOperands TestInternalBranchOp::getSuccessorOperands(unsigned index) {
+  assert(index <= 1 && "invalid successor index");
+  if (index == 0)
+    return SuccessorOperands(0, getSuccessOperandsMutable());
+  return SuccessorOperands(1, getErrorOperandsMutable());
 }
 
 //===----------------------------------------------------------------------===//
@@ -623,18 +691,16 @@ static void printCustomDirectiveOptionalOperandRef(OpAsmPrinter &printer,
 
 ParseResult IsolatedRegionOp::parse(OpAsmParser &parser,
                                     OperationState &result) {
-  OpAsmParser::UnresolvedOperand argInfo;
-  Type argType = parser.getBuilder().getIndexType();
-
   // Parse the input operand.
-  if (parser.parseOperand(argInfo) ||
-      parser.resolveOperand(argInfo, argType, result.operands))
+  OpAsmParser::Argument argInfo;
+  argInfo.type = parser.getBuilder().getIndexType();
+  if (parser.parseOperand(argInfo.ssaName) ||
+      parser.resolveOperand(argInfo.ssaName, argInfo.type, result.operands))
     return failure();
 
   // Parse the body region, and reuse the operand info as the argument info.
   Region *body = result.addRegion();
-  return parser.parseRegion(*body, argInfo, argType, /*argLocations=*/{},
-                            /*enableNameShadowing=*/true);
+  return parser.parseRegion(*body, argInfo, /*enableNameShadowing=*/true);
 }
 
 void IsolatedRegionOp::print(OpAsmPrinter &p) {
@@ -862,16 +928,16 @@ void PrettyPrintedRegionOp::print(OpAsmPrinter &p) {
 //===----------------------------------------------------------------------===//
 
 ParseResult PolyForOp::parse(OpAsmParser &parser, OperationState &result) {
-  SmallVector<OpAsmParser::UnresolvedOperand, 4> ivsInfo;
+  SmallVector<OpAsmParser::Argument, 4> ivsInfo;
   // Parse list of region arguments without a delimiter.
-  if (parser.parseRegionArgumentList(ivsInfo))
+  if (parser.parseArgumentList(ivsInfo, OpAsmParser::Delimiter::None))
     return failure();
 
   // Parse the body region.
   Region *body = result.addRegion();
-  auto &builder = parser.getBuilder();
-  SmallVector<Type, 4> argTypes(ivsInfo.size(), builder.getIndexType());
-  return parser.parseRegion(*body, ivsInfo, argTypes);
+  for (auto &iv : ivsInfo)
+    iv.type = parser.getBuilder().getIndexType();
+  return parser.parseRegion(*body, ivsInfo);
 }
 
 void PolyForOp::print(OpAsmPrinter &p) { p.printGenericOp(*this); }
@@ -1021,6 +1087,8 @@ LogicalResult OpWithResultShapePerDimInterfaceOp::reifyResultShapes(
 namespace {
 /// A test resource for side effects.
 struct TestResource : public SideEffects::Resource::Base<TestResource> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestResource)
+
   StringRef getName() final { return "<Test>"; }
 };
 } // namespace
@@ -1150,6 +1218,15 @@ void StringAttrPrettyNameOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
 
   auto value = getNames();
+  for (size_t i = 0, e = value.size(); i != e; ++i)
+    if (auto str = value[i].dyn_cast<StringAttr>())
+      if (!str.getValue().empty())
+        setNameFn(getResult(i), str.getValue());
+}
+
+void CustomResultsNameOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  ArrayAttr value = getNames();
   for (size_t i = 0, e = value.size(); i != e; ++i)
     if (auto str = value[i].dyn_cast<StringAttr>())
       if (!str.getValue().empty())
@@ -1292,6 +1369,37 @@ void SingleNoTerminatorCustomAsmOp::print(OpAsmPrinter &printer) {
       // This op has a single block without terminators. But explicitly mark
       // as not printing block terminators for testing.
       /*printBlockTerminators=*/false);
+}
+
+//===----------------------------------------------------------------------===//
+// TestVerifiersOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult TestVerifiersOp::verify() {
+  if (!getRegion().hasOneBlock())
+    return emitOpError("`hasOneBlock` trait hasn't been verified");
+
+  Operation *definingOp = getInput().getDefiningOp();
+  if (definingOp && failed(mlir::verify(definingOp)))
+    return emitOpError("operand hasn't been verified");
+
+  emitRemark("success run of verifier");
+
+  return success();
+}
+
+LogicalResult TestVerifiersOp::verifyRegions() {
+  if (!getRegion().hasOneBlock())
+    return emitOpError("`hasOneBlock` trait hasn't been verified");
+
+  for (Block &block : getRegion())
+    for (Operation &op : block)
+      if (failed(mlir::verify(&op)))
+        return emitOpError("nested op hasn't been verified");
+
+  emitRemark("success run of region verifier");
+
+  return success();
 }
 
 #include "TestOpEnums.cpp.inc"

@@ -44,10 +44,11 @@
 // piQueueFlush function.
 // 7.9 Added new context and ownership arguments to
 // piextMemCreateWithNativeHandle.
+// 8.10 Added new optional device argument to piextQueueCreateWithNativeHandle
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 7
-#define _PI_H_VERSION_MINOR 9
+#define _PI_H_VERSION_MAJOR 8
+#define _PI_H_VERSION_MINOR 10
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -117,6 +118,9 @@ typedef enum {
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
+  PI_PLUGIN_SPECIFIC_ERROR = -996, ///< PI_PLUGIN_SPECIFIC_ERROR indicates
+                                   ///< that an backend spcific error or
+                                   ///< warning has been emitted by the plugin.
   PI_COMMAND_EXECUTION_FAILURE =
       -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
             ///< during command enqueue or execution.
@@ -317,7 +321,8 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
-  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER = 0x20004,
 } _pi_device_info;
 
 typedef enum {
@@ -1154,12 +1159,15 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 ///
 /// \param nativeHandle is the native handle to create PI queue from.
 /// \param context is the PI context of the queue.
-/// \param queue is the PI queue created from the native handle.
+/// \param device is the PI device associated with the native device used when
+///   creating the native queue. This parameter is optional but some backends
+///   may fail to create the right PI queue if omitted.
 /// \param pluginOwnsNativeHandle Indicates whether the created PI object
 ///        should take ownership of the native handle.
+/// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_queue *queue,
-    bool pluginOwnsNativeHandle);
+    pi_native_handle nativeHandle, pi_context context, pi_device device,
+    bool pluginOwnsNativeHandle, pi_queue *queue);
 
 //
 // Memory
@@ -1279,6 +1287,9 @@ __SYCL_EXPORT pi_result piProgramRetain(pi_program program);
 __SYCL_EXPORT pi_result piProgramRelease(pi_program program);
 
 /// Sets a specialization constant to a specific value.
+///
+/// Note: Only used when specialization constants are natively supported (SPIR-V
+/// binaries), and not when they are emulated (AOT binaries).
 ///
 /// \param prog the program object which will use the value
 /// \param spec_id integer ID of the constant
@@ -1796,6 +1807,18 @@ __SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 /// \param PluginParameter placeholder for future use, currenly not used.
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 
+/// API to get Plugin specific warning and error messages.
+/// \param message is a returned address to the first element in the message the
+/// plugin owns the error message string. The string is thread-local. As a
+/// result, different threads may return different errors. A message is
+/// overwritten by the following error or warning that is produced within the
+/// given thread. The memory is cleaned up at the end of the thread's lifetime.
+///
+/// \return PI_SUCCESS if plugin is indicating non-fatal warning. Any other
+/// error code indicates that plugin considers this to be a fatal error and the
+/// runtime must handle it or end the application.
+__SYCL_EXPORT pi_result piPluginGetLastError(char **message);
+
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
   // checks and writes the appropriate Function Pointers in
@@ -1804,9 +1827,9 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  char PiVersion[4];
+  char PiVersion[10];
   // Plugin edits this.
-  char PluginVersion[4];
+  char PluginVersion[10];
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

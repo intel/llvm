@@ -31,6 +31,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/Analysis.h"
+#include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/GCMetadata.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -4360,7 +4361,8 @@ void SelectionDAGBuilder::visitMaskedStore(const CallInst &I,
 // In all other cases the function returns 'false'.
 static bool getUniformBase(const Value *Ptr, SDValue &Base, SDValue &Index,
                            ISD::MemIndexType &IndexType, SDValue &Scale,
-                           SelectionDAGBuilder *SDB, const BasicBlock *CurBB) {
+                           SelectionDAGBuilder *SDB, const BasicBlock *CurBB,
+                           uint64_t ElemSize) {
   SelectionDAG& DAG = SDB->DAG;
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   const DataLayout &DL = DAG.getDataLayout();
@@ -4400,9 +4402,16 @@ static bool getUniformBase(const Value *Ptr, SDValue &Base, SDValue &Index,
   Base = SDB->getValue(BasePtr);
   Index = SDB->getValue(IndexVal);
   IndexType = ISD::SIGNED_SCALED;
-  Scale = DAG.getTargetConstant(
-              DL.getTypeAllocSize(GEP->getResultElementType()),
-              SDB->getCurSDLoc(), TLI.getPointerTy(DL));
+
+  // MGATHER/MSCATTER are only required to support scaling by one or by the
+  // element size. Other scales may be produced using target-specific DAG
+  // combines.
+  uint64_t ScaleVal = DL.getTypeAllocSize(GEP->getResultElementType());
+  if (ScaleVal != ElemSize && ScaleVal != 1)
+    return false;
+
+  Scale =
+      DAG.getTargetConstant(ScaleVal, SDB->getCurSDLoc(), TLI.getPointerTy(DL));
   return true;
 }
 
@@ -4424,7 +4433,7 @@ void SelectionDAGBuilder::visitMaskedScatter(const CallInst &I) {
   ISD::MemIndexType IndexType;
   SDValue Scale;
   bool UniformBase = getUniformBase(Ptr, Base, Index, IndexType, Scale, this,
-                                    I.getParent());
+                                    I.getParent(), VT.getScalarStoreSize());
 
   unsigned AS = Ptr->getType()->getScalarType()->getPointerAddressSpace();
   MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
@@ -4532,7 +4541,7 @@ void SelectionDAGBuilder::visitMaskedGather(const CallInst &I) {
   ISD::MemIndexType IndexType;
   SDValue Scale;
   bool UniformBase = getUniformBase(Ptr, Base, Index, IndexType, Scale, this,
-                                    I.getParent());
+                                    I.getParent(), VT.getScalarStoreSize());
   unsigned AS = Ptr->getType()->getScalarType()->getPointerAddressSpace();
   MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
       MachinePointerInfo(AS), MachineMemOperand::MOLoad,
@@ -4765,7 +4774,7 @@ void SelectionDAGBuilder::visitTargetIntrinsic(const CallInst &I,
     }
   }
 
-  // Info is set by getTgtMemInstrinsic
+  // Info is set by getTgtMemIntrinsic
   TargetLowering::IntrinsicInfo Info;
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   bool IsTgtIntrinsic = TLI.getTgtMemIntrinsic(Info, I,
@@ -6153,8 +6162,7 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     return;
   case Intrinsic::eh_sjlj_callsite: {
     MachineModuleInfo &MMI = DAG.getMachineFunction().getMMI();
-    ConstantInt *CI = dyn_cast<ConstantInt>(I.getArgOperand(0));
-    assert(CI && "Non-constant call site value in eh.sjlj.callsite!");
+    ConstantInt *CI = cast<ConstantInt>(I.getArgOperand(0));
     assert(MMI.getCurrentCallSite() == 0 && "Overlapping call sites!");
 
     MMI.setCurrentCallSite(CI->getZExtValue());
@@ -6411,6 +6419,31 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     setValue(&I, Res);
     DAG.setRoot(Res.getValue(0));
     return;
+  case Intrinsic::is_fpclass: {
+    const DataLayout DLayout = DAG.getDataLayout();
+    EVT DestVT = TLI.getValueType(DLayout, I.getType());
+    EVT ArgVT = TLI.getValueType(DLayout, I.getArgOperand(0)->getType());
+    unsigned Test = cast<ConstantInt>(I.getArgOperand(1))->getZExtValue();
+    MachineFunction &MF = DAG.getMachineFunction();
+    const Function &F = MF.getFunction();
+    SDValue Op = getValue(I.getArgOperand(0));
+    SDNodeFlags Flags;
+    Flags.setNoFPExcept(
+        !F.getAttributes().hasFnAttr(llvm::Attribute::StrictFP));
+    // If ISD::IS_FPCLASS should be expanded, do it right now, because the
+    // expansion can use illegal types. Making expansion early allows
+    // legalizing these types prior to selection.
+    if (!TLI.isOperationLegalOrCustom(ISD::IS_FPCLASS, ArgVT)) {
+      SDValue Result = TLI.expandIS_FPCLASS(DestVT, Op, Test, Flags, sdl, DAG);
+      setValue(&I, Result);
+      return;
+    }
+
+    SDValue Check = DAG.getTargetConstant(Test, sdl, MVT::i32);
+    SDValue V = DAG.getNode(ISD::IS_FPCLASS, sdl, DestVT, {Op, Check}, Flags);
+    setValue(&I, V);
+    return;
+  }
   case Intrinsic::pcmarker: {
     SDValue Tmp = getValue(I.getArgOperand(0));
     DAG.setRoot(DAG.getNode(ISD::PCMARKER, sdl, MVT::Other, getRoot(), Tmp));
@@ -7322,9 +7355,10 @@ void SelectionDAGBuilder::visitConstrainedFPIntrinsic(
 static unsigned getISDForVPIntrinsic(const VPIntrinsic &VPIntrin) {
   Optional<unsigned> ResOPC;
   switch (VPIntrin.getIntrinsicID()) {
-#define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...) case Intrinsic::VPID:
-#define BEGIN_REGISTER_VP_SDNODE(VPSD, ...) ResOPC = ISD::VPSD;
-#define END_REGISTER_VP_INTRINSIC(VPID) break;
+#define HELPER_MAP_VPID_TO_VPSD(VPID, VPSD)                                    \
+  case Intrinsic::VPID:                                                        \
+    ResOPC = ISD::VPSD;                                                        \
+    break;
 #include "llvm/IR/VPIntrinsics.def"
   }
 
@@ -7377,7 +7411,8 @@ void SelectionDAGBuilder::visitVPLoadGather(const VPIntrinsic &VPIntrin, EVT VT,
     SDValue Base, Index, Scale;
     ISD::MemIndexType IndexType;
     bool UniformBase = getUniformBase(PtrOperand, Base, Index, IndexType, Scale,
-                                      this, VPIntrin.getParent());
+                                      this, VPIntrin.getParent(),
+                                      VT.getScalarStoreSize());
     if (!UniformBase) {
       Base = DAG.getConstant(0, DL, TLI.getPointerTy(DAG.getDataLayout()));
       Index = getValue(PtrOperand);
@@ -7433,7 +7468,8 @@ void SelectionDAGBuilder::visitVPStoreScatter(const VPIntrinsic &VPIntrin,
     SDValue Base, Index, Scale;
     ISD::MemIndexType IndexType;
     bool UniformBase = getUniformBase(PtrOperand, Base, Index, IndexType, Scale,
-                                      this, VPIntrin.getParent());
+                                      this, VPIntrin.getParent(),
+                                      VT.getScalarStoreSize());
     if (!UniformBase) {
       Base = DAG.getConstant(0, DL, TLI.getPointerTy(DAG.getDataLayout()));
       Index = getValue(PtrOperand);
@@ -7504,18 +7540,56 @@ void SelectionDAGBuilder::visitVPStridedStore(
   setValue(&VPIntrin, ST);
 }
 
+void SelectionDAGBuilder::visitVPCmp(const VPCmpIntrinsic &VPIntrin) {
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  SDLoc DL = getCurSDLoc();
+
+  ISD::CondCode Condition;
+  CmpInst::Predicate CondCode = VPIntrin.getPredicate();
+  bool IsFP = VPIntrin.getOperand(0)->getType()->isFPOrFPVectorTy();
+  if (IsFP) {
+    // FIXME: Regular fcmps are FPMathOperators which may have fast-math (nnan)
+    // flags, but calls that don't return floating-point types can't be
+    // FPMathOperators, like vp.fcmp. This affects constrained fcmp too.
+    Condition = getFCmpCondCode(CondCode);
+    if (TM.Options.NoNaNsFPMath)
+      Condition = getFCmpCodeWithoutNaN(Condition);
+  } else {
+    Condition = getICmpCondCode(CondCode);
+  }
+
+  SDValue Op1 = getValue(VPIntrin.getOperand(0));
+  SDValue Op2 = getValue(VPIntrin.getOperand(1));
+  // #2 is the condition code
+  SDValue MaskOp = getValue(VPIntrin.getOperand(3));
+  SDValue EVL = getValue(VPIntrin.getOperand(4));
+  MVT EVLParamVT = TLI.getVPExplicitVectorLengthTy();
+  assert(EVLParamVT.isScalarInteger() && EVLParamVT.bitsGE(MVT::i32) &&
+         "Unexpected target EVL type");
+  EVL = DAG.getNode(ISD::ZERO_EXTEND, DL, EVLParamVT, EVL);
+
+  EVT DestVT = DAG.getTargetLoweringInfo().getValueType(DAG.getDataLayout(),
+                                                        VPIntrin.getType());
+  setValue(&VPIntrin,
+           DAG.getSetCCVP(DL, DestVT, Op1, Op2, Condition, MaskOp, EVL));
+}
+
 void SelectionDAGBuilder::visitVectorPredicationIntrinsic(
     const VPIntrinsic &VPIntrin) {
   SDLoc DL = getCurSDLoc();
   unsigned Opcode = getISDForVPIntrinsic(VPIntrin);
+
+  auto IID = VPIntrin.getIntrinsicID();
+
+  if (const auto *CmpI = dyn_cast<VPCmpIntrinsic>(&VPIntrin))
+    return visitVPCmp(*CmpI);
 
   SmallVector<EVT, 4> ValueVTs;
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   ComputeValueVTs(TLI, DAG.getDataLayout(), VPIntrin.getType(), ValueVTs);
   SDVTList VTs = DAG.getVTList(ValueVTs);
 
-  auto EVLParamPos =
-      VPIntrinsic::getVectorLengthParamPos(VPIntrin.getIntrinsicID());
+  auto EVLParamPos = VPIntrinsic::getVectorLengthParamPos(IID);
 
   MVT EVLParamVT = TLI.getVPExplicitVectorLengthTy();
   assert(EVLParamVT.isScalarInteger() && EVLParamVT.bitsGE(MVT::i32) &&
@@ -8467,8 +8541,9 @@ getRegistersForValue(SelectionDAG &DAG, const SDLoc &DL,
   SmallVector<unsigned, 4> Regs;
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
 
-  // No work to do for memory operations.
-  if (OpInfo.ConstraintType == TargetLowering::C_Memory)
+  // No work to do for memory/address operands.
+  if (OpInfo.ConstraintType == TargetLowering::C_Memory ||
+      OpInfo.ConstraintType == TargetLowering::C_Address)
     return None;
 
   // If this is a constraint for a single physreg, or a constraint for a
@@ -8726,8 +8801,9 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
     // Compute the constraint code and ConstraintType to use.
     TLI.ComputeConstraintToUse(OpInfo, OpInfo.CallOperand, &DAG);
 
-    if (OpInfo.ConstraintType == TargetLowering::C_Memory &&
-        OpInfo.Type == InlineAsm::isClobber)
+    if ((OpInfo.ConstraintType == TargetLowering::C_Memory &&
+         OpInfo.Type == InlineAsm::isClobber) ||
+        OpInfo.ConstraintType == TargetLowering::C_Address)
       continue;
 
     // If this is a memory input, and if the operand is not indirect, do what we
@@ -8802,6 +8878,10 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
       }
       return false;
     };
+    assert((OpInfo.ConstraintType != TargetLowering::C_Address ||
+            (OpInfo.Type == InlineAsm::isInput &&
+             !OpInfo.isMatchingInputConstraint())) &&
+           "Only address as input operand is allowed.");
 
     switch (OpInfo.Type) {
     case InlineAsm::isOutput:
@@ -8934,8 +9014,11 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
         break;
       }
 
-      if (OpInfo.ConstraintType == TargetLowering::C_Memory) {
-        assert(OpInfo.isIndirect && "Operand must be indirect to be a mem!");
+      if (OpInfo.ConstraintType == TargetLowering::C_Memory ||
+          OpInfo.ConstraintType == TargetLowering::C_Address) {
+        assert((OpInfo.isIndirect ||
+                OpInfo.ConstraintType != TargetLowering::C_Memory) &&
+               "Operand must be indirect to be a mem!");
         assert(InOperandVal.getValueType() ==
                    TLI.getPointerTy(DAG.getDataLayout()) &&
                "Memory operands expect pointer values");
@@ -9073,6 +9156,8 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
         break;
       case TargetLowering::C_Memory:
         break; // Already handled.
+      case TargetLowering::C_Address:
+        break; // Silence warning.
       case TargetLowering::C_Unknown:
         assert(false && "Unexpected unknown constraint");
       }
@@ -10613,6 +10698,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
 /// the end.
 void
 SelectionDAGBuilder::HandlePHINodesInSuccessorBlocks(const BasicBlock *LLVMBB) {
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   const Instruction *TI = LLVMBB->getTerminator();
 
   SmallPtrSet<MachineBasicBlock *, 4> SuccsHandled;
@@ -10650,10 +10736,12 @@ SelectionDAGBuilder::HandlePHINodesInSuccessorBlocks(const BasicBlock *LLVMBB) {
         unsigned &RegOut = ConstantsOut[C];
         if (RegOut == 0) {
           RegOut = FuncInfo.CreateRegs(C);
-          // We need to zero extend ConstantInt phi operands to match
+          // We need to zero/sign extend ConstantInt phi operands to match
           // assumptions in FunctionLoweringInfo::ComputePHILiveOutRegInfo.
-          ISD::NodeType ExtendType =
-              isa<ConstantInt>(PHIOp) ? ISD::ZERO_EXTEND : ISD::ANY_EXTEND;
+          ISD::NodeType ExtendType = ISD::ANY_EXTEND;
+          if (auto *CI = dyn_cast<ConstantInt>(C))
+            ExtendType = TLI.signExtendConstant(CI) ? ISD::SIGN_EXTEND
+                                                    : ISD::ZERO_EXTEND;
           CopyValueToVirtualRegister(C, RegOut, ExtendType);
         }
         Reg = RegOut;
@@ -10674,7 +10762,6 @@ SelectionDAGBuilder::HandlePHINodesInSuccessorBlocks(const BasicBlock *LLVMBB) {
       // Remember that this register needs to added to the machine PHI node as
       // the input for this MBB.
       SmallVector<EVT, 4> ValueVTs;
-      const TargetLowering &TLI = DAG.getTargetLoweringInfo();
       ComputeValueVTs(TLI, DAG.getDataLayout(), PN.getType(), ValueVTs);
       for (unsigned vti = 0, vte = ValueVTs.size(); vti != vte; ++vti) {
         EVT VT = ValueVTs[vti];

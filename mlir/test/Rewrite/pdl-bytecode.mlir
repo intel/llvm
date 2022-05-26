@@ -181,8 +181,9 @@ module @patterns {
 
   module @rewriters {
     pdl_interp.func @success(%root : !pdl.operation) {
+      %attr = pdl_interp.apply_rewrite "str_creator" : !pdl.attribute
       %type = pdl_interp.apply_rewrite "type_creator" : !pdl.type
-      %newOp = pdl_interp.create_operation "test.success" -> (%type : !pdl.type)
+      %newOp = pdl_interp.create_operation "test.success" {"attr" = %attr} -> (%type : !pdl.type)
       pdl_interp.erase %root
       pdl_interp.finalize
     }
@@ -190,7 +191,7 @@ module @patterns {
 }
 
 // CHECK-LABEL: test.apply_rewrite_4
-// CHECK: "test.success"() : () -> f32
+// CHECK: "test.success"() {attr = "test.str"} : () -> f32
 module @ir attributes { test.apply_rewrite_4 } {
   "test.op"() : () -> ()
 }
@@ -529,6 +530,41 @@ module @ir attributes { test.check_types_1 } {
 //===----------------------------------------------------------------------===//
 // pdl_interp::CreateOperationOp
 //===----------------------------------------------------------------------===//
+
+// Unused operation to force loading the `arithmetic` dialect for the
+// test of type inferrence.
+arith.constant 10
+
+// Test support for inferring the types of an operation.
+module @patterns {
+  pdl_interp.func @matcher(%root : !pdl.operation) {
+    pdl_interp.check_operation_name of %root is "test.op" -> ^pat, ^end
+
+  ^pat:
+    pdl_interp.record_match @rewriters::@success(%root : !pdl.operation) : benefit(1), loc([%root]) -> ^end
+
+  ^end:
+    pdl_interp.finalize
+  }
+
+  module @rewriters {
+    pdl_interp.func @success(%root : !pdl.operation) {
+      %attr = pdl_interp.create_attribute true
+      %cst = pdl_interp.create_operation "arith.constant" {"value" = %attr} -> <inferred>
+      %cstResults = pdl_interp.get_results of %cst : !pdl.range<value>
+      %op = pdl_interp.create_operation "test.success"(%cstResults : !pdl.range<value>)
+      pdl_interp.erase %root
+      pdl_interp.finalize
+    }
+  }
+}
+
+// CHECK-LABEL: test.create_op_infer_results
+// CHECK: %[[CST:.*]] = arith.constant true
+// CHECK: "test.success"(%[[CST]])
+module @ir attributes { test.create_op_infer_results } {
+  %results:2 = "test.op"() : () -> (i64, i64)
+}
 
 // -----
 
@@ -1176,12 +1212,6 @@ module @ir attributes { test.get_results_2 } {
 
 //===----------------------------------------------------------------------===//
 // pdl_interp::GetValueTypeOp
-//===----------------------------------------------------------------------===//
-
-// Fully tested within the tests for other operations.
-
-//===----------------------------------------------------------------------===//
-// pdl_interp::InferredTypesOp
 //===----------------------------------------------------------------------===//
 
 // Fully tested within the tests for other operations.

@@ -1,5 +1,5 @@
 // clang-format off
-// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -O0 -emit-llvm %s -o - | FileCheck %s
+// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -O0 -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // This test checks SYCL device compiler code generation for the __regcall
 // functions. This calling convention makes return values and function arguments
@@ -48,10 +48,10 @@ struct PassAsByval {
   int *b;
   raw_vector<float, 3> c;
 };
-// CHECK-DAG: %struct.PassAsByval = type { %struct.C, i32 addrspace(4)*, <3 x float> }
+// CHECK-DAG: %struct.PassAsByval = type { %struct.C, ptr addrspace(4), <3 x float> }
 
 SYCL_DEVICE PassAsByval __regcall bar(PassAsByval x) {
-// CHECK-DAG: define dso_local x86_regcallcc %struct.PassAsByval @_Z15__regcall3__bar11PassAsByval(%struct.C %{{[0-9a-zA-Z_.]+}}, i32 addrspace(4)* %{{[0-9a-zA-Z_.]+}}, <3 x float> %{{[0-9a-zA-Z_.]+}})
+// CHECK-DAG: define dso_local x86_regcallcc %struct.PassAsByval @_Z15__regcall3__bar11PassAsByval(%struct.C %{{[0-9a-zA-Z_.]+}}, ptr addrspace(4) %{{[0-9a-zA-Z_.]+}}, <3 x float> %{{[0-9a-zA-Z_.]+}})
   x.a.x += 1;
   return x;
 }
@@ -83,7 +83,7 @@ struct C2 {
 };
 
 // CHECK-DAG: %struct.C2 = type { %struct.B2, double }
-// CHECK-DAG: %struct.B2 = type { %struct.A2, i32 addrspace(4)* }
+// CHECK-DAG: %struct.B2 = type { %struct.A2, ptr addrspace(4) }
 // CHECK-DAG: %struct.A2 = type { i8 }
 
 template SYCL_DEVICE C2 __regcall func<C2>(C2 x);
@@ -123,12 +123,12 @@ struct C4 {
   C4 foo() { return *this; }
 };
 
-// CHECK-DAG: %struct.C4 = type { %struct.B4, i32 addrspace(4)* }
+// CHECK-DAG: %struct.C4 = type { %struct.B4, ptr addrspace(4) }
 // CHECK-DAG: %struct.B4 = type { %struct.A4 }
 // CHECK-DAG: %struct.A4 = type { i8 }
 
 template SYCL_DEVICE C4 __regcall func<C4>(C4 x);
-// CHECK-DAG: define weak_odr x86_regcallcc %struct.C4 @_Z16__regcall3__funcI2C4ET_S1_(%struct.B4 %{{[0-9a-zA-Z_.]+}}, i32 addrspace(4)* %{{[0-9a-zA-Z_.]+}})
+// CHECK-DAG: define weak_odr x86_regcallcc %struct.C4 @_Z16__regcall3__funcI2C4ET_S1_(%struct.B4 %{{[0-9a-zA-Z_.]+}}, ptr addrspace(4) %{{[0-9a-zA-Z_.]+}})
 
 // === TEST CASE: multi-level nested structs with only leaf fields of primitive
 // types. Unwrapping and merging should yield 2 32-bit integers
@@ -164,7 +164,7 @@ struct C6 {
 };
 
 // CHECK-DAG: %struct.C6 = type { %struct.B6, i8, i8 }
-// CHECK-DAG: %struct.B6 = type { i32 addrspace(4)*, i32 }
+// CHECK-DAG: %struct.B6 = type { ptr addrspace(4), i32 }
 
 template SYCL_DEVICE C6 __regcall func<C6>(C6 x);
 // CHECK-DAG: define weak_odr x86_regcallcc %struct.C6 @_Z16__regcall3__funcI2C6ET_S1_(%struct.B6 %{{[0-9a-zA-Z_.]+}}, i8 %{{[0-9a-zA-Z_.]+}}, i8 %{{[0-9a-zA-Z_.]+}})
@@ -333,7 +333,7 @@ struct NonCopyable {
 // CHECK-DAG: %struct.NonCopyable = type { i32 }
 
 SYCL_DEVICE int __regcall bar(NonCopyable x) {
-// CHECK-DAG: define dso_local x86_regcallcc noundef i32 @_Z15__regcall3__bar11NonCopyable(%struct.NonCopyable* noundef %x)
+// CHECK-DAG: define dso_local x86_regcallcc noundef i32 @_Z15__regcall3__bar11NonCopyable(ptr noundef %x)
   return x.a;
 }
 
@@ -354,6 +354,6 @@ struct EndsWithFlexArray {
 // CHECK-DAG: %struct.EndsWithFlexArray = type { i32, [0 x i32] } 
 
 SYCL_DEVICE int __regcall bar(EndsWithFlexArray x) {
-// CHECK-DAG: define dso_local x86_regcallcc noundef i32 @_Z15__regcall3__bar17EndsWithFlexArray(%struct.EndsWithFlexArray* noundef byval(%struct.EndsWithFlexArray) align 4 %x)
+// CHECK-DAG: define dso_local x86_regcallcc noundef i32 @_Z15__regcall3__bar17EndsWithFlexArray(ptr noundef byval(%struct.EndsWithFlexArray) align 4 %x)
   return x.a;
 }

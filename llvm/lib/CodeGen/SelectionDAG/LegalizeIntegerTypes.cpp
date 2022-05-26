@@ -262,6 +262,10 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   case ISD::FSHR:
     Res = PromoteIntRes_FunnelShift(N);
     break;
+
+  case ISD::IS_FPCLASS:
+    Res = PromoteIntRes_IS_FPCLASS(N);
+    break;
   }
 
   // If the result is null then the sub-method took care of registering it.
@@ -1167,6 +1171,14 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SETCC(SDNode *N) {
   return DAG.getSExtOrTrunc(SetCC, dl, NVT);
 }
 
+SDValue DAGTypeLegalizer::PromoteIntRes_IS_FPCLASS(SDNode *N) {
+  SDLoc DL(N);
+  SDValue Arg = N->getOperand(0);
+  SDValue Test = N->getOperand(1);
+  EVT NResVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
+  return DAG.getNode(ISD::IS_FPCLASS, DL, NResVT, Arg, Test);
+}
+
 SDValue DAGTypeLegalizer::PromoteIntRes_SHL(SDNode *N) {
   SDValue LHS = GetPromotedInteger(N->getOperand(0));
   SDValue RHS = N->getOperand(1);
@@ -1993,8 +2005,8 @@ SDValue DAGTypeLegalizer::PromoteIntOp_MLOAD(MaskedLoadSDNode *N,
 
 SDValue DAGTypeLegalizer::PromoteIntOp_MGATHER(MaskedGatherSDNode *N,
                                                unsigned OpNo) {
-
   SmallVector<SDValue, 5> NewOps(N->op_begin(), N->op_end());
+
   if (OpNo == 2) {
     // The Mask
     EVT DataVT = N->getValueType(0);
@@ -2023,6 +2035,7 @@ SDValue DAGTypeLegalizer::PromoteIntOp_MSCATTER(MaskedScatterSDNode *N,
                                                 unsigned OpNo) {
   bool TruncateStore = N->isTruncatingStore();
   SmallVector<SDValue, 5> NewOps(N->op_begin(), N->op_end());
+
   if (OpNo == 2) {
     // The Mask
     EVT DataVT = N->getValue().getValueType();
@@ -2034,9 +2047,6 @@ SDValue DAGTypeLegalizer::PromoteIntOp_MSCATTER(MaskedScatterSDNode *N,
       NewOps[OpNo] = SExtPromotedInteger(N->getOperand(OpNo));
     else
       NewOps[OpNo] = ZExtPromotedInteger(N->getOperand(OpNo));
-
-    N->setIndexType(TLI.getCanonicalIndexType(N->getIndexType(),
-                                              N->getMemoryVT(), NewOps[OpNo]));
   } else {
     NewOps[OpNo] = GetPromotedInteger(N->getOperand(OpNo));
     TruncateStore = true;
