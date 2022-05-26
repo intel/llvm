@@ -347,7 +347,7 @@ void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
     // PI_PLUGIN_SPECIFIC_ERROR, making sure an error is thrown or not,
     // depending on whether PI_PLUGIN_SPECIFIC_ERROR contains an error or a
     // warning. It also ensures that the contents of the error message buffer
-    // (used only by PI_PLUGIN_SPECIFIC_ERROR) get handled correctly. 
+    // (used only by PI_PLUGIN_SPECIFIC_ERROR) get handled correctly.
     return DeviceImpl.getPlugin().checkPiResult(Error);
 
     // TODO: Handle other error codes
