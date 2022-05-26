@@ -445,23 +445,35 @@ struct _pi_queue {
   template <typename T> void sync_streams(T &&f) {
     {
       std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
-      unsigned int start = last_sync_compute_streams_;
       unsigned int size = static_cast<unsigned int>(compute_streams_.size());
+      unsigned int start = last_sync_compute_streams_;
       unsigned int end = num_compute_streams_ < size ? num_compute_streams_ : compute_stream_idx_.load() % size;
-      for (unsigned int i = start; i != end;(++i < size) ? i : (i=0)) {
-        f(compute_streams_[i]);
+      if(size==1 && end==0){
+        f(compute_streams_[0]);
       }
-      last_sync_compute_streams_ = end;
+      else{
+        for (unsigned int i = start; i != end;(++i < size) ? i : (i=0)) {
+          f(compute_streams_[i]);
+        }
+        last_sync_compute_streams_ = end;
+      }
     }
     {
       std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
-      unsigned int start = last_sync_transfer_streams_;
       unsigned int size = static_cast<unsigned int>(transfer_streams_.size());
-      unsigned int end = num_transfer_streams_ < size ? num_transfer_streams_ : transfer_stream_idx_.load() % size;
-      for (unsigned int i = start; i != end; (++i < size) ? i : (i=0)) {
-        f(transfer_streams_[i]);
+      if(size>0){
+        unsigned int start = last_sync_transfer_streams_;
+        unsigned int end = num_transfer_streams_ < size ? num_transfer_streams_ : transfer_stream_idx_.load() % size;
+        if(size==1 && end==0){
+          f(transfer_streams_[0]);
+        }
+        else{
+          for (unsigned int i = start; i != end; (++i < size) ? i : (i=0)) {
+            f(transfer_streams_[i]);
+          }
+          last_sync_transfer_streams_ = end;
+        }
       }
-      last_sync_transfer_streams_ = end;
     }
   }
 
