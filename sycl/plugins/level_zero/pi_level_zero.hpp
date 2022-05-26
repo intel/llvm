@@ -239,13 +239,46 @@ public:
   }
 };
 
+// This wrapper around std::atomic is created to limit operations with reference
+// counter and to make allowed operations more transparent in terms of
+// thread-safety in the plugin.
+struct reference_counter {
+  reference_counter(pi_uint32 InitVal) : RefCount{InitVal} {}
+
+  // Used when retaining an object.
+  void increment() { RefCount++; }
+
+  // Supposed to be used in piGet* methods where ref count value is requested.
+  pi_uint32 load() { return RefCount.load(); }
+
+  // This method allows to guard a code which needs to be executed when object's
+  // ref count becomes zero after release. It is important to notice that only a
+  // single thread can pass through this check. This is true because of several
+  // reasons:
+  //   1. Decrement operation is executed atomically.
+  //   2. It is not allowed to retain an object after its refcount reaches zero.
+  //   3. It is not allowed to release an object more times than the value of
+  //   the ref count.
+  // 2. and 3. basically means that we can't use an object at all as soon as its
+  // refcount reaches zero. Using this check guarantees that code for deleting
+  // an object and releasing its resources is executed once by a single thread
+  // and we don't need to use any mutexes to guard access to this object in the
+  // scope after this check. Of course if we access another objects in this code
+  // (not the one which is being deleted) then access to these objects must be
+  // guarded, for example with a mutex.
+  bool decrement_and_test() { return --RefCount == 0; }
+
+private:
+  std::atomic<pi_uint32> RefCount;
+};
+
 // Base class to store common data
 struct _pi_object {
   _pi_object() : RefCount{1} {}
 
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
-  std::atomic<pi_uint32> RefCount;
+  reference_counter RefCount;
 
   // This mutex protects accesses to all the non-const member variables.
   // Exclusive access is required to modify any of these members.
@@ -261,8 +294,6 @@ struct _pi_object {
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
   pi_shared_mutex Mutex;
-
-  void retain() { ++RefCount; }
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -947,7 +978,12 @@ struct _pi_queue : _pi_object {
   // references. This way we are able to tell when the queue is being finished
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
-  std::atomic<pi_uint32> RefCountExternal{1};
+  // This counter doesn't track the lifetime of a queue object, it only tracks
+  // the number of external references. I.e. even if it reaches zero a queue
+  // object may not be destroyed and can be used internally in the plugin.
+  // That's why we intentionally don't use atomic type for this counter to
+  // enforce guarding with a mutex all the work involving this counter.
+  pi_uint32 RefCountExternal{1};
 
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
