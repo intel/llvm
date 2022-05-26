@@ -657,7 +657,7 @@ struct _pi_context : _pi_object {
   // once for each SYCL Queue and after that they are reused.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
-                                    bool UseCopyEngine = false,
+                                    bool UseCopyEngine,
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no available
@@ -927,8 +927,8 @@ struct _pi_queue : _pi_object {
   // executed.
   pi_result executeOpenCommandList(bool IsCopy);
 
-  // Execute the open command containing the event.
-  pi_result executeOpenCommandListWithEvent(pi_event Event);
+  // Gets the open command containing the event, or CommandListMap.end()
+  pi_command_list_ptr_t eventOpenCommandList(pi_event Event);
 
   // Wrapper function to execute both OpenCommandLists (Copy and Compute).
   // This wrapper is helpful when all 'open' commands need to be executed.
@@ -1169,9 +1169,13 @@ struct _pi_ze_event_list_t {
   // CurQueue is the pi_queue that the command with this event wait
   // list is going to be added to.  That is needed to flush command
   // batches for wait events that are in other queues.
+  // UseCopyEngine indicates if the next command (the one that this
+  // event wait-list is for) is going to go to copy or compute
+  // queue. This is used to properly submit the dependent open
+  // command-lists.
   pi_result createAndRetainPiZeEventList(pi_uint32 EventListLength,
                                          const pi_event *EventList,
-                                         pi_queue CurQueue);
+                                         pi_queue CurQueue, bool UseCopyEngine);
 
   // Add all the events in this object's PiEventList to the end
   // of the list EventsToBeReleased. Destroy pi_ze_event_list_t data
