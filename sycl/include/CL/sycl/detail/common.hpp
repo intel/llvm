@@ -166,7 +166,9 @@ static inline std::string codeToString(cl_int code) {
 #ifdef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 // SYCL 1.2.1 exceptions
 #define __SYCL_CHECK_OCL_CODE(X) (void)(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC) (void)(X)
+#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
+  (void)(X);                                                                   \
+  (void)(STR);
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
 // SYCL 2020 exceptions
 #define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC) (void)(X)
