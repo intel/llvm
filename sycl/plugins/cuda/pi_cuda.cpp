@@ -2881,7 +2881,7 @@ pi_result cuda_piEnqueueKernelLaunch(
       static const int env_val = std::atoi(local_mem_sz_ptr);
       if (env_val <= 0 || env_val > device_max_local_mem) {
         setErrorMessage("Invalid value specified for "
-                        "SYCL_PI_LOCAL_MEM_SIZE",
+                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
                         PI_PLUGIN_SPECIFIC_ERROR);
         return PI_PLUGIN_SPECIFIC_ERROR;
       }
