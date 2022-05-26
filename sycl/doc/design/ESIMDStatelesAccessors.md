@@ -21,7 +21,7 @@ allocation routines and are passed directly by the runtime as kernel arguments.
 
 The stateful access style has a number of drawbacks which makes it undesirable
 to use in HPC application. The biggest one is 4Gb limitation on the surface
-size. Another one is problems with creating create data structures with nested
+size. Another one is problems with creating data structures with nested
 pointer fields or double indirection on host and use them on the device.
 
 ## Accessor and USM pointer kernel argument passing details
@@ -80,6 +80,8 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 Implementation of the APIs would follow this pattern:
 
 ```cpp
+// this API should verify that accessor is to global address space, this is needed both for
+// the case with conversion to stateless and the case w/o.
 T stateful_memory_api(accessor acc, uint32 offset, args...) {
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
   accessor_elelemt_type *ptr = acc.get_pointer() + offset;
