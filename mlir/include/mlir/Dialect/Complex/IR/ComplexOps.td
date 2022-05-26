@@ -76,6 +76,24 @@ def AddOp : ComplexArithmeticOp<"add"> {
 }
 
 //===----------------------------------------------------------------------===//
+// Atan2
+//===----------------------------------------------------------------------===//
+
+def Atan2Op : ComplexArithmeticOp<"atan2"> {
+  let summary = "complex 2-argument arctangent";
+  let description = [{
+    For complex numbers it is expressed using complex logarithm
+    atan2(y, x) = -i * log((x + i * y) / sqrt(x**2 + y**2))
+
+    Example:
+
+    ```mlir
+    %a = complex.atan2 %b, %c : complex<f32>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // ConstantOp
 //===----------------------------------------------------------------------===//
 
@@ -216,6 +234,31 @@ def ExpOp : ComplexUnaryOp<"exp", [SameOperandsAndResultType]> {
 
     ```mlir
     %a = complex.exp %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
+// Expm1Op
+//===----------------------------------------------------------------------===//
+
+def Expm1Op : ComplexUnaryOp<"expm1", [SameOperandsAndResultType]> {
+  let summary = "computes exponential of a complex number minus 1";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `complex.expm1` ssa-use `:` type
+    ```
+
+    complex.expm1(x) := complex.exp(x) - 1
+
+    Example:
+
+    ```mlir
+    %a = complex.expm1 %b : complex<f32>
     ```
   }];
 
@@ -385,6 +428,25 @@ def ReOp : ComplexUnaryOp<"re",
 
   let results = (outs AnyFloat:$real);
   let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// RsqrtOp
+//===----------------------------------------------------------------------===//
+
+def RsqrtOp : ComplexUnaryOp<"rsqrt", [SameOperandsAndResultType]> {
+  let summary = "complex reciprocal of square root";
+  let description = [{
+    The `rsqrt` operation computes reciprocal of square root.
+
+    Example:
+
+    ```mlir
+    %a = complex.rsqrt %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
 }
 
 //===----------------------------------------------------------------------===//
