@@ -445,37 +445,52 @@ struct _pi_queue {
   }
 
   template <typename T> void sync_streams(T &&f) {
+    auto sync = [&f](const std::vector<CUstream>& streams, unsigned int start, unsigned int stop){
+      for (unsigned int i = start; i < stop; i++) {
+        f(streams[i]);
+      }
+    };
     {
-      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
       unsigned int size = static_cast<unsigned int>(compute_streams_.size());
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
       unsigned int start = last_sync_compute_streams_;
       unsigned int end = num_compute_streams_ < size
                              ? num_compute_streams_
-                             : compute_stream_idx_.load() % size;
-      if (size == 1 && end == 0) {
-        f(compute_streams_[0]);
-      } else {
-        for (unsigned int i = start; i != end; (++i < size) ? i : (i = 0)) {
-          f(compute_streams_[i]);
+                             : compute_stream_idx_.load();
+      last_sync_compute_streams_ = end;
+      if(end - start >= size){
+        sync(compute_streams_, 0, size);
+      } else{
+        start %= size;
+        end %= size;
+        if(start < end){
+          sync(compute_streams_, start, end);
+        } else{
+          sync(compute_streams_, start, size);
+          sync(compute_streams_, 0, end);
         }
-        last_sync_compute_streams_ = end;
       }
     }
     {
-      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
       unsigned int size = static_cast<unsigned int>(transfer_streams_.size());
       if (size > 0) {
+        std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
         unsigned int start = last_sync_transfer_streams_;
         unsigned int end = num_transfer_streams_ < size
                                ? num_transfer_streams_
-                               : transfer_stream_idx_.load() % size;
-        if (size == 1 && end == 0) {
-          f(transfer_streams_[0]);
-        } else {
-          for (unsigned int i = start; i != end; (++i < size) ? i : (i = 0)) {
-            f(transfer_streams_[i]);
+                               : transfer_stream_idx_.load();
+        last_sync_transfer_streams_ = end;
+        if(end - start >= size){
+          sync(transfer_streams_, 0, size);
+        } else{
+          start %= size;
+          end %= size;
+          if(start < end){
+            sync(transfer_streams_, start, end);
+          } else{
+            sync(transfer_streams_, start, size);
+            sync(transfer_streams_, 0, end);
           }
-          last_sync_transfer_streams_ = end;
         }
       }
     }
