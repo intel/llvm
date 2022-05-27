@@ -184,7 +184,15 @@ public:
       throw PI_INVALID_CONTEXT;
     }
 
-    CUcontext desired = ctxt->get();
+    set_context(ctxt->get());
+  }
+
+  ScopedContext(CUcontext ctxt) { set_context(ctxt); }
+
+  ~ScopedContext() {}
+
+private:
+  void set_context(CUcontext desired) {
     CUcontext original = nullptr;
 
     PI_CHECK_ERROR(cuCtxGetCurrent(&original));
@@ -195,8 +203,6 @@ public:
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
     }
   }
-
-  ~ScopedContext() {}
 };
 
 /// \cond NODOXY
@@ -2076,12 +2082,11 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 
   CUcontext newContext = reinterpret_cast<CUcontext>(nativeHandle);
 
-  // Push native context to thread
-  pi_result retErr = PI_CHECK_ERROR(cuCtxPushCurrent(newContext));
+  ScopedContext active(newContext);
 
   // Get context's native device
   CUdevice cu_device;
-  retErr = PI_CHECK_ERROR(cuCtxGetDevice(&cu_device));
+  pi_result retErr = PI_CHECK_ERROR(cuCtxGetDevice(&cu_device));
 
   // Create a SYCL device from the ctx device
   pi_device device = nullptr;
@@ -2090,9 +2095,6 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   // Create sycl context
   *piContext =
       new _pi_context{_pi_context::kind::user_defined, newContext, device};
-
-  // Pop native context
-  retErr = PI_CHECK_ERROR(cuCtxPopCurrent(nullptr));
 
   return retErr;
 }

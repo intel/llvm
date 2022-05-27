@@ -65,28 +65,6 @@ template <> struct interop<backend::ext_oneapi_cuda, program> {
 };
 #endif
 
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_cuda,
-               accessor<DataT, Dimensions, AccessMode, access::target::device,
-                        access::placeholder::false_t>> {
-  using type = DataT *;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<
-    backend::ext_oneapi_cuda,
-    accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
-             access::placeholder::false_t>> {
-  using type = DataT *;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_cuda,
-               accessor<DataT, Dimensions, AccessMode, access::target::local,
-                        access::placeholder::false_t>> {
-  using type = DataT *;
-};
-
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendInput<backend::ext_oneapi_cuda,
                     buffer<DataT, Dimensions, AllocatorT>> {
