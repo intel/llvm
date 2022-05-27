@@ -2020,33 +2020,37 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
 
   assert(ctxt != nullptr);
 
-  if (ctxt->decrement_reference_count() > 0) {
-    return PI_SUCCESS;
-  }
-  ctxt->invoke_extended_deleters();
-
-  std::unique_ptr<_pi_context> context{ctxt};
-
-  if (!ctxt->is_primary()) {
-    CUcontext cuCtxt = ctxt->get();
-    CUcontext current = nullptr;
-    cuCtxGetCurrent(&current);
-    if (cuCtxt != current) {
-      PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
+  if (ctxt->backend_has_ownership()) {
+    if (ctxt->decrement_reference_count() > 0) {
+      return PI_SUCCESS;
     }
-    PI_CHECK_ERROR(cuCtxSynchronize());
-    cuCtxGetCurrent(&current);
-    if (cuCtxt == current) {
-      PI_CHECK_ERROR(cuCtxPopCurrent(&current));
+    ctxt->invoke_extended_deleters();
+
+    std::unique_ptr<_pi_context> context{ctxt};
+
+    if (!ctxt->is_primary()) {
+      CUcontext cuCtxt = ctxt->get();
+      CUcontext current = nullptr;
+      cuCtxGetCurrent(&current);
+      if (cuCtxt != current) {
+        PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
+      }
+      PI_CHECK_ERROR(cuCtxSynchronize());
+      cuCtxGetCurrent(&current);
+      if (cuCtxt == current) {
+        PI_CHECK_ERROR(cuCtxPopCurrent(&current));
+      }
+      return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
+    } else {
+      // Primary context is not destroyed, but released
+      CUdevice cuDev = ctxt->get_device()->get();
+      CUcontext current;
+      cuCtxPopCurrent(&current);
+      return PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(cuDev));
     }
-    return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
-  } else {
-    // Primary context is not destroyed, but released
-    CUdevice cuDev = ctxt->get_device()->get();
-    CUcontext current;
-    cuCtxPopCurrent(&current);
-    return PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(cuDev));
   }
+
+  return PI_SUCCESS;
 }
 
 /// Gets the native CUDA handle of a PI context object
@@ -2093,8 +2097,8 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   retErr = cuda_piextDeviceCreateWithNativeHandle(cu_device, nullptr, &device);
 
   // Create sycl context
-  *piContext =
-      new _pi_context{_pi_context::kind::user_defined, newContext, device};
+  *piContext = new _pi_context{_pi_context::kind::user_defined, newContext,
+                               device, /*backend_owns*/ false};
 
   cuda_piContextRetain(*piContext);
 
