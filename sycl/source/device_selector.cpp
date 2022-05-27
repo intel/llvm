@@ -52,7 +52,6 @@ static int getDevicePreference(const device &Device) {
 
 device device_selector::select_device() const {
   std::vector<device> devices = device::get_devices();
-  auto &program_manager = cl::sycl::detail::ProgramManager::getInstance();
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
