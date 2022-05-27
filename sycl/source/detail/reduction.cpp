@@ -70,33 +70,6 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   device Dev = Queue->get_device();
   size_t MaxWGSize = Dev.get_info<info::device::max_work_group_size>();
 
-  // The maximum WGSize returned by CPU devices is very large and does not
-  // help the reduction implementation: since all work associated with a
-  // work-group is typically assigned to one CPU thread, selecting a large
-  // work-group size unnecessarily increases the number of accumulators.
-  // The default of 16 was chosen based on empirical benchmarking results;
-  // an environment variable is provided to allow users to override this
-  // behavior.
-  using CPUMaxWGConfig =
-      detail::SYCLConfig<detail::SYCL_REDUCTION_MAX_WORKGROUP_SIZE_CPU>;
-  if (Dev.is_cpu()) {
-    size_t CPUMaxWGSize = CPUMaxWGConfig::get();
-    if (CPUMaxWGSize == 0)
-      CPUMaxWGSize = 16;
-    return std::min(MaxWGSize, CPUMaxWGSize);
-  }
-
-  // If the user has specified an explicit max work-group size we use that.
-  using GPUMaxWGConfig =
-      detail::SYCLConfig<detail::SYCL_REDUCTION_MAX_WORKGROUP_SIZE_GPU>;
-  if (Dev.is_gpu() && GPUMaxWGConfig::get())
-    return std::min(GPUMaxWGConfig::get(), MaxWGSize);
-
-  using ACCMaxWGConfig =
-      detail::SYCLConfig<detail::SYCL_REDUCTION_MAX_WORKGROUP_SIZE_ACC>;
-  if (Dev.is_accelerator() && ACCMaxWGConfig::get())
-    return std::min(ACCMaxWGConfig::get(), MaxWGSize);
-
   size_t WGSizePerMem = MaxWGSize * 2;
   size_t WGSize = MaxWGSize;
   if (LocalMemBytesPerWorkItem != 0) {
@@ -130,6 +103,46 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   }
 
   return WGSize;
+}
+
+__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+                                            size_t LocalMemBytesPerWorkItem) {
+  device Dev = Queue->get_device();
+
+  // The maximum WGSize returned by CPU devices is very large and does not
+  // help the reduction implementation: since all work associated with a
+  // work-group is typically assigned to one CPU thread, selecting a large
+  // work-group size unnecessarily increases the number of accumulators.
+  // The default of 16 was chosen based on empirical benchmarking results;
+  // an environment variable is provided to allow users to override this
+  // behavior.
+  using CPUMaxWGConfig =
+      detail::SYCLConfig<detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE_CPU>;
+  if (Dev.is_cpu()) {
+    size_t CPUMaxWGSize = CPUMaxWGConfig::get();
+    if (CPUMaxWGSize == 0)
+      return 16;
+    size_t DevMaxWGSize = Dev.get_info<info::device::max_work_group_size>();
+    return std::min(CPUMaxWGSize, DevMaxWGSize);
+  }
+
+  // If the user has specified an explicit max work-group size we use that.
+  using GPUMaxWGConfig =
+      detail::SYCLConfig<detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE_GPU>;
+  if (Dev.is_gpu() && GPUMaxWGConfig::get()) {
+    size_t DevMaxWGSize = Dev.get_info<info::device::max_work_group_size>();
+    return std::min(GPUMaxWGConfig::get(), DevMaxWGSize);
+  }
+
+  using ACCMaxWGConfig =
+      detail::SYCLConfig<detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE_ACC>;
+  if (Dev.is_accelerator() && ACCMaxWGConfig::get()) {
+    size_t DevMaxWGSize = Dev.get_info<info::device::max_work_group_size>();
+    return std::min(ACCMaxWGConfig::get(), DevMaxWGSize);
+  }
+
+  // Use the maximum work-group size otherwise.
+  return reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
 }
 
 } // namespace detail
