@@ -1451,23 +1451,13 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
 }
 
 bool ProgramManager::hasCompatibleImage(const device &Dev) {
-  std::set<RTDeviceBinaryImage *> BinImages;
-  {
-    std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-    for (auto &ImagesSets : m_DeviceImages) {
-      auto &ImagesUPtrs = *ImagesSets.second.get();
-      for (auto &ImageUPtr : ImagesUPtrs)
-        BinImages.insert(ImageUPtr.get());
-    }
-  }
+  std::lock_guard<std::mutex> Guard(m_KernelIDsMutex);
 
-  for (auto Img : BinImages) {
-    if (compatibleWithDevice(Img, Dev)) {
-      return true;
-    }
-  }
-
-  return false;
+  return std::any_of(
+      m_BinImg2KernelIDs.cbegin(), m_BinImg2KernelIDs.cend(),
+      [&](std::pair<RTDeviceBinaryImage *,
+                    std::shared_ptr<std::vector<kernel_id>>>
+              Elem) { return compatibleWithDevice(Elem.first, Dev); });
 }
 
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
