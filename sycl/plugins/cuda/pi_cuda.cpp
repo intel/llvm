@@ -2096,6 +2096,8 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   *piContext =
       new _pi_context{_pi_context::kind::user_defined, newContext, device};
 
+  cuda_piContextRetain(*piContext);
+
   return retErr;
 }
 
