@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/JITLink/MachO_arm64.h"
+#include "llvm/ExecutionEngine/JITLink/DWARFRecordSectionSplitter.h"
 
 #include "MachOLinkGraphBuilder.h"
 #include "PerGraphGOTAndPLTStubsBuilder.h"
@@ -676,7 +677,10 @@ private:
       break;
     }
     default:
-      llvm_unreachable("Unrecognized edge kind");
+      return make_error<JITLinkError>(
+          "In graph " + G.getName() + ", section " + B.getSection().getName() +
+          "unsupported edge kind" +
+          getMachOARM64RelocationKindName(E.getKind()));
     }
 
     return Error::success();
@@ -712,9 +716,11 @@ void link_MachO_arm64(std::unique_ptr<LinkGraph> G,
     // Add eh-frame passses.
     // FIXME: Prune eh-frames for which compact-unwind is available once
     // we support compact-unwind registration with libunwind.
-    Config.PrePrunePasses.push_back(EHFrameSplitter("__TEXT,__eh_frame"));
     Config.PrePrunePasses.push_back(
-        EHFrameEdgeFixer("__TEXT,__eh_frame", 8, Delta64, Delta32, NegDelta32));
+        DWARFRecordSectionSplitter("__TEXT,__eh_frame"));
+    Config.PrePrunePasses.push_back(
+        EHFrameEdgeFixer("__TEXT,__eh_frame", 8, Pointer32, Pointer64, Delta32,
+                         Delta64, NegDelta32));
 
     // Add an in-place GOT/Stubs pass.
     Config.PostPrunePasses.push_back(

@@ -20,7 +20,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "LegalizeTypes.h"
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/Analysis/MemoryLocation.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TypeSize.h"
@@ -64,6 +66,7 @@ void DAGTypeLegalizer::ScalarizeVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::SETCC:             R = ScalarizeVecRes_SETCC(N); break;
   case ISD::UNDEF:             R = ScalarizeVecRes_UNDEF(N); break;
   case ISD::VECTOR_SHUFFLE:    R = ScalarizeVecRes_VECTOR_SHUFFLE(N); break;
+  case ISD::IS_FPCLASS:        R = ScalarizeVecRes_IS_FPCLASS(N); break;
   case ISD::ANY_EXTEND_VECTOR_INREG:
   case ISD::SIGN_EXTEND_VECTOR_INREG:
   case ISD::ZERO_EXTEND_VECTOR_INREG:
@@ -589,6 +592,29 @@ SDValue DAGTypeLegalizer::ScalarizeVecRes_SETCC(SDNode *N) {
   return DAG.getNode(ExtendCode, DL, NVT, Res);
 }
 
+SDValue DAGTypeLegalizer::ScalarizeVecRes_IS_FPCLASS(SDNode *N) {
+  SDLoc DL(N);
+  SDValue Arg = N->getOperand(0);
+  SDValue Test = N->getOperand(1);
+  EVT ArgVT = Arg.getValueType();
+  EVT ResultVT = N->getValueType(0).getVectorElementType();
+
+  if (getTypeAction(ArgVT) == TargetLowering::TypeScalarizeVector) {
+    Arg = GetScalarizedVector(Arg);
+  } else {
+    EVT VT = ArgVT.getVectorElementType();
+    Arg = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, VT, Arg,
+                      DAG.getVectorIdxConstant(0, DL));
+  }
+
+  SDValue Res =
+      DAG.getNode(ISD::IS_FPCLASS, DL, MVT::i1, {Arg, Test}, N->getFlags());
+  // Vectors may have a different boolean contents to scalars.  Promote the
+  // value appropriately.
+  ISD::NodeType ExtendCode =
+      TargetLowering::getExtendForContent(TLI.getBooleanContents(ArgVT));
+  return DAG.getNode(ExtendCode, DL, ResultVT, Res);
+}
 
 //===----------------------------------------------------------------------===//
 //  Operand Vector Scalarization <1 x ty> -> ty.
@@ -933,6 +959,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::INSERT_SUBVECTOR:  SplitVecRes_INSERT_SUBVECTOR(N, Lo, Hi); break;
   case ISD::FPOWI:             SplitVecRes_FPOWI(N, Lo, Hi); break;
   case ISD::FCOPYSIGN:         SplitVecRes_FCOPYSIGN(N, Lo, Hi); break;
+  case ISD::IS_FPCLASS:        SplitVecRes_IS_FPCLASS(N, Lo, Hi); break;
   case ISD::INSERT_VECTOR_ELT: SplitVecRes_INSERT_VECTOR_ELT(N, Lo, Hi); break;
   case ISD::SPLAT_VECTOR:
   case ISD::SCALAR_TO_VECTOR:
@@ -995,7 +1022,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FLOG10:
   case ISD::FLOG2:
   case ISD::FNEARBYINT:
-  case ISD::FNEG:
+  case ISD::FNEG: case ISD::VP_FNEG:
   case ISD::FREEZE:
   case ISD::ARITH_FENCE:
   case ISD::FP_EXTEND:
@@ -1060,7 +1087,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::ROTR:
     SplitVecRes_BinOp(N, Lo, Hi);
     break;
-  case ISD::FMA:
+  case ISD::FMA: case ISD::VP_FMA:
   case ISD::FSHL:
   case ISD::FSHR:
     SplitVecRes_TernaryOp(N, Lo, Hi);
@@ -1182,10 +1209,28 @@ void DAGTypeLegalizer::SplitVecRes_TernaryOp(SDNode *N, SDValue &Lo,
   GetSplitVector(N->getOperand(2), Op2Lo, Op2Hi);
   SDLoc dl(N);
 
-  Lo = DAG.getNode(N->getOpcode(), dl, Op0Lo.getValueType(), Op0Lo, Op1Lo,
-                   Op2Lo, N->getFlags());
-  Hi = DAG.getNode(N->getOpcode(), dl, Op0Hi.getValueType(), Op0Hi, Op1Hi,
-                   Op2Hi, N->getFlags());
+  const SDNodeFlags Flags = N->getFlags();
+  unsigned Opcode = N->getOpcode();
+  if (N->getNumOperands() == 3) {
+    Lo = DAG.getNode(Opcode, dl, Op0Lo.getValueType(), Op0Lo, Op1Lo, Op2Lo, Flags);
+    Hi = DAG.getNode(Opcode, dl, Op0Hi.getValueType(), Op0Hi, Op1Hi, Op2Hi, Flags);
+    return;
+  }
+
+  assert(N->getNumOperands() == 5 && "Unexpected number of operands!");
+  assert(N->isVPOpcode() && "Expected VP opcode");
+
+  SDValue MaskLo, MaskHi;
+  std::tie(MaskLo, MaskHi) = SplitMask(N->getOperand(3));
+
+  SDValue EVLLo, EVLHi;
+  std::tie(EVLLo, EVLHi) =
+      DAG.SplitEVL(N->getOperand(4), N->getValueType(0), dl);
+
+  Lo = DAG.getNode(Opcode, dl, Op0Lo.getValueType(),
+                   {Op0Lo, Op1Lo, Op2Lo, MaskLo, EVLLo}, Flags);
+  Hi = DAG.getNode(Opcode, dl, Op0Hi.getValueType(),
+                   {Op0Hi, Op1Hi, Op2Hi, MaskHi, EVLHi}, Flags);
 }
 
 void DAGTypeLegalizer::SplitVecRes_FIX(SDNode *N, SDValue &Lo, SDValue &Hi) {
@@ -1403,6 +1448,19 @@ void DAGTypeLegalizer::SplitVecRes_FCOPYSIGN(SDNode *N, SDValue &Lo,
 
   Lo = DAG.getNode(ISD::FCOPYSIGN, DL, LHSLo.getValueType(), LHSLo, RHSLo);
   Hi = DAG.getNode(ISD::FCOPYSIGN, DL, LHSHi.getValueType(), LHSHi, RHSHi);
+}
+
+void DAGTypeLegalizer::SplitVecRes_IS_FPCLASS(SDNode *N, SDValue &Lo,
+                                              SDValue &Hi) {
+  SDLoc DL(N);
+  SDValue ArgLo, ArgHi;
+  SDValue Test = N->getOperand(1);
+  GetSplitVector(N->getOperand(0), ArgLo, ArgHi);
+  EVT LoVT, HiVT;
+  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(N->getValueType(0));
+
+  Lo = DAG.getNode(ISD::IS_FPCLASS, DL, LoVT, ArgLo, Test, N->getFlags());
+  Hi = DAG.getNode(ISD::IS_FPCLASS, DL, HiVT, ArgHi, Test, N->getFlags());
 }
 
 void DAGTypeLegalizer::SplitVecRes_InregOp(SDNode *N, SDValue &Lo,
@@ -2063,22 +2121,37 @@ void DAGTypeLegalizer::SplitVecRes_UnaryOp(SDNode *N, SDValue &Lo,
 
   // If the input also splits, handle it directly for a compile time speedup.
   // Otherwise split it by hand.
-  unsigned OpNo = N->isStrictFPOpcode() ? 1 : 0;
-  EVT InVT = N->getOperand(OpNo).getValueType();
+  EVT InVT = N->getOperand(0).getValueType();
   if (getTypeAction(InVT) == TargetLowering::TypeSplitVector)
-    GetSplitVector(N->getOperand(OpNo), Lo, Hi);
+    GetSplitVector(N->getOperand(0), Lo, Hi);
   else
-    std::tie(Lo, Hi) = DAG.SplitVectorOperand(N, OpNo);
+    std::tie(Lo, Hi) = DAG.SplitVectorOperand(N, 0);
 
-  if (N->getOpcode() == ISD::FP_ROUND) {
-    Lo = DAG.getNode(N->getOpcode(), dl, LoVT, Lo, N->getOperand(1),
-                     N->getFlags());
-    Hi = DAG.getNode(N->getOpcode(), dl, HiVT, Hi, N->getOperand(1),
-                     N->getFlags());
-  } else {
-    Lo = DAG.getNode(N->getOpcode(), dl, LoVT, Lo, N->getFlags());
-    Hi = DAG.getNode(N->getOpcode(), dl, HiVT, Hi, N->getFlags());
+  const SDNodeFlags Flags = N->getFlags();
+  unsigned Opcode = N->getOpcode();
+  if (N->getNumOperands() <= 2) {
+    if (Opcode == ISD::FP_ROUND) {
+      Lo = DAG.getNode(Opcode, dl, LoVT, Lo, N->getOperand(1), Flags);
+      Hi = DAG.getNode(Opcode, dl, HiVT, Hi, N->getOperand(1), Flags);
+    } else {
+      Lo = DAG.getNode(Opcode, dl, LoVT, Lo, Flags);
+      Hi = DAG.getNode(Opcode, dl, HiVT, Hi, Flags);
+    }
+    return;
   }
+
+  assert(N->getNumOperands() == 3 && "Unexpected number of operands!");
+  assert(N->isVPOpcode() && "Expected VP opcode");
+
+  SDValue MaskLo, MaskHi;
+  std::tie(MaskLo, MaskHi) = SplitMask(N->getOperand(1));
+
+  SDValue EVLLo, EVLHi;
+  std::tie(EVLLo, EVLHi) =
+      DAG.SplitEVL(N->getOperand(2), N->getValueType(0), dl);
+
+  Lo = DAG.getNode(Opcode, dl, LoVT, {Lo, MaskLo, EVLLo}, Flags);
+  Hi = DAG.getNode(Opcode, dl, HiVT, {Hi, MaskHi, EVLHi}, Flags);
 }
 
 void DAGTypeLegalizer::SplitVecRes_ExtendOp(SDNode *N, SDValue &Lo,
@@ -2133,108 +2206,352 @@ void DAGTypeLegalizer::SplitVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N,
                                                   SDValue &Lo, SDValue &Hi) {
   // The low and high parts of the original input give four input vectors.
   SDValue Inputs[4];
-  SDLoc dl(N);
+  SDLoc DL(N);
   GetSplitVector(N->getOperand(0), Inputs[0], Inputs[1]);
   GetSplitVector(N->getOperand(1), Inputs[2], Inputs[3]);
   EVT NewVT = Inputs[0].getValueType();
   unsigned NewElts = NewVT.getVectorNumElements();
 
+  auto &&IsConstant = [](const SDValue &N) {
+    APInt SplatValue;
+    return N.getResNo() == 0 &&
+           (ISD::isConstantSplatVector(N.getNode(), SplatValue) ||
+            ISD::isBuildVectorOfConstantSDNodes(N.getNode()));
+  };
+  auto &&BuildVector = [NewElts, &DAG = DAG, NewVT, &DL](SDValue &Input1,
+                                                         SDValue &Input2,
+                                                         ArrayRef<int> Mask) {
+    assert(Input1->getOpcode() == ISD::BUILD_VECTOR &&
+           Input2->getOpcode() == ISD::BUILD_VECTOR &&
+           "Expected build vector node.");
+    EVT EltVT = NewVT.getVectorElementType();
+    SmallVector<SDValue> Ops(NewElts, DAG.getUNDEF(EltVT));
+    for (unsigned I = 0; I < NewElts; ++I) {
+      if (Mask[I] == UndefMaskElem)
+        continue;
+      unsigned Idx = Mask[I];
+      if (Idx >= NewElts)
+        Ops[I] = Input2.getOperand(Idx - NewElts);
+      else
+        Ops[I] = Input1.getOperand(Idx);
+      // Make the type of all elements the same as the element type.
+      if (Ops[I].getValueType().bitsGT(EltVT))
+        Ops[I] = DAG.getNode(ISD::TRUNCATE, DL, EltVT, Ops[I]);
+    }
+    return DAG.getBuildVector(NewVT, DL, Ops);
+  };
+
   // If Lo or Hi uses elements from at most two of the four input vectors, then
   // express it as a vector shuffle of those two inputs.  Otherwise extract the
   // input elements by hand and construct the Lo/Hi output using a BUILD_VECTOR.
-  SmallVector<int, 16> Ops;
+  SmallVector<int> OrigMask(N->getMask().begin(), N->getMask().end());
+  // Try to pack incoming shuffles/inputs.
+  auto &&TryPeekThroughShufflesInputs = [&Inputs, &NewVT, this, NewElts,
+                                         &DL](SmallVectorImpl<int> &Mask) {
+    // Check if all inputs are shuffles of the same operands or non-shuffles.
+    MapVector<std::pair<SDValue, SDValue>, SmallVector<unsigned>> ShufflesIdxs;
+    for (unsigned Idx = 0; Idx < array_lengthof(Inputs); ++Idx) {
+      SDValue Input = Inputs[Idx];
+      auto *Shuffle = dyn_cast<ShuffleVectorSDNode>(Input.getNode());
+      if (!Shuffle ||
+          Input.getOperand(0).getValueType() != Input.getValueType())
+        continue;
+      ShufflesIdxs[std::make_pair(Input.getOperand(0), Input.getOperand(1))]
+          .push_back(Idx);
+      ShufflesIdxs[std::make_pair(Input.getOperand(1), Input.getOperand(0))]
+          .push_back(Idx);
+    }
+    for (auto &P : ShufflesIdxs) {
+      if (P.second.size() < 2)
+        continue;
+      // Use shuffles operands instead of shuffles themselves.
+      // 1. Adjust mask.
+      for (int &Idx : Mask) {
+        if (Idx == UndefMaskElem)
+          continue;
+        unsigned SrcRegIdx = Idx / NewElts;
+        if (Inputs[SrcRegIdx].isUndef()) {
+          Idx = UndefMaskElem;
+          continue;
+        }
+        auto *Shuffle =
+            dyn_cast<ShuffleVectorSDNode>(Inputs[SrcRegIdx].getNode());
+        if (!Shuffle || !is_contained(P.second, SrcRegIdx))
+          continue;
+        int MaskElt = Shuffle->getMaskElt(Idx % NewElts);
+        if (MaskElt == UndefMaskElem) {
+          Idx = UndefMaskElem;
+          continue;
+        }
+        Idx = MaskElt % NewElts +
+              P.second[Shuffle->getOperand(MaskElt / NewElts) == P.first.first
+                           ? 0
+                           : 1] *
+                  NewElts;
+      }
+      // 2. Update inputs.
+      Inputs[P.second[0]] = P.first.first;
+      Inputs[P.second[1]] = P.first.second;
+      // Clear the pair data.
+      P.second.clear();
+      ShufflesIdxs[std::make_pair(P.first.second, P.first.first)].clear();
+    }
+    // Check if any concat_vectors can be simplified.
+    SmallBitVector UsedSubVector(2 * array_lengthof(Inputs));
+    for (int &Idx : Mask) {
+      if (Idx == UndefMaskElem)
+        continue;
+      unsigned SrcRegIdx = Idx / NewElts;
+      if (Inputs[SrcRegIdx].isUndef()) {
+        Idx = UndefMaskElem;
+        continue;
+      }
+      TargetLowering::LegalizeTypeAction TypeAction =
+          getTypeAction(Inputs[SrcRegIdx].getValueType());
+      if (Inputs[SrcRegIdx].getOpcode() == ISD::CONCAT_VECTORS &&
+          Inputs[SrcRegIdx].getNumOperands() == 2 &&
+          !Inputs[SrcRegIdx].getOperand(1).isUndef() &&
+          (TypeAction == TargetLowering::TypeLegal ||
+           TypeAction == TargetLowering::TypeWidenVector))
+        UsedSubVector.set(2 * SrcRegIdx + (Idx % NewElts) / (NewElts / 2));
+    }
+    if (UsedSubVector.count() > 1) {
+      SmallVector<SmallVector<std::pair<unsigned, int>, 2>> Pairs;
+      for (unsigned I = 0; I < array_lengthof(Inputs); ++I) {
+        if (UsedSubVector.test(2 * I) == UsedSubVector.test(2 * I + 1))
+          continue;
+        if (Pairs.empty() || Pairs.back().size() == 2)
+          Pairs.emplace_back();
+        if (UsedSubVector.test(2 * I)) {
+          Pairs.back().emplace_back(I, 0);
+        } else {
+          assert(UsedSubVector.test(2 * I + 1) &&
+                 "Expected to be used one of the subvectors.");
+          Pairs.back().emplace_back(I, 1);
+        }
+      }
+      if (!Pairs.empty() && Pairs.front().size() > 1) {
+        // Adjust mask.
+        for (int &Idx : Mask) {
+          if (Idx == UndefMaskElem)
+            continue;
+          unsigned SrcRegIdx = Idx / NewElts;
+          auto *It = find_if(
+              Pairs, [SrcRegIdx](ArrayRef<std::pair<unsigned, int>> Idxs) {
+                return Idxs.front().first == SrcRegIdx ||
+                       Idxs.back().first == SrcRegIdx;
+              });
+          if (It == Pairs.end())
+            continue;
+          Idx = It->front().first * NewElts + (Idx % NewElts) % (NewElts / 2) +
+                (SrcRegIdx == It->front().first ? 0 : (NewElts / 2));
+        }
+        // Adjust inputs.
+        for (ArrayRef<std::pair<unsigned, int>> Idxs : Pairs) {
+          Inputs[Idxs.front().first] = DAG.getNode(
+              ISD::CONCAT_VECTORS, DL,
+              Inputs[Idxs.front().first].getValueType(),
+              Inputs[Idxs.front().first].getOperand(Idxs.front().second),
+              Inputs[Idxs.back().first].getOperand(Idxs.back().second));
+        }
+      }
+    }
+    bool Changed;
+    do {
+      // Try to remove extra shuffles (except broadcasts) and shuffles with the
+      // reused operands.
+      Changed = false;
+      for (unsigned I = 0; I < array_lengthof(Inputs); ++I) {
+        auto *Shuffle = dyn_cast<ShuffleVectorSDNode>(Inputs[I].getNode());
+        if (!Shuffle)
+          continue;
+        if (Shuffle->getOperand(0).getValueType() != NewVT)
+          continue;
+        int Op = -1;
+        if (!Inputs[I].hasOneUse() && Shuffle->getOperand(1).isUndef() &&
+            !Shuffle->isSplat()) {
+          Op = 0;
+        } else if (!Inputs[I].hasOneUse() &&
+                   !Shuffle->getOperand(1).isUndef()) {
+          // Find the only used operand, if possible.
+          for (int &Idx : Mask) {
+            if (Idx == UndefMaskElem)
+              continue;
+            unsigned SrcRegIdx = Idx / NewElts;
+            if (SrcRegIdx != I)
+              continue;
+            int MaskElt = Shuffle->getMaskElt(Idx % NewElts);
+            if (MaskElt == UndefMaskElem) {
+              Idx = UndefMaskElem;
+              continue;
+            }
+            int OpIdx = MaskElt / NewElts;
+            if (Op == -1) {
+              Op = OpIdx;
+              continue;
+            }
+            if (Op != OpIdx) {
+              Op = -1;
+              break;
+            }
+          }
+        }
+        if (Op < 0) {
+          // Try to check if one of the shuffle operands is used already.
+          for (int OpIdx = 0; OpIdx < 2; ++OpIdx) {
+            if (Shuffle->getOperand(OpIdx).isUndef())
+              continue;
+            auto *It = find(Inputs, Shuffle->getOperand(OpIdx));
+            if (It == std::end(Inputs))
+              continue;
+            int FoundOp = std::distance(std::begin(Inputs), It);
+            // Found that operand is used already.
+            // 1. Fix the mask for the reused operand.
+            for (int &Idx : Mask) {
+              if (Idx == UndefMaskElem)
+                continue;
+              unsigned SrcRegIdx = Idx / NewElts;
+              if (SrcRegIdx != I)
+                continue;
+              int MaskElt = Shuffle->getMaskElt(Idx % NewElts);
+              if (MaskElt == UndefMaskElem) {
+                Idx = UndefMaskElem;
+                continue;
+              }
+              int MaskIdx = MaskElt / NewElts;
+              if (OpIdx == MaskIdx)
+                Idx = MaskElt % NewElts + FoundOp * NewElts;
+            }
+            // 2. Set Op to the unused OpIdx.
+            Op = (OpIdx + 1) % 2;
+            break;
+          }
+        }
+        if (Op >= 0) {
+          Changed = true;
+          Inputs[I] = Shuffle->getOperand(Op);
+          // Adjust mask.
+          for (int &Idx : Mask) {
+            if (Idx == UndefMaskElem)
+              continue;
+            unsigned SrcRegIdx = Idx / NewElts;
+            if (SrcRegIdx != I)
+              continue;
+            int MaskElt = Shuffle->getMaskElt(Idx % NewElts);
+            int OpIdx = MaskElt / NewElts;
+            if (OpIdx != Op)
+              continue;
+            Idx = MaskElt % NewElts + SrcRegIdx * NewElts;
+          }
+        }
+      }
+    } while (Changed);
+  };
+  TryPeekThroughShufflesInputs(OrigMask);
+  // Proces unique inputs.
+  auto &&MakeUniqueInputs = [&Inputs, &IsConstant,
+                             NewElts](SmallVectorImpl<int> &Mask) {
+    SetVector<SDValue> UniqueInputs;
+    SetVector<SDValue> UniqueConstantInputs;
+    for (unsigned I = 0; I < array_lengthof(Inputs); ++I) {
+      if (IsConstant(Inputs[I]))
+        UniqueConstantInputs.insert(Inputs[I]);
+      else if (!Inputs[I].isUndef())
+        UniqueInputs.insert(Inputs[I]);
+    }
+    // Adjust mask in case of reused inputs. Also, need to insert constant
+    // inputs at first, otherwise it affects the final outcome.
+    if (UniqueInputs.size() != array_lengthof(Inputs)) {
+      auto &&UniqueVec = UniqueInputs.takeVector();
+      auto &&UniqueConstantVec = UniqueConstantInputs.takeVector();
+      unsigned ConstNum = UniqueConstantVec.size();
+      for (int &Idx : Mask) {
+        if (Idx == UndefMaskElem)
+          continue;
+        unsigned SrcRegIdx = Idx / NewElts;
+        if (Inputs[SrcRegIdx].isUndef()) {
+          Idx = UndefMaskElem;
+          continue;
+        }
+        const auto It = find(UniqueConstantVec, Inputs[SrcRegIdx]);
+        if (It != UniqueConstantVec.end()) {
+          Idx = (Idx % NewElts) +
+                NewElts * std::distance(UniqueConstantVec.begin(), It);
+          assert(Idx >= 0 && "Expected defined mask idx.");
+          continue;
+        }
+        const auto RegIt = find(UniqueVec, Inputs[SrcRegIdx]);
+        assert(RegIt != UniqueVec.end() && "Cannot find non-const value.");
+        Idx = (Idx % NewElts) +
+              NewElts * (std::distance(UniqueVec.begin(), RegIt) + ConstNum);
+        assert(Idx >= 0 && "Expected defined mask idx.");
+      }
+      copy(UniqueConstantVec, std::begin(Inputs));
+      copy(UniqueVec, std::next(std::begin(Inputs), ConstNum));
+    }
+  };
+  MakeUniqueInputs(OrigMask);
+  SDValue OrigInputs[4];
+  copy(Inputs, std::begin(OrigInputs));
   for (unsigned High = 0; High < 2; ++High) {
     SDValue &Output = High ? Hi : Lo;
 
     // Build a shuffle mask for the output, discovering on the fly which
-    // input vectors to use as shuffle operands (recorded in InputUsed).
-    // If building a suitable shuffle vector proves too hard, then bail
-    // out with useBuildVector set.
-    unsigned InputUsed[2] = { -1U, -1U }; // Not yet discovered.
+    // input vectors to use as shuffle operands.
     unsigned FirstMaskIdx = High * NewElts;
-    bool useBuildVector = false;
-    for (unsigned MaskOffset = 0; MaskOffset < NewElts; ++MaskOffset) {
-      // The mask element.  This indexes into the input.
-      int Idx = N->getMaskElt(FirstMaskIdx + MaskOffset);
-
-      // The input vector this mask element indexes into.
-      unsigned Input = (unsigned)Idx / NewElts;
-
-      if (Input >= array_lengthof(Inputs)) {
-        // The mask element does not index into any input vector.
-        Ops.push_back(-1);
-        continue;
+    SmallVector<int> Mask(NewElts * array_lengthof(Inputs), UndefMaskElem);
+    copy(makeArrayRef(OrigMask).slice(FirstMaskIdx, NewElts), Mask.begin());
+    assert(!Output && "Expected default initialized initial value.");
+    TryPeekThroughShufflesInputs(Mask);
+    MakeUniqueInputs(Mask);
+    SDValue TmpInputs[4];
+    copy(Inputs, std::begin(TmpInputs));
+    // Track changes in the output registers.
+    int UsedIdx = -1;
+    bool SecondIteration = false;
+    auto &&AccumulateResults = [&UsedIdx, &SecondIteration](unsigned Idx) {
+      if (UsedIdx < 0) {
+        UsedIdx = Idx;
+        return false;
       }
-
-      // Turn the index into an offset from the start of the input vector.
-      Idx -= Input * NewElts;
-
-      // Find or create a shuffle vector operand to hold this input.
-      unsigned OpNo;
-      for (OpNo = 0; OpNo < array_lengthof(InputUsed); ++OpNo) {
-        if (InputUsed[OpNo] == Input) {
-          // This input vector is already an operand.
-          break;
-        } else if (InputUsed[OpNo] == -1U) {
-          // Create a new operand for this input vector.
-          InputUsed[OpNo] = Input;
-          break;
-        }
-      }
-
-      if (OpNo >= array_lengthof(InputUsed)) {
-        // More than two input vectors used!  Give up on trying to create a
-        // shuffle vector.  Insert all elements into a BUILD_VECTOR instead.
-        useBuildVector = true;
-        break;
-      }
-
-      // Add the mask index for the new shuffle vector.
-      Ops.push_back(Idx + OpNo * NewElts);
-    }
-
-    if (useBuildVector) {
-      EVT EltVT = NewVT.getVectorElementType();
-      SmallVector<SDValue, 16> SVOps;
-
-      // Extract the input elements by hand.
-      for (unsigned MaskOffset = 0; MaskOffset < NewElts; ++MaskOffset) {
-        // The mask element.  This indexes into the input.
-        int Idx = N->getMaskElt(FirstMaskIdx + MaskOffset);
-
-        // The input vector this mask element indexes into.
-        unsigned Input = (unsigned)Idx / NewElts;
-
-        if (Input >= array_lengthof(Inputs)) {
-          // The mask element is "undef" or indexes off the end of the input.
-          SVOps.push_back(DAG.getUNDEF(EltVT));
-          continue;
-        }
-
-        // Turn the index into an offset from the start of the input vector.
-        Idx -= Input * NewElts;
-
-        // Extract the vector element by hand.
-        SVOps.push_back(DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, EltVT,
-                                    Inputs[Input],
-                                    DAG.getVectorIdxConstant(Idx, dl)));
-      }
-
-      // Construct the Lo/Hi output using a BUILD_VECTOR.
-      Output = DAG.getBuildVector(NewVT, dl, SVOps);
-    } else if (InputUsed[0] == -1U) {
-      // No input vectors were used!  The result is undefined.
-      Output = DAG.getUNDEF(NewVT);
-    } else {
-      SDValue Op0 = Inputs[InputUsed[0]];
-      // If only one input was used, use an undefined vector for the other.
-      SDValue Op1 = InputUsed[1] == -1U ?
-        DAG.getUNDEF(NewVT) : Inputs[InputUsed[1]];
-      // At least one input vector was used.  Create a new shuffle vector.
-      Output =  DAG.getVectorShuffle(NewVT, dl, Op0, Op1, Ops);
-    }
-
-    Ops.clear();
+      if (UsedIdx >= 0 && static_cast<unsigned>(UsedIdx) == Idx)
+        SecondIteration = true;
+      return SecondIteration;
+    };
+    processShuffleMasks(
+        Mask, array_lengthof(Inputs), array_lengthof(Inputs),
+        /*NumOfUsedRegs=*/1,
+        [&Output, &DAG = DAG, NewVT]() { Output = DAG.getUNDEF(NewVT); },
+        [&Output, &DAG = DAG, NewVT, &DL, &Inputs,
+         &BuildVector](ArrayRef<int> Mask, unsigned Idx, unsigned /*Unused*/) {
+          if (Inputs[Idx]->getOpcode() == ISD::BUILD_VECTOR)
+            Output = BuildVector(Inputs[Idx], Inputs[Idx], Mask);
+          else
+            Output = DAG.getVectorShuffle(NewVT, DL, Inputs[Idx],
+                                          DAG.getUNDEF(NewVT), Mask);
+          Inputs[Idx] = Output;
+        },
+        [&AccumulateResults, &Output, &DAG = DAG, NewVT, &DL, &Inputs,
+         &TmpInputs,
+         &BuildVector](ArrayRef<int> Mask, unsigned Idx1, unsigned Idx2) {
+          if (AccumulateResults(Idx1)) {
+            if (Inputs[Idx1]->getOpcode() == ISD::BUILD_VECTOR &&
+                Inputs[Idx2]->getOpcode() == ISD::BUILD_VECTOR)
+              Output = BuildVector(Inputs[Idx1], Inputs[Idx2], Mask);
+            else
+              Output = DAG.getVectorShuffle(NewVT, DL, Inputs[Idx1],
+                                            Inputs[Idx2], Mask);
+          } else {
+            if (TmpInputs[Idx1]->getOpcode() == ISD::BUILD_VECTOR &&
+                TmpInputs[Idx2]->getOpcode() == ISD::BUILD_VECTOR)
+              Output = BuildVector(TmpInputs[Idx1], TmpInputs[Idx2], Mask);
+            else
+              Output = DAG.getVectorShuffle(NewVT, DL, TmpInputs[Idx1],
+                                            TmpInputs[Idx2], Mask);
+          }
+          Inputs[Idx1] = Output;
+        });
+    copy(OrigInputs, std::begin(Inputs));
   }
 }
 
@@ -2273,6 +2590,32 @@ void DAGTypeLegalizer::SplitVecRes_FP_TO_XINT_SAT(SDNode *N, SDValue &Lo,
 
   Lo = DAG.getNode(N->getOpcode(), dl, DstVTLo, SrcLo, N->getOperand(1));
   Hi = DAG.getNode(N->getOpcode(), dl, DstVTHi, SrcHi, N->getOperand(1));
+}
+
+void DAGTypeLegalizer::SplitVecRes_VECTOR_REVERSE(SDNode *N, SDValue &Lo,
+                                                  SDValue &Hi) {
+  SDValue InLo, InHi;
+  GetSplitVector(N->getOperand(0), InLo, InHi);
+  SDLoc DL(N);
+
+  Lo = DAG.getNode(ISD::VECTOR_REVERSE, DL, InHi.getValueType(), InHi);
+  Hi = DAG.getNode(ISD::VECTOR_REVERSE, DL, InLo.getValueType(), InLo);
+}
+
+void DAGTypeLegalizer::SplitVecRes_VECTOR_SPLICE(SDNode *N, SDValue &Lo,
+                                                 SDValue &Hi) {
+  EVT VT = N->getValueType(0);
+  SDLoc DL(N);
+
+  EVT LoVT, HiVT;
+  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(VT);
+
+  SDValue Expanded = TLI.expandVectorSplice(N, DAG);
+  Lo = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, LoVT, Expanded,
+                   DAG.getVectorIdxConstant(0, DL));
+  Hi =
+      DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, HiVT, Expanded,
+                  DAG.getVectorIdxConstant(LoVT.getVectorMinNumElements(), DL));
 }
 
 //===----------------------------------------------------------------------===//
@@ -3349,6 +3692,10 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
     Res = WidenVecRes_FCOPYSIGN(N);
     break;
 
+  case ISD::IS_FPCLASS:
+    Res = WidenVecRes_IS_FPCLASS(N);
+    break;
+
   case ISD::FPOWI:
     Res = WidenVecRes_POWI(N);
     break;
@@ -3418,13 +3765,13 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::CTPOP:
   case ISD::CTTZ:
   case ISD::CTTZ_ZERO_UNDEF:
-  case ISD::FNEG:
+  case ISD::FNEG: case ISD::VP_FNEG:
   case ISD::FREEZE:
   case ISD::ARITH_FENCE:
   case ISD::FCANONICALIZE:
     Res = WidenVecRes_Unary(N);
     break;
-  case ISD::FMA:
+  case ISD::FMA: case ISD::VP_FMA:
   case ISD::FSHL:
   case ISD::FSHR:
     Res = WidenVecRes_Ternary(N);
@@ -3443,7 +3790,16 @@ SDValue DAGTypeLegalizer::WidenVecRes_Ternary(SDNode *N) {
   SDValue InOp1 = GetWidenedVector(N->getOperand(0));
   SDValue InOp2 = GetWidenedVector(N->getOperand(1));
   SDValue InOp3 = GetWidenedVector(N->getOperand(2));
-  return DAG.getNode(N->getOpcode(), dl, WidenVT, InOp1, InOp2, InOp3);
+  if (N->getNumOperands() == 3)
+    return DAG.getNode(N->getOpcode(), dl, WidenVT, InOp1, InOp2, InOp3);
+
+  assert(N->getNumOperands() == 5 && "Unexpected number of operands!");
+  assert(N->isVPOpcode() && "Expected VP opcode");
+
+  SDValue Mask =
+      GetWidenedMask(N->getOperand(3), WidenVT.getVectorElementCount());
+  return DAG.getNode(N->getOpcode(), dl, WidenVT,
+                     {InOp1, InOp2, InOp3, Mask, N->getOperand(4)});
 }
 
 SDValue DAGTypeLegalizer::WidenVecRes_Binary(SDNode *N) {
@@ -4018,6 +4374,13 @@ SDValue DAGTypeLegalizer::WidenVecRes_FCOPYSIGN(SDNode *N) {
   return DAG.UnrollVectorOp(N, WidenVT.getVectorNumElements());
 }
 
+SDValue DAGTypeLegalizer::WidenVecRes_IS_FPCLASS(SDNode *N) {
+  EVT WidenVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
+  SDValue Arg = GetWidenedVector(N->getOperand(0));
+  return DAG.getNode(N->getOpcode(), SDLoc(N), WidenVT, {Arg, N->getOperand(1)},
+                     N->getFlags());
+}
+
 SDValue DAGTypeLegalizer::WidenVecRes_POWI(SDNode *N) {
   EVT WidenVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
   SDValue InOp = GetWidenedVector(N->getOperand(0));
@@ -4029,7 +4392,16 @@ SDValue DAGTypeLegalizer::WidenVecRes_Unary(SDNode *N) {
   // Unary op widening.
   EVT WidenVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
   SDValue InOp = GetWidenedVector(N->getOperand(0));
-  return DAG.getNode(N->getOpcode(), SDLoc(N), WidenVT, InOp);
+  if (N->getNumOperands() == 1)
+    return DAG.getNode(N->getOpcode(), SDLoc(N), WidenVT, InOp);
+
+  assert(N->getNumOperands() == 3 && "Unexpected number of operands!");
+  assert(N->isVPOpcode() && "Expected VP opcode");
+
+  SDValue Mask =
+      GetWidenedMask(N->getOperand(1), WidenVT.getVectorElementCount());
+  return DAG.getNode(N->getOpcode(), SDLoc(N), WidenVT,
+                     {InOp, Mask, N->getOperand(2)});
 }
 
 SDValue DAGTypeLegalizer::WidenVecRes_InregOp(SDNode *N) {
@@ -4957,6 +5329,7 @@ bool DAGTypeLegalizer::WidenVectorOperand(SDNode *N, unsigned OpNo) {
   case ISD::STRICT_FSETCCS:     Res = WidenVecOp_STRICT_FSETCC(N); break;
   case ISD::VSELECT:            Res = WidenVecOp_VSELECT(N); break;
   case ISD::FCOPYSIGN:          Res = WidenVecOp_FCOPYSIGN(N); break;
+  case ISD::IS_FPCLASS:         Res = WidenVecOp_IS_FPCLASS(N); break;
 
   case ISD::ANY_EXTEND:
   case ISD::SIGN_EXTEND:
@@ -5107,6 +5480,34 @@ SDValue DAGTypeLegalizer::WidenVecOp_FCOPYSIGN(SDNode *N) {
   // We can't do much to fix that, so just unroll and let the extracts off of
   // the second input be widened as needed later.
   return DAG.UnrollVectorOp(N);
+}
+
+SDValue DAGTypeLegalizer::WidenVecOp_IS_FPCLASS(SDNode *N) {
+  SDLoc DL(N);
+  EVT ResultVT = N->getValueType(0);
+  SDValue Test = N->getOperand(1);
+  SDValue WideArg = GetWidenedVector(N->getOperand(0));
+
+  // Process this node similarly to SETCC.
+  EVT WideResultVT = getSetCCResultType(WideArg.getValueType());
+  if (ResultVT.getScalarType() == MVT::i1)
+    WideResultVT = EVT::getVectorVT(*DAG.getContext(), MVT::i1,
+                                    WideResultVT.getVectorNumElements());
+
+  SDValue WideNode = DAG.getNode(ISD::IS_FPCLASS, DL, WideResultVT,
+                                 {WideArg, Test}, N->getFlags());
+
+  // Extract the needed results from the result vector.
+  EVT ResVT =
+      EVT::getVectorVT(*DAG.getContext(), WideResultVT.getVectorElementType(),
+                       ResultVT.getVectorNumElements());
+  SDValue CC = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, ResVT, WideNode,
+                           DAG.getVectorIdxConstant(0, DL));
+
+  EVT OpVT = N->getOperand(0).getValueType();
+  ISD::NodeType ExtendCode =
+      TargetLowering::getExtendForContent(TLI.getBooleanContents(OpVT));
+  return DAG.getNode(ExtendCode, DL, ResultVT, CC);
 }
 
 SDValue DAGTypeLegalizer::WidenVecOp_Convert(SDNode *N) {
@@ -6154,30 +6555,4 @@ SDValue DAGTypeLegalizer::ModifyToType(SDValue InOp, EVT NVT,
   for ( ; Idx < WidenNumElts; ++Idx)
     Ops[Idx] = FillVal;
   return DAG.getBuildVector(NVT, dl, Ops);
-}
-
-void DAGTypeLegalizer::SplitVecRes_VECTOR_REVERSE(SDNode *N, SDValue &Lo,
-                                                  SDValue &Hi) {
-  SDValue InLo, InHi;
-  GetSplitVector(N->getOperand(0), InLo, InHi);
-  SDLoc DL(N);
-
-  Lo = DAG.getNode(ISD::VECTOR_REVERSE, DL, InHi.getValueType(), InHi);
-  Hi = DAG.getNode(ISD::VECTOR_REVERSE, DL, InLo.getValueType(), InLo);
-}
-
-void DAGTypeLegalizer::SplitVecRes_VECTOR_SPLICE(SDNode *N, SDValue &Lo,
-                                                 SDValue &Hi) {
-  EVT VT = N->getValueType(0);
-  SDLoc DL(N);
-
-  EVT LoVT, HiVT;
-  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(VT);
-
-  SDValue Expanded = TLI.expandVectorSplice(N, DAG);
-  Lo = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, LoVT, Expanded,
-                   DAG.getVectorIdxConstant(0, DL));
-  Hi =
-      DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, HiVT, Expanded,
-                  DAG.getVectorIdxConstant(LoVT.getVectorMinNumElements(), DL));
 }

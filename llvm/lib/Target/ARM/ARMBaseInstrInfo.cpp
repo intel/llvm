@@ -1703,7 +1703,7 @@ bool ARMBaseInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   // or some other super-register.
   int ImpDefIdx = MI.findRegisterDefOperandIdx(DstRegD);
   if (ImpDefIdx != -1)
-    MI.RemoveOperand(ImpDefIdx);
+    MI.removeOperand(ImpDefIdx);
 
   // Change the opcode and operands.
   MI.setDesc(get(ARM::VMOVD));
@@ -2598,7 +2598,7 @@ bool llvm::tryFoldSPUpdateIntoPushPop(const ARMSubtarget &Subtarget,
   // ahead: strip all existing registers off and add them back again
   // in the right order.
   for (int i = MI->getNumOperands() - 1; i >= RegListIdx; --i)
-    MI->RemoveOperand(i);
+    MI->removeOperand(i);
 
   // Add the complete list back in.
   MachineInstrBuilder MIB(MF, &*MI);
@@ -2626,7 +2626,7 @@ bool llvm::rewriteARMFrameIndex(MachineInstr &MI, unsigned FrameRegIdx,
       // Turn it into a move.
       MI.setDesc(TII.get(ARM::MOVr));
       MI.getOperand(FrameRegIdx).ChangeToRegister(FrameReg, false);
-      MI.RemoveOperand(FrameRegIdx+1);
+      MI.removeOperand(FrameRegIdx+1);
       Offset = 0;
       return true;
     } else if (Offset < 0) {
@@ -5103,7 +5103,7 @@ void ARMBaseInstrInfo::setExecutionDomain(MachineInstr &MI,
     SrcReg = MI.getOperand(1).getReg();
 
     for (unsigned i = MI.getDesc().getNumOperands(); i; --i)
-      MI.RemoveOperand(i - 1);
+      MI.removeOperand(i - 1);
 
     // Change to a %DDst = VORRd %DSrc, %DSrc, 14, %noreg (; implicits)
     MI.setDesc(get(ARM::VORRd));
@@ -5122,7 +5122,7 @@ void ARMBaseInstrInfo::setExecutionDomain(MachineInstr &MI,
     SrcReg = MI.getOperand(1).getReg();
 
     for (unsigned i = MI.getDesc().getNumOperands(); i; --i)
-      MI.RemoveOperand(i - 1);
+      MI.removeOperand(i - 1);
 
     DReg = getCorrespondingDRegAndLane(TRI, SrcReg, Lane);
 
@@ -5155,7 +5155,7 @@ void ARMBaseInstrInfo::setExecutionDomain(MachineInstr &MI,
       break;
 
     for (unsigned i = MI.getDesc().getNumOperands(); i; --i)
-      MI.RemoveOperand(i - 1);
+      MI.removeOperand(i - 1);
 
     // Convert to %DDst = VSETLNi32 %DDst, %RSrc, Lane, 14, %noreg (; imps)
     // Again DDst may be undefined at the beginning of this instruction.
@@ -5190,7 +5190,7 @@ void ARMBaseInstrInfo::setExecutionDomain(MachineInstr &MI,
         break;
 
       for (unsigned i = MI.getDesc().getNumOperands(); i; --i)
-        MI.RemoveOperand(i - 1);
+        MI.removeOperand(i - 1);
 
       if (DSrc == DDst) {
         // Destination can be:
@@ -6720,4 +6720,78 @@ unsigned llvm::gettBLXrOpcode(const MachineFunction &MF) {
 unsigned llvm::getBLXpredOpcode(const MachineFunction &MF) {
   return (MF.getSubtarget<ARMSubtarget>().hardenSlsBlr()) ? ARM::BLX_pred_noip
                                                           : ARM::BLX_pred;
+}
+
+namespace {
+class ARMPipelinerLoopInfo : public TargetInstrInfo::PipelinerLoopInfo {
+  MachineInstr *EndLoop, *LoopCount;
+  MachineFunction *MF;
+  const TargetInstrInfo *TII;
+
+  // Meanings of the various stuff with loop types:
+  // t2Bcc:
+  //   Loop = null -- there is no setup.
+  //   EndLoop = branch at end of original BB that will become a kernel
+  //   LoopCount = CC setter live into branch
+public:
+  ARMPipelinerLoopInfo(MachineInstr *EndLoop, MachineInstr *LoopCount)
+      : EndLoop(EndLoop), LoopCount(LoopCount),
+        MF(EndLoop->getParent()->getParent()),
+        TII(MF->getSubtarget().getInstrInfo()) {}
+
+  bool shouldIgnoreForPipelining(const MachineInstr *MI) const override {
+    // Only ignore the terminator.
+    return MI == EndLoop || MI == LoopCount;
+  }
+
+  Optional<bool> createTripCountGreaterCondition(
+      int TC, MachineBasicBlock &MBB,
+      SmallVectorImpl<MachineOperand> &Cond) override {
+
+    if (isCondBranchOpcode(EndLoop->getOpcode())) {
+      Cond.push_back(EndLoop->getOperand(1));
+      Cond.push_back(EndLoop->getOperand(2));
+      if (EndLoop->getOperand(0).getMBB() == EndLoop->getParent()) {
+        TII->reverseBranchCondition(Cond);
+      }
+      return {};
+    } else
+      llvm_unreachable("Unknown EndLoop");
+  }
+
+  void setPreheader(MachineBasicBlock *NewPreheader) override {}
+
+  void adjustTripCount(int TripCountAdjust) override {}
+
+  void disposed() override {}
+};
+} // namespace
+
+std::unique_ptr<TargetInstrInfo::PipelinerLoopInfo>
+ARMBaseInstrInfo::analyzeLoopForPipelining(MachineBasicBlock *LoopBB) const {
+  MachineBasicBlock::iterator I = LoopBB->getFirstTerminator();
+  MachineBasicBlock *Preheader = *LoopBB->pred_begin();
+  if (Preheader == LoopBB)
+    Preheader = *std::next(LoopBB->pred_begin());
+
+  if (I != LoopBB->end() && I->getOpcode() == ARM::t2Bcc) {
+    // If the branch is a Bcc, then the CPSR should be set somewhere within the
+    // block.  We need to determine the reaching definition of CPSR so that
+    // it can be marked as non-pipelineable, allowing the pipeliner to force
+    // it into stage 0 or give up if it cannot or will not do so.
+    MachineInstr *CCSetter = nullptr;
+    for (auto &L : LoopBB->instrs()) {
+      if (L.isCall())
+        return nullptr;
+      if (isCPSRDefined(L))
+        CCSetter = &L;
+    }
+    if (CCSetter)
+      return std::make_unique<ARMPipelinerLoopInfo>(&*I, CCSetter);
+    else
+      return nullptr; // Unable to find the CC setter, so unable to guarantee
+                      // that pipeline will work
+  }
+
+  return nullptr;
 }

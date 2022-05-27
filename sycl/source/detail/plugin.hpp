@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/plugin_printers.hpp>
 #include <memory>
 #include <mutex>
@@ -113,11 +114,35 @@ public:
   /// \throw Exception if pi_result is not a PI_SUCCESS.
   template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
-    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
+    char *message = nullptr;
+    if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
+      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
+
+      // If the warning level is greater then 2 emit the message
+      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
+        std::clog << message << std::endl;
+
+      // If it is a warning do not throw code
+      if (pi_result == PI_SUCCESS)
+        return;
+    }
+    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception, message);
   }
 
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
   template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
+    if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
+      char *message = nullptr;
+      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
+
+      // If the warning level is greater then 2 emit the message
+      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
+        std::clog << message << std::endl;
+
+      // If it is a warning do not throw code
+      if (pi_result == PI_SUCCESS)
+        return;
+    }
     __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
   }
 
@@ -236,6 +261,16 @@ public:
   void setLastDeviceId(RT::PiPlatform Platform, int Id) {
     int PlatformId = getPlatformId(Platform);
     LastDeviceIds[PlatformId] = Id;
+  }
+
+  // Adjust the id of the last device for the given platform.
+  // Involved when there is no device on that platform at all.
+  // The function is expected to be called in a thread safe manner.
+  void adjustLastDeviceId(RT::PiPlatform Platform) {
+    int PlatformId = getPlatformId(Platform);
+    if (PlatformId > 0 &&
+        LastDeviceIds[PlatformId] < LastDeviceIds[PlatformId - 1])
+      LastDeviceIds[PlatformId] = LastDeviceIds[PlatformId - 1];
   }
 
   bool containsPiPlatform(RT::PiPlatform Platform) {

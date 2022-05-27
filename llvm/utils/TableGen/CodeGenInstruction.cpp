@@ -12,7 +12,6 @@
 
 #include "CodeGenInstruction.h"
 #include "CodeGenTarget.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/TableGen/Error.h"
@@ -416,6 +415,7 @@ CodeGenInstruction::CodeGenInstruction(Record *R)
   hasExtraDefRegAllocReq = R->getValueAsBit("hasExtraDefRegAllocReq");
   isCodeGenOnly = R->getValueAsBit("isCodeGenOnly");
   isPseudo = R->getValueAsBit("isPseudo");
+  isMeta = R->getValueAsBit("isMeta");
   ImplicitDefs = R->getValueAsListOfDefs("Defs");
   ImplicitUses = R->getValueAsListOfDefs("Uses");
 

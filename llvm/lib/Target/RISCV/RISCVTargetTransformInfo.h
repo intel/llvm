@@ -62,6 +62,10 @@ public:
 
   InstructionCost getRegUsageForType(Type *Ty);
 
+  InstructionCost getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
+                                        Align Alignment, unsigned AddressSpace,
+                                        TTI::TargetCostKind CostKind);
+
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP,
                                OptimizationRemarkEmitter *ORE);
@@ -76,13 +80,30 @@ public:
   InstructionCost getSpliceCost(VectorType *Tp, int Index);
   InstructionCost getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp,
                                  ArrayRef<int> Mask, int Index,
-                                 VectorType *SubTp);
+                                 VectorType *SubTp,
+                                 ArrayRef<const Value *> Args = None);
+
+  InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                        TTI::TargetCostKind CostKind);
 
   InstructionCost getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
                                          const Value *Ptr, bool VariableMask,
                                          Align Alignment,
                                          TTI::TargetCostKind CostKind,
                                          const Instruction *I);
+
+  InstructionCost getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
+                                   TTI::CastContextHint CCH,
+                                   TTI::TargetCostKind CostKind,
+                                   const Instruction *I = nullptr);
+
+  InstructionCost getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
+                                         bool IsUnsigned,
+                                         TTI::TargetCostKind CostKind);
+
+  InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
+                                             Optional<FastMathFlags> FMF,
+                                             TTI::TargetCostKind CostKind);
 
   bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
     if (!ST->hasVInstructions())
@@ -95,7 +116,7 @@ public:
     // Don't allow elements larger than the ELEN.
     // FIXME: How to limit for scalable vectors?
     if (isa<FixedVectorType>(DataType) &&
-        DataType->getScalarSizeInBits() > ST->getMaxELENForFixedLengthVectors())
+        DataType->getScalarSizeInBits() > ST->getELEN())
       return false;
 
     if (Alignment <
@@ -123,7 +144,7 @@ public:
     // Don't allow elements larger than the ELEN.
     // FIXME: How to limit for scalable vectors?
     if (isa<FixedVectorType>(DataType) &&
-        DataType->getScalarSizeInBits() > ST->getMaxELENForFixedLengthVectors())
+        DataType->getScalarSizeInBits() > ST->getELEN())
       return false;
 
     if (Alignment <

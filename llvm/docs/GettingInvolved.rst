@@ -18,6 +18,7 @@ LLVM welcomes contributions of all kinds. To get started, please review the foll
    HowToSubmitABug
    BugLifeCycle
    CodingStandards
+   GitHub
    GitBisecting
    GitRepositoryPolicy
 
@@ -51,6 +52,9 @@ LLVM welcomes contributions of all kinds. To get started, please review the foll
 :doc:`CodingStandards`
   Details the LLVM coding standards and provides useful information on writing
   efficient C++ code.
+
+:doc:`GitHub`
+  Describes how to use the llvm-project repository on GitHub.
 
 :doc:`GitBisecting`
   Describes how to use ``git bisect`` on LLVM's repository.
@@ -148,7 +152,7 @@ writing, the following sync-ups are organized:
      - Minutes/docs link
    * - Loop Optimization Working Group
      - Every 2 weeks on Wednesday
-     - 
+     - `ics <./_static/LoopOptWG_invite.ics>`__
      - `Minutes/docs <https://docs.google.com/document/d/1sdzoyB11s0ccTZ3fobqctDpgJmRoFcz0sviKxqczs4g/edit>`__
    * - RISC-V
      - Every 2 weeks on Thursday
@@ -211,6 +215,10 @@ writing, the following sync-ups are organized:
      - `ics <https://drive.google.com/file/d/1uNa-PFYkhAfT83kR2Nc4Fi706TAQFBEL/view?usp=sharing>`__
        `gcal <https://calendar.google.com/calendar/u/0?cid=ZDQyc3ZlajJmbjIzNG1jaTUybjFsdjA2dWNAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ>`__
      - `Minutes/docs <https://docs.google.com/document/d/1GahxppHJ7o1O_fn1Mbidu1DHEg7V2aOr92LXCtNV1_o/edit?usp=sharing>`__
+   * - Clang C and C++ Language Working Group
+     - 1st and 3rd Wednesday of the month
+     - `gcal <https://calendar.google.com/calendar/u/0?cid=cW1lZGg0ZXNpMnIyZDN2aTVydGVrdWF1YzRAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ>`__
+     - `Minutes/docs <https://docs.google.com/document/d/1x5-RbOC6-jnI_NcJ9Dp4pSmGhhNe7lUevuWUIB46TeM/edit?usp=sharing>`__
 
 
 Office hours
@@ -236,7 +244,7 @@ don't find anyone present, chances are they happen to be off that day.
   * - Kristof Beyls
     - General questions on how to contribute to LLVM; organizing meetups;
       submitting talks; and other general LLVM-related topics. Arm/AArch64
-      codegen.
+      codegen. LLVM security group.
     - Every 2nd and 4th Wednesday of the month at 9.30am CET, for 30 minutes.
       `ics <https://calendar.google.com/calendar/ical/co0h4ndpvtfe64opn7eraiq3ac%40group.calendar.google.com/public/basic.ics>`__
     - `Jitsi <https://meet.jit.si/KristofBeylsLLVMOfficeHour>`__
@@ -250,13 +258,18 @@ don't find anyone present, chances are they happen to be off that day.
     - `GoogleMeet <https://meet.google.com/hhk-xpdj-gvx>`__
     - English, Romanian
   * - Aaron Ballman
-    - Clang internals; clang-tidy; clang-query; AST matchers
-    - Monthly, 2nd Monday of the month at 10:00am Eastern/14:00 UTC, for 30 minutes.
+    - Clang internals; frontend attributes; clang-tidy; clang-query; AST matchers
+    - Monthly, 2nd Monday of the month at 10:00am Eastern, for 30 minutes.
       `ics <https://calendar.google.com/calendar/ical/npgke5dug0uliud0qapptmps58%40group.calendar.google.com/public/basic.ics>`__
       `gcal <https://calendar.google.com/calendar/embed?src=npgke5dug0uliud0qapptmps58%40group.calendar.google.com>`__
     - `GoogleMeet <https://meet.google.com/xok-iqne-gmi>`__
     - English, Norwegian (not fluently)
-
+  * - Johannes Doerfert (he/him)
+    - OpenMP, LLVM-IR, interprocedural optimizations, Attributor, workshops, research, ...
+    - Every 2 weeks, Wednesdays 10:30am (Chicago Time), for 1 hour.
+      `ics <https://outlook.office365.com/owa/calendar/5c93bae7d8fc48f5bd150f9efda8806f@anl.gov/4929bd0f955b4f9b82b7bc995cb3b1bf665030567582422766/S-1-8-2190330107-3188380388-3000953923-1819937831/reachcalendar.ics>`__
+    - `MS Teams <https://teams.microsoft.com/l/meetup-join/19%3ameeting_MTM2ZDNkNGUtZjg3My00ZDFjLTk5NjctYTIwMmI3MWM4MjFj%40thread.v2/0?context=%7b%22Tid%22%3a%220cfca185-25f7-49e3-8ae7-704d5326e285%22%2c%22Oid%22%3a%220cacfb51-1523-4455-a443-adca936d1af0%22%7d>`__
+    - English, German
 
 IRC
 ---

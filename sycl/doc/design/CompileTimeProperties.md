@@ -6,7 +6,7 @@ specifying properties which are known at compile time.  This extension is not
 itself a feature, but rather a building block that can be incorporated into
 other features.
 
-[1]: <../extensions/proposed/sycl_ext_oneapi_properties.asciidoc>
+[1]: <../extensions/experimental/sycl_ext_oneapi_properties.asciidoc>
 
 There are a number of situations where we plan to use compile-time constant
 properties, but this design document does not attempt to address them all.
@@ -45,7 +45,7 @@ for declaring global variables.  One such example is the
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list<>>
+template <typename T, typename PropertyListT = properties<>>
 class device_global {/*...*/};
 
 } // namespace sycl::ext::oneapi
@@ -57,10 +57,7 @@ two compile-time properties:
 ```
 using sycl::ext::oneapi;
 
-device_global<int,
-  property_list_t<
-    device_image_scope::value_t,
-    host_access::value_t<host_access::access::read>>>
+device_global<int, decltype(properties{device_image_scope, host_access_read})>
   dm1;
 ```
 
@@ -71,7 +68,7 @@ is a list that is created through a template parameter pack expansion:
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list<>>
+template <typename T, typename PropertyListT = properties<>>
 class device_global {/*...*/};
 
 // Partial specialization to make PropertyListT visible as a parameter pack
@@ -83,7 +80,7 @@ class
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
-  device_global<T, property_list<Props...>> {/*...*/};
+  device_global<T, properties<Props...>> {/*...*/};
 
 } // namespace sycl::ext::oneapi
 ```
@@ -158,7 +155,7 @@ template <typename dataT,
           access::mode accessmode,
           access::target accessTarget,
           access::placeholder isPlaceholder,
-          typename PropertyListT = ext::oneapi::property_list<>>
+          typename PropertyListT = ext::oneapi::properties<>>
 class __attribute__((sycl_special_class)) accessor {/* ... */};
 
 } // namespace sycl
@@ -171,7 +168,7 @@ Typical usage would look like this (showing a hypothetical property named
 using sycl;
 using sycl::ext::oneapi;
 
-accessor acc(buf, cgh, property_list{no_alias_v, foo_v<32>});
+accessor acc(buf, cgh, properties{no_alias, foo<32>});
 ```
 
 In the headers the C++ attribute
@@ -188,7 +185,7 @@ template <typename dataT,
           access::mode accessmode,
           access::target accessTarget,
           access::placeholder isPlaceholder,
-          typename PropertyListT = ext::oneapi::property_list<>>
+          typename PropertyListT = ext::oneapi::properties<>>
 class __attribute__((sycl_special_class)) accessor {/* ... */};
 
 // Partial specialization to make PropertyListT visible as a parameter pack
@@ -204,7 +201,7 @@ class __attribute__((sycl_special_class)) accessor<dataT,
                                                    accessmode,
                                                    accessTarget,
                                                    isPlaceholder,
-                                                   property_list<Props...>> {
+                                                   properties<Props...>> {
   dataT *ptr;
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -269,12 +266,12 @@ the property value to a string if it is not already a string.
 
 ## Properties on kernel functions
 
-Compile-time properties can also be used to decorate kernel functions as with
-the [sycl\_ext\_oneapi\_properties][8] extension.  There are two ways the
-application can specify these properties.  The first is by passing a
-`property_list` parameter to the function that submits the kernel:
+Compile-time properties can also be used to decorate kernel functions as
+proposed in the [sycl\_ext\_oneapi\_kernel\_properties][8] extension.  There
+are two ways the application can specify these properties.  The first is by
+passing a `properties` parameter to the function that submits the kernel:
 
-[8]: <../extensions/proposed/sycl_ext_oneapi_properties.asciidoc>
+[8]: <../extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc>
 
 ```
 namespace sycl {
@@ -295,13 +292,14 @@ using sycl::ext::oneapi;
 
 void foo(handler &cgh) {
   cgh.single_task(
-    property_list{sub_group_size_v<32>, device_has_v<aspect::fp16>},
+    properties{sub_group_size<32>, device_has<aspect::fp16>},
     [=] {/* ... */});
 }
 ```
 
 The second way an application can specify kernel properties is by adding a
-`properties` member variable to a named kernel function object:
+member function named `get(sycl::ext::oneapi::properties_tag)` to a named
+kernel function object:
 
 ```
 using sycl;
@@ -311,8 +309,9 @@ class MyKernel {
  public:
   void operator()() {/* ... */}
 
-  static constexpr auto properties =
-    property_list{sub_group_size_v<32>, device_has_v<aspect::fp16>};
+  auto get(properties_tag) {
+    return properties{sub_group_size<32>, device_has<aspect::fp16>};
+  }
 };
 
 void foo(handler &cgh) {
@@ -335,7 +334,7 @@ class KernelSingleTaskWrapper;
 // Partial specialization to make PropertyListT visible as a parameter pack
 // of properties.
 template<typename KernelType, typename ...Props>
-class KernelSingleTaskWrapper<KernelType, property_list<Props...>> {
+class KernelSingleTaskWrapper<KernelType, properties<Props...>> {
   KernelType k;
 
  public:
@@ -379,7 +378,7 @@ class.
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list_t<>>
+template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr {
   T *ptr;
  public:
@@ -395,11 +394,7 @@ where an example use looks like:
 using sycl::ext::oneapi;
 
 void foo(int *p) {
-  annotated_ptr<int
-    property_list_t<
-      foo::value_t,
-      bar::value_t<32>>>
-    aptr(p);
+  annotated_ptr<int, decltype(properties{foo, bar<32>})> aptr(p);
 }
 ```
 
@@ -411,13 +406,13 @@ represent the properties.
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list_t<>>
+template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr;
 
 // Partial specialization to make PropertyListT visible as a parameter pack
 // of properties.
 template <typename T, typename ...Props>
-class annotated_ptr<T, property_list<Props...>> {
+class annotated_ptr<T, properties<Props...>> {
   T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_annotations_member(
@@ -437,13 +432,13 @@ Illustrating this with properties from our previous example:
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list_t<>>
+template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr;
 
 // Partial specialization to make PropertyListT visible as a parameter pack
 // of properties.
 template <typename T, typename ...Props>
-class annotated_ptr<T, property_list<Props...>> {
+class annotated_ptr<T, properties<Props...>> {
   T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_annotations_member(
@@ -660,7 +655,7 @@ class __attribute__((sycl_special_class)) accessor<dataT,
                                                    accessmode,
                                                    accessTarget,
                                                    isPlaceholder,
-                                                   property_list<Props...>> {
+                                                   properties<Props...>> {
     T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_annotations_member(

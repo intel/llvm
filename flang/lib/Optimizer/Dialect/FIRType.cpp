@@ -12,6 +12,7 @@
 
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
+#include "flang/Tools/PointerModels.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Diagnostics.h"
@@ -243,6 +244,35 @@ bool hasDynamicSize(mlir::Type t) {
     return true;
   if (auto rec = t.dyn_cast<fir::RecordType>())
     return hasDynamicSize(rec);
+  return false;
+}
+
+bool isPointerType(mlir::Type ty) {
+  if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
+    ty = refTy;
+  if (auto boxTy = ty.dyn_cast<fir::BoxType>())
+    return boxTy.getEleTy().isa<fir::PointerType>();
+  return false;
+}
+
+bool isAllocatableType(mlir::Type ty) {
+  if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
+    ty = refTy;
+  if (auto boxTy = ty.dyn_cast<fir::BoxType>())
+    return boxTy.getEleTy().isa<fir::HeapType>();
+  return false;
+}
+
+bool isRecordWithAllocatableMember(mlir::Type ty) {
+  if (auto recTy = ty.dyn_cast<fir::RecordType>())
+    for (auto [field, memTy] : recTy.getTypeList()) {
+      if (fir::isAllocatableType(memTy))
+        return true;
+      // A record type cannot recursively include itself as a direct member.
+      // There must be an intervening `ptr` type, so recursion is safe here.
+      if (memTy.isa<fir::RecordType>() && isRecordWithAllocatableMember(memTy))
+        return true;
+    }
   return false;
 }
 
@@ -642,12 +672,6 @@ unsigned fir::RecordType::getFieldIndex(llvm::StringRef ident) {
   return std::numeric_limits<unsigned>::max();
 }
 
-std::string fir::RecordType::translateNameToFrontendMangledName() const {
-  auto split = getName().split('T');
-  std::string name = (split.first + "E.dt." + split.second).str();
-  return name;
-}
-
 //===----------------------------------------------------------------------===//
 // ReferenceType
 //===----------------------------------------------------------------------===//
@@ -863,6 +887,14 @@ bool fir::VectorType::isValidElementType(mlir::Type t) {
   return isa_real(t) || isa_integer(t);
 }
 
+bool fir::isCharacterProcedureTuple(mlir::Type ty, bool acceptRawFunc) {
+  mlir::TupleType tuple = ty.dyn_cast<mlir::TupleType>();
+  return tuple && tuple.size() == 2 &&
+         (tuple.getType(0).isa<fir::BoxProcType>() ||
+          (acceptRawFunc && tuple.getType(0).isa<mlir::FunctionType>())) &&
+         fir::isa_integer(tuple.getType(1));
+}
+
 //===----------------------------------------------------------------------===//
 // FIROpsDialect
 //===----------------------------------------------------------------------===//
@@ -873,4 +905,15 @@ void FIROpsDialect::registerTypes() {
            LLVMPointerType, PointerType, RealType, RecordType, ReferenceType,
            SequenceType, ShapeType, ShapeShiftType, ShiftType, SliceType,
            TypeDescType, fir::VectorType>();
+  fir::ReferenceType::attachInterface<PointerLikeModel<fir::ReferenceType>>(
+      *getContext());
+
+  fir::PointerType::attachInterface<PointerLikeModel<fir::PointerType>>(
+      *getContext());
+
+  fir::HeapType::attachInterface<AlternativePointerLikeModel<fir::HeapType>>(
+      *getContext());
+
+  fir::LLVMPointerType::attachInterface<
+      AlternativePointerLikeModel<fir::LLVMPointerType>>(*getContext());
 }

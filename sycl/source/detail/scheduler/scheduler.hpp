@@ -514,14 +514,8 @@ protected:
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
         Command *FinishedCmd,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
-
-    /// Replaces a failed command in the subgraph with an empty command and
-    /// deletes the failed command.
-    void cleanupFailedCommand(
-        Command *FailedCmd,
         std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
-        std::vector<Command *> &ToCleanUp);
+        std::vector<std::shared_ptr<const void>> &);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -547,7 +541,8 @@ protected:
     /// Removes commands that use the given MemObjRecord from the graph.
     void cleanupCommandsForRecord(
         MemObjRecord *Record,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<const void>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -558,8 +553,6 @@ protected:
                          std::vector<Command *> &ToEnqueue);
 
     /// Removes commands from leaves.
-    void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                      std::vector<Command *> &ToCleanUp);
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
                       access::mode AccessMode,
                       std::vector<Command *> &ToCleanUp);

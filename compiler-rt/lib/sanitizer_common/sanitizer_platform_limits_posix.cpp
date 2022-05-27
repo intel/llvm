@@ -218,6 +218,10 @@ namespace __sanitizer {
 
   unsigned ucontext_t_sz(void *ctx) {
 #    if SANITIZER_GLIBC && SANITIZER_X64
+    // Added in Linux kernel 3.4.0, merged to glibc in 2.16
+#      ifndef FP_XSTATE_MAGIC1
+#        define FP_XSTATE_MAGIC1 0x46505853U
+#      endif
     // See kernel arch/x86/kernel/fpu/signal.c for details.
     const auto *fpregs = static_cast<ucontext_t *>(ctx)->uc_mcontext.fpregs;
     // The member names differ across header versions, but the actual layout
@@ -590,6 +594,14 @@ unsigned struct_ElfW_Phdr_sz = sizeof(Elf_Phdr);
   unsigned IOCTL_BLKROGET = BLKROGET;
   unsigned IOCTL_BLKROSET = BLKROSET;
   unsigned IOCTL_BLKRRPART = BLKRRPART;
+  unsigned IOCTL_BLKFRASET = BLKFRASET;
+  unsigned IOCTL_BLKFRAGET = BLKFRAGET;
+  unsigned IOCTL_BLKSECTSET = BLKSECTSET;
+  unsigned IOCTL_BLKSECTGET = BLKSECTGET;
+  unsigned IOCTL_BLKSSZGET = BLKSSZGET;
+  unsigned IOCTL_BLKBSZGET = BLKBSZGET;
+  unsigned IOCTL_BLKBSZSET = BLKBSZSET;
+  unsigned IOCTL_BLKGETSIZE64 = BLKGETSIZE64;
   unsigned IOCTL_CDROMAUDIOBUFSIZ = CDROMAUDIOBUFSIZ;
   unsigned IOCTL_CDROMEJECT = CDROMEJECT;
   unsigned IOCTL_CDROMEJECT_SW = CDROMEJECT_SW;

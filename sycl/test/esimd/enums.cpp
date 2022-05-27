@@ -5,6 +5,7 @@
 
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 
+using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
 void foo() SYCL_ESIMD_FUNCTION {

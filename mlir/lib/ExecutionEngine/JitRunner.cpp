@@ -21,7 +21,7 @@
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Support/FileUtilities.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -36,6 +36,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include <cstdint>
 #include <numeric>
+#include <utility>
 
 using namespace mlir;
 using llvm::Error;
@@ -56,10 +57,6 @@ struct Options {
       llvm::cl::value_desc("f32 | i32 | i64 | void"), llvm::cl::init("f32")};
 
   llvm::cl::OptionCategory optFlags{"opt-like flags"};
-
-  // CLI list of pass information
-  llvm::cl::list<const llvm::PassInfo *, bool, llvm::PassNameParser> llvmPasses{
-      llvm::cl::desc("LLVM optimizing passes to run"), llvm::cl::cat(optFlags)};
 
   // CLI variables for -On options.
   llvm::cl::opt<bool> optO0{"O0",
@@ -94,7 +91,7 @@ struct Options {
 
 struct CompileAndExecuteConfig {
   /// LLVM module transformer that is passed to ExecutionEngine.
-  llvm::function_ref<llvm::Error(llvm::Module *)> transformer;
+  std::function<llvm::Error(llvm::Module *)> transformer;
 
   /// A custom function that is passed to ExecutionEngine. It processes MLIR
   /// module and creates LLVM IR module.
@@ -122,7 +119,7 @@ static OwningOpRef<ModuleOp> parseMLIRInput(StringRef inputFilename,
 
   llvm::SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(file), SMLoc());
-  return OwningOpRef<ModuleOp>(parseSourceFile(sourceMgr, context));
+  return parseSourceFile<ModuleOp>(sourceMgr, context);
 }
 
 static inline Error makeStringError(const Twine &message) {
@@ -209,9 +206,11 @@ static Error compileAndExecute(Options &options, ModuleOp module,
 
   mlir::ExecutionEngineOptions engineOptions;
   engineOptions.llvmModuleBuilder = config.llvmModuleBuilder;
-  engineOptions.transformer = config.transformer;
+  if (config.transformer)
+    engineOptions.transformer = config.transformer;
   engineOptions.jitCodeGenOptLevel = jitCodeGenOptLevel;
   engineOptions.sharedLibPaths = executionEngineLibs;
+  engineOptions.enableObjectCache = true;
   auto expectedEngine = mlir::ExecutionEngine::create(module, engineOptions);
   if (!expectedEngine)
     return expectedEngine.takeError();
@@ -244,14 +243,15 @@ static Error compileAndExecuteVoidFunction(Options &options, ModuleOp module,
   if (!mainFunction || mainFunction.empty())
     return makeStringError("entry point not found");
   void *empty = nullptr;
-  return compileAndExecute(options, module, entryPoint, config, &empty);
+  return compileAndExecute(options, module, entryPoint, std::move(config),
+                           &empty);
 }
 
 template <typename Type>
 Error checkCompatibleReturnType(LLVM::LLVMFuncOp mainFunction);
 template <>
 Error checkCompatibleReturnType<int32_t>(LLVM::LLVMFuncOp mainFunction) {
-  auto resultType = mainFunction.getType()
+  auto resultType = mainFunction.getFunctionType()
                         .cast<LLVM::LLVMFunctionType>()
                         .getReturnType()
                         .dyn_cast<IntegerType>();
@@ -261,7 +261,7 @@ Error checkCompatibleReturnType<int32_t>(LLVM::LLVMFuncOp mainFunction) {
 }
 template <>
 Error checkCompatibleReturnType<int64_t>(LLVM::LLVMFuncOp mainFunction) {
-  auto resultType = mainFunction.getType()
+  auto resultType = mainFunction.getFunctionType()
                         .cast<LLVM::LLVMFunctionType>()
                         .getReturnType()
                         .dyn_cast<IntegerType>();
@@ -271,7 +271,7 @@ Error checkCompatibleReturnType<int64_t>(LLVM::LLVMFuncOp mainFunction) {
 }
 template <>
 Error checkCompatibleReturnType<float>(LLVM::LLVMFuncOp mainFunction) {
-  if (!mainFunction.getType()
+  if (!mainFunction.getFunctionType()
            .cast<LLVM::LLVMFunctionType>()
            .getReturnType()
            .isa<Float32Type>())
@@ -286,7 +286,9 @@ Error compileAndExecuteSingleReturnFunction(Options &options, ModuleOp module,
   if (!mainFunction || mainFunction.isExternal())
     return makeStringError("entry point not found");
 
-  if (mainFunction.getType().cast<LLVM::LLVMFunctionType>().getNumParams() != 0)
+  if (mainFunction.getFunctionType()
+          .cast<LLVM::LLVMFunctionType>()
+          .getNumParams() != 0)
     return makeStringError("function inputs not supported");
 
   if (Error error = checkCompatibleReturnType<Type>(mainFunction))
@@ -297,8 +299,8 @@ Error compileAndExecuteSingleReturnFunction(Options &options, ModuleOp module,
     void *data;
   } data;
   data.data = &res;
-  if (auto error = compileAndExecute(options, module, entryPoint, config,
-                                     (void **)&data))
+  if (auto error = compileAndExecute(options, module, entryPoint,
+                                     std::move(config), (void **)&data))
     return error;
 
   // Intentional printing of the output so we can test.
@@ -319,27 +321,6 @@ int mlir::JitRunnerMain(int argc, char **argv, const DialectRegistry &registry,
   Optional<unsigned> optLevel = getCommandLineOptLevel(options);
   SmallVector<std::reference_wrapper<llvm::cl::opt<bool>>, 4> optFlags{
       options.optO0, options.optO1, options.optO2, options.optO3};
-  unsigned optCLIPosition = 0;
-  // Determine if there is an optimization flag present, and its CLI position
-  // (optCLIPosition).
-  for (unsigned j = 0; j < 4; ++j) {
-    auto &flag = optFlags[j].get();
-    if (flag) {
-      optCLIPosition = flag.getPosition();
-      break;
-    }
-  }
-  // Generate vector of pass information, plus the index at which we should
-  // insert any optimization passes in that vector (optPosition).
-  SmallVector<const llvm::PassInfo *, 4> passes;
-  unsigned optPosition = 0;
-  for (unsigned i = 0, e = options.llvmPasses.size(); i < e; ++i) {
-    passes.push_back(options.llvmPasses[i]);
-    if (optCLIPosition < options.llvmPasses.getPosition(i)) {
-      optPosition = i;
-      optCLIPosition = UINT_MAX; // To ensure we never insert again
-    }
-  }
 
   MLIRContext context(registry);
 
@@ -364,11 +345,11 @@ int mlir::JitRunnerMain(int argc, char **argv, const DialectRegistry &registry,
     return EXIT_FAILURE;
   }
 
-  auto transformer = mlir::makeLLVMPassesTransformer(
-      passes, optLevel, /*targetMachine=*/tmOrError->get(), optPosition);
-
   CompileAndExecuteConfig compileAndExecuteConfig;
-  compileAndExecuteConfig.transformer = transformer;
+  if (optLevel) {
+    compileAndExecuteConfig.transformer = mlir::makeOptimizingTransformer(
+        *optLevel, /*sizeLevel=*/0, /*targetMachine=*/tmOrError->get());
+  }
   compileAndExecuteConfig.llvmModuleBuilder = config.llvmModuleBuilder;
   compileAndExecuteConfig.runtimeSymbolMap = config.runtimesymbolMap;
 

@@ -543,11 +543,7 @@ void ASTStmtWriter::VisitCapturedStmt(CapturedStmt *S) {
 void ASTStmtWriter::VisitExpr(Expr *E) {
   VisitStmt(E);
   Record.AddTypeRef(E->getType());
-  Record.push_back(E->isTypeDependent());
-  Record.push_back(E->isValueDependent());
-  Record.push_back(E->isInstantiationDependent());
-  Record.push_back(E->containsUnexpandedParameterPack());
-  Record.push_back(E->containsErrors());
+  Record.push_back(E->getDependence());
   Record.push_back(E->getValueKind());
   Record.push_back(E->getObjectKind());
 }
@@ -2630,6 +2626,30 @@ void ASTStmtWriter::VisitOMPMaskedDirective(OMPMaskedDirective *D) {
 void ASTStmtWriter::VisitOMPGenericLoopDirective(OMPGenericLoopDirective *D) {
   VisitOMPLoopDirective(D);
   Code = serialization::STMT_OMP_GENERIC_LOOP_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPTeamsGenericLoopDirective(
+    OMPTeamsGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+  Code = serialization::STMT_OMP_TEAMS_GENERIC_LOOP_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPTargetTeamsGenericLoopDirective(
+    OMPTargetTeamsGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+  Code = serialization::STMT_OMP_TARGET_TEAMS_GENERIC_LOOP_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPParallelGenericLoopDirective(
+    OMPParallelGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+  Code = serialization::STMT_OMP_PARALLEL_GENERIC_LOOP_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPTargetParallelGenericLoopDirective(
+    OMPTargetParallelGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+  Code = serialization::STMT_OMP_TARGET_PARALLEL_GENERIC_LOOP_DIRECTIVE;
 }
 
 //===----------------------------------------------------------------------===//

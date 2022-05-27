@@ -238,21 +238,19 @@ getGenericLambdaTemplateParameterList(LambdaScopeInfo *LSI, Sema &SemaRef) {
   return LSI->GLTemplateParameterList;
 }
 
-CXXRecordDecl *Sema::createLambdaClosureType(SourceRange IntroducerRange,
-                                             TypeSourceInfo *Info,
-                                             bool KnownDependent,
-                                             LambdaCaptureDefault CaptureDefault) {
+CXXRecordDecl *
+Sema::createLambdaClosureType(SourceRange IntroducerRange, TypeSourceInfo *Info,
+                              unsigned LambdaDependencyKind,
+                              LambdaCaptureDefault CaptureDefault) {
   DeclContext *DC = CurContext;
   while (!(DC->isFunctionOrMethod() || DC->isRecord() || DC->isFileContext()))
     DC = DC->getParent();
   bool IsGenericLambda = getGenericLambdaTemplateParameterList(getCurLambda(),
                                                                *this);
   // Start constructing the lambda class.
-  CXXRecordDecl *Class = CXXRecordDecl::CreateLambda(Context, DC, Info,
-                                                     IntroducerRange.getBegin(),
-                                                     KnownDependent,
-                                                     IsGenericLambda,
-                                                     CaptureDefault);
+  CXXRecordDecl *Class = CXXRecordDecl::CreateLambda(
+      Context, DC, Info, IntroducerRange.getBegin(), LambdaDependencyKind,
+      IsGenericLambda, CaptureDefault);
   DC->addDecl(Class);
 
   return Class;
@@ -898,17 +896,18 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
 
   // Determine if we're within a context where we know that the lambda will
   // be dependent, because there are template parameters in scope.
-  bool KnownDependent;
+  CXXRecordDecl::LambdaDependencyKind LambdaDependencyKind =
+      CXXRecordDecl::LDK_Unknown;
   if (LSI->NumExplicitTemplateParams > 0) {
     auto *TemplateParamScope = CurScope->getTemplateParamParent();
     assert(TemplateParamScope &&
            "Lambda with explicit template param list should establish a "
            "template param scope");
     assert(TemplateParamScope->getParent());
-    KnownDependent = TemplateParamScope->getParent()
-                                       ->getTemplateParamParent() != nullptr;
-  } else {
-    KnownDependent = CurScope->getTemplateParamParent() != nullptr;
+    if (TemplateParamScope->getParent()->getTemplateParamParent() != nullptr)
+      LambdaDependencyKind = CXXRecordDecl::LDK_AlwaysDependent;
+  } else if (CurScope->getTemplateParamParent() != nullptr) {
+    LambdaDependencyKind = CXXRecordDecl::LDK_AlwaysDependent;
   }
 
   // Determine the signature of the call operator.
@@ -977,8 +976,8 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
                                       UPPC_DeclarationType);
   }
 
-  CXXRecordDecl *Class = createLambdaClosureType(Intro.Range, MethodTyInfo,
-                                                 KnownDependent, Intro.Default);
+  CXXRecordDecl *Class = createLambdaClosureType(
+      Intro.Range, MethodTyInfo, LambdaDependencyKind, Intro.Default);
   CXXMethodDecl *Method =
       startLambdaDefinition(Class, Intro.Range, MethodTyInfo, EndLoc, Params,
                             ParamInfo.getDeclSpec().getConstexprSpecifier(),
@@ -1702,12 +1701,23 @@ FieldDecl *Sema::BuildCaptureField(RecordDecl *RD,
                                    const sema::Capture &Capture) {
   SourceLocation Loc = Capture.getLocation();
   QualType FieldType = Capture.getCaptureType();
+  IdentifierInfo *Id = nullptr;
 
   TypeSourceInfo *TSI = nullptr;
   if (Capture.isVariableCapture()) {
     auto *Var = Capture.getVariable();
     if (Var->isInitCapture())
       TSI = Capture.getVariable()->getTypeSourceInfo();
+
+    // TODO: Upstream this behavior to LLVM project to save
+    // user speciifed names for all lambdas.
+    // For SYCL compilations, save user specified names for
+    // lambda capture.
+    if (getLangOpts().SYCLIsDevice || getLangOpts().SYCLIsHost) {
+      StringRef CaptureName = Var->getName();
+      if (!CaptureName.empty())
+        Id = &Context.Idents.get(CaptureName.str());
+    }
   }
 
   // FIXME: Should we really be doing this? A null TypeSourceInfo seems more
@@ -1717,8 +1727,8 @@ FieldDecl *Sema::BuildCaptureField(RecordDecl *RD,
 
   // Build the non-static data member.
   FieldDecl *Field =
-      FieldDecl::Create(Context, RD, /*StartLoc=*/Loc, /*IdLoc=*/Loc,
-                        /*Id=*/nullptr, FieldType, TSI, /*BW=*/nullptr,
+      FieldDecl::Create(Context, RD, /*StartLoc=*/Loc, /*IdLoc=*/Loc, Id,
+                        FieldType, TSI, /*BW=*/nullptr,
                         /*Mutable=*/false, ICIS_NoInit);
   // If the variable being captured has an invalid type, mark the class as
   // invalid as well.

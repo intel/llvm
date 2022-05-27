@@ -240,9 +240,9 @@ private:
 namespace ext {
 namespace oneapi {
 namespace detail {
-template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-          access::placeholder IsPlaceholder>
-class reduction_impl;
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          class Algorithm>
+class reduction_impl_algo;
 
 using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
@@ -472,12 +472,9 @@ private:
   /// Saves buffers created by handling reduction feature in handler.
   /// They are then forwarded to command group and destroyed only after
   /// the command group finishes the work on device/host.
-  /// The 'MSharedPtrStorage' suits that need.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
-  void addReduction(const std::shared_ptr<const void> &ReduObj) {
-    MSharedPtrStorage.push_back(ReduObj);
-  }
+  void addReduction(const std::shared_ptr<const void> &ReduObj);
 
   ~handler() = default;
 
@@ -660,16 +657,29 @@ private:
         KernelFunc);
   }
 
-  /* 'wrapper'-based approach using 'NormalizedKernelType' struct is
-   * not applied for 'void(void)' type kernel and
-   * 'void(sycl::group<Dims>)'. This is because 'void(void)' type does
-   * not have argument to normalize and 'void(sycl::group<Dims>)' is
-   * not supported in ESIMD.
-   */
-  // For 'void' and 'sycl::group<Dims>' kernel argument
+  // For 'void' kernel argument (single_task)
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, void>::value ||
-                              std::is_same<ArgT, sycl::group<Dims>>::value,
+  typename std::enable_if_t<std::is_same<ArgT, void>::value, KernelType *>
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        (void)Arg;
+        detail::runKernelWithoutArg(MKernelFunc);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  // For 'sycl::group<Dims>' kernel argument
+  // 'wrapper'-based approach using 'NormalizedKernelType' struct is not used
+  // for 'void(sycl::group<Dims>)' since 'void(sycl::group<Dims>)' is not
+  // supported in ESIMD.
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::group<Dims>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
     MHostKernel.reset(
@@ -917,14 +927,11 @@ private:
   }
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = typename std::conditional_t<
-        detail::is_same_v<id<Dims>, LambdaArgType>, LambdaArgType,
-        typename std::conditional_t<
-            detail::is_convertible_v<nd_item<Dims>, LambdaArgType>,
-            nd_item<Dims>,
-            typename std::conditional_t<
-                detail::is_convertible_v<item<Dims>, LambdaArgType>, item<Dims>,
-                LambdaArgType>>>;
+    using type = typename std::conditional<
+        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
+        typename std::conditional<
+            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
+            LambdaArgType>::type>::type;
   };
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1267,6 +1274,7 @@ private:
   }
 
   std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
+  std::shared_ptr<detail::handler_impl> evictHandlerImpl() const;
 
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
@@ -1438,7 +1446,7 @@ public:
     // known constant.
     MNDRDesc.set(range<1>{1});
 
-    StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
+    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CG::Kernel);
 #endif
   }
@@ -2046,7 +2054,7 @@ public:
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
-      StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
+      StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif
@@ -2414,8 +2422,11 @@ public:
                   "Invalid source accessor mode for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
                   "Invalid destination accessor mode for the copy method.");
-    assert(Dst.get_size() >= Src.get_size() &&
-           "The destination accessor does not fit the copied memory.");
+    if (Dst.get_size() < Src.get_size())
+      throw sycl::invalid_object_error(
+          "The destination accessor size is too small to copy the memory into.",
+          CL_INVALID_OPERATION);
+
     if (copyAccToAccHelper(Src, Dst))
       return;
     setType(detail::CG::CopyAccToAcc);
@@ -2671,11 +2682,11 @@ private:
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
-  // Make reduction_impl friend to store buffers and arrays created for it
-  // in handler from reduction_impl methods.
-  template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-            access::placeholder IsPlaceholder>
-  friend class ext::oneapi::detail::reduction_impl;
+  // Make reduction friends to store buffers and arrays created for it
+  // in handler from reduction methods.
+  template <typename T, class BinaryOperation, int Dims, size_t Extent,
+            class Algorithm>
+  friend class ext::oneapi::detail::reduction_impl_algo;
 
   // This method needs to call the method finalize().
   template <typename Reduction, typename... RestT>

@@ -376,6 +376,20 @@ define <4 x i32> @combine_vec_add_add_not(<4 x i32> %a, <4 x i32> %b) {
   ret <4 x i32> %r
 }
 
+define i32 @combine_add_adc_constant(i32 %x, i32 %y, i32 %z) {
+; CHECK-LABEL: combine_add_adc_constant:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    btl $7, %edx
+; CHECK-NEXT:    adcl $32, %eax
+; CHECK-NEXT:    retq
+  %and = lshr i32 %z, 7
+  %bit = and i32 %and, 1
+  %add = add i32 %x, 32
+  %r = add i32 %add, %bit
+  ret i32 %r
+}
+
 declare {i32, i1} @llvm.sadd.with.overflow.i32(i32 %a, i32 %b)
 
 define i1 @sadd_add(i32 %a, i32 %b, i32* %p) {
@@ -424,9 +438,10 @@ define i1 @PR51238(i1 %b, i8 %x, i8 %y, i8 %z) {
 ; CHECK-LABEL: PR51238:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    notb %cl
+; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    addb %dl, %cl
-; CHECK-NEXT:    movb $1, %al
-; CHECK-NEXT:    adcb $0, %al
+; CHECK-NEXT:    adcb $1, %al
+; CHECK-NEXT:    # kill: def $al killed $al killed $eax
 ; CHECK-NEXT:    retq
    %ny = xor i8 %y, -1
    %nz = xor i8 %z, -1

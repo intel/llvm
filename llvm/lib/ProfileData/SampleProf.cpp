@@ -19,9 +19,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/LEB128.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/raw_ostream.h"
 #include <string>
@@ -44,8 +42,8 @@ cl::opt<bool> GenerateMergedBaseProfiles(
 namespace llvm {
 namespace sampleprof {
 bool FunctionSamples::ProfileIsProbeBased = false;
-bool FunctionSamples::ProfileIsCSFlat = false;
-bool FunctionSamples::ProfileIsCSNested = false;
+bool FunctionSamples::ProfileIsCS = false;
+bool FunctionSamples::ProfileIsPreInlined = false;
 bool FunctionSamples::UseMD5 = false;
 bool FunctionSamples::HasUniqSuffix = true;
 bool FunctionSamples::ProfileIsFS = false;
@@ -87,8 +85,6 @@ class SampleProfErrorCategoryType : public std::error_category {
       return "Counter overflow";
     case sampleprof_error::ostream_seek_unsupported:
       return "Ostream does not support seek";
-    case sampleprof_error::compress_failed:
-      return "Compress failure";
     case sampleprof_error::uncompress_failed:
       return "Uncompress failure";
     case sampleprof_error::zlib_unavailable:
@@ -538,11 +534,6 @@ void CSProfileConverter::convertProfiles(CSProfileConverter::FrameNode &Node) {
       SamplesMap[ChildProfile->getName().str()].getContext().setAttribute(
           ContextDuplicatedIntoBase);
     }
-
-    // Contexts coming with a `ContextShouldBeInlined` attribute indicate this
-    // is a preinliner-computed profile.
-    if (OrigChildContext.hasAttribute(ContextShouldBeInlined))
-      FunctionSamples::ProfileIsCSNested = true;
 
     // Remove the original child profile.
     ProfileMap.erase(OrigChildContext);

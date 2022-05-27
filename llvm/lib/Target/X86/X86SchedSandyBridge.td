@@ -111,6 +111,7 @@ def : WriteRes<WriteStore,   [SBPort23, SBPort4]>;
 def : WriteRes<WriteStoreNT, [SBPort23, SBPort4]>;
 def : WriteRes<WriteLoad,    [SBPort23]> { let Latency = 5; }
 def : WriteRes<WriteMove,    [SBPort015]>;
+def : InstRW<[WriteMove], (instrs COPY)>;
 def : WriteRes<WriteZero,    []>;
 def : WriteRes<WriteVecMaskedGatherWriteback, []> { let Latency = 5; let NumMicroOps = 0; }
 
@@ -816,8 +817,7 @@ def SBWriteResGroup48 : SchedWriteRes<[SBPort23]> {
   let NumMicroOps = 1;
   let ResourceCycles = [1];
 }
-def: InstRW<[SBWriteResGroup48], (instrs MMX_MOVD64from64rm,
-                                         VBROADCASTSSrm)>;
+def: InstRW<[SBWriteResGroup48], (instrs VBROADCASTSSrm)>;
 def: InstRW<[SBWriteResGroup48], (instregex "POP(16|32|64)r",
                                             "(V?)MOV64toPQIrm",
                                             "(V?)MOVDDUPrm",

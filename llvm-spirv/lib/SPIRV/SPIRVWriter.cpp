@@ -231,6 +231,18 @@ bool LLVMToSPIRVBase::isBuiltinTransToExtInst(
   return true;
 }
 
+bool isUniformGroupOperation(Function *F) {
+  auto Name = F->getName();
+  if (Name.contains("GroupIMulKHR") || Name.contains("GroupFMulKHR") ||
+      Name.contains("GroupBitwiseAndKHR") ||
+      Name.contains("GroupBitwiseOrKHR") ||
+      Name.contains("GroupBitwiseXorKHR") ||
+      Name.contains("GroupLogicalAndKHR") ||
+      Name.contains("GroupLogicalOrKHR") || Name.contains("GroupLogicalXorKHR"))
+    return true;
+  return false;
+}
+
 static bool recursiveType(const StructType *ST, const Type *Ty) {
   SmallPtrSet<const StructType *, 4> Seen;
 
@@ -329,8 +341,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     if (!BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_usm_storage_classes) &&
         ((AddrSpc == SPIRAS_GlobalDevice) || (AddrSpc == SPIRAS_GlobalHost))) {
-      auto NewType =
-          PointerType::get(T->getPointerElementType(), SPIRAS_Global);
+      auto *NewType = PointerType::getWithSamePointeeType(cast<PointerType>(T),
+                                                          SPIRAS_Global);
       return mapType(T, transType(NewType));
     }
     if (ST && !ST->isSized()) {
@@ -560,6 +572,8 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVJointMatrixINTELType(
     ElemTy = Type::getFloatTy(M->getContext());
   else if (Ty == "double")
     ElemTy = Type::getDoubleTy(M->getContext());
+  else if (Ty == "bfloat16")
+    ElemTy = Type::getInt16Ty(M->getContext());
   else
     llvm_unreachable("Unexpected type for matrix!");
 
@@ -568,12 +582,10 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVJointMatrixINTELType(
     consumeUnsignedInteger(Postfix, 10, N);
     return getUInt32(M, N);
   };
-  SPIRVValue *Rows = transConstant(ParseInteger(Postfixes[1]));
-  SPIRVValue *Columns = transConstant(ParseInteger(Postfixes[2]));
-  SPIRVValue *Layout = transConstant(ParseInteger(Postfixes[3]));
-  SPIRVValue *Scope = transConstant(ParseInteger(Postfixes[4]));
-  return mapType(T, BM->addJointMatrixINTELType(transType(ElemTy), Rows,
-                                                Columns, Layout, Scope));
+  std::vector<SPIRVValue *> Args;
+  for (size_t I = 1; I != Postfixes.size(); ++I)
+    Args.emplace_back(transConstant(ParseInteger(Postfixes[I])));
+  return mapType(T, BM->addJointMatrixINTELType(transType(ElemTy), Args));
 }
 
 SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(Type *T) {
@@ -651,8 +663,15 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
   SPIRVFunction *BF =
       static_cast<SPIRVFunction *>(mapValue(F, BM->addFunction(BFT)));
   BF->setFunctionControlMask(transFunctionControlMask(F));
-  if (F->hasName())
+  if (F->hasName()) {
+    if (isUniformGroupOperation(F))
+      BM->getErrorLog().checkError(
+          BM->isAllowedToUseExtension(
+              ExtensionID::SPV_KHR_uniform_group_instructions),
+          SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
+
     BM->setName(BF, F->getName().str());
+  }
   if (isKernel(F))
     BM->addEntryPoint(ExecutionModelKernel, BF->getId());
   else if (F->getLinkage() != GlobalValue::InternalLinkage)
@@ -2069,9 +2088,11 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
 
 #define ONE_STRING_DECORATION_CASE(NAME, NAMESPACE)                            \
   case NAMESPACE::Decoration##NAME: {                                          \
-    assert(NumOperands == 2 && #NAME " requires exactly 1 extra operand");     \
+    ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,             \
+                      #NAME " requires exactly 1 extra operand");              \
     auto *StrDecoEO = dyn_cast<MDString>(DecoMD->getOperand(1));               \
-    assert(StrDecoEO &&#NAME " requires extra operand to be a string");        \
+    ErrLog.checkError(StrDecoEO, SPIRVEC_InvalidLlvmModule,                    \
+                      #NAME " requires extra operand to be a string");         \
     Target->addDecorate(                                                       \
         new SPIRVDecorate##NAME##Attr(Target, StrDecoEO->getString().str()));  \
     break;                                                                     \
@@ -2079,10 +2100,12 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
 
 #define ONE_INT_DECORATION_CASE(NAME, NAMESPACE, TYPE)                         \
   case NAMESPACE::Decoration##NAME: {                                          \
-    assert(NumOperands == 2 && #NAME " requires exactly 1 extra operand");     \
+    ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,             \
+                      #NAME " requires exactly 1 extra operand");              \
     auto *IntDecoEO =                                                          \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));              \
-    assert(IntDecoEO &&#NAME " requires extra operand to be an integer");      \
+    ErrLog.checkError(IntDecoEO, SPIRVEC_InvalidLlvmModule,                    \
+                      #NAME " requires extra operand to be an integer");       \
     Target->addDecorate(new SPIRVDecorate##NAME(                               \
         Target, static_cast<TYPE>(IntDecoEO->getZExtValue())));                \
     break;                                                                     \
@@ -2090,15 +2113,17 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
 
 #define TWO_INT_DECORATION_CASE(NAME, NAMESPACE, TYPE1, TYPE2)                 \
   case NAMESPACE::Decoration##NAME: {                                          \
-    assert(NumOperands == 3 && #NAME " requires exactly 2 extra operand");     \
+    ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,             \
+                      #NAME " requires exactly 2 extra operands");             \
     auto *IntDecoEO1 =                                                         \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));              \
-    assert(IntDecoEO1 &&#NAME                                                  \
-           " requires first extra operand to be an integer");                  \
+    ErrLog.checkError(IntDecoEO1, SPIRVEC_InvalidLlvmModule,                   \
+                      #NAME " requires first extra operand to be an integer"); \
     auto *IntDecoEO2 =                                                         \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));              \
-    assert(IntDecoEO2 &&#NAME                                                  \
-           " requires second extra operand to be an integer");                 \
+    ErrLog.checkError(IntDecoEO2, SPIRVEC_InvalidLlvmModule,                   \
+                      #NAME                                                    \
+                      " requires second extra operand to be an integer");      \
     Target->addDecorate(new SPIRVDecorate##NAME(                               \
         Target, static_cast<TYPE1>(IntDecoEO1->getZExtValue()),                \
         static_cast<TYPE2>(IntDecoEO2->getZExtValue())));                      \
@@ -2119,16 +2144,20 @@ void checkIsGlobalVar(SPIRVEntry *E, Decoration Dec) {
 }
 
 static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
+  SPIRVErrorLog &ErrLog = Target->getErrorLog();
+
   auto *ArgDecoMD = dyn_cast<MDNode>(MD);
   assert(ArgDecoMD && "Decoration list must be a metadata node");
   for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
     auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
-    assert(DecoMD && "Decoration does not name metadata");
-    assert(DecoMD->getNumOperands() > 0 &&
-           "Decoration metadata must have at least one operand");
+    ErrLog.checkError(DecoMD, SPIRVEC_InvalidLlvmModule,
+                      "Decoration does not name metadata");
+    ErrLog.checkError(DecoMD->getNumOperands() > 0, SPIRVEC_InvalidLlvmModule,
+                      "Decoration metadata must have at least one operand");
     auto *DecoKindConst =
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(0));
-    assert(DecoKindConst && "First operand of decoration must be the kind");
+    ErrLog.checkError(DecoKindConst, SPIRVEC_InvalidLlvmModule,
+                      "First operand of decoration must be the kind");
     auto DecoKind = static_cast<Decoration>(DecoKindConst->getZExtValue());
 
     const size_t NumOperands = DecoMD->getNumOperands();
@@ -2155,25 +2184,31 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       break;
     }
     case DecorationMergeINTEL: {
-      assert(NumOperands == 3 && "MergeINTEL requires exactly 3 extra operand");
+      ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
+                        "MergeINTEL requires exactly 3 extra operands");
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(1));
-      assert(Name && "MergeINTEL requires first extra operand to be a string");
+      ErrLog.checkError(
+          Name, SPIRVEC_InvalidLlvmModule,
+          "MergeINTEL requires first extra operand to be a string");
       auto *Direction = dyn_cast<MDString>(DecoMD->getOperand(2));
-      assert(Direction &&
-             "MergeINTEL requires second extra operand to be a string");
+      ErrLog.checkError(
+          Direction, SPIRVEC_InvalidLlvmModule,
+          "MergeINTEL requires second extra operand to be a string");
       Target->addDecorate(new SPIRVDecorateMergeINTELAttr(
           Target, Name->getString().str(), Direction->getString().str()));
       break;
     }
     case DecorationLinkageAttributes: {
-      assert(NumOperands == 3 &&
-             "LinkageAttributes requires exactly 3 extra operand");
+      ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
+                        "LinkageAttributes requires exactly 3 extra operands");
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(1));
-      assert(Name &&
-             "LinkageAttributes requires first extra operand to be a string");
+      ErrLog.checkError(
+          Name, SPIRVEC_InvalidLlvmModule,
+          "LinkageAttributes requires first extra operand to be a string");
       auto *Type = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
-      assert(Type &&
-             "LinkageAttributes requires second extra operand to be an int");
+      ErrLog.checkError(
+          Type, SPIRVEC_InvalidLlvmModule,
+          "LinkageAttributes requires second extra operand to be an int");
       auto TypeKind = static_cast<SPIRVLinkageTypeKind>(Type->getZExtValue());
       Target->addDecorate(new SPIRVDecorateLinkageAttr(
           Target, Name->getString().str(), TypeKind));
@@ -2182,15 +2217,18 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
     case spv::internal::DecorationHostAccessINTEL: {
       checkIsGlobalVar(Target, DecoKind);
 
-      assert(NumOperands == 3 && "HostAccessINTEL requires 2 extra operands "
-                                 "after the decoration kind number");
+      ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
+                        "HostAccessINTEL requires exactly 2 extra operands "
+                        "after the decoration kind number");
       auto *AccessMode =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      assert(AccessMode &&
-             "HostAccessINTEL requires first extra operand to be an int");
+      ErrLog.checkError(
+          AccessMode, SPIRVEC_InvalidLlvmModule,
+          "HostAccessINTEL requires first extra operand to be an int");
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(2));
-      assert(Name &&
-             "HostAccessINTEL requires second extra operand to be a string");
+      ErrLog.checkError(
+          Name, SPIRVEC_InvalidLlvmModule,
+          "HostAccessINTEL requires second extra operand to be a string");
 
       Target->addDecorate(new SPIRVDecorateHostAccessINTEL(
           Target, AccessMode->getZExtValue(), Name->getString().str()));
@@ -2198,15 +2236,17 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
     }
     case spv::internal::DecorationInitModeINTEL: {
       checkIsGlobalVar(Target, DecoKind);
-      assert(static_cast<SPIRVVariable *>(Target)->getInitializer() &&
-             "InitModeINTEL only be applied to a global (module scope) "
-             "variable which has an Initializer operand");
+      ErrLog.checkError(static_cast<SPIRVVariable *>(Target)->getInitializer(),
+                        SPIRVEC_InvalidLlvmModule,
+                        "InitModeINTEL only be applied to a global (module "
+                        "scope) variable which has an Initializer operand");
 
-      assert(NumOperands == 2 &&
-             "InitModeINTEL requires exactly 1 extra operand");
+      ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+                        "InitModeINTEL requires exactly 1 extra operand");
       auto *Trigger = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      assert(Trigger &&
-             "InitModeINTEL requires extra operand to be an integer");
+      ErrLog.checkError(
+          Trigger, SPIRVEC_InvalidLlvmModule,
+          "InitModeINTEL requires extra operand to be an integer");
 
       Target->addDecorate(
           new SPIRVDecorateInitModeINTEL(Target, Trigger->getZExtValue()));
@@ -2214,12 +2254,12 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
     }
     case spv::internal::DecorationImplementInCSRINTEL: {
       checkIsGlobalVar(Target, DecoKind);
-
-      assert(NumOperands == 2 &&
-             "ImplementInCSRINTEL requires exactly 1 extra operand");
+      ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+                        "ImplementInCSRINTEL requires exactly 1 extra operand");
       auto *Value = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      assert(Value &&
-             "ImplementInCSRINTEL requires extra operand to be an integer");
+      ErrLog.checkError(
+          Value, SPIRVEC_InvalidLlvmModule,
+          "ImplementInCSRINTEL requires extra operand to be an integer");
 
       Target->addDecorate(
           new SPIRVDecorateImplementInCSRINTEL(Target, Value->getZExtValue()));
@@ -2233,8 +2273,9 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
 
       auto *DecoValEO1 =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      assert(DecoValEO1 &&
-             "First extra operand in default decoration case must be integer.");
+      ErrLog.checkError(
+          DecoValEO1, SPIRVEC_InvalidLlvmModule,
+          "First extra operand in default decoration case must be integer.");
       if (NumOperands == 2) {
         Target->addDecorate(
             new SPIRVDecorate(DecoKind, Target, DecoValEO1->getZExtValue()));
@@ -2243,9 +2284,12 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
 
       auto *DecoValEO2 =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
-      assert(DecoValEO2 &&
-             "First extra operand in default decoration case must be integer.");
-      assert(NumOperands == 3 && "At most 2 extra operands expected.");
+      ErrLog.checkError(
+          DecoValEO2, SPIRVEC_InvalidLlvmModule,
+          "Second extra operand in default decoration case must be integer.");
+
+      ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
+                        "At most 2 extra operands expected.");
       Target->addDecorate(new SPIRVDecorate(DecoKind, Target,
                                             DecoValEO1->getZExtValue(),
                                             DecoValEO2->getZExtValue()));
@@ -2495,7 +2539,8 @@ SPIRVValue *LLVMToSPIRVBase::oclTransSpvcCastSampler(CallInst *CI,
   return BV;
 }
 
-using DecorationsInfoVec = std::vector<std::pair<Decoration, std::string>>;
+using DecorationsInfoVec =
+    std::vector<std::pair<Decoration, std::vector<std::string>>>;
 
 struct AnnotationDecorations {
   DecorationsInfoVec MemoryAttributesVec;
@@ -2518,17 +2563,21 @@ struct IntelLSUControlsInfo {
     DecorationsInfoVec ResultVec;
     // Simple flags
     if (BurstCoalesce)
-      ResultVec.emplace_back(DecorationBurstCoalesceINTEL, "");
+      ResultVec.emplace_back(DecorationBurstCoalesceINTEL,
+                             std::vector<std::string>());
     if (DontStaticallyCoalesce)
-      ResultVec.emplace_back(DecorationDontStaticallyCoalesceINTEL, "");
+      ResultVec.emplace_back(DecorationDontStaticallyCoalesceINTEL,
+                             std::vector<std::string>());
     // Conditional values
     if (CacheSizeInfo.hasValue()) {
-      ResultVec.emplace_back(DecorationCacheSizeINTEL,
-                             std::to_string(CacheSizeInfo.getValue()));
+      ResultVec.emplace_back(
+          DecorationCacheSizeINTEL,
+          std::vector<std::string>{std::to_string(CacheSizeInfo.getValue())});
     }
     if (PrefetchInfo.hasValue()) {
-      ResultVec.emplace_back(DecorationPrefetchINTEL,
-                             std::to_string(PrefetchInfo.getValue()));
+      ResultVec.emplace_back(
+          DecorationPrefetchINTEL,
+          std::vector<std::string>{std::to_string(PrefetchInfo.getValue())});
     }
     return ResultVec;
   }
@@ -2564,6 +2613,17 @@ void processOptionalAnnotationInfo(Constant *Const,
         AnnotationString += std::to_string(CInt->getSExtValue());
       }
     }
+  } else if (auto *ZeroStruct =
+                 dyn_cast<ConstantAggregateZero>(Const->getOperand(0))) {
+    // It covers case when all elements of struct are 0 and they become
+    // zeroinitializer. It represents like: { i32 i32 ... } zeroinitializer
+    uint32_t NumOperands = ZeroStruct->getType()->getStructNumElements();
+    AnnotationString += ": ";
+    AnnotationString += "0";
+    for (uint32_t I = 1; I != NumOperands; ++I) {
+      AnnotationString += ", ";
+      AnnotationString += "0";
+    }
   }
 }
 
@@ -2582,35 +2642,89 @@ void processAnnotationString(IntrinsicInst *II, std::string &AnnotationString) {
       processOptionalAnnotationInfo(C, AnnotationString);
 }
 
+// Try to parse the annotation decoration values in a string. These values must
+// be separated by a "," and must be either a word (including numbers) or a
+// quotation mark enclosed string.
+static bool tryParseAnnotationDecoValues(StringRef ValueStr,
+                                         std::vector<std::string> &ParsedArgs) {
+  unsigned ValueStart = 0;
+  bool IsParsingStringLiteral = false;
+  for (unsigned I = 0; I < ValueStr.size(); ++I) {
+    const char CurrentC = ValueStr[I];
+    if (IsParsingStringLiteral) {
+      if (CurrentC == '"') {
+        // We have reached the end of a string literal and have the arg string
+        // between this character and the start of the string literal.
+        IsParsingStringLiteral = false;
+        ParsedArgs.push_back(ValueStr.substr(ValueStart, I - ValueStart).str());
+        // End of a string literal must either be at the end of the values or
+        // right before a comma.
+        if (I + 1 != ValueStr.size() && ValueStr[I + 1] != ',')
+          return false;
+        // Skip the , delimiter and go directly to the start of next value.
+        ValueStart = (++I) + 1;
+      }
+      continue;
+    }
+    if (CurrentC == ',') {
+      // Since we are not currently in a string literal, comma denotes a
+      // separation of decoration arguments and we can copy the substring we are
+      // currently parsing.
+      ParsedArgs.push_back(ValueStr.substr(ValueStart, I - ValueStart).str());
+      ValueStart = I + 1;
+      continue;
+    }
+    if (CurrentC == '"') {
+      // We are entering a string literal. This must be either at the beginning
+      // of the values or right after a comma.
+      if (I != 0 && ValueStr[I - 1] != ',')
+        return false;
+      IsParsingStringLiteral = true;
+      ValueStart = I + 1;
+      continue;
+    }
+    // Any other character will be consumed as part of the argument.
+  }
+  // If we were still parsing a decoration argument when reaching the end of the
+  // parsed string, we must be at the end of the argument.
+  if (ValueStart < ValueStr.size())
+    ParsedArgs.push_back(
+        ValueStr.substr(ValueStart, ValueStr.size() - ValueStart).str());
+
+  // At the end, the arguments parsed are valid if we were not parsing a string
+  // literal with no end.
+  return !IsParsingStringLiteral;
+}
+
 AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
                                                StringRef AnnotatedCode) {
   AnnotationDecorations Decorates;
-  const bool AllowFPGAMemAccesses =
-      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_memory_accesses);
-  const bool AllowFPGAMemAttr = BM->isAllowedToUseExtension(
-      ExtensionID::SPV_INTEL_fpga_memory_attributes);
-  if (!AllowFPGAMemAccesses && !AllowFPGAMemAttr) {
-    Decorates.MemoryAttributesVec.emplace_back(DecorationUserSemantic,
-                                               AnnotatedCode.str());
-    return Decorates;
-  }
 
-  IntelLSUControlsInfo LSUControls;
-
-  // Intel FPGA decorations are separated into
-  // {word} OR {word:value,value,...} blocks
-  std::regex DecorationRegex("\\{[\\w:,-]+\\}");
+  // Annotation string decorations are separated into {word} OR
+  // {word:value,value,...} blocks, where value is either a word (including
+  // numbers) or a quotation mark enclosed string.
+  std::regex DecorationRegex("\\{\\w([\\w:,-]|\"[^\"]*\")*\\}");
   using RegexIterT = std::regex_iterator<StringRef::const_iterator>;
   RegexIterT DecorationsIt(AnnotatedCode.begin(), AnnotatedCode.end(),
                            DecorationRegex);
   RegexIterT DecorationsEnd;
-  // If we didn't find any FPGA specific annotations that are seprated as
-  // described above, then add a UserSemantic decoration
-  if (DecorationsIt == DecorationsEnd)
-    Decorates.MemoryAttributesVec.emplace_back(DecorationUserSemantic,
-                                               AnnotatedCode.str());
-  bool IntelFPGADecorationFound = false;
-  DecorationsInfoVec IntelFPGADecorationsVec;
+
+  // If we didn't find any annotations that are separated as described above,
+  // then add a UserSemantic decoration
+  if (DecorationsIt == DecorationsEnd) {
+    Decorates.MemoryAttributesVec.emplace_back(
+        DecorationUserSemantic, std::vector<std::string>{AnnotatedCode.str()});
+    return Decorates;
+  }
+
+  const bool AllowFPGAMemAccesses =
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_memory_accesses);
+  const bool AllowFPGAMemAttr = BM->isAllowedToUseExtension(
+      ExtensionID::SPV_INTEL_fpga_memory_attributes);
+
+  bool ValidDecorationFound = false;
+  DecorationsInfoVec DecorationsVec;
+  IntelLSUControlsInfo LSUControls;
   for (; DecorationsIt != DecorationsEnd; ++DecorationsIt) {
     // Drop the braces surrounding the actual decoration
     const StringRef AnnotatedDecoration = AnnotatedCode.substr(
@@ -2618,16 +2732,29 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
 
     std::pair<StringRef, StringRef> Split = AnnotatedDecoration.split(':');
     StringRef Name = Split.first, ValueStr = Split.second;
+
+    unsigned DecorationKind = 0;
+    if (!Name.getAsInteger(10, DecorationKind)) {
+      // If the name is a number it represents the decoration by its kind.
+      std::vector<std::string> DecValues;
+      if (tryParseAnnotationDecoValues(ValueStr, DecValues)) {
+        ValidDecorationFound = true;
+        DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
+                                    std::move(DecValues));
+      }
+      continue;
+    }
+
     if (AllowFPGAMemAccesses) {
       if (Name == "params") {
-        IntelFPGADecorationFound = true;
+        ValidDecorationFound = true;
         unsigned ParamsBitMask = 0;
         bool Failure = ValueStr.getAsInteger(10, ParamsBitMask);
         assert(!Failure && "Non-integer LSU controls value");
         (void)Failure;
         LSUControls.setWithBitMask(ParamsBitMask);
       } else if (Name == "cache-size") {
-        IntelFPGADecorationFound = true;
+        ValidDecorationFound = true;
         if (!LSUControls.CacheSizeInfo.hasValue())
           continue;
         unsigned CacheSizeValue = 0;
@@ -2638,18 +2765,18 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
       } // TODO: Support LSU prefetch size, which currently defaults to 0
     }
     if (AllowFPGAMemAttr) {
-      StringRef Annotation;
+      std::vector<std::string> DecValues;
       Decoration Dec;
       if (Name == "pump") {
-        IntelFPGADecorationFound = true;
+        ValidDecorationFound = true;
         Dec = llvm::StringSwitch<Decoration>(ValueStr)
                   .Case("1", DecorationSinglepumpINTEL)
                   .Case("2", DecorationDoublepumpINTEL);
       } else if (Name == "register") {
-        IntelFPGADecorationFound = true;
+        ValidDecorationFound = true;
         Dec = DecorationRegisterINTEL;
       } else if (Name == "simple_dual_port") {
-        IntelFPGADecorationFound = true;
+        ValidDecorationFound = true;
         Dec = DecorationSimpleDualPortINTEL;
       } else {
         Dec = llvm::StringSwitch<Decoration>(Name)
@@ -2663,37 +2790,47 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
                   .Case("force_pow2_depth", DecorationForcePow2DepthINTEL)
                   .Default(DecorationUserSemantic);
         if (Dec == DecorationUserSemantic)
-          Annotation = AnnotatedDecoration;
-        else {
-          IntelFPGADecorationFound = true;
-          Annotation = ValueStr;
+          DecValues = std::vector<std::string>({AnnotatedDecoration.str()});
+        else if (Dec == DecorationMergeINTEL) {
+          ValidDecorationFound = true;
+          std::pair<StringRef, StringRef> MergeValues = ValueStr.split(':');
+          DecValues = std::vector<std::string>(
+              {MergeValues.first.str(), MergeValues.second.str()});
+        } else if (Dec == DecorationBankBitsINTEL) {
+          ValidDecorationFound = true;
+          SmallVector<StringRef, 4> BitsStrs;
+          ValueStr.split(BitsStrs, ',');
+          DecValues.reserve(BitsStrs.size());
+          for (const StringRef &BitsStr : BitsStrs)
+            DecValues.push_back(BitsStr.str());
+        } else {
+          ValidDecorationFound = true;
+          DecValues = std::vector<std::string>({ValueStr.str()});
         }
       }
-      IntelFPGADecorationsVec.emplace_back(Dec, Annotation.str());
+      DecorationsVec.emplace_back(Dec, std::move(DecValues));
     }
   }
   // Even if there is an annotation string that is split in blocks like Intel
   // FPGA annotation, it's not necessarily an FPGA annotation. Translate the
   // whole string as UserSemantic decoration in this case.
-  if (IntelFPGADecorationFound)
-    Decorates.MemoryAttributesVec = IntelFPGADecorationsVec;
+  if (ValidDecorationFound)
+    Decorates.MemoryAttributesVec = DecorationsVec;
   else
-    Decorates.MemoryAttributesVec.emplace_back(DecorationUserSemantic,
-                                               AnnotatedCode.str());
+    Decorates.MemoryAttributesVec.emplace_back(
+        DecorationUserSemantic,
+        std::vector<std::string>({AnnotatedCode.str()}));
   Decorates.MemoryAccessesVec = LSUControls.getDecorationsFromCurrentState();
 
   return Decorates;
 }
 
-std::vector<SPIRVWord> getBankBitsFromString(StringRef S) {
-  SmallVector<StringRef, 4> BitsString;
-  S.split(BitsString, ',');
-
-  std::vector<SPIRVWord> Bits(BitsString.size());
-  for (size_t J = 0; J < BitsString.size(); ++J)
-    if (BitsString[J].getAsInteger(10, Bits[J]))
+std::vector<SPIRVWord>
+getBankBitsFromStrings(const std::vector<std::string> &BitsStrings) {
+  std::vector<SPIRVWord> Bits(BitsStrings.size());
+  for (size_t J = 0; J < BitsStrings.size(); ++J)
+    if (StringRef(BitsStrings[J]).getAsInteger(10, Bits[J]))
       return {};
-
   return Bits;
 }
 
@@ -2707,27 +2844,40 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
 
     switch (I.first) {
     case DecorationUserSemantic:
-      E->addDecorate(new SPIRVDecorateUserSemanticAttr(E, I.second));
+      M->getErrorLog().checkError(I.second.size() == 1,
+                                  SPIRVEC_InvalidLlvmModule,
+                                  "UserSemantic requires a single argument.");
+      E->addDecorate(new SPIRVDecorateUserSemanticAttr(E, I.second[0]));
       break;
     case DecorationMemoryINTEL: {
       if (M->isAllowedToUseExtension(
-              ExtensionID::SPV_INTEL_fpga_memory_attributes))
-        E->addDecorate(new SPIRVDecorateMemoryINTELAttr(E, I.second));
+              ExtensionID::SPV_INTEL_fpga_memory_attributes)) {
+        M->getErrorLog().checkError(I.second.size() == 1,
+                                    SPIRVEC_InvalidLlvmModule,
+                                    "MemoryINTEL requires a single argument.");
+        E->addDecorate(new SPIRVDecorateMemoryINTELAttr(E, I.second[0]));
+      }
     } break;
     case DecorationMergeINTEL: {
       if (M->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_fpga_memory_attributes)) {
-        StringRef Name = StringRef(I.second).split(':').first;
-        StringRef Direction = StringRef(I.second).split(':').second;
+        M->getErrorLog().checkError(I.second.size() == 2,
+                                    SPIRVEC_InvalidLlvmModule,
+                                    "MergeINTEL requires two arguments.");
+        // First argument is the name and the second argument is the direction.
         E->addDecorate(
-            new SPIRVDecorateMergeINTELAttr(E, Name.str(), Direction.str()));
+            new SPIRVDecorateMergeINTELAttr(E, I.second[0], I.second[1]));
       }
     } break;
     case DecorationBankBitsINTEL: {
       if (M->isAllowedToUseExtension(
-              ExtensionID::SPV_INTEL_fpga_memory_attributes))
+              ExtensionID::SPV_INTEL_fpga_memory_attributes)) {
+        M->getErrorLog().checkError(
+            I.second.size() > 0, SPIRVEC_InvalidLlvmModule,
+            "BankBitsINTEL requires at least one argument.");
         E->addDecorate(new SPIRVDecorateBankBitsINTELAttr(
-            E, getBankBitsFromString(I.second)));
+            E, getBankBitsFromStrings(I.second)));
+      }
     } break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
@@ -2735,7 +2885,8 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
     case DecorationSimpleDualPortINTEL: {
       if (M->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_fpga_memory_attributes)) {
-        assert(I.second.empty());
+        M->getErrorLog().checkError(I.second.empty(), SPIRVEC_InvalidLlvmModule,
+                                    "Decoration takes no arguments.");
         E->addDecorate(I.first);
       }
     } break;
@@ -2743,7 +2894,8 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
     case DecorationDontStaticallyCoalesceINTEL: {
       if (M->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_fpga_memory_accesses)) {
-        assert(I.second.empty());
+        M->getErrorLog().checkError(I.second.empty(), SPIRVEC_InvalidLlvmModule,
+                                    "Decoration takes no arguments.");
         E->addDecorate(I.first);
       }
     } break;
@@ -2754,8 +2906,11 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
     case DecorationForcePow2DepthINTEL: {
       if (M->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_fpga_memory_attributes)) {
+        M->getErrorLog().checkError(I.second.size() == 1,
+                                    SPIRVEC_InvalidLlvmModule,
+                                    "Decoration requires a single argument.");
         SPIRVWord Result = 0;
-        StringRef(I.second).getAsInteger(10, Result);
+        StringRef(I.second[0]).getAsInteger(10, Result);
         E->addDecorate(I.first, Result);
       }
     } break;
@@ -2763,8 +2918,11 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
     case DecorationPrefetchINTEL: {
       if (M->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_fpga_memory_accesses)) {
+        M->getErrorLog().checkError(I.second.size() == 1,
+                                    SPIRVEC_InvalidLlvmModule,
+                                    "Decoration requires a single argument.");
         SPIRVWord Result = 0;
-        StringRef(I.second).getAsInteger(10, Result);
+        StringRef(I.second[0]).getAsInteger(10, Result);
         E->addDecorate(I.first, Result);
       }
     } break;
@@ -2779,6 +2937,7 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
 void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
                                              SPIRVWord MemberNumber,
                                              DecorationsInfoVec &Decorations) {
+  SPIRVModule *M = E->getModule();
   for (const auto &I : Decorations) {
     // Such decoration already exists on a type, skip it
     if (E->hasMemberDecorate(I.first, /*Index=*/0, MemberNumber,
@@ -2788,28 +2947,40 @@ void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
 
     switch (I.first) {
     case DecorationUserSemantic:
-      E->addMemberDecorate(
-          new SPIRVMemberDecorateUserSemanticAttr(E, MemberNumber, I.second));
+      M->getErrorLog().checkError(I.second.size() == 1,
+                                  SPIRVEC_InvalidLlvmModule,
+                                  "UserSemantic requires a single argument.");
+      E->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
+          E, MemberNumber, I.second[0]));
       break;
     case DecorationMemoryINTEL:
+      M->getErrorLog().checkError(I.second.size() == 1,
+                                  SPIRVEC_InvalidLlvmModule,
+                                  "MemoryINTEL requires a single argument.");
       E->addMemberDecorate(
-          new SPIRVMemberDecorateMemoryINTELAttr(E, MemberNumber, I.second));
+          new SPIRVMemberDecorateMemoryINTELAttr(E, MemberNumber, I.second[0]));
       break;
     case DecorationMergeINTEL: {
-      StringRef Name = StringRef(I.second).split(':').first;
-      StringRef Direction = StringRef(I.second).split(':').second;
+      M->getErrorLog().checkError(I.second.size() == 2,
+                                  SPIRVEC_InvalidLlvmModule,
+                                  "MergeINTEL requires two arguments.");
+      // First argument is the name, the other is the direction.
       E->addMemberDecorate(new SPIRVMemberDecorateMergeINTELAttr(
-          E, MemberNumber, Name.str(), Direction.str()));
+          E, MemberNumber, I.second[0], I.second[1]));
     } break;
     case DecorationBankBitsINTEL:
+      M->getErrorLog().checkError(
+          I.second.size() > 0, SPIRVEC_InvalidLlvmModule,
+          "BankBitsINTEL requires at least one argument.");
       E->addMemberDecorate(new SPIRVMemberDecorateBankBitsINTELAttr(
-          E, MemberNumber, getBankBitsFromString(I.second)));
+          E, MemberNumber, getBankBitsFromStrings(I.second)));
       break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
     case DecorationDoublepumpINTEL:
     case DecorationSimpleDualPortINTEL:
-      assert(I.second.empty());
+      M->getErrorLog().checkError(I.second.empty(), SPIRVEC_InvalidLlvmModule,
+                                  "Member decoration takes no arguments.");
       E->addMemberDecorate(MemberNumber, I.first);
       break;
     // The rest of IntelFPGA decorations:
@@ -2819,8 +2990,11 @@ void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
     // DecorationMaxReplicatesINTEL
     // DecorationForcePow2DepthINTEL
     default:
+      M->getErrorLog().checkError(
+          I.second.size() == 1, SPIRVEC_InvalidLlvmModule,
+          "Member decoration requires a single argument.");
       SPIRVWord Result = 0;
-      StringRef(I.second).getAsInteger(10, Result);
+      StringRef(I.second[0]).getAsInteger(10, Result);
       E->addMemberDecorate(MemberNumber, I.first, Result);
       break;
     }
@@ -3610,7 +3784,26 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
 
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
-                              &Dec))
+                              &Dec)) {
+    if (DemangledName.find("__spirv_ocl_printf") != StringRef::npos) {
+      auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
+      if (FormatStrPtr->getAddressSpace() !=
+          SPIR::TypeAttributeEnum::ATTR_CONST) {
+        if (!BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_non_constant_addrspace_printf)) {
+          std::string ErrorStr =
+              "The SPV_INTEL_non_constant_addrspace_printf extension should be "
+              "allowed to translate this module, because this LLVM module "
+              "contains the printf function with format string, whose address "
+              "space is not equal to 2 (constant).";
+          getErrorLog().checkError(false, SPIRVEC_RequiresExtension, CI,
+                                   ErrorStr);
+        }
+        BM->addExtension(ExtensionID::SPV_INTEL_non_constant_addrspace_printf);
+        BM->addCapability(internal::CapabilityNonConstantAddrspacePrintfINTEL);
+      }
+    }
+
     return addDecorations(
         BM->addExtInst(
             transType(CI->getType()), BM->getExtInstSetId(ExtSetKind), ExtOp,
@@ -3618,6 +3811,7 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                            SPIRVEntry::createUnique(ExtSetKind, ExtOp).get()),
             BB),
         Dec);
+  }
 
   Function *Callee = CI->getCalledFunction();
   if (Callee->isDeclaration()) {
@@ -4486,7 +4680,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
+      ResTy = CI->getParamStructRetType(0);
       OpItr++;
     }
 
@@ -4577,7 +4771,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
+      ResTy = CI->getParamStructRetType(0);
       OpItr++;
     }
 
@@ -4654,7 +4848,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
+      ResTy = CI->getParamStructRetType(0);
       OpItr++;
     }
 
@@ -4759,7 +4953,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       if (!RetTy->isVoidTy()) {
         SPRetTy = transType(RetTy);
       } else if (Args.size() > 0 && F->arg_begin()->hasStructRetAttr()) {
-        SPRetTy = transType(F->arg_begin()->getType()->getPointerElementType());
+        SPRetTy = transType(F->getParamStructRetType(0));
         Args.erase(Args.begin());
       }
       auto *SPI = SPIRVInstTemplateBase::create(OC);

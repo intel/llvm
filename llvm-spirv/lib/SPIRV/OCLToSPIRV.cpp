@@ -70,6 +70,23 @@ static size_t getOCLCpp11AtomicMaxNumOps(StringRef Name) {
       .Default(0);
 }
 
+static Type *getBlockStructType(Value *Parameter) {
+  // In principle, this information should be passed to us from Clang via
+  // an elementtype attribute. However, said attribute requires that the
+  // function call be an intrinsic, which it is not. Instead, we rely on being
+  // able to trace this to the declaration of a variable: OpenCL C specification
+  // section 6.12.5 should guarantee that we can do this.
+  Value *UnderlyingObject = Parameter->stripPointerCasts();
+  Type *ParamType = nullptr;
+  if (auto *GV = dyn_cast<GlobalValue>(UnderlyingObject))
+    ParamType = GV->getValueType();
+  else if (auto *Alloca = dyn_cast<AllocaInst>(UnderlyingObject))
+    ParamType = Alloca->getAllocatedType();
+  else
+    llvm_unreachable("Blocks in OpenCL C must be traceable to allocation site");
+  return ParamType;
+}
+
 class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase> {
 public:
   OCLToSPIRVBase() : M(nullptr), Ctx(nullptr), CLVer(0) {}
@@ -262,6 +279,11 @@ public:
 
   void visitCallLdexp(CallInst *CI, StringRef MangledName,
                       StringRef DemangledName);
+
+  /// For cl_intel_convert_bfloat16_as_ushort
+  void visitCallConvertBFloat16AsUshort(CallInst *CI, StringRef DemangledName);
+  /// For cl_intel_convert_as_bfloat16_float
+  void visitCallConvertAsBFloat16Float(CallInst *CI, StringRef DemangledName);
 
   void setOCLTypeToSPIRV(OCLTypeToSPIRVBase *OCLTypeToSPIRV) {
     OCLTypeToSPIRVPtr = OCLTypeToSPIRV;
@@ -574,6 +596,24 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
     visitCallLdexp(&CI, MangledName, DemangledName);
     return;
   }
+  if (DemangledName == kOCLBuiltinName::ConvertBFloat16AsUShort ||
+      DemangledName == kOCLBuiltinName::ConvertBFloat162AsUShort2 ||
+      DemangledName == kOCLBuiltinName::ConvertBFloat163AsUShort3 ||
+      DemangledName == kOCLBuiltinName::ConvertBFloat164AsUShort4 ||
+      DemangledName == kOCLBuiltinName::ConvertBFloat168AsUShort8 ||
+      DemangledName == kOCLBuiltinName::ConvertBFloat1616AsUShort16) {
+    visitCallConvertBFloat16AsUshort(&CI, DemangledName);
+    return;
+  }
+  if (DemangledName == kOCLBuiltinName::ConvertAsBFloat16Float ||
+      DemangledName == kOCLBuiltinName::ConvertAsBFloat162Float2 ||
+      DemangledName == kOCLBuiltinName::ConvertAsBFloat163Float3 ||
+      DemangledName == kOCLBuiltinName::ConvertAsBFloat164Float4 ||
+      DemangledName == kOCLBuiltinName::ConvertAsBFloat168Float8 ||
+      DemangledName == kOCLBuiltinName::ConvertAsBFloat1616Float16) {
+    visitCallConvertAsBFloat16Float(&CI, DemangledName);
+    return;
+  }
   visitCallBuiltinSimple(&CI, MangledName, DemangledName);
 }
 
@@ -651,11 +691,9 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
       M, CI,
       [&](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
         Expected = Args[1]; // temporary save second argument.
-        Args[1] = new LoadInst(Args[1]->getType()->getPointerElementType(),
-                               Args[1], "exp", false, CI);
         RetTy = Args[2]->getType();
-        assert(Args[0]->getType()->getPointerElementType()->isIntegerTy() &&
-               Args[1]->getType()->isIntegerTy() &&
+        Args[1] = new LoadInst(RetTy, Args[1], "exp", false, CI);
+        assert(Args[1]->getType()->isIntegerTy() &&
                Args[2]->getType()->isIntegerTy() &&
                "In SPIR-V 1.0 arguments of OpAtomicCompareExchange must be "
                "an integer type scalars");
@@ -1561,9 +1599,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // Param Size: Size of block literal structure
   // Param Aligment: Aligment of block literal structure
   // TODO: these numbers should be obtained from block literal structure
-  Type *ParamType = getUnderlyingObject(BlockLiteral)->getType();
-  if (PointerType *PT = dyn_cast<PointerType>(ParamType))
-    ParamType = PT->getPointerElementType();
+  Type *ParamType = getBlockStructType(BlockLiteral);
   Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
   Args.push_back(getInt32(M, DL.getPrefTypeAlignment(ParamType)));
 
@@ -1613,10 +1649,7 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
       M, CI,
       [=](CallInst *CI, std::vector<Value *> &Args) {
         Value *Param = *Args.rbegin();
-        Type *ParamType = getUnderlyingObject(Param)->getType();
-        if (PointerType *PT = dyn_cast<PointerType>(ParamType)) {
-          ParamType = PT->getPointerElementType();
-        }
+        Type *ParamType = getBlockStructType(Param);
         // Last arg corresponds to SPIRV Param operand.
         // Insert Invoke in front of Param.
         // Add Param Size and Param Align at the end.
@@ -1710,10 +1743,11 @@ static const char *getSubgroupAVCIntelOpKind(StringRef Name) {
       .StartsWith(kOCLSubgroupsAVCIntel::SICPrefix, "sic");
 }
 
-static const char *getSubgroupAVCIntelTyKind(Type *Ty) {
-  auto *STy = cast<StructType>(cast<PointerType>(Ty)->getPointerElementType());
-  auto TName = STy->getName();
-  return TName.endswith("_payload_t") ? "payload" : "result";
+static const char *getSubgroupAVCIntelTyKind(StringRef MangledName) {
+  // We're looking for the type name of the last parameter, which will be at the
+  // very end of the mangled name. Since we only care about the ending of the
+  // name, we don't need to be any more clever than this.
+  return MangledName.endswith("_payload_t") ? "payload" : "result";
 }
 
 static Type *getSubgroupAVCIntelMCEType(Module *M, std::string &TName) {
@@ -1745,11 +1779,9 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
 
   // Update names for built-ins mapped on two or more SPIRV instructions
   if (FName.find(Prefix + "ime_get_streamout_major_shape_") == 0) {
-    auto PTy = cast<PointerType>(CI->getArgOperand(0)->getType());
-    auto *STy = cast<StructType>(PTy->getPointerElementType());
-    assert(STy->hasName() && "Invalid Subgroup AVC Intel built-in call");
-    FName += (STy->getName().contains("single")) ? "_single_reference"
-                                                 : "_dual_reference";
+    // _single_reference functions have 2 arguments, _dual_reference have 3
+    // arguments.
+    FName += (CI->arg_size() == 2) ? "_single_reference" : "_dual_reference";
   } else if (FName.find(Prefix + "sic_configure_ipe") == 0) {
     FName += (CI->arg_size() == 8) ? "_luma" : "_luma_chroma";
   }
@@ -1785,8 +1817,8 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   // Find 'to_mce' conversion function.
   // The operand required conversion is always the last one.
   const char *OpKind = getSubgroupAVCIntelOpKind(DemangledName);
-  const char *TyKind = getSubgroupAVCIntelTyKind(
-      CI->getArgOperand(CI->arg_size() - 1)->getType());
+  const char *TyKind =
+      getSubgroupAVCIntelTyKind(CI->getCalledFunction()->getName());
   std::string MCETName =
       std::string(kOCLSubgroupsAVCIntel::TypePrefix) + "mce_" + TyKind + "_t";
   auto *MCETy =
@@ -1916,6 +1948,103 @@ void OCLToSPIRVBase::visitCallLdexp(CallInst *CI, StringRef MangledName,
   visitCallBuiltinSimple(CI, MangledName, DemangledName);
 }
 
+void OCLToSPIRVBase::visitCallConvertBFloat16AsUshort(CallInst *CI,
+                                                      StringRef DemangledName) {
+  Type *RetTy = CI->getType();
+  Type *ArgTy = CI->getOperand(0)->getType();
+  if (DemangledName == kOCLBuiltinName::ConvertBFloat16AsUShort) {
+    if (!RetTy->isIntegerTy(16U) || !ArgTy->isFloatTy())
+      report_fatal_error(
+          "OpConvertBFloat16AsUShort must be of i16 and take float");
+  } else {
+    FixedVectorType *RetTyVec = cast<FixedVectorType>(RetTy);
+    FixedVectorType *ArgTyVec = cast<FixedVectorType>(ArgTy);
+    if (!RetTyVec || !RetTyVec->getElementType()->isIntegerTy(16U) ||
+        !ArgTyVec || !ArgTyVec->getElementType()->isFloatTy())
+      report_fatal_error("OpConvertBFloat16NAsUShortN must be of <N x i16> and "
+                         "take <N x float>");
+    unsigned RetTyVecSize = RetTyVec->getNumElements();
+    unsigned ArgTyVecSize = ArgTyVec->getNumElements();
+    if (DemangledName == kOCLBuiltinName::ConvertBFloat162AsUShort2) {
+      if (RetTyVecSize != 2 || ArgTyVecSize != 2)
+        report_fatal_error("ConvertBFloat162AsUShort2 must be of <2 x i16> and "
+                           "take <2 x float>");
+    } else if (DemangledName == kOCLBuiltinName::ConvertBFloat163AsUShort3) {
+      if (RetTyVecSize != 3 || ArgTyVecSize != 3)
+        report_fatal_error("ConvertBFloat163AsUShort3 must be of <3 x i16> and "
+                           "take <3 x float>");
+    } else if (DemangledName == kOCLBuiltinName::ConvertBFloat164AsUShort4) {
+      if (RetTyVecSize != 4 || ArgTyVecSize != 4)
+        report_fatal_error("ConvertBFloat164AsUShort4 must be of <4 x i16> and "
+                           "take <4 x float>");
+    } else if (DemangledName == kOCLBuiltinName::ConvertBFloat168AsUShort8) {
+      if (RetTyVecSize != 8 || ArgTyVecSize != 8)
+        report_fatal_error("ConvertBFloat168AsUShort8 must be of <8 x i16> and "
+                           "take <8 x float>");
+    } else if (DemangledName == kOCLBuiltinName::ConvertBFloat1616AsUShort16) {
+      if (RetTyVecSize != 16 || ArgTyVecSize != 16)
+        report_fatal_error("ConvertBFloat1616AsUShort16 must be of <16 x i16> "
+                           "and take <16 x float>");
+    }
+  }
+
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstSPIRV(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        return getSPIRVFuncName(internal::OpConvertFToBF16INTEL);
+      },
+      &Attrs);
+}
+
+void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
+                                                     StringRef DemangledName) {
+  Type *RetTy = CI->getType();
+  Type *ArgTy = CI->getOperand(0)->getType();
+  if (DemangledName == kOCLBuiltinName::ConvertAsBFloat16Float) {
+    if (!RetTy->isFloatTy() || !ArgTy->isIntegerTy(16U))
+      report_fatal_error(
+          "OpConvertAsBFloat16Float must be of float and take i16");
+  } else {
+    FixedVectorType *RetTyVec = cast<FixedVectorType>(RetTy);
+    FixedVectorType *ArgTyVec = cast<FixedVectorType>(ArgTy);
+    if (!RetTyVec || !RetTyVec->getElementType()->isFloatTy() || !ArgTyVec ||
+        !ArgTyVec->getElementType()->isIntegerTy(16U))
+      report_fatal_error("OpConvertAsBFloat16NFloatN must be of <N x float> "
+                         "and take <N x i16>");
+    unsigned RetTyVecSize = RetTyVec->getNumElements();
+    unsigned ArgTyVecSize = ArgTyVec->getNumElements();
+    if (DemangledName == kOCLBuiltinName::ConvertAsBFloat162Float2) {
+      if (RetTyVecSize != 2 || ArgTyVecSize != 2)
+        report_fatal_error("ConvertAsBFloat162Float2 must be of <2 x float> "
+                           "and take <2 x i16>");
+    } else if (DemangledName == kOCLBuiltinName::ConvertAsBFloat163Float3) {
+      if (RetTyVecSize != 3 || ArgTyVecSize != 3)
+        report_fatal_error("ConvertAsBFloat163Float3 must be of <3 x float> "
+                           "and take <3 x i16>");
+    } else if (DemangledName == kOCLBuiltinName::ConvertAsBFloat164Float4) {
+      if (RetTyVecSize != 4 || ArgTyVecSize != 4)
+        report_fatal_error("ConvertAsBFloat164Float4 must be of <4 x float> "
+                           "and take <4 x i16>");
+    } else if (DemangledName == kOCLBuiltinName::ConvertAsBFloat168Float8) {
+      if (RetTyVecSize != 8 || ArgTyVecSize != 8)
+        report_fatal_error("ConvertAsBFloat168Float8 must be of <8 x float> "
+                           "and take <8 x i16>");
+    } else if (DemangledName == kOCLBuiltinName::ConvertAsBFloat1616Float16) {
+      if (RetTyVecSize != 16 || ArgTyVecSize != 16)
+        report_fatal_error("ConvertAsBFloat1616Float16 must be of <16 x float> "
+                           "and take <16 x i16>");
+    }
+  }
+
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstSPIRV(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        return getSPIRVFuncName(internal::OpConvertBF16ToFINTEL);
+      },
+      &Attrs);
+}
 } // namespace SPIRV
 
 INITIALIZE_PASS_BEGIN(OCLToSPIRVLegacy, "ocl-to-spv",

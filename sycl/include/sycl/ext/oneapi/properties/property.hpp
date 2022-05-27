@@ -144,7 +144,13 @@ namespace detail {
 
 // List of all properties.
 enum PropKind : uint32_t {
-  PropKindSize = 0,
+  DeviceImageScope = 0,
+  HostAccess = 1,
+  InitMode = 2,
+  ImplementInCSR = 3,
+  LatencyAnchorID = 4,
+  LatencyConstraint = 5,
+  PropKindSize = 6,
 };
 
 // This trait must be specialized for all properties and must have a unique

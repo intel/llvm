@@ -158,13 +158,22 @@ public:
 
   bool GetEnableNotifyAboutFixIts() const;
 
-  bool GetEnableSaveObjects() const;
-
+  FileSpec GetSaveJITObjectsDir() const;
+  
   bool GetEnableSyntheticValue() const;
 
   uint32_t GetMaxZeroPaddingInFloatFormat() const;
 
   uint32_t GetMaximumNumberOfChildrenToDisplay() const;
+
+  /// Get the max depth value, augmented with a bool to indicate whether the
+  /// depth is the default.
+  ///
+  /// When the user has customized the max depth, the bool will be false.
+  ///
+  /// \returns the max depth, and true if the max depth is the system default,
+  /// otherwise false.
+  std::pair<uint32_t, bool> GetMaximumDepthOfChildrenToDisplay() const;
 
   uint32_t GetMaximumSizeOfStringSummary() const;
 
@@ -248,6 +257,9 @@ private:
   void DisableASLRValueChangedCallback();
   void InheritTCCValueChangedCallback();
   void DisableSTDIOValueChangedCallback();
+  
+  // Settings checker for target.jit-save-objects-dir:
+  void CheckJITObjectsDir();
 
   Environment ComputeEnvironment() const;
 
@@ -966,6 +978,9 @@ public:
   ModuleIsExcludedForUnconstrainedSearches(const lldb::ModuleSP &module_sp);
 
   const ArchSpec &GetArchitecture() const { return m_arch.GetSpec(); }
+  
+  /// Returns the name of the target's ABI plugin.
+  llvm::StringRef GetABIName() const;
 
   /// Set the architecture for this target.
   ///

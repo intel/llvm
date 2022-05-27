@@ -13,6 +13,7 @@
 
 #include "buffer.h"
 #include "connection.h"
+#include "environment.h"
 #include "file.h"
 #include "format.h"
 #include "io-error.h"
@@ -34,7 +35,9 @@ class ExternalFileUnit : public ConnectionState,
                          public OpenFile,
                          public FileFrame<ExternalFileUnit> {
 public:
-  explicit ExternalFileUnit(int unitNumber) : unitNumber_{unitNumber} {}
+  explicit ExternalFileUnit(int unitNumber) : unitNumber_{unitNumber} {
+    isUTF8 = executionEnvironment.defaultUTF8;
+  }
   ~ExternalFileUnit() {}
 
   int unitNumber() const { return unitNumber_; }
@@ -62,7 +65,7 @@ public:
   void CloseUnit(CloseStatus, IoErrorHandler &);
   void DestroyClosed();
 
-  bool SetDirection(Direction, IoErrorHandler &);
+  Iostat SetDirection(Direction);
 
   template <typename A, typename... X>
   IoStatementState &BeginIoStatement(X &&...xs) {
@@ -71,6 +74,7 @@ public:
     if constexpr (!std::is_same_v<A, OpenStatementState>) {
       state.mutableModes() = ConnectionState::modes;
     }
+    directAccessRecWasSet_ = false;
     io_.emplace(state);
     return *io_;
   }
@@ -79,8 +83,6 @@ public:
       const char *, std::size_t, std::size_t elementBytes, IoErrorHandler &);
   bool Receive(char *, std::size_t, std::size_t elementBytes, IoErrorHandler &);
   std::size_t GetNextInputBytes(const char *&, IoErrorHandler &);
-  std::optional<char32_t> GetCurrentChar(IoErrorHandler &);
-  void SetLeftTabLimit();
   bool BeginReadingRecord(IoErrorHandler &);
   void FinishReadingRecord(IoErrorHandler &);
   bool AdvanceRecord(IoErrorHandler &);
@@ -112,11 +114,13 @@ private:
   void DoImpliedEndfile(IoErrorHandler &);
   void DoEndfile(IoErrorHandler &);
   void CommitWrites();
+  bool CheckDirectAccess(IoErrorHandler &);
 
   int unitNumber_{-1};
   Direction direction_{Direction::Output};
   bool impliedEndfile_{false}; // sequential/stream output has taken place
   bool beganReadingRecord_{false};
+  bool directAccessRecWasSet_{false}; // REC= appeared
 
   Lock lock_;
 
@@ -128,7 +132,7 @@ private:
       ExternalListIoStatementState<Direction::Input>,
       ExternalUnformattedIoStatementState<Direction::Output>,
       ExternalUnformattedIoStatementState<Direction::Input>, InquireUnitState,
-      ExternalMiscIoStatementState>
+      ExternalMiscIoStatementState, ErroneousIoStatementState>
       u_;
 
   // Points to the active alternative (if any) in u_ for use as a Cookie
@@ -171,8 +175,7 @@ public:
 
   OwningPtr<ChildIo> AcquirePrevious() { return std::move(previous_); }
 
-  bool CheckFormattingAndDirection(
-      Terminator &, const char *what, bool unformatted, Direction);
+  Iostat CheckFormattingAndDirection(bool unformatted, Direction);
 
 private:
   IoStatementState &parent_;
@@ -183,7 +186,8 @@ private:
       ChildListIoStatementState<Direction::Output>,
       ChildListIoStatementState<Direction::Input>,
       ChildUnformattedIoStatementState<Direction::Output>,
-      ChildUnformattedIoStatementState<Direction::Input>, InquireUnitState>
+      ChildUnformattedIoStatementState<Direction::Input>, InquireUnitState,
+      ErroneousIoStatementState>
       u_;
   std::optional<IoStatementState> io_;
 };

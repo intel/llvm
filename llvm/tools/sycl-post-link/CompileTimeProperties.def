@@ -10,8 +10,9 @@
 #error "SYCL_COMPILE_TIME_PROPERTY(PropertyName, Decoration, ValueType) is not defined."
 #endif
 
-// The corresponding SPIR-V OpCodes for the init_mode and implement_in_csr
-// properties are documented in the SPV_INTEL_global_variable_decorations design
-// document: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
-SYCL_COMPILE_TIME_PROPERTY("init_mode", 6148, DecorValueTy::uint32)
-SYCL_COMPILE_TIME_PROPERTY("implement_in_csr", 6149, DecorValueTy::boolean)
+// The corresponding SPIR-V OpCodes for the sycl-init-mode and
+// sycl-implement-in-csr properties are documented in the
+// SPV_INTEL_global_variable_decorations design document:
+// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
+SYCL_COMPILE_TIME_PROPERTY("sycl-init-mode", 6148, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-implement-in-csr", 6149, DecorValueTy::boolean)

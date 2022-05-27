@@ -15,11 +15,9 @@
 #include "SelectionDAGBuilder.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
@@ -29,6 +27,7 @@
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/Analysis/LazyBlockFrequencyInfo.h"
 #include "llvm/Analysis/LegacyDivergenceAnalysis.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -69,7 +68,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -82,7 +80,6 @@
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/MCInstrDesc.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/Casting.h"
@@ -425,6 +422,11 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
   const Function &Fn = mf.getFunction();
   MF = &mf;
 
+  // Decide what flavour of variable location debug-info will be used, before
+  // we change the optimisation level.
+  UseInstrRefDebugInfo = mf.useDebugInstrRef();
+  CurDAG->useInstrRefDebugInfo(UseInstrRefDebugInfo);
+
   // Reset the target options before resetting the optimization
   // level below.
   // FIXME: This is a horrible hack and should be processed via
@@ -654,7 +656,8 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
 
   // For debug-info, in instruction referencing mode, we need to perform some
   // post-isel maintenence.
-  MF->finalizeDebugInstrRefs();
+  if (UseInstrRefDebugInfo)
+    MF->finalizeDebugInstrRefs();
 
   // Determine if there are any calls in this machine function.
   MachineFrameInfo &MFI = MF->getFrameInfo();
@@ -1380,6 +1383,8 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
   if (TM.Options.EnableFastISel) {
     LLVM_DEBUG(dbgs() << "Enabling fast-isel\n");
     FastIS = TLI->createFastISel(*FuncInfo, LibInfo);
+    if (FastIS)
+      FastIS->useInstrRefDebugInfo(UseInstrRefDebugInfo);
   }
 
   ReversePostOrderTraversal<const Function*> RPOT(&Fn);
@@ -3264,6 +3269,8 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
       assert(RecNo < RecordedNodes.size() && "Invalid EmitMergeInputChains");
       ChainNodesMatched.push_back(RecordedNodes[RecNo].first.getNode());
 
+      // If the chained node is not the root, we can't fold it if it has
+      // multiple uses.
       // FIXME: What if other value results of the node have uses not matched
       // by this pattern?
       if (ChainNodesMatched.back() != NodeToMatch &&
@@ -3301,6 +3308,8 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
         assert(RecNo < RecordedNodes.size() && "Invalid EmitMergeInputChains");
         ChainNodesMatched.push_back(RecordedNodes[RecNo].first.getNode());
 
+        // If the chained node is not the root, we can't fold it if it has
+        // multiple uses.
         // FIXME: What if other value results of the node have uses not matched
         // by this pattern?
         if (ChainNodesMatched.back() != NodeToMatch &&
@@ -3439,12 +3448,10 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
       // such nodes must have a chain, it suffices to check ChainNodesMatched.
       // We need to perform this check before potentially modifying one of the
       // nodes via MorphNode.
-      bool MayRaiseFPException = false;
-      for (auto *N : ChainNodesMatched)
-        if (mayRaiseFPException(N) && !N->getFlags().hasNoFPExcept()) {
-          MayRaiseFPException = true;
-          break;
-        }
+      bool MayRaiseFPException =
+          llvm::any_of(ChainNodesMatched, [this](SDNode *N) {
+            return mayRaiseFPException(N) && !N->getFlags().hasNoFPExcept();
+          });
 
       // Create the node.
       MachineSDNode *Res = nullptr;

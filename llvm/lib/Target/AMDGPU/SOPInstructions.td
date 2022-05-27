@@ -152,8 +152,8 @@ class SOP1_64_0 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
 }
 
 // 64-bit input, no output
-class SOP1_1 <string opName, RegisterClass rc = SReg_64, list<dag> pattern=[]> : SOP1_Pseudo <
-  opName, (outs), (ins rc:$src0), "$src0", pattern> {
+class SOP1_1 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins SReg_64:$src0), "$src0", pattern> {
   let has_sdst = 0;
 }
 
@@ -235,10 +235,10 @@ def : GCNPat <
 
 let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
 def S_BREV_B32 : SOP1_32 <"s_brev_b32",
-  [(set i32:$sdst, (bitreverse i32:$src0))]
+  [(set i32:$sdst, (UniformUnaryFrag<bitreverse> i32:$src0))]
 >;
 def S_BREV_B64 : SOP1_64 <"s_brev_b64",
-  [(set i64:$sdst, (bitreverse i64:$src0))]
+  [(set i64:$sdst, (UniformUnaryFrag<bitreverse> i64:$src0))]
 >;
 } // End isReMaterializable = 1, isAsCheapAsAMove = 1
 
@@ -300,8 +300,7 @@ def S_SETPC_B64 : SOP1_1  <"s_setpc_b64">;
 
 let isReturn = 1 in {
 // Define variant marked as return rather than branch.
-def S_SETPC_B64_return : SOP1_1<"", CCR_SGPR_64, [(AMDGPUret_flag i64:$src0)]>;
-def S_SETPC_B64_return_gfx : SOP1_1<"", Gfx_CCR_SGPR_64, [(AMDGPUret_gfx_flag i64:$src0)]>;
+def S_SETPC_B64_return : SOP1_1<"">;
 }
 } // End isTerminator = 1, isBarrier = 1
 
@@ -1279,7 +1278,10 @@ def S_SLEEP : SOPP_Pseudo <"s_sleep", (ins i32imm:$simm16),
   let hasSideEffects = 1;
 }
 
-def S_SETPRIO : SOPP_Pseudo <"s_setprio" , (ins i16imm:$simm16), "$simm16">;
+def S_SETPRIO : SOPP_Pseudo <"s_setprio", (ins i16imm:$simm16), "$simm16",
+  [(int_amdgcn_s_setprio timm:$simm16)]> {
+  let hasSideEffects = 1;
+}
 
 let Uses = [EXEC, M0] in {
 // FIXME: Should this be mayLoad+mayStore?
@@ -1341,7 +1343,7 @@ let SubtargetPredicate = isGFX10Plus in {
       let fixed_imm = 1;
     }
   def S_WAITCNT_DEPCTR :
-    SOPP_Pseudo <"s_waitcnt_depctr" , (ins s16imm:$simm16), "$simm16">;
+    SOPP_Pseudo <"s_waitcnt_depctr" , (ins DepCtrImm:$simm16), "$simm16">;
 
   let hasSideEffects = 0, Uses = [MODE], Defs = [MODE] in {
     def S_ROUND_MODE :

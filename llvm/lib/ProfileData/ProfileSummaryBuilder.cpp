@@ -10,14 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/IR/Attributes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Metadata.h"
-#include "llvm/IR/Type.h"
+#include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/ProfileData/SampleProf.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
@@ -200,7 +196,7 @@ SampleProfileSummaryBuilder::computeSummaryForProfiles(
   // more function profiles each with lower counts, which in turn leads to lower
   // hot thresholds. To compensate for that, by default we merge context
   // profiles before computing profile summary.
-  if (UseContextLessSummary || (sampleprof::FunctionSamples::ProfileIsCSFlat &&
+  if (UseContextLessSummary || (sampleprof::FunctionSamples::ProfileIsCS &&
                                 !UseContextLessSummary.getNumOccurrences())) {
     for (const auto &I : Profiles) {
       ContextLessProfiles[I.second.getName()].merge(I.second);
