@@ -445,7 +445,8 @@ struct _pi_queue {
   }
 
   template <typename T> void sync_streams(T &&f) {
-    auto sync = [&f](const std::vector<CUstream>& streams, unsigned int start, unsigned int stop){
+    auto sync = [&f](const std::vector<CUstream> &streams, unsigned int start,
+                     unsigned int stop) {
       for (unsigned int i = start; i < stop; i++) {
         f(streams[i]);
       }
@@ -458,14 +459,14 @@ struct _pi_queue {
                              ? num_compute_streams_
                              : compute_stream_idx_.load();
       last_sync_compute_streams_ = end;
-      if(end - start >= size){
+      if (end - start >= size) {
         sync(compute_streams_, 0, size);
-      } else{
+      } else {
         start %= size;
         end %= size;
-        if(start < end){
+        if (start < end) {
           sync(compute_streams_, start, end);
-        } else{
+        } else {
           sync(compute_streams_, start, size);
           sync(compute_streams_, 0, end);
         }
@@ -480,14 +481,14 @@ struct _pi_queue {
                                ? num_transfer_streams_
                                : transfer_stream_idx_.load();
         last_sync_transfer_streams_ = end;
-        if(end - start >= size){
+        if (end - start >= size) {
           sync(transfer_streams_, 0, size);
-        } else{
+        } else {
           start %= size;
           end %= size;
-          if(start < end){
+          if (start < end) {
             sync(transfer_streams_, start, end);
-          } else{
+          } else {
             sync(transfer_streams_, start, size);
             sync(transfer_streams_, 0, end);
           }
