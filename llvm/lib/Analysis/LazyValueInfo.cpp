@@ -38,7 +38,6 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/raw_ostream.h"
-#include <map>
 using namespace llvm;
 using namespace PatternMatch;
 
@@ -1886,6 +1885,11 @@ void LazyValueInfo::eraseBlock(BasicBlock *BB) {
   }
 }
 
+void LazyValueInfo::clear(const Module *M) {
+  if (PImpl) {
+    getImpl(PImpl, AC, M).clear();
+  }
+}
 
 void LazyValueInfo::printLVI(Function &F, DominatorTree &DTree, raw_ostream &OS) {
   if (PImpl) {

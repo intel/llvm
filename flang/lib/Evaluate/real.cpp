@@ -98,7 +98,7 @@ ValueWithRealFlags<Real<W, P>> Real<W, P>::Add(
     if (order == Ordering::Equal) {
       // x + (-x) -> +0.0 unless rounding is directed downwards
       if (rounding.mode == common::RoundingMode::Down) {
-        result.value.word_ = result.value.word_.IBSET(bits - 1); // -0.0
+        result.value = NegativeZero();
       }
       return result;
     }
@@ -221,7 +221,7 @@ ValueWithRealFlags<Real<W, P>> Real<W, P>::Divide(
       }
     } else if (IsZero() || y.IsInfinite()) { // 0/x, x/Inf -> 0
       if (isNegative) {
-        result.value.word_ = result.value.word_.IBSET(bits - 1);
+        result.value = NegativeZero();
       }
     } else {
       // dividend and divisor are both finite and nonzero numbers
@@ -272,13 +272,15 @@ ValueWithRealFlags<Real<W, P>> Real<W, P>::SQRT(Rounding rounding) const {
   } else if (IsNegative()) {
     if (IsZero()) {
       // SQRT(-0) == -0 in IEEE-754.
-      result.value.word_ = result.value.word_.IBSET(bits - 1);
+      result.value = NegativeZero();
     } else {
       result.value = NotANumber();
     }
   } else if (IsInfinite()) {
     // SQRT(+Inf) == +Inf
     result.value = Infinity(false);
+  } else if (IsZero()) {
+    result.value = PositiveZero();
   } else {
     int expo{UnbiasedExponent()};
     if (expo < -1 || expo > 1) {
@@ -342,6 +344,45 @@ ValueWithRealFlags<Real<W, P>> Real<W, P>::SQRT(Rounding rounding) const {
       }
     }
     result.flags.set(RealFlag::Inexact);
+  }
+  return result;
+}
+
+template <typename W, int P>
+ValueWithRealFlags<Real<W, P>> Real<W, P>::NEAREST(bool upward) const {
+  ValueWithRealFlags<Real> result;
+  if (IsFinite()) {
+    Fraction fraction{GetFraction()};
+    int expo{Exponent()};
+    Fraction one{1};
+    Fraction nearest;
+    bool isNegative{IsNegative()};
+    if (upward != isNegative) { // upward in magnitude
+      auto next{fraction.AddUnsigned(one)};
+      if (next.carry) {
+        ++expo;
+        nearest = Fraction::Least(); // MSB only
+      } else {
+        nearest = next.value;
+      }
+    } else { // downward in magnitude
+      if (IsZero()) {
+        nearest = 1; // smallest magnitude negative subnormal
+        isNegative = !isNegative;
+      } else {
+        auto sub1{fraction.SubtractSigned(one)};
+        if (sub1.overflow) {
+          nearest = Fraction{0}.NOT();
+          --expo;
+        } else {
+          nearest = sub1.value;
+        }
+      }
+    }
+    result.flags = result.value.Normalize(isNegative, expo, nearest);
+  } else {
+    result.flags.set(RealFlag::InvalidArgument);
+    result.value = *this;
   }
   return result;
 }
@@ -598,6 +639,9 @@ template <typename W, int P> std::string Real<W, P>::DumpHexadecimal() const {
     }
     result += 'p';
     int exponent = Exponent() - exponentBias;
+    if (intPart == '0') {
+      exponent += 1;
+    }
     result += Integer<32>{exponent}.SignedDecimal();
     return result;
   }

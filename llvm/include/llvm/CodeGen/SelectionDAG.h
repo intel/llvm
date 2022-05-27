@@ -20,7 +20,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/ilist.h"
@@ -33,17 +32,13 @@
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/DebugLoc.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ArrayRecycler.h"
-#include "llvm/Support/AtomicOrdering.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/RecyclingAllocator.h"
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <functional>
@@ -55,6 +50,15 @@
 
 namespace llvm {
 
+class DIExpression;
+class DILabel;
+class DIVariable;
+class Function;
+class Pass;
+class Type;
+template <class GraphType> struct GraphTraits;
+template <typename T, unsigned int N> class SmallSetVector;
+template <typename T> struct FoldingSetTrait;
 class AAResults;
 class BlockAddress;
 class BlockFrequencyInfo;
@@ -276,7 +280,15 @@ class SelectionDAG {
 
   DenseMap<const SDNode *, CallSiteDbgInfo> SDCallSiteDbgInfo;
 
+  /// PersistentId counter to be used when inserting the next
+  /// SDNode to this SelectionDAG. We do not place that under
+  /// `#if LLVM_ENABLE_ABI_BREAKING_CHECKS` intentionally because
+  /// it adds unneeded complexity without noticeable
+  /// benefits (see discussion with @thakis in D120714).
   uint16_t NextPersistentId = 0;
+
+  /// Are instruction referencing variable locations desired for this function?
+  bool UseInstrRefDebugInfo = false;
 
 public:
   /// Clients of various APIs that cause global effects on
@@ -467,7 +479,7 @@ public:
   void viewGraph(const std::string &Title);
   void viewGraph();
 
-#ifndef NDEBUG
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
   std::map<const SDNode *, std::string> NodeGraphAttrs;
 #endif
 
@@ -893,6 +905,11 @@ public:
   /// Create a logical NOT operation as (XOR Val, BooleanOne).
   SDValue getLogicalNOT(const SDLoc &DL, SDValue Val, EVT VT);
 
+  /// Create a vector-predicated logical NOT operation as (VP_XOR Val,
+  /// BooleanOne, Mask, EVL).
+  SDValue getVPLogicalNOT(const SDLoc &DL, SDValue Val, SDValue Mask,
+                          SDValue EVL, EVT VT);
+
   /// Returns sum of the base pointer and offset.
   /// Unlike getObjectPtrOffset this does not set NoUnsignedWrap by default.
   SDValue getMemBasePlusOffset(SDValue Base, TypeSize Offset, const SDLoc &DL,
@@ -1068,6 +1085,18 @@ public:
       return getNode(IsSignaling ? ISD::STRICT_FSETCCS : ISD::STRICT_FSETCC, DL,
                      {VT, MVT::Other}, {Chain, LHS, RHS, getCondCode(Cond)});
     return getNode(ISD::SETCC, DL, VT, LHS, RHS, getCondCode(Cond));
+  }
+
+  /// Helper function to make it easier to build VP_SETCCs if you just have an
+  /// ISD::CondCode instead of an SDValue.
+  SDValue getSetCCVP(const SDLoc &DL, EVT VT, SDValue LHS, SDValue RHS,
+                     ISD::CondCode Cond, SDValue Mask, SDValue EVL) {
+    assert(LHS.getValueType().isVector() && RHS.getValueType().isVector() &&
+           "Cannot compare scalars");
+    assert(Cond != ISD::SETCC_INVALID &&
+           "Cannot create a setCC of an invalid node.");
+    return getNode(ISD::VP_SETCC, DL, VT, LHS, RHS, getCondCode(Cond), Mask,
+                   EVL);
   }
 
   /// Helper function to make it easier to build Select's if you just have
@@ -1363,6 +1392,77 @@ public:
                           MachineMemOperand *MMO, bool IsCompressing = false);
   SDValue getIndexedStoreVP(SDValue OrigStore, const SDLoc &dl, SDValue Base,
                             SDValue Offset, ISD::MemIndexedMode AM);
+
+  SDValue getStridedLoadVP(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType,
+                           EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr,
+                           SDValue Offset, SDValue Stride, SDValue Mask,
+                           SDValue EVL, MachinePointerInfo PtrInfo, EVT MemVT,
+                           Align Alignment, MachineMemOperand::Flags MMOFlags,
+                           const AAMDNodes &AAInfo,
+                           const MDNode *Ranges = nullptr,
+                           bool IsExpanding = false);
+  inline SDValue getStridedLoadVP(
+      ISD::MemIndexedMode AM, ISD::LoadExtType ExtType, EVT VT, const SDLoc &DL,
+      SDValue Chain, SDValue Ptr, SDValue Offset, SDValue Stride, SDValue Mask,
+      SDValue EVL, MachinePointerInfo PtrInfo, EVT MemVT,
+      MaybeAlign Alignment = MaybeAlign(),
+      MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+      const AAMDNodes &AAInfo = AAMDNodes(), const MDNode *Ranges = nullptr,
+      bool IsExpanding = false) {
+    // Ensures that codegen never sees a None Alignment.
+    return getStridedLoadVP(AM, ExtType, VT, DL, Chain, Ptr, Offset, Stride,
+                            Mask, EVL, PtrInfo, MemVT,
+                            Alignment.getValueOr(getEVTAlign(MemVT)), MMOFlags,
+                            AAInfo, Ranges, IsExpanding);
+  }
+  SDValue getStridedLoadVP(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType,
+                           EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr,
+                           SDValue Offset, SDValue Stride, SDValue Mask,
+                           SDValue EVL, EVT MemVT, MachineMemOperand *MMO,
+                           bool IsExpanding = false);
+  SDValue getStridedLoadVP(EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr,
+                           SDValue Stride, SDValue Mask, SDValue EVL,
+                           MachinePointerInfo PtrInfo, MaybeAlign Alignment,
+                           MachineMemOperand::Flags MMOFlags,
+                           const AAMDNodes &AAInfo,
+                           const MDNode *Ranges = nullptr,
+                           bool IsExpanding = false);
+  SDValue getStridedLoadVP(EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr,
+                           SDValue Stride, SDValue Mask, SDValue EVL,
+                           MachineMemOperand *MMO, bool IsExpanding = false);
+  SDValue
+  getExtStridedLoadVP(ISD::LoadExtType ExtType, const SDLoc &DL, EVT VT,
+                      SDValue Chain, SDValue Ptr, SDValue Stride, SDValue Mask,
+                      SDValue EVL, MachinePointerInfo PtrInfo, EVT MemVT,
+                      MaybeAlign Alignment, MachineMemOperand::Flags MMOFlags,
+                      const AAMDNodes &AAInfo, bool IsExpanding = false);
+  SDValue getExtStridedLoadVP(ISD::LoadExtType ExtType, const SDLoc &DL, EVT VT,
+                              SDValue Chain, SDValue Ptr, SDValue Stride,
+                              SDValue Mask, SDValue EVL, EVT MemVT,
+                              MachineMemOperand *MMO, bool IsExpanding = false);
+  SDValue getIndexedStridedLoadVP(SDValue OrigLoad, const SDLoc &DL,
+                                  SDValue Base, SDValue Offset,
+                                  ISD::MemIndexedMode AM);
+  SDValue getStridedStoreVP(SDValue Chain, const SDLoc &DL, SDValue Val,
+                            SDValue Ptr, SDValue Offset, SDValue Stride,
+                            SDValue Mask, SDValue EVL, EVT MemVT,
+                            MachineMemOperand *MMO, ISD::MemIndexedMode AM,
+                            bool IsTruncating = false,
+                            bool IsCompressing = false);
+  SDValue getTruncStridedStoreVP(SDValue Chain, const SDLoc &DL, SDValue Val,
+                                 SDValue Ptr, SDValue Stride, SDValue Mask,
+                                 SDValue EVL, MachinePointerInfo PtrInfo,
+                                 EVT SVT, Align Alignment,
+                                 MachineMemOperand::Flags MMOFlags,
+                                 const AAMDNodes &AAInfo,
+                                 bool IsCompressing = false);
+  SDValue getTruncStridedStoreVP(SDValue Chain, const SDLoc &DL, SDValue Val,
+                                 SDValue Ptr, SDValue Stride, SDValue Mask,
+                                 SDValue EVL, EVT SVT, MachineMemOperand *MMO,
+                                 bool IsCompressing = false);
+  SDValue getIndexedStridedStoreVP(SDValue OrigStore, const SDLoc &DL,
+                                   SDValue Base, SDValue Offset,
+                                   ISD::MemIndexedMode AM);
 
   SDValue getGatherVP(SDVTList VTs, EVT VT, const SDLoc &dl,
                       ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
@@ -1707,6 +1807,16 @@ public:
   /// function mirrors \c llvm::salvageDebugInfo.
   void salvageDebugInfo(SDNode &N);
 
+  /// Signal whether instruction referencing variable locations are desired for
+  /// this function's debug-info.
+  void useInstrRefDebugInfo(bool Flag) {
+    UseInstrRefDebugInfo = Flag;
+  }
+
+  bool getUseInstrRefDebugInfo() const {
+    return UseInstrRefDebugInfo;
+  }
+
   void dump() const;
 
   /// In most cases this function returns the ABI alignment for a given type,
@@ -2044,39 +2154,34 @@ public:
            isConstantFPBuildVectorOrConstantFP(N);
   }
 
-  void addCallSiteInfo(const SDNode *CallNode, CallSiteInfoImpl &&CallInfo) {
-    SDCallSiteDbgInfo[CallNode].CSInfo = std::move(CallInfo);
+  /// Set CallSiteInfo to be associated with Node.
+  void addCallSiteInfo(const SDNode *Node, CallSiteInfoImpl &&CallInfo) {
+    SDCallSiteDbgInfo[Node].CSInfo = std::move(CallInfo);
   }
-
-  CallSiteInfo getSDCallSiteInfo(const SDNode *CallNode) {
-    auto I = SDCallSiteDbgInfo.find(CallNode);
-    if (I != SDCallSiteDbgInfo.end())
-      return std::move(I->second).CSInfo;
-    return CallSiteInfo();
+  /// Return CallSiteInfo associated with Node, or a default if none exists.
+  CallSiteInfo getCallSiteInfo(const SDNode *Node) {
+    auto I = SDCallSiteDbgInfo.find(Node);
+    return I != SDCallSiteDbgInfo.end() ? std::move(I->second).CSInfo
+                                        : CallSiteInfo();
   }
-
+  /// Set HeapAllocSite to be associated with Node.
   void addHeapAllocSite(const SDNode *Node, MDNode *MD) {
     SDCallSiteDbgInfo[Node].HeapAllocSite = MD;
   }
-
-  /// Return the HeapAllocSite type associated with the SDNode, if it exists.
-  MDNode *getHeapAllocSite(const SDNode *Node) {
-    auto It = SDCallSiteDbgInfo.find(Node);
-    if (It == SDCallSiteDbgInfo.end())
-      return nullptr;
-    return It->second.HeapAllocSite;
+  /// Return HeapAllocSite associated with Node, or nullptr if none exists.
+  MDNode *getHeapAllocSite(const SDNode *Node) const {
+    auto I = SDCallSiteDbgInfo.find(Node);
+    return I != SDCallSiteDbgInfo.end() ? I->second.HeapAllocSite : nullptr;
   }
-
+  /// Set NoMergeSiteInfo to be associated with Node if NoMerge is true.
   void addNoMergeSiteInfo(const SDNode *Node, bool NoMerge) {
     if (NoMerge)
       SDCallSiteDbgInfo[Node].NoMerge = NoMerge;
   }
-
-  bool getNoMergeSiteInfo(const SDNode *Node) {
+  /// Return NoMerge info associated with Node.
+  bool getNoMergeSiteInfo(const SDNode *Node) const {
     auto I = SDCallSiteDbgInfo.find(Node);
-    if (I == SDCallSiteDbgInfo.end())
-      return false;
-    return I->second.NoMerge;
+    return I != SDCallSiteDbgInfo.end() ? I->second.NoMerge : false;
   }
 
   /// Return the current function's default denormal handling kind for the given

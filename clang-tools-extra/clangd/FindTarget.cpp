@@ -31,7 +31,6 @@
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/LangOptions.h"
-#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
@@ -385,11 +384,14 @@ public:
       }
       void VisitDeducedTemplateSpecializationType(
           const DeducedTemplateSpecializationType *DTST) {
+        if (const auto *USD = DTST->getTemplateName().getAsUsingShadowDecl())
+          Outer.add(USD, Flags);
+
         // FIXME: This is a workaround for https://llvm.org/PR42914,
         // which is causing DTST->getDeducedType() to be empty. We
         // fall back to the template pattern and miss the instantiation
         // even when it's known in principle. Once that bug is fixed,
-        // this method can be removed (the existing handling in
+        // the following code can be removed (the existing handling in
         // VisitDeducedType() is sufficient).
         if (auto *TD = DTST->getTemplateName().getAsTemplateDecl())
           Outer.add(TD->getTemplatedDecl(), Flags | Rel::TemplatePattern);
@@ -419,6 +421,9 @@ public:
       void
       VisitTemplateSpecializationType(const TemplateSpecializationType *TST) {
         // Have to handle these case-by-case.
+
+        if (const auto *UTN = TST->getTemplateName().getAsUsingShadowDecl())
+          Outer.add(UTN, Flags);
 
         // templated type aliases: there's no specialized/instantiated using
         // decl to point to. So try to find a decl for the underlying type
@@ -509,6 +514,9 @@ public:
               Arg.getAsTemplateOrTemplatePattern().getAsTemplateDecl()) {
         report(TD, Flags);
       }
+      if (const auto *USD =
+              Arg.getAsTemplateOrTemplatePattern().getAsUsingShadowDecl())
+        add(USD, Flags);
     }
   }
 };

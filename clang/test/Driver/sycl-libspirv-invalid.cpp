@@ -1,5 +1,4 @@
 /// Test that `-fsycl-libspirv-path=` produces a diagnostic when the library is not found.
-// REQUIRES: clang-driver
 // UNSUPPORTED: system-windows
 
 // RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \

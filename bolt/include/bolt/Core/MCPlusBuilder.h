@@ -282,6 +282,8 @@ public:
     // Initialize the default annotation allocator with id 0
     AnnotationAllocators.emplace(0, AnnotationAllocator());
     MaxAllocatorId++;
+    // Build alias map
+    initAliases();
   }
 
   /// Initialize a new annotation allocator and return its id
@@ -353,7 +355,7 @@ public:
   }
 
   virtual bool isUnconditionalBranch(const MCInst &Inst) const {
-    return Analysis->isUnconditionalBranch(Inst);
+    return Analysis->isUnconditionalBranch(Inst) && !isTailCall(Inst);
   }
 
   virtual bool isIndirectBranch(const MCInst &Inst) const {
@@ -424,9 +426,7 @@ public:
 
   /// Return a register number that is guaranteed to not match with
   /// any real register on the underlying architecture.
-  virtual MCPhysReg getNoRegister() const {
-    llvm_unreachable("not implemented");
-  }
+  MCPhysReg getNoRegister() const { return MCRegister::NoRegister; }
 
   /// Return a register corresponding to a function integer argument \p ArgNo
   /// if the argument is passed in a register. Or return the result of
@@ -513,22 +513,12 @@ public:
     return 0;
   }
 
-  virtual bool isADD64rr(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
-
   virtual bool isSUB(const MCInst &Inst) const {
     llvm_unreachable("not implemented");
     return false;
   }
 
   virtual bool isLEA64r(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
-
-  virtual bool isMOVSX64rm32(const MCInst &Inst) const {
     llvm_unreachable("not implemented");
     return false;
   }
@@ -1147,6 +1137,9 @@ public:
   virtual const BitVector &getAliases(MCPhysReg Reg,
                                       bool OnlySmaller = false) const;
 
+  /// Initialize aliases tables.
+  virtual void initAliases();
+
   /// Change \p Regs setting all registers used to pass parameters according
   /// to the host abi. Do nothing if not implemented.
   virtual BitVector getRegsUsedAsParams() const {
@@ -1289,7 +1282,18 @@ public:
 
   /// Replace instruction with a shorter version that could be relaxed later
   /// if needed.
-  virtual bool shortenInstruction(MCInst &Inst) const {
+  virtual bool shortenInstruction(MCInst &Inst,
+                                  const MCSubtargetInfo &STI) const {
+    llvm_unreachable("not implemented");
+    return false;
+  }
+
+  /// Convert a move instruction into a conditional move instruction, given a
+  /// condition code.
+  virtual bool
+  convertMoveToConditionalMove(MCInst &Inst, unsigned CC,
+                               bool AllowStackMemOp = false,
+                               bool AllowBasePtrStackMemOp = false) const {
     llvm_unreachable("not implemented");
     return false;
   }
@@ -1325,6 +1329,16 @@ public:
                         const MCExpr *&DispExpr, MCInst *&PCRelBaseOut) const {
     llvm_unreachable("not implemented");
     return IndirectBranchType::UNKNOWN;
+  }
+
+  /// Analyze branch \p Instruction in PLT section and try to determine
+  /// associated got entry address.
+  virtual uint64_t analyzePLTEntry(MCInst &Instruction,
+                                   InstructionIterator Begin,
+                                   InstructionIterator End,
+                                   uint64_t BeginPC) const {
+    llvm_unreachable("not implemented");
+    return 0;
   }
 
   virtual bool analyzeVirtualMethodCall(InstructionIterator Begin,
@@ -1895,6 +1909,11 @@ public:
     llvm_unreachable("not implemented");
     return BlocksVectorTy();
   }
+
+  // AliasMap caches a mapping of registers to the set of registers that
+  // alias (are sub or superregs of itself, including itself).
+  std::vector<BitVector> AliasMap;
+  std::vector<BitVector> SmallerAliasMap;
 };
 
 MCPlusBuilder *createX86MCPlusBuilder(const MCInstrAnalysis *,

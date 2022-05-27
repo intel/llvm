@@ -12,7 +12,9 @@
 
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -298,17 +300,6 @@ static VectorizationResult vectorizeLinalgIndex(OpBuilder &b, Operation *op,
   return VectorizationResult{VectorizationStatus::NewOp, transposeOp};
 }
 
-/// Create a new vectorized verstion of `op` with the given operands and types.
-static Operation *createVectorizedOp(OpBuilder &b, Operation *op,
-                                     ValueRange newOperands,
-                                     ArrayRef<Type> types) {
-  OperationState state(op->getLoc(), op->getName());
-  state.addAttributes(op->getAttrs());
-  state.addOperands(newOperands);
-  state.addTypes(types);
-  return b.createOperation(state);
-}
-
 /// Emit reduction operations if the shapes of the value to reduce is different
 /// that the result shape.
 static Operation *reduceIfNeeded(OpBuilder &b, LinalgOp linalgOp, Operation *op,
@@ -325,7 +316,9 @@ static Operation *reduceIfNeeded(OpBuilder &b, LinalgOp linalgOp, Operation *op,
     return nullptr;
   SmallVector<bool> reductionMask = getReductionMask(linalgOp);
   Value reduce = buildMultiDimReduce(b, op, reduceVec, reductionMask);
-  return createVectorizedOp(b, op, {reduce, outputVec}, reduce.getType());
+  return b.create(op->getLoc(), op->getName().getIdentifier(),
+                  /*operands=*/{reduce, outputVec}, reduce.getType(),
+                  op->getAttrs());
 }
 
 /// Generic vectorization for a single operation `op`, given already vectorized
@@ -365,7 +358,7 @@ vectorizeOneOp(OpBuilder &b, LinalgOp linalgOp, Operation *op,
 
   // 2. Constant ops don't get vectorized but rather broadcasted at their users.
   // Clone so that the constant is not confined to the linalgOp block .
-  if (isa<arith::ConstantOp, ConstantOp>(op))
+  if (isa<arith::ConstantOp, func::ConstantOp>(op))
     return VectorizationResult{VectorizationStatus::NewOp, b.clone(*op)};
 
   // 3. Only ElementwiseMappable are allowed in the generic vectorization.
@@ -419,8 +412,9 @@ vectorizeOneOp(OpBuilder &b, LinalgOp linalgOp, Operation *op,
   // Build and return the new op.
   return VectorizationResult{
       VectorizationStatus::NewOp,
-      createVectorizedOp(b, op, llvm::to_vector<4>(vectorizedOperands),
-                         llvm::to_vector<4>(returnTypes))};
+      b.create(op->getLoc(), op->getName().getIdentifier(),
+               llvm::to_vector<4>(vectorizedOperands),
+               llvm::to_vector<4>(returnTypes), op->getAttrs())};
 }
 
 /// Detect whether `r` has only ConstantOp, ElementwiseMappable and YieldOp.
@@ -428,8 +422,8 @@ static bool hasOnlyScalarElementwiseOp(Region &r) {
   if (!llvm::hasSingleElement(r))
     return false;
   for (Operation &op : r.front()) {
-    if (!(isa<arith::ConstantOp, ConstantOp, linalg::YieldOp, linalg::IndexOp>(
-              op) ||
+    if (!(isa<arith::ConstantOp, func::ConstantOp, linalg::YieldOp,
+              linalg::IndexOp>(op) ||
           OpTrait::hasElementwiseMappableTraits(&op)) ||
         llvm::any_of(op.getResultTypes(),
                      [](Type type) { return !type.isIntOrIndexOrFloat(); }))
@@ -511,7 +505,7 @@ vectorizeAsLinalgGeneric(OpBuilder &b, LinalgOp linalgOp,
     //   readType = VectorType::get({}, bbarg.getType());
     // } else {
     if (opOperand->getOperandNumber() < linalgOp.getNumInputs()) {
-      map = inverseAndBroadcastProjectedPermuation(
+      map = inverseAndBroadcastProjectedPermutation(
           linalgOp.getTiedIndexingMap(opOperand));
       readType = VectorType::get(commonVectorShape,
                                  getElementTypeOrSelf(opOperand->get()));
@@ -683,7 +677,6 @@ LogicalResult mlir::linalg::vectorizeCopy(RewriterBase &rewriter,
   Operation *writeValue = rewriter.create<vector::TransferWriteOp>(
       loc, readValue, copyOp.target(), indices,
       rewriter.getMultiDimIdentityMap(srcType.getRank()));
-  copyOp->getParentOfType<FuncOp>().dump();
   rewriter.replaceOp(copyOp, writeValue->getResults());
   return success();
 }
@@ -853,15 +846,15 @@ struct PadOpVectorizationWithTransferReadPattern
     if (!padValue)
       return failure();
     // Padding value of existing `xferOp` is unused.
-    if (xferOp.hasOutOfBoundsDim() || xferOp.mask())
+    if (xferOp.hasOutOfBoundsDim() || xferOp.getMask())
       return failure();
 
     rewriter.updateRootInPlace(xferOp, [&]() {
       SmallVector<bool> inBounds(xferOp.getVectorType().getRank(), false);
       xferOp->setAttr(xferOp.getInBoundsAttrName(),
                       rewriter.getBoolArrayAttr(inBounds));
-      xferOp.sourceMutable().assign(padOp.source());
-      xferOp.paddingMutable().assign(padValue);
+      xferOp.getSourceMutable().assign(padOp.source());
+      xferOp.getPaddingMutable().assign(padValue);
     });
 
     return success();
@@ -936,8 +929,8 @@ struct PadOpVectorizationWithTransferWritePattern
 
     SmallVector<bool> inBounds(xferOp.getVectorType().getRank(), false);
     auto newXferOp = rewriter.replaceOpWithNewOp<vector::TransferWriteOp>(
-        xferOp, padOp.source().getType(), xferOp.vector(), padOp.source(),
-        xferOp.indices(), xferOp.permutation_mapAttr(), xferOp.mask(),
+        xferOp, padOp.source().getType(), xferOp.getVector(), padOp.source(),
+        xferOp.getIndices(), xferOp.getPermutationMapAttr(), xferOp.getMask(),
         rewriter.getBoolArrayAttr(inBounds));
     rewriter.replaceOp(trimPadding, newXferOp->getResult(0));
 
@@ -1181,11 +1174,11 @@ LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
     vector::TransferReadOp xferOp, PatternRewriter &rewriter) const {
 
   // TODO: support mask.
-  if (xferOp.mask())
+  if (xferOp.getMask())
     return failure();
 
   // Transfer into `view`.
-  Value viewOrAlloc = xferOp.source();
+  Value viewOrAlloc = xferOp.getSource();
   if (!viewOrAlloc.getDefiningOp<memref::ViewOp>() &&
       !viewOrAlloc.getDefiningOp<memref::AllocOp>())
     return failure();
@@ -1233,7 +1226,7 @@ LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
     }
   }
   // Ensure padding matches.
-  if (maybeFillOp && xferOp.padding() != maybeFillOp.value())
+  if (maybeFillOp && xferOp.getPadding() != maybeFillOp.value())
     return failure();
   if (maybeFillOp)
     LDBG("with maybeFillOp " << *maybeFillOp);
@@ -1246,8 +1239,8 @@ LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
   // When forwarding to vector.transfer_read, the attribute must be reset
   // conservatively.
   Value res = rewriter.create<vector::TransferReadOp>(
-      xferOp.getLoc(), xferOp.getVectorType(), in, xferOp.indices(),
-      xferOp.permutation_mapAttr(), xferOp.padding(), xferOp.mask(),
+      xferOp.getLoc(), xferOp.getVectorType(), in, xferOp.getIndices(),
+      xferOp.getPermutationMapAttr(), xferOp.getPadding(), xferOp.getMask(),
       // in_bounds is explicitly reset
       /*inBoundsAttr=*/ArrayAttr());
 
@@ -1264,11 +1257,11 @@ LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
 LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
     vector::TransferWriteOp xferOp, PatternRewriter &rewriter) const {
   // TODO: support mask.
-  if (xferOp.mask())
+  if (xferOp.getMask())
     return failure();
 
   // Transfer into `viewOrAlloc`.
-  Value viewOrAlloc = xferOp.source();
+  Value viewOrAlloc = xferOp.getSource();
   if (!viewOrAlloc.getDefiningOp<memref::ViewOp>() &&
       !viewOrAlloc.getDefiningOp<memref::AllocOp>())
     return failure();
@@ -1304,8 +1297,8 @@ LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
   // When forwarding to vector.transfer_write, the attribute must be reset
   // conservatively.
   rewriter.create<vector::TransferWriteOp>(
-      xferOp.getLoc(), xferOp.vector(), out, xferOp.indices(),
-      xferOp.permutation_mapAttr(), xferOp.mask(),
+      xferOp.getLoc(), xferOp.getVector(), out, xferOp.getIndices(),
+      xferOp.getPermutationMapAttr(), xferOp.getMask(),
       // in_bounds is explicitly reset
       /*inBoundsAttr=*/ArrayAttr());
 
@@ -1354,8 +1347,8 @@ namespace {
 struct Conv1DNwcGenerator : public StructuredGenerator<LinalgOp> {
   Conv1DNwcGenerator(OpBuilder &builder, LinalgOp linalgOp, int strideW,
                      int dilationW)
-      : StructuredGenerator<LinalgOp>(builder, linalgOp), valid(false),
-        strideW(strideW), dilationW(dilationW) {
+      : StructuredGenerator<LinalgOp>(builder, linalgOp), strideW(strideW),
+        dilationW(dilationW) {
     // Determine whether `linalgOp` can be generated with this generator
     if (linalgOp.getNumInputs() != 2 || linalgOp.getNumOutputs() != 1)
       return;
@@ -1664,7 +1657,7 @@ struct Conv1DNwcGenerator : public StructuredGenerator<LinalgOp> {
   }
 
 private:
-  bool valid;
+  bool valid = false;
   int strideW, dilationW;
   Value lhsShaped, rhsShaped, resShaped;
   ShapedType lhsShapedType, rhsShapedType, resShapedType;

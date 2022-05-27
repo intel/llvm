@@ -2,6 +2,7 @@ add_mlir_dialect_library(MLIRMemRefTransforms
   ComposeSubView.cpp
   ExpandOps.cpp
   FoldSubViewOps.cpp
+  MultiBuffer.cpp
   NormalizeMemRefs.cpp
   ResolveShapedTypeResultDims.cpp
 
@@ -15,10 +16,11 @@ add_mlir_dialect_library(MLIRMemRefTransforms
   MLIRAffine
   MLIRAffineUtils
   MLIRArithmetic
+  MLIRFunc
   MLIRInferTypeOpInterface
+  MLIRLoopLikeInterface
   MLIRMemRef
   MLIRPass
-  MLIRStandard
   MLIRTensor
   MLIRTransforms
   MLIRVector

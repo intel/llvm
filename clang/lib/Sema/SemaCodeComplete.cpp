@@ -2122,8 +2122,7 @@ static void AddOrdinaryNameResults(Sema::ParserCompletionContext CCC, Scope *S,
       if (CCC == Sema::PCC_Class) {
         AddTypedefResult(Results);
 
-        bool IsNotInheritanceScope =
-            !(S->getFlags() & Scope::ClassInheritanceScope);
+        bool IsNotInheritanceScope = !S->isClassInheritanceScope();
         // public:
         Builder.AddTypedTextChunk("public");
         if (IsNotInheritanceScope && Results.includeCodePatterns())
@@ -9138,8 +9137,8 @@ static void AddObjCKeyValueCompletions(ObjCPropertyDecl *Property,
   if (IsInstanceMethod &&
       (ReturnType.isNull() ||
        (ReturnType->isObjCObjectPointerType() &&
-        ReturnType->getAs<ObjCObjectPointerType>()->getInterfaceDecl() &&
-        ReturnType->getAs<ObjCObjectPointerType>()
+        ReturnType->castAs<ObjCObjectPointerType>()->getInterfaceDecl() &&
+        ReturnType->castAs<ObjCObjectPointerType>()
                 ->getInterfaceDecl()
                 ->getName() == "NSEnumerator"))) {
     std::string SelectorName = (Twine("enumeratorOf") + UpperKey).str();
@@ -9505,8 +9504,7 @@ void Sema::CodeCompleteObjCMethodDecl(Scope *S, Optional<bool> IsInstanceMethod,
         IFace = Category->getClassInterface();
 
     if (IFace)
-      for (auto *Cat : IFace->visible_categories())
-        Containers.push_back(Cat);
+      llvm::append_range(Containers, IFace->visible_categories());
 
     if (IsInstanceMethod) {
       for (unsigned I = 0, N = Containers.size(); I != N; ++I)
@@ -9973,7 +9971,7 @@ void Sema::CodeCompleteIncludedFile(llvm::StringRef Dir, bool Angled) {
   using llvm::make_range;
   if (!Angled) {
     // The current directory is on the include path for "quoted" includes.
-    auto *CurFile = PP.getCurrentFileLexer()->getFileEntry();
+    const FileEntry *CurFile = PP.getCurrentFileLexer()->getFileEntry();
     if (CurFile && CurFile->getDir())
       AddFilesFromIncludeDir(CurFile->getDir()->getName(), false,
                              DirectoryLookup::LT_NormalDir);

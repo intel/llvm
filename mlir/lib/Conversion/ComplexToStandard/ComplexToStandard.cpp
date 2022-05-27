@@ -15,7 +15,6 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -101,6 +100,71 @@ struct BinaryComplexOpConversion : public OpConversionPattern<BinaryComplexOp> {
     rewriter.replaceOpWithNewOp<complex::CreateOp>(op, type, resultReal,
                                                    resultImag);
     return success();
+  }
+};
+
+template <typename TrigonometricOp>
+struct TrigonometricOpConversion : public OpConversionPattern<TrigonometricOp> {
+  using OpAdaptor = typename OpConversionPattern<TrigonometricOp>::OpAdaptor;
+
+  using OpConversionPattern<TrigonometricOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(TrigonometricOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto type = adaptor.getComplex().getType().template cast<ComplexType>();
+    auto elementType = type.getElementType().template cast<FloatType>();
+
+    Value real =
+        rewriter.create<complex::ReOp>(loc, elementType, adaptor.getComplex());
+    Value imag =
+        rewriter.create<complex::ImOp>(loc, elementType, adaptor.getComplex());
+
+    // Trigonometric ops use a set of common building blocks to convert to real
+    // ops. Here we create these building blocks and call into an op-specific
+    // implementation in the subclass to combine them.
+    Value half = rewriter.create<arith::ConstantOp>(
+        loc, elementType, rewriter.getFloatAttr(elementType, 0.5));
+    Value exp = rewriter.create<math::ExpOp>(loc, imag);
+    Value scaledExp = rewriter.create<arith::MulFOp>(loc, half, exp);
+    Value reciprocalExp = rewriter.create<arith::DivFOp>(loc, half, exp);
+    Value sin = rewriter.create<math::SinOp>(loc, real);
+    Value cos = rewriter.create<math::CosOp>(loc, real);
+
+    auto resultPair =
+        combine(loc, scaledExp, reciprocalExp, sin, cos, rewriter);
+
+    rewriter.replaceOpWithNewOp<complex::CreateOp>(op, type, resultPair.first,
+                                                   resultPair.second);
+    return success();
+  }
+
+  virtual std::pair<Value, Value>
+  combine(Location loc, Value scaledExp, Value reciprocalExp, Value sin,
+          Value cos, ConversionPatternRewriter &rewriter) const = 0;
+};
+
+struct CosOpConversion : public TrigonometricOpConversion<complex::CosOp> {
+  using TrigonometricOpConversion<complex::CosOp>::TrigonometricOpConversion;
+
+  std::pair<Value, Value>
+  combine(Location loc, Value scaledExp, Value reciprocalExp, Value sin,
+          Value cos, ConversionPatternRewriter &rewriter) const override {
+    // Complex cosine is defined as;
+    //   cos(x + iy) = 0.5 * (exp(i(x + iy)) + exp(-i(x + iy)))
+    // Plugging in:
+    //   exp(i(x+iy)) = exp(-y + ix) = exp(-y)(cos(x) + i sin(x))
+    //   exp(-i(x+iy)) = exp(y + i(-x)) = exp(y)(cos(x) + i (-sin(x)))
+    // and defining t := exp(y)
+    // We get:
+    //   Re(cos(x + iy)) = (0.5/t + 0.5*t) * cos x
+    //   Im(cos(x + iy)) = (0.5/t - 0.5*t) * sin x
+    Value sum = rewriter.create<arith::AddFOp>(loc, reciprocalExp, scaledExp);
+    Value resultReal = rewriter.create<arith::MulFOp>(loc, sum, cos);
+    Value diff = rewriter.create<arith::SubFOp>(loc, reciprocalExp, scaledExp);
+    Value resultImag = rewriter.create<arith::MulFOp>(loc, diff, sin);
+    return {resultReal, resultImag};
   }
 };
 
@@ -589,6 +653,29 @@ struct NegOpConversion : public OpConversionPattern<complex::NegOp> {
   }
 };
 
+struct SinOpConversion : public TrigonometricOpConversion<complex::SinOp> {
+  using TrigonometricOpConversion<complex::SinOp>::TrigonometricOpConversion;
+
+  std::pair<Value, Value>
+  combine(Location loc, Value scaledExp, Value reciprocalExp, Value sin,
+          Value cos, ConversionPatternRewriter &rewriter) const override {
+    // Complex sine is defined as;
+    //   sin(x + iy) = -0.5i * (exp(i(x + iy)) - exp(-i(x + iy)))
+    // Plugging in:
+    //   exp(i(x+iy)) = exp(-y + ix) = exp(-y)(cos(x) + i sin(x))
+    //   exp(-i(x+iy)) = exp(y + i(-x)) = exp(y)(cos(x) + i (-sin(x)))
+    // and defining t := exp(y)
+    // We get:
+    //   Re(sin(x + iy)) = (0.5*t + 0.5/t) * sin x
+    //   Im(cos(x + iy)) = (0.5*t - 0.5/t) * cos x
+    Value sum = rewriter.create<arith::AddFOp>(loc, scaledExp, reciprocalExp);
+    Value resultReal = rewriter.create<arith::MulFOp>(loc, sum, sin);
+    Value diff = rewriter.create<arith::SubFOp>(loc, scaledExp, reciprocalExp);
+    Value resultImag = rewriter.create<arith::MulFOp>(loc, diff, cos);
+    return {resultReal, resultImag};
+  }
+};
+
 struct SignOpConversion : public OpConversionPattern<complex::SignOp> {
   using OpConversionPattern<complex::SignOp>::OpConversionPattern;
 
@@ -628,13 +715,15 @@ void mlir::populateComplexToStandardConversionPatterns(
       ComparisonOpConversion<complex::NotEqualOp, arith::CmpFPredicate::UNE>,
       BinaryComplexOpConversion<complex::AddOp, arith::AddFOp>,
       BinaryComplexOpConversion<complex::SubOp, arith::SubFOp>,
+      CosOpConversion,
       DivOpConversion,
       ExpOpConversion,
       LogOpConversion,
       Log1pOpConversion,
       MulOpConversion,
       NegOpConversion,
-      SignOpConversion>(patterns.getContext());
+      SignOpConversion,
+      SinOpConversion>(patterns.getContext());
   // clang-format on
 }
 
@@ -645,22 +734,19 @@ struct ConvertComplexToStandardPass
 };
 
 void ConvertComplexToStandardPass::runOnOperation() {
-  auto function = getOperation();
-
   // Convert to the Standard dialect using the converter defined above.
   RewritePatternSet patterns(&getContext());
   populateComplexToStandardConversionPatterns(patterns);
 
   ConversionTarget target(getContext());
-  target.addLegalDialect<arith::ArithmeticDialect, StandardOpsDialect,
-                         math::MathDialect>();
+  target.addLegalDialect<arith::ArithmeticDialect, math::MathDialect>();
   target.addLegalOp<complex::CreateOp, complex::ImOp, complex::ReOp>();
-  if (failed(applyPartialConversion(function, target, std::move(patterns))))
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::createConvertComplexToStandardPass() {
+std::unique_ptr<Pass> mlir::createConvertComplexToStandardPass() {
   return std::make_unique<ConvertComplexToStandardPass>();
 }

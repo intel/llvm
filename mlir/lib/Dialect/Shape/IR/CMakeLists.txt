@@ -13,9 +13,11 @@ add_mlir_dialect_library(MLIRShape
 
   LINK_LIBS PUBLIC
   MLIRArithmetic
+  MLIRCallInterfaces
   MLIRCastInterfaces
   MLIRControlFlowInterfaces
   MLIRDialect
+  MLIRFunc
   MLIRInferTypeOpInterface
   MLIRIR
   MLIRSideEffectInterfaces

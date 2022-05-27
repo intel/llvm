@@ -130,21 +130,16 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
-    "crt",
-    "cmath",
-    "cmath-fp64",
-    "complex",
-    "complex-fp64",
-    "itt-compiler-wrappers",
-    "itt-stubs",
-    "itt-user-wrappers",
-    "fallback-cassert",
-    "fallback-cstring",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64"};
+
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
+  "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
+#if defined(_WIN32)
+      "msvc-math",
+#endif
+      "itt-compiler-wrappers", "itt-stubs", "itt-user-wrappers",
+      "fallback-cassert", "fallback-cstring", "fallback-cmath",
+      "fallback-cmath-fp64", "fallback-complex", "fallback-complex-fp64"
+};
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,

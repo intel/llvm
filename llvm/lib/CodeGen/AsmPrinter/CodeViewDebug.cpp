@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeViewDebug.h"
-#include "DwarfExpression.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
@@ -29,7 +28,6 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
-#include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -41,7 +39,6 @@
 #include "llvm/DebugInfo/CodeView/EnumTables.h"
 #include "llvm/DebugInfo/CodeView/Line.h"
 #include "llvm/DebugInfo/CodeView/SymbolRecord.h"
-#include "llvm/DebugInfo/CodeView/TypeDumpVisitor.h"
 #include "llvm/DebugInfo/CodeView/TypeRecord.h"
 #include "llvm/DebugInfo/CodeView/TypeTableCollection.h"
 #include "llvm/DebugInfo/CodeView/TypeVisitorCallbackPipeline.h"
@@ -58,11 +55,8 @@
 #include "llvm/MC/MCSectionCOFF.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/Support/BinaryByteStream.h"
-#include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -515,7 +509,7 @@ void CodeViewDebug::maybeRecordLocation(const DebugLoc &DL,
   if (!DL || DL == PrevInstLoc)
     return;
 
-  const DIScope *Scope = DL.get()->getScope();
+  const DIScope *Scope = DL->getScope();
   if (!Scope)
     return;
 
@@ -614,18 +608,16 @@ static SourceLanguage MapDWLangToCVLang(unsigned DWLang) {
 void CodeViewDebug::beginModule(Module *M) {
   // If module doesn't have named metadata anchors or COFF debug section
   // is not available, skip any debug info related stuff.
-  NamedMDNode *CUs = M->getNamedMetadata("llvm.dbg.cu");
-  if (!CUs || !Asm->getObjFileLowering().getCOFFDebugSymbolsSection()) {
+  if (!MMI->hasDebugInfo() ||
+      !Asm->getObjFileLowering().getCOFFDebugSymbolsSection()) {
     Asm = nullptr;
     return;
   }
-  // Tell MMI that we have and need debug info.
-  MMI->setDebugInfoAvailability(true);
 
   TheCPU = mapArchToCVCPUType(Triple(M->getTargetTriple()).getArch());
 
   // Get the current source language.
-  const MDNode *Node = *CUs->operands().begin();
+  const MDNode *Node = *M->debug_compile_units_begin();
   const auto *CU = cast<DICompileUnit>(Node);
 
   CurrentSourceLanguage = MapDWLangToCVLang(CU->getSourceLanguage());
@@ -1826,6 +1818,7 @@ TypeIndex CodeViewDebug::lowerTypeBasic(const DIBasicType *Ty) {
     break;
   case dwarf::DW_ATE_UTF:
     switch (ByteSize) {
+    case 1: STK = SimpleTypeKind::Character8; break;
     case 2: STK = SimpleTypeKind::Character16; break;
     case 4: STK = SimpleTypeKind::Character32; break;
     }

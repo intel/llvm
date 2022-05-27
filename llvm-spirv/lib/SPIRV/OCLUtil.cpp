@@ -967,7 +967,7 @@ getOCLOpaqueTypeAddrSpace(SPIR::TypePrimitiveEnum Prim) {
 static FunctionType *getBlockInvokeTy(Function *F, unsigned BlockIdx) {
   auto Params = F->getFunctionType()->params();
   PointerType *FuncPtr = cast<PointerType>(Params[BlockIdx]);
-  return cast<FunctionType>(FuncPtr->getPointerElementType());
+  return FunctionType::get(FuncPtr, Params, false);
 }
 
 class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {
@@ -1252,22 +1252,18 @@ public:
       else
         addUnsignedArg(1);
     } else if (NameRef.startswith("intel_sub_group_block_write")) {
-      // distinguish write to image and other data types as position
-      // of uint argument is different though name is the same.
-      auto *Arg0Ty = getArgTy(0);
-      if (Arg0Ty->isPointerTy() &&
-          Arg0Ty->getPointerElementType()->isIntegerTy()) {
+      // distinguish write to image and other data types based on number of
+      // arguments--images have one more argument.
+      if (F->getFunctionType()->getNumParams() == 2) {
         addUnsignedArg(0);
         addUnsignedArg(1);
       } else {
         addUnsignedArg(2);
       }
     } else if (NameRef.startswith("intel_sub_group_block_read")) {
-      // distinguish read from image and other data types as position
-      // of uint argument is different though name is the same.
-      auto *Arg0Ty = getArgTy(0);
-      if (Arg0Ty->isPointerTy() &&
-          Arg0Ty->getPointerElementType()->isIntegerTy()) {
+      // distinguish read from image and other data types based on number of
+      // arguments--images have one more argument.
+      if (F->getFunctionType()->getNumParams() == 1) {
         setArgAttr(0, SPIR::ATTR_CONST);
         addUnsignedArg(0);
       }

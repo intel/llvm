@@ -623,9 +623,8 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
   sycl::unittest::PiMock Mock{Plt};
 
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   setupMockForInterop(Mock, Ctx, Dev);
 

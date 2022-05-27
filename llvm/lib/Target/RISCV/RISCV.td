@@ -334,13 +334,13 @@ def HasRVCHints : Predicate<"Subtarget->enableRVCHintInstrs()">,
                   AssemblerPredicate<(all_of(not FeatureNoRVCHints)),
                                       "RVC Hint Instructions">;
 
-def FeatureStdExtZvl32b : SubtargetFeature<"zvl32b", "ZvlLen", "ExtZvl::Zvl32b",
+def FeatureStdExtZvl32b : SubtargetFeature<"zvl32b", "ZvlLen", "32",
                        "'Zvl' (Minimum Vector Length) 32">;
 
 foreach i = { 6-15 } in {
     defvar I = !shl(1, i);
     def FeatureStdExtZvl#I#b :
-        SubtargetFeature<"zvl"#I#"b", "ZvlLen", "ExtZvl::Zvl"#I#"b",
+        SubtargetFeature<"zvl"#I#"b", "ZvlLen", !cast<string>(I),
                         "'Zvl' (Minimum Vector Length) "#I,
                         [!cast<SubtargetFeature>("FeatureStdExtZvl"#!srl(I, 1)#"b")]>;
 }
@@ -394,6 +394,11 @@ def HasVInstructionsAnyF : Predicate<"Subtarget->hasVInstructionsAnyF()">,
           (any_of FeatureStdExtZve32f),
           "'V' (Vector Extension for Application Processors), 'Zve32f', "
           "'Zve64f' or 'Zve64d' (Vector Extensions for Embedded Processors)">;
+
+def FeatureStdExtZvfh
+    : SubtargetFeature<"experimental-zvfh", "HasStdExtZvfh", "true",
+                       "'Zvfh' (Vector Half-Precision Floating-Point)",
+                       [FeatureStdExtZve32f]>;
 
 def Feature64Bit
     : SubtargetFeature<"64bit", "HasRV64", "true", "Implements RV64">;
@@ -452,6 +457,9 @@ include "RISCVSchedSiFive7.td"
 
 def : ProcessorModel<"generic-rv32", NoSchedModel, []>;
 def : ProcessorModel<"generic-rv64", NoSchedModel, [Feature64Bit]>;
+// Support generic for compatibility with other targets. The triple will be used
+// to change to the appropriate rv32/rv64 version.
+def : ProcessorModel<"generic", NoSchedModel, []>;
 
 def : ProcessorModel<"rocket-rv32", RocketModel, []>;
 def : ProcessorModel<"rocket-rv64", RocketModel, [Feature64Bit]>;

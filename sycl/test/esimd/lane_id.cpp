@@ -4,10 +4,10 @@
 // __ESIMD_SIMT_END construct.
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 // Wrapper for designating a scalar region of code that will be
 // vectorized by the backend compiler.

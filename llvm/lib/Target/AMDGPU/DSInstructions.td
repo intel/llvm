@@ -462,6 +462,13 @@ let SubtargetPredicate = isGFX90APlus in {
   defm DS_ADD_RTN_F64 : DS_1A1D_RET_mc_gfx9<"ds_add_rtn_f64", VReg_64, "ds_add_f64">;
 } // End SubtargetPredicate = isGFX90APlus
 
+let SubtargetPredicate = isGFX940Plus in {
+  defm DS_PK_ADD_F16      : DS_1A1D_NORET_mc_gfx9<"ds_pk_add_f16">;
+  defm DS_PK_ADD_RTN_F16  : DS_1A1D_RET_mc_gfx9<"ds_pk_add_rtn_f16", VGPR_32, "ds_pk_add_f16">;
+  defm DS_PK_ADD_BF16     : DS_1A1D_NORET_mc_gfx9<"ds_pk_add_bf16">;
+  defm DS_PK_ADD_RTN_BF16 : DS_1A1D_RET_mc_gfx9<"ds_pk_add_rtn_bf16", VGPR_32, "ds_pk_add_bf16">;
+} // End SubtargetPredicate = isGFX940Plus
+
 defm DS_MSKOR_B32     : DS_1A2D_NORET_mc<"ds_mskor_b32">;
 defm DS_CMPST_B32     : DS_1A2D_NORET_mc<"ds_cmpst_b32">;
 defm DS_CMPST_F32     : DS_1A2D_NORET_mc<"ds_cmpst_f32">;
@@ -619,6 +626,8 @@ def DS_READ_ADDTID_B32 : DS_0A_RET<"ds_read_addtid_b32">;
 
 def DS_CONSUME       : DS_0A_RET<"ds_consume">;
 def DS_APPEND        : DS_0A_RET<"ds_append">;
+
+let SubtargetPredicate = isNotGFX90APlus in
 def DS_ORDERED_COUNT : DS_1A_RET_GDS<"ds_ordered_count">;
 
 //===----------------------------------------------------------------------===//
@@ -777,14 +786,14 @@ foreach vt = Reg32Types.types in {
 defm : DSWritePat_mc <DS_WRITE_B32, vt, "store_local">;
 }
 
-defm : DSAtomicWritePat_mc <DS_WRITE_B8, i16, "atomic_store_local_8">;
-defm : DSAtomicWritePat_mc <DS_WRITE_B8, i32, "atomic_store_local_8">;
-defm : DSAtomicWritePat_mc <DS_WRITE_B16, i16, "atomic_store_local_16">;
-defm : DSAtomicWritePat_mc <DS_WRITE_B16, i32, "atomic_store_local_16">;
-defm : DSAtomicWritePat_mc <DS_WRITE_B32, i32, "atomic_store_local_32">;
-defm : DSAtomicWritePat_mc <DS_WRITE_B64, i64, "atomic_store_local_64">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B8, i16, "atomic_store_8_local">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B8, i32, "atomic_store_8_local">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B16, i16, "atomic_store_16_local">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B16, i32, "atomic_store_16_local">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B32, i32, "atomic_store_32_local">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B64, i64, "atomic_store_64_local">;
 
-let OtherPredicates = [D16PreservesUnusedBits] in {
+let OtherPredicates = [HasD16LoadStore] in {
 def : DSWritePat <DS_WRITE_B16_D16_HI, i32, store_hi16_local>;
 def : DSWritePat <DS_WRITE_B8_D16_HI, i32, truncstorei8_hi16_local>;
 }
@@ -870,15 +879,30 @@ defm : DSWritePat_mc <DS_WRITE_B128, vt, "store_align16_local">;
 
 let SubtargetPredicate = HasUnalignedAccessMode in {
 
-// FIXME: From performance point of view, is ds_read_b96/ds_write_b96 better choice
-// for unaligned accesses?
+// Select 64 bit loads and stores aligned less than 4 as a single ds_read_b64/
+// ds_write_b64 instruction as this is faster than ds_read2_b32/ds_write2_b32
+// which would be used otherwise. In this case a b32 access would still be
+// misaligned, but we will have 2 of them.
+foreach vt = VReg_64.RegTypes in {
+defm : DSReadPat_mc <DS_READ_B64, vt, "load_align_less_than_4_local">;
+defm : DSWritePat_mc <DS_WRITE_B64, vt, "store_align_less_than_4_local">;
+}
+
+// Selection will split most of the unaligned 3 dword accesses due to performance
+// reasons when beneficial. Keep these two patterns for the rest of the cases.
 foreach vt = VReg_96.RegTypes in {
 defm : DSReadPat_mc <DS_READ_B96, vt, "load_local">;
 defm : DSWritePat_mc <DS_WRITE_B96, vt, "store_local">;
 }
 
-// For performance reasons, *do not* select ds_read_b128/ds_write_b128 for unaligned
-// accesses.
+// Select 128 bit loads and stores aligned less than 4 as a single ds_read_b128/
+// ds_write_b128 instruction as this is faster than ds_read2_b64/ds_write2_b64
+// which would be used otherwise. In this case a b64 access would still be
+// misaligned, but we will have 2 of them.
+foreach vt = VReg_128.RegTypes in {
+defm : DSReadPat_mc <DS_READ_B128, vt, "load_align_less_than_4_local">;
+defm : DSWritePat_mc <DS_WRITE_B128, vt, "store_align_less_than_4_local">;
+}
 
 } // End SubtargetPredicate = HasUnalignedAccessMode
 
@@ -996,6 +1020,19 @@ defm : DSAtomicCmpXChgSwapped_mc<DS_CMPST_RTN_B64, DS_CMPST_B64, i64, "atomic_cm
 let SubtargetPredicate = isGFX90APlus in {
 def : DSAtomicRetPat<DS_ADD_RTN_F64, f64, atomic_load_fadd_local_ret_64>;
 def : DSAtomicRetPat<DS_ADD_F64, f64, atomic_load_fadd_local_noret_64>;
+}
+
+let SubtargetPredicate = isGFX940Plus in {
+def : DSAtomicRetPat<DS_PK_ADD_RTN_F16, v2f16, atomic_load_fadd_v2f16_local_ret_32>;
+def : DSAtomicRetPat<DS_PK_ADD_F16, v2f16, atomic_load_fadd_v2f16_local_noret_32>;
+def : GCNPat <
+  (v2i16 (int_amdgcn_ds_fadd_v2bf16_ret i32:$ptr, v2i16:$src)),
+  (DS_PK_ADD_RTN_BF16 VGPR_32:$ptr, VGPR_32:$src, 0, 0)
+>;
+def : GCNPat <
+  (v2i16 (int_amdgcn_ds_fadd_v2bf16_noret i32:$ptr, v2i16:$src)),
+  (DS_PK_ADD_BF16 VGPR_32:$ptr, VGPR_32:$src, 0, 0)
+>;
 }
 
 def : Pat <
@@ -1410,3 +1447,10 @@ let SubtargetPredicate = isGFX90APlus in {
   def DS_ADD_F64_vi     : DS_Real_vi<0x5c, DS_ADD_F64>;
   def DS_ADD_RTN_F64_vi : DS_Real_vi<0x7c, DS_ADD_RTN_F64>;
 } // End SubtargetPredicate = isGFX90APlus
+
+let SubtargetPredicate = isGFX940Plus in {
+  def DS_PK_ADD_F16_vi     : DS_Real_vi<0x17, DS_PK_ADD_F16>;
+  def DS_PK_ADD_RTN_F16_vi : DS_Real_vi<0xb7, DS_PK_ADD_RTN_F16>;
+  def DS_PK_ADD_BF16_vi     : DS_Real_vi<0x18, DS_PK_ADD_BF16>;
+  def DS_PK_ADD_RTN_BF16_vi : DS_Real_vi<0xb8, DS_PK_ADD_RTN_BF16>;
+} // End SubtargetPredicate = isGFX940Plus

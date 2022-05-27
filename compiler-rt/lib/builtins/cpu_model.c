@@ -149,7 +149,7 @@ enum ProcessorFeatures {
 // Check motivated by bug reports for OpenSSL crashing on CPUs without CPUID
 // support. Consequently, for i386, the presence of CPUID is checked first
 // via the corresponding eflags bit.
-static bool isCpuIdSupported() {
+static bool isCpuIdSupported(void) {
 #if defined(__GNUC__) || defined(__clang__)
 #if defined(__i386__)
   int __cpuid_supported;
@@ -579,9 +579,9 @@ getAMDProcessorTypeAndSubtype(unsigned Family, unsigned Model,
   case 25:
     CPU = "znver3";
     *Type = AMDFAM19H;
-    if (Model <= 0x0f) {
+    if (Model <= 0x0f || Model == 0x21) {
       *Subtype = AMDFAM19H_ZNVER3;
-      break; // 00h-0Fh: Zen3
+      break; // 00h-0Fh, 21h: Zen3
     }
     break;
   default:
@@ -801,12 +801,23 @@ _Bool __aarch64_have_lse_atomics
 #if defined(__ANDROID__)
 #include <string.h>
 #include <sys/system_properties.h>
+#elif defined(__Fuchsia__)
+#include <zircon/features.h>
+#include <zircon/syscalls.h>
 #endif
 static void CONSTRUCTOR_ATTRIBUTE init_have_lse_atomics(void) {
 #if defined(__FreeBSD__)
   unsigned long hwcap;
   int result = elf_aux_info(AT_HWCAP, &hwcap, sizeof hwcap);
   __aarch64_have_lse_atomics = result == 0 && (hwcap & HWCAP_ATOMICS) != 0;
+#elif defined(__Fuchsia__)
+  // This ensures the vDSO is a direct link-time dependency of anything that
+  // needs this initializer code.
+#pragma comment(lib, "zircon")
+  uint32_t features;
+  zx_status_t status = _zx_system_get_features(ZX_FEATURE_KIND_CPU, &features);
+  __aarch64_have_lse_atomics =
+      status == ZX_OK && (features & ZX_ARM64_FEATURE_ISA_ATOMICS) != 0;
 #else
   unsigned long hwcap = getauxval(AT_HWCAP);
   _Bool result = (hwcap & HWCAP_ATOMICS) != 0;
@@ -815,8 +826,15 @@ static void CONSTRUCTOR_ATTRIBUTE init_have_lse_atomics(void) {
     char arch[PROP_VALUE_MAX];
     if (__system_property_get("ro.arch", arch) > 0 &&
         strncmp(arch, "exynos9810", sizeof("exynos9810") - 1) == 0) {
-      // Some cores of Exynos 9810 are ARMv8.2 and others are ARMv8.0,
-      // so disable the lse atomics completely.
+      // Some cores in the Exynos 9810 CPU are ARMv8.2 and others are ARMv8.0;
+      // only the former support LSE atomics.  However, the kernel in the
+      // initial Android 8.0 release of Galaxy S9/S9+ devices incorrectly
+      // reported the feature as being supported.
+      //
+      // The kernel appears to have been corrected to mark it unsupported as of
+      // the Android 9.0 release on those devices, and this issue has not been
+      // observed anywhere else. Thus, this workaround may be removed if
+      // compiler-rt ever drops support for Android 8.0.
       result = false;
     }
   }

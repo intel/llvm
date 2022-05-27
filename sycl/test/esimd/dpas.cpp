@@ -4,8 +4,9 @@
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
+using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo();

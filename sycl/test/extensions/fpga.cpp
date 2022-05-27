@@ -2,6 +2,9 @@
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
+
+#include <type_traits>
+
 namespace intelfpga {
 template <unsigned ID> struct ethernet_pipe_id {
   static constexpr unsigned id = ID;
@@ -36,6 +39,11 @@ using ethernet_read_pipe =
     sycl::ext::intel::kernel_readable_io_pipe<ethernet_pipe_id<0>, int, 0>;
 using ethernet_write_pipe =
     sycl::ext::intel::kernel_writeable_io_pipe<ethernet_pipe_id<1>, int, 0>;
+
+static_assert(std::is_same_v<ethernet_read_pipe::value_type, int>);
+static_assert(std::is_same_v<ethernet_write_pipe::value_type, int>);
+static_assert(ethernet_read_pipe::min_capacity == 0);
+static_assert(ethernet_write_pipe::min_capacity == 0);
 } // namespace intelfpga
 
 int main() {

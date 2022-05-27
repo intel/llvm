@@ -11,13 +11,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "bolt/Utils/CommandLineOpts.h"
-#include "bolt/Utils/BoltRevision.inc"
+#include "llvm/Support/VCSRevision.h"
 
 using namespace llvm;
 
 namespace llvm {
 namespace bolt {
-const char *BoltRevision = BOLT_VERSION_STRING;
+const char *BoltRevision =
+#ifdef LLVM_REVISION
+    LLVM_REVISION;
+#else
+    "<unknown>";
+#endif
 }
 }
 
@@ -41,6 +46,11 @@ AlignText("align-text",
   cl::ZeroOrMore,
   cl::Hidden,
   cl::cat(BoltCategory));
+
+cl::opt<unsigned> AlignFunctions(
+    "align-functions",
+    cl::desc("align functions at a given value (relocation mode)"),
+    cl::init(64), cl::ZeroOrMore, cl::cat(BoltOptCategory));
 
 cl::opt<bool>
 AggregateOnly("aggregate-only",

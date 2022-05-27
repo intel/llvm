@@ -8,8 +8,8 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
 
@@ -18,9 +18,9 @@ using namespace mlir;
 // Updates the func op and entry block.
 //
 // Any args appended to the entry block are added to `appendedEntryArgs`.
-static void updateFuncOp(FuncOp func,
+static void updateFuncOp(func::FuncOp func,
                          SmallVectorImpl<BlockArgument> &appendedEntryArgs) {
-  auto functionType = func.getType();
+  auto functionType = func.getFunctionType();
 
   // Collect information about the results will become appended arguments.
   SmallVector<Type, 6> erasedResultTypes;
@@ -57,12 +57,12 @@ static void updateFuncOp(FuncOp func,
     appendedEntryArgs.push_back(func.front().addArgument(type, loc));
 }
 
-// Updates all ReturnOps in the scope of the given FuncOp by either keeping them
-// as return values or copying the associated buffer contents into the given
-// out-params.
-static void updateReturnOps(FuncOp func,
+// Updates all ReturnOps in the scope of the given func::FuncOp by either
+// keeping them as return values or copying the associated buffer contents into
+// the given out-params.
+static void updateReturnOps(func::FuncOp func,
                             ArrayRef<BlockArgument> appendedEntryArgs) {
-  func.walk([&](ReturnOp op) {
+  func.walk([&](func::ReturnOp op) {
     SmallVector<Value, 6> copyIntoOutParams;
     SmallVector<Value, 6> keepAsReturnOperands;
     for (Value operand : op.getOperands()) {
@@ -75,7 +75,7 @@ static void updateReturnOps(FuncOp func,
     for (auto t : llvm::zip(copyIntoOutParams, appendedEntryArgs))
       builder.create<memref::CopyOp>(op.getLoc(), std::get<0>(t),
                                      std::get<1>(t));
-    builder.create<ReturnOp>(op.getLoc(), keepAsReturnOperands);
+    builder.create<func::ReturnOp>(op.getLoc(), keepAsReturnOperands);
     op.erase();
   });
 }
@@ -84,7 +84,7 @@ static void updateReturnOps(FuncOp func,
 // temporary buffers for newly introduced out params.
 static LogicalResult updateCalls(ModuleOp module) {
   bool didFail = false;
-  module.walk([&](CallOp op) {
+  module.walk([&](func::CallOp op) {
     SmallVector<Value, 6> replaceWithNewCallResults;
     SmallVector<Value, 6> replaceWithOutParams;
     for (OpResult result : op.getResults()) {
@@ -112,8 +112,8 @@ static LogicalResult updateCalls(ModuleOp module) {
     newOperands.append(outParams.begin(), outParams.end());
     auto newResultTypes = llvm::to_vector<6>(llvm::map_range(
         replaceWithNewCallResults, [](Value v) { return v.getType(); }));
-    auto newCall = builder.create<CallOp>(op.getLoc(), op.getCalleeAttr(),
-                                          newResultTypes, newOperands);
+    auto newCall = builder.create<func::CallOp>(op.getLoc(), op.getCalleeAttr(),
+                                                newResultTypes, newOperands);
     for (auto t : llvm::zip(replaceWithNewCallResults, newCall.getResults()))
       std::get<0>(t).replaceAllUsesWith(std::get<1>(t));
     op.erase();
@@ -128,7 +128,7 @@ struct BufferResultsToOutParamsPass
   void runOnOperation() override {
     ModuleOp module = getOperation();
 
-    for (auto func : module.getOps<FuncOp>()) {
+    for (auto func : module.getOps<func::FuncOp>()) {
       SmallVector<BlockArgument, 6> appendedEntryArgs;
       updateFuncOp(func, appendedEntryArgs);
       if (func.isExternal())

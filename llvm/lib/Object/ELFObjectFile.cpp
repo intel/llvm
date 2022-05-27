@@ -459,6 +459,8 @@ StringRef ELFObjectFileBase::getAMDGPUCPUName() const {
     return "gfx90a";
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX90C:
     return "gfx90c";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX940:
+    return "gfx940";
 
   // AMDGCN GFX10.
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010:
@@ -481,6 +483,18 @@ StringRef ELFObjectFileBase::getAMDGPUCPUName() const {
     return "gfx1034";
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1035:
     return "gfx1035";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1036:
+    return "gfx1036";
+
+  // AMDGCN GFX11.
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1100:
+    return "gfx1100";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1101:
+    return "gfx1101";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1102:
+    return "gfx1102";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1103:
+    return "gfx1103";
   default:
     llvm_unreachable("Unknown EF_AMDGPU_MACH value");
   }
@@ -569,6 +583,9 @@ void ELFObjectFileBase::setARMSubArch(Triple &TheTriple) const {
       break;
     case ARMBuildAttrs::v8_1_M_Main:
       Triple += "v8.1m.main";
+      break;
+    case ARMBuildAttrs::v9_A:
+      Triple += "v9a";
       break;
     }
   }

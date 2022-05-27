@@ -49,24 +49,40 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
   MSharedPtrStorage.push_back(std::move(ExtendedMembers));
 }
 
+static detail::ExtendedMemberT &getHandlerImplMember(
+    std::vector<std::shared_ptr<const void>> &SharedPtrStorage) {
+  assert(!SharedPtrStorage.empty());
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
+      detail::convertToExtendedMembers(SharedPtrStorage[0]);
+  assert(ExtendedMembersVec->size() > 0);
+  auto &HandlerImplMember = (*ExtendedMembersVec)[0];
+  assert(detail::ExtendedMembersType::HANDLER_IMPL == HandlerImplMember.MType);
+  return HandlerImplMember;
+}
+
 /// Gets the handler_impl at the start of the extended members.
 std::shared_ptr<detail::handler_impl> handler::getHandlerImpl() const {
   std::lock_guard<std::mutex> Lock(
       detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
-
-  assert(!MSharedPtrStorage.empty());
-
-  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
-      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
-
-  assert(ExtendedMembersVec->size() > 0);
-
-  auto HandlerImplMember = (*ExtendedMembersVec)[0];
-
-  assert(detail::ExtendedMembersType::HANDLER_IMPL == HandlerImplMember.MType);
-
   return std::static_pointer_cast<detail::handler_impl>(
-      HandlerImplMember.MData);
+      getHandlerImplMember(MSharedPtrStorage).MData);
+}
+
+/// Gets the handler_impl at the start of the extended members and removes it.
+std::shared_ptr<detail::handler_impl> handler::evictHandlerImpl() const {
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+  auto &HandlerImplMember = getHandlerImplMember(MSharedPtrStorage);
+  auto Impl =
+      std::static_pointer_cast<detail::handler_impl>(HandlerImplMember.MData);
+
+  // Reset the data of the member.
+  // NOTE: We let it stay because removing the front can be expensive. This will
+  // be improved when the impl is made a member of handler. In fact eviction is
+  // likely to not be needed when that happens.
+  HandlerImplMember.MData.reset();
+
+  return Impl;
 }
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
@@ -230,6 +246,7 @@ event handler::finalize() {
     auto EnqueueKernel = [&]() {
       // 'Result' for single point of return
       cl_int Result = CL_INVALID_VALUE;
+
       if (MQueue->is_host()) {
         MHostKernel->call(
             MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
@@ -237,11 +254,9 @@ event handler::finalize() {
       } else {
         if (MQueue->getPlugin().getBackend() ==
             backend::ext_intel_esimd_emulator) {
-          // Dims==0 for 'single_task() - void(void) type'
-          uint32_t Dims = (MArgs.size() > 0) ? MNDRDesc.Dims : 0;
           MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
-              nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()), Dims,
-              &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
+              nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+              MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
               &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
           Result = CL_SUCCESS;
         } else {
@@ -282,6 +297,10 @@ event handler::finalize() {
     return MLastEvent;
   }
 
+  // Evict handler_impl from extended members to make sure the command group
+  // does not keep it alive.
+  std::shared_ptr<detail::handler_impl> Impl = evictHandlerImpl();
+
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
   case detail::CG::Kernel:
@@ -294,7 +313,8 @@ event handler::finalize() {
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), MKernelName, MOSModuleHandle,
-        std::move(MStreamStorage), MCGType, MCodeLoc));
+        std::move(MStreamStorage), std::move(Impl->MAuxiliaryResources),
+        MCGType, MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:
@@ -381,6 +401,10 @@ event handler::finalize() {
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
+}
+
+void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
+  getHandlerImpl()->MAuxiliaryResources.push_back(ReduObj);
 }
 
 void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
@@ -519,6 +543,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       int SizeInBytes = LAcc->MElemSize;
       for (int I = 0; I < Dims; ++I)
         SizeInBytes *= Size[I];
+      // Some backends do not accept zero-sized local memory arguments, so we
+      // make it a minimum allocation of 1 byte.
+      SizeInBytes = std::max(SizeInBytes, 1);
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
       if (!IsKernelCreatedFromSource) {

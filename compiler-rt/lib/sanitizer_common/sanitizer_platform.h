@@ -116,6 +116,13 @@
 #  define SANITIZER_FUCHSIA 0
 #endif
 
+// Assume linux that is not glibc or android is musl libc.
+#if SANITIZER_LINUX && !SANITIZER_GLIBC && !SANITIZER_ANDROID
+#  define SANITIZER_MUSL 1
+#else
+#  define SANITIZER_MUSL 0
+#endif
+
 #define SANITIZER_POSIX                                     \
   (SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_MAC || \
    SANITIZER_NETBSD || SANITIZER_SOLARIS)
@@ -291,18 +298,6 @@
 #  define SANITIZER_SIGN_EXTENDED_ADDRESSES 0
 #endif
 
-// The AArch64 and RISC-V linux ports use the canonical syscall set as
-// mandated by the upstream linux community for all new ports. Other ports
-// may still use legacy syscalls.
-#ifndef SANITIZER_USES_CANONICAL_LINUX_SYSCALLS
-#  if (defined(__aarch64__) || defined(__riscv) || defined(__hexagon__)) && \
-      SANITIZER_LINUX
-#    define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 1
-#  else
-#    define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 0
-#  endif
-#endif
-
 // udi16 syscalls can only be used when the following conditions are
 // met:
 // * target is one of arm32, x86-32, sparc32, sh or m68k
@@ -333,7 +328,7 @@
 #  define MSC_PREREQ(version) 0
 #endif
 
-#if SANITIZER_MAC && !(defined(__arm64__) && SANITIZER_IOS)
+#if SANITIZER_MAC && defined(__x86_64__)
 #  define SANITIZER_NON_UNIQUE_TYPEINFO 0
 #else
 #  define SANITIZER_NON_UNIQUE_TYPEINFO 1

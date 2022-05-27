@@ -4,9 +4,9 @@
 // This test checks that both host and device code can use simd::copy_from/to
 // with alignment tags.
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace cl::sycl;
 
 // simd constructor

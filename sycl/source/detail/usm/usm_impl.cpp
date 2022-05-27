@@ -93,11 +93,13 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind,
-                   const detail::code_location &CL) {
+                   const detail::code_location &CL,
+                   const property_list &PropList = {}) {
   XPTI_CREATE_TRACEPOINT(CL);
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
+
   if (Ctxt.is_host()) {
     if (Kind == alloc::unknown) {
       RetVal = nullptr;
@@ -125,14 +127,39 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     switch (Kind) {
     case alloc::device: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
-          &RetVal, C, Id, nullptr, Size, Alignment);
+      // Parse out buffer location property
+      // Buffer location is only supported on FPGA devices
+      bool IsBufferLocSupported =
+          Dev.has_extension("cl_intel_mem_alloc_buffer_location");
+      if (IsBufferLocSupported &&
+          PropList.has_property<cl::sycl::ext::intel::experimental::property::
+                                    usm::buffer_location>()) {
+        auto location = PropList
+                            .get_property<cl::sycl::ext::intel::experimental::
+                                              property::usm::buffer_location>()
+                            .get_buffer_location();
+        pi_usm_mem_properties props[3] = {PI_MEM_USM_ALLOC_BUFFER_LOCATION,
+                                          location, 0};
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+            &RetVal, C, Id, props, Size, Alignment);
+      } else {
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+            &RetVal, C, Id, nullptr, Size, Alignment);
+      }
       break;
     }
     case alloc::shared: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
-          &RetVal, C, Id, nullptr, Size, Alignment);
+      if (PropList.has_property<
+              cl::sycl::ext::oneapi::property::usm::device_read_only>()) {
+        pi_usm_mem_properties Props[3] = {PI_MEM_ALLOC_FLAGS,
+                                          PI_MEM_ALLOC_DEVICE_READ_ONLY, 0};
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
+            &RetVal, C, Id, Props, Size, Alignment);
+      } else {
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
+            &RetVal, C, Id, nullptr, Size, Alignment);
+      }
       break;
     }
     case alloc::host:
@@ -193,8 +220,10 @@ void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
 }
 
 void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
-                    const property_list &, const detail::code_location CL) {
-  return malloc_device(Size, Dev, Ctxt, CL);
+                    const property_list &PropList,
+                    const detail::code_location CL) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device, CL,
+                                   PropList);
 }
 
 void *malloc_device(size_t Size, const queue &Q,
@@ -269,8 +298,10 @@ void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt,
 }
 
 void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt,
-                    const property_list &, const detail::code_location CL) {
-  return malloc_shared(Size, Dev, Ctxt, CL);
+                    const property_list &PropList,
+                    const detail::code_location CL) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared, CL,
+                                   PropList);
 }
 
 void *malloc_shared(size_t Size, const queue &Q,
@@ -313,9 +344,10 @@ void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
 }
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
-                           const context &Ctxt, const property_list &,
+                           const context &Ctxt, const property_list &PropList,
                            const detail::code_location CL) {
-  return aligned_alloc_shared(Alignment, Size, Dev, Ctxt, CL);
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared,
+                                   CL, PropList);
 }
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q,
