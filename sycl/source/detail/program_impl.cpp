@@ -34,14 +34,7 @@ program_impl::program_impl(ContextImplPtr Context,
 program_impl::program_impl(ContextImplPtr Context,
                            std::vector<device> DeviceList,
                            const property_list &PropList)
-    : MContext(Context), MDevices(DeviceList), MPropList(PropList) {
-  if (Context->getDevices().size() > 1) {
-    throw feature_not_supported(
-        "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
-        PI_INVALID_OPERATION);
-  }
-}
+    : MContext(Context), MDevices(DeviceList), MPropList(PropList) {}
 
 program_impl::program_impl(
     std::vector<std::shared_ptr<program_impl>> ProgramList,

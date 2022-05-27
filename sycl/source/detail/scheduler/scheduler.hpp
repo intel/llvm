@@ -193,10 +193,10 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 ///
 /// \ingroup sycl_graph
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
+  MemObjRecord(ContextImplPtr Ctx, DeviceImplPtr Dev, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
+        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx}, MCurDevice{Dev} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
@@ -605,7 +605,8 @@ protected:
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
                                        const Requirement *Req,
-                                       const DeviceImplPtr &Context);
+                                       const ContextImplPtr &Context,
+                                       const DeviceImplPtr &Device);
 
     template <typename T>
     typename detail::enable_if_t<
@@ -623,7 +624,8 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const DeviceImplPtr &Context);
+                                        const ContextImplPtr &Context,
+                                        const DeviceImplPtr &Device);
 
     friend class Command;
 

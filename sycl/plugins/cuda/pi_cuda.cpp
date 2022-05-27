@@ -631,6 +631,7 @@ pi_result _pi_program::build_program(const char *build_options) {
   auto native_ctxts = get_context()->get();
   bool success = true;
   for(size_t i=0;i<native_ctxts.size();i++){
+    ScopedContext ctx(native_ctxts[i]);
     success &= PI_SUCCESS == PI_CHECK_ERROR(
         cuModuleLoadDataEx(&modules_[i], static_cast<const void *>(binary_),
                           numberOfOptions, options, optionVals));
@@ -1886,7 +1887,6 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
                                                   const void *private_info,
                                                   size_t cb, void *user_data),
                                void *user_data, pi_context *retcontext) {
-
   assert(devices != nullptr);
   // TODO: How to implement context callback?
   assert(pfn_notify == nullptr);
@@ -3227,7 +3227,6 @@ pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
                              void *user_data, pi_program *ret_program) {
 
   assert(ret_program != nullptr);
-  assert(num_devices == 1 || num_devices == 0);
   assert(device_list != nullptr || num_devices == 0);
   assert(pfn_notify == nullptr);
   assert(user_data == nullptr);
@@ -3292,7 +3291,6 @@ pi_result cuda_piProgramCompile(
   (void)input_headers;
 
   assert(program != nullptr);
-  assert(num_devices == 1 || num_devices == 0);
   assert(device_list != nullptr || num_devices == 0);
   assert(pfn_notify == nullptr);
   assert(user_data == nullptr);
