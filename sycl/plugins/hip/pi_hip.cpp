@@ -2131,8 +2131,7 @@ pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
 /// \return PI_SUCCESS
 pi_result hip_piextMemGetNativeHandle(pi_mem mem,
                                       pi_native_handle *nativeHandle) {
-  *nativeHandle =
-      reinterpret_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
+  *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
   return PI_SUCCESS;
 }
 
