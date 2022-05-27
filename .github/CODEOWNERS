@@ -1,4 +1,4 @@
-* @bader
+* @pvchupin
 
 # Front-end compiler
 clang/ @intel/dpcpp-cfe-reviewers
@@ -35,7 +35,7 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
 
 # ESIMD CPU emulator plug-in
-sycl/plugins/esimd_cpu/ @intel/dpcpp-esimd-reviewers
+sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
@@ -48,7 +48,7 @@ xptifw/ @intel/llvm-reviewers-runtime
 llvm/ @intel/dpcpp-tools-reviewers
 
 # Clang offload tools
-clang/tools/clang-offload-*/ @sndmitriev @intel/dpcpp-tools-reviewers
+clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
 ESIMD/ @intel/dpcpp-esimd-reviewers

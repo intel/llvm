@@ -17,7 +17,6 @@
 #include "NVPTXLowerAggrCopies.h"
 #include "NVPTXTargetObjectFile.h"
 #include "NVPTXTargetTransformInfo.h"
-#include "SYCL/GlobalOffset.h"
 #include "TargetInfo/NVPTXTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
@@ -29,6 +28,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/GlobalOffset.h"
 #include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetMachine.h"
@@ -72,7 +72,6 @@ static cl::opt<bool>
 
 namespace llvm {
 
-void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
 void initializeNVVMIntrRangePass(PassRegistry&);
 void initializeNVVMReflectPass(PassRegistry&);
 void initializeGenericToNVVMPass(PassRegistry&);
@@ -84,8 +83,8 @@ void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXLowerAllocaPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
 
-void initializeGlobalOffsetPass(PassRegistry &);
-void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
+void initializeGlobalOffsetLegacyPass(PassRegistry &);
+void initializeLocalAccessorToSharedMemoryLegacyPass(PassRegistry &);
 
 } // end namespace llvm
 
@@ -109,8 +108,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXProxyRegErasurePass(PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
-  initializeGlobalOffsetPass(PR);
-  initializeLocalAccessorToSharedMemoryPass(PR);
+  initializeGlobalOffsetLegacyPass(PR);
+  initializeLocalAccessorToSharedMemoryLegacyPass(PR);
 }
 
 static std::string computeDataLayout(bool is64Bit, bool UseShortPointers) {
@@ -341,8 +340,8 @@ void NVPTXPassConfig::addIRPasses() {
   // FIXME: should the target triple check be done by the pass itself?
   // See createNVPTXLowerArgsPass as an example
   if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA) {
-    addPass(createGlobalOffsetPass());
-    addPass(createLocalAccessorToSharedMemoryPass());
+    addPass(createGlobalOffsetPassLegacy());
+    addPass(createLocalAccessorToSharedMemoryPassLegacy());
   }
 
   if (getOptLevel() != CodeGenOpt::None)

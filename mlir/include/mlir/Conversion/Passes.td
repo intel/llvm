@@ -507,6 +507,22 @@ def ConvertMemRefToSPIRV : Pass<"convert-memref-to-spirv", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// NVGPUToNVVM
+//===----------------------------------------------------------------------===//
+
+def ConvertNVGPUToNVVM : Pass<"convert-nvgpu-to-nvvm"> {
+  let summary = "Convert NVGPU dialect to NVVM dialect";
+  let description = [{
+    This pass converts supported NVGPU ops to NVVM dialect intrinsics.
+  }];
+  let constructor = "mlir::createConvertNVGPUToNVVMPass()";
+  let dependentDialects = [
+    "NVVM::NVVMDialect",
+  ];
+}
+
+
+//===----------------------------------------------------------------------===//
 // OpenACCToSCF
 //===----------------------------------------------------------------------===//
 
@@ -693,6 +709,30 @@ def ConvertTensorToSPIRV : Pass<"convert-tensor-to-spirv", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// TosaToArith
+//===----------------------------------------------------------------------===//
+
+def TosaToArith : Pass<"tosa-to-arith"> {
+  let summary = "Lower TOSA to the Arith dialect";
+  let dependentDialects = [
+    "arith::ArithmeticDialect",
+  ];
+  let description = [{
+    Pass that converts TOSA operations to the equivalent operations using the
+    operations in the Arith dialect. The ApplyScale operator is optionally
+    included as it is often preserved until the final invocation.
+  }];
+
+  let options = [
+    Option<"includeApplyRescale", "include-apply-rescale",
+           "bool", /*default=*/"false",
+           "Whether to include the lowering for tosa.apply_rescale to arith">
+  ];
+
+  let constructor = "tosa::createTosaToArith()";
+}
+
+//===----------------------------------------------------------------------===//
 // TosaToLinalg
 //===----------------------------------------------------------------------===//
 
@@ -738,21 +778,20 @@ def TosaToSCF : Pass<"tosa-to-scf"> {
 }
 
 //===----------------------------------------------------------------------===//
-// TosaToStandard
+// TosaToTensor
 //===----------------------------------------------------------------------===//
 
-def TosaToStandard : Pass<"tosa-to-standard"> {
-  let summary = "Lower TOSA to the Standard dialect";
+def TosaToTensor : Pass<"tosa-to-tensor"> {
+  let summary = "Lower TOSA to the Tensor dialect";
   let dependentDialects = [
-    "arith::ArithmeticDialect",
     "tensor::TensorDialect",
   ];
   let description = [{
     Pass that converts TOSA operations to the equivalent operations using the
-    operations in the Standard dialect.
+    operations in the Tensor dialect.
   }];
 
-  let constructor = "tosa::createTosaToStandard()";
+  let constructor = "tosa::createTosaToTensor()";
 }
 
 //===----------------------------------------------------------------------===//
@@ -819,10 +858,10 @@ def ConvertVectorToLLVM : Pass<"convert-vector-to-llvm", "ModuleOp"> {
     Option<"reassociateFPReductions", "reassociate-fp-reductions",
            "bool", /*default=*/"false",
            "Allows llvm to reassociate floating-point reductions for speed">,
-    Option<"indexOptimizations", "enable-index-optimizations",
+    Option<"force32BitVectorIndices", "force-32bit-vector-indices",
            "bool", /*default=*/"true",
-           "Allows compiler to assume indices fit in 32-bit if that yields "
-	   "faster code">,
+           "Allows compiler to assume vector indices fit in 32-bit if that "
+     "yields faster code">,
     Option<"amx", "enable-amx",
            "bool", /*default=*/"false",
            "Enables the use of AMX dialect while lowering the vector "

@@ -530,7 +530,7 @@ erase_if(multimap<Key, T, Compare, Allocator>& c, Predicate pred);  // C++20
 
 #include <__algorithm/equal.h>
 #include <__algorithm/lexicographical_compare.h>
-#include <__assert>
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
 #include <__functional/is_transparent.h>
 #include <__iterator/iterator_traits.h>
@@ -539,7 +539,6 @@ erase_if(multimap<Key, T, Compare, Allocator>& c, Predicate pred);  // C++20
 #include <__utility/forward.h>
 #include <__utility/swap.h>
 #include <compare>
-#include <functional>
 #include <initializer_list>
 #include <iterator> // __libcpp_erase_if_container
 #include <memory>

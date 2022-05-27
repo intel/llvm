@@ -117,6 +117,14 @@ public:
   void expandVEDWithSYCLTypeSRetArg(Function *F);
   void expandVIDWithSYCLTypeByValComp(Function *F);
 
+  // According to the specification, the operands of a shift instruction must be
+  // a scalar/vector of integer. When LLVM-IR contains a shift instruction with
+  // i1 operands, they are treated as a bool. We need to extend them to i32 to
+  // comply with the specification. For example: "%shift = lshr i1 0, 1";
+  // The bit instruction should be changed to the extended version
+  // "%shift = lshr i32 0, 1" so the args are treated as int operands.
+  Value *extendBitInstBoolArg(Instruction *OldInst);
+
   static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
   void adaptStructTypes(StructType *ST);
   static char ID;
@@ -336,6 +344,7 @@ void SPIRVRegularizeLLVMBase::lowerUMulWithOverflow(
 
 void SPIRVRegularizeLLVMBase::expandVEDWithSYCLTypeSRetArg(Function *F) {
   auto Attrs = F->getAttributes();
+  StructType *SRetTy = cast<StructType>(Attrs.getParamStructRetType(0));
   Attrs = Attrs.removeParamAttribute(F->getContext(), 0, Attribute::StructRet);
   std::string Name = F->getName().str();
   CallInst *OldCall = nullptr;
@@ -343,17 +352,14 @@ void SPIRVRegularizeLLVMBase::expandVEDWithSYCLTypeSRetArg(Function *F) {
       F,
       [=, &OldCall](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
         Args.erase(Args.begin());
-        auto *SRetPtrTy = cast<PointerType>(CI->getOperand(0)->getType());
-        auto *ET = SRetPtrTy->getPointerElementType();
-        RetTy = cast<StructType>(ET)->getElementType(0);
+        RetTy = SRetTy->getElementType(0);
         OldCall = CI;
         return Name;
       },
       [=, &OldCall](CallInst *NewCI) {
         IRBuilder<> Builder(OldCall);
-        auto *SRetPtrTy = cast<PointerType>(OldCall->getOperand(0)->getType());
-        auto *ET = SRetPtrTy->getPointerElementType();
-        Value *Target = Builder.CreateStructGEP(ET, OldCall->getOperand(0), 0);
+        Value *Target =
+            Builder.CreateStructGEP(SRetTy, OldCall->getOperand(0), 0);
         return Builder.CreateStore(NewCI, Target);
       },
       nullptr, &Attrs, true);
@@ -361,16 +367,15 @@ void SPIRVRegularizeLLVMBase::expandVEDWithSYCLTypeSRetArg(Function *F) {
 
 void SPIRVRegularizeLLVMBase::expandVIDWithSYCLTypeByValComp(Function *F) {
   auto Attrs = F->getAttributes();
+  auto *CompPtrTy = cast<StructType>(Attrs.getParamByValType(1));
   Attrs = Attrs.removeParamAttribute(F->getContext(), 1, Attribute::ByVal);
   std::string Name = F->getName().str();
   mutateFunction(
       F,
       [=](CallInst *CI, std::vector<Value *> &Args) {
-        auto *CompPtrTy = cast<PointerType>(CI->getOperand(1)->getType());
-        auto *ET = CompPtrTy->getPointerElementType();
-        Type *HalfTy = cast<StructType>(ET)->getElementType(0);
+        Type *HalfTy = CompPtrTy->getElementType(0);
         IRBuilder<> Builder(CI);
-        auto *Target = Builder.CreateStructGEP(ET, CI->getOperand(1), 0);
+        auto *Target = Builder.CreateStructGEP(CompPtrTy, CI->getOperand(1), 0);
         Args[1] = Builder.CreateLoad(HalfTy, Target);
         return Name;
       },
@@ -384,9 +389,8 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
   for (auto &F : *M) {
     if (F.getName().startswith("_Z28__spirv_VectorExtractDynamic") &&
         F.hasStructRetAttr()) {
-      auto *SRetPtrTy = cast<PointerType>(F.getArg(0)->getType());
-      if (isSYCLHalfType(SRetPtrTy->getPointerElementType()) ||
-          isSYCLBfloat16Type(SRetPtrTy->getPointerElementType()))
+      auto *SRetTy = F.getParamStructRetType(0);
+      if (isSYCLHalfType(SRetTy) || isSYCLBfloat16Type(SRetTy))
         ToExpandVEDWithSYCLTypeSRetArg.push_back(&F);
       else
         llvm_unreachable("The return type of the VectorExtractDynamic "
@@ -395,8 +399,7 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
     }
     if (F.getName().startswith("_Z27__spirv_VectorInsertDynamic") &&
         F.getArg(1)->getType()->isPointerTy()) {
-      auto *CompPtrTy = cast<PointerType>(F.getArg(1)->getType());
-      auto *ET = CompPtrTy->getPointerElementType();
+      auto *ET = F.getParamByValType(1);
       if (isSYCLHalfType(ET) || isSYCLBfloat16Type(ET))
         ToExpandVIDWithSYCLTypeByValComp.push_back(&F);
       else
@@ -410,6 +413,31 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
     expandVEDWithSYCLTypeSRetArg(F);
   for (auto *F : ToExpandVIDWithSYCLTypeByValComp)
     expandVIDWithSYCLTypeByValComp(F);
+}
+
+Value *SPIRVRegularizeLLVMBase::extendBitInstBoolArg(Instruction *II) {
+  IRBuilder<> Builder(II);
+  auto *ArgTy = II->getOperand(0)->getType();
+  Type *NewArgType = nullptr;
+  if (ArgTy->isIntegerTy()) {
+    NewArgType = Builder.getInt32Ty();
+  } else if (ArgTy->isVectorTy() &&
+             cast<VectorType>(ArgTy)->getElementType()->isIntegerTy()) {
+    unsigned NumElements = cast<FixedVectorType>(ArgTy)->getNumElements();
+    NewArgType = VectorType::get(Builder.getInt32Ty(), NumElements, false);
+  } else {
+    llvm_unreachable("Unexpected type");
+  }
+  auto *NewBase = Builder.CreateZExt(II->getOperand(0), NewArgType);
+  auto *NewShift = Builder.CreateZExt(II->getOperand(1), NewArgType);
+  switch (II->getOpcode()) {
+  case Instruction::LShr:
+    return Builder.CreateLShr(NewBase, NewShift);
+  case Instruction::Shl:
+    return Builder.CreateShl(NewBase, NewShift);
+  default:
+    return II;
+  }
 }
 
 void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
@@ -440,16 +468,26 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
     auto *PtrTy = dyn_cast<PointerType>(ST->getElementType(0));
     assert(PtrTy &&
            "Expected a pointer to an array to represent joint matrix type");
-    size_t TypeLayout[4] = {0, 0, 0, 0};
+    std::vector<size_t> TypeLayout;
     ArrayType *ArrayTy = dyn_cast<ArrayType>(PtrTy->getPointerElementType());
     assert(ArrayTy && "Expected a pointer element type of an array type to "
                       "represent joint matrix type");
-    TypeLayout[0] = ArrayTy->getNumElements();
+    TypeLayout.push_back(ArrayTy->getNumElements());
     for (size_t I = 1; I != 4; ++I) {
       ArrayTy = dyn_cast<ArrayType>(ArrayTy->getElementType());
       assert(ArrayTy &&
              "Expected a element type to represent joint matrix type");
-      TypeLayout[I] = ArrayTy->getNumElements();
+      TypeLayout.push_back(ArrayTy->getNumElements());
+    }
+    // JointMatrixINTEL type can have optional 'Use' parameter, which is encoded
+    // as another array dimention. In case if it has default 'Unnecessary' (4)
+    // parameter - ignore it.
+    if (isa<ArrayType>(ArrayTy->getElementType())) {
+      ArrayTy = cast<ArrayType>(ArrayTy->getElementType());
+      uint32_t UseInt = ArrayTy->getNumElements();
+      assert(UseInt <= 4 && "Use parameter encoded in the array must be < 5 ");
+      if (UseInt != 4)
+        TypeLayout.push_back(UseInt);
     }
 
     auto *ElemTy = ArrayTy->getElementType();
@@ -503,6 +541,9 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
             << kSPIRVTypeName::PostfixDelim << std::to_string(TypeLayout[2] - 1)
             << kSPIRVTypeName::PostfixDelim
             << std::to_string(TypeLayout[3] - 1);
+    if (TypeLayout.size() == 5)
+      SPVName << kSPIRVTypeName::PostfixDelim
+              << std::to_string(TypeLayout[4] - 1);
     // Note, that this structure is not opaque and there is no way to make it
     // opaque but to recreate it entirely and replace it everywhere. Lets
     // keep the structure as is, dealing with it during SPIR-V generation.
@@ -556,6 +597,21 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           }
         }
 
+        // Translator treats i1 as boolean, but bit instructions take
+        // a scalar/vector integers, so we have to extend such arguments
+        if (II.isLogicalShift() &&
+            II.getOperand(0)->getType()->isIntOrIntVectorTy(1)) {
+          auto *NewInst = extendBitInstBoolArg(&II);
+          for (auto *U : II.users()) {
+            if (cast<Instruction>(U)->getOpcode() == Instruction::ZExt) {
+              U->dropAllReferences();
+              U->replaceAllUsesWith(NewInst);
+              ToErase.push_back(cast<Instruction>(U));
+            }
+          }
+          ToErase.push_back(&II);
+        }
+
         // Remove optimization info not supported by SPIRV
         if (auto BO = dyn_cast<BinaryOperator>(&II)) {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
@@ -587,9 +643,8 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           Type *SrcTy = ASCast->getSrcTy();
           if (DestTy->getPointerElementType() !=
               SrcTy->getPointerElementType()) {
-            PointerType *InterTy =
-                PointerType::get(DestTy->getPointerElementType(),
-                                 SrcTy->getPointerAddressSpace());
+            PointerType *InterTy = PointerType::getWithSamePointeeType(
+                cast<PointerType>(DestTy), SrcTy->getPointerAddressSpace());
             BitCastInst *NewBCast = new BitCastInst(
                 ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
             AddrSpaceCastInst *NewASCast =

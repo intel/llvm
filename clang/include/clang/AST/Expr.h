@@ -3180,11 +3180,7 @@ public:
     setDependence(getDependence() | ExprDependence::TypeValueInstantiation);
   }
 
-  bool isCallToStdMove() const {
-    const FunctionDecl *FD = getDirectCallee();
-    return getNumArgs() == 1 && FD && FD->isInStdNamespace() &&
-           FD->getIdentifier() && FD->getIdentifier()->isStr("move");
-  }
+  bool isCallToStdMove() const;
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() >= firstCallExprConstant &&
@@ -3549,7 +3545,6 @@ protected:
     CastExprBits.BasePathSize = BasePathSize;
     assert((CastExprBits.BasePathSize == BasePathSize) &&
            "BasePathSize overflow!");
-    setDependence(computeDependence(this));
     assert(CastConsistency());
     CastExprBits.HasFPFeatures = HasFPFeatures;
   }
@@ -3683,6 +3678,7 @@ class ImplicitCastExpr final
                    ExprValueKind VK)
       : CastExpr(ImplicitCastExprClass, ty, VK, kind, op, BasePathLength,
                  FPO.requiresTrailingStorage()) {
+    setDependence(computeDependence(this));
     if (hasStoredFPFeatures())
       *getTrailingFPFeatures() = FPO;
   }
@@ -3760,7 +3756,9 @@ protected:
                    CastKind kind, Expr *op, unsigned PathSize,
                    bool HasFPFeatures, TypeSourceInfo *writtenTy)
       : CastExpr(SC, exprTy, VK, kind, op, PathSize, HasFPFeatures),
-        TInfo(writtenTy) {}
+        TInfo(writtenTy) {
+    setDependence(computeDependence(this));
+  }
 
   /// Construct an empty explicit cast.
   ExplicitCastExpr(StmtClass SC, EmptyShell Shell, unsigned PathSize,
@@ -4732,16 +4730,17 @@ public:
 };
 
 /// Represents a function call to one of __builtin_LINE(), __builtin_COLUMN(),
-/// __builtin_FUNCTION(), or __builtin_FILE().
+/// __builtin_FUNCTION(), __builtin_FILE(), or __builtin_source_location().
 class SourceLocExpr final : public Expr {
   SourceLocation BuiltinLoc, RParenLoc;
   DeclContext *ParentContext;
 
 public:
-  enum IdentKind { Function, File, Line, Column };
+  enum IdentKind { Function, File, Line, Column, SourceLocStruct };
 
-  SourceLocExpr(const ASTContext &Ctx, IdentKind Type, SourceLocation BLoc,
-                SourceLocation RParenLoc, DeclContext *Context);
+  SourceLocExpr(const ASTContext &Ctx, IdentKind Type, QualType ResultTy,
+                SourceLocation BLoc, SourceLocation RParenLoc,
+                DeclContext *Context);
 
   /// Build an empty call expression.
   explicit SourceLocExpr(EmptyShell Empty) : Expr(SourceLocExprClass, Empty) {}
@@ -4758,18 +4757,18 @@ public:
     return static_cast<IdentKind>(SourceLocExprBits.Kind);
   }
 
-  bool isStringType() const {
+  bool isIntType() const {
     switch (getIdentKind()) {
     case File:
     case Function:
-      return true;
+    case SourceLocStruct:
+      return false;
     case Line:
     case Column:
-      return false;
+      return true;
     }
     llvm_unreachable("unknown source location expression kind");
   }
-  bool isIntType() const LLVM_READONLY { return !isStringType(); }
 
   /// If the SourceLocExpr has been resolved return the subexpression
   /// representing the resolved value. Otherwise return null.

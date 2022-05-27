@@ -28,6 +28,7 @@ ELF Improvements
 
 * ``-z pack-relative-relocs`` is now available to support ``DT_RELR`` for glibc 2.36+.
   (`D120701 <https://reviews.llvm.org/D120701>`_)
+* ``--no-fortran-common`` (pre 12.0.0 behavior) is now the default.
 
 Breaking changes
 ----------------
@@ -41,8 +42,10 @@ Breaking changes
 COFF Improvements
 -----------------
 
-* Added autodetection of MSVC toolchain, a la clang-cl.  Also added /winsysroot
-  support for explicit specification of MSVC toolchain location.
+* Added autodetection of MSVC toolchain, a la clang-cl.  Also added
+  ``/winsysroot:`` support for explicit specification of MSVC toolchain
+  location, similar to clang-cl's ``/winsysroot``. For now,
+  ``/winsysroot:`` requires also passing in an explicit ``/machine:`` flag.
   (`D118070 <https://reviews.llvm.org/D118070>`_)
 * ...
 

@@ -146,7 +146,7 @@ def StringAPI : PublicAPI<"string.h"> {
 }
 
 def StdIOAPI : PublicAPI<"stdio.h"> {
-  let Types = ["size_t", "FILE"];
+  let Types = ["size_t", "FILE", "cookie_io_functions_t"];
 }
 
 def StdlibAPI : PublicAPI<"stdlib.h"> {
@@ -234,6 +234,13 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
     "thrd_busy",
     "thrd_error",
     "thrd_nomem",
+  ];
+}
+
+def PThreadAPI : PublicAPI<"pthread.h"> {
+  let Types = [
+      "pthread_attr_t",
+      "pthread_mutexattr_t"
   ];
 }
 

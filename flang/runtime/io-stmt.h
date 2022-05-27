@@ -407,7 +407,6 @@ public:
   ExternalFileUnit &unit() { return unit_; }
   MutableModes &mutableModes();
   ConnectionState &GetConnectionState();
-  void CompleteOperation();
   int EndIoStatement();
   ExternalFileUnit *GetExternalFileUnit() const { return &unit_; }
 

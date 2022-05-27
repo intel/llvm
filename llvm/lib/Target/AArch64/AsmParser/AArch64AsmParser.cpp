@@ -6526,21 +6526,13 @@ bool AArch64AsmParser::parseDirectiveCFIBKeyFrame() {
 /// parseDirectiveVariantPCS
 /// ::= .variant_pcs symbolname
 bool AArch64AsmParser::parseDirectiveVariantPCS(SMLoc L) {
-  const AsmToken &Tok = getTok();
-  if (Tok.isNot(AsmToken::Identifier))
+  StringRef Name;
+  if (getParser().parseIdentifier(Name))
     return TokError("expected symbol name");
-
-  StringRef SymbolName = Tok.getIdentifier();
-
-  MCSymbol *Sym = getContext().lookupSymbol(SymbolName);
-  if (!Sym)
-    return TokError("unknown symbol");
-
-  Lex(); // Eat the symbol
-
   if (parseEOL())
     return true;
-  getTargetStreamer().emitDirectiveVariantPCS(Sym);
+  getTargetStreamer().emitDirectiveVariantPCS(
+      getContext().getOrCreateSymbol(Name));
   return false;
 }
 
@@ -6891,7 +6883,7 @@ unsigned AArch64AsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
     // as a literal token.
     if (Op.isTokenEqual("za"))
       return Match_Success;
-    break;
+    return Match_InvalidOperand;
   }
   if (!Op.isImm())
     return Match_InvalidOperand;

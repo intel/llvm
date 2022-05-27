@@ -304,6 +304,7 @@
 ??0SYCLMemObjT@detail@sycl@cl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@_KVevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0SYCLMemObjT@detail@sycl@cl@@QEAA@_KAEBVcontext@23@_KVevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0SYCLMemObjT@detail@sycl@cl@@QEAA@_KAEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
+??0SYCLMemObjT@detail@sycl@cl@@QEAA@_KAEBVcontext@23@_NVevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0accelerator_selector@sycl@cl@@QEAA@$$QEAV012@@Z
 ??0accelerator_selector@sycl@cl@@QEAA@AEBV012@@Z
 ??0accelerator_selector@sycl@cl@@QEAA@XZ
@@ -312,6 +313,8 @@
 ??0buffer_impl@detail@sycl@cl@@QEAA@PEBX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0buffer_impl@detail@sycl@cl@@QEAA@_K0AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0buffer_impl@detail@sycl@cl@@QEAA@_KAEBVcontext@23@_KV?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@Vevent@23@@Z
+??0buffer_impl@detail@sycl@cl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@Vevent@23@@Z
+??0buffer_impl@detail@sycl@cl@@QEAA@_KAEBVcontext@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@_NVevent@23@@Z
 ??0context@sycl@cl@@AEAA@V?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@@Z
 ??0context@sycl@cl@@QEAA@$$QEAV012@@Z
 ??0context@sycl@cl@@QEAA@AEBV012@@Z
@@ -1092,6 +1095,7 @@
 ?acospi@__host_std@cl@@YANN@Z
 ?add@device_global_map@detail@sycl@cl@@YAXPEBXPEBD@Z
 ?addHostAccessorAndWait@detail@sycl@cl@@YAXPEAVAccessorImplHost@123@@Z
+?addInteropObject@buffer_impl@detail@sycl@cl@@QEBAXAEAV?$vector@_KV?$allocator@_K@std@@@std@@@Z
 ?addOrReplaceAccessorProperties@SYCLMemObjT@detail@sycl@cl@@QEAAXAEBVproperty_list@34@@Z
 ?addReduction@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@$$CBX@std@@@Z
 ?addStream@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@Vstream_impl@detail@sycl@cl@@@std@@@Z
@@ -2190,6 +2194,7 @@
 ?getNativeImpl@kernel@sycl@cl@@AEBA_KXZ
 ?getNativeMem@interop_handle@sycl@cl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@sycl@cl@@AEBA_KXZ
+?getNativeVector@buffer_impl@detail@sycl@cl@@QEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@W4backend@34@@Z
 ?getNativeVector@event@sycl@cl@@AEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ?getOSMemSize@OSUtil@detail@sycl@cl@@SA_KXZ
 ?getOSModuleHandle@OSUtil@detail@sycl@cl@@SA_JPEBX@Z
@@ -2696,7 +2701,9 @@
 ?make_program@level_zero@sycl@cl@@YA?AVprogram@23@AEBVcontext@23@_K@Z
 ?make_program@opencl@sycl@cl@@YA?AVprogram@23@AEBVcontext@23@_K@Z
 ?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@AEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
+?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@AEBVdevice@23@_NAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
 ?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@_NAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
+?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@AEBVdevice@45@_K_N@Z
 ?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@_K@Z
 ?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@_K_N@Z
 ?make_queue@level_zero@sycl@cl@@YA?AVqueue@23@AEBVcontext@23@_K@Z

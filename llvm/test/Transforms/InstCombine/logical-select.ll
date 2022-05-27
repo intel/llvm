@@ -708,6 +708,25 @@ define <2 x i64> @bitcast_vec_cond(<16 x i1> %cond, <2 x i64> %c, <2 x i64> %d) 
   ret <2 x i64> %r
 }
 
+define <vscale x 2 x i64> @bitcast_vec_cond_scalable(<vscale x 16 x i1> %cond, <vscale x 2 x i64> %c, <vscale x 2 x i64> %d) {
+; CHECK-LABEL: @bitcast_vec_cond_scalable(
+; CHECK-NEXT:    [[S:%.*]] = sext <vscale x 16 x i1> [[COND:%.*]] to <vscale x 16 x i8>
+; CHECK-NEXT:    [[T9:%.*]] = bitcast <vscale x 16 x i8> [[S]] to <vscale x 2 x i64>
+; CHECK-NEXT:    [[NOTT9:%.*]] = xor <vscale x 2 x i64> [[T9]], shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> poison, i64 -1, i32 0), <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer)
+; CHECK-NEXT:    [[T11:%.*]] = and <vscale x 2 x i64> [[NOTT9]], [[C:%.*]]
+; CHECK-NEXT:    [[T12:%.*]] = and <vscale x 2 x i64> [[T9]], [[D:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or <vscale x 2 x i64> [[T11]], [[T12]]
+; CHECK-NEXT:    ret <vscale x 2 x i64> [[R]]
+;
+  %s = sext <vscale x 16 x i1> %cond to <vscale x 16 x i8>
+  %t9 = bitcast <vscale x 16 x i8> %s to <vscale x 2 x i64>
+  %nott9 = xor <vscale x 2 x i64> %t9, shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> poison, i64 -1, i32 0), <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer)
+  %t11 = and <vscale x 2 x i64> %nott9, %c
+  %t12 = and <vscale x 2 x i64> %t9, %d
+  %r = or <vscale x 2 x i64> %t11, %t12
+  ret <vscale x 2 x i64> %r
+}
+
 ; Negative test - bitcast of condition from wide source element type cannot be converted to select.
 
 define <8 x i3> @bitcast_vec_cond_commute1(<3 x i1> %cond, <8 x i3> %pc, <8 x i3> %d) {
@@ -758,10 +777,10 @@ define <2 x i16> @bitcast_vec_cond_commute3(<4 x i8> %cond, <2 x i16> %pc, <2 x 
 ; CHECK-LABEL: @bitcast_vec_cond_commute3(
 ; CHECK-NEXT:    [[C:%.*]] = mul <2 x i16> [[PC:%.*]], [[PC]]
 ; CHECK-NEXT:    [[D:%.*]] = mul <2 x i16> [[PD:%.*]], [[PD]]
-; CHECK-NEXT:    [[DOTNOT:%.*]] = icmp sgt <4 x i8> [[COND:%.*]], <i8 -1, i8 -1, i8 -1, i8 -1>
 ; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <2 x i16> [[D]] to <4 x i8>
 ; CHECK-NEXT:    [[TMP2:%.*]] = bitcast <2 x i16> [[C]] to <4 x i8>
-; CHECK-NEXT:    [[TMP3:%.*]] = select <4 x i1> [[DOTNOT]], <4 x i8> [[TMP2]], <4 x i8> [[TMP1]]
+; CHECK-NEXT:    [[DOTNOT2:%.*]] = icmp slt <4 x i8> [[COND:%.*]], zeroinitializer
+; CHECK-NEXT:    [[TMP3:%.*]] = select <4 x i1> [[DOTNOT2]], <4 x i8> [[TMP1]], <4 x i8> [[TMP2]]
 ; CHECK-NEXT:    [[TMP4:%.*]] = bitcast <4 x i8> [[TMP3]] to <2 x i16>
 ; CHECK-NEXT:    ret <2 x i16> [[TMP4]]
 ;

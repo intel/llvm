@@ -100,12 +100,6 @@ class kmp_stats_list;
 #ifndef HWLOC_OBJ_PACKAGE
 #define HWLOC_OBJ_PACKAGE HWLOC_OBJ_SOCKET
 #endif
-#if HWLOC_API_VERSION >= 0x00020000
-// hwloc 2.0 changed type of depth of object from unsigned to int
-typedef int kmp_hwloc_depth_t;
-#else
-typedef unsigned int kmp_hwloc_depth_t;
-#endif
 #endif
 
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
@@ -967,7 +961,6 @@ extern omp_memspace_handle_t const omp_large_cap_mem_space;
 extern omp_memspace_handle_t const omp_const_mem_space;
 extern omp_memspace_handle_t const omp_high_bw_mem_space;
 extern omp_memspace_handle_t const omp_low_lat_mem_space;
-// Preview of target memory support
 extern omp_memspace_handle_t const llvm_omp_target_host_mem_space;
 extern omp_memspace_handle_t const llvm_omp_target_shared_mem_space;
 extern omp_memspace_handle_t const llvm_omp_target_device_mem_space;
@@ -987,7 +980,6 @@ extern omp_allocator_handle_t const omp_low_lat_mem_alloc;
 extern omp_allocator_handle_t const omp_cgroup_mem_alloc;
 extern omp_allocator_handle_t const omp_pteam_mem_alloc;
 extern omp_allocator_handle_t const omp_thread_mem_alloc;
-// Preview of target memory support
 extern omp_allocator_handle_t const llvm_omp_target_host_mem_alloc;
 extern omp_allocator_handle_t const llvm_omp_target_shared_mem_alloc;
 extern omp_allocator_handle_t const llvm_omp_target_device_mem_alloc;

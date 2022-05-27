@@ -561,15 +561,11 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.end();
   DebugLoc DL;
   if (!MBB.empty()) {
-    MBBI = MBB.getFirstTerminator();
-    if (MBBI == MBB.end())
-      MBBI = MBB.getLastNonDebugInstr();
-    DL = MBBI->getDebugLoc();
+    MBBI = MBB.getLastNonDebugInstr();
+    if (MBBI != MBB.end())
+      DL = MBBI->getDebugLoc();
 
-    // If this is not a terminator, the actual insert location should be after the
-    // last instruction.
-    if (!MBBI->isTerminator())
-      MBBI = std::next(MBBI);
+    MBBI = MBB.getFirstTerminator();
 
     // If callee-saved registers are saved via libcall, place stack adjustment
     // before this call.
@@ -674,7 +670,10 @@ RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
     if (hasBP(MF)) {
       FrameReg = RISCVABI::getBPReg();
       // |--------------------------| -- <-- FP
-      // | callee-saved registers   | | <----.
+      // | callee-allocated save    | | <----|
+      // | area for register varargs| |      |
+      // |--------------------------| |      |
+      // | callee-saved registers   | |      |
       // |--------------------------| --     |
       // | realignment (the size of | |      |
       // | this area is not counted | |      |
@@ -699,7 +698,10 @@ RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
     } else {
       FrameReg = RISCV::X2;
       // |--------------------------| -- <-- FP
-      // | callee-saved registers   | | <----.
+      // | callee-allocated save    | | <----|
+      // | area for register varargs| |      |
+      // |--------------------------| |      |
+      // | callee-saved registers   | |      |
       // |--------------------------| --     |
       // | realignment (the size of | |      |
       // | this area is not counted | |      |
@@ -742,6 +744,9 @@ RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
       // the frame size.
       //
       // |--------------------------| -- <-- FP
+      // | callee-allocated save    | |
+      // | area for register varargs| |
+      // |--------------------------| |
       // | callee-saved registers   | |
       // |--------------------------| | MFI.getStackSize()
       // | scalar local variables   | |
@@ -756,7 +761,10 @@ RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
       // When using SP to access frame objects, we need to add RVV stack size.
       //
       // |--------------------------| -- <-- FP
-      // | callee-saved registers   | | <----.
+      // | callee-allocated save    | | <----|
+      // | area for register varargs| |      |
+      // |--------------------------| |      |
+      // | callee-saved registers   | |      |
       // |--------------------------| --     |
       // | Padding after RVV        | |      |
       // | (not counted in          | |      |
@@ -786,8 +794,11 @@ RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
           Offset += StackOffset::getFixed(MFI.getStackSize());
         }
       } else if (MFI.getStackID(FI) == TargetStackID::ScalableVector) {
+        int ScalarLocalVarSize = MFI.getStackSize() -
+                                 RVFI->getCalleeSavedStackSize() -
+                                 RVFI->getVarArgsSaveSize();
         Offset += StackOffset::get(
-            alignTo(MFI.getStackSize() - RVFI->getCalleeSavedStackSize(), 8),
+            alignTo(ScalarLocalVarSize, 8),
             RVFI->getRVVStackSize());
       }
     }

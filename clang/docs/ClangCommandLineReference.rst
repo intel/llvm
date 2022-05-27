@@ -238,6 +238,22 @@ Flush denormal floating point values to zero in CUDA/HIP device mode.
 
 Specify comma-separated list of triples OpenMP offloading targets to be supported
 
+.. option:: -fopenmp-new-driver, -fno-openmp-new-driver
+
+Use the new driver for OpenMP offloading.
+
+.. option:: --offload-new-driver, --no-offload-new-driver
+
+Use the new driver for offloading compilation.
+
+.. option:: --offload-host-only
+
+Only compile for the host when offloading.
+
+.. option:: --offload-device-only
+
+Only compile for the device when offloading.
+
 .. option:: -force\_cpusubtype\_ALL
 
 .. program:: clang1
@@ -514,10 +530,6 @@ CUDA offloading device architecture (e.g. sm\_35), or HIP offloading target ID i
 .. option:: --offload=<arg1>,<arg2>...
 
 Specify comma-separated list of offloading target triples (CUDA and HIP only)
-
-.. option:: --overlay-platform-toolchain=<arg>
-
-Specify a toolchain with higher priority than sysroot in search paths.
 
 .. option:: -p, --profile
 
@@ -804,10 +816,6 @@ Generate Interface Stub Files, emit merged text not binary.
 .. option:: -extract-api
 
 Extract API information
-
-.. option:: -fopenmp-new-driver
-
-Use the new driver for OpenMP offloading.
 
 .. option:: -fsyntax-only
 
@@ -1179,6 +1187,14 @@ Validate the system headers that a module depends on when loading the module
 .. option:: -fprebuilt-module-path=<directory>
 
 Specify the prebuilt module path
+
+.. option:: -fmodule-header
+
+Build a C++20 header unit from a header specified.
+
+.. option:: -fmodule-header=\[user,system\]
+
+Build a C++20 header unit, but search for the header in the user or system header search paths respectively.
 
 .. option:: --hip-path=<arg>
 
@@ -2096,10 +2112,6 @@ Emit OpenMP code only for SIMD-based constructs.
 .. option:: -fopenmp-target-debug, -fno-openmp-target-debug
 
 Enable debugging in the OpenMP offloading device RTL
-
-.. option:: -fopenmp-target-new-runtime, -fno-openmp-target-new-runtime
-
-Use the new bitcode library for OpenMP offloading
 
 .. option:: -fopenmp-offload-mandatory
 
@@ -3562,6 +3574,8 @@ PowerPC
 .. option:: -mcmpb, -mno-cmpb
 
 .. option:: -mcrbits, -mno-crbits
+
+Control the CR-bit tracking feature on PowerPC. ``-mcrbits`` (the enablement of CR-bit tracking support) is the default for POWER8 and above, as well as for all other CPUs when optimization is applied (-O2 and above).
 
 .. option:: -mcrypto, -mno-crypto
 

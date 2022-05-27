@@ -759,7 +759,7 @@ getAsConstantIndexedAddress(Type *ElemTy, Value *V, const DataLayout &DL) {
         V = GEP->getOperand(0);
         Constant *GEPIndex = static_cast<Constant *>(GEP->getOperand(1));
         Index = ConstantExpr::getAdd(
-            Index, ConstantExpr::getSExtOrBitCast(GEPIndex, IndexType));
+            Index, ConstantExpr::getSExtOrTrunc(GEPIndex, IndexType));
         continue;
       }
       break;
@@ -2335,7 +2335,8 @@ Instruction *InstCombinerImpl::foldICmpSRemConstant(ICmpInst &Cmp,
   // constant power-of-2 value:
   // (X % pow2C) sgt/slt 0
   const ICmpInst::Predicate Pred = Cmp.getPredicate();
-  if (Pred != ICmpInst::ICMP_SGT && Pred != ICmpInst::ICMP_SLT)
+  if (Pred != ICmpInst::ICMP_SGT && Pred != ICmpInst::ICMP_SLT &&
+      Pred != ICmpInst::ICMP_EQ && Pred != ICmpInst::ICMP_NE)
     return nullptr;
 
   // TODO: The one-use check is standard because we do not typically want to
@@ -2345,7 +2346,15 @@ Instruction *InstCombinerImpl::foldICmpSRemConstant(ICmpInst &Cmp,
     return nullptr;
 
   const APInt *DivisorC;
-  if (!C.isZero() || !match(SRem->getOperand(1), m_Power2(DivisorC)))
+  if (!match(SRem->getOperand(1), m_Power2(DivisorC)))
+    return nullptr;
+
+  // For cmp_sgt/cmp_slt only zero valued C is handled.
+  // For cmp_eq/cmp_ne only positive valued C is handled.
+  if (((Pred == ICmpInst::ICMP_SGT || Pred == ICmpInst::ICMP_SLT) &&
+       !C.isZero()) ||
+      ((Pred == ICmpInst::ICMP_EQ || Pred == ICmpInst::ICMP_NE) &&
+       !C.isStrictlyPositive()))
     return nullptr;
 
   // Mask off the sign bit and the modulo bits (low-bits).
@@ -2353,6 +2362,9 @@ Instruction *InstCombinerImpl::foldICmpSRemConstant(ICmpInst &Cmp,
   APInt SignMask = APInt::getSignMask(Ty->getScalarSizeInBits());
   Constant *MaskC = ConstantInt::get(Ty, SignMask | (*DivisorC - 1));
   Value *And = Builder.CreateAnd(SRem->getOperand(0), MaskC);
+
+  if (Pred == ICmpInst::ICMP_EQ || Pred == ICmpInst::ICMP_NE)
+    return new ICmpInst(Pred, And, ConstantInt::get(Ty, C));
 
   // For 'is positive?' check that the sign-bit is clear and at least 1 masked
   // bit is set. Example:
@@ -2593,13 +2605,19 @@ Instruction *InstCombinerImpl::foldICmpSubConstant(ICmpInst &Cmp,
 
   // X - Y == 0 --> X == Y.
   // X - Y != 0 --> X != Y.
-  if (Cmp.isEquality() && C.isZero())
+  // TODO: We allow this with multiple uses as long as the other uses are not
+  //       in phis. The phi use check is guarding against a codegen regression
+  //       for a loop test. If the backend could undo this (and possibly
+  //       subsequent transforms), we would not need this hack.
+  if (Cmp.isEquality() && C.isZero() &&
+      none_of((Sub->users()), [](const User *U) { return isa<PHINode>(U); }))
     return new ICmpInst(Pred, X, Y);
 
   // The following transforms are only worth it if the only user of the subtract
   // is the icmp.
   // TODO: This is an artificial restriction for all of the transforms below
-  //       that only need a single replacement icmp.
+  //       that only need a single replacement icmp. Can these use the phi test
+  //       like the transform above here?
   if (!Sub->hasOneUse())
     return nullptr;
 
@@ -3953,6 +3971,24 @@ Instruction *InstCombinerImpl::foldICmpBinOp(ICmpInst &I,
     return new ICmpInst(Pred, X, Builder.CreateNot(Op0));
 
   {
+    // (Op1 + X) + C u</u>= Op1 --> ~C - X u</u>= Op1
+    Constant *C;
+    if (match(Op0, m_OneUse(m_Add(m_c_Add(m_Specific(Op1), m_Value(X)),
+                                  m_ImmConstant(C)))) &&
+        (Pred == ICmpInst::ICMP_ULT || Pred == ICmpInst::ICMP_UGE)) {
+      Constant *C2 = ConstantExpr::getNot(C);
+      return new ICmpInst(Pred, Builder.CreateSub(C2, X), Op1);
+    }
+    // Op0 u>/u<= (Op0 + X) + C --> Op0 u>/u<= ~C - X
+    if (match(Op1, m_OneUse(m_Add(m_c_Add(m_Specific(Op0), m_Value(X)),
+                                  m_ImmConstant(C)))) &&
+        (Pred == ICmpInst::ICMP_UGT || Pred == ICmpInst::ICMP_ULE)) {
+      Constant *C2 = ConstantExpr::getNot(C);
+      return new ICmpInst(Pred, Op0, Builder.CreateSub(C2, X));
+    }
+  }
+
+  {
     // Similar to above: an unsigned overflow comparison may use offset + mask:
     // ((Op1 + C) & C) u<  Op1 --> Op1 != 0
     // ((Op1 + C) & C) u>= Op1 --> Op1 == 0
@@ -4670,8 +4706,7 @@ static Instruction *foldICmpWithTrunc(ICmpInst &ICmp,
   return nullptr;
 }
 
-static Instruction *foldICmpWithZextOrSext(ICmpInst &ICmp,
-                                           InstCombiner::BuilderTy &Builder) {
+Instruction *InstCombinerImpl::foldICmpWithZextOrSext(ICmpInst &ICmp) {
   assert(isa<CastInst>(ICmp.getOperand(0)) && "Expected cast for operand 0");
   auto *CastOp0 = cast<CastInst>(ICmp.getOperand(0));
   Value *X;
@@ -4680,25 +4715,37 @@ static Instruction *foldICmpWithZextOrSext(ICmpInst &ICmp,
 
   bool IsSignedExt = CastOp0->getOpcode() == Instruction::SExt;
   bool IsSignedCmp = ICmp.isSigned();
-  if (auto *CastOp1 = dyn_cast<CastInst>(ICmp.getOperand(1))) {
-    // If the signedness of the two casts doesn't agree (i.e. one is a sext
-    // and the other is a zext), then we can't handle this.
-    // TODO: This is too strict. We can handle some predicates (equality?).
-    if (CastOp0->getOpcode() != CastOp1->getOpcode())
-      return nullptr;
+
+  // icmp Pred (ext X), (ext Y)
+  Value *Y;
+  if (match(ICmp.getOperand(1), m_ZExtOrSExt(m_Value(Y)))) {
+    bool IsZext0 = isa<ZExtOperator>(ICmp.getOperand(0));
+    bool IsZext1 = isa<ZExtOperator>(ICmp.getOperand(1));
+
+    // If we have mismatched casts, treat the zext of a non-negative source as
+    // a sext to simulate matching casts. Otherwise, we are done.
+    // TODO: Can we handle some predicates (equality) without non-negative?
+    if (IsZext0 != IsZext1) {
+      if ((IsZext0 && isKnownNonNegative(X, DL, 0, &AC, &ICmp, &DT)) ||
+          (IsZext1 && isKnownNonNegative(Y, DL, 0, &AC, &ICmp, &DT)))
+        IsSignedExt = true;
+      else
+        return nullptr;
+    }
 
     // Not an extension from the same type?
-    Value *Y = CastOp1->getOperand(0);
     Type *XTy = X->getType(), *YTy = Y->getType();
     if (XTy != YTy) {
       // One of the casts must have one use because we are creating a new cast.
-      if (!CastOp0->hasOneUse() && !CastOp1->hasOneUse())
+      if (!ICmp.getOperand(0)->hasOneUse() && !ICmp.getOperand(1)->hasOneUse())
         return nullptr;
       // Extend the narrower operand to the type of the wider operand.
+      CastInst::CastOps CastOpcode =
+          IsSignedExt ? Instruction::SExt : Instruction::ZExt;
       if (XTy->getScalarSizeInBits() < YTy->getScalarSizeInBits())
-        X = Builder.CreateCast(CastOp0->getOpcode(), X, YTy);
+        X = Builder.CreateCast(CastOpcode, X, YTy);
       else if (YTy->getScalarSizeInBits() < XTy->getScalarSizeInBits())
-        Y = Builder.CreateCast(CastOp0->getOpcode(), Y, XTy);
+        Y = Builder.CreateCast(CastOpcode, Y, XTy);
       else
         return nullptr;
     }
@@ -4816,7 +4863,7 @@ Instruction *InstCombinerImpl::foldICmpWithCastOp(ICmpInst &ICmp) {
   if (Instruction *R = foldICmpWithTrunc(ICmp, Builder))
     return R;
 
-  return foldICmpWithZextOrSext(ICmp, Builder);
+  return foldICmpWithZextOrSext(ICmp);
 }
 
 static bool isNeutralValue(Instruction::BinaryOps BinaryOp, Value *RHS) {
@@ -6683,7 +6730,6 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
     if (match(Op1, m_FPExt(m_Value(Y))) && X->getType() == Y->getType())
       return new FCmpInst(Pred, X, Y, "", &I);
 
-    // fcmp (fpext X), C -> fcmp X, (fptrunc C) if fptrunc is lossless
     const APFloat *C;
     if (match(Op1, m_APFloat(C))) {
       const fltSemantics &FPSem =
@@ -6692,6 +6738,31 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
       APFloat TruncC = *C;
       TruncC.convert(FPSem, APFloat::rmNearestTiesToEven, &Lossy);
 
+      if (Lossy) {
+        // X can't possibly equal the higher-precision constant, so reduce any
+        // equality comparison.
+        // TODO: Other predicates can be handled via getFCmpCode().
+        switch (Pred) {
+        case FCmpInst::FCMP_OEQ:
+          // X is ordered and equal to an impossible constant --> false
+          return replaceInstUsesWith(I, ConstantInt::getFalse(I.getType()));
+        case FCmpInst::FCMP_ONE:
+          // X is ordered and not equal to an impossible constant --> ordered
+          return new FCmpInst(FCmpInst::FCMP_ORD, X,
+                              ConstantFP::getNullValue(X->getType()));
+        case FCmpInst::FCMP_UEQ:
+          // X is unordered or equal to an impossible constant --> unordered
+          return new FCmpInst(FCmpInst::FCMP_UNO, X,
+                              ConstantFP::getNullValue(X->getType()));
+        case FCmpInst::FCMP_UNE:
+          // X is unordered or not equal to an impossible constant --> true
+          return replaceInstUsesWith(I, ConstantInt::getTrue(I.getType()));
+        default:
+          break;
+        }
+      }
+
+      // fcmp (fpext X), C -> fcmp X, (fptrunc C) if fptrunc is lossless
       // Avoid lossy conversions and denormals.
       // Zero is a special case that's OK to convert.
       APFloat Fabs = TruncC;

@@ -274,7 +274,7 @@ TypeList &SymbolFileDWARF::GetTypeList() {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   if (SymbolFileDWARFDebugMap *debug_map_symfile = GetDebugMapSymfile())
     return debug_map_symfile->GetTypeList();
-  return SymbolFile::GetTypeList();
+  return SymbolFileCommon::GetTypeList();
 }
 void SymbolFileDWARF::GetTypes(const DWARFDIE &die, dw_offset_t min_die_offset,
                                dw_offset_t max_die_offset, uint32_t type_mask,
@@ -407,7 +407,7 @@ SymbolFileDWARF::GetParentSymbolContextDIE(const DWARFDIE &child_die) {
 
 SymbolFileDWARF::SymbolFileDWARF(ObjectFileSP objfile_sp,
                                  SectionList *dwo_section_list)
-    : SymbolFile(std::move(objfile_sp)),
+    : SymbolFileCommon(std::move(objfile_sp)),
       UserID(0x7fffffff00000000), // Used by SymbolFileDWARFDebugMap to
                                   // when this class parses .o files to
                                   // contain the .o file index/ID
@@ -566,23 +566,21 @@ uint32_t SymbolFileDWARF::CalculateAbilities() {
       if (section)
         debug_line_file_size = section->GetFileSize();
     } else {
-      const char *symfile_dir_cstr =
-          m_objfile_sp->GetFileSpec().GetDirectory().GetCString();
-      if (symfile_dir_cstr) {
-        if (strcasestr(symfile_dir_cstr, ".dsym")) {
-          if (m_objfile_sp->GetType() == ObjectFile::eTypeDebugInfo) {
-            // We have a dSYM file that didn't have a any debug info. If the
-            // string table has a size of 1, then it was made from an
-            // executable with no debug info, or from an executable that was
-            // stripped.
-            section =
-                section_list->FindSectionByType(eSectionTypeDWARFDebugStr, true)
-                    .get();
-            if (section && section->GetFileSize() == 1) {
-              m_objfile_sp->GetModule()->ReportWarning(
-                  "empty dSYM file detected, dSYM was created with an "
-                  "executable with no debug info.");
-            }
+      llvm::StringRef symfile_dir =
+          m_objfile_sp->GetFileSpec().GetDirectory().GetStringRef();
+      if (symfile_dir.contains_insensitive(".dsym")) {
+        if (m_objfile_sp->GetType() == ObjectFile::eTypeDebugInfo) {
+          // We have a dSYM file that didn't have a any debug info. If the
+          // string table has a size of 1, then it was made from an
+          // executable with no debug info, or from an executable that was
+          // stripped.
+          section =
+              section_list->FindSectionByType(eSectionTypeDWARFDebugStr, true)
+                  .get();
+          if (section && section->GetFileSize() == 1) {
+            m_objfile_sp->GetModule()->ReportWarning(
+                "empty dSYM file detected, dSYM was created with an "
+                "executable with no debug info.");
           }
         }
       }
@@ -3970,7 +3968,7 @@ SymbolFileDWARF::ParseCallEdgesInFunction(UserID func_id) {
 }
 
 void SymbolFileDWARF::Dump(lldb_private::Stream &s) {
-  SymbolFile::Dump(s);
+  SymbolFileCommon::Dump(s);
   m_index->Dump(s);
 }
 
@@ -3989,8 +3987,8 @@ SymbolFileDWARFDebugMap *SymbolFileDWARF::GetDebugMapSymfile() {
   if (m_debug_map_symfile == nullptr) {
     lldb::ModuleSP module_sp(m_debug_map_module_wp.lock());
     if (module_sp) {
-      m_debug_map_symfile =
-          static_cast<SymbolFileDWARFDebugMap *>(module_sp->GetSymbolFile());
+      m_debug_map_symfile = llvm::cast<SymbolFileDWARFDebugMap>(
+          module_sp->GetSymbolFile()->GetBackingSymbolFile());
     }
   }
   return m_debug_map_symfile;

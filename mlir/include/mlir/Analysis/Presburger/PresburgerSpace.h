@@ -20,8 +20,6 @@
 namespace mlir {
 namespace presburger {
 
-class PresburgerLocalSpace;
-
 /// Kind of identifier. Implementation wise SetDims are treated as Range
 /// ids, and spaces with no distinction between dimension ids are treated
 /// as relations with zero domain ids.
@@ -66,12 +64,19 @@ enum class IdKind { Symbol, Local, Domain, Range, SetDim = Range };
 /// identifiers of each kind are equal.
 class PresburgerSpace {
 public:
-  PresburgerSpace(unsigned numDomain = 0, unsigned numRange = 0,
-                  unsigned numSymbols = 0, unsigned numLocals = 0)
-      : numDomain(numDomain), numRange(numRange), numSymbols(numSymbols),
-        numLocals(numLocals) {}
+  static PresburgerSpace getRelationSpace(unsigned numDomain = 0,
+                                          unsigned numRange = 0,
+                                          unsigned numSymbols = 0,
+                                          unsigned numLocals = 0) {
+    return PresburgerSpace(numDomain, numRange, numSymbols, numLocals);
+  }
 
-  virtual ~PresburgerSpace() = default;
+  static PresburgerSpace getSetSpace(unsigned numDims = 0,
+                                     unsigned numSymbols = 0,
+                                     unsigned numLocals = 0) {
+    return PresburgerSpace(/*numDomain=*/0, /*numRange=*/numDims, numSymbols,
+                           numLocals);
+  }
 
   unsigned getNumDomainIds() const { return numDomain; }
   unsigned getNumRangeIds() const { return numRange; }
@@ -101,28 +106,27 @@ public:
   unsigned getIdKindOverlap(IdKind kind, unsigned idStart,
                             unsigned idLimit) const;
 
+  /// Return the IdKind of the id at the specified position.
+  IdKind getIdKindAt(unsigned pos) const;
+
   /// Insert `num` identifiers of the specified kind at position `pos`.
   /// Positions are relative to the kind of identifier. Return the absolute
   /// column position (i.e., not relative to the kind of identifier) of the
   /// first added identifier.
-  virtual unsigned insertId(IdKind kind, unsigned pos, unsigned num = 1);
+  unsigned insertId(IdKind kind, unsigned pos, unsigned num = 1);
 
   /// Removes identifiers of the specified kind in the column range [idStart,
   /// idLimit). The range is relative to the kind of identifier.
-  virtual void removeIdRange(IdKind kind, unsigned idStart, unsigned idLimit);
-
-  /// Truncate the ids of the specified kind to the specified number by dropping
-  /// some ids at the end. `num` must be less than the current number.
-  void truncateIdKind(IdKind kind, unsigned num);
+  void removeIdRange(IdKind kind, unsigned idStart, unsigned idLimit);
 
   /// Returns true if both the spaces are compatible i.e. if both spaces have
   /// the same number of identifiers of each kind (excluding locals).
-  bool isSpaceCompatible(const PresburgerSpace &other) const;
+  bool isCompatible(const PresburgerSpace &other) const;
 
   /// Returns true if both the spaces are equal including local identifiers i.e.
   /// if both spaces have the same number of identifiers of each kind (including
   /// locals).
-  bool isSpaceEqual(const PresburgerSpace &other) const;
+  bool isEqual(const PresburgerSpace &other) const;
 
   /// Changes the partition between dimensions and symbols. Depending on the new
   /// symbol count, either a chunk of dimensional identifiers immediately before
@@ -132,6 +136,12 @@ public:
 
   void print(llvm::raw_ostream &os) const;
   void dump() const;
+
+protected:
+  PresburgerSpace(unsigned numDomain = 0, unsigned numRange = 0,
+                  unsigned numSymbols = 0, unsigned numLocals = 0)
+      : numDomain(numDomain), numRange(numRange), numSymbols(numSymbols),
+        numLocals(numLocals) {}
 
 private:
   // Number of identifiers corresponding to domain identifiers.

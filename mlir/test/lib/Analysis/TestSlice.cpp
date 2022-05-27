@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -18,6 +19,8 @@ namespace {
 struct TestTopologicalSortPass
     : public PassWrapper<TestTopologicalSortPass,
                          InterfacePass<SymbolOpInterface>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestTopologicalSortPass)
+
   StringRef getArgument() const final { return "test-print-topological-sort"; }
   StringRef getDescription() const final {
     return "Print operations in topological order";

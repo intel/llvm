@@ -495,6 +495,9 @@ static void ParseLangArgs(LangOptions &Opts, InputKind IK, const char *triple) {
     case clang::Language::HIP:
       LangStd = LangStandard::lang_hip;
       break;
+    case clang::Language::HLSL:
+      LangStd = LangStandard::lang_hlsl;
+      break;
     }
   }
 
@@ -507,7 +510,6 @@ static void ParseLangArgs(LangOptions &Opts, InputKind IK, const char *triple) {
   Opts.GNUMode = Std.isGNUMode();
   Opts.GNUInline = !Std.isC99();
   Opts.HexFloats = Std.hasHexFloats();
-  Opts.ImplicitInt = Std.hasImplicitInt();
 
   Opts.WChar = true;
 
