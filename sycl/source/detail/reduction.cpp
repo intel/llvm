@@ -83,7 +83,7 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
     size_t CPUMaxWGSize = CPUMaxWGConfig::get();
     if (CPUMaxWGSize == 0)
       CPUMaxWGSize = 16;
-    return std::min(MaxWGSize, MaxWGSize);
+    return std::min(MaxWGSize, CPUMaxWGSize);
   }
 
   // If the user has specified an explicit max work-group size we use that.
