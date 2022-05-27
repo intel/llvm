@@ -240,11 +240,9 @@ class annotated_ptr {
 
     operator bool() const noexcept;
 
-    // Implicit conversion is not supported in all cases, the "unspecified"
-    // SFINAE logic will ensure these are generated only when it is legal to do
-    // so
-    /*unspecified*/ operator T*() noexcept;
-    /*unspecified*/ operator const T*() const noexcept;
+    // Implicit conversion is not supported
+    operator T*() noexcept = delete;
+    operator const T*() const noexcept = delete;
 
     T* get() noexcept;
     const T* get() const noexcept;
@@ -296,6 +294,9 @@ explicit annotated_ptr(T *Ptr, const properties<PropertyListT> &P) noexcept;
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
 underlying pointer is initialized with `Ptr`. `P` is used to specify the
 `PropertyListT` type on the class.
+
+The new property set `PropertyListT` must contain all properties from `P`,
+and if any common property takes a value, the value must be the same.
 
 // --- ROW BREAK ---
 a|
@@ -385,12 +386,11 @@ Returns `false` if the underlying pointer is null, returns `true` otherwise.
 a|
 [source,c++]
 ----
-/*unspecified*/ operator T*() noexcept;
-/*unspecified*/ operator const T*() const noexcept;
+/*unspecified*/ operator T*() noexcept = delete;
+/*unspecified*/ operator const T*() const noexcept = delete;
 ----
 |
-Implicit conversion to a pointer to the underlying type is available only when
-all the properties within `PropertyListT` allow implicit conversion.
+Implicit conversion to a pointer to the underlying type is not supported.
 
 // --- ROW BREAK ---
 a|
@@ -551,14 +551,6 @@ applying the annotations when the object is stored to memory.
 Below is a list of compile-time constant properties supported with
 `annotated_ptr`. 
 
-When the implicit conversion operator which converts
-`annotated_ptr<T, PropertyListT>` to `T*` is used, the annotations will not
-be retained in device code when the `T*` pointer is used. This is acceptable for
-some properties and not for others.
-
-This implicit conversion operator is deleted if the property specifies that
-it needs to be retained within the device code.
-
 ```c++
 namespace sycl::ext::oneapi::experimental {
 struct alignment_key {
@@ -605,13 +597,10 @@ struct is_property_key_of<
 |
 Sets the alignment of the pointer address in bytes.
 
-|`kernel_arg_restrict`
+|`restrict`
 |
 Informs the compiler that writes to the address pointed to by this pointer
 are only done by this pointer or pointers derived from it.
-
-This property does not need to be retained in the device code but it must be
-applied to the kernel argument.
 
 |`runtime_aligned`
 |
@@ -637,13 +626,20 @@ not have meaningful usecases that require this support. Building the support
 is complicated
 
 3) [RESOLVED] Can `sycl::atomic_ref` be used with `annotated_ref`?
-Yes. This discussion is an implementation detail discussion and does not
-impact the annotated_ptr spec.
+`atomic_ref` will not work with `annotated_ref` as is since `atomic_ref`
+restricts the types it can take. If we want, we can create a sycl extension for
+`atomic_ref` to support `annotated_ref`. The implementation complexity will
+depend on how we chose to implement `annotated_ref`: via builtins or via pointer
+annotations.
 
 4) [RESOLVED] Should we provide conversion functions to convert to/from
 multi_ptr?
 No we do not want to support multi_ptr conversion. 'multi_ptr's provide
 a way to annotate address spaces. That can be built with annotated_ptr.
+
+5) We need a property to capture local, global or private address-spaces. Within
+global space we may want to distinguish between general, host, and device memory
+spaces.
 
 == Revision History
 

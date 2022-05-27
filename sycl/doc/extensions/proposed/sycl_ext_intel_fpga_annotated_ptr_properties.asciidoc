@@ -69,16 +69,16 @@ Some examples of the syntax are shown below.
 .Example 1
 [source,c++]
 ----
-annotated_ptr<MyType, properties<
-  buffer_location<1>, kernel_arg_awidth<32>, kernel_arg_dwidth<>64>> ptr_a;
+annotated_ptr<MyType,
+  properties<buffer_location<1>, awidth<32>, dwidth<64>> arg_a;
 ----
 
 .Example 2
 [source,c++]
 ----
-auto ptr_p = malloc_shared<int>(1, q, properties{buffer_location<2>});
-auto ptr_q = annotated_ptr(ptr_a, properties{
-  kernel_arg_awidth<32>, kernel_arg_dwidth<64>});
+// Allocate memory
+auto ptr = ...
+auto arg_a = annotated_ptr(ptr, properties{buffer_location<1>, awidth<32>, dwidth<64>});
 ----
 
 == Specification
@@ -108,17 +108,20 @@ Below is a list of compile-time constant properties supported with
 `annotated_ptr`. These properties control the kernel argument interface on FPGA
 devices.
 
+All of the properties defined in this extension are meaningful only on the
+kernel argument and are not meaningful within the kernel body.
+
 ```c++
-struct kernel_arg_conduit_key {
-  using value_t = property_value<kernel_arg_conduit_key>;
+struct conduit_key {
+  using value_t = property_value<conduit_key>;
 };
 
-struct kernel_arg_register_map_key {
-  using value_t = property_value<kernel_arg_register_map_key>;
+struct register_map_key {
+  using value_t = property_value<register_map_key>;
 };
 
-struct kernel_arg_stable_key {
-  using value_t = property_value<kernel_arg_stable_key>;
+struct stable_key {
+  using value_t = property_value<stable_key>;
 };
 
 struct buffer_location_key {
@@ -127,136 +130,128 @@ struct buffer_location_key {
     buffer_location_key, std::integral_constant<int, K>>;
 };
 
-struct kernel_arg_awidth_key {
+struct awidth_key {
   template<int K>
   using value_t = property_value<
-    kernel_arg_awidth_key, std::integral_constant<int, K>>;
+    awidth_key, std::integral_constant<int, K>>;
 };
 
-struct kernel_arg_dwidth_key {
+struct dwidth_key {
   template<int K>
   using value_t = property_value<
-    kernel_arg_dwidth_key, std::integral_constant<int, K>>;
+    dwidth_key, std::integral_constant<int, K>>;
 };
 
-enum class kernel_arg_read_write_mode_enum {
+enum class read_write_mode_enum {
   read_write,
   read,
   write
 };
 
-struct kernel_arg_read_write_mode_key {
-  template<kernel_arg_read_write_mode_enum mode>
-  using value_t = property_value<kernel_arg_read_write_mode_key,
-    std::integral_constant<kernel_arg_read_write_mode_enum, mode>>;
+struct read_write_mode_key {
+  template<read_write_mode_enum mode>
+  using value_t = property_value<read_write_mode_key,
+    std::integral_constant<read_write_mode_enum, mode>>;
 };
 
-struct kernel_arg_latency_key {
+struct latency_key {
   template<int K>
-  using value_t = property_value<kernel_arg_latency_key,
+  using value_t = property_value<latency_key,
     std::integral_constant<int, K>>;
 };
 
-struct kernel_arg_maxburst_key {
+struct maxburst_key {
   template<int K>
   using value_t = property_value<
-    kernel_arg_maxburst_key, std::integral_constant<int, K>>;
+    maxburst_key, std::integral_constant<int, K>>;
 };
 
-struct kernel_arg_wait_request_key {
+struct wait_request_key {
   template<bool K>
-  using value_t = property_value<kernel_arg_wait_request_key,
+  using value_t = property_value<wait_request_key,
     std::integral_constant<bool, K>>;
 };
 
-inline constexpr kernel_arg_conduit_key::value_t
- kernel_arg_conduit;
-inline constexpr kernel_arg_register_map_key::value_t
- kernel_arg_register_map;
-inline constexpr kernel_arg_stable_key::value_t kernel_arg_stable;
+inline constexpr conduit_key::value_t
+ conduit;
+inline constexpr register_map_key::value_t
+ register_map;
+inline constexpr stable_key::value_t stable;
 template<int K> inline constexpr buffer_location_key::value_t<K>
  buffer_location;
-template<int K> inline constexpr kernel_arg_awidth_key::value_t<K>
- kernel_arg_awidth;
-template<int K> inline constexpr kernel_arg_dwidth_key::value_t<K>
- kernel_arg_dwidth;
-template<kernel_arg_read_write_mode_enum mode>
-inline constexpr kernel_arg_read_write_mode_key::value_t<mode>
- kernel_arg_read_write_mode;
-inline constexpr kernel_arg_read_write_mode_key::value_t<
-  kernel_arg_read_write_mode_enum::read>  kernel_arg_read_write_mode_read;
-inline constexpr kernel_arg_read_write_mode_key::value_t<
-  kernel_arg_read_write_mode_enum::write>  kernel_arg_read_write_mode_write;
-inline constexpr kernel_arg_read_write_mode_key::value_t<
-  kernel_arg_read_write_mode_enum::read_write>
-    kernel_arg_read_write_mode_readwrite;
-template<int K> inline constexpr kernel_arg_latency_key::value_t<K>
-  kernel_arg_latency;
-template<int K> inline constexpr kernel_arg_maxburst_key::value_t<K>
- kernel_arg_maxburst;
-template<int K> inline constexpr kernel_arg_wait_request_key::value_t<K>
- kernel_arg_wait_request;
-inline constexpr kernel_arg_wait_request_key::value_t<true>
- kernel_arg_wait_request_requested;
-inline constexpr kernel_arg_wait_request_key::value_t<false>
- kernel_arg_wait_request_not_requested;
+template<int K> inline constexpr awidth_key::value_t<K>
+ awidth;
+template<int K> inline constexpr dwidth_key::value_t<K>
+ dwidth;
+template<read_write_mode_enum mode>
+inline constexpr read_write_mode_key::value_t<mode>
+ read_write_mode;
+inline constexpr read_write_mode_key::value_t<
+  read_write_mode_enum::read>  read_write_mode_read;
+inline constexpr read_write_mode_key::value_t<
+  read_write_mode_enum::write>  read_write_mode_write;
+inline constexpr read_write_mode_key::value_t<
+  read_write_mode_enum::read_write>
+    read_write_mode_readwrite;
+template<int K> inline constexpr latency_key::value_t<K>
+  latency;
+template<int K> inline constexpr maxburst_key::value_t<K>
+ maxburst;
+template<int K> inline constexpr wait_request_key::value_t<K>
+ wait_request;
+inline constexpr wait_request_key::value_t<true>
+ wait_request_requested;
+inline constexpr wait_request_key::value_t<false>
+ wait_request_not_requested;
 
-template<> struct is_property_key<kernel_arg_conduit_key> : std::true_type {};
+template<> struct is_property_key<conduit_key> : std::true_type {};
 template<> struct is_property_key<
-  kernel_arg_register_map_key> : std::true_type {};
-template<> struct is_property_key<kernel_arg_stable_key> : std::true_type {};
+  register_map_key> : std::true_type {};
+template<> struct is_property_key<stable_key> : std::true_type {};
 template<> struct is_property_key<buffer_location_key> : std::true_type {};
-template<> struct is_property_key<kernel_arg_awidth_key> : std::true_type {};
-template<> struct is_property_key<kernel_arg_dwidth_key> : std::true_type {};
+template<> struct is_property_key<awidth_key> : std::true_type {};
+template<> struct is_property_key<dwidth_key> : std::true_type {};
 template<> struct is_property_key<
-  kernel_arg_read_write_mode_key> : std::true_type {};
+  read_write_mode_key> : std::true_type {};
 template<> struct is_property_key<
-  kernel_arg_latency_key> : std::true_type {};
-template<> struct is_property_key<kernel_arg_maxburst_key> : std::true_type {};
+  latency_key> : std::true_type {};
+template<> struct is_property_key<maxburst_key> : std::true_type {};
 template<> struct is_property_key<
-  kernel_arg_wait_request_key> : std::true_type {};
+  wait_request_key> : std::true_type {};
 
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_conduit_key,
+struct is_property_key_of<conduit_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_register_map_key,
+struct is_property_key_of<register_map_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_stable_key,
+struct is_property_key_of<stable_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<buffer_location_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_awidth_key,
+struct is_property_key_of<awidth_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_dwidth_key,
+struct is_property_key_of<dwidth_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_read_write_mode_key,
+struct is_property_key_of<read_write_mode_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_latency_key,
+struct is_property_key_of<latency_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_maxburst_key,
+struct is_property_key_of<maxburst_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<kernel_arg_wait_request_key,
+struct is_property_key_of<wait_request_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 } // namespace experimental::oneapi::ext::sycl
 ```
 --
-
-NOTE: All of the properties defined in this extension are meaningful only on the
-kernel argument and are not meaningful within the device code.
-
-All the properties defined in this specification allow implicit conversion of
-`annotated_ptr<T, PropertyListT>` to `T`, effectively losing the annotation
-within the device code when this conversion operator is used. The properties
-are only preserved on the kernel argument.
 
 [frame="topbot",options="header"]
 |===
@@ -265,31 +260,30 @@ are only preserved on the kernel argument.
 a|
 [source,c++]
 ----
-kernel_arg_conduit
+conduit
 ----
 a|
 Directs the compiler to create a dedicated input port on the kernel for the
-input data.
+input.
 
 a|
 [source,c++]
 ----
-kernel_arg_register_map
+register_map
 ----
 a|
-Directs the compiler to create a register to store the base address of the
-of the pointer interface as opposed to creating a dedicated input port on the
-kernel for supplying the pointer base address.
+Directs the compiler to create a register to store the input as opposed to
+creating a dedicated input port on the kernel.
 
 a|
 [source,c++]
 ----
-kernel_arg_stable
+stable
 ----
 a|
-Specifies that the input pointer address to the kernel will not change during
-the execution of the kernel. The input can still change after all active
-kernel invocations have finished.
+Specifies that the input to the kernel will not change during the execution of
+the kernel. The input can still change after all active kernel invocations have
+finished.
 
 If the input is changed while the kernel is executing, the behavior is
 undefined.
@@ -305,7 +299,7 @@ Specifies a global memory identifier for the pointer interface.
 a|
 [source,c++]
 ----
-kernel_arg_awidth<width>
+awidth<width>
 ----
 a|
 Specifies the width of the memory-mapped address bus in bits. The default is
@@ -314,7 +308,7 @@ set to 64.
 a|
 [source,c++]
 ----
-kernel_arg_dwidth<width>
+dwidth<width>
 ----
 a|
 Specifies the width of the memory-mapped data bus in bits. The default is set
@@ -323,10 +317,11 @@ to 64.
 a|
 [source,c++]
 ----
-kernel_arg_read_write_mode<mode>
+read_write_mode<mode>
 ----
 a|
-Specifies the port direction of the interface. `mode` can be one of:
+Specifies the port direction of the memory interface associated with the input
+pointer. `mode` can be one of:
 
 `read_write` - Interface can be used for read and write operations.
 
@@ -338,14 +333,14 @@ The default is set to `read_write`.
 
 For convenience, the following are provided:
 
- - kernel_arg_read_write_mode_read
- - kernel_arg_read_write_mode_write
- - kernel_arg_read_write_mode_readwrite
+ - read_write_mode_read
+ - read_write_mode_write
+ - read_write_mode_readwrite
 
 a|
 [source,c++]
 ----
-kernel_arg_latency<value>
+latency<value>
 ----
 a|
 Specifies the guaranteed latency in cycles, from when a read command exits
@@ -358,7 +353,7 @@ fixed latency.
 a|
 [source,c++]
 ----
-kernel_arg_maxburst<value>
+maxburst<value>
 ----
 a|
 Specifies the maximum number of data transfers that can be associated with a
@@ -367,7 +362,7 @@ read or write transaction. The default is set to 1.
 a|
 [source,c++]
 ----
-kernel_arg_wait_request<flag>
+wait_request<flag>
 ----
 a|
 Specifies whether the 'wait request' signal is generated or not. This signal is
@@ -376,114 +371,51 @@ request. The default is set to `false`.
 
 For convenience, the following are provided:
 
- - kernel_arg_wait_request_requested
- - kernel_arg_wait_request_not_requested
+ - wait_request_requested
+ - wait_request_not_requested
 |===
 --
 
 === Usage Examples
 
-The example below shows a simple kernel with one customized pointer argument
-interface `a` and a scalar kernel argument `n`. The pointer properties such
-as `kernel_arg_awidth`, `kernel_arg_awidth`, etc will take the default values.
+The example below shows a simple kernel with two annotated pointer kernel
+arguments 'arg_a' and 'arg_b'.
 
-.Usage Example 1
+.Usage Example
 ```c++
 using sycl::ext::oneapi::experimental;
-struct MyKernel {
-  annotated_ptr<int> a;
-  int n;
-  MyKernel(annotated_ptr<int> a_, int n_) : a(a_), n(n_) {}
-  void operator()() const {
-    for (int i=0; i<n; i++) {
-      a[i] *= 2;
-    }
-  }
-};
+{
+  sycl::queue q{...};
 
-int main () {
-  sycl::queue q;
-  constexpr int kN = 10;
-  // Constructs an object of type annotated_ptr<int>
-  auto array_a = malloc_shared<int>(kN, q);
-  // ...
-  q.single_task(MyKernel{array_a, kN}).wait();
+  // Allocate memory
+  auto ptr_a = ...
+  auto ptr_b = ...
 
-  // ...
-  sycl::free(array_a, q);
-}
-```
+  // Add properties
+  auto arg_a = annotated_ptr(
+    ptr_a, properties{buffer_location<1>, awidth<32>, dwidth<32>});
+  auto arg_b = annotated_ptr(
+    ptr_b, properties{buffer_location<2>, awidth<64>, dwidth<128>});
 
-In the example below, the kernel arguments are two customized pointer interfaces
-and a scalar argument.  The two pointers point to separate memories as specified
-by the property `buffer_location`.
+  q.single_task([=] {
+    ...
+    arg_a[index] *= 2;
+    arg_b[index] *= 4;
+    ...
+  }).wait();
 
-.Usage Example 2
-```c++
-using sycl::ext::oneapi::experimental;
-struct MyKernel {
-  using MyPtrA = annotated_ptr<int, properties<
-    buffer_location<1>, kernel_arg_awidth<32>, kernel_arg_dwidth<32>>>;
-  using MyPtrB = annotated_ptr<int, properties<
-    buffer_location<2>, kernel_arg_awidth<128>, kernel_arg_dwidth<128>>>;
-  // struct members become kernel arguments
-  MyPtrA a;
-  MyPtrB b;
-  int n;
-  MyKernel(MyPtrA a_, MyPtrB b_, int n_) : a(a_), b(b_), n(n_) {}
-  void operator()() const {
-    for (int i=0; i<n; i++) {
-      a[i] *= 2;
-      b[i] += 2;
-    }
-  }
-};
-
-int main () {
-  sycl::queue q;
-  constexpr int kN = 10;
-  // Constructs an object of type annotated_ptr<int, properties<buffer_location<1>>>
-  auto array_a = malloc_shared<int>(
-    kN, q, MyKernel::MyPtrA::get_property<buffer_location_key>());
-  // Constructs an object of type annotated_ptr<int, properties<buffer_location<2>>>
-  auto array_b = malloc_shared<int>(
-    kN, q, MyKernel::MyPtrB::get_property<buffer_location_key>());
-  // ...
-
-  // 'array_a', 'array_b' and MyKernel members 'a', and 'b' are all
-  // annotated_ptr objects which wrap pointers to integers
-  // 'a' can be constructed from 'array_a' because the properties on the type of
-  // the object 'a' are a legal super set of the properties on the type of
-  // object 'array_a'. Same applies for 'b' and 'array_b'
-  q.single_task(MyKernel{array_a, array_b, kN}).wait();
-
-  // ...
-  sycl::free(array_a, q);
-  sycl::free(array_b, q);
+  ...
 }
 ```
 
 == Issues
 
-1. `kernel_arg` prefix is too long. Is a `mem_` prefix acceptable? Or maybe
-just an `arg_` prefix? Is that coupled with the description/doc enough to
-emphasize that these properties only influence kernel arguments?
-
-2. Should we add a new property argument to `kernel_arg_latency` to separate
-specifying fixed latency and variable latency.
+1. Should we add a new property argument to `latency` to separate specifying
+fixed latency and variable latency.
 Yes, in a future extension we can introduce a separate property.
 
-3. [RESOLVED] Examples here also depend on USM `malloc*` API returning
-`annotated_ptr`.
-Should I link to that extension (create one if one doesn't exist), or not show
-the `malloc` calls in the examples? I think I should do the latter to keep these
-extensions separate. An implementation could support these properties and
-not the `malloc` changes and still have value.
-And. Can remove malloc calls from the examples here for keeping the spec
-simple and to keep it focussed on `annotated_ptr`.
-
-4. TODO: Link the fpga_kernel_properties spec to this one. Specifying certain
-fpga kernel properties should result in changes to kernel arguments.
+2. How do I link the fpga_kernel_properties spec to this one, to specify that
+certain fpga kernel properties should result in changes to kernel arguments.
 
 == Revision History
 
@@ -491,8 +423,8 @@ fpga kernel properties should result in changes to kernel arguments.
 [grid="rows"]
 [options="header"]
 |========================================
-|Rev|Date|Author|Changes
-|1|2022-04-13|Abhishek Tiwari|*Initial draft*
+|Rev|Date       |Author           |Changes
+|1  |2022-04-13 |Abhishek Tiwari  |*Initial draft*
 |========================================
 
 //************************************************************************
