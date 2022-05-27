@@ -1,4 +1,4 @@
-= sycl_ext_intel_fpga_annotated_ptr_properties
+= sycl_ext_intel_fpga_kernel_arg_properties
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -49,6 +49,7 @@ It depends on the following extensions:
 
  - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
  - link:sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+ - link:sycl_ext_oneapi_annotated_arg.asciidoc[sycl_ext_oneapi_annotated_ptr]
 
 == Status
 
@@ -60,26 +61,43 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension introduces properties for the class
-`sycl::ext::oneapi::annotated_ptr`. The properties will influence the kernel
-argument interfaces for FPGA kernels and can be ignored for other devices.
+This extension introduces properties for the classes
+`sycl::ext::oneapi::annotated_ptr` and `sycl::ext::oneapi::annotated_arg`. The
+properties will influence the kernel argument interfaces for FPGA kernels and
+can be ignored for other devices.
 
 Some examples of the syntax are shown below.
 
-.Example 1
 [source,c++]
 ----
-annotated_ptr<MyType,
-  properties<buffer_location<1>, awidth<32>, dwidth<64>> arg_a;
+auto ptr = ...
+auto arg_a = annotated_ptr(
+  ptr, properties{buffer_location<1>, awidth<32>, dwidth<64>});
+
+...
+
+auto ptr2 = ...
+auto arg_b = annotated_arg(
+  ptr2, properties{buffer_location<2>, awidth<32>, dwidth<64>});
+
+...
+
+int val = 5;
+auto arg_c = annotated_arg(val, properties{register_map, stable});
+
+...
+
+annotated_ptr<MyType, properties<register_map, buffer_location<1>, awidth<32>,
+  dwidth<64>> arg_d;
+
+annotated_arg<int, properties<register_map, stable>> arg_e;
+
+annotated_arg<int*, properties<conduit, buffer_location<1>, awidth<32>,
+  dwidth<64>> arg_f;
+
+
 ----
 
-.Example 2
-[source,c++]
-----
-// Allocate memory
-auto ptr = ...
-auto arg_a = annotated_ptr(ptr, properties{buffer_location<1>, awidth<32>, dwidth<64>});
-----
 
 == Specification
 
@@ -87,7 +105,7 @@ auto arg_a = annotated_ptr(ptr, properties{buffer_location<1>, awidth<32>, dwidt
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_INTEL_FPGA_ANNOTATED_PTR_PROPERTIES` to one of the values
+macro `SYCL_EXT_INTEL_FPGA_KERNEL_ARG_PROPERTIES` to one of the values
 defined in the table below.  Applications can test for the existence of this
 macro to determine if the implementation supports this feature, or applications
 can test the macro's value to determine which of the extension's features the
@@ -102,14 +120,17 @@ implementation supports.
 |Initial version of this extension.
 |===
 
-=== `annotated_ptr` Properties
+=== `annotated_ptr` and `annotated_arg` Properties
 
 Below is a list of compile-time constant properties supported with
-`annotated_ptr`. These properties control the kernel argument interface on FPGA
-devices.
+the `annotated_ptr` and `annotated_arg` classes. These properties control the
+kernel argument interface on FPGA devices.
 
 All of the properties defined in this extension are meaningful only on the
 kernel argument and are not meaningful within the kernel body.
+
+NOTE: The properties that are defined for pointers will be meaningful for
+annotated_arg<T, ...> only when T is a pointer type
 
 ```c++
 struct conduit_key {
@@ -296,6 +317,8 @@ buffer_location<id>
 a|
 Specifies a global memory identifier for the pointer interface.
 
+This property is only meaningful on pointer kernel arguments.
+
 a|
 [source,c++]
 ----
@@ -305,6 +328,8 @@ a|
 Specifies the width of the memory-mapped address bus in bits. The default is
 set to 64.
 
+This property is only meaningful on pointer kernel arguments.
+
 a|
 [source,c++]
 ----
@@ -313,6 +338,8 @@ dwidth<width>
 a|
 Specifies the width of the memory-mapped data bus in bits. The default is set
 to 64.
+
+This property is only meaningful on pointer kernel arguments.
 
 a|
 [source,c++]
@@ -337,6 +364,8 @@ For convenience, the following are provided:
  - read_write_mode_write
  - read_write_mode_readwrite
 
+This property is only meaningful on pointer kernel arguments.
+
 a|
 [source,c++]
 ----
@@ -350,6 +379,8 @@ is set to 1.
 A value of 0 specifies a variable latency and a positive value specifies a
 fixed latency.
 
+This property is only meaningful on pointer kernel arguments.
+
 a|
 [source,c++]
 ----
@@ -358,6 +389,8 @@ maxburst<value>
 a|
 Specifies the maximum number of data transfers that can be associated with a
 read or write transaction. The default is set to 1.
+
+This property is only meaningful on pointer kernel arguments.
 
 a|
 [source,c++]
@@ -373,13 +406,15 @@ For convenience, the following are provided:
 
  - wait_request_requested
  - wait_request_not_requested
+
+This property is only meaningful on pointer kernel arguments.
 |===
 --
 
 === Usage Examples
 
-The example below shows a simple kernel with two annotated pointer kernel
-arguments 'arg_a' and 'arg_b'.
+The example below shows a simple kernel with one `annotated_ptr` kernel
+argument and one `annotated_arg` kernel argument.
 
 .Usage Example
 ```c++
@@ -389,19 +424,16 @@ using sycl::ext::oneapi::experimental;
 
   // Allocate memory
   auto ptr_a = ...
-  auto ptr_b = ...
+  constexpr int kN = 10;
 
   // Add properties
-  auto arg_a = annotated_ptr(
-    ptr_a, properties{buffer_location<1>, awidth<32>, dwidth<32>});
-  auto arg_b = annotated_ptr(
-    ptr_b, properties{buffer_location<2>, awidth<64>, dwidth<128>});
+  auto arg_a = annotated_ptr(ptr_a, properties{
+    register_map, buffer_location<1>, awidth<18>, dwidth<64>});
+  auto arg_n = annotated_ptr(kN, properties{register_map, stable});
 
   q.single_task([=] {
-    ...
-    arg_a[index] *= 2;
-    arg_b[index] *= 4;
-    ...
+    for (int i=0; i<arg_n; i++)
+      arg_a[i] *= 2;
   }).wait();
 
   ...

@@ -198,14 +198,17 @@ Here's an example of how a property could be used:
 
 [source,c++]
 ----
-using namespace sycl::ext::oneapi;
+using namespace sycl::ext::oneapi::experimental;
 {
   sycl::queue q;
+  // A pointer to an integer
+  auto ptr = ...
   // alignment of the pointer in bytes specified using the property 'alignment'
-  annotated_ptr<int, properties<alignment<4>>> kernel_arg = ...;
+  auto arg_a = annotated_ptr(ptr, properties{alignment<4>});
 
   q.submit([=]{
-    *kernel_arg = (*kernel_arg) * 2;
+    ...
+    *arg_a = (*arg_a) * 2;
   });
   ...
 }
@@ -558,8 +561,8 @@ struct alignment_key {
   using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
 };
 
-struct kernel_arg_restrict_key {
-  using value_t = property_value<kernel_arg_restrict_key>;
+struct restrict_key {
+  using value_t = property_value<restrict_key>;
 };
 
 struct runtime_aligned_key {
@@ -568,13 +571,13 @@ struct runtime_aligned_key {
 
 template<int K>
 inline constexpr alignment_key::value_t<K> alignment;
-inline constexpr kernel_arg_restrict_key::value_t kernel_arg_restrict;
+inline constexpr restrict_key::value_t restrict;
 inline constexpr runtime_aligned_key::value_t runtime_aligned;
 
 template<>
 struct is_property_key<alignment_key> : std::true_type {};
 template<>
-struct is_property_key<kernel_arg_restrict_key> : std::true_type {};
+struct is_property_key<restrict_key> : std::true_type {};
 template<>
 struct is_property_key<runtime_aligned_key> : std::true_type {};
 
@@ -583,7 +586,7 @@ struct is_property_key_of<
   alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
-  kernel_arg_restrict_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+  restrict_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
   runtime_aligned_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
@@ -612,20 +615,17 @@ runtime specification.
 == Issues related to `annotated_ptr`
 
 1) [RESOLVED] Should we allow implicit conversion to base class by default?
-Ans: Enabling conversion to underlying pointer will result in loss of the
-annotations when that underlying pointer is used. Some use-cases will benefit
-from this if they only need to retain the annotations on the kernel function
-interface (and not on the load/store sites within the device code). Hence,
-conversion will be allowed except when the property list contains properties
-whose definitions disallow implicit conversion.
-This can be implemented via SFINAE.
+
+No, implicit conversion will not be allowed.
 
 2) [RESOLVED] How do we support `operator->`?
+
 We will not support `operator->` with the initial release, since we do
 not have meaningful usecases that require this support. Building the support
 is complicated
 
 3) [RESOLVED] Can `sycl::atomic_ref` be used with `annotated_ref`?
+
 `atomic_ref` will not work with `annotated_ref` as is since `atomic_ref`
 restricts the types it can take. If we want, we can create a sycl extension for
 `atomic_ref` to support `annotated_ref`. The implementation complexity will
@@ -634,6 +634,7 @@ annotations.
 
 4) [RESOLVED] Should we provide conversion functions to convert to/from
 multi_ptr?
+
 No we do not want to support multi_ptr conversion. 'multi_ptr's provide
 a way to annotate address spaces. That can be built with annotated_ptr.
 
