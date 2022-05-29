@@ -980,7 +980,7 @@ static CXXMethodDecl *getMethodByName(const CXXRecordDecl *CRD,
 }
 
 static KernelInvocationKind
-getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
+getKernelInvocationKind(const FunctionDecl *KernelCallerFunc) {
   return llvm::StringSwitch<KernelInvocationKind>(KernelCallerFunc->getName())
       .Case("kernel_single_task", InvokeSingleTask)
       .Case("kernel_parallel_for", InvokeParallelFor)
@@ -2852,6 +2852,10 @@ public:
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     markParallelWorkItemCalls();
+
+    if (getKernelInvocationKind(KernelCallerFunc) == InvokeParallelForWorkGroup)
+      DC.getKernelDecl()->addAttr(SYCLScopeAttr::CreateImplicit(
+          S.Context, SYCLScopeAttr::Level::WorkGroup));
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         KernelCallerSrcLoc, KernelCallerSrcLoc);
