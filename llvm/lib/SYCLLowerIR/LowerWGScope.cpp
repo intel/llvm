@@ -740,6 +740,7 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
     return PreservedAnalyses::all();
+  LLVM_DEBUG(llvm::dbgs() << "Function name: " << F.getName() << "\n");
   const auto &TT = llvm::Triple(F.getParent()->getTargetTriple());
   // Ranges of "side effect" instructions
   SmallVector<InstrRange, 16> Ranges;
