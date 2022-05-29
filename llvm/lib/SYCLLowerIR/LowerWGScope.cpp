@@ -713,12 +713,12 @@ static void shareByValParams(Function &F, const Triple &TT) {
       continue;
 
     assert(Arg.getType()->getPointerAddressSpace() ==
-            asUInt(spirv::AddrSpace::Private));
+           asUInt(spirv::AddrSpace::Private));
 
     // Create the shared copy - "shadow" - for current arg
     Type *T = Arg.getParamByValType();
     GlobalVariable *Shadow =
-      spirv::createWGLocalVariable(*F.getParent(), T, "ArgShadow");
+        spirv::createWGLocalVariable(*F.getParent(), T, "ArgShadow");
 
     LLVMContext &Ctx = At.getContext();
     IRBuilder<> Builder(Ctx);
