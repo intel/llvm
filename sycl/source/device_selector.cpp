@@ -82,7 +82,7 @@ device device_selector::select_device() const {
     // that may not already include device preference in their scoring.
     if ((score < dev_score) ||
         ((score == dev_score) &&
-         (getDevicePreference(dev) > getDevicePreference(*res)))) {
+         (getDevicePreference(*res) < getDevicePreference(dev)))) {
       res = &dev;
       score = dev_score;
     }
