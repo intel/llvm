@@ -684,21 +684,51 @@ DeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
+// Returns the e_type field from an ELF image.
+static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
+  bool IsBigEndian = ImgData[5] == 2;
+  if (IsBigEndian)
+    return (static_cast<uint16_t>(ImgData[16]) << 8) |
+           static_cast<uint16_t>(ImgData[17]);
+  uint16_t HdrType = 0;
+  std::copy(ImgData + 16, ImgData + 16 + sizeof(HdrType),
+            reinterpret_cast<char *>(&HdrType));
+  return HdrType;
+}
+
 RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
                                             size_t ImgSize) {
   struct {
     RT::PiDeviceBinaryType Fmt;
     const uint32_t Magic;
   } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
-              {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
+              {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342},
+              {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}}; // INTC native
+
+  struct {
+    RT::PiDeviceBinaryType Fmt;
+    const uint16_t Magic;
+  } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04}}; // OpenCL executable
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
     detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
+    // Check headers for direct formats.
     for (const auto &Fmt : Fmts) {
       if (Hdr == Fmt.Magic)
         return Fmt.Fmt;
+    }
+
+    // ELF files we need to be parsed separately. The header type ends at 18
+    // bytes.
+    if (Hdr == 0x464c457F && ImgSize >= 18) {
+      detail::remove_const_t<decltype(ELFFmts[0].Magic)> HdrType =
+          getELFHeaderType(ImgData, ImgSize);
+      for (const auto &ELFFmt : ELFFmts) {
+        if (HdrType == ELFFmt.Magic)
+          return ELFFmt.Fmt;
+      }
     }
   }
   return PI_DEVICE_BINARY_TYPE_NONE;
