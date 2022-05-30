@@ -77,8 +77,12 @@ device device_selector::select_device() const {
 
     // SYCL spec says: "If more than one device receives the high score then
     // one of those tied devices will be returned, but which of the devices
-    // from the tied set is to be returned is not defined".
-    if (score < dev_score) {
+    // from the tied set is to be returned is not defined". So use the device
+    // preference score to resolve ties, this is necessary for custom_selectors
+    // that may not already include device preference in their scoring.
+    if ((score < dev_score) ||
+        ((score == dev_score) &&
+         (getDevicePreference(dev) > getDevicePreference(*res)))) {
       res = &dev;
       score = dev_score;
     }
