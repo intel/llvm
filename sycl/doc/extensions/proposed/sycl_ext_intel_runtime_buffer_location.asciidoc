@@ -96,9 +96,7 @@ This extension adds the new property
 `sycl::ext::intel::experimental::property::usm::buffer_location` which 
 applications can pass in the property_list parameter to all overloads of the 
 `sycl::malloc_device()`, `sycl::malloc_shared()`, and `sycl::malloc_host()` 
-functions. However, this property has no effect when passed to 
-`sycl::malloc_shared()` or `sycl::malloc_host()`. Following is a synopsis of
- this property.
+functions. Following is a synopsis of this property.
 
 [source,c++]
 ----
