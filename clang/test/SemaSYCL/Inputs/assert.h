@@ -4,6 +4,9 @@
 #define _CRT_WIDE_(s) L##s
 #define _CRT_WIDE(s) _CRT_WIDE_(s)
 
+// Simplified version of assert.h as distributed with Windows ucrt. `assert`
+// expands to `_wassert` that is decorated with `sycl_device` attribute.
+
 #ifdef __cplusplus
 extern "C" {
 #endif
