@@ -65,6 +65,19 @@
 // (1) - materialization of a PFWI object
 // (2) - "fixup" of the private variable address.
 //
+// TODO: add support for the case when there are other functions between
+// parallel_for_work_group and parallel_for_work_item in the call stack.
+// For example:
+//
+// void foo(sycl::group<1> group, ...) {
+//   group.parallel_for_work_item(range<1>(), [&](h_item<1> i) { ... });
+// }
+// ...
+//   cgh.parallel_for_work_group<class kernel>(
+//     range<1>(...), range<1>(...), [=](group<1> g) {
+//       foo(g, ...);
+//     });
+//
 // TODO The approach employed by this pass generates lots of barriers and data
 // copying between private and local memory, which might not be efficient. There
 // are optimization opportunities listed below. Also other approaches can be
