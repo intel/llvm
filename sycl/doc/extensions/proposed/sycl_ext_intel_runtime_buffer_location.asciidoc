@@ -77,16 +77,59 @@ supports.
 
 == Examples
 
+.Device Allocation example
 [source,c++]
 ----
-array = (int *)sycl::malloc_device<int>(
-        N, q,
-        sycl::property_list{sycl::ext::intel::experimental::property::usm::buffer_location(2)});
+using namespace sycl;
+using namespace sycl::ext::intel::experimental;
+...
+queue q;
 
-sycl::queue q;
-q.parallel_for(sycl::range<1>(N), [=] (sycl::id<1> i){
-  data[i] *= 2;
+auto device_array = malloc_device<int>(kN, q, property_list{property::usm::buffer_location(2)});
+
+int host_array[kN];
+
+for(int i=0; i<kN; i++) {
+  host_array[i] = ...
+}
+
+q.copy(host_array, device_array, kN).wait();
+ 
+q.submit([=] {
+  ...
+  ... = device_array[index];
+  device_array[index] = ...;
+  ...
 }).wait();
+
+q.copy(device_array, host_array, kN).wait();
+
+...
+... = host_array[index];
+----
+
+.Shared Allocation example
+[source,c++]
+----
+using namespace sycl;
+using namespace sycl::ext::intel::experimental;
+...
+queue q;
+
+auto array = malloc_shared<int>(kN, q, property_list{property::usm::buffer_location(2)});
+for(int i=0; i<kN; i++) {
+  array = ...
+}
+ 
+q.submit([=] {
+  ...
+  ... = array[index];
+  array[index] = ...;
+  ...
+}).wait();
+
+...
+... = array[index];
 ----
 
 
