@@ -73,8 +73,26 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 
     switch (Kind) {
     case alloc::host: {
+      std::array<pi_usm_mem_properties, 3> Props;
+      auto PropsIter = Props.begin();
+
+      if (PropList.has_property<cl::sycl::ext::intel::experimental::property::
+                                    usm::buffer_location>() &&
+          Ctxt.get_platform().has_extension(
+              "cl_intel_mem_alloc_buffer_location")) {
+        *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
+        *PropsIter++ = PropList
+                           .get_property<cl::sycl::ext::intel::experimental::
+                                             property::usm::buffer_location>()
+                           .get_buffer_location();
+      }
+
+      assert(PropsIter >= Props.begin() && PropsIter < Props.end());
+      *PropsIter++ = 0; // null-terminate property list
+
       Error = Plugin.call_nocheck<PiApiKind::piextUSMHostAlloc>(
-          &RetVal, C, nullptr, Size, Alignment);
+          &RetVal, C, Props.data(), Size, Alignment);
+
       break;
     }
     case alloc::device:
