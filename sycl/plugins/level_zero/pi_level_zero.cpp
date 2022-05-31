@@ -31,7 +31,7 @@
 extern "C" {
 // Forward declarartions.
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
+static pi_result piQueueReleaseInternal(pi_queue Queue, pi_queue LockedQueue);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
 }
@@ -628,12 +628,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
-// This helper function increments the reference counter of the Queue
-// without guarding with a lock.
-// It is the caller's responsibility to make sure the lock is acquired
-// on the Queue that is passed in.
-inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
-
 // This helper function creates a pi_event and associate a pi_queue.
 // Note that the caller of this function must have acquired lock on the Queue
 // that is passed in.
@@ -668,7 +662,7 @@ inline static pi_result createEventAndAssociateQueue(
   // piEventRelease requires access to the associated pi_queue.
   // In piEventRelease, the reference counter of the Queue is decremented
   // to release it.
-  piQueueRetainNoLock(Queue);
+  Queue->RefCount.increment();
 
   // SYCL RT does not track completion of the events, so it could
   // release a PI event as soon as that's not being waited in the app.
@@ -1340,7 +1334,7 @@ void _pi_queue::CaptureIndirectAccesses() {
         // SubmissionsCount turns to 0. We don't want to know how many times
         // allocation was retained by each submission.
         if (Pair.second)
-          Elem.second.RefCount++;
+          Elem.second.RefCount.increment();
       }
     }
     Kernel->SubmissionsCount++;
@@ -1609,7 +1603,7 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
               ZeCommandList, {nullptr, true, nullptr, QueueOrdinal}})
           .first;
   // Add this commandlist to the cache so it can be destroyed as part of
-  // QueueRelease
+  // piQueueReleaseInternal
   auto QueueType = Type;
   auto &ZeCommandListCache =
       QueueType == queue_type::Compute
@@ -2360,7 +2354,7 @@ pi_result piDeviceRetain(pi_device Device) {
 
   // The root-device ref-count remains unchanged (always 1).
   if (Device->isSubDevice()) {
-    ++(Device->RefCount);
+    Device->RefCount.increment();
   }
   return PI_SUCCESS;
 }
@@ -2368,13 +2362,9 @@ pi_result piDeviceRetain(pi_device Device) {
 pi_result piDeviceRelease(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  // Check if the device is already released
-  if (Device->RefCount <= 0)
-    die("piDeviceRelease: the device has been already released");
-
   // Root devices are destroyed during the piTearDown process.
   if (Device->isSubDevice()) {
-    if (--(Device->RefCount) == 0) {
+    if (Device->RefCount.decrementAndTest()) {
       delete Device;
     }
   }
@@ -2552,7 +2542,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint32{(unsigned int)(Device->SubDevices.size())});
   }
   case PI_DEVICE_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Device->RefCount});
+    return ReturnValue(pi_uint32{Device->RefCount.load()});
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
@@ -3091,7 +3081,7 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   case PI_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(pi_uint32(Context->Devices.size()));
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Context->RefCount});
+    return ReturnValue(pi_uint32{Context->RefCount.load()});
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     // TODO: implement other parameters
@@ -3150,7 +3140,7 @@ pi_result piContextRetain(pi_context Context) {
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
-  ++(Context->RefCount);
+  Context->RefCount.increment();
   return PI_SUCCESS;
 }
 
@@ -3161,35 +3151,35 @@ pi_result ContextReleaseHelper(pi_context Context) {
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
-  if (--(Context->RefCount) == 0) {
-    if (IndirectAccessTrackingEnabled) {
-      pi_platform Plt = Context->getPlatform();
-      auto &Contexts = Plt->Contexts;
-      auto It = std::find(Contexts.begin(), Contexts.end(), Context);
-      if (It != Contexts.end())
-        Contexts.erase(It);
-    }
-    ze_context_handle_t DestoryZeContext =
-        Context->OwnZeContext ? Context->ZeContext : nullptr;
+  if (!Context->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-    // Clean up any live memory associated with Context
-    pi_result Result = Context->finalize();
-
-    // We must delete Context first and then destroy zeContext because
-    // Context deallocation requires ZeContext in some member deallocation of
-    // pi_context.
-    delete Context;
-
-    // Destruction of some members of pi_context uses L0 context
-    // and therefore it must be valid at that point.
-    // Technically it should be placed to the destructor of pi_context
-    // but this makes API error handling more complex.
-    if (DestoryZeContext)
-      ZE_CALL(zeContextDestroy, (DestoryZeContext));
-
-    return Result;
+  if (IndirectAccessTrackingEnabled) {
+    pi_platform Plt = Context->getPlatform();
+    auto &Contexts = Plt->Contexts;
+    auto It = std::find(Contexts.begin(), Contexts.end(), Context);
+    if (It != Contexts.end())
+      Contexts.erase(It);
   }
-  return PI_SUCCESS;
+  ze_context_handle_t DestoryZeContext =
+      Context->OwnZeContext ? Context->ZeContext : nullptr;
+
+  // Clean up any live memory associated with Context
+  pi_result Result = Context->finalize();
+
+  // We must delete Context first and then destroy zeContext because
+  // Context deallocation requires ZeContext in some member deallocation of
+  // pi_context.
+  delete Context;
+
+  // Destruction of some members of pi_context uses L0 context
+  // and therefore it must be valid at that point.
+  // Technically it should be placed to the destructor of pi_context
+  // but this makes API error handling more complex.
+  if (DestoryZeContext)
+    ZE_CALL(zeContextDestroy, (DestoryZeContext));
+
+  return Result;
 }
 
 pi_result piContextRelease(pi_context Context) {
@@ -3266,7 +3256,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE:
     return ReturnValue(Queue->Device);
   case PI_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Queue->RefCount});
+    return ReturnValue(pi_uint32{Queue->RefCount.load()});
   case PI_QUEUE_INFO_PROPERTIES:
     die("PI_QUEUE_INFO_PROPERTIES in piQueueGetInfo not implemented\n");
     break;
@@ -3286,101 +3276,88 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 }
 
 pi_result piQueueRetain(pi_queue Queue) {
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock lock(Queue->Mutex);
-  Queue->RefCountExternal++;
-  piQueueRetainNoLock(Queue);
+  {
+    std::scoped_lock Lock(Queue->Mutex);
+    Queue->RefCountExternal++;
+  }
+  Queue->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
   {
-    // Have this scope such that the lock is released before the
-    // queue is potentially deleted in QueueRelease.
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock lock(Queue->Mutex);
+    std::scoped_lock Lock(Queue->Mutex);
 
-    Queue->RefCountExternal--;
-    if (Queue->RefCountExternal == 0) {
-      // When external reference count goes to zero it is still possible
-      // that internal references still exists, e.g. command-lists that
-      // are not yet completed. So do full queue synchronization here
-      // and perform proper cleanup.
-      //
-      // It is possible to get to here and still have an open command list
-      // if no wait or finish ever occurred for this queue.
-      if (auto Res = Queue->executeAllOpenCommandLists())
-        return Res;
+    if ((--Queue->RefCountExternal) != 0)
+      return PI_SUCCESS;
 
-      // Make sure all commands get executed.
-      Queue->synchronize();
+    // When external reference count goes to zero it is still possible
+    // that internal references still exists, e.g. command-lists that
+    // are not yet completed. So do full queue synchronization here
+    // and perform proper cleanup.
+    //
+    // It is possible to get to here and still have an open command list
+    // if no wait or finish ever occurred for this queue.
+    if (auto Res = Queue->executeAllOpenCommandLists())
+      return Res;
 
-      // Destroy all the fences created associated with this queue.
-      for (auto it = Queue->CommandListMap.begin();
-           it != Queue->CommandListMap.end(); ++it) {
-        // This fence wasn't yet signalled when we polled it for recycling
-        // the command-list, so need to release the command-list too.
-        // For immediate commandlists we don't need to do an L0 reset of the
-        // commandlist but do need to do event cleanup which is also in the
-        // resetCommandList function.
-        if (it->second.InUse) {
-          Queue->resetCommandList(it, true);
-        }
-        // TODO: remove "if" when the problem is fixed in the level zero
-        // runtime. Destroy only if a queue is healthy. Destroying a fence may
-        // cause a hang otherwise.
-        // If the fence is a nullptr we are using immediate commandlists.
-        if (Queue->Healthy && it->second.ZeFence != nullptr)
-          ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
+    // Make sure all commands get executed.
+    Queue->synchronize();
+
+    // Destroy all the fences created associated with this queue.
+    for (auto it = Queue->CommandListMap.begin();
+         it != Queue->CommandListMap.end(); ++it) {
+      // This fence wasn't yet signalled when we polled it for recycling
+      // the command-list, so need to release the command-list too.
+      // For immediate commandlists we don't need to do an L0 reset of the
+      // commandlist but do need to do event cleanup which is also in the
+      // resetCommandList function.
+      if (it->second.InUse) {
+        Queue->resetCommandList(it, true);
       }
-      Queue->CommandListMap.clear();
+      // TODO: remove "if" when the problem is fixed in the level zero
+      // runtime. Destroy only if a queue is healthy. Destroying a fence may
+      // cause a hang otherwise.
+      // If the fence is a nullptr we are using immediate commandlists.
+      if (Queue->Healthy && it->second.ZeFence != nullptr)
+        ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
     }
+    Queue->CommandListMap.clear();
   }
-  PI_CALL(QueueRelease(Queue, nullptr));
+
+  PI_CALL(piQueueReleaseInternal(Queue, nullptr));
   return PI_SUCCESS;
 }
 
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
+static pi_result piQueueReleaseInternal(pi_queue Queue, pi_queue LockedQueue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  PI_ASSERT(Queue->RefCount, PI_INVALID_QUEUE);
 
-  // We need to use a bool variable here to check the condition that
-  // RefCount becomes zero atomically with Queue->Mutex lock.
-  // Then, we can release the lock before we remove the Queue below.
-  bool RefCountZero = false;
-  {
-    // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
-                                        : std::unique_lock(Queue->Mutex));
+  if (!Queue->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-    Queue->RefCount--;
-    if (Queue->RefCount == 0) {
-      RefCountZero = true;
-
-      if (Queue->OwnZeCommandQueue) {
-        for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
-          if (ZeQueue)
-            ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
-        }
-        for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
-          if (ZeQueue)
-            ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
-        }
-      }
-
-      zePrint("piQueueRelease(compute) NumTimesClosedFull %d, "
-              "NumTimesClosedEarly %d\n",
-              Queue->ComputeCommandBatch.NumTimesClosedFull,
-              Queue->ComputeCommandBatch.NumTimesClosedEarly);
-      zePrint("piQueueRelease(copy) NumTimesClosedFull %d, NumTimesClosedEarly "
-              "%d\n",
-              Queue->CopyCommandBatch.NumTimesClosedFull,
-              Queue->CopyCommandBatch.NumTimesClosedEarly);
+  if (Queue->OwnZeCommandQueue) {
+    for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
+      if (ZeQueue)
+        ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
+    }
+    for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
+      if (ZeQueue)
+        ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
     }
   }
-  if (RefCountZero)
-    delete Queue;
+
+  zePrint("piQueueRelease(compute) NumTimesClosedFull %d, "
+          "NumTimesClosedEarly %d\n",
+          Queue->ComputeCommandBatch.NumTimesClosedFull,
+          Queue->ComputeCommandBatch.NumTimesClosedEarly);
+  zePrint("piQueueRelease(copy) NumTimesClosedFull %d, NumTimesClosedEarly "
+          "%d\n",
+          Queue->CopyCommandBatch.NumTimesClosedFull,
+          Queue->CopyCommandBatch.NumTimesClosedEarly);
+
+  delete Queue;
 
   return PI_SUCCESS;
 }
@@ -3679,8 +3656,7 @@ pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
 pi_result piMemRetain(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
 
-  std::scoped_lock Guard(Mem->Mutex);
-  ++(Mem->RefCount);
+  Mem->RefCount.increment();
   return PI_SUCCESS;
 }
 
@@ -3698,7 +3674,7 @@ static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
     if (It == std::end(Context->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (--(It->second.RefCount) != 0) {
+    if (!It->second.RefCount.decrementAndTest()) {
       // Memory can't be deallocated yet.
       return PI_SUCCESS;
     }
@@ -3722,24 +3698,19 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
 
 pi_result piMemRelease(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
-  bool RefCountZero = false;
-  {
-    std::scoped_lock Guard(Mem->Mutex);
-    if (--(Mem->RefCount) == 0) {
-      RefCountZero = true;
-      if (Mem->isImage()) {
-        char *ZeHandleImage;
-        PI_CALL(Mem->getZeHandle(ZeHandleImage, _pi_mem::write_only));
-        ZE_CALL(zeImageDestroy, (pi_cast<ze_image_handle_t>(ZeHandleImage)));
-      } else {
-        auto Buffer = static_cast<pi_buffer>(Mem);
-        Buffer->free();
-      }
-    }
-  }
 
-  if (RefCountZero)
-    delete Mem;
+  if (!Mem->RefCount.decrementAndTest())
+    return PI_SUCCESS;
+
+  if (Mem->isImage()) {
+    char *ZeHandleImage;
+    PI_CALL(Mem->getZeHandle(ZeHandleImage, _pi_mem::write_only));
+    ZE_CALL(zeImageDestroy, (pi_cast<ze_image_handle_t>(ZeHandleImage)));
+  } else {
+    auto Buffer = static_cast<pi_buffer>(Mem);
+    Buffer->free();
+  }
+  delete Mem;
 
   return PI_SUCCESS;
 }
@@ -4103,7 +4074,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Program->RefCount});
+    return ReturnValue(pi_uint32{Program->RefCount.load()});
   case PI_PROGRAM_INFO_NUM_DEVICES:
     // TODO: return true number of devices this program exists for.
     return ReturnValue(pi_uint32{1});
@@ -4551,23 +4522,17 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
 
 pi_result piProgramRetain(pi_program Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
-  ++(Program->RefCount);
+  Program->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piProgramRelease(pi_program Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
-  bool RefCountZero = false;
-  {
-    std::scoped_lock Guard(Program->Mutex);
-    // Check if the program is already released
-    PI_ASSERT(Program->RefCount > 0, PI_INVALID_VALUE);
-    if (--(Program->RefCount) == 0) {
-      RefCountZero = true;
-    }
-  }
-  if (RefCountZero)
-    delete Program;
+
+  if (!Program->RefCount.decrementAndTest())
+    return PI_SUCCESS;
+
+  delete Program;
 
   return PI_SUCCESS;
 }
@@ -4812,7 +4777,7 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(pi_uint32{Kernel->ZeKernelProperties->numKernelArgs});
   case PI_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Kernel->RefCount});
+    return ReturnValue(pi_uint32{Kernel->RefCount.load()});
   case PI_KERNEL_INFO_ATTRIBUTES:
     try {
       uint32_t Size;
@@ -4922,58 +4887,46 @@ pi_result piKernelRetain(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
-  // When retaining a kernel, you are also retaining the program it is part
-  // of.
-  std::scoped_lock Lock(Kernel->Mutex, Kernel->Program->Mutex);
-  Kernel->retain();
+  Kernel->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piKernelRelease(pi_kernel Kernel) {
-
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
-  pi_program KernelProgram = nullptr;
-  bool RefCountZero = false;
-  {
-    std::scoped_lock Guard(Kernel->Mutex);
-    KernelProgram = Kernel->Program;
-    if (IndirectAccessTrackingEnabled) {
-      // piKernelRelease is called by Event->cleanup() as soon as kernel
-      // execution has finished. This is the place where we need to release
-      // memory allocations. If kernel is not in use (not submitted by some
-      // other thread) then release referenced memory allocations. As a result,
-      // memory can be deallocated and context can be removed from container in
-      // the platform. That's why we need to lock a mutex here.
-      pi_platform Plt = KernelProgram->Context->getPlatform();
-      std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
 
-      if (--Kernel->SubmissionsCount == 0) {
-        // Kernel is not submitted for execution, release referenced memory
-        // allocations.
-        for (auto &MemAlloc : Kernel->MemAllocs) {
-          USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
-                        MemAlloc->second.OwnZeMemHandle);
-        }
-        Kernel->MemAllocs.clear();
-      }
-    }
+  if (IndirectAccessTrackingEnabled) {
+    // piKernelRelease is called by Event->cleanup() as soon as kernel
+    // execution has finished. This is the place where we need to release
+    // memory allocations. If kernel is not in use (not submitted by some
+    // other thread) then release referenced memory allocations. As a result,
+    // memory can be deallocated and context can be removed from container in
+    // the platform. That's why we need to lock a mutex here.
+    pi_platform Plt = Kernel->Program->Context->getPlatform();
+    std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
 
-    if (--(Kernel->RefCount) == 0) {
-      if (Kernel->OwnZeKernel)
-        ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
-      if (IndirectAccessTrackingEnabled) {
-        PI_CALL(piContextRelease(KernelProgram->Context));
+    if (--Kernel->SubmissionsCount == 0) {
+      // Kernel is not submitted for execution, release referenced memory
+      // allocations.
+      for (auto &MemAlloc : Kernel->MemAllocs) {
+        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
+                      MemAlloc->second.OwnZeMemHandle);
       }
-      RefCountZero = true;
+      Kernel->MemAllocs.clear();
     }
   }
 
-  if (RefCountZero)
-    delete Kernel;
+  if (!Kernel->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-  if (KernelProgram)
-    // do a release on the program this kernel was part of
-    PI_CALL(piProgramRelease(KernelProgram));
+  auto KernelProgram = Kernel->Program;
+  if (Kernel->OwnZeKernel)
+    ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
+  if (IndirectAccessTrackingEnabled) {
+    PI_CALL(piContextRelease(KernelProgram->Context));
+  }
+  // do a release on the program this kernel was part of
+  PI_CALL(piProgramRelease(KernelProgram));
+  delete Kernel;
 
   return PI_SUCCESS;
 }
@@ -5105,7 +5058,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // in use. Once the event has been signalled, the code in Event.cleanup() will
   // do a piReleaseKernel to update the reference count on the kernel, using the
   // kernel saved in CommandData.
-  Kernel->retain();
+  PI_CALL(piKernelRetain(Kernel));
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
@@ -5336,7 +5289,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     return ReturnValue(pi_cast<pi_int32>(Result));
   }
   case PI_EVENT_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Event->RefCount});
+    return ReturnValue(pi_uint32{Event->RefCount.load()});
   default:
     zePrint("Unsupported ParamName in piEventGetInfo: ParamName=%d(%x)\n",
             ParamName, ParamName);
@@ -5435,36 +5388,34 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
       // Event has been signalled: If the fence for the associated command list
       // is signalled, then reset the fence and command list and add them to the
       // available list for reuse in PI calls.
-      if (Queue->RefCount > 0) {
-        auto it = Queue->CommandListMap.find(ZeCommandList);
-        if (it == Queue->CommandListMap.end()) {
-          die("Missing command-list completition fence");
-        }
+      auto it = Queue->CommandListMap.find(ZeCommandList);
+      if (it == Queue->CommandListMap.end()) {
+        die("Missing command-list completition fence");
+      }
 
-        // It is possible that the fence was already noted as signalled and
-        // reset.  In that case the InUse flag will be false, and
-        // we shouldn't query it, synchronize on it, or try to reset it.
-        if (it->second.InUse) {
-          // Workaround for VM_BIND mode.
-          // Make sure that the command-list doing memcpy is reset before
-          // non-USM host memory potentially involved in the memcpy is freed.
-          //
-          // NOTE: it is valid to wait for the fence here as long as we aren't
-          // doing batching on the involved command-list. Today memcpy goes by
-          // itself in a command list.
-          //
-          // TODO: this will unnecessarily(?) wait for non-USM memory buffers
-          // too, so we might need to add a new command type to differentiate.
-          //
-          ze_result_t ZeResult =
-              (CommandType == PI_COMMAND_TYPE_MEM_BUFFER_COPY)
-                  ? ZE_CALL_NOCHECK(zeHostSynchronize, (it->second.ZeFence))
-                  : ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+      // It is possible that the fence was already noted as signalled and
+      // reset.  In that case the InUse flag will be false, and
+      // we shouldn't query it, synchronize on it, or try to reset it.
+      if (it->second.InUse) {
+        // Workaround for VM_BIND mode.
+        // Make sure that the command-list doing memcpy is reset before
+        // non-USM host memory potentially involved in the memcpy is freed.
+        //
+        // NOTE: it is valid to wait for the fence here as long as we aren't
+        // doing batching on the involved command-list. Today memcpy goes by
+        // itself in a command list.
+        //
+        // TODO: this will unnecessarily(?) wait for non-USM memory buffers
+        // too, so we might need to add a new command type to differentiate.
+        //
+        ze_result_t ZeResult =
+            (CommandType == PI_COMMAND_TYPE_MEM_BUFFER_COPY)
+                ? ZE_CALL_NOCHECK(zeHostSynchronize, (it->second.ZeFence))
+                : ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
 
-          if (ZeResult == ZE_RESULT_SUCCESS) {
-            Queue->resetCommandList(it, true);
-            ZeCommandList = nullptr;
-          }
+        if (ZeResult == ZE_RESULT_SUCCESS) {
+          Queue->resetCommandList(it, true);
+          ZeCommandList = nullptr;
         }
       }
     }
@@ -5558,10 +5509,8 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       // Lock automatically releases when this goes out of scope.
       std::scoped_lock lock(Queue->Mutex);
 
-      if (Queue->RefCount > 0) {
-        if (auto Res = Queue->executeAllOpenCommandLists())
-          return Res;
-      }
+      if (auto Res = Queue->executeAllOpenCommandLists())
+        return Res;
     }
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
@@ -5602,7 +5551,7 @@ pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
 }
 
 pi_result piEventRetain(pi_event Event) {
-  ++(Event->RefCount);
+  Event->RefCount.increment();
   return PI_SUCCESS;
 }
 
@@ -5612,45 +5561,44 @@ pi_result piEventRelease(pi_event Event) {
 
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
-  if (!Event->RefCount) {
-    die("piEventRelease: called on a destroyed event");
-  }
 
-  if (--(Event->RefCount) == 0) {
-    if (!Event->CleanedUp)
-      Event->cleanup(LockedQueue);
+  if (!Event->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-    if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
-        Event->CommandData) {
-      // Free the memory allocated in the piEnqueueMemBufferMap.
-      if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
-        return Res;
-      Event->CommandData = nullptr;
-    }
-    if (Event->OwnZeEvent) {
-      ZE_CALL(zeEventDestroy, (Event->ZeEvent));
-    }
-    // It is possible that host-visible event was never created.
-    // In case it was check if that's different from this same event
-    // and release a reference to it.
-    if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
-      // Decrement ref-count of the host-visible proxy event.
-      PI_CALL(EventRelease(Event->HostVisibleEvent, LockedQueue));
-    }
+  if (!Event->CleanedUp)
+    Event->cleanup(LockedQueue);
 
-    auto Context = Event->Context;
-    if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
+  if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
+      Event->CommandData) {
+    // Free the memory allocated in the piEnqueueMemBufferMap.
+    if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
       return Res;
-
-    // We intentionally incremented the reference counter when an event is
-    // created so that we can avoid pi_queue is released before the associated
-    // pi_event is released. Here we have to decrement it so pi_queue
-    // can be released successfully.
-    if (Event->Queue) {
-      PI_CALL(QueueRelease(Event->Queue, LockedQueue));
-    }
-    delete Event;
+    Event->CommandData = nullptr;
   }
+  if (Event->OwnZeEvent) {
+    ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+  }
+  // It is possible that host-visible event was never created.
+  // In case it was check if that's different from this same event
+  // and release a reference to it.
+  if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
+    // Decrement ref-count of the host-visible proxy event.
+    PI_CALL(EventRelease(Event->HostVisibleEvent, LockedQueue));
+  }
+
+  auto Context = Event->Context;
+  if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
+    return Res;
+
+  // We intentionally incremented the reference counter when an event is
+  // created so that we can avoid pi_queue is released before the associated
+  // pi_event is released. Here we have to decrement it so pi_queue
+  // can be released successfully.
+  if (Event->Queue) {
+    PI_CALL(piQueueReleaseInternal(Event->Queue, LockedQueue));
+  }
+  delete Event;
+
   return PI_SUCCESS;
 }
 
@@ -5846,25 +5794,18 @@ pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,
 pi_result piSamplerRetain(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
-  std::scoped_lock Guard(Sampler->Mutex);
-  ++(Sampler->RefCount);
+  Sampler->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piSamplerRelease(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
-  bool RefCountZero = false;
-  {
-    std::scoped_lock Guard(Sampler->Mutex);
-    if (--(Sampler->RefCount) == 0) {
-      ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
-      RefCountZero = true;
-    }
-  }
+  if (!Sampler->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-  if (RefCountZero)
-    delete Sampler;
+  ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
+  delete Sampler;
 
   return PI_SUCCESS;
 }
@@ -7581,7 +7522,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     if (It == std::end(Context->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (--(It->second.RefCount) != 0) {
+    if (!It->second.RefCount.decrementAndTest()) {
       // Memory can't be deallocated yet.
       return PI_SUCCESS;
     }
