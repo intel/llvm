@@ -172,5 +172,5 @@ extension on other devices or backends will result in no effect.
 |========================================
 |Rev|Date|Author|Changes
 |1|2022-03-01|Sherry Yuan|*Initial public draft*
-|1|2022-05-31|Abhishek Tiwari|*Updates for shared/host malloc*
+|2|2022-05-31|Abhishek Tiwari|*Updates for shared/host malloc*
 |========================================
