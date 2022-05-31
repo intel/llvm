@@ -11,7 +11,7 @@ name: Check code style
 on:
   pull_request:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check formatting for:
       - 'docs/**' # documentation
