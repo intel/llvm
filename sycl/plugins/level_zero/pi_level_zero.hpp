@@ -927,9 +927,11 @@ struct _pi_queue : _pi_object {
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
-  // fence have been signalled.
+  // fence have been signalled. The EventListToCleanup contains a list of events
+  // from the command list which need to be cleaned up.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
-                             bool MakeAvailable, std::vector<_pi_event *> &);
+                             bool MakeAvailable,
+                             std::vector<_pi_event *> &EventListToCleanup);
 
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
