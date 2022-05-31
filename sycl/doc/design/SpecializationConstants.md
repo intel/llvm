@@ -1,5 +1,14 @@
 # Specialization constants
 
+**NOTE**: This document describes implementation design for an old proposal,
+which didn't make it to the official SYCL specification as-is. This document
+will be removed as soon as we remove corresponding implementation once it will
+be allowed by our backward compatibility policy. To get read about SYCL 2020
+specialization constants design, see
+[corresponding design document][SYCL-2020-spec-constants-design].
+
+[SYCL-2020-spec-constants-design]: <SYCL2020-SpecializationConstants.md>
+
 DPC++ implements this [proposal](https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md)
 with some restrictions. See this [document](../extensions/experimental/SYCL_EXT_ONEAPI_SPEC_CONSTANTS.md) for more details.
 

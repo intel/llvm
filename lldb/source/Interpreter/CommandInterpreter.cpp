@@ -128,7 +128,8 @@ CommandInterpreter::CommandInterpreter(Debugger &debugger,
       m_debugger(debugger), m_synchronous_execution(true),
       m_skip_lldbinit_files(false), m_skip_app_init_files(false),
       m_comment_char('#'), m_batch_command_mode(false),
-      m_truncation_warning(eNoTruncation), m_command_source_depth(0) {
+      m_truncation_warning(eNoOmission), m_max_depth_warning(eNoOmission),
+      m_command_source_depth(0) {
   SetEventName(eBroadcastBitThreadShouldExit, "thread-should-exit");
   SetEventName(eBroadcastBitResetPrompt, "reset-prompt");
   SetEventName(eBroadcastBitQuitCommandReceived, "quit");
@@ -240,6 +241,12 @@ bool CommandInterpreter::GetSpaceReplPrompts() const {
 
 bool CommandInterpreter::GetRepeatPreviousCommand() const {
   const uint32_t idx = ePropertyRepeatPreviousCommand;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+}
+
+bool CommandInterpreter::GetRequireCommandOverwrite() const {
+  const uint32_t idx = ePropertyRequireCommandOverwrite;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
       nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
@@ -1439,7 +1446,7 @@ void CommandInterpreter::GetHelp(CommandReturnObject &result,
     result.AppendMessage("Current user-defined container commands:");
     result.AppendMessage("");
     max_len = FindLongestCommandWord(m_user_mw_dict);
-    for (pos = m_user_dict.begin(); pos != m_user_mw_dict.end(); ++pos) {
+    for (pos = m_user_mw_dict.begin(); pos != m_user_mw_dict.end(); ++pos) {
       OutputFormattedHelpText(result.GetOutputStream(), pos->first, "--",
                               pos->second->GetHelp(), max_len);
     }
@@ -2982,24 +2989,18 @@ void CommandInterpreter::PrintCommandOutput(IOHandler &io_handler,
   lldb::StreamFileSP stream = is_stdout ? io_handler.GetOutputStreamFileSP()
                                         : io_handler.GetErrorStreamFileSP();
   // Split the output into lines and poll for interrupt requests
-  const char *data = str.data();
   size_t size = str.size();
   while (size > 0 && !WasInterrupted()) {
-    size_t chunk_size = 0;
-    for (; chunk_size < size; ++chunk_size) {
-      lldbassert(data[chunk_size] != '\0');
-      if (data[chunk_size] == '\n') {
-        ++chunk_size;
-        break;
-      }
-    }
+    llvm::StringRef line;
+    size_t written = 0;
+    std::tie(line, str) = str.split('\n');
     {
       std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());
-      chunk_size = stream->Write(data, chunk_size);
+      written += stream->Write(line.data(), line.size());
+      written += stream->Write("\n", 1);
     }
-    lldbassert(size >= chunk_size);
-    data += chunk_size;
-    size -= chunk_size;
+    lldbassert(size >= written);
+    size -= written;
   }
 
   std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());
@@ -3050,9 +3051,15 @@ void CommandInterpreter::IOHandlerInputComplete(IOHandler &io_handler,
 
   StartHandlingCommand();
 
-  OverrideExecutionContext(m_debugger.GetSelectedExecutionContext());
-  auto finalize = llvm::make_scope_exit([this]() {
-    RestoreExecutionContext();
+  ExecutionContext exe_ctx = m_debugger.GetSelectedExecutionContext();
+  bool pushed_exe_ctx = false;
+  if (exe_ctx.HasTargetScope()) {
+    OverrideExecutionContext(exe_ctx);
+    pushed_exe_ctx = true;
+  }
+  auto finalize = llvm::make_scope_exit([this, pushed_exe_ctx]() {
+    if (pushed_exe_ctx)
+      RestoreExecutionContext();
   });
 
   lldb_private::CommandReturnObject result(m_debugger.GetUseColor());

@@ -13,8 +13,8 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 
 void caller(int x) {
   kernel<class kernel_esimd>([=]() SYCL_ESIMD_KERNEL {
-    nbarrier_init<7>();
-    nbarrier_wait(2);
-    nbarrier_signal(0, 0, 4, 4);
+    named_barrier_init<7>();
+    named_barrier_wait(2);
+    named_barrier_signal(0, 0, 4, 4);
   });
 }

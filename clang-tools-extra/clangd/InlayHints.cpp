@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 #include "InlayHints.h"
+#include "AST.h"
 #include "Config.h"
 #include "HeuristicResolver.h"
 #include "ParsedAST.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -256,8 +258,10 @@ public:
   bool VisitFunctionDecl(FunctionDecl *D) {
     if (auto *FPT =
             llvm::dyn_cast<FunctionProtoType>(D->getType().getTypePtr())) {
-      if (!FPT->hasTrailingReturn())
-        addReturnTypeHint(D, D->getFunctionTypeLoc().getRParenLoc());
+      if (!FPT->hasTrailingReturn()) {
+        if (auto FTL = D->getFunctionTypeLoc())
+          addReturnTypeHint(D, FTL.getRParenLoc());
+      }
     }
     return true;
   }
@@ -299,7 +303,44 @@ public:
         addTypeHint(D->getLocation(), D->getType(), /*Prefix=*/": ");
       }
     }
+
+    // Handle templates like `int foo(auto x)` with exactly one instantiation.
+    if (auto *PVD = llvm::dyn_cast<ParmVarDecl>(D)) {
+      if (D->getIdentifier() && PVD->getType()->isDependentType() &&
+          !getContainedAutoParamType(D->getTypeSourceInfo()->getTypeLoc())
+               .isNull()) {
+        if (auto *IPVD = getOnlyParamInstantiation(PVD))
+          addTypeHint(D->getLocation(), IPVD->getType(), /*Prefix=*/": ");
+      }
+    }
+
     return true;
+  }
+
+  ParmVarDecl *getOnlyParamInstantiation(ParmVarDecl *D) {
+    auto *TemplateFunction = llvm::dyn_cast<FunctionDecl>(D->getDeclContext());
+    if (!TemplateFunction)
+      return nullptr;
+    auto *InstantiatedFunction = llvm::dyn_cast_or_null<FunctionDecl>(
+        getOnlyInstantiation(TemplateFunction));
+    if (!InstantiatedFunction)
+      return nullptr;
+
+    unsigned ParamIdx = 0;
+    for (auto *Param : TemplateFunction->parameters()) {
+      // Can't reason about param indexes in the presence of preceding packs.
+      // And if this param is a pack, it may expand to multiple params.
+      if (Param->isParameterPack())
+        return nullptr;
+      if (Param == D)
+        break;
+      ++ParamIdx;
+    }
+    assert(ParamIdx < TemplateFunction->getNumParams() &&
+           "Couldn't find param in list?");
+    assert(ParamIdx < InstantiatedFunction->getNumParams() &&
+           "Instantiated function has fewer (non-pack) parameters?");
+    return InstantiatedFunction->getParamDecl(ParamIdx);
   }
 
   bool VisitInitListExpr(InitListExpr *Syn) {
@@ -354,6 +395,7 @@ private:
     // Don't show hints for variadic parameters.
     size_t FixedParamCount = getFixedParamCount(Callee);
     size_t ArgCount = std::min(FixedParamCount, Args.size());
+    auto Params = Callee->parameters();
 
     NameVec ParameterNames = chooseParameterNames(Callee, ArgCount);
 
@@ -364,12 +406,14 @@ private:
 
     for (size_t I = 0; I < ArgCount; ++I) {
       StringRef Name = ParameterNames[I];
-      if (!shouldHint(Args[I], Name))
-        continue;
+      bool NameHint = shouldHintName(Args[I], Name);
+      bool ReferenceHint = shouldHintReference(Params[I]);
 
-      addInlayHint(Args[I]->getSourceRange(), HintSide::Left,
-                   InlayHintKind::ParameterHint, /*Prefix=*/"", Name,
-                   /*Suffix=*/": ");
+      if (NameHint || ReferenceHint) {
+        addInlayHint(Args[I]->getSourceRange(), HintSide::Left,
+                     InlayHintKind::ParameterHint, ReferenceHint ? "&" : "",
+                     NameHint ? Name : "", ": ");
+      }
     }
   }
 
@@ -396,12 +440,12 @@ private:
     return WhatItIsSetting.equals_insensitive(ParamNames[0]);
   }
 
-  bool shouldHint(const Expr *Arg, StringRef ParamName) {
+  bool shouldHintName(const Expr *Arg, StringRef ParamName) {
     if (ParamName.empty())
       return false;
 
     // If the argument expression is a single name and it matches the
-    // parameter name exactly, omit the hint.
+    // parameter name exactly, omit the name hint.
     if (ParamName == getSpelledIdentifier(Arg))
       return false;
 
@@ -410,6 +454,13 @@ private:
       return false;
 
     return true;
+  }
+
+  bool shouldHintReference(const ParmVarDecl *Param) {
+    // If the parameter is a non-const reference type, print an inlay hint
+    auto Type = Param->getType();
+    return Type->isLValueReferenceType() &&
+           !Type.getNonReferenceType().isConstQualified();
   }
 
   // Checks if "E" is spelled in the main file and preceded by a C-style comment
@@ -525,7 +576,7 @@ private:
     return Result;
   }
 
-  // We pass HintSide rather than SourceLocation because we want to ensure 
+  // We pass HintSide rather than SourceLocation because we want to ensure
   // it is in the same file as the common file range.
   void addInlayHint(SourceRange R, HintSide Side, InlayHintKind Kind,
                     llvm::StringRef Prefix, llvm::StringRef Label,

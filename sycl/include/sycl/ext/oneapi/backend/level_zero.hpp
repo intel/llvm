@@ -31,7 +31,11 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
 #endif
+__SYCL_DEPRECATED("Use make_queue with device parameter")
 __SYCL_EXPORT queue make_queue(const context &Context,
+                               pi_native_handle InteropHandle,
+                               bool keep_ownership = false);
+__SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
 __SYCL_EXPORT event make_event(const context &Context,
@@ -136,8 +140,11 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   (void)Handler;
+  const device Device = detail::OptionalDeviceHasDevice(BackendObject.Device)
+                            ? device{BackendObject.Device}
+                            : TargetContext.get_devices()[0];
   return ext::oneapi::level_zero::make_queue(
-      TargetContext,
+      TargetContext, Device,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
@@ -182,6 +189,36 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
       backend::ext_oneapi_level_zero);
+}
+
+// Specialization of sycl::make_buffer with event for Level-Zero backend.
+template <backend Backend, typename T, int Dimensions = 1,
+          typename AllocatorT = buffer_allocator>
+typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
+                        buffer<T, Dimensions, AllocatorT>>::type
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &BackendObject,
+    const context &TargetContext, event AvailableEvent) {
+  return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      TargetContext, AvailableEvent,
+      !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
+}
+
+// Specialization of sycl::make_buffer for Level-Zero backend.
+template <backend Backend, typename T, int Dimensions = 1,
+          typename AllocatorT = buffer_allocator>
+typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
+                        buffer<T, Dimensions, AllocatorT>>::type
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &BackendObject,
+    const context &TargetContext) {
+  return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      TargetContext, event{},
+      !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
 
 // TODO: remove this specialization when generic is changed to call

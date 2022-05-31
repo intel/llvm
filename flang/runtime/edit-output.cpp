@@ -7,10 +7,90 @@
 //===----------------------------------------------------------------------===//
 
 #include "edit-output.h"
+#include "utf.h"
 #include "flang/Common/uint128.h"
 #include <algorithm>
 
 namespace Fortran::runtime::io {
+
+// B/O/Z output of arbitrarily sized data emits a binary/octal/hexadecimal
+// representation of what is interpreted to be a single unsigned integer value.
+// When used with character data, endianness is exposed.
+template <int LOG2_BASE>
+static bool EditBOZOutput(IoStatementState &io, const DataEdit &edit,
+    const unsigned char *data0, std::size_t bytes) {
+  int digits{static_cast<int>((bytes * 8) / LOG2_BASE)};
+  int get{static_cast<int>(bytes * 8) - digits * LOG2_BASE};
+  get = get ? get : LOG2_BASE;
+  int shift{7};
+  int increment{isHostLittleEndian ? -1 : 1};
+  const unsigned char *data{data0 + (isHostLittleEndian ? bytes - 1 : 0)};
+  int skippedZeroes{0};
+  int digit{0};
+  // The same algorithm is used to generate digits for real (below)
+  // as well as for generating them only to skip leading zeroes (here).
+  // Bits are copied one at a time from the source data.
+  // TODO: Multiple bit copies for hexadecimal, where misalignment
+  // is not possible; or for octal when all 3 bits come from the
+  // same byte.
+  while (bytes > 0) {
+    if (get == 0) {
+      if (digit != 0) {
+        break; // first nonzero leading digit
+      }
+      ++skippedZeroes;
+      get = LOG2_BASE;
+    } else if (shift < 0) {
+      data += increment;
+      --bytes;
+      shift = 7;
+    } else {
+      digit = 2 * digit + ((*data >> shift--) & 1);
+      --get;
+    }
+  }
+  // Emit leading spaces and zeroes; detect field overflow
+  int leadingZeroes{0};
+  int editWidth{edit.width.value_or(0)};
+  int significant{digits - skippedZeroes};
+  if (edit.digits && significant <= *edit.digits) { // Bw.m, Ow.m, Zw.m
+    if (*edit.digits == 0 && bytes == 0) {
+      editWidth = std::max(1, editWidth);
+    } else {
+      leadingZeroes = *edit.digits - significant;
+    }
+  } else if (bytes == 0) {
+    leadingZeroes = 1;
+  }
+  int subTotal{leadingZeroes + significant};
+  int leadingSpaces{std::max(0, editWidth - subTotal)};
+  if (editWidth > 0 && leadingSpaces + subTotal > editWidth) {
+    return io.EmitRepeated('*', editWidth);
+  }
+  if (!(io.EmitRepeated(' ', leadingSpaces) &&
+          io.EmitRepeated('0', leadingZeroes))) {
+    return false;
+  }
+  // Emit remaining digits
+  while (bytes > 0) {
+    if (get == 0) {
+      char ch{static_cast<char>(digit >= 10 ? 'A' + digit - 10 : '0' + digit)};
+      if (!io.Emit(&ch, 1)) {
+        return false;
+      }
+      get = LOG2_BASE;
+      digit = 0;
+    } else if (shift < 0) {
+      data += increment;
+      --bytes;
+      shift = 7;
+    } else {
+      digit = 2 * digit + ((*data >> shift--) & 1);
+      --get;
+    }
+  }
+  return true;
+}
 
 template <int KIND>
 bool EditIntegerOutput(IoStatementState &io, const DataEdit &edit,
@@ -37,26 +117,19 @@ bool EditIntegerOutput(IoStatementState &io, const DataEdit &edit,
     }
     break;
   case 'B':
-    for (; un > 0; un >>= 1) {
-      *--p = '0' + (static_cast<int>(un) & 1);
-    }
-    break;
+    return EditBOZOutput<1>(
+        io, edit, reinterpret_cast<const unsigned char *>(&n), KIND);
   case 'O':
-    for (; un > 0; un >>= 3) {
-      *--p = '0' + (static_cast<int>(un) & 7);
-    }
-    break;
+    return EditBOZOutput<3>(
+        io, edit, reinterpret_cast<const unsigned char *>(&n), KIND);
   case 'Z':
-    for (; un > 0; un >>= 4) {
-      int digit = static_cast<int>(un) & 0xf;
-      *--p = digit >= 10 ? 'A' + (digit - 10) : '0' + digit;
-    }
-    break;
+    return EditBOZOutput<4>(
+        io, edit, reinterpret_cast<const unsigned char *>(&n), KIND);
   case 'A': // legacy extension
-    return EditDefaultCharacterOutput(
+    return EditCharacterOutput(
         io, edit, reinterpret_cast<char *>(&n), sizeof n);
   default:
-    io.GetIoErrorHandler().Crash(
+    io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with an INTEGER data item",
         edit.descriptor);
     return false;
@@ -195,9 +268,21 @@ bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
   int scale{isEN || isES ? 1 : edit.modes.scale}; // 'kP' value
   int zeroesAfterPoint{0};
   if (scale < 0) {
+    if (scale <= -editDigits) {
+      io_.GetIoErrorHandler().SignalError(IostatBadScaleFactor,
+          "Scale factor (kP) %d cannot be less than -d (%d)", scale,
+          -editDigits);
+      return false;
+    }
     zeroesAfterPoint = -scale;
     significantDigits = std::max(0, significantDigits - zeroesAfterPoint);
   } else if (scale > 0) {
+    if (scale >= editDigits + 2) {
+      io_.GetIoErrorHandler().SignalError(IostatBadScaleFactor,
+          "Scale factor (kP) %d cannot be greater than d+2 (%d)", scale,
+          editDigits + 2);
+      return false;
+    }
     ++significantDigits;
     scale = std::min(scale, significantDigits + 1);
   }
@@ -283,10 +368,13 @@ bool RealOutputEditing<binaryPrecision>::EditFOutput(const DataEdit &edit) {
       return EmitPrefix(edit, converted.length, editWidth) &&
           io_.Emit(converted.str, converted.length) && EmitSuffix(edit);
     }
-    int scale{IsZero() ? 1 : edit.modes.scale}; // kP
-    int expo{converted.decimalExponent + scale};
+    int expo{converted.decimalExponent + edit.modes.scale /*kP*/};
     int signLength{*converted.str == '-' || *converted.str == '+' ? 1 : 0};
     int convertedDigits{static_cast<int>(converted.length) - signLength};
+    if (IsZero()) { // don't treat converted "0" as significant digit
+      expo = 0;
+      convertedDigits = 0;
+    }
     int trailingOnes{0};
     if (expo > extraDigits && extraDigits >= 0 && canIncrease) {
       extraDigits = expo;
@@ -410,7 +498,7 @@ bool RealOutputEditing<binaryPrecision>::EditListDirectedOutput(
 template <int binaryPrecision>
 bool RealOutputEditing<binaryPrecision>::EditEXOutput(const DataEdit &) {
   io_.GetIoErrorHandler().Crash(
-      "EX output editing is not yet implemented"); // TODO
+      "not yet implemented: EX output editing"); // TODO
 }
 
 template <int KIND> bool RealOutputEditing<KIND>::Edit(const DataEdit &edit) {
@@ -426,15 +514,21 @@ template <int KIND> bool RealOutputEditing<KIND>::Edit(const DataEdit &edit) {
   case 'F':
     return EditFOutput(edit);
   case 'B':
+    return EditBOZOutput<1>(io_, edit,
+        reinterpret_cast<const unsigned char *>(&x_),
+        common::BitsForBinaryPrecision(common::PrecisionOfRealKind(KIND)) >> 3);
   case 'O':
+    return EditBOZOutput<3>(io_, edit,
+        reinterpret_cast<const unsigned char *>(&x_),
+        common::BitsForBinaryPrecision(common::PrecisionOfRealKind(KIND)) >> 3);
   case 'Z':
-    return EditIntegerOutput<KIND>(io_, edit,
-        static_cast<common::HostSignedIntType<8 * KIND>>(
-            decimal::BinaryFloatingPointNumber<binaryPrecision>{x_}.raw()));
+    return EditBOZOutput<4>(io_, edit,
+        reinterpret_cast<const unsigned char *>(&x_),
+        common::BitsForBinaryPrecision(common::PrecisionOfRealKind(KIND)) >> 3);
   case 'G':
     return Edit(EditForGOutput(edit));
   case 'A': // legacy extension
-    return EditDefaultCharacterOutput(
+    return EditCharacterOutput(
         io_, edit, reinterpret_cast<char *>(&x_), sizeof x_);
   default:
     if (edit.IsListDirected()) {
@@ -459,6 +553,15 @@ bool EditLogicalOutput(IoStatementState &io, const DataEdit &edit, bool truth) {
   case 'G':
     return io.EmitRepeated(' ', std::max(0, edit.width.value_or(1) - 1)) &&
         io.Emit(truth ? "T" : "F", 1);
+  case 'B':
+    return EditBOZOutput<1>(io, edit,
+        reinterpret_cast<const unsigned char *>(&truth), sizeof truth);
+  case 'O':
+    return EditBOZOutput<3>(io, edit,
+        reinterpret_cast<const unsigned char *>(&truth), sizeof truth);
+  case 'Z':
+    return EditBOZOutput<4>(io, edit,
+        reinterpret_cast<const unsigned char *>(&truth), sizeof truth);
   default:
     io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with a LOGICAL data item",
@@ -467,8 +570,9 @@ bool EditLogicalOutput(IoStatementState &io, const DataEdit &edit, bool truth) {
   }
 }
 
-bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
-    ListDirectedStatementState<Direction::Output> &list, const char *x,
+template <typename CHAR>
+bool ListDirectedCharacterOutput(IoStatementState &io,
+    ListDirectedStatementState<Direction::Output> &list, const CHAR *x,
     std::size_t length) {
   bool ok{true};
   MutableModes &modes{io.mutableModes()};
@@ -477,11 +581,11 @@ bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
     ok = ok && list.EmitLeadingSpaceOrAdvance(io);
     // Value is delimited with ' or " marks, and interior
     // instances of that character are doubled.
-    auto EmitOne{[&](char ch) {
+    auto EmitOne{[&](CHAR ch) {
       if (connection.NeedAdvance(1)) {
         ok = ok && io.AdvanceRecord();
       }
-      ok = ok && io.Emit(&ch, 1);
+      ok = ok && io.EmitEncoded(&ch, 1);
     }};
     EmitOne(modes.delim);
     for (std::size_t j{0}; j < length; ++j) {
@@ -494,7 +598,7 @@ bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
       // the same thing when tested with this case.
       // This runtime splits the doubled delimiters across
       // two records for lack of a better alternative.
-      if (x[j] == modes.delim) {
+      if (x[j] == static_cast<CHAR>(modes.delim)) {
         EmitOne(x[j]);
       }
       EmitOne(x[j]);
@@ -504,12 +608,15 @@ bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
     // Undelimited list-directed output
     ok = ok && list.EmitLeadingSpaceOrAdvance(io, length > 0 ? 1 : 0, true);
     std::size_t put{0};
+    std::size_t oneIfUTF8{connection.useUTF8<CHAR>() ? 1 : length};
     while (ok && put < length) {
-      auto chunk{std::min(length - put, connection.RemainingSpaceInRecord())};
-      ok = ok && io.Emit(x + put, chunk);
-      put += chunk;
-      if (put < length) {
-        ok = ok && io.AdvanceRecord() && io.Emit(" ", 1);
+      if (std::size_t chunk{std::min<std::size_t>(
+              std::min<std::size_t>(length - put, oneIfUTF8),
+              connection.RemainingSpaceInRecord())}) {
+        ok = io.EmitEncoded(x + put, chunk);
+        put += chunk;
+      } else {
+        ok = io.AdvanceRecord() && io.Emit(" ", 1);
       }
     }
     list.set_lastWasUndelimitedCharacter(true);
@@ -517,12 +624,22 @@ bool ListDirectedDefaultCharacterOutput(IoStatementState &io,
   return ok;
 }
 
-bool EditDefaultCharacterOutput(IoStatementState &io, const DataEdit &edit,
-    const char *x, std::size_t length) {
+template <typename CHAR>
+bool EditCharacterOutput(IoStatementState &io, const DataEdit &edit,
+    const CHAR *x, std::size_t length) {
   switch (edit.descriptor) {
   case 'A':
   case 'G':
     break;
+  case 'B':
+    return EditBOZOutput<1>(io, edit,
+        reinterpret_cast<const unsigned char *>(x), sizeof(CHAR) * length);
+  case 'O':
+    return EditBOZOutput<3>(io, edit,
+        reinterpret_cast<const unsigned char *>(x), sizeof(CHAR) * length);
+  case 'Z':
+    return EditBOZOutput<4>(io, edit,
+        reinterpret_cast<const unsigned char *>(x), sizeof(CHAR) * length);
   default:
     io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with a CHARACTER data item",
@@ -532,7 +649,7 @@ bool EditDefaultCharacterOutput(IoStatementState &io, const DataEdit &edit,
   int len{static_cast<int>(length)};
   int width{edit.width.value_or(len)};
   return io.EmitRepeated(' ', std::max(0, width - len)) &&
-      io.Emit(x, std::min(width, len));
+      io.EmitEncoded(x, std::min(width, len));
 }
 
 template bool EditIntegerOutput<1>(
@@ -553,4 +670,22 @@ template class RealOutputEditing<8>;
 template class RealOutputEditing<10>;
 // TODO: double/double
 template class RealOutputEditing<16>;
+
+template bool ListDirectedCharacterOutput(IoStatementState &,
+    ListDirectedStatementState<Direction::Output> &, const char *,
+    std::size_t chars);
+template bool ListDirectedCharacterOutput(IoStatementState &,
+    ListDirectedStatementState<Direction::Output> &, const char16_t *,
+    std::size_t chars);
+template bool ListDirectedCharacterOutput(IoStatementState &,
+    ListDirectedStatementState<Direction::Output> &, const char32_t *,
+    std::size_t chars);
+
+template bool EditCharacterOutput(
+    IoStatementState &, const DataEdit &, const char *, std::size_t chars);
+template bool EditCharacterOutput(
+    IoStatementState &, const DataEdit &, const char16_t *, std::size_t chars);
+template bool EditCharacterOutput(
+    IoStatementState &, const DataEdit &, const char32_t *, std::size_t chars);
+
 } // namespace Fortran::runtime::io

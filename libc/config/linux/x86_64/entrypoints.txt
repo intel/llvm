@@ -86,6 +86,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.stdlib.malloc
     libc.src.stdlib.calloc
     libc.src.stdlib.realloc
+    libc.src.stdlib.aligned_alloc
     libc.src.stdlib.free
 
     # sys/mman.h entrypoints
@@ -221,11 +222,52 @@ if(LLVM_LIBC_FULL_BUILD)
     # assert.h entrypoints
     # libc.src.assert.__assert_fail
 
+    # pthread.h entrypoints
+    libc.src.pthread.pthread_attr_destroy
+    libc.src.pthread.pthread_attr_init
+    libc.src.pthread.pthread_attr_getdetachstate
+    libc.src.pthread.pthread_attr_getguardsize
+    libc.src.pthread.pthread_attr_getstack
+    libc.src.pthread.pthread_attr_getstacksize
+    libc.src.pthread.pthread_attr_setdetachstate
+    libc.src.pthread.pthread_attr_setguardsize
+    libc.src.pthread.pthread_attr_setstack
+    libc.src.pthread.pthread_attr_setstacksize
+    libc.src.pthread.pthread_attr_init
+    libc.src.pthread.pthread_mutexattr_destroy
+    libc.src.pthread.pthread_mutexattr_init
+    libc.src.pthread.pthread_mutexattr_getpshared
+    libc.src.pthread.pthread_mutexattr_getrobust
+    libc.src.pthread.pthread_mutexattr_gettype
+    libc.src.pthread.pthread_mutexattr_setpshared
+    libc.src.pthread.pthread_mutexattr_setrobust
+    libc.src.pthread.pthread_mutexattr_settype
+
     # stdlib.h entrypoints
     libc.src.stdlib._Exit
     # libc.src.stdlib.abort
     libc.src.stdlib.atexit
     libc.src.stdlib.exit
+    libc.src.stdlib.getenv
+
+    # stdio.h entrypoints
+    libc.src.stdio.clearerr
+    libc.src.stdio.clearerr_unlocked
+    libc.src.stdio.fclose
+    libc.src.stdio.flockfile
+    libc.src.stdio.feof
+    libc.src.stdio.feof_unlocked
+    libc.src.stdio.ferror
+    libc.src.stdio.ferror_unlocked
+    libc.src.stdio.fflush
+    libc.src.stdio.fopen
+    libc.src.stdio.fopencookie
+    libc.src.stdio.fread
+    libc.src.stdio.fread_unlocked
+    libc.src.stdio.fseek
+    libc.src.stdio.funlockfile
+    libc.src.stdio.fwrite
+    libc.src.stdio.fwrite_unlocked
 
     # signal.h entrypoints
     # TODO: Enable signal.h entrypoints after fixing signal.h

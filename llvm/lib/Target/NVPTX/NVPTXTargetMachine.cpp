@@ -17,7 +17,6 @@
 #include "NVPTXLowerAggrCopies.h"
 #include "NVPTXTargetObjectFile.h"
 #include "NVPTXTargetTransformInfo.h"
-#include "SYCL/GlobalOffset.h"
 #include "TargetInfo/NVPTXTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
@@ -29,10 +28,12 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/GlobalOffset.h"
 #include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
@@ -63,9 +64,14 @@ static cl::opt<bool> UseShortPointersOpt(
         "Use 32-bit pointers for accessing const/local/shared address spaces."),
     cl::init(false), cl::Hidden);
 
+static cl::opt<bool>
+    UseIPSCCPO0("use-ipsccp-nvptx-O0",
+                cl::desc("Use IPSCCP pass at O0 as a temp solution for "
+                         "nvvm-reflect dead-code errors."),
+                cl::init(true), cl::Hidden);
+
 namespace llvm {
 
-void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
 void initializeNVVMIntrRangePass(PassRegistry&);
 void initializeNVVMReflectPass(PassRegistry&);
 void initializeGenericToNVVMPass(PassRegistry&);
@@ -77,8 +83,8 @@ void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXLowerAllocaPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
 
-void initializeGlobalOffsetPass(PassRegistry &);
-void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
+void initializeGlobalOffsetLegacyPass(PassRegistry &);
+void initializeLocalAccessorToSharedMemoryLegacyPass(PassRegistry &);
 
 } // end namespace llvm
 
@@ -102,8 +108,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXProxyRegErasurePass(PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
-  initializeGlobalOffsetPass(PR);
-  initializeLocalAccessorToSharedMemoryPass(PR);
+  initializeGlobalOffsetLegacyPass(PR);
+  initializeLocalAccessorToSharedMemoryLegacyPass(PR);
 }
 
 static std::string computeDataLayout(bool is64Bit, bool UseShortPointers) {
@@ -327,11 +333,15 @@ void NVPTXPassConfig::addIRPasses() {
   const NVPTXSubtarget &ST = *getTM<NVPTXTargetMachine>().getSubtargetImpl();
   addPass(createNVVMReflectPass(ST.getSmVersion()));
 
+  if (getOptLevel() == CodeGenOpt::None && UseIPSCCPO0) {
+    addPass(createIPSCCPPass());
+  }
+
   // FIXME: should the target triple check be done by the pass itself?
   // See createNVPTXLowerArgsPass as an example
   if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA) {
-    addPass(createGlobalOffsetPass());
-    addPass(createLocalAccessorToSharedMemoryPass());
+    addPass(createGlobalOffsetPassLegacy());
+    addPass(createLocalAccessorToSharedMemoryPassLegacy());
   }
 
   if (getOptLevel() != CodeGenOpt::None)

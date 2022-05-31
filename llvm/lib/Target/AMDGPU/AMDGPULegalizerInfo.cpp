@@ -26,6 +26,7 @@
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsR600.h"
 
 #define DEBUG_TYPE "amdgpu-legalinfo"
 
@@ -134,7 +135,6 @@ static LegalizeMutation moreEltsToNext32Bit(unsigned TypeIdx) {
 static LLT getBitcastRegisterType(const LLT Ty) {
   const unsigned Size = Ty.getSizeInBits();
 
-  LLT CoercedTy;
   if (Size <= 32) {
     // <2 x s8> -> s16
     // <4 x s8> -> s32
@@ -632,7 +632,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
                                G_UADDE, G_SADDE, G_USUBE, G_SSUBE})
     .legalFor({{S32, S1}, {S32, S32}})
     .minScalar(0, S32)
-    // TODO: .scalarize(0)
+    .scalarize(0)
     .lower();
 
   getActionDefinitionsBuilder(G_BITCAST)
@@ -3004,6 +3004,89 @@ bool AMDGPULegalizerInfo::legalizePreloadedArgIntrin(
   return true;
 }
 
+static bool replaceWithConstant(MachineIRBuilder &B, MachineInstr &MI,
+                                int64_t C) {
+  B.buildConstant(MI.getOperand(0).getReg(), C);
+  MI.eraseFromParent();
+  return true;
+}
+
+bool AMDGPULegalizerInfo::legalizeWorkitemIDIntrinsic(
+    MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
+    unsigned Dim, AMDGPUFunctionArgInfo::PreloadedValue ArgType) const {
+  unsigned MaxID = ST.getMaxWorkitemID(B.getMF().getFunction(), Dim);
+  if (MaxID == 0)
+    return replaceWithConstant(B, MI, 0);
+
+  const SIMachineFunctionInfo *MFI = B.getMF().getInfo<SIMachineFunctionInfo>();
+  const ArgDescriptor *Arg;
+  const TargetRegisterClass *ArgRC;
+  LLT ArgTy;
+  std::tie(Arg, ArgRC, ArgTy) = MFI->getPreloadedValue(ArgType);
+
+  Register DstReg = MI.getOperand(0).getReg();
+  if (!Arg) {
+    // It's undefined behavior if a function marked with the amdgpu-no-*
+    // attributes uses the corresponding intrinsic.
+    B.buildUndef(DstReg);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  if (Arg->isMasked()) {
+    // Don't bother inserting AssertZext for packed IDs since we're emitting the
+    // masking operations anyway.
+    //
+    // TODO: We could assert the top bit is 0 for the source copy.
+    if (!loadInputValue(DstReg, B, ArgType))
+      return false;
+  } else {
+    Register TmpReg = MRI.createGenericVirtualRegister(LLT::scalar(32));
+    if (!loadInputValue(TmpReg, B, ArgType))
+      return false;
+    B.buildAssertZExt(DstReg, TmpReg, 32 - countLeadingZeros(MaxID));
+  }
+
+  MI.eraseFromParent();
+  return true;
+}
+
+Register AMDGPULegalizerInfo::getKernargParameterPtr(MachineIRBuilder &B,
+                                                     int64_t Offset) const {
+  LLT PtrTy = LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64);
+  Register KernArgReg = B.getMRI()->createGenericVirtualRegister(PtrTy);
+
+  // TODO: If we passed in the base kernel offset we could have a better
+  // alignment than 4, but we don't really need it.
+  if (!loadInputValue(KernArgReg, B,
+                      AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR))
+    llvm_unreachable("failed to find kernarg segment ptr");
+
+  auto COffset = B.buildConstant(LLT::scalar(64), Offset);
+  // TODO: Should get nuw
+  return B.buildPtrAdd(PtrTy, KernArgReg, COffset).getReg(0);
+}
+
+/// Legalize a value that's loaded from kernel arguments. This is only used by
+/// legacy intrinsics.
+bool AMDGPULegalizerInfo::legalizeKernargMemParameter(MachineInstr &MI,
+                                                      MachineIRBuilder &B,
+                                                      uint64_t Offset,
+                                                      Align Alignment) const {
+  Register DstReg = MI.getOperand(0).getReg();
+
+  assert(B.getMRI()->getType(DstReg) == LLT::scalar(32) &&
+         "unexpected kernarg parameter type");
+
+  Register Ptr = getKernargParameterPtr(B, Offset);
+  MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
+  B.buildLoad(DstReg, Ptr, PtrInfo, Align(4),
+              MachineMemOperand::MODereferenceable |
+                  MachineMemOperand::MOInvariant);
+  MI.eraseFromParent();
+  return true;
+}
+
 bool AMDGPULegalizerInfo::legalizeFDIV(MachineInstr &MI,
                                        MachineRegisterInfo &MRI,
                                        MachineIRBuilder &B) const {
@@ -5036,12 +5119,6 @@ bool AMDGPULegalizerInfo::legalizeBVHIntrinsic(MachineInstr &MI,
   return true;
 }
 
-static bool replaceWithConstant(MachineIRBuilder &B, MachineInstr &MI, int64_t C) {
-  B.buildConstant(MI.getOperand(0).getReg(), C);
-  MI.eraseFromParent();
-  return true;
-}
-
 bool AMDGPULegalizerInfo::legalizeFPTruncRound(MachineInstr &MI,
                                                MachineIRBuilder &B) const {
   unsigned Opc;
@@ -5166,22 +5243,14 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   case Intrinsic::amdgcn_implicitarg_ptr:
     return legalizeImplicitArgPtr(MI, MRI, B);
   case Intrinsic::amdgcn_workitem_id_x:
-    if (ST.getMaxWorkitemID(B.getMF().getFunction(), 0) == 0)
-      return replaceWithConstant(B, MI, 0);
-    return legalizePreloadedArgIntrin(MI, MRI, B,
-                                      AMDGPUFunctionArgInfo::WORKITEM_ID_X);
+    return legalizeWorkitemIDIntrinsic(MI, MRI, B, 0,
+                                       AMDGPUFunctionArgInfo::WORKITEM_ID_X);
   case Intrinsic::amdgcn_workitem_id_y:
-    if (ST.getMaxWorkitemID(B.getMF().getFunction(), 1) == 0)
-      return replaceWithConstant(B, MI, 0);
-
-    return legalizePreloadedArgIntrin(MI, MRI, B,
-                                      AMDGPUFunctionArgInfo::WORKITEM_ID_Y);
+    return legalizeWorkitemIDIntrinsic(MI, MRI, B, 1,
+                                       AMDGPUFunctionArgInfo::WORKITEM_ID_Y);
   case Intrinsic::amdgcn_workitem_id_z:
-    if (ST.getMaxWorkitemID(B.getMF().getFunction(), 2) == 0)
-      return replaceWithConstant(B, MI, 0);
-
-    return legalizePreloadedArgIntrin(MI, MRI, B,
-                                      AMDGPUFunctionArgInfo::WORKITEM_ID_Z);
+    return legalizeWorkitemIDIntrinsic(MI, MRI, B, 2,
+                                       AMDGPUFunctionArgInfo::WORKITEM_ID_Z);
   case Intrinsic::amdgcn_workgroup_id_x:
     return legalizePreloadedArgIntrin(MI, MRI, B,
                                       AMDGPUFunctionArgInfo::WORKGROUP_ID_X);
@@ -5203,6 +5272,31 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   case Intrinsic::amdgcn_dispatch_id:
     return legalizePreloadedArgIntrin(MI, MRI, B,
                                       AMDGPUFunctionArgInfo::DISPATCH_ID);
+  case Intrinsic::r600_read_ngroups_x:
+    // TODO: Emit error for hsa
+    return legalizeKernargMemParameter(MI, B,
+                                       SI::KernelInputOffsets::NGROUPS_X);
+  case Intrinsic::r600_read_ngroups_y:
+    return legalizeKernargMemParameter(MI, B,
+                                       SI::KernelInputOffsets::NGROUPS_Y);
+  case Intrinsic::r600_read_ngroups_z:
+    return legalizeKernargMemParameter(MI, B,
+                                       SI::KernelInputOffsets::NGROUPS_Z);
+  case Intrinsic::r600_read_local_size_x:
+    // TODO: Could insert G_ASSERT_ZEXT from s16
+    return legalizeKernargMemParameter(MI, B, SI::KernelInputOffsets::LOCAL_SIZE_X);
+  case Intrinsic::r600_read_local_size_y:
+    // TODO: Could insert G_ASSERT_ZEXT from s16
+    return legalizeKernargMemParameter(MI, B,  SI::KernelInputOffsets::LOCAL_SIZE_Y);
+    // TODO: Could insert G_ASSERT_ZEXT from s16
+  case Intrinsic::r600_read_local_size_z:
+    return legalizeKernargMemParameter(MI, B, SI::KernelInputOffsets::LOCAL_SIZE_Z);
+  case Intrinsic::r600_read_global_size_x:
+    return legalizeKernargMemParameter(MI, B, SI::KernelInputOffsets::GLOBAL_SIZE_X);
+  case Intrinsic::r600_read_global_size_y:
+    return legalizeKernargMemParameter(MI, B, SI::KernelInputOffsets::GLOBAL_SIZE_Y);
+  case Intrinsic::r600_read_global_size_z:
+    return legalizeKernargMemParameter(MI, B, SI::KernelInputOffsets::GLOBAL_SIZE_Z);
   case Intrinsic::amdgcn_fdiv_fast:
     return legalizeFDIVFastIntrin(MI, MRI, B);
   case Intrinsic::amdgcn_is_shared:

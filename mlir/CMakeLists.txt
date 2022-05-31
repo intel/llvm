@@ -139,6 +139,8 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
   mlir_configure_python_dev_packages()
 endif()
 
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
 include_directories( "include")
 include_directories( ${MLIR_INCLUDE_DIR})
 
@@ -147,6 +149,7 @@ include_directories( ${MLIR_INCLUDE_DIR})
 # from another directory like tools
 add_subdirectory(tools/mlir-tblgen)
 add_subdirectory(tools/mlir-linalg-ods-gen)
+add_subdirectory(tools/mlir-pdll)
 
 add_subdirectory(include/mlir)
 add_subdirectory(lib)

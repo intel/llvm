@@ -277,12 +277,6 @@ class LLVM_EXTERNAL_VISIBILITY MachineFunction {
   // numbered and this vector keeps track of the mapping from ID's to MBB's.
   std::vector<MachineBasicBlock*> MBBNumbering;
 
-  // Unary encoding of basic block symbols is used to reduce size of ".strtab".
-  // Basic block number 'i' gets a prefix of length 'i'.  The ith character also
-  // denotes the type of basic block number 'i'.  Return blocks are marked with
-  // 'r', landing pads with 'l' and regular blocks with 'a'.
-  std::vector<char> BBSectionsSymbolPrefix;
-
   // Pool-allocate MachineFunction-lifetime and IR objects.
   BumpPtrAllocator Allocator;
 
@@ -537,8 +531,13 @@ public:
   /// the copied value; or for parameters, creates a DBG_PHI on entry.
   /// May insert instructions into the entry block!
   /// \p MI The copy-like instruction to salvage.
+  /// \p DbgPHICache A container to cache already-solved COPYs.
   /// \returns An instruction/operand pair identifying the defining value.
-  DebugInstrOperandPair salvageCopySSA(MachineInstr &MI);
+  DebugInstrOperandPair
+  salvageCopySSA(MachineInstr &MI,
+                 DenseMap<Register, DebugInstrOperandPair> &DbgPHICache);
+
+  DebugInstrOperandPair salvageCopySSAImpl(MachineInstr &MI);
 
   /// Finalise any partially emitted debug instructions. These are DBG_INSTR_REF
   /// instructions where we only knew the vreg of the value they use, not the
@@ -1116,6 +1115,11 @@ public:
   /// Map the landing pad's EH symbol to the call site indexes.
   void setCallSiteLandingPad(MCSymbol *Sym, ArrayRef<unsigned> Sites);
 
+  /// Return if there is any wasm exception handling.
+  bool hasAnyWasmLandingPadIndex() const {
+    return !WasmLPadToIndexMap.empty();
+  }
+
   /// Map the landing pad to its index. Used for Wasm exception handling.
   void setWasmLandingPadIndex(const MachineBasicBlock *LPad, unsigned Index) {
     WasmLPadToIndexMap[LPad] = Index;
@@ -1132,6 +1136,10 @@ public:
     return WasmLPadToIndexMap.lookup(LPad);
   }
 
+  bool hasAnyCallSiteLandingPad() const {
+    return !LPadToCallSiteMap.empty();
+  }
+
   /// Get the call site indexes for a landing pad EH symbol.
   SmallVectorImpl<unsigned> &getCallSiteLandingPad(MCSymbol *Sym) {
     assert(hasCallSiteLandingPad(Sym) &&
@@ -1142,6 +1150,10 @@ public:
   /// Return true if the landing pad Eh symbol has an associated call site.
   bool hasCallSiteLandingPad(MCSymbol *Sym) {
     return !LPadToCallSiteMap[Sym].empty();
+  }
+
+  bool hasAnyCallSiteLabel() const {
+    return !CallSiteMap.empty();
   }
 
   /// Map the begin label for a call site.
@@ -1219,10 +1231,6 @@ public:
   /// of the instruction stream.
   void copyCallSiteInfo(const MachineInstr *Old,
                         const MachineInstr *New);
-
-  const std::vector<char> &getBBSectionsSymbolPrefix() const {
-    return BBSectionsSymbolPrefix;
-  }
 
   /// Move the call site info from \p Old to \New call site info. This function
   /// is used when we are replacing one call instruction with another one to

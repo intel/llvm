@@ -66,13 +66,26 @@ set(files
   __algorithm/pop_heap.h
   __algorithm/prev_permutation.h
   __algorithm/push_heap.h
+  __algorithm/ranges_copy.h
+  __algorithm/ranges_copy_backward.h
+  __algorithm/ranges_copy_if.h
+  __algorithm/ranges_copy_n.h
+  __algorithm/ranges_count.h
+  __algorithm/ranges_count_if.h
   __algorithm/ranges_find.h
   __algorithm/ranges_find_if.h
   __algorithm/ranges_find_if_not.h
+  __algorithm/ranges_for_each.h
+  __algorithm/ranges_for_each_n.h
+  __algorithm/ranges_max.h
   __algorithm/ranges_max_element.h
+  __algorithm/ranges_min.h
   __algorithm/ranges_min_element.h
+  __algorithm/ranges_minmax.h
+  __algorithm/ranges_minmax_element.h
   __algorithm/ranges_mismatch.h
   __algorithm/ranges_swap_ranges.h
+  __algorithm/ranges_transform.h
   __algorithm/remove.h
   __algorithm/remove_copy.h
   __algorithm/remove_copy_if.h
@@ -119,12 +132,23 @@ set(files
   __charconv/to_chars_result.h
   __chrono/calendar.h
   __chrono/convert_to_timespec.h
+  __chrono/day.h
   __chrono/duration.h
   __chrono/file_clock.h
+  __chrono/hh_mm_ss.h
   __chrono/high_resolution_clock.h
+  __chrono/literals.h
+  __chrono/month.h
+  __chrono/month_weekday.h
+  __chrono/monthday.h
   __chrono/steady_clock.h
   __chrono/system_clock.h
   __chrono/time_point.h
+  __chrono/weekday.h
+  __chrono/year.h
+  __chrono/year_month.h
+  __chrono/year_month_day.h
+  __chrono/year_month_weekday.h
   __compare/common_comparison_category.h
   __compare/compare_partial_order_fallback.h
   __compare/compare_strong_order_fallback.h
@@ -183,6 +207,8 @@ set(files
   __filesystem/recursive_directory_iterator.h
   __filesystem/space_info.h
   __filesystem/u8path.h
+  __format/buffer.h
+  __format/enable_insertable.h
   __format/format_arg.h
   __format/format_args.h
   __format/format_context.h
@@ -252,6 +278,7 @@ set(files
   __iterator/iterator_traits.h
   __iterator/mergeable.h
   __iterator/move_iterator.h
+  __iterator/move_sentinel.h
   __iterator/next.h
   __iterator/ostream_iterator.h
   __iterator/ostreambuf_iterator.h
@@ -265,14 +292,15 @@ set(files
   __iterator/sortable.h
   __iterator/unreachable_sentinel.h
   __iterator/wrap_iter.h
-  __libcpp_version
   __locale
   __mbstate_t.h
   __memory/addressof.h
+  __memory/allocate_at_least.h
   __memory/allocation_guard.h
   __memory/allocator.h
   __memory/allocator_arg_t.h
   __memory/allocator_traits.h
+  __memory/assume_aligned.h
   __memory/auto_ptr.h
   __memory/compressed_pair.h
   __memory/concepts.h
@@ -352,8 +380,10 @@ set(files
   __ranges/empty_view.h
   __ranges/enable_borrowed_range.h
   __ranges/enable_view.h
+  __ranges/filter_view.h
   __ranges/iota_view.h
   __ranges/join_view.h
+  __ranges/lazy_split_view.h
   __ranges/non_propagating_cache.h
   __ranges/owning_view.h
   __ranges/range_adaptor.h
@@ -368,6 +398,7 @@ set(files
   __ranges/transform_view.h
   __ranges/view_interface.h
   __ranges/views.h
+  __ranges/zip_view.h
   __split_buffer
   __std_stream
   __string
@@ -395,6 +426,8 @@ set(files
   __threading_support
   __tree
   __tuple
+  __type_traits/integral_constant.h
+  __type_traits/is_callable.h
   __undef_macros
   __utility/as_const.h
   __utility/auto_cast.h

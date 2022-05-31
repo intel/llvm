@@ -12,6 +12,7 @@
 
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
+#include "flang/Tools/PointerModels.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Diagnostics.h"
@@ -243,6 +244,14 @@ bool hasDynamicSize(mlir::Type t) {
     return true;
   if (auto rec = t.dyn_cast<fir::RecordType>())
     return hasDynamicSize(rec);
+  return false;
+}
+
+bool isPointerType(mlir::Type ty) {
+  if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
+    ty = refTy;
+  if (auto boxTy = ty.dyn_cast<fir::BoxType>())
+    return boxTy.getEleTy().isa<fir::PointerType>();
   return false;
 }
 
@@ -896,4 +905,15 @@ void FIROpsDialect::registerTypes() {
            LLVMPointerType, PointerType, RealType, RecordType, ReferenceType,
            SequenceType, ShapeType, ShapeShiftType, ShiftType, SliceType,
            TypeDescType, fir::VectorType>();
+  fir::ReferenceType::attachInterface<PointerLikeModel<fir::ReferenceType>>(
+      *getContext());
+
+  fir::PointerType::attachInterface<PointerLikeModel<fir::PointerType>>(
+      *getContext());
+
+  fir::HeapType::attachInterface<AlternativePointerLikeModel<fir::HeapType>>(
+      *getContext());
+
+  fir::LLVMPointerType::attachInterface<
+      AlternativePointerLikeModel<fir::LLVMPointerType>>(*getContext());
 }

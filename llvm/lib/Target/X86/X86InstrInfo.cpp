@@ -137,298 +137,70 @@ X86InstrInfo::isCoalescableExtInstr(const MachineInstr &MI,
 }
 
 bool X86InstrInfo::isDataInvariant(MachineInstr &MI) {
-  switch (MI.getOpcode()) {
-  default:
-    // By default, assume that the instruction is not data invariant.
+  if (MI.mayLoad() || MI.mayStore())
     return false;
 
-    // Some target-independent operations that trivially lower to data-invariant
-    // instructions.
-  case TargetOpcode::COPY:
-  case TargetOpcode::INSERT_SUBREG:
-  case TargetOpcode::SUBREG_TO_REG:
+  // Some target-independent operations that trivially lower to data-invariant
+  // instructions.
+  if (MI.isCopyLike() || MI.isInsertSubreg())
     return true;
 
+  unsigned Opcode = MI.getOpcode();
+  using namespace X86;
   // On x86 it is believed that imul is constant time w.r.t. the loaded data.
   // However, they set flags and are perhaps the most surprisingly constant
   // time operations so we call them out here separately.
-  case X86::IMUL16rr:
-  case X86::IMUL16rri8:
-  case X86::IMUL16rri:
-  case X86::IMUL32rr:
-  case X86::IMUL32rri8:
-  case X86::IMUL32rri:
-  case X86::IMUL64rr:
-  case X86::IMUL64rri32:
-  case X86::IMUL64rri8:
-
+  if (isIMUL(Opcode))
+    return true;
   // Bit scanning and counting instructions that are somewhat surprisingly
   // constant time as they scan across bits and do other fairly complex
   // operations like popcnt, but are believed to be constant time on x86.
   // However, these set flags.
-  case X86::BSF16rr:
-  case X86::BSF32rr:
-  case X86::BSF64rr:
-  case X86::BSR16rr:
-  case X86::BSR32rr:
-  case X86::BSR64rr:
-  case X86::LZCNT16rr:
-  case X86::LZCNT32rr:
-  case X86::LZCNT64rr:
-  case X86::POPCNT16rr:
-  case X86::POPCNT32rr:
-  case X86::POPCNT64rr:
-  case X86::TZCNT16rr:
-  case X86::TZCNT32rr:
-  case X86::TZCNT64rr:
-
+  if (isBSF(Opcode) || isBSR(Opcode) || isLZCNT(Opcode) || isPOPCNT(Opcode) ||
+      isTZCNT(Opcode))
+    return true;
   // Bit manipulation instructions are effectively combinations of basic
   // arithmetic ops, and should still execute in constant time. These also
   // set flags.
-  case X86::BLCFILL32rr:
-  case X86::BLCFILL64rr:
-  case X86::BLCI32rr:
-  case X86::BLCI64rr:
-  case X86::BLCIC32rr:
-  case X86::BLCIC64rr:
-  case X86::BLCMSK32rr:
-  case X86::BLCMSK64rr:
-  case X86::BLCS32rr:
-  case X86::BLCS64rr:
-  case X86::BLSFILL32rr:
-  case X86::BLSFILL64rr:
-  case X86::BLSI32rr:
-  case X86::BLSI64rr:
-  case X86::BLSIC32rr:
-  case X86::BLSIC64rr:
-  case X86::BLSMSK32rr:
-  case X86::BLSMSK64rr:
-  case X86::BLSR32rr:
-  case X86::BLSR64rr:
-  case X86::TZMSK32rr:
-  case X86::TZMSK64rr:
-
+  if (isBLCFILL(Opcode) || isBLCI(Opcode) || isBLCIC(Opcode) ||
+      isBLCMSK(Opcode) || isBLCS(Opcode) || isBLSFILL(Opcode) ||
+      isBLSI(Opcode) || isBLSIC(Opcode) || isBLSMSK(Opcode) || isBLSR(Opcode) ||
+      isTZMSK(Opcode))
+    return true;
   // Bit extracting and clearing instructions should execute in constant time,
   // and set flags.
-  case X86::BEXTR32rr:
-  case X86::BEXTR64rr:
-  case X86::BEXTRI32ri:
-  case X86::BEXTRI64ri:
-  case X86::BZHI32rr:
-  case X86::BZHI64rr:
-
+  if (isBEXTR(Opcode) || isBZHI(Opcode))
+    return true;
   // Shift and rotate.
-  case X86::ROL8r1:
-  case X86::ROL16r1:
-  case X86::ROL32r1:
-  case X86::ROL64r1:
-  case X86::ROL8rCL:
-  case X86::ROL16rCL:
-  case X86::ROL32rCL:
-  case X86::ROL64rCL:
-  case X86::ROL8ri:
-  case X86::ROL16ri:
-  case X86::ROL32ri:
-  case X86::ROL64ri:
-  case X86::ROR8r1:
-  case X86::ROR16r1:
-  case X86::ROR32r1:
-  case X86::ROR64r1:
-  case X86::ROR8rCL:
-  case X86::ROR16rCL:
-  case X86::ROR32rCL:
-  case X86::ROR64rCL:
-  case X86::ROR8ri:
-  case X86::ROR16ri:
-  case X86::ROR32ri:
-  case X86::ROR64ri:
-  case X86::SAR8r1:
-  case X86::SAR16r1:
-  case X86::SAR32r1:
-  case X86::SAR64r1:
-  case X86::SAR8rCL:
-  case X86::SAR16rCL:
-  case X86::SAR32rCL:
-  case X86::SAR64rCL:
-  case X86::SAR8ri:
-  case X86::SAR16ri:
-  case X86::SAR32ri:
-  case X86::SAR64ri:
-  case X86::SHL8r1:
-  case X86::SHL16r1:
-  case X86::SHL32r1:
-  case X86::SHL64r1:
-  case X86::SHL8rCL:
-  case X86::SHL16rCL:
-  case X86::SHL32rCL:
-  case X86::SHL64rCL:
-  case X86::SHL8ri:
-  case X86::SHL16ri:
-  case X86::SHL32ri:
-  case X86::SHL64ri:
-  case X86::SHR8r1:
-  case X86::SHR16r1:
-  case X86::SHR32r1:
-  case X86::SHR64r1:
-  case X86::SHR8rCL:
-  case X86::SHR16rCL:
-  case X86::SHR32rCL:
-  case X86::SHR64rCL:
-  case X86::SHR8ri:
-  case X86::SHR16ri:
-  case X86::SHR32ri:
-  case X86::SHR64ri:
-  case X86::SHLD16rrCL:
-  case X86::SHLD32rrCL:
-  case X86::SHLD64rrCL:
-  case X86::SHLD16rri8:
-  case X86::SHLD32rri8:
-  case X86::SHLD64rri8:
-  case X86::SHRD16rrCL:
-  case X86::SHRD32rrCL:
-  case X86::SHRD64rrCL:
-  case X86::SHRD16rri8:
-  case X86::SHRD32rri8:
-  case X86::SHRD64rri8:
-
+  if (isROL(Opcode) || isROR(Opcode) || isSAR(Opcode) || isSHL(Opcode) ||
+      isSHR(Opcode) || isSHLD(Opcode) || isSHRD(Opcode))
+    return true;
   // Basic arithmetic is constant time on the input but does set flags.
-  case X86::ADC8rr:
-  case X86::ADC8ri:
-  case X86::ADC16rr:
-  case X86::ADC16ri:
-  case X86::ADC16ri8:
-  case X86::ADC32rr:
-  case X86::ADC32ri:
-  case X86::ADC32ri8:
-  case X86::ADC64rr:
-  case X86::ADC64ri8:
-  case X86::ADC64ri32:
-  case X86::ADD8rr:
-  case X86::ADD8ri:
-  case X86::ADD16rr:
-  case X86::ADD16ri:
-  case X86::ADD16ri8:
-  case X86::ADD32rr:
-  case X86::ADD32ri:
-  case X86::ADD32ri8:
-  case X86::ADD64rr:
-  case X86::ADD64ri8:
-  case X86::ADD64ri32:
-  case X86::AND8rr:
-  case X86::AND8ri:
-  case X86::AND16rr:
-  case X86::AND16ri:
-  case X86::AND16ri8:
-  case X86::AND32rr:
-  case X86::AND32ri:
-  case X86::AND32ri8:
-  case X86::AND64rr:
-  case X86::AND64ri8:
-  case X86::AND64ri32:
-  case X86::OR8rr:
-  case X86::OR8ri:
-  case X86::OR16rr:
-  case X86::OR16ri:
-  case X86::OR16ri8:
-  case X86::OR32rr:
-  case X86::OR32ri:
-  case X86::OR32ri8:
-  case X86::OR64rr:
-  case X86::OR64ri8:
-  case X86::OR64ri32:
-  case X86::SBB8rr:
-  case X86::SBB8ri:
-  case X86::SBB16rr:
-  case X86::SBB16ri:
-  case X86::SBB16ri8:
-  case X86::SBB32rr:
-  case X86::SBB32ri:
-  case X86::SBB32ri8:
-  case X86::SBB64rr:
-  case X86::SBB64ri8:
-  case X86::SBB64ri32:
-  case X86::SUB8rr:
-  case X86::SUB8ri:
-  case X86::SUB16rr:
-  case X86::SUB16ri:
-  case X86::SUB16ri8:
-  case X86::SUB32rr:
-  case X86::SUB32ri:
-  case X86::SUB32ri8:
-  case X86::SUB64rr:
-  case X86::SUB64ri8:
-  case X86::SUB64ri32:
-  case X86::XOR8rr:
-  case X86::XOR8ri:
-  case X86::XOR16rr:
-  case X86::XOR16ri:
-  case X86::XOR16ri8:
-  case X86::XOR32rr:
-  case X86::XOR32ri:
-  case X86::XOR32ri8:
-  case X86::XOR64rr:
-  case X86::XOR64ri8:
-  case X86::XOR64ri32:
+  if (isADC(Opcode) || isADD(Opcode) || isAND(Opcode) || isOR(Opcode) ||
+      isSBB(Opcode) || isSUB(Opcode) || isXOR(Opcode))
+    return true;
   // Arithmetic with just 32-bit and 64-bit variants and no immediates.
-  case X86::ADCX32rr:
-  case X86::ADCX64rr:
-  case X86::ADOX32rr:
-  case X86::ADOX64rr:
-  case X86::ANDN32rr:
-  case X86::ANDN64rr:
+  if (isADCX(Opcode) || isADOX(Opcode) || isANDN(Opcode))
+    return true;
   // Unary arithmetic operations.
-  case X86::DEC8r:
-  case X86::DEC16r:
-  case X86::DEC32r:
-  case X86::DEC64r:
-  case X86::INC8r:
-  case X86::INC16r:
-  case X86::INC32r:
-  case X86::INC64r:
-  case X86::NEG8r:
-  case X86::NEG16r:
-  case X86::NEG32r:
-  case X86::NEG64r:
-
+  if (isDEC(Opcode) || isINC(Opcode) || isNEG(Opcode))
+    return true;
   // Unlike other arithmetic, NOT doesn't set EFLAGS.
-  case X86::NOT8r:
-  case X86::NOT16r:
-  case X86::NOT32r:
-  case X86::NOT64r:
-
+  if (isNOT(Opcode))
+    return true;
   // Various move instructions used to zero or sign extend things. Note that we
   // intentionally don't support the _NOREX variants as we can't handle that
   // register constraint anyways.
-  case X86::MOVSX16rr8:
-  case X86::MOVSX32rr8:
-  case X86::MOVSX32rr16:
-  case X86::MOVSX64rr8:
-  case X86::MOVSX64rr16:
-  case X86::MOVSX64rr32:
-  case X86::MOVZX16rr8:
-  case X86::MOVZX32rr8:
-  case X86::MOVZX32rr16:
-  case X86::MOVZX64rr8:
-  case X86::MOVZX64rr16:
-  case X86::MOV32rr:
-
-  // Arithmetic instructions that are both constant time and don't set flags.
-  case X86::RORX32ri:
-  case X86::RORX64ri:
-  case X86::SARX32rr:
-  case X86::SARX64rr:
-  case X86::SHLX32rr:
-  case X86::SHLX64rr:
-  case X86::SHRX32rr:
-  case X86::SHRX64rr:
-
-  // LEA doesn't actually access memory, and its arithmetic is constant time.
-  case X86::LEA16r:
-  case X86::LEA32r:
-  case X86::LEA64_32r:
-  case X86::LEA64r:
+  if (isMOVSX(Opcode) || isMOVZX(Opcode) || isMOVSXD(Opcode) || isMOV(Opcode))
     return true;
-  }
+  // Arithmetic instructions that are both constant time and don't set flags.
+  if (isRORX(Opcode) || isSARX(Opcode) || isSHLX(Opcode) || isSHRX(Opcode))
+    return true;
+  // LEA doesn't actually access memory, and its arithmetic is constant time.
+  if (isLEA(Opcode))
+    return true;
+  // By default, assume that the instruction is not data invariant.
+  return false;
 }
 
 bool X86InstrInfo::isDataInvariantLoad(MachineInstr &MI) {
@@ -2812,34 +2584,37 @@ bool X86InstrInfo::hasCommutePreference(MachineInstr &MI, bool &Commute) const {
   return false;
 }
 
+int X86::getCondSrcNoFromDesc(const MCInstrDesc &MCID) {
+  unsigned Opcode = MCID.getOpcode();
+  if (!(X86::isJCC(Opcode) || X86::isSETCC(Opcode) || X86::isCMOVCC(Opcode)))
+    return -1;
+  // Assume that condition code is always the last use operand.
+  unsigned NumUses = MCID.getNumOperands() - MCID.getNumDefs();
+  return NumUses - 1;
+}
+
+X86::CondCode X86::getCondFromMI(const MachineInstr &MI) {
+  const MCInstrDesc &MCID = MI.getDesc();
+  int CondNo = getCondSrcNoFromDesc(MCID);
+  if (CondNo < 0)
+    return X86::COND_INVALID;
+  CondNo += MCID.getNumDefs();
+  return static_cast<X86::CondCode>(MI.getOperand(CondNo).getImm());
+}
+
 X86::CondCode X86::getCondFromBranch(const MachineInstr &MI) {
-  switch (MI.getOpcode()) {
-  default: return X86::COND_INVALID;
-  case X86::JCC_1:
-    return static_cast<X86::CondCode>(
-        MI.getOperand(MI.getDesc().getNumOperands() - 1).getImm());
-  }
+  return X86::isJCC(MI.getOpcode()) ? X86::getCondFromMI(MI)
+                                    : X86::COND_INVALID;
 }
 
-/// Return condition code of a SETCC opcode.
 X86::CondCode X86::getCondFromSETCC(const MachineInstr &MI) {
-  switch (MI.getOpcode()) {
-  default: return X86::COND_INVALID;
-  case X86::SETCCr: case X86::SETCCm:
-    return static_cast<X86::CondCode>(
-        MI.getOperand(MI.getDesc().getNumOperands() - 1).getImm());
-  }
+  return X86::isSETCC(MI.getOpcode()) ? X86::getCondFromMI(MI)
+                                      : X86::COND_INVALID;
 }
 
-/// Return condition code of a CMov opcode.
 X86::CondCode X86::getCondFromCMov(const MachineInstr &MI) {
-  switch (MI.getOpcode()) {
-  default: return X86::COND_INVALID;
-  case X86::CMOV16rr: case X86::CMOV32rr: case X86::CMOV64rr:
-  case X86::CMOV16rm: case X86::CMOV32rm: case X86::CMOV64rm:
-    return static_cast<X86::CondCode>(
-        MI.getOperand(MI.getDesc().getNumOperands() - 1).getImm());
-  }
+  return X86::isCMOVCC(MI.getOpcode()) ? X86::getCondFromMI(MI)
+                                       : X86::COND_INVALID;
 }
 
 /// Return the inverse of the specified condition,
@@ -3463,7 +3238,7 @@ bool X86InstrInfo::canInsertSelect(const MachineBasicBlock &MBB,
                                    Register FalseReg, int &CondCycles,
                                    int &TrueCycles, int &FalseCycles) const {
   // Not all subtargets have cmov instructions.
-  if (!Subtarget.hasCMov())
+  if (!Subtarget.canUseCMOV())
     return false;
   if (Cond.size() != 1)
     return false;
@@ -3842,6 +3617,35 @@ X86InstrInfo::getAddrModeFromMemoryOp(const MachineInstr &MemI,
   AM.Scale = MemI.getOperand(MemRefBegin + X86::AddrScaleAmt).getImm();
   AM.Displacement = DispMO.getImm();
   return AM;
+}
+
+bool X86InstrInfo::verifyInstruction(const MachineInstr &MI,
+                                     StringRef &ErrInfo) const {
+  Optional<ExtAddrMode> AMOrNone = getAddrModeFromMemoryOp(MI, nullptr);
+  if (!AMOrNone)
+    return true;
+
+  ExtAddrMode AM = *AMOrNone;
+
+  if (AM.ScaledReg != X86::NoRegister) {
+    switch (AM.Scale) {
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+      break;
+    default:
+      ErrInfo = "Scale factor in address must be 1, 2, 4 or 8";
+      return false;
+    }
+  }
+  if (!isInt<32>(AM.Displacement)) {
+    ErrInfo = "Displacement in address must fit into 32-bit signed "
+              "integer";
+    return false;
+  }
+
+  return true;
 }
 
 bool X86InstrInfo::getConstValDefinedInReg(const MachineInstr &MI,
@@ -5164,6 +4968,255 @@ static bool hasPartialRegUpdate(unsigned Opcode,
   case X86::SQRTSDr_Int:
   case X86::SQRTSDm_Int:
     return true;
+  case X86::VFCMULCPHZ128rm:
+  case X86::VFCMULCPHZ128rmb:
+  case X86::VFCMULCPHZ128rmbkz:
+  case X86::VFCMULCPHZ128rmkz:
+  case X86::VFCMULCPHZ128rr:
+  case X86::VFCMULCPHZ128rrkz:
+  case X86::VFCMULCPHZ256rm:
+  case X86::VFCMULCPHZ256rmb:
+  case X86::VFCMULCPHZ256rmbkz:
+  case X86::VFCMULCPHZ256rmkz:
+  case X86::VFCMULCPHZ256rr:
+  case X86::VFCMULCPHZ256rrkz:
+  case X86::VFCMULCPHZrm:
+  case X86::VFCMULCPHZrmb:
+  case X86::VFCMULCPHZrmbkz:
+  case X86::VFCMULCPHZrmkz:
+  case X86::VFCMULCPHZrr:
+  case X86::VFCMULCPHZrrb:
+  case X86::VFCMULCPHZrrbkz:
+  case X86::VFCMULCPHZrrkz:
+  case X86::VFMULCPHZ128rm:
+  case X86::VFMULCPHZ128rmb:
+  case X86::VFMULCPHZ128rmbkz:
+  case X86::VFMULCPHZ128rmkz:
+  case X86::VFMULCPHZ128rr:
+  case X86::VFMULCPHZ128rrkz:
+  case X86::VFMULCPHZ256rm:
+  case X86::VFMULCPHZ256rmb:
+  case X86::VFMULCPHZ256rmbkz:
+  case X86::VFMULCPHZ256rmkz:
+  case X86::VFMULCPHZ256rr:
+  case X86::VFMULCPHZ256rrkz:
+  case X86::VFMULCPHZrm:
+  case X86::VFMULCPHZrmb:
+  case X86::VFMULCPHZrmbkz:
+  case X86::VFMULCPHZrmkz:
+  case X86::VFMULCPHZrr:
+  case X86::VFMULCPHZrrb:
+  case X86::VFMULCPHZrrbkz:
+  case X86::VFMULCPHZrrkz:
+  case X86::VFCMULCSHZrm:
+  case X86::VFCMULCSHZrmkz:
+  case X86::VFCMULCSHZrr:
+  case X86::VFCMULCSHZrrb:
+  case X86::VFCMULCSHZrrbkz:
+  case X86::VFCMULCSHZrrkz:
+  case X86::VFMULCSHZrm:
+  case X86::VFMULCSHZrmkz:
+  case X86::VFMULCSHZrr:
+  case X86::VFMULCSHZrrb:
+  case X86::VFMULCSHZrrbkz:
+  case X86::VFMULCSHZrrkz:
+    return Subtarget.hasMULCFalseDeps();
+  case X86::VPERMDYrm:
+  case X86::VPERMDYrr:
+  case X86::VPERMQYmi:
+  case X86::VPERMQYri:
+  case X86::VPERMPSYrm:
+  case X86::VPERMPSYrr:
+  case X86::VPERMPDYmi:
+  case X86::VPERMPDYri:
+  case X86::VPERMDZ256rm:
+  case X86::VPERMDZ256rmb:
+  case X86::VPERMDZ256rmbkz:
+  case X86::VPERMDZ256rmkz:
+  case X86::VPERMDZ256rr:
+  case X86::VPERMDZ256rrkz:
+  case X86::VPERMDZrm:
+  case X86::VPERMDZrmb:
+  case X86::VPERMDZrmbkz:
+  case X86::VPERMDZrmkz:
+  case X86::VPERMDZrr:
+  case X86::VPERMDZrrkz:
+  case X86::VPERMQZ256mbi:
+  case X86::VPERMQZ256mbikz:
+  case X86::VPERMQZ256mi:
+  case X86::VPERMQZ256mikz:
+  case X86::VPERMQZ256ri:
+  case X86::VPERMQZ256rikz:
+  case X86::VPERMQZ256rm:
+  case X86::VPERMQZ256rmb:
+  case X86::VPERMQZ256rmbkz:
+  case X86::VPERMQZ256rmkz:
+  case X86::VPERMQZ256rr:
+  case X86::VPERMQZ256rrkz:
+  case X86::VPERMQZmbi:
+  case X86::VPERMQZmbikz:
+  case X86::VPERMQZmi:
+  case X86::VPERMQZmikz:
+  case X86::VPERMQZri:
+  case X86::VPERMQZrikz:
+  case X86::VPERMQZrm:
+  case X86::VPERMQZrmb:
+  case X86::VPERMQZrmbkz:
+  case X86::VPERMQZrmkz:
+  case X86::VPERMQZrr:
+  case X86::VPERMQZrrkz:
+  case X86::VPERMPSZ256rm:
+  case X86::VPERMPSZ256rmb:
+  case X86::VPERMPSZ256rmbkz:
+  case X86::VPERMPSZ256rmkz:
+  case X86::VPERMPSZ256rr:
+  case X86::VPERMPSZ256rrkz:
+  case X86::VPERMPSZrm:
+  case X86::VPERMPSZrmb:
+  case X86::VPERMPSZrmbkz:
+  case X86::VPERMPSZrmkz:
+  case X86::VPERMPSZrr:
+  case X86::VPERMPSZrrkz:
+  case X86::VPERMPDZ256mbi:
+  case X86::VPERMPDZ256mbikz:
+  case X86::VPERMPDZ256mi:
+  case X86::VPERMPDZ256mikz:
+  case X86::VPERMPDZ256ri:
+  case X86::VPERMPDZ256rikz:
+  case X86::VPERMPDZ256rm:
+  case X86::VPERMPDZ256rmb:
+  case X86::VPERMPDZ256rmbkz:
+  case X86::VPERMPDZ256rmkz:
+  case X86::VPERMPDZ256rr:
+  case X86::VPERMPDZ256rrkz:
+  case X86::VPERMPDZmbi:
+  case X86::VPERMPDZmbikz:
+  case X86::VPERMPDZmi:
+  case X86::VPERMPDZmikz:
+  case X86::VPERMPDZri:
+  case X86::VPERMPDZrikz:
+  case X86::VPERMPDZrm:
+  case X86::VPERMPDZrmb:
+  case X86::VPERMPDZrmbkz:
+  case X86::VPERMPDZrmkz:
+  case X86::VPERMPDZrr:
+  case X86::VPERMPDZrrkz:
+    return Subtarget.hasPERMFalseDeps();
+  case X86::VRANGEPDZ128rmbi:
+  case X86::VRANGEPDZ128rmbikz:
+  case X86::VRANGEPDZ128rmi:
+  case X86::VRANGEPDZ128rmikz:
+  case X86::VRANGEPDZ128rri:
+  case X86::VRANGEPDZ128rrikz:
+  case X86::VRANGEPDZ256rmbi:
+  case X86::VRANGEPDZ256rmbikz:
+  case X86::VRANGEPDZ256rmi:
+  case X86::VRANGEPDZ256rmikz:
+  case X86::VRANGEPDZ256rri:
+  case X86::VRANGEPDZ256rrikz:
+  case X86::VRANGEPDZrmbi:
+  case X86::VRANGEPDZrmbikz:
+  case X86::VRANGEPDZrmi:
+  case X86::VRANGEPDZrmikz:
+  case X86::VRANGEPDZrri:
+  case X86::VRANGEPDZrrib:
+  case X86::VRANGEPDZrribkz:
+  case X86::VRANGEPDZrrikz:
+  case X86::VRANGEPSZ128rmbi:
+  case X86::VRANGEPSZ128rmbikz:
+  case X86::VRANGEPSZ128rmi:
+  case X86::VRANGEPSZ128rmikz:
+  case X86::VRANGEPSZ128rri:
+  case X86::VRANGEPSZ128rrikz:
+  case X86::VRANGEPSZ256rmbi:
+  case X86::VRANGEPSZ256rmbikz:
+  case X86::VRANGEPSZ256rmi:
+  case X86::VRANGEPSZ256rmikz:
+  case X86::VRANGEPSZ256rri:
+  case X86::VRANGEPSZ256rrikz:
+  case X86::VRANGEPSZrmbi:
+  case X86::VRANGEPSZrmbikz:
+  case X86::VRANGEPSZrmi:
+  case X86::VRANGEPSZrmikz:
+  case X86::VRANGEPSZrri:
+  case X86::VRANGEPSZrrib:
+  case X86::VRANGEPSZrribkz:
+  case X86::VRANGEPSZrrikz:
+  case X86::VRANGESDZrmi:
+  case X86::VRANGESDZrmikz:
+  case X86::VRANGESDZrri:
+  case X86::VRANGESDZrrib:
+  case X86::VRANGESDZrribkz:
+  case X86::VRANGESDZrrikz:
+  case X86::VRANGESSZrmi:
+  case X86::VRANGESSZrmikz:
+  case X86::VRANGESSZrri:
+  case X86::VRANGESSZrrib:
+  case X86::VRANGESSZrribkz:
+  case X86::VRANGESSZrrikz:
+    return Subtarget.hasRANGEFalseDeps();
+  case X86::VGETMANTSSZrmi:
+  case X86::VGETMANTSSZrmikz:
+  case X86::VGETMANTSSZrri:
+  case X86::VGETMANTSSZrrib:
+  case X86::VGETMANTSSZrribkz:
+  case X86::VGETMANTSSZrrikz:
+  case X86::VGETMANTSDZrmi:
+  case X86::VGETMANTSDZrmikz:
+  case X86::VGETMANTSDZrri:
+  case X86::VGETMANTSDZrrib:
+  case X86::VGETMANTSDZrribkz:
+  case X86::VGETMANTSDZrrikz:
+  case X86::VGETMANTSHZrmi:
+  case X86::VGETMANTSHZrmikz:
+  case X86::VGETMANTSHZrri:
+  case X86::VGETMANTSHZrrib:
+  case X86::VGETMANTSHZrribkz:
+  case X86::VGETMANTSHZrrikz:
+  case X86::VGETMANTPSZ128rmbi:
+  case X86::VGETMANTPSZ128rmbikz:
+  case X86::VGETMANTPSZ128rmi:
+  case X86::VGETMANTPSZ128rmikz:
+  case X86::VGETMANTPSZ256rmbi:
+  case X86::VGETMANTPSZ256rmbikz:
+  case X86::VGETMANTPSZ256rmi:
+  case X86::VGETMANTPSZ256rmikz:
+  case X86::VGETMANTPSZrmbi:
+  case X86::VGETMANTPSZrmbikz:
+  case X86::VGETMANTPSZrmi:
+  case X86::VGETMANTPSZrmikz:
+  case X86::VGETMANTPDZ128rmbi:
+  case X86::VGETMANTPDZ128rmbikz:
+  case X86::VGETMANTPDZ128rmi:
+  case X86::VGETMANTPDZ128rmikz:
+  case X86::VGETMANTPDZ256rmbi:
+  case X86::VGETMANTPDZ256rmbikz:
+  case X86::VGETMANTPDZ256rmi:
+  case X86::VGETMANTPDZ256rmikz:
+  case X86::VGETMANTPDZrmbi:
+  case X86::VGETMANTPDZrmbikz:
+  case X86::VGETMANTPDZrmi:
+  case X86::VGETMANTPDZrmikz:
+    return Subtarget.hasGETMANTFalseDeps();
+  case X86::VPMULLQZ128rm:
+  case X86::VPMULLQZ128rmb:
+  case X86::VPMULLQZ128rmbkz:
+  case X86::VPMULLQZ128rmkz:
+  case X86::VPMULLQZ128rr:
+  case X86::VPMULLQZ128rrkz:
+  case X86::VPMULLQZ256rm:
+  case X86::VPMULLQZ256rmb:
+  case X86::VPMULLQZ256rmbkz:
+  case X86::VPMULLQZ256rmkz:
+  case X86::VPMULLQZ256rr:
+  case X86::VPMULLQZ256rrkz:
+  case X86::VPMULLQZrm:
+  case X86::VPMULLQZrmb:
+  case X86::VPMULLQZrmbkz:
+  case X86::VPMULLQZrmkz:
+  case X86::VPMULLQZrr:
+  case X86::VPMULLQZrrkz:
+    return Subtarget.hasMULLQFalseDeps();
   // GPR
   case X86::POPCNT32rm:
   case X86::POPCNT32rr:
@@ -5586,6 +5639,28 @@ void X86InstrInfo::breakPartialRegDependency(
     // It wants to read and write the xmm sub-register.
     Register XReg = TRI->getSubReg(Reg, X86::sub_xmm);
     BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), get(X86::VXORPSrr), XReg)
+        .addReg(XReg, RegState::Undef)
+        .addReg(XReg, RegState::Undef)
+        .addReg(Reg, RegState::ImplicitDefine);
+    MI.addRegisterKilled(Reg, TRI, true);
+  } else if (X86::VR128XRegClass.contains(Reg)) {
+    // Only handle VLX targets.
+    if (!Subtarget.hasVLX())
+      return;
+    // Since vxorps requires AVX512DQ, vpxord should be the best choice.
+    BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), get(X86::VPXORDZ128rr), Reg)
+        .addReg(Reg, RegState::Undef)
+        .addReg(Reg, RegState::Undef);
+    MI.addRegisterKilled(Reg, TRI, true);
+  } else if (X86::VR256XRegClass.contains(Reg) ||
+             X86::VR512RegClass.contains(Reg)) {
+    // Only handle VLX targets.
+    if (!Subtarget.hasVLX())
+      return;
+    // Use vpxord to clear the full ymm/zmm register.
+    // It wants to read and write the xmm sub-register.
+    Register XReg = TRI->getSubReg(Reg, X86::sub_xmm);
+    BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), get(X86::VPXORDZ128rr), XReg)
         .addReg(XReg, RegState::Undef)
         .addReg(XReg, RegState::Undef)
         .addReg(Reg, RegState::ImplicitDefine);

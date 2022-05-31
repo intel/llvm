@@ -30,7 +30,6 @@ namespace macho {
 
 class InputSection;
 class Symbol;
-struct SymbolPriorityEntry;
 
 using NamePair = std::pair<llvm::StringRef, llvm::StringRef>;
 using SectionRenameMap = llvm::DenseMap<NamePair, NamePair>;
@@ -108,7 +107,6 @@ struct Configuration {
   bool implicitDylibs = false;
   bool isPic = false;
   bool headerPadMaxInstallNames = false;
-  bool ltoNewPassManager = LLVM_ENABLE_NEW_PASS_MANAGER;
   bool markDeadStrippableDylib = false;
   bool printDylibSearch = false;
   bool printEachFile = false;
@@ -153,6 +151,7 @@ struct Configuration {
   bool deadStrip = false;
   bool errorForArchMismatch = false;
   PlatformInfo platformInfo;
+  llvm::Optional<PlatformInfo> secondaryPlatformInfo;
   NamespaceKind namespaceKind = NamespaceKind::twolevel;
   UndefinedSymbolTreatment undefinedSymbolTreatment =
       UndefinedSymbolTreatment::error;
@@ -170,10 +169,6 @@ struct Configuration {
   std::vector<SectionAlign> sectionAlignments;
   std::vector<SegmentProtection> segmentProtections;
 
-  llvm::DenseMap<llvm::StringRef, SymbolPriorityEntry> priorities;
-  llvm::MapVector<std::pair<const InputSection *, const InputSection *>,
-                  uint64_t>
-      callGraphProfile;
   bool callGraphProfileSort = false;
   llvm::StringRef printSymbolOrder;
 
@@ -193,20 +188,6 @@ struct Configuration {
   llvm::MachO::PlatformType platform() const {
     return platformInfo.target.Platform;
   }
-};
-
-// The symbol with the highest priority should be ordered first in the output
-// section (modulo input section contiguity constraints). Using priority
-// (highest first) instead of order (lowest first) has the convenient property
-// that the default-constructed zero priority -- for symbols/sections without a
-// user-defined order -- naturally ends up putting them at the end of the
-// output.
-struct SymbolPriorityEntry {
-  // The priority given to a matching symbol, regardless of which object file
-  // it originated from.
-  size_t anyObjectFile = 0;
-  // The priority given to a matching symbol from a particular object file.
-  llvm::DenseMap<llvm::StringRef, size_t> objectFiles;
 };
 
 // Whether to force-load an archive.

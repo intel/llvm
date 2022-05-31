@@ -1237,8 +1237,6 @@ def err_pragma_attribute_extra_tokens_after_attribute : Error<
   "extra tokens after attribute in a '#pragma clang attribute push'">;
 def err_pragma_attribute_unsupported_attribute : Error<
   "attribute %0 is not supported by '#pragma clang attribute'">;
-def err_pragma_attribute_multiple_attributes : Error<
-  "more than one attribute specified in '#pragma clang attribute push'">;
 def err_pragma_attribute_expected_attribute_syntax : Error<
   "expected an attribute that is specified using the GNU, C++11 or '__declspec'"
   " syntax">;
@@ -1595,5 +1593,14 @@ def warn_max_tokens_total : Warning<
   InGroup<MaxTokens>, DefaultIgnore;
 
 def note_max_tokens_total_override : Note<"total token limit set here">;
+
+// HLSL Parser Diagnostics
+
+def err_expected_semantic_identifier : Error<
+  "expected HLSL Semantic identifier">;
+def err_unknown_hlsl_semantic : Error<"unknown HLSL semantic %0">;
+def ext_hlsl_access_specifiers : ExtWarn<
+  "access specifiers are a clang HLSL extension">,
+  InGroup<HLSLExtension>;
 
 } // end of Parser diagnostics

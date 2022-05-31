@@ -882,47 +882,82 @@ getCommonMembersWithInitAliases(const Fortran::semantics::Symbol &common) {
   return members;
 }
 
-/// Define a global for a common block if it does not already exist in the
-/// mlir module.
-/// There is no "declare" version since there is not a
-/// scope that owns common blocks more that the others. All scopes using
-/// a common block attempts to define it with common linkage.
+/// Return the fir::GlobalOp that was created of COMMON block \p common.
+/// It is an error if the fir::GlobalOp was not created before this is
+/// called (it cannot be created on the flight because it is not known here
+/// what mlir type the GlobalOp should have to satisfy all the
+/// appearances in the program).
 static fir::GlobalOp
-defineCommonBlock(Fortran::lower::AbstractConverter &converter,
-                  const Fortran::semantics::Symbol &common) {
+getCommonBlockGlobal(Fortran::lower::AbstractConverter &converter,
+                     const Fortran::semantics::Symbol &common) {
+  fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+  std::string commonName = Fortran::lower::mangle::mangleName(common);
+  fir::GlobalOp global = builder.getNamedGlobal(commonName);
+  // Common blocks are lowered before any subprograms to deal with common
+  // whose size may not be the same in every subprograms.
+  if (!global)
+    fir::emitFatalError(converter.genLocation(common.name()),
+                        "COMMON block was not lowered before its usage");
+  return global;
+}
+
+/// Create the fir::GlobalOp for COMMON block \p common. If \p common has an
+/// initial value, it is not created yet. Instead, the common block list
+/// members is returned to later create the initial value in
+/// finalizeCommonBlockDefinition.
+static std::optional<std::tuple<
+    fir::GlobalOp, Fortran::semantics::MutableSymbolVector, mlir::Location>>
+declareCommonBlock(Fortran::lower::AbstractConverter &converter,
+                   const Fortran::semantics::Symbol &common,
+                   std::size_t commonSize) {
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
   std::string commonName = Fortran::lower::mangle::mangleName(common);
   fir::GlobalOp global = builder.getNamedGlobal(commonName);
   if (global)
-    return global;
+    return std::nullopt;
   Fortran::semantics::MutableSymbolVector cmnBlkMems =
       getCommonMembersWithInitAliases(common);
   mlir::Location loc = converter.genLocation(common.name());
-  mlir::IndexType idxTy = builder.getIndexType();
   mlir::StringAttr linkage = builder.createCommonLinkage();
-  if (!common.name().size() || !commonBlockHasInit(cmnBlkMems)) {
-    // A blank (anonymous) COMMON block must always be initialized to zero.
-    // A named COMMON block sans initializers is also initialized to zero.
+  if (!commonBlockHasInit(cmnBlkMems)) {
+    // A COMMON block sans initializers is initialized to zero.
     // mlir::Vector types must have a strictly positive size, so at least
     // temporarily, force a zero size COMMON block to have one byte.
-    const auto sz = static_cast<fir::SequenceType::Extent>(
-        common.size() > 0 ? common.size() : 1);
+    const auto sz =
+        static_cast<fir::SequenceType::Extent>(commonSize > 0 ? commonSize : 1);
     fir::SequenceType::Shape shape = {sz};
     mlir::IntegerType i8Ty = builder.getIntegerType(8);
     auto commonTy = fir::SequenceType::get(shape, i8Ty);
     auto vecTy = mlir::VectorType::get(sz, i8Ty);
     mlir::Attribute zero = builder.getIntegerAttr(i8Ty, 0);
     auto init = mlir::DenseElementsAttr::get(vecTy, llvm::makeArrayRef(zero));
-    return builder.createGlobal(loc, commonTy, commonName, linkage, init);
+    builder.createGlobal(loc, commonTy, commonName, linkage, init);
+    // No need to add any initial value later.
+    return std::nullopt;
   }
-
-  // Named common with initializer, sort members by offset before generating
-  // the type and initializer.
+  // COMMON block with initializer (note that initialized blank common are
+  // accepted as an extension by semantics). Sort members by offset before
+  // generating the type and initializer.
   std::sort(cmnBlkMems.begin(), cmnBlkMems.end(),
             [](auto &s1, auto &s2) { return s1->offset() < s2->offset(); });
   mlir::TupleType commonTy =
-      getTypeOfCommonWithInit(converter, cmnBlkMems, common.size());
+      getTypeOfCommonWithInit(converter, cmnBlkMems, commonSize);
+  // Create the global object, the initial value will be added later.
+  global = builder.createGlobal(loc, commonTy, commonName);
+  return std::make_tuple(global, std::move(cmnBlkMems), loc);
+}
+
+/// Add initial value to a COMMON block fir::GlobalOp \p global given the list
+/// \p cmnBlkMems of the common block member symbols that contains symbols with
+/// an initial value.
+static void finalizeCommonBlockDefinition(
+    mlir::Location loc, Fortran::lower::AbstractConverter &converter,
+    fir::GlobalOp global,
+    const Fortran::semantics::MutableSymbolVector &cmnBlkMems) {
+  fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+  mlir::TupleType commonTy = global.getType().cast<mlir::TupleType>();
   auto initFunc = [&](fir::FirOpBuilder &builder) {
+    mlir::IndexType idxTy = builder.getIndexType();
     mlir::Value cb = builder.create<fir::UndefOp>(loc, commonTy);
     unsigned tupIdx = 0;
     std::size_t offset = 0;
@@ -957,10 +992,25 @@ defineCommonBlock(Fortran::lower::AbstractConverter &converter,
     LLVM_DEBUG(llvm::dbgs() << "}\n");
     builder.create<fir::HasValueOp>(loc, cb);
   };
-  // create the global object
-  return builder.createGlobal(loc, commonTy, commonName,
-                              /*isConstant=*/false, initFunc);
+  createGlobalInitialization(builder, global, initFunc);
 }
+
+void Fortran::lower::defineCommonBlocks(
+    Fortran::lower::AbstractConverter &converter,
+    const Fortran::semantics::CommonBlockList &commonBlocks) {
+  // Common blocks may depend on another common block address (if they contain
+  // pointers with initial targets). To cover this case, create all common block
+  // fir::Global before creating the initial values (if any).
+  std::vector<std::tuple<fir::GlobalOp, Fortran::semantics::MutableSymbolVector,
+                         mlir::Location>>
+      delayedInitializations;
+  for (const auto &[common, size] : commonBlocks)
+    if (auto delayedInit = declareCommonBlock(converter, common, size))
+      delayedInitializations.emplace_back(std::move(*delayedInit));
+  for (auto &[global, cmnBlkMems, loc] : delayedInitializations)
+    finalizeCommonBlockDefinition(loc, converter, global, cmnBlkMems);
+}
+
 /// The COMMON block is a global structure. `var` will be at some offset
 /// within the COMMON block. Adds the address of `var` (COMMON + offset) to
 /// the symbol map.
@@ -977,7 +1027,7 @@ static void instantiateCommon(Fortran::lower::AbstractConverter &converter,
     commonAddr = symBox.getAddr();
   if (!commonAddr) {
     // introduce a local AddrOf and add it to the map
-    fir::GlobalOp global = defineCommonBlock(converter, common);
+    fir::GlobalOp global = getCommonBlockGlobal(converter, common);
     commonAddr = builder.create<fir::AddrOfOp>(loc, global.resultType(),
                                                global.getSymbol());
 
@@ -1035,7 +1085,8 @@ static mlir::Value computeExtent(fir::FirOpBuilder &builder, mlir::Location loc,
   // Let the folder deal with the common `ub - <const> + 1` case.
   auto diff = builder.create<mlir::arith::SubIOp>(loc, idxTy, ub, lb);
   mlir::Value one = builder.createIntegerConstant(loc, idxTy, 1);
-  return builder.create<mlir::arith::AddIOp>(loc, idxTy, diff, one);
+  auto rawExtent = builder.create<mlir::arith::AddIOp>(loc, idxTy, diff, one);
+  return Fortran::lower::genMaxWithZero(builder, loc, rawExtent);
 }
 
 /// Lower explicit lower bounds into \p result. Does nothing if this is not an
@@ -1060,9 +1111,6 @@ static void lowerExplicitLowerBounds(
       mlir::Value lb = builder.createConvert(
           loc, idxTy, genScalarValue(converter, loc, expr, symMap, stmtCtx));
       result.emplace_back(lb);
-    } else if (!spec->lbound().isColon()) {
-      // Implicit lower bound is 1 (Fortran 2018 section 8.5.8.3 point 3.)
-      result.emplace_back(builder.createIntegerConstant(loc, idxTy, 1));
     }
   }
   assert(result.empty() || result.size() == box.dynamicBound().size());
@@ -1071,13 +1119,13 @@ static void lowerExplicitLowerBounds(
 /// Lower explicit extents into \p result if this is an explicit-shape or
 /// assumed-size array. Does nothing if this is not an explicit-shape or
 /// assumed-size array.
-static void lowerExplicitExtents(Fortran::lower::AbstractConverter &converter,
-                                 mlir::Location loc,
-                                 const Fortran::lower::BoxAnalyzer &box,
-                                 llvm::ArrayRef<mlir::Value> lowerBounds,
-                                 llvm::SmallVectorImpl<mlir::Value> &result,
-                                 Fortran::lower::SymMap &symMap,
-                                 Fortran::lower::StatementContext &stmtCtx) {
+static void
+lowerExplicitExtents(Fortran::lower::AbstractConverter &converter,
+                     mlir::Location loc, const Fortran::lower::BoxAnalyzer &box,
+                     llvm::SmallVectorImpl<mlir::Value> &lowerBounds,
+                     llvm::SmallVectorImpl<mlir::Value> &result,
+                     Fortran::lower::SymMap &symMap,
+                     Fortran::lower::StatementContext &stmtCtx) {
   if (!box.isArray())
     return;
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
@@ -1093,7 +1141,7 @@ static void lowerExplicitExtents(Fortran::lower::AbstractConverter &converter,
       mlir::Value ub = builder.createConvert(
           loc, idxTy, genScalarValue(converter, loc, expr, symMap, stmtCtx));
       if (lowerBounds.empty())
-        result.emplace_back(ub);
+        result.emplace_back(Fortran::lower::genMaxWithZero(builder, loc, ub));
       else
         result.emplace_back(
             computeExtent(builder, loc, lowerBounds[spec.index()], ub));
@@ -1119,7 +1167,11 @@ lowerExplicitCharLen(Fortran::lower::AbstractConverter &converter,
   if (llvm::Optional<int64_t> len = box.getCharLenConst())
     return builder.createIntegerConstant(loc, lenTy, *len);
   if (llvm::Optional<Fortran::lower::SomeExpr> lenExpr = box.getCharLenExpr())
-    return genScalarValue(converter, loc, *lenExpr, symMap, stmtCtx);
+    // If the length expression is negative, the length is zero. See F2018
+    // 7.4.4.2 point 5.
+    return Fortran::lower::genMaxWithZero(
+        builder, loc,
+        genScalarValue(converter, loc, *lenExpr, symMap, stmtCtx));
   return mlir::Value{};
 }
 
@@ -1193,7 +1245,7 @@ void Fortran::lower::mapSymbolAttributes(
     mlir::Value dummyArg = symMap.lookupSymbol(sym).getAddr();
     if (lowerToBoxValue(sym, dummyArg)) {
       llvm::SmallVector<mlir::Value> lbounds;
-      llvm::SmallVector<mlir::Value> extents;
+      llvm::SmallVector<mlir::Value> explicitExtents;
       llvm::SmallVector<mlir::Value> explicitParams;
       // Lower lower bounds, explicit type parameters and explicit
       // extents if any.
@@ -1203,10 +1255,10 @@ void Fortran::lower::mapSymbolAttributes(
           explicitParams.push_back(len);
       // TODO: derived type length parameters.
       lowerExplicitLowerBounds(converter, loc, ba, lbounds, symMap, stmtCtx);
-      lowerExplicitExtents(converter, loc, ba, lbounds, extents, symMap,
+      lowerExplicitExtents(converter, loc, ba, lbounds, explicitExtents, symMap,
                            stmtCtx);
-      symMap.addBoxSymbol(sym, dummyArg, lbounds, explicitParams, extents,
-                          replace);
+      symMap.addBoxSymbol(sym, dummyArg, lbounds, explicitParams,
+                          explicitExtents, replace);
       return;
     }
   }
@@ -1228,7 +1280,8 @@ void Fortran::lower::mapSymbolAttributes(
       if (auto high = spec->ubound().GetExplicit()) {
         Fortran::lower::SomeExpr highEx{*high};
         mlir::Value ub = genValue(highEx);
-        shapes.emplace_back(builder.createConvert(loc, idxTy, ub));
+        ub = builder.createConvert(loc, idxTy, ub);
+        shapes.emplace_back(genMaxWithZero(builder, loc, ub));
       } else if (spec->ubound().isColon()) {
         assert(box && "assumed bounds require a descriptor");
         mlir::Value dim =
@@ -1275,16 +1328,15 @@ void Fortran::lower::mapSymbolAttributes(
         } else {
           TODO(loc, "assumed rank lowering");
         }
+        lbounds.emplace_back(lb);
 
         if (auto high = spec->ubound().GetExplicit()) {
           auto expr = Fortran::lower::SomeExpr{*high};
           ub = builder.createConvert(loc, idxTy, genValue(expr));
-          lbounds.emplace_back(lb);
           extents.emplace_back(computeExtent(builder, loc, lb, ub));
         } else {
           // An assumed size array. The extent is not computed.
           assert(spec->ubound().isStar() && "expected assumed size");
-          lbounds.emplace_back(lb);
           extents.emplace_back(builder.create<fir::UndefOp>(loc, idxTy));
         }
       }
@@ -1759,8 +1811,9 @@ void Fortran::lower::defineModuleVariable(
   const Fortran::semantics::Symbol &sym = var.getSymbol();
   if (const Fortran::semantics::Symbol *common =
           Fortran::semantics::FindCommonBlockContaining(var.getSymbol())) {
-    // Define common block containing the variable.
-    defineCommonBlock(converter, *common);
+    // Nothing to do, common block are generated before everything. Ensure
+    // this was done by calling getCommonBlockGlobal.
+    getCommonBlockGlobal(converter, *common);
   } else if (var.isAlias()) {
     // Do nothing. Mapping will be done on user side.
   } else {

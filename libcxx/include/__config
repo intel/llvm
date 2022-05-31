@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _LIBCPP_CONFIG
-#define _LIBCPP_CONFIG
+#ifndef _LIBCPP___CONFIG
+#define _LIBCPP___CONFIG
 
 #include <__config_site>
 
@@ -114,6 +114,8 @@
 #  define _LIBCPP_ABI_DO_NOT_EXPORT_BASIC_STRING_COMMON
 // Remove vector base class
 #  define _LIBCPP_ABI_DO_NOT_EXPORT_VECTOR_BASE_COMMON
+// According to the Standard, `bitset::operator[] const` returns bool
+#  define _LIBCPP_ABI_BITSET_VECTOR_BOOL_CONST_SUBSCRIPT_RETURN_BOOL
 #elif _LIBCPP_ABI_VERSION == 1
 #  if !defined(_LIBCPP_OBJECT_FORMAT_COFF)
 // Enable compiling copies of now inline methods into the dylib to support
@@ -348,7 +350,8 @@
 //      Use rand_s(), for use on Windows.
 //      When this option is used, the token passed to `std::random_device`'s
 //      constructor *must* be "/dev/urandom" -- anything else is an error.
-#if defined(__OpenBSD__) || defined(__APPLE__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || \
+    defined(__OpenBSD__) || defined(__DragonFly__)
 #  define _LIBCPP_USING_ARC4_RANDOM
 #elif defined(__wasi__)
 #  define _LIBCPP_USING_GETENTROPY
@@ -391,9 +394,6 @@
 
 #if defined(_LIBCPP_COMPILER_CLANG_BASED)
 
-#if defined(_LIBCPP_ALTERNATE_STRING_LAYOUT)
-#  error _LIBCPP_ALTERNATE_STRING_LAYOUT is deprecated, please use _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT instead
-#endif
 #if defined(__APPLE__) && !defined(__i386__) && !defined(__x86_64__) &&       \
     (!defined(__arm__) || __ARM_ARCH_7K__ >= 2)
 #  define _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT
@@ -1363,4 +1363,4 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(
 
 #endif // __cplusplus
 
-#endif // _LIBCPP_CONFIG
+#endif // _LIBCPP___CONFIG

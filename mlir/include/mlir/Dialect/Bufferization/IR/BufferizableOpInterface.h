@@ -64,34 +64,23 @@ struct BufferizationOptions {
 
   BufferizationOptions();
 
-  /// Return whether the op should be bufferized or not.
-  ///
-  /// If no filter is specified (`hasFilter` = false), every op will be
-  /// bufferized. Otherwise, an op is bufferized if:
-  ///
-  /// - At least one ALLOW filter says `true`.
-  /// - And, no DENY filter says `true`.
-  bool isOpAllowed(Operation *op) const {
-    if (!hasFilter)
-      return true;
-    bool isAllowed = false;
-    for (const OpFilterEntry &entry : opFilter) {
-      bool filterResult = entry.fn(op);
-      switch (entry.type) {
-      case OpFilterEntry::ALLOW:
-        isAllowed |= filterResult;
-        break;
-      case OpFilterEntry::DENY:
-        if (filterResult)
-          // DENY filter matches. This op is no allowed. (Even if other ALLOW
-          // filters may match.)
-          return false;
-      };
-    }
-    return isAllowed;
+  /// Return `true` if the filter has at least one ALLOW rule.
+  bool filterHasAllowRule() const {
+    for (const OpFilterEntry &e : opFilter)
+      if (e.type == OpFilterEntry::FilterType::ALLOW)
+        return true;
+    return false;
   }
 
-  /// Allow the given dialects and activate the filter (`hasFilter`).
+  /// Return whether the op should be bufferized or not.
+  ///
+  /// If the filter does not have an ALLOW rule, ops are bufferized by default,
+  /// unless they are explicitly marked as DENY. If the filter has at least one
+  /// ALLOW rule, ops are ignored by default and only bufferized if they match
+  /// an ALLOW rule and no DENY rule.
+  bool isOpAllowed(Operation *op) const;
+
+  /// Allow the given dialects in the filter.
   ///
   /// This function adds one or multiple ALLOW filters.
   template <typename... DialectTs>
@@ -104,11 +93,10 @@ struct BufferizationOptions {
         0, (allowDialectInFilterImpl<DialectTs>(), 0)...};
   }
 
-  /// Allow the given dialect and activate the filter (`hasFilter`).
+  /// Allow the given dialect in the filter.
   ///
   /// This function adds an ALLOW filter.
   void allowDialectInFilter(StringRef dialectNamespace) {
-    hasFilter = true;
     OpFilterEntry::FilterFn filterFn = [=](Operation *op) {
       return op->getDialect()->getNamespace() == dialectNamespace;
     };
@@ -116,7 +104,7 @@ struct BufferizationOptions {
         OpFilterEntry{filterFn, OpFilterEntry::FilterType::ALLOW});
   }
 
-  /// Allow the given ops and activate the filter (`hasFilter`).
+  /// Allow the given ops in the filter.
   ///
   /// This function adds one or multiple ALLOW filters.
   template <typename... OpTys>
@@ -126,41 +114,37 @@ struct BufferizationOptions {
         0, (allowOperationInFilterImpl<OpTys>(), 0)...};
   }
 
-  /// Allow the given op and activate the filter (`hasFilter`).
+  /// Allow the given op in the filter.
   ///
   /// This function adds an ALLOW filter.
   void allowOperationInFilter(StringRef opName) {
-    hasFilter = true;
     OpFilterEntry::FilterFn filterFn = [=](Operation *op) {
       return op->getName().getStringRef() == opName;
     };
     allowOperationInFilter(filterFn);
   }
 
-  /// Deny the given op and activate the filter (`hasFilter`).
+  /// Deny the given op in the filter.
   ///
   /// This function adds a DENY filter.
   void denyOperationInFilter(StringRef opName) {
-    hasFilter = true;
     OpFilterEntry::FilterFn filterFn = [=](Operation *op) {
       return op->getName().getStringRef() == opName;
     };
     denyOperationInFilter(filterFn);
   }
 
-  /// Allow ops that are matched by `fn` and activate the filter (`hasFilter`).
+  /// Allow ops that are matched by `fn` in the filter.
   ///
   /// This function adds an ALLOW filter.
   void allowOperationInFilter(OpFilterEntry::FilterFn fn) {
-    hasFilter = true;
     opFilter.push_back(OpFilterEntry{fn, OpFilterEntry::FilterType::ALLOW});
   }
 
-  /// Deny ops that are matched by `fn` and activate the filter (`hasFilter`).
+  /// Deny ops that are matched by `fn` in the filter.
   ///
   /// This function adds a DENY filter.
   void denyOperationInFilter(OpFilterEntry::FilterFn fn) {
-    hasFilter = true;
     opFilter.push_back(OpFilterEntry{fn, OpFilterEntry::FilterType::DENY});
   }
 
@@ -181,6 +165,10 @@ struct BufferizationOptions {
   /// bufferization.to_memref and bufferization.to_tensor ops are inserted at
   /// the boundaries.
   bool allowUnknownOps = false;
+
+  /// Specifies whether function boundaries (ops in the func dialect) should be
+  /// bufferized or not.
+  bool bufferizeFunctionBoundaries = false;
 
   /// Specifies whether dealloc ops should be generated along with alloc ops. If
   /// not, new memory allocations will leak.
@@ -227,13 +215,10 @@ struct BufferizationOptions {
   /// Buffer alignment for new memory allocations.
   unsigned int bufferAlignment = 128;
 
-  /// If set to `false`, all ops are bufferized (as long as they implement
-  /// BufferizableOpInterface). Otherwise, only filtered ops are bufferized.
-  bool hasFilter = false;
-
   /// A list of op filters that determine whether an op should be processed or
-  /// ignored by the bufferization. If `hasFilter`, only ops that are not
-  /// DENY-filtered and have at least one matching ALLOW filter are processed.
+  /// ignored by the bufferization. If the filter has an ALLOW rule, only ops
+  /// that are allowed and not denied are bufferized. If the filter does not
+  /// have an ALLOW rule, only ops that are not denied are bufferized.
   SmallVector<OpFilterEntry> opFilter;
 
   /// Initializer functions for analysis state. These can be used to
@@ -266,7 +251,7 @@ enum class BufferRelation {
   Equivalent
 };
 
-/// Return `true` if the given value is a BlockArgument of a FuncOp.
+/// Return `true` if the given value is a BlockArgument of a func::FuncOp.
 bool isFunctionArgument(Value value);
 
 /// Dialect-specific analysis state. Analysis/bufferization information
@@ -359,6 +344,12 @@ public:
   /// any given tensor.
   virtual bool isTensorYielded(Value tensor) const = 0;
 
+  /// Return `true` if the given dialect state exists.
+  bool hasDialectState(StringRef name) const {
+    auto it = dialectState.find(name);
+    return it != dialectState.end();
+  }
+
   /// Return dialect-specific bufferization state.
   template <typename StateT>
   Optional<const StateT *> getDialectState(StringRef name) const {
@@ -372,7 +363,7 @@ public:
   template <typename StateT>
   StateT &getOrCreateDialectState(StringRef name) {
     // Create state if it does not exist yet.
-    if (!dialectState.count(name))
+    if (!hasDialectState(name))
       dialectState[name] = std::make_unique<StateT>();
     return static_cast<StateT &>(*dialectState[name]);
   }
@@ -427,6 +418,8 @@ public:
 /// BufferizationState provides helper functions for performing bufferization
 /// rewrites and handling memref buffers.
 struct BufferizationState {
+  enum ForceInPlacability { FORCE_INPLACE, FORCE_OUT_OF_PLACE };
+
   BufferizationState(const AnalysisState &analysisState)
       : analysisState(analysisState) {}
 
@@ -448,10 +441,18 @@ struct BufferizationState {
   /// Return the buffer (memref) for a given OpOperand (tensor). Allocate
   /// a new buffer and copy over data from the existing buffer if out-of-place
   /// bufferization was decided.
+  ///
+  /// Whether a buffer is in-place or out-of-place is queried from the analysis
+  /// state. Some analyses may always conservatively opt for out-of-place
+  /// bufferization. Inplacability decisions can be overridden with the optional
+  /// `overrideInPlace` parameter.
   FailureOr<Value>
   getBuffer(RewriterBase &rewriter, OpOperand &opOperand,
-            bool forceInPlace = false,
+            Optional<ForceInPlacability> overrideInPlace = None,
             Optional<Operation *> customCopyInsertionPoint = None);
+
+  /// Return the buffer type for a given OpOperand (tensor) after bufferization.
+  BaseMemRefType getBufferType(OpOperand &opOperand) const;
 
   /// Return a reference to the BufferizationOptions.
   const BufferizationOptions &getOptions() const {
@@ -522,10 +523,13 @@ LogicalResult hoistBufferAllocations(Operation *op,
 
 /// Create alloc/dealloc ops as specified in the bufferization options. If
 /// `onlyLeakingAlloc`, only those buffer allocations are processed for which no
-/// buffer deallocation can be created.
+/// buffer deallocation can be created. `changed` is set to `true` if the IR was
+/// modified.
 LogicalResult createAllocDeallocOps(Operation *op,
                                     const BufferizationOptions &options,
-                                    bool onlyLeakingAllocs = false);
+                                    bool onlyLeakingAllocs = false,
+                                    bool *changed = nullptr);
+
 } // namespace bufferization
 } // namespace mlir
 

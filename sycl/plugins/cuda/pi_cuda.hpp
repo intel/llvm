@@ -36,12 +36,12 @@
 extern "C" {
 
 /// \cond IGNORE_BLOCK_IN_DOXYGEN
-pi_result cuda_piContextRetain(pi_context );
-pi_result cuda_piContextRelease(pi_context );
-pi_result cuda_piDeviceRelease(pi_device );
-pi_result cuda_piDeviceRetain(pi_device );
-pi_result cuda_piProgramRetain(pi_program );
-pi_result cuda_piProgramRelease(pi_program );
+pi_result cuda_piContextRetain(pi_context);
+pi_result cuda_piContextRelease(pi_context);
+pi_result cuda_piDeviceRelease(pi_device);
+pi_result cuda_piDeviceRetain(pi_device);
+pi_result cuda_piProgramRetain(pi_program);
+pi_result cuda_piProgramRelease(pi_program);
 pi_result cuda_piQueueRelease(pi_queue);
 pi_result cuda_piQueueRetain(pi_queue);
 pi_result cuda_piMemRetain(pi_mem);
@@ -61,6 +61,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
 ///  when devices are used.
 ///
 struct _pi_platform {
+  static CUevent evBase_; // CUDA event used as base counter
   std::vector<std::unique_ptr<_pi_device>> devices_;
 };
 
@@ -162,11 +163,8 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  CUevent evBase_; // CUDA event used as base counter
-
   _pi_context(kind k, CUcontext ctxt, _pi_device *devId)
-      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1},
-        evBase_(nullptr) {
+      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1} {
     cuda_piDeviceRetain(deviceId_);
   };
 
@@ -379,18 +377,33 @@ struct _pi_mem {
 ///
 struct _pi_queue {
   using native_type = CUstream;
+  static constexpr int default_num_compute_streams = 128;
+  static constexpr int default_num_transfer_streams = 64;
 
-  native_type stream_;
+  std::vector<native_type> compute_streams_;
+  std::vector<native_type> transfer_streams_;
   _pi_context *context_;
   _pi_device *device_;
   pi_queue_properties properties_;
   std::atomic_uint32_t refCount_;
   std::atomic_uint32_t eventCount_;
+  std::atomic_uint32_t compute_stream_idx_;
+  std::atomic_uint32_t transfer_stream_idx_;
+  unsigned int num_compute_streams_;
+  unsigned int num_transfer_streams_;
+  unsigned int flags_;
+  std::mutex compute_stream_mutex_;
+  std::mutex transfer_stream_mutex_;
 
-  _pi_queue(CUstream stream, _pi_context *context, _pi_device *device,
-            pi_queue_properties properties)
-      : stream_{stream}, context_{context}, device_{device},
-        properties_{properties}, refCount_{1}, eventCount_{0} {
+  _pi_queue(std::vector<CUstream> &&compute_streams,
+            std::vector<CUstream> &&transfer_streams, _pi_context *context,
+            _pi_device *device, pi_queue_properties properties,
+            unsigned int flags)
+      : compute_streams_{std::move(compute_streams)},
+        transfer_streams_{std::move(transfer_streams)}, context_{context},
+        device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
+        compute_stream_idx_{0}, transfer_stream_idx_{0},
+        num_compute_streams_{0}, num_transfer_streams_{0}, flags_(flags) {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -400,9 +413,36 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get() const noexcept { return stream_; };
+  // get_next_compute/transfer_stream() functions return streams from
+  // appropriate pools in round-robin fashion
+  native_type get_next_compute_stream();
+  native_type get_next_transfer_stream();
+  native_type get() { return get_next_compute_stream(); };
+
+  template <typename T> void for_each_stream(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                   num_compute_streams_);
+      for (unsigned int i = 0; i < end; i++) {
+        f(compute_streams_[i]);
+      }
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   num_transfer_streams_);
+      for (unsigned int i = 0; i < end; i++) {
+        f(transfer_streams_[i]);
+      }
+    }
+  }
 
   _pi_context *get_context() const { return context_; };
+
+  _pi_device *get_device() const { return device_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
@@ -430,6 +470,8 @@ public:
   native_type get() const noexcept { return evEnd_; };
 
   pi_queue get_queue() const noexcept { return queue_; }
+
+  CUstream get_stream() const noexcept { return stream_; }
 
   pi_command_type get_command_type() const noexcept { return commandType_; }
 
@@ -474,8 +516,9 @@ public:
   pi_uint64 get_end_time() const;
 
   // construct a native CUDA. This maps closely to the underlying CUDA event.
-  static pi_event make_native(pi_command_type type, pi_queue queue) {
-    return new _pi_event(type, queue->get_context(), queue);
+  static pi_event make_native(pi_command_type type, pi_queue queue,
+                              CUstream stream) {
+    return new _pi_event(type, queue->get_context(), queue, stream);
   }
 
   pi_result release();
@@ -485,7 +528,8 @@ public:
 private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CUDA.
-  _pi_event(pi_command_type type, pi_context context, pi_queue queue);
+  _pi_event(pi_command_type type, pi_context context, pi_queue queue,
+            CUstream stream);
 
   pi_command_type commandType_; // The type of command associated with event.
 
@@ -513,6 +557,9 @@ private:
 
   pi_queue queue_; // pi_queue associated with the event. If this is a user
                    // event, this will be nullptr.
+
+  CUstream stream_; // CUstream associated with the event. If this is a user
+                    // event, this will be uninitialized.
 
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
@@ -547,7 +594,7 @@ struct _pi_program {
 
   pi_result set_binary(const char *binary, size_t binarySizeInBytes);
 
-  pi_result build_program(const char* build_options);
+  pi_result build_program(const char *build_options);
 
   pi_context get_context() const { return context_; };
 
@@ -688,8 +735,7 @@ struct _pi_kernel {
     assert(retError == PI_SUCCESS);
   }
 
-  ~_pi_kernel()
-  {
+  ~_pi_kernel() {
     cuda_piProgramRelease(program_);
     cuda_piContextRelease(context_);
   }

@@ -74,7 +74,7 @@ public:
     m_collection_sp->Initialize(g_processkdp_properties);
   }
 
-  virtual ~PluginProperties() = default;
+  ~PluginProperties() override = default;
 
   uint64_t GetPacketTimeout() {
     const uint32_t idx = ePropertyKDPPacketTimeout;
@@ -290,8 +290,11 @@ Status ProcessKDP::DoConnectRemote(llvm::StringRef remote_url) {
                 }
               }
               if (!module_spec.GetSymbolFileSpec() ||
-                  !module_spec.GetSymbolFileSpec())
-                Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+                  !module_spec.GetSymbolFileSpec()) {
+                Status symbl_error;
+                Symbols::DownloadObjectAndSymbolFile(module_spec, symbl_error,
+                                                     true);
+              }
 
               if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
                 ModuleSP module_sp(new Module(module_spec));
@@ -877,7 +880,7 @@ public:
     m_option_group.Finalize();
   }
 
-  ~CommandObjectProcessKDPPacketSend() = default;
+  ~CommandObjectProcessKDPPacketSend() override = default;
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     const size_t argc = command.GetArgumentCount();
@@ -978,7 +981,7 @@ public:
         CommandObjectSP(new CommandObjectProcessKDPPacketSend(interpreter)));
   }
 
-  ~CommandObjectProcessKDPPacket() = default;
+  ~CommandObjectProcessKDPPacket() override = default;
 };
 
 class CommandObjectMultiwordProcessKDP : public CommandObjectMultiword {
@@ -992,7 +995,7 @@ public:
                                  interpreter)));
   }
 
-  ~CommandObjectMultiwordProcessKDP() = default;
+  ~CommandObjectMultiwordProcessKDP() override = default;
 };
 
 CommandObject *ProcessKDP::GetPluginCommandObject() {

@@ -11,15 +11,15 @@
 #include "format.h"
 #include "tools.h"
 #include "unit.h"
+#include "utf.h"
 #include "flang/Runtime/memory.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <limits>
+#include <type_traits>
 
 namespace Fortran::runtime::io {
-
-int IoStatementBase::EndIoStatement() { return GetIoStat(); }
 
 bool IoStatementBase::Emit(const char *, std::size_t, std::size_t) {
   return false;
@@ -163,10 +163,18 @@ InternalFormattedIoStatementState<DIR, CHAR>::InternalFormattedIoStatementState(
       ioStatementState_{*this}, format_{*this, format, formatLength} {}
 
 template <Direction DIR, typename CHAR>
-int InternalFormattedIoStatementState<DIR, CHAR>::EndIoStatement() {
-  if constexpr (DIR == Direction::Output) {
-    format_.Finish(*this); // ignore any remaining input positioning actions
+void InternalFormattedIoStatementState<DIR, CHAR>::CompleteOperation() {
+  if (!this->completedOperation()) {
+    if constexpr (DIR == Direction::Output) {
+      format_.Finish(*this); // ignore any remaining input positioning actions
+    }
+    IoStatementBase::CompleteOperation();
   }
+}
+
+template <Direction DIR, typename CHAR>
+int InternalFormattedIoStatementState<DIR, CHAR>::EndIoStatement() {
+  CompleteOperation();
   return InternalIoStatementState<DIR, CHAR>::EndIoStatement();
 }
 
@@ -192,11 +200,7 @@ MutableModes &ExternalIoStatementBase::mutableModes() { return unit_.modes; }
 ConnectionState &ExternalIoStatementBase::GetConnectionState() { return unit_; }
 
 int ExternalIoStatementBase::EndIoStatement() {
-  if (mutableModes().nonAdvancing) {
-    unit_.leftTabLimit = unit_.furthestPositionInRecord;
-  } else {
-    unit_.leftTabLimit.reset();
-  }
+  CompleteOperation();
   auto result{IoStatementBase::EndIoStatement()};
   unit_.EndIoStatement(); // annihilates *this in unit_.u_
   return result;
@@ -207,11 +211,22 @@ void OpenStatementState::set_path(const char *path, std::size_t length) {
   path_ = SaveDefaultCharacter(path, pathLength_, *this);
 }
 
-int OpenStatementState::EndIoStatement() {
+void OpenStatementState::CompleteOperation() {
+  if (completedOperation()) {
+    return;
+  }
   if (position_) {
     if (access_ && *access_ == Access::Direct) {
       SignalError("POSITION= may not be set with ACCESS='DIRECT'");
       position_.reset();
+    }
+  }
+  if (status_) { // 12.5.6.10
+    if ((*status_ == OpenStatus::New || *status_ == OpenStatus::Replace) &&
+        !path_.get()) {
+      SignalError("FILE= required on OPEN with STATUS='NEW' or 'REPLACE'");
+    } else if (*status_ == OpenStatus::Scratch && path_.get()) {
+      SignalError("FILE= may not appear on OPEN with STATUS='SCRATCH'");
     }
   }
   if (path_.get() || wasExtant_ ||
@@ -246,17 +261,33 @@ int OpenStatementState::EndIoStatement() {
     // Set default format (C.7.4 point 2).
     unit().isUnformatted = unit().access != Access::Sequential;
   }
+  if (!wasExtant_ && InError()) {
+    // Release the new unit on failure
+    unit().CloseUnit(CloseStatus::Delete, *this);
+    unit().DestroyClosed();
+  }
+  IoStatementBase::CompleteOperation();
+}
+
+int OpenStatementState::EndIoStatement() {
+  CompleteOperation();
   return ExternalIoStatementBase::EndIoStatement();
 }
 
 int CloseStatementState::EndIoStatement() {
+  CompleteOperation();
   int result{ExternalIoStatementBase::EndIoStatement()};
   unit().CloseUnit(status_, *this);
   unit().DestroyClosed();
   return result;
 }
 
+void NoUnitIoStatementState::CompleteOperation() {
+  IoStatementBase::CompleteOperation();
+}
+
 int NoUnitIoStatementState::EndIoStatement() {
+  CompleteOperation();
   auto result{IoStatementBase::EndIoStatement()};
   FreeMemory(this);
   return result;
@@ -277,18 +308,34 @@ ExternalIoStatementState<DIR>::ExternalIoStatementState(
   }
 }
 
-template <Direction DIR> int ExternalIoStatementState<DIR>::EndIoStatement() {
+template <Direction DIR>
+void ExternalIoStatementState<DIR>::CompleteOperation() {
+  if (completedOperation()) {
+    return;
+  }
   if constexpr (DIR == Direction::Input) {
     BeginReadingRecord(); // in case there were no I/O items
     if (!mutableModes().nonAdvancing || GetIoStat() == IostatEor) {
       FinishReadingRecord();
     }
-  } else {
-    if (!mutableModes().nonAdvancing) {
+  } else { // output
+    if (mutableModes().nonAdvancing) {
+      // Make effects of positioning past the last Emit() visible with blanks.
+      std::int64_t n{unit().positionInRecord - unit().furthestPositionInRecord};
+      unit().positionInRecord = unit().furthestPositionInRecord;
+      while (n-- > 0 && unit().Emit(" ", 1, 1, *this)) {
+      }
+      unit().leftTabLimit = unit().furthestPositionInRecord;
+    } else {
       unit().AdvanceRecord(*this);
     }
     unit().FlushIfTerminal(*this);
   }
+  return IoStatementBase::CompleteOperation();
+}
+
+template <Direction DIR> int ExternalIoStatementState<DIR>::EndIoStatement() {
+  CompleteOperation();
   return ExternalIoStatementBase::EndIoStatement();
 }
 
@@ -316,7 +363,6 @@ bool ExternalIoStatementState<DIR>::Emit(
     Crash(
         "ExternalIoStatementState::Emit(char16_t) called for input statement");
   }
-  // TODO: UTF-8 encoding
   return unit().Emit(reinterpret_cast<const char *>(data), chars * sizeof *data,
       sizeof *data, *this);
 }
@@ -328,7 +374,6 @@ bool ExternalIoStatementState<DIR>::Emit(
     Crash(
         "ExternalIoStatementState::Emit(char32_t) called for input statement");
   }
-  // TODO: UTF-8 encoding
   return unit().Emit(reinterpret_cast<const char *>(data), chars * sizeof *data,
       sizeof *data, *this);
 }
@@ -391,84 +436,123 @@ ExternalFormattedIoStatementState<DIR, CHAR>::ExternalFormattedIoStatementState(
       format_{*this, format, formatLength} {}
 
 template <Direction DIR, typename CHAR>
-int ExternalFormattedIoStatementState<DIR, CHAR>::EndIoStatement() {
+void ExternalFormattedIoStatementState<DIR, CHAR>::CompleteOperation() {
+  if (this->completedOperation()) {
+    return;
+  }
   if constexpr (DIR == Direction::Input) {
     this->BeginReadingRecord(); // in case there were no I/O items
   }
   format_.Finish(*this);
+  return ExternalIoStatementState<DIR>::CompleteOperation();
+}
+
+template <Direction DIR, typename CHAR>
+int ExternalFormattedIoStatementState<DIR, CHAR>::EndIoStatement() {
+  CompleteOperation();
   return ExternalIoStatementState<DIR>::EndIoStatement();
 }
 
 std::optional<DataEdit> IoStatementState::GetNextDataEdit(int n) {
-  return std::visit(
+  return common::visit(
       [&](auto &x) { return x.get().GetNextDataEdit(*this, n); }, u_);
 }
 
 bool IoStatementState::Emit(
     const char *data, std::size_t n, std::size_t elementBytes) {
-  return std::visit(
+  return common::visit(
       [=](auto &x) { return x.get().Emit(data, n, elementBytes); }, u_);
 }
 
 bool IoStatementState::Emit(const char *data, std::size_t n) {
-  return std::visit([=](auto &x) { return x.get().Emit(data, n); }, u_);
+  return common::visit([=](auto &x) { return x.get().Emit(data, n); }, u_);
 }
 
 bool IoStatementState::Emit(const char16_t *data, std::size_t chars) {
-  return std::visit([=](auto &x) { return x.get().Emit(data, chars); }, u_);
+  return common::visit([=](auto &x) { return x.get().Emit(data, chars); }, u_);
 }
 
 bool IoStatementState::Emit(const char32_t *data, std::size_t chars) {
-  return std::visit([=](auto &x) { return x.get().Emit(data, chars); }, u_);
+  return common::visit([=](auto &x) { return x.get().Emit(data, chars); }, u_);
+}
+
+template <typename CHAR>
+bool IoStatementState::EmitEncoded(const CHAR *data0, std::size_t chars) {
+  // Don't allow sign extension
+  using UnsignedChar = std::make_unsigned_t<CHAR>;
+  const UnsignedChar *data{reinterpret_cast<const UnsignedChar *>(data0)};
+  if (GetConnectionState().useUTF8<CHAR>()) {
+    char buffer[256];
+    std::size_t at{0};
+    while (chars-- > 0) {
+      auto len{EncodeUTF8(buffer + at, *data++)};
+      at += len;
+      if (at + maxUTF8Bytes > sizeof buffer) {
+        if (!Emit(buffer, at)) {
+          return false;
+        }
+        at = 0;
+      }
+    }
+    return at == 0 || Emit(buffer, at);
+  } else {
+    return Emit(data0, chars);
+  }
 }
 
 bool IoStatementState::Receive(
     char *data, std::size_t n, std::size_t elementBytes) {
-  return std::visit(
+  return common::visit(
       [=](auto &x) { return x.get().Receive(data, n, elementBytes); }, u_);
 }
 
 std::size_t IoStatementState::GetNextInputBytes(const char *&p) {
-  return std::visit([&](auto &x) { return x.get().GetNextInputBytes(p); }, u_);
+  return common::visit(
+      [&](auto &x) { return x.get().GetNextInputBytes(p); }, u_);
 }
 
 bool IoStatementState::AdvanceRecord(int n) {
-  return std::visit([=](auto &x) { return x.get().AdvanceRecord(n); }, u_);
+  return common::visit([=](auto &x) { return x.get().AdvanceRecord(n); }, u_);
 }
 
 void IoStatementState::BackspaceRecord() {
-  std::visit([](auto &x) { x.get().BackspaceRecord(); }, u_);
+  common::visit([](auto &x) { x.get().BackspaceRecord(); }, u_);
 }
 
 void IoStatementState::HandleRelativePosition(std::int64_t n) {
-  std::visit([=](auto &x) { x.get().HandleRelativePosition(n); }, u_);
+  common::visit([=](auto &x) { x.get().HandleRelativePosition(n); }, u_);
 }
 
 void IoStatementState::HandleAbsolutePosition(std::int64_t n) {
-  std::visit([=](auto &x) { x.get().HandleAbsolutePosition(n); }, u_);
+  common::visit([=](auto &x) { x.get().HandleAbsolutePosition(n); }, u_);
+}
+
+void IoStatementState::CompleteOperation() {
+  common::visit([](auto &x) { x.get().CompleteOperation(); }, u_);
 }
 
 int IoStatementState::EndIoStatement() {
-  return std::visit([](auto &x) { return x.get().EndIoStatement(); }, u_);
+  return common::visit([](auto &x) { return x.get().EndIoStatement(); }, u_);
 }
 
 ConnectionState &IoStatementState::GetConnectionState() {
-  return std::visit(
+  return common::visit(
       [](auto &x) -> ConnectionState & { return x.get().GetConnectionState(); },
       u_);
 }
 
 MutableModes &IoStatementState::mutableModes() {
-  return std::visit(
+  return common::visit(
       [](auto &x) -> MutableModes & { return x.get().mutableModes(); }, u_);
 }
 
 bool IoStatementState::BeginReadingRecord() {
-  return std::visit([](auto &x) { return x.get().BeginReadingRecord(); }, u_);
+  return common::visit(
+      [](auto &x) { return x.get().BeginReadingRecord(); }, u_);
 }
 
 IoErrorHandler &IoStatementState::GetIoErrorHandler() const {
-  return std::visit(
+  return common::visit(
       [](auto &x) -> IoErrorHandler & {
         return static_cast<IoErrorHandler &>(x.get());
       },
@@ -476,11 +560,36 @@ IoErrorHandler &IoStatementState::GetIoErrorHandler() const {
 }
 
 ExternalFileUnit *IoStatementState::GetExternalFileUnit() const {
-  return std::visit([](auto &x) { return x.get().GetExternalFileUnit(); }, u_);
+  return common::visit(
+      [](auto &x) { return x.get().GetExternalFileUnit(); }, u_);
+}
+
+std::optional<char32_t> IoStatementState::GetCurrentChar(
+    std::size_t &byteCount) {
+  const char *p{nullptr};
+  std::size_t bytes{GetNextInputBytes(p)};
+  if (bytes == 0) {
+    byteCount = 0;
+    return std::nullopt;
+  } else {
+    if (GetConnectionState().isUTF8) {
+      std::size_t length{MeasureUTF8Bytes(*p)};
+      if (length <= bytes) {
+        if (auto result{DecodeUTF8(p)}) {
+          byteCount = length;
+          return result;
+        }
+      }
+      GetIoErrorHandler().SignalError(IostatUTF8Decoding);
+      // Error recovery: return the next byte
+    }
+    byteCount = 1;
+    return *p;
+  }
 }
 
 bool IoStatementState::EmitRepeated(char ch, std::size_t n) {
-  return std::visit(
+  return common::visit(
       [=](auto &x) {
         for (std::size_t j{0}; j < n; ++j) {
           if (!x.get().Emit(&ch, 1)) {
@@ -507,8 +616,9 @@ bool IoStatementState::EmitField(
 
 std::optional<char32_t> IoStatementState::NextInField(
     std::optional<int> &remaining, const DataEdit &edit) {
+  std::size_t byteCount{0};
   if (!remaining) { // Stream, list-directed, or NAMELIST
-    if (auto next{GetCurrentChar()}) {
+    if (auto next{GetCurrentChar(byteCount)}) {
       if (edit.IsListDirected()) {
         // list-directed or NAMELIST: check for separators
         switch (*next) {
@@ -533,15 +643,18 @@ std::optional<char32_t> IoStatementState::NextInField(
           break;
         }
       }
-      HandleRelativePosition(1);
-      GotChar();
+      HandleRelativePosition(byteCount);
+      GotChar(byteCount);
       return next;
     }
   } else if (*remaining > 0) {
-    if (auto next{GetCurrentChar()}) {
-      --*remaining;
-      HandleRelativePosition(1);
-      GotChar();
+    if (auto next{GetCurrentChar(byteCount)}) {
+      if (byteCount > static_cast<std::size_t>(*remaining)) {
+        return std::nullopt;
+      }
+      *remaining -= byteCount;
+      HandleRelativePosition(byteCount);
+      GotChar(byteCount);
       return next;
     }
     if (CheckForEndOfRecord()) { // do padding
@@ -559,8 +672,16 @@ bool IoStatementState::CheckForEndOfRecord() {
       if (connection.positionInRecord >= *length) {
         IoErrorHandler &handler{GetIoErrorHandler()};
         if (mutableModes().nonAdvancing) {
-          handler.SignalEor();
-        } else if (connection.openRecl && !connection.modes.pad) {
+          if (connection.access == Access::Stream &&
+              connection.unterminatedRecord) {
+            // Reading final unterminated record left by a
+            // non-advancing WRITE on a stream file prior to
+            // positioning or ENDFILE.
+            handler.SignalEnd();
+          } else {
+            handler.SignalEor();
+          }
+        } else if (!connection.modes.pad) {
           handler.SignalError(IostatRecordReadOverrun);
         }
         return connection.modes.pad; // PAD='YES'
@@ -572,22 +693,24 @@ bool IoStatementState::CheckForEndOfRecord() {
 
 bool IoStatementState::Inquire(
     InquiryKeywordHash inquiry, char *out, std::size_t chars) {
-  return std::visit(
+  return common::visit(
       [&](auto &x) { return x.get().Inquire(inquiry, out, chars); }, u_);
 }
 
 bool IoStatementState::Inquire(InquiryKeywordHash inquiry, bool &out) {
-  return std::visit([&](auto &x) { return x.get().Inquire(inquiry, out); }, u_);
+  return common::visit(
+      [&](auto &x) { return x.get().Inquire(inquiry, out); }, u_);
 }
 
 bool IoStatementState::Inquire(
     InquiryKeywordHash inquiry, std::int64_t id, bool &out) {
-  return std::visit(
+  return common::visit(
       [&](auto &x) { return x.get().Inquire(inquiry, id, out); }, u_);
 }
 
 bool IoStatementState::Inquire(InquiryKeywordHash inquiry, std::int64_t &n) {
-  return std::visit([&](auto &x) { return x.get().Inquire(inquiry, n); }, u_);
+  return common::visit(
+      [&](auto &x) { return x.get().Inquire(inquiry, n); }, u_);
 }
 
 void IoStatementState::GotChar(int n) {
@@ -654,12 +777,13 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
   if (edit.modes.editingFlags & decimalComma) {
     comma = ';';
   }
+  std::size_t byteCount{0};
   if (remaining_ > 0 && !realPart_) { // "r*c" repetition in progress
     RUNTIME_CHECK(io.GetIoErrorHandler(), repeatPosition_.has_value());
     repeatPosition_.reset(); // restores the saved position
     if (!imaginaryPart_) {
       edit.repeat = std::min<int>(remaining_, maxRepeat);
-      auto ch{io.GetCurrentChar()};
+      auto ch{io.GetCurrentChar(byteCount)};
       if (!ch || *ch == ' ' || *ch == '\t' || *ch == comma) {
         // "r*" repeated null
         edit.descriptor = DataEdit::ListDirectedNullValue;
@@ -679,14 +803,14 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
     imaginaryPart_ = true;
     edit.descriptor = DataEdit::ListDirectedImaginaryPart;
   }
-  auto ch{io.GetNextNonBlank()};
+  auto ch{io.GetNextNonBlank(byteCount)};
   if (ch && *ch == comma && eatComma_) {
     // Consume comma & whitespace after previous item.
     // This includes the comma between real and imaginary components
     // in list-directed/NAMELIST complex input.
     // (When DECIMAL='COMMA', the comma is actually a semicolon.)
-    io.HandleRelativePosition(1);
-    ch = io.GetNextNonBlank();
+    io.HandleRelativePosition(byteCount);
+    ch = io.GetNextNonBlank(byteCount);
   }
   eatComma_ = true;
   if (!ch) {
@@ -714,12 +838,12 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
         break;
       }
       r = 10 * r + (*ch - '0');
-      io.HandleRelativePosition(1);
-      ch = io.GetCurrentChar();
+      io.HandleRelativePosition(byteCount);
+      ch = io.GetCurrentChar(byteCount);
     } while (ch && *ch >= '0' && *ch <= '9');
     if (r > 0 && ch && *ch == '*') { // subtle: r must be nonzero
-      io.HandleRelativePosition(1);
-      ch = io.GetCurrentChar();
+      io.HandleRelativePosition(byteCount);
+      ch = io.GetCurrentChar(byteCount);
       if (ch && *ch == '/') { // r*/
         hitSlash_ = true;
         edit.descriptor = DataEdit::ListDirectedNullValue;
@@ -739,7 +863,7 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
   }
   if (!imaginaryPart_ && ch && *ch == '(') {
     realPart_ = true;
-    io.HandleRelativePosition(1);
+    io.HandleRelativePosition(byteCount);
     edit.descriptor = DataEdit::ListDirectedRealPart;
   }
   return edit;
@@ -775,7 +899,12 @@ ExternalFileUnit *ChildIoStatementState<DIR>::GetExternalFileUnit() const {
   return child_.parent().GetExternalFileUnit();
 }
 
+template <Direction DIR> void ChildIoStatementState<DIR>::CompleteOperation() {
+  IoStatementBase::CompleteOperation();
+}
+
 template <Direction DIR> int ChildIoStatementState<DIR>::EndIoStatement() {
+  CompleteOperation();
   auto result{IoStatementBase::EndIoStatement()};
   child_.EndIoStatement(); // annihilates *this in child_.u_
   return result;
@@ -826,8 +955,16 @@ ChildFormattedIoStatementState<DIR, CHAR>::ChildFormattedIoStatementState(
                                                         formatLength} {}
 
 template <Direction DIR, typename CHAR>
+void ChildFormattedIoStatementState<DIR, CHAR>::CompleteOperation() {
+  if (!this->completedOperation()) {
+    format_.Finish(*this);
+    ChildIoStatementState<DIR>::CompleteOperation();
+  }
+}
+
+template <Direction DIR, typename CHAR>
 int ChildFormattedIoStatementState<DIR, CHAR>::EndIoStatement() {
-  format_.Finish(*this);
+  CompleteOperation();
   return ChildIoStatementState<DIR>::EndIoStatement();
 }
 
@@ -865,7 +1002,10 @@ template class ChildListIoStatementState<Direction::Input>;
 template class ChildUnformattedIoStatementState<Direction::Output>;
 template class ChildUnformattedIoStatementState<Direction::Input>;
 
-int ExternalMiscIoStatementState::EndIoStatement() {
+void ExternalMiscIoStatementState::CompleteOperation() {
+  if (completedOperation()) {
+    return;
+  }
   ExternalFileUnit &ext{unit()};
   switch (which_) {
   case Flush:
@@ -882,6 +1022,11 @@ int ExternalMiscIoStatementState::EndIoStatement() {
     ext.Rewind(*this);
     break;
   }
+  return IoStatementBase::CompleteOperation();
+}
+
+int ExternalMiscIoStatementState::EndIoStatement() {
+  CompleteOperation();
   return ExternalIoStatementBase::EndIoStatement();
 }
 
@@ -1366,8 +1511,14 @@ bool InquireIOLengthState::Emit(const char32_t *p, std::size_t n) {
 }
 
 int ErroneousIoStatementState::EndIoStatement() {
-  SignalError(iostat_);
+  SignalPendingError();
   return IoStatementBase::EndIoStatement();
 }
+
+template bool IoStatementState::EmitEncoded<char>(const char *, std::size_t);
+template bool IoStatementState::EmitEncoded<char16_t>(
+    const char16_t *, std::size_t);
+template bool IoStatementState::EmitEncoded<char32_t>(
+    const char32_t *, std::size_t);
 
 } // namespace Fortran::runtime::io

@@ -544,10 +544,10 @@ let usesCustomInserter = 1, hasNoSchedulingInfo = 1, Uses = [EFLAGS] in {
   // i8 register pressure.
   defm _GR8 : CMOVrr_PSEUDO<GR8, i8>;
 
-  let Predicates = [NoCMov] in {
+  let Predicates = [NoCMOV] in {
     defm _GR32 : CMOVrr_PSEUDO<GR32, i32>;
     defm _GR16 : CMOVrr_PSEUDO<GR16, i16>;
-  } // Predicates = [NoCMov]
+  } // Predicates = [NoCMOV]
 
   // fcmov doesn't handle all possible EFLAGS, provide a fallback if there is no
   // SSE1/SSE2.
@@ -670,7 +670,7 @@ def OR32mi8Locked  : Ii8<0x83, MRM1m, (outs), (ins i32mem:$dst, i32i8imm:$zero),
                          Requires<[Not64BitMode]>, OpSize32, LOCK,
                          Sched<[WriteALURMW]>;
 
-let hasSideEffects = 1 in
+let hasSideEffects = 1, isMeta = 1 in
 def Int_MemBarrier : I<0, Pseudo, (outs), (ins),
                      "#MEMBARRIER",
                      [(X86MemBarrier)]>, Sched<[WriteLoad]>;
@@ -895,7 +895,7 @@ let isCodeGenOnly = 1, SchedRW = [WriteCMPXCHGRMW] in {
 }
 
 let Defs = [EAX, EDX, EFLAGS], Uses = [EAX, EBX, ECX, EDX],
-    Predicates = [HasCmpxchg8b], SchedRW = [WriteCMPXCHGRMW],
+    Predicates = [HasCX8], SchedRW = [WriteCMPXCHGRMW],
     isCodeGenOnly = 1, usesCustomInserter = 1 in {
 def LCMPXCHG8B : I<0xC7, MRM1m, (outs), (ins i64mem:$ptr),
                    "cmpxchg8b\t$ptr",
@@ -903,7 +903,7 @@ def LCMPXCHG8B : I<0xC7, MRM1m, (outs), (ins i64mem:$ptr),
 }
 
 let Defs = [RAX, RDX, EFLAGS], Uses = [RAX, RBX, RCX, RDX],
-    Predicates = [HasCmpxchg16b,In64BitMode], SchedRW = [WriteCMPXCHGRMW],
+    Predicates = [HasCX16,In64BitMode], SchedRW = [WriteCMPXCHGRMW],
     isCodeGenOnly = 1, mayLoad = 1, mayStore = 1, hasSideEffects = 0 in {
 def LCMPXCHG16B : RI<0xC7, MRM1m, (outs), (ins i128mem:$ptr),
                      "cmpxchg16b\t$ptr",
@@ -930,7 +930,7 @@ def LCMPXCHG16B : RI<0xC7, MRM1m, (outs), (ins i128mem:$ptr),
 // the instruction and we are sure we will have a valid register to restore
 // the value of RBX.
 let Defs = [RAX, RDX, RBX, EFLAGS], Uses = [RAX, RCX, RDX],
-    Predicates = [HasCmpxchg16b,In64BitMode], SchedRW = [WriteCMPXCHGRMW],
+    Predicates = [HasCX16,In64BitMode], SchedRW = [WriteCMPXCHGRMW],
     isCodeGenOnly = 1, isPseudo = 1,
     mayLoad = 1, mayStore = 1, hasSideEffects = 0,
     Constraints = "$rbx_save = $dst" in {
@@ -942,7 +942,7 @@ def LCMPXCHG16B_SAVE_RBX :
 // Pseudo instruction that doesn't read/write RBX. Will be turned into either
 // LCMPXCHG16B_SAVE_RBX or LCMPXCHG16B via a custom inserter.
 let Defs = [RAX, RDX, EFLAGS], Uses = [RAX, RCX, RDX],
-    Predicates = [HasCmpxchg16b,In64BitMode], SchedRW = [WriteCMPXCHGRMW],
+    Predicates = [HasCX16,In64BitMode], SchedRW = [WriteCMPXCHGRMW],
     isCodeGenOnly = 1, isPseudo = 1,
     mayLoad = 1, mayStore = 1, hasSideEffects = 0,
     usesCustomInserter = 1 in {
@@ -1513,6 +1513,21 @@ def ADD64ri32_DB : I<0, Pseudo,
                                                  i64immSExt32:$src2))]>;
 }
 } // AddedComplexity, SchedRW
+
+//===----------------------------------------------------------------------===//
+// Pattern match XOR as ADD
+//===----------------------------------------------------------------------===//
+
+// Prefer to pattern match XOR with min_signed_value as ADD at isel time.
+// ADD can be 3-addressified into an LEA instruction to avoid copies.
+let AddedComplexity = 5 in {
+def : Pat<(xor GR8:$src1, -128),
+          (ADD8ri GR8:$src1, -128)>;
+def : Pat<(xor GR16:$src1, -32768),
+          (ADD16ri GR16:$src1, -32768)>;
+def : Pat<(xor GR32:$src1, -2147483648),
+          (ADD32ri GR32:$src1, -2147483648)>;
+}
 
 //===----------------------------------------------------------------------===//
 // Pattern match SUB as XOR

@@ -21,13 +21,13 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
+#include <sycl/ext/intel/esimd/common.hpp> // SLM_BTI
 
 #include <esimdemu_support.h>
 
@@ -42,6 +42,8 @@
 #include <utility>
 
 #include "pi_esimd_emulator.hpp"
+
+#define ARG_UNUSED(x) (void)x
 
 namespace {
 
@@ -67,6 +69,7 @@ template <typename T>
 pi_result getInfo(size_t ParamValueSize, void *ParamValue,
                   size_t *ParamValueSizeRet, T Value) {
   auto assignment = [](void *ParamValue, T Value, size_t ValueSize) {
+    ARG_UNUSED(ValueSize);
     *static_cast<T *>(ParamValue) = Value;
   };
   return getInfoImpl(ParamValueSize, ParamValue, ParamValueSizeRet, Value,
@@ -119,15 +122,13 @@ static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 // Single-entry cache for piPlatformsGet call.
 static pi_platform PiPlatformCache;
 // TODO/FIXME : Memory leak. Handle with 'piTearDown'.
-static sycl::detail::SpinLock *PiPlatformCacheMutex =
-    new sycl::detail::SpinLock;
+static std::mutex *PiPlatformCacheLock = new std::mutex;
 
 // Mapping between surface index and CM-managed surface
 static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
     new std::unordered_map<unsigned int, _pi_mem *>;
 // TODO/FIXME : Memory leak. Handle with 'piTearDown'.
-static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
-    new sycl::detail::SpinLock;
+static std::mutex *PiESimdSurfaceMapLock = new std::mutex;
 
 // To be compared with ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION in device
 // interface header file
@@ -139,6 +140,25 @@ static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
 
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
+
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
 
 using IDBuilder = sycl::detail::Builder;
 
@@ -243,77 +263,47 @@ public:
   }
 };
 
-// Function to provide buffer info for kernel compilation without
-// dependency on '_pi_buffer' definition
-void sycl_get_cm_buffer_params(void *PtrInput, char **BaseAddr, uint32_t *Width,
-                               std::mutex **MtxLock) {
-  _pi_buffer *Buf = static_cast<_pi_buffer *>(PtrInput);
-
-  *BaseAddr = cm_support::get_surface_base_addr(Buf->SurfaceIndex);
-  *Width = static_cast<uint32_t>(Buf->Size);
-
-  *MtxLock = &(Buf->mutexLock);
-}
-
-// Function to provide image info for kernel compilation without
-// dependency on '_pi_image' definition
-void sycl_get_cm_image_params(void *PtrInput, char **BaseAddr, uint32_t *Width,
-                              uint32_t *Height, uint32_t *Bpp,
-                              std::mutex **MtxLock) {
-  _pi_image *Img = static_cast<_pi_image *>(PtrInput);
-
-  *BaseAddr = cm_support::get_surface_base_addr(Img->SurfaceIndex);
-
-  *Bpp = static_cast<uint32_t>(Img->BytesPerPixel);
-  *Width = static_cast<uint32_t>(Img->Width) * (*Bpp);
-  *Height = static_cast<uint32_t>(Img->Height);
-
-  *MtxLock = &(Img->mutexLock);
-}
-
-// Function to provide image info for kernel compilation without
-// dependency on '_pi_mem' definition
 unsigned int sycl_get_cm_surface_index(void *PtrInput) {
   _pi_mem *Surface = static_cast<_pi_mem *>(PtrInput);
 
-  return (unsigned int)(Surface->SurfaceIndex);
+  return Surface->SurfaceIndex;
 }
 
 // Function to provide image info for kernel compilation using surface
 // index without dependency on '_pi_image' definition
-void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
-                                     uint32_t *Width, std::mutex **MtxLock) {
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+void sycl_get_cm_buffer_params(unsigned int IndexInput, char **BaseAddr,
+                               uint32_t *Width, std::mutex **BufMtxLock) {
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
   auto MemIter = PiESimdSurfaceMap->find(IndexInput);
 
   assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
 
   _pi_buffer *Buf = static_cast<_pi_buffer *>(MemIter->second);
 
-  *BaseAddr = cm_support::get_surface_base_addr(Buf->SurfaceIndex);
+  *BaseAddr = Buf->MapHostPtr;
   *Width = static_cast<uint32_t>(Buf->Size);
 
-  *MtxLock = &(Buf->mutexLock);
+  *BufMtxLock = &(Buf->SurfaceLock);
 }
 
 // Function to provide image info for kernel compilation using surface
 // index without dependency on '_pi_image' definition
-void sycl_get_cm_image_params_index(unsigned int IndexInput, char **BaseAddr,
-                                    uint32_t *Width, uint32_t *Height,
-                                    uint32_t *Bpp, std::mutex **MtxLock) {
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+void sycl_get_cm_image_params(unsigned int IndexInput, char **BaseAddr,
+                              uint32_t *Width, uint32_t *Height, uint32_t *Bpp,
+                              std::mutex **ImgMtxLock) {
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
   auto MemIter = PiESimdSurfaceMap->find(IndexInput);
   assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
 
   _pi_image *Img = static_cast<_pi_image *>(MemIter->second);
 
-  *BaseAddr = cm_support::get_surface_base_addr(Img->SurfaceIndex);
+  *BaseAddr = Img->MapHostPtr;
 
   *Bpp = static_cast<uint32_t>(Img->BytesPerPixel);
   *Width = static_cast<uint32_t>(Img->Width) * (*Bpp);
   *Height = static_cast<uint32_t>(Img->Height);
 
-  *MtxLock = &(Img->mutexLock);
+  *ImgMtxLock = &(Img->SurfaceLock);
 }
 
 /// Implementation for ESIMD_EMULATOR device interface accessing ESIMD
@@ -331,12 +321,9 @@ sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
   __cm_emu_get_slm_ptr = cm_support::get_slm_base;
   cm_slm_init_ptr = cm_support::init_slm;
 
+  sycl_get_cm_surface_index_ptr = sycl_get_cm_surface_index;
   sycl_get_cm_buffer_params_ptr = sycl_get_cm_buffer_params;
   sycl_get_cm_image_params_ptr = sycl_get_cm_image_params;
-
-  sycl_get_cm_surface_index_ptr = sycl_get_cm_surface_index;
-  sycl_get_cm_buffer_params_index_ptr = sycl_get_cm_buffer_params_index;
-  sycl_get_cm_image_params_index_ptr = sycl_get_cm_image_params_index;
 
   /* From 'esimd_emulator_functions_v1.h' : End */
 }
@@ -435,7 +422,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformCacheMutex};
+  std::lock_guard<std::mutex> Lock{*PiPlatformCacheLock};
   if (!PiPlatformCachePopulated) {
     PiPlatformCache = new _pi_platform();
     PiPlatformCache->CmEmuVersion = std::string("0.0.1");
@@ -843,6 +830,10 @@ pi_result piContextCreate(const pi_context_properties *Properties,
                                             const void *PrivateInfo, size_t CB,
                                             void *UserData),
                           void *UserData, pi_context *RetContext) {
+  ARG_UNUSED(Properties);
+  ARG_UNUSED(PFnNotify);
+  ARG_UNUSED(UserData);
+
   if (NumDevices != 1) {
     return PI_INVALID_VALUE;
   }
@@ -900,6 +891,9 @@ pi_result piContextRelease(pi_context Context) {
   }
 
   if (--(Context->RefCount) == 0) {
+    /// TODO : Encapsulating accesses (add/remove) for
+    /// Addr2CmBufferSVM
+    std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
     for (auto &Entry : Context->Addr2CmBufferSVM) {
       Context->Device->CmDevicePtr->DestroyBufferSVM(Entry.second);
     }
@@ -909,8 +903,34 @@ pi_result piContextRelease(pi_context Context) {
   return PI_SUCCESS;
 }
 
+bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
+  if (Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
+    if (HostPtr == nullptr) {
+      if (PrintPiTrace) {
+        std::cerr << "HostPtr argument is required for "
+                     "PI_MEM_FLAGS_HOST_PTR_USE/COPY"
+                  << std::endl;
+      }
+      return false;
+    }
+    // COPY and USE are mutually exclusive
+    if ((Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) ==
+        (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
+      if (PrintPiTrace) {
+        std::cerr
+            << "PI_MEM_FLAGS_HOST_PTR_USE and _COPY cannot be used together"
+            << std::endl;
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
+  ARG_UNUSED(Device);
+
   if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     // TODO : Support Out-of-order Queue
     *Queue = nullptr;
@@ -980,13 +1000,15 @@ pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                           pi_queue *, bool) {
+                                           pi_device, bool, pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
+  ARG_UNUSED(properties);
+
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
       std::cerr << "Invalid memory attribute for piMemBufferCreate"
@@ -1002,50 +1024,61 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     return PI_INVALID_VALUE;
   }
 
-  cm_support::CmBuffer *CmBuf = nullptr;
-  cm_support::SurfaceIndex *CmIndex;
-
-  int Status = Context->Device->CmDevicePtr->CreateBuffer(
-      static_cast<unsigned int>(Size), CmBuf);
-
-  if (Status != cm_support::CM_SUCCESS) {
-    return PI_OUT_OF_HOST_MEMORY;
+  // Flag & HostPtr argument sanity check
+  if (!Context->checkSurfaceArgument(Flags, HostPtr)) {
+    return PI_INVALID_OPERATION;
   }
 
-  Status = CmBuf->GetIndex(CmIndex);
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
-  assert(PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) ==
-             PiESimdSurfaceMap->end() &&
-         "Failure from CM-managed buffer creation");
+  char *MapBasePtr = nullptr;
+  cm_surface_ptr_t CmBuf;
+  cm_support::SurfaceIndex *CmIndex;
+  int Status = cm_support::CM_FAILURE;
 
-  // Initialize the buffer with user data provided with 'HostPtr'
-  if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
-    if (HostPtr != nullptr) {
-      Status =
-          CmBuf->WriteSurface(reinterpret_cast<const unsigned char *>(HostPtr),
-                              nullptr, static_cast<unsigned int>(Size));
+  if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
+    CmBuf.tag = cm_surface_ptr_t::TypeUserProvidedBuffer;
+    Status = Context->Device->CmDevicePtr->CreateBufferUP(
+        static_cast<unsigned int>(Size), HostPtr, CmBuf.UPBufPtr);
+    CmBuf.UPBufPtr->GetIndex(CmIndex);
+  } else {
+    CmBuf.tag = cm_surface_ptr_t::TypeRegularBuffer;
+    Status = Context->Device->CmDevicePtr->CreateBuffer(
+        static_cast<unsigned int>(Size), CmBuf.RegularBufPtr);
+    CmBuf.RegularBufPtr->GetIndex(CmIndex);
+
+    if (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
+      CmBuf.RegularBufPtr->WriteSurface(
+          reinterpret_cast<const unsigned char *>(HostPtr), nullptr,
+          static_cast<unsigned int>(Size));
     }
   }
 
-  auto HostPtrOrNull =
-      (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) ? nullptr : pi_cast<char *>(HostPtr);
+  if (Status != cm_support::CM_SUCCESS) {
+    return PI_INVALID_OPERATION;
+  }
+
+  MapBasePtr =
+      pi_cast<char *>(cm_support::get_surface_base_addr(CmIndex->get_data()));
 
   try {
     *RetMem =
-        new _pi_buffer(Context, HostPtrOrNull, CmBuf,
-                       /* integer buffer index */ CmIndex->get_data(), Size);
+        new _pi_buffer(Context, MapBasePtr, CmBuf, CmIndex->get_data(), Size);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
 
-  (*PiESimdSurfaceMap)[(unsigned int)CmIndex->get_data()] = *RetMem;
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
+  assert(PiESimdSurfaceMap->find((*RetMem)->SurfaceIndex) ==
+             PiESimdSurfaceMap->end() &&
+         "Failure from CM-managed buffer creation");
+
+  (*PiESimdSurfaceMap)[(*RetMem)->SurfaceIndex] = *RetMem;
 
   return PI_SUCCESS;
 }
 
-pi_result piMemGetInfo(pi_mem, cl_mem_info, size_t, void *, size_t *) {
+pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1063,44 +1096,38 @@ pi_result piMemRelease(pi_mem Mem) {
   }
 
   if (--(Mem->RefCount) == 0) {
-    if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
-      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      // TODO implement libCM API failure logging mechanism, so that these
-      // failures are clearly distinguishable from other EMU plugin failures.
-      int Result =
-          Mem->Context->Device->CmDevicePtr->DestroySurface(PiBuf->CmBufferPtr);
-
-      if (Result != cm_support::CM_SUCCESS) {
-        return PI_INVALID_MEM_OBJECT;
-      }
-    } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
-      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      int Result = Mem->Context->Device->CmDevicePtr->DestroySurface(
-          PiImg->CmSurfacePtr);
-      if (Result != cm_support::CM_SUCCESS) {
-        return PI_INVALID_MEM_OBJECT;
-      }
-    } else {
-      return PI_INVALID_MEM_OBJECT;
-    }
-
     // Removing Surface-map entry
-    const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+    std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
     auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
-    if (MapEntryIt != PiESimdSurfaceMap->end()) {
-      PiESimdSurfaceMap->erase(MapEntryIt);
-    } else {
-      if (PrintPiTrace) {
-        std::cerr << "Failure from CM-managed buffer/image deletion"
-                  << std::endl;
-      }
-      return PI_INVALID_MEM_OBJECT;
-    }
-
+    assert(MapEntryIt != PiESimdSurfaceMap->end() &&
+           "Failure from Buffer/Image deletion");
+    PiESimdSurfaceMap->erase(MapEntryIt);
     delete Mem;
   }
-
   return PI_SUCCESS;
+}
+
+_pi_mem::~_pi_mem() {
+  int Status = cm_support::CM_FAILURE;
+
+  cm_support::CmDevice *CmDevice = Context->Device->CmDevicePtr;
+
+  if (SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedBuffer) {
+    Status = CmDevice->DestroyBufferUP(SurfacePtr.UPBufPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer) {
+    Status = CmDevice->DestroySurface(SurfacePtr.RegularBufPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedImage) {
+    Status = CmDevice->DestroySurface2DUP(SurfacePtr.UPImgPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage) {
+    Status = CmDevice->DestroySurface(SurfacePtr.RegularImgPtr);
+  }
+
+  assert(Status == cm_support::CM_SUCCESS &&
+         "Surface Deletion Failure from CM_EMU");
+
+  for (auto mapit = Mappings.begin(); mapit != Mappings.end();) {
+    mapit = Mappings.erase(mapit);
+  }
 }
 
 cm_support::CM_SURFACE_FORMAT
@@ -1181,51 +1208,54 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     return PI_IMAGE_FORMAT_NOT_SUPPORTED;
   }
 
-  cm_support::CmSurface2D *CmSurface = nullptr;
-  cm_support::SurfaceIndex *CmIndex;
+  // Flag & HostPtr argument sanity check
+  if (!Context->checkSurfaceArgument(Flags, HostPtr)) {
+    return PI_INVALID_OPERATION;
+  }
+
   cm_support::CM_SURFACE_FORMAT CmSurfFormat =
       ConvertPiImageFormatToCmFormat(ImageFormat);
-
   if (CmSurfFormat == cm_support::CM_SURFACE_FORMAT_UNKNOWN) {
     return PI_IMAGE_FORMAT_NOT_SUPPORTED;
   }
 
-  int Status = Context->Device->CmDevicePtr->CreateSurface2D(
-      static_cast<unsigned int>(ImageDesc->image_width),
-      static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
-      CmSurface);
+  char *MapBasePtr = nullptr;
+  cm_surface_ptr_t CmImg;
+  cm_support::SurfaceIndex *CmIndex;
+  int Status = cm_support::CM_SUCCESS;
 
-  if (Status != cm_support::CM_SUCCESS) {
-    return PI_OUT_OF_HOST_MEMORY;
-  }
+  if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
+    CmImg.tag = cm_surface_ptr_t::TypeUserProvidedImage;
+    Status = Context->Device->CmDevicePtr->CreateSurface2DUP(
+        static_cast<unsigned int>(ImageDesc->image_width),
+        static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
+        HostPtr, CmImg.UPImgPtr);
+    CmImg.UPImgPtr->GetIndex(CmIndex);
+  } else {
+    CmImg.tag = cm_surface_ptr_t::TypeRegularImage;
+    Status = Context->Device->CmDevicePtr->CreateSurface2D(
+        static_cast<unsigned int>(ImageDesc->image_width),
+        static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
+        CmImg.RegularImgPtr);
+    CmImg.RegularImgPtr->GetIndex(CmIndex);
 
-  Status = CmSurface->GetIndex(CmIndex);
-
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
-  if (PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) !=
-      PiESimdSurfaceMap->end()) {
-    if (PrintPiTrace) {
-      std::cerr << "Failure from CM-managed image creation" << std::endl;
-    }
-    return PI_INVALID_MEM_OBJECT;
-  }
-
-  // Initialize the buffer with user data provided with 'HostPtr'
-  if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
-    if (HostPtr != nullptr) {
-      Status = CmSurface->WriteSurface(
+    if (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
+      CmImg.RegularImgPtr->WriteSurface(
           reinterpret_cast<const unsigned char *>(HostPtr), nullptr,
           static_cast<unsigned int>(ImageDesc->image_width *
                                     ImageDesc->image_height * BytesPerPixel));
     }
   }
 
-  auto HostPtrOrNull =
-      (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) ? nullptr : pi_cast<char *>(HostPtr);
+  if (Status != cm_support::CM_SUCCESS) {
+    return PI_INVALID_OPERATION;
+  }
+
+  MapBasePtr =
+      pi_cast<char *>(cm_support::get_surface_base_addr(CmIndex->get_data()));
 
   try {
-    *RetImage = new _pi_image(Context, HostPtrOrNull, CmSurface,
-                              /* integer surface index */ CmIndex->get_data(),
+    *RetImage = new _pi_image(Context, MapBasePtr, CmImg, CmIndex->get_data(),
                               ImageDesc->image_width, ImageDesc->image_height,
                               BytesPerPixel);
   } catch (const std::bad_alloc &) {
@@ -1234,7 +1264,12 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     return PI_ERROR_UNKNOWN;
   }
 
-  (*PiESimdSurfaceMap)[(unsigned int)CmIndex->get_data()] = *RetImage;
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
+  assert(PiESimdSurfaceMap->find((*RetImage)->SurfaceIndex) ==
+             PiESimdSurfaceMap->end() &&
+         "Failure from CM-managed image creation");
+
+  (*PiESimdSurfaceMap)[(*RetImage)->SurfaceIndex] = *RetImage;
 
   return PI_SUCCESS;
 }
@@ -1243,7 +1278,8 @@ pi_result piextMemGetNativeHandle(pi_mem, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_mem *) {
+pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
+                                         pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1355,6 +1391,12 @@ pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
 pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
                                   size_t ParamValueSize, void *ParamValue,
                                   size_t *ParamValueSizeRet) {
+  ARG_UNUSED(Event);
+  ARG_UNUSED(ParamName);
+  ARG_UNUSED(ParamValueSize);
+  ARG_UNUSED(ParamValue);
+  ARG_UNUSED(ParamValueSizeRet);
+
   if (PrintPiTrace) {
     std::cerr << "Warning : Profiling Not supported under PI_ESIMD_EMULATOR"
               << std::endl;
@@ -1456,11 +1498,18 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
                                  pi_event *Event) {
+  ARG_UNUSED(Queue);
+  ARG_UNUSED(EventWaitList);
+
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
     assert(false &&
            "ESIMD_EMULATOR support for blocking piEnqueueMemBufferRead is NYI");
   }
+
+  assert(Offset == 0 &&
+         "ESIMD_EMULATOR does not support buffer reading with offsets");
+
   if (NumEventsInWaitList != 0) {
     return PI_INVALID_EVENT_WAIT_LIST;
   }
@@ -1473,13 +1522,20 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
     RetEv->IsDummyEvent = true;
   }
 
-  int Status =
-      buf->CmBufferPtr->ReadSurface(reinterpret_cast<unsigned char *>(Dst),
-                                    nullptr, // event
-                                    static_cast<uint64_t>(Size));
+  if (buf->SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedBuffer) {
+    // CM does not provide 'ReadSurface' call for 'User-Provided'
+    // Surface. memcpy is used for BufferRead PI_API call.
+    memcpy(Dst, buf->MapHostPtr, Size);
+  } else {
+    assert(buf->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer);
+    int Status = buf->SurfacePtr.RegularBufPtr->ReadSurface(
+        reinterpret_cast<unsigned char *>(Dst),
+        nullptr, // event
+        static_cast<uint64_t>(Size));
 
-  if (Status != cm_support::CM_SUCCESS) {
-    return PI_INVALID_MEM_OBJECT;
+    if (Status != cm_support::CM_SUCCESS) {
+      return PI_INVALID_MEM_OBJECT;
+    }
   }
 
   if (Event) {
@@ -1531,15 +1587,88 @@ pi_result piEnqueueMemBufferFill(pi_queue, pi_mem, const void *, size_t, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemBufferMap(pi_queue, pi_mem, pi_bool, pi_map_flags, size_t,
-                                size_t, pi_uint32, const pi_event *, pi_event *,
-                                void **) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem MemObj,
+                                pi_bool BlockingMap, pi_map_flags MapFlags,
+                                size_t Offset, size_t Size,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList, pi_event *Event,
+                                void **RetMap) {
+  ARG_UNUSED(Queue);
+  ARG_UNUSED(BlockingMap);
+  ARG_UNUSED(MapFlags);
+  ARG_UNUSED(NumEventsInWaitList);
+  ARG_UNUSED(EventWaitList);
+
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+  pi_result ret = PI_SUCCESS;
+
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
+  // Real mapping does not occur here and CPU-accessible address is
+  // returned as the actual memory space for the buffer is located in
+  // CPU memory and the plug-in know its base address
+  // ('_pi_mem::MapHostPtr')
+  *RetMap = MemObj->MapHostPtr + Offset;
+
+  {
+    std::lock_guard<std::mutex> Lock{MemObj->MappingsMutex};
+    auto Res = MemObj->Mappings.insert({*RetMap, {Offset, Size}});
+    // False as the second value in pair means that mapping was not inserted
+    // because mapping already exists.
+    if (!Res.second) {
+      ret = PI_INVALID_VALUE;
+      if (PrintPiTrace) {
+        std::cerr << "piEnqueueMemBufferMap: duplicate mapping detected"
+                  << std::endl;
+      }
+    }
+  }
+
+  if (Event) {
+    *Event = RetEv.release();
+  }
+  return ret;
 }
 
-pi_result piEnqueueMemUnmap(pi_queue, pi_mem, void *, pi_uint32,
-                            const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
+                            pi_uint32 NumEventsInWaitList,
+                            const pi_event *EventWaitList, pi_event *Event) {
+  ARG_UNUSED(Queue);
+  ARG_UNUSED(NumEventsInWaitList);
+  ARG_UNUSED(EventWaitList);
+
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+  pi_result ret = PI_SUCCESS;
+
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
+  // Real unmapping does not occur here and CPU-accessible address is
+  // returned as the actual memory space for the buffer is located in
+  // CPU memory and the plug-in knows its base address
+  // ('_pi_mem::MapHostPtr')
+  {
+    std::lock_guard<std::mutex> Lock(MemObj->MappingsMutex);
+    auto It = MemObj->Mappings.find(MappedPtr);
+    if (It == MemObj->Mappings.end()) {
+      ret = PI_INVALID_VALUE;
+      if (PrintPiTrace) {
+        std::cerr << "piEnqueueMemUnmap: unknown memory mapping" << std::endl;
+      }
+    }
+    MemObj->Mappings.erase(It);
+  }
+
+  if (Event) {
+    *Event = RetEv.release();
+  }
+
+  return ret;
 }
 
 pi_result piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *, size_t *) {
@@ -1553,10 +1682,23 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
                                 pi_uint32 NumEventsInWaitList,
                                 const pi_event *EventWaitList,
                                 pi_event *Event) {
+  ARG_UNUSED(CommandQueue);
+  ARG_UNUSED(NumEventsInWaitList);
+  ARG_UNUSED(EventWaitList);
+
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
     assert(false && "ESIMD_EMULATOR does not support Blocking Read");
   }
+
+  // SlicePitch is for 3D image while ESIMD_EMULATOR does not
+  // support. For 2D surfaces, SlicePitch must be 0.
+  assert((SlicePitch == 0) && "ESIMD_EMULATOR does not support 3D-image");
+
+  // CM_EMU does not support ReadSurface with offset
+  assert(Origin->x == 0 && Origin->y == 0 && Origin->z == 0 &&
+         "ESIMD_EMULATOR does not support 2D-image reading with offsets");
+
   _pi_image *PiImg = static_cast<_pi_image *>(Image);
 
   std::unique_ptr<_pi_event> RetEv{nullptr};
@@ -1566,17 +1708,27 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
     RetEv->IsDummyEvent = true;
   }
 
-  int Status =
-      PiImg->CmSurfacePtr->ReadSurface(reinterpret_cast<unsigned char *>(Ptr),
-                                       nullptr, // event
-                                       RowPitch * (Region->height));
-  if (Status != cm_support::CM_SUCCESS) {
-    return PI_INVALID_MEM_OBJECT;
+  size_t Size = RowPitch * (Region->height);
+  if (PiImg->SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedImage) {
+    // CM does not provide 'ReadSurface' call for 'User-Provided'
+    // Surface. memcpy is used for ImageRead PI_API call.
+    memcpy(Ptr, PiImg->MapHostPtr, Size);
+  } else {
+    assert(PiImg->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage);
+    int Status = PiImg->SurfacePtr.RegularImgPtr->ReadSurface(
+        reinterpret_cast<unsigned char *>(Ptr),
+        nullptr, // event
+        static_cast<uint64_t>(Size));
+
+    if (Status != cm_support::CM_SUCCESS) {
+      return PI_INVALID_MEM_OBJECT;
+    }
   }
 
   if (Event) {
     *Event = RetEv.release();
   }
+
   return PI_SUCCESS;
 }
 
@@ -1609,6 +1761,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                       pi_uint32 NumEventsInWaitList,
                       const pi_event *EventWaitList, pi_event *Event) {
+  ARG_UNUSED(Queue);
+  ARG_UNUSED(NumEventsInWaitList);
+  ARG_UNUSED(EventWaitList);
 
   const size_t LocalWorkSz[] = {1, 1, 1};
 
@@ -1696,12 +1851,21 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
                               pi_usm_mem_properties *Properties, size_t Size,
                               pi_uint32 Alignment) {
+  ARG_UNUSED(Properties);
+  ARG_UNUSED(Alignment);
+
   if (Context == nullptr || (Device != Context->Device)) {
     return PI_INVALID_CONTEXT;
   }
 
   if (ResultPtr == nullptr) {
     return PI_INVALID_OPERATION;
+  }
+
+  // 'Size' must be power of two in order to prevent memory corruption
+  // error
+  if ((Size & (Size - 1)) != 0) {
+    Size = sycl::detail::getNextPowerOfTwo(Size);
   }
 
   cm_support::CmBufferSVM *Buf = nullptr;
@@ -1713,6 +1877,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
     return PI_OUT_OF_HOST_MEMORY;
   }
   *ResultPtr = SystemMemPtr;
+  std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
   auto Iter = Context->Addr2CmBufferSVM.find(SystemMemPtr);
   if (Context->Addr2CmBufferSVM.end() != Iter) {
     return PI_INVALID_MEM_OBJECT;
@@ -1729,6 +1894,7 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
     return PI_INVALID_OPERATION;
   }
 
+  std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
   cm_support::CmBufferSVM *Buf = Context->Addr2CmBufferSVM[Ptr];
   if (Buf == nullptr) {
     return PI_INVALID_MEM_OBJECT;
@@ -1763,8 +1929,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_info, size_t,
-                                  void *, size_t *) {
+pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
+                                  size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1810,8 +1976,11 @@ pi_result piTearDown(void *) {
       PiESimdDeviceAccess->data);
   delete PiESimdDeviceAccess;
 
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
   for (auto it = PiESimdSurfaceMap->begin(); it != PiESimdSurfaceMap->end();) {
+    auto Mem = it->second;
+    if (Mem != nullptr) {
+      delete Mem;
+    } // else { /* Null-entry for SLM_BTI */ }
     it = PiESimdSurfaceMap->erase(it);
   }
   return PI_SUCCESS;
@@ -1834,6 +2003,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   PiESimdDeviceAccess->version = ESIMDEmuPluginDataVersion;
   PiESimdDeviceAccess->data =
       reinterpret_cast<void *>(new sycl::detail::ESIMDDeviceInterface());
+
+  // Registering pre-defined surface index dedicated for SLM
+  (*PiESimdSurfaceMap)[__ESIMD_DNS::SLM_BTI] = nullptr;
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);

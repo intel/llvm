@@ -152,7 +152,7 @@ writing, the following sync-ups are organized:
      - Minutes/docs link
    * - Loop Optimization Working Group
      - Every 2 weeks on Wednesday
-     - 
+     - `ics <./_static/LoopOptWG_invite.ics>`__
      - `Minutes/docs <https://docs.google.com/document/d/1sdzoyB11s0ccTZ3fobqctDpgJmRoFcz0sviKxqczs4g/edit>`__
    * - RISC-V
      - Every 2 weeks on Thursday
@@ -244,7 +244,7 @@ don't find anyone present, chances are they happen to be off that day.
   * - Kristof Beyls
     - General questions on how to contribute to LLVM; organizing meetups;
       submitting talks; and other general LLVM-related topics. Arm/AArch64
-      codegen.
+      codegen. LLVM security group.
     - Every 2nd and 4th Wednesday of the month at 9.30am CET, for 30 minutes.
       `ics <https://calendar.google.com/calendar/ical/co0h4ndpvtfe64opn7eraiq3ac%40group.calendar.google.com/public/basic.ics>`__
     - `Jitsi <https://meet.jit.si/KristofBeylsLLVMOfficeHour>`__

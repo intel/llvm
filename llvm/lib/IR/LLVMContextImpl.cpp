@@ -255,8 +255,12 @@ bool LLVMContextImpl::hasOpaquePointersValue() {
 
 bool LLVMContextImpl::getOpaquePointers() {
   if (LLVM_UNLIKELY(!(OpaquePointers.hasValue())))
-    OpaquePointers = false;
+    OpaquePointers = OpaquePointersCL;
   return *OpaquePointers;
 }
 
-void LLVMContextImpl::setOpaquePointers(bool OP) { OpaquePointers = OP; }
+void LLVMContextImpl::setOpaquePointers(bool OP) {
+  assert((!OpaquePointers.hasValue() || OpaquePointers.getValue() == OP) &&
+         "Cannot change opaque pointers mode once set");
+  OpaquePointers = OP;
+}

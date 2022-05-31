@@ -129,6 +129,13 @@ llvm.mlir.global @has_dso_local(42 : i64) {dso_local} : i64
 // CHECK: @has_dso_local = dso_local global i64 42
 
 //
+// thr_local attribute.
+//
+
+llvm.mlir.global thread_local @has_thr_local(42 : i64) : i64
+// CHECK: @has_thr_local = thread_local global i64 42
+
+//
 // Section attribute.
 //
 
@@ -1054,6 +1061,11 @@ llvm.func @byvalattr(%arg0: !llvm.ptr<i32> {llvm.byval}) {
 
 // CHECK-LABEL: define void @sretattr(i32* sret(i32) %
 llvm.func @sretattr(%arg0: !llvm.ptr<i32> {llvm.sret}) {
+  llvm.return
+}
+
+// CHECK-LABEL: define void @nestattr(i32* nest %
+llvm.func @nestattr(%arg0: !llvm.ptr<i32> {llvm.nest}) {
   llvm.return
 }
 

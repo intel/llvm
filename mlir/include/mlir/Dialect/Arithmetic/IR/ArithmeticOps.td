@@ -124,9 +124,7 @@ class Arith_CompareOpOfAnyRank<string mnemonic, list<Trait> traits = []> :
 def Arith_ConstantOp : Op<Arithmetic_Dialect, "constant",
     [ConstantLike, NoSideEffect,
      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-     TypesMatchWith<
-    "result and attribute have the same type",
-    "value", "result", "$_self">]> {
+     AllTypesMatch<["value", "result"]>]> {
   let summary = "integer or floating point constant";
   let description = [{
     The `constant` operation produces an SSA value equal to some integer or
@@ -154,8 +152,6 @@ def Arith_ConstantOp : Op<Arithmetic_Dialect, "constant",
   let results = (outs /*SignlessIntegerOrFloatLike*/AnyType:$result);
 
   let builders = [
-    OpBuilder<(ins "Attribute":$value),
-    [{ build($_builder, $_state, value.getType(), value); }]>,
     OpBuilder<(ins "Attribute":$value, "Type":$type),
     [{ build($_builder, $_state, type, value); }]>,
   ];
@@ -532,6 +528,7 @@ def Arith_ShRUIOp : Arith_IntBinaryOp<"shrui"> {
     %3 = arith.shrui %1, %2 : (i8, i8) -> i8   // %3 is 0b00010100
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -556,6 +553,7 @@ def Arith_ShRSIOp : Arith_IntBinaryOp<"shrsi"> {
     %5 = arith.shrsi %4, %2 : (i8, i8) -> i8   // %5 is 0b00001100
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -583,6 +581,7 @@ def Arith_NegFOp : Arith_FloatUnaryOp<"negf"> {
     %x = arith.negf %y : tensor<4x?xf8>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -677,7 +676,7 @@ def Arith_MaxFOp : Arith_FloatBinaryOp<"maxf", [Commutative]> {
 // MaxSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MaxSIOp : Arith_IntBinaryOp<"maxsi"> {
+def Arith_MaxSIOp : Arith_IntBinaryOp<"maxsi", [Commutative]> {
   let summary = "signed integer maximum operation";
   let hasFolder = 1;
 }
@@ -686,7 +685,7 @@ def Arith_MaxSIOp : Arith_IntBinaryOp<"maxsi"> {
 // MaxUIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MaxUIOp : Arith_IntBinaryOp<"maxui"> {
+def Arith_MaxUIOp : Arith_IntBinaryOp<"maxui", [Commutative]> {
   let summary = "unsigned integer maximum operation";
   let hasFolder = 1;
 }
@@ -721,7 +720,7 @@ def Arith_MinFOp : Arith_FloatBinaryOp<"minf", [Commutative]> {
 // MinSIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MinSIOp : Arith_IntBinaryOp<"minsi"> {
+def Arith_MinSIOp : Arith_IntBinaryOp<"minsi", [Commutative]> {
   let summary = "signed integer minimum operation";
   let hasFolder = 1;
 }
@@ -730,7 +729,7 @@ def Arith_MinSIOp : Arith_IntBinaryOp<"minsi"> {
 // MinUIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MinUIOp : Arith_IntBinaryOp<"minui"> {
+def Arith_MinUIOp : Arith_IntBinaryOp<"minui", [Commutative]> {
   let summary = "unsigned integer minimum operation";
   let hasFolder = 1;
 }

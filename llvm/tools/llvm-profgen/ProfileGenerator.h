@@ -12,6 +12,7 @@
 #include "ErrorHandling.h"
 #include "PerfReader.h"
 #include "ProfiledBinary.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/ProfileData/SampleProfWriter.h"
 #include <memory>
 #include <unordered_set>
@@ -32,12 +33,19 @@ class ProfileGeneratorBase {
 
 public:
   ProfileGeneratorBase(ProfiledBinary *Binary,
-                       const ContextSampleCounterMap &Counters)
+                       const ContextSampleCounterMap *Counters)
       : Binary(Binary), SampleCounters(Counters){};
+  ProfileGeneratorBase(ProfiledBinary *Binary,
+                       const SampleProfileMap &&Profiles)
+      : Binary(Binary), ProfileMap(std::move(Profiles)){};
+
   virtual ~ProfileGeneratorBase() = default;
   static std::unique_ptr<ProfileGeneratorBase>
-  create(ProfiledBinary *Binary, const ContextSampleCounterMap &SampleCounters,
-         bool ProfileIsCSFlat);
+  create(ProfiledBinary *Binary, const ContextSampleCounterMap *Counters,
+         bool profileIsCS);
+  static std::unique_ptr<ProfileGeneratorBase>
+  create(ProfiledBinary *Binary, const SampleProfileMap &&ProfileMap,
+         bool profileIsCS);
   virtual void generateProfile() = 0;
   void write();
 
@@ -105,25 +113,29 @@ protected:
 
   void showDensitySuggestion(double Density);
 
+  void collectProfiledFunctions();
+
   // Thresholds from profile summary to answer isHotCount/isColdCount queries.
   uint64_t HotCountThreshold;
 
   uint64_t ColdCountThreshold;
 
+  ProfiledBinary *Binary = nullptr;
+
   // Used by SampleProfileWriter
   SampleProfileMap ProfileMap;
 
-  ProfiledBinary *Binary = nullptr;
-
-  const ContextSampleCounterMap &SampleCounters;
+  const ContextSampleCounterMap *SampleCounters = nullptr;
 };
 
 class ProfileGenerator : public ProfileGeneratorBase {
 
 public:
   ProfileGenerator(ProfiledBinary *Binary,
-                   const ContextSampleCounterMap &Counters)
+                   const ContextSampleCounterMap *Counters)
       : ProfileGeneratorBase(Binary, Counters){};
+  ProfileGenerator(ProfiledBinary *Binary, const SampleProfileMap &&Profiles)
+      : ProfileGeneratorBase(Binary, std::move(Profiles)){};
   void generateProfile() override;
 
 private:
@@ -140,9 +152,10 @@ private:
   void populateBodySamplesForAllFunctions(const RangeSample &RangeCounter);
   void
   populateBoundarySamplesForAllFunctions(const BranchSample &BranchCounters);
-  void populateBodySamplesWithProbesForAllFunctions(const RangeSample &RangeCounter);
   void
-  populateBoundarySamplesWithProbesForAllFunctions(const BranchSample &BranchCounters);
+  populateBodySamplesWithProbesForAllFunctions(const RangeSample &RangeCounter);
+  void populateBoundarySamplesWithProbesForAllFunctions(
+      const BranchSample &BranchCounters);
   void postProcessProfiles();
   void trimColdProfiles(const SampleProfileMap &Profiles,
                         uint64_t ColdCntThreshold);
@@ -151,9 +164,10 @@ private:
 class CSProfileGenerator : public ProfileGeneratorBase {
 public:
   CSProfileGenerator(ProfiledBinary *Binary,
-                     const ContextSampleCounterMap &Counters)
+                     const ContextSampleCounterMap *Counters)
       : ProfileGeneratorBase(Binary, Counters){};
-
+  CSProfileGenerator(ProfiledBinary *Binary, const SampleProfileMap &&Profiles)
+      : ProfileGeneratorBase(Binary, std::move(Profiles)){};
   void generateProfile() override;
 
   // Trim the context stack at a given depth.
@@ -287,7 +301,7 @@ private:
   void populateBodySamplesForFunction(FunctionSamples &FunctionProfile,
                                       const RangeSample &RangeCounters);
   void populateBoundarySamplesForFunction(SampleContextFrames ContextId,
-                                          FunctionSamples &FunctionProfile,
+                                          FunctionSamples *CallerProfile,
                                           const BranchSample &BranchCounters);
   void populateInferredFunctionSamples();
 

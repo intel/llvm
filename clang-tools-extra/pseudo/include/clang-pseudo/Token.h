@@ -29,6 +29,7 @@
 #define CLANG_PSEUDO_TOKEN_H
 
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/LangStandard.h"
 #include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -72,6 +73,20 @@ struct Token {
   }
   template <class T> void setFlag(T Mask) {
     Flags |= uint8_t{static_cast<std::underlying_type_t<T>>(Mask)};
+  }
+
+  /// Returns the next token in the stream. this may not be a sentinel.
+  const Token &next() const {
+    assert(Kind != tok::eof);
+    return *(this + 1);
+  }
+  /// Returns the next token in the stream, skipping over comments.
+  const Token &nextNC() const {
+    const Token *T = this;
+    do
+      T = &T->next();
+    while (T->Kind == tok::comment);
+    return *T;
   }
 
   /// The type of token as determined by clang's lexer.
@@ -179,6 +194,10 @@ enum class LexFlags : uint8_t {
   /// The text() of such tokens will contain the raw trigrah.
   NeedsCleaning = 1 << 1,
 };
+/// A generic lang options suitable for lexing/parsing a langage.
+clang::LangOptions genericLangOpts(
+    clang::Language = clang::Language::CXX,
+    clang::LangStandard::Kind = clang::LangStandard::lang_unspecified);
 
 /// Derives a token stream by decoding escapes, interpreting raw_identifiers and
 /// splitting the greatergreater token.

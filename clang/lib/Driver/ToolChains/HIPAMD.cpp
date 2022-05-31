@@ -47,7 +47,7 @@ static bool shouldSkipSanitizeOption(const ToolChain &TC,
     return false;
 
   if (!DriverArgs.hasFlag(options::OPT_fgpu_sanitize,
-                          options::OPT_fno_gpu_sanitize))
+                          options::OPT_fno_gpu_sanitize, true))
     return true;
 
   auto &Diags = TC.getDriver().getDiags();
@@ -72,18 +72,44 @@ static bool shouldSkipSanitizeOption(const ToolChain &TC,
   return false;
 }
 
+void AMDGCN::Linker::constructLlvmLinkCommand(Compilation &C,
+                                         const JobAction &JA,
+                                         const InputInfoList &Inputs,
+                                         const InputInfo &Output,
+                                         const llvm::opt::ArgList &Args) const {
+  // Construct llvm-link command.
+  // The output from llvm-link is a bitcode file.
+  ArgStringList LlvmLinkArgs;
+
+  assert(!Inputs.empty() && "Must have at least one input.");
+
+  LlvmLinkArgs.append({"-o", Output.getFilename()});
+  for (auto Input : Inputs)
+    LlvmLinkArgs.push_back(Input.getFilename());
+
+  // Look for archive of bundled bitcode in arguments, and add temporary files
+  // for the extracted archive of bitcode to inputs.
+  auto TargetID = Args.getLastArgValue(options::OPT_mcpu_EQ);
+  AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, LlvmLinkArgs, "amdgcn",
+                             TargetID,
+                             /*IsBitCodeSDL=*/true,
+                             /*PostClangLink=*/false);
+
+  const char *LlvmLink =
+    Args.MakeArgString(getToolChain().GetProgramPath("llvm-link"));
+  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
+                                         LlvmLink, LlvmLinkArgs, Inputs,
+                                         Output));
+}
+
 void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
                                          const InputInfoList &Inputs,
                                          const InputInfo &Output,
                                          const llvm::opt::ArgList &Args) const {
   // Construct lld command.
   // The output from ld.lld is an HSA code object file.
-  ArgStringList LldArgs{"-flavor",
-                        "gnu",
-                        "--no-undefined",
-                        "-shared",
-                        "-plugin-opt=-amdgpu-internalize-symbols",
-                        "-plugin-opt=-sycl-enable-local-accessor"};
+  ArgStringList LldArgs{"-flavor", "gnu", "--no-undefined", "-shared",
+                        "-plugin-opt=-amdgpu-internalize-symbols"};
 
   auto &TC = getToolChain();
   auto &D = TC.getDriver();
@@ -139,7 +165,8 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
 }
 
 // For amdgcn the inputs of the linker job are device bitcode and output is
-// object file. It calls llvm-link, opt, llc, then lld steps.
+// either an object file or bitcode (-emit-llvm). It calls llvm-link, opt,
+// llc, then lld steps.
 void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -155,6 +182,9 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     return HIP::constructHIPFatbinCommand(C, JA, Output.getFilename(), Inputs,
                                           Args, *this);
 
+  if (JA.getType() == types::TY_LLVM_BC)
+    return constructLlvmLinkCommand(C, JA, Inputs, Output, Args);
+
   return constructLldCommand(C, JA, Inputs, Output, Args);
 }
 
@@ -167,7 +197,8 @@ HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported sanitizer options only once.
-  if (!Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize))
+  if (!Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize,
+                    true))
     return;
   for (auto A : Args.filtered(options::OPT_fsanitize_EQ)) {
     SanitizerMask K = parseSanitizerValue(A->getValue(), /*AllowGroups=*/false);
@@ -410,7 +441,7 @@ HIPAMDToolChain::getHIPDeviceLibs(
 
     // If --hip-device-lib is not set, add the default bitcode libraries.
     if (DriverArgs.hasFlag(options::OPT_fgpu_sanitize,
-                           options::OPT_fno_gpu_sanitize) &&
+                           options::OPT_fno_gpu_sanitize, true) &&
         getSanitizerArgs(DriverArgs).needsAsanRt()) {
       auto AsanRTL = RocmInstallation.getAsanRTLPath();
       if (AsanRTL.empty()) {

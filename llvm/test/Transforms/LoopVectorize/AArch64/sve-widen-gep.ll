@@ -10,11 +10,14 @@ target triple = "aarch64-unknown-linux-gnu"
 ; CHECK:        VPlan 'Initial VPlan for VF={vscale x 2},UF>=1' {
 ; CHECK-NEXT:   Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
 ; CHECK-EMPTY:
+; CHECK-NEXT: vector.ph:
+; CHECK-NEXT: Successor(s): vector loop
+; CHECK-EMPTY:
 ; CHECK-NEXT:   <x1> vector loop: {
-; CHECK-NEXT:   loop.body:
+; CHECK-NEXT:   vector.body:
 ; CHECK-NEXT:     EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
-; CHECK-NEXT:     WIDEN-PHI %ptr.iv.1 = phi %start.1, %ptr.iv.1.next
-; CHECK-NEXT:     WIDEN-PHI %ptr.iv.2 = phi %start.2, %ptr.iv.2.next
+; CHECK-NEXT:     EMIT ir<%ptr.iv.1> = WIDEN-POINTER-INDUCTION ir<%start.1>, 1
+; CHECK-NEXT:     EMIT ir<%ptr.iv.2> = WIDEN-POINTER-INDUCTION ir<%start.2>, 1
 ; CHECK-NEXT:     WIDEN-GEP Var[Inv] ir<%ptr.iv.2.next> = getelementptr ir<%ptr.iv.2>, ir<1>
 ; CHECK-NEXT:     WIDEN store ir<%ptr.iv.1>, ir<%ptr.iv.2.next>
 ; CHECK-NEXT:     WIDEN ir<%lv> = load ir<%ptr.iv.2>

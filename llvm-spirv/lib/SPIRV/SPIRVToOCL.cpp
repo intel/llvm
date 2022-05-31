@@ -580,10 +580,8 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
         auto &P = Args[Args.size() - 3];
         auto T = P->getType();
         assert(isa<PointerType>(T));
-        auto ET = T->getPointerElementType();
-        if (!ET->isIntegerTy(8) ||
-            T->getPointerAddressSpace() != SPIRAS_Generic) {
-          auto NewTy = PointerType::getInt8PtrTy(*Ctx, SPIRAS_Generic);
+        auto *NewTy = PointerType::getInt8PtrTy(*Ctx, SPIRAS_Generic);
+        if (T != NewTy) {
           P = CastInst::CreatePointerBitCastOrAddrSpaceCast(P, NewTy, "", CI);
         }
         return DemangledName;
@@ -926,15 +924,17 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
         // reference image
         // 3. With single reference image - uses one OpVmeImageINTEL opcode for
         // reference image
-        int NumImages = std::count_if(Args.begin(), Args.end(), [](Value *Arg) {
-          if (auto *PT = dyn_cast<PointerType>(Arg->getType())) {
-            if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType())) {
-              if (ST->getName().startswith("spirv.VmeImageINTEL"))
-                return true;
-            }
-          }
-          return false;
-        });
+        StringRef FnName = CI->getCalledFunction()->getName();
+        int NumImages = 0;
+        if (FnName.contains("SingleReference"))
+          NumImages = 2;
+        else if (FnName.contains("DualReference"))
+          NumImages = 3;
+        else if (FnName.contains("MultiReference"))
+          NumImages = 1;
+        else if (FnName.contains("EvaluateIpe"))
+          NumImages = 1;
+
         auto EraseVmeImageCall = [](CallInst *CI) {
           if (CI->hasOneUse()) {
             CI->replaceAllUsesWith(UndefValue::get(CI->getType()));
@@ -1267,6 +1267,21 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
       continue;
 
     S->setName(OCLOpaqueName);
+  }
+}
+
+void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,
+                             SPIRV::BIsRepresentation BIsRep) {
+  switch (BIsRep) {
+  case SPIRV::BIsRepresentation::OpenCL12:
+    PassMgr.addPass(SPIRVToOCL12Pass());
+    break;
+  case SPIRV::BIsRepresentation::OpenCL20:
+    PassMgr.addPass(SPIRVToOCL20Pass());
+    break;
+  case SPIRV::BIsRepresentation::SPIRVFriendlyIR:
+    // nothing to do, already done
+    break;
   }
 }
 

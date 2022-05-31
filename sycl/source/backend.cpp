@@ -77,24 +77,42 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
       std::make_shared<context_impl>(PiContext, Handler, Plugin));
 }
 
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context,
-                               const async_handler &Handler, backend Backend) {
-  return make_queue(NativeHandle, Context, false, Handler, Backend);
-}
-
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context, bool KeepOwnership,
-                               const async_handler &Handler, backend Backend) {
+queue make_queue_impl(pi_native_handle NativeHandle, const context &Context,
+                      RT::PiDevice Device, bool KeepOwnership,
+                      const async_handler &Handler, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiQueue, !KeepOwnership);
+      NativeHandle, ContextImpl->getHandleRef(), Device, !KeepOwnership,
+      &PiQueue);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context,
+                               const async_handler &Handler, backend Backend) {
+  return make_queue_impl(NativeHandle, Context, nullptr, false, Handler,
+                         Backend);
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context, bool KeepOwnership,
+                               const async_handler &Handler, backend Backend) {
+  return make_queue_impl(NativeHandle, Context, nullptr, KeepOwnership, Handler,
+                         Backend);
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context, const device &Device,
+                               bool KeepOwnership, const async_handler &Handler,
+                               backend Backend) {
+  const auto &DeviceImpl = getSyclObjImpl(Device);
+  return make_queue_impl(NativeHandle, Context, DeviceImpl->getHandleRef(),
+                         KeepOwnership, Handler, Backend);
 }
 
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -112,8 +130,12 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
   Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
 
-  return detail::createSyclObjFromImpl<event>(
+  event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(PiEvent, Context));
+
+  if (Backend == backend::opencl)
+    Plugin.call<PiApiKind::piEventRetain>(PiEvent);
+  return Event;
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>

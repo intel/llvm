@@ -64,221 +64,15 @@ unsigned getShortArithOpcode(unsigned Opcode) {
   return X86::getShortOpcodeArith(Opcode);
 }
 
-bool isADD(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::ADD16i16:
-  case X86::ADD16mi:
-  case X86::ADD16mi8:
-  case X86::ADD16mr:
-  case X86::ADD16ri:
-  case X86::ADD16ri8:
-  case X86::ADD16ri8_DB:
-  case X86::ADD16ri_DB:
-  case X86::ADD16rm:
-  case X86::ADD16rr:
-  case X86::ADD16rr_DB:
-  case X86::ADD16rr_REV:
-  case X86::ADD32i32:
-  case X86::ADD32mi:
-  case X86::ADD32mi8:
-  case X86::ADD32mr:
-  case X86::ADD32ri:
-  case X86::ADD32ri8:
-  case X86::ADD32ri8_DB:
-  case X86::ADD32ri_DB:
-  case X86::ADD32rm:
-  case X86::ADD32rr:
-  case X86::ADD32rr_DB:
-  case X86::ADD32rr_REV:
-  case X86::ADD64i32:
-  case X86::ADD64mi32:
-  case X86::ADD64mi8:
-  case X86::ADD64mr:
-  case X86::ADD64ri32:
-  case X86::ADD64ri32_DB:
-  case X86::ADD64ri8:
-  case X86::ADD64ri8_DB:
-  case X86::ADD64rm:
-  case X86::ADD64rr:
-  case X86::ADD64rr_DB:
-  case X86::ADD64rr_REV:
-  case X86::ADD8i8:
-  case X86::ADD8mi:
-  case X86::ADD8mi8:
-  case X86::ADD8mr:
-  case X86::ADD8ri:
-  case X86::ADD8ri8:
-  case X86::ADD8rm:
-  case X86::ADD8rr:
-  case X86::ADD8rr_REV:
-    return true;
-  }
-}
-
-bool isAND(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::AND16i16:
-  case X86::AND16mi:
-  case X86::AND16mi8:
-  case X86::AND16mr:
-  case X86::AND16ri:
-  case X86::AND16ri8:
-  case X86::AND16rm:
-  case X86::AND16rr:
-  case X86::AND16rr_REV:
-  case X86::AND32i32:
-  case X86::AND32mi:
-  case X86::AND32mi8:
-  case X86::AND32mr:
-  case X86::AND32ri:
-  case X86::AND32ri8:
-  case X86::AND32rm:
-  case X86::AND32rr:
-  case X86::AND32rr_REV:
-  case X86::AND64i32:
-  case X86::AND64mi32:
-  case X86::AND64mi8:
-  case X86::AND64mr:
-  case X86::AND64ri32:
-  case X86::AND64ri8:
-  case X86::AND64rm:
-  case X86::AND64rr:
-  case X86::AND64rr_REV:
-  case X86::AND8i8:
-  case X86::AND8mi:
-  case X86::AND8mi8:
-  case X86::AND8mr:
-  case X86::AND8ri:
-  case X86::AND8ri8:
-  case X86::AND8rm:
-  case X86::AND8rr:
-  case X86::AND8rr_REV:
-    return true;
-  }
-}
-
-bool isCMP(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::CMP16i16:
-  case X86::CMP16mi:
-  case X86::CMP16mi8:
-  case X86::CMP16mr:
-  case X86::CMP16ri:
-  case X86::CMP16ri8:
-  case X86::CMP16rm:
-  case X86::CMP16rr:
-  case X86::CMP16rr_REV:
-  case X86::CMP32i32:
-  case X86::CMP32mi:
-  case X86::CMP32mi8:
-  case X86::CMP32mr:
-  case X86::CMP32ri:
-  case X86::CMP32ri8:
-  case X86::CMP32rm:
-  case X86::CMP32rr:
-  case X86::CMP32rr_REV:
-  case X86::CMP64i32:
-  case X86::CMP64mi32:
-  case X86::CMP64mi8:
-  case X86::CMP64mr:
-  case X86::CMP64ri32:
-  case X86::CMP64ri8:
-  case X86::CMP64rm:
-  case X86::CMP64rr:
-  case X86::CMP64rr_REV:
-  case X86::CMP8i8:
-  case X86::CMP8mi:
-  case X86::CMP8mi8:
-  case X86::CMP8mr:
-  case X86::CMP8ri:
-  case X86::CMP8ri8:
-  case X86::CMP8rm:
-  case X86::CMP8rr:
-  case X86::CMP8rr_REV:
-    return true;
-  }
-}
-
-bool isSUB(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::SUB16i16:
-  case X86::SUB16mi:
-  case X86::SUB16mi8:
-  case X86::SUB16mr:
-  case X86::SUB16ri:
-  case X86::SUB16ri8:
-  case X86::SUB16rm:
-  case X86::SUB16rr:
-  case X86::SUB16rr_REV:
-  case X86::SUB32i32:
-  case X86::SUB32mi:
-  case X86::SUB32mi8:
-  case X86::SUB32mr:
-  case X86::SUB32ri:
-  case X86::SUB32ri8:
-  case X86::SUB32rm:
-  case X86::SUB32rr:
-  case X86::SUB32rr_REV:
-  case X86::SUB64i32:
-  case X86::SUB64mi32:
-  case X86::SUB64mi8:
-  case X86::SUB64mr:
-  case X86::SUB64ri32:
-  case X86::SUB64ri8:
-  case X86::SUB64rm:
-  case X86::SUB64rr:
-  case X86::SUB64rr_REV:
-  case X86::SUB8i8:
-  case X86::SUB8mi:
-  case X86::SUB8mi8:
-  case X86::SUB8mr:
-  case X86::SUB8ri:
-  case X86::SUB8ri8:
-  case X86::SUB8rm:
-  case X86::SUB8rr:
-  case X86::SUB8rr_REV:
-    return true;
-  }
-}
-
-bool isTEST(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::TEST16i16:
-  case X86::TEST16mi:
-  case X86::TEST16mr:
-  case X86::TEST16ri:
-  case X86::TEST16rr:
-  case X86::TEST32i32:
-  case X86::TEST32mi:
-  case X86::TEST32mr:
-  case X86::TEST32ri:
-  case X86::TEST32rr:
-  case X86::TEST64i32:
-  case X86::TEST64mi32:
-  case X86::TEST64mr:
-  case X86::TEST64ri32:
-  case X86::TEST64rr:
-  case X86::TEST8i8:
-  case X86::TEST8mi:
-  case X86::TEST8mr:
-  case X86::TEST8ri:
-  case X86::TEST8rr:
-    return true;
-  }
-}
-
 bool isMOVSX64rm32(const MCInst &Inst) {
   return Inst.getOpcode() == X86::MOVSX64rm32;
+}
+
+bool isADD64rr(const MCInst &Inst) { return Inst.getOpcode() == X86::ADD64rr; }
+
+bool isADDri(const MCInst &Inst) {
+  return Inst.getOpcode() == X86::ADD64ri32 ||
+         Inst.getOpcode() == X86::ADD64ri8;
 }
 
 class X86MCPlusBuilder : public MCPlusBuilder {
@@ -291,34 +85,15 @@ public:
     return Analysis->isBranch(Inst) && !isTailCall(Inst);
   }
 
-  bool isUnconditionalBranch(const MCInst &Inst) const override {
-    return Analysis->isUnconditionalBranch(Inst) && !isTailCall(Inst);
-  }
-
   bool isNoop(const MCInst &Inst) const override {
-    switch (Inst.getOpcode()) {
-    case X86::NOOP:
-    case X86::NOOPL:
-    case X86::NOOPLr:
-    case X86::NOOPQ:
-    case X86::NOOPQr:
-    case X86::NOOPW:
-    case X86::NOOPWr:
-      return true;
-    }
-    return false;
+    return X86::isNOP(Inst.getOpcode());
   }
 
   unsigned getCondCode(const MCInst &Inst) const override {
-    switch (Inst.getOpcode()) {
-    default:
-      return X86::COND_INVALID;
-    case X86::JCC_1:
-    case X86::JCC_2:
-    case X86::JCC_4:
-      return Inst.getOperand(Info->get(Inst.getOpcode()).NumOperands - 1)
-          .getImm();
-    }
+    unsigned Opcode = Inst.getOpcode();
+    if (X86::isJCC(Opcode))
+      return Inst.getOperand(Info->get(Opcode).NumOperands - 1).getImm();
+    return X86::COND_INVALID;
   }
 
   unsigned getInvertedCondCode(unsigned CC) const override {
@@ -406,13 +181,8 @@ public:
   }
 
   bool isPrefix(const MCInst &Inst) const override {
-    switch (Inst.getOpcode()) {
-    case X86::LOCK_PREFIX:
-    case X86::REPNE_PREFIX:
-    case X86::REP_PREFIX:
-      return true;
-    }
-    return false;
+    const MCInstrDesc &Desc = Info->get(Inst.getOpcode());
+    return X86II::isPrefix(Desc.TSFlags);
   }
 
   bool isRep(const MCInst &Inst) const override {
@@ -429,21 +199,9 @@ public:
 
   // FIXME: For compatibility with old LLVM only!
   bool isTerminator(const MCInst &Inst) const override {
-    if (Info->get(Inst.getOpcode()).isTerminator())
-      return true;
-    switch (Inst.getOpcode()) {
-    default:
-      return false;
-    case X86::TRAP:
-    // Opcodes previously known as X86::UD2B
-    case X86::UD1Wm:
-    case X86::UD1Lm:
-    case X86::UD1Qm:
-    case X86::UD1Wr:
-    case X86::UD1Lr:
-    case X86::UD1Qr:
-      return true;
-    }
+    unsigned Opcode = Inst.getOpcode();
+    return Info->get(Opcode).isTerminator() || X86::isUD1(Opcode) ||
+           X86::isUD2(Opcode);
   }
 
   bool isIndirectCall(const MCInst &Inst) const override {
@@ -541,17 +299,8 @@ public:
     return 0;
   }
 
-  bool isADD64rr(const MCInst &Inst) const override {
-    return Inst.getOpcode() == X86::ADD64rr;
-  }
-
   bool isSUB(const MCInst &Inst) const override {
-    return ::isSUB(Inst.getOpcode());
-  }
-
-  bool isADDri(const MCInst &Inst) const {
-    return Inst.getOpcode() == X86::ADD64ri32 ||
-           Inst.getOpcode() == X86::ADD64ri8;
+    return X86::isSUB(Inst.getOpcode());
   }
 
   bool isLEA64r(const MCInst &Inst) const override {
@@ -3074,10 +2823,11 @@ public:
 
     // Get the HasLHS value so that iteration can be done
     bool HasLHS;
-    if (isAND(Inst.getOpcode()) || isADD(Inst.getOpcode()) || isSUB(Inst)) {
+    if (X86::isAND(Inst.getOpcode()) || X86::isADD(Inst.getOpcode()) ||
+        X86::isSUB(Inst.getOpcode())) {
       HasLHS = true;
-    } else if (isPop(Inst) || isPush(Inst) || isCMP(Inst.getOpcode()) ||
-               isTEST(Inst.getOpcode())) {
+    } else if (isPop(Inst) || isPush(Inst) || X86::isCMP(Inst.getOpcode()) ||
+               X86::isTEST(Inst.getOpcode())) {
       HasLHS = false;
     } else {
       switch (Inst.getOpcode()) {

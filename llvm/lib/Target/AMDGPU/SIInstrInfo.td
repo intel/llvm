@@ -466,50 +466,36 @@ def load_local_m0 : PatFrag<(ops node:$ptr), (load_glue node:$ptr)> {
   let IsNonExtLoad = 1;
 }
 
-let MemoryVT = i8 in {
 def extloadi8_local_m0 : PatFrag<(ops node:$ptr), (extloadi8_glue node:$ptr)>;
 def sextloadi8_local_m0 : PatFrag<(ops node:$ptr), (sextloadi8_glue node:$ptr)>;
 def zextloadi8_local_m0 : PatFrag<(ops node:$ptr), (zextloadi8_glue node:$ptr)>;
-}
 
-let MemoryVT = i16 in {
 def extloadi16_local_m0 : PatFrag<(ops node:$ptr), (extloadi16_glue node:$ptr)>;
 def sextloadi16_local_m0 : PatFrag<(ops node:$ptr), (sextloadi16_glue node:$ptr)>;
 def zextloadi16_local_m0 : PatFrag<(ops node:$ptr), (zextloadi16_glue node:$ptr)>;
-}
+} // End IsLoad = 1, , AddressSpaces = LoadAddress_local.AddrSpaces
 
 def load_align8_local_m0 : PatFrag<(ops node:$ptr),
-                                   (load_local_m0 node:$ptr)>, Aligned<8> {
+                                   (load_local_m0 node:$ptr)> {
   let IsLoad = 1;
-  let IsNonExtLoad = 1;
+  int MinAlignment = 8;
 }
 
 def load_align16_local_m0 : PatFrag<(ops node:$ptr),
-                                   (load_local_m0 node:$ptr)>, Aligned<16> {
+                                   (load_local_m0 node:$ptr)> {
   let IsLoad = 1;
-  let IsNonExtLoad = 1;
+  int MinAlignment = 16;
 }
-
-} // End IsLoad = 1
 
 let IsAtomic = 1, AddressSpaces = LoadAddress_local.AddrSpaces in {
 def atomic_load_8_local_m0 : PatFrag<(ops node:$ptr),
-                                      (atomic_load_8_glue node:$ptr)> {
-  let MemoryVT = i8;
-}
+                                      (atomic_load_8_glue node:$ptr)>;
 def atomic_load_16_local_m0 : PatFrag<(ops node:$ptr),
-                                      (atomic_load_16_glue node:$ptr)> {
-  let MemoryVT = i16;
-}
+                                      (atomic_load_16_glue node:$ptr)>;
 def atomic_load_32_local_m0 : PatFrag<(ops node:$ptr),
-                                      (atomic_load_32_glue node:$ptr)> {
-  let MemoryVT = i32;
-}
+                                      (atomic_load_32_glue node:$ptr)>;
 def atomic_load_64_local_m0 : PatFrag<(ops node:$ptr),
-                                       (atomic_load_64_glue node:$ptr)> {
-  let MemoryVT = i64;
-}
-
+                                       (atomic_load_64_glue node:$ptr)>;
 } // End let AddressSpaces = LoadAddress_local.AddrSpaces
 
 
@@ -543,75 +529,103 @@ def truncstorei8_glue : PatFrag<(ops node:$val, node:$ptr),
                            (truncstore_glue node:$val, node:$ptr)> {
   let IsStore = 1;
   let MemoryVT = i8;
+  let IsTruncStore = 1;
 }
 
 def truncstorei16_glue : PatFrag<(ops node:$val, node:$ptr),
                            (truncstore_glue node:$val, node:$ptr)> {
   let IsStore = 1;
   let MemoryVT = i16;
+  let IsTruncStore = 1;
 }
 
 let IsStore = 1, AddressSpaces = StoreAddress_local.AddrSpaces in {
 def store_local_m0 : PatFrag<(ops node:$val, node:$ptr),
-                             (store_glue node:$val, node:$ptr)> {
-  let IsStore = 1;
-  let IsTruncStore = 0;
-}
-
+                             (store_glue node:$val, node:$ptr)>;
 def truncstorei8_local_m0 : PatFrag<(ops node:$val, node:$ptr),
-                                    (unindexedstore_glue node:$val, node:$ptr)> {
-  let IsStore = 1;
-  let MemoryVT = i8;
-}
-
+                                    (truncstorei8_glue node:$val, node:$ptr)>;
 def truncstorei16_local_m0 : PatFrag<(ops node:$val, node:$ptr),
-                                    (unindexedstore_glue node:$val, node:$ptr)> {
-  let IsStore = 1;
-  let MemoryVT = i16;
-}
+                                    (truncstorei16_glue node:$val, node:$ptr)>;
 }
 
 def store_align8_local_m0 : PatFrag <(ops node:$value, node:$ptr),
                                      (store_local_m0 node:$value, node:$ptr)>,
                             Aligned<8> {
   let IsStore = 1;
-  let IsTruncStore = 0;
 }
 
 def store_align16_local_m0 : PatFrag <(ops node:$value, node:$ptr),
                                      (store_local_m0 node:$value, node:$ptr)>,
                             Aligned<16> {
   let IsStore = 1;
+}
+
+let PredicateCode = [{return cast<MemSDNode>(N)->getAlignment() < 4;}],
+    GISelPredicateCode = [{return (*MI.memoperands_begin())->getAlign() < 4;}],
+    AddressSpaces = [ AddrSpaces.Local ] in {
+def load_align_less_than_4_local : PatFrag<(ops node:$ptr),
+                                           (load_local node:$ptr)> {
+  let IsLoad = 1;
+  let IsNonExtLoad = 1;
+}
+
+def load_align_less_than_4_local_m0 : PatFrag<(ops node:$ptr),
+                                              (load_local_m0 node:$ptr)> {
+  let IsLoad = 1;
+  let IsNonExtLoad = 1;
+}
+
+def store_align_less_than_4_local : PatFrag <(ops node:$value, node:$ptr),
+                                             (store_local node:$value, node:$ptr)> {
+  let IsStore = 1;
   let IsTruncStore = 0;
 }
 
-let AddressSpaces = StoreAddress_local.AddrSpaces in {
+def store_align_less_than_4_local_m0 : PatFrag <(ops node:$value, node:$ptr),
+                                                (store_local_m0 node:$value, node:$ptr)> {
+  let IsStore = 1;
+  let IsTruncStore = 0;
+}
+}
 
-def atomic_store_local_8_m0 : PatFrag <
-  (ops node:$value, node:$ptr),
-  (AMDGPUatomic_st_glue node:$value, node:$ptr)> {
+def atomic_store_8_glue : PatFrag <
+  (ops node:$ptr, node:$value),
+  (AMDGPUatomic_st_glue node:$ptr, node:$value)> {
   let IsAtomic = 1;
   let MemoryVT = i8;
 }
-def atomic_store_local_16_m0 : PatFrag <
-  (ops node:$value, node:$ptr),
-  (AMDGPUatomic_st_glue node:$value, node:$ptr)> {
+
+def atomic_store_16_glue : PatFrag <
+  (ops node:$ptr, node:$value),
+  (AMDGPUatomic_st_glue node:$ptr, node:$value)> {
   let IsAtomic = 1;
   let MemoryVT = i16;
 }
-def atomic_store_local_32_m0 : PatFrag <
-  (ops node:$value, node:$ptr),
-  (AMDGPUatomic_st_glue node:$value, node:$ptr)> {
+
+def atomic_store_32_glue : PatFrag <
+  (ops node:$ptr, node:$value),
+  (AMDGPUatomic_st_glue node:$ptr, node:$value)> {
   let IsAtomic = 1;
   let MemoryVT = i32;
 }
-def atomic_store_local_64_m0 : PatFrag <
-  (ops node:$value, node:$ptr),
-  (AMDGPUatomic_st_glue node:$value, node:$ptr)> {
+
+def atomic_store_64_glue : PatFrag <
+  (ops node:$ptr, node:$value),
+  (AMDGPUatomic_st_glue node:$ptr, node:$value)> {
   let IsAtomic = 1;
   let MemoryVT = i64;
 }
-} // End let AddressSpaces = StoreAddress_local.AddrSpaces
+
+let IsAtomic = 1, AddressSpaces = StoreAddress_local.AddrSpaces in {
+def atomic_store_8_local_m0 : PatFrag<(ops node:$ptr, node:$val),
+                                       (atomic_store_8_glue node:$ptr, node:$val)>;
+def atomic_store_16_local_m0 : PatFrag<(ops node:$ptr, node:$val),
+                                       (atomic_store_16_glue node:$ptr, node:$val)>;
+def atomic_store_32_local_m0 : PatFrag<(ops node:$ptr, node:$val),
+                                       (atomic_store_32_glue node:$ptr, node:$val)>;
+def atomic_store_64_local_m0 : PatFrag<(ops node:$ptr, node:$val),
+                                       (atomic_store_64_glue node:$ptr, node:$val)>;
+} // End let IsAtomic = 1, AddressSpaces = StoreAddress_local.AddrSpaces
 
 
 def si_setcc_uniform : PatFrag <
@@ -1016,6 +1030,12 @@ def SWaitMatchClass : AsmOperandClass {
   let ParserMethod = "parseSWaitCntOps";
 }
 
+def DepCtrMatchClass : AsmOperandClass {
+  let Name = "DepCtr";
+  let RenderMethod = "addImmOperands";
+  let ParserMethod = "parseDepCtrOps";
+}
+
 def VReg32OrOffClass : AsmOperandClass {
   let Name = "VReg32OrOff";
   let ParserMethod = "parseVReg32OrOff";
@@ -1040,6 +1060,11 @@ def EndpgmImm : Operand<i16> {
 def WAIT_FLAG : Operand <i32> {
   let ParserMatchClass = SWaitMatchClass;
   let PrintMethod = "printWaitFlag";
+}
+
+def DepCtrImm : Operand <i32> {
+  let ParserMatchClass = DepCtrMatchClass;
+  let PrintMethod = "printDepCtr";
 }
 } // End OperandType = "OPERAND_IMMEDIATE"
 
@@ -2120,6 +2145,12 @@ class getHasDPP <int NumSrcArgs> {
                 1);
 }
 
+class getHasExt32BitDPP <int NumSrcArgs, ValueType DstVT = i32, ValueType Src0VT = i32,
+                 ValueType Src1VT = i32> {
+  bit ret = !and(getHasDPP<NumSrcArgs>.ret,
+                 !not(getHas64BitOps<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret));
+}
+
 class getHasExt64BitDPP <int NumSrcArgs, ValueType DstVT = i32, ValueType Src0VT = i32,
                  ValueType Src1VT = i32> {
   bit ret = !and(getHasDPP<NumSrcArgs>.ret,
@@ -2234,6 +2265,7 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
 
   field bit HasExt = getHasExt<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExtDPP = getHasDPP<NumSrcArgs>.ret;
+  field bit HasExt32BitDPP = getHasExt32BitDPP<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExt64BitDPP = getHasExt64BitDPP<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExtSDWA = getHasSDWA<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExtSDWA9 = HasExtSDWA;
@@ -2305,6 +2337,7 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
 class VOP_NO_EXT <VOPProfile p> : VOPProfile <p.ArgVT> {
   let HasExt = 0;
   let HasExtDPP = 0;
+  let HasExt32BitDPP = 0;
   let HasExt64BitDPP = 0;
   let HasExtSDWA = 0;
   let HasExtSDWA9 = 0;
@@ -2406,6 +2439,18 @@ def VOP_V2I32_V2I32_V2I32         : VOPProfile <[v2i32,  v2i32, v2i32, untyped]>
 def VOP_V4F32_V4I16_V4I16_V4F32   : VOPProfile <[v4f32,  v4i16, v4i16, v4f32]>;
 def VOP_V16F32_V4I16_V4I16_V16F32 : VOPProfile <[v16f32, v4i16, v4i16, v16f32]>;
 def VOP_V32F32_V4I16_V4I16_V32F32 : VOPProfile <[v32f32, v4i16, v4i16, v32f32]>;
+
+def VOP_V4I32_I64_I64_V4I32       : VOPProfile <[v4i32,  i64,   i64,   v4i32]>;
+def VOP_V16I32_I64_I64_V16I32     : VOPProfile <[v16i32, i64,   i64,   v16i32]>;
+def VOP_V4F32_V2F32_V2F32_V4F32   : VOPProfile <[v4f32,  v2f32, v2f32, v4f32]>;
+def VOP_V16F32_V2F32_V2F32_V16F32 : VOPProfile <[v16f32, v2f32, v2f32, v16f32]>;
+
+def VOP_V4F32_V4F16_V8F16_I32     : VOPProfile <[v4f32,  v4f16, v8f16, i32]>;
+def VOP_V16F32_V4F16_V8F16_I32    : VOPProfile <[v16f32, v4f16, v8f16, i32]>;
+def VOP_V4F32_V4I16_V8I16_I32     : VOPProfile <[v4f32,  v4i16, v8i16, i32]>;
+def VOP_V16F32_V4I16_V8I16_I32    : VOPProfile <[v16f32, v4i16, v8i16, i32]>;
+def VOP_V4I32_V2I32_V4I32_I32     : VOPProfile <[v4i32,  v2i32, v4i32, i32]>;
+def VOP_V16I32_V2I32_V4I32_I32    : VOPProfile <[v16i32, v2i32, v4i32, i32]>;
 
 class Commutable_REV <string revOp, bit isOrig> {
   string RevOp = revOp;
@@ -2667,6 +2712,15 @@ def getMFMAEarlyClobberOp : InstrMapping {
   let ColFields = ["IsMac"];
   let KeyCol = ["1"];
   let ValueCols = [["0"]];
+}
+
+// Maps an v_cmp instruction to its v_cmpx equivalent.
+def getVCMPXOpFromVCMP : InstrMapping {
+  let FilterClass = "VCMPVCMPXTable";
+  let RowFields = ["VCMPOp"];
+  let ColFields = ["IsVCMPX"];
+  let KeyCol = ["0"];
+  let ValueCols = [["1"]];
 }
 
 include "SIInstructions.td"

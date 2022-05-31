@@ -1,7 +1,7 @@
 // RUN: mlir-opt %s -test-linalg-fusion-transform-patterns -canonicalize -cse -split-input-file | FileCheck %s
 
 module {
-  func @basic_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
+  func.func @basic_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
                      %arg2: memref<?x?xf32>) {
     %cst = arith.constant 0.000000e+00 : f32
     linalg.fill ins(%cst : f32) outs(%arg2 : memref<?x?xf32>)
@@ -12,12 +12,12 @@ module {
   }
 }
 
-//  CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0)[s0] -> (32, -d0 + s0)>
+//  CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0)[s0] -> (-d0 + s0, 32)>
 //  CHECK-DAG: #[[MAP1:.+]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
-//  CHECK-DAG: #[[MAP2:.+]] = affine_map<(d0)[s0] -> (64, -d0 + s0)>
-//  CHECK-DAG: #[[MAP3:.+]] = affine_map<(d0)[s0] -> (16, -d0 + s0)>
-//  CHECK-DAG: #[[MAP4:.+]] = affine_map<(d0)[s0, s1] -> (-d0 + s0, 32, -d0 + s1)>
-//  CHECK-DAG: #[[MAP5:.+]] = affine_map<(d0)[s0, s1] -> (-d0 + s0, 64, -d0 + s1)>
+//  CHECK-DAG: #[[MAP2:.+]] = affine_map<(d0)[s0] -> (-d0 + s0, 64)>
+//  CHECK-DAG: #[[MAP3:.+]] = affine_map<(d0)[s0] -> (-d0 + s0, 16)>
+//  CHECK-DAG: #[[MAP4:.+]] = affine_map<(d0)[s0, s1] -> (-d0 + s1, -d0 + s0, 32)>
+//  CHECK-DAG: #[[MAP5:.+]] = affine_map<(d0)[s0, s1] -> (-d0 + s1, -d0 + s0, 64)>
 //      CHECK: func @basic_fusion
 // CHECK-SAME:   %[[ARG0:[a-zA-Z0-9_]+]]: memref<?x?xf32>
 // CHECK-SAME:   %[[ARG1:[a-zA-Z0-9_]+]]: memref<?x?xf32>
@@ -74,7 +74,7 @@ module {
 // -----
 
 module {
-  func @matmul_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
+  func.func @matmul_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
                       %arg2: memref<?x?xf32>, %arg3: memref<?x?xf32>,
                       %arg4: memref<?x?xf32>) {
     linalg.matmul ins(%arg0, %arg1 : memref<?x?xf32>, memref<?x?xf32>)
@@ -85,11 +85,11 @@ module {
     return
   }
 }
-//  CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0)[s0] -> (32, -d0 + s0)>
+//  CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0)[s0] -> (-d0 + s0, 32)>
 //  CHECK-DAG: #[[MAP1:.+]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
-//  CHECK-DAG: #[[MAP2:.+]] = affine_map<(d0)[s0] -> (16, -d0 + s0)>
-//  CHECK-DAG: #[[MAP3:.+]] = affine_map<(d0)[s0] -> (64, -d0 + s0)>
-//  CHECK-DAG: #[[MAP4:.+]] = affine_map<(d0)[s0, s1] -> (-d0 + s0, 32, -d0 + s1)>
+//  CHECK-DAG: #[[MAP2:.+]] = affine_map<(d0)[s0] -> (-d0 + s0, 16)>
+//  CHECK-DAG: #[[MAP3:.+]] = affine_map<(d0)[s0] -> (-d0 + s0, 64)>
+//  CHECK-DAG: #[[MAP4:.+]] = affine_map<(d0)[s0, s1] -> (-d0 + s1, -d0 + s0, 32)>
 //      CHECK: func @matmul_fusion
 // CHECK-SAME:   %[[ARG0:[a-zA-Z0-9_]+]]: memref<?x?xf32>
 // CHECK-SAME:   %[[ARG1:[a-zA-Z0-9_]+]]: memref<?x?xf32>
@@ -151,7 +151,7 @@ module {
 // -----
 
 module {
-  func @matmul_plus_matmul(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
+  func.func @matmul_plus_matmul(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
                            %arg2: memref<?x?xf32>) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -201,7 +201,7 @@ module {
 // -----
 
 module {
-  func @matmul_plus_transpose_matmul(%arg0: memref<?x?xf32>,
+  func.func @matmul_plus_transpose_matmul(%arg0: memref<?x?xf32>,
                                      %arg1: memref<?x?xf32>,
                                      %arg2: memref<?x?xf32>) {
     %c0 = arith.constant 0 : index
@@ -243,7 +243,7 @@ module {
 #map2 = affine_map<(d0)[s0] -> (16, -d0 + s0)>
 #map3 = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
 module {
-  func @basic_no_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
+  func.func @basic_no_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
                         %arg2: memref<?x?xf32>) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -284,7 +284,7 @@ module {
 // -----
 
 module {
-  func @basic_conv_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
+  func.func @basic_conv_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
                           %arg2: memref<?x?xf32>) {
     %cst = arith.constant 0.000000e+00 : f32
     linalg.fill ins(%cst : f32) outs(%arg2 : memref<?x?xf32>)

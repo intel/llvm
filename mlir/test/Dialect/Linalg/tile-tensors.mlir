@@ -4,7 +4,7 @@
 // CHECK-SAME:    %[[TA:[0-9a-z]+]]: tensor<?x?xf32>
 // CHECK-SAME:    %[[TB:[0-9a-z]+]]: tensor<?x?xf32>
 // CHECK-SAME:    %[[TC:[0-9a-z]+]]: tensor<?x?xf32>) -> tensor<?x?xf32> {
-func @matmul_tensors(
+func.func @matmul_tensors(
   %arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>, %arg2: tensor<?x?xf32>)
     -> tensor<?x?xf32> {
 //      CHECK: %[[TD0:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC0:.*]] = %[[TC]]) -> (tensor<?x?xf32>) {
@@ -29,7 +29,7 @@ func @matmul_tensors(
 
 // -----
 
-func @generic_op_tensors(
+func.func @generic_op_tensors(
   %arg0 : tensor<?x?x?xf32>, %arg1 : tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
@@ -76,14 +76,14 @@ func @generic_op_tensors(
 
 // -----
 
-//  CHECK-DAG:  #[[MAP0:.*]] = affine_map<(d0)[s0] -> (2, -d0 + s0)>
+//  CHECK-DAG:  #[[MAP0:.*]] = affine_map<(d0)[s0] -> (-d0 + s0, 2)>
 //  CHECK-DAG:  #[[MAP1:.*]] = affine_map<(d0) -> (d0 + 3)>
 //  CHECK-DAG:  #[[MAP2:.*]] = affine_map<(d0) -> (d0 + 4)>
 
 //      CHECK:  fold_extract_slice
 // CHECK-SAME:    %[[ARG0:[0-9a-zA-Z]*]]: tensor<?x128xf32>
 // CHECK-SAME:    %[[ARG1:[0-9a-zA-Z]*]]: tensor<?x42xf32>
-func @fold_extract_slice(
+func.func @fold_extract_slice(
   %arg0 : tensor<?x128xf32>, %arg1 : tensor<?x42xf32>, %arg2 : tensor<?x42x?xf32>) -> tensor<?x42xf32> {
 
   //      CHECK:    %[[C0:.*]] = arith.constant 0
