@@ -241,14 +241,21 @@ public:
 
 // This wrapper around std::atomic is created to limit operations with reference
 // counter and to make allowed operations more transparent in terms of
-// thread-safety in the plugin.
-struct reference_counter {
-  reference_counter(pi_uint32 InitVal) : RefCount{InitVal} {}
+// thread-safety in the plugin. increment() and load() operations do not need a
+// mutex guard around them since the underlying data is already atomic.
+// decrement_and_test() method is used to guard a code which needs to be
+// executed when object's ref count becomes zero after release. This method also
+// doesn't need a mutex guard because decrement operation is atomic and only one
+// thread can reach ref count equal to zero, i.e. only a single thread can pass
+// through this check.
+struct ReferenceCounter {
+  ReferenceCounter(pi_uint32 InitVal) : RefCount{InitVal} {}
 
   // Used when retaining an object.
   void increment() { RefCount++; }
 
-  // Supposed to be used in piGet* methods where ref count value is requested.
+  // Supposed to be used in pi*GetInfo* methods where ref count value is
+  // requested.
   pi_uint32 load() { return RefCount.load(); }
 
   // This method allows to guard a code which needs to be executed when object's
@@ -278,7 +285,7 @@ struct _pi_object {
 
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
-  reference_counter RefCount;
+  ReferenceCounter RefCount;
 
   // This mutex protects accesses to all the non-const member variables.
   // Exclusive access is required to modify any of these members.
