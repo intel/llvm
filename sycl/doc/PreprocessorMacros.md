@@ -71,8 +71,3 @@ This file describes macros that have effect on SYCL compiler and run-time.
 - `__LIBSYCL_MAJOR_VERSION` is set to SYCL runtime library major version.
 - `__LIBSYCL_MINOR_VERSION` is set to SYCL runtime library minor version.
 - `__LIBSYCL_PATCH_VERSION` is set to SYCL runtime library patch version.
-- `_PI_CUDA_PLUGIN_VERSION_STRING` is set to the version of the PI CUDA plugin.
-- `_PI_ESIMD_PLUGIN_VERSION_STRING` is set to the version of the PI Esimd plugin.
-- `_PI_HIP_PLUGIN_VERSION_STRING` is set to the version of the PI HIP plugin.
-- `_PI_LEVEL_ZERO_PLUGIN_VERSION_STRING` is set to the version of the PI Level Zero plugin.
-- `_PI_OPENCL_PLUGIN_VERSION_STRING` is set to the version of the PI OpenCL plugin.

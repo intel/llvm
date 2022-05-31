@@ -52,7 +52,6 @@
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
-
 #define _PI_H_VERSION_STRING                                                   \
   _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
 
