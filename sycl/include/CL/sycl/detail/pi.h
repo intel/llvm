@@ -50,35 +50,11 @@
 #define _PI_H_VERSION_MAJOR 8
 #define _PI_H_VERSION_MINOR 10
 
-// Versions of plugins
-#define _PI_CUDA_PLUGIN_VERSION 1
-#define _PI_LEVEL_ZERO_PLUGIN_VERSION 1
-#define _PI_HIP_PLUGIN_VERSION 1
-#define _PI_ESIMD_PLUGIN_VERSION 1
-#define _PI_OPENCL_PLUGIN_VERSION 1
-
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
-#define _PI_TRIPLE_CONCAT(a, b, c) _PI_STRING_HELPER(a.b.c)
 
 #define _PI_H_VERSION_STRING                                                   \
   _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
-
-#define _PI_CUDA_PLUGIN_VERSION_STRING                                         \
-  _PI_TRIPLE_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR,                  \
-                    _PI_CUDA_PLUGIN_VERSION)
-#define _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING                                   \
-  _PI_TRIPLE_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR,                  \
-                    _PI_LEVEL_ZERO_PLUGIN_VERSION)
-#define _PI_HIP_PLUGIN_VERSION_STRING                                          \
-  _PI_TRIPLE_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR,                  \
-                    _PI_HIP_PLUGIN_VERSION)
-#define _PI_ESIMD_PLUGIN_VERSION_STRING                                        \
-  _PI_TRIPLE_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR,                  \
-                    _PI_ESIMD_PLUGIN_VERSION)
-#define _PI_OPENCL_PLUGIN_VERSION_STRING                                       \
-  _PI_TRIPLE_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR,                  \
-                    _PI_OPENCL_PLUGIN_VERSION)
 
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now

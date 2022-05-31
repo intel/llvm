@@ -451,7 +451,8 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
                 << "Plugin found and successfully loaded: "
-                << PluginNames[I].first << std::endl;
+                << PluginNames[I].first << " ["
+                << Plugins[I].getPiPlugin().PluginVersion << "]" << std::endl;
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

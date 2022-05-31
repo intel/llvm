@@ -18,6 +18,14 @@
 #ifndef PI_CUDA_HPP
 #define PI_CUDA_HPP
 
+#define _PI_CUDA_PLUGIN_VERSION 1
+
+#define _PI_TRIPLE_CONCAT(a, b, c) _PI_STRING_HELPER(a.b.c)
+
+#define _PI_CUDA_PLUGIN_VERSION_STRING                                         \
+  _PI_TRIPLE_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR,                  \
+                    _PI_CUDA_PLUGIN_VERSION)
+
 #include "CL/sycl/detail/pi.h"
 #include <array>
 #include <atomic>
