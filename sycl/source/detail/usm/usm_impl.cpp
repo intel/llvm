@@ -46,7 +46,8 @@ namespace detail {
 namespace usm {
 
 void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
-                       alloc Kind, const detail::code_location &CL) {
+                       alloc Kind, const detail::code_location &CL,
+                       const property_list &PropList = {}) {
   XPTI_CREATE_TRACEPOINT(CL);
   void *RetVal = nullptr;
   if (Size == 0)
@@ -296,9 +297,11 @@ void *malloc_host(size_t Size, const context &Ctxt,
   return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host, CL);
 }
 
-void *malloc_host(size_t Size, const context &Ctxt, const property_list &,
+void *malloc_host(size_t Size, const context &Ctxt,
+                  const property_list &PropList,
                   const detail::code_location CL) {
-  return malloc_host(Size, Ctxt, CL);
+  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host, CL,
+                                       PropList);
 }
 
 void *malloc_host(size_t Size, const queue &Q, const detail::code_location CL) {
@@ -338,9 +341,10 @@ void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt,
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt,
-                         const property_list &,
+                         const property_list &PropList,
                          const detail::code_location CL) {
-  return aligned_alloc_host(Alignment, Size, Ctxt, CL);
+  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host, CL,
+                                       PropList);
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q,
