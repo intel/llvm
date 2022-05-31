@@ -86,9 +86,9 @@
 
 /// test behaviors of fat static lib from source
 // RUN: touch %t_lib.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-device-lib=all -fsycl %t_lib.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-device-lib=all -fsycl-targets=nvptx64-nvidia-cuda -fsycl %t_lib.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=nvptx64-nvidia-cuda -fsycl %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC-CUDA
 // STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
@@ -220,13 +220,13 @@
 /// ###########################################################################
 
 /// test behaviors of static lib with no source/object
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir %t_lib.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir %t_lib.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-SPIR -DTARGET=spir64 -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-SPIR -DTARGET=spir64 -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-device-lib=all -L/dummy/dir %t_lib.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir %t_lib.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-CUDA -DTARGET=nvptx64 -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-CUDA -DTARGET=nvptx64 -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
 // STATIC_LIB_NOSRC-SPIR: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-input={{.*}}_lib.{{(a|lo)}}" "-output=[[DEVICELIB:.+\.txt]]" "-unbundle"
 // STATIC_LIB_NOSRC-SPIR: llvm-foreach{{.*}}spirv-to-ir-wrapper{{.*}} "[[DEVICELIB]]" "-o" "[[DEVICELIST:.+\.txt]]"

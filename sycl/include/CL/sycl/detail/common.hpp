@@ -131,19 +131,21 @@ static inline std::string codeToString(cl_int code) {
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
 // SYCL 1.2.1 exceptions
-#define __SYCL_REPORT_OCL_ERR_TO_EXC(expr, exc)                                \
+#define __SYCL_REPORT_OCL_ERR_TO_EXC(expr, exc, str)                           \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != CL_SUCCESS) {                                                  \
+      std::string err_str =                                                    \
+          str ? "\n" + std::string(str) + "\n" : std::string{};                \
       throw exc(__SYCL_OCL_ERROR_REPORT +                                      \
-                    cl::sycl::detail::codeToString(code),                      \
+                    cl::sycl::detail::codeToString(code) + err_str,            \
                 code);                                                         \
     }                                                                          \
   }
-#define __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(code, exc)                          \
-  __SYCL_REPORT_OCL_ERR_TO_EXC(code, exc)
+#define __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(code, exc, str)                     \
+  __SYCL_REPORT_OCL_ERR_TO_EXC(code, exc, str)
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
-  __SYCL_REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
+  __SYCL_REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error, nullptr)
 #else
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
   __SYCL_REPORT_OCL_ERR_TO_STREAM(code)
@@ -164,15 +166,19 @@ static inline std::string codeToString(cl_int code) {
 #ifdef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 // SYCL 1.2.1 exceptions
 #define __SYCL_CHECK_OCL_CODE(X) (void)(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC) (void)(X)
+#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
+  {                                                                            \
+    (void)(X);                                                                 \
+    (void)(STR);                                                               \
+  }
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
 // SYCL 2020 exceptions
 #define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC) (void)(X)
 #else
 // SYCL 1.2.1 exceptions
 #define __SYCL_CHECK_OCL_CODE(X) __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC)                                    \
-  __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(X, EXC)
+#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
+  __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(X, EXC, STR)
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_OCL_ERR_TO_STREAM(X)
 // SYCL 2020 exceptions
 #define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
