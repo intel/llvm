@@ -938,15 +938,6 @@ static void traverseCallgraphUp(llvm::Function *F, CallGraphNodeF ApplyF) {
 // size metadata. Update is performed by the '()' operator and happens only
 // when given function matches one of the kernels - thus, only reachable kernels
 // are updated.
-// TODO: 1) In general this function is supposed to handle intrinsics
-// translated into kernel's metadata. So, the primary/intended usage model is
-// when such intrinsics are called from kernels.
-// 2) For now such intrinsics are also handled in functions directly called
-// from kernels and being translate into those caller-kernel meeven though such
-// behaviour is not fully specified/documented.
-// 3) This code (or the code in FE) must verify that slm_init or other such
-// intrinsic is not called from another module because kernels in that other
-// module would not get updated meta data attributes.
 struct UpdateUint64MetaDataToMaxValue {
   Module &M;
   // The uint64_t metadata key to update.
@@ -994,6 +985,11 @@ struct UpdateUint64MetaDataToMaxValue {
     }
   }
 };
+
+// TODO Specify document behavior for slm_init and nbarrier_init when:
+// 1) they are called not from kernels
+// 2) there are multiple such calls reachable from a kernel
+// 3) when a call in external function linked by the Back-End
 
 // This function sets/updates VCSLMSize attribute to the kernels
 // calling this intrinsic initializing SLM memory.
@@ -1161,10 +1157,9 @@ static void translateSetKernelProperties(CallInst &CI) {
   switch (PropID) {
   case property_ids::use_double_grf:
     traverseCallgraphUp(F, [](Function *GraphNode) {
-      if (!isESIMDKernel(*GraphNode)) {
-        return;
+      if (isESIMDKernel(*GraphNode)) {
+        GraphNode->addFnAttr(ATTR_DOUBLE_GRF);
       }
-      GraphNode->addFnAttr(ATTR_DOUBLE_GRF);
     });
     break;
   default:
