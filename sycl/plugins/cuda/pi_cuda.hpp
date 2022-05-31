@@ -442,6 +442,8 @@ struct _pi_queue {
 
   _pi_context *get_context() const { return context_; };
 
+  _pi_device *get_device() const { return device_; };
+
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }

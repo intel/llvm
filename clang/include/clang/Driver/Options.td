@@ -2770,10 +2770,10 @@ def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["auto"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the 'auto' mode, i.e. use heuristic to distribute device code across modules">;
-def fsycl_instrument_device_code : Flag<["-"], "fsycl-instrument-device-code">,
-  Group<sycl_Group>, Flags<[CC1Option, CoreOption]>,
-  HelpText<"Add ITT instrumentation intrinsics calls">,
-  MarshallingInfoFlag<CodeGenOpts<"SPIRITTAnnotations">>;
+defm sycl_instrument_device_code : BoolFOption<"sycl-instrument-device-code",
+  CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
+  PosFlag<SetTrue, [], "Add">, NegFlag<SetFalse, [], "Do not add">,
+  BothFlags<[CC1Option, CoreOption], " ITT instrumentation intrinsics calls">>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,
@@ -4854,6 +4854,12 @@ def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<s
   Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
   "device libraries from device binary linkage. Valid arguments "
   "are libc, libm-fp32, libm-fp64, all">;
+def fsycl_device_lib_online_link : Flag<["-"], "fsycl-device-lib-online-link">,
+  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
+  "sycl device library online link (experimental)">;
+def fno_sycl_device_lib_online_link : Flag<["-"], "fno-sycl-device-lib-online-link">,
+  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Disables "
+  "sycl device library online link (experimental)">;
 def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group>, Flags<[CC1Option]>,
   HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
   MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;

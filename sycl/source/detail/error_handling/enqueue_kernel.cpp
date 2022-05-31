@@ -22,7 +22,7 @@ namespace detail {
 
 namespace enqueue_kernel_launch {
 
-bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
+void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                                 const NDRDescT &NDRDesc) {
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
@@ -246,7 +246,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       "PI backend failed. PI backend returns: " + codeToString(Error), Error);
 }
 
-bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
+void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
                                const NDRDescT &NDRDesc) {
 
   const plugin &Plugin = DeviceImpl.getPlugin();
@@ -265,10 +265,9 @@ bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
               " > " + std::to_string(MaxWISize[I]),
           PI_INVALID_WORK_ITEM_SIZE);
   }
-  return 0;
 }
 
-bool handleInvalidValue(const device_impl &DeviceImpl,
+void handleInvalidValue(const device_impl &DeviceImpl,
                         const NDRDescT &NDRDesc) {
   const plugin &Plugin = DeviceImpl.getPlugin();
   RT::PiDevice Device = DeviceImpl.getHandleRef();
@@ -293,8 +292,8 @@ bool handleInvalidValue(const device_impl &DeviceImpl,
       "Native API failed. Native API returns: " + codeToString(Error), Error);
 }
 
-bool handleError(pi_result Error, const device_impl &DeviceImpl,
-                 pi_kernel Kernel, const NDRDescT &NDRDesc) {
+void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
+                          pi_kernel Kernel, const NDRDescT &NDRDesc) {
   assert(Error != PI_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {
@@ -342,6 +341,14 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
 
   case PI_INVALID_VALUE:
     return handleInvalidValue(DeviceImpl, NDRDesc);
+
+  case PI_PLUGIN_SPECIFIC_ERROR:
+    // checkPiResult does all the necessary handling for
+    // PI_PLUGIN_SPECIFIC_ERROR, making sure an error is thrown or not,
+    // depending on whether PI_PLUGIN_SPECIFIC_ERROR contains an error or a
+    // warning. It also ensures that the contents of the error message buffer
+    // (used only by PI_PLUGIN_SPECIFIC_ERROR) get handled correctly.
+    return DeviceImpl.getPlugin().checkPiResult(Error);
 
     // TODO: Handle other error codes
 
