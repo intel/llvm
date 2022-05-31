@@ -2364,7 +2364,7 @@ pi_result piDeviceRelease(pi_device Device) {
 
   // Root devices are destroyed during the piTearDown process.
   if (Device->isSubDevice()) {
-    if (Device->RefCount.decrement_and_test()) {
+    if (Device->RefCount.decrementAndTest()) {
       delete Device;
     }
   }
@@ -3151,7 +3151,7 @@ pi_result ContextReleaseHelper(pi_context Context) {
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
-  if (!Context->RefCount.decrement_and_test())
+  if (!Context->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
   if (IndirectAccessTrackingEnabled) {
@@ -3334,7 +3334,7 @@ pi_result piQueueRelease(pi_queue Queue) {
 static pi_result piQueueReleaseInternal(pi_queue Queue, pi_queue LockedQueue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  if (!Queue->RefCount.decrement_and_test())
+  if (!Queue->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
   if (Queue->OwnZeCommandQueue) {
@@ -3674,7 +3674,7 @@ static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
     if (It == std::end(Context->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (!It->second.RefCount.decrement_and_test()) {
+    if (!It->second.RefCount.decrementAndTest()) {
       // Memory can't be deallocated yet.
       return PI_SUCCESS;
     }
@@ -3699,7 +3699,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
 pi_result piMemRelease(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
 
-  if (!Mem->RefCount.decrement_and_test())
+  if (!Mem->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
   if (Mem->isImage()) {
@@ -4529,7 +4529,7 @@ pi_result piProgramRetain(pi_program Program) {
 pi_result piProgramRelease(pi_program Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
 
-  if (!Program->RefCount.decrement_and_test())
+  if (!Program->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
   delete Program;
@@ -4915,7 +4915,7 @@ pi_result piKernelRelease(pi_kernel Kernel) {
     }
   }
 
-  if (!Kernel->RefCount.decrement_and_test())
+  if (!Kernel->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
   auto KernelProgram = Kernel->Program;
@@ -5562,7 +5562,7 @@ pi_result piEventRelease(pi_event Event) {
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
-  if (!Event->RefCount.decrement_and_test())
+  if (!Event->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
   if (!Event->CleanedUp)
@@ -5794,7 +5794,7 @@ pi_result piSamplerRetain(pi_sampler Sampler) {
 pi_result piSamplerRelease(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
-  if (!Sampler->RefCount.decrement_and_test())
+  if (!Sampler->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
   ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
@@ -7515,7 +7515,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     if (It == std::end(Context->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (!It->second.RefCount.decrement_and_test()) {
+    if (!It->second.RefCount.decrementAndTest()) {
       // Memory can't be deallocated yet.
       return PI_SUCCESS;
     }

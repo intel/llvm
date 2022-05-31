@@ -243,7 +243,7 @@ public:
 // counter and to make allowed operations more transparent in terms of
 // thread-safety in the plugin. increment() and load() operations do not need a
 // mutex guard around them since the underlying data is already atomic.
-// decrement_and_test() method is used to guard a code which needs to be
+// decrementAndTest() method is used to guard a code which needs to be
 // executed when object's ref count becomes zero after release. This method also
 // doesn't need a mutex guard because decrement operation is atomic and only one
 // thread can reach ref count equal to zero, i.e. only a single thread can pass
@@ -273,7 +273,7 @@ struct ReferenceCounter {
   // scope after this check. Of course if we access another objects in this code
   // (not the one which is being deleted) then access to these objects must be
   // guarded, for example with a mutex.
-  bool decrement_and_test() { return --RefCount == 0; }
+  bool decrementAndTest() { return --RefCount == 0; }
 
 private:
   std::atomic<pi_uint32> RefCount;
