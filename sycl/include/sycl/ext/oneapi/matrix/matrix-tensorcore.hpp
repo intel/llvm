@@ -22,9 +22,23 @@ template <typename type, size_t size> class wi_data {
 
 public:
   wi_data(marray<type, size> &wi_data) : data(wi_data){};
-  size_t length() { return data.size(); };
+  size_t length() {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    return data.size();
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  };
 
-  type &operator[](size_t i) { return data[i]; };
+  type &operator[](size_t i) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    return data[i];
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  };
 };
 
 template <typename T, matrix_use Use, size_t Rows = sycl::dynamic_extent,
