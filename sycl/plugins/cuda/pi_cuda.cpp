@@ -5064,10 +5064,12 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result cuda_piTearDown(void *) { return PI_SUCCESS; }
 
-const char SupportedVersion[] = _PI_H_VERSION_STRING;
+const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
-  int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
+  static int PiVersionLen = strlen(PluginInit->PiVersion);
+  int CompareVersions =
+      strncmp(PluginInit->PiVersion, SupportedVersion, PiVersionLen);
   if (CompareVersions < 0) {
     // PI interface supports lower version of PI.
     // TODO: Take appropriate actions.
