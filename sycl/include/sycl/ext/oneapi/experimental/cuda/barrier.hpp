@@ -133,7 +133,13 @@ public:
 #endif
   }
 
+// On Windows certain headers define macros min/max
+#pragma push_macro("max")
+#ifdef max
+#undef max
+#endif
   static constexpr uint64_t max() { return (1 << 20) - 1; }
+#pragma pop_macro("max")
 };
 
 } // namespace sycl::ext::oneapi::experimental::cuda

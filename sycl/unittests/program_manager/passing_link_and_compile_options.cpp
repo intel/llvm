@@ -267,8 +267,8 @@ TEST(Link_Compile_Options, check_sycl_build) {
                                                   expected_link_options);
   static sycl::unittest::PiImageArray<1> DevImageArray{&DevImage};
   auto KernelID = sycl::get_kernel_id<EAMTestKernel1>();
-  sycl::queue Queue{Dev};
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                          {KernelID});

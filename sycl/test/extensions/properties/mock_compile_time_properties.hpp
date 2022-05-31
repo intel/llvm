@@ -103,28 +103,28 @@ struct is_property_key_of<fir_key, syclObjectT> : std::true_type {};
 
 namespace detail {
 template <> struct PropertyToKind<bar_key> {
-  static constexpr PropKind Kind =
-      static_cast<enum PropKind>(PropKind::PropKindSize + 0);
+  static constexpr PropKind Kind = static_cast<enum PropKind>(
+      static_cast<std::uint32_t>(PropKind::PropKindSize) + 0);
 };
 template <> struct PropertyToKind<baz_key> {
-  static constexpr PropKind Kind =
-      static_cast<enum PropKind>(PropKind::PropKindSize + 1);
+  static constexpr PropKind Kind = static_cast<enum PropKind>(
+      static_cast<std::uint32_t>(PropKind::PropKindSize) + 1);
 };
 template <> struct PropertyToKind<foo_key> {
-  static constexpr PropKind Kind =
-      static_cast<enum PropKind>(PropKind::PropKindSize + 2);
+  static constexpr PropKind Kind = static_cast<enum PropKind>(
+      static_cast<std::uint32_t>(PropKind::PropKindSize) + 2);
 };
 template <> struct PropertyToKind<boo_key> {
-  static constexpr PropKind Kind =
-      static_cast<enum PropKind>(PropKind::PropKindSize + 3);
+  static constexpr PropKind Kind = static_cast<enum PropKind>(
+      static_cast<std::uint32_t>(PropKind::PropKindSize) + 3);
 };
 template <> struct PropertyToKind<foz_key> {
-  static constexpr PropKind Kind =
-      static_cast<enum PropKind>(PropKind::PropKindSize + 4);
+  static constexpr PropKind Kind = static_cast<enum PropKind>(
+      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4);
 };
 template <> struct PropertyToKind<fir_key> {
-  static constexpr PropKind Kind =
-      static_cast<enum PropKind>(PropKind::PropKindSize + 4);
+  static constexpr PropKind Kind = static_cast<enum PropKind>(
+      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4);
 };
 
 template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};

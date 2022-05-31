@@ -123,8 +123,6 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
         "clEvent.",
         PI_INVALID_CONTEXT);
   }
-
-  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)

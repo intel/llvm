@@ -2774,10 +2774,10 @@ def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">
   Flags<[CoreOption]>, HelpText<"split ESIMD device code from SYCL into a separate device binary image (default). Has effect only for SPIR-based targets.">;
 def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
   Flags<[CoreOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets.">;
-def fsycl_instrument_device_code : Flag<["-"], "fsycl-instrument-device-code">,
-  Group<sycl_Group>, Flags<[CC1Option, CoreOption]>,
-  HelpText<"Add ITT instrumentation intrinsics calls">,
-  MarshallingInfoFlag<CodeGenOpts<"SPIRITTAnnotations">>;
+defm sycl_instrument_device_code : BoolFOption<"sycl-instrument-device-code",
+  CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
+  PosFlag<SetTrue, [], "Add">, NegFlag<SetFalse, [], "Do not add">,
+  BothFlags<[CC1Option, CoreOption], " ITT instrumentation intrinsics calls">>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,
@@ -4858,6 +4858,12 @@ def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<s
   Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
   "device libraries from device binary linkage. Valid arguments "
   "are libc, libm-fp32, libm-fp64, all">;
+def fsycl_device_lib_online_link : Flag<["-"], "fsycl-device-lib-online-link">,
+  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
+  "sycl device library online link (experimental)">;
+def fno_sycl_device_lib_online_link : Flag<["-"], "fno-sycl-device-lib-online-link">,
+  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Disables "
+  "sycl device library online link (experimental)">;
 def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group>, Flags<[CC1Option]>,
   HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
   MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
@@ -5901,7 +5907,7 @@ def arcmt_action_EQ : Joined<["-"], "arcmt-action=">, Flags<[CC1Option, NoDriver
 
 def opt_record_file : Separate<["-"], "opt-record-file">,
   HelpText<"File name to use for YAML optimization record output">,
-  MarshallingInfoString<CodeGenOpts<"OptRecordFile">>;
+  MarshallingInfoString<LangOpts<"OptRecordFile">>;
 def opt_record_passes : Separate<["-"], "opt-record-passes">,
   HelpText<"Only record remark information for passes whose names match the given regular expression">;
 def opt_record_format : Separate<["-"], "opt-record-format">,
